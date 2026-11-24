@@ -10,16 +10,21 @@
 {% extends "base.html" %}
 {% block title %}Einfälle – Baruch{% endblock %}
 {% block page_title %}Einfälle{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
   {%- if map_href %}
   {#- Runde 25: Gedankenkarte dieses Werks (nur mit gewähltem Werk). #}
-  <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Karte um Kapitel und Teile">Gedankenkarte</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
+    <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Karte um Kapitel und Teile">Gedankenkarte</a>
+  </div></details>
   {%- endif %}
-  {%- if workspace %}
-  <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
-  {%- else %}
-  <a class="btn" href="/">Zurück</a>
-  {%- endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    {%- if workspace %}
+    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+    {%- else %}
+    <a class="btn" href="/">Zurück</a>
+    {%- endif %}
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page ideas-page">

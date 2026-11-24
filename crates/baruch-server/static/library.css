@@ -68,7 +68,7 @@
 
 /* Eigene Seiten /literatur und /quelle */
 .literature-page, .source-page {
-  max-width: 860px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+  max-width: 860px; margin: 0 auto; padding: 14px 18px 28px; display: flex; flex-direction: column; gap: 12px;
 }
 .notice { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--warning-soft); color: var(--warning); }
 .source-head h1 { margin: 0 0 4px; font-size: 1.4em; }

@@ -9,7 +9,7 @@
   font-size: .78rem; font-weight: 600; color: var(--muted, #666); letter-spacing: .02em; margin: .2rem 0;
 }
 .bible-notice { margin: .1rem 0 .4rem; }
-.bible-page { max-width: 64rem; margin: 0 auto; padding: 1rem; }
+.bible-page { max-width: 64rem; margin: 0 auto; padding: 14px 18px 28px; }
 .bible-nav { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin: .4rem 0; }
 .bible-reading { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
 @media (max-width: 52rem) { .bible-reading { grid-template-columns: 1fr; } }

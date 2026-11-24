@@ -6,8 +6,12 @@
 {% extends "base.html" %}
 {% block title %}Austausch übernommen – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}Austausch übernommen{% endblock %}
-{% block page_actions %}
-  <a class="btn" href="/?work={{ work.id }}">Zum Werk</a>
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Weiter</summary><div class="band-items" role="group" aria-label="Weiter">
+    <a class="btn" href="/?work={{ work.id }}">Zum Werk</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page exchange-done-page" data-work="{{ work.id }}">

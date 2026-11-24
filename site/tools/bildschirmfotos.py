@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Bildschirmfotos für die Webseite (site/static/bilder/*.png, 1400×860) aus einem frei erfundenen Werk.
+"""Bildschirmfotos für die Webseite (site/static/bilder/*.png, 1400×860; die Arbeitsseite zusätzlich auf
+Laptop-Breite 1366×768) aus einem frei erfundenen Werk.
 
 Ablauf:
   1. Wegwerf-Datenordner anlegen und site/tools/beispielwerk.typ importieren (baruch-server import).
@@ -41,6 +42,10 @@ REPO = TOOLS.parent.parent
 WORK_FILE = TOOLS / "beispielwerk.typ"
 TARGET = REPO / "site" / "static" / "bilder"
 WINDOW = "1400,860"
+# Runde 33: die Arbeitsseite zusätzlich auf Laptop-Breite. Unter 1600 px zeichnet der Laptop-Modus („automatisch“)
+# das Menüband kompakt (COMPACT_BELOW_PX in crates/baruch-server/src/laptop.rs); die Breite misst das Skript der
+# Seite, darum braucht die Adresse keinen Schalter.
+LAPTOP_WINDOW = "1366,768"
 # Die Verbindungen des Wegwerf-Servers zeigen auf den Discard-Port: Dort antwortet niemand.
 NOWHERE = "http://127.0.0.1:9"
 # Abschnitt, der eine zweite Fassung bekommt (Titel aus beispielwerk.typ).
@@ -56,15 +61,27 @@ verzählt und beim dritten Mal laut gezählt, damit es jemand hört.
 
 
 def pictures(work, key):
-    """Bild → Pfad der Seite. Die Reihenfolge ist die der Seite „Funktionen“."""
+    """Bild → (Pfad der Seite, Beschreibung, Fenstergröße). Die Reihenfolge ist die der Seite „Funktionen“; das
+    Bild auf Laptop-Breite steht zuletzt (eigene Fenstergröße, eigenes Firefox-Profil)."""
     return [
-        ("arbeitsplatz.png", f"/?work={work}&key={key}", "Arbeitsplatz: Gliederung, Editor im Satzbild, Akkordeons"),
-        ("gliederung.png", f"/gliederung?work={work}", "Seite Gliederung (ohne JavaScript bedienbar)"),
-        ("fassungen.png", f"/?work={work}&key={key}&rev=1", "Abschnitt mit zwei Fassungen, gezeigt ist die ältere"),
-        ("assistenten.png", f"/einstellungen/assistenten?work={work}", "Einstellungen → Assistenten (Personas)"),
-        ("satz.png", f"/werke/{work}/satz", "Satz-Vorschau des Werks (Typst)"),
-        ("einstellungen.png", f"/einstellungen/werk?work={work}", "Einstellungen → Werk mit dem Block Satz"),
+        ("arbeitsplatz.png", f"/?work={work}&key={key}",
+         "Arbeitsplatz: Menüband (Reiter Start), Gliederung, Editor im Satzbild, Akkordeons", WINDOW),
+        ("gliederung.png", f"/gliederung?work={work}", "Seite Gliederung (ohne JavaScript bedienbar)", WINDOW),
+        ("fassungen.png", f"/?work={work}&key={key}&rev=1",
+         "Abschnitt mit zwei Fassungen, gezeigt ist die ältere", WINDOW),
+        ("assistenten.png", f"/einstellungen/assistenten?work={work}",
+         "Einstellungen → Assistenten (Personas)", WINDOW),
+        ("satz.png", f"/werke/{work}/satz", "Satz-Vorschau des Werks (Typst), Menüband im Reiter Buch", WINDOW),
+        ("einstellungen.png", f"/einstellungen/werk?work={work}", "Einstellungen → Werk mit dem Block Satz", WINDOW),
+        ("arbeitsplatz-laptop.png", f"/?work={work}&key={key}",
+         "Arbeitsplatz auf Laptop-Breite: Menüband kompakt (Laptop-Modus „automatisch“)", LAPTOP_WINDOW),
     ]
+
+
+def show(base, listed):
+    for name, path, what, window in listed:
+        size = window.replace(",", "×")
+        print(f"  {name:<24} {base}{path}\n  {'':<24} {what} · Fenster {size}")
 
 
 def find_server(given):
@@ -177,9 +194,9 @@ def fetch(url):
 
 def check(base, listed):
     failed = False
-    for name, path, _ in listed:
+    for name, path, _, _ in listed:
         status, size = fetch(base + path)
-        print(f"  {status}  {size:>8} Bytes  {name:<18} {path}")
+        print(f"  {status}  {size:>8} Bytes  {name:<24} {path}")
         failed = failed or status != 200 or size == 0
     if failed:
         sys.exit("Mindestens eine Seite kam nicht mit 200.")
@@ -192,15 +209,20 @@ def shoot(base, listed, target):
     if not firefox:
         sys.exit("firefox nicht gefunden.")
     target.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="baruch-fotos-profil-") as profile:
-        for name, path, _ in listed:
-            file = target / name
-            subprocess.run(
-                [firefox, "--headless", "--no-remote", "--profile", profile,
-                 f"--window-size={WINDOW}", "--screenshot", str(file), base + path],
-                check=True, env=clean_env(),
-            )
-            print(f"  {file}")
+    # Je Fenstergröße ein eigenes Profil: Der Laptop-Modus merkt sich die gemessene Breite im Cookie baruch_vw;
+    # ein Foto in anderer Größe soll davon nichts erben.
+    for window in dict.fromkeys(window for _, _, _, window in listed):
+        with tempfile.TemporaryDirectory(prefix="baruch-fotos-profil-") as profile:
+            for name, path, _, size in listed:
+                if size != window:
+                    continue
+                file = target / name
+                subprocess.run(
+                    [firefox, "--headless", "--no-remote", "--profile", profile,
+                     f"--window-size={window}", "--screenshot", str(file), base + path],
+                    check=True, env=clean_env(),
+                )
+                print(f"  {file}  ({window.replace(',', '×')})")
 
 
 def main():
@@ -217,8 +239,7 @@ def main():
 
     if args.liste:
         print("Bild → Adresse (WERK = id aus dem Import, KEY = Schlüssel von „" + REVISED + "“):")
-        for name, path, what in pictures("WERK", "KEY"):
-            print(f"  {name:<18} http://127.0.0.1:PORT{path}\n  {'':<18} {what}")
+        show("http://127.0.0.1:PORT", pictures("WERK", "KEY"))
         return
 
     server = find_server(args.server)
@@ -232,8 +253,7 @@ def main():
         key = prepare(base, work)
         listed = pictures(work, key)
         print("Bild → Adresse:")
-        for name, path, what in listed:
-            print(f"  {name:<18} {base}{path}\n  {'':<18} {what}")
+        show(base, listed)
         if args.pruefen:
             check(base, listed)
         elif args.fotos:

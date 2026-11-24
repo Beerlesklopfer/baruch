@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Runde 21a (pdf-import): Seite „PDF oder EPUB importieren“ (templates/source_import.html), ohne JavaScript. */
-.source-import { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+.source-import { max-width: 60rem; margin: 0 auto; padding: 14px 18px 28px; }
 .source-import-form, .source-import-apply, .source-import-retry, .source-import-discard {
   display: flex; flex-direction: column; gap: .6rem; margin-bottom: 1.2rem;
 }

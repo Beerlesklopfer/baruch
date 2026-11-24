@@ -6,8 +6,12 @@
 {% extends "base.html" %}
 {% block title %}Austausch: Vorschau – Baruch{% endblock %}
 {% block page_title %}Austausch: Vorschau{% endblock %}
-{% block page_actions %}
-  <a class="btn" href="/austausch/einlesen{% if work %}?work={{ work.id }}{% endif %}">Andere Datei</a>
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Austausch</summary><div class="band-items" role="group" aria-label="Austausch">
+    <a class="btn" href="/austausch/einlesen{% if work %}?work={{ work.id }}{% endif %}">Andere Datei</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page exchange-preview-page" data-sha256="{{ sha256 }}">

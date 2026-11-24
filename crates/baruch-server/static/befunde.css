@@ -3,7 +3,7 @@
    Farbe ist nie der einzige Hinweis: jede Zelle trägt Zeichen und Zahl (○ offen, ✓ übernommen, ✗ verworfen,
    → verschoben, = erledigt), die Hervorhebung „viele offen“ steht zusätzlich als Text da. */
 
-.befunde { max-width: 72rem; margin: 0 auto; padding: 1rem; }
+.befunde { max-width: 72rem; margin: 0 auto; padding: 14px 18px 28px; }
 .befunde[aria-busy="true"] [data-findings-main] { opacity: .6; }
 .befunde section { margin-top: 1.5rem; }
 

@@ -23,6 +23,9 @@
 .badge.danger { background: var(--danger-soft); color: var(--danger); }
 .typeset-nav { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
 .typeset-at { font-variant-numeric: tabular-nums; }
+/* Runde 33: Seitenangabe und „Satz abbrechen“ stehen im Menüband (Reiter „Buch“, typeset.html, Block band_buch). */
+.band-items .typeset-at { padding: 0 4px; }
+.typeset-cancel { margin: 0; display: inline-flex; }
 .typeset-chapter { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--muted); }
 .typeset-chapter .page {
   min-width: 2em; padding: 1px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;

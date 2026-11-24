@@ -96,4 +96,4 @@
 
 /* Hinweisseite der Persona-Aufträge ohne JavaScript (Runde 15, templates/assist_notice.html): mit Rand wie die
    übrigen Seiten (Integrator Runde 15). */
-.assist-notice-page { max-width: 72ch; margin: 24px auto; padding: 0 16px; }
+.assist-notice-page { max-width: 72ch; margin: 0 auto; padding: 14px 18px 28px; }
