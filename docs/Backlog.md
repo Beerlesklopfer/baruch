@@ -3,6 +3,33 @@
 Wünsche und Vorhaben, die noch keiner Stufe zugeordnet sind. Entscheidungen stehen in `docs/Plan.md`,
 der Arbeitsstand in `HANDOFF.md`.
 
+## Nächstes Vorhaben: Lektorat (Entscheidung des Nutzers 2026-11-24, nach dem Release 0.9.0)
+
+Der Nutzer will Baruch zum Werkzeug für das Lektorat weiterentwickeln. Anlass war eine Einschätzung aus der Sicht
+eines Lektors: Die Haltung „Mensch entscheidet, Assistenten schlagen nur vor“ trägt, aber für die Arbeit mit
+Verlagen und mit menschlichen Lektoren fehlen Word, ein zweiter Mensch und ein einfacher Einstieg.
+Entscheidungen des Nutzers:
+
+- **Word (.docx), Import und Export.**
+  - *Import:* Ein Manuskript wird zu einem Werk mit Kapiteln (aus den Überschriften-Formatvorlagen),
+    Hervorhebungen, Fußnoten, Zitaten und Bildern. Die Änderungsverfolgung und Kommentare eines Lektors aus
+    Word werden zu Vorschlägen und Beiträgen unter seinem Namen, nie zu aktuellen Fassungen.
+  - *Export:* Das Werk wird ein .docx für den Verlag. Offene Vorschläge gehen auf Wunsch als
+    Word-Änderungen mit.
+  - Nur erfundene Testdokumente verwenden.
+- **Menschlicher Lektor mit eigenem Konto.**
+  - Baruch bekommt Anmeldung und Rollen: **Autor** darf alles, **Lektor** liest, schlägt Fassungen vor,
+    schreibt Befunde und Anmerkungen und übernimmt nichts. Freigabe je Werk.
+  - Die bisherige Regel „Ändern/Löschen nur Mensch“ wird zu „nur der Autor“.
+  - Die Herkunft aller Änderungen steht weiter im Spiegel.
+  - Ohne Konten (eigener Rechner) bleibt es wie heute.
+- **Ebenfalls aus der Einschätzung:**
+  - ein schlanker Einstieg: Manuskript hinein, Vorschläge annehmen, PDF heraus;
+  - Befunde nach Gewicht sortiert, Kleinkram zugeklappt (Nutzerfrage 14);
+  - Anmerkungen zum ganzen Buch (Aufbau, Spannungsbogen, Zielgruppe) als eigene Ansicht, nicht nur im Chat.
+- **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
+  Versionsnummer entscheidet der Nutzer.
+
 ## Rundenplan (Stand 2026-11-24, nach R24 – alle geplanten Runden erledigt)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
