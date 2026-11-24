@@ -1,4 +1,75 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Laptop-Modus (Runde 33, Schnittstelle R33-S1; Besitz: Aufgabe „laptop“): alles außerhalb des Bands, was an
-   `data-compact`, `data-narrow` und `data-rail-*` an <html> hängt. Keine Media-Queries für die Modi. Steht in
-   lib.rs (STYLE) zuletzt. Noch leer. */
+/* Laptop-Modus (Runde 33; Besitz: Aufgabe „laptop“): alles außerhalb des Bands, was an `data-compact`,
+   `data-narrow` und `data-rail-*` an <html> hängt. Keine Media-Queries auf die Fensterbreite – die Attribute
+   schreibt der Server (src/laptop.rs über consent::inject), laptop.ts hält sie aktuell. Steht in lib.rs (STYLE)
+   zuletzt und überschreibt damit das Grundgerüst aus app.css.
+
+   Drei Teile:
+   1. kompakt (`data-compact`): das Band ist gedrängt (band.css); hier nur etwas weniger Rand um die Spalten.
+   2. schmal (`data-narrow`): beide Seitenspalten sind Leisten, sie öffnen als Schublade über dem Text.
+   3. einzeln eingeklappt (`data-rail-left`, `data-rail-right`): die Spalte ist eine Leiste; schmal setzt beide.
+
+   Schublade: ohne JavaScript über `:target` (Link der Leiste auf `#pane-tree` bzw. `#pane-assistants`,
+   „Schließen“ führt auf `#pane-editor`), mit JavaScript über `data-drawer="left|right"` an <html> (laptop.ts). Die
+   `:target`-Regeln gelten nur ohne JavaScript (`html:not(.js)`), damit eine Adresse mit `#pane-tree` die Schublade
+   nicht offen hält, wenn laptop.ts sie schließt. */
+
+/* ---- 3. Spalte eingeklappt: Leiste statt Spalte ------------------------------------------------ */
+html[data-rail-left] .workspace { grid-template-columns: var(--rail) 6px 1fr 6px var(--right); }
+html[data-rail-right] .workspace { grid-template-columns: var(--left) 6px 1fr 6px var(--rail); }
+html[data-rail-left][data-rail-right] .workspace { grid-template-columns: var(--rail) 6px 1fr 6px var(--rail); }
+
+html[data-rail-left] #pane-tree,
+html[data-rail-right] #pane-assistants { display: none; }
+html[data-rail-left] .rail[data-rail-open="left"],
+html[data-rail-right] .rail[data-rail-open="right"] { display: flex; }
+/* Die Grenze behält ihren Platz im Raster, lässt sich aber nicht ziehen: Eine Leiste hat eine feste Breite. */
+html[data-rail-left] .splitter[data-side="left"],
+html[data-rail-right] .splitter[data-side="right"] { visibility: hidden; }
+
+/* Schublade: Die eingeklappte Spalte liegt über Leiste und Text. Sie bleibt ein Feld des Rasters (app.css gibt
+   jedem Kind seinen Platz) und reicht von ihrem Rand über die Spur des Editors – ohne `position`, damit die
+   Arbeitsfläche kein Bezugsrahmen für die absolut gesetzten Popups der Widgets wird. */
+html:not(.js)[data-rail-left] #pane-tree:target,
+html[data-rail-left][data-drawer="left"] #pane-tree,
+html:not(.js)[data-rail-right] #pane-assistants:target,
+html[data-rail-right][data-drawer="right"] #pane-assistants {
+  z-index: 45; width: min(26rem, 100%);
+  border-color: var(--primary); box-shadow: 0 10px 32px rgb(0 0 0 / .3);
+}
+html:not(.js)[data-rail-left] #pane-tree:target,
+html[data-rail-left][data-drawer="left"] #pane-tree { display: block; grid-column: 1 / 4; justify-self: start; }
+html:not(.js)[data-rail-right] #pane-assistants:target,
+html[data-rail-right][data-drawer="right"] #pane-assistants { display: flex; grid-column: 3 / 6; justify-self: end; }
+
+/* Fläche neben der Schublade: ein Klick schließt (Link auf #pane-editor; laptop.ts fängt ihn ab). Ohne JavaScript
+   braucht sie `:has()`; fehlt das im Browser, bleibt „Schließen“ in der Schublade. */
+html[data-drawer] .rail-scrim,
+html:not(.js)[data-rail-left] .workspace:has(> #pane-tree:target) > .rail-scrim,
+html:not(.js)[data-rail-right] .workspace:has(> #pane-assistants:target) > .rail-scrim {
+  display: block; z-index: 44; cursor: default;
+  background: rgb(0 0 0 / .22); border-radius: 8px;
+}
+
+/* In der Schublade heißt es „Schließen“; „Einklappen“ gibt es nur an der offenen Spalte. */
+html[data-rail-left] #pane-tree .rail-close,
+html[data-rail-right] #pane-assistants .rail-close { display: inline-flex; }
+html[data-rail-left] #pane-tree .rail-collapse,
+html[data-rail-right] #pane-assistants .rail-collapse { display: none; }
+
+/* Die Schublade gleitet von ihrer Seite herein – Antwort auf den Klick, kurz, und nur wenn Bewegung erwünscht ist. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-rail-left][data-drawer="left"] #pane-tree { animation: rail-in-left .14s ease-out; }
+  html[data-rail-right][data-drawer="right"] #pane-assistants { animation: rail-in-right .14s ease-out; }
+}
+@keyframes rail-in-left { from { transform: translateX(-16px); opacity: 0; } }
+@keyframes rail-in-right { from { transform: translateX(16px); opacity: 0; } }
+
+/* ---- 2. schmal: beide Leisten, jeder Pixel dem Text ---------------------------------------------- */
+html[data-narrow] .workspace { --rail: 26px; padding: 4px; }
+html[data-narrow] .pane { padding: 8px 10px; }
+html[data-narrow] .rail-label { font-size: 12px; }
+
+/* ---- 1. kompakt: etwas weniger Rand um die Spalten (das Band selbst steht in band.css) ------------ */
+html[data-compact] .workspace { padding: 4px; }
+html[data-compact] .pane-title { margin: 2px 0 4px; }

@@ -11,6 +11,8 @@
 // Neuladen überstehen. Gezoomt wird mit CSS `zoom` auf den Kindern der Zone (app.css, `[data-zoomed]`): Die
 // Zone selbst behält ihre Größe im Layout. Zonen, die beim Neuzeichnen (ui.render) neu entstehen, bekommen
 // ihre Stufe sofort wieder (MutationObserver).
+// Runde 33: Der Knopf „Zoom zurücksetzen“ im Band (Reiter Ansicht, `[data-zoom-reset]`) setzt alle Zonen auf
+// einmal zurück und löscht das Cookie – Strg+0 bleibt bei der einen Zone unter dem Mauszeiger.
 
 import { store } from "./widgets.js";
 
@@ -101,6 +103,20 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     change(hovered, 1);
   }
+});
+
+/** Alle Zonen auf 100 %: gemerkte Stufen vergessen (Cookie gelöscht), jede gezoomte Zone der Seite zurücksetzen. */
+function resetAll(): void {
+  levels.clear();
+  document.querySelectorAll<HTMLElement>("[data-zoomed]").forEach((zone) => apply(zone, 1));
+  save();
+}
+
+// „Zoom zurücksetzen“ im Band (Reiter Ansicht): ein Knopf für alle Zonen, auch ohne Maus über einer Zone.
+document.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element) || !event.target.closest("[data-zoom-reset]")) return;
+  event.preventDefault();
+  resetAll();
 });
 
 // Ein Popup, das später aufgeht, bekommt seine gemerkte Stufe beim Öffnen.
