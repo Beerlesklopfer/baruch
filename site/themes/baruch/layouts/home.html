@@ -12,6 +12,12 @@
       <a class="knopf zweit" href="{{ "funktionen/" | relURL }}">Was Baruch kann</a>
       <a class="knopf zweit" href="{{ site.Params.repo }}" rel="noopener">Quellcode</a>
     </p>
+    {{- if fileExists "static/bilder/arbeitsplatz.png" }}
+    <figure class="bild auftakt-bild">
+      <img src="{{ "bilder/arbeitsplatz.png" | relURL }}" alt="Der Arbeitsplatz von Baruch: links die Gliederung eines Beispielwerks, in der Mitte ein Abschnitt so, wie er gesetzt wird, rechts Assistenten, Fassungen und Chat." width="1400" height="860" fetchpriority="high" decoding="async">
+      <figcaption>Der Arbeitsplatz: Gliederung, Text im Satzbild, Assistenten und Fassungen – hier mit einem erfundenen Beispielwerk.</figcaption>
+    </figure>
+    {{- end }}
   </div>
 </section>
 <div class="rand text">

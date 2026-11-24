@@ -178,6 +178,8 @@ a:focus-visible, .knopf:focus-visible { outline: 3px solid var(--siegel); outlin
 }
 
 .auftakt-wege { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 2rem 0 0; }
+.auftakt-bild { margin: 2.2rem 0 0; }
+.auftakt-bild img { box-shadow: 0 0.6rem 2rem rgba(0, 0, 0, 0.12); }
 
 .knopf {
   display: inline-block;

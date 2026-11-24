@@ -8,6 +8,18 @@ description: "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buch
 > Benannt nach Baruch, dem Schreiber Jeremias, der die verbrannte Rolle neu und erweitert niederschrieb
 > (Jer 36,32). Fassungen sind der Kern.
 
+## Schreiben, prüfen, setzen
+
+- **Schreiben:** Predigt oder Buch als Gliederung aus Teilen, Kapiteln und Abschnitten. Der Text erscheint so,
+  wie er gedruckt wird, und jede Fassung bleibt erhalten – zurück zur gestrigen geht mit einem Klick.
+- **Prüfen:** Bibelstellen und Zitate werden mit der gewählten Bibelübersetzung abgeglichen. Ein Lektor, ein
+  Exeget oder ein kritischer Hörer lesen auf Wunsch mit und schlagen Verbesserungen vor; für Predigten zeigt
+  ein Zeitwächter die Sprechdauer.
+- **Setzen:** Aus demselben Text entstehen das druckfertige Buch-PDF mit Umschlag, ein E-Book und
+  Stichwortzettel für die Kanzel – ohne zusätzliches Programm.
+
+Mehr unter [Funktionen](/funktionen/).
+
 ## Frei
 
 Baruch steht unter der **GNU Affero General Public License 3.0** (oder später) und ist bewusst ein freier
@@ -16,7 +28,7 @@ ein Netz anbietet, gibt seine Änderungen ebenso frei. Mehr dazu unter [Lizenz](
 
 ## Lokal
 
-Baruch läuft auf dem eigenen Rechner und wird im Browser bedient; in der Vorgabe antwortet es nur dort
+Baruch läuft auf dem eigenen Rechner und wird im Browser bedient; standardmäßig ist es nur dort erreichbar
 (`http://127.0.0.1:8765/`). Die Daten liegen im eigenen Benutzerordner: eine Datenbankdatei und je Werk ein
 **Git-Spiegel** – eine automatische Sicherung aller Entwürfe als gewöhnliche Textdateien, mit jeder Änderung
 nachvollziehbar und auch ohne Baruch lesbar und setzbar. Schlüssel und Token liegen im Schlüsselbund des Systems, nie in
@@ -26,10 +38,11 @@ nach ausdrücklicher Freigabe.
 ## Der Mensch entscheidet
 
 Assistenten schreiben **Vorschläge**, Beiträge, Einfälle und Anträge. Übernehmen, Ändern und Löschen am Buchtext
-bleiben dem Menschen – in der Oberfläche wie über die Schnittstellen. Jeder Abschnitt hat beliebig viele
-Fassungen, genau eine ist die aktuelle, und umschalten geht jederzeit. Jede Änderung wird ein Commit im Spiegel
-des Werks, mit Herkunft: Mensch, Persona oder MCP-Client. Was nicht geht, sagt Baruch; nichts wird still gekürzt,
-verworfen oder geraten.
+bleiben allein beim Menschen – im Browser ebenso wie über externe Schnittstellen. Jeder Abschnitt hat beliebig viele
+Fassungen, genau eine ist die aktuelle, und umschalten geht jederzeit. Jede Änderung wird im Spiegel des Werks
+festgehalten, mit Herkunft: Mensch, Persona oder ein angebundenes KI-Programm. Was nicht geht, sagt Baruch offen; nichts wird im
+Hintergrund unbemerkt gekürzt, weggelassen oder dazugedichtet – auch nicht, wenn ein Text für ein KI-Modell zu
+lang ist.
 
 ## Ohne JavaScript bedienbar
 
