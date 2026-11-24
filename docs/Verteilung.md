@@ -259,8 +259,8 @@ Festgelegte Werkzeuge (Stand 2026-11-24):
 | actions/setup-node | v4.4.0 | `ci.yml`, `release.yml` | `49933ea5288caeca8642d1e84afbd3f7d6820020` |
 | actions/upload-artifact | v4.6.2 | `release.yml` | `ea165f8d65b6e75b540449e92b4886f43607fa02` |
 | actions/download-artifact | v4.3.0 | `release.yml` | `d3f86a106a0bac45b974a628896c90dbdf5c8093` |
-| actions/upload-pages-artifact | v4.0.0 | `release.yml`, `pages.yml` | `7b1f4a764d45c48632c6b24a0339c27f5614fb0b` |
-| actions/deploy-pages | v4.0.5 | `release.yml`, `pages.yml` | `d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e` |
+| actions/upload-pages-artifact | v5.0.0 | `release.yml`, `pages.yml` | `fc324d3547104276b827a68afc52ff2a11cc49c9` |
+| actions/deploy-pages | v5.0.1 | `release.yml`, `pages.yml` | `368f82528645a54fb793d4d04e342629a3f51346` |
 
 Nicht festgelegt: `protoc`, `apt-utils`, `gnupg` und `python3-yaml` kommen aus der Paketquelle des Runners (apt,
 Homebrew, Chocolatey), `gh` aus dem Abbild des Runners, Node ist die jeweils aktuelle 22, WiX das des
