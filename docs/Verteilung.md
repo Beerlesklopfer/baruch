@@ -171,7 +171,7 @@ Niemand außer dem Nutzer erzeugt, wählt oder hinterlegt den Schlüssel. Fällt
 Schlüssel, gehört der Satz dazu auf die Seite Installation (`site/content/installation.md`, Abschnitt
 „Debian und Ubuntu über die APT-Quelle“).
 
-Fingerabdruck: `FINGERABDRUCK-TRÄGT-DER-NUTZER-EIN`
+Fingerabdruck: `BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4`
 
 (Platzhalter. Niemand außer dem Nutzer trägt ihn ein; er wird nicht aus dem Netz geholt und nicht geraten.
 Er steht außerdem im `README.md` und auf der Webseite – wer die Schlüsseldatei von der Webseite lädt, vergleicht
@@ -297,7 +297,7 @@ Für Debian 13 und Ubuntu 24.04 oder neuer (amd64; das Paket braucht `libc6 ≥ 
 sudo curl -fsSL -o /usr/share/keyrings/baruch-archive-keyring.gpg \
   https://baruch.bernau.family/apt/baruch-archive-keyring.gpg
 
-# Fingerabdruck vergleichen: FINGERABDRUCK-TRÄGT-DER-NUTZER-EIN
+# Fingerabdruck vergleichen: BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4
 gpg --show-keys --with-fingerprint /usr/share/keyrings/baruch-archive-keyring.gpg
 
 sudo tee /etc/apt/sources.list.d/baruch.sources >/dev/null <<'EOF'

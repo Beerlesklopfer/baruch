@@ -80,7 +80,7 @@ sudo apt install baruch
 
 Fingerabdruck des Archivschlüssels (vor `apt update` mit
 `gpg --show-keys --with-fingerprint /usr/share/keyrings/baruch-archive-keyring.gpg` vergleichen):
-`FINGERABDRUCK-TRÄGT-DER-NUTZER-EIN`
+`BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4`
 
 Steht hier noch dieser Platzhalter, ist der Fingerabdruck nicht veröffentlicht und die Paketquelle noch nicht
 für Endnutzer gedacht: Die Schlüsseldatei kommt von derselben Webseite wie die Pakete und lässt sich nur mit

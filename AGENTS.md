@@ -6,6 +6,11 @@ Freie Schreibwerkstatt (AGPL-3.0) für Bücher und Predigten. Plan: `docs/Plan.m
 - Nie Tokens oder Keys committen, veröffentlichen oder ausgeben; Keys gehören in den Schlüsselbund (`keyring`).
 - Versionsnummern legt nur der Nutzer fest.
 - Push nur nach ausdrücklichem „ja“ des Nutzers.
+- Strom (2026-11-24, zwei Ausfälle des Netzteils unter Volllast): Bauen und Testen immer auf dieselben acht
+  Threads gebunden und mit begrenzter Testparallelität, z. B.
+  `RUST_TEST_THREADS=4 nice -n 10 ionice -c3 taskset -c 0-7 cargo test --workspace -j 4`. `-j 4` begrenzt nur
+  das Bauen, die Tests liefen sonst auf allen 32 Threads. Weil alle Läufe auf dieselben Kerne `0-7` gebunden
+  sind, bleibt die Gesamtlast auch bei parallelen Agenten gedeckelt. Nie mehrere volle Testläufe gleichzeitig.
 - Rechnerlast: Bauen und Testen immer mit `nice`/`ionice` und `-j 4`. Agenten dürfen parallel arbeiten
   (je eigener Worktree, Zweig `team/<id>`), bauen aber jeweils in ihr **eigenes** `target/` im Worktree –
   kein gemeinsames `CARGO_TARGET_DIR`: Die Workspace-Crates bekommen in allen Worktrees dieselben

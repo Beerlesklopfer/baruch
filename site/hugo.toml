@@ -18,7 +18,7 @@ version = "0.9.0"
 repo = "https://github.com/Beerlesklopfer/baruch"
 # Fingerabdruck des APT-Archivschlüssels. Leer = die Seite zeigt den Platzhalter-Hinweis.
 # Trägt nur der Nutzer ein (nicht aus dem Netz holen, nicht raten).
-aptFingerprint = ""
+aptFingerprint = "BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4"
 description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buchsatz mit Typst und Assistenten, die nur vorschlagen. AGPL-3.0, läuft auf dem eigenen Rechner."
 
 [menus]
