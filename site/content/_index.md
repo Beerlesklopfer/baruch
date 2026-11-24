@@ -1,7 +1,7 @@
 ---
 title: "Baruch"
 claim: "Freie Schreibwerkstatt für Bücher und Predigten"
-lead: "Baruch hält ein Werk als Gliederung aus Teilen, Kapiteln und Abschnitten, bewahrt jede Fassung auf, setzt das Buch mit Typst und lässt Assistenten mitlesen, prüfen und vorschlagen – das letzte Wort behält der Mensch."
+lead: "Baruch ist eine Schreibumgebung für Predigten, Vorträge und Bücher – vom ersten Einfall über die Bibelarbeit bis zum druckfertigen Buch, ohne die Kontrolle an eine KI abzugeben. Jede Fassung bleibt erhalten, Assistenten lesen mit und schlagen vor, das letzte Wort behält der Mensch."
 description: "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buchsatz mit Typst und Assistenten, die nur vorschlagen. AGPL-3.0, läuft auf dem eigenen Rechner."
 ---
 
@@ -16,9 +16,10 @@ ein Netz anbietet, gibt seine Änderungen ebenso frei. Mehr dazu unter [Lizenz](
 
 ## Lokal
 
-Baruch läuft auf dem eigenen Rechner und antwortet in der Vorgabe nur dort (`http://127.0.0.1:8765/`). Die Daten
-liegen im eigenen Benutzerordner: eine SQLite-Datei und je Werk ein gewöhnlicher Typst-Ordner als Git-Spiegel,
-der sich auch ohne Baruch setzen lässt. Schlüssel und Token liegen im Schlüsselbund des Systems, nie in
+Baruch läuft auf dem eigenen Rechner und wird im Browser bedient; in der Vorgabe antwortet es nur dort
+(`http://127.0.0.1:8765/`). Die Daten liegen im eigenen Benutzerordner: eine Datenbankdatei und je Werk ein
+**Git-Spiegel** – eine automatische Sicherung aller Entwürfe als gewöhnliche Textdateien, mit jeder Änderung
+nachvollziehbar und auch ohne Baruch lesbar und setzbar. Schlüssel und Token liegen im Schlüsselbund des Systems, nie in
 Dateien. Baruch fragt nie von sich aus im Netz nach neuen Versionen; Modelle bei fremden Anbietern gibt es nur
 nach ausdrücklicher Freigabe.
 
