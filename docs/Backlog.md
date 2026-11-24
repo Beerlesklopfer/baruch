@@ -27,6 +27,8 @@ Entscheidungen des Nutzers:
   - ein schlanker Einstieg: Manuskript hinein, Vorschläge annehmen, PDF heraus;
   - Befunde nach Gewicht sortiert, Kleinkram zugeklappt (Nutzerfrage 14);
   - Anmerkungen zum ganzen Buch (Aufbau, Spannungsbogen, Zielgruppe) als eigene Ansicht, nicht nur im Chat.
+- **Kein eigenes Zusammenspiel mit Logos Bible Software.** Viele Pfarrer arbeiten mit Logos, doch für die
+  Recherche ist MultiGPT mächtiger (Nutzer 2026-11-24). Logos-Manuskripte kommen über den Word-Import herein.
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
