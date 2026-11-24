@@ -71,7 +71,7 @@ jobs:
       - name: Systempakete
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends protobuf-compiler libdbus-1-dev pkg-config
+          sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev libdbus-1-dev pkg-config
           protoc --version
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -135,7 +135,7 @@ jobs:
 
   macos:
     name: macOS (.dmg, ${{ matrix.arch }})
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 180
     strategy:
       fail-fast: false
