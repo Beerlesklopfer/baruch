@@ -563,6 +563,11 @@ trägt die Kopfzeile „geprüft: …“ (`PostMeta::basis_label`, aus dem Aufru
 kennt sie als `Outcome.basis = {rev, label, proposal}`; in der MCP-Antwort steht sie als `basis`. Jede Antwort folgt der Lösungspflicht (siehe
 „Befunde“): ein kritischer Punkt ohne Lösung wird einmal nachgefordert, sonst „(ohne Lösungsvorschlag)“.
 
+Kritik-Zyklus (Fehler 0.9.0): `ask_persona` review mit `rev` = Nummer eines Vorschlags prüft diesen Vorschlag gegen
+(eigene offene Befunde im Auftrag, „Erledigt: Befund n“ wird Statusvorschlag, Zitate aus dem Vorschlag gelten);
+`ask_persona` propose mit `rev` legt den neuen Vorschlag **auf** Fassung `rev` an (`based_on` = `rev`, vorher stets die
+aktuelle Fassung).
+
 ### `chat` und `post_delete` (Runde 30c)
 
 **`chat`** (Abschnitts-Chat und Faden, `src/assist/chat.rs`, `src/threads.rs`):

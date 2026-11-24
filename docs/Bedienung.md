@@ -1528,7 +1528,17 @@ Ziel jeder Persona-Antwort ist eine Lösung, nicht nur der Befund.
   Vorschlag (kein Befund „Abschnitt leer“). Jeder Persona-Beitrag nennt im Kopf, was geprüft wurde („geprüft:
   aktuelle Fassung 1“ bzw. „geprüft: Fassung 2 (Vorschlag von @lektor)“) – aus dem Aufruf, nicht vom Modell. Wer
   ausdrücklich die aktuelle Fassung wählt, obwohl sie nur die Überschrift hat, sieht im Kopf den Hinweis „aktuelle
-  Fassung enthält nur die Überschrift – Vorschlag n prüfen?“.
+  Fassung enthält nur die Überschrift – Vorschlag n prüfen?“. Dazu bietet die Auswahl die **offenen Vorschläge** des
+  Abschnitts an („Vorschlag 2 von @lektor“, auch ohne JavaScript).
+- **Kritik-Zyklus (Fehler 0.9.0).** Ein Kritiker (etwa @nathan) prüft die Fassung, der Lektor schreibt aus den
+  Befunden einen Vorschlag („Lösungen umsetzen“, Varianten, „Vorschlag“ im Persona-Formular oder ein Schreibauftrag im
+  Chat). Dann prüft der Kritiker **diesen Vorschlag** gegen: Prüfgrundlage „Vorschlag n von @lektor“ (oder den
+  Vorschlag zeigen und „gezeigte Fassung“), „@nathan prüf den Vorschlag“ im Chat bei gezeigtem Vorschlag oder MCP
+  `ask_persona` mit `rev`. Seine eigenen offenen Befunde stehen dabei im Auftrag: Erledigte meldet er als „Erledigt:
+  Befund n“ (Statusvorschlag, der Mensch bestätigt), nicht erledigte bleiben offen, neue Befunde zitieren aus dem
+  Vorschlag; der Beitrag nennt „geprüft: Fassung n (Vorschlag von @lektor)“. Ein neuer Vorschlag des Lektors beruht
+  auf der gezeigten bzw. gewählten Fassung – auch auf einem Vorschlag –, so geht es weiter, bis der Mensch eine Fassung
+  übernimmt. Alles bleibt Vorschlag bzw. Befund.
 - **Nur der Lektor kommentiert fremde Befunde.** Die übrigen Personas sehen Befunde anderer nur als „schon gemeldet“
   (damit sie nichts doppelt melden) und prüfen allein den Text.
 - **RFC: „Mein Vorschlag“.** Beim RFC schließt der Lektor mit „Mein Vorschlag:“ und den zwei oder drei Lösungen, die

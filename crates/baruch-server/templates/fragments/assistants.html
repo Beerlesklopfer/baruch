@@ -60,7 +60,7 @@
       {#- Runde 15: Prüfen/Vorschlag für Abschnitt oder Kapitel (Baustein des Lektors, Feld name="scope"). #}
       {% include "fragments/assist_scope.html" ignore missing %}
       {#- Runde 30: Prüfgrundlage (Feld name="basis"). #}
-      {{- basis_select(rev.number if rev is mapping else rev) }}
+      {{- basis_select(rev.number if rev is mapping else rev, rev.open_list if rev is defined and rev is mapping else none) }}
       <div class="actions">
         <button class="btn" type="submit" name="method" value="persona.review" title="Befunde der Persona als Beitrag im Abschnitts-Chat">Prüfen</button>
         <button class="btn" type="submit" name="method" value="persona.propose" title="neue Fassung als Vorschlag (übernehmen kann nur der Mensch)">Vorschlag</button>
@@ -137,7 +137,7 @@
       {%- endif %}
       <input type="text" name="message" placeholder="@persona fragen …" title="@persona oder die Anrede mit Namen am Satzanfang („Lektor, …“) ruft eine Persona; „RFC …“ am Anfang oder @alle ruft alle aktiven Personas" aria-label="Beitrag" maxlength="4000" required autocomplete="off"{% if active_personas %} list="chat-personas-{{ node.key }}" data-widget="mention"{% endif %}>
       <label class="small chat-order" title="Die Persona schreibt einen Vorschlag des Abschnitts (übernehmen kann nur der Mensch) und einen kurzen Beitrag"><input type="checkbox" name="as_order" value="1"> als Auftrag</label>
-      {{- basis_select(rev.number if rev is mapping else rev) }}
+      {{- basis_select(rev.number if rev is mapping else rev, rev.open_list if rev is defined and rev is mapping else none) }}
       <button class="btn primary" type="submit">Senden</button>
     </form>
     <p class="muted tiny"><a href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="Alle Beiträge dieses Abschnitts auf einer Seite (ohne JavaScript)">Ganze Chat-Historie</a> · <a href="/faeden?work={{ work.id }}" title="Gespräche ohne Abschnitt, z. B. aus MCP chat ohne key">Fäden ohne Abschnitt</a></p>
