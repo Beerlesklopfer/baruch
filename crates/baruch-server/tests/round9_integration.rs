@@ -94,7 +94,7 @@ async fn every_settings_page_loads_as_popup_fragment_and_as_page_without_javascr
         let (status, html) = server.get(&format!("/einstellungen/{slug}?work={work}")).await;
         assert_eq!(status, StatusCode::OK, "{slug}: Seite ohne JavaScript lädt: {html}");
         assert_eq!(
-            html.matches("<header class=\"topbar\">").count(),
+            html.matches("<header class=\"band\"").count(), // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
             1,
             "{slug}: genau die gemeinsame Kopfzeile aus base.html"
         );
@@ -105,7 +105,7 @@ async fn every_settings_page_loads_as_popup_fragment_and_as_page_without_javascr
             fragment.starts_with("<div class=\"settings-frame\"") && fragment.contains(&body),
             "{slug}: das Popup bekommt denselben Rahmen mit demselben Inhalt: {fragment}"
         );
-        assert!(!fragment.contains("<header class=\"topbar\">"), "{slug}: im Fragment keine zweite Kopfzeile");
+        assert!(!fragment.contains("<header class=\"band\""), "{slug}: im Fragment keine zweite Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
         let rendered = server.rpc("settings.render", json!({ "page": slug, "work": work })).await;
         assert!(
             rendered["result"]["html"].as_str().is_some_and(|h| h.contains(&body)),

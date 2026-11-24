@@ -533,12 +533,30 @@ das Bild nur über diese vorhandene Route (`nosniff`, CSP `sandbox`); sie findet
 `bilder/a.png` und `./bilder/a.png` gleich, `..` nie. Diff (`diff_html`): Blöcke nach der längsten gemeinsamen Teilfolge über `raw` (ohne
 Leerraum am Ende), gleiche in `div.ws-same`, entfernte in `div.ws-del`, neue in `div.ws-ins`.
 
-## Menüband (Runde 18a)
+## Menüband (Runde 18a, seit Runde 33 angedockt)
 
-Die Werkzeugleiste über dem Blatt ist das **Menüband für das Bearbeiten** (`templates/fragments/edit_toolbar.html`,
-Widget `ribbon` in `web/src/ribbon.ts`, Stil `static/ribbon.css`). Es behält alle Haken, die `wysiwyg.ts` liest
-(`data-edit-toolbar hidden`, `data-ws-mode`, `data-ws-tools`, `data-ws-format`, `data-ws-cmd="italic|bold"`;
-`data-ws-hint` in der Statuszeile), und bekommt dahinter die Gruppe `span.ribbon-formats[data-widget=ribbon]`:
+**Seit Runde 33 dockt die Leiste in das Menüband der Seite an** (`docs/Architektur.md`, „Runde 33 – Menüband“):
+Sie steht weiter im Fragment des Editors (`templates/fragments/edit_toolbar.html`, `div[data-edit-toolbar][hidden]`
+in `div.wysiwyg`) und wird von `ui.render` mit neu gezeichnet; das Widget `band-dock` (`web/src/band.ts`, Marke am
+Ende von `fragments/editor.html`) hängt sie nach jedem Einhängen in den Andockplatz `div[data-band-dock]` des Kopfs.
+Sie hat zwei Teile: `data-band-part="start"` (Gruppen **Text**: Satzbild | Quelltext; **Absatz**: Absatzformat, K, F;
+**Fassung**: ‹ n/m ›, Speichern, Als neue Fassung; **Assistenten**: Prüfen, Vorschlag) für den Reiter Start und
+`data-band-part="einfuegen"` (**Einfügen**: die Formate unten; **Bild**; **Register und Glossar**) für den Reiter
+Einfügen. Ohne JavaScript bleibt sie verborgen am Blatt; es gibt dann wie bisher Textfeld und Statuszeile.
+
+Folgen für die Widgets: Nach dem Andocken liegt die Leiste nicht mehr unter `div.wysiwyg`. `wysiwyg.ts`, `ribbon.ts`
+und `context_menu.ts` verbinden sich beim Einhängen (vor dem Andocken) mit ihrem Editor; was später in die Leiste
+greift (der Umschalter Satzbild/Quelltext in `show`), nimmt `editToolbar(root)` aus `widgets.ts`. „Speichern“ und „Als
+neue Fassung“ im Band gehören über `form="editor-form"` zum Formular im Blatt; maßgeblich (Beschriftung
+„Gespeichert“/„Speichern“, gesperrt ohne Änderung) bleibt der Knopf der Statuszeile (`submitButton` überspringt die
+Knöpfe der Leiste). Während des Speicherns sperrt `lockEditor` auch den Andockplatz. Im Quelltext zeigt die Gruppe
+Absatz statt der Werkzeuge den Hinweis „nur im Satzbild“ (`data-ws-source-note`).
+
+Die Leiste ist das **Menüband für das Bearbeiten** (`templates/fragments/edit_toolbar.html`,
+Widget `ribbon` in `web/src/ribbon.ts`, Stil `static/ribbon.css` und `static/band.css`). Es behält alle Haken, die
+`wysiwyg.ts` liest (`data-edit-toolbar hidden`, `data-ws-mode`, `data-ws-tools`, `data-ws-format`,
+`data-ws-cmd="italic|bold"`; `data-ws-hint` in der Statuszeile); im Teil „einfuegen“ steht
+`div.ribbon-formats[data-widget=ribbon]`:
 
 - je Format der Werkvorlage ein Knopf `button[data-ribbon-cmd=<WsCommandName>][data-ribbon-snippet]` aus
   `crate::ribbon::formats` (RPC `ribbon.formats`): `scene`/`work` nur, wenn die Vorlage `#let szene`/`#let arbeit`
@@ -570,7 +588,8 @@ Inhalt (`[…]`); eine Vorlage, deren Funktion einen String erwartet, braucht de
 Blockformate beginnen an einem Zeilenanfang, eine Markierung wandert in den Inhalt (`[…]`), der Cursor steht im
 Inhalt. Kein Import zwischen `ribbon.ts` und `wysiwyg.ts`.
 
-Dasselbe Fragment ist mit `satz_page` das Menüband der Satz-Seite (`/werke/{id}/satz`, `div.ribbon-satz
+Dasselbe Fragment hat mit `satz_page` noch den Zweig für die Satz-Seite (seit Runde 33 stehen deren Knöpfe als
+Gruppen im Reiter Buch; der Zweig entfällt nach dem Zusammenführen der Runde): das Menüband der Satz-Seite (`/werke/{id}/satz`, `div.ribbon-satz
 [data-ribbon-satz]`, ohne `hidden`, ohne JavaScript): Zurück, PDF, ‹ › mit `aria-label`, „Satz abbrechen“ als
 Formular (`docs/Bedienung.md`, „Satz (Typst-Vorschau)“).
 

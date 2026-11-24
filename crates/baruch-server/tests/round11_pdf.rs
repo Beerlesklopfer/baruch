@@ -207,7 +207,7 @@ async fn a_typst_error_gives_422_with_links_refused_over_rpc_and_no_pdf() {
         html.contains(&format!("href=\"/?work={work}&amp;key={weed}\"")),
         "Link zum Abschnitt mit dem Fehler: {html}"
     );
-    assert!(html.contains("<header class=\"topbar\">"), "mit Kopfzeile wie jede Seite");
+    assert!(html.contains("<header class=\"band\""), "mit Kopfzeile wie jede Seite"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
 }
 
 #[tokio::test]

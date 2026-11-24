@@ -137,14 +137,17 @@ async fn the_about_page_is_reachable_from_the_menu_without_javascript() {
         let (status, raw) = server.get(&uri).await;
         assert_eq!(status, StatusCode::OK, "{uri} lädt: {raw}");
         let html = unescape(&raw);
-        let tools = menu(&html, "werkzeuge");
+        // Runde 33 (Menüband): „Über Baruch“ stand am Ende des Menüs Werkzeuge ▾ und steht jetzt im Menü Baruch ▾
+        // (Programm) – weiter genau einmal, als gewöhnlicher Link und als letzter Eintrag (dahinter liegt in der
+        // Vorlage nur der Platz für „Baruch beenden“ der Runde 32).
+        let tools = menu(&html, "baruch");
         assert_eq!(
             tools.matches(entry).count(),
             1,
-            "{uri}: „Über Baruch“ genau einmal im Menü Werkzeuge, als gewöhnlicher Link (ohne JavaScript): {tools}"
+            "{uri}: „Über Baruch“ genau einmal im Menü Baruch, als gewöhnlicher Link (ohne JavaScript): {tools}"
         );
         assert!(
-            tools.trim_end().ends_with(&format!("{entry}\n      </div>")),
+            tools.trim_end().ends_with(&format!("{entry}</div>")),
             "{uri}: der Eintrag steht am Ende des Menüs (wie „Über …“ in anderen Programmen): {tools}"
         );
     }

@@ -1032,36 +1032,37 @@ Wunsch 2026-11-06: Assistenten dürfen anlegen, alles andere nur beantragen.
 
 ### Kopfzeile und Menüs (`menu.rs`)
 
-- Die Kopfzeile wohnt in `templates/base.html` als `{% block topbar %}`; jede Template-Umgebung bettet
-  `base.html` schon ein, kein Modul braucht eine neue Registrierung. Seiten liefern nur
-  `{% block page_title %}` (Text in `.work-title`) und `{% block page_actions %}` (seitenlokale Links).
-- Daten der Kopfzeile in dieser Rangfolge: (1) `topbar` (nur die Arbeitsseite, `crate::menu::workspace_topbar`
+Seit Runde 33 ist die Kopfzeile das **Menüband** (Abschnitt „Runde 33 – Menüband“ weiter unten); die Menüs Werk ▾,
+Ansicht ▾ und Werkzeuge ▾ der Runde 9 gibt es nicht mehr. Geblieben ist aus Runde 9:
+
+- Der Kopf wohnt in `templates/base.html` als `{% block topbar %}`; jede Template-Umgebung bettet
+  `base.html` schon ein, kein Modul braucht eine neue Registrierung. Seiten liefern `{% block page_title %}` (Text in
+  `.work-title`), `{% block page_actions %}` (Gruppen der Seite im Reiter Start) und seit Runde 33 `band_tab`,
+  `band_einfuegen`, `band_pruefen`, `band_buch`, `band_ansicht`.
+- Daten des Kopfs in dieser Rangfolge: (1) `topbar` (nur die Arbeitsseite, `crate::menu::workspace_topbar`
   in `view::values`: Werk, `key`, `rev`, Ansicht, `lq_q`, Werkwahl, Abzeichen), (2) `work.id`, wenn `work`
   eine Abbildung ist, (3) `settings.work` (Cookie `baruch_work`). Adressen baut die Vorlage selbst (nur
   Ziffern aus den Daten; minijinja maskiert `/` in Werten). Erzeugte Links nie mit `node=`, immer `key=`.
-- Auf der Arbeitsseite tragen „Neues Werk / Importieren…“, der Umschalter, „Literatur“ und „Einfall
+- Auf der Arbeitsseite tragen „Neues Werk / Importieren…“, der Umschalter Editor/Vorschau, „Literatur“ und „Einfall
   festhalten“ `data-work-import-open`, `data-view-toggle`, `data-literature-open` bzw. `data-idea-open`
-  (je Seite höchstens einmal; `works.ts`, `workspace.ts`, `literature.ts`, `ideas.ts` unverändert). Auf
-  anderen Seiten fehlt der jeweilige Dialog, die Links führen dort einfach auf ihre Seite.
-- Stubs in der Vorlage: keine mehr. „Abgleichen“ ist seit Runde 13 ein Link auf `/abgleich`, „EPUB-Vorschau“ seit
-  Runde 20b ein Link auf `/werke/{w}/epub/vorschau` (ohne Werk `/werke`); dazu im Menü Werk „Als EPUB
-  herunterladen“ (`/werke/{w}/epub`, `download`) hinter „Als PDF herunterladen“.
+  (je Seite höchstens einmal; `works.ts`, `literature.ts`, `ideas.ts` unverändert). Auf
+  anderen Seiten fehlt der jeweilige Dialog, die Links führen dort einfach auf ihre Seite. „Einstellungen“
+  (`data-settings-open`, Alt+,) steht im Menü Baruch ▾ und ist der erste solche Link der Seite.
 - `base.html` endet nach `{% block body %}` mit der Hülle des Einstellungs-Dialogs
   `<dialog class="settings-dialog" id="settings" data-widget="settings">` (Inhalt lädt `settings.ts`);
   sie steht hinter allen Dialogen der Seiten.
 - `src/menu.rs`: `handles`, `call` (`menu.badges`), `Badges`, `badges(state, work)`, `open_proposals(work)`,
-  `workspace_topbar(work, shelf, at, library)`.
-- `web/src/menu.ts` (Widget `menubar`): Tastatur, ein Menü offen, Klick daneben, `aria-expanded` am
-  `<summary>`, Abzeichen über `menu.badges` (beim Laden außerhalb der Arbeitsseite, beim Öffnen eines Menüs,
-  nach Formularen und `baruch:navigate`). Das Werk nimmt es aus dem Baruch-Link (`/?work=W`).
+  `workspace_topbar(work, shelf, at, library)`, `fill_badges`/`fill_page` (Runde 23a).
+- `web/src/menu.ts` (Widget `menubar`): Tastatur am Menü Baruch ▾, Klick daneben, `aria-expanded` am
+  `<summary>`, Abzeichen im ganzen Band über `menu.badges` (beim Laden außerhalb der Arbeitsseite, beim Öffnen des
+  Menüs, nach Formularen und `baruch:navigate`). Das Werk nimmt es aus `data-work` am Kopf (`header.band`).
 - Thema-Widget bleibt in `web/src/panes.ts` (keine `theme.ts`): zeigt nur ein Zeichen, Name im `title`, und
-  liest das Cookie `baruch_theme` neu bei `baruch:settings-changed`.
-- Stil: Topbar-Regeln in `static/app.css` (`flex-wrap: nowrap`, Bedienelemente `flex-shrink: 0`, Titel mit
-  `text-overflow: ellipsis`), Menüs in `static/menu.css` (Liste `position: absolute`, Tastenkürzel über
-  `data-shortcut` als `::after`, damit der Text des Eintrags gleich bleibt).
-- Tests: `tests/round9_menu.rs` (alle vierzehn Seiten über den Router: genau eine Kopfzeile, drei Menüs,
-  frühere Adressen, Dialog-Hülle, Abzeichen mit Antrag über MCP `outline_rename` und Vorschlägen über
-  `propose_revision`, CSS-Struktur für 1024 px, Skripte).
+  liest das Cookie `baruch_theme` neu bei `baruch:settings-changed`; der Knopf steht im Reiter Ansicht.
+- Stil: Menü in `static/menu.css` (Liste `position: absolute`, Tastenkürzel über `data-shortcut` als `::after`, damit
+  der Text des Eintrags gleich bleibt), Band in `static/band.css`.
+- Tests: `tests/round9_menu.rs` (alle Seiten über den Router: genau ein Band, ein Menü, frühere Adressen,
+  Dialog-Hülle, Abzeichen mit Antrag über MCP `outline_rename` und Vorschlägen über `propose_revision`, Skripte) und
+  `tests/round33_menueband.rs`.
 
 ### Einstellungen (`settings/`)
 
@@ -4814,3 +4815,135 @@ geschachtelte – Blockkommentare, ohne Rümpfe anderer Funktionen, Zeichenkette
 - **Datenordner:** `baruch_store::Store::open` legt einen neuen Datenordner unter Unix mit 0700 an (`create_data_dir`,
   Codereview quellen-5); ein vorhandener bleibt unverändert.
 - **Abnahme:** `tests/round23_abnahme.rs` (Zitat bis Tokens in einem Ablauf; Geheimnisse, Weiterleitung, Websuche).
+
+## Runde 33 – Menüband
+
+Die Kopfzeile mit Werk ▾ / Ansicht ▾ / Werkzeuge ▾ und die flache Knopfreihe über dem Blatt sind durch ein Menüband
+ersetzt: ein Menü **Baruch ▾** (Programm), Reiter **Start · Einfügen · Prüfen · Buch · Ansicht** mit Gruppen, und die
+Knöpfe des Editors docken in das Band an. Keine neue Route, keine neue RPC-Methode, kein neues MCP-Werkzeug;
+`ui.render`, `menu.badges` und `ribbon.formats` sind unverändert. Der Laptop-Modus (kompaktes Band, Seitenleisten)
+gehört zu `src/laptop.rs`/`web/src/laptop.ts` und ist dort beschrieben.
+
+### Vorlage (`templates/base.html`)
+
+Das Band steht vollständig in `base.html` (die Vorlage ist in rund 35 eigenen minijinja-Umgebungen eingebettet; ein
+`{% include %}` müsste in allen registriert werden).
+
+- `<header class="band" data-widget="band" data-tab="" data-work="W">` (die Klasse `topbar` gibt es nicht mehr),
+  direkt darunter die Marke `<!--baruch-consent-->`.
+- Zeile 1 (`div.band-top`): `nav.menubar[data-widget=menubar]` mit genau einem `details.menu[data-menu="baruch"]`
+  (Alle Werke, Neues Werk / Importieren…, PDF oder EPUB importieren…, Austausch: Einlesen…, ⚙ Einstellungen, Über
+  Baruch), die Reiterzeile `nav.band-tabs[role=tablist][data-band-default]`, die Werkwahl (`form.work-select`, nur
+  Arbeitsseite), `span.work-title`, der Autor und der Schalter `a[data-band-toggle]` (Band auf/zu). Die Reiterzeile
+  steht im Dokument gleich hinter dem Menü (nicht hinter dem Titel): So bleibt sie auf jeder Seite an derselben
+  Stelle, und die Tab-Folge entspricht dem Bild.
+- Zeile 2 (`div.band-panels`): je Reiter ein `div.band-panel[role=tabpanel]` und – nur auf der Arbeitsseite – der
+  Andockplatz `div.band-dock[data-band-dock]`.
+- Reiter je Seite: Arbeitsseite (`topbar` gesetzt) alle fünf; Seiten mit Werk Start · Prüfen · Buch · Ansicht; ohne
+  Werk Start · Ansicht (dort stehen „Literatur“ und „Abgleichen“ in einer Gruppe „Werkzeuge“ unter Start, weil sie
+  kein Werk brauchen; „Werk wählen“ führt wie bisher auf `/werke`).
+- Blöcke der Seiten: `band_tab` (Vorgabe-Reiter, sonst `start`), `page_actions` (Gruppen im Reiter Start, zwischen
+  „Werk“ bzw. „Ansicht des Textes“ und „Einfälle“), `band_einfuegen`, `band_pruefen`, `band_buch`, `band_ansicht`
+  (jeweils vor den festen Gruppen des Reiters).
+- Plätze für Runde 32 als Kommentare der Vorlage: `{#- R32-PLATZ import-word -#}` und `{#- R32-PLATZ beenden -#}`
+  (letzter Eintrag) im Menü Baruch ▾, `{#- R32-PLATZ export-word -#}` in der Gruppe Ausgabe.
+
+**Wörtliche Formen.** Die Schicht ersetzt Zeichenketten; die Reihenfolge der Attribute ist darum Teil der
+Schnittstelle (der Unit-Test `the_template_carries_the_literal_forms_apply_relies_on` hält sie fest):
+
+| Stück | Form |
+|---|---|
+| Reiter | `<a class="band-tab" role="tab" id="band-tab-ID" aria-controls="band-panel-ID" data-band-tab="ID" href="?tab=ID" aria-selected="false">` |
+| Feld | `<div class="band-panel" role="tabpanel" id="band-panel-ID" aria-labelledby="band-tab-ID" data-band-panel="ID" hidden>` |
+| Gruppe | `<details class="band-group" data-band-group open><summary class="band-group-label">Name</summary><div class="band-items" role="group" aria-label="Name">…</div></details>` – weitere Attribute nur zwischen `class="…"` und `data-band-group` (z. B. `data-band-after`: hinter dem Andockplatz) |
+| Band auf/zu | `data-band-toggle aria-expanded="true" href="?band=closed"` |
+| Laptop-Schalter | `<a class="btn" data-laptop-set="auto" aria-pressed="false" href="?laptop=auto">Automatisch</a>` (ebenso `on`, `off`) |
+| Seitenleisten | `<a class="btn" data-rail-toggle="left" aria-pressed="false" href="?lrail=1">Gliederung</a>`, rechts `right`/`rrail` |
+
+### Schicht `band::apply` (`src/band.rs`)
+
+Seiten kennen ihre Adresse und `?tab=` nicht. Die Schicht `consent::inject` (über allen Routen, wie die Abzeichen
+seit Runde 23a) hält vor `next.run` Cookie-Kopf und rohe Abfrage fest, bildet `BandState::from_request` und
+`LaptopState::from_request` und ruft nach `menu::fill_page` `band::apply(&page, &band, &laptop)`; gültige Schlüssel
+der Adresse hängt sie als `Set-Cookie` an (`band::set_cookies`, `laptop::set_cookies`).
+
+- `BandState { tab, closed, rest }`: `?tab=` nur für Kennungen aus `TABS` (nicht gemerkt), `?band=open|closed` vor
+  dem Cookie `baruch_band` (`closed`; fehlt = offen), `rest` = rohe Abfrage ohne `tab`, `band`, `laptop`, `lrail`,
+  `rrail` (nicht dekodiert). Ungültige Werte werden übergangen; bei mehrfachen Schlüsseln gilt der letzte gültige.
+- `apply`, in dieser Reihenfolge; eine Seite ohne die Marke ` data-band-fill` bleibt unverändert:
+  1. Marke an `<html>` → `laptop.html_attrs()` und `data-band="open|closed"`;
+  2. aktiver Reiter: `?tab=`, falls der Kopf ihn hat; sonst `data-band-default`, falls vorhanden; sonst der erste;
+  3. `data-tab=""` am Kopf → `data-tab="<aktiv>"`;
+  4. Adressen der Reiter `href="?<rest>&tab=ID"`; der aktive zusätzlich `aria-selected="true"` und `&band=closed`
+     (Klick klappt zu); bei zugeklapptem Band tragen alle Reiter `&band=open`;
+  5. `hidden` fällt am aktiven Feld weg;
+  6. kompakt (`laptop.compact()`): jedes ` data-band-group open>` → ` data-band-group name="band-group">` (Popups
+     aus `<details>`, der gemeinsame Name hält nur eines offen);
+  7. jedes `href="?K=V"` mit K ∈ {band, laptop, lrail, rrail} → `href="?<rest>&tab=<aktiv>&K=V"`;
+  8. `aria-pressed` am geltenden Laptop-Schalter; Seitenleiste sichtbar → `aria-pressed="true"`, eingeklappt →
+     Adresse auf `lrail=0` bzw. `rrail=0`; zugeklapptes Band → Schalter auf `band=open`, `aria-expanded="false"`.
+- `node=` (alte Adressform) geht nicht in die erzeugten Adressen mit: Erzeugte Links tragen nie `node=` (Vertrag
+  Runde 8 §1). `rest` selbst bleibt die rohe Abfrage; eine Seite, die noch mit `?node=` aufgerufen wurde, verliert
+  beim Reiterwechsel ohne JavaScript nur diese Stelle. Alle anderen Schlüssel bleiben – auch einmalige wie
+  `?ok=gespeichert` (die Meldung steht dann nach einem Reiterwechsel ohne JavaScript noch einmal da).
+- **Sicherheit:** `rest` kommt aus der Adresse und geht nur über `escape_attr` (`&`, `<`, `>`, `"`, `'`) in ein
+  Attribut. Die Schritte 2 bis 6 wirken nur zwischen `<header class="band"` und `</header>`: Text im Seiteninhalt, der
+  wie ein Reiter aussieht, verstellt nichts. Die Schritte 7 und 8 gelten auf der ganzen Seite (auch für die schmalen
+  Leisten der Arbeitsseite); ein Wert V mit anderen Zeichen als `[A-Za-z0-9_-]` wird nicht angefasst.
+- **Bekannte Grenze:** Auf einer Seite, die Antwort eines POST ist (z. B. die Rückfrage „Speichern bestätigen“),
+  führt ein Reiter-Link ohne JavaScript per GET auf dieselbe Adresse; mit JavaScript wechselt band.ts ohne Neuladen.
+
+### Abzeichen
+
+Die Abzeichen stehen an den Reitern: offene Vorschläge an **Start**, „N offen“ (Befunde) an **Prüfen**, offene
+Anträge zur Gliederung an **Buch**; dazu die Zahl an den Einträgen „Befunde“ und „Anträge zur Gliederung“. Die Haken
+sind die alten (`data-badge`, `data-badge-item`, `data-badge-fill`, `data-badges-work`): Die Arbeitsseite zeichnet aus
+`topbar.badges`, jede andere Seite füllt `menu::fill_badges` im fertigen HTML (ohne JavaScript), `menu.ts` frischt auf
+(„N offen“ am Reiter, nur die Zahl im Eintrag).
+
+### Andocken der Editor-Knöpfe
+
+Die Editor-Widgets hängen an `div.wysiwyg`, und `ui.render` zeichnet nur die drei Spalten neu. Darum bleiben die
+Knöpfe im Fragment `fragments/edit_toolbar.html` (Editor-Zweig, `div[data-edit-toolbar][hidden]` in `div.wysiwyg`) und
+werden mit dem Editor neu gezeichnet; `ui.render` ist unverändert.
+
+- Die Leiste hat zwei Teile: `div[data-band-part="start"]` (Gruppen Text: Satzbild | Quelltext; Absatz:
+  Absatzformat, K, F; Fassung: ‹ n/m ›, Speichern, Als neue Fassung – `form="editor-form"`; Assistenten: Prüfen,
+  Vorschlag) und `div[data-band-part="einfuegen"]` (Einfügen: Formate aus `ribbon.formats`; Bild; Register und
+  Glossar). Alle Haken sind die bisherigen (`data-ws-mode`, `data-ws-tools`, `data-ws-format`, `data-ws-cmd`,
+  `data-ribbon-cmd`, `data-ribbon-snippet`, `data-ribbon-image`, `data-widget="ribbon"`,
+  `data-widget="context-menu"`, `data-ctx-action`, `data-index-*`). Die ‹ ›-Links im Band tragen kein `data-key`
+  (Alt+←/→ nimmt weiter die Links im Kopf des Editors).
+- `fragments/editor.html` endet in beiden Ansichten mit `<span data-widget="band-dock" hidden></span>`. Das Widget
+  `band-dock` (band.ts) leert beim Einhängen `div[data-band-dock]` und hängt die Leiste des gezeigten Editors hinein
+  (Vorschau: nur leeren); der Kopf trägt dann `data-docked`. Weil `mount` die Widgets in Dokumentreihenfolge
+  einhängt, haben sich `wysiwyg`, `ribbon` und `context-menu` vorher mit ihrem Editor verbunden.
+- Welcher Teil sichtbar ist, regelt `band.css` über `header.band[data-tab]`. Die Felder zeichnen keinen Kasten
+  (`display: contents`): Gruppen und Andockplatz stehen in einer Zeile, der Andockplatz zwischen „Ansicht des
+  Textes“ und „Einfälle“ (`order`).
+- Nachgezogen in den Widgets: `widgets.ts` – `editToolbar(root)` findet die Leiste am Blatt oder im Andockplatz
+  (wysiwyg.ts nutzt es für den Umschalter Satzbild/Quelltext), `submitButton` überspringt die Knöpfe der Leiste
+  (maßgeblich bleibt „Speichern“ der Statuszeile), `lockEditor` sperrt auch den Andockplatz; `workspace.ts` lauscht
+  für `a[data-nav]` am Dokument (Umschalter und ‹ › stehen im Kopf); `sheet.ts` merkt die Cursorstelle für „Bild“
+  über einen Lauscher am Dokument; `ribbon.ts` lässt die Pfeiltasten nur über erreichbare Knöpfe wandern.
+- „Prüfen“/„Vorschlag“ (`[data-band-assist]`) lösen den gleichnamigen Knopf von `form.assist-form` rechts aus;
+  „Speichern“ im Band speichert nicht, solange der Knopf der Statuszeile gesperrt ist (nichts geändert).
+- Ohne JavaScript bleibt die Leiste verborgen am Blatt (wie bisher: Textfeld und Statuszeile); der Reiter Einfügen
+  zeigt dann einen Hinweis (`nojs-only`) mit den Links „Bild einfügen …“ (`#bild-einfuegen`) und „Markierung …“.
+
+### Widgets `band` und `band-dock` (`web/src/band.ts`)
+
+- Reiter nach dem ARIA-Muster für Tabs: Klick wechselt ohne Neuladen, ←/→ (mit Umlauf) und Pos1/Ende wandern und
+  wählen, nur der gewählte Reiter steht in der Tab-Folge.
+- Klick auf den gewählten Reiter oder auf den Schalter klappt das Band (`data-band` an `<html>`, Cookie
+  `baruch_band`); zugeklappt zeigt ein Reiter sein Feld vorübergehend über dem Inhalt (`data-band-peek` am Kopf) –
+  Esc, ein Klick daneben oder ein ausgelöster Eintrag blendet es aus.
+- Gruppen: voll alle offen, die Beschriftung ist kein Schalter; kompakt (`data-compact` an `<html>`) Popups – nur
+  eines offen, Esc und Klick daneben schließen. band.ts misst nie Breiten; es reagiert auf das Ereignis
+  `baruch:laptop` (laptop.ts) mit `syncGroups`.
+- Stil `static/band.css`: nur die Attribute an `<html>` (`data-compact`, `data-band`), keine Media-Queries; nur
+  Farbvariablen aus `app.css`; Hilfsklassen `js-only`/`nojs-only`.
+
+Tests: Unit-Tests in `src/band.rs`; `tests/round33_menueband.rs` (Band je Seitenart, `?tab=`, `?band=` mit Cookie,
+Maskierung, Zuordnung aller alten Einträge, Abzeichen, Fragment des Editors, Verhalten der Widgets im Node-Nachbau,
+Szene „band“ in `tests/round23_web/widgets.mjs`).

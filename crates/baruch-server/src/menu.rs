@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kopfzeile mit den Menüs **Werk ▾**, **Ansicht ▾** und **Werkzeuge ▾** (Runde 9).
+//! Daten und Abzeichen des Menübands (Runde 33; bis dahin Kopfzeile mit den Menüs Werk ▾, Ansicht ▾, Werkzeuge ▾
+//! der Runde 9).
 //!
-//! Die Kopfzeile wohnt in `templates/base.html` (`{% block topbar %}`); jede Seite liefert nur
-//! `{% block page_title %}` und `{% block page_actions %}`. Die Menüs sind `<details>`/`<summary>`
-//! mit gewöhnlichen Links, also ohne JavaScript bedienbar; `web/src/menu.ts` (Widget `menubar`)
-//! ergänzt die Tastatur nach dem ARIA-Menü-Muster.
+//! Das Band wohnt in `templates/base.html` (`{% block topbar %}`): Menü **Baruch ▾**, Reiter Start · Einfügen ·
+//! Prüfen · Buch · Ansicht mit Gruppen; jede Seite liefert `{% block page_title %}`, den Vorgabe-Reiter
+//! (`{% block band_tab %}`) und ihre Gruppen (`page_actions`, `band_*`). Alles sind gewöhnliche Links und
+//! `<details>`, also ohne JavaScript bedienbar; den aktiven Reiter und die Adressen setzt `crate::band::apply` im
+//! fertigen HTML ein. `web/src/menu.ts` (Widget `menubar`) ergänzt am Menü „Baruch ▾“ die Tastatur nach dem
+//! ARIA-Menü-Muster, `web/src/band.ts` die Reiter.
 //!
-//! Daten der Kopfzeile, in dieser Rangfolge: (1) die Variable `topbar` (nur die Arbeitsseite, gebaut
+//! Daten des Bands, in dieser Rangfolge: (1) die Variable `topbar` (nur die Arbeitsseite, gebaut
 //! von [`workspace_topbar`]), (2) `work.id`/`work.title`, wenn `work` eine Abbildung ist, (3) das
-//! Werk aus dem Cookie `baruch_work` (`settings.work`). Fehlt alles, zeigen die Werk-Einträge auf
-//! `/werke`.
+//! Werk aus dem Cookie `baruch_work` (`settings.work`). Fehlt alles, gibt es nur die Reiter Start und Ansicht.
 //!
-//! Abzeichen: offene Anträge zur Gliederung, offene Vorschläge im Werk und (Runde 28) offene Befunde (Zählregel
-//! Vertrag R28 §1.5, Summe von `Store::finding_open_counts`). Die Arbeitsseite zeichnet sie im Server, andere Seiten
-//! lassen sie `hidden`, `menu.ts` füllt sie über die RPC-Methode `menu.badges {work?}` → `{work, outline_requests,
-//! open_proposals, open_findings}`.
+//! Abzeichen: offene Vorschläge im Werk (Reiter Start), offene Befunde (Reiter Prüfen „N offen“ und Eintrag
+//! „Befunde“; Zählregel Vertrag R28 §1.5, Summe von `Store::finding_open_counts`) und offene Anträge zur Gliederung
+//! (Reiter Buch und Eintrag „Anträge zur Gliederung“). Die Arbeitsseite zeichnet sie im Server; `menu.ts` frischt
+//! sie über die RPC-Methode `menu.badges {work?}` → `{work, outline_requests, open_proposals, open_findings}` auf.
 //!
 //! Runde 23a: Auch ohne JavaScript stehen die Zahlen und der Eintrag „Anträge zur Gliederung“ auf **jeder** Seite im
 //! ausgelieferten HTML. `base.html` kennzeichnet außerhalb der Arbeitsseite die Abzeichen mit `data-badge-fill` und
 //! die Menüleiste mit `data-badges-work="<Werk>"`; die Schicht `consent::inject` (über allen Routen) ruft
 //! [`fill_page`], das die Zahlen aus [`badges`] einsetzt ([`fill_badges`]). `menu.ts` frischt sie nur noch auf.
 //!
-//! Runde 24: Das Menü **Werkzeuge ▾** endet mit „Über Baruch“ (`/ueber`, `crate::about`) – ein gewöhnlicher Link
+//! Runde 24: „Über Baruch“ (`/ueber`, `crate::about`) steht im Menü **Baruch ▾** – ein gewöhnlicher Link
 //! ohne Werk in der Adresse (die Seite zeigt Version, Lizenz und Quellcode und braucht kein Werk).
 
 use baruch_core::Work;
@@ -43,11 +45,11 @@ pub fn handles(method: &str) -> bool {
 /// Zahlen der Abzeichen an den Menüs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Badges {
-    /// Offene (noch nicht entschiedene) Anträge zur Gliederung, Abzeichen am Menü „Werk“.
+    /// Offene (noch nicht entschiedene) Anträge zur Gliederung, Abzeichen am Reiter „Buch“.
     pub outline_requests: usize,
-    /// Offene Vorschläge im ganzen Werk, Abzeichen am Menü „Ansicht“.
+    /// Offene Vorschläge im ganzen Werk, Abzeichen am Reiter „Start“.
     pub open_proposals: usize,
-    /// Runde 28: offene Befunde im ganzen Werk (Zählregel §1.5), Abzeichen am Eintrag Werk ▾ → Befunde.
+    /// Runde 28: offene Befunde im ganzen Werk (Zählregel §1.5), Abzeichen am Reiter „Prüfen“ und am Eintrag „Befunde“.
     pub open_findings: usize,
 }
 
@@ -67,7 +69,7 @@ pub async fn badges(state: &AppState, work: WorkId) -> Result<Badges, RpcError> 
 /// Kennzeichen eines Abzeichens, das der Server im fertigen HTML füllt (`base.html`, außerhalb der Arbeitsseite).
 const FILL: &str = " data-badge-fill";
 
-/// Werk der Kopfzeile aus `data-badges-work="<Zahl>"` (`base.html`); `None` auf der Arbeitsseite (dort zeichnet die
+/// Werk des Bands aus `data-badges-work="<Zahl>"` (`base.html`); `None` auf der Arbeitsseite (dort zeichnet die
 /// Vorlage die Zahlen selbst) und auf Seiten ohne Werk.
 pub fn page_work(page: &str) -> Option<WorkId> {
     let rest = &page[page.find("data-badges-work=\"")? + "data-badges-work=\"".len()..];
@@ -166,7 +168,7 @@ fn work_options(shelf: &Shelf) -> Vec<Value> {
         .collect()
 }
 
-/// Daten der Kopfzeile auf der Arbeitsseite: Werk, gezeigter Abschnitt (`key`, `rev`), Ansicht,
+/// Daten des Menübands auf der Arbeitsseite: Werk, gezeigter Abschnitt (`key`, `rev`), Ansicht,
 /// Suche der Literatur (`lq_q`, fertig als `&lq=…`), Werkwahl und die Abzeichen aus dem Server.
 /// `base.html` baut daraus die Adressen (Key-Form `/?work=W&key=K&rev=R…`, nie `node=`).
 pub fn workspace_topbar(work: &Work, shelf: &Shelf, at: &Resolved, library: &LibraryView) -> Value {

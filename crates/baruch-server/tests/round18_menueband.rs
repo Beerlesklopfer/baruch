@@ -110,13 +110,16 @@ async fn the_editor_ribbon_keeps_every_hook_and_shows_the_formats_of_the_templat
     let key = key_of(&keys, "Kapitel");
     let (status, page) = server.get(&format!("/?work={work}&key={key}")).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsseite lädt");
-    let ribbon = ribbon_of(&page, "data-edit-toolbar");
+    // Runde 33 (Menüband): Die Leiste hat jetzt zwei Teile mit Gruppen (geschachtelte <div>), darum reicht der
+    // Ausschnitt bis zur Suchleiste dahinter statt bis zum ersten </div>. Alle Haken sind dieselben.
+    let start = page.find("<div class=\"ws-bar edit-toolbar ribbon\"").expect("Leiste des Editors");
+    let ribbon = &page[start..start + page[start..].find("<div class=\"search-bar\"").expect("Suchleiste hinter der Leiste")];
     // DOM-Vertrag §2: die Haken des Satzbilds bleiben unverändert (wysiwyg.ts liest sie).
     for hook in [
         "data-edit-toolbar hidden>",
         "data-ws-mode=\"satz\"",
         "data-ws-mode=\"quelltext\"",
-        "data-ws-tools",
+        "class=\"ws-tools\" data-ws-tools",
         "data-ws-format",
         "data-ws-cmd=\"italic\"",
         "data-ws-cmd=\"bold\"",
@@ -136,7 +139,8 @@ async fn the_editor_ribbon_keeps_every_hook_and_shows_the_formats_of_the_templat
     }
     assert!(ribbon.contains("data-ribbon-image"), "Knopf „Bild“ öffnet das Einfügen: {ribbon}");
     assert!(
-        page.contains("<details class=\"image-insert\" data-image-insert"),
+        // Runde 33: das Ziel trägt zusätzlich den Anker id="bild-einfuegen" (Hinweis ohne JavaScript im Reiter Einfügen).
+        page.contains("<details class=\"image-insert\" id=\"bild-einfuegen\" data-image-insert"),
         "das Ziel des Knopfs „Bild“ steht im Editor: {page}"
     );
     assert!(!ribbon.contains("data-ribbon-satz"), "im Editor nicht die Fassung der Satz-Seite");
@@ -208,7 +212,7 @@ async fn the_typeset_page_header_works_without_main_js() {
     let key = key_of(&keys, "Eins");
     let (status, html) = server.get(&format!("/werke/{work}/satz?key={key}")).await;
     assert_eq!(status, StatusCode::OK, "Satz-Seite lädt: {html}");
-    let header = &html[html.find("<header class=\"topbar\"").expect("Kopfzeile")..];
+    let header = &html[html.find("<header class=\"band\"").expect("Kopfzeile")..]; // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     let header = &header[..header.find("</header>").unwrap()];
     assert!(
         !header.contains("data-widget=\"theme\"") && !header.contains("<button"),

@@ -34,39 +34,80 @@
   </form>
 </div>
 {%- else %}
+{#- Runde 33: Die Leiste hat zwei Teile für die Reiter des Menübands (templates/base.html): data-band-part="start"
+    (Gruppen Text, Absatz, Fassung, Assistenten) und data-band-part="einfuegen" (Einfügen, Register und Glossar).
+    Sie bleibt im Fragment des Editors (ui.render zeichnet sie mit neu) und ohne JavaScript verborgen; band.ts (Widget
+    „band-dock“ am Ende von editor.html) hängt sie in den Andockplatz des Bands. Die Gruppen haben die Form des Bands
+    (`<details class="band-group" data-band-group open>`); band.ts klappt sie im kompakten Band zu Popups. Kontext
+    zusätzlich: work.id, node.key, rev (Nummern der Nachbarfassungen), view_q/pick_q/lq_q aus editor.html. #}
 <div class="ws-bar edit-toolbar ribbon" role="toolbar" aria-label="Menüband für das Bearbeiten" data-zoom-zone="toolbar" data-edit-toolbar hidden>
-  <span class="ws-modes" role="group" aria-label="Ansicht">
-    <button class="btn" type="button" data-ws-mode="satz" aria-pressed="{% if ws_satz %}true{% else %}false{% endif %}" title="Bearbeiten im Satzbild der Werkvorlage">Satzbild</button>
-    <button class="btn" type="button" data-ws-mode="quelltext" aria-pressed="{% if ws_satz %}false{% else %}true{% endif %}" title="Typst-Quelltext bearbeiten">Quelltext</button>
-  </span>
-  <span class="ws-tools" data-ws-tools{% if not ws_satz %} hidden{% endif %}>
-    <select data-ws-format aria-label="Absatzformat" title="Absatzformat des Blocks am Cursor">
-      <option value="paragraph">Absatz</option>
-      <option value="1">Überschrift 1</option>
-      <option value="2">Überschrift 2</option>
-      <option value="3">Überschrift 3</option>
-    </select>
-    <button class="btn" type="button" data-ws-cmd="italic" title="Hervorheben (Strg+I)" aria-label="Hervorheben"><em>K</em></button>
-    <button class="btn" type="button" data-ws-cmd="bold" title="Fett (Strg+B)" aria-label="Fett"><strong>F</strong></button>
-  </span>
-  <span class="ribbon-formats" role="group" aria-label="Formate der Werkvorlage" data-widget="ribbon">
-    {%- for f in ribbon.formats %}
-    <button class="btn" type="button" data-ribbon-cmd="{{ f.cmd }}" data-ribbon-snippet="{{ f.snippet }}" title="{{ f.title }}">{{ f.label }}</button>
-    {%- endfor %}
-    <button class="btn" type="button" data-ribbon-image title="Bild aus den Bildern des Werks einfügen (öffnet „Bild einfügen …“ unten)">Bild</button>
-  </span>
-  {#- Runde 31c: Gruppe „Register und Glossar“ (Widget context-menu, web/src/context_menu.ts): dieselben Aktionen wie das
-      Kontextmenü im Satzbild und im Textfeld (Rechtsklick, Kontextmenü-Taste, Umschalt+F10) und „Register“ mit allen
-      Registereinträgen des Abschnitts (aus den Marken des Satzbilds bzw. des Textfelds, auch ungespeichert). Ohne
-      JavaScript bleibt das Menüband verborgen; dann führt „Markierung …“ in der Statuszeile auf /werke/{id}/markierung. #}
-  <span class="ribbon-group ribbon-index" role="group" aria-label="Register und Glossar" data-widget="context-menu">
-    <button class="btn" type="button" data-ctx-action="glossary_add" title="Markiertes Wort ins Glossar aufnehmen (Dialog; auch im Kontextmenü: Rechtsklick, Kontextmenü-Taste, Umschalt+F10)">In Glossar</button>
-    <button class="btn" type="button" data-ctx-action="index_add" title="Registermarke hinter das markierte Wort setzen (Stichwort, Unterstichwort, Register, siehe/siehe auch); gespeichert wird mit „Speichern“">In Register</button>
-    <button class="btn" type="button" data-ctx-action="glossary_lookup" title="Markiertes Wort im Glossar nachschlagen">Nachschlagen</button>
-    <span class="ribbon-register" data-index-list>
-      <button class="btn" type="button" data-index-toggle aria-expanded="false" aria-controls="ribbon-register-list" title="Alle Registereinträge dieses Abschnitts">Register</button>
-      <span class="ribbon-register-list" id="ribbon-register-list" data-index-entries role="group" aria-label="Registereinträge des Abschnitts" hidden></span>
-    </span>
-  </span>
+  <div class="band-part" data-band-part="start">
+    <details class="band-group" data-band-group open><summary class="band-group-label">Text</summary><div class="band-items" role="group" aria-label="Text">
+      <span class="ws-modes" role="group" aria-label="Ansicht">
+        <button class="btn" type="button" data-ws-mode="satz" aria-pressed="{% if ws_satz %}true{% else %}false{% endif %}" title="Bearbeiten im Satzbild der Werkvorlage">Satzbild</button>
+        <button class="btn" type="button" data-ws-mode="quelltext" aria-pressed="{% if ws_satz %}false{% else %}true{% endif %}" title="Typst-Quelltext bearbeiten">Quelltext</button>
+      </span>
+    </div></details>
+    <details class="band-group" data-band-group open><summary class="band-group-label">Absatz</summary><div class="band-items" role="group" aria-label="Absatz">
+      <span class="ws-tools" data-ws-tools{% if not ws_satz %} hidden{% endif %}>
+        <select data-ws-format aria-label="Absatzformat" title="Absatzformat des Blocks am Cursor">
+          <option value="paragraph">Absatz</option>
+          <option value="1">Überschrift 1</option>
+          <option value="2">Überschrift 2</option>
+          <option value="3">Überschrift 3</option>
+        </select>
+        <button class="btn" type="button" data-ws-cmd="italic" title="Hervorheben (Strg+I)" aria-label="Hervorheben"><em>K</em></button>
+        <button class="btn" type="button" data-ws-cmd="bold" title="Fett (Strg+B)" aria-label="Fett"><strong>F</strong></button>
+      </span>
+      <span class="muted tiny"{% if ws_satz %} hidden{% endif %} data-ws-source-note>nur im Satzbild</span>
+    </div></details>
+    <details class="band-group" data-band-group open><summary class="band-group-label">Fassung</summary><div class="band-items" role="group" aria-label="Fassung">
+      {#- ‹ › ohne data-key: Alt+←/→ (workspace.ts) nimmt die Links im Kopf des Editors; „Speichern“ gehört über
+          form="editor-form" zum Formular im Blatt – maßgeblich (Beschriftung „Gespeichert“/„Speichern“) bleibt der Knopf
+          der Statuszeile. #}
+      <span class="band-switcher" role="group" aria-label="Fassung wechseln">
+        {%- if rev.prev %}<a class="btn" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}" aria-label="Vorige Fassung" title="Vorige Fassung (Alt+←)">‹</a>
+        {%- else %}<span class="btn" aria-disabled="true" aria-label="Vorige Fassung (dies ist die erste)">‹</span>{% endif %}
+        <span class="counter{% if rev.is_current %} is-current{% endif %}" title="Fassung {{ rev.number }}{% if rev.is_current %}, aktuell{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
+        {%- if rev.next %}<a class="btn" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}" aria-label="Nächste Fassung" title="Nächste Fassung (Alt+→)">›</a>
+        {%- else %}<span class="btn" aria-disabled="true" aria-label="Nächste Fassung (dies ist die letzte)">›</span>{% endif %}
+      </span>
+      <button class="btn primary" type="submit" form="editor-form" data-band-save title="Speichern (Strg+S)">Speichern</button>
+      <button class="btn" type="submit" form="editor-form" name="as_new" value="1" title="Immer eine neue Fassung auf Fassung {{ rev.number }} anlegen (statt fortzuschreiben)">Als neue Fassung</button>
+    </div></details>
+    <details class="band-group" data-band-group open><summary class="band-group-label">Assistenten</summary><div class="band-items" role="group" aria-label="Assistenten">
+      {#- Lösen die Knöpfe „Prüfen“/„Vorschlag“ des Formulars rechts im Akkordeon „Assistenten“ aus (gewählte Persona,
+          Hinweis, Bereich und Prüfgrundlage gelten von dort; band.ts). #}
+      <button class="btn" type="button" data-band-assist="persona.review" title="Die rechts gewählte Persona prüft den Abschnitt (Befunde als Beitrag im Abschnitts-Chat)">Prüfen</button>
+      <button class="btn" type="button" data-band-assist="persona.propose" title="Die rechts gewählte Persona schreibt eine neue Fassung als Vorschlag (übernehmen kann nur der Mensch)">Vorschlag</button>
+    </div></details>
+  </div>
+  <div class="band-part" data-band-part="einfuegen">
+    <div class="ribbon-formats" data-widget="ribbon">
+      <details class="band-group" data-band-group open><summary class="band-group-label">Einfügen</summary><div class="band-items" role="group" aria-label="Einfügen">
+        {%- for f in ribbon.formats %}
+        <button class="btn" type="button" data-ribbon-cmd="{{ f.cmd }}" data-ribbon-snippet="{{ f.snippet }}" title="{{ f.title }}">{{ f.label }}</button>
+        {%- endfor %}
+      </div></details>
+      <details class="band-group" data-band-group open><summary class="band-group-label">Bild</summary><div class="band-items" role="group" aria-label="Bild">
+        <button class="btn" type="button" data-ribbon-image title="Bild aus den Bildern des Werks einfügen (öffnet „Bild einfügen …“ unten)">Bild</button>
+      </div></details>
+    </div>
+    {#- Runde 31c: Gruppe „Register und Glossar“ (Widget context-menu, web/src/context_menu.ts): dieselben Aktionen wie das
+        Kontextmenü im Satzbild und im Textfeld (Rechtsklick, Kontextmenü-Taste, Umschalt+F10) und „Register“ mit allen
+        Registereinträgen des Abschnitts (aus den Marken des Satzbilds bzw. des Textfelds, auch ungespeichert). Ohne
+        JavaScript bleibt das Menüband verborgen; dann führt „Markierung …“ in der Statuszeile auf /werke/{id}/markierung. #}
+    <div class="ribbon-group ribbon-index" data-widget="context-menu">
+      <details class="band-group" data-band-group open><summary class="band-group-label">Register und Glossar</summary><div class="band-items" role="group" aria-label="Register und Glossar">
+        <button class="btn" type="button" data-ctx-action="glossary_add" title="Markiertes Wort ins Glossar aufnehmen (Dialog; auch im Kontextmenü: Rechtsklick, Kontextmenü-Taste, Umschalt+F10)">In Glossar</button>
+        <button class="btn" type="button" data-ctx-action="index_add" title="Registermarke hinter das markierte Wort setzen (Stichwort, Unterstichwort, Register, siehe/siehe auch); gespeichert wird mit „Speichern“">In Register</button>
+        <button class="btn" type="button" data-ctx-action="glossary_lookup" title="Markiertes Wort im Glossar nachschlagen">Nachschlagen</button>
+        <span class="ribbon-register" data-index-list>
+          <button class="btn" type="button" data-index-toggle aria-expanded="false" aria-controls="ribbon-register-list" title="Alle Registereinträge dieses Abschnitts">Register</button>
+          <span class="ribbon-register-list" id="ribbon-register-list" data-index-entries role="group" aria-label="Registereinträge des Abschnitts" hidden></span>
+        </span>
+      </div></details>
+    </div>
+  </div>
 </div>
 {%- endif %}

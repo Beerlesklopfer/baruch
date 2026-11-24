@@ -120,6 +120,8 @@
     form#editor-form liegt im Blatt, der Knopf „Speichern“ in der Statuszeile gehört über form="editor-form"
     dazu (geht auch ohne JavaScript). Die Vorschläge (section.pv-flow) stehen als Geschwister des
     Formulars im Blatt, weil sie eigene Formulare tragen (Formulare lassen sich nicht schachteln).
+    Runde 33: Die Werkzeugleiste (fragments/edit_toolbar.html) hängt band.ts mit JavaScript in das Menüband um
+    (Andockplatz); ohne JavaScript bleibt sie hier verborgen.
     Satzbild: Die Ansicht kommt schon vom Server (Cookie baruch_editor, Vorgabe Satzbild; Runde 8):
     aria-pressed, und bei „satz“ das fertige Satzbild der gezeigten Fassung (data-ws-ready), das das Widget
     beim Einhängen sofort öffnet. Ohne JavaScript bleiben Werkzeugleiste, Blatt des Satzbilds und sein
@@ -188,7 +190,7 @@
         baruch:ws-caret, Quelltext über selectionStart); dann geht der ungespeicherte Text als body mit (das
         Feld ist ohne JavaScript gesperrt und wird nie geschickt). Der Knopf „Bild“ des Menübands öffnet nur
         dieses details (data-image-insert). #}
-    <details class="image-insert" data-image-insert data-widget="sheet-tools">
+    <details class="image-insert" id="bild-einfuegen" data-image-insert data-widget="sheet-tools">
       <summary class="btn" title="Bild aus den Bildern des Werks einfügen (neue Fassung)">Bild einfügen …</summary>
       {%- if image_choices %}
       <form class="image-insert-form" method="post" action="/werke/bilder/einfuegen">
@@ -216,3 +218,7 @@
   </div>
 </div>
 {%- endif %}
+{#- Runde 33: Marke für das Menüband – band.ts (Widget „band-dock“) leert beim Einhängen den Andockplatz des Bands
+    (div[data-band-dock] in base.html) und hängt die Leiste [data-edit-toolbar] dieses Fragments hinein; in der
+    Vorschau (keine Leiste) wird nur geleert. Steht in beiden Ansichten am Ende, damit jedes ui.render andockt. #}
+<span data-widget="band-dock" hidden></span>
