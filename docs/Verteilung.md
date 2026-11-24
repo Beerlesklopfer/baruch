@@ -218,8 +218,9 @@ APT_GPG_KEY=<Fingerabdruck> scripts/apt-repo.sh /pfad/zum/ordner baruch_0.9.0-1_
 | `APT_GPG_PASSPHRASE` | Secret der Umgebung `release` | Passphrase dazu | bei einem Schlüssel mit Passphrase |
 | `RELEASE_DRAFT` | Variable | `false` = Release sofort öffentlich | nein (Vorgabe: Entwurf) |
 | `MACOS_SIGN` | Variable | `true` schaltet Signieren und Notarisieren ein | nein (Vorgabe: aus) |
-| `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD`, `MACOS_SIGN_IDENTITY` | Secrets | Developer-ID-Zertifikat (.p12, Base64), Passwort, Name der Identität | nur mit `MACOS_SIGN=true` |
-| `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | Secrets | Notarisierung (`notarytool`) | nur mit `MACOS_SIGN=true` |
+| `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD` | Secrets | Zertifikat „Developer ID Application“ mit privatem Schlüssel (.p12, `base64 -w0`), Passwort – dieselben Werte wie bei Onesimus | nur mit `MACOS_SIGN=true` |
+| `MACOS_SIGN_IDENTITY` | Secret | Name oder SHA-1 der Identität | nein (Vorgabe: erste „Developer ID Application“ des Zertifikats) |
+| `APPSTORE_API_KEY_ID`, `APPSTORE_API_ISSUER_ID`, `APPSTORE_API_KEY_P8_BASE64` | Secrets | App-Store-Connect-Schlüssel für `notarytool` (`AuthKey_<id>.p8`, `base64 -w0`) – wie bei Onesimus | ohne: signiert, nicht notarisiert (Warnung) |
 | `WINDOWS_SIGN` | Variable | `true` schaltet das Signieren der .msi ein | nein (Vorgabe: aus) |
 | `WINDOWS_CERT_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` | Secrets | Code-Signing-Zertifikat (.pfx, Base64), Passwort | nur mit `WINDOWS_SIGN=true` |
 
