@@ -10,7 +10,10 @@
     Runde 30b (chat-loesungen): Varianten des Lektors tragen ihr Etikett „Variante A/B/C“, die Zeile, die umgesetzten
     Befunde und den Link „vergleichen“ (/varianten, nebeneinander); r.variant aus assist::variants::revision_variant.
     Runde 22 (fassungen): je fortgeschriebener Fassung „Stand k“ mit Link auf den Verlauf (r.history_url), je Vorschlag
-    auf einer fortgeschriebenen Basis „beruht auf Stand k“ (r.based_on_amend). -#}
+    auf einer fortgeschriebenen Basis „beruht auf Stand k“ (r.based_on_amend).
+    0.9.0 (ältere Fassungen ausblenden): ausgeblendete Fassungen (r.hidden) stehen je Abschnitt hinter dem Schalter
+    <details class="rev-fold">; im gezeigten Abschnitt trägt jede Fassung mit Angebot (r.fold) „bis hierhin
+    ausblenden“ (form="rev-fold-<n>", Formular in fragments/revisions.html). -#}
 {%- macro rows(revisions) %}
   <ul class="revtree-list">
   {%- for r in revisions %}
@@ -35,21 +38,32 @@
       {%- endif %}
       <span class="revtree-links tiny">
         {%- if r.shown %}<span class="muted">gezeigt</span>{% else %}<a data-nav href="{{ r.show_url }}">zeigen</a>{% endif %}
-        · <a data-nav href="{{ r.try_url }}">in der Vorschau probieren</a></span>
+        · <a data-nav href="{{ r.try_url }}">in der Vorschau probieren</a>
+        {%- if r.fold %} · <button class="btn tiny" type="submit" form="rev-fold-{{ r.number }}" title="Ältere ersetzte und verworfene Fassungen unter Fassung {{ r.number }} ausblenden">bis hierhin ausblenden</button>{% endif %}</span>
     </li>
   {%- endfor %}
   </ul>
 {%- endmacro %}
+{%- macro folded(revisions, open) %}
+  {{- rows(revisions | rejectattr("hidden")) }}
+  {%- set hidden_revs = revisions | selectattr("hidden") | list %}
+  {%- if hidden_revs %}
+  <details class="rev-fold" data-rev-fold-list{% if open %} open{% endif %}>
+    <summary class="small"><span class="rev-fold-show">{{ hidden_revs | length }} ältere Fassung{% if hidden_revs | length != 1 %}en{% endif %} zeigen ▸</span><span class="rev-fold-hide">{{ hidden_revs | length }} ältere Fassung{% if hidden_revs | length != 1 %}en{% endif %} verbergen ▾</span></summary>
+    {{- rows(hidden_revs) }}
+  </details>
+  {%- endif %}
+{%- endmacro %}
 <section class="revtree" aria-label="Fassungen">
   <h3 class="pane-title">Fassungen dieses Abschnitts</h3>
-  {{- rows(revtree.section) }}
+  {{- folded(revtree.section, rev.fold.open) }}
   <details class="revtree-chapter">
     <summary class="small">Fassungen des ganzen Kapitels</summary>
     {%- for s in revtree.chapter %}
     <div class="revtree-section{% if s.selected %} selected{% endif %}" data-node="{{ s.node }}">
       <div class="small"><strong>{% if s.number %}<span class="num">{{ s.number }}</span>{% endif %}{{ s.title }}</strong>
         {%- if s.current %} <span class="muted tiny">aktuell: Fassung {{ s.current }}</span>{% endif %}</div>
-      {%- if s.revisions %}{{ rows(s.revisions) }}{% else %}<p class="muted tiny">Keine Fassungen.</p>{% endif %}
+      {%- if s.revisions %}{{ folded(s.revisions, false) }}{% else %}<p class="muted tiny">Keine Fassungen.</p>{% endif %}
     </div>
     {%- endfor %}
   </details>

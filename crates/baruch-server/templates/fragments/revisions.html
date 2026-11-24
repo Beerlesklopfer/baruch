@@ -6,7 +6,12 @@
     ui.render diesen Bereich mit der rechten Spalte neu. Der Inhalt ist eine eigene Zoom-Zone.
     Runde 22 (fassungen): „Stand k“ der gezeigten Fassung mit Link „Verlauf“ (Fortschreibungen, Rückgängig) und die
     Liste „Weitere Fassungen“ (ersetzt, verworfen) mit je einem Formular „aktuell machen“ (id="rev-alt-<n>",
-    revision.set_current an /act); die Knöpfe im Editor-Kopf zeigen über form="rev-alt-<n>" auf diese Formulare. -#}
+    revision.set_current an /act); die Knöpfe im Editor-Kopf zeigen über form="rev-alt-<n>" auf diese Formulare.
+    0.9.0 (Nutzer 2026-11-24, ältere Fassungen ausblenden): je Fassung mit Angebot ein Formular id="rev-fold-<n>"
+    (revision.fold_set an /act, im versteckten Block .rev-fold-forms); die Knöpfe „bis hier ausblenden“ hier, im
+    Editor-Kopf und in der Baumansicht zeigen über form darauf. Ausgeblendete Fassungen stehen hinter dem Schalter
+    <details class="rev-fold"> („n ältere Fassungen zeigen ▸ / verbergen ▾“); „Wieder alle zeigen“ (revision.fold_clear)
+    hebt die Marke auf. Kontext rev.fold (view::FoldView), a.hidden/a.fold je weiterer Fassung. -#}
 {%- macro hidden(method) %}
       <input type="hidden" name="method" value="{{ method }}">
       <input type="hidden" name="work" value="{{ work.id }}">
@@ -22,6 +27,9 @@
     <span class="badge rev-count" title="{% if rev.total == 1 %}1 Fassung{% else %}{{ rev.total }} Fassungen{% endif %} dieses Abschnitts">{{ rev.total }}</span>
     {%- if rev.open_proposals %}
     <span class="badge warning proposal-count" title="{% if rev.open_proposals == 1 %}1 offener Vorschlag{% else %}{{ rev.open_proposals }} offene Vorschläge{% endif %}">{% if rev.open_proposals == 1 %}1 Vorschlag{% else %}{{ rev.open_proposals }} Vorschläge{% endif %}</span>
+    {%- endif %}
+    {%- if rev.fold.hidden %}
+    <span class="badge rev-fold-count" title="{{ rev.fold.hidden }} ältere Fassung{% if rev.fold.hidden != 1 %}en{% endif %} ausgeblendet (bis Fassung {{ rev.fold.cutoff }})">{{ rev.fold.hidden }} ausgeblendet</span>
     {%- endif %}
     <span class="muted small acc-sub">gezeigt: Fassung {{ rev.number }}</span>
   </summary>
@@ -48,6 +56,20 @@
           <button class="btn primary" type="submit">Änderung speichern</button>
         </form>
       </details>
+      {%- if rev.fold.offered or rev.fold.mark %}
+      <div class="rev-fold-actions small">
+        {%- if rev.fold.offered %}
+        <button class="btn" type="submit" form="rev-fold-{{ rev.number }}" title="Ersetzte und verworfene Fassungen unter Fassung {{ rev.number }} hinter den Schalter legen; nichts wird gelöscht, offene Vorschläge und die aktuelle Fassung bleiben sichtbar">Ältere bis hierhin ausblenden</button>
+        {%- endif %}
+        {%- if rev.fold.mark %}
+        <form class="rev-unfold" method="post" action="/act" data-rpc>
+          {{- hidden("revision.fold_clear") }}
+          <span class="muted">Ausgeblendet bis Fassung {{ rev.fold.cutoff }}{% if rev.fold.cutoff != rev.fold.mark %} (Marke an Fassung {{ rev.fold.mark }}, gilt nur bis unter die aktuelle){% endif %}: {{ rev.fold.hidden }} Fassung{% if rev.fold.hidden != 1 %}en{% endif %}.</span>
+          <button class="btn tiny" type="submit">Wieder alle zeigen</button>
+        </form>
+        {%- endif %}
+      </div>
+      {%- endif %}
       <form class="rev-delete" method="post" action="/act" data-rpc>
         {{- hidden("revision.delete") }}
         {%- if rev.is_current %}
@@ -62,8 +84,8 @@
     {%- if rev.alternatives %}
     <div class="rev-alternatives-forms small">
       <div><strong>Weitere Fassungen</strong> <span class="muted">(ersetzt oder verworfen)</span></div>
-      <ul class="rev-alt-list">
-        {%- for a in rev.alternatives %}
+      {%- macro alt_rows(list) %}
+        {%- for a in list %}
         <li class="rev-alt{% if a.shown %} shown{% endif %}">
           {%- if a.shown %}Fassung {{ a.number }} <span class="muted">(gezeigt)</span>{% else %}<a data-nav href="{{ a.url }}">Fassung {{ a.number }}</a>{% endif %}
           <span class="muted">· {{ a.status }} · {{ a.author }}</span>
@@ -77,9 +99,24 @@
             {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
             <button class="btn tiny" type="submit" title="Fassung {{ a.number }} zur aktuellen machen">aktuell machen</button>
           </form>
+          {%- if a.fold %}
+          <button class="btn tiny" type="submit" form="rev-fold-{{ a.number }}" title="Ältere ersetzte und verworfene Fassungen unter Fassung {{ a.number }} ausblenden">bis hierhin ausblenden</button>
+          {%- endif %}
         </li>
         {%- endfor %}
+      {%- endmacro %}
+      <ul class="rev-alt-list">
+        {{- alt_rows(rev.alternatives | rejectattr("hidden")) }}
       </ul>
+      {%- set hidden_alts = rev.alternatives | selectattr("hidden") | list %}
+      {%- if hidden_alts %}
+      <details class="rev-fold" data-rev-fold-list{% if rev.fold.open %} open{% endif %}>
+        <summary><span class="rev-fold-show">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} zeigen ▸</span><span class="rev-fold-hide">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} verbergen ▾</span></summary>
+        <ul class="rev-alt-list">
+          {{- alt_rows(hidden_alts) }}
+        </ul>
+      </details>
+      {%- endif %}
     </div>
     {%- endif %}
     {%- for r in revtree.section if r.shown and r.variant and r.status_key == "proposed" %}
@@ -94,6 +131,21 @@
       <button class="btn small" type="submit">Übrige verwerfen</button>
     </form>
     {%- endfor %}
+    {%- if rev.fold.numbers %}
+    <div class="rev-fold-forms" hidden>
+      {%- for n in rev.fold.numbers %}
+      <form id="rev-fold-{{ n }}" method="post" action="/act" data-rpc aria-label="Ältere Fassungen unter Fassung {{ n }} ausblenden">
+        <input type="hidden" name="method" value="revision.fold_set">
+        <input type="hidden" name="work" value="{{ work.id }}">
+        <input type="hidden" name="node" value="{{ node.id }}">
+        <input type="hidden" name="key" value="{{ node.key }}">
+        <input type="hidden" name="rev" value="{{ n }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
+      </form>
+      {%- endfor %}
+    </div>
+    {%- endif %}
     {% include "fragments/revtree.html" %}
   </div>
 </details>

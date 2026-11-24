@@ -47,6 +47,8 @@
 //!   `revision_amend` mit Grabstein-Art 'revision_amend', `work_revision_policy`, `finding(_status).adopted_amend`.
 //!   Reserviert: Store 0051 fassungen, 0052 befund-rueckfrage, 0053 spiegel-entwurf, 0054 Integrator; Bibliothek 0109
 //!   Integrator (alle erwartet unbenutzt).
+//! - 0.9.0 (Nutzer 2026-11-24): ältere Fassungen ausblenden (Modul `revision_fold`, [`RevisionFold`]); Migration
+//!   0051: Tabelle `node_revision_fold` (Marke je Abschnitt, ohne uuid, nicht im Austausch, Kaskade mit dem Abschnitt).
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
@@ -80,6 +82,7 @@ mod posts;
 mod rag_collections;
 mod replace;
 mod requests;
+mod revision_fold;
 mod seed;
 mod sheet;
 mod snapshot;
@@ -152,6 +155,7 @@ pub use requests::{
     AssistantAdd, Decision, Expected, MAX_OPEN_OUTLINE_REQUESTS_PER_ORIGIN, OutlineOp, OutlineRequest, PartAmend,
     PartIdentity, PartRevision, PreviewMark, PreviewPoint, RequestDecided,
 };
+pub use revision_fold::{FoldBefore, RevisionFold};
 pub use sheet::{MAX_SHEET_FONT_CHARS, SheetSettings};
 pub use sqlx::SqlitePool as Db;
 pub use sword_sources::{MAX_MODULE_NAME, MAX_WORK_SOURCES, WorkSources};

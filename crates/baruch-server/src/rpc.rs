@@ -808,6 +808,7 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, params_va
         m if crate::index_marks::handles(m) => crate::index_marks::call(state, work_id, m, params_value).await,
         // Runde 22 (Schnittstelle R22-S1): Verlauf der Fortschreibungen und Einstellung „Fassungen“.
         m if crate::revisions::handles(m) => crate::revisions::call(state, work_id, m, params_value).await,
+        m if crate::revision_fold::handles(m) => crate::revision_fold::call(state, work_id, m, params_value).await,
         _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
     }
 }

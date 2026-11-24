@@ -1016,6 +1016,31 @@ Markierung **aktuell**: Sie wird erzeugt (Vorschau, Export, Git-Spiegel).
   sie das ganze Kapitel. Je Fassung **zeigen** (im Editor) und **in der Vorschau probieren**: Die Vorschau
   setzt die gewählte Fassung probeweise ein (`pick` in der Adresse), ohne die Markierung zu ändern.
 
+### Ältere Fassungen ausblenden (0.9.0)
+
+Ein Buch sammelt schnell Dutzende Fassungen je Abschnitt. Ältere lassen sich **ausblenden** – nichts wird gelöscht.
+
+- **bis hierhin ausblenden** steht an jeder Fassung, unter der es etwas auszublenden gibt: im Akkordeon **Fassungen**
+  („Ältere bis hierhin ausblenden“ für die gezeigte Fassung, „bis hierhin ausblenden“ in der Liste „Weitere Fassungen“
+  und in der Baumansicht) und im Editor-Kopf neben „‹ n/m ›“ („bis hier ausblenden“ für die gezeigte Fassung). Danach
+  stehen alle **ersetzten und verworfenen** Fassungen mit kleinerer Nummer hinter dem Schalter **„n ältere Fassungen
+  zeigen ▸“** (aufgeklappt „… verbergen ▾“), in der Liste und in der Baumansicht.
+- **Immer sichtbar** bleiben die **aktuelle Fassung** und **offene Vorschläge** – auch ein offener Vorschlag, der älter
+  ist als die Marke, wartet weiter auf eine Entscheidung. Die Aktion gibt es nur an der aktuellen Fassung und darunter;
+  über der aktuellen wird sie nicht angeboten. Wird später auf eine ältere Fassung umgeschaltet, gilt eine höhere Marke
+  nur bis unter die neue aktuelle Fassung.
+- **Zähler und Blättern:** Der Umschalter zeigt z. B. „2/3 (+ 24 ausgeblendet) ▸“; ‹ › überspringt die ausgeblendeten
+  Fassungen. Ein Klick auf „(+ 24 ausgeblendet)“ öffnet den Schalter (Adresse `&fassungen=alle`), dann blättert ‹ ›
+  durch alle und der Zähler zählt alle; „24 ältere verbergen ▾“ schließt ihn wieder. Wer eine ausgeblendete Fassung
+  direkt aufruft (Link „zeigen“, `?rev=`), sieht sie mit offenem Schalter.
+- **Wieder alle zeigen** (Akkordeon **Fassungen**, neben „Ausgeblendet bis Fassung k“) hebt die Marke des Abschnitts auf.
+- **Werkweit:** Einstellungen → Werk → Fassungen → **Ältere Fassungen ausblenden bis** (Datum) setzt in jedem Abschnitt
+  die Marke auf die letzte Fassung vor diesem Tag (höchstens auf die aktuelle) und ersetzt vorhandene Marken;
+  **Alle Marken aufheben** zeigt im ganzen Werk wieder alles.
+- Die Marke gilt je Abschnitt und bleibt gespeichert (Datenbank, nicht im Austauschformat). Setzen und aufheben kann
+  nur der Mensch; Assistenten und MCP können es nicht. Fassungen, Verlauf und Git-Spiegel bleiben unverändert (kein
+  Commit). Alles geht auch ohne JavaScript (Formulare, Schalter als aufklappbarer Abschnitt bzw. Link).
+
 Jede Übernahme, Umschaltung, Speicherung, Änderung und Löschung erzeugt genau einen Commit im Git-Spiegel
 (siehe `docs/Architektur.md`); Ändern und Löschen schreiben vorher/nachher bzw. den gelöschten Text in die
 Commit-Nachricht, Gelöschtes ist so aus der Git-Historie wiederherstellbar. Scheitert der Spiegel, bleibt die

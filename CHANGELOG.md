@@ -57,6 +57,11 @@ am 2026-11-05); davor gab es nur den Stand 0.0.1 aus dem Quelltext.
   Gliederung; Zeitangaben in Ortszeit.
 - Runde 22: Fortschreiben der eigenen Fassung bei kleinen Änderungen (statt jedes Mal einer neuen Fassung) mit
   Verlauf und Zurücknehmen; Archiv gelöschter Werke; Entwurf als Wasserzeichen.
+- Ältere Fassungen ausblenden: an jeder Fassung „bis hierhin ausblenden“ (Akkordeon „Fassungen“, Editor-Kopf); ersetzte
+  und verworfene Fassungen darunter stehen hinter dem Schalter „n ältere Fassungen zeigen ▸ / verbergen ▾“, der Zähler
+  zeigt „2/3 (+ 24 ausgeblendet)“ und ‹ › überspringt sie. Die aktuelle Fassung und offene Vorschläge bleiben immer
+  sichtbar, nichts wird gelöscht; „Wieder alle zeigen“ hebt die Marke auf. Werkweit unter Einstellungen → Werk →
+  Fassungen „Ältere Fassungen ausblenden bis …“ (Datum). Nur der Mensch, nicht über MCP; Migration 0051.
 
 ### Schreiben
 

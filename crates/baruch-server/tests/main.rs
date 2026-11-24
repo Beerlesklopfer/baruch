@@ -18,6 +18,7 @@ mod pgvector_support;
 mod assets;
 mod concurrency;
 mod editor_layout;
+mod fassungen_ausblenden;
 mod git_mirror;
 mod headings;
 mod ideas;

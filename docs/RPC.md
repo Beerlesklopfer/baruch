@@ -91,7 +91,7 @@ ergibt -32602. Daten liegen in `<data>/baruch.sqlite`; Änderungen sind je eine 
 | `preview.typst` | `{key?, page?}` | `{stand, pages, page, chapter, diagnostics, print, cached, millis, svg?}` – siehe „Typst-Vorschau“ |
 | `library.list` | – | `{titles: [TitleEntry]}` – Titel der Autorenbibliothek mit Zitaten |
 | `library.search` | `{query, kinds?, work?, all_revisions?, limit?}` | `{hits: [SearchHit]}` – Volltextsuche, Werkzeug des Lektors |
-| `ui.render` | `{work?, key?, node?, rev?, view?, pick?, lq?}` | `{tree, editor, assistants, url, title}` – HTML der drei Bereiche; `key` geht vor `node` (unbekannt → Rückfall mit Hinweis); `url` = `/?work=W&key=K&rev=R[&view=preview][&pick=…][&lq=…]`. `pick` = `"<node>:<rev>[,…]"` setzt in der Vorschau probeweise Fassungen ein (ungültige Einträge übergangen, Markierung bleibt) |
+| `ui.render` | `{work?, key?, node?, rev?, view?, pick?, lq?, fassungen?}` | `{tree, editor, assistants, url, title}` – HTML der drei Bereiche; `key` geht vor `node` (unbekannt → Rückfall mit Hinweis); `url` = `/?work=W&key=K&rev=R[&view=preview][&pick=…][&lq=…][&fassungen=alle]` (0.9.0: `fassungen: "alle"` öffnet den Schalter „ältere Fassungen“, siehe „Ältere Fassungen ausblenden“). `pick` = `"<node>:<rev>[,…]"` setzt in der Vorschau probeweise Fassungen ein (ungültige Einträge übergangen, Markierung bleibt) |
 
 Alle Methoden außer `work.list` nehmen zusätzlich `work?` (oben in der Tabelle nur bei `work.*` und
 `ui.render` ausgeschrieben). Assistenten legen nur Vorschläge an; `revision.save`, `revision.set_current`,
@@ -2356,6 +2356,37 @@ Spiegelordner. Ein neuer Vorschlag selbst ist kein Commit; seine Referenz legt d
   „Als neue Fassung speichern“ → `mode` `"new"`); die Weiterleitung trägt `saved=amended-<k>` bzw.
   `saved=new-<n>[-<grund>]`, der Editor-Kopf zeigt daraus die Rückmeldung.
 - `/act` nimmt `revision.save` weiter mit `mode`; `revision.amend_undo` und `revision.policy_set` lehnt es ab.
+
+#### Ältere Fassungen ausblenden (0.9.0, Nutzer 2026-11-24)
+
+Je Abschnitt höchstens eine **Marke** „bis hierhin“ (Nummer einer Fassung, Tabelle `node_revision_fold`, Migration
+0051). Ausgeblendet werden **ersetzte und verworfene** Fassungen mit kleinerer Nummer; **nie** die aktuelle Fassung und
+**nie** offene Vorschläge (auch ältere nicht, sie warten auf eine Entscheidung). Liegt die Marke über der aktuellen
+Fassung (weil später auf eine ältere umgeschaltet wurde), gilt sie nur bis unter die aktuelle (`cutoff`); **setzen**
+lässt sie sich über der aktuellen nicht (-32000). Nichts wird gelöscht: Fassungen, Verlauf und Spiegel bleiben
+unverändert, kein Commit im Spiegel (kein Buchtext); protokolliert in der Datenbank (`updated`, `updated_by`) wie die
+Einstellung „Fassungen“; nicht im Austauschformat. Nur der Mensch setzt und hebt auf – über RPC und Formular, **nicht
+über MCP** (kein Werkzeug). Regel in `baruch_core::revision_fold`, Methoden in `src/revision_fold.rs`.
+
+| Methode | Parameter | Ergebnis |
+|---|---|---|
+| `revision.fold_get` | `{node\|key}` | `{node, key, below, cutoff, hidden, updated?, updated_by?}` – `below` = gespeicherte Marke (`null` = keine), `cutoff` = wirksame Grenze (höchstens die aktuelle Fassung), `hidden` = Zahl der ausgeblendeten Fassungen (nur lesend) |
+| `revision.fold_set` | `{node\|key, rev}` | `{node, key, rev, below, cutoff, hidden, updated, updated_by}` – Marke an Fassung `rev` setzen (ersetzt eine vorhandene); unbekannte Fassung → -32602 wie bei den anderen Revisionsmethoden, über der aktuellen Fassung → -32000 („Über der aktuellen Fassung lässt sich nicht ausblenden …“). Auch über `/act` |
+| `revision.fold_clear` | `{node\|key, rev?}` | `{node, key, cleared, below: null, cutoff: null, hidden: 0, rev?}` – Marke aufheben („Wieder alle zeigen“); `cleared` = es gab eine; `rev` wird nur für den Rücksprung von `/act` durchgereicht. Auch über `/act` |
+| `revision.fold_before` | `{work?, date}` | `{work, date, sections: [{key, below}]}` – werkweit: für jeden Abschnitt die Marke auf die letzte Fassung, die vor `date` (Tag `JJJJ-MM-TT`, Mitternacht Ortszeit) entstand, höchstens auf die aktuelle; Abschnitte ohne solche Fassung bleiben unverändert, vorhandene Marken werden ersetzt; ein Schritt. Ungültiger Tag → -32602 |
+| `revision.fold_clear_all` | `{work?}` | `{work, cleared}` – alle Marken des Werks aufheben (Zahl) |
+
+Ansicht: Auf der Arbeitsseite überspringt das Blättern ‹ › ausgeblendete Fassungen, der Zähler zeigt „2/3 (+ 24
+ausgeblendet)“. Der Schalter steht in der Adresse: `&fassungen=alle` (nach `lq`) zeigt alle, auch beim Blättern;
+`ui.render` nimmt `fassungen` wie die übrigen Felder der Adresse. Eine ausgeblendete Fassung direkt über `?rev=`
+aufgerufen öffnet den Schalter von selbst.
+
+Routen (ohne JavaScript):
+
+- `/act` nimmt `revision.fold_set` und `revision.fold_clear` (`work`, `key`, `rev`) → 303 auf die Fassung.
+- `POST /einstellungen/werk/fassungen/ausblenden` – `work`, `date` und `do=fold` (Vorgabe) bzw. `do=clear` (alle
+  Marken aufheben) → 303 auf `/einstellungen/werk?work=W&ok=ausgeblendet#fassungen` bzw. `ok=eingeblendet`;
+  abgelehnt `…&ausblendenfehler=1#fassungen` (nichts geändert).
 
 ### befund-rueckfrage
 

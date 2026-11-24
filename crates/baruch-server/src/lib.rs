@@ -58,6 +58,7 @@ pub mod personas;
 pub mod posts;
 pub mod quotes;
 pub mod rag;
+mod revision_fold;
 mod revisions;
 pub mod ribbon;
 pub mod rpc;
@@ -348,6 +349,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(pdf_import::writes())
         // Runde 22 (Schnittstelle R22-S1): Verlauf der Fortschreibungen und Einstellung „Fassungen“.
         .merge(revisions::writes())
+        // 0.9.0 (Nutzer 2026-11-24): ältere Fassungen werkweit ausblenden.
+        .merge(revision_fold::writes())
         .route_layer(middleware::from_fn(guard::same_origin));
     Router::new()
         .route("/", get(index))
@@ -574,6 +577,9 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
         "revision.set_current",
         "revision.update",
         "revision.delete",
+        // 0.9.0: ältere Fassungen „bis hierhin“ ausblenden bzw. wieder alle zeigen (nur Mensch, ohne JavaScript).
+        "revision.fold_set",
+        "revision.fold_clear",
     ];
     if !allowed.contains(&form.method.as_str()) {
         return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();

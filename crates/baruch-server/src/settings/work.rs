@@ -143,6 +143,9 @@ pub(super) async fn render(
         Some("zeit") => Some("Die Predigtzeit ist gespeichert."),
         Some("satzbild") => Some("Die Satzbild-Einstellungen sind gespeichert."),
         Some("fassungen") => Some("Die Einstellung „Fassungen“ ist gespeichert."),
+        // 0.9.0: ältere Fassungen werkweit ausblenden bzw. alle wieder zeigen (src/revision_fold.rs).
+        Some("ausgeblendet") => Some("Ältere Fassungen sind ausgeblendet (nichts gelöscht)."),
+        Some("eingeblendet") => Some("Alle Fassungen werden wieder gezeigt."),
         _ => None,
     });
     let timing = timing_context(state, work, query).await?;
@@ -276,6 +279,9 @@ async fn revisions_context(
         default_minutes => defaults.new_after_minutes,
         percent_min => lo, percent_max => hi, minutes_min => min_lo, minutes_max => min_hi,
         error => error,
+        // 0.9.0: Abschnitte mit Marke „ältere Fassungen ausblenden“ und der Fehler nach einem abgelehnten Formular.
+        folds => state.store.work_revision_folds(work).await.map_err(|e| e.to_string())?.len(),
+        fold_error => query.get("ausblendenfehler").map(|_| "Ältere Fassungen ließen sich nicht ausblenden: Tag als Datum angeben; nichts geändert."),
     })
 }
 

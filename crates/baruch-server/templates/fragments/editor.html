@@ -36,11 +36,24 @@
   <h2 class="node-title" title="{% if node.number %}{{ node.number }} {% endif %}{{ node.title }}">{% if node.number %}<span class="num">{{ node.number }}</span>{% endif %}{{ node.title }}</h2>
   <span class="muted small rev-meta">Fassung {{ rev.number }}{% if rev.amend_seq %} · <a class="rev-amend" href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen von Fassung {{ rev.number }}">Stand {{ rev.amend_seq }}</a>{% endif %} · {{ rev.status }} · {% if rev.author_style %}<span class="pc pc-chip" style="{{ rev.author_style }}">{{ rev.author }}</span>{% else %}{{ rev.author }}{% endif %}{% if rev.edited %} · geändert {{ rev.edited }}{% endif %}{% if rev.proposal and rev.based_on %} · beruht auf Fassung {{ rev.based_on }}{% if rev.based_on_amend %}, Stand {{ rev.based_on_amend }}{% endif %}{% endif %}</span>
   <nav class="switcher" aria-label="Fassungen">
-    {%- if rev.prev %}<a class="btn" data-nav data-key="prev" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}" title="Vorige Fassung (Alt+←)">‹</a>
+    {%- if rev.prev %}<a class="btn" data-nav data-key="prev" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Vorige Fassung (Alt+←)">‹</a>
     {%- else %}<span class="btn" aria-disabled="true">‹</span>{% endif %}
     <span class="counter{% if rev.is_current %} is-current{% endif %}" title="Fassung {{ rev.number }}{% if rev.is_current %}, aktuell{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
-    {%- if rev.next %}<a class="btn" data-nav data-key="next" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}" title="Nächste Fassung (Alt+→)">›</a>
+    {%- if rev.next %}<a class="btn" data-nav data-key="next" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Nächste Fassung (Alt+→)">›</a>
     {%- else %}<span class="btn" aria-disabled="true">›</span>{% endif %}
+    {#- 0.9.0 (Nutzer 2026-11-24): ältere Fassungen ausblenden. Zu: „(+ n ausgeblendet)“ als Link, der den Schalter
+        öffnet (?fassungen=alle, Blättern zeigt dann alle); offen: „n ältere verbergen“. „bis hier ausblenden“ zeigt
+        über form="rev-fold-<n>" auf das Formular im Akkordeon „Fassungen“ (der Editor trägt keine Fassungsformulare). #}
+    {%- if rev.fold.hidden %}
+    {%- if rev.fold.open %}
+    <a class="rev-fold-toggle small" data-nav data-rev-fold="open" href="{{ rev.fold.hide_url }}" title="Ausgeblendete Fassungen beim Blättern wieder überspringen">{{ rev.fold.hidden }} ältere verbergen ▾</a>
+    {%- else %}
+    <a class="rev-fold-toggle small" data-nav data-rev-fold="closed" href="{{ rev.fold.show_url }}" title="{{ rev.fold.hidden }} ältere Fassungen zeigen (bis Fassung {{ rev.fold.cutoff }} ausgeblendet)">(+ {{ rev.fold.hidden }} ausgeblendet) ▸</a>
+    {%- endif %}
+    {%- endif %}
+    {%- if rev.fold.offered %}
+    <button class="btn tiny rev-fold-here" type="submit" form="rev-fold-{{ rev.number }}" title="Alle älteren ersetzten und verworfenen Fassungen unter Fassung {{ rev.number }} ausblenden (nichts wird gelöscht)">bis hier ausblenden</button>
+    {%- endif %}
   </nav>
   {#- Runde 28 (befund-uebersicht): offene Befunde des Abschnitts samt Unterpunkten (Zählregel §1.5), Link auf die
       Befunde des Abschnitts auf der Seite /werke/<id>/befunde (ohne JavaScript). #}
@@ -69,15 +82,27 @@
   {%- if rev.alternatives %}
   <details class="rev-alternatives small">
     <summary title="Nicht aktuelle Fassungen hier (ohne offene Vorschläge)">weitere Fassung{% if rev.alternatives | length != 1 %}en{% endif %}: {{ rev.alternatives | length }}</summary>
-    <ul class="rev-alt-list">
-      {%- for a in rev.alternatives %}
+    {%- macro alt_items(list) %}
+      {%- for a in list %}
       <li class="rev-alt{% if a.shown %} shown{% endif %}">
         {%- if a.shown %}<strong>Fassung {{ a.number }}</strong> <span class="muted">(gezeigt)</span>{% else %}<a data-nav href="{{ a.url }}">Fassung {{ a.number }}</a>{% endif %}
         <span class="muted">· {{ a.status }} · {{ a.author }}</span>
         <button class="btn tiny" type="submit" form="rev-alt-{{ a.number }}" title="Fassung {{ a.number }} zur aktuellen machen (die Markierung „aktuell“ wandert)">aktuell machen</button>
       </li>
       {%- endfor %}
+    {%- endmacro %}
+    <ul class="rev-alt-list">
+      {{- alt_items(rev.alternatives | rejectattr("hidden")) }}
     </ul>
+    {%- set hidden_alts = rev.alternatives | selectattr("hidden") | list %}
+    {%- if hidden_alts %}
+    <details class="rev-fold" data-rev-fold-list{% if rev.fold.open %} open{% endif %}>
+      <summary><span class="rev-fold-show">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} zeigen ▸</span><span class="rev-fold-hide">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} verbergen ▾</span></summary>
+      <ul class="rev-alt-list">
+        {{- alt_items(hidden_alts) }}
+      </ul>
+    </details>
+    {%- endif %}
   </details>
   {%- endif %}
   {%- if node.missing_key is not none %}

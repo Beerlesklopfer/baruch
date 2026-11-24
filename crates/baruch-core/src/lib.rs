@@ -11,6 +11,7 @@
 //! dem größten Kontext. Versuch seit 2026-11-06: fest `@lektor` (alle Personas auf einem Modell); ist die
 //! feste Persona nicht (mehr) da oder inaktiv, gilt die automatische Regel.
 
+pub mod revision_fold;
 pub mod revision_policy;
 pub mod sample;
 

@@ -41,3 +41,16 @@
 /* Einstellungen → Werk → Fassungen. */
 .revision-policy-form { display: grid; gap: 6px; justify-items: start; } /* Knopf nicht über die ganze Breite (Sichtprüfung R22) */
 .revision-policy-form input[type="number"] { width: 6em; }
+
+/* 0.9.0 (Nutzer 2026-11-24): ältere Fassungen ausblenden. Schalter „n ältere Fassungen zeigen ▸ / verbergen ▾“ als
+   <details> (ohne JavaScript), Zähler-Zusatz „(+ n ausgeblendet)“ im Editor-Kopf, Formulare im Akkordeon. */
+.rev-fold { margin: 4px 0 0; }
+.rev-fold > summary { cursor: pointer; color: var(--muted); list-style: none; }
+.rev-fold > summary::-webkit-details-marker { display: none; }
+.rev-fold > summary .rev-fold-hide { display: none; }
+.rev-fold[open] > summary .rev-fold-show { display: none; }
+.rev-fold[open] > summary .rev-fold-hide { display: inline; }
+.rev-fold-toggle { color: var(--muted); white-space: nowrap; }
+.rev-fold-count { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+.rev-fold-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.rev-unfold { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }

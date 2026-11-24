@@ -121,9 +121,9 @@ async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
 async fn migrate_before(pool: &SqlitePool) {
     let versions: Vec<i64> = baruch_store::MIGRATOR.iter().map(|m| m.version).filter(|v| *v < 100).collect();
     assert_eq!(
-        versions.iter().copied().filter(|v| *v > 49).collect::<Vec<_>>(),
+        versions.iter().copied().filter(|v| *v > 49 && *v < 51).collect::<Vec<_>>(),
         [50],
-        "einzige neue Migration 0050 (0051–0054 reserviert, unbenutzt)"
+        "einzige neue Migration der Runde 22: 0050 (0051 kam mit 0.9.0, geprüft in revision_fold.rs)"
     );
     assert!(!baruch_store::FOREIGN_KEYS_OFF.contains(&50), "0050 baut keine Tabelle mit Fremdschlüsseln um");
     store_migrator(|v| v < 40).run(pool).await.unwrap();

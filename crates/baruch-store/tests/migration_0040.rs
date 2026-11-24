@@ -524,6 +524,8 @@ fn without_0041(
                 || name.starts_with("revision_amend")
                 || name == "sqlite_autoindex_revision_amend_1"
                 || name == "work_revision_policy"
+                // 0.9.0 (0051): Marke „ältere Fassungen ausblenden“ je Abschnitt.
+                || name == "node_revision_fold"
                 || name.ends_with("_uuid")
                 || name.ends_with("_uuid_fill")
                 || name.ends_with("_uuid_tombstone"))

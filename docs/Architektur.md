@@ -4814,3 +4814,25 @@ geschachtelte – Blockkommentare, ohne Rümpfe anderer Funktionen, Zeichenkette
 - **Datenordner:** `baruch_store::Store::open` legt einen neuen Datenordner unter Unix mit 0700 an (`create_data_dir`,
   Codereview quellen-5); ein vorhandener bleibt unverändert.
 - **Abnahme:** `tests/round23_abnahme.rs` (Zitat bis Tokens in einem Ablauf; Geheimnisse, Weiterleitung, Websuche).
+
+## 0.9.0 – Ältere Fassungen ausblenden (Nutzer 2026-11-24)
+
+- **Migration 0051** (`0051_revision_fold.sql`): Tabelle `node_revision_fold` (`node_id` als Primärschlüssel mit
+  `ON DELETE CASCADE`, `below` ≥ 1 = Nummer der Fassung, an der die Marke steht, `updated`, `updated_by`). Ohne uuid,
+  nicht im Austauschformat (Arbeitsweise der Instanz wie `work_revision_policy`), kein Commit im Spiegel (kein
+  Buchtext). Verlustfrei geprüft in `crates/baruch-store/tests/revision_fold.rs` (Datenbank im Stand ed9d210, Store
+  bis 0050).
+- **Regel** `baruch_core::revision_fold`: `cutoff` = Marke, höchstens die aktuelle Fassung; ausgeblendet sind ersetzte
+  und verworfene Fassungen unter `cutoff` (`is_hidden`, `hidden_count`); nie die aktuelle, nie offene Vorschläge.
+  `offered` = „bis hierhin ausblenden“ nur an der aktuellen Fassung und darunter, wenn darunter etwas auszublenden ist.
+- **Store** `baruch-store/src/revision_fold.rs`: `revision_fold`, `work_revision_folds` (Schlüssel → Marke),
+  `set_revision_fold` (über der aktuellen `Refused`), `clear_revision_fold`, `clear_work_revision_folds`,
+  `fold_revisions_before` (werkweit, letzte Fassung vor einem UTC-Zeitpunkt, höchstens die aktuelle).
+- **Server** `src/revision_fold.rs`: RPC `revision.fold_get|fold_set|fold_clear|fold_before|fold_clear_all` (kein
+  MCP-Werkzeug), Formular `POST /einstellungen/werk/fassungen/ausblenden`; `/act` nimmt `fold_set`/`fold_clear`.
+  `view.rs`: `ViewExtras.revision_folds`, `Location.fassungen` (`alle` = Schalter offen, `Resolved.show_all`,
+  `FOLD_OPEN_Q` in `Resolved::url`), `FoldView` (Zähler und Nachbarn über die sichtbaren Fassungen, Links für den
+  Schalter, Fassungen mit Angebot), `TreeRevision.hidden`/`fold`. Vorlagen: `fragments/editor.html` (Zusatz am Zähler,
+  „bis hier ausblenden“), `fragments/revisions.html` (Formulare `rev-fold-<n>`, „Wieder alle zeigen“, Schalter
+  `<details class="rev-fold">`), `fragments/revtree.html` (Makro `folded`), `settings/werk.html`; CSS in
+  `static/revisions.css`; `web/src/rpc.ts` reicht `fassungen` an `ui.render` durch.

@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use baruch_core::{Author, DiffKind, Node, NodeKind, RevisionStatus, Work, WorkKind, line_diff};
+use baruch_core::{Author, DiffKind, Node, NodeKind, RevisionStatus, Work, WorkKind, line_diff, revision_fold};
 use minijinja::value::Serde;
 use minijinja::{Environment, Value, context};
 use serde::{Deserialize, Serialize};
@@ -39,6 +39,9 @@ pub struct Location {
     /// Stand k) oder `new-<n>-<grund>` (neue Fassung n, Grund nach `NewReason::id`) bzw. `new-<n>`. Steht nicht in
     /// erzeugten Adressen; Ungültiges wird übergangen.
     pub saved: Option<String>,
+    /// 0.9.0 (Nutzer 2026-11-24): `alle` öffnet den Schalter „ältere Fassungen“ – Blättern ‹ › zeigt dann auch die
+    /// unter der Marke ausgeblendeten Fassungen ([`baruch_core::revision_fold`]); sonst überspringt es sie.
+    pub fassungen: Option<String>,
 }
 
 /// Einstellungen der Oberfläche aus Cookies (`baruch_*`, gesetzt von den Widgets). Der Server
@@ -174,6 +177,8 @@ pub struct Resolved {
     pub missing_key: Option<i64>,
     /// Runde 22: Rückmeldung nach dem Speichern ([`Location::saved`], geprüft in [`saved_notice`]).
     pub saved: Option<String>,
+    /// 0.9.0: Schalter „ältere Fassungen“ offen (`?fassungen=alle`).
+    pub show_all: bool,
 }
 
 impl Location {
@@ -195,7 +200,8 @@ impl Location {
         let rev = n.revisions.get(index).map_or(0, |r| r.number);
         let pick = parse_pick(work, self.pick.as_deref());
         let preview = self.view.as_deref() == Some("preview");
-        Resolved { node, key: n.key, index, rev, preview, pick, missing_key, saved: self.saved.clone() }
+        let show_all = self.fassungen.as_deref() == Some("alle");
+        Resolved { node, key: n.key, index, rev, preview, pick, missing_key, saved: self.saved.clone(), show_all }
     }
 }
 
@@ -249,9 +255,13 @@ fn default_node(work: &Work) -> usize {
 impl Resolved {
     /// Adresse der Stelle: `/?work=<id>&key=…&rev=…[&view=preview][&pick=…][&lq=…]` ([`node_url`]).
     pub fn url(&self, work: WorkId, lq: Option<&str>) -> String {
-        node_url(work, self.key, Some(self.rev), self.preview, &pick_param(&self.pick), &lq_param(lq))
+        let url = node_url(work, self.key, Some(self.rev), self.preview, &pick_param(&self.pick), &lq_param(lq));
+        if self.show_all { format!("{url}{FOLD_OPEN_Q}") } else { url }
     }
 }
+
+/// 0.9.0: Zusatz der Adresse für den offenen Schalter „ältere Fassungen“ ([`Location::fassungen`]).
+pub const FOLD_OPEN_Q: &str = "&fassungen=alle";
 
 /// `&lq=<kodiert>` für eine nicht leere Suche, sonst leer.
 pub fn lq_param(lq: Option<&str>) -> String {
@@ -448,6 +458,9 @@ pub struct ViewExtras {
     /// Runde 19c: Kasten „Bibeln“ der Literatur für die Arbeitsseite ohne JavaScript
     /// ([`crate::literature::bibles::workspace_shelf`]); `None` = nicht geladen (dann kein Kasten).
     pub bibles: Option<crate::literature::bibles::Shelf>,
+    /// 0.9.0: Marken „ältere Fassungen ausblenden“ des Werks, `Node::key` → Nummer
+    /// ([`baruch_store::Store::work_revision_folds`]).
+    pub revision_folds: HashMap<i64, u32>,
 }
 
 /// Zeiten ([`crate::timing::work_timing`]) und Freigaben der Personas (nur über `persona.list`) laden.
@@ -475,7 +488,19 @@ pub async fn extras(state: &crate::AppState, work: WorkId) -> Result<ViewExtras,
     let post_edits = crate::posts::edited_map(state, work).await.unwrap_or_default();
     let post_meta = state.store.work_post_meta(work).await.unwrap_or_default();
     let bibles = crate::literature::bibles::workspace_shelf(state, work).await;
-    Ok(ViewExtras { timing, personas, lector, ribbon, sheet_css, findings, post_edits, post_meta, bibles })
+    let revision_folds = state.store.work_revision_folds(work).await.unwrap_or_default();
+    Ok(ViewExtras {
+        timing,
+        personas,
+        lector,
+        ribbon,
+        sheet_css,
+        findings,
+        post_edits,
+        post_meta,
+        bibles,
+        revision_folds,
+    })
 }
 
 /// Offene Befunde (samt Unterpunkten bzw. am Punkt selbst) an die Einträge der Gliederung hängen (Runde 28).
@@ -1011,6 +1036,10 @@ struct TreeRevision {
     history_url: Option<String>,
     /// Runde 22: Stand der Basis eines Vorschlags („beruht auf Fassung n, Stand k“, nur bei k > 0).
     based_on_amend: Option<u32>,
+    /// 0.9.0: unter der Marke ausgeblendet (steht hinter dem Schalter „n ältere Fassungen“).
+    hidden: bool,
+    /// 0.9.0: „bis hierhin ausblenden“ wird an dieser Fassung angeboten (nur im gezeigten Abschnitt).
+    fold: bool,
 }
 
 /// Zeitstempel `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in Ortszeit.
@@ -1058,12 +1087,16 @@ struct TreeLinks<'a> {
     lq_q: &'a str,
     colors: &'a [PersonaColor],
     findings: &'a crate::findings::view::FindingsView,
+    /// 0.9.0: Abschnitte des Werks und ihre Marken (ausgeblendete Fassungen).
+    nodes: &'a [Node],
+    folds: &'a HashMap<i64, u32>,
 }
 
 /// Fassungen eines Abschnitts (`node` = Stelle, `key` = fester Schlüssel) für die Baumansicht; die
 /// Links tragen den Schlüssel (`zeigen`) bzw. den des gezeigten Abschnitts (`probieren`), `pick` bleibt
 /// `<seq>:<rev>`.
 fn tree_revisions(node: usize, key: i64, infos: &[RevisionInfo], links: &TreeLinks<'_>) -> Vec<TreeRevision> {
+    let mark = links.folds.get(&key).copied();
     ordered_tree(infos)
         .into_iter()
         .map(|(depth, info)| {
@@ -1096,9 +1129,84 @@ fn tree_revisions(node: usize, key: i64, infos: &[RevisionInfo], links: &TreeLin
                 amend_seq: info.amend_seq,
                 history_url: (info.amend_seq > 0).then(|| history_url(work, key, info.number)),
                 based_on_amend: info.based_on_amend.filter(|&k| k > 0),
+                hidden: links
+                    .nodes
+                    .get(node)
+                    .is_some_and(|n| n.revision(info.number).is_some_and(|r| revision_fold::is_hidden(n, mark, r))),
+                fold: node == at.node
+                    && links.nodes.get(node).is_some_and(|n| revision_fold::offered(n, mark, info.number)),
             }
         })
         .collect()
+}
+
+/// 0.9.0 (Nutzer 2026-11-24): Marke „ältere Fassungen ausblenden“ des gezeigten Abschnitts für Kopf und Akkordeon.
+#[derive(Debug, Serialize)]
+struct FoldView {
+    /// Gespeicherte Marke (Nummer) und wirksame Grenze (höchstens die aktuelle Fassung).
+    mark: Option<u32>,
+    cutoff: Option<u32>,
+    /// Zahl der ausgeblendeten Fassungen.
+    hidden: usize,
+    /// Schalter offen: `?fassungen=alle` oder die gezeigte Fassung ist selbst ausgeblendet.
+    open: bool,
+    /// Zähler und Nachbarn über die sichtbaren Fassungen (bei offenem Schalter über alle).
+    position: usize,
+    total: usize,
+    prev: Option<u32>,
+    next: Option<u32>,
+    /// Zusatz der Blätter-Links (`&fassungen=alle` bei offenem Schalter, sonst leer).
+    q: &'static str,
+    /// „zeigen“ (Schalter auf) und „verbergen“ (Schalter zu; steht die gezeigte Fassung unter der Marke, auf die
+    /// aktuelle Fassung).
+    show_url: String,
+    hide_url: String,
+    /// „bis hierhin ausblenden“ an der gezeigten Fassung, und alle Fassungen mit diesem Angebot (Formulare
+    /// `rev-fold-<n>` im Akkordeon, Knöpfe im Kopf und in der Baumansicht zeigen über `form` darauf).
+    offered: bool,
+    numbers: Vec<u32>,
+}
+
+fn fold_view(
+    node: &Node,
+    revision: &baruch_core::Revision,
+    at: &Resolved,
+    folds: &HashMap<i64, u32>,
+    work: WorkId,
+    lq_q: &str,
+    pick_q: &str,
+) -> FoldView {
+    let mark = folds.get(&node.key).copied();
+    let hidden = revision_fold::hidden_count(node, mark);
+    let open = hidden > 0 && (at.show_all || revision_fold::is_hidden(node, mark, revision));
+    let visible: Vec<u32> = node
+        .revisions
+        .iter()
+        .filter(|r| open || r.number == revision.number || !revision_fold::is_hidden(node, mark, r))
+        .map(|r| r.number)
+        .collect();
+    let index = visible.iter().position(|&n| n == revision.number).unwrap_or(0);
+    let url = |rev: u32| node_url(work, node.key, Some(rev), at.preview, pick_q, lq_q);
+    let back = if revision_fold::is_hidden(node, mark, revision) {
+        node.current_number().unwrap_or(revision.number)
+    } else {
+        revision.number
+    };
+    FoldView {
+        mark,
+        cutoff: revision_fold::cutoff(node, mark),
+        hidden,
+        open,
+        position: index + 1,
+        total: visible.len(),
+        prev: index.checked_sub(1).and_then(|i| visible.get(i).copied()),
+        next: visible.get(index + 1).copied(),
+        q: if open { FOLD_OPEN_Q } else { "" },
+        show_url: format!("{}{FOLD_OPEN_Q}", url(revision.number)),
+        hide_url: url(back),
+        offered: revision_fold::offered(node, mark, revision.number),
+        numbers: node.revisions.iter().map(|r| r.number).filter(|&n| revision_fold::offered(node, mark, n)).collect(),
+    }
 }
 
 /// Runde 22: Seite „Verlauf“ einer Fassung (`GET /werke/{id}/fassungen/verlauf?key=K&rev=R`).
@@ -1354,7 +1462,16 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
     let lq_q = lq_param(library.query.as_deref());
     let shown_work = shelf.id;
     let pick_q = pick_param(&at.pick);
-    let links = TreeLinks { work: shelf.id, at, lq_q: &lq_q, colors, findings: findings_view };
+    let links = TreeLinks {
+        work: shelf.id,
+        at,
+        lq_q: &lq_q,
+        colors,
+        findings: findings_view,
+        nodes: &work.nodes,
+        folds: &library.extras.revision_folds,
+    };
+    let fold = fold_view(node, revision, at, &library.extras.revision_folds, shelf.id, &lq_q, &pick_q);
     let findings_panel = findings_panel(work, node, shelf.id, at, findings_view, &library.query);
     let section_tree = tree_revisions(node.id, node.key, infos, &links);
     let chapter_tree: Vec<Value> = chapter_nodes(work, node.id)
@@ -1407,7 +1524,8 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         outline_requests => library.outline_requests,
         cover => library.cover.as_ref().map(|c| Value::from(Serde(c))),
         rev => context! {
-            number => revision.number, position => at.index + 1, total => total,
+            // 0.9.0: Zähler und Blättern über die sichtbaren Fassungen (ausgeblendete nur bei offenem Schalter).
+            number => revision.number, position => fold.position, total => fold.total, all_total => total,
             status => status_label(revision.status), status_key => status_key(revision.status),
             author => author_label(&revision.author),
             author_style => match &revision.author {
@@ -1417,8 +1535,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
             body => revision.body.as_str(), note => revision.note.as_str(), proposal => proposal,
             is_current => revision.status == RevisionStatus::Current, current => current,
             based_on => info.and_then(|i| i.based_on), edited => info.and_then(|i| i.edited.as_deref()).map(short_time),
-            prev => at.index.checked_sub(1).map(|i| node.revisions[i].number),
-            next => node.revisions.get(at.index + 1).map(|r| r.number),
+            prev => fold.prev, next => fold.next,
             // Abzeichen im Kopf des Akkordeons „Fassungen“: offene Vorschläge des Abschnitts.
             open_proposals => node.open_proposals(),
             // Runde 22: Stand der gezeigten Fassung, Verlauf, Stand der Basis eines Vorschlags.
@@ -1431,7 +1548,11 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
                 number => r.number, status => status_label(r.status), author => author_label(&r.author),
                 shown => r.number == revision.number,
                 url => node_url(shown_work, node.key, Some(r.number), at.preview, "", &lq_q),
+                hidden => revision_fold::is_hidden(node, fold.mark, r),
+                fold => revision_fold::offered(node, fold.mark, r.number),
             }).collect::<Vec<_>>(),
+            // 0.9.0: Marke „bis hierhin ausblenden“ (fragments/revisions.html, Editor-Kopf).
+            fold => Value::from(Serde(&fold)),
             saved_notice => saved_notice(at.saved.as_deref()),
         },
         proposals => Value::from(Serde(&proposals)),
@@ -1598,6 +1719,7 @@ mod tests {
             pick: vec![],
             missing_key: None,
             saved: None,
+            show_all: false,
         };
         assert_eq!(
             at.url(7, Some(" langmütig & mehr ")),

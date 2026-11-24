@@ -136,6 +136,28 @@
         der Fassung (dort auch „Bis hier zurück“). Personas legen immer neue Fassungen (Vorschläge) an. Gespeichert nur in
         der Datenbank, nicht im Austauschformat.</p>
     </form>
+    {#- 0.9.0 (Nutzer 2026-11-24): ältere Fassungen werkweit ausblenden (revisions.folds = Abschnitte mit Marke,
+        revisions.fold_error); Formular an POST /einstellungen/werk/fassungen/ausblenden (src/revision_fold.rs). #}
+    <form class="revision-fold-form" method="post" action="/einstellungen/werk/fassungen/ausblenden" id="fassungen-ausblenden">
+      <input type="hidden" name="work" value="{{ work }}">
+      <h4 class="small">Ältere Fassungen ausblenden</h4>
+      {%- if revisions.fold_error %}
+      <p class="notice error small" role="alert">{{ revisions.fold_error }}</p>
+      {%- endif %}
+      <label class="small">Ältere Fassungen ausblenden bis <input type="date" name="date" required></label>
+      <button class="btn" type="submit" name="do" value="fold">Ausblenden</button>
+      <p class="muted tiny">Setzt in jedem Abschnitt die Marke auf die letzte Fassung vor diesem Tag (höchstens auf die
+        aktuelle); ersetzte und verworfene Fassungen darunter stehen dann hinter dem Schalter „n ältere Fassungen
+        zeigen“. Die aktuelle Fassung und offene Vorschläge bleiben immer sichtbar; nichts wird gelöscht. Vorhandene
+        Marken werden ersetzt. Zurzeit {% if revisions.folds == 1 %}hat 1 Abschnitt{% else %}haben {{ revisions.folds }} Abschnitte{% endif %} eine Marke.</p>
+    </form>
+    {%- if revisions.folds %}
+    <form method="post" action="/einstellungen/werk/fassungen/ausblenden">
+      <input type="hidden" name="work" value="{{ work }}">
+      <input type="hidden" name="do" value="clear">
+      <button class="btn" type="submit">Alle Marken aufheben (wieder alle Fassungen zeigen)</button>
+    </form>
+    {%- endif %}
   </div>
   <div class="settings-block settings-sync" id="abgleich">
     <h3>Abgleich mit MultiGPT</h3>

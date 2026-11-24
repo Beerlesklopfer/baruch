@@ -35,6 +35,8 @@ export interface Location {
   view?: string;
   pick?: string;
   lq?: string;
+  /// 0.9.0: Schalter „ältere Fassungen“ offen (`alle`), sonst fehlt er.
+  fassungen?: string;
 }
 
 /// Antwort von `outline.save`/`revision.save` (Runde 22): `saved` „amended“ (fortgeschrieben, `amend_seq` = Stand),
@@ -89,6 +91,7 @@ export function locationFrom(url: string): Location {
     view: query.get("view") ?? undefined,
     pick: pick === null || pick.trim() === "" ? undefined : pick,
     lq: lq === null || lq.trim() === "" ? undefined : lq,
+    fassungen: query.get("fassungen") === "alle" ? "alle" : undefined,
   };
 }
 
@@ -103,5 +106,6 @@ export function urlFor(at: Location): string {
   if (at.view === "preview") query.set("view", "preview");
   if (at.pick !== undefined && at.pick.trim() !== "") query.set("pick", at.pick);
   if (at.lq !== undefined && at.lq.trim() !== "") query.set("lq", at.lq);
+  if (at.fassungen === "alle") query.set("fassungen", "alle");
   return `/?${query.toString()}`;
 }

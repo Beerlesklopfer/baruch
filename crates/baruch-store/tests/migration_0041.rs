@@ -326,6 +326,8 @@ fn new_objects() -> BTreeSet<String> {
     // Runde 22 (0050): Verlauf der Fortschreibungen samt Index und Triggern, Einstellung „Fassungen“; uuid_tombstone
     // und die neunzehn Grabstein-Trigger baut 0050 nur um (geprüft in migration_0050.rs).
     names.extend(R22_OBJECTS.iter().map(|s| s.to_string()));
+    // 0.9.0 (0051): Marke „ältere Fassungen ausblenden“ je Abschnitt (geprüft in revision_fold.rs).
+    names.insert("node_revision_fold".into());
     names
 }
 
