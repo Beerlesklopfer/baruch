@@ -2,6 +2,7 @@
 // Einstieg: Widgets registrieren und in die vom Server gelieferte Seite einhängen.
 
 import "./assist.js";
+import "./band.js";
 import "./bibles.js";
 import "./chat.js";
 import "./commentaries.js";
@@ -14,6 +15,7 @@ import "./glossary.js";
 import "./idea_map.js";
 import "./ideas.js";
 import "./jump.js";
+import "./laptop.js";
 import "./library.js";
 import "./literature.js";
 import "./mention.js";

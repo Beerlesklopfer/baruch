@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Menüband (Runde 33, Schnittstelle R33-S1; Besitz: Aufgabe „menueband“): Aussehen des Bands in beiden
+   Zuständen (voll und kompakt, auch `html[data-compact] .band …`) sowie die Hilfsklassen `js-only` und
+   `nojs-only`. Für die Modi nur die Attribute an <html>, keine Media-Queries. Noch leer. */

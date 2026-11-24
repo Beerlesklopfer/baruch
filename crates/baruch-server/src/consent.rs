@@ -17,7 +17,7 @@ use std::sync::{Arc, OnceLock};
 
 use axum::body::Body;
 use axum::extract::{Request, State};
-use axum::http::header;
+use axum::http::{HeaderValue, header};
 use axum::middleware::Next;
 use axum::response::Response;
 use minijinja::value::Serde;
@@ -82,8 +82,15 @@ async fn build(state: &AppState) -> Result<String, String> {
 }
 
 /// Schicht über allen Routen: setzt in HTML-Antworten mit [`MARKER`] die Hinweisleiste ein (bzw. entfernt
-/// die Marke) und füllt die Abzeichen der Kopfzeile (Runde 23a, `menu::fill_page`). Andere Antworten (JSON, PDF, Bilder, Fragmente ohne Marke) laufen unverändert durch.
+/// die Marke) und füllt die Abzeichen der Kopfzeile (Runde 23a, `menu::fill_page`); seit Runde 33 setzt sie
+/// dort auch den Zustand von Menüband und Laptop-Modus ein (`band::apply`) und merkt ihn als Cookie. Andere Antworten (JSON, PDF, Bilder, Fragmente ohne Marke) laufen unverändert durch.
 pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
+    // Runde 33 (Schnittstelle R33-S1): Zustand von Menüband und Laptop-Modus aus Cookie und Adresse, festgehalten,
+    // bevor die Anfrage weitergereicht wird.
+    let cookies = request.headers().get(header::COOKIE).and_then(|v| v.to_str().ok()).map(str::to_owned);
+    let query = request.uri().query().map(str::to_owned);
+    let band = crate::band::BandState::from_request(cookies.as_deref(), query.as_deref());
+    let laptop = crate::laptop::LaptopState::from_request(cookies.as_deref(), query.as_deref());
     let response = next.run(request).await;
     let html = response
         .headers()
@@ -108,6 +115,17 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
     let page = text.replacen(MARKER, &banner(&state).await, 1);
     // Runde 23a: Abzeichen der Kopfzeile außerhalb der Arbeitsseite serverseitig füllen (auch ohne JavaScript).
     let page = crate::menu::fill_page(&state, page).await;
+    // Runde 33: aktiver Reiter, Adressen der Reiter und Laptop-Zustand im fertigen HTML; gültige Schlüssel der
+    // Adresse als Cookie merken – anhängen, nicht ersetzen (`/` setzt schon `baruch_work`).
+    let page = crate::band::apply(&page, &band, &laptop);
+    for cookie in crate::band::set_cookies(query.as_deref()).into_iter().chain(crate::laptop::set_cookies(query.as_deref())) {
+        match HeaderValue::from_str(&cookie) {
+            Ok(value) => {
+                parts.headers.append(header::SET_COOKIE, value);
+            }
+            Err(e) => eprintln!("Menüband: Cookie nicht setzbar: {e}"),
+        }
+    }
     parts.headers.remove(header::CONTENT_LENGTH);
     Response::from_parts(parts, Body::from(page))
 }

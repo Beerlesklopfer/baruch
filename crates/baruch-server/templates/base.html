@@ -1,6 +1,6 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
 <!doctype html>
-<html lang="de"{% if settings.theme %} data-theme="{{ settings.theme }}"{% endif %}{% if html_style %} style="{{ html_style }}"{% endif %}>
+<html lang="de"{% if settings.theme %} data-theme="{{ settings.theme }}"{% endif %}{% if html_style %} style="{{ html_style }}"{% endif %} data-band-fill>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -47,7 +47,7 @@
   {%- endif %}
   <span class="work-title">{% block page_title %}{% endblock %}</span>
   {%- if tb and tb.work.author %}<span class="muted">· {{ tb.work.author }}</span>{% endif %}
-  <nav class="menubar" data-widget="menubar" aria-label="Menü"{% if not tb and w %} data-badges-work="{{ w }}"{% endif %}>
+  <nav class="menubar" data-widget="menubar" aria-label="Menü" data-band-default="{% block band_tab %}start{% endblock %}"{% if not tb and w %} data-badges-work="{{ w }}"{% endif %}>
     <details class="menu" data-menu="werk">
       <summary class="btn" aria-haspopup="menu">Werk ▾ <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>{{ requests }}</span> <span class="badge warning" data-badge="open_findings" title="offene Befunde im Werk"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }} offen</span></summary>
       <div class="menu-list" role="menu">
@@ -144,6 +144,9 @@
     </details>
   </nav>
   {% block page_actions %}{% endblock %}
+  {#- Runde 33 (Schnittstelle R33-S1): Plätze der Seiten für die Reiter des Menübands; bis das Band steht, leer.
+      Die Marke ` data-band-fill` an <html> ersetzt die Schicht consent::inject über band::apply. #}
+  {% block band_einfuegen %}{% endblock %}{% block band_pruefen %}{% endblock %}{% block band_buch %}{% endblock %}{% block band_ansicht %}{% endblock %}
   <span class="grow"></span>
   {%- set theme_name = "Hell" if settings is defined and settings.theme == "light" else ("Dunkel" if settings is defined and settings.theme == "dark" else "System") %}
   {%- set theme_sign = "☀" if settings is defined and settings.theme == "light" else ("☾" if settings is defined and settings.theme == "dark" else "◐") %}

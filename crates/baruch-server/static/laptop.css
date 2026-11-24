@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Laptop-Modus (Runde 33, Schnittstelle R33-S1; Besitz: Aufgabe „laptop“): alles außerhalb des Bands, was an
+   `data-compact`, `data-narrow` und `data-rail-*` an <html> hängt. Keine Media-Queries für die Modi. Steht in
+   lib.rs (STYLE) zuletzt. Noch leer. */
