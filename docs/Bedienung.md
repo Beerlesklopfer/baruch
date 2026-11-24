@@ -1306,6 +1306,9 @@ eine zweite Sicht darauf.
 - **Ein Befund** (Link „[B<id>]“): Art, Status in Worten („übernommen in Fassung 3“, „verschoben nach 9 Tal“), Persona,
   Abschnitt, Zitat, Begründung, der Verlauf aller Änderungen und Vorschläge; ein Befund, der einem früheren gleicht,
   steht als „angehängt“ unter seinem Original und zählt nicht als offen.
+- **Anspringen** (Nachbesserung 0.9.0): Das Zitat eines Befunds und der Link **„zur Stelle“** im Kopf der Karte
+  öffnen den Abschnitt und markieren das Zitat (Sprung-Adresse mit `find`, wie bei Suchtreffern; Alt+← führt
+  zurück). Ohne Zitat öffnet „zur Stelle“ den Abschnitt; ohne JavaScript ist es ein gewöhnlicher Link.
 - **Status setzen** (nur Sie): unter „Status setzen …“ je Befund „Übernommen“ (Fassung wählen), „Verwerfen“
   (Begründung Pflicht), „Verschieben“ (genau ein Ziel: ein Abschnitt oder eine Einfall-Nummer) und „Erledigt“; ein
   entschiedener Befund lässt sich „wieder öffnen“. Schlägt ein Assistent einen Status vor, stehen „Bestätigen“ und

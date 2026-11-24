@@ -151,9 +151,10 @@
       {%- if with_section %}{% if c.node_url %} · <a href="{{ c.node_url }}">{{ c.node_label }}</a>{% else %} · <span class="muted">ohne Abschnitt</span>{% endif %}{% endif %}
       <span class="muted tiny">{{ c.time }}</span>
       {%- if c.post_url %} <a class="tiny" href="{{ c.post_url }}">Beitrag</a>{% endif %}
+      {%- if c.place_url %} <a class="tiny fd-place" href="{{ c.place_url }}" data-jump title="Die Stelle im Abschnitt öffnen{% if c.quote %} und das Zitat markieren{% endif %}">zur Stelle</a>{% endif %}
     </header>
     <div class="fd-body">{% if c.body_html %}{{ c.body_html | safe }}{% else %}<p>{{ c.body }}</p>{% endif %}</div>
-    {%- if c.quote %}<blockquote class="fd-quote small">„{{ c.quote }}“{% if c.quote_check %} <span class="muted tiny">({{ c.quote_check }})</span>{% endif %}</blockquote>{% endif %}
+    {%- if c.quote %}<blockquote class="fd-quote small">{% if c.place_url %}<a href="{{ c.place_url }}" data-jump title="Stelle im Abschnitt anspringen">„{{ c.quote }}“</a>{% else %}„{{ c.quote }}“{% endif %}{% if c.quote_check %} <span class="muted tiny">({{ c.quote_check }})</span>{% endif %}</blockquote>{% endif %}
     {{- solutions(c, back) }}
     {%- if c.reason %}<p class="fd-reason small">Begründung: {{ c.reason }}</p>{% endif %}
     {%- if c.summary %}

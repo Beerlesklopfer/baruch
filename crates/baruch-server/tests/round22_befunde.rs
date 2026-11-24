@@ -464,3 +464,28 @@ async fn a_done_claim_for_a_finding_of_another_section_is_skipped() {
     let finding = f.server.state.store.finding_get(f.work, own).await.unwrap();
     assert!(finding.pending.is_none(), "kein Statusvorschlag am Befund aus dem anderen Abschnitt");
 }
+
+/// Nachbesserung 0.9.0 (Nutzer 2026-11-24: „Der Befund lässt sich nirgends anspringen“): Das Zitat eines Befunds
+/// und „zur Stelle“ führen mit einer Sprung-Adresse (`find`) an die Stelle im Abschnitt – im Akkordeon und auf der
+/// Befundseite, ohne JavaScript als gewöhnlicher Link.
+#[tokio::test]
+async fn the_quote_of_a_finding_jumps_to_its_place_in_the_section() {
+    let f = ferry().await;
+    let id = nathan_finding(&f).await;
+    let jump = format!("/?work={}&key={}&find=graue%20Seil", f.work, f.keys[0]);
+    let workspace = f.page(&format!("/?work={}&key={}", f.work, f.keys[0])).await;
+    let card = workspace.split(&format!("id=\"befund-{id}\"")).nth(1).expect("Karte des Befunds im Akkordeon");
+    let card = card.split("</article>").next().unwrap();
+    assert!(
+        card.contains(&format!(
+            "<a href=\"{jump}\" data-jump title=\"Stelle im Abschnitt anspringen\">„graue Seil“</a>"
+        )),
+        "das Zitat ist ein Sprung-Link an die Stelle: {card}"
+    );
+    assert!(
+        card.contains(&format!("href=\"{jump}\" data-jump")) && card.contains(">zur Stelle</a>"),
+        "„zur Stelle“ im Kopf: {card}"
+    );
+    let detail = f.page(&format!("/werke/{}/befunde?befund={id}", f.work)).await;
+    assert!(detail.contains(&format!("href=\"{jump}\" data-jump")), "auch auf der Befundseite anspringbar");
+}

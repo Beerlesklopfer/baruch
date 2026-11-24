@@ -250,6 +250,12 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
     value["time"] = json!(crate::localtime::minutes(&finding.created));
     value["node_label"] = json!(finding.key.and_then(|k| node_label(work, k)));
     value["node_url"] = json!(finding.key.map(|k| crate::view::node_url(work_id, k, None, false, "", "")));
+    // Anspringen (Nachbesserung 0.9.0): Das Zitat führt an die Stelle im Abschnitt (Sprung-Adresse mit `find`,
+    // markiert im Satzbild bzw. Quelltext, siehe `xref::jump_url`); ohne Zitat führt „zur Stelle“ zum Abschnitt.
+    value["place_url"] = json!(finding.key.map(|key| {
+        let find = Some(finding.quote.trim()).filter(|q| !q.is_empty()).map(str::to_string);
+        crate::xref::jump_url(&crate::xref::JumpTarget { work: work_id, key, rev: None, find, at: None })
+    }));
     value["post_url"] = json!(match (finding.key, finding.post, finding.thread, finding.thread_post) {
         (Some(key), Some(post), _, _) =>
             Some(format!("{}#post-{post}", crate::view::node_url(work_id, key, None, false, "", ""))),
