@@ -25,6 +25,18 @@ Zielgruppe, Bibelübersetzung) – oder liest eine vorhandene Datei ein: Typst, 
 Bildern), PDF, EPUB oder eine `.baruch`-Austauschdatei. Beim Einlesen zeigt Baruch zuerst eine Vorschau der
 Gliederung; angelegt wird erst nach Bestätigung.
 
+### Erste Einrichtung: Bibeln und Assistenten
+
+Baruch bringt weder Bibeltexte noch KI-Modelle mit. Beim ersten Start sind darum die Auswahl der
+Bibelübersetzung und die Assistenten noch leer – das ist kein Fehler. Schreiben, Fassungen und Buchsatz gehen
+trotzdem sofort.
+
+- **Bibeln:** Module des freien SWORD-Projekts installieren, am einfachsten mit BibleTime, Xiphos oder dem
+  Paket `sword-utils`. Baruch findet sie in `~/.sword` von selbst; weitere Ordner lassen sich unter
+  **Einstellungen → Quellen** eintragen.
+- **Assistenten:** unter **Einstellungen → Assistenten** eine Verbindung zu einem Modell anlegen (lokal etwa mit
+  Ollama) und die Personas einrichten. Mehr dazu unter [MCP und Assistenten](/mcp/).
+
 ## Der Arbeitsplatz
 
 - **Links die Gliederung:** Ein Klick öffnet den Abschnitt. Umbenennen, Verschieben und Umstufen gehen über
@@ -35,12 +47,17 @@ Gliederung; angelegt wird erst nach Bestätigung.
 
 ## Fassungen
 
-Speichern legt eine neue Fassung an oder schreibt bei kleinen Änderungen die eigene fort. Im Akkordeon
+**Speichern** schreibt die eigene aktuelle Fassung fort, solange die Änderung klein bleibt: höchstens etwa ein
+Fünftel des Textes geändert (einstellbar unter **Einstellungen → Werk → Fassungen**), Überschrift und Ebene gleich, und seit dem letzten Speichern nicht
+mehr als 30 Minuten vergangen. Sonst entsteht von selbst eine neue Fassung, und die Rückmeldung nennt den
+Grund, etwa „neue Fassung 4 (große Änderung)“. **Als neue Fassung speichern** legt immer eine neue an. Im Akkordeon
 **Fassungen** steht der Baum aller Fassungen des Abschnitts; „aktuell“ ist genau eine. Ein Vorschlag eines
 Assistenten erscheint dort als eigene Fassung – **Übernehmen** macht ihn zur aktuellen, **Verwerfen** lässt
 den Text, wie er ist.
 
 ## Wichtige Tasten
+
+Auf dem Mac gilt **⌘ (Befehl)** statt Strg und **⌥ (Wahl)** statt Alt.
 
 | Taste | Wirkung |
 |---|---|
@@ -66,7 +83,8 @@ baruch-server export ID --epub buch.epub
 baruch-server export ID --out ordner        # Typst-Datei und Bilder
 ```
 
-Ein Export überschreibt nie eine vorhandene Datei. `baruch-server --help` nennt alle Angaben.
+`ID` ist die Nummer des Werks – sie steht in der Adresszeile des Browsers (`…/?work=3`) – oder sein Ordnername,
+den **Einstellungen → Daten** zeigt. Ein Export überschreibt nie eine vorhandene Datei. `baruch-server --help` nennt alle Angaben.
 
 ## Über Baruch
 

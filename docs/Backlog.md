@@ -32,10 +32,28 @@ Entscheidungen des Nutzers:
   Aktivitätsanzeige, `pkill` oder das Schließen des Konsolenfensters beenden. Außerdem fährt der Server nur bei
   Strg+C sauber herunter (`main.rs`, `with_graceful_shutdown` mit `ctrl_c`), bei SIGTERM nicht.
   - Gewünscht ist ein Knopf „Baruch beenden“ (Menü Werk oder Einstellungen), mit Bestätigung und ohne
-    JavaScript als Formular.
+    JavaScript als Formular. **Nutzer 2026-11-24:** Beendet wird über die Oberfläche, und das Fenster schließt
+    sich. Mit JavaScript versucht die Seite `window.close()`. Lässt der Browser das nicht zu (er erlaubt es
+    meist nur für Fenster, die ein Skript geöffnet hat), zeigt sie „Baruch ist beendet – dieses Fenster kann
+    geschlossen werden“; ebenso ohne JavaScript. Prüfen, ob der Starter (`baruch`, AppRun, macOS-App,
+    Windows-Startmenü) den Browser so öffnen kann, dass `window.close()` greift, etwa als eigenes App-Fenster.
   - Er wirkt nur vom eigenen Rechner aus, nie unter einem Proxy-Namen.
   - Dazu SIGTERM (unter Windows Strg+Pause bzw. das Schließen des Fensters) als sauberes Herunterfahren.
   - Doku nachziehen: `site/content/installation.md` und `docs/Bedienung.md`.
+- **Hilfe auf der Webseite, mit Bildern (Nutzer 2026-11-24).** Die Hilfe gehört vollständig auf
+  baruch.bernau.family, nicht als Verweis auf Dateien bei GitHub.
+  - `docs/Bedienung.md` (und für Betreiber `docs/Betrieb.md`) wird zu Hugo-Seiten unter `site/content/hilfe/`,
+    gegliedert nach den Bereichen der Oberfläche. Die Verweise `{{< doku … >}}` auf GitHub entfallen für die
+    Bedienung.
+  - **Jeder Punkt bekommt ein Bildschirmfoto**, aufgenommen von einem erfundenen Beispielwerk mit
+    `--data <Temp-Ordner> --secrets memory`, hell (und wo nötig dunkel), reproduzierbar per Skript unter
+    `site/tools/`.
+  - `docs/Bedienung.md` bleibt die Quelle für Entwickler, oder die Webseite wird die Quelle und
+    `docs/Bedienung.md` verweist darauf. Das entscheidet der PM, aber es gibt keine zwei auseinanderlaufenden
+    Fassungen.
+  - Zur Hilfe gehört auch die geprüfte Kritik an der Webseite vom 2026-11-24 (Startseite, Funktionen,
+    Installation, Bedienung): Begriffe in Alltagssprache, Einrichtung von Bibeln und Assistenten,
+    Tasten am Mac.
 - **Kein eigenes Zusammenspiel mit Logos Bible Software.** Viele Pfarrer arbeiten mit Logos, doch für die
   Recherche ist MultiGPT mächtiger (Nutzer 2026-11-24). Logos-Manuskripte kommen über den Word-Import herein.
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
