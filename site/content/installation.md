@@ -3,9 +3,8 @@ title: "Installation"
 description: "Baruch herunterladen und installieren: APT-Quelle für Debian und Ubuntu, .deb, AppImage, macOS und Windows – oder aus dem Quelltext bauen."
 ---
 
-Nach dem Start läuft Baruch unter `http://127.0.0.1:8765/` und ist nur vom eigenen Rechner erreichbar. Die Daten
-liegen im Ordner des Benutzers (Linux `~/.local/share/baruch`, macOS `~/Library/Application Support/baruch`,
-Windows `%LOCALAPPDATA%\baruch`); kein Paket legt dort etwas an, und kein Entfernen löscht dort etwas.
+Baruch wird wie ein gewöhnliches Programm installiert und dann im Browser bedient. Unten stehen die Wege für
+jedes System; die Daten bleiben dabei immer auf dem eigenen Rechner.
 
 ## Dateien zum Herunterladen
 
@@ -21,16 +20,12 @@ Aktuell ist Version {{< param "version" >}}. Alle Dateien liegen auf der {{< rel
 | Prüfsummen | {{< download "SHA256SUMS" >}} | SHA-256 aller Dateien |
 | APT-Repository als Archiv | {{< download "apt-repo.tar.gz" >}} | für einen eigenen Spiegel |
 
-### Prüfsumme vergleichen
+**Direkt zu:** [Windows](#windows-nicht-signiert) · [macOS](#macos-nicht-signiert) ·
+[Debian und Ubuntu](#debian-und-ubuntu-über-die-apt-quelle) · [Linux (AppImage)](#appimage) ·
+[Aus dem Quelltext](#aus-dem-quelltext)
 
-`SHA256SUMS` in denselben Ordner laden wie das Paket, dann:
-
-```sh
-sha256sum --check --ignore-missing SHA256SUMS
-```
-
-Unter Windows: `Get-FileHash {{< datei "Baruch-VERSION-x64.msi" >}} -Algorithm SHA256` und die Zeile mit
-`SHA256SUMS` vergleichen.
+Nach dem Start öffnet sich der Browser mit Baruch unter `http://127.0.0.1:8765/`; diese Adresse ist nur vom
+eigenen Rechner aus erreichbar.
 
 ## Debian und Ubuntu über die APT-Quelle
 
@@ -71,7 +66,6 @@ Dateien oben löschen. Der Datenordner bleibt dabei unberührt.
 ## .deb direkt
 
 ```sh
-sha256sum --check --ignore-missing SHA256SUMS
 sudo apt install ./{{< datei "baruch_VERSION-1_amd64.deb" >}}
 ```
 
@@ -103,18 +97,39 @@ Datenschutz & Sicherheit → „Dennoch öffnen“, oder im Terminal:
 xattr -dr com.apple.quarantine /Applications/Baruch.app
 ```
 
-Vorher die Prüfsumme mit `SHA256SUMS` vergleichen. Baruch hat kein Fenster und kein Dock-Symbol; die Oberfläche
-ist der Browser. Beenden: Aktivitätsanzeige oder `pkill baruch-server`.
+Baruch hat kein eigenes Fenster und kein Dock-Symbol; die Oberfläche ist der Browser. Das Browserfenster zu
+schließen beendet Baruch nicht – es läuft im Hintergrund weiter, bis der Rechner neu startet. Einen Knopf
+„Baruch beenden“ in der Oberfläche gibt es noch nicht (ist geplant); bis dahin: Aktivitätsanzeige öffnen,
+`baruch-server` suchen und „Beenden“ wählen. Ihre Texte sind dabei sicher – jede gespeicherte Änderung steht
+bereits in der Datenbank.
 
 ## Windows (nicht signiert)
 
 Die `.msi`-Datei ausführen (Administratorrechte, Installation nach `C:\Program Files\Baruch`). Das Paket ist
-**nicht signiert**; SmartScreen warnt („Weitere Informationen“ → „Trotzdem ausführen“). Vorher die Prüfsumme
-vergleichen. Start über „Baruch“ im Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser.
+**nicht signiert**; SmartScreen warnt („Weitere Informationen“ → „Trotzdem ausführen“). Start über „Baruch“ im Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser.
 Beenden: das Fenster schließen.
 
 Die Pakete für macOS und Windows entstehen nur im automatischen Bau und sind weniger erprobt als die für
 Linux. Was geprüft ist und was nicht, steht in {{< doku "docs/Verteilung.md" "docs/Verteilung.md" >}}.
+
+## Optional: Prüfsumme vergleichen
+
+Wer sichergehen will, dass die Datei unverändert ist, vergleicht ihre Prüfsumme mit `SHA256SUMS` von der
+Release-Seite. Unter Debian und Ubuntu über die APT-Quelle geschieht das automatisch.
+
+- **Linux:** `SHA256SUMS` in denselben Ordner laden wie das Paket, dann
+  `sha256sum --check --ignore-missing SHA256SUMS`.
+- **macOS:** im Terminal `shasum -a 256 {{< datei "Baruch-VERSION-macos-arm64.dmg" >}}` und das Ergebnis mit der
+  passenden Zeile in `SHA256SUMS` vergleichen.
+- **Windows:** in der **PowerShell** (nicht in der Eingabeaufforderung `cmd.exe`)
+  `Get-FileHash {{< datei "Baruch-VERSION-x64.msi" >}} -Algorithm SHA256` und das Ergebnis mit der passenden Zeile
+  in `SHA256SUMS` vergleichen (Groß- und Kleinschreibung spielt keine Rolle).
+
+## Wo die Daten liegen
+
+Linux `~/.local/share/baruch`, macOS `~/Library/Application Support/baruch`, Windows `%LOCALAPPDATA%\baruch`.
+Kein Paket legt dort etwas an, und kein Deinstallieren löscht dort etwas. Sicherung und Umzug beschreibt
+[Betrieb](/betrieb/).
 
 ## Aktualisieren
 
