@@ -6,8 +6,11 @@
 {% extends "base.html" %}
 {% block title %}An der Markierung – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: An der Markierung{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn" href="/?work={{ work.id }}{% if section %}&amp;key={{ section.key }}&amp;rev={{ section.rev }}{% endif %}">Zurück zum Abschnitt</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/?work={{ work.id }}{% if section %}&amp;key={{ section.key }}&amp;rev={{ section.rev }}{% endif %}">Zurück zum Abschnitt</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page marking-page" data-work="{{ work.id }}">

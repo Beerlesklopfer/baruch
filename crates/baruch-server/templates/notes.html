@@ -9,8 +9,11 @@
 {% extends "base.html" %}
 {% block title %}Stichwortzettel – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Stichwortzettel{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn" href="{{ back }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="{{ back }}">Zurück zum Werk</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page notes-page">

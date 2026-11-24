@@ -20,7 +20,7 @@ Danach `http://127.0.0.1:8765/` im Browser öffnen. Eine neue Datenbank bringt e
 
 ## Das erste eigene Werk
 
-**Werk ▾ → Neues Werk / Importieren…** legt ein Buch oder eine Predigt an (Titel, Autor, Grundgerüst,
+**Baruch ▾ → Neues Werk / Importieren…** (oben links im Menüband) legt ein Buch oder eine Predigt an (Titel, Autor, Grundgerüst,
 Zielgruppe, Bibelübersetzung) – oder liest eine vorhandene Datei ein: Typst, Markdown (auch als ZIP mit
 Bildern), PDF, EPUB oder eine `.baruch`-Austauschdatei. Beim Einlesen zeigt Baruch zuerst eine Vorschau der
 Gliederung; angelegt wird erst nach Bestätigung.
@@ -39,6 +39,11 @@ trotzdem sofort.
 
 ## Der Arbeitsplatz
 
+- **Oben das Menüband:** das Menü **Baruch ▾** (Werke, Import, Einstellungen, Über Baruch) und die Reiter
+  **Start** (Editor, Fassung, Einfälle), **Einfügen** (Fußnote, Zitat, Bild, Formate der Vorlage), **Prüfen**
+  (Befunde, Bibelstellen, Suchen, Literatur), **Buch** (Gliederung, Satz, Ausgabe, Umschlag) und **Ansicht**
+  (Seitenleisten, Laptop-Modus, Thema). Auf kleinen Bildschirmen fasst der **Laptop-Modus** die Gruppen zu
+  Knöpfen zusammen.
 - **Links die Gliederung:** Ein Klick öffnet den Abschnitt. Umbenennen, Verschieben und Umstufen gehen über
   das Kontextmenü oder über Formulare.
 - **In der Mitte der Editor:** das Satzbild – der Abschnitt, wie er gesetzt wird – oder der Typst-Quelltext.
@@ -73,7 +78,7 @@ Alles geht auch ohne Tastenkürzel und ohne JavaScript über Links und Formulare
 
 ## Buch setzen und ausgeben
 
-Die Menüs der Kopfzeile führen zur Satz-Vorschau, zum Buch als PDF, zum Umschlag und zum EPUB. Wie das Buch
+Der Reiter **Buch** im Menüband führt zur Satz-Vorschau, zum Buch als PDF, zum Umschlag und zum EPUB. Wie das Buch
 aussieht, stellt **Einstellungen → Werk → Satz** ein (Seitenformat, Ränder, Schrift, Kapitelanfang). Auf der
 Kommandozeile:
 
@@ -88,7 +93,7 @@ den **Einstellungen → Daten** zeigt. Ein Export überschreibt nie eine vorhand
 
 ## Über Baruch
 
-**Über Baruch** im Menü zeigt Version, Lizenz und den Link zum Quellcode. Baruch fragt nie von sich aus im Netz
+**Baruch ▾ → Über Baruch** zeigt Version, Lizenz und den Link zum Quellcode. Baruch fragt nie von sich aus im Netz
 nach neuen Versionen; die Seite verlinkt die Release-Seite, auf der man selbst nachsieht.
 
 ## Dokumentation

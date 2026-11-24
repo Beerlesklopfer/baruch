@@ -12,8 +12,16 @@
 {% extends "base.html" %}
 {% block title %}Gliederungsschema – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}Gliederungsschema · {{ work.title }}{% endblock %}
-{% block page_actions %}<a class="btn" href="/werke/{{ work.id }}/bearbeiten">Werk ändern</a>
-  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
+    <a class="btn" href="/werke/{{ work.id }}/bearbeiten">Werk ändern</a>
+  </div></details>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  </div></details>
+{% endblock %}
 {% block body %}
 <main class="works-page numbering-page">
 {%- block content %}

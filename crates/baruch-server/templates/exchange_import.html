@@ -5,9 +5,13 @@
 {% extends "base.html" %}
 {% block title %}Austausch einlesen – Baruch{% endblock %}
 {% block page_title %}Austausch: Einlesen{% endblock %}
-{% block page_actions %}
-  <a class="btn" href="/werke">Werke</a>
-  {%- if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% endif %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/werke">Werke</a>
+    {%- if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% endif %}
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page exchange-import-page">

@@ -2,6 +2,10 @@
 /* Werkverwaltung: Seiten /werke, /werke/neu, /werke/{id}/bearbeiten, /werke/{id}/loeschen und der
    Dialog „Importieren…“ der Kopfzeile. Farben aus app.css. */
 
+/* Runde 33: ein Seitenrand für alle Seiten unter dem Menüband – oben 14px, seitlich 18px, unten 28px, Lücke 12px.
+   Dieselben Werte tragen die Seiten mit eigenem Gerüst (.posts-page, .threads-page, .bible-page, .source-import,
+   .befunde, .variants-page, .revision-history, .assist-notice-page, .outline-page, .settings-main,
+   .literature-page, .source-page) in ihren Dateien. */
 .works-page {
   flex: 1; overflow: auto; padding: 14px 18px 28px; display: flex; flex-direction: column; gap: 12px;
   max-width: 1100px; width: 100%; margin: 0 auto;

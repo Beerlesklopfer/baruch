@@ -9,8 +9,12 @@
 {% extends "base.html" %}
 {% block title %}Abgleich mit MultiGPT – Baruch{% endblock %}
 {% block page_title %}Abgleich mit MultiGPT{% endblock %}
-{% block page_actions %}
-  <a class="btn" href="/{% if selected %}?work={{ selected }}{% endif %}">Zurück zum Werk</a>
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}pruefen{% endblock %}
+{% block band_pruefen %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/{% if selected %}?work={{ selected }}{% endif %}">Zurück zum Werk</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page sync-page">

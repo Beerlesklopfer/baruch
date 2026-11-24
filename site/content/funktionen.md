@@ -10,10 +10,18 @@ stehen [häufige Fragen](#häufige-fragen). Die Bilder zeigen ein frei erfundene
 ## Der Arbeitsplatz
 
 Links die Gliederung, in der Mitte der Editor, rechts Assistenten, Fassungen, Befunde und der Chat zum
-Abschnitt. Die Breite der drei Bereiche lässt sich ziehen; oben stehen die Menüs **Werk**, **Ansicht** und
-**Werkzeuge**, der Hell/Dunkel-Schalter und die Einstellungen.
+Abschnitt. Die Breite der drei Bereiche lässt sich ziehen. Oben steht das **Menüband**: das Menü **Baruch**, die
+Reiter **Start**, **Einfügen**, **Prüfen**, **Buch** und **Ansicht** und darunter die Gruppen des gewählten Reiters –
+vom Speichern über die Formate bis zum Buch als PDF.
 
 {{< bild datei="arbeitsplatz.png" alt="Arbeitsplatz von Baruch: links die Gliederung des Beispielwerks, in der Mitte ein Abschnitt im Satzbild, rechts die Akkordeons für Assistenten, Fassungen und Chat." titel="Der Arbeitsplatz mit Gliederung, Editor und Akkordeons." >}}
+
+Auf einem Laptop wird es eng. Der **Laptop-Modus** (Reiter **Ansicht**: Automatisch, An, Aus) fasst die Gruppen des
+Menübands unter 1600 Pixeln Fensterbreite zu Knöpfen mit Aufklappliste zusammen und klappt unter 1280 Pixeln die
+Gliederung und die rechte Spalte zu schmalen Leisten ein, die sich bei Bedarf über den Text legen. So bleibt der
+Platz beim Text.
+
+{{< bild datei="arbeitsplatz-laptop.png" breite="1366" hoehe="768" alt="Arbeitsplatz von Baruch in einem 1366 Pixel breiten Fenster: das Menüband in der kompakten Form, darunter Gliederung, Editor und Akkordeons." titel="Derselbe Arbeitsplatz auf Laptop-Breite: das Menüband kompakt." >}}
 
 ## Gliederung
 

@@ -4,9 +4,12 @@
 {% extends "base.html" %}
 {% block title %}Import: {{ report.title }} – Baruch{% endblock %}
 {% block page_title %}Import-Bericht{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn" href="/werke">Werke</a>
-  <a class="btn primary" href="{{ work_url|safe }}">Zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Weiter</summary><div class="band-items" role="group" aria-label="Weiter">
+    <a class="btn" href="/werke">Werke</a>
+    <a class="btn primary" href="{{ work_url|safe }}">Zum Werk</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page import-report">

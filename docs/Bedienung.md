@@ -160,7 +160,7 @@ bzw. dem YAML-Kopf, sonst aus dem Namen des Archivs bzw. Ordners. Von der Komman
 Bilder wie beim Typst-Import relativ zum Ordner der Datei; die Ausgabe nennt Werk, Abschnitte, Bilder, übersprungene
 Bilder und jeden Hinweis als `Hinweis (<code>, Zeile n): …`.
 
-Im Formular (**Werk ▾ → Neues Werk / Importieren…**, ohne JavaScript `/werke/neu`): *Datei* (`.typ`, `.md`,
+Im Formular (**Baruch ▾ → Neues Werk / Importieren…**, ohne JavaScript `/werke/neu`): *Datei* (`.typ`, `.md`,
 `.markdown`, `.zip`) **oder** *Ordner* wählen. Ohne Hinweise öffnet sich das neue Werk; sonst zeigt eine Berichtsseite
 die übersprungenen Bilder mit Grund und die Hinweise mit Zeile und verlinkt das Werk. Eine einzelne Markdown-Datei
 bringt keine Bilder mit (sie stehen dann im Bericht); dafür Ordner oder ZIP nehmen.
@@ -171,14 +171,14 @@ Als EPUB (Runde 20a): `baruch-server export <id|slug> --epub DATEI [--data ORDNE
 nennt die Größe, Hinweise (ausgelassene Typst-Inseln, Bilder ohne Alternativtext …) stehen auf stderr.
 
 Über MCP gibt es keinen Import (ein Assistent darf keine aktuellen Revisionen im Namen des Menschen
-anlegen). Nach dem Import erscheint das Werk in der **Werkwahl** der Kopfzeile. Dieselbe Datei lässt sich auch
+anlegen). Nach dem Import erscheint das Werk in der **Werkwahl** des Menübands. Dieselbe Datei lässt sich auch
 in der Oberfläche hochladen („Importieren…“, siehe „Werke“).
 
 Fremde Quellen (PDF, EPUB) liest der Import der Runde 21a mit Vorschau der Gliederung (nächster Abschnitt).
 
 ## PDF oder EPUB importieren (Runde 21a)
 
-„Werk ▾ → PDF oder EPUB importieren…“ (Seite `/werke/import/quelle`, auch verlinkt unter dem Typst-Formular auf
+„Baruch ▾ → PDF oder EPUB importieren…“ (Seite `/werke/import/quelle`, auch verlinkt unter dem Typst-Formular auf
 `/werke/neu`) liest eine PDF- oder EPUB-Datei (höchstens 64 MiB), schlägt eine Gliederung vor und legt **erst nach
 deiner Bestätigung** etwas an – als Werk, als Quelle der Bibliothek oder beides. Alles geht ohne JavaScript.
 
@@ -240,17 +240,17 @@ einer anderen Datei (`.typ`, `.md`, `.zip`) endet der Aufruf mit Exit 2 und eine
 Werke verwaltet nur der Mensch, in der Oberfläche (über MCP gibt es dafür nichts). Alles geht ohne
 JavaScript; mit JavaScript kommen der sofortige Werkwechsel und der Dialog „Importieren…“ dazu.
 
-**Werk wählen:** In der Kopfzeile der Arbeitsseite steht ein Auswahlfeld mit allen Werken als „Titel · Autor · n Abschnitte“.
+**Werk wählen:** In der ersten Zeile des Menübands steht auf der Arbeitsseite ein Auswahlfeld mit allen Werken als „Titel · Autor · n Abschnitte“.
 Mit JavaScript öffnet ein Wechsel das gewählte Werk sofort, ohne JavaScript mit **Öffnen** (die Adresse wird
 `/?work=<id>`). Baruch merkt sich das gezeigte Werk im Cookie `baruch_work` (ein Jahr); `/` ohne `?work=`
 öffnet dieses Werk wieder, gibt es es nicht mehr, das älteste Werk; gibt es gar kein Werk, geht es zur
 Werkliste. Gliederung, Editor, Assistenten und Literatur-Suche gelten immer dem gezeigten Werk; Links und
 Formulare tragen es weiter.
 
-**Werkliste** (**Werk ▾ → Alle Werke**, `/werke`): alle Werke mit Titel, Untertitel, Autor, Art, Abschnitten, offenen
+**Werkliste** (**Baruch ▾ → Alle Werke**, `/werke`): alle Werke mit Titel, Untertitel, Autor, Art, Abschnitten, offenen
 Vorschlägen und letzter Änderung; je Werk **Öffnen**, **Ändern**, **Export** und **Löschen**.
 
-**Importieren und anlegen** (**Werk ▾ → Neues Werk / Importieren…**; mit JavaScript ein Dialog, sonst die Seite `/werke/neu`):
+**Importieren und anlegen** (**Baruch ▾ → Neues Werk / Importieren…**; mit JavaScript ein Dialog, sonst die Seite `/werke/neu`):
 - *Typst- oder Markdown-Datei importieren:* Datei (`.typ`, `.md`, `.markdown` bis 16 MiB, `.zip` bis 80 MiB) oder einen
   Ordner wählen und **Importieren** (Runde 21b, siehe „Typst- oder Markdown-Datei importieren“). Das Titelfeld
   füllt sich mit JavaScript aus `#set document(title: …)` der Datei vor (Markdown: `title:` im YAML-Kopf); leer gelassen nimmt der Server den
@@ -297,7 +297,7 @@ Anlegen, Importieren und Umbenennen mit einem vergebenen Titel meldet Baruch „
 einen neuen Titel: das gesäte Beispielwerk wieder „Beispielwerk: Leise Abhängigkeit (Auszug)“, sonst das jüngere „<Titel>
 (2)“. Ordnernamen, Spiegel und Texte bleiben dabei, wie sie sind.
 
-**Ändern** (**Werk ▾ → Werk bearbeiten**, `/werke/<id>/bearbeiten`, dieselben Formulare auch unter
+**Ändern** (Reiter **Buch → Werk bearbeiten**, `/werke/<id>/bearbeiten`, dieselben Formulare auch unter
 **⚙ Einstellungen → Werk**): Titel, Untertitel, Autor, Art, Zielgruppe, Bibelübersetzung und die
 **Werkvorlage** (alles vor der ersten Überschrift: `#set`, `#show`, `#let` …; eine Überschrift gehört nicht
 hinein). Eine geänderte Werkvorlage wird eine neue **Fassung** (mit Notiz); die Liste darunter zeigt alle
@@ -321,28 +321,27 @@ vergeben. Die Löschseite sagt das vorher.
 
 ## Bildschirm
 
-- **Kopfzeile:** **Baruch**, die **Werkwahl** (Auswahlfeld und **Öffnen**; ein gewöhnliches Formular, geht
-  ohne JavaScript), Titel und Autor des Werks, die Menüs **Werk ▾**, **Ansicht ▾** (darin der Umschalter
-  **Vorschau/Editor** und **Satz**) und **Werkzeuge ▾** (darin **Literatur**, Alt+L, und **Einfall
-  festhalten**, Alt+E), der kleine Thema-Umschalter und **⚙ Einstellungen** (Alt+,). Einzelheiten unter
-  „Kopfzeile und Menüs“.
+- **Menüband** (oben, auf jeder Seite): in der ersten Zeile das Menü **Baruch ▾**, die **Werkwahl** (Auswahlfeld und
+  **Öffnen**; ein gewöhnliches Formular, geht ohne JavaScript), Titel und Autor des Werks und die Reiter **Start**,
+  **Einfügen**, **Prüfen**, **Buch** und **Ansicht**; darunter die Gruppen des gewählten Reiters. Einzelheiten unter
+  „Menüband“.
 - **Links:** die Gliederung, die einzige der Oberfläche (Teile, Kapitel, Abschnitte; Kapitel auf- und
   zuklappen, Marken für offene Vorschläge, im Kopf die **Nummerierung**). Ein Klick auf einen Eintrag öffnet
   den Abschnitt im Editor, auch aus der Vorschau heraus. Umstellen, Umbenennen, Anlegen und Löschen geschehen
-  direkt im Baum (siehe „Gliederung“). Die Literatur steht nicht hier, sondern hinter **Werkzeuge ▾ →
-  Literatur** in der Kopfzeile.
+  direkt im Baum (siehe „Gliederung“). Die Literatur steht nicht hier, sondern im Menüband im Reiter
+  **Prüfen → Literatur**.
 - **Mitte:** der gewählte Abschnitt in vier Bereichen, die nicht mehr aneinander hängen:
   - **Kopf** (steht fest oben): Titel, „Fassung n · Status · Autor“ (in der Farbe der Persona, von der die
     Fassung stammt), „‹ n/m ›“ zum Blättern durch die Fassungen (n = Stelle, m = Anzahl; Tastatur:
     Alt+← / Alt+→). Ist die gezeigte Fassung die aktuelle, ist „n/m“ grün hervorgehoben, sonst steht daneben
     der Link **aktuell: Fassung k**.
-  - **Menüband** (nur im Editor und mit JavaScript, steht fest unter dem Kopf): **Satzbild | Quelltext**,
-    Absatzformat, **K** (hervorheben), **F** (fett) und die Formate der Werkvorlage (siehe „Menüband“); auf der
-    Satz-Seite dient ein eigenes Menüband ohne JavaScript.
+  - Die **Knöpfe des Editors** (**Satzbild | Quelltext**, Absatzformat, **K**, **F**, Fassung, Speichern und die
+    Formate der Werkvorlage) stehen mit JavaScript im Menüband in den Reitern **Start** und **Einfügen** (siehe
+    „Menüband“); ohne JavaScript gibt es im Editor das Textfeld mit **Speichern** in der Statuszeile.
   - **Blatt:** Mit JavaScript das **Satzbild** (der Abschnitt so gesetzt, wie ihn die Werkvorlage zeigt:
     Schrift, Farben, Einzüge, Kästen von `#szene` und `#arbeit`), umschaltbar auf den **Quelltext** (Typst);
     ohne JavaScript nur der Quelltext; in der Vorschau die Vorschau. Das Blatt füllt die ganze restliche Höhe
-    und scrollt allein – Kopf, Werkzeugleiste und Statuszeile bleiben stehen. Im Blatt stehen auch die
+    und scrollt allein – Kopf und Statuszeile bleiben stehen. Im Blatt stehen auch die
     offenen **Vorschläge** des Abschnitts in der Farbe ihrer Persona (siehe „Vorschläge im Lesefluss“).
   - **Statuszeile** (unten, schmal): Hinweise (der volle Text erscheint beim Darüberfahren), **Speichern**
     (mit JavaScript auch Strg+S) und **Als neue Fassung speichern**. Seit Runde 22 schreibt „Speichern“ kleine
@@ -366,54 +365,100 @@ vergeben. Die Löschseite sagt das vorher.
   für das ganze Kapitel. Alles geht auch ohne JavaScript.
 - **Spaltengrenzen** lassen sich ziehen oder mit dem Fokus darauf per ← / → verschieben.
 
-## Kopfzeile und Menüs
+## Menüband
 
-Jede Seite hat dieselbe Kopfzeile (statt bis zu elf Knöpfen):
+Seit Runde 33 hat jede Seite oben dasselbe **Menüband** – es ersetzt die frühere Kopfzeile mit den Menüs „Werk“,
+„Ansicht“ und „Werkzeuge“ und das Menüband über dem Blatt (Runde 18a). Kein Eintrag ist entfallen; alles ist auch
+ohne JavaScript erreichbar.
 
-- links **Baruch** (zurück zur Arbeitsseite des Werks), auf der Arbeitsseite die **Werkwahl** wie bisher,
-  dann der Seitentitel (auf der Arbeitsseite Werktitel und Autor). Der Titel kürzt sich mit „…“, wenn das
-  Fenster schmal ist; die Menüs und Knöpfe behalten ihre Breite (bei 1024 px Breite und mehr bleibt die
-  Kopfzeile einzeilig). **Schmale Fenster** (Runde 18a, unter 1000 px): Die Kopfzeile bricht in eine zweite
-  Zeile um, statt Knöpfe und Menüs aus dem Fenster zu schieben.
-- **Werk ▾:** Alle Werke · Neues Werk / Importieren… (auf der Arbeitsseite als Dialog, sonst die Seite
-  `/werke/neu`) · Werk bearbeiten · Gliederung · Anträge zur Gliederung (nur wenn es offene gibt) ·
-  Gliederungsschema · Bilder · Exportieren (Typst) · Als PDF herunterladen · Als EPUB herunterladen (Runde 20) ·
-  Umschlag · Umschlag-PDF (Runde 11; ohne gewähltes Werk führen sie zur Werkliste, „Erst ein Werk wählen“).
-- **Ansicht ▾:** Vorschau bzw. Editor (Umschalter der Arbeitsseite; auf anderen Seiten „Editor“ = zurück
-  zur Arbeitsseite) · Satz (gesetzte Seiten aus Typst, auf der Arbeitsseite am gezeigten Abschnitt) ·
-  EPUB-Vorschau (Runde 20b, Seite `/werke/{id}/epub/vorschau`, ohne Werk die Werkliste; siehe „EPUB-Vorschau je
-  Reader“).
-- **Werkzeuge ▾:** Literatur (Alt+L; auf der Arbeitsseite das Popup, sonst die Seite `/literatur`) ·
-  Einfall festhalten (Alt+E; auf der Arbeitsseite der Dialog, sonst die Seite `/einfaelle`) · Einfälle
-  (Liste) · Abgleichen (Seite `/abgleich`, Abgleich mit MultiGPT, siehe „Abgleich mit MultiGPT“) · Im Werk suchen
-  und ersetzen (Strg+Umschalt+F, Seite `/suche`) · Querverweise prüfen (Seite `/verweise`); beide seit Runde 30a
-  (siehe „Suchen und Ersetzen“, „Querverweise“).
-- dahinter die Links der Seite selbst (z. B. „Zurück zum Werk“, „Alle Bilder“, „Alle Einfälle“, „Zum
-  Werk“, „Gliederung“, „Literatur“ auf `/quelle`, „Neues Werk oder Import…“ auf `/werke`); die Satz-Seite trägt
-  „Zurück zum Werk“ und „PDF herunterladen“ seit Runde 18a in ihrem Menüband unter der Kopfzeile,
-- rechts der kleine **Thema-Umschalter** (◐ System → ☀ Hell → ☾ Dunkel, Name im Tooltip) und
-  **⚙ Einstellungen** (Alt+,; öffnet das Einstellungs-Popup, ohne JavaScript die Seite
-  `/einstellungen/darstellung`).
+**Erste Zeile:** das Menü **Baruch ▾**, auf der Arbeitsseite die **Werkwahl**, der Seitentitel (auf der Arbeitsseite
+Werktitel und Autor) und die **Reiter**. **Zweite Zeile:** die Gruppen des gewählten Reiters; unter jeder Gruppe
+steht klein ihr Name.
+
+**Baruch ▾** (auf jeder Seite gleich): Alle Werke · Neues Werk / Importieren… (auf der Arbeitsseite als Dialog,
+sonst die Seite `/werke/neu`) · PDF oder EPUB importieren… · Austausch: Einlesen… · Einstellungen (Alt+,; öffnet das
+Einstellungs-Popup, ohne JavaScript die Seite `/einstellungen/darstellung`) · Über Baruch.
+
+**Reiter und Gruppen:**
+
+| Reiter | Gruppen und Einträge |
+|---|---|
+| **Start** | Arbeitsseite: *Ansicht des Textes* (Umschalter **Editor/Vorschau**), die Knöpfe des Editors (*Text*, *Absatz*, *Fassung*, *Assistenten*, siehe unten), *Einfälle* (Einfall festhalten, Alt+E · Einfälle · Gedankenkarte). Übrige Seiten: *Werk* (**Zum Text** – zurück zur Arbeitsseite), die Gruppen der Seite selbst, *Einfälle*. |
+| **Einfügen** | Nur auf der Arbeitsseite: Fußnote, Zitat, Liste, Aufzählung, Begriff, Umbruch, Link, Verweis, die Formate der Werkvorlage, Bild, *Register und Glossar* (siehe unten). |
+| **Prüfen** | Befunde · Zitate prüfen (Bibelstellen) · Im Werk suchen und ersetzen (Strg+Umschalt+F, Seite `/suche`) · Querverweise prüfen (Seite `/verweise`) · Literatur (Alt+L; auf der Arbeitsseite das Popup, sonst die Seite `/literatur`) · Abgleichen (Seite `/abgleich`, siehe „Abgleich mit MultiGPT“). |
+| **Buch** | *Werk* (Werk bearbeiten · Gliederung · Anträge zur Gliederung, nur wenn es offene gibt · Gliederungsschema · Bilder) · *Satz* (Satz-Vorschau, auf der Arbeitsseite am gezeigten Abschnitt · EPUB-Vorschau) · *Ausgabe* (PDF · Entwurf · EPUB · Stichwortzettel … · Exportieren (Typst) · Austausch: Ausgeben) · *Umschlag* (Umschlag · Umschlag-PDF) · *Register und Glossar* (Glossar · Register). |
+| **Ansicht** | *Seitenleisten* (Gliederung, Assistenten – nur auf der Arbeitsseite) · *Laptop-Modus* (Automatisch · An · Aus) · *Darstellung* (Thema: ◐ System → ☀ Hell → ☾ Dunkel; Zoom zurücksetzen, nur mit JavaScript). |
+
+Die Arbeitsseite zeigt alle fünf Reiter, Seiten mit Werk **Start · Prüfen · Buch · Ansicht**, Seiten ohne Werk
+**Start · Ansicht**. Jede Seite öffnet mit dem Reiter, zu dem sie gehört: Satz, Umschlag, EPUB, Austausch, Glossar,
+Register, Bilder, Gliederungsschema und „Werk bearbeiten“ mit **Buch**; Befunde, Zitate prüfen, Suche, Querverweise,
+Literatur und Abgleich mit **Prüfen**; die Einstellungen mit **Ansicht**; alle übrigen mit **Start**. Ohne JavaScript
+wechselt ein Reiter über die Adresse (`?tab=start|einfuegen|pruefen|buch|ansicht`).
+
+**Gruppen der Seite selbst:** Die Links, die früher hinter den Menüs in der Kopfzeile standen, stehen als Gruppen im
+Reiter der Seite – **Zurück** („Zurück zum Werk“, „Zurück zum Abschnitt“, „Werke“, „Alle Bilder“, „Alle Einfälle“,
+„Alle Fäden“, „Gliederung“, „Literatur“ auf `/quelle`), **Siehe auch** (z. B. „Register“ auf der Glossar-Seite,
+„Gedankenkarte“ auf der Liste der Einfälle), **Werke** („Neues Werk oder Import…“ und „Archiv“ auf `/werke`),
+**Herunterladen** bzw. **EPUB** (z. B. „Umschlag-PDF“, „EPUB herunterladen“) und **Weiter** („Zum Werk“ nach einem
+Import). Die **Satz-Seite** trägt im Reiter **Buch** die Gruppen **Zurück** (Zurück zum Werk), **Herunterladen**
+(PDF herunterladen), **Seiten** (‹ Seite n von N ›) und **Satzlauf** (Satz abbrechen); siehe „Satz (Typst-Vorschau)“.
 
 Welches Werk die Einträge meinen: auf der Arbeitsseite das gezeigte, auf Seiten eines Werks dieses, sonst
-das zuletzt geöffnete (Cookie `baruch_work`). Gibt es keins, führen die Werk-Einträge zur Werkliste.
+das zuletzt geöffnete (Cookie `baruch_work`). Gibt es keins, führen die Werk-Einträge zur Werkliste („Erst ein
+Werk wählen“).
 
-**Abzeichen:** Am Menü „Werk“ steht die Zahl der offenen Anträge zur Gliederung, am Menü „Ansicht“ die Zahl
-der offenen Vorschläge im ganzen Werk. Die Arbeitsseite zeigt sie schon beim Laden; auf den übrigen Seiten
-stehen sie seit Runde 23 ebenfalls im ausgelieferten HTML (auch ohne JavaScript; das Skript frischt sie nur auf).
-Null → kein Abzeichen.
+**Abzeichen:** Am Reiter **Start** steht die Zahl der offenen Vorschläge im ganzen Werk, am Reiter **Prüfen** die
+Zahl der offenen Befunde („N offen“), am Reiter **Buch** die Zahl der offenen Anträge zur Gliederung. Die
+Arbeitsseite zeigt sie schon beim Laden; auf den übrigen Seiten stehen sie seit Runde 23 ebenfalls im ausgelieferten
+HTML (auch ohne JavaScript; das Skript frischt sie nur auf). Null → kein Abzeichen.
 
-**Ohne JavaScript:** Die Menüs sind aufklappbare Abschnitte (`<details>`), alle Einträge gewöhnliche Links;
-gesperrte Einträge sind ausgegraut und tragen den Hinweis „folgt“.
+**Ohne JavaScript:** Das Menü Baruch ▾ und die Gruppen sind aufklappbare Abschnitte (`<details>`), die Reiter und alle
+Einträge gewöhnliche Links und Formulare. Die Knöpfe des Editors gibt es dann nicht im Band; im Editor steht das
+Textfeld mit **Speichern**, **Bild einfügen …** und **Markierung …** in der Statuszeile.
 
-**Tastatur (mit JavaScript, ARIA-Menü):** Tab springt von Menü zu Menü. Auf einem Menü öffnen ↓, Enter oder
-Leertaste die Liste am ersten Eintrag, ↑ am letzten; ← → wechseln zum Nachbarmenü. In der Liste ↑ ↓
-(umlaufend), Pos1/Ende, Enter bzw. Leertaste aktiviert, Esc schließt und kehrt zum Menü zurück, Tab schließt.
-Klick daneben schließt; es ist immer nur ein Menü offen; ein gewählter Eintrag schließt sein Menü.
+<!-- R33 menueband -->
+
+<!-- R33 laptop -->
+
+### Knöpfe des Editors im Menüband
+
+Auf der Arbeitsseite stehen mit JavaScript die Knöpfe des Editors im Menüband (früher „Werkzeugleiste“, seit
+Runde 18a „Menüband für das Bearbeiten“ über dem Blatt):
+
+- Reiter **Start**, Gruppe „Text“: **Satzbild | Quelltext** – die Ansicht des Editors.
+- Reiter **Start**, Gruppe „Absatz“ (nur im Satzbild): **Absatzformat** (Absatz, Überschrift 1–3), **K** (hervorheben)
+  und **F** (fett).
+- Reiter **Start**, Gruppe „Fassung“: **‹ n/m ›** (durch die Fassungen blättern), **Speichern** und **Als neue Fassung**
+  (dieselben Knöpfe wie in der Statuszeile; Strg+S speichert weiter).
+- Reiter **Start**, Gruppe „Assistenten“: **Prüfen** und **Vorschlag** (lösen die Formulare der rechten Spalte aus,
+  siehe „Assistenten fragen“).
+- Reiter **Einfügen**: die **Formate der Werkvorlage** als Knöpfe, in beiden Ansichten: **Szene** (nur wenn die Vorlage `#let szene`
+  definiert), **Arbeit** (nur mit `#let arbeit`), dann immer **Fußnote**, **Zitat**, **Liste**, **Aufzählung**,
+  **Begriff** (Begriffsliste `/ Begriff: …`), **Umbruch** (`\` am Zeilenende) und **Link**. Fehlt der Vorlage die
+  Funktion, fehlt der Knopf – `#szene[…]` wäre im Satz sonst ein Fehler. Seit Runde 19b außerdem **Bibelstelle**
+  (nur wenn die Vorlage `#let bibelstelle(…)` bzw. `#let bibel(…)` definiert; eingefügt wird `#bibelstelle[…]` mit
+  dem Namen der Vorlage) und **Literaturverweis** (nur wenn die Vorlage ein Literaturverzeichnis `#bibliography(…)`
+  hat; eingefügt wird `@schlüssel`). Im Satzbild fragt Baruch nach der Stelle („Joh 3,16“) bzw. dem Schlüssel
+  („mueller2020“); die Bibelstelle steht dort als Typst-Insel (nur als Ganzes änderbar), der Literaturverweis als
+  Verweis-Schaltfläche `@mueller2020` (ändern im Quelltext).
+  - Im **Quelltext** fügt ein Klick den Typst-Text an der Cursorstelle ein (z. B. `#szene[` … `]`; Blöcke beginnen
+    an einem Zeilenanfang), eine Markierung wandert in den Inhalt, der Cursor steht danach im Inhalt. Rückgängig
+    (Strg+Z) geht wie nach dem Tippen.
+  - Im **Satzbild** schickt der Knopf den Befehl an das Satzbild. Kann das Satzbild ein Format (noch) nicht
+    einfügen, sagt ein Hinweis unten rechts „„Szene“ geht im Satzbild noch nicht – bitte im Quelltext einfügen“;
+    es passiert dann nichts still.
+- Reiter **Einfügen**: **Bild** öffnet unten in der Statuszeile „Bild einfügen …“ (das Formular des Werks) und setzt den Fokus hinein.
+
+Ohne JavaScript gibt es diese Knöpfe nicht (im Editor steht dann das Textfeld). Die Satz-Seite braucht kein
+JavaScript: Ihre Bedienung steht als Links und ein Formular im Reiter **Buch** (siehe „Satz (Typst-Vorschau)“).
+
+**Tastatur:** Die Knöpfe erreicht man mit Tab (je Knopf ein Schritt); seit Runde 23 wandern ← und → zwischen den
+Knöpfen (mit Umlauf), Pos1 und Ende springen an den Rand. **K** und **F** heißen für Bildschirmleser „Hervorheben“
+und „Fett“.
 
 ### Über Baruch (Runde 24)
 
-**Werkzeuge ▾ → Über Baruch** (letzter Eintrag, auf jeder Seite, Adresse `/ueber`) zeigt, was läuft und woher es
+**Baruch ▾ → Über Baruch** (auf jeder Seite, Adresse `/ueber`) zeigt, was läuft und woher es
 kommt. Die Seite braucht kein JavaScript und kein Werk.
 
 | Angabe | Inhalt |
@@ -605,7 +650,7 @@ nicht nach einer Wartezeit.
   unter den neuen Teil“). **Zustimmen** legt den Teil an (die Kapitel behalten Text und Nummer), **Ablehnen**
   lässt alles, wie es ist. **Später entscheiden** (oder Escape) schließt nur den Dialog; der Antrag bleibt offen,
   und der Dialog erscheint auf der nächsten Seite wieder.
-- **Immer** (auch ohne JavaScript) steht unter der Kopfzeile eine gelbe **Hinweisleiste** „Zustimmung nötig“ mit
+- **Immer** (auch ohne JavaScript) steht unter dem Menüband eine gelbe **Hinweisleiste** „Zustimmung nötig“ mit
   dem Link **Ansehen und entscheiden** zum Antrag auf `/gliederung#antraege`; dort stehen dieselbe Vorschau und
   die Knöpfe **Zustimmen** und **Ablehnen**.
 - Im Spiegel steht die Entscheidung mit Herkunft: Zustimmen ist ein Commit mit Ihnen als Bestätiger und dem
@@ -789,36 +834,6 @@ RPC `work.timing`, `work.timing_set`, `timing.count` (`docs/RPC.md`, „Zeitwäc
 Beispiel: „`#quote(block: true)[Im Anfang war das Wort.] <zitat>`“ sind 5 Wörter, bei 110 Wörtern je Minute
 3 Sekunden.
 
-### Menüband (Runde 18a)
-
-Über dem Blatt steht das **Menüband für das Bearbeiten** (vorher „Werkzeugleiste“; Fragment
-`templates/fragments/edit_toolbar.html`, das auch die Satz-Seite nutzt). Von links:
-
-- **Satzbild | Quelltext** – die Ansicht (wie bisher).
-- Nur im Satzbild: **Absatzformat** (Absatz, Überschrift 1–3), **K** (hervorheben) und **F** (fett).
-- **Formate der Werkvorlage** als Knöpfe, in beiden Ansichten: **Szene** (nur wenn die Vorlage `#let szene`
-  definiert), **Arbeit** (nur mit `#let arbeit`), dann immer **Fußnote**, **Zitat**, **Liste**, **Aufzählung**,
-  **Begriff** (Begriffsliste `/ Begriff: …`), **Umbruch** (`\` am Zeilenende) und **Link**. Fehlt der Vorlage die
-  Funktion, fehlt der Knopf – `#szene[…]` wäre im Satz sonst ein Fehler. Seit Runde 19b außerdem **Bibelstelle**
-  (nur wenn die Vorlage `#let bibelstelle(…)` bzw. `#let bibel(…)` definiert; eingefügt wird `#bibelstelle[…]` mit
-  dem Namen der Vorlage) und **Literaturverweis** (nur wenn die Vorlage ein Literaturverzeichnis `#bibliography(…)`
-  hat; eingefügt wird `@schlüssel`). Im Satzbild fragt Baruch nach der Stelle („Joh 3,16“) bzw. dem Schlüssel
-  („mueller2020“); die Bibelstelle steht dort als Typst-Insel (nur als Ganzes änderbar), der Literaturverweis als
-  Verweis-Schaltfläche `@mueller2020` (ändern im Quelltext).
-  - Im **Quelltext** fügt ein Klick den Typst-Text an der Cursorstelle ein (z. B. `#szene[` … `]`; Blöcke beginnen
-    an einem Zeilenanfang), eine Markierung wandert in den Inhalt, der Cursor steht danach im Inhalt. Rückgängig
-    (Strg+Z) geht wie nach dem Tippen.
-  - Im **Satzbild** schickt der Knopf den Befehl an das Satzbild. Kann das Satzbild ein Format (noch) nicht
-    einfügen, sagt ein Hinweis unten rechts „„Szene“ geht im Satzbild noch nicht – bitte im Quelltext einfügen“;
-    es passiert dann nichts still.
-- **Bild** öffnet unten in der Statuszeile „Bild einfügen …“ (das Formular des Werks) und setzt den Fokus hinein.
-
-Ohne JavaScript bleibt das Menüband im Editor verborgen (dort gibt es das Textfeld); auf der Satz-Seite ist es
-immer da und ganz ohne JavaScript bedienbar (siehe „Satz (Typst-Vorschau)“).
-
-**Tastatur:** Die Knöpfe des Menübands erreicht man mit Tab (je Knopf ein Schritt); seit Runde 23 wandern ← und →
-zwischen den Knöpfen (mit Umlauf), Pos1 und Ende springen an den Rand. **K** und **F** heißen für Bildschirmleser „Hervorheben“ und „Fett“.
-
 ## Satzbild
 
 Ein Klick auf einen Abschnitt öffnet ihn im **Satzbild**: so, wie er nach der Werkvorlage aussieht. Die
@@ -830,7 +845,7 @@ Quelle bleibt Typst; Speichern schreibt wie im Quelltext fort oder legt eine neu
   fertig mit); nur wer ausdrücklich „Quelltext“ wählt, bekommt ihn wieder (Cookie `baruch_editor`). Kommt
   man beim Laden der Seite über einen Treffer der Literatursuche (`#fundstelle`), beginnt dieser Editor im
   Quelltext, weil die Fundstelle dort markiert ist. Im Quelltext füllt das Textfeld das Blatt, keine leere
-  Fläche; der Umschalter steht in der Werkzeugleiste über dem Blatt.
+  Fläche; der Umschalter steht im Menüband (Reiter Start, Gruppe „Text“).
 - Schreiben wie in einer Textverarbeitung: **Enter** neuer Absatz (in Listen neuer Punkt),
   **Umschalt+Enter** einfacher Zeilenumbruch, **Strg+I** hervorheben, **Strg+B** fett (auch die Knöpfe
   *K* und **F**), **Absatz / Überschrift 1–3** für den Block am Cursor. Einfügen übernimmt nur Text.
@@ -879,7 +894,7 @@ Quelle bleibt Typst; Speichern schreibt wie im Quelltext fort oder legt eine neu
 
 ### Bild an der Cursorstelle und Vorschläge im Satzbild (Runde 18c)
 
-- **Bild einfügen …** (unten in der Statuszeile, oder Knopf **Bild** im Menüband) fügt ein Bild des Werks als
+- **Bild einfügen …** (unten in der Statuszeile, oder Knopf **Bild** im Menüband, Reiter **Einfügen**) fügt ein Bild des Werks als
   eigenen Block ein und legt dabei eine neue Fassung an (als Mensch, ein Commit). Unter **Stelle** wählt man:
   **an der Cursorstelle** (Vorgabe, nur mit JavaScript), **am Ende**, **am Anfang (unter der Überschrift)** oder
   **vor „…“** einem Absatz bzw. Block der gezeigten Fassung. An der Cursorstelle heißt: im Satzbild hinter dem
@@ -904,7 +919,7 @@ Quelle bleibt Typst; Speichern schreibt wie im Quelltext fort oder legt eine neu
 
 ## Bilder
 
-Jedes Werk hat eine Seite **Bilder** (Kopfzeile **Werk ▾ → Bilder**,
+Jedes Werk hat eine Seite **Bilder** (Menüband, Reiter **Buch → Bilder**,
 `/werke/<id>/bilder`). Sie geht ohne JavaScript.
 
 - **Liste:** Vorschaubild (klein, `…/vorschau?b=320`, lädt erst beim Hinscrollen), Name, Typ (PNG, JPEG, GIF,
@@ -1249,7 +1264,7 @@ hinein) – nur Fragen, Prüfen und Chat.
 
 Antworten der Personas werden zu **Befunden**: je Punkt einer mit Art (Lob, Hinweis, kritisch) und Status (offen,
 übernommen, verworfen, verschoben, erledigt ohne Änderung). Den Status setzt nur der Mensch; Assistenten können ihn
-nur vorschlagen. Die Übersicht übers Werk steht im Menü **Werk ▾ → Befunde**.
+nur vorschlagen. Die Übersicht übers Werk steht im Menüband im Reiter **Prüfen → Befunde**.
 
 ### Wie Befunde entstehen (befunde)
 
@@ -1288,7 +1303,7 @@ eine zweite Sicht darauf.
 
 ### Befundliste, Matrix, Abzeichen, Gedankenkarte, Fassungsbaum (befund-uebersicht)
 
-**Werk ▾ → Befunde** öffnet die Seite `/werke/<id>/befunde` (Abzeichen „k offen“ am Menü und am Eintrag):
+Reiter **Prüfen → Befunde** öffnet die Seite `/werke/<id>/befunde` (Abzeichen „k offen“ am Reiter und am Eintrag):
 
 - **Matrix Kapitel × Persona:** je Kapitel (samt seinen Abschnitten) eine Zeile, die Teile als Gruppen mit
   Summenzeile, ganz unten „Gesamt“. Jede Zelle nennt Zeichen und Zahl je Status – ○ offen, ✓ übernommen,
@@ -1467,7 +1482,7 @@ bekommt sie am Zeilenende (`= Einleitung <k103>`). Teile, Punkte ohne Nummer und
 behalten ihr Label, und darunter steht eine unsichtbare Ankerzeile `#metadata("baruch-key") <k103>`. Beim ersten
 Start nach Runde 30 ändert sich darum jeder Spiegel einmal (ein Commit je Werk).
 
-**Verweis einfügen:** Der Knopf **„Verweis“** im Menüband öffnet einen Dialog.
+**Verweis einfügen:** Der Knopf **„Verweis“** im Menüband (Reiter **Einfügen**) öffnet einen Dialog.
 - Oben steht die Suche im Baum (Titel oder Nummer), darunter das Ziel, der Linktext (Vorgabe: der Titel) und das
   Häkchen **„mit Seitenzahl“**. Es startet mit der Werk-Einstellung „Verweis mit Seitenzahl“ (Einstellungen →
   Werk → Satz, Runde 29); ist sie „aus der Werkvorlage“, merkt sich der Browser die letzte Wahl.
@@ -1777,16 +1792,16 @@ gegen die Bibel des Werks (Einstellungen → Quellen → Bibeln), immer von Baru
 
 ## Satz (Typst-Vorschau)
 
-**Ansicht ▾ → Satz** in der Kopfzeile öffnet `/werke/<id>/satz?key=<schlüssel>`: das ganze Werk mit Typst gesetzt
+Reiter **Buch → Satz-Vorschau** im Menüband öffnet `/werke/<id>/satz?key=<schlüssel>`: das ganze Werk mit Typst gesetzt
 – mit Werkvorlage, Gliederungsschema und den Bildern des Werks.
 
-- **Menüband** oben (Runde 18a, bleibt beim Rollen stehen): **Zurück zum Werk**, **PDF herunterladen**, **‹**
-  und **›** zum Blättern (für Bildschirmleser „Vorige Seite“/„Nächste Seite“, auf der ersten bzw. letzten Seite
-  gesperrt) mit „Seite n von N“ und **Satz abbrechen**. Die Seite lädt kein JavaScript; alles sind Links und ein
-  Formular. Darum ist auch die Kopfzeile hier schlichter: Das Zeichen für das Thema (◐/☀/☾) schaltet nicht um,
-  sondern führt zu **Einstellungen → Darstellung**, wo das Thema gewählt wird; **⚙ Einstellungen** öffnet die Seite
-  statt des Dialogs, Alt+, und die Pfeiltasten in den Menüs gibt es hier nicht (die Menüs öffnen per Klick oder
-  Enter).
+- **Menüband**, Reiter **Buch** (Runde 33; vorher ein eigenes Band über der Seite): die Gruppen **Zurück** (**Zurück
+  zum Werk**), **Herunterladen** (**PDF herunterladen**), **Seiten** (**‹** und **›** zum Blättern – für
+  Bildschirmleser „Vorige Seite“/„Nächste Seite“, auf der ersten bzw. letzten Seite gesperrt – mit „Seite n von N“)
+  und **Satzlauf** (**Satz abbrechen**). Die Seite lädt kein JavaScript; alles sind Links und ein Formular. Darum
+  ist auch das Menüband hier schlichter: Das Zeichen für das Thema (◐/☀/☾) schaltet nicht um, sondern führt zu
+  **Einstellungen → Darstellung**, wo das Thema gewählt wird; **Einstellungen** öffnet die Seite statt des
+  Dialogs, Alt+, und die Pfeiltasten gibt es hier nicht (Reiter und Gruppen öffnen per Klick oder Enter).
 - Gezeigt wird **eine Seite groß**, und zwar die, auf der der geöffnete Abschnitt beginnt. Darüber die **Seiten
   des Kapitels** als Links. Ohne Abschnitt beginnt sie auf Seite 1 und listet alle Seiten. Eine Seite, die zwei
   Kapitel teilen (das eine endet, das nächste beginnt auf ihr), steht in der Liste **beider** Kapitel (Runde 18a;
@@ -1805,7 +1820,7 @@ gegen die Bibel des Werks (Einstellungen → Quellen → Bibeln), immer von Baru
 - Ein Satz dauert bei großen Büchern Sekunden; nach 60 s kommt „Typst brauchte länger als 60 s“ (Status 503).
   Unveränderte Werke kommen aus dem Zwischenspeicher (höchstens 8 gesetzte Stände und zusammen höchstens 192 MiB
   Seiten; der zuletzt gesetzte bleibt immer).
-- **Satz abbrechen** (Runde 18a, Knopf im Menüband): bricht jeden laufenden oder wartenden Satz dieses Werks ab –
+- **Satz abbrechen** (Runde 18a, Knopf im Menüband, Reiter Buch → Satzlauf): bricht jeden laufenden oder wartenden Satz dieses Werks ab –
   auch einen, der nach 60 s im Hintergrund weiterrechnet. Danach zeigt die Seite „Der Satz wurde abgebrochen. Es
   wurde nicht neu gesetzt.“ mit dem Link **Neu setzen** (lag der Stand schon gesetzt vor, zeigt sie ihn); lief
   keiner: „Es lief kein Satz, der abzubrechen war.“ Eine Anfrage, die auf den Satz wartete, bekommt sofort „Der Satz
@@ -1824,7 +1839,7 @@ gegen die Bibel des Werks (Einstellungen → Quellen → Bibeln), immer von Baru
 - **Teile** (Runde 14): Jeder Teil mit Teil-Markierung steht allein auf einer eigenen rechten Seite, mit seiner
   Nummer (z. B. „II“) über dem Titel; das folgende Kapitel beginnt auf der nächsten Seite. Die Kapitelnummern
   von Typst laufen über Teile hinweg weiter, wie in der Gliederung.
-- Knopf **„PDF herunterladen“** im Menüband (siehe nächster Abschnitt).
+- Knopf **„PDF herunterladen“** im Menüband, Reiter Buch → Herunterladen (siehe nächster Abschnitt).
 
 ### Satz-Einstellungen im Satz (Runde 29b)
 
@@ -1872,7 +1887,7 @@ gesetzt ist („aus der Werkvorlage“ = keine Regel). Ein Werk ohne Einstellung
 
 Runde 11. Alles geht ohne JavaScript.
 
-- **Buch als PDF:** **Werk ▾ → „Als PDF herunterladen“** (`/werke/<id>/pdf`), der Knopf auf der Satz-Seite oder
+- **Buch als PDF:** Reiter **Buch → Ausgabe → „PDF“** (`/werke/<id>/pdf`), der Knopf auf der Satz-Seite oder
   „PDF“ in der Werkübersicht. Inhalt: Werkvorlage, aktuelle Fassungen, Bilder – und, wenn eingeschaltet,
   Umschlag-Vorder-/Rückseite und Titelei. Dateiname `<slug>.pdf`. PDF und Satz-Ansicht haben immer gleich viele
   Seiten (dieselbe Quelle, dieselben Schriften), auch mit den Teil-Seiten (Runde 14).
@@ -1886,7 +1901,7 @@ Runde 11. Alles geht ohne JavaScript.
   Ausgabe nennt Seiten und Bytes, Warnungen der Druckprüfung stehen auf stderr.
 - **Umschlag wählen:** auf der Seite **Bilder** (Knopf „Als Umschlag“ bzw. Block „Umschlag“) oder unter
   **Einstellungen → Werk → Umschlag**. Assistenten können ihn nur beantragen (siehe „Bilder“).
-- **Umschlagseite** `/werke/<id>/umschlag` (**Werk ▾ → „Umschlag“**): der ganze Umschlag für die Druckerei als
+- **Umschlagseite** `/werke/<id>/umschlag` (Reiter **Buch → „Umschlag“**): der ganze Umschlag für die Druckerei als
   Vorschau – links Rückseite, Mitte Rücken (Text gedreht), rechts Vorderseite, außen der Beschnitt –, die Maße
   (Gesamtgröße, Seite, Rücken, Beschnitt), die Druckprüfung des Umschlags und dieselben Formulare.
   **„Umschlag-PDF“** (`/werke/<id>/umschlag.pdf`, Datei `<slug>-umschlag.pdf`) ist diese eine Seite als PDF.
@@ -1930,7 +1945,7 @@ Runde 11. Alles geht ohne JavaScript.
 
 ## Stichwortzettel
 
-Runde 16. **Werk ▾ → „Stichwortzettel …“** öffnet die Seite `/werke/<id>/stichwortzettel` (ohne JavaScript
+Runde 16. Reiter **Buch → Ausgabe → „Stichwortzettel …“** öffnet die Seite `/werke/<id>/stichwortzettel` (ohne JavaScript
 bedienbar): oben die Wahl des Formats und der Schriftgröße (gewöhnliches Formular, **Übernehmen**), darunter
 die Vorschau der Karten und **PDF herunterladen** (`/werke/<id>/stichwortzettel.pdf?format=…&schrift=…`, Datei
 `<slug>-stichwortzettel.pdf`). Gedacht vor allem für Predigten, geht aber mit jedem Werk.
@@ -1967,7 +1982,7 @@ die Vorschau der Karten und **PDF herunterladen** (`/werke/<id>/stichwortzettel.
 
 ## Literatur
 
-**Werkzeuge ▾ → Literatur** in der Kopfzeile öffnet die Literatur: mit JavaScript als Popup über dem Arbeitsbereich
+Reiter **Prüfen → Literatur** im Menüband öffnet die Literatur: mit JavaScript als Popup über dem Arbeitsbereich
 (auch mit **Alt+L**, schließen mit **Schließen**, Esc oder noch einmal Alt+L), ohne JavaScript als eigene
 Seite `/literatur?work=…&node=…&rev=…&lq=…` mit dem Link **Zurück zum Werk**. Das Popup zeigt die Titel der
 Autorenbibliothek mit Zitierschlüssel (`@schlüssel`); ein Klick klappt Angaben, Zitate und
@@ -2097,7 +2112,7 @@ Ein Einfall hält fest, was beim Schreiben, Lesen oder Beten einfällt: ein oder
 (Pflicht), dazu wahlweise ein **Gedanke**, der **markierte Text**, eine **Quelle** und eine **Bibelstelle**.
 Ein Einfall gehört zu einem Werk (wahlweise mit Bezug auf einen Abschnitt) oder steht **ohne Werk**.
 
-**Schnell festhalten:** **Werkzeuge ▾ → Einfall festhalten** in der Kopfzeile oder **Alt+E** öffnet ein kleines
+**Schnell festhalten:** Reiter **Start → Einfall festhalten** im Menüband oder **Alt+E** öffnet ein kleines
 Feld über allem. Ist vorher Text markiert – im Satzbild, im Textfeld des Editors oder im Literatur-Popup –,
 steht er im Feld „Markiert“; aus der Literatur kommt die Quelle „Literatur: <Titel>“ dazu. Der Bezug ist der
 gerade offene Abschnitt. **Enter** speichert (im Gedanken: Umschalt+Enter für eine neue Zeile), **Escape**
@@ -2167,9 +2182,9 @@ vollständig über Links und Formulare bedienbar; mit JavaScript kommen Zoom, Zi
 
 ### Ohne JavaScript (karte-bild)
 
-**Aufrufen:** Menü **Werkzeuge ▾ → Gedankenkarte** (nur mit gewähltem Werk), der Knopf **Gedankenkarte** auf der
-Liste der Einfälle (`/einfaelle?work=…`) oder direkt **`/werke/{id}/karte`**. Die Seite hat die gewohnte
-Kopfzeile, folgt Hell/Dunkel und lässt sich drucken (Druckbild: nur Karte, Gliederung und Widersprüche, schwarz auf
+**Aufrufen:** Reiter **Start → Gedankenkarte** im Menüband (nur mit gewähltem Werk), der Knopf **Gedankenkarte** auf der
+Liste der Einfälle (`/einfaelle?work=…`) oder direkt **`/werke/{id}/karte`**. Die Seite hat das gewohnte
+Menüband, folgt Hell/Dunkel und lässt sich drucken (Druckbild: nur Karte, Gliederung und Widersprüche, schwarz auf
 weiß, ohne Formulare).
 
 **Das Bild:** In der Mitte das Werk, im ersten Ring die Teile (bzw. Kapitel ohne Teil) und die Wolke **„Ohne
@@ -2288,7 +2303,7 @@ Antworten je Nachricht, jede Persona höchstens einmal). Je MCP-Client laufen h�
 
 ## Abgleich mit MultiGPT
 
-Menü **Werkzeuge → Abgleichen** öffnet die Seite `/abgleich` (ohne JavaScript bedienbar). Baruch gleicht sich
+Reiter **Prüfen → Abgleichen** im Menüband öffnet die Seite `/abgleich` (ohne JavaScript bedienbar). Baruch gleicht sich
 nur dann mit MultiGPT ab, wenn der Mensch dort auf **„Abgleichen“** drückt – nie beim Start, beim Speichern
 oder über MCP. Es läuft höchstens ein Abgleich zur Zeit, im Hintergrund; ein zweiter Druck meldet „Es läuft
 schon ein Abgleich“. Nach dem Neuladen zeigt die Seite **„zuletzt abgeglichen <Zeit>“** (TT.MM.JJJJ HH:MM, Ortszeit) mit den Zahlen
@@ -2333,14 +2348,14 @@ eigens das Akkordeon **Fassungen**, ein offenes Popup (Literatur, Einfall, Impor
 den Inhalt – nie die ganze Seite. Liegen Bereiche ineinander, gilt der innerste. Jeder Bereich merkt sich seine
 eigene Stufe, auch über das Blättern und Neuladen hinweg. Die Spalten behalten ihre Breite, nur Schrift und
 Inhalt wachsen (50 % bis 300 %, je Rasten 10 %). **Strg+0** setzt den Bereich unter dem Mauszeiger zurück. Über
-der Kopfzeile und zwischen den Bereichen tut Strg+Mausrad nichts. Die Stufen stehen im Cookie `baruch_zoom`. Die
+dem Menüband und zwischen den Bereichen tut Strg+Mausrad nichts. Die Stufen stehen im Cookie `baruch_zoom`. Die
 Vergrößerung des Browsers über das Menü (bzw. Strg++ / Strg+−) bleibt unberührt. Ohne JavaScript zoomt der
 Browser wie gewohnt die ganze Seite.
 
 
 ## Einstellungen
 
-**Einstellungen** (Zahnrad in der Kopfzeile, **Alt+,**) öffnet ein Popup: links die Seiten, rechts die
+**Baruch ▾ → Einstellungen** (**Alt+,**) öffnet ein Popup: links die Seiten, rechts die
 gewählte Seite. Jede Seite sagt oben, wo ihre Werte liegen („Gespeichert: …“). Ohne JavaScript führt der
 Link auf dieselben Seiten unter `/einstellungen/<seite>`; dort gehen alle Formulare an den Server und kommen
 zur Seite zurück. Im Popup wechseln die Links links die Seite, Formulare speichern, ohne das Popup zu
@@ -2352,7 +2367,7 @@ verlassen; Links auf andere Seiten (z. B. „Werk löschen…“) verlassen das 
    `baruch_pv`; eingeklappt heißt: alle Vorschläge erscheinen als farbige Linie, nur der gerade gezeigte steht
    offen; einzelne lassen sich weiter auf- und zuklappen), offener Bereich rechts (Assistenten, Fassungen
    oder Abschnitts-Chat) und **Spaltenbreiten zurücksetzen**. Ein anderer Browser hat seine eigenen Werte. Der kleine
-   Umschalter für das Thema in der Kopfzeile bleibt.
+   Umschalter für das Thema steht im Reiter **Ansicht** (Gruppe „Darstellung“).
 2. **Werk** (SQLite, Git-Spiegel des Werks): dieselben Formulare wie „Werk bearbeiten“ (Titel, Untertitel,
    Autor, Art, Zielgruppe, Bibelübersetzung, Werkvorlage mit Fassungen) und „Gliederungsschema“ (mit
    Vorschau); nach dem Speichern bzw. Übernehmen geht es hierher zurück. Lehnt Baruch eine Eingabe ab
@@ -2738,7 +2753,7 @@ siehe „Runde 17c“); libsword oder ein SWORD-Programm braucht er nicht.
    Baruch nicht“, unbekannte Kompression). Bitte die
    Lizenz des Moduls selbst beachten; Baruch kopiert keinen Bibeltext in Beiträge außer dem geprüften Vers in der
    Prüfmeldung.
-4. **Bibel des Werks wählen:** Auswahl „Bibel des Werks …“ (das Werk der Kopfzeile bzw. `?work=`), „Bibel wählen“.
+4. **Bibel des Werks wählen:** Auswahl „Bibel des Werks …“ (das gezeigte Werk bzw. `?work=`), „Bibel wählen“.
    „keine“ schaltet die Wortlautprüfung für das Werk ab. Steht die gewählte Bibel in keinem Modulordner mehr, sagt
    die Seite das, und der Wortlaut bleibt ungeprüft.
 
@@ -2878,13 +2893,13 @@ Der Import liest nur gewöhnliche Dateien: Eine FIFO oder ein Gerät mit der End
 
 ## Austausch zwischen Instanzen
 
-Menü **Werk ▾ → Austausch: Ausgeben** und **Austausch: Einlesen…** (Runde 26, ohne JavaScript bedienbar).
+Reiter **Buch → Ausgabe → Austausch: Ausgeben** und **Baruch ▾ → Austausch: Einlesen…** (Runde 26, ohne JavaScript bedienbar).
 Das Format beschreibt `docs/Austauschformat.md`.
 
 ### Ausgeben
 
 
-**Werk ▾ → Austausch: Ausgeben** öffnet die Seite `/werke/{id}/austausch` des gewählten Werks (ohne gewähltes Werk
+Reiter **Buch → Ausgabe → Austausch: Ausgeben** öffnet die Seite `/werke/{id}/austausch` des gewählten Werks (ohne gewähltes Werk
 führt der Eintrag zur Werkliste). Die Seite erklärt, was in der Datei steht und was nicht, zeigt den Umfang
 (Gliederungspunkte, Fassungen, Beiträge, Einfälle, Fäden, Bilder, Grabsteine und die Gedankenkarte mit
 Verbindungen und gemerkten Lagen), die Kennung des Werks und den Namen dieser Instanz, und bietet zwei Downloads:
@@ -2913,7 +2928,7 @@ Die Seite verlinkt auf **Austausch: Einlesen…** für den Rückweg. Ohne Oberfl
 
 ### Einlesen
 
-**Werk ▾ → Austausch: Einlesen…** öffnet `/austausch/einlesen`: Datei wählen (`.baruch` oder `.baruch.xml`,
+**Baruch ▾ → Austausch: Einlesen…** öffnet `/austausch/einlesen`: Datei wählen (`.baruch` oder `.baruch.xml`,
 höchstens 128 MiB), bei einem neuen Werk wahlweise einen eigenen Titel eintragen, **Vorschau zeigen**. Alles geht
 ohne JavaScript.
 
@@ -2954,17 +2969,17 @@ Instanz zeigt in der Vorschau, woher die Datei kommt, und Anträge aus einem Abg
   Leerraum am Anfang und Ende fällt weg. Ein ungültiger Name wird mit Meldung abgelehnt, nichts geändert.
 - Feld leeren und speichern setzt den Namen zurück. Ohne Namen heißt die Instanz „ohne Namen (3f2b8c1e)“ –
   in Klammern die ersten 8 Zeichen der Kennung.
-- Jedes Werk hat ebenfalls eine feste Kennung; sie steht unter **Werk ▾ → Werk ändern** (bzw. Einstellungen →
+- Jedes Werk hat ebenfalls eine feste Kennung; sie steht unter Reiter **Buch → Werk bearbeiten** (bzw. Einstellungen →
   Werk) als „Kennung des Werks (UUID …)“ und lässt sich nicht ändern. Umbenennen, Verschieben oder Umschalten
   ändert keine Kennung. An der Kennung erkennt eine andere Instanz beim Einlesen, ob sie das Werk schon kennt.
 
 ## Umschlag-Editor (Runde 27)
 
-Werk ▾ → Umschlag: Blöcke auf Vorderseite, Rücken und Rückseite frei setzen (Runde 27).
+Reiter Buch → Umschlag: Blöcke auf Vorderseite, Rücken und Rückseite frei setzen (Runde 27).
 
 ### Editor (umschlag-widget)
 
-Die Umschlagseite `/werke/<id>/umschlag` (**Werk ▾ → Umschlag**) ist der Editor. Oben steht der ganze Umschlag als
+Die Umschlagseite `/werke/<id>/umschlag` (Reiter **Buch → Umschlag**) ist der Editor. Oben steht der ganze Umschlag als
 Vorschau (Rückseite | Rücken | Vorderseite, derselbe Typst-Satz wie das Umschlag-PDF), darüber liegen
 
 - die **Rahmen der Blöcke** (Titel, Untertitel, Autor, Verlag, Freitext auf der Vorderseite; Titel, Autor, Verlag,
@@ -3240,8 +3255,8 @@ herunterladen“, Vorschau per Formular-GET mit Rahmen je Reader, Prüfseite mit
 
 ### Schnittstelle R31-S1
 
-Menü Werk ▾ hat hinter „Befunde“ die Einträge „Glossar“ (`/werke/{id}/glossar`) und „Register“
-(`/werke/{id}/register`); ohne Werk zeigen sie auf `/werke`. Beide Seiten und das Formular „an der Markierung“
+Im Menüband stehen „Glossar“ (`/werke/{id}/glossar`) und „Register“ (`/werke/{id}/register`) im Reiter Buch, Gruppe
+„Register und Glossar“ (früher im Menü „Werk“ hinter „Befunde“); ohne Werk zeigen sie auf `/werke`. Beide Seiten und das Formular „an der Markierung“
 (`/werke/{id}/markierung`) sind seit 31a–31c vollständig (Stand der Schnittstelle war ein ehrliches „noch nicht
 umgesetzt“). Ein Werk ohne die neuen Satz-Einstellungen (Glossarseite, Registerseiten, erste Erwähnung) exportiert
 und setzt wie vorher.
@@ -3318,7 +3333,7 @@ Escape schließt (der Cursor steht danach wieder an seiner Stelle).
   Glossarseite.
 - Auf einer Marke (Rechtsklick auf das Zeichen, Doppelklick, oder Cursor direkt daneben bzw. im Quelltext in ihr)
   zusätzlich **Registereintrag bearbeiten …** und **Registereintrag entfernen**.
-- Dieselben Aktionen stehen im Menüband in der Gruppe „Register und Glossar“; **Register** klappt die Liste aller
+- Dieselben Aktionen stehen im Menüband im Reiter **Einfügen**, Gruppe „Register und Glossar“; **Register** klappt die Liste aller
   Registereinträge des Abschnitts auf (auch ungespeicherte), ein Klick springt hin.
 
 **Ohne JavaScript:** In der Statuszeile des Editors führt **Markierung …** auf die Seite „An der Markierung“
@@ -3327,11 +3342,11 @@ neue Fassung auf der genannten Fassung, Fundstelle erste oder alle) oder „Im G
 Registereinträge des Abschnitts mit „Registereintrag entfernen“ (Bearbeiten = entfernen und neu setzen). Dazu
 „Begriffe aus diesem Abschnitt vorschlagen lassen“ (Lektor, Ergebnis als Vorschläge auf der Glossarseite).
 
-**Werk ▾ → Glossar** (`/werke/{id}/glossar`): Nachschlagen, alle Begriffe mit „Bearbeiten oder löschen“ (Löschen mit
+Reiter **Buch → Register und Glossar → Glossar** (`/werke/{id}/glossar`): Nachschlagen, alle Begriffe mit „Bearbeiten oder löschen“ (Löschen mit
 Häkchen), darunter gesondert und gekennzeichnet die **Vorschläge der Assistenten** mit „Übernehmen“ und „Verwerfen“
 sowie dem Knopf „Begriffe vorschlagen lassen“, am Ende „Neuer Begriff“. Mit JavaScript filtert ein Suchfeld die Liste.
 
-**Werk ▾ → Register** (`/werke/{id}/register`): je Register die Einträge mit Unterstichwörtern, Abschnitten und
+Reiter **Buch → Register und Glossar → Register** (`/werke/{id}/register`): je Register die Einträge mit Unterstichwörtern, Abschnitten und
 „siehe“/„siehe auch“ (Bibelstellen automatisch), die offenen **Registervorschläge** der Assistenten mit „Übernehmen“
 (setzt die Marke als neue Fassung) und „Verwerfen“, entschiedene Vorschläge, und „Register verwalten“: eigene Register
 anlegen (Kennung aus Kleinbuchstaben, Ziffern, Bindestrich; höchstens 13), umbenennen, löschen (mit Häkchen); die drei
@@ -3477,7 +3492,7 @@ Ohne die Einstellung zu ändern:
 - Stichwortzettel (`/werke/{id}/stichwortzettel`): neben „PDF herunterladen“ der Knopf **„Als Entwurf herunterladen“**.
 - Jede Ausgabe auch direkt mit `?entwurf=1` (mit) bzw. `?entwurf=0` (ohne): `/werke/{id}/pdf`, `/stichwortzettel.pdf`,
   `/epub`, `/umschlag.pdf`, `/satz`.
-- Menü Werk ▾: Eintrag „Als Entwurf herunterladen“ → `/werke/{id}/pdf?entwurf=1` (Link, ohne JavaScript).
+- Menüband, Reiter Buch → Ausgabe: Eintrag „Entwurf“ → `/werke/{id}/pdf?entwurf=1` (Link, ohne JavaScript).
 
 #### Zustimmung zu einem neuen Teil beim Abgleich
 
@@ -3501,7 +3516,7 @@ den neuen Text lückenlos ergeben; Fassungen von Personas oder MCP-Clients, Vors
 
 ### Editor, Oberfläche, Satz (web)
 
-**Zitat einfügen.** Der Knopf „Zitat“ im Menüband fügt im Quelltext einen Zitatblock mit je einer Leerzeile davor und
+**Zitat einfügen.** Der Knopf „Zitat“ im Menüband (Reiter Einfügen) fügt im Quelltext einen Zitatblock mit je einer Leerzeile davor und
 danach ein (steht schon eine da, kommt keine zweite dazu), darunter eine Zeile „– “ für die Stellenangabe; der Cursor
 steht im Zitat. Die Stellenangabe ist ein eigener Absatz direkt unter dem Block. Im Satzbild entsteht ohne Auswahl
 dasselbe als eigener Block hinter dem Absatz am Cursor; mit einer Auswahl wird die Auswahl wie bisher ein Zitat im

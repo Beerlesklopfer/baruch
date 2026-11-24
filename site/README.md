@@ -33,7 +33,7 @@ gebaute Seite enthält kein JavaScript).
 | `content/` | die acht Seiten: Start (`_index.md`), Funktionen, Installation, Bedienung, Betrieb, MCP und Assistenten, Lizenz, Impressum |
 | `themes/baruch/` | das Theme, vollständig im Repository: Vorlagen (`layouts/`), ein Stylesheet, das Symbol |
 | `static/CNAME` | der Rechnername für GitHub Pages |
-| `static/bilder/` | Bildschirmfotos (1400×860); die Seite baut auch ohne sie |
+| `static/bilder/` | Bildschirmfotos (1400×860, dazu `arbeitsplatz-laptop.png` in 1366×768); die Seite baut auch ohne sie |
 | `tools/` | erfundenes Werk und Skript für die Bildschirmfotos (`tools/README.md`) |
 
 ## Regeln

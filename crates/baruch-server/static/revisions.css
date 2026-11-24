@@ -24,7 +24,7 @@
 .revtree-amend { color: var(--primary); }
 
 /* Seite „Verlauf“. */
-.revision-history { max-width: 60rem; margin: 0 auto; padding: 12px 16px; }
+.revision-history { max-width: 60rem; margin: 0 auto; padding: 14px 18px 28px; }
 .amend-steps { padding-left: 1.6em; display: grid; gap: 12px; }
 .amend-step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
 .amend-step.amend-undo { border-style: dashed; }

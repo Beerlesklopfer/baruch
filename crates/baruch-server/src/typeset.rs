@@ -921,8 +921,9 @@ fn templates() -> &'static Environment<'static> {
         let mut env = Environment::new();
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
+            // Runde 33: Die Bedienung der Satz-Seite steht im Menüband (Block band_buch in typeset.html);
+            // fragments/edit_toolbar.html wird hier nicht mehr eingebunden.
             ("typeset.html", include_str!("../templates/typeset.html")),
-            ("fragments/edit_toolbar.html", include_str!("../templates/fragments/edit_toolbar.html")),
         ] {
             env.add_template(name, source).expect("Vorlage der Satz-Seite fehlerhaft");
         }

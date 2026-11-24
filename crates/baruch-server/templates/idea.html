@@ -7,11 +7,14 @@
 {% extends "base.html" %}
 {% block title %}Einfall {{ idea.id }} – Baruch{% endblock %}
 {% block page_title %}Einfall {{ idea.id }}{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn" href="{{ list_href }}">Alle Einfälle</a>
-  {%- if idea.work_href %}
-  <a class="btn" href="{{ idea.work_href }}">Zum Werk</a>
-  {%- endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="{{ list_href }}">Alle Einfälle</a>
+    {%- if idea.work_href %}
+    <a class="btn" href="{{ idea.work_href }}">Zum Werk</a>
+    {%- endif %}
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page ideas-page">
