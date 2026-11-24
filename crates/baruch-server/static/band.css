@@ -1,4 +1,167 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Menüband (Runde 33, Schnittstelle R33-S1; Besitz: Aufgabe „menueband“): Aussehen des Bands in beiden
-   Zuständen (voll und kompakt, auch `html[data-compact] .band …`) sowie die Hilfsklassen `js-only` und
-   `nojs-only`. Für die Modi nur die Attribute an <html>, keine Media-Queries. Noch leer. */
+/* Menüband (Runde 33; Besitz: Aufgabe „menueband“): Aussehen von <header class="band"> in beiden Zuständen – voll
+   und kompakt (`html[data-compact]`), auf und zu (`html[data-band]`) – sowie die Hilfsklassen `js-only` und
+   `nojs-only`. Für die Modi gelten nur die Attribute an <html> (die Schicht band::apply schreibt sie, laptop.ts und
+   band.ts halten sie aktuell), keine Media-Queries.
+
+   Gestaltung: Die Reiter sind Karteireiter – der gewählte ist mit seinem Feld verbunden (Fläche des Felds, Rahmen
+   ohne Unterkante, Strich oben), nicht nur anders gefärbt. Alles andere bleibt still: Gruppen durch eine feine Linie
+   getrennt, ihre Beschriftung klein und gedämpft darunter. Raster 4/8 px, Farben nur aus app.css. Das Feld hat im
+   vollen Band eine feste Höhe (zwei Reihen Knöpfe), damit beim Reiterwechsel und beim Andocken nichts springt. */
+
+/* Ohne JavaScript verborgen bzw. nur ohne JavaScript sichtbar (main.ts setzt die Klasse „js“ an <html>). */
+html:not(.js) .js-only { display: none !important; }
+html.js .nojs-only { display: none !important; }
+
+.band {
+  --band-row: 26px;   /* Höhe eines Knopfs */
+  --band-gap: 4px;
+  position: relative; z-index: 30; flex: 0 0 auto; min-width: 0;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+
+/* ---- Zeile 1: Baruch ▾, Reiter, Werkwahl, Titel, Autor, Schalter auf/zu ---------------------------------------- */
+.band-top {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 4px; min-width: 0;
+  padding: 4px 12px 0; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.band-top > * { margin-bottom: 4px; }
+.band-top > .menubar, .band-top > .work-select, .band-top > .band-toggle { flex: 0 0 auto; }
+.band-top > .work-title, .band-top > .band-author {
+  flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.band-top > .work-title { min-width: 6ch; font-weight: 600; }
+.band-top > .work-title:empty { display: none; }
+.band-top > .band-author { flex-shrink: 100; }   /* der Autor weicht zuerst */
+.band-top > .grow { min-width: 0; margin: 0; }
+
+/* Reiter: sitzen auf der Linie über dem Feld. */
+.band-top > .band-tabs {
+  display: flex; flex: 0 0 auto; align-self: flex-end; gap: 2px; margin: 0 8px -1px 4px;
+}
+.band-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 5px;
+  border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0;
+  color: var(--muted); text-decoration: none; white-space: nowrap; user-select: none;
+}
+.band-tab:hover { color: var(--text); background: var(--selected); }
+.band-tab[aria-selected="true"] {
+  color: var(--text); background: var(--panel); border-color: var(--line);
+  box-shadow: inset 0 2px 0 var(--primary);
+}
+.band-tab .badge { font-variant-numeric: tabular-nums; }
+.band-tab .badge:not(.warning) { background: var(--warning-soft); color: var(--warning); min-width: 1.6em; text-align: center; }
+
+.band-toggle { min-width: 28px; padding: 2px 6px; justify-content: center; }
+.band-toggle-closed { display: none; }
+html[data-band="closed"] .band-toggle-open { display: none; }
+html[data-band="closed"] .band-toggle-closed { display: inline; }
+
+.band a:focus-visible, .band button:focus-visible, .band summary:focus-visible, .band select:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 1px;
+}
+
+/* ---- Zeile 2: Felder mit Gruppen ------------------------------------------------------------------------------ */
+/* Die Felder selbst zeichnen keinen Kasten (display: contents): Ihre Gruppen und der Andockplatz stehen als
+   Geschwister in einer Zeile, damit die angedockten Knöpfe des Editors zwischen den Gruppen des Reiters sitzen
+   (order: vor dem Andockplatz 0, Andockplatz 1, `data-band-after` 2). */
+.band-panels {
+  display: flex; flex-wrap: wrap; align-items: stretch; row-gap: 4px; min-width: 0;
+  min-height: calc(2 * var(--band-row) + var(--band-gap) + 36px);
+  padding: 8px 4px 4px;
+}
+.band-panel { display: contents; }
+.band-panel[hidden] { display: none; }
+.band-dock { display: flex; flex-wrap: wrap; align-items: stretch; row-gap: 4px; order: 1; min-width: 0; }
+.band-dock:empty { display: none; }
+.band-dock[inert] { opacity: .6; }
+.band-group[data-band-after] { order: 2; }
+/* Der Andockplatz gehört nur zu Start und Einfügen; sichtbar ist der Teil des gewählten Reiters. */
+.band[data-tab="pruefen"] .band-dock, .band[data-tab="buch"] .band-dock, .band[data-tab="ansicht"] .band-dock { display: none; }
+.band[data-tab="start"] [data-band-part="einfuegen"], .band[data-tab="einfuegen"] [data-band-part="start"] { display: none; }
+.band-dock > [data-edit-toolbar] { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; row-gap: 4px; }
+.band-dock > [data-edit-toolbar][hidden] { display: none; }
+.band-dock .band-part { display: flex; flex-wrap: wrap; align-items: stretch; row-gap: 4px; }
+.band-dock .ribbon-formats, .band-dock .ribbon-index { display: contents; }
+
+/* Gruppe, voll: Inhalt in zwei Reihen, Beschriftung klein darunter, feine Linie zur nächsten Gruppe. */
+.band-group { position: relative; padding: 0 12px 20px; border-right: 1px solid var(--line); }
+.band-group > summary {
+  position: absolute; left: 4px; right: 4px; bottom: 0; height: 16px;
+  list-style: none; text-align: center; font-size: 11.5px; line-height: 16px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none; cursor: default; user-select: none;
+}
+.band-group > summary::-webkit-details-marker { display: none; }
+.band-items {
+  display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, var(--band-row));
+  gap: var(--band-gap) 4px; align-items: center; justify-items: stretch;
+}
+.band-items > * { min-width: 0; }
+.band-items .btn {
+  min-height: var(--band-row); padding: 2px 8px; justify-content: flex-start; white-space: nowrap;
+}
+.band-items .btn[hidden] { display: none; }
+.band-items select {
+  min-height: var(--band-row); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); font: inherit;
+}
+.band-items .btn .badge { margin-left: auto; font-variant-numeric: tabular-nums; }
+.band-items .btn .badge:not(.warning) { background: var(--warning-soft); color: var(--warning); }
+/* Gedrückte Schalter (Laptop-Modus, Seitenleisten, Satzbild/Quelltext): Fläche und Strich, nicht nur Farbe. */
+.band .btn[aria-pressed="true"] {
+  background: var(--primary-soft); border-color: var(--primary); color: var(--primary); font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+.band .btn[aria-disabled="true"] { color: var(--muted); cursor: default; }
+/* Zusammengesetzte Einträge bleiben eine Zelle. */
+.band-items .ws-modes, .band-items .ws-tools, .band-switcher, .band-items .ribbon-register {
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.band-items .ws-modes { gap: 0; }
+.band-items .ws-tools[hidden] { display: none; }
+.band-switcher .counter { padding: 0 4px; font-variant-numeric: tabular-nums; }
+.band-items .ribbon-register { position: relative; }
+
+/* Lose Knöpfe und Formulare einer Seite (page_actions ohne Gruppe) und Hinweise im Feld. */
+.band-panel > .btn, .band-panel > a, .band-panel > form, .band-panel > span { align-self: center; margin: 0 4px; }
+.band-note { align-self: center; max-width: 72ch; margin: 0 12px; font-size: 12.5px; color: var(--muted); }
+.band-note-undocked { display: none; }
+html.js .band:not([data-docked]) .band-note-undocked { display: block; }
+
+/* ---- Kompaktes Band (Laptop-Modus): jede Gruppe ein Knopf „Name ▾“ mit Popup ----------------------------------- */
+html[data-compact] .band-panels { min-height: 0; padding: 4px 8px; gap: 4px; align-items: center; }
+html[data-compact] .band-dock, html[data-compact] .band-dock > [data-edit-toolbar], html[data-compact] .band-dock .band-part {
+  gap: 4px; align-items: center;
+}
+html[data-compact] .band-group { padding: 0; border-right: 0; }
+html[data-compact] .band-group > summary {
+  position: static; height: auto; display: inline-flex; align-items: center; gap: 4px;
+  min-height: 28px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); font-size: inherit; line-height: inherit;
+  pointer-events: auto; cursor: pointer; overflow: visible;
+}
+html[data-compact] .band-group > summary::after { content: "▾"; color: var(--muted); }
+html[data-compact] .band-group > summary:hover { background: var(--selected); }
+html[data-compact] .band-group[open] > summary { border-color: var(--primary); background: var(--primary-soft); }
+html[data-compact] .band-items {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  min-width: 12em; max-width: min(28em, 90vw); max-height: 70vh; overflow-y: auto; padding: 8px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+}
+html[data-compact] .band-items .btn { min-height: 28px; }
+/* Die Liste „Register“ klappt im Popup an Ort und Stelle auf (ein zweites Popup würde abgeschnitten). */
+html[data-compact] .band-items .ribbon-register { flex-direction: column; align-items: stretch; }
+html[data-compact] .band-items .ribbon-register-list { position: static; min-width: 0; box-shadow: none; }
+
+/* ---- Band zugeklappt: nur Zeile 1; ein Reiter zeigt sein Feld vorübergehend über dem Inhalt (band.ts) ----------- */
+html[data-band="closed"] .band-panels { display: none; }
+html[data-band="closed"] .band-top { border-bottom-color: transparent; }
+html[data-band="closed"] .band-tab[aria-selected="true"] { background: transparent; border-color: transparent; }
+html[data-band="closed"] .band[data-band-peek] .band-panels {
+  display: flex; position: absolute; top: 100%; left: 0; right: 0; z-index: 55;
+  background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+}
+html[data-band="closed"] .band[data-band-peek] .band-tab[aria-selected="true"] { background: var(--panel); border-color: var(--line); }

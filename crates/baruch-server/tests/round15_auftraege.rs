@@ -80,7 +80,7 @@ async fn a_failing_persona_shows_a_notice_page_with_status_200_and_a_link_back()
     let (status, _, page) = o.server.send(form_request("/assistenten/act", &form)).await;
     assert_eq!(status, StatusCode::OK, "Hinweisseite statt 422: {page}");
     assert!(page.contains("Der Modellserver schläft"), "die ehrliche Meldung steht auf der Seite: {page}");
-    assert!(page.contains("<header class=\"topbar\">"), "eine echte Seite (base.html), kein nackter Text: {page}");
+    assert!(page.contains("<header class=\"band\""), "eine echte Seite (base.html), kein nackter Text: {page}"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     assert!(
         page.contains(&format!("href=\"/?work={}&amp;key={}&amp;lq=Kirsche\"", o.work, o.keys[0])),
         "Link zurück zum Abschnitt (mit Suche): {page}"

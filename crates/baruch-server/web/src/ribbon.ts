@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Menüband für das Bearbeiten (Runde 18a): Widget „ribbon“ auf `span.ribbon-formats` in
+// Menüband für das Bearbeiten (Runde 18a): Widget „ribbon“ auf `div.ribbon-formats` in
 // templates/fragments/edit_toolbar.html. Die Knöpfe `data-ribbon-cmd` (Formate der Werkvorlage aus crate::ribbon)
 // wirken je nach Ansicht:
 // - Satzbild offen (`div.wysiwyg[data-ws-open]`): Befehl über `baruch:ws-command` (ws_command.ts) an das Satzbild.
@@ -12,6 +12,9 @@
 // - „Bild“ (`data-ribbon-image`) öffnet nur `details[data-image-insert]` in der Statuszeile (Formular von
 //   satzbild-werk) und setzt den Fokus hinein.
 // Das Widget ändert wysiwyg.ts nicht und importiert es nicht (Vertrag R18 §4).
+// Runde 33: Die Leiste hat zwei Teile (`data-band-part`) und dockt mit JavaScript in das Menüband an (band.ts); das
+// Widget sitzt auf `div.ribbon-formats` im Teil „einfuegen“ und merkt sich seinen Editor beim Einhängen (vor dem
+// Andocken) – danach liegt die Leiste nicht mehr in `div.wysiwyg`.
 // Runde 23a: Pfeiltasten im Menüband (←/→ mit Umlauf, Pos1/Ende) nach dem ARIA-Muster für `role="toolbar"`.
 // Runde 19b: „Bibelstelle“ (`scripture`) schickt im Satzbild den Funktionsnamen der Vorlage aus dem Snippet mit
 // (`arg` = JSON `{fn}`), „Literaturverweis“ (`cite`) fügt im Quelltext `@` ein; das Satzbild fragt selbst nach Stelle
@@ -99,6 +102,20 @@ export function toolbarTarget(key: string, index: number, count: number): number
   }
 }
 
+/// Runde 33: Die Leiste steht angedockt im Menüband (band.ts). Erreichbar ist dort nur der Teil des gewählten Reiters
+/// (`data-band-part` gegen `header.band[data-tab]`; den anderen verbirgt band.css), im kompakten Band nur die
+/// Beschriftung einer zugeklappten Gruppe, im vollen Band die Beschriftung nie (sie ist dort kein Schalter).
+function reachable(item: HTMLElement): boolean {
+  const head = item.closest("header.band");
+  const part = item.closest("[data-band-part]");
+  if (head && part && part.getAttribute("data-band-part") !== head.getAttribute("data-tab")) return false;
+  const group = item.closest("details");
+  if (!group || !group.hasAttribute("data-band-group")) return true;
+  const popup = group.hasAttribute("name");
+  if (item.localName === "summary") return popup;
+  return !popup || group.hasAttribute("open");
+}
+
 /// Pfeiltasten im Menüband: Fokus wandert zwischen den sichtbaren, nicht gesperrten Knöpfen und Links. In einer
 /// Auswahlliste gehören die Pfeile der Liste; Tab bleibt wie bisher.
 function toolbarKeys(bar: HTMLElement): void {
@@ -108,8 +125,8 @@ function toolbarKeys(bar: HTMLElement): void {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const from = event.target instanceof HTMLElement ? event.target : null;
     if (!from || from instanceof HTMLSelectElement || from instanceof HTMLInputElement) return;
-    const items = Array.from(bar.querySelectorAll<HTMLElement>("button, a[href], select")).filter(
-      (item) => !(item as HTMLButtonElement).disabled && !item.closest("[hidden]"),
+    const items = Array.from(bar.querySelectorAll<HTMLElement>("button, a[href], select, summary")).filter(
+      (item) => !(item as HTMLButtonElement).disabled && !item.closest("[hidden]") && reachable(item),
     );
     const to = toolbarTarget(event.key, items.indexOf(from), items.length);
     if (to === null) return;

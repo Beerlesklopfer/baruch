@@ -436,8 +436,10 @@ async fn the_draft_watermark_with_date_reaches_every_output_as_asked_and_nothing
     // „Als Entwurf herunterladen“ ohne Einstellung: Menü-Eintrag und Download, die Einstellung bleibt leer.
     let (_, page) = server.get(&format!("/?work={work}")).await;
     assert!(
-        page.contains(&format!("href=\"/werke/{work}/pdf?entwurf=1\"")) && page.contains("Als Entwurf herunterladen"),
-        "Menü Werk ▾ bietet „Als Entwurf herunterladen“ (Link, ohne JavaScript)"
+        // Runde 33 (Menüband): „Als Entwurf herunterladen“ (Menü Werk ▾) heißt im Reiter Buch, Gruppe Ausgabe, kurz
+        // „Entwurf“; Adresse und download-Attribut sind dieselben, das „herunterladen“ steht im title.
+        page.contains(&format!("<a class=\"btn\" href=\"/werke/{work}/pdf?entwurf=1\" download title=\"Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ herunterladen (Einstellung bleibt unverändert)\">Entwurf</a>")),
+        "Reiter Buch bietet „Entwurf“ herunterladen (Link, ohne JavaScript)"
     );
     let (status, download) = get_bytes(&server, &format!("/werke/{work}/pdf?entwurf=1")).await;
     assert_eq!(status, StatusCode::OK, "Download als Entwurf");

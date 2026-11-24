@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Menüs der Kopfzeile (Runde 9, templates/base.html): <details class="menu"> mit <summary> als
-   Knopf und einer aufklappenden Liste. Ohne JavaScript klappen sie über <details> auf; menu.ts
-   schließt das offene bei Klick daneben, Esc und beim Öffnen eines anderen. */
+/* Menü „Baruch ▾“ im Menüband (templates/base.html; Runde 9, seit Runde 33 das einzige Menü): <details class="menu">
+   mit <summary> als Knopf und einer aufklappenden Liste. Ohne JavaScript klappt es über <details> auf; menu.ts
+   schließt es bei Klick daneben und Esc. Das Band selbst steht in band.css. */
 
 .menubar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; }
 .menu { position: relative; flex-shrink: 0; }
-.menu > summary { list-style: none; white-space: nowrap; user-select: none; }
+.menu > summary { list-style: none; white-space: nowrap; user-select: none; font-weight: 700; }
 .menu > summary::-webkit-details-marker { display: none; }
 .menu[open] > summary { border-color: var(--primary); background: var(--primary-soft); }
 .menu > summary .badge {
@@ -35,6 +35,6 @@
 }
 .menu-item .badge { margin-left: auto; background: var(--warning-soft); color: var(--warning); }
 
-/* Rechts: kleiner Thema-Umschalter und „Einstellungen“. */
-.topbar > [data-widget="theme"] { min-width: 34px; padding: 4px 8px; }
+/* Thema-Umschalter (Reiter Ansicht) und „Einstellungen“ (Menü Baruch ▾). */
+.band [data-widget="theme"] { min-width: 34px; justify-content: center; }
 .settings-open { gap: 6px; }

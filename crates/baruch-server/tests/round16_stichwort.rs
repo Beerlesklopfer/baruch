@@ -225,7 +225,7 @@ async fn notes_pdf_and_the_download_give_a_named_pdf_attachment() {
     let (status, html) = s.server.get(&format!("/werke/{}/stichwortzettel.pdf?schrift=40", s.work)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "falsche Schriftgröße → 422 als Seite");
     assert!(
-        html.contains("<header class=\"topbar\">") && html.contains("von 14 bis 28"),
+        html.contains("<header class=\"band\"") && html.contains("von 14 bis 28"), // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
         "Fehlerseite mit Grund: {html}"
     );
 }
@@ -293,8 +293,10 @@ async fn the_page_offers_format_choice_preview_and_download_without_javascript()
     assert!(html.contains("Regel: Hervorhebung") && html.contains("Regel: eigene Markierung"), "Regel auf Deutsch");
     assert!(html.contains("Bibelstellen: Joh 6,35 · Mt 6,11"), "Bibelstellen der Karte");
     assert!(!html.contains("{{") && !html.contains("{%"), "keine Reste von Platzhaltern");
-    let item = format!("<a class=\"menu-item\" role=\"menuitem\" href=\"/werke/{}/stichwortzettel\"", s.work);
-    let at = html.find(&item).expect("Menüeintrag „Stichwortzettel …“ im Werk-Menü");
+    // Runde 33 (Menüband): Der Eintrag stand im Menü Werk ▾ und steht jetzt im Reiter Buch (Gruppe Ausgabe) – weiter
+    // ein Link zur Seite ohne download.
+    let item = format!("<a class=\"btn\" href=\"/werke/{}/stichwortzettel\"", s.work);
+    let at = html.find(&item).expect("Eintrag „Stichwortzettel …“ im Reiter Buch");
     let tag = &html[at..at + html[at..].find('>').unwrap()];
     assert!(!tag.contains(" download"), "der Menüeintrag führt zur Seite, kein download-Attribut: {tag}");
     assert!(html[at..].starts_with(&item) && html[at..].contains(">Stichwortzettel …</a>"), "Text des Eintrags");

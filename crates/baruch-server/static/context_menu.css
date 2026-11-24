@@ -30,8 +30,7 @@
 .ctx-lookup .ctx-long { white-space: pre-wrap; }
 
 /* Menüband: Gruppe „Register und Glossar“ mit aufklappbarer Liste der Registereinträge des Abschnitts. */
-.ribbon .ribbon-index { padding-left: 10px; border-left: 1px solid var(--line); }
-.ribbon .ribbon-index .btn { min-height: 28px; padding: 3px 10px; }
+/* Runde 33: Die Gruppe steht angedockt im Menüband (Reiter Einfügen); Abstände und Trennlinie kommen aus band.css. */
 .ribbon-register { position: relative; }
 .ribbon-register-list[hidden] { display: none; }
 .ribbon-register-list {

@@ -149,7 +149,7 @@ async fn the_map_page_follows_the_dom_contract() {
 
     let (status, html) = b.page("").await;
     assert_eq!(status, StatusCode::OK, "die Karte lädt: {html}");
-    assert_eq!(html.matches("<header class=\"topbar\"").count(), 1, "genau eine Kopfzeile (base.html)");
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "genau eine Kopfzeile (base.html)"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     assert!(!html.contains("data-widget=\"idea-capture\""), "fragments/idea_capture.html ist nicht eingebunden");
     for piece in [
         "<main class=\"karte\">".to_owned(),
@@ -447,7 +447,7 @@ async fn form_errors_come_back_as_the_page_with_the_message() {
         html.contains("role=\"alert\">Einfall") && html.contains("gehört nicht zu diesem Werk."),
         "Meldung auf der Seite"
     );
-    assert_eq!(html.matches("<header class=\"topbar\"").count(), 1, "Fehlerseite ist die Karte mit Kopfzeile");
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "Fehlerseite ist die Karte mit Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
 
     let (status, html) = b.act_page("method=idea.purge&id=1").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "unbekannte Aktion → 400");
@@ -730,8 +730,9 @@ async fn menu_and_idea_pages_link_the_map() {
         .unwrap();
     let (_, _, list) = b.server.send(request).await;
     assert!(
-        list.contains(&format!("<a class=\"menu-item\" role=\"menuitem\" href=\"/werke/{w}/karte\" title=\"Gedankenkarte der Einfälle dieses Werks\">Gedankenkarte</a>")),
-        "Werkzeuge ▾ → Gedankenkarte mit Werk: {list}"
+        // Runde 33 (Menüband): früher Werkzeuge ▾ → Gedankenkarte, jetzt Reiter Start, Gruppe Einfälle.
+        list.contains(&format!("<a class=\"btn\" href=\"/werke/{w}/karte\" title=\"Gedankenkarte der Einfälle dieses Werks\">Gedankenkarte</a>")),
+        "Start → Einfälle → Gedankenkarte mit Werk: {list}"
     );
     assert!(
         list.contains(&format!("<a class=\"btn idea-map-link\" href=\"/werke/{w}/karte\"")),

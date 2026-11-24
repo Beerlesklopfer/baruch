@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „menubar“ (<nav class="menubar"> in der Kopfzeile, templates/base.html, Runde 9): die Menüs
-// Werk ▾, Ansicht ▾ und Werkzeuge ▾ sind <details>/<summary> mit gewöhnlichen Links und klappen auch
-// ohne JavaScript auf. Hier kommt dazu:
+// Widget „menubar“ (<nav class="menubar"> im Menüband, templates/base.html; Runde 9, seit Runde 33 mit dem einen Menü
+// „Baruch ▾“): Das Menü ist <details>/<summary> mit gewöhnlichen Links und klappt auch ohne JavaScript auf. Hier
+// kommt dazu:
 // - Tastatur nach dem ARIA-Menü-Muster: auf dem Menüknopf ↓/Enter/Leertaste öffnet und fokussiert den
-//   ersten Eintrag, ↑ den letzten, ←/→ wechseln zum Nachbarmenü; in der Liste ↑/↓ (umlaufend),
-//   Pos1/Ende, Enter/Leertaste aktiviert, Esc schließt und fokussiert den Menüknopf, Tab schließt.
-// - Nur ein Menü offen; Klick daneben schließt; Aktivieren eines Eintrags schließt das Menü.
+//   ersten Eintrag, ↑ den letzten; in der Liste ↑/↓ (umlaufend), Pos1/Ende, Enter/Leertaste aktiviert, Esc schließt
+//   und fokussiert den Menüknopf, Tab schließt. (←/→ zum Nachbarmenü greifen nur, wenn es mehrere Menüs gibt.)
+// - Klick daneben schließt; Aktivieren eines Eintrags schließt das Menü.
 // - aria-expanded am Menüknopf.
-// - Abzeichen (offene Anträge zur Gliederung, offene Vorschläge, seit Runde 28 offene Befunde): außerhalb der Arbeitsseite füllt
-//   menu.badges sie nach, auf der Arbeitsseite zeichnet sie der Server; neu geholt wird beim Öffnen
-//   eines Menüs und nach Formularen bzw. Navigation (die Zahlen können sich dort ändern).
+// - Abzeichen im ganzen Band (Reiter Start: offene Vorschläge, Prüfen: „N offen“ Befunde, Buch: Anträge zur
+//   Gliederung, dazu die Einträge „Befunde“ und „Anträge zur Gliederung“): Der Server zeichnet sie auf jeder Seite
+//   (Arbeitsseite aus der Vorlage, sonst menu::fill_badges); neu geholt wird über menu.badges beim Öffnen des Menüs,
+//   beim Laden außerhalb der Arbeitsseite und nach Formularen bzw. Navigation (die Zahlen können sich dort ändern).
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -22,21 +23,19 @@ interface Badges {
   open_findings?: number;
 }
 
-/// Werk der Kopfzeile aus dem Baruch-Link (`/?work=W`); ohne Werk `null`.
+/// Werk des Bands (`data-work` am Kopf `header.band`, base.html); ohne Werk `null`.
 function topbarWork(nav: HTMLElement): number | null {
-  const brand = nav.closest(".topbar")?.querySelector<HTMLAnchorElement>("a.brand");
-  if (!brand) return null;
-  const value = new URL(brand.href, window.location.href).searchParams.get("work");
-  return value && /^\d+$/.test(value) ? Number(value) : null;
+  const value = nav.closest(".band")?.getAttribute("data-work") ?? "";
+  return /^\d+$/.test(value) ? Number(value) : null;
 }
 
 function showBadges(nav: HTMLElement, badges: Badges): void {
-  const root = nav.closest(".topbar") ?? nav;
+  const root = nav.closest(".band") ?? nav;
   for (const name of ["outline_requests", "open_proposals", "open_findings"] as const) {
     const count = badges[name] ?? 0;
     root.querySelectorAll<HTMLElement>(`[data-badge="${name}"]`).forEach((badge) => {
-      // Am Menüknopf „k offen“, im Eintrag nur die Zahl (wie der Server zeichnet).
-      badge.textContent = name === "open_findings" && badge.closest("summary") ? `${count} offen` : String(count);
+      // Am Reiter „k offen“, im Eintrag nur die Zahl (wie der Server zeichnet).
+      badge.textContent = name === "open_findings" && badge.closest(".band-tab") ? `${count} offen` : String(count);
       badge.hidden = count === 0;
     });
     root.querySelectorAll<HTMLElement>(`[data-badge-item="${name}"]`).forEach((item) => {

@@ -223,7 +223,9 @@ switch (scenario.scene) {
     const pane = document.getElementById("pane-editor");
     const form = pane.querySelector("form[data-widget=editor]");
     const area = form.querySelector("textarea");
-    const buttons = form.elements.filter((e) => e instanceof HTMLButtonElement && e.type === "submit");
+    // Runde 33: Auch die Leiste (edit_toolbar.html, dockt ins Menüband an) trägt „Speichern“/„Als neue Fassung“ mit
+    // form="editor-form"; geprüft werden wie bisher die maßgeblichen Knöpfe der Statuszeile.
+    const buttons = form.elements.filter((e) => e instanceof HTMLButtonElement && e.type === "submit" && !e.closest("[data-edit-toolbar]"));
     const save = buttons.find((b) => !b.getAttribute("name"));
     const asNew = buttons.find((b) => b.getAttribute("name") === "as_new");
     out.buttonsFound = { save: !!save, asNew: !!asNew, asNewOutsideForm: !!asNew && !form.contains(asNew) };
@@ -250,6 +252,142 @@ switch (scenario.scene) {
     out.editorAfter = pane.innerHTML;
     out.areaValue = pane.querySelector("textarea[name=body]")?.value ?? null;
     out.pushed = pushed;
+    break;
+  }
+
+  // Runde 33 (menueband): das Menüband auf der echten Arbeitsseite des Servers (`scenario.body` = Inhalt von <body>).
+  // Beobachtet: Andocken der Leiste, Umschalter Satzbild/Quelltext nach dem Andocken, Reiter mit Tasten und Klick,
+  // Band auf/zu mit Cookie, Gruppen als Popups nach `baruch:laptop`, Tastenkürzel.
+  case "band": {
+    body.innerHTML = scenario.body;
+    setLocation(scenario.url);
+    html.setAttribute("data-band", "open");
+    const widgets = await import(dir + "/widgets.js");
+    for (const name of ["band", "menu", "panes", "ribbon", "sheet", "wysiwyg", "workspace", "settings", "literature", "ideas"]) {
+      await import(dir + "/" + name + ".js");
+    }
+    const head = body.querySelector("header.band");
+    const pane = document.getElementById("pane-editor");
+    out.before = {
+      barInPane: !!pane.querySelector("[data-edit-toolbar]"),
+      barHidden: pane.querySelector("[data-edit-toolbar]")?.hidden ?? null,
+      dockChildren: head.querySelector("[data-band-dock]").childNodes.length,
+    };
+    widgets.mount(body);
+    await settle();
+    const dock = head.querySelector("[data-band-dock]");
+    const pressed = (mode) => dock.querySelector("[data-ws-mode=" + mode + "]")?.getAttribute("aria-pressed") ?? null;
+    const tabState = () => ({
+      tab: head.getAttribute("data-tab"),
+      selected: head.querySelectorAll("[data-band-tab]").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.dataset.bandTab),
+      shown: head.querySelectorAll("[data-band-panel]").filter((p) => !p.hidden).map((p) => p.dataset.bandPanel),
+      focus: document.activeElement?.dataset?.bandTab ?? null,
+      band: html.getAttribute("data-band"),
+      peek: head.hasAttribute("data-band-peek"),
+      expanded: head.querySelector("[data-band-toggle]").getAttribute("aria-expanded"),
+      cookie: document.cookie,
+    });
+    out.docked = {
+      barInPane: !!pane.querySelector("[data-edit-toolbar]"),
+      barInDock: !!dock.querySelector("[data-edit-toolbar]"),
+      barHidden: dock.querySelector("[data-edit-toolbar]")?.hidden ?? null,
+      parts: dock.querySelectorAll("[data-band-part]").map((p) => p.dataset.bandPart),
+      headDocked: head.hasAttribute("data-docked"),
+      satz: pressed("satz"), quelltext: pressed("quelltext"),
+      sheetOpen: pane.querySelector("div.wysiwyg").hasAttribute("data-ws-open"),
+    };
+    // Umschalter im Band: Quelltext, dann zurück ins Satzbild.
+    dock.querySelector("[data-ws-mode=quelltext]").click();
+    await settle();
+    out.afterQuelltext = { satz: pressed("satz"), quelltext: pressed("quelltext"),
+      areaHidden: pane.querySelector("textarea[name=body]").hidden,
+      toolsHidden: dock.querySelector("[data-ws-tools]").hidden,
+      sheetOpen: pane.querySelector("div.wysiwyg").hasAttribute("data-ws-open") };
+    // Strg+S im Textfeld nach einer Änderung: gespeichert wird über das Formular des Editors.
+    const area = pane.querySelector("textarea[name=body]");
+    const statusSave = pane.querySelectorAll("button").find((b) => b.hasAttribute("data-saved"));
+    out.saveDisabledClean = statusSave.disabled;
+    // Unverändert: „Speichern“ im Band speichert nicht (der Knopf der Statuszeile ist gesperrt).
+    const bandSave = dock.querySelector("[data-band-save]");
+    const idle = Object.assign(new Event("click", { bubbles: true, cancelable: true }), { button: 0 });
+    bandSave.dispatchEvent(idle);
+    out.bandSaveIdlePrevented = idle.defaultPrevented;
+    area.value = area.value + "\nEin Satz aus dem Verhaltenstest.\n";
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+    out.saveLabelDirty = statusSave.textContent;
+    out.bandSaveLabel = bandSave.textContent;
+    const ctrlS = key("keydown", { ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, key: "s" });
+    area.dispatchEvent(ctrlS);
+    out.ctrlSPrevented = ctrlS.defaultPrevented;
+    out.dockInertWhileSaving = dock.inert === true;
+    await settle(60);
+    out.saveCalls = rpcCalls.map((c) => c.method);
+    out.dockInertAfter = dock.inert === true;
+    // Nach dem Neuzeichnen (ui.render mit dem Editor von vorher): wieder angedockt, genau eine Leiste.
+    out.redocked = {
+      bars: document.querySelectorAll("[data-edit-toolbar]").length,
+      barInDock: !!dock.querySelector("[data-edit-toolbar]"),
+      barInPane: !!pane.querySelector("[data-edit-toolbar]"),
+    };
+    // Reiter mit der Tastatur (ARIA-Tabs).
+    const tabOf = (id) => head.querySelector("[data-band-tab=" + id + "]");
+    out.tabs = { start: tabState() };
+    const press = (id, k) => { const e = key("keydown", { key: k, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false }); tabOf(id).dispatchEvent(e); return e.defaultPrevented; };
+    out.tabs.rightPrevented = press("start", "ArrowRight");
+    out.tabs.afterRight = tabState();
+    out.tabs.partsAfterRight = head.getAttribute("data-tab");
+    press("einfuegen", "End");
+    out.tabs.afterEnd = tabState();
+    press("ansicht", "ArrowRight");
+    out.tabs.afterWrap = tabState();
+    press("start", "ArrowLeft");
+    out.tabs.afterLeft = tabState();
+    press("ansicht", "Home");
+    out.tabs.afterHome = tabState();
+    out.tabs.tabIndex = head.querySelectorAll("[data-band-tab]").map((t) => t.tabIndex);
+    // Klick: anderer Reiter wechselt, der aktive klappt das Band zu (Cookie), zugeklappt zeigt ein Reiter sein Feld vorübergehend.
+    const click = (el) => { const e = Object.assign(new Event("click", { bubbles: true, cancelable: true }), { button: 0 }); el.dispatchEvent(e); return e.defaultPrevented; };
+    out.clicks = { buchPrevented: click(tabOf("buch")) };
+    out.clicks.afterBuch = tabState();
+    click(tabOf("buch"));
+    out.clicks.afterActive = tabState();
+    click(tabOf("pruefen"));
+    out.clicks.peek = tabState();
+    document.dispatchEvent(key("keydown", { key: "Escape" }));
+    out.clicks.afterEscape = tabState();
+    click(tabOf("pruefen"));
+    click(body.querySelector("main"));
+    out.clicks.afterOutside = tabState();
+    click(head.querySelector("[data-band-toggle]"));
+    out.clicks.afterToggle = tabState();
+    // Gruppen: kompakt als Popups (laptop.ts meldet den Wechsel), danach wieder voll.
+    const groups = () => head.querySelectorAll("details[data-band-group]");
+    const groupState = () => ({ count: groups().length, open: groups().filter((g) => g.open).length,
+      named: groups().filter((g) => g.getAttribute("name") === "band-group").length,
+      dockGroups: dock.querySelectorAll("details[data-band-group]").length });
+    out.groups = { full: groupState() };
+    html.setAttribute("data-compact", "");
+    document.dispatchEvent(new CustomEvent("baruch:laptop", { detail: { compact: true, narrow: false } }));
+    out.groups.compact = groupState();
+    const one = groups()[0]; one.open = true;
+    document.dispatchEvent(key("keydown", { key: "Escape" }));
+    out.groups.afterEscape = groupState();
+    html.removeAttribute("data-compact");
+    document.dispatchEvent(new CustomEvent("baruch:laptop", { detail: { compact: false, narrow: false } }));
+    out.groups.fullAgain = groupState();
+    // Tastenkürzel: Alt+L (Literatur), Alt+E (Einfall), Alt+, (Einstellungen).
+    out.keys = {};
+    for (const [name, init, id] of [["altL", { key: "l" }, "literature"], ["altE", { key: "e", code: "KeyE" }, "idea-capture"], ["altComma", { key: "," }, "settings"]]) {
+      const dialog = document.getElementById(id);
+      const event = key("keydown", { altKey: true, ctrlKey: false, metaKey: false, shiftKey: false, ...init });
+      document.dispatchEvent(event);
+      await settle();
+      out.keys[name] = { dialog: !!dialog, prevented: event.defaultPrevented, open: dialog?.open ?? null };
+      if (dialog?.open) dialog.close();
+      await settle();
+    }
+    out.openers = Object.fromEntries(["data-settings-open", "data-literature-open", "data-idea-open", "data-work-import-open", "data-view-toggle"]
+      .map((hook) => [hook, head.querySelectorAll("[" + hook + "]").length]));
     break;
   }
 

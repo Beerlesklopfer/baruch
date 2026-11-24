@@ -232,14 +232,19 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     let (_, page) = m.server.get(&format!("/einstellungen/daten?work={work}")).await;
     assert!(
         page.contains("<span class=\"badge\" data-badge=\"outline_requests\">1</span>")
+            && page.contains(">Buch <span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">1</span></a>")
             && page.contains("data-badge-item=\"outline_requests\">Anträge zur Gliederung"),
-        "der Antrag des Clients steht ohne JavaScript im Menü jeder Seite (hier: Einstellungen): {page}"
+        // Runde 33 (Menüband): Eintrag und Zahl stehen im Reiter Buch (früher Menü Werk ▾), dazu das Abzeichen am Reiter.
+        "der Antrag des Clients steht ohne JavaScript im Band jeder Seite (hier: Einstellungen): {page}"
     );
     let (status, page) =
         m.server.get(&format!("/einstellungen/daten?work={work}&ok=sicherung&ziel=ordner-aus-der-adresse")).await;
     assert_eq!(status, StatusCode::OK, "die Seite lädt");
     assert!(page.contains("Sicherung angelegt"), "der feste Code ok=sicherung ergibt die Meldung: {page}");
-    assert!(!page.contains("ordner-aus-der-adresse"), "Text aus der Adresse (ziel) wird nie angezeigt: {page}");
+    // Runde 33 (Menüband): Die Reiter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen (href, maskiert);
+    // angezeigt wird sie nicht. Geprüft wird darum alles außer den href-Werten.
+    let shown: String = page.split("href=\"").enumerate().map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] }).collect();
+    assert!(!shown.contains("ordner-aus-der-adresse"), "Text aus der Adresse (ziel) wird nie angezeigt: {page}");
 }
 
 /// Geheimnisse Ende zu Ende: Ein Schlüssel, den die Gegenstelle kodiert zurückspiegelt, erscheint in keiner Meldung;

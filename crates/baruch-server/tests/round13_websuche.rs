@@ -484,7 +484,7 @@ async fn the_evidence_page_adopts_only_proven_quotes_into_the_library_without_ja
     let page_uri = format!("/websuche/belege?work={}&key={}&post={post}", h.work, h.key);
     let (status, page) = h.server.get(&page_uri).await;
     assert_eq!(status, StatusCode::OK, "Belegseite: {page}");
-    assert_eq!(page.matches("<header class=\"topbar\"").count(), 1, "Seite mit der gemeinsamen Kopfzeile: {page}");
+    assert_eq!(page.matches("<header class=\"band\"").count(), 1, "Seite mit der gemeinsamen Kopfzeile: {page}"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     assert!(
         page.contains(&format!("<a href=\"{}\" rel=\"noopener noreferrer\" target=\"_blank\">", esc(LIGHT))),
         "Link auf die Seite, maskiert, ohne Zugriff auf Baruch: {page}"

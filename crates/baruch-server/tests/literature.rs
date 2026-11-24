@@ -71,7 +71,7 @@ async fn the_workspace_has_no_literature_column_but_a_header_link_and_a_dialog()
     let tree = between(&html, "id=\"pane-tree\"", "</nav>");
     assert!(!tree.contains("data-widget=\"library\""), "linke Spalte zeigt noch die Literatur: {tree}");
     assert!(!tree.contains("Literatur"), "linke Spalte nennt die Literatur noch: {tree}");
-    let head = between(&html, "<header class=\"topbar\">", "</header>");
+    let head = between(&html, "<header class=\"band\"", "</header>"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     let k = key_of(&server, 1, 2).await;
     assert!(
         head.contains(&format!("href=\"/literatur?work=1&key={k}&rev=")) && head.contains("&amp;lq=langm%C3%BCtig\""),
@@ -146,6 +146,14 @@ async fn the_search_is_kept_in_every_link_and_control_characters_give_no_hits() 
     );
     let sources = html.matches("href=\"/quelle?").count();
     assert!(sources > 0, "keine Links auf Quellen: {html}");
+    // Runde 33 (Menüband): Auch die Reiter und Schalter des Kopfs behalten die Abfrage der Seite (band::apply), also
+    // die Suche – dort als erstes Paar hinter dem Fragezeichen (`?lq=…&amp;tab=…`; das `node=` der alten Adressform
+    // geht nicht mit), ebenfalls kodiert. Die Zählung unten trifft weiter nur die Links der Seite (`&amp;lq=…`).
+    let head = between(&html, "<header class=\"band\"", "</header>");
+    assert!(
+        head.contains(&format!("href=\"?{encoded}&amp;tab=buch\"")),
+        "die Reiter tragen die Suche ebenfalls kodiert (kein rohes & oder #): {head}"
+    );
     assert_eq!(
         html.matches(&format!("&amp;{encoded}")).count(),
         sources + 1,

@@ -7,7 +7,8 @@
 //   über `baruch:ws-caret` (ws_command.ts) nach Quelltext und Blockgrenze am Cursor, im Quelltext nimmt es
 //   `selectionStart` des Textfelds. Es schickt `place=offset:<n>` und den ungespeicherten Text als `body` mit
 //   (der Server fügt das Bild an der nächsten Zeilengrenze ≥ n als eigenen Block ein). Die Stelle wird schon beim
-//   Drücken auf „Bild einfügen …“ bzw. den Knopf „Bild“ des Menübands (`[data-ribbon-image]`) gemerkt, solange der
+//   Drücken auf „Bild einfügen …“ bzw. den Knopf „Bild“ des Menübands (`[data-ribbon-image]`, seit Runde 33 angedockt
+//   im Kopf – darum lauscht das Modul am Dokument) gemerkt, solange der
 //   Cursor noch im Satzbild steht. Antwortet niemand auf `baruch:ws-caret`, geht der Text über
 //   `baruch:serialize-text` mit und das Bild ans Ende.
 // - Stil des Satzbilds: Nach `baruch:settings-changed` (Einstellungen gespeichert) holt das Modul `work.sheet` und
@@ -67,6 +68,18 @@ async function sourceText(form: HTMLFormElement, area: HTMLTextAreaElement): Pro
   return area.value;
 }
 
+/// Merker des gerade gezeigten Editors (nach jedem `ui.render` ein neues Widget) für den Knopf „Bild“ im Menüband.
+let rememberCurrent: { details: HTMLElement; remember: () => void } | null = null;
+
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (!rememberCurrent?.details.isConnected) return;
+    if ((event.target as Element | null)?.closest?.("[data-ribbon-image]")) rememberCurrent.remember();
+  },
+  true,
+);
+
 register("sheet-tools", (details) => {
   const editor = editorOf(details);
   const form = details.querySelector<HTMLFormElement>("form.image-insert-form");
@@ -87,14 +100,9 @@ register("sheet-tools", (details) => {
     remembered = caretOf(editor.root, editor.form, editor.area);
   };
   details.querySelector("summary")?.addEventListener("pointerdown", remember);
-  // Der Knopf „Bild“ des Menübands entsteht vielleicht erst nach diesem Widget (ribbon.ts): am Bereich lauschen.
-  editor.root.addEventListener(
-    "pointerdown",
-    (event) => {
-      if ((event.target as Element | null)?.closest?.("[data-ribbon-image]")) remember();
-    },
-    true,
-  );
+  // Der Knopf „Bild“ steht seit Runde 33 angedockt im Menüband (band.ts), also außerhalb von `div.wysiwyg`: Das Modul
+  // lauscht einmal am Dokument (unten) und fragt das Widget des gerade gezeigten Editors.
+  rememberCurrent = { details, remember };
 
   let sending = false;
   form.addEventListener("submit", (event) => {
