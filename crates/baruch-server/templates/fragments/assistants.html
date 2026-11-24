@@ -16,7 +16,9 @@
     Runde 30c (chat-bedienung): Jeder Beitrag kommt aus dem Makro post_entry (fragments/post_item.html): Markdown-Teilset
     mit geprüften Links, Befund-Blöcke, Kopf „geprüft: …“, ↻ Wiederholen und ✕ Löschen direkt sichtbar. Chat- und
     Persona-Formular tragen die Auswahl der Prüfgrundlage (Makro basis_select, chat-loesungen; Feld basis). Über dem
-    Eingabefeld zeigt das Widget „chat“ live „@x schreibt …“ und Fehler (div.chat-live, role=status). -#}
+    Eingabefeld zeigt das Widget „chat“ live „@x schreibt …“ und Fehler (div.chat-live, role=status).
+    Runde 33 (Laptop-Modus): oben die Zeile `rail-bar` – „Einklappen“ (`?rrail=1`, Cookie baruch_rrail) bzw. in der
+    Schublade „Schließen“ (`#pane-editor`), wie in fragments/tree.html. -#}
 {%- from "fragments/post_item.html" import post_entry %}
 {%- from "fragments/basis_select.html" import basis_select %}
 {%- set lector = personas | selectattr("lector") | first %}
@@ -29,6 +31,10 @@
       <input type="hidden" name="view" value="{{ view }}">
       {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
 {%- endmacro %}
+<div class="rail-bar">
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Assistenten schließen">Schließen</a>
+  <a class="tool tiny rail-collapse" href="?rrail=1" data-rail-collapse="right" title="Assistenten einklappen (schmale Leiste am Rand)">Einklappen ›</a>
+</div>
 <div class="accordion" data-widget="accordion">
 
 <details class="acc" name="right" data-section="personas"{% if settings.accordion == "personas" %} open{% endif %}>

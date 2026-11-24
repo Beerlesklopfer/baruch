@@ -24,7 +24,14 @@
     samt Unterpunkten, Kapitel und Teile summiert; item.findings_own am Punkt selbst), dieselben Zahlen wie auf der
     Seite /werke/<id>/befunde und in finding.matrix.
     Runde 22 (R22a): Abzeichen „+n“ je Eintrag mit weiteren nicht aktuellen Fassungen außer Vorschlägen
-    (item.alternatives: ersetzt, verworfen); Klick öffnet den Abschnitt, dort „weitere Fassung(en)“ im Editor-Kopf. -#}
+    (item.alternatives: ersetzt, verworfen); Klick öffnet den Abschnitt, dort „weitere Fassung(en)“ im Editor-Kopf.
+    Runde 33 (Laptop-Modus): oben die Zeile `rail-bar` – „Einklappen“ (`?lrail=1`, gemerkt im Cookie baruch_lrail;
+    sichtbar, solange die Spalte offen ist) und „Schließen“ (`#pane-editor`; sichtbar, wenn die Spalte als Schublade
+    über der eingeklappten Leiste liegt). Beides gewöhnliche Links, laptop.ts fängt sie nur ab. -#}
+<div class="rail-bar">
+  <a class="tool tiny rail-collapse" href="?lrail=1" data-rail-collapse="left" title="Gliederung einklappen (schmale Leiste am Rand)">‹ Einklappen</a>
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Gliederung schließen">Schließen</a>
+</div>
 <div class="outline-head">
   {% if cover %}<img class="tree-cover" src="{{ cover.thumb }}" alt="{{ cover.alt }}">{% endif %}
   <h2 class="pane-title">Gliederung</h2>
