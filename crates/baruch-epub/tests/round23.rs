@@ -135,7 +135,7 @@ fn repack(epub: &[u8], method: CompressionMethod, mimetype: &[u8]) -> Vec<u8> {
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     for index in 0..zip.len() {
         let mut entry = zip.by_index(index).unwrap();
-        let name = entry.name().to_owned();
+        let name = entry.name().unwrap().into_owned();
         let mut bytes = Vec::new();
         entry.read_to_end(&mut bytes).unwrap();
         let (kind, content) =

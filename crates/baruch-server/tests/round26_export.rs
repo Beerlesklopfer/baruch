@@ -108,7 +108,7 @@ fn unzip(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
             let mut entry = archive.by_index(i).unwrap();
             let mut data = Vec::new();
             entry.read_to_end(&mut data).unwrap();
-            (entry.name().to_owned(), data)
+            (entry.name().unwrap().into_owned(), data)
         })
         .collect()
 }

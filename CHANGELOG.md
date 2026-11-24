@@ -36,6 +36,10 @@ am 2026-11-05); davor gab es nur den Stand 0.0.1 aus dem Quelltext.
 - **Beispielwerk:** Eine neue Instanz bekommt das frei erfundene „Beispielwerk: Leise Abhängigkeit (Auszug)“
   von „Erika Mustermann“. Vorhandene Werke ändern sich nicht.
 
+- **Abhängigkeiten (Sicherheitsmeldungen):** quick-xml 0.38 → 0.42, zip 2.4 → 9.8, url 2.5.8 → 2.5.9; verbleibende
+  RustSec-Meldungen ohne verfügbaren Fix (quick-xml über citationberg, libsqlite3-sys über sqlx 0.8, chrono)
+  sind in `deny.toml` begründet ausgenommen.
+
 ### Werke, Gliederung und Fassungen
 
 - Vor Runde 1 (Umbau): lokaler Server (axum) mit Seiten, die auch ohne JavaScript bedienbar sind, und

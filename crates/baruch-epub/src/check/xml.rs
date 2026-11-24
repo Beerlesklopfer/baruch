@@ -6,6 +6,7 @@
 //! wohlgeformt), kein Text außerhalb der Wurzel.
 
 use quick_xml::Reader;
+use quick_xml::escape::unescape;
 use quick_xml::events::{BytesStart, Event};
 
 /// Ein Knoten: Element oder Text.
@@ -85,12 +86,12 @@ fn line_at(text: &str, pos: usize) -> usize {
 }
 
 fn element_of(start: &BytesStart<'_>) -> Result<Element, String> {
-    let name = String::from_utf8_lossy(start.name().as_ref()).into_owned();
+    let name = start.name().into_inner().to_owned();
     let mut attrs = Vec::new();
     for attr in start.attributes() {
         let attr = attr.map_err(|e| format!("Attribut in <{name}>: {e}"))?;
-        let key = String::from_utf8_lossy(attr.key.as_ref()).into_owned();
-        let value = attr.unescape_value().map_err(|e| format!("Attribut {key} in <{name}>: {e}"))?.into_owned();
+        let key = attr.key.into_inner().to_owned();
+        let value = unescape(&attr.value).map_err(|e| format!("Attribut {key} in <{name}>: {e}"))?.into_owned();
         attrs.push((key, value));
     }
     Ok(Element { name, attrs, children: Vec::new() })
@@ -133,7 +134,7 @@ pub(crate) fn parse(text: &str) -> Result<Element, String> {
                 }
             }
             Event::Text(t) => {
-                let decoded = t.decode().map_err(|e| format!("Zeile {}: {e}", at(&reader)))?;
+                let decoded = t.into_inner();
                 match stack.last_mut() {
                     Some(parent) => parent.children.push(Node::Text(decoded.into_owned())),
                     None if decoded.trim().is_empty() => {}
@@ -141,7 +142,7 @@ pub(crate) fn parse(text: &str) -> Result<Element, String> {
                 }
             }
             Event::CData(c) => {
-                let decoded = c.decode().map_err(|e| format!("Zeile {}: {e}", at(&reader)))?;
+                let decoded = c.into_inner();
                 match stack.last_mut() {
                     Some(parent) => parent.children.push(Node::Text(decoded.into_owned())),
                     None => return Err(format!("Zeile {}: CDATA außerhalb des Wurzelelements", at(&reader))),
@@ -154,8 +155,7 @@ pub(crate) fn parse(text: &str) -> Result<Element, String> {
                         _ => return Err(format!("Zeile {}: ungültige Zeichenreferenz", at(&reader))),
                     }
                 } else {
-                    let name = r.decode().map_err(|e| format!("Zeile {}: {e}", at(&reader)))?;
-                    match name.as_ref() {
+                    match &*r {
                         "amp" => "&".to_owned(),
                         "lt" => "<".to_owned(),
                         "gt" => ">".to_owned(),

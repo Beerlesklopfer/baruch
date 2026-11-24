@@ -33,7 +33,7 @@ fn entries(epub: &[u8]) -> Vec<(String, Vec<u8>)> {
             let mut entry = zip.by_index(i).expect("Eintrag");
             let mut bytes = Vec::new();
             entry.read_to_end(&mut bytes).expect("lesen");
-            (entry.name().to_owned(), bytes)
+            (entry.name().unwrap().into_owned(), bytes)
         })
         .collect()
 }

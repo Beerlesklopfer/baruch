@@ -939,6 +939,22 @@ können. Das App-Menü der Kopfzeile (Runde 9) bleibt davon unberührt. (erledig
 - Stand: Umschlag von Werk 3 liegt als `umschlag.png` (retuschiert) und `umschlag-original.png` im Werk
   (RPC `asset.add`, 2026-11-06); Dateien auch unter `~/Bilder/baruch/herr-pruefe-mich/`.
 
+## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
+
+Vor dem erneuten Tag v0.9.0 meldete `cargo deny check advisories` in der CI elf Einträge. Gehoben: quick-xml 0.38 →
+0.42 (eigene Nutzung in baruch-epub, baruch-exchange, baruch-server; RUSTSEC-2026-0194/-0195), zip 2.4 → 9.8
+(RUSTSEC-2026-0367/-0368/-0369/-0429/-0545/-0548), url 2.5.8 → 2.5.9 (RUSTSEC-2026-0592). Als begründete
+Ausnahme in `deny.toml` eingetragen, **offen nach 0.9.0**:
+
+- **RUSTSEC-2026-0194, -0195 (quick-xml 0.38.4):** nur noch über typst-library → hayagriva 0.10.1 → citationberg
+  0.7.0, das quick-xml ^0.38 verlangt. Erledigt, sobald citationberg/hayagriva/typst auf quick-xml ≥ 0.41 gehen.
+- **RUSTSEC-2026-0459 (libsqlite3-sys 0.30.1, SQLite < 3.54):** sqlx 0.8.6 schreibt libsqlite3-sys ^0.30 fest; der
+  Fix (≥ 0.39) braucht sqlx 0.9 (Abfragen mit zusammengesetztem SQL auf `AssertSqlSafe`/`SqlSafeStr`, rund 350
+  Aufrufe; Rust ≥ 1.94; Postgres-Feature in baruch-server, Migrationen und Makros prüfen). Baruch öffnet nur
+  die eigene Datenbank im eigenen Datenordner, darum im Betrieb nicht betroffen.
+- **RUSTSEC-2026-0543 (chrono unbetreut):** kommt über arrow/datafusion/lance/lancedb; Ablösung erst, wenn diese
+  wechseln (die direkte Nutzung in baruch-server allein abzulösen nähme chrono nicht aus dem Baum).
+
 ## Nach Runde 24 offen (PM-Abschluss 2026-11-24)
 
 Aus den Berichten der drei Entwickler (`pakete`, `ci`, `webseite`) und der Integration. Die Berichte mit allen

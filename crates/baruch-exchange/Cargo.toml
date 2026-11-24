@@ -9,9 +9,9 @@ description = "Austauschformat zwischen Baruch-Instanzen (.baruch als ZIP, .baru
 # Nur Format und Prüfung, ohne Datenbank: Modell (`model`), Schreiben (`write`), Lesen und Prüfen (`read`).
 # Neue Abhängigkeiten nur über den Integrator (Konflikte im Cargo.lock).
 [dependencies]
-quick-xml = "0.38"
+quick-xml = "0.42"
 # Nur STORED und DEFLATE (Vertrag R26 F1/F7); ohne Verschlüsselung, bzip2, zstd, lzma.
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
 base64 = "0.22"
 thiserror = "2"

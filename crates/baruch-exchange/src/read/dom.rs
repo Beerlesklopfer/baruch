@@ -97,11 +97,10 @@ fn resolve_reference(name: &str) -> Result<char, ExchangeError> {
 }
 
 /// Attributwert wie XML 1.0: Zeilenenden normalisiert, Tab/LF/CR → Leerzeichen, dann Referenzen aufgelöst.
-fn attribute_value(raw: &[u8], name: &str, limits: &Limits) -> Result<String, ExchangeError> {
-    if raw.len() > limits.max_text_bytes {
+fn attribute_value(text: &str, name: &str, limits: &Limits) -> Result<String, ExchangeError> {
+    if text.len() > limits.max_text_bytes {
         return Err(ExchangeError::Limit(format!("Attribut „{name}“ ist länger als {} Bytes", limits.max_text_bytes)));
     }
-    let text = std::str::from_utf8(raw).map_err(|_| ExchangeError::Xml(format!("Attribut „{name}“ ist kein UTF-8")))?;
     if text.contains('<') {
         return Err(ExchangeError::Xml(format!("„<“ im Attribut „{name}“")));
     }
@@ -120,21 +119,17 @@ fn attribute_value(raw: &[u8], name: &str, limits: &Limits) -> Result<String, Ex
     Ok(out)
 }
 
-fn utf8(bytes: &[u8], what: &str) -> Result<String, ExchangeError> {
-    String::from_utf8(bytes.to_vec()).map_err(|_| ExchangeError::Xml(format!("{what} ist kein UTF-8")))
-}
-
 /// Aufgelöster Namensraum eines Elements, ohne Ausleihe des Lesers.
 enum OwnedNs {
-    Bound(Vec<u8>),
+    Bound(String),
     Unbound,
-    Unknown(Vec<u8>),
+    Unknown(String),
 }
 
 impl OwnedNs {
     fn of(resolved: ResolveResult<'_>) -> OwnedNs {
         match resolved {
-            ResolveResult::Bound(ns) => OwnedNs::Bound(ns.0.to_vec()),
+            ResolveResult::Bound(ns) => OwnedNs::Bound(ns.0.to_owned()),
             ResolveResult::Unbound => OwnedNs::Unbound,
             ResolveResult::Unknown(prefix) => OwnedNs::Unknown(prefix),
         }
@@ -148,15 +143,12 @@ fn element_of<R>(
     resolved: OwnedNs,
     limits: &Limits,
 ) -> Result<Element, ExchangeError> {
-    let name = utf8(start.local_name().as_ref(), "Elementname")?;
+    let name = start.local_name().into_inner().to_owned();
     let ns = match resolved {
-        OwnedNs::Bound(ns) => Some(utf8(&ns, "Namensraum")?),
+        OwnedNs::Bound(ns) => Some(ns),
         OwnedNs::Unbound => None,
         OwnedNs::Unknown(prefix) => {
-            return Err(ExchangeError::Xml(format!(
-                "unbekanntes Präfix „{}“ am Element „{name}“",
-                String::from_utf8_lossy(&prefix)
-            )));
+            return Err(ExchangeError::Xml(format!("unbekanntes Präfix „{prefix}“ am Element „{name}“")));
         }
     };
     let mut attrs = Vec::new();
@@ -175,16 +167,13 @@ fn element_of<R>(
         if key.as_namespace_binding().is_some() {
             continue;
         }
-        let (resolved, local) = reader.resolve_attribute(key);
-        let local = utf8(local.as_ref(), "Attributname")?;
+        let (resolved, local) = reader.resolver().resolve_attribute(key);
+        let local = local.into_inner().to_owned();
         let ns = match resolved {
-            ResolveResult::Bound(ns) => Some(utf8(ns.0, "Namensraum")?),
+            ResolveResult::Bound(ns) => Some(ns.0.to_owned()),
             ResolveResult::Unbound => None,
             ResolveResult::Unknown(prefix) => {
-                return Err(ExchangeError::Xml(format!(
-                    "unbekanntes Präfix „{}“ am Attribut „{local}“",
-                    String::from_utf8_lossy(&prefix)
-                )));
+                return Err(ExchangeError::Xml(format!("unbekanntes Präfix „{prefix}“ am Attribut „{local}“")));
             }
         };
         let value = attribute_value(&attr.value, &local, limits)?;
@@ -238,10 +227,9 @@ pub(crate) fn parse(xml: &[u8], limits: &Limits) -> Result<Element, ExchangeErro
                 }
                 if let Some(encoding) = decl.encoding() {
                     let encoding = encoding.map_err(xml_error)?;
-                    if !encoding.eq_ignore_ascii_case(b"utf-8") {
+                    if !encoding.eq_ignore_ascii_case("utf-8") {
                         return Err(ExchangeError::Xml(format!(
-                            "Kodierung „{}“ wird nicht unterstützt (nur UTF-8)",
-                            String::from_utf8_lossy(&encoding)
+                            "Kodierung „{encoding}“ wird nicht unterstützt (nur UTF-8)"
                         )));
                     }
                 }
@@ -254,7 +242,7 @@ pub(crate) fn parse(xml: &[u8], limits: &Limits) -> Result<Element, ExchangeErro
             Event::PI(pi) => {
                 return Err(ExchangeError::Unsafe(format!(
                     "Verarbeitungsanweisung „<?{}…?>“ ist nicht erlaubt",
-                    String::from_utf8_lossy(pi.target())
+                    pi.target()
                 )));
             }
             Event::Comment(_) => {}
@@ -295,7 +283,7 @@ pub(crate) fn parse(xml: &[u8], limits: &Limits) -> Result<Element, ExchangeErro
                 }
             }
             Event::Text(text) => {
-                let raw = std::str::from_utf8(&text).map_err(|_| ExchangeError::Xml("Text ist kein UTF-8".into()))?;
+                let raw: &str = &text;
                 if raw.contains('<') {
                     return Err(ExchangeError::Xml("„<“ im Text".into()));
                 }
@@ -304,7 +292,7 @@ pub(crate) fn parse(xml: &[u8], limits: &Limits) -> Result<Element, ExchangeErro
                 push_text(&mut stack, &text, limits)?;
             }
             Event::CData(data) => {
-                let raw = std::str::from_utf8(&data).map_err(|_| ExchangeError::Xml("CDATA ist kein UTF-8".into()))?;
+                let raw: &str = &data;
                 let text = normalize_eol(raw);
                 check_legal(&text, "CDATA")?;
                 if stack.is_empty() {
@@ -313,9 +301,7 @@ pub(crate) fn parse(xml: &[u8], limits: &Limits) -> Result<Element, ExchangeErro
                 push_text(&mut stack, &text, limits)?;
             }
             Event::GeneralRef(reference) => {
-                let name = std::str::from_utf8(&reference)
-                    .map_err(|_| ExchangeError::Xml("Entitätsreferenz ist kein UTF-8".into()))?;
-                let c = resolve_reference(name)?;
+                let c = resolve_reference(&reference)?;
                 if stack.is_empty() {
                     return Err(ExchangeError::Xml("Referenz außerhalb des Wurzelelements".into()));
                 }

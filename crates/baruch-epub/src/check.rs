@@ -260,7 +260,13 @@ fn open_archive(epub: &[u8], out: &mut Vec<Finding>) -> Option<Archive> {
         if entry.is_dir() {
             continue;
         }
-        let name = entry.name().to_owned();
+        let name = match entry.name() {
+            Ok(name) => name.into_owned(),
+            Err(e) => {
+                out.push(finding(codes::ZIP_INVALID, Severity::Error, format!("ZIP-Eintrag {i}: {e}"), None));
+                continue;
+            }
+        };
         if name.starts_with('/') || name.contains('\\') || name.split('/').any(|p| p == ".." || p.is_empty()) {
             out.push(finding(
                 codes::ZIP_PATH_INVALID,

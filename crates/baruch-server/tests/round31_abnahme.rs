@@ -149,7 +149,7 @@ fn zip_entries(bytes: &[u8]) -> Vec<(String, String)> {
             let mut file = archive.by_index(i).unwrap();
             let mut data = Vec::new();
             file.read_to_end(&mut data).unwrap();
-            (file.name().to_owned(), String::from_utf8_lossy(&data).into_owned())
+            (file.name().unwrap().into_owned(), String::from_utf8_lossy(&data).into_owned())
         })
         .collect()
 }

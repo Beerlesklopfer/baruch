@@ -107,9 +107,9 @@ regex = "1"
 unicode-normalization = "0.1"
 # Runde 21 (Schnittstelle R21-S1): ZIP-Archive beim Import lesen (`src/archive.rs`, EPUB und Markdown-ZIP; vorher nur
 # dev-dependency für manipulierte Austauschdateien in Tests), dieselben Features wie in baruch-exchange.
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 # Runde 21a: EPUB (OPF, NCX/nav, XHTML) lesen. Lizenz MIT; liegt schon im Lock.
-quick-xml = "0.38"
+quick-xml = "0.42"
 # Runde 21b: Markdown nach Typst umwandeln. Lizenz MIT; ohne Standard-Features (kein HTML-Ausgeber, kein getopts).
 pulldown-cmark = { version = "0.13", default-features = false }
 # Runde 23 (Schnittstelle R23-S1, geheimnisse): kodierte Geheimnisse und Zufallsname des Temp-Ordners (EPUBCheck).

@@ -5,6 +5,7 @@
 //! stehen. Grenzen: höchstens [`MAX_DEPTH`] Ebenen und [`MAX_NODES`] Knoten (sonst Fehler statt Stapelüberlauf).
 
 use quick_xml::Reader;
+use quick_xml::escape::unescape_with;
 use quick_xml::events::{BytesStart, Event};
 
 /// Größte Schachtelungstiefe.
@@ -142,14 +143,11 @@ fn html_entity(name: &str) -> Option<&'static str> {
 }
 
 fn element(start: &BytesStart<'_>) -> Element {
-    let name = String::from_utf8_lossy(start.local_name().as_ref()).to_lowercase();
+    let name = start.local_name().into_inner().to_lowercase();
     let mut attrs = Vec::new();
     for attr in start.attributes().with_checks(false).flatten() {
-        let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
-        let value = attr
-            .unescape_value_with(html_entity)
-            .map(|v| v.into_owned())
-            .unwrap_or_else(|_| String::from_utf8_lossy(&attr.value).into_owned());
+        let key = attr.key.into_inner().to_lowercase();
+        let value = unescape_with(&attr.value, html_entity).map_or_else(|_| attr.value.to_string(), |v| v.into_owned());
         attrs.push((key, value));
     }
     Element { name, attrs, children: Vec::new() }
@@ -182,7 +180,7 @@ pub fn parse(text: &str) -> Result<Element, String> {
                 }
             }
             Event::End(end) => {
-                let name = String::from_utf8_lossy(end.local_name().as_ref()).to_lowercase();
+                let name = end.local_name().into_inner().to_lowercase();
                 if let Some(pos) = stack.iter().rposition(|e| e.name == name)
                     && pos > 0
                 {
@@ -195,22 +193,19 @@ pub fn parse(text: &str) -> Result<Element, String> {
                 }
             }
             Event::Text(t) => {
-                let text = t
-                    .xml10_content()
-                    .map(|c| c.into_owned())
-                    .unwrap_or_else(|_| String::from_utf8_lossy(&t).into_owned());
+                let text = t.xml10_content().into_owned();
                 push_text(&mut stack, &text);
             }
             Event::CData(c) => {
-                let text = String::from_utf8_lossy(&c).into_owned();
+                let text = c.into_inner().into_owned();
                 push_text(&mut stack, &text);
             }
             Event::GeneralRef(r) => {
                 let text = match r.resolve_char_ref() {
                     Ok(Some(c)) => c.to_string(),
                     _ => {
-                        let name = String::from_utf8_lossy(&r).into_owned();
-                        html_entity(&name).map_or_else(|| format!("&{name};"), str::to_owned)
+                        let name: &str = &r;
+                        html_entity(name).map_or_else(|| format!("&{name};"), str::to_owned)
                     }
                 };
                 push_text(&mut stack, &text);

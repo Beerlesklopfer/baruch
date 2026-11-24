@@ -17,7 +17,25 @@ all-features = false
 
 [advisories]
 # RustSec-Datenbank (braucht Netz, darum nur in der CI). Ausnahmen nur mit Begründung und Verweis.
-ignore = []
+# Ausnahmen vom 2026-11-24 (vor dem erneuten Tag v0.9.0), offen nach 0.9.0 – siehe docs/Backlog.md
+# („Nach 0.9.0 offen: Ausnahmen in deny.toml“). Gehoben wurden zugleich: quick-xml 0.38 → 0.42 (eigene Nutzung),
+# zip 2.4 → 9.8, url 2.5.8 → 2.5.9.
+ignore = [
+    # quick-xml 0.38.4 bleibt nur über typst-library → hayagriva 0.10.1 → citationberg 0.7.0 (neueste Fassung,
+    # verlangt quick-xml ^0.38). Baruchs eigene Nutzung (baruch-epub, baruch-exchange, baruch-server) ist auf 0.42
+    # gehoben. Rest: Rechenzeit bzw. Speicher beim Lesen eines CSL-Stils, den der Autor selbst in seiner
+    # Werkvorlage nennt (`#bibliography(style: …)`); die mitgelieferten Stile von typst sind fest.
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38 nur über citationberg 0.7 (kein Fix verfügbar); eigene Nutzung auf 0.42; nur CSL-Stile aus der eigenen Werkvorlage" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38 nur über citationberg 0.7 (kein Fix verfügbar); eigene Nutzung auf 0.42; nur CSL-Stile aus der eigenen Werkvorlage" },
+    # libsqlite3-sys 0.30.1 (gebündeltes SQLite < 3.54) über sqlx 0.8.6, das ^0.30 festschreibt; der Fix steckt
+    # erst in libsqlite3-sys >= 0.39, erreichbar nur mit sqlx 0.9 (Umbau von rund 350 Abfragen auf SqlSafeStr,
+    # Rust 1.94) – kein kleiner Sprung vor dem Release. Nicht betroffen im Betrieb: Baruch öffnet nur die eigene
+    # Datenbank `<data>/baruch.sqlite` (Ordner 0700), nie eine fremde Datei samt `-wal`.
+    { id = "RUSTSEC-2026-0459", reason = "sqlx 0.8 schreibt libsqlite3-sys 0.30 fest; Baruch öffnet nur die eigene Datenbank im eigenen Datenordner, nie fremde Dateien mit -wal; sqlx 0.9 offen nach 0.9.0" },
+    # chrono gilt als unbetreut (kein Fix, keine neuere Fassung). Es kommt über arrow/datafusion/lance/lancedb, eine
+    # Ablösung gibt es dort nicht; die direkte Nutzung in baruch-server allein abzulösen nähme es nicht aus dem Baum.
+    { id = "RUSTSEC-2026-0543", reason = "chrono (unmaintained, kein Upgrade) kommt über arrow/datafusion/lance/lancedb; Ablösung offen nach 0.9.0" },
+]
 
 [licenses]
 confidence-threshold = 0.93

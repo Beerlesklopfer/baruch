@@ -40,7 +40,7 @@ fn parse(xml: &str) -> Vec<Element> {
         let event = reader.read_event().expect("wohlgeformtes XML");
         match event {
             Event::Start(ref e) | Event::Empty(ref e) => {
-                let name = String::from_utf8(e.local_name().as_ref().to_vec()).unwrap();
+                let name = e.local_name().into_inner().to_owned();
                 let parent = stack.last().copied();
                 let path = match parent {
                     Some(p) => format!("{}/{}", elements[p].path, name),
@@ -50,7 +50,10 @@ fn parse(xml: &str) -> Vec<Element> {
                     .attributes()
                     .map(|a| {
                         let a = a.unwrap();
-                        (String::from_utf8(a.key.as_ref().to_vec()).unwrap(), a.unescape_value().unwrap().into_owned())
+                        (
+                            a.key.into_inner().to_owned(),
+                            a.normalized_value(quick_xml::XmlVersion::Implicit1_0).unwrap().into_owned(),
+                        )
                     })
                     .collect();
                 elements.push(Element { path, name, attrs, text: String::new(), parent });
@@ -63,15 +66,14 @@ fn parse(xml: &str) -> Vec<Element> {
             }
             Event::Text(t) => {
                 if let Some(&top) = stack.last() {
-                    elements[top].text.push_str(&t.xml10_content().unwrap());
+                    elements[top].text.push_str(&t.xml10_content());
                 }
             }
             Event::GeneralRef(r) => {
                 let resolved = match r.resolve_char_ref().unwrap() {
                     Some(c) => c.to_string(),
                     None => {
-                        let name = r.decode().unwrap();
-                        quick_xml::escape::resolve_predefined_entity(&name).expect("nur vordefinierte Entitäten").into()
+                        quick_xml::escape::resolve_predefined_entity(&r).expect("nur vordefinierte Entitäten").into()
                     }
                 };
                 if let Some(&top) = stack.last() {
@@ -80,7 +82,7 @@ fn parse(xml: &str) -> Vec<Element> {
             }
             Event::CData(c) => {
                 if let Some(&top) = stack.last() {
-                    elements[top].text.push_str(&c.decode().unwrap());
+                    elements[top].text.push_str(&c);
                 }
             }
             Event::DocType(_) => panic!("Der Schreiber schreibt nie eine DTD"),
@@ -132,7 +134,12 @@ fn xml_is_deterministic_and_zip_too() {
     for i in 0..archive.len() {
         let entry = archive.by_index(i).unwrap();
         let time = entry.last_modified().unwrap();
-        assert_eq!((time.year(), time.month(), time.day()), (1980, 1, 1), "fester Zeitstempel: {}", entry.name());
+        assert_eq!(
+            (time.year(), time.month(), time.day()),
+            (1980, 1, 1),
+            "fester Zeitstempel: {}",
+            entry.name().unwrap()
+        );
     }
 }
 
@@ -261,8 +268,8 @@ fn baruch_container_has_the_promised_layout() {
         let mut entry = archive.by_index(i).unwrap();
         let mut data = Vec::new();
         entry.read_to_end(&mut data).unwrap();
-        names.push(entry.name().to_owned());
-        contents.push((entry.name().to_owned(), entry.compression(), data));
+        names.push(entry.name().unwrap().into_owned());
+        contents.push((entry.name().unwrap().into_owned(), entry.compression(), data));
     }
     // Reihenfolge: mimetype, werk.xml, Bilder in der Reihenfolge des Dokuments, MANIFEST.xml zuletzt; sonst nichts.
     let mut expected = vec![ENTRY_MIMETYPE.to_owned(), ENTRY_WORK.to_owned()];
@@ -349,6 +356,6 @@ fn root_carries_namespace_version_and_instance() {
     }
     // Ohne Bilder besteht das ZIP aus mimetype, werk.xml und MANIFEST.xml.
     let archive = zip::ZipArchive::new(std::io::Cursor::new(write_baruch(&bare).unwrap())).unwrap();
-    let names: Vec<&str> = archive.file_names().collect();
+    let names: Vec<String> = archive.file_names().map(|n| n.unwrap().into_owned()).collect();
     assert_eq!(names.len(), 3, "drei Einträge: {names:?}");
 }

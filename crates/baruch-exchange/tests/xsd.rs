@@ -176,14 +176,22 @@ fn check_required(xml: &str, images: ImageMode) {
                     Event::Empty(e) => (e.clone(), true),
                     _ => unreachable!(),
                 };
-                let name = String::from_utf8(e.local_name().as_ref().to_vec()).unwrap();
+                let name = e.local_name().into_inner().to_owned();
                 if !root_seen {
                     root_seen = true;
                     assert_eq!(name, "werk", "Wurzel ist <werk>");
                     let ns = e.try_get_attribute("xmlns").unwrap().expect("xmlns an der Wurzel");
-                    assert_eq!(ns.unescape_value().unwrap(), NAMESPACE, "Namensraum");
+                    assert_eq!(
+                        ns.normalized_value(quick_xml::XmlVersion::Implicit1_0).unwrap(),
+                        NAMESPACE,
+                        "Namensraum"
+                    );
                     let version = e.try_get_attribute("version").unwrap().expect("version an der Wurzel");
-                    assert_eq!(version.unescape_value().unwrap(), "8", "Unterversion 8 (Runde 22)");
+                    assert_eq!(
+                        version.normalized_value(quick_xml::XmlVersion::Implicit1_0).unwrap(),
+                        "8",
+                        "Unterversion 8 (Runde 22)"
+                    );
                     for required in ["uuid", "art"] {
                         assert!(e.try_get_attribute(required).unwrap().is_some(), "werk/@{required}");
                     }
