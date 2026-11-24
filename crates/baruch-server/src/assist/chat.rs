@@ -527,8 +527,10 @@ pub async fn chat(
             }
             continue;
         }
-        // Runde 22: Beim RFC prüft jede Persona erneut und sieht ihre eigenen offenen Befunde des Abschnitts.
-        let order = base(&handle, Mode::Chat, OrderFrame { recheck: rfc, ..OrderFrame::default() });
+        // Runde 22: Beim RFC prüft jede Persona erneut und sieht ihre eigenen offenen Befunde des Abschnitts. Fehler
+        // 0.9.0 (Kritik-Zyklus): auch eine direkt angesprochene Persona („@nathan prüf den Vorschlag“) – sonst meldete
+        // der Kritiker am Vorschlag seine alten Befunde erneut, statt sie nachzuprüfen.
+        let order = base(&handle, Mode::Chat, OrderFrame { recheck: true, ..OrderFrame::default() });
         match run(state, &order, progress).await {
             Ok(outcome) => {
                 let answer = FramedAnswer {

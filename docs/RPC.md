@@ -1852,7 +1852,10 @@ Alle Methoden mit `work?` (fehlt → Vorgabewerk) und `key` (fester Schlüssel d
 - `solution.compare {key, group}` → `{base, group, key, work, title, variants: [{rev, label, summary, findings,
   status, diff_html, against: [{rev, label, diff_html}], url}]}`; `diff_html` ist maskiertes HTML (`<ins>`/`<del>`).
 - Prüfgrundlage `basis` = `shown` (Vorgabe) | `current` | Zahl bzw. Ziffern bei `persona.ask` und `persona.review`
-  (Antwort `basis: {rev, label, proposal}`); `persona.propose` beruht immer auf der aktuellen Fassung. Für den Chat
+  (Antwort `basis: {rev, label, proposal}`); `persona.propose` beruht auf der gezeigten Fassung `rev` bzw. der
+  ausdrücklich gewählten (`basis` = `current` | Nummer), auch auf einem offenen Vorschlag (Fehler 0.9.0, Kritik-Zyklus;
+  vorher stets auf der aktuellen). Im Chat sieht auch eine direkt angesprochene Persona ihre eigenen offenen Befunde
+  des Abschnitts (erneutes Prüfen wie beim RFC). Für den Chat
   liest `persona.chat` den Parameter mit Runde 30c (chat-bedienung). Unbekanntes Wort → `-32602`.
 - Formular `POST /loesungen/act` (hinter `same_origin`): `method` = `solution.adopt` | `solution.variants` |
   `solution.reject_siblings`, dazu `work`, `key`, `rev`, `post`, `finding`, `picks` (mehrfach), `findings` (mehrfach),

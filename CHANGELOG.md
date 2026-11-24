@@ -86,6 +86,9 @@ am 2026-11-05); davor gab es nur den Stand 0.0.1 aus dem Quelltext.
   übers Werk, Aufträge im Chat (`@alle`, RFC), Beiträge kopieren, zitieren und wiederholen.
 - Runde 30: Lösungen statt nur Kritik („statt … / besser …“), Varianten nebeneinander vergleichen.
 - Runde 22: Personas fragen nach, ob ein Befund erledigt ist.
+- Fehler behoben (Kritik-Zyklus): Ein Kritiker kann den Vorschlag des Lektors gegenprüfen und der Lektor darauf
+  weiterschreiben – die Prüfgrundlage bietet die offenen Vorschläge an, „@persona …“ im Chat prüft die eigenen offenen
+  Befunde nach, und ein Vorschlag beruht auf der gezeigten bzw. gewählten Fassung statt stets auf der aktuellen.
 
 ### Bibel und Predigt
 

@@ -1538,6 +1538,14 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
             prev => fold.prev, next => fold.next,
             // Abzeichen im Kopf des Akkordeons „Fassungen“: offene Vorschläge des Abschnitts.
             open_proposals => node.open_proposals(),
+            // Fehler 0.9.0 (Kritik-Zyklus): offene Vorschläge für die Prüfgrundlage („Vorschlag n von @x“).
+            open_list => node.revisions.iter().filter(|r| r.status == RevisionStatus::Proposed).map(|r| context! {
+                number => r.number,
+                label => match &r.author {
+                    Author::Assistant { persona, .. } => format!("Vorschlag {} von {persona}", r.number),
+                    Author::Human { .. } => format!("Vorschlag {}", r.number),
+                },
+            }).collect::<Vec<_>>(),
             // Runde 22: Stand der gezeigten Fassung, Verlauf, Stand der Basis eines Vorschlags.
             amend_seq => info.map_or(0, |i| i.amend_seq),
             history_url => info.filter(|i| i.amend_seq > 0).map(|i| history_url(shown_work, node.key, i.number)),

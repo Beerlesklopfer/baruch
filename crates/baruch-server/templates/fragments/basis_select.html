@@ -2,11 +2,16 @@
     sie nur die Überschrift und liegt ein Vorschlag mit Text vor, prüfen alle den Vorschlag) | current | <n>. Alle
     Personas eines Aufrufs bzw. RFC prüfen dieselbe Fassung; der Beitrag nennt sie im Kopf („geprüft: …“). `rev` ist die
     gezeigte Fassungsnummer (Zahl) oder leer. Eingebunden in fragments/assist_scope.html (Persona-Formulare) und – über
-    chat-bedienung – ins Chat-Formular; ohne JavaScript bedienbar. -#}
-{% macro basis_select(rev) %}
+    chat-bedienung – ins Chat-Formular; ohne JavaScript bedienbar. Fehler 0.9.0 (Kritik-Zyklus): `open` = die offenen
+    Vorschläge des Abschnitts (`rev.open_list`: number, label „Vorschlag n von @x“) als weitere Optionen mit ihrer
+    Nummer – so prüft ein Kritiker einen Vorschlag gegen bzw. schreibt der Lektor auf ihm weiter. -#}
+{% macro basis_select(rev, open=none) %}
 <label class="basis-select small" title="Welche Fassung alle Personas dieses Aufrufs prüfen">Prüfgrundlage
   <select name="basis">
     <option value="shown" selected>gezeigte Fassung{% if rev %} ({{ rev }}){% endif %}</option>
     <option value="current">aktuelle Fassung</option>
+    {%- for p in open or [] %}
+    <option value="{{ p.number }}">{{ p.label }}</option>
+    {%- endfor %}
   </select></label>
 {%- endmacro %}

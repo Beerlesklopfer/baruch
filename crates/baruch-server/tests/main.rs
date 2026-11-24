@@ -23,6 +23,7 @@ mod git_mirror;
 mod headings;
 mod ideas;
 mod import;
+mod kritik_zyklus;
 mod library_search;
 mod literature;
 mod markdown_headings;

@@ -18,7 +18,8 @@
 //! - Runde 22: ask/review tragen `done_proposals`, `done_notes`, `all_done`, wenn die Persona eigene Befunde als erledigt
 //!   meldete (Rückfrage „Befund n scheint erledigt?“, [`super::propose_done`]).
 //! - Runde 30b: `basis` = `shown` (Vorgabe) | `current` | Fassungsnummer bei ask/review (Prüfgrundlage, siehe
-//!   [`super::basis`]); die Antwort trägt `basis: {rev, label, proposal}`. Propose beruht immer auf der aktuellen Fassung.
+//!   [`super::basis`]); die Antwort trägt `basis: {rev, label, proposal}`. Propose beruht auf der gezeigten Fassung
+//!   (`rev`) bzw. der ausdrücklich gewählten (`basis` = `current` | `<n>`), auch auf einem Vorschlag (Fehler 0.9.0).
 //!
 //! Adressiert wird immer über `key`; `node` wird abgelehnt (-32602). `work` fehlt → Vorgabewerk;
 //! `persona` fehlt (review, propose) → der Lektor des Werks. Fehler des Modells → -32000 mit der
@@ -117,10 +118,14 @@ pub async fn order(state: &AppState, mode: Mode, params: &Value) -> Result<Order
         _ if mode == Mode::Review => text(params, "instruction")?.unwrap_or_default(),
         other => other.unwrap_or_default(),
     };
-    // Runde 30b: Prüfgrundlage `basis` (shown | current | <n>) für Fragen und Prüfen; beim Vorschlag nicht (er
-    // beruht immer auf der aktuellen Fassung).
+    // Runde 30b: Prüfgrundlage `basis` (shown | current | <n>) für Fragen und Prüfen; beim Vorschlag die Basis.
     let (rev, basis) = if mode == Mode::Propose {
-        (rev, None)
+        // Fehler 0.9.0 (Kritik-Zyklus): eine ausdrücklich gewählte Prüfgrundlage (`current` bzw. Fassung n, etwa
+        // „Vorschlag 2 von @lektor“) ist die Basis des neuen Vorschlags; ohne Wahl die gezeigte Fassung.
+        match super::basis::BasisChoice::from_param(params)? {
+            super::basis::BasisChoice::Shown => (rev, None),
+            choice => (Some(super::basis::choose(state, work, key, rev, choice).await?.rev), None),
+        }
     } else {
         let choice = super::basis::BasisChoice::from_param(params)?;
         let chosen = super::basis::choose(state, work, key, rev, choice).await?;

@@ -735,8 +735,19 @@ async fn save(
         if text.trim_end() == prepared.current.trim_end() {
             return Err(refused("Der Vorschlag gleicht der aktuellen Fassung; nichts angelegt."));
         }
+        if text.trim_end() == prepared.section.trim_end() {
+            return Err(refused(format!(
+                "Der Vorschlag gleicht Fassung {}, auf der er beruht; nichts angelegt.",
+                prepared.shown_rev
+            )));
+        }
         let note = proposal_note(handle, "", prepared.truncated, compressed.as_ref());
-        let rev = state.store.add_proposal(order.work, seq, &text, handle, &answer.model, &note).await?;
+        // Fehler 0.9.0 (Kritik-Zyklus): Der Vorschlag beruht auf der Fassung, die die Persona gesehen hat (`rev`, etwa
+        // ein Vorschlag des Lektors, den der Kritiker gegengeprüft hat), nicht stets auf der aktuellen.
+        let rev = state
+            .store
+            .add_proposal_on(order.work, seq, &text, handle, &answer.model, &note, prepared.shown_rev, None)
+            .await?;
         crate::mirror::side_refs_after_proposal(state, &held, order.work).await;
         outcome.rev = Some(rev);
         outcome.url = crate::view::node_url(order.work, order.key, Some(rev), false, "", "");
