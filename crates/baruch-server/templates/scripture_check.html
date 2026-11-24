@@ -1,0 +1,62 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/pruefung?key=K[&rev=N] (Runde 17c, src/scripture_check.rs): Ergebnis der Wortlautprüfung
+    eines Abschnitts als Liste, ohne JavaScript. Dieselben Daten wie RPC bible.marks. Kontext: settings,
+    work {id, title}, key, rev, title, back, settings_url, bible (Choice::json: module, versification, license,
+    cipher, problem …), has_bible, no_choice, notice (Lizenzvermerk der conf), marks [{ref, ref_span, quote_span,
+    code, state, state_label, label, quote, bible_text, module_ref, diff_line, module_spacing}], counts {stimmt,
+    weicht_ab, andere}, module_note (Runde 19c: Modul mit auffällig vielen Wortfragmenten, sonst leer). -#}
+{% extends "base.html" %}
+{% block title %}Zitate prüfen – {{ title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Zitate prüfen{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ back }}">Zurück zum Abschnitt</a>
+{% endblock %}
+{% block body %}
+<main class="works-page scripture-check-page" data-work="{{ work.id }}" data-key="{{ key }}" data-rev="{{ rev }}">
+  <h1 class="pane-title">Zitate prüfen: {{ title }} <span class="muted small">(Fassung {{ rev }})</span></h1>
+  {%- if has_bible %}
+  <p class="small check-bible" data-check-bible>Geprüft von Baruch (nicht von einem Modell) mit dem SWORD-Modul
+    <code>{{ bible.module }}</code>{% if bible.description %} – {{ bible.description }}{% endif %}, Versifikation
+    <strong data-versification>{{ bible.versification }}</strong>.</p>
+  {%- elif no_choice %}
+  <p class="notice" role="status" data-check-bible="none">Das Werk hat keine Bibel: Der Wortlaut bleibt ungeprüft.
+    Bibel wählen unter <a href="{{ settings_url }}">Einstellungen → Quellen</a>.</p>
+  {%- else %}
+  <p class="notice" role="status" data-check-bible="problem">Die Bibel des Werks ist nicht lesbar: {{ bible.problem }}
+    · <a href="{{ settings_url }}">Einstellungen → Quellen</a></p>
+  {%- endif %}
+  {%- if notice %}
+  <p class="small check-notice" data-check-notice>Lizenz (laut conf): {{ notice }}</p>
+  {%- endif %}
+  {%- if module_note %}
+  <p class="notice small check-module-note" role="status" data-module-note>{{ module_note }}</p>
+  {%- endif %}
+  <p class="small check-counts" data-check-counts>
+    <span class="check-state" data-state="stimmt">{{ counts.stimmt }} stimmt</span> ·
+    <span class="check-state" data-state="weicht_ab">{{ counts.weicht_ab }} weicht ab</span> ·
+    <span class="check-state" data-state="andere">{{ counts.andere }} andere</span>
+  </p>
+  {%- if marks %}
+  <table class="check-list">
+    <thead><tr><th>Stelle</th><th>Zitat im Text</th><th>Ergebnis</th><th>Unterschiede</th><th>Gelesen im Modul</th></tr></thead>
+    <tbody>
+    {%- for m in marks %}
+      <tr class="check-row" data-state="{{ m.state }}" data-code="{{ m.code }}">
+        <td><strong>{{ m.ref }}</strong></td>
+        <td>{% if m.quote %}„{{ m.quote }}“{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td><span class="check-state" data-state="{{ m.state }}">{{ m.state_label }}</span>
+          {%- if m.label and m.label != m.state_label %}<div class="muted tiny{% if m.module_spacing %} check-spacing{% endif %}"{% if m.module_spacing %} data-module-spacing{% endif %}>{{ m.label }}</div>{% endif %}</td>
+        <td class="small">{% if m.diff_line %}{{ m.diff_line }}{% elif m.state == "weicht_ab" and m.bible_text %}Bibel: „{{ m.bible_text }}“{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td class="small">{% if m.module_ref %}{{ m.module_ref }}{% elif has_bible %}wie angegeben ({{ bible.versification }}){% else %}<span class="muted">–</span>{% endif %}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted">Keine Bibelstelle in dieser Fassung gefunden.</p>
+  {%- endif %}
+  <p class="muted tiny">Ein Zitat gehört zu einer Stelle, wenn es direkt davor oder dahinter steht (Anführungszeichen,
+    <code>#quote[…]</code> oder Blockzitat). Ein Modell bestätigt nie selbst einen Wortlaut. Mit JavaScript markiert
+    „Zitate prüfen“ im Editor dieselben Ergebnisse im Satzbild (grün: stimmt, rot: weicht ab).</p>
+</main>
+{% endblock %}

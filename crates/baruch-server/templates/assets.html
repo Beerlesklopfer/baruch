@@ -1,0 +1,123 @@
+{#- Seite /werke/{id}/bilder: alle Bilder des Werks mit Vorschau, Name, Typ, Größe, Pfaden und
+    Alternativtext; Formular „Bild hinzufügen“ (POST /werke/bilder/hochladen, multipart). Geht ohne
+    JavaScript. Runde 11: Suche ?q= (Formular id="suche": Name, Bildunterschrift, Alternativtext),
+    Vorschaubilder über …/vorschau?b=320 (loading=lazy), oben der Block des Umschlags (cover_panel,
+    fertiges HTML von crate::cover::assets_panel), unten die Anträge (requests_panel, von
+    crate::asset_requests::panel), je Zeile Abzeichen „Umschlag“ bzw. Knopf „Als Umschlag“ (POST
+    /werke/umschlag/act, bedient von „cover“).
+    Kontext: settings, work {id, title}, assets [{…, thumb_href, is_cover}], form, error, notice, max_mib,
+    query?, total, cover_panel, requests_panel.
+    Runde 21c: conflicts [{normal, paths [{path, asset}], choices [Name]}] – Altbestand, in dem zwei Schreibweisen
+    desselben Pfads (`/x.png`, `x.png`) zu verschiedenen Bildern gehören; je Kollision ein Formular (POST
+    /werke/bilder/act, action=resolve_path, normal, name = das Bild, das den Pfad behält). -#}
+{% extends "base.html" %}
+{% block title %}Bilder – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Bilder{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page assets-page">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Bilder</h1>
+  {%- if conflicts %}
+  <section class="asset-conflicts notice" id="pfad-kollisionen" role="region" aria-labelledby="pfad-kollisionen-titel">
+    <h2 class="pane-title" id="pfad-kollisionen-titel">Pfade mit zwei Bildern</h2>
+    <p class="small">Diese Pfade sind gleich, wenn man führendes <code>/</code> und <code>./</code> weglässt, gehören aber zu
+      verschiedenen Bildern (Altbestand). Satz, Satzbild und Export nehmen dann je nach Schreibweise ein anderes Bild.
+      Bitte wählen, welches Bild den Pfad behält; der Text bleibt unverändert.</p>
+    {%- for c in conflicts %}
+    <form class="work-form asset-conflict" action="/werke/bilder/act" method="post">
+      <input type="hidden" name="action" value="resolve_path">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="normal" value="{{ c.normal }}">
+      <p><strong><code>{{ c.normal_text }}</code></strong>:
+        {% for p in c.paths %}<code>{{ p.path_text }}</code> → {{ p.asset }}{% if not loop.last %}; {% endif %}{% endfor %}</p>
+      <fieldset>
+        <legend class="small">Pfad gehört künftig zu</legend>
+        {%- for name in c.choices %}
+        <label class="check"><input type="radio" name="name" value="{{ name }}" required> {{ name }}</label>
+        {%- endfor %}
+      </fieldset>
+      <button class="btn primary" type="submit">Zuordnen</button>
+    </form>
+    {%- endfor %}
+  </section>
+  {%- endif %}
+  {{ cover_panel|safe }}
+  <form class="asset-search" id="suche" method="get" action="/werke/{{ work.id }}/bilder" role="search">
+    <label>Suchen <input type="search" name="q" value="{{ query or "" }}" placeholder="Name, Bildunterschrift oder Alternativtext" aria-label="Bilder suchen"></label>
+    <button class="btn" type="submit">Suchen</button>
+    {%- if query %}
+    <span class="muted small">{{ assets | length }} von {{ total }} Bildern für „{{ query }}“ · <a href="/werke/{{ work.id }}/bilder">alle zeigen</a></span>
+    {%- endif %}
+  </form>
+  {%- if assets %}
+  <table class="works-table assets-table">
+    <thead>
+      <tr><th scope="col">Vorschau</th><th scope="col">Name</th><th scope="col">Typ</th>
+          <th scope="col" class="number">Größe</th><th scope="col">Pfade</th><th scope="col">Alternativtext</th>
+          <th scope="col" class="number">Fassung</th><th scope="col">Umschlag</th></tr>
+    </thead>
+    <tbody>
+    {%- for a in assets %}
+      <tr>
+        <td class="asset-thumb"><a href="{{ a.href }}"><img src="{{ a.thumb_href }}" alt="{{ a.alt }}" loading="lazy"></a></td>
+        <td><a href="{{ a.href }}"><strong>{{ a.name }}</strong></a>
+          {%- if a.caption %}<br><span class="muted small">{{ a.caption }}</span>{% endif %}</td>
+        <td>{{ a.kind }}{% if a.encoding == "base64" %} <span class="muted small">(Base64)</span>{% endif %}</td>
+        <td class="number">{{ a.size }}</td>
+        <td class="small">{% for p in a.paths %}<code>{{ p }}</code>{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">keiner</span>{% endfor %}</td>
+        <td class="small">{{ a.alt or "–" }}</td>
+        <td class="number">{{ a.current }}{% if a.revisions > 1 %} <span class="muted small">von {{ a.revisions }}</span>{% endif %}</td>
+        <td>{% if a.is_cover %}<span class="badge primary">Umschlag</span>{% else %}<form method="post" action="/werke/umschlag/act"><input type="hidden" name="work" value="{{ work.id }}"><input type="hidden" name="action" value="set"><input type="hidden" name="name" value="{{ a.name }}"><input type="hidden" name="back" value="/werke/{{ work.id }}/bilder"><button class="btn">Als Umschlag</button></form>{% endif %}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- elif query %}
+  <p class="muted">Kein Bild passt zu „{{ query }}“. <a href="/werke/{{ work.id }}/bilder">Alle Bilder zeigen</a></p>
+  {%- else %}
+  <p class="muted">Noch keine Bilder. Bilder kommen mit dem Import von der Kommandozeile
+    (<code>baruch-server import buch.typ</code> liest die Dateien, die der Text mit <code>image("…")</code> nennt)
+    oder über das Formular unten.</p>
+  {%- endif %}
+
+  <form class="work-form" action="/werke/bilder/hochladen" method="post" enctype="multipart/form-data">
+    <h2 class="pane-title">Bild hinzufügen</h2>
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <label>Datei (PNG, JPEG, GIF, WebP oder SVG, höchstens {{ max_mib }} MiB)
+      <input type="file" name="file" required accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
+    </label>
+    <div class="work-fields">
+      <label>Name (leer = aus dem Dateinamen; ein vorhandener Name lädt eine neue Fassung hoch)
+        <input type="text" name="name" value="{{ form.name }}" placeholder="haus.svg" autocomplete="off">
+      </label>
+      <label>Pfad in Vorlage und Text (einer je Zeile)
+        <textarea name="path" rows="2" placeholder="/bilder/haus.svg">{{ form.path }}</textarea>
+      </label>
+      <label>Bildunterschrift
+        <input type="text" name="caption" value="{{ form.caption }}">
+      </label>
+      <label>Alternativtext
+        <input type="text" name="alt" value="{{ form.alt }}">
+      </label>
+      <label>Notiz
+        <input type="text" name="note" value="{{ form.note }}">
+      </label>
+    </div>
+    <label class="check"><input type="checkbox" name="as_base64" value="1"{% if form.as_base64 %} checked{% endif %}>
+      SVG als Base64 speichern (sonst als Text; andere Typen immer als Base64)</label>
+    <button class="btn primary" type="submit">Hochladen</button>
+  </form>
+  <p class="muted small">Der Pfad ist die Schreibweise in <code>#image("…")</code> bzw. <code>#figure(image("…"))</code>;
+    Export und Satzbild finden das Bild darüber. Im Git-Spiegel liegt jedes aktuelle Bild unter
+    <code>bilder/&lt;name&gt;</code> (SVG) bzw. <code>bilder/&lt;name&gt;.b64</code>.</p>
+  {{ requests_panel|safe }}
+</main>
+{% endblock %}

@@ -1,0 +1,15 @@
+{{ define "main" }}
+{{- /* Eine Inhaltsseite: Titel, Vorspann (description), Text. `platzhalter: true` im Kopf markiert die Seite. */ -}}
+<article class="rand text{{ if .Params.platzhalter }} seite-platzhalter{{ end }}">
+  <header class="seitenkopf">
+    <h1>{{ .Title }}</h1>
+    {{- with .Description }}
+    <p class="vorspann">{{ . }}</p>
+    {{- end }}
+  </header>
+  {{- if .Params.platzhalter }}
+  <p class="platzhalter" role="note"><strong>Platzhalter.</strong> Diese Seite ist noch nicht ausgefüllt; die Angaben trägt der Betreiber der Seite ein.</p>
+  {{- end }}
+  {{ .Content }}
+</article>
+{{ end }}

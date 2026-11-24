@@ -1,0 +1,142 @@
+{#- Gliederung: die einzige der Oberfläche (Vertrag Runde 5). Teile und Kapitel aufklappbar (<details>,
+    geht auch ohne JavaScript). Links tragen das Werk (work.id), den festen Schlüssel des Punkts (key,
+    Runde 8: kein node= mehr) und die Suche der Literatur (lq_q = "&lq=…" oder leer); ein Eintrag zeigt
+    immer auf den Editor (ohne view=preview).
+    Kopf: Nummerierung (Formular an /gliederung/act, mit und ohne JavaScript) und der Link „Schema
+    wählen…“ zur Seite /werke/{id}/nummerierung (Gliederungsschemata, Runde 6). Der Kopf zeigt das
+    Muster (aus der Werkvorlage, eigenes) bzw. den Namen des Schemas, bei offenen Anträgen der
+    Assistenten (outline_requests) den Hinweis „N Anträge zur Gliederung“ mit Link auf /gliederung#antraege.
+    Je Eintrag kleine Formulare an /gliederung/act: ↑ ↓ (vor den vorigen bzw. hinter den nächsten
+    Punkt derselben Ebene), ← → (Ebene höher bzw. tiefer); die Knöpfe stehen in der Zeile und gehören
+    über das Attribut form zu den Formularen unter dem Eintrag. Ohne JavaScript dazu die Links
+    „bearbeiten“ (/gliederung) und „Bearbeiten“ (/gliederung/bearbeiten) als Rückfall (nojs-only).
+    Mit JavaScript: Widget „outline“ (Ziehen und Ablegen, Alt+Umschalt+Pfeile, Kontextmenü mit
+    Umbenennen, Anlegen, Umstufen und Löschen, Doppelklick bzw. F2 zum Umbenennen, Entf zum Löschen;
+    Runde 14: „Neuer Teil davor/danach“ an Teilen und Kapiteln, ohne JavaScript über /gliederung/bearbeiten).
+    Jedes Formular trägt neben der Stelle (node, target) den festen Schlüssel (key, target_key): Er
+    gilt, auch wenn ein anderer Tab die Gliederung inzwischen umgestellt hat.
+    Runde 11: cover {thumb, alt}? zeigt ein kleines Umschlagbild im Kopf (Daten verdrahtet der Integrator).
+    Runde 16b (Zeitwächter): Nur bei Predigt oder gesetzter Zielzeit (timing ist sonst none) zeigt der Kopf
+    Gesamtzeit und Zielzeit (timing {total_clock, target_clock?, over, over_clock?}) und bei Überschreitung die
+    Warnung „Zielzeit überschritten um m:ss“ als Text mit role="alert" (nicht nur als Farbe); jeder Eintrag
+    zeigt seine Dauer (item.duration: Punkte mit Unterpunkten samt Nachfahren) mit der Zeitmarke im title.
+    Runde 28 (befund-uebersicht): Abzeichen „k offen“ je Eintrag (item.findings: offene Befunde nach der Zählregel §1.5
+    samt Unterpunkten, Kapitel und Teile summiert; item.findings_own am Punkt selbst), dieselben Zahlen wie auf der
+    Seite /werke/<id>/befunde und in finding.matrix.
+    Runde 22 (R22a): Abzeichen „+n“ je Eintrag mit weiteren nicht aktuellen Fassungen außer Vorschlägen
+    (item.alternatives: ersetzt, verworfen); Klick öffnet den Abschnitt, dort „weitere Fassung(en)“ im Editor-Kopf. -#}
+<div class="outline-head">
+  {% if cover %}<img class="tree-cover" src="{{ cover.thumb }}" alt="{{ cover.alt }}">{% endif %}
+  <h2 class="pane-title">Gliederung</h2>
+  <a class="tool small nojs-only" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}" title="Gliederung bearbeiten (Ebenen, Reihenfolge, Nummerierung)">bearbeiten</a>
+  {%- if numbering %}
+  {%- set chosen = "vorlage" if numbering.scheme == "template" else ("keine" if numbering.scheme == "none" else (numbering.numbering or "")) %}
+  {#- Runde 7: der Name des passenden Schemas („Nur Kapitel römisch“), das rohe Muster nur im title. #}
+  <details class="outline-numbering-head">
+    <summary class="tool small" title="Nummerierung der Gliederung (Gliederungsschema: {{ numbering.scheme_label }}{% if numbering.effective and numbering.scheme in ["template", "custom"] %}, Muster {{ numbering.effective }}{% endif %})">Nummern: {{ numbering.label }}</summary>
+    <form class="numbering-form" method="post" action="/gliederung/act" data-outline-numbering>
+      <input type="hidden" name="method" value="outline.set_numbering">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="node" value="{{ node.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
+      {%- if view == 'preview' %}<input type="hidden" name="view" value="preview">{% endif %}
+      <label class="small">Muster
+        <input type="text" name="numbering" value="{{ chosen }}" list="numbering-choices" size="9" required
+               title="„vorlage“ = aus der Werkvorlage, „keine“ = keine Nummern, sonst ein Typst-Muster wie 1.1 oder I.1"></label>
+      <datalist id="numbering-choices">
+        <option value="vorlage">aus der Werkvorlage{% if numbering.template is not none %} ({{ numbering.template or "keine" }}){% else %} (Vorgabe 1.1){% endif %}</option>
+        <option value="keine">keine Nummern</option>
+        {%- for p in numbering_presets %}<option value="{{ p }}"></option>{% endfor %}
+      </datalist>
+      <button class="btn small" type="submit">Nummerieren</button>
+      <span class="muted tiny">„vorlage“ = aus der Werkvorlage, „keine“ = keine Nummern, sonst ein Muster wie „1.1“, „I|1“ oder „I.;A.;1.“.</span>
+    </form>
+  </details>
+  <a class="tool small outline-scheme-link" href="/werke/{{ work.id }}/nummerierung" title="Gliederungsschema wählen, mit Vorschau an dieser Gliederung">Schema wählen…</a>
+  {%- endif %}
+  {%- if timing %}
+  <p class="outline-timing small" data-outline-timing>
+    <span title="Sprechdauer bei {{ timing.words_per_minute }} Wörtern je Minute (Einstellungen → Werk → Predigtzeit)">Gesamt ≈ {{ timing.total_clock }}{% if timing.target_clock %} / Ziel {{ timing.target_clock }}{% endif %}</span>
+    {%- if timing.over %}
+    <span class="badge warning outline-timing-over" role="alert">Zielzeit überschritten um {{ timing.over_clock }}</span>
+    {%- endif %}
+    <a class="tool tiny" href="/einstellungen/werk?work={{ work.id }}#zeit" data-settings-open data-settings-page="werk" title="Wörter je Minute und Zielzeit einstellen">Zeit …</a>
+  </p>
+  {%- endif %}
+  {#- Offene Anträge der Assistenten (Migration 0012): Link auf die Gliederungsseite, dort Bestätigen/Ablehnen. #}
+  {%- if outline_requests %}
+  <a class="badge warning outline-requests-hint" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}#antraege"
+     title="Assistenten möchten die Gliederung ändern; bestätigen oder ablehnen">{{ outline_requests }} {% if outline_requests == 1 %}Antrag{% else %}Anträge{% endif %} zur Gliederung</a>
+  {%- endif %}
+</div>
+{%- macro form(id, item, method) %}
+<form id="o-{{ id }}-{{ item.id }}" class="outline-form" method="post" action="/gliederung/act" data-rpc hidden>
+  <input type="hidden" name="method" value="{{ method }}">
+  <input type="hidden" name="work" value="{{ work.id }}">
+  <input type="hidden" name="node" value="{{ item.id }}">
+  <input type="hidden" name="key" value="{{ item.key }}">
+  {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
+  {%- if view == 'preview' %}<input type="hidden" name="view" value="preview">{% endif %}
+  {{- caller() }}
+</form>
+{%- endmacro %}
+<div class="outline" data-widget="outline" data-work="{{ work.id }}">
+<ul class="tree" data-widget="tree">
+{%- for item in tree recursive %}
+  <li data-outline-node="{{ item.id }}" data-key="{{ item.key }}" data-level="{{ item.level }}" data-title="{{ item.title }}"
+      {%- if item.up is not none %} data-up="{{ item.up }}" data-up-key="{{ item.up_key }}"{% endif %}
+      {%- if item.down is not none %} data-down="{{ item.down }}" data-down-key="{{ item.down_key }}"{% endif %}
+      {%- if item.promote %} data-promote{% endif %}{% if item.demote %} data-demote{% endif %}
+      {%- if item.children %} data-children{% endif %}>
+    {%- set entry -%}
+      <span class="outline-row" draggable="true" title="{{ item.level_name }}">
+      <a class="tree-entry{% if item.selected %} selected{% endif %}{% if item.part %} part{% endif %}"
+         href="/?work={{ work.id }}&key={{ item.key }}{{ lq_q }}" data-nav draggable="false"
+         {% if item.selected %}aria-current="page"{% endif %}>
+        <span class="tree-label">{% if item.number %}<span class="num">{{ item.number }}</span>{% endif %}{{ item.title }}</span>
+        {%- if item.proposals %}<span class="badge primary" title="offene Vorschläge">{{ item.proposals }} {% if item.proposals == 1 %}Vorschlag{% else %}Vorschläge{% endif %}</span>{% endif %}
+        {%- if item.alternatives %}<span class="badge rev-alt-badge" data-alternatives="{{ item.alternatives }}" title="{{ item.alternatives }} weitere Fassung{% if item.alternatives != 1 %}en{% endif %} (ersetzt oder verworfen)">+{{ item.alternatives }}</span>{% endif %}
+        {%- if item.findings %}<span class="badge warning findings-badge" data-findings-open="{{ item.findings }}" title="{{ item.findings }} offene{% if item.findings == 1 %}r{% endif %} Befund{% if item.findings != 1 %}e{% endif %}{% if item.children %} samt Unterpunkten{% if item.findings_own %} ({{ item.findings_own }} am Punkt selbst){% endif %}{% endif %}">{{ item.findings }} offen</span>{% endif %}
+        {%- if item.duration %}<span class="tree-duration muted tiny" data-duration title="Sprechdauer ≈ {{ item.duration }}{% if item.children %} samt Unterpunkten{% endif %}, beginnt bei {{ item.start }}">≈ {{ item.duration }}</span>{% endif %}
+      </a>
+      <span class="outline-tools" aria-label="Gliederung: {{ item.title }}">
+        {%- if item.up is not none %}<button class="tool" type="submit" form="o-up-{{ item.id }}" title="Nach oben (Alt+Umschalt+↑)" aria-label="Nach oben">↑</button>{% endif %}
+        {%- if item.down is not none %}<button class="tool" type="submit" form="o-down-{{ item.id }}" title="Nach unten (Alt+Umschalt+↓)" aria-label="Nach unten">↓</button>{% endif %}
+        {%- if item.promote %}<button class="tool" type="submit" form="o-left-{{ item.id }}" title="Höher stufen (Alt+Umschalt+←)" aria-label="Höher stufen">←</button>{% endif %}
+        {%- if item.demote %}<button class="tool" type="submit" form="o-right-{{ item.id }}" title="Tiefer stufen (Alt+Umschalt+→)" aria-label="Tiefer stufen">→</button>{% endif %}
+        <button class="tool js-only" type="button" data-outline-menu-open aria-haspopup="menu" title="Umbenennen, anlegen, umstufen, löschen (Rechtsklick, Umschalt+F10)" aria-label="Mehr">⋯</button>
+        <a class="tool nojs-only" href="/gliederung/bearbeiten?work={{ work.id }}&key={{ item.key }}{{ lq_q }}" title="Umbenennen, neu anlegen, löschen">Bearbeiten</a>
+      </span>
+      </span>
+    {%- endset %}
+    {%- if item.children %}
+    <details{% if item.open %} open{% endif %} data-node="{{ item.id }}">
+      <summary>{{ entry }}</summary>
+      <ul>{{ loop(item.children) }}</ul>
+    </details>
+    {%- else %}
+    <span class="leaf">{{ entry }}</span>
+    {%- endif %}
+    {%- if item.up is not none %}{% call form("up", item, "outline.move") %}<input type="hidden" name="target" value="{{ item.up }}"><input type="hidden" name="target_key" value="{{ item.up_key }}"><input type="hidden" name="place" value="before">{% endcall %}{% endif %}
+    {%- if item.down is not none %}{% call form("down", item, "outline.move") %}<input type="hidden" name="target" value="{{ item.down }}"><input type="hidden" name="target_key" value="{{ item.down_key }}"><input type="hidden" name="place" value="after">{% endcall %}{% endif %}
+    {%- if item.promote %}{% call form("left", item, "outline.set_level") %}<input type="hidden" name="level" value="{{ item.level - 1 }}">{% endcall %}{% endif %}
+    {%- if item.demote %}{% call form("right", item, "outline.set_level") %}<input type="hidden" name="level" value="{{ item.level + 1 }}">{% endcall %}{% endif %}
+  </li>
+{%- endfor %}
+</ul>
+{#- Kontextmenü (nur mit JavaScript; outline.ts zeigt es am Eintrag): Rechtsklick, Umschalt+F10 oder
+    die Kontextmenü-Taste. Ohne JavaScript bleibt es verborgen. -#}
+<div class="outline-menu" role="menu" aria-label="Gliederungspunkt" hidden data-outline-menu>
+  <button type="button" role="menuitem" data-action="rename">Umbenennen <kbd>F2</kbd></button>
+  <button type="button" role="menuitem" data-action="add-before">Neuer Punkt davor</button>
+  <button type="button" role="menuitem" data-action="add-after">Neuer Punkt danach</button>
+  <button type="button" role="menuitem" data-action="add-into">Neuer Punkt darunter</button>
+  <button type="button" role="menuitem" data-action="part-before">Neuer Teil davor</button>
+  <button type="button" role="menuitem" data-action="part-after">Neuer Teil danach</button>
+  <button type="button" role="menuitem" data-action="promote">Höher stufen <kbd>Alt+Umschalt+←</kbd></button>
+  <button type="button" role="menuitem" data-action="demote">Tiefer stufen <kbd>Alt+Umschalt+→</kbd></button>
+  <button type="button" role="menuitem" data-action="delete" class="danger">Löschen… <kbd>Entf</kbd></button>
+</div>
+<p class="outline-hint muted tiny" hidden data-outline-hint></p>
+</div>

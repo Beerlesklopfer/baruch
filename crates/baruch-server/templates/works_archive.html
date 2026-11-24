@@ -1,0 +1,54 @@
+{#- Seite /werke/archiv (Runde 22, befund-rueckfrage, src/works.rs): gelöschte Werke aus work_retired mit ihrem
+    Archivordner works/.geloescht/<slug>-<JJJJ-MM-TT> und je Werk dem Formular „Wiederherstellen“
+    (POST /werke/archiv/wiederherstellen, Felder slug und confirm – Bestätigung mit Kästchen, ohne JavaScript bedienbar).
+    Kontext: settings, archives [{slug, title, deleted, folder, restorable, reason}], error, trash, back_url. -#}
+{% extends "base.html" %}
+{% block title %}Archiv – Baruch{% endblock %}
+{% block page_title %}Archiv der gelöschten Werke{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke">Werke</a>
+  {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page works-archive">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Archiv der gelöschten Werke</h1>
+  <p class="muted">Ein gelöschtes Werk liegt mit seinem Git-Spiegel unter <code>works/{{ trash }}/</code>. Wiederherstellen legt es
+    mit seinem alten Ordnernamen und Titel neu an: die aktuellen Texte als Fassung 1 („aus dem Archiv wiederhergestellt“),
+    die Werkvorlage und die Satz-Einstellungen aus dem Spiegel. Ältere Fassungen, Beiträge und Befunde bleiben nur in der
+    Git-Historie des Ordners lesbar; Bilder kommen nicht mit, und die Werkart geht verloren (eine Predigt kommt als „Buch“
+    zurück). Einfälle des Werks bleiben Einfälle ohne Werk – sie lassen
+    sich danach auf der Seite „Einfälle“ einem Werk zuordnen.</p>
+  {%- if archives %}
+  <table class="works-table">
+    <thead>
+      <tr><th scope="col">Titel</th><th scope="col">Ordner</th><th scope="col">Gelöscht</th><th scope="col"><span class="visually-hidden">Aktion</span></th></tr>
+    </thead>
+    <tbody>
+    {%- for a in archives %}
+      <tr id="archiv-{{ a.slug }}">
+        <td><strong>{{ a.title }}</strong></td>
+        <td class="small">{% if a.folder %}<code>{{ a.folder }}</code>{% else %}<span class="muted">nicht gefunden</span>{% endif %}</td>
+        <td class="small">{{ a.deleted }}</td>
+        <td class="works-actions">
+          {%- if a.restorable %}
+          <form class="archive-restore" action="/werke/archiv/wiederherstellen" method="post" aria-label="{{ a.title }} wiederherstellen">
+            <input type="hidden" name="slug" value="{{ a.slug }}">
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> „{{ a.title }}“ wiederherstellen</label>
+            <button class="btn primary" type="submit">Wiederherstellen</button>
+          </form>
+          {%- else %}
+          <span class="muted small">Nicht wiederherstellbar: {{ a.reason }}</span>
+          {%- endif %}
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted">Das Archiv ist leer: Es gibt keine gelöschten Werke.</p>
+  {%- endif %}
+</main>
+{% endblock %}

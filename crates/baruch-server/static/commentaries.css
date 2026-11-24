@@ -1,0 +1,18 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Kommentare und Lexika (Runde 15, Punkt 5b): Kommentar-Panel `<details class="commentaries">` und
+   Treffergruppen „Kommentar“ (bibles::commentary_panel_html, commentary_hits_html); Auswahl je Werk auf der
+   Seite Einstellungen → Werk; Modell-Verbindungen und Verbindung je Persona (R15b). Ohne JavaScript. */
+.commentaries { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 8px 0; }
+.commentaries > summary { cursor: pointer; font-weight: 600; }
+.commentaries .commentary { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 6px; }
+.commentaries .commentary > summary { cursor: pointer; margin: 0 0 4px; }
+.commentaries .commentaries-tools { display: flex; gap: .4rem; margin: 4px 0; }
+.commentaries .commentary-entry p { margin: 2px 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.commentaries .commentary-notice { margin: 0; }
+.commentary-hits ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.commentary-hits .hit-group-title { margin: 4px 0; }
+.settings-sword fieldset { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 6px; }
+.model-connection { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.model-connection h4 { margin: 0; }
+.model-connection-new > summary { cursor: pointer; }
+.persona-backend fieldset, .persona-bible fieldset { display: flex; flex-direction: column; gap: 4px; }

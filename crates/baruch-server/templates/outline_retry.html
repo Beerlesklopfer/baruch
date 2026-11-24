@@ -1,0 +1,32 @@
+{#- Runde 23a (Codereview web-4): /gliederung/act hat outline.save ohne JavaScript abgelehnt (z. B. ungültige
+    Überschriftenebene, veraltete Grundlage). Die Seite zeigt die Meldung und den eingegebenen Text in einem
+    Textfeld, damit nichts verloren geht; „Erneut speichern“ schickt ihn wieder an /gliederung/act.
+    Kontext: work {id, title}, node {id, key, title}?, message, body, based_on?, based_on_amend?, mode?, lq?, view?,
+    back_url. -#}
+{% extends "base.html" %}
+{% block title %}Nicht gespeichert – Baruch{% endblock %}
+{% block page_title %}Nicht gespeichert · {{ work.title }}{% endblock %}
+{% block body %}
+<main class="outline-page">
+  <h1 class="pane-title">{% if node %}{{ node.title }}{% else %}Speichern{% endif %}</h1>
+  <p class="notice error" role="alert">Nicht gespeichert: {{ message }}</p>
+  <form method="post" action="/gliederung/act" class="outline-confirm outline-retry">
+    <input type="hidden" name="method" value="outline.save">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    {%- if node %}
+    <input type="hidden" name="node" value="{{ node.id }}">
+    <input type="hidden" name="key" value="{{ node.key }}">
+    {%- endif %}
+    {%- if based_on is not none %}<input type="hidden" name="based_on" value="{{ based_on }}">{% endif %}
+    {%- if based_on_amend is not none %}<input type="hidden" name="based_on_amend" value="{{ based_on_amend }}">{% endif %}
+    {%- if mode %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
+    {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
+    {%- if view %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+    <label class="small" for="outline-retry-body">Ihr Text (noch nicht gespeichert)</label>
+    <textarea id="outline-retry-body" name="body" rows="24" required spellcheck="true" lang="de">{{ body }}</textarea>
+    <button class="btn primary" type="submit">Erneut speichern</button>
+    <a class="btn" href="{{ back_url }}">Zurück ohne Speichern</a>
+  </form>
+  <p class="muted tiny">„Zurück ohne Speichern“ verwirft den Text; er ist dann nicht gespeichert.</p>
+</main>
+{% endblock %}

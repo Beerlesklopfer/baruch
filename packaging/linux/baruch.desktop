@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Baruch
+GenericName=Schreibwerkstatt
+GenericName[en]=Writing workshop
+Comment=Freie Schreibwerkstatt für Bücher und Predigten
+Comment[en]=Free writing workshop for books and sermons
+Exec=baruch
+Icon=baruch
+Terminal=false
+Categories=Office;WordProcessor;
+Keywords=Buch;Predigt;Typst;Schreiben;
+StartupNotify=false

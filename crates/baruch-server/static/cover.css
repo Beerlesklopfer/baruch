@@ -1,0 +1,95 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Umschlag und Buchangaben (Runde 11): Seite /werke/{id}/umschlag, Block „Umschlag“ auf der Seite
+   „Bilder“ und in den Einstellungen, Vorschaubild in Werkübersicht und Gliederung. Farben aus app.css. */
+
+.cover-panel, .book-panel {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.cover-current { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.cover-thumb { max-width: 160px; height: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
+.cover-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin: 0; }
+.cover-form label { display: flex; flex-direction: column; gap: 4px; }
+.cover-form select { min-height: 30px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.cover-area { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin: 0; }
+.cover-area label { flex-direction: row; align-items: center; gap: 4px; }
+.book-form label.check { flex-direction: row; align-items: center; gap: 6px; }
+
+.cover-preview { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.cover-preview img { max-width: 100%; height: auto; border: 1px solid var(--line); background: #fff; }
+.cover-check ul { margin: 0; padding-left: 18px; }
+
+/* Werkübersicht: kleines Umschlagbild je Werk. */
+.works-cover { width: 56px; }
+.works-cover img { width: 48px; height: auto; border: 1px solid var(--line); border-radius: 3px; display: block; }
+
+/* Kopf der Gliederung: kleines Umschlagbild. */
+.tree-cover { width: 28px; height: auto; border: 1px solid var(--line); border-radius: 2px; }
+
+/* Umschlag-Editor (Runde 27c): Vorschau mit Rahmen und Hilfslinien, Seitenleiste mit den Werten je Block. Farben
+   nur aus den Tokens von app.css (hell und dunkel); die Vorschau selbst bleibt der gesetzte Umschlag. */
+html:not(.js) .cover-js-only { display: none; }
+.cover-editor {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.cover-editor-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cover-editor-toolbar [data-cover-status].error { color: var(--danger); }
+.cover-editor-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 900px) { .cover-editor-body { grid-template-columns: minmax(0, 1fr); } }
+.cover-stage {
+  position: relative; width: 100%; overflow: visible; touch-action: none; user-select: none;
+  background: var(--bg); border: 1px solid var(--line); margin-top: 1.6em;
+}
+.cover-stage-image { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #fff; pointer-events: none; }
+.cover-guides { position: absolute; inset: 0; pointer-events: none; }
+.cover-guide { position: absolute; box-sizing: border-box; }
+.cover-guide.guide-bleed { border: 1px dashed var(--danger); }
+.cover-guide.guide-trim { border: 1px solid var(--text); opacity: 0.55; }
+.cover-guide.guide-safety { border: 1px dotted var(--primary); }
+.cover-guide.guide-spine { border-left: 1px solid var(--warning); }
+.cover-guide.guide-center { border-left: 1px dashed var(--success); border-top: 1px dashed var(--success); opacity: 0.7; }
+.cover-block {
+  position: absolute; box-sizing: border-box; min-width: 4px; min-height: 4px;
+  border: 1px dashed var(--primary); background: color-mix(in srgb, var(--primary-soft) 8%, transparent);
+  cursor: move; outline: none;
+}
+.cover-block.is-hidden { opacity: 0.4; border-style: dotted; }
+.cover-block.is-dirty { border-style: solid; }
+.cover-block.is-selected, .cover-block:focus-visible {
+  border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); z-index: 2;
+  /* Die Vorschau darunter bleibt lesbar (Sichtprüfung R27: 45 % hellblau verdeckte hellen Titel auf dunklem Bild). */
+}
+.cover-block-name {
+  position: absolute; left: 0; top: -1.4em; font-size: 11px; line-height: 1.3; white-space: nowrap;
+  padding: 0 4px; border-radius: 3px; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  pointer-events: none;
+}
+.cover-block:not(.is-selected):not(:focus-visible):not(:hover) .cover-block-name { opacity: 0.75; }
+/* Runde 23a (Sichtprüfung R27): Auf dem schmalen Rücken überlagerten sich die Namensschilder gegenseitig und mit
+   denen der Vorderseite. Ein Rückenblock zeigt sein Schild nur, wenn er gewählt ist, den Fokus hat oder die Maus
+   darauf steht; dann liegt es über allen anderen. Der Name steht weiter in aria-label und in der Feldliste. */
+.cover-block.is-spine:not(.is-selected):not(:focus-visible):not(:focus):not(:hover) .cover-block-name { display: none; }
+.cover-block.is-spine .cover-block-name { z-index: 5; }
+.cover-handle {
+  position: absolute; width: 10px; height: 10px; box-sizing: border-box;
+  background: var(--panel); border: 2px solid var(--primary); border-radius: 2px;
+}
+.cover-block .handle-start { left: -6px; top: -6px; cursor: ew-resize; }
+.cover-block .handle-end { right: -6px; bottom: -6px; cursor: ew-resize; }
+.cover-block.is-spine .handle-start, .cover-block.is-spine .handle-end { cursor: ns-resize; }
+.cover-layout-form { display: flex; flex-direction: column; gap: 6px; margin: 0; max-height: 80vh; overflow: auto; }
+.cover-block-fields { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; background: var(--bg); }
+.cover-block-fields > summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+.cover-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
+.cover-field-grid label, .cover-field-text { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.cover-field-grid input, .cover-field-grid select, .cover-field-text textarea {
+  min-height: 26px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); font: inherit;
+}
+.cover-layout-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--panel); padding: 6px 0;
+}
+.cover-layout-more { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.cover-check li[data-cover-warning] { color: var(--warning); }
+.cover-imprint-form { flex-direction: column; align-items: flex-start; }

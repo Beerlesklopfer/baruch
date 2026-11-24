@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Webseite: baut die Hugo-Seite (site/) und liefert sie über GitHub Pages aus – bei Push auf main und von Hand.
+# Ablauf und einmalige Einrichtung: docs/Verteilung.md.
+#
+# - Ein Seiten-Push darf das APT-Repository nicht löschen: Pages ersetzt immer die ganze Seite. Darum holt der
+#   Ablauf apt-repo.tar.gz des letzten veröffentlichten Release und legt es wieder nach /apt/.
+# - Gibt es noch kein veröffentlichtes Release mit dem Archiv, erscheint die Seite ohne /apt/ (Warnung). Jeder
+#   andere Fehler beim Abruf bricht ab – lieber keine neue Seite als eine ohne Repository.
+# - Grenze: Entwürfe sieht ein Token mit `contents: read` nicht. Liegt das jüngste Release noch als Entwurf vor,
+#   liefert dieser Ablauf das Repository des vorigen veröffentlichten Release aus (docs/Verteilung.md).
+# - Aktionen sind auf Commit-SHAs festgelegt (am 2026-11-24 mit `git ls-remote` gegen die Tags geprüft); Hugo
+#   lädt scripts/ci-tool.sh in fester Version mit Prüfsumme. Kein Geheimnis außer dem GITHUB_TOKEN des Laufs.
+name: Webseite
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Dieselbe Gruppe wie der Job „pages“ in release.yml: nie zwei Auslieferungen zugleich, keine wird abgebrochen.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    name: Webseite und /apt/ ausliefern (GitHub Pages)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Hugo (feste Version, Prüfsumme)
+        run: sh scripts/ci-tool.sh hugo "$RUNNER_TEMP/werkzeug"
+
+      - name: APT-Repository des letzten veröffentlichten Release holen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          rc=0
+          sh scripts/ci-apt-fetch.sh apt-base || rc=$?
+          case "$rc" in
+            0) ;;
+            3) echo "::warning::Kein veröffentlichtes Release mit apt-repo.tar.gz – die Seite erscheint ohne /apt/." ;;
+            *) exit "$rc" ;;
+          esac
+
+      # Versionsabgleich, `hugo --minify --panicOnWarning -s site`, Repository nach site/public/apt/.
+      - name: Seite bauen, APT-Repository nach /apt/
+        run: |
+          set -eu
+          if [ -f apt-base/apt-repo.tar.gz ]; then
+            HUGO="$RUNNER_TEMP/werkzeug/hugo" sh scripts/ci-site.sh --apt apt-base/apt-repo.tar.gz
+          else
+            HUGO="$RUNNER_TEMP/werkzeug/hugo" sh scripts/ci-site.sh
+          fi
+
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: site/public
+
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

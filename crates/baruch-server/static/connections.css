@@ -1,0 +1,49 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Einstellungen „Verbindungen“ und „Quellen“ (Runde 9, Aufgabe „connections“). */
+.connections-page, .sources-page { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.connection { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.connection-title { font-size: 14px; margin: 0; }
+/* Bibeln (SWORD) auf der Seite „Quellen“ (2026-11-06). */
+.bibles { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.bible-list { border-collapse: collapse; width: 100%; font-size: 13px; }
+.bible-list th, .bible-list td { text-align: left; vertical-align: top; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.bible-problems { margin: 0; padding-left: 1.2em; }
+.connection-form, .source-form { display: flex; flex-direction: column; gap: 6px; }
+.connection-field { display: grid; grid-template-columns: minmax(8em, 12em) minmax(0, 1fr); gap: 2px 8px; align-items: center; }
+.connection-field > span:first-child { font-size: 12.5px; color: var(--muted); }
+.connection-field > .tiny { grid-column: 2; }
+.connection-field input:not([type=checkbox]), .connection-field select, .connection-field textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.connection-actions, .connection-row, .source-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.connection-row form, .source-actions form { display: flex; gap: 6px; align-items: center; margin: 0; }
+.connection-check { border-left: 3px solid var(--line); padding: 4px 8px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.connection-check.ok { border-left-color: var(--success); background: var(--success-soft); }
+.connection-check.failed { border-left-color: var(--danger); background: var(--danger-soft); }
+.connection-personas { margin: 2px 0 0; padding-left: 1.2em; }
+.connection-personas .model-known { color: var(--success); }
+.connection-personas .model-unknown { color: var(--danger); }
+.connection-probe { display: flex; flex-direction: column; gap: 6px; }
+.source-list { margin: 0; padding-left: 1.5em; display: flex; flex-direction: column; gap: 10px; }
+.source-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; overflow-wrap: anywhere; }
+.source-note { margin: 2px 0; white-space: pre-wrap; }
+.source-edit > summary { display: inline-block; list-style: none; }
+.source-edit[open] { flex-basis: 100%; }
+/* Runde 12 (pgvector): Sammlungen je Werk, Status der Wege, Index neu aufbauen. */
+.rag-subtitle { font-size: 13px; margin: 4px 0 0; }
+.rag-collections, .rag-reindex, .rag-status { border-top: 1px solid var(--line); padding-top: 8px; }
+.rag-collection-list { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.rag-ways { margin: 0; padding-left: 1.2em; overflow-wrap: anywhere; }
+.rag-state { font-weight: 600; }
+.rag-state-connected { color: var(--success); }
+.rag-state-failed { color: var(--danger); }
+.rag-state-off { color: var(--muted); }
+.rag-index { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 10px; margin: 4px 0 0; }
+.rag-index dt { color: var(--muted); }
+.rag-index dd { margin: 0; overflow-wrap: anywhere; }
+.rag-problem { color: var(--danger); }
+/* Runde 19b: TLS-Hinweis bei Passwort mit prefer/disable, liegengebliebene Aufträge des Index. */
+.connection-tls-warning { border-left: 3px solid var(--warning); background: var(--warning-soft); color: var(--warning); padding: 4px 8px; margin: 0; }
+.rag-stale { color: var(--warning); }
+@media (max-width: 640px) {
+  .connection-field { grid-template-columns: minmax(0, 1fr); }
+  .connection-field > .tiny { grid-column: 1; }
+}

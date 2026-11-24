@@ -1,0 +1,56 @@
+{#- Kleine Baumansicht der Fassungen: zuerst der Abschnitt, aufklappbar das ganze Kapitel (<details>,
+    geht ohne JavaScript). Eingerückt nach based_on (depth), je Fassung Nummer, Status, Autor bzw.
+    Persona (Modell) in ihrer Farbe (r.style), Zeit, „geändert“; die aktuelle ist markiert, die gezeigte hervorgehoben.
+    Links: „zeigen“ (Editor auf diese Fassung) und „in der Vorschau probieren“ (pick, ohne Umschalten).
+    Kontext: revtree.section (Liste), revtree.chapter (Liste von {node, number, title, current,
+    selected, revisions}).
+    Runde 28 (befund-uebersicht): je Fassung „✓ setzt Befund [B x], [B y] um“ (r.findings, übernommene Befunde aus
+    findings_adopted_in) und offene Vorschläge „übernommen in dieser Fassung“ (r.proposed_findings), mit Links auf die
+    Befunde.
+    Runde 30b (chat-loesungen): Varianten des Lektors tragen ihr Etikett „Variante A/B/C“, die Zeile, die umgesetzten
+    Befunde und den Link „vergleichen“ (/varianten, nebeneinander); r.variant aus assist::variants::revision_variant.
+    Runde 22 (fassungen): je fortgeschriebener Fassung „Stand k“ mit Link auf den Verlauf (r.history_url), je Vorschlag
+    auf einer fortgeschriebenen Basis „beruht auf Stand k“ (r.based_on_amend). -#}
+{%- macro rows(revisions) %}
+  <ul class="revtree-list">
+  {%- for r in revisions %}
+    <li class="revtree-item {{ r.status_key }}{% if r.current %} is-current{% endif %}{% if r.shown %} shown{% endif %}" style="--depth:{{ r.depth }}" data-rev="{{ r.number }}"{% if r.based_on %} data-based-on="{{ r.based_on }}"{% endif %}>
+      <span class="revtree-num">{{ r.number }}</span>
+      {%- if r.current %} <span class="badge success" title="Diese Fassung wird erzeugt">aktuell</span>
+      {%- else %} <span class="muted small">{{ r.status }}</span>{% endif %}
+      <span class="revtree-author small{% if r.style %} pc pc-chip{% endif %}"{% if r.style %} style="{{ r.style }}"{% endif %}>{% if r.persona %}Persona {% endif %}{{ r.author }}</span>
+      <span class="muted tiny">{{ r.created }}{% if r.edited %} · geändert {{ r.edited }}{% endif %}</span>
+      {%- if r.amend_seq %} <a class="revtree-amend tiny" href="{{ r.history_url }}" title="Verlauf der Fortschreibungen von Fassung {{ r.number }}">Stand {{ r.amend_seq }}</a>{% endif %}
+      {%- if r.based_on_amend %} <span class="muted tiny" title="Stand der Basis, als der Vorschlag entstand">beruht auf{% if r.based_on %} Fassung {{ r.based_on }},{% endif %} Stand {{ r.based_on_amend }}</span>{% endif %}
+      {%- if r.variant %}
+      <span class="revtree-variant tiny" data-variant-group="{{ r.variant.group }}" title="{{ r.variant.title }}"><span class="badge variant">Variante {{ r.variant.label }}</span> {{ r.variant.summary }}
+        {%- if r.variant.findings %} · setzt {% for id in r.variant.findings %}[B{{ id }}]{% if not loop.last %}, {% endif %}{% endfor %} um{% endif %}
+        · <a href="/varianten?work={{ work.id }}&amp;group={{ r.variant.group }}">vergleichen</a></span>
+      {%- endif %}
+      {%- if r.findings %}
+      <span class="revtree-findings tiny" data-findings-adopted="{{ r.findings | join(',') }}">✓ setzt Befund {% for id in r.findings %}<a href="{{ r.findings_base }}?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %} um</span>
+      {%- endif %}
+      {%- if r.proposed_findings %}
+      <span class="revtree-findings proposed tiny" data-findings-proposed="{{ r.proposed_findings | join(',') }}"><span class="badge primary">Vorschlag</span> setzt Befund {% for id in r.proposed_findings %}<a href="{{ r.findings_base }}?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %} um (offen, der Mensch bestätigt)</span>
+      {%- endif %}
+      <span class="revtree-links tiny">
+        {%- if r.shown %}<span class="muted">gezeigt</span>{% else %}<a data-nav href="{{ r.show_url }}">zeigen</a>{% endif %}
+        · <a data-nav href="{{ r.try_url }}">in der Vorschau probieren</a></span>
+    </li>
+  {%- endfor %}
+  </ul>
+{%- endmacro %}
+<section class="revtree" aria-label="Fassungen">
+  <h3 class="pane-title">Fassungen dieses Abschnitts</h3>
+  {{- rows(revtree.section) }}
+  <details class="revtree-chapter">
+    <summary class="small">Fassungen des ganzen Kapitels</summary>
+    {%- for s in revtree.chapter %}
+    <div class="revtree-section{% if s.selected %} selected{% endif %}" data-node="{{ s.node }}">
+      <div class="small"><strong>{% if s.number %}<span class="num">{{ s.number }}</span>{% endif %}{{ s.title }}</strong>
+        {%- if s.current %} <span class="muted tiny">aktuell: Fassung {{ s.current }}</span>{% endif %}</div>
+      {%- if s.revisions %}{{ rows(s.revisions) }}{% else %}<p class="muted tiny">Keine Fassungen.</p>{% endif %}
+    </div>
+    {%- endfor %}
+  </details>
+</section>

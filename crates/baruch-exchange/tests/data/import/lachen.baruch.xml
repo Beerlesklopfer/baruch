@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- „Billion Laughs“: verschachtelte innere Entitäten in einer DTD. Der Leser muss sie ablehnen, ohne sie
+     aufzulösen (Runde 26, F7). -->
+<!DOCTYPE werk [
+  <!ENTITY a "ha">
+  <!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">
+  <!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">
+  <!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">
+  <!ENTITY e "&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;">
+  <!ENTITY f "&e;&e;&e;&e;&e;&e;&e;&e;&e;&e;">
+  <!ENTITY g "&f;&f;&f;&f;&f;&f;&f;&f;&f;&f;">
+  <!ENTITY h "&g;&g;&g;&g;&g;&g;&g;&g;&g;&g;">
+  <!ENTITY i "&h;&h;&h;&h;&h;&h;&h;&h;&h;&h;">
+]>
+<werk xmlns="urn:baruch:werk:1" version="1" uuid="c0000000-0000-4000-8000-000000000001" art="buch">
+  <ausgabe zeit="2026-03-01T10:00:00.000Z" instanz="c0000000-0000-4000-8000-000000000002" instanzname="&i;" programm="x"/>
+</werk>

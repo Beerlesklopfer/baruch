@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Externe Entität: verlangte eine Datei des Rechners. Der Leser muss ablehnen, ohne etwas zu lesen (Runde 26,
+     F7). -->
+<!DOCTYPE werk [
+  <!ENTITY geheim SYSTEM "file:///etc/hostname">
+]>
+<werk xmlns="urn:baruch:werk:1" version="1" uuid="c0000000-0000-4000-8000-000000000001" art="buch">
+  <ausgabe zeit="2026-03-01T10:00:00.000Z" instanz="c0000000-0000-4000-8000-000000000002" instanzname="&geheim;" programm="x"/>
+</werk>

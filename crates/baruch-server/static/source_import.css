@@ -1,0 +1,16 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Runde 21a (pdf-import): Seite „PDF oder EPUB importieren“ (templates/source_import.html), ohne JavaScript. */
+.source-import { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+.source-import-form, .source-import-apply, .source-import-retry, .source-import-discard {
+  display: flex; flex-direction: column; gap: .6rem; margin-bottom: 1.2rem;
+}
+.source-import-form label, .source-import-apply > label { display: flex; flex-direction: column; gap: .2rem; }
+.source-import-way label, .source-import-target label, .source-import-upload { display: block; }
+.source-import-way, .source-import-target { border: 1px solid var(--line, #ccc); border-radius: 4px; padding: .4rem .8rem; }
+.source-import-retry { border: 1px solid var(--warning); border-radius: 4px; padding: .6rem .8rem; }
+.source-import-discard { flex-direction: row; align-items: center; }
+.source-import-warnings, .source-import-skipped { margin: .4rem 0 .8rem; padding-left: 1.2rem; }
+.source-import-warnings code { font-size: .8em; opacity: .75; }
+.source-import-outline { padding-left: 1.6rem; display: flex; flex-direction: column; gap: .5rem; }
+.source-import-line { width: 100%; font-family: var(--mono, monospace); }
+.source-import-sample { margin: .2rem 0 0; max-width: 55rem; }

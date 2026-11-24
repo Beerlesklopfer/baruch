@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later
+     Windows-Installationspaket für Baruch (WiX Toolset 3, x64, Installation für alle Benutzer).
+     Gebaut von packaging/windows/build-msi.ps1 mit
+       -dVersion=…  -dBinary=…\baruch-server.exe  -dSourceDir=<Wurzel des Repos>
+       -dLicenses=…\THIRD-PARTY-LICENSES.txt  -dSourceOffer=…\QUELLTEXT.txt
+     Im Installationsordner liegen LICENSE.txt, THIRD-PARTY-LICENSES.txt, QUELLTEXT.txt (Quellcode-Angebot mit
+     der Adresse des Repos) und README.md.
+     Die Daten liegen je Benutzer unter %LOCALAPPDATA%\baruch; der Installer legt dort nichts an und löscht
+     beim Entfernen nichts: Kein Element dieser Datei nennt LocalAppDataFolder oder AppDataFolder, das einzige
+     RemoveFolder gilt dem eigenen Ordner im Startmenü, und der Registrierungswert HKCU\Software\Baruch
+     „installed“ ist nur der Schlüsselpfad der Verknüpfung (keine Einstellung, keine Daten).
+     UpgradeCode nie ändern – daran erkennt Windows eine ältere Installation.
+     Unsigniert; das Signieren ist ein eigener, abschaltbarer Schritt in release.yml (WINDOWS_SIGN).
+     STAND: noch nie gebaut (lokal kein Windows); erster Lauf in der CI zeigt, ob candle/light zufrieden sind. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Baruch" Language="1031" Codepage="1252" Version="$(var.Version)"
+           Manufacturer="Jörg Bernau" UpgradeCode="828B9227-5F12-4387-BEDA-17869D69C19C">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"
+             Description="Baruch – freie Schreibwerkstatt für Bücher und Predigten"
+             Comments="AGPL-3.0-or-later, Quelltext: https://github.com/Beerlesklopfer/baruch" />
+    <MajorUpgrade DowngradeErrorMessage="Eine neuere Version von Baruch ist schon installiert." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="BaruchIcon.ico" SourceFile="$(var.SourceDir)\packaging\icons\baruch.ico" />
+    <Property Id="ARPPRODUCTICON" Value="BaruchIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://baruch.bernau.family/" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Beerlesklopfer/baruch" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Baruch" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="BaruchMenuFolder" Name="Baruch" />
+      </Directory>
+    </Directory>
+
+    <ComponentGroup Id="BaruchFiles" Directory="INSTALLFOLDER">
+      <Component Id="ServerExe" Guid="*" Win64="yes">
+        <File Id="ServerExe" Name="baruch-server.exe" Source="$(var.Binary)" KeyPath="yes" />
+      </Component>
+      <Component Id="StartCmd" Guid="*" Win64="yes">
+        <File Id="StartCmd" Name="baruch-start.cmd"
+              Source="$(var.SourceDir)\packaging\windows\baruch-start.cmd" KeyPath="yes" />
+      </Component>
+      <Component Id="IconFile" Guid="*" Win64="yes">
+        <File Id="IconFile" Name="baruch.ico" Source="$(var.SourceDir)\packaging\icons\baruch.ico" KeyPath="yes" />
+      </Component>
+      <Component Id="LicenseFile" Guid="*" Win64="yes">
+        <File Id="LicenseFile" Name="LICENSE.txt" Source="$(var.SourceDir)\LICENSE" KeyPath="yes" />
+      </Component>
+      <Component Id="ThirdPartyFile" Guid="*" Win64="yes">
+        <File Id="ThirdPartyFile" Name="THIRD-PARTY-LICENSES.txt" Source="$(var.Licenses)" KeyPath="yes" />
+      </Component>
+      <Component Id="SourceOfferFile" Guid="*" Win64="yes">
+        <File Id="SourceOfferFile" Name="QUELLTEXT.txt" Source="$(var.SourceOffer)" KeyPath="yes" />
+      </Component>
+      <Component Id="ReadmeFile" Guid="*" Win64="yes">
+        <File Id="ReadmeFile" Name="README.md" Source="$(var.SourceDir)\README.md" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <DirectoryRef Id="BaruchMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="43573A9A-FD77-439E-A49A-FFDF8072F987" Win64="yes">
+        <Shortcut Id="BaruchShortcut" Name="Baruch"
+                  Description="Baruch starten und die Oberfläche im Browser öffnen"
+                  Target="[INSTALLFOLDER]baruch-start.cmd" WorkingDirectory="INSTALLFOLDER"
+                  Icon="BaruchIcon.ico" Show="minimized" />
+        <RemoveFolder Id="RemoveBaruchMenuFolder" Directory="BaruchMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Baruch" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Main" Title="Baruch" Level="1">
+      <ComponentGroupRef Id="BaruchFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Product>
+</Wix>

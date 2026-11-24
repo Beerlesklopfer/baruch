@@ -1,0 +1,260 @@
+{#- Seite /werke/{id}/karte (Vertrag Runde 25 §4.3/§4.4, src/idea_map/bild/mod.rs): Gedankenkarte der Einfälle eines
+    Werks als SVG (DOM-Vertrag: .im-stage[data-widget=idea-map], .im-svg, .im-viewport, Kanten <line>, Knoten mit
+    data-node/data-x/data-y/data-r), darunter die Gliederungsliste mit den Formularen „Bezug setzen“,
+    „Verbinden mit …“ und „Lösen“ und die Liste „Widersprüche“. Alles ohne JavaScript bedienbar (Formulare an
+    POST /werke/{id}/karte/act, Filter per GET); das Widget idea-map (web/src/idea_map.ts) ergänzt Zoom, Ziehen und
+    Tastatur. fragments/idea_capture.html ist hier bewusst nicht eingebunden (Alt+E gehört auf der Karte dem Widget).
+    Kontext: settings, work {id, title}, title, svg (sicher, in svg.rs maskiert), back (Abfrageteil), here, outputs
+    {svg, pdf, md, mm}, act, ideas_href, workspace, filter {status, word, origin, q, near, open, words}, words,
+    near_note, groups [{id, title, kind, key, depth, node_href, sections, toggle, is_open, counts, empty, ideas}],
+    node_options, idea_options, kinds, contradictions, stats, clusters, notice, undo, error.
+    Runde 19b: clusters [{group, ideas [{id, href, label}], words, proposal {name, persona, model, at} | none}] – Gruppen
+    der Nähe; Knopf „Gruppen benennen (Assistent)“ (method=idea.map_groups_name), je Gruppe „Übernehmen“
+    (idea.map_group_accept, Feld name änderbar) und „Verwerfen“ (idea.map_group_dismiss), alles Formulare an act.
+    Runde 28 (befund-uebersicht): Ebene „Befunde“ (filter.findings, Adresse befunde=1; Kästchen im Filter und Link
+    findings_toggle ohne JavaScript): je Gruppe g.open_findings (offene Befunde samt Unterpunkten, Zählregel §1.5) mit
+    Link g.findings_href, Kapitel ab many_findings offenen hervorgehoben (g.many_findings, im SVG im-many-findings). -#}
+{% extends "base.html" %}
+{% block title %}Gedankenkarte · {{ title }} – Baruch{% endblock %}
+{% block page_title %}Gedankenkarte · {{ title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ ideas_href }}">Einfälle</a>
+  <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="karte">
+  {%- if notice %}
+  <div class="notice" role="status">{{ notice }}
+    {%- if undo %}
+    <form class="im-inline" method="post" action="{{ act }}">
+      <input type="hidden" name="method" value="idea.link_restore">
+      <input type="hidden" name="id" value="{{ undo }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="btn small" type="submit">Wiederherstellen</button>
+    </form>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+
+  <form class="im-filter" method="get" action="/werke/{{ work.id }}/karte" role="search" aria-label="Gedankenkarte filtern">
+    <label>Status
+      <select name="status">
+        <option value="all"{% if filter.status == "all" %} selected{% endif %}>alle</option>
+        <option value="open"{% if filter.status == "open" %} selected{% endif %}>offen</option>
+        <option value="done"{% if filter.status == "done" %} selected{% endif %}>verarbeitet</option>
+      </select></label>
+    <label>Schlagwort <input type="text" name="word" value="{{ filter.word }}" size="14" list="im-words"></label>
+    <datalist id="im-words">
+      {%- for w in words %}<option value="{{ w }}">{% endfor %}
+    </datalist>
+    <label>Herkunft
+      <select name="origin">
+        <option value=""{% if not filter.origin %} selected{% endif %}>alle</option>
+        <option value="human"{% if filter.origin == "human" %} selected{% endif %}>Mensch</option>
+        <option value="persona"{% if filter.origin == "persona" %} selected{% endif %}>Persona</option>
+        <option value="mcp"{% if filter.origin == "mcp" %} selected{% endif %}>MCP</option>
+      </select></label>
+    <label>Suche <input type="search" name="q" value="{{ filter.q }}" size="16" placeholder="Wörter hervorheben"></label>
+    {#- Ein nicht angekreuztes Kästchen schickt nichts: das versteckte near=0 davor gilt dann (letzter Wert gewinnt). #}
+    <input type="hidden" name="near" value="0">
+    <label class="inline"><input type="checkbox" name="near" value="1"{% if filter.near %} checked{% endif %}> Nähe zeigen</label>
+    <input type="hidden" name="befunde" value="0">
+    <label class="inline"><input type="checkbox" name="befunde" value="1"{% if filter.findings %} checked{% endif %}> Ebene Befunde</label>
+    {%- for k in filter.open %}
+    <input type="hidden" name="open" value="{{ k }}">
+    {%- endfor %}
+    <button class="btn" type="submit">Anwenden</button>
+    {%- if filter.words %}<a class="btn" href="/werke/{{ work.id }}/karte">Filter aufheben</a>{% endif %}
+    <a class="small im-findings-toggle" href="{{ findings_toggle }}">{% if filter.findings %}Ebene Befunde ausblenden{% else %}Ebene Befunde einblenden{% endif %}</a>
+  </form>
+  {%- if filter.findings %}<p class="muted small im-findings-note" role="note">Ebene Befunde: Zahl „k offen“ je Kapitel (offene Befunde samt Abschnitten); Kapitel mit {{ many_findings }} oder mehr offenen sind hervorgehoben. <a href="{{ findings_href }}">Alle Befunde</a></p>{% endif %}
+  {%- if filter.words %}<p class="muted small im-filter-words">Filter: {{ filter.words }}</p>{% endif %}
+
+  <div class="im-stage{% if not filter.near %} im-hide-near{% endif %}{% if filter.findings %} im-findings-layer{% endif %}" data-widget="idea-map" data-work="{{ work.id }}" data-near="{% if filter.near %}1{% else %}0{% endif %}">
+    <div class="im-toolbar" data-im-toolbar>
+      <span class="muted small">{{ stats.ideas }} Einfälle · {{ stats.links }} Verbindungen{% if stats.pinned %} · {{ stats.pinned }} von Hand platziert{% endif %}</span>
+      <span class="grow"></span>
+      <span class="small">Ausgeben:</span>
+      <a class="btn small" href="{{ outputs.svg }}" title="Karte als SVG-Grafik">SVG</a>
+      <a class="btn small" href="{{ outputs.pdf }}" download title="Karte als PDF (A4 quer)">PDF</a>
+      <a class="btn small" href="{{ outputs.md }}" title="Gliederung Kapitel → Einfälle → Verbindungen als Markdown">Markdown</a>
+      <a class="btn small" href="{{ outputs.mm }}" download title="Mindmap für FreeMind und Freeplane">FreeMind</a>
+      <form class="im-inline" method="post" action="{{ act }}">
+        <input type="hidden" name="method" value="idea.map_pos_reset">
+        <input type="hidden" name="back" value="{{ back }}">
+        <button class="btn small" type="submit" title="Von Hand gesetzte Lagen verwerfen; alle Einfälle wieder automatisch anordnen">Anordnung zurücksetzen</button>
+      </form>
+      {#- Runde 19b: Der Assistent schlägt Namen für die Gruppen vor (nur im Speicher); übernehmen kann nur der Mensch (unten). #}
+      <form class="im-inline" method="post" action="{{ act }}" data-im-name-groups>
+        <input type="hidden" name="method" value="idea.map_groups_name">
+        <input type="hidden" name="back" value="{{ back }}">
+        <button class="btn small" type="submit" title="Der Lektor (bzw. die gewählte Persona) schlägt für jede Gruppe naher Einfälle einen Namen vor; Schlagwort wird er erst, wenn du ihn übernimmst">Gruppen benennen (Assistent)</button>
+      </form>
+    </div>
+    {%- if near_note %}<p class="muted small im-near-note" role="status">{{ near_note }}</p>{% endif %}
+    {{ svg }}
+    <aside class="im-side" data-im-side hidden aria-live="polite"></aside>
+  </div>
+
+  <p class="im-legend small" aria-label="Legende der Verbindungen">
+    {#- Runde 18a: Jede Kante trägt ihre Art auch als Beschriftung im Bild; gerichtete Arten mit Pfeilspitze. #}
+    <span class="im-key im-key-leads_to">führt weiter (durchgezogen, Pfeil)</span>
+    <span class="im-key im-key-belongs_to">gehört zu (gestrichelt, Pfeil)</span>
+    <span class="im-key im-key-example_of">Beispiel für (gepunktet, Pfeil)</span>
+    <span class="im-key im-key-contradicts">widerspricht (Strich-Punkt, ohne Pfeil)</span>
+    <span class="im-key im-key-ref">Bezug zum Kapitel (fein gestrichelt)</span>
+    <span class="im-key im-key-near">Nähe „nah“ (fein gepunktet, nur angezeigt)</span>
+  </p>
+
+  {#- Eine Auswahlliste für alle Formulare „Verbinden mit …“ (statt einer Liste je Einfall). #}
+  <datalist id="im-ideas">
+    {%- for o in idea_options %}<option value="{{ o.label }}">{% endfor %}
+  </datalist>
+
+  <section class="im-outline" aria-label="Gliederungsliste">
+    <h2 class="pane-title">Gliederung mit Einfällen</h2>
+    {%- for g in groups %}
+    <section class="im-group im-group-{{ g.kind }}{% if g.empty %} im-empty{% endif %}{% if g.many_findings %} im-many-findings{% endif %}" id="karte-{{ g.id | replace(':', '-') }}" style="--im-depth: {{ g.depth }}">
+      <h3 class="im-group-head">
+        {%- if g.node_href %}<a href="{{ g.node_href }}">{{ g.title }}</a>{% else %}{{ g.title }}{% endif %}
+        {%- if g.counts %} <span class="muted small">({{ g.counts }})</span>{% endif %}
+        {%- if g.empty %} <span class="badge warning">leer</span>{% endif %}
+        {%- if filter.findings and g.open_findings %} <a class="badge warning im-findings-badge{% if g.many_findings %} im-many{% endif %}" href="{{ g.findings_href }}" data-open-findings="{{ g.open_findings }}" title="{{ g.open_findings }} offene Befunde samt Abschnitten">{{ g.open_findings }} offen{% if g.many_findings %} – viele{% endif %}</a>{% endif %}
+        {%- if g.toggle %} <a class="small im-toggle" href="{{ g.toggle }}">{% if g.is_open %}Abschnitte zuklappen{% else %}Abschnitte aufklappen{% endif %}</a>{% endif %}
+      </h3>
+      {%- if g.sections %}
+      <p class="muted small im-sections">Abschnitte: {% for s in g.sections %}{{ s.name }} ({{ s.ideas }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+      {%- endif %}
+      {%- if g.ideas %}
+      <ul class="im-ideas">
+        {%- for i in g.ideas %}
+        <li class="im-entry{% if i.open %} im-open{% else %} im-done{% endif %}{% if not i.hit %} im-dim{% endif %}" id="karte-einfall-{{ i.id }}">
+          <a class="im-entry-title" href="{{ i.href }}">Einfall {{ i.id }}: {{ i.label }}</a>
+          <span class="badge {% if i.open %}warning{% else %}success{% endif %}">{{ i.status }}</span>
+          {%- if i.section %} <span class="muted small">Abschnitt {{ i.section }}</span>{% endif %}
+          <span class="muted tiny">{{ i.origin }}</span>
+          {%- if i.note %}<p class="im-note small">{{ i.note }}</p>{% endif %}
+          {%- if i.links %}
+          <ul class="im-links small" aria-label="Verbindungen von Einfall {{ i.id }}">
+            {%- for l in i.links %}
+            <li class="im-link-item im-kind-{{ l.kind }}">{{ l.arrow }} <a href="{{ l.other_href }}">Einfall {{ l.other }}</a>{% if l.other_label %} ({{ l.other_label }}){% endif %} <strong>{{ l.kind_label }}</strong>{% if l.note %} – „{{ l.note }}“{% endif %}
+              <form class="im-inline" method="post" action="{{ act }}">
+                <input type="hidden" name="method" value="idea.unlink">
+                <input type="hidden" name="id" value="{{ l.id }}">
+                <input type="hidden" name="back" value="{{ back }}">
+                <button class="btn small" type="submit" title="Verbindung lösen (wiederherstellbar)">Lösen</button>
+              </form>
+            </li>
+            {%- endfor %}
+          </ul>
+          {%- endif %}
+          <details class="im-forms">
+            <summary class="small">Bezug setzen, verbinden …</summary>
+            <form class="im-form" method="post" action="{{ act }}" aria-label="Bezug setzen für Einfall {{ i.id }}">
+              <input type="hidden" name="method" value="idea.update">
+              <input type="hidden" name="id" value="{{ i.id }}">
+              <input type="hidden" name="back" value="{{ back }}">
+              <label>Bezug
+                <select name="key">
+                  <option value=""{% if i.key is none %} selected{% endif %}>ohne Kapitel</option>
+                  {%- for o in node_options %}<option value="{{ o.key }}"{% if o.key == i.key %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+                </select></label>
+              <button class="btn small" type="submit">Bezug setzen</button>
+            </form>
+            <form class="im-form" method="post" action="{{ act }}" aria-label="Einfall {{ i.id }} verbinden">
+              <input type="hidden" name="method" value="idea.link">
+              <input type="hidden" name="from" value="{{ i.id }}">
+              <input type="hidden" name="back" value="{{ back }}">
+              <label>Verbinden mit Einfall <input type="text" name="to" list="im-ideas" inputmode="numeric" size="14" required placeholder="Nummer"></label>
+              <label>Art
+                <select name="kind">
+                  {%- for k in kinds %}<option value="{{ k.value }}">{{ k.label }}</option>{% endfor %}
+                </select></label>
+              <label>Notiz <input type="text" name="note" maxlength="500" size="20"></label>
+              <button class="btn small" type="submit">Verbinden</button>
+            </form>
+          </details>
+        </li>
+        {%- endfor %}
+      </ul>
+      {%- elif g.kind != "work" %}
+      <p class="muted small">{% if g.empty %}Keine Einfälle{% if filter.words %} für diesen Filter{% endif %}.{% else %}Keine eigenen Einfälle; sie hängen an den Punkten darunter.{% endif %}</p>
+      {%- endif %}
+    </section>
+    {%- endfor %}
+  </section>
+
+  <section class="im-clusters" id="karte-gruppen" aria-label="Gruppen">
+    <h2 class="pane-title">Gruppen</h2>
+    <p class="muted small">Eine Gruppe sind Einfälle, die über die Nähe zusammenhängen (mindestens zwei). „Gruppen benennen
+      (Assistent)“ holt Namen als Vorschlag; sie bleiben nur bis zum nächsten Neustart von Baruch. Schlagwort an den Einfällen
+      wird ein Name erst, wenn du ihn übernimmst (ein Commit je Einfall).</p>
+    {%- if clusters %}
+    <ul class="im-cluster-list">
+      {%- for c in clusters %}
+      <li class="im-cluster" id="karte-gruppe-{{ c.group }}" data-group="{{ c.group }}">
+        <span class="im-cluster-head"><strong>{{ c.group }}</strong>: {% for i in c.ideas %}<a href="{{ i.href }}">Einfall {{ i.id }}</a>{% if i.label %} ({{ i.label }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>
+        {%- if c.words %}<span class="muted small"> – Schlagwörter: {{ c.words }}</span>{% endif %}
+        {%- if c.proposal %}
+        <div class="im-proposal" data-group-proposal>
+          <span>Vorschlag von <code>{{ c.proposal.persona }}</code> <span class="muted tiny">({{ c.proposal.model }}, {{ c.proposal.at }})</span>: <strong>„{{ c.proposal.name }}“</strong></span>
+          <form class="im-inline" method="post" action="{{ act }}">
+            <input type="hidden" name="method" value="idea.map_group_accept">
+            <input type="hidden" name="group" value="{{ c.group }}">
+            <input type="hidden" name="back" value="{{ back }}">
+            <label class="small">Name <input type="text" name="name" value="{{ c.proposal.name }}" maxlength="40" size="18" required></label>
+            <button class="btn small primary" type="submit" title="Den Namen als Schlagwort an jeden Einfall der Gruppe setzen">Übernehmen</button>
+          </form>
+          <form class="im-inline" method="post" action="{{ act }}">
+            <input type="hidden" name="method" value="idea.map_group_dismiss">
+            <input type="hidden" name="group" value="{{ c.group }}">
+            <input type="hidden" name="back" value="{{ back }}">
+            <button class="btn small" type="submit">Verwerfen</button>
+          </form>
+        </div>
+        {%- else %}
+        <details class="im-forms">
+          <summary class="small">Selbst benennen …</summary>
+          <form class="im-form" method="post" action="{{ act }}">
+            <input type="hidden" name="method" value="idea.map_group_accept">
+            <input type="hidden" name="group" value="{{ c.group }}">
+            <input type="hidden" name="back" value="{{ back }}">
+            <label>Name <input type="text" name="name" maxlength="40" size="18" required></label>
+            <button class="btn small" type="submit">Als Schlagwort setzen</button>
+          </form>
+        </details>
+        {%- endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- elif filter.near %}
+    <p class="muted small">Keine Gruppen: Keine zwei gezeigten Einfälle sind einander nah.</p>
+    {%- else %}
+    <p class="muted small">Die Nähe ist ausgeschaltet; Gruppen gibt es nur mit „Nähe zeigen“.</p>
+    {%- endif %}
+  </section>
+
+  <section class="im-contradictions" aria-label="Widersprüche">
+    <h2 class="pane-title">Widersprüche</h2>
+    {%- if contradictions %}
+    <ul class="im-links">
+      {%- for c in contradictions %}
+      <li class="im-link-item im-kind-contradicts"><a href="{{ c.a_href }}">Einfall {{ c.a }}</a>{% if c.a_label %} ({{ c.a_label }}){% endif %} ↔ <a href="{{ c.b_href }}">Einfall {{ c.b }}</a>{% if c.b_label %} ({{ c.b_label }}){% endif %} <strong>widerspricht</strong>{% if c.note %} – „{{ c.note }}“{% endif %}
+        <form class="im-inline" method="post" action="{{ act }}">
+          <input type="hidden" name="method" value="idea.unlink">
+          <input type="hidden" name="id" value="{{ c.id }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          <button class="btn small" type="submit">Lösen</button>
+        </form>
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- else %}
+    <p class="muted small">Keine Widersprüche verzeichnet. Zwei Einfälle verbindet „Verbinden mit …“ mit der Art „widerspricht“.</p>
+    {%- endif %}
+  </section>
+</main>
+{% endblock %}

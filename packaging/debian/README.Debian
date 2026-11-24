@@ -1,0 +1,47 @@
+Baruch für Debian und Ubuntu
+============================
+
+Starten
+-------
+
+  baruch              Server starten (falls noch keiner läuft) und die Oberfläche im Browser öffnen
+  baruch-server       nur der Server (http://127.0.0.1:8765/); `baruch-server --help` zeigt Import/Export,
+                      `baruch-server --version` die Version
+
+Im Startmenü heißt der Eintrag „Baruch“.
+
+Daten
+-----
+
+Die Daten liegen im Ordner des Benutzers: ~/.local/share/baruch (Datenbank baruch.sqlite, Git-Spiegel
+unter works/). Das Paket legt dort nichts an und löscht beim Entfernen nichts – auch nicht bei
+`apt purge`; es hat keine Wartungsskripte. Schlüssel der Verbindungen liegen im Schlüsselbund des Systems
+(Secret Service, z. B. gnome-keyring oder KWallet).
+
+Neue Versionen
+--------------
+
+Baruch fragt nie von sich aus im Netz nach neuen Versionen. Aus dem APT-Repository
+(https://baruch.bernau.family/apt/) kommen sie mit `sudo apt upgrade`; sonst das neue Paket von
+https://github.com/Beerlesklopfer/baruch/releases laden. Was sich geändert hat, steht in
+/usr/share/doc/baruch/CHANGELOG.md. Die laufende Version zeigt Werkzeuge → Über Baruch.
+
+Dienst
+------
+
+Das Paket richtet keinen Systemdienst ein. Ein Beispiel für einen systemd-Benutzerdienst liegt unter
+/usr/share/doc/baruch/examples/baruch.service; die Einrichtung steht im Kopf der Datei.
+
+Zusätzliche Prüfungen (freiwillig)
+----------------------------------
+
+  poppler-utils          PDF-Import (pdftotext, pdfinfo)
+  libxml2-utils          XML-Prüfungen (xmllint)
+  default-jre-headless   EPUBCheck (das Programm selbst lädt Baruch nicht nach)
+
+Lizenz und Quelltext
+--------------------
+
+AGPL-3.0-or-later, Lizenztext in /usr/share/doc/baruch/LICENSE, Drittlizenzen in
+/usr/share/doc/baruch/THIRD-PARTY-LICENSES.txt. Quelltext: https://github.com/Beerlesklopfer/baruch
+(Tag und Adresse genau dieser Version in /usr/share/doc/baruch/QUELLTEXT.txt).

@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! MCP-Werkzeug `typeset_settings` (Runde 29a, Aufgabe satz-daten): die
+//! Satz-Einstellungen des Werks lesen, wie RPC `work.typeset_get` ohne `fields` ([`crate::typeset_settings`]). Nur
+//! lesend – ein schreibendes MCP-Werkzeug gibt es nicht; ändern kann nur der Mensch (Einstellungen → Werk → Satz).
+//! Eintrag in der Werkzeugliste und Aufruf setzt `tools.rs`.
+
+use serde::Deserialize;
+use serde_json::{Value, json};
+
+use super::tools::{Failure, WorkRef, args, work_or_default, work_schema};
+use crate::AppState;
+use crate::typeset_settings;
+
+pub const NAME: &str = "typeset_settings";
+
+pub const DESCRIPTION: &str = "Satz-Einstellungen des Werks lesen (Kapitelanfang, Seitenformat, Ränder, Schrift, \
+Seitenzahlen …), dazu die erzeugten Typst-Regeln „// Baruch: Satz“ und Hinweise, wo die Werkvorlage dieselbe Sache \
+selbst setzt. Nur lesend; ändern kann nur der Mensch (Einstellungen → Werk → Satz). Antwort: work, set, uuid, \
+updated, updated_by, settings (nur gesetzte Felder; fehlt ein Feld, gilt die Werkvorlage), rules, conflicts [{field, \
+label, line, text, effect, message}], template_rule {line, text, chapter_start} oder null, warnings.";
+
+pub fn schema() -> Value {
+    json!({ "type": "object", "properties": { "work": work_schema() } })
+}
+
+#[derive(Deserialize)]
+struct Args {
+    work: Option<WorkRef>,
+}
+
+pub async fn call(state: &AppState, arguments: Value) -> Result<Value, Failure> {
+    let a: Args = args(arguments)?;
+    let work = work_or_default(state, a.work.as_ref()).await?;
+    let view = typeset_settings::load(state, work).await?;
+    Ok(typeset_settings::view_json(&view))
+}

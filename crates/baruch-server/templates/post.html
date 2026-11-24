@@ -1,0 +1,104 @@
+{#- Seite /beitrag (Runde 28, chat-auftrag): ein Beitrag des Abschnitts-Chats, ohne JavaScript bedienbar.
+    - Kopieren: der Text steht in einem schreibgeschützten, markierbaren Feld (textarea readonly); mit JavaScript
+      zusätzlich der Knopf „Kopieren“ (data-post-copy).
+    - Zitieren: eigenes Chat-Formular an POST /assistenten/act (method persona.chat), die Nachricht beginnt mit dem
+      Beitrag als „> …“; wie im Abschnitt mit „als Auftrag“.
+    - Bearbeiten: nur eigene Beiträge (post.own, Autor „Autor“) über POST /beitraege/act (method post.edit, back=post);
+      die alte Fassung bleibt im Verlauf, genau ein Commit. Beiträge von Personas sind nicht bearbeitbar.
+    - In Befunde umwandeln (post.to_findings, nicht bei eigenen Beiträgen); der Beitrag bleibt unverändert.
+    Kontext: settings, work {id, title}, node {key, id, title}, post {id, author, body, time, edited, style, own, persona,
+    sources, url, anchor_url}, versions [{body, valid_from, replaced, edited_by}], quote (Text „> …“), node_url,
+    history_url.
+    Runde 30c (chat-bedienung): oben der gesetzte Beitrag (Makro post_item: Markdown-Teilset, Links, Befund-Blöcke, Kopf);
+    das Feld zum Kopieren enthält den Klartext (post.extra.plain, „- “-Zeilen). Abschnitt „Löschen“ (Anker #loeschen):
+    Kästchen „wirklich löschen“ und POST /beitraege/act (method post.delete) – Ziel des ✕ ohne JavaScript. -#}
+{% extends "base.html" %}
+{% block title %}Beitrag {{ post.id }} – Baruch{% endblock %}
+{% block page_title %}Beitrag · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ history_url }}">Chat-Historie</a>
+  <a class="btn" href="{{ node_url }}" data-back>Zurück zum Abschnitt</a>
+{% endblock %}
+{% block body %}
+{% from "fragments/post_item.html" import post_item %}
+<main class="posts-page post-page" data-widget="chat-page">
+  <h1 class="pane-title">Beitrag {{ post.id }} von {{ post.author }}</h1>
+  <p class="muted small">{{ node.title }} · {{ post.time }}{% if post.edited %} · bearbeitet {{ post.edited }}{% endif %}</p>
+  <section class="post-shown" aria-label="Beitrag">
+    <div class="post{% if post.style %} pc{% endif %}"{% if post.style %} style="{{ post.style }}"{% endif %}>
+      {{- post_item(post) }}
+    </div>
+  </section>
+  <section class="post-item" data-post-id="{{ post.id }}" data-post-author="{{ post.author }}" aria-label="Text zum Kopieren">
+    <label class="wide">Text (markieren und kopieren)
+      <textarea class="post-copy-text" readonly rows="10">{{ post.extra.plain or post.body }}</textarea></label>
+    {%- for source in post.sources %}<div class="muted tiny">Quelle: {{ source }}</div>{% endfor %}
+    <div class="post-tools"><button class="tool small" type="button" data-post-copy hidden title="Text in die Zwischenablage">Kopieren</button></div>
+  </section>
+
+  <section class="post-quote" aria-label="Zitieren">
+    <h2 class="pane-title">Zitieren</h2>
+    <form class="thread-form" method="post" action="/assistenten/act">
+      <input type="hidden" name="method" value="persona.chat">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      <label class="wide">Antwort im Abschnitts-Chat <textarea name="message" rows="6" maxlength="4000" required>{{ quote }}</textarea></label>
+      <label class="small"><input type="checkbox" name="as_order" value="1"> als Auftrag (Schreibauftrag wird ein Vorschlag)</label>
+      <button class="btn primary" type="submit">Senden</button>
+    </form>
+  </section>
+
+  {%- if post.own %}
+  <section class="post-edit" aria-label="Bearbeiten">
+    <h2 class="pane-title">Bearbeiten</h2>
+    <form class="thread-form" method="post" action="/beitraege/act">
+      <input type="hidden" name="method" value="post.edit">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      <input type="hidden" name="id" value="{{ post.id }}">
+      <input type="hidden" name="back" value="post">
+      <label class="wide">Neuer Text <textarea name="body" rows="6" maxlength="4000" required>{{ post.body }}</textarea></label>
+      <button class="btn" type="submit" title="Die alte Fassung bleibt im Verlauf; die Änderung steht im Spiegel des Werks">Speichern</button>
+    </form>
+  </section>
+  {%- else %}
+  <section class="post-findings" aria-label="In Befunde umwandeln">
+    <p class="muted small">{% if post.persona %}Beiträge von Personas bleiben unverändert: kopieren, zitieren oder umwandeln.{% else %}Nur eigene Beiträge lassen sich bearbeiten.{% endif %}</p>
+    <form class="thread-form" method="post" action="/beitraege/act">
+      <input type="hidden" name="method" value="post.to_findings">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      <input type="hidden" name="id" value="{{ post.id }}">
+      <input type="hidden" name="back" value="post">
+      <button class="btn" type="submit" title="Befunde aus diesem Beitrag anlegen (ohne Marken ein Hinweis mit dem ganzen Text); der Beitrag bleibt">In Befunde umwandeln</button>
+    </form>
+  </section>
+  {%- endif %}
+
+  <section class="post-delete-section" id="loeschen" aria-label="Löschen">
+    <h2 class="pane-title">Löschen</h2>
+    <form class="thread-form" method="post" action="/beitraege/act">
+      <input type="hidden" name="method" value="post.delete">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      <input type="hidden" name="id" value="{{ post.id }}">
+      <label class="small"><input type="checkbox" name="confirm" value="1" required> Beitrag {{ post.id }} wirklich löschen</label>
+      <button class="btn danger" type="submit" title="Der Beitrag verschwindet aus dem Chat; der Spiegel hält ihn im Lösch-Commit fest">Löschen</button>
+    </form>
+  </section>
+
+  <section class="post-versions" aria-label="Verlauf">
+    <h2 class="pane-title">Verlauf</h2>
+    {%- if versions %}
+    <ol class="post-version-list">
+    {%- for v in versions %}
+      <li><div class="muted tiny">gültig ab {{ v.valid_from }}, ersetzt {{ v.replaced }} von {{ v.edited_by }}</div>
+        <div class="post-body">{{ v.body }}</div></li>
+    {%- endfor %}
+    </ol>
+    {%- else %}
+    <p class="muted small">Nie bearbeitet.</p>
+    {%- endif %}
+  </section>
+</main>
+{% endblock %}

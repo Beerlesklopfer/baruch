@@ -1,0 +1,35 @@
+{#- Hinweisseite der Persona-Aufträge ohne JavaScript (Runde 15, §4): statt eines nackten 422 zeigt
+    POST /assistenten/act (und „an Persona geben“ aus der Literatur) diese Seite mit Status 200 – die Meldung und
+    einen Link zurück zum Abschnitt. Hat das Ergebnis `compressed`, steht der Toast-Baustein darüber
+    (fragments/toast.html des Lektors; fehlt er, derselbe Hinweis als einfacher Kasten) und der Link führt weiter.
+    Kontext: settings, title, message, lines (weitere Zeilen, z. B. je gescheiterter Persona), back (Adresse vom
+    Server, sicher), back_label, toast ({message, level, summarized} oder leer), toast_template (bool). -#}
+{% extends "base.html" %}
+{% block title %}{{ title }} – Baruch{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ back }}" data-back>{{ back_label }}</a>
+{% endblock %}
+{% block body %}
+<main class="assist-notice-page">
+  {%- if toast %}
+  {%- if toast_template %}
+  {% include "fragments/toast.html" ignore missing %}
+  {%- else %}
+  <div class="toast toast-{{ toast.level }}" data-widget="toast" role="status">
+    <p>{{ toast.message }}</p>
+    {%- if toast.summarized %}
+    <ul class="small">{% for s in toast.summarized %}<li>{{ s }}</li>{% endfor %}</ul>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- endif %}
+  <p class="notice" role="status" data-assist-notice>{{ message }}</p>
+  {%- if lines %}
+  <ul class="small assist-notice-lines">
+    {%- for line in lines %}<li>{{ line }}</li>{% endfor %}
+  </ul>
+  {%- endif %}
+  <p><a class="btn primary" href="{{ back }}">{{ back_label }}</a></p>
+</main>
+{% endblock %}

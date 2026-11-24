@@ -1,0 +1,72 @@
+{#- Seite /werke/{id}/bearbeiten: Metadaten und Werkvorlage ändern (POST /werke/act, action=update),
+    Fassungsliste der Werkvorlage; ?vorlage=n zeigt eine ältere Fassung zum Lesen. Geht ohne
+    JavaScript. Kontext: settings, work (WorkMeta, Runde 26 mit uuid – nur Anzeige), values (Formularwerte), kind_label, revisions
+    [{number, author, note, created, current, shown}], old {number, body}?, error, back_url, back.
+    Runde 9: Die Kopfzeile kommt aus base.html (Blöcke page_title, page_actions); der Formularteil steht
+    in {% block content %}, den auch die Einstellungsseite „Werk“ zeigt (crate::settings, render_block).
+    back (nur dort): Rücksprung nach dem Speichern, als verstecktes Feld. -#}
+{% extends "base.html" %}
+{% block title %}{{ work.title }} ändern – Baruch{% endblock %}
+{% block page_title %}{{ work.title }} ändern{% endblock %}
+{% block page_actions %}<a class="btn" href="/werke">Werke</a>
+  <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endblock %}
+{% block body %}
+<main class="works-page">
+{%- block content %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Werk ändern</h1>
+  <p class="muted small">Ordnername im Spiegel: <code>works/{{ work.slug }}/</code> (bleibt beim Umbenennen).
+    {%- if work.source_name %} Importiert aus <code>{{ work.source_name }}</code>.{% endif %}</p>
+  <p class="muted small" data-work-uuid>Kennung des Werks (UUID, für den Austausch zwischen Instanzen; nicht änderbar):
+    <code>{{ work.uuid }}</code></p>
+  <form class="work-form wide" action="/werke/act" method="post">
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    {%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <div class="work-fields">
+      <label>Titel <input type="text" name="title" value="{{ values.title }}" required></label>
+      <label>Untertitel <input type="text" name="subtitle" value="{{ values.subtitle }}"></label>
+      <label>Autor <input type="text" name="author" value="{{ values.author }}"></label>
+      <label>Art
+        <select name="kind">
+          <option value="book"{% if values.kind != "sermon" %} selected{% endif %}>Buch</option>
+          <option value="sermon"{% if values.kind == "sermon" %} selected{% endif %}>Predigt</option>
+        </select>
+      </label>
+      <label>Zielgruppe <input type="text" name="audience" value="{{ values.audience }}"></label>
+      <label>Bibelübersetzung <input type="text" name="bible" value="{{ values.bible }}"></label>
+    </div>
+    <label>Werkvorlage <span class="muted small">(alles vor der ersten Überschrift: #set, #show, #let …; aktuell Fassung {{ work.template_rev }})</span>
+      <textarea name="template" rows="14" spellcheck="false">{{ values.template }}</textarea>
+    </label>
+    <label>Notiz zur neuen Fassung der Werkvorlage <input type="text" name="note" value="{{ values.note }}"></label>
+    <p class="muted small">Eine geänderte Werkvorlage wird eine neue Fassung; die alten bleiben unten lesbar.</p>
+    <button class="btn primary" type="submit">Speichern</button>
+  </form>
+
+  <section class="template-revisions" aria-labelledby="template-revisions-title">
+    <h2 class="pane-title" id="template-revisions-title">Fassungen der Werkvorlage</h2>
+    <ul class="template-list">
+    {%- for r in revisions %}
+      <li{% if r.current %} class="is-current"{% endif %}>
+        {%- if r.current %}<strong>Fassung {{ r.number }}</strong> <span class="badge success">aktuell</span>
+        {%- else %}<a href="/werke/{{ work.id }}/bearbeiten?vorlage={{ r.number }}"{% if r.shown %} aria-current="true"{% endif %}>Fassung {{ r.number }}</a>{% endif %}
+        <span class="muted small">· {{ r.author }} · {{ r.created }}{% if r.note %} · {{ r.note }}{% endif %}</span>
+      </li>
+    {%- endfor %}
+    </ul>
+    {%- if old %}
+    <h3 class="pane-title">Fassung {{ old.number }} (nur lesen)</h3>
+    <pre class="template-old">{{ old.body }}</pre>
+    {%- endif %}
+  </section>
+
+  <p><a class="btn" href="/werke/{{ work.id }}/export" download>Als Typst-Datei exportieren</a>
+     <a class="btn danger" href="/werke/{{ work.id }}/loeschen">Werk löschen…</a>
+     <a class="btn" href="/werke/{{ work.id }}/nummerierung">Gliederungsschema…</a>
+     <a class="btn" href="/werke/{{ work.id }}/bilder">Bilder…</a></p>
+{%- endblock %}
+</main>
+{% endblock %}

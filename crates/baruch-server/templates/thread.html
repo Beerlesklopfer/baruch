@@ -1,0 +1,52 @@
+{#- Seite /faden (Runde 15): ein Faden ohne Abschnitt mit allen Beiträgen (älteste zuerst) und dem
+    Antwortformular an POST /faden/act (ohne JavaScript; der Mensch ist Autor, erwähnte Personas antworten).
+    Personas tragen ihre Farbe (e.style, nur geprüfte #rrggbb über personas::style). Kontext: settings,
+    work {id, title}, thread {id, title, created_by, posts, …}, entries [{id, author, body, created, style,
+    persona, mcp, own, edited, versions, quote_url}], personas [{handle, name}], notice, draft (Text nach einem Fehler
+    bzw. das Zitat), list_url, work_url.
+    Runde 28 (chat-auftrag): Die Beiträge rollen in einem Bereich begrenzter Höhe (static/threads.css), Anker
+    id="beitrag-<id>" je Beitrag und id="chat-neueste" am Ende (dorthin führt die Weiterleitung nach dem Antworten).
+    Je Beitrag „Kopieren“ (nur mit JavaScript), „Zitieren“ (Link ?zitat=<id>#antwort: die Antwort beginnt mit „> …“,
+    auch ohne JavaScript), bei eigenen Beiträgen (e.own) „Bearbeiten“ an POST /faden/bearbeiten und der Verlauf.
+    „RFC …“ am Anfang bzw. „@alle“ ruft alle aktiven Personas (Lektor zuletzt mit Sammlung).
+    Runde 30c (chat-bedienung): Jeder Beitrag aus dem Makro thread_entry (fragments/post_item.html): Markdown-Teilset mit
+    geprüften Links und Befund-Blöcken, „antwortet auf Beitrag n von @…“, ↻ Wiederholen und ✕ Löschen (ohne JavaScript
+    als Formulare an POST /faden/act). Mit JavaScript holt das Widget „threads“ neue Beiträge, „@x schreibt …“ und Fehler
+    über thread.since (div.chat-live). Die Anrede mit Namen am Satzanfang („Lektor, …“) ruft eine Persona wie @handle. -#}
+{% extends "base.html" %}
+{% block title %}{{ thread.title }} – Faden – Baruch{% endblock %}
+{% block page_title %}Faden · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ list_url }}">Alle Fäden</a>
+  <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+{% from "fragments/post_item.html" import thread_entry %}
+<main class="threads-page thread-page" data-widget="threads" data-work="{{ work.id }}" data-thread="{{ thread.id }}">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">{{ thread.title }}</h1>
+  <p class="muted tiny">begonnen von {{ thread.created_by }} · ohne Abschnitt · <a href="#chat-neueste">zum neuesten Beitrag ↓</a></p>
+  <div class="thread-scroll" tabindex="0" aria-label="Beiträge des Fadens">
+  <ol class="thread-posts">
+  {%- set at = dict(work=work.id, thread=thread.id) %}
+  {%- for e in entries %}
+    {{- thread_entry(e, at) }}
+  {%- endfor %}
+  </ol>
+  <div class="chat-end" id="chat-neueste" tabindex="-1"></div>
+  </div>
+  <div class="chat-live small" data-chat-live role="status" aria-live="polite" hidden></div>
+  <form method="post" action="/faden/act" class="thread-form" id="antwort">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="thread" value="{{ thread.id }}">
+    <label class="wide">Antwort <textarea name="message" rows="3" maxlength="4000" required placeholder="@lektor … bzw. „Lektor, …“ ruft eine Persona · RFC … bzw. @alle ruft alle">{{ draft }}</textarea></label>
+    <label>Persona antworten lassen <select name="persona">
+      <option value="">– nur Erwähnte (@…) –</option>
+      {%- for p in personas %}<option value="{{ p.handle }}">{{ p.name }} ({{ p.handle }})</option>{% endfor %}
+    </select></label>
+    <button class="btn primary" type="submit">Antworten</button>
+  </form>
+</main>
+{% endblock %}

@@ -1,0 +1,732 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!--
+  Austauschformat zwischen Baruch-Instanzen, Namensraum urn:baruch:werk:1, Unterversion 3 (Runde 27 „Umschlag-Editor
+  und Impressum“, Vertrag R27 1.11; Doku docs/Austauschformat.md). Geprüft wird jede Ausgabe mit xmllint
+  (crates/baruch-exchange/tests/xsd.rs, crates/baruch-server/tests/round26_export.rs, round26_roundtrip.rs,
+  round25_widget.rs, round27_daten.rs). docs/schema/baruch-werk-1-u2.xsd (Unterversion 2) und
+  docs/schema/baruch-werk-1.xsd (Unterversion 1) bleiben unverändert (eingefroren).
+
+  Unterschiede zu Unterversion 2 (alles verträglich, jede gültige Datei der Unterversionen 1 und 2 ist auch hier
+  gültig):
+  - <angaben> endet optional mit <satzbild/>: die Satzbild-Einstellungen des Werks (Schrift, Schrift der
+    Überschriften, Größe, Textfarbe, Farbe der Überschriften, Blattfarbe, Satzbreite), je Attribut optional.
+  - <buch> endet mit <verlag-anschrift> und <druckerei-anschrift> (mehrzeilig, höchstens 500 Zeichen; der Schreiber
+    schreibt beide immer, das Schema lässt sie für ältere Dateien weg) und optional <umschlag> mit <block>*: die
+    Umschlag-Anordnung (je Art höchstens ein Block; Lage in mm ab der Schnittkante der eigenen Fläche).
+  - GrabsteinArt kennt zusätzlich umschlag-block.
+  Was das Schema nicht prüft, prüft der Leser in Rust: je Art höchstens ein Block, richtung genau bei den Blöcken
+  auf dem Rücken, <text> nur bei Freitexten und Motto, höchstens 1000 Zeichen.
+
+  Unterschiede von Unterversion 2 zu Unterversion 1:
+  - <karte> ist festgelegt: <verbindung>* (Verbindungen zwischen zwei Einfällen dieses Werks, über ihre UUIDs) und
+    danach <lage>* (gespeicherte Lagen von Einfällen auf der Karte). Steht nur da, wenn es mindestens eine
+    Verbindung oder Lage gibt.
+  - GrabsteinArt kennt zusätzlich verbindung und lage.
+
+  Übernommen aus Unterversion 1:
+  - Globale Elemente: <werk> (werk.xml bzw. *.baruch.xml) und <manifest> (MANIFEST.xml im ZIP).
+  - Der Namensraum ist die Hauptversion; das Attribut version die Unterversion (verträgliche Erweiterungen
+    zählen hoch). Ein Leser akzeptiert eine höhere Unterversion und meldet Unbekanntes.
+  - Reihenfolge der Kinder = xs:sequence. Text ist xs:string mit optionalem kodierung="base64" (der Schreiber
+    nimmt Base64, wenn der Text in XML 1.0 verbotene Steuerzeichen enthält). Der Leser trimmt nie.
+  - Zeiten stehen so, wie sie gespeichert sind (JJJJ-MM-TTTHH:MM:SS.sssZ), hier nur als nicht leere Zeichenkette.
+  - Bei Bildfassungen steht genau eines von datei (Eintrag im ZIP) und <daten> (Base64); das prüft der Leser
+    in Rust, nicht das Schema. Ebenso prüft der Leser in Rust, dass von, nach und einfall auf Einfälle dieses
+    Werks zeigen, x und y höchstens ±1000000 sind und je Einfall höchstens eine Lage steht.
+  - Keine DTD, keine Entitäten außer den fünf vordefinierten.
+  - Leerraum zwischen Elementen (Zeilenumbruch, Einrückung) hat keine Bedeutung; Text steht immer in einem
+    Element ohne Kinder und wird wörtlich gelesen.
+  - position (Beitrag, Fadenbeitrag) ist die Reihenfolge ab 1, lückenlos; nummer (Fassung) die Nummer in der
+    ausgebenden Instanz (nach Löschen mit Lücken).
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:b="urn:baruch:werk:1"
+           targetNamespace="urn:baruch:werk:1"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+  <!-- ===== Grundtypen ===== -->
+
+  <xs:simpleType name="Uuid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Zeit">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Sha256">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-f]{64}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Kodierung">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="base64"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Text">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="kodierung" type="b:Kodierung" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="ZeitElement">
+    <xs:simpleContent>
+      <xs:extension base="b:Zeit"/>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- ===== Aufzählungen ===== -->
+
+  <xs:simpleType name="WerkArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="buch"/>
+      <xs:enumeration value="predigt"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="SchemaName">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="template"/>
+      <xs:enumeration value="decimal"/>
+      <xs:enumeration value="decimal_dot"/>
+      <xs:enumeration value="alphanumeric"/>
+      <xs:enumeration value="chapter_roman"/>
+      <xs:enumeration value="chapter_arabic"/>
+      <xs:enumeration value="parts_chapters"/>
+      <xs:enumeration value="chapter_words"/>
+      <xs:enumeration value="legal"/>
+      <xs:enumeration value="sermon"/>
+      <xs:enumeration value="book"/>
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="custom"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="QuellenArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="kommentar"/>
+      <xs:enumeration value="lexikon"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Titelbereich">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="oben"/>
+      <xs:enumeration value="mitte"/>
+      <xs:enumeration value="unten"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="PunktArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="teil"/>
+      <xs:enumeration value="kapitel"/>
+      <xs:enumeration value="abschnitt"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="FassungStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="aktuell"/>
+      <xs:enumeration value="vorschlag"/>
+      <xs:enumeration value="verworfen"/>
+      <xs:enumeration value="abgeloest"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="AutorArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="mensch"/>
+      <xs:enumeration value="assistent"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="EinfallStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="offen"/>
+      <xs:enumeration value="erledigt"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ErledigtAls">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="gliederung"/>
+      <xs:enumeration value="beitrag"/>
+      <xs:enumeration value="persona"/>
+      <xs:enumeration value="notiz"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="HerkunftArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="mensch"/>
+      <xs:enumeration value="persona"/>
+      <xs:enumeration value="mcp"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BildMime">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="image/png"/>
+      <xs:enumeration value="image/jpeg"/>
+      <xs:enumeration value="image/gif"/>
+      <xs:enumeration value="image/webp"/>
+      <xs:enumeration value="image/svg+xml"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BildStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="aktuell"/>
+      <xs:enumeration value="abgeloest"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="GrabsteinArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="werk"/>
+      <xs:enumeration value="punkt"/>
+      <xs:enumeration value="fassung"/>
+      <xs:enumeration value="vorlage"/>
+      <xs:enumeration value="beitrag"/>
+      <xs:enumeration value="einfall"/>
+      <xs:enumeration value="faden"/>
+      <xs:enumeration value="faden-beitrag"/>
+      <xs:enumeration value="bild"/>
+      <xs:enumeration value="bildfassung"/>
+      <!-- ab Unterversion 2 -->
+      <xs:enumeration value="verbindung"/>
+      <xs:enumeration value="lage"/>
+      <!-- ab Unterversion 3 -->
+      <xs:enumeration value="umschlag-block"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ===== Umschlag-Anordnung (ab Unterversion 3) ===== -->
+
+  <xs:simpleType name="BlockArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="vorderseite-titel"/>
+      <xs:enumeration value="vorderseite-untertitel"/>
+      <xs:enumeration value="vorderseite-autor"/>
+      <xs:enumeration value="vorderseite-verlag"/>
+      <xs:enumeration value="vorderseite-freitext"/>
+      <xs:enumeration value="ruecken-titel"/>
+      <xs:enumeration value="ruecken-autor"/>
+      <xs:enumeration value="ruecken-verlag"/>
+      <xs:enumeration value="ruecken-freitext"/>
+      <xs:enumeration value="rueckseite-motto"/>
+      <xs:enumeration value="rueckseite-klappentext"/>
+      <xs:enumeration value="rueckseite-vita"/>
+      <xs:enumeration value="rueckseite-strichcode"/>
+      <xs:enumeration value="rueckseite-verlag-preis"/>
+      <xs:enumeration value="rueckseite-freitext"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Ausrichtung">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="links"/>
+      <xs:enumeration value="mitte"/>
+      <xs:enumeration value="rechts"/>
+      <xs:enumeration value="blocksatz"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Schnitt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="normal"/>
+      <xs:enumeration value="fett"/>
+      <xs:enumeration value="kursiv"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Hintergrund">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="kein"/>
+      <xs:enumeration value="schatten"/>
+      <xs:enumeration value="verlauf"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- abwaerts = von oben nach unten lesbar (rotate 90deg), aufwaerts = von unten nach oben -->
+  <xs:simpleType name="Laufrichtung">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="abwaerts"/>
+      <xs:enumeration value="aufwaerts"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- hell (weiß), dunkel (#1f2a33) oder #rrggbb klein -->
+  <xs:simpleType name="BlockFarbe">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="hell|dunkel|#[0-9a-f]{6}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Schriftname: Buchstaben, Ziffern, Leerzeichen, - _ . (1 bis 200 Zeichen) -->
+  <xs:simpleType name="Schriftname">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="200"/>
+      <xs:pattern value="[\p{L}\p{M}\p{N} _.\-]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BlockLage">
+    <xs:restriction base="xs:double">
+      <xs:minInclusive value="-50"/>
+      <xs:maxInclusive value="1000"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BlockBreite">
+    <xs:restriction base="xs:double">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="1000"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BlockGroesse">
+    <xs:restriction base="xs:double">
+      <xs:minInclusive value="4"/>
+      <xs:maxInclusive value="200"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BlockZeilenabstand">
+    <xs:restriction base="xs:double">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Art einer Verbindung (ab Unterversion 2); widerspricht ist ungerichtet. -->
+  <xs:simpleType name="VerbindungArt">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="fuehrt-weiter"/>
+      <xs:enumeration value="gehoert-zu"/>
+      <xs:enumeration value="beispiel-fuer"/>
+      <xs:enumeration value="widerspricht"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Koordinate einer Lage in SVG-Benutzereinheiten der Karte (Werk bei 0,0). -->
+  <xs:simpleType name="Koordinate">
+    <xs:restriction base="xs:double">
+      <xs:minInclusive value="-1000000"/>
+      <xs:maxInclusive value="1000000"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ===== Werk ===== -->
+
+  <xs:element name="werk">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ausgabe" type="b:Ausgabe"/>
+        <xs:element name="angaben" type="b:Angaben"/>
+        <xs:element name="buch" type="b:Buch" minOccurs="0"/>
+        <xs:element name="vorlage" type="b:Vorlage"/>
+        <xs:element name="gliederung" type="b:Gliederung"/>
+        <xs:element name="einfaelle" type="b:Einfaelle" minOccurs="0"/>
+        <xs:element name="faeden" type="b:Faeden" minOccurs="0"/>
+        <xs:element name="bilder" type="b:Bilder" minOccurs="0"/>
+        <xs:element name="geloescht" type="b:Geloescht" minOccurs="0"/>
+        <xs:element name="karte" type="b:Karte" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:positiveInteger" use="required"/>
+      <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+      <xs:attribute name="art" type="b:WerkArt" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="Ausgabe">
+    <xs:attribute name="zeit" type="b:Zeit" use="required"/>
+    <xs:attribute name="instanz" type="b:Uuid" use="required"/>
+    <xs:attribute name="instanzname" type="xs:string" use="required"/>
+    <xs:attribute name="programm" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="Angaben">
+    <xs:sequence>
+      <xs:element name="titel" type="b:Text"/>
+      <xs:element name="untertitel" type="b:Text"/>
+      <xs:element name="autor" type="b:Text"/>
+      <xs:element name="zielgruppe" type="b:Text"/>
+      <xs:element name="bibel" type="b:Text"/>
+      <xs:element name="angelegt" type="b:ZeitElement"/>
+      <xs:element name="geaendert" type="b:ZeitElement" minOccurs="0"/>
+      <xs:element name="schema" type="b:Schema"/>
+      <xs:element name="bibelmodul" type="b:Text" minOccurs="0"/>
+      <xs:element name="quellen" type="b:Quellen" minOccurs="0"/>
+      <xs:element name="sprechdauer" type="b:Sprechdauer" minOccurs="0"/>
+      <!-- ab Unterversion 3 -->
+      <xs:element name="satzbild" type="b:Satzbild" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Satzbild-Einstellungen (ab Unterversion 3; Tabelle work_sheet). Fehlendes Attribut = aus der Werkvorlage. -->
+  <xs:complexType name="Satzbild">
+    <xs:attribute name="schrift" type="xs:string" use="optional"/>
+    <xs:attribute name="schrift-ueberschriften" type="xs:string" use="optional"/>
+    <xs:attribute name="groesse" type="xs:string" use="optional"/>
+    <xs:attribute name="farbe" type="xs:string" use="optional"/>
+    <xs:attribute name="farbe-ueberschriften" type="xs:string" use="optional"/>
+    <xs:attribute name="blattfarbe" type="xs:string" use="optional"/>
+    <xs:attribute name="satzbreite" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="Schema">
+    <xs:sequence>
+      <xs:element name="muster" type="b:Text" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="b:SchemaName" use="required"/>
+  </xs:complexType>
+
+  <!-- Eine SWORD-Quelle: Modulname als Inhalt. -->
+  <xs:complexType name="Quelle">
+    <xs:simpleContent>
+      <xs:extension base="b:Text">
+        <xs:attribute name="art" type="b:QuellenArt" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="Quellen">
+    <xs:sequence>
+      <xs:element name="quelle" type="b:Quelle" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Sprechdauer">
+    <xs:attribute name="woerter-je-minute" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="ziel-sekunden" type="xs:nonNegativeInteger" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="Buch">
+    <xs:sequence>
+      <xs:element name="verlag" type="b:Text"/>
+      <xs:element name="ort" type="b:Text"/>
+      <xs:element name="jahr" type="b:Text"/>
+      <xs:element name="auflage" type="b:Text"/>
+      <xs:element name="isbn" type="b:Text"/>
+      <xs:element name="preis" type="b:Text"/>
+      <xs:element name="reihe" type="b:Text"/>
+      <xs:element name="druckerei" type="b:Text"/>
+      <xs:element name="bibelvermerk" type="b:Text"/>
+      <xs:element name="bildnachweis" type="b:Text"/>
+      <xs:element name="widmung" type="b:Text"/>
+      <xs:element name="klappentext" type="b:Text"/>
+      <xs:element name="vita" type="b:Text"/>
+      <!-- ab Unterversion 3 -->
+      <xs:element name="verlag-anschrift" type="b:Text" minOccurs="0"/>
+      <xs:element name="druckerei-anschrift" type="b:Text" minOccurs="0"/>
+      <xs:element name="umschlag" type="b:Umschlag" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="titelbereich" type="b:Titelbereich" use="required"/>
+    <xs:attribute name="titelei" type="xs:boolean" use="required"/>
+    <xs:attribute name="umschlagseiten" type="xs:boolean" use="required"/>
+    <xs:attribute name="papier-mm" type="xs:double" use="required"/>
+    <xs:attribute name="beschnitt-mm" type="xs:double" use="required"/>
+    <!-- UUID des Bilds (nicht der Fassung). -->
+    <xs:attribute name="umschlag" type="b:Uuid" use="optional"/>
+    <xs:attribute name="autorenfoto" type="b:Uuid" use="optional"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="optional"/>
+  </xs:complexType>
+
+  <!-- Umschlag-Anordnung (ab Unterversion 3): je Art höchstens ein Block (prüft der Leser). -->
+  <xs:complexType name="Umschlag">
+    <xs:sequence>
+      <xs:element name="block" type="b:UmschlagBlock" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Ein Block: Lage (x-mm, y-mm: linke obere Ecke) und Breite in Leserichtung in mm ab der Schnittkante der eigenen
+       Fläche (Vorderseite, Rücken oder Rückseite, ohne Beschnitt; negative Werte ragen in den Beschnitt). <text> nur
+       bei den Freitexten und dem Motto; richtung nur auf dem Rücken. -->
+  <xs:complexType name="UmschlagBlock">
+    <xs:sequence>
+      <xs:element name="text" type="b:Text" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="art" type="b:BlockArt" use="required"/>
+    <xs:attribute name="x-mm" type="b:BlockLage" use="required"/>
+    <xs:attribute name="y-mm" type="b:BlockLage" use="required"/>
+    <xs:attribute name="breite-mm" type="b:BlockBreite" use="required"/>
+    <xs:attribute name="ausrichtung" type="b:Ausrichtung" use="required"/>
+    <xs:attribute name="groesse-pt" type="b:BlockGroesse" use="required"/>
+    <xs:attribute name="zeilenabstand-em" type="b:BlockZeilenabstand" use="required"/>
+    <xs:attribute name="farbe" type="b:BlockFarbe" use="required"/>
+    <!-- fehlt = Schrift der Werkvorlage -->
+    <xs:attribute name="schrift" type="b:Schriftname" use="optional"/>
+    <xs:attribute name="schnitt" type="b:Schnitt" use="required"/>
+    <xs:attribute name="hintergrund" type="b:Hintergrund" use="required"/>
+    <xs:attribute name="sichtbar" type="xs:boolean" use="required"/>
+    <xs:attribute name="richtung" type="b:Laufrichtung" use="optional"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <!-- ===== Werkvorlage ===== -->
+
+  <xs:complexType name="Vorlage">
+    <xs:sequence>
+      <!-- aktueller Text (work.template) -->
+      <xs:element name="text" type="b:Text"/>
+      <xs:element name="fassung" type="b:VorlagenFassung" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="VorlagenFassung">
+    <xs:sequence>
+      <xs:element name="notiz" type="b:Text" minOccurs="0"/>
+      <xs:element name="text" type="b:Text"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="nummer" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="autor" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <!-- ===== Gliederung ===== -->
+
+  <xs:complexType name="Gliederung">
+    <xs:sequence>
+      <xs:element name="punkt" type="b:Punkt" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Punkt">
+    <xs:sequence>
+      <xs:element name="titel" type="b:Text"/>
+      <xs:element name="fassung" type="b:Fassung" maxOccurs="unbounded"/>
+      <xs:element name="beitrag" type="b:Beitrag" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="punkt" type="b:Punkt" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="art" type="b:PunktArt" use="required"/>
+    <xs:attribute name="nummeriert" type="xs:boolean" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="Fassung">
+    <xs:sequence>
+      <xs:element name="notiz" type="b:Text" minOccurs="0"/>
+      <xs:element name="text" type="b:Text"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="nummer" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="status" type="b:FassungStatus" use="required"/>
+    <xs:attribute name="autor-art" type="b:AutorArt" use="required"/>
+    <!-- Name des Menschen bzw. Handle der Persona -->
+    <xs:attribute name="autor" type="xs:string" use="required"/>
+    <!-- Modell der Fassung als Herkunft (nur Assistent) -->
+    <xs:attribute name="modell" type="xs:string" use="optional"/>
+    <!-- UUID der Elternfassung im selben Punkt -->
+    <xs:attribute name="basis" type="b:Uuid" use="optional"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="optional"/>
+  </xs:complexType>
+
+  <!-- Bezug eines Beitrags: Zitat als Inhalt. -->
+  <xs:complexType name="Bezug">
+    <xs:simpleContent>
+      <xs:extension base="b:Text">
+        <xs:attribute name="punkt" type="b:Uuid" use="required"/>
+        <xs:attribute name="fassung" type="b:Uuid" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="Beitrag">
+    <xs:sequence>
+      <xs:element name="text" type="b:Text"/>
+      <xs:element name="quelle" type="b:Text" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="bezug" type="b:Bezug" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="position" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="autor" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <!-- ===== Einfälle ===== -->
+
+  <xs:complexType name="Einfaelle">
+    <xs:sequence>
+      <xs:element name="einfall" type="b:Einfall" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Einfall">
+    <xs:sequence>
+      <xs:element name="schlagwort" type="b:Text" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="notiz" type="b:Text"/>
+      <xs:element name="zitat" type="b:Text"/>
+      <xs:element name="quelle" type="b:Text"/>
+      <xs:element name="bibelstelle" type="b:Text"/>
+      <xs:element name="erledigt-ref" type="b:Text" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="status" type="b:EinfallStatus" use="required"/>
+    <xs:attribute name="erledigt-als" type="b:ErledigtAls" use="optional"/>
+    <xs:attribute name="herkunft-art" type="b:HerkunftArt" use="required"/>
+    <xs:attribute name="herkunft" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="required"/>
+    <xs:attribute name="geloescht" type="b:Zeit" use="optional"/>
+    <!-- UUID des Punkts -->
+    <xs:attribute name="bezug" type="b:Uuid" use="optional"/>
+  </xs:complexType>
+
+  <!-- ===== Fäden ===== -->
+
+  <xs:complexType name="Faeden">
+    <xs:sequence>
+      <xs:element name="faden" type="b:Faden" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Faden">
+    <xs:sequence>
+      <xs:element name="titel" type="b:Text"/>
+      <xs:element name="beitrag" type="b:FadenBeitrag" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="angelegt-von" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="FadenBeitrag">
+    <xs:sequence>
+      <xs:element name="text" type="b:Text"/>
+      <xs:element name="quelle" type="b:Text" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="position" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="autor" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <!-- ===== Bilder ===== -->
+
+  <xs:complexType name="Bilder">
+    <xs:sequence>
+      <xs:element name="bild" type="b:Bild" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Bild">
+    <xs:sequence>
+      <xs:element name="pfad" type="b:Text" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="fassung" type="b:BildFassung" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="BildFassung">
+    <xs:sequence>
+      <xs:element name="unterschrift" type="b:Text"/>
+      <xs:element name="alt" type="b:Text"/>
+      <xs:element name="notiz" type="b:Text" minOccurs="0"/>
+      <!-- Rohbytes als Base64 (nur XML); im ZIP stattdessen das Attribut datei -->
+      <xs:element name="daten" type="xs:base64Binary" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="nummer" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="basis" type="b:Uuid" use="optional"/>
+    <xs:attribute name="mime" type="b:BildMime" use="required"/>
+    <xs:attribute name="bytes" type="xs:nonNegativeInteger" use="required"/>
+    <xs:attribute name="sha256" type="b:Sha256" use="required"/>
+    <xs:attribute name="status" type="b:BildStatus" use="required"/>
+    <xs:attribute name="autor" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="optional"/>
+    <!-- Eintrag im ZIP: bilder/<fassungs-uuid>.<ext> -->
+    <xs:attribute name="datei" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <!-- ===== Grabsteine ===== -->
+
+  <xs:complexType name="Geloescht">
+    <xs:sequence>
+      <xs:element name="eintrag" type="b:Grabstein" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Grabstein">
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <xs:attribute name="art" type="b:GrabsteinArt" use="required"/>
+    <xs:attribute name="zeit" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <!-- ===== Gedankenkarte (ab Unterversion 2) ===== -->
+
+  <xs:complexType name="Karte">
+    <xs:annotation>
+      <xs:documentation xml:lang="de">
+        Gedankenkarte des Werks (Runde 25): Verbindungen zwischen Einfällen und gespeicherte Lagen von Einfällen.
+        Ein Leser der Unterversion 1 meldet das Element als unbekannt und übernimmt nichts davon.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="verbindung" type="b:Verbindung" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="lage" type="b:Lage" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Verbindung">
+    <xs:sequence>
+      <xs:element name="notiz" type="b:Text" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <!-- UUIDs der Einfälle -->
+    <xs:attribute name="von" type="b:Uuid" use="required"/>
+    <xs:attribute name="nach" type="b:Uuid" use="required"/>
+    <xs:attribute name="art" type="b:VerbindungArt" use="required"/>
+    <xs:attribute name="herkunft-art" type="b:HerkunftArt" use="required"/>
+    <xs:attribute name="herkunft" type="xs:string" use="required"/>
+    <xs:attribute name="angelegt" type="b:Zeit" use="required"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="required"/>
+    <xs:attribute name="geloescht" type="b:Zeit" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="Lage">
+    <xs:attribute name="uuid" type="b:Uuid" use="required"/>
+    <!-- UUID des Einfalls -->
+    <xs:attribute name="einfall" type="b:Uuid" use="required"/>
+    <xs:attribute name="x" type="b:Koordinate" use="required"/>
+    <xs:attribute name="y" type="b:Koordinate" use="required"/>
+    <xs:attribute name="geaendert" type="b:Zeit" use="required"/>
+  </xs:complexType>
+
+  <!-- ===== Manifest (MANIFEST.xml im ZIP) ===== -->
+
+  <xs:element name="manifest">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="datei" type="b:ManifestDatei" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="ManifestDatei">
+    <xs:attribute name="pfad" type="xs:string" use="required"/>
+    <xs:attribute name="sha256" type="b:Sha256" use="required"/>
+    <xs:attribute name="bytes" type="xs:nonNegativeInteger" use="required"/>
+  </xs:complexType>
+</xs:schema>

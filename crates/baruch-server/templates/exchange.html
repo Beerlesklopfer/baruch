@@ -1,0 +1,62 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/austausch (Runde 26, src/exchange/export.rs): Werk als Austauschdatei
+    ausgeben. Ohne JavaScript bedienbar: zwei gewöhnliche Download-Links und ein Link zum Einlesen.
+    Kontext: settings, work {id, title, slug, uuid}, instance {uuid, label, named}, counts {nodes, revisions,
+    posts, template_revisions, ideas, deleted_ideas, threads, thread_posts, assets, asset_revisions, tombstones,
+    links, deleted_links, positions, findings, open_findings, post_versions (Runde 28), typeset, typeset_fields (Runde 29), glossary_terms, proposed_terms,
+    registers (Runde 31)},
+    back, baruch_name, xml_name, version, namespace. -#}
+{% extends "base.html" %}
+{% block title %}Austausch – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Austausch{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ back|safe }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page exchange-page" data-work="{{ work.id }}">
+  <h1 class="pane-title">Austausch: Ausgeben</h1>
+  <p>Die Austauschdatei trägt das <strong>ganze Werk</strong> zu einer anderen Baruch-Instanz: Angaben, Buchangaben
+    samt Umschlag, Werkvorlage, die Gliederung mit <strong>allen Fassungen</strong> und der Markierung „aktuell“,
+    Beiträge, Einfälle (auch gelöschte), die Gedankenkarte (Verbindungen zwischen Einfällen und gemerkte Lagen),
+    Fäden, Bilder mit allen Fassungen, Satz-Einstellungen, das Glossar (auch Vorschläge) mit den eigenen Registern
+    und die Grabsteine gelöschter Teile.
+    Jedes Stück hat eine weltweit eindeutige Kennung (UUID); so erkennt die andere Instanz beim Einlesen, was sie
+    schon kennt, und fügt nur hinzu, was fehlt.</p>
+  <p class="muted small">Nicht in der Datei: Schlüssel und Token, Verbindungen zu Diensten (Modelle, MultiGPT,
+    pgvector), Personas samt Modellen (nur ihre
+    Namen als Herkunft), offene Anträge und Registervorschläge, Belege der Websuche, Bibel-, Kommentar- und Literaturtexte (nur
+    Modulnamen und Stellen), Suchindex und die Autorenbibliothek.</p>
+
+  <section class="exchange-downloads" aria-label="Herunterladen">
+    <p><a class="btn primary" href="/werke/{{ work.id }}/austausch.baruch" download="{{ baruch_name }}">Austauschdatei herunterladen (.baruch)</a>
+      <span class="muted small">{{ baruch_name }} – ZIP mit <code>werk.xml</code>, den Bildern als eigene Dateien und
+      einem Manifest mit Prüfsummen. Für alle Werke.</span></p>
+    <p><a class="btn" href="/werke/{{ work.id }}/austausch.xml" download="{{ xml_name }}">Nur XML herunterladen (.baruch.xml)</a>
+      <span class="muted small">{{ xml_name }} – eine einzige XML-Datei, Bilder als Base64 darin. Gut lesbar,
+      für kleine Werke.</span></p>
+  </section>
+
+  <section class="exchange-facts" aria-label="Umfang">
+    <h2 class="pane-title">Umfang</h2>
+    <ul>
+      <li>{{ counts.nodes }} {% if counts.nodes == 1 %}Gliederungspunkt{% else %}Gliederungspunkte{% endif %} mit {{ counts.revisions }} {% if counts.revisions == 1 %}Fassung{% else %}Fassungen{% endif %} und {{ counts.posts }} {% if counts.posts == 1 %}Beitrag{% else %}Beiträgen{% endif %}</li>
+      <li>{{ counts.template_revisions }} {% if counts.template_revisions == 1 %}Fassung{% else %}Fassungen{% endif %} der Werkvorlage</li>
+      <li>{{ counts.ideas }} {% if counts.ideas == 1 %}Einfall{% else %}Einfälle{% endif %}{% if counts.deleted_ideas %} (davon {{ counts.deleted_ideas }} gelöscht){% endif %}</li>
+      <li>{{ counts.threads }} {% if counts.threads == 1 %}Faden{% else %}Fäden{% endif %} mit {{ counts.thread_posts }} {% if counts.thread_posts == 1 %}Beitrag{% else %}Beiträgen{% endif %}</li>
+      <li>{{ counts.findings }} {% if counts.findings == 1 %}Befund{% else %}Befunde{% endif %} (davon {{ counts.open_findings }} offen) und {{ counts.post_versions }} {% if counts.post_versions == 1 %}alte Beitragsfassung{% else %}alte Beitragsfassungen{% endif %}</li>
+      <li>{{ counts.assets }} {% if counts.assets == 1 %}Bild{% else %}Bilder{% endif %} mit {{ counts.asset_revisions }} {% if counts.asset_revisions == 1 %}Fassung{% else %}Fassungen{% endif %}</li>
+      <li>Gedankenkarte: {{ counts.links }} {% if counts.links == 1 %}Verbindung{% else %}Verbindungen{% endif %}{% if counts.deleted_links %} (davon {{ counts.deleted_links }} gelöscht){% endif %} und {{ counts.positions }} {% if counts.positions == 1 %}gemerkte Lage{% else %}gemerkte Lagen{% endif %}</li>
+      {% if counts.typeset %}<li>Satz-Einstellungen: {{ counts.typeset_fields|join(", ") }}</li>{% endif %}
+      {% if counts.glossary_terms or counts.registers %}<li>Glossar: {{ counts.glossary_terms }} {% if counts.glossary_terms == 1 %}Begriff{% else %}Begriffe{% endif %}{% if counts.proposed_terms %} (davon {{ counts.proposed_terms }} vorgeschlagen){% endif %}, {{ counts.registers }} {% if counts.registers == 1 %}eigenes Register{% else %}eigene Register{% endif %}</li>{% endif %}
+      <li>{{ counts.tombstones }} {% if counts.tombstones == 1 %}Grabstein{% else %}Grabsteine{% endif %} gelöschter Teile</li>
+    </ul>
+    <p class="muted small">Werk-Kennung <code>{{ work.uuid }}</code> · Instanz {{ instance.label }}
+      {%- if instance.named %} (<code>{{ instance.uuid }}</code>){% endif %} · Format <code>{{ namespace }}</code>,
+      Version {{ version }}</p>
+  </section>
+
+  <p>Eine Datei einer anderen Instanz übernehmen: <a href="/austausch/einlesen?work={{ work.id }}">Austausch: Einlesen…</a>
+    (mit Vorschau; Baruch löscht und überschreibt dabei nie etwas).</p>
+  <p class="muted small">Auch über die Kommandozeile: <code>baruch-server export {{ work.slug }} --baruch {{ baruch_name }}</code>.</p>
+</main>
+{% endblock %}

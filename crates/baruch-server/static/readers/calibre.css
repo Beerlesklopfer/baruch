@@ -1,0 +1,16 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Reader-CSS „calibre“ für die EPUB-Vorschau (Runde 20b, Besitz „reader“): Betrachter von calibre – Schrift des Buchs (sonst Serifenschrift), 18 px, mittlere Ränder, Silbentrennung an.
+   Annahme ohne Gerät und ohne Netz (docs/Architektur.md, „R20b reader“). Die Vorschau fügt diese Datei als
+   style-Element hinter style/book.css in jede XHTML-Datei ein; der Teil nach der Marke „@night“ kommt nur mit Nachtmodus
+   dazu. Keine Adressen, keine Skripte. */
+@namespace epub "http://www.idpf.org/2007/ops";
+html { background: #ffffff; color: #111111; }
+body { margin: 0; padding: 40px 48px; font-family: Georgia, serif; font-size: 18px; line-height: 1.45; text-align: left; hyphens: auto; -webkit-hyphens: auto; }
+img { max-width: 100%; height: auto; }
+/* Fußnoten: der Reader zeigt sie als Popup; die Vorschau zeigt den Notentext als Kasten. */
+aside[epub|type~="footnote"] { border: 1px solid #cccccc; border-radius: 6px; padding: 0.3em 0.6em; margin: 0.6em 0; font-size: 0.85em; }
+aside[epub|type~="footnote"]::before { content: "Popup-Fußnote"; display: block; font-size: 0.75em; opacity: 0.7; }
+/* @night */
+html { background: #1e1e1e; color: #dddddd; }
+a { color: #dddddd; }
+aside[epub|type~="footnote"] { border-color: #555555; }

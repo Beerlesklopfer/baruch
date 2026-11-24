@@ -1,0 +1,181 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/register (Runde 31c, src/index_page.rs, Besitz kontextmenue). Kontext: settings, work {id, title},
+    registers [{slug, title, kind, builtin}], sections [{register, terms [{term, sub, keys [{key, url}], see, also, auto,
+    filter}]}], overview_error?, open [Vorschlag wie RPC index.proposals], decided [Vorschlag], proposals_error?,
+    section {key, rev, number, title, entries [{register, term, sub, see, also, auto, start, end}], error?}? (aus Query
+    key), custom_left, ok?, retry {action, v {Feld → Wert}, message}? (abgelehntes Formular, 422).
+    Ohne JavaScript: alle Formulare an POST /werke/{id}/register/act (action = mark|unmark|accept|reject|register_add|
+    register_rename|register_delete); Löschen mit Pflicht-Häkchen. Vorschläge der Assistenten gekennzeichnet; Übernehmen
+    (neue Fassung des Menschen mit der Marke) und Verwerfen nur hier per Formular. -#}
+{% extends "base.html" %}
+{% block title %}Register – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Register{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <a class="btn" href="/werke/{{ work.id }}/glossar">Glossar</a>
+{% endblock %}
+{%- macro mark_fields(v, word) %}
+  <label class="glossary-field small">Wort im Text <input type="text" name="word" maxlength="200" required value="{{ v.word or word or '' }}"></label>
+  <label class="glossary-field small">Fundstelle <select name="occurrence">
+    <option value="first"{% if not v.occurrence or v.occurrence == "first" %} selected{% endif %}>erste</option>
+    <option value="all"{% if v.occurrence == "all" %} selected{% endif %}>alle</option>
+    {%- for n in [2, 3, 4, 5] %}
+    <option value="{{ n }}"{% if v.occurrence == n|string %} selected{% endif %}>{{ n }}.</option>
+    {%- endfor %}
+  </select></label>
+  <label class="glossary-field small">Register <select name="register">
+    {%- for r in registers %}
+    <option value="{{ r.slug }}"{% if (v.register or "stichwort") == r.slug %} selected{% endif %}>{{ r.title }}</option>
+    {%- endfor %}
+  </select></label>
+  <label class="glossary-field small">Stichwort <span class="muted tiny">(leer = das Wort)</span> <input type="text" name="term" maxlength="200" value="{{ v.term or '' }}"></label>
+  <label class="glossary-field small">Unterstichwort <input type="text" name="sub" maxlength="200" value="{{ v.sub or '' }}"></label>
+  <label class="glossary-field small">siehe <input type="text" name="see" maxlength="200" value="{{ v.see or '' }}"></label>
+  <label class="glossary-field small">siehe auch <input type="text" name="also" maxlength="200" value="{{ v.also or '' }}"></label>
+{%- endmacro %}
+{% block body %}
+<main class="works-page index-page" data-work="{{ work.id }}" data-widget="glossary">
+  <h1 class="pane-title">Register</h1>
+  <p class="muted small">Registereinträge sind Marken im Text, direkt hinter dem Wort; das Bibelstellenregister entsteht von selbst aus
+    den erkannten Bibelstellen. Welche Register das Buch am Ende bekommt, regelt Einstellungen → Werk → Satz. Eine Marke setzen oder
+    entfernen ergibt eine neue Fassung des Abschnitts; Assistenten schlagen Einträge nur vor.</p>
+  {%- if ok %}
+  <p class="notice small" role="status" data-index-ok>{{ ok }}</p>
+  {%- endif %}
+  {%- if retry %}
+  <p class="notice error small" role="alert" data-index-error>{{ retry.message }}</p>
+  {%- endif %}
+
+  {%- if section %}
+  <section class="index-section" id="abschnitt" aria-labelledby="abschnitt-titel">
+    <h2 id="abschnitt-titel" class="small">Abschnitt {% if section.number %}{{ section.number }} {% endif %}{{ section.title }} (aktuelle Fassung {{ section.rev }})</h2>
+    {%- if section.error %}
+    <p class="notice warning small" role="alert">{{ section.error }}</p>
+    {%- elif not section.entries %}
+    <p class="muted small">Keine Registereinträge in diesem Abschnitt.</p>
+    {%- endif %}
+    <ul class="index-entries">
+    {%- for e in section.entries %}
+      <li>{{ e.register }}: {{ e.term }}{% if e.sub %} › {{ e.sub }}{% endif %}{% if e.see %} (siehe: {{ e.see }}){% endif %}{% if e.also %} (siehe auch: {{ e.also }}){% endif %}
+        {%- if e.auto %} <span class="muted tiny">automatisch</span>{% elif e.start is not none %}
+        <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
+          <input type="hidden" name="action" value="unmark">
+          <input type="hidden" name="key" value="{{ section.key }}">
+          <input type="hidden" name="rev" value="{{ section.rev }}">
+          <input type="hidden" name="start" value="{{ e.start }}">
+          <input type="hidden" name="end" value="{{ e.end }}">
+          <button class="btn small" type="submit" title="Marke entfernen (neue Fassung)">Entfernen</button>
+        </form>
+        {%- endif %}</li>
+    {%- endfor %}
+    </ul>
+    <form class="index-mark-form" method="post" action="/werke/{{ work.id }}/register/act">
+      <input type="hidden" name="action" value="mark">
+      <input type="hidden" name="key" value="{{ section.key }}">
+      <input type="hidden" name="rev" value="{{ section.rev }}">
+      {{- mark_fields(retry.v if retry and retry.action == "mark" else {}, "") }}
+      <button class="btn primary" type="submit">Marke setzen (neue Fassung)</button>
+    </form>
+  </section>
+  {%- endif %}
+
+  {%- if overview_error %}
+  <p class="notice warning small" role="alert" data-index-overview-error>Die Übersicht lässt sich nicht bilden: {{ overview_error }}</p>
+  {%- endif %}
+  <p class="glossary-filter" hidden><label class="small">Einträge filtern <input type="search" data-glossary-filter placeholder="Stichwort"></label> <span class="muted tiny" data-glossary-count aria-live="polite"></span></p>
+  <nav class="index-toc small" aria-label="Register">
+    {%- for s in sections %}<a href="#register-{{ s.register.slug }}">{{ s.register.title }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+  </nav>
+  {%- for s in sections %}
+  <section class="index-register" id="register-{{ s.register.slug }}" aria-labelledby="titel-{{ s.register.slug }}">
+    <h2 id="titel-{{ s.register.slug }}" class="small">{{ s.register.title }}{% if s.register.kind == "scripture" %} <span class="muted tiny">(automatisch aus den erkannten Bibelstellen)</span>{% endif %}</h2>
+    {%- if not s.terms %}
+    <p class="muted small">Noch keine Einträge.</p>
+    {%- else %}
+    <ul class="index-terms">
+    {%- for t in s.terms %}
+      <li data-filter-text="{{ t.filter }}"{% if t.sub %} class="index-sub"{% endif %}>{% if t.sub %}<span class="muted">{{ t.term }} ›</span> {{ t.sub }}{% else %}{{ t.term }}{% endif %}
+        {%- if t.keys %} <span class="index-keys small">{% for k in t.keys %}<a href="{{ k.url|safe }}">{{ k.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+        {%- if t.see %} <span class="small">siehe {{ t.see|join(", ") }}</span>{% endif %}
+        {%- if t.also %} <span class="small">siehe auch {{ t.also|join(", ") }}</span>{% endif %}
+        {%- if t.auto %} <span class="muted tiny">automatisch</span>{% endif %}</li>
+    {%- endfor %}
+    </ul>
+    {%- endif %}
+  </section>
+  {%- endfor %}
+
+  <section class="index-proposals" id="vorschlaege" aria-labelledby="vorschlaege-titel">
+    <h2 id="vorschlaege-titel" class="small">Vorschläge der Assistenten ({{ open|length }})</h2>
+    {%- if proposals_error %}
+    <p class="notice warning small" role="alert" data-index-proposals-error>Die Vorschläge lassen sich nicht lesen: {{ proposals_error }}</p>
+    {%- elif not open %}
+    <p class="muted small">Keine offenen Registervorschläge.</p>
+    {%- endif %}
+    {%- for p in open %}
+    <article class="index-proposal" id="vorschlag-{{ p.id }}" data-proposed>
+      <p class="small"><span class="badge" title="Vorschlag, noch nicht im Text">Vorschlag von {{ p.origin }}</span>
+        „{{ p.word }}“ ({{ p.occurrence_label }}) in <a href="/?work={{ work.id }}&amp;key={{ p.key }}">{{ p.section_label }}</a>, Fassung {{ p.based_on }}:
+        {{ p.mark.register }} – {{ p.mark.term }}{% if p.mark.sub %} › {{ p.mark.sub }}{% endif %}{% if p.mark.see %} (siehe: {{ p.mark.see }}){% endif %}{% if p.mark.also %} (siehe auch: {{ p.mark.also }}){% endif %}</p>
+      {%- if p.reason %}<p class="muted small">Begründung: {{ p.reason }}</p>{% endif %}
+      <div class="glossary-decide">
+        <form method="post" action="/werke/{{ work.id }}/register/act">
+          <input type="hidden" name="action" value="accept">
+          <input type="hidden" name="id" value="{{ p.id }}">
+          <button class="btn primary" type="submit" title="Marke als neue Fassung in den Abschnitt setzen">Übernehmen</button>
+        </form>
+        <form method="post" action="/werke/{{ work.id }}/register/act">
+          <input type="hidden" name="action" value="reject">
+          <input type="hidden" name="id" value="{{ p.id }}">
+          <button class="btn" type="submit">Verwerfen</button>
+        </form>
+      </div>
+    </article>
+    {%- endfor %}
+    {%- if decided %}
+    <details class="index-decided">
+      <summary class="small">Entschiedene Vorschläge ({{ decided|length }})</summary>
+      <ul>
+      {%- for p in decided %}
+        <li class="small" id="vorschlag-{{ p.id }}">„{{ p.word }}“ → {{ p.mark.term }} ({{ p.mark.register }}), {{ p.origin }}: {% if p.status == "accepted" %}übernommen{% elif p.status == "rejected" %}verworfen{% else %}veraltet (Wort nicht mehr im Text){% endif %}{% if p.decided_by %} von {{ p.decided_by }}{% endif %}</li>
+      {%- endfor %}
+      </ul>
+    </details>
+    {%- endif %}
+  </section>
+
+  <section class="index-manage" id="eigene" aria-labelledby="eigene-titel">
+    <h2 id="eigene-titel" class="small">Register verwalten</h2>
+    <ul class="index-register-list">
+    {%- for r in registers %}
+      <li>
+        {%- if r.builtin %}
+        <span>{{ r.title }}</span> <span class="muted tiny">eingebaut ({{ r.slug }})</span>
+        {%- else %}
+        <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
+          <input type="hidden" name="action" value="register_rename">
+          <input type="hidden" name="slug" value="{{ r.slug }}">
+          <label class="small">{{ r.slug }} <input type="text" name="title" maxlength="80" required value="{{ r.title }}"></label>
+          <button class="btn small" type="submit">Umbenennen</button>
+        </form>
+        <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
+          <input type="hidden" name="action" value="register_delete">
+          <input type="hidden" name="slug" value="{{ r.slug }}">
+          <label class="check small"><input type="checkbox" name="confirm" value="1" required> Ja, löschen</label>
+          <button class="btn small" type="submit">Löschen</button>
+        </form>
+        {%- endif %}
+      </li>
+    {%- endfor %}
+    </ul>
+    <form class="index-register-add" method="post" action="/werke/{{ work.id }}/register/act">
+      <input type="hidden" name="action" value="register_add">
+      {%- set rv = retry.v if retry and retry.action == "register_add" else {} %}
+      <label class="small">Kennung <input type="text" name="slug" maxlength="32" pattern="[a-z][a-z0-9\-]{0,31}" required value="{{ rv.slug or '' }}" placeholder="z. B. orte"></label>
+      <label class="small">Titel <input type="text" name="title" maxlength="80" required value="{{ rv.title or '' }}" placeholder="z. B. Ortsregister"></label>
+      <button class="btn" type="submit">Register anlegen</button>
+      <span class="muted tiny">Noch {{ custom_left }} eigene Register möglich (Kennung: Kleinbuchstaben, Ziffern, Bindestrich).</span>
+    </form>
+  </section>
+</main>
+{% endblock %}

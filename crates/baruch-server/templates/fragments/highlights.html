@@ -1,0 +1,86 @@
+{#- Hervorhebungen einer Quelle (Dokumentansicht /quelle): alle, auch Vorschläge und abgelehnte.
+    Das Ziel (?highlight=…) trägt die Klasse target, sein Text steht in <mark>. Je Hervorhebung
+    Formulare an POST /literatur/act: ändern (Art, Notiz, Status), als Zitat übernehmen, löschen
+    (Pflicht-Kontrollkästchen). Kontext: highlights, kinds, place_fields (versteckte Felder work, node,
+    key, rev, lq). „Als Zitat“ verlangt key, den festen Schlüssel des Abschnitts (ohne → 422).
+    Runde 13: h.check = Prüfung gegen den Volltext ({result, label, message, checked} oder leer), h.checkable =
+    ohne Zitat mit Bereich (dann Knopf „Gegen den Volltext prüfen“, action=check).
+    Runde 15: Persona-Hervorhebungen (h.persona) haben „Als eigene übernehmen“ (action=own): eine neue, aktive
+    Hervorhebung des Menschen; der Vorschlag der Persona bleibt. -#}
+<ol class="highlights">
+{%- for h in highlights %}
+  <li id="hervorhebung-{{ h.id }}" class="highlight kind-{{ h.kind }}{% if h.target %} target{% endif %}" data-status="{{ h.status }}">
+    <div class="highlight-head small">
+      <a href="{{ h.url }}"><strong>{{ h.kind_label }}</strong></a>
+      <span class="badge{% if h.status == 'proposed' %} primary{% elif h.status == 'rejected' %} warning{% endif %}">{{ h.status_label }}</span>
+      <span class="muted">{{ h.author }}{% if h.locator %} · {{ h.locator }}{% elif h.quote_page %} · {{ h.quote_page }}{% endif %}</span>
+    </div>
+    <blockquote class="highlight-text">{% if h.target %}<mark>{{ h.text }}</mark>{% else %}{{ h.text }}{% endif %}</blockquote>
+    {%- if h.check %}
+    <p class="highlight-check small check-{{ h.check.result }}" data-check="{{ h.check.result }}">{{ h.check.label }}{% if h.check.message %} – {{ h.check.message }}{% endif %} <span class="muted tiny">({{ h.check.checked }})</span></p>
+    {%- endif %}
+    {%- if h.note %}
+    <p class="highlight-note small">{{ h.note }}</p>
+    {%- endif %}
+    {%- if h.persona and h.status == "proposed" %}
+    <form method="post" action="/literatur/act" class="highlight-form highlight-own">
+      <input type="hidden" name="action" value="own">
+      <input type="hidden" name="highlight" value="{{ h.id }}">
+      {%- for f in place_fields %}
+      <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+      {%- endfor %}
+      <button class="btn" type="submit" title="Neue eigene Hervorhebung; der Vorschlag der Persona bleibt">Als eigene übernehmen</button>
+    </form>
+    {%- endif %}
+    <details class="highlight-edit"{% if h.target %} open{% endif %}>
+      <summary class="small">Ändern, zitieren, löschen</summary>
+      <form method="post" action="/literatur/act" class="highlight-form">
+        <input type="hidden" name="action" value="update">
+        <input type="hidden" name="highlight" value="{{ h.id }}">
+        {%- for f in place_fields %}
+        <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+        {%- endfor %}
+        <label>Art <select name="kind">
+          {%- for k in kinds %}<option value="{{ k.value }}"{% if k.value == h.kind %} selected{% endif %}>{{ k.label }}</option>{% endfor %}
+        </select></label>
+        <label>Notiz <input type="text" name="note" value="{{ h.note }}"></label>
+        <label>Status <select name="status">
+          {%- if h.persona %}<option value="proposed"{% if h.status == 'proposed' %} selected{% endif %}>Vorschlag</option>
+          {%- else %}<option value="active"{% if h.status == 'active' %} selected{% endif %}>aktiv</option>{% endif %}
+          <option value="rejected"{% if h.status == 'rejected' %} selected{% endif %}>abgelehnt</option>
+        </select></label>
+        <button class="btn" type="submit">Ändern</button>
+      </form>
+      <form method="post" action="/literatur/act" class="highlight-form">
+        <input type="hidden" name="action" value="cite">
+        <input type="hidden" name="highlight" value="{{ h.id }}">
+        {%- for f in place_fields %}
+        <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+        {%- endfor %}
+        <button class="btn" type="submit">Als Zitat in den Abschnitt (Vorschlag)</button>
+      </form>
+      {%- if h.checkable %}
+      <form method="post" action="/literatur/act" class="highlight-form">
+        <input type="hidden" name="action" value="check">
+        <input type="hidden" name="highlight" value="{{ h.id }}">
+        {%- for f in place_fields %}
+        <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+        {%- endfor %}
+        <button class="btn" type="submit">Gegen den Volltext prüfen</button>
+      </form>
+      {%- endif %}
+      <form method="post" action="/literatur/act" class="highlight-form">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="highlight" value="{{ h.id }}">
+        {%- for f in place_fields %}
+        <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+        {%- endfor %}
+        <label class="small"><input type="checkbox" name="confirm" value="on" required> wirklich löschen</label>
+        <button class="btn danger" type="submit">Löschen</button>
+      </form>
+    </details>
+  </li>
+{%- else %}
+  <li class="muted small">Noch keine Hervorhebungen.</li>
+{%- endfor %}
+</ol>

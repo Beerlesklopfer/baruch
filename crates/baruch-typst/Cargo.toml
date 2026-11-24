@@ -1,0 +1,18 @@
+[package]
+name = "baruch-typst"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+thiserror = "2"
+# Umschlag-Anordnung (Runde 27): Typen gehen über Store, RPC und MCP als JSON.
+serde = { version = "1", features = ["derive"] }
+# Satz-Einstellungen (Runde 29): kanonisches JSON (TypesetSettings::to_json/from_json).
+serde_json = "1"
+# Register und Glossar (Runde 31): Bibelstellen erkennen für das Bibelstellenregister (kein Zyklus: scripture hängt an
+# nichts aus dem Workspace).
+baruch-scripture = { path = "../baruch-scripture" }
+# term_key (R31): NFC vor dem Vergleich; Lizenz MIT OR Apache-2.0, liegt schon im Lock.
+unicode-normalization = "0.1"

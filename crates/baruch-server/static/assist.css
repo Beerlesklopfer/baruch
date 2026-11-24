@@ -1,0 +1,99 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Persona-Aufträge (Runde 10): Formular „Prüfen“/„Vorschlag“ im Akkordeon „Assistenten“, vorläufiger
+   Beitrag während die Antwort Wort für Wort eintrifft (Widget „assist“, web/src/assist.ts), Einstellungen
+   „Assistenten“ (Lektor-Wahl, Rollen-Prompt). */
+
+.assist-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.assist-form input[name="instruction"] {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.assist-form .actions {
+  margin: 0;
+}
+
+.post.pending {
+  border-style: dashed;
+}
+
+.post.pending .post-body {
+  white-space: pre-wrap;
+}
+
+.post.pending .assist-status {
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+.assist-cancel {
+  margin-top: 0.3rem;
+}
+
+.assist-error {
+  color: var(--danger, #c92a2a);
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+.persona-lector-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.persona-prompt textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono, monospace);
+  font-size: 0.85em;
+}
+
+.notice.warning {
+  border-color: var(--warning, #9a5800);
+}
+
+/* Runde 11: Vervollständigung von „@…“ im Abschnitts-Chat (web/src/mention.ts). Die Liste steht über
+   dem Eingabefeld, weil der Chat unten im Akkordeon sitzt. */
+.mention-host { position: relative; }
+.mention-list {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 20; margin: 0; padding: 4px;
+  list-style: none; max-height: 16em; overflow: auto; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel, var(--bg)); box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+}
+.mention-list[hidden] { display: none; }
+.mention-option {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 4px 6px; border-radius: 4px;
+  cursor: pointer; border-left: 4px solid var(--pc-edge, var(--line));
+}
+.mention-option[aria-selected="true"] { background: var(--pc-bg, var(--primary-soft)); outline: 2px solid var(--primary); outline-offset: -2px; }
+.mention-role { flex-basis: 100%; }
+
+/* Runde 12: Treffer der Bedeutungssuche als Belege (Tab von @belege und des Lektors). */
+.persona-rag fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: center;
+  margin: 0.6rem 0 0;
+}
+
+.persona-rag fieldset p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+/* Hinweisseite der Persona-Aufträge ohne JavaScript (Runde 15, templates/assist_notice.html): mit Rand wie die
+   übrigen Seiten (Integrator Runde 15). */
+.assist-notice-page { max-width: 72ch; margin: 24px auto; padding: 0 16px; }

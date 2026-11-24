@@ -1,0 +1,99 @@
+{#- Akkordeon „Fassungen“ rechts (Wunsch 2026-11-06, aus dem Editor ausgelagert): Kopf mit der Zahl der
+    Fassungen und der offenen Vorschläge als Abzeichen (auch eingeklappt, ohne JavaScript), darin für die
+    gezeigte Fassung „Diese Fassung verwenden“, „Fassung ändern“ und „Löschen“ (nur Mensch, mit Kästchen;
+    die aktuelle Fassung lässt sich nicht löschen) und die kleine Baumansicht (fragments/revtree.html).
+    Alle Formulare gehen ohne JavaScript an /act, mit JavaScript über RPC (workspace.ts); danach zeichnet
+    ui.render diesen Bereich mit der rechten Spalte neu. Der Inhalt ist eine eigene Zoom-Zone.
+    Runde 22 (fassungen): „Stand k“ der gezeigten Fassung mit Link „Verlauf“ (Fortschreibungen, Rückgängig) und die
+    Liste „Weitere Fassungen“ (ersetzt, verworfen) mit je einem Formular „aktuell machen“ (id="rev-alt-<n>",
+    revision.set_current an /act); die Knöpfe im Editor-Kopf zeigen über form="rev-alt-<n>" auf diese Formulare. -#}
+{%- macro hidden(method) %}
+      <input type="hidden" name="method" value="{{ method }}">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="node" value="{{ node.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
+      <input type="hidden" name="rev" value="{{ rev.number }}">
+      <input type="hidden" name="view" value="{{ view }}">
+{%- endmacro %}
+<details class="acc" name="right" data-section="revisions"{% if settings.accordion == "revisions" %} open{% endif %}>
+  <summary class="acc-head">
+    <span class="acc-title">Fassungen</span>
+    <span class="badge rev-count" title="{% if rev.total == 1 %}1 Fassung{% else %}{{ rev.total }} Fassungen{% endif %} dieses Abschnitts">{{ rev.total }}</span>
+    {%- if rev.open_proposals %}
+    <span class="badge warning proposal-count" title="{% if rev.open_proposals == 1 %}1 offener Vorschlag{% else %}{{ rev.open_proposals }} offene Vorschläge{% endif %}">{% if rev.open_proposals == 1 %}1 Vorschlag{% else %}{{ rev.open_proposals }} Vorschläge{% endif %}</span>
+    {%- endif %}
+    <span class="muted small acc-sub">gezeigt: Fassung {{ rev.number }}</span>
+  </summary>
+  <div class="acc-body" data-zoom-zone="revisions">
+    <div class="rev-actions">
+      <div class="small"><strong>Fassung {{ rev.number }}</strong> <span class="muted">· {{ rev.status }}</span>
+        {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen, mit „Bis hier zurück“">Stand {{ rev.amend_seq }} · Verlauf</a>{% endif %}</div>
+      {%- if not rev.is_current and not rev.proposal %}
+      <form method="post" action="/act" data-rpc>
+        {{- hidden("revision.set_current") }}
+        <button class="btn success" type="submit">Diese Fassung verwenden</button>
+      </form>
+      {%- endif %}
+      <details class="rev-edit">
+        <summary class="btn">Fassung ändern</summary>
+        <form class="rev-edit-form" method="post" action="/act" data-rpc>
+          {{- hidden("revision.update") }}
+          {#- Runde 23a (Codereview web-3): Stand, auf dem das Textfeld beruht; ist die Fassung inzwischen fortgeschrieben, lehnt revision.update ab („Veraltet: …“). #}
+          <input type="hidden" name="based_on_amend" value="{{ rev.amend_seq | default(0) }}">
+          <label class="small">Text von Fassung {{ rev.number }}
+            <textarea name="body" required spellcheck="true" lang="de">{{ rev.body }}</textarea></label>
+          <label class="small">Notiz <input type="text" name="note" value="{{ rev.note }}"></label>
+          <span class="muted small">Ändert diese Fassung selbst (keine neue); wird im Git-Spiegel protokolliert.</span>
+          <button class="btn primary" type="submit">Änderung speichern</button>
+        </form>
+      </details>
+      <form class="rev-delete" method="post" action="/act" data-rpc>
+        {{- hidden("revision.delete") }}
+        {%- if rev.is_current %}
+        <button class="btn danger" type="submit" disabled>Löschen</button>
+        <span class="muted small">Die aktuelle Fassung lässt sich nicht löschen; erst auf eine andere umschalten.</span>
+        {%- else %}
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> Fassung {{ rev.number }} wirklich löschen</label>
+        <button class="btn danger" type="submit">Löschen</button>
+        {%- endif %}
+      </form>
+    </div>
+    {%- if rev.alternatives %}
+    <div class="rev-alternatives-forms small">
+      <div><strong>Weitere Fassungen</strong> <span class="muted">(ersetzt oder verworfen)</span></div>
+      <ul class="rev-alt-list">
+        {%- for a in rev.alternatives %}
+        <li class="rev-alt{% if a.shown %} shown{% endif %}">
+          {%- if a.shown %}Fassung {{ a.number }} <span class="muted">(gezeigt)</span>{% else %}<a data-nav href="{{ a.url }}">Fassung {{ a.number }}</a>{% endif %}
+          <span class="muted">· {{ a.status }} · {{ a.author }}</span>
+          <form class="rev-alt-form" id="rev-alt-{{ a.number }}" method="post" action="/act" data-rpc>
+            <input type="hidden" name="method" value="revision.set_current">
+            <input type="hidden" name="work" value="{{ work.id }}">
+            <input type="hidden" name="node" value="{{ node.id }}">
+            <input type="hidden" name="key" value="{{ node.key }}">
+            <input type="hidden" name="rev" value="{{ a.number }}">
+            <input type="hidden" name="view" value="{{ view }}">
+            {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
+            <button class="btn tiny" type="submit" title="Fassung {{ a.number }} zur aktuellen machen">aktuell machen</button>
+          </form>
+        </li>
+        {%- endfor %}
+      </ul>
+    </div>
+    {%- endif %}
+    {%- for r in revtree.section if r.shown and r.variant and r.status_key == "proposed" %}
+    <form class="rev-variant small" method="post" action="/loesungen/act" aria-label="Übrige Varianten außer {{ r.variant.label }} verwerfen">
+      <input type="hidden" name="method" value="solution.reject_siblings">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      <input type="hidden" name="rev" value="{{ r.number }}">
+      <span><span class="badge variant">Variante {{ r.variant.label }}</span> {{ r.variant.summary }} ·
+        <a href="/varianten?work={{ work.id }}&amp;key={{ node.key }}&amp;group={{ r.variant.group }}">Varianten vergleichen</a></span>
+      <label><input type="checkbox" name="confirm" value="1" required> übrige Varianten verwerfen</label>
+      <button class="btn small" type="submit">Übrige verwerfen</button>
+    </form>
+    {%- endfor %}
+    {% include "fragments/revtree.html" %}
+  </div>
+</details>

@@ -1,0 +1,82 @@
+---
+title: "Bedienung"
+description: "Der erste Rundgang: starten, ein Werk anlegen, schreiben, Fassungen umschalten – und wo die ausführliche Dokumentation steht."
+---
+
+Diese Seite ist ein kurzer Einstieg. Jede Seite und jedes Formular beschreibt die
+{{< doku "docs/Bedienung.md" "ausführliche Bedienung" >}} im Repository.
+
+## Starten
+
+„Baruch“ im Startmenü wählen oder im Terminal:
+
+```sh
+baruch                              # startet den Server, falls nötig, und öffnet den Browser
+baruch-server                       # nur der Server auf http://127.0.0.1:8765/
+baruch-server --data /tmp/probe     # zum Ausprobieren mit eigenem Datenordner
+```
+
+Danach `http://127.0.0.1:8765/` im Browser öffnen. Eine neue Datenbank bringt ein Beispielwerk mit.
+
+## Das erste eigene Werk
+
+**Werk ▾ → Neues Werk / Importieren…** legt ein Buch oder eine Predigt an (Titel, Autor, Grundgerüst,
+Zielgruppe, Bibelübersetzung) – oder liest eine vorhandene Datei ein: Typst, Markdown (auch als ZIP mit
+Bildern), PDF, EPUB oder eine `.baruch`-Austauschdatei. Beim Einlesen zeigt Baruch zuerst eine Vorschau der
+Gliederung; angelegt wird erst nach Bestätigung.
+
+## Der Arbeitsplatz
+
+- **Links die Gliederung:** Ein Klick öffnet den Abschnitt. Umbenennen, Verschieben und Umstufen gehen über
+  das Kontextmenü oder über Formulare.
+- **In der Mitte der Editor:** das Satzbild – der Abschnitt, wie er gesetzt wird – oder der Typst-Quelltext.
+  **Strg+S** speichert; daraus wird eine Fassung.
+- **Rechts die Akkordeons:** Assistenten, Fassungen, Befunde und der Chat zum Abschnitt.
+
+## Fassungen
+
+Speichern legt eine neue Fassung an oder schreibt bei kleinen Änderungen die eigene fort. Im Akkordeon
+**Fassungen** steht der Baum aller Fassungen des Abschnitts; „aktuell“ ist genau eine. Ein Vorschlag eines
+Assistenten erscheint dort als eigene Fassung – **Übernehmen** macht ihn zur aktuellen, **Verwerfen** lässt
+den Text, wie er ist.
+
+## Wichtige Tasten
+
+| Taste | Wirkung |
+|---|---|
+| Strg+S | Speichern |
+| Alt+E | Einfall festhalten |
+| Alt+L | Literatur öffnen und schließen |
+| Alt+, | Einstellungen |
+| Strg+F · Strg+H | Suchen · Ersetzen im Abschnitt |
+| Strg+Umschalt+F · Strg+Umschalt+H | Suchen · Ersetzen im Werk |
+| Alt+→ | nächste Fassung |
+
+Alles geht auch ohne Tastenkürzel und ohne JavaScript über Links und Formulare.
+
+## Buch setzen und ausgeben
+
+Die Menüs der Kopfzeile führen zur Satz-Vorschau, zum Buch als PDF, zum Umschlag und zum EPUB. Wie das Buch
+aussieht, stellt **Einstellungen → Werk → Satz** ein (Seitenformat, Ränder, Schrift, Kapitelanfang). Auf der
+Kommandozeile:
+
+```sh
+baruch-server export ID --pdf buch.pdf
+baruch-server export ID --epub buch.epub
+baruch-server export ID --out ordner        # Typst-Datei und Bilder
+```
+
+Ein Export überschreibt nie eine vorhandene Datei. `baruch-server --help` nennt alle Angaben.
+
+## Über Baruch
+
+**Über Baruch** im Menü zeigt Version, Lizenz und den Link zum Quellcode. Baruch fragt nie von sich aus im Netz
+nach neuen Versionen; die Seite verlinkt die Release-Seite, auf der man selbst nachsieht.
+
+## Dokumentation
+
+- {{< doku "docs/Bedienung.md" "Bedienung" >}}: jede Seite, jedes Formular
+- {{< doku "docs/Betrieb.md" "Betrieb" >}}: Datenordner, Sicherung, Reverse-Proxy
+- {{< doku "docs/MCP.md" "MCP" >}} und {{< doku "docs/RPC.md" "RPC" >}}: die Schnittstellen
+- {{< doku "docs/Architektur.md" "Architektur" >}}: Aufbau und Entscheidungen
+- {{< doku "docs/Verteilung.md" "Verteilung" >}}: Pakete und Release

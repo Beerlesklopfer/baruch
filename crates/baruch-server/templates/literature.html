@@ -1,0 +1,21 @@
+{#- Seite /literatur: die Literatur ohne JavaScript (mit JavaScript dasselbe als Popup der Kopfzeile).
+    Kontext wie fragments/library.html (seit Runde 12 mit library_mode, library_rag und fts_url für den
+    Umschalter Wortlaut/Bedeutung), dazu work_url (zurück zum Werk, mit lq und lmode) und notice.
+    Runde 21c: images_html – fertiges, maskiertes HTML des Kastens „Bilder des Werks“ (literature::image_hits),
+    leer ohne Suche. -#}
+{% extends "base.html" %}
+{% block title %}Literatur – Baruch{% endblock %}
+{% block page_title %}Literatur · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="literature-page">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Literatur</h1>
+  {% include "fragments/library.html" %}
+  {{ images_html }}
+</main>
+{% endblock %}

@@ -1,0 +1,396 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Fortschreiben der aktuellen Fassung: Verlauf, Rückgängig über den Verlauf und Einstellung „Fassungen“ je Werk
+//! (Runde 22, Vertrag §2.1–2.4 und §4; Besitz fassungen).
+//!
+//! - RPC: `revision.amends {node|key, rev}` (nur lesend) → `{node, key, rev, amend_seq, steps}`;
+//!   `revision.amend_undo {node|key, rev, seq}` (nur Mensch; nicht über MCP) → `{node, key, rev, amend_seq,
+//!   commit?|mirror?}`; `revision.policy_get {work?}` → `{work, amend, max_change_percent, new_after_minutes,
+//!   defaults}`; `revision.policy_set {work?, amend, max_change_percent, new_after_minutes}` (nur Mensch, nicht über
+//!   `/act` und MCP) → `{work, changed, commit?|mirror?}`.
+//! - Routen: `GET /werke/{id}/fassungen/verlauf?key=K&rev=R` (Verlauf mit Wort-Unterschied je Schritt und Knopf
+//!   „Bis hier zurück“), `POST /werke/fassungen/act` (`method=revision.amend_undo`, `work`, `key`, `rev`, `seq` →
+//!   303 auf den Verlauf), `POST /einstellungen/werk/fassungen` (Formular Einstellungen → Werk → Fassungen → 303 auf
+//!   `/einstellungen/werk?work=W&ok=fassungen#fassungen`, abgelehnt `…&fassungenfehler=1#fassungen`).
+//!
+//! Jeder Schritt (Fortschreibung, Rücknahme) und jede Änderung der Einstellung ist genau ein Commit im Spiegel
+//! (`mirror::record` bzw. `mirror::record_revision_policy`). MCP liest nur (`mcp::revisions`, `revision_amends`).
+
+use std::sync::{Arc, OnceLock};
+
+use axum::Router;
+use axum::extract::{Form, Path, Query, State};
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::routing::{get, post};
+use baruch_core::revision_policy::{MAX_CHANGE_PERCENT, NEW_AFTER_MINUTES, word_diff};
+use baruch_core::{DiffKind, RevisionStatus};
+use baruch_store::{AmendKind, RevisionPolicy, StoreError, WorkId};
+use minijinja::value::Serde;
+use minijinja::{Environment, Value as Tpl, context};
+use serde_json::{Value, json};
+
+use crate::rpc::{INVALID_PARAMS, RpcError, add_mirror, resolve_keys};
+use crate::{AppState, mirror};
+
+/// RPC-Methoden dieses Moduls.
+pub fn handles(method: &str) -> bool {
+    matches!(method, "revision.amends" | "revision.amend_undo" | "revision.policy_get" | "revision.policy_set")
+}
+
+fn invalid(message: impl Into<String>) -> RpcError {
+    RpcError::new(INVALID_PARAMS, message)
+}
+
+/// Zahl ab 0 aus `params[key]`, auch als Text (Formulare); fehlt, `null` oder leer → `None`.
+fn number(params: &Value, key: &str) -> Result<Option<u64>, RpcError> {
+    let wrong = || invalid(format!("{key}: Zahl ab 0 erwartet"));
+    match params.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(wrong),
+        Some(Value::String(s)) if s.trim().is_empty() => Ok(None),
+        Some(Value::String(s)) => s.trim().parse().map(Some).map_err(|_| wrong()),
+        Some(_) => Err(wrong()),
+    }
+}
+
+fn required_u32(params: &Value, key: &str) -> Result<u32, RpcError> {
+    let value = number(params, key)?.ok_or_else(|| invalid(format!("{key} fehlt")))?;
+    u32::try_from(value).map_err(|_| invalid(format!("{key}: zu groß")))
+}
+
+fn node_of(params: &Value) -> Result<usize, RpcError> {
+    let value = number(params, "node")?.ok_or_else(|| invalid("node oder key fehlt"))?;
+    usize::try_from(value).map_err(|_| invalid("node: zu groß"))
+}
+
+/// Wahrheitswert: `true`, `1`, `"1"`, `"on"`, `"true"` → wahr; `false`, `0`, `"0"`, `"off"`, `"false"`, `""` → falsch.
+fn boolean(params: &Value, key: &str) -> Result<Option<bool>, RpcError> {
+    match params.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(Value::Number(n)) if n.as_u64() == Some(1) => Ok(Some(true)),
+        Some(Value::Number(n)) if n.as_u64() == Some(0) => Ok(Some(false)),
+        Some(Value::String(s)) => match s.trim() {
+            "1" | "on" | "true" => Ok(Some(true)),
+            "0" | "off" | "false" | "" => Ok(Some(false)),
+            _ => Err(invalid(format!("{key}: an oder aus erwartet"))),
+        },
+        Some(_) => Err(invalid(format!("{key}: an oder aus erwartet"))),
+    }
+}
+
+fn policy_json(work: WorkId, policy: &RevisionPolicy) -> Value {
+    let defaults = RevisionPolicy::default();
+    json!({
+        "work": work,
+        "amend": policy.amend,
+        "max_change_percent": policy.max_change_percent,
+        "new_after_minutes": policy.new_after_minutes,
+        "defaults": {
+            "amend": defaults.amend,
+            "max_change_percent": defaults.max_change_percent,
+            "new_after_minutes": defaults.new_after_minutes,
+        },
+        "limits": {
+            "max_change_percent": [MAX_CHANGE_PERCENT.0, MAX_CHANGE_PERCENT.1],
+            "new_after_minutes": [NEW_AFTER_MINUTES.0, NEW_AFTER_MINUTES.1],
+        },
+    })
+}
+
+/// Neue Einstellung aus den Parametern: fehlende Felder bleiben wie gespeichert; Grenzen nach
+/// [`RevisionPolicy::validate`] (deutsche Meldung, -32602).
+fn policy_from(params: &Value, stored: RevisionPolicy) -> Result<RevisionPolicy, RpcError> {
+    let percent = match number(params, "max_change_percent")? {
+        Some(p) => u8::try_from(p).map_err(|_| invalid("Größte Änderung: 1 bis 100 Prozent."))?,
+        None => stored.max_change_percent,
+    };
+    let minutes = match number(params, "new_after_minutes")? {
+        Some(m) => u32::try_from(m).map_err(|_| invalid("Neue Fassung nach: 0 bis 1440 Minuten."))?,
+        None => stored.new_after_minutes,
+    };
+    let policy = RevisionPolicy {
+        amend: boolean(params, "amend")?.unwrap_or(stored.amend),
+        max_change_percent: percent,
+        new_after_minutes: minutes,
+    };
+    policy.validate().map_err(invalid)?;
+    Ok(policy)
+}
+
+/// Beantwortet eine Methode aus [`handles`].
+pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
+    let store = &state.store;
+    match method {
+        "revision.amends" => {
+            let params = resolve_keys(state, work, params).await?;
+            let node = node_of(&params)?;
+            let rev = required_u32(&params, "rev")?;
+            let steps = store.amend_history(work, node, rev).await?;
+            let key = store.node_key(work, node).await?;
+            let amend_seq = steps.last().map_or(0, |s| s.seq);
+            Ok(json!({ "node": node, "key": key, "rev": rev, "amend_seq": amend_seq, "steps": steps }))
+        }
+        "revision.amend_undo" => {
+            let held = state.write_lock.lock().await;
+            let params = resolve_keys(state, work, params).await?;
+            let node = node_of(&params)?;
+            let rev = required_u32(&params, "rev")?;
+            let seq = required_u32(&params, "seq")?;
+            let change = store.amend_undo(work, node, rev, seq, mirror::HUMAN_NAME).await?;
+            let key = store.node_key(work, change.node).await?;
+            let mut answer =
+                json!({ "node": change.node, "key": key, "rev": change.rev, "amend_seq": change.amend_seq });
+            add_mirror(&mut answer, mirror::record(state, &held, &change).await);
+            Ok(answer)
+        }
+        "revision.policy_get" => Ok(policy_json(work, &store.revision_policy(work).await?)),
+        "revision.policy_set" => {
+            let held = state.write_lock.lock().await;
+            let stored = store.revision_policy(work).await?;
+            let policy = policy_from(&params, stored)?;
+            let change = store.set_revision_policy(work, &policy, mirror::HUMAN_NAME).await?;
+            let mut answer = json!({ "work": work, "changed": change.changed });
+            if !change.changed.is_empty() {
+                add_mirror(&mut answer, mirror::record_revision_policy(state, &held, &change).await);
+            }
+            Ok(answer)
+        }
+        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+    }
+}
+
+// ---- Seiten ------------------------------------------------------------------------------------
+
+fn templates() -> &'static Environment<'static> {
+    static ENV: OnceLock<Environment<'static>> = OnceLock::new();
+    ENV.get_or_init(|| {
+        let mut env = Environment::new();
+        for (name, source) in [
+            ("base.html", include_str!("../templates/base.html")),
+            ("revision_history.html", include_str!("../templates/revision_history.html")),
+        ] {
+            env.add_template(name, source).expect("Vorlage des Verlaufs fehlerhaft");
+        }
+        env
+    })
+}
+
+fn plain(status: StatusCode, text: impl Into<String>) -> Response {
+    (status, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text.into()).into_response()
+}
+
+/// Wort-Unterschied als sicheres HTML (alles maskiert): Gleiches schlicht, Neues in `<ins>`, Entferntes in `<del>`.
+pub(crate) fn diff_html(old: &str, new: &str) -> String {
+    let mut out = String::from("<div class=\"amend-diff\">");
+    for (kind, text) in word_diff(old, new) {
+        let text = crate::bibles::html_escape(&text);
+        match kind {
+            DiffKind::Same => out.push_str(&format!("<span class=\"d-same\">{text}</span>")),
+            DiffKind::Added => out.push_str(&format!("<ins class=\"d-add\">{text}</ins>")),
+            DiffKind::Removed => out.push_str(&format!("<del class=\"d-del\">{text}</del>")),
+        }
+    }
+    out.push_str("</div>");
+    out
+}
+
+fn pair<'a>(pairs: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.trim()).filter(|v| !v.is_empty())
+}
+
+/// Daten der Seite „Verlauf“ einer Fassung.
+async fn history_context(
+    state: &AppState,
+    work: WorkId,
+    key: i64,
+    rev: u32,
+    notice: Option<&str>,
+    error: Option<String>,
+) -> Result<(String, Tpl), RpcError> {
+    let store = &state.store;
+    let node = store.node_seq(work, key).await?;
+    let loaded = store.load_work(work).await?;
+    let n = loaded.nodes.get(node).ok_or(StoreError::UnknownNode { work, node })?;
+    let revision = n.revision(rev).ok_or_else(|| StoreError::UnknownRevision {
+        node,
+        rev,
+        existing: n.revisions.iter().map(|r| r.number).collect(),
+    })?;
+    let steps = store.amend_history(work, node, rev).await?;
+    let own_current =
+        revision.status == RevisionStatus::Current && matches!(revision.author, baruch_core::Author::Human { .. });
+    let rows: Vec<Tpl> = steps
+        .iter()
+        .rev()
+        .map(|s| {
+            context! {
+                seq => s.seq,
+                kind => match s.kind { AmendKind::Amend => "Fortschreibung", AmendKind::Undo => "Rücknahme" },
+                undo_of => s.undo_of,
+                author => s.author.as_str(),
+                created => crate::localtime::minutes(&s.created),
+                diff => diff_html(&s.body_before, &s.body_after),
+                // Zurück auf den Stand vor diesem Schritt geht nur, wenn er sich vom jetzigen Text unterscheidet.
+                can_undo => own_current && s.body_before != revision.body,
+            }
+        })
+        .collect();
+    let label = if n.number.is_empty() { n.title.clone() } else { format!("{} {}", n.number, n.title) };
+    let back = crate::view::node_url(work, key, Some(rev), false, "", "");
+    let ctx = context! {
+        work => context! { id => work, title => loaded.title.as_str() },
+        node => context! { key => key, label => label.as_str() },
+        rev => context! {
+            number => rev,
+            status => crate::mirror::revision_status_word(revision.status),
+            amend_seq => steps.last().map_or(0, |s| s.seq),
+            body => revision.body.as_str(),
+            own_current => own_current,
+        },
+        steps => rows,
+        back => back,
+        notice => notice,
+        error => error,
+    };
+    Ok((label, ctx))
+}
+
+fn render_history(headers: &HeaderMap, status: StatusCode, ctx: Tpl) -> Response {
+    let settings = crate::view::Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
+    let ctx = context! { settings => Tpl::from(Serde(settings)), ..ctx };
+    match templates().get_template("revision_history.html").and_then(|t| t.render(ctx)) {
+        Ok(html) => (status, Html(html)).into_response(),
+        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage revision_history.html: {e}")),
+    }
+}
+
+fn status_of(e: &RpcError) -> StatusCode {
+    match e.code {
+        INVALID_PARAMS => StatusCode::UNPROCESSABLE_ENTITY,
+        crate::rpc::REFUSED => StatusCode::CONFLICT,
+        crate::rpc::INTERNAL => StatusCode::INTERNAL_SERVER_ERROR,
+        _ => StatusCode::NOT_FOUND,
+    }
+}
+
+/// `GET /werke/{id}/fassungen/verlauf?key=K&rev=R[&ok=1]`: Verlauf der Fortschreibungen einer Fassung, neueste zuerst,
+/// je Schritt der Wort-Unterschied und (nur auf der aktuellen Fassung des Menschen) „Bis hier zurück“.
+async fn history_page(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(work): Path<WorkId>,
+    Query(pairs): Query<Vec<(String, String)>>,
+) -> Response {
+    let (Some(key), Some(rev)) = (
+        pair(&pairs, "key").and_then(|k| k.parse::<i64>().ok()),
+        pair(&pairs, "rev").and_then(|r| r.parse::<u32>().ok()),
+    ) else {
+        return plain(StatusCode::BAD_REQUEST, "key und rev fehlen (Abschnitt und Fassung).");
+    };
+    let notice = pair(&pairs, "ok").map(|_| "Zurückgenommen: der Text steht wieder auf dem gewählten Stand.");
+    match history_context(&state, work, key, rev, notice, None).await {
+        Ok((_, ctx)) => render_history(&headers, StatusCode::OK, ctx),
+        Err(e) => plain(status_of(&e), e.message),
+    }
+}
+
+/// `POST /werke/fassungen/act` (hinter `guard::same_origin`): `method=revision.amend_undo`, `work`, `key`, `rev`,
+/// `seq`. Erfolg → 303 auf den Verlauf mit `ok=1`; abgelehnt → der Verlauf mit Meldung (409/422).
+async fn act(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Form(pairs): Form<Vec<(String, String)>>,
+) -> Response {
+    if pair(&pairs, "method") != Some("revision.amend_undo") {
+        return plain(StatusCode::BAD_REQUEST, "unbekannte Aktion");
+    }
+    let work = match pair(&pairs, "work").and_then(|w| w.parse::<WorkId>().ok()) {
+        Some(w) => w,
+        None => match state.default_work().await {
+            Ok(w) => w,
+            Err(e) => return plain(StatusCode::UNPROCESSABLE_ENTITY, e.to_string()),
+        },
+    };
+    let (Some(key), Some(rev)) = (
+        pair(&pairs, "key").and_then(|k| k.parse::<i64>().ok()),
+        pair(&pairs, "rev").and_then(|r| r.parse::<u32>().ok()),
+    ) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "key und rev fehlen (Abschnitt und Fassung).");
+    };
+    let params = json!({ "work": work, "key": key, "rev": rev, "seq": pair(&pairs, "seq").unwrap_or("") });
+    match call(&state, work, "revision.amend_undo", params).await {
+        Ok(_) => Redirect::to(&format!("{}&ok=1", crate::view::history_url(work, key, rev))).into_response(),
+        Err(e) => match history_context(&state, work, key, rev, None, Some(e.message.clone())).await {
+            Ok((_, ctx)) => render_history(&headers, status_of(&e), ctx),
+            Err(_) => plain(status_of(&e), e.message),
+        },
+    }
+}
+
+/// `POST /einstellungen/werk/fassungen` (hinter `guard::same_origin`): `work`, `amend` (Kästchen; fehlt = aus),
+/// `max_change_percent`, `new_after_minutes`. 303 auf `/einstellungen/werk?work=W&ok=fassungen#fassungen` bzw.
+/// `…&fassungenfehler=1#fassungen` (nichts geändert).
+async fn policy_act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, String)>>) -> Response {
+    let work = match pair(&pairs, "work").and_then(|w| w.parse::<WorkId>().ok()).filter(|&w| w > 0) {
+        Some(w) => match state.store.work_slug(w).await {
+            Ok(_) => w,
+            Err(_) => return Redirect::to("/einstellungen/werk").into_response(),
+        },
+        None => match state.default_work().await {
+            Ok(w) => w,
+            Err(_) => return Redirect::to("/einstellungen/werk").into_response(),
+        },
+    };
+    let failed = format!("/einstellungen/werk?work={work}&fassungenfehler=1#fassungen");
+    if pair(&pairs, "method").is_some_and(|m| m != "revision.policy_set") {
+        return Redirect::to(&failed).into_response();
+    }
+    let params = json!({
+        "work": work,
+        "amend": pair(&pairs, "amend").is_some(),
+        "max_change_percent": pair(&pairs, "max_change_percent").unwrap_or(""),
+        "new_after_minutes": pair(&pairs, "new_after_minutes").unwrap_or(""),
+    });
+    match call(&state, work, "revision.policy_set", params).await {
+        Ok(_) => Redirect::to(&format!("/einstellungen/werk?work={work}&ok=fassungen#fassungen")).into_response(),
+        Err(_) => Redirect::to(&failed).into_response(),
+    }
+}
+
+/// Seiten (GET): Verlauf der Fortschreibungen.
+pub fn pages() -> Router<Arc<AppState>> {
+    Router::new().route("/werke/{id}/fassungen/verlauf", get(history_page))
+}
+
+/// Schreibende Formulare (POST): Rückgängig über den Verlauf, Einstellung „Fassungen“.
+pub fn writes() -> Router<Arc<AppState>> {
+    Router::new().route("/werke/fassungen/act", post(act)).route("/einstellungen/werk/fassungen", post(policy_act))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn policy_parameters_keep_missing_fields_and_check_the_limits() {
+        let stored = RevisionPolicy::default();
+        let p = policy_from(&json!({ "max_change_percent": "35" }), stored).unwrap();
+        assert_eq!(p, RevisionPolicy { max_change_percent: 35, ..stored }, "fehlende Felder bleiben, Text als Zahl");
+        let off = policy_from(&json!({ "amend": "0", "new_after_minutes": 0 }), stored).unwrap();
+        assert_eq!((off.amend, off.new_after_minutes), (false, 0), "aus und keine Zeitgrenze");
+        let e = policy_from(&json!({ "max_change_percent": 0 }), stored).unwrap_err();
+        assert!(e.code == INVALID_PARAMS && e.message.contains("1 bis 100"), "0 % abgelehnt: {}", e.message);
+        let e = policy_from(&json!({ "new_after_minutes": 5000 }), stored).unwrap_err();
+        assert!(e.message.contains("0 bis 1440"), "über einen Tag abgelehnt: {}", e.message);
+        assert!(policy_from(&json!({ "amend": "vielleicht" }), stored).is_err(), "Unbekanntes abgelehnt");
+    }
+
+    #[test]
+    fn the_word_diff_is_escaped_html() {
+        let html = diff_html("Die <Möwe> ruft.", "Die <Möwe> schreit.");
+        assert!(html.contains("&lt;Möwe&gt;") && !html.contains("<Möwe>"), "maskiert: {html}");
+        assert!(html.contains("<del class=\"d-del\">ruft.</del>"), "Entferntes markiert: {html}");
+        assert!(html.contains("<ins class=\"d-add\">schreit.</ins>"), "Neues markiert: {html}");
+    }
+}

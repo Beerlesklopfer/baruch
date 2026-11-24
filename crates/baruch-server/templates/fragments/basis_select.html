@@ -1,0 +1,12 @@
+{#- Auswahl der Prüfgrundlage (Runde 30b, chat-loesungen): Feld `basis` = shown (Vorgabe: die gezeigte Fassung; zeigt
+    sie nur die Überschrift und liegt ein Vorschlag mit Text vor, prüfen alle den Vorschlag) | current | <n>. Alle
+    Personas eines Aufrufs bzw. RFC prüfen dieselbe Fassung; der Beitrag nennt sie im Kopf („geprüft: …“). `rev` ist die
+    gezeigte Fassungsnummer (Zahl) oder leer. Eingebunden in fragments/assist_scope.html (Persona-Formulare) und – über
+    chat-bedienung – ins Chat-Formular; ohne JavaScript bedienbar. -#}
+{% macro basis_select(rev) %}
+<label class="basis-select small" title="Welche Fassung alle Personas dieses Aufrufs prüfen">Prüfgrundlage
+  <select name="basis">
+    <option value="shown" selected>gezeigte Fassung{% if rev %} ({{ rev }}){% endif %}</option>
+    <option value="current">aktuelle Fassung</option>
+  </select></label>
+{%- endmacro %}

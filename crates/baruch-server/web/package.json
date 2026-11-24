@@ -1,0 +1,9 @@
+{
+  "name": "baruch-web",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "description": "TypeScript-Widgets der Baruch-Oberfläche; übersetzt von build.rs",
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

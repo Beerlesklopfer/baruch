@@ -1,0 +1,103 @@
+{#- Einstellungsseite „MCP-Zugang“ (Runde 9, Tokens Runde 10): Adresse zum Kopieren (aus der Host-Kopfzeile;
+    ohne sie, z. B. über RPC, nur der Pfad), Zugang ohne Token nur über Loopback, Tokens für andere Rechner
+    (Erzeugen, Widerrufen – Formulare an POST /einstellungen/mcp/act, ohne JavaScript bedienbar), gesehene
+    Clients seit dem Start. Den Klartext eines Tokens zeigt nur die Antwort auf das Erzeugen (fresh).
+    Runde 24: proxied (bool) – die Seite kam unter einem zusätzlich erlaubten Rechnernamen (--allow-host, hinter
+    einem Reverse-Proxy): Adresse mit https, Befehl nur mit Token (data-mcp-proxied).
+    Kontext: address?, proxied (bool), work?, error?, revoked (bool), fresh? {name, secret, handle},
+    tokens [{id, name, prefix, handle, legacy?, taken?, created, last_used?, revoked?}],
+    clients [{name, version, handle, first_seen, last_seen}]. -#}
+<section class="settings-page" data-settings-page-body="mcp">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if revoked %}
+  <p class="notice" role="status">Token widerrufen. Er gilt ab sofort nicht mehr.</p>
+  {%- endif %}
+  <h3 class="pane-title">MCP-Zugang</h3>
+  <p class="small"><label>Adresse <input class="settings-copy" type="text" readonly value="{% if address %}{{ address }}{% else %}/mcp{% endif %}" size="36" aria-label="Adresse des MCP-Zugangs"></label>
+    {%- if not address %} <span class="muted tiny">(Adresse dieses Servers + <code>/mcp</code>)</span>{% endif %}</p>
+  {%- if proxied %}
+  <p class="small" data-mcp-proxied>Sie erreichen Baruch über einen Reverse-Proxy (erlaubter Rechnername,
+    <code>--allow-host</code>). Unter diesem Namen nimmt <code>/mcp</code> Anfragen <strong>nur mit Token</strong> an,
+    auch vom eigenen Rechner. Unten einen Token erzeugen, dann in Claude Code (den Token statt
+    <code>&lt;Token&gt;</code>):
+    <code>claude mcp add -s local --transport http baruch {{ address }} --header "Authorization: Bearer &lt;Token&gt;"</code></p>
+  <p class="small muted">Schützt der Proxy den Zugang mit einer eigenen Anmeldung (etwa Basic-Auth), muss er
+    <code>/mcp</code> davon ausnehmen oder die Kopfzeile <code>Authorization</code> unverändert durchreichen – sonst
+    kommt der Token nicht an. Direkt auf diesem Rechner (<code>http://127.0.0.1:…/mcp</code>) bleibt der Zugang ohne
+    Token.</p>
+  {%- else %}
+  <p class="small">Nur über Loopback (127.0.0.1 bzw. ::1) ohne Token erreichbar. In Claude Code:
+    <code>claude mcp add -s local --transport http baruch {% if address %}{{ address }}{% else %}http://127.0.0.1:8765/mcp{% endif %}</code></p>
+  {%- endif %}
+  {%- if fresh %}
+  <div class="mcp-fresh" role="status">
+    <p><strong>Neuer Token „{{ fresh.name }}“</strong> – nur jetzt sichtbar. Baruch speichert nur seinen Hash;
+      wer ihn verliert, erzeugt einen neuen.</p>
+    <p class="small"><label>Token <input class="settings-copy" type="text" readonly value="{{ fresh.secret }}" size="56" aria-label="Neuer Token (nur jetzt sichtbar)" autocomplete="off" spellcheck="false"></label></p>
+    {%- if proxied %}
+    <p class="small">In Claude Code (den Token statt <code>&lt;Token&gt;</code>):
+      <code>claude mcp add -s local --transport http baruch {{ address }} --header "Authorization: Bearer &lt;Token&gt;"</code></p>
+    {%- else %}
+    <p class="small">Auf dem anderen Rechner (Adresse dieses Rechners im Netz statt <code>&lt;IP&gt;</code>, den Token
+      statt <code>&lt;Token&gt;</code>):
+      <code>claude mcp add -s local --transport http baruch http://&lt;IP&gt;:8765/mcp --header "Authorization: Bearer &lt;Token&gt;"</code></p>
+    {%- endif %}
+    <p class="small muted">Beiträge und Vorschläge dieses Zugangs stehen unter <code>{{ fresh.handle }}</code>.</p>
+  </div>
+  {%- endif %}
+  <h4 class="pane-title">Tokens für andere Rechner</h4>
+  <p class="small">Mit einem Token nimmt <code>/mcp</code> Anfragen von jedem Rechner an
+    (<code>Authorization: Bearer &lt;Token&gt;</code>); alle anderen Seiten bleiben dem eigenen Rechner vorbehalten.
+    Dafür muss Baruch auf einer Adresse im Netz lauschen (<code>--listen 192.168.…:8765</code>), und der andere
+    Rechner spricht ihn über die IP-Adresse an, nicht über einen Namen.
+    <strong>Achtung:</strong> Baruch spricht nur HTTP ohne Verschlüsselung – Token und Texte gehen im Klartext
+    durchs Netz. Nur im eigenen, vertrauenswürdigen Netz verwenden. Verschlüsselt und unter einem Rechnernamen geht
+    es nur über einen Reverse-Proxy mit TLS (<code>--allow-host</code>, <code>docs/Betrieb.md</code>).</p>
+  {%- if tokens %}
+  <table class="settings-table">
+    <thead><tr><th scope="col">Name</th><th scope="col">Anfang</th><th scope="col">Autor</th><th scope="col">erzeugt</th>
+      <th scope="col">zuletzt benutzt</th><th scope="col">Stand</th></tr></thead>
+    <tbody>
+    {%- for t in tokens %}
+      <tr><td>{{ t.name }}</td><td><code>{{ t.prefix }}…</code></td><td><code>{{ t.handle }}</code>{% if t.legacy %} <span class="muted tiny">(früher <code>{{ t.legacy }}</code>)</span>{% endif %}{% if t.taken %} <span class="muted tiny">(behält den Autor von vor Runde 23: <code>{{ t.taken }}</code> gehört einem anderen Token)</span>{% endif %}</td><td>{{ t.created }}</td>
+        <td>{% if t.last_used %}{{ t.last_used }}{% else %}<span class="muted">noch nie</span>{% endif %}</td>
+        <td>{% if t.revoked %}<span class="muted">widerrufen {{ t.revoked }}</span>{% else %}
+          <form class="mcp-revoke" method="post" action="/einstellungen/mcp/act">
+            <input type="hidden" name="action" value="revoke"><input type="hidden" name="id" value="{{ t.id }}">
+            {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich</label>
+            <button class="btn" type="submit">Widerrufen</button>
+          </form>{% endif %}</td></tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted small">Noch kein Token erzeugt.</p>
+  {%- endif %}
+  <form class="settings-form mcp-create" method="post" action="/einstellungen/mcp/act">
+    <input type="hidden" name="action" value="create">
+    {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+    <label class="small">Name (z. B. des Rechners) <input type="text" name="name" maxlength="64" required autocomplete="off"></label>
+    <button class="btn primary" type="submit">Token erzeugen</button>
+  </form>
+  <p class="small muted">Aus dem Namen wird der Autor <code>@mcp:&lt;name&gt;</code>: klein, Umlaute umschrieben
+    (ü → ue), Sonderzeichen als „-“, höchstens 32 Zeichen. Ein Name, der denselben Autor ergäbe wie ein vorhandener
+    oder widerrufener Token oder mit <code>lokal-</code> begänne, wird abgelehnt. Ein Client ohne Token, dessen Name
+    einem Token gehört, schreibt als <code>@mcp:lokal-&lt;name&gt;</code>.</p>
+  <h4 class="pane-title">Verbundene Clients seit dem Start</h4>
+  {%- if clients %}
+  <table class="settings-table">
+    <thead><tr><th scope="col">Name</th><th scope="col">Version</th><th scope="col">Handle</th>
+      <th scope="col">zuerst gesehen</th><th scope="col">zuletzt gesehen</th></tr></thead>
+    <tbody>
+    {%- for c in clients %}
+      <tr><td>{{ c.name }}</td><td>{{ c.version }}</td><td><code>{{ c.handle }}</code></td><td>{{ c.first_seen }}</td><td>{{ c.last_seen }}</td></tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted small">Seit dem Start hat sich noch kein Client angemeldet (MCP <code>initialize</code>).</p>
+  {%- endif %}
+</section>

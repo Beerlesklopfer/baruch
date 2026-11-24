@@ -1,0 +1,130 @@
+{#- Seite /werke/{id}/satz?key=&page=: das Werk mit Typst gesetzt (Werkvorlage, Gliederungsschema,
+    Bilder). Eine Seite groß als <img> (SVG unter /werke/{id}/satz/{stand}/{n}.svg), ‹ › und die
+    Seiten des Kapitels als Links, Fehler und Warnungen mit Zeile, Abschnitt und Link zum Abschnitt.
+    Geht ohne JavaScript. Kontext: settings, work {id, title}, back, error?, section?, total, shown,
+    image?, previous?, next?, chapter {first, last}, chapter_pages [{number, href, current}],
+    diagnostics [{label, severity, message, hints, line, column, file?, key, section, section_line,
+    href?}], errors, warnings, cached, millis; Runde 11: print [PrintWarning], missing [Pfad],
+    images_href, min_dpi, imprint (Runde 27: fehlende Pflichtangaben bei eingeschalteter Titelei, je {code, message})
+    (Abschnitt #druckpruefung), Knopf „PDF herunterladen“ (/werke/{id}/pdf);
+    pdf_error? (Fehlerseite von /werke/{id}/pdf: Meldungen ohne Seiten).
+    Runde 18a: Menüband oben (fragments/edit_toolbar.html mit satz_page: Zurück, PDF, ‹ › mit aria-label, „Satz
+    abbrechen“ als Formular); die Seite lädt kein main.js (Block scripts leer) – alles geht ohne JavaScript.
+    cancelled_notice? (nach „Satz abbrechen“ bzw. abgebrochenem Lauf), idle (kein Satz gezeigt), restart (Link
+    „Neu setzen“), key?.
+    Runde 29: conflicts [{field, label, line, text, effect (overrides|ineffective), message}] (Werkvorlage setzt eine
+    gesetzte Satz-Einstellung selbst), template_rule? {line, text, chapter_start, label, applied} (erkannte
+    Kapitelanfangs-Regel der Vorlage), typeset_settings_href (/einstellungen/werk?work=W#satz) – im Abschnitt
+    #druckpruefung.
+    Runde 22: draft_links {pdf_draft, pdf_plain?, toggle, toggle_label} (Zeile #entwurf: „Als Entwurf herunterladen“,
+    Vorschau mit/ohne Wasserzeichen über ?entwurf=1|0, ändert die Einstellung nicht), watermarked (Vorschau trägt es). -#}
+{% extends "base.html" %}
+{% block title %}Satz – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Satz{% if section %} · {{ section }}{% endif %}{% endblock %}
+{#- Runde 18a: kein main.js – die Seite braucht kein Widget (Menüband aus Links und einem Formular). #}
+{% block scripts %}{% endblock %}
+{% block body %}
+<main class="works-page typeset-page">
+  {% with satz_page = true %}{% include "fragments/edit_toolbar.html" %}{% endwith %}
+  <h1 class="pane-title">Satz mit Typst</h1>
+  {#- Runde 22: Wasserzeichen „Entwurf“ – Links ändern die Einstellung nicht (dreiwertiger Schalter ?entwurf=1|0). #}
+  {%- if draft_links %}
+  <p class="typeset-draft small" id="entwurf">
+    {%- if watermarked %}<span class="badge warning">Entwurf</span> Die Vorschau zeigt das Wasserzeichen. {% endif %}
+    <a class="btn" href="{{ draft_links.pdf_draft }}" download title="Buch-PDF mit Wasserzeichen „Entwurf“; die Satz-Einstellung bleibt, wie sie ist">Als Entwurf herunterladen</a>
+    {%- if draft_links.pdf_plain %} <a class="btn" href="{{ draft_links.pdf_plain }}" download title="Buch-PDF ohne Wasserzeichen; die Satz-Einstellung bleibt, wie sie ist">Ohne Wasserzeichen herunterladen</a>{% endif %}
+    <a href="{{ draft_links.toggle }}">{{ draft_links.toggle_label }}</a>
+  </p>
+  {%- endif %}
+  {%- if cancelled_notice %}
+  <p class="notice warning" role="status">{{ cancelled_notice }}{% if idle %} Es wurde nicht neu gesetzt.{% else %} Gezeigt wird der zuletzt gesetzte Stand.{% endif %} <a href="{{ restart }}">Neu setzen</a></p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if (not error or pdf_error) and not idle %}
+  {%- if not pdf_error %}
+  <p class="muted small typeset-facts">
+    {%- if total %}{{ total }} {% if total == 1 %}Seite{% else %}Seiten{% endif %}{% else %}keine Seiten{% endif %}
+    · {{ errors }} Fehler
+    · {{ warnings }} {% if warnings == 1 %}Warnung{% else %}Warnungen{% endif %}
+    · {% if cached %}aus dem Zwischenspeicher{% else %}gesetzt in {{ millis }} ms{% endif %}</p>
+  {%- endif %}
+  {%- if diagnostics %}
+  <section class="typeset-diagnostics" aria-labelledby="typeset-diagnostics-title">
+    <h2 id="typeset-diagnostics-title" class="pane-title">Meldungen</h2>
+    <ul>
+    {%- for d in diagnostics %}
+      <li class="typeset-diagnostic {{ d.severity }}">
+        <span class="badge {% if d.severity == "error" %}danger{% else %}warning{% endif %}">{{ d.label }}</span>
+        <span class="typeset-message">{{ d.message }}</span>
+        <span class="muted small typeset-where">
+          {%- if d.line %}Zeile {{ d.line }}{% if d.column %}, Spalte {{ d.column }}{% endif %}{% endif %}
+          {%- if d.file %} in {{ d.file }}{% endif %}
+          {%- if d.section %} · {% if d.href %}<a href="{{ d.href }}">{{ d.section }}</a>{% else %}{{ d.section }}{% endif %}{% if d.section_line %}, Zeile {{ d.section_line }}{% endif %}{% endif %}
+        </span>
+        {%- for h in d.hints %}
+        <span class="muted small typeset-hint">Hinweis: {{ h }}</span>
+        {%- endfor %}
+      </li>
+    {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+  {%- if not pdf_error %}
+  {#- Druckprüfung (Runde 11): fehlende Bilder und Rasterbilder unter 300 dpi in ihrer gesetzten Größe. #}
+  <section class="typeset-print card" id="druckpruefung" aria-labelledby="druckpruefung-title">
+    <h2 id="druckpruefung-title" class="pane-title">Druckprüfung</h2>
+    {%- if missing or print or imprint or broken or conflicts or template_rule %}
+    <ul>
+    {%- if template_rule %}
+      <li class="typeset-diagnostic warning typeset-template-rule" data-chapter-start="{{ template_rule.chapter_start }}"><span class="badge warning">Vorlage</span>
+        <span class="typeset-message">Die Werkvorlage bestimmt den Kapitelanfang selbst ({{ template_rule.label }}, Zeile {{ template_rule.line }}): <code>{{ template_rule.text }}</code></span>
+        <a class="small" href="{{ typeset_settings_href }}">In den Satz-Einstellungen übernehmen und die Zeile entfernen</a></li>
+    {%- endif %}
+    {%- for c in conflicts %}
+      <li class="typeset-diagnostic {% if c.effect == "ineffective" %}error{% else %}warning{% endif %} typeset-conflict" data-field="{{ c.field }}" data-effect="{{ c.effect }}"><span class="badge {% if c.effect == "ineffective" %}danger{% else %}warning{% endif %}">Satz</span>
+        <span class="typeset-message">{{ c.message }}</span>
+        <span class="muted small"><code>{{ c.text }}</code> · <a href="{{ typeset_settings_href }}">Satz-Einstellungen</a></span></li>
+    {%- endfor %}
+    {%- for b in broken %}
+      <li class="typeset-diagnostic error typeset-xref" data-label="{{ b.label }}"><span class="badge danger">Verweis</span>
+        <span class="typeset-message">Kaputter Querverweis {{ b.label }} in {{ b.section }}: „{{ b.text }}“ (im Satz nur als Text)</span>
+        <a class="small" href="{{ b.href|safe }}" data-jump>zur Stelle</a> · <a class="small" href="/verweise?work={{ work.id }}">Querverweise prüfen</a></li>
+    {%- endfor %}
+    {%- for path in missing %}
+      <li class="typeset-diagnostic error typeset-missing"><span class="badge danger">Fehlt</span>
+        <span class="typeset-message">Bild fehlt: {{ path }}</span>
+        <a class="small" href="{{ images_href }}">Bilder hochladen oder Pfad zuordnen</a></li>
+    {%- endfor %}
+    {%- for p in print %}
+      <li class="typeset-diagnostic warning typeset-dpi"><span class="badge warning">{{ p.dpi | int }} dpi</span>
+        <span class="typeset-message">{{ p.message }}</span>
+        <span class="muted small">Seite {{ p.page }} · {{ p.width_px }} × {{ p.height_px }} Pixel</span></li>
+    {%- endfor %}
+    {%- for w in imprint %}
+      <li class="typeset-diagnostic warning typeset-imprint" data-code="{{ w.code }}"><span class="badge warning">Impressum</span>
+        <span class="typeset-message">{{ w.message }}</span>
+        <span class="muted small">üblich nach den Landespressegesetzen, keine Rechtsberatung · <a href="/einstellungen/werk?work={{ work.id }}#buchangaben">Buchangaben</a></span></li>
+    {%- endfor %}
+    </ul>
+    {%- else %}
+    <p class="muted small">Alle Bilder sind da; kein Rasterbild liegt unter {{ min_dpi }} dpi.</p>
+    {%- endif %}
+  </section>
+  {%- endif %}
+  {%- if image %}
+  <nav class="typeset-nav" aria-label="Seiten des Kapitels">
+    {#- ‹ › und „Seite n von m“ stehen seit Runde 18a im Menüband oben. #}
+    <span class="typeset-chapter">{% if section %}Kapitel{% else %}Seiten{% endif %}:
+    {%- for p in chapter_pages %}
+      {% if p.current %}<a class="page current" aria-current="page" href="{{ p.href }}">{{ p.number }}</a>{% else %}<a class="page" href="{{ p.href }}">{{ p.number }}</a>{% endif %}
+    {%- endfor %}</span>
+  </nav>
+  <figure class="typeset-sheet">
+    <img src="{{ image }}" alt="Seite {{ shown }} von {{ total }}">
+  </figure>
+  {%- endif %}
+  {%- endif %}
+</main>
+{% endblock %}

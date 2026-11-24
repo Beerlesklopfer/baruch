@@ -1,0 +1,81 @@
+{#- Einstellungsseite „Daten“ (Runde 9): Datenordner, Größe, je Werk der Git-Spiegel mit letztem Commit,
+    Version (nur Anzeige, seit Runde 24 mit Link auf die Seite /ueber) und „Sicherung jetzt“ (Formular an POST /einstellungen/daten/sicherung, Kästchen
+    confirm Pflicht – der Server prüft es). Kontext: work, error, saved (Ordnername der neuesten Sicherung vom Server, leer = allgemeine Meldung)?, dir, size,
+    size_bytes, mirrors [{work, title, slug, dir, head, error}], version.
+    Runde 26: Instanz – instance_uuid (nur Anzeige), instance_name, instance_label, instance_saved,
+    max_instance_name; Formular an POST /einstellungen/daten/instanz (Feld name, leer = zurücksetzen).
+    Runde 20c: epubcheck {jar, has_jar, jar_missing, found (Text)?, java, saved, max}; Formular an
+    POST /einstellungen/daten/epubcheck (Feld jar, leer = entfernen). -#}
+<section class="settings-page" data-settings-page-body="daten">
+  {%- if saved is not none %}
+  {#- Runde 23a: Der Name kommt vom Server (neueste Sicherung im Dateisystem), nie aus der Adresse. #}
+  <p class="notice" role="status">{% if saved %}Sicherung angelegt: <code>{{ saved }}</code> (neben dem Datenordner).{% else %}Sicherung angelegt (neben dem Datenordner).{% endif %}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h3 class="pane-title">Daten</h3>
+  <dl class="settings-facts">
+    <dt>Datenordner</dt><dd><code>{{ dir }}</code></dd>
+    <dt>Größe</dt><dd>{{ size }} <span class="muted tiny">({{ size_bytes }} Bytes, symbolische Verknüpfungen nicht mitgezählt)</span></dd>
+    <dt>Version</dt><dd>Baruch {{ version }} · <a href="/ueber" data-about-link>Über Baruch</a> <span class="muted tiny">(Lizenz, Quellcode, Bibliotheken Dritter)</span></dd>
+  </dl>
+  <h4 class="pane-title" id="instanz">Diese Instanz</h4>
+  {%- if instance_saved %}
+  <p class="notice" role="status">Name der Instanz gespeichert: {{ instance_label }}.</p>
+  {%- endif %}
+  <dl class="settings-facts">
+    <dt>Kennung (UUID)</dt><dd><code data-instance-uuid>{{ instance_uuid }}</code></dd>
+    <dt>Name</dt><dd data-instance-name>{% if instance_name %}{{ instance_name }}{% else %}<span class="muted">{{ instance_label }}</span>{% endif %}</dd>
+  </dl>
+  <form class="settings-form" method="post" action="/einstellungen/daten/instanz">
+    {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+    <p class="small">Der Name geht beim Austausch zwischen Instanzen als Herkunft mit (z. B. „Arbeitszimmer“ oder
+      „Laptop“). Höchstens {{ max_instance_name }} Zeichen, keine Zeilenumbrüche; leer lassen setzt ihn zurück.</p>
+    <label class="small">Name der Instanz
+      <input type="text" name="name" value="{{ instance_name }}" maxlength="{{ max_instance_name }}"></label>
+    <button class="btn" type="submit">Namen speichern</button>
+  </form>
+  <h4 class="pane-title" id="epubcheck">EPUBCheck</h4>
+  {%- if epubcheck.saved %}
+  <p class="notice" role="status">Einstellung für EPUBCheck gespeichert.</p>
+  {%- endif %}
+  <dl class="settings-facts">
+    <dt>Gefunden</dt><dd data-epubcheck-found>{% if epubcheck.found %}{{ epubcheck.found }}{% else %}<span class="muted">EPUBCheck nicht gefunden</span>{% endif %}</dd>
+    <dt>Java</dt><dd>{% if epubcheck.java %}java liegt im PATH{% else %}<span class="muted">java nicht im PATH (für ein epubcheck.jar nötig)</span>{% endif %}</dd>
+  </dl>
+  {%- if epubcheck.jar_missing %}
+  <p class="notice error" role="alert">Das eingestellte epubcheck.jar gibt es nicht mehr: <code>{{ epubcheck.jar }}</code></p>
+  {%- endif %}
+  <form class="settings-form" method="post" action="/einstellungen/daten/epubcheck">
+    {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+    <p class="small">EPUBCheck prüft ein EPUB nach den Regeln der W3C-Gemeinschaft. Baruch nimmt „epubcheck“ aus dem
+      PATH, sonst ein epubcheck.jar unter dem Pfad hier (mit <code>java -jar</code>), und lädt nie etwas herunter.
+      Absoluter Pfad mit der Endung .jar; leer lassen entfernt die Einstellung.</p>
+    <label class="small">Pfad zum epubcheck.jar
+      <input type="text" name="jar" value="{{ epubcheck.jar }}" maxlength="{{ epubcheck.max }}" placeholder="/opt/epubcheck/epubcheck.jar"></label>
+    <button class="btn" type="submit">Pfad speichern</button>
+  </form>
+  <h4 class="pane-title">Git-Spiegel je Werk</h4>
+  {%- if mirrors %}
+  <table class="settings-table">
+    <thead><tr><th scope="col">Werk</th><th scope="col">Ordner</th><th scope="col">letzter Commit</th></tr></thead>
+    <tbody>
+    {%- for m in mirrors %}
+      <tr><td>{{ m.title }}</td><td><code>{{ m.dir }}</code></td>
+        <td>{% if m.head %}<code>{{ m.head }}</code>{% elif m.error %}<span class="muted">{{ m.error }}</span>{% else %}<span class="muted">noch keiner</span>{% endif %}</td></tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted small">Es gibt noch kein Werk.</p>
+  {%- endif %}
+  <h4 class="pane-title">Sicherung</h4>
+  <form class="settings-form" method="post" action="/einstellungen/daten/sicherung">
+    {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+    <p class="small">Kopiert den ganzen Datenordner (Datenbank als stimmiger Stand, Spiegel, Einfälle) in einen neuen
+      Ordner <code>…/&lt;Name&gt;.sicherung-&lt;Datum-Uhrzeit&gt;</code> neben dem Datenordner. Nichts wird überschrieben.</p>
+    <label class="small"><input type="checkbox" name="confirm" value="1" required> Sicherung jetzt anlegen</label>
+    <button class="btn primary" type="submit">Sicherung jetzt</button>
+  </form>
+</section>

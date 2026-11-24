@@ -1,0 +1,78 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Starter für Baruch: startet den lokalen Server (falls noch keiner antwortet) und öffnet die
+# Oberfläche im Browser. Liegt im .deb als /usr/bin/baruch, im AppImage hinter AppRun und im
+# macOS-Programm als Contents/MacOS/baruch (darum nur Bash 3.2 und ohne GNU-Besonderheiten).
+#
+#   BARUCH_LISTEN      Adresse des Servers (Vorgabe 127.0.0.1:8765, wie baruch-server)
+#   BARUCH_SERVER      Pfad zu baruch-server (Vorgabe: neben diesem Skript, sonst aus dem PATH)
+#   BARUCH_NO_BROWSER  auf 1 gesetzt: keinen Browser öffnen
+#
+# Weitere Argumente gehen unverändert an `baruch-server serve`.
+set -u
+
+listen="${BARUCH_LISTEN:-127.0.0.1:8765}"
+host="${listen%:*}"
+port="${listen##*:}"
+url="http://${listen}/"
+
+self="$(readlink -f "$0" 2>/dev/null || true)"
+here="$(cd "$(dirname "${self:-$0}")" && pwd -P)"
+server="${BARUCH_SERVER:-}"
+if [ -z "$server" ]; then
+    if [ -x "$here/baruch-server" ]; then
+        server="$here/baruch-server"
+    else
+        server="$(command -v baruch-server || true)"
+    fi
+fi
+if [ -z "$server" ] || [ ! -x "$server" ]; then
+    echo "baruch: baruch-server nicht gefunden (BARUCH_SERVER setzen)." >&2
+    exit 127
+fi
+
+reachable() {
+    (exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null
+}
+
+open_browser() {
+    [ "${BARUCH_NO_BROWSER:-0}" = "1" ] && return 0
+    if [ "$(uname -s)" = "Darwin" ]; then
+        open "$url"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$url" >/dev/null 2>&1 &
+    else
+        echo "baruch: xdg-open fehlt – bitte $url im Browser öffnen." >&2
+    fi
+}
+
+# Läuft schon ein Server (z. B. als systemd-Benutzerdienst), nur den Browser öffnen.
+if reachable; then
+    echo "baruch: Server antwortet schon unter $url"
+    open_browser
+    exit 0
+fi
+
+"$server" serve --listen "$listen" "$@" &
+pid=$!
+trap 'kill "$pid" 2>/dev/null' INT TERM HUP
+
+# Bis zu 60 Sekunden auf den Server warten (erster Start legt die Datenbank an).
+tries=0
+while [ "$tries" -lt 120 ]; do
+    tries=$((tries + 1))
+    if ! kill -0 "$pid" 2>/dev/null; then
+        wait "$pid"
+        status=$?
+        echo "baruch: Server hat sich beendet (Status $status)." >&2
+        exit "$status"
+    fi
+    if reachable; then
+        echo "baruch: Server läuft unter $url (PID $pid)"
+        open_browser
+        break
+    fi
+    sleep 0.5
+done
+
+wait "$pid"

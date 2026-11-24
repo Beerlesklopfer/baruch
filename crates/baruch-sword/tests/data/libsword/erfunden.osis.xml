@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osis xmlns="http://www.bibletechnologies.net/2003/OSIS/namespace" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.bibletechnologies.net/2003/OSIS/namespace http://www.bibletechnologies.net/osisCore.2.1.1.xsd">
+<osisText osisIDWork="Erfunden" osisRefWork="Bible" xml:lang="de">
+<header><work osisWork="Erfunden"><title>Erfundene Testbibel</title><refSystem>Bible.German</refSystem></work></header>
+<div type="book" osisID="Gen">
+<chapter osisID="Gen.1">
+<verse osisID="Gen.1.1" sID="Gen.1.1"/>Der Kiesel lag am Bach, und die Weiden standen still.<verse eID="Gen.1.1"/>
+<verse osisID="Gen.1.2" sID="Gen.1.2"/>Die Amsel sang über dem Tor, bis der Abend kam.<verse eID="Gen.1.2"/>
+</chapter>
+</div>
+<div type="book" osisID="Ps">
+<chapter osisID="Ps.23">
+<verse osisID="Ps.23.1" sID="Ps.23.1"/>Am Brunnen schöpfte der Hirte Wasser für die müden Schafe.<verse eID="Ps.23.1"/>
+</chapter>
+</div>
+<div type="book" osisID="John">
+<chapter osisID="John.3">
+<verse osisID="John.3.16" sID="John.3.16"/>Und der Wind ging über das Gras, und niemand wusste, woher.<verse eID="John.3.16"/>
+</chapter>
+</div>
+</osisText>
+</osis>

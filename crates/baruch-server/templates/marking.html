@@ -1,0 +1,63 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/markierung (Runde 31c, src/glossary_page.rs, Besitz kontextmenue): die Aktionen des Kontextmenüs
+    ohne JavaScript. Kontext: settings, work {id, title}, word, section {key, rev, current, number, title, is_current}?,
+    problem? (Abschnitt bzw. Fassung fehlt), entries [{register, term, sub, see, also, auto, start, end}], entries_error?,
+    registers [{slug, title, kind}], back, ok?. -#}
+{% extends "base.html" %}
+{% block title %}An der Markierung – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: An der Markierung{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}{% if section %}&amp;key={{ section.key }}&amp;rev={{ section.rev }}{% endif %}">Zurück zum Abschnitt</a>
+{% endblock %}
+{% block body %}
+<main class="works-page marking-page" data-work="{{ work.id }}">
+  <h1 class="pane-title">An der Markierung</h1>
+  {%- if ok %}
+  <p class="notice small" role="status" data-marking-ok>{{ ok }}</p>
+  {%- endif %}
+  {%- if problem %}
+  <p class="notice error small" role="alert" data-marking-problem>{{ problem }}</p>
+  {%- else %}
+  <p class="small">Abschnitt {% if section.number %}{{ section.number }} {% endif %}<strong>{{ section.title }}</strong>, Fassung {{ section.rev }}{% if not section.is_current %} (aktuell ist Fassung {{ section.current }}){% endif %}.
+    Eine Registermarke ist Buchtext: „Marke setzen“ legt eine neue Fassung an. Glossarbegriffe ändern den Text nicht.</p>
+  <form class="marking-word" method="get" action="/werke/{{ work.id }}/markierung">
+    <input type="hidden" name="key" value="{{ section.key }}">
+    <input type="hidden" name="rev" value="{{ section.rev }}">
+    <label class="small">Markiertes Wort <input type="text" name="wort" maxlength="200" value="{{ word }}" placeholder="Wort aus dem Abschnitt"></label>
+    <button class="btn" type="submit">Übernehmen</button>
+  </form>
+  {% include "fragments/context_menu.html" %}
+  <form class="marking-suggest" method="post" action="/werke/{{ work.id }}/glossar/act" data-glossary-suggest>
+    <input type="hidden" name="action" value="suggest">
+    <input type="hidden" name="key" value="{{ section.key }}">
+    <button class="btn" type="submit">Begriffe aus diesem Abschnitt vorschlagen lassen</button>
+    <span class="muted tiny">Der Lektor schlägt Begriffe vor, die erklärt werden sollten; sie erscheinen auf der Glossarseite als Vorschläge.</span>
+  </form>
+  <section class="marking-entries" id="eintraege" aria-labelledby="eintraege-titel">
+    <h2 id="eintraege-titel" class="small">Registereinträge dieses Abschnitts (aktuelle Fassung)</h2>
+    {%- if entries_error %}
+    <p class="notice warning small" role="alert" data-marking-entries-error>{{ entries_error }}</p>
+    {%- elif not entries %}
+    <p class="muted small">Keine Registereinträge.</p>
+    {%- endif %}
+    <ul class="index-entries">
+    {%- for e in entries %}
+      <li>{{ e.register }}: {{ e.term }}{% if e.sub %} › {{ e.sub }}{% endif %}{% if e.see %} (siehe: {{ e.see }}){% endif %}{% if e.also %} (siehe auch: {{ e.also }}){% endif %}
+        {%- if e.auto %} <span class="muted tiny">automatisch</span>{% elif e.start is not none and section.current %}
+        <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
+          <input type="hidden" name="action" value="unmark">
+          <input type="hidden" name="key" value="{{ section.key }}">
+          <input type="hidden" name="rev" value="{{ section.current }}">
+          <input type="hidden" name="start" value="{{ e.start }}">
+          <input type="hidden" name="end" value="{{ e.end }}">
+          <input type="hidden" name="back" value="{{ back|safe }}">
+          <button class="btn small" type="submit" title="Marke entfernen (neue Fassung)">Registereintrag entfernen</button>
+        </form>
+        {%- endif %}</li>
+    {%- endfor %}
+    </ul>
+    <p class="muted tiny">Bearbeiten ohne JavaScript: Eintrag entfernen und neu setzen. Alle Register: <a href="/werke/{{ work.id }}/register?key={{ section.key }}">Register</a></p>
+  </section>
+  {%- endif %}
+</main>
+{% endblock %}

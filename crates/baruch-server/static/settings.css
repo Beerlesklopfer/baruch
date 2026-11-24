@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Einstellungen (Runde 9): Popup <dialog id="settings"> und Seiten /einstellungen/<seite>. Links die
+   Liste der Seiten, rechts die Seite; in schmalen Fenstern untereinander. */
+.settings-dialog {
+  /* Runde 11: die Breite des Fensters nutzen (Rollen-Prompt in voller Breite). */
+  width: min(1480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+}
+.settings-dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.settings-content { padding: 10px 12px 14px; }
+.settings-content[aria-busy="true"] { opacity: 0.6; }
+
+.settings-main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.settings-frame { display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; }
+.settings-nav a {
+  display: block; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none;
+  border-left: 3px solid transparent;
+}
+.settings-nav a:hover { background: var(--selected); }
+.settings-nav a[aria-current="page"] { background: var(--primary-soft); border-left-color: var(--primary); font-weight: 600; }
+.settings-nav a:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.settings-body { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.settings-storage { margin: 0; font-size: 0.85em; color: var(--muted); }
+.settings-page { display: flex; flex-direction: column; gap: 10px; }
+.settings-page .pane-title { margin: 4px 0 0; }
+.settings-form { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.settings-form fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.settings-form legend { padding: 0 4px; font-weight: 600; }
+.settings-choice { white-space: nowrap; }
+.settings-block { border-top: 1px solid var(--line); padding-top: 8px; }
+.settings-block .work-form.wide { max-width: none; }
+.settings-table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+.settings-table th, .settings-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.settings-table td code { word-break: break-all; }
+.settings-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.settings-facts dt { font-weight: 600; }
+.settings-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.settings-copy { font-family: ui-monospace, monospace; max-width: 100%; }
+.persona-form { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 6px; }
+.persona-form input[type="text"] { min-width: 12em; }
+.persona-form input[type="number"] { width: 9em; }
+.settings-main:has(.persona-settings) { max-width: 1480px; }
+
+/* Assistenten (Runde 11): je Persona ein Tab (Farbe + Name), darunter die Tafel mit einem Formular. */
+.persona-tabs { display: flex; flex-direction: column; gap: 0; }
+.persona-tablist { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.persona-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; color: var(--text); text-decoration: none;
+  border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; background: var(--panel);
+  border-top: 3px solid var(--pc-edge, var(--line)); margin-bottom: -1px;
+}
+.persona-tab:hover { background: var(--pc-bg, var(--selected)); }
+.persona-tab[aria-selected="true"] { background: var(--pc-bg, var(--primary-soft)); font-weight: 600; border-bottom: 1px solid var(--pc-bg, var(--panel)); }
+.persona-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.persona-panel {
+  border: 1px solid var(--line); border-top: none; border-radius: 0 0 6px 6px; padding: 10px 12px;
+  background: var(--pc-bg, var(--panel)); display: flex; flex-direction: column; gap: 8px;
+}
+.persona-panel[hidden] { display: none; }
+.persona-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.persona-save { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.persona-fields { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: end; }
+.persona-fields label { display: flex; flex-direction: column; gap: 2px; font-size: 0.9em; }
+.persona-fields label.check { flex-direction: row; align-items: center; gap: 4px; }
+.persona-fields input[type="text"] { min-width: 14em; }
+.persona-fields input[name="model"] { min-width: 22em; }
+.persona-fields input[type="number"] { width: 10em; }
+.persona-fields input[readonly] { color: var(--muted); background: transparent; }
+.persona-wide { display: flex; flex-direction: column; gap: 2px; font-size: 0.9em; width: 100%; }
+.persona-wide textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.persona-prompt-text {
+  font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 0.85rem; line-height: 1.4;
+  min-height: 24em; tab-size: 4;
+}
+.persona-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; }
+.persona-confirm p { margin: 0; flex-basis: 100%; }
+
+@media (max-width: 720px) {
+  .settings-frame { grid-template-columns: minmax(0, 1fr); }
+  .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+}
+
+/* MCP-Zugang: Tokens (Runde 10) */
+.mcp-fresh { border: 1px solid var(--primary); border-radius: 6px; padding: 6px 10px; background: var(--primary-soft); }
+.mcp-fresh p { margin: 4px 0; }
+.mcp-fresh code { word-break: break-all; }
+.mcp-revoke { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 0; }
+.mcp-create { flex-direction: row; flex-wrap: wrap; align-items: center; }
+/* Runde 18c: Block „Satzbild“ in Einstellungen → Werk; Felder in zwei Spalten, in schmalen Fenstern untereinander. */
+.sheet-settings-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: 6px 12px; margin: 0; }
+.sheet-settings-form label { display: flex; flex-direction: column; gap: 2px; }
+.sheet-settings-form input[type="text"] {
+  padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit;
+}
+.sheet-settings-form .sheet-settings-actions, .sheet-settings-form p { grid-column: 1 / -1; }
+.sheet-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }

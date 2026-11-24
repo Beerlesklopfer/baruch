@@ -1,0 +1,12 @@
+{#- Seite /einstellungen/<seite> ohne JavaScript (Runde 9): genau ein Rahmen (settings/frame.html,
+    fertig gezeichnet in crate::settings) in der Seite. Die Kopfzeile kommt aus base.html (Blöcke
+    page_title, page_actions). Kontext: settings, work {id, title, author}?, frame (HTML), title. -#}
+{% extends "base.html" %}
+{% block title %}Einstellungen · {{ title }} – Baruch{% endblock %}
+{% block page_title %}Einstellungen{% if work %} · {{ work.title }}{% endif %}{% endblock %}
+{% block page_actions %}{% if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% else %}<a class="btn" href="/werke">Werke</a>{% endif %}{% endblock %}
+{% block body %}
+<main class="settings-main">
+{{ frame|safe }}
+</main>
+{% endblock %}

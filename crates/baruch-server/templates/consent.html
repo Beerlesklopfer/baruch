@@ -1,0 +1,58 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Zustimmung zur Gliederung (Nutzerfrage 12, Entscheidung 2026-11-07: „es braucht eine aktive
+    Zustimmung (Popup)“). crate::consent setzt dieses Stück auf jeder Seite an die Stelle der Marke
+    <!--baruch-consent--> in base.html, solange ein Antrag offen ist, der die Zustimmung des Menschen
+    braucht (ein neuer Teil, der vorhandene Kapitel bzw. Predigtteile übernähme; die Wortwahl der
+    Zusammenfassung folgt der Werkart, Runde 17b).
+    - Ohne JavaScript: die Hinweisleiste mit Link zum Antrag auf /gliederung (dort Formular mit
+      „Zustimmen“/„Ablehnen“).
+    - Mit JavaScript: web/src/consent.ts öffnet den Dialog modal (showModal). Die Knöpfe sind gewöhnliche
+      Formulare an /gliederung/act (method=outline.request_decide); das Widget schickt sie über RPC und
+      lädt die Seite neu. Nichts geschieht ohne Klick; „Später entscheiden“ schließt nur den Dialog.
+    Kontext: requests (je id, work, work_title, summary, origin_label, note, preview bzw. preview_error,
+    adopted_count), first_url. -#}
+<div class="consent-bar" role="alert" data-consent-bar>
+  <strong>Zustimmung nötig:</strong>
+  {%- if requests | length == 1 %} {{ requests[0].origin_label }} möchte die Gliederung umstellen: {{ requests[0].summary }}.
+  {%- else %} {{ requests | length }} Anträge der Assistenten warten auf Ihre Zustimmung.{% endif %}
+  Ohne Ihre Zustimmung ändert sich nichts.
+  <a class="btn primary" href="{{ first_url }}" data-consent-open aria-haspopup="dialog" aria-controls="consent">Ansehen und entscheiden</a>
+</div>
+<dialog class="consent-dialog" id="consent" data-widget="consent" aria-labelledby="consent-title">
+  <header class="consent-head"><h2 class="pane-title" id="consent-title">Zustimmung zur Gliederung</h2></header>
+  <div class="consent-body">
+  {%- for r in requests %}
+    <section class="consent-request" data-consent-request="{{ r.id }}">
+      <p><strong>{{ r.origin_label }}</strong> möchte im Werk „{{ r.work_title }}“: {{ r.summary }}.</p>
+      {%- if r.note %}
+      <p class="small">Begründung: {{ r.note }}</p>
+      {%- endif %}
+      <p class="small">Gliederung nach Ihrer Zustimmung:</p>
+      {%- if r.preview_error %}
+      <p class="small warning">Keine Vorschau: {{ r.preview_error }}</p>
+      {%- else %}
+      <ol class="request-preview-list consent-preview">
+      {%- for p in r.preview %}
+        <li class="preview-{{ p.mark }} level-{{ p.level }}">
+          {#- Runde 16c: Art und Nummer eindeutig („Teil 1“, „Kapitel 2“), vorher → nachher für übernommene Kapitel. #}
+          <span class="num preview-label">{{ p.label }}</span> {{ p.title }}
+          {%- if p.changed_label %} <span class="small muted preview-before">(vorher {{ p.before_label }} → nachher {{ p.label }})</span>{% endif %}
+          {%- if p.mark == "added" %} <span class="badge primary">neu</span>
+          {%- elif p.mark == "adopted" %} <span class="badge warning">wandert unter den neuen Teil</span>{% endif %}</li>
+      {%- endfor %}
+      </ol>
+      {%- endif %}
+      <form class="consent-actions" method="post" action="/gliederung/act">
+        <input type="hidden" name="method" value="outline.request_decide">
+        <input type="hidden" name="work" value="{{ r.work }}">
+        <input type="hidden" name="id" value="{{ r.id }}">
+        <input type="hidden" name="view" value="gliederung">
+        <button class="btn primary" type="submit" name="decision" value="confirm">Zustimmen</button>
+        <button class="btn" type="submit" name="decision" value="reject">Ablehnen</button>
+        <span class="small consent-message" data-consent-message role="status"></span>
+      </form>
+    </section>
+  {%- endfor %}
+  </div>
+  <form class="consent-later" method="dialog"><button class="btn" type="submit">Später entscheiden</button></form>
+</dialog>

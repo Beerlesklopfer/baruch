@@ -1,0 +1,107 @@
+{#- Seite /gliederung/bearbeiten: ein Gliederungspunkt ohne JavaScript – umbenennen, Ebene ändern,
+    verschieben, neuen Punkt davor/danach/darunter anlegen, löschen (mit Kästchen confirm). Formulare an
+    /gliederung/act. Kontext: work, entry, entries (Ziele), lq, lq_q, work_url, manager_url. -#}
+{% extends "base.html" %}
+{% block title %}{{ entry.title }} bearbeiten – Gliederung – Baruch{% endblock %}
+{% block page_title %}Gliederungspunkt bearbeiten · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ manager_url }}">Gliederung</a>
+  <a class="btn" href="{{ work_url }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+{%- macro hidden(method, view) %}
+    <input type="hidden" name="method" value="{{ method }}">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="node" value="{{ entry.id }}">
+    <input type="hidden" name="key" value="{{ entry.key }}">
+    <input type="hidden" name="view" value="{{ view }}">
+    {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
+{%- endmacro %}
+<main class="outline-page">
+  <h1 class="pane-title">{% if entry.number %}{{ entry.number }} {% endif %}{{ entry.title }} <span class="muted">· {{ entry.level_name }}</span></h1>
+
+  <section class="card outline-card">
+    <h2 class="pane-title">Umbenennen</h2>
+    <form method="post" action="/gliederung/act">{{ hidden("outline.rename", "gliederung") }}
+      <label class="small">Neuer Titel <input type="text" name="title" value="{{ entry.title }}" required maxlength="200" pattern=".*\S.*" title="Höchstens 200 Zeichen, nicht leer" size="40"></label>
+      <button class="btn primary" type="submit">Umbenennen</button>
+    </form>
+    {%- if entry.level == 0 %}
+    <p class="muted tiny">Die Teil-Markierung im Text bekommt den neuen Titel (neue Fassung, Kommentar bleibt); ein leerer Teil bekommt sie neu. Ein Teiltext ohne Markierung (älterer Bestand) bleibt unverändert, nur der Titel ändert sich.</p>
+    {%- else %}
+    <p class="muted tiny">Die Überschriftszeile im Text bekommt den neuen Titel (neue Fassung, Label und Kommentar bleiben).</p>
+    {%- endif %}
+  </section>
+
+  {%- if entry.level > 0 %}
+  <section class="card outline-card">
+    <h2 class="pane-title">Ebene</h2>
+    <form method="post" action="/gliederung/act">{{ hidden("outline.set_level", "gliederung") }}
+      <label class="small">Ebene <select name="level">
+        {%- for level in [1, 2, 3] %}
+        <option value="{{ level }}"{% if level == entry.level %} selected{% endif %}>{{ level }} · {{ level_names[level] }}</option>
+        {%- endfor %}
+      </select></label>
+      <button class="btn" type="submit">Ebene ändern</button>
+    </form>
+    <p class="muted tiny">Unterpunkte wandern um dieselbe Zahl Ebenen mit.</p>
+  </section>
+  {%- endif %}
+
+  <section class="card outline-card">
+    <h2 class="pane-title">Verschieben</h2>
+    <form method="post" action="/gliederung/act">{{ hidden("outline.move", "gliederung") }}
+      <label class="small"><select name="place">
+        <option value="before">vor</option><option value="after">hinter</option><option value="into">unter</option>
+      </select></label>
+      <label class="small"><select name="target_key" aria-label="Ziel">
+        {%- for target in entries if target.id != entry.id %}
+        <option value="{{ target.key }}">{{ "· " * target.level }}{% if target.number %}{{ target.number }} {% endif %}{{ target.title }}</option>
+        {%- endfor %}
+      </select></label>
+      <button class="btn" type="submit">Verschieben</button>
+    </form>
+    <p class="muted tiny">Mit allen Unterpunkten. Die Ebene bleibt: vor/hinter nur einen Punkt derselben Ebene, unter nur einen Punkt eine Ebene höher; sonst erst die Ebene ändern (oben). Ungültige Ziele werden abgewiesen.</p>
+  </section>
+
+  <section class="card outline-card">
+    <h2 class="pane-title">Neuer Gliederungspunkt</h2>
+    <form method="post" action="/gliederung/act">
+      <input type="hidden" name="method" value="outline.add">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="target" value="{{ entry.id }}">
+      <input type="hidden" name="target_key" value="{{ entry.key }}">
+      <input type="hidden" name="node" value="{{ entry.id }}">
+      <input type="hidden" name="view" value="gliederung">
+      {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
+      <label class="small">Titel <input type="text" name="title" required maxlength="200" pattern=".*\S.*" title="Höchstens 200 Zeichen, nicht leer" size="30"></label>
+      <label class="small"><select name="place">
+        <option value="before">davor</option><option value="after" selected>danach</option><option value="into">darunter</option>
+      </select></label>
+      {%- if entry.level <= 1 %}
+      <label class="small">Ebene <select name="level">
+        <option value="" selected>wie der Ort</option>
+        <option value="0">0 · {{ level_names[0] }}</option>
+      </select></label>
+      {%- endif %}
+      <button class="btn" type="submit">Anlegen</button>
+    </form>
+    <p class="muted tiny">Davor/danach auf derselben Ebene, darunter eine Ebene tiefer als letzter Unterpunkt.
+      {%- if entry.level <= 1 %} Mit Ebene „{{ level_names[0] }}“ entsteht davor bzw. danach ein neuer Teil (auch mit Werkvorlage);
+      die folgenden Kapitel bis zum nächsten Teil stehen dann unter ihm, ihre Texte und Nummern bleiben.{% endif %}</p>
+  </section>
+
+  <section class="card outline-card">
+    <h2 class="pane-title">Löschen</h2>
+    {%- if entry.has_children %}
+    <p class="small">„{{ entry.title }}“ hat Unterpunkte; erst verschieben oder löschen.</p>
+    {%- else %}
+    <form method="post" action="/gliederung/act">{{ hidden("outline.delete", "gliederung") }}
+      <label class="small"><input type="checkbox" name="confirm" value="1" required> „{{ entry.title }}“ mit allen Fassungen und Beiträgen wirklich löschen</label>
+      <button class="btn danger" type="submit">Löschen</button>
+    </form>
+    <p class="muted tiny">Der Text der aktuellen Fassung steht danach vollständig im Commit des Git-Spiegels.</p>
+    {%- endif %}
+  </section>
+</main>
+{% endblock %}

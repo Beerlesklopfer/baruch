@@ -1,0 +1,19 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Menüband für das Bearbeiten (Runde 18a, templates/fragments/edit_toolbar.html): im Editor über dem Blatt, auf der
+   Satz-Seite oben in der Spalte. Grundform der Leiste (.ws-bar) steht in wysiwyg.css; hier nur das Menüband. */
+
+/* Gruppen nebeneinander, durch eine feine Linie getrennt; schmal brechen sie um (flex-wrap aus .ws-bar). */
+.ribbon { row-gap: 6px; }
+.ribbon .ribbon-formats, .ribbon .ribbon-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ribbon .ribbon-formats { padding-left: 10px; border-left: 1px solid var(--line); }
+.ribbon .ribbon-formats .btn, .ribbon .ws-modes .btn { min-height: 28px; padding: 3px 10px; }
+.ribbon [data-ribbon-image] { margin-left: 4px; }
+
+/* Satz-Seite: das Menüband bleibt beim Blättern oben stehen (die Seite scrollt in main.works-page). */
+.ribbon-satz {
+  position: sticky; top: 0; z-index: 3; padding: 6px 0;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.ribbon-satz .ribbon-group + .ribbon-group { padding-left: 10px; border-left: 1px solid var(--line); }
+.ribbon-satz .typeset-at { padding: 0 4px; font-variant-numeric: tabular-nums; }
+.ribbon-satz form { margin: 0; }

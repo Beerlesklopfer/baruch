@@ -1,0 +1,19 @@
+{{- /* Fußzeile: Lizenz, Impressum (menus.footer), Quellcode, Version. */ -}}
+{{- $seite := . -}}
+<footer class="fuss">
+  <div class="rand fuss-zeile">
+    <p>
+      Baruch {{ site.Params.version }} · freie Software unter der
+      <a href="{{ "lizenz/" | relURL }}">AGPL-3.0</a> ·
+      <a href="{{ site.Params.repo }}" rel="noopener">Quellcode auf GitHub</a>
+    </p>
+    <nav aria-label="Rechtliches">
+      <ul>
+        {{- range site.Menus.footer }}
+        <li><a href="{{ .URL }}"{{ if $seite.IsMenuCurrent .Menu . }} aria-current="page"{{ end }}>{{ .Name }}</a></li>
+        {{- end }}
+      </ul>
+    </nav>
+    <p class="leise">Diese Seite kommt ohne JavaScript, Cookies, Zähler und fremde Schriften aus.</p>
+  </div>
+</footer>

@@ -1,0 +1,12 @@
+[package]
+name = "baruch-rag"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Gemeinsame Schnittstelle der RAG-Wege (Runde 12): Treffer, Fehler, Ports für Suchwege und
+# Einbettungen. Rein: keine Datenbank, kein Netz, kein Schlüsselbund. Im Vertrag wörtlich festgelegt.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

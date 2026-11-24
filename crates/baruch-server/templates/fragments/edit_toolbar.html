@@ -1,0 +1,72 @@
+{#- Menüband für das Bearbeiten (Runde 18a; vorher Werkzeugleiste, Wunsch 2026-11-06): ein Fragment für den Editor
+    und die Satz-Ansicht (/werke/{id}/satz). Steht fest über dem Blatt, scrollt nicht mit und ist eine eigene
+    Zoom-Zone (data-zoom-zone="toolbar").
+
+    Satz-Ansicht (satz_page, typeset.html): ohne hidden und ohne JavaScript bedienbar (die Seite lädt kein
+    main.js): „Zurück zum Werk“, „PDF herunterladen“, ‹ › mit aria-label und Seitenangabe, „Satz abbrechen“ als
+    Formular an POST /werke/{id}/satz/abbrechen. Kontext: work.id, back, key?, total?, shown?, previous?, next?.
+
+    Editor (editor.html): ohne JavaScript verborgen (dort gibt es nur das Textfeld); wysiwyg.ts zeigt es beim
+    Einhängen. Die DOM-Haken des Satzbilds (data-ws-mode, data-ws-tools, data-ws-format, data-ws-cmd) bleiben;
+    dahinter die Formate der Werkvorlage (crate::ribbon, Kontext ribbon.formats) als Knöpfe data-ribbon-cmd,
+    die das Widget „ribbon“ (web/src/ribbon.ts) im Satzbild über baruch:ws-command schickt und im Quelltext als
+    Typst-Text (data-ribbon-snippet) an der Cursorstelle einfügt; „Bild“ (data-ribbon-image) öffnet
+    details[data-image-insert] in der Statuszeile. Kontext: ws_satz (Ansicht vom Server, Cookie baruch_editor),
+    ribbon. Runde 31c: Gruppe „Register und Glossar“ (data-widget="context-menu") am Ende. -#}
+{%- if satz_page is defined and satz_page %}
+<div class="ws-bar edit-toolbar ribbon ribbon-satz" role="toolbar" aria-label="Menüband der Satz-Ansicht" data-zoom-zone="toolbar" data-ribbon-satz>
+  <span class="ribbon-group" role="group" aria-label="Werk">
+    <a class="btn" href="{{ back }}">Zurück zum Werk</a>
+    <a class="btn" href="/werke/{{ work.id }}/pdf" download title="Das ganze Werk als PDF (Werkvorlage, aktuelle Fassungen, Bilder)">PDF herunterladen</a>
+  </span>
+  {%- if total %}
+  <span class="ribbon-group" role="group" aria-label="Seiten">
+    {%- if previous %}<a class="btn" href="{{ previous }}" rel="prev" aria-label="Vorige Seite" title="Vorige Seite">‹</a>{% else %}<span class="btn" aria-disabled="true" aria-label="Vorige Seite (dies ist die erste)">‹</span>{% endif %}
+    <span class="typeset-at">Seite {{ shown }} von {{ total }}</span>
+    {%- if next %}<a class="btn" href="{{ next }}" rel="next" aria-label="Nächste Seite" title="Nächste Seite">›</a>{% else %}<span class="btn" aria-disabled="true" aria-label="Nächste Seite (dies ist die letzte)">›</span>{% endif %}
+  </span>
+  {%- endif %}
+  <form class="ribbon-group ribbon-cancel" method="post" action="/werke/{{ work.id }}/satz/abbrechen">
+    {%- if key %}
+    <input type="hidden" name="key" value="{{ key }}">
+    {%- endif %}
+    <button class="btn" type="submit" title="Laufenden Typst-Satz dieses Werks abbrechen (auch einen, der noch wartet)">Satz abbrechen</button>
+  </form>
+</div>
+{%- else %}
+<div class="ws-bar edit-toolbar ribbon" role="toolbar" aria-label="Menüband für das Bearbeiten" data-zoom-zone="toolbar" data-edit-toolbar hidden>
+  <span class="ws-modes" role="group" aria-label="Ansicht">
+    <button class="btn" type="button" data-ws-mode="satz" aria-pressed="{% if ws_satz %}true{% else %}false{% endif %}" title="Bearbeiten im Satzbild der Werkvorlage">Satzbild</button>
+    <button class="btn" type="button" data-ws-mode="quelltext" aria-pressed="{% if ws_satz %}false{% else %}true{% endif %}" title="Typst-Quelltext bearbeiten">Quelltext</button>
+  </span>
+  <span class="ws-tools" data-ws-tools{% if not ws_satz %} hidden{% endif %}>
+    <select data-ws-format aria-label="Absatzformat" title="Absatzformat des Blocks am Cursor">
+      <option value="paragraph">Absatz</option>
+      <option value="1">Überschrift 1</option>
+      <option value="2">Überschrift 2</option>
+      <option value="3">Überschrift 3</option>
+    </select>
+    <button class="btn" type="button" data-ws-cmd="italic" title="Hervorheben (Strg+I)" aria-label="Hervorheben"><em>K</em></button>
+    <button class="btn" type="button" data-ws-cmd="bold" title="Fett (Strg+B)" aria-label="Fett"><strong>F</strong></button>
+  </span>
+  <span class="ribbon-formats" role="group" aria-label="Formate der Werkvorlage" data-widget="ribbon">
+    {%- for f in ribbon.formats %}
+    <button class="btn" type="button" data-ribbon-cmd="{{ f.cmd }}" data-ribbon-snippet="{{ f.snippet }}" title="{{ f.title }}">{{ f.label }}</button>
+    {%- endfor %}
+    <button class="btn" type="button" data-ribbon-image title="Bild aus den Bildern des Werks einfügen (öffnet „Bild einfügen …“ unten)">Bild</button>
+  </span>
+  {#- Runde 31c: Gruppe „Register und Glossar“ (Widget context-menu, web/src/context_menu.ts): dieselben Aktionen wie das
+      Kontextmenü im Satzbild und im Textfeld (Rechtsklick, Kontextmenü-Taste, Umschalt+F10) und „Register“ mit allen
+      Registereinträgen des Abschnitts (aus den Marken des Satzbilds bzw. des Textfelds, auch ungespeichert). Ohne
+      JavaScript bleibt das Menüband verborgen; dann führt „Markierung …“ in der Statuszeile auf /werke/{id}/markierung. #}
+  <span class="ribbon-group ribbon-index" role="group" aria-label="Register und Glossar" data-widget="context-menu">
+    <button class="btn" type="button" data-ctx-action="glossary_add" title="Markiertes Wort ins Glossar aufnehmen (Dialog; auch im Kontextmenü: Rechtsklick, Kontextmenü-Taste, Umschalt+F10)">In Glossar</button>
+    <button class="btn" type="button" data-ctx-action="index_add" title="Registermarke hinter das markierte Wort setzen (Stichwort, Unterstichwort, Register, siehe/siehe auch); gespeichert wird mit „Speichern“">In Register</button>
+    <button class="btn" type="button" data-ctx-action="glossary_lookup" title="Markiertes Wort im Glossar nachschlagen">Nachschlagen</button>
+    <span class="ribbon-register" data-index-list>
+      <button class="btn" type="button" data-index-toggle aria-expanded="false" aria-controls="ribbon-register-list" title="Alle Registereinträge dieses Abschnitts">Register</button>
+      <span class="ribbon-register-list" id="ribbon-register-list" data-index-entries role="group" aria-label="Registereinträge des Abschnitts" hidden></span>
+    </span>
+  </span>
+</div>
+{%- endif %}

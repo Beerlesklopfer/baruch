@@ -1,0 +1,15 @@
+{#- Seite /werke/neu: Hochladen und Anlegen ohne JavaScript (Inhalt fragments/work_new.html).
+    Kontext: settings, form, error, back_url. -#}
+{% extends "base.html" %}
+{% block title %}Neues Werk – Baruch{% endblock %}
+{% block page_title %}Neues Werk{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke">Werke</a>
+  {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page">
+  <h1 class="pane-title">Neues Werk oder Import</h1>
+  {% include "fragments/work_new.html" %}
+</main>
+{% endblock %}

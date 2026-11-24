@@ -1,0 +1,15 @@
+[package]
+name = "baruch-wysiwyg"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+baruch-typst = { path = "../baruch-typst" }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+fastrand = "2"
+serde_json = "1"

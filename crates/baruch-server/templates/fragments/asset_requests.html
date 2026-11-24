@@ -1,0 +1,60 @@
+{#- SPDX-License-Identifier: AGPL-3.0-or-later
+    Anträge der Assistenten zu Bildern (Runde 11, src/asset_requests.rs::panel): Abschnitt #antraege der
+    Seite „Bilder“. Offene Anträge mit „Bestätigen“ und „Ablehnen“ (Formulare an
+    POST /werke/bilder/antraege/act, ohne JavaScript), die zuletzt entschiedenen mit Ergebnis und Grund.
+    Kontext: work (id), open [request_json], decided [request_json]. url/content_url baut der Server aus
+    Werk-id, Antragsnummer und einem gültigen Bildnamen ([a-z0-9._-]); sie gehen darum unmaskiert hinaus
+    (sonst würde minijinja jedes / als &#x2f; schreiben). -#}
+<section class="asset-requests card" id="antraege" aria-labelledby="antraege-title">
+  <h2 class="pane-title" id="antraege-title">Anträge der Assistenten{% if open %} ({{ open | length }} offen){% endif %}</h2>
+  {%- if open %}
+  <p class="small">Assistenten legen Bilder sofort an; Ersetzen, Umschlag setzen, Löschen und eine neue
+    Umschlag-Anordnung beantragen sie nur.
+    Bestätigen führt den Antrag aus (ein Commit im Git-Spiegel, Sie als Bestätiger, der Assistent als Herkunft).
+    Hat sich das Bild, der Umschlag oder die Anordnung inzwischen geändert, wird der Antrag nicht ausgeführt, sondern als
+    veraltet abgeschlossen. Ablehnen ändert nichts.</p>
+  <table class="asset-requests-table">
+    <thead><tr><th>Nr.</th><th>Antrag</th><th>Von</th><th>Begründung</th><th></th></tr></thead>
+    <tbody>
+    {%- for r in open %}
+      <tr class="asset-request" id="bildantrag-{{ r.id }}">
+        <td class="num">{{ r.id }}</td>
+        <td>{{ r.summary }}
+          {%- if r.url and r.op == "cover_layout" %} · <a href="{{ r.url | safe }}">Umschlag ansehen</a>
+          {%- elif r.url %} · <a href="{{ r.url | safe }}">Bild ansehen</a>{% endif %}
+          {%- for line in r.block_lines or [] %}<br><span class="small">{{ line }}</span>{% endfor %}
+          {%- if r.content_url %} · <a href="{{ r.content_url | safe }}">vorgeschlagenen Inhalt ansehen</a>
+          <br><img class="asset-request-preview" src="{{ r.content_url | safe }}" alt="Vorgeschlagener Inhalt für {{ r.name }}" loading="lazy">{% endif %}
+          {%- if r.caption %}<br><span class="small">Bildunterschrift: {{ r.caption }}</span>{% endif %}
+          {%- if r.alt %}<br><span class="small">Alternativtext: {{ r.alt }}</span>{% endif %}
+        </td>
+        <td class="muted small">{{ r.origin_label }}</td>
+        <td class="small">{{ r.note }}</td>
+        <td class="asset-request-buttons">
+          {%- for decision, label in [("confirm", "Bestätigen"), ("reject", "Ablehnen")] %}
+          <form method="post" action="/werke/bilder/antraege/act">
+            <input type="hidden" name="work" value="{{ work }}">
+            <input type="hidden" name="id" value="{{ r.id }}">
+            <input type="hidden" name="decision" value="{{ decision }}">
+            <button class="btn{% if decision == 'confirm' %} primary{% endif %}" type="submit">{{ label }}</button></form>
+          {%- endfor %}
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted small">Keine offenen Anträge zu Bildern.</p>
+  {%- endif %}
+  {%- if decided %}
+  <details class="small">
+    <summary>Zuletzt entschieden</summary>
+    <ul class="asset-requests-decided">
+    {%- for r in decided %}
+      <li id="bildantrag-{{ r.id }}">Antrag {{ r.id }}: {{ r.summary }} ({{ r.origin_label }}) – <strong>{{ r.decision_label }}</strong>
+        {%- if r.message %}: {{ r.message }}{% endif %}</li>
+    {%- endfor %}
+    </ul>
+  </details>
+  {%- endif %}
+</section>

@@ -1,0 +1,281 @@
+# Abbildung zwischen Verszählungen für Baruch (crates/baruch-scripture, Runde 17a): je Zeile eine Regel von
+# einer Zählung nach KJV (Drehpunkt; der Rückweg ist dieselbe Regel umgekehrt). Nur Zahlen und Regelnamen, kein
+# Bibeltext.
+#
+# Spalten (Tabulator): Zählungen (Komma-Liste, Schreibweise von sword-modules), Buch (OSIS-Kürzel), Kapitel,
+#   erster Vers, letzter Vers, Kapitel in KJV, erster Vers in KJV (fortlaufend), Regelname.
+#   KJV-Spalten „-“: der Vers hat in KJV keine eigene Entsprechung (Regelname = Grund); Kapitel „*“: das ganze
+#   Buch ist nicht abbildbar.
+# Regeln: Ein Kapitel, das eine Regel berührt, ist in der Tabelle ganz beschrieben (auch die gleich bleibenden
+#   Verse). Kapitel ohne Regel gelten als gleich, wenn sie in beiden Zählungen gleich viele Verse haben; sonst
+#   sind sie nicht abbildbar („Versifikation passt nicht“) – nie geraten. Das gilt nur in Büchern, für die die
+#   Zählung hier Regeln hat oder deren Verszahlen in jedem Kapitel mit KJV übereinstimmen: Ein Buch ohne Regel,
+#   das von KJV abweicht, ist ganz nicht abbildbar (Catholic, Catholic2, Segond und Calvin zählen
+#   Psalmüberschriften als Vers 1, stehen hier aber nicht; Ps 13 hat dort wie in KJV 6 Verse und ist doch
+#   verschoben).
+# Herkunft: bekannte strukturelle Unterschiede zwischen hebräischer und englischer Zählung (Psalmüberschriften als
+#   Vers 1 bzw. 1–2, 1. Mo 31/32, 2. Mo 7/8 und 21/22, 3. Mo 5/6, 4. Mo 16/17 und 29/30, 5. Mo 12/13, 22/23,
+#   28/29, 1. Sam 20/21 und 23/24, 2. Sam 18/19, 1. Kön 4/5, 2. Kön 11/12, 1. Chr 5/6, 2. Chr 1/2 und 13/14,
+#   Neh 3/4 und 9/10, Hi 40/41, Pred 4/5, Hld 6/7, Jes 8/9 und 63/64, Jer 8/9, Hes 20/21, Dan 3/4 und 5/6,
+#   Hos 1/2, 11/12, 13/14, Joel 2/3/4, Jona 1/2, Mi 4/5, Nah 1/2, Sach 1/2, Mal 3/4) und im Neuen Testament
+#   (Apg 19,40/41, 2. Kor 13,12/13, 3. Joh 14/15, Offb 12,18/13,1). Röm 16 zählt in German und KJV gleich (27 Verse);
+#   die Doxologie 16,25–27 steht in keiner der unterstützten Zählungen an anderer Stelle. Jede Regel ist gegen die
+#   Verszahlen beider Zählungen aus sword-modules 0.1.0 (CC0, src/versification/data.rs; German/KJV gleich
+#   data/versification*.tsv) geprüft: Quelle und Ziel existieren, kein Vers doppelt, berührte Kapitel ganz
+#   abgedeckt (Test tests/mapping.rs). Die Psalmen der griechisch-lateinischen Zählungen (LXX, Orthodox, Synodal,
+#   SynodalProt, Vulg) sind nicht abgebildet.
+#
+# Zählungen	Buch	Kapitel	von	bis	KJV-Kapitel	KJV-Vers	Regel
+German,Luther,MT,Leningrad	Gen	31	1	54	31	1	Kapitelgrenze 1. Mo 31/32
+German,Luther,MT,Leningrad	Gen	32	1	1	31	55	Kapitelgrenze 1. Mo 31/32
+German,Luther,MT,Leningrad	Gen	32	2	33	32	1	Kapitelgrenze 1. Mo 31/32
+German,Luther,MT,Leningrad	Exod	7	1	25	7	1	Kapitelgrenze 2. Mo 7/8
+German,Luther,MT,Leningrad	Exod	7	26	29	8	1	Kapitelgrenze 2. Mo 7/8
+German,Luther,MT,Leningrad	Exod	8	1	28	8	5	Kapitelgrenze 2. Mo 7/8
+German,Luther,MT,Leningrad	Exod	21	1	36	21	1	Kapitelgrenze 2. Mo 21/22
+German,Luther,MT,Leningrad	Exod	21	37	37	22	1	Kapitelgrenze 2. Mo 21/22
+German,Luther,MT,Leningrad	Exod	22	1	30	22	2	Kapitelgrenze 2. Mo 21/22
+German,Luther,MT,Leningrad	Lev	5	1	19	5	1	Kapitelgrenze 3. Mo 5/6
+German,Luther,MT,Leningrad	Lev	5	20	26	6	1	Kapitelgrenze 3. Mo 5/6
+German,Luther,MT,Leningrad	Lev	6	1	23	6	8	Kapitelgrenze 3. Mo 5/6
+German,Luther,MT,Leningrad	Num	16	1	35	16	1	Kapitelgrenze 4. Mo 16/17
+German,Luther,MT,Leningrad	Num	17	1	15	16	36	Kapitelgrenze 4. Mo 16/17
+German,Luther,MT,Leningrad	Num	17	16	28	17	1	Kapitelgrenze 4. Mo 16/17
+German,Luther,MT,Leningrad	Num	25	1	18	25	1	Kapitelgrenze 4. Mo 25/26
+German,Luther,MT,Leningrad	Num	25	19	19	-	-	4. Mo 25,19 (hebräische Zählung) ist in KJV Teil von 26,1
+German,Luther,MT,Leningrad	Num	29	1	39	29	1	Kapitelgrenze 4. Mo 29/30
+German,Luther,MT,Leningrad	Num	30	1	1	29	40	Kapitelgrenze 4. Mo 29/30
+German,Luther,MT,Leningrad	Num	30	2	17	30	1	Kapitelgrenze 4. Mo 29/30
+German,Luther,MT,Leningrad	Deut	12	1	31	12	1	Kapitelgrenze 5. Mo 12/13
+German,Luther,MT,Leningrad	Deut	13	1	1	12	32	Kapitelgrenze 5. Mo 12/13
+German,Luther,MT,Leningrad	Deut	13	2	19	13	1	Kapitelgrenze 5. Mo 12/13
+German,Luther,MT,Leningrad	Deut	22	1	29	22	1	Kapitelgrenze 5. Mo 22/23
+German,Luther,MT,Leningrad	Deut	23	1	1	22	30	Kapitelgrenze 5. Mo 22/23
+German,Luther,MT,Leningrad	Deut	23	2	26	23	1	Kapitelgrenze 5. Mo 22/23
+German,Luther,MT,Leningrad	Deut	28	1	68	28	1	Kapitelgrenze 5. Mo 28/29
+German,Luther,MT,Leningrad	Deut	28	69	69	29	1	Kapitelgrenze 5. Mo 28/29
+German,Luther,MT,Leningrad	Deut	29	1	28	29	2	Kapitelgrenze 5. Mo 28/29
+German,Luther,MT,Leningrad	1Sam	21	1	1	-	-	1. Sam 21,1 (hebräische Zählung) ist in KJV Teil von 20,42
+German,Luther,MT,Leningrad	1Sam	21	2	16	21	1	Kapitelgrenze 1. Sam 20/21
+German,Luther,MT,Leningrad	1Sam	23	1	28	23	1	Kapitelgrenze 1. Sam 23/24
+German,Luther,MT,Leningrad	1Sam	24	1	1	23	29	Kapitelgrenze 1. Sam 23/24
+German,Luther,MT,Leningrad	1Sam	24	2	23	24	1	Kapitelgrenze 1. Sam 23/24
+German,Luther,MT,Leningrad	2Sam	18	1	32	18	1	Kapitelgrenze 2. Sam 18/19
+German,Luther,MT,Leningrad	2Sam	19	1	1	18	33	Kapitelgrenze 2. Sam 18/19
+German,Luther,MT,Leningrad	2Sam	19	2	44	19	1	Kapitelgrenze 2. Sam 18/19
+German,Luther,MT,Leningrad	1Kgs	4	1	20	4	1	Kapitelgrenze 1. Kön 4/5
+German,Luther,MT,Leningrad	1Kgs	5	1	14	4	21	Kapitelgrenze 1. Kön 4/5
+German,Luther,MT,Leningrad	1Kgs	5	15	32	5	1	Kapitelgrenze 1. Kön 4/5
+German,Luther,MT,Leningrad	1Kgs	22	1	43	22	1	Versgrenze 1. Kön 22,43/44
+German,Luther,MT,Leningrad	1Kgs	22	45	54	22	44	Versgrenze 1. Kön 22,43/44
+German,Luther,MT,Leningrad	1Kgs	22	44	44	-	-	1. Kön 22,44 (hebräische Zählung) ist in KJV Teil von 22,43
+German,Luther,MT,Leningrad	2Kgs	11	1	20	11	1	Kapitelgrenze 2. Kön 11/12
+German,Luther,MT,Leningrad	2Kgs	12	1	1	11	21	Kapitelgrenze 2. Kön 11/12
+German,Luther,MT,Leningrad	2Kgs	12	2	22	12	1	Kapitelgrenze 2. Kön 11/12
+German,Luther,MT,Leningrad	1Chr	5	1	26	5	1	Kapitelgrenze 1. Chr 5/6
+German,Luther,MT,Leningrad	1Chr	5	27	41	6	1	Kapitelgrenze 1. Chr 5/6
+German,Luther,MT,Leningrad	1Chr	6	1	66	6	16	Kapitelgrenze 1. Chr 5/6
+German,Luther,MT,Leningrad	1Chr	12	1	4	12	1	Versgrenze 1. Chr 12,4/5
+German,Luther,MT,Leningrad	1Chr	12	6	41	12	5	Versgrenze 1. Chr 12,4/5
+German,Luther,MT,Leningrad	1Chr	12	5	5	-	-	1. Chr 12,5 (hebräische Zählung) ist in KJV Teil von 12,4
+German,Luther,MT,Leningrad	2Chr	1	1	17	1	1	Kapitelgrenze 2. Chr 1/2
+German,Luther,MT,Leningrad	2Chr	1	18	18	2	1	Kapitelgrenze 2. Chr 1/2
+German,Luther,MT,Leningrad	2Chr	2	1	17	2	2	Kapitelgrenze 2. Chr 1/2
+German,Luther,MT,Leningrad	2Chr	13	1	22	13	1	Kapitelgrenze 2. Chr 13/14
+German,Luther,MT,Leningrad	2Chr	13	23	23	14	1	Kapitelgrenze 2. Chr 13/14
+German,Luther,MT,Leningrad	2Chr	14	1	14	14	2	Kapitelgrenze 2. Chr 13/14
+German,Luther,MT,Leningrad	Neh	3	1	32	3	1	Kapitelgrenze Neh 3/4
+German,Luther,MT,Leningrad	Neh	3	33	38	4	1	Kapitelgrenze Neh 3/4
+German,Luther,MT,Leningrad	Neh	4	1	17	4	7	Kapitelgrenze Neh 3/4
+German,Luther,MT,Leningrad	Neh	9	1	37	9	1	Kapitelgrenze Neh 9/10
+German,Luther,MT,Leningrad	Neh	10	1	1	9	38	Kapitelgrenze Neh 9/10
+German,Luther,MT,Leningrad	Neh	10	2	40	10	1	Kapitelgrenze Neh 9/10
+German,Luther,MT,Leningrad	Job	40	1	24	40	1	Kapitelgrenze Hi 40/41
+German,Luther,MT,Leningrad	Job	40	25	32	41	1	Kapitelgrenze Hi 40/41
+German,Luther,MT,Leningrad	Job	41	1	26	41	9	Kapitelgrenze Hi 40/41
+German,Luther,MT,Leningrad	Ps	3	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	3	2	9	3	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	4	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	4	2	9	4	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	5	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	5	2	13	5	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	6	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	6	2	11	6	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	7	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	7	2	18	7	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	8	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	8	2	10	8	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	9	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	9	2	21	9	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	12	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	12	2	9	12	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	18	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	18	2	51	18	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	19	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	19	2	15	19	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	20	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	20	2	10	20	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	21	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	21	2	14	21	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	22	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	22	2	32	22	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	30	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	30	2	13	30	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	31	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	31	2	25	31	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	34	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	34	2	23	34	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	36	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	36	2	13	36	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	38	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	38	2	23	38	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	39	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	39	2	14	39	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	40	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	40	2	18	40	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	41	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	41	2	14	41	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	42	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	42	2	12	42	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	44	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	44	2	27	44	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	45	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	45	2	18	45	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	46	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	46	2	12	46	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	47	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	47	2	10	47	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	48	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	48	2	15	48	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	49	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	49	2	21	49	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	51	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	51	2	2	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	51	3	21	51	1	Psalmüberschrift als Verse 1–2
+German,Luther,MT,Leningrad	Ps	52	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	52	2	2	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	52	3	11	52	1	Psalmüberschrift als Verse 1–2
+German,Luther,MT,Leningrad	Ps	53	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	53	2	7	53	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	54	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	54	2	2	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	54	3	9	54	1	Psalmüberschrift als Verse 1–2
+German,Luther,MT,Leningrad	Ps	55	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	55	2	24	55	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	56	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	56	2	14	56	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	57	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	57	2	12	57	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	58	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	58	2	12	58	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	59	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	59	2	18	59	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	60	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	60	2	2	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	60	3	14	60	1	Psalmüberschrift als Verse 1–2
+German,Luther,MT,Leningrad	Ps	61	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	61	2	9	61	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	62	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	62	2	13	62	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	63	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	63	2	12	63	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	64	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	64	2	11	64	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	65	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	65	2	14	65	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	67	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	67	2	8	67	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	68	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	68	2	36	68	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	69	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	69	2	37	69	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	70	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	70	2	6	70	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	75	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	75	2	11	75	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	76	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	76	2	13	76	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	77	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	77	2	21	77	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	80	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	80	2	20	80	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	81	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	81	2	17	81	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	83	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	83	2	19	83	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	84	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	84	2	13	84	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	85	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	85	2	14	85	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	88	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	88	2	19	88	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	89	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	89	2	53	89	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	92	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	92	2	16	92	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	102	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	102	2	29	102	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	108	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	108	2	14	108	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	140	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	140	2	14	140	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	142	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	142	2	8	142	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Ps	13	1	1	-	-	Psalmüberschrift (KJV zählt sie nicht als Vers)
+German,Luther,MT,Leningrad	Ps	13	2	6	13	1	Psalmüberschrift als Vers 1
+German,Luther,MT,Leningrad	Eccl	4	1	16	4	1	Kapitelgrenze Pred 4/5
+German,Luther,MT,Leningrad	Eccl	4	17	17	5	1	Kapitelgrenze Pred 4/5
+German,Luther,MT,Leningrad	Eccl	5	1	19	5	2	Kapitelgrenze Pred 4/5
+German,Luther,MT,Leningrad	Song	6	1	12	6	1	Kapitelgrenze Hld 6/7
+German,Luther,MT,Leningrad	Song	7	1	1	6	13	Kapitelgrenze Hld 6/7
+German,Luther,MT,Leningrad	Song	7	2	14	7	1	Kapitelgrenze Hld 6/7
+German,Luther,MT,Leningrad	Isa	8	1	22	8	1	Kapitelgrenze Jes 8/9
+German,Luther,MT,Leningrad	Isa	8	23	23	9	1	Kapitelgrenze Jes 8/9
+German,Luther,MT,Leningrad	Isa	9	1	20	9	2	Kapitelgrenze Jes 8/9
+German,Luther,MT,Leningrad	Isa	64	1	11	64	2	Kapitelgrenze Jes 63/64
+German,Luther,MT,Leningrad	Jer	8	1	22	8	1	Kapitelgrenze Jer 8/9
+German,Luther,MT,Leningrad	Jer	8	23	23	9	1	Kapitelgrenze Jer 8/9
+German,Luther,MT,Leningrad	Jer	9	1	25	9	2	Kapitelgrenze Jer 8/9
+German,Luther,MT,Leningrad	Ezek	20	1	44	20	1	Kapitelgrenze Hes 20/21
+German,Luther,MT,Leningrad	Ezek	21	1	5	20	45	Kapitelgrenze Hes 20/21
+German,Luther,MT,Leningrad	Ezek	21	6	37	21	1	Kapitelgrenze Hes 20/21
+German,Luther,MT,Leningrad	Dan	3	1	30	3	1	Kapitelgrenze Dan 3/4
+German,Luther,MT,Leningrad	Dan	3	31	33	4	1	Kapitelgrenze Dan 3/4
+German,Luther,MT,Leningrad	Dan	4	1	34	4	4	Kapitelgrenze Dan 3/4
+German,Luther,MT,Leningrad	Dan	5	1	30	5	1	Kapitelgrenze Dan 5/6
+German,Luther,MT,Leningrad	Dan	6	1	1	5	31	Kapitelgrenze Dan 5/6
+German,Luther,MT,Leningrad	Dan	6	2	29	6	1	Kapitelgrenze Dan 5/6
+German,Luther,MT,Leningrad	Hos	1	1	9	1	1	Kapitelgrenze Hos 1/2
+German,Luther,MT,Leningrad	Hos	2	1	2	1	10	Kapitelgrenze Hos 1/2
+German,Luther,MT,Leningrad	Hos	2	3	25	2	1	Kapitelgrenze Hos 1/2
+German,Luther,MT,Leningrad	Hos	11	1	11	11	1	Kapitelgrenze Hos 11/12
+German,Luther,MT,Leningrad	Hos	12	1	1	11	12	Kapitelgrenze Hos 11/12
+German,Luther,MT,Leningrad	Hos	12	2	15	12	1	Kapitelgrenze Hos 11/12
+German,Luther,MT,Leningrad	Hos	13	1	15	13	1	Kapitelgrenze Hos 13/14
+German,Luther,MT,Leningrad	Hos	14	1	1	13	16	Kapitelgrenze Hos 13/14
+German,Luther,MT,Leningrad	Hos	14	2	10	14	1	Kapitelgrenze Hos 13/14
+German,Luther,MT,Leningrad	Joel	2	1	27	2	1	Joel 3 (hebräische Zählung) = Joel 2,28–32 (KJV)
+German,Luther,MT,Leningrad	Joel	3	1	5	2	28	Joel 3 (hebräische Zählung) = Joel 2,28–32 (KJV)
+German,Luther,MT,Leningrad	Joel	4	1	21	3	1	Joel 4 (hebräische Zählung) = Joel 3 (KJV)
+German,Luther,MT,Leningrad	Jonah	1	1	16	1	1	Kapitelgrenze Jona 1/2
+German,Luther,MT,Leningrad	Jonah	2	1	1	1	17	Kapitelgrenze Jona 1/2
+German,Luther,MT,Leningrad	Jonah	2	2	11	2	1	Kapitelgrenze Jona 1/2
+German,Luther,MT,Leningrad	Mic	4	1	13	4	1	Kapitelgrenze Mi 4/5
+German,Luther,MT,Leningrad	Mic	4	14	14	5	1	Kapitelgrenze Mi 4/5
+German,Luther,MT,Leningrad	Mic	5	1	14	5	2	Kapitelgrenze Mi 4/5
+German,Luther,MT,Leningrad	Nah	1	1	14	1	1	Kapitelgrenze Nah 1/2
+German,Luther,MT,Leningrad	Nah	2	1	1	1	15	Kapitelgrenze Nah 1/2
+German,Luther,MT,Leningrad	Nah	2	2	14	2	1	Kapitelgrenze Nah 1/2
+German,Luther,MT,Leningrad	Zech	1	1	17	1	1	Kapitelgrenze Sach 1/2
+German,Luther,MT,Leningrad	Zech	2	1	4	1	18	Kapitelgrenze Sach 1/2
+German,Luther,MT,Leningrad	Zech	2	5	17	2	1	Kapitelgrenze Sach 1/2
+German,Luther,MT,Leningrad	Mal	3	1	18	3	1	Mal 3,19–24 (hebräische Zählung) = Mal 4 (KJV)
+German,Luther,MT,Leningrad	Mal	3	19	24	4	1	Mal 3,19–24 (hebräische Zählung) = Mal 4 (KJV)
+German,Luther	Acts	19	1	40	19	1	Versgrenze Apg 19,40/41
+German,Luther	2Cor	13	1	12	13	1	Versgrenze 2. Kor 13,12/13
+German,Luther	2Cor	13	13	13	13	14	Versgrenze 2. Kor 13,12/13
+German,Luther,NRSV,NRSVA	3John	1	1	14	1	1	Versgrenze 3. Joh 14/15
+German,Luther,NRSV,NRSVA	3John	1	15	15	-	-	3. Joh 15 ist in KJV Teil von Vers 14
+German,Luther,NRSV,NRSVA	Rev	12	1	17	12	1	Kapitelgrenze Offb 12/13
+German,Luther,NRSV,NRSVA	Rev	12	18	18	-	-	Offb 12,18 ist in KJV Teil von 13,1
+LXX,Orthodox,Synodal,SynodalProt,Vulg	Ps	*	*	*	-	-	Psalmen in griechisch-lateinischer Zählung (Abbildung fehlt)

@@ -1,0 +1,43 @@
+{#- Bibeln in der Literatur (Runde 15): Kasten „Bibeln“ und die Treffergruppen „Bibel“ (je Modul) und
+    „Kommentar“ (fertiger Baustein aus bibles::commentary_hits_html) im gemeinsamen Suchfeld (nur Wortlaut-Modus).
+    Eingebunden in fragments/library.html (Popup, /literatur, literature.render). Kontext: bibles = {list
+    [{module, description, notice, work_bible, supported, problem, url}], hint, groups [{module, hits [{reference,
+    text, url}], truncated, problem}], commentary_hits (HTML, maskiert), page_url, settings_url}; ohne `bibles`
+    nichts. Seit Runde 19c rendert auch die Arbeitsseite (view.rs) den Kasten ohne JavaScript
+    (literature::bibles::workspace_shelf, Links mit key und rev). Bibeltext ist Text (maskiert); Links baut der Server. -#}
+{%- if bibles is defined and bibles %}
+{%- if bibles.groups or bibles.commentary_hits %}
+<div class="library-hits bible-hits" data-bible-hits>
+  {%- for g in bibles.groups %}
+  <div class="bible-group" data-group="bibel" data-module="{{ g.module }}">
+    <div class="muted tiny">Bibel{% if g.module %} · {{ g.module }}{% endif %}</div>
+    {%- if g.problem %}<p class="notice small" role="status">{{ g.problem }}</p>{% endif %}
+    <ul>
+    {%- for h in g.hits %}
+      <li class="library-hit bible-hit"><a href="{{ h.url }}" data-hit="bible">{{ h.reference }}</a>
+        <div class="library-snippet small">{{ h.text }}</div></li>
+    {%- endfor %}
+    </ul>
+    {%- if g.truncated %}<p class="muted tiny">Weitere Treffer auf der Bibelseite.</p>{% endif %}
+  </div>
+  {%- endfor %}
+  {{ bibles.commentary_hits }}
+</div>
+{%- endif %}
+<section class="literature-bibles" aria-label="Bibeln" data-widget="bibles">
+  <h3 class="pane-title small">Bibeln</h3>
+  {%- if bibles.hint %}
+  <p class="muted small" data-bibles="none">{{ bibles.hint }} <a href="{{ bibles.settings_url }}">Einstellungen → Quellen</a></p>
+  {%- else %}
+  <ul class="bibles">
+    {%- for b in bibles.list %}
+    <li class="bible-entry{% if b.work_bible %} work-bible{% endif %}" data-module="{{ b.module }}">
+      <a href="{{ b.url }}">{{ b.module }}</a>{% if b.work_bible %} <span class="badge primary">Bibel des Werks</span>{% endif %}
+      <span class="muted tiny">{{ b.description }}{% if b.notice %} · {{ b.notice }}{% endif %}</span>
+      {%- if b.problem %}<span class="notice tiny"> {{ b.problem }}</span>{% endif %}
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+</section>
+{%- endif %}

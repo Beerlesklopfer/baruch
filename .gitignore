@@ -1,0 +1,9 @@
+target/
+.env
+*.db
+.claude/worktrees/
+.claude/sicht/
+site/public/
+site/resources/
+site/.hugo_build.lock
+.hugo_build.lock

@@ -1,0 +1,50 @@
+{#- Einstellungsseite „Darstellung“ (Runde 9): Cookies dieses Browsers. Ein Formular an
+    POST /einstellungen/darstellung/act mit allen Wahlen, ein zweites setzt die Spaltenbreiten zurück.
+    Kontext: work, notice, error, theme (system|light|dark), editor (satz|quelltext), pv (open|closed),
+    accordion (chat|personas|revisions), left, right (Text oder none). -#}
+{%- macro choice(name, value, label, current) %}
+      <label class="settings-choice"><input type="radio" name="{{ name }}" value="{{ value }}"{% if value == current %} checked{% endif %}> {{ label }}</label>
+{%- endmacro %}
+<section class="settings-page" data-settings-page-body="darstellung">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h3 class="pane-title">Darstellung</h3>
+  <form class="settings-form" method="post" action="/einstellungen/darstellung/act">
+    {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+    <fieldset>
+      <legend>Thema</legend>
+      {{- choice("theme", "system", "Wie das System", theme) }}
+      {{- choice("theme", "light", "Hell", theme) }}
+      {{- choice("theme", "dark", "Dunkel", theme) }}
+    </fieldset>
+    <fieldset>
+      <legend>Editor beim Öffnen</legend>
+      {{- choice("editor", "satz", "Satzbild", editor) }}
+      {{- choice("editor", "quelltext", "Quelltext (Typst)", editor) }}
+    </fieldset>
+    <fieldset>
+      <legend>Vorschläge im Lesefluss anfangs</legend>
+      {{- choice("pv", "open", "aufgeklappt", pv) }}
+      {{- choice("pv", "closed", "eingeklappt (außer dem gezeigten)", pv) }}
+    </fieldset>
+    <fieldset>
+      <legend>Offener Bereich rechts</legend>
+      {{- choice("accordion", "personas", "Assistenten", accordion) }}
+      {{- choice("accordion", "revisions", "Fassungen", accordion) }}
+      {{- choice("accordion", "chat", "Abschnitts-Chat", accordion) }}
+    </fieldset>
+    <p><button class="btn primary" type="submit">Speichern</button></p>
+  </form>
+  <form class="settings-form" method="post" action="/einstellungen/darstellung/act">
+    {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
+    <input type="hidden" name="reset_widths" value="1">
+    <p class="small">Spaltenbreiten: links {% if left %}{{ left }}{% else %}Vorgabe{% endif %}, rechts {% if right %}{{ right }}{% else %}Vorgabe{% endif %}.
+      <button class="btn" type="submit">Spaltenbreiten zurücksetzen</button></p>
+  </form>
+  <p class="muted tiny">Diese Werte stehen nur in diesem Browser (Cookies <code>baruch_theme</code>, <code>baruch_editor</code>,
+    <code>baruch_pv</code>, <code>baruch_accordion</code>, <code>baruch_left</code>/<code>baruch_right</code>); ein anderer Browser hat seine eigenen.</p>
+</section>

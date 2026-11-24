@@ -1,0 +1,303 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Stil der Baruch-Webseite. Nur Systemschriften, keine fremden Adressen, kein JavaScript.
+   Farben als Eigenschaften; das dunkle Thema folgt der Einstellung des Systems. */
+
+:root {
+  --papier: #faf6ee;
+  --blatt: #fffdf8;
+  --tinte: #211c16;
+  --leise: #655c50;
+  --linie: #ddd3c1;
+  --siegel: #7a2e1f;
+  --siegel-tief: #5c2015;
+  --siegel-hell: #f3e4dc;
+  --hinweis: #fff3cf;
+  --hinweis-rand: #b98a12;
+  --code: #f1eadc;
+  --schrift-text: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", "URW Palladio L", P052, Georgia, serif;
+  --schrift-zeile: system-ui, -apple-system, "Segoe UI", "Noto Sans", "Liberation Sans", Arial, sans-serif;
+  --schrift-code: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace;
+  --breite: 46rem;
+  --breit: 68rem;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #17140f;
+    --blatt: #1f1b15;
+    --tinte: #ece5d8;
+    --leise: #a89d8c;
+    --linie: #3b3429;
+    --siegel: #e19a84;
+    --siegel-tief: #f0b7a4;
+    --siegel-hell: #33211b;
+    --hinweis: #3a3013;
+    --hinweis-rand: #d6a92f;
+    --code: #2a251d;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--tinte);
+  font-family: var(--schrift-text);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main { flex: 1; }
+
+.rand {
+  width: 100%;
+  max-width: var(--breit);
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+.text > *, .seitenkopf > * { max-width: var(--breite); }
+.text > .bild, .text > table, .text > pre { max-width: 100%; }
+
+a { color: var(--siegel); text-decoration-thickness: 0.06em; text-underline-offset: 0.18em; }
+a:hover { color: var(--siegel-tief); }
+a:focus-visible, .knopf:focus-visible { outline: 3px solid var(--siegel); outline-offset: 3px; border-radius: 2px; }
+
+.skip {
+  position: absolute;
+  left: -999rem;
+  top: 0;
+  background: var(--siegel);
+  color: var(--blatt);
+  padding: 0.5rem 1rem;
+  font-family: var(--schrift-zeile);
+}
+.skip:focus { left: 0; z-index: 10; }
+
+/* Kopfzeile */
+
+.kopf {
+  border-bottom: 1px solid var(--linie);
+  background: var(--blatt);
+  font-family: var(--schrift-zeile);
+  font-size: 0.95rem;
+}
+
+.kopf-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 2rem;
+  padding-block: 0.7rem;
+}
+
+.marke {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--tinte);
+  text-decoration: none;
+  font-family: var(--schrift-text);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.marke-zeichen {
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.3rem;
+  background: #7a2e1f;
+  color: #faf6ee;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.menue ul, .fuss ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.3rem;
+}
+
+.menue a {
+  display: inline-block;
+  padding-block: 0.35rem;
+  color: var(--tinte);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.menue a:hover { border-bottom-color: var(--linie); }
+.menue a[aria-current="page"] { border-bottom-color: var(--siegel); color: var(--siegel); }
+.menue a.aussen::after { content: " ↗"; color: var(--leise); }
+
+/* Auftakt der Startseite */
+
+.auftakt {
+  border-bottom: 1px solid var(--linie);
+  background:
+    linear-gradient(var(--blatt), var(--papier));
+  padding-block: clamp(2.5rem, 7vw, 5rem);
+}
+
+.auftakt-marke {
+  margin: 0 0 0.8rem;
+  font-family: var(--schrift-zeile);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--siegel);
+}
+
+.auftakt h1 {
+  margin: 0;
+  max-width: 20ch;
+  font-size: clamp(2.2rem, 6vw, 3.8rem);
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.auftakt-text {
+  max-width: 38rem;
+  margin: 1.3rem 0 0;
+  font-size: 1.25rem;
+  color: var(--leise);
+}
+
+.auftakt-wege { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 2rem 0 0; }
+
+.knopf {
+  display: inline-block;
+  padding: 0.6rem 1.15rem;
+  border: 1px solid var(--siegel);
+  border-radius: 0.3rem;
+  background: var(--siegel);
+  color: var(--blatt);
+  font-family: var(--schrift-zeile);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.knopf:hover { background: var(--siegel-tief); border-color: var(--siegel-tief); color: var(--blatt); }
+.knopf.zweit { background: transparent; color: var(--siegel); }
+.knopf.zweit:hover { background: var(--siegel-hell); color: var(--siegel-tief); }
+
+/* Fließtext */
+
+.text { padding-block: 2.5rem 4rem; }
+
+.seitenkopf { margin-bottom: 2rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--linie); }
+.seitenkopf h1 { margin: 0; font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.12; font-weight: 600; }
+.vorspann { margin: 0.8rem 0 0; font-size: 1.2rem; color: var(--leise); }
+
+.text h2 {
+  margin: 2.6rem 0 0.6rem;
+  font-size: 1.6rem;
+  line-height: 1.2;
+  font-weight: 600;
+}
+.text h3 { margin: 2rem 0 0.4rem; font-size: 1.22rem; line-height: 1.3; font-weight: 600; }
+.text p, .text ul, .text ol, .text dl { margin: 0 0 1.1rem; }
+.text ul, .text ol { padding-left: 1.3rem; }
+.text li { margin-bottom: 0.35rem; }
+.text li::marker { color: var(--siegel); }
+.text strong { font-weight: 700; }
+.text hr { border: 0; border-top: 1px solid var(--linie); margin: 2.5rem 0; }
+
+.text blockquote {
+  margin: 1.5rem 0;
+  padding: 0.2rem 0 0.2rem 1.2rem;
+  border-left: 3px solid var(--siegel);
+  color: var(--leise);
+  font-style: italic;
+}
+.text blockquote p:last-child { margin-bottom: 0; }
+
+code, pre, kbd { font-family: var(--schrift-code); font-size: 0.86em; }
+code { background: var(--code); padding: 0.1em 0.32em; border-radius: 0.2rem; overflow-wrap: anywhere; }
+pre {
+  margin: 0 0 1.3rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--code);
+  border: 1px solid var(--linie);
+  border-radius: 0.3rem;
+  overflow-x: auto;
+  /* Rollbalken in den Farben des Themas (sonst im dunklen Thema ein heller Streifen unter langen Zeilen). */
+  scrollbar-color: var(--leise) var(--code);
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: 1em; overflow-wrap: normal; }
+
+.text table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 1.4rem;
+  font-family: var(--schrift-zeile);
+  font-size: 0.95rem;
+}
+.text th, .text td { padding: 0.5rem 0.9rem 0.5rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--linie); }
+.text th { font-weight: 600; color: var(--leise); border-bottom-width: 2px; white-space: nowrap; }
+
+/* Hinweise und Platzhalter */
+
+.platzhalter {
+  padding: 0.8rem 1rem;
+  background: var(--hinweis);
+  border: 1px solid var(--hinweis-rand);
+  border-left-width: 5px;
+  border-radius: 0.3rem;
+  font-family: var(--schrift-zeile);
+  font-size: 0.98rem;
+}
+
+.fingerabdruck { font-family: var(--schrift-zeile); font-size: 0.98rem; }
+
+/* Bilder */
+
+.bild { margin: 1.6rem 0 2rem; }
+.bild img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--linie);
+  border-radius: 0.35rem;
+  background: var(--blatt);
+}
+.bild figcaption { margin-top: 0.5rem; font-family: var(--schrift-zeile); font-size: 0.9rem; color: var(--leise); }
+
+/* Fußzeile */
+
+.fuss {
+  border-top: 1px solid var(--linie);
+  background: var(--blatt);
+  font-family: var(--schrift-zeile);
+  font-size: 0.92rem;
+  color: var(--leise);
+}
+.fuss-zeile { padding-block: 1.6rem 2rem; display: grid; gap: 0.5rem; }
+.fuss p { margin: 0; }
+.fuss .leise { font-size: 0.85rem; }
+
+@media (max-width: 40rem) {
+  body { font-size: 1.05rem; }
+  .kopf-zeile { flex-direction: column; align-items: flex-start; }
+}
+
+@media print {
+  .kopf, .fuss, .skip, .auftakt-wege { display: none; }
+  body { background: #fff; color: #000; }
+}

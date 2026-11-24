@@ -1,0 +1,51 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Antwort auf POST /austausch/uebernehmen (Runde 26, src/exchange/import.rs): Ergebnis des
+    Einlesens mit Links zu den Abweichungen (/?work=W&key=K&rev=R) und zu den Anträgen (/gliederung?work=W#antraege).
+    Kontext: settings, work {id, title, slug}, mode_label, instance, add [(Art, Zahl)], add_total, requests (Zahl),
+    deviations [{label, here, there, action, href?}], report (ExchangeReport), commit?, mirror?. -#}
+{% extends "base.html" %}
+{% block title %}Austausch übernommen – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}Austausch übernommen{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}">Zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page exchange-done-page" data-work="{{ work.id }}">
+  <h1 class="pane-title">„{{ work.title }}“: {{ mode_label }} übernommen</h1>
+  <p role="status">Aus <strong>{{ instance }}</strong>.
+    {%- if add_total == 0 %} Nichts kam hinzu.{% else %} Hinzu:
+    {%- for item in add %} {{ item[1] }} {{ item[0] }}{% if not loop.last %},{% endif %}{% endfor %}.{% endif %}
+    {%- if commit %} Im Spiegel als Commit <code>{{ commit }}</code> eingetragen.{% endif %}</p>
+  {%- if mirror %}
+  <p class="notice error" role="alert">Spiegel: {{ mirror }} (das Werk ist trotzdem übernommen).</p>
+  {%- endif %}
+  {%- for refusal in report.refusals %}
+  <p class="notice" role="status">Nicht übernommen: {{ refusal }}</p>
+  {%- endfor %}
+  {%- if requests %}
+  <p><a class="btn primary" href="/gliederung?work={{ work.id }}#antraege">{{ requests }} {% if requests == 1 %}Antrag{% else %}Anträge{% endif %} zur Gliederung ansehen</a></p>
+  {%- endif %}
+  {%- if deviations %}
+  <section>
+    <h2 class="pane-title">Abweichungen ({{ deviations | length }})</h2>
+    <table class="exchange-deviations">
+      <thead><tr><th>Was</th><th>Hier</th><th>Dort</th><th>Folge</th></tr></thead>
+      <tbody>
+        {%- for d in deviations %}
+        <tr>
+          <td>{% if d.href %}<a href="{{ d.href | safe }}">{{ d.label }}</a>{% else %}{{ d.label }}{% endif %}</td>
+          <td>{{ d.here }}</td>
+          <td>{{ d.there }}</td>
+          <td>{{ d.action }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+  </section>
+  {%- endif %}
+  {%- if report.deleted_here %}
+  <p class="muted">Hier gelöscht und nicht wieder angelegt: {{ report.deleted_here | length }}.</p>
+  {%- endif %}
+  <p><a href="/?work={{ work.id }}">Zum Werk</a> · <a href="/austausch/einlesen?work={{ work.id }}">Weitere Datei einlesen</a></p>
+</main>
+{% endblock %}

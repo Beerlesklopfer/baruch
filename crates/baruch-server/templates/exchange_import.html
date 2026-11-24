@@ -1,0 +1,47 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /austausch/einlesen[?work=W] (Runde 26, src/exchange/import.rs): Austauschdatei einer
+    anderen Baruch-Instanz einlesen, erst mit Vorschau. Formular multipart an POST /austausch/vorschau (Feld datei,
+    dazu title), ohne JavaScript. Kontext: settings, work {id}?, error?, title_value, limit_mib. -#}
+{% extends "base.html" %}
+{% block title %}Austausch einlesen – Baruch{% endblock %}
+{% block page_title %}Austausch: Einlesen{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke">Werke</a>
+  {%- if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page exchange-import-page">
+  <h1 class="pane-title">Austausch: Einlesen</h1>
+  <div class="work-new">
+    {%- if error %}
+    <p class="notice error" role="alert">{{ error }}</p>
+    {%- endif %}
+    <form class="work-form" action="/austausch/vorschau" method="post" enctype="multipart/form-data">
+      <h2 class="pane-title">Austauschdatei wählen</h2>
+      {%- if work %}<input type="hidden" name="work" value="{{ work.id }}">{% endif %}
+      <label>Datei (.baruch oder .baruch.xml, höchstens {{ limit_mib }} MiB)
+        <input type="file" name="datei" accept=".baruch,.xml" required>
+      </label>
+      <label>Titel <span class="muted small">(nur für ein neues Werk; leer: aus der Datei)</span>
+        <input type="text" name="title" value="{{ title_value }}" autocomplete="off">
+      </label>
+      <button class="btn primary" type="submit">Vorschau zeigen</button>
+    </form>
+    <section class="work-form">
+      <h2 class="pane-title">Was geschieht</h2>
+      <ul>
+        <li>Zuerst kommt eine <strong>Vorschau</strong>: was hinzukäme, was abweicht, welche Anträge entstünden. Geschrieben
+          wird erst mit „Übernehmen“.</li>
+        <li>Ist das Werk hier <strong>unbekannt</strong>, entsteht ein neues Werk mit allen Fassungen, Einfällen,
+          Beiträgen, Fäden und Bildern.</li>
+        <li>Ist es <strong>bekannt</strong>, wird abgeglichen: Es kommt nur hinzu, was fehlt. Nichts wird gelöscht oder
+          überschrieben, keine eingelesene Fassung wird aktuell; eine abweichende Fassung kommt als weitere Fassung,
+          Änderungen der Gliederung werden <a href="/gliederung{% if work %}?work={{ work.id }}{% endif %}#antraege">Anträge</a>,
+          über die du entscheidest.</li>
+        <li>Was hier gelöscht wurde, kommt nicht wieder. Unbekannte Teile einer neueren Datei werden gemeldet, aber nicht
+          übernommen.</li>
+      </ul>
+    </section>
+  </div>
+</main>
+{% endblock %}

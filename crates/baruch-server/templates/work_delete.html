@@ -1,0 +1,37 @@
+{#- Seite /werke/{id}/loeschen: Löschen nur nach Eintippen des Titels (POST /werke/act, action=delete,
+    Feld confirm_title). Geht ohne JavaScript. Kontext: settings, work (WorkMeta), sections, proposals,
+    trash (Archivordner), error, back_url. -#}
+{% extends "base.html" %}
+{% block title %}{{ work.title }} löschen – Baruch{% endblock %}
+{% block page_title %}{{ work.title }} löschen{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke">Werke</a>
+  <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Werk löschen</h1>
+  <p>Gelöscht werden das Werk <strong>{{ work.title }}</strong>{% if work.author %} von {{ work.author }}{% endif %}
+    {%- if sections is not none %} mit {{ sections }} Abschnitten{% endif %}, alle Fassungen, Vorschläge
+    {%- if proposals %} (davon {{ proposals }} offen){% endif %}, Beiträge und die Fassungen der Werkvorlage.</p>
+  <p class="muted">Der Git-Spiegel <code>works/{{ work.slug }}/</code> bekommt einen letzten Commit „Werk gelöscht“ und wandert
+    nach <code>works/{{ trash }}/{{ work.slug }}-JJJJ-MM-TT/</code>; dort bleibt jeder Text in der Git-Historie lesbar.
+    Über <a href="/werke/archiv">Werke → Archiv</a> lässt sich das Werk später wiederherstellen (aktuelle Texte als
+    Fassung 1); seine Einfälle werden zu Einfällen ohne Werk.
+    Vorher lohnt ein <a href="/werke/{{ work.id }}/export" download>Export als Typst-Datei</a>.</p>
+  <p class="muted">Der Ordnername <code>{{ work.slug }}</code> bleibt danach reserviert, damit das Archiv eindeutig bleibt: Ein
+    neues Werk mit demselben Titel bekommt einen eigenen Ordner (z. B. <code>{{ work.slug }}-2</code>) und eine neue Nummer.
+    Ist nach dem Löschen kein Werk mehr da, legt Baruch kein Beispielwerk neu an.</p>
+  <form class="work-form" action="/werke/act" method="post">
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <label>Zur Bestätigung den Titel eintippen
+      <input type="text" name="confirm_title" required autocomplete="off" placeholder="{{ work.title }}">
+    </label>
+    <button class="btn danger" type="submit">Endgültig löschen</button>
+  </form>
+</main>
+{% endblock %}

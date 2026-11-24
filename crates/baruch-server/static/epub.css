@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* EPUB-Vorschau je Reader (Runde 20b, Besitz „reader“): Seite /werke/{id}/epub/vorschau. */
+.epub-preview-page .epub-preview-form { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: end; margin: 0.8rem 0; }
+.epub-preview-page .epub-readers { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; border: 1px solid var(--line, #ccc); border-radius: 6px; padding: 0.4rem 0.7rem; }
+.epub-preview-page .epub-reader-choice { white-space: nowrap; }
+/* Runde 23a (Sichtprüfung R21): `column-fill: balance` verteilt die Zeilen gleichmäßig auf die Spalten (vorher lief
+   die erste Spalte voll, die letzte blieb fast leer); jede Zeile bleibt ganz in ihrer Spalte, lange Dateinamen
+   brechen um statt die Spalte zu sprengen. */
+.epub-preview-page .epub-file-list { columns: 18rem auto; column-fill: balance; column-gap: 1.5rem; margin: 0.4rem 0 1rem; padding-left: 1.4rem; }
+.epub-preview-page .epub-file { break-inside: avoid; page-break-inside: avoid; overflow-wrap: anywhere; }
+.epub-preview-page .epub-file.boundary { border-top: 2px solid var(--line, #ccc); padding-top: 0.15rem; margin-top: 0.15rem; }
+.epub-preview-page .epub-kind { display: inline-block; min-width: 6.5rem; font-size: 0.8em; opacity: 0.75; }
+.epub-preview-page .epub-frames { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; margin: 1rem 0; }
+.epub-preview-page .epub-frame { margin: 0; max-width: 100%; }
+.epub-preview-page .epub-frame figcaption { margin-bottom: 0.3rem; }
+.epub-preview-page .epub-frame-box { max-width: calc(100vw - 2rem); overflow: auto; border: 8px solid #2b2b2b; border-radius: 14px; background: #fff; }
+.epub-preview-page .epub-frame.night .epub-frame-box { background: #000; }
+.epub-preview-page .epub-frame iframe { display: block; border: 0; }
+.epub-preview-page .epub-frame-note, .epub-preview-page .epub-frame-lacks { max-width: 28rem; }
+.epub-preview-page .epub-check-slot { margin-top: 1.5rem; }

@@ -1,0 +1,467 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Release: Ein Tag v* genügt. Es entstehen .deb und AppImage (Linux), .dmg (macOS), .msi (Windows), das
+# APT-Repository (apt-repo.tar.gz, mit den Paketen früherer Releases) und ein GitHub-Release mit SHA256SUMS;
+# danach liefert der Job „pages“ die Webseite samt /apt/ über GitHub Pages aus. Ablauf: docs/Verteilung.md.
+#
+# - Von Hand gestartet (workflow_dispatch) baut der Ablauf nur die Pakete als Artefakte, ohne Release und
+#   ohne Auslieferung.
+# - Das Release entsteht als Entwurf; der Nutzer veröffentlicht es. Repository-Variable RELEASE_DRAFT=false
+#   veröffentlicht sofort. Grenze: Ein Token mit `contents: read` sieht Entwürfe nicht – den Entwurf vor dem
+#   nächsten Push auf main veröffentlichen, sonst fällt /apt/ auf den vorigen veröffentlichten Stand zurück.
+# - Linux (.deb) ist Pflicht. AppImage, macOS und Windows sind noch nie gebaut worden; scheitern sie, entsteht
+#   das Release trotzdem und nennt, was fehlt.
+# - Geheimnisse stehen nur in den GitHub-Secrets (Namen in docs/Verteilung.md) und kommen über `env` in die
+#   Schritte, nie in die Befehlszeile. Signieren ist über Repository-Variablen abschaltbar (Vorgabe: aus).
+# - Aktionen sind auf Commit-SHAs festgelegt (am 2026-11-24 mit `git ls-remote` gegen die Tags geprüft).
+# - Rust steht in fester Version in RUST_VERSION (= `rustc --version` auf dem Entwicklungsrechner), cargo-deb
+#   in CARGO_DEB_VERSION; Hugo lädt scripts/ci-tool.sh in fester Version mit Prüfsumme.
+# - Rechte: oben nur `contents: read`; `contents: write` nur im Job „publish“, `pages: write` und
+#   `id-token: write` nur im Job „pages“ (Umgebung github-pages). scripts/ci-check-workflows.sh prüft das.
+# - Der Archivschlüssel (APT_GPG_*) kommt nur in den Job „publish“, und der läuft in der Umgebung `release`:
+#   Dort legt der Nutzer die beiden Secrets ab und bindet sie an eine Freigabe und an Tags v* (Settings →
+#   Environments, docs/Verteilung.md). Vor dem Signieren vergleicht scripts/ci-fingerprint.sh den Schlüssel mit
+#   dem veröffentlichten Fingerabdruck; weicht er ab oder fehlt er, entsteht kein Release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_VERSION: "1.99.0"
+  CARGO_DEB_VERSION: "3.7.0"
+
+jobs:
+  linux:
+    name: Linux (.deb, AppImage)
+    # glibc des Runners bestimmt die Mindestversion: Ubuntu 24.04 → libc6 ≥ 2.39 (Debian 13, Ubuntu 24.04).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Version prüfen (Tag muss zu Cargo.toml passen)
+        run: sh scripts/version.sh
+
+      # Früh, weil der Job „publish“ erst nach allen Bauten läuft: Dort scheitert ein signiertes Release, wenn
+      # der Fingerabdruck fehlt. Hier nur der Hinweis (dieser Job sieht den Schlüssel nicht).
+      - name: Fingerabdruck des Archivschlüssels eingetragen?
+        run: |
+          set -eu
+          rc=0
+          sh scripts/ci-fingerprint.sh || rc=$?
+          case "$rc" in
+            0) ;;
+            3) echo "::warning::Der Fingerabdruck des Archivschlüssels ist nicht eingetragen – ein Release mit hinterlegtem Schlüssel scheitert im Job „publish“ (docs/Verteilung.md)." ;;
+            *) exit "$rc" ;;
+          esac
+
+      - name: Systempakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler libdbus-1-dev pkg-config
+          protoc --version
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Rust (feste Version) und cargo-deb
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc -vV
+          cargo install cargo-deb --locked --version "$CARGO_DEB_VERSION"
+
+      - name: TypeScript-Compiler der Oberfläche
+        working-directory: crates/baruch-server/web
+        run: npm ci
+
+      - name: Bauen
+        run: cargo build --release --locked -p baruch-server -j 4
+
+      - name: .deb
+        run: |
+          sh scripts/build-deb.sh --no-build --out dist
+          dpkg-deb -I dist/*.deb
+          dpkg-deb -c dist/*.deb
+
+      - name: Probe – Paket entpacken, Server starten, Startseite abrufen
+        run: |
+          set -eu
+          mkdir -p probe/root probe/data
+          dpkg-deb -x dist/*.deb probe/root
+          probe/root/usr/bin/baruch-server --data probe/data --secrets memory --listen 127.0.0.1:18765 &
+          pid=$!
+          ok=0
+          for _ in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:18765/; then ok=1; break; fi
+            sleep 1
+          done
+          kill "$pid"
+          [ "$ok" = 1 ]
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: paket-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+      - name: AppImage
+        id: appimage
+        continue-on-error: true
+        run: |
+          bash packaging/appimage/build-appimage.sh --out target/appimage
+          cp target/appimage/*.AppImage dist/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.appimage.outcome == 'success'
+        with:
+          name: paket-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+  macos:
+    name: macOS (.dmg, ${{ matrix.arch }})
+    runs-on: macos-14
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+    env:
+      TARGET: ${{ matrix.target }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Version prüfen
+        run: sh scripts/version.sh
+
+      - name: protoc
+        run: |
+          brew install protobuf
+          protoc --version
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Rust (feste Version)
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustup target add "$TARGET"
+          rustc -vV
+
+      - name: TypeScript-Compiler der Oberfläche
+        working-directory: crates/baruch-server/web
+        run: npm ci
+
+      - name: Bauen
+        run: cargo build --release --locked -p baruch-server --target "$TARGET" -j 4
+
+      - name: Drittlizenzen
+        run: python3 scripts/third-party-licenses.py --target "$TARGET" --out packaging/generated/THIRD-PARTY-LICENSES.txt
+
+      # Signieren: abgeschaltet, solange die Repository-Variable MACOS_SIGN nicht "true" ist (Nutzerfrage offen).
+      - name: Zertifikat in einen eigenen Schlüsselbund laden (nur mit MACOS_SIGN=true)
+        if: vars.MACOS_SIGN == 'true'
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -eu
+          keychain="$RUNNER_TEMP/baruch-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          cert="$RUNNER_TEMP/cert.p12"
+          printf '%s' "$MACOS_CERT_P12_BASE64" | base64 --decode > "$cert"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$cert" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          rm -f "$cert"
+
+      - name: .dmg
+        env:
+          # Leer, solange nicht signiert wird: build-dmg.sh lässt das Programm dann unsigniert.
+          MACOS_SIGN_IDENTITY: ${{ vars.MACOS_SIGN == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+        run: bash packaging/macos/build-dmg.sh --binary "target/$TARGET/release/baruch-server" --arch "$ARCH" --out dist
+
+      - name: Notarisieren und heften (nur mit MACOS_SIGN=true)
+        if: vars.MACOS_SIGN == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -eu
+          for dmg in dist/*.dmg; do
+            xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" --wait
+            xcrun stapler staple "$dmg"
+          done
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: paket-macos-${{ matrix.arch }}
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  windows:
+    name: Windows (.msi)
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Version prüfen
+        shell: bash
+        run: sh scripts/version.sh
+
+      - name: protoc
+        run: |
+          choco install protoc --no-progress -y
+          protoc --version
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Rust (feste Version)
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc -vV
+
+      - name: TypeScript-Compiler der Oberfläche
+        working-directory: crates/baruch-server/web
+        run: npm ci
+
+      - name: Bauen
+        run: cargo build --release --locked -p baruch-server -j 4
+
+      - name: Drittlizenzen
+        run: python scripts/third-party-licenses.py --target x86_64-pc-windows-msvc --out packaging/generated/THIRD-PARTY-LICENSES.txt
+
+      - name: .msi
+        run: pwsh packaging/windows/build-msi.ps1 -OutDir dist
+
+      # Signieren: abgeschaltet, solange die Repository-Variable WINDOWS_SIGN nicht "true" ist (Nutzerfrage
+      # offen). Muster für ein Zertifikat als PFX-Datei; Zertifikate auf einem Token oder in der Cloud
+      # (z. B. Azure Trusted Signing) brauchen einen anderen Schritt.
+      - name: Signieren (nur mit WINDOWS_SIGN=true)
+        if: vars.WINDOWS_SIGN == 'true'
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName | Select-Object -Last 1
+          try {
+            Get-ChildItem dist\*.msi | ForEach-Object {
+              & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERT_PASSWORD /fd SHA256 `
+                /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+              if ($LASTEXITCODE -ne 0) { throw "signtool meldet Fehler." }
+            }
+          } finally {
+            Remove-Item $pfx -Force
+          }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: paket-windows
+          path: dist/*.msi
+          if-no-files-found: error
+
+  publish:
+    name: APT-Repository und GitHub-Release
+    needs: [linux, macos, windows]
+    # Nur für Tags; Linux muss gelungen sein, macOS und Windows dürfen fehlen.
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.linux.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    # Umgebung mit Schutzregeln (Freigabe durch den Nutzer, nur Tags v*): Nur Jobs dieser Umgebung sehen die
+    # dort abgelegten Secrets APT_GPG_*. Ohne eingerichtete Regeln legt GitHub die Umgebung beim ersten Lauf
+    # leer an – dann schützt sie nichts (docs/Verteilung.md, „Einmalige Einrichtung“).
+    environment: release
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: paket-*
+          merge-multiple: true
+          path: dist
+
+      - name: Systempakete (apt-ftparchive)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends apt-utils gnupg
+
+      # Ansammelnd: Die Pakete (pool/) des letzten veröffentlichten Release bleiben im Repository, damit ältere
+      # Versionen installierbar sind. Ohne ein solches Release (erstes Release) beginnt das Repository leer;
+      # jeder andere Fehler bricht ab, damit eine Störung nie die alten Pakete verschwinden lässt.
+      - name: Grundlage – apt-repo.tar.gz des letzten veröffentlichten Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          rc=0
+          sh scripts/ci-apt-fetch.sh apt-base || rc=$?
+          case "$rc" in
+            0) ;;
+            3) echo "::notice::Kein veröffentlichtes Release mit apt-repo.tar.gz – das APT-Repository beginnt mit diesem Release." ;;
+            *) exit "$rc" ;;
+          esac
+
+      - name: APT-Repository (signiert, wenn der Schlüssel hinterlegt ist)
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          set -eu
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            GNUPGHOME="$(mktemp -d)"
+            export GNUPGHOME
+            chmod 700 "$GNUPGHOME"
+            printf '%s\n' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+            APT_GPG_KEY="$(gpg --batch --list-secret-keys --with-colons | awk -F: '$1 == "fpr" { print $10; exit }')"
+            export APT_GPG_KEY
+            # Der veröffentlichte Fingerabdruck (Webseite, README, docs/Verteilung.md) muss dieser Schlüssel
+            # sein – sonst könnte niemand die Schlüsseldatei prüfen. Scheitert vor dem Signieren.
+            sh scripts/ci-fingerprint.sh --key "$APT_GPG_KEY" || { rm -rf "$GNUPGHOME"; exit 1; }
+            if [ -n "$APT_GPG_PASSPHRASE" ]; then
+              umask 077
+              printf '%s' "$APT_GPG_PASSPHRASE" > "$RUNNER_TEMP/apt-passphrase"
+              export APT_GPG_PASSPHRASE_FILE="$RUNNER_TEMP/apt-passphrase"
+            fi
+          else
+            echo "::warning::Secret APT_GPG_PRIVATE_KEY fehlt – das APT-Repository ist unsigniert und so nicht für Endnutzer geeignet."
+          fi
+          if [ -f apt-base/apt-repo.tar.gz ]; then
+            sh scripts/apt-repo.sh --base apt-base/apt-repo.tar.gz apt-repo dist/*.deb
+          else
+            sh scripts/apt-repo.sh apt-repo dist/*.deb
+          fi
+          tar -C apt-repo -czf dist/apt-repo.tar.gz .
+          rm -rf "${GNUPGHOME:-/nonexistent}" "$RUNNER_TEMP/apt-passphrase"
+          tar -tzf dist/apt-repo.tar.gz
+
+      # Für den Job „pages“: Ein Entwurf ist mit Leserechten nicht abrufbar, darum als Artefakt.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: apt-repo
+          path: dist/apt-repo.tar.gz
+          if-no-files-found: error
+
+      - name: Prüfsummen
+        run: |
+          set -eu
+          (cd dist && sha256sum -- *) > SHA256SUMS
+          mv SHA256SUMS dist/SHA256SUMS
+          cat dist/SHA256SUMS
+
+      - name: GitHub-Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          RELEASE_DRAFT: ${{ vars.RELEASE_DRAFT }}
+          MACOS_RESULT: ${{ needs.macos.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          MACOS_SIGNED: ${{ vars.MACOS_SIGN }}
+          WINDOWS_SIGNED: ${{ vars.WINDOWS_SIGN }}
+        run: |
+          set -eu
+          version="$(sh scripts/version.sh "$TAG")"
+          {
+            echo "Baruch $version – freie Schreibwerkstatt für Bücher und Predigten (AGPL-3.0-or-later)."
+            echo
+            echo "Installation: https://baruch.bernau.family/ und docs/Verteilung.md."
+            echo
+            echo "Prüfsummen: SHA256SUMS. \`apt-repo.tar.gz\` ist der Stand des APT-Repositorys unter https://baruch.bernau.family/apt/ (mit den Paketen früherer Releases); der Arbeitsablauf liefert es über GitHub Pages aus."
+            echo
+            ls dist/*.AppImage >/dev/null 2>&1 || echo "- AppImage fehlt in diesem Release (Bau gescheitert)."
+            [ "$MACOS_RESULT" = success ] || echo "- macOS-Pakete fehlen ganz oder teilweise (Bau: $MACOS_RESULT)."
+            [ "$WINDOWS_RESULT" = success ] || echo "- Windows-Paket fehlt (Bau: $WINDOWS_RESULT)."
+            [ "$MACOS_SIGNED" = true ] || echo "- macOS: unsigniert und nicht notarisiert (Gatekeeper warnt; siehe docs/Verteilung.md)."
+            [ "$WINDOWS_SIGNED" = true ] || echo "- Windows: unsigniert (SmartScreen warnt; siehe docs/Verteilung.md)."
+          } > notes.md
+          draft="--draft"
+          [ "$RELEASE_DRAFT" = false ] && draft=""
+          gh release create "$TAG" dist/* --verify-tag --title "Baruch $version" --notes-file notes.md $draft
+
+  pages:
+    name: Webseite und /apt/ ausliefern (GitHub Pages)
+    needs: [publish]
+    # `publish` läuft auch, wenn macOS oder Windows scheitern; ohne eigene Bedingung würde dieser Job dann
+    # übersprungen.
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Dieselbe Gruppe wie pages.yml: nie zwei Auslieferungen zugleich, keine wird abgebrochen.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: apt-repo
+          path: apt-artifact
+
+      - name: Hugo (feste Version, Prüfsumme)
+        run: sh scripts/ci-tool.sh hugo "$RUNNER_TEMP/werkzeug"
+
+      # Versionsabgleich, `hugo --minify --panicOnWarning -s site`, Repository nach site/public/apt/.
+      - name: Seite bauen, APT-Repository nach /apt/
+        run: HUGO="$RUNNER_TEMP/werkzeug/hugo" sh scripts/ci-site.sh --apt apt-artifact/apt-repo.tar.gz
+
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: site/public
+
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

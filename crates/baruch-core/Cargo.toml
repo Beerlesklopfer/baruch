@@ -1,0 +1,10 @@
+[package]
+name = "baruch-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+similar = "2"

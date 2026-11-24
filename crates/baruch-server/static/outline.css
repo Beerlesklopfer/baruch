@@ -1,0 +1,99 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Gliederungsmanager: Werkzeuge je Eintrag der linken Spalte, Ziehen und Ablegen, Seiten /gliederung. */
+
+.pane-title .tool { margin-left: 6px; font-weight: 400; }
+.tool {
+  border: 1px solid transparent; background: none; color: var(--muted); border-radius: 4px;
+  padding: 0 4px; font: inherit; font-size: 11.5px; line-height: 18px; cursor: pointer; text-decoration: none;
+}
+.tool:hover, .tool:focus-visible { border-color: var(--line); color: var(--primary); background: var(--panel); }
+
+.outline-row { display: flex; align-items: center; flex: 1; min-width: 0; gap: 2px; border-radius: 4px; }
+.outline-row > .tree-entry { flex: 1; min-width: 0; }
+.outline-tools { display: none; flex: none; gap: 1px; }
+.outline-row:hover .outline-tools,
+.outline-row:focus-within .outline-tools,
+.outline-row:has(.tree-entry.selected) .outline-tools { display: inline-flex; }
+/* Ohne :has() (ältere Browser) bleiben die Werkzeuge beim Überfahren und mit Fokus sichtbar. */
+html:not(.js) .outline-tools { display: inline-flex; }
+/* Ohne JavaScript stehen Pfeile und „Bearbeiten“ immer da: Sie rücken in eine eigene Zeile unter den Eintrag, damit
+   Titel und Abzeichen („k offen“) die ganze Breite behalten (Runde 28, Sichtprüfung: sonst „2.. 4 offen“). */
+html:not(.js) .outline-row { flex-wrap: wrap; }
+html:not(.js) .outline-row > .outline-tools { flex-basis: 100%; justify-content: flex-end; }
+/* Der Titel behält mindestens 8em; reicht die Zeile nicht, rutschen Abzeichen und Dauer darunter statt ihn zu
+   verdrängen. */
+.outline-row > .tree-entry { flex-wrap: wrap; }
+.outline-row > .tree-entry > .tree-label { flex: 1 1 8em; }
+
+li.dragging > details > summary .outline-row,
+li.dragging > .leaf .outline-row { opacity: .5; }
+.outline-row.drop-before { box-shadow: inset 0 2px 0 var(--primary); }
+.outline-row.drop-after { box-shadow: inset 0 -2px 0 var(--primary); }
+.outline-row.drop-into { background: var(--primary-soft); outline: 1px dashed var(--primary); }
+.outline-row.drop-invalid { background: var(--danger-soft); cursor: no-drop; }
+.outline-hint { margin: 6px 0 0; }
+
+/* Ohne JavaScript bleiben die Rückfall-Links (/gliederung…), mit JavaScript nur der Baum. */
+.js .nojs-only { display: none !important; }
+html:not(.js) .js-only { display: none !important; }
+
+/* Kopf der Gliederung mit Nummerierung */
+.outline-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
+.outline-head .pane-title { margin-right: auto; }
+.outline-numbering-head { flex-basis: 100%; }
+.outline-numbering-head > summary { display: inline-block; list-style: none; }
+.outline-numbering-head > summary::-webkit-details-marker { display: none; }
+.outline-numbering-head:not([open]) { flex-basis: auto; }
+.numbering-form { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 4px 0 8px; }
+.numbering-form input[type=text] { width: 9ch; }
+
+/* Kontextmenü, Umbenennen an Ort und Stelle, neuer Punkt */
+.outline { position: relative; }
+.outline-menu {
+  position: absolute; z-index: 20; display: flex; flex-direction: column; min-width: 200px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+}
+.outline-menu[hidden] { display: none; }
+.outline-menu button {
+  display: flex; justify-content: space-between; gap: 12px; border: 0; background: none; color: inherit;
+  font: inherit; font-size: 13px; text-align: left; padding: 4px 12px; cursor: pointer;
+}
+.outline-menu button:hover, .outline-menu button:focus-visible { background: var(--selected); color: var(--primary); }
+.outline-menu button:disabled { color: var(--muted); cursor: default; background: none; }
+.outline-menu button.danger:not(:disabled) { color: var(--danger, #b42318); }
+.outline-menu kbd { font: inherit; font-size: 11px; color: var(--muted); }
+.outline-rename, .outline-new input {
+  flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 1px 4px;
+  border: 1px solid var(--primary); border-radius: 4px; background: var(--bg); color: inherit;
+}
+.outline-new { display: flex; padding-left: 16px; margin: 2px 0; }
+
+/* Seiten /gliederung und /gliederung/bearbeiten */
+.outline-page { max-width: 900px; margin: 0 auto; padding: 16px; }
+.outline-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 16px; }
+.outline-table th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); padding: 4px 6px; }
+.outline-table td { border-bottom: 1px solid var(--line); padding: 3px 6px; vertical-align: middle; }
+.outline-table tr.selected td { background: var(--selected); }
+.outline-table tr.level-0 .outline-title { font-weight: 600; }
+.outline-table .num { color: var(--muted); white-space: nowrap; }
+.requests-table td:nth-child(4) { overflow-wrap: anywhere; } /* lange Begründungen (z. B. Austausch: Instanz-UUID und sha256) brechen um */
+.outline-buttons { white-space: nowrap; }
+.outline-buttons form, .outline-numbering-forms form { display: inline; margin: 0; }
+.outline-numbering-forms { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.outline-card { margin: 0 0 12px; }
+.outline-card form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
+.outline-text { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 6px; padding: 8px; background: var(--panel); max-height: 50vh; overflow: auto; }
+.outline-confirm { display: flex; gap: 8px; align-items: center; }
+/* Anträge der Assistenten (Migration 0012) */
+.outline-requests { margin: 0 0 16px; }
+.requests-decided { margin: 4px 0; padding-left: 18px; }
+.outline-requests-hint { text-decoration: none; }
+/* Runde 14: Vorschau eines Antrags (Gliederung nach dem Bestätigen) */
+.request-preview { margin-top: 4px; }
+.request-preview-list { list-style: none; margin: 4px 0; padding-left: 0; }
+.request-preview-list li { padding: 1px 0; }
+.request-preview-list .level-0 { font-weight: 600; }
+.request-preview-list .level-2 { padding-left: 1.2em; }
+.request-preview-list .level-3 { padding-left: 2.4em; }
+.request-preview-list .preview-deleted { text-decoration: line-through; opacity: .7; }

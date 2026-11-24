@@ -1,0 +1,153 @@
+{#- Seite /literatur/bibel (Runde 15, Bibeln in der Literatur): Bibel öffnen, Buch/Kapitel blättern, Stelle
+    aufschlagen, Wortlaut suchen, Verse zitieren (Vorschlag im Abschnitt) oder an eine Persona geben – alles ohne
+    JavaScript (GET-Formulare und POST /literatur/bibel/act). Das Widget „bibles“ (web/src/bibles.ts) füllt mit
+    einem Klick auf eine Versnummer das Feld „Stelle“ (Umschalt-Klick: bis hierher), ohne JavaScript schlägt der Link
+    die deutsche Stelle auf (Runde 19c: auch bei einem Modul in anderer Verszählung).
+    Kontext: settings, work, node?, rev?, bibles [BibleEntry], module, entry, books [{id, name, abbr, chapters,
+    url}], problem, missing (keine Bibel), reference, normalized, passages [{normalized, book, status, message,
+    verses [{chapter, verse, text, ref (deutsche Stelle, R19c), module_label, moved, url, unmapped}]}], prev_url, next_url, commentaries (HTML aus
+    bibles::commentary_panel_html, maskiert), personas, q, hits, truncated, lookup_error, search_error,
+    place_fields, has_key, notice, no_bible, no_highlight, settings_url, literature_url, work_url. -#}
+{% extends "base.html" %}
+{% block title %}Bibel{% if module %} {{ module }}{% endif %} – Literatur – Baruch{% endblock %}
+{% block page_title %}Bibel · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ literature_url }}">Literatur</a>
+  <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+{% endblock %}
+{%- macro place() %}
+      {%- for f in place_fields %}
+      <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+      {%- endfor %}
+{%- endmacro %}
+{% block body %}
+<main class="bible-page" data-widget="bibles"{% if module %} data-module="{{ module }}"{% endif %}>
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if missing %}
+  <h1 class="pane-title">Bibel</h1>
+  <p class="notice" role="status" data-bible="none">{{ no_bible }} <a href="{{ settings_url }}">Einstellungen → Quellen</a></p>
+  {%- else %}
+  <h1 class="pane-title">Bibel {{ module }}{% if entry and entry.work_bible %} <span class="badge primary">Bibel des Werks</span>{% endif %}</h1>
+  {%- if entry %}
+  <p class="muted small">{{ entry.description }}</p>
+  {#- R17c: Lizenzvermerk der conf (DistributionLicense, Copyright) immer sichtbar. #}
+  <p class="small bible-notice">Lizenz (laut conf): <span data-notice>{{ entry.notice or "keine Angabe in der conf" }}</span></p>
+  {%- endif %}
+  {%- if problem %}
+  <p class="notice small" role="status">{{ problem }}</p>
+  {%- endif %}
+
+  <form class="bible-nav" method="get" action="/literatur/bibel" role="search" aria-label="Bibel aufschlagen">
+    {{- place() }}
+    <label>Bibel <select name="module">
+      {%- for b in bibles %}<option value="{{ b.module }}"{% if b.module == module %} selected{% endif %}>{{ b.module }}{% if b.work_bible %} (Werk){% endif %}</option>{% endfor %}
+    </select></label>
+    <label>Stelle <input type="text" name="ref" value="{{ reference | default('') }}" placeholder="z. B. Ps 139,23-24" size="18"></label>
+    <button class="btn" type="submit">Aufschlagen</button>
+  </form>
+  <form class="bible-nav" method="get" action="/literatur/bibel" role="search" aria-label="Im Wortlaut suchen">
+    {{- place() }}
+    <input type="hidden" name="module" value="{{ module }}">
+    <label>Wortlaut <input type="search" name="q" value="{{ q | default('') }}" placeholder="Wörter im Bibeltext" size="22"></label>
+    <button class="btn" type="submit">Suchen</button>
+  </form>
+
+  {%- if lookup_error %}
+  <p class="notice" role="status" data-lookup-error>{{ lookup_error }}</p>
+  {%- endif %}
+  {%- if search_error %}
+  <p class="notice" role="status" data-search-error>{{ search_error }}</p>
+  {%- endif %}
+
+  {%- if passages is defined %}
+  <div class="bible-reading">
+  <section class="bible-passage" aria-label="Aufgeschlagene Stelle">
+    <nav class="bible-chapter-nav small" aria-label="Kapitel">
+      {%- if prev_url %}<a href="{{ prev_url }}" rel="prev" data-chapter-link="prev">← voriges Kapitel</a>{% endif %}
+      {%- if next_url %}<a href="{{ next_url }}" rel="next" data-chapter-link="next">nächstes Kapitel →</a>{% endif %}
+    </nav>
+    {%- for p in passages %}
+    <h2 class="pane-title">{{ p.normalized | default(p.input) }}</h2>
+    {%- if p.module_ref %}
+    <p class="muted small" data-module-ref>gelesen in der Zählung des Moduls: {{ p.module_ref }}</p>
+    {%- endif %}
+    {%- if p.status != "valid" %}
+    <p class="notice small" role="status">{{ p.message }}</p>
+    {%- endif %}
+    {#- Runde 19c: v.ref ist die deutsche Stelle des Verses (Rückabbildung aus der Zählung des Moduls); der Link setzt
+        sie ohne JavaScript über die Adresse (v.url, vom Server gebaut), mit JavaScript ins Feld „Stelle“. Ein Vers,
+        der sich nicht abbilden lässt, hat keinen Link, sondern den Grund (v.unmapped). #}
+    <ol class="bible-verses">
+      {%- for v in p.verses %}
+      {%- if v.ref %}
+      <li class="bible-verse" data-ref="{{ v.ref }}"><a class="verse-no" href="{{ v.url | safe }}" data-verse-ref="{{ v.ref }}" title="„{{ v.ref }}“ in das Feld „Stelle“">{{ v.chapter }},{{ v.verse }}</a>
+        {%- if v.moved %} <span class="muted tiny verse-german" data-german-ref>= {{ v.ref }}</span>{% endif %}
+        {% if v.text %}<span class="verse-text">{{ v.text }}</span>{% else %}<span class="muted tiny">(kein Text im Modul)</span>{% endif %}</li>
+      {%- else %}
+      <li class="bible-verse unmapped" data-unmapped><span class="verse-no" title="{{ v.unmapped }}">{{ v.chapter }},{{ v.verse }}</span>
+        <span class="muted tiny verse-german" data-unmapped-note>(keine deutsche Stelle: {{ v.unmapped }})</span>
+        {% if v.text %}<span class="verse-text">{{ v.text }}</span>{% else %}<span class="muted tiny">(kein Text im Modul)</span>{% endif %}</li>
+      {%- endif %}
+      {%- endfor %}
+    </ol>
+    {%- endfor %}
+
+    <section class="bible-act" aria-label="Verse verwenden">
+      <h3 class="pane-title small">Verse verwenden</h3>
+      {%- if not has_key %}
+      <p class="muted small">Zitieren und „an Persona geben“ brauchen einen Abschnitt: die Literatur aus einem Abschnitt heraus öffnen.</p>
+      {%- endif %}
+      <form method="post" action="/literatur/bibel/act" class="bible-form" data-bible-form>
+        {{- place() }}
+        <input type="hidden" name="module" value="{{ module }}">
+        <label>Stelle <input type="text" name="ref" value="{{ normalized | default(reference) }}" required size="18" data-bible-ref></label>
+        <label>Persona <select name="persona">
+          {%- for p in personas | default([]) %}<option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
+        </select></label>
+        <label class="wide">Frage an die Persona <input type="text" name="question" maxlength="1000" placeholder="Was sagt diese Stelle zu meinem Abschnitt?"></label>
+        <div class="source-buttons">
+          <button class="btn" type="submit" name="action" value="cite">Zitieren (Vorschlag im Abschnitt)</button>
+          <button class="btn" type="submit" name="action" value="persona">An Persona geben</button>
+        </div>
+        <p class="muted tiny">{{ no_highlight }}</p>
+      </form>
+    </section>
+  </section>
+  {%- if commentaries %}
+  <aside class="bible-commentaries" aria-label="Kommentare">{{ commentaries }}</aside>
+  {%- endif %}
+  </div>
+  {%- elif hits is defined %}
+  <section class="bible-hits-page" aria-label="Treffer">
+    <h2 class="pane-title">Treffer für „{{ q }}“</h2>
+    <ul>
+    {%- for h in hits %}
+      <li class="library-hit bible-hit"><a href="{{ h.url }}" data-hit="bible">{{ h.reference }}</a> <span class="small">{{ h.text }}</span></li>
+    {%- else %}
+      <li class="muted small">Keine Treffer.</li>
+    {%- endfor %}
+    </ul>
+    {%- if truncated %}<p class="muted tiny">Nur die ersten Treffer (Grenze erreicht).</p>{% endif %}
+  </section>
+  {%- endif %}
+
+  <section class="bible-books" aria-label="Bücher">
+    <h2 class="pane-title small">Bücher</h2>
+    <form class="bible-nav" method="get" action="/literatur/bibel" aria-label="Buch und Kapitel">
+      {{- place() }}
+      <input type="hidden" name="module" value="{{ module }}">
+      <label>Buch <select name="book">
+        {%- for b in books %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      </select></label>
+      <label>Kapitel <input type="number" name="chapter" min="1" value="1" size="4"></label>
+      <button class="btn" type="submit">Öffnen</button>
+    </form>
+    <ul class="bible-book-list small">
+      {%- for b in books %}<li><a href="{{ b.url }}" title="{{ b.chapters }} Kapitel">{{ b.abbr }}</a></li>{% endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+</main>
+{% endblock %}

@@ -1,0 +1,19 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Reader-CSS „tolino“ für die EPUB-Vorschau (Runde 20b, Besitz „reader“): tolino shine – Schrift des Buchs (sonst Serifenschrift des Geräts), 16 px, Blocksatz, Silbentrennung, E-Ink, Fußnoten als Sprung.
+   Annahme ohne Gerät und ohne Netz (docs/Architektur.md, „R20b reader“). Die Vorschau fügt diese Datei als
+   style-Element hinter style/book.css in jede XHTML-Datei ein; der Teil nach der Marke „@night“ kommt nur mit Nachtmodus
+   dazu. Keine Adressen, keine Skripte. */
+@namespace epub "http://www.idpf.org/2007/ops";
+html { background: #f4f3ee; color: #111111; }
+body { margin: 0; padding: 28px 24px; font-family: Georgia, "Times New Roman", serif; font-size: 16px; line-height: 1.4; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+img { max-width: 100%; height: auto; }
+/* Fußnoten: der Reader springt zum Notentext (kein Popup). */
+aside[epub|type~="footnote"] { border-top: 1px solid #999999; padding-top: 0.3em; margin-top: 1em; font-size: 0.85em; }
+/* E-Ink: Graustufen, Papierton, keine Hintergründe des Buchs. */
+/* Filter am body, nicht am html: am Wurzelelement verhindert er, dass der Papierton die ganze Fläche füllt. */
+body { filter: grayscale(1); }
+body * { background-color: transparent !important; background-image: none !important; }
+/* @night */
+html { background: #000000; color: #eeeeee; }
+a { color: #eeeeee; }
+aside[epub|type~="footnote"] { border-color: #777777; }

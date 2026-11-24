@@ -1,0 +1,914 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Block „Satz“ der Einstellungsseite „Werk“ (Runde 29c, Vertrag §6.3; Besitz satz-oberflaeche).
+//!
+//! - Block `id="satz"` (Vorlage `templates/settings/werk_satz.html`, [`block`]): alle 16 Felder aus
+//!   [`baruch_typst::typeset::FIELDS`] in fünf Gruppen, je Feld „aus der Werkvorlage“ als erste Wahl bzw. leeres Feld
+//!   mit Platzhalter, Hinweise aus den Konflikten mit der Werkvorlage beim Feld, Angebot zur erkannten
+//!   Kapitelanfangs-Regel der Vorlage (Pflicht-Häkchen), die erzeugten Typst-Regeln in `<details>`, Link zur Satz-Seite.
+//! - Formulare ohne JavaScript, beide hinter `guard::same_origin`:
+//!   `POST /einstellungen/werk/satz` ([`act`]): `action=save` → [`crate::typeset_settings::save`] → 303
+//!   `…&ok=satz#satz`; `action=reset` (nur mit `confirm=1`) → [`crate::typeset_settings::reset`] → 303
+//!   `…&ok=satz_zurueck#satz`; `action=preview` → 200, ganze Einstellungsseite mit den ungespeicherten Werten und den
+//!   Vorschaubildern. `POST /einstellungen/werk/satz/vorlage` ([`adopt_act`], nur mit `confirm=1`) →
+//!   [`crate::typeset_settings::adopt_template_rule`] → 303 `…&ok=satz_vorlage#satz`. Ungültig oder abgelehnt → 422
+//!   über [`super::work_retry_page`] mit [`WorkRetry::Typeset`](super::WorkRetry::Typeset) (Eingaben bleiben, Meldung je
+//!   Feld).
+//! - Vorschau: Quelle = [`baruch_typst::typeset::preview_source`] (Werkvorlage + Regeln der ungespeicherten
+//!   Einstellungen + erfundener Mustertext) mit den Bildern des Werks, gesetzt über [`crate::typeset::compile`] (Sperre
+//!   `RUNS`, Zeitlimit); die Seiten liefert [`preview_svg`] nur aus dem Zwischenspeicher
+//!   ([`crate::typeset::cached_page`]). RPC `work.typeset_preview` ([`call`]) für das Widget `typeset-settings`
+//!   (`web/src/typeset_settings.ts`): nur lesend, kein Commit.
+
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use axum::extract::{Form, Path, State};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::response::{IntoResponse, Redirect, Response};
+use baruch_render::{Severity, Source};
+use baruch_store::{StoreError, WorkId};
+use baruch_typst::typeset::{
+    ChapterStart, DEFAULT_DRAFT_TEXT, DRAFT_OPACITY_PERCENT, Draft, DraftPlacement, FIELDS, FieldError,
+    FootnoteNumbering, FootnoteRestart, Footnotes, GlossaryPosition, INDEX_COLUMNS, IndexPages, MAX_DRAFT_NOTE_CHARS,
+    MAX_DRAFT_TEXT_CHARS, Margins, PageFormat, PageNumberPosition, PageNumberStart, PageNumbers, Paragraph, PartPage,
+    PartSide, RunningHead, TemplateConflict, TypesetSettings, field_label, preview_source, rules, template_conflicts,
+};
+use minijinja::context;
+use minijinja::value::{Serde, Value as JinjaValue};
+use serde::Serialize;
+use serde_json::{Value, json};
+
+use super::WorkRetry;
+use crate::AppState;
+use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
+
+/// Ein abgelehntes oder zur Vorschau geschicktes Formular des Blocks „Satz“: Eingabe, Meldungen je Feld
+/// (`(Feld-id bzw. Unterfeld wie „margins.inside_mm“, Meldung)`; „form“ = das ganze Formular) und – nach
+/// `action=preview` – die gesetzte Vorschau.
+#[derive(Debug, Clone, Default)]
+pub struct Retry {
+    pub form: Vec<(String, String)>,
+    pub errors: Vec<(String, String)>,
+    /// Ergebnis von `action=preview` (sonst `None`).
+    pub preview: Option<Preview>,
+}
+
+/// Eine gesetzte Vorschau ungespeicherter Einstellungen (Antwort von `work.typeset_preview`).
+#[derive(Debug, Clone, Serialize)]
+pub struct Preview {
+    pub stand: String,
+    pub pages: usize,
+    /// `/einstellungen/werk/satz/vorschau/<stand>/<n>.svg` je Seite.
+    pub urls: Vec<String>,
+    /// Zahl der Fehler bzw. Warnungen von Typst.
+    pub errors: usize,
+    pub warnings: usize,
+    pub diagnostics: Vec<PreviewDiagnostic>,
+    pub conflicts: Vec<TemplateConflict>,
+}
+
+/// Eine Meldung von Typst in der Vorschau.
+#[derive(Debug, Clone, Serialize)]
+pub struct PreviewDiagnostic {
+    pub severity: &'static str,
+    pub message: String,
+}
+
+// ---- Formularfelder --------------------------------------------------------------------------------
+
+/// Erster Wert eines Formularfelds, getrimmt; fehlt → "".
+fn field<'a>(fields: &'a [(String, String)], name: &str) -> &'a str {
+    fields.iter().find(|(k, _)| k == name).map_or("", |(_, v)| v.trim())
+}
+
+/// Zahl aus dem Formular (Dezimalkomma erlaubt): leer → `None`, keine Zahl → `Some(NaN)` – dann meldet
+/// [`TypesetSettings::validate`] das Feld mit Bezeichnung und Grenze (dieselbe Meldung wie über RPC).
+fn number(raw: &str) -> Option<f64> {
+    if raw.is_empty() {
+        return None;
+    }
+    Some(raw.replace(',', ".").parse::<f64>().unwrap_or(f64::NAN))
+}
+
+/// Wahl aus einer Liste: "" → `None`, unbekannt → Meldung.
+fn choice<T>(
+    raw: &str,
+    from_id: impl Fn(&str) -> Option<T>,
+    field: &'static str,
+    errors: &mut Vec<FieldError>,
+) -> Option<T> {
+    if raw.is_empty() {
+        return None;
+    }
+    let found = from_id(raw);
+    if found.is_none() {
+        errors.push(FieldError { field, message: format!("{}: unbekannte Wahl „{raw}“", field_label(field)) });
+    }
+    found
+}
+
+/// Schalter `""|on|off` → `None | Some(true) | Some(false)`.
+fn switch(raw: &str, field: &'static str, errors: &mut Vec<FieldError>) -> Option<bool> {
+    choice(
+        raw,
+        |v| match v {
+            "on" => Some(true),
+            "off" => Some(false),
+            _ => None,
+        },
+        field,
+        errors,
+    )
+}
+
+/// Runde 31c: Spaltenzahl der Registerseiten, wenn das Feld leer bleibt.
+pub const DEFAULT_INDEX_COLUMNS: u8 = 2;
+
+/// Runde 31c: Formularfeld je gewähltem Register (Häkchen, Wert = Kennung; Reihenfolge = Satzreihenfolge).
+pub const INDEX_REGISTER_FIELD: &str = "index_register";
+
+/// Stelle eines Felds in [`FIELDS`] (Unterfelder wie das Feld) – für die Reihenfolge der Meldungen.
+fn field_rank(field: &str) -> usize {
+    let head = field.split('.').next().unwrap_or(field);
+    FIELDS.iter().position(|(id, _)| *id == head).unwrap_or(FIELDS.len())
+}
+
+/// Einstellungen aus den Formularfeldern (Vertrag §6.3; "" = aus der Werkvorlage, Dezimalkomma erlaubt).
+///
+/// Werte werden getrimmt; Ränder nur alle vier oder keiner (Bundsteg leer = 0); `part_blank_back` gilt nur mit
+/// gewählter Seite, `page_number_start`/`footnote_restart` nur mit gewählter Lage bzw. Zählweise (leer = erste Seite
+/// bzw. fortlaufend), `paragraph_em` leer = Vorgabe der Art (Einzug 1 em, Abstand 0,5 em), Breite/Höhe nur beim
+/// eigenen Format. Ungültige Werte meldet [`TypesetSettings::validate`] mit denselben Meldungen wie über RPC; dazu
+/// kommen „unbekannte Wahl“ und unvollständige Ränder. Alle Meldungen auf einmal, in [`FIELDS`]-Reihenfolge.
+pub fn settings_from_form(fields: &[(String, String)]) -> Result<TypesetSettings, Vec<FieldError>> {
+    let get = |name: &str| field(fields, name);
+    let mut errors = Vec::new();
+    let mut s = TypesetSettings {
+        chapter_start: choice(get("chapter_start"), ChapterStart::from_id, "chapter_start", &mut errors),
+        ..TypesetSettings::default()
+    };
+    if let Some(side) = choice(get("part_side"), PartSide::from_id, "part_page", &mut errors) {
+        s.part_page = Some(PartPage { side, blank_back: get("part_blank_back") == "1" });
+    }
+    s.page_format = match get("page_format") {
+        "custom" => Some(PageFormat::Custom {
+            width_mm: number(get("page_width_mm")).unwrap_or(f64::NAN),
+            height_mm: number(get("page_height_mm")).unwrap_or(f64::NAN),
+        }),
+        raw => choice(raw, PageFormat::from_id, "page_format", &mut errors),
+    };
+    let sides = ["margin_inside_mm", "margin_outside_mm", "margin_top_mm", "margin_bottom_mm"].map(|n| number(get(n)));
+    let binding = number(get("binding_mm"));
+    match sides {
+        [Some(inside_mm), Some(outside_mm), Some(top_mm), Some(bottom_mm)] => {
+            s.margins = Some(Margins { inside_mm, outside_mm, top_mm, bottom_mm, binding_mm: binding.unwrap_or(0.0) });
+        }
+        [None, None, None, None] if binding.is_none() => {}
+        _ => errors
+            .push(FieldError { field: "margins", message: "Ränder: alle vier Ränder angeben oder alle leer".into() }),
+    }
+    s.font = Some(get("font").to_owned()).filter(|f| !f.is_empty());
+    s.font_size_pt = number(get("font_size_pt"));
+    s.leading_em = number(get("leading_em"));
+    s.paragraph = choice(get("paragraph"), Paragraph::from_id, "paragraph", &mut errors).map(|p| {
+        let em = number(get("paragraph_em")).unwrap_or(p.em());
+        match p {
+            Paragraph::Indent { .. } => Paragraph::Indent { em },
+            Paragraph::Spacing { .. } => Paragraph::Spacing { em },
+        }
+    });
+    s.justify = switch(get("justify"), "justify", &mut errors);
+    s.hyphenate = switch(get("hyphenate"), "hyphenate", &mut errors);
+    s.lang = Some(get("lang").to_owned()).filter(|l| !l.is_empty());
+    if let Some(position) =
+        choice(get("page_number_position"), PageNumberPosition::from_id, "page_numbers", &mut errors)
+    {
+        let start = choice(get("page_number_start"), PageNumberStart::from_id, "page_numbers", &mut errors)
+            .unwrap_or(PageNumberStart::FirstPage);
+        s.page_numbers = Some(PageNumbers { position, start });
+    }
+    s.running_head = choice(get("running_head"), RunningHead::from_id, "running_head", &mut errors);
+    if let Some(numbering) = choice(get("footnote_numbering"), FootnoteNumbering::from_id, "footnotes", &mut errors) {
+        let restart = choice(get("footnote_restart"), FootnoteRestart::from_id, "footnotes", &mut errors)
+            .unwrap_or(FootnoteRestart::Continuous);
+        s.footnotes = Some(Footnotes { numbering, restart });
+    }
+    s.widows_orphans = switch(get("widows_orphans"), "widows_orphans", &mut errors);
+    s.xref_with_page = switch(get("xref_with_page"), "xref_with_page", &mut errors);
+    // Runde 31: Glossarseite (leer = keine), Registerseiten (keine Häkchen = keine; Spalten leer = 2, keine Zahl = 0,
+    // dann meldet validate die Grenzen), erste Erwähnung.
+    s.glossary_page = choice(get("glossary_page"), GlossaryPosition::from_id, "glossary_page", &mut errors);
+    let chosen: Vec<String> = fields
+        .iter()
+        .filter(|(k, _)| k == INDEX_REGISTER_FIELD)
+        .map(|(_, v)| v.trim().to_owned())
+        .filter(|v| !v.is_empty())
+        .collect();
+    if !chosen.is_empty() {
+        let raw = get("index_columns");
+        let columns = if raw.is_empty() { DEFAULT_INDEX_COLUMNS } else { raw.parse::<u8>().unwrap_or(0) };
+        s.index_pages = Some(IndexPages { registers: chosen, columns });
+    }
+    s.glossary_first_mention = switch(get("glossary_first_mention"), "glossary_first_mention", &mut errors);
+    // Runde 22: Entwurf (Häkchen `draft`); leerer Text = „ENTWURF“, leere Deckkraft = Vorgabe, keine Zahl = 0 (dann
+    // meldet validate die Grenzen), leere Lage = diagonal.
+    if get("draft") == "1" {
+        let defaults = Draft::default();
+        let opacity = match get("draft_opacity") {
+            "" => defaults.opacity_percent,
+            raw => raw.parse::<u8>().unwrap_or(0),
+        };
+        let placement =
+            choice(get("draft_placement"), DraftPlacement::from_id, "draft", &mut errors).unwrap_or(defaults.placement);
+        let text = match get("draft_text") {
+            "" => defaults.text,
+            text => text.to_owned(),
+        };
+        s.draft = Some(Draft {
+            text,
+            note: get("draft_note").to_owned(),
+            date: get("draft_date") == "1",
+            opacity_percent: opacity,
+            placement,
+            cover: get("draft_cover") == "1",
+        });
+    }
+    if let Err(more) = s.validate() {
+        errors.extend(more);
+    }
+    if errors.is_empty() {
+        return Ok(s);
+    }
+    errors.sort_by_key(|e| field_rank(e.field));
+    Err(errors)
+}
+
+/// Zahl fürs Formular in deutscher Schreibweise („10,5“, „20“).
+fn de(x: f64) -> String {
+    format!("{x}").replace('.', ",")
+}
+
+/// Formularfelder zu Einstellungen (Umkehrung von [`settings_from_form`]; `None` erscheint nicht).
+pub fn form_from_settings(s: &TypesetSettings) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut put = |k: &str, v: String| out.push((k.to_owned(), v));
+    let on_off = |b: bool| if b { "on" } else { "off" }.to_owned();
+    if let Some(c) = s.chapter_start {
+        put("chapter_start", c.id().into());
+    }
+    if let Some(p) = &s.part_page {
+        put("part_side", p.side.id().into());
+        if p.blank_back {
+            put("part_blank_back", "1".into());
+        }
+    }
+    if let Some(f) = s.page_format {
+        put("page_format", f.id().into());
+        if let PageFormat::Custom { width_mm, height_mm } = f {
+            put("page_width_mm", de(width_mm));
+            put("page_height_mm", de(height_mm));
+        }
+    }
+    if let Some(m) = &s.margins {
+        put("margin_inside_mm", de(m.inside_mm));
+        put("margin_outside_mm", de(m.outside_mm));
+        put("margin_top_mm", de(m.top_mm));
+        put("margin_bottom_mm", de(m.bottom_mm));
+        put("binding_mm", de(m.binding_mm));
+    }
+    if let Some(font) = &s.font {
+        put("font", font.clone());
+    }
+    if let Some(x) = s.font_size_pt {
+        put("font_size_pt", de(x));
+    }
+    if let Some(x) = s.leading_em {
+        put("leading_em", de(x));
+    }
+    if let Some(p) = s.paragraph {
+        put("paragraph", p.id().into());
+        put("paragraph_em", de(p.em()));
+    }
+    if let Some(b) = s.justify {
+        put("justify", on_off(b));
+    }
+    if let Some(b) = s.hyphenate {
+        put("hyphenate", on_off(b));
+    }
+    if let Some(lang) = &s.lang {
+        put("lang", lang.clone());
+    }
+    if let Some(n) = &s.page_numbers {
+        put("page_number_position", n.position.id().into());
+        put("page_number_start", n.start.id().into());
+    }
+    if let Some(r) = s.running_head {
+        put("running_head", r.id().into());
+    }
+    if let Some(f) = &s.footnotes {
+        put("footnote_numbering", f.numbering.id().into());
+        put("footnote_restart", f.restart.id().into());
+    }
+    if let Some(b) = s.widows_orphans {
+        put("widows_orphans", on_off(b));
+    }
+    if let Some(b) = s.xref_with_page {
+        put("xref_with_page", on_off(b));
+    }
+    if let Some(g) = s.glossary_page {
+        put("glossary_page", g.id().into());
+    }
+    if let Some(p) = &s.index_pages {
+        for register in &p.registers {
+            put(INDEX_REGISTER_FIELD, register.clone());
+        }
+        put("index_columns", p.columns.to_string());
+    }
+    if let Some(b) = s.glossary_first_mention {
+        put("glossary_first_mention", on_off(b));
+    }
+    if let Some(d) = &s.draft {
+        put("draft", "1".into());
+        put("draft_text", d.text.clone());
+        if !d.note.is_empty() {
+            put("draft_note", d.note.clone());
+        }
+        if d.date {
+            put("draft_date", "1".into());
+        }
+        put("draft_opacity", d.opacity_percent.to_string());
+        put("draft_placement", d.placement.id().into());
+        if d.cover {
+            put("draft_cover", "1".into());
+        }
+    }
+    out
+}
+
+// ---- Vorschau --------------------------------------------------------------------------------------
+
+/// Alle Meldungen in einem Satz („Rand innen: 5 bis 80 mm; Schriftgröße: 6 bis 24 pt“); jede Meldung beginnt schon mit
+/// der Bezeichnung des Felds.
+fn joined(errors: &[FieldError]) -> String {
+    errors.iter().map(|e| e.message.as_str()).collect::<Vec<_>>().join("; ")
+}
+
+/// Adresse eines Vorschaubilds.
+fn preview_url(stand: &str, n: usize) -> String {
+    format!("/einstellungen/werk/satz/vorschau/{stand}/{n}.svg")
+}
+
+/// Setzt die Vorschau ungespeicherter Einstellungen (nur lesend, kein Commit). Ungültig → `INVALID_PARAMS` mit allen
+/// Meldungen; unbekanntes Werk → `INVALID_PARAMS`; Zeitlimit/Abbruch → `REFUSED`.
+pub(crate) async fn preview(state: &AppState, work: WorkId, settings: &TypesetSettings) -> Result<Preview, RpcError> {
+    let settings = settings.normalized();
+    settings.validate().map_err(|e| RpcError::new(INVALID_PARAMS, joined(&e)))?;
+    let template = state.store.work_template(work).await?;
+    let title = state.store.work_meta(work).await?.title;
+    let files = state.store.export_assets(work).await?.into_iter().map(|f| (f.path, f.bytes)).collect();
+    let mut main = preview_source(&settings, &template, &title);
+    // Runde 22: Mit Entwurf trägt auch die Vorschau das Wasserzeichen – hinter der Werkvorlage, vor dem Regelblock
+    // (`preview_source` = Vorlage + "\n" + Regeln + …; die Seitenregeln ergänzen sich).
+    if let Some(draft) = &settings.draft
+        && main.is_char_boundary(template.len() + 1)
+    {
+        main.insert_str(template.len() + 1, &crate::typeset::draft_rule_for(draft));
+    }
+    let source = Source { main, files };
+    let stand = baruch_render::stand(&source);
+    let (compiled, _) = crate::typeset::compile(source, &stand, crate::typeset::COMPILE_TIMEOUT).await?;
+    let rendered = &compiled.rendered;
+    let errors = rendered.diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
+    Ok(Preview {
+        pages: rendered.pages.len(),
+        urls: (1..=rendered.pages.len()).map(|n| preview_url(&stand, n)).collect(),
+        errors,
+        warnings: rendered.diagnostics.len() - errors,
+        diagnostics: rendered
+            .diagnostics
+            .iter()
+            .map(|d| PreviewDiagnostic { severity: d.severity.as_str(), message: d.message.clone() })
+            .collect(),
+        conflicts: template_conflicts(&template, &settings),
+        stand,
+    })
+}
+
+/// Konflikte wie in `work.typeset_get` (mit Bezeichnung).
+fn conflicts_json(conflicts: &[TemplateConflict]) -> Vec<Value> {
+    conflicts
+        .iter()
+        .map(|c| {
+            json!({ "field": c.field, "label": field_label(c.field), "line": c.line, "text": c.text,
+                    "effect": c.effect, "message": c.message })
+        })
+        .collect()
+}
+
+/// Bedient dieses Modul die RPC-Methode? `work.typeset_preview`.
+pub fn handles(method: &str) -> bool {
+    method == "work.typeset_preview"
+}
+
+/// RPC `work.typeset_preview {work?, settings}` (nur lesend, kein Commit) → `{work, stand, pages, urls, errors,
+/// warnings, diagnostics [{severity, message}], conflicts}`.
+pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
+    match method {
+        "work.typeset_preview" => {
+            let value = params.get("settings").ok_or_else(|| RpcError::new(INVALID_PARAMS, "settings fehlt"))?;
+            let settings: TypesetSettings = serde_json::from_value(value.clone())
+                .map_err(|e| RpcError::new(INVALID_PARAMS, format!("settings: {e}")))?;
+            let p = preview(state, work, &settings).await?;
+            Ok(json!({
+                "work": work, "stand": p.stand, "pages": p.pages, "urls": p.urls, "errors": p.errors,
+                "warnings": p.warnings, "diagnostics": p.diagnostics, "conflicts": conflicts_json(&p.conflicts),
+            }))
+        }
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+    }
+}
+
+// ---- Block -----------------------------------------------------------------------------------------
+
+/// `[{id, label}]` einer Auswahlliste.
+fn options<T: Copy>(all: &[T], id: impl Fn(T) -> &'static str, label: impl Fn(T) -> &'static str) -> Vec<JinjaValue> {
+    all.iter().map(|&v| context! { id => id(v), label => label(v) }).collect()
+}
+
+/// Was der Block über das Werk weiß (aus [`crate::typeset_settings::load`]) – getrennt, damit sich das Zeichnen ohne
+/// Server prüfen lässt.
+pub(crate) struct BlockInput<'a> {
+    pub work: WorkId,
+    pub view: &'a crate::typeset_settings::TypesetView,
+    pub template: &'a str,
+    pub retry: Option<&'a Retry>,
+    /// Runde 31c: Register des Werks für die Häkchen „Registerseiten“ ([`crate::glossary::registers`]).
+    pub registers: &'a [baruch_typst::index::Register],
+}
+
+/// Häkchen der Registerseiten: erst die gewählten Register in ihrer Reihenfolge (so bleibt die Satzreihenfolge beim
+/// Speichern erhalten), dann die übrigen des Werks; ein gewähltes, das es nicht mehr gibt, bleibt sichtbar, damit es sich
+/// abwählen lässt. `[{slug, title, checked}]`.
+fn index_choices(form: &[(String, String)], registers: &[baruch_typst::index::Register]) -> Vec<JinjaValue> {
+    let chosen: Vec<&str> = form
+        .iter()
+        .filter(|(k, _)| k == INDEX_REGISTER_FIELD)
+        .map(|(_, v)| v.trim())
+        .filter(|v| !v.is_empty())
+        .collect();
+    let mut out = Vec::new();
+    for slug in &chosen {
+        let title = registers
+            .iter()
+            .find(|r| r.slug == *slug)
+            .map_or_else(|| format!("Register „{slug}“ (gibt es nicht mehr)"), |r| r.title.clone());
+        out.push(context! { slug => *slug, title => title, checked => true });
+    }
+    for r in registers.iter().filter(|r| !chosen.contains(&r.slug.as_str())) {
+        out.push(context! { slug => r.slug.as_str(), title => r.title.as_str(), checked => false });
+    }
+    out
+}
+
+/// Kontext der Vorlage `settings/werk_satz.html`.
+pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
+    let view = input.view;
+    // Ungespeicherte Werte gibt es nur mit Eingabe (Zurücksetzen/Übernehmen ohne Häkchen schicken keine Felder mit:
+    // dann stehen die gespeicherten Werte da).
+    let unsaved = input.retry.filter(|r| !r.form.is_empty());
+    let (form, shown) = match unsaved {
+        Some(retry) => {
+            // Für Regeln und Hinweise, soweit sich die Eingabe lesen lässt.
+            let shown = settings_from_form(&retry.form).unwrap_or_else(|_| view.settings.clone());
+            (retry.form.clone(), shown)
+        }
+        None => (form_from_settings(&view.settings), view.settings.clone()),
+    };
+    let index_registers = index_choices(&form, input.registers);
+    let values: BTreeMap<String, String> = form.into_iter().rev().collect();
+    let mut errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (field, message) in input.retry.map(|r| r.errors.clone()).unwrap_or_default() {
+        let mut head = field.split('.').next().unwrap_or(&field).to_owned();
+        // Ohne Angebot (keine erkannte Regel) steht die Meldung zur Übernahme oben im Block.
+        if head == "template_rule" && view.template_rule.is_none() {
+            head = "form".to_owned();
+        }
+        errors.entry(head).or_default().push(message);
+    }
+    let conflicts = if unsaved.is_some() { template_conflicts(input.template, &shown) } else { view.conflicts.clone() };
+    let mut hints: BTreeMap<String, Vec<JinjaValue>> = BTreeMap::new();
+    for c in &conflicts {
+        let ineffective = matches!(c.effect, baruch_typst::typeset::ConflictEffect::Ineffective);
+        hints.entry(c.field.to_owned()).or_default().push(context! {
+            message => c.message.as_str(), line => c.line, text => c.text.as_str(), ineffective => ineffective,
+        });
+    }
+    let template_rule = view.template_rule.as_ref().map(|r| {
+        context! { line => r.line, text => r.text.as_str(), chapter_start => r.chapter_start.label() }
+    });
+    let mut formats = options(PageFormat::ALL, PageFormat::id, PageFormat::label);
+    formats.push(context! { id => "custom", label => "eigenes Format" });
+    let preview = input.retry.and_then(|r| r.preview.as_ref()).map(|p| {
+        context! {
+            urls => p.urls.clone(), pages => p.pages, errors => p.errors, warnings => p.warnings,
+            diagnostics => JinjaValue::from(Serde(&p.diagnostics)),
+        }
+    });
+    let labels: BTreeMap<&str, &str> = FIELDS.iter().copied().collect();
+    context! {
+        work => input.work,
+        v => values,
+        errors => errors,
+        hints => hints,
+        labels => labels,
+        warnings => view.warnings.clone(),
+        set => view.stored.is_some(),
+        updated => view.stored.as_ref().map(|s| crate::localtime::minutes(&s.updated)),
+        updated_by => view.stored.as_ref().map(|s| s.updated_by.clone()),
+        rules => rules(&shown),
+        // Hinweis „Ungespeicherte Werte“ nur, wenn die Eingabe vom gespeicherten Stand abweicht (Vorschau der
+        // gespeicherten Werte zeigt ihn nicht; Integrator R29). Unlesbare Eingaben weichen immer ab.
+        unsaved => unsaved.is_some_and(|r| settings_from_form(&r.form).map_or(true, |s| s.normalized() != view.settings)),
+        template_rule => template_rule,
+        preview => preview,
+        satz_url => format!("/werke/{}/satz", input.work),
+        index_registers => index_registers,
+        index_columns => (INDEX_COLUMNS.0..=INDEX_COLUMNS.1).collect::<Vec<u8>>(),
+        default_index_columns => DEFAULT_INDEX_COLUMNS,
+        opts => context! {
+            chapter_start => options(ChapterStart::ALL, ChapterStart::id, ChapterStart::label),
+            part_side => options(PartSide::ALL, PartSide::id, PartSide::label),
+            page_format => formats,
+            paragraph => options(Paragraph::ALL, Paragraph::id, Paragraph::label),
+            page_number_position => options(PageNumberPosition::ALL, PageNumberPosition::id, PageNumberPosition::label),
+            page_number_start => options(PageNumberStart::ALL, PageNumberStart::id, PageNumberStart::label),
+            running_head => options(RunningHead::ALL, RunningHead::id, RunningHead::label),
+            footnote_numbering => options(FootnoteNumbering::ALL, FootnoteNumbering::id, FootnoteNumbering::label),
+            footnote_restart => options(FootnoteRestart::ALL, FootnoteRestart::id, FootnoteRestart::label),
+            glossary_page => options(GlossaryPosition::ALL, GlossaryPosition::id, GlossaryPosition::label),
+            draft_placement => options(DraftPlacement::ALL, DraftPlacement::id, DraftPlacement::label),
+        },
+        draft_defaults => context! {
+            text => DEFAULT_DRAFT_TEXT, opacity => Draft::default().opacity_percent,
+            min_opacity => DRAFT_OPACITY_PERCENT.0, max_opacity => DRAFT_OPACITY_PERCENT.1,
+            max_text => MAX_DRAFT_TEXT_CHARS, max_note => MAX_DRAFT_NOTE_CHARS,
+        },
+    }
+}
+
+/// HTML des Blocks „Satz“ (`id="satz"`); nach einem abgelehnten Formular bzw. einer Vorschau mit dessen Eingabe.
+pub async fn block(
+    state: &AppState,
+    work: WorkId,
+    query: &BTreeMap<String, String>,
+    retry: Option<&Retry>,
+) -> Result<String, String> {
+    let _ = query;
+    let view = crate::typeset_settings::load(state, work).await.map_err(|e| e.message)?;
+    let template = state.store.work_template(work).await.map_err(|e| e.to_string())?;
+    let registers =
+        crate::glossary::registers(state, work).await.unwrap_or_else(|_| baruch_typst::index::builtin_registers());
+    super::render_template(
+        "settings/werk_satz.html",
+        block_context(&BlockInput { work, view: &view, template: &template, retry, registers: &registers }),
+    )
+}
+
+// ---- Formulare -------------------------------------------------------------------------------------
+
+/// Werk eines Formulars: Feld `work` (muss es geben), sonst das Vorgabewerk.
+// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler); ein `Box` änderte alle Aufrufer.
+#[allow(clippy::result_large_err)]
+async fn form_work(state: &AppState, fields: &[(String, String)]) -> Result<WorkId, Response> {
+    let gone = || (StatusCode::NOT_FOUND, "Unbekanntes Werk.").into_response();
+    match field(fields, "work").parse::<WorkId>().ok().filter(|&w| w > 0) {
+        Some(w) => match state.store.work_slug(w).await {
+            Ok(_) => Ok(w),
+            Err(StoreError::UnknownWork(_)) => Err(gone()),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()),
+        },
+        None => state.default_work().await.map_err(|_| gone()),
+    }
+}
+
+/// Die Einstellungsseite „Werk“ mit dem Block „Satz“ im Zustand `retry`.
+async fn retry_page(state: &AppState, headers: &HeaderMap, status: StatusCode, work: WorkId, retry: Retry) -> Response {
+    super::work_retry_page(state, headers, status, work, WorkRetry::Typeset(retry)).await
+}
+
+/// Ein abgelehnter RPC-Aufruf als Meldung am Formular (422; interne Fehler 500).
+async fn refused(
+    state: &AppState,
+    headers: &HeaderMap,
+    work: WorkId,
+    form: Vec<(String, String)>,
+    e: RpcError,
+) -> Response {
+    let status = if e.code == INTERNAL { StatusCode::INTERNAL_SERVER_ERROR } else { StatusCode::UNPROCESSABLE_ENTITY };
+    let retry = Retry { form, errors: vec![("form".to_owned(), e.message)], preview: None };
+    retry_page(state, headers, status, work, retry).await
+}
+
+/// Meldungen von [`settings_from_form`] als `(Feld, Meldung)`.
+fn pairs(errors: Vec<FieldError>) -> Vec<(String, String)> {
+    errors.into_iter().map(|e| (e.field.to_owned(), e.message)).collect()
+}
+
+/// Ziel nach Erfolg.
+fn done(work: WorkId, ok: &str) -> Response {
+    Redirect::to(&format!("/einstellungen/werk?work={work}&ok={ok}#satz")).into_response()
+}
+
+/// `POST /einstellungen/werk/satz`: `action` = `save` (Vorgabe) | `preview` | `reset` (nur mit `confirm=1`).
+pub async fn act(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Form(fields): Form<Vec<(String, String)>>,
+) -> Response {
+    let work = match form_work(&state, &fields).await {
+        Ok(work) => work,
+        Err(response) => return response,
+    };
+    let form: Vec<(String, String)> = fields.iter().filter(|(k, _)| k != "action" && k != "confirm").cloned().collect();
+    match field(&fields, "action") {
+        "reset" => {
+            if field(&fields, "confirm") != "1" {
+                let message = "Zurücksetzen bitte mit dem Häkchen bestätigen; nichts geändert.".to_owned();
+                let retry = Retry { form: Vec::new(), errors: vec![("reset".to_owned(), message)], preview: None };
+                return retry_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, work, retry).await;
+            }
+            match crate::typeset_settings::reset(&state, work).await {
+                Ok(_) => done(work, "satz_zurueck"),
+                Err(e) => refused(&state, &headers, work, Vec::new(), e).await,
+            }
+        }
+        action @ ("save" | "" | "preview") => {
+            let settings = match settings_from_form(&form) {
+                Ok(settings) => settings,
+                Err(errors) => {
+                    let retry = Retry { form, errors: pairs(errors), preview: None };
+                    return retry_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, work, retry).await;
+                }
+            };
+            if action == "preview" {
+                return match preview(&state, work, &settings).await {
+                    Ok(p) => {
+                        let retry = Retry { form, errors: Vec::new(), preview: Some(p) };
+                        retry_page(&state, &headers, StatusCode::OK, work, retry).await
+                    }
+                    Err(e) => refused(&state, &headers, work, form, e).await,
+                };
+            }
+            match crate::typeset_settings::save(&state, work, &settings).await {
+                Ok(_) => done(work, "satz"),
+                Err(e) => refused(&state, &headers, work, form, e).await,
+            }
+        }
+        _ => (StatusCode::BAD_REQUEST, "Unbekannte Aktion (save, preview oder reset).").into_response(),
+    }
+}
+
+/// `POST /einstellungen/werk/satz/vorlage`: Vorlagenregel als Einstellung übernehmen und die Zeile aus der Werkvorlage
+/// entfernen (nur mit `confirm=1`).
+pub async fn adopt_act(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Form(fields): Form<Vec<(String, String)>>,
+) -> Response {
+    let work = match form_work(&state, &fields).await {
+        Ok(work) => work,
+        Err(response) => return response,
+    };
+    if field(&fields, "confirm") != "1" {
+        let message = "Übernehmen bitte mit dem Häkchen bestätigen; die Werkvorlage bleibt unverändert.".to_owned();
+        let retry = Retry { form: Vec::new(), errors: vec![("template_rule".to_owned(), message)], preview: None };
+        return retry_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, work, retry).await;
+    }
+    match crate::typeset_settings::adopt_template_rule(&state, work).await {
+        Ok(_) => done(work, "satz_vorlage"),
+        Err(e) => {
+            let retry = Retry {
+                form: Vec::new(),
+                errors: vec![("template_rule".to_owned(), e.message.clone())],
+                preview: None,
+            };
+            let status =
+                if e.code == INTERNAL { StatusCode::INTERNAL_SERVER_ERROR } else { StatusCode::UNPROCESSABLE_ENTITY };
+            retry_page(&state, &headers, status, work, retry).await
+        }
+    }
+}
+
+/// `GET /einstellungen/werk/satz/vorschau/{stand}/{file}`: Vorschaubild `n.svg` aus dem Zwischenspeicher (nur dort
+/// liegende Stände, sonst 404; fremde Seite → 403, ohne Typst).
+pub async fn preview_svg(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path((stand, file)): Path<(String, String)>,
+) -> Response {
+    let _ = state;
+    if crate::guard::cross_site_get(&headers) {
+        return crate::typeset::foreign_get();
+    }
+    let missing =
+        || (StatusCode::NOT_FOUND, "Vorschau gibt es nicht (mehr); bitte „Vorschau“ erneut drücken.").into_response();
+    let Some(n) = file.strip_suffix(".svg").and_then(|n| n.parse::<usize>().ok()).filter(|&n| n >= 1) else {
+        return missing();
+    };
+    if stand.len() != 64 || !stand.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return missing();
+    }
+    let Some(page) = crate::typeset::cached_page(&stand, n) else { return missing() };
+    (
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static("image/svg+xml")),
+            (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+            (header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(crate::typeset::SVG_CSP)),
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
+        ],
+        page,
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn form(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+        pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
+    }
+
+    /// Das Beispiel aus dem Vertrag (§2) mit allen 16 Feldern.
+    fn example() -> TypesetSettings {
+        TypesetSettings::from_json(r#"{"chapter_start":"right_page","part_page":{"side":"right","blank_back":true},"page_format":{"kind":"a5"},"margins":{"inside_mm":20.0,"outside_mm":15.0,"top_mm":18.0,"bottom_mm":22.0,"binding_mm":5.0},"font":"Libertinus Serif","font_size_pt":10.5,"leading_em":0.65,"paragraph":{"kind":"indent","em":1.0},"justify":true,"hyphenate":true,"lang":"de","page_numbers":{"position":"bottom_outside","start":"first_chapter"},"running_head":"chapter","footnotes":{"numbering":"arabic","restart":"per_chapter"},"widows_orphans":true,"xref_with_page":true}"#).unwrap()
+    }
+
+    #[test]
+    fn every_field_of_the_contract_example_survives_the_form() {
+        let s = example();
+        let back = settings_from_form(&form_from_settings(&s)).expect("das Vertragsbeispiel ist gültig");
+        // Formular und Einstellungen sind Umkehrungen: Was der Block zeigt, speichert „Speichern“ unverändert.
+        assert_eq!(back, s, "Rundreise über die Formularfelder verliert nichts");
+        // Runde 22: auch der Entwurf mit allen Feldern (Zusatz, Datum, Lage, Umschlag).
+        let draft = TypesetSettings {
+            draft: Some(Draft {
+                text: "Vorabzug".into(),
+                note: "für die Lektorin".into(),
+                date: true,
+                opacity_percent: 25,
+                placement: DraftPlacement::Footer,
+                cover: true,
+            }),
+            ..s
+        };
+        let back = settings_from_form(&form_from_settings(&draft)).expect("gültiger Entwurf");
+        assert_eq!(back, draft, "Rundreise des Entwurfs über die Formularfelder");
+        let errors = settings_from_form(&form(&[("draft", "1"), ("draft_opacity", "viel")])).expect_err("Deckkraft");
+        assert_eq!(errors[0].field, "draft.opacity_percent", "keine Zahl → Grenze gemeldet wie über RPC");
+    }
+
+    #[test]
+    fn empty_fields_mean_from_the_template() {
+        let s = settings_from_form(&form(&[
+            ("work", "1"),
+            ("chapter_start", ""),
+            ("part_side", ""),
+            ("part_blank_back", "1"),
+            ("page_format", ""),
+            ("margin_inside_mm", " "),
+            ("font", "  "),
+            ("justify", ""),
+            ("page_number_position", ""),
+            ("page_number_start", "first_chapter"),
+            ("footnote_numbering", ""),
+            ("footnote_restart", "per_chapter"),
+        ]))
+        .expect("lauter leere Felder sind gültig");
+        // "" = aus der Werkvorlage: keine Einstellung, auch wenn Unterfelder (Rückseite leer, Beginn) etwas tragen.
+        assert!(s.is_empty(), "alles aus der Werkvorlage: {s:?}");
+    }
+
+    #[test]
+    fn decimal_commas_and_custom_formats_are_read() {
+        let s = settings_from_form(&form(&[
+            ("page_format", "custom"),
+            ("page_width_mm", "125,5"),
+            ("page_height_mm", "200"),
+            ("font_size_pt", "10,5"),
+            ("leading_em", "0.7"),
+            ("paragraph", "spacing"),
+            ("paragraph_em", ""),
+            ("margin_inside_mm", "18"),
+            ("margin_outside_mm", "14"),
+            ("margin_top_mm", "16"),
+            ("margin_bottom_mm", "20"),
+            ("binding_mm", ""),
+        ]))
+        .expect("gültige Werte");
+        assert_eq!(
+            s.page_format,
+            Some(PageFormat::Custom { width_mm: 125.5, height_mm: 200.0 }),
+            "Komma als Dezimalzeichen"
+        );
+        assert_eq!(s.font_size_pt, Some(10.5), "10,5 pt");
+        assert_eq!(s.leading_em, Some(0.7), "Punkt geht auch");
+        assert_eq!(s.paragraph, Some(Paragraph::Spacing { em: 0.5 }), "leeres Maß = Vorgabe der Art (0,5 em Abstand)");
+        assert_eq!(s.margins.as_ref().map(|m| m.binding_mm), Some(0.0), "Bundsteg leer = 0");
+    }
+
+    #[test]
+    fn partial_margins_and_bad_values_are_reported_all_at_once_like_validate() {
+        let errors = settings_from_form(&form(&[
+            ("margin_inside_mm", "20"),
+            ("margin_top_mm", "18"),
+            ("font_size_pt", "dreißig"),
+            ("lang", "Deutsch"),
+            ("running_head", "kopf"),
+            ("page_format", "custom"),
+            ("page_width_mm", "50"),
+        ]))
+        .expect_err("mehrere Fehler");
+        let fields: Vec<&str> = errors.iter().map(|e| e.field).collect();
+        // FIELDS-Reihenfolge: page_format vor margins vor font_size_pt vor lang vor running_head.
+        assert_eq!(
+            fields,
+            ["page_format.width_mm", "page_format.height_mm", "margins", "font_size_pt", "lang", "running_head"],
+            "alle Meldungen in Feldreihenfolge: {errors:?}"
+        );
+        assert_eq!(errors[2].message, "Ränder: alle vier Ränder angeben oder alle leer", "teilweise Ränder");
+        // Keine Zahl → dieselbe Meldung, die validate für einen Wert außerhalb der Grenzen gibt.
+        let reference = TypesetSettings { font_size_pt: Some(99.0), ..Default::default() }.validate().unwrap_err();
+        assert_eq!(errors[3].message, reference[0].message, "Meldung wie TypesetSettings::validate");
+        assert_eq!(errors[5].message, "Kolumnentitel: unbekannte Wahl „kopf“", "unbekannte Wahl mit Bezeichnung");
+    }
+
+    #[test]
+    fn binding_alone_counts_as_partial_margins() {
+        let errors = settings_from_form(&form(&[("binding_mm", "5")])).expect_err("Bundsteg ohne Ränder");
+        // Sonst ginge der Bundsteg still verloren.
+        assert_eq!(errors[0].field, "margins", "{errors:?}");
+    }
+
+    fn view(template_rule: bool, conflict: bool) -> crate::typeset_settings::TypesetView {
+        use baruch_typst::typeset::{CANONICAL_CHAPTER_BREAK, ConflictEffect, detect_chapter_break};
+        let settings = TypesetSettings { chapter_start: Some(ChapterStart::Continuous), ..Default::default() };
+        crate::typeset_settings::TypesetView {
+            work: 7,
+            stored: None,
+            rules: String::new(),
+            conflicts: if conflict {
+                vec![TemplateConflict {
+                    field: "chapter_start",
+                    line: 3,
+                    text: CANONICAL_CHAPTER_BREAK.into(),
+                    effect: ConflictEffect::Ineffective,
+                    message: "Die Werkvorlage setzt den Kapitelanfang selbst (Zeile 3); die Einstellung wirkt nicht."
+                        .into(),
+                }]
+            } else {
+                Vec::new()
+            },
+            template_rule: if template_rule { detect_chapter_break(CANONICAL_CHAPTER_BREAK) } else { None },
+            warnings: vec!["Schrift „Erfundene Antiqua“ fehlt".into()],
+            settings,
+        }
+    }
+
+    fn render(view: &crate::typeset_settings::TypesetView, retry: Option<&Retry>) -> String {
+        super::super::render_template(
+            "settings/werk_satz.html",
+            block_context(&BlockInput {
+                work: 7,
+                view,
+                template: "",
+                retry,
+                registers: &baruch_typst::index::builtin_registers(),
+            }),
+        )
+        .expect("Vorlage zeichnet")
+    }
+
+    #[test]
+    fn a_conflict_stands_at_its_field_and_warnings_are_shown() {
+        let html = render(&view(false, true), None);
+        let field = html.find("name=\"chapter_start\"").expect("Feld Kapitelanfang");
+        let hint = html.find("data-typeset-hint=\"chapter_start\"").expect("Hinweis zum Kapitelanfang");
+        let next = html.find("name=\"part_side\"").expect("Feld Teil-Seite");
+        // Der Hinweis steht beim Feld (zwischen ihm und dem nächsten Feld), nicht gesammelt am Ende.
+        assert!(field < hint && hint < next, "Hinweis beim Feld: {html}");
+        assert!(html.contains("die Einstellung wirkt nicht"), "Meldung des Konflikts: {html}");
+        assert!(html.contains("Erfundene Antiqua"), "Warnung: {html}");
+    }
+
+    #[test]
+    fn the_offer_names_line_and_text_of_the_template_rule() {
+        let html = render(&view(true, false), None);
+        assert!(html.contains("action=\"/einstellungen/werk/satz/vorlage\""), "Formular der Übernahme: {html}");
+        assert!(html.contains("Zeile 1"), "Zeile der Regel: {html}");
+        assert!(html.contains("pagebreak(weak: true, to: &quot;odd&quot;)"), "Text der Regel (maskiert): {html}");
+        assert!(html.contains("name=\"confirm\" value=\"1\" required"), "Pflicht-Häkchen: {html}");
+        let none = render(&view(false, false), None);
+        assert!(!none.contains("/einstellungen/werk/satz/vorlage"), "ohne erkannte Regel kein Angebot");
+    }
+}

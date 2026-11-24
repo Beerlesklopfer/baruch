@@ -1,0 +1,52 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Das Kontextmenü ohne JavaScript (Runde 31c, Besitz kontextmenue): die drei Aktionen „In Glossar aufnehmen“, „In
+    Register aufnehmen“ und „Im Glossar nachschlagen“ als Formulare, eingebunden in marking.html. Mit JavaScript gibt es
+    dieselben Aktionen als Kontextmenü im Satzbild und im Textfeld (web/src/context_menu.ts, ARIA-Menümuster).
+    Kontext: work {id}, word, section {key, rev}, registers [{slug, title}], back (Rücksprung nach Erfolg). -#}
+<div class="ctx-actions" role="group" aria-label="Aktionen an der Markierung">
+  <section class="ctx-action" id="glossar" aria-labelledby="ctx-glossar">
+    <h2 id="ctx-glossar" class="small">In Glossar aufnehmen</h2>
+    <form method="post" action="/werke/{{ work.id }}/glossar/act">
+      <input type="hidden" name="action" value="add">
+      <input type="hidden" name="back" value="{{ back|safe }}">
+      <label class="glossary-field small">Begriff <input type="text" name="term" maxlength="200" required value="{{ word }}"></label>
+      <label class="glossary-field small">Kurze Erklärung <input type="text" name="short" maxlength="500"></label>
+      <label class="glossary-field small">Ausführliche Erklärung <textarea name="long" rows="3"></textarea></label>
+      <label class="glossary-field small">Varianten <span class="muted tiny">(je Zeile eine)</span> <textarea name="variants" rows="2"></textarea></label>
+      <label class="glossary-field small">Bibelstellen <span class="muted tiny">(je Zeile eine)</span> <textarea name="bible_refs" rows="2"></textarea></label>
+      <label class="glossary-field small">Quelle <input type="text" name="source" maxlength="500"></label>
+      <button class="btn primary" type="submit">In Glossar aufnehmen</button>
+    </form>
+  </section>
+  <section class="ctx-action" id="register" aria-labelledby="ctx-register">
+    <h2 id="ctx-register" class="small">In Register aufnehmen</h2>
+    <form method="post" action="/werke/{{ work.id }}/register/act">
+      <input type="hidden" name="action" value="mark">
+      <input type="hidden" name="key" value="{{ section.key }}">
+      <input type="hidden" name="rev" value="{{ section.rev }}">
+      <input type="hidden" name="back" value="{{ back|safe }}">
+      <label class="glossary-field small">Wort im Text <input type="text" name="word" maxlength="200" required value="{{ word }}"></label>
+      <label class="glossary-field small">Fundstelle <select name="occurrence">
+        <option value="first" selected>erste</option>
+        <option value="all">alle</option>
+      </select></label>
+      <label class="glossary-field small">Register <select name="register">
+        {%- for r in registers %}
+        <option value="{{ r.slug }}"{% if r.slug == "stichwort" %} selected{% endif %}>{{ r.title }}</option>
+        {%- endfor %}
+      </select></label>
+      <label class="glossary-field small">Stichwort <span class="muted tiny">(leer = das Wort)</span> <input type="text" name="term" maxlength="200" value="{{ word }}"></label>
+      <label class="glossary-field small">Unterstichwort <input type="text" name="sub" maxlength="200"></label>
+      <label class="glossary-field small">siehe <input type="text" name="see" maxlength="200"></label>
+      <label class="glossary-field small">siehe auch <input type="text" name="also" maxlength="200"></label>
+      <button class="btn primary" type="submit">Marke setzen (neue Fassung auf Fassung {{ section.rev }})</button>
+    </form>
+  </section>
+  <section class="ctx-action" id="nachschlagen" aria-labelledby="ctx-nachschlagen">
+    <h2 id="ctx-nachschlagen" class="small">Im Glossar nachschlagen</h2>
+    <form method="get" action="/werke/{{ work.id }}/glossar" role="search">
+      <label class="glossary-field small">Wort <input type="search" name="nachschlagen" required value="{{ word }}"></label>
+      <button class="btn" type="submit">Nachschlagen</button>
+    </form>
+  </section>
+</div>

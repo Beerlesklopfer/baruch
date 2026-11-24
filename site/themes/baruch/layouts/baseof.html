@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+{{- /* Grundgerüst aller Seiten. Kein JavaScript, keine fremden Adressen: Stil und Symbol liegen im Theme. */ -}}
+<html lang="{{ site.Language.Locale | default "de" }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .IsHome }}{{ site.Title }} – {{ .Params.claim | default "Freie Schreibwerkstatt" }}{{ else }}{{ .Title }} – {{ site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ .Description | default site.Params.description }}">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="{{ .Permalink }}">
+  <link rel="icon" type="image/svg+xml" href="{{ "favicon.svg" | relURL }}">
+  <link rel="stylesheet" href="{{ "css/baruch.css" | relURL }}">
+</head>
+<body>
+  <a class="skip" href="#inhalt">Zum Inhalt</a>
+  {{ partial "kopf.html" . }}
+  <main id="inhalt">
+    {{ block "main" . }}{{ end }}
+  </main>
+  {{ partial "fuss.html" . }}
+</body>
+</html>

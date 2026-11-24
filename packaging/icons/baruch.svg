@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later
+     Programmsymbol: das Blatt aus crates/baruch-server/static/favicon.svg auf hellem Grund. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#f8f9fa" stroke="#3b5bdb" stroke-width="6"/>
+  <g transform="translate(32 32) scale(8)" fill="none" stroke="#3b5bdb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 3.5h10l4 4v13H5z"/>
+    <path d="M15 3.5v4h4"/>
+    <path d="M8 12h8M8 15.5h8M8 19h5"/>
+  </g>
+</svg>

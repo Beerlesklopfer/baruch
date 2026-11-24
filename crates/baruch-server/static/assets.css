@@ -1,0 +1,37 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Bilder eines Werks: Seiten /werke/{id}/bilder und /werke/{id}/bilder/{name}. Grundgerüst aus
+   works.css (.works-page, .works-table, .work-form), Farben aus app.css. */
+
+.assets-table .asset-thumb { width: 72px; }
+.assets-table .asset-thumb img {
+  display: block; max-width: 64px; max-height: 48px; object-fit: contain;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+}
+.asset-detail { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.asset-preview {
+  margin: 0; padding: 10px; flex: 0 1 420px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.asset-preview img { display: block; max-width: 100%; max-height: 360px; margin: 0 auto; object-fit: contain; }
+.asset-preview figcaption { margin-top: 6px; font-size: 13px; color: var(--muted); text-align: center; }
+.asset-facts { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; flex: 1 1 280px; }
+.asset-facts dt { color: var(--muted); }
+.asset-facts dd { margin: 0; overflow-wrap: anywhere; }
+.asset-revisions .inline-form { display: inline; margin-left: 6px; }
+.asset-revisions .inline-form .btn { min-height: 24px; padding: 1px 8px; font-size: 12px; }
+.work-form label.check { flex-direction: row; align-items: center; gap: 6px; }
+/* Die Seite ist eine Spalte (works.css): Formulare nicht in die Höhe ziehen (Sichtprüfung Runde 6). */
+.assets-page > .work-form { flex: 0 0 auto; }
+/* Runde 11: Suche über der Liste, Knopf „Als Umschlag“ je Zeile. */
+.asset-search { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; flex: 0 0 auto; }
+.asset-search label { display: flex; align-items: center; gap: 6px; }
+.asset-search input[type="search"] { min-width: min(28em, 70vw); }
+.assets-table form { margin: 0; }
+.assets-table form .btn, .asset-facts form .btn { min-height: 24px; padding: 1px 8px; font-size: 12px; }
+.asset-facts form { margin: 0; }
+
+/* Runde 21c: Altbestand – Pfade mit zwei Bildern (Hinweis und Formular je Kollision). */
+.asset-conflicts { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+/* Nicht auf die Grundhöhe von .work-form (320px) ziehen (Sichtprüfung Runde 21). */
+.asset-conflicts .asset-conflict { margin: 0; flex: 0 0 auto; }
+.asset-conflicts fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.asset-conflicts code { overflow-wrap: anywhere; }

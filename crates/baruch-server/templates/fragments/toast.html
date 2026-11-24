@@ -1,0 +1,21 @@
+{#- Hinweis als Toast (Runde 15, Vertrag §4). Erwartet toast = {message, level ("warn" | "info"), summarized?}.
+    Ohne JavaScript ein sichtbarer Hinweiskasten an seiner Stelle; mit JavaScript (Widget „toast“,
+    web/src/toast.ts) schwebt er unten rechts und hat „Schließen“. „warn“ bleibt stehen, bis der Mensch ihn
+    schließt (kein Zeitablauf); nur „info“ verschwindet von selbst. Jede andere Stufe gilt als „warn“.
+    summarized: Teile, die eine Persona nur als Zusammenfassung sah (Kontext komprimiert). -#}
+{%- if toast and toast.message %}
+{%- set toast_level = "info" if toast.level == "info" else "warn" %}
+<div class="toast toast-{{ toast_level }}" data-widget="toast" data-level="{{ toast_level }}" role="status">
+  <p class="toast-message">{{ toast.message }}</p>
+  {%- if toast.summarized %}
+  <details class="toast-details">
+    <summary>Nur als Zusammenfassung gesehen ({{ toast.summarized | length }})</summary>
+    <ul>
+      {%- for part in toast.summarized %}
+      <li>{{ part }}</li>
+      {%- endfor %}
+    </ul>
+  </details>
+  {%- endif %}
+</div>
+{%- endif %}

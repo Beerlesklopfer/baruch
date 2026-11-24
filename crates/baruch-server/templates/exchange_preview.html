@@ -1,0 +1,115 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Antwort auf POST /austausch/vorschau (Runde 26, src/exchange/import.rs): Vorschau des Einlesens
+    und Formular „Übernehmen“ (POST /austausch/uebernehmen mit sha256, mode, title), ohne JavaScript. Kontext:
+    settings, work {id}?, file_name, sha256, mode, mode_label, instance, add [(Art, Zahl)], add_total, deviations
+    [{kind, label, here, there, action, is_request, href?}], report (ExchangeReport), newer, title_value. -#}
+{% extends "base.html" %}
+{% block title %}Austausch: Vorschau – Baruch{% endblock %}
+{% block page_title %}Austausch: Vorschau{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/austausch/einlesen{% if work %}?work={{ work.id }}{% endif %}">Andere Datei</a>
+{% endblock %}
+{% block body %}
+<main class="works-page exchange-preview-page" data-sha256="{{ sha256 }}">
+  <h1 class="pane-title">Vorschau: {{ file_name }}</h1>
+  <p>Aus <strong>{{ instance }}</strong>, ausgegeben {{ report.exported }}. Werk „{{ report.title }}“ –
+    {%- if mode == "new" %} <strong>neu</strong>: es gibt es hier noch nicht.
+    {%- else %} <strong>abgleichen</strong> mit dem vorhandenen Werk.{% endif %}</p>
+  {%- if newer %}
+  <p class="notice" role="status">Die Datei hat Unterversion {{ report.version }}; dieses Baruch liest Unterversion 1. Unbekanntes
+    wird unten gemeldet und nicht übernommen.</p>
+  {%- endif %}
+  {%- for refusal in report.refusals %}
+  <p class="notice error" role="alert">{{ refusal }}</p>
+  {%- endfor %}
+
+  <section>
+    <h2 class="pane-title">Was hinzukäme</h2>
+    {%- if add_total == 0 %}
+    <p class="muted">Nichts: Alles aus der Datei gibt es hier schon.</p>
+    {%- else %}
+    <ul class="exchange-add">
+      {%- for item in add %}
+      <li>{{ item[1] }} {{ item[0] }}</li>
+      {%- endfor %}
+    </ul>
+    <details>
+      <summary>Einzeln ({{ report.items | length }}{% if report.truncated %}, gekürzt{% endif %})</summary>
+      <ul>
+        {%- for item in report.items %}
+        <li>{{ item.label }}</li>
+        {%- endfor %}
+      </ul>
+    </details>
+    {%- endif %}
+  </section>
+
+  {%- if deviations %}
+  <section>
+    <h2 class="pane-title">Abweichungen ({{ deviations | length }})</h2>
+    <table class="exchange-deviations">
+      <thead><tr><th>Was</th><th>Hier</th><th>Dort</th><th>Folge</th></tr></thead>
+      <tbody>
+        {%- for d in deviations %}
+        <tr>
+          <td>{% if d.href %}<a href="{{ d.href | safe }}">{{ d.label }}</a>{% else %}{{ d.label }}{% endif %}</td>
+          <td>{{ d.here }}</td>
+          <td>{{ d.there }}</td>
+          <td>{{ d.action }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+  </section>
+  {%- endif %}
+
+  {%- if report.requests %}
+  <section>
+    <h2 class="pane-title">Anträge zur Gliederung ({{ report.requests | length }})</h2>
+    <p class="muted small">Sie ändern nichts sofort; du bestätigst oder lehnst sie unter Gliederung → Anträge ab.</p>
+    <ul>
+      {%- for r in report.requests %}
+      <li>{{ r.label }}</li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if report.deleted_here %}
+  <section>
+    <h2 class="pane-title">Hier gelöscht ({{ report.deleted_here | length }})</h2>
+    <p class="muted small">Kommt nicht wieder.</p>
+    <ul>
+      {%- for d in report.deleted_here %}
+      <li>{{ d.label }}</li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if report.unknown %}
+  <section>
+    <h2 class="pane-title">Unbekannt, wird nicht übernommen</h2>
+    <ul>
+      {%- for u in report.unknown %}
+      <li><code>{{ u }}</code></li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  <form class="work-form" action="/austausch/uebernehmen" method="post">
+    <input type="hidden" name="sha256" value="{{ sha256 }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    {%- if mode == "new" %}
+    <label>Titel <span class="muted small">(leer: „{{ report.title }}“ aus der Datei)</span>
+      <input type="text" name="title" value="{{ title_value }}" autocomplete="off">
+    </label>
+    {%- endif %}
+    <p class="muted small">Prüfsumme der Datei: <code>{{ sha256 }}</code>. Übernommen wird genau diese Datei; geplant wird dabei
+      neu, in einem Schritt, mit einem Eintrag im Spiegel.</p>
+    <button class="btn primary" type="submit">Übernehmen ({{ mode_label }})</button>
+    <a class="btn" href="/austausch/einlesen{% if work %}?work={{ work.id }}{% endif %}">Abbrechen</a>
+  </form>
+</main>
+{% endblock %}

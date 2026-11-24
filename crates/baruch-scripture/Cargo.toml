@@ -1,0 +1,17 @@
+[package]
+name = "baruch-scripture"
+description = "Bibelstellen erkennen, gegen die Verszählung der Schlachter 1951 prüfen und zwischen Verszählungen abbilden (ohne Bibeltext)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# Verszahlen der übrigen SWORD-Zählungen (CC0, nur die Daten; ohne Lesen, Entpacken und Installieren).
+sword-modules = { version = "0.1.0", default-features = false }
+# Unicode-Normalform NFC (Runde 19, Vergleich von Wortlaut und Zitaten). Lizenz MIT OR Apache-2.0; liegt schon im Lock.
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+serde_json = "1"

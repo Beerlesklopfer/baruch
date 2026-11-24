@@ -1,0 +1,41 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Runde 16 „Predigt (B4)“ (Integration): Stil für Zeitwächter (Baum, Editorkopf, Gliederung, Einstellungen),
+   Stichwortzettel-Seite, Personas lokal/extern im Akkordeon „Assistenten“ und den Kasten „Nur bei einer Predigt“. */
+
+/* Editorkopf: die Zeit steht in einer eigenen Zeile, damit der Titel nicht abgeschnitten wird. */
+.editor-head:has(> .editor-timing) { flex-wrap: wrap; row-gap: 4px; }
+.editor-head > .editor-timing { flex: 1 0 100%; order: 10; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Baum: Dauer rechtsbündig mit festen Ziffern; Kopf mit Gesamt-/Zielzeit. */
+.tree-duration { margin-left: auto; padding-left: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.outline-timing { margin: 6px 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.outline-timing-over { white-space: nowrap; }
+
+/* Seite /gliederung: Spalte „Dauer“ und Warnung. */
+.outline-duration { white-space: nowrap; font-variant-numeric: tabular-nums; }
+p.outline-timing.warning { padding: 6px 10px; border-radius: 6px; background: var(--warning-soft); color: var(--warning); }
+
+/* Einstellungen → Werk → Predigtzeit. */
+.settings-timing form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.settings-timing form > p { flex-basis: 100%; margin: 0; }
+.settings-timing input[type="number"] { width: 6em; }
+
+/* Stichwortzettel. */
+.notes-page fieldset, .works-page fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px 10px; margin: 8px 0; }
+.notes-page legend, .works-page legend { padding: 0 4px; color: var(--muted); font-size: 12.5px; }
+.notes-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.notes-form fieldset { display: flex; gap: 14px; margin: 0; }
+.notes-form input[type="number"] { width: 5em; }
+.notes-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-top: 10px; }
+.notes-card { margin: 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.notes-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.notes-clock { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.notes-points { margin: 8px 0 4px; padding-left: 18px; }
+.notes-refs { font-style: italic; margin: 4px 0; }
+.notes-rule { margin: 4px 0 0; }
+.notes-times { font-variant-numeric: tabular-nums; }
+
+/* Akkordeon „Assistenten“: lokal/extern und gesperrte Personas. */
+.persona-locality { font-weight: 600; }
+.persona.blocked { opacity: 0.6; }
+.persona-blocked { display: inline-block; margin: 2px 0 0 4px; padding: 1px 6px; }

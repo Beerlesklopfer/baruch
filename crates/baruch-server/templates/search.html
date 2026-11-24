@@ -1,0 +1,170 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /suche (Runde 30a, src/search/page.rs): im Werk suchen und ersetzen ohne JavaScript. Kontext: settings,
+    work {id, title}, q, replacement, case, word, re, range, key, ranges [{word, label, checked}], revs {shown_rev,
+    shown} (nur mit Abschnitt), carried [{name, value}] (start/end/shown_rev für das Suchformular), kinds [{word, label,
+    checked}], outline [{key, label, depth, checked, current}], groups [{key, label, hits [{url, before, matched, after,
+    line, kind, kind_label}]}], summary {total, shown, truncated, timed_out, range_label}, preview {sections [{key, label,
+    base_rev, count, indices, diff_html, url}], total, truncated, timed_out, range_label}, hidden [{name, value}],
+    batch {id, query, replacement, count, undone, checks [{label, url}]}, latest {id, query, replacement, count,
+    created}, undone, error, self_url, preview_url, back_url. -#}
+{% extends "base.html" %}
+{% block title %}Suchen und ersetzen – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Suchen und ersetzen{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page search-page" data-widget="search-page" data-work="{{ work.id }}">
+  <h1 class="pane-title">Im Werk suchen und ersetzen</h1>
+  {%- if error %}
+  <p class="toast" role="alert" data-search-error>{{ error }}</p>
+  {%- endif %}
+  {%- if batch %}
+  <section class="sr-done notice" role="status" data-search-batch="{{ batch.id }}">
+    {%- if batch.undone %}
+    <p>Ersetzen „{{ batch.query }}“ → „{{ batch.replacement }}“ wurde rückgängig gemacht.</p>
+    {%- else %}
+    <p><strong>Ersetzt:</strong> „{{ batch.query }}“ → „{{ batch.replacement }}“ in {{ batch.count }}
+      {% if batch.count == 1 %}Abschnitt{% else %}Abschnitten{% endif %} (je eine neue Fassung von dir, ein Commit im Spiegel).</p>
+    <form method="post" action="/suche/act" class="sr-undo">
+      <input type="hidden" name="method" value="search.undo">
+      <input type="hidden" name="batch" value="{{ batch.id }}">
+      <input type="hidden" name="confirm" value="1">
+      {%- for h in hidden %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
+      <button type="submit" class="btn">Rückgängig</button>
+    </form>
+    {%- if batch.checks %}
+    <p class="small" data-scripture-hint>Bitte den Wortlaut der Bibelzitate prüfen (Prüfanzeige):
+      {%- for c in batch.checks %} <a href="{{ c.url|safe }}">{{ c.label }}</a>{% if not loop.last %} ·{% endif %}{% endfor %}</p>
+    {%- endif %}
+    {%- endif %}
+  </section>
+  {%- endif %}
+  {%- if undone %}
+  <p class="notice" role="status" data-search-undone="{{ undone }}">Rückgängig gemacht: Die Abschnitte stehen wieder auf ihrer vorigen Fassung.</p>
+  {%- endif %}
+
+  <form method="get" action="/suche" class="sr-form" data-search-form>
+    <input type="hidden" name="work" value="{{ work.id }}">
+    {%- if key %}<input type="hidden" name="key" value="{{ key }}">{% endif %}
+    {%- for h in carried %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
+    <p class="sr-fields">
+      <label>Suchen <input type="search" name="q" value="{{ q }}" maxlength="500" required autofocus data-search-q></label>
+      <label>Ersetzen durch <input type="text" name="replacement" value="{{ replacement }}" maxlength="2000" data-search-replacement></label>
+    </p>
+    <p class="sr-options">
+      <label title="Groß/klein beachten (Alt+C)"><input type="checkbox" name="case" value="1"{% if case %} checked{% endif %}> Groß/klein</label>
+      <label title="Nur ganze Wörter (Alt+W)"><input type="checkbox" name="word" value="1"{% if word %} checked{% endif %}> Ganzes Wort</label>
+      <label title="Regulärer Ausdruck (Alt+R)"><input type="checkbox" name="re" value="1"{% if re %} checked{% endif %}> Regulärer Ausdruck</label>
+    </p>
+    <fieldset class="sr-range">
+      <legend>Bereich</legend>
+      {%- for r in ranges %}
+      <label><input type="radio" name="range" value="{{ r.word }}"{% if r.checked %} checked{% endif %}> {{ r.label }}</label>
+      {%- endfor %}
+      <details class="sr-picks"{% if range == "picked" or not key %} open{% endif %}>
+        <summary>Gliederung (für „Abschnitt“, „Kapitel“, „Teil“, „ab Abschnitt“ den Punkt wählen, für „Auswahl“ Häkchen setzen)</summary>
+        <ul class="sr-outline">
+          {%- for n in outline %}
+          <li style="padding-left: {{ n.depth * 1.2 }}em">
+            <label><input type="checkbox" name="sel" value="{{ n.key }}"{% if n.checked %} checked{% endif %}> {{ n.label }}</label>
+            {%- if not n.current %} <a class="small" href="/suche?work={{ work.id }}&amp;key={{ n.key }}&amp;range={{ range }}&amp;q={{ q_enc }}">als Abschnitt wählen</a>{% else %} <strong class="small">(gewählter Abschnitt)</strong>{% endif %}
+          </li>
+          {%- endfor %}
+        </ul>
+      </details>
+    </fieldset>
+    {%- if revs %}
+    <fieldset class="sr-rev" data-search-rev>
+      <legend>Fassung (nur Abschnitt und Markierung)</legend>
+      <label><input type="radio" name="rev" value="current"{% if not revs.shown %} checked{% endif %}> aktuelle Fassung</label>
+      {%- if revs.shown_rev %}
+      <label><input type="radio" name="rev" value="shown"{% if revs.shown %} checked{% endif %}> gezeigte Fassung {{ revs.shown_rev }}</label>
+      {%- endif %}
+      <span class="muted small">Vorschau und Ersetzen gelten immer der aktuellen Fassung.</span>
+    </fieldset>
+    {%- endif %}
+    <fieldset class="sr-kinds">
+      <legend>Textarten</legend>
+      {%- for k in kinds %}
+      <label><input type="checkbox" name="kinds" value="{{ k.word }}"{% if k.checked %} checked{% endif %}> {{ k.label }}</label>
+      {%- endfor %}
+      <span class="muted small">Beim Ersetzen bleiben Zitate (auch Bibelzitate) und Typst-Code unberührt, außer du wählst Zitate ausdrücklich.</span>
+    </fieldset>
+    <p>
+      <button type="submit" class="btn primary">Suchen</button>
+      <button type="submit" class="btn" name="vorschau" value="1">Vorschau des Ersetzens</button>
+    </p>
+  </form>
+
+  {%- if summary %}
+  <section class="sr-results" data-search-results>
+    <h2>{{ summary.total }} {% if summary.total == 1 %}Treffer{% else %}Treffer{% endif %} · {{ summary.range_label }}</h2>
+    {%- if summary.truncated %}<p class="small muted" data-search-truncated>Es werden {{ summary.shown }} von {{ summary.total }} Treffern gezeigt.</p>{% endif %}
+    {%- if summary.timed_out %}<p class="toast" role="alert" data-search-timeout>Die Suche brauchte länger als 2 s und wurde abgebrochen; die Liste ist unvollständig.</p>{% endif %}
+    <ul class="sr-tree">
+      {%- for g in groups %}
+      <li class="sr-section" data-key="{{ g.key }}">
+        <strong>{{ g.label }}</strong> <span class="muted small">({{ g.hits|length }})</span>
+        <ul>
+          {%- for h in g.hits %}
+          <li class="sr-hit" data-kind="{{ h.kind }}"><a class="jump" href="{{ h.url|safe }}" data-jump>
+            <span class="sr-ln">{{ h.line }}</span> {{ h.before }}<mark>{{ h.matched }}</mark>{{ h.after }}</a>
+            {%- if h.kind != "text" %} <span class="muted tiny">{{ h.kind_label }}</span>{% endif %}</li>
+          {%- endfor %}
+        </ul>
+      </li>
+      {%- else %}
+      <li class="muted">Keine Treffer.</li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if preview %}
+  <section class="sr-preview" data-search-preview>
+    <h2>Vorschau: „{{ q }}“ → „{{ replacement }}“ · {{ preview.total }} Treffer · {{ preview.range_label }}</h2>
+    {%- if preview.timed_out %}<p class="toast" role="alert" data-search-timeout>Die Suche brauchte länger als 2 s; Ersetzen geht erst mit kleinerem Bereich.</p>{% endif %}
+    {%- if preview.truncated %}<p class="small muted" data-search-preview-truncated>Die Vorschau zeigt nicht alle Abschnitte (höchstens 500 ganze Abschnitte mit zusammen höchstens 2000 Stellen); bitte Suche oder Bereich eingrenzen.</p>{% endif %}
+    {%- if preview.sections %}
+    <form method="post" action="/suche/act" class="sr-replace-form">
+      <input type="hidden" name="method" value="search.replace">
+      <input type="hidden" name="replacement" value="{{ replacement }}">
+      {%- for h in hidden %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
+      {%- for s in preview.sections %}
+      <fieldset class="sr-preview-section" data-key="{{ s.key }}">
+        <legend><label><input type="checkbox" name="pick" value="{{ s.key }}:{{ s.base_rev }}" checked> {{ s.label }}</label>
+          <span class="muted small">Fassung {{ s.base_rev }}, {{ s.count }} {% if s.count == 1 %}Stelle{% else %}Stellen{% endif %}</span>
+          {%- if s.url %} <a class="small jump" href="{{ s.url|safe }}" data-jump>öffnen</a>{% endif %}</legend>
+        <input type="hidden" name="count_{{ s.key }}" value="{{ s.count }}">
+        <div class="sr-diff">{{ s.diff_html|safe }}</div>
+        <p class="sr-keep small">Stellen:
+          {%- for i in s.indices %} <label><input type="checkbox" name="keep" value="{{ s.key }}:{{ i }}" checked> {{ i + 1 }}</label>{% endfor %}</p>
+      </fieldset>
+      {%- endfor %}
+      <p><label><input type="checkbox" name="confirm" value="1"> Ja, ersetzen (je Abschnitt eine neue Fassung von mir)</label>
+        <button type="submit" class="btn primary">Alle ersetzen</button></p>
+    </form>
+    {%- else %}
+    <p class="muted">Nichts zu ersetzen.</p>
+    {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- if latest and not batch %}
+  <section class="sr-latest small" data-search-latest="{{ latest.id }}">
+    <form method="post" action="/suche/act" class="sr-undo">
+      Letztes Ersetzen: „{{ latest.query }}“ → „{{ latest.replacement }}“ in {{ latest.count }} {% if latest.count == 1 %}Abschnitt{% else %}Abschnitten{% endif %}
+      <input type="hidden" name="method" value="search.undo">
+      <input type="hidden" name="batch" value="{{ latest.id }}">
+      <input type="hidden" name="confirm" value="1">
+      {%- for h in hidden %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
+      <button type="submit" class="btn">Rückgängig</button>
+    </form>
+  </section>
+  {%- endif %}
+  <p class="muted tiny">Gesucht wird im Typst-Quelltext der Fassungen. Tasten wie in VS Code: Strg+F suchen und Strg+H
+    ersetzen im Abschnitt, Strg+Umschalt+F bzw. Strg+Umschalt+H im Werk, Enter/F3 nächster Treffer, Alt+C/W/R
+    Groß/klein, ganzes Wort, regulärer Ausdruck.</p>
+</main>
+{% endblock %}

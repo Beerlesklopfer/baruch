@@ -1,0 +1,91 @@
+{#- Volltext eines Dokuments aus MultiGPT: GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q
+    (Runde 13, literature::multigpt_page). Teil für Teil mit Links „vorheriger/nächster Teil“, die Fundstelle q als
+    <mark>, alles ohne JavaScript. Inhalte der Gegenstelle sind Daten: Sie stehen nur maskiert hier (Autoescape).
+    Kontext: work, node?, rev?, document, collection, section?, q?, fulltext ({available: false, reason, load_url?}
+    bei Ausfall bzw. fremder Seite; sonst {pieces [{text, mark}], part, parts, more, prev_url, next_url, origin
+    ("multigpt" | "lokal"), message, offset, marks, title, url, title_id}), linked ({id, title, key, url} eines schon
+    übernommenen Titels, sonst leer), place_fields, notice, library_query, library_mode, work_url, literature_url,
+    seit Runde 18b has_key, personas, give_text (Text des Teils, vorbelegt), give_source, max_persona_text für das
+    Formular „An Persona geben“ (POST /literatur/act, action=persona, ohne übernommenen Titel).
+    „In die Bibliothek übernehmen“ (POST /literatur/act, action=adopt) gibt es nur hier, für den Menschen. -#}
+{% extends "base.html" %}
+{% block title %}{% if fulltext.available %}{{ fulltext.title }}{% else %}{{ document }}{% endif %} – Volltext – Baruch{% endblock %}
+{% block page_title %}Volltext · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ literature_url }}">Literatur</a>
+  <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="source-page source-multigpt">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <article class="source-document" data-document="{{ document }}"{% if collection %} data-collection="{{ collection }}"{% endif %}>
+    <header class="source-head">
+      <h1><cite>{% if fulltext.available %}{{ fulltext.title }}{% else %}{{ document }}{% endif %}</cite></h1>
+      <p class="muted small">
+        MultiGPT{% if collection %} · Sammlung {{ collection }}{% endif %} · Dokument <code>{{ document }}</code>
+        {%- if section %} · Fundstelle laut MultiGPT: {{ section }}{% endif %}
+      </p>
+      {%- if fulltext.available and fulltext.url %}
+      <a class="library-url small" href="{{ fulltext.url }}" rel="noopener noreferrer">{{ fulltext.url }}</a>
+      {%- endif %}
+      {%- if linked %}
+      <p class="small" data-linked="{{ linked.id }}">In der Bibliothek: <a href="{{ linked.url }}"><cite>{{ linked.title }}</cite></a> <code>@{{ linked.key }}</code></p>
+      {%- else %}
+      <form method="post" action="/literatur/act" class="source-adopt">
+        <input type="hidden" name="action" value="adopt">
+        <input type="hidden" name="document" value="{{ document }}">
+        <input type="hidden" name="collection" value="{{ collection }}">
+        {%- for f in place_fields %}
+        <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+        {%- endfor %}
+        <button class="btn" type="submit">In die Bibliothek übernehmen</button>
+        <span class="muted tiny">legt einen Titel an, verknüpft mit diesem Dokument (Volltext und Prüfung von Hervorhebungen)</span>
+      </form>
+      {%- endif %}
+    </header>
+
+    <section class="source-fulltext" id="volltext" aria-label="Volltext">
+      <h2 class="pane-title">Volltext</h2>
+      {%- if not fulltext.available %}
+      <p class="notice small" role="status" data-fulltext="missing">{{ fulltext.reason }}{% if fulltext.load_url %} <a href="{{ fulltext.load_url }}">Volltext laden</a>{% endif %}</p>
+      {%- else %}
+      {%- if fulltext.message %}
+      <p class="notice small" role="status" data-fulltext-origin="{{ fulltext.origin }}">{{ fulltext.message }}</p>
+      {%- endif %}
+      <p class="muted tiny" data-part="{{ fulltext.part }}">Teil {{ fulltext.part }}{% if fulltext.parts %} von {{ fulltext.parts }}{% elif fulltext.more %}, Ende noch unbekannt{% endif %}{% if fulltext.marks %} · {{ fulltext.marks }} Fundstellen markiert{% endif %}</p>
+      <div class="fulltext-text" data-fulltext="{{ fulltext.origin }}"{% if fulltext.offset is not none %} data-offset="{{ fulltext.offset }}"{% endif %}>
+        {%- for p in fulltext.pieces %}{% if p.mark %}<mark class="fulltext-mark">{{ p.text }}</mark>{% else %}{{ p.text }}{% endif %}{% endfor -%}
+      </div>
+      <nav class="fulltext-nav small" aria-label="Teile des Volltexts">
+        {%- if fulltext.prev_url %}<a href="{{ fulltext.prev_url }}" rel="prev" data-part-link="prev">← vorheriger Teil</a>{% endif %}
+        {%- if fulltext.next_url %}<a href="{{ fulltext.next_url }}" rel="next" data-part-link="next">nächster Teil →</a>{% endif %}
+      </nav>
+      {%- endif %}
+    </section>
+
+    <section class="source-give" id="an-persona" aria-label="An Persona geben">
+      <h2 class="pane-title">An Persona geben</h2>
+      {%- if not has_key %}
+      <p class="muted small" data-give="no-key">„An Persona geben“ braucht einen Abschnitt: die Literatur aus einem Abschnitt heraus öffnen.</p>
+      {%- else %}
+      <form method="post" action="/literatur/act" class="source-form" data-give="multigpt">
+        {%- for f in place_fields %}
+        <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+        {%- endfor %}
+        <input type="hidden" name="source" value="{{ give_source }}">
+        <label class="wide">Text (höchstens {{ max_persona_text }} Zeichen; auf die wichtige Stelle kürzen)
+          <textarea name="text" rows="6" maxlength="{{ max_persona_text }}" required>{{ give_text }}</textarea></label>
+        <label>Persona <select name="persona">
+          {%- for p in personas | default([]) %}<option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
+        </select></label>
+        <label class="wide">Frage an die Persona <input type="text" name="question" maxlength="1000" placeholder="Was sagt dieser Text zu meinem Abschnitt?"></label>
+        <button class="btn" type="submit" name="action" value="persona">An Persona geben</button>
+        <p class="muted tiny">Quelle am Beitrag: {{ give_source }} – kein Titel der Bibliothek nötig.</p>
+      </form>
+      {%- endif %}
+    </section>
+  </article>
+</main>
+{% endblock %}

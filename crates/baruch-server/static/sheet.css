@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Satzbild je Werk (Runde 18c). Steht in STYLE direkt nach wysiwyg.css und ergänzt es, ohne es zu ändern:
+   - Blattfarbe aus den Satzbild-Einstellungen des Werks (--ws-background aus work.sheet bzw. dem
+     <style id="ws-style"> des Editors); ohne Einstellung bleibt das helle Blatt (--sheet). Die Satzbreite
+     (--ws-width) liest wysiwyg.css schon selbst.
+   - Fundstelle einer Literatursuche im Satzbild (literature.ts, CSS Custom Highlight API, ohne DOM-Änderung). */
+.ws-sheet { background: var(--ws-background, var(--sheet)); }
+::highlight(literatur-fundstelle) { background-color: #ffe066; color: #1d2125; }

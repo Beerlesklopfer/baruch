@@ -1,0 +1,40 @@
+{#- Rückfrage von /gliederung/act, wenn outline.save ohne JavaScript den Abschnitt teilen (neue
+    Überschriften) oder mit dem vorigen zusammenführen (keine Überschrift) würde. Der Text steht in einem
+    versteckten Feld und wird mit split=1 bzw. merge=1 noch einmal geschickt. Kontext: work, node,
+    based_on, based_on_amend, mode (auto | new, Runde 23a), body, check, previous, lq, view, back_url. -#}
+{% extends "base.html" %}
+{% block title %}Speichern bestätigen – Baruch{% endblock %}
+{% block page_title %}Speichern bestätigen · {{ work.title }}{% endblock %}
+{% block body %}
+<main class="outline-page">
+  <h1 class="pane-title">{{ node.title }}</h1>
+  {%- if check.split %}
+  <p>Der Text enthält neue Überschriften. Beim Speichern wird „{{ node.title }}“ geteilt; neu entstehen:</p>
+  <ul class="outline-new">
+    {%- for title in check.split %}<li>{{ title }}</li>{% endfor %}
+  </ul>
+  {%- endif %}
+  {%- if check.merge %}
+  <p>Der Text hat keine Überschrift mehr. Beim Speichern wird er an „{{ previous }}“ angehängt; „{{ node.title }}“
+    entfällt (Beiträge wandern mit, der alte Text steht im Git-Spiegel).</p>
+  {%- endif %}
+  <pre class="outline-text">{{ body }}</pre>
+  <form method="post" action="/gliederung/act" class="outline-confirm">
+    <input type="hidden" name="method" value="outline.save">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="node" value="{{ node.id }}">
+    <input type="hidden" name="key" value="{{ node.key }}">
+    {%- if based_on is not none %}<input type="hidden" name="based_on" value="{{ based_on }}">{% endif %}
+    {%- if based_on_amend is not none %}<input type="hidden" name="based_on_amend" value="{{ based_on_amend }}">{% endif %}
+    {#- Runde 23a: Speichermodus (auto | new) weiterreichen, damit die Rückmeldung nach dem Speichern den Grund nennt. #}
+    {%- if mode %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
+    {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
+    {%- if view %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+    <input type="hidden" name="body" value="{{ body }}">
+    {%- if check.split %}<button class="btn primary" type="submit" name="split" value="1">Teilen und speichern</button>{% endif %}
+    {%- if check.merge %}<button class="btn primary" type="submit" name="merge" value="1">Zusammenführen und speichern</button>{% endif %}
+    <a class="btn" href="{{ back_url }}">Zurück</a>
+  </form>
+  <p class="muted tiny">„Zurück“ verwirft den Text; er ist dann nicht gespeichert.</p>
+</main>
+{% endblock %}

@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Toast (Runde 15, Vertrag §4): ohne JavaScript ein Hinweiskasten an seiner Stelle (fragments/toast.html),
+   mit JavaScript schwebend unten rechts in .toast-stack (web/src/toast.ts), schließbar. */
+/* Integrator Runde 15: Die Klasse .toast gibt es schon für die kurzen Fehlermeldungen anderer Widgets (app.css,
+   rot, fest unten in der Mitte). Darum gelten die Regeln hier nur für [data-widget="toast"]: Der Hinweis steht
+   ohne JavaScript an seiner Stelle, und die Fehlermeldungen behalten ihr Aussehen. */
+.toast[data-widget="toast"] {
+  position: static; left: auto; transform: none; max-width: none;
+  margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px;
+  background: var(--panel); color: var(--text);
+}
+.toast[data-widget="toast"].toast-warn { border-color: var(--warning); background: var(--warning-soft); }
+.toast[data-widget="toast"].toast-info { border-color: var(--primary); background: var(--primary-soft); }
+.toast-message { margin: 0; }
+.toast-details { margin-top: 4px; font-size: 0.9em; }
+.toast-details ul { margin: 4px 0 0; padding-left: 18px; }
+.toast-close {
+  float: right; margin: -4px -6px 0 8px; padding: 0 6px; border: 0; background: transparent; color: inherit;
+  font-size: 1.2em; line-height: 1.4; cursor: pointer;
+}
+.toast-close:focus-visible { outline: 2px solid var(--primary); border-radius: 4px; }
+.toast-stack {
+  position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+  width: min(420px, calc(100vw - 32px)); pointer-events: none;
+}
+.toast-stack .toast[data-widget="toast"] { margin: 0; box-shadow: 0 6px 24px rgb(0 0 0 / 22%); pointer-events: auto; }

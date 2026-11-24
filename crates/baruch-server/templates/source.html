@@ -1,0 +1,129 @@
+{#- Dokumentansicht /quelle: Angaben einer Quelle, Zitate (Anker #zitat-<id>, Hervorhebungen darin als
+    <mark>), alle Hervorhebungen (#hervorhebung-<id>, mit Prüfung gegen den Volltext), der Volltext einer mit
+    MultiGPT verknüpften Quelle (Runde 13, Anker #volltext, Teil für Teil ohne JavaScript) und das Formular für
+    markierten Text (ohne JavaScript; mit JavaScript bietet das Kontextmenü dasselbe).
+    Kontext: work, node? ({id, key}), title, quotes [{id, page, segments, target, url}], highlights, kinds,
+    place_fields (work, node, key, rev, lq, lmode), fulltext ({linked, note} ohne Verknüpfung; {linked,
+    available: false, reason, load_url?} bei Ausfall; sonst {pieces [{text, mark}], part, parts, more, prev_url,
+    next_url, origin, message, offset, …}), range_inputs (Anfang/Ende im Volltext sichtbar), notice, library_query,
+    library_mode ("fts" | "rag", reist wie lq mit; data-lmode für das Kontextmenü), work_url, literature_url.
+    Zitieren findet den Abschnitt über den festen Schlüssel key (versteckt in place_fields bzw.
+    data-key für das Kontextmenü), nicht über die Stelle. -#}
+{% extends "base.html" %}
+{% block title %}{{ title.title }} – Quelle – Baruch{% endblock %}
+{% block page_title %}Quelle · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ literature_url }}">Literatur</a>
+  <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="source-page">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <article class="source-document" data-widget="source" data-work="{{ work.id }}"
+           {%- if node is defined and node.id is defined %} data-node="{{ node.id }}"{% endif %}
+           {%- if node is defined and node.key is defined %} data-key="{{ node.key }}"{% endif %}
+           data-title="{{ title.id }}" data-source-label="@{{ title.key }}"{% if library_query %} data-lq="{{ library_query }}"{% endif %}{% if library_mode == "rag" %} data-lmode="rag"{% endif %}>
+    <header class="source-head">
+      <h1><cite>{{ title.title }}</cite>{% if title.year %} ({{ title.year }}){% endif %}</h1>
+      <p class="muted small">
+        {%- if title.authors %}{{ title.authors }} · {% endif -%}
+        {%- if title.place or title.publisher %}{{ title.place }}{% if title.place and title.publisher %}: {% endif %}{{ title.publisher }} · {% endif -%}
+        <code>@{{ title.key }}</code>
+      </p>
+      {%- if title.note %}
+      <p class="muted small">{{ title.note }}</p>
+      {%- endif %}
+      {%- if title.url is startingwith("https://") or title.url is startingwith("http://") %}
+      <a class="library-url small" href="{{ title.url }}" rel="noopener noreferrer">{{ title.url }}</a>
+      {%- endif %}
+    </header>
+
+    <section class="source-quotes" aria-label="Zitate">
+      <h2 class="pane-title">Zitate</h2>
+      {%- for q in quotes %}
+      <blockquote id="zitat-{{ q.id }}" class="source-quote{% if q.target %} target{% endif %}" data-quote="{{ q.id }}" data-locator="{{ q.page }}">
+        <p class="source-text">
+          {%- for s in q.segments %}
+            {%- if s.highlight %}<mark class="hl kind-{{ s.kind }}{% if s.target %} target{% endif %}" data-highlight="{{ s.highlight }}">{{ s.text }}</mark>
+            {%- else %}{{ s.text }}{% endif %}
+          {%- endfor -%}
+        </p>
+        <footer class="muted tiny"><a href="{{ q.url }}">{% if q.page %}{{ q.page }}{% else %}Zitat {{ loop.index }}{% endif %}</a>{% if q.note %} · {{ q.note }}{% endif %}</footer>
+      </blockquote>
+      {%- else %}
+      <p class="muted small">Noch keine Zitate.</p>
+      {%- endfor %}
+    </section>
+
+    <section class="source-fulltext" id="volltext" aria-label="Volltext">
+      <h2 class="pane-title">Volltext</h2>
+      {%- if not fulltext.linked %}
+      <p class="muted small" data-fulltext="none">{{ fulltext.note }}</p>
+      {%- elif not fulltext.available %}
+      <p class="notice small" role="status" data-fulltext="missing">{{ fulltext.reason }}{% if fulltext.load_url %} <a href="{{ fulltext.load_url }}">Volltext laden</a>{% endif %}</p>
+      {%- else %}
+      {%- if fulltext.message %}
+      <p class="notice small" role="status" data-fulltext-origin="{{ fulltext.origin }}">{{ fulltext.message }}</p>
+      {%- endif %}
+      <p class="muted tiny" data-part="{{ fulltext.part }}">Teil {{ fulltext.part }}{% if fulltext.parts %} von {{ fulltext.parts }}{% elif fulltext.more %}, Ende noch unbekannt{% endif %}{% if fulltext.marks %} · {{ fulltext.marks }} Fundstellen markiert{% endif %}</p>
+      <div class="fulltext-text" data-fulltext="{{ fulltext.origin }}"{% if fulltext.offset is not none %} data-offset="{{ fulltext.offset }}"{% endif %}>
+        {%- for p in fulltext.pieces %}{% if p.mark %}<mark class="fulltext-mark">{{ p.text }}</mark>{% else %}{{ p.text }}{% endif %}{% endfor -%}
+      </div>
+      <nav class="fulltext-nav small" aria-label="Teile des Volltexts">
+        {%- if fulltext.prev_url %}<a href="{{ fulltext.prev_url }}" rel="prev" data-part-link="prev">← vorheriger Teil</a>{% endif %}
+        {%- if fulltext.next_url %}<a href="{{ fulltext.next_url }}" rel="next" data-part-link="next">nächster Teil →</a>{% endif %}
+      </nav>
+      {%- endif %}
+    </section>
+  </article>
+
+  <section class="source-highlights" aria-label="Hervorhebungen">
+    <h2 class="pane-title">Hervorhebungen</h2>
+    {% include "fragments/highlights.html" %}
+  </section>
+
+  {#- Ohne JavaScript: Text hier einfügen; mit JavaScript füllt das Kontextmenü dieselben Felder. #}
+  <section class="source-act" aria-label="Markierten Text verwenden">
+    <h2 class="pane-title">Markierten Text verwenden</h2>
+    <form method="post" action="/literatur/act" class="source-form" data-source-form>
+      <input type="hidden" name="title" value="{{ title.id }}">
+      {%- for f in place_fields %}
+      <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
+      {%- endfor %}
+      {%- if range_inputs %}
+      {#- Mit MultiGPT verknüpft: Bereich im Volltext (Unicode-Zeichen ab 0) auch ohne JavaScript eintragbar; ohne
+          Zitat prüft Baruch ihn gegen den Volltext. #}
+      <label>Anfang im Volltext <input type="number" name="start" min="0" value=""></label>
+      <label>Ende im Volltext <input type="number" name="end" min="0" value=""></label>
+      {%- else %}
+      <input type="hidden" name="start" value="">
+      <input type="hidden" name="end" value="">
+      {%- endif %}
+      <label>Zitat <select name="quote">
+        <option value="">– ohne Zitat –</option>
+        {%- for q in quotes %}<option value="{{ q.id }}"{% if q.target %} selected{% endif %}>{% if q.page %}{{ q.page }}{% else %}Zitat {{ loop.index }}{% endif %}</option>{% endfor %}
+      </select></label>
+      <label>Fundstelle <input type="text" name="locator" placeholder="S. 12 (leer: Stelle des Zitats)"></label>
+      <label class="wide">Text <textarea name="text" rows="3" required placeholder="Markierten Text hier einfügen …"></textarea></label>
+      <label>Art <select name="kind">
+        {%- for k in kinds %}<option value="{{ k.value }}"{% if k.value == "core" %} selected{% endif %}>{{ k.label }}</option>{% endfor %}
+      </select></label>
+      <label>Notiz <input type="text" name="note"></label>
+      {#- Runde 15: „An Persona geben“ – Persona (Vorgabe der Lektor) und Frage; die Quellenangabe baut der Server
+          aus Titel und Fundstelle. Ohne Abschnitt (key) zeigt der Server eine Hinweisseite. #}
+      <label>Persona <select name="persona" data-persona-select>
+        {%- for p in personas %}<option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
+      </select></label>
+      <label class="wide">Frage an die Persona <input type="text" name="question" maxlength="1000" placeholder="Was sagt dieser Text zu meinem Abschnitt?"></label>
+      <div class="source-buttons">
+        <button class="btn primary" type="submit" name="action" value="highlight">Hervorheben</button>
+        <button class="btn" type="submit" name="action" value="cite">Zitieren (Vorschlag im Abschnitt)</button>
+        <button class="btn" type="submit" name="action" value="persona" title="Die Persona antwortet im Abschnitts-Chat">An Persona geben</button>
+        <button class="btn" type="submit" name="action" value="similar">Ähnliches suchen</button>
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}

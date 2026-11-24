@@ -1,0 +1,51 @@
+{#- Lösungen eines Beitrags mit „Als Vorschlag übernehmen“ (Runde 30b, chat-loesungen). Eingebunden von chat-bedienung
+    (fragments/assistants.html, post_item.html, thread.html) mit
+      post – Beitrag mit `id` und `solutions` (Liste aus crate::assist::solutions::post_solutions: index, quote,
+             replacement, step, adoptable),
+      work – Werk-id oder Werk mit `id`, node – Schlüssel oder Abschnitt mit `key`, rev – gezeigte Fassungsnummer oder
+             Fassung mit `number` (leer = Prüfgrundlage des Beitrags).
+    Übernehmbar (Häkchen) ist eine Lösung mit neuer Formulierung, deren Zitat in der gezeigten Fassung steht; mehrere
+    zugleich wählbar. „Als Vorschlag übernehmen“ legt einen Vorschlag an (Herkunft die Persona, Notiz „Lösung aus
+    Beitrag n“) und schlägt die Befunde „übernommen in Fassung n“ vor; übernehmen bleibt beim Menschen. „Lösungen
+    umsetzen“ lässt den Lektor 2 oder 3 Varianten schreiben. Beide Formulare gehen ohne JavaScript an
+    POST /loesungen/act (303). -#}
+{% macro post_solutions(post, work, node, rev) %}
+{%- set wid = work.id if work is mapping else work %}
+{%- set nkey = node.key if node is mapping else node %}
+{%- set shown = rev.number if rev is mapping else rev %}
+{%- if post.solutions %}
+<div class="sol-box" data-solutions="{{ post.id }}">
+  <form class="sol-form" method="post" action="/loesungen/act" aria-label="Lösungen aus Beitrag {{ post.id }}">
+    <input type="hidden" name="method" value="solution.adopt">
+    <input type="hidden" name="work" value="{{ wid }}">
+    <input type="hidden" name="key" value="{{ nkey }}">
+    <input type="hidden" name="post" value="{{ post.id }}">
+    {%- if shown %}<input type="hidden" name="rev" value="{{ shown }}">{% endif %}
+    <p class="sol-title small"><strong>Lösungen</strong>{% if post.author %} von {{ post.author }}{% endif %}</p>
+    <ul class="sol-list">
+      {%- for s in post.solutions %}
+      <li class="sol-item{% if s.adoptable %} adoptable{% endif %}">
+        {%- if s.adoptable %}<label><input type="checkbox" name="picks" value="{{ s.index }}"> {% endif %}
+        {%- if s.replacement %}<span class="sol-instead">statt „{{ s.quote }}“</span> <span class="sol-better">besser „{{ s.replacement }}“</span>
+        {%- else %}<span class="sol-step">Schritt: {{ s.step }}</span>{% if s.quote %} <span class="muted">(bei „{{ s.quote }}“)</span>{% endif %}{% endif %}
+        {%- if s.adoptable %}</label>{% elif s.replacement %} <span class="muted tiny">(Zitat steht nicht in der gezeigten Fassung)</span>{% endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- if post.solutions | selectattr("adoptable") | list | length %}
+    <button class="btn small primary" type="submit">Als Vorschlag übernehmen</button>
+    {%- endif %}
+  </form>
+  <form class="sol-variants" method="post" action="/loesungen/act" aria-label="Lösungen aus Beitrag {{ post.id }} in Varianten umsetzen">
+    <input type="hidden" name="method" value="solution.variants">
+    <input type="hidden" name="work" value="{{ wid }}">
+    <input type="hidden" name="key" value="{{ nkey }}">
+    <input type="hidden" name="post" value="{{ post.id }}">
+    {%- if shown %}<input type="hidden" name="rev" value="{{ shown }}">{% endif %}
+    <label class="small">Lektor schreibt
+      <select name="count"><option value="2" selected>2</option><option value="3">3</option></select> Varianten</label>
+    <button class="btn small" type="submit">Lösungen umsetzen</button>
+  </form>
+</div>
+{%- endif %}
+{%- endmacro %}

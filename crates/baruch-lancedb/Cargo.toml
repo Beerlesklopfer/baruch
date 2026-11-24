@@ -1,0 +1,28 @@
+[package]
+name = "baruch-lancedb"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Haupt-RAG (Runde 12): lokaler Vektorindex im Datenordner über LanceDB und das Zerlegen der Texte in
+# Stücke. Rein: keine SQLite, kein Netz, kein Schlüsselbund; die Vektoren bringt der Aufrufer mit.
+[dependencies]
+baruch-rag = { path = "../baruch-rag" }
+# LanceDB (Lizenz Apache-2.0, https://github.com/lancedb/lancedb), eingebettet ohne Server. 0.41 ist
+# die neueste Fassung (Stand 2026-11) und verlangt Arrow 58 / DataFusion 54 / Lance =14.0.2. Arrow kommt
+# nur über die Re-Exporte `lancedb::arrow_array`/`lancedb::arrow_schema` (keine eigene
+# Arrow-Abhängigkeit, also nie eine zweite Arrow-Linie). Ohne Standard-Features (die ohnehin leer
+# sind): keine Cloud-Speicher (aws/azure/gcs/oss), kein `remote`, keine eingebauten Einbetter
+# (openai/sentence-transformers) – Baruch bettet über Eliezer selbst ein.
+lancedb = { version = "0.41", default-features = false }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+# Eigene kleine Laufzeit für alle LanceDB-Zugriffe (unabhängig von der Laufzeit des Aufrufers).
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

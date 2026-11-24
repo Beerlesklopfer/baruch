@@ -1,0 +1,196 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Gedankenkarte (Runde 25): Bild, Strichart je Art, Abblenden, Druck, Dunkel – karte-bild.
+   Seite /werke/{id}/karte (templates/karte.html), SVG nach dem DOM-Vertrag (src/idea_map/bild/svg.rs).
+   Farben aus app.css (hell und dunkel über dieselben Variablen); die Verbindungsarten unterscheiden sich
+   zusätzlich durch die Strichart, nicht nur durch die Farbe. Ziehen, Fokus, Seitenleiste: karte_widget.css. */
+
+.karte {
+  flex: 1; overflow: auto; padding: 14px 18px 28px; display: flex; flex-direction: column; gap: 12px;
+  width: 100%; max-width: 1400px; margin: 0 auto;
+}
+.karte .pane-title { margin: 0; }
+/* Die Seite scrollt in .karte; ohne flex-shrink: 0 drückte die Spalte die Bühne auf ihre Mindesthöhe. */
+.karte > *, .im-stage > * { flex-shrink: 0; }
+.im-inline { display: inline-flex; margin: 0 0 0 6px; vertical-align: middle; }
+.btn.small { min-height: 24px; padding: 2px 8px; font-size: 12.5px; }
+
+/* Filter (GET). */
+.im-filter { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 0; }
+.im-filter label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.im-filter label.inline { flex-direction: row; align-items: center; gap: 5px; padding-bottom: 5px; }
+.im-filter input[type="text"], .im-filter input[type="search"], .im-filter select {
+  min-height: 28px; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit;
+}
+.im-filter-words { margin: -4px 0 0; }
+
+/* Bühne mit Werkzeugleiste und Bild. */
+.im-stage {
+  position: relative; display: flex; flex-direction: column; min-height: 420px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+}
+.im-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.im-near-note { margin: 0; padding: 4px 10px; border-bottom: 1px solid var(--line); }
+/* Feste Höhe, die viewBox passt sich per preserveAspectRatio (meet) ein (Sichtprüfung R25). */
+.im-svg { display: block; width: 100%; height: min(78vh, 900px); min-height: 420px; background: var(--panel); }
+
+/* Kanten. */
+.im-edge { stroke: var(--muted); stroke-width: 1.2; fill: none; vector-effect: non-scaling-stroke; }
+.im-tree { stroke: var(--line); stroke-width: 2.2; }
+.im-ref { stroke: var(--line); stroke-width: 1; opacity: .9; }
+.im-link { stroke-width: 2.6; }
+.im-kind-leads_to { stroke: var(--primary); }                                        /* durchgezogen */
+.im-kind-belongs_to { stroke: var(--success); stroke-dasharray: 9 4; }               /* gestrichelt */
+.im-kind-example_of { stroke: var(--warning); stroke-dasharray: 2 4; stroke-linecap: round; } /* gepunktet */
+.im-kind-contradicts { stroke: var(--danger); stroke-width: 3.2; stroke-dasharray: 12 3 2 3; } /* Strich-Punkt */
+.im-near { stroke: var(--primary); stroke-width: 1; stroke-dasharray: 1 3; opacity: .8; }
+.im-hide-near .im-near { display: none; }
+
+/* Knoten. */
+.im-node circle { fill: var(--panel); stroke: var(--muted); stroke-width: 1.5; }
+.im-node text { fill: var(--text); font-size: 11px; pointer-events: none; }
+.im-node a, a.im-node { cursor: pointer; }
+.im-work circle { fill: var(--primary-soft); stroke: var(--primary); stroke-width: 2.5; }
+.im-work .im-label { font-size: 13px; font-weight: 700; }
+.im-part circle { fill: var(--primary-soft); stroke: var(--primary); stroke-width: 2; }
+.im-chapter circle { fill: var(--bg); }
+.im-section circle { fill: var(--panel); stroke-dasharray: 4 2; }
+.im-none circle { fill: var(--bg); stroke-dasharray: 3 3; }
+/* Zeigen, was fehlt: Teile und Kapitel ohne Einfälle hervorgehoben (gestrichelter Warnrand, Wort „leer“ im Kreis). */
+.im-empty circle { fill: var(--panel); stroke: var(--warning); stroke-width: 2; stroke-dasharray: 5 3; }
+.im-node.im-empty .im-count { font-size: 10px; fill: var(--warning); }
+.im-count { font-size: 15px; font-weight: 700; }
+.im-label { font-size: 11px; }
+.im-id { font-size: 9px; fill: var(--muted); }
+.im-idea .im-label { font-size: 9px; }
+.im-open circle { fill: var(--warning-soft); stroke: var(--warning); }
+.im-done circle { fill: var(--success-soft); stroke: var(--success); }
+.im-pinned circle { stroke-width: 3; }
+.im-hit circle { stroke: var(--primary); stroke-width: 3; }
+.im-dim { opacity: .3; }
+a.im-node:hover circle, a.im-node:focus-visible circle { stroke: var(--primary); stroke-width: 3; }
+a.im-node:focus-visible { outline: none; }
+
+/* Beschriftungen mit Hof in der Flächenfarbe: lesbar über Kanten, hell wie dunkel. */
+.im-label { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+
+/* Dunkel (System oder Schalter): Baumkanten etwas heller als die Trennlinien, Kreise der Einfälle satter. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .im-tree { stroke: var(--muted); opacity: .55; }
+  :root:not([data-theme="light"]) .im-ref { stroke: var(--muted); opacity: .4; }
+  :root:not([data-theme="light"]) .im-dim { opacity: .25; }
+}
+:root[data-theme="dark"] .im-tree { stroke: var(--muted); opacity: .55; }
+:root[data-theme="dark"] .im-ref { stroke: var(--muted); opacity: .4; }
+:root[data-theme="dark"] .im-dim { opacity: .25; }
+
+/* Legende: Strichart als Linie vor dem Wort. */
+.im-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; color: var(--muted); }
+.im-key::before {
+  content: ""; display: inline-block; width: 28px; margin-right: 6px; vertical-align: middle;
+  border-top: 3px solid var(--muted);
+}
+.im-key-leads_to::before { border-top-color: var(--primary); }
+.im-key-belongs_to::before { border-top-style: dashed; border-top-color: var(--success); }
+.im-key-example_of::before { border-top-style: dotted; border-top-color: var(--warning); }
+.im-key-contradicts::before {
+  /* Strich-Punkt wie die Kante (.im-kind-contradicts, stroke-dasharray 12 3 2 3). */
+  border-top: 0; height: 3px;
+  background: repeating-linear-gradient(90deg, var(--danger) 0 12px, transparent 12px 15px,
+    var(--danger) 15px 17px, transparent 17px 20px);
+}
+.im-key-near::before { border-top-width: 1px; border-top-style: dotted; border-top-color: var(--primary); }
+
+/* Gliederungsliste und Widersprüche. */
+.im-outline, .im-contradictions { display: flex; flex-direction: column; gap: 8px; }
+.im-group {
+  margin-left: calc((var(--im-depth, 1) - 1) * 18px); padding: 8px 12px;
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--primary); border-radius: 8px;
+}
+.im-group-none { border-left-style: dashed; border-left-color: var(--muted); }
+.im-group.im-empty { border-left-color: var(--warning); border-left-style: dashed; }
+.im-group-head { margin: 0; font-size: 14px; }
+.im-group-head a { text-decoration: none; }
+.im-group-head a:hover { text-decoration: underline; }
+.im-sections { margin: 4px 0 0; }
+.im-ideas, .im-links { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.im-entry { padding: 4px 0 4px 8px; border-left: 3px solid var(--warning); }
+.im-entry.im-done { border-left-color: var(--success); }
+.im-entry.im-dim { opacity: .55; }
+.im-entry-title { font-weight: 600; text-decoration: none; }
+.im-entry-title:hover { text-decoration: underline; }
+.im-note { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.im-links { margin-left: 12px; }
+.im-link-item { padding-left: 8px; border-left: 3px solid var(--muted); }
+.im-link-item.im-kind-leads_to { border-left-color: var(--primary); }
+.im-link-item.im-kind-belongs_to { border-left-style: dashed; border-left-color: var(--success); }
+.im-link-item.im-kind-example_of { border-left-style: dotted; border-left-color: var(--warning); }
+.im-link-item.im-kind-contradicts { border-left-style: double; border-left-width: 4px; border-left-color: var(--danger); }
+.im-forms summary { cursor: pointer; color: var(--muted); }
+.im-form { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: flex-end; margin: 6px 0 0; }
+.im-form label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.im-form input, .im-form select {
+  min-height: 26px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit;
+}
+
+/* Runde 19b: Gruppen der Nähe mit Vorschlägen eines Assistenten. */
+.im-clusters { display: flex; flex-direction: column; gap: 8px; }
+.im-cluster-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.im-cluster {
+  padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-left: 3px dotted var(--primary);
+  border-radius: 8px; overflow-wrap: anywhere;
+}
+.im-proposal { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+.im-proposal input { min-height: 24px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+
+/* Druck: nur Bild, Gliederung und Widersprüche, schwarz auf weiß, ohne Formulare. */
+@media print {
+  .topbar, .settings-dialog, .im-filter, .im-toolbar, .im-forms, .im-inline, .im-side, .notice { display: none !important; }
+  body { background: #fff; color: #000; display: block; }
+  .karte { overflow: visible; padding: 0; max-width: none; }
+  .im-stage { border: 0; min-height: 0; break-inside: avoid; }
+  .im-svg { height: auto; max-height: none; min-height: 0; background: #fff; }
+  .im-node circle { fill: #fff; stroke: #000; }
+  .im-node text { fill: #000; }
+  .im-tree, .im-ref { stroke: #999; }
+  .im-near { stroke: #666; }
+  .im-kind-leads_to, .im-kind-belongs_to, .im-kind-example_of, .im-kind-contradicts { stroke: #000; }
+  .im-group, .im-link-item, .im-entry { background: #fff; border-color: #000; break-inside: avoid; }
+  .im-dim { opacity: .45; }
+  a { color: #000; text-decoration: none; }
+}
+
+/* Runde 18a: Bezug fein gestrichelt (vorher durchgezogen wie der Baum), Pfeilspitzen der gerichteten Arten in der
+   Farbe der Art, sichtbare Beschriftung jeder Verbindung und Nähe-Kante (mit Hof wie die Knotenbeschriftung).
+   Die Strichart steht zusätzlich als Attribut stroke-dasharray an der Kante (svg.rs); diese Regeln gelten für die
+   Seite (Hell/Dunkel über die Variablen aus app.css). */
+.im-ref { stroke-dasharray: 4 3; }
+.im-arrow-leads_to path { fill: var(--primary); }
+.im-arrow-belongs_to path { fill: var(--success); }
+.im-arrow-example_of path { fill: var(--warning); }
+.im-edge-label {
+  font-size: 9.5px; fill: var(--muted); pointer-events: none;
+  paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round;
+}
+.im-label-leads_to { fill: var(--primary); }
+.im-label-belongs_to { fill: var(--success); }
+.im-label-example_of { fill: var(--warning); }
+.im-label-contradicts { fill: var(--danger); }
+.im-hide-near .im-label-near { display: none; }
+.im-key-ref::before { border-top-width: 1px; border-top-style: dashed; }
+.im-key-leads_to::after, .im-key-belongs_to::after, .im-key-example_of::after { content: " →"; }
+@media print {
+  .im-edge-label { fill: #000; stroke: #fff; }
+  .im-arrow path { fill: #000; }
+}
+
+/* Runde 28 (befund-uebersicht): Ebene „Befunde“ – Kapitel mit vielen offenen Befunden hervorgehoben (Ring und Text
+   „k offen“ über dem Kreis, nicht nur Farbe). */
+.im-findings { font-size: 11px; font-weight: 700; fill: var(--warning); }
+.im-node.im-many-findings circle { stroke: var(--warning); stroke-width: 4; }
+.im-group.im-many-findings { border-left-color: var(--warning); border-left-width: 4px; }
+.im-findings-badge { text-decoration: none; }

@@ -1,0 +1,67 @@
+// Baruch: Umschlag und Titelei (Runde 11)
+// Umschlag, Vorderseite
+#page(header: none, footer: none, numbering: none, margin: 0pt, {
+  place(top + left, image(".baruch/wolke.png", alt: "Eine \"Wolke\" ]", width: 100%, height: 100%, fit: "cover"))
+  place(bottom + center, block(width: 100%, inset: (x: 10%, y: 9%), fill: gradient.linear(black.transparentize(100%), black.transparentize(30%), angle: 90deg), {
+      set align(center)
+      set par(leading: 0.5em)
+      text(size: 13pt, fill: white, "Mira Mondschein")
+      v(0.8em)
+      text(size: 30pt, weight: "bold", fill: white, "Das Wolkenhaus")
+      v(0.5em)
+      text(size: 15pt, fill: white, "Geschichten vom Dachboden")
+  }))
+})
+// Umschlag, Innenseite (leer)
+#page(header: none, footer: none, numbering: none, {
+  counter(page).update(0)
+  hide[ ]
+})
+// Titelei
+#page(header: none, footer: none, numbering: none, {
+  set align(center)
+  v(22%)
+  text(size: 16pt, "Das Wolkenhaus")
+})
+#page(header: none, footer: none, numbering: none, {
+  set align(center)
+  v(22%)
+  text(size: 11pt, style: "italic", "Reihe Dachkammer")
+})
+#page(header: none, footer: none, numbering: none, {
+  set align(center)
+  v(12%)
+  text(size: 13pt, "Mira Mondschein")
+  v(2em)
+  text(size: 26pt, weight: "bold", "Das Wolkenhaus")
+  v(1em)
+  text(size: 14pt, "Geschichten vom Dachboden")
+  v(1fr)
+  text(size: 11pt, "Lampenverlag")
+  linebreak()
+  text(size: 10pt, "Kieselbach")
+})
+#page(header: none, footer: none, numbering: none, {
+  set text(size: 8.5pt)
+  set par(justify: false)
+  v(1fr)
+  block(spacing: 0.8em, text("Bibliografische Information der Deutschen Nationalbibliothek", weight: "bold"))
+  block(spacing: 0.8em, text("Die Deutsche Nationalbibliothek verzeichnet diese Publikation in der Deutschen Nationalbibliografie; detaillierte bibliografische Daten sind im Internet über https://dnb.de abrufbar."))
+  block(spacing: 0.8em, text("© 2026 Mira Mondschein, Lampenverlag, Kieselbach"))
+  block(spacing: 0.8em, text("2. Auflage"))
+  block(spacing: 0.8em, text("ISBN 978-3-16-148410-0"))
+  block(spacing: 0.8em, text("Bibelzitate: Erfundene Übersetzung. Mit freundlicher Genehmigung."))
+  block(spacing: 0.8em, text("Umschlaggestaltung und Bildnachweis: Wolke, Zeichnung: erfunden"))
+  block(spacing: 0.8em, text("Gesetzt mit Baruch"))
+  block(spacing: 0.8em, text("Druck: Druckhaus Feder"))
+})
+#page(header: none, footer: none, numbering: none, {
+  set align(center)
+  v(25%)
+  set text(style: "italic")
+  par("Für alle, die nach oben schauen.")
+  par("Und für Tante Ilse.")
+})
+#page(header: none, footer: none, numbering: none, {
+  hide[ ]
+})

@@ -1,0 +1,164 @@
+{#- Seite /werke/{id}/befunde (Runde 28, befund-uebersicht, src/findings/page.rs): Übersicht der Befunde eines Werks.
+    Oben die Filter (GET: status, kind, persona, since, until, include_praise, older_than_days), darunter die Matrix
+    Kapitel × Persona mit Teilen als Gruppen (Summen je Teil und gesamt), je Zelle Zeichen und Zahl je Status (nicht nur
+    Farbe; Worte im title und für Bildschirmleser), Link auf die Befunde der Zelle (?key=&persona=#zelle). Darunter je
+    nach Adresse ein einzelner Befund (?befund=) mit Verlauf, die Befunde einer Zelle oder die Liste „offen, älter als
+    n Tagen“, die Sammelvorschläge des Lektors (mit Links auf die Ursprünge) und der Verlauf je Kapitel. Statusformulare
+    aus fragments/findings_panel.html (Makros), alle an POST /werke/befunde/act. Ohne JavaScript vollständig; das Widget
+    „findings“ (web/src/findings.ts) filtert ohne Neuladen und bedient die Matrix mit den Pfeiltasten.
+    Kontext: settings, work, title, base, here, reset, workspace, filter, praise_toggle, statuses, kinds, personas,
+    matrix, history, detail, cell, old, old_total, old_limit (Runde 23a: Kappungshinweis), older_days, summaries, targets, many, notice, error, draft. -#}
+{% extends "base.html" %}
+{% block title %}Befunde · {{ title }} – Baruch{% endblock %}
+{% block page_title %}Befunde · {{ title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+{%- import "fragments/findings_panel.html" as fp %}
+<main class="befunde" data-widget="findings" data-findings-page data-work="{{ work.id }}">
+  <div data-findings-main>
+  {%- if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  {%- if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+  <h1 class="pane-title">Befunde in „{{ title }}“</h1>
+  <p class="muted small">Befunde sind die einzelnen Punkte aus den Antworten der Personas. Den Status setzt nur der Mensch;
+    Assistenten schlagen höchstens vor. Offen zählt, was weder entschieden noch an einen gleichen Befund angehängt noch
+    Lob ist – dieselbe Zahl steht als Abzeichen „k offen“ in der Gliederung und im Editorkopf.</p>
+
+  <form class="fd-filter" method="get" action="{{ base }}" role="search" aria-label="Befunde filtern" data-findings-filter>
+    <fieldset class="fd-filter-group"><legend class="small">Status</legend>
+      {%- for s in statuses %}
+      <label class="inline small"><input type="checkbox" name="status" value="{{ s.value }}"{% if s.checked %} checked{% endif %}> <span aria-hidden="true">{{ s.sign }}</span> {{ s.label }}</label>
+      {%- endfor %}
+    </fieldset>
+    <fieldset class="fd-filter-group"><legend class="small">Art</legend>
+      {%- for k in kinds %}
+      <label class="inline small"><input type="checkbox" name="kind" value="{{ k.value }}"{% if k.checked %} checked{% endif %}> {{ k.label }}</label>
+      {%- endfor %}
+    </fieldset>
+    <label class="small">Persona
+      <select name="persona">
+        <option value=""{% if not filter.persona %} selected{% endif %}>alle</option>
+        {%- for p in personas %}<option value="{{ p }}"{% if filter.persona == p %} selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select></label>
+    <label class="small">seit <input type="date" name="since" value="{{ filter.since or '' }}"></label>
+    <label class="small">vor dem <input type="date" name="until" value="{{ filter.until or '' }}" title="bis ausschließlich diesem Tag"></label>
+    <label class="small">älter als <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ filter.older_than_days if filter.older_than_days is not none else '' }}"> Tage</label>
+    <label class="inline small"><input type="checkbox" name="include_praise" value="1"{% if filter.include_praise %} checked{% endif %}> Lob zeigen</label>
+    <button class="btn" type="submit">Anwenden</button>
+    {%- if filter.active %}<a class="btn" href="{{ reset }}">Filter aufheben</a>{% endif %}
+    <a class="small fd-praise-toggle" href="{{ praise_toggle }}">{% if filter.include_praise %}Lob ausblenden{% else %}Lob einblenden{% endif %}</a>
+  </form>
+
+  <section class="fd-matrix-section" aria-label="Matrix Kapitel mal Persona">
+    <h2 class="pane-title">Matrix: Kapitel × Persona <span class="badge warning" title="offene Befunde im Werk (Abzeichen)">{{ matrix.open_findings }} offen</span></h2>
+    <p class="fd-legend small" aria-label="Zeichen">Zeichen: ○ offen · ✓ übernommen · ✗ verworfen · → verschoben · = erledigt ohne Änderung{% if filter.include_praise %} · + Lob{% endif %}. Kapitel mit {{ many }} oder mehr offenen Befunden sind hervorgehoben.</p>
+    {%- if matrix.truncated %}
+    <p class="notice warning small fd-truncated" role="status">Gekappt: Die Matrix zählt nur die neuesten {{ view_limit }} von {{ matrix.truncated }} Befunden im Filter; die Abzeichen zählen alle. Ein engerer Filter (Zeitraum, Persona, Status) zeigt den Rest.</p>
+    {%- endif %}
+    {%- if matrix.total.solution_words %}
+    <p class="fd-solutions-total small" data-solved="{{ matrix.total.solved }}" data-unsolved="{{ matrix.total.unsolved }}">Lösungen: {{ matrix.total.solution_words }} (ohne Lob; je Zeile in der Summe als „mit/ohne“).</p>
+    {%- endif %}
+    {%- if matrix.personas %}
+    <div class="fd-matrix-wrap">
+    <table class="fd-matrix" data-findings-matrix>
+      <thead><tr><th scope="col">Kapitel</th>{% for p in matrix.personas %}<th scope="col">{{ p }}</th>{% endfor %}<th scope="col">Summe</th></tr></thead>
+      {%- for g in matrix.groups %}
+      <tbody class="fd-group fd-group-{{ g.kind }}">
+        <tr class="fd-group-head"><th scope="rowgroup" colspan="{{ matrix.personas | length + 2 }}">{% if g.number %}<span class="num">{{ g.number }}</span> {% endif %}{{ g.title }}</th></tr>
+        {%- for r in g.rows %}
+        <tr class="fd-row{% if r.many %} fd-many{% endif %}{% if r.part %} fd-part-row{% endif %}" data-key="{{ r.key if r.key is not none else '' }}" data-open-badge="{{ r.open_badge }}">
+          <th scope="row" class="fd-row-head">{% if r.node_url %}<a href="{{ r.node_url }}">{% if r.number %}<span class="num">{{ r.number }}</span> {% endif %}{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}{% if r.many %} <span class="badge warning" title="viele offene Befunde">viele offen</span>{% endif %}</th>
+          {%- for c in r.cells %}
+          <td class="fd-cell heat-{{ c.heat }}{% if c.selected %} selected{% endif %}" data-open="{{ c.open }}" data-total="{{ c.total }}" title="{{ c.words }}">{% if c.url %}<a href="{{ c.url }}" data-findings-cell aria-label="{{ r.title }}, {{ matrix.personas[loop.index0] }}: {{ c.words }}">{{ c.label }}</a>{% else %}<span aria-label="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></span>{% endif %}</td>
+          {%- endfor %}
+          <td class="fd-cell fd-sum heat-{{ r.total.heat }}{% if r.total.selected %} selected{% endif %}" data-open="{{ r.total.open }}" title="{{ r.total.words }}">{% if r.total.url %}<a href="{{ r.total.url }}" data-findings-cell aria-label="{{ r.title }}, alle Personas: {{ r.total.words }}">{{ r.total.label }}</a>{% else %}<span aria-hidden="true">{{ r.total.label }}</span><span class="visually-hidden">{{ r.total.words }}</span>{% endif %}{% if r.total.solution_words %} <span class="fd-sol tiny" title="{{ r.total.solution_words }}" aria-label="{{ r.total.solution_words }}">{{ r.total.solved }}/{{ r.total.unsolved }}</span>{% endif %}</td>
+        </tr>
+        {%- endfor %}
+        <tr class="fd-group-sum"><th scope="row">Summe {{ g.title }}</th>{% for c in g.totals %}<td class="fd-cell" data-open="{{ c.open }}" title="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></td>{% endfor %}<td class="fd-cell fd-sum" data-open="{{ g.total.open }}" title="{{ g.total.words }}"><span aria-hidden="true">{{ g.total.label }}</span><span class="visually-hidden">{{ g.total.words }}</span></td></tr>
+      </tbody>
+      {%- endfor %}
+      <tfoot><tr class="fd-total"><th scope="row">Gesamt</th>{% for c in matrix.totals %}<td class="fd-cell" data-open="{{ c.open }}" title="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></td>{% endfor %}<td class="fd-cell fd-sum" data-open="{{ matrix.total.open }}" title="{{ matrix.total.words }}"><span aria-hidden="true">{{ matrix.total.label }}</span><span class="visually-hidden">{{ matrix.total.words }}</span></td></tr></tfoot>
+    </table>
+    </div>
+    {%- else %}
+    <p class="muted">Keine Befunde{% if filter.active %} für diesen Filter{% endif %}. Befunde entstehen aus den Antworten der Personas (Prüfen, Chat, Fäden).</p>
+    {%- endif %}
+  </section>
+
+  {%- if detail %}
+  <section class="fd-detail" id="befund" aria-label="Einzelner Befund">
+    {%- if detail.missing %}
+    <p class="notice error" role="alert">Befund {{ detail.missing }} gibt es in diesem Werk nicht.</p>
+    {%- else %}
+    <h2 class="pane-title">Befund {{ detail.card.ref }}</h2>
+    {{ fp.card(detail.card, work.id, here, targets, draft, true) }}
+    {%- if detail.similar %}
+    <p class="small">Angehängt an <a href="{{ detail.similar.url }}">{{ detail.similar.ref }}</a> ({{ detail.similar.persona }}: {{ detail.similar.status_words }}) – zählt nicht als offen.</p>
+    {%- endif %}
+    <h3 class="small">Verlauf</h3>
+    {%- if detail.history %}
+    <ol class="fd-history small">
+      {%- for e in detail.history %}
+      <li><span aria-hidden="true">{{ e.status_sign }}</span> {{ e.words }}{% if e.reason %} – „{{ e.reason }}“{% endif %} · {{ e.actor_label }}{% if e.proposed %} (Vorschlag{% if e.decision_label %}, {{ e.decision_label }}{% if e.decided_by %} von {{ e.decided_by }}{% endif %}{% else %}, offen{% endif %}){% endif %}{% if e.note %} – Notiz: {{ e.note }}{% endif %} <span class="muted tiny">{{ e.time }}</span></li>
+      {%- endfor %}
+    </ol>
+    {%- else %}
+    <p class="muted small">Noch keine Änderung (angelegt {{ detail.card.time }}).</p>
+    {%- endif %}
+    {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- if cell %}
+  <section class="fd-cell-list" id="zelle" aria-label="Befunde der Zelle">
+    {%- if cell.missing %}
+    <p class="notice error" role="alert">Abschnitt {{ cell.missing }} gibt es in diesem Werk nicht (mehr).</p>
+    {%- else %}
+    <h2 class="pane-title">Befunde in <a href="{{ cell.node_url }}">{{ cell.label }}</a>{% if cell.persona %} von {{ cell.persona }}{% endif %} ({{ cell.count }})</h2>
+    <p class="small"><a href="{{ base }}{% if filter.query %}?{{ filter.query }}{% endif %}">Zurück zur ganzen Matrix</a></p>
+    {%- for c in cell.cards %}{{ fp.card(c, work.id, here, targets, draft, true) }}{% else %}<p class="muted small">Keine Befunde in dieser Zelle.</p>{% endfor %}
+    {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- if not detail and not cell %}
+  <section class="fd-old" id="offen-aelter" aria-label="Offen, älter als {{ older_days }} Tage">
+    <h2 class="pane-title">Offen, älter als {{ older_days }} Tage ({{ old | length }})</h2>
+    <form class="fd-inline small" method="get" action="{{ base }}" data-findings-filter>
+      <label>älter als <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ older_days }}"> Tage</label>
+      <button class="btn small" type="submit">Zeigen</button>
+    </form>
+    {#- Runde 23a: Über der Grenze fehlen die ältesten Befunde in der Liste – das sagt die Seite jetzt. #}
+    {%- if old_total > old_limit %}
+    <p class="notice" role="status" data-old-truncated>Es gibt {{ old_total }} offene Befunde, die älter sind; gezeigt sind die {{ old_limit }} neuesten davon. Die älteren stehen in der Matrix (Zelle anklicken) oder erscheinen mit einer größeren Zahl bei „älter als … Tage“.</p>
+    {%- endif %}
+    {%- for c in old %}{{ fp.card(c, work.id, here, targets, draft, true) }}{% else %}<p class="muted small">Keine offenen Befunde, die älter sind.</p>{% endfor %}
+  </section>
+
+  <section class="fd-summaries" id="sammelvorschlaege" aria-label="Sammelvorschläge">
+    <h2 class="pane-title">Sammelvorschläge ({{ summaries | length }})</h2>
+    <p class="muted small">Beim RFC fasst der Lektor die Befunde der anderen zusammen – nur als Vorschlag mit Verweis auf die Ursprünge.</p>
+    {%- for c in summaries %}{{ fp.card(c, work.id, here, targets, draft, true) }}{% else %}<p class="muted small">Keine Sammelvorschläge.</p>{% endfor %}
+  </section>
+
+  <section class="fd-history-section" id="verlauf" aria-label="Verlauf je Kapitel">
+    <h2 class="pane-title">Verlauf je Kapitel</h2>
+    {%- if history %}
+    <table class="fd-history-table small">
+      <thead><tr><th scope="col">Kapitel</th><th scope="col">✓ eingeflossen</th><th scope="col">✗ verworfen</th><th scope="col">→ verschoben</th><th scope="col">= erledigt</th><th scope="col">In Fassungen</th></tr></thead>
+      <tbody>
+      {%- for h in history %}
+        <tr><th scope="row"><a href="{{ base }}?key={{ h.key }}#zelle">{{ h.label }}</a></th><td>{{ h.total.adopted }}</td><td>{{ h.total.rejected }}</td><td>{{ h.total.deferred }}</td><td>{{ h.total.done }}</td>
+          <td>{% for a in h.revisions %}<span class="fd-adopted-in">{{ a.label }}, Fassung {{ a.rev }}: {% for id in a.findings %}<a href="{{ base }}?befund={{ id }}">[B{{ id }}]</a>{% if a.stands[loop.index0] %} <span class="fd-stand" title="Stand der Fortschreibung beim Übernehmen">· Stand {{ a.stands[loop.index0] }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% if not loop.last %}; {% endif %}{% else %}<span class="muted">–</span>{% endfor %}</td></tr>
+      {%- endfor %}
+      </tbody>
+    </table>
+    {%- else %}
+    <p class="muted small">Noch keine entschiedenen Befunde.</p>
+    {%- endif %}
+  </section>
+  {%- endif %}
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,3 @@
+# Beim Paketbau erzeugt (scripts/third-party-licenses.py), nicht eingecheckt.
+*
+!.gitignore

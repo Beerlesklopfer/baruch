@@ -1,0 +1,327 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Baruch: drei Spalten (Gliederung | Editor | Assistenten), hell und dunkel. */
+
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2125; --muted: #5f6b76; --line: #d9dee3;
+  --primary: #3b5bdb; --primary-soft: #e7ecff; --success: #2b8a3e; --success-soft: #e6f4ea;
+  --danger: #c92a2a; --danger-soft: #fdeaea; --warning: #9a5800; --warning-soft: #fff3db;
+  --selected: #e7ecff; --sheet: #ffffff; --sheet-text: #111;
+  --left: 20%; --right: 26%;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16191d; --panel: #1f2328; --text: #e3e6ea; --muted: #9aa5b1; --line: #343a41;
+    --primary: #7d97ff; --primary-soft: #26305a; --success: #69c47e; --success-soft: #1d3324;
+    --danger: #ff7b7b; --danger-soft: #3d2022; --warning: #f0b450; --warning-soft: #3a2e17;
+    --selected: #26305a; --sheet: #f4f1ea; --sheet-text: #111;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16191d; --panel: #1f2328; --text: #e3e6ea; --muted: #9aa5b1; --line: #343a41;
+  --primary: #7d97ff; --primary-soft: #26305a; --success: #69c47e; --success-soft: #1d3324;
+  --danger: #ff7b7b; --danger-soft: #3d2022; --warning: #f0b450; --warning-soft: #3a2e17;
+  --selected: #26305a; --sheet: #f4f1ea; --sheet-text: #111;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Cantarell, "Noto Sans", sans-serif;
+  display: flex; flex-direction: column;
+}
+a { color: inherit; }
+code, pre, textarea { font-family: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace; }
+
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.tiny { font-size: 11.5px; }
+.grow { flex: 1; }
+.num { color: var(--muted); margin-right: .5em; font-variant-numeric: tabular-nums; }
+
+.topbar {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; padding: 8px 14px;
+  background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0;
+}
+/* Eine Zeile, auch bei 1024 px (Runde 9: Menüs statt elf Knöpfen): Bedienelemente behalten ihre
+   Breite (flex-shrink: 0), Werktitel und Autor kürzen sich mit „…“, statt umzubrechen und die Knöpfe
+   aus dem Fenster zu schieben. Der volle Titel steht in der Werkwahl bzw. im Fenstertitel. */
+.topbar > .btn, .topbar > .brand, .topbar > .work-select, .topbar > .menubar {
+  flex-shrink: 0; flex-grow: 0; white-space: nowrap;
+}
+.topbar > .work-title, .topbar > .muted {
+  min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.topbar > .work-title { min-width: 6ch; }
+.topbar > .muted { flex-shrink: 100; } /* der Autor weicht zuerst */
+.topbar > .grow { min-width: 0; }
+/* Runde 18a: Schmale Fenster (unter 1000px) – die Kopfzeile bricht in eine zweite Zeile um, statt Knöpfe und Menüs
+   aus dem Fenster zu schieben (Bedienelemente schrumpfen nicht, siehe oben). Ab 1000px bleibt sie einzeilig. */
+@media (max-width: 999.98px) {
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .topbar > .work-title { flex-basis: 12ch; flex-grow: 1; }
+}
+.brand { text-decoration: none; font-weight: 700; }
+.brand { font-size: 18px; }
+.work-title { font-size: 15px; }
+/* Werkwahl in der Kopfzeile (GET-Formular, ohne JavaScript bedienbar). */
+.work-select { display: flex; align-items: center; gap: 6px; margin: 0; }
+.work-select select {
+  min-height: 30px; max-width: 22ch; padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-height: 30px; padding: 4px 12px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  font: inherit; text-decoration: none; cursor: pointer;
+}
+.btn:hover:not([disabled]):not([aria-disabled]) { border-color: var(--primary); }
+.btn[disabled], .btn[aria-disabled] { opacity: .45; cursor: default; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.success { background: var(--success); border-color: var(--success); color: #fff; }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; white-space: nowrap; }
+.badge.primary { background: var(--primary-soft); color: var(--primary); }
+.badge.warning { background: var(--warning-soft); color: var(--warning); }
+
+/* Drei Spalten mit verschiebbaren Grenzen (Widget „splitter“ setzt --left/--right). */
+.workspace {
+  flex: 1; min-height: 0; padding: 6px;
+  display: grid; grid-template-columns: var(--left) 6px 1fr 6px var(--right);
+}
+.pane {
+  min-width: 0; min-height: 0; overflow: auto; padding: 10px 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+/* Editor in eigenen Bereichen (Wunsch 2026-11-06): Kopf und Werkzeugleiste fest oben, das Blatt
+   (.editor-body) füllt den Rest und scrollt allein, unten die schmale Statuszeile. Der Editor selbst
+   scrollt nicht mehr. Früher scrollte #pane-editor als Ganzes, und alle Kinder (Kopf, Knöpfe, Formular,
+   Hinweise, Fassungsliste) standen mit flex-shrink: 0 untereinander: Sobald die Fassungsliste und die
+   Knöpfe die Höhe aufbrauchten, blieb für das Formular (flex: 1) kein freier Platz, es fiel auf seine
+   min-height (12em) zurück, und das Satzbild darin bekam nach Leiste und Hinweisen nur wenige Zeilen. */
+#pane-editor { display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+#pane-editor > * { flex: none; }
+#pane-editor > .wysiwyg, #pane-editor > .editor-body { flex: 1 1 0; min-height: 0; }
+/* Im Editor steht das Blatt in div.wysiwyg (Werkzeugleiste, Blatt, Statuszeile): auch dort füllt es den Rest,
+   sonst ist es nur so hoch wie der Text, und die Statuszeile springt von Abschnitt zu Abschnitt. */
+.wysiwyg > .editor-body { flex: 1 1 0; min-height: 0; }
+.editor-body {
+  min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 6px 0;
+}
+.editor-body > * { flex-shrink: 0; }
+.editor-status { display: flex; align-items: center; gap: 10px; min-height: 0; }
+.status-hints { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-status .btn { padding-top: 3px; padding-bottom: 3px; }
+#pane-assistants { display: flex; flex-direction: column; gap: 8px; }
+.splitter { cursor: col-resize; border-radius: 3px; }
+.splitter:hover, .splitter.dragging, .splitter:focus-visible { background: var(--primary-soft); }
+.pane-title { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 4px 0 6px; text-transform: none; }
+
+/* Gliederung */
+.tree, .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul { padding-left: 14px; }
+.tree summary { list-style: none; display: flex; align-items: center; cursor: pointer; }
+.tree summary::-webkit-details-marker { display: none; }
+.tree summary::before { content: "▸"; width: 16px; flex: none; color: var(--muted); font-size: 12px; }
+.tree details[open] > summary::before { content: "▾"; }
+.tree .leaf { display: flex; padding-left: 16px; }
+.tree-entry {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; border-radius: 5px; text-decoration: none;
+}
+.tree-entry:hover { background: var(--bg); }
+.tree-entry.selected { background: var(--selected); color: var(--primary); }
+.tree-entry.part { font-weight: 600; }
+.tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Editor */
+/* Kopf immer einzeilig (sonst springt die Werkzeugleiste bei langen Titeln): Titel und Fassungsangabe
+   kürzen sich mit „…“, der volle Text steht im title. Nur der Hinweis „Schlüssel gibt es nicht“ bricht um. */
+.editor-head { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-width: 0; }
+.editor-head:has(.missing-key) { flex-wrap: wrap; }
+.node-title { font-size: 18px; margin: 0; flex: 1 1 0; min-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-head > .rev-meta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-head > .switcher, .editor-head > .current-link { flex: none; white-space: nowrap; }
+.switcher { display: flex; align-items: center; gap: 6px; }
+.counter { font-variant-numeric: tabular-nums; min-width: 3em; text-align: center; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.diff { margin: 8px 0 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff span { display: block; min-height: 1.45em; padding: 0 4px; border-radius: 3px; }
+.diff .same { color: var(--muted); }
+.diff .added { color: var(--success); background: var(--success-soft); }
+.diff .removed { color: var(--danger); background: var(--danger-soft); text-decoration: line-through; }
+.editor-form { flex: 1 0 auto; min-height: 12em; display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.editor-form textarea {
+  flex: 1 0 auto; min-height: 12em; resize: none; width: 100%; padding: 10px; font-size: 14px; line-height: 1.5;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text);
+}
+.editor-foot { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.editor-form textarea[hidden] { display: none; }
+
+/* Revisionsbaum: hervorgehobene aktuelle Fassung, Knöpfe, kleine Baumansicht. */
+.badge.success { background: var(--success-soft); color: var(--success); }
+.counter.is-current {
+  background: var(--success-soft); color: var(--success); border-radius: 6px; padding: 2px 6px; font-weight: 600;
+}
+.current-link { color: var(--primary); }
+/* Akkordeon „Fassungen“ (fragments/revisions.html): Knöpfe der gezeigten Fassung über der Baumansicht. */
+.rev-actions { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding-bottom: 6px; }
+.rev-count { background: var(--primary-soft); color: var(--primary); }
+.rev-actions form { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rev-edit > summary { list-style: none; }
+.rev-edit > summary::-webkit-details-marker { display: none; }
+.rev-edit[open] { flex-basis: 100%; }
+.rev-edit-form { flex-direction: column; align-items: stretch !important; margin-top: 8px !important; }
+.rev-edit-form label { display: flex; flex-direction: column; gap: 4px; }
+.rev-edit-form textarea {
+  min-height: 10em; width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: 13px;
+}
+.rev-edit-form input[type="text"] {
+  padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+.picked { margin: 0; padding: 6px 8px; border-radius: 6px; background: var(--warning-soft); color: var(--warning); }
+.revtree { border-top: 1px solid var(--line); padding-top: 6px; }
+.acc .revtree .pane-title { margin-top: 0; }
+.revtree-list { list-style: none; margin: 0 0 6px; padding: 0; }
+.revtree-item {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 2px 6px 2px calc(6px + var(--depth, 0) * 18px); border-radius: 5px;
+}
+.revtree-item.shown { background: var(--selected); }
+.revtree-item.is-current .revtree-num { color: var(--success); font-weight: 700; }
+.revtree-item.rejected { opacity: .7; }
+.revtree-num { font-variant-numeric: tabular-nums; min-width: 2ch; font-weight: 600; }
+.revtree-links a { color: var(--primary); }
+.revtree-chapter summary { cursor: pointer; color: var(--muted); margin: 4px 0; }
+.revtree-section { margin: 4px 0 8px; }
+.revtree-section.selected { border-left: 3px solid var(--primary); padding-left: 6px; }
+
+/* Vorschau (Platzhalter für Typst) */
+.sheet-wrap { flex: 1 0 auto; display: flex; justify-content: center; padding: 8px; }
+.sheet {
+  width: min(560px, 100%); padding: 48px; background: var(--sheet); color: var(--sheet-text);
+  border: 1px solid #bbb; border-radius: 2px; font-family: "Libertinus Serif", Georgia, serif; font-size: 15px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .12); height: fit-content;
+}
+.sheet h1 { font-size: 24px; font-weight: normal; }
+.sheet h2 { font-size: 18px; font-weight: normal; }
+
+/* Rechte Spalte als Akkordeon: der offene Abschnitt füllt die Höhe. */
+#pane-assistants { padding: 0; overflow: hidden; }
+.accordion { height: 100%; display: flex; flex-direction: column; }
+.acc { display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--line); }
+.acc:last-child { border-bottom: 0; }
+.acc[open] { flex: 1; }
+.acc-head {
+  list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 8px;
+  padding: 10px 12px; user-select: none;
+}
+.acc-head::-webkit-details-marker { display: none; }
+.acc-head::before { content: "▸"; color: var(--muted); font-size: 12px; width: 12px; flex: none; }
+.acc[open] > .acc-head::before { content: "▾"; }
+.acc-head:hover { background: var(--bg); }
+.acc-title { font-weight: 600; }
+.acc-sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.acc-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; overflow: auto; }
+/* Runde 28 (chat-auftrag): Der Chat rollt in sich (begrenzte Höhe, .chat unten); bisher stand hier
+   overflow: hidden bei einem .chat ohne begrenzte Höhe – lange Verläufe wurden abgeschnitten statt zu rollen, und
+   Text unterhalb ließ sich weder sehen noch markieren. */
+.acc[data-section="chat"] .acc-body { overflow: auto; }
+/* Firefox: Inhalt von <details> liegt in ::details-content; dort ebenfalls strecken. */
+.acc[open]::details-content { display: contents; }
+
+/* Assistenten und Chat */
+.personas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.persona.inactive { opacity: .5; }
+.actions { display: flex; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.chat {
+  flex: 1 1 auto; min-height: 8em; max-height: min(60vh, 40rem); overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 8px; user-select: text;
+}
+.post { background: var(--bg); border-radius: 8px; padding: 8px; }
+/* Runde 10: Absätze der Persona-Antworten (z. B. „Wortlaut: ungeprüft …“) bleiben eigene Zeilen. */
+.post-body { white-space: pre-line; overflow-wrap: anywhere; user-select: text; cursor: text; }
+.post-author { font-weight: 600; font-size: 12.5px; }
+.ref { display: inline-block; margin-top: 4px; font-size: 12px; color: var(--primary); text-decoration: none; }
+.ref:hover { text-decoration: underline; }
+/* Runde 8: Zahl der Beiträge im Akkordeon-Kopf, neue seit dem letzten Besuch (Widget „chat“), Verwalten. */
+.chat-count { background: var(--primary-soft); color: var(--primary); }
+.chat-count .chat-new { font-weight: 600; }
+.post-item.post-new > .post { box-shadow: inset 3px 0 0 var(--primary); }
+/* Runde 18a: „neu“ auch als Wort (chat.ts), nicht nur als farbiger Rand. */
+.post-new-label { margin-left: 4px; background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.post-time { font-weight: normal; }
+.post-manage { margin-top: 4px; }
+.post-manage > summary { cursor: pointer; color: var(--muted); list-style: none; display: inline-block; }
+.post-manage > summary::-webkit-details-marker { display: none; }
+.post-manage[open] > summary { color: var(--primary); }
+.post-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
+.post-form select, .post-form input[type="text"] {
+  min-width: 0; max-width: 100%; padding: 3px 6px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel, var(--bg)); color: var(--text); font: inherit;
+}
+.post-move > summary { cursor: pointer; margin-top: 6px; }
+.missing-key { margin: 4px 0 0; color: var(--warning); }
+.chat-input { display: flex; gap: 6px; margin: 0; }
+.chat-input input[type="text"] {
+  flex: 1; min-width: 0; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+
+.toast {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: var(--danger); color: #fff; padding: 8px 14px; border-radius: 8px; max-width: 90vw;
+}
+
+/* Schmale Fenster: Spalten untereinander. */
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; grid-auto-rows: minmax(16em, auto); gap: 6px; overflow: auto; }
+  .splitter { display: none; }
+  /* Der Editor braucht eine feste Höhe, sonst fiele das Blatt (flex: 1 1 0) zusammen. */
+  #pane-editor { height: 85vh; }
+  /* Integration Runde 18 (Sichtprüfung 800px): mit minmax(16em, auto) blieben die Zeilen bei 16em stehen, weil die
+     Arbeitsfläche eine feste Höhe hat (kein freier Platz zum Wachsen); der Editor (85vh) ragte dann unter den
+     Bereich „Assistenten“. Zeilen so hoch wie ihr Inhalt, Gliederung und Assistenten zwischen 16em und 85vh. */
+  .workspace { grid-auto-rows: max-content; }
+  #pane-tree, #pane-assistants { min-height: 16em; max-height: 85vh; }
+}
+
+/* Strg+Mausrad zoomt nur den Bereich unter dem Mauszeiger (zoom.ts): die Kinder, nicht die Spalte. */
+[data-zoomed] > * { zoom: var(--zoom, 1); }
+
+/* R13 quellen */
+.fulltext-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; max-width: 72ch;
+  border-left: 3px solid var(--line); padding: .25em 0 .25em .9em; margin: .5em 0; }
+.fulltext-text mark.fulltext-mark { padding: 0 .1em; }
+.fulltext-nav { display: flex; gap: 1.5em; margin: .5em 0 1em; }
+.source-adopt { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; margin-top: .5em; }
+.highlight-check { margin: .25em 0; }
+.highlight-check.check-not_found { color: var(--danger); }
+.highlight-check.check-unverifiable { color: var(--warning); }
+.rag-fulltext { margin-left: .4em; }
+/* R13 websuche */
+.websearch-page { max-width: 60em; margin: 0 auto; padding: 12px 16px; }
+.websearch-post { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--line); }
+.websearch-post .post-body { white-space: pre-wrap; }
+.websearch-evidence { padding-left: 1.4em; }
+.websearch-item { margin: 10px 0; }
+.websearch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.websearch-url { overflow-wrap: anywhere; }
+.websearch-quote { margin: 4px 0; padding: 2px 8px; border-left: 3px solid var(--primary-soft, var(--line)); }
+.websearch-adopt { margin: 4px 0 0; }
+/* R13 abgleich */
+.sync-page section { margin: 1.2em 0; }
+.sync-page .sync-counts { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-left: 1.2em; }
+.sync-page .sync-hints li { margin: 2px 0; }
+.sync-page .sync-work { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0; }
+.sync-page .sync-work.current { border-left: 3px solid var(--accent, var(--line)); padding-left: 6px; }
+.sync-page fieldset label.inline { display: block; margin: 2px 0; }

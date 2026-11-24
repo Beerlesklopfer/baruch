@@ -1,0 +1,28 @@
+[package]
+name = "baruch-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Typst-Vorschau (Runde 8): bettet den Typst-Compiler ein und setzt das ganze Werk zu SVG-Seiten.
+# Rein, ohne Datenbank und ohne Netz: Quelltext und Bilder kommen als virtuelle Dateien herein.
+[dependencies]
+typst = "0.15.1"
+typst-svg = "0.15.1"
+# PDF-Ausgabe (Runde 11). Lizenz von typst-pdf: Apache-2.0 (verträglich mit AGPL-3.0).
+typst-pdf = "0.15.1"
+# `PagedDocument` (Ausgabetyp von `typst::compile`) reicht `typst` nicht weiter.
+typst-layout = "0.15.1"
+# Runde 21c: Rasterbild (PNG) einer Seite, für das EPUB-Cover aus der Vorderseite des Umschlags. Lizenz Apache-2.0.
+typst-render = "0.15.1"
+# Nur eingebettete Schriften und das Durchsuchen der Systemschriften; keine Pakete, kein Netz.
+typst-kit = { version = "0.15.1", default-features = false, features = ["embedded-fonts", "scan-fonts"] }
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Die dreizehn Gliederungsschemata (`export_template`) mit Typst setzen (tests/schemes.rs).
+baruch-typst = { path = "../baruch-typst" }
+# Runde 27: Umschlag-PDFs für `pdftotext -bbox` in einen Temp-Ordner schreiben (tests/cover_layout.rs).
+tempfile = "3"

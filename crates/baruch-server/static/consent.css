@@ -1,0 +1,21 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Zustimmung zur Gliederung (Nutzerfrage 12): Hinweisleiste unter der Kopfzeile (ohne JavaScript mit
+   Link zum Antrag) und modaler Dialog mit Vorschau (Widget „consent“). */
+.consent-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 6px 14px; background: var(--warning-soft); color: var(--text);
+  border-bottom: 1px solid var(--warning);
+}
+.consent-bar > strong { color: var(--warning); }
+.consent-dialog {
+  width: min(640px, 94vw); max-height: 88vh; padding: 0; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--text);
+}
+.consent-dialog::backdrop { background: rgb(0 0 0 / 40%); }
+.consent-head { padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.consent-body { padding: 4px 14px; overflow: auto; max-height: 64vh; }
+.consent-request + .consent-request { border-top: 1px solid var(--line); }
+.consent-preview { margin: 4px 0 8px; }
+.request-preview-list .preview-added { color: var(--primary); }
+.consent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.consent-later { display: flex; justify-content: flex-end; margin: 0; padding: 8px 14px; border-top: 1px solid var(--line); }

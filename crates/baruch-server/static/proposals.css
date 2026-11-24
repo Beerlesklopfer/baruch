@@ -1,0 +1,104 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Persona-Farben und Vorschläge im Lesefluss (Vertrag Runde 7, „proposals“; an ihrer Stelle seit
+   Runde 8, „inline“). Jede Stelle mit Persona trägt die Klasse .pc und im style die geprüften Werte
+   --pc-light, --pc-dark (Hintergründe, auf denen --text, --muted und --primary mindestens 4,5:1
+   erreichen, personas.rs), --pc-line und --pc-line-dark (Linien mit mindestens 3:1 gegen die Fläche
+   des hellen bzw. dunklen Themas, WCAG 1.4.11; --pc-line auch gegen das Blatt des dunklen Themas,
+   --sheet #f4f1ea). --pc-bg und --pc-edge folgen dem Thema wie app.css
+   (prefers-color-scheme und data-theme); auf dem stets hellen Blatt (Satzbild, Vorschau) gelten die
+   hellen Werte. */
+
+.pc { --pc-bg: var(--pc-light, var(--bg)); --pc-edge: var(--pc-line, var(--muted)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pc {
+    --pc-bg: var(--pc-dark, var(--bg)); --pc-edge: var(--pc-line-dark, var(--pc-line, var(--muted)));
+  }
+}
+:root[data-theme="dark"] .pc {
+  --pc-bg: var(--pc-dark, var(--bg)); --pc-edge: var(--pc-line-dark, var(--pc-line, var(--muted)));
+}
+
+.pc-swatch {
+  display: inline-block; width: .8em; height: .8em; margin-right: .4em; border-radius: 50%;
+  background: var(--pc-edge, var(--muted)); vertical-align: -.05em;
+}
+.pc-chip { background: var(--pc-bg); color: var(--text); border-left: 3px solid var(--pc-edge); border-radius: 4px; padding: 0 5px; }
+
+/* Assistentenliste und Abschnitts-Chat */
+.persona.pc { border-left: 4px solid var(--pc-edge); padding-left: 8px; border-radius: 4px; }
+.post.pc { background: var(--pc-bg); border-left: 4px solid var(--pc-edge); }
+
+/* Seite /einstellungen/personas */
+.persona-colors { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.persona-color { background: var(--pc-bg); border-left: 6px solid var(--pc-edge); border-radius: 6px; padding: 8px 10px; }
+.persona-color-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 0; }
+.persona-color-form input[type="text"] {
+  padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit;
+}
+.persona-color-form input[type="color"] { width: 3em; height: 28px; padding: 0 2px; vertical-align: middle; }
+
+/* Vorschläge an ihrer Stelle (Runde 8): je Stück eines Vorschlags ein <details class="pv">, eingeklappt
+   nur eine farbige Linie genau an dieser Stelle. Der Lesefluss (section.pv-flow) steht unter dem
+   Editor-Formular und zeigt die gezeigte Fassung blockweise als Quelltext; mit JavaScript und offenem
+   Satzbild setzt wysiwyg.ts die Stücke ins Satzbild und verbirgt den Lesefluss. */
+/* Kein Kind des Blatts schrumpft unter seinen Inhalt (sonst läge das Formular über dem Lesefluss,
+   app.css .editor-body), und neben dem Lesefluss behält das Formular eine brauchbare Höhe. */
+.editor-body:has(> .pv-flow:not([hidden])) > .editor-form { min-height: min(34em, 60vh); }
+.pv-flow { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.pv-flow[hidden] { display: none; }
+.pv-bar { display: flex; align-items: center; gap: 8px; }
+/* Runde 18c: Im Editor steht die Leiste als eigenes Kind des Blatts (vor dem Lesefluss) und rückt mit order
+   ganz nach oben (vor das Formular mit dem Satzbild); sie klebt beim Scrollen oben und bleibt so auch bei
+   offenem Satzbild sichtbar, wenn wysiwyg.ts den Lesefluss verbirgt. */
+.editor-body > .pv-bar-editor {
+  order: -1; position: sticky; top: 0; z-index: 3; padding: 3px 6px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.pv-bar [hidden] { display: none; }
+.pv-forms, .pv-form { display: contents; }
+.pv-src {
+  margin: 0; padding: 2px 6px; font: 12.5px/1.45 ui-monospace, "DejaVu Sans Mono", monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text);
+}
+.pv { border-left: 4px solid var(--pc-edge); border-radius: 4px; background: var(--panel); color: var(--text); }
+.pv-line { cursor: pointer; list-style: none; background: var(--pc-bg); padding: 2px 8px; border-radius: 0 4px 0 0; }
+.pv-line::-webkit-details-marker { display: none; }
+.pv-label { font-size: 11.5px; }
+.pv:not([open]) { border-left-width: 0; background: none; }
+.pv:not([open]) > .pv-line {
+  /* Eingeklappt: schmale Linie in Persona-Farbe; der Text bleibt für Screenreader da (Inhalt). */
+  height: 5px; padding: 0; font-size: 0; background: var(--pc-edge); border-radius: 3px;
+}
+.pv:not([open]) > .pv-line:hover, .pv:not([open]) > .pv-line:focus-visible { height: 9px; }
+/* Die Beschriftung hat eine eigene Schriftgröße; eingeklappt nur für Screenreader (sonst stünde sie unter der Linie). */
+.pv:not([open]) > .pv-line .pv-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.pv-line:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.pv-body { padding: 6px 8px 8px; }
+.pv-base { display: block; color: var(--muted); }
+.pv-note { margin: 4px 0; }
+.pv-actions { display: flex; gap: 8px; margin-top: 6px; }
+.pv-shown { box-shadow: 0 0 0 2px var(--pc-edge); }
+.pv-quelltext { margin: 4px 0 0; }
+
+/* Satzbild des Stücks nur im Satzbild selbst; im Lesefluss (Quelltext, ohne JavaScript) und in der
+   Vorschau der Zeilen-Diff. */
+.pv-satz { display: none; width: 100%; min-height: 0; padding: .4em .6em; box-shadow: none; border: 0; white-space: normal; margin-top: 4px; }
+.ws-sheet .pv .pv-satz { display: block; }
+.ws-sheet .pv .pv-quelltext { display: none; }
+.pv-satz .ws-del { background: #fdeaea; border-left: 3px solid #c92a2a; text-decoration: line-through; padding-left: .4em; }
+.pv-satz .ws-ins { background: #e6f4ea; border-left: 3px solid #2b8a3e; padding-left: .4em; }
+
+/* Auf dem Blatt (Satzbild, Vorschau) ist der Grund immer hell: Stücke dort in den hellen Werten,
+   auch im dunklen Thema (.pv.pc: gleich spezifisch wie die Themenregeln oben, steht später).  */
+.ws-sheet .pv.pc, .sheet .pv.pc {
+  --text: #1d2125; --muted: #5f6b76; --panel: #ffffff; --line: #d9dee3; --bg: #f6f7f9;
+  --primary: #3b5bdb; --primary-soft: #e7ecff; --success: #2b8a3e; --success-soft: #e6f4ea;
+  --danger: #c92a2a; --danger-soft: #fdeaea;
+  --pc-bg: var(--pc-light, var(--bg)); --pc-edge: var(--pc-line, var(--muted));
+  color-scheme: light; margin: .4em 0 .8em; font-family: system-ui, -apple-system, "Segoe UI", Cantarell, "Noto Sans", sans-serif;
+  font-size: 13px; line-height: 1.4; text-indent: 0; text-align: start; white-space: normal; cursor: default;
+}
+.ws-sheet .pv .pv-satz { font-family: var(--ws-font, "Libertinus Serif", Georgia, serif); font-size: var(--ws-size, 11pt); }
+.sheet .pv-bar { font-family: system-ui, -apple-system, "Segoe UI", Cantarell, "Noto Sans", sans-serif; font-size: 13px; }

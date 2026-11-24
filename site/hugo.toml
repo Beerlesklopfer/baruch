@@ -1,0 +1,59 @@
+# Webseite von Baruch (https://baruch.bernau.family/). Bauen und Vorschau: site/README.md.
+# Ausliefern macht die CI (GitHub Pages), nie von Hand.
+baseURL = "https://baruch.bernau.family/"
+# Vertrag R24 §1 nennt `languageCode = "de"`; hugo ab 0.158 meldet den Schlüssel als veraltet (mit --panicOnWarning ein
+# Abbruch) und verlangt `locale`. Gleiche Wirkung: <html lang="de">.
+locale = "de"
+title = "Baruch"
+theme = "baruch"
+# Keine Schlagwörter, Kategorien oder Feeds: Die Seite besteht aus acht festen Seiten.
+disableKinds = ["taxonomy", "term", "rss"]
+enableRobotsTXT = false
+enableGitInfo = false
+
+[params]
+# Version der verlinkten Pakete. Einzige Quelle der Version ist Cargo.toml ([workspace.package] version);
+# diesen Wert zieht nach, wer dort die Version ändert (nur der Nutzer legt sie fest).
+version = "0.9.0"
+repo = "https://github.com/Beerlesklopfer/baruch"
+# Fingerabdruck des APT-Archivschlüssels. Leer = die Seite zeigt den Platzhalter-Hinweis.
+# Trägt nur der Nutzer ein (nicht aus dem Netz holen, nicht raten).
+aptFingerprint = ""
+description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buchsatz mit Typst und Assistenten, die nur vorschlagen. AGPL-3.0, läuft auf dem eigenen Rechner."
+
+[menus]
+  [[menus.main]]
+    name = "Funktionen"
+    pageRef = "/funktionen"
+    weight = 10
+  [[menus.main]]
+    name = "Installation"
+    pageRef = "/installation"
+    weight = 20
+  [[menus.main]]
+    name = "Bedienung"
+    pageRef = "/bedienung"
+    weight = 30
+  [[menus.main]]
+    name = "Betrieb"
+    pageRef = "/betrieb"
+    weight = 40
+  [[menus.main]]
+    name = "MCP und Assistenten"
+    pageRef = "/mcp"
+    weight = 50
+  [[menus.footer]]
+    name = "Lizenz"
+    pageRef = "/lizenz"
+    weight = 10
+  [[menus.footer]]
+    name = "Impressum"
+    pageRef = "/impressum"
+    weight = 20
+
+[markup]
+  [markup.highlight]
+    # Kein Syntax-Hervorheber: Codeblöcke bleiben schlichtes <pre><code>.
+    codeFences = false
+  [markup.goldmark.renderer]
+    unsafe = false

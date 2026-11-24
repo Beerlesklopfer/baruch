@@ -1,0 +1,28 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Runde 31c: Glossar- und Registerseite (templates/glossary.html, templates/index_page.html, src/glossary_page.rs,
+   src/index_page.rs). Vorschläge der Assistenten sind farbig umrandet, damit sie nicht wie angenommene Begriffe aussehen. */
+.glossary-page section, .index-page section { margin: 12px 0; }
+.glossary-field { display: flex; flex-direction: column; gap: 2px; max-width: 40em; }
+.glossary-field input, .glossary-field textarea, .glossary-field select { font: inherit; }
+.glossary-page form, .index-page form { margin: 4px 0; }
+.glossary-new form, .glossary-edit form, .index-mark-form { display: flex; flex-direction: column; gap: 6px; }
+.glossary-term { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin: 8px 0; }
+.glossary-term:target, .index-proposal:target, .index-register:target { outline: 2px solid var(--primary); }
+.glossary-term-title { margin: 0 0 4px; font-size: 1.05em; }
+.glossary-term p { margin: 2px 0; }
+.glossary-long { white-space: pre-wrap; }
+.glossary-proposed, .index-proposal { border: 1px dashed var(--warning); border-left: 4px solid var(--warning); }
+.index-proposal { border-radius: 6px; padding: 6px 10px; margin: 8px 0; }
+.glossary-decide { display: flex; gap: 8px; flex-wrap: wrap; }
+.glossary-decide form { margin: 0; }
+.glossary-lookup, .marking-word { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.glossary-filter[hidden] { display: none; }
+.index-terms { list-style: none; padding-left: 0; columns: 2 18em; }
+.index-terms li { break-inside: avoid; margin: 2px 0; }
+.index-terms li.index-sub { padding-left: 1.4em; }
+.index-terms li[hidden], .glossary-term[hidden] { display: none; }
+.index-keys a { margin-right: 2px; }
+.inline-form { display: inline-flex; gap: 6px; align-items: center; margin: 0 0 0 6px; }
+.index-register-list { list-style: none; padding-left: 0; }
+.index-register-list li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.index-register-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }

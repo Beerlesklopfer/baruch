@@ -1,0 +1,4 @@
+{{- /* Link auf eine Datei im Repository (Zweig main): {{< doku "docs/Bedienung.md" "Bedienung" >}} */ -}}
+{{- $pfad := .Get 0 -}}
+<a href="{{ site.Params.repo }}/blob/main/{{ $pfad }}" rel="noopener">{{ .Get 1 | default $pfad }}</a>
+{{- /**/ -}}

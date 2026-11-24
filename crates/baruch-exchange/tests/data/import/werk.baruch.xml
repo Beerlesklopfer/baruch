@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Handgeschriebene Prüfdatei für den Leser (Runde 26, import); alle Texte frei erfunden. -->
+<werk xmlns="urn:baruch:werk:1" version="1" uuid="c0000000-0000-4000-8000-000000000001" art="buch">
+  <ausgabe zeit="2026-03-01T10:00:00.000Z" instanz="c0000000-0000-4000-8000-000000000002" instanzname="Prüfrechner" programm="baruch 0.0.1"/>
+  <angaben>
+    <titel>Die Mühle am Bach</titel>
+    <untertitel>Ein erfundenes Prüfbuch</untertitel>
+    <autor>Lena Probe</autor>
+    <zielgruppe>Leser mit Zeit</zielgruppe>
+    <bibel>Freie Prüfübersetzung</bibel>
+    <angelegt>2026-02-01T08:00:00.000Z</angelegt>
+    <geaendert>2026-02-20T18:00:00.000Z</geaendert>
+    <schema name="custom"><muster>I.;1.;a)</muster></schema>
+    <bibelmodul>PruefBibel</bibelmodul>
+    <quellen>
+      <quelle art="kommentar">PruefKommentar</quelle>
+      <quelle art="lexikon">PruefLexikon</quelle>
+    </quellen>
+    <sprechdauer woerter-je-minute="140" ziel-sekunden="1200"/>
+  </angaben>
+  <buch titelbereich="unten" titelei="true" umschlagseiten="false" papier-mm="0.12" beschnitt-mm="3" umschlag="c0000000-0000-4000-8000-000000000060" geaendert="2026-02-19T17:00:00.000Z">
+    <verlag>Prüfverlag</verlag>
+    <ort>Musterdorf</ort>
+    <jahr>2026</jahr>
+    <auflage>1. Auflage</auflage>
+    <isbn></isbn>
+    <preis>9,50 €</preis>
+    <reihe>Erfundene Reihe</reihe>
+    <druckerei>Prüfdruck</druckerei>
+    <bibelvermerk>Bibelzitate erfunden.</bibelvermerk>
+    <bildnachweis>Bilder: Lena Probe</bildnachweis>
+    <widmung>Für alle Müller.</widmung>
+    <klappentext>Wasser &amp; Mehl.</klappentext>
+    <vita>Lena Probe schreibt Prüftexte.</vita>
+  </buch>
+  <vorlage>
+    <text>#set page(paper: "a5")
+</text>
+    <fassung uuid="c0000000-0000-4000-8000-000000000080" nummer="1" autor="Lena Probe" angelegt="2026-02-01T08:00:00.000Z">
+      <text>#set text(lang: "de")
+</text>
+    </fassung>
+    <fassung uuid="c0000000-0000-4000-8000-000000000081" nummer="2" autor="Lena Probe" angelegt="2026-02-02T08:00:00.000Z">
+      <notiz>A5 gesetzt.</notiz>
+      <text>#set page(paper: "a5")
+</text>
+    </fassung>
+  </vorlage>
+  <gliederung>
+    <punkt uuid="c0000000-0000-4000-8000-000000000010" art="teil" nummeriert="true">
+      <titel>Erster Teil – Wasser</titel>
+      <fassung uuid="c0000000-0000-4000-8000-000000000101" nummer="1" status="aktuell" autor-art="mensch" autor="Lena Probe" angelegt="2026-02-01T09:00:00.000Z">
+        <text>#heading(level: 1, numbering: none)[Erster Teil – Wasser] &lt;baruch-part&gt;
+</text>
+      </fassung>
+      <punkt uuid="c0000000-0000-4000-8000-000000000011" art="kapitel" nummeriert="false">
+        <titel>Das Rad</titel>
+        <fassung uuid="c0000000-0000-4000-8000-000000000111" nummer="1" status="aktuell" autor-art="mensch" autor="Lena Probe" angelegt="2026-02-01T09:00:00.000Z">
+          <notiz>Erste Niederschrift.</notiz>
+          <text>  == Das Rad
+
+	Es dreht &lt;&amp;&gt; und endet nie mit ]]&gt; – Grüße.&#13;
+Äpfel.  </text>
+        </fassung>
+        <fassung uuid="c0000000-0000-4000-8000-000000000112" nummer="2" status="vorschlag" autor-art="assistent" autor="@lektor" modell="pruef/modell-3b" basis="c0000000-0000-4000-8000-000000000111" angelegt="2026-02-03T09:00:00.000Z" geaendert="2026-02-04T09:00:00.000Z">
+          <text kodierung="base64">U3RldWVyAXplaWNoZW4K</text>
+        </fassung>
+        <beitrag uuid="c0000000-0000-4000-8000-000000000030" position="1" autor="@lektor" angelegt="2026-02-05T11:00:00.000Z">
+          <text>Das Rad braucht Öl.</text>
+          <quelle>Prüfquelle, S. 4</quelle>
+          <bezug punkt="c0000000-0000-4000-8000-000000000011" fassung="c0000000-0000-4000-8000-000000000111">Es dreht</bezug>
+        </beitrag>
+        <punkt uuid="c0000000-0000-4000-8000-000000000012" art="abschnitt" nummeriert="true">
+          <titel>Die Speichen</titel>
+          <fassung uuid="c0000000-0000-4000-8000-000000000121" nummer="1" status="aktuell" autor-art="mensch" autor="Lena Probe" angelegt="2026-02-01T09:00:00.000Z">
+            <text>=== Die Speichen
+
+Zwölf Speichen.
+</text>
+          </fassung>
+        </punkt>
+      </punkt>
+    </punkt>
+  </gliederung>
+  <einfaelle>
+    <einfall uuid="c0000000-0000-4000-8000-000000000040" status="offen" herkunft-art="mensch" herkunft="Lena Probe" angelegt="2026-02-06T09:00:00.000Z" geaendert="2026-02-06T09:00:00.000Z" bezug="c0000000-0000-4000-8000-000000000011">
+      <schlagwort>Rad</schlagwort>
+      <schlagwort>Wasser</schlagwort>
+      <notiz>Das Rad als Bild für Geduld.</notiz>
+      <zitat></zitat>
+      <quelle></quelle>
+      <bibelstelle>Pred 1,6</bibelstelle>
+    </einfall>
+    <einfall uuid="c0000000-0000-4000-8000-000000000041" status="erledigt" erledigt-als="beitrag" herkunft-art="persona" herkunft="@lektor" angelegt="2026-02-06T10:00:00.000Z" geaendert="2026-02-07T10:00:00.000Z" geloescht="2026-02-08T10:00:00.000Z">
+      <notiz>Verworfen.</notiz>
+      <zitat>Zitat</zitat>
+      <quelle>Quelle</quelle>
+      <bibelstelle></bibelstelle>
+      <erledigt-ref>c0000000-0000-4000-8000-000000000030</erledigt-ref>
+    </einfall>
+  </einfaelle>
+  <faeden>
+    <faden uuid="c0000000-0000-4000-8000-000000000050" angelegt-von="@lektor" angelegt="2026-02-07T14:00:00.000Z" geaendert="2026-02-07T15:00:00.000Z">
+      <titel>Fragen zur Mühle</titel>
+      <beitrag uuid="c0000000-0000-4000-8000-000000000051" position="1" autor="@lektor" angelegt="2026-02-07T14:00:00.000Z">
+        <text>Wie alt ist die Mühle?</text>
+      </beitrag>
+      <beitrag uuid="c0000000-0000-4000-8000-000000000052" position="2" autor="Lena Probe" angelegt="2026-02-07T15:00:00.000Z">
+        <text>Erfunden alt.</text>
+        <quelle>Notizbuch</quelle>
+      </beitrag>
+    </faden>
+  </faeden>
+  <bilder>
+    <bild uuid="c0000000-0000-4000-8000-000000000060" name="muehle.png" angelegt="2026-02-06T10:00:00.000Z">
+      <pfad>bilder/muehle.png</pfad>
+      <fassung uuid="c0000000-0000-4000-8000-000000000061" nummer="1" mime="image/png" bytes="70" sha256="0b2e3748a5e24a6f06d50ef8eb401367b9a2d760b2201063e627f3b3af79aa82" status="aktuell" autor="Lena Probe" angelegt="2026-02-06T10:00:00.000Z">
+        <unterschrift>Die Mühle</unterschrift>
+        <alt>Ein grüner Punkt</alt>
+        <daten>iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
+2mPQqzX6DwADlwHdE7hLNwAAAABJRU5ErkJggg==</daten>
+      </fassung>
+    </bild>
+    <bild uuid="c0000000-0000-4000-8000-000000000062" name="rad.svg" angelegt="2026-02-06T11:00:00.000Z">
+      <fassung uuid="c0000000-0000-4000-8000-000000000063" nummer="1" mime="image/svg+xml" bytes="108" sha256="8d5cea07501e3c374a1fc77af7a44cfe5b3d739603a19490f67ccdae72e71088" status="aktuell" autor="Lena Probe" angelegt="2026-02-06T11:00:00.000Z">
+        <unterschrift></unterschrift>
+        <alt>Ein Quadrat</alt>
+        <notiz>Skizze.</notiz>
+        <daten>PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTciLz48L3N2Zz4K</daten>
+      </fassung>
+    </bild>
+  </bilder>
+  <geloescht>
+    <eintrag uuid="c0000000-0000-4000-8000-000000000070" art="punkt" zeit="2026-02-09T10:00:00.000Z"/>
+  </geloescht>
+</werk>

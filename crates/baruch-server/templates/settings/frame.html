@@ -1,0 +1,15 @@
+{#- Rahmen einer Einstellungsseite (Runde 9): links die Seiten (je ein Link mit data-settings-page,
+    die gezeigte mit aria-current="page"), rechts „Gespeichert: …“ und der Inhalt der Seite (body, fertiges
+    HTML aus der Seite). Dasselbe div liefert ?fragment=1 und settings.render für das Popup.
+    Kontext: slug, storage, pages [{slug, title, current}], work, body. -#}
+<div class="settings-frame" data-settings-frame data-page="{{ slug }}">
+  <nav class="settings-nav" aria-label="Einstellungen">
+  {%- for p in pages %}
+    <a href="/einstellungen/{{ p.slug }}{% if work %}?work={{ work }}{% endif %}" data-settings-page="{{ p.slug }}"{% if p.current %} aria-current="page"{% endif %}>{{ p.title }}</a>
+  {%- endfor %}
+  </nav>
+  <div class="settings-body">
+    <p class="settings-storage">Gespeichert: {{ storage }}</p>
+    {{ body|safe }}
+  </div>
+</div>

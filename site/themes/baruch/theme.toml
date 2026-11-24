@@ -1,0 +1,4 @@
+name = "baruch"
+license = "AGPL-3.0-or-later"
+description = "Schlichtes Theme der Baruch-Webseite: Systemschriften, kein JavaScript, keine fremden Adressen."
+min_version = "0.146.0"

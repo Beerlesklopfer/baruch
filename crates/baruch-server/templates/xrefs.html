@@ -1,0 +1,61 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /verweise (Runde 30a, src/xref.rs): mögliche und kaputte Querverweise ohne JavaScript. Kontext: settings,
+    work {id, title}, key, section, groups [{key, rev, label, items [{index, text, line, target, replacement,
+    target_url, at_url}]}], broken [{section, label, text, url}], done, error. -#}
+{% extends "base.html" %}
+{% block title %}Querverweise – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Querverweise{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}{% if key %}&amp;key={{ key }}{% endif %}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page xrefs-page" data-work="{{ work.id }}">
+  <h1 class="pane-title">Querverweise{% if section %} in {{ section }}{% endif %}</h1>
+  {%- if error %}<p class="toast" role="alert" data-xref-error>{{ error }}</p>{% endif %}
+  {%- if done %}<p class="notice" role="status" data-xref-done>{{ done }} {% if done == "1" %}Verweis{% else %}Verweise{% endif %} eingesetzt (neue Fassung von dir).</p>{% endif %}
+  {%- if key %}<p class="small"><a href="/verweise?work={{ work.id }}">Ganzes Werk zeigen</a></p>{% endif %}
+
+  <section class="xref-broken card" data-xref-broken>
+    <h2>Kaputte Verweise</h2>
+    {%- if broken %}
+    <ul>
+      {%- for b in broken %}
+      <li class="typeset-diagnostic error"><span class="badge danger">{{ b.label }}</span>
+        {{ b.section }}: „{{ b.text }}“ zeigt auf keinen Gliederungspunkt mit aktueller Fassung.
+        <a class="jump" href="{{ b.url|safe }}" data-jump>zur Stelle</a></li>
+      {%- endfor %}
+    </ul>
+    {%- else %}
+    <p class="muted small">Keine kaputten Verweise.</p>
+    {%- endif %}
+  </section>
+
+  <section class="xref-candidates" data-xref-candidates>
+    <h2>Mögliche Querverweise</h2>
+    <p class="muted small">Nennungen von Gliederungspunkten im Text („die Einleitung“, „im dritten Kapitel“, „Kapitel III“,
+      Titel in Anführungszeichen), nur wenn das Ziel eindeutig ist. Nur ein Vorschlag: Umgewandelt wird erst, wenn du
+      bestätigst – als neue Fassung von dir.</p>
+    {%- for g in groups %}
+    <form method="post" action="/verweise/act" class="xref-group card" data-key="{{ g.key }}">
+      <input type="hidden" name="method" value="xref.convert">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ g.key }}">
+      <input type="hidden" name="rev" value="{{ g.rev }}">
+      {%- if key %}<input type="hidden" name="scope" value="{{ key }}">{% endif %}
+      <h3>{{ g.label }} <span class="muted small">(Fassung {{ g.rev }})</span></h3>
+      <ul>
+        {%- for c in g.items %}
+        <li><label><input type="checkbox" name="picks" value="{{ c.index }}" checked>
+          Zeile {{ c.line }}: „{{ c.text }}“ → <a href="{{ c.target_url|safe }}" data-jump>{{ c.target }}</a></label>
+          <code class="small">{{ c.replacement }}</code> <a class="small" href="{{ c.at_url|safe }}" data-jump>Stelle</a></li>
+        {%- endfor %}
+      </ul>
+      <p><label><input type="checkbox" name="confirm" value="1"> Ja, umwandeln</label>
+        <button type="submit" class="btn">In Querverweise umwandeln</button></p>
+    </form>
+    {%- else %}
+    <p class="muted">Keine möglichen Querverweise gefunden.</p>
+    {%- endfor %}
+  </section>
+</main>
+{% endblock %}

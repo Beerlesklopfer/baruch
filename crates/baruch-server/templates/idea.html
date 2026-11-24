@@ -1,0 +1,162 @@
+{#- Seite /einfaelle/{id} (Vertrag Runde 7, Abschnitt 6e): ein Einfall mit Ansicht, Bearbeiten,
+    Löschen (Kästchen, der Server prüft es), Wiederherstellen und Verarbeiten (Gliederungspunkt,
+    Chat-Beitrag, Notiz, Auftrag an den Lektor – seine Antwort wird ein Beitrag, Runde 10). Alle Formulare gehen an POST /einfaelle/act.
+    Kontext: settings, idea (siehe ideas.rs idea_view), works [{id, title, selected}],
+    nodes [{key, label, selected}] (Abschnitte des Werks), title_default, list_href, back, notice, error;
+    Runde 25: links [{id, arrow, other, other_href, other_words, kind, kind_label, note}], map_href, map_act. -#}
+{% extends "base.html" %}
+{% block title %}Einfall {{ idea.id }} – Baruch{% endblock %}
+{% block page_title %}Einfall {{ idea.id }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ list_href }}">Alle Einfälle</a>
+  {%- if idea.work_href %}
+  <a class="btn" href="{{ idea.work_href }}">Zum Werk</a>
+  {%- endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page ideas-page">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <article class="idea-card{% if not idea.open %} done{% endif %}{% if idea.deleted %} deleted{% endif %}" data-origin="{{ idea.origin_kind }}">
+    <header class="idea-card-head">
+      <h1 class="pane-title">Einfall {{ idea.id }}</h1>
+      {%- for w in idea.words %}<span class="badge primary">{{ w }}</span>{% endfor %}
+      <span class="grow"></span>
+      {%- if idea.deleted %}<span class="badge warning">gelöscht {{ idea.deleted }}</span>
+      {%- elif idea.open %}<span class="badge warning">offen</span>
+      {%- else %}<span class="badge success">verarbeitet{% if idea.done_label %} als {{ idea.done_label }}{% endif %}{% if idea.done_ref %} ({{ idea.done_ref }}){% endif %}</span>{% endif %}
+    </header>
+    {%- if idea.note %}<p class="idea-note">{{ idea.note }}</p>{% endif %}
+    {%- if idea.quote %}<blockquote class="idea-quote">{{ idea.quote }}</blockquote>{% endif %}
+    <dl class="idea-facts small">
+      <dt>Werk</dt><dd>{% if idea.work_title %}{{ idea.work_title }}{% else %}ohne Werk{% endif %}</dd>
+      {%- if idea.key is not none %}<dt>Bezug</dt><dd>{% if idea.node_href %}<a href="{{ idea.node_href }}">Abschnitt „{{ idea.node_title }}“</a>{% else %}Abschnitt „{{ idea.node_title }}“{% endif %} (key {{ idea.key }})</dd>{% endif %}
+      {%- if idea.source %}<dt>Quelle</dt><dd>{{ idea.source }}</dd>{% endif %}
+      {%- if idea.bible %}<dt>Bibelstelle</dt><dd>{{ idea.bible }}</dd>{% endif %}
+      <dt>Herkunft</dt><dd>{{ idea.origin }} · {{ idea.created }}</dd>
+      <dt>Geändert</dt><dd>{{ idea.updated }}</dd>
+    </dl>
+  </article>
+
+  {#- Runde 25: Verbindungen zu anderen Einfällen; „Lösen“ geht an das Formular der Gedankenkarte des Werks
+      (wiederherstellbar, die Karte bietet danach „Wiederherstellen“ an). #}
+  <section class="work-form idea-links" aria-label="Verbindungen">
+    <h2 class="pane-title">Verbindungen</h2>
+    {%- if links %}
+    <ul class="idea-link-list">
+      {%- for l in links %}
+      <li class="idea-link idea-link-{{ l.kind }}">{{ l.arrow }} <a href="{{ l.other_href }}">Einfall {{ l.other }}</a>{% if l.other_words %} ({{ l.other_words }}){% endif %} <strong>{{ l.kind_label }}</strong>{% if l.note %} – „{{ l.note }}“{% endif %}
+        {%- if map_act %}
+        <form class="idea-link-form" method="post" action="{{ map_act }}">
+          <input type="hidden" name="method" value="idea.unlink">
+          <input type="hidden" name="id" value="{{ l.id }}">
+          <button class="btn" type="submit" title="Verbindung lösen (wiederherstellbar)">Lösen</button>
+        </form>
+        {%- endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- else %}
+    <p class="muted small">Keine Verbindungen.</p>
+    {%- endif %}
+    {%- if map_href %}<p class="small"><a class="idea-map-link" href="{{ map_href }}">Auf der Gedankenkarte verbinden …</a></p>{% endif %}
+  </section>
+
+  {%- if idea.deleted %}
+  <form class="work-form" method="post" action="/einfaelle/act">
+    <input type="hidden" name="method" value="idea.restore">
+    <input type="hidden" name="id" value="{{ idea.id }}">
+    <p>Der Einfall ist gelöscht. Wiederherstellen bringt ihn zurück in Liste, Suche und Spiegel.</p>
+    <button class="btn primary" type="submit">Wiederherstellen</button>
+  </form>
+  {%- else %}
+  <form class="work-form" method="post" action="/einfaelle/act">
+    <h2 class="pane-title">Bearbeiten</h2>
+    <input type="hidden" name="method" value="idea.update">
+    <input type="hidden" name="id" value="{{ idea.id }}">
+    <div class="work-fields">
+      <label>Schlagwörter (durch Komma getrennt) <input type="text" name="words" required value="{{ idea.words_text }}"></label>
+      <label>Werk
+        <select name="work">
+          <option value="none"{% if idea.work is none %} selected{% endif %}>ohne Werk</option>
+          {%- for w in works %}
+          <option value="{{ w.id }}"{% if w.selected %} selected{% endif %}>{{ w.title }}</option>
+          {%- endfor %}
+        </select></label>
+      <label>Bezug
+        <select name="key">
+          <option value=""{% if idea.key is none %} selected{% endif %}>ohne Abschnitt</option>
+          {%- for n in nodes %}
+          <option value="{{ n.key }}"{% if n.selected %} selected{% endif %}>{{ n.label }}</option>
+          {%- endfor %}
+        </select></label>
+      <label>Status
+        <select name="status">
+          <option value="open"{% if idea.open %} selected{% endif %}>offen</option>
+          <option value="done"{% if not idea.open %} selected{% endif %}>verarbeitet</option>
+        </select></label>
+      <label>Quelle <input type="text" name="source" maxlength="200" value="{{ idea.source }}"></label>
+      <label>Bibelstelle <input type="text" name="bible" maxlength="200" value="{{ idea.bible }}"></label>
+    </div>
+    <label>Gedanke <textarea name="note" rows="4" maxlength="4000">{{ idea.note }}</textarea></label>
+    <label>Markierter Text <textarea name="quote" rows="3" maxlength="4000">{{ idea.quote }}</textarea></label>
+    <button class="btn primary" type="submit">Speichern</button>
+  </form>
+
+  <form class="work-form" method="post" action="/einfaelle/act">
+    <h2 class="pane-title">Verarbeiten</h2>
+    <input type="hidden" name="method" value="idea.process">
+    <input type="hidden" name="id" value="{{ idea.id }}">
+    <fieldset class="idea-uses">
+      <legend class="small">Daraus wird</legend>
+      <label><input type="radio" name="as" value="outline" checked> ein neuer Gliederungspunkt</label>
+      <label><input type="radio" name="as" value="post"> ein Beitrag im Abschnitts-Chat</label>
+      <label><input type="radio" name="as" value="note"> eine Notiz am Abschnitt</label>
+      <label><input type="radio" name="as" value="persona"> ein Auftrag an eine Persona <span class="muted small">(ihre Antwort wird ein Beitrag im Abschnitts-Chat)</span></label>
+    </fieldset>
+    {%- if personas %}
+    {#- Runde 15: Persona für den Auftrag (ohne JavaScript; Vorgabe der Lektor des Werks). #}
+    <label>Persona für den Auftrag
+      <select name="persona">
+        {%- for p in personas %}
+        <option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>
+        {%- endfor %}
+      </select></label>
+    {%- endif %}
+    {%- if nodes %}
+    <div class="work-fields">
+      <label>Abschnitt (Ziel bzw. Ort des Beitrags)
+        <select name="key">
+          {%- for n in nodes %}
+          <option value="{{ n.key }}"{% if n.selected %} selected{% endif %}>{{ n.label }}</option>
+          {%- endfor %}
+        </select></label>
+      <label>Neuer Punkt
+        <select name="place">
+          <option value="after" selected>dahinter</option>
+          <option value="before">davor</option>
+          <option value="into">darunter</option>
+        </select></label>
+      <label>Titel des neuen Punkts <input type="text" name="title" maxlength="200" value="{{ title_default }}"></label>
+    </div>
+    <button class="btn primary" type="submit">Verarbeiten</button>
+    {%- else %}
+    <p class="muted small">Ein Einfall ohne Werk lässt sich erst verarbeiten, wenn er einem Werk zugeordnet ist.</p>
+    {%- endif %}
+  </form>
+
+  <form class="work-form" method="post" action="/einfaelle/act">
+    <h2 class="pane-title">Löschen</h2>
+    <input type="hidden" name="method" value="idea.delete">
+    <input type="hidden" name="id" value="{{ idea.id }}">
+    <label class="inline"><input type="checkbox" name="confirm" value="1" required> Ja, diesen Einfall löschen
+      (wiederherstellbar unter „Gelöschte“ und über den Git-Spiegel)</label>
+    <button class="btn danger" type="submit">Löschen</button>
+  </form>
+  {%- endif %}
+</main>
+{% endblock %}

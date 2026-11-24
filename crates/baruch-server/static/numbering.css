@@ -1,0 +1,34 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Gliederungsschema eines Werks: Seite /werke/{id}/nummerierung (Runde 6). */
+
+/* Runde 14: Kopf der Seite eng. Vorher standen Hinweis, Überschrift und die beiden Absätze einzeln in der
+   Flex-Spalte von .works-page (Lücke 12px) und behielten ihre Absatzränder (je 1em, in Flex nicht
+   zusammengelegt) – zusammen fast 40px zwischen zwei Absätzen. */
+/* Runde 18a: kein heller Streifen rechts – Ursache und Abhilfe wie bei der Satz-Seite (typeset.css): der
+   Scrollbehälter .works-page war auf 1100px begrenzt, seine Bildlaufleiste stand mitten im Fenster. */
+.works-page.numbering-page { max-width: none; padding-inline: max(18px, calc((100% - 1100px) / 2 + 18px)); }
+.numbering-head { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.numbering-head > p, .numbering-head > h1 { margin: 0; }
+.numbering-choice { margin: 0; }
+.numbering-choice > p { margin: 6px 0 0; }
+.numbering-page .scheme-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;
+  border: 0; padding: 0; margin: 4px 0 8px;
+}
+.numbering-page .scheme-list > legend { margin-bottom: 6px; }
+.scheme-option { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+.scheme-option.checked, .scheme-option:has(input[type=radio]:checked) { border-color: var(--primary); }
+.scheme-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; cursor: pointer; }
+.scheme-name { font-weight: 600; }
+.scheme-example { flex-basis: 100%; }
+.scheme-custom { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.scheme-custom input { flex: 1; min-width: 10ch; font-family: var(--mono, monospace); }
+.scheme-hint, .scheme-error { margin: 4px 0 0; }
+.scheme-preview { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12.5px; line-height: 1.5; }
+.scheme-preview .num { display: inline-block; min-width: 2.5em; margin-right: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.scheme-preview .level-0 { font-weight: 600; }
+.scheme-preview .level-2 { padding-left: 14px; }
+.scheme-preview .level-3 { padding-left: 28px; }
+.scheme-rule { display: block; white-space: pre-wrap; word-break: break-all; margin-top: 4px; }
+.numbering-buttons { display: flex; gap: 8px; }
+.outline-scheme-link { margin-left: 4px; }

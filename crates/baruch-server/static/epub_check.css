@@ -1,0 +1,17 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* EPUB prüfen (Runde 20c, Besitz „epub-pruefung“): Prüfseite, Prüfbericht unter der Vorschau, Einstellung EPUBCheck. */
+.epub-check-page { max-width: 72rem; }
+.epub-check-choice { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: end; margin: 0.5rem 0 1rem; }
+.epub-check-choice fieldset { border: 1px solid var(--line, #ccc); border-radius: 6px; padding: 0.4rem 0.8rem; }
+.epub-check-choice fieldset label { display: inline-flex; gap: 0.3rem; margin-right: 0.8rem; }
+.epub-check-summary { margin: 0.3rem 0 0.6rem; }
+.epub-check-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.epub-check-table th, .epub-check-table td { text-align: left; vertical-align: top; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--line, #ddd); }
+.epub-check-table td:first-child { white-space: nowrap; font-weight: 600; }
+.epub-check-table code { overflow-wrap: anywhere; }
+.epub-check-error td:first-child { color: var(--danger, #b3261e); }
+.epub-check-warning td:first-child { color: var(--warning, #8a5a00); }
+.epub-check-info td:first-child { color: var(--muted, #666); }
+.epub-check-epubcheck { margin-top: 1.5rem; }
+.epubcheck-missing, .epubcheck-failed { border-left: 4px solid var(--warning, #8a5a00); }
+.epubcheck-ok { border-left: 4px solid var(--success, #2e7d32); }

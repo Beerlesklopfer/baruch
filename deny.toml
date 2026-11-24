@@ -1,0 +1,65 @@
+# cargo-deny (https://embarkstudios.github.io/cargo-deny/): Lizenzen, Quellen, Sicherheitsmeldungen.
+# Lauf: `cargo deny check` (CI, .github/workflows/ci.yml); lokal ohne Netz: `cargo deny check licenses sources bans`
+# (`advisories` braucht die RustSec-Datenbank aus dem Netz und läuft darum nur in der CI).
+# Baruch steht unter der AGPL-3.0-or-later; erlaubt sind nur Lizenzen, die sich damit vertragen.
+# Ein Verstoß wird behoben oder dem Nutzer vorgelegt – nicht durch Lockern dieser Datei versteckt.
+
+[graph]
+# Die Plattformen, für die Pakete entstehen (docs/Verteilung.md).
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+all-features = false
+
+[advisories]
+# RustSec-Datenbank (braucht Netz, darum nur in der CI). Ausnahmen nur mit Begründung und Verweis.
+ignore = []
+
+[licenses]
+confidence-threshold = 0.93
+allow = [
+    # Baruch selbst
+    "AGPL-3.0-or-later",
+    # freizügig
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "bzip2-1.0.6",
+    "Unicode-3.0",
+    # Gemeinfreiheit bzw. Verzicht
+    "CC0-1.0",
+    "Unlicense",
+    # schwaches Copyleft je Datei, mit der AGPL vereinbar (MPL-2.0 §3.3, „Secondary License“)
+    "MPL-2.0",
+    # Datenlizenz (Wurzelzertifikate in webpki-roots)
+    "CDLA-Permissive-2.0",
+]
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "allow"
+# Platzhalter-Versionen („*“) sind verboten. Die Pfad-Abhängigkeiten im Workspace tragen keine Versionsangabe;
+# sie sind erlaubt, weil alle Crates `publish = false` tragen (seit Runde 24) – nur dann lässt
+# `allow-wildcard-paths` sie durch.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Das Lock enthält keine git-Quellen (sword-modules liegt als Pfad unter vendor/).
+allow-git = []

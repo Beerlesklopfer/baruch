@@ -1,0 +1,8 @@
+{{- /*
+  Link auf eine Datei des Release: {{< download "baruch_VERSION-1_amd64.deb" >}}
+  VERSION wird durch params.version ersetzt; die Adresse ist <repo>/releases/download/v<Version>/<Datei>.
+*/ -}}
+{{- $version := site.Params.version -}}
+{{- $datei := replace (.Get 0) "VERSION" $version -}}
+<a class="download" href="{{ site.Params.repo }}/releases/download/v{{ $version }}/{{ $datei }}" rel="noopener"><code>{{ $datei }}</code></a>
+{{- /**/ -}}

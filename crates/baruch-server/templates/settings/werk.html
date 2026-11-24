@@ -1,0 +1,161 @@
+{#- Einstellungsseite „Werk“ (Runde 9): die Formularblöcke aus work_edit.html und work_numbering.html
+    (edit, numbering: fertiges HTML aus {% block content %}, gleicher Kontext wie /werke/{id}/bearbeiten
+    und /werke/{id}/nummerierung, dazu back). Runde 11: dazu book und cover (fertiges HTML der Gruppen
+    „Buchangaben“ und „Umschlag“ aus src/cover.rs). Ohne Werk ein Hinweis. Kontext: work, notice, error,
+    edit, numbering, book, cover. Runde 13: dazu sync {upload, collection, documents, synced} – Schalter
+    „nach MultiGPT hochladen“ (Vorgabe aus) als Formular an POST /abgleich/act (action=upload, Pflicht-
+    Kontrollkästchen confirm beim Einschalten). Runde 16b: dazu timing (Block „Predigtzeit“, id="zeit").
+    Runde 18c: dazu sheet (Block „Satzbild“, id="satzbild"). Runde 27c: cover enthält den Knopf „Impressum-Vorlage
+    in die Werkvorlage übernehmen“, book die Anschriften von Verlag und Druckerei (beide aus src/cover.rs).
+    Runde 29: typeset (Block „Satz“, id="satz"; fertiges HTML aus src/settings/work_typeset.rs). Runde 22: revisions
+    (Block „Fassungen“, id="fassungen"). -#}
+<section class="settings-page" data-settings-page-body="werk">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if work %}
+  <div class="settings-block settings-work">
+{{ edit|safe }}
+  </div>
+  <div class="settings-block settings-numbering numbering-page">
+{{ numbering|safe }}
+  </div>
+  <div class="settings-block settings-book">
+{{ book|safe }}
+  </div>
+  <div class="settings-block settings-cover">
+{{ cover|safe }}
+  </div>
+  {#- Runde 15 (Punkt 5a): Kommentare und Lexika des Werks (sword {commentaries, lexicons: [{module,
+      description, notice, supported, problem, checked, missing}], error}); Formular an
+      POST /einstellungen/werk/bibeln (method=bible.set_work_sources, wiederholte Felder commentary, lexicon). #}
+  <div class="settings-block settings-sword" id="kommentare">
+    <h3>Kommentare und Lexika</h3>
+    {%- if sword.error %}
+    <p class="notice error small" role="alert">{{ sword.error }}</p>
+    {%- endif %}
+    <form method="post" action="/einstellungen/werk/bibeln">
+      <input type="hidden" name="method" value="bible.set_work_sources">
+      <input type="hidden" name="work" value="{{ work }}">
+      <fieldset>
+        <legend class="small">Kommentare</legend>
+        {%- for m in sword.commentaries %}
+        <label class="check small" data-commentary-choice="{{ m.module }}"><input type="checkbox" name="commentary" value="{{ m.module }}"{% if m.checked %} checked{% endif %}{% if not m.supported and not m.checked %} disabled{% endif %}> {{ m.module }}{% if m.description %} – {{ m.description }}{% endif %}
+          {%- if m.problem %} <span class="muted tiny">(nicht lesbar: {{ m.problem }})</span>{% elif m.notice %} <span class="muted tiny">({{ m.notice }})</span>{% endif %}</label>
+        {%- else %}
+        <p class="muted tiny">Keine Kommentare in den Modulordnern (Einstellungen → Quellen → Bibeln).</p>
+        {%- endfor %}
+      </fieldset>
+      <fieldset>
+        <legend class="small">Lexika</legend>
+        {%- for m in sword.lexicons %}
+        <label class="check small" data-lexicon-choice="{{ m.module }}"><input type="checkbox" name="lexicon" value="{{ m.module }}"{% if m.checked %} checked{% endif %}{% if not m.supported and not m.checked %} disabled{% endif %}> {{ m.module }}{% if m.description %} – {{ m.description }}{% endif %}
+          {%- if m.problem %} <span class="muted tiny">(nicht lesbar: {{ m.problem }})</span>{% elif m.notice %} <span class="muted tiny">({{ m.notice }})</span>{% endif %}</label>
+        {%- else %}
+        <p class="muted tiny">Keine Lexika in den Modulordnern (Einstellungen → Quellen → Bibeln).</p>
+        {%- endfor %}
+      </fieldset>
+      <button class="btn" type="submit">Auswahl speichern</button>
+      <p class="muted tiny">Gewählte Kommentare erscheinen zu einer Stelle in der Literatur (Bibel aufschlagen) und in der
+        Suche als Gruppe „Kommentar“; @belege und – wenn eingeschaltet – der Lektor bekommen sie als Belege [S1] … (lokal,
+        nichts verlässt den Rechner). Lizenzvermerke der Module werden immer mit angezeigt.</p>
+    </form>
+  </div>
+  {#- Runde 16b (Zeitwächter): Block „Predigtzeit“ (timing {words_per_minute, target_minutes?, total_clock, words,
+      over_clock?, sermon, default_wpm, error?}); Formular an POST /einstellungen/werk/zeit (method=work.timing_set).
+      Nur SQLite, nicht im Spiegel. #}
+  <div class="settings-block settings-timing" id="zeit">
+    <h3>Predigtzeit</h3>
+    {%- if timing.error %}
+    <p class="notice error small" role="alert">{{ timing.error }}</p>
+    {%- endif %}
+    <p class="small" data-timing-summary>Sprechdauer jetzt ≈ <strong>{{ timing.total_clock }}</strong> ({{ timing.words }} gesprochene Wörter){% if timing.target_minutes %} · Ziel {{ timing.target_minutes }} min{% endif %}{% if timing.over_clock %} · <span class="badge warning" role="alert">Zielzeit überschritten um {{ timing.over_clock }}</span>{% endif %}</p>
+    <form method="post" action="/einstellungen/werk/zeit">
+      <input type="hidden" name="method" value="work.timing_set">
+      <input type="hidden" name="work" value="{{ work }}">
+      <label class="small">Wörter je Minute <input type="number" name="words_per_minute" min="60" max="250" step="1" value="{{ timing.words_per_minute }}" required></label>
+      <label class="small">Zielzeit in Minuten <input type="number" name="target_minutes" min="1" max="240" step="1" value="{{ timing.target_minutes if timing.target_minutes else '' }}" placeholder="keine"></label>
+      <button class="btn" type="submit">Predigtzeit speichern</button>
+      <p class="muted tiny">Vorgabe {{ timing.default_wpm }} Wörter je Minute; Zielzeit leer = keine. {% if timing.sermon %}Predigten zeigen ihre Zeiten immer{% else %}Bücher zeigen Zeiten nur mit Zielzeit{% endif %} – in der Gliederung und im Editorkopf. Typst-Markup, Überschriften, Kommentare und Fußnoten zählen nicht mit. Gespeichert nur in der Datenbank, nicht im Git-Spiegel.</p>
+    </form>
+  </div>
+  {#- Runde 18c (Satzbild je Werk): Block „Satzbild“ (sheet {settings, template, empty, error?}); Formular an
+      POST /einstellungen/werk/satzbild (method=work.sheet_set). Leere Felder = aus der Werkvorlage (Platzhalter =
+      Wert der Vorlage). Nur SQLite, nicht im Spiegel; gilt nur für das Satzbild im Browser, nie für Typst/PDF. #}
+  <div class="settings-block settings-sheet" id="satzbild">
+    <h3>Satzbild</h3>
+    {%- if sheet.error %}
+    <p class="notice error small" role="alert">{{ sheet.error }}</p>
+    {%- endif %}
+    <form class="sheet-settings-form" method="post" action="/einstellungen/werk/satzbild">
+      <input type="hidden" name="method" value="work.sheet_set">
+      <input type="hidden" name="work" value="{{ work }}">
+      <label class="small">Schrift <input type="text" name="font" maxlength="200" value="{{ sheet.settings.font or '' }}" placeholder="{{ sheet.template.font or 'Vorgabe: Libertinus Serif, Georgia, serif' }}"></label>
+      <label class="small">Schrift der Überschriften <input type="text" name="heading_font" maxlength="200" value="{{ sheet.settings.heading_font or '' }}" placeholder="{{ sheet.template.heading_font or 'wie die Schrift' }}"></label>
+      <label class="small">Schriftgröße <input type="text" name="size" maxlength="16" value="{{ sheet.settings.size or '' }}" placeholder="{{ sheet.template.size or '11pt' }}"></label>
+      <label class="small">Satzbreite <input type="text" name="width" maxlength="16" value="{{ sheet.settings.width or '' }}" placeholder="{{ sheet.template.width or '14.8cm' }}"></label>
+      <label class="small">Textfarbe <input type="text" name="fill" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.fill or '' }}" placeholder="{{ sheet.template.fill or '#rrggbb' }}"></label>
+      <label class="small">Farbe der Überschriften <input type="text" name="heading_fill" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.heading_fill or '' }}" placeholder="{{ sheet.template.heading_fill or '#rrggbb' }}"></label>
+      <label class="small">Blattfarbe <input type="text" name="background" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.background or '' }}" placeholder="#f4f1ea (hell)"></label>
+      <div class="sheet-settings-actions">
+        <button class="btn" type="submit">Satzbild speichern</button>
+        {%- if not sheet.empty %}
+        <button class="btn" type="submit" name="reset" value="1" formnovalidate>Alles aus der Vorlage</button>
+        {%- endif %}
+      </div>
+      <p class="muted tiny">Leer = aus der Werkvorlage (grau: ihr Wert). Schrift als Liste wie in CSS (<code>"Erfundene Antiqua", Georgia, serif</code>),
+        Größe 6 bis 48 pt und Satzbreite 6 bis 60 cm mit Einheit pt, mm, cm oder em, Farben als <code>#rrggbb</code>. Gilt nur für das
+        Satzbild im Browser – der Satz mit Typst, PDF und Export folgen weiter der Werkvorlage. Gespeichert nur in der Datenbank,
+        nicht im Git-Spiegel und nicht im Austauschformat.</p>
+    </form>
+  </div>
+{{ typeset|safe }}
+  {#- Runde 22 (fassungen): Block „Fassungen“ (revisions {amend, max_change_percent, new_after_minutes, default_percent,
+      default_minutes, percent_min, percent_max, minutes_min, minutes_max, error?}); Formular an
+      POST /einstellungen/werk/fassungen (method=revision.policy_set, Handler in src/revisions.rs). Nur SQLite, nicht im
+      Austauschformat; jede Änderung ist ein Protokoll-Commit im Git-Spiegel. #}
+  <div class="settings-block settings-revisions" id="fassungen">
+    <h3>Fassungen</h3>
+    {%- if revisions.error %}
+    <p class="notice error small" role="alert">{{ revisions.error }}</p>
+    {%- endif %}
+    <form class="revision-policy-form" method="post" action="/einstellungen/werk/fassungen">
+      <input type="hidden" name="method" value="revision.policy_set">
+      <input type="hidden" name="work" value="{{ work }}">
+      <label class="inline small"><input type="checkbox" name="amend" value="1"{% if revisions.amend %} checked{% endif %}> Eigene aktuelle Fassung beim Speichern fortschreiben (statt jedes Mal eine neue Fassung)</label>
+      <label class="small">Neue Fassung ab einer Änderung von mehr als <input type="number" name="max_change_percent" min="{{ revisions.percent_min }}" max="{{ revisions.percent_max }}" step="1" value="{{ revisions.max_change_percent }}" required> Prozent</label>
+      <label class="small">Neue Fassung, wenn seit dem letzten Speichern <input type="number" name="new_after_minutes" min="{{ revisions.minutes_min }}" max="{{ revisions.minutes_max }}" step="1" value="{{ revisions.new_after_minutes }}" required> Minuten vergangen sind (0 = keine Zeitgrenze)</label>
+      <button class="btn" type="submit">Fassungen speichern</button>
+      <p class="muted tiny">Vorgabe: an, {{ revisions.default_percent }} %, {{ revisions.default_minutes }} min. Eine neue
+        Fassung entsteht außerdem immer, wenn „Als neue Fassung speichern“ gewählt ist, die aktuelle Fassung von einer
+        Persona stammt (auch ein übernommener Vorschlag), auf einer anderen als der aktuellen Fassung bearbeitet oder die
+        Überschrift bzw. Gliederung geändert wurde. Jede Fortschreibung ist ein Commit im Git-Spiegel und steht im Verlauf
+        der Fassung (dort auch „Bis hier zurück“). Personas legen immer neue Fassungen (Vorschläge) an. Gespeichert nur in
+        der Datenbank, nicht im Austauschformat.</p>
+    </form>
+  </div>
+  <div class="settings-block settings-sync" id="abgleich">
+    <h3>Abgleich mit MultiGPT</h3>
+    <form method="post" action="/abgleich/act">
+      <input type="hidden" name="action" value="upload">
+      <input type="hidden" name="work" value="{{ work }}">
+      <input type="hidden" name="back" value="/einstellungen/werk?work={{ work }}">
+      {%- if sync.upload %}
+      <p data-sync-upload="an">Nach MultiGPT hochladen: <strong>an</strong> – je Kapitel ein Dokument in der Sammlung „{{ sync.collection }}“ ({{ sync.documents }} Kapitel hochgeladen{% if sync.synced %}, zuletzt {{ sync.synced }}{% endif %}).</p>
+      <button class="btn" type="submit">Hochladen ausschalten</button>
+      {%- else %}
+      <p data-sync-upload="aus">Nach MultiGPT hochladen: <strong>aus</strong>. Eingeschaltet lädt der nächste Abgleich die aktuellen Fassungen dieses Werks als ein Dokument je Kapitel in die Sammlung „{{ sync.collection }}“.</p>
+      <input type="hidden" name="on" value="1">
+      <label class="inline"><input type="checkbox" name="confirm" value="1" required> Ja, die aktuellen Fassungen dieses Werks dürfen nach MultiGPT</label>
+      <button class="btn" type="submit">Hochladen einschalten</button>
+      {%- endif %}
+    </form>
+    <p class="muted"><a href="/abgleich?work={{ work }}">Zum Abgleich (Werkzeuge → Abgleichen)</a></p>
+  </div>
+  {%- else %}
+  <p class="muted">Es gibt noch kein Werk. <a href="/werke/neu">Neues Werk anlegen oder importieren …</a></p>
+  {%- endif %}
+</section>

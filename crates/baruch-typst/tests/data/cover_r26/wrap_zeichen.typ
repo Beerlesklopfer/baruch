@@ -1,0 +1,25 @@
+// Baruch: Umschlag für die Druckerei (Runde 11) – Rückseite | Rücken | Vorderseite, Beschnitt 3.000mm
+#set page(width: 314.000mm, height: 216.000mm, margin: 0pt)
+#set text(lang: "de")
+#place(top + left, block(width: 151.000mm, height: 216.000mm, fill: rgb("#1f2a33"), clip: true, inset: (left: 17.000mm, right: 14.000mm, top: 17.000mm, bottom: 17.000mm), {
+  set text(fill: white, size: 10.5pt)
+  set par(justify: true)
+  par("Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile")
+  v(1fr)
+  grid(columns: (auto, 1fr), column-gutter: 4mm, image(".baruch/foto.png", width: 22mm), { set text(size: 9pt); par("Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile") })
+  v(6mm)
+  grid(columns: (1fr, auto), align: (left + bottom, right + bottom), { text(size: 9pt, "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile"); linebreak(); text(size: 9pt, "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile") }, box(fill: white, inset: 3pt, { image(".baruch/isbn.svg", width: 36mm); align(center, text(size: 7.5pt, fill: black, "ISBN kein ) ISBN")) }))
+}))
+#place(top + left, dx: 151.000mm, block(width: 12.000mm, height: 216.000mm, fill: rgb("#1f2a33"), clip: true, align(center + horizon, rotate(90deg, reflow: true, text(size: 11.00pt, fill: white, "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile · Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile")))))
+#place(top + left, dx: 163.000mm, block(width: 151.000mm, height: 216.000mm, clip: true, {
+  place(top + left, image(".baruch/wolke.png", alt: "Eine \"Wolke\" ]", width: 100%, height: 100%, fit: "cover"))
+  place(horizon + center, block(width: 100%, inset: (x: 10%, y: 9%), fill: black.transparentize(50%), {
+      set align(center)
+      set par(leading: 0.5em)
+      text(size: 13pt, fill: white, "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile")
+      v(0.8em)
+      text(size: 30pt, weight: "bold", fill: white, "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile")
+      v(0.5em)
+      text(size: 15pt, fill: white, "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile")
+  }))
+}))

@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# CI: Tests, clippy, Typst-Satz eines Exports, Abhängigkeitsprüfung, Webseite, Hilfsskripte.
+# Läuft bei Push auf main (Fast-Forward durch den Nutzer) und von Hand. Ablauf und Pflege: docs/Verteilung.md.
+#
+# - Aktionen sind auf Commit-SHAs festgelegt (am 2026-11-24 mit `git ls-remote` gegen die Tags geprüft).
+# - Rust steht in fester Version in RUST_VERSION (= `rustc --version` auf dem Entwicklungsrechner); Hugo und
+#   Typst lädt scripts/ci-tool.sh in fester Version mit Prüfsumme.
+# - Kein Geheimnis: Dieser Ablauf braucht keins und bekommt nur Leserechte.
+# - scripts/ci-check-workflows.sh (Job „skripte“) prüft diese Regeln bei jedem Lauf nach.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_VERSION: "1.99.0"
+  CARGO_DENY_VERSION: "0.22.0"
+
+jobs:
+  test:
+    name: Tests, clippy, Typst-Satz (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Platz schaffen (der Testbau mit LanceDB braucht viele GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Systempakete (protoc für lance, libdbus für den Schlüsselbund, Prüfwerkzeuge)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            protobuf-compiler libdbus-1-dev pkg-config libxml2-utils poppler-utils
+          protoc --version
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Rust (feste Version) mit clippy und rustfmt
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
+          rustup default "$RUST_VERSION"
+          rustc -vV
+
+      - name: TypeScript-Compiler der Oberfläche
+        working-directory: crates/baruch-server/web
+        run: npm ci
+
+      # Zuerst, weil es Sekunden dauert: Unformatierter Code soll nicht erst nach dem langen Testlauf auffallen.
+      - name: Formatierung (cargo fmt, wie in der lokalen Abnahme)
+        run: cargo fmt --all -- --check
+
+      - name: Tests
+        run: cargo test --workspace --locked -j 4
+
+      - name: clippy (Warnungen sind Fehler)
+        run: cargo clippy --workspace --all-targets --locked -j 4 -- -D warnings
+
+      # Der Export muss sich mit der Typst-Kommandozeile setzen lassen, nicht nur mit dem eingebetteten Compiler.
+      # Die Binärdatei liegt nach den Tests schon unter target/debug; der Bau ist dann nur eine Prüfung.
+      - name: typst – erfundenes Werk importieren, exportieren, mit `typst compile` setzen
+        run: |
+          set -eu
+          cargo build --locked -p baruch-server -j 4
+          sh scripts/ci-tool.sh typst "$RUNNER_TEMP/werkzeug"
+          sh scripts/ci-typst.sh target/debug/baruch-server "$RUNNER_TEMP/werkzeug/typst"
+
+      - name: Platz am Ende (für die Pflege der Laufzeitgrenzen)
+        if: always()
+        run: df -h /
+
+  deny:
+    name: Lizenzen, Quellen, Sicherheitsmeldungen (cargo-deny)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Rust (feste Version)
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+
+      - name: cargo-deny installieren (feste Version, wie lokal geprüft)
+        run: cargo install cargo-deny --locked --version "$CARGO_DENY_VERSION"
+
+      # Mit `advisories` (RustSec-Datenbank aus dem Netz); lokal läuft nur `licenses sources bans`.
+      - name: cargo deny check
+        run: cargo deny check
+
+  seite:
+    name: Webseite (Hugo, ohne Auslieferung)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Hugo (feste Version, Prüfsumme)
+        run: sh scripts/ci-tool.sh hugo "$RUNNER_TEMP/werkzeug"
+
+      # Versionsabgleich (hugo.toml gegen Cargo.toml), `hugo --minify --panicOnWarning -s site`, CNAME.
+      - name: Seite bauen und prüfen
+        run: HUGO="$RUNNER_TEMP/werkzeug/hugo" sh scripts/ci-site.sh
+
+  skripte:
+    name: Hilfsskripte und Arbeitsabläufe (Selbsttest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Systempakete (apt-ftparchive, gpg, PyYAML)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends apt-utils dpkg-dev gnupg python3-yaml
+
+      - name: Hugo (feste Version, Prüfsumme)
+        run: sh scripts/ci-tool.sh hugo "$RUNNER_TEMP/werkzeug"
+
+      # Ohne Netz: APT-Repository über zwei Versionen (unsigniert und mit Wegwerfschlüssel signiert), Abruf des
+      # letzten Release gegen einen Nachbau von gh, Seitenbau einer Probe, Regeln der Arbeitsabläufe.
+      - name: Selbsttest
+        run: HUGO="$RUNNER_TEMP/werkzeug/hugo" sh scripts/ci-selftest.sh
+
+      # Der Fingerabdruck des Archivschlüssels steht in site/hugo.toml, README.md und docs/Verteilung.md. Fehlt
+      # er noch, warnt der Lauf; widersprechen sich die Stellen, scheitert er.
+      - name: Fingerabdruck des Archivschlüssels
+        run: |
+          set -eu
+          rc=0
+          sh scripts/ci-fingerprint.sh || rc=$?
+          case "$rc" in
+            0) ;;
+            3) echo "::warning::Der Fingerabdruck des Archivschlüssels ist noch nicht eingetragen (site/hugo.toml, README.md, docs/Verteilung.md)." ;;
+            *) exit "$rc" ;;
+          esac

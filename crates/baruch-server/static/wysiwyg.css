@@ -1,0 +1,188 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Satzbild-Editor (web/src/wysiwyg.ts, Blöcke aus baruch-wysiwyg). Die Werte der Werkvorlage kommen als
+   CSS-Variablen unter .ws-sheet (RPC wysiwyg.style); fehlt eine, gilt die Vorgabe hier. Das Blatt bleibt
+   auch im dunklen Thema hell (wie die Vorschau), darum feste Farben für Inseln und Markierungen. */
+
+/* div.wysiwyg umfasst Werkzeugleiste, Blatt (.editor-body, app.css) und Statuszeile und füllt den Editor.
+   Bei offenem Satzbild füllt .ws-wrap das Blatt (und wächst mit dem Text, dann scrollt das Blatt); im
+   Quelltext nimmt das Textfeld den Platz – keine leere Fläche. */
+.wysiwyg { display: flex; flex-direction: column; gap: 8px; }
+.wysiwyg[hidden], .ws-bar[hidden], .ws-hint[hidden] { display: none; }
+.ws-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ws-modes { display: inline-flex; }
+.ws-modes .btn { border-radius: 0; }
+.ws-modes .btn:first-child { border-radius: 6px 0 0 6px; }
+.ws-modes .btn:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.ws-modes .btn[aria-pressed="true"] { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.ws-tools { display: inline-flex; align-items: center; gap: 6px; }
+.ws-tools[hidden] { display: none; }
+.ws-tools select { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; }
+.ws-wrap { flex: 1 0 auto; display: flex; justify-content: center; padding: 4px; }
+.ws-wrap[hidden] { display: none; }
+
+.ws-sheet {
+  box-sizing: border-box; width: min(var(--ws-width, 14.8cm), 100%); height: fit-content; min-height: 100%;
+  padding: 2em 2.4em; background: var(--sheet); color: var(--ws-fill, var(--sheet-text));
+  border: 1px solid #bbb; border-radius: 2px; box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
+  font-family: var(--ws-font, "Libertinus Serif", Georgia, serif); font-size: var(--ws-size, 11pt);
+  line-height: calc(1em + var(--ws-leading, 0.65em)); text-align: var(--ws-justify, start);
+  /* Normale Leerzeichen statt &nbsp; beim Tippen; Zeilenumbrüche stehen nie im Text. */
+  white-space: pre-wrap; overflow-wrap: anywhere; hyphens: auto;
+}
+/* Das Blatt im Editor reicht über die ganze Höhe (Strecken im .ws-wrap), auch bei wenig Text. */
+.ws-wrap > .ws-sheet { height: auto; min-height: 0; }
+.ws-sheet:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ws-sheet .ws-block { margin: 0 0 .6em; }
+.ws-sheet .ws-block[data-kind="paragraph"] + .ws-block[data-kind="paragraph"] { text-indent: var(--ws-indent, 0); }
+.ws-sheet .ws-block[data-kind="heading"] {
+  font-family: var(--ws-heading-font, var(--ws-font, "Libertinus Serif", Georgia, serif));
+  color: var(--ws-heading-fill, inherit); font-weight: 700; line-height: 1.25; margin: 1em 0 .5em; text-align: start;
+}
+.ws-sheet .ws-block[data-kind="heading"][data-level="1"] { font-size: 1.6em; }
+.ws-sheet .ws-block[data-kind="heading"][data-level="2"] { font-size: 1.3em; }
+.ws-sheet .ws-block[data-kind="heading"][data-level="3"] { font-size: 1.12em; }
+.ws-sheet .ws-block[data-kind="heading"][data-level="4"],
+.ws-sheet .ws-block[data-kind="heading"][data-level="5"],
+.ws-sheet .ws-block[data-kind="heading"][data-level="6"] { font-size: 1em; }
+/* Runde 14: Teil und „ohne Nummer“ (Markierungen). Die Zusätze stehen nur im Stylesheet, nie im Titel. */
+.ws-sheet .ws-block[data-kind="part"],
+.ws-sheet .ws-block[data-kind="unnumbered"] {
+  font-family: var(--ws-heading-font, var(--ws-font, "Libertinus Serif", Georgia, serif));
+  color: var(--ws-heading-fill, inherit); font-weight: 700; line-height: 1.25; margin: 1em 0 .5em;
+}
+.ws-sheet .ws-block[data-kind="part"] {
+  font-size: 1.8em; text-align: center; padding: .6em 0; border-block: 1px solid var(--line, #ccc);
+}
+.ws-sheet .ws-block[data-kind="part"]::before {
+  content: "Teil"; display: block; font-size: .5em; font-weight: 400; letter-spacing: .12em;
+  text-transform: uppercase; opacity: .7;
+}
+.ws-sheet .ws-block[data-kind="unnumbered"][data-level="1"] { font-size: 1.6em; }
+.ws-sheet .ws-block[data-kind="unnumbered"][data-level="2"] { font-size: 1.3em; }
+.ws-sheet .ws-block[data-kind="unnumbered"][data-level="3"] { font-size: 1.12em; }
+.ws-sheet .ws-block[data-kind="unnumbered"]::after {
+  content: " · ohne Nummer"; font-size: .55em; font-weight: 400; opacity: .7;
+}
+.ws-sheet em { color: var(--ws-emph-fill, inherit); }
+.ws-sheet strong { color: var(--ws-strong-fill, inherit); }
+.ws-sheet ul, .ws-sheet ol { margin: 0; padding-left: 1.4em; }
+.ws-sheet .ws-body > .ws-block:last-child { margin-bottom: 0; }
+.ws-sheet .ws-block[data-kind="quote"] { margin-left: 1.5em; margin-right: 1.5em; }
+.ws-sheet .ws-block[data-kind="quote"][data-block="true"] { font-style: italic; }
+.ws-sheet .ws-attribution { text-align: end; font-style: normal; font-size: .9em; }
+.ws-sheet .ws-attribution::before { content: "— "; }
+.ws-sheet .ws-block[data-kind="scene"] {
+  background: var(--ws-scene-fill, rgba(0, 0, 0, .04)); padding: var(--ws-scene-inset, .6em .8em);
+  border: var(--ws-scene-stroke, 0 solid transparent);
+}
+.ws-sheet .ws-block[data-kind="work"] {
+  background: var(--ws-work-fill, #eef3fb); padding: var(--ws-work-inset, .6em .8em);
+  border: var(--ws-work-stroke, 0 solid transparent);
+}
+.ws-sheet .ws-footnote { font-size: .8em; color: #555; border-bottom: 1px dotted #888; }
+.ws-sheet .ws-footnote::before { content: "["; }
+.ws-sheet .ws-footnote::after { content: "]"; }
+.ws-sheet .ws-label { font: .7em ui-monospace, monospace; color: #6b7280; vertical-align: super; user-select: none; }
+.ws-sheet .ws-island {
+  font: .85em ui-monospace, "DejaVu Sans Mono", monospace; background: #fff3db; color: #5c3a00;
+  border: 1px dashed #a75f00; border-radius: 3px; padding: 0 .2em; text-indent: 0;
+}
+.ws-sheet .ws-block[data-kind="island"] {
+  background: #fff3db; color: #5c3a00; border-left: 3px solid #a75f00; border-radius: 3px; padding: .3em .6em;
+  font-size: .82em; line-height: 1.4; text-align: start; text-indent: 0; cursor: default;
+}
+.ws-sheet .ws-block[data-kind="island"] .ws-raw { font-family: ui-monospace, "DejaVu Sans Mono", monospace; white-space: pre-wrap; }
+.ws-sheet .ws-block[data-kind="island"][data-blank] { display: none; }
+.ws-sheet .ws-heading-label { margin-left: .4em; }
+.ws-sheet .ws-args {
+  font: .75em ui-monospace, "DejaVu Sans Mono", monospace; color: #5c3a00; background: #fff3db;
+  border-radius: 3px; padding: 0 .3em; margin-bottom: .4em; width: fit-content; user-select: none;
+}
+/* Bild in einer Insel (Abbildung, #image): das Bild groß, der Quelltext klein darüber. */
+.ws-sheet .ws-image { display: block; max-width: 100%; height: auto; margin: .4em auto; background: #fff; }
+.ws-sheet .ws-island .ws-image { display: inline-block; max-height: 4em; margin: 0 .2em; vertical-align: middle; }
+/* Runde 7: Insel mit Bild als Abbildung – Bild und Unterschrift, kein Typst-Rohtext; nur ein feiner
+   Rand zeigt, dass sie sich nur im Quelltext ändern lässt. */
+.ws-sheet .ws-block.ws-figure[data-kind="island"] {
+  background: transparent; color: inherit; border: 1px dashed transparent; border-left: 0; padding: .3em 0;
+  font-size: 1em; text-align: center;
+}
+.ws-sheet .ws-block.ws-figure:hover, .ws-sheet .ws-block.ws-figure:focus-within { border-color: #a75f00; }
+.ws-sheet .ws-figure .ws-image { max-height: 60vh; }
+.ws-sheet .ws-figure .ws-caption { display: block; font-size: .85em; font-style: italic; margin-top: .2em; color: #444; }
+.ws-sheet .ws-island.ws-inline-image { background: transparent; border-color: transparent; padding: 0; }
+.ws-sheet .ws-island.ws-inline-image:hover { border-color: #a75f00; }
+.ws-sheet .ws-block[data-dirty="1"] { box-shadow: -.6em 0 0 -.4em #7d97ff; }
+
+/* Runde 18b: neue Konstrukte im Satzbild – Begriffsliste, geschachtelte Listen, erzwungener Umbruch, Link,
+   Verweis (Schaltfläche, nicht bearbeitbar) und das Quelltextfeld einer Insel an Ort und Stelle. */
+.ws-sheet dl { margin: 0; }
+.ws-sheet dt { font-weight: 600; }
+.ws-sheet dd { margin: 0 0 .2em 1.4em; }
+.ws-sheet li > ul, .ws-sheet li > ol { margin: .1em 0; }
+.ws-sheet .ws-linebreak { color: #6b7280; font-size: .8em; user-select: none; }
+.ws-sheet .ws-link { color: #1f4fbf; text-decoration: underline; text-decoration-style: dotted; cursor: text; }
+.ws-sheet .ws-link[data-bare] { font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: .9em; }
+.ws-sheet .ws-ref {
+  font: .85em ui-monospace, "DejaVu Sans Mono", monospace; color: #1f4fbf; background: #eef2ff;
+  border: 1px solid #b4c3f5; border-radius: 3px; padding: 0 .25em; margin: 0 .05em; cursor: pointer; text-indent: 0;
+}
+.ws-sheet .ws-island-edit { display: flex; flex-direction: column; gap: 4px; margin: .2em 0; text-indent: 0; }
+.ws-sheet .ws-island .ws-island-edit { display: inline-flex; vertical-align: top; min-width: 16em; }
+.ws-sheet .ws-island-edit textarea {
+  font: .9em/1.4 ui-monospace, "DejaVu Sans Mono", monospace; width: 100%; min-height: 3.2em; resize: vertical;
+  color: #2a1a00; background: #fffaf0; border: 1px solid #a75f00; border-radius: 3px; padding: .2em .4em;
+}
+.ws-sheet .ws-island-edit .ws-island-buttons { display: flex; gap: 6px; font-family: system-ui, sans-serif; font-size: .85em; }
+.ws-sheet .ws-island[data-edited="1"], .ws-sheet .ws-block[data-kind="island"][data-edited="1"] { border-color: #7d97ff; }
+
+/* Runde 11: Bilder im Editor. Fehlendes Bild deutlich, Alternativtext sichtbar, Kapitelbild im Kopf,
+   „Bild einfügen …“ in der Statuszeile (öffnet nach oben). */
+.ws-sheet .ws-missing {
+  display: inline-block; padding: .3em .6em; border: 2px dashed #b3261e; border-radius: 4px;
+  color: #8c1d18; background: #fdecea; font-size: .9em;
+}
+.ws-sheet .ws-figure .ws-alt { display: block; font-size: .75em; color: #555; margin-top: .1em; }
+.editor-head > .chapter-image { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; margin: 0; min-width: 0; max-width: 40%; }
+.editor-head > .chapter-image img { height: 40px; width: auto; border-radius: 3px; border: 1px solid var(--line); display: block; }
+.editor-head > .chapter-image figcaption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chapter-image-missing { color: var(--warning, #9a5800); }
+.missing-images code { overflow-wrap: anywhere; }
+.image-insert { position: relative; flex: none; }
+.image-insert > summary { list-style: none; cursor: pointer; }
+.image-insert > summary::-webkit-details-marker { display: none; }
+.image-insert[open] > .image-insert-form, .image-insert[open] > p {
+  position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 30; width: min(28em, 80vw);
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin: 0;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--panel); box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+}
+.image-insert-form label { display: flex; flex-direction: column; gap: 2px; }
+
+/* Runde 31c: Registermarke im Satzbild – ein leeres, nicht tippbares Element; das kleine Zeichen kommt nur aus dem Stil
+   (kein Textknoten: Text, Suche und Markierung bleiben unberührt). Beschreibung im Tooltip; Rechtsklick oder Doppelklick
+   bearbeitet sie über das Kontextmenü. */
+/* Runde 23a (Gutachten R31): Farben der Marke als Tokens des Blatts statt fester Werte. Das Blatt bleibt in beiden
+   Themen hell (--sheet); die Tokens sind darum auf dem Blatt definiert, gemischt aus der Textfarbe des Blatts und den
+   Themenfarben (--warning, --primary), und lassen sich je Thema bzw. Werk überschreiben. Die festen Werte dahinter
+   gelten nur für Browser ohne color-mix. */
+.ws-sheet {
+  --ws-index-mark: #8a6d1f;
+  --ws-index-mark-person: #2f6f8f;
+  --ws-index-mark-active: #b45309;
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .ws-sheet {
+    --ws-index-mark: color-mix(in srgb, var(--warning, #9a5800) 70%, var(--sheet-text, #111));
+    --ws-index-mark-person: color-mix(in srgb, var(--primary, #3b5bdb) 60%, var(--sheet-text, #111));
+    --ws-index-mark-active: color-mix(in srgb, var(--danger, #c92a2a) 65%, var(--sheet-text, #111));
+  }
+}
+.ws-sheet .ws-index-mark { cursor: context-menu; user-select: none; }
+.ws-sheet .ws-index-mark::before {
+  content: "\2058"; display: inline-block; margin: 0 1px; font: .62em ui-sans-serif, system-ui, sans-serif;
+  color: var(--ws-index-mark); vertical-align: super; line-height: 1;
+}
+.ws-sheet .ws-index-mark[data-register="personen"]::before { color: var(--ws-index-mark-person); }
+.ws-sheet .ws-index-mark:hover::before, .ws-sheet .ws-index-mark:focus::before,
+.ws-sheet .ws-index-mark[data-ctx-target]::before { color: var(--ws-index-mark-active); outline: 1px dotted currentColor; }
+

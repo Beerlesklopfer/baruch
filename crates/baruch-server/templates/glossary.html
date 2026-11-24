@@ -1,0 +1,141 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/glossar (Runde 31c, src/glossary_page.rs, Besitz kontextmenue). Kontext: settings, work {id, title},
+    accepted [Term], proposed [Term] (Term wie RPC glossary.list, dazu variants_text, bible_refs_text, filter),
+    load_error?, lookup {word, terms, error?}?, open_id? (Begriff mit offenem Bearbeiten-Formular), prefill (neuer
+    Begriff), ok?, retry {action, id, v {Feld → Wert}, message}? (abgelehntes Formular, 422).
+    Ohne JavaScript: alle Formulare an POST /werke/{id}/glossar/act (action = add|update|delete|accept|reject|suggest), Löschen
+    mit Pflicht-Häkchen confirm, Nachschlagen als GET-Formular. Vorschläge der Assistenten stehen gesondert und
+    gekennzeichnet; übernehmen oder verwerfen kann nur der Mensch. Widget „glossary“ (web/src/glossary.ts): Suchfeld. -#}
+{% extends "base.html" %}
+{% block title %}Glossar – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Glossar{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <a class="btn" href="/werke/{{ work.id }}/register">Register</a>
+{% endblock %}
+{%- macro term_fields(v, prefix) %}
+  <label class="glossary-field small">Begriff <input type="text" name="term" maxlength="200" required value="{{ v.term or '' }}"></label>
+  <label class="glossary-field small">Kurze Erklärung <input type="text" name="short" maxlength="500" value="{{ v.short or '' }}"></label>
+  <label class="glossary-field small">Ausführliche Erklärung <textarea name="long" rows="4">{{ v.long or '' }}</textarea></label>
+  <label class="glossary-field small">Varianten <span class="muted tiny">(je Zeile eine, z. B. Mehrzahl)</span> <textarea name="variants" rows="2">{{ v.variants_text if v.variants_text is defined else (v.variants or '') }}</textarea></label>
+  <label class="glossary-field small">Bibelstellen <span class="muted tiny">(je Zeile eine, z. B. Joh 3,16)</span> <textarea name="bible_refs" rows="2">{{ v.bible_refs_text if v.bible_refs_text is defined else (v.bible_refs or '') }}</textarea></label>
+  <label class="glossary-field small">Quelle <input type="text" name="source" maxlength="500" value="{{ v.source or '' }}"></label>
+{%- endmacro %}
+{% block body %}
+<main class="works-page glossary-page" data-work="{{ work.id }}" data-widget="glossary">
+  <h1 class="pane-title">Glossar</h1>
+  <p class="muted small">Begriffe, die im Buch erklärt werden: kurze und ausführliche Erklärung, Varianten (andere Wortformen) und
+    Bibelstellen. Welche Seite das Glossar im Buch bekommt, regelt Einstellungen → Werk → Satz. Assistenten schlagen Begriffe
+    nur vor; übernehmen, ändern und löschen nur Sie.</p>
+  {%- if ok %}
+  <p class="notice small" role="status" data-glossary-ok>{{ ok }}</p>
+  {%- endif %}
+  {%- if retry %}
+  <p class="notice error small" role="alert" data-glossary-error>{{ retry.message }}</p>
+  {%- endif %}
+  {%- if load_error %}
+  <p class="notice warning small" role="alert" data-glossary-load-error>Das Glossar lässt sich nicht lesen: {{ load_error }}</p>
+  {%- endif %}
+
+  <form class="glossary-lookup" method="get" action="/werke/{{ work.id }}/glossar" role="search" aria-label="Im Glossar nachschlagen">
+    <label class="small">Nachschlagen <input type="search" name="nachschlagen" value="{{ lookup.word if lookup else '' }}" placeholder="Wort oder Variante"></label>
+    <button class="btn" type="submit">Nachschlagen</button>
+  </form>
+  {%- if lookup %}
+  <section class="glossary-lookup-result" id="nachschlagen" aria-labelledby="nachschlagen-titel">
+    <h2 id="nachschlagen-titel" class="small">Im Glossar: „{{ lookup.word }}“</h2>
+    {%- if lookup.error %}
+    <p class="notice warning small" role="alert">{{ lookup.error }}</p>
+    {%- elif not lookup.terms %}
+    <p class="small">„{{ lookup.word }}“ steht nicht im Glossar. <a href="/werke/{{ work.id }}/glossar?begriff={{ lookup.word|urlencode }}#neu">In Glossar aufnehmen</a></p>
+    {%- else %}
+    {%- for t in lookup.terms %}
+    <p class="small"><a href="#begriff-{{ t.id }}">{{ t.term }}</a>{% if t.short %} – {{ t.short }}{% endif %}</p>
+    {%- endfor %}
+    {%- endif %}
+  </section>
+  {%- endif %}
+
+  <p class="glossary-filter" hidden><label class="small">Liste filtern <input type="search" data-glossary-filter placeholder="Begriff, Variante, Erklärung"></label> <span class="muted tiny" data-glossary-count aria-live="polite"></span></p>
+
+  <section class="glossary-list" aria-labelledby="angenommen">
+    <h2 id="angenommen" class="small">Begriffe ({{ accepted|length }})</h2>
+    {%- if not accepted and not load_error %}
+    <p class="muted small">Noch keine Begriffe. Im Editor: Wort markieren, Rechtsklick → „In Glossar aufnehmen“, oder unten anlegen.</p>
+    {%- endif %}
+    {%- for t in accepted %}
+    {%- set failed = retry and retry.id == t.id %}
+    <article class="glossary-term" id="begriff-{{ t.id }}" data-filter-text="{{ t.filter }}">
+      <h3 class="glossary-term-title">{{ t.term }}</h3>
+      {%- if t.variants %}<p class="muted small">auch: {{ t.variants|join(", ") }}</p>{% endif %}
+      {%- if t.short %}<p class="small glossary-short">{{ t.short }}</p>{% endif %}
+      {%- if t.long %}<p class="small glossary-long">{{ t.long }}</p>{% endif %}
+      {%- if t.bible_refs %}<p class="muted small">Bibelstellen: {{ t.bible_refs|join("; ") }}</p>{% endif %}
+      {%- if t.source %}<p class="muted tiny">Quelle: {{ t.source }}</p>{% endif %}
+      <p class="muted tiny">{% if t.origin and t.origin[:1] == "@" %}Vorgeschlagen von {{ t.origin }} · {% endif %}{% if t.updated %}geändert {{ t.updated }}{% if t.updated_by %} von {{ t.updated_by }}{% endif %}{% else %}angelegt {{ t.created }}{% endif %}</p>
+      <details class="glossary-edit"{% if open_id == t.id %} open{% endif %}>
+        <summary class="btn small">Bearbeiten oder löschen</summary>
+        <form method="post" action="/werke/{{ work.id }}/glossar/act">
+          <input type="hidden" name="action" value="update">
+          <input type="hidden" name="id" value="{{ t.id }}">
+          {{- term_fields(retry.v if failed and retry.action == "update" else t, "e") }}
+          <button class="btn primary" type="submit">Speichern</button>
+        </form>
+        <form method="post" action="/werke/{{ work.id }}/glossar/act" class="glossary-delete">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="id" value="{{ t.id }}">
+          <label class="check small"><input type="checkbox" name="confirm" value="1" required> Ja, „{{ t.term }}“ aus dem Glossar löschen</label>
+          <button class="btn" type="submit">Löschen</button>
+        </form>
+      </details>
+    </article>
+    {%- endfor %}
+  </section>
+
+  <section class="glossary-proposals" aria-labelledby="vorschlaege">
+    <h2 id="vorschlaege" class="small">Vorschläge der Assistenten ({{ proposed|length }})</h2>
+    <form class="glossary-suggest" method="post" action="/werke/{{ work.id }}/glossar/act" data-glossary-suggest>
+      <input type="hidden" name="action" value="suggest">
+      <button class="btn" type="submit">Begriffe vorschlagen lassen</button>
+      <span class="muted tiny">Der Lektor (Einstellungen → Assistenten) liest das ganze Werk und schlägt Begriffe vor, die erklärt werden sollten. Sie erscheinen hier als Vorschläge; übernehmen nur Sie. Das kann eine Weile dauern.</span>
+    </form>
+    {%- if not proposed %}
+    <p class="muted small">Keine offenen Vorschläge.</p>
+    {%- endif %}
+    {%- for t in proposed %}
+    <article class="glossary-term glossary-proposed" id="begriff-{{ t.id }}" data-filter-text="{{ t.filter }}" data-proposed>
+      <h3 class="glossary-term-title">{{ t.term }} <span class="badge" title="Vorschlag, noch nicht im Glossar">Vorschlag von {{ t.origin }}</span></h3>
+      {%- if t.variants %}<p class="muted small">auch: {{ t.variants|join(", ") }}</p>{% endif %}
+      {%- if t.short %}<p class="small glossary-short">{{ t.short }}</p>{% endif %}
+      {%- if t.long %}<p class="small glossary-long">{{ t.long }}</p>{% endif %}
+      {%- if t.bible_refs %}<p class="muted small">Bibelstellen: {{ t.bible_refs|join("; ") }}</p>{% endif %}
+      <div class="glossary-decide">
+        <form method="post" action="/werke/{{ work.id }}/glossar/act">
+          <input type="hidden" name="action" value="accept">
+          <input type="hidden" name="id" value="{{ t.id }}">
+          <button class="btn primary" type="submit">Übernehmen</button>
+        </form>
+        <form method="post" action="/werke/{{ work.id }}/glossar/act">
+          <input type="hidden" name="action" value="reject">
+          <input type="hidden" name="id" value="{{ t.id }}">
+          <button class="btn" type="submit">Verwerfen</button>
+        </form>
+      </div>
+    </article>
+    {%- endfor %}
+  </section>
+
+  <section class="glossary-new" id="neu" aria-labelledby="neu-titel">
+    <h2 id="neu-titel" class="small">Neuer Begriff</h2>
+    <form method="post" action="/werke/{{ work.id }}/glossar/act">
+      <input type="hidden" name="action" value="add">
+      {%- if retry and retry.action == "add" %}
+      {{- term_fields(retry.v, "n") }}
+      {%- else %}
+      {{- term_fields({"term": prefill}, "n") }}
+      {%- endif %}
+      <button class="btn primary" type="submit">In Glossar aufnehmen</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

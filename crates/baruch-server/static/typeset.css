@@ -1,0 +1,49 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Typst-Satz: Seite /werke/{id}/satz (Runde 8). Grundgerüst aus works.css (.works-page), Farben aus
+   app.css. Das Blatt bleibt in beiden Themen hell (gesetzte Seite wie auf Papier). */
+
+.typeset-page { gap: 10px; }
+/* Runde 18a: kein heller Streifen rechts. Ursache: .works-page (works.css) ist zugleich Scrollbehälter
+   (overflow: auto) und auf 1100px Breite begrenzt und mittig gesetzt. Auf langen Seiten wie dieser erschien seine
+   Bildlaufleiste darum mitten im Fenster rechts neben dem Inhalt – im hellen Thema als heller Streifen, rechts
+   davon wieder der Hintergrund. Abhilfe: der Scrollbehälter nimmt die volle Breite (Bildlaufleiste am
+   Fensterrand), der Inhalt bleibt über den Innenabstand gleich breit und mittig. */
+.works-page.typeset-page { max-width: none; padding-inline: max(18px, calc((100% - 1100px) / 2 + 18px)); }
+.typeset-page > * { flex: 0 0 auto; }
+.typeset-facts { margin: 0; }
+.typeset-diagnostics ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.typeset-diagnostic {
+  display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; padding: 6px 8px;
+  border: 1px solid var(--line); border-left-width: 4px; border-radius: 6px; background: var(--panel);
+}
+.typeset-diagnostic.error { border-left-color: var(--danger); }
+.typeset-diagnostic.warning { border-left-color: var(--warning); }
+.typeset-message { font-weight: 600; overflow-wrap: anywhere; }
+.typeset-hint { flex-basis: 100%; }
+.badge.danger { background: var(--danger-soft); color: var(--danger); }
+.typeset-nav { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.typeset-at { font-variant-numeric: tabular-nums; }
+.typeset-chapter { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--muted); }
+.typeset-chapter .page {
+  min-width: 2em; padding: 1px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;
+  color: var(--text); text-decoration: none; font-variant-numeric: tabular-nums;
+}
+.typeset-chapter .page.current { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.typeset-sheet { margin: 0; padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.typeset-sheet img {
+  display: block; margin: 0 auto; width: min(100%, 52em); height: auto;
+  background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+/* Druckprüfung (Runde 11): fehlende Bilder und Rasterbilder unter 300 dpi. */
+.typeset-print { display: grid; gap: 6px; }
+.typeset-print ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.typeset-print .badge { font-variant-numeric: tabular-nums; }
+/* Bildanträge (Runde 11, fragments/asset_requests.html auf der Seite „Bilder“): Vorschau des vorgeschlagenen
+   Inhalts klein halten; der Stil liegt hier, weil assets.css einer anderen Aufgabe gehört. */
+.asset-request-preview { display: block; max-width: 12em; max-height: 8em; margin-top: 4px; border: 1px solid var(--line); background: #fff; }
+.asset-request-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+/* Runde 29: Werkvorlage gegen Satz-Einstellungen in der Druckprüfung (Konflikte, erkannte Kapitelanfangs-Regel).
+   Der Regeltext steht als <code> und darf umbrechen. */
+.typeset-conflict code, .typeset-template-rule code { overflow-wrap: anywhere; white-space: pre-wrap; font-size: .9em; }
+/* Runde 22: Zeile „Als Entwurf herunterladen“ / Vorschau mit oder ohne Wasserzeichen. */
+.typeset-draft { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 0; }

@@ -1,0 +1,68 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/stichwortzettel (Runde 16c, src/pdf/notes.rs): Formatwahl als gewöhnliches
+    GET-Formular (format=a5|karten, schrift=14–28), Vorschau der Karten (je Abschnitt Nummer, Titel,
+    Zeitmarke, Dauer, Stichpunkte, Bibelstellen und welche Regel die Punkte lieferte) und der Link zum PDF.
+    Ohne JavaScript bedienbar. Auch Fehlerseite des PDF-Downloads (409, 422, 503) mit `error`.
+    Kontext: settings, work {id, title}, back, pdf_url, choices [{value, label, selected}], font_pt,
+    min_pt, max_pt, cards, total_clock, target_clock, file_name, error; Runde 22: draft_url (Link „Als Entwurf
+    herunterladen“ mit &entwurf=1, ändert die Einstellung nicht). -#}
+{% extends "base.html" %}
+{% block title %}Stichwortzettel – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Stichwortzettel{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ back }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page notes-page">
+  <h1 class="pane-title">Stichwortzettel</h1>
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <p class="muted small">Je Abschnitt Überschrift, Zeitmarke aus dem Zeitwächter, Stichpunkte und Bibelstellen.
+    Stichpunkte: eigene Kommentarzeilen „// Stichwort: …“, sonst hervorgehobene Stellen (*…*), sonst der erste
+    Satz jedes Absatzes; höchstens sechs Punkte zu je höchstens 160 Zeichen.</p>
+  <form class="notes-form" method="get" action="/werke/{{ work.id }}/stichwortzettel">
+    <fieldset>
+      <legend>Format</legend>
+      {%- for c in choices %}
+      <label><input type="radio" name="format" value="{{ c.value }}"{% if c.selected %} checked{% endif %}> {{ c.label }}</label>
+      {%- endfor %}
+    </fieldset>
+    <label>Schriftgröße (Punkt) <input type="number" name="schrift" value="{{ font_pt }}" min="{{ min_pt }}" max="{{ max_pt }}" step="1" required></label>
+    <button class="btn" type="submit">Übernehmen</button>
+  </form>
+  <p class="notes-download">
+    <a class="btn primary" href="{{ pdf_url }}" download{% if file_name %}="{{ file_name }}"{% endif %}>PDF herunterladen</a>
+    {%- if draft_url %} <a class="btn" href="{{ draft_url }}" download title="Mit Wasserzeichen „Entwurf“; die Satz-Einstellung bleibt, wie sie ist">Als Entwurf herunterladen</a>{% endif %}
+    {%- if file_name %} <span class="muted small">{{ file_name }}</span>{% endif %}
+  </p>
+  {%- if total_clock %}
+  <p class="notes-times">Gesamtdauer <strong>{{ total_clock }}</strong>{% if target_clock %} · Zielzeit <strong>{{ target_clock }}</strong>{% endif %}</p>
+  {%- endif %}
+  <section class="notes-cards" aria-label="Vorschau der Karten">
+  {%- for c in cards %}
+    <article class="notes-card card depth-{{ c.depth }}" id="karte-{{ c.key }}">
+      <header class="notes-card-head">
+        <strong>{% if c.number %}{{ c.number }} {% endif %}{{ c.title }}</strong>
+        <span class="muted small notes-clock">ab {{ c.start_clock }} · Dauer {{ c.clock }}</span>
+      </header>
+      {%- if c.points %}
+      <ul class="notes-points">
+      {%- for p in c.points %}
+        <li>{{ p }}</li>
+      {%- endfor %}
+      </ul>
+      {%- else %}
+      <p class="muted small">Keine Stichpunkte.</p>
+      {%- endif %}
+      {%- if c.refs %}
+      <p class="small notes-refs">Bibelstellen: {{ c.refs | join(" · ") }}</p>
+      {%- endif %}
+      <p class="muted tiny notes-rule">Regel: {{ c.rule_label }}</p>
+    </article>
+  {%- else %}
+    <p class="muted">Keine Abschnitte.</p>
+  {%- endfor %}
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,11 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Einstieg des AppImage.
+#   ohne Argumente: Server starten (falls noch keiner läuft) und die Oberfläche im Browser öffnen
+#   mit Argumenten: unverändert an baruch-server (z. B. `--help`, `import DATEI.typ`, `serve --listen …`)
+here="$(dirname "$(readlink -f "$0")")"
+export BARUCH_SERVER="$here/usr/bin/baruch-server"
+if [ $# -eq 0 ]; then
+    exec "$here/usr/bin/baruch"
+fi
+exec "$BARUCH_SERVER" "$@"

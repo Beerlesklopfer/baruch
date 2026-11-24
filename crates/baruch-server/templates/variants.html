@@ -1,0 +1,62 @@
+{#- Seite /varianten (Runde 30b, chat-loesungen, src/assist/solutions.rs): Varianten eines Abschnitts nebeneinander.
+    Je Variante Etikett A/B/C, die Zeile, was sie anders macht, die umgesetzten Befunde, der Unterschied zur Basis und –
+    aufklappbar – zu den übrigen Varianten; dazu „zeigen“ (Fassungsbaum der Arbeitsseite) und „übrige verwerfen“
+    (Formular an POST /loesungen/act, method solution.reject_siblings, mit Kästchen). Übernehmen bleibt beim Menschen
+    auf der Arbeitsseite. Fehler eines Formulars erscheinen hier mit role="alert" und Rücksprung. Ohne JavaScript
+    vollständig. Kontext: settings, work, title, cmp ({base, group, key, work, title, variants: [{rev, label, summary,
+    findings, status, diff_html, against: [{rev, label, diff_html}], url}]}), error, back. -#}
+{% extends "base.html" %}
+{% block title %}Varianten · {{ title }} – Baruch{% endblock %}
+{% block page_title %}Varianten · {{ title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ back }}">Zurück zum Abschnitt</a>
+{% endblock %}
+{% block body %}
+<main class="variants-page" data-widget="variants">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  <p><a class="btn" href="{{ back }}">Zurück</a></p>
+  {%- endif %}
+  {%- if cmp %}
+  <h1 class="pane-title">Varianten zu {{ cmp.title }}</h1>
+  <p class="muted small">Der Lektor hat diese Varianten als Vorschläge auf derselben Basis{% if cmp.base %} (Fassung {{ cmp.base }}){% endif %}
+    geschrieben. Übernehmen kann nur der Mensch (im Fassungsbaum „zeigen“, dann „Übernehmen“); „übrige verwerfen“
+    verwirft die anderen offenen Varianten dieser Gruppe mit einem Klick.</p>
+  <div class="variants-grid" style="--variants: {{ cmp.variants | length }}">
+    {%- for v in cmp.variants %}
+    <section class="variant-col variant-{{ v.status }}" aria-labelledby="variante-{{ v.rev }}" data-variant="{{ v.rev }}">
+      <h2 class="variant-head" id="variante-{{ v.rev }}"><span class="badge variant">Variante {{ v.label }}</span> Fassung {{ v.rev }}
+        {%- if v.status == "rejected" %} <span class="muted small">(verworfen)</span>{% elif v.status == "current" %} <span class="badge success">aktuell</span>{% endif %}</h2>
+      <p class="variant-summary">{{ v.summary }}</p>
+      {%- if v.findings %}
+      <p class="small">Setzt um: {% for id in v.findings %}<a href="/werke/{{ cmp.work }}/befunde?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+      {%- endif %}
+      <h3 class="small">Unterschied zur Basis</h3>
+      {{ v.diff_html | safe }}
+      {%- if v.against %}
+      <details class="variant-against small">
+        <summary>Unterschied zu den übrigen Varianten</summary>
+        {%- for o in v.against %}
+        <h4 class="tiny">gegenüber Variante {{ o.label }} (Fassung {{ o.rev }})</h4>
+        {{ o.diff_html | safe }}
+        {%- endfor %}
+      </details>
+      {%- endif %}
+      <p class="variant-actions small"><a class="btn small" href="{{ v.url }}">Zeigen</a></p>
+      {%- if v.status == "proposed" or v.status == "current" %}
+      <form class="variant-reject" method="post" action="/loesungen/act" aria-label="Übrige Varianten außer {{ v.label }} verwerfen">
+        <input type="hidden" name="method" value="solution.reject_siblings">
+        <input type="hidden" name="work" value="{{ cmp.work }}">
+        <input type="hidden" name="key" value="{{ cmp.key }}">
+        <input type="hidden" name="rev" value="{{ v.rev }}">
+        <input type="hidden" name="back" value="/varianten?work={{ cmp.work }}&amp;key={{ cmp.key }}&amp;group={{ cmp.group }}">
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> die übrigen Varianten verwerfen</label>
+        <button class="btn small" type="submit">Übrige verwerfen</button>
+      </form>
+      {%- endif %}
+    </section>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+</main>
+{% endblock %}

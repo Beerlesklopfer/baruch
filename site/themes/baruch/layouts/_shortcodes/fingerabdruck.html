@@ -1,0 +1,11 @@
+{{- /*
+  Fingerabdruck des APT-Archivschlüssels aus params.aptFingerprint. Leer = sichtbarer Platzhalter-Hinweis mit dem
+  wörtlichen Platzhalter; den Wert trägt nur der Nutzer in site/hugo.toml ein.
+*/ -}}
+{{- with site.Params.aptFingerprint -}}
+<p class="fingerabdruck">Fingerabdruck des Archivschlüssels: <code>{{ . }}</code></p>
+{{- else -}}
+<p class="platzhalter" role="note"><strong>Platzhalter.</strong> Fingerabdruck des Archivschlüssels:
+  <code>FINGERABDRUCK-TRÄGT-DER-NUTZER-EIN</code> – der Betreiber hat ihn hier noch nicht eingetragen. Solange
+  dieser Hinweis steht, lässt sich der Schlüssel auf dieser Seite nicht vergleichen.</p>
+{{- end -}}

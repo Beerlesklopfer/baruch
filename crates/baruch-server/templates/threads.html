@@ -1,0 +1,41 @@
+{#- Seite /faeden (Runde 15): Fäden ohne Abschnitt eines Werks – Gespräche, die MCP-Clients mit `chat` ohne key
+    beginnen oder der Mensch hier anlegt. Kein Buchtext. Ohne JavaScript: Liste mit Links, Formular „Neuer
+    Faden“ an POST /faden/act (hinter same_origin). Kontext: settings, work {id, title}, threads [{id, title,
+    created_by, updated, posts, last_author, url}], personas [{handle, name}] (aktiv), notice, work_url. -#}
+{% extends "base.html" %}
+{% block title %}Fäden – Baruch{% endblock %}
+{% block page_title %}Fäden · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="threads-page" data-widget="threads" data-work="{{ work.id }}">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Fäden ohne Abschnitt</h1>
+  <p class="muted small">Gespräche mit Personas und MCP-Clients, die an keinem Abschnitt hängen. Sie ändern keinen Buchtext.</p>
+  <ul class="threads">
+  {%- for t in threads %}
+    <li class="thread-item" data-thread="{{ t.id }}">
+      <a href="{{ t.url }}"><strong>{{ t.title }}</strong></a>
+      <span class="muted tiny">begonnen von {{ t.created_by }} · {{ t.posts }} Beitr{% if t.posts == 1 %}ag{% else %}äge{% endif %} · zuletzt {{ t.last_author }}, {{ t.updated }}</span>
+    </li>
+  {%- else %}
+    <li class="muted small">Noch keine Fäden.</li>
+  {%- endfor %}
+  </ul>
+  <section class="thread-new" aria-label="Neuer Faden">
+    <h2 class="pane-title">Neuer Faden</h2>
+    <form method="post" action="/faden/act" class="thread-form">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <label class="wide">Nachricht <textarea name="message" rows="3" maxlength="4000" required placeholder="@lektor … ruft eine Persona"></textarea></label>
+      <label>Persona antworten lassen <select name="persona">
+        <option value="">– nur Erwähnte (@…) –</option>
+        {%- for p in personas %}<option value="{{ p.handle }}">{{ p.name }} ({{ p.handle }})</option>{% endfor %}
+      </select></label>
+      <button class="btn primary" type="submit">Faden beginnen</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

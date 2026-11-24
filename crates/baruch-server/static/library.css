@@ -1,0 +1,127 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Literatur (Popup der Kopfzeile, Seiten /literatur und /quelle): Suche, Treffer, Titel mit Zitaten,
+   Hervorhebungen, Dokumentansicht und Kontextmenü.
+   Nur Variablen aus app.css, damit helles und dunkles Thema von selbst stimmen. */
+
+.library { display: flex; flex-direction: column; gap: 6px; }
+.library-search { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; align-items: center; }
+/* Runde 12: Umschalter Wortlaut (FTS) / Bedeutung (RAG) und Treffer der Bedeutungssuche. */
+.library-mode { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; border: 0; margin: 0; padding: 0; }
+.library-mode legend { float: left; padding: 0; margin-right: 4px; color: var(--muted); }
+.library-mode label { display: inline-flex; gap: 3px; align-items: center; }
+.library-ways { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.rag-hit { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.rag-hit .rag-snippet { flex-basis: 100%; white-space: pre-line; }
+.rag-title { font-weight: 600; }
+.rag-way { font-size: 11px; }
+.library-search input[type="search"] {
+  flex: 1; min-width: 0; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+
+.library-hits { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.library-hits ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.library-hit { padding: 4px 6px; border-radius: 5px; background: var(--bg); }
+.library-hit a { color: var(--primary); text-decoration: none; }
+.library-hit a:hover { text-decoration: underline; }
+.library-snippet { color: var(--muted); overflow-wrap: anywhere; }
+/* Treffer im Ausschnitt; Farben aus dem Thema statt des gelben Browser-Standards. */
+.library-snippet mark { background: var(--selected); color: var(--primary); border-radius: 3px; padding: 0 1px; }
+
+.library-titles { display: flex; flex-direction: column; gap: 2px; }
+.library-title summary {
+  list-style: none; display: flex; align-items: baseline; gap: 6px; cursor: pointer;
+  padding: 3px 6px; border-radius: 5px;
+}
+.library-title summary::-webkit-details-marker { display: none; }
+.library-title summary::before { content: "▸"; width: 12px; flex: none; color: var(--muted); font-size: 12px; }
+.library-title[open] > summary::before { content: "▾"; }
+.library-title summary:hover { background: var(--bg); }
+.library-title:target > summary { background: var(--selected); color: var(--primary); }
+.library-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.library-label cite { font-style: italic; }
+.library-key { color: var(--muted); white-space: nowrap; }
+.library-body { display: flex; flex-direction: column; gap: 6px; padding: 4px 6px 8px 24px; }
+.library-quote { margin: 0; padding: 4px 8px; border-left: 3px solid var(--primary-soft); }
+.library-quote p { margin: 0; }
+.library-url { color: var(--primary); overflow-wrap: anywhere; }
+.library-title[hidden], .library-none[hidden] { display: none; }
+
+/* Hervorhebungen in der Titelliste */
+.library-highlights { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.library-highlights a, .library-quote footer a, .library-open { color: var(--primary); text-decoration: none; }
+.library-highlights a:hover, .library-quote footer a:hover, .library-open:hover { text-decoration: underline; }
+
+/* Popup in der Kopfzeile */
+.literature-dialog {
+  width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 0;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+}
+.literature-dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.literature-head {
+  position: sticky; top: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--panel); border-bottom: 1px solid var(--line); z-index: 1;
+}
+.literature-head .pane-title { margin: 0; }
+.literature-head form { margin: 0; }
+.literature-content { padding: 10px 12px 14px; }
+
+/* Eigene Seiten /literatur und /quelle */
+.literature-page, .source-page {
+  max-width: 860px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+}
+.notice { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--warning-soft); color: var(--warning); }
+.source-head h1 { margin: 0 0 4px; font-size: 1.4em; }
+.source-head p { margin: 0 0 4px; }
+.source-quotes, .source-fulltext, .source-highlights, .source-act { display: flex; flex-direction: column; gap: 8px; }
+.source-quote { margin: 0; padding: 6px 10px; border-left: 3px solid var(--primary-soft); border-radius: 0 6px 6px 0; }
+.source-quote.target, .source-quote:target { border-left-color: var(--primary); background: var(--selected); }
+.source-text { margin: 0 0 4px; line-height: 1.55; }
+.source-text mark.hl { background: var(--warning-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+.source-text mark.hl.kind-core { background: var(--primary-soft); }
+.source-text mark.hl.kind-contradiction { background: var(--danger-soft); }
+.source-text mark.hl.kind-check { background: var(--success-soft); }
+.source-text mark.hl.target { outline: 2px solid var(--primary); }
+.stub { font-style: italic; }
+
+.highlights { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.highlight { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.highlight.target, .highlight:target { border-color: var(--primary); background: var(--selected); }
+.highlight[data-status="rejected"] .highlight-text { opacity: .6; text-decoration: line-through; }
+.highlight-head { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.highlight-head a { color: var(--primary); text-decoration: none; }
+.highlight-text { margin: 4px 0; padding-left: 8px; border-left: 3px solid var(--primary-soft); }
+.highlight-text mark { background: var(--warning-soft); color: inherit; }
+.highlight-note { margin: 0; color: var(--muted); }
+.highlight-edit summary { cursor: pointer; color: var(--muted); }
+.highlight-form, .source-form { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: end; margin: 6px 0 0; }
+.highlight-form label, .source-form label { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.source-form label.wide { flex-basis: 100%; }
+.highlight-form input[type="text"], .highlight-form select, .source-form input[type="text"],
+.source-form select, .source-form textarea {
+  padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+.source-buttons { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+
+/* Kontextmenü auf markiertem Text (nur mit JavaScript) */
+.context-menu {
+  position: absolute; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
+}
+.context-menu[hidden] { display: none; }
+.context-menu .btn { text-align: left; }
+
+/* Runde 19c: schwache Treffer der Bedeutungssuche (unter baruch_rag::WEAK_SCORE) – nach den übrigen, zugeklappt. */
+.weak-hits { margin: 4px 0; }
+.weak-hits > summary { cursor: pointer; color: var(--muted); }
+.weak-hit { opacity: 0.85; }
+.weak-label { padding: 0 4px; border-radius: 4px; background: var(--warning-soft); color: var(--warning); }
+
+/* Runde 21c: Bilder des Werks zur Suche (Kasten unter den Treffern, Popup und /literatur). */
+.library-images { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.library-image-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.library-image { display: flex; gap: 8px; align-items: flex-start; padding: 4px 6px; border-radius: 5px; background: var(--bg); }
+.library-image img { width: 80px; height: auto; max-height: 80px; object-fit: contain; border: 1px solid var(--line); border-radius: 3px; background: var(--panel, var(--bg)); }
+.library-image a { color: var(--primary); text-decoration: none; }
+.library-image a:hover { text-decoration: underline; }
+.library-image-text { overflow-wrap: anywhere; min-width: 0; }

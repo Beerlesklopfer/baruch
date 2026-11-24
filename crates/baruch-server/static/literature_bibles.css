@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Bibeln in der Literatur (Runde 15): Kasten im Popup/auf /literatur, Treffergruppen, Seite /literatur/bibel. */
+.literature-bibles { margin: .6rem 0; }
+.literature-bibles .bibles { list-style: none; padding: 0; margin: .2rem 0; display: grid; gap: .2rem; }
+.bible-entry.work-bible a { font-weight: 600; }
+.bible-hits .bible-group, .bible-hits .commentary-hits { margin-bottom: .4rem; }
+/* R17c: Überschriften der Treffergruppen „Bibel · Modul“ und „Kommentar · Modul“ einheitlich. */
+.bible-hits .bible-group > .muted.tiny:first-child, .hit-group-title {
+  font-size: .78rem; font-weight: 600; color: var(--muted, #666); letter-spacing: .02em; margin: .2rem 0;
+}
+.bible-notice { margin: .1rem 0 .4rem; }
+.bible-page { max-width: 64rem; margin: 0 auto; padding: 1rem; }
+.bible-nav { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin: .4rem 0; }
+.bible-reading { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 52rem) { .bible-reading { grid-template-columns: 1fr; } }
+.bible-verses { list-style: none; padding: 0; }
+.bible-verse { margin: .15rem 0; }
+.bible-verse.picked { background: var(--mark, #fff3bf); }
+.verse-no { font-size: .75em; vertical-align: super; margin-right: .2rem; text-decoration: none; }
+.bible-chapter-nav { display: flex; justify-content: space-between; }
+.bible-form { display: grid; gap: .4rem; }
+.bible-book-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem .6rem; }
+/* Runde 19c: deutsche Stelle eines Verses in anderer Zählung bzw. Hinweis, dass er sich nicht abbilden lässt. */
+.verse-german { margin-right: .3rem; }
+.bible-verse.unmapped .verse-no { color: var(--muted); }

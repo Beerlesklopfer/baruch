@@ -1,0 +1,58 @@
+{#- Seite /beitraege (Runde 28, chat-auftrag): die ganze Chat-Historie eines Abschnitts, älteste zuerst, ohne
+    JavaScript. Anker id="post-<id>" je Beitrag und id="chat-neueste" am Ende (Links landen beim neuesten Beitrag).
+    Je Beitrag der Link „Beitrag öffnen“ (/beitrag: Kopieren aus einem markierbaren Feld, Zitieren, Bearbeiten
+    eigener Beiträge, Verlauf); am Ende das Chat-Formular an POST /assistenten/act (wie im Abschnitt).
+    Kontext: settings, work {id, title}, node {key, title}, posts [{id, author, body, time, edited, style, own,
+    persona, sources, url, anchor_url}], personas [{handle, name}] (aktiv), node_url.
+    Runde 30c (chat-bedienung): Text über das Makro post_item (Markdown-Teilset, Links, Befund-Blöcke, Kopf „geprüft: …“),
+    je Beitrag ↻ Wiederholen (Formular an POST /beitraege/act, method post.repeat, gegen die aktuelle Fassung) und ✕ Löschen
+    (Link auf /beitrag#loeschen). -#}
+{% extends "base.html" %}
+{% block title %}Chat-Historie – {{ node.title }} – Baruch{% endblock %}
+{% block page_title %}Chat-Historie · {{ work.title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="{{ node_url }}" data-back>Zurück zum Abschnitt</a>
+{% endblock %}
+{% block body %}
+{% from "fragments/post_item.html" import post_item %}
+<main class="posts-page" data-widget="chat-page">
+  <h1 class="pane-title">Abschnitts-Chat: {{ node.title }}</h1>
+  <p class="muted small">{{ posts | length }} Beitr{% if posts | length == 1 %}ag{% else %}äge{% endif %}, älteste zuerst. <a href="#chat-neueste">Zum neuesten Beitrag ↓</a></p>
+  <ol class="posts-list">
+  {%- for p in posts %}
+    <li class="post-item" id="post-{{ p.id }}" data-post-id="{{ p.id }}" data-post-author="{{ p.author }}">
+      <div class="post{% if p.style %} pc{% endif %}"{% if p.style %} style="{{ p.style }}"{% endif %}>
+        {{- post_item(p) }}
+        {%- for source in p.sources %}<div class="muted tiny">Quelle: {{ source }}</div>{% endfor %}
+        <div class="post-tools">
+          {%- if p.extra.can_repeat %}
+          <form class="post-form post-repeat" method="post" action="/beitraege/act">
+            <input type="hidden" name="method" value="post.repeat">
+            <input type="hidden" name="work" value="{{ work.id }}">
+            <input type="hidden" name="key" value="{{ node.key }}">
+            <input type="hidden" name="id" value="{{ p.id }}">
+            {%- if node.rev %}<input type="hidden" name="rev" value="{{ node.rev }}">{% endif %}
+            <button class="tool small" type="submit" aria-label="Antwort von {{ p.author }} wiederholen" title="Dieselbe Anfrage gegen die aktuelle Fassung; die alte Antwort bleibt">↻</button>
+          </form>
+          {%- endif %}
+          <a class="tool small post-delete" href="{{ p.delete_url }}" data-post-delete data-work="{{ work.id }}" aria-label="Beitrag löschen" title="Beitrag löschen (mit Rückfrage)">✕</a>
+          <button class="tool small" type="button" data-post-copy hidden title="Text des Beitrags in die Zwischenablage">Kopieren</button>
+          <a class="tool small" href="{{ p.url }}" title="Kopieren, Zitieren{% if p.own %}, Bearbeiten{% endif %} und Verlauf">Beitrag öffnen</a>
+        </div>
+      </div>
+    </li>
+  {%- else %}
+    <li class="muted small">Noch keine Beiträge zu diesem Abschnitt.</li>
+  {%- endfor %}
+  </ol>
+  <div class="chat-end" id="chat-neueste" tabindex="-1"></div>
+  <form class="thread-form" method="post" action="/assistenten/act">
+    <input type="hidden" name="method" value="persona.chat">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="key" value="{{ node.key }}">
+    <label class="wide">Beitrag <textarea name="message" rows="3" maxlength="4000" required placeholder="@persona fragen … · RFC … · @alle"></textarea></label>
+    <label class="small"><input type="checkbox" name="as_order" value="1"> als Auftrag (Schreibauftrag wird ein Vorschlag)</label>
+    <button class="btn primary" type="submit">Senden</button>
+  </form>
+</main>
+{% endblock %}

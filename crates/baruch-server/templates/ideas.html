@@ -1,0 +1,142 @@
+{#- Seite /einfaelle (Vertrag Runde 7, Abschnitt 6e): Liste der Einfälle, Schlagwort-Wolke mit Links,
+    Filter (Werk, Schlagwort, offen/verarbeitet, gelöschte), Volltextsuche (FTS5) und das Formular
+    „Neuer Einfall“ an POST /einfaelle/act. Alles ohne JavaScript.
+    Kontext: settings, filter {work, word, status, q, deleted}, works [{id, title, selected}],
+    ideas [Einfall, siehe ideas.rs idea_view], searched, cloud [{word, count, size, href, active}],
+    all_words, deleted_href, present_href, workspace, map_href (Runde 25: Gedankenkarte des Werks), back, notice, error.
+    Runde 12 (pgvector): Radio mode (fts | rag, Vorgabe fts; ohne JavaScript GET /einfaelle?work=W&q=…&mode=rag),
+    filter.mode, rag (available, ways_line, message) bzw. rag_note (ohne gewähltes Werk), fts_href (dieselbe
+    Suche im Wortlaut); Treffer der Bedeutungssuche tragen rag_snippet (Text, maskiert) und percent. -#}
+{% extends "base.html" %}
+{% block title %}Einfälle – Baruch{% endblock %}
+{% block page_title %}Einfälle{% endblock %}
+{% block page_actions %}
+  {%- if map_href %}
+  {#- Runde 25: Gedankenkarte dieses Werks (nur mit gewähltem Werk). #}
+  <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Karte um Kapitel und Teile">Gedankenkarte</a>
+  {%- endif %}
+  {%- if workspace %}
+  <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+  {%- else %}
+  <a class="btn" href="/">Zurück</a>
+  {%- endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page ideas-page">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Einfälle{% if filter.deleted %} – gelöscht{% endif %}</h1>
+
+  <form class="idea-filter" method="get" action="/einfaelle" role="search" aria-label="Einfälle filtern">
+    <label>Werk
+      <select name="work">
+        <option value="all"{% if filter.work == "all" %} selected{% endif %}>alle</option>
+        <option value="none"{% if filter.work == "none" %} selected{% endif %}>ohne Werk</option>
+        {%- for w in works %}
+        <option value="{{ w.id }}"{% if w.selected %} selected{% endif %}>{{ w.title }}</option>
+        {%- endfor %}
+      </select></label>
+    <label>Status
+      <select name="status">
+        <option value="all"{% if filter.status == "all" %} selected{% endif %}>alle</option>
+        <option value="open"{% if filter.status == "open" %} selected{% endif %}>offen</option>
+        <option value="done"{% if filter.status == "done" %} selected{% endif %}>verarbeitet</option>
+      </select></label>
+    <label>Schlagwort <input type="text" name="word" value="{{ filter.word }}" size="14"></label>
+    <label>Suche <input type="search" name="q" value="{{ filter.q }}" size="18" placeholder="Wörter suchen"></label>
+    <fieldset class="idea-mode">
+      <legend>Suche nach</legend>
+      <label class="inline"><input type="radio" name="mode" value="fts"{% if filter.mode != "rag" %} checked{% endif %}> Wortlaut (FTS)</label>
+      <label class="inline"><input type="radio" name="mode" value="rag"{% if filter.mode == "rag" %} checked{% endif %}> Bedeutung (RAG)</label>
+    </fieldset>
+    {%- if filter.deleted %}<input type="hidden" name="deleted" value="1">{% endif %}
+    <button class="btn" type="submit">Filtern</button>
+    {%- if filter.deleted %}
+    <a class="btn" href="{{ present_href }}">Vorhandene zeigen</a>
+    {%- else %}
+    <a class="btn" href="{{ deleted_href }}">Gelöschte zeigen</a>
+    {%- endif %}
+  </form>
+
+  <section class="idea-cloud" aria-label="Schlagwörter">
+    {%- for w in cloud %}
+    <a class="idea-word size-{{ w.size }}{% if w.active %} active{% endif %}" href="{{ w.href }}"{% if w.active %} aria-current="true"{% endif %}>{{ w.word }} <span class="muted tiny">{{ w.count }}</span></a>
+    {%- else %}
+    <span class="muted small">Noch keine Schlagwörter.</span>
+    {%- endfor %}
+    {%- if filter.word %}<a class="small" href="{{ all_words }}">alle Schlagwörter</a>{% endif %}
+  </section>
+
+  <section class="idea-list" aria-label="Einfälle">
+    {%- if rag_note %}<p class="notice small" role="status" data-rag-note>{{ rag_note }}</p>{% endif %}
+    {%- if rag %}
+    <p class="muted small">Treffer der Bedeutungssuche nach „{{ filter.q }}“:</p>
+    {%- if rag.ways_line %}<p class="idea-ways tiny" data-ways>{{ rag.ways_line }}</p>{% endif %}
+    {%- if not rag.available %}
+    <p class="notice small" role="status" data-rag-missing>{{ rag.message }} <a href="{{ fts_href }}" data-fts-link>Dieselbe Suche im Wortlaut (FTS)</a></p>
+    {%- endif %}
+    {%- elif searched %}<p class="muted small">Treffer der Volltextsuche nach „{{ filter.q }}“:</p>{% endif %}
+    {#- Runde 19c: schwache Treffer der Bedeutungssuche (i.weak) nach den übrigen, zugeklappt in <details>. #}
+    {%- macro card(i, weak_label) %}
+    <article class="idea-card{% if not i.open %} done{% endif %}{% if i.deleted %} deleted{% endif %}{% if i.weak %} weak-hit{% endif %}" id="einfall-{{ i.id }}" data-origin="{{ i.origin_kind }}">
+      <header class="idea-card-head">
+        <a class="idea-title" href="{{ i.href }}">Einfall {{ i.id }}</a>
+        {%- for w in i.words %}<span class="badge primary">{{ w }}</span>{% endfor %}
+        <span class="grow"></span>
+        {%- if i.deleted %}<span class="badge warning">gelöscht {{ i.deleted }}</span>
+        {%- elif i.open %}<span class="badge warning">offen</span>
+        {%- else %}<span class="badge success">verarbeitet{% if i.done_label %} als {{ i.done_label }}{% endif %}</span>{% endif %}
+      </header>
+      {%- if i.snippet %}<p class="idea-snippet small">{{ i.snippet }}</p>{% endif %}
+      {%- if i.rag_snippet is defined %}<p class="idea-snippet small" data-rag-hit>{{ i.rag_snippet }} <span class="muted tiny">Ähnlichkeit {{ i.percent }} %{% if i.weak %} <span class="weak-label" data-weak-label>{{ weak_label }}</span>{% endif %}</span></p>{% endif %}
+      {%- if i.note %}<p class="idea-note">{{ i.note }}</p>{% endif %}
+      {%- if i.quote %}<blockquote class="idea-quote small">{{ i.quote }}</blockquote>{% endif %}
+      <footer class="muted tiny">
+        {%- if i.work_title %}{{ i.work_title }}{% else %}ohne Werk{% endif %}
+        {%- if i.node_title is not none %} · {% if i.node_href %}<a href="{{ i.node_href }}">Abschnitt „{{ i.node_title }}“</a>{% else %}Abschnitt „{{ i.node_title }}“{% endif %}{% endif %}
+        {%- if i.source %} · Quelle: {{ i.source }}{% endif %}
+        {%- if i.bible %} · {{ i.bible }}{% endif %}
+        · {{ i.origin }} · {{ i.created }}
+      </footer>
+    </article>
+    {%- endmacro %}
+    {%- for i in ideas %}{% if not i.weak %}{{ card(i, weak_label) }}{% endif %}
+    {%- else %}
+    <p class="muted">{% if searched %}Keine Treffer.{% else %}Keine Einfälle für diesen Filter.{% endif %}</p>
+    {%- endfor %}
+    {%- if weak_count %}
+    {%- if weak_count == ideas | length %}<p class="muted small" data-only-weak>Nur schwache Treffer.</p>{% endif %}
+    <details class="weak-hits" data-weak-hits>
+      <summary class="small">{{ weak_count }} schwache{% if weak_count == 1 %}r{% endif %} Treffer</summary>
+      {%- for i in ideas %}{% if i.weak %}{{ card(i, weak_label) }}{% endif %}{% endfor %}
+    </details>
+    {%- endif %}
+  </section>
+
+  {%- if not filter.deleted %}
+  <form class="work-form idea-new" method="post" action="/einfaelle/act">
+    <h2 class="pane-title">Neuer Einfall</h2>
+    <input type="hidden" name="method" value="idea.create">
+    <div class="work-fields">
+      <label>Schlagwörter (durch Komma getrennt) <input type="text" name="words" required placeholder="z. B. Laube, Rosen"></label>
+      <label>Werk
+        <select name="work">
+          <option value="none"{% if filter.work == "none" or filter.work == "all" %} selected{% endif %}>ohne Werk</option>
+          {%- for w in works %}
+          <option value="{{ w.id }}"{% if w.selected %} selected{% endif %}>{{ w.title }}</option>
+          {%- endfor %}
+        </select></label>
+      <label>Quelle <input type="text" name="source" maxlength="200"></label>
+      <label>Bibelstelle <input type="text" name="bible" maxlength="200" placeholder="z. B. Hld 2,12"></label>
+    </div>
+    <label>Gedanke <textarea name="note" rows="3" maxlength="4000"></textarea></label>
+    <label>Markierter Text <textarea name="quote" rows="2" maxlength="4000"></textarea></label>
+    <button class="btn primary" type="submit">Festhalten</button>
+  </form>
+  {%- endif %}
+</main>
+{% endblock %}

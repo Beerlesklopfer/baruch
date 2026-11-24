@@ -1,0 +1,64 @@
+{#- SPDX-License-Identifier: AGPL-3.0-or-later
+    Seite /websuche/belege?work&key&post (Runde 13, websuche): die Belege eines Beitrags von @belege aus der
+    Websuche – je Beleg [Wn], Titel (Link auf die Seite, rel=noopener noreferrer), Adresse, „abgerufen am“,
+    „bevorzugte Quelle“, das Zitat und das Urteil der Prüfung im Code. Bei „belegt“ ein Formular an
+    POST /websuche/act (action=adopt, evidence) mit dem Knopf „In die Bibliothek“; danach steht dort der Link auf
+    den Titel. Inhalte der Seiten sind Daten: alles maskiert. Ohne JavaScript bedienbar.
+    Kontext: settings, work {id}?, key?, post, post_author?, post_body?, back?, evidence [{id, label, url,
+    title, preferred, accessed, quote, verdict, verdict_label, library_title, library_href, can_adopt}],
+    notice?, error?. -#}
+{% extends "base.html" %}
+{% block title %}Belege der Websuche – Baruch{% endblock %}
+{% block page_title %}Belege der Websuche{% endblock %}
+{% block page_actions %}
+  {%- if back %}<a class="btn" href="{{ back }}">Zum Abschnitt</a>{% endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page websearch-page" data-websearch-post="{{ post }}">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Belege zu Beitrag {{ post }}</h1>
+  {%- if post_body %}
+  <blockquote class="websearch-post"><div class="post-author">{{ post_author }}</div><div class="post-body">{{ post_body }}</div></blockquote>
+  {%- endif %}
+  <p class="muted small">Die Websuche von @belege ruft jede Seite ab, bevor sie genannt wird. Baruch prüft jedes
+    Zitat gegen den abgerufenen Text: „belegt“ heißt, der Wortlaut steht so auf der Seite. Nur belegte Zitate
+    lassen sich in die Autorenbibliothek übernehmen (Titel, Adresse, Zitat, Hervorhebung).</p>
+  {%- if evidence %}
+  <ol class="websearch-evidence">
+  {%- for e in evidence %}
+    <li class="websearch-item" id="beleg-{{ e.id }}" data-evidence="{{ e.id }}" data-verdict="{{ e.verdict }}">
+      <div class="websearch-head">
+        <strong>[{{ e.label }}]</strong>
+        <a href="{{ e.url }}" rel="noopener noreferrer" target="_blank">{{ e.title }}</a>
+        {%- if e.preferred %} <span class="badge primary">bevorzugte Quelle</span>{% endif %}
+      </div>
+      <div class="muted tiny websearch-url">{{ e.url }} · abgerufen am {{ e.accessed }}</div>
+      {%- if e.quote %}
+      <blockquote class="websearch-quote">„{{ e.quote }}“</blockquote>
+      {%- endif %}
+      <div class="small">Prüfung: <span class="badge{% if e.verdict == "belegt" %} success{% elif e.verdict == "nicht_belegt" %} warning{% endif %}">{{ e.verdict_label }}</span></div>
+      {%- if e.library_href %}
+      <p class="small"><a href="{{ e.library_href }}">In der Bibliothek (Titel {{ e.library_title }})</a></p>
+      {%- elif e.can_adopt %}
+      <form class="websearch-adopt" method="post" action="/websuche/act">
+        <input type="hidden" name="action" value="adopt">
+        <input type="hidden" name="evidence" value="{{ e.id }}">
+        {%- if work %}<input type="hidden" name="work" value="{{ work.id }}">{% endif %}
+        {%- if key %}<input type="hidden" name="key" value="{{ key }}">{% endif %}
+        <input type="hidden" name="post" value="{{ post }}">
+        <button class="btn primary" type="submit">In die Bibliothek</button>
+      </form>
+      {%- endif %}
+    </li>
+  {%- endfor %}
+  </ol>
+  {%- else %}
+  <p class="muted">Zu diesem Beitrag gibt es keine Belege der Websuche.</p>
+  {%- endif %}
+</main>
+{% endblock %}

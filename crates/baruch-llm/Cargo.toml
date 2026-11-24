@@ -1,0 +1,23 @@
+[package]
+name = "baruch-llm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Modell-Backend (Runde 10, Stufe B2): OpenAI-kompatibler Client für Eliezer (`GET /v1/models`,
+# gestreamtes `POST /v1/chat/completions`), Warteschlange mit genau einer laufenden Anfrage und ein
+# kleiner HTTP-Nachbau für Tests. Rein: keine Datenbank, kein Schlüsselbund; Adresse und Schlüssel
+# bringt der Aufrufer mit.
+[dependencies]
+# Wie im Server: rustls mit Systemzertifikaten; `stream` für `bytes_stream` (SSE Stück für Stück).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "rustls-tls-native-roots", "stream"] }
+tokio = { version = "1", features = ["rt", "macros", "net", "sync", "time", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+# Runde 23: `scrub` erkennt das Geheimnis auch als Base64 (schon im Lock über baruch-server).
+base64 = "0.22"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

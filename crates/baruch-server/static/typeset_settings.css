@@ -1,0 +1,42 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Block „Satz“ der Einstellungsseite „Werk“ (Runde 29c, Besitz satz-oberflaeche; templates/settings/werk_satz.html):
+   Gruppen als fieldset, Hinweise und Fehler beim Feld, Vorschaubilder als Reihe kleiner Seiten. */
+.settings-typeset .typeset-form { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.settings-typeset fieldset {
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+}
+.settings-typeset legend { padding: 0 4px; font-weight: 600; }
+.settings-typeset .typeset-field, .settings-typeset .typeset-sub, .settings-typeset .typeset-num { white-space: nowrap; }
+.settings-typeset .typeset-pair { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; }
+.settings-typeset .typeset-num input { width: 6em; }
+.settings-typeset input[name="font"] { width: 16em; }
+/* Kurze Erklärung der Satzbegriffe (Bundsteg, Schusterjunge/Hurenkind, Kolumnentitel) in eigener Zeile beim Feld. */
+.settings-typeset .typeset-help { flex-basis: 100%; display: block; }
+.settings-typeset .typeset-hint, .settings-typeset .typeset-error {
+  flex-basis: 100%; display: block; padding: 3px 8px; border-radius: 4px; border-left: 3px solid var(--line);
+}
+.settings-typeset .typeset-hint { background: var(--selected); }
+.settings-typeset .typeset-hint.ineffective { border-left-color: var(--warning); }
+.settings-typeset .typeset-error { border-left-color: var(--danger); color: var(--danger); }
+.settings-typeset .typeset-hint code, .settings-typeset .typeset-adopt code { overflow-wrap: anywhere; }
+.settings-typeset .typeset-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.settings-typeset .typeset-rules pre {
+  margin: 4px 0 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px;
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18em; overflow: auto;
+}
+.settings-typeset .typeset-adopt, .settings-typeset .typeset-reset {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 6px 0;
+}
+.settings-typeset .typeset-adopt { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; }
+.settings-typeset .typeset-adopt p { flex-basis: 100%; margin: 0; }
+.settings-typeset .typeset-preview { margin-top: 8px; }
+.settings-typeset .typeset-preview[aria-busy="true"] { opacity: 0.6; }
+.settings-typeset .typeset-pages { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-typeset .typeset-pages img {
+  /* aspect-ratio: Platzhalter in Seitengröße, solange ein Bild (loading=lazy) noch nicht geladen ist (Integrator R29). */
+  width: 150px; height: auto; aspect-ratio: auto 148 / 210; background: #fff; border: 1px solid var(--line); box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
+}
+.settings-typeset .typeset-diagnostic.error { color: var(--danger); }
+/* Runde 31c: Häkchen je Register in einer Reihe. */
+.settings-typeset .typeset-index-registers { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }

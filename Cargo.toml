@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/baruch-core",
+    "crates/baruch-llm",
+    "crates/baruch-store",
+    "crates/baruch-gitmirror",
+    "crates/baruch-library",
+    "crates/baruch-render",
+    "crates/baruch-server",
+    "crates/baruch-typst",
+    "crates/baruch-wysiwyg",
+    "crates/baruch-scripture",
+    "crates/baruch-sword",
+    "crates/baruch-rag",
+    "crates/baruch-lancedb",
+    "crates/baruch-exchange",
+    "crates/baruch-epub",
+]
+# Eingebettete Fremd-Crates (kein Workspace-Mitglied): sword-modules 0.1.0 (CC0) mit Obergrenze beim Entpacken.
+exclude = ["vendor"]
+
+[workspace.package]
+version = "0.9.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+authors = ["Jörg Bernau <Joerg@Bernau.family>"]
+homepage = "https://baruch.bernau.family"
+repository = "https://github.com/Beerlesklopfer/baruch"
+
+# Bauordner klein halten (Entscheidung des Nutzers 2026-11-07; /home lief mit Worktrees je 55–107 GB voll):
+# eigene Crates nur mit Zeilentabellen (Backtraces nennen weiter Datei und Zeile), Abhängigkeiten ganz ohne.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+# sword-modules 0.1.0 (CC0) unverändert bis auf eine Obergrenze beim Entpacken eines Blocks (64 MiB, Schutz vor
+# Dekompressionsbomben in fremden Modulen; Nachbesserung Runde 17). Herkunft und Änderung: docs/Architektur.md.
+[patch.crates-io]
+sword-modules = { path = "vendor/sword-modules" }

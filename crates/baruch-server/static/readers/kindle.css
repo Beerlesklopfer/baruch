@@ -1,0 +1,22 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Reader-CSS „kindle“ für die EPUB-Vorschau (Runde 20b, Besitz „reader“): Kindle Paperwhite nach Send to Kindle – Bookerly statt der Schrift des Buchs, 17 px, Blocksatz, Silbentrennung, E-Ink.
+   Annahme ohne Gerät und ohne Netz (docs/Architektur.md, „R20b reader“). Die Vorschau fügt diese Datei als
+   style-Element hinter style/book.css in jede XHTML-Datei ein; der Teil nach der Marke „@night“ kommt nur mit Nachtmodus
+   dazu. Keine Adressen, keine Skripte. */
+@namespace epub "http://www.idpf.org/2007/ops";
+html { background: #f6f5f0; color: #111111; }
+body { margin: 0; padding: 32px 28px; font-family: Bookerly, Georgia, serif; font-size: 17px; line-height: 1.4; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+img { max-width: 100%; height: auto; }
+/* Fußnoten: der Reader zeigt sie als Popup; die Vorschau zeigt den Notentext als Kasten. */
+aside[epub|type~="footnote"] { border: 1px solid #999999; border-radius: 6px; padding: 0.3em 0.6em; margin: 0.6em 0; font-size: 0.85em; }
+aside[epub|type~="footnote"]::before { content: "Popup-Fußnote"; display: block; font-size: 0.75em; opacity: 0.7; }
+/* E-Ink: Graustufen, Papierton, keine Hintergründe des Buchs. */
+/* Filter am body, nicht am html: am Wurzelelement verhindert er, dass der Papierton die ganze Fläche füllt. */
+body { filter: grayscale(1); }
+body * { background-color: transparent !important; background-image: none !important; }
+/* Der Reader ersetzt die Schrift des Buchs durch seine Vorgabeschrift. */
+body, body p, body li, body h1, body h2, body h3, body blockquote { font-family: Bookerly, Georgia, serif !important; }
+/* @night */
+html { background: #000000; color: #f0f0f0; }
+a { color: #f0f0f0; }
+aside[epub|type~="footnote"] { border-color: #777777; }

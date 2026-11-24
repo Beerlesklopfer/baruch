@@ -1,0 +1,105 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+{#- Seite /werke/{id}/epub/vorschau (Runde 20b, src/epub_preview.rs): das EPUB des Werks in mehreren
+    Reader-Profilen nebeneinander, ohne JavaScript bedienbar (Formular-GET, iframes, Links). Kontext: settings,
+    work {id, title}, notices [Text], choices [{slug, name, required, checked}], files [{href, title, kind, boundary,
+    current, link}], file?, frames [{slug, name, device, width, height, via_conversion, note, night, src, open,
+    lacks [Text]}], endnotes, night, warnings [{code, message, key}], panel (fertiges HTML von
+    epub_check::preview_panel), download, check_href, action. Widget epub-preview (web/src/epub_preview.ts):
+    schickt das Formular bei jeder Änderung selbst ab. -#}
+{% extends "base.html" %}
+{% block title %}EPUB-Vorschau – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: EPUB-Vorschau{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <a class="btn" href="{{ download }}" download>EPUB herunterladen</a>
+{% endblock %}
+{% block body %}
+<main class="works-page epub-preview-page" data-work="{{ work.id }}">
+  <h1 class="pane-title">EPUB-Vorschau je Reader</h1>
+  {%- for notice in notices %}
+  <p class="notice warning" role="alert" data-epub-notice>{{ notice }}</p>
+  {%- endfor %}
+  <p class="notice epub-kindle-hint" role="note" data-kindle-hint>Kindle: Baruch erzeugt kein eigenes Kindle-Format.
+    <strong>Send to Kindle nimmt EPUB an</strong> und wandelt es für Kindle-Geräte und die Kindle-App um; die
+    Profile „Kindle (über EPUB)“ und „Kindle-App (über EPUB)“ zeigen das ungefähre Ergebnis.</p>
+  <p class="muted small">Die Profile bilden Schrift, Größe, Ränder, Zeilenabstand, Silbentrennung und Nachtmodus der
+    Reader nach – ohne echtes Gerät, als Annahme. Verbindlich ist das Gerät selbst.</p>
+
+  <form class="epub-preview-form" method="get" action="{{ action }}" data-widget="epub-preview">
+    <fieldset class="epub-readers">
+      <legend>Reader</legend>
+      {%- for c in choices %}
+      <label class="epub-reader-choice"><input type="checkbox" name="leser" value="{{ c.slug }}"{% if c.checked %} checked{% endif %}> {{ c.name }}{% if c.required %} <span class="muted small">(Pflicht)</span>{% endif %}</label>
+      {%- endfor %}
+    </fieldset>
+    <label>Datei
+      <select name="datei">
+        {%- for f in files %}
+        <option value="{{ f.href }}"{% if f.current %} selected{% endif %}>{{ f.kind }}: {{ f.title }}</option>
+        {%- endfor %}
+      </select>
+    </label>
+    <label>Fußnoten
+      <select name="fussnoten">
+        <option value="popup"{% if not endnotes %} selected{% endif %}>als Popup (Vorgabe)</option>
+        <option value="endnoten"{% if endnotes %} selected{% endif %}>als Anmerkungen am Ende</option>
+      </select>
+    </label>
+    <label><input type="checkbox" name="nacht" value="1"{% if night %} checked{% endif %}> Nachtmodus</label>
+    <button class="btn primary" type="submit">Anzeigen</button>
+  </form>
+
+  <section class="epub-files" aria-labelledby="epub-files-title">
+    <h2 class="pane-title" id="epub-files-title">Dateien und Kapitelgrenzen</h2>
+    <p class="muted small">Jeder Teil und jedes Kapitel beginnt eine eigene Datei (neue Seite im Reader).</p>
+    <ol class="epub-file-list" data-epub-files>
+      {%- for f in files %}
+      <li class="epub-file{% if f.boundary %} boundary{% endif %}" data-href="{{ f.href }}">
+        <span class="epub-kind">{{ f.kind }}</span>
+        {% if f.current %}<strong aria-current="page">{{ f.title }}</strong>{% else %}<a href="{{ f.link }}">{{ f.title }}</a>{% endif %}
+        <code class="muted small">{{ f.href }}</code>
+      </li>
+      {%- endfor %}
+    </ol>
+  </section>
+
+  {%- if warnings %}
+  <section class="epub-warnings" aria-labelledby="epub-warnings-title">
+    <h2 class="pane-title" id="epub-warnings-title">Hinweise beim Erzeugen</h2>
+    <ul>
+      {%- for w in warnings %}
+      <li data-code="{{ w.code }}"><code>{{ w.code }}</code> {{ w.message }}</li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  <section class="epub-frames" aria-label="Reader nebeneinander" data-epub-frames>
+    {%- for f in frames %}
+    <figure class="epub-frame{% if f.night %} night{% endif %}" data-reader="{{ f.slug }}">
+      <figcaption>
+        <strong>{{ f.name }}</strong> <span class="muted small">{{ f.device }} · {{ f.width }} × {{ f.height }} px</span>
+        {%- if f.via_conversion %}<br><span class="small">Über Send to Kindle (EPUB wird umgewandelt).</span>{% endif %}
+      </figcaption>
+      <div class="epub-frame-box">
+        <iframe src="{{ f.src }}" title="{{ f.name }}: Vorschau" width="{{ f.width }}" height="{{ f.height }}" loading="lazy"></iframe>
+      </div>
+      <p class="small epub-frame-note">{{ f.note }}</p>
+      {%- if f.lacks %}
+      <p class="small muted epub-frame-lacks">Eigenheiten: {{ f.lacks | join(", ") }}.</p>
+      {%- endif %}
+      <p class="small"><a href="{{ f.open }}" target="_blank" rel="noopener">Datei allein öffnen</a></p>
+    </figure>
+    {%- endfor %}
+  </section>
+
+  <section class="epub-check-slot" aria-labelledby="epub-check-title" data-epub-check-slot>
+    <h2 class="pane-title" id="epub-check-title">Prüfung</h2>
+    {%- if panel %}
+    {{ panel }}
+    {%- else %}
+    <p class="muted small">Kein Prüfbericht hier. Ausführlich: <a href="{{ check_href }}">EPUB prüfen</a>.</p>
+    {%- endif %}
+  </section>
+</main>
+{% endblock %}

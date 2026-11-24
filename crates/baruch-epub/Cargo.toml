@@ -1,0 +1,25 @@
+[package]
+name = "baruch-epub"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "EPUB 3 (mit EPUB-2-Rückfall) aus den aktuellen Fassungen eines Werks, Runde 20"
+
+# Rein: keine Datenbank, kein Netz, kein Typst-Satz. XHTML entsteht über das Blockmodell von baruch-wysiwyg.
+# Neue Abhängigkeiten nur über den Integrator (Konflikte im Cargo.lock).
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+# Satz-Einstellungen (`TypesetSettings`, `epub_style`, `detect_chapter_break`), ISBN-Prüfung.
+baruch-typst = { path = "../baruch-typst" }
+# Blockmodell (`baruch_wysiwyg::parse` → `Doc`) für die XHTML-Abbildung (R20a).
+baruch-wysiwyg = { path = "../baruch-wysiwyg" }
+# Nur STORED (mimetype) und DEFLATE, wie baruch-exchange.
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+# XML lesen (Prüfung, R20c); dieselbe Version wie baruch-exchange.
+quick-xml = "0.38"
+
+[dev-dependencies]
+tempfile = "3"

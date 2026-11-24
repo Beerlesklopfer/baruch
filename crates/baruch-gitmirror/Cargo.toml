@@ -1,0 +1,18 @@
+[package]
+name = "baruch-gitmirror"
+description = "Git-Spiegel der Typst-Ordner eines Werks (reines Rust über gix)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+authors.workspace = true
+
+[dependencies]
+# Schlank: kein Netzwerk-Transport, kein Status/Dirwalk, kein libgit2, kein OpenSSL.
+# `parallel` macht `ThreadSafeRepository` wirklich Send + Sync (sonst Rc innen); der Server ruft
+# `Mirror::commit` in `spawn_blocking` auf.
+gix = { version = "0.79", default-features = false, features = ["tree-editor", "index", "parallel"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

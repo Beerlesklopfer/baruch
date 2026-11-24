@@ -1,0 +1,81 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Chat (Runde 28): Historie, Bearbeiten, Kopieren, Zitieren – chat-auftrag. Die Höhe des Chats im Akkordeon begrenzt
+   app.css (.chat mit max-height, rollt); hier die Bausteine drumherum: Rahmen mit dem Knopf „Neue Beiträge ↓“, Werkzeuge
+   je Beitrag, „bearbeitet“, ältere Beiträge, die Seiten /beitraege und /beitrag. Text bleibt markierbar
+   (user-select: text auch in Containern, deren Eltern es abschalten). */
+.chat-frame { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.chat-end { height: 1px; flex: none; }
+.chat-jump {
+  position: absolute; right: 12px; bottom: 8px; z-index: 5;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+}
+.chat-jump[hidden] { display: none; }
+.chat-older { align-self: center; color: var(--primary); text-decoration: none; }
+.post-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.post-tools .tool { color: var(--muted); text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+.post-tools .tool:hover, .post-tools .tool:focus-visible { color: var(--primary); }
+.post-tools [hidden] { display: none; }
+.post-edited { font-style: italic; }
+.post-edit textarea, .post-form.post-edit textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.post-form .wide { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
+.chat-order { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.post-item, .post, .post-body, .thread-body, .post-copy-text { user-select: text; -webkit-user-select: text; }
+
+/* Seiten /beitraege und /beitrag (ohne JavaScript). */
+.posts-page { max-width: 52rem; margin: 0 auto; padding: 1rem; }
+.posts-list { list-style: none; padding: 0; display: grid; gap: .5rem; }
+.posts-page .post-item:target > .post, .thread-post:target { outline: 2px solid var(--primary); outline-offset: 2px; }
+.post-copy-text { width: 100%; box-sizing: border-box; font: inherit; white-space: pre-wrap; resize: vertical; }
+.post-page section { margin-top: 1rem; }
+.post-version-list { padding-left: 1.2rem; display: grid; gap: .4rem; }
+
+/* Runde 30c (chat-bedienung): gegliederte Beiträge (Markdown-Teilset aus chat_render), Befund-Blöcke, Kopfzeilen,
+   Sprungmarken, ↻/✕ und die Live-Anzeige. Art und Status eines Befunds stehen als Zeichen und Wort im Makro
+   finding_block (chat-loesungen); hier nur Abstand und Rahmen. */
+.post-md > :first-child { margin-top: 0; }
+.post-md > :last-child { margin-bottom: 0; }
+.post-md p { margin: 0 0 .5em; }
+.post-md .post-list { margin: .3em 0 .6em; padding-left: 1.3em; }
+.post-md .post-list > li + li { margin-top: .45em; }
+.post-md .post-list .post-list { margin: .3em 0 0; }
+.post-md .post-h { font-size: .92em; font-weight: 600; margin: .7em 0 .25em; }
+.post-md blockquote { margin: .4em 0; padding: .1em .7em; border-left: 3px solid var(--line, #ccc); color: var(--muted); }
+.post-finding {
+  margin: .55em 0; padding: .4em .6em; border: 1px solid var(--line, #ccc); border-radius: .4rem;
+  background: var(--panel, transparent);
+}
+.post-finding .post-list { padding-left: 1.1em; }
+.post-foot { margin-top: .6em; padding-top: .3em; border-top: 1px dashed var(--line, #ccc); }
+.post-foot p { margin: 0; }
+.post-basis { color: var(--muted); font-style: italic; margin: .1em 0 .3em; }
+.post-relation { margin: .1em 0 .3em; }
+.post-relation a { color: inherit; }
+a.jump { color: var(--primary); text-decoration: underline dotted; }
+.jump-unchecked { border-bottom: 1px dashed var(--muted); cursor: help; }
+a.bible-ref, a.idea-ref, a.finding-ref { color: var(--primary); }
+pre.post-plain[hidden] { display: none; }
+.post-tools form { display: inline; margin: 0; }
+.post-tools .post-delete { font-weight: 600; }
+.post-tools .post-delete-box { display: inline-block; }
+.post-tools .post-delete-box > summary { list-style: none; display: inline; }
+.post-tools .post-delete-box > summary::-webkit-details-marker { display: none; }
+.post-tools .post-delete-box[open] { display: block; flex-basis: 100%; }
+.chat-live { padding: .2em .4em; color: var(--muted); font-style: italic; }
+.chat-live[hidden] { display: none; }
+.chat-live .chat-live-error { color: var(--danger, #b00020); font-style: normal; }
+.post-shown { margin-bottom: 1rem; }
+
+/* Integrator Runde 30: Mit „als Auftrag“ und der Prüfgrundlage passt die Chat-Eingabe nicht mehr in eine Zeile – das
+   Textfeld bekommt die ganze erste Zeile, Häkchen, Auswahl und „Senden“ rücken darunter (sonst schrumpfte das Feld auf
+   wenige Pixel und die Auswahl lief rechts aus dem Akkordeon). */
+.chat-input { flex-wrap: wrap; align-items: center; }
+.chat-input input[type="text"] { flex: 1 1 100%; }
+.chat-input .basis-select select { max-width: 13rem; }
+.chat-input button[type="submit"] { margin-left: auto; }
+
+/* Integrator Runde 30: Der gegliederte Beitrag setzt Umbrüche selbst (<br>, <p>, Listen); das ältere `pre-line` von
+   .post-body machte aus dem Leerraum der Vorlage leere Zeilen um jeden Befund-Block. Ein Befund mit Block
+   (`finding_block` zeichnet Rahmen und Farbe) braucht keinen zweiten Rahmen. */
+.post-body.post-md { white-space: normal; }
+.post-finding:has(> .fb) { padding: 0; border: 0; background: transparent; }
+.post-finding .fb-body > .post-list:only-child { margin: .2em 0; }

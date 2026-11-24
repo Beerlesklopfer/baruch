@@ -1,0 +1,53 @@
+{#- Seite /werke: alle Werke mit Autor, Art, Abschnitten, offenen Vorschlägen und letzter Änderung;
+    je Werk Öffnen, Ändern, Export, PDF (Runde 11), Löschen und ein kleines Umschlagbild (cover {name, alt}?,
+    Vorschau über /werke/{id}/bilder/{name}/vorschau?b=320, loading=lazy). Geht ohne JavaScript. Kontext: settings, works, notice,
+    back_url (Link zurück zu einem Werk, fehlt ohne Werke). Runde 22: Knopf „Archiv“ (/werke/archiv, gelöschte Werke
+    wiederherstellen). -#}
+{% extends "base.html" %}
+{% block title %}Werke – Baruch{% endblock %}
+{% block page_title %}Werke{% endblock %}
+{% block page_actions %}
+  <a class="btn primary" href="/werke/neu">Neues Werk oder Import…</a>
+  <a class="btn" href="/werke/archiv" title="Gelöschte Werke ansehen und wiederherstellen">Archiv</a>
+  {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+{% endblock %}
+{% block body %}
+<main class="works-page">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Werke</h1>
+  {%- if works %}
+  <table class="works-table">
+    <thead>
+      <tr><th scope="col" class="works-cover"><span class="visually-hidden">Umschlag</span></th><th scope="col">Titel</th><th scope="col">Autor</th><th scope="col">Art</th>
+          <th scope="col" class="number">Abschnitte</th><th scope="col" class="number">Offene Vorschläge</th>
+          <th scope="col">Zuletzt geändert</th><th scope="col"><span class="visually-hidden">Aktionen</span></th></tr>
+    </thead>
+    <tbody>
+    {%- for w in works %}
+      <tr>
+        <td class="works-cover">{% if w.cover %}<a href="/werke/{{ w.id }}/umschlag"><img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or ('Umschlag von ' ~ w.title) }}" loading="lazy" width="48"></a>{% endif %}</td>
+        <td><a href="/?work={{ w.id }}"><strong>{{ w.title }}</strong></a>
+          {%- if w.subtitle %}<br><span class="muted small">{{ w.subtitle }}</span>{% endif %}</td>
+        <td>{{ w.author or "–" }}</td>
+        <td>{{ w.kind }}</td>
+        <td class="number">{{ w.sections }}</td>
+        <td class="number">{{ w.proposals }}</td>
+        <td class="small">{{ w.updated or w.created }}</td>
+        <td class="works-actions">
+          <a class="btn" href="/?work={{ w.id }}">Öffnen</a>
+          <a class="btn" href="/werke/{{ w.id }}/bearbeiten">Ändern</a>
+          <a class="btn" href="/werke/{{ w.id }}/export" download>Export</a>
+          <a class="btn" href="/werke/{{ w.id }}/pdf" download title="Das Buch als PDF herunterladen">PDF</a>
+          <a class="btn danger" href="/werke/{{ w.id }}/loeschen">Löschen</a>
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted">Noch kein Werk. Lege eins an oder importiere eine Typst- oder Markdown-Datei (auch als ZIP oder Ordner mit Bildern): <a href="/werke/neu">Neues Werk oder Import…</a></p>
+  {%- endif %}
+</main>
+{% endblock %}

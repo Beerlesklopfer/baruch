@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Baruch als Dienst im Benutzerkontext (systemd --user) – Beispiel aus dem Paket baruch.
+# Das Paket richtet keinen Dienst ein. Wer Baruch dauerhaft laufen lassen will:
+#
+#   install -Dm644 /usr/share/doc/baruch/examples/baruch.service ~/.config/systemd/user/baruch.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now baruch.service
+#
+# Läuft als der angemeldete Benutzer, damit Baruch den Schlüsselbund (Secret Service über die
+# Sitzungs-D-Bus) und den Datenordner ~/.local/share/baruch erreicht.
+
+[Unit]
+Description=Baruch – Schreibwerkstatt für Bücher und Predigten
+Documentation=https://baruch.bernau.family/
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/baruch-server --listen 127.0.0.1:8765
+# Eigener Datenordner: Zeile einkommentieren (Vorgabe ist ~/.local/share/baruch).
+#Environment=BARUCH_DATA=%h/.local/share/baruch
+Restart=on-failure
+RestartSec=3
+Nice=5
+IOSchedulingClass=idle
+# Härtung, soweit im Benutzerkontext möglich.
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,53 @@
+{#- Seite /werke/{id}/epub/pruefung (Runde 20c, src/epub_check.rs): Prüfbericht des EPUB ohne EPUBCheck, darunter das
+    Formular „EPUBCheck ausführen“ (POST /werke/epub/pruefen, hinter same_origin; die Antwort ist dieselbe Seite mit dem
+    Lauf). Geht ohne JavaScript: Reader und Fußnoten per Formular (GET auf diese Seite bzw. POST). Kontext: settings,
+    work {id, title}, panel (fertiges HTML des Berichts)?, epubcheck {kind, title, text}?, error?, readers [{slug,
+    name, required, checked}], endnotes, ran (EPUBCheck war angefordert). -#}
+{% extends "base.html" %}
+{% block title %}EPUB prüfen – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: EPUB prüfen{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke/{{ work.id }}/epub" download>EPUB herunterladen</a>
+  <a class="btn" href="/werke/{{ work.id }}/epub/vorschau">EPUB-Vorschau</a>
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page epub-check-page">
+  <h1 class="pane-title">EPUB prüfen</h1>
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <form class="epub-check-choice" method="get" action="/werke/{{ work.id }}/epub/pruefung">
+    <fieldset>
+      <legend>Reader</legend>
+      {%- for r in readers %}
+      <label class="check"><input type="checkbox" name="leser" value="{{ r.slug }}"{% if r.checked %} checked{% endif %}> {{ r.name }}{% if r.required %} <span class="muted tiny">(Pflicht)</span>{% endif %}</label>
+      {%- endfor %}
+    </fieldset>
+    <label>Fußnoten
+      <select name="fussnoten">
+        <option value="popup"{% if not endnotes %} selected{% endif %}>als Popup (Vorgabe)</option>
+        <option value="endnoten"{% if endnotes %} selected{% endif %}>als Endnoten</option>
+      </select></label>
+    <button class="btn" type="submit">Neu prüfen</button>
+  </form>
+  {%- if panel %}{{ panel|safe }}{% endif %}
+  <section class="epub-check-epubcheck" id="epubcheck" aria-labelledby="epubcheck-titel">
+    <h2 class="pane-title" id="epubcheck-titel">EPUBCheck</h2>
+    {%- if epubcheck %}
+    <p class="notice epubcheck-{{ epubcheck.kind }}" role="status" data-epubcheck="{{ epubcheck.kind }}"><strong>{{ epubcheck.title }}</strong> – {{ epubcheck.text }}</p>
+    {%- endif %}
+    <form method="post" action="/werke/epub/pruefen">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      {%- for r in readers %}{% if r.checked %}
+      <input type="hidden" name="leser" value="{{ r.slug }}">
+      {%- endif %}{% endfor %}
+      <input type="hidden" name="fussnoten" value="{% if endnotes %}endnoten{% else %}popup{% endif %}">
+      <p class="small">EPUBCheck ist das Prüfprogramm der W3C-Gemeinschaft. Baruch nutzt „epubcheck“ aus dem PATH oder
+        ein epubcheck.jar unter einem eingestellten Pfad (Einstellungen → <a href="/einstellungen/daten#epubcheck">Daten</a>,
+        braucht Java) und lädt nie etwas herunter. Ein Lauf dauert einige Sekunden.</p>
+      <button class="btn primary" type="submit">EPUBCheck ausführen</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

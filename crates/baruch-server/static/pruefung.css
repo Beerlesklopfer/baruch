@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Prüfanzeige der Zitate (Runde 17c): Seite /werke/{id}/pruefung, Widget scripture-check in der Statuszeile
+   und die Markierungen im Satzbild über die CSS Custom Highlight API (Namen bibel-stimmt, bibel-weicht; keine
+   Änderung am DOM des Satzbilds). */
+.check-list { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
+.check-list th, .check-list td { border-bottom: 1px solid var(--line, #ddd); padding: 0.3rem 0.4rem; text-align: left; vertical-align: top; }
+.check-state { border-radius: 0.6rem; padding: 0 0.45rem; white-space: nowrap; }
+.check-state[data-state="stimmt"] { background: var(--ok-soft, #dcf3e1); color: var(--ok, #1a6b2f); }
+.check-state[data-state="weicht_ab"] { background: var(--danger-soft, #fbe0dd); color: var(--danger, #b42318); }
+.check-state[data-state="ohne_zitat"], .check-state[data-state="ungeprueft"],
+.check-state[data-state="fehler"], .check-state[data-state="andere"] { background: var(--muted-soft, #eee); color: var(--muted, #555); }
+
+/* Widget in der Statuszeile: Link „Zitate prüfen“ plus Liste als Aufklapper über dem Blatt. */
+/* Integrator Runde 17 (Sichtprüfung): Die Liste hängt an der ganzen Statuszeile, nicht am Knopf – am Knopf
+   ausgerichtet ragte sie links aus dem Editorbereich und wurde abgeschnitten. */
+.editor-status:has(.scripture-check) { position: relative; }
+.scripture-check { position: static; display: inline-flex; align-items: center; gap: 0.3rem; }
+.scripture-check-panel { position: absolute; bottom: 100%; left: 0; right: 0; z-index: 20; max-width: 48rem;
+  max-height: 50vh; overflow: auto; background: var(--bg, #fff); border: 1px solid var(--line, #ccc);
+  border-radius: 0.4rem; box-shadow: 0 0.3rem 1rem rgb(0 0 0 / 0.18); padding: 0.5rem 0.7rem; }
+.scripture-check-panel ul { list-style: none; margin: 0.3rem 0; padding: 0; }
+.scripture-check-panel li { padding: 0.2rem 0; border-bottom: 1px solid var(--line, #eee); }
+.scripture-check-panel li button { all: unset; cursor: pointer; }
+.scripture-check-panel li button:focus-visible { outline: 2px solid var(--accent, #2c6bed); }
+
+/* Markierungen im Satzbild (CSS Custom Highlight API). */
+::highlight(bibel-stimmt) { background-color: rgb(46 160 67 / 0.22); text-decoration: underline solid rgb(46 160 67); }
+::highlight(bibel-weicht) { background-color: rgb(207 34 46 / 0.2); text-decoration: underline wavy rgb(207 34 46); }
+
+/* Runde 19c: Hinweis auf Wortfragmente im Modul (Trennreste) und Leerraum-Treffer. */
+.check-module-note { border-left: 3px solid var(--warning, #9a5800); padding-left: 6px; }
+.check-spacing { color: var(--muted); }

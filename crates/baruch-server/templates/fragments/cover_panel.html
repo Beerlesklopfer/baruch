@@ -1,0 +1,122 @@
+{#- Umschlag und Buchangaben (Runde 11, src/cover.rs): Gruppe „Umschlag“ (show_cover, Block id="umschlag":
+    Vorschau, Auswahl, Entfernen, Titelbereich, Link zur Umschlagseite) und Formular „Buchangaben“
+    (show_book). Geht ohne JavaScript: Formulare an POST /werke/umschlag/act bzw. /werke/buchangaben/act,
+    Rücksprung über back (baut immer der Server aus der Werk-id, darum unmaskiert: minijinja schriebe
+    jedes / als &#x2f;). Kontext: work {id}, cover {name, caption, alt, url, thumb}?, images [{name,
+    caption, selected, photo}], values (Formularwerte), area, back, error?, settings_page.
+    Runde 27c: imprint {present (Titelei-Funktionen der Werkvorlage, Komma-Liste), complete} und der Knopf
+    „Impressum-Vorlage in die Werkvorlage übernehmen“ (POST /werke/umschlag/impressum, in der Gruppe „Umschlag“,
+    darum in Einstellungen → Werk und auf der Umschlagseite); im Formular „Buchangaben“ die Anschriften von Verlag
+    bzw. Herausgeber und Druckerei (mehrzeilig). -#}
+{%- if error %}
+<p class="notice error" role="alert">{{ error }}</p>
+{%- endif %}
+{%- if show_cover %}
+<section class="cover-panel" id="umschlag" aria-labelledby="umschlag-titel">
+  <h2 class="pane-title" id="umschlag-titel">Umschlag</h2>
+  <div class="cover-current">
+    {%- if cover %}
+    <img class="cover-thumb" src="/werke/{{ work.id }}/bilder/{{ cover.name }}/vorschau?b=320" alt="{{ cover.alt }}" loading="lazy" width="160">
+    <p class="small">Umschlagbild: <strong>{{ cover.name }}</strong>{% if cover.caption %} · <span class="muted">{{ cover.caption }}</span>{% endif %}</p>
+    {%- else %}
+    <p class="muted small">Noch kein Umschlagbild. Wähle eins aus den Bildern des Werks.</p>
+    {%- endif %}
+  </div>
+  {%- if images %}
+  <form class="cover-form" method="post" action="/werke/umschlag/act">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="action" value="set">
+    <input type="hidden" name="back" value="{{ back|safe }}">
+    <label class="small">Bild für den Umschlag
+      <select name="name">
+      {%- for i in images %}
+        <option value="{{ i.name }}"{% if i.selected %} selected{% endif %}>{{ i.name }}{% if i.caption %} – {{ i.caption }}{% endif %}</option>
+      {%- endfor %}
+      </select></label>
+    <button class="btn" type="submit">Als Umschlag setzen</button>
+  </form>
+  {%- else %}
+  <p class="muted small">Das Werk hat noch keine Bilder: <a href="/werke/{{ work.id }}/bilder">Bilder hochladen …</a></p>
+  {%- endif %}
+  {%- if cover %}
+  <form class="cover-form" method="post" action="/werke/umschlag/act">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="action" value="remove">
+    <input type="hidden" name="back" value="{{ back|safe }}">
+    <button class="btn danger" type="submit">Umschlag entfernen</button>
+  </form>
+  {%- endif %}
+  <form class="cover-form" method="post" action="/werke/umschlag/act">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="action" value="area">
+    <input type="hidden" name="back" value="{{ back|safe }}">
+    <fieldset class="cover-area">
+      <legend class="small">Titel und Untertitel auf der Vorderseite</legend>
+      <label><input type="radio" name="title_area" value="top"{% if area == "top" %} checked{% endif %}> oben</label>
+      <label><input type="radio" name="title_area" value="middle"{% if area == "middle" %} checked{% endif %}> Mitte</label>
+      <label><input type="radio" name="title_area" value="bottom"{% if area == "bottom" %} checked{% endif %}> unten</label>
+    </fieldset>
+    <button class="btn" type="submit">Titelbereich übernehmen</button>
+  </form>
+  <p class="small"><a href="/werke/{{ work.id }}/umschlag">Umschlag ansehen (Rückseite, Rücken, Vorderseite) …</a>
+    · <a href="/werke/{{ work.id }}/umschlag.pdf" download>Umschlag-PDF</a></p>
+  <form class="cover-form cover-imprint-form" method="post" action="/werke/umschlag/impressum">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="back" value="{{ back|safe }}">
+    <button class="btn" type="submit" data-imprint-adopt>Impressum-Vorlage in die Werkvorlage übernehmen</button>
+    <p class="muted tiny">Hängt die Funktionen schmutztitel, haupttitel, impressum und widmung, die der Werkvorlage noch fehlen, als neue
+      Fassung der Vorlage an; danach lassen sich Titelei und Impressum in der Werkvorlage frei gestalten.
+      {% if imprint.complete %}Die Werkvorlage hat schon alle vier.{% elif imprint.present %}Schon vorhanden: {{ imprint.present }}.{% else %}Die Werkvorlage hat noch keine davon.{% endif %}</p>
+  </form>
+</section>
+{%- endif %}
+{%- if show_book %}
+<section class="book-panel" id="buchangaben" aria-labelledby="buchangaben-titel">
+  <h2 class="pane-title" id="buchangaben-titel">Buchangaben</h2>
+  <p class="muted small">Für Titelei, Impressum und Umschlag. Titel, Untertitel, Autor und Bibelübersetzung stehen bei den Angaben des Werks.</p>
+  <form class="work-form wide book-form" method="post" action="/werke/buchangaben/act">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="back" value="{{ back|safe }}">
+    <input type="hidden" name="flags" value="1">
+    <div class="work-fields">
+      <label>Verlag <input type="text" name="publisher" value="{{ values.publisher }}" maxlength="200"></label>
+      <label>Verlagsort <input type="text" name="place" value="{{ values.place }}" maxlength="200"></label>
+      <label>Jahr <input type="text" name="year" value="{{ values.year }}" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="2026"></label>
+      <label>Auflage <input type="text" name="edition" value="{{ values.edition }}" maxlength="200" placeholder="1. Auflage"></label>
+      <label>ISBN-13 <input type="text" name="isbn" value="{{ values.isbn }}" maxlength="200" placeholder="978-…"></label>
+      <label>Preis <input type="text" name="price" value="{{ values.price }}" maxlength="200" placeholder="18,00 €"></label>
+      <label>Reihe <input type="text" name="series" value="{{ values.series }}" maxlength="200"></label>
+      <label>Druck <input type="text" name="printer" value="{{ values.printer }}" maxlength="200"></label>
+      <label>Autorenfoto
+        <select name="author_photo">
+          <option value="">– keins –</option>
+          {%- for i in images %}
+          <option value="{{ i.name }}"{% if values.author_photo == i.name %} selected{% endif %}>{{ i.name }}</option>
+          {%- endfor %}
+        </select></label>
+      <label>Papierdicke je Blatt in mm (1 Blatt = 2 Seiten) <input type="text" name="paper_sheet_mm" value="{{ values.paper_sheet_mm }}" inputmode="decimal" aria-describedby="papier-hinweis-{{ work.id }}">
+        <span class="small muted" id="papier-hinweis-{{ work.id }}">Bestimmt die Rückenbreite. Druckereien nennen die Dicke je Blatt. Vorgabe 0,2 mm je Blatt (eher dick); übliches Werkdruckpapier um 80–90 g/m² hat etwa 0,1 mm je Blatt.</span></label>
+      <label>Beschnitt (mm) <input type="text" name="bleed_mm" value="{{ values.bleed_mm }}" inputmode="decimal"></label>
+      <label>Titelbereich
+        <select name="title_area">
+          <option value="top"{% if values.title_area == "top" %} selected{% endif %}>oben</option>
+          <option value="middle"{% if values.title_area == "middle" %} selected{% endif %}>Mitte</option>
+          <option value="bottom"{% if values.title_area == "bottom" %} selected{% endif %}>unten</option>
+        </select></label>
+    </div>
+    <label class="check"><input type="checkbox" name="front_matter" value="1"{% if values.front_matter %} checked{% endif %}> Titelei setzen (Schmutztitel, Seite 2, Haupttitel, Impressum, Widmung)</label>
+    <label class="check"><input type="checkbox" name="cover_pages" value="1"{% if values.cover_pages %} checked{% endif %}> Umschlag-Vorder- und Rückseite im Satz zeigen (nur mit Umschlagbild)</label>
+    <label>Widmung <textarea name="dedication" rows="2" maxlength="1000">{{ values.dedication }}</textarea></label>
+    <label>Klappentext (Rückseite) <textarea name="blurb" rows="5" maxlength="4000">{{ values.blurb }}</textarea></label>
+    <label>Kurzbiografie <textarea name="bio" rows="3" maxlength="2000">{{ values.bio }}</textarea></label>
+    <label>Anschrift des Verlags bzw. Herausgebers <span class="muted small">(bei Selbstverlag die des Verfassers oder Herausgebers; mehrzeilig)</span>
+      <textarea name="publisher_address" rows="3" maxlength="500">{{ values.publisher_address }}</textarea></label>
+    <label>Anschrift der Druckerei <span class="muted small">(mehrzeilig)</span>
+      <textarea name="printer_address" rows="3" maxlength="500">{{ values.printer_address }}</textarea></label>
+    <label>Rechtehinweis der Bibelübersetzung <textarea name="bible_notice" rows="2" maxlength="1000">{{ values.bible_notice }}</textarea></label>
+    <label>Bildnachweis / Umschlaggestaltung <span class="muted small">(leer: Bildunterschrift des Umschlags)</span>
+      <textarea name="image_credit" rows="2" maxlength="1000">{{ values.image_credit }}</textarea></label>
+    <button class="btn primary" type="submit">Buchangaben speichern</button>
+  </form>
+</section>
+{%- endif %}

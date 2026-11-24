@@ -1,0 +1,198 @@
+{#- Seite /werke/{id}/umschlag (Runde 11, src/cover.rs): der ganze Umschlag als Vorschau (Rückseite |
+    Rücken | Vorderseite, SVG unter /werke/{id}/umschlag.svg), Maße, Druckprüfung, Link zum PDF und die
+    Formulare (Umschlag, Buchangaben). Geht ohne JavaScript. Kontext: settings, work {id, title}, notice?,
+    preview? (Stand für die Bildadresse), facts {width, height, spine, bleed, page_width, page_height,
+    pages, cover_pages, book_pages, sheets, sheet_mm (Runde 20c: Dicke je Blatt)}?, diagnostics [{label, message, file, line}], print_warnings [Text],
+    preview_error?, panel (fertiges HTML).
+    Runde 27c (Umschlag-Editor): preview_query (Abfrage b.…=… der Vorschau, leer = gespeichert) und editor
+    {available, reason?, error?, preview, layout_json (Antwort von cover.layout), stored, area, default_font, ratio
+    ("B / H" in mm), blocks [{kind, label, name, face, face_label, aria, stored, own_text, spine, visible, left, top,
+    width, height (Prozent des Gesamtumschlags), values {feld: Text}}], guides [{kind, label, left, top, width,
+    height}], warnings [{code, block?, message}], faces [{name, label}], fonts [Name], work, back}. Über der Vorschau
+    liegen die Rahmen der Blöcke und die Hilfslinien; die Seitenleiste ist das Formular (ohne JavaScript: Vorschau per
+    GET, Übernehmen per POST /werke/umschlag/anordnung). Das Widget cover-editor (web/src/cover_editor.ts) macht die
+    Rahmen ziehbar und speichert über RPC. -#}
+{% extends "base.html" %}
+{% block title %}Umschlag – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Umschlag{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke/{{ work.id }}/umschlag.pdf" download>Umschlag-PDF</a>
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page cover-page">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Umschlag</h1>
+  {%- if preview_error %}
+  <p class="notice error" role="alert">{{ preview_error }}</p>
+  {%- endif %}
+  {%- if facts %}
+  <p class="muted small cover-facts">Gesamt {{ facts.width }} × {{ facts.height }} mm · Seite {{ facts.page_width }} × {{ facts.page_height }} mm
+    · Rücken {{ facts.spine }} mm = {{ facts.book_pages }} Buchseiten ({{ facts.sheets }} Blatt) × {{ facts.sheet_mm }} mm je Blatt{% if facts.cover_pages %} (die {{ facts.cover_pages }} Umschlagseiten im Satz zählen nicht){% endif %}
+    · Beschnitt {{ facts.bleed }} mm</p>
+  {%- endif %}
+  {%- if editor.available %}
+  <section class="cover-editor" id="anordnung" aria-labelledby="anordnung-titel" data-widget="cover-editor" data-work="{{ work.id }}" data-layout="{{ editor.layout_json }}">
+    <h2 class="pane-title" id="anordnung-titel">Anordnung der Blöcke</h2>
+    {%- if editor.error %}
+    <p class="notice error" role="alert" data-cover-error>{{ editor.error }}</p>
+    {%- endif %}
+    {%- if editor.preview %}
+    <p class="notice" role="status" data-cover-preview>Vorschau – noch nicht gespeichert. „Anordnung übernehmen“ speichert diese Werte.</p>
+    {%- endif %}
+    <p class="muted small" id="anordnung-hilfe">Koordinaten in mm ab der Schnittkante (oben links) der eigenen Fläche; negative Werte ragen in den Beschnitt.
+      <span class="cover-js-only">Rahmen ziehen verschiebt, die Griffe an den Ecken ändern die Breite. Tastatur: Rahmen mit Tab wählen, Pfeiltasten 0,5 mm (mit Umschalt 5 mm),
+      Strg+←/→ Breite, Strg+Z rückgängig, Strg+S speichern. Beim Ziehen rastet der Rahmen an den Hilfslinien ein.</span></p>
+    <div class="cover-editor-toolbar cover-js-only" role="toolbar" aria-label="Umschlag-Editor">
+      <button class="btn" type="button" data-cover-undo disabled>Rückgängig</button>
+      <button class="btn primary" type="button" data-cover-save disabled>Speichern</button>
+      <button class="btn" type="button" data-cover-tone aria-pressed="false" title="Farbe des gewählten Blocks zwischen hell und dunkel umschalten">Hell/Dunkel</button>
+      <span class="small muted" role="status" aria-live="polite" data-cover-status></span>
+    </div>
+    <div class="cover-editor-body">
+      <div class="cover-stage" data-cover-stage style="aspect-ratio: {{ editor.ratio }}">
+        {%- if preview %}
+        <img class="cover-stage-image" data-cover-image src="/werke/{{ work.id }}/umschlag.svg?stand={{ preview }}{% if preview_query %}&amp;{{ preview_query|safe }}{% endif %}" alt="Umschlag: Rückseite, Rücken und Vorderseite{% if editor.preview %} (Vorschau){% endif %}">
+        {%- endif %}
+        <div class="cover-guides" aria-hidden="true">
+          {%- for g in editor.guides %}
+          <div class="cover-guide guide-{{ g.kind }}" data-guide="{{ g.kind }}" title="{{ g.label }}" style="left: {{ g.left }}; top: {{ g.top }}; width: {{ g.width }}; height: {{ g.height }}"></div>
+          {%- endfor %}
+        </div>
+        {%- for b in editor.blocks %}
+        <div class="cover-block{% if b.spine %} is-spine{% endif %}{% if not b.visible %} is-hidden{% endif %}{% if b.stored %} is-stored{% endif %}" data-cover-block="{{ b.kind }}" data-face="{{ b.face }}" tabindex="0" role="group" aria-roledescription="verschiebbarer Block" aria-label="{{ b.aria }}" aria-describedby="anordnung-hilfe" style="left: {{ b.left }}; top: {{ b.top }}; width: {{ b.width }}; height: {{ b.height }}">
+          <span class="cover-block-name">{{ b.label }}</span>
+          <span class="cover-handle handle-start cover-js-only" data-cover-handle="start" aria-hidden="true"></span>
+          <span class="cover-handle handle-end cover-js-only" data-cover-handle="end" aria-hidden="true"></span>
+        </div>
+        {%- endfor %}
+      </div>
+      <form class="cover-layout-form" method="post" action="/werke/umschlag/anordnung" data-cover-form>
+        <input type="hidden" name="work" value="{{ work.id }}">
+        <input type="hidden" name="back" value="{{ editor.back|safe }}">
+        <p class="muted small">{% if editor.stored %}Das Werk hat eine eigene Anordnung.{% else %}Noch keine eigene Anordnung: Es gelten die Vorgaben (Titelbereich {% if editor.area == "top" %}oben{% elif editor.area == "middle" %}Mitte{% else %}unten{% endif %}).{% endif %}
+          Vorgabeschrift: {{ editor.default_font }}.</p>
+        <datalist id="cover-fonts">
+          {%- for f in editor.fonts %}
+          <option value="{{ f }}">
+          {%- endfor %}
+        </datalist>
+        {%- for b in editor.blocks %}
+        <details class="cover-block-fields" data-cover-fields="{{ b.kind }}" id="felder-{{ b.kind }}"{% if loop.first %} open{% endif %}>
+          <summary>{{ b.label }}{% if not b.stored %} <span class="muted small">(Vorgabe)</span>{% endif %}{% if not b.visible %} <span class="muted small">– verborgen</span>{% endif %}</summary>
+          <div class="cover-field-grid">
+            <label>x (mm) <input type="number" name="b.{{ b.kind }}.x_mm" value="{{ b.values.x_mm }}" step="0.1" min="-50" max="1000" data-field="x_mm"></label>
+            <label>y (mm) <input type="number" name="b.{{ b.kind }}.y_mm" value="{{ b.values.y_mm }}" step="0.1" min="-50" max="1000" data-field="y_mm"></label>
+            <label>Breite (mm) <input type="number" name="b.{{ b.kind }}.width_mm" value="{{ b.values.width_mm }}" step="0.1" min="1" max="1000" data-field="width_mm"></label>
+            <label>Schriftgröße (pt) <input type="number" name="b.{{ b.kind }}.size_pt" value="{{ b.values.size_pt }}" step="0.5" min="4" max="200" data-field="size_pt"></label>
+            <label>Zeilenabstand (em) <input type="number" name="b.{{ b.kind }}.leading_em" value="{{ b.values.leading_em }}" step="0.05" min="0" max="3" data-field="leading_em"></label>
+            <label>Ausrichtung
+              <select name="b.{{ b.kind }}.align" data-field="align">
+                <option value="left"{% if b.values.align == "left" %} selected{% endif %}>links</option>
+                <option value="center"{% if b.values.align == "center" %} selected{% endif %}>Mitte</option>
+                <option value="right"{% if b.values.align == "right" %} selected{% endif %}>rechts</option>
+                <option value="justify"{% if b.values.align == "justify" %} selected{% endif %}>Blocksatz</option>
+              </select></label>
+            <label>Farbe <input type="text" name="b.{{ b.kind }}.color" value="{{ b.values.color }}" maxlength="7" list="cover-colors" placeholder="light, dark oder #rrggbb" data-field="color"></label>
+            <label>Schrift <input type="text" name="b.{{ b.kind }}.font" value="{{ b.values.font }}" maxlength="200" list="cover-fonts" placeholder="{{ editor.default_font }}" data-field="font"></label>
+            <label>Schnitt
+              <select name="b.{{ b.kind }}.style" data-field="style">
+                <option value="normal"{% if b.values.style == "normal" %} selected{% endif %}>normal</option>
+                <option value="bold"{% if b.values.style == "bold" %} selected{% endif %}>fett</option>
+                <option value="italic"{% if b.values.style == "italic" %} selected{% endif %}>kursiv</option>
+              </select></label>
+            <label>Hintergrund
+              <select name="b.{{ b.kind }}.backdrop" data-field="backdrop">
+                <option value="none"{% if b.values.backdrop == "none" %} selected{% endif %}>keiner</option>
+                <option value="shadow"{% if b.values.backdrop == "shadow" %} selected{% endif %}>Schatten</option>
+                <option value="gradient"{% if b.values.backdrop == "gradient" %} selected{% endif %}>Verlauf</option>
+              </select></label>
+            <label>Sichtbar
+              <select name="b.{{ b.kind }}.visible" data-field="visible">
+                <option value="1"{% if b.values.visible == "1" %} selected{% endif %}>ja</option>
+                <option value="0"{% if b.values.visible != "1" %} selected{% endif %}>nein</option>
+              </select></label>
+            {%- if b.spine %}
+            <label>Laufrichtung
+              <select name="b.{{ b.kind }}.direction" data-field="direction">
+                <option value="down"{% if b.values.direction != "up" %} selected{% endif %}>von oben nach unten</option>
+                <option value="up"{% if b.values.direction == "up" %} selected{% endif %}>von unten nach oben</option>
+              </select></label>
+            {%- endif %}
+          </div>
+          {%- if b.own_text %}
+          <label class="cover-field-text">Text <textarea name="b.{{ b.kind }}.text" rows="3" maxlength="1000" data-field="text">{{ b.values.text }}</textarea></label>
+          {%- endif %}
+        </details>
+        {%- endfor %}
+        <datalist id="cover-colors"><option value="light"><option value="dark"></datalist>
+        <div class="cover-layout-actions">
+          <button class="btn primary" type="submit" name="action" value="save">Anordnung übernehmen</button>
+          <button class="btn" type="submit" formmethod="get" formaction="/werke/{{ work.id }}/umschlag#anordnung" formnovalidate>Vorschau ohne Speichern</button>
+        </div>
+      </form>
+    </div>
+    <div class="cover-layout-more">
+      <form class="cover-form" method="post" action="/werke/umschlag/anordnung" data-cover-quick-form>
+        <input type="hidden" name="work" value="{{ work.id }}">
+        <input type="hidden" name="back" value="{{ editor.back|safe }}">
+        <input type="hidden" name="action" value="quick">
+        <fieldset class="cover-area">
+          <legend class="small">Schnellwahl Titelbereich (setzt die Vorderseite zurück)</legend>
+          <button class="btn" type="submit" name="area" value="top" data-cover-quick="top">oben</button>
+          <button class="btn" type="submit" name="area" value="middle" data-cover-quick="middle">Mitte</button>
+          <button class="btn" type="submit" name="area" value="bottom" data-cover-quick="bottom">unten</button>
+        </fieldset>
+      </form>
+      <form class="cover-form" method="post" action="/werke/umschlag/anordnung" data-cover-reset-form>
+        <input type="hidden" name="work" value="{{ work.id }}">
+        <input type="hidden" name="back" value="{{ editor.back|safe }}">
+        <input type="hidden" name="action" value="reset">
+        <fieldset class="cover-area">
+          <legend class="small">Anordnung zurücksetzen (keine Fläche gewählt = alle)</legend>
+          {%- for f in editor.faces %}
+          <label><input type="checkbox" name="faces" value="{{ f.name }}"> {{ f.label }}</label>
+          {%- endfor %}
+        </fieldset>
+        <button class="btn danger" type="submit" data-cover-reset>Anordnung zurücksetzen</button>
+      </form>
+    </div>
+  </section>
+  {%- else %}
+  <section class="cover-editor" id="anordnung" aria-labelledby="anordnung-titel">
+    <h2 class="pane-title" id="anordnung-titel">Anordnung der Blöcke</h2>
+    {%- if editor.error %}
+    <p class="notice error" role="alert" data-cover-error>{{ editor.error }}</p>
+    {%- endif %}
+    <p class="muted small">Ohne gesetzten Umschlag kein Editor: {{ editor.reason }}</p>
+  </section>
+  {%- endif %}
+  {%- if preview and not editor.available %}
+  <figure class="cover-preview">
+    <img src="/werke/{{ work.id }}/umschlag.svg?stand={{ preview }}" alt="Umschlag: Rückseite, Rücken und Vorderseite">
+    <figcaption class="muted small">Links die Rückseite, in der Mitte der Rücken, rechts die Vorderseite; außen der Beschnitt.</figcaption>
+  </figure>
+  {%- endif %}
+  <section class="cover-check" id="druckpruefung" aria-labelledby="druckpruefung-titel">
+    <h2 class="pane-title" id="druckpruefung-titel">Druckprüfung</h2>
+    {%- if diagnostics or print_warnings or editor.warnings %}
+    <ul data-cover-warnings>
+    {%- for w in editor.warnings %}
+      <li data-cover-warning="{{ w.code }}"{% if w.kind %} data-block="{{ w.kind }}"{% endif %}>{{ w.message }}</li>
+    {%- endfor %}
+    {%- for d in diagnostics %}
+      <li>{{ d.label }}: {{ d.message }}{% if d.file %} ({{ d.file }}{% if d.line %}, Zeile {{ d.line }}{% endif %}){% endif %}</li>
+    {%- endfor %}
+    {%- for w in print_warnings %}
+      <li>{{ w }}</li>
+    {%- endfor %}
+    </ul>
+    {%- else %}
+    <p class="muted small">Keine Meldungen beim Satz des Umschlags.</p>
+    {%- endif %}
+  </section>
+{{ panel|safe }}
+</main>
+{% endblock %}

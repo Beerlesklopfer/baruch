@@ -1,0 +1,86 @@
+{#- Seite /werke/{id}/nummerierung: Gliederungsschema des Werks wählen (Vertrag Runde 6). Alle
+    Schemata als Radioknöpfe mit Beispiel und Vorschau an der eigenen Gliederung (die ersten
+    preview_points Punkte), Feld „eigenes Muster“. „Vorschau“ schickt das Formular per GET an diese
+    Seite (formmethod/formaction, ohne JavaScript), „Übernehmen“ per POST an /werke/nummerierung/act.
+    Kontext: settings, work {id, title}, current (NumberingInfo), schemes [{id, label, example,
+    preview [{node, key, level, number, title}], more, error, checked, current}], custom, rule,
+    notice, error, preview_points, back.
+    Runde 9: Die Kopfzeile kommt aus base.html (Blöcke page_title, page_actions); der Formularteil steht
+    in {% block content %}, den auch die Einstellungsseite „Werk“ zeigt (crate::settings, render_block).
+    back (nur dort): Rücksprung nach „Übernehmen“ als verstecktes Feld; „Vorschau“ geht dann an
+    /einstellungen/werk statt an diese Seite. -#}
+{% extends "base.html" %}
+{% block title %}Gliederungsschema – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}Gliederungsschema · {{ work.title }}{% endblock %}
+{% block page_actions %}<a class="btn" href="/werke/{{ work.id }}/bearbeiten">Werk ändern</a>
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% endblock %}
+{% block body %}
+<main class="works-page numbering-page">
+{%- block content %}
+  {#- Runde 14: Kopf als ein Block mit engen Abständen (vorher Absatzränder plus Lücke der Seite). #}
+  <header class="numbering-head">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h1 class="pane-title">Gliederungsschema von „{{ work.title }}“</h1>
+  <p class="small">Jetzt: <strong>{{ current.scheme_label }}</strong>
+    {%- if current.scheme == "template" %} ({% if current.effective %}Muster „{{ current.effective }}“{% else %}keine Nummern{% endif %}
+    {%- if current.template is none %}, die Vorlage setzt keins – Vorgabe „1.1“{% endif %})
+    {%- elif current.scheme == "custom" %} („{{ current.custom }}“){% endif %}.</p>
+  <p class="muted small">Das Schema gilt für die Gliederung, den Kopf des Editors, den Export, den Satz und den
+    Git-Spiegel (<code>main.typ</code>). Bei „Aus der Werkvorlage“ bleibt die Vorlage im Export unverändert; sonst
+    folgt ihr eine Zeile <code>#set heading(numbering: …)</code>, die gespeicherte Vorlage bleibt, wie sie ist.
+    Teile zählen eigen, Kapitel über Teile hinweg fortlaufend; Punkte ohne Nummer zählen nicht mit und stehen im
+    Export als <code>#heading(…, numbering: none)</code>.</p>
+  </header>
+
+  <form class="numbering-choice" method="post" action="/werke/nummerierung/act">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    {%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <fieldset class="scheme-list">
+      <legend class="pane-title">Schema wählen</legend>
+      {%- for s in schemes %}
+      <div class="scheme-option{% if s.checked %} checked{% endif %}" id="schema-{{ s.id }}">
+        <label class="scheme-label">
+          <input type="radio" name="scheme" value="{{ s.id }}"{% if s.checked %} checked{% endif %}>
+          <span class="scheme-name">{{ s.label }}</span>
+          {%- if s.current %} <span class="badge success">gilt jetzt</span>{% endif %}
+          <span class="muted small scheme-example">{{ s.example }}</span>
+        </label>
+        {%- if s.id == "custom" %}
+        <label class="small scheme-custom">Eigenes Muster
+          <input type="text" name="custom" value="{{ custom }}" placeholder="I.;A.;1.;a)" size="18" spellcheck="false"></label>
+        <p class="muted tiny scheme-hint">Mustersprache: ein Typst-Muster für alle Ebenen („1.1“, „I.1“, „1.a)“),
+          mit „|k“ nur die Ebenen 1 bis k („I|1“ = nur Kapitel römisch) oder je Ebene ein Muster, getrennt durch
+          „;“ („I.;A.;1.;a);aa)“; ein Muster mit einem Zählzeichen zeigt nur die eigene Zahl, ein leeres keine).
+          Zählzeichen: 1, a, A, i, I, *; „aa“ = verdoppelter Buchstabe (aa, bb, cc).</p>
+        {%- endif %}
+        {%- if s.error %}
+        <p class="muted tiny scheme-error">{{ s.error }}</p>
+        {%- else %}
+        <ol class="scheme-preview" aria-label="Vorschau {{ s.label }}">
+          {%- for p in s.preview %}
+          <li class="level-{{ p.level }}">{% if p.number %}<span class="num">{{ p.number }}</span>{% endif %}{{ p.title }}</li>
+          {%- endfor %}
+          {%- if s.more %}<li class="muted tiny">… und {{ s.more }} weitere</li>{% endif %}
+        </ol>
+        {%- endif %}
+      </div>
+      {%- endfor %}
+    </fieldset>
+    {%- if rule %}
+    <p class="small">Im Export steht dann hinter der Werkvorlage: <code class="scheme-rule">{{ rule }}</code></p>
+    {%- endif %}
+    <p class="numbering-buttons">
+      <button class="btn" type="submit" formmethod="get" formaction="{% if back %}/einstellungen/werk{% else %}/werke/{{ work.id }}/nummerierung{% endif %}">Vorschau</button>
+      <button class="btn primary" type="submit">Übernehmen</button>
+    </p>
+    <p class="muted tiny">„Vorschau“ zeigt das gewählte Schema und das eigene Muster nur an; erst „Übernehmen“
+      ändert die Nummern (ein Commit im Git-Spiegel).</p>
+  </form>
+{%- endblock %}
+</main>
+{% endblock %}

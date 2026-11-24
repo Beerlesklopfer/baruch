@@ -1,0 +1,172 @@
+{# SPDX-License-Identifier: AGPL-3.0-or-later #}
+<!doctype html>
+<html lang="de"{% if settings.theme %} data-theme="{{ settings.theme }}"{% endif %}{% if html_style %} style="{{ html_style }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Baruch{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  {% block scripts %}<script type="module" src="/static/js/main.js"></script>{% endblock %}
+</head>
+<body>
+{#- Kopfzeile aller Seiten (Runde 9, src/menu.rs): Seiten liefern nur {% block page_title %} und
+    {% block page_actions %}. Daten in dieser Rangfolge: `topbar` (nur die Arbeitsseite,
+    menu::workspace_topbar), `work.id`, wenn `work` eine Abbildung ist, das Werk aus dem Cookie
+    baruch_work (`settings.work`); ohne Werk zeigen die Werk-Einträge auf /werke. Die Menüs sind
+    <details>/<summary> mit gewöhnlichen Links (ohne JavaScript bedienbar); web/src/menu.ts ergänzt
+    die Tastatur nach dem ARIA-Menü-Muster. Je Seite höchstens ein Element mit data-literature-open,
+    data-idea-open, data-work-import-open und data-view-toggle (die Widgets nehmen querySelector). #}
+{% block topbar -%}
+{%- set tb = topbar if topbar is defined and topbar else none %}
+{%- set w = tb.work.id if tb else (work.id if work is mapping and work.id else (settings.work if settings is defined and settings and settings.work else none)) %}
+{%- set requests = tb.badges.outline_requests if tb else 0 %}
+{%- set proposals = tb.badges.open_proposals if tb else 0 %}
+{%- set open_findings = tb.badges.open_findings if tb else 0 %}
+{#- Runde 23a: Außerhalb der Arbeitsseite kennt die Vorlage die Zahlen nicht. Die Abzeichen tragen dann
+    `data-badge-fill`, die Menüleiste das Werk (`data-badges-work`); die Schicht consent::inject lässt
+    menu::fill_badges die Zahlen im fertigen HTML einsetzen – auch ohne JavaScript (menu.ts frischt nur noch auf). #}
+{%- set fill = " data-badge-fill" if (not tb and w) else "" %}
+<header class="topbar">
+  <a class="brand" href="/{% if w %}?work={{ w }}{% endif %}">Baruch</a>
+  {%- if tb %}
+  {#- Werkwahl: gewöhnliches GET-Formular; ohne JavaScript mit „Öffnen“, mit JavaScript öffnet das
+      Widget „work-select“ das gewählte Werk sofort (works.ts, merkt es im Cookie baruch_work). #}
+  <form class="work-select" action="/" method="get" role="search" aria-label="Werk wählen">
+    <select name="work" aria-label="Werk" data-widget="work-select">
+    {%- for o in tb.works %}
+      <option value="{{ o.id }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>
+    {%- endfor %}
+    </select>
+    {%- if scriptless is defined and scriptless %}
+    <button class="btn" type="submit">Öffnen</button>
+    {%- else %}
+    <noscript><button class="btn" type="submit">Öffnen</button></noscript>
+    {%- endif %}
+  </form>
+  {%- endif %}
+  <span class="work-title">{% block page_title %}{% endblock %}</span>
+  {%- if tb and tb.work.author %}<span class="muted">· {{ tb.work.author }}</span>{% endif %}
+  <nav class="menubar" data-widget="menubar" aria-label="Menü"{% if not tb and w %} data-badges-work="{{ w }}"{% endif %}>
+    <details class="menu" data-menu="werk">
+      <summary class="btn" aria-haspopup="menu">Werk ▾ <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>{{ requests }}</span> <span class="badge warning" data-badge="open_findings" title="offene Befunde im Werk"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }} offen</span></summary>
+      <div class="menu-list" role="menu">
+        <a class="menu-item" role="menuitem" href="/werke">Alle Werke</a>
+        {#- Auf der Arbeitsseite öffnet der Eintrag mit JavaScript den Dialog unten (works.ts). #}
+        <a class="menu-item" role="menuitem" href="/werke/neu"{% if tb %} data-work-import-open aria-haspopup="dialog" aria-controls="work-import"{% endif %}>Neues Werk / Importieren…</a>
+        {#- Runde 21a: PDF oder EPUB lesen, Gliederung prüfen, als Werk oder Quelle übernehmen (src/pdf_import/); mit und ohne Werk. #}
+        <a class="menu-item" role="menuitem" href="/werke/import/quelle" title="PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen">PDF oder EPUB importieren…</a>
+        {%- if w %}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/bearbeiten">Werk bearbeiten</a>
+        <a class="menu-item" role="menuitem" href="/gliederung?work={{ w }}">Gliederung</a>
+        <a class="menu-item" role="menuitem" href="/gliederung?work={{ w }}#antraege" data-badge-item="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>Anträge zur Gliederung <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }}{% endif %}>{{ requests }}</span></a>
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/nummerierung">Gliederungsschema</a>
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/bilder">Bilder</a>
+        {#- Runde 28: Befunde der Personas (Matrix, Listen, Status; ohne JavaScript bedienbar). #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/befunde" title="Befunde der Personas: offen, übernommen, verworfen, verschoben, erledigt">Befunde <span class="badge warning" data-badge="open_findings"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }}</span></a>
+        {#- Runde 31: Glossar und Register des Werks (ohne JavaScript bedienbar). #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/glossar" title="Begriffe mit Erklärungen: angenommen und vorgeschlagen">Glossar</a>
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/register" title="Stichwort-, Personen-, Bibelstellen- und eigene Register mit Vorschlägen">Register</a>
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/export" title="Werkvorlage und aktuelle Texte als eine Typst-Datei">Exportieren (Typst)</a>
+        {#- Runde 26: Austausch zwischen Baruch-Instanzen (src/exchange/). #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/austausch" title="Ganzes Werk mit allen Fassungen, Einfällen, Beiträgen und Bildern als Austauschdatei">Austausch: Ausgeben</a>
+        <a class="menu-item" role="menuitem" href="/austausch/einlesen?work={{ w }}" title="Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)">Austausch: Einlesen…</a>
+        {#- Runde 11: das Buch als PDF, Umschlag (Seite) und Umschlag-PDF für die Druckerei. #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/pdf" download title="Das ganze Werk als PDF (Werkvorlage, aktuelle Fassungen, Bilder)">Als PDF herunterladen</a>
+        {#- Runde 22: Buch-PDF mit Wasserzeichen „Entwurf“, ohne die Satz-Einstellung zu ändern (?entwurf=1). #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/pdf?entwurf=1" download title="Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ (Einstellung bleibt unverändert)">Als Entwurf herunterladen</a>
+        {#- Runde 20: das Werk als EPUB 3 (src/epub.rs). #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/epub" download title="Das ganze Werk als E-Book (EPUB 3, aktuelle Fassungen)">Als EPUB herunterladen</a>
+        {#- Runde 16c: Stichwortzettel (A5 oder Karten) – eine Seite mit Formatwahl und Vorschau, kein Download direkt. #}
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/stichwortzettel" title="Stichwortzettel zum Halten oder Predigen: je Abschnitt Zeitmarke, Stichpunkte und Bibelstellen">Stichwortzettel …</a>
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/umschlag" title="Umschlag mit Vorderseite, Rücken und Rückseite">Umschlag</a>
+        <a class="menu-item" role="menuitem" href="/werke/{{ w }}/umschlag.pdf" download title="Umschlag als PDF für die Druckerei (mit Rücken und Beschnitt)">Umschlag-PDF</a>
+        {%- else %}
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Werk bearbeiten</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Gliederung</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Gliederungsschema</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Bilder</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Befunde</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Glossar</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Register</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Exportieren (Typst)</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Austausch: Ausgeben</a>
+        <a class="menu-item" role="menuitem" href="/austausch/einlesen">Austausch: Einlesen…</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Als PDF herunterladen</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Als Entwurf herunterladen</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Als EPUB herunterladen</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Stichwortzettel …</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Umschlag</a>
+        <a class="menu-item" role="menuitem" href="/werke" title="Erst ein Werk wählen">Umschlag-PDF</a>
+        {%- endif %}
+      </div>
+    </details>
+    <details class="menu" data-menu="ansicht">
+      <summary class="btn" aria-haspopup="menu">Ansicht ▾ <span class="badge" data-badge="open_proposals"{% if not proposals %}{{ fill }} hidden{% endif %}>{{ proposals }}</span></summary>
+      <div class="menu-list" role="menu">
+        {%- if tb %}
+        {#- Adressen in Key-Form /?work=W&key=K… (Runde 8): der feste Schlüssel bleibt beim Umstellen
+            gleich; workspace.ts setzt Text und href nach jedem Neuzeichnen weiter. #}
+        <a class="menu-item" role="menuitem" data-nav data-view-toggle href="/?work={{ w }}&key={{ tb.key }}&rev={{ tb.rev }}{% if tb.other_view == 'preview' %}&view=preview{% endif %}{{ tb.lq_q }}">
+          {%- if tb.view == "edit" %}Vorschau{% else %}Editor{% endif -%}
+        </a>
+        {%- elif w %}
+        <a class="menu-item" role="menuitem" href="/?work={{ w }}">Editor</a>
+        {%- else %}
+        <a class="menu-item" role="menuitem" href="/">Editor</a>
+        {%- endif %}
+        {#- Satz: gesetzte Seiten aus Typst mit der Werkvorlage (Seite /werke/W/satz, Runde 8). #}
+        <a class="menu-item" role="menuitem" href="{% if w %}/werke/{{ w }}/satz{% if tb %}?key={{ tb.key }}{% endif %}{% else %}/werke{% endif %}" title="Gesetzte Seiten aus Typst mit der Werkvorlage">Satz</a>
+        {#- Runde 20b: EPUB-Vorschau je Reader (Seite /werke/W/epub/vorschau, src/epub_preview.rs). #}
+        <a class="menu-item" role="menuitem" href="{% if w %}/werke/{{ w }}/epub/vorschau{% else %}/werke{% endif %}" title="Das EPUB des Werks in mehreren Readern nebeneinander">EPUB-Vorschau</a>
+      </div>
+    </details>
+    <details class="menu" data-menu="werkzeuge">
+      <summary class="btn" aria-haspopup="menu">Werkzeuge ▾</summary>
+      <div class="menu-list" role="menu">
+        {#- Literatur: ohne JavaScript die Seite /literatur, auf der Arbeitsseite das Popup (Alt+L). #}
+        <a class="menu-item" role="menuitem" href="/literatur{% if w %}?work={{ w }}{% endif %}{% if tb %}&key={{ tb.key }}&rev={{ tb.rev }}{{ tb.lq_q }}{% endif %}" data-literature-open{% if tb %} aria-haspopup="dialog" aria-controls="literature"{% endif %} title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
+        {#- Einfall: ohne JavaScript die Seite /einfaelle mit Formular, auf der Arbeitsseite der Dialog (Alt+E). #}
+        <a class="menu-item" role="menuitem" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" data-idea-open{% if tb %} aria-haspopup="dialog" aria-controls="idea-capture"{% endif %} title="Einfall festhalten (Alt+E)" data-shortcut="Alt+E">Einfall festhalten</a>
+        <a class="menu-item" role="menuitem" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" title="Liste der Einfälle dieses Werks">Einfälle</a>
+        {#- Runde 25: Gedankenkarte der Einfälle (Seite /werke/W/karte, ohne JavaScript bedienbar); nur mit Werk. #}
+        {% if w %}<a class="menu-item" role="menuitem" href="/werke/{{ w }}/karte" title="Gedankenkarte der Einfälle dieses Werks">Gedankenkarte</a>{% endif %}
+        {#- Abgleich mit MultiGPT (Runde 13): Seite /abgleich mit Knopf, ohne JavaScript bedienbar. #}
+        <a class="menu-item" role="menuitem" href="/abgleich{% if w %}?work={{ w }}{% endif %}" title="Abgleich mit MultiGPT">Abgleichen</a>
+        {#- Runde 30a: Suchen/Ersetzen im Werk (Seite /suche ohne JavaScript, auf der Arbeitsseite Seitenleiste mit
+            Strg+Umschalt+F) und Querverweise (Seite /verweise: mögliche und kaputte Verweise). #}
+        <a class="menu-item" role="menuitem" href="/suche{% if w %}?work={{ w }}{% endif %}" title="Im Werk suchen und ersetzen (Strg+Umschalt+F)">Im Werk suchen und ersetzen (Strg+Umschalt+F)</a>
+        <a class="menu-item" role="menuitem" href="/verweise{% if w %}?work={{ w }}{% endif %}" title="Mögliche und kaputte Querverweise des Werks">Querverweise prüfen</a>
+        {#- Runde 24: Über Baruch (Seite /ueber, src/about.rs) – Version, Lizenz, Quellcode. Ein gewöhnlicher Link,
+            auf jeder Seite und ohne JavaScript erreichbar; das Werk bleibt im Cookie, die Seite braucht es nicht. #}
+        <a class="menu-item" role="menuitem" href="/ueber" title="Version, Lizenz, Quellcode und Bibliotheken Dritter">Über Baruch</a>
+      </div>
+    </details>
+  </nav>
+  {% block page_actions %}{% endblock %}
+  <span class="grow"></span>
+  {%- set theme_name = "Hell" if settings is defined and settings.theme == "light" else ("Dunkel" if settings is defined and settings.theme == "dark" else "System") %}
+  {%- set theme_sign = "☀" if settings is defined and settings.theme == "light" else ("☾" if settings is defined and settings.theme == "dark" else "◐") %}
+  {%- if scriptless is defined and scriptless %}
+  {#- Seite ohne main.js (Satz-Seite, Nachbesserung Runde 18): Ein Knopf ohne Widget täte nichts – das Thema
+      stellt hier ein Link auf Einstellungen → Darstellung ein (Formular, ohne JavaScript), Einstellungen ohne
+      Dialog und ohne Alt+, (beides bräuchte main.js). #}
+  <a class="btn" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" aria-label="Thema einstellen (Einstellungen → Darstellung)" title="Thema: {{ theme_name }} – einstellen unter Einstellungen → Darstellung">{{ theme_sign }}</a>
+  <a class="btn settings-open" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" title="Einstellungen">⚙ Einstellungen</a>
+  {%- else %}
+  <button class="btn" type="button" data-widget="theme" data-auto="◐" data-light="☀" data-dark="☾" aria-label="Thema wechseln" title="Thema: {{ theme_name }}">{{ theme_sign }}</button>
+  <a class="btn settings-open" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="Einstellungen (Alt+,)">⚙ Einstellungen</a>
+  {%- endif %}
+</header>
+{%- endblock %}
+{#- Nutzerfrage 12: crate::consent setzt hier Hinweisleiste und Dialog ein, solange ein Antrag offen ist,
+    der die Zustimmung des Menschen braucht (sonst bleibt nichts stehen). #}
+<!--baruch-consent-->
+{% block body %}{% endblock %}
+{#- Hülle der Einstellungen (Runde 9): hinter allen Dialogen der Seite; den Inhalt lädt settings.ts. #}
+<dialog class="settings-dialog" id="settings" data-widget="settings" aria-labelledby="settings-title">
+  <header class="literature-head"><h2 class="pane-title" id="settings-title">Einstellungen</h2><span class="grow"></span><form method="dialog"><button class="btn" type="submit">Schließen</button></form></header>
+  <div class="settings-content" data-settings-content></div>
+</dialog>
+</body>
+</html>

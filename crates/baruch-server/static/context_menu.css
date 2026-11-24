@@ -1,0 +1,49 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Runde 31c: Kontextmenü im Satzbild und Quelltext, Dialoge Glossar/Register, Liste „Register“ im Menüband und die
+   Aktionen an der Markierung ohne JavaScript (web/src/context_menu.ts, templates/fragments/context_menu.html). */
+.ctx-menu {
+  position: fixed; z-index: 40; min-width: 14em; padding: 4px; display: flex; flex-direction: column;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+}
+.ctx-menu[hidden] { display: none; }
+.ctx-menu .ctx-item {
+  all: unset; box-sizing: border-box; padding: 5px 10px; border-radius: 4px; cursor: default; white-space: nowrap;
+}
+.ctx-menu .ctx-item:hover, .ctx-menu .ctx-item:focus-visible, .ctx-menu .ctx-item:focus {
+  background: var(--primary-soft); color: var(--primary); outline: none;
+}
+.ctx-dialog {
+  max-width: min(36em, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px;
+  background: var(--panel); color: var(--text);
+}
+.ctx-dialog::backdrop { background: rgb(0 0 0 / 25%); }
+.ctx-dialog form { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.ctx-dialog h3 { margin: 0 0 4px; font-size: 1em; }
+.ctx-field { display: flex; flex-direction: column; gap: 2px; }
+.ctx-field input, .ctx-field textarea, .ctx-field select { font: inherit; }
+.ctx-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.ctx-error { color: var(--danger); margin: 0; }
+.ctx-error[hidden] { display: none; }
+.ctx-lookup .ctx-term h4 { margin: 6px 0 2px; font-size: 1em; }
+.ctx-lookup .ctx-term p { margin: 0 0 2px; }
+.ctx-lookup .ctx-long { white-space: pre-wrap; }
+
+/* Menüband: Gruppe „Register und Glossar“ mit aufklappbarer Liste der Registereinträge des Abschnitts. */
+.ribbon .ribbon-index { padding-left: 10px; border-left: 1px solid var(--line); }
+.ribbon .ribbon-index .btn { min-height: 28px; padding: 3px 10px; }
+.ribbon-register { position: relative; }
+.ribbon-register-list[hidden] { display: none; }
+.ribbon-register-list {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 18em; max-height: 50vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+}
+.ribbon-register-list .ctx-entry { all: unset; padding: 3px 6px; border-radius: 4px; cursor: pointer; }
+.ribbon-register-list .ctx-entry:hover, .ribbon-register-list .ctx-entry:focus-visible { background: var(--primary-soft); }
+
+/* Seite „an der Markierung“: die drei Aktionen nebeneinander, schmal untereinander. */
+.ctx-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.ctx-action { flex: 1 1 18em; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+.ctx-action form { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.ctx-action h2 { margin: 0 0 6px; }

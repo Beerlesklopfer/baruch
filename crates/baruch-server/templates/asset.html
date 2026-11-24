@@ -1,0 +1,122 @@
+{#- Seite /werke/{id}/bilder/{name}[?fassung=n]: Vorschau der gezeigten Fassung, alle Fassungen mit
+    „aktuell“, Umschalten, Ersetzen (neue Fassung per Hochladen), Bildunterschrift/Alternativtext/Notiz
+    und Pfade pflegen, Fassung löschen und Bild löschen (je mit Kästchen). Formulare an
+    POST /werke/bilder/act und /werke/bilder/hochladen; geht ohne JavaScript. Kontext: settings,
+    work {id, title}, asset, paths_text, revision, revisions, error, notice, max_mib.
+    Runde 21c: Ersetzen mit Häkchen „Endung anpassen“ (rename): ein anderes Format bekommt die neue Endung, alle
+    Pfade bleiben beim Bild. -#}
+{% extends "base.html" %}
+{% block title %}{{ asset.name }} – Bilder – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Bild {{ asset.name }}{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke/{{ work.id }}/bilder">Alle Bilder</a>
+  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page assets-page">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  <h1 class="pane-title">{{ asset.name }} · Fassung {{ revision.number }}{% if revision.current %} (aktuell){% endif %}</h1>
+  <div class="asset-detail">
+    <figure class="asset-preview">
+      <img src="{{ revision.file_href }}" alt="{{ revision.alt }}">
+      {%- if revision.caption %}<figcaption>{{ revision.caption }}</figcaption>{% endif %}
+    </figure>
+    <dl class="asset-facts">
+      <dt>Typ</dt><dd>{{ revision.kind }} ({{ revision.mime }}), gespeichert als {% if revision.encoding == "svg" %}SVG-Text{% else %}Base64{% endif %}</dd>
+      <dt>Größe</dt><dd>{{ revision.size }}</dd>
+      <dt>SHA-256</dt><dd><code class="small">{{ revision.sha256 }}</code></dd>
+      <dt>Von</dt><dd>{{ revision.author }}, {{ revision.created }}{% if revision.edited %} · geändert {{ revision.edited }}{% endif %}</dd>
+      <dt>Pfade</dt><dd>{% for p in asset.paths %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">keiner</span>{% endfor %}</dd>
+      <dt>Datei</dt><dd><a href="{{ revision.file_href }}">öffnen</a></dd>
+      {#- Runde 11: Umschlag des Werks (Formular bedient „cover“, POST /werke/umschlag/act). #}
+      <dt>Umschlag</dt><dd>{% if asset.is_cover %}<span class="badge primary">Umschlag</span>{% else %}<form method="post" action="/werke/umschlag/act"><input type="hidden" name="work" value="{{ work.id }}"><input type="hidden" name="action" value="set"><input type="hidden" name="name" value="{{ asset.name }}"><input type="hidden" name="back" value="/werke/{{ work.id }}/bilder"><button class="btn">Als Umschlag</button></form>{% endif %}</dd>
+    </dl>
+  </div>
+
+  <section class="asset-revisions">
+    <h2 class="pane-title">Fassungen</h2>
+    <ul class="template-list">
+    {%- for r in revisions %}
+      <li>
+        <a href="{{ r.href }}"{% if r.shown %} aria-current="true"{% endif %}>Fassung {{ r.number }}</a>
+        {%- if r.current %} <strong>aktuell</strong>{% endif %}
+        <span class="muted small">· {{ r.kind }}, {{ r.size }} · {{ r.author }}, {{ r.created }}
+          {%- if r.based_on %} · auf Fassung {{ r.based_on }}{% endif %}
+          {%- if r.edited %} · geändert {{ r.edited }}{% endif %}
+          {%- if r.note %} · {{ r.note }}{% endif %}</span>
+        {%- if not r.current %}
+        <form class="inline-form" action="/werke/bilder/act" method="post">
+          <input type="hidden" name="action" value="set_current">
+          <input type="hidden" name="work" value="{{ work.id }}">
+          <input type="hidden" name="name" value="{{ asset.name }}">
+          <input type="hidden" name="rev" value="{{ r.number }}">
+          <button class="btn" type="submit">Aktuell machen</button>
+        </form>
+        {%- endif %}
+      </li>
+    {%- endfor %}
+    </ul>
+  </section>
+
+  <form class="work-form" action="/werke/bilder/act" method="post">
+    <h2 class="pane-title">Fassung {{ revision.number }} beschreiben</h2>
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="name" value="{{ asset.name }}">
+    <input type="hidden" name="rev" value="{{ revision.number }}">
+    <div class="work-fields">
+      <label>Bildunterschrift <input type="text" name="caption" value="{{ revision.caption }}"></label>
+      <label>Alternativtext <input type="text" name="alt" value="{{ revision.alt }}"></label>
+      <label>Notiz <input type="text" name="note" value="{{ revision.note }}"></label>
+      <label>Pfade des Bilds in Vorlage und Text (einer je Zeile)
+        <textarea name="paths" rows="3" placeholder="/bilder/{{ asset.name }}">{{ paths_text }}</textarea>
+      </label>
+    </div>
+    <button class="btn primary" type="submit">Speichern</button>
+  </form>
+
+  <form class="work-form" action="/werke/bilder/hochladen" method="post" enctype="multipart/form-data">
+    <h2 class="pane-title">Ersetzen (neue Fassung)</h2>
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="name" value="{{ asset.name }}">
+    <label>Neue Datei ({{ asset.kind }}, höchstens {{ max_mib }} MiB; ein anderes Format nur mit „Endung anpassen“)
+      <input type="file" name="file" required>
+    </label>
+    <label>Notiz <input type="text" name="note"></label>
+    <label class="check"><input type="checkbox" name="as_base64" value="1"> SVG als Base64 speichern</label>
+    <label class="check"><input type="checkbox" name="rename" value="1"> Endung anpassen, wenn die Datei ein anderes
+      Format hat (z. B. PNG statt SVG: das Bild heißt dann mit neuer Endung, alle Pfade bleiben, der Text bleibt
+      unverändert)</label>
+    <button class="btn" type="submit">Hochladen</button>
+    <p class="muted small">Die neue Fassung wird sofort aktuell; die bisherigen bleiben und lassen sich zurückschalten.</p>
+  </form>
+
+  {%- if not revision.current %}
+  <form class="work-form" action="/werke/bilder/act" method="post">
+    <h2 class="pane-title">Fassung {{ revision.number }} löschen</h2>
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="name" value="{{ asset.name }}">
+    <input type="hidden" name="rev" value="{{ revision.number }}">
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> Fassung {{ revision.number }} wirklich löschen</label>
+    <button class="btn danger" type="submit">Fassung löschen</button>
+  </form>
+  {%- endif %}
+
+  <form class="work-form" action="/werke/bilder/act" method="post">
+    <h2 class="pane-title">Bild löschen</h2>
+    <input type="hidden" name="action" value="remove">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="name" value="{{ asset.name }}">
+    <p class="muted small">Löscht {{ asset.name }} mit allen {{ asset.revisions }} Fassungen und Pfaden. Der Inhalt bleibt im
+      Git-Spiegel lesbar.</p>
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> {{ asset.name }} wirklich löschen</label>
+    <button class="btn danger" type="submit">Bild löschen</button>
+  </form>
+</main>
+{% endblock %}

@@ -1,0 +1,26 @@
+{#- Suchleiste im Editor (Runde 30a, web/src/search.ts): oben rechts im Editor, ohne JavaScript verborgen (dann gilt die
+    Seite /suche, Link unten). Pfeil ▸ klappt die Ersetzen-Zeile auf. Ersetzen hier ändert nur den ungespeicherten
+    Editortext; gespeichert wird wie immer mit „Speichern“. Kontext: work.id, node.key, rev.number. -#}
+<div class="search-bar" data-widget="search-bar" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}" role="search" aria-label="Im Abschnitt suchen" hidden>
+  <button type="button" class="btn sb-expand" data-sb-expand aria-expanded="false" title="Ersetzen ein-/ausblenden (Strg+H)">▸</button>
+  <div class="sb-rows">
+    <div class="sb-row">
+      <input type="search" class="sb-q" data-sb-q placeholder="Suchen" aria-label="Suchen" maxlength="500" autocomplete="off">
+      <button type="button" class="btn sb-toggle" data-sb-toggle="case" aria-pressed="false" title="Groß/klein beachten (Alt+C)">Aa</button>
+      <button type="button" class="btn sb-toggle" data-sb-toggle="word" aria-pressed="false" title="Nur ganze Wörter (Alt+W)"><u>ab</u></button>
+      <button type="button" class="btn sb-toggle" data-sb-toggle="re" aria-pressed="false" title="Regulärer Ausdruck (Alt+R)">.*</button>
+      <button type="button" class="btn sb-toggle" data-sb-toggle="sel" aria-pressed="false" title="Nur in der Markierung suchen (Alt+L; die Markierung im Quelltext beim Öffnen der Suche)">⌶</button>
+      <span class="sb-count small" data-sb-count aria-live="polite">Keine Treffer</span>
+      <button type="button" class="btn" data-sb-prev title="Voriger Treffer (Umschalt+Enter, Umschalt+F3)">↑</button>
+      <button type="button" class="btn" data-sb-next title="Nächster Treffer (Enter, F3)">↓</button>
+      <button type="button" class="btn" data-sb-close title="Schließen (Escape)" aria-label="Suchleiste schließen">✕</button>
+    </div>
+    <div class="sb-row sb-replace" data-sb-replace hidden>
+      <input type="text" class="sb-r" data-sb-r placeholder="Ersetzen" aria-label="Ersetzen" maxlength="2000" autocomplete="off">
+      <button type="button" class="btn" data-sb-one title="Aktuellen Treffer ersetzen (Strg+Umschalt+1)">Ersetzen</button>
+      <button type="button" class="btn" data-sb-all title="Alle im Abschnitt ersetzen (Strg+Alt+Enter)">Alle</button>
+      <a class="small" data-sb-work href="/suche?work={{ work.id }}&amp;key={{ node.key }}&amp;range=work&amp;shown_rev={{ rev.number }}" title="Im ganzen Werk suchen und ersetzen (Strg+Umschalt+F)">im Werk …</a>
+    </div>
+  </div>
+</div>
+<noscript><p class="small"><a href="/suche?work={{ work.id }}&amp;key={{ node.key }}&amp;range=section&amp;shown_rev={{ rev.number }}">Im Abschnitt suchen und ersetzen</a></p></noscript>

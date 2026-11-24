@@ -1,0 +1,43 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Runde 22 (Besitz fassungen): Fortschreiben, Verlauf der Fortschreibungen, Hinweis „weitere Fassung(en)“ und
+   Einstellung „Fassungen“. Farben nur über die Variablen der Themen (hell/dunkel). */
+
+/* Rückmeldung nach dem Speichern (mit JavaScript als Hinweis unten, ohne JavaScript im Editor-Kopf). */
+.toast.toast-notice { background: var(--success); }
+.saved-notice { margin: 4px 0 0; }
+
+/* Editor-Kopf: Stand der Fassung als Link auf den Verlauf. */
+.rev-meta .rev-amend { color: inherit; text-decoration: underline dotted; }
+
+/* Hinweis „weitere Fassung(en): n“ mit Liste und „aktuell machen“. */
+.rev-alternatives { margin: 4px 0 0; }
+.rev-alternatives > summary { cursor: pointer; color: var(--muted); }
+.rev-alt-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.rev-alt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rev-alt.shown { font-weight: 600; }
+.rev-alt-form { display: inline; margin: 0; }
+.rev-alt-badge { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+.rev-alt-hint { margin: 0 0 2px; }
+.rev-alt-hint a { color: var(--muted); }
+
+/* Fassungsbaum: Stand k als Link. */
+.revtree-amend { color: var(--primary); }
+
+/* Seite „Verlauf“. */
+.revision-history { max-width: 60rem; margin: 0 auto; padding: 12px 16px; }
+.amend-steps { padding-left: 1.6em; display: grid; gap: 12px; }
+.amend-step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+.amend-step.amend-undo { border-style: dashed; }
+.amend-head { margin-bottom: 6px; }
+.amend-diff {
+  white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 0.9em;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+.amend-diff ins.d-add { background: var(--success-soft); text-decoration: none; }
+.amend-diff del.d-del { background: var(--danger-soft); }
+.amend-undo { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.amend-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Einstellungen → Werk → Fassungen. */
+.revision-policy-form { display: grid; gap: 6px; justify-items: start; } /* Knopf nicht über die ganze Breite (Sichtprüfung R22) */
+.revision-policy-form input[type="number"] { width: 6em; }

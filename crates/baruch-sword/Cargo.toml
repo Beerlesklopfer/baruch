@@ -1,0 +1,23 @@
+[package]
+name = "baruch-sword"
+description = "Lokale SWORD-Bibelmodule lesen (zText, RawText) und den Wortlaut einer Stelle liefern"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+baruch-scripture = { path = "../baruch-scripture" }
+serde = { version = "1", features = ["derive"] }
+# Leser des SWORD-Dateiformats (CC0-1.0, reines Rust, kein libsword): Verzeichnis, conf, Index und Einträge,
+# Kompression ZIP, LZSS, BZIP2 und XZ (seit Runde 17), Entschlüsselung (CipherKey); ohne Installer und Netz
+# (Features `install`/`https` aus). Entscheidung und Prüfung in docs/Architektur.md. Eingebettet unter
+# vendor/sword-modules mit Obergrenze 64 MiB je entpacktem Block ([patch.crates-io] im Workspace).
+sword-modules = { version = "0.1.0", default-features = false, features = ["zip", "bzip2", "xz"] }
+# zlib, bzip2 und xz für die Test-Module (`fixture`): Baruch schreibt kleine Module mit erfundenem Text selbst.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+bzip2 = "0.6"
+lzma-rs = "0.3"
+
+[dev-dependencies]
+tempfile = "3"

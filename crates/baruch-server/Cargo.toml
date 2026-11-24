@@ -1,0 +1,143 @@
+[package]
+name = "baruch-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+# Integrationstests als eine Binärdatei (`tests/main.rs`, je Fachgebiet ein Modul): jede Test-Binärdatei linkt
+# den ganzen Server samt LanceDB (≈ 500 MB); einzeln wuchs `target/` auf ≈ 40 GB (Runde 13, Vorlauf „bau“).
+autotests = false
+# Paket-Metadaten für die Verteilung (cargo-deb, docs/Verteilung.md).
+description = "Baruch – freie Schreibwerkstatt für Bücher und Predigten"
+authors.workspace = true
+homepage = "https://baruch.bernau.family/"
+repository = "https://github.com/Beerlesklopfer/baruch"
+
+# .deb mit cargo-deb: `scripts/build-deb.sh` (erzeugt vorher die Drittlizenzen und das Quellcode-Angebot
+# QUELLTEXT.txt unter packaging/generated/, scripts/third-party-licenses.py).
+# Pfade gelten ab diesem Ordner. Kein Systemdienst: Die Unit liegt nur als Beispiel unter /usr/share/doc.
+[package.metadata.deb]
+name = "baruch"
+maintainer = "Jörg Bernau <Joerg@Bernau.family>"
+section = "editors"
+priority = "optional"
+depends = "$auto"
+recommends = "gnome-keyring | kwalletmanager | keepassxc"
+suggests = "poppler-utils, libxml2-utils, default-jre-headless"
+extended-description = """\
+Baruch hält ein Werk als Gliederung aus Teilen, Kapiteln und Abschnitten,
+bewahrt jede Fassung jedes Abschnitts auf, setzt das Buch mit dem
+eingebetteten Typst und lässt KI-Assistenten mitlesen, prüfen und
+vorschlagen – übernehmen kann nur der Mensch.
+.
+Das Paket bringt den lokalen Server baruch-server (Oberfläche unter
+http://127.0.0.1:8765/), den Starter baruch (Server starten und Browser
+öffnen) und ein Beispiel für einen systemd-Benutzerdienst unter
+/usr/share/doc/baruch/examples. Die Daten liegen im Ordner
+~/.local/share/baruch des Benutzers; ein Systemdienst wird nicht
+eingerichtet."""
+assets = [
+    ["target/release/baruch-server", "usr/bin/baruch-server", "755"],
+    ["../../packaging/linux/baruch", "usr/bin/baruch", "755"],
+    ["../../packaging/linux/baruch.desktop", "usr/share/applications/baruch.desktop", "644"],
+    ["../../packaging/icons/baruch.svg", "usr/share/icons/hicolor/scalable/apps/baruch.svg", "644"],
+    ["../../packaging/icons/baruch-256.png", "usr/share/icons/hicolor/256x256/apps/baruch.png", "644"],
+    ["../../packaging/debian/copyright", "usr/share/doc/baruch/copyright", "644"],
+    ["../../LICENSE", "usr/share/doc/baruch/LICENSE", "644"],
+    ["../../packaging/generated/THIRD-PARTY-LICENSES.txt", "usr/share/doc/baruch/THIRD-PARTY-LICENSES.txt", "644"],
+    ["../../packaging/generated/QUELLTEXT.txt", "usr/share/doc/baruch/QUELLTEXT.txt", "644"],
+    ["../../CHANGELOG.md", "usr/share/doc/baruch/CHANGELOG.md", "644"],
+    ["../../README.md", "usr/share/doc/baruch/README.md", "644"],
+    ["../../packaging/debian/baruch.service", "usr/share/doc/baruch/examples/baruch.service", "644"],
+    ["../../packaging/debian/README.Debian", "usr/share/doc/baruch/README.Debian", "644"],
+]
+
+[dependencies]
+baruch-core = { path = "../baruch-core" }
+baruch-scripture = { path = "../baruch-scripture" }
+# SWORD-Bibeln lesen (Wortlautprüfung, bible.*): Format-Leser sword-modules (CC0) dahinter.
+baruch-sword = { path = "../baruch-sword" }
+baruch-store = { path = "../baruch-store" }
+baruch-gitmirror = { path = "../baruch-gitmirror" }
+baruch-library = { path = "../baruch-library" }
+# Bildpfade beim Import (`baruch_typst::images::image_paths`, Runde 6).
+baruch-typst = { path = "../baruch-typst" }
+baruch-wysiwyg = { path = "../baruch-wysiwyg" }
+baruch-render = { path = "../baruch-render" }
+# Haupt-RAG (Runde 12): lokaler Vektorindex über LanceDB (Apache-2.0) im Datenordner, Stücke der Texte.
+baruch-lancedb = { path = "../baruch-lancedb" }
+baruch-llm = { path = "../baruch-llm" }
+baruch-rag = { path = "../baruch-rag" }
+# Austauschformat zwischen Instanzen (Runde 26): Seiten, RPC und CLI unter src/exchange/.
+baruch-exchange = { path = "../baruch-exchange" }
+# EPUB 3 aus den aktuellen Fassungen (Runde 20): src/epub.rs, epub_preview.rs, epub_check.rs.
+baruch-epub = { path = "../baruch-epub" }
+# multipart: Hochladen einer Typst-Datei unter POST /werke/import (Werke, Runde 4).
+axum = { version = "0.8", features = ["multipart"] }
+# urlencode: Filter `| urlencode` für `lq` in Links der Vorlagen.
+minijinja = { version = "3", features = ["serde", "urlencode"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Antwort der Personas als Strom (SSE, Runde 10): nur der Trait `Stream`.
+tokio-stream = "0.1"
+# Gleiche Features wie in store und library, damit nur eine sqlx-Ausprägung gebaut wird.
+# postgres + TLS (Runde 9, connections): nur „Verbindung prüfen“ für pgvector (Laufzeit-API); die
+# Systemzertifikate gelten, damit auch eine Hauszertifizierungsstelle im Intranet geht.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "postgres", "tls-rustls-ring-native-roots"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
+# Geheimnisse der Verbindungen (Runde 9) im Schlüsselbund des Systems, Dienst „baruch“. Den Zugang je
+# Zielsystem schalten die Abschnitte `[target.'cfg(target_os = …)'.dependencies]` weiter unten frei (Runde 24);
+# auf einem System ohne solchen Abschnitt kennt keyring nur seinen Speicher im Prozess.
+keyring = { version = "3" }
+# „Verbindung prüfen“ für Eliezer und MultiGPT (Runde 9): HTTP(S) mit rustls, Systemzertifikate und
+# webpki-Wurzeln.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "rustls-tls-native-roots"] }
+# Vorschaubilder der Seite „Bilder“ (Runde 11, GET /werke/{id}/bilder/{name}/vorschau?b=…): Raster
+# verkleinern. Lizenz MIT OR Apache-2.0; ohne Standard-Features nur die Formate, die Baruch annimmt
+# (PNG, JPEG, GIF, WebP). Liegt über typst schon im Lock.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+
+# Zeitpunkte der Oberfläche in Ortszeit (Nutzer 2026-11-07, `src/localtime.rs`): `chrono::Local` liest `TZ` bzw.
+# /etc/localtime samt Sommerzeit. Lizenz MIT OR Apache-2.0; liegt über lancedb/arrow schon im Lock.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Suchen/Ersetzen mit regulären Ausdrücken (Runde 30a, `src/search/`): Grenzen über `RegexBuilder::size_limit` und
+# `dfa_size_limit`, Ersatz mit `$1`/`${name}`. Lizenz MIT OR Apache-2.0; liegt schon im Lock.
+regex = "1"
+# Unicode-Normalform NFC (Runde 19, Vergleich von Wortlaut und Zitaten). Lizenz MIT OR Apache-2.0; liegt schon im Lock.
+unicode-normalization = "0.1"
+# Runde 21 (Schnittstelle R21-S1): ZIP-Archive beim Import lesen (`src/archive.rs`, EPUB und Markdown-ZIP; vorher nur
+# dev-dependency für manipulierte Austauschdateien in Tests), dieselben Features wie in baruch-exchange.
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+# Runde 21a: EPUB (OPF, NCX/nav, XHTML) lesen. Lizenz MIT; liegt schon im Lock.
+quick-xml = "0.38"
+# Runde 21b: Markdown nach Typst umwandeln. Lizenz MIT; ohne Standard-Features (kein HTML-Ausgeber, kein getopts).
+pulldown-cmark = { version = "0.13", default-features = false }
+# Runde 23 (Schnittstelle R23-S1, geheimnisse): kodierte Geheimnisse und Zufallsname des Temp-Ordners (EPUBCheck).
+# Beide liegen über baruch-store schon im Lock.
+base64 = "0.22"
+getrandom = "0.2"
+
+# „Sicherung jetzt“: freien Platz des Dateisystems prüfen (statvfs ohne unsafe).
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
+# Schlüsselbund je Zielsystem (Runde 24, Pakete): Linux der Secret Service über D-Bus (libdbus), macOS der
+# Schlüsselbund (Keychain, security-framework), Windows die Anmeldeinformationsverwaltung (Credential Manager).
+# cargo vereinigt die Features nur für das Ziel, das gerade gebaut wird (Resolver 3).
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[[test]]
+name = "server"
+path = "tests/main.rs"
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+tokio = { version = "1", features = ["time"] }

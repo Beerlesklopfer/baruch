@@ -1,0 +1,93 @@
+{#- Neues Werk: Typst-, Markdown- oder ZIP-Datei bzw. Ordner hochladen (multipart an POST /werke/import, Runde 21b) oder aus einem Grundgerüst
+    anlegen (POST /werke/act, action=create). Geht ohne JavaScript; eingebunden in /werke/neu und in
+    den Dialog „Importieren…“ der Kopfzeile (workspace.html). Kontext (optional): form mit den
+    eingegebenen Werten, error; bible_modules (nur /werke/neu, works.rs: Auswahl der SWORD-Bibeln) bzw. work
+    (Arbeitsseite: verstecktes from_work, Textfeld für das Modul, Runde 16a). Das Widget „work-upload“ belegt den Titel aus #set document(title: …)
+    der gewählten Datei vor; der Server bleibt maßgeblich, ein leerer Titel kommt aus der Datei. -#}
+{%- set f = form or {} %}
+<div class="work-new">
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <form class="work-form" action="/werke/import" method="post" enctype="multipart/form-data" data-widget="work-upload">
+    <h2 class="pane-title">Typst- oder Markdown-Datei importieren</h2>
+    <label>Datei (.typ, .md, .markdown bis 16 MiB oder .zip bis 80 MiB)
+      <input type="file" name="file" accept=".typ,.md,.markdown,.zip">
+    </label>
+    <label>oder ein Ordner <span class="muted small">(mit Haupt-Datei und Bildern, zusammen bis 80 MiB)</span>
+      <input type="file" name="files" multiple webkitdirectory>
+    </label>
+    <label>Titel <span class="muted small">(leer: aus der Datei)</span>
+      <input type="text" name="title" value="{{ f.upload_title }}" data-from-file autocomplete="off">
+    </label>
+    <p class="muted small">Typst: alles vor der ersten Überschrift wird die Werkvorlage, <code>=</code>/<code>==</code>/<code>===</code> die Gliederung.
+      Markdown: <code>#</code>/<code>##</code>/<code>###</code> werden die Gliederung (tiefere Ebenen auf die dritte begrenzt), was sich nicht abbilden lässt, steht im Bericht.
+      Ein ZIP oder Ordner bringt genau eine Haupt-Datei (.typ oder .md, sonst <code>index.md</code>/<code>main.typ</code>) und die Bilder relativ dazu mit.
+      Gibt es den Titel schon, bitte einen anderen eintragen.</p>
+    <button class="btn primary" type="submit">Importieren</button>
+  </form>
+  {#- Runde 21a (Inhalt pdf-import): PDF/EPUB mit Vorschau der Gliederung auf eigener Seite. #}
+  <p class="muted small work-new-note"><a href="/werke/import/quelle">PDF oder EPUB importieren …</a> (mit Vorschau der Gliederung)</p>
+  <form class="work-form" action="/werke/act" method="post">
+    <h2 class="pane-title">Neues Werk anlegen</h2>
+    <input type="hidden" name="action" value="create">
+    <label>Titel
+      <input type="text" name="title" value="{{ f.title }}" required>
+    </label>
+    <label>Untertitel
+      <input type="text" name="subtitle" value="{{ f.subtitle }}">
+    </label>
+    <label>Autor
+      <input type="text" name="author" value="{{ f.author }}">
+    </label>
+    <label>Art
+      <select name="kind">
+        <option value="book"{% if f.kind != "sermon" %} selected{% endif %}>Buch</option>
+        <option value="sermon"{% if f.kind == "sermon" %} selected{% endif %}>Predigt</option>
+      </select>
+    </label>
+    <label>Grundgerüst
+      <select name="preset">
+        <option value=""{% if not f.preset %} selected{% endif %}>passend zur Art</option>
+        <option value="book"{% if f.preset == "book" %} selected{% endif %}>Buch: Kapitel „Erstes Kapitel“</option>
+        <option value="sermon"{% if f.preset == "sermon" %} selected{% endif %}>Predigt: Predigttext, Einleitung, I.–III., Anwendung, Schluss</option>
+      </select>
+    </label>
+    <fieldset class="work-sermon">
+      <legend>Nur bei einer Predigt</legend>
+      <label>Predigttext <span class="muted small">(Bibelstelle, z. B. „Joh 3,16–18“; leer: später eintragen)</span>
+        <input type="text" name="text_ref" value="{{ f.text_ref }}" autocomplete="off" maxlength="500">
+      </label>
+      {%- if bible_modules is defined %}
+      <label>SWORD-Bibel für den Wortlaut
+        <select name="module">
+          <option value=""{% if not f.module %} selected{% endif %}>Bibel des aktuellen Werks</option>
+          {%- for m in bible_modules %}
+          <option value="{{ m.name }}"{% if f.module == m.name %} selected{% endif %}{% if not m.usable %} disabled{% endif %}>{{ m.name }}{% if m.description %} – {{ m.description }}{% endif %}{% if not m.usable %} (nicht lesbar){% endif %}</option>
+          {%- endfor %}
+        </select>
+      </label>
+      {%- if not bible_modules %}
+      <p class="muted small">Keine SWORD-Bibel gefunden (Einstellungen → Quellen → Bibeln); dann steht nur die Stellenangabe im Predigttext.</p>
+      {%- endif %}
+      {%- else %}
+      <label>SWORD-Modul <span class="muted small">(leer: Bibel des aktuellen Werks)</span>
+        <input type="text" name="module" value="{{ f.module }}" autocomplete="off" maxlength="200">
+      </label>
+      {%- endif %}
+      {%- if f.from_work %}
+      <input type="hidden" name="from_work" value="{{ f.from_work }}">
+      {%- elif work and work.id %}
+      <input type="hidden" name="from_work" value="{{ work.id }}">
+      {%- endif %}
+      <p class="muted small">Der Wortlaut kommt als Zitat mit Stelle und Modul in den Punkt „Predigttext“; die gewählte Bibel wird die SWORD-Bibel der Predigt.</p>
+    </fieldset>
+    <label>Zielgruppe
+      <input type="text" name="audience" value="{{ f.audience }}">
+    </label>
+    <label>Bibelübersetzung
+      <input type="text" name="bible" value="{{ f.bible }}">
+    </label>
+    <button class="btn primary" type="submit">Anlegen</button>
+  </form>
+</div>

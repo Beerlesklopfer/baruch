@@ -1,0 +1,73 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Befunde (Runde 28): Seite /werke/<id>/befunde, Akkordeon und Abzeichen – befund-uebersicht.
+   Farbe ist nie der einzige Hinweis: jede Zelle trägt Zeichen und Zahl (○ offen, ✓ übernommen, ✗ verworfen,
+   → verschoben, = erledigt), die Hervorhebung „viele offen“ steht zusätzlich als Text da. */
+
+.befunde { max-width: 72rem; margin: 0 auto; padding: 1rem; }
+.befunde[aria-busy="true"] [data-findings-main] { opacity: .6; }
+.befunde section { margin-top: 1.5rem; }
+
+.fd-filter { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: flex-end; margin: .75rem 0; }
+.fd-filter-group { border: 1px solid var(--line); border-radius: 6px; padding: .2rem .5rem; margin: 0; }
+.fd-filter-group legend { padding: 0 .25rem; }
+.fd-praise-toggle { align-self: center; }
+
+.fd-matrix-wrap { overflow-x: auto; }
+.fd-matrix { border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 100%; }
+.fd-matrix th, .fd-matrix td { border: 1px solid var(--line); padding: .25rem .5rem; text-align: center; }
+.fd-matrix th[scope="row"], .fd-matrix .fd-row-head { text-align: left; font-weight: normal; }
+.fd-matrix thead th { position: sticky; top: 0; background: var(--panel); }
+.fd-group-head th { background: var(--bg); text-align: left; font-weight: 600; }
+.fd-group-sum, .fd-total { font-weight: 600; background: var(--bg); }
+.fd-cell a { display: block; color: inherit; text-decoration: none; }
+.fd-cell a:hover, .fd-cell a:focus-visible { text-decoration: underline; outline-offset: -2px; }
+.fd-cell:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.fd-cell.heat-1 { background: var(--warning-soft); }
+.fd-cell.heat-2 { background: color-mix(in srgb, var(--warning) 25%, var(--panel)); }
+.fd-cell.heat-3 { background: color-mix(in srgb, var(--warning) 40%, var(--panel)); font-weight: 700; }
+.fd-cell.selected { outline: 2px solid var(--primary); outline-offset: -2px; }
+.fd-row.fd-many .fd-row-head { font-weight: 600; }
+.fd-part-row .fd-row-head { font-style: italic; }
+.fd-legend { margin: .25rem 0 .5rem; }
+
+.fd-card { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 6px; padding: .4rem .6rem;
+  margin: .5rem 0; background: var(--panel); }
+.fd-card.fd-open { border-left-color: var(--warning); }
+.fd-card.fd-adopted { border-left-color: var(--success); }
+.fd-card.fd-rejected { border-left-color: var(--danger); }
+.fd-card.fd-deferred { border-left-color: var(--primary); }
+.fd-card.fd-done { border-left-color: var(--muted); }
+.fd-head { display: flex; flex-wrap: wrap; gap: .25rem .5rem; align-items: baseline; }
+.fd-ref { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fd-kind-critical .fd-kind { color: var(--danger); font-weight: 600; }
+.fd-body { margin: .3rem 0; white-space: pre-wrap; user-select: text; }
+.fd-quote { margin: .25rem 0 .25rem .5rem; padding-left: .5rem; border-left: 2px solid var(--line); }
+.fd-reason { margin: .2rem 0; }
+.fd-summary { margin: .25rem 0; }
+.fd-pending { background: var(--primary-soft); border-radius: 4px; padding: .25rem .5rem; margin: .3rem 0; }
+.fd-inline { display: inline-flex; gap: .25rem; align-items: center; margin-right: .25rem; }
+.fd-forms { margin-top: .25rem; }
+.fd-form { display: flex; flex-wrap: wrap; gap: .25rem .5rem; align-items: flex-end; margin: .35rem 0; }
+.fd-form textarea { width: 100%; min-width: 14rem; }
+.fd-attached ul { margin: .25rem 0; padding-left: 1.2rem; }
+.fd-history { padding-left: 1.2rem; }
+.fd-history-table { border-collapse: collapse; }
+.fd-history-table th, .fd-history-table td { border: 1px solid var(--line); padding: .2rem .4rem; text-align: left; }
+.fd-adopted-in { white-space: nowrap; }
+.fd-error { margin: .25rem 0; }
+
+/* Akkordeon am Abschnitt */
+.findings-panel .fd-card { font-size: .92em; }
+
+/* Abzeichen „k offen“ (Gliederung, Editorkopf, /gliederung) und Fassungsbaum */
+.findings-badge { white-space: nowrap; }
+a.findings-badge { text-decoration: none; }
+.revtree-findings { display: block; margin-left: 1.6rem; color: var(--success); }
+.revtree-findings.proposed { color: var(--primary); }
+
+/* Runde 22: Rückfrage einer Persona „Befund n scheint erledigt?“ (Akkordeon, Seite, Befundkarte im Chat) und Stand
+   der Fortschreibung im Verlauf je Kapitel. */
+.fd-question, .fb-question { border-left: 3px solid var(--primary); }
+.fb-question { background: var(--primary-soft); border-radius: 4px; padding: .25rem .5rem; margin: .3rem 0; }
+.fb-question p { margin: 0 0 .25rem; }
+.fd-stand { color: var(--muted); font-size: .9em; }

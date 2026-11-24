@@ -1,0 +1,110 @@
+{#- Offene Vorschläge an ihrer Stelle im Lesefluss (Vertrag Runde 8, „inline“, 2c). Kontext `inline`
+    (view.rs InlineView): {key, rev, count, proposals [{id, key, node, rev}], entries [{b, raw, lines,
+    hunks}]}, dazu work, view, library_query.
+
+    Die gezeigte Fassung steht blockweise da (Editor: Quelltext-Lesemodus pre.pv-src[data-b]; Vorschau:
+    Zeilen als h1–h3/p), dazwischen je Stück (Hunk) eines offenen Vorschlags ein
+    <details class="pv pc" data-pv="<key>-<rev>" data-pv-at="<b>" data-pv-gap="<g>" data-pv-kind="…">
+    in der Farbe der Persona (CSS-Variablen --pc-* im style, nur geprüfte #rrggbb), eingeklappt eine
+    farbige Linie genau an dieser Stelle (Cookie baruch_folded gilt für alle Stücke eines Vorschlags,
+    proposals.ts). `at` = erster betroffener Block der gezeigten Fassung (data-b), `gap` = das Stück
+    steht vor Block `gap` (am Ende die Blockzahl). Mehrere Vorschläge an derselben Stelle stehen
+    untereinander in Persona-Reihenfolge, darin nach Nummer. Der Kopf steht nur einmal, in der Linie.
+
+    Übernehmen/Verwerfen: je Vorschlag EIN Formular an /act (revision.accept bzw. revision.reject mit
+    der Nummer DIESES Vorschlags), außerhalb der Stücke; die Knöpfe in jedem Stück zeigen über das
+    Attribut form darauf. So bleiben sie gültig, wenn wysiwyg.ts die Stücke ins Satzbild setzt (das im
+    Editor-Formular liegt; Formulare lassen sich nicht schachteln). Ohne JavaScript geht alles.
+
+    Runde 22 (R22a): In der Vorschau trägt jeder Abschnitt mit weiteren nicht aktuellen Fassungen (inline.alternatives:
+    ersetzt, verworfen; ohne offene Vorschläge) den Hinweis „weitere Fassung(en): n“ mit Link in den Editor des
+    Abschnitts (dort Liste mit „aktuell machen“). Der Kopf eines Vorschlags nennt den Stand seiner Basis („beruht auf
+    Fassung n, Stand k“, view.rs). -#}
+{%- macro pv_form(method, action, p) %}
+    <form id="pv-{{ action }}-{{ p.id }}" class="pv-form" method="post" action="/act" data-rpc>
+      <input type="hidden" name="method" value="{{ method }}">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="node" value="{{ p.node }}">
+      <input type="hidden" name="key" value="{{ p.key }}">
+      <input type="hidden" name="rev" value="{{ p.rev }}">
+      {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
+      <input type="hidden" name="view" value="{{ view }}">
+    </form>
+{%- endmacro %}
+{%- macro pv_details(h) %}
+  <details class="pv pc{% if h.shown %} pv-shown{% endif %}{% if not h.known %} pv-unknown{% endif %}" data-pv="{{ h.id }}" data-pv-at="{{ h.at }}" data-pv-gap="{{ h.gap }}" data-pv-kind="{{ h.kind }}" style="{{ h.style }}"{% if h.open %} open{% endif %}>
+    <summary class="pv-line" title="Vorschlag auf- oder zuklappen"><span class="pv-label">{{ h.head }}</span></summary>
+    <div class="pv-body">
+      {%- if h.base_note %}
+      <span class="pv-base small">{{ h.base_note }}</span>
+      {%- endif %}
+      {%- if h.note %}
+      <p class="pv-note small">{{ h.note }}</p>
+      {%- endif %}
+      {%- if h.satz %}
+      <div class="pv-satz ws-sheet">{{ h.satz | safe }}</div>
+      {%- endif %}
+      <pre class="pv-quelltext diff">
+        {%- for line in h.lines %}<span class="{{ line.kind }}">{% if line.kind == "added" %}+ {% elif line.kind == "removed" %}− {% else %}  {% endif %}{{ line.text }}</span>
+        {%- endfor -%}
+      </pre>
+      <div class="pv-actions">
+        <button class="btn success" type="submit" form="pv-accept-{{ h.id }}">Übernehmen</button>
+        <button class="btn danger" type="submit" form="pv-reject-{{ h.id }}">Verwerfen</button>
+      </div>
+    </div>
+  </details>
+{%- endmacro %}
+{%- macro pv_line(inline, editor) %}
+  <div class="pv-bar{% if editor %} pv-bar-editor{% endif %}"{% if editor %} data-pv-bar="{{ inline.key }}"{% endif %}>
+    <span class="muted tiny">{% if inline.count == 1 %}Ein offener Vorschlag{% else %}{{ inline.count }} offene Vorschläge{% endif %}</span>
+    <button class="btn tiny" type="button" data-pv-all hidden>Alle einklappen</button>
+  </div>
+{%- endmacro %}
+{%- macro pv_forms(inline) %}
+  <div class="pv-forms">
+    {%- for p in inline.proposals %}
+    {{- pv_form("revision.accept", "accept", p) }}
+    {{- pv_form("revision.reject", "reject", p) }}
+    {%- endfor %}
+  </div>
+{%- endmacro %}
+{%- macro pv_bar(inline) %}
+  {{- pv_line(inline, false) }}
+  {{- pv_forms(inline) }}
+{%- endmacro %}
+{%- if view == "preview" %}
+<div class="pv-section"{% if inline.count %} data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}"{% endif %}>
+  {%- if inline.alternatives %}
+  <p class="rev-alt-hint tiny"><a data-nav href="/?work={{ work.id }}&amp;key={{ inline.key }}{{ lq_q }}" title="Abschnitt im Editor öffnen: dort die weiteren Fassungen mit „aktuell machen“">weitere Fassung{% if inline.alternatives != 1 %}en{% endif %}: {{ inline.alternatives }}</a></p>
+  {%- endif %}
+  {%- if inline.count %}{{ pv_bar(inline) }}{% endif %}
+  {%- for entry in inline.entries %}
+  {%- if entry.b is not none %}
+    {%- for line in entry.lines %}
+      {%- if line.level == 1 %}<h1>{{ line.text }}</h1>
+      {%- elif line.level == 2 %}<h2>{{ line.text }}</h2>
+      {%- elif line.level == 3 %}<h3>{{ line.text }}</h3>
+      {%- else %}<p>{{ line.text }}</p>{% endif %}
+    {%- endfor %}
+  {%- else %}
+    {%- for h in entry.hunks %}{{ pv_details(h) }}{% endfor %}
+  {%- endif %}
+  {%- endfor %}
+</div>
+{%- elif inline.count %}
+{#- Runde 18c: Im Editor steht die Leiste („n offene Vorschläge“, „Alle einklappen“) VOR dem Lesefluss als eigenes
+    Kind des Blatts (div.pv-bar-editor[data-pv-bar=<key>], proposals.css: oben und klebend): Bei offenem Satzbild
+    verbirgt wysiwyg.ts den Lesefluss, die Leiste bleibt sichtbar (wysiwyg.ts bleibt unverändert). #}
+{{- pv_line(inline, true) }}
+<section class="pv-flow" data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}" aria-label="Text mit offenen Vorschlägen an ihrer Stelle">
+  {{- pv_forms(inline) }}
+  {%- for entry in inline.entries %}
+  {%- if entry.b is not none %}
+  <pre class="pv-src" data-b="{{ entry.b }}">{{ entry.raw }}</pre>
+  {%- else %}
+    {%- for h in entry.hunks %}{{ pv_details(h) }}{% endfor %}
+  {%- endif %}
+  {%- endfor %}
+</section>
+{%- endif %}

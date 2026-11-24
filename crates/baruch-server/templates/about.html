@@ -1,0 +1,65 @@
+{#- Seite /ueber (Runde 24, src/about.rs): Name, Version, Lizenz, Quellcode-Angebot (AGPL §13), Webseite,
+    Drittlizenzen je Paket, Datenordner und der Hinweis, dass Baruch nie von sich aus im Netz nach neuen
+    Versionen fragt. Ohne JavaScript lesbar; die Seite lädt nichts von fremden Rechnern (nur gewöhnliche Links,
+    die erst ein Klick öffnet).
+    Kontext: settings, version, license_id, repository, homepage, release_url, data_dir, default_data_dir,
+    third_party (Pfad auf diesem Rechner oder none), appimage (Pfad der AppImage-Datei oder none), third_party_file, third_party_places [{package, place}]. -#}
+{% extends "base.html" %}
+{% block title %}Über Baruch – Baruch{% endblock %}
+{% block page_title %}Über Baruch{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page about-page">
+  <h1 class="pane-title">Über Baruch</h1>
+  <p>Baruch ist eine freie Schreibwerkstatt für Bücher und Predigten. Es läuft auf dem eigenen Rechner, die
+    Daten bleiben dort.</p>
+  <dl class="settings-facts">
+    <dt>Name</dt>
+    <dd>Baruch</dd>
+    <dt>Version</dt>
+    <dd data-about-version>{{ version }}</dd>
+    <dt>Lizenz</dt>
+    <dd><a href="/ueber/lizenz">{{ license_id }}</a> – GNU Affero General Public License, Version 3 oder
+      (nach Wahl) jede spätere Version. Baruch kommt ohne jede Gewährleistung.</dd>
+    <dt>Quellcode</dt>
+    <dd><a href="{{ repository }}" rel="noopener noreferrer">{{ repository }}</a> – der Quelltext genau dieser
+      Version steht dort beim Tag <code>v{{ version }}</code>.</dd>
+    <dt>Webseite</dt>
+    <dd><a href="{{ homepage }}" rel="noopener noreferrer">{{ homepage }}</a></dd>
+    <dt>Datenordner</dt>
+    <dd><code data-about-data-dir>{{ data_dir }}</code>
+      {%- if data_dir != default_data_dir %} <span class="muted small">(Vorgabe: <code>{{ default_data_dir }}</code>)</span>{% endif %}
+      <br><span class="small">Alle Daten liegen in diesem Ordner des Benutzers, nie im Installationsverzeichnis. Kein
+      Paket legt dort etwas an, und das Entfernen von Baruch löscht dort nichts. Größe, Spiegel der Werke und
+      Sicherung: <a href="/einstellungen/daten">Einstellungen → Daten</a>.</span></dd>
+  </dl>
+
+  <h2 class="pane-title" id="aktualisierung">Neue Versionen</h2>
+  <p>Baruch fragt nie von sich aus im Netz nach neuen Versionen. Wer nachsehen will, öffnet selbst die
+    <a href="{{ release_url }}" rel="noopener noreferrer">Release-Seite dieser Version</a>
+    (<code>{{ release_url }}</code>) – erst der Klick ruft sie im Browser auf. Aktualisiert wird von Hand
+    mit einem neuen Paket von dort; nur wer Baruch unter Debian oder Ubuntu über das APT-Repository bezieht,
+    bekommt neue Versionen mit <code>sudo apt upgrade</code>.</p>
+
+  <h2 class="pane-title" id="drittlizenzen">Bibliotheken Dritter</h2>
+  <p>Das Programm enthält Rust-Bibliotheken Dritter. Namen, Versionen, Lizenzen und Lizenztexte stehen in der
+    Datei <code>{{ third_party_file }}</code>, die jedes Paket mitbringt:</p>
+  {%- if third_party %}
+  <p class="notice" role="status" data-about-third-party>Auf diesem Rechner: <code>{{ third_party }}</code>
+    {%- if appimage %} <span class="small" data-about-appimage>– im eingehängten AppImage <code>{{ appimage }}</code>; der
+    Pfad gilt nur, solange Baruch läuft.</span>{% endif %}</p>
+  {%- else %}
+  <p class="small" data-about-third-party-missing>Neben diesem Programm liegt die Datei nicht (aus dem Quelltext
+    gebaut oder an einen anderen Ort kopiert). Im Quelltext erzeugt sie
+    <code>scripts/third-party-licenses.py --out {{ third_party_file }}</code>.</p>
+  {%- endif %}
+  <dl class="settings-facts">
+    {%- for p in third_party_places %}
+    <dt>{{ p.package }}</dt>
+    <dd><code>{{ p.place }}</code></dd>
+    {%- endfor %}
+  </dl>
+</main>
+{% endblock %}

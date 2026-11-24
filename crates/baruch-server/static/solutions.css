@@ -1,0 +1,54 @@
+/* Lösungsvorschläge und Varianten (Runde 30b, Besitz chat-loesungen): Lösungslisten (Beitrag, Befund), Befund als
+   Block im Chat (fragments/finding_block.html), Auswahl der Prüfgrundlage, Vergleichsseite /varianten und das
+   Variantenetikett im Fassungsbaum. Farben nur aus den Variablen der Oberfläche; Art und Status tragen immer auch
+   Zeichen und Wort (nie nur Farbe). */
+.sol-box { margin: .35rem 0; }
+.sol-form, .sol-variants, .fb-solutions, .fd-solutions, .fd-variants {
+  display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; margin: .25rem 0; }
+.sol-title { flex-basis: 100%; margin: 0; }
+.sol-list { flex-basis: 100%; list-style: none; margin: 0; padding: 0; }
+.sol-item { margin: .2rem 0; padding: .15rem .4rem; border-left: 2px solid var(--line); }
+.sol-item.adoptable { border-left-color: var(--success); }
+.sol-instead { text-decoration: line-through; text-decoration-color: var(--danger); }
+.sol-better { font-weight: 600; }
+.sol-step::before { content: "→ "; }
+.fd-nosolution, .fb-nosolution { font-style: italic; }
+.fd-sol { margin-left: .3rem; }
+
+/* Befund als eigener Block (im Chat-Beitrag) */
+.fb { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 6px; padding: .35rem .55rem;
+  margin: .45rem 0; background: var(--panel); }
+.fb.fb-kind-critical { border-left-color: var(--danger); }
+.fb.fb-kind-hint { border-left-color: var(--primary); }
+.fb.fb-kind-praise { border-left-color: var(--success); }
+.fb-head { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.fb-kind-critical .fb-kind { color: var(--danger); font-weight: 600; }
+.fb-status { margin-left: auto; }
+.fb-body p { margin: .2rem 0; }
+.fb-actions form { display: inline-flex; gap: .3rem; align-items: center; margin: .15rem .3rem .15rem 0; }
+
+/* Prüfgrundlage im Persona-Formular */
+.basis-select { display: inline-flex; gap: .3rem; align-items: center; }
+
+/* Variantenetikett im Fassungsbaum und im Akkordeon „Fassungen“ */
+.badge.variant { background: var(--primary-soft); color: var(--text); font-weight: 600; }
+.revtree-variant { display: block; margin-left: 1.5rem; }
+.rev-variant { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; margin: .3rem 0; }
+
+/* Vergleichsseite /varianten */
+.variants-page { padding: 1rem; }
+.variants-grid { display: grid; grid-template-columns: repeat(var(--variants, 2), minmax(16rem, 1fr)); gap: 1rem;
+  align-items: start; overflow-x: auto; }
+.variant-col { border: 1px solid var(--line); border-radius: 6px; padding: .5rem .7rem; background: var(--panel); }
+.variant-col.variant-rejected { opacity: .65; }
+.variant-head { font-size: 1rem; margin: .2rem 0 .4rem; }
+.variant-summary { font-style: italic; }
+.sol-diff { font-family: var(--mono, monospace); font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--line);
+  border-radius: 4px; padding: .3rem .4rem; background: var(--bg); }
+.sol-diff ins, .sol-diff del, .sol-diff .d-same { display: block; text-decoration: none; }
+.sol-diff ins { background: var(--success-soft, color-mix(in srgb, var(--success) 18%, var(--panel))); }
+.sol-diff ins::before { content: "+ "; }
+.sol-diff del { background: var(--danger-soft, color-mix(in srgb, var(--danger) 18%, var(--panel))); }
+.sol-diff del::before { content: "− "; }
+.sol-diff .d-same::before { content: "  "; white-space: pre; }
+@media (max-width: 50rem) { .variants-grid { grid-template-columns: 1fr; } }

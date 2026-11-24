@@ -1,0 +1,45 @@
+---
+title: "Baruch"
+claim: "Freie Schreibwerkstatt für Bücher und Predigten"
+lead: "Baruch hält ein Werk als Gliederung aus Teilen, Kapiteln und Abschnitten, bewahrt jede Fassung auf, setzt das Buch mit Typst und lässt Assistenten mitlesen, prüfen und vorschlagen – das letzte Wort behält der Mensch."
+description: "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buchsatz mit Typst und Assistenten, die nur vorschlagen. AGPL-3.0, läuft auf dem eigenen Rechner."
+---
+
+> Benannt nach Baruch, dem Schreiber Jeremias, der die verbrannte Rolle neu und erweitert niederschrieb
+> (Jer 36,32). Fassungen sind der Kern.
+
+## Frei
+
+Baruch steht unter der **GNU Affero General Public License 3.0** (oder später) und ist bewusst ein freier
+Gegenentwurf zu bezahlten Schreibwerkzeugen. Der Quellcode liegt offen; wer Baruch verändert und anderen über
+ein Netz anbietet, gibt seine Änderungen ebenso frei. Mehr dazu unter [Lizenz](/lizenz/).
+
+## Lokal
+
+Baruch läuft auf dem eigenen Rechner und antwortet in der Vorgabe nur dort (`http://127.0.0.1:8765/`). Die Daten
+liegen im eigenen Benutzerordner: eine SQLite-Datei und je Werk ein gewöhnlicher Typst-Ordner als Git-Spiegel,
+der sich auch ohne Baruch setzen lässt. Schlüssel und Token liegen im Schlüsselbund des Systems, nie in
+Dateien. Baruch fragt nie von sich aus im Netz nach neuen Versionen; Modelle bei fremden Anbietern gibt es nur
+nach ausdrücklicher Freigabe.
+
+## Der Mensch entscheidet
+
+Assistenten schreiben **Vorschläge**, Beiträge, Einfälle und Anträge. Übernehmen, Ändern und Löschen am Buchtext
+bleiben dem Menschen – in der Oberfläche wie über die Schnittstellen. Jeder Abschnitt hat beliebig viele
+Fassungen, genau eine ist die aktuelle, und umschalten geht jederzeit. Jede Änderung wird ein Commit im Spiegel
+des Werks, mit Herkunft: Mensch, Persona oder MCP-Client. Was nicht geht, sagt Baruch; nichts wird still gekürzt,
+verworfen oder geraten.
+
+## Ohne JavaScript bedienbar
+
+Jede Seite von Baruch funktioniert mit Links und Formularen. JavaScript bringt Komfort – Ziehen, Tastenkürzel,
+Popups, Live-Aktualisierung –, ist aber nie Voraussetzung. Auch diese Webseite kommt ohne JavaScript, Cookies,
+Zähler und fremde Schriften aus.
+
+## Weiter
+
+- [Funktionen](/funktionen/): was Baruch kann, mit Bildern
+- [Installation](/installation/): Pakete für Debian und Ubuntu, AppImage, macOS und Windows
+- [Bedienung](/bedienung/): der erste Rundgang und der Weg in die Dokumentation
+- [Betrieb](/betrieb/): Datenordner, Sicherung, Dauerbetrieb, hinter einem Reverse-Proxy
+- [MCP und Assistenten](/mcp/): Personas einrichten, Baruch mit einem MCP-Client verbinden

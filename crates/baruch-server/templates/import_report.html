@@ -1,0 +1,39 @@
+{#- Bericht eines Imports mit Hinweisen (Runde 21b, POST /werke/import → 200): Das Werk ist angelegt; der Bericht nennt,
+    was nicht wörtlich übernommen wurde (Hinweise mit Zeile) und welche Bilder übersprungen sind (mit Grund).
+    Ohne JavaScript bedienbar. Kontext: settings, report (ImportReport), work_url. -#}
+{% extends "base.html" %}
+{% block title %}Import: {{ report.title }} – Baruch{% endblock %}
+{% block page_title %}Import-Bericht{% endblock %}
+{% block page_actions %}
+  <a class="btn" href="/werke">Werke</a>
+  <a class="btn primary" href="{{ work_url|safe }}">Zum Werk</a>
+{% endblock %}
+{% block body %}
+<main class="works-page import-report">
+  <h1 class="pane-title">„{{ report.title }}“ ist angelegt</h1>
+  <p>{{ report.nodes }} Abschnitt{% if report.nodes != 1 %}e{% endif %}, {{ report.assets|length }} Bild{% if report.assets|length != 1 %}er{% endif %} übernommen.
+    {%- if report.mirror %} Der Git-Spiegel ließ sich nicht schreiben: {{ report.mirror }}{% endif %}</p>
+  {%- if report.skipped %}
+  <section class="import-skipped" aria-labelledby="import-skipped-title">
+    <h2 class="pane-title" id="import-skipped-title">Übersprungene Bilder ({{ report.skipped|length }})</h2>
+    <p class="muted small">Der Text nennt sie weiter; auf der Seite „Bilder“ lassen sie sich später mit ihrem Pfad anlegen.</p>
+    <ul class="import-list">
+      {%- for s in report.skipped %}
+      <li><code>{{ s.path }}</code> – {{ s.reason }}</li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+  {%- if report.warnings %}
+  <section class="import-warnings" aria-labelledby="import-warnings-title">
+    <h2 class="pane-title" id="import-warnings-title">Hinweise ({{ report.warnings|length }})</h2>
+    <ul class="import-list">
+      {%- for w in report.warnings %}
+      <li data-code="{{ w.code }}">{% if w.line %}<span class="import-line">Zeile {{ w.line }}:</span> {% endif %}{{ w.message }} <span class="muted small">({{ w.code }})</span></li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+  <p><a class="btn primary" href="{{ work_url|safe }}">Werk öffnen</a></p>
+</main>
+{% endblock %}
