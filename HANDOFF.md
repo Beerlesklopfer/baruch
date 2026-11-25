@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-25, Runde 33 „Menüband und Laptop-Modus“ auf dem Zweig `runde33` integriert – Gegenprobe und Zusammenführen mit Runde 32 offen; davor: Runde 24 „Verteilung (B5)“ abgeschlossen)
+# Übergabe (Stand 2026-11-25, Runde 33 „Menüband und Laptop-Modus“ auf dem Zweig `runde33` abgeschlossen (PM) – Zusammenführen mit `development` und Runde 32 samt Gegenprobe offen; davor: Runde 24 „Verteilung (B5)“ abgeschlossen)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
@@ -42,10 +42,21 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
     Leisten; Satz, Einstellungen, Befunde, Gedankenkarte, Gliederung; ohne JavaScript: Arbeitsseite, Laptop „An“,
     Popup, Schubladen links/rechts, Menü, Satz, Band zu, `/werke` ohne Werk. Nicht geprüft: Tastatur (Strg+S, Alt+L,
     Alt+E, Alt+,) und Fokus im echten Browser – nur im Node-Nachbau der Widgets; Fenster schmaler als 1024 px.
-  - **Offen (siehe `docs/Backlog.md`, „Nach Runde 33 offen“):** Gegenprobe durch einen eigenen Gutachter (Vertrag
-    §11), Zusammenführen mit Runde 32 an den drei Marken `R32-PLATZ` in `base.html`, in `lib.rs`, `tests/main.rs` und
-    `CHANGELOG.md`; Entscheidung zum Vorgabe-Reiter von Gliederung und Stichwortzettel; Fahrplan (PM); Name des
-    Zweigs `runde33`. **Push erst nach ausdrücklichem „ja“ des Nutzers.**
+  - **PM-Abschluss (2026-11-25, ≈ 01:30):** Die Prüfung nach der Integration fand keinen belegten Fehler (zwei
+    Hinweise: Cookie `baruch_vw` wird beim ersten Aufruf nach einer Größenänderung noch alt gelesen; „Satz
+    abbrechen“ nicht nachgesehen – Beleg nachgereicht: `form.typeset-cancel` im Block `band_buch` von
+    `typeset.html`). Keine Nachbesserung. Voller Lauf nach `cargo clean -p` für alle 15 Workspace-Crates:
+    Exit 0, 197 Ergebnisse „ok“, 3147 bestanden, 0 fehlgeschlagen, 2 ignoriert; Server-Bündel 1374 bestanden; pgvector-Tests liefen mit. `grep -rn "STUB:" crates`: 4. `docs/Fahrplan.md` nachgeführt (Runde 33, 0.9.0,
+    Schätzung für Runde 32, das Zusammenführen und die Runden 34–36 als Vorschlag). Entschieden: Vorgabe-Reiter
+    von Gliederung und Stichwortzettel bleibt „Start“ (Vertrag §7). Aufgeräumt: die drei Worktrees der Runde
+    (`wf_d9752058-7ed-3/-4/-5`) samt `target/` entfernt, die Zweige `team/menueband-r33`, `team/laptop`,
+    `team/seiten` bleiben. **Nicht angefasst:** die drei Worktrees von Runde 32 (`wf_e7da3bae-4ce-3/-4/-5`,
+    uncommittete Arbeit) und der Hauptordner auf `development`.
+  - **Offen (siehe `docs/Backlog.md`, „Nach Runde 33 offen“):** Zusammenführen mit `development` (drei Commits
+    seit `ed9d210`, Probe: ein Konflikt in `docs/Architektur.md`) und mit Runde 32 (Probe gegen R32-S1: `lib.rs`,
+    `base.html` an den Marken `R32-PLATZ`, `tests/main.rs`, `round9_menu.rs`), danach die Gegenprobe durch einen
+    eigenen Gutachter (Vertrag §11) und das Auflösen des Zweigs `runde33`. **Push erst nach ausdrücklichem „ja“ des
+    Nutzers.**
   - **Handprüfung durch den Nutzer** (eigener Wegwerf-Server aus `runde33`, nicht der Dienst auf 8765): Band breit
     (≥ 1600 px) – Reiter wechseln, Speichern im Band und mit Strg+S, Prüfen/Vorschlag; Fenster auf Laptop-Breite –
     Gruppen als Popups, unter 1280 px Leisten und Schubladen (Esc, Klick daneben); Ansicht → Laptop-Modus An/Aus;

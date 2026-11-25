@@ -575,8 +575,8 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     nur mit Token; Zugangsschutz im Proxy ist Pflicht (`docs/Betrieb.md`). MultiGPT hat keine Vorgabe-Adresse mehr.
   - Keine Migration, keine neuen RPC-Methoden oder MCP-Werkzeuge. Offenes und die Schritte des Nutzers:
     `docs/Backlog.md`, „Nach Runde 24 offen“.
-- **Runde 33 „Menüband und Laptop-Modus“ integriert** (2026-11-25, auf dem Zweig `runde33` neben Runde 32; kommt in
-  0.9.0, Version unverändert; Gegenprobe und Zusammenführen mit Runde 32 stehen aus):
+- **Runde 33 „Menüband und Laptop-Modus“ abgeschlossen** (2026-11-25, auf dem Zweig `runde33` neben Runde 32;
+  Version unverändert 0.9.0; Zusammenführen mit `development` und Runde 32 samt Gegenprobe stehen aus):
   - Ein Menüband auf jeder Seite ersetzt die Menüs Werk/Ansicht/Werkzeuge und die Knopfreihe über dem Blatt: Menü
     „Baruch ▾“ (Programm), Reiter Start · Einfügen · Prüfen · Buch · Ansicht mit benannten Gruppen; die Knöpfe des
     Editors docken mit JavaScript in das Band an. Abzeichen an den Reitern. Alles ohne JavaScript erreichbar
