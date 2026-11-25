@@ -14,14 +14,23 @@
 //!   [`layout`] und [`svg`] sind ab S1 eingefroren (alte Karte; `files` und diese Seite benutzen sie im S1-Stand
 //!   noch, der Integrator löscht, was nach der Runde unbenutzt ist).
 //!
-//! Die Daten liefert [`crate::idea_map::build`]; hier entstehen Anordnung ([`layout`]), Zeichnung ([`svg`]) und die
-//! Seite. Kein Buchtext ändert sich.
+//! - Runde 34 (mindmap_widget): Die Seite heißt „Mindmap“. Das Bild zeichnet [`mindmap::render`] aus
+//!   [`crate::idea_map::tree::tree`] (Anordnung in [`tree_layout`]); `GET /werke/{id}/karte/bild` liefert nur das
+//!   SVG (für das Widget `mindmap`, das nach jeder Aktion neu holt). Die Adresse trägt außer dem Filter `zu=`
+//!   (eingeklappte Knoten, Komma) und `wahl=` (gewählter Knoten). Unter dem Baum liegt die **Wolke** (Einfälle ohne
+//!   Platz, Nachtrag vom 2026-11-25). Die Formulare der alten Gliederungsliste stehen jetzt in der
+//!   Gliederungsansicht (`/werke/{id}/karte/gliederung`, [`crate::idea_map::files`]); hier bleiben Filter,
+//!   „Gruppen“ (R19b), „Widersprüche“ und die Ebene „Befunde“ (R28).
+//!
+//! Die Daten liefern [`crate::idea_map::tree::tree`] (Baum) und [`crate::idea_map::build`] (Gruppen der Nähe); hier
+//! entstehen Zeichnung und Seite. Kein Buchtext ändert sich.
 
 pub mod layout;
 pub mod mindmap;
 pub mod svg;
+pub mod tree_layout;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, OnceLock};
 
 use axum::Router;
@@ -35,13 +44,14 @@ use minijinja::{Environment, Value, context};
 
 use crate::AppState;
 use crate::idea_map::files::export;
-use crate::idea_map::{IdeaMap, MapFilter, MapNodeKind, NearState};
+use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
+use crate::idea_map::{IdeaMap, MapFilter, NearState};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{Settings, query_escape};
 
 /// Seite (GET), gemischt in `lib.rs` bei den Seiten. Die Ausgaben stehen in [`crate::idea_map::files::pages`].
 pub fn pages() -> Router<Arc<AppState>> {
-    Router::new().route("/werke/{id}/karte", get(page))
+    Router::new().route("/werke/{id}/karte", get(page)).route("/werke/{id}/karte/bild", get(image))
 }
 
 // ---- Filter in der Adresse ---------------------------------------------------------------------
@@ -53,6 +63,21 @@ pub struct Extra {
     pub ok: Option<String>,
     /// `undo=<id>`: eben gelöste Verbindung (Formular „Wiederherstellen“).
     pub undo: Option<i64>,
+    /// Runde 34: `zu=<Kennungen, Komma>` – eingeklappte Knoten der Mindmap (reine Anzeige, nie gespeichert).
+    pub closed: Vec<String>,
+    /// Runde 34: `wahl=<Kennung>` – gewählter Knoten.
+    pub wahl: Option<String>,
+}
+
+/// Höchstzahl der Kennungen in `zu=` (fremde Eingabe; mehr fällt weg).
+pub const MAX_CLOSED: usize = 2000;
+
+/// Kennung eines Knotens der Mindmap: `w`, `n:<key>` oder `i:<id>` (nur Ziffern) – sonst `None`.
+pub fn node_id(text: &str) -> Option<&str> {
+    let text = text.trim();
+    let digits = |d: &str| !d.is_empty() && d.len() <= 18 && d.bytes().all(|b| b.is_ascii_digit());
+    let known = text == "w" || text.strip_prefix("n:").or_else(|| text.strip_prefix("i:")).is_some_and(digits);
+    known.then_some(text)
 }
 
 /// Filter aus den Paaren der Adresse (GET und `back` gleich): `status=open|done|all`, `word`, `origin=human|persona|mcp`,
@@ -86,6 +111,17 @@ pub fn parse_filter(pairs: &[(String, String)]) -> (MapFilter, Extra) {
                 extra.ok = Some(value.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(30).collect())
             }
             "undo" => extra.undo = value.trim().parse().ok(),
+            // Runde 34: letzter Wert gilt; nur gültige Kennungen, ohne Doppel.
+            "zu" => {
+                let mut closed: Vec<String> = Vec::new();
+                for id in value.split(',').filter_map(node_id).take(MAX_CLOSED) {
+                    if !closed.iter().any(|c| c == id) {
+                        closed.push(id.to_owned());
+                    }
+                }
+                extra.closed = closed;
+            }
+            "wahl" => extra.wahl = node_id(value).map(str::to_owned),
             // Runde 28: Ebene „Befunde“ (letzter Wert gilt, wie bei `near`).
             "befunde" => filter.findings = matches!(value.trim(), "1" | "true" | "on" | "ja"),
             _ => {}
@@ -224,7 +260,11 @@ fn notice_of(ok: &str) -> &'static str {
         "unveraendert" => "Diese Verbindung gibt es schon; nichts geändert.",
         "geloest" => "Verbindung gelöst.",
         "wiederhergestellt" => "Verbindung wiederhergestellt.",
-        "zurueckgesetzt" => "Anordnung zurückgesetzt: Die Einfälle stehen wieder an ihrem berechneten Platz.",
+        "zurueckgesetzt" => "Gespeicherte Lagen verworfen (in der Mindmap ohne Wirkung: Der Baum ordnet sich selbst).",
+        "angelegt" => "Einfall angelegt.",
+        "umgehaengt" => "Einfall umgehängt.",
+        "geloescht" => "Einfall gelöscht (wiederherstellbar).",
+        "eingelesen" => "Datei eingelesen: Die Knoten sind als Einfälle angelegt.",
         "benannt" => {
             "Der Assistent hat Namen vorgeschlagen (unten bei „Gruppen“). Schlagwort wird ein Name erst, wenn du ihn übernimmst."
         }
@@ -236,7 +276,47 @@ fn notice_of(ok: &str) -> &'static str {
     }
 }
 
-/// Die Seite der Karte (auch als Fehlerseite eines Formulars: `status` und `error`).
+/// Abfrageteil der Ansicht: Filter, dazu `zu=` (eingeklappte Knoten) – Grundlage der Links auf der Seite.
+fn view_query(filter: &MapFilter, closed: &[String]) -> String {
+    let mut query = filter_query(filter);
+    if !closed.is_empty() {
+        if !query.is_empty() {
+            query.push('&');
+        }
+        query.push_str("zu=");
+        query.push_str(&closed.join(","));
+    }
+    query
+}
+
+/// Das Bild als Fragment für die Seite (`standalone: false`); der gewählte Knoten (`wahl`) trägt `aria-current`.
+fn draw(map: &MindMap, extra: &Extra) -> String {
+    let options =
+        mindmap::RenderOptions { standalone: false, closed: extra.closed.clone(), back: filter_query(&map.filter) };
+    let svg = mindmap::render(map, &options).svg;
+    match &extra.wahl {
+        // Kennungen bestehen nur aus Buchstabe, Doppelpunkt und Ziffern ([`node_id`]); Titel sind maskiert und
+        // können das Muster (mit Anführungszeichen) nicht enthalten.
+        Some(wahl) => {
+            svg.replacen(&format!(" data-node=\"{wahl}\""), &format!(" data-node=\"{wahl}\" aria-current=\"true\""), 1)
+        }
+        None => svg,
+    }
+}
+
+/// Baum der Mindmap; unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
+// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler).
+#[allow(clippy::result_large_err)]
+async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<MindMap, Response> {
+    if work_info(state, work).await?.is_none() {
+        return Err(plain(StatusCode::NOT_FOUND, "unbekanntes Werk"));
+    }
+    crate::idea_map::tree::tree(state, work, filter)
+        .await
+        .map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))
+}
+
+/// Die Seite der Mindmap (auch als Fehlerseite eines Formulars: `status` und `error`).
 pub(crate) async fn page_response(
     state: &AppState,
     headers: &HeaderMap,
@@ -246,10 +326,12 @@ pub(crate) async fn page_response(
     status: StatusCode,
     error: Option<String>,
 ) -> Response {
-    let (_, map, layout) = match load(state, work, filter).await {
-        Ok(loaded) => loaded,
+    let map = match load_tree(state, work, filter).await {
+        Ok(map) => map,
         Err(response) => return response,
     };
+    // Gruppen der Nähe (R19b) rechnen auf der flachen Karte; sie wird dafür ein zweites Mal gebaut (gleicher Filter).
+    let flat: Option<IdeaMap> = crate::idea_map::build(state, work, filter).await.ok();
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let query = filter_query(&map.filter);
     let base = format!("/werke/{work}/karte");
@@ -262,116 +344,28 @@ pub(crate) async fn page_response(
         .map(|w| w.word)
         .collect();
 
-    // Auswahl „Bezug setzen“: alle Punkte der Gliederung in Baumreihenfolge (Abschnitte unter ihrem Kapitel).
-    let tree = export::tree_order(&map);
-    let mut node_options = Vec::new();
-    for (node, depth) in &tree {
-        if let Some(key) = node.key {
-            let indent = "– ".repeat(depth.saturating_sub(1));
-            node_options.push(context! { key => key, label => format!("{indent}{}", svg::node_label(node)) });
-            for section in &node.sections {
-                let name = if section.number.is_empty() {
-                    section.title.clone()
-                } else {
-                    format!("{} {}", section.number, section.title)
-                };
-                node_options.push(context! { key => section.key, label => format!("{indent}– {name}") });
-            }
-        }
-    }
-    let label_of = |id: IdeaId| map.ideas.iter().find(|i| i.id == id).map(svg::idea_label);
-    let idea_options: Vec<Value> = map
-        .ideas
+    let rows = map.walk();
+    let titles: HashMap<IdeaId, &str> =
+        rows.iter().filter_map(|(node, _)| node.idea.map(|id| (id, node.title.as_str()))).collect();
+    let label_of = |id: IdeaId| titles.get(&id).map(|t| (*t).to_owned());
+    // Eingeklappt: nur Knoten, die es gibt und die Kinder haben (kanonisch, nichts Fremdes in den Links).
+    let closed: Vec<String> = extra
+        .closed
         .iter()
-        .map(|i| context! { id => i.id, label => format!("{} – {}", i.id, svg::idea_label(i)) })
+        .filter(|id| map.find(id).is_some_and(|n: &TreeNode| !n.children.is_empty()))
+        .cloned()
         .collect();
+    let view = Extra { closed: closed.clone(), ..extra.clone() };
+    // „Alles zuklappen“: jeder Hauptast mit Kindern (die Wolke klappt nicht).
+    let mains: Vec<String> = map
+        .root
+        .children
+        .iter()
+        .filter(|c| c.kind != TreeKind::Idea && !c.children.is_empty())
+        .map(|c| c.id.clone())
+        .collect();
+    let cloud = mindmap_cloud_count(&map);
 
-    // Gliederungsliste: je Knoten seine Einfälle mit ihren Verbindungen.
-    let mut groups = Vec::new();
-    let group_of = |node: Option<&crate::idea_map::MapNode>, id: &str, depth: usize| -> Value {
-        let ideas: Vec<Value> = map
-            .ideas
-            .iter()
-            .filter(|i| i.anchor == id)
-            .map(|i| {
-                let links: Vec<Value> = export::links_of(i.id, &map.links)
-                    .into_iter()
-                    .map(|(link, arrow, other)| {
-                        context! {
-                            id => link.id, arrow => arrow, other => other,
-                            other_href => href(format!("/einfaelle/{other}")),
-                            other_label => label_of(other).unwrap_or_default(),
-                            kind => link.kind.as_str(), kind_label => link.kind.label(), note => link.note.as_str(),
-                        }
-                    })
-                    .collect();
-                let section = node.and_then(|n| {
-                    let key = i.key?;
-                    (n.key != Some(key)).then_some(())?;
-                    n.sections.iter().find(|s| s.key == key).map(|s| {
-                        if s.number.is_empty() { s.title.clone() } else { format!("{} {}", s.number, s.title) }
-                    })
-                });
-                context! {
-                    id => i.id, href => href(format!("/einfaelle/{}", i.id)), label => svg::idea_label(i),
-                    note => svg::cut(&i.note, 300), open => i.status == IdeaStatus::Open,
-                    status => svg::status_label(i.status), origin => i.origin.label(), key => i.key,
-                    hit => i.hit, section => section, links => links,
-                }
-            })
-            .collect();
-        let (title, kind, key, sections, toggle, is_open, counts, empty) = match node {
-            Some(n) => {
-                let title = if n.kind == MapNodeKind::NoChapter { n.title.clone() } else { svg::node_label(n) };
-                let is_open = n.key.is_some_and(|k| map.filter.open.contains(&k));
-                let toggle = n.key.filter(|_| !n.sections.is_empty() || is_open).map(|k| {
-                    let mut f = map.filter.clone();
-                    if is_open {
-                        f.open.retain(|o| *o != k);
-                    } else {
-                        f.open.push(k);
-                        f.open.sort_unstable();
-                    }
-                    href(with_query(&base, &filter_query(&f)))
-                });
-                let sections: Vec<Value> = n
-                    .sections
-                    .iter()
-                    .map(|s| {
-                        let name =
-                            if s.number.is_empty() { s.title.clone() } else { format!("{} {}", s.number, s.title) };
-                        context! { key => s.key, name => name, ideas => s.ideas, open_findings => s.open_findings }
-                    })
-                    .collect();
-                let kind = match n.kind {
-                    MapNodeKind::Work => "work",
-                    MapNodeKind::Part => "part",
-                    MapNodeKind::Chapter => "chapter",
-                    MapNodeKind::Section => "section",
-                    MapNodeKind::NoChapter => "none",
-                };
-                (title, kind, n.key, sections, toggle, is_open, svg::counts(n), n.total_ideas == 0)
-            }
-            None => (map.title.clone(), "work", None, Vec::new(), None, false, String::new(), false),
-        };
-        // Runde 28: Ebene „Befunde“ – offene Befunde am Knoten samt allem darunter, Link auf die Befunde.
-        let open_findings = node.map_or(0, |n| n.open_findings);
-        context! {
-            id => id, title => title, kind => kind, key => key, depth => depth,
-            node_href => key.map(|k| href(format!("/?work={work}&key={k}"))),
-            sections => sections, toggle => toggle, is_open => is_open, counts => counts, empty => empty,
-            ideas => ideas,
-            open_findings => open_findings,
-            many_findings => map.filter.findings && open_findings as usize >= crate::findings::page::MANY_OPEN,
-            findings_href => key.map(|k| href(format!("/werke/{work}/befunde?key={k}#zelle"))),
-        }
-    };
-    if map.ideas.iter().any(|i| i.anchor == "w") {
-        groups.push(group_of(None, "w", 0));
-    }
-    for (node, depth) in &tree {
-        groups.push(group_of(Some(node), &node.id, *depth));
-    }
     let contradictions: Vec<Value> = map
         .links
         .iter()
@@ -385,15 +379,15 @@ pub(crate) async fn page_response(
             }
         })
         .collect();
-    let kinds: Vec<Value> =
-        LinkKind::ALL.iter().map(|k| context! { value => k.as_str(), label => k.label() }).collect();
     let near_note = match map.near.state {
         NearState::Ok | NearState::Off => None,
         _ => Some(map.near.message.clone()).filter(|m| !m.is_empty()),
     };
-    let pinned = layout.items.iter().filter(|p| p.pinned).count();
     // Runde 19b: Gruppen der Nähe mit den Vorschlägen eines Assistenten (nur im Speicher).
-    let clusters: Vec<Value> = crate::idea_map::groups::of_map(state, &map)
+    let clusters: Vec<Value> = flat
+        .as_ref()
+        .map(|flat| crate::idea_map::groups::of_map(state, flat))
+        .unwrap_or_default()
         .into_iter()
         .map(|g| {
             let ideas: Vec<Value> = g
@@ -409,28 +403,38 @@ pub(crate) async fn page_response(
             context! { group => g.group, ideas => ideas, words => g.words.join(", "), proposal => proposal }
         })
         .collect();
+    let toggled = |change: &dyn Fn(&mut MapFilter)| {
+        let mut f = map.filter.clone();
+        change(&mut f);
+        href(with_query(&base, &view_query(&f, &closed)))
+    };
     let ctx = context! {
         settings => Value::from(Serde(settings)),
         work => context! { id => work, title => map.title.as_str() },
         title => map.title.as_str(),
-        svg => Value::from_safe_string(svg::render(&map, &layout, false)),
+        svg => Value::from_safe_string(draw(&map, &view)),
         back => query.as_str(),
-        here => href(with_query(&base, &query)),
+        zu => closed.join(","),
+        wahl => extra.wahl.as_deref().unwrap_or(""),
+        here => href(with_query(&base, &view_query(&map.filter, &closed))),
+        bild => href(format!("{base}/bild")),
         outputs => context! {
+            xmind => href(with_query(&format!("{base}.xmind"), &query)),
+            mm => href(with_query(&format!("{base}.mm"), &query)),
             svg => href(with_query(&format!("{base}.svg"), &query)),
             pdf => href(with_query(&format!("{base}.pdf"), &query)),
             md => href(with_query(&format!("{base}.md"), &query)),
-            mm => href(with_query(&format!("{base}.mm"), &query)),
         },
+        einlesen => href(format!("{base}/einlesen")),
+        gliederung => href(with_query(&format!("{base}/gliederung"), &query)),
+        open_all => href(with_query(&base, &query)),
+        close_all => href(with_query(&base, &view_query(&map.filter, &mains))),
         act => href(format!("{base}/act")),
         ideas_href => href(format!("/einfaelle?work={work}")),
         workspace => href(format!("/?work={work}")),
+        near_toggle => toggled(&|f| f.near = !f.near),
         // Runde 28: Ebene „Befunde“ ein- bzw. ausblenden (Link, ohne JavaScript).
-        findings_toggle => {
-            let mut f = map.filter.clone();
-            f.findings = !f.findings;
-            href(with_query(&base, &filter_query(&f)))
-        },
+        findings_toggle => toggled(&|f| f.findings = !f.findings),
         findings_href => href(format!("/werke/{work}/befunde")),
         many_findings => crate::findings::page::MANY_OPEN,
         filter => context! {
@@ -445,12 +449,12 @@ pub(crate) async fn page_response(
         },
         words => words,
         near_note => near_note,
-        groups => groups,
-        node_options => node_options,
-        idea_options => idea_options,
-        kinds => kinds,
         contradictions => contradictions,
-        stats => context! { ideas => map.ideas.len(), links => map.links.iter().filter(|l| l.deleted.is_none()).count(), pinned => pinned },
+        stats => context! {
+            ideas => map.total_ideas,
+            links => map.links.iter().filter(|l| l.deleted.is_none()).count(),
+            cloud => cloud,
+        },
         clusters => clusters,
         notice => extra.ok.as_deref().map(notice_of),
         undo => extra.undo.filter(|_| extra.ok.as_deref() == Some("geloest")),
@@ -460,6 +464,11 @@ pub(crate) async fn page_response(
         Ok(html) => (status, Html(html)).into_response(),
         Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage karte.html: {e}")),
     }
+}
+
+/// Zahl der Einfälle in der Wolke (direkt am Werk).
+fn mindmap_cloud_count(map: &MindMap) -> usize {
+    tree_layout::cloud_ideas(map).len()
 }
 
 // ---- Handler (GET) -------------------------------------------------------------------------------
@@ -472,6 +481,22 @@ async fn page(
 ) -> Response {
     let (filter, extra) = parse_filter(&pairs);
     page_response(&state, &headers, work, &filter, &extra, StatusCode::OK, None).await
+}
+
+/// Nur das Bild (`image/svg+xml`), gleiche Abfrage wie die Seite – das Widget holt es nach jeder Aktion neu.
+/// Das Fragment aus [`mindmap::render`] bekommt hier `xmlns`, damit die Antwort für sich gültiges SVG ist.
+async fn image(
+    State(state): State<Arc<AppState>>,
+    Path(work): Path<WorkId>,
+    Query(pairs): Query<Vec<(String, String)>>,
+) -> Response {
+    let (filter, extra) = parse_filter(&pairs);
+    let map = match load_tree(&state, work, &filter).await {
+        Ok(map) => map,
+        Err(response) => return response,
+    };
+    let svg = draw(&map, &extra).replacen("<svg ", "<svg xmlns=\"http://www.w3.org/2000/svg\" ", 1);
+    ([(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], svg).into_response()
 }
 
 #[cfg(test)]

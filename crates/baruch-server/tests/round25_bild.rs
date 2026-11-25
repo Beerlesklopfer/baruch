@@ -104,17 +104,6 @@ async fn open_book() -> Book {
     Book { server, work: report.work, slug: report.slug, keys }
 }
 
-/// Wert eines Attributs im ersten Tag, das `marker` enthält.
-fn attr(html: &str, marker: &str, name: &str) -> String {
-    let at = html.find(marker).unwrap_or_else(|| panic!("{marker} fehlt: {html}"));
-    let start = if html[at..].starts_with('<') { at } else { html[..at].rfind('<').unwrap() };
-    let end = at + html[at..].find('>').unwrap();
-    let tag = &html[start..end];
-    let key = format!(" {name}=\"");
-    let from = tag.find(&key).unwrap_or_else(|| panic!("{name} fehlt in {tag}")) + key.len();
-    tag[from..from + tag[from..].find('"').unwrap()].to_owned()
-}
-
 /// Ids der Einfälle (`data-idea`) im HTML bzw. SVG.
 fn shown_ideas(html: &str) -> BTreeSet<i64> {
     html.split("data-idea=\"").skip(1).map(|r| r[..r.find('"').unwrap()].parse().unwrap()).collect()
@@ -134,167 +123,8 @@ fn xmllint(text: &str, name: &str) -> Option<(bool, String)> {
     Some((output.status.success(), String::from_utf8_lossy(&output.stderr).into_owned()))
 }
 
-#[tokio::test]
-async fn the_map_page_follows_the_dom_contract() {
-    let b = open_book().await;
-    let (w, rosen, schnitt, tiefe, dornen) =
-        (b.work, b.key("Rosen"), b.key("Schnitt"), b.key("Tiefe"), b.key("Dornen"));
-    let part = b.key("Erster Teil");
-    let a = b.idea(Some(rosen), "Laube, Rose", "Unter der Laube blüht es.").await;
-    let s = b.idea(Some(schnitt), "Schere", "Im März schneiden.").await;
-    let t = b.idea(Some(tiefe), "Wurzel", "").await;
-    let d = b.idea(Some(dornen), "Hecke", "").await;
-    let n = b.idea(None, "Ohne Ort", "").await;
-    result(&b.server.rpc("idea.update", json!({ "id": d, "status": "done" })).await);
-
-    let (status, html) = b.page("").await;
-    assert_eq!(status, StatusCode::OK, "die Karte lädt: {html}");
-    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "genau eine Kopfzeile (base.html)"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
-    assert!(!html.contains("data-widget=\"idea-capture\""), "fragments/idea_capture.html ist nicht eingebunden");
-    for piece in [
-        "<main class=\"karte\">".to_owned(),
-        format!("<form class=\"im-filter\" method=\"get\" action=\"/werke/{w}/karte\""),
-        format!("<div class=\"im-stage\" data-widget=\"idea-map\" data-work=\"{w}\" data-near=\"1\">"),
-        "<div class=\"im-toolbar\" data-im-toolbar>".to_owned(),
-        "<svg class=\"im-svg\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"".to_owned(),
-        "role=\"group\" aria-label=\"Gedankenkarte „Kartenbuch“\" data-im-svg>".to_owned(),
-        "<g class=\"im-viewport\" data-im-viewport>".to_owned(),
-        "<g class=\"im-edges\">".to_owned(),
-        "<g class=\"im-nodes\">".to_owned(),
-        "<aside class=\"im-side\" data-im-side hidden aria-live=\"polite\"></aside>".to_owned(),
-        "<section class=\"im-outline\" aria-label=\"Gliederungsliste\">".to_owned(),
-        "<section class=\"im-contradictions\" aria-label=\"Widersprüche\">".to_owned(),
-    ] {
-        assert!(html.contains(&piece), "DOM-Vertrag §4.4: {piece} fehlt: {html}");
-    }
-    // Reihenfolge: Filter, Bühne (Leiste, SVG, Seitenleiste), Gliederung, Widersprüche.
-    let order =
-        ["class=\"im-filter\"", "data-im-toolbar", "data-im-svg", "data-im-side", "im-outline", "im-contradictions"];
-    let places: Vec<usize> = order.iter().map(|m| html.find(m).unwrap()).collect();
-    assert!(places.windows(2).all(|p| p[0] < p[1]), "Reihenfolge nach dem DOM-Vertrag: {order:?} → {places:?}");
-
-    // Knoten.
-    assert!(
-        html.contains("<g class=\"im-node im-work\" data-node=\"w\" data-open-ideas=\"4\" data-x=\"0\" data-y=\"0\""),
-        "Werk in der Mitte bei (0,0), vier offene Einfälle (einer verarbeitet): {html}"
-    );
-    assert!(
-        html.contains(&format!(
-            "<a class=\"im-node im-chapter\" data-node=\"n:{rosen}\" data-key=\"{rosen}\" data-open-ideas=\"3\" href=\"/?work={w}&amp;key={rosen}\""
-        )),
-        "Kapitel als Link in Key-Form; Abschnitte zusammengefasst: drei offene Einfälle an „Rosen“: {html}"
-    );
-    assert!(
-        html.contains(&format!("data-node=\"n:{rosen}\""))
-            && html[html.find(&format!("data-node=\"n:{rosen}\"")).unwrap()..]
-                .contains("<tspan class=\"im-count\" x=\"0\" y=\"5\">3</tspan>"),
-        "offene Einfälle als Zahl im Kreis"
-    );
-    let wege = format!("<a class=\"im-node im-chapter im-empty\" data-node=\"n:{}\"", b.key("Wege"));
-    assert!(html.contains(&wege), "Kapitel ohne Einfälle als im-empty");
-    // Hervorgehoben auch ohne Farbe: das Wort „leer“ steht im Kreis (Plan „Zeigen, was fehlt“).
-    assert!(
-        html[html.find(&wege).unwrap()..].split("</a>").next().unwrap().contains(">leer</tspan>"),
-        "„leer“ im Kreis des leeren Kapitels"
-    );
-    // Der Teil zählt die Einfälle seiner Kapitel (drei offene an „Rosen“, einer an „Dornen“ …) und ist darum nicht
-    // leer, obwohl kein Einfall direkt an ihm hängt (Befund Runde 25: vorher blass und ohne Zahl).
-    let part_tag = format!("<a class=\"im-node im-part\" data-node=\"n:{part}\"");
-    assert!(html.contains(&part_tag), "Teil als Knoten, nicht im-empty: {html}");
-    let part_svg = html[html.find(&part_tag).unwrap()..].split("</a>").next().unwrap().to_owned();
-    assert!(!part_svg.contains(">leer</tspan>") && !part_svg.contains("y=\"5\"></tspan>"), "Teil mit Zahl: {part_svg}");
-    assert!(
-        html.contains("Keine eigenen Einfälle; sie hängen an den Punkten darunter."),
-        "Gliederungsliste: der Teil meldet nicht „Keine Einfälle.“"
-    );
-    assert!(
-        html.contains("<g class=\"im-node im-none\" data-node=\"none\""),
-        "Wolke „Ohne Kapitel“ für den Einfall ohne Bezug"
-    );
-    for (id, key, anchor) in [(a, rosen, rosen), (s, schnitt, rosen), (t, tiefe, rosen)] {
-        assert!(
-            html.contains(&format!(
-                "<a class=\"im-node im-idea im-open\" data-node=\"i:{id}\" data-idea=\"{id}\" data-key=\"{key}\" data-anchor=\"n:{anchor}\" href=\"/einfaelle/{id}\" data-x=\""
-            )),
-            "Einfall {id}: genauer Bezug in data-key, Anker das Kapitel (Abschnitte zusammengefasst): {html}"
-        );
-    }
-    assert!(html.contains(&format!("class=\"im-node im-idea im-done\" data-node=\"i:{d}\"")), "verarbeitet → im-done");
-    assert!(
-        html.contains(&format!("data-node=\"i:{n}\" data-idea=\"{n}\" data-key=\"\" data-anchor=\"none\"")),
-        "ohne Bezug: data-key leer, Anker none"
-    );
-    assert!(
-        html.contains(&format!("aria-label=\"Einfall {a}: Laube, Rose (offen)\"><title>Einfall {a}: Laube, Rose – Unter der Laube blüht es. (offen)</title>")),
-        "Einfall mit aria-label und <title> nach Vertrag"
-    );
-
-    // Kanten von Mittelpunkt zu Mittelpunkt.
-    let tree = format!("<line class=\"im-edge im-tree\" data-from=\"n:{rosen}\" data-to=\"n:{part}\"");
-    assert!(html.contains(&tree), "Baumkante Kapitel → Teil: {html}");
-    assert!(
-        html.contains(&format!("<line class=\"im-edge im-tree\" data-from=\"n:{part}\" data-to=\"w\"")),
-        "Teil → Werk"
-    );
-    let edge = format!("<line class=\"im-edge im-ref\" data-from=\"i:{s}\" data-to=\"n:{rosen}\"");
-    assert!(html.contains(&edge), "Bezugskante Einfall → Kapitel: {html}");
-    let node = format!("data-node=\"i:{s}\"");
-    let chapter = format!("data-node=\"n:{rosen}\"");
-    assert_eq!(attr(&html, &edge, "x1"), attr(&html, &node, "data-x"), "Kante beginnt im Mittelpunkt des Einfalls");
-    assert_eq!(attr(&html, &edge, "y1"), attr(&html, &node, "data-y"), "… auch in y");
-    assert_eq!(attr(&html, &edge, "x2"), attr(&html, &chapter, "data-x"), "und endet im Mittelpunkt des Kapitels");
-    assert_eq!(attr(&html, &edge, "y2"), attr(&html, &chapter, "data-y"), "… auch in y");
-    assert_eq!(
-        attr(&html, &node, "transform"),
-        format!("translate({} {})", attr(&html, &node, "data-x"), attr(&html, &node, "data-y")),
-        "der Knoten steht per translate an data-x/data-y"
-    );
-    assert_eq!(attr(&html, &node, "data-r"), "13", "Radius in data-r");
-    assert!(!html.contains("im-near\""), "ohne Nähe-Paare keine Nähe-Kanten");
-
-    // Werkzeugleiste: Ausgaben, Zurücksetzen, ehrlicher Cluster-Stub.
-    for output in ["svg", "pdf", "md", "mm"] {
-        assert!(html.contains(&format!("href=\"/werke/{w}/karte.{output}\"")), "Ausgabe .{output} verlinkt");
-    }
-    assert!(
-        html.contains("<input type=\"hidden\" name=\"method\" value=\"idea.map_pos_reset\">"),
-        "Formular „Anordnung zurücksetzen“"
-    );
-    assert!(
-        html.contains("<input type=\"hidden\" name=\"method\" value=\"idea.map_groups_name\">")
-            && html.contains(">Gruppen benennen (Assistent)</button>")
-            && !html.contains("folgt mit R19"),
-        "Runde 19b: der Cluster-Knopf ist der echte Knopf (Formular an act), der Stub ist weg"
-    );
-    // Gliederungsliste mit den Formularen ohne JavaScript.
-    assert!(html.contains(&format!("action=\"/werke/{w}/karte/act\"")), "Formulare gehen an /werke/W/karte/act");
-    assert!(
-        html.contains("<input type=\"hidden\" name=\"method\" value=\"idea.update\">")
-            && html.contains(">Bezug setzen</button>"),
-        "Formular „Bezug setzen“"
-    );
-    assert!(
-        html.contains("<input type=\"hidden\" name=\"method\" value=\"idea.link\">")
-            && html.contains("Verbinden mit Einfall"),
-        "Formular „Verbinden mit …“"
-    );
-    for kind in ["führt weiter", "gehört zu", "Beispiel für", "widerspricht"] {
-        assert!(html.contains(&format!(">{kind}</option>")), "Art {kind} wählbar");
-    }
-    assert!(
-        html.contains(&format!("<option value=\"{a} – Laube, Rose\">")),
-        "Auswahlliste der Einfälle (eine für alle Formulare)"
-    );
-    assert!(
-        html.contains("Abschnitte aufklappen") && html.contains(&format!("open={rosen}")),
-        "Kapitel mit Abschnitten lässt sich aufklappen (open)"
-    );
-    assert!(
-        html.contains("Abschnitte: 1.1 Schnitt (1), 1.1.1 Tiefe (1)"),
-        "zusammengefasste Abschnitte mit Zahl ihrer Einfälle: {html}"
-    );
-    assert!(!html.contains("{{") && !html.contains("{%"), "keine Reste von Platzhaltern");
-}
+// Runde 34: Der Test des alten DOM-Vertrags (.im-stage, Kreise, Gliederungsliste mit Formularen) ist entfallen;
+// die Seite heißt „Mindmap“ und ihr DOM-Vertrag steht in round34_widget.rs (Seite, Bild, Menüband).
 
 #[tokio::test]
 async fn titles_and_words_are_escaped_everywhere() {
@@ -307,7 +137,7 @@ async fn titles_and_words_are_escaped_everywhere() {
     assert!(!html.contains("<script>alert") && !html.contains("<img src=x"), "keine Nutzertexte als Markup: {html}");
     assert!(!html.contains("<b>&</b>"), "Werktitel maskiert");
     assert!(
-        html.contains("aria-label=\"Gedankenkarte „Garten &lt;b&gt;&amp;&lt;/b&gt; &quot;Laube&quot;“\""),
+        html.contains("aria-label=\"Mindmap: Garten &lt;b&gt;&amp;&lt;/b&gt; &quot;Laube&quot;\""),
         "Titel im aria-label maskiert: {html}"
     );
     assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;, Rose&amp;Dorn"), "Schlagwörter im <title> maskiert");
@@ -343,18 +173,17 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
     assert!(html.contains("name=\"q\" value=\"Laube\""), "Suche im Formular");
     assert!(html.contains("<input type=\"hidden\" name=\"near\" value=\"0\">\n    <label class=\"inline\"><input type=\"checkbox\" name=\"near\" value=\"1\"> Nähe zeigen</label>"),
         "near=0: Kästchen leer, verstecktes near=0 davor (ohne JavaScript abschaltbar): {html}");
-    assert!(
-        html.contains(&format!("<input type=\"hidden\" name=\"open\" value=\"{rosen}\">")),
-        "aufgeklappte Kapitel bleiben im Filter"
-    );
+    // Runde 34: `open` (Abschnitte eines Kapitels aufklappen) gilt im Baum der Mindmap nicht mehr und fällt aus dem
+    // kanonischen Filter; eingeklappt wird über `zu=` (round34_widget).
+    assert!(!html.contains("name=\"open\""), "open steht nicht mehr im Filter der Mindmap");
     assert!(
         html.contains(&format!(
-            "<div class=\"im-stage im-hide-near\" data-widget=\"idea-map\" data-work=\"{}\" data-near=\"0\">",
+            "<div class=\"mm-stage mm-hide-near\" data-widget=\"mindmap\" data-work=\"{}\"",
             b.work
         )),
-        "near=0 → data-near=0 und Klasse im-hide-near"
+        "near=0 → Klasse mm-hide-near an der Bühne"
     );
-    let canonical = format!("status=open&amp;word=Rose&amp;origin=human&amp;q=Laube&amp;near=0&amp;open={rosen}");
+    let canonical = "status=open&amp;word=Rose&amp;origin=human&amp;q=Laube&amp;near=0";
     for output in ["svg", "pdf", "md", "mm"] {
         assert!(
             html.contains(&format!("href=\"/werke/{}/karte.{output}?{canonical}\"", b.work)),
@@ -362,9 +191,7 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
         );
     }
     assert!(
-        html.contains(&format!(
-            "name=\"back\" value=\"status=open&amp;word=Rose&amp;origin=human&amp;q=Laube&amp;near=0&amp;open={rosen}\""
-        )),
+        html.contains("name=\"back\" value=\"status=open&amp;word=Rose&amp;origin=human&amp;q=Laube&amp;near=0\""),
         "Formulare schicken den Filter als back mit (Rücksprung auf die gefilterte Karte)"
     );
     // Ausgaben zeigen dieselben Einfälle wie die Seite (dieselbe build-Karte mit demselben Filter).
@@ -382,8 +209,8 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
         assert_eq!(page_ideas, BTreeSet::from([open]), "status, word, origin, q: nur der offene Rosen-Einfall bleibt");
         assert!(!page_ideas.contains(&done) && !page_ideas.contains(&other), "Rest entfernt");
         let (_, html) = b.page("q=Kies").await;
-        assert!(html.contains(&format!("im-hit\" data-node=\"i:{other}\"")), "q markiert Treffer");
-        assert!(html.contains(&format!("im-dim\" data-node=\"i:{open}\"")), "… und blendet den Rest ab");
+        assert!(html.contains(&format!("mm-hit\" data-node=\"i:{other}\"")), "q markiert Treffer");
+        assert!(html.contains(&format!("mm-dim\" data-node=\"i:{open}\"")), "… und blendet den Rest ab");
     } else {
         println!(
             "ÜBERSPRUNGEN (R25a fehlt): Wirkung der Filter auf die Auswahl; geprüft wurden Formular, Links und Gleichheit Seite/Ausgaben"
@@ -412,7 +239,10 @@ async fn setting_the_reference_by_form_makes_one_commit_and_returns_to_the_filte
     }
     let (_, html) = b.page("status=open&near=0&ok=bezug").await;
     assert!(html.contains("Bezug gesetzt."), "Rückmeldung auf der Karte: {html}");
-    assert!(html.contains(&format!("data-anchor=\"n:{wege}\"")), "der Einfall hängt jetzt an „Wege“");
+    assert!(
+        html.contains(&format!("data-node=\"i:{id}\" data-parent=\"n:{wege}\"")),
+        "der Einfall hängt jetzt an „Wege“ (Runde 34: data-parent im Bild der Mindmap)"
+    );
     // „ohne Kapitel“: leerer key.
     let (status, location) = b.act(&format!("method=idea.update&id={id}&key=")).await;
     assert_eq!(
@@ -464,7 +294,10 @@ async fn form_errors_come_back_as_the_page_with_the_message() {
         "Selbstbezug wird abgelehnt: {status}"
     );
     assert!(html.contains("role=\"alert\""), "als Seite mit Meldung: {html}");
-    assert!(html.contains("data-near=\"0\""), "die Fehlerseite zeigt die Karte mit dem Filter aus back");
+    assert!(
+        html.contains("class=\"mm-stage mm-hide-near\""),
+        "die Fehlerseite zeigt die Mindmap mit dem Filter aus back"
+    );
 
     let (status, _) = b.server.post_form("/werke/999/karte/act", "method=idea.update&id=1&key=").await;
     assert_eq!(status, StatusCode::NOT_FOUND, "unbekanntes Werk → 404");
@@ -505,12 +338,13 @@ async fn linking_unlinking_restoring_and_resetting_work_without_javascript() {
     let link = result(&links)["links"][0]["id"].as_i64().expect("Verbindung angelegt");
     let (_, html) = b.page("").await;
     assert!(
-        html.contains(&format!("<line class=\"im-edge im-link im-kind-contradicts\" data-link=\"{link}\" data-kind=\"contradicts\" data-from=\"i:{x}\" data-to=\"i:{y}\"")),
-        "Verbindung als Kante mit data-link und data-kind: {html}"
+        html.contains(&format!("<path class=\"mm-link mm-link-contradicts mm-contradiction\" data-link=\"{link}\" data-from=\"i:{x}\" data-to=\"i:{y}\"")),
+        "Verbindung als Beziehungslinie mit data-link (Runde 34, DOM-Vertrag §6): {html}"
     );
     assert!(
-        html.contains(&format!("<title>widerspricht: Einfall {x} ↔ Einfall {y} – nicht beides</title></line>")),
-        "<title> nennt die Art"
+        html.contains("<text class=\"mm-link-label mm-contradiction\"")
+            && html.contains(">widerspricht: nicht beides</text>"),
+        "die Beschriftung nennt Art und Notiz"
     );
     let contradictions = &html[html.find("im-contradictions").unwrap()..];
     assert!(contradictions.contains(&format!("Einfall {x}</a> (Sonne) ↔ <a href=\"/einfaelle/{y}\">Einfall {y}</a> (Schatten) <strong>widerspricht</strong> – „nicht beides“")),
@@ -534,7 +368,7 @@ async fn linking_unlinking_restoring_and_resetting_work_without_javascript() {
         "Lösen → 303 mit undo"
     );
     let (_, html) = b.page("").await;
-    assert!(!html.contains("im-kind-contradicts\" data-link"), "gelöste Verbindung fehlt in der Karte");
+    assert!(!html.contains("mm-contradiction\" data-link"), "gelöste Verbindung fehlt in der Karte");
     let (status, location) = b.act(&format!("method=idea.link_restore&id={link}")).await;
     assert_eq!(
         (status, location.as_deref()),
@@ -545,17 +379,19 @@ async fn linking_unlinking_restoring_and_resetting_work_without_javascript() {
     assert!(html.contains(&format!("data-link=\"{link}\"")), "Verbindung wieder da");
 
     result(&b.server.rpc("idea.map_pos_set", json!({ "work": w, "idea": x, "x": 2500.0, "y": -40.5 })).await);
+    // Runde 34: Lagen bleiben gespeichert, die Baum-Anordnung der Mindmap benutzt sie nicht (Vertrag §0).
     let (_, html) = b.page("").await;
-    assert!(html.contains(&format!("im-pinned\" data-node=\"i:{x}\"")), "gespeicherte Lage → im-pinned");
-    assert_eq!(attr(&html, &format!("data-node=\"i:{x}\""), "data-x"), "2500", "und steht an der gespeicherten Stelle");
+    assert!(!html.contains("im-pinned") && !html.contains("data-x="), "die Mindmap kennt keine angehefteten Lagen");
+    let stored = b.server.rpc("idea.map", json!({ "work": w })).await;
+    assert_eq!(result(&stored)["positions"].as_array().map(Vec::len), Some(1), "die Lage bleibt gespeichert");
     let (status, location) = b.act("method=idea.map_pos_reset&back=").await;
     assert_eq!(
         (status, location.as_deref()),
         (StatusCode::SEE_OTHER, Some(format!("/werke/{w}/karte?ok=zurueckgesetzt").as_str())),
         "Zurücksetzen → 303"
     );
-    let (_, html) = b.page("").await;
-    assert!(!html.contains("im-pinned"), "nach dem Zurücksetzen keine angeheftete Lage mehr");
+    let stored = b.server.rpc("idea.map", json!({ "work": w })).await;
+    assert_eq!(result(&stored)["positions"].as_array().map(Vec::len), Some(0), "nach dem Zurücksetzen keine Lage mehr");
 }
 
 #[tokio::test]
@@ -730,9 +566,9 @@ async fn menu_and_idea_pages_link_the_map() {
         .unwrap();
     let (_, _, list) = b.server.send(request).await;
     assert!(
-        // Runde 33 (Menüband): früher Werkzeuge ▾ → Gedankenkarte, jetzt Reiter Start, Gruppe Einfälle.
-        list.contains(&format!("<a class=\"btn\" href=\"/werke/{w}/karte\" title=\"Gedankenkarte der Einfälle dieses Werks\">Gedankenkarte</a>")),
-        "Start → Einfälle → Gedankenkarte mit Werk: {list}"
+        // Runde 33 (Menüband): Reiter Start, Gruppe Einfälle; Runde 34: der Eintrag heißt „Mindmap“.
+        list.contains(&format!("<a class=\"btn\" href=\"/werke/{w}/karte\" title=\"Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)\">Mindmap</a>")),
+        "Start → Einfälle → Mindmap mit Werk: {list}"
     );
     assert!(
         list.contains(&format!("<a class=\"btn idea-map-link\" href=\"/werke/{w}/karte\"")),
@@ -741,12 +577,13 @@ async fn menu_and_idea_pages_link_the_map() {
     let (_, all) = b.server.get("/einfaelle?work=all").await;
     assert!(!all.contains("idea-map-link"), "ohne gewähltes Werk kein Link auf eine Karte");
     let (_, works) = b.server.get("/werke").await;
-    assert!(!works.contains(">Gedankenkarte</a>"), "ohne Werk kein Menüpunkt Gedankenkarte");
+    assert!(
+        !works.contains(">Mindmap</a>") && !works.contains(">Gedankenkarte</a>"),
+        "ohne Werk kein Menüpunkt Mindmap"
+    );
     let (_, map) = b.page("").await;
     assert!(
-        map.contains(&format!(
-            "href=\"/werke/{w}/karte\" title=\"Gedankenkarte der Einfälle dieses Werks\">Gedankenkarte</a>"
-        )),
+        map.contains(&format!("href=\"/werke/{w}/karte\" title=\"Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)\">Mindmap</a>")),
         "auf der Karte selbst (Werk aus der Seite)"
     );
     let (status, one) = b.server.get(&format!("/einfaelle/{id}")).await;

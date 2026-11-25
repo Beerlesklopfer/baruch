@@ -194,3 +194,99 @@ a.im-node:focus-visible { outline: none; }
 .im-node.im-many-findings circle { stroke: var(--warning); stroke-width: 4; }
 .im-group.im-many-findings { border-left-color: var(--warning); border-left-width: 4px; }
 .im-findings-badge { text-decoration: none; }
+
+/* ---- Runde 34: Mindmap (src/idea_map/bild/mindmap.rs, DOM-Vertrag §6) ---------------------------------------
+   Das Bild trägt nur Klassen; alle Farben stehen hier. Astfarben als Variablen --mm-b0 … --mm-b7, hell und dunkel
+   (System oder Schalter). Die eigenständige Datei (.svg/.pdf) trägt ihre Farben als Attribute und einen eigenen
+   Stil. Unterschiede nie nur über Farbe: Beziehungsarten über die Strichart, Widersprüche zusätzlich fett,
+   verarbeitete Einfälle durchgestrichen. Auswahl, Ziehen, Umbenennen: karte_widget.css. */
+:root {
+  --mm-b0: #2f6fd0; --mm-b1: #c9571f; --mm-b2: #23834b; --mm-b3: #9a3fb0;
+  --mm-b4: #8f6f00; --mm-b5: #12808b; --mm-b6: #c63a5c; --mm-b7: #5d6b7c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mm-b0: #7fb0ff; --mm-b1: #ff9a66; --mm-b2: #5fd08a; --mm-b3: #d68be8;
+    --mm-b4: #e6c34d; --mm-b5: #5fd0da; --mm-b6: #ff8aa6; --mm-b7: #a9b6c6;
+  }
+}
+:root[data-theme="dark"] {
+  --mm-b0: #7fb0ff; --mm-b1: #ff9a66; --mm-b2: #5fd08a; --mm-b3: #d68be8;
+  --mm-b4: #e6c34d; --mm-b5: #5fd0da; --mm-b6: #ff8aa6; --mm-b7: #a9b6c6;
+}
+.mm-b0 { --mm-c: var(--mm-b0); } .mm-b1 { --mm-c: var(--mm-b1); } .mm-b2 { --mm-c: var(--mm-b2); }
+.mm-b3 { --mm-c: var(--mm-b3); } .mm-b4 { --mm-c: var(--mm-b4); } .mm-b5 { --mm-c: var(--mm-b5); }
+.mm-b6 { --mm-c: var(--mm-b6); } .mm-b7 { --mm-c: var(--mm-b7); }
+
+/* Bühne: ohne JavaScript scrollt das Bild in seinem Rahmen (volle Größe, nichts abgeschnitten). */
+.karte > *, .mm-stage > * { flex-shrink: 0; }
+.mm-stage {
+  position: relative; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+}
+.mm-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.mm-cloud-counter { font-weight: 600; }
+.mm-canvas { overflow: auto; max-height: min(80vh, 1000px); min-height: 320px; background: var(--panel); }
+.mm-svg { display: block; margin: 0 auto; font-family: inherit; }
+.mm-status { margin: 0; padding: 4px 10px; min-height: 1.6em; border-top: 1px solid var(--line); color: var(--muted); }
+.mm-status:empty { display: none; }
+.mm-hint { margin: 0; }
+
+/* Äste. */
+.mm-edge { stroke: var(--mm-c, var(--muted)); fill: none; }
+/* Knoten. */
+.mm-svg text { fill: var(--text); }
+.mm-box { fill: var(--panel); stroke: var(--mm-c, var(--muted)); stroke-width: 1.1; }
+.mm-main > .mm-box { stroke-width: 1.8; fill: color-mix(in srgb, var(--mm-c, var(--muted)) 16%, var(--panel)); }
+.mm-work > .mm-box { fill: var(--text); stroke: var(--text); }
+.mm-work .mm-label { fill: var(--panel); font-weight: 700; }
+.mm-part .mm-label, .mm-chapter .mm-label { font-weight: 700; }
+.mm-svg a { text-decoration: none; cursor: pointer; }
+.mm-label-link:hover .mm-label, .mm-label-link:focus-visible .mm-label { text-decoration: underline; }
+.mm-done .mm-label { text-decoration: line-through; fill: var(--muted); }
+.mm-hit > .mm-box { stroke: var(--primary); stroke-width: 3; }
+.mm-dim, .mm-ghost { opacity: .4; }
+.mm-ghost > .mm-box { stroke-dasharray: 3 3; }
+.mm-note path { stroke: var(--muted); fill: none; }
+.mm-section text { fill: var(--primary); font-weight: 700; }
+.mm-section:hover text, .mm-section:focus-visible text { text-decoration: underline; }
+.mm-toggle rect { fill: var(--panel); stroke: var(--muted); stroke-width: 1; }
+.mm-toggle text { fill: var(--muted); font-weight: 700; }
+.mm-toggle:hover rect, .mm-toggle:focus-visible rect { stroke: var(--primary); stroke-width: 2; }
+.mm-node[aria-current] > .mm-box { stroke: var(--primary); stroke-width: 3; }
+/* Runde 28: Ebene Befunde – Zahl am Teil/Kapitel, viele offene zusätzlich mit dickem Warnrand. */
+.mm-findings rect { fill: var(--warning-soft); stroke: var(--warning); stroke-width: 1; }
+.mm-findings text { fill: var(--warning); font-weight: 700; }
+.mm-many-findings > .mm-box { stroke: var(--warning); stroke-width: 3.5; }
+
+/* Beziehungen: Strichart je Art steht als Attribut am Pfad; hier Farbe und Hof der Beschriftung. */
+.mm-link { stroke: var(--muted); fill: none; }
+.mm-link-leads_to { stroke: var(--primary); }
+.mm-link-belongs_to { stroke: var(--success); }
+.mm-link-example_of { stroke: var(--warning); }
+.mm-link.mm-contradiction { stroke: var(--danger); stroke-width: 2.6; }
+.mm-arrow path { fill: var(--muted); }
+.mm-svg .mm-link-label {
+  fill: var(--muted); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round;
+}
+.mm-svg .mm-link-label.mm-contradiction { fill: var(--danger); font-weight: 700; }
+.mm-near { stroke: var(--primary); fill: none; opacity: .8; }
+.mm-hide-near .mm-near { display: none; }
+
+/* Wolke: Ablage der Einfälle ohne Platz. */
+.mm-cloud-area { fill: var(--bg); stroke: var(--muted); stroke-width: 1.2; }
+.mm-svg .mm-cloud-head { fill: var(--muted); font-weight: 600; }
+.mm-cloud-item > .mm-box { fill: var(--panel); stroke: var(--muted); stroke-dasharray: 4 3; }
+.mm-svg .mm-cloud-hint { fill: var(--mm-c, var(--muted)); }
+.mm-svg .mm-cloud-below { fill: var(--muted); font-weight: 700; }
+.mm-hide-near .mm-cloud-hint { display: none; }
+
+@media print {
+  .mm-toolbar, .mm-status, .mm-hint { display: none !important; }
+  .mm-stage { border: 0; }
+  .mm-canvas { overflow: visible; max-height: none; }
+  .mm-svg { max-width: 100%; height: auto; }
+}
