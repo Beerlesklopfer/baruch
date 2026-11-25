@@ -1,9 +1,42 @@
-# Übergabe (Stand 2026-11-25, Runde 33 „Menüband und Laptop-Modus“ auf dem Zweig `runde33` abgeschlossen (PM) – Zusammenführen mit `development` und Runde 32 samt Gegenprobe offen; davor: Runde 24 „Verteilung (B5)“ abgeschlossen)
+# Übergabe (Stand 2026-11-25, Runde 32 „Lektorat I – Word und Beenden“ auf `development` integriert (Integrator) – PM-Abschluss mit Fahrplan offen; davor: Runde 33 „Menüband und Laptop-Modus“ und Gegenprobe 0.9.0)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 32 „Lektorat I – Word und Beenden“ integriert** (2026-11-25, Integrator, auf `development`; Schnittstelle
+  R32-S1 `647ae42`; Zweige `team/docx_import` `6a2f506`, `team/docx_export` `2e3246b`, `team/beenden` `08fd6c5` mit
+  `--no-ff` in dieser Reihenfolge, **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht, Worktrees
+  `.claude/worktrees/wf_e1ad26c7-75a-3/-4/-5` und team-Zweige stehen noch). Version unverändert 0.9.0, CHANGELOG unter
+  „Unveröffentlicht“. **Keine Migration** (höchste weiter Store `0051`, Bibliothek `0108`), kein neues MCP-Werkzeug;
+  neue RPC-Methoden `docx_import.preview/get/apply/discard`, `work.docx_export`; neue Seiten `/werke/import/word`,
+  `/werke/{id}/word`, `/beenden`; neues Crate `baruch-docx`. Kein Stub der Runde ist offen
+  (`grep -rn "STUB:" crates | grep R32` leer).
+  - **Was der Integrator änderte:** drei Zeilen in `TEMPLATES` (`round33_seiten.rs`, von allen drei Entwicklern
+    erbeten); Leser: `w:startOverride` als erste Nummer einer Liste, Bildpfad aus `wp:docPr name`, Bilder in
+    Typst-Inseln; `to_typst`: ausgeschriebene Nummern bei Listen ab ≠ 1; Signale werden vor der Zeile „Baruch läuft“
+    eingerichtet (`system_signal` richtet beim Aufruf ein, `shutdown::serve_with`), `main` endet nach dem
+    Herunterfahren mit `exit(0)`; `docx_export.css` (Kasten endet am Knopf); Doku aus `docs/r32/` eingesetzt
+    (gelöscht).
+  - **Gefunden an der Nahtstelle:** (1) Eine Liste ab 3 kam nach Export und Import als zwei Listen ab 1 zurück.
+    (2) Das Bild einer Abbildung fehlte nach der Rundreise im Werk, obwohl der Text es nannte. (3) Ein `SIGTERM`
+    unmittelbar nach „Baruch läuft“ beendete den Prozess hart (Empfänger noch nicht eingerichtet). Alle drei behoben
+    und mit Test belegt.
+  - **Tests:** `crates/baruch-docx/tests/roundtrip.rs` (Modell → Datei → Modell, 2 Tests), `round32_abnahme`
+    (7 Tests: Menüeinträge; Word → Werk → Word → Werk mit gleicher Gliederung und gleichem Text; Vorschläge als
+    `w:ins`/`w:del` mit Persona und zurück als Vorschlag; echter Prozess nur über Seiten und Formulare bis zum
+    Beenden mit Exit 0 und `PRAGMA integrity_check`; SIGTERM; Regelprüfung der Arbeitsabläufe; Doku und Stubs).
+    Voller Lauf nach `cargo clean -p` aller Workspace-Crates: **206 Testgruppen, 3272 bestanden, 0 gescheitert,
+    2 ignoriert** (mit pgvector-Tests; podman antwortete); clippy `-D warnings`, `cargo fmt --check` und `cargo deny check`
+    grün.
+  - **Sichtprüfung** (Firefox headless nach den gezielten Läufen, eigener Server auf `127.0.0.1:0` mit erfundener
+    Datei „Die Fähre von Almsund“): Bilder unter `.claude/sicht/r32/` (Vorschau, Werk mit Vorschlägen, Reiter Buch mit
+    „Word …“, Export-Seite, Menü Baruch, Rückfrage und Abschlussseite; hell/dunkel, mit/ohne JavaScript) und die
+    exportierte Datei über LibreOffice ohne Fenster als PDF (`12-export-libreoffice-1.png`).
+  - **Nicht geprüft:** Microsoft Word (weder Öffnen des Exports noch eine von Word geschriebene Datei), echter
+    Browser beim Beenden (`window.close()` im App-Fenster), macOS, Windows, ein Lauf der getrennten Pages-Jobs.
+    Handprüfung und Reste: `docs/Backlog.md`, „Nach Runde 32 offen“.
+  - **Für den PM:** `docs/Fahrplan.md` (Runde 32 mit Beginn/Ende aus `git log`) ist nicht nachgeführt.
 - **Runde 33 „Menüband und Laptop-Modus“ integriert** (2026-11-25, Integrator; Hauptordner der Runde
   `.claude/worktrees/r33`, Zweig **`runde33`** – nicht `development`, weil Runde 32 dort parallel läuft; Schnittstelle
   R33-S1 `f7493c2`; Zweige `team/menueband-r33` `e9481ea`, `team/laptop` `d5f8fc0`, `team/seiten` `fdfc3fb` mit

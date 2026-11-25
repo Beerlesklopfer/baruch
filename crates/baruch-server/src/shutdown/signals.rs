@@ -34,6 +34,7 @@ impl SystemSignal {
 }
 
 /// Strg+C; lässt sich der Empfänger nicht einrichten, kommt dieses Signal nie (statt sofort zu beenden).
+#[cfg(not(unix))]
 async fn ctrl_c() {
     if let Err(e) = tokio::signal::ctrl_c().await {
         eprintln!("Signale: Strg+C lässt sich nicht abfangen: {e}");
@@ -42,18 +43,32 @@ async fn ctrl_c() {
 }
 
 /// Wartet auf das erste Signal, das Baruch beenden soll.
+///
+/// Die Empfänger sind **mit dem Aufruf** eingerichtet, nicht erst beim ersten Warten (Integration Runde 32): `main`
+/// ruft dies auf, bevor „Baruch läuft“ auf der Standardausgabe steht. Sonst träfe ein `SIGTERM` unmittelbar nach
+/// dieser Zeile (ein Starter oder `systemctl stop` gleich nach dem Start) noch die Vorgabe des Systems und
+/// beendete den Prozess hart, ohne die Datenbank zu schließen. Braucht eine laufende Tokio-Laufzeit.
 #[cfg(unix)]
-pub async fn system_signal() -> SystemSignal {
+pub fn system_signal() -> impl Future<Output = SystemSignal> + Send + 'static {
     use tokio::signal::unix::{SignalKind, signal};
-    match signal(SignalKind::terminate()) {
-        Ok(mut terminate) => tokio::select! {
-            () = ctrl_c() => SystemSignal::patient("Strg+C"),
-            _ = terminate.recv() => SystemSignal::patient("SIGTERM"),
-        },
-        Err(e) => {
-            eprintln!("Signale: SIGTERM lässt sich nicht abfangen: {e}");
-            ctrl_c().await;
-            SystemSignal::patient("Strg+C")
+    let terminate = signal(SignalKind::terminate());
+    let interrupt = signal(SignalKind::interrupt());
+    async move {
+        // Lässt sich ein Empfänger nicht einrichten, kommt sein Signal nie; der andere gilt weiter.
+        async fn received(receiver: std::io::Result<tokio::signal::unix::Signal>, name: &str) {
+            match receiver {
+                Ok(mut receiver) => {
+                    receiver.recv().await;
+                }
+                Err(e) => {
+                    eprintln!("Signale: {name} lässt sich nicht abfangen: {e}");
+                    std::future::pending::<()>().await;
+                }
+            }
+        }
+        tokio::select! {
+            () = received(interrupt, "Strg+C") => SystemSignal::patient("Strg+C"),
+            () = received(terminate, "SIGTERM") => SystemSignal::patient("SIGTERM"),
         }
     }
 }

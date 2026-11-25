@@ -586,6 +586,17 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     `<html>`, vom Server aus Cookies gezeichnet, keine Media-Queries.
   - Jede Seite öffnet mit ihrem Reiter; die Satz-Seite trägt ihre Bedienung im Reiter Buch.
   - Keine Migration, keine neue Route, keine neue RPC-Methode, kein neues MCP-Werkzeug.
+- **Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen** (2026-11-25, auf `development` nach Runde 33; Version
+  unverändert 0.9.0, im CHANGELOG unter „Unveröffentlicht“):
+  - Word-Import (`/werke/import/word`, RPC `docx_import.*`, CLI `import DATEI.docx`): Vorschau mit Gliederung,
+    Bearbeitern und Hinweisen; Fassung 1 = Stand vor allen verfolgten Änderungen, Änderungen je Bearbeiter als offene
+    Vorschläge unter `@word:<name>`, Kommentare als Beiträge – nie eine aktuelle Fassung.
+  - Word-Export (`/werke/{id}/word`, RPC `work.docx_export`, CLI `export … --docx`): Formatvorlagen, echte Fußnoten,
+    eingebettete Bilder, Typst-Inseln mit wörtlichem Quelltext; auf Wunsch der jüngste offene Vorschlag je Abschnitt
+    als Änderungsverfolgung. Die eigene Datei kommt beim Import mit gleicher Gliederung und gleichem Text zurück.
+  - Baruch beenden (`/beenden`, nur am eigenen Rechner, nicht über RPC/MCP), sauberes Herunterfahren auch auf
+    SIGTERM, Starter mit App-Fenster, Pages in zwei Jobs.
+  - Neues Crate `baruch-docx`; keine Migration, kein neues MCP-Werkzeug. In Microsoft Word ist nichts geprüft.
 - Prüfung: `cargo test --workspace`; Vorschau `cargo run -p baruch-server`, im Browser
   http://127.0.0.1:8765/ (Daten in `~/.local/share/baruch` bzw. `--data`).
 - Noch nicht: Handprüfung der Backends OpenAI-kompatibel und Ollama gegen echte Dienste (nur Nachbauten), Kommentare/Befunde im Abgleich nach MultiGPT, Markdown-Import. Kommentare

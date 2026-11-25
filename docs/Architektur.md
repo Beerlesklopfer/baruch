@@ -15,6 +15,7 @@ der Kern ist über JSON-RPC erreichbar. Plan und Stufen: `docs/Plan.md`.
 | `baruch-sword` | SWORD-Bibelmodule lesen (2026-11-06): Modulordner durchsuchen (`scan`, conf-Angaben samt Lizenzvermerk), `open` → `Bible` (`verse`, `passage`, `search`), Klartext aus OSIS/ThML/GBF (`text`), Test-Module (`fixture`); Format-Leser `sword-modules` 0.1.0 (CC0-1.0), nur German/KJV, siehe „SWORD-Bibeln“ |
 | `baruch-typst` | Zerlegen einer Typst-Datei in Werkvorlage und Überschriften (`parse`) und zurück (`join`), Nummerierung aus der Vorlage (`heading_numbering`), Gliederungsschemata (`scheme`), Bildpfade (`images::image_paths`; berechnete Bilder der Vorlage `images::computed_images`, Runde 11), Umschlag und Titelei (`cover`, Runde 11: `frame_parts`, `wrap_source`, `isbn13`, `ean13_svg`, `spine_mm`), Verketten mit Bytebereichen (`join_with_offsets`) und Zeile wie Typst (`line_at`); Runde 14: Teil und „ohne Nummer“ als Markierung (`marker`: `part_line`, `unnumbered_line`, `relevel_line`, `set_numbered_line`, `part_page_rule`, `PART_LABEL`, `UNNUMBERED_LABEL`; `Heading.level` 0 = Teil, `Heading.numbered`); Markdown-Überschriften (`markdown`: `markdown_headings`, `markdown_heading_line`, Nutzer 2026-11-07, gleicher Scanner wie `parse`), rein, ohne DB |
 | `baruch-wysiwyg` | Satzbild-Editor, rein, ohne DB und Dateisystem: Abschnittstext ↔ Blöcke (`parse`, `serialize`, `emit`; unberührte Blöcke wörtlich, Rundreise byte-gleich; eine Überschrift endet am ersten Zeilenumbruch, `split_heading`), Typst-Inseln, HTML für Satzbild und Diff (`render_html`, `diff_html`), mit Bildern in Inseln (`render_html_with`, `diff_html_with`, `image_path`, `ImageRef`), Darstellung aus der Werkvorlage (`sheet_style`, `sheet_css`, nur Regeln der obersten Ebene), Ausrichtung von Vorschlägen an Blöcken (`src/align.rs`: `align(base, proposal) -> Vec<Hunk>` über die längste gemeinsame Teilfolge der obersten Blöcke, `Hunk {kind: Changed\|Inserted\|Removed, base, proposal}`, `hunk_html_with`); Runde 14: Blockarten `part` und `unnumbered` für die Markierungen (nur oberste Ebene, erkannt über `baruch_typst::parse`); hängt nur an `baruch-typst` (`heading_line`, `part_line`, `unnumbered_line`) |
+| `baruch-docx` | Word-Dateien (Runde 32), rein, ohne DB und Netz (`zip` 9 nur `deflate`, `quick-xml` 0.42, `baruch-typst`, `baruch-wysiwyg`): gemeinsames Modell (`model.rs`: `DocxDocument`, `Block`, `Inline`, `Change`, `Comment`, `DocxImage`), `DocxError`, `Limits`, festgelegte OOXML-Namen (`ooxml.rs`), Beispiel (`sample.rs`); Leser `read` → `resolve`/`proposal_view` → `to_typst`; Schreiber `from_typst` → `diff::track_changes` → `write`. Nahtstelle beider Seiten: `tests/roundtrip.rs` |
 | `baruch-render` | Typst-Satz (Runde 8), rein, ohne DB und Netz: bettet `typst` 0.15.1 ein (`typst-svg`, `typst-layout` für `PagedDocument`, `typst-kit` nur mit `embedded-fonts` und `scan-fonts`; keine Pakete). `Source {main, files}`, `stand(&Source)` (SHA-256 über Text und nach Pfad sortierte Dateien = Cache-Schlüssel), `compile(&Source) -> Rendered {stand, pages: Vec<SVG>, headings: [HeadingPos {line, page}], diagnostics: [Diagnostic {severity, message, hints, line, column, file}]}` (blockierend, scheitert nie). Die Welt kennt nur `/main.typ` und die Dateien in Normalform; Paket-Ids → Fehler „offline“; Schriften einmal je Prozess (eingebettete, dann System); bekannte Meldungen auf Deutsch; nach jedem Lauf `comemo::evict(2)`. Runde 11: `compile_pdf(&Source) -> Pdf` (`typst-pdf` 0.15.1, Apache-2.0; dieselbe Welt, gleiche Seitenzahl), Druckprüfung `Rendered.print`/`Pdf.print` (`PrintWarning`, `MIN_DPI` = 300), `sha256_hex` |
 | `baruch-store` | SQLite als Quelle (sqlx, Laufzeit-API, Migrationen 0001–0099): Laden, Übernehmen, Umschalten, Verwerfen, Speichern (auf einer Basis), Ändern, Löschen, Vorschlag, Beitrag, Typst-Import – je eine Transaktion (`BEGIN IMMEDIATE`); Revisionsbaum (`src/tree.rs`); Titelregeln (`check_title`); Bilder (`src/assets.rs`, 0009, `normalize_asset_path`); Personas mit Farben, Rolle, Modell, Kontext (`src/personas.rs`, 0010; `PersonaRow`, `PersonaEdit`, `persona_list`, `update_persona`); Verbindungen, RAG-Wege, bevorzugte Quellen (`src/connections.rs`, 0013); Einfälle (`src/ideas.rs`, 0011); Beiträge verwalten (`src/posts.rs`: `PostInfo`, `post_get`/`post_delete`/`post_move`/`post_to_idea`, Umwandlung in einer Transaktion über `ideas::create_in`; `StoreError::UnknownPost`; keine Migration); Schnappschuss für Git, Typst-Export, Export-Karte (`src/export_map.rs`: `ExportMap {typst, sections: [ExportSection {key, seq, start, end, first_line}]}`, `typst` byte-gleich mit `export_typst`, beide aus `snapshot::export_parts`; `section_at_line`); Titelprüfung nur für geänderte Titel (`check_chunk_titles(chunks, old_title)`); Runde 11: Buchangaben und Umschlag (`src/book.rs`, 0017), Anträge zu Bildern (`src/asset_requests.rs`, 0018), `asset_search`, `save_persona`; Runde 12: Sammlungen je Werk und Weg (`src/rag_collections.rs`, 0031: `work_collections`, `set_work_collections`), RAG-Belege je Persona (`src/persona_rag.rs`, 0032: `persona_rag`, `set_persona_rag`) |
 | `baruch-gitmirror` | Git-Spiegel mit gix (reines Rust, ohne Netzwerk): Schnappschuss-Commit mit Autor, Committer, Trailern; kein Commit ohne Änderung, außer mit `allow_empty` (Protokoll); keine Schreibzugriffe durch symbolische Verknüpfungen |
@@ -5050,3 +5051,158 @@ Fensterbreite** – sonst gäbe es zwei Wahrheiten, sobald der Mensch „An“ o
   und wird vom Widget sofort umgestellt (ein kurzer Sprung, danach stimmt das Cookie).
 - Das Cookie `baruch_vw` gilt je Browser, nicht je Fenster: Zwei verschieden breite Fenster überschreiben es
   gegenseitig; das Widget stellt jedes Fenster nach dem Laden richtig.
+
+## Runde 32 – Word und Beenden
+
+Neues Crate `baruch-docx` (rein, ohne Datenbank und Netz; `zip` 9 nur mit `deflate`, `quick-xml` 0.42) mit dem
+gemeinsamen Modell (`model.rs`), Fehlern, Grenzen (`limits.rs`) und den festgelegten Namen von OOXML (`ooxml.rs`).
+Leser (`read`, `resolve`, `to_typst`) und Schreiber (`from_typst`, `diff`, `write`) sind dateigetrennt; beide
+kennen nur das Modell. Im Server stehen `docx_import/`, `docx_export/` und `shutdown.rs`. Keine Migration.
+
+### Runde 32 – Word-Import (docx_import)
+
+**Crate `baruch-docx`, Leserseite** (rein, ohne Datenbank und Netz):
+
+- `read::read(bytes, &Limits) -> ReadDocx { document, warnings }` – `read/pack.rs` öffnet das ZIP (Größe der Datei,
+  Zahl der Einträge, erklärte Größen vor dem Entpacken; jeder Eintrag über `take(Grenze + 1)`, die Summe des wirklich
+  Entpackten zählt mit; Namen mit `..`, führendem `/`, Rückstrich oder Laufwerk → `Unsafe`; OLE-Anfang → `NotDocx`
+  „altes .doc oder verschlüsselt“) und löst Beziehungen auf (Ziel außerhalb des Archivs ohne `TargetMode="External"`
+  → `Unsafe`; externe Ziele werden nie abgerufen, ein nur verknüpftes Bild ergibt `docx_bild_extern`).
+  `read/xml.rs` baut je Teil einen kleinen Baum mit quick-xml: DTD → `Unsafe`, nur die fünf festen Entitäten und
+  Zeichenverweise werden aufgelöst, Tiefe und Elementzahl begrenzt. Elemente heißen wie in der Datei (`w:p`) –
+  Annahme: die üblichen Präfixe. `read/body.rs` bildet den Textkörper auf das Modell ab: Rolle der Absatzvorlage
+  (ID `Heading N`, Name „heading N“/„Überschrift N“, `basedOn`, `w:outlineLvl` in Vorlage oder Absatz, die
+  Baruch-Vorlagen aus `ooxml.rs`), Läufe mit Zeichenformaten, `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo` als
+  `Inline::Tracked`, Änderung der Absatzmarke als `mark`, Fußnoten/Endnoten inline, Kommentarbereiche, Links,
+  Bilder (DrawingML und VML; Medientyp aus den ersten Bytes), Listen über `numbering.xml`, Tabellen, Typst-Inseln
+  (`w:sdt` mit `w:tag="baruch-typst"`: der mit `w:vanish` verborgene Text ist der Quelltext, Absätze sind Zeilen).
+  Warnungen je Code einmal mit der Zahl der Stellen.
+- `resolve::resolve(document, View)` löst die Änderungsverfolgung auf (`Original`, `Final`, `FinalBy(name)`); eine
+  nicht angewandte eingefügte Absatzmarke lässt den Absatz im folgenden aufgehen, eine angewandte gelöschte lässt ihn
+  den folgenden aufnehmen. `change_authors` nennt die Bearbeiter in der Reihenfolge des ersten Auftretens.
+  `proposal_view(document, name)` ist `FinalBy` mit den Überschriften des Originals und liefert `HeadingChange`
+  (`before` leer = eingefügt, `after` leer = gelöscht; `section` zählt wie `to_typst` am Original, ein Vorspann vor
+  der ersten Überschrift ist Abschnitt 0).
+- `to_typst::to_typst(document) -> TypstOut { sections, warnings }` schreibt je Abschnitt Typst in den Formen des
+  Markdown-Imports (Text maskiert, Auszeichnung als Funktion, `#quote(block: true, attribution: […])[…]`, Listen mit
+  `-`/`+`, `#table(…)`, `#figure(image("…", alt: "…"), caption: […])`) und sammelt je Abschnitt die Kommentar-Anker
+  (kommentierter Wortlaut). Text vor der ersten Überschrift wird ein Abschnitt mit leerem Titel.
+
+**Server `docx_import`** (`src/docx_import/mod.rs`, `draft.rs`, `pages.rs`, Vorlage `docx_import.html`):
+
+- `prepare(bytes) -> Prepared` (rein, in `spawn_blocking`): liest, schreibt das Original als Abschnitte, legt je
+  Bearbeiter den Vorschlagsstand auf die Abschnitte des Originals (nur abweichende Abschnitte zählen), ordnet
+  Kommentare ihren Abschnitten zu (zuerst am Original, sonst am Stand eines Bearbeiters) und sammelt die Warnungen.
+- `preview` legt den Entwurf ab (`draft.rs`, gehalten wie `pdf_import/draft.rs`: 32 Hex, 20 Stück, 24 Stunden);
+  `apply` liest die abgelegte Datei neu und ruft `apply_prepared`:
+  1. Werk über `import::import_generated` (ein Commit „Import aus <datei>“, Bilder als `ImportAsset`),
+  2. unter der Schreibsperre je Bearbeiter und Abschnitt `Store::add_proposal(…, "@word:<name>", "word", Notiz)` –
+     der Text ist die aktuelle Fassung mit ersetztem Abschnittstext, die Überschriftszeile bleibt wörtlich –, danach
+     `mirror::side_refs_after_proposal` (Seitenzweige `refs/revisions/<key>/<n>` mit Persona und Modell),
+  3. Beiträge über `Store::add_post` (geänderte Überschriften, Kommentare mit `TextRef` auf Fassung 1, Antworten
+     direkt hinter ihrem Kommentar).
+  Nie `set_current`: Fassung 1 bleibt die aktuelle. Ein Fehler in 2 oder 3 wird als Warnung gemeldet, das Werk
+  bleibt.
+- `cli_import` teilt `prepare`/`apply_prepared`; ohne `--uebernehmen` wird nichts geschrieben.
+
+**Annahmen (ohne echtes Word geprüft):** Die Tests bauen ihre Word-Dateien selbst nach ECMA-376 und `ooxml.rs`; eine
+von Microsoft Word oder LibreOffice geschriebene Datei wurde nicht gelesen. Angenommen ist insbesondere: Präfixe wie
+oben; Antworten auf Kommentare über `commentsExtended.xml` (`w15:paraIdParent` ↔ `w14:paraId` des Kommentarabsatzes);
+die Träger der Typst-Insel wie in `ooxml.rs` beschrieben (mehrzeiliger Quelltext als mehrere verborgene Absätze oder
+mit `w:br`).
+
+### Word-Export (`baruch-docx` Schreiber, `baruch-server/src/docx_export`)
+
+Der Weg vom Werk zur Datei hat drei reine Stufen im Crate `baruch-docx` und eine lesende im Server:
+
+1. **`from_typst(body, image_paths)`** (`from_typst.rs`, `from_typst/args.rs`): liest einen Abschnitt mit
+   `baruch_wysiwyg::parse` und bildet die Blöcke auf das Modell ab. Abbildungen (`#figure(image(…))`, `#image(…)`)
+   werden `Block::Figure` mit wörtlichem `raw`, einfache Tabellen `Block::Table`, `#pagebreak()` `Block::PageBreak`.
+   Alles andere wird `Block::Typst`/`Inline::Typst` mit wörtlichem Quelltext und sichtbarem Ersatz (Warnung
+   `docx_typst_insel`); Unsichtbares (Label, Registermarke, Kommentar) geht ohne Warnung als Insel ohne Sichtbares
+   mit, Querverweise mit ihrem Text.
+2. **`track_changes(current, proposed, change)`** (`diff.rs`): richtet die Blöcke über die längste gemeinsame
+   Teilfolge aus, ordnet in jeder Lücke ähnliche Blöcke gleicher Art einander zu (Anteil gemeinsamer Wörter) und
+   vergleicht sie wortweise; übrige Blöcke sind ganz neu oder entfallen ganz (`mark` an der Absatzmarke, Inhalt in
+   `Inline::Tracked`). Zusage: Einfügungen behalten und Löschungen entfernt = Vorschlag, umgekehrt = aktuelle
+   Fassung (Ausnahmen siehe Kopf von `diff.rs`: leeres Tabellengitter, Seitenumbrüche).
+3. **`write(document, options)`** (`write.rs`, `write/body.rs`, `write/styles.rs`, `write/image.rs`): schreibt das
+   Archiv in fester Reihenfolge mit festen ZIP-Zeiten (deterministisch): `[Content_Types].xml`, `_rels/.rels`,
+   `docProps/app.xml`, `docProps/core.xml`, `word/document.xml` samt Beziehungen, `styles.xml`, `settings.xml`,
+   `numbering.xml`, `footnotes.xml` (bei Verweisen in Fußnoten mit eigenen Beziehungen), `comments.xml` (nur mit
+   Kommentaren), Bilder unter `word/media/imageN.<endung>`. XML-verbotene Zeichen werden durch U+FFFD ersetzt.
+4. **`docx_export::build`** (Server): liest Werkangaben, alle Fassungen (`Store::load_work`, Zeitpunkte aus
+   `Store::revision_tree`), Bilder (`Store::export_assets`, nur PNG/JPEG/GIF) und – mit Vorschlägen – die Marken
+   „bis hierhin“ (`Store::work_revision_folds`). Offen ist ein Vorschlag mit Status „vorgeschlagen“, der nicht nach
+   `baruch_core::revision_fold::is_hidden` ausgeblendet ist. Es gibt nur lesende Zugriffe; das Packen läuft in
+   `spawn_blocking`.
+
+Festlegungen des Schreibers über `ooxml.rs` hinaus (für den Leser und die Rundreise):
+
+- Der Pfad eines Bildes im Werk steht in `wp:docPr name`, der Alternativtext in `descr`.
+- Eine Abbildung mit `raw` steht in einem Inhaltssteuerelement `baruch-typst` (verborgener Quelltext, dann Bild und
+  Unterschrift) – für den Leser also eine Insel mit `raw`, was beim Zurücklesen den wörtlichen Quelltext ergibt.
+- Geordnete Listen: die erste mit Beginn 1 benutzt `NUM_DECIMAL`, jede weitere eine eigene `w:num` (ab 3) auf
+  derselben abstrakten Nummerierung mit `w:startOverride` – sonst zählte Word über alle Listen des Buchs weiter.
+- Verfolgte Änderungen stehen um jeden Lauf einzeln (`w:ins`/`w:del`), eine verfolgte Insel als
+  `w:ins`/`w:del` um das `w:sdt`. Die Absatzmarke der Zitatquelle und der Bildunterschrift gilt als verfolgt, wenn
+  ihr ganzer Inhalt eine Änderung derselben Art ist.
+- Fußnotentext beginnt wie in Word mit einem Leerzeichen hinter dem Fußnotenzeichen.
+- Untertitel steht zusätzlich in `dc:subject`, das Impressum in `dc:description`.
+
+### Beenden (`shutdown.rs`)
+
+- `crates/baruch-server/src/shutdown.rs` – Beenden (Runde 32).
+  - `Shutdown` (in `AppState::shutdown`): Auslöser auf einem `watch`-Kanal; einmal verlangt, bleibt verlangt.
+  - `own_machine(hosts, peer, headers)`: wahr nur, wenn die Gegenstelle (`ConnectInfo`) bekannt und Loopback ist
+    (`to_canonical`, damit `::ffff:127.0.0.1` zählt), `guard::via_proxy` verneint und `Host` fehlt oder
+    `guard::allowed_host` erfüllt. `guard.rs` blieb unberührt.
+  - `serve` → `serve_until(listener, state, grace, signal)`: `axum::serve(…)` mit
+    `into_make_service_with_connect_info::<SocketAddr>()` und `with_graceful_shutdown` auf das erste von Signal
+    (`shutdown/signals.rs`) und `Shutdown::requested()`. Danach nimmt der Server keine Verbindung mehr an,
+    ruhende Verbindungen schließen, laufende Anfragen werden beantwortet. Eine zweite Zukunft wartet ab dem
+    Auslöser die Frist (`GRACE` = 10 s) ab; ist dann noch eine Verbindung offen, wird nicht länger gewartet
+    (Meldung auf stderr). Zuletzt `store.pool().close()` (höchstens `CLOSE_WAIT` = 5 s): SQLite schreibt das
+    Protokoll (`-wal`) zurück. `serve` schreibt dann „Baruch beendet.“; `main` kehrt zurück, Status 0.
+  - `shutdown/signals.rs` (nur `tokio`, einzeln übersetzbar): Strg+C überall; Unix `SIGTERM`; Windows
+    `ctrl_break`, `ctrl_close`, `ctrl_shutdown` – die letzten beiden mit Frist `WINDOWS_CLOSE_GRACE` = 3 s, weil
+    Windows den Prozess kurz nach dem Ereignis selbst beendet. Kein `SIGHUP` (ein Empfänger höbe `nohup` auf).
+  - Seiten: eigene Template-Umgebung (`base.html`, `shutdown.html`, `shutdown_done.html`). Die Abschlussseite
+    ist in sich geschlossen (Stil inline, einziges Skript `window.close()`), weil der Server danach nichts mehr
+    liefert. `POST /beenden` antwortet zuerst und löst `REPLY_DELAY` = 500 ms später aus.
+  - Kein Widget, keine `.ts`-Datei: Das Inline-Skript der Abschlussseite genügt.
+- Tests: `src/shutdown.rs` (Auslöser, Tabelle zu `own_machine`), `tests/round32_beenden.rs` (Seiten am echten
+  Server im Testprozess, echter Prozess mit Knopf/SIGTERM/Strg+C, Starter mit Attrappen in abgeschlossenem
+  `PATH`, Units, Workflows).
+- CI: `pages.yml` und `release.yml` trennen `pages-build` und `pages-deploy`; Regel 11 in
+  `scripts/ci-check-workflows.sh`, Gegenproben in `scripts/ci-selftest.sh`.
+
+Bekannte Grenze: Läuft beim Beenden noch ein blockierender Auftrag (`spawn_blocking`, etwa ein Typst-Satz),
+wartet die Tokio-Laufzeit beim Verlassen von `main` auf ihn – das Ende kann sich dann über die Frist hinaus
+verzögern. Die Datenbank ist zu diesem Zeitpunkt bereits geschlossen. Nicht mit einem Test belegt.
+
+### Integration (Runde 32)
+
+- **Nahtstelle Leser/Schreiber:** Beide Seiten entstanden getrennt gegen `model.rs` und `ooxml.rs`. Die Rundreise
+  (`crates/baruch-docx/tests/roundtrip.rs` am Modell, `tests/round32_abnahme.rs` über den Server) fand drei Lücken,
+  alle im Leser bzw. in `to_typst` behoben:
+  - `w:lvlOverride`/`w:startOverride` an `w:num` gilt als erste Nummer der Liste (`read.rs`, `Numbering::overrides`) –
+    so schreibt der Schreiber jede weitere Aufzählung, und so beginnt auch Word eine Liste neu.
+  - Eine Aufzählung, die nicht bei 1 beginnt, trägt in `to_typst` an jedem Punkt ihre Nummer („3.“, „4.“ …,
+    geschachtelt ab 1). „3.“ gefolgt von „+“ versteht Typst, `baruch-wysiwyg` läse es aber als zwei Listen.
+  - Der Pfad eines Bildes im Werk kommt aus `wp:docPr name` zurück, wenn der Name wie ein Pfad aussieht
+    (`read/body.rs`, `work_path`: relativ, ohne `..`, Endung passend zum Inhalt); Bilder im sichtbaren Teil einer
+    Typst-Insel werden mitgelesen (`island_images`), weil der Quelltext der Insel sie nennt.
+- **Signale vor „Baruch läuft“:** `signals::system_signal()` richtet die Empfänger (Unix: `SIGINT`, `SIGTERM`) beim
+  Aufruf ein, nicht erst beim ersten Warten; `main` ruft es vor der Zeile „Baruch läuft“ und reicht die Zukunft an
+  `shutdown::serve_with(listener, state, signal)` (`serve` = `serve_with` mit `system_signal()`). Vorher beendete ein
+  `SIGTERM` unmittelbar nach dieser Zeile den Prozess hart (Test `sigterm_ends_the_throwaway_server_with_exit_0`).
+- **`main.rs`:** Nach erfolgreichem `shutdown::serve_with` endet `main` mit `std::process::exit(0)`, damit ein noch
+  laufender blockierender Auftrag das Ende nicht über die Frist hinaus verzögert (die Datenbank ist dann schon
+  geschlossen, die Schlusszeile ausgegeben).
+- **Wächter `round33_seiten`:** Die drei neuen Vorlagen (`docx_import.html`, `docx_export.html`, `shutdown.html`)
+  stehen in `TEMPLATES`.
+- **Offen:** `commentsExtended.xml` schreibt der Schreiber nicht (Antworten stehen als eigene Kommentare, der Server
+  schreibt ohnehin keine); die privat gehaltenen Konstanten des Schreibers (`NS_APP`, `PART_FOOTNOTES_RELS`,
+  `STYLE_HYPERLINK`, `STYLE_COMMENT_TEXT`, `STYLE_COMMENT_REFERENCE`) sind nicht nach `ooxml.rs` gezogen; Zitate im
+  Text stehen in Word ohne Anführungszeichen; SVG und WebP werden nicht eingebettet.

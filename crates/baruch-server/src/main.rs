@@ -375,12 +375,18 @@ async fn serve(listen: &str, data: PathBuf, secrets: Option<&str>, allowed_hosts
              muss der Proxy stellen. /mcp verlangt unter diesen Namen einen Token."
         );
     }
+    // Runde 32: Bedienen und Herunterfahren (Signale, Seite /beenden) stehen in `shutdown`. Die Empfänger der Signale
+    // sind eingerichtet, bevor die Zeile „Baruch läuft“ dasteht: Wer auf sie wartet und gleich ein SIGTERM schickt,
+    // trifft schon das saubere Herunterfahren.
+    let signal = baruch_server::shutdown::system_signal();
     println!("Baruch läuft: http://{}/", listener.local_addr().unwrap());
-    // Runde 32: Bedienen und Herunterfahren (Signale, Seite /beenden) stehen in `shutdown::serve`.
-    if let Err(e) = baruch_server::shutdown::serve(listener, std::sync::Arc::new(state)).await {
+    if let Err(e) = baruch_server::shutdown::serve_with(listener, std::sync::Arc::new(state), signal).await {
         eprintln!("Server: {e}");
         std::process::exit(1);
     }
+    // Die Datenbank ist geschlossen, die Schlusszeile steht da. Ohne diesen Ausgang wartete die Laufzeit beim
+    // Verlassen von `main` noch auf blockierende Aufträge (etwa einen laufenden Typst-Satz) – über die Frist hinaus.
+    std::process::exit(0);
 }
 
 async fn import(file: &std::path::Path, title: Option<&str>, data: PathBuf) {

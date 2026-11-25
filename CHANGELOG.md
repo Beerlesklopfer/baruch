@@ -6,7 +6,34 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
-Runde 32 (in Arbeit): Word-Dateien (.docx) importieren und exportieren, Baruch über die Oberfläche beenden.
+### Word und Beenden (Runde 32)
+
+- **Word-Import:** „Baruch ▾ → Word (.docx) importieren…“ liest eine Word-Datei, zeigt Gliederung, Bearbeiter und
+  Hinweise und legt nach Bestätigung ein Werk an. Fassung 1 ist der Stand vor allen verfolgten Änderungen; die
+  Änderungen jedes Bearbeiters werden offene Vorschläge unter `@word:<name>`, Kommentare werden Beiträge an der
+  kommentierten Stelle – nie eine aktuelle Fassung. Auch über RPC (`docx_import.preview/get/apply/discard`) und die
+  Kommandozeile (`baruch-server import DATEI.docx [--uebernehmen]`); nicht über MCP.
+- **Word-Export für den Verlag:** Buch → Export → „Word …“ (`/werke/<id>/word`), RPC `work.docx_export` und
+  `baruch-server export ID|SLUG --docx DATEI [--vorschlaege]` schreiben das Werk als .docx: Titelei aus den
+  Werkangaben, Formatvorlagen „Überschrift 1–3“, „Baruch Teil“ und „Baruch ohne Nummer“, echte Fußnoten, eingebettete
+  Bilder mit Alternativtext, Listen, Blockzitate und einfache Tabellen. Was Word nicht abbilden kann, steht als
+  Typst-Insel mit wörtlichem Quelltext in der Datei und wird als Warnung genannt. Auf Wunsch liegt je Abschnitt der
+  jüngste offene Vorschlag als Änderungsverfolgung über der aktuellen Fassung, mit der Persona als Bearbeiter. Der
+  Export ändert nichts am Werk. Das Öffnen in Word prüft nur der Nutzer; mit LibreOffice ist nur eine Umwandlung
+  ohne Fenster geprüft.
+- **Baruch beenden:** Menü Baruch ▾ → „Baruch beenden…“ mit Rückfrage (`/beenden`, auch ohne JavaScript). Nur am
+  eigenen Rechner, nie unter einem Proxy-Namen, nicht über RPC oder MCP. Danach „Baruch ist beendet – dieses
+  Fenster kann geschlossen werden“; das Fenster schließt sich, wenn der Browser es zulässt.
+- **Sauberes Herunterfahren** auch auf `SIGTERM` (`systemctl stop`, `kill`) und unter Windows auf Strg+Pause,
+  das Schließen des Fensters und das Herunterfahren (Windows ungeprüft): laufende Antworten gehen zu Ende
+  (höchstens 10 s), die Datenbank wird geschlossen, letzte Zeile „Baruch beendet.“, Status 0. Bisher nur Strg+C.
+- **Starter:** öffnen, wenn vorhanden, ein eigenes Fenster eines Chromium-artigen Browsers (`--app`), unter
+  Windows Edge; `BARUCH_BROWSER=standard` nimmt den Standardbrowser. Der Starter wartet nach einem Signal auf
+  das saubere Ende des Servers.
+- **CI:** Webseite wird in zwei Jobs gebaut (`pages-build`) und ausgeliefert (`pages-deploy`).
+- **Rundreise:** Eine von Baruch geschriebene Word-Datei liest der Word-Import mit derselben Gliederung und
+  demselben Text wieder ein; eine Datei mit Änderungsverfolgung ergibt wieder aktuelle Fassung und offenen
+  Vorschlag. Listen, die nicht bei 1 beginnen, behalten beim Import ihre Nummern („3.“, „4.“ …).
 
 ## 0.9.0
 

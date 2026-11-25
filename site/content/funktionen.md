@@ -108,6 +108,9 @@ Mehr dazu unter [MCP und Assistenten](/mcp/).
 - **Import:** Typst, Markdown (auch als ZIP mit Bildern), PDF, EPUB und Word (.docx) – immer mit Vorschau der Gliederung,
   angelegt erst nach Bestätigung.
 - **Export:** Typst-Datei oder -Ordner mit Bildern, Buch-PDF, Umschlag-PDF, EPUB, Word (.docx), Stichwortzettel.
+- **Word-Export für den Verlag:** Baruch schreibt das Werk als Word-Datei (.docx) mit Formatvorlagen für
+  Überschriften, echten Fußnoten und eingebetteten Bildern – auf Wunsch mit den offenen Vorschlägen der Assistenten
+  als Änderungsverfolgung, die der Verlag in Word annimmt oder ablehnt.
 - **Austausch zwischen Instanzen:** Die `.baruch`-Datei trägt ein Werk vollständig, aber keine Schlüssel. Beim
   Abgleich kommt nur dazu, was fehlt; nichts wird gelöscht oder überschrieben.
 

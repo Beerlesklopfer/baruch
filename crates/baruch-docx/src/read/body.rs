@@ -172,7 +172,45 @@ fn is_typst_island(sdt: &Element) -> bool {
     sdt.child("w:sdtPr").and_then(|p| p.child_val("w:tag")) == Some(ooxml::SDT_TAG_TYPST)
 }
 
+/// Der Name einer Zeichnung als Pfad eines Bildes im Werk – nur wenn er wie einer aussieht: relativ, ohne `..`,
+/// Rückstrich, Laufwerk oder Steuerzeichen, höchstens 200 Zeichen und mit der Endung, die zum Inhalt passt. Word
+/// selbst nennt Zeichnungen „Grafik 1“ oder „Picture 1“; das bleibt außen vor.
+fn work_path(name: &str, media: &str) -> Option<String> {
+    let endings: &[&str] = match media {
+        "image/png" => &["png"],
+        "image/jpeg" => &["jpg", "jpeg"],
+        "image/gif" => &["gif"],
+        "image/webp" => &["webp"],
+        "image/svg+xml" => &["svg"],
+        _ => return None,
+    };
+    let (stem, ending) = name.rsplit_once('.')?;
+    let safe = name.len() <= 200
+        && !stem.is_empty()
+        && endings.contains(&ending.to_ascii_lowercase().as_str())
+        && !name.starts_with('/')
+        && !name.chars().any(|c| c.is_control() || matches!(c, '\\' | ':' | '"' | '<' | '>' | '|' | '?' | '*'))
+        && name.split('/').all(|part| !part.is_empty() && part != "." && part != ".." && part.trim() == part);
+    safe.then(|| name.to_owned())
+}
+
 impl BodyReader<'_, '_> {
+    /// Bilder im sichtbaren Teil einer Typst-Insel: Das Modell behält von der Insel nur den Quelltext, das Bild
+    /// selbst muss trotzdem ins Werk – der Quelltext nennt es (`image("bilder/…")`).
+    fn island_images(&mut self, el: &Element) -> Result<(), DocxError> {
+        for e in el.elements() {
+            if e.name == "w:drawing" {
+                if let Some(rid) = e.find("a:blip").and_then(|blip| blip.attr("r:embed")) {
+                    let name = e.find("wp:docPr").and_then(|d| d.attr("name"));
+                    self.image(rid, name)?;
+                }
+            } else {
+                self.island_images(e)?;
+            }
+        }
+        Ok(())
+    }
+
     fn count_text(&mut self, text: &str) -> Result<(), DocxError> {
         self.text_bytes += text.len();
         if self.text_bytes > self.limits.max_text_bytes {
@@ -208,7 +246,11 @@ impl BodyReader<'_, '_> {
     }
 
     /// Bild einer Beziehung einlesen; `None` = übersprungen (mit Warnung).
-    fn image(&mut self, rid: &str) -> Result<Option<usize>, DocxError> {
+    ///
+    /// `wanted` ist der Name der Zeichnung (`wp:docPr name`): Der Schreiber von Baruch legt dort den Pfad des Bildes
+    /// im Werk ab. Sieht der Name wie ein solcher Pfad aus (siehe [`work_path`]), bekommt das Bild ihn wieder –
+    /// sonst zeigte der wörtliche Typst-Quelltext einer Abbildung nach der Rundreise auf ein Bild, das es nicht gibt.
+    fn image(&mut self, rid: &str, wanted: Option<&str>) -> Result<Option<usize>, DocxError> {
         let Some(rel) = self.rels.get(rid) else {
             self.warnings
                 .add("docx_bild_format", "Ein Bild verweist auf eine Beziehung, die es nicht gibt; ausgelassen.");
@@ -231,7 +273,10 @@ impl BodyReader<'_, '_> {
                 if self.images.len() >= self.limits.max_images {
                     return Err(DocxError::Limit(format!("mehr als {} Bilder", self.limits.max_images)));
                 }
-                let mut path = format!("bilder/{file_name}");
+                let mut path = match wanted.and_then(|name| work_path(name, media)) {
+                    Some(own) => own,
+                    None => format!("bilder/{file_name}"),
+                };
                 let mut n = 2;
                 while self.images.iter().any(|i| i.path == path) {
                     path = format!("bilder/{n}-{file_name}");
@@ -288,7 +333,8 @@ impl BodyReader<'_, '_> {
                         .to_owned();
                     match blip.attr("r:embed") {
                         Some(rid) => {
-                            if let Some(image) = self.image(rid)? {
+                            let name = el.find("wp:docPr").and_then(|d| d.attr("name"));
+                            if let Some(image) = self.image(rid, name)? {
                                 out.push(Inline::Image { image, alt });
                             }
                         }
@@ -308,7 +354,7 @@ impl BodyReader<'_, '_> {
                 } else if let Some(data) = el.find("v:imagedata") {
                     let alt = data.attr("o:title").unwrap_or("").trim().to_owned();
                     if let Some(rid) = data.attr("r:id")
-                        && let Some(image) = self.image(rid)?
+                        && let Some(image) = self.image(rid, None)?
                     {
                         out.push(Inline::Image { image, alt });
                     }
@@ -506,6 +552,7 @@ impl BodyReader<'_, '_> {
                     let raw = if is_typst_island(e) { island_raw(e) } else { String::new() };
                     if !raw.is_empty() {
                         self.count_text(&raw)?;
+                        self.island_images(e)?;
                         out.push(Inline::Typst { raw, shown: Vec::new() });
                     } else if let Some(content) = e.child("w:sdtContent") {
                         self.inlines(content, out, state)?;
@@ -708,6 +755,7 @@ impl BodyReader<'_, '_> {
                     let raw = if is_typst_island(e) { island_raw(e) } else { String::new() };
                     if !raw.is_empty() {
                         self.count_text(&raw)?;
+                        self.island_images(e)?;
                         self.push(out, Block::Typst { raw, shown: Vec::new() });
                     } else if let Some(content) = e.child("w:sdtContent") {
                         self.blocks(content, out, top)?;

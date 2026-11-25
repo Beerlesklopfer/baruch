@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use crate::common;
 
 #[path = "../../baruch-docx/tests/data/import/mod.rs"]
-mod docx;
+pub(crate) mod docx;
 
 const ERIKA: &str = "@word:erika-beispiel";
 const JOERG: &str = "@word:joerg-mueller";

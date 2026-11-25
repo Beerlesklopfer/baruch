@@ -1272,3 +1272,49 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
 - **Parallele Runden:** Runde 33 lief neben Runde 32 auf einem eigenen Integrationszweig (`runde33`, Hauptordner
   `.claude/worktrees/r33`). Der Name weicht von der Regel `team/<id>` ab; die Stellen für das spätere Zusammenführen
   sind in `base.html` mit `{#- R32-PLATZ … -#}` markiert (import-word, beenden, export-word).
+
+## Runde 32 – Word und Beenden
+
+### Word (`crates/baruch-docx`, `docx_import`, `docx_export`)
+
+- **Zwei Seiten, ein Modell:** Leser und Schreiber entstanden getrennt gegen `model.rs` und `ooxml.rs`. Was beide
+  wirklich verbindet, zeigt nur die Rundreise: `crates/baruch-docx/tests/roundtrip.rs` (Modell → Datei → Modell) und
+  `round32_abnahme` (Werk → Datei → Werk). Wer an `write/**` oder `read/**` etwas ändert, lässt beide laufen.
+- **Testdateien:** `crates/baruch-docx/tests/data/import/mod.rs` baut eine frei erfundene .docx als ZIP aus
+  XML-Zeichenketten (`sample()`, `with_body(…)`, Helfer `p`, `r`, `ins`, `del`, `list_item`, `drawing`, `cell`); die
+  Server-Tests binden sie einmal ein (`round32_docx_import.rs`: `#[path = "…/data/import/mod.rs"] pub(crate) mod docx;`,
+  andere Dateien mit `use crate::round32_docx_import::docx;` – zweimal `#[path]` lehnt clippy als `duplicate_mod` ab).
+  Kein echtes Word.
+- **Listen in Typst:** `baruch-wysiwyg` liest „3.“ gefolgt von „+“ als zwei Listen (Typst selbst als eine). Wer Typst
+  erzeugt, das der Editor und der Word-Export als eine Liste sehen sollen, schreibt bei einem Beginn ≠ 1 jede Nummer
+  aus („3.“, „4.“ …).
+- **Bildpfad:** Der Schreiber legt den Pfad im Werk in `wp:docPr name` ab; der Leser nimmt ihn nur, wenn er wie ein
+  Pfad aussieht (`read/body.rs`, `work_path`). Word nennt Zeichnungen „Grafik 1“ – dann gilt `bilder/<Dateiname>`.
+- **Datei ansehen ohne Word:** `soffice -env:UserInstallation=file://<eigener Ordner> --headless --convert-to pdf
+  --outdir <Ordner> datei.docx`, dann `pdftoppm -r 70 -png`. Das ist kein Firefox und kein Fenster; es zeigt, ob
+  LibreOffice die Datei öffnet und wie Änderungen, Fußnoten, Listen und Tabellen ankommen. Ersetzt nicht Word.
+
+### Beenden (`shutdown.rs`)
+
+- **Signale früh einrichten:** `tokio::signal` richtet einen Empfänger erst beim Aufruf von `signal(…)` ein, eine
+  `async fn` sogar erst beim ersten Warten. `system_signal()` richtet darum beim Aufruf ein, und `main` ruft es vor
+  der Zeile „Baruch läuft“. Ein Test, der gleich nach dieser Zeile `SIGTERM` schickt
+  (`sigterm_ends_the_throwaway_server_with_exit_0`), fand die Lücke; mit einer Schreibanfrage davor blieb sie
+  verborgen.
+- **Echter Prozess im Test:** `Process` in `round32_beenden.rs` und `round32_abnahme.rs` – Datenordner im Testprozess
+  anlegen, Verbindungen `eliezer`/`multigpt` auf `http://127.0.0.1:9`, `pool().close()`, dann
+  `CARGO_BIN_EXE_baruch-server serve --listen 127.0.0.1:0 --secrets memory --data <Temp>`; Adresse aus „Baruch läuft: “
+  lesen; beenden nur über die eigene PID (`kill -TERM <pid>`), `Drop` räumt auf.
+- **`Host` im Test:** `reqwest` schickt einen eigenen `Host`-Kopf (`.header("host", NAME)`) – so prüft man einen
+  erlaubten Proxy-Namen am echten Prozess.
+- **Wächter `round33_seiten`:** Jede Vorlage, die `base.html` erweitert, braucht eine Zeile in `TEMPLATES`. Wer eine
+  Seite baut, liefert die Zeile im Bericht mit (die Datei gehört dem Integrator).
+
+### Integration
+
+- **Sichtprüfung:** Eine Seite, die nur als Antwort auf `POST` entsteht und nichts nachlädt (Abschlussseite), per
+  `curl -X POST -H "Origin: <Adresse>"` holen und die Datei fotografieren. Seiten mit Stylesheets lassen sich nicht
+  von `file://` aus fotografieren (der Schutz gegen fremde Herkunft lehnt die Stylesheets ab) – dafür den Vermittler
+  aus Runde 33 nehmen (hier: Menü „Baruch“ mit `open`).
+- **`.work-form` hat eine Grundhöhe von 320 px** (`works.css`): Eine Seite mit nur einem kleinen Formular setzt
+  `flex: 0 0 auto` (wie `assets.css`, `docx_export.css`), sonst bleibt unter dem Knopf ein leerer Kasten.

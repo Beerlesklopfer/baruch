@@ -719,11 +719,14 @@ fn loose(content: &str) -> String {
 /// Antwort auf ein Formular entstehen (Import-Bericht, Austausch-Vorschau, Hinweisseite der Assistenten).
 const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ("about.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
+    ("shutdown.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
     ("asset.html", "buch", &["href=\"/werke/{{ work.id }}/bilder\"", "href=\"/?work={{ work.id }}\""]),
     ("assets.html", "buch", &["href=\"/?work={{ work.id }}\""]),
     ("assist_notice.html", "start", &["href=\"{{ back }}\" data-back>{{ back_label }}</a>"]),
     ("befunde.html", "pruefen", &["href=\"{{ workspace }}\""]),
     ("cover.html", "buch", &["href=\"/werke/{{ work.id }}/umschlag.pdf\" download", "href=\"/?work={{ work.id }}\""]),
+    ("docx_export.html", "buch", &["href=\"/?work={{ work.id }}\""]),
+    ("docx_import.html", "start", &["href=\"/werke\"", "href=\"{{ back_url }}\""]),
     (
         "epub_check.html",
         "buch",

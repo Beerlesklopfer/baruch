@@ -108,7 +108,16 @@ pub fn own_machine(hosts: &guard::AllowedHosts, peer: Option<SocketAddr>, header
 /// [`Shutdown::request`] ausgelöst wird. Danach gehen laufende Antworten zu Ende (höchstens [`GRACE`]), die
 /// Datenbank wird geschlossen, und auf der Standardausgabe steht [`GOODBYE`]. `main` endet danach mit Exit 0.
 pub async fn serve(listener: tokio::net::TcpListener, state: Arc<AppState>) -> std::io::Result<()> {
-    let result = serve_until(listener, state, GRACE, system_signal()).await;
+    serve_with(listener, state, system_signal()).await
+}
+
+/// Wie [`serve`], mit einer schon eingerichteten Signalquelle: `main` ruft [`system_signal`] auf, bevor es „Baruch
+/// läuft“ ausgibt, damit ein Signal gleich nach dieser Zeile schon sauber herunterfährt (Integration Runde 32).
+pub async fn serve_with<S>(listener: tokio::net::TcpListener, state: Arc<AppState>, signal: S) -> std::io::Result<()>
+where
+    S: Future<Output = SystemSignal> + Send + 'static,
+{
+    let result = serve_until(listener, state, GRACE, signal).await;
     if result.is_ok() {
         println!("{GOODBYE}");
     }

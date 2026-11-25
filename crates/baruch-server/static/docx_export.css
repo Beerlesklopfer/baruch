@@ -14,3 +14,7 @@
 .docx-export-page .docx-export-note {
   margin: 0.25rem 0 0.75rem;
 }
+/* Nicht auf die Grundhöhe von .work-form (320px) ziehen – der Kasten endet am Knopf (Sichtprüfung Runde 32). */
+.docx-export-page > .work-form {
+  flex: 0 0 auto;
+}

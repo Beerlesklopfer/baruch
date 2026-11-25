@@ -2590,3 +2590,93 @@ dessen Ursprünge alle entschieden sind (Feld fehlt sonst). `finding.matrix`: Ei
   413; `/rpc` behält `works::RPC_BODY_LIMIT` (Codereview ki-2).
 - Re-Exporte in `baruch_store`: `MAX_OPEN_INDEX_PROPOSALS_PER_ORIGIN` (200), `MAX_OPEN_INDEX_PROPOSALS_PER_WORK` (2000),
   `MAX_OPEN_OUTLINE_REQUESTS_PER_ORIGIN` (50).
+
+## Runde 32 – Word und Beenden
+
+### docx_import.preview, docx_import.get, docx_import.apply, docx_import.discard (Runde 32 – Word)
+
+Global (ohne Werk; Weiche in `rpc::call` über `docx_import::handles`, Modul `docx_import`). Kein MCP-Gegenstück: Ein
+Import legt aktuelle Fassungen unter dem Namen des Menschen an.
+
+- **`docx_import.preview {file_name, data_base64, title?}`** – `data_base64` = Datei als Base64 (Standard, mit `=`);
+  `file_name` endet auf `.docx`. Liest die Datei und legt nur einen **Entwurf** an
+  (`<data>/docx-drafts/<draft>/` mit `draft.json` und `source.docx`; kein Werk). Antwort:
+  `{draft, file_name, title, sections: [{level 0..3, numbered, title, chars, sample}], editors: [{name, handle,
+  insertions, deletions, sections}], comments, footnotes, images, warnings: [{code, message}]}`.
+  `title` = Titel, unter dem übernommen würde (eigener `title`, sonst Titel der Datei, sonst Dateiname ohne Endung);
+  `level` 0 = Teil; `sample` = Anfang des Abschnitts als Typst (höchstens 160 Zeichen); `editors[].sections` = Zahl
+  der Abschnitte, zu denen ein Vorschlag entstünde; `handle` = `@word:<name>`.
+  Fehler: kein `.docx`-Name, kaputtes Base64, größer als 64 MiB, Fehler der Datei (kein ZIP, altes `.doc` oder
+  verschlüsselt, unsicherer Pfad oder Beziehungsziel, DTD, Grenze überschritten, kaputtes XML, kein Text) → -32602 mit
+  dem Grund; es entsteht nichts.
+- **`docx_import.get {draft}`** → dasselbe Objekt wie `preview`. Unbekannt, verworfen, übernommen oder älter als 24 h
+  → -32602.
+- **`docx_import.apply {draft, title?, changes?: bool = true, comments?: bool = true}`** – legt das Werk an (Fassung 1
+  je Abschnitt = Stand vor allen Änderungen, aktuell), mit `changes` je Bearbeiter und geändertem Abschnitt einen
+  offenen Vorschlag (Persona `@word:<name>`, Modell `word`) und je geänderter Überschrift einen Beitrag, mit `comments`
+  je Kommentar einen Beitrag. Antwort: `{work, slug, sections, proposals, posts, warnings: [{code, message}]}`. Der
+  Entwurf ist danach gelöscht. Fehler: unbekannter Entwurf → -32602; vergebener Titel → -32000 (wie
+  `source_import.apply`, der Entwurf bleibt); derselbe Entwurf wird gerade übernommen → -32000. Ließ sich ein
+  einzelner Vorschlag oder Beitrag nicht anlegen, bleibt das Werk bestehen und `warnings` nennt es
+  (`docx_vorschlag_abgelehnt`, `docx_beitrag_abgelehnt`, `docx_gliederung_abweichend`).
+- **`docx_import.discard {draft}`** → `{discarded: true}` (auch wenn der Entwurf schon weg ist). `draft` ist kein
+  32-stelliger Hex-Name → -32602.
+
+Höchstens 20 Entwürfe, je höchstens 24 Stunden alt; beim nächsten `preview` fallen ältere weg.
+`work.import` und `POST /werke/import` weisen `.docx` mit Verweis auf `/werke/import/word` ab (S1).
+
+Seiten (ohne JavaScript): `GET /werke/import/word` (Formular; mit `?draft=<id>` die Vorschau, unbekannter Entwurf 422),
+`POST /werke/import/word/vorschau` (multipart `file`, `title` → 303 `/werke/import/word?draft=<id>`; Fehler 422, zu
+groß 413, jeweils mit Formular), `POST /werke/import/word/uebernehmen` (`draft`, `title`, Häkchen `changes`,
+`comments` → 303 `/?work=<id>`; entstanden beim Übernehmen neue Hinweise, 200 mit Bericht und Link zum Werk; Fehler
+422 mit der Vorschau), `POST /werke/import/word/verwerfen` (`draft` → 303 `/werke/import/word`). Alle POST hinter
+`guard::same_origin` (fremde Herkunft 403).
+
+### Runde 32 – Word: `work.docx_export`
+
+Nur lesend; kein MCP-Werkzeug.
+
+`work.docx_export {work?: number|string, proposals?: bool = false}`
+
+- `work`: Werk-id (Zahl), Ordnername des Werks (Text) oder – ohne Angabe – das Vorgabewerk.
+- `proposals`: `true` legt je Abschnitt den jüngsten offenen Vorschlag als Änderungsverfolgung über die aktuelle
+  Fassung.
+
+Antwort:
+
+```json
+{
+  "file_name": "der-steg-am-weiher.docx",
+  "data_base64": "UEsDB…",
+  "bytes": 5321,
+  "proposals": 1,
+  "warnings": [
+    { "code": "docx_typst_insel", "message": "Abschnitt „Der Abend“: Typst-Insel „#let rahmen(inhalt) = …“: Word kann sie nicht abbilden – der Quelltext steht sichtbar und wörtlich in der Datei." },
+    { "code": "docx_weitere_vorschlaege", "message": "Abschnitt „Der Weiher“: 1 weiterer offener Vorschlag steht nicht in der Datei – als Änderungsverfolgung steht nur der jüngste (Fassung 3 von @kritiker)." }
+  ]
+}
+```
+
+- `proposals`: Zahl der Abschnitte, deren Vorschlag als Änderungsverfolgung in der Datei steht (ohne `proposals: true`
+  immer 0; ein Vorschlag, der der aktuellen Fassung gleicht, zählt nicht).
+- `warnings`, feste Codes: `docx_typst_insel` (Insel mit sichtbarem Ersatz; ab der sechsten nur noch als Zahl),
+  `docx_bild_fehlt` (Bildpfad ohne einbettbares Bild: fehlt im Werk oder ist SVG/WebP), `docx_tabelle_vereinfacht`
+  (Gestaltung einer Tabelle entfiel), `docx_weitere_vorschlaege` (mehr als ein offener Vorschlag im Abschnitt).
+- Fehler: unbekanntes Werk oder unbekannter Parameter → `-32602`; Schreibfehler → `-32603`.
+- Gleicher Stand des Werks ergibt dieselben Bytes (der Zeitpunkt in der Datei ist die jüngste Änderung des Werks,
+  nicht die Uhrzeit des Exports).
+
+Seiten dazu (kein RPC): `GET /werke/{id}/word` (Erklärung und Formular), `GET /werke/{id}/word.docx[?vorschlaege=1]`
+(Datei, `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`,
+`Content-Disposition: attachment; filename="<slug>.docx"`; unbekanntes Werk 404, anderer Wert für `vorschlaege` 400,
+Anfrage einer fremden Seite 403).
+
+### Beenden
+
+Keine Methode. Beenden ist bewusst weder RPC-Methode noch MCP-Werkzeug (`rpc::call` kennt die Gegenstelle nicht;
+Test `there_is_no_rpc_method_and_no_mcp_tool_to_quit`).
+
+Baruch beenden gibt es weder über RPC noch über MCP: Das geht nur über die Seite `/beenden` am eigenen Rechner
+oder über ein Signal an den Prozess. Routen: `GET /beenden` (Rückfrage; nicht vom eigenen Rechner 403) und
+`POST /beenden` (hinter `guard::same_origin`, nur vom eigenen Rechner, Antwort 200 mit der Abschlussseite, 500 ms
+später fährt Baruch herunter).

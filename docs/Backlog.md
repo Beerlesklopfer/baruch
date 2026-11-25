@@ -95,7 +95,38 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R23 | Härtung (mit Befund-Resten aus R28, R30, R29, R19, R20, R31, R21 und R22) – **erledigt 2026-11-24** (≈ 160 min mit Gutachten, Nachbesserung und PM-Abschluss) | a web · b mcp-namen · c geheimnisse | 200 |
 | R24 | Verteilung (B5) – **erledigt 2026-11-24** (≈ 175 min ab der Vorarbeit `3028194` mit Gutachten, Nachbesserung und PM-Abschluss; ohne die niedrigen Reste aus R23) | a pakete · b ci · c webseite (statt betrieb) | 200 |
 | R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); Zusammenführen mit R32 und `development` samt Gegenprobe offen | menueband · laptop · seiten | – |
-| R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **läuft** (S1 `ccd471f` 2026-11-24) | docx_import · docx_export · beenden | – |
+| R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (S1 `647ae42` auf `development` nach Runde 33; Vorlage `ccd471f`) | docx_import · docx_export · beenden | – |
+
+### Nach Runde 32 offen (Integrator 2026-11-25)
+
+- **Handprüfung durch den Nutzer (nichts davon ist geprüft):**
+  - Export in **Microsoft Word** öffnen: ohne Reparaturmeldung? Überschriften im Navigationsbereich, deutsche
+    Vorlagennamen, Fußnoten, Bild mit Alternativtext, „Überarbeiten“ mit der Persona als Bearbeiter, „Alle
+    ablehnen“ = aktuelle Fassung, „Alle annehmen“ = Vorschlag, Typst-Inseln als graue Felder.
+  - Eine **von Word geschriebene** Datei mit Änderungsverfolgung zweier Bearbeiter, Kommentar samt Antwort, Fußnote
+    und Bild importieren; dasselbe mit einer Datei aus LibreOffice; eine Datei mit deutschen Vorlagennamen; ein altes
+    `.doc` und eine kennwortgeschützte Datei (Meldung im Klartext).
+  - **Beenden** im App-Fenster eines Chromium-artigen Browsers (schließt es sich?), mit Firefox (Satz bleibt stehen),
+    als Dienst (`inactive (dead)`, kein Neustart), unter macOS und Windows.
+  - Nächster Lauf von `pages.yml`/`release.yml`: Findet `pages-deploy` das Artefakt aus `pages-build`?
+- **Word, Reste:**
+  - `commentsExtended.xml` schreibt der Schreiber nicht; Antworten auf Kommentare verlieren in der Datei ihren Bezug
+    (der Server-Export schreibt keine Kommentare, Beiträge gehen nicht mit).
+  - Zitate im Text stehen in Word ohne Anführungszeichen (nur Zeichenvorlage „Baruch Zitat“); braucht eine
+    Festlegung für beide Seiten.
+  - SVG und WebP werden nicht eingebettet (Insel mit `docx_bild_fehlt`); Rastern nach PNG wäre eine Ausbaustufe.
+  - Die Seite im Browser liefert die Datei ohne Bericht der Warnungen (nur RPC und CLI nennen sie).
+  - `track_changes`: Bei einer ganz neuen oder gestrichenen Tabelle bleibt das leere Gitter; Seitenumbrüche werden
+    nicht verfolgt.
+  - Leser: Eine Liste hat eine Art nach ihrer obersten Ebene; Text, den ein Bearbeiter vor der ersten Überschrift
+    einfügt, wird nur gemeldet (`docx_vorspann_eingefuegt`); der Inhalt von Textfeldern wird nur mit Anfang genannt.
+  - Privat gehaltene Konstanten des Schreibers (`NS_APP`, `PART_FOOTNOTES_RELS`, `STYLE_HYPERLINK`,
+    `STYLE_COMMENT_TEXT`, `STYLE_COMMENT_REFERENCE`) nach `ooxml.rs` ziehen.
+  - Vorschlag aus Word im Editor: Die Kopfzeile nennt den Handle doppelt („@word:name (@word:name)“), weil es zu
+    `@word:<name>` keine Persona mit Anzeigenamen gibt.
+- **Beenden, Reste:** echter SSE-Strom beim Beenden nicht belegt (nur eine offene Verbindung); Windows-Signale nur
+  übersetzt geprüft; `shellcheck` war nicht installiert; die Beobachtung „Pages je Commit“ löst die Trennung der
+  Jobs nicht.
 
 ### R13 – Quellen über MultiGPT, Websuche, Abgleich (210 min) – erledigt 2026-11-07
 

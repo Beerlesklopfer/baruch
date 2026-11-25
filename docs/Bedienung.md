@@ -3769,3 +3769,185 @@ gilt im Fließtext nur mit Kapitel und Vers („Ob 1,3“) oder Bereich („Ob 3
 Legt Baruch den Datenordner selbst neu an, bekommt er unter Linux und macOS die Rechte 0700 (nur der Besitzer). Einen
 vorhandenen Ordner ändert Baruch nicht; wer `--data` auf einen Ordner außerhalb des eigenen Home legt, prüft dessen
 Rechte selbst (Datenbank und Spiegel enthalten das ganze Manuskript).
+
+## Runde 32 – Word und Beenden
+
+Drei Neuerungen: Word-Dateien (.docx) importieren, das Werk als Word-Datei für den Verlag ausgeben und Baruch
+über die Oberfläche beenden. Alle drei sind gewöhnliche Seiten mit Formular und gehen ohne JavaScript.
+
+### Word-Datei importieren
+
+**Baruch ▾ → Word (.docx) importieren…** (Adresse `/werke/import/word`) liest eine Word-Datei und legt daraus ein neues
+Werk an – in zwei Schritten, ganz ohne JavaScript bedienbar:
+
+1. **Lesen.** Datei wählen (`.docx`, höchstens 64 MiB), auf Wunsch einen Titel eintragen, „Lesen und Vorschau zeigen“.
+   Angelegt wird dabei nichts außer einem Entwurf; die Datei bleibt auf diesem Rechner.
+2. **Prüfen und übernehmen.** Die Vorschau zeigt
+   - die **Gliederung** (Teile und Überschriften der Ebenen 1 bis 3, je mit Länge und Textprobe),
+   - die **Bearbeiter** aus der Änderungsverfolgung: Name in Word, Name in Baruch (`@word:<name>`), Zahl der
+     Einfügungen und Löschungen und in wie vielen Abschnitten daraus ein Vorschlag wird,
+   - die Zahl der **Kommentare**, Fußnoten und Bilder,
+   - alle **Hinweise**: was nicht oder nur vereinfacht übernommen wird.
+
+   „Als Werk übernehmen“ legt das Werk an (Titel änderbar; zwei Häkchen schalten Änderungen bzw. Kommentare ab),
+   „Verwerfen“ löscht den Entwurf. Entwürfe verfallen nach 24 Stunden.
+
+**Änderungen und Kommentare werden nie zur aktuellen Fassung.** Es gilt:
+
+- **Fassung 1** jedes Abschnitts ist der Stand **vor** allen verfolgten Änderungen (Gelöschtes steht noch da,
+  Eingefügtes noch nicht) und ist die aktuelle Fassung.
+- Die Änderungen **jedes Bearbeiters** werden je geändertem Abschnitt **ein offener Vorschlag** unter
+  `@word:<name>` (Modell „word“) mit der Notiz „Änderungen aus Word von <Name>, <Datum>“. Haben zwei Bearbeiter
+  denselben Abschnitt geändert, gibt es zwei Vorschläge, jeder gegen Fassung 1. Übernehmen, verwerfen oder mischen
+  kannst nur du – wie bei jedem Vorschlag.
+- **Überschriften** ändern nie die Gliederung: Eine in Word geänderte Überschrift wird ein Beitrag am Abschnitt
+  („Überschrift in Word geändert: „vorher“ → „nachher““). Eine vom Bearbeiter eingefügte Überschrift legt keinen
+  Abschnitt an (ihr Text steht fett im Vorschlag zum vorangehenden Abschnitt), eine gelöschte bleibt bestehen – beides
+  steht als Hinweis da.
+- **Kommentare** werden Beiträge am Abschnitt der kommentierten Stelle: erste Zeile Name und Datum, dann die Stelle
+  als Zitat (höchstens 200 Zeichen), dann der Kommentar; Antworten stehen direkt dahinter („Antwort auf <Name>“). Ein
+  Kommentar ohne auffindbare Stelle steht am ersten Abschnitt.
+
+Der Name in Baruch entsteht aus dem Namen in Word: klein, ä→ae, ö→oe, ü→ue, ß→ss, alles andere als Bindestrich,
+höchstens 40 Zeichen („Jörg Müller“ → `@word:joerg-mueller`); ohne Namen `@word:unbekannt`.
+
+**Was übernommen wird:** Überschriften (Vorlagen „Überschrift 1–3“/„Heading 1–3“, auch abgeleitete Vorlagen und die
+Gliederungsebene des Absatzes), Titel (Vorlage „Titel“), fett, kursiv, unterstrichen, durchgestrichen, hoch-/tiefgestellt,
+Kapitälchen, Links, Fußnoten (`#footnote[…]`), Blockzitate (Vorlage „Zitat“), Listen (geordnet, ungeordnet,
+verschachtelt), Tabellen (als Typst-Tabelle, im WYSIWYG-Editor eine Insel), eingebettete Bilder (PNG, JPEG, GIF, WebP,
+SVG) mit Alt-Text und Bildunterschrift, Seitenumbrüche. Text vor der ersten Überschrift bekommt ein eigenes erstes
+Kapitel mit dem Titel des Werks; ein Dokument ganz ohne Überschrift wird ein Kapitel.
+
+**Hinweise (feste Codes) – nichts wird still verworfen:**
+
+| Code | Bedeutung |
+|---|---|
+| `docx_ueberschrift_tief` | Überschrift 4–6 gehört nicht zur Gliederung; sie steht fett im Abschnitt |
+| `docx_text_vor_ueberschrift` | Text vor der ersten Überschrift steht in einem eigenen ersten Kapitel |
+| `docx_ueberschrift_eingefuegt`, `docx_ueberschrift_geloescht` | vom Bearbeiter eingefügte bzw. gelöschte Überschrift (Gliederung bleibt) |
+| `docx_vorspann_eingefuegt` | vom Bearbeiter eingefügter Text vor der ersten Überschrift – nicht übernommen |
+| `docx_formataenderung` | verfolgte Formatänderungen: es gilt die Formatierung des Endstands |
+| `docx_verschoben` | verschobener Text steht als Löschung an der alten und Einfügung an der neuen Stelle |
+| `docx_textfeld`, `docx_objekt` | Textfeld, Zeichnung, eingebettetes Objekt – nicht übernommen (Textfeld mit Textanfang) |
+| `docx_formel` | Formel nur als einfacher Text |
+| `docx_tabelle_vereinfacht` | verbundene Zellen, ungleich lange Zeilen, eingefügte/gelöschte Tabellenzeilen |
+| `docx_bild_format`, `docx_bild_extern`, `docx_bild_uebersprungen` | Bildformat nicht unterstützt (z. B. EMF/WMF), nur verknüpftes Bild (wird nie abgerufen), Bild zu groß |
+| `docx_endnote`, `docx_fussnote_absaetze` | Endnoten als Fußnoten; mehrere Absätze einer Fußnote als Zeilen |
+| `docx_verborgener_text`, `docx_symbol`, `docx_unbekannt` | verborgener Text, Zeichen aus Symbolschriften, unbekanntes Element |
+| `docx_kommentar_ohne_stelle` | Kommentar ohne auffindbare Stelle steht am ersten Abschnitt |
+| `docx_gliederung_abweichend`, `docx_vorschlag_abgelehnt`, `docx_beitrag_abgelehnt` | ein Vorschlag oder Beitrag ließ sich nicht anlegen (das Werk besteht trotzdem) |
+
+Nicht gelesen werden das alte Format `.doc` und mit Kennwort verschlüsselte Dateien (Meldung im Klartext). Über MCP
+gibt es keinen Import.
+
+**Kommandozeile:**
+
+```
+baruch-server import DATEI.docx [--uebernehmen] [--title "TITEL"] [--data ORDNER]
+```
+
+Ohne `--uebernehmen` nur die Vorschau (Gliederung, Bearbeiter, Zahlen, Hinweise) – es wird nichts geschrieben, auch
+kein Entwurf. Mit `--uebernehmen` entsteht das Werk samt Vorschlägen und Beiträgen; die Ausgabe nennt die Zahlen.
+Eine unlesbare Datei endet mit Exit 1 und dem Grund.
+
+### Word-Export für den Verlag
+
+**Buch → Export → „Word …“** (oder `/werke/<id>/word`) öffnet eine Seite mit Erklärung und einem Formular. Der Knopf
+„Word-Datei herunterladen“ liefert `<ordnername>.docx`. Das geht ohne JavaScript (gewöhnliches Formular).
+
+In der Datei steht:
+
+- die **Titelei** aus den Werkangaben: Titel, Untertitel, Autor; mit eingeschalteter Titelei (Buchangaben) auch die
+  Zeilen des Impressums. Dieselben Angaben stehen in den Dateieigenschaften.
+- danach alle Abschnitte in Lesereihenfolge mit ihrer **aktuellen Fassung**:
+  - Überschriften mit den Formatvorlagen „Überschrift 1–3“ (tiefere Überschriften im Text „Überschrift 4–6“), Teile
+    mit „Baruch Teil“, Überschriften ohne Nummer mit „Baruch ohne Nummer 1–3“. Die Nummern der Gliederung selbst
+    stehen nicht in der Datei – die Zählung richtet der Verlag an den Vorlagen ein.
+  - fett und kursiv, erzwungene Zeilenumbrüche, Verweise (`#link`) als anklickbare Verweise;
+  - **Fußnoten als echte Fußnoten**;
+  - Blockzitate (Vorlage „Zitat“) mit Quelle („Baruch Zitatquelle“), Zitate im Text (Zeichenvorlage „Baruch Zitat“,
+    ohne Anführungszeichen – siehe Grenzen);
+  - Listen und Aufzählungen (auch geschachtelt; jede Aufzählung zählt für sich und beginnt bei ihrer ersten Nummer);
+  - einfache Tabellen (`#table(columns: …, […], …)`, auch mit `table.header`) als Word-Tabellen;
+  - **Bilder eingebettet** (PNG, JPEG, GIF) mit Alternativtext und Bildunterschrift.
+- Was Word nicht abbilden kann – eigene Typst-Funktionen, `#let`/`#set`/`#show`, Formeln, Begriffslisten, Szenen,
+  Verweise `@name`, Tabellen mit verbundenen Zellen, Bilder in anderen Formaten (SVG, WebP) –, steht als
+  **Typst-Insel** in der Datei: ein grau hinterlegtes Feld mit dem sichtbaren Quelltext bzw. dem lesbaren Inhalt;
+  der wörtliche Quelltext liegt verborgen dahinter. Nichts geht still verloren. Über RPC und Kommandozeile nennt
+  der Export solche Stellen als Warnung (`docx_typst_insel`, `docx_bild_fehlt`, `docx_tabelle_vereinfacht`); die
+  Seite im Browser liefert die Datei ohne Bericht.
+
+**Offene Vorschläge als Änderungsverfolgung:** Mit dem Häkchen auf der Seite steht je Abschnitt der **jüngste offene
+Vorschlag** als Einfügung und Löschung in der Datei („Überarbeiten“ in Word), mit dem Handle der Persona als
+Bearbeiter (z. B. `@lektor`) und dem Zeitpunkt, zu dem der Vorschlag angelegt wurde. Ausgangstext bleibt die aktuelle
+Fassung: „Alle ablehnen“ ergibt sie wieder, „Alle annehmen“ den Vorschlag. Hat ein Abschnitt mehrere offene
+Vorschläge, steht nur der jüngste in der Datei (Warnung `docx_weitere_vorschlaege`). Ausgeblendete Fassungen zählen
+nicht. Die Seite nennt vorab, wie viele Vorschläge offen sind.
+
+Der Export **ändert nichts am Werk**: keine Fassung, kein Vorschlag, kein Eintrag im Spiegel.
+
+Grenzen (ehrlich):
+
+- Das Öffnen in Word und das Arbeiten mit der Datei in LibreOffice prüft nur der Nutzer (siehe oben).
+- Zitate im Text tragen in Word keine Anführungszeichen (Typst setzt sie beim Satz selbst); der Verlag sieht sie an
+  der Zeichenvorlage „Baruch Zitat“.
+- Änderungsverfolgung: Geänderte Wörter stehen wortweise im Absatz. Eine ganz neue oder gestrichene Abbildung
+  erscheint als Absatz mit dem Bild als Änderung; bei einer ganz neuen oder gestrichenen Tabelle ist der Inhalt jeder
+  Zelle verfolgt, das leere Gitter bleibt nach „Annehmen“ stehen. Seitenumbrüche werden nicht verfolgt (es gelten die
+  des Vorschlags). Wechselt eine Überschrift die Ebene, steht sie als gestrichen und neu da.
+- Der Word-Export kennt keine Kommentare aus Baruch (Beiträge gehen nicht mit).
+- Über MCP gibt es den Word-Export nicht.
+
+### Word-Export auf der Kommandozeile
+
+```
+baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
+```
+
+Schreibt das Werk als Word-Datei nach `DATEI`; `--vorschlaege` gibt die offenen Vorschläge als Änderungsverfolgung
+mit. Die Ausgabe nennt Datei, Größe, die Zahl der Vorschläge und alle Warnungen. Eine vorhandene Datei wird nie
+überschrieben (Exit 1).
+
+### Baruch beenden
+
+**Baruch ▾ → „Baruch beenden…“** öffnet die Rückfrage `/beenden`. Der Knopf „Baruch beenden“ schickt ein
+gewöhnliches Formular (`POST /beenden`), „Abbrechen“ führt zurück zum zuletzt geöffneten Werk. Alles geht ohne
+JavaScript.
+
+- Nach dem Knopf zeigt das Fenster „Baruch ist beendet – dieses Fenster kann geschlossen werden“. Mit JavaScript
+  versucht die Seite, das Fenster zu schließen (`window.close()`). Browser lassen das nur bei Fenstern zu, die
+  ein Skript oder der Starter als App-Fenster geöffnet hat; sonst – in Firefox immer – bleibt der Satz stehen.
+- Die Starter (`baruch`, AppImage, macOS-Programm, Windows-Startmenü) öffnen Baruch deshalb, wenn ein
+  Chromium-artiger Browser da ist, als eigenes Fenster ohne Adressleiste (`--app`). `BARUCH_BROWSER=standard`
+  nimmt immer den Standardbrowser, `BARUCH_NO_BROWSER=1` öffnet keinen (Einzelheiten und Stand der Prüfung je
+  Plattform: `docs/Verteilung.md`, „Baruch beenden“).
+- **Nur am eigenen Rechner:** Von einem anderen Rechner oder unter dem Namen eines Reverse-Proxys
+  (`--allow-host`) zeigt `/beenden` mit Status 403 eine Erklärung und kein Formular; auch das Formular selbst
+  wird dann abgelehnt. Über RPC und MCP lässt sich Baruch nicht beenden.
+- Gespeicherte Texte stehen in der Datenbank und im Git-Spiegel; beim Beenden geht nichts verloren. Laufende
+  Antworten gehen noch zu Ende (höchstens 10 Sekunden), ein offener Live-Chat wird danach getrennt.
+- Als Dienst (`systemd --user`, `Restart=on-failure`) bleibt Baruch nach dem Beenden aus, bis
+  `systemctl --user start baruch.service` es wieder startet.
+- Im Terminal beendet Strg+C; `systemctl --user stop`, `kill` (SIGTERM) und unter Windows Strg+Pause bzw. das
+  Schließen des Konsolenfensters fahren genauso sauber herunter. Die letzte Zeile der Ausgabe heißt
+  „Baruch beendet.“, der Status ist 0.
+
+Routen (für die Tabelle der Seiten):
+
+| Route | Zweck |
+|---|---|
+| `GET /beenden` | Rückfrage mit Formular; nicht vom eigenen Rechner 403 mit Erklärung |
+| `POST /beenden` | hinter `guard::same_origin`; nur vom eigenen Rechner, sonst 403; Antwort 200 mit der Abschlussseite, 500 ms später fährt Baruch herunter |
+
+### Rundreise und Grenzen (Integration)
+
+- **Rundreise:** Eine von Baruch geschriebene Word-Datei liest der Word-Import wieder ein – mit derselben Gliederung
+  und demselben Text je Abschnitt (Test `round32_abnahme`). Typst-Inseln kommen dabei wörtlich zurück, weil ihr
+  Quelltext verborgen in der Datei steht.
+- **Vorschläge hin und zurück:** Eine mit dem Häkchen „offene Vorschläge“ geschriebene Datei ergibt beim Einlesen
+  wieder die aktuelle Fassung als Fassung 1 und den Vorschlag als offenen Vorschlag. Der Bearbeiter heißt dann nach
+  seinem Handle, mit `@word:` davor (aus `@lektor` wird `@word:lektor`) – so bleibt sichtbar, dass der Vorschlag
+  über eine Word-Datei kam.
+- **Nicht geprüft:** Keine Datei wurde in Microsoft Word geöffnet, und keine von Word oder LibreOffice geschriebene
+  Datei wurde eingelesen. Geprüft sind selbst gebaute Dateien nach ECMA-376 und die eigene Rundreise; eine
+  exportierte Probedatei hat LibreOffice ohne Fenster nach PDF umgewandelt. Den Rest prüft der Nutzer von Hand.

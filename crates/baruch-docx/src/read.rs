@@ -175,6 +175,9 @@ impl Styles {
 pub(crate) struct Numbering {
     nums: HashMap<String, String>,
     levels: HashMap<(String, u8), (bool, u64)>,
+    /// Abweichende erste Nummer je `numId` und Ebene (`w:lvlOverride`/`w:startOverride`): So beginnt Word eine
+    /// Liste neu oder bei einer anderen Nummer, ohne eine eigene abstrakte Nummerierung anzulegen.
+    overrides: HashMap<(String, u8), u64>,
     known: bool,
 }
 
@@ -195,6 +198,12 @@ impl Numbering {
                 "w:num" => {
                     if let (Some(id), Some(abs)) = (e.attr("w:numId"), e.child_val("w:abstractNumId")) {
                         numbering.nums.insert(id.to_owned(), abs.to_owned());
+                        for over in e.elements().filter(|o| o.name == "w:lvlOverride") {
+                            let level = over.attr("w:ilvl").and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+                            if let Some(start) = over.child_val("w:startOverride").and_then(|v| v.parse().ok()) {
+                                numbering.overrides.insert((id.to_owned(), level), start);
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -209,7 +218,9 @@ impl Numbering {
         if !self.known {
             return (num == ooxml::NUM_DECIMAL.to_string(), 1);
         }
-        self.nums.get(num).and_then(|abs| self.levels.get(&(abs.clone(), level))).copied().unwrap_or((false, 1))
+        let (ordered, start) =
+            self.nums.get(num).and_then(|abs| self.levels.get(&(abs.clone(), level))).copied().unwrap_or((false, 1));
+        (ordered, self.overrides.get(&(num.to_owned(), level)).copied().unwrap_or(start))
     }
 }
 

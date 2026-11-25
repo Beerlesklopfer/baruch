@@ -137,6 +137,9 @@ baruch-server --data /tmp/probe     # zum Ausprobieren mit eigenem Datenordner
 
 Danach `http://127.0.0.1:8765/` im Browser öffnen. Eine neue Datenbank bringt ein Beispielwerk mit.
 
+Beenden: Menü **Baruch ▾ → „Baruch beenden…“** (nur am eigenen Rechner), Strg+C im Terminal oder
+`systemctl --user stop baruch.service`. Baruch fährt dabei sauber herunter.
+
 ### Das erste eigene Werk
 
 - **Baruch ▾ → Neues Werk / Importieren…:** ein Buch oder eine Predigt anlegen (Titel, Autor, Grundgerüst,
@@ -276,9 +279,14 @@ Oben eine Kopfzeile mit den Menüs **Werk**, **Ansicht** und **Werkzeuge**, dem 
 
 ### Import, Export und Austausch
 
-- **Import:** Typst, Markdown (auch als ZIP oder Ordner mit Bildern), PDF (lokal oder über MultiGPT) und EPUB – immer mit Vorschau der Gliederung und
-  Warnungen, angelegt erst nach Bestätigung.
-- **Export:** Typst-Datei oder -Ordner mit Bildern, Buch-PDF, Umschlag-PDF, EPUB, Stichwortzettel.
+- **Import:** Typst, Markdown (auch als ZIP oder Ordner mit Bildern), PDF (lokal oder über MultiGPT), EPUB und
+  Word (.docx) – immer mit Vorschau der Gliederung und Warnungen, angelegt erst nach Bestätigung.
+- **Word (.docx) importieren:** Gliederung, Fußnoten, Zitate, Listen, Tabellen und Bilder werden ein Werk; verfolgte
+  Änderungen kommen je Bearbeiter als offene Vorschläge, Kommentare als Beiträge – entschieden wird in Baruch.
+- **Export:** Typst-Datei oder -Ordner mit Bildern, Buch-PDF, Umschlag-PDF, EPUB, Word (.docx), Stichwortzettel.
+- **Word (.docx) für den Verlag:** Export des ganzen Werks mit Formatvorlagen, echten Fußnoten und eingebetteten
+  Bildern; offene Vorschläge der Assistenten auf Wunsch als Änderungsverfolgung (`/werke/<id>/word`,
+  `baruch-server export ID --docx DATEI [--vorschlaege]`). In Microsoft Word selbst ist das noch nicht geprüft.
 - **Austausch zwischen Instanzen:** Die `.baruch`-Datei (ZIP mit XML nach eigenem
   [Schema](docs/schema/)) trägt ein Werk vollständig – alle Fassungen, Einfälle, Verbindungen, Beiträge,
   Befunde, Bilder, Umschlag, Satz-Einstellungen –, aber keine Schlüssel. Einlesen geht als neues Werk oder
@@ -336,13 +344,15 @@ baruch-server [serve] [--listen ADRESSE:PORT] [--data ORDNER] [--secrets keyring
 baruch-server import DATEI.typ [--title "TITEL"]
 baruch-server import DATEI.md|DATEI.zip [--title "TITEL"]
 baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--title "TITEL"]
+baruch-server import DATEI.docx [--uebernehmen] [--title "TITEL"]
 baruch-server import DATEI.baruch [--abgleichen] [--vorschau]
 baruch-server export ID|SLUG [--out ORDNER | --pdf DATEI | --epub DATEI | --baruch DATEI]
+baruch-server export ID|SLUG --docx DATEI [--vorschlaege]
 baruch-server export ID|SLUG --stichwort DATEI [--format a5|karten] [--schrift PT]
 ```
 
-Export überschreibt nie eine vorhandene Datei. Beim PDF/EPUB-Import zeigt die Kommandozeile ohne
-`--uebernehmen` nur die erkannte Gliederung. `baruch-server --help` nennt alle Einzelheiten.
+Export überschreibt nie eine vorhandene Datei. Beim Import von PDF, EPUB und Word zeigt die Kommandozeile ohne
+`--uebernehmen` nur die erkannte Gliederung (bei Word auch Bearbeiter und Hinweise). `baruch-server --help` nennt alle Einzelheiten.
 
 ## Daten, Sicherung und Sicherheit
 

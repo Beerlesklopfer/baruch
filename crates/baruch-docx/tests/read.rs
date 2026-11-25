@@ -372,7 +372,7 @@ fn typst_comes_out_in_the_forms_of_the_work_with_comment_anchors() {
         s[1].body,
         "#quote(block: true, attribution: [Alter Spruch])[\nWer nicht deichen will, muss weichen.\n]\n\n\
          - Schafe\n  - mit Lämmern\n- Möwen\n\n\
-         3. Deich bauen\n+ Deich halten\n\n\
+         3. Deich bauen\n4. Deich halten\n\n\
          #table(\n  columns: 2,\n  table.header([Pegel], [Stand]),\n  [Süderhörn], [2,10 m],\n)\n\n\
          #figure(image(\"bilder/leuchtturm.png\", alt: \"Ein Leuchtturm im Nebel\"), caption: [Der Leuchtturm bei Nacht])",
         "Blockzitat mit Quelle, verschachtelte Aufzählung, geordnete Liste ab 3, Tabelle als #table (im Editor eine \

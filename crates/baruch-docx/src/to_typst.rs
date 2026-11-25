@@ -302,17 +302,26 @@ impl Writer<'_> {
             }
             Block::List { ordered, start, items } => {
                 let mut lines = Vec::new();
-                let mut first = true;
+                // Beginnt die Aufzählung nicht bei 1, trägt jeder Punkt seine Nummer („3.“, „4.“ …; geschachtelt ab
+                // 1): Typst verstünde auch „3.“ gefolgt von „+“, der Satzbild-Editor (`baruch-wysiwyg`) läse das
+                // aber als zwei Listen – und der Word-Export schriebe sie dann getrennt.
+                let mut counters: Vec<u64> = Vec::new();
                 for item in items {
-                    let indent = "  ".repeat(usize::from(item.depth.min(8)));
+                    let depth = usize::from(item.depth.min(8));
+                    let indent = "  ".repeat(depth);
                     let marker = if !*ordered {
                         "-".to_owned()
-                    } else if first && item.depth == 0 && *start != 1 {
-                        format!("{start}.")
+                    } else if *start != 1 {
+                        counters.truncate(depth + 1);
+                        while counters.len() <= depth {
+                            counters.push(if counters.is_empty() { *start } else { 1 });
+                        }
+                        let number = counters[depth];
+                        counters[depth] = number.saturating_add(1);
+                        format!("{number}.")
                     } else {
                         "+".to_owned()
                     };
-                    first = false;
                     let content = self.inlines(&item.content).replace('\n', &format!("\n{indent}  "));
                     lines.push(format!("{indent}{marker} {content}"));
                     self.heard(" ");

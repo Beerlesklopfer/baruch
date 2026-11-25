@@ -24,7 +24,11 @@ Ein Import legt aktuelle Revisionen unter dem Namen des Menschen an, und das dar
 (`docs/Bedienung.md`) oder über das Hochladen in der Oberfläche. Ein Aufruf von `import_typst` ergibt heute
 -32602 „unbekanntes Werkzeug“. Ebenso gibt es **kein Einlesen einer Austauschdatei** über MCP (Runde 26): Ausgeben
 geht lesend mit `exchange_export`, Einlesen nur durch den Menschen (Seite „Austausch: Einlesen…“, RPC
-`work.exchange_preview`/`work.exchange_import`, `baruch-server import DATEI.baruch`). Ebenso gibt es kein Werkzeug, das Werke anlegt, ändert (Titel, Metadaten,
+`work.exchange_preview`/`work.exchange_import`, `baruch-server import DATEI.baruch`). Seit Runde 32 gilt dasselbe für Word: **Word-Import und Word-Export gibt es über MCP nicht** (Seiten
+`/werke/import/word` und `/werke/{id}/word`, RPC `docx_import.*` und `work.docx_export`, `baruch-server import DATEI.docx`
+und `export … --docx`); ein Aufruf von `docx_import` oder `docx_export` ergibt -32602 „unbekanntes Werkzeug“.
+**Baruch beenden gibt es weder über RPC noch über MCP:** Das geht nur über die Seite `/beenden` am eigenen Rechner
+oder über ein Signal an den Prozess. Ebenso gibt es kein Werkzeug, das Werke anlegt, ändert (Titel, Metadaten,
 Werkvorlage) oder löscht: Das ist die Werkverwaltung des Menschen (`/werke`, RPC `work.create/update/delete`,
 `docs/RPC.md` „Werke“). `list_works` liest nur.
 
