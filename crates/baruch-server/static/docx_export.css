@@ -1,2 +1,16 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Runde 32 (Schnittstelle R32-S1): Gestaltung der Aufgabe docx_export – noch leer. */
+/* Runde 32, Aufgabe docx_export: Seite /werke/{id}/word (Erklärung und Wahl vor dem Herunterladen). */
+.docx-export-page .docx-export-list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  max-width: 46rem;
+}
+.docx-export-page .docx-export-list li {
+  margin-bottom: 0.35rem;
+}
+.docx-export-page .docx-export-form {
+  max-width: 46rem;
+}
+.docx-export-page .docx-export-note {
+  margin: 0.25rem 0 0.75rem;
+}
