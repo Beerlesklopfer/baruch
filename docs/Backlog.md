@@ -94,6 +94,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R22 | Revisionen und Spiegel, dazu Fortschreiben, Rückfrage erledigter Befunde, Entwurf als Wasserzeichen – **erledigt 2026-11-10** (≈ 155 min ab S1 `dfff467` mit Gutachten und Nachbesserung, Vertrag davor ohne Commit) | fassungen · befund-rueckfrage · spiegel-entwurf | 160 |
 | R23 | Härtung (mit Befund-Resten aus R28, R30, R29, R19, R20, R31, R21 und R22) – **erledigt 2026-11-24** (≈ 160 min mit Gutachten, Nachbesserung und PM-Abschluss) | a web · b mcp-namen · c geheimnisse | 200 |
 | R24 | Verteilung (B5) – **erledigt 2026-11-24** (≈ 175 min ab der Vorarbeit `3028194` mit Gutachten, Nachbesserung und PM-Abschluss; ohne die niedrigen Reste aus R23) | a pakete · b ci · c webseite (statt betrieb) | 200 |
+| R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **integriert 2026-11-25**; Gegenprobe und Zusammenführen mit R32 offen | menueband · laptop · seiten | – |
 
 ### R13 – Quellen über MultiGPT, Websuche, Abgleich (210 min) – erledigt 2026-11-07
 
@@ -1010,6 +1011,37 @@ Ausnahme in `deny.toml` eingetragen, **offen nach 0.9.0**:
   die eigene Datenbank im eigenen Datenordner, darum im Betrieb nicht betroffen.
 - **RUSTSEC-2026-0543 (chrono unbetreut):** kommt über arrow/datafusion/lance/lancedb; Ablösung erst, wenn diese
   wechseln (die direkte Nutzung in baruch-server allein abzulösen nähme chrono nicht aus dem Baum).
+
+## Nach Runde 33 offen (Integration 2026-11-25)
+
+Runde 33 „Menüband und Laptop-Modus“ ist auf dem Zweig `runde33` integriert (S1 `f7493c2`, Zweige
+`team/menueband-r33` `e9481ea`, `team/laptop` `d5f8fc0`, `team/seiten` `fdfc3fb`, ohne Konflikte). Erledigt: Menüband
+(Wunsch „Menüband“), Laptop-Modus, alle Seiten im Band. Offen:
+
+- (→ PM) **Gegenprobe vor dem Push** (Vertrag §11, eigener Gutachter): frischer voller Lauf auf dem mit Runde 32
+  zusammengeführten Stand, curl ohne JavaScript gegen die Zuordnung, Firefox in drei Breiten. Stand der Integration:
+  `HANDOFF.md`.
+- (→ PM) **Zusammenführen mit Runde 32** an den drei Marken `R32-PLATZ` in `base.html` (import-word, beenden,
+  export-word), in `lib.rs`, `tests/main.rs` und `CHANGELOG.md`; `docs/Verteilung.md` Zeile „Über Baruch“ beachten.
+  Danach den Zweig `runde33` nach der Regel benennen oder auflösen.
+- (→ PM, Entscheidung) **Vorgabe-Reiter der Gliederung und des Stichwortzettels:** nach Vertrag §7 „Start“, ihre
+  Einträge stehen aber im Reiter Buch – wer von Buch → Gliederung kommt, landet auf Start. Umstellen wäre je eine
+  Zeile in `outline.html`, `outline_edit.html`, `notes.html` und in den Tabellen von `round33_seiten.rs`.
+- (→ Nutzer) **Handprüfung im eigenen Browser:** Speichern mit Strg+S, Alt+L, Alt+E, Alt+, bei angedockten Knöpfen;
+  Schubladen (Esc, Klick daneben, Fokus kehrt zurück); Band zugeklappt mit vorübergehendem Feld. Die Integration hat
+  das Aussehen fotografiert (Firefox headless), Tastatur und Fokus aber nur im Node-Nachbau der Widgets geprüft.
+- (niedrig) **Werk im Band ohne Cookie:** Seiten, die ihr Werk der Vorlage als Zeichenkette reichen (z. B.
+  `/einfaelle?work=W`), zeigen ohne Cookie `baruch_work` nur Start · Ansicht. Das war vor Runde 33 genauso („Erst ein
+  Werk wählen“); im Browser setzt die Arbeitsseite das Cookie.
+- (niedrig) **Doppelte Einträge:** Seiten führen ihre eigenen Links als Gruppen (z. B. „Umschlag-PDF“, „EPUB
+  herunterladen“) zusätzlich zu den allgemeinen Gruppen des Reiters – bewusst, damit keine Adresse verloren geht.
+- (niedrig) **Ohne JavaScript:** Die Fläche zum Schließen neben der Schublade braucht `:has()`; ohne bleibt
+  „Schließen“ in der Schublade. Auf Seiten, die Antwort eines POST sind, führt ein Reiter per GET auf dieselbe Adresse.
+  Ohne JavaScript kennt der Server die Fensterbreite nicht – „Automatisch“ zeichnet dann breit.
+- (niedrig) **Fenster schmaler als 1024 px** sind nicht geprüft (fotografiert sind 1920, 1366 und 1024 px); Zeile 1 des
+  Bands darf umbrechen (`flex-wrap`), ob sie es dort sauber tut, ist offen.
+- (keine Aufgabe) Alte Menüpfade („Werk ▾ → …“) in den historischen Einträgen von `HANDOFF.md`, `docs/Plan.md` und
+  diesem Dokument bleiben stehen: Sie beschreiben den Stand ihrer Runde.
 
 ## Nach Runde 24 offen (PM-Abschluss 2026-11-24)
 

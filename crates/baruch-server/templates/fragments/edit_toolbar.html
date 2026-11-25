@@ -1,10 +1,7 @@
-{#- Menüband für das Bearbeiten (Runde 18a; vorher Werkzeugleiste, Wunsch 2026-11-06): ein Fragment für den Editor
-    und die Satz-Ansicht (/werke/{id}/satz). Steht fest über dem Blatt, scrollt nicht mit und ist eine eigene
-    Zoom-Zone (data-zoom-zone="toolbar").
-
-    Satz-Ansicht (satz_page, typeset.html): ohne hidden und ohne JavaScript bedienbar (die Seite lädt kein
-    main.js): „Zurück zum Werk“, „PDF herunterladen“, ‹ › mit aria-label und Seitenangabe, „Satz abbrechen“ als
-    Formular an POST /werke/{id}/satz/abbrechen. Kontext: work.id, back, key?, total?, shown?, previous?, next?.
+{#- Menüband für das Bearbeiten (Runde 18a; vorher Werkzeugleiste, Wunsch 2026-11-06): das Fragment für den
+    Editor; eine eigene Zoom-Zone (data-zoom-zone="toolbar"). Die Satz-Ansicht (/werke/{id}/satz) trägt ihre
+    Bedienung seit Runde 33 als Gruppen im Reiter „Buch“ (typeset.html, Block band_buch); der frühere Zweig
+    satz_page dieses Fragments ist entfernt.
 
     Editor (editor.html): ohne JavaScript verborgen (dort gibt es nur das Textfeld); wysiwyg.ts zeigt es beim
     Einhängen. Die DOM-Haken des Satzbilds (data-ws-mode, data-ws-tools, data-ws-format, data-ws-cmd) bleiben;
@@ -13,27 +10,6 @@
     Typst-Text (data-ribbon-snippet) an der Cursorstelle einfügt; „Bild“ (data-ribbon-image) öffnet
     details[data-image-insert] in der Statuszeile. Kontext: ws_satz (Ansicht vom Server, Cookie baruch_editor),
     ribbon. Runde 31c: Gruppe „Register und Glossar“ (data-widget="context-menu") am Ende. -#}
-{%- if satz_page is defined and satz_page %}
-<div class="ws-bar edit-toolbar ribbon ribbon-satz" role="toolbar" aria-label="Menüband der Satz-Ansicht" data-zoom-zone="toolbar" data-ribbon-satz>
-  <span class="ribbon-group" role="group" aria-label="Werk">
-    <a class="btn" href="{{ back }}">Zurück zum Werk</a>
-    <a class="btn" href="/werke/{{ work.id }}/pdf" download title="Das ganze Werk als PDF (Werkvorlage, aktuelle Fassungen, Bilder)">PDF herunterladen</a>
-  </span>
-  {%- if total %}
-  <span class="ribbon-group" role="group" aria-label="Seiten">
-    {%- if previous %}<a class="btn" href="{{ previous }}" rel="prev" aria-label="Vorige Seite" title="Vorige Seite">‹</a>{% else %}<span class="btn" aria-disabled="true" aria-label="Vorige Seite (dies ist die erste)">‹</span>{% endif %}
-    <span class="typeset-at">Seite {{ shown }} von {{ total }}</span>
-    {%- if next %}<a class="btn" href="{{ next }}" rel="next" aria-label="Nächste Seite" title="Nächste Seite">›</a>{% else %}<span class="btn" aria-disabled="true" aria-label="Nächste Seite (dies ist die letzte)">›</span>{% endif %}
-  </span>
-  {%- endif %}
-  <form class="ribbon-group ribbon-cancel" method="post" action="/werke/{{ work.id }}/satz/abbrechen">
-    {%- if key %}
-    <input type="hidden" name="key" value="{{ key }}">
-    {%- endif %}
-    <button class="btn" type="submit" title="Laufenden Typst-Satz dieses Werks abbrechen (auch einen, der noch wartet)">Satz abbrechen</button>
-  </form>
-</div>
-{%- else %}
 {#- Runde 33: Die Leiste hat zwei Teile für die Reiter des Menübands (templates/base.html): data-band-part="start"
     (Gruppen Text, Absatz, Fassung, Assistenten) und data-band-part="einfuegen" (Einfügen, Register und Glossar).
     Sie bleibt im Fragment des Editors (ui.render zeichnet sie mit neu) und ohne JavaScript verborgen; band.ts (Widget
@@ -110,4 +86,3 @@
     </div>
   </div>
 </div>
-{%- endif %}

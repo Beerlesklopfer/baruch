@@ -41,7 +41,7 @@ Beispielwerk die 1 hat), `KEY` ist der Schlüssel des Abschnitts „Der erste Mo
 
 | Bild | Adresse | Fenster | Zeigt |
 |---|---|---|---|
-| `arbeitsplatz.png` | `http://127.0.0.1:PORT/?work=WERK&key=KEY` | 1400×860 | Arbeitsplatz: Menüband (Reiter Start), Gliederung, Editor im Satzbild, Akkordeons |
+| `arbeitsplatz.png` | `http://127.0.0.1:PORT/?work=WERK&key=KEY&laptop=off` | 1400×860 | Arbeitsplatz: volles Menüband (Reiter Start, Laptop-Modus „Aus“), Gliederung, Editor im Satzbild, Akkordeons |
 | `gliederung.png` | `http://127.0.0.1:PORT/gliederung?work=WERK` | 1400×860 | Seite Gliederung |
 | `fassungen.png` | `http://127.0.0.1:PORT/?work=WERK&key=KEY&rev=1` | 1400×860 | Abschnitt mit zwei Fassungen, gezeigt ist die ältere |
 | `assistenten.png` | `http://127.0.0.1:PORT/einstellungen/assistenten?work=WERK` | 1400×860 | Einstellungen → Assistenten |
@@ -49,10 +49,11 @@ Beispielwerk die 1 hat), `KEY` ist der Schlüssel des Abschnitts „Der erste Mo
 | `einstellungen.png` | `http://127.0.0.1:PORT/einstellungen/werk?work=WERK` | 1400×860 | Einstellungen → Werk mit dem Block Satz |
 | `arbeitsplatz-laptop.png` | `http://127.0.0.1:PORT/?work=WERK&key=KEY` | 1366×768 | Arbeitsplatz auf Laptop-Breite: Menüband kompakt (Laptop-Modus „automatisch“) |
 
-Das Laptop-Bild hat dieselbe Adresse wie `arbeitsplatz.png`: Den Unterschied macht allein die Fenstergröße. Unter
-1600 px Breite zeichnet der Laptop-Modus („automatisch“) das Menüband kompakt; die Breite misst das Skript der Seite
-(`laptop.ts`), darum fotografiert `--fotos` dieses Bild mit einem eigenen Firefox-Profil (kein geerbtes Cookie
-`baruch_vw`). Ohne JavaScript kennt der Server die Breite nicht; dann zeigt erst `?laptop=on` das kompakte Band.
+Unter 1600 px Breite zeichnet der Laptop-Modus („automatisch“) das Menüband kompakt; die Breite misst das Skript der
+Seite (`laptop.ts`). Auch 1400 px liegen darunter: Damit die übrigen Bilder das volle Band zeigen, stellt
+`arbeitsplatz.png` mit `&laptop=off` den Laptop-Modus „Aus“; das Cookie gilt im Firefox-Profil dieser Fenstergröße
+für alle 1400er-Bilder. Das Laptop-Bild fotografiert `--fotos` mit einem eigenen Profil (kein geerbtes Cookie), dort
+gilt „automatisch“. Ohne JavaScript kennt der Server die Breite nicht; dann zeigt erst `?laptop=on` das kompakte Band.
 
 ## Stand
 

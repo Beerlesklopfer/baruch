@@ -64,8 +64,12 @@ def pictures(work, key):
     """Bild → (Pfad der Seite, Beschreibung, Fenstergröße). Die Reihenfolge ist die der Seite „Funktionen“; das
     Bild auf Laptop-Breite steht zuletzt (eigene Fenstergröße, eigenes Firefox-Profil)."""
     return [
-        ("arbeitsplatz.png", f"/?work={work}&key={key}",
-         "Arbeitsplatz: Menüband (Reiter Start), Gliederung, Editor im Satzbild, Akkordeons", WINDOW),
+        # Integration Runde 33: 1400 px liegen unter der Schwelle für das kompakte Band (1600 px). Damit die Webseite
+        # das volle Band zeigt, stellt das erste Bild den Laptop-Modus „Aus“ (?laptop=off, gemerkt im Cookie des
+        # Profils dieser Fenstergröße – gilt darum für alle 1400er-Bilder). Das Laptop-Bild hat ein eigenes Profil.
+        ("arbeitsplatz.png", f"/?work={work}&key={key}&laptop=off",
+         "Arbeitsplatz: volles Menüband (Reiter Start, Laptop-Modus „Aus“), Gliederung, Editor im Satzbild, Akkordeons",
+         WINDOW),
         ("gliederung.png", f"/gliederung?work={work}", "Seite Gliederung (ohne JavaScript bedienbar)", WINDOW),
         ("fassungen.png", f"/?work={work}&key={key}&rev=1",
          "Abschnitt mit zwei Fassungen, gezeigt ist die ältere", WINDOW),
@@ -74,7 +78,8 @@ def pictures(work, key):
         ("satz.png", f"/werke/{work}/satz", "Satz-Vorschau des Werks (Typst), Menüband im Reiter Buch", WINDOW),
         ("einstellungen.png", f"/einstellungen/werk?work={work}", "Einstellungen → Werk mit dem Block Satz", WINDOW),
         ("arbeitsplatz-laptop.png", f"/?work={work}&key={key}",
-         "Arbeitsplatz auf Laptop-Breite: Menüband kompakt (Laptop-Modus „automatisch“)", LAPTOP_WINDOW),
+         "Arbeitsplatz auf Laptop-Breite: Menüband kompakt (Laptop-Modus „automatisch“, eigenes Profil)",
+         LAPTOP_WINDOW),
     ]
 
 

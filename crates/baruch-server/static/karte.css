@@ -149,7 +149,7 @@ a.im-node:focus-visible { outline: none; }
 
 /* Druck: nur Bild, Gliederung und Widersprüche, schwarz auf weiß, ohne Formulare. */
 @media print {
-  .topbar, .settings-dialog, .im-filter, .im-toolbar, .im-forms, .im-inline, .im-side, .notice { display: none !important; }
+  .band, .settings-dialog, .im-filter, .im-toolbar, .im-forms, .im-inline, .im-side, .notice { display: none !important; }
   body { background: #fff; color: #000; display: block; }
   .karte { overflow: visible; padding: 0; max-width: none; }
   .im-stage { border: 0; min-height: 0; break-inside: avoid; }

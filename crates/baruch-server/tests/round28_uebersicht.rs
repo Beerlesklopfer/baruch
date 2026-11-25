@@ -509,7 +509,9 @@ async fn badges_in_outline_editor_and_menu_agree_with_the_matrix() {
         "Abzeichen am Reiter Prüfen mit der Summe, vom Server gezeichnet"
     );
     assert!(
-        html.contains(&format!("Befunde <span class=\"badge warning\" data-badge=\"open_findings\">{total}</span></a>")),
+        html.contains(&format!(
+            "Befunde <span class=\"badge warning\" data-badge=\"open_findings\">{total}</span></a>"
+        )),
         "und die Zahl am Eintrag „Befunde“"
     );
 

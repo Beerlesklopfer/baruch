@@ -85,7 +85,9 @@ html[data-band="closed"] .band-toggle-closed { display: inline; }
 .band-dock .ribbon-formats, .band-dock .ribbon-index { display: contents; }
 
 /* Gruppe, voll: Inhalt in zwei Reihen, Beschriftung klein darunter, feine Linie zur nächsten Gruppe. */
-.band-group { position: relative; padding: 0 12px 20px; border-right: 1px solid var(--line); }
+/* Mindestbreite: Die Beschriftung steht absolut unter der Gruppe und würde sonst bei einer schmalen Gruppe gekappt
+   („Ansicht des Te…“, „Register und …“ – Integration Runde 33, Sichtprüfung). */
+.band-group { position: relative; min-width: 136px; padding: 0 12px 20px; border-right: 1px solid var(--line); }
 .band-group > summary {
   position: absolute; left: 4px; right: 4px; bottom: 0; height: 16px;
   list-style: none; text-align: center; font-size: 11.5px; line-height: 16px; color: var(--muted);
@@ -134,7 +136,13 @@ html[data-compact] .band-panels { min-height: 0; padding: 4px 8px; gap: 4px; ali
 html[data-compact] .band-dock, html[data-compact] .band-dock > [data-edit-toolbar], html[data-compact] .band-dock .band-part {
   gap: 4px; align-items: center;
 }
-html[data-compact] .band-group { padding: 0; border-right: 0; }
+html[data-compact] .band-group { min-width: 0; padding: 0; border-right: 0; }
+/* Zeile 1 bleibt einzeilig: Der Autor entfällt, der Titel nimmt den Rest und kürzt mit „…“ (sonst bräche der Autor
+   bei 1024 px in eine eigene Zeile um – Integration Runde 33, Sichtprüfung). */
+html[data-compact] .band-top > .band-author { display: none; }
+html[data-compact] .band-top > .work-title { flex: 1 1 6ch; }
+html[data-compact] .band-top > .grow { flex: 0 0 0; }
+html[data-compact] .band-top > .band-toggle { margin-left: auto; }
 html[data-compact] .band-group > summary {
   position: static; height: auto; display: inline-flex; align-items: center; gap: 4px;
   min-height: 28px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px;

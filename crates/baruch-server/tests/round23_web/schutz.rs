@@ -179,8 +179,15 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
     assert_eq!(status, StatusCode::OK, "die Seite lädt");
     // Runde 33 (Menüband): Die Reiter und Schalter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen
     // (href, maskiert) – das ist kein angezeigter Text. Geprüft wird darum alles außer den href-Werten.
-    let shown: String = page.split("href=\"").enumerate().map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] }).collect();
-    assert!(page.contains("ziel=geheimer-ordner-aus-der-adresse&amp;tab="), "der Kopf behält die Abfrage in den Adressen der Reiter: {page}");
+    let shown: String = page
+        .split("href=\"")
+        .enumerate()
+        .map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] })
+        .collect();
+    assert!(
+        page.contains("ziel=geheimer-ordner-aus-der-adresse&amp;tab="),
+        "der Kopf behält die Abfrage in den Adressen der Reiter: {page}"
+    );
     assert!(
         !shown.contains("geheimer-ordner-aus-der-adresse"),
         "ein mitgeschicktes `ziel` wird nie angezeigt (sonst falsche Erfolgsmeldung über einen Link): {page}"
@@ -210,7 +217,11 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
         "die Seite nennt den Ordner, den der Server selbst im Dateisystem findet: {page}"
     );
     // Runde 33: wie oben – geprüft wird alles außer den href-Werten (die Reiter wiederholen die Abfrage als Adresse).
-    let shown: String = page.split("href=\"").enumerate().map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] }).collect();
+    let shown: String = page
+        .split("href=\"")
+        .enumerate()
+        .map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] })
+        .collect();
     assert!(!shown.contains("geheimer-ordner-aus-der-adresse"), "und weiter nie den aus der Adresse");
     assert_eq!(
         baruch_server::settings::newest_backup(&server.state.data).as_deref(),

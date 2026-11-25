@@ -243,7 +243,11 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     assert!(page.contains("Sicherung angelegt"), "der feste Code ok=sicherung ergibt die Meldung: {page}");
     // Runde 33 (Menüband): Die Reiter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen (href, maskiert);
     // angezeigt wird sie nicht. Geprüft wird darum alles außer den href-Werten.
-    let shown: String = page.split("href=\"").enumerate().map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] }).collect();
+    let shown: String = page
+        .split("href=\"")
+        .enumerate()
+        .map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] })
+        .collect();
     assert!(!shown.contains("ordner-aus-der-adresse"), "Text aus der Adresse (ziel) wird nie angezeigt: {page}");
 }
 

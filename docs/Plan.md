@@ -575,6 +575,17 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     nur mit Token; Zugangsschutz im Proxy ist Pflicht (`docs/Betrieb.md`). MultiGPT hat keine Vorgabe-Adresse mehr.
   - Keine Migration, keine neuen RPC-Methoden oder MCP-Werkzeuge. Offenes und die Schritte des Nutzers:
     `docs/Backlog.md`, „Nach Runde 24 offen“.
+- **Runde 33 „Menüband und Laptop-Modus“ integriert** (2026-11-25, auf dem Zweig `runde33` neben Runde 32; kommt in
+  0.9.0, Version unverändert; Gegenprobe und Zusammenführen mit Runde 32 stehen aus):
+  - Ein Menüband auf jeder Seite ersetzt die Menüs Werk/Ansicht/Werkzeuge und die Knopfreihe über dem Blatt: Menü
+    „Baruch ▾“ (Programm), Reiter Start · Einfügen · Prüfen · Buch · Ansicht mit benannten Gruppen; die Knöpfe des
+    Editors docken mit JavaScript in das Band an. Abzeichen an den Reitern. Alles ohne JavaScript erreichbar
+    (Reiter als Links `?tab=`, Gruppen als `<details>`, Band auf/zu über `?band=`).
+  - Laptop-Modus (Automatisch/An/Aus): unter 1600 px Band kompakt (Gruppen als Popups), unter 1280 px Gliederung und
+    Assistenten als Leisten mit Schublade; Spalten einzeln einklappbar; Zoom zurücksetzen. Zustand als Attribute an
+    `<html>`, vom Server aus Cookies gezeichnet, keine Media-Queries.
+  - Jede Seite öffnet mit ihrem Reiter; die Satz-Seite trägt ihre Bedienung im Reiter Buch.
+  - Keine Migration, keine neue Route, keine neue RPC-Methode, kein neues MCP-Werkzeug.
 - Prüfung: `cargo test --workspace`; Vorschau `cargo run -p baruch-server`, im Browser
   http://127.0.0.1:8765/ (Daten in `~/.local/share/baruch` bzw. `--data`).
 - Noch nicht: Handprüfung der Backends OpenAI-kompatibel und Ollama gegen echte Dienste (nur Nachbauten), Kommentare/Befunde im Abgleich nach MultiGPT, Markdown-Import. Kommentare

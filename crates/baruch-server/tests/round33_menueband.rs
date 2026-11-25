@@ -41,13 +41,16 @@ fn panel<'a>(head: &'a str, id: &str) -> &'a str {
     let marker = format!("data-band-panel=\"{id}\"");
     let start = head.find(&marker).unwrap_or_else(|| panic!("Feld {id} fehlt: {head}"));
     let rest = &head[start + marker.len()..];
-    let end = rest.find("<div class=\"band-panel\"").or_else(|| rest.find("<div class=\"band-dock\"")).unwrap_or(rest.len());
+    let end =
+        rest.find("<div class=\"band-panel\"").or_else(|| rest.find("<div class=\"band-dock\"")).unwrap_or(rest.len());
     &rest[..end]
 }
 
 /// Das Menü „Baruch ▾“.
 fn app_menu(head: &str) -> &str {
-    let start = head.find("<details class=\"menu\" data-menu=\"baruch\">").unwrap_or_else(|| panic!("Menü Baruch fehlt: {head}"));
+    let start = head
+        .find("<details class=\"menu\" data-menu=\"baruch\">")
+        .unwrap_or_else(|| panic!("Menü Baruch fehlt: {head}"));
     let end = start + head[start..].find("</details>").expect("Menü ohne Ende");
     &head[start..end]
 }
@@ -71,14 +74,20 @@ async fn yard() -> Yard {
     Yard { server, work, keys }
 }
 
-async fn get_with_cookie(server: &common::Server, uri: &str, cookie: &str) -> (StatusCode, axum::http::HeaderMap, String) {
+async fn get_with_cookie(
+    server: &common::Server,
+    uri: &str,
+    cookie: &str,
+) -> (StatusCode, axum::http::HeaderMap, String) {
     server.send(Request::get(uri).header(header::COOKIE, cookie).body(Body::empty()).unwrap()).await
 }
 
 async fn mcp_call(server: &common::Server, tool: &str, arguments: Value) {
     let message = json!({ "jsonrpc": "2.0", "id": 33, "method": "tools/call", "params": { "name": tool, "arguments": arguments } });
-    let mut request =
-        Request::post("/mcp").header(header::CONTENT_TYPE, "application/json").body(Body::from(message.to_string())).unwrap();
+    let mut request = Request::post("/mcp")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(message.to_string()))
+        .unwrap();
     request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40033))));
     let (status, _, body) = server.send(request).await;
     assert_eq!(status, StatusCode::OK, "tools/call {tool}: {body}");
@@ -94,7 +103,10 @@ async fn the_workspace_shows_the_band_with_menu_work_choice_title_five_tabs_and_
     let (status, html) = y.server.get(&format!("/?work={}", y.work)).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsseite lädt: {html}");
     assert_eq!(html.matches("<header class=\"band\"").count(), 1, "genau ein Menüband: {html}");
-    assert!(!html.contains("class=\"topbar\""), "die alte Kopfzeile (Klasse topbar) ist ersetzt, nicht ergänzt: {html}");
+    assert!(
+        !html.contains("class=\"topbar\""),
+        "die alte Kopfzeile (Klasse topbar) ist ersetzt, nicht ergänzt: {html}"
+    );
     assert!(!html.contains("data-band-fill"), "die Marke an <html> hat die Schicht ersetzt (kein Rest im HTML)");
     assert!(
         html.contains(" data-laptop=\"") && html.contains(" data-band=\"open\">"),
@@ -103,7 +115,10 @@ async fn the_workspace_shows_the_band_with_menu_work_choice_title_five_tabs_and_
     );
     let head = band(&html);
     assert!(
-        head.starts_with(&format!("<header class=\"band\" data-widget=\"band\" data-tab=\"start\" data-work=\"{}\">", y.work)),
+        head.starts_with(&format!(
+            "<header class=\"band\" data-widget=\"band\" data-tab=\"start\" data-work=\"{}\">",
+            y.work
+        )),
         "Kopf als Widget band; aktiver Reiter ist ohne ?tab= die Vorgabe der Arbeitsseite (Start); das Werk für die Abzeichen: {head}"
     );
     assert_eq!(
@@ -112,18 +127,27 @@ async fn the_workspace_shows_the_band_with_menu_work_choice_title_five_tabs_and_
         "genau ein Menü in der Menüleiste (Werk ▾/Ansicht ▾/Werkzeuge ▾ sind in die Reiter gewandert): {head}"
     );
     assert!(
-        app_menu(head).contains(">Baruch ▾</summary>") && app_menu(head).contains("<div class=\"menu-list\" role=\"menu\">"),
+        app_menu(head).contains(">Baruch ▾</summary>")
+            && app_menu(head).contains("<div class=\"menu-list\" role=\"menu\">"),
         "das Menü heißt „Baruch ▾“ und ist ein <details> mit role=menu (klappt ohne JavaScript auf): {head}"
     );
     assert!(
-        head.contains("<form class=\"work-select\" action=\"/\" method=\"get\" role=\"search\" aria-label=\"Werk wählen\">")
-            && head.contains("<select name=\"work\" aria-label=\"Werk\" data-widget=\"work-select\">")
+        head.contains(
+            "<form class=\"work-select\" action=\"/\" method=\"get\" role=\"search\" aria-label=\"Werk wählen\">"
+        ) && head.contains("<select name=\"work\" aria-label=\"Werk\" data-widget=\"work-select\">")
             && head.contains("<noscript><button class=\"btn\" type=\"submit\">Öffnen</button></noscript>"),
         "Werkwahl unverändert (GET-Formular, ohne JavaScript mit „Öffnen“): {head}"
     );
-    assert!(head.contains("<span class=\"work-title\">Die Bootswerft am Schilfsee</span>"), "Titel des Werks im Band: {head}");
+    assert!(
+        head.contains("<span class=\"work-title\">Die Bootswerft am Schilfsee</span>"),
+        "Titel des Werks im Band: {head}"
+    );
     assert!(head.contains("· Henrike Planke</span>"), "der Autor steht daneben: {head}");
-    assert_eq!(tabs(head), ["start", "einfuegen", "pruefen", "buch", "ansicht"], "Arbeitsseite: alle fünf Reiter in fester Reihenfolge");
+    assert_eq!(
+        tabs(head),
+        ["start", "einfuegen", "pruefen", "buch", "ansicht"],
+        "Arbeitsseite: alle fünf Reiter in fester Reihenfolge"
+    );
     assert!(head.contains("<nav class=\"band-tabs\" role=\"tablist\""), "Reiterzeile als tablist: {head}");
     for (id, label) in baruch_server::band::TABS {
         assert!(
@@ -140,9 +164,15 @@ async fn the_workspace_shows_the_band_with_menu_work_choice_title_five_tabs_and_
     assert_eq!(head.matches("aria-selected=\"true\"").count(), 1, "genau ein Reiter gewählt: {head}");
     assert!(head.contains("data-band-panel=\"start\">"), "das Feld des aktiven Reiters ist nicht verborgen: {head}");
     for id in ["einfuegen", "pruefen", "buch", "ansicht"] {
-        assert!(head.contains(&format!("data-band-panel=\"{id}\" hidden>")), "Feld {id} ist verborgen, solange sein Reiter nicht gewählt ist");
+        assert!(
+            head.contains(&format!("data-band-panel=\"{id}\" hidden>")),
+            "Feld {id} ist verborgen, solange sein Reiter nicht gewählt ist"
+        );
     }
-    assert!(head.contains("<div class=\"band-dock\" data-band-dock></div>"), "leerer Andockplatz für die Knöpfe des Editors (füllt band.ts): {head}");
+    assert!(
+        head.contains("<div class=\"band-dock\" data-band-dock></div>"),
+        "leerer Andockplatz für die Knöpfe des Editors (füllt band.ts): {head}"
+    );
     let after = &html[html.find("</header>").unwrap() + "</header>".len()..];
     assert!(
         after.trim_start().starts_with("<main") || after.trim_start().starts_with("<div class=\"consent"),
@@ -158,17 +188,26 @@ async fn without_a_work_there_are_only_start_and_ansicht() {
     let (status, html) = server.get("/werke").await;
     assert_eq!(status, StatusCode::OK, "Werkliste lädt: {html}");
     let head = band(&html);
-    assert_eq!(tabs(head), ["start", "ansicht"], "ohne Werk gibt es Einfügen, Prüfen und Buch nicht (sie brauchen ein Werk): {head}");
+    assert_eq!(
+        tabs(head),
+        ["start", "ansicht"],
+        "ohne Werk gibt es Einfügen, Prüfen und Buch nicht (sie brauchen ein Werk): {head}"
+    );
     assert!(!head.contains("data-work="), "ohne Werk trägt der Kopf keines: {head}");
     assert!(
-        panel(head, "start").contains("<a class=\"btn\" href=\"/werke\" title=\"Erst ein Werk wählen\">Werk wählen</a>"),
+        panel(head, "start")
+            .contains("<a class=\"btn\" href=\"/werke\" title=\"Erst ein Werk wählen\">Werk wählen</a>"),
         "wie bisher führt der Weg ohne Werk auf /werke („Erst ein Werk wählen“): {head}"
     );
     assert!(
-        panel(head, "start").contains("href=\"/literatur\" data-literature-open") && panel(head, "start").contains("href=\"/abgleich\""),
+        panel(head, "start").contains("href=\"/literatur\" data-literature-open")
+            && panel(head, "start").contains("href=\"/abgleich\""),
         "Literatur und Abgleichen brauchen kein Werk und bleiben darum unter Start erreichbar: {head}"
     );
-    assert!(panel(head, "start").contains("href=\"/einfaelle\" data-idea-open"), "Einfall festhalten ohne Werk wie bisher: {head}");
+    assert!(
+        panel(head, "start").contains("href=\"/einfaelle\" data-idea-open"),
+        "Einfall festhalten ohne Werk wie bisher: {head}"
+    );
     assert!(!head.contains("data-band-dock"), "kein Andockplatz außerhalb der Arbeitsseite: {head}");
     assert!(!head.contains("data-rail-toggle"), "Seitenleisten gibt es nur auf der Arbeitsseite: {head}");
 }
@@ -179,13 +218,23 @@ async fn other_pages_of_a_work_have_four_tabs_and_lead_back_to_the_text() {
     let (status, html) = y.server.get(&format!("/gliederung?work={}", y.work)).await;
     assert_eq!(status, StatusCode::OK, "Gliederung lädt");
     let head = band(&html);
-    assert_eq!(tabs(head), ["start", "pruefen", "buch", "ansicht"], "Seite mit Werk: ohne „Einfügen“ (kein Editor): {head}");
+    assert_eq!(
+        tabs(head),
+        ["start", "pruefen", "buch", "ansicht"],
+        "Seite mit Werk: ohne „Einfügen“ (kein Editor): {head}"
+    );
     assert!(
         panel(head, "start").contains(&format!("<a class=\"btn\" href=\"/?work={}\" title=\"Zur Arbeitsseite mit Gliederung, Editor und Assistenten\">Zum Text</a>", y.work)),
         "Start führt zurück zur Arbeitsseite (früher Ansicht ▾ → Editor und der Schriftzug Baruch): {head}"
     );
-    assert!(!head.contains("data-work-import-open"), "außerhalb der Arbeitsseite ist „Neues Werk“ ein schlichter Link (kein Dialog auf der Seite)");
-    assert!(app_menu(head).contains("href=\"/werke/neu\">Neues Werk / Importieren…</a>"), "…auf die Seite /werke/neu: {head}");
+    assert!(
+        !head.contains("data-work-import-open"),
+        "außerhalb der Arbeitsseite ist „Neues Werk“ ein schlichter Link (kein Dialog auf der Seite)"
+    );
+    assert!(
+        app_menu(head).contains("href=\"/werke/neu\">Neues Werk / Importieren…</a>"),
+        "…auf die Seite /werke/neu: {head}"
+    );
 }
 
 // ---- Zustand aus Adresse und Cookie ---------------------------------------------------------------------------------
@@ -201,9 +250,15 @@ async fn tab_from_the_address_selects_the_tab_and_keeps_the_rest_of_the_query() 
         head.contains(&format!("data-band-tab=\"buch\" href=\"?work={}&amp;key={key}&amp;tab=buch&amp;band=closed\" aria-selected=\"true\"", y.work)),
         "Buch ist gewählt; sein Link klappt das Band zu und behält Werk und Abschnitt: {head}"
     );
-    assert!(head.contains("data-band-panel=\"buch\">") && head.contains("data-band-panel=\"start\" hidden>"), "sichtbar ist das Feld Buch, Start ist verborgen: {head}");
     assert!(
-        head.contains(&format!("data-band-tab=\"start\" href=\"?work={}&amp;key={key}&amp;tab=start\" aria-selected=\"false\"", y.work)),
+        head.contains("data-band-panel=\"buch\">") && head.contains("data-band-panel=\"start\" hidden>"),
+        "sichtbar ist das Feld Buch, Start ist verborgen: {head}"
+    );
+    assert!(
+        head.contains(&format!(
+            "data-band-tab=\"start\" href=\"?work={}&amp;key={key}&amp;tab=start\" aria-selected=\"false\"",
+            y.work
+        )),
         "die anderen Reiter führen auf denselben Abschnitt: {head}"
     );
     // Ungültig bzw. auf dieser Seite nicht vorhanden: Vorgabe der Seite.
@@ -219,7 +274,8 @@ async fn tab_from_the_address_selects_the_tab_and_keeps_the_rest_of_the_query() 
 #[tokio::test]
 async fn band_closed_is_remembered_as_a_cookie_next_to_the_work_cookie() {
     let y = yard().await;
-    let (status, headers, html) = y.server.send(Request::get(format!("/?work={}&band=closed", y.work)).body(Body::empty()).unwrap()).await;
+    let (status, headers, html) =
+        y.server.send(Request::get(format!("/?work={}&band=closed", y.work)).body(Body::empty()).unwrap()).await;
     assert_eq!(status, StatusCode::OK);
     let cookies: Vec<&str> = headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap()).collect();
     assert!(
@@ -230,23 +286,31 @@ async fn band_closed_is_remembered_as_a_cookie_next_to_the_work_cookie() {
         cookies.contains(&"baruch_band=closed; Path=/; Max-Age=31536000; SameSite=Lax"),
         "?band=closed wird ein Jahr gemerkt: {cookies:?}"
     );
-    assert!(html.contains(" data-band=\"closed\">"), "die Antwort selbst ist schon zugeklappt (Adresse gilt vor dem Cookie)");
     assert!(
-        band(&html).contains(&format!("data-band-tab=\"start\" href=\"?work={}&amp;tab=start&amp;band=open\" aria-selected=\"true\"", y.work)),
+        html.contains(" data-band=\"closed\">"),
+        "die Antwort selbst ist schon zugeklappt (Adresse gilt vor dem Cookie)"
+    );
+    assert!(
+        band(&html).contains(&format!(
+            "data-band-tab=\"start\" href=\"?work={}&amp;tab=start&amp;band=open\" aria-selected=\"true\"",
+            y.work
+        )),
         "zugeklappt öffnet ein Reiter das Band wieder (ohne JavaScript über ?band=open): {}",
         band(&html)
     );
     // Beim nächsten Aufruf gilt das Cookie; ?band=open geht vor und löscht es.
     let (_, _, html) = get_with_cookie(&y.server, &format!("/?work={}", y.work), "baruch_band=closed").await;
     assert!(html.contains(" data-band=\"closed\">"), "Cookie baruch_band=closed hält das Band zu");
-    let (_, headers, html) = get_with_cookie(&y.server, &format!("/?work={}&band=open", y.work), "baruch_band=closed").await;
+    let (_, headers, html) =
+        get_with_cookie(&y.server, &format!("/?work={}&band=open", y.work), "baruch_band=closed").await;
     assert!(html.contains(" data-band=\"open\">"), "?band=open geht vor dem Cookie");
     assert!(
         headers.get_all(header::SET_COOKIE).iter().any(|v| v == "baruch_band=; Path=/; Max-Age=0; SameSite=Lax"),
         "und löscht es (offen ist die Vorgabe)"
     );
     // Ohne Schlüssel in der Adresse wird nichts gesetzt.
-    let (_, headers, _) = y.server.send(Request::get(format!("/gliederung?work={}", y.work)).body(Body::empty()).unwrap()).await;
+    let (_, headers, _) =
+        y.server.send(Request::get(format!("/gliederung?work={}", y.work)).body(Body::empty()).unwrap()).await;
     assert!(
         !headers.get_all(header::SET_COOKIE).iter().any(|v| v.to_str().unwrap().starts_with("baruch_band")),
         "ohne ?band= kein Cookie des Bands"
@@ -273,12 +337,18 @@ async fn laptop_mode_on_turns_the_groups_into_details_popups() {
     // Ob das Cookie schon gelesen wird, entscheidet src/laptop.rs (Aufgabe „laptop“; im Stand S1 gilt immer die Vorgabe).
     let read = baruch_server::laptop::LaptopState::from_request(Some("baruch_laptop=on"), None).compact();
     if !read {
-        eprintln!("ÜBERSPRUNGEN: laptop.rs steht noch im Stand S1 (Cookie baruch_laptop wird nicht gelesen) – die Probe mit Cookie läuft erst nach dem Zusammenführen; band::apply mit kompaktem Zustand prüft der Unit-Test compact_turns_every_group_into_a_popup.");
+        eprintln!(
+            "ÜBERSPRUNGEN: laptop.rs steht noch im Stand S1 (Cookie baruch_laptop wird nicht gelesen) – die Probe mit Cookie läuft erst nach dem Zusammenführen; band::apply mit kompaktem Zustand prüft der Unit-Test compact_turns_every_group_into_a_popup."
+        );
         return;
     }
     let (_, _, html) = get_with_cookie(&y.server, &uri, "baruch_laptop=on").await;
     let head = band(&html);
-    assert_eq!(head.matches(" data-band-group open>").count(), 0, "Laptop-Modus an: keine Gruppe ist aufgeklappt: {head}");
+    assert_eq!(
+        head.matches(" data-band-group open>").count(),
+        0,
+        "Laptop-Modus an: keine Gruppe ist aufgeklappt: {head}"
+    );
     assert_eq!(
         head.matches(" data-band-group name=\"band-group\"><summary class=\"band-group-label\">").count(),
         groups,
@@ -297,7 +367,10 @@ async fn a_quote_in_the_query_cannot_break_out_of_the_tab_addresses() {
     let head = band(&html);
     assert!(!head.contains("'onmouseover="), "das Hochkomma aus der Adresse steht nirgends roh im Band: {head}");
     assert!(
-        head.contains(&format!("href=\"?work={}&amp;x=&#39;onmouseover=&#39;alert(1)&amp;y=%22%3E%3Cscript%3E&amp;tab=buch\"", y.work)),
+        head.contains(&format!(
+            "href=\"?work={}&amp;x=&#39;onmouseover=&#39;alert(1)&amp;y=%22%3E%3Cscript%3E&amp;tab=buch\"",
+            y.work
+        )),
         "der Rest der Abfrage steht maskiert im href (& und ' maskiert, Kodiertes unverändert): {head}"
     );
     assert!(!html.contains("<script>alert") && !head.contains("\"><script"), "kein Skript aus der Adresse");
@@ -355,24 +428,50 @@ async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
     ];
     for (place, piece, why) in &entries {
         let area = if *place == "baruch" { menu } else { panel(head, place) };
-        assert!(area.contains(piece.as_str()), "{why} – erwartet in „{place}“ als Link ohne JavaScript: {piece}\n{area}");
-        assert_eq!(head.matches(piece.as_str()).count(), 1, "{why} – genau einmal im Band (kein Eintrag doppelt): {piece}");
+        assert!(
+            area.contains(piece.as_str()),
+            "{why} – erwartet in „{place}“ als Link ohne JavaScript: {piece}\n{area}"
+        );
+        assert_eq!(
+            head.matches(piece.as_str()).count(),
+            1,
+            "{why} – genau einmal im Band (kein Eintrag doppelt): {piece}"
+        );
     }
-    assert_eq!(entries.len(), 34, "alle Einträge der drei alten Menüs samt Thema und Einstellungen sind einzeln belegt");
+    assert_eq!(
+        entries.len(),
+        34,
+        "alle Einträge der drei alten Menüs samt Thema und Einstellungen sind einzeln belegt"
+    );
     assert!(panel(head, "start").contains(">Vorschau</a>"), "im Editor heißt der Umschalter „Vorschau“: {head}");
-    assert!(!menu.contains("<button"), "das Menü Baruch enthält nur Links (nichts, was nur mit JavaScript etwas täte): {menu}");
+    assert!(
+        !menu.contains("<button"),
+        "das Menü Baruch enthält nur Links (nichts, was nur mit JavaScript etwas täte): {menu}"
+    );
     // Neue Schalter des Reiters Ansicht (Vertrag §4, wörtliche Formen; den Zustand setzt die Schicht).
     let view = panel(head, "ansicht");
-    for piece in ["data-rail-toggle=\"left\"", "data-rail-toggle=\"right\"", "data-laptop-set=\"auto\"", "data-laptop-set=\"on\"", "data-laptop-set=\"off\"", "<button class=\"btn js-only\" type=\"button\" data-zoom-reset>Zoom zurücksetzen</button>"] {
+    for piece in [
+        "data-rail-toggle=\"left\"",
+        "data-rail-toggle=\"right\"",
+        "data-laptop-set=\"auto\"",
+        "data-laptop-set=\"on\"",
+        "data-laptop-set=\"off\"",
+        "<button class=\"btn js-only\" type=\"button\" data-zoom-reset>Zoom zurücksetzen</button>",
+    ] {
         assert!(view.contains(piece), "Reiter Ansicht: {piece} fehlt: {view}");
     }
     assert!(
         view.contains(&format!("data-laptop-set=\"on\" aria-pressed=\"false\" href=\"?work={w}&amp;key={key}&amp;lq=Eiche&amp;tab=start&amp;laptop=on\">An</a>")),
         "die Laptop-Schalter sind Links, die Werk, Abschnitt und Reiter behalten (ohne JavaScript bedienbar): {view}"
     );
-    assert!(view.matches("aria-pressed=\"true\"").count() >= 1, "der geltende Laptop-Modus ist als gedrückt gezeichnet: {view}");
+    assert!(
+        view.matches("aria-pressed=\"true\"").count() >= 1,
+        "der geltende Laptop-Modus ist als gedrückt gezeichnet: {view}"
+    );
     // Je Haken genau ein Element im Band (die Widgets nehmen querySelector bzw. Alt+, den ersten im Dokument).
-    for hook in ["data-work-import-open", "data-literature-open", "data-idea-open", "data-view-toggle", "data-settings-open"] {
+    for hook in
+        ["data-work-import-open", "data-literature-open", "data-idea-open", "data-view-toggle", "data-settings-open"]
+    {
         assert_eq!(head.matches(hook).count(), 1, "{hook} kommt im Band genau einmal vor: {head}");
     }
     for hook in ["data-work-import-open", "data-literature-open", "data-idea-open", "data-view-toggle"] {
@@ -382,7 +481,8 @@ async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
         html.find("data-settings-open").unwrap() < html.find("<main").unwrap(),
         "der Eintrag „Einstellungen“ des Bands ist der erste data-settings-open der Seite (Alt+, nimmt den ersten)"
     );
-    let bad: Vec<&str> = head.split("href=\"").skip(1).filter_map(|r| r.split('"').next()).filter(|h| h.contains("node=")).collect();
+    let bad: Vec<&str> =
+        head.split("href=\"").skip(1).filter_map(|r| r.split('"').next()).filter(|h| h.contains("node=")).collect();
     assert!(bad.is_empty(), "kein Link des Bands mit node= (Vertrag Runde 8 §1): {bad:?}");
 }
 
@@ -401,10 +501,7 @@ fn the_template_keeps_the_three_places_for_round_32() {
         "…zwischen „PDF oder EPUB importieren…“ und „Austausch: Einlesen…“"
     );
     assert!(at("Über Baruch</a>") < quit && quit < menu_end, "Platz „Baruch beenden“ ist der letzte Eintrag des Menüs");
-    assert!(
-        base[quit..menu_end].matches("<a ").count() == 0,
-        "hinter dem Platz „beenden“ folgt kein weiterer Eintrag"
-    );
+    assert!(base[quit..menu_end].matches("<a ").count() == 0, "hinter dem Platz „beenden“ folgt kein weiterer Eintrag");
     assert!(
         at(">EPUB</a>") < export && export < at("Stichwortzettel …</a>"),
         "Platz „Word exportieren“ in der Gruppe Ausgabe, hinter EPUB"
@@ -419,9 +516,20 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
     let y = yard().await;
     let w = y.work;
     // Ein Antrag zur Gliederung (umbenennen wartet auf den Menschen), zwei Vorschläge, drei offene Befunde.
-    mcp_call(&y.server, "outline_rename", json!({ "work": w, "key": y.keys[2], "title": "Stapellauf am Sonntag" })).await;
-    mcp_call(&y.server, "propose_revision", json!({ "work": w, "key": y.keys[0], "body": "= Kiel legen\n\nDer Kiel liegt.\n" })).await;
-    mcp_call(&y.server, "propose_revision", json!({ "work": w, "key": y.keys[2], "body": "= Stapellauf\n\nEs regnet.\n" })).await;
+    mcp_call(&y.server, "outline_rename", json!({ "work": w, "key": y.keys[2], "title": "Stapellauf am Sonntag" }))
+        .await;
+    mcp_call(
+        &y.server,
+        "propose_revision",
+        json!({ "work": w, "key": y.keys[0], "body": "= Kiel legen\n\nDer Kiel liegt.\n" }),
+    )
+    .await;
+    mcp_call(
+        &y.server,
+        "propose_revision",
+        json!({ "work": w, "key": y.keys[2], "body": "= Stapellauf\n\nEs regnet.\n" }),
+    )
+    .await;
     for body in ["Eiche oder Lärche?", "„seit dem Morgen“ doppelt.", "Wie viele Spanten?"] {
         let new = NewFinding {
             work: w,
@@ -449,7 +557,10 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
     // Arbeitsseite: aus der Vorlage gezeichnet.
     let (_, html) = y.server.get(&format!("/?work={w}")).await;
     let head = band(&html);
-    assert!(!head.contains("data-badge-fill"), "auf der Arbeitsseite zeichnet die Vorlage selbst (kein Kennzeichen zum Füllen): {head}");
+    assert!(
+        !head.contains("data-badge-fill"),
+        "auf der Arbeitsseite zeichnet die Vorlage selbst (kein Kennzeichen zum Füllen): {head}"
+    );
     assert!(
         head.contains(">Start <span class=\"badge\" data-badge=\"open_proposals\" title=\"offene Vorschläge im Werk\">2</span></a>"),
         "offene Vorschläge am Reiter Start (dort stehen Text und Fassungen): {head}"
@@ -467,7 +578,8 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
         "der Eintrag „Anträge zur Gliederung“ ist sichtbar und trägt die Zahl: {head}"
     );
     assert!(
-        panel(head, "pruefen").contains("Befunde <span class=\"badge warning\" data-badge=\"open_findings\">3</span></a>"),
+        panel(head, "pruefen")
+            .contains("Befunde <span class=\"badge warning\" data-badge=\"open_findings\">3</span></a>"),
         "am Eintrag „Befunde“ steht nur die Zahl: {head}"
     );
 
@@ -483,7 +595,10 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
         "data-badge-item=\"outline_requests\">Anträge zur Gliederung <span class=\"badge\" data-badge=\"outline_requests\">1</span>",
         "data-badge=\"open_findings\">3</span>",
     ] {
-        assert!(head.contains(piece), "außerhalb der Arbeitsseite steht dieselbe Zahl im ausgelieferten HTML: {piece}\n{head}");
+        assert!(
+            head.contains(piece),
+            "außerhalb der Arbeitsseite steht dieselbe Zahl im ausgelieferten HTML: {piece}\n{head}"
+        );
     }
     // Ohne offene Punkte bleiben die Abzeichen verborgen (anderes, leeres Werk).
     let other = y.server.import("= Leer\n\nNichts offen.\n", "leer.typ").await.work;
@@ -509,7 +624,11 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
     let result = ok(&rendered);
     let mut names: Vec<&str> = result.as_object().unwrap().keys().map(String::as_str).collect();
     names.sort_unstable();
-    assert_eq!(names, ["assistants", "editor", "title", "tree", "url"], "ui.render liefert unverändert genau diese fünf Felder");
+    assert_eq!(
+        names,
+        ["assistants", "editor", "title", "tree", "url"],
+        "ui.render liefert unverändert genau diese fünf Felder"
+    );
     let editor = result["editor"].as_str().unwrap();
     assert!(
         editor.trim_end().ends_with("<span data-widget=\"band-dock\" hidden></span>"),
@@ -519,7 +638,10 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
     let start = editor.find("<div class=\"ws-bar edit-toolbar ribbon\" role=\"toolbar\"").expect("Leiste im Fragment");
     let wysiwyg = editor.find("<div class=\"wysiwyg\" data-widget=\"wysiwyg\"").expect("Editor-Bereich");
     let body = editor.find("<div class=\"editor-body\"").expect("Blatt");
-    assert!(wysiwyg < start && start < body, "die Leiste steht weiter in div.wysiwyg vor dem Blatt (ui.render zeichnet sie mit)");
+    assert!(
+        wysiwyg < start && start < body,
+        "die Leiste steht weiter in div.wysiwyg vor dem Blatt (ui.render zeichnet sie mit)"
+    );
     let bar = &editor[start..editor.find("<div class=\"search-bar\"").expect("Suchleiste hinter der Leiste")];
     assert!(
         bar.starts_with("<div class=\"ws-bar edit-toolbar ribbon\" role=\"toolbar\" aria-label=\"Menüband für das Bearbeiten\" data-zoom-zone=\"toolbar\" data-edit-toolbar hidden>"),
@@ -541,7 +663,11 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
         ("data-band-assist=\"persona.review\"", first, "Prüfen (löst das Formular rechts aus)"),
         ("data-band-assist=\"persona.propose\"", first, "Vorschlag"),
         ("data-widget=\"ribbon\"", second, "Widget ribbon um die Formate"),
-        ("data-ribbon-cmd=\"footnote\" data-ribbon-snippet=\"#footnote[]\"", second, "Fußnote mit Typst-Text für den Quelltext"),
+        (
+            "data-ribbon-cmd=\"footnote\" data-ribbon-snippet=\"#footnote[]\"",
+            second,
+            "Fußnote mit Typst-Text für den Quelltext",
+        ),
         ("data-ribbon-cmd=\"quote\"", second, "Zitat"),
         ("data-ribbon-cmd=\"list\"", second, "Liste"),
         ("data-ribbon-cmd=\"enum\"", second, "Aufzählung"),
@@ -558,29 +684,53 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
         ("data-index-toggle", second, "Knopf Register"),
         ("data-index-entries", second, "Einträge"),
     ] {
-        assert_eq!(part.matches(hook).count(), 1, "{why}: Haken {hook} genau einmal im richtigen Teil der Leiste: {bar}");
+        assert_eq!(
+            part.matches(hook).count(),
+            1,
+            "{why}: Haken {hook} genau einmal im richtigen Teil der Leiste: {bar}"
+        );
     }
-    assert_eq!(bar.matches("<details class=\"band-group\" data-band-group open><summary class=\"band-group-label\">").count(), 7, "sieben Gruppen in der Form des Bands (Text, Absatz, Fassung, Assistenten; Einfügen, Bild, Register und Glossar): {bar}");
+    assert_eq!(
+        bar.matches("<details class=\"band-group\" data-band-group open><summary class=\"band-group-label\">").count(),
+        7,
+        "sieben Gruppen in der Form des Bands (Text, Absatz, Fassung, Assistenten; Einfügen, Bild, Register und Glossar): {bar}"
+    );
     // Fassung im Band: ‹ › ohne data-key – Alt+←/→ nimmt weiter die Links im Kopf des Editors.
     assert!(
-        first.contains(&format!("<a class=\"btn\" data-nav href=\"/?work={}&key={}&rev=1\" aria-label=\"Vorige Fassung\"", y.work, y.keys[0])),
+        first.contains(&format!(
+            "<a class=\"btn\" data-nav href=\"/?work={}&key={}&rev=1\" aria-label=\"Vorige Fassung\"",
+            y.work, y.keys[0]
+        )),
         "‹ im Band führt zur vorigen Fassung, als data-nav ohne Neuladen: {first}"
     );
-    assert!(!bar.contains("data-key="), "die Links im Band tragen kein data-key (sonst träfe a[data-key=prev] zwei Elemente): {bar}");
-    assert_eq!(editor.matches("data-key=\"prev\"").count(), 1, "data-key=prev bleibt genau einmal im Kopf des Editors: {editor}");
+    assert!(
+        !bar.contains("data-key="),
+        "die Links im Band tragen kein data-key (sonst träfe a[data-key=prev] zwei Elemente): {bar}"
+    );
+    assert_eq!(
+        editor.matches("data-key=\"prev\"").count(),
+        1,
+        "data-key=prev bleibt genau einmal im Kopf des Editors: {editor}"
+    );
     assert!(first.contains(">2/2</span>"), "Zähler der Fassungen wie im Kopf: {first}");
     // Der maßgebliche Knopf bleibt in der Statuszeile.
     assert!(
         editor.contains("<button class=\"btn primary\" type=\"submit\" form=\"editor-form\" data-saved=\"Gespeichert\" data-dirty=\"Speichern\""),
         "„Speichern“ der Statuszeile unverändert (geht ohne JavaScript; trägt die Beschriftung Gespeichert/Speichern): {editor}"
     );
-    assert!(editor.contains("id=\"bild-einfuegen\" data-image-insert"), "Anker für den Hinweis ohne JavaScript im Reiter Einfügen");
+    assert!(
+        editor.contains("id=\"bild-einfuegen\" data-image-insert"),
+        "Anker für den Hinweis ohne JavaScript im Reiter Einfügen"
+    );
 
     // Vorschau: keine Leiste, aber die Marke (band.ts leert dann den Andockplatz).
     let preview = y.server.rpc("ui.render", json!({ "work": y.work, "key": y.keys[0], "view": "preview" })).await;
     let editor = ok(&preview)["editor"].as_str().unwrap();
     assert!(!editor.contains("data-edit-toolbar"), "in der Vorschau gibt es keine Leiste");
-    assert!(editor.trim_end().ends_with("<span data-widget=\"band-dock\" hidden></span>"), "die Marke steht auch in der Vorschau am Ende");
+    assert!(
+        editor.trim_end().ends_with("<span data-widget=\"band-dock\" hidden></span>"),
+        "die Marke steht auch in der Vorschau am Ende"
+    );
 }
 
 #[tokio::test]
@@ -589,26 +739,46 @@ async fn without_javascript_the_insert_tab_points_to_the_sheet() {
     let (_, html) = y.server.get(&format!("/?work={}&key={}&tab=einfuegen", y.work, y.keys[0])).await;
     let head = band(&html);
     let insert = panel(head, "einfuegen");
-    assert!(head.contains("data-band-panel=\"einfuegen\">"), "das Feld Einfügen ist mit ?tab=einfuegen sichtbar: {head}");
     assert!(
-        insert.contains("<p class=\"band-note nojs-only\">") && insert.contains("<a href=\"#bild-einfuegen\">Bild einfügen …</a>"),
+        head.contains("data-band-panel=\"einfuegen\">"),
+        "das Feld Einfügen ist mit ?tab=einfuegen sichtbar: {head}"
+    );
+    assert!(
+        insert.contains("<p class=\"band-note nojs-only\">")
+            && insert.contains("<a href=\"#bild-einfuegen\">Bild einfügen …</a>"),
         "ohne JavaScript erklärt ein Hinweis den leeren Reiter und führt zu „Bild einfügen …“ am Blatt: {insert}"
     );
     assert!(
         insert.contains(&format!("<a href=\"/werke/{}/markierung?key={}&amp;rev=1\"", y.work, y.keys[0])),
         "…und zu „Markierung …“ (Glossar und Register als Formulare) für die gezeigte Fassung: {insert}"
     );
-    assert!(html.contains("<details class=\"image-insert\" id=\"bild-einfuegen\""), "das Sprungziel steht auf der Seite");
+    assert!(
+        html.contains("<details class=\"image-insert\" id=\"bild-einfuegen\""),
+        "das Sprungziel steht auf der Seite"
+    );
     let (_, css) = y.server.get("/static/app.css").await;
-    assert!(css.contains("html.js .nojs-only { display: none !important; }"), "mit JavaScript ist der Hinweis verborgen (band.css)");
-    assert!(css.contains("html:not(.js) .js-only { display: none !important; }"), "und js-only ohne JavaScript (z. B. „Zoom zurücksetzen“)");
+    assert!(
+        css.contains("html.js .nojs-only { display: none !important; }"),
+        "mit JavaScript ist der Hinweis verborgen (band.css)"
+    );
+    assert!(
+        css.contains("html:not(.js) .js-only { display: none !important; }"),
+        "und js-only ohne JavaScript (z. B. „Zoom zurücksetzen“)"
+    );
 }
 
 #[test]
 fn the_band_style_uses_only_state_attributes_and_known_colours() {
     let css = include_str!("../static/band.css");
-    assert!(!css.contains("@media"), "die Modi hängen nur an den Attributen von <html>, keine Media-Queries (sonst zwei Wahrheiten)");
-    assert!(css.contains("html[data-compact] .band-group") && css.contains("html[data-band=\"closed\"] .band-panels { display: none; }"), "kompakt und zugeklappt über die Attribute");
+    assert!(
+        !css.contains("@media"),
+        "die Modi hängen nur an den Attributen von <html>, keine Media-Queries (sonst zwei Wahrheiten)"
+    );
+    assert!(
+        css.contains("html[data-compact] .band-group")
+            && css.contains("html[data-band=\"closed\"] .band-panels { display: none; }"),
+        "kompakt und zugeklappt über die Attribute"
+    );
     let app = include_str!("../static/app.css");
     let mut rest = css;
     while let Some(at) = rest.find("var(--") {
@@ -619,7 +789,10 @@ fn the_band_style_uses_only_state_attributes_and_known_colours() {
             "band.css nutzt nur Farbvariablen aus app.css (hell und dunkel definiert) bzw. eigene Maße: {name}"
         );
     }
-    assert!(css.contains(".band-tab[aria-selected=\"true\"]") && css.contains("box-shadow: inset 0 2px 0 var(--primary)"), "der gewählte Reiter ist an Form und Strich erkennbar, nicht nur an der Farbe");
+    assert!(
+        css.contains(".band-tab[aria-selected=\"true\"]") && css.contains("box-shadow: inset 0 2px 0 var(--primary)"),
+        "der gewählte Reiter ist an Form und Strich erkennbar, nicht nur an der Farbe"
+    );
     assert!(css.contains(":focus-visible"), "sichtbarer Fokus");
 }
 
@@ -653,33 +826,71 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
     assert_eq!(seen["errors"], json!([]), "keine Fehler im Nachbau: {seen}");
 
     // Andocken.
-    assert_eq!(seen["before"], json!({ "barInPane": true, "barHidden": true, "dockChildren": 0 }), "vor dem Einhängen: Leiste verborgen am Blatt, Andockplatz leer");
+    assert_eq!(
+        seen["before"],
+        json!({ "barInPane": true, "barHidden": true, "dockChildren": 0 }),
+        "vor dem Einhängen: Leiste verborgen am Blatt, Andockplatz leer"
+    );
     let docked = &seen["docked"];
     assert_eq!(docked["barInDock"], true, "band-dock hängt die Leiste in den Andockplatz des Bands: {docked}");
     assert_eq!(docked["barInPane"], false, "…sie wird verschoben, nicht kopiert: {docked}");
     assert_eq!(docked["barHidden"], false, "wysiwyg.ts hat sie vorher sichtbar gemacht: {docked}");
-    assert_eq!(docked["parts"], json!(["start", "einfuegen"]), "beide Teile sind angedockt (band.css zeigt den des Reiters): {docked}");
-    assert_eq!(docked["headDocked"], true, "der Kopf weiß, dass eine Leiste angedockt ist (Hinweis „Einfügen geht im Editor“ bleibt verborgen)");
-    assert_eq!((&docked["satz"], &docked["quelltext"]), (&json!("true"), &json!("false")), "Vorgabe Satzbild: Umschalter nach dem Andocken unverändert gedrückt: {docked}");
+    assert_eq!(
+        docked["parts"],
+        json!(["start", "einfuegen"]),
+        "beide Teile sind angedockt (band.css zeigt den des Reiters): {docked}"
+    );
+    assert_eq!(
+        docked["headDocked"], true,
+        "der Kopf weiß, dass eine Leiste angedockt ist (Hinweis „Einfügen geht im Editor“ bleibt verborgen)"
+    );
+    assert_eq!(
+        (&docked["satz"], &docked["quelltext"]),
+        (&json!("true"), &json!("false")),
+        "Vorgabe Satzbild: Umschalter nach dem Andocken unverändert gedrückt: {docked}"
+    );
     assert_eq!(docked["sheetOpen"], true, "das Satzbild ist offen");
     // Umschalter nach dem Andocken: wysiwyg.ts findet die Leiste auch außerhalb von div.wysiwyg.
     let q = &seen["afterQuelltext"];
-    assert_eq!((&q["satz"], &q["quelltext"]), (&json!("false"), &json!("true")), "Klick auf „Quelltext“ im Band: aria-pressed wandert mit (die Leiste liegt nicht mehr unter dem Editor): {q}");
+    assert_eq!(
+        (&q["satz"], &q["quelltext"]),
+        (&json!("false"), &json!("true")),
+        "Klick auf „Quelltext“ im Band: aria-pressed wandert mit (die Leiste liegt nicht mehr unter dem Editor): {q}"
+    );
     assert_eq!(q["areaHidden"], false, "das Textfeld ist sichtbar: {q}");
-    assert_eq!(q["toolsHidden"], true, "Absatzformat, K, F gelten nur im Satzbild und sind im Quelltext verborgen: {q}");
+    assert_eq!(
+        q["toolsHidden"], true,
+        "Absatzformat, K, F gelten nur im Satzbild und sind im Quelltext verborgen: {q}"
+    );
     assert_eq!(q["sheetOpen"], false, "das Satzbild ist zu: {q}");
 
     // Speichern: Strg+S und der Knopf im Band.
-    assert_eq!(seen["saveDisabledClean"], true, "unverändert ist „Speichern“ der Statuszeile gesperrt (maßgeblicher Knopf, nicht der im Band)");
+    assert_eq!(
+        seen["saveDisabledClean"], true,
+        "unverändert ist „Speichern“ der Statuszeile gesperrt (maßgeblicher Knopf, nicht der im Band)"
+    );
     assert_eq!(seen["bandSaveIdlePrevented"], true, "dann speichert auch „Speichern“ im Band nicht");
     assert_eq!(seen["saveLabelDirty"], "Speichern", "nach einer Änderung: Knopf der Statuszeile bereit");
     assert_eq!(seen["bandSaveLabel"], "Speichern", "der Knopf im Band behält seine Beschriftung");
-    assert_eq!(seen["ctrlSPrevented"], true, "Strg+S ist verdrahtet (der Browser-Dialog „Seite speichern“ erscheint nicht)");
-    assert_eq!(seen["dockInertWhileSaving"], true, "während des Speicherns ist auch der Andockplatz gesperrt (kein zweites Speichern, kein Umschalten)");
+    assert_eq!(
+        seen["ctrlSPrevented"], true,
+        "Strg+S ist verdrahtet (der Browser-Dialog „Seite speichern“ erscheint nicht)"
+    );
+    assert_eq!(
+        seen["dockInertWhileSaving"], true,
+        "während des Speicherns ist auch der Andockplatz gesperrt (kein zweites Speichern, kein Umschalten)"
+    );
     let calls: Vec<&str> = seen["saveCalls"].as_array().unwrap().iter().map(|c| c.as_str().unwrap()).collect();
-    assert!(calls.contains(&"outline.save") && calls.contains(&"ui.render"), "Strg+S speichert über outline.save und zeichnet neu: {calls:?}");
+    assert!(
+        calls.contains(&"outline.save") && calls.contains(&"ui.render"),
+        "Strg+S speichert über outline.save und zeichnet neu: {calls:?}"
+    );
     assert_eq!(seen["dockInertAfter"], false, "danach ist der Andockplatz wieder frei");
-    assert_eq!(seen["redocked"], json!({ "bars": 1, "barInDock": true, "barInPane": false }), "nach ui.render dockt die neue Leiste an, die alte ist weg (genau eine)");
+    assert_eq!(
+        seen["redocked"],
+        json!({ "bars": 1, "barInDock": true, "barInPane": false }),
+        "nach ui.render dockt die neue Leiste an, die alte ist weg (genau eine)"
+    );
 
     // Reiter mit der Tastatur.
     let t = &seen["tabs"];
@@ -700,27 +911,64 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
     assert_eq!(c["buchPrevented"], true, "ein Klick auf einen Reiter lädt die Seite nicht neu");
     assert_eq!(c["afterBuch"]["tab"], "buch", "Klick wählt den Reiter");
     assert_eq!(c["afterBuch"]["band"], "open", "das Band bleibt offen");
-    assert_eq!(c["afterActive"]["band"], "closed", "Klick auf den aktiven Reiter klappt das Band zu (data-band an <html>): {c}");
-    assert!(c["afterActive"]["cookie"].as_str().unwrap().contains("baruch_band=closed"), "…und merkt es im Cookie baruch_band: {c}");
+    assert_eq!(
+        c["afterActive"]["band"], "closed",
+        "Klick auf den aktiven Reiter klappt das Band zu (data-band an <html>): {c}"
+    );
+    assert!(
+        c["afterActive"]["cookie"].as_str().unwrap().contains("baruch_band=closed"),
+        "…und merkt es im Cookie baruch_band: {c}"
+    );
     assert_eq!(c["afterActive"]["expanded"], "false", "der Schalter sagt es Hilfsmitteln (aria-expanded)");
-    assert_eq!((&c["peek"]["tab"], &c["peek"]["peek"], &c["peek"]["band"]), (&json!("pruefen"), &json!(true), &json!("closed")), "zugeklappt zeigt ein Reiter sein Feld vorübergehend, das Band bleibt zu: {c}");
+    assert_eq!(
+        (&c["peek"]["tab"], &c["peek"]["peek"], &c["peek"]["band"]),
+        (&json!("pruefen"), &json!(true), &json!("closed")),
+        "zugeklappt zeigt ein Reiter sein Feld vorübergehend, das Band bleibt zu: {c}"
+    );
     assert_eq!(c["afterEscape"]["peek"], false, "Esc blendet das Feld wieder aus");
     assert_eq!(c["afterOutside"]["peek"], false, "ein Klick daneben ebenso");
     assert_eq!(c["afterToggle"]["band"], "open", "der Schalter öffnet das Band dauerhaft");
-    assert!(!c["afterToggle"]["cookie"].as_str().unwrap().contains("baruch_band=closed"), "und nimmt das Cookie zurück: {c}");
+    assert!(
+        !c["afterToggle"]["cookie"].as_str().unwrap().contains("baruch_band=closed"),
+        "und nimmt das Cookie zurück: {c}"
+    );
 
     // Gruppen.
     let g = &seen["groups"];
     let count = g["full"]["count"].as_u64().unwrap();
-    assert!(g["full"]["dockGroups"].as_u64().unwrap() == 7, "die sieben Gruppen der angedockten Leiste gehören zum Band: {g}");
-    assert_eq!((g["full"]["open"].as_u64().unwrap(), g["full"]["named"].as_u64().unwrap()), (count, 0), "voll: alle Gruppen offen, keine als Popup: {g}");
-    assert_eq!((g["compact"]["open"].as_u64().unwrap(), g["compact"]["named"].as_u64().unwrap()), (0, count), "nach baruch:laptop (kompakt): alle zu, alle als Popup mit gemeinsamem Namen – auch die angedockten: {g}");
+    assert!(
+        g["full"]["dockGroups"].as_u64().unwrap() == 7,
+        "die sieben Gruppen der angedockten Leiste gehören zum Band: {g}"
+    );
+    assert_eq!(
+        (g["full"]["open"].as_u64().unwrap(), g["full"]["named"].as_u64().unwrap()),
+        (count, 0),
+        "voll: alle Gruppen offen, keine als Popup: {g}"
+    );
+    assert_eq!(
+        (g["compact"]["open"].as_u64().unwrap(), g["compact"]["named"].as_u64().unwrap()),
+        (0, count),
+        "nach baruch:laptop (kompakt): alle zu, alle als Popup mit gemeinsamem Namen – auch die angedockten: {g}"
+    );
     assert_eq!(g["afterEscape"]["open"], 0, "Esc schließt ein offenes Popup: {g}");
-    assert_eq!((g["fullAgain"]["open"].as_u64().unwrap(), g["fullAgain"]["named"].as_u64().unwrap()), (count, 0), "zurück im vollen Band sind alle wieder offen: {g}");
+    assert_eq!(
+        (g["fullAgain"]["open"].as_u64().unwrap(), g["fullAgain"]["named"].as_u64().unwrap()),
+        (count, 0),
+        "zurück im vollen Band sind alle wieder offen: {g}"
+    );
 
     // Tastenkürzel.
-    for (name, what) in [("altL", "Alt+L öffnet die Literatur"), ("altE", "Alt+E öffnet „Einfall festhalten“"), ("altComma", "Alt+, öffnet die Einstellungen")] {
-        assert_eq!(seen["keys"][name], json!({ "dialog": true, "prevented": true, "open": true }), "{what}: {}", seen["keys"]);
+    for (name, what) in [
+        ("altL", "Alt+L öffnet die Literatur"),
+        ("altE", "Alt+E öffnet „Einfall festhalten“"),
+        ("altComma", "Alt+, öffnet die Einstellungen"),
+    ] {
+        assert_eq!(
+            seen["keys"][name],
+            json!({ "dialog": true, "prevented": true, "open": true }),
+            "{what}: {}",
+            seen["keys"]
+        );
     }
     assert_eq!(
         seen["openers"],

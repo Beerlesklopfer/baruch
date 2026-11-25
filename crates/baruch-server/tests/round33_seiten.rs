@@ -549,6 +549,19 @@ async fn every_page_names_its_default_tab_and_keeps_its_actions_in_groups() {
         }
         for g in &found {
             // Ohne JavaScript bedienbar: In den Gruppen dieser Seiten stehen nur gewöhnliche Links und Formulare.
+            // Integration Runde 33: Ausgenommen ist die Gruppe „Darstellung“ aus base.html (Reiter Ansicht) – der
+            // Thema-Knopf ist nach Vertrag §4 das unveränderte Widget „theme“, „Zoom zurücksetzen“ trägt `js-only`;
+            // ohne JavaScript stellt man das Thema wie bisher unter Einstellungen → Darstellung ein.
+            if g.name == "Darstellung" {
+                assert!(
+                    g.inner.contains("data-widget=\"theme\"")
+                        && g.inner.contains("class=\"btn js-only\" type=\"button\" data-zoom-reset"),
+                    "{name} ({uri}): die Gruppe „Darstellung“ trägt genau den Thema-Knopf und den nur mit JavaScript \
+                     sichtbaren Knopf „Zoom zurücksetzen“: {}",
+                    g.inner
+                );
+                continue;
+            }
             assert!(
                 !g.inner.contains("data-widget=") && !g.inner.contains("type=\"button\""),
                 "{name} ({uri}): Gruppe „{}“ braucht kein Widget und hat keinen Knopf, der nur mit JavaScript etwas \

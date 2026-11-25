@@ -240,7 +240,11 @@ pub fn apply(page: &str, band: &BandState, laptop: &LaptopState) -> String {
     // Rest der Abfrage: kommt aus der Adresse, also nur maskiert in ein Attribut. `node=` (Stelle im Baum, alte
     // Adressform) geht nicht mit: Erzeugte Links tragen nie `node=` (Vertrag Runde 8 §1), sondern `key=`; eine
     // Seite, die noch mit `?node=` aufgerufen wurde, verliert beim Reiterwechsel ohne JavaScript nur diese Stelle.
-    let carried = pairs(Some(&band.rest)).filter(|(key, _, _)| *key != "node").map(|(_, _, pair)| pair).collect::<Vec<_>>().join("&");
+    let carried = pairs(Some(&band.rest))
+        .filter(|(key, _, _)| *key != "node")
+        .map(|(_, _, pair)| pair)
+        .collect::<Vec<_>>()
+        .join("&");
     let prefix = if carried.is_empty() { String::new() } else { format!("{}&amp;", escape_attr(&carried)) };
     let head = page.find(HEAD_OPEN).and_then(|start| {
         let end = start + page[start..].find(HEAD_CLOSE)? + HEAD_CLOSE.len();
@@ -266,14 +270,18 @@ mod tests {
 
     /// Kopf in den wörtlichen Formen von `base.html`, mit den Reitern `tabs` und der Vorgabe `default`.
     fn page(tabs: &[&str], default: &str) -> String {
-        let mut out = String::from("<html lang=\"de\" data-band-fill><body><header class=\"band\" data-widget=\"band\" data-tab=\"\">");
+        let mut out = String::from(
+            "<html lang=\"de\" data-band-fill><body><header class=\"band\" data-widget=\"band\" data-tab=\"\">",
+        );
         out.push_str(&format!("<nav class=\"band-tabs\" role=\"tablist\" data-band-default=\"{default}\">"));
         for id in tabs {
             out.push_str(&format!(
                 "<a class=\"band-tab\" role=\"tab\" id=\"band-tab-{id}\" aria-controls=\"band-panel-{id}\" data-band-tab=\"{id}\" href=\"?tab={id}\" aria-selected=\"false\">{id}</a>"
             ));
         }
-        out.push_str("</nav><a class=\"btn band-toggle\" data-band-toggle aria-expanded=\"true\" href=\"?band=closed\">x</a>");
+        out.push_str(
+            "</nav><a class=\"btn band-toggle\" data-band-toggle aria-expanded=\"true\" href=\"?band=closed\">x</a>",
+        );
         for id in tabs {
             out.push_str(&format!(
                 "<div class=\"band-panel\" role=\"tabpanel\" id=\"band-panel-{id}\" aria-labelledby=\"band-tab-{id}\" data-band-panel=\"{id}\" hidden>\
@@ -309,7 +317,8 @@ mod tests {
         let page = "<html lang=\"de\" data-band-fill><body><p data-band-fill>x</p></body></html>";
         let out = apply(page, &BandState::default(), &LaptopState::default());
         assert_eq!(
-            out, "<html lang=\"de\" data-laptop=\"auto\" data-band=\"open\"><body><p data-band-fill>x</p></body></html>",
+            out,
+            "<html lang=\"de\" data-laptop=\"auto\" data-band=\"open\"><body><p data-band-fill>x</p></body></html>",
             "nur die Marke an <html> wird ersetzt; ein zweites Vorkommen im Seiteninhalt bleibt, wie es ist"
         );
     }
@@ -321,7 +330,10 @@ mod tests {
             out.starts_with("<html lang=\"de\" data-laptop=\"auto\" data-band=\"open\">"),
             "die Marke wird zu den Attributen des Zustands (Laptop-Modus und Band offen): {out}"
         );
-        assert!(out.contains("<header class=\"band\" data-widget=\"band\" data-tab=\"buch\">"), "der Kopf nennt den aktiven Reiter: {out}");
+        assert!(
+            out.contains("<header class=\"band\" data-widget=\"band\" data-tab=\"buch\">"),
+            "der Kopf nennt den aktiven Reiter: {out}"
+        );
         assert_eq!(out.matches("aria-selected=\"true\"").count(), 1, "genau ein Reiter ist gewählt: {out}");
         assert!(
             out.contains("data-band-tab=\"buch\" href=\"?tab=buch&amp;band=closed\" aria-selected=\"true\""),
@@ -348,11 +360,17 @@ mod tests {
             "?tab=einfuegen gibt es auf dieser Seite nicht: es gilt die Vorgabe der Seite (data-band-default): {out}"
         );
         let out = apply(&four, &state("tab=ansicht"), &LaptopState::default());
-        assert!(out.contains("data-tab=\"ansicht\""), "ein vorhandener Reiter aus der Adresse geht vor der Vorgabe: {out}");
+        assert!(
+            out.contains("data-tab=\"ansicht\""),
+            "ein vorhandener Reiter aus der Adresse geht vor der Vorgabe: {out}"
+        );
         // Vorgabe, die es auf der Seite nicht gibt (Seite ohne Werk mit Vorgabe „buch“): der erste Reiter.
         let two = page(&["start", "ansicht"], "buch");
         let out = apply(&two, &BandState::default(), &LaptopState::default());
-        assert!(out.contains("data-tab=\"start\""), "fehlt auch die Vorgabe als Reiter, gilt der erste der Seite: {out}");
+        assert!(
+            out.contains("data-tab=\"start\""),
+            "fehlt auch die Vorgabe als Reiter, gilt der erste der Seite: {out}"
+        );
         assert!(
             out.contains("data-band-panel=\"start\"><details"),
             "und dessen Feld ist sichtbar – sonst stünde ohne JavaScript kein Feld da: {out}"
@@ -364,7 +382,11 @@ mod tests {
         assert_eq!(state("tab=unsinn").tab, None, "unbekannte Kennung: kein Reiter aus der Adresse");
         assert_eq!(state("tab=Buch").tab, None, "Kennungen gelten wörtlich (klein)");
         assert_eq!(state("tab=start&tab=buch").tab, Some("buch"), "mehrfach genannt: der letzte gültige Wert gilt");
-        assert_eq!(state("tab=buch&tab=x").tab, Some("buch"), "ein ungültiger Wert dahinter verdrängt den gültigen nicht");
+        assert_eq!(
+            state("tab=buch&tab=x").tab,
+            Some("buch"),
+            "ein ungültiger Wert dahinter verdrängt den gültigen nicht"
+        );
     }
 
     #[test]
@@ -380,7 +402,10 @@ mod tests {
             "ein anderer Reiter führt ohne JavaScript auf dieselbe Stelle des Werks, nur mit anderem Reiter: {out}"
         );
         assert!(!out.contains("href=\"?tab="), "kein Reiter verliert den Rest der Abfrage: {out}");
-        assert!(!out.contains("lrail=1&amp;tab") && !out.contains("laptop=on&amp;"), "die eigenen Schlüssel stehen nicht im Rest: {out}");
+        assert!(
+            !out.contains("lrail=1&amp;tab") && !out.contains("laptop=on&amp;"),
+            "die eigenen Schlüssel stehen nicht im Rest: {out}"
+        );
     }
 
     #[test]
@@ -394,7 +419,10 @@ mod tests {
             "die übrigen Schlüssel bleiben: {out}"
         );
         let only = apply(&page(&ALL, "start"), &state("node=3"), &LaptopState::default());
-        assert!(only.contains("href=\"?tab=buch\""), "bleibt nichts übrig, steht nur der Reiter (kein führendes &): {only}");
+        assert!(
+            only.contains("href=\"?tab=buch\""),
+            "bleibt nichts übrig, steht nur der Reiter (kein führendes &): {only}"
+        );
     }
 
     #[test]
@@ -418,10 +446,16 @@ mod tests {
             "der Rest steht maskiert im href des Reiters (& < > \" '): {out}"
         );
         assert!(
-            out.contains("href=\"?x=&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;y=&#39;&amp;tab=start&amp;laptop=on\""),
+            out.contains(
+                "href=\"?x=&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;y=&#39;&amp;tab=start&amp;laptop=on\""
+            ),
             "auch die Schalter tragen den Rest nur maskiert: {out}"
         );
-        assert_eq!(escape_attr("&<>\"'a"), "&amp;&lt;&gt;&quot;&#39;a", "alle fünf Zeichen werden maskiert, anderes bleibt");
+        assert_eq!(
+            escape_attr("&<>\"'a"),
+            "&amp;&lt;&gt;&quot;&#39;a",
+            "alle fünf Zeichen werden maskiert, anderes bleibt"
+        );
     }
 
     #[test]
@@ -462,8 +496,14 @@ mod tests {
         let cookie = Some("baruch_work=2; baruch_band=closed");
         assert!(BandState::from_request(cookie, None).closed, "Cookie baruch_band=closed: zugeklappt");
         assert!(!BandState::from_request(cookie, Some("band=open")).closed, "?band=open geht vor dem Cookie");
-        assert!(BandState::from_request(cookie, Some("band=kaputt")).closed, "ein ungültiger Wert wird übergangen, das Cookie gilt");
-        assert!(!BandState::from_request(Some("baruch_bandx=closed"), None).closed, "ein Cookie mit ähnlichem Namen zählt nicht");
+        assert!(
+            BandState::from_request(cookie, Some("band=kaputt")).closed,
+            "ein ungültiger Wert wird übergangen, das Cookie gilt"
+        );
+        assert!(
+            !BandState::from_request(Some("baruch_bandx=closed"), None).closed,
+            "ein Cookie mit ähnlichem Namen zählt nicht"
+        );
         assert!(!BandState::from_request(None, None).closed, "ohne alles ist das Band offen");
     }
 
@@ -478,7 +518,11 @@ mod tests {
             "jede Gruppe wird ein <details> mit gemeinsamem Namen (der Browser hält dann nur eines offen): {out}"
         );
         let wide = apply(&page(&ALL, "start"), &BandState::default(), &LaptopState::default());
-        assert_eq!(wide.matches(" data-band-group open>").count(), 5, "im vollen Band bleiben alle Gruppen offen: {wide}");
+        assert_eq!(
+            wide.matches(" data-band-group open>").count(),
+            5,
+            "im vollen Band bleiben alle Gruppen offen: {wide}"
+        );
         let medium = LaptopState { width: Width::Medium, ..LaptopState::default() };
         assert!(
             apply(&page(&ALL, "start"), &BandState::default(), &medium).contains("name=\"band-group\""),
@@ -490,13 +534,19 @@ mod tests {
     fn laptop_and_rail_switches_show_their_state() {
         let on = LaptopState { mode: Mode::On, ..LaptopState::default() };
         let out = apply(&page(&ALL, "start"), &state("work=1"), &on);
-        assert!(out.contains("data-laptop-set=\"on\" aria-pressed=\"true\""), "der Schalter des geltenden Modus ist gedrückt: {out}");
         assert!(
-            out.contains("data-laptop-set=\"auto\" aria-pressed=\"false\"") && out.contains("data-laptop-set=\"off\" aria-pressed=\"false\""),
+            out.contains("data-laptop-set=\"on\" aria-pressed=\"true\""),
+            "der Schalter des geltenden Modus ist gedrückt: {out}"
+        );
+        assert!(
+            out.contains("data-laptop-set=\"auto\" aria-pressed=\"false\"")
+                && out.contains("data-laptop-set=\"off\" aria-pressed=\"false\""),
             "die anderen beiden nicht: {out}"
         );
         assert!(
-            out.contains("data-laptop-set=\"off\" aria-pressed=\"false\" href=\"?work=1&amp;tab=start&amp;laptop=off\""),
+            out.contains(
+                "data-laptop-set=\"off\" aria-pressed=\"false\" href=\"?work=1&amp;tab=start&amp;laptop=off\""
+            ),
             "die Schalter behalten Werk und Reiter in der Adresse: {out}"
         );
         // „An“ klappt beide Leisten ein: nicht gedrückt, die Adresse klappt aus.
@@ -504,12 +554,23 @@ mod tests {
             out.contains("data-rail-toggle=\"left\" aria-pressed=\"false\" href=\"?work=1&amp;tab=start&amp;lrail=0\""),
             "eingeklappte Gliederung: nicht gedrückt, der Link klappt aus: {out}"
         );
-        assert!(out.contains("data-rail-toggle=\"right\" aria-pressed=\"false\" href=\"?work=1&amp;tab=start&amp;rrail=0\""), "rechts ebenso: {out}");
+        assert!(
+            out.contains(
+                "data-rail-toggle=\"right\" aria-pressed=\"false\" href=\"?work=1&amp;tab=start&amp;rrail=0\""
+            ),
+            "rechts ebenso: {out}"
+        );
 
         let left_only = LaptopState { lrail: true, ..LaptopState::default() };
         let out = apply(&page(&ALL, "start"), &BandState::default(), &left_only);
-        assert!(out.contains("data-laptop-set=\"auto\" aria-pressed=\"true\""), "Vorgabe „Automatisch“ ist gedrückt: {out}");
-        assert!(out.contains("data-rail-toggle=\"left\" aria-pressed=\"false\" href=\"?tab=start&amp;lrail=0\""), "nur links eingeklappt: {out}");
+        assert!(
+            out.contains("data-laptop-set=\"auto\" aria-pressed=\"true\""),
+            "Vorgabe „Automatisch“ ist gedrückt: {out}"
+        );
+        assert!(
+            out.contains("data-rail-toggle=\"left\" aria-pressed=\"false\" href=\"?tab=start&amp;lrail=0\""),
+            "nur links eingeklappt: {out}"
+        );
         assert!(
             out.contains("data-rail-toggle=\"right\" aria-pressed=\"true\" href=\"?tab=start&amp;rrail=1\""),
             "die sichtbare rechte Spalte ist gedrückt, der Link klappt sie ein: {out}"
@@ -531,7 +592,10 @@ mod tests {
             "ein Reiter-Name im Seiteninhalt zählt nicht: ?tab=buch gilt nur, wenn der Kopf den Reiter hat: {out}"
         );
         assert!(out.contains("<a href=\"?seite=2\">weiter</a>"), "fremde Abfragen bleiben, wie sie sind: {out}");
-        assert!(out.contains("<a href=\"?laptop=a b\">x</a>"), "ein Wert mit anderen Zeichen als [A-Za-z0-9_-] wird nicht angefasst: {out}");
+        assert!(
+            out.contains("<a href=\"?laptop=a b\">x</a>"),
+            "ein Wert mit anderen Zeichen als [A-Za-z0-9_-] wird nicht angefasst: {out}"
+        );
     }
 
     #[test]
@@ -554,7 +618,11 @@ mod tests {
     #[test]
     fn tabs_are_the_five_from_the_contract() {
         let ids: Vec<&str> = TABS.iter().map(|(id, _)| *id).collect();
-        assert_eq!(ids, ["start", "einfuegen", "pruefen", "buch", "ansicht"], "Kennungen und Reihenfolge der Reiter (§2/§3.2)");
+        assert_eq!(
+            ids,
+            ["start", "einfuegen", "pruefen", "buch", "ansicht"],
+            "Kennungen und Reihenfolge der Reiter (§2/§3.2)"
+        );
     }
 
     #[test]

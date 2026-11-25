@@ -1227,3 +1227,48 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   folgt die Oberfläche dem System).
 - **Interne Verweise der Webseite prüfen:** über die gebauten HTML-Dateien (jedes `href`/`src` ohne fremden Rechner
   muss als Datei unter `site/public` liegen, Anker als `id`); `/apt/` entsteht erst beim Release.
+
+## Runde 33 – Menüband und Laptop-Modus
+
+### Band (`templates/base.html`, `src/band.rs`, `web/src/band.ts`)
+
+- **Das Band steht vollständig in `base.html`.** Die Vorlage ist in rund 35 eigenen minijinja-Umgebungen eingebettet
+  (`include_str!`); ein `{% include %}` darin müsste in allen registriert werden. Neue Teile des Bands also direkt in
+  `base.html`, Seiten liefern nur Blöcke (`band_tab`, `page_actions`, `band_einfuegen`, `band_pruefen`, `band_buch`,
+  `band_ansicht`).
+- **Wörtliche Formen:** Die Schicht `consent::inject` → `band::apply` ersetzt im fertigen HTML Zeichenketten (Reiter,
+  Feld, `… data-band-group open>`, Laptop-Schalter, Seitenleisten). Reihenfolge der Attribute nie ändern; weitere
+  Attribute einer Gruppe nur zwischen `class="band-group"` und `data-band-group`.
+- **Neue Seite:** `{% block band_tab %}` setzen und die Aktionen als Gruppen in der wörtlichen Form in den Block des
+  eigenen Reiters. `round33_seiten::every_page_names_its_default_tab_and_keeps_its_actions_in_groups` hat die Liste.
+- **Modi nur über Attribute an `<html>`** (`data-laptop`, `data-compact`, `data-narrow`, `data-rail-*`, `data-band`):
+  keine Media-Query auf die Fensterbreite, sonst gibt es zwei Wahrheiten, sobald der Mensch „An“/„Aus“ wählt.
+  `band.css` gehört das Band in beiden Zuständen, `laptop.css` alles außerhalb.
+- **Werk im Band:** Rangfolge `topbar` → `work.id` (nur wenn `work` eine Abbildung ist) → Cookie `baruch_work`. Seiten,
+  die `work` als Zeichenkette reichen (z. B. `/einfaelle`), zeigen Prüfen/Buch nur mit dem Cookie – Tests rufen solche
+  Seiten wie der Browser mit `baruch_work=W` ab.
+- **Testhelfer:** `band(html)`, `panel(head, id)`, `tabs(head)` (round33_menueband.rs, round9_menu.rs); der Kopf heißt
+  `header.band`, nicht mehr `header.topbar`.
+
+### Integration
+
+- **Tests in fremden Dateien:** Jede der drei Aufgaben hinterließ rote Tests in Dateien einer anderen Aufgabe (alte
+  Beschriftung „Satz“, entfernte `.topbar`-Regeln, früheres Band der Satz-Seite). Das ist bei striktem Dateibesitz
+  erwartbar: Die Entwickler liefern den Textvorschlag (Datei, Stelle, alt → neu), der Integrator trägt ihn ein. Ein
+  Test über „alle Gruppen der Seite“ muss nach dem Zusammenführen die Gruppen aus `base.html` kennen (Gruppe
+  „Darstellung“ mit dem Thema-Knopf).
+- **Reihenfolge:** Sichtprüfung vor dem abschließenden vollen Lauf (aber nie gleichzeitig mit einem Lauf): Sie fand
+  drei Dinge, die CSS änderten (gekappte Gruppen-Beschriftung, Umbruch der Zeile 1 bei 1024 px, „Einklappen ›“ am
+  Rahmen). Nach dem vollen Lauf wären das ein zweiter Lauf gewesen.
+- **Firefox headless ohne Klick:** `--screenshot` kann nichts anklicken und keine Cookies setzen. Hilfe: ein kleiner
+  Vermittler (Python, `http.server` auf 127.0.0.1:0) vor dem Wegwerf-Server, der je Anfrage Cookies ergänzt
+  (`Cookie` an den Server **und** `Set-Cookie` an den Browser – das Thema-Widget liest `document.cookie` und stellt
+  sonst zurück), `<details … open>` setzt (ohne JavaScript) oder ein `<script>` einfügt, das nach `load` ein
+  `summary` anklickt (mit JavaScript; band.ts klappt serverseitig geöffnete Gruppen im kompakten Band wieder zu).
+  Ohne JavaScript: Profil mit `user_pref("javascript.enabled", false);`. Schublade ohne JavaScript: Adresse mit
+  `#pane-tree`.
+- **podman langsam:** `timeout 20 podman info` antwortete, die pgvector-Tests brauchten trotzdem über zehn Minuten
+  (Start und `podman rm`). Nicht abbrechen – der Lauf endet; nur bei hängendem `podman info` auslassen.
+- **Parallele Runden:** Runde 33 lief neben Runde 32 auf einem eigenen Integrationszweig (`runde33`, Hauptordner
+  `.claude/worktrees/r33`). Der Name weicht von der Regel `team/<id>` ab; die Stellen für das spätere Zusammenführen
+  sind in `base.html` mit `{#- R32-PLATZ … -#}` markiert (import-word, beenden, export-word).

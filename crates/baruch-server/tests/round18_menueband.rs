@@ -61,14 +61,6 @@ fn get_from(uri: &str, site: &str) -> Request<Body> {
     Request::get(uri).header("sec-fetch-site", site).body(Body::empty()).unwrap()
 }
 
-/// Ausschnitt ab `marker` bis zum Ende des Elements `</div>`.
-fn ribbon_of<'a>(html: &'a str, marker: &str) -> &'a str {
-    let at = html.find(marker).unwrap_or_else(|| panic!("{marker} fehlt: {html}"));
-    let start = html[..at].rfind("<div").unwrap();
-    let end = at + html[at..].find("</div>").unwrap();
-    &html[start..end]
-}
-
 // ---- Formate der Vorlage -----------------------------------------------------------------------------------
 
 #[tokio::test]
@@ -113,7 +105,8 @@ async fn the_editor_ribbon_keeps_every_hook_and_shows_the_formats_of_the_templat
     // Runde 33 (Menüband): Die Leiste hat jetzt zwei Teile mit Gruppen (geschachtelte <div>), darum reicht der
     // Ausschnitt bis zur Suchleiste dahinter statt bis zum ersten </div>. Alle Haken sind dieselben.
     let start = page.find("<div class=\"ws-bar edit-toolbar ribbon\"").expect("Leiste des Editors");
-    let ribbon = &page[start..start + page[start..].find("<div class=\"search-bar\"").expect("Suchleiste hinter der Leiste")];
+    let ribbon =
+        &page[start..start + page[start..].find("<div class=\"search-bar\"").expect("Suchleiste hinter der Leiste")];
     // DOM-Vertrag §2: die Haken des Satzbilds bleiben unverändert (wysiwyg.ts liest sie).
     for hook in [
         "data-edit-toolbar hidden>",
@@ -175,10 +168,19 @@ async fn the_typeset_page_has_an_accessible_ribbon_without_main_js() {
     assert_eq!(status, StatusCode::OK, "Satz-Seite lädt: {html}");
     assert!(!html.contains("main.js"), "die Satz-Seite lädt kein main.js (sie braucht kein Widget): {html}");
     assert!(!html.contains("<script"), "überhaupt kein Skript: Menüband aus Links und einem Formular");
-    let ribbon = ribbon_of(&html, "data-ribbon-satz");
-    assert!(ribbon.contains("aria-label=\"Menüband der Satz-Ansicht\""), "eigene Beschriftung: {ribbon}");
+    // Runde 33: Das eigene Band unter der Kopfzeile (edit_toolbar.html, Zweig satz_page, aria-label „Menüband der
+    // Satz-Ansicht“) ist entfernt; die Bedienung steht als Gruppen im Reiter „Buch“ des Menübands (typeset.html, Block
+    // band_buch, Haken data-ribbon-satz an der ersten Gruppe). Die Zusicherungen gelten darum für das Feld „Buch“;
+    // „nie verborgen“ heißt jetzt: das Feld Buch ist auf der Satz-Seite das offene (ohne JavaScript, vom Server).
+    assert!(!html.contains("aria-label=\"Menüband der Satz-Ansicht\""), "kein zweites Band unter dem Kopf: {html}");
+    let ribbon = &html[html.find("data-band-panel=\"buch\"").expect("Feld Buch")..];
+    let ribbon = &ribbon[..ribbon.find("</header>").expect("Ende des Kopfs")];
     let open_tag = &ribbon[..ribbon.find('>').unwrap()];
-    assert!(!open_tag.contains("hidden"), "auf der Satz-Seite nie verborgen (ohne JavaScript bedienbar): {open_tag}");
+    assert!(
+        !open_tag.contains("hidden"),
+        "das Feld Buch ist auf der Satz-Seite offen (ohne JavaScript bedienbar): {open_tag}"
+    );
+    assert!(ribbon.contains("data-ribbon-satz"), "der Haken der Satz-Bedienung steht im Feld Buch: {ribbon}");
     assert!(ribbon.contains(&format!("href=\"/?work={work}&amp;key={key}\">Zurück zum Werk</a>")), "Zurück: {ribbon}");
     assert!(ribbon.contains(&format!("href=\"/werke/{work}/pdf\" download")), "PDF herunterladen: {ribbon}");
     assert!(
@@ -194,7 +196,7 @@ async fn the_typeset_page_has_an_accessible_ribbon_without_main_js() {
     assert!(ribbon.contains("Seite 1 von 2"), "Seitenangabe im Menüband: {ribbon}");
     assert!(
         ribbon.contains(&format!(
-            "<form class=\"ribbon-group ribbon-cancel\" method=\"post\" action=\"/werke/{work}/satz/abbrechen\">"
+            "<form class=\"typeset-cancel\" method=\"post\" action=\"/werke/{work}/satz/abbrechen\">"
         )),
         "„Satz abbrechen“ ist ein Formular (ohne JavaScript): {ribbon}"
     );
@@ -215,7 +217,9 @@ async fn the_typeset_page_header_works_without_main_js() {
     let header = &html[html.find("<header class=\"band\"").expect("Kopfzeile")..]; // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     let header = &header[..header.find("</header>").unwrap()];
     assert!(
-        !header.contains("data-widget=\"theme\"") && !header.contains("<button"),
+        // Runde 33: vorher „kein <button im Kopf“. Im Kopf steht jetzt der Absende-Knopf von „Satz abbrechen“
+        // (type="submit", geht ohne JavaScript); verboten bleiben Knöpfe, die nur ein Skript bedient (type="button").
+        !header.contains("data-widget=\"theme\"") && !header.contains("type=\"button\""),
         "kein Knopf in der Kopfzeile, der nur mit main.js etwas täte (die Menüs sind <details>/Links): {header}"
     );
     assert!(!header.contains("<noscript>"), "nichts nur für „ohne JavaScript“: die Seite ist immer ohne: {header}");

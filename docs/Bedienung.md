@@ -416,9 +416,130 @@ HTML (auch ohne JavaScript; das Skript frischt sie nur auf). Null → kein Abzei
 Einträge gewöhnliche Links und Formulare. Die Knöpfe des Editors gibt es dann nicht im Band; im Editor steht das
 Textfeld mit **Speichern**, **Bild einfügen …** und **Markierung …** in der Statuszeile.
 
-<!-- R33 menueband -->
+Rechts in der ersten Zeile steht außerdem der kleine Schalter **▴/▾** zum Ein- und Ausklappen des Bands. Das Menü
+**Baruch ▾** bedient man mit der Tastatur so: ↓ oder Enter öffnet, ↑/↓ wandern, Esc schließt. Auf Seiten ohne Werk
+führt „Werk wählen“ zur Liste der Werke; „Literatur“ und „Abgleichen“ stehen dort unter Start.
 
-<!-- R33 laptop -->
+Umbenannt: „Satz“ heißt **Satz-Vorschau**, „Als PDF/Entwurf/EPUB herunterladen“ heißen in der Gruppe *Ausgabe* kurz
+**PDF**, **Entwurf**, **EPUB**; „Editor“ außerhalb der Arbeitsseite heißt **Zum Text**.
+
+**Abzeichen** an den Reitern zeigen, wo etwas wartet: an **Start** die offenen Vorschläge im Werk, an **Prüfen**
+„N offen“ (offene Befunde), an **Buch** die offenen Anträge zur Gliederung. Sie stehen auf jeder Seite, auch ohne
+JavaScript.
+
+**Reiter wechseln:** Klick, oder mit der Tastatur ←/→ (läuft am Ende um), Pos1 und Ende; Tab führt vom gewählten
+Reiter in sein Feld. Tastenkürzel wie bisher: Strg+S (⌘+S) speichert, Alt+L Literatur, Alt+E Einfall festhalten,
+Alt+, Einstellungen, Alt+←/→ vorige/nächste Fassung, Strg+Umschalt+F im Werk suchen.
+
+**Speichern im Band:** „Speichern“ und „Als neue Fassung“ in der Gruppe *Fassung* tun dasselbe wie die Knöpfe der
+Statuszeile unter dem Blatt; ohne Änderung speichert „Speichern“ nichts. „Prüfen“ und „Vorschlag“ in der Gruppe
+*Assistenten* gelten für die Persona, die rechts im Akkordeon „Assistenten“ gewählt ist (samt Hinweis, Bereich und
+Prüfgrundlage).
+
+### Band ein- und ausklappen
+
+Ein Klick auf den **gewählten Reiter** oder auf **▴** rechts klappt das Band zu; es bleibt nur Zeile 1. Baruch merkt
+sich das (Cookie `baruch_band`). Im zugeklappten Band zeigt ein Klick auf einen Reiter dessen Gruppen
+**vorübergehend** über dem Text – nach dem Auslösen eines Knopfs, mit Esc oder einem Klick daneben verschwinden sie
+wieder. **▾** rechts klappt das Band dauerhaft auf.
+
+### Kompaktes Band
+
+Im Laptop-Modus (Reiter Ansicht) ist das Band kompakt: Jede Gruppe ist ein Knopf „Name ▾“, der seine Einträge als
+Popup zeigt; es ist immer nur ein Popup offen, Esc oder ein Klick daneben schließt es. In Zeile 1 entfällt dann der
+Autor; ein langer Titel wird mit „…“ gekürzt, damit die Zeile einzeilig bleibt.
+
+### Menüband ohne JavaScript
+
+- Reiter, Gruppen, das Menü Baruch ▾, Band auf/zu und der Laptop-Modus sind gewöhnliche Links und aufklappbare
+  Bereiche: Ein Klick lädt die Seite mit dem neuen Zustand (`?tab=…`, `?band=…`, `?laptop=…`); Werk, Abschnitt und
+  Fassung bleiben in der Adresse.
+- Die Knöpfe des Editors (Gruppen *Text*, *Absatz*, *Fassung*, *Assistenten* und der ganze Reiter **Einfügen**)
+  brauchen JavaScript. Ohne JavaScript arbeitet man wie bisher im Textfeld und speichert mit „Speichern“ unter dem
+  Blatt; der Reiter Einfügen nennt dann die beiden Wege am Blatt: „Bild einfügen …“ und „Markierung …“ (Glossar und
+  Register). „Zoom zurücksetzen“ gibt es nur mit JavaScript.
+- **Bekannte Grenze:** Ist eine Seite die Antwort auf ein abgeschicktes Formular (zum Beispiel die Rückfrage
+  „Speichern bestätigen“), führt ein Reiter ohne JavaScript per einfachem Aufruf auf dieselbe Adresse – die Antwort
+  des Formulars steht dann nicht mehr da. Mit JavaScript wechseln die Reiter ohne Neuladen.
+
+`). -->
+
+### Laptop-Modus
+
+Auf einem kleinen Bildschirm soll der Text den Platz bekommen, nicht die Bedienung. Der Laptop-Modus hat dafür
+drei Teile:
+
+1. **Kompaktes Band.** Die Gruppen des Menübands schrumpfen zu Knöpfen „Name ▾“, die ihren Inhalt als Popup
+   zeigen (siehe Menüband).
+2. **Seitenspalten als Leisten.** Gliederung (links) und Assistenten (rechts) klappen zu je einer schmalen Leiste am
+   Rand ein. Der Editor bekommt fast die ganze Breite.
+3. **Schubladen.** Ein Klick auf eine Leiste holt ihre Spalte über den Text – so breit wie nötig, ohne den Text
+   zusammenzuschieben – und legt sie danach wieder weg.
+
+#### Schalter: Ansicht → Laptop-Modus
+
+Im Reiter **Ansicht** stehen in der Gruppe „Laptop-Modus“ drei Schalter:
+
+| Schalter | Wirkung |
+|---|---|
+| **Automatisch** (Vorgabe) | Baruch richtet sich nach der Breite des Fensters (Schwellen unten). |
+| **An** | Kompaktes Band und Leisten, gleich wie breit das Fenster ist. |
+| **Aus** | Volles Band und offene Spalten, auch in einem schmalen Fenster. |
+
+Die Wahl wird gemerkt (Cookie `baruch_laptop`, ein Jahr) und gilt auf allen Seiten. Der gedrückte Schalter ist
+die geltende Wahl.
+
+#### Schwellen bei „Automatisch“
+
+Gemessen wird die innere Breite des Browserfensters, beim Laden und bei jeder Größenänderung:
+
+| Fensterbreite | Band | Seitenspalten |
+|---|---|---|
+| ab 1600 px | voll | offen |
+| 1280 bis 1599 px | kompakt | offen |
+| unter 1280 px | kompakt | Leisten |
+
+Ein Fenster in voller Größe auf einem Bildschirm mit 1920 × 1080 ist also „voll“, eines mit 1366 × 768
+„kompakt“, ein halbes Fenster oder 1024 px Breite „kompakt mit Leisten“. Zieht man das Fenster über eine Schwelle,
+wechselt die Ansicht sofort, ohne dass die Seite neu lädt; ungespeicherter Text bleibt stehen.
+
+#### Leisten und Schubladen
+
+- **Eine Spalte von Hand einklappen:** „Einklappen“ oben in der Spalte, oder Ansicht → Seitenleisten →
+  „Gliederung“ bzw. „Assistenten“ (gedrückt = Spalte sichtbar). Die Spalte wird zur Leiste und bleibt es, bis man
+  sie wieder öffnet (gemerkt in den Cookies `baruch_lrail` und `baruch_rrail`). Die andere Spalte bleibt, wie sie
+  ist; die Grenze zur Leiste lässt sich nicht ziehen, die gemerkte Spaltenbreite bleibt aber erhalten.
+- **Leiste im breiten Fenster:** Ein Klick auf die Leiste klappt die Spalte wieder dauerhaft auf.
+- **Leiste im schmalen Zustand** (unter 1280 px oder Laptop-Modus „An“): Die Leiste öffnet die Spalte als
+  **Schublade** über dem Text. Sie schließt sich mit Esc, mit einem Klick daneben, mit „Schließen“ oben in der
+  Schublade – und von selbst, sobald man in der Gliederung einen Abschnitt wählt. Nach Esc und „Schließen“ steht
+  der Fokus wieder dort, von wo die Schublade geöffnet wurde. Die Schublade wird nicht gemerkt: Nach dem Schließen
+  ist die Spalte wieder Leiste.
+- Die Schublade der Assistenten bleibt offen, während man darin arbeitet (Chat, Prüfen, Fassungen) – sie schließt
+  erst auf Wunsch.
+- Im schmalen Zustand lassen sich die Spalten nicht dauerhaft neben den Text stellen; dafür den Laptop-Modus auf
+  „Aus“ stellen oder das Fenster verbreitern.
+
+Alles Übrige bleibt, wie es ist: Spaltenbreiten (Grenzen ziehen oder ←/→), Zoom je Bereich (Strg+Mausrad, Strg+0
+für den Bereich unter dem Mauszeiger). Neu im Reiter Ansicht ist **„Zoom zurücksetzen“**: Der Knopf setzt alle
+Bereiche auf einmal auf 100 % zurück.
+
+#### Ohne JavaScript
+
+- Die Schalter sind gewöhnliche Links (`?laptop=on`, `?laptop=off`, `?laptop=auto`, `?lrail=1`, `?rrail=1`); der
+  Server merkt die Wahl als Cookie und zeichnet die Seite entsprechend.
+- **Die Fensterbreite kennt der Server ohne JavaScript nicht.** „Automatisch“ zeichnet dann immer breit (volles
+  Band, offene Spalten). Auf einem kleinen Bildschirm stellt man den Laptop-Modus von Hand auf **„An“**.
+- Eine Leiste öffnet ihre Spalte auch ohne JavaScript als Schublade (Sprungziel `#pane-tree` bzw.
+  `#pane-assistants`); „Schließen“ oben in der Schublade oder ein Klick auf die abgedunkelte Fläche daneben legt
+  sie wieder weg. Wer in der Gliederung einen Abschnitt wählt, lädt die Seite neu – die Schublade ist dann zu.
+  Esc schließt ohne JavaScript nicht.
+- „Zoom zurücksetzen“ gibt es nur mit JavaScript (der Bereichs-Zoom selbst auch).
+
+#### Geändert gegenüber früher
+
+Bisher stellte Baruch die drei Spalten in Fenstern unter 900 px untereinander. Das ist entfallen: In schmalen
+Fenstern klappen die Seitenspalten jetzt zu Leisten ein, und der Text behält die volle Höhe.
 
 ### Knöpfe des Editors im Menüband
 

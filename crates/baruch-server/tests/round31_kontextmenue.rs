@@ -101,7 +101,8 @@ async fn the_editor_offers_the_marking_link_without_javascript_and_the_ribbon_gr
         "Gruppe des Menübands mit Widget und Namen für Hilfsmittel: {group}"
     );
     assert!(
-        ribbon[..ribbon.find("<div class=\"ribbon-group ribbon-index\"").unwrap()].contains("data-band-part=\"einfuegen\""),
+        ribbon[..ribbon.find("<div class=\"ribbon-group ribbon-index\"").unwrap()]
+            .contains("data-band-part=\"einfuegen\""),
         "die Gruppe gehört zum Reiter Einfügen: {ribbon}"
     );
     for (action, label) in [

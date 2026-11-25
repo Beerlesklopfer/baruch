@@ -118,7 +118,9 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
     // Runde 33: aktiver Reiter, Adressen der Reiter und Laptop-Zustand im fertigen HTML; gültige Schlüssel der
     // Adresse als Cookie merken – anhängen, nicht ersetzen (`/` setzt schon `baruch_work`).
     let page = crate::band::apply(&page, &band, &laptop);
-    for cookie in crate::band::set_cookies(query.as_deref()).into_iter().chain(crate::laptop::set_cookies(query.as_deref())) {
+    for cookie in
+        crate::band::set_cookies(query.as_deref()).into_iter().chain(crate::laptop::set_cookies(query.as_deref()))
+    {
         match HeaderValue::from_str(&cookie) {
             Ok(value) => {
                 parts.headers.append(header::SET_COOKIE, value);
