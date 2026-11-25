@@ -85,6 +85,11 @@ pub const IMPORT_UPLOAD_LIMIT: usize = 80 * 1024 * 1024 + 64 * 1024;
 /// axum schon vorher mit 413 ab.
 pub const RPC_BODY_LIMIT: usize = 2 * MAX_SOURCE_BYTES as usize + 64 * 1024;
 
+/// Runde 32: Antwort von `POST /werke/import` (422) und `work.import` (-32602) auf eine Word-Datei – sie verweist auf
+/// den eigenen Import mit Vorschau ([`crate::docx_import`]).
+pub const USE_WORD_IMPORT: &str = "Word-Dateien liest der eigene Import mit Vorschau: Baruch ▾ → Word (.docx) \
+     importieren… (/werke/import/word) bzw. RPC docx_import.preview.";
+
 // ---- RPC ---------------------------------------------------------------------------------------
 
 /// Methoden dieses Moduls.
@@ -227,6 +232,10 @@ pub async fn call(
         "work.import" => {
             let p: ImportParams = params(params_value)?;
             let base = p.file_name.rsplit(['/', '\\']).next().unwrap_or("").trim();
+            // Runde 32: Word-Dateien liest nur der eigene Import mit Vorschau.
+            if crate::docx_import::is_docx_name(base) {
+                return Err(invalid(USE_WORD_IMPORT));
+            }
             let report = if markdown_import::is_markdown_name(base) {
                 markdown_import::import_text(state, &p.source, &p.file_name, p.title.as_deref()).await?
             } else if markdown_import::is_archive_name(base) {
@@ -1505,6 +1514,10 @@ async fn upload(
                     }
                 }
             } else {
+                // Runde 32: Word-Dateien liest nur der eigene Import mit Vorschau.
+                if crate::docx_import::is_docx_name(&base) {
+                    return failed(StatusCode::UNPROCESSABLE_ENTITY, form, USE_WORD_IMPORT.into()).await;
+                }
                 let markdown = markdown_import::is_markdown_name(&base);
                 if !markdown && !import::is_typst_name(&base) {
                     let message = format!(

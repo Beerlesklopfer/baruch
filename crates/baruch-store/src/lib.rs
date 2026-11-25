@@ -49,6 +49,8 @@
 //!   Integrator (alle erwartet unbenutzt).
 //! - 0.9.0 (Nutzer 2026-11-24): ältere Fassungen ausblenden (Modul `revision_fold`, [`RevisionFold`]); Migration
 //!   0051: Tabelle `node_revision_fold` (Marke je Abschnitt, ohne uuid, nicht im Austausch, Kaskade mit dem Abschnitt).
+//! - Runde 32 (Schnittstelle R32-S1, Word und Beenden): keine Migration. Reserviert: Store 0052 docx_import, 0053
+//!   docx_export, 0054 beenden, 0055 Integrator; Bibliothek 0109 Integrator (alle erwartet unbenutzt).
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.

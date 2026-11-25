@@ -118,10 +118,15 @@ fn the_version_is_the_same_in_manifest_program_site_and_changelog() {
     );
 
     let changelog = repo_file("CHANGELOG.md");
-    let first = changelog.lines().find(|l| l.starts_with("## ")).expect("Abschnitt in CHANGELOG.md");
+    // Runde 32: Über der Version darf ein Abschnitt „Unveröffentlicht“ stehen (Arbeit seit dem Release; die
+    // Versionsnummer legt nur der Autor fest) – dann beschreibt der Abschnitt darunter diese Version.
+    let first = changelog
+        .lines()
+        .find(|l| l.starts_with("## ") && *l != "## Unveröffentlicht")
+        .expect("Abschnitt in CHANGELOG.md");
     assert!(
         first == format!("## {version}") || first.starts_with(&format!("## {version} ")),
-        "der oberste Abschnitt der Änderungsliste beschreibt diese Version: {first}"
+        "der oberste Abschnitt der Änderungsliste mit Versionsnummer beschreibt diese Version: {first}"
     );
 
     assert_eq!(

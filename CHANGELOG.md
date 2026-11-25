@@ -4,6 +4,10 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 (`[workspace.package] version` in `Cargo.toml`). Einzelheiten je Runde – Commits, Dauer, Befunde – stehen in
 [docs/Fahrplan.md](docs/Fahrplan.md), offene Punkte in [docs/Backlog.md](docs/Backlog.md).
 
+## Unveröffentlicht
+
+Runde 32 (in Arbeit): Word-Dateien (.docx) importieren und exportieren, Baruch über die Oberfläche beenden.
+
 ## 0.9.0
 
 Erste Version mit fertigen Paketen. Sie fasst die gesamte bisherige Arbeit zusammen (Runden 1 bis 24, begonnen

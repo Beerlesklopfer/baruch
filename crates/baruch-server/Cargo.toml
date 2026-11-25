@@ -72,6 +72,8 @@ baruch-rag = { path = "../baruch-rag" }
 baruch-exchange = { path = "../baruch-exchange" }
 # EPUB 3 aus den aktuellen Fassungen (Runde 20): src/epub.rs, epub_preview.rs, epub_check.rs.
 baruch-epub = { path = "../baruch-epub" }
+# Word-Dateien lesen und schreiben (Runde 32): src/docx_import/, src/docx_export/.
+baruch-docx = { path = "../baruch-docx" }
 # multipart: Hochladen einer Typst-Datei unter POST /werke/import (Werke, Runde 4).
 axum = { version = "0.8", features = ["multipart"] }
 # urlencode: Filter `| urlencode` für `lq` in Links der Vorlagen.

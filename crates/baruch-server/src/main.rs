@@ -39,16 +39,25 @@
 //!   Die beiden Flags mit einer anderen Dateiart → Exit 2. Logik in `baruch_server::pdf_import::cli_import`.
 //! - `baruch-server import <datei.md|datei.markdown|datei.zip> [--title "…"] [--data DIR]` (Runde 21b): Markdown bzw.
 //!   Archiv als neues Werk. Logik in `baruch_server::markdown_import::cli_import`.
+//! - `baruch-server import <datei.docx> [--uebernehmen] [--title "…"] [--data DIR]` (Runde 32, entschieden über
+//!   `docx_import::is_docx_name`): ohne `--uebernehmen` nur Gliederung, Bearbeiter und Warnungen, nichts geschrieben;
+//!   mit `--uebernehmen` das Werk samt Vorschlägen (Änderungsverfolgung) und Beiträgen (Kommentare). `--bibliothek`
+//!   mit einer Word-Datei → Exit 2. Logik in `baruch_server::docx_import::cli_import`.
+//! - `baruch-server export <id|slug> --docx DATEI [--vorschlaege] [--data DIR]` (Runde 32): das Werk als Word-Datei,
+//!   mit `--vorschlaege` die offenen Vorschläge als Änderungsverfolgung; schließt sich mit `--out`, `--pdf`,
+//!   `--stichwort`, `--baruch` und `--epub` aus (Exit 2), `--vorschlaege` ohne `--docx` → Exit 2; vorhandene Datei →
+//!   Exit 1 ohne Überschreiben. Logik in `baruch_server::docx_export::cli_export`.
+//! - Beenden (Runde 32): `serve` läuft in `baruch_server::shutdown::serve` und endet sauber auf ein Signal oder über
+//!   die Seite `/beenden` (nur vom eigenen Rechner).
 //!
 //! Vorgabe für die Adresse: `127.0.0.1:8765`. Vorgabe für die Daten: [`baruch_store::default_data_dir`],
 //! unter Linux `~/.local/share/baruch` (bzw. `$XDG_DATA_HOME/baruch`), unter Windows
 //! `%LOCALAPPDATA%\baruch`.
 //! Die Logik steht in der Bibliothek (`src/lib.rs`), hier nur Start und Argumente.
 
-use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use baruch_server::{AppState, app, rpc};
+use baruch_server::{AppState, rpc};
 use baruch_store::{Store, StoreError};
 
 const HELP: &str =
@@ -62,7 +71,10 @@ baruch-server export ID|SLUG --epub DATEI [--data ORDNER]
 baruch-server import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title TITEL] [--data ORDNER]
 baruch-server import DATEI.md|DATEI.markdown|DATEI.zip [--title \"TITEL\"] [--data ORDNER]
 baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--title \"TITEL\"] [--data ORDNER]
-  serve     Server starten (Vorgabe)
+baruch-server import DATEI.docx [--uebernehmen] [--title \"TITEL\"] [--data ORDNER]
+baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
+  serve     Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
+            nur vom eigenen Rechner)
   import    Typst-Datei als neues Werk anlegen (Präambel = Werkvorlage, =/==/=== = Gliederung)
             Markdown (.md, .markdown) wird nach Typst umgewandelt; ein ZIP bringt eine Haupt-Datei
             (.typ oder .md) und Bilder mit; PDF und EPUB zeigen ohne --uebernehmen nur die Gliederung
@@ -72,6 +84,9 @@ baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--titl
             ohne MultiGPT)
   --bibliothek beim PDF/EPUB-Import: die Datei als Quelle in die Bibliothek (mit --uebernehmen zusätzlich
             zum Werk)
+            Word (.docx) zeigt ohne --uebernehmen nur Gliederung, Bearbeiter und Warnungen; mit --uebernehmen
+            entsteht das Werk im Stand vor den verfolgten Änderungen, die Änderungen je Bearbeiter werden
+            offene Vorschläge, Kommentare werden Beiträge
   export    Werk als eine Typst-Datei auf die Standardausgabe schreiben
   --out     beim Export: Typst-Datei und Bilder in diesen Ordner schreiben (nichts wird überschrieben)
   --pdf     beim Export: das Buch als PDF in diese Datei setzen (Werkvorlage, aktuelle Fassungen,
@@ -84,6 +99,9 @@ baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--titl
             ZIP, DATEI.baruch.xml nur XML; nichts wird überschrieben)
   --epub    beim Export: das Werk als EPUB 3 in diese Datei (aktuelle Fassungen, Bilder, Umschlag; nichts wird
             überschrieben)
+  --docx    beim Export: das Werk als Word-Datei (.docx) in diese Datei (aktuelle Fassungen, Bilder; nichts wird
+            überschrieben)
+  --vorschlaege beim Word-Export: offene Vorschläge als Änderungsverfolgung mitgeben (nur mit --docx)
   --abgleichen beim Einlesen einer Austauschdatei: ein hier schon vorhandenes Werk abgleichen (nur
             ergänzen, nie löschen oder überschreiben; Gliederungsänderungen werden Anträge)
   --vorschau beim Einlesen einer Austauschdatei: nichts schreiben, nur zeigen, was hinzukäme
@@ -123,6 +141,8 @@ async fn main() {
     let mut notes_font: Option<String> = None;
     let mut baruch: Option<PathBuf> = None;
     let mut epub: Option<PathBuf> = None;
+    let mut docx: Option<PathBuf> = None;
+    let mut docx_proposals = false;
     let mut merge = false;
     let mut preview_only = false;
     let mut source_apply = false;
@@ -189,6 +209,10 @@ async fn main() {
             "--epub" if matches!(command, Command::Export(_)) => {
                 epub = Some(PathBuf::from(args.next().unwrap_or_else(|| usage("--epub braucht eine Datei"))))
             }
+            "--docx" if matches!(command, Command::Export(_)) => {
+                docx = Some(PathBuf::from(args.next().unwrap_or_else(|| usage("--docx braucht eine Datei"))))
+            }
+            "--vorschlaege" if matches!(command, Command::Export(_)) => docx_proposals = true,
             "--abgleichen" if matches!(command, Command::Import(_)) => merge = true,
             "--vorschau" if matches!(command, Command::Import(_)) => preview_only = true,
             "--uebernehmen" if matches!(command, Command::Import(_)) => source_apply = true,
@@ -212,6 +236,12 @@ async fn main() {
     if epub.is_some() && (out.is_some() || pdf.is_some() || notes.is_some() || baruch.is_some()) {
         usage("--epub schließt sich mit --out, --pdf, --stichwort und --baruch aus: ein Export zur Zeit");
     }
+    if docx.is_some() && (out.is_some() || pdf.is_some() || notes.is_some() || baruch.is_some() || epub.is_some()) {
+        usage("--docx schließt sich mit --out, --pdf, --stichwort, --baruch und --epub aus: ein Export zur Zeit");
+    }
+    if docx_proposals && docx.is_none() {
+        usage("--vorschlaege gilt nur mit --docx");
+    }
     let exchange_import = match &command {
         Command::Import(file) => baruch_server::exchange::is_exchange_name(&file.to_string_lossy()),
         _ => false,
@@ -224,13 +254,19 @@ async fn main() {
         Command::Import(file) => file.to_string_lossy().into_owned(),
         _ => String::new(),
     };
-    let source_import = !exchange_import && baruch_server::pdf_import::is_source_name(&file_name);
+    // Runde 32: Word nach dem Austausch, vor PDF/EPUB.
+    let docx_import = !exchange_import && baruch_server::docx_import::is_docx_name(&file_name);
+    let source_import = !exchange_import && !docx_import && baruch_server::pdf_import::is_source_name(&file_name);
     let markdown_import = !exchange_import
+        && !docx_import
         && !source_import
         && (baruch_server::markdown_import::is_markdown_name(&file_name)
             || baruch_server::markdown_import::is_archive_name(&file_name));
-    if (source_apply || source_library) && !source_import {
-        usage("--uebernehmen und --bibliothek gelten nur für PDF/EPUB");
+    if source_apply && !source_import && !docx_import {
+        usage("--uebernehmen gilt nur für PDF/EPUB und Word (.docx)");
+    }
+    if source_library && !source_import {
+        usage("--bibliothek gilt nur für PDF/EPUB");
     }
     if notes.is_none() && (notes_format.is_some() || notes_font.is_some()) {
         usage("--format und --schrift gelten nur mit --stichwort");
@@ -254,6 +290,11 @@ async fn main() {
             let options = baruch_server::exchange::import::CliImport { merge, preview_only, title };
             import_exchange(&file, &options, data).await
         }
+        Command::Import(file) if docx_import => {
+            let options = baruch_server::docx_import::CliDocxImport { title, apply: source_apply };
+            let state = open(&data).await;
+            finish(baruch_server::docx_import::cli_import(&state, &file, &options).await);
+        }
         Command::Import(file) if source_import => {
             let options =
                 baruch_server::pdf_import::CliSourceImport { title, apply: source_apply, library: source_library };
@@ -265,6 +306,13 @@ async fn main() {
             finish(baruch_server::markdown_import::cli_import(&state, &file, title.as_deref()).await);
         }
         Command::Import(file) => import(&file, title.as_deref(), data).await,
+        Command::Export(work) if docx.is_some() => {
+            let file = docx.expect("geprüft");
+            let options = baruch_server::docx_export::DocxExportOptions { proposals: docx_proposals };
+            let state = open(&data).await;
+            let id = resolve(&state, &work).await;
+            finish(baruch_server::docx_export::cli_export(&state, id, &file, &options).await);
+        }
         Command::Export(work) if epub.is_some() => export_epub(&work, epub.as_deref().expect("geprüft"), data).await,
         Command::Export(work) => match (baruch, pdf, notes.zip(notes_options)) {
             (Some(file), _, _) => export_exchange(&work, &file, data).await,
@@ -328,13 +376,11 @@ async fn serve(listen: &str, data: PathBuf, secrets: Option<&str>, allowed_hosts
         );
     }
     println!("Baruch läuft: http://{}/", listener.local_addr().unwrap());
-    // ConnectInfo: MCP erlaubt ohne Token nur Anfragen vom eigenen Rechner.
-    axum::serve(listener, app(state).into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await
-        .unwrap();
+    // Runde 32: Bedienen und Herunterfahren (Signale, Seite /beenden) stehen in `shutdown::serve`.
+    if let Err(e) = baruch_server::shutdown::serve(listener, std::sync::Arc::new(state)).await {
+        eprintln!("Server: {e}");
+        std::process::exit(1);
+    }
 }
 
 async fn import(file: &std::path::Path, title: Option<&str>, data: PathBuf) {

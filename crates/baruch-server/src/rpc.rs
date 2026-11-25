@@ -289,6 +289,24 @@ impl From<StoreError> for RpcError {
     }
 }
 
+/// Runde 32: Fehler beim Lesen einer Word-Datei liegen an der Datei (ungültige Parameter), nur das Schreiben ist ein
+/// interner Fehler.
+impl From<baruch_docx::DocxError> for RpcError {
+    fn from(e: baruch_docx::DocxError) -> Self {
+        use baruch_docx::DocxError;
+        let code = match e {
+            DocxError::Write(_) => INTERNAL,
+            DocxError::NotDocx(_)
+            | DocxError::Unsafe(_)
+            | DocxError::Limit(_)
+            | DocxError::Archive(_)
+            | DocxError::Xml { .. }
+            | DocxError::Invalid(_) => INVALID_PARAMS,
+        };
+        RpcError::new(code, e.to_string())
+    }
+}
+
 impl From<LibraryError> for RpcError {
     fn from(e: LibraryError) -> Self {
         let code = match e {
@@ -519,6 +537,13 @@ pub async fn library_view(state: &AppState, work: WorkId, lq: Option<&str>) -> R
 pub async fn call(state: &AppState, settings: &Settings, method: &str, params_value: Value) -> Result<Value, RpcError> {
     if crate::exchange::handles(method) {
         return crate::exchange::call(state, method, params_value).await;
+    }
+    // Runde 32 (Schnittstelle R32-S1): Word-Import (global, ohne Werk) und Word-Export, vor dem Vorgabewerk.
+    if crate::docx_import::handles(method) {
+        return crate::docx_import::call(state, method, params_value).await;
+    }
+    if crate::docx_export::handles(method) {
+        return crate::docx_export::call(state, method, params_value).await;
     }
     if crate::instance::handles(method) {
         return crate::instance::call(state, method, params_value).await;

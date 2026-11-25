@@ -1,0 +1,24 @@
+[package]
+name = "baruch-docx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Word-Dateien (.docx) lesen und schreiben: Blockmodell, Änderungsverfolgung, Kommentare, Runde 32"
+
+# Rein: keine Datenbank, kein Netz. Modell (`model.rs`), Fehler, Grenzen und OOXML-Konstanten sind die Schnittstelle
+# R32-S1 und gehören dem Integrator; Leser (`read`, `resolve`, `to_typst`) gehört docx_import, Schreiber (`write`,
+# `from_typst`, `diff`) docx_export. Neue Abhängigkeiten nur über den Integrator (Konflikte im Cargo.lock, cargo deny).
+[dependencies]
+thiserror = "2"
+# Teil- und Unnumbered-Zeilen (`part_line`, `unnumbered_line`), Titelei.
+baruch-typst = { path = "../baruch-typst" }
+# Blockmodell (`baruch_wysiwyg::parse` → `Doc`, `serialize`) für die Abbildung von und nach Typst.
+baruch-wysiwyg = { path = "../baruch-wysiwyg" }
+# Nur STORED und DEFLATE, wie baruch-epub und baruch-exchange.
+zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
+# XML lesen und schreiben; dieselbe Version wie baruch-epub und baruch-exchange.
+quick-xml = "0.42"
+
+[dev-dependencies]
+tempfile = "3"

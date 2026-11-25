@@ -16,6 +16,7 @@ members = [
     "crates/baruch-lancedb",
     "crates/baruch-exchange",
     "crates/baruch-epub",
+    "crates/baruch-docx",
 ]
 # Eingebettete Fremd-Crates (kein Workspace-Mitglied): sword-modules 0.1.0 (CC0) mit Obergrenze beim Entpacken.
 exclude = ["vendor"]

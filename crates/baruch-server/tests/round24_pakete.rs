@@ -138,17 +138,22 @@ async fn the_about_page_is_reachable_from_the_menu_without_javascript() {
         assert_eq!(status, StatusCode::OK, "{uri} lädt: {raw}");
         let html = unescape(&raw);
         // Runde 33 (Menüband): „Über Baruch“ stand am Ende des Menüs Werkzeuge ▾ und steht jetzt im Menü Baruch ▾
-        // (Programm) – weiter genau einmal, als gewöhnlicher Link und als letzter Eintrag (dahinter liegt in der
-        // Vorlage nur der Platz für „Baruch beenden“ der Runde 32).
+        // (Programm) – weiter genau einmal, als gewöhnlicher Link (dahinter folgt seit
+        // Runde 32 nur „Baruch beenden…“, siehe unten).
         let tools = menu(&html, "baruch");
         assert_eq!(
             tools.matches(entry).count(),
             1,
             "{uri}: „Über Baruch“ genau einmal im Menü Baruch, als gewöhnlicher Link (ohne JavaScript): {tools}"
         );
-        assert!(
-            tools.trim_end().ends_with(&format!("{entry}</div>")),
-            "{uri}: der Eintrag steht am Ende des Menüs (wie „Über …“ in anderen Programmen): {tools}"
+        // Runde 32 (Schnittstelle R32-S1): Hinter „Über Baruch“ steht nur noch „Baruch beenden…“ – der letzte Eintrag
+        // des Menüs, wie „Beenden“ in anderen Programmen.
+        let quit = "<a class=\"menu-item\" role=\"menuitem\" href=\"/beenden\" \
+                    title=\"Baruch auf diesem Rechner beenden (mit Rückfrage)\">Baruch beenden…</a></div>";
+        let rest = tools.split(entry).nth(1).unwrap_or("").trim();
+        assert_eq!(
+            rest, quit,
+            "{uri}: „Über Baruch“ steht am Ende des Menüs, dahinter folgt allein „Baruch beenden…“: {tools}"
         );
     }
     // Der Link führt wirklich auf die Seite; ein Formular oder Skript ist dafür nicht nötig.

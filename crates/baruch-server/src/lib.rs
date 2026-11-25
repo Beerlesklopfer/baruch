@@ -29,6 +29,8 @@ pub mod consent;
 pub mod cover;
 pub mod cover_layout;
 pub mod cover_print;
+pub mod docx_export;
+pub mod docx_import;
 pub mod epub;
 pub mod epub_check;
 pub mod epub_preview;
@@ -71,6 +73,7 @@ pub mod search;
 pub mod search_hooks;
 pub mod settings;
 pub mod sheet;
+pub mod shutdown;
 pub mod sync;
 pub mod threads;
 pub mod timing;
@@ -148,6 +151,10 @@ const STYLE: &str = concat!(
     include_str!("../static/source_import.css"),
     // Runde 22 (Schnittstelle R22-S1): Fortschreiben, Verlauf und Einstellung „Fassungen“ (fassungen).
     include_str!("../static/revisions.css"),
+    // Runde 32 (Schnittstelle R32-S1): Word-Import, Word-Export und die Seite „Baruch beenden“.
+    include_str!("../static/docx_import.css"),
+    include_str!("../static/docx_export.css"),
+    include_str!("../static/shutdown.css"),
     // Runde 33 (Schnittstelle R33-S1): Menüband (menueband) und Laptop-Modus (laptop); laptop.css zuletzt.
     include_str!("../static/band.css"),
     include_str!("../static/laptop.css")
@@ -177,6 +184,8 @@ pub struct AppState {
     /// Zusätzlich erlaubte Rechnernamen (Runde 24, `--allow-host`): Betrieb hinter einem Reverse-Proxy. Nach
     /// dem Öffnen leer; `serve` setzt sie vor [`app`].
     pub allowed_hosts: guard::AllowedHosts,
+    /// Auslöser für das Herunterfahren (Runde 32): `POST /beenden` verlangt es, [`shutdown::serve`] wartet darauf.
+    pub shutdown: shutdown::Shutdown,
 }
 
 /// Fehler beim Start (Datenordner, Datenbank).
@@ -242,6 +251,7 @@ impl AppState {
             secrets,
             model,
             allowed_hosts: guard::AllowedHosts::default(),
+            shutdown: shutdown::Shutdown::new(),
         };
         mirror::sync_all(&state).await;
         mirror::convert_legacy_parts(&state).await;
@@ -356,6 +366,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(revisions::writes())
         // 0.9.0 (Nutzer 2026-11-24): ältere Fassungen werkweit ausblenden.
         .merge(revision_fold::writes())
+        // Runde 32 (Schnittstelle R32-S1): Word-Import (Vorschau, Übernehmen, Verwerfen) und „Baruch beenden“.
+        .merge(docx_import::writes())
+        .merge(shutdown::writes())
         .route_layer(middleware::from_fn(guard::same_origin));
     Router::new()
         .route("/", get(index))
@@ -392,6 +405,10 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(revisions::pages())
         // Runde 24 (Schnittstelle R24-S1): Über Baruch.
         .merge(about::pages())
+        // Runde 32 (Schnittstelle R32-S1): Word-Import, Word-Export, Bestätigungsseite „Baruch beenden“.
+        .merge(docx_import::pages())
+        .merge(docx_export::pages())
+        .merge(shutdown::pages())
         .merge(writes)
         .route("/static/app.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
         .route("/static/favicon.svg", get(|| async { asset("image/svg+xml", ICON) }))

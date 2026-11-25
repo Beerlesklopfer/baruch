@@ -50,6 +50,7 @@
           {#- Runde 21a: PDF oder EPUB lesen, Gliederung prüfen, als Werk oder Quelle übernehmen (src/pdf_import/); mit und ohne Werk. #}
           <a class="menu-item" role="menuitem" href="/werke/import/quelle" title="PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen">PDF oder EPUB importieren…</a>
           {#- R32-PLATZ import-word -#}
+          <a class="menu-item" role="menuitem" href="/werke/import/word" title="Word-Datei lesen, Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen">Word (.docx) importieren…</a>
           {#- Runde 26: Austausch zwischen Baruch-Instanzen (src/exchange/). #}
           <a class="menu-item" role="menuitem" href="/austausch/einlesen{% if w %}?work={{ w }}{% endif %}" title="Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)">Austausch: Einlesen…</a>
           {%- if no_js %}
@@ -62,6 +63,7 @@
           {#- Runde 24: Über Baruch (Seite /ueber, src/about.rs) – Version, Lizenz, Quellcode. Ein gewöhnlicher Link,
               auf jeder Seite und ohne JavaScript erreichbar; das Werk bleibt im Cookie, die Seite braucht es nicht. #}
           <a class="menu-item" role="menuitem" href="/ueber" title="Version, Lizenz, Quellcode und Bibliotheken Dritter">Über Baruch</a>
+          <a class="menu-item" role="menuitem" href="/beenden" title="Baruch auf diesem Rechner beenden (mit Rückfrage)">Baruch beenden…</a>
           {#- R32-PLATZ beenden -#}
         </div>
       </details>
@@ -189,6 +191,7 @@
         <a class="btn" href="/werke/{{ w }}/pdf?entwurf=1" download title="Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ herunterladen (Einstellung bleibt unverändert)">Entwurf</a>
         <a class="btn" href="/werke/{{ w }}/epub" download title="Das ganze Werk als E-Book herunterladen (EPUB 3, aktuelle Fassungen)">EPUB</a>
         {#- R32-PLATZ export-word -#}
+        <a class="btn" href="/werke/{{ w }}/word" title="Das Werk als Word-Datei für den Verlag (Formatvorlagen, Fußnoten, Bilder; auf Wunsch offene Vorschläge als Änderungsverfolgung)">Word …</a>
         {#- Runde 16c: Stichwortzettel (A5 oder Karten) – eine Seite mit Formatwahl und Vorschau, kein Download direkt. #}
         <a class="btn" href="/werke/{{ w }}/stichwortzettel" title="Stichwortzettel zum Halten oder Predigen: je Abschnitt Zeitmarke, Stichpunkte und Bibelstellen">Stichwortzettel …</a>
         <a class="btn" href="/werke/{{ w }}/export" title="Werkvorlage und aktuelle Texte als eine Typst-Datei">Exportieren (Typst)</a>
