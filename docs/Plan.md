@@ -575,6 +575,19 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     nur mit Token; Zugangsschutz im Proxy ist Pflicht (`docs/Betrieb.md`). MultiGPT hat keine Vorgabe-Adresse mehr.
   - Keine Migration, keine neuen RPC-Methoden oder MCP-Werkzeuge. Offenes und die Schritte des Nutzers:
     `docs/Backlog.md`, „Nach Runde 24 offen“.
+- **Runde 34 „Mindmap wie XMind“ integriert** (2026-11-25, auf `development`; Version unverändert 0.9.0, im
+  CHANGELOG unter „Unveröffentlicht“, gedacht für 0.9.1):
+  - Die Gedankenkarte ist eine Mindmap: Werk in der Mitte, Teile/Kapitel als Äste rechts und links, Einfälle als
+    Unteräste beliebig tief; Anlegen (Tab/Enter), Umbenennen (F2), Umhängen (Ziehen), Einklappen, Löschen mit
+    Wiederherstellen, Rückgängig, Verbindungen als beschriftete Linien. Eine Anordnung, in Rust (SVG vom Server,
+    Bildschirm und Ausgabe gleich).
+  - **Entscheidung (Nutzer 2026-11-25): Wolke und Mindmap sind verbunden.** Einfälle ohne Platz liegen in der Wolke
+    neben dem Baum; sie wandern in die Mindmap (auf Knoten, Kapitel oder als Hauptthema ans Werk) und zurück, samt
+    Unterknoten. Nichts wird ungefragt Hauptast.
+  - Einfälle als Baum (Migration 0052: Titel, Elternknoten, Reihenfolge, Hauptthema), RPC `idea.move`/`idea.tree`,
+    MCP `idea_move`/`idea_tree`, Austauschformat Unterversion 9.
+  - Gliederungsansicht ohne JavaScript; Ausgabe `.xmind`, `.mm`, SVG, PDF, Markdown; Einlesen `.xmind`/`.mm` mit
+    Vorschau. In echtem XMind und Freeplane ungeprüft. Offenes: `docs/Backlog.md`, „Nach Runde 34 offen“.
 - **Runde 33 „Menüband und Laptop-Modus“ abgeschlossen** (2026-11-25, auf dem Zweig `runde33` neben Runde 32;
   Version unverändert 0.9.0; Zusammenführen mit `development` und Runde 32 samt Gegenprobe stehen aus):
   - Ein Menüband auf jeder Seite ersetzt die Menüs Werk/Ansicht/Werkzeuge und die Knopfreihe über dem Blatt: Menü

@@ -1260,6 +1260,10 @@ Verbindungen und Lage aus Karte, Listen und Spiegel und bringt sie mit `idea.res
 
 ### Gedankenkarte (Runde 25)
 
+Seit Runde 34 heißt die Seite „Mindmap“; Baum, Wolke, `idea.move` und `idea.tree` stehen unter „Runde 34 – Mindmap“
+am Ende. Die Methoden dieses Abschnitts bleiben (flache Sicht, Verbindungen, Lagen – Lagen sind in der Mindmap ohne
+Wirkung).
+
 Karte der Einfälle eines Werks, Verbindungen zwischen Einfällen und gespeicherte Lagen (`crate::idea_map`,
 Store `idea_links.rs`, Migration 0043). Herkunft über RPC immer der Mensch („Autor“); schreibende Methoden laufen
 unter der Schreibsperre. Nicht unter `/act`; die Karte hat ihr eigenes Formular `POST /werke/{id}/karte/act`, das
@@ -2682,3 +2686,93 @@ Baruch beenden gibt es weder über RPC noch über MCP: Das geht nur über die Se
 oder über ein Signal an den Prozess. Routen: `GET /beenden` (Rückfrage; nicht vom eigenen Rechner 403) und
 `POST /beenden` (hinter `guard::same_origin`, nur vom eigenen Rechner, Antwort 200 mit der Abschlussseite, 500 ms
 später fährt Baruch herunter).
+
+## Runde 34 – Mindmap
+
+Die Gedankenkarte ist eine Mindmap geworden: Einfälle tragen Titel, Elternknoten und Reihenfolge (Migration 0052),
+Einfälle ohne Platz liegen in der **Wolke** neben der Mindmap. Die Abschnitte „Einfälle“ und „Gedankenkarte (Runde
+25)“ weiter oben gelten weiter; hier steht, was dazugekommen ist. Abweichungen vom Vertrag der Runde: Die Liste der
+mitgelöschten Einfälle heißt `deleted_ids` (`deleted` bleibt `true`), Ablehnungen tragen -32000 (nicht -32001, das
+seit Runde 19c `RAG_UNAVAILABLE` ist).
+
+### Methoden
+
+Herkunft über RPC ist immer der Mensch. Jede Antwort mit `idea` trägt zusätzlich `title`, `parent` (id oder
+`null`), `position`, `main_topic` und `cloud` (abgeleitet: liegt in der Wolke).
+
+| Methode | Parameter | Antwort |
+|---|---|---|
+| `idea.create` | wie bisher, dazu `title?` (≤ 200 Zeichen), `parent?` (Einfall-id, gleiches Werk; setzt `work` daraus, wenn es fehlt), `before?` (id eines Geschwisters; ohne = ans Ende), `cloud?` (`false` = ohne `parent` und `key` freies Hauptthema; Vorgabe: in die Wolke). `words` darf fehlen, wenn `title` nicht leer ist; ohne beides -32602. | `{idea, commit?}` |
+| `idea.update` | wie bisher, dazu `title?` (Umbenennen; leer nur, solange ein Schlagwort bleibt) | `{idea, changed, commit?}` |
+| `idea.move` | `{id, parent?: id\|null, key?: key\|null, before?: id\|null, cloud?: bool}` – fehlende Felder bleiben. `parent: null` löst vom Elternknoten; bleibt auch kein Bezug, wird der Einfall freies Hauptthema am Werk. `key` setzt bzw. löscht den Bezug. `before` ordnet vor ein Geschwister, `null` ans Ende. `cloud: true` legt in die Wolke (löst Elternknoten und Bezug, Unterknoten bleiben am Einfall); `cloud: false` macht einen Einfall ohne Elternknoten und Bezug zum Hauptthema. | `{idea, changed, commit?}`; unverändert → `changed: false` ohne Commit |
+| `idea.delete` | `{id, confirm: true}` | `{id, deleted: true, deleted_ids: [ids], idea, commit?}` – der Einfall zuerst, dann die mitgelöschten Unterknoten |
+| `idea.restore` | `{id}` | `{idea, restored: [ids], detached?: true, commit?}` |
+| `idea.tree` | `{work, status?, word?, origin?, q?, near?, near_limit?, near_threshold?, findings?}` (Filter wie `idea.map`) | `{map: MindMap, cloud: Cloud}` |
+| `idea.map` | unverändert | wie bisher; je Einfall zusätzlich `title`, `parent`, `position`, `main_topic`, `cloud`; `label` ist der Titel, sonst die Schlagwörter |
+
+`idea.move` lehnt mit -32000 ab (nichts geändert, kein Commit): Elternknoten in einem anderen Werk, der Einfall
+selbst oder ein eigener Nachfahre als Elternknoten (Kreis), Tiefe über 32, gelöschter Einfall oder Elternknoten,
+`before` kein Geschwister, `cloud: true` zusammen mit `parent` oder `key`. Unbekannter Einfall bzw. falsche Typen:
+-32602. Jede Änderung ist ein Commit „Einfall <id>: umgehängt“ (`Baruch-Action: idea-move`) mit Platz vorher und
+nachher im Rumpf. Kapitel und Teile lassen sich über `idea.*` nicht ändern – ihre Kennung `n:<key>` ist keine
+Einfall-id; dafür bleiben `outline.*` und die Antragsregel.
+
+`idea.map_pos_set` und `idea.map_pos_reset` bleiben: gespeichert, in der Mindmap ohne Wirkung.
+
+Umkehr für „Rückgängig“ im Widget: anlegen ↔ `idea.delete`, löschen ↔ `idea.restore` (bringt die Unterknoten mit),
+umbenennen ↔ `idea.update` mit dem alten `title`, umhängen ↔ `idea.move` mit `parent`/`key`/`before` bzw. `cloud`
+aus dem Einfall vor der Aktion (`cloud: true`, wenn er in der Wolke lag; `parent: null, key: null, cloud: false`,
+wenn er Hauptthema war).
+
+Formulare ohne JavaScript: `POST /einfaelle/act` nimmt zusätzlich `method=idea.move` mit `parent` („in die Mindmap
+unter Einfall Nr. …“), `cloud=1` („in die Wolke“) bzw. `parent=none&key=none&cloud=0` („als Hauptthema ans Werk“);
+die Seite `/einfaelle/{id}` zeigt den Platz und diese drei Formulare, `idea.create`/`idea.update` haben ein Feld
+`title`.
+
+### Routen der Seite und des Bildes
+
+| Route | Inhalt |
+| --- | --- |
+| `GET /werke/{id}/karte` | Seite „Mindmap“ (`idea_map/bild/mod.rs`, Vorlage `karte.html`) |
+| `GET /werke/{id}/karte/bild` | nur das SVG (`image/svg+xml`, `Cache-Control: no-store`), gleiche Abfrage; das Fragment bekommt hier `xmlns` |
+
+Abfrage: Filter wie bisher (`status`, `word`, `origin`, `q`, `near`, `near_limit`, `near_threshold`, `befunde`),
+dazu `zu=<Kennungen, Komma>` (eingeklappte Knoten) und `wahl=<Kennung>` (gewählter Knoten, im Bild
+`aria-current="true"`). Kennungen sind `w`, `n:<key>`, `i:<id>`; alles andere fällt weg (`bild::node_id`,
+höchstens 2000). Beide stehen in `bild::Extra` (`closed`, `wahl`), das `parse_filter` füllt; `filter_query` trägt
+sie nicht (Ausgaben klappen nie ein).
+
+Die Seite baut zwei Sichten: Baum und Wolke (`tree::scene`) für das Bild und – für den Abschnitt „Gruppen“ – die flache
+Karte (`idea_map::build`). Das ist ein zweiter Durchlauf mit demselben Filter; fällt er aus, fehlen nur die Gruppen.
+
+### Routen für Ausgabe, Einlesen und Formulare (kein RPC)
+
+| Route | Zweck |
+|---|---|
+| `GET /werke/{id}/karte.svg` \| `.pdf` \| `.md` \| `.mm` \| `.xmind` | Ausgaben; Abfrage wie die Seite (`status`, `word`, `origin`, `q`, `near`, `befunde`), `.svg`/`.pdf` zusätzlich `zu=<Kennungen>` |
+| `GET /werke/{id}/karte/gliederung` | Gliederungsansicht; dazu `wahl=<Kennung>` (gewählter Knoten), `zu=<Kennungen>`, nach Formularen `ok`, `undo`, `wieder` |
+| `POST /werke/{id}/karte/act` | Formulare (urlencoded), siehe unten |
+| `GET /werke/{id}/karte/einlesen` | Formular; `unter=i:<id>` wählt den Zielknoten vor |
+| `POST /werke/{id}/karte/einlesen` | multipart `file`, wahlweise `parent`; zeigt die Vorschau, legt nichts an (413 über 10 MiB, 422 nicht lesbar, 409 Zielknoten aus anderem Werk) |
+| `POST /werke/{id}/karte/einlesen/anlegen` | urlencoded `tree` (JSON aus der Vorschau), `parent`; legt über `tree::import` an, 303 auf `/werke/{id}/karte?ok=eingelesen` |
+
+`POST /werke/{id}/karte/act`: Feld `method` ∈ `idea.create`, `idea.update`, `idea.move`, `idea.delete`,
+`idea.restore`, `idea.link`, `idea.unlink`, `idea.link_restore`, `idea.map_pos_reset`, `idea.map_groups_name`,
+`idea.map_group_accept`, `idea.map_group_dismiss`. Dazu die Felder der Aktion:
+
+- `idea.create`: `title`, `words`, `note`, `parent`, `key`, `before`, `ort` (`ort=werk` → freies Hauptthema; ohne
+  `parent`, `key` und `ort` → Wolke).
+- `idea.update`: `id`, wahlweise `title`, `key`, `words`, `note` – nur Felder, die das Formular schickt, ändern sich.
+- `idea.move`: `id`, entweder `ziel` ∈ `wolke` (RPC `cloud: true`) \| `w` (Hauptthema am Werk) \| `i:<Einfall>` \|
+  `n:<Kapitel-key>` oder die Felder der RPC
+  `parent`, `key`, `before` (vorhanden und leer = `null`).
+- `idea.delete`, `idea.restore`: `id`. `idea.link`: `from`, `to`, `kind`, `note`. `idea.unlink`,
+  `idea.link_restore`: `id` (Verbindung).
+- `back` (Abfrageteil des Filters), `seite` ∈ `karte` \| `gliederung` (Ziel der Weiterleitung, Vorgabe `karte`),
+  `wahl` (gewählter Knoten, nur mit `seite=gliederung`).
+
+Antwort: 303 auf `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>` (`angelegt`, `umbenannt`, `bezug`, `umgehaengt`,
+`in-wolke`, `ort-unveraendert`, `geloescht` mit `wieder=<id>`, `einfall-wieder`, `verbunden`, `unveraendert`,
+`geloest` mit `undo=<id>`, `wiederhergestellt`, …). Fehler als Seite mit Meldung: 400 unbekannte Aktion, 409 abgelehnt
+(auch: ein genannter Einfall gehört nicht zum Werk der Adresse – bisher 422), 422 ungültige Eingabe, 404 unbekanntes
+Werk, 403 fremde Herkunft.

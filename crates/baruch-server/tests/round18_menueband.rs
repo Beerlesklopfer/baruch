@@ -514,57 +514,49 @@ async fn map_edges_carry_a_visible_label_an_arrow_for_directed_kinds_and_their_o
         let answer = server.rpc("idea.link", json!({ "work": work, "from": from, "to": to, "kind": kind })).await;
         assert!(answer["error"].is_null(), "Verbindung {kind}: {answer}");
     }
+    // Runde 34: Die Gedankenkarte ist die Mindmap; aus Kanten (`im-edge`) wurden Beziehungslinien (`mm-link`).
     let (status, html) = server.get(&format!("/werke/{work}/karte")).await;
-    assert_eq!(status, StatusCode::OK, "Karte lädt: {html}");
-    assert!(html.contains("<marker id=\"im-arrow-leads_to\""), "Pfeilspitze für „führt weiter“: {html}");
-    assert!(!html.contains("id=\"im-arrow-contradicts\""), "„widerspricht“ ist ungerichtet, ohne Spitze");
-    let edge = |kind: &str| -> String {
-        let at = html.find(&format!("class=\"im-edge im-link im-kind-{kind}\"")).unwrap_or_else(|| panic!("{kind}"));
+    assert_eq!(status, StatusCode::OK, "Mindmap lädt: {html}");
+    assert!(html.contains("<marker id=\"mm-arrow\""), "Pfeilspitze für gerichtete Beziehungen: {html}");
+    let line = |kind: &str| -> String {
+        let at = html.find(&format!("class=\"mm-link mm-link-{kind}")).unwrap_or_else(|| panic!("{kind}"));
         html[at..at + html[at..].find('>').unwrap()].to_owned()
     };
-    let leads = edge("leads_to");
-    assert!(leads.contains("marker-end=\"url(#im-arrow-leads_to)\" data-arrow"), "gerichtet mit Spitze: {leads}");
-    let contra = edge("contradicts");
-    assert!(!contra.contains("marker-end"), "ungerichtet ohne Spitze: {contra}");
-    assert!(contra.contains("stroke-dasharray=\"12 3 2 3\""), "Strich-Punkt als Attribut an der Kante: {contra}");
+    let leads = line("leads_to");
+    assert!(leads.contains("marker-end=\"url(#mm-arrow)\""), "gerichtet mit Spitze: {leads}");
     assert!(
-        html.contains(&format!(
-            "<text class=\"im-edge-label im-label-leads_to\" data-from=\"i:{a}\" data-to=\"i:{b}\""
-        )),
+        leads.contains(&format!("data-from=\"i:{a}\" data-to=\"i:{b}\"")),
+        "die Linie nennt beide Einfälle: {leads}"
+    );
+    let contra = line("contradicts");
+    assert!(!contra.contains("marker-end"), "„widerspricht“ ist ungerichtet, ohne Spitze: {contra}");
+    assert!(contra.contains("mm-contradiction"), "und hervorgehoben: {contra}");
+    assert!(contra.contains("stroke-dasharray=\"8 3 2 3\""), "Strich-Punkt als Attribut an der Linie: {contra}");
+    assert!(
+        html.contains("class=\"mm-link-label\"") && html.contains(">führt weiter</text>"),
         "sichtbare Beschriftung von „führt weiter“ (nicht nur <title>): {html}"
     );
-    assert!(html.contains("text-anchor=\"middle\">führt weiter</text>"), "die Beschriftung nennt die Art");
     assert!(html.contains(">widerspricht</text>"), "auch „widerspricht“ ist beschriftet");
-    let labels = html.find("<g class=\"im-edge-labels\">").expect("Gruppe der Beschriftungen");
-    assert!(
-        html.find("<g class=\"im-edges\">").unwrap() < labels && html.find("<g class=\"im-nodes\">").unwrap() < labels,
-        "Beschriftungen nach Kanten und Knoten (Integration R18: über den Knoten, sonst verdecken nahe Einfälle sie)"
-    );
-    assert!(html.contains("im-key-ref"), "die Legende nennt den Bezug mit eigener Strichart");
+    let last_link = html.rfind("class=\"mm-rel").expect("Gruppe einer Beziehung");
+    let first_node = html.find("<g class=\"mm-node").expect("Knoten");
+    assert!(last_link < first_node, "Knoten liegen über den Linien (zuletzt gezeichnet)");
+    assert!(html.contains("im-key-leads_to"), "die Legende nennt die Arten der Beziehungen");
 
-    // Eigenständige Datei (auch Quelle des PDF): wohlgeformte Attribute, eingebetteter Stil für die Beschriftung.
+    // Eigenständige Datei (auch Quelle des PDF): Farben als Attribute, eingebetteter Stil für die Beschriftung.
     let (status, svg) = server.get(&format!("/werke/{work}/karte.svg")).await;
     assert_eq!(status, StatusCode::OK, "karte.svg");
-    assert!(svg.contains("data-arrow=\"\""), "in der Datei mit Wert (XML): {svg}");
-    assert!(svg.contains(".im-edge-label{"), "Stil der Beschriftung eingebettet");
-    assert!(svg.contains("fill=\"#3b5bdb\""), "Pfeilspitze mit fester Farbe (ohne CSS-Variablen)");
+    assert!(svg.contains(".mm-link-label"), "Stil der Beschriftung eingebettet");
+    assert!(svg.contains("stroke=\"#b3261e\""), "Widerspruch mit fester Farbe (ohne CSS-Variablen)");
     let (status, mm) = server.get(&format!("/werke/{work}/karte.mm")).await;
     assert_eq!(status, StatusCode::OK, "karte.mm");
-    assert!(mm.contains("COLOR=\"#3b5bdb\""), "FreeMind: Farbe je Art am Pfeil: {mm}");
+    assert!(
+        mm.contains("<arrowlink ") && mm.contains("COLOR=\"#"),
+        "FreeMind: Beziehung als Pfeil mit Farbe je Art: {mm}"
+    );
 }
 
-#[tokio::test]
-async fn the_map_side_panel_starts_below_the_toolbar() {
-    let css = include_str!("../static/karte_widget.css");
-    let rule = &css[css.find(".im-side:not([hidden]) {").expect("Regel der Seitenleiste")..];
-    let rule = &rule[..rule.find('}').unwrap()];
-    assert!(rule.contains("top: calc(var(--im-top, 0px) + .5rem)"), "oben bündig mit dem Bild: {rule}");
-    assert!(rule.contains("max-height: calc(100% - var(--im-top, 0px) - 1rem)"), "nicht länger als das Bild: {rule}");
-    let ts = include_str!("../web/src/idea_map.ts");
-    assert!(ts.contains("stage.style.setProperty(\"--im-top\""), "das Widget misst den oberen Rand des Bilds");
-    assert!(ts.contains("new ResizeObserver(keepSideBelowToolbar)"), "und misst neu, wenn die Werkzeugleiste umbricht");
-    // Ehrlich: Das prüft Regel und Code, nicht die gemessene Lage im Browser (Sichtprüfung des Integrators).
-}
+// Runde 34: Die Seitenleiste der Gedankenkarte (`.im-side`, Test the_map_side_panel_starts_below_the_toolbar) gibt es
+// nicht mehr; die Mindmap hat keine Leiste über dem Bild (Ersatz: round34_widget).
 
 #[test]
 fn typeset_and_numbering_pages_scroll_at_the_window_edge() {

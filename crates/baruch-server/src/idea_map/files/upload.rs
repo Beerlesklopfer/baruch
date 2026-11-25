@@ -10,7 +10,7 @@
 //!    Eingabe und wird erneut geprüft ([`super::import::check`]); dann legt [`crate::idea_map::tree::import`] an
 //!    (Herkunft Mensch) und es geht mit 303 zur Mindmap.
 //!
-//! Ohne Zielknoten landen die eingelesenen Knoten **in der Wolke** (Einfälle ohne Platz); mit Zielknoten werden sie
+//! Ohne Zielknoten werden die eingelesenen Knoten **freie Hauptthemen am Werk** (`tree::import`); mit Zielknoten werden sie
 //! dessen Unterknoten. Die Wurzel der fremden Datei wird nie selbst Einfall.
 
 use std::sync::Arc;
@@ -68,10 +68,11 @@ async fn show(
     error: Option<String>,
 ) -> Response {
     // Ohne Nähe: Für die Auswahl „unter Knoten“ zählt nur der Baum.
-    let (_, map) = match load_tree(state, work, &MapFilter::default()).await {
+    let (_, scene) = match load_tree(state, work, &MapFilter::default()).await {
         Ok(loaded) => loaded,
         Err(response) => return response,
     };
+    let map = &scene.map;
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let karte = format!("/werke/{work}/karte");
     let parents: Vec<Value> = map
@@ -121,7 +122,7 @@ async fn show(
     }
 }
 
-/// „unter Knoten“ aus einem Formularfeld: leer → keiner (Wolke), `12` oder `i:12` → Einfall 12.
+/// „unter Knoten“ aus einem Formularfeld: leer → keiner (Hauptthemen am Werk), `12` oder `i:12` → Einfall 12.
 fn parent_of(value: &str) -> Result<Option<IdeaId>, String> {
     let value = value.trim();
     let value = value.strip_prefix("i:").unwrap_or(value);

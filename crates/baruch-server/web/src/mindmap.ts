@@ -8,13 +8,13 @@
 //
 // - Klick wählt; Doppelklick oder F2 benennt um (nur `data-editable="1"`; Enter übernimmt, Esc verwirft).
 // - Tab legt einen Unterknoten an, Enter ein Geschwister (vor dem nächsten Geschwister); beides steht sofort im
-//   Umbenennen. Am Werk landet der neue Einfall in der Wolke, ebenso mit Alt+E.
+//   Umbenennen. Am Werk wird der neue Einfall ein freies Hauptthema (`cloud: false`); Alt+E legt in die Wolke.
 // - Entf/Rücktaste löscht nach Rückfrage (samt Unterknoten, wiederherstellbar); an einer gewählten Beziehung löst
 //   Entf die Beziehung.
 // - Ziehen eines Einfalls: auf einen Einfall → Unterknoten (`parent`); auf dessen oberen/unteren Rand → davor bzw.
-//   dahinter einordnen (`before`); auf Teil/Kapitel → dorthin (`parent: null, key`); aufs Werk oder in die Wolke →
-//   in die Wolke (`parent: null, key: null`, die Unterknoten wandern mit). Aus der Wolke auf einen Knoten ziehen
-//   hängt den Einfall dort ein.
+//   dahinter einordnen (`before`); auf Teil/Kapitel → dorthin (`parent: null, key`); aufs Werk → freies Hauptthema
+//   (`parent: null, key: null, cloud: false`); in die Wolke → `cloud: true` (die Unterknoten wandern mit). Aus der
+//   Wolke auf einen Knoten ziehen hängt den Einfall dort ein.
 // - Pfeile wandern (links/rechts = Eltern/Kind je nach Seite, hoch/runter = Geschwister), Leertaste klappt,
 //   Strg+Mausrad, `+`, `-`, `0` zoomen, Ziehen der Fläche verschiebt, Strg+Z nimmt die letzte Aktion zurück
 //   (eine Stufe, Umkehr-RPC), Alt+L bzw. „Verbinden“ zieht eine Beziehung zum nächsten gewählten Einfall.
@@ -73,6 +73,7 @@ interface MoveParams {
   parent?: number | null;
   key?: number | null;
   before?: number | null;
+  cloud?: boolean;
 }
 
 interface Drop {
@@ -321,10 +322,12 @@ register("mindmap", (stage) => {
     input.addEventListener("blur", () => finish(true));
   }
 
-  /// Wohin ein neuer Einfall unter `p` gehört: Einfall → `parent`, Teil/Kapitel → `key`, Werk → nichts (Wolke).
+  /// Wohin ein neuer Einfall unter `p` gehört: Einfall → `parent`, Teil/Kapitel → `key`, Werk → freies Hauptthema
+  /// (`cloud: false`); ohne alles landet er in der Wolke.
   function placeUnder(params: Record<string, unknown>, p: Info | null): void {
     if (p?.kind === "idea" && p.idea !== null) params.parent = p.idea;
     else if (p && p.kind !== "work" && p.key !== null) params.key = p.key;
+    else if (p?.kind === "work") params.cloud = false;
   }
 
   function create(mode: "child" | "sibling" | "cloud"): void {
@@ -347,8 +350,9 @@ register("mindmap", (stage) => {
       const id = answer.idea?.id;
       if (typeof id !== "number") throw new Error("Der Server hat keinen neuen Einfall gemeldet.");
       if (open !== null) closed = closed.filter((c) => c !== open);
-      undo = { label: "Anlegen", run: () => call("idea.delete", { id }) };
-      const where = params.parent === undefined && params.key === undefined ? " in der Wolke" : "";
+      undo = { label: "Anlegen", run: () => call("idea.delete", { id, confirm: true }) };
+      const where =
+        params.parent === undefined && params.key === undefined && params.cloud === undefined ? " in der Wolke" : "";
       return {
         message: `Einfall angelegt${where}. Titel eingeben, Enter übernimmt.`,
         select: `i:${id}`,
@@ -385,7 +389,7 @@ register("mindmap", (stage) => {
     if (!window.confirm(`Einfall „${n.title}“${below} löschen? (wiederherstellbar)`)) return;
     const idea = n.idea;
     void act(async () => {
-      await call("idea.delete", { id: idea });
+      await call("idea.delete", { id: idea, confirm: true });
       undo = { label: "Löschen", run: () => call("idea.restore", { id: idea }) };
       return { message: `Einfall „${n.title}“${below} gelöscht.`, select: n.cloud ? "w" : n.parent };
     });
@@ -398,11 +402,14 @@ register("mindmap", (stage) => {
     const idea = n.idea;
     const row = siblings(n);
     const next = row[row.findIndex((m) => m.id === n.id) + 1];
-    const backTo: MoveParams = {
-      parent: parentIdea(n),
-      key: n.key,
-      before: next && next.kind === "idea" ? next.idea : null,
-    };
+    // Umkehr: der Platz vor der Aktion – Wolke, freies Hauptthema am Werk oder Elternknoten/Bezug.
+    const before = next && next.kind === "idea" ? next.idea : null;
+    const parent = parentIdea(n);
+    const backTo: MoveParams = n.cloud
+      ? { cloud: true, before }
+      : parent === null && n.key === null
+        ? { parent: null, key: null, cloud: false, before }
+        : { parent, key: n.key, before };
     void act(async () => {
       await call("idea.move", { id: idea, ...params });
       undo = { label: "Umhängen", run: () => call("idea.move", { id: idea, ...backTo }) };
@@ -420,7 +427,7 @@ register("mindmap", (stage) => {
       return;
     }
     const below = n.children > 0 ? ` samt ${n.children} Unterknoten` : "";
-    move(n, { parent: null, key: null }, `„${n.title}“${below} liegt jetzt in der Wolke.`);
+    move(n, { cloud: true }, `„${n.title}“${below} liegt jetzt in der Wolke.`);
   }
 
   function isInside(target: Info, n: Info): boolean {
@@ -451,11 +458,16 @@ register("mindmap", (stage) => {
 
   function drop(n: Info, where: Drop | null): void {
     if (!where) return;
-    if (where.cloud || where.target?.kind === "work") {
+    if (where.cloud) {
       toCloud(n);
       return;
     }
     const target = where.target;
+    if (target?.kind === "work") {
+      // Aufs Werk: freies Hauptthema (eigener Hauptast), die Unterknoten bleiben am Einfall.
+      move(n, { parent: null, key: null, cloud: false }, `„${n.title}“ ist jetzt Hauptthema am Werk.`);
+      return;
+    }
     if (!target || isInside(target, n)) {
       if (target && target.id !== n.id) say("Ein Einfall lässt sich nicht unter seinen eigenen Unterknoten hängen.", true);
       return;
@@ -473,7 +485,14 @@ register("mindmap", (stage) => {
     const after = row[row.findIndex((m) => m.id === target.id) + 1];
     const before = where.zone === "before" ? target.idea : after && after.kind === "idea" ? after.idea : null;
     const parent = parentIdea(target);
-    const params: MoveParams = parent !== null ? { parent, before } : { parent: null, key: target.key, before };
+    const params: MoveParams =
+      parent !== null
+        ? { parent, before }
+        : target.cloud
+          ? { cloud: true, before }
+          : target.key !== null
+            ? { parent: null, key: target.key, before }
+            : { parent: null, key: null, cloud: false, before };
     move(n, params, `„${n.title}“ steht jetzt ${where.zone === "before" ? "vor" : "hinter"} „${target.title}“.`);
   }
 

@@ -747,6 +747,28 @@ const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ("import_report.html", "start", &["href=\"/werke\"", "href=\"{{ work_url|safe }}\""]),
     ("index_page.html", "buch", &["href=\"/?work={{ work.id }}\"", "href=\"/werke/{{ work.id }}/glossar\""]),
     ("karte.html", "start", &["href=\"{{ ideas_href }}\"", "href=\"{{ workspace }}\""]),
+    // Runde 34: Einlesen und Gliederungsansicht der Mindmap (mindmap_austausch).
+    (
+        "karte_einlesen.html",
+        "start",
+        &[
+            "href=\"{{ form_href }}\"",
+            "href=\"{{ map_href }}\"",
+            "href=\"{{ outline_href }}\"",
+            "href=\"{{ workspace }}\"",
+        ],
+    ),
+    (
+        "karte_gliederung.html",
+        "start",
+        &[
+            "href=\"{{ map_href }}\"",
+            "href=\"{{ outputs.xmind }}\"",
+            "href=\"{{ import_href }}\"",
+            "href=\"{{ ideas_href }}\"",
+            "href=\"{{ workspace }}\"",
+        ],
+    ),
     ("literature.html", "pruefen", &["href=\"{{ work_url }}\" data-back"]),
     ("literature_bible.html", "pruefen", &["href=\"{{ literature_url }}\"", "href=\"{{ work_url }}\" data-back"]),
     (

@@ -8,8 +8,8 @@ use std::collections::{BTreeSet, HashMap};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use baruch_server::idea_map::bild::mindmap::{BRANCH_COLORS, RenderOptions, render};
-use baruch_server::idea_map::tree::{self, MindMap, TreeKind, TreeNode};
+use baruch_server::idea_map::bild::mindmap::{self, BRANCH_COLORS, RenderOptions, Rendered};
+use baruch_server::idea_map::tree::{self, CloudHint, MindMap, TreeKind, TreeNode};
 use baruch_server::idea_map::{MapFilter, Near, NearPair, NearState, NearVia};
 use baruch_store::{IdeaLink, IdeaOrigin, IdeaStatus, LinkKind};
 use quick_xml::Reader;
@@ -190,6 +190,17 @@ fn text_in(els: &[El], at: usize, name: &str) -> String {
 fn rect_of(els: &[El], at: usize) -> (f64, f64, f64, f64) {
     let rect = children_of(els, at).into_iter().find(|e| e.has_class("mm-box")).expect("jeder Knoten hat mm-box");
     (rect.number("x"), rect.number("y"), rect.number("width"), rect.number("height"))
+}
+
+/// Zeichnet einen von Hand gebauten Baum. In diesen Bäumen gilt: Einfälle direkt an der Wurzel liegen in der Wolke
+/// (so nennt es die Sicht `tree::Scene` für die Seite); nennt ein Test `cloud` selbst, gilt seine Angabe. Freie
+/// Hauptthemen (Einfälle direkt am Werk als Hauptast) prüft `free_main_topics_are_main_branches_not_cloud_cards`.
+fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
+    let mut options = options.clone();
+    if options.cloud.is_empty() {
+        options.cloud = map.root.children.iter().filter(|c| c.kind == TreeKind::Idea).map(|c| c.id.clone()).collect();
+    }
+    mindmap::render(map, &options)
 }
 
 fn fragment(map: &MindMap) -> String {
@@ -432,10 +443,16 @@ fn relations_are_labelled_contradictions_stand_out_and_hidden_ends_stop_at_the_v
     let links: Vec<&El> = els.iter().filter(|e| e.name == "path" && e.has_class("mm-link")).collect();
     assert_eq!(links.len(), 3, "drei Beziehungen zwischen gezeigten Einfällen; die zum fehlenden Einfall entfällt");
     let by = |id: &str| *links.iter().find(|e| e.attr("data-link") == id).unwrap_or_else(|| panic!("Beziehung {id}"));
+    // Die Beschriftungen stehen in einer eigenen Gruppe hinter den Knoten (darüber gezeichnet, bleiben lesbar).
     let label_of = |id: &str| {
-        let at = els.iter().position(|e| std::ptr::eq(e, by(id))).unwrap();
-        els[at + 1].clone()
+        els.iter()
+            .find(|e| e.has_class("mm-link-label") && e.attr("data-link") == id)
+            .unwrap_or_else(|| panic!("Beschriftung der Beziehung {id}"))
+            .clone()
     };
+    let last_node = els.iter().rposition(|e| e.has_class("mm-node")).unwrap();
+    let first_label = els.iter().position(|e| e.has_class("mm-link-label")).unwrap();
+    assert!(last_node < first_label, "Beschriftungen liegen über den Knoten (zuletzt gezeichnet)");
     let first = by("1");
     assert!(first.has_class("mm-link-leads_to"), "die Art steht als Klasse mm-link-<kind>");
     assert_eq!((first.attr("data-from"), first.attr("data-to")), ("i:12", "i:21"), "Enden als Kennungen der Einfälle");
@@ -475,6 +492,30 @@ fn relations_are_labelled_contradictions_stand_out_and_hidden_ends_stop_at_the_v
 }
 
 #[test]
+fn free_main_topics_are_main_branches_not_cloud_cards() {
+    // Integration Runde 34: Ein Einfall direkt am Werk, den die Sicht nicht als Wolke nennt, ist ein freies
+    // Hauptthema – ein eigener Hauptast mit Farbe und Ast zum Werk; nur die genannten liegen in der Wolke.
+    let mut map = three_levels();
+    map.root.children.push(idea(95, "Freies Thema", vec![idea(96, "Unterpunkt", vec![])]));
+    map.root.children.push(idea(97, "Ohne Platz", vec![]));
+    let options = RenderOptions { cloud: vec!["i:97".to_owned()], cloud_count: Some(5), ..Default::default() };
+    let svg = mindmap::render(&map, &options).svg;
+    let els = parse(&svg);
+    let (_, main) = node_of(&els, "i:95");
+    assert!(main.has_class("mm-main") && !main.has_class("mm-cloud-item"), "das Hauptthema ist ein Hauptast");
+    assert_ne!(main.attr("data-side"), "", "es steht rechts oder links vom Werk");
+    assert_ne!(main.attr("data-branch"), "", "mit eigener Astfarbe");
+    assert!(
+        els.iter().any(|e| e.has_class("mm-edge") && e.attr("data-from") == "w" && e.attr("data-to") == "i:95"),
+        "ein Ast verbindet es mit dem Werk"
+    );
+    assert_eq!(node_of(&els, "i:96").1.attr("data-parent"), "i:95", "sein Unterknoten wird im Baum gezeichnet");
+    assert!(node_of(&els, "i:97").1.has_class("mm-cloud-item"), "nur der genannte Einfall liegt in der Wolke");
+    assert_eq!(els[0].attr("data-cloud-count"), "5", "der Zähler ohne Filter kommt aus den Daten, nicht aus dem Bild");
+    assert!(svg.contains("5 in der Wolke"), "und steht so im Bild");
+}
+
+#[test]
 fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
     let mut map = three_levels();
     map.root.children.push(idea(90, "Lose Idee", vec![idea(91, "Anhang", vec![])]));
@@ -489,7 +530,20 @@ fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
             NearPair { a: 12, b: 21, score: 0.85, via: NearVia::Both, shared_words: Vec::new() },
         ],
     };
-    let svg = fragment(&map);
+    // Der Vorschlag kommt aus der Wolke der Daten (`Cloud::hints`): bestes Paar mit einem Einfall im Baum.
+    let hinted = RenderOptions {
+        hints: vec![CloudHint {
+            idea: 92,
+            node: "i:41".to_owned(),
+            node_title: "Einfall 41".to_owned(),
+            branch: "n:4".to_owned(),
+            branch_title: "Sturm".to_owned(),
+            score: 0.9,
+            shared_words: Vec::new(),
+        }],
+        ..Default::default()
+    };
+    let svg = render(&map, &hinted).svg;
     let els = parse(&svg);
     assert_eq!(
         els[0].attr("data-cloud-count"),
@@ -530,7 +584,7 @@ fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
         }
     }
 
-    // Nähe als Hilfe: bestes Paar mit einem Einfall im Baum → „passt zu Ast …“ (hier 0.9 mit i:41 unter „Sturm“).
+    // Nähe als Hilfe: Vorschlag der Wolke → „passt zu Ast …“ (hier i:41 unter „Sturm“).
     let (at, near) = node_of(&els, "i:92");
     assert_eq!(near.attr("data-fits"), "n:4", "der Vorschlag nennt den Hauptast des nächsten Einfalls");
     let hint = &els[child_at(&els, at, "mm-cloud-hint").expect("Vorschlag am Kärtchen")];
@@ -624,10 +678,13 @@ async fn the_tree_of_a_real_work_renders_with_escaped_titles() {
     let (server, work, _) = book().await;
     new_idea(&server, json!({ "work": work, "words": "Watt <nass>" })).await;
     let filter = MapFilter { near: false, ..MapFilter::default() };
-    let map = tree::tree(&server.state, work, &filter).await.expect("tree gelingt");
-    let svg = render(&map, &RenderOptions::default()).svg;
+    // Die Sicht der Seite: Baum und – daneben – die Wolke, in der der Einfall ohne Platz liegt.
+    let scene = tree::scene(&server.state, work, &filter).await.expect("scene gelingt");
+    let map = &scene.map;
+    let svg = mindmap::render(map, &RenderOptions::of(&scene, false, Vec::new())).svg;
     let els = parse(&svg);
-    assert_eq!(nodes(&els).len(), map.walk().len(), "jeder Knoten aus tree() ist gezeichnet");
+    assert_eq!(nodes(&els).len(), map.walk().len(), "jeder Knoten aus Baum und Wolke ist gezeichnet");
+    assert_eq!(els[0].attr("data-cloud-count"), "1", "der Einfall ohne Platz liegt in der Wolke");
     assert!(svg.contains("Ebbe &amp; Flut") && !svg.contains("Ebbe & Flut"), "der Werktitel steht maskiert im Bild");
     assert!(svg.contains("Watt &lt;nass&gt;") && !svg.contains("<nass>"), "Titel der Einfälle sind maskiert");
 }
@@ -811,13 +868,11 @@ async fn the_widget_is_compiled_bundled_and_binds_the_keys_and_only_the_allowed_
     let (_, main) = server.get("/static/js/main.js").await;
     assert!(main.contains("import \"./mindmap.js\""), "main.js bindet das Widget ein");
     assert!(!main.contains("idea_map.js"), "das alte Widget ist nicht mehr eingebunden");
-    // idea_map.ts ist stillgelegt: Die Datei steht nur noch als leere Hülle da, weil round18_menueband.rs (Besitz
-    // Integrator) sie per include_str! einliest. Sie darf kein Widget mehr registrieren und keine RPC rufen.
-    let old = include_str!("../web/src/idea_map.ts");
-    assert!(!old.contains("register(") && !old.contains("call("), "das alte Widget ist ausgeräumt (nur noch Hülle)");
-    assert!(
-        old.lines().filter(|l| !l.trim_start().starts_with("//") && !l.trim().is_empty()).eq(["export {};"]),
-        "außer Kommentaren steht nur „export {{}};“ darin"
+    let (status, _) = server.get("/static/js/idea_map.js").await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "das alte Widget idea_map.ts ist gelöscht und wird nicht mehr ausgeliefert"
     );
     assert!(!js.contains("STUB"), "kein Stub im Widget");
 

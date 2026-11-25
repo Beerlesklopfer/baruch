@@ -518,8 +518,8 @@ async fn two_instances_exchange_glossary_and_registers_without_doubling() {
     );
     let xml = export_xml(&a, work_a).await;
     for needle in [
-        // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-        "version=\"8\"",
+        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        "version=\"9\"",
         "<glossar>",
         "<wort>Möhre</wort>",
         "kennung=\"pflanzen\"",

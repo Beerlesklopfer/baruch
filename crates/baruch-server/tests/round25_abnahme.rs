@@ -184,35 +184,38 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     );
     for (needle, why) in [
         ("<form class=\"im-filter\" method=\"get\"", "Filter per GET"),
-        ("data-widget=\"idea-map\"", "Widget-Anker"),
-        ("<svg class=\"im-svg\"", "SVG steht im HTML"),
-        ("<section class=\"im-outline\"", "Gliederungsliste"),
+        // Runde 34: Die Gedankenkarte ist die Mindmap (Widget `mindmap`, Bild `mm-svg`).
+        ("data-widget=\"mindmap\"", "Widget-Anker"),
+        ("<svg class=\"mm-svg\"", "SVG steht im HTML"),
         ("<section class=\"im-contradictions\"", "Liste Widersprüche"),
-        ("name=\"method\" value=\"idea.update\"", "Formular „Bezug setzen“"),
-        ("name=\"method\" value=\"idea.link\"", "Formular „Verbinden mit …“"),
-        ("name=\"method\" value=\"idea.map_pos_reset\"", "Formular „Anordnung zurücksetzen“"),
     ] {
         assert!(html.contains(needle), "{why} fehlt auf der Karte");
+    }
+    // Runde 34: Die Formulare der alten Gliederungsliste stehen in der Gliederungsansicht (ohne JavaScript).
+    assert!(html.contains(&format!("href=\"/werke/{w}/karte/gliederung\"")), "Verweis auf die Gliederungsansicht");
+    let (status, outline) = server.get(&format!("/werke/{w}/karte/gliederung?wahl=i:{}", ids[0])).await;
+    assert_eq!(status, StatusCode::OK, "Gliederungsansicht lädt");
+    for (needle, why) in [
+        ("name=\"method\" value=\"idea.update\"", "Formular „Bezug setzen“"),
+        ("name=\"method\" value=\"idea.link\"", "Formular „Verbinden mit …“"),
+    ] {
+        assert!(outline.contains(needle), "{why} fehlt in der Gliederungsansicht");
     }
     assert!(!html.contains("idea_capture"), "die Einfall-Erfassung ist auf der Karte nicht eingebunden (Alt+E)");
     assert_eq!(drawn(&html), ids.iter().copied().collect(), "alle 40 Einfälle sind gezeichnet");
     assert!(
-        tag_with(&html, &format!("data-node=\"n:{sterne}\"")).contains("im-empty"),
-        "Kapitel ohne Einfälle trägt im-empty"
-    );
-    let sterne_at = html.find(&format!("data-node=\"n:{sterne}\"")).unwrap();
-    assert!(
-        html[sterne_at..].split("</a>").next().unwrap().contains(">leer</tspan>"),
-        "Kapitel ohne Einfälle ist hervorgehoben: „leer“ im Kreis, nicht nur über die Farbe"
+        !tag_with(&html, &format!("data-node=\"n:{sterne}\"")).contains("data-children"),
+        "Kapitel ohne Einfälle ist ein Ast ohne Unterknoten"
     );
     assert!(
-        tag_with(&html, &format!("data-node=\"i:{}\"", ids[14])).contains(&format!("data-anchor=\"n:{nebel}\"")),
-        "ein Einfall am Abschnitt hängt am Kapitel (zugeklappt)"
+        tag_with(&html, &format!("data-node=\"i:{}\"", ids[14])).contains(&format!("data-parent=\"n:{nebel}\"")),
+        "ein Einfall am Abschnitt hängt am Kapitel"
     );
     assert!(
-        tag_with(&html, &format!("data-node=\"i:{}\"", ids[30])).contains("data-anchor=\"none\""),
-        "ein Einfall ohne Bezug hängt an der Wolke „Ohne Kapitel“"
+        tag_with(&html, &format!("data-node=\"i:{}\"", ids[30])).contains("data-cloud=\"1\""),
+        "ein Einfall ohne Bezug liegt in der Wolke"
     );
+    assert!(html.contains("12 in der Wolke"), "die Wolke zählt die zwölf Einfälle ohne Bezug");
 
     // Nähe: Zwillinge über Vektoren (512 Dim. vom Nachbau), „Regen“ über Schlagwörter.
     let map = ok(server.rpc("idea.map", json!({ "work": w })).await, "idea.map");
@@ -226,13 +229,25 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     assert!(pairs.iter().any(|p| p["via"] != "vector"), "gleiche Schlagwörter zählen als Nähe mit: {}", map["near"]);
     let a = ids[38].min(ids[39]);
     let b = ids[38].max(ids[39]);
-    let near_edge = tag_with(&html, &format!("data-from=\"i:{a}\" data-to=\"i:{b}\""));
+    // Runde 34: Nähe-Linien stehen zwischen Einfällen im Baum (hier „Regen“ an zwei Einfällen von „Tau“); für
+    // Einfälle der Wolke steht statt einer Linie der Vorschlag „passt zu Ast …“ am Kärtchen.
+    assert!(html.contains("<path class=\"mm-near\" data-from=\"i:"), "Nähe als eigene, gepunktete Linie im Baum");
     assert!(
-        near_edge.starts_with("<line class=\"im-edge im-near\" data-score=\""),
-        "Nähe als eigene Kante mit Wert (gepunktet per CSS) auf der Seite: {near_edge}"
+        !html.contains(&format!("class=\"mm-near\" data-from=\"i:{a}\" data-to=\"i:{b}\"")),
+        "die Zwillinge liegen beide in der Wolke: keine Linie quer durchs Bild"
     );
     let (_, no_near) = server.get(&format!("/werke/{w}/karte?near=0")).await;
-    assert!(!no_near.contains("im-edge im-near"), "near=0 lässt die Nähe-Kanten weg");
+    assert!(!no_near.contains("class=\"mm-near\""), "near=0 lässt die Nähe-Linien weg");
+    // Verbindung von Wolke und Mindmap: Hängt ein Zwilling im Baum, bekommt der andere den Vorschlag.
+    ok(server.rpc("idea.move", json!({ "id": a, "parent": null, "key": tau })).await, "Zwilling an „Tau“");
+    let (_, hinted) = server.get(&format!("/werke/{w}/karte")).await;
+    let card = tag_with(&hinted, &format!("data-node=\"i:{b}\""));
+    assert!(
+        card.contains("data-cloud=\"1\"") && card.contains("data-fits=\"n:"),
+        "das Kärtchen der Wolke nennt den Ast, zu dem es passt: {card}"
+    );
+    assert!(hinted.contains("passt zu Ast „"), "in Worten am Kärtchen");
+    ok(server.rpc("idea.move", json!({ "id": a, "cloud": true })).await, "Zwilling zurück in die Wolke");
 
     // Filter per GET.
     let open: BTreeSet<i64> = ids.iter().zip(&plan).filter(|(_, p)| !p.done).map(|(id, _)| *id).collect();
@@ -254,7 +269,7 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     }
     let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
     assert!(
-        tag_with(&html, &format!("data-node=\"i:{}\"", ids[30])).contains(&format!("data-anchor=\"n:{tau}\"")),
+        tag_with(&html, &format!("data-node=\"i:{}\"", ids[30])).contains(&format!("data-parent=\"n:{tau}\"")),
         "gezogener Einfall hängt jetzt an „Tau“"
     );
 
@@ -277,10 +292,10 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
     let edge = tag_with(&html, &format!("data-link=\"{link}\""));
     assert!(
-        edge.contains("im-kind-contradicts") && edge.contains(&format!("data-from=\"i:{x}\"")),
+        edge.contains("mm-link-contradicts") && edge.contains(&format!("data-from=\"i:{x}\"")),
         "Kante normalisiert x<y: {edge}"
     );
-    assert!(html.contains("im-kind-leads_to"), "auch die Formular-Verbindung ist gezeichnet");
+    assert!(html.contains("mm-link-leads_to"), "auch die Formular-Verbindung ist gezeichnet");
     let list = &html[html.find("<section class=\"im-contradictions\"").unwrap()..];
     let list = &list[..list.find("</section>").unwrap()];
     assert!(
@@ -304,14 +319,14 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     let before = commits(&server, &slug);
     ok(server.rpc("idea.map_pos_set", json!({ "work": w, "idea": ids[5], "x": 777.5, "y": -12.0 })).await, "Lage");
     let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
-    let pinned = tag_with(&html, &format!("data-node=\"i:{}\"", ids[5]));
-    assert!(
-        pinned.contains("im-pinned") && pinned.contains("data-x=\"777.5\""),
-        "gespeicherte Lage überstimmt: {pinned}"
-    );
+    // Runde 34: Lagen bleiben gespeichert (und im Austausch), wirken in der Mindmap aber nicht – der Baum ordnet
+    // sich selbst.
+    let stored = ok(server.rpc("idea.map", json!({ "work": w, "near": false })).await, "idea.map");
+    assert_eq!(stored["positions"][0]["x"], 777.5, "die Lage ist gespeichert: {}", stored["positions"]);
+    assert!(!html.contains("data-x=\"777.5\""), "im Bild der Mindmap hat sie keine Wirkung");
     server.post_form(&format!("/werke/{w}/karte/act"), "method=idea.map_pos_reset").await;
-    let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
-    assert!(!html.contains("im-pinned"), "nach dem Zurücksetzen keine Lage mehr");
+    let stored = ok(server.rpc("idea.map", json!({ "work": w, "near": false })).await, "idea.map");
+    assert_eq!(stored["positions"].as_array().map(Vec::len), Some(0), "nach dem Zurücksetzen keine Lage mehr");
     assert_eq!(commits(&server, &slug), before, "Lagen sind Anzeige: kein Commit");
 
     // --- Gelöschter Einfall fällt samt Verbindung heraus und kommt zurück ------------------------------------
@@ -363,8 +378,12 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
 async fn without_an_embedding_model_the_page_says_so_honestly() {
     let server = common::open().await;
     let w = server.import(&book(), "wetterheft.typ").await.work;
+    // Runde 34: mit Bezug, damit die Einfälle im Baum hängen (Nähe-Linien gibt es nur dort, nicht in der Wolke).
+    let nodes =
+        ok(server.rpc("work.get", json!({ "work": w })).await, "work.get")["work"]["nodes"].as_array().unwrap().clone();
+    let tau = key_of(&nodes, "Tau");
     for words in ["Regen, Wind", "regen", "Hagel"] {
-        ok(server.rpc("idea.create", json!({ "work": w, "words": words })).await, "idea.create");
+        ok(server.rpc("idea.create", json!({ "work": w, "words": words, "key": tau })).await, "idea.create");
     }
     let map = ok(server.rpc("idea.map", json!({ "work": w })).await, "idea.map");
     assert_eq!(map["near"]["state"], "no_embedder", "ehrlich ohne Einbettungsmodell: {}", map["near"]);
@@ -374,5 +393,5 @@ async fn without_an_embedding_model_the_page_says_so_honestly() {
     let at = html.find("im-near-note").unwrap();
     let text = &html[at..at + html[at..].find("</p>").unwrap()];
     assert!(text.contains("Schlagw"), "die Seite nennt den Ersatz über Schlagwörter: {text}");
-    assert!(html.contains("im-edge im-near"), "Wort-Nähe (Regen/regen) bleibt als Kante");
+    assert!(html.contains("class=\"mm-near\""), "Wort-Nähe (Regen/regen) bleibt als Linie");
 }

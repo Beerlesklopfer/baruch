@@ -66,7 +66,7 @@ async fn two_instances_carry_amends_stands_draft_and_adopted_amend_byte_for_byte
     let out_a = export_xml(&a, work_a).await;
     xmllint_u8(&out_a);
     for needle in [
-        "version=\"8\"",
+        "version=\"9\"",
         "<fortschreibung ",
         "stand=\"3\"",
         "beruht-stand=\"2\"",

@@ -11,7 +11,7 @@
 //!   legt über [`crate::idea_map::tree::import`] an).
 //!
 //! **Wolke** (Nachtrag des Nutzers 2026-11-25): Einfälle ohne Platz liegen in der Wolke neben der Mindmap
-//! ([`export::cloud`]). Das Formular kennt dafür beim Umhängen das Feld `ziel` (`wolke`, `i:<id>`, `n:<key>`): „in
+//! ([`export::cloud`]). Das Formular kennt dafür beim Umhängen das Feld `ziel` (`wolke`, `w`, `i:<id>`, `n:<key>`): „in
 //! die Wolke“ löst Elternknoten und Bezug, „in die Mindmap unter …“ hängt unter einen Einfall bzw. an ein Kapitel.
 //! Ein Knoten wandert **mit** seinen Unterknoten in die Wolke (sie bleiben seine Unterknoten).
 //!
@@ -41,7 +41,7 @@ use crate::idea_map::bild::mindmap::{self, RenderOptions};
 use crate::idea_map::bild::{
     Extra, back_filter, filter_query, page_response, parse_filter, plain, status_of, work_info,
 };
-use crate::idea_map::tree::{self, MindMap};
+use crate::idea_map::tree::{self, MindMap, Scene};
 use crate::pdf::{PDF_TIMEOUT, PdfKind};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
@@ -70,20 +70,16 @@ pub fn writes() -> Router<Arc<AppState>> {
 
 // ---- Laden ---------------------------------------------------------------------------------------
 
-/// Ordnername des Werks und seine Mindmap; unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
+/// Ordnername des Werks und seine Mindmap samt Wolke ([`Scene`]); unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
 // `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler), wie in `bild::load`.
 #[allow(clippy::result_large_err)]
-pub(crate) async fn load_tree(
-    state: &AppState,
-    work: WorkId,
-    filter: &MapFilter,
-) -> Result<(String, MindMap), Response> {
+pub(crate) async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<(String, Scene), Response> {
     let slug = match work_info(state, work).await? {
         Some((slug, _)) => slug,
         None => return Err(plain(StatusCode::NOT_FOUND, "unbekanntes Werk")),
     };
     let map =
-        tree::tree(state, work, filter).await.map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))?;
+        tree::scene(state, work, filter).await.map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))?;
     Ok((slug, map))
 }
 
@@ -132,8 +128,8 @@ fn file(content_type: &'static str, disposition: Option<String>, body: impl Into
 }
 
 /// Die eigenständige SVG-Datei der Mindmap (dieselbe Zeichnung wie auf der Seite).
-fn standalone_svg(map: &MindMap, closed: Vec<String>) -> String {
-    mindmap::render(map, &RenderOptions { standalone: true, closed, back: filter_query(&map.filter) }).svg
+fn standalone_svg(scene: &Scene, closed: Vec<String>) -> String {
+    mindmap::render(&scene.map, &RenderOptions::of(scene, true, closed)).svg
 }
 
 async fn svg_file(
@@ -250,7 +246,7 @@ async fn pdf_file(
         Ok(loaded) => loaded,
         Err(response) => return response,
     };
-    let source = pdf_source(&map, standalone_svg(&map, closed_of(&pairs)));
+    let source = pdf_source(&map.map, standalone_svg(&map, closed_of(&pairs)));
     match crate::pdf::source_to_pdf(work, PdfKind::Map, source, PDF_TIMEOUT).await {
         Ok(pdf) => crate::pdf::attachment(&format!("{slug}-mindmap.pdf"), pdf.bytes),
         Err(e) => {
@@ -345,7 +341,8 @@ async fn run_act(
     let field = |name: &str| form_field(pairs, name);
     let filled = |name: &str| form_field(pairs, name).filter(|v| !v.trim().is_empty());
     match method {
-        // Neuer Einfall: unter einem Einfall (`parent`), an einem Kapitel (`key`) oder – ohne beides – in der Wolke.
+        // Neuer Einfall: unter einem Einfall (`parent`), an einem Kapitel (`key`), mit `ort=werk` als Hauptthema am
+        // Werk oder – ohne alles – in der Wolke.
         "idea.create" => {
             let mut params = json!({ "work": work });
             for name in ["title", "words", "note"] {
@@ -362,6 +359,10 @@ async fn run_act(
             }
             if let Some(key) = filled("key") {
                 params["key"] = json!(number(Some(&key), "key")?);
+            }
+            // `ort=werk`: ohne Elternknoten und Bezug als freies Hauptthema ans Werk (Vorgabe: in die Wolke).
+            if filled("ort").as_deref().map(str::trim) == Some("werk") {
+                params["cloud"] = Json::Bool(false);
             }
             crate::ideas::call(state, "idea.create", params).await?;
             Ok(Done::word("angelegt"))
@@ -400,17 +401,24 @@ async fn run_act(
             let mut to_cloud = false;
             if let Some(target) = filled("ziel") {
                 let target = target.trim();
-                if matches!(target, "wolke" | "w") {
+                if target == "wolke" {
+                    // In die Wolke: löst Elternknoten und Bezug, die Unterknoten bleiben am Einfall.
+                    params["cloud"] = Json::Bool(true);
+                    to_cloud = true;
+                } else if target == "w" {
+                    // Ans Werk: freies Hauptthema (eigener Hauptast).
                     params["parent"] = Json::Null;
                     params["key"] = Json::Null;
-                    to_cloud = true;
+                    params["cloud"] = Json::Bool(false);
                 } else if let Some(parent) = target.strip_prefix("i:") {
                     params["parent"] = json!(number(Some(parent), "ziel")?);
                 } else if let Some(key) = target.strip_prefix("n:") {
                     params["parent"] = Json::Null;
                     params["key"] = json!(number(Some(key), "ziel")?);
                 } else {
-                    return Err(invalid("ziel: „wolke“, „i:<Einfall>“ oder „n:<Kapitel>“ erwartet"));
+                    return Err(invalid(
+                        "ziel: „wolke“, „w“ (Hauptthema am Werk), „i:<Einfall>“ oder „n:<Kapitel>“ erwartet",
+                    ));
                 }
             }
             for name in ["parent", "key", "before"] {
@@ -507,7 +515,7 @@ fn unknown_action(method: &str) -> RpcError {
 }
 
 /// `POST /werke/{id}/karte/act` (urlencoded): Feld `method` ∈ [`ACT_METHODS`], dazu die Felder der Aktion (`id`,
-/// `title`, `words`, `note`, `parent`, `key`, `before`, `ziel`, `from`, `to`, `kind`, `idea`, `group`, `name`,
+/// `title`, `words`, `note`, `parent`, `key`, `before`, `ziel`, `ort`, `from`, `to`, `kind`, `idea`, `group`, `name`,
 /// `persona`), `back` (nur der Abfrageteil; sein Filter gilt auch für die Gruppen), `seite` ∈ `karte` | `gliederung`
 /// (Ziel der Weiterleitung, Vorgabe `karte`) und `wahl` (gewählter Knoten der Gliederungsansicht). Danach 303 auf
 /// `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>`; Fehler als Seite mit der Meldung (422 ungültig, 409 abgelehnt,

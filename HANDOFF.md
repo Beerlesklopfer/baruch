@@ -1,9 +1,63 @@
-# Übergabe (Stand 2026-11-25, Runde 32 „Lektorat I – Word und Beenden“ auf `development` **abgeschlossen** (Integration, Prüfung, Nachbesserung, PM-Abschluss); Tag `v0.9.0` auf `35140b5` wartet auf das „ja“ des Nutzers; davor: Runde 33 „Menüband und Laptop-Modus“ und Gegenprobe 0.9.0)
+# Übergabe (Stand 2026-11-25, Runde 34 „Mindmap wie XMind“ auf `development` **integriert** (Wolke und Mindmap verbunden; PM-Abschluss steht aus); davor: Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; Tag `v0.9.0` auf `35140b5` wartet auf das „ja“ des Nutzers)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 34 „Mindmap wie XMind“ integriert** (2026-11-25, Integrator, auf `development`; Schnittstelle R34-S1
+  `67faa2f`; Zweige `team/mindmap_daten` `38f4022`, `team/mindmap_widget` `d47d3af`, `team/mindmap_austausch`
+  `7513039` mit `--no-ff` in dieser Reihenfolge, **ohne Textkonflikte**; danach der Integrations-Commit; nicht
+  gepusht, Worktrees `.claude/worktrees/wf_f112b584-168-3/-4/-5` und team-Zweige stehen noch). Version unverändert
+  0.9.0, CHANGELOG unter „Unveröffentlicht“. **Migration 0052** (`idea`: `title`, `parent_id`, `position`,
+  `main_topic`; nur `ADD COLUMN`) – vor dem Einspielen beim Nutzer den Datenordner sichern. Austauschformat
+  Unterversion 9. Neue RPC `idea.move`, `idea.tree`; neue MCP-Werkzeuge `idea_move`, `idea_tree`; neue Seiten
+  `/werke/{id}/karte/gliederung`, `/werke/{id}/karte/einlesen`, Bild `/werke/{id}/karte/bild`, Ausgabe `.xmind`.
+  Kein Stub der Runde ist offen.
+  - **Nachtrag des Nutzers (2026-11-25): „Es macht Sinn eine Verbindung zwischen der Wolke und der Mindmap zu
+    machen.“** Umgesetzt als eine Regel mit vier Plätzen: Elternknoten → Unterknoten; sonst Bezug → am Kapitel;
+    sonst Hauptthema am Werk; sonst **Wolke** (Ablage unter dem Baum, „n in der Wolke“). Einfälle wandern aus der
+    Wolke auf einen Knoten, ein Kapitel oder aufs Werk und zurück (samt Unterknoten); die Nähe schlägt am Kärtchen
+    „passt zu Ast …“ vor. Bestehende lose Einfälle liegen in der Wolke, nichts wird ungefragt Hauptast.
+  - **Gefunden an der Nahtstelle:** (1) Widget und Austausch hatten gegen S1 angenommen, „Einfälle direkt an der
+    Wurzel“ seien die Wolke; die Daten liefern die Wolke getrennt und führen direkt am Werk die freien Hauptthemen.
+    Ohne Eingriff wären Hauptthemen als Kärtchen der Wolke gezeichnet worden und die echte Wolke gar nicht. Gelöst
+    über die Sicht `tree::Scene` (`tree::scene`), die Seite, Bild, Gliederungsansicht und Ausgaben jetzt lesen.
+    (2) Das Widget rief `idea.delete` ohne `confirm: true`: Löschen und das Rückgängig eines Anlegens wären im
+    Browser immer abgelehnt worden. (3) „In die Wolke“ im Formular hätte den Einfall zum Hauptthema gemacht
+    (`parent: null, key: null`); jetzt `cloud: true`, dazu „Als Hauptthema ans Werk“ (`ziel=w`) und „Neues
+    Hauptthema“ (`ort=werk`). (4) Einlesen ohne Zielknoten legt Hauptthemen an; die Seite sagte „in die Wolke“.
+    Alle vier behoben und mit Test belegt (`round34_abnahme`).
+  - **Was der Integrator sonst änderte:** `bild/layout.rs`, `bild/svg.rs`, `bild::load`, `export::tree_order`,
+    `web/src/idea_map.ts` und `tree::NOT_YET` gelöscht; `PdfKind::Map` → „Mindmap“; `notice_of` kennt die neuen
+    Rückmeldungen; zwei Vorlagen in `TEMPLATES` (`round33_seiten.rs`); Vorschlag der Wolke nennt den Hauptast mit
+    Nummer; „Gelöschte Einfälle“ nennt den Titel; Doku aus `docs/r34/` eingesetzt (gelöscht). Angepasste ältere
+    Tests: elf Rundreisen auf `version="9"`, `round25_abnahme`, `round25_bild`, `round18_menueband`,
+    `round28_abnahme`, `round28_uebersicht`, `round9_menu`.
+  - **Tests:** `round34_abnahme` (5 Tests: Bild mit Werk in der Mitte, Ästen rechts/links, Unterästen und allen
+    Aktionen des Widgets über RPC – Tab, Enter, F2, Ziehen, Wolke ↔ Baum, Einklappen, Verbindung mit Beschriftung,
+    Löschen und Wiederherstellen; Gliederungsansicht ohne JavaScript mit allen Aktionen; MCP legt Knoten mit
+    Herkunft an; Rundreise `.mm` und `.xmind` in ein zweites Werk mit gleicher Struktur; alte Einfälle, Verbindungen
+    und Lagen unverändert). Die Migration auf einer nachgebauten Datenbank im Stand 0051 prüft
+    `crates/baruch-store/tests/migration_0052.rs`. Voller Lauf nach `cargo clean -p` aller 16 Workspace-Crates
+    (`RUST_TEST_THREADS=4 nice -n 10 ionice -c3 taskset -c 0-7 cargo test --workspace -j 4 --no-fail-fast`), zuletzt
+    nach den Korrekturen aus der Sichtprüfung: **Exit 0, 209 Testgruppen, 3334 bestanden, 0 gescheitert, 2
+    ignoriert**; Server-Bündel 1460 bestanden; pgvector-Tests liefen mit (podman antwortete, 25 Zeilen „pgvector …
+    ok“). clippy `-D warnings` und `cargo fmt --check` grün.
+  - **Sichtprüfung** (Firefox headless nach dem Testlauf, eigener Server auf `127.0.0.1:0` mit erfundenem
+    „Halligbuch“, Verbindungen auf `127.0.0.1:9`, kein Eliezer): Bilder unter `.claude/sicht/r34/`. `01`–`04` Mindmap breit und
+    Laptop (1280 px), hell und dunkel; `05` zwei Äste eingeklappt („+ 5“, „+ 2“); `06` Mindmap ohne JavaScript;
+    `07`–`09` Gliederungsansicht ohne JavaScript (gewählter Knoten mit allen Formularen, dunkel, schmal mit einem
+    Einfall der Wolke); `10`/`11` Ausgabe SVG und PDF; `12` Vorschau beim Einlesen der eigenen `.xmind`; `13`
+    Formular „Einlesen“; `14` die Mindmap, nachdem ein eingeschleustes Skript das Widget in Firefox bedient hat
+    (Klick, Tab, Enter, F2, Entf mit Rückfrage, Strg+Z, Ziehen aus der Wolke auf einen Knoten, aufs Werk und in die
+    Wolke, Leertaste) – jede Aktion kam an, der Stand danach über RPC geprüft. **Behoben nach der Sicht:**
+    Beschriftungen der Beziehungen lagen unter den Knoten (jetzt eigene Gruppe `g.mm-link-labels` am Ende); der Knopf
+    „Löschen“ der Gliederungsansicht war rot auf rot; alle Einfälle waren dort ohne Suche als Treffer hinterlegt;
+    Schlagwörter standen doppelt, wenn sie schon der Titel sind. Server per PID beendet (Exit 0).
+  - **Nicht geprüft:** das Widget von Hand mit echter Maus und Tastatur (die Probe schickt künstliche Ereignisse;
+    Zoom, Verschieben der Fläche, Pfeiltasten, Alt+L mit Dialog und Alt+E liefen nicht mit); echtes XMind und Freeplane (Aufbau der `.xmind`-Datei aus dem
+    Gedächtnis, Annahmen in `docs/Bedienung.md`); Werk 3 des Nutzers; macOS und Windows. Handprüfung und Reste:
+    `docs/Backlog.md`, „Nach Runde 34 offen“. `docs/Fahrplan.md` führt der PM nach.
 - **Runde 32 „Lektorat I – Word und Beenden“ integriert** (2026-11-25, Integrator, auf `development`; Schnittstelle
   R32-S1 `647ae42`; Zweige `team/docx_import` `6a2f506`, `team/docx_export` `2e3246b`, `team/beenden` `08fd6c5` mit
   `--no-ff` in dieser Reihenfolge, **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht, Worktrees
@@ -2111,6 +2165,12 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. Nach Runde 34 (integriert, **Migration 0052**): Der Dienst des Nutzers läuft mit `35140b5`; die Runden 32 und 34
+   sind dort nicht eingespielt. Vor dem Einspielen den Datenordner sichern. Danach die Handprüfung aus
+   `docs/Backlog.md`, „Nach Runde 34 offen“: Werk 3 (33 Einfälle; lose Einfälle in der Wolke, Verbindungen als
+   Linien), Tasten und Ziehen im eigenen Browser, `.xmind` in XMind und `.mm` in Freeplane öffnen. Zwei
+   Entscheidungen des Nutzers stehen dort (Unterknoten wandern mit in die Wolke; Einlesen legt Hauptthemen an).
+   Der PM führt `docs/Fahrplan.md` nach (Runde 34 war dort „Konten und Rollen“).
 0. Nach Runde 32 (abgeschlossen, **keine Migration** gegenüber dem eingespielten Stand `35140b5`): Der Dienst des
    Nutzers läuft mit `35140b5`; Runde 32 ist dort **nicht** eingespielt. Reihenfolge beim Nutzer: (1) Release
    0.9.0 – nur den Tag `v0.9.0` schieben, Release-Lauf abwarten, Signaturen von macOS und APT prüfen, Release

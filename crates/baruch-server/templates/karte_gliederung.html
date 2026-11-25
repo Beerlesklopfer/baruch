@@ -1,5 +1,5 @@
 {#- Seite /werke/{id}/karte/gliederung (Vertrag Runde 34 §5, src/idea_map/files/outline.rs): die Mindmap als
-    verschachtelte Liste, ganz ohne JavaScript bedienbar. Links die Äste (Teile, Kapitel, Einfälle; <details> je
+    verschachtelte Liste, ganz ohne JavaScript bedienbar. Links die Äste (Teile, Kapitel, Hauptthemen, Einfälle; <details> je
     Knoten mit Unterknoten), rechts die Wolke (Einfälle ohne Platz, Zähler „n in der Wolke“, Vorschlag der Nähe
     „passt zu Ast …“). „Wählen“ (wahl=<Kennung>) zeigt oben die Formulare des Knotens; alle posten an
     POST /werke/{id}/karte/act mit seite=gliederung. Teile und Kapitel haben nur „Unterknoten“.
@@ -119,6 +119,7 @@
       {%- if panel.sibling_parent %}<input type="hidden" name="parent" value="{{ panel.sibling_parent }}">{% endif %}
       {%- if panel.sibling_key %}<input type="hidden" name="key" value="{{ panel.sibling_key }}">{% endif %}
       {%- if panel.sibling_before %}<input type="hidden" name="before" value="{{ panel.sibling_before }}">{% endif %}
+      {%- if panel.main_topic %}<input type="hidden" name="ort" value="werk">{% endif %}
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
       <label>Geschwister (Titel) <input type="text" name="title" maxlength="200" size="30"></label>
       <label>Schlagwörter <input type="text" name="words" size="20" placeholder="mit Komma getrennt"></label>
@@ -137,6 +138,15 @@
         </select></label>
       <button class="btn" type="submit">{% if panel.in_cloud %}In die Mindmap hängen{% else %}Umhängen{% endif %}</button>
     </form>
+    {%- if not panel.main_topic %}
+    <form class="mmg-form" method="post" action="{{ act }}" data-form="main">
+      <input type="hidden" name="method" value="idea.move">
+      <input type="hidden" name="id" value="{{ panel.idea }}">
+      <input type="hidden" name="ziel" value="w">
+      <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
+      <button class="btn" type="submit" title="Hängt den Einfall als eigenen Hauptast direkt ans Werk; seine Unterknoten bleiben an ihm">Als Hauptthema ans Werk</button>
+    </form>
+    {%- endif %}
     {%- if not panel.in_cloud %}
     <form class="mmg-form" method="post" action="{{ act }}" data-form="cloud">
       <input type="hidden" name="method" value="idea.move">
@@ -225,8 +235,15 @@
   <section class="mmg-tree" aria-label="Äste der Mindmap">
     <h2 class="pane-title">{{ title }}</h2>
     {%- if not branches %}
-    <p class="muted">Dieses Werk hat noch keine Kapitel; die Mindmap hat darum noch keine Äste.</p>
+    <p class="muted">Die Mindmap hat noch keine Äste: Das Werk hat keine Kapitel und kein Hauptthema.</p>
     {%- endif %}
+    <form class="mmg-form" method="post" action="{{ act }}" data-form="new-main">
+      <input type="hidden" name="method" value="idea.create">
+      <input type="hidden" name="ort" value="werk">
+      <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
+      <label>Neues Hauptthema (Titel) <input type="text" name="title" maxlength="200" size="24"></label>
+      <button class="btn" type="submit" title="Eigener Hauptast direkt am Werk">Hauptthema anlegen</button>
+    </form>
     <ul class="mmg-list">
     {%- for n in branches recursive %}
       <li class="mmg-node mmg-{{ n.kind }}{% if n.chosen %} mmg-chosen{% endif %}{% if n.done %} mmg-done{% endif %}{% if n.hit %} mmg-hit{% endif %}{% if n.ghost %} mmg-ghost{% endif %}" id="{{ n.anchor }}" data-node="{{ n.id }}">
@@ -251,7 +268,8 @@
   <aside class="mmg-cloud" aria-label="Wolke" id="wolke">
     <h2 class="pane-title">Wolke <span class="mmg-count" data-cloud-count="{{ cloud_count }}">{{ cloud_count }} in der Wolke</span></h2>
     <p class="muted small">Einfälle ohne Platz in der Mindmap. „Bearbeiten“ wählt einen Einfall; mit „In die Mindmap
-      unter …“ bekommt er seinen Platz, mit „In die Wolke“ kommt ein Knoten hierher zurück.</p>
+      unter …“ oder „Als Hauptthema ans Werk“ bekommt er seinen Platz, mit „In die Wolke“ kommt ein Knoten hierher
+      zurück.</p>
     <form class="mmg-form" method="post" action="{{ act }}" data-form="new">
       <input type="hidden" name="method" value="idea.create">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">

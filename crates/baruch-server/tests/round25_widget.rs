@@ -107,8 +107,8 @@ async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
     let work_a = import(&a, sample.as_bytes(), "new").await["work"].as_i64().unwrap();
     let xml_a = export(&a, work_a, "xml").await;
     let text_a = String::from_utf8(xml_a.clone()).unwrap();
-    // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-    assert!(text_a.contains("version=\"8\""), "Ausgabe in Unterversion 8 (seit Runde 22)");
+    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    assert!(text_a.contains("version=\"9\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
     assert!(
         text_a.contains("<karte>") && text_a.contains("art=\"widerspricht\"") && text_a.contains("<lage "),
         "die Ausgabe trägt die Karte"

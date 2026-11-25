@@ -365,9 +365,9 @@ async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
     result(&a.rpc("work.typeset_set", json!({ "work": work_a, "settings": full() })).await);
     let xml = export_xml(&a, work_a).await;
     assert!(
-        // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-        xml.contains("version=\"8\"") && xml.contains("<satz uuid="),
-        "Ausgabe in Unterversion 7 (seit Runde 31) mit <satz>"
+        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        xml.contains("version=\"9\"") && xml.contains("<satz uuid="),
+        "Ausgabe in Unterversion 9 (seit Runde 34) mit <satz>"
     );
     xmllint_u6(&xml);
     let b = common::open().await;

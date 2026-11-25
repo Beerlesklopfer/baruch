@@ -25,7 +25,7 @@ use super::{closed_of, is_node_id, load_tree};
 use crate::AppState;
 use crate::idea_map::MapFilter;
 use crate::idea_map::bild::{filter_query, parse_filter, plain, with_query};
-use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
+use crate::idea_map::tree::{Scene, TreeKind, TreeNode};
 use crate::view::Settings;
 
 /// Was die Adresse der Gliederungsansicht außer dem Filter trägt.
@@ -112,6 +112,8 @@ fn kind_word(kind: TreeKind) -> &'static str {
 }
 
 struct Page<'a> {
+    /// Läuft eine Suche (`q`)? Nur dann sind Treffer hervorgehoben (ohne Suche gilt jeder Einfall als Treffer).
+    searching: bool,
     work: WorkId,
     base: String,
     query: String,
@@ -139,7 +141,8 @@ impl Page<'_> {
             title => export::node_title(node),
             note => cut(&node.note, 300),
             has_note => node.has_note,
-            words => node.words.join(", "),
+            // Ohne eigenen Titel sind die Schlagwörter schon der angezeigte Titel.
+            words => if node.kind == TreeKind::Idea && node.own_title.is_empty() { String::new() } else { node.words.join(", ") },
             status => node.status.map(export::status_label),
             done => node.status == Some(IdeaStatus::Done),
             origin => node.origin.as_ref().map(|o| o.label()),
@@ -147,7 +150,7 @@ impl Page<'_> {
             section_href => node.key.filter(|_| node.kind == TreeKind::Idea).map(|k| href(format!("/?work={}&key={k}", self.work))),
             node_href => node.key.filter(|_| node.kind != TreeKind::Idea).map(|k| href(format!("/?work={}&key={k}", self.work))),
             idea_href => node.idea.map(|id| href(format!("/einfaelle/{id}"))),
-            hit => node.hit,
+            hit => self.searching && node.hit,
             ghost => node.ghost,
             open_findings => node.open_findings,
             descendants => node.descendants,
@@ -185,10 +188,13 @@ fn option_label(node: &TreeNode, depth: usize) -> String {
 }
 
 /// Die Formulare zum gewählten Knoten (`None`, wenn er nicht im gezeigten Baum steht oder die Wurzel ist).
-fn panel(map: &MindMap, chosen: &str) -> Option<Value> {
+fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
+    let map = &scene.map;
     let node = map.find(chosen)?;
     let (parent, _) = locate(&map.root, chosen)?;
-    let in_cloud = parent.kind == TreeKind::Work && node.kind == TreeKind::Idea;
+    let in_cloud = scene.in_cloud(&node.id);
+    // Freies Hauptthema: Einfall direkt am Werk, eigener Hauptast.
+    let main_topic = parent.kind == TreeKind::Work && node.kind == TreeKind::Idea && !in_cloud;
     if node.kind != TreeKind::Idea {
         return Some(context! {
             id => node.id.as_str(), kind => kind_word(node.kind), title => export::node_title(node), key => node.key,
@@ -223,7 +229,9 @@ fn panel(map: &MindMap, chosen: &str) -> Option<Value> {
         .filter(|(n, _)| n.kind == TreeKind::Idea && n.id != node.id)
         .filter_map(|(n, _)| Some(context! { id => n.idea?, label => format!("{} – {}", n.idea?, cut(&n.title, 70)) }))
         .collect();
-    let siblings: Vec<&TreeNode> = parent.children.iter().filter(|c| c.kind == TreeKind::Idea).collect();
+    // Geschwister: Einfälle am selben Platz – in der Wolke nur die der Wolke, am Werk nur die Hauptthemen.
+    let siblings: Vec<&TreeNode> =
+        parent.children.iter().filter(|c| c.kind == TreeKind::Idea && scene.in_cloud(&c.id) == in_cloud).collect();
     let place = siblings.iter().position(|s| s.id == node.id).unwrap_or(0);
     let id_of = |n: Option<&&TreeNode>| n.and_then(|n| n.idea);
     let up = place.checked_sub(1).and_then(|p| id_of(siblings.get(p)));
@@ -246,58 +254,33 @@ fn panel(map: &MindMap, chosen: &str) -> Option<Value> {
     Some(context! {
         id => node.id.as_str(), kind => "idea", idea => own, title => node.title.as_str(),
         own_title => node.own_title.as_str(), editable => node.editable, in_cloud => in_cloud,
+        main_topic => main_topic,
         children => node.children.len(), descendants => node.descendants,
         // Geschwister entsteht am selben Elternknoten, direkt hinter diesem Knoten.
         sibling_parent => parent.idea.filter(|_| parent.kind == TreeKind::Idea),
         sibling_key => parent.key.filter(|_| matches!(parent.kind, TreeKind::Part | TreeKind::Chapter)),
         sibling_before => id_of(siblings.get(place + 1)),
-        parent_title => if in_cloud { "Wolke".to_owned() } else { export::node_title(parent) },
+        parent_title => if in_cloud { "Wolke".to_owned() } else if main_topic { format!("{} (Hauptthema am Werk)", export::node_title(parent)) } else { export::node_title(parent) },
         targets => targets, chapters => chapters, key => node.key, others => others, links => links,
         up => up, down => down,
         kinds => LinkKind::ALL.iter().map(|k| context! { value => k.as_str(), label => k.label() }).collect::<Vec<_>>(),
     })
 }
 
-/// Zu jedem platzierten Einfall: Titel seines Hauptastes und sein eigener Titel.
-fn branch_of(map: &MindMap) -> HashMap<IdeaId, (String, String)> {
-    fn fill(node: &TreeNode, branch: &str, out: &mut HashMap<IdeaId, (String, String)>) {
-        if let Some(id) = node.idea {
-            out.insert(id, (branch.to_owned(), node.title.clone()));
-        }
-        for child in &node.children {
-            fill(child, branch, out);
-        }
-    }
-    let mut out = HashMap::new();
-    for branch in placed(map) {
-        fill(branch, &export::node_title(branch), &mut out);
-    }
-    out
-}
-
-/// Vorschlag der Nähe für einen Einfall der Wolke: der nächste Einfall, der schon in der Mindmap hängt.
-fn hint(map: &MindMap, idea: IdeaId, branches: &HashMap<IdeaId, (String, String)>) -> Option<Value> {
-    let (partner, _) = map
-        .near
-        .pairs
-        .iter()
-        .filter_map(|pair| {
-            let other = if pair.a == idea {
-                pair.b
-            } else if pair.b == idea {
-                pair.a
-            } else {
-                return None;
-            };
-            branches.contains_key(&other).then_some((other, pair.score))
-        })
-        .max_by(|a, b| a.1.total_cmp(&b.1))?;
-    let (branch, title) = branches.get(&partner)?;
-    Some(context! { branch => cut(branch, 80), partner => partner, partner_title => cut(title, 80) })
+/// Vorschlag der Nähe für einen Einfall der Wolke ([`Scene::hints`]): der nächste Einfall, der schon in der Mindmap
+/// hängt, und sein Hauptast.
+fn hint(scene: &Scene, idea: IdeaId) -> Option<Value> {
+    let hint = scene.hints.iter().find(|h| h.idea == idea)?;
+    let partner: IdeaId = hint.node.strip_prefix("i:")?.parse().ok()?;
+    // Titel des Hauptasts wie in der Liste (Kapitel mit Nummer).
+    let branch = scene.map.find(&hint.branch).map(export::node_title).unwrap_or_else(|| hint.branch_title.clone());
+    Some(context! { branch => cut(&branch, 80), partner => partner, partner_title => cut(&hint.node_title, 80) })
 }
 
 fn deleted_label(idea: &Idea) -> String {
-    if !idea.words.is_empty() {
+    if !idea.title.trim().is_empty() {
+        cut(&idea.title, 80)
+    } else if !idea.words.is_empty() {
         cut(&idea.words.join(", "), 80)
     } else if !idea.note.trim().is_empty() {
         cut(&idea.note, 80)
@@ -316,19 +299,25 @@ pub(crate) async fn render(
     status: StatusCode,
     error: Option<String>,
 ) -> Response {
-    let (_, map) = match load_tree(state, work, filter).await {
+    let (_, scene) = match load_tree(state, work, filter).await {
         Ok(loaded) => loaded,
         Err(response) => return response,
     };
+    let map = &scene.map;
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let query = filter_query(&map.filter);
     let karte = format!("/werke/{work}/karte");
-    let page = Page { work, base: format!("{karte}/gliederung"), query: query.clone(), view };
-    let branches: Vec<Value> = placed(&map).into_iter().map(|n| page.node(n)).collect();
-    let near = branch_of(&map);
-    let loose: Vec<Value> = cloud(&map)
+    let page = Page {
+        searching: map.filter.q.is_some(),
+        work,
+        base: format!("{karte}/gliederung"),
+        query: query.clone(),
+        view,
+    };
+    let branches: Vec<Value> = placed(&scene).into_iter().map(|n| page.node(n)).collect();
+    let loose: Vec<Value> = cloud(&scene)
         .into_iter()
-        .map(|n| context! { node => page.node(n), hint => n.idea.and_then(|id| hint(&map, id, &near)) })
+        .map(|n| context! { node => page.node(n), hint => n.idea.and_then(|id| hint(&scene, id)) })
         .collect();
     let titles: HashMap<IdeaId, &str> =
         map.walk().into_iter().filter_map(|(n, _)| n.idea.map(|id| (id, n.title.as_str()))).collect();
@@ -382,10 +371,10 @@ pub(crate) async fn render(
         },
         branches => branches,
         cloud => loose,
-        cloud_count => cloud(&map).len(),
+        cloud_count => scene.cloud_count,
         total => map.total_ideas,
         chosen => chosen,
-        panel => chosen.and_then(|c| panel(&map, c)),
+        panel => chosen.and_then(|c| panel(&scene, c)),
         links => links,
         deleted => deleted,
         notice => view.ok.as_deref().map(notice_of),

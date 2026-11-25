@@ -428,10 +428,10 @@ async fn the_workspace_topbar_keeps_every_former_address() {
             start,
         ),
         (&format!("href=\"/einfaelle?work={work}\" title=\"Liste der Einfälle dieses Werks\">Einfälle</a>"), start),
-        // Runde 25 (karte-bild): Gedankenkarte, nur mit Werk.
+        // Runde 25 (karte-bild): Gedankenkarte, nur mit Werk; seit Runde 34 heißt sie „Mindmap“ (gleiche Adresse).
         (
             &format!(
-                "href=\"/werke/{work}/karte\" title=\"Gedankenkarte der Einfälle dieses Werks\">Gedankenkarte</a>"
+                "href=\"/werke/{work}/karte\" title=\"Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)\">Mindmap</a>"
             ),
             start,
         ),

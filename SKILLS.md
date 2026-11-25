@@ -576,6 +576,8 @@ Regeln stehen in `AGENTS.md`, der Plan in `docs/Plan.md`, der Übergabestand in 
 - Fußnotenzeichen messen: einzelne Textstücke aus einem Zeichen (die Größe des Hochstellens steht nicht in `size_pt`).
 
 ## Gedankenkarte (Runde 25)
+- **Seit Runde 34 Mindmap** (siehe „Runde 34 – Mindmap“ am Ende): `bild/{layout,svg}.rs` und `web/src/idea_map.ts`
+  gibt es nicht mehr; Daten, Verbindungen, Nähe und Gruppen gelten weiter.
 - Daten: Migration 0043 (`idea_link`, `idea_map_pos`, Grabsteinarten `idea_link`/`idea_map_pos`), Store
   `idea_links.rs`; Server `src/idea_map/{mod,links,near}.rs` (RPC `idea.map` … `idea.map_pos_reset`, `build` liefert
   die ganze Karte), `src/idea_map/bild/{mod,layout,svg,export}.rs` (Seite, Formular `/werke/{id}/karte/act`,
@@ -1318,3 +1320,30 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   aus Runde 33 nehmen (hier: Menü „Baruch“ mit `open`).
 - **`.work-form` hat eine Grundhöhe von 320 px** (`works.css`): Eine Seite mit nur einem kleinen Formular setzt
   `flex: 0 0 auto` (wie `assets.css`, `docx_export.css`), sonst bleibt unter dem Knopf ein leerer Kasten.
+
+## Runde 34 – Mindmap
+
+- **Wo was liegt:** Daten `crates/baruch-store/src/ideas.rs` (Migration 0052: `title`, `parent_id`, `position`,
+  `main_topic`), Baum/Wolke/Import `src/idea_map/tree.rs`, Bild `src/idea_map/bild/{mod,mindmap,tree_layout}.rs`,
+  Ein-/Ausgabe und Gliederungsansicht `src/idea_map/files/`, Widget `web/src/mindmap.ts`, Vorlagen
+  `karte.html`, `karte_gliederung.html`, `karte_einlesen.html`.
+- **Vier Plätze eines Einfalls:** Elternknoten → Unterknoten; sonst Bezug → am Kapitel; sonst `main_topic` →
+  Hauptthema am Werk; sonst Wolke. `idea.create` ohne Platz legt in die Wolke; „aufs Werk“ braucht `cloud: false`.
+- **Seite, Bild, Ausgaben lesen `tree::Scene`** (`tree::scene`), nie `tree::tree` allein: Sonst fehlt die Wolke.
+  `mindmap::render` bekommt die Wolke über `RenderOptions::of(scene, …)`. Wer einen Baum von Hand baut
+  (`round34_widget.rs`, `round34_austausch.rs`), nennt die Kennungen der Wolke selbst.
+- **Annahmen in parallelen Zweigen prüft erst die Naht:** Zwei Zweige hatten gegen die Schnittstelle dieselbe
+  Annahme über die Wolke getroffen, der dritte hat sie anders gebaut; alle drei Läufe waren für sich grün. Beim
+  Zusammenführen deshalb zuerst die Berichte nach „Annahme“ durchsuchen und einen Ende-zu-Ende-Test über die Naht
+  schreiben (`round34_abnahme.rs`), bevor fremde Tests angepasst werden.
+- **Widget ohne Browsertest:** `mindmap.ts` läuft in keinem Test. Geprüft wird, welche RPC es mit welchen Feldern
+  ruft (z. B. `idea.delete` mit `confirm: true`), und das Bild danach. Wer am Widget ändert, gleicht die Parameter
+  mit `ideas.rs` ab und macht eine Sichtprüfung mit **Probe**: Der Vorschalt-Server (siehe „Fotos nach einem Klick“)
+  fügt ein Skript ein, das Ereignisse schickt – `click` auf `.mm-box`, `keydown` **an den gewählten Knoten**
+  (`.mm-node.mm-selected`; auf `document` hört die Mindmap nur für Strg+Z, Alt+E, Alt+L), Ziehen als `pointerdown`
+  auf dem Knoten und `pointermove`/`pointerup` auf `window` (Ziel vorher mit `scrollIntoView` ins Fenster holen,
+  sonst findet `elementFromPoint` nichts) – und das Ergebnis per `fetch` zurückmeldet; den Stand danach über RPC lesen.
+- **Fotos der Mindmap:** `/werke/{id}/karte` (mit `zu=<Kennung>` für einen eingeklappten Ast), Gliederungsansicht
+  `/werke/{id}/karte/gliederung?wahl=i:<id>`; die Vorschau des Einlesens ist eine POST-Antwort (per `curl -F file=@…`
+  speichern, `<base href>` einfügen, Datei fotografieren).
+- **Austauschformat:** Unterversion 9; ein Werk ohne geordneten Baum besteht weiter das eingefrorene u8-Schema.

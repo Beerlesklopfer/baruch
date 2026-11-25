@@ -24,10 +24,6 @@ use crate::{AppState, mirror};
 pub const MAX_TITLE_CHARS: usize = 200;
 pub const MAX_TREE_DEPTH: usize = 32;
 pub const MAX_IMPORT_NODES: usize = 2000;
-/// Text des S1-Stubs von [`import`]; seit mindmap_daten nicht mehr benutzt (bleibt, weil er zur Schnittstelle S1.2
-/// gehört und fremde Tests ihn nennen).
-pub const NOT_YET: &str = "Die Mindmap ist noch nicht umgesetzt (Runde 34, mindmap_daten).";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TreeKind {
@@ -149,6 +145,61 @@ pub struct Cloud {
     pub hints: Vec<CloudHint>,
     /// Verbindungen (nicht gelöscht) gezeigter Einfälle, von denen mindestens einer in der Wolke liegt.
     pub links: Vec<IdeaLink>,
+}
+
+/// Mindmap und Wolke als **eine Sicht** für Seite, Bild, Gliederungsansicht und Ausgaben (Integration Runde 34):
+/// Die Einfälle der Wolke hängen hier hinter den Hauptästen an der Wurzel von `map`, damit `walk`/`find` sie
+/// kennen; welche Kinder der Wurzel in der Wolke liegen, sagt `cloud` (Kennungen `i:<id>`). Alle anderen Kinder der
+/// Wurzel – Teile, Kapitel und freie Hauptthemen – sind Hauptäste. `map.links` trägt zusätzlich die Verbindungen
+/// mit einem Ende in der Wolke. Nur für die Anzeige; RPC `idea.tree` liefert weiter `{map, cloud}` getrennt.
+#[derive(Debug, Clone)]
+pub struct Scene {
+    pub map: MindMap,
+    /// Kennungen der Kinder der Wurzel, die in der Wolke liegen (in Anzeigereihenfolge).
+    pub cloud: Vec<String>,
+    /// „n in der Wolke“ ohne Filter ([`Cloud::count`]).
+    pub cloud_count: u32,
+    pub hints: Vec<CloudHint>,
+}
+
+impl Scene {
+    /// Hängt die Wolke an die Wurzel der Mindmap (siehe [`Scene`]).
+    pub fn join(mut map: MindMap, cloud: Cloud) -> Scene {
+        let ids: Vec<String> = cloud.ideas.iter().map(|n| n.id.clone()).collect();
+        map.root.children.extend(cloud.ideas);
+        for link in cloud.links {
+            if !map.links.iter().any(|l| l.id == link.id) {
+                map.links.push(link);
+            }
+        }
+        map.links.sort_by_key(|l| l.id);
+        Scene { map, cloud: ids, cloud_count: cloud.count, hints: cloud.hints }
+    }
+
+    /// Eine Mindmap ohne Wolke (von Hand gebaute Bäume in Tests).
+    pub fn without_cloud(map: MindMap) -> Scene {
+        Scene { map, cloud: Vec::new(), cloud_count: 0, hints: Vec::new() }
+    }
+
+    pub fn in_cloud(&self, id: &str) -> bool {
+        self.cloud.iter().any(|c| c == id)
+    }
+
+    /// Die Hauptäste: Teile, Kapitel und freie Hauptthemen – ohne die Wolke.
+    pub fn branches(&self) -> Vec<&TreeNode> {
+        self.map.root.children.iter().filter(|n| !self.in_cloud(&n.id)).collect()
+    }
+
+    /// Die Einfälle der Wolke (oberste Ebene), samt ihren Unterknoten.
+    pub fn cloud_nodes(&self) -> Vec<&TreeNode> {
+        self.map.root.children.iter().filter(|n| self.in_cloud(&n.id)).collect()
+    }
+}
+
+/// Mindmap und Wolke als eine Sicht ([`Scene`]).
+pub async fn scene(state: &AppState, work: WorkId, filter: &super::MapFilter) -> Result<Scene, RpcError> {
+    let (map, cloud) = tree_and_cloud(state, work, filter).await?;
+    Ok(Scene::join(map, cloud))
 }
 
 fn blank(id: String, kind: TreeKind, title: String) -> TreeNode {

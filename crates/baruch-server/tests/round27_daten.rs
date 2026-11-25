@@ -511,8 +511,8 @@ async fn two_instances_carry_layout_addresses_and_sheet_and_merge_after_f6() {
     result(&a.rpc("work.sheet_set", json!({ "work": work_a, "size": "12pt", "background": "#fbf8f1" })).await);
 
     let xml = export_xml(&a, work_a).await;
-    // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-    assert!(xml.contains("version=\"8\""), "Ausgabe in Unterversion 8 (seit Runde 22)");
+    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    assert!(xml.contains("version=\"9\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
     assert!(
         xml.contains("<umschlag>") && xml.contains("art=\"ruecken-autor\"") && xml.contains("<satzbild "),
         "neue Teile"

@@ -6,6 +6,31 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Mindmap wie XMind (Runde 34)
+
+- **Mindmap statt Gedankenkarte:** Die Seite `/werke/<id>/karte` (Start → Einfälle → Mindmap) zeigt das Werk in der
+  Mitte, Teile und Kapitel als Äste rechts und links und die Einfälle als Unteräste, beliebig tief. Jeder Hauptast
+  hat seine Farbe; Äste lassen sich einklappen („−“/„+ n“). Alte Lesezeichen gelten weiter.
+- **Bedienung wie gewohnt:** Tab legt einen Unterknoten an, Enter ein Geschwister, F2 oder Doppelklick benennt um,
+  Entf löscht samt Unterknoten (wiederherstellbar), Ziehen hängt um oder ordnet, Pfeiltasten wandern, Leertaste
+  klappt, Strg+Z nimmt die letzte Aktion zurück, Alt+L verbindet zwei Einfälle mit einer beschrifteten Linie.
+- **Einfälle als Baum:** Ein Einfall hat jetzt einen Titel, kann unter einem anderen Einfall hängen und hat eine
+  Reihenfolge unter seinen Geschwistern. Titel oder Schlagwort genügt.
+- **Wolke und Mindmap verbunden:** Einfälle ohne Platz liegen in der Wolke unter dem Baum („n in der Wolke“). Von
+  dort zieht man sie auf einen Knoten, auf ein Kapitel oder aufs Werk (freies Hauptthema) – und zurück, samt
+  Unterknoten. Wo die Nähe einen passenden Einfall kennt, steht am Kärtchen „passt zu Ast …“. Bestehende Einfälle
+  ohne Bezug liegen nach der Umstellung in der Wolke; Verbindungen und gespeicherte Lagen bleiben erhalten (Lagen
+  haben in der Mindmap keine Wirkung mehr).
+- **Ohne JavaScript:** Die Gliederungsansicht (`/werke/<id>/karte/gliederung`) zeigt dieselbe Mindmap als
+  verschachtelte Liste mit Formularen für alle Aktionen.
+- **Austausch mit XMind, FreeMind und Freeplane:** Ausgabe als `.xmind`, `.mm`, SVG, PDF und Markdown; Einlesen von
+  `.xmind` und `.mm` mit Vorschau (Titel, Notizen, Schlagwörter, Reihenfolge, Beziehungen). In echtem XMind und
+  Freeplane ist nichts geprüft – der Aufbau der XMind-Datei folgt der Formatbeschreibung aus dem Gedächtnis.
+- **RPC und MCP:** `idea.move`/`idea_move` und `idea.tree`/`idea_tree` neu; `idea.create`/`idea_create` mit `title`,
+  `parent`, `before`, `cloud`; Löschen nimmt die Unterknoten mit. Jede Aktion ist ein Commit mit Herkunft.
+- **Austauschformat Unterversion 9** (`titel`, `eltern`, `platz`, `hauptthema` am Einfall); ältere Dateien bleiben
+  lesbar. Migration 0052 (nur neue Spalten).
+
 ### Word und Beenden (Runde 32)
 
 - **Word-Import:** „Baruch ▾ → Word (.docx) importieren…“ liest eine Word-Datei, zeigt Gliederung, Bearbeiter und

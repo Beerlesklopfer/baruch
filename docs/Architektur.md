@@ -2749,6 +2749,10 @@ getrennt). Danach:
 
 ## Gedankenkarte (Runde 25)
 
+**Stand Runde 34:** Seite, Bild, Widget und Ausgaben dieses Abschnitts sind durch die Mindmap ersetzt (siehe „Runde 34
+– Mindmap“ am Ende); `bild/layout.rs`, `bild/svg.rs` und `web/src/idea_map.ts` gibt es nicht mehr. Daten,
+Verbindungen, Nähe, Gruppen und Austausch gelten weiter.
+
 Die Einfälle eines Werks als Karte (Vertrag Runde 25): Mitte das Werk, darum Teile und Kapitel, Einfälle an
 ihrem Bezug, Verbindungen zwischen Einfällen (Migration `0043_idea_map.sql`, Tabellen `idea_link` und
 `idea_map_pos`), Nähe nur angezeigt. Umgesetzt in drei Zweigen (karte-daten, karte-bild, karte-widget) auf der
@@ -5206,3 +5210,248 @@ verzögern. Die Datenbank ist zu diesem Zeitpunkt bereits geschlossen. Nicht mit
   schreibt ohnehin keine); die privat gehaltenen Konstanten des Schreibers (`NS_APP`, `PART_FOOTNOTES_RELS`,
   `STYLE_HYPERLINK`, `STYLE_COMMENT_TEXT`, `STYLE_COMMENT_REFERENCE`) sind nicht nach `ooxml.rs` gezogen; Zitate im
   Text stehen in Word ohne Anführungszeichen; SVG und WebP werden nicht eingebettet.
+
+## Runde 34 – Mindmap
+
+Die Gedankenkarte (Runde 25) ist eine Mindmap wie in XMind geworden. Drei Zweige (`team/mindmap_daten`,
+`team/mindmap_widget`, `team/mindmap_austausch`) auf der Schnittstelle R34-S1, zusammengeführt mit `--no-ff` ohne
+Textkonflikte; die inhaltliche Naht war die **Wolke** (siehe „Integration“).
+
+### Wolke und Mindmap: eine Regel mit vier Plätzen
+
+Der Vertrag der Runde ließ Einfälle ohne Elternknoten und ohne Bezug als „freie Hauptthemen“ direkt am Werk hängen;
+die Wolke „Ohne Kapitel“ wäre entfallen. Nach dem Nachtrag des Nutzers vom 2026-11-25 („Es macht Sinn eine
+Verbindung zwischen der Wolke und der Mindmap zu machen“) gilt **eine Regel mit vier Plätzen**:
+
+1. `parent` gesetzt → Unterknoten dieses Einfalls (gleiches Werk, kein Kreis, Kette höchstens 32 tief). Der Bezug
+   (`key`) bleibt daneben erlaubt und ist dann nur der Link zum Abschnitt.
+2. sonst `key` gesetzt → Kind des Ankers (nächster Vorfahre der Art Kapitel, sonst der Punkt selbst).
+3. sonst `main_topic` → **freies Hauptthema** direkt am Werk.
+4. sonst → **in der Wolke**: nicht im Baum, sondern in der Ablage neben der Mindmap.
+
+Dafür trägt `idea` eine vierte neue Spalte `main_topic` (0/1, Vorgabe 0); der Vertrag sah drei vor. Ohne sie ließe
+sich ein Einfall, den man aufs Werk zieht, nicht von einem Einfall ohne Platz unterscheiden. Folgen:
+
+- **Bestehende Einfälle** ohne Bezug (heute Wolke „Ohne Kapitel“) liegen nach der Migration in der Wolke; Einfälle
+  mit Bezug hängen wie bisher an ihrem Kapitel. Nichts wird zum Hauptast, ohne dass jemand es dorthin zieht.
+- **Neue Einfälle ohne Platz** (Schnellerfassung Alt+E, Formular, RPC `idea.create` und MCP `idea_create` ohne
+  `parent`/`key`) landen in der Wolke.
+- **Aus der Wolke in die Mindmap:** `idea.move` mit `parent` (auf einen Einfall), mit `parent: null, key` (auf ein
+  Kapitel) oder mit `parent: null, key: null` bzw. `cloud: false` (aufs Werk, wird Hauptthema).
+- **Aus der Mindmap in die Wolke:** `idea.move` mit `cloud: true`. Der Einfall verliert Elternknoten und Bezug;
+  **seine Unterknoten bleiben an ihm** – der Teilbaum wandert als Ganzes in die Wolke. Begründung: kein Einfall
+  verliert dabei stillschweigend seinen Zusammenhang, die Aktion ist mit einem `idea.move` zurück umkehrbar
+  (Strg+Z des Widgets), und „nur er“ hieße, seine Kinder ungefragt an den Großelternknoten zu hängen. Wer nur den
+  einen Einfall lösen will, zieht vorher die Unterknoten woandershin.
+- **Zähler:** `cloud.count` („n in der Wolke“) zählt die Einfälle der obersten Ebene der Wolke ohne Filter,
+  `cloud.count_with_children` samt ihren Unterknoten.
+- **Nähe als Hilfe:** `cloud.hints` nennt je Einfall der Wolke höchstens einen Vorschlag „passt zu Ast …“ – den
+  nächsten Einfall in der Mindmap (gespeicherte Einbettungen und gleiche Schlagwörter wie auf der Karte, nie eine
+  neue Einbettung) und den Hauptast, in dem er hängt. Die Vorschläge werden auch berechnet, wenn der Filter die
+  Nähe-Linien im Bild ausschaltet.
+- **Wiederherstellen** eines Einfalls, dessen Elternknoten noch gelöscht ist: Er bleibt an seinem Bezug bzw. liegt
+  in der Wolke (`detached: true`), nicht als Hauptthema am Werk.
+- **Baum-Import** (`tree::import` ohne `parent`): Die obersten Knoten werden freie Hauptthemen, nicht Einfälle der
+  Wolke – wer eine Mindmap einliest, will sie in der Mindmap sehen.
+
+### Daten (Migration 0052, Store)
+
+Migration `0052_idea_tree.sql` (nur `ADD COLUMN`, nicht in `FOREIGN_KEYS_OFF`):
+
+```sql
+ALTER TABLE idea ADD COLUMN title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200);
+ALTER TABLE idea ADD COLUMN parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL;
+ALTER TABLE idea ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE idea ADD COLUMN main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1));
+CREATE INDEX idea_parent ON idea(parent_id, position);
+```
+
+Regeln im Store (`crates/baruch-store/src/ideas.rs`):
+
+- **Titel:** höchstens 200 Zeichen, eine Zeile, darf leer sein. Ein Einfall braucht Titel **oder** mindestens ein
+  Schlagwort. Angezeigter Titel (`Idea::display_title`): der Titel, sonst die Schlagwörter „a, b“, sonst der Anfang
+  des Gedankens, sonst „Einfall <id>“ – nie leer. Der Titel steht im Volltextindex (`idea_fts`, Spalte `words`).
+- **Elternknoten:** nicht gelöschter Einfall desselben Werks; kein Kreis; Kette höchstens 32 Einfälle
+  (`MAX_IDEA_DEPTH`). Einfälle ohne Werk haben keinen Elternknoten.
+- **Reihenfolge:** `position`, dann `id`, unter Geschwistern (gleicher Elternknoten bzw. alle Einfälle des Werks
+  ohne Elternknoten). Neue kommen ans Ende; „vor ein Geschwister“ (`before`) nummeriert die Geschwister lückenlos
+  ab 1 neu, ohne deren `updated` anzufassen. Bestehende Einfälle tragen 0 und ordnen sich nach `id`; solange unter
+  einem Elternknoten nichts geordnet wurde, behalten auch neue die 0 (im Austausch dann ohne `platz` – ein Werk ohne
+  geordneten Baum gibt dieselbe Datei aus wie vor Runde 34 und besteht auch das eingefrorene u8-Schema).
+- **Löschen** nimmt die nicht gelöschten Nachfahren mit **demselben Zeitstempel** mit; **Wiederherstellen** bringt
+  den Einfall und genau die Nachfahren mit diesem Zeitstempel zurück (früher einzeln Gelöschtes bleibt gelöscht).
+  Verbindungen (`idea_link`) und Lagen (`idea_map_pos`) bleiben dabei gespeichert.
+- **Werkwechsel** (`idea.update` mit `work`): Der Einfall löst sich vom Elternknoten und liegt im neuen Werk in der
+  Wolke; seine Unterknoten bleiben im alten Werk und verlieren den Elternknoten (kein Baum über zwei Werke).
+- **Lagen** (`idea_map_pos`) bleiben gespeichert und im Austausch, sind in der Mindmap aber ohne Wirkung (die
+  Anordnung rechnet der Server aus dem Baum).
+
+Spiegel `einfaelle.md`: Hat ein Werk mindestens einen Einfall mit Titel, Elternknoten oder Hauptthema, steht vor den
+Einträgen der Abschnitt `## Baum` – die Einfälle eingerückt nach Elternknoten, Geschwister nach `position`, dann
+`id`, oben mit dem Platz („(am Abschnitt key 12)“, „(Hauptthema)“, „(Wolke)“). Jeder Eintrag nennt zusätzlich
+`- Titel: …`, `- Unterknoten von: Einfall <id>` bzw. `- Platz: Hauptthema am Werk`. Ohne Baum bleibt die Datei
+byte-gleich wie vor Runde 34.
+
+Austauschformat: Unterversion 9, `<einfall>` mit `titel`, `eltern`, `platz`, `hauptthema` – siehe
+`docs/Austauschformat.md` („Baum der Mindmap“).
+
+### Baum, Wolke und Import im Server (`idea_map/tree.rs`)
+
+Die Signaturen aus S1.2 sind wörtlich geblieben (`MindMap`, `TreeNode`, `TreeKind`, `tree`, `ImportTree`, `import`,
+Konstanten). Neu daneben:
+
+```rust
+pub struct CloudHint { pub idea: IdeaId, pub node: String, pub node_title: String,
+                       pub branch: String, pub branch_title: String, pub score: f32, pub shared_words: Vec<String> }
+pub struct Cloud { pub work: WorkId, pub ideas: Vec<TreeNode>, pub count: u32, pub count_with_children: u32,
+                   pub hints: Vec<CloudHint>, pub links: Vec<IdeaLink> }
+pub async fn cloud(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<Cloud, RpcError>;
+pub async fn tree_and_cloud(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<(MindMap, Cloud), RpcError>;
+```
+
+- `tree` liefert Werk (`w`), Teile und Kapitel (`n:<key>`) in Gliederungsreihenfolge, danach die freien Hauptthemen
+  nach `position, id`; unter jedem Knoten erst die Gliederungspunkte, dann seine Einfälle nach `position, id`.
+  Einfälle der Wolke stehen **nicht** im Baum.
+- Filter `status`, `word`, `origin`: Ein Einfall, der nicht passt, bleibt als Geist (`ghost: true`, `hit: false`)
+  stehen, solange ein Nachfahre passt. `q` blendet nichts aus, es setzt `hit` (Volltext, auch über den Titel).
+- `MindMap::links` und `MindMap::near.pairs` nennen nur Einfälle, die im Baum stehen; `Cloud::links` die
+  Verbindungen mit mindestens einem Ende in der Wolke. `total_ideas` zählt die gezeigten Einfälle im Baum (ohne
+  Geister, ohne Wolke); `descendants` zählt je Knoten die Einfälle, die unter ihm im Baum stehen.
+- `Cloud::ideas` sind `TreeNode` der Art `idea` mit ihren Unterknoten in `children`; derselbe Filter gilt.
+- `import` legt den Baum in einer Transaktion an (Store `idea_import_tree`) und schreibt **einen** Commit „Mindmap
+  eingelesen: n Einfälle“ (`Baruch-Action: idea-import`) mit der übergebenen Herkunft. Abgelehnt (-32000, nichts
+  angelegt, kein Commit): kein Knoten, mehr als `MAX_IMPORT_NODES` (2000) Knoten, tiefer als `MAX_TREE_DEPTH` (32,
+  auch zusammen mit der Tiefe von `parent`), `parent` gelöscht oder in einem anderen Werk, Titel über 200 bzw. Notiz
+  über 4000 Zeichen, Schlagwörter über den Grenzen der Einfälle (höchstens 20, je 60 Zeichen), eine Verbindung mit
+  einem Pfad ohne Knoten. Ein Knoten ohne Titel und Schlagwort heißt „(ohne Titel)“; eine Verbindung eines Knotens
+  mit sich selbst wird übergangen. `ImportTree::title` steht im Rumpf des Commits, `warnings` werden nicht
+  gespeichert. Wer `import` ruft, kürzt Titel und Notizen vorher
+  (`files/import.rs`); der Import kürzt nicht, er lehnt ab.
+
+- Knoten der Mindmap sind Zeilen der Tabelle `idea` – keine zweite Struktur. Der Store kennt die Regeln des Baums
+  (`idea_create_at`, `idea_move`, `idea_delete_tree`, `idea_restore_tree`, `idea_import_tree`, `idea_tree_rows`),
+  der Server setzt ihn mit der Gliederung zusammen (`idea_map::tree`), der Spiegel schreibt ihn in `einfaelle.md`.
+- Jede schreibende Aktion läuft unter der Schreibsperre und ergibt genau einen Commit mit Herkunft (`idea-create`,
+  `idea-update`, `idea-move`, `idea-delete`, `idea-restore`, `idea-import`).
+- Die flache Karte (`idea_map::build`, RPC `idea.map`) bleibt als Abwärtsverträglichkeit; der Baum baut auf ihr auf
+  (Gliederung, Filter, Verbindungen, Nähe, Befunde) und liest die Einfälle zusätzlich ungefiltert, um Geister und
+  die Wolke zu bestimmen.
+
+### Bild und Seite (`idea_map/bild/`)
+
+`bild/mod.rs` (Seite `/werke/{id}/karte`, Bild `/werke/{id}/karte/bild`, Filter), `bild/mindmap.rs` (Zeichnung),
+`bild/tree_layout.rs` (Anordnung, rein rechnerisch und deterministisch). Eine Anordnung, in Rust: Bildschirm und
+Ausgabe (`.svg`, `.pdf`) entstehen aus derselben Funktion `mindmap::render(map, options)`; das Widget ordnet nichts
+selbst an. `bild/layout.rs` und `bild/svg.rs` der alten Gedankenkarte sind gelöscht.
+
+- Bühne: `<div class="mm-stage" data-widget="mindmap" data-work data-bild data-back data-zu data-wahl
+  data-gliederung>`, darin `[data-mm-toolbar]`, `[data-mm-canvas]` mit `<svg class="mm-svg" data-cloud-count
+  data-zu>` und `<g class="mm-viewport">`, darunter `[data-mm-status]` (Live-Region). Zähler:
+  `[data-mm-cloud-count]`.
+- Reihenfolge im Viewport: Äste, Nähe, Beziehungen, Wolke, Knoten, zuletzt die Beschriftungen der Beziehungen
+  (`g.mm-link-labels`; sie liegen über den Knoten, damit nahe Knoten sie nicht verdecken – Integration).
+- Knoten: `<g class="mm-node mm-<work|part|chapter|idea>" data-node data-parent data-depth data-side="right|left"
+  data-branch="0..7" data-editable="1|0" data-title data-own tabindex="0">`; Einfälle `data-idea`, mit Bezug
+  `data-key`; mit Nachfahren `data-children="n"`; mit offenen Befunden `data-open-findings="k"`. Zusatzklassen: `mm-b<n>` (Astfarbe), `mm-main` (Hauptast),
+  `mm-done`, `mm-hit`, `mm-dim`, `mm-ghost`, `mm-closed`, `mm-many-findings`. Das Werk hat weder `data-side` noch
+  `data-branch`. Kinder: `<title>`, `rect.mm-box`, `text.mm-label` (in `a.mm-label-link`), `g.mm-note`,
+  `a.mm-section`, `a.mm-findings[data-open-findings]`, `a.mm-toggle[data-count]`.
+- Äste: `<path class="mm-edge mm-b<n>" data-from data-to>` (kubische Kurve, `stroke-width` 3.6 / 2.4 / 1.8 / 1.4).
+- Beziehungen: `<g class="mm-rel">` mit `<path class="mm-link mm-link-<kind>" data-link data-from="i:<a>"
+  data-to="i:<b>" data-end-from data-end-to>`; die Beschriftung ist `<text class="mm-link-label" data-link>` in
+  `g.mm-link-labels`. Widerspruch zusätzlich `mm-contradiction` an Gruppe, Pfad und Text. `data-end-*` nennt den
+  Knoten, an dem die Linie sichtbar endet.
+- Nähe: `<path class="mm-near" data-from data-to>` (nur mit `near`, nur zwischen Knoten des Baums).
+- Wolke: `<g class="mm-cloud" data-count>` mit `rect.mm-cloud-area` und `text.mm-cloud-head`; Kärtchen sind
+  `g.mm-node.mm-idea.mm-cloud-item[data-cloud="1"][data-parent="w"]` (welche Kinder der Wurzel in der Wolke
+  liegen, sagt `RenderOptions::cloud`; alle anderen sind Hauptäste), mit Vorschlag `data-fits="<Hauptast>"` und
+  `text.mm-cloud-hint.mm-b<n>`, mit Unterknoten `text.mm-cloud-below` („+ n“).
+- Eingeklappte Knoten zeichnen keine Nachfahren; `a.mm-toggle` zeigt „+ n“, sein `href` ist `?<Filter>&zu=<neue
+  Liste>`. Die Zahl zählt alle verborgenen Knoten (jede Art), nicht nur Einfälle.
+- **Fragment** (`standalone: false`): kein `xmlns`, kein `<style>`, keine Farbattribute – Farben über
+  `--mm-b0`…`--mm-b7` in `karte.css` (hell, dunkel nach System, dunkel nach Schalter). **Eigenständig**
+  (`standalone: true`, für `.svg`/`.pdf`): `xmlns`, eigener `<style>`, Farben als Attribute
+  (`mindmap::BRANCH_COLORS`), weißer Grund, keine Links (statt `<a>` ein `<g>` derselben Klasse).
+- Die Anordnung ist deterministisch; Textbreiten sind geschätzt (der Server kennt die Schrift des Browsers nicht),
+  Titel über 48 Zeichen werden im Bild gekürzt (voller Titel in `data-title` und im Tooltip).
+
+### Widget `web/src/mindmap.ts`
+
+Ersetzt `idea_map.ts` (gelöscht). Es ordnet nichts selbst an: Nach jeder Aktion holt es `data-bild` mit Filter und
+`zu=` neu, setzt das SVG ein und behält Auswahl und Ausschnitt (`transform` auf `.mm-viewport`). RPC (nur diese,
+über `rpc.ts`): `idea.create`, `idea.update`, `idea.move`, `idea.delete`, `idea.restore`, `idea.link`,
+`idea.unlink`, `idea.link_restore`. Rückgängig ist die Umkehr-RPC der letzten Aktion (anlegen ↔ `idea.delete`,
+löschen ↔ `idea.restore`, umbenennen ↔ `idea.update` mit dem alten gespeicherten Titel aus `data-own`, umhängen ↔
+`idea.move` zurück an den alten Platz – `parent`, `key`, `before`, bei einem Kärtchen der Wolke `cloud: true`, bei
+einem Hauptthema `parent: null, key: null, cloud: false` –, verbinden ↔ `idea.unlink`, lösen ↔ `idea.link_restore`).
+Knöpfe im Menüband tragen `data-mm-action` (`child`, `sibling`, `rename`, `delete`, `link`, `cloud`, `undo`), Links
+mit `data-mm-zu` setzen die eingeklappten Knoten aus ihrem `href`.
+
+`idea.delete` schickt das Widget mit `confirm: true` (die Rückfrage stellt es selbst). Aufs Werk gezogen bzw. Tab
+am Werk ergibt ein freies Hauptthema (`cloud: false`), in die Wolke gezogen `cloud: true`.
+
+### Ein- und Ausgabe, Gliederungsansicht (`idea_map/files/`)
+
+`crates/baruch-server/src/idea_map/files/` (Ein- und Ausgabe der Mindmap, Bedienung ohne JavaScript):
+
+- `mod.rs` – Routen (`pages()`, `writes()`), die Ausgaben, `POST /werke/{id}/karte/act`.
+- `export.rs` – Wolke und Hauptäste aus der Sicht `tree::Scene` (`cloud`, `placed`), das Blatt
+  (`Sheet`) als Vorstufe von `.mm`/`.xmind`, Markdown.
+- `freemind.rs`, `xmind.rs` – je Schreiber und Leser. `import.rs` – Grenzen, Reinigung, `Raw` → `ImportTree`
+  (`finish`, `check`). `upload.rs` – Formular, Vorschau, Bestätigung. `outline.rs` – Gliederungsansicht.
+- Vorlagen `karte_gliederung.html`, `karte_einlesen.html`; Stil `static/karte_gliederung.css` (nur Variablen aus
+  `app.css`).
+
+Sicherheit beim Einlesen: Upload höchstens 10 MiB (`DefaultBodyLimit` an der Route). Aus dem ZIP wird allein der
+Eintrag `content.json` gelesen (Namen als Bytes verglichen, nie als Pfad benutzt, nichts auf Platte entpackt); beim
+Entpacken wird mitgezählt und bei 20 MiB abgebrochen; Archive mit mehr als 50 Einträgen oder mit Namen, die aus dem
+Archiv herausführten (`..`, absoluter Pfad, Laufwerk, `\`), werden ganz abgelehnt. XML: eine DOCTYPE wird
+abgelehnt, Entitäten werden nicht aufgelöst (nur die fünf von XML, `nbsp`, Zeichenreferenzen); der Leser arbeitet
+mit eigenem Stapel und begrenzt Knotenzahl und Tiefe beim Lesen. Zwischen Vorschau und Bestätigung steht der Baum
+als JSON in einem verborgenen Formularfeld (keine Datei im Datenordner) und wird bei der Bestätigung erneut
+geprüft (`import::check`). Beide POST-Routen liegen hinter `guard::same_origin`.
+
+### Abweichungen vom Vertrag der Runde
+
+- **`idea.delete`:** Der Vertrag nennt „Antwort zusätzlich `deleted: [ids]`“. `deleted` ist seit Runde 7 `true`
+  (RPC und MCP, geprüft u. a. in `round23_geheimnisse.rs`); die Liste heißt darum **`deleted_ids`**, `deleted`
+  bleibt `true`.
+- **Ablehnungen von `idea.move` und `tree::import`** tragen den Code **-32000** (`rpc::REFUSED`, „abgelehnt“). Der
+  Vertrag schreibt -32001; das ist seit Runde 19c `RAG_UNAVAILABLE`.
+- **`MapIdea`** (Typ der flachen Karte) bekommt die Felder `title`, `parent`, `position` nicht am Typ, sondern in
+  der Antwort von `idea.map` und `idea_map` (dazu `main_topic`, `cloud`): Die eingefrorene Datei `bild/layout.rs`
+  baut `MapIdea` in ihren Tests von Hand und bräche sonst.
+- **`MindMap` unverändert:** Die Wolke ist kein Feld von `MindMap` (Handbau in fremden Tests bräche), sondern eine
+  zweite Funktion `tree::cloud` bzw. beide zusammen `tree::tree_and_cloud` (siehe 3).
+- **XSD:** Das Schema der Unterversion 9 liegt als neue Datei `docs/schema/baruch-werk-1-u9.xsd` neben den
+  eingefrorenen; `baruch-werk-1-u8.xsd` ist unverändert (SHA-256 im Test).
+- Dateinamen der Ausgaben heißen `<slug>-mindmap.*` (vorher `-karte.*`); die Adressen bleiben `/werke/{id}/karte.*`.
+- Ein Einfall eines anderen Werks im Formular der Mindmap ergibt 409 (vorher 422).
+- Das alte XMind-8-Format (nur `content.xml`) wird mit klarer Meldung abgelehnt, nicht gelesen.
+
+### Integration (Runde 34)
+
+- **Die Naht „Wolke“.** mindmap_daten liefert die Wolke getrennt vom Baum (`tree::cloud`, `tree::tree_and_cloud`);
+  mindmap_widget und mindmap_austausch hatten gegen S1 angenommen, „Einfälle direkt an der Wurzel“ seien die Wolke.
+  Damit wären freie Hauptthemen als Kärtchen der Wolke gezeichnet worden und die echte Wolke gar nicht. Der
+  Integrator hat die Sicht **`tree::Scene`** eingeführt (`tree::scene`): Sie hängt die Einfälle der Wolke hinter den
+  Hauptästen an die Wurzel (damit `walk`/`find` sie kennen), nennt ihre Kennungen (`Scene::cloud`), den Zähler ohne
+  Filter (`cloud_count`) und die Vorschläge (`hints`), und fügt die Verbindungen mit einem Ende in der Wolke hinzu.
+  Seite, Bild, Gliederungsansicht und alle Ausgaben lesen nur noch diese Sicht; `RenderOptions` trägt dafür `cloud`,
+  `cloud_count` und `hints` (`RenderOptions::of(scene, standalone, closed)`), `tree_layout::layout_with` unterscheidet
+  Hauptäste und Kärtchen nach diesen Kennungen. RPC `idea.tree` und MCP `idea_tree` bleiben bei `{map, cloud}`.
+- **Hauptthema und Wolke in der Bedienung.** Widget: Tab am Werk und „aufs Werk ziehen“ schicken `cloud: false`
+  (freies Hauptthema), „in die Wolke“ `cloud: true`; die Umkehr für Strg+Z kennt beide Plätze. Formular
+  `POST /werke/{id}/karte/act`: `ziel=wolke` → `cloud: true`, `ziel=w` → Hauptthema, `ort=werk` beim Anlegen;
+  Gliederungsansicht mit „Neues Hauptthema“ und „Als Hauptthema ans Werk“. Einlesen ohne Zielknoten legt Hauptthemen
+  an (Texte der Vorlage angepasst).
+- **Gefunden beim Zusammenführen:** Das Widget rief `idea.delete` ohne `confirm: true` – der Server hätte jedes
+  Löschen (und das Rückgängig eines Anlegens) abgelehnt. Behoben, Test in `round34_abnahme`.
+- Vorschlag „passt zu Ast …“ in der Gliederungsansicht nennt den Hauptast mit Nummer (`export::node_title`).
+- Gelöscht: `bild/layout.rs`, `bild/svg.rs`, `bild::load`, `export::tree_order`, `web/src/idea_map.ts`, der S1-Text
+  `tree::NOT_YET`. `PdfKind::Map` heißt „Mindmap“. Alte Bildregeln `.im-*` in `static/karte.css` stehen noch (Filter,
+  Gruppen, Widersprüche und Legende der Seite benutzen einen Teil davon); ausmisten ist offen (Backlog).
+- Tests: `round34_abnahme.rs` (Bild und Aktionen des Widgets über RPC, Gliederungsansicht ohne JavaScript mit allen
+  Aktionen, MCP mit Herkunft, Rundreise `.mm`/`.xmind` in ein zweites Werk, alte Daten unverändert). Angepasste
+  fremde Tests: elf Rundreisen auf `version="9"`, `round25_abnahme`, `round25_bild`, `round18_menueband`,
+  `round28_abnahme`, `round28_uebersicht`, `round9_menu`, `round33_seiten` (zwei neue Vorlagen).

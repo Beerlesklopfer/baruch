@@ -49,7 +49,7 @@
 //!   mit. Abgelehnt mit -32000 ([`REFUSED`]): anderes Werk, eigener Nachfahre (Kreis), Tiefe über 32, gelöschter
 //!   Einfall bzw. Elternknoten, `before` kein Geschwister. Ein Commit „Einfall <id>: umgehängt“ (`idea-move`).
 //! - `idea.delete` löscht den Einfall samt nicht gelöschten Unterknoten mit demselben Zeitstempel in einem Commit
-//!   (Antwort zusätzlich `deleted_ids`; `deleted` bleibt `true` wie bisher – siehe `docs/r34/daten.md`),
+//!   (Antwort zusätzlich `deleted_ids`; `deleted` bleibt `true` wie bisher – siehe `docs/RPC.md`, „Runde 34 – Mindmap“),
 //!   `idea.restore` stellt genau diese wieder her (Antwort zusätzlich `restored`, und `detached: true`, wenn der
 //!   Elternknoten noch gelöscht ist und der Einfall darum gelöst wurde).
 //!

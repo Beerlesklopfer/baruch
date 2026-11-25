@@ -550,7 +550,10 @@ async fn two_throwaway_instances_carry_amends_the_watermark_and_a_new_part_as_a_
         .await,
     );
     let xml = exchange_export(&a, work_a).await;
-    assert!(xml.contains("version=\"8\"") && xml.contains("<fortschreibung "), "Unterversion 8 mit Fortschreibungen");
+    assert!(
+        xml.contains("version=\"9\"") && xml.contains("<fortschreibung "),
+        "Unterversion 9 (seit Runde 34) mit Fortschreibungen"
+    );
 
     // B liest ein: Stand 2 mit denselben Schritten (gleiche uuids), Entwurf in den Satz-Einstellungen.
     let b = common::open().await;

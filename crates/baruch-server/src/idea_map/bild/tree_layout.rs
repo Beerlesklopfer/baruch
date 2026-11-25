@@ -6,11 +6,12 @@
 //! gleiche Eingabe, gleiche Lagen. Die Zeichnung ([`super::mindmap`]) liest nur das Ergebnis [`Layout`].
 //!
 //! Regeln:
-//! - **Hauptäste** sind die Kinder der Wurzel außer den Einfällen direkt am Werk; die erste Hälfte (aufgerundet) steht
-//!   rechts, die zweite links. Jeder Hauptast bekommt eine der acht Astfarben (`branch`), die alle Nachfahren erben.
-//! - **Wolke**: Einfälle direkt an der Wurzel (weder Elternknoten noch Bezug) sind keine Hauptäste, sondern liegen als
-//!   Kärtchen in der Wolke unter dem Baum (Nachtrag des Nutzers vom 2026-11-25). Ihre Unterknoten bleiben an ihnen
-//!   und werden in der Wolke nicht einzeln gezeichnet (Zahl „+ n“ am Kärtchen).
+//! - **Hauptäste** sind die Kinder der Wurzel außer der Wolke: Teile, Kapitel und freie Hauptthemen; die erste Hälfte
+//!   (aufgerundet) steht rechts, die zweite links. Jeder Hauptast bekommt eine der acht Astfarben (`branch`), die
+//!   alle Nachfahren erben.
+//! - **Wolke**: Die Kinder der Wurzel, die [`crate::idea_map::tree::Scene::cloud`] nennt (Einfälle ohne Platz),
+//!   sind keine Hauptäste, sondern liegen als Kärtchen in der Wolke unter dem Baum (Nachtrag des Nutzers vom
+//!   2026-11-25). Ihre Unterknoten bleiben an ihnen und werden in der Wolke nicht einzeln gezeichnet („+ n“).
 //! - **Kein Überlappen**: Jeder Teilbaum belegt ein eigenes senkrechtes Band (Höhe = größere von Knotenhöhe und Summe
 //!   der Kinderbänder); Kinder stehen waagrecht jenseits der Außenkante ihres Elternknotens.
 //! - **Eingeklappt** (`closed`): Der Knoten wird gezeichnet, seine Nachfahren nicht; [`Layout::visible_of`] nennt
@@ -18,9 +19,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use baruch_store::IdeaId;
-
-use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
+use crate::idea_map::tree::{CloudHint, MindMap, TreeKind, TreeNode};
 
 /// Längster gezeichneter Titel (Zeichen); der volle Titel steht in `data-title` und im Tooltip.
 pub const MAX_LABEL_CHARS: usize = 48;
@@ -268,26 +267,21 @@ impl<'a> Builder<'a> {
     }
 }
 
-/// Einfälle direkt am Werk: die Wolke.
-pub fn cloud_ideas(map: &MindMap) -> Vec<&TreeNode> {
-    map.root.children.iter().filter(|c| c.kind == TreeKind::Idea).collect()
-}
-
-fn collect_ideas<'a>(
-    node: &'a TreeNode,
-    branch: usize,
-    top: &'a TreeNode,
-    out: &mut HashMap<IdeaId, (&'a TreeNode, usize)>,
-) {
-    if let Some(id) = node.idea {
-        out.insert(id, (top, branch));
-    }
-    for child in &node.children {
-        collect_ideas(child, branch, top, out);
-    }
-}
-
+/// Anordnung ohne Wolke: Alle Kinder der Wurzel sind Hauptäste.
 pub fn layout<'a>(map: &'a MindMap, closed: &[String]) -> Layout<'a> {
+    layout_with(map, closed, &[], &[], None)
+}
+
+/// Anordnung mit Wolke: `cloud` nennt die Kinder der Wurzel, die in der Wolke liegen ([`Scene::cloud`]), `hints` die
+/// Vorschläge „passt zu Ast …“, `count` den Zähler ohne Filter (sonst die Zahl der Kärtchen).
+pub fn layout_with<'a>(
+    map: &'a MindMap,
+    closed: &[String],
+    cloud: &[String],
+    hints: &[CloudHint],
+    count: Option<u32>,
+) -> Layout<'a> {
+    let in_cloud: HashSet<&str> = cloud.iter().map(String::as_str).collect();
     let mut b = Builder {
         closed: closed.iter().filter_map(|id| map.find(id).map(|n| n.id.as_str())).collect(),
         items: Vec::new(),
@@ -315,7 +309,7 @@ pub fn layout<'a>(map: &'a MindMap, closed: &[String]) -> Layout<'a> {
     });
     b.visible_of.insert(root.id.as_str(), 0);
 
-    let mains: Vec<&TreeNode> = root.children.iter().filter(|c| c.kind != TreeKind::Idea).collect();
+    let mains: Vec<&TreeNode> = root.children.iter().filter(|c| !in_cloud.contains(c.id.as_str())).collect();
     let right = mains.len().div_ceil(2);
     let gap = v_gap(1);
     for (side, range, first) in [(Side::Right, 0..right, 0), (Side::Left, right..mains.len(), right)] {
@@ -352,36 +346,18 @@ pub fn layout<'a>(map: &'a MindMap, closed: &[String]) -> Layout<'a> {
     let tree_bottom = max_y + dy;
 
     // Wolke: Kärtchen zeilenweise unter dem Baum.
-    let mut placed_in: HashMap<IdeaId, (&TreeNode, usize)> = HashMap::new();
-    for (i, main) in mains.iter().enumerate() {
-        collect_ideas(main, i % 8, main, &mut placed_in);
-    }
-    let cloud = cloud_ideas(map);
+    let cloud: Vec<&TreeNode> = root.children.iter().filter(|c| in_cloud.contains(c.id.as_str())).collect();
     let cloud_x = MARGIN;
     let cloud_y = tree_bottom + CLOUD_GAP;
     let inner = tree_width - 2.0 * CLOUD_PAD;
     let (mut x, mut y, mut row_h) = (0.0_f64, CLOUD_HEAD, 0.0_f64);
     for node in &cloud {
         let (label, font, mut w, mut h) = size(node, 2);
-        // Bestes Paar der Nähe mit einem Einfall, der im Baum hängt (höchster Wert, bei Gleichstand das erste).
-        let mut best: Option<(f32, &TreeNode, usize)> = None;
-        if let Some(id) = node.idea {
-            for pair in &map.near.pairs {
-                let other = if pair.a == id {
-                    pair.b
-                } else if pair.b == id {
-                    pair.a
-                } else {
-                    continue;
-                };
-                if let Some((top, branch)) = placed_in.get(&other)
-                    && best.is_none_or(|(score, ..)| pair.score > score)
-                {
-                    best = Some((pair.score, top, *branch));
-                }
-            }
-        }
-        let fits = best.map(|(_, top, branch)| (top.id.as_str(), label_of(top), branch));
+        // Vorschlag der Nähe: der Hauptast, in dem der nächste Einfall der Mindmap hängt.
+        let fits = node.idea.and_then(|id| hints.iter().find(|hint| hint.idea == id)).and_then(|hint| {
+            let at = mains.iter().position(|main| main.id == hint.branch)?;
+            Some((mains[at].id.as_str(), label_of(mains[at]), at % 8))
+        });
         if let Some((_, title, _)) = &fits {
             w = w.max(text_width(&format!("passt zu Ast „{title}“"), 10.5) + 18.0);
             h += 15.0;
@@ -421,7 +397,13 @@ pub fn layout<'a>(map: &'a MindMap, closed: &[String]) -> Layout<'a> {
     }
     // Leere Wolke: eine Zeile Platz für den Hinweis und als Ablagefläche.
     let cloud_h = y + row_h.max(26.0) + CLOUD_PAD;
-    let cloud_box = CloudBox { x: cloud_x, y: cloud_y, w: tree_width, h: cloud_h, count: cloud.len() };
+    let cloud_box = CloudBox {
+        x: cloud_x,
+        y: cloud_y,
+        w: tree_width,
+        h: cloud_h,
+        count: count.map_or(cloud.len(), |c| c as usize),
+    };
 
     Layout {
         items: b.items,

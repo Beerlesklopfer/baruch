@@ -406,8 +406,8 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
         .unwrap()
         .to_owned();
     for needle in [
-        // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-        "version=\"8\"",
+        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        "version=\"9\"",
         "variante=\"A\"",
         "variante-zeile=\"knapp\"",
         "<setzt-um befund=",

@@ -363,7 +363,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     assert_eq!(attr(&outline, &marker, "data-findings-open"), "1", "auch /gliederung");
     let map = b.page(&format!("/werke/{}/karte?befunde=1", b.work)).await;
     assert_eq!(attr(&map, &format!("data-node=\"n:{bridge_key}\""), "data-open-findings"), "1", "Gedankenkarte");
-    assert!(map.contains(">1 offen</tspan>"), "Ebene Befunde als Text im Bild, nicht nur Farbe");
+    assert!(map.contains(">1 offen</text>"), "Ebene Befunde als Text im Bild, nicht nur Farbe");
 
     // ---- Fassungsbaum, Befundseite, Akkordeon ohne JavaScript -------------------------------------------------
     assert!(
@@ -414,8 +414,8 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
         .as_str()
         .unwrap()
         .to_owned();
-    // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-    assert!(xml.contains("version=\"8\"") && xml.contains("<befunde>"), "Unterversion 8 (seit Runde 22) mit Befunden");
+    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    assert!(xml.contains("version=\"9\"") && xml.contains("<befunde>"), "Unterversion 9 (seit Runde 34) mit Befunden");
     let other = common::open().await;
     let bytes = xml.as_bytes();
     let imported = other

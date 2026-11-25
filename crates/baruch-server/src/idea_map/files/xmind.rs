@@ -4,7 +4,7 @@
 //! **Schreiben** ([`write`]): ein ZIP mit `content.json` (ein Blatt: `rootTopic` mit `children.attached` in
 //! Reihenfolge, `notes.plain.content`, `labels` = Schlagwörter, `relationships` mit `end1Id`/`end2Id`/`title`),
 //! `metadata.json` und `manifest.json`. Der Aufbau folgt der offenen Beschreibung des Formats aus dem Gedächtnis;
-//! was nicht mit echtem XMind geprüft ist, steht als Annahme in `docs/r34/austausch.md`.
+//! was nicht mit echtem XMind geprüft ist, steht als Annahme in `docs/Bedienung.md` („Annahmen zu XMind und Freeplane“).
 //!
 //! **Lesen** ([`read`]): Das Archiv ist fremde Eingabe. Höchstens [`MAX_ZIP_ENTRIES`] Einträge; gelesen wird allein
 //! der Eintrag mit dem Namen `content.json` (Vergleich der Namen als Bytes – kein Name wird je als Pfad benutzt,

@@ -21,7 +21,7 @@ use baruch_server::idea_map::files::import::{
 };
 use baruch_server::idea_map::files::{self, export, freemind, xmind};
 use baruch_server::idea_map::tree::{
-    self, ImportLink, ImportNode, ImportTree, MAX_IMPORT_NODES, MAX_TITLE_CHARS, MAX_TREE_DEPTH, MindMap, NOT_YET,
+    self, ImportLink, ImportNode, ImportTree, MAX_IMPORT_NODES, MAX_TITLE_CHARS, MAX_TREE_DEPTH, MindMap, Scene,
     TreeKind, TreeNode,
 };
 use baruch_server::idea_map::{MapFilter, Near, NearState};
@@ -118,6 +118,13 @@ fn branch(title: &str, children: Vec<ImportNode>) -> ImportNode {
 }
 
 /// Was der eigene Leser aus einer Ausgabe von [`shipyard`] holen muss.
+/// Die Sicht zum Baum von Hand: Die Einfälle direkt an der Wurzel („Namensfindung“) liegen in der Wolke.
+fn scene_of(map: MindMap) -> Scene {
+    let cloud: Vec<String> =
+        map.root.children.iter().filter(|c| c.kind == TreeKind::Idea).map(|c| c.id.clone()).collect();
+    Scene { cloud_count: cloud.len() as u32, cloud, map, hints: Vec::new() }
+}
+
 fn shipyard_as_import() -> ImportTree {
     let keel = ImportNode {
         title: "Kiel <legen> & \"richten\"".to_owned(),
@@ -279,7 +286,7 @@ fn form_encode(value: &str) -> String {
 
 #[test]
 fn the_mm_output_is_well_formed_nested_xml_with_notes_and_arrowlinks() {
-    let mm = freemind::write(&export::sheet(&shipyard()));
+    let mm = freemind::write(&export::sheet(&scene_of(shipyard())));
     assert!(mm.starts_with("<map version=\"1.0.1\">"), "FreeMind 1.0.1: {mm}");
     let raw =
         freemind::read(mm.as_bytes()).expect("die Ausgabe ist wohlgeformtes XML (der eigene Leser prüft End-Tags)");
@@ -316,7 +323,7 @@ fn the_mm_output_is_well_formed_nested_xml_with_notes_and_arrowlinks() {
 
 #[test]
 fn the_xmind_output_is_a_zip_with_content_metadata_and_manifest() {
-    let bytes = xmind::write(&export::sheet(&shipyard())).expect("die XMind-Datei lässt sich schreiben");
+    let bytes = xmind::write(&export::sheet(&scene_of(shipyard()))).expect("die XMind-Datei lässt sich schreiben");
     let files = unzip(&bytes);
     let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(names, vec!["content.json", "metadata.json", "manifest.json"], "genau die drei Dateien des Formats");
@@ -352,7 +359,7 @@ fn the_xmind_output_is_a_zip_with_content_metadata_and_manifest() {
 
 #[test]
 fn mm_and_xmind_round_trip_to_the_same_import_tree() {
-    let sheet = export::sheet(&shipyard());
+    let sheet = export::sheet(&scene_of(shipyard()));
     let expected = shipyard_as_import();
     let from_mm = import::read(freemind::write(&sheet).as_bytes()).expect(".mm lässt sich wieder lesen");
     assert_eq!(
@@ -365,7 +372,7 @@ fn mm_and_xmind_round_trip_to_the_same_import_tree() {
 
 #[test]
 fn the_cloud_is_its_own_branch_and_markdown_is_a_nested_list() {
-    let map = shipyard();
+    let map = scene_of(shipyard());
     let loose: Vec<&str> = export::cloud(&map).iter().map(|n| n.title.as_str()).collect();
     assert_eq!(loose, vec!["Namensfindung"], "in der Wolke liegt, was weder Elternknoten noch Bezug hat");
     let sheet = export::sheet(&map);
@@ -380,8 +387,8 @@ fn the_cloud_is_its_own_branch_and_markdown_is_a_nested_list() {
         "ein Einfall liegt mit seinen Unterknoten in der Wolke"
     );
 
-    let mut without = shipyard();
-    without.root.children.pop();
+    let mut without = scene_of(shipyard());
+    without.map.root.children.pop();
     assert!(
         export::sheet(&without).root.children.iter().all(|c| c.id != export::CLOUD_ID),
         "ohne lose Einfälle gibt es keinen Ast „Wolke“"
@@ -522,7 +529,7 @@ async fn the_preview_creates_nothing_and_only_the_confirmation_imports() {
         html.contains("enctype=\"multipart/form-data\"") && html.contains("name=\"file\""),
         "Formular mit Datei-Upload, ohne JavaScript: {html}"
     );
-    assert!(html.contains("in die Wolke"), "Vorgabe: Die eingelesenen Knoten kommen in die Wolke");
+    assert!(html.contains("als Hauptthemen ans Werk"), "Vorgabe: Die eingelesenen Knoten werden Hauptthemen am Werk");
 
     let file = include_bytes!("data/r34/hafenfest.mm");
     let (status, html) = preview(&b.server, b.work, file).await;
@@ -555,21 +562,13 @@ async fn the_preview_creates_nothing_and_only_the_confirmation_imports() {
         .body(Body::from(body))
         .unwrap();
     let (status, headers, page) = b.server.send(request).await;
-    // Beide ehrlichen Ausgänge: Solange `tree::import` der Stub aus S1 ist, lehnt die Bestätigung mit dessen
-    // Meldung ab (als Seite, kein 500, nichts angelegt); mit dem Import von mindmap_daten legt sie an.
-    if status == StatusCode::SEE_OTHER {
-        assert_eq!(
-            headers[header::LOCATION],
-            format!("/werke/{}/karte?ok=eingelesen", b.work).as_str(),
-            "nach dem Anlegen zurück zur Mindmap"
-        );
-        assert_eq!(idea_count(&b.server, b.work).await, 6, "alle Knoten der Vorschau sind Einfälle geworden");
-    } else {
-        assert_eq!(status, StatusCode::CONFLICT, "abgelehnt, kein interner Fehler: {page}");
-        assert!(page.contains(NOT_YET), "die Seite nennt ehrlich, was fehlt: {page}");
-        assert!(page.contains("data-import-preview"), "die Vorschau bleibt stehen");
-        assert_eq!(idea_count(&b.server, b.work).await, 0, "nichts angelegt");
-    }
+    assert_eq!(status, StatusCode::SEE_OTHER, "die Bestätigung legt an: {page}");
+    assert_eq!(
+        headers[header::LOCATION],
+        format!("/werke/{}/karte?ok=eingelesen", b.work).as_str(),
+        "nach dem Anlegen zurück zur Mindmap"
+    );
+    assert_eq!(idea_count(&b.server, b.work).await, 6, "alle Knoten der Vorschau sind Einfälle geworden");
 
     let request = Request::post(&apply)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -896,36 +895,18 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
         Some(b.slip),
         "Umbenennen lässt den Bezug stehen (das Feld key fehlte im Formular)"
     );
-    assert!(
-        stored["title"].is_null() || stored["title"] == "Schaumwein",
-        "S1 kennt noch keinen Titel (Feld fehlt); sobald es ihn gibt, ist er gesetzt: {stored}"
-    );
+    assert_eq!(stored["title"], "Schaumwein", "der Titel ist gesetzt: {stored}");
 
-    // Umhängen: idea.move kommt von mindmap_daten. Beide ehrlichen Ausgänge, nie ein 500.
+    // Umhängen unter einen anderen Einfall.
     let form = format!("method=idea.move&id={champagne}&ziel=i:{keel}&seite=gliederung");
-    let request = Request::post(&act)
-        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .body(Body::from(form))
-        .unwrap();
-    let (status, headers, page) = b.server.send(request).await;
-    if status == StatusCode::SEE_OTHER {
-        assert_eq!(
-            headers[header::LOCATION],
-            format!("{outline}?ok=umgehaengt").as_str(),
-            "umgehängt, zurück in die Ansicht"
-        );
-    } else {
-        assert_eq!(
-            status,
-            StatusCode::BAD_REQUEST,
-            "S1: die RPC kennt idea.move noch nicht – Meldung als Seite: {page}"
-        );
-        assert!(
-            page.contains("role=\"alert\"") && page.contains("idea.move"),
-            "die Gliederungsansicht nennt den Grund: {page}"
-        );
-        assert!(page.contains("class=\"mmg\""), "Fehlerseite ist die Gliederungsansicht (seite=gliederung)");
-    }
+    let (status, location) = b.server.post_form(&act, &form).await;
+    assert_eq!(
+        (status, location.as_deref()),
+        (StatusCode::SEE_OTHER, Some(format!("{outline}?ok=umgehaengt").as_str())),
+        "umgehängt, zurück in die Ansicht"
+    );
+    let stored = result(&b.server.rpc("idea.get", json!({ "id": champagne })).await)["idea"].clone();
+    assert_eq!(stored["parent"].as_i64(), Some(keel), "der Einfall hängt unter dem gewählten Knoten: {stored}");
     let (status, _) = b.server.post_form(&act, &format!("method=idea.move&id={champagne}&ziel=unsinn")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ein unbekanntes Ziel ist eine ungültige Eingabe");
 
@@ -1066,31 +1047,18 @@ async fn act_refuses_unknown_methods_foreign_ideas_and_foreign_origins() {
     assert_eq!(status, StatusCode::NOT_FOUND, "unbekanntes Werk → 404");
 }
 
-/// S1-Zusage von `tree::import` (bleibt, bis mindmap_daten den Import liefert): Der Stub lehnt mit `NOT_YET` ab und
-/// legt nichts an; mit dem echten Import legt er genau die Knoten des Baums an.
+/// `tree::import` legt genau die Knoten des Baums an (mehr dazu in `round34_daten`).
 #[tokio::test]
-async fn import_refuses_honestly_or_creates_exactly_the_tree() {
+async fn import_creates_exactly_the_tree() {
     let b = open_book().await;
     let wanted = ImportTree {
         title: "Fremde Karte".to_owned(),
         nodes: vec![branch("Tau", vec![leaf("Knoten")])],
         ..ImportTree::default()
     };
-    match tree::import(&b.server.state, b.work, None, &wanted, &human()).await {
-        Ok(report) => {
-            assert_eq!(report.ideas.len(), 2, "jeder Knoten des Baums wird ein Einfall");
-            assert_eq!(idea_count(&b.server, b.work).await, 2, "und steht in der Liste des Werks");
-        }
-        Err(error) => {
-            assert_eq!(error.message, NOT_YET, "die Ablehnung nennt ehrlich, dass der Import noch fehlt");
-            assert_eq!(
-                error.code,
-                baruch_server::rpc::REFUSED,
-                "Ablehnung mit dem Code „abgelehnt“, kein interner Fehler"
-            );
-            assert_eq!(idea_count(&b.server, b.work).await, 0, "der Stub legt keinen Einfall an");
-        }
-    }
+    let report = tree::import(&b.server.state, b.work, None, &wanted, &human()).await.expect("der Import gelingt");
+    assert_eq!(report.ideas.len(), 2, "jeder Knoten des Baums wird ein Einfall");
+    assert_eq!(idea_count(&b.server, b.work).await, 2, "und steht in der Liste des Werks");
     let json = serde_json::to_string(&wanted).unwrap();
     let back: ImportTree = serde_json::from_str(&json).unwrap();
     assert_eq!(back, wanted, "ImportTree übersteht JSON (verborgenes Formularfeld zwischen Vorschau und Bestätigung)");

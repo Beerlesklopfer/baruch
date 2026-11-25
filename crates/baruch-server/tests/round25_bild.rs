@@ -16,7 +16,7 @@ use std::time::Instant;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header};
 use baruch_server::idea_map::MapFilter;
-use baruch_server::idea_map::bild::layout;
+use baruch_server::idea_map::bild::tree_layout;
 use baruch_store::{IdeaOrigin, NewIdea};
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -109,11 +109,6 @@ fn shown_ideas(html: &str) -> BTreeSet<i64> {
     html.split("data-idea=\"").skip(1).map(|r| r[..r.find('"').unwrap()].parse().unwrap()).collect()
 }
 
-/// Ids der Einfälle in der Markdown-Ausgabe (`- Einfall n:`).
-fn md_ideas(md: &str) -> BTreeSet<i64> {
-    md.lines().filter_map(|l| l.strip_prefix("- Einfall ")?.split(':').next()?.parse().ok()).collect()
-}
-
 /// `xmllint --noout` auf eine Datei; `None`, wenn es kein xmllint gibt.
 fn xmllint(text: &str, name: &str) -> Option<(bool, String)> {
     let dir = tempfile::tempdir().unwrap();
@@ -149,7 +144,11 @@ async fn titles_and_words_are_escaped_everywhere() {
     }
     let (_, _, mm) =
         b.server.send(Request::get(format!("/werke/{}/karte.mm", b.work)).body(Body::empty()).unwrap()).await;
-    assert!(mm.contains(&format!("TEXT=\"Einfall {id}: &lt;script&gt;")), "FreeMind maskiert Attribute: {mm}");
+    assert!(
+        mm.contains(&format!("<node ID=\"ID_i{id}\" TEXT=\"&lt;script&gt;alert(1)&lt;/script&gt;, Rose&amp;Dorn\"")),
+        "FreeMind maskiert Attribute: {mm}"
+    );
+    assert!(!mm.contains("<script>") && !mm.contains("<img src=x"), "kein Nutzertext als Element in der .mm-Datei");
     let (_, _, md) =
         b.server.send(Request::get(format!("/werke/{}/karte.md", b.work)).body(Body::empty()).unwrap()).await;
     assert!(md.contains("\\<script\\>"), "Markdown maskiert Auszeichnung: {md}");
@@ -202,8 +201,19 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
             .send(Request::get(format!("/werke/{}/karte.{output}?{query}", b.work)).body(Body::empty()).unwrap())
             .await;
         assert_eq!(s, StatusCode::OK, ".{output} lädt");
-        let ids = if output == "md" { md_ideas(&body) } else { shown_ideas(&body) };
-        assert_eq!(ids, page_ideas, ".{output} zeigt genau die Einfälle der gefilterten Seite: {body}");
+        if output == "md" {
+            // Runde 34: Markdown ist die verschachtelte Liste des Baums (ohne „Einfall n:“); geprüft am Gedanken.
+            assert!(
+                body.contains("Laube im Juni.") && !body.contains("Hecke.") && !body.contains("Kies."),
+                ".md zeigt genau die Einfälle der gefilterten Seite: {body}"
+            );
+        } else {
+            assert_eq!(
+                shown_ideas(&body),
+                page_ideas,
+                ".{output} zeigt genau die Einfälle der gefilterten Seite: {body}"
+            );
+        }
     }
     if b.daten_ready().await {
         assert_eq!(page_ideas, BTreeSet::from([open]), "status, word, origin, q: nur der offene Rosen-Einfall bleibt");
@@ -272,7 +282,7 @@ async fn form_errors_come_back_as_the_page_with_the_message() {
         .unwrap();
 
     let (status, html) = b.act_page(&format!("method=idea.update&id={foreign}&key={}", b.key("Wege"))).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Einfall eines anderen Werks → 422: {html}");
+    assert_eq!(status, StatusCode::CONFLICT, "Einfall eines anderen Werks → 409 abgelehnt (seit Runde 34): {html}");
     assert!(
         html.contains("role=\"alert\">Einfall") && html.contains("gehört nicht zu diesem Werk."),
         "Meldung auf der Seite"
@@ -407,17 +417,14 @@ async fn the_outputs_are_standalone_and_well_formed() {
     let (status, headers, svg) = get("svg").await;
     assert_eq!(status, StatusCode::OK, "SVG lädt");
     assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml", "eigenständige SVG-Datei");
+    // Runde 34: dieselbe Zeichnung wie auf der Seite (`mindmap::render`), eigenständig mit Namensraum und Stil.
     assert!(
-        svg.starts_with(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg class=\"im-svg\" xmlns=\"http://www.w3.org/2000/svg\""
-        ),
-        "XML-Kopf und Namensraum: {svg}"
+        svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"mm-svg\""),
+        "Namensraum an der Wurzel: {svg}"
     );
-    assert!(svg.contains("<style>") && svg.contains(".im-kind-contradicts{"), "Stil eingebettet (ohne app.css lesbar)");
-    assert!(
-        svg.contains(" data-im-svg=\"\"") && svg.contains(" data-im-viewport=\"\""),
-        "Attribute ohne Wert als =\"\" (wohlgeformtes XML)"
-    );
+    assert!(svg.contains("<style>") && svg.contains(".mm-link-label"), "Stil eingebettet (ohne app.css lesbar)");
+    assert!(!svg.contains("<a ") && !svg.contains("var(--"), "keine Links, keine CSS-Variablen der Seite in der Datei");
+    assert!(svg.contains("1 in der Wolke"), "die Wolke steht auch in der Datei");
     match xmllint(&svg, "karte.svg") {
         Some((ok, err)) => assert!(ok, "xmllint hält die SVG für wohlgeformt: {err}"),
         None => println!("ÜBERSPRUNGEN: xmllint fehlt (SVG)"),
@@ -425,39 +432,31 @@ async fn the_outputs_are_standalone_and_well_formed() {
     let (status, headers, md) = get("md").await;
     assert_eq!(status, StatusCode::OK, "Markdown lädt");
     assert_eq!(headers[header::CONTENT_TYPE], "text/markdown; charset=utf-8", "Art Markdown");
-    assert!(md.starts_with("# Gedankenkarte: Kartenbuch\n"), "Titel: {md}");
+    assert!(md.starts_with("# Mindmap: Kartenbuch\n"), "Titel: {md}");
     assert!(
-        md.contains(
-            "## I Erster Teil (1 Einfall, 1 offen)\n\nKeine eigenen Einfälle; sie hängen an den Punkten darunter."
-        ) && md.contains("### 1 Rosen (1 Einfall, 1 offen)"),
-        "Gliederung Teil → Kapitel als Überschriften (Zähler je Knoten samt Unterpunkten): {md}"
+        md.contains("- **I Erster Teil**\n  - **1 Rosen**\n    - Laube (offen;"),
+        "Runde 34: Teil → Kapitel → Einfall als verschachtelte Liste: {md}"
     );
+    assert!(md.contains("      Notiz: Erster Gedanke zweite Zeile"), "Gedanke eingerückt unter seinem Einfall: {md}");
     assert!(
-        md.contains(&format!("- Einfall {a}: Laube (offen) – Erster Gedanke zweite Zeile")),
-        "Einfall mit Gedanke in einer Zeile: {md}"
-    );
-    assert!(
-        md.contains(&format!("## Ohne Kapitel (1 Einfall, 1 offen)\n\n- Einfall {n}: Kies (offen)")),
-        "Wolke ohne Kapitel"
-    );
-    assert!(
-        md.contains("Abschnitte: 1.1 Schnitt (0), 1.1.1 Tiefe (0)"),
-        "zusammengefasste Abschnitte mit Nummer und Zahl: {md}"
+        md.contains("## Wolke\n\n1 in der Wolke") && md.contains("- Kies (offen;"),
+        "Wolke als eigener Abschnitt: {md}"
     );
     assert!(md.contains("## Widersprüche\n\nKeine."), "Abschnitt Widersprüche auch ohne Einträge");
     let (status, headers, mm) = get("mm").await;
     assert_eq!(status, StatusCode::OK, "FreeMind lädt");
     assert_eq!(headers[header::CONTENT_TYPE], "application/x-freemind", "Art FreeMind");
     assert!(
-        headers[header::CONTENT_DISPOSITION].to_str().unwrap().contains(&format!("{}-karte.mm", b.slug)),
+        headers[header::CONTENT_DISPOSITION].to_str().unwrap().contains(&format!("{}-mindmap.mm", b.slug)),
         "als Datei mit Namen"
     );
     assert!(mm.starts_with("<map version=\"1.0.1\">\n"), "FreeMind 1.0.1: {mm}");
+    assert!(mm.contains(&format!("<node ID=\"ID_i{a}\" TEXT=\"Laube\">")), "Einfall als Knoten mit seinem Titel: {mm}");
+    assert!(mm.contains("<richcontent TYPE=\"NOTE\"><html><head></head><body><p>Erster Gedanke</p><p>zweite Zeile</p></body></html></richcontent>"), "Gedanke als Notiz, je Zeile ein Absatz");
     assert!(
-        mm.contains(&format!("<node ID=\"ID_i{a}\" TEXT=\"Einfall {a}: Laube (offen)\">")),
-        "Einfall als Knoten: {mm}"
+        mm.contains("TEXT=\"Wolke\"") && mm.contains(&format!("<node ID=\"ID_i{n}\" TEXT=\"Kies\">")),
+        "der Einfall ohne Platz steht im Ast „Wolke“: {mm}"
     );
-    assert!(mm.contains("<richcontent TYPE=\"NOTE\"><html><head></head><body><p>Erster Gedanke<br/>zweite Zeile</p></body></html></richcontent>"), "Gedanke als Notiz");
     match xmllint(&mm, "karte.mm") {
         Some((ok, err)) => assert!(ok, "xmllint --noout hält die FreeMind-Datei für wohlgeformt: {err}"),
         None => println!("ÜBERSPRUNGEN: xmllint fehlt (FreeMind)"),
@@ -485,7 +484,7 @@ async fn the_pdf_comes_from_source_to_pdf_with_the_map_kind() {
     assert_eq!(headers[header::CONTENT_TYPE], "application/pdf", "Art PDF");
     assert_eq!(
         headers[header::CONTENT_DISPOSITION],
-        format!("attachment; filename=\"{}-karte.pdf\"", b.slug).as_str(),
+        format!("attachment; filename=\"{}-mindmap.pdf\"", b.slug).as_str(),
         "Anhang mit Namen aus dem slug"
     );
     assert!(bytes.starts_with(b"%PDF-"), "echte PDF-Bytes (über oneshot, nicht als Text)");
@@ -523,27 +522,36 @@ async fn three_hundred_ideas_are_laid_out_without_overlap_in_under_200_ms() {
         };
         b.server.state.store.idea_create(&new).await.unwrap();
     }
-    let map =
-        baruch_server::idea_map::build(&b.server.state, b.work, &MapFilter { near: true, ..MapFilter::default() })
-            .await
-            .expect("Karte");
-    assert_eq!(map.ideas.len(), 300, "alle 300 erfundenen Einfälle auf der Karte");
+    // Runde 34: Die Anordnung rechnet der Baum der Mindmap (`tree_layout`), nicht mehr die Kreise der Gedankenkarte.
+    let scene = baruch_server::idea_map::tree::scene(
+        &b.server.state,
+        b.work,
+        &MapFilter { near: true, ..MapFilter::default() },
+    )
+    .await
+    .expect("Mindmap");
+    let ideas = scene.map.walk().into_iter().filter(|(n, _)| n.idea.is_some()).count();
+    assert_eq!(ideas, 300, "alle 300 erfundenen Einfälle in Baum und Wolke");
+    let lay = || tree_layout::layout_with(&scene.map, &[], &scene.cloud, &scene.hints, Some(scene.cloud_count));
     let started = Instant::now();
-    let first = layout::layout(&map);
+    let first = lay();
     let millis = started.elapsed().as_secs_f64() * 1000.0;
-    println!("Anordnung von 300 Einfällen: {millis:.1} ms (Debug-Bau, karte-bild)");
+    println!("Anordnung von 300 Einfällen: {millis:.1} ms (Debug-Bau)");
     assert!(millis < 200.0, "Abnahme: Anordnung < 200 ms im Debug-Bau, gemessen {millis:.1} ms");
-    assert_eq!(layout::layout(&map), first, "deterministisch: zweimal gleiche Eingabe → gleiche Koordinaten");
-    let free: Vec<&layout::Placed> = first.items.iter().filter(|p| !p.pinned).collect();
+    let boxes = |l: &tree_layout::Layout| -> Vec<(String, f64, f64, f64, f64)> {
+        l.items.iter().map(|p| (p.node.id.clone(), p.x, p.y, p.w, p.h)).collect()
+    };
+    let placed = boxes(&first);
+    assert_eq!(boxes(&lay()), placed, "deterministisch: zweimal gleiche Eingabe → gleiche Koordinaten");
     let mut bad = Vec::new();
-    for (i, p) in free.iter().enumerate() {
-        for q in &free[i + 1..] {
-            if (p.x - q.x).hypot(p.y - q.y) < p.r + q.r {
-                bad.push((p.id.clone(), q.id.clone()));
+    for (i, p) in placed.iter().enumerate() {
+        for q in &placed[i + 1..] {
+            if p.1 < q.1 + q.3 && q.1 < p.1 + p.3 && p.2 < q.2 + q.4 && q.2 < p.2 + p.4 {
+                bad.push((p.0.clone(), q.0.clone()));
             }
         }
     }
-    assert!(bad.is_empty(), "keine zwei nicht angehefteten Kreise näher als r1 + r2: {:?}", &bad[..bad.len().min(5)]);
+    assert!(bad.is_empty(), "keine zwei Kästen überlappen: {:?}", &bad[..bad.len().min(5)]);
     let started = Instant::now();
     let (status, html) = b.page("").await;
     println!(

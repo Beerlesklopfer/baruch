@@ -508,9 +508,9 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
 
     let xml_a = exchange_export(&a, work_a).await;
     for needle in
-        // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
+        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
         [
-            "version=\"8\"",
+            "version=\"9\"",
             "<befunde>",
             "art=\"kritisch\" status=\"verworfen\"",
             "<alte-fassung ",

@@ -648,9 +648,12 @@ async fn mcp_creates_subnodes_moves_them_and_reads_the_tree_with_its_origin_in_t
         by_name("idea_map")["description"].as_str().unwrap().contains("Mindmap"),
         "idea_map spricht von der Mindmap"
     );
-    let docs = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/r34/daten.md")).unwrap();
-    for name in ["idea_move", "idea_tree", "idea.move", "idea.tree"] {
-        assert!(docs.contains(&format!("`{name}`")), "docs/r34/daten.md nennt {name}");
+    // Die Fragmente aus docs/r34 sind eingesetzt: MCP.md nennt die Werkzeuge, RPC.md die Methoden.
+    for (file, names) in [("MCP.md", ["idea_move", "idea_tree"]), ("RPC.md", ["idea.move", "idea.tree"])] {
+        let docs = std::fs::read_to_string(format!("{}/../../docs/{file}", env!("CARGO_MANIFEST_DIR"))).unwrap();
+        for name in names {
+            assert!(docs.contains(&format!("`{name}`")), "docs/{file} nennt {name}");
+        }
     }
 
     let before = b.commits();

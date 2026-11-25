@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Ausgaben der Mindmap als Text (Vertrag Runde 34 §8, Besitz mindmap_austausch): das Blatt ([`Sheet`]) als
 //! gemeinsame Vorstufe von FreeMind ([`super::freemind`]) und XMind ([`super::xmind`]) und die Markdown-Ausgabe
-//! ([`markdown`]). Alles aus derselben [`MindMap`] wie Seite und Bild – die Filter gelten also auch hier.
+//! ([`markdown`]). Alles aus derselben Sicht ([`Scene`]) wie Seite und Bild – die Filter gelten also auch hier.
 //!
 //! **Wolke** (Nachtrag des Nutzers 2026-11-25): Einfälle ohne Platz – weder Elternknoten noch Bezug – liegen in der
-//! Wolke neben der Mindmap. Im Baum sind das die Kinder der Wurzel von der Art Einfall ([`cloud`]); alle Ausgaben
-//! führen sie als eigenen Ast „Wolke“ ([`CLOUD_ID`]) bzw. in Markdown als eigenen Abschnitt. Die Regel steht nur
-//! hier; ändert mindmap_daten die Darstellung der Wolke im Baum, ist [`cloud`]/[`placed`] die einzige Stelle.
+//! Wolke neben der Mindmap. Die Sicht [`Scene`] hängt sie hinter den Hauptästen an die Wurzel und nennt ihre
+//! Kennungen ([`cloud`]); alle Ausgaben führen sie als eigenen Ast „Wolke“ ([`CLOUD_ID`]) bzw. in Markdown als
+//! eigenen Abschnitt. Freie Hauptthemen (Einfälle direkt am Werk) sind dagegen gewöhnliche Hauptäste.
 //!
-//! [`filter_words`], [`origin_word`], [`links_of`] und [`tree_order`] sind die Helfer der alten Karte, die
-//! `idea_map/bild/mod.rs` im S1-Stand noch benutzt.
+//! [`filter_words`], [`origin_word`] und [`links_of`] nutzen auch die Seite (`idea_map/bild/mod.rs`) und die
+//! Gliederungsansicht.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use baruch_store::{IdeaId, IdeaLink, IdeaStatus, LinkKind};
 
-use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
-use crate::idea_map::{IdeaMap, MapFilter, MapNode, NearVia};
+use crate::idea_map::tree::{Scene, TreeKind, TreeNode};
+use crate::idea_map::{MapFilter, NearVia};
 
 /// „offen“ bzw. „verarbeitet“.
 pub fn status_label(status: IdeaStatus) -> &'static str {
@@ -94,28 +94,6 @@ pub fn links_of(idea: IdeaId, links: &[IdeaLink]) -> Vec<(&IdeaLink, &'static st
     out
 }
 
-/// Knoten in der Reihenfolge der Karte mit ihrer Tiefe (Werk 0); Kinder direkt hinter ihren Eltern.
-pub fn tree_order(map: &IdeaMap) -> Vec<(&MapNode, usize)> {
-    let mut out = Vec::new();
-    fn walk<'a>(map: &'a IdeaMap, parent: &str, depth: usize, out: &mut Vec<(&'a MapNode, usize)>) {
-        for node in map.nodes.iter().filter(|n| n.parent.as_deref() == Some(parent)) {
-            if out.iter().any(|(n, _): &(&MapNode, usize)| n.id == node.id) || depth > 16 {
-                continue;
-            }
-            out.push((node, depth));
-            walk(map, &node.id, depth + 1, out);
-        }
-    }
-    walk(map, "w", 1, &mut out);
-    // Knoten mit unbekanntem Elternknoten nicht verlieren.
-    for node in &map.nodes {
-        if node.id != "w" && !out.iter().any(|(n, _)| n.id == node.id) {
-            out.push((node, 1));
-        }
-    }
-    out
-}
-
 // ---- Wolke und Blatt -----------------------------------------------------------------------------
 
 /// Kennung des Astes „Wolke“ in den Ausgaben (XMind: Themen-id, FreeMind: `ID_baruchwolke`). Der eigene Leser
@@ -124,14 +102,14 @@ pub const CLOUD_ID: &str = "baruch-wolke";
 /// Titel des Astes „Wolke“.
 pub const CLOUD_TITLE: &str = "Wolke";
 
-/// Die Wolke: Einfälle ohne Platz (Kinder der Wurzel von der Art Einfall), samt ihren Unterknoten.
-pub fn cloud(map: &MindMap) -> Vec<&TreeNode> {
-    map.root.children.iter().filter(|n| n.kind == TreeKind::Idea).collect()
+/// Die Wolke: Einfälle ohne Platz ([`Scene::cloud`]), samt ihren Unterknoten.
+pub fn cloud(scene: &Scene) -> Vec<&TreeNode> {
+    scene.cloud_nodes()
 }
 
-/// Die Hauptäste der Mindmap ohne die Wolke (Teile und Kapitel).
-pub fn placed(map: &MindMap) -> Vec<&TreeNode> {
-    map.root.children.iter().filter(|n| n.kind != TreeKind::Idea).collect()
+/// Die Hauptäste der Mindmap ohne die Wolke (Teile, Kapitel und freie Hauptthemen).
+pub fn placed(scene: &Scene) -> Vec<&TreeNode> {
+    scene.branches()
 }
 
 /// „1.2 Titel“ bzw. „Titel“ (Einfälle tragen keine Nummer).
@@ -186,15 +164,16 @@ fn out_node(node: &TreeNode) -> OutNode {
 
 /// Das Blatt der Mindmap: die Hauptäste in ihrer Reihenfolge, danach – falls es Einfälle ohne Platz gibt – der Ast
 /// „Wolke“. Beziehungen nur zwischen Einfällen, die im Baum stehen (nicht gelöscht).
-pub fn sheet(map: &MindMap) -> Sheet {
+pub fn sheet(scene: &Scene) -> Sheet {
+    let map = &scene.map;
     let mut root = OutNode {
         id: map.root.id.clone(),
         title: if map.title.trim().is_empty() { node_title(&map.root) } else { map.title.clone() },
         note: String::new(),
         words: Vec::new(),
-        children: placed(map).into_iter().map(out_node).collect(),
+        children: placed(scene).into_iter().map(out_node).collect(),
     };
-    let loose = cloud(map);
+    let loose = cloud(scene);
     if !loose.is_empty() {
         root.children.push(OutNode {
             id: CLOUD_ID.to_owned(),
@@ -263,21 +242,22 @@ fn md_node(out: &mut String, node: &TreeNode, depth: usize) {
 
 /// Markdown: Titel, Filter, der Baum als verschachtelte Liste (Notizen eingerückt unter ihrem Knoten), der Abschnitt
 /// „Wolke“ (Einfälle ohne Platz), danach „Beziehungen“, „Widersprüche“ und (falls gezeigt) „Nähe“.
-pub fn markdown(map: &MindMap) -> String {
+pub fn markdown(scene: &Scene) -> String {
+    let map = &scene.map;
     let mut out = String::new();
     let _ = writeln!(out, "# Mindmap: {}\n", md(&map.title));
     let filter = filter_words(&map.filter);
     if !filter.is_empty() {
         let _ = writeln!(out, "Filter: {}\n", md(&filter));
     }
-    let branches = placed(map);
+    let branches = placed(scene);
     if branches.is_empty() {
         let _ = writeln!(out, "Keine Äste.");
     }
     for node in branches {
         md_node(&mut out, node, 0);
     }
-    let loose = cloud(map);
+    let loose = cloud(scene);
     let _ = writeln!(out, "\n## Wolke\n");
     if loose.is_empty() {
         let _ = writeln!(out, "Leer: Kein Einfall ohne Platz.");

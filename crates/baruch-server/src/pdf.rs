@@ -65,7 +65,7 @@ pub enum PdfKind {
     Cover,
     /// Stichwortzettel (Runde 16c, [`notes`]).
     Notes,
-    /// Gedankenkarte (Runde 25, `crate::idea_map::bild`): die Karte der Einfälle als eine Seite.
+    /// Mindmap (Runde 25/34, `crate::idea_map::files`): die Mindmap der Einfälle als eine Seite.
     Map,
 }
 
@@ -75,7 +75,7 @@ impl PdfKind {
             PdfKind::Book => "Buch",
             PdfKind::Cover => "Umschlag",
             PdfKind::Notes => "Stichwortzettel",
-            PdfKind::Map => "Gedankenkarte",
+            PdfKind::Map => "Mindmap",
         }
     }
 }

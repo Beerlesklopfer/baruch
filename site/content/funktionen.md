@@ -85,8 +85,9 @@ Mehr dazu unter [MCP und Assistenten](/mcp/).
 
 ## Einfälle, Literatur und Suche
 
-- **Einfälle** mit Schlagwörtern, Quelle und Bibelstelle; die **Gedankenkarte** zeigt sie um Teile und Kapitel,
-  mit Verbindungen und Widersprüchen.
+- **Einfälle** mit Titel, Schlagwörtern, Quelle und Bibelstelle; die **Mindmap** zeigt sie als Äste an Teilen und
+  Kapiteln, mit Unterknoten, Verbindungen und Widersprüchen. Einfälle ohne Platz liegen in der Wolke daneben.
+  Austausch mit XMind, FreeMind und Freeplane.
 - **Autorenbibliothek** mit Zitierschlüsseln, Zitaten und Volltextsuche über Werk und Literatur.
 - **Bedeutungssuche:** findet Stellen nach dem Sinn, nicht nur nach dem Wortlaut („Trost im Leid“ findet auch
   „Gott wischt die Tränen ab“). Der Suchindex liegt auf dem eigenen Rechner; weitere Quellen wahlweise.

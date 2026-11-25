@@ -239,15 +239,17 @@ Oben eine Kopfzeile mit den Menüs **Werk**, **Ansicht** und **Werkzeuge**, dem 
 - **Zitate prüfen:** Im Editor sind Bibelzitate als „stimmt“ oder „weicht ab“ markiert. Weicht ein Zitat nur
   durch Leerraumreste im Modul ab, heißt es „stimmt (Leerraum im Modul)“.
 
-### Einfälle und Gedankenkarte
+### Einfälle und Mindmap
 
 - **Einfälle:** Notizen mit Schlagwörtern, Gedanke, markiertem Text, Quelle und Bibelstelle, frei oder an
   einem Abschnitt. Schnellerfassung mit Alt+E. Ein Einfall wird mit einem Klick zum Gliederungspunkt,
   Beitrag, zur Notiz oder zum Auftrag an eine Persona. Volltext- und Bedeutungssuche.
-- **Gedankenkarte:** alle Einfälle eines Werks als Karte um Teile und Kapitel, mit Verbindungen („führt
-  weiter“, „gehört zu“, „Beispiel für“, „widerspricht“), Nähe aus der Bedeutungssuche, leeren Kapiteln und
-  Widersprüchen hervorgehoben. Einfälle per Ziehen einem Kapitel zuordnen oder verbinden; Assistenten schlagen
-  Gruppennamen vor. Ausgabe als SVG, PDF, Markdown und FreeMind.
+- **Mindmap:** alle Einfälle eines Werks als Mindmap – das Werk in der Mitte, Teile und Kapitel als Äste,
+  Einfälle als Unteräste beliebig tief; daneben die Wolke für Einfälle ohne Platz. Tab, Enter, F2, Ziehen und
+  Einklappen wie in XMind; Verbindungen („führt weiter“, „gehört zu“, „Beispiel für“, „widerspricht“) als
+  beschriftete Linien, Nähe aus der Bedeutungssuche als Vorschlag „passt zu Ast …“. Ohne JavaScript über die
+  Gliederungsansicht bedienbar. Ausgabe als XMind, FreeMind, SVG, PDF und Markdown; Einlesen von `.xmind` und
+  `.mm` (in echtem XMind und Freeplane noch nicht geprüft).
 
 ### Literatur und Suche
 

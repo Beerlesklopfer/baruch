@@ -398,7 +398,7 @@ wechselt ein Reiter über die Adresse (`?tab=start|einfuegen|pruefen|buch|ansich
 **Gruppen der Seite selbst:** Die Links, die früher hinter den Menüs in der Kopfzeile standen, stehen als Gruppen im
 Reiter der Seite – **Zurück** („Zurück zum Werk“, „Zurück zum Abschnitt“, „Werke“, „Alle Bilder“, „Alle Einfälle“,
 „Alle Fäden“, „Gliederung“, „Literatur“ auf `/quelle`), **Siehe auch** (z. B. „Register“ auf der Glossar-Seite,
-„Gedankenkarte“ auf der Liste der Einfälle), **Werke** („Neues Werk oder Import…“ und „Archiv“ auf `/werke`),
+„Mindmap“ auf der Liste der Einfälle), **Werke** („Neues Werk oder Import…“ und „Archiv“ auf `/werke`),
 **Herunterladen** bzw. **EPUB** (z. B. „Umschlag-PDF“, „EPUB herunterladen“) und **Weiter** („Zum Werk“ nach einem
 Import). Die **Satz-Seite** trägt im Reiter **Buch** die Gruppen **Zurück** (Zurück zum Werk), **Herunterladen**
 (PDF herunterladen), **Seiten** (‹ Seite n von N ›) und **Satzlauf** (Satz abbrechen); siehe „Satz (Typst-Vorschau)“.
@@ -1489,9 +1489,10 @@ Auf der **Arbeitsseite**:
   Vorschlag eines Assistenten „übernommen in dieser Fassung“ ist als „Vorschlag … (offen, der Mensch bestätigt)“
   gekennzeichnet.
 
-**Gedankenkarte:** Das Kästchen „Ebene Befunde“ im Filter (oder der Link „Ebene Befunde einblenden“, Adresse
-`?befunde=1`) zeigt an jedem Kapitel „k offen“ (samt Abschnitten); Kapitel mit drei oder mehr offenen Befunden haben
-einen kräftigen Ring und in der Gliederungsliste den Zusatz „viele“. Die Zahl verlinkt auf die Befunde des Kapitels.
+**Mindmap (früher Gedankenkarte):** Das Kästchen „Ebene Befunde“ im Filter (oder der Link „Ebene Befunde
+einblenden“, Adresse `?befunde=1`) zeigt an jedem Teil und Kapitel „k offen“ (samt Abschnitten); Äste mit drei oder
+mehr offenen Befunden sind dick umrandet, die Gliederungsansicht nennt „k offene Befunde“. Die Zahl verlinkt auf die
+Befunde des Kapitels.
 
 Tastatur (mit JavaScript): In der Matrix wandern die Pfeiltasten von Zelle zu Zelle, Pos1/Ende an den Zeilenrand,
 Enter öffnet die Zelle.
@@ -2330,119 +2331,211 @@ anlegen, ändern und löschen (Entscheidung IDEA_CRUD); die Herkunft steht am Ei
 Der Lektor kennt die Einfälle zum Abschnitt als Gedächtnis (seit Runde 10). Noch nicht umgesetzt: Er schlägt
 von sich aus passende Stellen vor (Runde „Werkzeuge der Personas“).
 
-## Gedankenkarte
+## Mindmap
 
-Die Gedankenkarte zeigt die Einfälle eines Werks als Karte um Werk, Teile und Kapitel (Runde 25): Einfälle an
-ihrem Bezug, Verbindungen zwischen Einfällen mit Art, auf Wunsch Nähe (fein gepunktet). Sie ist ohne JavaScript
-vollständig über Links und Formulare bedienbar; mit JavaScript kommen Zoom, Ziehen und Tastatur dazu.
+Seit Runde 34 ist die frühere Gedankenkarte eine **Mindmap wie in XMind**: das Werk in der Mitte, Äste rechts und
+links, Unteräste beliebig tief, daneben die **Wolke** als Ablage für Einfälle ohne Platz. Knoten der Mindmap sind
+die Einfälle des Werks (keine zweite Datenhaltung); jede Änderung ist ein Commit im Spiegel mit Herkunft.
 
-### Ohne JavaScript (karte-bild)
+**Aufrufen:** Reiter **Start → Einfälle → Mindmap** im Menüband (nur mit gewähltem Werk), der Knopf **Mindmap** auf
+der Liste der Einfälle oder direkt **`/werke/{id}/karte`**.
 
-**Aufrufen:** Reiter **Start → Gedankenkarte** im Menüband (nur mit gewähltem Werk), der Knopf **Gedankenkarte** auf der
-Liste der Einfälle (`/einfaelle?work=…`) oder direkt **`/werke/{id}/karte`**. Die Seite hat das gewohnte
-Menüband, folgt Hell/Dunkel und lässt sich drucken (Druckbild: nur Karte, Gliederung und Widersprüche, schwarz auf
-weiß, ohne Formulare).
 
-**Das Bild:** In der Mitte das Werk, im ersten Ring die Teile (bzw. Kapitel ohne Teil) und die Wolke **„Ohne
-Kapitel“** für Einfälle ohne Bezug, weiter außen die Kapitel eines Teils. Abschnitte sind in ihr Kapitel
-zusammengefasst; ein Einfall an einem Abschnitt hängt am Kapitel (der genaue Abschnitt steht in der Liste). Die
-Zahl im Kreis eines Teils oder Kapitels ist die Zahl seiner **offenen** Einfälle, samt denen seiner Kapitel und
-Abschnitte (ein Teil zählt also alles darunter; beim Aufklappen eines Kapitels bleibt seine Zahl gleich). **Zeigen,
-was fehlt:** Ein Teil oder Kapitel ohne einen einzigen Einfall ist hervorgehoben – gestrichelter Rand in der
-Warnfarbe und das Wort **„leer“** im Kreis, in der Gliederungsliste das Schild „leer“. Einfälle sind kleine Kreise mit ihrer Nummer und dem Anfang der Schlagwörter, offen gelb, verarbeitet
-grün; ein dicker Rand heißt „von Hand platziert“ (gespeicherte Lage). Jeder Kreis ist ein Link: Teil/Kapitel öffnen
-den Abschnitt im Editor, ein Einfall seine Seite `/einfaelle/{id}`; der volle Text steht im Tooltip. Die Anordnung
-berechnet Baruch jedes Mal gleich, ohne Überlappung der Kreise (auch bei Hunderten von Einfällen).
+Die Mindmap eines Werks steht unter **Start → Einfälle → Mindmap** (Adresse `/werke/{id}/karte`, alte Lesezeichen
+der Gedankenkarte gelten weiter). In der Mitte steht das Werk, rechts und links davon die Hauptäste: die Teile bzw.
+Kapitel in der Reihenfolge der Gliederung, danach die **freien Hauptthemen** (Einfälle, die direkt am Werk
+hängen); die erste Hälfte steht rechts, die zweite links. Jeder Hauptast hat eine eigene
+Farbe, die alle Unteräste erben. Einfälle hängen an ihrem Kapitel, als Unterknoten an einem anderen Einfall (beliebig tief) oder
+als Hauptthema am Werk. Teile und Kapitel gehören zur Gliederung: In der Mindmap lassen sie sich nicht umbenennen,
+verschieben oder löschen (dafür gilt die Antragsregel der Gliederung).
 
-**Verbindungen** zwischen Einfällen sind Linien mit eigener **Strichart**, nicht nur eigener Farbe (Legende unter
-dem Bild): „führt weiter“ durchgezogen, „gehört zu“ gestrichelt, „Beispiel für“ gepunktet, „widerspricht“
-Strich-Punkt (ungerichtet). Seit Runde 18a trägt **jede Verbindung ihre Art als Beschriftung** in der Mitte der
-Linie („führt weiter“ …), und die gerichteten Arten haben eine **Pfeilspitze** am Ziel („widerspricht“ nicht). Der
-**Bezug** eines Einfalls zu seinem Kapitel ist fein gestrichelt, der Baum der Gliederung durchgezogen. **Nähe** (nur
-angezeigt, nie gespeichert) ist eine feine gepunktete Linie mit der Beschriftung „nah“; fehlt die Bedeutungssuche,
-steht über dem Bild ein ehrlicher Hinweis. Dasselbe gilt für SVG und PDF; FreeMind kennt keine Strichart und
-bekommt die Farbe der Art am Pfeil.
+Zeichen am Knoten:
 
-**Filter** (Formular über dem Bild, per GET – die Adresse lässt sich speichern): Status (alle/offen/verarbeitet),
-Schlagwort, Herkunft (Mensch/Persona/MCP) entfernen nicht passende Einfälle samt Linien; **Suche** hebt Treffer
-hervor und blendet den Rest ab; **Nähe zeigen** schaltet die Nähe-Linien. „Abschnitte aufklappen“ in der Liste
-zeigt die Abschnitte eines Kapitels als eigene Knoten (`open=<key>`), „zuklappen“ fasst sie wieder zusammen.
+| Zeichen | Bedeutung |
+| --- | --- |
+| „−“ / „+ n“ an der Außenkante | Ast zuklappen bzw. aufklappen; `n` = Zahl der verborgenen Knoten |
+| Blatt-Symbol | Der Einfall hat Notiz, Zitat, Quelle oder Bibelstelle (Tooltip zeigt die Notiz) |
+| „§“ | Der Einfall hat einen Bezug; der Link führt zum Abschnitt im Werk |
+| „k offen“ | Ebene „Befunde“: offene Befunde am Teil/Kapitel (ab 3 dick umrandet), Link zu den Befunden |
+| durchgestrichener Titel | Einfall ist verarbeitet |
+| blasser Knoten | passt nicht zur Suche bzw. steht nur wegen sichtbarer Unterknoten da |
 
-**Gliederungsliste** unter dem Bild: je Teil/Kapitel (eingerückt nach Tiefe) seine Einfälle mit Status, Herkunft,
-Gedanke und Verbindungen (`→ 79 führt weiter`, `← 12 Beispiel für`, `↔ 48 widerspricht`). Unter **„Bezug setzen,
-verbinden …“** je Einfall:
-- **Bezug setzen:** Teil, Kapitel oder Abschnitt wählen (oder „ohne Kapitel“) → ein Commit im Spiegel wie beim
-  Bearbeiten des Einfalls.
-- **Verbinden mit Einfall:** Nummer eintippen oder aus der Liste wählen, Art und Notiz (höchstens 500 Zeichen) →
-  ein Commit mit Herkunft.
-- **Lösen** neben jeder Verbindung (wiederherstellbar: danach bietet die Karte **„Wiederherstellen“** an).
+**Beziehungen** zwischen Einfällen sind gebogene Linien mit Beschriftung (Art, dazu die Notiz): „führt weiter“
+durchgezogen, „gehört zu“ gestrichelt, „Beispiel für“ gepunktet (alle mit Pfeil), „widerspricht“ rot, fett,
+Strich-Punkt und ohne Pfeil; Widersprüche stehen zusätzlich in der Liste „Widersprüche“ unter dem Bild. Ist ein
+Ende eingeklappt, endet die Linie am sichtbaren Vorfahren. **Nähe** (zuschaltbar im Menüband) zeigt fein gepunktete
+Linien zwischen ähnlichen Einfällen; sie ist nur Anzeige und wird nie gespeichert. Der Abschnitt „Gruppen“ (Namen
+vom Assistenten als Vorschlag) steht wie bisher unter dem Bild.
 
-Verbindungen gibt es nur zwischen Einfällen **desselben Werks**. Zieht ein Einfall in ein anderes Werk um (oder zu
-„ohne Werk“), löst Baruch dabei seine Verbindungen (wiederherstellbar, sobald beide wieder im selben Werk sind; der
-Commit nennt die gelösten Verbindungen) und vergisst seine von Hand gesetzte Lage auf der alten Karte.
+Gespeicherte Lagen der alten Gedankenkarte bleiben in der Datenbank, haben in der Mindmap aber keine Wirkung: Der
+Baum ordnet sich selbst.
 
-Hängt kein Einfall direkt an einem Teil oder Kapitel, wohl aber an Punkten darunter, steht in der Liste „Keine eigenen Einfälle; sie hängen an den Punkten
-darunter.“ statt „Keine Einfälle.“.
+### Die Wolke und ihre Verbindung zur Mindmap
 
-Darunter **Widersprüche**: alle Paare „widerspricht“ mit Notiz und „Lösen“.
+Unter dem Baum liegt die **Wolke**: die Ablage aller Einfälle ohne Platz – ohne Elternknoten, ohne Bezug und
+nicht als Hauptthema ans Werk gehängt (früher „Ohne Kapitel“). Bestehende Einfälle ohne Bezug liegen nach der
+Umstellung dort; nichts wird zum Hauptast, ohne dass jemand es dorthin zieht. Der Zähler „n in der Wolke“ steht in der Wolke und in der Leiste über
+dem Bild.
 
-**Werkzeugleiste** über dem Bild: **Ausgeben** als **SVG** (eigenständige Grafik), **PDF** (A4 quer),
-**Markdown** (Gliederung Kapitel → Einfälle → Verbindungen) und **FreeMind** (`.mm`, auch für Freeplane; Verbindungen
-als Pfeile, Gedanken als Notizen) – alle mit dem eingestellten Filter. **Anordnung zurücksetzen** verwirft alle von
-Hand gesetzten Lagen (kein Commit; Lagen sind nur Anzeige). **Gruppen benennen (Assistent)** (seit Runde 19b, vorher
-gesperrter Stub) lässt den Lektor (bzw. die Persona nach Einstellung) für jede **Gruppe** einen Namen vorschlagen.
+- **Aus der Wolke in die Mindmap:** Kärtchen auf einen Knoten ziehen – auf einen Einfall wird es dessen
+  Unterknoten, auf ein Kapitel oder einen Teil hängt es dort, auf das Werk wird es ein freies Hauptthema (eigener
+  Hauptast).
+- **Aus der Mindmap in die Wolke:** Einfall in die Wolke ziehen oder im Menüband „In die Wolke“.
+  **Entscheidung:** Der Einfall wandert **mit seinen Unterknoten**; sie bleiben an ihm hängen und werden in der
+  Wolke nicht einzeln gezeichnet (am Kärtchen steht „+ n“). Grund: Es ist dieselbe Regel wie beim Umhängen im Baum
+  (ein Ast bleibt ein Ast), nichts geht still verloren, und „Rückgängig“ stellt mit einem Schritt alles wieder her.
+  Wer nur den einen Einfall lösen will, zieht vorher dessen Unterknoten an einen anderen Knoten.
+- **Neue Einfälle** ohne Platz landen in der Wolke: Alt+E auf der Mindmap, die Schnellerfassung ohne Bezug und
+  MCP `idea_create` ohne `parent` und `key`. Tab am Werk legt dagegen ein freies Hauptthema an.
+- **Nähe als Hilfe:** Ist ein Kärtchen einem Einfall im Baum nah (gespeicherte Einbettungen oder gleiche
+  Schlagwörter), steht darunter der Vorschlag „passt zu Ast ‚…‘“ in der Farbe dieses Hauptasts (bestes Paar der
+  Nähe). Im Bild verschwindet er mit „Nähe ausblenden“; die Gliederungsansicht zeigt ihn immer, mit dem Knopf „Dort
+  einhängen“. Es ist nur ein Hinweis; einhängen muss der Mensch.
 
-**Gruppen** (Abschnitt unter der Gliederung, Runde 19b): Einfälle, die über die Nähe zusammenhängen (mindestens
-zwei; gleiche Schlagwörter oder ähnliche Einbettungen, mit dem Filter der Karte samt Partnern und Schwelle), heißen
-„g“ und die kleinste Nummer ihrer Einfälle, z. B. **g12**. Je Gruppe stehen ihre Einfälle und Schlagwörter. Nach
-„Gruppen benennen“ steht bei einer Gruppe der **Vorschlag** („Vorschlag von @lektor: „Licht und Schatten““) mit einem
-Namensfeld, **Übernehmen** und **Verwerfen**. Übernehmen setzt den (ggf. geänderten) Namen als **Schlagwort** an jeden
-Einfall der Gruppe – ein Commit je Einfall mit Herkunft „Autor“ im Spiegel; wer das Schlagwort schon hat, bleibt
-unverändert. Ohne Vorschlag lässt sich eine Gruppe unter „Selbst benennen …“ direkt benennen. **Wichtig:** Die
-Vorschläge liegen nur im Speicher von Baruch – nichts in der Datenbank, nichts im Spiegel; nach einem **Neustart**
-sind nicht übernommene Vorschläge weg (einfach erneut benennen lassen). Ein Assistent kann über MCP keine Gruppe
-benennen oder übernehmen. Alles geht ohne JavaScript (Formulare); läuft für das Werk schon eine Benennung, sagt die
-Karte das. Ohne Nähe („Nähe zeigen“ aus) zeigt die Liste keine Gruppen, der Knopf rechnet die Nähe trotzdem.
+### Maus und Tasten (mit JavaScript)
 
-Nach jedem Formular führt Baruch zurück auf die Karte mit demselben Filter und einer kurzen Rückmeldung; ein Fehler
-(etwa ein Einfall eines anderen Werks oder „Verbinden mit“ ohne Nummer) erscheint als Meldung oben auf der Karte.
-Auf der Seite eines Einfalls (`/einfaelle/{id}`) steht der Abschnitt **Verbindungen** mit „Lösen“ und einem Link
-„Auf der Gedankenkarte verbinden …“.
-<!-- Ende R25 karte-bild -->
+| Eingabe | Wirkung |
+| --- | --- |
+| Klick | wählt den Knoten (Strg/Umschalt+Klick auf den Titel öffnet den Einfall bzw. Abschnitt als Link) |
+| Doppelklick, F2 | benennt den gewählten Einfall um (Enter übernimmt, Esc verwirft); Werk, Teile, Kapitel nicht |
+| Tab | neuer Unterknoten des gewählten Knotens, sofort im Umbenennen (an Kapitel/Teil: Einfall mit diesem Bezug; am Werk: freies Hauptthema) |
+| Enter | neues Geschwister hinter dem gewählten Einfall (vor dem nächsten Geschwister); an Kapitel, Teil und Werk wie Tab |
+| Entf, Rücktaste | löscht den gewählten Einfall samt Unterknoten nach Rückfrage (wiederherstellbar); an einer gewählten Beziehung: löst sie |
+| Pfeil links/rechts | zum Eltern- bzw. ersten Kindknoten, je nach Seite des Asts; am Werk zum ersten Hauptast der Seite |
+| Pfeil hoch/runter | zum vorigen/nächsten Geschwister; vom Werk mit „runter“ in die Wolke, in der Wolke von Kärtchen zu Kärtchen |
+| Leertaste | klappt den gewählten Ast zu bzw. auf |
+| Strg+Mausrad, `+`, `-`, `0` | vergrößern, verkleinern, einpassen (auch Knöpfe „−“, „+“, „Einpassen“ über dem Bild) |
+| Fläche ziehen | verschiebt den Ausschnitt |
+| Einfall ziehen | auf einen Einfall: wird Unterknoten; auf dessen oberen/unteren Rand: davor/dahinter einordnen; auf Kapitel/Teil: hängt dort; aufs Werk: freies Hauptthema; in die Wolke: liegt dort samt Unterknoten |
+| Strg+Z | nimmt die letzte Aktion auf der Mindmap zurück (eine Stufe; auch Knopf „Rückgängig“ in der Meldung) |
+| Alt+L, „Verbinden“ | Beziehung vom gewählten Einfall zum nächsten gewählten (Klick oder Pfeile und Enter); Dialog mit Art und Notiz; Esc bricht ab |
+| Alt+E | neuer Einfall in der Wolke, sofort im Umbenennen |
+| Esc | bricht „Verbinden“ ab bzw. hebt die Auswahl auf (danach wandert Tab wieder normal durch die Seite) |
 
-### Mit JavaScript (karte-widget)
-Mit JavaScript wird die Karte zum Arbeitsplatz (Widget `idea-map`, `web/src/idea_map.ts`). Alles Folgende geht
-ohne JavaScript auch über die Links und Formulare der Seite; das Widget ändert daran nichts.
+Umschalt+Tab und Tab ohne gewählten Knoten bleiben beim Browser (kein Tastaturkäfig). Eingeklappte Äste merkt sich
+der Browser je Werk (`localStorage`); gespeichert wird davon nichts. Der Ausschnitt (Zoom, Lage) gilt bis zum
+Schließen des Tabs. Jede Aktion ist ein eigener Commit im Spiegel mit Herkunft Mensch, auch jede Umkehr.
 
-- **Zoomen:** Mausrad über der Karte (ohne Strg), die Knöpfe **+**, **−** und **Einpassen** in der
-  Werkzeugleiste oder die Tasten **+**, **−** und **0** (Einpassen). Strg+Mausrad vergrößert wie überall nur den
-  Bereich unter dem Mauszeiger. **Verschieben:** auf einer leeren Stelle der Karte ziehen. Der Ausschnitt bleibt
-  beim Neuladen erhalten (im Browser dieses Fensters).
-- **Einfall ziehen und ablegen:**
-  - auf einem **Teil, Kapitel oder Abschnitt** → der Einfall bekommt diesen Bezug (ein Commit im Spiegel), die
-    Karte lädt neu; auf **„Ohne Kapitel“** → der Bezug fällt weg;
-  - auf einem **anderen Einfall** → ein kleiner Dialog fragt nach der **Art** der Verbindung („führt weiter“,
-    „gehört zu“, „Beispiel für“, „widerspricht“) und einer Notiz (höchstens 500 Zeichen); **Verbinden** legt sie
-    an (ein Commit), **Abbrechen** oder Escape lässt alles, wie es war;
-  - **frei** auf der Fläche → Baruch merkt sich die Lage des Einfalls (der Knoten wird als „angeheftet“
-    gezeichnet); die Linien wandern beim Ziehen mit. Lagen sind reine Anzeige und machen keinen Commit.
-- **Anordnung zurücksetzen** (Werkzeugleiste) vergisst alle gemerkten Lagen dieses Werks; die Karte ordnet sich
-  wieder selbst an.
-- **Klick auf einen Einfall** (oder Enter) öffnet die **Seitenleiste**: Schlagwörter, Gedanke und Status ändern
-  und **Speichern**, **Schließen** (Escape) oder zur **Seite des Einfalls**. Sie beginnt am oberen Rand des Bilds
-  und lässt die Werkzeugleiste frei (Runde 18a). Mit Strg oder der mittleren Maustaste
-  öffnet der Klick wie ohne JavaScript die Seite des Einfalls.
-- **Tastatur:** Tab führt in die Karte (zuerst zum Werk), die **Pfeiltasten** wandern zum nächsten Knoten in der
-  Richtung (ein Knoten außerhalb des Ausschnitts wird in die Mitte geholt). **Enter** öffnet bei einem Einfall die
-  Seitenleiste, bei Teil oder Kapitel dessen Abschnitt. **V** startet das Verbinden vom gewählten Einfall: Ziel mit
-  den Pfeilen wählen, **Enter** öffnet den Dialog der Verbindung, **Escape** bricht ab. **N** blendet die Nähe ein
-  und aus (die Adresse merkt sich `near=0|1`, „Anwenden“ im Filter behält die Wahl). **Alt+E** legt in der Karte
-  einen neuen Einfall an – mit dem Bezug des gewählten Knotens (Kapitel bzw. Bezug des gewählten Einfalls; beim
-  Werk und bei „Ohne Kapitel“ ohne Bezug); die Karte lädt danach neu.
-- Bildschirmleser: Jeder Knoten hat eine Beschriftung („Einfall 12: Laube, Rose (offen)“), die Karte eine
-  Tastaturhilfe, und Meldungen („Lage gemerkt“, „Verbinden abgebrochen“, Fehler) kommen über eine Live-Region; die
-  Seitenleiste ist ebenfalls eine Live-Region.
-<!-- Ende R25 karte-widget -->
+Die Tests prüfen die Aufrufe, die das Widget absetzt, und das Bild, das der Server danach liefert; in der
+Sichtprüfung lief es in Firefox mit künstlichen Ereignissen. Echte Maus und Tastatur, Zoom und Pfeiltasten sind
+Handprüfung (siehe `HANDOFF.md`).
+
+### Ohne JavaScript
+
+Die Seite ist dann ein Bild mit Links: „−“/„+ n“ klappen über die Adresse (`zu=<Kennungen>`), „§“ führt zum
+Abschnitt, der Titel eines Einfalls zu seiner Seite, der eines Kapitels ins Werk. „Alles aufklappen/zuklappen“,
+„Nähe“ und „Ebene Befunde“ im Menüband sind Links, der Filter ein GET-Formular. Die Knöpfe der Gruppe „Knoten“
+(Unterknoten, Geschwister, Umbenennen, Löschen, Verbinden, In die Wolke, Rückgängig) führen ohne JavaScript in die
+**Gliederungsansicht** (`/werke/{id}/karte/gliederung`); dort stehen die Formulare, auch „in die Mindmap unter …“,
+„Als Hauptthema ans Werk“ und „in die Wolke“. Das Bild rollt in seinem Rahmen in voller Größe.
+
+Menüband der Seite (Reiter Start, Gruppen als `details.band-group[data-band-group]` wie in Runde 33, also auch im
+Laptop-Modus): **Knoten**, **Ansicht** (Alles auf-/zuklappen, Nähe, Ebene Befunde), **Ausgabe** (XMind, FreeMind,
+SVG, PDF, Markdown – mit dem Filter der Seite), **Einlesen**, **Gliederungsansicht**, **Zurück**.
+
+### Gliederungsansicht
+
+`/werke/{id}/karte/gliederung` – im Menüband der Mindmap unter „Gliederungsansicht“. Die Seite zeigt dieselbe
+Mindmap als verschachtelte Liste und bedient sie ganz ohne JavaScript:
+
+- Links die Äste (Teile, Kapitel, Hauptthemen) mit dem Formular „Neues Hauptthema“; jeder Knoten mit Unterknoten
+  lässt sich auf- und zuklappen. Rechts die Wolke mit dem Zähler, dem Formular „Neuer Einfall … In die Wolke legen“
+  und den Vorschlägen „passt zu Ast …“ samt Knopf „Dort einhängen“.
+- „Bearbeiten“ (bei Kapiteln „Wählen“) wählt einen Knoten; oben erscheinen seine Formulare:
+  **Umbenennen**, **Unterknoten anlegen**, **Geschwister anlegen** (direkt hinter dem Knoten), **Umhängen unter …**
+  (bei Wolken-Einfällen „In die Mindmap unter …“), **Als Hauptthema ans Werk**, **In die Wolke**, **Reihenfolge** (nach oben, nach unten),
+  **Bezug setzen** (Link zu einem Kapitel; ein genauerer Bezug auf einen Unterabschnitt lässt sich auf der Seite
+  des Einfalls setzen), **Verbinden** (Art und Beschriftung) samt **Lösen**, **Löschen**.
+- Löschen entfernt den Einfall samt Unterknoten; die Meldung bietet „Rückgängig“ an, und unten steht die Liste
+  „Gelöschte Einfälle“ mit „Wiederherstellen“.
+- Teile und Kapitel gehören zur Gliederung des Werks: An sie lässt sich ein Einfall hängen, umbenannt, verschoben
+  und gelöscht werden sie nur in der Gliederung (Antragsregel).
+- Unter dem Baum: „Beziehungen“ (mit „Lösen“) und „Widersprüche“.
+- Der Filter (Status, Schlagwort, Herkunft, Suche) gilt wie auf der Mindmap und bleibt nach jedem Formular
+  erhalten.
+
+### Ausgabe
+
+Im Menüband (Gruppe „Ausgabe“), jeweils mit dem Filter der Seite:
+
+| Datei | Inhalt |
+|---|---|
+| `.xmind` | XMind (ZIP mit `content.json`, `metadata.json`, `manifest.json`) |
+| `.mm` | FreeMind/Freeplane |
+| `.svg` | das Bild der Mindmap als eigenständige Datei |
+| `.pdf` | dasselbe Bild auf A4 quer, mit Titel und Filter |
+| `.md` | Markdown: der Baum als verschachtelte Liste (Notizen eingerückt), danach „Wolke“, „Beziehungen“, „Widersprüche“ |
+
+Die Einfälle der Wolke stehen in `.xmind` und `.mm` als eigener, letzter Ast **„Wolke“**, in `.md` als eigener
+Abschnitt. In `.svg`/`.pdf` gilt, was die Mindmap zeichnet; eingeklappte Knoten (`zu=`) bleiben dort eingeklappt,
+in `.mm` und `.xmind` ist nie etwas eingeklappt.
+
+**Was wird übertragen (`.xmind`, `.mm`)**
+
+| Angabe | übertragen | wie |
+|---|---|---|
+| Titel | ja | Kapitel mit Nummer („1 Helling“) |
+| Notiz | ja | `.xmind`: `notes.plain.content`; `.mm`: `richcontent TYPE="NOTE"`, je Zeile ein Absatz |
+| Schlagwörter | ja | `.xmind`: `labels`; `.mm`: Attribut „Schlagwort“ je Wort |
+| Beziehungen | ja | `.xmind`: `relationships` (`end1Id`, `end2Id`, `title`); `.mm`: `arrowlink` mit `MIDDLE_LABEL` (Freeplane; FreeMind zeigt die Beschriftung nicht). Beschriftung = Art und Notiz („führt weiter: …“) |
+| Reihenfolge | ja | Reihenfolge der Knoten in der Datei |
+| Wolke | ja | als Ast „Wolke“ |
+| Status (offen/verarbeitet) | nein | nur in `.md` als Text |
+| Herkunft | nein | nur in `.md` als Text |
+| Bezug (Abschnitt) | nein | nur in `.md` als Text; in den Dateien hängt der Einfall an seinem Kapitel |
+| Zitat, Quelle, Bibelstelle | nein | – |
+| Art der Beziehung | nur als Text | steckt in der Beschriftung; `.mm` färbt zusätzlich je Art |
+| Lagen | nein | bleiben in Baruch gespeichert |
+| Bilder, Stile, Marker, Eingeklapptes | nein | – |
+
+### Einlesen
+
+`/werke/{id}/karte/einlesen` – im Menüband unter „Einlesen“. Baruch liest eine Mindmap aus XMind (`.xmind`),
+FreeMind oder Freeplane (`.mm`):
+
+1. Datei wählen, wahlweise „unter Knoten …“ (ein Einfall des Werks). Ohne Zielknoten werden die obersten Knoten
+   **freie Hauptthemen am Werk** (eigene Hauptäste) – wer eine Mindmap einliest, will sie in der Mindmap sehen.
+2. Die **Vorschau** zeigt den gelesenen Baum, die Zahl der Knoten und Hinweise (Gekürztes, Übergangenes). Es ist
+   noch nichts angelegt.
+3. „Anlegen“ legt die Knoten als Einfälle an (ein Commit im Spiegel, Herkunft Mensch) und führt zur Mindmap.
+
+Übernommen werden Titel, Notizen (HTML wird reiner Text), Schlagwörter (XMind: Etiketten; `.mm`: Attribut
+„Schlagwort“), Reihenfolge und Beziehungen (als „führt weiter“ mit der Beschriftung als Notiz). Das **Hauptthema**
+der Datei wird nicht selbst zum Einfall: Seine Kinder werden Hauptthemen bzw. Unterknoten des gewählten
+Knotens. Eine von Baruch selbst ausgegebene Datei lässt sich wieder einlesen; der Ast „Wolke“ wird dabei aufgelöst (seine Einfälle
+kommen wie die übrigen als Hauptthemen an).
+Kapitel aus einer eigenen Ausgabe kommen dabei als gewöhnliche Einfälle zurück – das Einlesen legt nie
+Gliederungspunkte an.
+
+Grenzen (fremde Dateien sind fremde Eingabe): Datei höchstens 10 MiB; höchstens 2000 Knoten und 32 Ebenen; Titel
+werden auf 200, Notizen auf 4000 Zeichen gekürzt (mit Hinweis in der Vorschau); höchstens 20 Schlagwörter je Knoten.
+Ein `.xmind`-Archiv darf höchstens 50 Einträge haben und entpackt höchstens 20 MiB groß sein. Dateien im alten
+**XMind-8-Format** (nur `content.xml`) werden abgelehnt: bitte in einem aktuellen XMind öffnen und neu speichern
+oder als `.mm` ausgeben. `.mm`-Dateien müssen UTF-8 oder ASCII sein (FreeMind und Freeplane schreiben so).
+
+### Annahmen zu XMind und Freeplane (Handprüfung des Nutzers)
+
+Der Aufbau der `.xmind`-Datei folgt der offenen Beschreibung des Formats **aus dem Gedächtnis**. Geprüft ist nur
+die Rundreise mit dem eigenen Leser (Tests), **nicht** mit einem echten XMind oder Freeplane. Bitte von Hand
+prüfen (Werk 3: `.xmind` in XMind, `.mm` in Freeplane öffnen; eine dort gespeicherte Datei wieder einlesen):
+
+| Annahme | Risiko, falls sie nicht stimmt |
+|---|---|
+| XMind (2020 und neuer) öffnet ein ZIP mit `content.json`, `metadata.json`, `manifest.json` ohne `content.xml` und ohne Vorschaubild | Datei öffnet nicht; dann fehlt ein Pflichteintrag |
+| `content.json` ist ein Feld von Blättern; ein Blatt hat `id`, `class: "sheet"`, `title`, `rootTopic`, `relationships` | Blatt wird nicht erkannt |
+| Themen: `id`, `class: "topic"`, `title`, `children.attached`, `notes.plain.content`, `labels` | Notizen oder Etiketten fehlen |
+| `structureClass: "org.xmind.ui.map.unbalanced"` am Hauptthema verteilt die Äste rechts und links | andere Anordnung (nur Darstellung) |
+| Themen-ids dürfen beliebige Texte sein (`i:12`, `n:7`, `baruch-wolke`); XMind verlangt keine UUID | Beziehungen oder Themen fehlen |
+| `relationships`: `id`, `end1Id`, `end2Id`, `title` genügen (keine Kontrollpunkte, kein Stil) | Beziehungslinien fehlen |
+| `manifest.json` mit `file-entries` für `content.json` und `metadata.json` | Warnung beim Öffnen |
+| Beim Einlesen: frei schwebende Themen stehen unter `children.detached`; HTML-Notizen unter `notes.realHTML.content` | diese Inhalte fehlen nach dem Einlesen (Hinweis in der Vorschau nur für die freien Themen) |
+| Freeplane liest `MIDDLE_LABEL` an `arrowlink` und zeigt Attribute („Schlagwort“) an; FreeMind 1.0.1 übergeht `MIDDLE_LABEL` | Beschriftung der Beziehung fehlt in der Anzeige |
+| Freeplane schreibt Beschriftungen als `MIDDLE_LABEL` (sonst `SOURCE_LABEL`/`TARGET_LABEL`) und Notizen als `richcontent TYPE="NOTE"` | Beschriftung oder Notiz fehlt nach dem Einlesen |
+
+Nicht gelesen werden: weitere Blätter einer XMind-Datei (Hinweis), Zusammenfassungen und Sprechblasen, Bilder,
+Marker, Stile, andere Attribute als „Schlagwort“, Freeplane-Details (`richcontent TYPE="DETAILS"`).
+
+<!-- Ende R34 Mindmap -->
 
 ## Fäden
 

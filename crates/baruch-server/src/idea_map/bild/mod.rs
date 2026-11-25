@@ -25,9 +25,7 @@
 //! Die Daten liefern [`crate::idea_map::tree::tree`] (Baum) und [`crate::idea_map::build`] (Gruppen der Nähe); hier
 //! entstehen Zeichnung und Seite. Kein Buchtext ändert sich.
 
-pub mod layout;
 pub mod mindmap;
-pub mod svg;
 pub mod tree_layout;
 
 use std::collections::{BTreeSet, HashMap};
@@ -44,7 +42,7 @@ use minijinja::{Environment, Value, context};
 
 use crate::AppState;
 use crate::idea_map::files::export;
-use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
+use crate::idea_map::tree::{Scene, TreeNode};
 use crate::idea_map::{IdeaMap, MapFilter, NearState};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{Settings, query_escape};
@@ -233,25 +231,6 @@ pub(crate) async fn work_info(state: &AppState, work: WorkId) -> Result<Option<(
     }
 }
 
-/// Karte und Anordnung; unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
-// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler); ein `Box` änderte alle Aufrufer.
-#[allow(clippy::result_large_err)]
-pub(crate) async fn load(
-    state: &AppState,
-    work: WorkId,
-    filter: &MapFilter,
-) -> Result<(String, IdeaMap, layout::Layout), Response> {
-    let slug = match work_info(state, work).await? {
-        Some((slug, _)) => slug,
-        None => return Err(plain(StatusCode::NOT_FOUND, "unbekanntes Werk")),
-    };
-    let map = crate::idea_map::build(state, work, filter)
-        .await
-        .map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))?;
-    let layout = layout::layout(&map);
-    Ok((slug, map, layout))
-}
-
 /// Rückmeldung zu `ok=<wort>`.
 fn notice_of(ok: &str) -> &'static str {
     match ok {
@@ -262,8 +241,12 @@ fn notice_of(ok: &str) -> &'static str {
         "wiederhergestellt" => "Verbindung wiederhergestellt.",
         "zurueckgesetzt" => "Gespeicherte Lagen verworfen (in der Mindmap ohne Wirkung: Der Baum ordnet sich selbst).",
         "angelegt" => "Einfall angelegt.",
+        "umbenannt" => "Umbenannt.",
         "umgehaengt" => "Einfall umgehängt.",
-        "geloescht" => "Einfall gelöscht (wiederherstellbar).",
+        "in-wolke" => "In die Wolke gelegt (mit seinen Unterknoten).",
+        "ort-unveraendert" => "Der Einfall steht schon dort; nichts geändert.",
+        "geloescht" => "Einfall gelöscht samt Unterknoten (wiederherstellbar in der Gliederungsansicht).",
+        "einfall-wieder" => "Einfall wiederhergestellt.",
         "eingelesen" => "Datei eingelesen: Die Knoten sind als Einfälle angelegt.",
         "benannt" => {
             "Der Assistent hat Namen vorgeschlagen (unten bei „Gruppen“). Schlagwort wird ein Name erst, wenn du ihn übernimmst."
@@ -290,10 +273,9 @@ fn view_query(filter: &MapFilter, closed: &[String]) -> String {
 }
 
 /// Das Bild als Fragment für die Seite (`standalone: false`); der gewählte Knoten (`wahl`) trägt `aria-current`.
-fn draw(map: &MindMap, extra: &Extra) -> String {
-    let options =
-        mindmap::RenderOptions { standalone: false, closed: extra.closed.clone(), back: filter_query(&map.filter) };
-    let svg = mindmap::render(map, &options).svg;
+fn draw(scene: &Scene, extra: &Extra) -> String {
+    let options = mindmap::RenderOptions::of(scene, false, extra.closed.clone());
+    let svg = mindmap::render(&scene.map, &options).svg;
     match &extra.wahl {
         // Kennungen bestehen nur aus Buchstabe, Doppelpunkt und Ziffern ([`node_id`]); Titel sind maskiert und
         // können das Muster (mit Anführungszeichen) nicht enthalten.
@@ -307,11 +289,11 @@ fn draw(map: &MindMap, extra: &Extra) -> String {
 /// Baum der Mindmap; unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
 // `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler).
 #[allow(clippy::result_large_err)]
-async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<MindMap, Response> {
+async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<Scene, Response> {
     if work_info(state, work).await?.is_none() {
         return Err(plain(StatusCode::NOT_FOUND, "unbekanntes Werk"));
     }
-    crate::idea_map::tree::tree(state, work, filter)
+    crate::idea_map::tree::scene(state, work, filter)
         .await
         .map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))
 }
@@ -326,10 +308,11 @@ pub(crate) async fn page_response(
     status: StatusCode,
     error: Option<String>,
 ) -> Response {
-    let map = match load_tree(state, work, filter).await {
-        Ok(map) => map,
+    let scene = match load_tree(state, work, filter).await {
+        Ok(scene) => scene,
         Err(response) => return response,
     };
+    let map = &scene.map;
     // Gruppen der Nähe (R19b) rechnen auf der flachen Karte; sie wird dafür ein zweites Mal gebaut (gleicher Filter).
     let flat: Option<IdeaMap> = crate::idea_map::build(state, work, filter).await.ok();
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
@@ -361,10 +344,10 @@ pub(crate) async fn page_response(
         .root
         .children
         .iter()
-        .filter(|c| c.kind != TreeKind::Idea && !c.children.is_empty())
+        .filter(|c| !scene.in_cloud(&c.id) && !c.children.is_empty())
         .map(|c| c.id.clone())
         .collect();
-    let cloud = mindmap_cloud_count(&map);
+    let cloud = scene.cloud_count;
 
     let contradictions: Vec<Value> = map
         .links
@@ -412,7 +395,7 @@ pub(crate) async fn page_response(
         settings => Value::from(Serde(settings)),
         work => context! { id => work, title => map.title.as_str() },
         title => map.title.as_str(),
-        svg => Value::from_safe_string(draw(&map, &view)),
+        svg => Value::from_safe_string(draw(&scene, &view)),
         back => query.as_str(),
         zu => closed.join(","),
         wahl => extra.wahl.as_deref().unwrap_or(""),
@@ -466,11 +449,6 @@ pub(crate) async fn page_response(
     }
 }
 
-/// Zahl der Einfälle in der Wolke (direkt am Werk).
-fn mindmap_cloud_count(map: &MindMap) -> usize {
-    tree_layout::cloud_ideas(map).len()
-}
-
 // ---- Handler (GET) -------------------------------------------------------------------------------
 
 async fn page(
@@ -491,11 +469,11 @@ async fn image(
     Query(pairs): Query<Vec<(String, String)>>,
 ) -> Response {
     let (filter, extra) = parse_filter(&pairs);
-    let map = match load_tree(&state, work, &filter).await {
-        Ok(map) => map,
+    let scene = match load_tree(&state, work, &filter).await {
+        Ok(scene) => scene,
         Err(response) => return response,
     };
-    let svg = draw(&map, &extra).replacen("<svg ", "<svg xmlns=\"http://www.w3.org/2000/svg\" ", 1);
+    let svg = draw(&scene, &extra).replacen("<svg ", "<svg xmlns=\"http://www.w3.org/2000/svg\" ", 1);
     ([(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], svg).into_response()
 }
 

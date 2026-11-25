@@ -15,7 +15,7 @@ Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33
   - Ohne JavaScript bedienbar bleiben (Reiter als Links/Details-Elemente, Popups als <details>), Tastatur und Bildschirmleser (ARIA tablist/menu), hell/dunkel. Nach dem Umbau die Bildschirmfotos der Webseite neu aufnehmen.
   - **Reihenfolge:** vor der Hilfe-Runde (die Bildschirmfotos je Punkt sollen das neue Band zeigen). Neue Planung: R33 Menüband und Laptop-Modus, R34 Konten und Rollen, R35 Hilfe auf der Webseite, R36 Reste (inkl. Typst-Alias, Pages je Commit, sqlx 0.9).
 - **Nächste Version 0.9.1 (Nutzer 2026-11-24).** Das Release v0.9.0 ist zurückgezogen („das sieht nicht nach 0.9.0 aus“; Release und Tag bei GitHub gelöscht, Webseite ohne Downloads/APT). 0.9.1 erscheint nach den Runden 32–36.
-- **Echte Mindmap wie XMind (Nutzer 2026-11-24, für 0.9.1: „Daran sind zu viele gewöhnt. Mit der Gedankenwolke können zu wenige etwas anfangen.“).** Die Gedankenkarte (Einfälle um Teile/Kapitel, Wolke „Ohne Kapitel“) wird zu einer gewohnten Mindmap: zentrales Thema (Werk), Äste nach rechts/links, Unteräste, Knoten direkt anlegen/umbenennen/ziehen/einklappen, Tastatur wie XMind/FreeMind (Tab = Kind, Enter = Geschwister, F2 = umbenennen, Entf = löschen mit Rückfrage), Verbindungen und Notizen, Ausgabe nach FreeMind/Freeplane (.mm) sowie SVG/PDF/Markdown wie heute; möglichst Import/Export von .xmind (offenes ZIP-Format, prüfen). Knoten bleiben Einfälle (kein Buchtext, volles CRUD auch für Assistenten mit Herkunft). Ohne JavaScript bedienbar (Gliederungsansicht der Mindmap). → eigene Runde nach dem Menüband (R33), Reihenfolge mit dem PM.
+- **(erledigt in Runde 34, 2026-11-25; Reste unter „Nach Runde 34 offen“)** **Echte Mindmap wie XMind (Nutzer 2026-11-24, für 0.9.1: „Daran sind zu viele gewöhnt. Mit der Gedankenwolke können zu wenige etwas anfangen.“).** Die Gedankenkarte (Einfälle um Teile/Kapitel, Wolke „Ohne Kapitel“) wird zu einer gewohnten Mindmap: zentrales Thema (Werk), Äste nach rechts/links, Unteräste, Knoten direkt anlegen/umbenennen/ziehen/einklappen, Tastatur wie XMind/FreeMind (Tab = Kind, Enter = Geschwister, F2 = umbenennen, Entf = löschen mit Rückfrage), Verbindungen und Notizen, Ausgabe nach FreeMind/Freeplane (.mm) sowie SVG/PDF/Markdown wie heute; möglichst Import/Export von .xmind (offenes ZIP-Format, prüfen). Knoten bleiben Einfälle (kein Buchtext, volles CRUD auch für Assistenten mit Herkunft). Ohne JavaScript bedienbar (Gliederungsansicht der Mindmap). → eigene Runde nach dem Menüband (R33), Reihenfolge mit dem PM.
 - **Ältere Fassungen ausblenden „bis hierhin“ (Nutzer 2026-11-24: „Ein Buch kann locker mehrere Dutzend Fassungen haben. Diese sollten ausblendbar sein. Also bis hierhin [toggle]“).** Im Fassungsbaum/Akkordeon „Fassungen“ und im Umschalter ‹ n/m › an jeder Fassung eine Marke „bis hierhin ausblenden“: alle älteren Fassungen (und abgelehnte/überholte Vorschläge davor) verschwinden hinter einem Schalter „n ältere Fassungen zeigen/verbergen“ (Toggle). Nichts wird gelöscht (Revisionen bleiben, Spiegel unverändert); die aktuelle Fassung ist nie ausgeblendet; Marke je Abschnitt gespeichert (Mensch setzt sie, Assistenten nicht), dazu werkweit „bis Datum/Fassungsstand ausblenden“. Zähler wie „6/7“ zählen dann nur die sichtbaren, mit Hinweis „+ n ausgeblendet“. Ohne JavaScript als Formular/Link. → 0.9.1 (oder früher, wenn der Nutzer es will).
   → Nutzer: „ja, noch in 0.9.0“ – Entwickler-Agent auf Zweig team/fassungen-ausblenden (von ed9d210, Migration 0051), beim Zusammenführen mit R32/R33 einbeziehen.
 
@@ -114,6 +114,42 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R24 | Verteilung (B5) – **erledigt 2026-11-24** (≈ 175 min ab der Vorarbeit `3028194` mit Gutachten, Nachbesserung und PM-Abschluss; ohne die niedrigen Reste aus R23) | a pakete · b ci · c webseite (statt betrieb) | 200 |
 | R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); auf `development` seit `0f52492`, Gegenprobe `35140b5` (Tag `v0.9.0`) | menueband · laptop · seiten | – |
 | R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
+
+### Nach Runde 34 offen (Integrator 2026-11-25)
+
+Runde 34 „Mindmap wie XMind“ ist auf `development` integriert (Migration 0052, Austauschformat Unterversion 9). Der
+Wunsch „Echte Mindmap wie XMind“ (oben) ist damit umgesetzt, samt dem Nachtrag „Verbindung zwischen der Wolke und
+der Mindmap“. Der PM-Abschluss (Fahrplan, Gegenlauf) steht aus.
+
+- (→ Nutzer, vorher Datenordner sichern: **Migration 0052**) Handprüfung an Werk 3 im eigenen Browser: Die 33
+  Einfälle sind da; Einfälle mit Bezug hängen an ihren Kapiteln, die übrigen liegen in der **Wolke** (nicht als
+  Hauptäste); Verbindungen sind als Linien da, gespeicherte Lagen bleiben in der Datenbank (ohne Wirkung).
+- (→ Nutzer) Tasten und Maus im Browser: Tab, Enter, F2, Entf mit Rückfrage, Strg+Z, Leertaste, Pfeile, Alt+L,
+  Alt+E, Ziehen (auf Einfall, auf Kapitel, aufs Werk, in die Wolke und heraus, zwischen Geschwister), Zoom und
+  Verschieben, hell/dunkel. Die Sichtprüfung hat das Widget in Firefox nur mit künstlichen Ereignissen bedient
+  (Klick, Tab, Enter, F2, Entf, Strg+Z, Ziehen, Leertaste – alle kamen an); echte Maus und Tastatur, Zoom,
+  Pfeiltasten, Alt+L und Alt+E stehen aus.
+- (→ Nutzer) `.xmind` in echtem XMind und `.mm` in Freeplane öffnen; eine dort gespeicherte Datei wieder einlesen.
+  Der Aufbau der XMind-Datei folgt der Formatbeschreibung aus dem Gedächtnis (Annahmen in `docs/Bedienung.md`,
+  „Annahmen zu XMind und Freeplane“).
+- (→ Nutzer, Entscheidung) Beim Ziehen in die Wolke wandern die Unterknoten mit (der Teilbaum bleibt beisammen, ein
+  Schritt „Rückgängig“ stellt alles wieder her). Gewünscht – oder soll nur der eine Einfall gelöst werden?
+- (→ Nutzer, Entscheidung) Einlesen ohne Zielknoten legt die obersten Knoten als **Hauptthemen am Werk** an, nicht
+  in die Wolke. Eine eigene Ausgabe mit Ast „Wolke“ kommt darum beim Wiedereinlesen ebenfalls als Hauptthemen an.
+- (offen) Titel über 48 Zeichen werden im Bild gekürzt, Textbreiten sind geschätzt (der Server kennt die Schrift des
+  Browsers nicht); Beschriftungen von Beziehungen können Knoten überdecken.
+- (offen) Die Seite baut die Karte zweimal (Baum für das Bild, flache Karte für „Gruppen“), mit gleichem Filter.
+- (offen) Alte Bildregeln `.im-*` in `static/karte.css` ausmisten (Filter, Gruppen, Widersprüche und Legende
+  benutzen einen Teil davon weiter).
+- (offen) Schnellerfassung Alt+E außerhalb der Mindmap (`web/src/ideas.ts`) verlangt weiter ein Schlagwort und kennt
+  kein Titelfeld.
+- (offen) Bezug auf einen Unterabschnitt lässt sich in der Gliederungsansicht nicht setzen (nur Teile/Kapitel);
+  dafür die Seite des Einfalls.
+- (offen) Die Beschreibung von MCP `exchange_export` nennt noch „Unterversion 2“ (`mcp/exchange.rs`, schon vorher
+  veraltet).
+- (offen) Der Filter `open=` der alten Karte gilt im Baum nicht mehr und fällt aus den Links; die Zahl am Einklapper
+  zählt alle verborgenen Knoten, nicht nur Einfälle.
+- (PM) `docs/Fahrplan.md` nachführen (Runde 34 war dort „Konten und Rollen“; die Mindmap wurde vorgezogen).
 
 ### Nach Runde 32 offen (Integrator und PM-Abschluss 2026-11-25)
 

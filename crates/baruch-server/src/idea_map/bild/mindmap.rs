@@ -5,10 +5,11 @@
 //! `GET /werke/{id}/karte/bild`) und Ausgabe (`standalone: true`, eigenständige Datei für `.svg`/`.pdf`) entstehen
 //! aus derselben Funktion [`render`]; die Lagen rechnet [`super::tree_layout`].
 //!
-//! DOM-Vertrag (Kurzfassung, vollständig in `docs/r34/widget.md`):
+//! DOM-Vertrag (Kurzfassung, vollständig in `docs/Architektur.md`, „Runde 34 – Mindmap“):
 //! - `<svg class="mm-svg">` mit `<g class="mm-viewport">`; darin in dieser Reihenfolge Äste (`path.mm-edge`), Nähe
-//!   (`path.mm-near`), Beziehungen (`g.mm-rel` mit `path.mm-link` und `text.mm-link-label`), die Wolke
-//!   (`g.mm-cloud` mit `rect.mm-cloud-area`) und die Knoten (`g.mm-node`).
+//!   (`path.mm-near`), Beziehungen (`g.mm-rel` mit `path.mm-link`), die Wolke (`g.mm-cloud` mit
+//!   `rect.mm-cloud-area`), die Knoten (`g.mm-node`) und zuletzt die Beschriftungen der Beziehungen
+//!   (`g.mm-link-labels` mit `text.mm-link-label[data-link]` – über den Knoten, damit sie lesbar bleiben).
 //! - Knoten: `g.mm-node.mm-<kind>` mit `data-node`, `data-parent`, `data-depth`, `data-side` (nicht an Wurzel und
 //!   Wolke), `data-branch`, `data-editable`, `data-title`, `data-own` (gespeicherter Titel), Einfälle `data-idea`
 //!   und mit Bezug `data-key`; Kärtchen der Wolke `mm-cloud-item` und `data-cloud="1"`.
@@ -23,7 +24,7 @@ use std::fmt::Write as _;
 use baruch_store::{IdeaId, IdeaStatus, LinkKind};
 
 use super::tree_layout::{self, Layout, Placed, Side, findings_width, text_width};
-use crate::idea_map::tree::{MindMap, TreeKind};
+use crate::idea_map::tree::{CloudHint, MindMap, Scene, TreeKind};
 
 #[derive(Debug, Clone, Default)]
 pub struct RenderOptions {
@@ -33,6 +34,26 @@ pub struct RenderOptions {
     pub closed: Vec<String>,
     /// Abfrageteil des Filters für Links im Bild (ohne führendes "?").
     pub back: String,
+    /// Kennungen der Kinder der Wurzel, die in der Wolke liegen ([`Scene::cloud`]); alle anderen sind Hauptäste.
+    pub cloud: Vec<String>,
+    /// „n in der Wolke“ ohne Filter; `None` = Zahl der gezeigten Kärtchen.
+    pub cloud_count: Option<u32>,
+    /// Vorschläge „passt zu Ast …“ für Kärtchen der Wolke.
+    pub hints: Vec<CloudHint>,
+}
+
+impl RenderOptions {
+    /// Optionen für die Sicht `scene`: Wolke, Zähler und Vorschläge kommen aus ihr, der Filter für die Links auch.
+    pub fn of(scene: &Scene, standalone: bool, closed: Vec<String>) -> Self {
+        RenderOptions {
+            standalone,
+            closed,
+            back: crate::idea_map::bild::filter_query(&scene.map.filter),
+            cloud: scene.cloud.clone(),
+            cloud_count: Some(scene.cloud_count),
+            hints: scene.hints.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +71,8 @@ const BRANCH_TINTS: [&str; 8] =
     ["#e3edfb", "#fbe9df", "#e0f3e8", "#f3e4f7", "#f7f0d6", "#ddf2f4", "#fae3e9", "#e9ecf0"];
 const STANDALONE_STYLE: &str = "text{font-family:'Noto Sans','DejaVu Sans',Arial,sans-serif;fill:#1c2330}\
 .mm-work text{fill:#ffffff;font-weight:bold}.mm-part text,.mm-chapter text{font-weight:bold}\
-.mm-link-label,.mm-cloud-head{fill:#4a5568}.mm-contradiction .mm-link-label{fill:#b3261e}\
+.mm-link-label,.mm-cloud-head{fill:#4a5568}.mm-link-label{paint-order:stroke;stroke:#ffffff;stroke-width:3px}\
+.mm-link-label.mm-contradiction{fill:#b3261e}\
 .mm-done .mm-label{text-decoration:line-through;fill:#6b7280}.mm-ghost,.mm-dim{opacity:.45}";
 
 /// Text für XML-Inhalt und -Attribute maskiert; Steuerzeichen (in XML 1.0 unzulässig) fallen weg.
@@ -380,7 +402,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
 }
 
 pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
-    let layout = tree_layout::layout(map, &options.closed);
+    let layout = tree_layout::layout_with(map, &options.closed, &options.cloud, &options.hints, options.cloud_count);
     let alone = options.standalone;
     let (width, height) = (layout.width, layout.height);
     let mut svg = String::new();
@@ -470,6 +492,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
         }
     }
 
+    let mut labels = String::new();
     // Beziehungen: gebogene Linien mit Beschriftung (Art, dazu die Notiz); verborgene Enden am sichtbaren Vorfahren.
     for (index, link) in map.links.iter().filter(|l| l.deleted.is_none()).enumerate() {
         let (Some(a), Some(b)) = (shown(link.from), shown(link.to)) else { continue };
@@ -503,23 +526,29 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
             svg,
             "<g class=\"mm-rel{extra}\"><path class=\"mm-link mm-link-{kind}{extra}\" data-link=\"{id}\" \
              data-from=\"i:{from}\" data-to=\"i:{to}\" data-end-from=\"{ef}\" data-end-to=\"{et}\" \
-             d=\"M{} {}Q{} {} {} {}\" fill=\"none\" stroke-width=\"1.5\"{dash}{marker}{stroke}/>\
-             <text class=\"mm-link-label{extra}\" x=\"{}\" y=\"{}\" font-size=\"11\" text-anchor=\"middle\">{}</text></g>",
+             d=\"M{} {}Q{} {} {} {}\" fill=\"none\" stroke-width=\"1.5\"{dash}{marker}{stroke}/></g>",
             n(x1),
             n(y1),
             n(cx),
             n(cy),
             n(x2),
             n(y2),
-            n(lx),
-            n(ly - 3.0),
-            esc(&label),
             kind = link.kind.as_str(),
             id = link.id,
             from = link.from,
             to = link.to,
             ef = esc(&a.node.id),
             et = esc(&b.node.id),
+        );
+        // Die Beschriftung steht über den Knoten (eigene Gruppe am Ende), sonst verdecken nahe Knoten sie.
+        let _ = write!(
+            labels,
+            "<text class=\"mm-link-label{extra}\" data-link=\"{}\" x=\"{}\" y=\"{}\" font-size=\"11\" \
+             text-anchor=\"middle\">{}</text>",
+            link.id,
+            n(lx),
+            n(ly - 3.0),
+            esc(&label),
         );
     }
 
@@ -547,6 +576,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     for p in &layout.items {
         node_svg(&mut svg, map, &layout, p, options);
     }
+    let _ = write!(svg, "<g class=\"mm-link-labels\">{labels}</g>");
     svg.push_str("</g></svg>");
     Rendered { svg, width, height }
 }

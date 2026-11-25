@@ -271,6 +271,7 @@ a.im-node:focus-visible { outline: none; }
 .mm-arrow path { fill: var(--muted); }
 .mm-svg .mm-link-label {
   fill: var(--muted); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round;
+  pointer-events: none; /* liegt über den Knoten (eigene Gruppe am Ende), darf aber keinen Klick abfangen */
 }
 .mm-svg .mm-link-label.mm-contradiction { fill: var(--danger); font-weight: 700; }
 .mm-near { stroke: var(--primary); fill: none; opacity: .8; }

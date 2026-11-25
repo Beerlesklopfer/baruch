@@ -863,8 +863,8 @@ async fn the_settings_travel_in_u6_and_a_reset_leaves_a_tombstone_across_two_ins
     let (status, _, _) = a.post("/einstellungen/werk/satz", &abnahme_form(a.work)).await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     let xml = export_xml(&a.server, a.work).await;
-    // Runde 22 (Vertrag §6.5, spiegel-entwurf): Der Schreiber schreibt jetzt Unterversion 8.
-    assert!(xml.contains("version=\"8\"") && xml.contains("<satz uuid="), "Unterversion 8 (seit Runde 22) mit <satz>");
+    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    assert!(xml.contains("version=\"9\"") && xml.contains("<satz uuid="), "Unterversion 9 (seit Runde 34) mit <satz>");
     let (_, exchange_page) = a.server.get(&format!("/werke/{}/austausch", a.work)).await;
     assert!(exchange_page.contains("Satz-Einstellungen: Kapitelanfang"), "Austauschseite nennt die Satz-Einstellungen");
 

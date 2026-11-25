@@ -642,17 +642,19 @@ async fn the_idea_map_findings_layer_highlights_chapters_with_many_open_findings
     let sturm = b.key("Sturm");
     let (_, plain) = b.server.get(&format!("/werke/{}/karte", b.work)).await;
     let plain = unescape(&plain);
-    assert!(!plain.contains("im-many-findings"), "ohne Ebene keine Hervorhebung");
+    assert!(!plain.contains("mm-many-findings"), "ohne Ebene keine Hervorhebung");
     assert!(plain.contains("Ebene Befunde einblenden"), "Schalter als Link (ohne JavaScript)");
     let (status, html) = b.server.get(&format!("/werke/{}/karte?befunde=1", b.work)).await;
     let html = unescape(&html);
     assert_eq!(status, StatusCode::OK, "die Gedankenkarte mit Ebene Befunde lädt");
     let marker = format!("data-node=\"n:{sturm}\"");
     assert_eq!(attr(&html, &marker, "data-open-findings"), "3", "Sturm trägt seine offenen Befunde im Bild");
-    assert!(attr(&html, &marker, "class").contains("im-many-findings"), "Sturm hervorgehoben (≥ 3 offen)");
-    assert!(html.contains(">3 offen</tspan>"), "Zahl als Text im Bild, nicht nur Farbe");
+    // Runde 34: Die Gedankenkarte ist die Mindmap (Klassen `mm-…`, Zahl am Ast des Kapitels).
+    assert!(attr(&html, &marker, "class").contains("mm-many-findings"), "Sturm hervorgehoben (≥ 3 offen)");
+    assert!(html.contains(">3 offen</text>"), "Zahl als Text im Bild, nicht nur Farbe");
     assert!(html.contains("Ebene Befunde ausblenden"), "Schalter zurück");
-    assert!(html.contains("3 offen – viele</a>"), "Gliederungsliste nennt „viele“ als Text");
+    let (_, outline) = b.server.get(&format!("/werke/{}/karte/gliederung?befunde=1", b.work)).await;
+    assert!(unescape(&outline).contains("3 offene Befunde"), "die Gliederungsansicht nennt die Zahl als Text");
 
     let map =
         result(&b.server.rpc("idea.map", json!({ "work": b.work, "near": false, "findings": true })).await).clone();
