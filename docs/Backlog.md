@@ -10,7 +10,8 @@ eines Lektors: Die Haltung „Mensch entscheidet, Assistenten schlagen nur vor�
 Verlagen und mit menschlichen Lektoren fehlen Word, ein zweiter Mensch und ein einfacher Einstieg.
 Entscheidungen des Nutzers:
 
-- **Word (.docx), Import und Export.**
+- **Word (.docx), Import und Export.** **Erledigt in Runde 32** (2026-11-25; Reste und Handprüfung unter „Nach
+  Runde 32 offen“).
   - *Import:* Ein Manuskript wird zu einem Werk mit Kapiteln (aus den Überschriften-Formatvorlagen),
     Hervorhebungen, Fußnoten, Zitaten und Bildern. Die Änderungsverfolgung und Kommentare eines Lektors aus
     Word werden zu Vorschlägen und Beiträgen unter seinem Namen, nie zu aktuellen Fassungen.
@@ -27,7 +28,8 @@ Entscheidungen des Nutzers:
   - ein schlanker Einstieg: Manuskript hinein, Vorschläge annehmen, PDF heraus;
   - Befunde nach Gewicht sortiert, Kleinkram zugeklappt (Nutzerfrage 14);
   - Anmerkungen zum ganzen Buch (Aufbau, Spannungsbogen, Zielgruppe) als eigene Ansicht, nicht nur im Chat.
-- **Baruch beenden aus der Oberfläche** (aus einer Durchsicht der Webseite, 2026-11-24). Unter macOS und
+- **Baruch beenden aus der Oberfläche** – **erledigt in Runde 32** (2026-11-25; Handprüfung im echten Browser,
+  unter macOS und Windows offen) – (aus einer Durchsicht der Webseite, 2026-11-24). Unter macOS und
   Windows hat Baruch kein eigenes Fenster und kein Dock-Symbol. Heute lässt es sich nur über die
   Aktivitätsanzeige, `pkill` oder das Schließen des Konsolenfensters beenden. Außerdem fährt der Server nur bei
   Strg+C sauber herunter (`main.rs`, `with_graceful_shutdown` mit `ctrl_c`), bei SIGTERM nicht.
@@ -59,7 +61,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-25: R13–R31 und R33 erledigt, R32 läuft; Weiteres in `docs/Fahrplan.md`, „Geplant“)
+## Rundenplan (Stand 2026-11-25: R13–R33 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -94,10 +96,51 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R22 | Revisionen und Spiegel, dazu Fortschreiben, Rückfrage erledigter Befunde, Entwurf als Wasserzeichen – **erledigt 2026-11-10** (≈ 155 min ab S1 `dfff467` mit Gutachten und Nachbesserung, Vertrag davor ohne Commit) | fassungen · befund-rueckfrage · spiegel-entwurf | 160 |
 | R23 | Härtung (mit Befund-Resten aus R28, R30, R29, R19, R20, R31, R21 und R22) – **erledigt 2026-11-24** (≈ 160 min mit Gutachten, Nachbesserung und PM-Abschluss) | a web · b mcp-namen · c geheimnisse | 200 |
 | R24 | Verteilung (B5) – **erledigt 2026-11-24** (≈ 175 min ab der Vorarbeit `3028194` mit Gutachten, Nachbesserung und PM-Abschluss; ohne die niedrigen Reste aus R23) | a pakete · b ci · c webseite (statt betrieb) | 200 |
-| R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); Zusammenführen mit R32 und `development` samt Gegenprobe offen | menueband · laptop · seiten | – |
-| R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (S1 `647ae42` auf `development` nach Runde 33; Vorlage `ccd471f`) | docx_import · docx_export · beenden | – |
+| R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); auf `development` seit `0f52492`, Gegenprobe `35140b5` (Tag `v0.9.0`) | menueband · laptop · seiten | – |
+| R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
 
-### Nach Runde 32 offen (Integrator 2026-11-25)
+### Nach Runde 32 offen (Integrator und PM-Abschluss 2026-11-25)
+
+Runde 32 „Lektorat I – Word und Beenden“ ist abgeschlossen: Integration `9c836d6`, Nachbesserung `a9a1ffb`,
+PM-Abschluss mit vollem Lauf nach `cargo clean -p` (Ergebnis in `HANDOFF.md`), Fahrplan nachgeführt, die drei
+Worktrees der Runde entfernt (die team-Zweige bleiben), Zweig `runde33` aufgelöst. Aus dem Vorhaben „Lektorat“
+(oben) sind damit **Word (Import und Export)** und **Baruch beenden** erledigt; offen bleiben Konten und Rollen,
+schlanker Einstieg, Befunde nach Gewicht, Anmerkungen zum ganzen Buch und die Hilfe auf der Webseite
+(Vorschlag Runden 34–36, `docs/Fahrplan.md`).
+
+- (→ Nutzerfrage) **Welcher Stand geht nach dem Release 0.9.0 nach `main`?** Der Tag `v0.9.0` zeigt auf `35140b5`
+  (ohne Runde 32). `development` enthält seither Runde 32; `site/content/funktionen.md`, `installation.md` und
+  `bedienung.md` nennen dort Word-Import, Word-Export und „Baruch beenden“. Ein Push von `development` nach `main`
+  liefert diese Webseite aus (`pages.yml` läuft bei jedem Push auf `main`), während die Pakete 0.9.0 nichts davon
+  enthalten. Wege: (a) `main` nur bis `35140b5` schieben und Runde 32 mit der nächsten Version veröffentlichen;
+  (b) `development` ganz schieben und die Abweichung hinnehmen; (c) gleich eine nächste Version mit Runde 32
+  festlegen. Die Versionsnummer legt der Nutzer fest.
+- **Befunde der Prüfung (2026-11-25):**
+  - (mittel, über die Doku behoben `a9a1ffb`) Die Gruppe `pages` hält seit der Trennung in `pages-build` und
+    `pages-deploy` nicht mehr die ganze Auslieferung; ein Push auf `main` während eines Release-Laufs kann dessen
+    Auslieferung überholen oder verdrängen. `docs/Verteilung.md` nennt die Grenze und die Regel „`main` erst nach
+    dem Ende des Release-Laufs schieben“ (Test `pages_group_limit_is_documented`). **Technisch nicht geschlossen**
+    und ungemessen; ein Umbau der Gruppen gehört nach den ersten echten Lauf.
+  - (niedrig, behoben im PM-Abschluss) `docs/RPC.md` nennt bei `docx_import.preview` jetzt die Grenze von `/rpc`
+    (413 ab etwa 24 MiB; größere Dateien über das Formular bis 64 MiB).
+  - (niedrig, dokumentiert im PM-Abschluss) Ein Reverse-Proxy auf demselben Rechner, der `Host` auf `localhost`
+    umschreibt, gilt für „Baruch beenden“ als eigener Rechner (`docs/Verteilung.md`, „Baruch beenden“). Aus dem
+    Quelltext gelesen, nicht nachgestellt; eine technische Sperre (etwa `X-Forwarded-*` als Proxy-Zeichen) wäre
+    eine kleine Aufgabe für die Runde, die `guard.rs` ohnehin anfasst (Konten und Rollen).
+- (niedrig) **Wackliger Test:** `round12_pgvector::pgvector_against_an_own_server_checks_searches_and_stays_read_only`
+  scheiterte in der Nachbesserung einmal an der 10-s-Frist gegen den eigenen podman-Container und lief danach
+  durch; Ursache nicht untersucht (podman war in dieser Nacht langsam, siehe Runde 33).
+- (keine Aufgabe) Abweichungen vom Vertrag, so belassen: Ein mit `TargetMode="External"` verknüpftes Bild wird nie
+  abgerufen und als `docx_bild_extern` gemeldet statt die Datei als `Unsafe` abzulehnen; ein XML-Teil mit DTD wird
+  abgelehnt statt übergangen; `main.rs` ruft `shutdown::system_signal()` vor „Baruch läuft“ auf.
+- (keine Aufgabe) Der Zweig `team/r32-schnittstelle` (`ccd471f`) ist die überholte Vorlage von R32-S1 und nicht in
+  `development` enthalten (dort gilt `647ae42`); er bleibt wie die anderen team-Zweige stehen.
+- (niedrig) Nach dem Übernehmen eines Word-Imports bleibt ein leerer Ordner `docx-drafts` im Datenordner liegen.
+- (niedrig, Sichtprüfung im PM-Abschluss) Bild `06-buch-export-dunkel-ohnejs.png`: Im dunklen Thema ohne
+  JavaScript steht am rechten Rand des Editorfelds ein weißer Streifen (vermutlich die Rollleiste des Textfelds im
+  Firefox ohne Fenster). Nicht geprüft, ob das im echten Browser so aussieht und seit wann.
+- (niedrig, aus der Gegenprobe 0.9.0) Der Zähler der Fassungen im Band zeigt nicht „(+ n ausgeblendet)“, der
+  Zähler im Editor-Kopf schon.
 
 - **Handprüfung durch den Nutzer (nichts davon ist geprüft):**
   - Export in **Microsoft Word** öffnen: ohne Reparaturmeldung? Überschriften im Navigationsbereich, deutsche
@@ -1055,10 +1098,10 @@ Fehler (zwei Hinweise, unten eingeordnet), eine Nachbesserung gab es nicht. PM-A
 `cargo clean -p` (Exit 0, 197 Ergebnisse „ok“, 3147 bestanden, 0 fehlgeschlagen, 2 ignoriert; Server-Bündel 1374 bestanden; pgvector-Tests liefen mit), Fahrplan nachgeführt, die drei Worktrees der Runde
 entfernt (die team-Zweige bleiben). Offen:
 
-- (→ PM) **Gegenprobe vor dem Push** (Vertrag §11, eigener Gutachter): frischer voller Lauf auf dem
+- (erledigt 2026-11-25, `35140b5`) **Gegenprobe vor dem Push** (Vertrag §11, eigener Gutachter): frischer voller Lauf auf dem
   zusammengeführten Stand, curl ohne JavaScript gegen die Zuordnung, Firefox in drei Breiten. Stand der Integration:
   `HANDOFF.md`.
-- (→ PM) **Zusammenführen mit `development` und Runde 32.** `runde33` zweigt bei `ed9d210` ab; `development` hat
+- (erledigt 2026-11-25: `0f52492`, Runde 32 danach auf `development`, Zweig `runde33` im PM-Abschluss Runde 32 gelöscht) **Zusammenführen mit `development` und Runde 32.** `runde33` zweigt bei `ed9d210` ab; `development` hat
   seither drei Commits (ältere Fassungen ausblenden mit Migration 0051, Kritik-Zyklus). Probe mit
   `git merge-tree` am 2026-11-25: gegen `development` ein Konflikt (`docs/Architektur.md`; `lib.rs`, `tests/main.rs`,
   `editor.html`, `assistants.html`, `CHANGELOG.md` gehen von selbst), gegen die Schnittstelle R32-S1 `ccd471f` vier
@@ -1066,7 +1109,7 @@ entfernt (die team-Zweige bleiben). Offen:
   `round9_menu.rs`); die Entwickler-Zweige von Runde 32 bringen weitere Stellen mit. `docs/Verteilung.md` Zeile
   „Über Baruch“ beachten. Danach den Zweig `runde33` auflösen (bis dahin bleibt der Name: er steht in den
   Aufträgen der Runde).
-- (→ PM) **Die Prüfung hat nicht nachgesehen, ob „Satz abbrechen“ auf der Satz-Seite einen Ersatz hat.** Beleg
+- (erledigt, Beleg unten) **Die Prüfung hat nicht nachgesehen, ob „Satz abbrechen“ auf der Satz-Seite einen Ersatz hat.** Beleg
   nachgereicht im PM-Abschluss: `templates/typeset.html` trägt im Block `band_buch` das Formular
   `form.typeset-cancel` nach `/werke/{work}/satz/abbrechen`; der Test dazu steht in `round33_seiten.rs`
   (`the_typeset_page_carries_its_controls_as_groups_of_the_book_tab_without_any_script`). In der Gegenprobe im

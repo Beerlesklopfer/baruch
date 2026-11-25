@@ -2608,7 +2608,9 @@ Import legt aktuelle Fassungen unter dem Namen des Menschen an.
   der Abschnitte, zu denen ein Vorschlag entstünde; `handle` = `@word:<name>`.
   Fehler: kein `.docx`-Name, kaputtes Base64, größer als 64 MiB, Fehler der Datei (kein ZIP, altes `.doc` oder
   verschlüsselt, unsicherer Pfad oder Beziehungsziel, DTD, Grenze überschritten, kaputtes XML, kein Text) → -32602 mit
-  dem Grund; es entsteht nichts.
+  dem Grund; es entsteht nichts. Über `POST /rpc` liegt die ganze Anfrage zudem innerhalb von `RPC_BODY_LIMIT`
+  (sonst 413 vor dem Aufruf, also eine Datei bis etwa 24 MiB – größere über das Formular
+  `POST /werke/import/word/vorschau`, bis 64 MiB).
 - **`docx_import.get {draft}`** → dasselbe Objekt wie `preview`. Unbekannt, verworfen, übernommen oder älter als 24 h
   → -32602.
 - **`docx_import.apply {draft, title?, changes?: bool = true, comments?: bool = true}`** – legt das Werk an (Fassung 1

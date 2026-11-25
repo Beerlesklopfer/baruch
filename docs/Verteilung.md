@@ -416,7 +416,11 @@ Fenster „Baruch ist beendet – dieses Fenster kann geschlossen werden“ und 
 
 - **Nur am eigenen Rechner:** Die Gegenstelle muss Loopback sein, und die Anfrage darf nicht unter einem
   zusätzlich erlaubten Rechnernamen (`--allow-host`, Reverse-Proxy) kommen. Sonst antwortet Baruch mit 403 und
-  einer Erklärung. Es gibt dafür weder eine RPC-Methode noch ein MCP-Werkzeug.
+  einer Erklärung. Es gibt dafür weder eine RPC-Methode noch ein MCP-Werkzeug. **Grenze:** Ein Reverse-Proxy auf
+  demselben Rechner, der `Host` auf `127.0.0.1` oder `localhost` umschreibt (bei nginx die Vorgabe, siehe
+  `docs/Betrieb.md`, „Regeln für den Proxy“), sieht für Baruch wie der eigene Rechner aus – dann kann jeder, der
+  durch den Proxy kommt, Baruch beenden. Der Proxy muss `Host` unverändert durchreichen (aus dem Quelltext
+  gelesen, `shutdown::own_machine`; nicht nachgestellt).
 - **Sauberes Herunterfahren** auch auf Signale: Strg+C, unter Unix `SIGTERM` (`systemctl --user stop`, `kill`),
   unter Windows Strg+Pause, das Schließen des Konsolenfensters und das Herunterfahren des Systems. Laufende
   Antworten gehen zu Ende (höchstens 10 Sekunden; offene Ströme wie der Live-Chat werden danach getrennt), die

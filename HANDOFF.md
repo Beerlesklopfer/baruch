@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-25, Runde 32 „Lektorat I – Word und Beenden“ auf `development` integriert (Integrator) – PM-Abschluss mit Fahrplan offen; davor: Runde 33 „Menüband und Laptop-Modus“ und Gegenprobe 0.9.0)
+# Übergabe (Stand 2026-11-25, Runde 32 „Lektorat I – Word und Beenden“ auf `development` **abgeschlossen** (Integration, Prüfung, Nachbesserung, PM-Abschluss); Tag `v0.9.0` auf `35140b5` wartet auf das „ja“ des Nutzers; davor: Runde 33 „Menüband und Laptop-Modus“ und Gegenprobe 0.9.0)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
@@ -36,7 +36,30 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
   - **Nicht geprüft:** Microsoft Word (weder Öffnen des Exports noch eine von Word geschriebene Datei), echter
     Browser beim Beenden (`window.close()` im App-Fenster), macOS, Windows, ein Lauf der getrennten Pages-Jobs.
     Handprüfung und Reste: `docs/Backlog.md`, „Nach Runde 32 offen“.
-  - **Für den PM:** `docs/Fahrplan.md` (Runde 32 mit Beginn/Ende aus `git log`) ist nicht nachgeführt.
+  - **Prüfung und Nachbesserung (2026-11-25, `a9a1ffb`):** drei Befunde. (mittel) Die Gruppe `pages` hält seit der
+    Trennung in zwei Jobs nicht mehr die ganze Auslieferung – über die Doku behoben (`docs/Verteilung.md`: Grenze,
+    Regel „`main` erst nach dem Ende des Release-Laufs schieben“, Test `pages_group_limit_is_documented`),
+    technisch nicht geschlossen und ungemessen. (niedrig) `docs/RPC.md` nannte bei `docx_import.preview` die Grenze
+    von `/rpc` nicht (413 ab etwa 24 MiB). (niedrig) Ein Proxy auf demselben Rechner, der `Host` auf `localhost`
+    umschreibt, gilt für „Baruch beenden“ als eigener Rechner. Die beiden niedrigen hat der PM-Abschluss in der
+    Doku nachgetragen (`docs/RPC.md`, `docs/Verteilung.md` „Baruch beenden“).
+  - **PM-Abschluss (2026-11-25):** nach `cargo clean -p` für alle 16 Workspace-Crates
+    `RUST_TEST_THREADS=4 nice -n 10 ionice -c3 taskset -c 0-7 cargo test --workspace -j 4 --no-fail-fast`: Exit 0,
+    206 Ergebnisse „ok“, 3273 bestanden, 0 fehlgeschlagen, 2 ignoriert; Server-Bündel 1423 bestanden; pgvector-Tests
+    liefen mit (podman antwortete, 25 Zeilen „pgvector … ok“). Nach den Doku-Nachträgen des Abschlusses lief das
+    Server-Bündel noch einmal (es liest die Doku).
+    `grep -rn "STUB:" crates`: 4 Treffer wie nach Runde 33, alle in Tests, die das Fehlen eines Stub-Vermerks
+    zusichern (`round9_connections.rs`, `round13_abgleich.rs`, zweimal `literature.rs`); kein offener Stub im
+    Quelltext, keiner aus Runde 32. `docs/Fahrplan.md` (Runde 32 erledigt, Release
+    0.9.0 als nächster Schritt, Runden 34–36 unverändert geschätzt) und `docs/Backlog.md` („Nach Runde 32 offen“,
+    Vorhaben Lektorat: Word und Beenden erledigt, erledigte PM-Punkte aus Runde 33) nachgeführt. Die vier bisher
+    nur erzeugten Bilder (06, 13, 15, 16) sind angesehen. Aufgeräumt: Worktrees
+    `.claude/worktrees/wf_e1ad26c7-75a-3/-4/-5` samt `target/` entfernt (zusammen 59 GiB; die team-Zweige bleiben),
+    Zweig `runde33` gelöscht (war `1cfafa6`, in `development` enthalten). Nicht gepusht.
+  - **Offene Entscheidung des Nutzers:** Der Tag `v0.9.0` zeigt auf `35140b5` (ohne Runde 32). Schiebt der Nutzer
+    nach dem Release `development` nach `main`, liefert `pages.yml` eine Webseite aus, die Word-Import, Word-Export
+    und „Baruch beenden“ nennt – in den Paketen 0.9.0 steckt das nicht. Wege in `docs/Backlog.md`, „Nach Runde 32
+    offen“ (nur bis `35140b5` schieben, alles schieben, oder eine nächste Version festlegen).
 - **Runde 33 „Menüband und Laptop-Modus“ integriert** (2026-11-25, Integrator; Hauptordner der Runde
   `.claude/worktrees/r33`, Zweig **`runde33`** – nicht `development`, weil Runde 32 dort parallel läuft; Schnittstelle
   R33-S1 `f7493c2`; Zweige `team/menueband-r33` `e9481ea`, `team/laptop` `d5f8fc0`, `team/seiten` `fdfc3fb` mit
@@ -2088,6 +2111,14 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. Nach Runde 32 (abgeschlossen, **keine Migration** gegenüber dem eingespielten Stand `35140b5`): Der Dienst des
+   Nutzers läuft mit `35140b5`; Runde 32 ist dort **nicht** eingespielt. Reihenfolge beim Nutzer: (1) Release
+   0.9.0 – nur den Tag `v0.9.0` schieben, Release-Lauf abwarten, Signaturen von macOS und APT prüfen, Release
+   veröffentlichen, erst danach `main` (`docs/Verteilung.md`, „Ein Release machen“ und die Grenze der Gruppe
+   `pages`); (2) entscheiden, welcher Stand nach `main` geht (siehe oben); (3) für Runde 32 den Datenordner sichern,
+   Dienst neu bauen und starten, dann die Handprüfung aus `docs/Backlog.md`, „Nach Runde 32 offen“ (Word-Datei aus
+   echtem Word und LibreOffice, Export in Word öffnen, Beenden im App-Fenster und als Dienst). Nächste Runde nach
+   Vorschlag des PM: 34 „Konten und Rollen“ (`docs/Fahrplan.md`, „Geplant“).
 0. Nach Runde 23 (abgeschlossen). Beim Nutzer: Dienst neu bauen und starten (**keine Migration**;
    vorher wie immer Datenordner sichern), dann die Handprüfung oben unter „Runde 23 … abgeschlossen“ (Teil A
    Wegwerf-Instanz, **Teil B mit Werk 3: Zitat mit Stellenangabe**). Vorhandene MCP-Tokens behalten Namen und
