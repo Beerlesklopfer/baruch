@@ -1,0 +1,120 @@
+{#- Word-Datei importieren (Runde 32, src/docx_import/pages.rs), ganz ohne JavaScript.
+    mode "form": Formular (POST /werke/import/word/vorschau, multipart). Kontext: settings, title_value, error,
+    max_mib, back_url.
+    mode "preview": Vorschau des Entwurfs. Kontext: settings, preview (Antwort von docx_import.preview), values
+    {title, changes, comments}, error, back_url.
+    mode "report": Bericht nach dem Übernehmen, wenn dabei neue Hinweise entstanden. Kontext: settings, report
+    (Antwort von docx_import.apply), report_title, back_url.
+    Inhalte aus der Datei (Titel, Namen, Textproben, Warnungen) sind Daten: nur maskiert (Autoescape). -#}
+{% extends "base.html" %}
+{% block title %}Word-Datei importieren – Baruch{% endblock %}
+{% block page_title %}Word-Datei importieren{% endblock %}
+{% block page_actions %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/werke">Werke</a>
+    {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  </div></details>
+{% endblock %}
+{% block body %}
+<main class="docx-import">
+  {%- if error %}
+  <p class="notice error" role="alert" data-import-error>{{ error }}</p>
+  {%- endif %}
+
+  {%- if mode == "form" %}
+  <form class="docx-import-form" action="/werke/import/word/vorschau" method="post" enctype="multipart/form-data">
+    <h1 class="pane-title">Word-Datei lesen</h1>
+    <p class="muted small">Baruch liest die Datei und zeigt Gliederung, Bearbeiter und Warnungen. Angelegt wird erst,
+      wenn du die Vorschau bestätigst. Die Datei bleibt auf diesem Rechner.</p>
+    <label>Datei (.docx, höchstens {{ max_mib }} MiB)
+      <input type="file" name="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+    </label>
+    <label>Titel <span class="muted small">(leer: aus der Datei)</span>
+      <input type="text" name="title" value="{{ title_value }}" autocomplete="off">
+    </label>
+    <button class="btn primary" type="submit">Lesen und Vorschau zeigen</button>
+  </form>
+  <p class="muted small">Das alte Format .doc liest Baruch nicht – in Word als .docx speichern. Typst oder Markdown?
+    <a href="/werke/neu">Neues Werk / Importieren …</a></p>
+
+  {%- elif mode == "preview" %}
+  <section class="docx-import-preview" data-draft="{{ preview.draft }}">
+    <h1 class="pane-title">Vorschau: {{ preview.file_name }}</h1>
+    <p class="docx-import-rule" data-rule><strong>Änderungen und Kommentare werden nie zur aktuellen Fassung.</strong>
+      Fassung 1 jedes Abschnitts ist der Stand vor allen verfolgten Änderungen; die Änderungen jedes Bearbeiters
+      werden offene Vorschläge, Kommentare werden Beiträge am Abschnitt der kommentierten Stelle.</p>
+    <p class="docx-import-counts" data-counts>{{ preview.sections | length }} Abschnitt{% if preview.sections | length != 1 %}e{% endif %},
+      <span data-comments="{{ preview.comments }}">{{ preview.comments }} Kommentar{% if preview.comments != 1 %}e{% endif %}</span>,
+      {{ preview.footnotes }} Fußnote{% if preview.footnotes != 1 %}n{% endif %},
+      {{ preview.images }} Bild{% if preview.images != 1 %}er{% endif %}.</p>
+
+    {%- if preview.warnings %}
+    <h2 class="pane-title">Hinweise</h2>
+    <ul class="docx-import-warnings" aria-label="Hinweise">
+      {%- for w in preview.warnings %}
+      <li data-code="{{ w.code }}"><code>{{ w.code }}</code> {{ w.message }}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+
+    <h2 class="pane-title">Bearbeiter</h2>
+    {%- if preview.editors %}
+    <table class="docx-import-editors">
+      <thead><tr><th scope="col">Name in Word</th><th scope="col">in Baruch</th><th scope="col">Einfügungen</th>
+        <th scope="col">Löschungen</th><th scope="col">Vorschläge (Abschnitte)</th></tr></thead>
+      <tbody>
+        {%- for e in preview.editors %}
+        <tr data-editor="{{ e.handle }}"><td>{% if e.name %}{{ e.name }}{% else %}<em>ohne Namen</em>{% endif %}</td>
+          <td><code>{{ e.handle }}</code></td><td>{{ e.insertions }}</td><td>{{ e.deletions }}</td><td>{{ e.sections }}</td></tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    {%- else %}
+    <p class="muted small">Die Datei enthält keine verfolgten Änderungen.</p>
+    {%- endif %}
+
+    <h2 class="pane-title">Gliederung</h2>
+    <ol class="docx-import-outline">
+      {%- for s in preview.sections %}
+      <li class="docx-import-level-{{ s.level }}" data-level="{{ s.level }}">
+        <span class="docx-import-title">{% if s.level == 0 %}Teil: {% endif %}{{ s.title }}</span>
+        <span class="muted tiny">{% if s.level == 0 %}Teil{% else %}Ebene {{ s.level }}{% endif %}{% if not s.numbered %} · ohne Nummer{% endif %} · {{ s.chars }} Zeichen</span>
+        {%- if s.sample %}
+        <p class="docx-import-sample muted small">{{ s.sample }}</p>
+        {%- endif %}
+      </li>
+      {%- endfor %}
+    </ol>
+
+    <form class="docx-import-apply" action="/werke/import/word/uebernehmen" method="post">
+      <input type="hidden" name="draft" value="{{ preview.draft }}">
+      <h2 class="pane-title">Übernehmen</h2>
+      <label>Titel <input type="text" name="title" value="{{ values.title }}" required></label>
+      <label class="docx-import-check"><input type="checkbox" name="changes" value="1"{% if values.changes %} checked{% endif %}>
+        verfolgte Änderungen als offene Vorschläge anlegen</label>
+      <label class="docx-import-check"><input type="checkbox" name="comments" value="1"{% if values.comments %} checked{% endif %}>
+        Kommentare als Beiträge anlegen</label>
+      <button class="btn primary" type="submit">Als Werk übernehmen</button>
+    </form>
+    <form class="docx-import-discard" action="/werke/import/word/verwerfen" method="post">
+      <input type="hidden" name="draft" value="{{ preview.draft }}">
+      <button class="btn" type="submit">Verwerfen</button>
+      <span class="muted small">löscht den Entwurf; nichts wird angelegt.</span>
+    </form>
+  </section>
+
+  {%- else %}
+  <section class="docx-import-report" data-work="{{ report.work }}">
+    <h1 class="pane-title">Übernommen: {{ report_title }}</h1>
+    <p>Das Werk ist angelegt: {{ report.sections }} Abschnitte, {{ report.proposals }} offene Vorschläge,
+      {{ report.posts }} Beiträge. Beim Übernehmen ist etwas aufgefallen:</p>
+    <ul class="docx-import-warnings" aria-label="Hinweise">
+      {%- for w in report.warnings %}
+      <li data-code="{{ w.code }}"><code>{{ w.code }}</code> {{ w.message }}</li>
+      {%- endfor %}
+    </ul>
+    <p><a class="btn primary" href="/?work={{ report.work }}">Zum Werk</a></p>
+  </section>
+  {%- endif %}
+</main>
+{% endblock %}
