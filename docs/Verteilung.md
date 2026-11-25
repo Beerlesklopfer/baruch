@@ -393,9 +393,10 @@ Drittlizenzen im eingehängten Abbild; er gilt nur, solange Baruch läuft.
 ### macOS (unsigniert)
 
 `Baruch-<Version>-macos-arm64.dmg` (Apple Silicon) oder `…-x86_64.dmg` (Intel) öffnen und Baruch in den Ordner
-„Programme“ ziehen. Das Programm ist **nicht signiert und nicht notarisiert**; macOS verweigert darum den
-ersten Start. Erlauben: Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“, oder im Terminal
-`xattr -dr com.apple.quarantine /Applications/Baruch.app`. Vorher die Prüfsumme mit `SHA256SUMS` vergleichen.
+„Programme“ ziehen. Seit 0.9.0 ist das Programm mit der Developer ID
+signiert und von Apple notarisiert (Ticket angeheftet); macOS fragt beim ersten Start nur nach. Ohne die Secrets
+(Abschnitt oben) entsteht ein unsigniertes Paket – dann: Systemeinstellungen → Datenschutz & Sicherheit →
+„Dennoch öffnen“ bzw. `xattr -dr com.apple.quarantine /Applications/Baruch.app`. Vorher die Prüfsumme mit `SHA256SUMS` vergleichen.
 Baruch hat kein Dock-Symbol; die Oberfläche ist der Browser (wenn möglich als eigenes App-Fenster, siehe
 „Baruch beenden“). Beenden: Baruch ▾ → „Baruch beenden…“ in der Oberfläche; notfalls Aktivitätsanzeige oder
 `pkill baruch-server` (seit Runde 32 fährt auch das sauber herunter).

@@ -14,8 +14,8 @@ Aktuell ist Version {{< param "version" >}}. Alle Dateien liegen auf der {{< rel
 |---|---|---|
 | Debian 13, Ubuntu 24.04 oder neuer (amd64) | {{< download "baruch_VERSION-1_amd64.deb" >}} | besser über die APT-Quelle, siehe unten |
 | Linux allgemein (x86_64) | {{< download "Baruch-VERSION-x86_64.AppImage" >}} | braucht glibc 2.39 oder neuer |
-| macOS, Apple Silicon | {{< download "Baruch-VERSION-macos-arm64.dmg" >}} | nicht signiert |
-| macOS, Intel | {{< download "Baruch-VERSION-macos-x86_64.dmg" >}} | nicht signiert |
+| macOS, Apple Silicon | {{< download "Baruch-VERSION-macos-arm64.dmg" >}} | signiert und notarisiert |
+| macOS, Intel | {{< download "Baruch-VERSION-macos-x86_64.dmg" >}} | signiert und notarisiert |
 | Windows (x64) | {{< download "Baruch-VERSION-x64.msi" >}} | nicht signiert |
 | Prüfsummen | {{< download "SHA256SUMS" >}} | SHA-256 aller Dateien |
 | APT-Repository als Archiv | {{< download "apt-repo.tar.gz" >}} | für einen eigenen Spiegel |
@@ -89,15 +89,11 @@ chmod +x {{< datei "Baruch-VERSION-x86_64.AppImage" >}}
 Das AppImage bringt `libdbus` nicht mit (für den Schlüsselbund; auf jedem üblichen Desktop vorhanden) und
 braucht wie das .deb glibc ab 2.39. Aktualisiert wird von Hand: neue Datei laden.
 
-## macOS (nicht signiert)
+## macOS
 
-Die passende `.dmg`-Datei öffnen und Baruch in den Ordner „Programme“ ziehen. Das Programm ist **nicht
-signiert und nicht notarisiert**; macOS verweigert darum den ersten Start. Erlauben: Systemeinstellungen →
-Datenschutz & Sicherheit → „Dennoch öffnen“, oder im Terminal:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/Baruch.app
-```
+Die passende `.dmg`-Datei öffnen (Apple Silicon oder Intel) und Baruch in den Ordner „Programme“ ziehen. Das
+Programm ist mit einer Developer ID signiert und von Apple notarisiert; macOS fragt beim ersten Start nur, ob
+ein aus dem Internet geladenes Programm geöffnet werden soll.
 
 Baruch hat kein Dock-Symbol; die Oberfläche ist der Browser. Ist Chrome, Chromium, Brave oder Edge installiert,
 öffnet Baruch ein eigenes Fenster ohne Adressleiste, sonst den Standardbrowser. Das Browserfenster zu schließen

@@ -96,8 +96,8 @@ Release entsteht erst, wenn der Wert hier, auf der Webseite und in `docs/Verteil
 | macOS, Intel | `Baruch-0.9.0-macos-x86_64.dmg` | wie oben (unsigniert) |
 | Windows (x64) | `Baruch-0.9.0-x64.msi` | ausführen (unsigniert, SmartScreen warnt) |
 
-Die Pakete für macOS und Windows sind **nicht signiert** und noch auf keinem echten Gerät erprobt; wie man sie
-trotzdem startet, steht in [docs/Verteilung.md](docs/Verteilung.md). Jedes Paket enthält die Lizenz, die
+Die Pakete für macOS sind signiert und von Apple notarisiert (seit 0.9.0), das Paket für Windows ist **nicht
+signiert**; beide sind noch auf keinem echten Gerät erprobt. Wie man sie startet, steht in [docs/Verteilung.md](docs/Verteilung.md). Jedes Paket enthält die Lizenz, die
 Lizenzen der eingebundenen Bibliotheken (`THIRD-PARTY-LICENSES.txt`) und den Hinweis auf den Quelltext. Kein
 Paket legt etwas im Datenordner an, und das Entfernen löscht dort nichts.
 

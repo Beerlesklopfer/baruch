@@ -118,8 +118,8 @@ Mehr dazu unter [MCP und Assistenten](/mcp/).
 
 **Auf welchen Systemen läuft Baruch?**
 Baruch ist ein kleines Programm, das auf dem eigenen Rechner läuft und im Browser bedient wird – keine Cloud,
-kein Konto. Pakete gibt es für Linux (Debian und Ubuntu, AppImage), macOS und Windows; die Pakete für macOS und
-Windows sind noch nicht signiert und weniger erprobt als die für Linux. Siehe [Installation](/installation/).
+kein Konto. Pakete gibt es für Linux (Debian und Ubuntu, AppImage), macOS und Windows; die Pakete für macOS sind
+signiert und von Apple notarisiert, das Paket für Windows ist noch nicht signiert. Siehe [Installation](/installation/).
 
 **Wie schnell ist man startklar?**
 Schreiben, Fassungen, Gliederung und Buchsatz funktionieren sofort nach der Installation; das Satzsystem ist
