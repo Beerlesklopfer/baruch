@@ -1,0 +1,77 @@
+{#- Seite /werke/{id}/karte/einlesen (Vertrag Runde 34 §5/§8, src/idea_map/files/upload.rs), ganz ohne JavaScript.
+    mode "form": Formular (POST /werke/{id}/karte/einlesen, multipart: file, parent).
+    mode "preview": Vorschau des gelesenen Baums; angelegt wird erst mit „Anlegen“
+    (POST /werke/{id}/karte/einlesen/anlegen, Felder tree = JSON des Baums, parent).
+    Kontext: settings, work {id, title}, title, mode, preview {title, count, links, warnings, nodes, json}, parents
+    [{id, label, selected}], parent, parent_label, error, max_mib, max_nodes, max_depth, form_href, apply_href,
+    map_href, outline_href, workspace.
+    Inhalte aus der Datei (Titel, Notizen, Hinweise) sind Daten: nur maskiert (Autoescape). -#}
+{% extends "base.html" %}
+{% block title %}Mindmap einlesen · {{ title }} – Baruch{% endblock %}
+{% block page_title %}Mindmap einlesen · {{ title }}{% endblock %}
+{% block page_actions %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Einlesen</summary><div class="band-items" role="group" aria-label="Einlesen">
+    <a class="btn" href="{{ form_href }}"{% if mode == "form" %} aria-current="page"{% endif %}>Andere Datei …</a>
+  </div></details>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="{{ map_href }}">Mindmap</a>
+    <a class="btn" href="{{ outline_href }}">Gliederungsansicht</a>
+    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+  </div></details>
+{% endblock %}
+{% block body %}
+<main class="mmg mmg-import">
+  {%- if error %}
+  <p class="notice error" role="alert" data-import-error>{{ error }}</p>
+  {%- endif %}
+
+  {%- if mode == "form" %}
+  <form class="mmg-upload" action="{{ form_href }}" method="post" enctype="multipart/form-data">
+    <h1 class="pane-title">Mindmap einlesen</h1>
+    <p class="muted small">Baruch liest eine Mindmap aus XMind (.xmind), FreeMind oder Freeplane (.mm) und zeigt
+      zuerst eine Vorschau. Angelegt wird erst, wenn du die Vorschau bestätigst. Die Datei bleibt auf diesem Rechner.
+      Übernommen werden Titel, Notizen, Schlagwörter (Etiketten), Reihenfolge und Beziehungen; Bilder, Stile und
+      Marker nicht. Das Hauptthema der Datei wird nicht selbst zum Einfall.</p>
+    <label>Datei (.xmind oder .mm, höchstens {{ max_mib }} MiB, {{ max_nodes }} Knoten, {{ max_depth }} Ebenen)
+      <input type="file" name="file" accept=".xmind,.mm,application/vnd.xmind.workbook,application/x-freemind" required>
+    </label>
+    <label>Wohin
+      <select name="parent">
+        <option value="">in die Wolke (ohne Platz in der Mindmap)</option>
+        {%- for p in parents %}
+        <option value="{{ p.id }}"{% if p.selected %} selected{% endif %}>unter {{ p.label }}</option>
+        {%- endfor %}
+      </select>
+    </label>
+    <button class="btn primary" type="submit">Vorschau zeigen</button>
+  </form>
+  {%- else %}
+  <section class="mmg-preview" data-import-preview data-count="{{ preview.count }}">
+    <h1 class="pane-title">Vorschau: {{ preview.title or "(ohne Titel)" }}</h1>
+    <p>{{ preview.count }} Knoten{% if preview.links %}, {{ preview.links }} Beziehung(en){% endif %} –
+      {% if parent_label %}werden Unterknoten von „{{ parent_label }}“{% else %}kommen in die Wolke (ohne Platz in der Mindmap){% endif %}.
+      Noch ist nichts angelegt.</p>
+    {%- if preview.warnings %}
+    <ul class="mmg-warnings" aria-label="Hinweise">
+      {%- for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+    {%- endif %}
+    <form class="mmg-form" action="{{ apply_href }}" method="post">
+      <input type="hidden" name="tree" value="{{ preview.json }}">
+      <input type="hidden" name="parent" value="{{ parent or "" }}">
+      <button class="btn primary" type="submit">Anlegen</button>
+      <a class="btn" href="{{ form_href }}">Verwerfen</a>
+    </form>
+    <ul class="mmg-list">
+    {%- for n in preview.nodes recursive %}
+      <li class="mmg-node mmg-idea"><span class="mmg-title">{{ n.title }}</span>
+        {%- if n.words %} <span class="muted small">{{ n.words | join(", ") }}</span>{% endif %}
+        {%- if n.note %}<div class="mmg-note small">{{ n.note }}</div>{% endif %}
+        {%- if n.children %}<ul class="mmg-list">{{ loop(n.children) }}</ul>{% endif %}
+      </li>
+    {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+</main>
+{% endblock %}
