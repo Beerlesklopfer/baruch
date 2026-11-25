@@ -127,8 +127,8 @@
         {#- Einfall: ohne JavaScript die Seite /einfaelle mit Formular, auf der Arbeitsseite der Dialog (Alt+E). #}
         <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" data-idea-open{% if tb %} aria-haspopup="dialog" aria-controls="idea-capture"{% endif %} title="Einfall festhalten (Alt+E)" data-shortcut="Alt+E">Einfall festhalten</a>
         <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" title="Liste der Einfälle dieses Werks">Einfälle</a>
-        {#- Runde 25: Gedankenkarte der Einfälle (Seite /werke/W/karte, ohne JavaScript bedienbar); nur mit Werk. #}
-        {% if w %}<a class="btn" href="/werke/{{ w }}/karte" title="Gedankenkarte der Einfälle dieses Werks">Gedankenkarte</a>{% endif %}
+        {#- Runde 25/34: Mindmap der Einfälle (Seite /werke/W/karte, ohne JavaScript bedienbar); nur mit Werk. #}
+        {% if w %}<a class="btn" href="/werke/{{ w }}/karte" title="Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)">Mindmap</a>{% endif %}
       </div></details>
       {%- if not w %}
       {#- Ohne Werk gibt es die Reiter Prüfen und Buch nicht; was kein Werk braucht, steht hier. #}

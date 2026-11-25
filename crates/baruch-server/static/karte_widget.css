@@ -1,65 +1,62 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Gedankenkarte (Runde 25): Ziehen, Fokus, Ziel, Seitenleiste, Dialog des Widgets – karte-widget.
-   Nur Klassen, die das Widget (web/src/idea_map.ts) setzt oder anlegt; Strichart, Abblenden, Druck und Dunkel der
-   Karte selbst stehen in karte.css (karte-bild). Farben nur über die Variablen aus app.css (Hell/Dunkel). */
+/* Mindmap (Runde 34): Auswahl, Ziehen, Ablageziele, Umbenennen, Dialog „Verbinden“ – nur Klassen, die das Widget
+   (web/src/mindmap.ts) setzt oder anlegt. Das Bild selbst (Äste, Farben, Wolke, Druck, Dunkel) steht in karte.css.
+   Farben nur über die Variablen aus app.css (Hell/Dunkel); Zustände nie nur über Farbe (Strichstärke, Strichart). */
 
-/* Ziehen und Verschieben: keine Textauswahl, Touch-Gesten gehören der Karte. */
-.im-stage.im-ready .im-svg { touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
-.im-stage.im-panning .im-svg { cursor: grabbing; }
-.im-stage.im-ready .im-idea { cursor: move; }
-.im-stage.im-drag-active .im-edge { pointer-events: none; }
-.im-node.im-dragging { opacity: .85; }
-.im-node.im-dragging circle { stroke: var(--primary); stroke-width: 3; stroke-dasharray: 4 3; }
-.im-node.im-drop-target circle { stroke: var(--success); stroke-width: 4; }
+/* Mit Widget: fester Ausschnitt statt Rollbalken; Zoom und Verschieben setzen transform auf .mm-viewport. */
+.mm-stage.mm-ready .mm-canvas { overflow: hidden; height: min(78vh, 900px); max-height: none; }
+.mm-stage.mm-ready .mm-svg {
+  width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+}
+.mm-stage.mm-panning .mm-svg { cursor: grabbing; }
+.mm-stage.mm-ready .mm-node { cursor: pointer; }
+.mm-stage.mm-ready .mm-node[data-editable="1"] { cursor: move; }
+.mm-stage.mm-dragging .mm-edge, .mm-stage.mm-dragging .mm-rel, .mm-stage.mm-dragging .mm-near { pointer-events: none; }
 
-/* Fokus (Tastatur) und Verbinden: Quelle gestrichelt, Ziel kräftig – nicht nur über Farbe unterscheidbar. */
-.im-node:focus { outline: none; }
-.im-node:focus-visible circle { stroke: var(--primary); stroke-width: 4; }
-.im-node.im-source circle { stroke: var(--warning); stroke-width: 4; stroke-dasharray: 6 3; }
-.im-node.im-target circle { stroke: var(--primary); stroke-width: 5; }
-.im-stage.im-connecting .im-svg { cursor: crosshair; }
+/* Auswahl und Fokus. */
+.mm-node:focus { outline: none; }
+.mm-node.mm-selected > .mm-box, .mm-node:focus-visible > .mm-box { stroke: var(--primary); stroke-width: 3.2; }
+.mm-link.mm-selected { stroke-width: 4; }
+.mm-node.mm-source > .mm-box { stroke: var(--warning); stroke-width: 3.2; stroke-dasharray: 6 3; }
+.mm-stage.mm-linking .mm-svg { cursor: crosshair; }
 
-/* Zoom-Knöpfe und Hilfe in der Werkzeugleiste. */
-.im-zoom { display: inline-flex; gap: .25rem; margin-right: .75rem; vertical-align: middle; }
-.im-zoom .btn { min-width: 2.2em; }
-.im-help { margin: .35rem 0 0; font-size: .85em; color: var(--muted); }
+/* Ziehen: Quelle blass, Ziel kräftig; „davor/dahinter einordnen“ als Balken über bzw. unter dem Ziel. */
+.mm-node.mm-moving { opacity: .45; }
+.mm-node.mm-drop > .mm-box { stroke: var(--success); stroke-width: 4; }
+.mm-node.mm-drop-before > .mm-box, .mm-node.mm-drop-after > .mm-box { stroke: var(--success); stroke-width: 2; stroke-dasharray: 5 3; }
+.mm-cloud.mm-drop .mm-cloud-area { stroke: var(--success); stroke-width: 3.5; }
+.mm-drag-ghost {
+  position: fixed; z-index: 30; pointer-events: none; padding: 3px 9px; max-width: 22rem;
+  background: var(--panel); color: var(--text); border: 2px solid var(--primary); border-radius: 7px;
+  font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+}
+.mm-drop-bar { position: fixed; z-index: 29; pointer-events: none; height: 3px; background: var(--success); border-radius: 2px; }
 
-/* Live-Region: unsichtbar, aber vorgelesen. */
-.im-status {
-  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
-  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+/* Umbenennen: Eingabefeld über dem Knoten. */
+.mm-edit {
+  position: absolute; z-index: 20; min-width: 9rem; padding: 3px 7px; font: inherit; font-size: 14px;
+  background: var(--panel); color: var(--text); border: 2px solid var(--primary); border-radius: 7px;
 }
 
-/* Seitenleiste (aria-live, vom Server leer und hidden geliefert). */
-.im-stage.im-ready { position: relative; }
-/* Runde 18a: oben bündig mit dem Bild (--im-top setzt idea_map.ts), damit die Leiste die Werkzeugleiste nicht
-   überdeckt; ohne Wert (vor dem Einhängen) wie bisher. */
-.im-side:not([hidden]) {
-  position: absolute; top: calc(var(--im-top, 0px) + .5rem); right: .5rem; z-index: 5; width: min(22rem, 90%);
-  max-height: calc(100% - var(--im-top, 0px) - 1rem);
-  overflow: auto; padding: .75rem 1rem; background: var(--panel); color: var(--text);
-  border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 18px rgba(0, 0, 0, .18);
-}
-.im-side-form { display: flex; flex-direction: column; gap: .5rem; }
-.im-side-form h2 { margin: 0; font-size: 1.05rem; }
-.im-side-form label { display: flex; flex-direction: column; gap: .2rem; font-size: .9em; }
-.im-side-form input, .im-side-form textarea, .im-side-form select { font: inherit; }
-.im-side-quote { margin: 0; padding-left: .6rem; border-left: 3px solid var(--line); color: var(--muted); }
-.im-side-actions, .im-dialog-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
-.im-side-status, .im-dialog-status { margin: 0; color: var(--danger); min-height: 1em; }
+/* Meldung mit „Rückgängig“. */
+.mm-status .btn { margin-left: 8px; }
+.mm-status.mm-error { color: var(--danger); font-weight: 600; }
+.mm-zoom { display: inline-flex; gap: 4px; }
+.mm-zoom .btn { min-width: 2.2em; }
+.mm-help { margin: 0; padding: 4px 10px; color: var(--muted); border-bottom: 1px solid var(--line); }
 
-/* Dialoge: Verbinden (Art, Notiz) und neuer Einfall (Alt+E). */
-.im-dialog { max-width: 28rem; width: calc(100% - 2rem); border: 1px solid var(--line); border-radius: 8px;
-  background: var(--panel); color: var(--text); padding: 1rem 1.25rem; }
-.im-dialog::backdrop { background: rgba(0, 0, 0, .35); }
-.im-dialog form { display: flex; flex-direction: column; gap: .6rem; }
-.im-dialog h2 { margin: 0; font-size: 1.1rem; }
-.im-dialog fieldset { border: 1px solid var(--line); border-radius: 4px; padding: .4rem .7rem; }
-.im-dialog .im-kind { display: block; padding: .15rem 0; }
-.im-dialog label:not(.im-kind) { display: flex; flex-direction: column; gap: .2rem; }
-.im-dialog textarea, .im-dialog input[type=text] { font: inherit; }
-.im-dialog .im-note textarea { width: 100%; box-sizing: border-box; }
+/* Dialog „Verbinden“ (Art, Notiz). */
+.mm-dialog {
+  max-width: 28rem; width: calc(100% - 2rem); border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--text); padding: 1rem 1.25rem;
+}
+.mm-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.mm-dialog form { display: flex; flex-direction: column; gap: .6rem; }
+.mm-dialog h2 { margin: 0; font-size: 1.1rem; }
+.mm-dialog label { display: flex; flex-direction: column; gap: .2rem; }
+.mm-dialog select, .mm-dialog input { font: inherit; min-height: 28px; }
+.mm-dialog-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 
 @media print {
-  .im-zoom, .im-help, .im-side, .im-dialog { display: none !important; }
+  .mm-zoom, .mm-help, .mm-edit, .mm-dialog, .mm-drag-ghost, .mm-drop-bar { display: none !important; }
 }

@@ -12,7 +12,7 @@ import "./cover_editor.js";
 import "./epub_preview.js";
 import "./findings.js";
 import "./glossary.js";
-import "./idea_map.js";
+import "./mindmap.js";
 import "./ideas.js";
 import "./jump.js";
 import "./laptop.js";
