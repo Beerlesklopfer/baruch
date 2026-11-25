@@ -1,7 +1,9 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Einstieg des AppImage.
-#   ohne Argumente: Server starten (falls noch keiner läuft) und die Oberfläche im Browser öffnen
+#   ohne Argumente: Server starten (falls noch keiner läuft) und die Oberfläche im Browser öffnen – der Starter
+#                   usr/bin/baruch (packaging/linux/baruch) wählt das Fenster: BARUCH_BROWSER=app|standard,
+#                   BARUCH_NO_BROWSER=1 (beide werden unverändert durchgereicht)
 #   mit Argumenten: unverändert an baruch-server (z. B. `--help`, `import DATEI.typ`, `serve --listen …`)
 here="$(dirname "$(readlink -f "$0")")"
 export BARUCH_SERVER="$here/usr/bin/baruch-server"

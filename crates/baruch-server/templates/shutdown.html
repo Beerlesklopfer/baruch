@@ -1,0 +1,38 @@
+{#- Seite /beenden (Runde 32, src/shutdown.rs): Rückfrage vor dem Beenden von Baruch. Das Formular schickt
+    POST /beenden (ohne JavaScript bedienbar). Kommt die Anfrage nicht vom eigenen Rechner (anderer Rechner oder
+    über den Namen eines Reverse-Proxys), zeigt die Seite mit Status 403 nur die Erklärung – kein Formular.
+    Kontext: settings (settings.work: zuletzt geöffnetes Werk, Ziel von „Abbrechen“), allowed (bool). -#}
+{% extends "base.html" %}
+{% block title %}Baruch beenden – Baruch{% endblock %}
+{% block page_title %}Baruch beenden{% endblock %}
+{% block page_actions %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück zum Werk</a>
+  </div></details>
+{% endblock %}
+{% block body %}
+<main class="works-page shutdown-page">
+  <h1 class="pane-title">Baruch beenden</h1>
+  {%- if allowed %}
+  <p>Soll Baruch auf diesem Rechner beendet werden?</p>
+  <p class="muted">Gespeicherte Texte stehen bereits in der Datenbank und im Git-Spiegel; es geht nichts verloren.
+    Ungespeicherte Eingaben in anderen Fenstern vorher speichern. Laufende Antworten gehen noch zu Ende (höchstens
+    zehn Sekunden), ein offener Live-Chat wird
+    danach getrennt. Danach ist Baruch nicht mehr erreichbar, bis es neu gestartet wird (Startmenü, Programme,
+    <code>baruch</code> im Terminal oder der eingerichtete Dienst).</p>
+  <form class="shutdown-form" method="post" action="/beenden" data-shutdown-form>
+    <button class="btn danger" type="submit">Baruch beenden</button>
+    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Abbrechen</a>
+  </form>
+  {%- else %}
+  <p class="notice error" role="alert">Baruch lässt sich nur am eigenen Rechner beenden.</p>
+  <p>Diese Anfrage kam von einem anderen Rechner oder über den Namen eines vorgeschalteten Servers
+    (Reverse-Proxy). Von dort aus beendet Baruch sich nicht – sonst könnte jeder, der die Seite erreicht, die
+    Schreibwerkstatt abschalten.</p>
+  <p class="muted">Beenden geht am Rechner, auf dem Baruch läuft: dort im Browser
+    <code>http://127.0.0.1:8765/beenden</code> öffnen (bzw. die Adresse, unter der Baruch dort lauscht), oder den
+    Dienst anhalten (<code>systemctl --user stop baruch</code>).</p>
+  <p><a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück</a></p>
+  {%- endif %}
+</main>
+{% endblock %}

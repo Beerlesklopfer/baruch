@@ -43,6 +43,15 @@ WRITE_CONTENTS = {("release.yml", "publish")}
 ARCHIVE_SECRET = re.compile(r"secrets\.APT_GPG_")
 ARCHIVE_ENVIRONMENT = "release"
 rust_versions = {}
+# Die beiden Aktionen der Auslieferung über Pages (Regel 11).
+UPLOAD_PAGES = "actions/upload-pages-artifact"
+DEPLOY_PAGES = "actions/deploy-pages"
+
+
+def action_of(step):
+    """Name der Aktion eines Schritts ohne `@SHA`; leer bei einem `run`-Schritt."""
+    return str((step or {}).get("uses") or "").split("@")[0]
+
 
 for path in files:
     name = os.path.basename(path)
@@ -99,6 +108,7 @@ for path in files:
         permissions = job.get("permissions") or {}
         environment = job.get("environment")
         environment = environment.get("name") if isinstance(environment, dict) else environment
+        steps = job.get("steps") or []
 
         # 5. Schreibrechte nur dort, wo sie gebraucht werden. Grund: Ein übernommener Bauschritt soll weder
         #    Releases noch die Webseite ändern können.
@@ -117,6 +127,30 @@ for path in files:
             wanted = {"contents": "read", "pages": "write", "id-token": "write"}
             if permissions != wanted:
                 problem(name, f"{where}: Pages-Job braucht genau {wanted}, hat {permissions!r}")
+            # 11. Bauen und Ausliefern in zwei Jobs. Grund: Am 2026-11-24 fand deploy-pages im selben Job das eben
+            #     hochgeladene Artefakt zweimal nicht, und das Wiederholen legte ein zweites Artefakt an. Außerdem
+            #     soll der Job mit Schreibrecht und OIDC-Token keinen Code des Repositorys ausführen. Darum: Der
+            #     Job der Umgebung github-pages besteht nur aus deploy-pages und hängt (needs) an einem Job
+            #     derselben Datei, der upload-pages-artifact ausführt und nichts schreiben darf.
+            if any(action_of(step) == UPLOAD_PAGES for step in steps):
+                problem(name, f"{where}: upload-pages-artifact und deploy-pages im selben Job; Bauen gehört in einen eigenen Job davor.")
+            if not steps or any(action_of(step) != DEPLOY_PAGES for step in steps):
+                problem(name, f"{where}: der Pages-Job darf nur actions/deploy-pages ausführen.")
+            needs = job.get("needs") or []
+            needs = [needs] if isinstance(needs, str) else needs
+            builders = [
+                other for other in needs
+                if isinstance(jobs.get(other), dict)
+                and any(action_of(step) == UPLOAD_PAGES for step in jobs[other].get("steps") or [])
+            ]
+            if not builders:
+                problem(name, f"{where}: needs nennt keinen Job mit upload-pages-artifact (Bauen vor dem Ausliefern).")
+        elif any(action_of(step) == DEPLOY_PAGES for step in steps):
+            problem(name, f"{where}: deploy-pages nur in einem Job mit environment github-pages.")
+        # 11. (Gegenstück) Wer das Artefakt der Seite baut, darf nichts schreiben.
+        if any(action_of(step) == UPLOAD_PAGES for step in steps):
+            if any(level == "write" for level in permissions.values()):
+                problem(name, f"{where}: Job mit upload-pages-artifact darf keine Schreibrechte haben.")
 
         for index, step in enumerate(job.get("steps") or [], 1):
             label = f"{where}, Schritt {index} ({step.get('name') or step.get('uses') or '?'})"

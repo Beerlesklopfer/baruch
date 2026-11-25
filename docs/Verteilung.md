@@ -22,7 +22,7 @@ an und liefert Webseite und Repository über GitHub Pages aus. Es gibt keinen Ha
 |---|---|---|
 | `.github/workflows/ci.yml` | Push auf `main`, von Hand | `cargo fmt --check`, Tests, clippy (`-D warnings`), `typst compile` eines Exports, `cargo deny check`, Seitenbau (ohne Auslieferung), Selbsttest der Hilfsskripte |
 | `.github/workflows/release.yml` | Tag `v*`, von Hand (dann nur Pakete als Artefakte) | Pakete → APT-Repository → `SHA256SUMS` → GitHub-Release → Webseite samt `/apt/` über GitHub Pages |
-| `.github/workflows/pages.yml` | Push auf `main`, von Hand | Webseite neu bauen, `/apt/` aus dem letzten veröffentlichten Release wieder einspielen, ausliefern |
+| `.github/workflows/pages.yml` | Push auf `main`, von Hand | Webseite neu bauen, `/apt/` aus dem letzten veröffentlichten Release wieder einspielen (Job `pages-build`), ausliefern (Job `pages-deploy`) |
 
 Die Version steht an einer Stelle: `[workspace.package] version` in `Cargo.toml` (`scripts/version.sh` liest sie).
 Ein Tag `v<Version>` muss dazu passen, sonst bricht der Bau ab; `params.version` in `site/hugo.toml` muss
@@ -62,7 +62,7 @@ Baruch fragt nie von sich aus im Netz nach neuen Versionen. Aktualisiert wird ü
       (`scripts/ci-fingerprint.sh`, bei Abweichung Abbruch), erzeugt das APT-Repository neu und signiert es;
    4. schreibt `SHA256SUMS` und legt das GitHub-Release **als Entwurf** an;
    5. baut die Webseite (`hugo --minify --panicOnWarning -s site`), legt das Repository nach
-      `site/public/apt/` und liefert alles über GitHub Pages aus (Job `pages`).
+      `site/public/apt/` (Job `pages-build`) und liefert alles über GitHub Pages aus (Job `pages-deploy`).
 
    Linux (.deb) ist Pflicht; scheitern AppImage, macOS oder Windows, entsteht das Release trotzdem und nennt in
    der Beschreibung, was fehlt.
@@ -83,7 +83,7 @@ Webseite (`https://baruch.bernau.family/`) und APT-Repository (`https://baruch.b
 einzige Pages-Seite. Pages ersetzt bei jeder Auslieferung die ganze Seite; darum muss **jede** Auslieferung das
 Repository mitbringen:
 
-- `release.yml` (Job `pages`) nimmt das eben erzeugte Repository (als Artefakt aus dem Job `publish`).
+- `release.yml` (Job `pages-build`) nimmt das eben erzeugte Repository (als Artefakt aus dem Job `publish`).
 - `pages.yml` holt `apt-repo.tar.gz` des jüngsten **veröffentlichten** Release, das das Archiv trägt, prüft es
   gegen `SHA256SUMS` desselben Release und legt es wieder nach `/apt/`.
 - Gibt es noch kein solches Release, erscheint die Seite ohne `/apt/`; der Lauf meldet das als Warnung.
@@ -91,6 +91,23 @@ Repository mitbringen:
   Seite bleibt stehen – lieber keine neue Seite als eine ohne Repository.
 
 Beide Abläufe teilen die Gruppe `pages` (`concurrency`): Es laufen nie zwei Auslieferungen zugleich.
+
+**Bauen und Ausliefern sind zwei Jobs** (seit Runde 32), in beiden Abläufen gleich:
+
+- `pages-build` (nur `contents: read`): Checkout, Hugo, Repository holen, Seite bauen,
+  `actions/upload-pages-artifact`.
+- `pages-deploy` (`needs: [pages-build]`, Umgebung `github-pages`, `pages: write` und `id-token: write`): nur
+  `actions/deploy-pages`, kein Checkout, kein Befehl.
+
+Grund (2026-11-24, beim ersten Release beobachtet): Mit beiden Aktionen im selben Job fand `deploy-pages` das
+eben hochgeladene Artefakt zweimal nicht, und das Wiederholen des Jobs legte ein zweites Artefakt an. GitHub
+selbst sieht für Pages zwei Jobs vor. Nebenbei führt der Job mit Schreibrecht und OIDC-Token so keinen Code des
+Repositorys mehr aus, und ein gescheitertes Ausliefern lässt sich allein wiederholen, ohne neu zu bauen. In
+`release.yml` trägt `pages-deploy` dieselbe Bedingung wie `pages-build`
+(`!cancelled() && needs.pages-build.result == 'success'`), sonst gälte er als übersprungen, wenn macOS oder
+Windows scheitern. **Ungeprüft:** Die Trennung ist nie gelaufen (nichts ausgelöst, kein Push); ob sie den
+beobachteten Fehler behebt, zeigt erst der nächste Lauf. Die zweite Beobachtung vom selben Tag – ein Tag auf
+demselben Commit wie der letzte Lauf von `main` wird nicht neu ausgeliefert – löst sie nicht (steht im Backlog).
 
 Das Repository ist ansammelnd: `Packages` nennt alle bisher veröffentlichten Versionen
 (`apt install baruch=0.9.0-1` bleibt möglich). Die Kette läuft über die Releases – jedes `apt-repo.tar.gz`
@@ -124,7 +141,7 @@ Diese Schritte macht der Nutzer einmal; kein Skript und kein Agent nimmt sie ihm
 3. **Umgebung `github-pages`:** Settings → Environments → `github-pages` → „Deployment branches and tags“.
    GitHub lässt dort üblicherweise nur den Standardzweig zu; `release.yml` liefert aber von einem Tag aus.
    Eine Regel für Tags `v*` ergänzen (neben `main`). *Annahme, nicht geprüft:* Ohne diese Regel lehnt GitHub
-   den Job `pages` in `release.yml` ab („not allowed to deploy to github-pages“); der erste Lauf zeigt es.
+   den Job `pages-deploy` in `release.yml` ab („not allowed to deploy to github-pages“); der erste Lauf zeigt es.
 4. **Umgebung `release` mit Schutzregeln:** Settings → Environments → „New environment“ → `release`. Dort
    „Required reviewers“ (der Nutzer selbst) einschalten und unter „Deployment branches and tags“ nur Tags
    `v*` zulassen. Der Job `publish` in `release.yml` läuft in dieser Umgebung und wartet dann bei jedem
@@ -196,7 +213,7 @@ Tag weitergeben – gibt es bisher nicht.)
   Stand des Tags – ein nachträglicher Eintrag auf `main` hilft dem laufenden Tag nicht. Dann: Fingerabdruck
   eintragen, committen, nach `main` bringen, das Tag löschen und auf dem neuen Stand neu setzen (ein Release
   gab es noch nicht). Der Job `linux` warnt deshalb schon am Anfang des Laufs, wenn der Eintrag fehlt.
-- **Ohne das Secret** erzeugt `release.yml` ein unsigniertes Repository und warnt; `pages` liefert es trotzdem
+- **Ohne das Secret** erzeugt `release.yml` ein unsigniertes Repository und warnt; `pages-deploy` liefert es trotzdem
   aus und warnt ebenfalls. apt lehnt ein unsigniertes Repository ab – es taugt nur zur Probe.
 - **Schlüssel verlängert, ersetzt oder widerrufen:** Bei einem gemeinsamen Schlüssel betrifft das ForgeIEC
   und Baruch zusammen. Secret erneuern, Fingerabdruck auf der Webseite und hier nachziehen, ein neues Release machen (oder das Repository
@@ -235,8 +252,12 @@ Die Signierung für macOS und Windows ist vorbereitet und **abgeschaltet**; beid
   (`uses: actions/checkout@<SHA> # v4.2.2`). Ein Tag lässt sich verschieben, ein SHA nicht.
 - Kein `pull_request_target`.
 - Oberste Rechte sind genau `contents: read`. `contents: write` hat nur der Job `publish` in `release.yml`;
-  `pages: write` und `id-token: write` haben nur die Jobs `pages` (in `release.yml` und `pages.yml`), beide in
-  der Umgebung `github-pages`.
+  `pages: write` und `id-token: write` haben nur die Jobs `pages-deploy` (in `release.yml` und `pages.yml`),
+  beide in der Umgebung `github-pages`.
+- Bauen und Ausliefern der Webseite sind getrennt: Der Job der Umgebung `github-pages` besteht nur aus
+  `actions/deploy-pages` und hängt (`needs`) an einem Job derselben Datei, der `actions/upload-pages-artifact`
+  ausführt und keine Schreibrechte hat. Beides im selben Job lehnt die Prüfung ab (Grund: „Auslieferung über
+  GitHub Pages“; Gegenprobe in `scripts/ci-selftest.sh`).
 - Der Archivschlüssel (`secrets.APT_GPG_*`) steht nur in einem Job der Umgebung `release` (Job `publish`).
   Grund: Die Schutzregeln der Umgebung (Freigabe, nur Tags `v*`) entscheiden, welcher Lauf an den Schlüssel
   kommt – nicht schon der Umstand, dass jemand ein Tag setzen kann.
@@ -356,15 +377,67 @@ Drittlizenzen im eingehängten Abbild; er gilt nur, solange Baruch läuft.
 „Programme“ ziehen. Das Programm ist **nicht signiert und nicht notarisiert**; macOS verweigert darum den
 ersten Start. Erlauben: Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“, oder im Terminal
 `xattr -dr com.apple.quarantine /Applications/Baruch.app`. Vorher die Prüfsumme mit `SHA256SUMS` vergleichen.
-Baruch hat kein Fenster und kein Dock-Symbol; die Oberfläche ist der Browser. Beenden: Aktivitätsanzeige oder
-`pkill baruch-server`.
+Baruch hat kein Dock-Symbol; die Oberfläche ist der Browser (wenn möglich als eigenes App-Fenster, siehe
+„Baruch beenden“). Beenden: Baruch ▾ → „Baruch beenden…“ in der Oberfläche; notfalls Aktivitätsanzeige oder
+`pkill baruch-server` (seit Runde 32 fährt auch das sauber herunter).
 
 ### Windows (unsigniert)
 
 `Baruch-<Version>-x64.msi` ausführen (Administratorrechte, Installation nach `C:\Program Files\Baruch`). Das
 Paket ist **nicht signiert**; SmartScreen warnt („Weitere Informationen“ → „Trotzdem ausführen“). Vorher die
 Prüfsumme vergleichen (`Get-FileHash Baruch-0.9.0-x64.msi -Algorithm SHA256`). Start über „Baruch“ im
-Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser. Beenden: das Fenster schließen.
+Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser (Edge als eigenes App-Fenster, sonst der
+Standardbrowser). Beenden: Baruch ▾ → „Baruch beenden…“ in der Oberfläche oder das minimierte Fenster schließen.
+
+## Baruch beenden
+
+Seit Runde 32 beendet sich Baruch über die Oberfläche: **Baruch ▾ → „Baruch beenden…“** öffnet die Rückfrage
+`/beenden`, der Knopf dort schickt ein gewöhnliches Formular (ohne JavaScript bedienbar). Danach zeigt das
+Fenster „Baruch ist beendet – dieses Fenster kann geschlossen werden“ und versucht, sich selbst zu schließen.
+
+- **Nur am eigenen Rechner:** Die Gegenstelle muss Loopback sein, und die Anfrage darf nicht unter einem
+  zusätzlich erlaubten Rechnernamen (`--allow-host`, Reverse-Proxy) kommen. Sonst antwortet Baruch mit 403 und
+  einer Erklärung. Es gibt dafür weder eine RPC-Methode noch ein MCP-Werkzeug.
+- **Sauberes Herunterfahren** auch auf Signale: Strg+C, unter Unix `SIGTERM` (`systemctl --user stop`, `kill`),
+  unter Windows Strg+Pause, das Schließen des Konsolenfensters und das Herunterfahren des Systems. Laufende
+  Antworten gehen zu Ende (höchstens 10 Sekunden; offene Ströme wie der Live-Chat werden danach getrennt), die
+  Datenbank wird geschlossen, die letzte Zeile der Ausgabe heißt „Baruch beendet.“, der Prozess endet mit
+  Status 0. `SIGHUP` fängt Baruch bewusst nicht ab (sonst wirkte `nohup` nicht mehr).
+- **Dienst (systemd):** Die Units (`packaging/systemd/baruch.service`, `packaging/debian/baruch.service`) haben
+  `Restart=on-failure`. Ein Ende mit Status 0 ist kein Fehler: Nach „Baruch beenden“ bleibt der Dienst aus, bis
+  `systemctl --user start baruch.service` (oder die nächste Anmeldung) ihn wieder startet. Wer `Restart=always`
+  einträgt, macht den Knopf wirkungslos.
+
+### Fenster und Starter
+
+Ein Skript darf ein Browserfenster nur schließen, wenn der Browser es zulässt – in der Regel bei Fenstern, die
+ein Skript geöffnet hat, und bei App-Fenstern. Darum öffnen die Starter Baruch, wo es geht, als **App-Fenster**
+eines Chromium-artigen Browsers (`--app=<Adresse>`: eigenes Fenster ohne Adressleiste). Gesteuert wird das über
+`BARUCH_BROWSER`:
+
+| Wert | Wirkung |
+|---|---|
+| `app` (Vorgabe) | App-Fenster, wenn ein passender Browser gefunden wird; sonst der Standardbrowser |
+| `standard` | immer der Standardbrowser (`xdg-open`, `open`, `start`) |
+
+`BARUCH_NO_BROWSER=1` öffnet weiterhin gar kein Fenster.
+
+| Plattform | Starter | App-Fenster mit | Stand |
+|---|---|---|---|
+| Linux (.deb, AppImage) | `packaging/linux/baruch` (im AppImage hinter `AppRun`) | `chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable`, `brave-browser`, `microsoft-edge` aus dem `PATH` (in dieser Reihenfolge) | **Geprüft** mit Attrappen im `PATH`: Wahl des Programms, `--app=<Adresse>`, Rückfall auf `xdg-open`, beide Schalter (`tests/round32_beenden.rs`); `bash -n`. **Nicht geprüft:** ein echter Browser (in dieser Runde wurde keiner gestartet), also auch nicht, ob `window.close()` das App-Fenster wirklich schließt – Annahme nach dem bekannten Verhalten von Chromium. `shellcheck` war nicht installiert. |
+| macOS | dasselbe Skript als `Contents/MacOS/baruch` | Programme „Google Chrome“, „Chromium“, „Brave Browser“, „Microsoft Edge“ unter `/Applications` und `~/Applications` (`BARUCH_APPLICATIONS` nennt andere Ordner) | **Geprüft** nur nachgestellt unter Linux (Attrappe für `uname`, Programmordner im Temp-Verzeichnis). **Angenommen:** dass der direkte Aufruf des Programms im Bündel mit `--app=` auch dann ein App-Fenster öffnet, wenn der Browser schon läuft. Auf keinem Mac gelaufen. Safari kennt kein App-Fenster dieser Art; ohne Chromium-Browser bleibt der Text stehen. |
+| Windows | `packaging/windows/baruch-start.cmd` | Microsoft Edge (`msedge.exe` unter `%ProgramFiles(x86)%`, `%ProgramFiles%` oder `%LocalAppData%`) | **Nur gelesen** und am Text geprüft; auf keinem Windows gelaufen. Nach „Baruch beenden“ endet `baruch-server.exe`, das minimierte Konsolenfenster schließt sich damit von selbst (Annahme). |
+
+Greift `window.close()` nicht, bleibt der Satz „Baruch ist beendet – dieses Fenster kann geschlossen werden“
+stehen. Das ist bei **Firefox** der Normalfall: Firefox schließt per Skript nur Fenster, die ein Skript selbst
+geöffnet hat, und kennt kein `--app`. Ebenso bei jedem gewöhnlichen Tab und immer, wenn Baruch schon lief
+(Dienst) und die Seite von Hand geöffnet wurde.
+
+Stand der Prüfung des Herunterfahrens: Unter Linux am echten Prozess geprüft (`tests/round32_beenden.rs`: Knopf,
+`SIGTERM`, Strg+C – jeweils Status 0, „Baruch beendet.“, kein `-wal` mehr neben der Datenbank). Die Signale von
+Windows sind nur übersetzt (`cargo check --target x86_64-pc-windows-gnu` für `src/shutdown/signals.rs` allein),
+nie ausgeführt; nach dem Schließen des Fensters lässt Windows dem Prozess nur wenige Sekunden, darum gilt dort
+eine Frist von 3 statt 10 Sekunden. Unter macOS gilt der Unix-Zweig (ungeprüft, da kein Mac).
 
 ## Lokal bauen und prüfen
 

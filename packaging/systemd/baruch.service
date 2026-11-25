@@ -16,8 +16,13 @@ Type=simple
 ExecStart=%h/.cargo/bin/baruch-server --listen 127.0.0.1:8765
 # Eigener Datenordner: Zeile einkommentieren (Vorgabe ist ~/.local/share/baruch).
 #Environment=BARUCH_DATA=%h/.local/share/baruch
+# Nur nach einem Fehler neu starten: „Baruch beenden“ in der Oberfläche und `systemctl --user stop` (SIGTERM)
+# enden sauber mit Status 0 – dann bleibt der Dienst aus, bis er wieder gestartet wird
+# (`systemctl --user start baruch.service`). Nicht auf `always` stellen, sonst wäre der Knopf wirkungslos.
 Restart=on-failure
 RestartSec=3
+# Frist des Programms für laufende Antworten: 10 s; systemd wartet danach noch etwas länger.
+TimeoutStopSec=20
 # Rechnerlast klein halten (AGENTS.md).
 Nice=5
 IOSchedulingClass=idle

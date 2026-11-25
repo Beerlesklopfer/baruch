@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Release: Ein Tag v* genügt. Es entstehen .deb und AppImage (Linux), .dmg (macOS), .msi (Windows), das
 # APT-Repository (apt-repo.tar.gz, mit den Paketen früherer Releases) und ein GitHub-Release mit SHA256SUMS;
-# danach liefert der Job „pages“ die Webseite samt /apt/ über GitHub Pages aus. Ablauf: docs/Verteilung.md.
+# danach bauen und liefern die Jobs „pages-build“ und „pages-deploy“ die Webseite samt /apt/ über GitHub Pages
+# aus. Ablauf: docs/Verteilung.md.
 #
 # - Von Hand gestartet (workflow_dispatch) baut der Ablauf nur die Pakete als Artefakte, ohne Release und
 #   ohne Auslieferung.
@@ -16,7 +17,7 @@
 # - Rust steht in fester Version in RUST_VERSION (= `rustc --version` auf dem Entwicklungsrechner), cargo-deb
 #   in CARGO_DEB_VERSION; Hugo lädt scripts/ci-tool.sh in fester Version mit Prüfsumme.
 # - Rechte: oben nur `contents: read`; `contents: write` nur im Job „publish“, `pages: write` und
-#   `id-token: write` nur im Job „pages“ (Umgebung github-pages). scripts/ci-check-workflows.sh prüft das.
+#   `id-token: write` nur im Job „pages-deploy“ (Umgebung github-pages), der nichts baut. scripts/ci-check-workflows.sh prüft das.
 # - Der Archivschlüssel (APT_GPG_*) kommt nur in den Job „publish“, und der läuft in der Umgebung `release`:
 #   Dort legt der Nutzer die beiden Secrets ab und bindet sie an eine Freigabe und an Tags v* (Settings →
 #   Environments, docs/Verteilung.md). Vor dem Signieren vergleicht scripts/ci-fingerprint.sh den Schlüssel mit
@@ -400,7 +401,7 @@ jobs:
           rm -rf "${GNUPGHOME:-/nonexistent}" "$RUNNER_TEMP/apt-passphrase"
           tar -tzf dist/apt-repo.tar.gz
 
-      # Für den Job „pages“: Ein Entwurf ist mit Leserechten nicht abrufbar, darum als Artefakt.
+      # Für den Job „pages-build“: Ein Entwurf ist mit Leserechten nicht abrufbar, darum als Artefakt.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: apt-repo
@@ -444,8 +445,11 @@ jobs:
           [ "$RELEASE_DRAFT" = false ] && draft=""
           gh release create "$TAG" dist/* --verify-tag --title "Baruch $version" --notes-file notes.md $draft
 
-  pages:
-    name: Webseite und /apt/ ausliefern (GitHub Pages)
+  # Bauen und Ausliefern der Webseite sind zwei Jobs (Runde 32), wie GitHub es für Pages vorsieht: Am 2026-11-24
+  # fand deploy-pages im selben Job das eben hochgeladene Artefakt zweimal nicht, und das Wiederholen des Jobs
+  # legte ein zweites Artefakt an. Nebenbei hat der Job, der Hugo und die Skripte ausführt, so keine Schreibrechte.
+  pages-build:
+    name: Webseite und /apt/ bauen
     needs: [publish]
     # `publish` läuft auch, wenn macOS oder Windows scheitern; ohne eigene Bedingung würde dieser Job dann
     # übersprungen.
@@ -454,11 +458,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     # Dieselbe Gruppe wie pages.yml: nie zwei Auslieferungen zugleich, keine wird abgebrochen.
     concurrency:
       group: pages
@@ -484,5 +483,24 @@ jobs:
         with:
           path: site/public
 
+  pages-deploy:
+    name: Webseite und /apt/ ausliefern (GitHub Pages)
+    needs: [pages-build]
+    # Wie oben: Scheitern macOS oder Windows, gilt dieser Job sonst als übersprungen.
+    if: ${{ !cancelled() && needs.pages-build.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Dieselbe Gruppe wie pages.yml und pages-build; die Jobs laufen ohnehin nacheinander.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

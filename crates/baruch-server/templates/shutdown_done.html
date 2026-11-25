@@ -1,0 +1,32 @@
+{#- Abschlussseite nach POST /beenden (Runde 32, src/shutdown.rs). In sich geschlossen: kein Stylesheet, kein
+    Skript und kein Bild vom Server – der liefert gleich nichts mehr. Stil inline; das Skript versucht nur, das
+    Fenster zu schließen. Erlaubt der Browser das nicht (meist nur bei Fenstern, die ein Skript oder der Starter
+    als App-Fenster geöffnet hat), bleibt der Text stehen; ohne JavaScript ebenso. Kontext: text. -#}
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Baruch ist beendet</title>
+  <style>
+    html { color-scheme: light dark; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font: 16px/1.5 system-ui, sans-serif; background: #f6f7f9; color: #1d2125; }
+    main { max-width: 34em; padding: 24px; text-align: center; }
+    h1 { font-size: 1.3em; margin: 0 0 .6em; }
+    p { margin: .4em 0; color: #5f6b76; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #16191d; color: #e3e6ea; }
+      p { color: #9aa5b1; }
+    }
+  </style>
+</head>
+<body>
+<main data-shutdown-done>
+  <h1>{{ text }}.</h1>
+  <p>Gespeicherte Texte liegen in der Datenbank und im Git-Spiegel. Zum Weiterarbeiten Baruch neu starten.</p>
+</main>
+<script>window.close();</script>
+</body>
+</html>

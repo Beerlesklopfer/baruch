@@ -18,6 +18,21 @@ baruch-server --data /tmp/probe     # zum Ausprobieren mit eigenem Datenordner
 
 Danach `http://127.0.0.1:8765/` im Browser öffnen. Eine neue Datenbank bringt ein Beispielwerk mit.
 
+## Beenden
+
+**Baruch ▾ → Baruch beenden…** fragt nach und beendet Baruch dann auf diesem Rechner. Das Fenster zeigt „Baruch
+ist beendet – dieses Fenster kann geschlossen werden“ und schließt sich, wenn der Browser das zulässt: im
+eigenen Fenster, das der Starter mit Chromium, Chrome, Brave oder Edge öffnet, in der Regel ja; in Firefox und
+in einem gewöhnlichen Tab bleibt der Hinweis stehen. Es geht auch ohne JavaScript.
+
+- Gespeicherte Texte stehen schon in der Datenbank und im Git-Spiegel; beim Beenden geht nichts verloren.
+  Ungespeicherte Eingaben in anderen Fenstern vorher speichern.
+- Beenden lässt sich Baruch nur am Rechner, auf dem es läuft – nicht von einem anderen Rechner und nicht über
+  einen vorgeschalteten Server (Reverse-Proxy).
+- Läuft Baruch als Dienst, bleibt es danach aus, bis der Dienst wieder gestartet wird
+  (`systemctl --user start baruch.service`).
+- Im Terminal beendet Strg+C; `systemctl --user stop baruch.service` und `kill` fahren ebenso sauber herunter.
+
 ## Das erste eigene Werk
 
 **Baruch ▾ → Neues Werk / Importieren…** (oben links im Menüband) legt ein Buch oder eine Predigt an (Titel, Autor, Grundgerüst,

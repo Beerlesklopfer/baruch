@@ -70,7 +70,9 @@ sudo apt install ./{{< datei "baruch_VERSION-1_amd64.deb" >}}
 ```
 
 Starten: „Baruch“ im Startmenü oder `baruch` im Terminal – das startet den Server, falls noch keiner läuft, und
-öffnet den Browser. Das Paket richtet keinen Dienst ein; ein Beispiel für einen systemd-Benutzerdienst liegt
+öffnet den Browser (Chromium, Chrome, Brave oder Edge als eigenes Fenster ohne Adressleiste, sonst den
+Standardbrowser; `BARUCH_BROWSER=standard baruch` nimmt immer den Standardbrowser). Beenden: Menü **Baruch ▾** →
+„Baruch beenden…“. Das Paket richtet keinen Dienst ein; ein Beispiel für einen systemd-Benutzerdienst liegt
 unter `/usr/share/doc/baruch/examples` (siehe [Betrieb](/betrieb/)).
 
 Empfohlen ist ein Schlüsselbund (gnome-keyring, KWallet oder KeePassXC als Secret Service) für die Schlüssel
@@ -97,17 +99,19 @@ Datenschutz & Sicherheit → „Dennoch öffnen“, oder im Terminal:
 xattr -dr com.apple.quarantine /Applications/Baruch.app
 ```
 
-Baruch hat kein eigenes Fenster und kein Dock-Symbol; die Oberfläche ist der Browser. Das Browserfenster zu
-schließen beendet Baruch nicht – es läuft im Hintergrund weiter, bis der Rechner neu startet. Einen Knopf
-„Baruch beenden“ in der Oberfläche gibt es noch nicht (ist geplant); bis dahin: Aktivitätsanzeige öffnen,
-`baruch-server` suchen und „Beenden“ wählen. Ihre Texte sind dabei sicher – jede gespeicherte Änderung steht
-bereits in der Datenbank.
+Baruch hat kein Dock-Symbol; die Oberfläche ist der Browser. Ist Chrome, Chromium, Brave oder Edge installiert,
+öffnet Baruch ein eigenes Fenster ohne Adressleiste, sonst den Standardbrowser. Das Browserfenster zu schließen
+beendet Baruch nicht – es läuft im Hintergrund weiter. Beendet wird in der Oberfläche: Menü **Baruch ▾** →
+„Baruch beenden…“ und die Rückfrage bestätigen (siehe [Bedienung](/bedienung/)). Ihre Texte
+sind dabei sicher – jede gespeicherte Änderung steht bereits in der Datenbank.
 
 ## Windows (nicht signiert)
 
 Die `.msi`-Datei ausführen (Administratorrechte, Installation nach `C:\Program Files\Baruch`). Das Paket ist
-**nicht signiert**; SmartScreen warnt („Weitere Informationen“ → „Trotzdem ausführen“). Start über „Baruch“ im Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser.
-Beenden: das Fenster schließen.
+**nicht signiert**; SmartScreen warnt („Weitere Informationen“ → „Trotzdem ausführen“). Start über „Baruch“ im Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser (Microsoft Edge als
+eigenes Fenster ohne Adressleiste, sonst der Standardbrowser).
+Beenden: in der Oberfläche Menü **Baruch ▾** → „Baruch beenden…“; das minimierte Fenster schließt sich dann von
+selbst. Das minimierte Fenster zu schließen beendet Baruch ebenfalls.
 
 Die Pakete für macOS und Windows entstehen nur im automatischen Bau und sind weniger erprobt als die für
 Linux. Was geprüft ist und was nicht, steht in {{< doku "docs/Verteilung.md" "docs/Verteilung.md" >}}.

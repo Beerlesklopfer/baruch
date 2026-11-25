@@ -372,6 +372,59 @@ jobs:
     steps:
       - run: echo hallo
 EOF
+    # Hochladen und Ausliefern im selben Job (Stand bis Runde 32).
+    bad_workflow pages-ein-job <<'EOF'
+on: push
+permissions:
+  contents: read
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+EOF
+    # Dasselbe in zwei Jobs: bauen ohne Schreibrechte, ausliefern nur mit deploy-pages.
+    bad_workflow pages-zwei-jobs <<'EOF'
+on: push
+permissions:
+  contents: read
+jobs:
+  pages-build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - run: echo bauen
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+  pages-deploy:
+    needs: [pages-build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+EOF
+    mkdir -p "$tmp/wf-pages-ohne-needs" "$tmp/wf-pages-baut-mit" "$tmp/wf-pages-schreibt"
+    # Zwei Jobs, aber der ausliefernde hängt nicht am bauenden.
+    grep -v '^    needs: \[pages-build\]$' "$tmp/wf-pages-zwei-jobs/probe.yml" > "$tmp/wf-pages-ohne-needs/probe.yml"
+    # Zwei Jobs, aber der ausliefernde führt zusätzlich einen Befehl aus.
+    sed 's/^      - uses: actions\/deploy-pages@/      - run: echo nebenbei\n&/' \
+        "$tmp/wf-pages-zwei-jobs/probe.yml" > "$tmp/wf-pages-baut-mit/probe.yml"
+    # Zwei Jobs, aber der bauende hat ein Schreibrecht (und ist darum auch kein Pages-Job mehr ohne Umgebung).
+    sed 's/^      - run: echo bauen$/      - run: echo bauen mit Schreibrecht/' "$tmp/wf-pages-zwei-jobs/probe.yml" |
+        awk '{ print } /^      contents: read$/ && !done { print "      pages: write"; done = 1 }' \
+        > "$tmp/wf-pages-schreibt/probe.yml"
     bad_workflow write <<'EOF'
 on: push
 permissions:
@@ -424,6 +477,21 @@ EOF
         "Das Token läge sonst für alle späteren Schritte in .git/config." sh "$scripts/ci-check-workflows.sh" "$tmp/wf-token"
     check_exit 1 "Regelprüfung lehnt pages: write ohne Umgebung github-pages ab" \
         "Ausliefern darf nur der dafür bestimmte Job." sh "$scripts/ci-check-workflows.sh" "$tmp/wf-pages"
+    check_exit 1 "Regelprüfung lehnt upload-pages-artifact und deploy-pages im selben Job ab" \
+        "Am 2026-11-24 fand deploy-pages so das frische Artefakt nicht; Bauen und Ausliefern sind zwei Jobs." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-pages-ein-job"
+    check "dieselben Schritte in zwei Jobs (bauen ohne Schreibrechte, dann ausliefern) bestehen die Regelprüfung" \
+        "Gegenprobe: Abgelehnt wird die Lage im selben Job, nicht die Aktionen an sich." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-pages-zwei-jobs"
+    check_exit 1 "Regelprüfung lehnt einen Pages-Job ohne needs auf den bauenden Job ab" \
+        "Ohne needs liefe das Ausliefern neben dem Bauen her und fände kein Artefakt." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-pages-ohne-needs"
+    check_exit 1 "Regelprüfung lehnt einen Befehl im ausliefernden Pages-Job ab" \
+        "Der Job mit pages: write und id-token: write soll keinen Code des Repositorys ausführen." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-pages-baut-mit"
+    check_exit 1 "Regelprüfung lehnt Schreibrechte im Job mit upload-pages-artifact ab" \
+        "Der bauende Job führt Hugo und Skripte aus; er darf weder Seite noch Release ändern." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-pages-schreibt"
     check_exit 1 "Regelprüfung lehnt Schreibrechte auf oberster Ebene ab" \
         "Jeder Job ohne eigene Angabe erbte sie." sh "$scripts/ci-check-workflows.sh" "$tmp/wf-write"
     check_exit 1 "Regelprüfung lehnt rustup stable ohne RUST_VERSION ab" \
