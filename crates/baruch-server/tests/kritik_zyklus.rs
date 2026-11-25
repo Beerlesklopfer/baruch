@@ -187,3 +187,16 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     h.mcp(json!({ "work": work, "key": key, "persona": "@lektor", "mode": "propose", "rev": 3 })).await;
     assert_eq!(h.based_on(4).await, Some(3), "MCP: Vorschlag 4 beruht auf Vorschlag 3");
 }
+
+/// Gegenprobe 0.9.0: Das Persona-Formular trägt die Prüfgrundlage genau einmal. Doppelt (Umfang-Fieldset und
+/// Formular) galt mit JavaScript still nur der letzte Wert – „Vorschlag n“ im ersten Feld wäre verloren gegangen –,
+/// und ohne JavaScript scheitert das Lesen des Formulars an einem doppelten Feld.
+#[tokio::test]
+async fn the_persona_form_carries_the_basis_exactly_once() {
+    let h = harbour().await;
+    let (work, key) = (h.work, h.key);
+    let (_, html) = h.server.get(&format!("/?work={work}&key={key}")).await;
+    let form = html.split("<form class=\"assist-form\"").nth(1).expect("Persona-Formular auf der Arbeitsseite");
+    let form = form.split("</form>").next().unwrap();
+    assert_eq!(form.matches("name=\"basis\"").count(), 1, "genau eine Auswahl der Prüfgrundlage: {form}");
+}

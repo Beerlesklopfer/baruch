@@ -2,11 +2,9 @@
     scope = section (Vorgabe: der Abschnitt im Wortlaut, das ganze Kapitel als Umfeld) oder chapter (das
     ganze Kapitel bzw. die ganze Predigt prüfen; Vorschlag je Abschnitt des Kapitels, jeder nur als
     Vorschlag). Eingebunden per Include in die Formulare von fragments/assistants.html; ohne JavaScript
-    bedienbar (Optionsfelder). Runde 30b: dazu die Prüfgrundlage `basis` (fragments/basis_select.html; gilt für
-    Fragen und Prüfen; beim Vorschlag die Basis, auch ein offener Vorschlag – Fehler 0.9.0). -#}
-{%- from "fragments/basis_select.html" import basis_select %}
+    bedienbar (Optionsfelder). Die Prüfgrundlage `basis` steht seit 0.9.0 nur noch einmal im Persona-Formular (fragments/assistants.html,
+    nach diesem Include) – vorher doppelt, dann galt still nur der letzte Wert (Gegenprobe 0.9.0). -#}
 <fieldset class="assist-scope small" aria-label="Umfang für Prüfen und Vorschlag">
   <label title="Der Abschnitt im Wortlaut, das ganze Kapitel als Umfeld"><input type="radio" name="scope" value="section" checked> Abschnitt{% if node and node.number %} {{ node.number }}{% endif %}</label>
   <label title="Das ganze Kapitel (bei einer Predigt die ganze Predigt) prüfen bzw. je Abschnitt einen Vorschlag schreiben lassen"><input type="radio" name="scope" value="chapter"> ganzes Kapitel</label>
-  {{ basis_select(rev.number if rev is defined and rev is mapping else none, rev.open_list if rev is defined and rev is mapping else none) }}
 </fieldset>
