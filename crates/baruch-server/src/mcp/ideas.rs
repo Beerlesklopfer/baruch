@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! MCP-Werkzeuge für Einfälle (Vertrag Runde 7, Abschnitt 6f): `idea_create` (auch als `add_idea`), `idea_read`,
-//! `idea_list`, `idea_search`, `idea_update`, `idea_delete`.
+//! `idea_list`, `idea_search`, `idea_update`, `idea_delete`; seit Runde 34 (Mindmap) `idea_move` (umhängen, ordnen,
+//! in die Wolke) und an `idea_create`/`idea_update` `title`, `parent`, `before`, `cloud`.
 //!
 //! Ausnahme von der Assistenten-Regel (Entscheidung IDEA_CRUD): Einfälle ändern keinen Buchtext,
 //! darum dürfen Assistenten und MCP-Clients sie anlegen, ändern und löschen (wiederherstellbar über
@@ -12,7 +13,7 @@
 // Der Lektor kennt die Einfälle als Gedächtnis (Runde 10, `crate::assist::context`); ein eigenes Werkzeug
 // dafür gibt es nicht (ask_persona/chat genügen).
 
-use baruch_store::{IdeaEdit, IdeaFilter, IdeaOrigin, IdeaScope, IdeaStatus, NewIdea, WorkId};
+use baruch_store::{IdeaEdit, IdeaFilter, IdeaMove, IdeaOrigin, IdeaScope, IdeaSpot, IdeaStatus, NewIdea, WorkId};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -24,7 +25,7 @@ use crate::rpc::RpcError;
 /// Namen der Werkzeuge dieses Moduls (in der Reihenfolge von `tools/list`).
 /// `add_idea` ist ein zweiter Name für `idea_create` (Wunsch des Nutzers 2026-11-06, Name aus dem Backlog).
 pub const NAMES: &[&str] =
-    &["idea_create", "add_idea", "idea_read", "idea_list", "idea_search", "idea_update", "idea_delete"];
+    &["idea_create", "add_idea", "idea_read", "idea_list", "idea_search", "idea_update", "idea_delete", "idea_move"];
 
 fn words_schema() -> Value {
     json!({ "description": "Schlagwörter: Liste oder Text „a, b; c“ (1 bis 20, je höchstens 60 Zeichen, ohne Zeilenumbruch)",
@@ -36,9 +37,13 @@ fn persona_schema() -> Value {
 }
 
 pub fn create_schema() -> Value {
-    json!({ "type": "object", "required": ["words"], "properties": {
+    json!({ "type": "object", "properties": {
         "work": work_schema(), "key": { "type": "integer", "description": "Bezug: fester Schlüssel eines Abschnitts des Werks (key aus outline)" },
         "words": words_schema(),
+        "title": { "type": "string", "description": "Titel des Knotens in der Mindmap (höchstens 200 Zeichen); mit Titel dürfen die Schlagwörter fehlen – eins von beiden ist Pflicht" },
+        "parent": { "type": "integer", "description": "Elternknoten: id eines Einfalls desselben Werks (Unterknoten in der Mindmap; work darf dann fehlen)" },
+        "before": { "type": "integer", "description": "id eines Geschwisters, vor das der neue Einfall kommt; fehlt: ans Ende" },
+        "cloud": { "type": "boolean", "description": "false: ohne parent und key freies Hauptthema direkt am Werk; fehlt oder true: ohne Platz in die Wolke neben der Mindmap" },
         "note": { "type": "string", "description": "Gedanke (höchstens 4000 Zeichen)" },
         "quote": { "type": "string", "description": "markierter Text (höchstens 4000 Zeichen)" },
         "source": { "type": "string", "description": "Quelle oder Hervorhebung (höchstens 200 Zeichen)" },
@@ -70,6 +75,7 @@ pub fn search_schema() -> Value {
 pub fn update_schema() -> Value {
     json!({ "type": "object", "required": ["id"], "properties": {
         "id": { "type": "integer" }, "words": words_schema(),
+        "title": { "type": "string", "description": "Titel des Knotens in der Mindmap (höchstens 200 Zeichen; leer nur, solange ein Schlagwort bleibt)" },
         "note": { "type": "string" }, "quote": { "type": "string" }, "source": { "type": "string" }, "bible": { "type": "string" },
         "open": { "type": "boolean", "description": "true: wieder offen, false: als verarbeitet markieren" },
         "work": { "description": "Werk (id oder slug), null = ohne Werk", "oneOf": [{ "type": "integer" }, { "type": "string" }, { "type": "null" }] },
@@ -79,6 +85,23 @@ pub fn update_schema() -> Value {
 
 pub fn delete_schema() -> Value {
     json!({ "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" }, "persona": persona_schema() } })
+}
+
+pub const MOVE_DESCRIPTION: &str = "Einfall in der Mindmap umhängen und ordnen: parent (id eines Einfalls desselben \
+Werks, null = vom Elternknoten lösen), key (Bezug auf einen Abschnitt, null = ohne), before (id eines Geschwisters, \
+null = ans Ende), cloud (true = in die Wolke neben der Mindmap, löst Elternknoten und Bezug; false = ohne beides \
+freies Hauptthema am Werk). Fehlende Felder bleiben; die Unterknoten wandern mit. Abgelehnt (isError): anderes Werk, \
+eigener Unterknoten (Kreis), tiefer als 32, gelöschter Einfall. Kapitel und Teile lassen sich so nicht ändern (nur \
+outline_* mit Antrag). Ändert keinen Buchtext; Herkunft persona oder @mcp:<name>, ein Commit im Spiegel.";
+
+pub fn move_schema() -> Value {
+    json!({ "type": "object", "required": ["id"], "properties": {
+        "id": { "type": "integer", "description": "id des Einfalls" },
+        "parent": { "description": "neuer Elternknoten (id eines Einfalls), null = lösen", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "key": { "description": "Bezug (key aus outline), null = ohne", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "before": { "description": "Geschwister, vor das der Einfall kommt (id), null = ans Ende", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "cloud": { "type": "boolean", "description": "true: in die Wolke; false: ohne Elternknoten und Bezug Hauptthema am Werk" },
+        "persona": persona_schema() } })
 }
 
 /// Herkunft: `persona` (muss es geben) oder der Client als `@mcp:<name>`.
@@ -105,7 +128,13 @@ fn words(value: &Value) -> Result<Vec<String>, Failure> {
 struct CreateArgs {
     work: Option<WorkRef>,
     key: Option<i64>,
+    #[serde(default)]
     words: Value,
+    #[serde(default)]
+    title: String,
+    parent: Option<i64>,
+    before: Option<i64>,
+    cloud: Option<bool>,
     #[serde(default)]
     note: String,
     #[serde(default)]
@@ -142,6 +171,7 @@ struct SearchArgs {
 struct UpdateArgs {
     id: i64,
     words: Option<Value>,
+    title: Option<String>,
     note: Option<String>,
     quote: Option<String>,
     source: Option<String>,
@@ -192,6 +222,7 @@ async fn run(state: &AppState, client: &Client, name: &str, arguments: Value) ->
         "idea_search" => idea_search(state, arguments).await,
         "idea_update" => idea_update(state, client, arguments).await,
         "idea_delete" => idea_delete(state, client, arguments).await,
+        "idea_move" => idea_move(state, client, arguments).await,
         _ => return None,
     })
 }
@@ -202,11 +233,27 @@ fn from_rpc(e: RpcError) -> Failure {
 
 async fn idea_create(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     let a: CreateArgs = args(arguments)?;
-    let words = words(&a.words)?;
-    let work: Option<WorkId> = match &a.work {
+    // Runde 34: mit Titel dürfen die Schlagwörter fehlen.
+    let words = if a.words.is_null() {
+        if a.title.trim().is_empty() {
+            return Err(Failure::Args("arguments: words fehlt (mindestens ein Schlagwort oder ein Titel)".into()));
+        }
+        Vec::new()
+    } else {
+        words(&a.words)?
+    };
+    let mut work: Option<WorkId> = match &a.work {
         Some(work) => Some(resolve(&state.store, work).await?.0),
         None => None,
     };
+    if let (None, Some(parent)) = (work, a.parent) {
+        // Ein Unterknoten gehört zum Werk seines Elternknotens.
+        work = state.store.idea_get(parent).await?.work;
+    }
+    if a.cloud == Some(true) && (a.parent.is_some() || a.key.is_some()) {
+        return Err(Failure::Args("arguments: cloud true geht nur ohne parent und key".into()));
+    }
+    let spot = IdeaSpot { title: &a.title, parent: a.parent, before: a.before, main_topic: a.cloud == Some(false) };
     let origin = origin(state, client, a.persona.as_deref()).await?;
     let new = NewIdea {
         work,
@@ -218,7 +265,7 @@ async fn idea_create(state: &AppState, client: &Client, arguments: Value) -> Res
         bible: &a.bible,
         origin,
     };
-    crate::ideas::create(state, &new).await.map_err(from_rpc)
+    crate::ideas::create_at(state, &new, &spot).await.map_err(from_rpc)
 }
 
 async fn idea_read(state: &AppState, arguments: Value) -> Result<Value, Failure> {
@@ -295,6 +342,7 @@ async fn idea_update(state: &AppState, client: &Client, arguments: Value) -> Res
         work,
         key,
         status: status(a.open),
+        title: a.title.as_deref(),
     };
     crate::ideas::update(state, a.id, &edit, &origin).await.map_err(from_rpc)
 }
@@ -303,4 +351,36 @@ async fn idea_delete(state: &AppState, client: &Client, arguments: Value) -> Res
     let a: IdArgs = args(arguments)?;
     let origin = origin(state, client, a.persona.as_deref()).await?;
     crate::ideas::delete(state, a.id, &origin).await.map_err(from_rpc)
+}
+
+/// `parent`/`key`/`before` von `idea_move`: fehlt = bleibt, `null` = ohne, Zahl = setzen.
+fn optional_id(arguments: &Value, name: &str) -> Result<Option<Option<i64>>, Failure> {
+    match arguments.get(name) {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(None)),
+        Some(value) => value
+            .as_i64()
+            .map(|n| Some(Some(n)))
+            .ok_or_else(|| Failure::Args(format!("arguments: {name} als Zahl oder null erwartet"))),
+    }
+}
+
+/// Runde 34: Einfall umhängen und ordnen wie RPC `idea.move`, mit Herkunft Persona bzw. `@mcp:<client>`. Eine
+/// verletzte Regel (anderes Werk, Kreis, Tiefe, gelöscht) ist ein fachlicher Fehler (isError), nichts geändert.
+async fn idea_move(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
+    #[derive(Deserialize)]
+    struct MoveArgs {
+        id: i64,
+        cloud: Option<bool>,
+        persona: Option<String>,
+    }
+    let a: MoveArgs = args(arguments.clone())?;
+    let mv = IdeaMove {
+        parent: optional_id(&arguments, "parent")?,
+        key: optional_id(&arguments, "key")?,
+        before: optional_id(&arguments, "before")?,
+        cloud: a.cloud,
+    };
+    let origin = origin(state, client, a.persona.as_deref()).await?;
+    crate::ideas::move_idea(state, a.id, &mv, &origin).await.map_err(from_rpc)
 }

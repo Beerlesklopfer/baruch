@@ -481,6 +481,11 @@ fn without_0045(sql: &str) -> String {
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 
+/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (der gespeicherte CREATE-Text
+/// wächst um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in migration_0052.rs); der Vergleich des
+/// alten Schemas nimmt ihn heraus.
+const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
+
 /// Schema ohne die Objekte aus Migration 0041 (Runde 26: Tabelle `uuid_tombstone` samt Index, je Tabelle
 /// `<T>_uuid`, `<T>_uuid_fill`, `<T>_uuid_tombstone`, Primärschlüsselindex von `uuid_tombstone`), ohne die
 /// späteren Objekte, die `Store::open` mit anlegt (0043: `idea_link`, `idea_map_pos` samt Indizes und Triggern),
@@ -526,6 +531,8 @@ fn without_0041(
                 || name == "work_revision_policy"
                 // 0.9.0 (0051): Marke „ältere Fassungen ausblenden“ je Abschnitt.
                 || name == "node_revision_fold"
+                // Runde 34 (0052): Index über Elternknoten und Reihenfolge der Einfälle.
+                || name == "idea_parent"
                 || name.ends_with("_uuid")
                 || name.ends_with("_uuid_fill")
                 || name.ends_with("_uuid_tombstone"))
@@ -534,7 +541,7 @@ fn without_0041(
             // Runde 28 (0046): `edited` an Beiträgen und Fadenbeiträgen (revision hat schon vorher eine Spalte edited).
             let edited = name == "post" || name == "chat_thread_post";
             let sql = sql
-                .map(|s| without_0045(&s.replace(UUID_COLUMN, "")))
+                .map(|s| without_0045(&s.replace(R34_IDEA_COLUMNS, "").replace(UUID_COLUMN, "")))
                 .map(|s| if edited { s.replace(", edited TEXT", "") } else { s })
                 .map(|s| without_r30(&name, &s));
             (name, (kind, table, sql))

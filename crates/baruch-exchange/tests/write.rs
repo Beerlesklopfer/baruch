@@ -327,14 +327,14 @@ fn root_carries_namespace_version_and_instance() {
     let mut doc = sample_document();
     // Geschrieben wird immer die eigene Unterversion, auch wenn das Dokument aus einer höheren gelesen wurde
     // (Unbekanntes daraus ist nicht im Modell und wird nicht mitgeschrieben).
-    doc.version = 9;
+    doc.version = FORMAT_VERSION + 1;
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<werk "), "Deklaration, dann <werk>");
     let elements = parse(&xml);
     let root = &elements[0];
     assert_eq!(root.attr("xmlns"), Some(NAMESPACE), "Namensraum urn:baruch:werk:1");
-    assert_eq!(root.attr("version"), Some("8"), "Unterversion FORMAT_VERSION (8 seit Runde 22)");
-    assert_eq!(FORMAT_VERSION, 8, "Runde 22 zählt die Unterversion auf 8");
+    assert_eq!(root.attr("version"), Some("9"), "Unterversion FORMAT_VERSION (9 seit Runde 34)");
+    assert_eq!(FORMAT_VERSION, 9, "Runde 34 (Mindmap: titel, eltern, platz, hauptthema am Einfall) zählt auf 9");
     assert_eq!(root.attr("art"), Some("buch"), "Werkart");
     let output = elements.iter().find(|e| e.path == "werk/ausgabe").unwrap();
     assert_eq!(output.attr("instanzname"), Some("Probeinstanz"), "Instanzname");

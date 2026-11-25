@@ -458,6 +458,10 @@ pub fn sample_document() -> ExchangeDocument {
                 created: t(6, 9),
                 updated: t(6, 9),
                 deleted: None,
+                title: String::new(),
+                parent: None,
+                position: 0,
+                main_topic: false,
             },
             ExchangeIdea {
                 uuid: sample_uuid(41),
@@ -475,6 +479,10 @@ pub fn sample_document() -> ExchangeDocument {
                 created: t(6, 10),
                 updated: t(7, 12),
                 deleted: None,
+                title: String::new(),
+                parent: None,
+                position: 0,
+                main_topic: false,
             },
             ExchangeIdea {
                 uuid: sample_uuid(42),
@@ -492,6 +500,10 @@ pub fn sample_document() -> ExchangeDocument {
                 created: t(6, 11),
                 updated: t(7, 9),
                 deleted: Some(t(7, 9)),
+                title: String::new(),
+                parent: None,
+                position: 0,
+                main_topic: false,
             },
         ],
         threads: vec![ExchangeThread {
@@ -681,6 +693,22 @@ pub fn sample_document() -> ExchangeDocument {
         work,
         unknown: Vec::new(),
     }
+}
+
+/// Das Beispielwerk der Unterversion 8 mit dem Baum der Mindmap (Unterversion 9, Runde 34): Der Einfall „Seil“ (am
+/// Abschnitt) trägt einen Titel, „Lampe“ ist sein Unterknoten mit Titel und Platz, der gelöschte „Eimer“ ein freies
+/// Hauptthema.
+pub fn sample_document_u9() -> ExchangeDocument {
+    let mut doc = sample_document_u8();
+    let rope = doc.work.ideas[0].uuid.clone();
+    doc.work.ideas[0].title = "Das Seil & sein <Knoten>".into();
+    doc.work.ideas[0].position = 1;
+    doc.work.ideas[1].title = "Lampe am Seil".into();
+    doc.work.ideas[1].parent = Some(rope);
+    doc.work.ideas[1].position = 2;
+    doc.work.ideas[2].main_topic = true;
+    doc.work.ideas[2].position = 3;
+    doc
 }
 
 /// Das Beispielwerk mit den Teilen der Unterversion 8 (Runde 22, siehe Modulkopf).

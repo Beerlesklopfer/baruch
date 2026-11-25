@@ -1870,7 +1870,8 @@ async fn insert_idea(
     };
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO idea (work_id, node_id, note, quote, source, bible, origin_kind, origin_name, status, done_as, \
-         done_ref, created, updated, deleted, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+         done_ref, created, updated, deleted, uuid, title, position, main_topic) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(work)
     .bind(node_id)
@@ -1887,6 +1888,11 @@ async fn insert_idea(
     .bind(&idea.updated)
     .bind(&idea.deleted)
     .bind(&idea.uuid)
+    // Runde 34 (Unterversion 9): Titel, Reihenfolge und Hauptthema sofort; den Elternknoten setzt
+    // `link_idea_parents`, wenn alle Einfälle der Datei stehen. Ein Hauptthema gibt es nur ohne Bezug.
+    .bind(&idea.title)
+    .bind(idea.position)
+    .bind(i64::from(idea.main_topic && node_id.is_none() && idea.parent.is_none()))
     .fetch_one(&mut *conn)
     .await?;
     let mut keys = HashSet::new();
@@ -1908,11 +1914,89 @@ async fn insert_idea(
     if idea.deleted.is_none() {
         sqlx::query("INSERT INTO idea_fts (rowid, words, note, quote, source, bible) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(id)
-            .bind(idea.words.join(" "))
+            // Wie `ideas::reindex`: der Titel steht in der Spalte `words` mit.
+            .bind(if idea.title.is_empty() {
+                idea.words.join(" ")
+            } else {
+                format!("{} {}", idea.title, idea.words.join(" ")).trim().to_owned()
+            })
             .bind(&idea.note)
             .bind(&idea.quote)
             .bind(&idea.source)
             .bind(&idea.bible)
+            .execute(&mut *conn)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Zweiter Schritt des Einlesens der Einfälle (Runde 34, Unterversion 9): die Elternknoten der in diesem Lauf
+/// angelegten bzw. wieder zugeordneten Einfälle `fresh` (Kennungen) setzen – erst jetzt, weil der Elternknoten in
+/// der Datei hinter dem Kind stehen kann. Gelöst mit Hinweis (der Einfall bleibt an seinem Bezug bzw. liegt in der
+/// Wolke) wird ein Einfall, dessen Elternknoten es hier im Werk nicht gibt, dessen Elternknoten gelöscht ist, während
+/// er selbst es nicht ist, oder dessen Kette einen Kreis bildet bzw. tiefer als `ideas::MAX_IDEA_DEPTH` ist.
+async fn link_idea_parents(
+    conn: &mut SqliteConnection,
+    run: &mut Run<'_>,
+    work: WorkId,
+    fresh: &[String],
+) -> Result<(), StoreError> {
+    let doc = run.doc;
+    let fresh: HashSet<&str> = fresh.iter().map(String::as_str).collect();
+    for idea in &doc.work.ideas {
+        let Some(parent_uuid) = &idea.parent else { continue };
+        if !fresh.contains(idea.uuid.as_str()) {
+            continue;
+        }
+        let label = idea_label(idea);
+        let loosen = |run: &mut Run<'_>, why: &str| {
+            run.hint(
+                "einfall",
+                &idea.uuid,
+                None,
+                format!("{label}: {why} – ohne Elternknoten übernommen"),
+                String::new(),
+                parent_uuid.clone(),
+            );
+        };
+        let Some(id) = idea_id_here(conn, work, &idea.uuid).await? else { continue };
+        let parent: Option<(i64, Option<String>)> =
+            sqlx::query_as("SELECT id, deleted FROM idea WHERE work_id = ? AND uuid = ?")
+                .bind(work)
+                .bind(parent_uuid)
+                .fetch_optional(&mut *conn)
+                .await?;
+        let Some((parent_id, parent_deleted)) = parent else {
+            loosen(run, "der Elternknoten fehlt hier im Werk");
+            continue;
+        };
+        if parent_deleted.is_some() && idea.deleted.is_none() {
+            loosen(run, "der Elternknoten ist gelöscht");
+            continue;
+        }
+        // Kette nach oben: kein Kreis, nicht zu tief.
+        let mut depth = 1usize;
+        let mut at = Some(parent_id);
+        let mut sound = true;
+        while let Some(current) = at {
+            depth += 1;
+            if current == id || depth > crate::ideas::MAX_IDEA_DEPTH {
+                sound = false;
+                break;
+            }
+            at = sqlx::query_scalar::<_, Option<i64>>("SELECT parent_id FROM idea WHERE id = ?")
+                .bind(current)
+                .fetch_optional(&mut *conn)
+                .await?
+                .flatten();
+        }
+        if !sound {
+            loosen(run, "die Kette der Elternknoten bildet einen Kreis oder ist zu tief");
+            continue;
+        }
+        sqlx::query("UPDATE idea SET parent_id = ?, main_topic = 0 WHERE id = ?")
+            .bind(parent_id)
+            .bind(id)
             .execute(&mut *conn)
             .await?;
     }
@@ -3246,18 +3330,22 @@ async fn apply_new(
     }
     let node_by_uuid: HashMap<&str, i64> =
         flat.iter().zip(&node_ids).map(|(f, &id)| (f.node.uuid.as_str(), id)).collect();
+    let mut fresh_ideas: Vec<String> = Vec::new();
     for idea in &w.ideas {
         let node_id = idea.node.as_deref().and_then(|n| node_by_uuid.get(n).copied());
         // Ein gelöschtes Werk lässt seine Einfälle als Einfälle ohne Werk zurück (0011, ON DELETE SET NULL);
         // spielt man seine Sicherung zurück, bekommt das neue Werk sie wieder.
         if adopt_orphan_idea(conn, work, node_id, &idea.uuid).await? {
             run.item("einfall", &idea.uuid, format!("{} (Einfall ohne Werk, wieder zugeordnet)", idea_label(idea)));
+            fresh_ideas.push(idea.uuid.clone());
             continue;
         }
         ensure_free(conn, "idea", &idea.uuid, "Einfall").await?;
         insert_idea(conn, work, node_id, idea).await?;
         run.item("einfall", &idea.uuid, idea_label(idea));
+        fresh_ideas.push(idea.uuid.clone());
     }
+    link_idea_parents(conn, run, work, &fresh_ideas).await?;
     for thread in &w.threads {
         ensure_free(conn, "chat_thread", &thread.uuid, "Faden").await?;
         let thread_id = insert_thread(conn, work, thread).await?;
@@ -4180,12 +4268,14 @@ async fn merge_posts(
 /// (f) Einfälle mit unbekannter Kennung; bekannte mit anderem Inhalt nur als Hinweis.
 async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
-    type Row = (i64, Option<String>, String, String, String, String, String, Option<String>);
-    let rows: Vec<Row> =
-        sqlx::query_as("SELECT id, uuid, note, quote, source, bible, status, deleted FROM idea WHERE work_id = ?")
-            .bind(work)
-            .fetch_all(&mut *conn)
-            .await?;
+    type Row = (i64, Option<String>, String, String, String, String, String, Option<String>, String);
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT id, uuid, note, quote, source, bible, status, deleted, title FROM idea WHERE work_id = ?",
+    )
+    .bind(work)
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut fresh_ideas: Vec<String> = Vec::new();
     let mut here: HashMap<String, Row> = HashMap::new();
     for row in rows {
         if let Some(uuid) = row.1.clone() {
@@ -4226,6 +4316,10 @@ async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
             if words != idea.words {
                 differs.push("Schlagwörter");
             }
+            // Runde 34: der Titel zählt zum Inhalt; Elternknoten und Reihenfolge sind Anordnung und bleiben hier.
+            if row.8 != idea.title {
+                differs.push("Titel");
+            }
             if !differs.is_empty() {
                 run.hint(
                     "einfall",
@@ -4254,6 +4348,7 @@ async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
         };
         if adopt_orphan_idea(conn, work, node_id, &idea.uuid).await? {
             run.item("einfall", &idea.uuid, format!("{label} (Einfall ohne Werk, wieder zugeordnet)"));
+            fresh_ideas.push(idea.uuid.clone());
             continue;
         }
         if uuid_exists(conn, "idea", &idea.uuid).await? {
@@ -4269,7 +4364,9 @@ async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
         }
         insert_idea(conn, work, node_id, idea).await?;
         run.item("einfall", &idea.uuid, label);
+        fresh_ideas.push(idea.uuid.clone());
     }
+    link_idea_parents(conn, run, work, &fresh_ideas).await?;
     Ok(())
 }
 

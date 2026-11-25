@@ -85,13 +85,13 @@ fn xmllint_available() -> bool {
     Command::new("xmllint").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
-/// Prüft XML gegen `docs/schema/baruch-werk-1-u8.xsd`; fehlt xmllint, mit Meldung übersprungen.
+/// Prüft XML gegen `docs/schema/baruch-werk-1-u9.xsd`; fehlt xmllint, mit Meldung übersprungen.
 fn assert_schema(name: &str, xml: &[u8]) {
     if !xmllint_available() {
         eprintln!("xmllint fehlt: XSD-Prüfung von {name} übersprungen (die Rust-Prüfung steht in baruch-exchange).");
         return;
     }
-    let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd");
+    let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd");
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join(name);
     std::fs::write(&file, xml).unwrap();

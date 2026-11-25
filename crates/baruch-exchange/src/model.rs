@@ -37,8 +37,10 @@ pub const NAMESPACE: &str = "urn:baruch:werk:1";
 /// `<eigene-register>` und das Glossar `<glossar>`, an `<satz>` die Attribute `glossarseite`, `registerseiten`,
 /// `registerseiten-spalten`, `glossar-erste-erwaehnung`, Grabsteinarten `glossar-begriff` und `register`. 8 seit
 /// Runde 22: an `<fassung>` `stand` und `beruht-stand` und je Fortschreibung `<fortschreibung>` (Grabsteinart
-/// `fortschreibung`), in `<satz>` das Kind `<entwurf/>`, an `<befund>` und `<status-eintrag>` `stand`.
-pub const FORMAT_VERSION: u32 = 8;
+/// `fortschreibung`), in `<satz>` das Kind `<entwurf/>`, an `<befund>` und `<status-eintrag>` `stand`. 9 seit Runde
+/// 34 (Mindmap): an `<einfall>` die wahlfreien Attribute `titel`, `eltern` (UUID des Eltern-Einfalls), `platz`
+/// (Reihenfolge unter Geschwistern) und `hauptthema` (freies Hauptthema am Werk; fehlt = Wolke bzw. am Bezug).
+pub const FORMAT_VERSION: u32 = 9;
 pub const ZIP_MIMETYPE: &str = "application/vnd.baruch.werk+zip";
 pub const XML_MEDIA_TYPE: &str = "application/vnd.baruch.werk+xml";
 pub const ZIP_SUFFIX: &str = ".baruch";
@@ -887,6 +889,14 @@ pub struct ExchangeIdea {
     pub updated: String,
     /// Weich gelöscht seit diesem Zeitpunkt.
     pub deleted: Option<String>,
+    /// Ab Unterversion 9 (Runde 34): Titel des Knotens in der Mindmap (`titel`; fehlt = leer).
+    pub title: String,
+    /// UUID des Eltern-Einfalls (`eltern`).
+    pub parent: Option<String>,
+    /// Reihenfolge unter Geschwistern (`platz`; fehlt = 0).
+    pub position: i64,
+    /// Freies Hauptthema am Werk (`hauptthema`; fehlt = nein).
+    pub main_topic: bool,
 }
 
 /// Faden ohne Abschnitt.

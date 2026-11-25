@@ -32,6 +32,8 @@
 //!   größer 0), nach `<setzt-um>` je Schritt `<fortschreibung uuid seq art undo-von? autor zeit>` mit `<vorher>` und
 //!   `<nachher>`; an `<befund>` und `<status-eintrag>` `stand` (nur, wenn größer 0); `<satz>` mit dem Kind
 //!   `<entwurf/>`, wenn die Satz-Einstellungen einen Entwurf tragen (sonst bleibt `<satz/>` leer).
+//! - Ab Unterversion 9 (Runde 34): an `<einfall>` `titel` (nur, wenn nicht leer), `eltern` (nur mit Elternknoten),
+//!   `platz` (nur, wenn nicht 0) und `hauptthema="true"` (nur bei einem freien Hauptthema).
 //!
 //! Geschrieben wird immer die Unterversion [`crate::FORMAT_VERSION`], die dieses Programm kennt, gleich welche
 //! `version` das Dokument trägt (Unbekanntes aus einer höheren Unterversion ist nicht im Modell).
@@ -905,6 +907,20 @@ fn write_idea(x: &mut Xml, idea: &ExchangeIdea) -> Result<(), ExchangeError> {
     }
     if let Some(node) = &idea.node {
         attrs.push(x.uuid("einfall", "bezug", node)?);
+    }
+    // Ab Unterversion 9 (Runde 34): nur, was von der Vorgabe abweicht – ein Werk ohne Baum gibt dieselben
+    // Attribute aus wie zuvor.
+    if !idea.title.is_empty() {
+        attrs.push(a("titel", &idea.title));
+    }
+    if let Some(parent) = &idea.parent {
+        attrs.push(x.uuid("einfall", "eltern", parent)?);
+    }
+    if idea.position != 0 {
+        attrs.push(owned("platz", idea.position.to_string()));
+    }
+    if idea.main_topic {
+        attrs.push(a("hauptthema", bool_word(true)));
     }
     x.start("einfall", &attrs)?;
     for word in &idea.words {

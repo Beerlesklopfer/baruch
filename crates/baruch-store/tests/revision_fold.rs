@@ -170,7 +170,8 @@ async fn migration_0051_on_a_database_from_before_0_9_0_keeps_every_row_and_adds
     let pool = store.pool().clone();
     sqlx::query("DROP TABLE node_revision_fold").execute(&pool).await.unwrap();
     sqlx::query("DELETE FROM _sqlx_migrations WHERE version = 51").execute(&pool).await.unwrap();
-    let highest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE version < 100")
+    // Runde 34: 0052 (Spalten an `idea`) liegt danach und bleibt eingespielt; sie berührt die Fassungen nicht.
+    let highest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE version < 52")
         .fetch_one(&pool)
         .await
         .unwrap();

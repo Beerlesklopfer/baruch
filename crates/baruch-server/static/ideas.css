@@ -79,3 +79,11 @@
 .idea-list .weak-hits > summary { cursor: pointer; color: var(--muted); }
 .idea-card.weak-hit { opacity: 0.85; }
 .idea-card .weak-label { padding: 0 4px; border-radius: 4px; background: var(--warning-soft); color: var(--warning); }
+
+/* Runde 34 (Mindmap): Titel des Knotens und Platz (Wolke, Unterknoten) an der Karte eines Einfalls; die kleinen
+   Formulare „Platz in der Mindmap“ auf der Seite des Einfalls stehen nebeneinander und brechen um. */
+.idea-node-title { font-weight: 600; overflow-wrap: anywhere; }
+.idea-place-forms { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; }
+.idea-place-forms .pane-title, .idea-place-forms p { flex-basis: 100%; margin: 0; }
+.idea-place-form { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: end; margin: 0; }
+.idea-place-form input[type="number"] { width: 7em; }

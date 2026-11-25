@@ -1188,7 +1188,8 @@ fn version_seven_carries_registers_glossary_and_the_new_typeset_fields_exactly()
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in [
         // Runde 22: Der Schreiber schreibt immer die eigene Unterversion (8); die u7-Teile stehen weiter so da.
-        "version=\"8\"",
+        // Geschrieben wird die eigene Unterversion (seit Runde 34 die 9).
+        "version=\"9\"",
         "<register uuid=\"26000000-0000-4000-8000-000000000456\" kennung=\"orte\" titel=\"Orte im Hof\"",
         "titel=\"Werkzeuge &amp; Geräte\"",
         "<begriff uuid=\"26000000-0000-4000-8000-00000000044c\" status=\"angenommen\" herkunft=\"Hanna Probe\"",
@@ -1312,7 +1313,8 @@ fn version_eight_carries_amends_stands_and_the_draft_exactly() {
     let doc = baruch_exchange::sample::sample_document_u8();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in [
-        "version=\"8\"",
+        // Geschrieben wird immer die eigene Unterversion (seit Runde 34 die 9); die Teile der 8 stehen weiter darin.
+        "version=\"9\"",
         "<fortschreibung uuid=\"26000000-0000-4000-8000-000000000898\" seq=\"1\" art=\"amend\" autor=\"Hanna Probe\"",
         "seq=\"2\" art=\"undo\" undo-von=\"1\"",
         "<nachher>== Der Eimer\n\nZweiter Entwurf &amp; &lt;mehr&gt;.\n</nachher>",
@@ -1397,4 +1399,125 @@ fn validate_refuses_amends_with_gaps_wrong_undo_or_a_wrong_stand() {
     ] {
         assert!(matches!(validate(&doc), Err(ExchangeError::Invalid(_))), "{what}: abgelehnt");
     }
+}
+
+// ---- Unterversion 9 (Runde 34): Baum der Mindmap am Einfall ------------------------------------------------
+
+#[test]
+fn version_nine_carries_title_parent_place_and_main_topic_of_ideas_exactly() {
+    // Vertrag R34 §1: <einfall> trägt wahlfrei titel, eltern (UUID des Eltern-Einfalls) und platz; dazu hauptthema
+    // (Nachtrag 2026-11-25: ohne Elternknoten, Bezug und Hauptthema liegt ein Einfall in der Wolke).
+    let doc = baruch_exchange::sample::sample_document_u9();
+    let xml = write_xml(&doc, ImageMode::Inline).unwrap();
+    let rope = sample_uuid(40);
+    for needle in [
+        "version=\"9\"".to_owned(),
+        "titel=\"Das Seil &amp; sein &lt;Knoten&gt;\" platz=\"1\"".to_owned(),
+        format!("titel=\"Lampe am Seil\" eltern=\"{rope}\" platz=\"2\""),
+        "platz=\"3\" hauptthema=\"true\"".to_owned(),
+    ] {
+        assert!(xml.contains(&needle), "{needle} im XML der Unterversion 9:\n{xml}");
+    }
+    let back = read_xml(xml.as_bytes(), &Limits::DEFAULT).unwrap();
+    assert!(back.unknown.is_empty(), "in Unterversion 9 ist alles bekannt: {:?}", back.unknown);
+    assert_eq!(back.work, doc.work, "ganzes Werk ohne Verlust (Titel, Elternknoten, Platz, Hauptthema)");
+    let lamp = &back.work.ideas[1];
+    assert_eq!(
+        (lamp.title.as_str(), lamp.parent.as_deref(), lamp.position, lamp.main_topic),
+        ("Lampe am Seil", Some(rope.as_str()), 2, false),
+        "der Unterknoten kennt Titel, Elternknoten und Platz"
+    );
+    let zip = read(&write_baruch(&doc).unwrap(), &Limits::DEFAULT).unwrap();
+    assert_eq!(zip.work, doc.work, "auch über den Container ohne Verlust");
+    assert_eq!(write_xml(&back, ImageMode::Inline).unwrap(), xml, "erneut geschrieben byte-gleich");
+}
+
+#[test]
+fn an_idea_without_tree_fields_writes_no_new_attributes_and_reads_with_defaults() {
+    // Ein Werk ohne Baum sieht in Unterversion 9 aus wie zuvor: Die neuen Attribute stehen nur da, wenn sie von der
+    // Vorgabe abweichen – so bleibt eine Ausgabe ohne Mindmap auch nach dem eingefrorenen u8-XSD gültig.
+    let xml = write_xml(&sample_document(), ImageMode::Inline).unwrap();
+    let ideas: Vec<&str> = xml.lines().filter(|line| line.trim_start().starts_with("<einfall ")).collect();
+    assert_eq!(ideas.len(), 3, "Vorbedingung: die drei Einfälle des Beispiels stehen je in einer Zeile");
+    for line in ideas {
+        for attribute in [" titel=", " eltern=", " platz=", " hauptthema="] {
+            assert!(!line.contains(attribute), "{attribute} fehlt ohne Baum: {line}");
+        }
+    }
+    let back = read_xml(xml.as_bytes(), &Limits::DEFAULT).unwrap();
+    for idea in &back.work.ideas {
+        assert_eq!(
+            (idea.title.as_str(), idea.parent.as_deref(), idea.position, idea.main_topic),
+            ("", None, 0, false),
+            "fehlende Attribute lesen sich als Vorgabe (kein Titel, kein Elternknoten, Platz 0, kein Hauptthema)"
+        );
+    }
+}
+
+#[test]
+fn files_of_version_eight_leave_the_tree_attributes_unknown_and_take_nothing_of_them() {
+    // Eine Datei, die Unterversion 8 behauptet, aber die Attribute der 9 trägt: gemeldet, nichts davon übernommen;
+    // alles Übrige der Datei wird gelesen (Dateien der Unterversionen 1 bis 8 bleiben lesbar).
+    let doc = baruch_exchange::sample::sample_document_u9();
+    let v8 = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
+        &format!("version=\"{FORMAT_VERSION}\""),
+        "version=\"8\"",
+        1,
+    );
+    let read8 = read_xml(v8.as_bytes(), &Limits::DEFAULT).unwrap();
+    assert_eq!(read8.version, 8, "die Unterversion der Datei bleibt sichtbar");
+    for path in [
+        "werk/einfaelle/einfall/@titel",
+        "werk/einfaelle/einfall/@eltern",
+        "werk/einfaelle/einfall/@platz",
+        "werk/einfaelle/einfall/@hauptthema",
+    ] {
+        assert!(read8.unknown.iter().any(|u| u == path), "{path} in Unterversion 8 unbekannt: {:?}", read8.unknown);
+    }
+    assert!(
+        read8.work.ideas.iter().all(|i| i.title.is_empty() && i.parent.is_none() && i.position == 0 && !i.main_topic),
+        "nichts vom Baum übernommen"
+    );
+    assert_eq!(read8.work.ideas.len(), doc.work.ideas.len(), "die Einfälle selbst sind alle gelesen");
+    assert_eq!(read8.work.ideas[0].words, doc.work.ideas[0].words, "mit ihren alten Feldern");
+}
+
+#[test]
+fn validate_refuses_a_long_title_a_broken_parent_and_an_idea_as_its_own_parent() {
+    // Was das XSD nicht oder nur teils prüft, prüft der Leser: Titel höchstens 200 Zeichen (wie idea.title), eltern
+    // eine UUID und nicht der Einfall selbst. Ein Elternknoten, der nicht im Dokument steht, ist erlaubt – das
+    // Einlesen löst den Einfall dann mit Hinweis (Vertrag R34 §1).
+    let mut doc = baruch_exchange::sample::sample_document_u9();
+    assert!(validate(&doc).is_ok(), "das Beispiel der Unterversion 9 ist gültig");
+    doc.work.ideas[1].title = "ä".repeat(200);
+    assert!(validate(&doc).is_ok(), "200 Zeichen (nicht Bytes) sind erlaubt");
+    doc.work.ideas[1].title = "ä".repeat(201);
+    assert!(matches!(validate(&doc), Err(ExchangeError::Invalid(m)) if m.contains("Titel")), "201 Zeichen abgelehnt");
+    let mut doc = baruch_exchange::sample::sample_document_u9();
+    doc.work.ideas[1].parent = Some("kein-uuid".into());
+    assert!(matches!(validate(&doc), Err(ExchangeError::Invalid(_))), "eltern muss eine UUID sein");
+    let mut doc = baruch_exchange::sample::sample_document_u9();
+    doc.work.ideas[1].parent = Some(doc.work.ideas[1].uuid.clone());
+    assert!(
+        matches!(validate(&doc), Err(ExchangeError::Invalid(m)) if m.contains("eigener Elternknoten")),
+        "ein Einfall ist nicht sein eigener Elternknoten"
+    );
+    let mut doc = baruch_exchange::sample::sample_document_u9();
+    doc.work.ideas[1].parent = Some(sample_uuid(4711));
+    assert!(validate(&doc).is_ok(), "ein unbekannter Elternknoten ist kein Formatfehler (das Einlesen löst ihn)");
+}
+
+#[test]
+fn a_tree_attribute_with_a_wrong_value_is_a_reading_error() {
+    let xml = write_xml(&baruch_exchange::sample::sample_document_u9(), ImageMode::Inline).unwrap();
+    let broken = xml.replacen("platz=\"2\"", "platz=\"zwei\"", 1);
+    assert!(
+        matches!(read_xml(broken.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Xml(m)) if m.contains("platz")),
+        "platz muss eine ganze Zahl sein; der Fehler nennt das Attribut"
+    );
+    let broken = xml.replacen("hauptthema=\"true\"", "hauptthema=\"vielleicht\"", 1);
+    assert!(
+        matches!(read_xml(broken.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Xml(m)) if m.contains("hauptthema")),
+        "hauptthema muss ein Wahrheitswert sein"
+    );
 }

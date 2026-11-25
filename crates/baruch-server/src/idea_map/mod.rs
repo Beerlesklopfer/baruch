@@ -7,8 +7,10 @@
 //!   `docs/RPC.md` „Gedankenkarte“). Herkunft über RPC immer der Mensch.
 //! - Seite (karte-bild, [`bild`]): `/werke/{id}/karte` (HTML, ohne JavaScript bedienbar); Ausgaben `.svg`, `.pdf`,
 //!   `.md`, `.mm` und Formular `POST /werke/{id}/karte/act` seit Runde 34 (R34-S1) in [`files`].
-//! - Runde 34 (R34-S1): [`tree`] – die Mindmap als Baum ([`tree::MindMap`], [`tree::tree`]) und der Baum-Import
-//!   ([`tree::import`], in S1 ein Stub); [`bild::mindmap`] zeichnet sie.
+//! - Runde 34: [`tree`] – die Mindmap als Baum ([`tree::MindMap`], [`tree::tree`]), die Wolke daneben
+//!   ([`tree::Cloud`], [`tree::cloud`]) und der Baum-Import ([`tree::import`]); RPC `idea.tree` → `{map, cloud}`.
+//!   `idea.map` (flache Sicht) bleibt und nennt je Einfall zusätzlich `title`, `parent`, `position`, `main_topic`,
+//!   `cloud`. [`bild::mindmap`] zeichnet die Mindmap.
 //!
 //! Aufbau (Vertrag §2): Mitte das Werk (`w`), darum Teile und Kapitel (`n:<key>`); Abschnitte unter einem Kapitel
 //! fasst das Kapitel zusammen (Anker = nächster Vorfahre der Art Kapitel, sonst der Punkt selbst); Einfälle ohne
@@ -54,6 +56,8 @@ pub const METHODS: &[&str] = &[
     "idea.map_groups_name",
     "idea.map_group_accept",
     "idea.map_group_dismiss",
+    // Runde 34: die Mindmap als Baum samt Wolke (tree.rs).
+    "idea.tree",
 ];
 
 /// Höchstlänge der Beschriftung eines Einfalls (Schlagwörter) in Zeichen.
@@ -356,7 +360,28 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let work = int(&params, "work", "Werk")?;
             let filter = filter_from_params(&params)?;
             let map = build(state, work, &filter).await?;
-            serde_json::to_value(map).map_err(|e| RpcError::new(INTERNAL, e.to_string()))
+            let mut answer = serde_json::to_value(map).map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
+            // Runde 34: je Einfall `title`, `parent`, `position` (und `main_topic`, `cloud`) – in der Antwort
+            // ergänzt, nicht am Typ `MapIdea`, den die eingefrorene Anordnung `bild/layout.rs` von Hand baut.
+            let rows = state.store.idea_tree_rows(work).await?;
+            let by_id: HashMap<IdeaId, &Idea> = rows.iter().map(|i| (i.id, i)).collect();
+            if let Some(Json::Array(ideas)) = answer.get_mut("ideas") {
+                for idea in ideas {
+                    let Some(row) = idea["id"].as_i64().and_then(|id| by_id.get(&id)) else { continue };
+                    idea["title"] = json!(row.title);
+                    idea["parent"] = json!(row.parent);
+                    idea["position"] = json!(row.position);
+                    idea["main_topic"] = json!(row.main_topic);
+                    idea["cloud"] = json!(row.cloud);
+                }
+            }
+            Ok(answer)
+        }
+        "idea.tree" => {
+            let work = int(&params, "work", "Werk")?;
+            let filter = filter_from_params(&params)?;
+            let (map, cloud) = tree::tree_and_cloud(state, work, &filter).await?;
+            Ok(json!({ "map": map, "cloud": cloud }))
         }
         "idea.links" => {
             let deleted = opt_bool(&params, "deleted")?.unwrap_or(false);
@@ -652,7 +677,8 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
             node: format!("i:{}", idea.id),
             anchor,
             key: idea.key,
-            label: label_of(&idea.words),
+            // Runde 34: der Titel des Einfalls, sonst wie bisher die Schlagwörter.
+            label: if idea.title.is_empty() { label_of(&idea.words) } else { idea.title.clone() },
             hit: hits.as_ref().is_none_or(|h| h.contains(&idea.id)),
             words: idea.words,
             note: idea.note,

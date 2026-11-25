@@ -35,6 +35,24 @@
 //!   Schreibsperre ([`crate::assist`]); scheitert er, bleibt der Einfall offen und nichts ist gespeichert.
 //!   Der Lektor kennt außerdem die Einfälle als Gedächtnis ([`crate::assist::context`]).
 //!
+//! Runde 34 (Mindmap, Vertrag §3; Nachtrag des Nutzers vom 2026-11-25 zur Wolke):
+//! - Jede Antwort mit `idea` trägt `title`, `parent`, `position`, `main_topic` und `cloud` (abgeleitet: Einfall eines
+//!   Werks ohne Elternknoten, ohne Bezug und nicht Hauptthema – er liegt in der Wolke neben der Mindmap).
+//! - `idea.create` zusätzlich `title?` (höchstens 200 Zeichen; mit Titel dürfen `words` fehlen), `parent?` (Einfall
+//!   desselben Werks; setzt `work` daraus, wenn es fehlt), `before?` (Geschwister, vor das der neue kommt; ohne = ans
+//!   Ende), `cloud?` (`false` = ohne `parent` und `key` freies Hauptthema am Werk; Vorgabe: in die Wolke).
+//! - `idea.update` zusätzlich `title?`.
+//! - `idea.move {id, parent?: id|null, key?: key|null, before?: id|null, cloud?: bool}` → `{idea, changed, commit?}`:
+//!   hängt um und ordnet (fehlende Felder bleiben). `parent: null` löst vom Elternknoten – bleibt auch kein Bezug,
+//!   wird der Einfall freies Hauptthema am Werk; `cloud: true` legt ihn in die Wolke (löst Elternknoten und Bezug),
+//!   `cloud: false` macht einen Einfall ohne Elternknoten und Bezug zum Hauptthema. Die Unterknoten wandern immer
+//!   mit. Abgelehnt mit -32000 ([`REFUSED`]): anderes Werk, eigener Nachfahre (Kreis), Tiefe über 32, gelöschter
+//!   Einfall bzw. Elternknoten, `before` kein Geschwister. Ein Commit „Einfall <id>: umgehängt“ (`idea-move`).
+//! - `idea.delete` löscht den Einfall samt nicht gelöschten Unterknoten mit demselben Zeitstempel in einem Commit
+//!   (Antwort zusätzlich `deleted_ids`; `deleted` bleibt `true` wie bisher – siehe `docs/r34/daten.md`),
+//!   `idea.restore` stellt genau diese wieder her (Antwort zusätzlich `restored`, und `detached: true`, wenn der
+//!   Elternknoten noch gelöscht ist und der Einfall darum gelöst wurde).
+//!
 //! Jede Aktion läuft unter [`AppState::write_lock`] und ergibt genau einen Commit je betroffenem
 //! Spiegel ([`mirror::record_idea`]): Werk → Werkspiegel mit `einfaelle.md`, ohne Werk →
 //! `<data>/einfaelle/`; beim Umziehen zwischen Werken je einer im alten und im neuen.
@@ -49,8 +67,8 @@ use axum::routing::{get, post};
 use baruch_core::Post;
 use baruch_rag::{Answer, DEFAULT_LIMIT, MAX_LIMIT, RagError, SearchRequest, Way, WayState};
 use baruch_store::{
-    Idea, IdeaEdit, IdeaFilter, IdeaId, IdeaLinkId, IdeaOrigin, IdeaScope, IdeaStatus, IdeaUse, NewIdea, Place, Store,
-    StoreError, WordCount, WorkId,
+    Idea, IdeaEdit, IdeaFilter, IdeaId, IdeaLinkId, IdeaMove, IdeaOrigin, IdeaScope, IdeaSpot, IdeaStatus, IdeaUse,
+    NewIdea, Place, Store, StoreError, WordCount, WorkId,
 };
 use minijinja::value::Serde;
 use minijinja::{Environment, Value, context};
@@ -70,6 +88,7 @@ const METHODS: &[&str] = &[
     "idea.delete",
     "idea.restore",
     "idea.process",
+    "idea.move",
 ];
 
 /// Höchstlänge eines Titels aus den Schlagwörtern (Titelregel der Gliederung).
@@ -177,6 +196,27 @@ fn limit_param(params: &Json, name: &str) -> Result<u32, RpcError> {
     }
 }
 
+/// Wahrheitswert (Runde 34, `cloud`): `true`/`false`, `1`/`0` oder als Text aus Formularen; fehlt → `None`.
+fn flag(params: &Json, name: &str) -> Result<Option<bool>, RpcError> {
+    let wrong = || invalid(format!("{name}: true oder false erwartet"));
+    match params.get(name) {
+        None | Some(Json::Null) => Ok(None),
+        Some(Json::Bool(b)) => Ok(Some(*b)),
+        Some(Json::Number(n)) => match n.as_i64() {
+            Some(0) => Ok(Some(false)),
+            Some(1) => Ok(Some(true)),
+            _ => Err(wrong()),
+        },
+        Some(Json::String(s)) => match s.trim() {
+            "" => Ok(None),
+            "1" | "true" | "on" => Ok(Some(true)),
+            "0" | "false" | "off" => Ok(Some(false)),
+            _ => Err(wrong()),
+        },
+        Some(_) => Err(wrong()),
+    }
+}
+
 fn place_param(params: &Json) -> Result<Place, RpcError> {
     match params.get("place").and_then(Json::as_str).map(str::trim) {
         None | Some("") | Some("after") => Ok(Place::After),
@@ -203,6 +243,10 @@ fn add_mirror(answer: &mut Json, result: Result<Option<String>, String>) {
 fn request_for(idea: &Idea, actor: &IdeaOrigin, action: &str, detail: &str) -> baruch_gitmirror::CommitRequest {
     let acting = Idea { origin: actor.clone(), ..idea.clone() };
     let mut request = mirror::describe_idea(&acting, action, detail);
+    if action == "idea-move" {
+        // Runde 34: `describe_idea` kennt die Aktion nicht und schriebe ihren Namen in den Betreff.
+        request.summary = format!("Einfall {}: umgehängt", idea.id);
+    }
     if action == "idea-delete" {
         let mut body = detail.trim_end().to_owned();
         if !body.is_empty() {
@@ -215,11 +259,17 @@ fn request_for(idea: &Idea, actor: &IdeaOrigin, action: &str, detail: &str) -> b
     request
 }
 
-/// Einfall anlegen, unter der Schreibsperre, mit Commit. Antwort `{idea, commit?|mirror?}`.
-pub(crate) async fn create(state: &AppState, new: &NewIdea<'_>) -> Result<Json, RpcError> {
+/// Einfall anlegen, unter der Schreibsperre, mit Commit. Antwort `{idea, commit?|mirror?}`. Seit Runde 34 mit Titel
+/// und Platz in der Mindmap: Unterknoten, vor einem Geschwister, freies Hauptthema; ohne Elternknoten, Bezug und
+/// Hauptthema (`IdeaSpot::default()`) liegt der neue Einfall in der Wolke.
+pub(crate) async fn create_at(state: &AppState, new: &NewIdea<'_>, spot: &IdeaSpot<'_>) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
-    let idea = state.store.idea_create(new).await?;
-    let request = request_for(&idea, &new.origin, "idea-create", "");
+    let idea = state.store.idea_create_at(new, spot).await?;
+    let detail = match idea.parent {
+        Some(parent) => format!("Unterknoten von Einfall {parent}"),
+        None => String::new(),
+    };
+    let request = request_for(&idea, &new.origin, "idea-create", &detail);
     let mut answer = json!({ "idea": idea });
     add_mirror(&mut answer, mirror::record_idea(state, &held, idea.work, request).await);
     Ok(answer)
@@ -233,6 +283,7 @@ fn changes(before: &Idea, after: &Idea) -> String {
             lines.push(format!("{label} vorher: {}\n{label} nachher: {}", one_line(old), one_line(new)));
         }
     };
+    field("Titel", &before.title, &after.title);
     field("Schlagwörter", &before.words.join(", "), &after.words.join(", "));
     field("Gedanke", &before.note, &after.note);
     field("Markiert", &before.quote, &after.quote);
@@ -313,22 +364,86 @@ fn moved_text(from: Option<WorkId>, to: Option<WorkId>) -> String {
     format!("{} → {}", name(from), name(to))
 }
 
-/// Einfall löschen (wiederherstellbar), Commit mit dem ganzen Eintrag. Antwort `{id, deleted, commit?}`.
+/// Wo ein Einfall in der Mindmap hängt, für den Rumpf des Commits.
+fn place_text(idea: &Idea) -> String {
+    match (idea.parent, idea.key, idea.main_topic) {
+        (Some(parent), _, _) => format!("unter Einfall {parent}"),
+        (None, Some(key), _) => format!("am Abschnitt key {key}"),
+        (None, None, true) => "Hauptthema am Werk".to_owned(),
+        (None, None, false) if idea.work.is_some() => "in der Wolke".to_owned(),
+        (None, None, false) => "ohne Werk".to_owned(),
+    }
+}
+
+/// Einfall umhängen und ordnen (Runde 34, auch für MCP): unverändert → `{idea, changed: false}` ohne Commit; sonst
+/// genau ein Commit „Einfall <id>: umgehängt“ mit Herkunft. Verletzte Regel (anderes Werk, Kreis, Tiefe, gelöscht) →
+/// -32000 ([`REFUSED`]), nichts geändert.
+pub(crate) async fn move_idea(
+    state: &AppState,
+    id: IdeaId,
+    mv: &IdeaMove,
+    actor: &IdeaOrigin,
+) -> Result<Json, RpcError> {
+    let held = state.write_lock.lock().await;
+    let before = state.store.idea_get(id).await?;
+    let after = match state.store.idea_move(id, mv).await {
+        Ok(Some(after)) => after,
+        Ok(None) => return Ok(json!({ "idea": before, "changed": false })),
+        Err(StoreError::Idea(message)) => return Err(RpcError::new(REFUSED, message)),
+        Err(e) => return Err(e.into()),
+    };
+    let mut detail = format!("Platz vorher: {}\nPlatz nachher: {}", place_text(&before), place_text(&after));
+    if before.key != after.key && after.parent.is_some() {
+        let key = |k: Option<i64>| k.map_or_else(|| "ohne".to_owned(), |k| format!("key {k}"));
+        detail.push_str(&format!("\nBezug vorher: {}\nBezug nachher: {}", key(before.key), key(after.key)));
+    }
+    if place_text(&before) == place_text(&after) {
+        detail.push_str("\nNeue Reihenfolge unter den Geschwistern.");
+    }
+    let mut answer = json!({ "idea": after, "changed": true });
+    let request = request_for(&after, actor, "idea-move", &detail);
+    add_mirror(&mut answer, mirror::record_idea(state, &held, after.work, request).await);
+    Ok(answer)
+}
+
+/// Einfall löschen (wiederherstellbar), Commit mit dem ganzen Eintrag. Seit Runde 34 samt nicht gelöschten
+/// Unterknoten (derselbe Zeitstempel, ein Commit). Antwort `{id, deleted: true, deleted_ids, idea, commit?}`.
 pub(crate) async fn delete(state: &AppState, id: IdeaId, actor: &IdeaOrigin) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
-    let idea = state.store.idea_delete(id).await?;
-    let mut answer = json!({ "id": id, "deleted": true, "idea": idea });
-    let request = request_for(&idea, actor, "idea-delete", "");
+    let change = state.store.idea_delete_tree(id).await?;
+    let idea = change.idea;
+    let mut answer = json!({ "id": id, "deleted": true, "deleted_ids": change.ids, "idea": idea });
+    let detail = if change.ids.len() > 1 {
+        let below: Vec<String> = change.ids.iter().skip(1).map(ToString::to_string).collect();
+        format!("Mit gelöschte Unterknoten: {}", below.join(", "))
+    } else {
+        String::new()
+    };
+    let request = request_for(&idea, actor, "idea-delete", &detail);
     add_mirror(&mut answer, mirror::record_idea(state, &held, idea.work, request).await);
     Ok(answer)
 }
 
-/// Gelöschten Einfall wiederherstellen, mit Commit. Antwort `{idea, commit?}`.
+/// Gelöschten Einfall wiederherstellen, mit Commit; seit Runde 34 samt den mit ihm gelöschten Unterknoten. Antwort
+/// `{idea, restored, detached?, commit?}`.
 pub(crate) async fn restore(state: &AppState, id: IdeaId, actor: &IdeaOrigin) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
-    let idea = state.store.idea_restore(id).await?;
-    let mut answer = json!({ "idea": idea });
-    let request = request_for(&idea, actor, "idea-restore", "");
+    let change = state.store.idea_restore_tree(id).await?;
+    let idea = change.idea;
+    let mut answer = json!({ "idea": idea, "restored": change.ids });
+    let mut detail = String::new();
+    if change.ids.len() > 1 {
+        let below: Vec<String> = change.ids.iter().skip(1).map(ToString::to_string).collect();
+        detail.push_str(&format!("Mit wiederhergestellte Unterknoten: {}", below.join(", ")));
+    }
+    if change.detached {
+        answer["detached"] = json!(true);
+        if !detail.is_empty() {
+            detail.push('\n');
+        }
+        detail.push_str("Der Elternknoten ist noch gelöscht; der Einfall wurde gelöst.");
+    }
+    let request = request_for(&idea, actor, "idea-restore", &detail);
     add_mirror(&mut answer, mirror::record_idea(state, &held, idea.work, request).await);
     Ok(answer)
 }
@@ -508,9 +623,26 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
     let human = IdeaOrigin::Human { name: mirror::HUMAN_NAME.to_owned() };
     match method {
         "idea.create" => {
-            let words = words_param(&params)?.ok_or_else(|| invalid("words fehlt (mindestens ein Schlagwort)"))?;
-            let work = optional_ref(&params, "work")?.flatten();
+            let title = text(&params, "title")?.unwrap_or_default();
+            // Runde 34: mit Titel dürfen die Schlagwörter fehlen.
+            let words = match words_param(&params)? {
+                Some(words) => words,
+                None if !title.trim().is_empty() => Vec::new(),
+                None => return Err(invalid("words fehlt (mindestens ein Schlagwort oder ein Titel)")),
+            };
+            let parent = optional_ref(&params, "parent")?.flatten();
+            let before = optional_ref(&params, "before")?.flatten();
+            let cloud = flag(&params, "cloud")?;
+            let mut work = optional_ref(&params, "work")?.flatten();
+            if let (None, Some(parent)) = (work, parent) {
+                // Ein Unterknoten gehört zum Werk seines Elternknotens.
+                work = state.store.idea_get(parent).await?.work;
+            }
             let key = optional_ref(&params, "key")?.flatten();
+            if cloud == Some(true) && (parent.is_some() || key.is_some()) {
+                return Err(invalid("cloud: in die Wolke geht nur ohne parent und key"));
+            }
+            let spot = IdeaSpot { title: &title, parent, before, main_topic: cloud == Some(false) };
             let (note, quote, source, bible) =
                 (text(&params, "note")?, text(&params, "quote")?, text(&params, "source")?, text(&params, "bible")?);
             let new = NewIdea {
@@ -523,7 +655,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                 bible: bible.as_deref().unwrap_or(""),
                 origin: human,
             };
-            create(state, &new).await
+            create_at(state, &new, &spot).await
         }
         "idea.get" => Ok(json!({ "idea": state.store.idea_get(id_param(&params)?).await? })),
         "idea.list" => {
@@ -601,6 +733,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                 None => None,
                 Some(s) => Some(IdeaStatus::parse(s.trim()).ok_or_else(|| invalid("status: open oder done erwartet"))?),
             };
+            let title = text(&params, "title")?;
             let edit = IdeaEdit {
                 words: words.as_deref(),
                 note: note.as_deref(),
@@ -610,8 +743,18 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                 work: optional_ref(&params, "work")?,
                 key: optional_ref(&params, "key")?,
                 status,
+                title: title.as_deref(),
             };
             update(state, id, &edit, &human).await
+        }
+        "idea.move" => {
+            let mv = IdeaMove {
+                parent: optional_ref(&params, "parent")?,
+                key: optional_ref(&params, "key")?,
+                before: optional_ref(&params, "before")?,
+                cloud: flag(&params, "cloud")?,
+            };
+            move_idea(state, id_param(&params)?, &mv, &human).await
         }
         "idea.delete" => {
             if params.get("confirm") != Some(&Json::Bool(true)) {
@@ -854,6 +997,13 @@ fn idea_view(idea: &Idea, titles: &[(WorkId, String, String)], snippet: Option<&
         created => short_time(&idea.created),
         updated => short_time(&idea.updated),
         deleted => idea.deleted.as_deref().map(short_time),
+        // Runde 34: Titel und Platz in der Mindmap.
+        title => idea.title.as_str(),
+        display_title => idea.display_title(),
+        parent => idea.parent,
+        parent_href => idea.parent.map(|p| href(format!("/einfaelle/{p}"))),
+        main_topic => idea.main_topic,
+        cloud => idea.cloud,
         // Ausschnitt der Suche: vom Store maskiert, nur <mark> bleibt.
         snippet => snippet.map(|s| Value::from_safe_string(s.to_owned())),
     }
@@ -1161,6 +1311,9 @@ struct ActForm {
     used: Option<String>,
     place: Option<String>,
     title: Option<String>,
+    /// Runde 34 (`idea.move`, `idea.create`): Elternknoten bzw. „in die Wolke“.
+    parent: Option<String>,
+    cloud: Option<String>,
     /// Persona für `as=persona` (Runde 15; leer = der Lektor des Werks).
     persona: Option<String>,
     /// Wohin danach (nur Adressen dieses Servers, beginnend mit genau einem `/`).
@@ -1188,7 +1341,7 @@ fn put(params: &mut Json, name: &str, value: &Option<String>) {
 /// danach 303 zurück (`back` bzw. die Seite des Einfalls), Fehler 422 (409 bei fachlicher
 /// Ablehnung) mit der Seite und der Meldung. Löschen braucht das Kästchen `confirm`.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
-    let allowed = ["idea.create", "idea.update", "idea.delete", "idea.restore", "idea.process"];
+    let allowed = ["idea.create", "idea.update", "idea.delete", "idea.restore", "idea.process", "idea.move"];
     if !allowed.contains(&form.method.as_str()) {
         return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
     }
@@ -1210,8 +1363,16 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         ("place", &form.place),
         ("title", &form.title),
         ("persona", &form.persona),
+        ("parent", &form.parent),
+        ("cloud", &form.cloud),
     ] {
         put(&mut params, name, value);
+    }
+    if form.method == "idea.move" && form.parent.as_deref().is_some_and(|p| p.trim().is_empty()) {
+        // Ein leeres Feld „unter Einfall“ heißt: nichts gewählt (nicht: vom Elternknoten lösen).
+        if let Some(object) = params.as_object_mut() {
+            object.remove("parent");
+        }
     }
     if form.method == "idea.delete" {
         // Der Server prüft das Kästchen selbst; `required` im HTML allein hält niemanden auf.

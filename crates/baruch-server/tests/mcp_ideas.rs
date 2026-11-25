@@ -81,13 +81,14 @@ async fn the_six_idea_tools_follow_read_asset_and_say_they_change_no_book_text()
         "nach read_asset, vor ask_persona; add_idea ist der zweite Name für idea_create: {names:?}"
     );
     assert_eq!(
-        &names[at + 8..at + 12],
-        ["idea_map", "idea_links", "idea_link", "idea_unlink"],
-        "Runde 25: die Werkzeuge der Gedankenkarte direkt nach idea_delete (Verbindungen gehören zu den Einfällen): {names:?}"
+        &names[at + 8..at + 14],
+        ["idea_move", "idea_map", "idea_tree", "idea_links", "idea_link", "idea_unlink"],
+        "Runde 34: idea_move direkt nach idea_delete (es gehört zum CRUD der Einfälle); Runde 25/34: die Werkzeuge der \
+         Mindmap danach, idea_tree (Baum) direkt hinter idea_map (flache Sicht): {names:?}"
     );
-    assert_eq!(names[at + 12], "ask_persona", "dahinter die Persona-Werkzeuge (seit Runde 10 keine Stubs mehr)");
+    assert_eq!(names[at + 14], "ask_persona", "dahinter die Persona-Werkzeuge (seit Runde 10 keine Stubs mehr)");
     assert_eq!(
-        &names[at + 12..],
+        &names[at + 14..],
         [
             "ask_persona",
             "chat",

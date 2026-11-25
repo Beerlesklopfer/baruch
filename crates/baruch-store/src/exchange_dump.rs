@@ -936,6 +936,19 @@ async fn ideas(
     .bind(work)
     .fetch_all(&mut *conn)
     .await?;
+    // Runde 34 (eigene Abfrage, weil sqlx Tupel nur bis 16 Spalten liest): Titel, UUID des Elternknotens (nur, wenn
+    // er zum selben Werk gehört), Reihenfolge, Hauptthema.
+    let tree: Vec<(i64, String, Option<String>, i64, i64)> = sqlx::query_as(
+        "SELECT i.id, i.title, (SELECT p.uuid FROM idea p WHERE p.id = i.parent_id AND p.work_id = i.work_id), \
+         i.position, i.main_topic FROM idea i WHERE i.work_id = ?",
+    )
+    .bind(work)
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut tree_of: HashMap<i64, (String, Option<String>, i64, i64)> = tree
+        .into_iter()
+        .map(|(id, title, parent, position, main_topic)| (id, (title, parent, position, main_topic)))
+        .collect();
     let words: Vec<(i64, String)> = sqlx::query_as(
         "SELECT w.idea_id, w.word FROM idea_word w JOIN idea i ON i.id = w.idea_id WHERE i.work_id = ? \
          ORDER BY w.idea_id, w.position",
@@ -966,6 +979,7 @@ async fn ideas(
         deleted,
     ) in rows
     {
+        let (title, parent, position, main_topic) = tree_of.remove(&id).unwrap_or_default();
         let origin_kind = origin_of(&origin_kind)?;
         let status = match status.as_str() {
             "open" => ExchangeIdeaStatus::Open,
@@ -996,6 +1010,12 @@ async fn ideas(
             created,
             updated,
             deleted,
+            title,
+            // `main_topic` gilt nur ohne Elternknoten und Bezug (so hält es der Store); hier noch einmal, damit die
+            // Ausgabe auch bei von Hand geänderten Zeilen eindeutig ist.
+            main_topic: main_topic != 0 && parent.is_none() && node.is_none(),
+            parent,
+            position,
         });
     }
     Ok(out)
