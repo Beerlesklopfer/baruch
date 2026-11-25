@@ -4,11 +4,12 @@ Ein Werk zieht mit allen Fassungen, Einfällen, Beiträgen, Bildern, seiner Geda
 Satzbild-Einstellungen, seinen Befunden, den Satz-Einstellungen und seinem Glossar von einer Baruch-Instanz zur anderen
 (Runde 26, Karte seit Runde 25, Umschlag-Anordnung, Anschriften und Satzbild seit Runde 27, Befunde und alte
 Beitragsfassungen seit Runde 28, Querverweise und Varianten seit Runde 30, Satz-Einstellungen seit Runde 29, Glossar und
-eigene Register seit Runde 31, Fortschreibungen, Entwurf und Stand übernommener Befunde seit Runde 22). Namensraum
-`urn:baruch:werk:1`, Unterversion 8; Schema `docs/schema/baruch-werk-1-u8.xsd`. Die Schemata der Unterversionen 1 bis
-7 (`docs/schema/baruch-werk-1.xsd`, `baruch-werk-1-u2.xsd` … `baruch-werk-1-u7.xsd`) bleiben eingefroren (byte-gleich,
-Tests in `crates/baruch-exchange/tests/xsd.rs`); jede gültige Datei der Unterversionen 1 bis 7 ist auch nach dem
-u8-Schema gültig.
+eigene Register seit Runde 31, Fortschreibungen, Entwurf und Stand übernommener Befunde seit Runde 22, Baum der Mindmap
+an den Einfällen seit Runde 34). Namensraum
+`urn:baruch:werk:1`, Unterversion 9; Schema `docs/schema/baruch-werk-1-u9.xsd`. Die Schemata der Unterversionen 1 bis
+8 (`docs/schema/baruch-werk-1.xsd`, `baruch-werk-1-u2.xsd` … `baruch-werk-1-u8.xsd`) bleiben eingefroren (byte-gleich,
+Tests in `crates/baruch-exchange/tests/xsd.rs`); jede gültige Datei der Unterversionen 1 bis 8 ist auch nach dem
+u9-Schema gültig.
 
 ## 1 Überblick, Container und was nicht im Format steht
 
@@ -308,7 +309,8 @@ wurde, `bearbeitet-von` = wer bearbeitet hat).
 **`<einfaelle>?`** mit `<einfall>*` – alle Einfälle des Werks, auch gelöschte. Attribute `uuid`, `status`
 (`offen` | `erledigt`), `erledigt-als?` (`gliederung` | `beitrag` | `persona` | `notiz`), `herkunft-art`
 (`mensch` | `persona` | `mcp`), `herkunft` (Name, `@handle`, `@mcp:<client>`), `angelegt`, `geaendert`,
-`geloescht?` (weich gelöscht seit), `bezug?` (UUID des Punkts). Kinder `<schlagwort>*`, `<notiz>`, `<zitat>`,
+`geloescht?` (weich gelöscht seit), `bezug?` (UUID des Punkts), ab Unterversion 9 `titel?`, `eltern?`, `platz?`,
+`hauptthema?` (Baum der Mindmap, siehe „Baum der Mindmap (Unterversion 9, Runde 34)“). Kinder `<schlagwort>*`, `<notiz>`, `<zitat>`,
 `<quelle>`, `<bibelstelle>` (immer vorhanden, auch leer) und `<erledigt-ref>?` (freier Verweis; ein „key N“ der
 Datenbank steht als UUID des Punkts darin, der Rest wörtlich).
 
@@ -1103,3 +1105,56 @@ Das Format bleibt bei Unterversion 8; geändert sind nur Regeln des Einlesens.
 - Neu unter „Hinweise beim Einlesen“: „Passt die Überschrift einer eben eingelesenen aktuellen Fassung nicht zur Art
   ihres Punkts (Kapitel Ebene 1, Abschnitt 2, unter einem Abschnitt 3; Teile ungeprüft), meldet das Einlesen einen
   Hinweis; der Text bleibt exakt. `validate` selbst kennt keine Hinweise und bleibt unverändert.“
+
+## Baum der Mindmap (Unterversion 9, Runde 34)
+
+Besitz: mindmap_daten. Seit Runde 34 bilden die Einfälle eines Werks einen Baum (die Mindmap; Migration 0052, Spalten
+`idea.title`, `idea.parent_id`, `idea.position`, `idea.main_topic`). Unterversion **9**: Der Schreiber schreibt
+`version="9"` (auch im Manifest; das ersetzt „`version="8"`“ oben), XSD `docs/schema/baruch-werk-1-u9.xsd`. Die
+Schemata der Unterversionen 1 bis 8 bleiben byte-unverändert (SHA-256 im Test, u8 neu dazu); eine Datei der
+Unterversion 8 besteht u9 und u8, eine Ausgabe mit Baum besteht u8 nicht.
+
+**Einfall.** `<einfall>` trägt vier weitere, wahlfreie Attribute:
+
+| Attribut | Bedeutung | fehlt = |
+|---|---|---|
+| `titel` | Titel des Knotens in der Mindmap, höchstens 200 Zeichen (`idea.title`) | leer |
+| `eltern` | UUID des Eltern-Einfalls im selben Werk (`idea.parent_id`) | kein Elternknoten |
+| `platz` | Reihenfolge unter Geschwistern, ganze Zahl (`idea.position`); bei Gleichstand nach Anlage | 0 |
+| `hauptthema` | `true`: freies Hauptthema direkt am Werk (`idea.main_topic`); nur ohne `eltern` und `bezug` | nein |
+
+Der Schreiber gibt jedes der vier nur aus, wenn es von der Vorgabe abweicht – ein Werk ohne Baum sieht in
+Unterversion 9 aus wie in 8 (und besteht auch das u8-Schema). Der Platz eines Einfalls folgt einer Regel: mit `eltern`
+Unterknoten dieses Einfalls (`bezug` ist dann nur der Link zum Abschnitt); sonst mit `bezug` am Kapitel des Punkts;
+sonst mit `hauptthema` am Werk; sonst liegt er **in der Wolke** neben der Mindmap (Ablage für Einfälle ohne Platz).
+
+```xml
+<einfall uuid="26000000-0000-4000-8000-000000000029" status="erledigt" erledigt-als="beitrag" herkunft-art="persona" herkunft="@lektor" angelegt="2026-01-06T10:00:00.000Z" geaendert="2026-01-07T12:00:00.000Z" titel="Lampe am Seil" eltern="26000000-0000-4000-8000-000000000028" platz="2">
+```
+
+**Leser.** `read` liest die Attribute ab `version="9"`. In einer Datei der Unterversionen 1 bis 8 bleiben sie
+ungelesen und stehen in `unknown` (`werk/einfaelle/einfall/@titel` …); alles Übrige der Datei wird gelesen. `validate`
+prüft: Titel höchstens 200 Zeichen, `eltern` eine UUID und nicht der Einfall selbst. Ein `eltern`, das auf keinen
+Einfall des Dokuments zeigt, ist **kein** Formatfehler.
+
+**Einlesen** (neu und abgleichen) in zwei Schritten: erst alle Einfälle (mit Titel, Platz und Hauptthema), dann die
+Elternknoten (`exchange_apply::link_idea_parents`) – der Elternknoten darf in der Datei hinter dem Kind stehen. Ein
+Einfall wird **ohne Elternknoten** übernommen (er bleibt an seinem Bezug bzw. liegt in der Wolke), mit einem Hinweis
+im Bericht, wenn
+
+- es den Elternknoten hier im Werk nicht gibt (unbekannte Kennung oder Einfall eines anderen Werks),
+- der Elternknoten gelöscht ist, der Einfall selbst aber nicht (ein mit seinem Elternknoten gelöschter Unterknoten
+  behält die Bindung, damit Wiederherstellen ihn mitnimmt),
+- die Kette der Elternknoten einen Kreis bildet oder tiefer als 32 Einfälle wäre.
+
+Beim **Abgleichen** kommen neue Einfälle samt ihrem Baum dazu; ein hier schon bekannter Einfall bleibt, wie er ist
+(lokal gewinnt) – weicht sein Titel ab, steht „Titel weicht ab (bleibt)“ als Hinweis im Bericht; Elternknoten und
+Reihenfolge bekannter Einfälle gelten als Anordnung dieser Instanz und werden nicht verglichen. Der Titel steht im
+Volltextindex der Einfälle (Spalte `words` von `idea_fts`), auch nach dem Einlesen.
+
+**Ältere Leser.** Ein Leser der Unterversion 8 (0.9.0) liest eine Datei der Unterversion 9 wie jede höhere
+Unterversion: Er meldet die vier Attribute als unbekannt und übernimmt die Einfälle ohne Baum.
+
+Tests: `crates/baruch-exchange/tests/read.rs` (Abschnitt „Unterversion 9“), `xsd.rs` (u9 besteht, u8 eingefroren),
+`crates/baruch-store/tests/exchange_u9.rs` (einlesen, ausgeben, lösen mit Hinweis, Datei der Unterversion 8),
+`crates/baruch-server/tests/round34_daten.rs` (Rundreise zwischen zwei Instanzen).

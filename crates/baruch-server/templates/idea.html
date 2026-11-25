@@ -3,7 +3,9 @@
     Chat-Beitrag, Notiz, Auftrag an den Lektor – seine Antwort wird ein Beitrag, Runde 10). Alle Formulare gehen an POST /einfaelle/act.
     Kontext: settings, idea (siehe ideas.rs idea_view), works [{id, title, selected}],
     nodes [{key, label, selected}] (Abschnitte des Werks), title_default, list_href, back, notice, error;
-    Runde 25: links [{id, arrow, other, other_href, other_words, kind, kind_label, note}], map_href, map_act. -#}
+    Runde 25: links [{id, arrow, other, other_href, other_words, kind, kind_label, note}], map_href, map_act.
+    Runde 34 (Mindmap): idea.title, idea.parent/parent_href, idea.main_topic, idea.cloud; Formular „Platz in der
+    Mindmap“ (idea.move: unter einen Einfall, in die Wolke, als Hauptthema ans Werk). -#}
 {% extends "base.html" %}
 {% block title %}Einfall {{ idea.id }} – Baruch{% endblock %}
 {% block page_title %}Einfall {{ idea.id }}{% endblock %}
@@ -26,7 +28,7 @@
   {%- endif %}
   <article class="idea-card{% if not idea.open %} done{% endif %}{% if idea.deleted %} deleted{% endif %}" data-origin="{{ idea.origin_kind }}">
     <header class="idea-card-head">
-      <h1 class="pane-title">Einfall {{ idea.id }}</h1>
+      <h1 class="pane-title">Einfall {{ idea.id }}{% if idea.title %}: <span class="idea-node-title">{{ idea.title }}</span>{% endif %}</h1>
       {%- for w in idea.words %}<span class="badge primary">{{ w }}</span>{% endfor %}
       <span class="grow"></span>
       {%- if idea.deleted %}<span class="badge warning">gelöscht {{ idea.deleted }}</span>
@@ -38,6 +40,7 @@
     <dl class="idea-facts small">
       <dt>Werk</dt><dd>{% if idea.work_title %}{{ idea.work_title }}{% else %}ohne Werk{% endif %}</dd>
       {%- if idea.key is not none %}<dt>Bezug</dt><dd>{% if idea.node_href %}<a href="{{ idea.node_href }}">Abschnitt „{{ idea.node_title }}“</a>{% else %}Abschnitt „{{ idea.node_title }}“{% endif %} (key {{ idea.key }})</dd>{% endif %}
+      {%- if idea.work is not none %}<dt>Mindmap</dt><dd class="idea-place">{% if idea.parent is not none %}Unterknoten von <a href="{{ idea.parent_href }}">Einfall {{ idea.parent }}</a>{% elif idea.key is not none %}am Kapitel des Bezugs{% elif idea.main_topic %}Hauptthema am Werk{% else %}in der Wolke (ohne Platz){% endif %}</dd>{% endif %}
       {%- if idea.source %}<dt>Quelle</dt><dd>{{ idea.source }}</dd>{% endif %}
       {%- if idea.bible %}<dt>Bibelstelle</dt><dd>{{ idea.bible }}</dd>{% endif %}
       <dt>Herkunft</dt><dd>{{ idea.origin }} · {{ idea.created }}</dd>
@@ -66,7 +69,7 @@
     {%- else %}
     <p class="muted small">Keine Verbindungen.</p>
     {%- endif %}
-    {%- if map_href %}<p class="small"><a class="idea-map-link" href="{{ map_href }}">Auf der Gedankenkarte verbinden …</a></p>{% endif %}
+    {%- if map_href %}<p class="small"><a class="idea-map-link" href="{{ map_href }}">In der Mindmap verbinden …</a></p>{% endif %}
   </section>
 
   {%- if idea.deleted %}
@@ -82,7 +85,8 @@
     <input type="hidden" name="method" value="idea.update">
     <input type="hidden" name="id" value="{{ idea.id }}">
     <div class="work-fields">
-      <label>Schlagwörter (durch Komma getrennt) <input type="text" name="words" required value="{{ idea.words_text }}"></label>
+      <label>Titel (Knoten der Mindmap) <input type="text" name="title" maxlength="200" value="{{ idea.title }}"></label>
+      <label>Schlagwörter (durch Komma getrennt; Titel oder Schlagwort ist Pflicht) <input type="text" name="words" value="{{ idea.words_text }}"></label>
       <label>Werk
         <select name="work">
           <option value="none"{% if idea.work is none %} selected{% endif %}>ohne Werk</option>
@@ -109,6 +113,38 @@
     <label>Markierter Text <textarea name="quote" rows="3" maxlength="4000">{{ idea.quote }}</textarea></label>
     <button class="btn primary" type="submit">Speichern</button>
   </form>
+
+  {#- Runde 34: Platz in der Mindmap, ohne JavaScript (idea.move). Die Unterknoten wandern mit. #}
+  {%- if idea.work is not none %}
+  <section class="work-form idea-place-forms" aria-label="Platz in der Mindmap">
+    <h2 class="pane-title">Platz in der Mindmap</h2>
+    <form class="idea-place-form" method="post" action="/einfaelle/act">
+      <input type="hidden" name="method" value="idea.move">
+      <input type="hidden" name="id" value="{{ idea.id }}">
+      <label>In die Mindmap unter Einfall Nr. <input type="number" name="parent" min="1" required{% if idea.parent is not none %} value="{{ idea.parent }}"{% endif %}></label>
+      <button class="btn" type="submit">Einhängen</button>
+    </form>
+    {%- if not idea.cloud %}
+    <form class="idea-place-form" method="post" action="/einfaelle/act">
+      <input type="hidden" name="method" value="idea.move">
+      <input type="hidden" name="id" value="{{ idea.id }}">
+      <input type="hidden" name="cloud" value="1">
+      <button class="btn" type="submit" title="Löst Elternknoten und Bezug; die Unterknoten bleiben am Einfall">In die Wolke legen</button>
+    </form>
+    {%- endif %}
+    {%- if idea.cloud or idea.parent is not none %}
+    <form class="idea-place-form" method="post" action="/einfaelle/act">
+      <input type="hidden" name="method" value="idea.move">
+      <input type="hidden" name="id" value="{{ idea.id }}">
+      <input type="hidden" name="parent" value="none">
+      <input type="hidden" name="key" value="none">
+      <input type="hidden" name="cloud" value="0">
+      <button class="btn" type="submit">Als Hauptthema ans Werk</button>
+    </form>
+    {%- endif %}
+    <p class="muted small">Ohne Platz liegt ein Einfall in der Wolke neben der Mindmap. Einhängen, Lösen und Ordnen geht auch in der Mindmap selbst.</p>
+  </section>
+  {%- endif %}
 
   <form class="work-form" method="post" action="/einfaelle/act">
     <h2 class="pane-title">Verarbeiten</h2>

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „export“: Die Ausgabe besteht das XSD; seit Runde 22 (Unterversion 8) das XSD
-//! `docs/schema/baruch-werk-1-u8.xsd`; `baruch-werk-1-u7.xsd` (Unterversion 7), `baruch-werk-1-u6.xsd` (Unterversion 6), `baruch-werk-1-u5.xsd` (Unterversion 5), `baruch-werk-1-u4.xsd` (Unterversion 4),
+//! Runde 26 „export“: Die Ausgabe besteht das XSD; seit Runde 34 (Unterversion 9, Mindmap) das XSD
+//! `docs/schema/baruch-werk-1-u9.xsd`; `baruch-werk-1-u8.xsd` (Unterversion 8), `baruch-werk-1-u7.xsd` (Unterversion 7), `baruch-werk-1-u6.xsd` (Unterversion 6), `baruch-werk-1-u5.xsd` (Unterversion 5), `baruch-werk-1-u4.xsd` (Unterversion 4),
 //! `baruch-werk-1-u3.xsd` (Unterversion 3), `baruch-werk-1-u2.xsd` (Unterversion 2) und `baruch-werk-1.xsd`
 //! (Unterversion 1) bleiben eingefroren (byte-gleich, geprüft über SHA-256).
 //!
-//! Geprüft wird mit `xmllint --noout --nonet --schema docs/schema/baruch-werk-1-u8.xsd DATEI` (Vertrag F2). Fehlt
+//! Geprüft wird mit `xmllint --noout --nonet --schema docs/schema/baruch-werk-1-u9.xsd DATEI` (Vertrag F2). Fehlt
 //! xmllint, meldet der Test das ehrlich und überspringt nur diesen Teil; die Rust-Prüfung der Pflichtelemente über
 //! quick-xml-Ereignisse (nicht über den Leser von import) läuft immer.
 
@@ -16,8 +16,13 @@ use baruch_exchange::write::{ImageMode, write_baruch, write_manifest, write_xml}
 use baruch_exchange::*;
 use quick_xml::events::Event;
 
-/// Schema der Unterversion 8 (Runde 22), gegen das jede Ausgabe geprüft wird.
+/// Schema der Unterversion 9 (Runde 34), gegen das jede Ausgabe geprüft wird.
 fn schema() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd")
+}
+
+/// Eingefrorenes Schema der Unterversion 8 (Runde 22).
+fn schema_u8() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd")
 }
 
@@ -189,8 +194,8 @@ fn check_required(xml: &str, images: ImageMode) {
                     let version = e.try_get_attribute("version").unwrap().expect("version an der Wurzel");
                     assert_eq!(
                         version.normalized_value(quick_xml::XmlVersion::Implicit1_0).unwrap(),
-                        "8",
-                        "Unterversion 8 (Runde 22)"
+                        "9",
+                        "Unterversion 9 (Runde 34)"
                     );
                     for required in ["uuid", "art"] {
                         assert!(e.try_get_attribute(required).unwrap().is_some(), "werk/@{required}");
@@ -311,7 +316,7 @@ fn manifest_passes_the_schema() {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
     let mut manifest = String::new();
     std::io::Read::read_to_string(&mut archive.by_name(ENTRY_MANIFEST).unwrap(), &mut manifest).unwrap();
-    assert!(manifest.contains(&format!("<manifest xmlns=\"{NAMESPACE}\" version=\"8\">")), "Wurzel im Namensraum");
+    assert!(manifest.contains(&format!("<manifest xmlns=\"{NAMESPACE}\" version=\"9\">")), "Wurzel im Namensraum");
     xmllint("MANIFEST.xml", &manifest);
     // Auch write_manifest allein.
     let entries = [ExchangeManifestEntry { path: ENTRY_WORK.into(), sha256: sha256_hex(b"x"), bytes: 1 }];
@@ -342,6 +347,8 @@ fn the_frozen_v1_and_u2_schemas_are_byte_unchanged() {
     let sha = |path: PathBuf| sha256_hex(&std::fs::read(path).unwrap());
     // Runde 22: auch u7 ist eingefroren (Stand von development dfff467).
     assert_eq!(sha(schema_u7()), U7_SHA256, "baruch-werk-1-u7.xsd byte-unverändert");
+    // Runde 34: auch u8 ist eingefroren (Stand von development 67faa2f, Schnittstelle R34-S1).
+    assert_eq!(sha(schema_u8()), U8_SHA256, "baruch-werk-1-u8.xsd byte-unverändert");
     // Runde 31: auch u6 ist eingefroren (Stand von development 5f97a8b).
     assert_eq!(
         sha(schema_u6()),
@@ -912,6 +919,66 @@ fn the_u8_schema_rejects_broken_amends_and_drafts() {
         assert_ne!(broken, xml, "{what}: die Ersetzung hat gegriffen");
         if let Some(rejected) = rejected_by(&schema(), &broken) {
             assert!(rejected, "{what}: muss am u8-XSD scheitern");
+        }
+    }
+}
+
+// ---- Unterversion 9 (Runde 34): Baum der Mindmap am Einfall ------------------------------------------------
+
+/// SHA-256 des eingefrorenen u8-Schemas (Stand von development 67faa2f).
+const U8_SHA256: &str = "c5fec0876e3914a8a31d43a5a07aeca48e11e464dc8dc120fa09223e7eb71aea";
+
+#[test]
+fn a_u9_output_with_the_idea_tree_passes_the_u9_schema_but_not_the_frozen_u8() {
+    // Vertrag R34 §1: Die Ausgabe mit titel, eltern, platz und hauptthema besteht das neue XSD; dem eingefrorenen u8
+    // sind die Attribute unbekannt (echte Erweiterung), und u8 ist byte-unverändert.
+    let doc = baruch_exchange::sample::sample_document_u9();
+    let xml = write_xml(&doc, ImageMode::Inline).unwrap();
+    for needle in ["titel=\"Lampe am Seil\"", " eltern=\"", " platz=\"2\"", " hauptthema=\"true\""] {
+        assert!(xml.contains(needle), "Vorbedingung: {needle} in der Ausgabe");
+    }
+    xmllint("u9.baruch.xml", &xml);
+    xmllint("u9-dateien.xml", &write_xml(&doc, ImageMode::Files).unwrap());
+    if let Some(rejected) = rejected_by(&schema_u8(), &xml) {
+        assert!(rejected, "die Attribute des Baums sind im u8-XSD unbekannt");
+    }
+}
+
+#[test]
+fn the_u9_schema_accepts_a_u8_file_and_the_frozen_u8_schema_too() {
+    // Abwärtsverträglich: eine Datei, wie Runde 22 sie schrieb (ohne Baum, version 8), gilt nach u9 und u8.
+    let u8_file = write_xml(&baruch_exchange::sample::sample_document_u8(), ImageMode::Inline).unwrap().replacen(
+        &format!("version=\"{FORMAT_VERSION}\""),
+        "version=\"8\"",
+        1,
+    );
+    assert!(
+        u8_file
+            .lines()
+            .filter(|l| l.trim_start().starts_with("<einfall "))
+            .all(|l| !l.contains(" eltern=") && !l.contains(" titel=")),
+        "Vorbedingung: Einfälle ohne Attribute der 9"
+    );
+    if xmllint_with(&schema(), "u8.baruch.xml", &u8_file) {
+        assert!(xmllint_with(&schema_u8(), "u8.baruch.xml", &u8_file), "dieselbe Datei gilt nach dem u8-XSD");
+    }
+}
+
+#[test]
+fn the_u9_schema_rejects_a_long_title_a_broken_parent_and_a_wrong_place() {
+    let xml = write_xml(&baruch_exchange::sample::sample_document_u9(), ImageMode::Inline).unwrap();
+    assert!(xml.contains("titel=\"Lampe am Seil\"") && xml.contains("platz=\"2\""), "Vorbedingung: {xml}");
+    for (what, broken) in [
+        (
+            "Titel über 200 Zeichen",
+            xml.replacen("titel=\"Lampe am Seil\"", &format!("titel=\"{}\"", "a".repeat(201)), 1),
+        ),
+        ("eltern keine UUID", xml.replacen(" eltern=\"", " eltern=\"x", 1)),
+        ("platz keine Zahl", xml.replacen("platz=\"2\"", "platz=\"zwei\"", 1)),
+        ("hauptthema kein Wahrheitswert", xml.replacen("hauptthema=\"true\"", "hauptthema=\"ja\"", 1)),
+    ] {
+        if let Some(rejected) = rejected_by(&schema(), &broken) {
+            assert!(rejected, "{what}: muss am u9-XSD scheitern");
         }
     }
 }

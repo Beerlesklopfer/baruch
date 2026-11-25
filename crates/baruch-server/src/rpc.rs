@@ -44,10 +44,12 @@
 //!   SVG-Text ([`crate::assets`], `docs/RPC.md` „Bilder“); nur Mensch, nicht über `/act` und MCP
 //! - `persona.list/set_color`: Farben der Personas ([`crate::personas`], `docs/RPC.md` „Personas“);
 //!   `set_color` nur Mensch, nicht über `/act` und MCP
-//! - `idea.create/get/list/search/update/delete/restore/process`: Einfälle ([`crate::ideas`],
-//!   `docs/RPC.md` „Einfälle“); Herkunft immer der Mensch, `delete` verlangt `confirm: true`
-//! - `idea.map/links/link/unlink/link_restore/map_pos_set/map_pos_reset`: Gedankenkarte ([`crate::idea_map`],
-//!   Runde 25, `docs/RPC.md` „Gedankenkarte“); Herkunft immer der Mensch
+//! - `idea.create/get/list/search/update/delete/restore/process/move`: Einfälle ([`crate::ideas`],
+//!   `docs/RPC.md` „Einfälle“); Herkunft immer der Mensch, `delete` verlangt `confirm: true`. Runde 34: `move`
+//!   hängt einen Einfall in der Mindmap um, ordnet ihn oder legt ihn in die Wolke
+//! - `idea.map/links/link/unlink/link_restore/map_pos_set/map_pos_reset/tree`: Mindmap (Gedankenkarte,
+//!   [`crate::idea_map`], Runde 25, `docs/RPC.md` „Gedankenkarte“); Herkunft immer der Mensch. Runde 34: `tree`
+//!   liefert die Mindmap als Baum samt der Wolke daneben, `map` bleibt die flache Sicht
 //! - `finding.list/get/set_status/decide`, `finding.matrix`: Befunde ([`crate::findings`], Runde 28, `docs/RPC.md`
 //!   „Befunde“); Status setzt nur der Mensch
 //! - `preview.typst {key?, page?}`: Typst-Satz des Werks mit Diagnosen ([`crate::typeset`], Runde 8), nur lesend

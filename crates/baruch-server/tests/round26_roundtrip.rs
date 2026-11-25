@@ -69,7 +69,7 @@ async fn a_to_b_as_new_and_back_loses_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a.baruch.xml");
     std::fs::write(&file, &xml_a).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)

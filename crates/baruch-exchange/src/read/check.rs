@@ -634,6 +634,19 @@ pub(crate) fn validate(doc: &ExchangeDocument) -> Result<(), ExchangeError> {
         if (idea.status == ExchangeIdeaStatus::Done) != idea.done_as.is_some() {
             return Err(invalid(format!("{what}: erledigt-als passt nicht zum Status")));
         }
+        // Unterversion 9 (Runde 34): Titel höchstens 200 Zeichen (wie `idea.title`), der Elternknoten eine UUID und
+        // nicht der Einfall selbst. Ob es den Elternknoten gibt (er kann fehlen oder gelöscht sein) und ob die Kette
+        // ohne Kreis und nicht zu tief ist, klärt das Einlesen: Dort wird ein solcher Einfall gelöst, mit Hinweis.
+        let chars = idea.title.chars().count();
+        if chars > 200 {
+            return Err(invalid(format!("{what}: Titel zu lang (höchstens 200 Zeichen, hier {chars})")));
+        }
+        if let Some(parent) = &idea.parent {
+            check_ref(parent, &what)?;
+            if *parent == idea.uuid {
+                return Err(invalid(format!("{what}: ein Einfall ist nicht sein eigener Elternknoten")));
+            }
+        }
     }
 
     let mut thread_post_ids: HashSet<&str> = HashSet::new();

@@ -153,9 +153,14 @@ async fn handle(state: &AppState, exchange: &mut Exchange, request: &Value) -> O
                                  outline_set_level und outline_delete ändern nichts sofort, sondern stellen \
                                  einen Antrag, den der Mensch bestätigt (outline_requests zeigt den Stand). \
                                  Einfälle (idea_create, idea_read, idea_list, idea_search, idea_update, \
-                                 idea_delete) ändern keinen Buchtext und dürfen darum auch angelegt, geändert \
+                                 idea_delete, idea_move) ändern keinen Buchtext und dürfen darum auch angelegt, geändert \
                                  und gelöscht werden (wiederherstellbar); jede Aktion ist ein Commit mit Herkunft. \
-                                 idea_map liest die Gedankenkarte eines Werks (Einfälle, Bezüge, Verbindungen, \
+                                 Mindmap: idea_tree liest die Einfälle eines Werks als Baum (Werk, Teile, Kapitel, \
+                                 Einfälle mit Unterknoten) samt der Wolke daneben (Einfälle ohne Platz); \
+                                 idea_create mit title/parent legt Unterknoten an, idea_move hängt um, ordnet \
+                                 oder legt in die Wolke, idea_delete löscht Unterknoten mit. Kapitel und Teile \
+                                 ändert nur outline_* (Antrag). \
+                                 idea_map liest die Mindmap als flache Karte (Einfälle, Bezüge, Verbindungen, \
                                  auf Wunsch Nähe); idea_link, idea_unlink und idea_links verbinden Einfälle \
                                  (ändern keinen Buchtext, ein Commit mit Herkunft). \
                                  Die Mcp-Session-Id aus dieser Antwort bei jeder weiteren Anfrage mitschicken. \

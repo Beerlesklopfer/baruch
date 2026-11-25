@@ -332,8 +332,13 @@ fn without_r28_edited(name: &str, sql: &str) -> String {
 }
 
 fn without_uuid_column(sql: &str) -> String {
-    sql.replace(UUID_COLUMN, "")
+    sql.replace(R34_IDEA_COLUMNS, "").replace(UUID_COLUMN, "")
 }
+
+/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (`ALTER TABLE … ADD COLUMN`
+/// erweitert den gespeicherten CREATE-Text um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in
+/// migration_0052.rs); der Vergleich des alten Schemas nimmt ihn heraus.
+const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 

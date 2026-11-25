@@ -147,7 +147,9 @@ async fn tools_are_listed_in_contract_order_and_stubs_say_so() {
             "idea_search",
             "idea_update",
             "idea_delete",
+            "idea_move",
             "idea_map",
+            "idea_tree",
             "idea_links",
             "idea_link",
             "idea_unlink",
@@ -166,7 +168,7 @@ async fn tools_are_listed_in_contract_order_and_stubs_say_so() {
             "source_read"
         ],
         "Reihenfolge laut Vertrag (add_idea = zweiter Name für idea_create, direkt dahinter; Runde 8: \
-         post_move, post_delete, post_to_idea nach add_post; typst_check nach search; Runde 26: das lesende exchange_export direkt nach typst_check; Runde 25: die Werkzeuge der Gedankenkarte idea_map, idea_links, idea_link, idea_unlink direkt nach idea_delete; Wunsch 2026-11-06: \
+         post_move, post_delete, post_to_idea nach add_post; typst_check nach search; Runde 26: das lesende exchange_export direkt nach typst_check; Runde 25: die Werkzeuge der Gedankenkarte idea_map, idea_links, idea_link, idea_unlink direkt nach idea_delete; Runde 34 (Mindmap): idea_move direkt nach idea_delete und idea_tree direkt nach idea_map; Wunsch 2026-11-06: \
          die Gliederungswerkzeuge outline_* nach post_to_idea; Runde 9: das lesende sources_list nach read_asset; \
          Runde 10: das lesende scripture_check nach chat; Runde 17a: das lesende scripture_map direkt dahinter; 2026-11-06: die lesenden bible_* danach; Runde 15: die lesenden commentary_lookup, lexicon_lookup, lexicon_search nach bible_search; Runde 12: die lesenden rag_search und rag_status nach bible_search; Runde 13: das lesende source_read nach rag_status; Runde 16b: das lesende work_timing direkt nach outline; Runde 11: die Bild-Werkzeuge asset_* nach \
          outline_requests, damit sources_list direkt hinter read_asset bleibt; Runde 27: cover_layout und \

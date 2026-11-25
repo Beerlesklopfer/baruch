@@ -3,7 +3,8 @@
     „Neuer Einfall“ an POST /einfaelle/act. Alles ohne JavaScript.
     Kontext: settings, filter {work, word, status, q, deleted}, works [{id, title, selected}],
     ideas [Einfall, siehe ideas.rs idea_view], searched, cloud [{word, count, size, href, active}],
-    all_words, deleted_href, present_href, workspace, map_href (Runde 25: Gedankenkarte des Werks), back, notice, error.
+    all_words, deleted_href, present_href, workspace, map_href (Runde 25/34: Mindmap des Werks), back, notice, error.
+    Runde 34: Einfälle tragen title (Titel des Knotens), parent und cloud; das Formular „Neuer Einfall“ hat ein Titelfeld.
     Runde 12 (pgvector): Radio mode (fts | rag, Vorgabe fts; ohne JavaScript GET /einfaelle?work=W&q=…&mode=rag),
     filter.mode, rag (available, ways_line, message) bzw. rag_note (ohne gewähltes Werk), fts_href (dieselbe
     Suche im Wortlaut); Treffer der Bedeutungssuche tragen rag_snippet (Text, maskiert) und percent. -#}
@@ -15,7 +16,7 @@
   {%- if map_href %}
   {#- Runde 25: Gedankenkarte dieses Werks (nur mit gewähltem Werk). #}
   <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
-    <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Karte um Kapitel und Teile">Gedankenkarte</a>
+    <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Mindmap um Kapitel und Teile, mit der Wolke daneben">Mindmap</a>
   </div></details>
   {%- endif %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
@@ -90,6 +91,9 @@
     <article class="idea-card{% if not i.open %} done{% endif %}{% if i.deleted %} deleted{% endif %}{% if i.weak %} weak-hit{% endif %}" id="einfall-{{ i.id }}" data-origin="{{ i.origin_kind }}">
       <header class="idea-card-head">
         <a class="idea-title" href="{{ i.href }}">Einfall {{ i.id }}</a>
+        {%- if i.title %}<strong class="idea-node-title">{{ i.title }}</strong>{% endif %}
+        {%- if i.cloud %}<span class="badge idea-place" title="Ohne Platz in der Mindmap">Wolke</span>
+        {%- elif i.parent is not none %}<span class="badge idea-place" title="Unterknoten in der Mindmap">unter Einfall {{ i.parent }}</span>{% endif %}
         {%- for w in i.words %}<span class="badge primary">{{ w }}</span>{% endfor %}
         <span class="grow"></span>
         {%- if i.deleted %}<span class="badge warning">gelöscht {{ i.deleted }}</span>
@@ -127,7 +131,8 @@
     <h2 class="pane-title">Neuer Einfall</h2>
     <input type="hidden" name="method" value="idea.create">
     <div class="work-fields">
-      <label>Schlagwörter (durch Komma getrennt) <input type="text" name="words" required placeholder="z. B. Laube, Rosen"></label>
+      <label>Titel (Knoten der Mindmap) <input type="text" name="title" maxlength="200" placeholder="wahlfrei"></label>
+      <label>Schlagwörter (durch Komma getrennt; Titel oder Schlagwort ist Pflicht) <input type="text" name="words" placeholder="z. B. Laube, Rosen"></label>
       <label>Werk
         <select name="work">
           <option value="none"{% if filter.work == "none" or filter.work == "all" %} selected{% endif %}>ohne Werk</option>

@@ -44,10 +44,11 @@
 //! der Mensch entscheidet; `outline_requests` liest sie.
 //!
 //! Einfälle (Runde 7, [`super::ideas`]): `idea_create`, `idea_read`, `idea_list`, `idea_search`,
-//! `idea_update`, `idea_delete` – vollständiges CRUD auch für Assistenten, weil Einfälle keinen
+//! `idea_update`, `idea_delete`, seit Runde 34 `idea_move` – vollständiges CRUD auch für Assistenten, weil Einfälle keinen
 //! Buchtext ändern (Entscheidung IDEA_CRUD); jede Aktion ist ein Commit mit Herkunft.
 //!
-//! Gedankenkarte (Runde 25, [`super::idea_map`]): `idea_map` liest die Karte eines Werks, `idea_links` die
+//! Mindmap (Gedankenkarte, Runde 25, [`super::idea_map`]; Runde 34: `idea_tree` liest sie als Baum samt Wolke):
+//! `idea_map` liest die flache Karte eines Werks, `idea_links` die
 //! Verbindungen; `idea_link` und `idea_unlink` verbinden bzw. lösen Einfälle (kein Buchtext, ein Commit mit
 //! Herkunft).
 //!
@@ -443,22 +444,26 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "idea_create",
-        description: "Einfall festhalten: Schlagwörter (Pflicht), Gedanke, markierter Text, Quelle, Bibelstelle, \
-                      wahlweise mit Werk und Abschnitt (key). Ändert keinen Buchtext; darum dürfen auch \
+        description: "Einfall festhalten: Schlagwörter oder Titel (eins von beiden Pflicht), Gedanke, markierter \
+                      Text, Quelle, Bibelstelle, wahlweise mit Werk und Abschnitt (key). Mindmap: title, parent \
+                      (Unterknoten eines Einfalls), before (vor ein Geschwister), cloud false (freies Hauptthema am \
+                      Werk); ohne Platz landet der Einfall in der Wolke neben der Mindmap. Ändert keinen Buchtext; darum dürfen auch \
                       Assistenten Einfälle anlegen, ändern und löschen. Herkunft ist `persona` (muss es geben) \
                       oder der Client als @mcp:<name>; jede Aktion ist ein Commit im Spiegel.",
         schema: super::ideas::create_schema,
     },
     Tool {
         name: "add_idea",
-        description: "Einfall festhalten – gleicher Aufruf wie idea_create (zweiter Name): Schlagwörter (Pflicht), \
-                      Gedanke, markierter Text, Quelle, Bibelstelle, wahlweise mit Werk und Abschnitt (key). Ändert \
+        description: "Einfall festhalten – gleicher Aufruf wie idea_create (zweiter Name): Schlagwörter oder Titel \
+                      (eins von beiden Pflicht), Gedanke, markierter Text, Quelle, Bibelstelle, wahlweise mit Werk und \
+                      Abschnitt (key); Mindmap: title, parent, before, cloud (ohne Platz in die Wolke). Ändert \
                       keinen Buchtext; Herkunft `persona` oder @mcp:<name>; ein Commit im Spiegel.",
         schema: super::ideas::create_schema,
     },
     Tool {
         name: "idea_read",
-        description: "Einen Einfall lesen (auch einen gelöschten): Schlagwörter, Gedanke, Bezug, Herkunft, Status.",
+        description: "Einen Einfall lesen (auch einen gelöschten): Schlagwörter, Gedanke, Bezug, Herkunft, Status; \
+                      Mindmap: title, parent (Elternknoten), position, main_topic, cloud (liegt in der Wolke).",
         schema: super::ideas::read_schema,
     },
     Tool {
@@ -476,7 +481,8 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "idea_update",
-        description: "Einfall ändern: Schlagwörter, Texte, Werk, Bezug, offen/verarbeitet. Ändert keinen Buchtext; \
+        description: "Einfall ändern: Titel (title, Umbenennen in der Mindmap), Schlagwörter, Texte, Werk, Bezug, \
+                      offen/verarbeitet; umhängen mit idea_move. Ändert keinen Buchtext; \
                       erlaubt auch Assistenten (Herkunft `persona` oder @mcp:<name>, ein Commit je Änderung). Ein \
                       Wechsel des Werks löst die Verbindungen des Einfalls (Verbindungen nur innerhalb eines Werks; \
                       `unlinked` nennt sie).",
@@ -484,11 +490,15 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "idea_delete",
-        description: "Einfall löschen, ohne Rückfrage: Er bleibt wiederherstellbar (idea.restore in der Oberfläche, \
-                      Eintrag im Lösch-Commit des Spiegels). Ändert keinen Buchtext.",
+        description: "Einfall löschen, ohne Rückfrage; seine Unterknoten in der Mindmap werden mitgelöscht \
+                      (deleted_ids nennt alle). Alles bleibt wiederherstellbar (idea.restore in der Oberfläche stellt \
+                      den Einfall samt den mitgelöschten Unterknoten wieder her; Eintrag im Lösch-Commit des Spiegels). \
+                      Ändert keinen Buchtext.",
         schema: super::ideas::delete_schema,
     },
+    Tool { name: "idea_move", description: super::ideas::MOVE_DESCRIPTION, schema: super::ideas::move_schema },
     Tool { name: "idea_map", description: super::idea_map::MAP_DESCRIPTION, schema: super::idea_map::map_schema },
+    Tool { name: "idea_tree", description: super::idea_map::TREE_DESCRIPTION, schema: super::idea_map::tree_schema },
     Tool { name: "idea_links", description: super::idea_map::LINKS_DESCRIPTION, schema: super::idea_map::links_schema },
     Tool { name: "idea_link", description: super::idea_map::LINK_DESCRIPTION, schema: super::idea_map::link_schema },
     Tool {

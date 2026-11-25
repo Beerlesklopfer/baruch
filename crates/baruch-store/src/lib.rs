@@ -54,6 +54,12 @@
 //! - Runde 34 (Schnittstelle R34-S1): reserviert 0052 mindmap_daten, 0053 mindmap_widget, 0054 mindmap_austausch, 0055
 //!   Integrator (0052 `idea_tree`: Titel, Elternknoten und Reihenfolge am Einfall; die übrigen erwartet unbenutzt;
 //!   die Reservierungen der Runde 32 blieben unbenutzt). Bibliothek: keine.
+//! - Runde 34 (mindmap_daten): Migration 0052 `idea_tree` – `idea.title`, `idea.parent_id`, `idea.position` und (Nachtrag
+//!   des Nutzers vom 2026-11-25, Wolke als Ablage neben der Mindmap) `idea.main_topic`; nur `ADD COLUMN`, nicht in
+//!   [`FOREIGN_KEYS_OFF`]. Modul `ideas`: [`Store::idea_create_at`] ([`IdeaSpot`]), [`Store::idea_move`] ([`IdeaMove`]),
+//!   [`Store::idea_delete_tree`]/[`Store::idea_restore_tree`] ([`IdeaTreeChange`]), [`Store::idea_tree_rows`],
+//!   [`Store::idea_import_tree`] ([`IdeaSeed`], [`IdeaSeedLink`]). Austauschformat Unterversion 9 (`titel`, `eltern`,
+//!   `platz`, `hauptthema` an `<einfall>`).
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
@@ -135,8 +141,9 @@ pub use glossary::{
 };
 pub use idea_links::{IdeaLink, IdeaLinkId, LinkKind, MAP_COORD_LIMIT, MAX_LINK_NOTE_CHARS, MapPos, NewIdeaLink};
 pub use ideas::{
-    Idea, IdeaEdit, IdeaFilter, IdeaId, IdeaOrigin, IdeaScope, IdeaStatus, IdeaUse, MAX_IDEA_WORDS, MAX_WORD_CHARS,
-    NewIdea, WordCount,
+    Idea, IdeaEdit, IdeaFilter, IdeaId, IdeaMove, IdeaOrigin, IdeaScope, IdeaSeed, IdeaSeedLink, IdeaSpot, IdeaStatus,
+    IdeaTreeChange, IdeaUse, MAX_IDEA_DEPTH, MAX_IDEA_IMPORT_NODES, MAX_IDEA_TITLE_CHARS, MAX_IDEA_WORDS,
+    MAX_WORD_CHARS, NewIdea, WordCount,
 };
 pub use legacy_parts::{CONVERSION_NOTE, CONVERTED_KEY, ConvertedPart, PartConversion, PartText};
 pub use mcp_tokens::{MCP_TOKEN_PREFIX, McpToken};

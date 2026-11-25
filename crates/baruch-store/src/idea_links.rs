@@ -255,58 +255,66 @@ pub(crate) async fn mirror_lines(
     Ok(parts.into_iter().map(|(idea, list)| (idea, list.join("; "))).collect())
 }
 
+/// Verbindung anlegen in der Transaktion des Aufrufers (auch für `Store::idea_import_tree`, Runde 34): wie
+/// [`Store::idea_link_create`]; `false` = es gab sie schon unverändert.
+pub(crate) async fn create_in(
+    conn: &mut SqliteConnection,
+    new: &NewIdeaLink<'_>,
+) -> Result<(IdeaLink, bool), StoreError> {
+    let note = clean_note(new.note)?;
+    if new.origin.name().trim().is_empty() {
+        return Err(refuse("Die Herkunft einer Verbindung braucht einen Namen."));
+    }
+    let (from, to) = if new.kind.symmetric() && new.from > new.to { (new.to, new.from) } else { (new.from, new.to) };
+    check_pair(conn, from, to).await?;
+    let existing: Option<(i64, Option<String>)> =
+        sqlx::query_as("SELECT id, deleted FROM idea_link WHERE from_id = ? AND to_id = ? AND kind = ?")
+            .bind(from)
+            .bind(to)
+            .bind(new.kind.as_str())
+            .fetch_optional(&mut *conn)
+            .await?;
+    let (id, changed) = match existing {
+        Some((id, None)) => (id, false),
+        Some((id, Some(_))) => {
+            sqlx::query(&format!(
+                "UPDATE idea_link SET deleted = NULL, note = CASE WHEN ? = '' THEN note ELSE ? END, \
+                 updated = {NOW} WHERE id = ?"
+            ))
+            .bind(&note)
+            .bind(&note)
+            .bind(id)
+            .execute(&mut *conn)
+            .await?;
+            (id, true)
+        }
+        None => {
+            let id: i64 = sqlx::query_scalar(
+                "INSERT INTO idea_link (from_id, to_id, kind, note, origin_kind, origin_name) \
+                 VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+            )
+            .bind(from)
+            .bind(to)
+            .bind(new.kind.as_str())
+            .bind(&note)
+            .bind(new.origin.kind())
+            .bind(new.origin.name())
+            .fetch_one(&mut *conn)
+            .await?;
+            (id, true)
+        }
+    };
+    Ok((get(conn, id).await?, changed))
+}
+
 impl Store {
     /// (Verbindung, geändert). Siehe Vertrag §2: vorhandenes aktives Paar+Art → unverändert
     /// (`false`), weich gelöschtes → wiederhergestellt (`true`, Notiz ersetzt, wenn eine neue mitkommt).
     /// „widerspricht“ wird mit `from < to` gespeichert. Selbstbezug, fremdes Werk, gelöschter Einfall, zu
     /// lange Notiz → [`StoreError::Idea`], unbekannter Einfall → [`StoreError::UnknownIdea`]; nichts geschrieben.
     pub async fn idea_link_create(&self, new: &NewIdeaLink<'_>) -> Result<(IdeaLink, bool), StoreError> {
-        let note = clean_note(new.note)?;
-        if new.origin.name().trim().is_empty() {
-            return Err(refuse("Die Herkunft einer Verbindung braucht einen Namen."));
-        }
-        let (from, to) =
-            if new.kind.symmetric() && new.from > new.to { (new.to, new.from) } else { (new.from, new.to) };
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
-        check_pair(&mut tx, from, to).await?;
-        let existing: Option<(i64, Option<String>)> =
-            sqlx::query_as("SELECT id, deleted FROM idea_link WHERE from_id = ? AND to_id = ? AND kind = ?")
-                .bind(from)
-                .bind(to)
-                .bind(new.kind.as_str())
-                .fetch_optional(&mut *tx)
-                .await?;
-        let (id, changed) = match existing {
-            Some((id, None)) => (id, false),
-            Some((id, Some(_))) => {
-                sqlx::query(&format!(
-                    "UPDATE idea_link SET deleted = NULL, note = CASE WHEN ? = '' THEN note ELSE ? END, \
-                     updated = {NOW} WHERE id = ?"
-                ))
-                .bind(&note)
-                .bind(&note)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
-                (id, true)
-            }
-            None => {
-                let id: i64 = sqlx::query_scalar(
-                    "INSERT INTO idea_link (from_id, to_id, kind, note, origin_kind, origin_name) \
-                     VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
-                )
-                .bind(from)
-                .bind(to)
-                .bind(new.kind.as_str())
-                .bind(&note)
-                .bind(new.origin.kind())
-                .bind(new.origin.name())
-                .fetch_one(&mut *tx)
-                .await?;
-                (id, true)
-            }
-        };
-        let link = get(&mut tx, id).await?;
+        let (link, changed) = create_in(&mut tx, new).await?;
         if changed {
             tx.commit().await?;
         }

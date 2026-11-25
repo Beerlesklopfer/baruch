@@ -30,6 +30,8 @@
 //! - Ab `version="8"` (Runde 22): an `<fassung>` `stand`, `beruht-stand` und die `<fortschreibung>`-Kinder, in `<satz>`
 //!   das Kind `<entwurf/>`, an `<befund>` und `<status-eintrag>` `stand`. In einer älteren Datei werden sie als
 //!   unbekannt gemeldet und nicht übernommen; die Grabsteinart `fortschreibung` ist dort ein Fehler.
+//! - Ab `version="9"` (Runde 34): an `<einfall>` `titel`, `eltern`, `platz`, `hauptthema` (Baum der Mindmap). In einer
+//!   älteren Datei werden sie als unbekannt gemeldet und nicht übernommen.
 //! - Ab `version="7"` (Runde 31): am Ende von `<werk>` `<eigene-register>` (je `<register>`) und `<glossar>` (je
 //!   `<begriff>` mit `<wort>`, `<kurz>`, `<ausfuehrlich>`, `<quelle>`, `<variante>`, `<bibelstelle>`), an `<satz>` die
 //!   Register/Glossar-Attribute ([`crate::typeset::r31_from_attrs`]); Grabsteinarten `glossar-begriff`, `register`. In
@@ -302,7 +304,7 @@ pub(crate) fn document(root: &Element) -> Result<(ExchangeDocument, Vec<FileRef>
     }
     if let Some(mut ideas) = c.child("einfaelle") {
         for mut idea in ideas.children("einfall") {
-            work.ideas.push(einfall(&mut idea, &mut unknown)?);
+            work.ideas.push(einfall(&mut idea, version, &mut unknown)?);
             idea.finish(&mut unknown);
         }
         ideas.finish(&mut unknown);
@@ -835,11 +837,32 @@ fn beitrag(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Ex
     Ok(post)
 }
 
-fn einfall(c: &mut Cursor<'_>, unknown: &mut Unknown) -> Result<ExchangeIdea, ExchangeError> {
+fn einfall(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<ExchangeIdea, ExchangeError> {
     let status_path = attr_path(c, "status");
     let use_path = attr_path(c, "erledigt-als");
     let origin_path = attr_path(c, "herkunft-art");
+    // Ab Unterversion 9 (Runde 34): Baum der Mindmap. In einer älteren Datei bleiben die Attribute ungelesen und
+    // werden als unbekannt gemeldet.
+    let (mut title, mut parent, mut position, mut main_topic) = (String::new(), None, 0i64, false);
+    if version >= 9 {
+        title = c.attr("titel").unwrap_or_default().to_owned();
+        parent = c.attr("eltern").map(str::to_owned);
+        if let Some(value) = c.attr("platz") {
+            let path = attr_path(c, "platz");
+            position = value
+                .trim()
+                .parse::<i64>()
+                .map_err(|_| ExchangeError::Xml(format!("{path}: ganze Zahl erwartet, nicht „{value}“")))?;
+        }
+        if let Some(value) = c.attr("hauptthema") {
+            main_topic = parse_bool(value, &attr_path(c, "hauptthema"))?;
+        }
+    }
     Ok(ExchangeIdea {
+        title,
+        parent,
+        position,
+        main_topic,
         uuid: c.req_attr("uuid")?.to_owned(),
         status: word(c.req_attr("status")?, &status_path, ExchangeIdeaStatus::from_xml)?,
         done_as: c.attr("erledigt-als").map(|v| word(v, &use_path, ExchangeIdeaUse::from_xml)).transpose()?,

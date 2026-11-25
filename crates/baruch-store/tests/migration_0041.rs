@@ -55,6 +55,11 @@ fn without_0046(name: &str, sql: &str) -> String {
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 
+/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (der gespeicherte CREATE-Text
+/// wächst um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in migration_0052.rs); der Vergleich des
+/// alten Schemas nimmt ihn heraus.
+const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
+
 async fn raw_pool(dir: &Path) -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite:")
         .unwrap()
@@ -328,6 +333,8 @@ fn new_objects() -> BTreeSet<String> {
     names.extend(R22_OBJECTS.iter().map(|s| s.to_string()));
     // 0.9.0 (0051): Marke „ältere Fassungen ausblenden“ je Abschnitt (geprüft in revision_fold.rs).
     names.insert("node_revision_fold".into());
+    // Runde 34 (0052): Index über Elternknoten und Reihenfolge der Einfälle.
+    names.insert("idea_parent".into());
     names
 }
 
@@ -442,6 +449,8 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
             "post" | "chat_thread_post" => 6,
             // Runde 22 (0050) hängt danach amend_seq und based_on_amend an Fassungen an.
             "revision" => 6,
+            // Runde 34 (0052) hängt danach title, parent_id, position und main_topic an Einfälle an.
+            "idea" => 4,
             _ => 0,
         };
         cols.truncate(cols.len() - r30);
@@ -474,6 +483,7 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
         assert_eq!((kind_now, table_now), (kind, table), "{name}: Typ und Tabelle unverändert");
         let sql_now = sql_now
             .as_ref()
+            .map(|s| s.replace(R34_IDEA_COLUMNS, ""))
             .map(|s| without_r30(name, &without_0046(name, &without_0045(&s.replace(UUID_COLUMN, "")))));
         assert_eq!(&sql_now, sql, "Schema von {name} unverändert (bis auf die Spalte uuid)");
         if TABLES.contains(&name.as_str()) {
