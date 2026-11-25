@@ -1,0 +1,419 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Gliederungsansicht der Mindmap (Vertrag Runde 34 §5, Besitz mindmap_austausch): `/werke/{id}/karte/gliederung`
+//! bedient die Mindmap ganz ohne JavaScript.
+//!
+//! Die Seite zeigt den Baum als verschachtelte Liste (`<details>` je Knoten mit Unterknoten; `zu=` klappt vorab zu),
+//! daneben die **Wolke** – Einfälle ohne Platz ([`super::export::cloud`]) – mit Zähler „n in der Wolke“ und, wo die
+//! Nähe einen Partner im Baum kennt, dem Vorschlag „passt zu Ast …“. `wahl=<Kennung>` wählt einen Knoten; für ihn
+//! stehen oben die Formulare: Umbenennen, Unterknoten, Geschwister, „In die Mindmap unter …“/Umhängen, „In die
+//! Wolke“, Reihenfolge, Bezug, Verbinden/Lösen, Löschen – alle an `POST /werke/{id}/karte/act` mit
+//! `seite=gliederung`. Teile und Kapitel gehören zur Gliederung des Werks: Für sie gibt es nur „Unterknoten“.
+//! Unter dem Baum: Beziehungen, Widersprüche und gelöschte Einfälle (Wiederherstellen).
+
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, OnceLock};
+
+use axum::extract::{Path, Query, State};
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::{Html, IntoResponse, Response};
+use baruch_store::{Idea, IdeaFilter, IdeaId, IdeaScope, IdeaStatus, LinkKind, WorkId};
+use minijinja::value::Serde;
+use minijinja::{Environment, Value, context};
+
+use super::export::{self, cloud, placed};
+use super::{closed_of, is_node_id, load_tree};
+use crate::AppState;
+use crate::idea_map::MapFilter;
+use crate::idea_map::bild::{filter_query, parse_filter, plain, with_query};
+use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
+use crate::view::Settings;
+
+/// Was die Adresse der Gliederungsansicht außer dem Filter trägt.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct View {
+    /// `wahl=<Kennung>`: gewählter Knoten (seine Formulare stehen oben).
+    pub chosen: Option<String>,
+    /// `ok=<wort>` nach einer gelungenen Aktion.
+    pub ok: Option<String>,
+    /// `undo=<id>`: eben gelöste Verbindung (Formular „Wiederherstellen“).
+    pub undo: Option<i64>,
+    /// `wieder=<id>`: eben gelöschter Einfall (Formular „Wiederherstellen“).
+    pub restore: Option<IdeaId>,
+    /// `zu=<Kennungen>`: vorab zugeklappte Knoten.
+    pub closed: Vec<String>,
+}
+
+/// Vorlagen der eigenen Seiten (base.html, Gliederungsansicht, Einlesen).
+pub(crate) fn templates() -> &'static Environment<'static> {
+    static ENV: OnceLock<Environment<'static>> = OnceLock::new();
+    ENV.get_or_init(|| {
+        let mut env = Environment::new();
+        for (name, source) in [
+            ("base.html", include_str!("../../../templates/base.html")),
+            ("karte_gliederung.html", include_str!("../../../templates/karte_gliederung.html")),
+            ("karte_einlesen.html", include_str!("../../../templates/karte_einlesen.html")),
+        ] {
+            env.add_template(name, source).expect("Vorlage der Mindmap (Gliederungsansicht/Einlesen) fehlerhaft");
+        }
+        env
+    })
+}
+
+/// Selbst gebaute Adresse als sicherer Wert für `href`: `&` maskiert; enthielte sie ein unsicheres Zeichen, steht
+/// `#` da.
+pub(crate) fn href(url: String) -> Value {
+    if url.chars().any(|c| matches!(c, '"' | '<' | '>' | '\'' | ' ') || c.is_control()) {
+        return Value::from_safe_string("#".to_owned());
+    }
+    Value::from_safe_string(url.replace('&', "&amp;"))
+}
+
+/// Rückmeldung zu `ok=<wort>`.
+fn notice_of(ok: &str) -> &'static str {
+    match ok {
+        "angelegt" => "Einfall angelegt.",
+        "umbenannt" => "Umbenannt.",
+        "bezug" => "Bezug gesetzt.",
+        "umgehaengt" => "Umgehängt.",
+        "in-wolke" => "In die Wolke gelegt (mit seinen Unterknoten).",
+        "ort-unveraendert" => "Der Einfall steht schon dort; nichts geändert.",
+        "geloescht" => "Einfall gelöscht (samt Unterknoten).",
+        "einfall-wieder" => "Einfall wiederhergestellt.",
+        "verbunden" => "Verbunden.",
+        "unveraendert" => "Diese Verbindung gibt es schon; nichts geändert.",
+        "geloest" => "Verbindung gelöst.",
+        "wiederhergestellt" => "Verbindung wiederhergestellt.",
+        "eingelesen" => "Mindmap eingelesen.",
+        _ => "Gespeichert.",
+    }
+}
+
+fn cut(text: &str, max: usize) -> String {
+    let one: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if one.chars().count() <= max {
+        return one;
+    }
+    let mut short: String = one.chars().take(max.saturating_sub(1)).collect();
+    short.push('…');
+    short
+}
+
+fn anchor_of(id: &str) -> String {
+    format!("k-{}", id.replace(':', "-"))
+}
+
+fn kind_word(kind: TreeKind) -> &'static str {
+    match kind {
+        TreeKind::Work => "work",
+        TreeKind::Part => "part",
+        TreeKind::Chapter => "chapter",
+        TreeKind::Idea => "idea",
+    }
+}
+
+struct Page<'a> {
+    work: WorkId,
+    base: String,
+    query: String,
+    view: &'a View,
+}
+
+impl Page<'_> {
+    /// Adresse der Gliederungsansicht mit Filter und gewähltem Knoten.
+    fn select(&self, id: &str) -> Value {
+        let mut query = self.query.clone();
+        if !query.is_empty() {
+            query.push('&');
+        }
+        query.push_str(&format!("wahl={id}"));
+        href(format!("{}?{query}#wahl", self.base))
+    }
+
+    fn node(&self, node: &TreeNode) -> Value {
+        let children: Vec<Value> = node.children.iter().map(|child| self.node(child)).collect();
+        context! {
+            id => node.id.as_str(),
+            anchor => anchor_of(&node.id),
+            kind => kind_word(node.kind),
+            idea => node.idea,
+            title => export::node_title(node),
+            note => cut(&node.note, 300),
+            has_note => node.has_note,
+            words => node.words.join(", "),
+            status => node.status.map(export::status_label),
+            done => node.status == Some(IdeaStatus::Done),
+            origin => node.origin.as_ref().map(|o| o.label()),
+            section => node.section_title.as_deref(),
+            section_href => node.key.filter(|_| node.kind == TreeKind::Idea).map(|k| href(format!("/?work={}&key={k}", self.work))),
+            node_href => node.key.filter(|_| node.kind != TreeKind::Idea).map(|k| href(format!("/?work={}&key={k}", self.work))),
+            idea_href => node.idea.map(|id| href(format!("/einfaelle/{id}"))),
+            hit => node.hit,
+            ghost => node.ghost,
+            open_findings => node.open_findings,
+            descendants => node.descendants,
+            select => self.select(&node.id),
+            chosen => self.view.chosen.as_deref() == Some(node.id.as_str()),
+            closed => self.view.closed.iter().any(|c| c == &node.id),
+            children => children,
+        }
+    }
+}
+
+/// Elternknoten und Platz unter den Geschwistern eines Knotens.
+fn locate<'a>(node: &'a TreeNode, id: &str) -> Option<(&'a TreeNode, usize)> {
+    for (index, child) in node.children.iter().enumerate() {
+        if child.id == id {
+            return Some((node, index));
+        }
+        if let Some(found) = locate(child, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn ids_below(node: &TreeNode, out: &mut HashSet<String>) {
+    out.insert(node.id.clone());
+    for child in &node.children {
+        ids_below(child, out);
+    }
+}
+
+/// Bezeichnung in einer Auswahlliste: eingerückt nach Tiefe.
+fn option_label(node: &TreeNode, depth: usize) -> String {
+    format!("{}{}", "– ".repeat(depth.saturating_sub(1).min(12)), cut(&export::node_title(node), 80))
+}
+
+/// Die Formulare zum gewählten Knoten (`None`, wenn er nicht im gezeigten Baum steht oder die Wurzel ist).
+fn panel(map: &MindMap, chosen: &str) -> Option<Value> {
+    let node = map.find(chosen)?;
+    let (parent, _) = locate(&map.root, chosen)?;
+    let in_cloud = parent.kind == TreeKind::Work && node.kind == TreeKind::Idea;
+    if node.kind != TreeKind::Idea {
+        return Some(context! {
+            id => node.id.as_str(), kind => kind_word(node.kind), title => export::node_title(node), key => node.key,
+            editable => false,
+        });
+    }
+    let mut below = HashSet::new();
+    ids_below(node, &mut below);
+    let walk = map.walk();
+    // Ziele zum Umhängen: Kapitel/Teile und Einfälle, nicht der Knoten selbst oder seine Nachfahren (Kreis).
+    let targets: Vec<Value> = walk
+        .iter()
+        .filter(|(n, _)| n.kind != TreeKind::Work && !below.contains(&n.id))
+        .filter(|(n, _)| n.kind == TreeKind::Idea || n.key.is_some())
+        .map(|(n, depth)| {
+            let value = match n.kind {
+                TreeKind::Idea => n.id.clone(),
+                _ => format!("n:{}", n.key.unwrap_or_default()),
+            };
+            context! { value => value, label => option_label(n, *depth), here => n.id == parent.id }
+        })
+        .collect();
+    let chapters: Vec<Value> = walk
+        .iter()
+        .filter(|(n, _)| matches!(n.kind, TreeKind::Part | TreeKind::Chapter))
+        .filter_map(|(n, depth)| {
+            Some(context! { key => n.key?, label => option_label(n, *depth), here => node.key == n.key })
+        })
+        .collect();
+    let others: Vec<Value> = walk
+        .iter()
+        .filter(|(n, _)| n.kind == TreeKind::Idea && n.id != node.id)
+        .filter_map(|(n, _)| Some(context! { id => n.idea?, label => format!("{} – {}", n.idea?, cut(&n.title, 70)) }))
+        .collect();
+    let siblings: Vec<&TreeNode> = parent.children.iter().filter(|c| c.kind == TreeKind::Idea).collect();
+    let place = siblings.iter().position(|s| s.id == node.id).unwrap_or(0);
+    let id_of = |n: Option<&&TreeNode>| n.and_then(|n| n.idea);
+    let up = place.checked_sub(1).and_then(|p| id_of(siblings.get(p)));
+    // „Nach unten“ = vor das übernächste Geschwister; gibt es keines, ans Ende (`before` leer).
+    let down =
+        siblings.get(place + 1).map(|_| id_of(siblings.get(place + 2)).map(|id| id.to_string()).unwrap_or_default());
+    let titles: HashMap<IdeaId, &str> =
+        walk.iter().filter_map(|(n, _)| n.idea.map(|id| (id, n.title.as_str()))).collect();
+    let own = node.idea.unwrap_or_default();
+    let links: Vec<Value> = export::links_of(own, &map.links)
+        .into_iter()
+        .map(|(link, arrow, other)| {
+            context! {
+                id => link.id, arrow => arrow, other => other,
+                other_label => titles.get(&other).map(|t| cut(t, 70)).unwrap_or_default(),
+                kind_label => link.kind.label(), note => link.note.as_str(),
+            }
+        })
+        .collect();
+    Some(context! {
+        id => node.id.as_str(), kind => "idea", idea => own, title => node.title.as_str(),
+        own_title => node.own_title.as_str(), editable => node.editable, in_cloud => in_cloud,
+        children => node.children.len(), descendants => node.descendants,
+        // Geschwister entsteht am selben Elternknoten, direkt hinter diesem Knoten.
+        sibling_parent => parent.idea.filter(|_| parent.kind == TreeKind::Idea),
+        sibling_key => parent.key.filter(|_| matches!(parent.kind, TreeKind::Part | TreeKind::Chapter)),
+        sibling_before => id_of(siblings.get(place + 1)),
+        parent_title => if in_cloud { "Wolke".to_owned() } else { export::node_title(parent) },
+        targets => targets, chapters => chapters, key => node.key, others => others, links => links,
+        up => up, down => down,
+        kinds => LinkKind::ALL.iter().map(|k| context! { value => k.as_str(), label => k.label() }).collect::<Vec<_>>(),
+    })
+}
+
+/// Zu jedem platzierten Einfall: Titel seines Hauptastes und sein eigener Titel.
+fn branch_of(map: &MindMap) -> HashMap<IdeaId, (String, String)> {
+    fn fill(node: &TreeNode, branch: &str, out: &mut HashMap<IdeaId, (String, String)>) {
+        if let Some(id) = node.idea {
+            out.insert(id, (branch.to_owned(), node.title.clone()));
+        }
+        for child in &node.children {
+            fill(child, branch, out);
+        }
+    }
+    let mut out = HashMap::new();
+    for branch in placed(map) {
+        fill(branch, &export::node_title(branch), &mut out);
+    }
+    out
+}
+
+/// Vorschlag der Nähe für einen Einfall der Wolke: der nächste Einfall, der schon in der Mindmap hängt.
+fn hint(map: &MindMap, idea: IdeaId, branches: &HashMap<IdeaId, (String, String)>) -> Option<Value> {
+    let (partner, _) = map
+        .near
+        .pairs
+        .iter()
+        .filter_map(|pair| {
+            let other = if pair.a == idea {
+                pair.b
+            } else if pair.b == idea {
+                pair.a
+            } else {
+                return None;
+            };
+            branches.contains_key(&other).then_some((other, pair.score))
+        })
+        .max_by(|a, b| a.1.total_cmp(&b.1))?;
+    let (branch, title) = branches.get(&partner)?;
+    Some(context! { branch => cut(branch, 80), partner => partner, partner_title => cut(title, 80) })
+}
+
+fn deleted_label(idea: &Idea) -> String {
+    if !idea.words.is_empty() {
+        cut(&idea.words.join(", "), 80)
+    } else if !idea.note.trim().is_empty() {
+        cut(&idea.note, 80)
+    } else {
+        format!("Einfall {}", idea.id)
+    }
+}
+
+/// Die Gliederungsansicht (auch als Fehlerseite eines Formulars: `status` und `error`).
+pub(crate) async fn render(
+    state: &AppState,
+    headers: &HeaderMap,
+    work: WorkId,
+    filter: &MapFilter,
+    view: &View,
+    status: StatusCode,
+    error: Option<String>,
+) -> Response {
+    let (_, map) = match load_tree(state, work, filter).await {
+        Ok(loaded) => loaded,
+        Err(response) => return response,
+    };
+    let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
+    let query = filter_query(&map.filter);
+    let karte = format!("/werke/{work}/karte");
+    let page = Page { work, base: format!("{karte}/gliederung"), query: query.clone(), view };
+    let branches: Vec<Value> = placed(&map).into_iter().map(|n| page.node(n)).collect();
+    let near = branch_of(&map);
+    let loose: Vec<Value> = cloud(&map)
+        .into_iter()
+        .map(|n| context! { node => page.node(n), hint => n.idea.and_then(|id| hint(&map, id, &near)) })
+        .collect();
+    let titles: HashMap<IdeaId, &str> =
+        map.walk().into_iter().filter_map(|(n, _)| n.idea.map(|id| (id, n.title.as_str()))).collect();
+    let name = |id: IdeaId| titles.get(&id).map(|t| cut(t, 70)).unwrap_or_else(|| format!("Einfall {id}"));
+    let links: Vec<Value> = map
+        .links
+        .iter()
+        .filter(|l| l.deleted.is_none() && titles.contains_key(&l.from) && titles.contains_key(&l.to))
+        .map(|l| {
+            context! {
+                id => l.id, from => name(l.from), to => name(l.to),
+                from_select => page.select(&format!("i:{}", l.from)), to_select => page.select(&format!("i:{}", l.to)),
+                arrow => if l.kind.symmetric() { "↔" } else { "→" },
+                kind_label => l.kind.label(), note => l.note.as_str(), contradiction => l.kind == LinkKind::Contradicts,
+            }
+        })
+        .collect();
+    let deleted: Vec<Value> = state
+        .store
+        .idea_list(&IdeaFilter { scope: IdeaScope::Work(work), deleted: true, limit: 100, ..IdeaFilter::default() })
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|i| context! { id => i.id, label => deleted_label(i), at => i.deleted.as_deref().map(crate::localtime::seconds) })
+        .collect();
+    let chosen = view.chosen.as_deref().filter(|c| is_node_id(c) && *c != "w");
+    let ctx = context! {
+        settings => Value::from(Serde(settings)),
+        work => context! { id => work, title => map.title.as_str() },
+        title => map.title.as_str(),
+        back => query.as_str(),
+        act => href(format!("{karte}/act")),
+        here => href(with_query(&page.base, &query)),
+        map_href => href(with_query(&karte, &query)),
+        import_href => href(format!("{karte}/einlesen")),
+        outputs => context! {
+            xmind => href(with_query(&format!("{karte}.xmind"), &query)),
+            mm => href(with_query(&format!("{karte}.mm"), &query)),
+            svg => href(with_query(&format!("{karte}.svg"), &query)),
+            pdf => href(with_query(&format!("{karte}.pdf"), &query)),
+            md => href(with_query(&format!("{karte}.md"), &query)),
+        },
+        ideas_href => href(format!("/einfaelle?work={work}")),
+        workspace => href(format!("/?work={work}")),
+        filter => context! {
+            status => map.filter.status.map_or("all", IdeaStatus::as_str),
+            word => map.filter.word.as_deref().unwrap_or(""),
+            origin => map.filter.origin.as_deref().unwrap_or(""),
+            q => map.filter.q.as_deref().unwrap_or(""),
+            words => export::filter_words(&map.filter),
+        },
+        branches => branches,
+        cloud => loose,
+        cloud_count => cloud(&map).len(),
+        total => map.total_ideas,
+        chosen => chosen,
+        panel => chosen.and_then(|c| panel(&map, c)),
+        links => links,
+        deleted => deleted,
+        notice => view.ok.as_deref().map(notice_of),
+        undo => view.undo.filter(|_| view.ok.as_deref() == Some("geloest")),
+        restore => view.restore.filter(|_| view.ok.as_deref() == Some("geloescht")),
+        error => error,
+    };
+    match templates().get_template("karte_gliederung.html").and_then(|t| t.render(ctx)) {
+        Ok(html) => (status, Html(html)).into_response(),
+        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage karte_gliederung.html: {e}")),
+    }
+}
+
+/// `GET /werke/{id}/karte/gliederung`.
+pub async fn page(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(work): Path<WorkId>,
+    Query(pairs): Query<Vec<(String, String)>>,
+) -> Response {
+    let (filter, extra) = parse_filter(&pairs);
+    let last = |name: &str| pairs.iter().rev().find(|(n, _)| n == name).map(|(_, v)| v.trim().to_owned());
+    let view = View {
+        chosen: last("wahl").filter(|w| is_node_id(w)),
+        ok: extra.ok,
+        undo: extra.undo,
+        restore: last("wieder").and_then(|w| w.parse().ok()),
+        closed: closed_of(&pairs),
+    };
+    render(&state, &headers, work, &filter, &view, StatusCode::OK, None).await
+}

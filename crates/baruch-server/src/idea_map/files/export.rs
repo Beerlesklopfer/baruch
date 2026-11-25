@@ -1,15 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ausgaben der Gedankenkarte als Text (Vertrag Runde 25 §4.3): Markdown (`karte.md`, Gliederung Kapitel →
-//! Einfälle → Verbindungen) und FreeMind (`karte.mm`, `<map version="1.0.1">`, Verbindungen als `arrowlink`).
-//! Beide aus derselben [`IdeaMap`] wie Seite und SVG – die Filter gelten also auch hier.
+//! Ausgaben der Mindmap als Text (Vertrag Runde 34 §8, Besitz mindmap_austausch): das Blatt ([`Sheet`]) als
+//! gemeinsame Vorstufe von FreeMind ([`super::freemind`]) und XMind ([`super::xmind`]) und die Markdown-Ausgabe
+//! ([`markdown`]). Alles aus derselben [`MindMap`] wie Seite und Bild – die Filter gelten also auch hier.
+//!
+//! **Wolke** (Nachtrag des Nutzers 2026-11-25): Einfälle ohne Platz – weder Elternknoten noch Bezug – liegen in der
+//! Wolke neben der Mindmap. Im Baum sind das die Kinder der Wurzel von der Art Einfall ([`cloud`]); alle Ausgaben
+//! führen sie als eigenen Ast „Wolke“ ([`CLOUD_ID`]) bzw. in Markdown als eigenen Abschnitt. Die Regel steht nur
+//! hier; ändert mindmap_daten die Darstellung der Wolke im Baum, ist [`cloud`]/[`placed`] die einzige Stelle.
+//!
+//! [`filter_words`], [`origin_word`], [`links_of`] und [`tree_order`] sind die Helfer der alten Karte, die
+//! `idea_map/bild/mod.rs` im S1-Stand noch benutzt.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
-use baruch_store::{IdeaId, IdeaLink, LinkKind};
+use baruch_store::{IdeaId, IdeaLink, IdeaStatus, LinkKind};
 
-use crate::idea_map::bild::svg::{counts, cut, idea_label, node_label, status_label};
-use crate::idea_map::{IdeaMap, MapFilter, MapIdea, MapNode, MapNodeKind, NearVia};
+use crate::idea_map::tree::{MindMap, TreeKind, TreeNode};
+use crate::idea_map::{IdeaMap, MapFilter, MapNode, NearVia};
+
+/// „offen“ bzw. „verarbeitet“.
+pub fn status_label(status: IdeaStatus) -> &'static str {
+    match status {
+        IdeaStatus::Open => "offen",
+        IdeaStatus::Done => "verarbeitet",
+    }
+}
 
 /// Ein Zeichen, das in Markdown etwas bedeutet, mit `\` davor; Zeilenumbrüche als Leerzeichen.
 fn md(text: &str) -> String {
@@ -100,96 +116,203 @@ pub fn tree_order(map: &IdeaMap) -> Vec<(&MapNode, usize)> {
     out
 }
 
-fn ideas_at<'a>(map: &'a IdeaMap, anchor: &str) -> Vec<&'a MapIdea> {
-    map.ideas.iter().filter(|i| i.anchor == anchor).collect()
+// ---- Wolke und Blatt -----------------------------------------------------------------------------
+
+/// Kennung des Astes „Wolke“ in den Ausgaben (XMind: Themen-id, FreeMind: `ID_baruchwolke`). Der eigene Leser
+/// erkennt den Ast daran und löst ihn wieder auf (seine Kinder werden Knoten der obersten Ebene).
+pub const CLOUD_ID: &str = "baruch-wolke";
+/// Titel des Astes „Wolke“.
+pub const CLOUD_TITLE: &str = "Wolke";
+
+/// Die Wolke: Einfälle ohne Platz (Kinder der Wurzel von der Art Einfall), samt ihren Unterknoten.
+pub fn cloud(map: &MindMap) -> Vec<&TreeNode> {
+    map.root.children.iter().filter(|n| n.kind == TreeKind::Idea).collect()
 }
 
-/// Bezeichnung eines Abschnitts unter einem Kapitel („Abschnitt 1.2.1 Tiefe“) für den genauen Bezug.
-fn section_of(node: &MapNode, idea: &MapIdea) -> Option<String> {
-    let key = idea.key?;
-    if node.key == Some(key) {
-        return None;
+/// Die Hauptäste der Mindmap ohne die Wolke (Teile und Kapitel).
+pub fn placed(map: &MindMap) -> Vec<&TreeNode> {
+    map.root.children.iter().filter(|n| n.kind != TreeKind::Idea).collect()
+}
+
+/// „1.2 Titel“ bzw. „Titel“ (Einfälle tragen keine Nummer).
+pub fn node_title(node: &TreeNode) -> String {
+    if node.number.trim().is_empty() { node.title.clone() } else { format!("{} {}", node.number, node.title) }
+}
+
+/// Beschriftung einer Beziehung: Art, dahinter die Notiz („führt weiter: über den Deich“).
+pub fn link_label(link: &IdeaLink) -> String {
+    let note = link.note.split_whitespace().collect::<Vec<_>>().join(" ");
+    if note.is_empty() { link.kind.label().to_owned() } else { format!("{}: {note}", link.kind.label()) }
+}
+
+/// Ein Knoten des Blatts (Werk, Teil, Kapitel, Einfall oder der Ast „Wolke“).
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutNode {
+    /// Kennung wie im Baum (`w`, `n:<key>`, `i:<id>`) bzw. [`CLOUD_ID`].
+    pub id: String,
+    pub title: String,
+    pub note: String,
+    pub words: Vec<String>,
+    pub children: Vec<OutNode>,
+}
+
+/// Eine Beziehung zwischen zwei Knoten des Blatts.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutLink {
+    pub id: i64,
+    pub from: String,
+    pub to: String,
+    pub label: String,
+    pub kind: LinkKind,
+}
+
+/// Was FreeMind und XMind von der Mindmap bekommen: Titel, Baum, Beziehungen.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sheet {
+    pub title: String,
+    pub root: OutNode,
+    pub links: Vec<OutLink>,
+}
+
+fn out_node(node: &TreeNode) -> OutNode {
+    OutNode {
+        id: node.id.clone(),
+        title: node_title(node),
+        note: node.note.trim().to_owned(),
+        words: node.words.clone(),
+        children: node.children.iter().map(out_node).collect(),
     }
-    node.sections.iter().find(|s| s.key == key).map(|s| {
-        if s.number.is_empty() {
-            format!("Abschnitt {}", s.title)
-        } else {
-            format!("Abschnitt {} {}", s.number, s.title)
-        }
-    })
 }
 
-/// Markdown: Titel, Filter, je Knoten eine Überschrift (Tiefe = Ebene), darunter die Einfälle mit ihren
-/// Verbindungen, am Ende „Widersprüche“ und (falls gezeigt) „Nähe“.
-pub fn markdown(map: &IdeaMap) -> String {
+/// Das Blatt der Mindmap: die Hauptäste in ihrer Reihenfolge, danach – falls es Einfälle ohne Platz gibt – der Ast
+/// „Wolke“. Beziehungen nur zwischen Einfällen, die im Baum stehen (nicht gelöscht).
+pub fn sheet(map: &MindMap) -> Sheet {
+    let mut root = OutNode {
+        id: map.root.id.clone(),
+        title: if map.title.trim().is_empty() { node_title(&map.root) } else { map.title.clone() },
+        note: String::new(),
+        words: Vec::new(),
+        children: placed(map).into_iter().map(out_node).collect(),
+    };
+    let loose = cloud(map);
+    if !loose.is_empty() {
+        root.children.push(OutNode {
+            id: CLOUD_ID.to_owned(),
+            title: CLOUD_TITLE.to_owned(),
+            note: String::new(),
+            words: Vec::new(),
+            children: loose.into_iter().map(out_node).collect(),
+        });
+    }
+    let shown: HashSet<IdeaId> = map.walk().into_iter().filter_map(|(n, _)| n.idea).collect();
+    let links = map
+        .links
+        .iter()
+        .filter(|l| l.deleted.is_none() && shown.contains(&l.from) && shown.contains(&l.to))
+        .map(|l| OutLink {
+            id: l.id,
+            from: format!("i:{}", l.from),
+            to: format!("i:{}", l.to),
+            label: link_label(l),
+            kind: l.kind,
+        })
+        .collect();
+    Sheet { title: root.title.clone(), root, links }
+}
+
+// ---- Markdown ------------------------------------------------------------------------------------
+
+fn md_node(out: &mut String, node: &TreeNode, depth: usize) {
+    let indent = "  ".repeat(depth);
+    let mut line = format!("{indent}- ");
+    match node.kind {
+        TreeKind::Idea => {
+            let _ = write!(line, "{}", md(&node.title));
+            let mut facts = Vec::new();
+            if let Some(status) = node.status {
+                facts.push(status_label(status).to_owned());
+            }
+            if !node.words.is_empty() {
+                facts.push(format!("Schlagwörter: {}", md(&node.words.join(", "))));
+            }
+            if let Some(section) = node.section_title.as_deref().filter(|s| !s.trim().is_empty()) {
+                facts.push(format!("Bezug: {}", md(section)));
+            }
+            if let Some(origin) = &node.origin {
+                facts.push(md(&origin.label()));
+            }
+            if !facts.is_empty() {
+                let _ = write!(line, " ({})", facts.join("; "));
+            }
+        }
+        _ => {
+            let _ = write!(line, "**{}**", md(&node_title(node)));
+            if node.open_findings > 0 {
+                let _ = write!(line, " ({} offene Befunde)", node.open_findings);
+            }
+        }
+    }
+    let _ = writeln!(out, "{line}");
+    if !node.note.trim().is_empty() {
+        let _ = writeln!(out, "{indent}  Notiz: {}", md(&node.note));
+    }
+    for child in &node.children {
+        md_node(out, child, depth + 1);
+    }
+}
+
+/// Markdown: Titel, Filter, der Baum als verschachtelte Liste (Notizen eingerückt unter ihrem Knoten), der Abschnitt
+/// „Wolke“ (Einfälle ohne Platz), danach „Beziehungen“, „Widersprüche“ und (falls gezeigt) „Nähe“.
+pub fn markdown(map: &MindMap) -> String {
     let mut out = String::new();
-    let _ = writeln!(out, "# Gedankenkarte: {}\n", md(&map.title));
+    let _ = writeln!(out, "# Mindmap: {}\n", md(&map.title));
     let filter = filter_words(&map.filter);
     if !filter.is_empty() {
         let _ = writeln!(out, "Filter: {}\n", md(&filter));
     }
-    let labels: HashMap<IdeaId, String> = map.ideas.iter().map(|i| (i.id, idea_label(i))).collect();
-    let write_ideas = |out: &mut String, node: Option<&MapNode>, ideas: &[&MapIdea]| {
-        for idea in ideas {
-            let mut line = format!("- Einfall {}: {} ({})", idea.id, md(&idea_label(idea)), status_label(idea.status));
-            if let Some(section) = node.and_then(|n| section_of(n, idea)) {
-                let _ = write!(line, ", {}", md(&section));
-            }
-            if !idea.note.trim().is_empty() {
-                let _ = write!(line, " – {}", md(&cut(&idea.note, 400)));
-            }
-            let _ = writeln!(out, "{line}");
-            for (link, arrow, other) in links_of(idea.id, &map.links) {
-                let mut l = format!("  - {arrow} {other} {}", link.kind.label());
-                if let Some(label) = labels.get(&other) {
-                    let _ = write!(l, " ({})", md(label));
-                }
-                if !link.note.trim().is_empty() {
-                    let _ = write!(l, ": „{}“", md(&link.note));
-                }
-                let _ = writeln!(out, "{l}");
-            }
+    let branches = placed(map);
+    if branches.is_empty() {
+        let _ = writeln!(out, "Keine Äste.");
+    }
+    for node in branches {
+        md_node(&mut out, node, 0);
+    }
+    let loose = cloud(map);
+    let _ = writeln!(out, "\n## Wolke\n");
+    if loose.is_empty() {
+        let _ = writeln!(out, "Leer: Kein Einfall ohne Platz.");
+    } else {
+        let _ = writeln!(out, "{} in der Wolke (Einfälle ohne Platz in der Mindmap).\n", loose.len());
+        for node in loose {
+            md_node(&mut out, node, 0);
         }
+    }
+    let titles: HashMap<IdeaId, &str> =
+        map.walk().into_iter().filter_map(|(n, _)| n.idea.map(|id| (id, n.title.as_str()))).collect();
+    let name = |id: IdeaId| match titles.get(&id) {
+        Some(title) => format!("{} (Einfall {id})", md(title)),
+        None => format!("Einfall {id}"),
     };
-    let work_ideas = ideas_at(map, "w");
-    if !work_ideas.is_empty() {
-        write_ideas(&mut out, None, &work_ideas);
-        out.push('\n');
+    let shown: Vec<&IdeaLink> = map
+        .links
+        .iter()
+        .filter(|l| l.deleted.is_none() && titles.contains_key(&l.from) && titles.contains_key(&l.to))
+        .collect();
+    let _ = writeln!(out, "\n## Beziehungen\n");
+    if shown.is_empty() {
+        let _ = writeln!(out, "Keine.");
     }
-    for (node, depth) in tree_order(map) {
-        let hashes = "#".repeat((depth + 1).min(6));
-        let title = if node.kind == MapNodeKind::NoChapter { node.title.clone() } else { node_label(node) };
-        let _ = writeln!(out, "{hashes} {} ({})\n", md(&title), counts(node));
-        if !node.sections.is_empty() {
-            let list: Vec<String> = node
-                .sections
-                .iter()
-                .map(|s| {
-                    let name = if s.number.is_empty() { s.title.clone() } else { format!("{} {}", s.number, s.title) };
-                    format!("{} ({})", md(&name), s.ideas)
-                })
-                .collect();
-            let _ = writeln!(out, "Abschnitte: {}\n", list.join(", "));
-        }
-        let ideas = ideas_at(map, &node.id);
-        if ideas.is_empty() && node.total_ideas > 0 {
-            let _ = writeln!(out, "Keine eigenen Einfälle; sie hängen an den Punkten darunter.\n");
-        } else if ideas.is_empty() {
-            let _ = writeln!(out, "Keine Einfälle.\n");
-        } else {
-            write_ideas(&mut out, Some(node), &ideas);
-            out.push('\n');
-        }
+    for link in &shown {
+        let arrow = if link.kind.symmetric() { "↔" } else { "→" };
+        let _ = writeln!(out, "- {} {arrow} {}: {}", name(link.from), name(link.to), md(&link_label(link)));
     }
-    let contradictions: Vec<&IdeaLink> =
-        map.links.iter().filter(|l| l.deleted.is_none() && l.kind == LinkKind::Contradicts).collect();
-    let _ = writeln!(out, "## Widersprüche\n");
+    let _ = writeln!(out, "\n## Widersprüche\n");
+    let contradictions: Vec<&&IdeaLink> = shown.iter().filter(|l| l.kind == LinkKind::Contradicts).collect();
     if contradictions.is_empty() {
-        let _ = writeln!(out, "Keine.\n");
+        let _ = writeln!(out, "Keine.");
     }
     for link in contradictions {
-        let label = |id: IdeaId| labels.get(&id).map(|l| format!(" ({})", md(l))).unwrap_or_default();
-        let mut line = format!("- Einfall {}{} ↔ Einfall {}{}", link.from, label(link.from), link.to, label(link.to));
+        let mut line = format!("- {} ↔ {}", name(link.from), name(link.to));
         if !link.note.trim().is_empty() {
             let _ = write!(line, ": „{}“", md(&link.note));
         }
@@ -203,128 +326,9 @@ pub fn markdown(map: &IdeaMap) -> String {
                 NearVia::Words => format!("Schlagwörter {}", pair.shared_words.join(", ")),
                 NearVia::Both => format!("Bedeutung, Schlagwörter {}", pair.shared_words.join(", ")),
             };
-            let _ = writeln!(out, "- Einfall {} ~ Einfall {} ({:.2}, {})", pair.a, pair.b, pair.score, md(&via));
+            let _ = writeln!(out, "- {} ~ {} ({:.2}, {})", name(pair.a), name(pair.b), pair.score, md(&via));
         }
     }
-    out
-}
-
-/// Text für XML-Attribute: `& < > "` maskiert, Zeilenumbruch als `&#10;`, andere Steuerzeichen entfernt.
-fn xml_attr(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for c in text.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\n' => out.push_str("&#10;"),
-            // Steuerzeichen und die in XML 1.0 verbotenen Nichtzeichen U+FFFE/U+FFFF fallen weg.
-            c if c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}') => {}
-            c => out.push(c),
-        }
-    }
-    out
-}
-
-/// Farbe einer Verbindungsart in FreeMind (dieselben hellen Farben wie die eigenständige SVG-Datei).
-fn link_color(kind: LinkKind) -> &'static str {
-    match kind {
-        LinkKind::LeadsTo => "#3b5bdb",
-        LinkKind::BelongsTo => "#2b8a3e",
-        LinkKind::ExampleOf => "#9a5800",
-        LinkKind::Contradicts => "#c92a2a",
-    }
-}
-
-fn mm_id(node: &str) -> String {
-    let id: String = node.chars().filter(char::is_ascii_alphanumeric).collect();
-    format!("ID_{id}")
-}
-
-/// FreeMind 1.0.1: Werk als Wurzel, Knoten verschachtelt wie auf der Karte, Einfälle an ihrem Knoten (Gedanke als
-/// Notiz), Verbindungen als `arrowlink` (Pfeil, bei „widerspricht“ beidseitig) und als Attribut „Verbindung“.
-pub fn freemind(map: &IdeaMap) -> String {
-    let mut out = String::from("<map version=\"1.0.1\">\n");
-    let _ = writeln!(out, "<!-- Gedankenkarte, erzeugt von Baruch -->");
-    let root = map.nodes.iter().find(|n| n.id == "w");
-    let _ = writeln!(out, "<node ID=\"ID_w\" TEXT=\"{}\">", xml_attr(&map.title));
-    let filter = filter_words(&map.filter);
-    if !filter.is_empty() {
-        let _ = writeln!(out, "<attribute NAME=\"Filter\" VALUE=\"{}\"/>", xml_attr(&filter));
-    }
-    if let Some(root) = root {
-        let _ = writeln!(out, "<attribute NAME=\"Einfälle\" VALUE=\"{}\"/>", xml_attr(&counts(root)));
-    }
-    let shown: std::collections::HashSet<IdeaId> = map.ideas.iter().map(|i| i.id).collect();
-    let write_idea = |out: &mut String, node: Option<&MapNode>, idea: &MapIdea| {
-        let mut text = format!("Einfall {}: {} ({})", idea.id, idea_label(idea), status_label(idea.status));
-        if let Some(section) = node.and_then(|n| section_of(n, idea)) {
-            let _ = write!(text, ", {section}");
-        }
-        let _ = writeln!(out, "<node ID=\"{}\" TEXT=\"{}\">", mm_id(&idea.node), xml_attr(&text));
-        for (link, arrow, other) in links_of(idea.id, &map.links) {
-            let mut value = format!("{arrow} Einfall {other} {}", link.kind.label());
-            if !link.note.trim().is_empty() {
-                let _ = write!(value, ": {}", link.note.trim());
-            }
-            let _ = writeln!(out, "<attribute NAME=\"Verbindung\" VALUE=\"{}\"/>", xml_attr(&value));
-        }
-        for link in map.links.iter().filter(|l| l.deleted.is_none() && l.from == idea.id && shown.contains(&l.to)) {
-            let start = if link.kind.symmetric() { "Default" } else { "None" };
-            // Runde 18a: Farbe je Art wie in der Karte (FreeMind kennt für Pfeile keine Strichart; die Art steht
-            // zusätzlich im Attribut „Verbindung“).
-            let _ = writeln!(
-                out,
-                "<arrowlink DESTINATION=\"{}\" ENDARROW=\"Default\" STARTARROW=\"{start}\" COLOR=\"{}\"/>",
-                mm_id(&format!("i:{}", link.to)),
-                link_color(link.kind)
-            );
-        }
-        if !idea.note.trim().is_empty() {
-            let _ = writeln!(
-                out,
-                "<richcontent TYPE=\"NOTE\"><html><head></head><body><p>{}</p></body></html></richcontent>",
-                xml_attr(idea.note.trim()).replace("&#10;", "<br/>")
-            );
-        }
-        out.push_str("</node>\n");
-    };
-    for idea in ideas_at(map, "w") {
-        write_idea(&mut out, None, idea);
-    }
-    fn walk(
-        map: &IdeaMap,
-        parent: &str,
-        depth: usize,
-        out: &mut String,
-        seen: &mut Vec<String>,
-        write_idea: &dyn Fn(&mut String, Option<&MapNode>, &MapIdea),
-    ) {
-        for (k, node) in map.nodes.iter().filter(|n| n.parent.as_deref() == Some(parent)).enumerate() {
-            if seen.contains(&node.id) || depth > 16 {
-                continue;
-            }
-            seen.push(node.id.clone());
-            let title = if node.kind == MapNodeKind::NoChapter { node.title.clone() } else { node_label(node) };
-            let position =
-                if depth == 1 { if k % 2 == 0 { " POSITION=\"right\"" } else { " POSITION=\"left\"" } } else { "" };
-            let _ = writeln!(
-                out,
-                "<node ID=\"{}\" TEXT=\"{}\"{position} FOLDED=\"false\">",
-                mm_id(&node.id),
-                xml_attr(&format!("{title} ({})", counts(node)))
-            );
-            for idea in map.ideas.iter().filter(|i| i.anchor == node.id) {
-                write_idea(out, Some(node), idea);
-            }
-            walk(map, &node.id, depth + 1, out, seen, write_idea);
-            out.push_str("</node>\n");
-        }
-    }
-    let mut seen = Vec::new();
-    walk(map, "w", 1, &mut out, &mut seen, &write_idea);
-    out.push_str("</node>\n</map>\n");
     out
 }
 
@@ -339,16 +343,5 @@ mod tests {
             "\\# \\*Laube\\* \\[x\\] \\<b\\>",
             "kein Nutzertext wird Markdown-Auszeichnung"
         );
-    }
-
-    #[test]
-    fn freemind_attributes_stay_well_formed() {
-        assert_eq!(
-            xml_attr("a \"b\" & <c>\nd\u{1}"),
-            "a &quot;b&quot; &amp; &lt;c&gt;&#10;d",
-            "maskiert, Zeilenumbruch als Zeichenreferenz"
-        );
-        assert_eq!(mm_id("i:12"), "ID_i12", "FreeMind-IDs nur aus Buchstaben und Ziffern");
-        assert_eq!(xml_attr("x\u{fffe}y\u{ffff}z"), "xyz", "Nichtzeichen sind in XML 1.0 verboten und fallen weg");
     }
 }
