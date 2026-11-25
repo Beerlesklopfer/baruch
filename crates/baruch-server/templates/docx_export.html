@@ -1,0 +1,45 @@
+{#- Seite /werke/{id}/word (Runde 32, src/docx_export/mod.rs): das Werk als Word-Datei für den Verlag. Das Formular
+    schickt per GET an /werke/{id}/word.docx (Häkchen vorschlaege=1) und geht ohne JavaScript. Kontext: settings,
+    work {id, title, slug}, sections_with_proposals (Abschnitte mit offenem Vorschlag), open_proposals (Zahl). -#}
+{% extends "base.html" %}
+{% block title %}Word-Export – {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}{{ work.title }}: Word-Export{% endblock %}
+{#- Menüband (Runde 33): Aktionen der Seite als Gruppe im Reiter „Buch“ (details/summary mit gewöhnlichen Links). #}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  </div></details>
+{% endblock %}
+{% block body %}
+<main class="works-page docx-export-page">
+  <h1 class="pane-title">Word-Export</h1>
+  <p>Das Werk <strong>{{ work.title }}</strong> als Word-Datei (<code>{{ work.slug }}.docx</code>) für den Verlag: Titelei,
+    dann alle Abschnitte in Lesereihenfolge mit ihrer <strong>aktuellen Fassung</strong>.</p>
+  <ul class="docx-export-list">
+    <li>Überschriften tragen die Formatvorlagen „Überschrift 1–3“, Teile „Baruch Teil“, Überschriften ohne Nummer
+      „Baruch ohne Nummer 1–3“.</li>
+    <li>Fußnoten sind echte Fußnoten, Bilder (PNG, JPEG, GIF) sind eingebettet und tragen ihren Alternativtext.</li>
+    <li>Was Word nicht abbilden kann (Typst-Funktionen, Formeln, Bilder in anderen Formaten), steht als sichtbarer
+      Quelltext in einem grau hinterlegten Feld. Nichts geht still verloren; solche Stellen nennt der Export über
+      RPC und Kommandozeile als Warnung.</li>
+    <li>Der Export ändert nichts am Werk.</li>
+  </ul>
+  <form class="work-form docx-export-form" method="get" action="/werke/{{ work.id }}/word.docx">
+    <label class="check"><input type="checkbox" name="vorschlaege" value="1"> Offene Vorschläge als Änderungsverfolgung mitgeben</label>
+    <p class="muted docx-export-note">
+      {%- if open_proposals %}
+      Zurzeit {% if open_proposals == 1 %}ist 1 Vorschlag{% else %}sind {{ open_proposals }} Vorschläge{% endif %} offen, in
+      {% if sections_with_proposals == 1 %}1 Abschnitt{% else %}{{ sections_with_proposals }} Abschnitten{% endif %}.
+      {%- else %}
+      Zurzeit ist kein Vorschlag offen; die Datei ist mit und ohne Häkchen dieselbe.
+      {%- endif %}
+      Je Abschnitt steht der jüngste offene Vorschlag als Einfügung und Löschung in der Datei, mit der Persona als
+      Bearbeiter; die aktuelle Fassung bleibt der Ausgangstext. Weitere offene Vorschläge desselben Abschnitts stehen
+      nicht in der Datei.
+    </p>
+    <button class="btn primary" type="submit">Word-Datei herunterladen</button>
+  </form>
+  <p class="muted">Ob die Datei in Word oder LibreOffice so aussieht wie gedacht, zeigt erst das Öffnen dort.</p>
+</main>
+{% endblock %}
