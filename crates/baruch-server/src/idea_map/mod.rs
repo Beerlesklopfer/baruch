@@ -5,8 +5,10 @@
 //! - Daten und RPC (karte-daten, dieses Modul): [`build`] setzt die Karte zusammen; RPC `idea.map`, `idea.links`,
 //!   `idea.link`, `idea.unlink`, `idea.link_restore`, `idea.map_pos_set`, `idea.map_pos_reset` ([`call`],
 //!   `docs/RPC.md` „Gedankenkarte“). Herkunft über RPC immer der Mensch.
-//! - Bild und Seiten (karte-bild, [`bild`]): `/werke/{id}/karte` (HTML, ohne JavaScript bedienbar) und die
-//!   Ausgaben `.svg`, `.pdf`, `.md`, `.mm`, Formular `POST /werke/{id}/karte/act`.
+//! - Seite (karte-bild, [`bild`]): `/werke/{id}/karte` (HTML, ohne JavaScript bedienbar); Ausgaben `.svg`, `.pdf`,
+//!   `.md`, `.mm` und Formular `POST /werke/{id}/karte/act` seit Runde 34 (R34-S1) in [`files`].
+//! - Runde 34 (R34-S1): [`tree`] – die Mindmap als Baum ([`tree::MindMap`], [`tree::tree`]) und der Baum-Import
+//!   ([`tree::import`], in S1 ein Stub); [`bild::mindmap`] zeichnet sie.
 //!
 //! Aufbau (Vertrag §2): Mitte das Werk (`w`), darum Teile und Kapitel (`n:<key>`); Abschnitte unter einem Kapitel
 //! fasst das Kapitel zusammen (Anker = nächster Vorfahre der Art Kapitel, sonst der Punkt selbst); Einfälle ohne
@@ -21,9 +23,11 @@
 //! und Formular, kein MCP-Werkzeug) und Verwerfen (`idea.map_group_dismiss`).
 
 pub mod bild;
+pub mod files;
 pub mod groups;
 pub mod links;
 pub mod near;
+pub mod tree;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 

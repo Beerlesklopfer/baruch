@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 
 use baruch_store::{IdeaId, IdeaLink, LinkKind};
 
-use super::svg::{counts, cut, idea_label, node_label, status_label};
+use crate::idea_map::bild::svg::{counts, cut, idea_label, node_label, status_label};
 use crate::idea_map::{IdeaMap, MapFilter, MapIdea, MapNode, MapNodeKind, NearVia};
 
 /// Ein Zeichen, das in Markdown etwas bedeutet, mit `\` davor; Zeilenumbrüche als Leerzeichen.

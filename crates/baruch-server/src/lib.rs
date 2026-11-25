@@ -136,6 +136,7 @@ const STYLE: &str = concat!(
     include_str!("../static/pruefung.css"),
     include_str!("../static/karte.css"),
     include_str!("../static/karte_widget.css"),
+    include_str!("../static/karte_gliederung.css"),
     include_str!("../static/befunde.css"),
     include_str!("../static/chat.css"),
     include_str!("../static/search.css"),
@@ -348,7 +349,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(literature::bibles::writes())
         .merge(threads::writes())
         .merge(exchange::writes())
-        .merge(idea_map::bild::writes())
+        .merge(idea_map::files::writes())
         .merge(typeset::writes())
         .merge(findings::page::writes())
         // Runde 30 (Schnittstelle R30-S1): Suchen/Ersetzen, Querverweise, Lösungen und Varianten.
@@ -390,6 +391,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(scripture_check::pages())
         .merge(exchange::pages())
         .merge(idea_map::bild::pages())
+        .merge(idea_map::files::pages())
         .merge(findings::page::pages())
         .merge(posts::pages())
         .merge(search::pages())

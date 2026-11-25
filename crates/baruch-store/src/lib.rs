@@ -51,6 +51,9 @@
 //!   0051: Tabelle `node_revision_fold` (Marke je Abschnitt, ohne uuid, nicht im Austausch, Kaskade mit dem Abschnitt).
 //! - Runde 32 (Schnittstelle R32-S1, Word und Beenden): keine Migration. Reserviert: Store 0052 docx_import, 0053
 //!   docx_export, 0054 beenden, 0055 Integrator; Bibliothek 0109 Integrator (alle erwartet unbenutzt).
+//! - Runde 34 (Schnittstelle R34-S1): reserviert 0052 mindmap_daten, 0053 mindmap_widget, 0054 mindmap_austausch, 0055
+//!   Integrator (0052 `idea_tree`: Titel, Elternknoten und Reihenfolge am Einfall; die übrigen erwartet unbenutzt;
+//!   die Reservierungen der Runde 32 blieben unbenutzt). Bibliothek: keine.
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
