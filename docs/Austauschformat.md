@@ -16,7 +16,7 @@ Eine Austauschdatei trägt **ein ganzes Werk** von einer Baruch-Instanz zu einer
 Hause, Sicherung für später, Weitergabe an jemanden mit eigenem Baruch). Jedes Stück darin hat eine weltweit
 eindeutige Kennung (UUID, §3); so erkennt die empfangende Instanz beim Einlesen, was sie schon kennt (§4).
 
-Ausgeben: Seite **Werk ▾ → Austausch: Ausgeben** (`/werke/{id}/austausch`), RPC `work.exchange_export`,
+Ausgeben: Seite **Buch → Ausgabe → Austausch: Ausgeben** (Menüband) (`/werke/{id}/austausch`), RPC `work.exchange_export`,
 Kommandozeile `baruch-server export ID|SLUG --baruch DATEI`, MCP `exchange_export` (nur lesend). Einlesen nur
 durch den Menschen (Seite, RPC, Kommandozeile), nie über MCP.
 

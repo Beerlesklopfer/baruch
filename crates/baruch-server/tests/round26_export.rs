@@ -126,7 +126,7 @@ async fn the_page_works_without_javascript_and_links_both_downloads() {
     let (status, html) = server.get(&format!("/werke/{work}/austausch")).await;
     assert_eq!(status, StatusCode::OK, "Seite: {html}");
     // Genau eine Kopfzeile (aus base.html), keine eigene.
-    assert_eq!(html.matches("<header class=\"topbar\">").count(), 1, "genau eine Kopfzeile");
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "genau eine Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     // Ohne JavaScript: gewöhnliche Links auf beide Downloads und auf das Einlesen.
     assert!(html.contains(&format!("href=\"/werke/{work}/austausch.baruch\"")), "Download .baruch: {html}");
     assert!(html.contains(&format!("href=\"/werke/{work}/austausch.xml\"")), "Download .baruch.xml: {html}");

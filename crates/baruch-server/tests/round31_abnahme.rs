@@ -560,6 +560,7 @@ async fn the_editor_offers_keyboard_menu_aria_and_the_marking_link() {
     assert!(
         base.contains(&format!("href=\"/werke/{}/glossar\"", c.work))
             && base.contains(&format!("href=\"/werke/{}/register\"", c.work)),
-        "Menü Werk ▾ führt zu Glossar und Register"
+        // Runde 33 (Menüband): früher Menü Werk ▾, jetzt Reiter Buch, Gruppe „Register und Glossar“ – dieselben Links.
+        "Reiter Buch führt zu Glossar und Register"
     );
 }

@@ -505,7 +505,7 @@ async fn the_sync_page_works_without_javascript() {
     let (server, mock, work) = island().await;
     let (code, html) = server.get(&format!("/abgleich?work={work}")).await;
     assert_eq!(code, StatusCode::OK, "Seite lädt: {html}");
-    assert_eq!(html.matches("<header class=\"topbar\"").count(), 1, "eine Kopfzeile aus base.html");
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "eine Kopfzeile aus base.html"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     assert!(html.contains("<h1 class=\"pane-title\">Abgleich mit MultiGPT</h1>"), "Überschrift: {html}");
     assert!(html.contains("<input type=\"hidden\" name=\"action\" value=\"run\">"), "Formular action=run: {html}");
     assert!(html.contains(">Abgleichen</button>"), "Knopf „Abgleichen“: {html}");
@@ -625,9 +625,11 @@ async fn the_tools_menu_links_to_the_sync_page_instead_of_a_stub() {
     let html = server.get(&format!("/?work={work}")).await.1;
     assert!(
         html.contains(&format!(
-            "<a class=\"menu-item\" role=\"menuitem\" href=\"/abgleich?work={work}\" title=\"Abgleich mit MultiGPT\">Abgleichen</a>"
+            "<a class=\"btn\" href=\"/abgleich?work={work}\" title=\"Abgleich mit MultiGPT\">Abgleichen</a>"
         )),
-        "Menü Werkzeuge verlinkt die Seite: {html}"
+        // Runde 33 (Menüband): „Abgleichen“ stand im Menü Werkzeuge ▾ und steht jetzt im Reiter Prüfen (Gruppe
+        // Quellen) – weiter ein gewöhnlicher Link, kein Stub.
+        "Reiter Prüfen verlinkt die Seite: {html}"
     );
     let base = include_str!("../templates/base.html");
     assert!(!base.contains("STUB: Abgleich"), "kein STUB-Vermerk mehr in base.html");

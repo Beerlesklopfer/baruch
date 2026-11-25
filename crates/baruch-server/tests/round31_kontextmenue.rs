@@ -91,11 +91,19 @@ async fn the_editor_offers_the_marking_link_without_javascript_and_the_ribbon_gr
     assert!(page.contains(">Markierung …</a>"), "deutsche Beschriftung des Links");
     let status_line = cut(&page, "<div class=\"editor-status\"", "</div>\n</div>");
     assert!(status_line.contains("data-ctx-open"), "der Link steht in der Statuszeile des Editors (nicht im Menüband)");
-    let ribbon = cut(&page, "data-edit-toolbar hidden>", "</div>");
-    let group = cut(ribbon, "<span class=\"ribbon-group ribbon-index\"", "</span>\n  </span>");
+    // Runde 33 (Menüband): Die Leiste hat zwei Teile; die Gruppe steht im Teil „einfuegen“ als Gruppe des Bands
+    // (<details class="band-group">, Name für Hilfsmittel an div.band-items), das Widget sitzt auf dem Rahmen darum.
+    let ribbon = cut(&page, "data-edit-toolbar hidden>", "<div class=\"search-bar\"");
+    let group = cut(ribbon, "<div class=\"ribbon-group ribbon-index\"", "</details>");
     assert!(
-        group.contains("role=\"group\" aria-label=\"Register und Glossar\" data-widget=\"context-menu\""),
+        group.starts_with("<div class=\"ribbon-group ribbon-index\" data-widget=\"context-menu\">")
+            && group.contains("<div class=\"band-items\" role=\"group\" aria-label=\"Register und Glossar\">"),
         "Gruppe des Menübands mit Widget und Namen für Hilfsmittel: {group}"
+    );
+    assert!(
+        ribbon[..ribbon.find("<div class=\"ribbon-group ribbon-index\"").unwrap()]
+            .contains("data-band-part=\"einfuegen\""),
+        "die Gruppe gehört zum Reiter Einfügen: {ribbon}"
     );
     for (action, label) in [
         ("glossary_add", ">In Glossar</button>"),
@@ -110,9 +118,9 @@ async fn the_editor_offers_the_marking_link_without_javascript_and_the_ribbon_gr
     assert!(
         group.contains("data-index-toggle aria-expanded=\"false\" aria-controls=\"ribbon-register-list\"")
             && group.contains("id=\"ribbon-register-list\" data-index-entries")
-            && !group.contains("<details"),
-        "„Register“ als Knopf mit aria-expanded und Liste der Einträge (kein details: die Vorschläge im Satzbild bleiben \
-         die einzigen details im Editor-Bereich): {group}"
+            && group.matches("<details").count() == 1,
+        "„Register“ als Knopf mit aria-expanded und Liste der Einträge (kein eigenes details; Runde 33: das einzige \
+         details hier ist die Gruppe des Bands selbst): {group}"
     );
 }
 

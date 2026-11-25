@@ -377,6 +377,7 @@ async fn the_header_offers_works_and_an_import_dialog() {
     let server = common::open().await;
     let (_, html) = server.get("/").await;
     // Runde 9: „Alle Werke“ und „Neues Werk / Importieren…“ stehen im Menü „Werk ▾“ der Kopfzeile.
+    // Runde 33 (Menüband): Beide stehen jetzt im Menü „Baruch ▾“ (Programm) – dieselben Links und Haken.
     assert!(
         html.contains("<a class=\"menu-item\" role=\"menuitem\" href=\"/werke\">Alle Werke</a>"),
         "Link „Alle Werke“ im Menü der Kopfzeile"

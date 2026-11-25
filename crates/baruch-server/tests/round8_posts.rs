@@ -183,7 +183,9 @@ async fn no_generated_link_or_redirect_carries_node_any_more() {
         "Vorschau-Umschalter in Key-Form: {html}"
     );
     assert!(html.contains(&format!("href=\"/werke/{work}/satz?key={k3}\"")), "Link „Satz“ (Runde 8): {html}");
-    assert!(html.contains(">Satz</a>"), "Knopf heißt „Satz“");
+    // Runde 33: im Menüband (Reiter Buch, Gruppe Satz) heißt der Eintrag nach Vertrag §4 „Satz-Vorschau“ (vorher „Satz“);
+    // die Adresse darüber bleibt dieselbe.
+    assert!(html.contains(">Satz-Vorschau</a>"), "Knopf heißt „Satz-Vorschau“");
     assert!(
         html.contains(&format!("href=\"&#x2f;?work={work}&amp;key={k3}&amp;rev=2\"")),
         "Fassungsbaum „zeigen“ (Vorschlag 2) in Key-Form: {html}"

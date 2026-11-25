@@ -6,10 +6,17 @@
 {% extends "base.html" %}
 {% block title %}Werke – Baruch{% endblock %}
 {% block page_title %}Werke{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn primary" href="/werke/neu">Neues Werk oder Import…</a>
-  <a class="btn" href="/werke/archiv" title="Gelöschte Werke ansehen und wiederherstellen">Archiv</a>
-  {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Werke</summary><div class="band-items" role="group" aria-label="Werke">
+    <a class="btn primary" href="/werke/neu">Neues Werk oder Import…</a>
+    <a class="btn" href="/werke/archiv" title="Gelöschte Werke ansehen und wiederherstellen">Archiv</a>
+  </div></details>
+  {%- if back_url %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>
+  </div></details>
+  {%- endif %}
 {% endblock %}
 {% block body %}
 <main class="works-page">

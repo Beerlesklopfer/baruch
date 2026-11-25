@@ -304,11 +304,17 @@ async fn the_image_pages_work_without_javascript() {
     let (status, html) = server.get(&format!("/?work={work}")).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsbereich des Werks lädt");
     // Runde 9: „Bilder“ steht im Menü „Werk ▾“ der Kopfzeile, gleich nach dem Gliederungsschema.
-    let menu = &html[html.find("data-menu=\"werk\"").expect("Menü Werk")..];
+    // Runde 33 (Menüband): Das Menü Werk ▾ ist der Reiter Buch geworden; „Bilder“ steht dort in der Gruppe Werk,
+    // weiter gleich nach dem Gliederungsschema und als gewöhnlicher Link.
+    let menu = &html[html.find("data-band-panel=\"buch\"").expect("Feld des Reiters Buch")..];
     let menu = &menu[..menu.find("</details>").unwrap()];
     assert!(
-        menu.contains(&format!("<a class=\"menu-item\" role=\"menuitem\" href=\"/werke/{work}/bilder\">Bilder</a>")),
-        "Menü „Werk“ der Kopfzeile hat den Link „Bilder“ des Werks: {menu}"
+        menu.contains(&format!("<a class=\"btn\" href=\"/werke/{work}/bilder\">Bilder</a>")),
+        "Reiter Buch, Gruppe Werk, hat den Link „Bilder“ des Werks: {menu}"
+    );
+    assert!(
+        menu.find(">Gliederungsschema</a>").expect("Gliederungsschema") < menu.find(">Bilder</a>").unwrap(),
+        "„Bilder“ steht nach dem Gliederungsschema: {menu}"
     );
 }
 

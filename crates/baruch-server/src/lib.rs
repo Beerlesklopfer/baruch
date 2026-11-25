@@ -19,6 +19,7 @@ pub mod archive;
 pub mod asset_requests;
 pub mod assets;
 pub mod assist;
+pub mod band;
 pub mod bible_research;
 pub mod bibles;
 pub mod chat_live;
@@ -42,6 +43,7 @@ pub mod import;
 pub mod index_marks;
 pub mod index_page;
 pub mod instance;
+pub mod laptop;
 pub mod literature;
 pub mod localtime;
 pub mod markdown_import;
@@ -145,7 +147,10 @@ const STYLE: &str = concat!(
     // Runde 21 (Schnittstelle R21-S1): PDF/EPUB-Import mit Vorschau der Gliederung (pdf-import).
     include_str!("../static/source_import.css"),
     // Runde 22 (Schnittstelle R22-S1): Fortschreiben, Verlauf und Einstellung „Fassungen“ (fassungen).
-    include_str!("../static/revisions.css")
+    include_str!("../static/revisions.css"),
+    // Runde 33 (Schnittstelle R33-S1): Menüband (menueband) und Laptop-Modus (laptop); laptop.css zuletzt.
+    include_str!("../static/band.css"),
+    include_str!("../static/laptop.css")
 );
 const ICON: &str = include_str!("../static/favicon.svg");
 

@@ -502,8 +502,18 @@ async fn badges_in_outline_editor_and_menu_agree_with_the_matrix() {
         "Editorkopf zeigt die Summe samt Abschnitten"
     );
     assert!(html.contains(">3 offen</a>"), "Editorkopf als Text „3 offen“");
-    assert!(html.contains("data-badge=\"open_findings\""), "Abzeichen am Menü Werk ▾");
-    assert!(html.contains(&format!(">{total} offen</span>")), "Menüknopf mit der Summe");
+    // Runde 33 (Menüband): Das Abzeichen stand am Menüknopf „Werk ▾“ und steht jetzt am Reiter Prüfen (dort liegen
+    // die Befunde) – dieselbe Zahl, derselbe Haken.
+    assert!(
+        html.contains(&format!(">Prüfen <span class=\"badge warning\" data-badge=\"open_findings\" title=\"offene Befunde im Werk\">{total} offen</span></a>")),
+        "Abzeichen am Reiter Prüfen mit der Summe, vom Server gezeichnet"
+    );
+    assert!(
+        html.contains(&format!(
+            "Befunde <span class=\"badge warning\" data-badge=\"open_findings\">{total}</span></a>"
+        )),
+        "und die Zahl am Eintrag „Befunde“"
+    );
 
     let badges = result(&b.server.rpc("menu.badges", json!({ "work": b.work })).await).clone();
     assert_eq!(badges["open_findings"], total, "menu.badges liefert open_findings: {badges}");

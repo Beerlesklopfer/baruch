@@ -4,7 +4,13 @@
 {% extends "base.html" %}
 {% block title %}Einstellungen · {{ title }} – Baruch{% endblock %}
 {% block page_title %}Einstellungen{% if work %} · {{ work.title }}{% endif %}{% endblock %}
-{% block page_actions %}{% if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% else %}<a class="btn" href="/werke">Werke</a>{% endif %}{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Ansicht“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}ansicht{% endblock %}
+{% block band_ansicht %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    {% if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% else %}<a class="btn" href="/werke">Werke</a>{% endif %}
+  </div></details>
+{% endblock %}
 {% block body %}
 <main class="settings-main">
 {{ frame|safe }}

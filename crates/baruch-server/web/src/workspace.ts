@@ -155,17 +155,11 @@ function leaveEditorIfJump(): boolean {
 }
 
 register("workspace", (root) => {
-  root.addEventListener("click", (event) => {
-    const link = (event.target as Element).closest<HTMLAnchorElement>("a[data-nav]");
+  // Runde 33: am Dokument statt am Arbeitsbereich – auch der Umschalter Editor/Vorschau und die ‹ ›-Links der
+  // angedockten Leiste stehen im Menüband, außerhalb von <main>.
+  document.addEventListener("click", (event) => {
+    const link = (event.target as Element | null)?.closest?.<HTMLAnchorElement>("a[data-nav]");
     if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    event.preventDefault();
-    if (leaveEditor()) void navigate(link.href);
-  });
-  // Auch der Umschalter in der Kopfzeile liegt außerhalb des Arbeitsbereichs.
-  document.querySelector("[data-view-toggle]")?.addEventListener("click", (event) => {
-    const link = event.currentTarget as HTMLAnchorElement;
-    const e = event as MouseEvent;
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
     event.preventDefault();
     if (leaveEditor()) void navigate(link.href);
   });

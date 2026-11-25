@@ -44,7 +44,9 @@
 // Das Widget sitzt auf `div.wysiwyg`, das Werkzeugleiste (`[data-edit-toolbar]`), Blatt
 // (`div.editor-body` mit dem Formular und dem Satzbild `[data-ws-wrap]`) und Statuszeile (Hinweis
 // `[data-ws-hint]`, „Speichern“ mit `form="editor-form"`) umfasst (Wunsch 2026-11-06). Ohne JavaScript
-// bleiben Werkzeugleiste, Satzbild und Hinweis `hidden`, es gibt nur das Textfeld. Vorgabe ist das
+// bleiben Werkzeugleiste, Satzbild und Hinweis `hidden`, es gibt nur das Textfeld. Runde 33: Nach dem Einhängen
+// hängt band.ts die Werkzeugleiste in das Menüband um (Andockplatz); was danach noch in die Leiste greift, nimmt
+// `editToolbar` (widgets.ts) statt `root.querySelector`. Vorgabe ist das
 // Satzbild (auch nach jedem Neuzeichnen über ui.render), außer das Cookie `baruch_editor` sagt
 // ausdrücklich `quelltext`. Mit `#fundstelle` in der Adresse beim Laden der Seite beginnt der erste Editor
 // im Quelltext (die Markierung der Fundstelle liegt im Textfeld). Bei offenem Satzbild trägt der Bereich
@@ -74,7 +76,7 @@
 
 import { markdownHeading } from "./markdown.js";
 import { call } from "./rpc.js";
-import { register, store, submitButton } from "./widgets.js";
+import { editToolbar, register, store, submitButton } from "./widgets.js";
 import {
   citeKey,
   cleanMark,
@@ -1006,11 +1008,15 @@ function adoptSheet(state: State, root: HTMLElement): boolean {
 }
 
 function show(state: State, root: HTMLElement): void {
-  root.querySelectorAll<HTMLButtonElement>("[data-ws-mode]").forEach((button) => {
+  // Runde 33: Die Leiste steht nach dem Andocken im Menüband (band.ts), nicht mehr unter `root`.
+  const bar = editToolbar(root);
+  bar?.querySelectorAll<HTMLButtonElement>("[data-ws-mode]").forEach((button) => {
     button.setAttribute("aria-pressed", String((button.dataset.wsMode === "satz") === state.open));
   });
-  const tools = root.querySelector<HTMLElement>("[data-ws-tools]");
+  const tools = bar?.querySelector<HTMLElement>("[data-ws-tools]");
   if (tools) tools.hidden = !state.open;
+  const toolsOff = bar?.querySelector<HTMLElement>("[data-ws-source-note]");
+  if (toolsOff) toolsOff.hidden = state.open;
   const hint = root.querySelector<HTMLElement>("[data-ws-hint]");
   if (hint) hint.hidden = !state.open;
   const wrap = root.querySelector<HTMLElement>("[data-ws-wrap]");

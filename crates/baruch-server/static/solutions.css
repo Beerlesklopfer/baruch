@@ -36,7 +36,7 @@
 .rev-variant { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; margin: .3rem 0; }
 
 /* Vergleichsseite /varianten */
-.variants-page { padding: 1rem; }
+.variants-page { padding: 14px 18px 28px; }
 .variants-grid { display: grid; grid-template-columns: repeat(var(--variants, 2), minmax(16rem, 1fr)); gap: 1rem;
   align-items: start; overflow-x: auto; }
 .variant-col { border: 1px solid var(--line); border-radius: 6px; padding: .5rem .7rem; background: var(--panel); }

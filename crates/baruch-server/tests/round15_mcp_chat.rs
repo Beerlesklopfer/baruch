@@ -330,7 +330,7 @@ async fn the_thread_pages_work_without_javascript_behind_same_origin() {
     assert!(page.contains("Kritisch: Antwort im Faden."), "Antwort der Persona sichtbar: {page}");
     assert!(page.contains("@mcp:probe"), "Absender sichtbar: {page}");
     assert!(page.contains(&format!("name=\"thread\" value=\"{thread}\"")), "Antwortformular trägt den Faden: {page}");
-    assert!(page.contains("<header class=\"topbar\">"), "Seite mit der gemeinsamen Kopfzeile (base.html): {page}");
+    assert!(page.contains("<header class=\"band\""), "Seite mit der gemeinsamen Kopfzeile (base.html): {page}"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
 
     let form = format!("work={}&thread={thread}&message=%40lektor+weiter%3F", l.work);
     let foreign = Request::post("/faden/act")

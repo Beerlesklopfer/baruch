@@ -8,9 +8,12 @@
 {% extends "base.html" %}
 {% block title %}PDF oder EPUB importieren – Baruch{% endblock %}
 {% block page_title %}PDF oder EPUB importieren{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn" href="/werke">Werke</a>
-  {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/werke">Werke</a>
+    {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="source-import">

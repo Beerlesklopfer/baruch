@@ -291,7 +291,10 @@ async fn the_server_already_renders_the_satzbild_as_default_and_the_source_only_
         "das Satzbild der gezeigten Fassung kommt fertig vom Server, gleich wysiwyg.parse: {area}"
     );
     assert!(area.contains("<span class=\"ws-tools\" data-ws-tools>"), "Werkzeuge sichtbar (im Satzbild)");
-    assert!(!area.contains("details"), "die Vorschläge setzt erst das Widget ins Satzbild");
+    // Runde 33 (Menüband): Die Leiste über dem Blatt besteht jetzt aus Gruppen (<details class="band-group">); die
+    // Zusicherung gilt darum für das Blatt selbst (ab div.editor-body), nicht mehr für den ganzen Bereich.
+    let sheet = &area[area.find("<div class=\"editor-body\"").expect("Blatt")..];
+    assert!(!sheet.contains("details"), "die Vorschläge setzt erst das Widget ins Satzbild");
 
     let source = setup.page("/?work=1&node=2&rev=4", Some("baruch_editor=quelltext")).await;
     let area = &source[source.find("data-widget=\"wysiwyg\"").unwrap()..];

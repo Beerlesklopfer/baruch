@@ -1006,7 +1006,7 @@ Seite: `GET /websuche/belege?work&key&post` – Belege eines Beitrags mit Knopf 
   des Vorgabewerks in `rpc::call` (`crate::menu`).
 - Runde 28 (befund-uebersicht): `menu.badges` liefert zusätzlich `open_findings` – offene Befunde im ganzen Werk
   nach der Zählregel (Vertrag R28 §1.5: `status = 'open'`, nicht angehängt, kein Lob, mit Abschnitt; Summe von
-  `Store::finding_open_counts`). Abzeichen „k offen“ am Knopf **Werk ▾** und am Eintrag „Befunde“.
+  `Store::finding_open_counts`). Abzeichen „k offen“ am Reiter **Prüfen** und am Eintrag „Befunde“.
 
 ### Einstellungen
 

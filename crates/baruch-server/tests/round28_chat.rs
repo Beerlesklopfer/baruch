@@ -767,7 +767,7 @@ async fn the_chat_works_without_javascript_and_shows_only_the_newest_posts() {
     assert_eq!(status, StatusCode::OK, "Chat-Historie ohne JavaScript");
     assert_eq!(history.matches("class=\"post-item\"").count(), 60, "die ganze Historie: alle 60 Beiträge");
     assert!(history.contains(&format!("id=\"post-{own}\"")) && history.contains("id=\"chat-neueste\""), "Anker");
-    assert!(history.contains("<header class=\"topbar\">"), "gemeinsame Kopfzeile (base.html)");
+    assert!(history.contains("<header class=\"band\""), "gemeinsame Kopfzeile (base.html)"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
 
     let (status, single) = h.server.get(&format!("/beitrag?work={}&id={own}", h.work)).await;
     assert_eq!(status, StatusCode::OK, "Beitragsseite");

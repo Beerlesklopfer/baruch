@@ -1,12 +1,13 @@
 {{- /*
-  Bildschirmfoto aus static/bilder/ (1400×860). Aufruf: {{< bild datei="arbeitsplatz.png" alt="…" titel="…" >}}
+  Bildschirmfoto aus static/bilder/ (Vorgabe 1400×860; andere Größe mit breite="…" hoehe="…").
+  Aufruf: {{< bild datei="arbeitsplatz.png" alt="…" titel="…" >}}
   Fehlt die Datei, lässt der Shortcode das Bild samt Unterschrift aus – die Seite baut auch ohne die Fotos
   warnungsfrei (die Fotos macht der Integrator, siehe site/tools/README.md).
 */ -}}
 {{- $datei := .Get "datei" -}}
 {{- if fileExists (printf "static/bilder/%s" $datei) -}}
 <figure class="bild">
-  <img src="{{ printf "bilder/%s" $datei | relURL }}" alt="{{ .Get "alt" }}" width="1400" height="860" loading="lazy" decoding="async">
+  <img src="{{ printf "bilder/%s" $datei | relURL }}" alt="{{ .Get "alt" }}" width="{{ .Get "breite" | default 1400 }}" height="{{ .Get "hoehe" | default 860 }}" loading="lazy" decoding="async">
   {{- with .Get "titel" }}
   <figcaption>{{ . }}</figcaption>
   {{- end }}

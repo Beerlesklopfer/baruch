@@ -106,7 +106,7 @@ Oberfläche im Browser.
 
 **Aktualisieren:** Baruch fragt nie von sich aus im Netz nach neuen Versionen. Mit dem APT-Repository genügt
 `sudo apt upgrade`; sonst lädt man das neue Paket von der Release-Seite. Welche Version läuft, zeigt
-**Werkzeuge ▾ → Über Baruch** (oder `baruch-server --version`).
+**Baruch ▾ → Über Baruch** (oder `baruch-server --version`).
 
 ### Aus dem Quelltext bauen
 
@@ -139,7 +139,7 @@ Danach `http://127.0.0.1:8765/` im Browser öffnen. Eine neue Datenbank bringt e
 
 ### Das erste eigene Werk
 
-- **Werk ▾ → Neues Werk / Importieren…:** ein Buch oder eine Predigt anlegen (Titel, Autor, Grundgerüst,
+- **Baruch ▾ → Neues Werk / Importieren…:** ein Buch oder eine Predigt anlegen (Titel, Autor, Grundgerüst,
   Zielgruppe, Bibelübersetzung) – oder eine vorhandene Datei einlesen: Typst, Markdown (auch als ZIP mit
   Bildern), PDF, EPUB oder eine `.baruch`-Austauschdatei. Beim Einlesen zeigt Baruch zuerst eine Vorschau der
   Gliederung; angelegt wird erst nach Bestätigung.
@@ -220,7 +220,7 @@ Oben eine Kopfzeile mit den Menüs **Werk**, **Ansicht** und **Werkzeuge**, dem 
   löschen; eigene Beiträge auch bearbeiten.
 - **Befundliste:** Baruch zerlegt Antworten in einzelne Befunde. Der Mensch markiert sie als übernommen,
   verworfen (mit Begründung), verschoben oder erledigt. Verworfene Befunde gehen als Entscheidung an die
-  Personas zurück und werden nicht erneut gemeldet. **Werk ▾ → Befunde** zeigt eine Übersicht übers ganze Werk
+  Personas zurück und werden nicht erneut gemeldet. **Reiter Prüfen → Befunde** zeigt eine Übersicht übers ganze Werk
   (Kapitel × Persona), die Gliederung zeigt „k offen“.
 - **Belege:** Eine Persona sucht in der eigenen Bibliothek, in SWORD-Kommentaren und auf Wunsch im Web und
   nennt ihre Quellen.
@@ -455,7 +455,7 @@ baut die Pakete, führt das APT-Repository fort und liefert Webseite und Reposit
 ## Lizenz
 
 GNU Affero General Public License v3.0 oder später (`AGPL-3.0-or-later`), siehe [LICENSE](LICENSE); im
-laufenden Programm unter **Werkzeuge ▾ → Über Baruch**. Der Quelltext jeder Version steht unter
+laufenden Programm unter **Baruch ▾ → Über Baruch**. Der Quelltext jeder Version steht unter
 <https://github.com/Beerlesklopfer/baruch> beim Tag `v<Version>`. Die Pakete enthalten Bibliotheken Dritter;
 ihre Lizenzen stehen in `THIRD-PARTY-LICENSES.txt` im jeweiligen Paket.
 © Jörg Bernau

@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 9, Aufgabe „menu“: eine gemeinsame Kopfzeile in `base.html` mit den Menüs Werk ▾, Ansicht ▾
-//! und Werkzeuge ▾ (`<details>`/`<summary>`, ohne JavaScript bedienbar), seitenlokalen Links in
-//! `{% block page_actions %}`, kleinem Thema-Umschalter, Knopf „Einstellungen“ (Alt+,), Abzeichen
-//! (Anträge zur Gliederung, offene Vorschläge) und der Hülle des Einstellungs-Dialogs am Seitenende.
+//! Runde 9, Aufgabe „menu“: eine gemeinsame Kopfzeile in `base.html`, seitenlokale Links in
+//! `{% block page_actions %}`, kleiner Thema-Umschalter, „Einstellungen“ (Alt+,), Abzeichen
+//! (Anträge zur Gliederung, offene Vorschläge) und die Hülle des Einstellungs-Dialogs am Seitenende.
+//!
+//! Runde 33 (Menüband, Vertrag R33 §4): Die Kopfzeile mit den Menüs Werk ▾, Ansicht ▾ und Werkzeuge ▾ ist das
+//! Menüband geworden (`header.band`: Menü Baruch ▾ und die Reiter Start · Einfügen · Prüfen · Buch · Ansicht). Die
+//! Zusicherungen dieser Datei sind darum auf die neue Stelle umgeschrieben, keine ist entfallen: Was hier „im Menü
+//! Werk“ stand, wird jetzt im Menü Baruch ▾ bzw. im Feld des Reiters verlangt (Begründung je Stelle). Die volle
+//! Zuordnung mit Begründung je Eintrag steht in `round33_menueband.rs`.
 //! Alle Testtexte frei erfunden (`tests/data/gartenbuch.typ` und die Texte hier).
 
 use crate::common;
@@ -22,50 +27,33 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Die Kopfzeile der Seite (vom öffnenden Tag bis `</header>`).
+/// Der Kopf der Seite (vom öffnenden Tag bis `</header>`). Runde 33: `header.band` statt `header.topbar`.
 fn topbar(html: &str) -> &str {
-    let start = html.find("<header class=\"topbar\">").unwrap_or_else(|| panic!("keine Kopfzeile: {html}"));
-    let end = start + html[start..].find("</header>").expect("Kopfzeile ohne Ende");
+    let start = html.find("<header class=\"band\"").unwrap_or_else(|| panic!("kein Menüband: {html}"));
+    let end = start + html[start..].find("</header>").expect("Kopf ohne Ende");
     &html[start..end]
 }
 
-/// Ein Menü der Kopfzeile (`<details class="menu" data-menu="…">` bis `</details>`).
-fn menu<'a>(head: &'a str, name: &str) -> &'a str {
-    let marker = format!("<details class=\"menu\" data-menu=\"{name}\">");
-    let start = head.find(&marker).unwrap_or_else(|| panic!("Menü {name} fehlt: {head}"));
+/// Das Menü „Baruch ▾“ (`<details class="menu" data-menu="baruch">` bis `</details>`).
+fn app_menu(head: &str) -> &str {
+    let marker = "<details class=\"menu\" data-menu=\"baruch\">";
+    let start = head.find(marker).unwrap_or_else(|| panic!("Menü Baruch fehlt: {head}"));
     let end = start + head[start..].find("</details>").expect("Menü ohne Ende");
     &head[start..end]
 }
 
-fn hrefs(html: &str) -> Vec<&str> {
-    html.split("href=\"").skip(1).filter_map(|rest| rest.split('"').next()).collect()
+/// Feld eines Reiters (`data-band-panel="ID"` bis zum nächsten Feld bzw. zum Andockplatz).
+fn panel<'a>(head: &'a str, id: &str) -> &'a str {
+    let marker = format!("data-band-panel=\"{id}\"");
+    let start = head.find(&marker).unwrap_or_else(|| panic!("Feld {id} fehlt: {head}"));
+    let rest = &head[start + marker.len()..];
+    let end =
+        rest.find("<div class=\"band-panel\"").or_else(|| rest.find("<div class=\"band-dock\"")).unwrap_or(rest.len());
+    &rest[..end]
 }
 
-/// Öffnende Tags der direkten Kinder eines Elementinhalts (einfacher Tiefenzähler; in der
-/// Kopfzeile stehen keine leeren Elemente wie `<input>` direkt).
-fn direct_children(inner: &str) -> Vec<String> {
-    const VOID: &[&str] = &["input", "br", "img", "meta", "link", "hr"];
-    let mut depth = 0usize;
-    let mut out = Vec::new();
-    let mut rest = inner;
-    while let Some(at) = rest.find('<') {
-        rest = &rest[at..];
-        let end = rest.find('>').expect("Tag ohne Ende");
-        let tag = &rest[..=end];
-        if tag.starts_with("</") {
-            depth = depth.saturating_sub(1);
-        } else if !tag.starts_with("<!") {
-            let name: String = tag[1..].chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
-            if depth == 0 {
-                out.push(tag.to_owned());
-            }
-            if !VOID.contains(&name.as_str()) && !tag.ends_with("/>") {
-                depth += 1;
-            }
-        }
-        rest = &rest[end + 1..];
-    }
-    out
+fn hrefs(html: &str) -> Vec<&str> {
+    html.split("href=\"").skip(1).filter_map(|rest| rest.split('"').next()).collect()
 }
 
 async fn mcp_call(server: &common::Server, tool: &str, arguments: Value) -> Value {
@@ -242,7 +230,10 @@ async fn all_pages(server: &common::Server) -> Pages {
 }
 
 #[tokio::test]
-async fn every_page_has_exactly_one_topbar_with_the_three_menus() {
+/// Runde 33: früher „genau eine Kopfzeile mit den drei Menüs“ – jetzt genau ein Menüband mit dem Menü Baruch ▾ und
+/// den Reitern; die übrigen Zusicherungen (Widget menubar, Thema, Einstellungen, Haken, keine node=-Links) gelten
+/// an der neuen Stelle weiter.
+async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
     let server = common::open().await;
     let Pages { work, pages, .. } = all_pages(&server).await;
     assert_eq!(
@@ -259,46 +250,67 @@ async fn every_page_has_exactly_one_topbar_with_the_three_menus() {
     );
     for (uri, html) in &pages {
         assert_eq!(
-            html.matches("<header class=\"topbar\"").count(),
+            html.matches("<header class=\"band\"").count(),
             1,
-            "{uri}: genau eine Kopfzeile (die eigene der Seite ist entfernt, base.html zeichnet sie): {html}"
+            "{uri}: genau ein Menüband (die eigene Kopfzeile der Seite ist entfernt, base.html zeichnet es): {html}"
         );
+        assert!(!html.contains("class=\"topbar\""), "{uri}: die alte Kopfzeile steht nicht mehr daneben");
         let head = topbar(html);
         assert!(
             // Runde 23a: außerhalb der Arbeitsseite trägt die Leiste zusätzlich das Werk für die Abzeichen.
             head.contains("<nav class=\"menubar\" data-widget=\"menubar\" aria-label=\"Menü\""),
             "{uri}: Menüleiste als Widget menubar mit Namen für Hilfsmittel: {head}"
         );
-        for name in ["werk", "ansicht", "werkzeuge"] {
+        // Runde 33: statt der drei Menüs werk/ansicht/werkzeuge genau ein Menü „Baruch ▾“ – mit denselben
+        // Eigenschaften (ein <details>, <summary> mit aria-haspopup, Liste role=menu, keine Knöpfe).
+        assert_eq!(
+            head.matches("<details class=\"menu\"").count(),
+            1,
+            "{uri}: genau ein Menü (ein <details>, klappt ohne JavaScript auf)"
+        );
+        let m = app_menu(head);
+        assert!(
+            m.contains("<summary class=\"btn\" aria-haspopup=\"menu\""),
+            "{uri}: das Menü öffnet über ein <summary> mit aria-haspopup=menu: {m}"
+        );
+        assert!(m.contains("<div class=\"menu-list\" role=\"menu\">"), "{uri}: Liste mit role=menu: {m}");
+        assert!(
+            !m.contains("<button"),
+            "{uri}: das Menü enthält keine Knöpfe, die nur mit JavaScript etwas tun – alles Links: {m}"
+        );
+        // Runde 33: Die Einträge der alten Menüs stehen in den Feldern der Reiter; jede Seite hat mindestens Start
+        // und Ansicht, mit dem Werk aus Seite oder Cookie auch Prüfen und Buch – als Links (role=tab).
+        for id in ["start", "pruefen", "buch", "ansicht"] {
             assert_eq!(
-                head.matches(&format!("<details class=\"menu\" data-menu=\"{name}\">")).count(),
+                head.matches(&format!("<a class=\"band-tab\" role=\"tab\" id=\"band-tab-{id}\"")).count(),
                 1,
-                "{uri}: Menü {name} genau einmal (ein <details>, klappt ohne JavaScript auf)"
+                "{uri}: Reiter {id} genau einmal (Link, ohne JavaScript bedienbar): {head}"
             );
-            let m = menu(head, name);
-            assert!(
-                m.contains("<summary class=\"btn\" aria-haspopup=\"menu\">"),
-                "{uri}: Menü {name} öffnet über ein <summary> mit aria-haspopup=menu: {m}"
-            );
-            assert!(m.contains("<div class=\"menu-list\" role=\"menu\">"), "{uri}: Liste mit role=menu in {name}: {m}");
-            assert!(
-                !m.contains("<button"),
-                "{uri}: {name} enthält keine Knöpfe, die nur mit JavaScript etwas tun – alles Links oder Stubs: {m}"
-            );
+            assert_eq!(head.matches(&format!("data-band-panel=\"{id}\"")).count(), 1, "{uri}: Feld {id} genau einmal");
         }
+        assert_eq!(head.matches("aria-selected=\"true\"").count(), 1, "{uri}: genau ein Reiter ist gewählt: {head}");
+        assert!(
+            html.contains(" data-band=\"open\">"),
+            "{uri}: <html> trägt den Zustand des Bands (Schicht band::apply)"
+        );
         // Die Satz-Seite lädt kein main.js (Runde 18a): Dort sind Thema und Einstellungen schlichte Links
         // (Nachbesserung Runde 18, geprüft in round18_menueband::the_typeset_page_header_works_without_main_js).
         if uri.contains("/satz") {
             assert!(head.contains("aria-label=\"Thema einstellen"), "{uri}: Thema als Link ohne Widget: {head}");
         } else {
-            assert!(head.contains("data-widget=\"theme\""), "{uri}: kleiner Thema-Umschalter bleibt in der Kopfzeile");
             assert!(
-                head.contains(&format!(
-                    "<a class=\"btn settings-open\" href=\"/einstellungen/darstellung?work={work}\" data-settings-open \
+                panel(head, "ansicht").contains("data-widget=\"theme\""),
+                "{uri}: kleiner Thema-Umschalter bleibt im Kopf (Runde 33: Reiter Ansicht, Gruppe Darstellung)"
+            );
+            // Runde 33: „Einstellungen“ ist ein Eintrag des Menüs Baruch ▾ (vorher ein Knopf rechts in der Zeile);
+            // Ziel, Alt+, und der Haken data-settings-open sind dieselben.
+            assert!(
+                app_menu(head).contains(&format!(
+                    "<a class=\"menu-item settings-open\" role=\"menuitem\" href=\"/einstellungen/darstellung?work={work}\" data-settings-open \
                      aria-haspopup=\"dialog\" aria-controls=\"settings\" aria-keyshortcuts=\"Alt+Comma\" \
-                     title=\"Einstellungen (Alt+,)\">⚙ Einstellungen</a>"
+                     title=\"Einstellungen (Alt+,)\" data-shortcut=\"Alt+,\">⚙ Einstellungen</a>"
                 )),
-                "{uri}: Knopf Einstellungen mit Werk (aus Seite oder Cookie), Alt+, und Ziel ohne JavaScript: {head}"
+                "{uri}: Einstellungen mit Werk (aus Seite oder Cookie), Alt+, und Ziel ohne JavaScript: {head}"
             );
         }
         for marker in ["data-literature-open", "data-idea-open", "data-work-import-open", "data-view-toggle"] {
@@ -355,9 +367,11 @@ async fn the_workspace_topbar_keeps_every_former_address() {
         let tail = &head[head.find("&rev=").expect("rev in der Kopfzeile") + 5..];
         tail.chars().take_while(char::is_ascii_digit).collect::<String>()
     };
-    let werk = menu(head, "werk");
-    let ansicht = menu(head, "ansicht");
-    let werkzeuge = menu(head, "werkzeuge");
+    // Runde 33: Orte der früheren Menüeinträge – Menü Baruch ▾ (Programm) und die Felder der Reiter.
+    let baruch = app_menu(head);
+    let start = panel(head, "start");
+    let pruefen = panel(head, "pruefen");
+    let buch = panel(head, "buch");
     // Werkwahl wie bisher (GET-Formular), nur auf der Arbeitsseite.
     assert!(
         head.contains("<form class=\"work-select\" action=\"/\" method=\"get\"")
@@ -365,103 +379,123 @@ async fn the_workspace_topbar_keeps_every_former_address() {
             && head.contains("<noscript><button class=\"btn\" type=\"submit\">Öffnen</button></noscript>"),
         "Werkwahl unverändert in der Kopfzeile: {head}"
     );
-    assert!(head.contains(&format!("<a class=\"brand\" href=\"/?work={work}\">Baruch</a>")), "Baruch führt zum Werk");
+    // Runde 33: Der Schriftzug „Baruch“ (Link zum Werk) ist das Menü Baruch ▾ geworden; auf der Arbeitsseite ist man
+    // schon beim Werk, auf anderen Seiten führt „Zum Text“ (Reiter Start) dorthin – siehe
+    // other_pages_keep_their_local_links_in_page_actions.
+    assert!(baruch.contains(">Baruch ▾</summary>"), "Baruch steht als Menü vorn im Kopf: {head}");
+    assert!(
+        head.contains(&format!(" data-work=\"{work}\"")),
+        "der Kopf nennt das Werk (menu.ts liest es für die Abzeichen): {head}"
+    );
     assert!(head.contains("<span class=\"work-title\">Das Gartenbuch</span>"), "Werktitel wie bisher: {head}");
-    assert!(head.contains("<span class=\"muted\">· Grete Gärtner</span>"), "Autor daneben, kürzt sich zuerst");
+    assert!(
+        head.contains("<span class=\"muted band-author\">· Grete Gärtner</span>"),
+        "Autor daneben, kürzt sich zuerst"
+    );
     for (entry, place) in [
-        ("href=\"/werke\">Alle Werke</a>", werk),
+        ("href=\"/werke\">Alle Werke</a>", baruch),
         (
             "href=\"/werke/neu\" data-work-import-open aria-haspopup=\"dialog\" aria-controls=\"work-import\">Neues Werk / Importieren…</a>",
-            werk,
+            baruch,
         ),
-        (&format!("href=\"/werke/{work}/bearbeiten\">Werk bearbeiten</a>"), werk),
-        (&format!("href=\"/gliederung?work={work}\">Gliederung</a>"), werk),
-        (&format!("href=\"/gliederung?work={work}#antraege\""), werk),
-        (&format!("href=\"/werke/{work}/nummerierung\">Gliederungsschema</a>"), werk),
-        (&format!("href=\"/werke/{work}/bilder\">Bilder</a>"), werk),
-        (&format!("href=\"/werke/{work}/export\""), werk),
+        (&format!("href=\"/werke/{work}/bearbeiten\">Werk bearbeiten</a>"), buch),
+        (&format!("href=\"/gliederung?work={work}\">Gliederung</a>"), buch),
+        (&format!("href=\"/gliederung?work={work}#antraege\""), buch),
+        (&format!("href=\"/werke/{work}/nummerierung\">Gliederungsschema</a>"), buch),
+        (&format!("href=\"/werke/{work}/bilder\">Bilder</a>"), buch),
+        (&format!("href=\"/werke/{work}/export\""), buch),
         // Runde 11: das Buch als PDF, die Umschlagseite und das Umschlag-PDF (Herunterladen als Anhang).
-        (&format!("href=\"/werke/{work}/pdf\" download"), werk),
-        (&format!("href=\"/werke/{work}/umschlag\" title"), werk),
-        (&format!("href=\"/werke/{work}/umschlag.pdf\" download"), werk),
+        (&format!("href=\"/werke/{work}/pdf\" download"), buch),
+        (&format!("href=\"/werke/{work}/umschlag\" title"), buch),
+        (&format!("href=\"/werke/{work}/umschlag.pdf\" download"), buch),
         (
             &format!(
-                "data-nav data-view-toggle href=\"/?work={work}&key={key}&rev={rev}&view=preview&amp;lq=Beete\">Vorschau</a>"
+                "data-nav data-view-toggle href=\"/?work={work}&key={key}&rev={rev}&view=preview&amp;lq=Beete\" title=\"Zwischen Editor und Vorschau im Browser wechseln\">Vorschau</a>"
             ),
-            ansicht,
+            start,
         ),
-        (&format!("href=\"/werke/{work}/satz?key={key}\""), ansicht),
+        (&format!("href=\"/werke/{work}/satz?key={key}\""), buch),
         (
             &format!(
                 "href=\"/literatur?work={work}&key={key}&rev={rev}&amp;lq=Beete\" data-literature-open aria-haspopup=\"dialog\" aria-controls=\"literature\""
             ),
-            werkzeuge,
+            pruefen,
         ),
         (
             &format!(
                 "href=\"/einfaelle?work={work}\" data-idea-open aria-haspopup=\"dialog\" aria-controls=\"idea-capture\" title=\"Einfall festhalten (Alt+E)\""
             ),
-            werkzeuge,
+            start,
         ),
-        (&format!("href=\"/einfaelle?work={work}\" title=\"Liste der Einfälle dieses Werks\">Einfälle</a>"), werkzeuge),
+        (&format!("href=\"/einfaelle?work={work}\" title=\"Liste der Einfälle dieses Werks\">Einfälle</a>"), start),
         // Runde 25 (karte-bild): Gedankenkarte, nur mit Werk.
         (
             &format!(
                 "href=\"/werke/{work}/karte\" title=\"Gedankenkarte der Einfälle dieses Werks\">Gedankenkarte</a>"
             ),
-            werkzeuge,
+            start,
         ),
     ] {
+        // Runde 33: Einträge im Menü Baruch ▾ sind weiter `a.menu-item`, Einträge in den Feldern der Reiter `a.btn`.
         assert!(
             place.contains(&format!("<a class=\"menu-item\" role=\"menuitem\" {entry}"))
-                || place.contains(&format!("role=\"menuitem\" {entry}")),
-            "Eintrag {entry} steht als gewöhnlicher Link (ohne JavaScript bedienbar) im richtigen Menü: {place}"
+                || place.contains(&format!("<a class=\"btn\" {entry}")),
+            "Eintrag {entry} steht als gewöhnlicher Link (ohne JavaScript bedienbar) am richtigen Ort des Bands: {place}"
         );
     }
-    assert!(ansicht.contains(">Satz</a>") && werkzeuge.contains(">Literatur</a>"), "Beschriftungen wie bisher");
+    // Runde 33: „Satz“ heißt im Reiter Buch „Satz-Vorschau“ (neben „EPUB-Vorschau“); „Literatur“ wie bisher.
+    assert!(buch.contains(">Satz-Vorschau</a>") && pruefen.contains(">Literatur</a>"), "Beschriftungen: {buch}");
     // Vorschau: der Umschalter zeigt zurück auf den Editor.
     let (_, preview) = server.get(&format!("/?work={work}&key={key}&view=preview")).await;
-    let toggle = menu(topbar(&preview), "ansicht");
+    let toggle = panel(topbar(&preview), "start");
     assert!(
-        toggle.contains(&format!("data-nav data-view-toggle href=\"/?work={work}&key={key}&rev={rev}\">Editor</a>")),
+        toggle.contains(&format!("data-nav data-view-toggle href=\"/?work={work}&key={key}&rev={rev}\" title=\"Zwischen Editor und Vorschau im Browser wechseln\">Editor</a>")),
         "in der Vorschau führt der Umschalter zum Editor (Key-Form, ohne view): {toggle}"
     );
-    // Runde 20b (reader): „EPUB-Vorschau“ ist kein Stub mehr, sondern ein Link auf die Vorschau des Werks; im Menü
-    // Werk steht „Als EPUB herunterladen“ als Anhang neben dem PDF.
+    // Runde 20b (reader): „EPUB-Vorschau“ ist kein Stub mehr, sondern ein Link auf die Vorschau des Werks; daneben
+    // „EPUB“ als Anhang neben dem PDF. Runde 33: beides im Reiter Buch (Gruppen Satz und Ausgabe); die Einträge heißen
+    // in der Gruppe Ausgabe kurz „PDF“, „Entwurf“, „EPUB“ (das „herunterladen“ steht im title).
     assert!(
-        ansicht.contains(&format!(
-            "<a class=\"menu-item\" role=\"menuitem\" href=\"/werke/{work}/epub/vorschau\" title=\"Das EPUB des Werks in mehreren Readern nebeneinander\">EPUB-Vorschau</a>"
+        buch.contains(&format!(
+            "<a class=\"btn\" href=\"/werke/{work}/epub/vorschau\" title=\"Das EPUB des Werks in mehreren Readern nebeneinander\">EPUB-Vorschau</a>"
         )),
-        "EPUB-Vorschau verlinkt die Seite /werke/W/epub/vorschau (ohne JavaScript bedienbar): {ansicht}"
+        "EPUB-Vorschau verlinkt die Seite /werke/W/epub/vorschau (ohne JavaScript bedienbar): {buch}"
     );
-    assert!(!ansicht.contains("aria-disabled"), "im Menü Ansicht ist nichts mehr gesperrt: {ansicht}");
     assert!(
-        werk.contains(&format!(
-            "<a class=\"menu-item\" role=\"menuitem\" href=\"/werke/{work}/epub\" download title=\"Das ganze Werk als E-Book (EPUB 3, aktuelle Fassungen)\">Als EPUB herunterladen</a>"
+        buch.contains(&format!(
+            "<a class=\"btn\" href=\"/werke/{work}/epub\" download title=\"Das ganze Werk als E-Book herunterladen (EPUB 3, aktuelle Fassungen)\">EPUB</a>"
         )),
-        "Als EPUB herunterladen: Anhang /werke/W/epub im Menü Werk: {werk}"
+        "EPUB herunterladen: Anhang /werke/W/epub in der Gruppe Ausgabe: {buch}"
     );
-    let pdf = werk.find(">Als PDF herunterladen</a>").expect("PDF im Menü Werk");
-    let epub = werk.find(">Als EPUB herunterladen</a>").expect("EPUB im Menü Werk");
-    assert!(pdf < epub, "EPUB steht direkt neben dem PDF (dahinter)");
-    // Runde 13 (abgleich): „Abgleichen“ ist kein Stub mehr, sondern ein gewöhnlicher Link auf /abgleich.
+    let pdf = buch.find(">PDF</a>").expect("PDF im Reiter Buch");
+    let epub = buch.find(">EPUB</a>").expect("EPUB im Reiter Buch");
+    assert!(pdf < epub, "EPUB steht neben dem PDF (dahinter)");
+    // Runde 13 (abgleich): „Abgleichen“ ist kein Stub mehr, sondern ein gewöhnlicher Link auf /abgleich (Runde 33:
+    // Reiter Prüfen, Gruppe Quellen).
     assert!(
-        werkzeuge.contains(&format!(
-            "<a class=\"menu-item\" role=\"menuitem\" href=\"/abgleich?work={work}\" title=\"Abgleich mit MultiGPT\">Abgleichen</a>"
+        pruefen.contains(&format!(
+            "<a class=\"btn\" href=\"/abgleich?work={work}\" title=\"Abgleich mit MultiGPT\">Abgleichen</a>"
         )),
-        "Abgleichen verlinkt die Seite /abgleich des Werks (ohne JavaScript bedienbar): {werkzeuge}"
+        "Abgleichen verlinkt die Seite /abgleich des Werks (ohne JavaScript bedienbar): {pruefen}"
     );
-    assert!(!werkzeuge.contains("aria-disabled"), "im Menü Werkzeuge ist nichts mehr gesperrt: {werkzeuge}");
-    // Runde 24 (pakete): „Über Baruch“ als gewöhnlicher Link am Ende des Menüs Werkzeuge.
+    assert!(!head.contains("aria-disabled=\"true\" title=\"folgt"), "im Band ist kein Eintrag mehr ein Stub: {head}");
     assert!(
-        werkzeuge.contains(
+        !pruefen.contains("aria-disabled") && !buch.contains("aria-disabled") && !baruch.contains("aria-disabled"),
+        "in Prüfen, Buch und im Menü Baruch ist nichts gesperrt (früher: Menüs Ansicht und Werkzeuge)"
+    );
+    // Runde 24 (pakete): „Über Baruch“ als gewöhnlicher Link (Runde 33: im Menü Baruch ▾ statt am Ende von Werkzeuge).
+    assert!(
+        baruch.contains(
             "<a class=\"menu-item\" role=\"menuitem\" href=\"/ueber\" title=\"Version, Lizenz, Quellcode und Bibliotheken Dritter\">Über Baruch</a>"
         ),
-        "Über Baruch verlinkt die Seite /ueber (ohne JavaScript bedienbar): {werkzeuge}"
+        "Über Baruch verlinkt die Seite /ueber (ohne JavaScript bedienbar): {baruch}"
     );
-    let old_buttons =
-        head.matches("<a class=\"btn\"").count() + head.matches("<button class=\"btn\" type=\"button\"").count();
-    assert!(old_buttons <= 1, "statt elf Knöpfen nur noch der Thema-Umschalter als Knopf neben Einstellungen: {head}");
+    // Runde 33: früher „statt elf Knöpfen nur noch der Thema-Umschalter als Knopf“ in der einen Zeile. Im Band ist
+    // die Zeile 1 weiter frei von losen Knöpfen: dort stehen nur das Menü, die Reiter, die Werkwahl, der Titel und
+    // der Schalter auf/zu; alle Einträge liegen in Gruppen der Felder.
+    let top = &head[..head.find("<div class=\"band-panels\"").expect("Felder des Bands")];
+    assert_eq!(top.matches("<a class=\"btn").count(), 1, "in Zeile 1 nur der Schalter auf/zu als Knopf-Link: {top}");
+    assert_eq!(top.matches("<button class=\"btn\" type=\"button\"").count(), 0, "kein loser Knopf in Zeile 1: {top}");
 }
 
 #[tokio::test]
@@ -471,7 +505,9 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
     let page = |prefix: &str| -> &str {
         &pages.iter().find(|(uri, _)| uri.starts_with(prefix)).unwrap_or_else(|| panic!("Seite {prefix}")).1
     };
-    // Alle früheren Kopfzeilen-Adressen der Seiten (Stand 596ba72), jetzt hinter der Menüleiste.
+    // Alle früheren Kopfzeilen-Adressen der Seiten (Stand 596ba72), jetzt hinter der Menüleiste (Runde 33: im Feld
+    // des Reiters Start; die Aufgabe „seiten“ fasst sie dort in Gruppen bzw. verteilt sie auf die Reiter – geprüft
+    // wird darum nur, dass der Link im Kopf hinter der Menüleiste steht).
     let expected: Vec<(String, Vec<String>)> = vec![
         (
             "/werke".into(),
@@ -534,14 +570,19 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
             );
         }
     }
-    // Runde 18a: Die Satz-Seite trägt „Zurück zum Werk“ und „PDF herunterladen“ im Menüband unter der Kopfzeile
-    // (fragments/edit_toolbar.html), nicht mehr in page_actions – dieselben Adressen, nur ein Ort.
+    // Runde 18a: Die Satz-Seite trägt „Zurück zum Werk“ und „PDF herunterladen“ im Menüband der Satz-Ansicht (Haken
+    // data-ribbon-satz) – dieselben Adressen, nur ein Ort. Runde 33: Die Leiste wandert mit der Aufgabe „seiten“ als
+    // Gruppen in den Reiter Buch; verlangt wird darum der Ort am Haken (gleich, ob er im Kopf oder darunter steht) und
+    // dass „Zurück zum Werk“ auf der Seite nicht doppelt steht (vorher: „nicht zusätzlich in der Kopfzeile“).
     let satz = page(&format!("/werke/{work}/satz"));
-    let head = topbar(satz);
-    assert!(!head.contains(">Zurück zum Werk</a>"), "auf der Satz-Seite nicht doppelt in der Kopfzeile: {head}");
+    assert_eq!(
+        satz.matches(">Zurück zum Werk</a>").count(),
+        1,
+        "auf der Satz-Seite steht „Zurück zum Werk“ genau einmal"
+    );
     let ribbon = &satz[satz.find("data-ribbon-satz").expect("Menüband der Satz-Seite")..];
     assert!(
-        ribbon.contains(&format!("<a class=\"btn\" href=\"/?work={work}&amp;key={key}\">Zurück zum Werk</a>")),
+        ribbon.contains(&format!("href=\"/?work={work}&amp;key={key}\">Zurück zum Werk</a>")),
         "Zurück zum Werk (am Abschnitt) im Menüband: {ribbon}"
     );
     assert!(ribbon.contains(&format!("href=\"/werke/{work}/pdf\" download")), "PDF im Menüband: {ribbon}");
@@ -569,11 +610,21 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
     let assets = topbar(page(&format!("/werke/{work}/bilder")));
     assert!(!assets.contains("work-select"), "Werkwahl nur auf der Arbeitsseite");
     assert!(
-        menu(assets, "werkzeuge").contains(&format!("href=\"/literatur?work={work}\" data-literature-open title=")),
-        "Literatur ohne Popup: gewöhnlicher Link auf /literatur des Werks: {assets}"
+        panel(assets, "pruefen").contains(&format!("href=\"/literatur?work={work}\" data-literature-open title=")),
+        "Literatur ohne Popup: gewöhnlicher Link auf /literatur des Werks (Runde 33: Reiter Prüfen): {assets}"
     );
-    assert!(menu(assets, "ansicht").contains(&format!("href=\"/werke/{work}/satz\"")), "Satz des Werks");
-    assert!(menu(assets, "ansicht").contains(&format!("href=\"/?work={work}\">Editor</a>")), "Editor = Arbeitsseite");
+    assert!(
+        panel(assets, "buch").contains(&format!("href=\"/werke/{work}/satz\"")),
+        "Satz des Werks (Runde 33: Reiter Buch)"
+    );
+    // Runde 33: „Ansicht ▾ → Editor“ (= Arbeitsseite) heißt außerhalb der Arbeitsseite „Zum Text“ und steht unter Start;
+    // er ersetzt dort auch den Schriftzug „Baruch“ als Weg zurück zum Werk.
+    assert!(
+        panel(assets, "start").contains(&format!(
+            "href=\"/?work={work}\" title=\"Zur Arbeitsseite mit Gliederung, Editor und Assistenten\">Zum Text</a>"
+        )),
+        "Zum Text = Arbeitsseite des Werks: {assets}"
+    );
     assert!(!assets.contains("data-work-import-open"), "Import-Dialog gibt es nur auf der Arbeitsseite");
 }
 
@@ -584,44 +635,40 @@ async fn without_any_work_the_work_entries_point_to_the_list_of_works() {
     let (status, html) = server.get("/werke").await;
     assert_eq!(status, StatusCode::OK, "Werkliste lädt");
     let head = topbar(&html);
+    // Runde 33 (Vertrag §4: „ohne Werk Start · Ansicht“): Früher standen die fünfzehn Werk-Einträge auch ohne Werk im
+    // Menü Werk und zeigten alle auf /werke („Erst ein Werk wählen“). Jetzt gibt es die Reiter Prüfen und Buch ohne
+    // Werk nicht; an ihre Stelle tritt EIN Eintrag „Werk wählen“ mit demselben Ziel und demselben Hinweis. Die
+    // Zusicherungen „keine Adresse mit erfundenem Werk“ gelten für den ganzen Kopf weiter.
     assert!(
-        head.contains("<a class=\"brand\" href=\"/\">Baruch</a>"),
-        "Baruch führt auf / (Werk aus Cookie oder Vorgabe)"
-    );
-    let werk = menu(head, "werk");
-    assert!(
-        !werk.contains("/bearbeiten") && !werk.contains("/bilder") && !werk.contains("/export"),
-        "keine Adresse mit erfundenem Werk: {werk}"
-    );
-    assert_eq!(
-        werk.matches("href=\"/werke\"").count(),
-        16,
-        "Alle Werke und die fünfzehn Werk-Einträge (Runde 11: PDF, Umschlag, Umschlag-PDF; Runde 16: Stichwortzettel; \
-         Runde 26: Austausch ausgeben; Runde 28: Befunde; Runde 20: EPUB; Runde 31: Glossar, Register; Runde 22: Als \
-         Entwurf herunterladen) zeigen auf /werke: {werk}"
-    );
-    assert!(!werk.contains("/epub"), "auch das EPUB ohne erfundenes Werk: {werk}");
-    assert!(
-        menu(head, "ansicht").contains(
-            "href=\"/werke\" title=\"Das EPUB des Werks in mehreren Readern nebeneinander\">EPUB-Vorschau</a>"
-        ),
-        "EPUB-Vorschau ohne Werk führt auf die Werkliste"
+        !head.contains("data-band-tab=\"pruefen\"") && !head.contains("data-band-tab=\"buch\""),
+        "ohne Werk keine Reiter Prüfen und Buch: {head}"
     );
     assert!(
-        !werk.contains("/pdf") && !werk.contains("/umschlag"),
-        "auch PDF und Umschlag ohne erfundenes Werk: {werk}"
+        panel(head, "start")
+            .contains("<a class=\"btn\" href=\"/werke\" title=\"Erst ein Werk wählen\">Werk wählen</a>"),
+        "ohne Werk führt der Weg zu allem, was ein Werk braucht, auf die Werkliste: {head}"
     );
+    assert!(
+        !head.contains("/bearbeiten") && !head.contains("/bilder") && !head.contains("/export"),
+        "keine Adresse mit erfundenem Werk: {head}"
+    );
+    assert!(!head.contains("/epub"), "auch das EPUB ohne erfundenes Werk: {head}");
+    assert!(
+        !head.contains("/pdf") && !head.contains("/umschlag") && !head.contains("/satz"),
+        "auch PDF, Umschlag und Satz ohne erfundenes Werk: {head}"
+    );
+    assert!(app_menu(head).contains("href=\"/werke\">Alle Werke</a>"), "Alle Werke bleibt im Menü Baruch ▾: {head}");
     // Runde 26: Einlesen braucht kein Werk und führt ohne Werk auf das Formular ohne `work`.
     assert!(
-        werk.contains("<a class=\"menu-item\" role=\"menuitem\" href=\"/austausch/einlesen\">Austausch: Einlesen…</a>"),
-        "Austausch einlesen ohne Werk: Formular ohne work: {werk}"
+        app_menu(head).contains("<a class=\"menu-item\" role=\"menuitem\" href=\"/austausch/einlesen\" title="),
+        "Austausch einlesen ohne Werk: Formular ohne work: {head}"
     );
     assert!(head.contains("href=\"/einstellungen/darstellung\" data-settings-open"), "Einstellungen ohne Werk");
     // Mit Cookie baruch_work: dasselbe Werk wie die Arbeitsseite.
     let (_, html) = get_with_cookie(&server, "/werke", &format!("baruch_work={}", server.state.work)).await;
     let w = server.state.work;
     assert!(
-        menu(topbar(&html), "werk").contains(&format!("href=\"/werke/{w}/bearbeiten\"")),
+        panel(topbar(&html), "buch").contains(&format!("href=\"/werke/{w}/bearbeiten\"")),
         "das Werk aus dem Cookie baruch_work füllt die Werk-Einträge"
     );
 }
@@ -633,9 +680,10 @@ async fn badges_count_open_outline_requests_and_proposals() {
     let nodes = keys(&server, work).await;
     let (_, html) = server.get(&format!("/?work={work}")).await;
     let head = topbar(&html);
+    // Runde 33: Die Abzeichen stehen an den Reitern (Buch: Anträge, Start: Vorschläge) statt an den Menüknöpfen.
     assert!(
-        head.contains("<span class=\"badge\" data-badge=\"outline_requests\" hidden>0</span>")
-            && head.contains("<span class=\"badge\" data-badge=\"open_proposals\" hidden>0</span>"),
+        head.contains("<span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\" hidden>0</span>")
+            && head.contains("<span class=\"badge\" data-badge=\"open_proposals\" title=\"offene Vorschläge im Werk\" hidden>0</span>"),
         "ohne Anträge und Vorschläge sind die Abzeichen verborgen: {head}"
     );
     assert!(head.contains("data-badge-item=\"outline_requests\" hidden>"), "der Eintrag „Anträge“ ist verborgen");
@@ -661,17 +709,22 @@ async fn badges_count_open_outline_requests_and_proposals() {
 
     let (_, html) = server.get(&format!("/?work={work}&key={}", nodes[0].0)).await;
     let head = topbar(&html);
+    // Runde 33: früher am Menüknopf „Werk ▾“ (Anträge, „0 offen“ verborgen) und „Ansicht ▾“ (Vorschläge) – jetzt an
+    // den Reitern Buch, Prüfen und Start; Zahlen und Haken sind dieselben.
     assert!(
-        menu(head, "werk").contains("<summary class=\"btn\" aria-haspopup=\"menu\">Werk ▾ <span class=\"badge\" data-badge=\"outline_requests\">1</span> <span class=\"badge warning\" data-badge=\"open_findings\" title=\"offene Befunde im Werk\" hidden>0 offen</span></summary>"),
-        "Abzeichen am Menü Werk: ein offener Antrag, serverseitig gezeichnet; das Abzeichen offener Befunde \
-         (Runde 28) ist ohne Befunde verborgen: {head}"
+        head.contains(">Buch <span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">1</span></a>"),
+        "Abzeichen am Reiter Buch: ein offener Antrag, serverseitig gezeichnet: {head}"
     );
     assert!(
-        menu(head, "ansicht").contains("Ansicht ▾ <span class=\"badge\" data-badge=\"open_proposals\">2</span>"),
-        "Abzeichen am Menü Ansicht: zwei offene Vorschläge im ganzen Werk, nicht nur im gezeigten Abschnitt: {head}"
+        head.contains(">Prüfen <span class=\"badge warning\" data-badge=\"open_findings\" title=\"offene Befunde im Werk\" hidden>0 offen</span></a>"),
+        "das Abzeichen offener Befunde (Runde 28) ist ohne Befunde verborgen: {head}"
     );
     assert!(
-        menu(head, "werk").contains(&format!(
+        head.contains(">Start <span class=\"badge\" data-badge=\"open_proposals\" title=\"offene Vorschläge im Werk\">2</span></a>"),
+        "Abzeichen am Reiter Start: zwei offene Vorschläge im ganzen Werk, nicht nur im gezeigten Abschnitt: {head}"
+    );
+    assert!(
+        panel(head, "buch").contains(&format!(
             "href=\"/gliederung?work={work}#antraege\" data-badge-item=\"outline_requests\">Anträge zur Gliederung"
         )),
         "der Eintrag „Anträge zur Gliederung“ ist sichtbar und führt zu den Anträgen"
@@ -686,8 +739,11 @@ async fn badges_count_open_outline_requests_and_proposals() {
     // sichtbar); menu.ts frischt sie nur noch auf.
     let (_, assets) = server.get(&format!("/werke/{work}/bilder")).await;
     assert!(
-        topbar(&assets).contains("<span class=\"badge\" data-badge=\"open_proposals\">2</span>")
-            && topbar(&assets).contains("<span class=\"badge\" data-badge=\"outline_requests\">1</span>"),
+        topbar(&assets).contains(
+            "<span class=\"badge\" data-badge=\"open_proposals\" title=\"offene Vorschläge im Werk\">2</span>"
+        ) && topbar(&assets).contains(
+            "<span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">1</span>"
+        ),
         "außerhalb der Arbeitsseite stehen dieselben Zahlen wie in menu.badges im HTML: {}",
         topbar(&assets)
     );
@@ -700,8 +756,12 @@ async fn badges_count_open_outline_requests_and_proposals() {
     }
 }
 
+/// Runde 33: früher „die Kopfzeile bleibt bei 1024 px einzeilig“ (Regeln `.topbar` in app.css). Die Kopfzeile ist das
+/// Menüband geworden, seine Regeln stehen in band.css; die Absicht der alten Zusicherungen gilt für Zeile 1 des Bands:
+/// Bedienelemente schrumpfen nicht, der Titel kürzt sich mit „…“, die Menüliste liegt über der Seite. Ehrlich: Der
+/// Test liest nur CSS-Regeln und misst keine Breite.
 #[tokio::test]
-async fn the_topbar_stays_on_one_line_at_1024_pixels() {
+async fn the_first_row_of_the_band_keeps_its_controls_and_shortens_the_title() {
     let server = common::open().await;
     let (status, css) = server.get("/static/app.css").await;
     assert_eq!(status, StatusCode::OK, "Stil wird ausgeliefert");
@@ -710,56 +770,74 @@ async fn the_topbar_stays_on_one_line_at_1024_pixels() {
         let rest = &css[at..];
         &rest[..rest.find('}').unwrap()]
     };
-    assert!(rule(".topbar").contains("flex-wrap: nowrap"), "die Kopfzeile bricht nie in eine zweite Zeile um");
-    let controls = rule(".topbar > .btn, .topbar > .brand, .topbar > .work-select, .topbar > .menubar");
-    assert!(controls.contains("flex-shrink: 0"), "Knöpfe, Werkwahl und Menüs schrumpfen nicht: {controls}");
-    let title = rule(".topbar > .work-title, .topbar > .muted");
+    let controls = rule(".band-top > .menubar, .band-top > .work-select, .band-top > .band-toggle");
+    assert!(controls.contains("flex: 0 0 auto"), "Menü, Werkwahl und Schalter schrumpfen nicht: {controls}");
+    assert!(rule(".band-top > .band-tabs").contains("flex: 0 0 auto"), "die Reiter schrumpfen nicht");
+    let title = rule(".band-top > .work-title, .band-top > .band-author");
     assert!(
         title.contains("min-width: 0")
             && title.contains("overflow: hidden")
             && title.contains("text-overflow: ellipsis"),
         "der Werktitel kürzt sich mit „…“ und gibt den Platz frei: {title}"
     );
-    assert!(rule(".menu").contains("flex-shrink: 0"), "kein Menü wird zusammengedrückt");
+    assert!(rule(".band-top > .band-author").contains("flex-shrink: 100"), "der Autor weicht zuerst");
+    assert!(rule(".menu").contains("flex-shrink: 0"), "das Menü wird nicht zusammengedrückt");
     assert!(
         rule(".menu-list").contains("position: absolute"),
         "die aufgeklappte Liste liegt über der Seite und braucht keinen Platz in der Zeile"
     );
-    assert!(rule(".menubar").contains("flex-wrap: nowrap"), "die Menüs stehen nebeneinander");
+    assert!(rule(".menubar").contains("flex-wrap: nowrap"), "die Menüleiste bricht nicht um");
 
-    // Zahl der direkten Bedienelemente: früher elf Knöpfe, jetzt Marke, Werkwahl, Titel, Autor,
-    // Menüleiste, Lücke, Thema, Einstellungen.
+    // Zahl der Bedienelemente in Zeile 1: früher acht direkte Kinder der Kopfzeile (zwei Knöpfe, drei Menüs) – jetzt
+    // Menüleiste mit einem Menü, Reiterzeile, Werkwahl, Titel, Autor, Lücke, Schalter.
     let work = server.import_garden().await.work;
     let (_, html) = server.get(&format!("/?work={work}")).await;
     let head = topbar(&html);
-    let inner = &head[head.find('>').unwrap() + 1..];
-    let children = direct_children(inner);
-    assert_eq!(children.len(), 8, "acht direkte Kinder der Kopfzeile auf der Arbeitsseite: {children:#?}");
-    let controls = children.iter().filter(|t| t.contains("class=\"btn")).count();
-    assert_eq!(controls, 2, "nur Thema und Einstellungen stehen als Knopf direkt in der Zeile: {children:#?}");
-    let nav = &head[head.find("<nav").unwrap()..head.find("</nav>").unwrap()];
-    let menus = direct_children(&nav[nav.find('>').unwrap() + 1..]);
-    assert_eq!(menus.len(), 3, "in der Menüleiste genau drei Menüs: {menus:#?}");
+    let top = &head[head.find("<div class=\"band-top\">").expect("Zeile 1")
+        ..head.find("<div class=\"band-panels\"").expect("Zeile 2")];
+    for piece in [
+        "<nav class=\"menubar\"",
+        "<nav class=\"band-tabs\"",
+        "<form class=\"work-select\"",
+        "<span class=\"work-title\">",
+        "<span class=\"muted band-author\">",
+        "<span class=\"grow\">",
+        "<a class=\"btn band-toggle\"",
+    ] {
+        assert_eq!(top.matches(piece).count(), 1, "Zeile 1 enthält genau einmal {piece}: {top}");
+    }
+    assert_eq!(
+        top.matches("<details class=\"menu\"").count(),
+        1,
+        "in der Menüleiste genau ein Menü (früher drei): {top}"
+    );
+    assert_eq!(top.matches("role=\"tab\"").count(), 5, "fünf Reiter auf der Arbeitsseite: {top}");
 }
 
-/// Runde 18a: In schmalen Fenstern bricht die Kopfzeile um, statt Knöpfe aus dem Bild zu schieben. Ehrlich: Der
-/// Test liest nur die CSS-Regeln (wie der Test für 1024 px darüber) und misst keine Breite; ob alles im Fenster
-/// bleibt, zeigt erst die Sichtprüfung des Integrators bei 800, 1024 und 1400 px.
-#[tokio::test]
-async fn in_narrow_windows_the_topbar_wraps_instead_of_running_out_of_the_window() {
-    let server = common::open().await;
-    let (_, css) = server.get("/static/app.css").await;
-    let media = css.find("@media (max-width: 999.98px) {").expect("eigene Medienregel für schmale Fenster");
-    let block = &css[media..media + css[media..].find("\n}").unwrap()];
+/// Runde 18a: In schmalen Fenstern bricht die Kopfzeile um, statt Knöpfe aus dem Bild zu schieben. Runde 33: Die
+/// Medienregel `@media (max-width: 999.98px)` für `.topbar` ist entfallen (Vertrag §2: die Modi hängen nur an den
+/// Attributen von <html>, keine Media-Queries). Dieselbe Absicht erfüllt das Band ohne Medienregel: Zeile 1 und die
+/// Felder dürfen immer umbrechen. Ehrlich: Der Test liest nur die CSS-Regeln und misst keine Breite; ob alles im
+/// Fenster bleibt, zeigt erst die Sichtprüfung des Integrators.
+#[test]
+fn in_narrow_windows_the_band_wraps_instead_of_running_out_of_the_window() {
+    let css = include_str!("../static/band.css");
+    let rule = |selector: &str| -> &str {
+        let at = css.find(&format!("\n{selector} {{")).unwrap_or_else(|| panic!("Regel {selector} fehlt"));
+        let rest = &css[at..];
+        &rest[..rest.find('}').unwrap()]
+    };
     assert!(
-        block.contains(".topbar { flex-wrap: wrap; row-gap: 6px; }"),
-        "unter 1000 px darf die Kopfzeile in eine zweite Zeile umbrechen: {block}"
+        rule(".band-top").contains("flex-wrap: wrap"),
+        "Zeile 1 darf in eine zweite Zeile umbrechen: {}",
+        rule(".band-top")
     );
-    assert!(block.contains(".topbar > .work-title { flex-basis: 12ch;"), "der Titel behält etwas Platz: {block}");
-    // Ab 1000 px gilt weiter die einzeilige Grundregel (Test oben); die Medienregel liegt dahinter.
-    let base = css.find("\n.topbar {").expect("Grundregel der Kopfzeile");
-    assert!(base < media, "die Medienregel überschreibt die Grundregel, nicht umgekehrt");
-    assert!(css[base..].starts_with("\n.topbar {\n  display: flex; flex-wrap: nowrap;"), "Grundregel einzeilig");
+    assert!(
+        rule(".band-panels").contains("flex-wrap: wrap"),
+        "die Gruppen eines Felds brechen um, statt aus dem Fenster zu laufen"
+    );
+    assert!(rule(".band-top > .work-title").contains("min-width: 6ch"), "der Titel behält etwas Platz");
+    assert!(!css.contains("@media"), "keine Medienregel im Band (eine Wahrheit: die Attribute an <html>)");
 }
 
 #[tokio::test]
@@ -817,13 +895,13 @@ async fn settings_pages_keep_the_addresses_of_their_former_topbars() {
         for href in &former {
             assert!(
                 links.contains(&href.as_str()),
-                "{uri}: frühere Kopfzeilen-Adresse {href} ist in der neuen Kopfzeile erreichbar: {links:?}"
+                "{uri}: frühere Kopfzeilen-Adresse {href} ist im Kopf (Menüband) erreichbar: {links:?}"
             );
         }
         assert!(
             links.contains(&format!("/werke/{work}/bearbeiten").as_str())
                 && links.contains(&format!("/werke/{work}/nummerierung").as_str()),
-            "{uri}: Werk bearbeiten und Gliederungsschema stehen zusätzlich im Menü Werk: {links:?}"
+            "{uri}: Werk bearbeiten und Gliederungsschema stehen zusätzlich im Reiter Buch: {links:?}"
         );
     }
 }
@@ -834,10 +912,14 @@ async fn settings_pages_keep_the_addresses_of_their_former_topbars() {
 #[test]
 fn menu_badges_keep_aa_contrast_in_both_themes() {
     use baruch_server::personas::{MIN_CONTRAST, contrast_ratio};
+    // Runde 33: Die Abzeichen stehen an den Reitern und an Einträgen der Felder (band.css); die Regel der Einträge
+    // im Menü (menu.css) bleibt.
     let menu = include_str!("../static/menu.css");
+    let band = include_str!("../static/band.css");
     assert!(
-        menu.matches("background: var(--warning-soft); color: var(--warning)").count() >= 2,
-        "beide Abzeichen nehmen --warning auf --warning-soft"
+        menu.matches("background: var(--warning-soft); color: var(--warning)").count() >= 1
+            && band.matches("background: var(--warning-soft); color: var(--warning)").count() >= 2,
+        "die Abzeichen an Reitern und Einträgen nehmen --warning auf --warning-soft"
     );
     let css = include_str!("../static/app.css");
     let value = |line: &str, name: &str| -> String {

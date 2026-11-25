@@ -59,7 +59,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-24, nach R24 – alle geplanten Runden erledigt)
+## Rundenplan (Stand 2026-11-25: R13–R31 und R33 erledigt, R32 läuft; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -94,6 +94,8 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R22 | Revisionen und Spiegel, dazu Fortschreiben, Rückfrage erledigter Befunde, Entwurf als Wasserzeichen – **erledigt 2026-11-10** (≈ 155 min ab S1 `dfff467` mit Gutachten und Nachbesserung, Vertrag davor ohne Commit) | fassungen · befund-rueckfrage · spiegel-entwurf | 160 |
 | R23 | Härtung (mit Befund-Resten aus R28, R30, R29, R19, R20, R31, R21 und R22) – **erledigt 2026-11-24** (≈ 160 min mit Gutachten, Nachbesserung und PM-Abschluss) | a web · b mcp-namen · c geheimnisse | 200 |
 | R24 | Verteilung (B5) – **erledigt 2026-11-24** (≈ 175 min ab der Vorarbeit `3028194` mit Gutachten, Nachbesserung und PM-Abschluss; ohne die niedrigen Reste aus R23) | a pakete · b ci · c webseite (statt betrieb) | 200 |
+| R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); Zusammenführen mit R32 und `development` samt Gegenprobe offen | menueband · laptop · seiten | – |
+| R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **läuft** (S1 `ccd471f` 2026-11-24) | docx_import · docx_export · beenden | – |
 
 ### R13 – Quellen über MultiGPT, Websuche, Abgleich (210 min) – erledigt 2026-11-07
 
@@ -978,6 +980,8 @@ Arbeitsbereich mit seinen drei Teilen (Gliederung, Editor, Assistenten). Später
 (Satzbild/Quelltext, Absatzart, K, F, …) und wird auch im Preprint (Satz-Ansicht, `/werke/{id}/satz`)
 verwendet. Die Werkzeugleiste darum schon jetzt als eigenes Fragment halten, das Editor und Preprint teilen
 können. Das App-Menü der Kopfzeile (Runde 9) bleibt davon unberührt. (erledigt R18a; das eigene Fragment gibt es schon: `templates/fragments/edit_toolbar.html`)
+(überholt: seit Runde 33 gibt es ein Menüband für die ganze Anwendung – das App-Menü der Kopfzeile ist darin
+aufgegangen, die Satz-Seite trägt ihre Bedienung im Reiter Buch statt in `edit_toolbar.html`.)
 
 ## Umschlag und Bilder über MCP (Wunsch 2026-11-06)
 
@@ -1010,6 +1014,54 @@ Ausnahme in `deny.toml` eingetragen, **offen nach 0.9.0**:
   die eigene Datenbank im eigenen Datenordner, darum im Betrieb nicht betroffen.
 - **RUSTSEC-2026-0543 (chrono unbetreut):** kommt über arrow/datafusion/lance/lancedb; Ablösung erst, wenn diese
   wechseln (die direkte Nutzung in baruch-server allein abzulösen nähme chrono nicht aus dem Baum).
+
+## Nach Runde 33 offen (PM-Abschluss 2026-11-25)
+
+Runde 33 „Menüband und Laptop-Modus“ ist auf dem Zweig `runde33` integriert (S1 `f7493c2`, Zweige
+`team/menueband-r33` `e9481ea`, `team/laptop` `d5f8fc0`, `team/seiten` `fdfc3fb`, ohne Konflikte). Erledigt: Menüband
+(Wunsch „Menüband“), Laptop-Modus, alle Seiten im Band. Die Prüfung nach der Integration fand keinen belegten
+Fehler (zwei Hinweise, unten eingeordnet), eine Nachbesserung gab es nicht. PM-Abschluss: voller Lauf nach
+`cargo clean -p` (Exit 0, 197 Ergebnisse „ok“, 3147 bestanden, 0 fehlgeschlagen, 2 ignoriert; Server-Bündel 1374 bestanden; pgvector-Tests liefen mit), Fahrplan nachgeführt, die drei Worktrees der Runde
+entfernt (die team-Zweige bleiben). Offen:
+
+- (→ PM) **Gegenprobe vor dem Push** (Vertrag §11, eigener Gutachter): frischer voller Lauf auf dem
+  zusammengeführten Stand, curl ohne JavaScript gegen die Zuordnung, Firefox in drei Breiten. Stand der Integration:
+  `HANDOFF.md`.
+- (→ PM) **Zusammenführen mit `development` und Runde 32.** `runde33` zweigt bei `ed9d210` ab; `development` hat
+  seither drei Commits (ältere Fassungen ausblenden mit Migration 0051, Kritik-Zyklus). Probe mit
+  `git merge-tree` am 2026-11-25: gegen `development` ein Konflikt (`docs/Architektur.md`; `lib.rs`, `tests/main.rs`,
+  `editor.html`, `assistants.html`, `CHANGELOG.md` gehen von selbst), gegen die Schnittstelle R32-S1 `ccd471f` vier
+  (`lib.rs`, `base.html` an den drei Marken `R32-PLATZ` – import-word, beenden, export-word –, `tests/main.rs`,
+  `round9_menu.rs`); die Entwickler-Zweige von Runde 32 bringen weitere Stellen mit. `docs/Verteilung.md` Zeile
+  „Über Baruch“ beachten. Danach den Zweig `runde33` auflösen (bis dahin bleibt der Name: er steht in den
+  Aufträgen der Runde).
+- (→ PM) **Die Prüfung hat nicht nachgesehen, ob „Satz abbrechen“ auf der Satz-Seite einen Ersatz hat.** Beleg
+  nachgereicht im PM-Abschluss: `templates/typeset.html` trägt im Block `band_buch` das Formular
+  `form.typeset-cancel` nach `/werke/{work}/satz/abbrechen`; der Test dazu steht in `round33_seiten.rs`
+  (`the_typeset_page_carries_its_controls_as_groups_of_the_book_tab_without_any_script`). In der Gegenprobe im
+  Browser mit ansehen.
+- (entschieden, PM 2026-11-25) **Vorgabe-Reiter der Gliederung und des Stichwortzettels bleibt „Start“** wie im
+  Vertrag §7: Die Seiten führen ihre eigenen Gruppen im Block des Reiters Start, also sieht man dort, was zur Seite
+  gehört. Wer es anders will: je eine Zeile in `outline.html`, `outline_edit.html`, `notes.html` und in den Tabellen
+  von `round33_seiten.rs` – dann müssen aber auch die Gruppen der Seite in `band_buch` wandern.
+- (niedrig, Hinweis der Prüfung) **Cookie `baruch_vw`:** Der Browser schreibt die Fensterbreite, der Server liest
+  sie beim ersten Aufruf nach einer Größenänderung noch alt; `laptop.ts` korrigiert die Attribute danach (kurzes
+  Umspringen möglich).
+- (→ Nutzer) **Handprüfung im eigenen Browser:** Speichern mit Strg+S, Alt+L, Alt+E, Alt+, bei angedockten Knöpfen;
+  Schubladen (Esc, Klick daneben, Fokus kehrt zurück); Band zugeklappt mit vorübergehendem Feld. Die Integration hat
+  das Aussehen fotografiert (Firefox headless), Tastatur und Fokus aber nur im Node-Nachbau der Widgets geprüft.
+- (niedrig) **Werk im Band ohne Cookie:** Seiten, die ihr Werk der Vorlage als Zeichenkette reichen (z. B.
+  `/einfaelle?work=W`), zeigen ohne Cookie `baruch_work` nur Start · Ansicht. Das war vor Runde 33 genauso („Erst ein
+  Werk wählen“); im Browser setzt die Arbeitsseite das Cookie.
+- (niedrig) **Doppelte Einträge:** Seiten führen ihre eigenen Links als Gruppen (z. B. „Umschlag-PDF“, „EPUB
+  herunterladen“) zusätzlich zu den allgemeinen Gruppen des Reiters – bewusst, damit keine Adresse verloren geht.
+- (niedrig) **Ohne JavaScript:** Die Fläche zum Schließen neben der Schublade braucht `:has()`; ohne bleibt
+  „Schließen“ in der Schublade. Auf Seiten, die Antwort eines POST sind, führt ein Reiter per GET auf dieselbe Adresse.
+  Ohne JavaScript kennt der Server die Fensterbreite nicht – „Automatisch“ zeichnet dann breit.
+- (niedrig) **Fenster schmaler als 1024 px** sind nicht geprüft (fotografiert sind 1920, 1366 und 1024 px); Zeile 1 des
+  Bands darf umbrechen (`flex-wrap`), ob sie es dort sauber tut, ist offen.
+- (keine Aufgabe) Alte Menüpfade („Werk ▾ → …“) in den historischen Einträgen von `HANDOFF.md`, `docs/Plan.md` und
+  diesem Dokument bleiben stehen: Sie beschreiben den Stand ihrer Runde.
 
 ## Nach Runde 24 offen (PM-Abschluss 2026-11-24)
 

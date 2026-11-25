@@ -8,9 +8,13 @@
 {% extends "base.html" %}
 {% block title %}{{ asset.name }} – Bilder – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Bild {{ asset.name }}{% endblock %}
-{% block page_actions %}
-  <a class="btn" href="/werke/{{ work.id }}/bilder">Alle Bilder</a>
-  <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/werke/{{ work.id }}/bilder">Alle Bilder</a>
+    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page assets-page">

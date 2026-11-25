@@ -843,5 +843,8 @@ async fn the_cli_switch_keeps_pdf_flags_to_pdf_and_prints_hints_and_the_menus_le
         "Begründung: Typst-, Markdown- und ZIP-Datei im selben Formular"
     );
     let (_, home) = server.get("/").await;
-    assert!(home.contains("PDF oder EPUB importieren…"), "Begründung: Menüeintrag unter „Werk ▾“");
+    assert!(
+        home.contains("PDF oder EPUB importieren…"),
+        "Begründung: Menüeintrag unter „Baruch ▾“ (Runde 33: vorher „Werk ▾“)"
+    );
 }

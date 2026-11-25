@@ -22,7 +22,7 @@
 .post-item, .post, .post-body, .thread-body, .post-copy-text { user-select: text; -webkit-user-select: text; }
 
 /* Seiten /beitraege und /beitrag (ohne JavaScript). */
-.posts-page { max-width: 52rem; margin: 0 auto; padding: 1rem; }
+.posts-page { max-width: 52rem; margin: 0 auto; padding: 14px 18px 28px; }
 .posts-list { list-style: none; padding: 0; display: grid; gap: .5rem; }
 .posts-page .post-item:target > .post, .thread-post:target { outline: 2px solid var(--primary); outline-offset: 2px; }
 .post-copy-text { width: 100%; box-sizing: border-box; font: inherit; white-space: pre-wrap; resize: vertical; }

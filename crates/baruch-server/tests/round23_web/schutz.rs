@@ -177,8 +177,19 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
     // Ein Link mit erfundenem Ziel, ohne dass es eine Sicherung gibt.
     let (status, page) = server.get("/einstellungen/daten?ok=sicherung&ziel=geheimer-ordner-aus-der-adresse").await;
     assert_eq!(status, StatusCode::OK, "die Seite lädt");
+    // Runde 33 (Menüband): Die Reiter und Schalter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen
+    // (href, maskiert) – das ist kein angezeigter Text. Geprüft wird darum alles außer den href-Werten.
+    let shown: String = page
+        .split("href=\"")
+        .enumerate()
+        .map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] })
+        .collect();
     assert!(
-        !page.contains("geheimer-ordner-aus-der-adresse"),
+        page.contains("ziel=geheimer-ordner-aus-der-adresse&amp;tab="),
+        "der Kopf behält die Abfrage in den Adressen der Reiter: {page}"
+    );
+    assert!(
+        !shown.contains("geheimer-ordner-aus-der-adresse"),
         "ein mitgeschicktes `ziel` wird nie angezeigt (sonst falsche Erfolgsmeldung über einen Link): {page}"
     );
     assert!(
@@ -205,7 +216,13 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
         page.contains(&format!("Sicherung angelegt: <code>{}</code>", made[0])),
         "die Seite nennt den Ordner, den der Server selbst im Dateisystem findet: {page}"
     );
-    assert!(!page.contains("geheimer-ordner-aus-der-adresse"), "und weiter nie den aus der Adresse");
+    // Runde 33: wie oben – geprüft wird alles außer den href-Werten (die Reiter wiederholen die Abfrage als Adresse).
+    let shown: String = page
+        .split("href=\"")
+        .enumerate()
+        .map(|(i, part)| if i == 0 { part } else { &part[part.find('"').unwrap_or(0)..] })
+        .collect();
+    assert!(!shown.contains("geheimer-ordner-aus-der-adresse"), "und weiter nie den aus der Adresse");
     assert_eq!(
         baruch_server::settings::newest_backup(&server.state.data).as_deref(),
         Some(made[0].as_str()),
@@ -217,7 +234,7 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
 
 /// Kopfzeile einer Seite (bis `</header>`).
 fn topbar(page: &str) -> &str {
-    let start = page.find("<header class=\"topbar\">").expect("Kopfzeile");
+    let start = page.find("<header class=\"band\"").expect("Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     &page[start..start + page[start..].find("</header>").expect("Ende der Kopfzeile")]
 }
 
@@ -290,23 +307,29 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
         let (status, page) = server.get(&uri).await;
         assert_eq!(status, StatusCode::OK, "{uri} lädt");
         let head = topbar(&page);
+        // Runde 33 (Menüband): Die Abzeichen standen an den Menüknöpfen Werk ▾ (Anträge, Befunde) und Ansicht ▾
+        // (Vorschläge) und stehen jetzt an den Reitern Buch, Prüfen und Start – weiter vom Server gefüllt.
         assert!(
-            head.contains("<span class=\"badge\" data-badge=\"outline_requests\">2</span>"),
-            "{uri}: Abzeichen der offenen Anträge am Menü „Werk“ im ausgelieferten HTML: {head}"
+            head.contains(">Buch <span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">2</span></a>"),
+            "{uri}: Abzeichen der offenen Anträge am Reiter Buch im ausgelieferten HTML: {head}"
+        );
+        assert!(
+            head.contains("<span class=\"badge\" data-badge=\"outline_requests\">2</span></a>"),
+            "{uri}: dieselbe Zahl am Eintrag „Anträge zur Gliederung“: {head}"
         );
         assert!(
             head.contains(&format!(
                 "href=\"/gliederung?work={work}#antraege\" data-badge-item=\"outline_requests\">Anträge zur Gliederung"
             )),
-            "{uri}: der Eintrag „Anträge zur Gliederung“ steht sichtbar im Menü: {head}"
+            "{uri}: der Eintrag „Anträge zur Gliederung“ steht sichtbar im Reiter Buch: {head}"
         );
         assert!(
-            head.contains("<span class=\"badge\" data-badge=\"open_proposals\">1</span>"),
-            "{uri}: Abzeichen der offenen Vorschläge am Menü „Ansicht“: {head}"
+            head.contains(">Start <span class=\"badge\" data-badge=\"open_proposals\" title=\"offene Vorschläge im Werk\">1</span></a>"),
+            "{uri}: Abzeichen der offenen Vorschläge am Reiter Start: {head}"
         );
         assert!(
-            head.contains("title=\"offene Befunde im Werk\">3 offen</span>"),
-            "{uri}: Abzeichen der offenen Befunde mit dem Wort „offen“: {head}"
+            head.contains(">Prüfen <span class=\"badge warning\" data-badge=\"open_findings\" title=\"offene Befunde im Werk\">3 offen</span></a>"),
+            "{uri}: Abzeichen der offenen Befunde am Reiter Prüfen mit dem Wort „offen“: {head}"
         );
         assert!(!page.contains("data-badge-fill"), "{uri}: kein Kennzeichen bleibt im HTML");
     }

@@ -7,11 +7,21 @@
 {#- Zoom-Zonen (zoom.ts, data-zoom-zone): Gliederung und rechte Spalte als Ganzes; im Editor Kopf,
     Werkzeugleiste, Blatt und Statuszeile je für sich (fragments/editor.html), rechts zusätzlich das
     Akkordeon „Fassungen“. #}
+{#- Runde 33 (Laptop-Modus, src/laptop.rs): Ist eine Seitenspalte eingeklappt (`data-rail-left` bzw. `data-rail-right`
+    an <html>, gesetzt von der Schicht consent::inject und von laptop.ts), steht an ihrer Stelle eine schmale Leiste
+    (`a.rail`). Ohne JavaScript öffnet ihr Link die Spalte als Schublade über `:target` (`#pane-tree`,
+    `#pane-assistants`); „Schließen“ in der Spalte (fragments/tree.html, assistants.html) und die Fläche daneben
+    (`a.rail-scrim`) führen auf `#pane-editor` und schließen sie damit wieder. Mit JavaScript übernimmt laptop.ts
+    (Schublade mit Esc/Klick daneben, im breiten Fenster dauerhaftes Auf- und Zuklappen). Die Spalten bleiben erstes
+    und letztes Kind des Rasters (Widget „splitter“ misst sie so). #}
 <main class="workspace" data-widget="workspace">
   <nav class="pane" id="pane-tree" aria-label="Gliederung" data-zoom-zone="tree">{% include "fragments/tree.html" %}</nav>
+  <a class="rail" href="#pane-tree" data-rail-open="left" aria-controls="pane-tree" title="Gliederung öffnen"><span class="rail-mark" aria-hidden="true">›</span><span class="rail-label">Gliederung</span></a>
   <div class="splitter" data-widget="splitter" data-side="left" role="separator" aria-orientation="vertical" tabindex="0"></div>
+  <a class="rail-scrim" href="#pane-editor" data-rail-close tabindex="-1" aria-hidden="true"></a>
   <section class="pane" id="pane-editor" aria-label="Editor">{% include "fragments/editor.html" %}</section>
   <div class="splitter" data-widget="splitter" data-side="right" role="separator" aria-orientation="vertical" tabindex="0"></div>
+  <a class="rail" href="#pane-assistants" data-rail-open="right" aria-controls="pane-assistants" title="Assistenten öffnen"><span class="rail-mark" aria-hidden="true">‹</span><span class="rail-label">Assistenten</span></a>
   <aside class="pane" id="pane-assistants" aria-label="Assistenten" data-zoom-zone="assistants">{% include "fragments/assistants.html" %}</aside>
 </main>
 {#- Popup der Literatur: Inhalt wie /literatur; das Widget „literature“ lädt ihn über literature.render

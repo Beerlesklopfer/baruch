@@ -1,9 +1,66 @@
-# Übergabe (Stand 2026-11-24, Runde 24 „Verteilung (B5)“ abgeschlossen – alle geplanten Runden sind erledigt; offen: die Schritte des Nutzers zur Veröffentlichung)
+# Übergabe (Stand 2026-11-25, Runde 33 „Menüband und Laptop-Modus“ auf dem Zweig `runde33` abgeschlossen (PM) – Zusammenführen mit `development` und Runde 32 samt Gegenprobe offen; davor: Runde 24 „Verteilung (B5)“ abgeschlossen)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 33 „Menüband und Laptop-Modus“ integriert** (2026-11-25, Integrator; Hauptordner der Runde
+  `.claude/worktrees/r33`, Zweig **`runde33`** – nicht `development`, weil Runde 32 dort parallel läuft; Schnittstelle
+  R33-S1 `f7493c2`; Zweige `team/menueband-r33` `e9481ea`, `team/laptop` `d5f8fc0`, `team/seiten` `fdfc3fb` mit
+  `--no-ff` in dieser Reihenfolge, **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht, Worktrees und
+  team-Zweige stehen noch). Version unverändert 0.9.0. Keine Migration, keine neue Route, keine neue RPC-Methode,
+  kein neues MCP-Werkzeug; `grep -rn "STUB:" crates` unverändert 4.
+  - **Was geht:** Auf jeder Seite das Menüband (`header.band`): Menü „Baruch ▾“, Reiter Start · Einfügen · Prüfen ·
+    Buch · Ansicht (Arbeitsseite fünf, mit Werk vier, ohne Werk zwei), Gruppen mit Beschriftung, Abzeichen an den
+    Reitern, Band auf/zu (▴/▾, Klick auf den gewählten Reiter, Cookie `baruch_band`). Die Knöpfe des Editors docken
+    mit JavaScript an (Start: Text, Absatz, Fassung, Assistenten; Einfügen). Laptop-Modus Automatisch/An/Aus: unter
+    1600 px kompakt (Gruppen als Popups), unter 1280 px Gliederung und Assistenten als Leisten mit Schublade; Spalten
+    einzeln einklappbar; Zoom zurücksetzen. Ohne JavaScript: Reiter `?tab=`, `?band=`, `?laptop=`, `?lrail=`,
+    `?rrail=` als Links, Gruppen als `<details>`, Schublade über `#pane-tree`/`#pane-assistants`.
+  - **Arbeit des Integrators:** (1) Tests in fremden Dateien nachgezogen, die jede Aufgabe rot hinterlassen hatte:
+    `round8_posts.rs` („Satz-Vorschau“), `round18_menueband.rs` (Satz-Seite: Feld Buch statt eigenem Band; Helfer
+    `ribbon_of` entfällt), `round33_seiten.rs` (Gruppe „Darstellung“ aus base.html trägt den Thema-Knopf). Die beiden
+    `.topbar`-Tests in `round9_menu.rs` hatte menueband schon umgeschrieben. (2) Toter Zweig `satz_page` aus
+    `edit_toolbar.html` und `.ribbon-satz` aus `ribbon.css` entfernt, `karte.css` druckt ohne `.band` statt `.topbar`.
+    (3) `docs/r33/*` in `docs/Bedienung.md` (Platzhalter) und `docs/Architektur.md` eingesetzt, Ordner gelöscht;
+    alte Menüpfade in README, RPC.md, Architektur.md, CHANGELOG korrigiert; CHANGELOG-Abschnitt „Menüband und
+    Laptop-Modus (Runde 33)“. (4) Shortcode `bild.html` mit `breite`/`hoehe`. (5) `tests/round33_abnahme.rs`
+    (5 Tests: 18 Seiten mit Band, Reiter, Laptop-Zustand und jedem Reiter als Link; Liste alt → neu auf einer
+    Unterseite; Schlüssel und Cookies zusammen; Abzeichen auf einer Unterseite; keine Reste). (6) Drei Korrekturen
+    aus der Sichtprüfung: Mindestbreite der Gruppen (Beschriftung wurde gekappt: „Ansicht des Te…“), Zeile 1 im
+    kompakten Band einzeilig (Autor entfällt, Titel kürzt – brach bei 1024 px um), „Einklappen ›“ der rechten Spalte
+    mit Abstand zum Rahmen. (7) `bildschirmfotos.py`: `arbeitsplatz.png` mit `&laptop=off`, damit die 1400er-Bilder
+    das volle Band zeigen; sieben Bilder neu unter `site/static/bilder/` (neu: `arbeitsplatz-laptop.png`).
+  - **Tests:** nach `cargo clean -p` für alle 15 Workspace-Crates
+    `RUST_TEST_THREADS=4 nice -n 10 ionice -c3 taskset -c 0-7 cargo test --workspace -j 4`: Exit 0, 197 Ergebnisse
+    „ok“, 3147 bestanden, 0 fehlgeschlagen, 2 ignoriert; Server-Bündel 1374 bestanden. pgvector-Tests liefen mit
+    (podman antwortet, ist aber langsam). `cargo clippy --workspace --all-targets -- -D warnings`: Exit 0.
+    `cargo fmt --all --check`: sauber. `hugo --minify --panicOnWarning -s site`: ohne Warnung.
+  - **Sichtprüfung** (Firefox headless, Wegwerf-Server mit dem erfundenen Beispielwerk, nie parallel zu einem
+    Testlauf): 34 Bilder unter `.claude/sicht/r33/` (nicht im Repo): Arbeitsseite 1920 hell/dunkel mit allen fünf
+    Reitern, Menü „Baruch ▾“ offen, Band zu, Leisten zu; 1366 hell/dunkel mit Popups (per Klick im Skript); 1024 mit
+    Leisten; Satz, Einstellungen, Befunde, Gedankenkarte, Gliederung; ohne JavaScript: Arbeitsseite, Laptop „An“,
+    Popup, Schubladen links/rechts, Menü, Satz, Band zu, `/werke` ohne Werk. Nicht geprüft: Tastatur (Strg+S, Alt+L,
+    Alt+E, Alt+,) und Fokus im echten Browser – nur im Node-Nachbau der Widgets; Fenster schmaler als 1024 px.
+  - **PM-Abschluss (2026-11-25, ≈ 01:30):** Die Prüfung nach der Integration fand keinen belegten Fehler (zwei
+    Hinweise: Cookie `baruch_vw` wird beim ersten Aufruf nach einer Größenänderung noch alt gelesen; „Satz
+    abbrechen“ nicht nachgesehen – Beleg nachgereicht: `form.typeset-cancel` im Block `band_buch` von
+    `typeset.html`). Keine Nachbesserung. Voller Lauf nach `cargo clean -p` für alle 15 Workspace-Crates:
+    Exit 0, 197 Ergebnisse „ok“, 3147 bestanden, 0 fehlgeschlagen, 2 ignoriert; Server-Bündel 1374 bestanden; pgvector-Tests liefen mit. `grep -rn "STUB:" crates`: 4. `docs/Fahrplan.md` nachgeführt (Runde 33, 0.9.0,
+    Schätzung für Runde 32, das Zusammenführen und die Runden 34–36 als Vorschlag). Entschieden: Vorgabe-Reiter
+    von Gliederung und Stichwortzettel bleibt „Start“ (Vertrag §7). Aufgeräumt: die drei Worktrees der Runde
+    (`wf_d9752058-7ed-3/-4/-5`) samt `target/` entfernt, die Zweige `team/menueband-r33`, `team/laptop`,
+    `team/seiten` bleiben. **Nicht angefasst:** die drei Worktrees von Runde 32 (`wf_e7da3bae-4ce-3/-4/-5`,
+    uncommittete Arbeit) und der Hauptordner auf `development`.
+  - **Offen (siehe `docs/Backlog.md`, „Nach Runde 33 offen“):** Zusammenführen mit `development` (drei Commits
+    seit `ed9d210`, Probe: ein Konflikt in `docs/Architektur.md`) und mit Runde 32 (Probe gegen R32-S1: `lib.rs`,
+    `base.html` an den Marken `R32-PLATZ`, `tests/main.rs`, `round9_menu.rs`), danach die Gegenprobe durch einen
+    eigenen Gutachter (Vertrag §11) und das Auflösen des Zweigs `runde33`. **Push erst nach ausdrücklichem „ja“ des
+    Nutzers.**
+  - **Handprüfung durch den Nutzer** (eigener Wegwerf-Server aus `runde33`, nicht der Dienst auf 8765): Band breit
+    (≥ 1600 px) – Reiter wechseln, Speichern im Band und mit Strg+S, Prüfen/Vorschlag; Fenster auf Laptop-Breite –
+    Gruppen als Popups, unter 1280 px Leisten und Schubladen (Esc, Klick daneben); Ansicht → Laptop-Modus An/Aus;
+    ohne JavaScript – Reiter, Gruppen und `?laptop=on` als Links.
 - **Runde 24 „Verteilung (B5)“ integriert** (2026-11-24; Schnittstelle R24-S1 `6f97294` direkt auf `development`;
   Zweige `team/pakete` `dfbf20a`, `team/ci` `ff0db95`, `team/webseite` `285b58e` mit `--no-ff` in dieser Reihenfolge,
   **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht, kein Tag, kein Arbeitsablauf ausgelöst; die

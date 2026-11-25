@@ -17,7 +17,7 @@ am 2026-11-05); davor gab es nur den Stand 0.0.1 aus dem Quelltext.
   (`THIRD-PARTY-LICENSES.txt`) und den Hinweis auf den Quelltext.
 - **APT-Repository** unter `https://baruch.bernau.family/apt/` (Suite `stable`, Komponente `main`); neue
   Versionen kommen dort mit `sudo apt upgrade`.
-- **Seite „Über Baruch“** (Werkzeuge ▾ → Über Baruch, auch von Einstellungen → Daten aus): Version, Lizenz mit
+- **Seite „Über Baruch“** (Baruch ▾ → Über Baruch, auch von Einstellungen → Daten aus): Version, Lizenz mit
   Lizenztext, Quellcode, Webseite, Ort der Drittlizenzen je Paket, Datenordner.
 - **Keine Aktualisierungsprüfung:** Baruch fragt nie von sich aus im Netz nach neuen Versionen. Die Über-Seite
   verlinkt die Release-Seite; aktualisiert wird über APT oder von Hand.
@@ -131,6 +131,35 @@ am 2026-11-05); davor gab es nur den Stand 0.0.1 aus dem Quelltext.
 - Runde 23: Härtung nach Gutachten – Zitat-Werkzeug, Autorennamen und Kontingente der MCP-Clients, Schutz der
   Geheimnisse, strengere Grenzen beim Abruf fremder Seiten.
 - Eingelesene Dateien werden mit Grenzen für Größe, Tiefe und entpackte Bytes geprüft (Runden 17, 21, 26).
+
+### Menüband und Laptop-Modus (Runde 33)
+
+- **Menüband:** Die Menüs „Werk“, „Ansicht“, „Werkzeuge“ und die Knopfreihe über dem Blatt sind ein Menüband mit dem
+  Menü **Baruch ▾** und den Reitern **Start, Einfügen, Prüfen, Buch, Ansicht**. Jede Funktion bleibt ohne JavaScript
+  erreichbar (Reiter als Links `?tab=`, Gruppen als aufklappbare Bereiche).
+- **Band ein- und ausklappen:** Ein Klick auf den gewählten Reiter oder auf ▴ klappt das Band zu (gemerkt im Cookie
+  `baruch_band`); im zugeklappten Band zeigt ein Reiter seine Gruppen vorübergehend.
+- **Abzeichen an den Reitern:** Start zeigt die offenen Vorschläge, Prüfen „N offen“ (Befunde), Buch die offenen
+  Anträge zur Gliederung.
+- **Seiten im Menüband:** Jede Seite öffnet mit ihrem Reiter (Satz, Umschlag, EPUB, Austausch, Glossar, Register,
+  Bilder, Gliederungsschema, Werk bearbeiten: Buch; Befunde, Zitate prüfen, Suche, Querverweise, Literatur, Abgleich:
+  Prüfen; Einstellungen: Ansicht; sonst Start). Die Links der Seite stehen dort als benannte Gruppen.
+- **Satz-Seite:** „Zurück zum Werk“, „PDF herunterladen“, ‹ Seite n von m › und „Satz abbrechen“ stehen im Reiter
+  Buch statt in einem eigenen Band unter der Kopfzeile.
+- **Laptop-Modus:** Ansicht → Laptop-Modus „Automatisch / An / Aus“. Automatisch wird das Band unter 1600 px
+  Fensterbreite kompakt (Gruppen als Knöpfe mit Popup), unter 1280 px klappen Gliederung und Assistenten zu schmalen
+  Leisten ein; ein Klick auf die Leiste holt die Spalte als Schublade über den Text (Esc, Klick daneben oder
+  „Schließen“ legt sie weg).
+- **Seitenspalten einzeln einklappen** („Einklappen“ in der Spalte oder Ansicht → Seitenleisten); die Wahl wird
+  gemerkt. Ansicht → **Zoom zurücksetzen** setzt alle Bereiche auf 100 %.
+- **Ohne JavaScript:** Schalter als Links, Schublade über ein Sprungziel. Die Fensterbreite kennt der Server dann
+  nicht; den Laptop-Modus stellt man von Hand „An“.
+- **Umbenannt:** „Satz“ heißt „Satz-Vorschau“; „Als PDF/Entwurf/EPUB herunterladen“ heißen in der Gruppe Ausgabe
+  „PDF“, „Entwurf“, „EPUB“; „Editor“ außerhalb der Arbeitsseite heißt „Zum Text“.
+- **Geändert:** Unter 900 px Fensterbreite stehen die Spalten nicht mehr untereinander, sondern werden Leisten.
+  Alle Seiten unter dem Menüband haben denselben Seitenrand.
+- **Webseite:** Das Bildschirmfoto-Skript kennt eine Fenstergröße je Bild und zeigt die Arbeitsseite zusätzlich auf
+  Laptop-Breite (1366×768).
 
 ### Bekannte Grenzen
 

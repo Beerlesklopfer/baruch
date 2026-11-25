@@ -7,8 +7,11 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} – Baruch{% endblock %}
 {% block page_title %}{{ title }}{% endblock %}
+{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <a class="btn" href="{{ back }}" data-back>{{ back_label }}</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="{{ back }}" data-back>{{ back_label }}</a>
+  </div></details>
 {% endblock %}
 {% block body %}
 <main class="assist-notice-page">

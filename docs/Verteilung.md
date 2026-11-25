@@ -284,7 +284,7 @@ der Version):
 | macOS | `Baruch.app/Contents/Resources/`; `LICENSE.txt` und `QUELLTEXT.txt` auch im geöffneten Abbild |
 | Windows | Installationsordner (Vorgabe `C:\Program Files\Baruch`) |
 
-Im laufenden Programm zeigt **Werkzeuge ▾ → Über Baruch** Version, Lizenz, Quellcode und den Ort der
+Im laufenden Programm zeigt **Baruch ▾ → Über Baruch** Version, Lizenz, Quellcode und den Ort der
 Drittlizenzen. Baruch fragt nie von sich aus im Netz nach neuen Versionen: Aktualisiert wird von Hand mit
 einem neuen Paket von der Release-Seite, unter Debian/Ubuntu mit dem APT-Repository über `sudo apt upgrade`. Das Entfernen
 eines Pakets (auch `apt purge`, Löschen von `Baruch.app`, Deinstallation unter Windows) lässt den Datenordner

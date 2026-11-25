@@ -31,11 +31,28 @@ export function mount(root: ParentNode = document): void {
 
 /// Knopf zum Absenden eines Formulars – auch außerhalb des Formulars über `form="<id>"` (der Editor hat
 /// „Speichern“ in der Statuszeile, nicht im Formular).
+/// Runde 33: Die Knöpfe „Speichern“ im Menüband (angedockte Leiste, `[data-edit-toolbar]`) gehören über
+/// `form="editor-form"` auch zum Formular und stünden im Dokument davor; maßgeblich (Beschriftung
+/// „Gespeichert“/„Speichern“) bleibt der Knopf am Formular bzw. in der Statuszeile.
 export function submitButton(form: HTMLFormElement): HTMLButtonElement | null {
+  let docked: HTMLButtonElement | null = null;
   for (const element of Array.from(form.elements)) {
-    if (element instanceof HTMLButtonElement && element.type === "submit") return element;
+    if (!(element instanceof HTMLButtonElement) || element.type !== "submit") continue;
+    if (!element.closest("[data-edit-toolbar]")) return element;
+    docked ??= element;
   }
-  return null;
+  return docked;
+}
+
+/// Runde 33: Leiste des Editors (`[data-edit-toolbar]`, fragments/edit_toolbar.html). Sie steht im Fragment des
+/// Editors (`div.wysiwyg`), bis band.ts sie in den Andockplatz des Menübands hängt (`[data-band-dock]`); danach
+/// finden `root.querySelector` und `closest("div.wysiwyg")` sie nicht mehr. Eine Seite hat höchstens einen Editor,
+/// die angedockte Leiste gehört also zu ihm.
+export function editToolbar(root: ParentNode | null = null): HTMLElement | null {
+  return (
+    root?.querySelector<HTMLElement>("[data-edit-toolbar]") ??
+    document.querySelector<HTMLElement>("[data-band-dock] [data-edit-toolbar]")
+  );
 }
 
 /// Ungespeicherte Änderung im Editor? Dann vor allem fragen, was die Bereiche neu zeichnet
@@ -59,17 +76,24 @@ export function editorLocked(): boolean {
 export function lockEditor(): () => void {
   const pane = document.getElementById("pane-editor");
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  // Runde 33: Die Knöpfe des Editors stehen angedockt im Menüband – während des Speicherns ebenfalls gesperrt.
+  const dock = document.querySelector<HTMLElement>("[data-band-dock]");
   editorLocks += 1;
   if (pane) {
     pane.inert = true;
     pane.setAttribute("aria-busy", "true");
   }
+  if (dock) dock.inert = true;
   let released = false;
   return () => {
     if (released) return;
     released = true;
     editorLocks -= 1;
-    if (editorLocks > 0 || !pane) return;
+    if (editorLocks > 0) return;
+    // Der Andockplatz selbst bleibt beim Neuzeichnen stehen (nur sein Inhalt wechselt): immer freigeben.
+    const docks = document.querySelectorAll<HTMLElement>("[data-band-dock]");
+    docks.forEach((d) => (d.inert = false));
+    if (!pane) return;
     pane.inert = false;
     pane.removeAttribute("aria-busy");
     if (focused?.isConnected && pane.contains(focused)) focused.focus({ preventScroll: true });

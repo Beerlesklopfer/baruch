@@ -369,7 +369,7 @@ async fn the_persona_color_appears_wherever_the_persona_does() {
     let assistants = &page[page.find("data-section=\"personas\"").unwrap()..];
     let personas_section = &assistants[..assistants.find("data-section=\"chat\"").unwrap()];
     assert!(personas_section.contains(">Farben …</a>"), "der Link steht im Akkordeon „Assistenten“");
-    let header = page.find("<header class=\"topbar\"").expect("Kopfzeile");
+    let header = page.find("<header class=\"band\"").expect("Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
     let topbar = &page[header..header + page[header..].find("</header>").unwrap()];
     assert!(!topbar.contains("/einstellungen/assistenten"), "nicht in der Kopfzeile: {topbar}");
     // Menschliche Beiträge und Fassungen bleiben ungefärbt.
