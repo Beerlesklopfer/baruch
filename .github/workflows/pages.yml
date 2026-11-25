@@ -20,8 +20,10 @@ on:
 permissions:
   contents: read
 
-# Dieselbe Gruppe wie die Jobs „pages-build“ und „pages-deploy“ in release.yml: nie zwei Auslieferungen zugleich,
-# keine wird abgebrochen.
+# Dieselbe Gruppe wie die Jobs „pages-build“ und „pages-deploy“ in release.yml: nie zwei Jobs der Gruppe zugleich,
+# kein laufender wird abgebrochen. Hier hält der ganze Lauf die Gruppe, in release.yml jeder der beiden Jobs für
+# sich. Ein Push auf main während eines Release kann darum dessen Auslieferung überholen oder verdrängen:
+# main erst nach Ende des Release-Laufs schieben (docs/Verteilung.md, „Auslieferung über GitHub Pages“).
 concurrency:
   group: pages
   cancel-in-progress: false

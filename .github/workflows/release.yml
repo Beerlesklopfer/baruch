@@ -458,7 +458,10 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    # Dieselbe Gruppe wie pages.yml: nie zwei Auslieferungen zugleich, keine wird abgebrochen.
+    # Dieselbe Gruppe wie pages.yml: nie zwei Jobs der Gruppe zugleich, kein laufender wird abgebrochen. Die
+    # Gruppe steht hier je Job (am Ablauf steht schon release-<Ref>) und ist zwischen pages-build und
+    # pages-deploy frei. Ein Push auf main während des Release kann sich darum dazwischenschieben oder das
+    # wartende pages-deploy verdrängen: main erst nach Ende dieses Laufs schieben (docs/Verteilung.md).
     concurrency:
       group: pages
       cancel-in-progress: false
@@ -497,7 +500,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    # Dieselbe Gruppe wie pages.yml und pages-build; die Jobs laufen ohnehin nacheinander.
+    # Dieselbe Gruppe wie pages.yml und pages-build (Grenze: siehe pages-build).
     concurrency:
       group: pages
       cancel-in-progress: false

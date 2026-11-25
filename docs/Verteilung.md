@@ -67,7 +67,9 @@ Baruch fragt nie von sich aus im Netz nach neuen Versionen. Aktualisiert wird ü
    Linux (.deb) ist Pflicht; scheitern AppImage, macOS oder Windows, entsteht das Release trotzdem und nennt in
    der Beschreibung, was fehlt.
 5. **Entwurf ansehen und veröffentlichen** (Nutzer, auf GitHub unter Releases) – und zwar **vor dem nächsten
-   Push auf `main`**, siehe [Grenze bei Entwürfen](#grenze-bei-entwürfen). Wer das nicht will, setzt die
+   Push auf `main`**, siehe [Grenze bei Entwürfen](#grenze-bei-entwürfen). Auch sonst gilt: `main` erst
+   schieben, wenn der Release-Lauf ganz durch ist, siehe
+   [Auslieferung über GitHub Pages](#auslieferung-über-github-pages). Wer das nicht will, setzt die
    Repository-Variable `RELEASE_DRAFT` auf `false`; dann ist das Release sofort öffentlich und die Grenze
    entfällt.
 
@@ -90,7 +92,24 @@ Repository mitbringen:
 - Scheitert der Abruf aus einem anderen Grund (Netz, Rechte, Prüfsumme), bricht `pages.yml` ab und die alte
   Seite bleibt stehen – lieber keine neue Seite als eine ohne Repository.
 
-Beide Abläufe teilen die Gruppe `pages` (`concurrency`): Es laufen nie zwei Auslieferungen zugleich.
+Beide Abläufe teilen die Gruppe `pages` (`concurrency`, `cancel-in-progress: false`): Es laufen nie zwei Jobs der
+Gruppe zugleich. Mehr sichert die Gruppe nicht zu:
+
+- `pages.yml` hält die Gruppe für den ganzen Lauf (Gruppe am Ablauf). `release.yml` kann das nicht – am Ablauf
+  steht dort schon die Gruppe `release-<Ref>` –, darum tragen `pages-build` und `pages-deploy` sie je für sich
+  und geben sie dazwischen frei.
+- In einer Gruppe wartet bei GitHub höchstens **ein** Job; ein neu hinzukommender verdrängt den wartenden, der
+  dann als abgebrochen gilt.
+- Folge: Löst ein Push auf `main` `pages.yml` aus, solange das Release noch läuft, kann sich dessen Lauf zwischen
+  `pages-build` und `pages-deploy` des Release schieben, und `pages-deploy` des Release kann verdrängt werden.
+  Dann steht zuletzt die Auslieferung von `pages.yml` – mit `/apt/` aus dem letzten **veröffentlichten** Release,
+  also ohne das neue.
+
+Darum die Regel: **`main` erst schieben, wenn der Release-Lauf ganz durch ist** (Job `pages-deploy` grün) und
+der Entwurf veröffentlicht wurde. Ist es doch passiert: Entwurf veröffentlichen, dann `pages.yml` von Hand
+starten (Actions → Webseite → „Run workflow“); ein abgebrochenes `pages-deploy` des Release lässt sich auch
+allein wiederholen. **Ungemessen:** Das folgt aus dem von GitHub beschriebenen Verhalten der Gruppen; lokal ist
+es nicht prüfbar und beobachtet wurde es nicht.
 
 **Bauen und Ausliefern sind zwei Jobs** (seit Runde 32), in beiden Abläufen gleich:
 

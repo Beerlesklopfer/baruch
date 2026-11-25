@@ -792,3 +792,43 @@ fn pages_are_built_and_deployed_in_two_jobs() {
         "release.yml: das Ausliefern erbt die Bedingung, sonst würde es dann übersprungen"
     );
 }
+
+/// Die Gruppe `pages` hält in release.yml nicht die ganze Auslieferung (je Job, dazwischen frei); die Doku
+/// darf darum nicht mehr versprechen, als GitHub zusichert, und muss die Regel für den Push auf main nennen.
+#[test]
+fn pages_group_limit_is_documented() {
+    let group = "concurrency:\n      group: pages\n      cancel-in-progress: false";
+    let release = std::fs::read_to_string(root().join(".github/workflows/release.yml")).unwrap();
+    let build = &release[release.find("\n  pages-build:\n").unwrap()..];
+    let (building, deploying) = build.split_at(build.find("\n  pages-deploy:\n").unwrap());
+    assert!(building.contains(group), "release.yml: pages-build in der Gruppe pages, ohne Abbruch laufender Jobs");
+    assert!(deploying.contains(group), "release.yml: pages-deploy in derselben Gruppe, ohne Abbruch");
+    assert!(
+        release.contains("\nconcurrency:\n  group: release-${{ github.ref }}\n"),
+        "release.yml: am Ablauf steht die Gruppe des Release – darum kann pages dort nur je Job stehen"
+    );
+    let pages = std::fs::read_to_string(root().join(".github/workflows/pages.yml")).unwrap();
+    assert!(
+        pages.contains("\nconcurrency:\n  group: pages\n  cancel-in-progress: false\n"),
+        "pages.yml: der ganze Lauf hält die Gruppe, ein Push auf main bricht keine laufende Auslieferung ab"
+    );
+    let doc = std::fs::read_to_string(root().join("docs/Verteilung.md")).unwrap();
+    assert!(
+        !doc.contains("Es laufen nie zwei Auslieferungen zugleich"),
+        "Verteilung.md: das alte Versprechen gilt seit der Trennung in zwei Jobs nicht mehr"
+    );
+    assert!(
+        doc.contains("**`main` erst schieben, wenn der Release-Lauf ganz durch ist**"),
+        "Verteilung.md: die Regel, die das Überholen und Verdrängen umgeht, steht bei der Auslieferung"
+    );
+    assert!(
+        doc.contains("verdrängt den wartenden") && doc.contains("**Ungemessen:**"),
+        "Verteilung.md: der Grund steht da, ehrlich als Analyse und nicht als Messung"
+    );
+    for (name, text) in [("release.yml", &release), ("pages.yml", &pages)] {
+        assert!(
+            text.contains("docs/Verteilung.md") && text.contains("main erst nach Ende"),
+            "{name}: der Hinweis steht auch an der Gruppe selbst"
+        );
+    }
+}
