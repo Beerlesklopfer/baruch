@@ -1,2 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Runde 32 (Schnittstelle R32-S1): Gestaltung der Aufgabe beenden – noch leer. */
+/* Runde 32 (Aufgabe beenden): Rückfrage /beenden. Gerüst aus works.css (.works-page), Farben aus app.css.
+   Die Abschlussseite (shutdown_done.html) trägt ihren Stil selbst – der Server liefert dann nichts mehr. */
+.shutdown-page { max-width: 760px; }
+.shutdown-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }

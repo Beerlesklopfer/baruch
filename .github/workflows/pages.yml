@@ -20,23 +20,22 @@ on:
 permissions:
   contents: read
 
-# Dieselbe Gruppe wie der Job „pages“ in release.yml: nie zwei Auslieferungen zugleich, keine wird abgebrochen.
+# Dieselbe Gruppe wie die Jobs „pages-build“ und „pages-deploy“ in release.yml: nie zwei Auslieferungen zugleich,
+# keine wird abgebrochen.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  pages:
-    name: Webseite und /apt/ ausliefern (GitHub Pages)
+  # Bauen und Ausliefern sind zwei Jobs (Runde 32), wie GitHub es für Pages vorsieht: Am 2026-11-24 fand
+  # deploy-pages im selben Job das eben hochgeladene Artefakt zweimal nicht, und das Wiederholen des Jobs legte
+  # ein zweites Artefakt an. Nebenbei hat der Job, der Hugo und die Skripte ausführt, so keine Schreibrechte.
+  pages-build:
+    name: Webseite und /apt/ bauen
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -73,5 +72,18 @@ jobs:
         with:
           path: site/public
 
+  pages-deploy:
+    name: Webseite und /apt/ ausliefern (GitHub Pages)
+    needs: [pages-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

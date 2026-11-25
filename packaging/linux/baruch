@@ -7,6 +7,11 @@
 #   BARUCH_LISTEN      Adresse des Servers (Vorgabe 127.0.0.1:8765, wie baruch-server)
 #   BARUCH_SERVER      Pfad zu baruch-server (Vorgabe: neben diesem Skript, sonst aus dem PATH)
 #   BARUCH_NO_BROWSER  auf 1 gesetzt: keinen Browser öffnen
+#   BARUCH_BROWSER     app (Vorgabe): eigenes Fenster eines Chromium-artigen Browsers (`--app=URL`), wenn einer
+#                      gefunden wird, sonst der Standardbrowser; standard: immer der Standardbrowser.
+#                      Im App-Fenster kann „Baruch beenden“ das Fenster selbst schließen (window.close()).
+#   BARUCH_APPLICATIONS  nur macOS: Ordner der Programme, durch Doppelpunkt getrennt
+#                      (Vorgabe /Applications:$HOME/Applications)
 #
 # Weitere Argumente gehen unverändert an `baruch-server serve`.
 set -u
@@ -35,8 +40,46 @@ reachable() {
     (exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null
 }
 
+# Sucht einen Chromium-artigen Browser (kennt `--app=URL`) und gibt seinen Pfad aus; Status 1, wenn keiner da ist.
+find_app_browser() {
+    if [ "$(uname -s)" = "Darwin" ]; then
+        dirs="${BARUCH_APPLICATIONS:-/Applications:${HOME:-/nonexistent}/Applications}"
+        old_ifs="$IFS"
+        IFS=:
+        for dir in $dirs; do
+            for app in "Google Chrome" "Chromium" "Brave Browser" "Microsoft Edge"; do
+                if [ -x "$dir/$app.app/Contents/MacOS/$app" ]; then
+                    IFS="$old_ifs"
+                    printf '%s\n' "$dir/$app.app/Contents/MacOS/$app"
+                    return 0
+                fi
+            done
+        done
+        IFS="$old_ifs"
+        return 1
+    fi
+    for name in chromium chromium-browser google-chrome google-chrome-stable brave-browser microsoft-edge; do
+        if command -v "$name" >/dev/null 2>&1; then
+            command -v "$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
 open_browser() {
     [ "${BARUCH_NO_BROWSER:-0}" = "1" ] && return 0
+    case "${BARUCH_BROWSER:-app}" in
+        app)
+            browser="$(find_app_browser || true)"
+            if [ -n "$browser" ]; then
+                "$browser" "--app=$url" >/dev/null 2>&1 &
+                return 0
+            fi
+            ;;
+        standard) ;;
+        *) echo "baruch: BARUCH_BROWSER=${BARUCH_BROWSER} ist unbekannt (app oder standard) – nehme den Standardbrowser." >&2 ;;
+    esac
     if [ "$(uname -s)" = "Darwin" ]; then
         open "$url"
     elif command -v xdg-open >/dev/null 2>&1; then
@@ -75,4 +118,12 @@ while [ "$tries" -lt 120 ]; do
     sleep 0.5
 done
 
+# Endet der Server von selbst (Knopf „Baruch beenden“ in der Oberfläche), endet auch der Starter mit dessen Status.
 wait "$pid"
+status=$?
+# Ein Signal an den Starter unterbricht `wait`; der Server fährt dann noch sauber herunter – darauf warten.
+if kill -0 "$pid" 2>/dev/null; then
+    wait "$pid"
+    status=$?
+fi
+exit "$status"
