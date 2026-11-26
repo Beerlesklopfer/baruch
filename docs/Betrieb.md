@@ -272,7 +272,9 @@ was das für den Betrieb heißt.
   von Loopback lässt Baruch weiterhin nur `/mcp` durch. Ein Lektor kommt über den Reverse-Proxy auf demselben
   Rechner (`--allow-host`, TLS am Proxy) – nicht über `--listen` im Netz.
 - **`/mcp` bleibt bei Tokens.** Die Anmeldung gilt für Seiten, Formulare und `/rpc`; MCP-Clients melden sich
-  nicht an und brauchen kein Konto.
+  nicht an und brauchen kein Konto. Das heißt auch: Ein Programm auf dem eigenen Rechner erreicht `/mcp` weiter
+  ohne Token und ohne Anmeldung und kann dort schreiben, was MCP immer durfte (Vorschläge, Beiträge, Einfälle,
+  Gliederungspunkte, Anträge – nie Buchtext ändern oder löschen). Konten schützen diesen Weg nicht.
 - **Sitzung:** Nach der Anmeldung setzt Baruch das Cookie `baruch_session` (`HttpOnly`, `SameSite=Strict`,
   über den Namen des Proxys zusätzlich `Secure`). Gespeichert ist nur ein Hash des Sitzungsschlüssels. Eine
   Sitzung endet nach 30 Tagen ohne Benutzung, spätestens nach 90 Tagen, beim Abmelden, beim Sperren des Kontos
@@ -286,6 +288,11 @@ was das für den Betrieb heißt.
   wenn die Anfrage nicht über den Proxy kommt) wächst eine Wartezeit bis höchstens 15 Minuten; solange antwortet
   die Anmeldung mit 429 und `Retry-After`. Hinter dem Proxy sieht Baruch nur dessen Adresse – eine Bremse je
   Besucheradresse gehört darum in den Proxy (bei nginx `limit_req`), wenn sie gewünscht ist.
+- **Die Sperre kann den Autor aussperren:** Wer den Kontonamen kennt, hält das Konto mit falschen Anmeldungen in
+  der Wartezeit; während der Sperre hilft auch das richtige Passwort nicht. An Daten kommt er damit nicht. Abhilfe:
+  einen Kontonamen wählen, der sich nicht raten lässt, und die Bremse je Besucheradresse im Proxy einrichten. Der
+  Notweg `baruch-server passwort` setzt das Passwort, hebt eine laufende Sperre aber nicht auf (Stand Runde 35) –
+  sie läuft nach höchstens 15 Minuten ohne weiteren Fehlversuch ab.
 - **Passwörter** speichert Baruch nur als Argon2id-Prüfwert in der Datenbank (Tabelle `account`), nie im
   Klartext und nie in Protokollen. Die Sicherung des Datenordners enthält diese Prüfwerte und die Hashes der
   Sitzungen – sie gehört weiterhin unter Verschluss.

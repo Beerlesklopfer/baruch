@@ -1,9 +1,16 @@
-# Übergabe (Stand 2026-11-26, Runde 34 „Mindmap wie XMind“ **abgeschlossen** (Wolke und Mindmap verbunden; Integration `826964a`, PM-Abschluss mit vollem Lauf); davor: Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 35 abgeschlossen (PM, 2026-11-27):** Prüfung mit vier Befunden, der mittlere behoben (`40d6591`: Die Sperre
+  gegen Durchprobieren zählt jetzt vor der Passwortprüfung, `Store::login_reserve`); die drei niedrigen stehen in
+  `docs/Betrieb.md` und in `docs/Backlog.md`, „Nach Runde 35 offen“. Voller Lauf des PM im Hauptordner nach
+  `cargo clean -p` aller Workspace-Crates: Exit 0, 211 Ergebnisse „ok“, 3452 bestanden, 0 gescheitert, 2 ignoriert; Server-Bündel 1519 bestanden; pgvector-Tests liefen mit. Worktrees der Runde samt `target/` entfernt, die Zweige
+  `team/konten`, `team/rollen`, `team/oberflaeche_konten` bleiben; Fahrplan nachgeführt. Nicht gepusht. Der Worktree
+  `.claude/worktrees/strg_s` (Zweig `team/strg_s`, offene Änderungen) gehört nicht zur Runde und ist unberührt.
+  Bildschirmfotos der Sichtprüfung: `.claude/sicht/r35/` (20 Bilder, nicht im Repo).
 - **Runde 35 „Konten und Rollen (Lektorat II)“ integriert** (2026-11-27, Integrator, auf `development`;
   Schnittstelle R35-S1 `e56c3f3`; Zweige `team/konten` `cc89a28`, `team/rollen` `03359d2`,
   `team/oberflaeche_konten` `3ee5b32` mit `--no-ff` in dieser Reihenfolge, **ohne Textkonflikte**; danach der
@@ -2221,8 +2228,8 @@ Frühere Runden:
    Konten (Lektor anlegen) und Reiter Buch → Mitwirkende (Werk freigeben). Der Proxy muss `Host` unverändert
    durchreichen und TLS sprechen; `auth_basic` im Proxy kann mit Konten entfallen (`docs/Betrieb.md`). Handprüfung:
    `docs/Architektur.md`, „Runde 35 – Konten und Rollen“, „Handprüfung für den Nutzer“. Offene Fragen und Reste:
-   `docs/Backlog.md`, „Nach Runde 35 offen“. Es folgen Prüfung und PM-Abschluss der Runde (Fahrplan pflegt der PM),
-   dann nach Vorschlag des PM 36 „Reste“ und 37 „Hilfe auf der Webseite“.
+   `docs/Backlog.md`, „Nach Runde 35 offen“. Prüfung, Nachbesserung (`40d6591`) und PM-Abschluss sind erledigt; es
+   folgen nach Vorschlag des PM 36 „Reste“ und 37 „Hilfe auf der Webseite“ (`docs/Fahrplan.md`, „Geplant“).
 0. Nach Runde 34 (abgeschlossen, **Migration 0052**): Nach dem Stand der Übergabe läuft der Dienst des Nutzers mit
    `35140b5` (vom PM nicht nachgesehen – der Dienst wird nicht angefasst); die Runden 32 und 34 sind dort nicht
    eingespielt. Vor dem Einspielen den Datenordner sichern. Danach die Handprüfung aus `docs/Backlog.md`, „Nach
@@ -2337,6 +2344,8 @@ Frühere Runden:
   unter Einstellungen → Konten, Vorgabe aus)? (3) Reicht „Lektor kommt über den Reverse-Proxy auf demselben Rechner“,
   oder soll Baruch selbst von anderen Rechnern erreichbar werden? (4) Braucht es ein zweites Autor-Konto oder
   MCP-Tokens je Lektor und Werk? (5) Soll ein Lektor in Fäden ohne Abschnitt schreiben dürfen (heute nur lesen)?
+  (6) Aus der Prüfung: `/mcp` ist von der Anmeldung ausgenommen – ein Programm am eigenen Rechner schreibt auch mit
+  Konten ohne Token Vorschläge, Beiträge und Einfälle. Soll MCP mit Konten immer ein Token verlangen?
 - **Nach Runde 34:** Kommt „schlanker Einstieg, Befunde nach Gewicht, Anmerkungen zum ganzen Buch“ (Vorhaben
   Lektorat) vor oder nach 0.9.1? Die Reihenfolge vom 2026-11-25 nennt nur Konten und Rollen, Reste und Hilfe.
   Zur Kenntnis, vom PM entschieden: Beim Ziehen in die Wolke wandern die Unterknoten mit; Einlesen ohne Zielknoten

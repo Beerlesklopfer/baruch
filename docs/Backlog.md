@@ -5,7 +5,7 @@ der Arbeitsstand in `HANDOFF.md`.
 
 ## Nach 0.9.0 (Wünsche 2026-11-24/25, Stand nach Veröffentlichung von 0.9.0)
 
-Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (Runde 35; **integriert 2026-11-27**, Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
+Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (**erledigt in Runde 35**, 2026-11-27; Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
 
 - **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
 - **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
@@ -77,7 +77,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-26: R13–R34 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
+## Rundenplan (Stand 2026-11-27: R13–R35 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -115,10 +115,12 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); auf `development` seit `0f52492`, Gegenprobe `35140b5` (Tag `v0.9.0`) | menueband · laptop · seiten | – |
 | R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
+| R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
 
-### Nach Runde 35 offen (Integrator 2026-11-27)
+### Nach Runde 35 offen (Integrator und PM-Abschluss 2026-11-27)
 
-Runde 35 „Konten und Rollen (Lektorat II)“ ist integriert (`docs/Architektur.md`, „Runde 35 – Konten und Rollen“).
+Runde 35 „Konten und Rollen (Lektorat II)“ ist abgeschlossen (`docs/Architektur.md`, „Runde 35 – Konten und Rollen“;
+Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf).
 
 **Fragen an den Nutzer** (vom PM vorläufig entschieden, Vertrag §0):
 - PDF-Lesen für Lektoren: heute gesperrt wie jeder Export (PDF, EPUB, Word, Austausch, Mindmap-Datei).
@@ -128,6 +130,29 @@ Runde 35 „Konten und Rollen (Lektorat II)“ ist integriert (`docs/Architektur
 - MCP bleibt bei Tokens ohne Bezug zu Konten: Ein Token ist nicht auf freigegebene Werke beschränkt. Tokens je Lektor
   und Werk wären eine eigene Aufgabe.
 - Lektoren lesen Fäden ohne Abschnitt, schreiben dort aber nicht (ein Faden-Beitrag kann Personas rufen).
+
+**Aus Prüfung und Nachbesserung (2026-11-27):**
+- **Behoben (mittel):** Die Sperre gegen Durchprobieren zählte einen Fehlversuch erst nach der Passwortprüfung; eine
+  Salve gleichzeitiger Anmeldungen kam daran vorbei (nachgestellt: 12 statt 4 geprüfte Versuche). Seit `40d6591`
+  reserviert `Store::login_reserve` den Versuch vor der Prüfung in einer Transaktion.
+- **Niedrig, dokumentiert (`docs/Betrieb.md`), Code offen (→ R36):** Wer den Kontonamen des Autors kennt, hält ihn mit
+  falschen Anmeldungen in der Sperre (bis 15 Minuten je Runde; kein Zugriff auf Daten). `baruch-server passwort` setzt
+  das Passwort, hebt die Sperre aber nicht auf – der Befehl sollte `login_reset` für das Konto aufrufen. Bis dahin
+  hilft „Am eigenen Rechner ohne Anmeldung“ oder Warten.
+- **Niedrig, dokumentiert (keine Aufgabe):** Ein Proxy auf demselben Rechner, der `Host` auf `127.0.0.1` umschreibt und
+  keine der sechs Forwarded-Kopfzeilen setzt, gilt als eigener Rechner (nur mit eingeschaltetem Schalter bzw. ohne
+  Konten für `/einrichten` von Belang); `docs/Betrieb.md` warnt davor und nennt die Probe.
+- **Niedrig (→ Nutzerfrage):** `/mcp` ist von der Anmeldung ausgenommen. Ein Programm auf dem eigenen Rechner schreibt
+  auch mit Konten ohne Token über MCP (Vorschläge, Beiträge, Einfälle, Gliederungspunkte, Anträge – nie Ändern oder
+  Löschen von Buchtext). Soll MCP mit Konten immer ein Token verlangen?
+- Folge der Nachbesserung: Bei voller Tabelle `login_attempt` (999 Bereiche) löst auch eine gelungene Anmeldung aus
+  einem neuen Bereich die gemeinsame Wartezeit von 2 Sekunden aus; ein abgebrochener Versuch bleibt gezählt (gewollt,
+  `docs/Architektur.md`). Eine gelungene Anmeldung setzt auch den Bereich der Adresse zurück (keine Aufgabe).
+
+**Vom PM entschieden (2026-11-27):** Die Abweichungen der Aufgabe rollen vom Vertrag bleiben: `wysiwyg.*`,
+`ribbon.formats` und `GET /einstellungen/darstellung` mit Werk-Bindung (sicherer als „ohne Werk“, das für einen Lektor
+das Vorgabewerk der Instanz hieße), `work.sheet` und `search.find` als lesende Ergänzungen. Die vier dunklen Bilder der
+Sichtprüfung (02, 05, 09, 13) hat der PM angesehen: dunkle Darstellung greift, nichts überlappt.
 
 **Handprüfung beim Nutzer** (echter Browser, Proxy mit TLS): Liste mit 24 Punkten in `docs/Architektur.md`, „Runde 35 –
 Konten und Rollen“, „Handprüfung für den Nutzer“. Besonders: Passwortmanager, `Secure`-Cookie hinter dem Proxy,
@@ -144,7 +169,7 @@ Konten und Rollen“, „Handprüfung für den Nutzer“. Besonders: Passwortman
   sie nicht (Beschriftung anpassen).
 - Ein Lektor ohne freigegebenes Werk erreicht Einstellungen → Darstellung nicht (Umleitung auf `/werke`). Seit der
   Integration liefert `AppState::default_work` einem Lektor nur freigegebene Werke – die Werk-Bindung von
-  `/einstellungen/darstellung`, `wysiwyg.*` und `ribbon.formats` ließe sich damit wieder lockern (prüfen).
+  `/einstellungen/darstellung`, `wysiwyg.*` und `ribbon.formats` ließe sich damit wieder lockern (prüfen, → R36).
 - Anmelde- und Einrichtungsseite folgen dem Farbschema des Systems, nicht dem Cookie `baruch_theme` (die Seiten stehen
   ohne Menüband und ohne `data-theme`).
 - Editor-Kopf eines Lektors ist eng: Das Abzeichen „Lektor · @lektorat:…“ kürzt Titel und Herkunft der Fassung
