@@ -61,7 +61,7 @@ pub enum WorkFrom {
 }
 
 /// Routen, die ein Lektor aufrufen darf: Methode (`GET` | `POST`), Muster wie im Router, Herkunft des Werks
-/// (Vertrag §2.1; Begründungen in `docs/r35/rollen.md`). Kein Upload, kein `/act`, kein Formular eines Moduls
+/// (Vertrag §2.1; Begründungen in `docs/Architektur.md`, „Runde 35“). Kein Upload, kein `/act`, kein Formular eines Moduls
 /// (`/beitraege/act` usw. rufen ihr Modul direkt, ohne `rpc::call`).
 pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
     ("GET", "/", WorkFrom::Query),
@@ -96,7 +96,7 @@ pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
 ];
 
 /// RPC-Methoden, die ein Lektor aufrufen darf, mit der Herkunft des Werks (Vertrag §2.2; Begründungen in
-/// `docs/r35/rollen.md`). [`WorkFrom::Param`]: fehlt `work`, wird das kleinste freigegebene Werk eingesetzt.
+/// `docs/Architektur.md`, „Runde 35“). [`WorkFrom::Param`]: fehlt `work`, wird das kleinste freigegebene Werk eingesetzt.
 ///
 /// Abweichungen vom Start des Vertrags, zur sicheren Seite bzw. rein lesend:
 /// - `wysiwyg.*` und `ribbon.formats` stehen als [`WorkFrom::Param`] statt „ohne Werk“: `rpc::dispatch` gibt ihnen
@@ -231,6 +231,21 @@ fn query_works(query: Option<&str>) -> Result<Vec<String>, ()> {
 /// Die einzige Prüfung einer Route. Volle Rechte → erlaubt; Lektor → nur Treffer in [`LEKTOR_ROUTES`] mit
 /// freigegebenem Werk (siehe Modulkopf „Werk-Bindung“).
 pub async fn check_request(state: &AppState, who: &Who, method: &Method, path: &str, query: Option<&str>) -> Verdict {
+    check_request_preferring(state, who, method, path, query, None).await
+}
+
+/// [`check_request`] mit dem zuletzt geöffneten Werk des Browsers (`preferred`, Cookie `baruch_work`; so ruft
+/// [`crate::auth::gate`] auf): Fehlt `work` in der Adresse einer GET-Seite, führt die Umleitung auf dieses Werk, wenn
+/// es freigegeben ist – sonst auf das kleinste freigegebene (Vertrag §2.1). Das Cookie gibt nie ein Recht: Ein nicht
+/// freigegebenes oder unlesbares `preferred` zählt schlicht nicht.
+pub async fn check_request_preferring(
+    state: &AppState,
+    who: &Who,
+    method: &Method,
+    path: &str,
+    query: Option<&str>,
+    preferred: Option<WorkId>,
+) -> Verdict {
     if who.full_rights() {
         return Verdict::Allow;
     }
@@ -279,8 +294,9 @@ pub async fn check_request(state: &AppState, who: &Who, method: &Method, path: &
         },
         WorkFrom::Query if !in_query.is_empty() => Verdict::Allow,
         WorkFrom::Query if verb != "GET" => Verdict::Deny(NO_WORK.to_owned()),
-        WorkFrom::Query => match granted.first() {
-            // Nie das Vorgabewerk der Instanz: dieselbe Adresse mit dem kleinsten freigegebenen Werk.
+        WorkFrom::Query => match preferred.filter(|work| granted.contains(work)).or(granted.first().copied()) {
+            // Nie das Vorgabewerk der Instanz: dieselbe Adresse mit dem zuletzt geöffneten Werk, wenn es freigegeben
+            // ist, sonst mit dem kleinsten freigegebenen.
             Some(work) => Verdict::Redirect(match query.filter(|q| !q.is_empty()) {
                 Some(query) => format!("{path}?{query}&work={work}"),
                 None => format!("{path}?work={work}"),

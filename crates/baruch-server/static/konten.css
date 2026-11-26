@@ -66,4 +66,7 @@ body[data-rolle="lektor"] form[method="post"]:not([action="/lektorat/act"]):not(
   padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
 }
 .lektor-finding .btn { align-self: flex-start; }
-.befunde .lektor-finding { max-width: 46rem; }
+/* Auf der Befundseite trägt das Formular auch `.fd-form` (befunde.css: Zeile mit `align-items: flex-end`); als Spalte
+   stünde damit alles am rechten Rand (Sichtprüfung Runde 35). */
+.befunde .lektor-finding, .fd-form.lektor-finding { max-width: 46rem; flex-wrap: nowrap; align-items: stretch; }
+.lektor-finding select { align-self: flex-start; }

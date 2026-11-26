@@ -2051,7 +2051,8 @@ laufen also wie vor Runde 24.
 - **Bewusst nicht ausgewertet:** `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `Forwarded`. Sie
   kämen von jedem, der Baruch direkt erreicht; eine Auswertung wäre nur mit einer Liste vertrauter Proxys sicher.
   Folge: `guard::remote_only_mcp` sieht bei jeder Anfrage über den Proxy Loopback und lässt alle Routen durch –
-  der Zugangsschutz liegt ganz beim Proxy (Baruch hat keine Anmeldung, `docs/Betrieb.md`). Steht der Proxy auf
+  der Zugangsschutz liegt ohne Konten ganz beim Proxy (ohne Konten hat Baruch keine Anmeldung, `docs/Betrieb.md`;
+  mit Konten verlangt seit Runde 35 die Schicht `auth::gate` eine Sitzung, siehe „Runde 35 – Konten und Rollen“). Steht der Proxy auf
   einem anderen Rechner, ist die Gegenstelle nicht Loopback, und es bleibt bei „nur `/mcp`“.
 - **Bekannte Grenze:** Schreibt der Proxy `Host` auf `127.0.0.1:<Port>` um, ist die Anfrage von einer lokalen
   nicht zu unterscheiden; `/mcp` ginge dann ohne Token. Baruch kann das nicht erkennen; `docs/Betrieb.md`
@@ -2062,7 +2063,8 @@ laufen also wie vor Runde 24.
 - Tests: Unit-Tests in `guard.rs` (`parse`, `allows`, `is_extra`, `via_proxy`), `tests/round24_betrieb.rs`
   (Router mit gesetzten Namen, Programm mit ungültiger Angabe).
 
-Offen: kein eigenes TLS, keine Anmeldung; Cookies ohne `Secure`.
+Offen: kein eigenes TLS. Seit Runde 35: Anmeldung mit Konten (ohne Konten weiter keine); das Cookie der Sitzung
+trägt hinter dem Proxy `Secure`, die übrigen Cookies (Darstellung, zuletzt geöffnetes Werk) weiter nicht.
 
 ## Literatur
 
@@ -5455,3 +5457,490 @@ geprüft (`import::check`). Beide POST-Routen liegen hinter `guard::same_origin`
   Aktionen, MCP mit Herkunft, Rundreise `.mm`/`.xmind` in ein zweites Werk, alte Daten unverändert). Angepasste
   fremde Tests: elf Rundreisen auf `version="9"`, `round25_abnahme`, `round25_bild`, `round18_menueband`,
   `round28_abnahme`, `round28_uebersicht`, `round9_menu`, `round33_seiten` (zwei neue Vorlagen).
+
+## Runde 35 – Konten und Rollen
+
+Konten, Passwort-Hash, Sitzungen und die Anmelde-Schicht (Modul `auth`), Rollen je Werk und die einzige Stelle der
+Rechteprüfung (Modul `roles`), Seiten und Menü (Modul `konten_ui`). Bedienung: `docs/Bedienung.md` („Konten und
+Rollen“), Betrieb: `docs/Betrieb.md` („Anmeldung und Konten“), Methoden und Routen: `docs/RPC.md` („Runde 35“).
+
+- **Ohne Konten** (Tabelle `account` leer) bleibt Baruch offen wie vor Runde 35: `Who::Open`, kein Cookie, keine
+  Umleitung, keine zusätzliche Kopfzeile.
+- **Mit Konten** verlangen Seiten, Formulare und `/rpc` eine Sitzung – auch am eigenen Rechner (Vorgabe). `/mcp`
+  bleibt bei Tokens; die Schicht lässt `/mcp` unberührt.
+- Das erste Konto ist der Autor und entsteht nur am eigenen Rechner (`POST /einrichten`). Jedes weitere Konto ist
+  ein Lektor. Konten werden nie gelöscht (das Handle `@lektorat:<slug>` bleibt vergeben), nur gesperrt.
+
+**Entscheidungen des PM** (der Nutzer kann sie umstoßen): Mit Konten gilt die Anmeldung auch am eigenen Rechner;
+die Ausnahme „Am eigenen Rechner ohne Anmeldung“ (`store_meta` `auth.local_open`) schaltet der Autor ein. Direkter
+Zugriff von anderen Rechnern bleibt gesperrt (`guard::remote_only_mcp` unverändert) – ein Lektor kommt über den
+Reverse-Proxy auf demselben Rechner. Kontoart global (`author` | `lektor`), Rolle je Werk. Für Lektoren ist alles
+verboten, was nicht ausdrücklich erlaubt ist. Konten und Freigaben sind Instanzdaten (nicht im Austauschformat, kein
+Commit im Spiegel). Kein neues MCP-Werkzeug.
+
+### Konten und Anmeldung (`auth`)
+
+| Datei | Inhalt |
+|---|---|
+| `baruch-store/src/accounts.rs` | Tabellen `account`, `account_session`, `login_attempt` (Migration 0053) und der Schalter `store_meta` `auth.local_open`. Der Store hasht nie und sieht nie ein Klartext-Passwort; `Account` trägt keinen Hash. |
+| `baruch-server/src/auth/mod.rs` | `Who`, `Identity`, `current()`/`scope()` (task-lokal), `AuthState` (gemerktes „es gibt Konten“), `accounts_exist`, `identity_of`, `check_name`, `message` |
+| `auth/gate.rs` | Schicht `gate` (im Router direkt außerhalb von `consent::inject`), `resolve`, `own_machine`, `peer` |
+| `auth/password.rs` | Argon2id: `hash`, `hash_with`, `verify`, `policy`, `hash_blocking`, `verify_blocking`, `DUMMY_PHC` |
+| `auth/session.rs` | Token, Cookie, `current_hash()` (Sitzung der laufenden Anfrage, task-lokal) |
+| `auth/throttle.rs` | Sperre gegen Durchprobieren: `wait_seconds`, Bereiche, `blocked`/`failed`/`succeeded` |
+| `auth/routes.rs` | Formulare (hinter `guard::same_origin`) und die gemeinsamen Bausteine `create_account`, `change_password`, `check_current`, `set_active` |
+| `auth/rpc.rs` | `account.*` |
+| `auth/cli.rs`, `main.rs` | Notweg `baruch-server passwort <name>` |
+| `guard.rs` | `forwarded(headers)`, `FORWARDED_HEADERS` |
+
+**Ablauf einer Anfrage** (`auth::gate`): (1) `/mcp` läuft als `Who::Open` durch. (2) `Who` aus den Extensions der
+Anfrage (nur im Prozess setzbar: Tests), sonst `resolve`. (3) `Who::Anonymous`: `PUBLIC_PATHS` und `/static/js/…`
+laufen durch; GET/HEAD → 303 auf `/anmelden?next=<Pfad+Query, prozentkodiert>`; `POST /rpc` → 401 mit JSON-RPC-Fehler
+`-32002`; sonst 401 Text „Anmeldung erforderlich.“ (4) `roles::check_request`. (5) Die Anfrage läuft in
+`auth::scope(who, …)` und `session::scope(<Token-Hash>, …)`.
+
+**`resolve`:** keine Konten → `Open`. Sonst: gültige Sitzung eines aktiven Kontos → `Account`; sonst Schalter
+„Am eigenen Rechner ohne Anmeldung“ an **und** `gate::own_machine` → `LocalAuthor`; sonst `Anonymous`. Ein
+Datenbankfehler führt nie zu mehr Rechten (er steht auf stderr, die Anfrage gilt als nicht angemeldet; ist schon
+die Zahl der Konten nicht lesbar, gilt „es gibt Konten“).
+
+**Eigener Rechner** (`gate::own_machine`, Entscheidung 0.2): `shutdown::own_machine` (Gegenstelle bekannt und
+Loopback, kein Proxy-Name, `Host` eine IP-Adresse oder `localhost`) **und** keine der Kopfzeilen `Forwarded`,
+`X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Real-IP`, `Via` (`guard::forwarded`; schon das
+Vorhandensein zählt, der Inhalt wird nicht gelesen). Ohne `ConnectInfo`: nein. Sind Proxy-Namen erlaubt
+(`--allow-host`), gilt auch eine Anfrage ohne `Host` nicht als eigener Rechner.
+
+**Antworten:** Mit Konten bekommt jede Antwort (angemeldet oder abgewiesen) `Cache-Control: no-store`, wenn sie
+selbst keine Angabe trägt (`/static/…` behält `no-cache`). Ohne Konten hängt die Schicht nichts an.
+
+**Regel:** `auth::current()` und `auth::session::current_hash()` nie in abgespaltenen Aufgaben (`tokio::spawn`,
+`spawn_blocking`) auswerten – vorher holen und mitgeben.
+
+#### Passwort
+
+- Argon2id, **m = 19456 KiB, t = 2, p = 1**, Salz 16 Byte (getrandom), Ausgabe 32 Byte, gespeichert als PHC-Text
+  (`$argon2id$v=19$m=19456,t=2,p=1$<Salz>$<Hash>`), Crate `argon2` 0.5. Hashen und Prüfen laufen in
+  `spawn_blocking`.
+- `verify` liest die Parameter aus dem PHC-Text: Wächst die Vorgabe später, bleiben alte Hashes prüfbar. Nur
+  Argon2id gilt; ein unlesbarer Text passt zu keinem Passwort.
+- Regel: 10 bis 200 Zeichen (Unicode-Zeichen, nicht Bytes), sonst keine.
+- Unbekannter Name: Prüfung gegen den festen Schein-Hash `password::DUMMY_PHC` (gleiche Parameter, gleiche Dauer),
+  gleiche Meldung „Name oder Passwort stimmt nicht.“ – auch für ein gesperrtes Konto und ein überlanges Passwort.
+- Kein Klartext in Datenbank (CHECK `password LIKE '$argon2id$%'`), Logs, Fehlermeldungen oder Antworten; kein Typ
+  mit Passwort leitet `Debug` ab; Meldungen zu falschen RPC-Parametern zitieren keinen Wert.
+
+#### Sitzung
+
+- Token: 32 Zufallsbytes (getrandom) als Base64url (43 Zeichen). In der Datenbank steht nur der SHA-256 (hex,
+  64 Zeichen, CHECK der Spalte). Wer nur die Datenbank kennt, kann sich damit nicht anmelden.
+- Cookie: `baruch_session=<token>; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000`, zusätzlich `; Secure`, wenn
+  `guard::via_proxy` wahr ist (Proxy-Name im `Host`, oder Proxy-Namen erlaubt und kein `Host`).
+- Gültig 30 Tage ohne Benutzung, höchstens 90 Tage seit der Anmeldung (beides prüft der Server in SQL);
+  `last_seen` wird höchstens einmal je Minute geschrieben. Abgelaufene Sitzungen aller Konten räumt die nächste
+  Anmeldung weg.
+- **Erneuern (Ergänzung zum Vertrag):** Liegt die vorige Benutzung länger als eine Stunde zurück, setzt die Antwort
+  dasselbe Cookie erneut (frische 30 Tage im Browser) – sonst endete die Sitzung im Browser 30 Tage nach der
+  Anmeldung, obwohl sie benutzt wird. Die Obergrenze von 90 Tagen bleibt.
+- Abmelden löscht die Sitzung und das Cookie (`Max-Age=0`). Passwortwechsel löscht alle **anderen** Sitzungen des
+  Kontos (die ändernde bleibt; Zurücksetzen durch den Autor oder die Befehlszeile löscht alle). Sperren
+  (`active = 0`) löscht alle. Beides wirkt bei der nächsten Anfrage.
+
+#### Sperre gegen Durchprobieren (`login_attempt`)
+
+- Bereiche: `konto:<Namensschlüssel>` (immer, auch für unbekannte Namen; Namensschlüssel = ohne Rand, Leerraum
+  einfach, klein, höchstens 40 Zeichen) und `adresse:<IP>` (nur mit bekannter Gegenstelle und nicht über den Proxy).
+- Bis zum dritten Fehlversuch keine Wartezeit; ab dem vierten 2^(n−3) Sekunden (2, 4, 8 …), höchstens 900.
+- Der Fehlversuch, der die Sperre auslöst, und jeder Versuch während der Sperre antworten **429** mit
+  `Retry-After: <Sekunden>`; während der Sperre wird kein Passwort geprüft und nichts gezählt.
+- Erfolg setzt die Bereiche des Versuchs zurück. Einträge, die älter als 24 Stunden sind, fallen beim nächsten
+  Fehlversuch weg.
+- Höchstens 1000 Zeilen: Ist die Tabelle voll (999 Bereiche), bekommt ein neuer Bereich keine Zeile; stattdessen
+  wartet der Bereich `alle` fest 2 Sekunden – in dieser Zeit wartet jeder Anmeldeversuch.
+- Auch das bisherige Passwort beim Ändern (`/konto/passwort`, `account.set_password`) zählt in `konto:<…>`: Wer
+  eine Sitzung in der Hand hat, kann das Passwort nicht beliebig oft raten.
+
+#### Befehlszeile
+
+`baruch-server passwort <name> [--data <Ordner>]` – Notweg bei vergessenem Passwort. Liest das neue Passwort als
+**eine Zeile von der Standardeingabe** (nie von der Befehlszeile: dort stünde es in der Prozessliste), setzt es für
+das vorhandene Konto und beendet alle Sitzungen des Kontos. Exit 0 mit „Passwort für „…“ gesetzt …“; unbekanntes
+Konto (nennt die vorhandenen), ungültige Länge, Ordner ohne Datenbank oder noch kein Konto → Exit 1 mit Grund auf
+stderr; ohne Namen Exit 2. Legt kein Konto an und entsperrt keines. Läuft auch neben dem laufenden Server.
+
+`serve` gibt beim Start eine Zeile „Anmeldung: aus (keine Konten …)“ bzw. „Anmeldung: an (n Konten)“ aus.
+
+#### Store (nur von `auth` gerufen)
+
+`account_count`, `account_list`, `account_get`, `account_create` (Lektor nur, wenn es ein Autor-Konto gibt),
+`account_create_first` (Prüfung „Tabelle leer“ und Einfügen in einer Anweisung: von zwei gleichzeitigen Aufrufen
+gewinnt genau einer), `account_for_login`, `account_password`, `account_set_password(id, phc, keep)`,
+`account_set_active` (letzter aktiver Autor bleibt – Prüfung und Änderung in einer Anweisung), `session_create`,
+`session_account`, `session_delete`, `session_delete_all`, `login_wait`, `login_failure`, `login_reset`,
+`auth_local_open`, `set_auth_local_open`; Hilfen `Store::account_name_key`, `Store::session_token_hash`.
+`lib.rs` reicht aus dem Modul nur `Account` und `NewAccount` heraus; Meldungen und Grenzen hängen darum als
+zugehörige Konstanten an `Store` (`ACCOUNT_TAKEN`, `ACCOUNT_NOT_FIRST`, `ACCOUNT_NEEDS_AUTHOR`,
+`ACCOUNT_LAST_AUTHOR`, `LOGIN_ATTEMPT_ROWS`, `LOGIN_FULL_WAIT`).
+
+### Rollen (`roles`)
+
+- **Kontoart global, Rolle je Werk.** `roles::role_in(state, who, work)`: volle Rechte (`Who::Open`,
+  `Who::LocalAuthor`, Autor-Konto) → `Role::Author` in jedem Werk; Lektor-Konto → `Role::Lektor` nur mit Zeile in
+  `work_member` (Migration 0054); sonst `None` (Werk unsichtbar).
+- **Eine Stelle der Rechteprüfung:** das Modul `roles` (`crates/baruch-server/src/roles/mod.rs`).
+  - `roles::check_request` – jede Route, aufgerufen aus `auth::gate`. Lektor: nur Treffer in `LEKTOR_ROUTES`
+    (Methode + Muster), sonst 403 „Abgelehnt: …“ mit Kopfzeile `x-baruch-abgelehnt: rolle`. HEAD zählt als GET;
+    andere Verben als GET, HEAD, POST sind für Lektoren gesperrt.
+  - `roles::check_rpc` – jede RPC-Methode, aufgerufen aus `rpc::call` vor jedem Dispatch (auch für unbekannte
+    Namen), also für `/rpc` (einzeln und Batch), `/act` und `/lektorat/act`. Lektor: nur Methoden aus `LEKTOR_RPC`,
+    sonst `-32003` „Das darf nur der Autor: <methode>“.
+  - Alles, was nicht in den Tabellen steht, ist für Lektoren gesperrt – auch Routen und Methoden künftiger Runden.
+    Die Formulare der Module (`/beitraege/act`, `/werke/befunde/act`, `/faden/act` …) rufen ihr Modul direkt und
+    stehen darum nicht in `LEKTOR_ROUTES`.
+- **Werk-Bindung.** Das Werk steht im Pfad (`{id}`), in der Adresse (`?work=`) oder im RPC-Parameter `work`.
+  - Ein nicht freigegebenes Werk wird mit derselben Meldung abgelehnt wie ein unbekanntes („unbekanntes Werk N“;
+    403 bzw. `-32003`) – ein Lektor erfährt nicht, welche Werke es gibt.
+  - Fehlt das Werk, gilt **nie** das Vorgabewerk der Instanz: RPC setzt das kleinste freigegebene Werk ein; GET-Seiten
+    mit `WorkFrom::Query` leiten mit 303 auf dieselbe Adresse mit `work=<Werk>` um – das zuletzt geöffnete (Cookie
+    `baruch_work`), wenn es freigegeben ist, sonst das kleinste freigegebene (`roles::check_request_preferring`, so
+    ruft `auth::gate` auf); ohne freigegebenes Werk 303 auf `/werke` (RPC: `-32003` „Noch kein Werk freigegeben.“).
+    Das Cookie gibt nie ein Recht. Für Seiten ohne eigenes Werk (`/werke`, `/konto`, `/ueber`) siehe „Integration“.
+  - Ein `work` in der Adresse bzw. in den Parametern wird bei **jeder** erlaubten Route und Methode geprüft, auch wenn
+    sie selbst kein Werk braucht (Werkwahl im Menüband). Die Adresse wird gelesen wie die Seiten sie lesen
+    (prozentdekodiert; ein kodierter Name wie `wor%6B` zählt mit, mehrere `work` müssen alle freigegeben sein).
+  - Ids (Beitrag, Befund, Faden, Bild, fester Schlüssel eines Abschnitts) sucht der Store immer im genannten Werk;
+    eine id eines fremden Werks trifft unter dem freigegebenen nichts (Test
+    `ids_of_a_foreign_work_yield_nothing_under_the_granted_work`).
+- **Nichts wird gemerkt.** Jede Prüfung liest die Freigaben neu (`Store::member_works`, liefert nur für aktive
+  Lektor-Konten etwas). Entzug der Freigabe und Sperre des Kontos wirken bei der nächsten Anfrage.
+- **Sichtbarkeit.** `roles::visible_works` liefert dem Lektor nur freigegebene Werke (`work.list`, `/werke`,
+  Werkwahl); `rpc::library_view` liefert Lektoren eine leere Literaturliste (keine Titel, keine Suche, keine Treffer,
+  kein Bilderkasten) – für `ui.render` und die Seite `/`.
+- **Herkunft.** Ein Lektor schreibt unter `@lektorat:<slug>` (`roles::author_name`), alle anderen weiter als „Autor“.
+  - Vorschlag: `Store::add_proposal` mit Persona = Handle, Modell leer; Seitenzweig `refs/revisions/<key>/<n>`
+    (`mirror::side_refs_after_proposal`) wie bei MCP-Vorschlägen, Trailer `Persona: @lektorat:<slug>`.
+  - Beitrag: `post.author` = Handle; wie beim Autor kein Commit beim Anlegen. Bearbeiten/Löschen eigener Beiträge:
+    ein Commit (`mirror::describe_post`), Autor des Commits ist der Handle, Committer „Autor“.
+  - Befund: `finding.persona` = Handle; ein Commit „Befund <id>: angelegt von @lektorat:<slug>“
+    (`mirror::describe_finding_added`, neu), Autor „<Anzeigename> (<Handle>)“
+    `<lektorat-slug>@lektorat.baruch.invalid`, Trailer `Baruch-Finding`, `Baruch-Action: finding-add`,
+    `Baruch-Node` (falls Abschnitt), `Baruch-Origin: lektor`, `Baruch-Lektor`.
+- **Freigaben sind Instanzdaten:** Tabelle `work_member` (0054), nicht im Austauschformat, kein Commit im Spiegel;
+  der Zeitpunkt steht in `granted`. Löschen eines Werks oder Kontos entfernt seine Freigaben (ON DELETE CASCADE).
+- **Store (`baruch-store/src/members.rs`):** `member_list(work)`, `member_grant(work, account, role)` (nur
+  Lektor-Konten, nur vorhandene Werke, idempotent – der Zeitpunkt der ersten Freigabe bleibt),
+  `member_revoke(work, account)`, `member_works(account)` (aufsteigend; leer für gesperrte, unbekannte und
+  Autor-Konten).
+
+#### Erlaubte Routen für Lektoren (`roles::LEKTOR_ROUTES`)
+
+| Methode | Muster | Werk aus | Begründung |
+|---|---|---|---|
+| GET | `/` | Adresse | Arbeitsseite: Abschnitt lesen, Vorschlag, Chat |
+| GET | `/werke` | – | Werkliste, gefiltert über `roles::visible_works` |
+| GET | `/beitraege` | Adresse | ganze Chat-Historie eines Abschnitts (ohne JavaScript) |
+| GET | `/beitrag` | Adresse | ein Beitrag: kopieren, zitieren, eigenen bearbeiten |
+| GET | `/faeden` | Adresse | Fäden lesen |
+| GET | `/faden` | Adresse | einen Faden lesen (schreiben nicht: `/faden/act` gesperrt) |
+| GET | `/suche` | Adresse | im Werk suchen (ersetzen nicht) |
+| GET | `/gliederung` | Adresse | Gliederung lesen (ändern nicht: `/gliederung/act` gesperrt) |
+| GET | `/werke/{id}/befunde` | Pfad | Befundseite, dort auch „Befund schreiben“ |
+| GET | `/werke/{id}/fassungen/verlauf` | Pfad | Verlauf der Fortschreibungen lesen |
+| GET | `/werke/{id}/glossar` | Pfad | Glossar lesen |
+| GET | `/werke/{id}/register` | Pfad | Register lesen |
+| GET | `/werke/{id}/bilder/{name}/datei` | Pfad | Bilder im Text der Arbeitsseite |
+| GET | `/werke/{id}/bilder/{name}/vorschau` | Pfad | Vorschaubilder im Text |
+| GET | `/ueber`, `/ueber/lizenz` | – | Über Baruch, Lizenz (AGPL: Hinweis auf den Quelltext) |
+| GET | `/konto` | – | eigenes Konto (Passwort ändern, Abmelden) |
+| GET | `/anmelden` | – | Anmeldeseite (nach dem Abmelden) |
+| GET | `/einstellungen/darstellung` | Adresse | Darstellung im eigenen Browser (Cookie); alle anderen Einstellungsseiten gesperrt. **Abweichung:** mit Werk aus der Adresse statt „ohne Werk“ – ohne `work` zeigte das Menüband der Seite das Vorgabewerk der Instanz (Titel eines fremden Werks) |
+| GET | `/static/app.css`, `/static/favicon.svg`, `/static/js/{name}` | – | Stil, Symbol, Widgets |
+| POST | `/rpc` | – | JSON-RPC; jede Methode prüft `roles::check_rpc` |
+| POST | `/lektorat/act` | – | Formularweg ohne JavaScript; ruft `rpc::call`, also dieselbe Prüfung |
+| POST | `/abmelden` | – | Abmelden |
+| POST | `/konto/passwort` | – | eigenes Passwort ändern |
+| POST | `/einstellungen/darstellung/act` | – | Darstellung speichern (nur Cookies im eigenen Browser) |
+
+Nicht erlaubt und darum 403: jeder Upload, `/act`, jedes Formular eines Moduls, jeder Export (PDF, EPUB, Word,
+Austausch, Mindmap-Datei), Import, alle übrigen Einstellungen, Beenden, Literatur, Einfälle, Bilderseiten außer Datei
+und Vorschau. `/mcp` bleibt bei Tokens und läuft nicht durch die Rollenprüfung.
+
+#### Erlaubte RPC-Methoden für Lektoren (`roles::LEKTOR_RPC`)
+
+„Werk“ = `work` aus den Parametern; fehlt es, wird das kleinste freigegebene eingesetzt.
+
+| Methode | Werk | Art | Begründung |
+|---|---|---|---|
+| `work.get`, `node.get` | Werk | lesend | Werk und Abschnitt lesen |
+| `revision.tree`, `revision.amends`, `revision.fold_get` | Werk | lesend | Fassungen, ihr Verlauf, Ausblendung |
+| `ui.render` | Werk | lesend | Arbeitsseite ohne Neuladen (Literatur für Lektoren leer) |
+| `menu.badges` | Werk | lesend | Zähler im Menüband |
+| `post.page`, `post.since`, `post.versions` | Werk | lesend | Chat des Abschnitts |
+| `finding.list`, `finding.get`, `finding.matrix` | Werk | lesend | Befunde |
+| `thread.list`, `thread.get`, `thread.since`, `thread.post_versions` | Werk | lesend | Fäden lesen |
+| `glossary.list`, `glossary.lookup`, `index.entries`, `index.overview` | Werk | lesend | Glossar und Register |
+| `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`, `wysiwyg.style` | Werk | lesend | Editor für den Vorschlag |
+| `ribbon.formats` | Werk | lesend | Formate der Vorlage im Menüband |
+| `work.sheet` | Werk | lesend | **ergänzt:** Satzbild des Werks für den Editor (nur lesen; `work.sheet_set` bleibt gesperrt) |
+| `search.find` | Werk | lesend | **ergänzt:** Suche im Werk (Seite `/suche` und Suchleiste); `search.preview/replace/undo` bleiben gesperrt |
+| `work.list` | – | lesend | gefiltert auf freigegebene Werke |
+| `account.me`, `account.set_password`, `account.logout_all` | – | eigenes Konto | Konto des Lektors (Baustein „konten“) |
+| `revision.propose` | Werk | schreibend | Vorschlag einer Fassung |
+| `post.add`, `post.edit`, `post.delete` | Werk | schreibend | Beitrag; bearbeiten und löschen nur eigene |
+| `finding.add` | Werk | schreibend | Befund bzw. „Anmerkung zum Buch“ |
+
+Abweichungen vom Start des Vertrags (§2.2), gemeldet (dazu die Route `/einstellungen/darstellung` in §2):
+
+1. `wysiwyg.*` und `ribbon.formats` stehen mit Werk-Bindung statt „ohne Werk“. Grund: `rpc::dispatch` gibt ihnen ohne
+   `work` das Vorgabewerk der Instanz (`wysiwyg.parse` liest dessen Bildtexte, `wysiwyg.style` dessen Satzbild,
+   `ribbon.formats` die Formate dessen Vorlage) – das wäre für einen Lektor ein fremdes Werk. Folge: Ein Lektor ohne
+   freigegebenes Werk bekommt für sie `-32003`.
+2. Ergänzt wurden nur die beiden rein lesenden Methoden `work.sheet` und `search.find` (Begründung in der Tabelle).
+   Keine davon fasst ein Modell, eine Verbindung oder das Dateisystem an. Nicht ergänzt (offen für den Integrator bzw.
+   „oberflaeche_konten“, falls die Arbeitsseite sie für Lektoren aufruft): `bible.marks` und `scripture.check` (lesen
+   SWORD-Module aus dem Dateisystem), `timing.count`, `xref.targets`, `outline.check`, `index.registers`,
+   `work.typeset_get`.
+
+### Oberfläche (`konten_ui`, `view.rs`, Vorlagen)
+
+| Datei | Inhalt |
+|---|---|
+| `src/konten_ui/mod.rs` | `login_page`/`login_html`, `setup_page`/`setup_html`, `safe_next`, `MESSAGES` mit `ok_message`/`error_message`, `apply`, Marken `KONTO_MARK`, `LEKTOR_OPEN/CLOSE`, `KONTEN_OPEN/CLOSE`, eigene minijinja-Umgebung (die 38.) |
+| `src/konten_ui/pages.rs` | Routen `GET /anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`; Inhalt der Einstellungsseite „Konten“ (`render_settings`); reine Darstellungsfunktionen `accounts_html`, `members_html`, `account_html` über Ansichtsdaten; `direct_from_own_machine` (dieselbe Regel wie `auth::gate::own_machine`, über `guard::forwarded`) |
+| `src/view.rs` | `values` liest `auth::current()`; für Lektoren eigene Vorlagen der drei Bereiche (`pane_templates`), `post.mine`, Beiträge ohne Befund-Karten, Herkunft `@lektorat:…` ohne leeres Modell |
+| `src/consent.rs` | Hinweisleiste und Dialog nur bei vollen Rechten |
+| `src/settings/mod.rs` | achte Seite `konten` in `PAGES`; Navigation des Rahmens für Lektoren nur „Darstellung“ |
+| `templates/anmelden.html`, `einrichten.html` | eigenständige Seiten ohne Menüband und ohne Skript |
+| `templates/konto.html`, `mitwirkende.html` | erweitern `base.html` (Reiter Start bzw. Buch) |
+| `templates/settings/konten.html` | Inhalt der Einstellungsseite |
+| `templates/fragments/lektor_tree.html`, `lektor_editor.html`, `lektor_assistants.html` | Arbeitsseite eines Lektors |
+| `static/konten.css` | Regeln der Rollen und Gestaltung der neuen Seiten (nur Variablen aus `app.css`) |
+| `web/src/settings.ts`, `menu.ts` | Lektor: „Einstellungen“ bleibt ein Link (kein `settings.render`), Pfeiltasten überspringen ausgeblendete Einträge |
+
+#### `konten_ui::apply(page, who, accounts_exist)`
+
+Läuft in `consent::inject` nach `band::apply` über jede Seite mit der Marke `<!--BARUCH-KONTO-->` (sie steht in
+`base.html` im Menü „Baruch ▾“ nach „Baruch beenden…“). Seiten ohne Marke bleiben Byte für Byte gleich.
+
+| Zustand | Menüeintrag | `<body>` | Kennzeichen |
+|---|---|---|---|
+| ohne Konten | „Konten einrichten…“ (`/einrichten`) | unverändert | ` nur-autor"` → `"`, ` data-nur-autor` entfernt, Stücke `NUR-LEKTOR` und `NUR-KONTEN` herausgeschnitten |
+| Autor-Konto | „Angemeldet: <Anzeigename> (Autor)“, „Mein Konto“, Formular „Abmelden“ (`POST /abmelden`) | `data-rolle="autor"` | `NUR-LEKTOR` herausgeschnitten, `NUR-KONTEN` bleibt (ohne Klammern) |
+| Lektor-Konto | wie oben mit „(Lektor)“ | `data-rolle="lektor"` | `NUR-LEKTOR` und `NUR-KONTEN` bleiben (ohne Klammern) |
+| `LocalAuthor` | „Autor (eigener Rechner, ohne Anmeldung)“, „Anmelden“ | `data-rolle="autor"` | wie Autor-Konto |
+| `Anonymous` | „Anmelden“ | unverändert | wie Autor-Konto |
+
+Damit ist eine Seite ohne Konten bis auf den einen Menüeintrag dieselbe wie vor Runde 35. Geprüft mit einem
+Byte-Vergleich von 23 Seiten und `ui.render` vor und nach der Änderung (Ziffern genullt): Unterschiede nur der
+Menüeintrag, der achte Eintrag „Konten“ in der Navigation der Einstellungen und die Anzeige einer Herkunft
+`@lektorat:…` (vorher „Persona @lektorat:erika ()“, jetzt „@lektorat:erika“ – ohne Konten kommt sie nicht vor).
+
+Regel für Vorlagen: `nur-autor` ist immer die **letzte** Klasse eines Elements (`class="btn nur-autor"`), sonst
+findet `apply` sie ohne Konten nicht. `apply` nimmt die Kennzeichen nur aus **Tags** heraus, nie aus Text zwischen
+den Tags – Buchtext im Textfeld oder Satzbild bleibt unberührt, auch wenn er zufällig dieselben Zeichen enthält. Gruppen des Menübands tragen statt der Klasse das Attribut `data-nur-autor`
+(ihr Tag muss wörtlich `<details class="band-group"` … ` data-band-group open>` bleiben, `band::apply`).
+
+#### Was ein Lektor sieht
+
+- **Arbeitsseite (serverseitig):** `view::page`/`view::panes` nehmen für Lektoren `fragments/lektor_*.html`. Darin:
+  Formular `form#editor-form` an `POST /lektorat/act` mit `method=revision.propose`, `work`, `key`, `body`, `note`
+  (mit JavaScript dieselbe Methode über `/rpc`, `data-rpc` in `workspace.ts`), Knopf „Vorschlagen“; rechts
+  „Befund schreiben“ (`finding.add`: `work`, `key`, `kind`, `body`, `quote`), Beitrag (`post.add`: `work`, `key`,
+  `body`), eigene Beiträge ändern/entfernen (`post.edit`: `id`, `body`; `post.delete`: `id`, `confirm`). Es fehlen
+  im HTML: Speichern, Als neue Fassung, Übernehmen, Verwerfen, Umschalten („aktuell machen“, „Diese Fassung
+  verwenden“), Löschen, Ausblenden, Personas und ihre Formulare, Lösungen, Verschieben/Umwandeln von Beiträgen,
+  Bild einfügen, Markierung, Zitate prüfen, die Dialoge Literatur/Werk anlegen/Einfall, Reiter und Feld „Einfügen“,
+  das Widget „outline“ (Umstellen der Gliederung) und das Widget „chat“ (siehe Annahmen). Befund-Blöcke in
+  Beiträgen der Personas liest der Lektor als Text des Beitrags, ohne die Karte mit den Status-Knöpfen.
+- **Übrige Seiten (CSS, ohne JavaScript):** `konten.css` blendet für `body[data-rolle="lektor"]` aus: `.nur-autor`,
+  `[data-nur-autor]` und **jedes POST-Formular**, dessen `action` nicht `/lektorat/act`, `/abmelden`,
+  `/konto/passwort` oder `/einstellungen/darstellung/act` ist (dieselbe Regel wie im Server: alles verboten, was nicht
+  erlaubt ist – neue Formulare künftiger Runden sind für Lektoren von selbst verborgen). `.nur-lektor` ist nur dort
+  sichtbar. Gekennzeichnet sind in `base.html`: Neues Werk/Import (3 Einträge), Austausch einlesen, Beenden, die
+  Gruppen Einfälle, Werkzeuge, Quellen, Satz, Ausgabe, Umschlag und die Knöpfe Zitate prüfen, Querverweise, Werk
+  bearbeiten, Anträge, Gliederungsschema, Bilder, Mitwirkende; in `works.html` die Gruppe „Werke“ und Ändern, Export,
+  PDF, Löschen; auf der Befundseite die Formulare zu Status, Entscheidung und Lösungen (Makro `card(…, na)`).
+- **Befundseite:** Formular „Befund schreiben: Anmerkung zum Buch“ (`finding.add` ohne `key`, `back=befunde`) als
+  `nur-lektor`, nur für Lektoren im HTML.
+- **Einstellungen:** In der Navigation steht für Lektoren nur „Darstellung“.
+- **Zustimmung:** Hinweisleiste und Dialog (`consent`) nur bei vollen Rechten.
+
+#### Seiten
+
+| Route | Verhalten |
+|---|---|
+| `GET /anmelden[?next=…][&ok=abgemeldet]` | ohne Konten 303 `/`; sonst Formular `POST /anmelden` (`name`, `password`, `next`), Link „Weiter“ auf `safe_next(next)`; mit Sitzung „Angemeldet als …“ |
+| `GET /einrichten` | mit Konten 303 `/einstellungen/konten`; nicht vom eigenen Rechner 403 mit Erklärung (ohne Formular); sonst Formular `POST /einrichten` (`name`, `display`, `password`, `password2`) |
+| `GET /konto[?ok=…][&fehler=…]` | Name, Rolle, Herkunft, Werke (`roles::visible_works`), `POST /konto/passwort` (`current`, `password`, `password2`), `POST /abmelden`; ohne Konten Erklärung; `LocalAuthor` Hinweis |
+| `GET /werke/{id}/mitwirkende[?ok=…][&fehler=…]` | nur volle Rechte (sonst 403), unbekanntes Werk 404; Daten aus `rpc::call("member.list", {work})`; Formulare `POST /werke/{id}/mitwirkende/act` (`action=grant|revoke`, `account`) |
+| `GET /einstellungen/konten[?ok=…][&fehler=…]` | Liste aus `Store::account_list`, Schalter aus `account.me` (`local_open`); Formulare `POST /einstellungen/konten/act` mit `action=create` (`name`, `display`, `password`, `password2`), `deactivate`/`activate` (`id`), `reset_password` (`id`, `password`, `password2`), `local_open` (`open=0|1`); ohne Konten Erklärung und „Einrichten“ |
+
+`?ok=`/`?fehler=` zeigen nur den Satz aus `MESSAGES` (ein Erfolgscode gilt nicht als Fehler und umgekehrt, Unbekanntes
+zeigt nichts). Alle Konto-Seiten antworten mit `Cache-Control: no-store`.
+
+### Annahmen und Abweichungen vom Vertrag
+
+Konten:
+
+1. **„Es gibt Konten“ wird nur als Ja gemerkt** (Vertrag §1.4 sagt: Ergebnis zwischenspeichern und nach dem Anlegen
+   ungültig machen). Konten werden nie gelöscht, ein Ja bleibt wahr; das Nein wird je Anfrage nachgesehen (ein
+   `SELECT count(*)` auf der leeren Tabelle). Grund: Ein gemerktes Nein ließe Anfragen ohne Anmeldung durch, wenn
+   ein Konto an der Ablage vorbei entsteht (Tests der Kollegen legen Konten per SQL an; zweiter Prozess).
+2. **Cookie erneuern** nach mehr als einer Stunde Pause (siehe Sitzung) – im Vertrag nicht genannt.
+3. **Der vierte Fehlversuch antwortet selbst schon 429** mit `Retry-After: 2` (Abnahme: „ab dem vierten Fehlversuch
+   429“), nicht erst der fünfte Versuch.
+4. **`alle`** sperrt, solange es wartet, jeden Anmeldeversuch (auch bekannte Bereiche) für höchstens 2 Sekunden.
+5. **Bisheriges Passwort beim Ändern** zählt in der Sperre des Kontos mit; während der Sperre lautet der Code
+   `passwort_falsch` (die Tabelle der Meldungen hat keinen eigenen Code für „gesperrt“).
+6. **`POST /einrichten` mit vorhandenem Konto** zeigt die Seite mit 403 und dem Satz „Es gibt schon ein Konto.“
+   (kein Code der Tabelle §3.4); für Unangemeldete endet die Anfrage schon in der Schicht mit 401.
+7. **`/einstellungen/konten/act` `create` ohne jedes Konto** leitet auf `/einrichten` (303): Ein Lektor ohne Autor
+   wäre ein Zustand, in dem niemand volle Rechte hat; der Store lehnt ihn ebenfalls ab.
+8. **Sperren des eigenen Kontos** ist einem Autor erlaubt, solange ein anderer aktiver Autor bleibt (in dieser Runde
+   gibt es über die Oberfläche nur einen Autor – praktisch greift immer `letzter_autor`).
+9. **`resolve` nimmt `&http::request::Parts`** statt `&Request` (schon in S1 so festgelegt und begründet).
+
+Rollen:
+
+- **Kein Zähler für offene Vorschläge:** MCP begrenzt offene Vorschläge je Client; für Lektoren (Menschen) gibt es
+  keine solche Grenze, nur die Größen (1 MiB Text, 2000 Zeichen Notiz).
+- **Lektoren und der Faden-Chat:** lesen ja, schreiben nein (kein Modellauftrag, Vertrag §0.7).
+- **`/lektorat/act` für den Autor:** nimmt nur Methoden aus `LEKTOR_RPC`; `revision.propose`/`finding.add` lehnt der
+  Server für ihn mit Hinweis ab. Der Autor nutzt wie bisher `/act` und die Formulare der Module.
+
+Oberfläche:
+
+2. **`account.me`** liefert `local_open` (Vertrag §1.6); scheitert der Aufruf, zeigt die Seite „ausgeschaltet“.
+3. **`member.list`** in der Form des Vertrags (§2.3); eine unlesbare Antwort zeigt die Seite als Fehler.
+4. **`/einstellungen/konten/act`** bekommt genau die Felder des Vertrags – kein `work`. Nach der Aktion fehlt das
+   Werk in der Adresse (es kommt dann aus dem Cookie `baruch_work`).
+5. **`/lektorat/act`** leitet nach `revision.propose`, `post.*` und `finding.add` zurück auf den Abschnitt
+   (`view::node_url`) bzw. mit `back=befunde` auf die Befundseite. Die Lektor-Formulare der Arbeitsseite schicken
+   kein `back`.
+6. **`revision.propose`** über `/rpc` antwortet mit `{key, rev, …}`; `workspace.ts` zeigt danach diese Fassung.
+7. **Live-Chat:** Für Lektoren fehlt das Widget „chat“ (neue Beiträge erscheinen nach dem Neuladen): `post.since`
+   liefert Beiträge mit den Werkzeugen des Autors (`post_entry`), die ein Lektor nicht nutzen kann.
+8. **Seiten `/beitrag` und `/beitraege`:** Ein Lektor liest dort; seine eigenen Beiträge ändert und entfernt er nur auf
+   der Arbeitsseite. Die Formulare des Autors sind dort über die CSS-Regel für POST-Formulare verborgen.
+9. **Anzeigename bei der Herkunft:** Fassungen, Beiträge und Befunde zeigen `@lektorat:<slug>` (wie `@word:<name>`).
+   Den Anzeigenamen dazu gibt es auf „Mein Konto“, „Mitwirkende“ und in den Einstellungen – auf der Arbeitsseite
+   nicht (die Ansichtsdaten `LibraryView` kennen keine Konten; Besitzer `rpc.rs`).
+10. **Links auf gesperrte Seiten** (z. B. Umschlagbild in der Werkliste, „Zitate prüfen“ in älteren Seiten) können für
+    Lektoren stehen bleiben, wo sie nicht in `base.html` liegen; sie enden mit 403 „Abgelehnt: …“.
+
+### Angepasste ältere Tests
+
+| Datei | Warum |
+|---|---|
+| `tests/round9_settings.rs`, `tests/round9_integration.rs`, Unit-Test in `settings/mod.rs` | acht statt sieben Einstellungsseiten (Vertrag §3.1) |
+| `tests/round24_pakete.rs` | hinter „Baruch beenden…“ folgt der Eintrag zum Konto (Vertrag §3.2) |
+| `tests/round32_abnahme.rs` | die Einträge „Word (.docx) importieren…“ und „Baruch beenden…“ tragen in `base.html` die Klasse `nur-autor`; hinter der Marke `R32-PLATZ beenden` folgt die Marke für den Eintrag zum Konto |
+| `tests/round33_laptop.rs` | `konten.css` steht in `STYLE` hinter `laptop.css` (S1); der Test verlangt jetzt, dass `laptop.css` hinter dem Grundgerüst steht und danach nur `konten.css` folgt (das die Zustände des Laptop-Modus nicht anfasst – geprüft in `round35_oberflaeche`) |
+| `tests/round33_seiten.rs` | `konto.html` und `mitwirkende.html` in `TEMPLATES` |
+
+### Integration (Runde 35)
+
+- **Zusammengeführt** `team/konten`, `team/rollen`, `team/oberflaeche_konten` ohne Konflikt. Die drei Zweige hatten
+  je gegen die Stubs der anderen gebaut; die Naht prüft `tests/round35_abnahme.rs` mit echten Sitzungen (kein
+  `common::with_who`): Einrichten nur vom eigenen Rechner (nicht über den Proxy-Namen, nicht ohne Gegenstelle, nicht
+  mit `X-Forwarded-For`), danach Seiten 303 auf `/anmelden?next=…`, `/rpc` 401 mit −32002, Formulare 401, `/mcp`
+  unverändert; viermal falsches Passwort → 429 mit `Retry-After`, auch für das richtige; Abmelden beendet genau eine
+  Sitzung; kein Passwort und kein Token im Datenordner (alle Dateien durchsucht). Die Lektorin (Name mit Umlaut →
+  `@lektorat:baerbel`) sieht nur das freigegebene Werk, schreibt Vorschlag, Beitrag und Befund über
+  `/lektorat/act` (ohne JavaScript) mit Herkunft im Spiegel, darf nicht übernehmen (403 über `/act`, `/lektorat/act`,
+  −32003 über `/rpc`); der Autor übernimmt über `/act`; nach dem Entzug der Freigabe 403. Dazu mit echter Sitzung jede
+  Route aus `common::registered_routes()` und jeder Methodenname aus `common::rpc_method_candidates()` außerhalb der
+  beiden Tabellen: 403 bzw. −32003, Datenbank (Zeilenzahlen) und Spiegel (HEAD) danach unverändert.
+- **Ohne Konten:** Die Startseite ist bis auf den Eintrag „Konten einrichten…“ (direkt hinter „Baruch beenden…“) die
+  von vorher: Der Test schneidet den Eintrag heraus und findet danach nichts aus Runde 35 mehr. Ein Vergleich Byte für
+  Byte gegen ein Programm vom Stand vor S1 steht im Bericht von oberflaeche_konten (23 Seiten und `ui.render`); der
+  Integrator hat ihn nicht wiederholt.
+- **Zuletzt geöffnetes Werk (Vertrag §2.1, bei rollen offen):** `roles::check_request_preferring(…, preferred)` nimmt
+  das Werk aus dem Cookie `baruch_work`, wenn es freigegeben ist; `check_request` (S1-Signatur) bleibt und ruft es
+  ohne Wunsch.
+- **Seiten ohne eigenes Werk (Sichtprüfung):** `/werke` verlinkte für Lektoren „Zurück zum Werk“ auf das Vorgabewerk
+  der Instanz (403), und mit einem alten Cookie `baruch_work` zeigte das ganze Menüband auf ein fremdes Werk. Zwei
+  Stellen, beide zentral: `AppState::default_work` liefert einem Lektor das kleinste **freigegebene** Werk (ohne
+  Freigabe `UnknownWork(0)`), und `auth::gate` richtet für Lektoren das Cookie `baruch_work` **der Anfrage** auf ein
+  freigegebenes Werk (`pin_last_work`; das Cookie im Browser bleibt, ohne Freigabe fehlt es). Titel eines fremden
+  Werks standen auch vorher nicht in der Seite.
+- **Kopf eines Vorschlags:** „@lektorat:baerbel (@lektorat:baerbel) · Fassung 2“ nannte den Handle doppelt (ein Konto
+  hat keinen Persona-Eintrag); jetzt „@lektorat:baerbel · Fassung 2“ (`view.rs`). Der Anzeigename steht dort weiter
+  nicht (Backlog).
+- **Befundseite:** Das Formular „Anmerkung zum Buch“ stand wegen `.fd-form` (befunde.css) am rechten Rand;
+  `konten.css` richtet es als Spalte aus.
+- `konten_ui::pages::direct_from_own_machine` nutzt `guard::forwarded` (eine Liste der sechs Kopfzeilen statt zwei);
+  der S1-Text `accounts::NOT_YET` und die Ausnahmeliste `pending` in `round35_schreibwege` sind entfernt.
+- **Widgets der Arbeitsseite eines Lektors** (Sorge von rollen: Aufrufe gesperrter Methoden): Die Seite trägt nur
+  `workspace`, `editor`, `wysiwyg`, `tree`, `accordion`, `splitter`, `band`, `band-dock`, `menubar`, `settings`,
+  `theme`, `work-select`. Beim Laden kommt kein RPC-Aufruf; „Vorschlagen“ mit JavaScript ruft `wysiwyg.serialize`,
+  `revision.propose`, `ui.render`, `menu.badges` – alle erlaubt (Sichtprüfung mit Probe, Mitschrift am Vermittler).
+  `timing`, `scripture-check`, `context-menu` stehen für Lektoren nicht in der Seite; `bible.marks`, `timing.count`,
+  `index.registers` usw. bleiben darum zu Recht gesperrt.
+- **Bestätigt (PM-Frage von rollen):** `wysiwyg.*`, `ribbon.formats` und `GET /einstellungen/darstellung` mit
+  Werk-Bindung; `work.sheet` und `search.find` als rein lesende Ergänzungen. Folge: Ein Lektor ohne freigegebenes Werk
+  erreicht die Darstellungsseite nicht (Umleitung auf `/werke`).
+- **Bausteine eingesetzt:** Die Dateien `docs/r35/*.md` der Entwickler sind in diesen Abschnitt, in `docs/RPC.md`
+  und `docs/MCP.md` aufgegangen und gelöscht.
+- **Fotos der Sichtprüfung:** `.claude/sicht/r35/` (Einrichten, Anmelden, Konten, Mitwirkende, Menü und Arbeitsseite
+  als Autor und als Lektor, Befundseite, Mein Konto, Ablehnung; hell und dunkel, mit und ohne JavaScript, 1024 px).
+
+### Tests
+
+- `crates/baruch-store/tests/migration_0053.rs`, `migration_0054.rs`: Migrationen auf nachgebauter Datenbank im Stand
+  0052 (alle Zeilen byte-gleich), Store-Regeln (erstes Konto nur einmal, letzter Autor, Sitzungen, Sperre, Freigaben).
+- `crates/baruch-server/tests/round35_konten.rs` (Anmeldung, Sitzung, Sperre, Verwaltung, Befehl `passwort`),
+  `round35_rollen.rs` (Werk-Bindung, Herkunft, eigene Beiträge, Befunde, Freigaben), `round35_schreibwege.rs` (jede
+  Route und Methode außerhalb der Tabellen), `round35_oberflaeche.rs` (Seiten, Menü, Arbeitsseite, Stylesheet),
+  `round35_abnahme.rs` (der echte Weg mit Sitzungen, siehe „Integration“).
+- Testhilfen in `tests/common/mod.rs`: `registered_routes()`, `rpc_method_candidates()`, `with_who(request, who)`.
+
+### Handprüfung für den Nutzer (echter Browser, Proxy mit TLS)
+
+Vorher eine Sicherung anlegen oder mit einem eigenen Datenordner prüfen (`--data`).
+
+**Ohne Konten**
+
+1. Baruch öffnen: alles wie bisher? Im Menü „Baruch ▾“ steht neu „Konten einrichten…“.
+2. Einstellungen → Konten: Erklärung und Knopf „Einrichten“.
+
+**Einrichten (am Rechner selbst, `http://127.0.0.1:8765`)**
+
+3. „Konten einrichten…“: Formular erscheint. Zwei verschiedene Passwörter → Meldung, Name bleibt stehen.
+4. Konto anlegen → Einstellungen → Konten mit „Das Konto ist angelegt.“; Menü zeigt „Angemeldet: … (Autor)“.
+5. Über den Proxy (`https://NAME/einrichten`) bzw. in einem privaten Fenster: Umleitung auf die Konten bzw. Anmeldung.
+6. Passwortmanager des Browsers: bietet er beim Anlegen das Speichern und beim Anmelden das Ausfüllen an?
+
+**Autor**
+
+7. Abmelden → Anmeldeseite mit „Abgemeldet.“; falsches Passwort viermal → Wartezeit wird genannt.
+8. Lektor anlegen (Einstellungen → Konten), Werk freigeben (Reiter Buch → Mitwirkende), wieder entziehen.
+9. Sperren und Entsperren; Passwort zurücksetzen (aufklappbares Formular in der Zeile).
+10. „Am eigenen Rechner ohne Anmeldung“ ein- und ausschalten: Menü zeigt „Autor (eigener Rechner, ohne Anmeldung)“.
+    **Über den Proxy muss trotzdem die Anmeldeseite kommen.**
+11. Dunkles Thema und Laptop-Modus: Anmeldeseite, Mein Konto, Konten, Mitwirkende lesbar, nichts läuft aus dem Fenster.
+
+**Lektor (zweiter Browser oder privates Fenster, über den Proxy)**
+
+12. Anmelden: nur das freigegebene Werk in der Werkwahl und unter „Alle Werke“; ohne Freigabe „Noch kein Werk
+    freigegeben.“.
+13. Arbeitsseite: kein „Speichern“, kein Reiter „Einfügen“, keine Assistenten rechts; im Menü „Baruch ▾“ nur Alle
+    Werke, Einstellungen, Über Baruch, Mein Konto, Abmelden.
+14. Text ändern → „Vorschlagen“ (mit Notiz): Der Vorschlag erscheint als neue Fassung „Vorschlag · @lektorat:…“.
+    Dasselbe mit abgeschaltetem JavaScript.
+15. Beitrag senden; eigenen Beitrag unter „Verwalten“ ändern und entfernen; beim Beitrag des Autors fehlt „Verwalten“.
+16. „Befund schreiben“ rechts; auf der Seite Befunde „Anmerkung zum Buch schreiben“; dort keine Status-Knöpfe.
+17. Adresse von Hand: `/werke/<id>/pdf`, `/einstellungen/werk`, `/literatur` → „Abgelehnt: …“ (403).
+18. „Einstellungen“ führt auf Darstellung (kein Dialog); Thema umschalten wirkt.
+19. Als Autor: Vorschlag des Lektors übernehmen bzw. verwerfen; im Git-Spiegel steht die Herkunft.
+20. Link auf eine Baruch-Seite aus einer E-Mail anklicken, während man angemeldet ist: Anmeldeseite mit „Schon
+    angemeldet? Weiter“ → der Klick führt ohne neue Anmeldung ans Ziel.
+
+**Notweg**
+
+21. `echo 'neues-langes-passwort' | baruch-server passwort <Name> --data <Ordner>`; danach anmelden.
+22. `curl -i -X POST <Adresse>/rpc -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"work.list"}'`
+    ohne Cookie → 401 mit Code −32002; `/mcp` verhält sich wie vor Runde 35 (Token bzw. eigener Rechner).
+23. `sqlite3 'file:<Ordner>/baruch.sqlite?mode=ro' 'select password from account; select token_hash from
+    account_session'` → nur `$argon2id$v=19$m=19456,t=2,p=1$…` und 64 Hex-Zeichen.
+24. Als Lektor mit zwei freigegebenen Werken: im zweiten Werk arbeiten, dann „Baruch ▾ → Alle Werke“ und „Zurück zum
+    Werk“ → das zuletzt geöffnete Werk, nie ein fremdes.

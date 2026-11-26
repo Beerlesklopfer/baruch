@@ -140,7 +140,8 @@ server {
     ssl_certificate     /etc/letsencrypt/live/baruch.example.org/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/baruch.example.org/privkey.pem;
 
-    # Pflicht: Zugangsschutz. Baruch hat keine Anmeldung.
+    # Zugangsschutz: Pflicht, solange in Baruch keine Konten eingerichtet sind (ohne Konten hat Baruch keine
+    # Anmeldung). Mit Konten kann er entfallen; TLS bleibt Pflicht.
     auth_basic           "Baruch";
     auth_basic_user_file /etc/nginx/baruch.htpasswd;
 

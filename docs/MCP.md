@@ -910,3 +910,15 @@ lassen sich über `idea_*` nicht ändern.
 Reihenfolge in `tools/list`: `idea_move` direkt nach `idea_delete`, `idea_tree` direkt nach `idea_map`. Kapitel und
 Teile ändert weiter nur `outline_*` (Antrag). Einlesen von .mm/.xmind gibt es über MCP nicht. Kein Stub offen. Der
 Hinweistext von `initialize` nennt `idea_tree`, `idea_move` und die Wolke.
+
+## Runde 35 – Konten und Rollen
+
+Kein neues Werkzeug. `/mcp` bleibt bei Tokens und läuft als `Who::Open` an der Rollenprüfung vorbei; MCP-Clients
+schreiben weiter als `@mcp:<name>`. Ein Lektor ist kein MCP-Client: Commits seiner Befunde tragen bewusst keinen
+Trailer `Persona`, sondern `Baruch-Origin: lektor` und `Baruch-Lektor`.
+
+Für den Zugang zu `/mcp` ändert sich nichts (siehe „Zugang“): ohne Token nur vom eigenen Rechner, sonst mit Token –
+auch dann, wenn Konten eingerichtet sind. Die Anmelde-Schicht (`auth::gate`) lässt `/mcp` unberührt; eine Sitzung
+(Cookie) gibt über MCP kein Recht und wird dort nicht gelesen. Wer als Lektor mitarbeitet, nutzt die Oberfläche; ein
+MCP-Token ist weiter ein Zugang mit den Rechten eines MCP-Clients (Vorschläge, Beiträge, Einfälle, Anträge), nicht
+auf freigegebene Werke beschränkt. Offene Frage für den Nutzer (Backlog): Tokens je Lektor und Werk.

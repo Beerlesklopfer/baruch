@@ -4,6 +4,43 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 35 „Konten und Rollen (Lektorat II)“ integriert** (2026-11-27, Integrator, auf `development`;
+  Schnittstelle R35-S1 `e56c3f3`; Zweige `team/konten` `cc89a28`, `team/rollen` `03359d2`,
+  `team/oberflaeche_konten` `3ee5b32` mit `--no-ff` in dieser Reihenfolge, **ohne Textkonflikte**; danach der
+  Integrations-Commit; nicht gepusht; Worktrees und team-Zweige stehen noch). Version unverändert 0.9.0, CHANGELOG
+  unter „Unveröffentlicht“. **Migrationen 0053** (`account`, `account_session`, `login_attempt`) **und 0054**
+  (`work_member`), beide nur `CREATE TABLE` – vor dem Einspielen beim Nutzer den Datenordner sichern. Neue
+  Abhängigkeit `argon2` 0.5. Kein neues MCP-Werkzeug. Kein Stub der Runde ist offen
+  (`grep -rn "STUB:" crates` findet nur vier Zusicherungen in Tests, dass kein Vermerk mehr da ist). Voller Lauf im
+  Hauptordner nach `cargo clean -p` aller Workspace-Crates (`RUST_TEST_THREADS=4 … taskset -c 0-7 cargo test
+  --workspace -j 4`, 2026-11-27): 211 Testgruppen „ok“, 3449 bestanden, 0 gescheitert, 2 ignoriert (Server-Bündel
+  1518 bestanden, pgvector-Tests liefen mit); clippy `-D warnings` und `cargo fmt --check` sauber.
+  - **Ohne Konten bleibt alles wie bisher** (keine Anmeldung, kein Cookie, keine Umleitung); neu ist nur der Eintrag
+    „Konten einrichten…“ im Menü „Baruch ▾“ und die achte Einstellungsseite „Konten“. Der Dienst des Nutzers ändert
+    sein Verhalten also erst, wenn er ein Konto einrichtet.
+  - **Mit Konten** verlangen Seiten, Formulare und `/rpc` eine Sitzung (Cookie `baruch_session`, HttpOnly,
+    SameSite=Strict, hinter dem Proxy Secure; Argon2id; Sperre gegen Durchprobieren). `/mcp` bleibt bei Tokens. Das
+    erste Konto ist der Autor und entsteht nur am eigenen Rechner (`/einrichten`); weitere Konten sind Lektoren.
+    Notweg bei vergessenem Passwort: `baruch-server passwort <name> [--data <Ordner>]` (Passwort von stdin).
+  - **Lektoren** (`@lektorat:<slug>`) sehen nur freigegebene Werke (Reiter Buch → Mitwirkende) und schreiben nur
+    Vorschläge (`revision.propose`), Beiträge im Abschnitts-Chat und Befunde (`finding.add`, auch „Anmerkung zum
+    Buch“) – mit Herkunft im Spiegel. Alles andere ist gesperrt: Für Lektoren gilt nur, was in
+    `roles::LEKTOR_ROUTES` und `roles::LEKTOR_RPC` steht (die einzige Stelle der Rechteprüfung); neue Routen und
+    Methoden künftiger Runden sind ohne Zutun gesperrt, zwei Tests zählen sie aus dem Quelltext nach.
+  - **Vom PM entschieden, der Nutzer kann es umstoßen** (Vertrag §0): Anmeldung auch am eigenen Rechner (Schalter
+    „Am eigenen Rechner ohne Anmeldung“ unter Einstellungen → Konten, Vorgabe aus); direkter Zugriff von anderen
+    Rechnern bleibt gesperrt (Lektor kommt über den Reverse-Proxy auf demselben Rechner); Kontoart global, Rolle je
+    Werk; Lektoren lösen keine Modellaufträge aus, kein Export (auch kein PDF), keine Literatur, keine Einfälle.
+  - **Vom Integrator ergänzt:** zuletzt geöffnetes Werk bei der Umleitung eines Lektors (Cookie `baruch_work`, nur
+    wenn freigegeben); `AppState::default_work` und das Cookie der Anfrage zeigen einem Lektor nie auf ein fremdes
+    Werk (Sichtprüfung: „Zurück zum Werk“ auf `/werke` endete mit 403); Kopf eines Vorschlags ohne doppelten Handle;
+    Formular „Anmerkung zum Buch“ linksbündig. Abnahme `tests/round35_abnahme.rs` mit echten Sitzungen. Einzelheiten:
+    `docs/Architektur.md`, „Runde 35 – Konten und Rollen“ (dort auch die Handprüfliste mit 24 Punkten).
+  - **Nicht geprüft:** echter Browser mit Passwortmanager, echter Proxy mit TLS (Secure-Cookie, SameSite=Strict bei
+    Links von außen), der Vergleich Byte für Byte „ohne Konten“ gegen ein Programm vom Stand vor S1 (nur vom
+    Entwickler der Oberfläche gemacht; der Integrator prüft die Startseite ohne den einen Menüeintrag auf Spuren).
+  - Fotos der Sichtprüfung: `.claude/sicht/r35/` (20 Bilder: Einrichten, Anmelden, Konten, Mitwirkende, Menü und
+    Arbeitsseite als Autor und Lektor, Befunde, Mein Konto, Ablehnung; hell/dunkel, mit/ohne JavaScript, 1024 px).
 - **Runde 34 „Mindmap wie XMind“ abgeschlossen** (PM-Abschluss 2026-11-26; ein erster Durchgang am 2026-11-25
   wurde vor dem Lauf unterbrochen): Prüfung mit zwei niedrigen Hinweisen
   (Beschriftungen der Verbindungen überdecken Knoten; Tasten weichen leicht von XMind ab und stehen auf der Seite),
@@ -2178,6 +2215,14 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. Nach Runde 35 (integriert, **Migrationen 0053 und 0054**, nur neue Tabellen): Der Dienst des Nutzers wird nicht
+   angefasst; vor dem Einspielen den Datenordner sichern. Ohne Konten ändert sich nach dem Einspielen nichts. Wer
+   Konten will: am Rechner selbst (`http://127.0.0.1:8765/einrichten`) das Autor-Konto anlegen, dann Einstellungen →
+   Konten (Lektor anlegen) und Reiter Buch → Mitwirkende (Werk freigeben). Der Proxy muss `Host` unverändert
+   durchreichen und TLS sprechen; `auth_basic` im Proxy kann mit Konten entfallen (`docs/Betrieb.md`). Handprüfung:
+   `docs/Architektur.md`, „Runde 35 – Konten und Rollen“, „Handprüfung für den Nutzer“. Offene Fragen und Reste:
+   `docs/Backlog.md`, „Nach Runde 35 offen“. Es folgen Prüfung und PM-Abschluss der Runde (Fahrplan pflegt der PM),
+   dann nach Vorschlag des PM 36 „Reste“ und 37 „Hilfe auf der Webseite“.
 0. Nach Runde 34 (abgeschlossen, **Migration 0052**): Nach dem Stand der Übergabe läuft der Dienst des Nutzers mit
    `35140b5` (vom PM nicht nachgesehen – der Dienst wird nicht angefasst); die Runden 32 und 34 sind dort nicht
    eingespielt. Vor dem Einspielen den Datenordner sichern. Danach die Handprüfung aus `docs/Backlog.md`, „Nach
@@ -2287,6 +2332,11 @@ Frühere Runden:
 5. B2: Modell-Backends, `ask_persona`/`chat`, Token für `/mcp`, Literatur-Stubs (Volltext, an Persona geben).
 
 ## Offene Fragen an den Nutzer
+- **Nach Runde 35 (Konten und Rollen):** (1) Soll ein Lektor das Buch als PDF lesen dürfen (heute gesperrt, wie
+  jeder Export)? (2) Bleibt es dabei, dass mit Konten auch am eigenen Rechner eine Anmeldung nötig ist (Schalter
+  unter Einstellungen → Konten, Vorgabe aus)? (3) Reicht „Lektor kommt über den Reverse-Proxy auf demselben Rechner“,
+  oder soll Baruch selbst von anderen Rechnern erreichbar werden? (4) Braucht es ein zweites Autor-Konto oder
+  MCP-Tokens je Lektor und Werk? (5) Soll ein Lektor in Fäden ohne Abschnitt schreiben dürfen (heute nur lesen)?
 - **Nach Runde 34:** Kommt „schlanker Einstieg, Befunde nach Gewicht, Anmerkungen zum ganzen Buch“ (Vorhaben
   Lektorat) vor oder nach 0.9.1? Die Reihenfolge vom 2026-11-25 nennt nur Konten und Rollen, Reste und Hilfe.
   Zur Kenntnis, vom PM entschieden: Beim Ziehen in die Wolke wandern die Unterknoten mit; Einlesen ohne Zielknoten

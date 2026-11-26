@@ -5,7 +5,7 @@ der Arbeitsstand in `HANDOFF.md`.
 
 ## Nach 0.9.0 (Wünsche 2026-11-24/25, Stand nach Veröffentlichung von 0.9.0)
 
-Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (Runde 35), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
+Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (Runde 35; **integriert 2026-11-27**, Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
 
 - **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
 - **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
@@ -115,6 +115,49 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); auf `development` seit `0f52492`, Gegenprobe `35140b5` (Tag `v0.9.0`) | menueband · laptop · seiten | – |
 | R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
+
+### Nach Runde 35 offen (Integrator 2026-11-27)
+
+Runde 35 „Konten und Rollen (Lektorat II)“ ist integriert (`docs/Architektur.md`, „Runde 35 – Konten und Rollen“).
+
+**Fragen an den Nutzer** (vom PM vorläufig entschieden, Vertrag §0):
+- PDF-Lesen für Lektoren: heute gesperrt wie jeder Export (PDF, EPUB, Word, Austausch, Mindmap-Datei).
+- Anmeldung auch am eigenen Rechner, sobald es Konten gibt (Schalter „Am eigenen Rechner ohne Anmeldung“, Vorgabe aus).
+- Direkter Zugriff von anderen Rechnern bleibt gesperrt; ein Lektor kommt über den Reverse-Proxy auf demselben Rechner.
+- Genau ein Autor-Konto (das erste); weitere Konten sind immer Lektoren. Konten werden nie gelöscht, nur gesperrt.
+- MCP bleibt bei Tokens ohne Bezug zu Konten: Ein Token ist nicht auf freigegebene Werke beschränkt. Tokens je Lektor
+  und Werk wären eine eigene Aufgabe.
+- Lektoren lesen Fäden ohne Abschnitt, schreiben dort aber nicht (ein Faden-Beitrag kann Personas rufen).
+
+**Handprüfung beim Nutzer** (echter Browser, Proxy mit TLS): Liste mit 24 Punkten in `docs/Architektur.md`, „Runde 35 –
+Konten und Rollen“, „Handprüfung für den Nutzer“. Besonders: Passwortmanager, `Secure`-Cookie hinter dem Proxy,
+`SameSite=Strict` bei einem Link aus einer E-Mail („Schon angemeldet? Weiter“), Schalter 0.2 über den Proxy.
+
+**Niedrig, nicht umgesetzt:**
+- Anzeigename zur Herkunft `@lektorat:<slug>` auf der Arbeitsseite (Fassungen, Beiträge, Befunde zeigen nur den Handle;
+  `LibraryView` kennt keine Konten). Der Kopf eines Vorschlags nennt den Handle seit der Integration nur noch einmal.
+- Live-Chat für Lektoren: Das Widget „chat“ fehlt (neue Beiträge erst nach dem Neuladen), weil `post.since` Beiträge mit
+  den Werkzeugen des Autors liefert.
+- Eigene Beiträge ändert und entfernt ein Lektor nur auf der Arbeitsseite, nicht auf `/beitrag` und `/beitraege`.
+- Links auf gesperrte Seiten außerhalb von `base.html` bleiben für Lektoren sichtbar und enden mit 403 (z. B.
+  Umschlagbild in der Werkliste); der Knopf „Im Werk suchen und ersetzen“ führt Lektoren auf die Suche, ersetzen können
+  sie nicht (Beschriftung anpassen).
+- Ein Lektor ohne freigegebenes Werk erreicht Einstellungen → Darstellung nicht (Umleitung auf `/werke`). Seit der
+  Integration liefert `AppState::default_work` einem Lektor nur freigegebene Werke – die Werk-Bindung von
+  `/einstellungen/darstellung`, `wysiwyg.*` und `ribbon.formats` ließe sich damit wieder lockern (prüfen).
+- Anmelde- und Einrichtungsseite folgen dem Farbschema des Systems, nicht dem Cookie `baruch_theme` (die Seiten stehen
+  ohne Menüband und ohne `data-theme`).
+- Editor-Kopf eines Lektors ist eng: Das Abzeichen „Lektor · @lektorat:…“ kürzt Titel und Herkunft der Fassung
+  (Sichtprüfung, 1400 px).
+- Die Befundseite zeigt die Matrix; den Text einer „Anmerkung zum Buch“ sieht man dort erst über die Zelle „Ohne
+  Abschnitt“. Ein eigener Kasten „Anmerkungen zum Buch“ wäre deutlicher.
+- Keine Grenze für offene Vorschläge je Lektor (MCP hat eine je Client); nur die Größen (1 MiB Text, 2000 Zeichen Notiz).
+- Während der Sperre gegen Durchprobieren lautet der Code beim Passwortwechsel `passwort_falsch` (kein eigener Code
+  „gesperrt“ in `konten_ui::MESSAGES`).
+- Der Vergleich Byte für Byte „ohne Konten“ gegen ein Programm vom Stand vor S1 ist nur vom Entwickler der Oberfläche
+  gemacht (23 Seiten, `ui.render`); ein Golden-Test dafür fehlt.
+- `/lektorat/act` nimmt auch vom Autor nur Methoden aus `LEKTOR_RPC` (er nutzt `/act`); `revision.propose` antwortet
+  zusätzlich mit `work`.
 
 ### Nach Runde 34 offen (Integrator 2026-11-25, PM-Abschluss 2026-11-26)
 

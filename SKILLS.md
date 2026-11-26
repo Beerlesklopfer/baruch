@@ -1347,3 +1347,44 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   `/werke/{id}/karte/gliederung?wahl=i:<id>`; die Vorschau des Einlesens ist eine POST-Antwort (per `curl -F file=@…`
   speichern, `<base href>` einfügen, Datei fotografieren).
 - **Austauschformat:** Unterversion 9; ein Werk ohne geordneten Baum besteht weiter das eingefrorene u8-Schema.
+
+## Runde 35 – Konten und Rollen
+
+- **Wo was liegt:** Konten/Sitzungen/Sperre `crates/baruch-store/src/accounts.rs` (0053), Freigaben `members.rs`
+  (0054); Anmeldung `src/auth/` (`gate` = Schicht, `password`, `session`, `throttle`, `routes`, `rpc`, `cli`);
+  Rechteprüfung `src/roles/` (`mod.rs` mit `LEKTOR_ROUTES`, `LEKTOR_RPC`, `check_request`, `check_rpc`; `rpc.rs`,
+  `lektor.rs`, `routes.rs`); Seiten und Menüeintrag `src/konten_ui/`; Vorlagen `anmelden.html`, `einrichten.html`,
+  `konto.html`, `mitwirkende.html`, `settings/konten.html`, `fragments/lektor_*.html`; Stil `static/konten.css`.
+- **Neue Route oder RPC-Methode:** Für Lektoren ist sie gesperrt, bis sie in `roles::LEKTOR_ROUTES` bzw.
+  `LEKTOR_RPC` steht – das ist gewollt. Aufnehmen nur, wenn ein Lektor sie braucht: rein lesend oder einer der
+  erlaubten Schreibwege, nie etwas, das ein Modell, eine Verbindung oder das Dateisystem anfasst, immer mit
+  Werk-Bindung (`WorkFrom`) und Begründung in `docs/Architektur.md`. `round35_schreibwege` und `round35_abnahme`
+  zählen Routen und Methoden aus dem Quelltext (`common::registered_routes`, `common::rpc_method_candidates`) – wer
+  eine Route so anmeldet, dass die Hilfe sie nicht findet (kein `.route("…", get(/post(`), umgeht den Wächter.
+- **Formulare der Module gehen nicht durch `rpc::call`** (`/beitraege/act`, `/werke/befunde/act` …) und sind darum
+  für Lektoren zu. Ein Formular für Lektoren schickt an `POST /lektorat/act` (Feld `method` aus `LEKTOR_RPC`).
+- **Wer fragt?** `auth::current()` (task-lokal; außerhalb einer Anfrage `Who::Open`). Nie in `tokio::spawn` oder
+  `spawn_blocking` auswerten – vorher holen und mitgeben. Herkunft beim Schreiben: `roles::author_name(&who)`.
+  `AppState::default_work()` ist für Lektoren das kleinste freigegebene Werk; `store.default_work()` bleibt die
+  kleinste id (nur für Systemzwecke nehmen).
+- **Vorlagen:** `nur-autor` ist immer die **letzte** Klasse (`class="btn nur-autor"`), Gruppen des Menübands tragen
+  `data-nur-autor`; Stücke nur für Lektoren stehen zwischen `<!--NUR-LEKTOR-->` … `<!--/NUR-LEKTOR-->`, Stücke nur
+  mit Konten zwischen `<!--NUR-KONTEN-->` … `<!--/NUR-KONTEN-->`. `konten_ui::apply` räumt ohne Konten alles weg –
+  die Seite muss dann bis auf „Konten einrichten…“ wie vorher sein (`round35_oberflaeche`, `round35_abnahme`).
+  Verbergen per CSS ist nur Bequemlichkeit; die Sicherheit liegt allein in `roles`.
+- **Tests:** Identität ohne Anmeldung über `common::with_who(request, who)` (ganzer Router) oder `auth::scope(who,
+  …)` (ein Aufruf); Konten für Fremdschlüssel per SQL mit Hash `$argon2id$test`. Den echten Weg (Einrichten →
+  Cookie) nur dort, wo er geprüft wird (`round35_konten`, `round35_abnahme`): `ConnectInfo` mit Loopback **und**
+  `Host: 127.0.0.1:…` = eigener Rechner; `Host` = Proxy-Name (`state.allowed_hosts = AllowedHosts::parse(…)`) = über
+  den Proxy. Ohne `ConnectInfo` gilt eine Anfrage nie als eigener Rechner. Nie ein Passwort oder Token in einer
+  Zusicherungsmeldung ausgeben. Sperre im Test ablaufen lassen: `UPDATE login_attempt SET blocked_until = …`.
+- **Annahmen an der Naht:** Die drei Zweige bauten gegen Stubs der anderen (Lektor durch den ganzen Router war in
+  keinem Zweig prüfbar). Fehler der Naht fand erst die Sichtprüfung mit echten Konten: „Zurück zum Werk“ auf Seiten
+  ohne eigenes Werk zeigte auf das Vorgabewerk. Bei Rollen also jede Seite auch **ohne** `work` und mit einem
+  **alten Cookie** `baruch_work` ansehen.
+- **Sichtprüfung mit Konten:** Wegwerf-Server wie oben; Konten per `curl` direkt am Server anlegen (`/einrichten`
+  von 127.0.0.1, Cookie in eine Datei, danach löschen). Der Vermittler ergänzt je Anfrage das Cookie
+  `baruch_session`, reicht `Host` und `Origin` mit der Adresse des Servers weiter (sonst 403 von
+  `guard::same_origin`) und schreibt `/rpc` mit Methode und Fehlercode mit – so sieht man, ob ein Widget für Lektoren
+  eine gesperrte Methode ruft. Dunkel für die Seiten ohne Menüband (Anmelden, Einrichten): Profil mit
+  `user_pref("ui.systemUsesDarkTheme", 1);`. Menü „Baruch ▾“ offen: `<details class="menu" data-menu="baruch" open>`.

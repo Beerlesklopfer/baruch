@@ -887,7 +887,12 @@ fn proposals_of(
             } else {
                 None
             };
-            let mut head = format!("{name} ({handle}) · Fassung {}", revision.number);
+            // Ein Lektor ist ein Konto, keine Persona: Es gibt keinen Namen neben dem Handle – nicht doppelt nennen.
+            let mut head = if is_lektorat(&handle) && name == handle {
+                format!("{handle} · Fassung {}", revision.number)
+            } else {
+                format!("{name} ({handle}) · Fassung {}", revision.number)
+            };
             if !model.is_empty() {
                 head.push_str(&format!(" · {model}"));
             }

@@ -166,7 +166,8 @@ server {
     ssl_certificate     /etc/letsencrypt/live/baruch.example.org/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/baruch.example.org/privkey.pem;
 
-    # Pflicht: Zugangsschutz. Baruch hat keine Anmeldung.
+    # Zugangsschutz: Pflicht, solange in Baruch keine Konten eingerichtet sind (ohne Konten hat Baruch keine
+    # Anmeldung). Mit Konten kann er entfallen; TLS bleibt Pflicht.
     auth_basic           "Baruch";
     auth_basic_user_file /etc/nginx/baruch.htpasswd;
 
@@ -428,6 +429,6 @@ Nicht geprüft, also Annahme:
 - Baruch kann einen Proxy, der `Host` umschreibt und keine Proxy-Kopfzeile setzt, nicht erkennen (siehe Proben).
 - Ein eigenes TLS in Baruch gibt es nicht; `Secure` trägt nur das Sitzungs-Cookie.
 - Konten (Runde 35): Anmeldung, Sitzung und Sperren sind mit Tests gegen den Server geprüft, **nicht** an einem
-  echten Proxy mit TLS und nicht in einem echten Browser (Handprüfliste: `docs/r35/oberflaeche_konten.md`).
+  echten Proxy mit TLS und nicht in einem echten Browser (Handprüfliste: `docs/Architektur.md`, „Runde 35 – Konten und Rollen“).
   Zwei-Faktor-Anmeldung, Zurücksetzen per E-Mail und mehrere Autoren gibt es nicht.
 - Der TLS-Hinweis der Verbindung pgvector kennt die Umgebungsvariablen nicht.

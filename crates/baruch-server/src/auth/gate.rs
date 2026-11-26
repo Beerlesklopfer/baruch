@@ -67,7 +67,7 @@ async fn answer(
     state: &AppState,
     who: Who,
     session: Option<String>,
-    parts: Parts,
+    mut parts: Parts,
     body: axum::body::Body,
     next: Next,
 ) -> Response {
@@ -87,7 +87,8 @@ async fn answer(
         }
         return (StatusCode::UNAUTHORIZED, "Anmeldung erforderlich.").into_response();
     }
-    match roles::check_request(state, &who, &parts.method, path, parts.uri.query()).await {
+    let preferred = last_work(&parts.headers);
+    match roles::check_request_preferring(state, &who, &parts.method, path, parts.uri.query(), preferred).await {
         Verdict::Allow => {}
         Verdict::Redirect(url) => return Redirect::to(&url).into_response(),
         Verdict::Deny(reason) => {
@@ -95,7 +96,48 @@ async fn answer(
                 .into_response();
         }
     }
+    if who.lektor().is_some() {
+        pin_last_work(state, &who, preferred, &mut parts.headers).await;
+    }
     scope(who, session::scope(session, next.run(Request::from_parts(parts, body)))).await
+}
+
+/// Für einen Lektor zeigt das Cookie `baruch_work`, das die Seiten sehen, immer auf ein freigegebenes Werk: das
+/// zuletzt geöffnete, wenn es freigegeben ist, sonst das kleinste freigegebene; ohne Freigabe fehlt es. Seiten ohne
+/// eigenes Werk (`/werke`, `/konto`, `/ueber`) nehmen ihr Werk für „Zurück zum Werk“ und das Menüband aus diesem
+/// Cookie bzw. – ohne Cookie – das Vorgabewerk der Instanz; beides könnte für einen Lektor ein fremdes Werk sein
+/// (Sichtprüfung Runde 35: die Links endeten mit 403). Geändert wird nur die Kopfzeile dieser einen Anfrage, nie
+/// das Cookie im Browser. Ein Datenbankfehler nimmt das Cookie weg (nie ein fremdes Werk).
+async fn pin_last_work(state: &AppState, who: &Who, preferred: Option<baruch_store::WorkId>, headers: &mut HeaderMap) {
+    let granted = roles::granted_works(state, who).await.unwrap_or_else(|e| {
+        eprintln!("Rollen: Freigaben nicht lesbar: {e}");
+        Vec::new()
+    });
+    let work = preferred.filter(|work| granted.contains(work)).or(granted.first().copied());
+    let mut pairs: Vec<String> = headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|line| line.split(';'))
+        .map(|pair| pair.trim().to_owned())
+        .filter(|pair| !pair.is_empty() && pair.split('=').next().map(str::trim) != Some("baruch_work"))
+        .collect();
+    if let Some(work) = work {
+        pairs.push(format!("baruch_work={work}"));
+    }
+    headers.remove(header::COOKIE);
+    if let Ok(value) = HeaderValue::from_str(&pairs.join("; "))
+        && !pairs.is_empty()
+    {
+        headers.insert(header::COOKIE, value);
+    }
+}
+
+/// Zuletzt geöffnetes Werk des Browsers (Cookie `baruch_work`, gelesen wie überall über
+/// [`crate::view::Settings`]); nur ein Wunsch für die Umleitung eines Lektors, nie ein Recht.
+fn last_work(headers: &HeaderMap) -> Option<baruch_store::WorkId> {
+    let cookies = headers.get(header::COOKIE).and_then(|value| value.to_str().ok());
+    crate::view::Settings::from_cookie_header(cookies).work
 }
 
 /// Setzt die Antwort das Cookie der Sitzung schon selbst (Anmelden, Abmelden)? Dann wird es nicht erneuert.

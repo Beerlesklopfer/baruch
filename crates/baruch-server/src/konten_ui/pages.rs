@@ -35,17 +35,12 @@ use crate::auth::password::{MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
 use crate::auth::{AccountKind, Identity, Who};
 use crate::view::Settings;
 
-/// Kopfzeilen, an denen ein vorgeschalteter Server zu erkennen ist (Vertrag §0.2). `guard::via_proxy` kennt nur den
-/// Rechnernamen; ein Proxy, der `Host` umschreibt, verrät sich allein hierüber.
-const FORWARD_HEADERS: [&str; 6] =
-    ["forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "via"];
-
 /// Kommt die Anfrage unmittelbar vom eigenen Rechner (Vertrag §0.2)? Loopback ohne Proxy-Namen
-/// (`shutdown::own_machine`) und ohne eine der Kopfzeilen eines vorgeschalteten Servers. Ohne bekannte Gegenstelle
-/// nein.
+/// (`shutdown::own_machine`) und ohne eine der Kopfzeilen eines vorgeschalteten Servers (`guard::forwarded` –
+/// dieselbe Regel wie `auth::gate::own_machine`; `guard::via_proxy` kennt nur den Rechnernamen, ein Proxy, der `Host`
+/// umschreibt, verrät sich allein an diesen Kopfzeilen). Ohne bekannte Gegenstelle nein.
 pub fn direct_from_own_machine(state: &AppState, peer: Option<SocketAddr>, headers: &HeaderMap) -> bool {
-    crate::shutdown::own_machine(&state.allowed_hosts, peer, headers)
-        && !FORWARD_HEADERS.iter().any(|name| headers.contains_key(*name))
+    crate::shutdown::own_machine(&state.allowed_hosts, peer, headers) && !crate::guard::forwarded(headers)
 }
 
 /// Die Seiten der Konten.
@@ -446,10 +441,10 @@ mod tests {
 
     #[test]
     fn a_proxy_header_means_not_the_own_machine() {
-        for name in FORWARD_HEADERS {
+        for name in crate::guard::FORWARDED_HEADERS {
             assert_eq!(name, name.to_lowercase(), "{name}: Kopfzeilennamen vergleicht http klein geschrieben");
         }
-        assert_eq!(FORWARD_HEADERS.len(), 6, "die sechs Kopfzeilen aus Vertrag §0.2");
+        assert_eq!(crate::guard::FORWARDED_HEADERS.len(), 6, "die sechs Kopfzeilen aus Vertrag §0.2");
     }
 
     #[test]

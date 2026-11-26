@@ -269,7 +269,16 @@ impl AppState {
 
     /// Vorgabewerk, wenn Seite oder RPC-Aufruf kein Werk nennen: das mit der kleinsten id, jetzt
     /// (nach dem Löschen eines Werks also das nächste). Ohne Werke → `UnknownWork(0)`.
+    ///
+    /// Runde 35: Für einen Lektor ([`auth::current`]) ist es das kleinste **freigegebene** Werk, ohne Freigabe
+    /// `UnknownWork(0)` – eine Seite ohne `work` zeigt ihm so nie ein fremdes Werk und verlinkt keines
+    /// („Zurück zum Werk“). Außerhalb einer Anfrage (abgespaltene Aufgaben, Start) gilt die kleinste id.
     pub async fn default_work(&self) -> Result<WorkId, StoreError> {
+        let who = auth::current();
+        if who.lektor().is_some() {
+            let granted = roles::granted_works(self, &who).await?;
+            return granted.first().copied().ok_or(StoreError::UnknownWork(0));
+        }
         self.store.default_work().await
     }
 

@@ -20,10 +20,6 @@ use sha2::{Digest, Sha256};
 
 use crate::{Store, StoreError};
 
-/// Meldung der Stubs der Freigaben (`members`), bis „rollen“ sie umsetzt; die Konten selbst sind umgesetzt.
-#[allow(dead_code)]
-pub(crate) const NOT_YET: &str = "Konten: noch nicht umgesetzt (Runde 35)";
-
 /// Spalten von [`Account`] (ohne Hash).
 const COLUMNS: &str = "id, name, slug, display, kind, active, created, last_login";
 /// Schlüssel in `store_meta`: `'1'` = am eigenen Rechner ohne Anmeldung (Vorgabe: nicht gesetzt = aus).

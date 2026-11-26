@@ -575,6 +575,19 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     nur mit Token; Zugangsschutz im Proxy ist Pflicht (`docs/Betrieb.md`). MultiGPT hat keine Vorgabe-Adresse mehr.
   - Keine Migration, keine neuen RPC-Methoden oder MCP-Werkzeuge. Offenes und die Schritte des Nutzers:
     `docs/Backlog.md`, „Nach Runde 24 offen“.
+- **Runde 35 „Konten und Rollen (Lektorat II)“ integriert** (2026-11-27, auf `development`; Version unverändert
+  0.9.0, im CHANGELOG unter „Unveröffentlicht“):
+  - Ohne Konten bleibt Baruch offen wie bisher. Mit Konten verlangen Seiten, Formulare und `/rpc` eine Anmeldung
+    (Argon2id, Sitzung als Cookie, Sperre gegen Durchprobieren); `/mcp` bleibt bei Tokens. Das erste Konto (Autor)
+    entsteht nur am eigenen Rechner; Notweg `baruch-server passwort <name>`.
+  - Rollen je Werk: Der Autor gibt ein Werk für Lektor-Konten frei (Mitwirkende). Lektoren (`@lektorat:<name>`)
+    sehen nur freigegebene Werke und schreiben nur Vorschläge, Beiträge und Befunde (auch „Anmerkung zum Buch“),
+    mit Herkunft im Spiegel; übernehmen, ändern und löschen kann nur der Autor.
+  - Eine Stelle der Rechteprüfung (`roles`: `LEKTOR_ROUTES`, `LEKTOR_RPC`): Für Lektoren ist alles gesperrt, was
+    dort nicht steht – auch Routen und Methoden künftiger Runden.
+  - Migrationen 0053 (Konten, Sitzungen, Fehlversuche) und 0054 (Freigaben); neue RPC `account.*`, `member.*`,
+    `revision.propose`, `finding.add`; kein neues MCP-Werkzeug. Alles ohne JavaScript bedienbar. In einem echten
+    Browser hinter einem echten Proxy ungeprüft. Offenes: `docs/Backlog.md`, „Nach Runde 35 offen“.
 - **Runde 34 „Mindmap wie XMind“ integriert** (2026-11-25, auf `development`; Version unverändert 0.9.0, im
   CHANGELOG unter „Unveröffentlicht“, gedacht für 0.9.1):
   - Die Gedankenkarte ist eine Mindmap: Werk in der Mitte, Teile/Kapitel als Äste rechts und links, Einfälle als

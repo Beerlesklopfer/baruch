@@ -136,40 +136,18 @@ async fn every_registered_route_outside_the_table_is_closed_for_a_lektor() {
     );
 }
 
-/// Trägt die Quelldatei noch den Stub-Vermerk der Schnittstelle S1? Dann ist die Arbeit ihres Besitzers noch nicht
-/// zusammengeführt, und seine Routen dürfen im Router noch fehlen.
-fn still_stub(file: &str) -> bool {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join(file);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())).contains("// STUB:")
-}
-
 #[test]
 fn every_route_of_the_table_exists_in_the_router() {
     let routes = common::registered_routes();
-    // Routen der beiden anderen Besitzer dieser Runde: Bis ihr Zweig zusammengeführt ist (ihre Datei trägt noch den
-    // Stub-Vermerk aus S1), dürfen sie fehlen; danach gilt die Prüfung auch für sie, ohne dass jemand den Test anfasst.
-    let pending: &[(&str, &str, &str)] = &[
-        ("POST", "/abmelden", "auth/routes.rs"),
-        ("POST", "/konto/passwort", "auth/routes.rs"),
-        ("GET", "/konto", "konten_ui/mod.rs"),
-        ("GET", "/anmelden", "konten_ui/mod.rs"),
-    ];
     for (verb, pattern, _) in LEKTOR_ROUTES {
         // Vorhanden ist die Route, wenn ein Muster des Routers ihren Pfad annimmt (`/einstellungen/{seite}` nimmt
         // `/einstellungen/darstellung`).
         let path = fill(pattern, 1);
         let registered = routes.iter().any(|(v, registered)| v == verb && matches(registered, &path));
-        let waiting = pending.iter().any(|(v, p, file)| v == verb && p == pattern && still_stub(file));
         assert!(
-            registered || waiting,
+            registered,
             "{verb} {pattern} steht in LEKTOR_ROUTES, aber nicht mehr im Router – die Tabelle erlaubt etwas, das es \
              nicht gibt (oder eine Route wurde umbenannt, ohne die Tabelle nachzuführen)"
-        );
-    }
-    for (verb, pattern, file) in pending {
-        assert!(
-            LEKTOR_ROUTES.iter().any(|(v, p, _)| v == verb && p == pattern),
-            "{verb} {pattern} ({file}) steht nicht mehr in LEKTOR_ROUTES: die Ausnahme hier ist überholt"
         );
     }
 }

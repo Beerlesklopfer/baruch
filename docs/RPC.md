@@ -9,6 +9,10 @@ Formulare an `POST /beitraege/act` (siehe „Beiträge verwalten“). Quelle:
 `crates/baruch-server/src/rpc.rs`. `rev` ist überall die **Nummer** einer Revision, nicht ihre Stelle: Nach
 dem Löschen hat die Nummernfolge Lücken, eine Nummer wird nie neu vergeben.
 
+**Konten und Rollen (Runde 35):** Ohne Konten gilt alles hier wie beschrieben. Gibt es Konten, verlangt `/rpc` eine
+Sitzung (Cookie `baruch_session`; sonst HTTP 401 mit Fehler -32002), und für Lektoren sind nur die Methoden aus
+`roles::LEKTOR_RPC` erlaubt (sonst -32003) – siehe „Runde 35 – Konten und Rollen“ am Ende.
+
 **Abschnitte: Stelle und fester Schlüssel.** `node` ist die Stelle des Abschnitts in Baumreihenfolge (`seq`,
 ab 0); jede Gliederungsänderung vergibt sie neu. `work.get` nennt je Knoten zusätzlich `key`, den festen
 Schlüssel (Datenbank-id), der beim Verschieben, Umstufen, Anlegen, Löschen, Teilen und Zusammenführen anderer
@@ -2776,3 +2780,105 @@ Antwort: 303 auf `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>` (`angelegt`, 
 `geloest` mit `undo=<id>`, `wiederhergestellt`, …). Fehler als Seite mit Meldung: 400 unbekannte Aktion, 409 abgelehnt
 (auch: ein genannter Einfall gehört nicht zum Werk der Adresse – bisher 422), 422 ungültige Eingabe, 404 unbekanntes
 Werk, 403 fremde Herkunft.
+
+## Runde 35 – Konten und Rollen
+
+Aufbau und Rechteprüfung: `docs/Architektur.md` („Runde 35 – Konten und Rollen“, dort auch die Tabellen
+`LEKTOR_ROUTES` und `LEKTOR_RPC`). **Ohne Konten** ändert sich an `/rpc`, `/act` und allen Formularen nichts.
+
+**Fehlercodes neu:** `-32002` (`UNAUTHENTICATED`: es gibt Konten und die Anfrage trägt keine gültige Sitzung; HTTP
+401 an `/rpc`, schon in der Schicht `auth::gate`) und `-32003` (`FORBIDDEN`: die Rolle darf die Methode bzw. das Werk
+nicht; HTTP 200 an `/rpc`, 403 an `/lektorat/act`). `rpc::call` prüft **jede** Methode über `roles::check_rpc`, bevor
+sie ausgeführt wird – für `/rpc` (einzeln und Liste), `/act` und `/lektorat/act`; für Lektoren ist jede Methode
+außerhalb von `LEKTOR_RPC` gesperrt, auch ein unbekannter Name („Das darf nur der Autor: <methode>“).
+
+### `account.*`
+
+Anmelden, Abmelden und Einrichten gibt es nur als Formular (Cookie). Passwörter, Hashes und Tokens stehen nie in
+einer Antwort. Fehler: `-32602` falsche Parameter (die Meldung zitiert keinen Wert), `-32000` fachlich abgelehnt,
+`-32002` nicht angemeldet (HTTP 401, schon in der Schicht), `-32003` nur der Autor.
+
+| Methode | Parameter | Antwort |
+|---|---|---|
+| `account.me` | `{}` | `{accounts_exist, signed_in, local_open, id?, name?, display?, kind?, handle?}` – die Felder des Kontos nur mit Sitzung (`kind`: `author` \| `lektor`). Jeder, auch ohne Konten. |
+| `account.list` | `{}` | `{accounts: [{id, name, display, kind, handle, active, created, last_login}]}` nach id. Nur volle Rechte. |
+| `account.create` | `{name, display?, password}` | das Konto (wie in `account.list`), immer `kind: "lektor"`. Nur volle Rechte. Ohne jedes Konto `-32000` mit Hinweis auf `/einrichten`; Name ungültig oder vergeben, Passwort zu kurz oder zu lang → `-32000`. |
+| `account.set_active` | `{id, active}` | das Konto. Nur volle Rechte. Letztes aktives Autor-Konto oder unbekanntes Konto → `-32000`. Sperren beendet alle Sitzungen des Kontos. |
+| `account.set_local_open` | `{open}` | `{local_open}`. Nur volle Rechte. |
+| `account.set_password` | `{current?, password, id?}` | `{id, changed: true}`. Eigenes Konto (ohne `id` oder mit der eigenen): `current` ist Pflicht (`-32602` ohne, `-32000` wenn falsch); die Sitzung der Anfrage bleibt, alle anderen enden. Fremdes Konto (`id`): nur volle Rechte, alle Sitzungen des Kontos enden. |
+| `account.logout_all` | `{}` | `{sessions}` – beendet alle Sitzungen des eigenen Kontos, auch die der Anfrage. Ohne Sitzung `-32000`. |
+
+`roles::check_rpc` entscheidet vor dem Dispatch, was ein Lektor aufrufen darf (`account.me`,
+`account.set_password`, `account.logout_all`); die Methoden „nur volle Rechte“ prüfen `who.full_rights()` hier ein
+zweites Mal.
+
+### `revision.propose`, `finding.add`, `member.*`
+
+| Methode | Parameter | Antwort / Fehler |
+
+|---|---|---|
+| `revision.propose` | `{work?, key \| node, body, note?}` | `{work, node, key, rev, status: "proposal", author}`; nur Lektor (andere: -32000 mit Hinweis auf `revision.save`). Vorschlag unter `@lektorat:<slug>`, nie aktuelle Fassung; Markdown-Überschriften wie bei `revision.save`. Leerer Text, über 1 MiB, `note` über 2000 Zeichen → -32602; Text gleich der aktuellen Fassung → -32000; unbekannter Abschnitt → -32602 bzw. -32000 (Schlüssel fort). Kein Commit am Hauptzweig, Seitenzweig `refs/revisions/<key>/<rev>`. |
+| `finding.add` | `{work?, key?, kind: "hint" \| "critical" \| "praise", body, quote?}` | `{finding, commit? \| mirror?}` (`finding` wie in `finding.get`, `persona` = Handle, `status: "open"`, ohne Beitrag); ohne `key` „Anmerkung zum Buch“ (Befund ohne Abschnitt). Nur Lektor (andere: -32000). Leerer Text, unbekannte Art, Abschnitt nicht im Werk → -32602. Genau ein Commit im Spiegel. |
+| `member.list` | `{work}` | `{work, members: [{account, name, display, handle, role, granted, active}], candidates: [{account, name, display, handle}]}`; `candidates` = aktive Lektor-Konten ohne Freigabe. Nur volle Rechte (Lektor: -32003). `work` ist Pflicht (kein Vorgabewerk). |
+| `member.grant` | `{work, account, role?: "lektor"}` | `{work, account, role, granted}`; idempotent. Unbekanntes Werk oder Konto, andere Rolle → -32602; Autor-Konto → -32000. Nur volle Rechte. Kein Commit. |
+| `member.revoke` | `{work, account}` | `{work, account, revoked}` (`false`, wenn es keine Freigabe gab). Nur volle Rechte. Kein Commit. |
+
+Geändert:
+
+- `post.add`: Autor des Beitrags ist `roles::author_name` – für Lektoren der Handle, sonst „Autor“ wie bisher.
+- `post.edit`, `post.delete`: Lektoren nur eigene Beiträge (Autor des Beitrags = Handle); fremde und die des Autors
+  → -32000 mit der Meldung „Nur eigene Beiträge lassen sich bearbeiten: …“. Der Autor verwaltet weiter jeden Beitrag.
+- `post.page`, Seiten `/beitraege` und `/beitrag`: `own` ist für Lektoren „unter dem eigenen Handle“.
+- `work.list`: für Lektoren nur freigegebene Werke.
+- `ui.render`: für Lektoren ohne Literatur.
+- Jede Methode außerhalb von `LEKTOR_RPC` (auch unbekannte Namen): für Lektoren -32003.
+
+### Routen (Formulare ohne JavaScript, alle hinter `guard::same_origin`)
+
+| Route | Felder | Antwort |
+|---|---|---|
+| `POST /anmelden` | `name`, `password`, `next` | 303 auf `konten_ui::safe_next(next)` mit Cookie; sonst Anmeldeseite mit 401, bei Sperre 429 mit `Retry-After`. Ohne Konten 303 `/` ohne Cookie. |
+| `POST /abmelden` | – | 303 `/anmelden?ok=abgemeldet`, Cookie gelöscht. Ohne Konten 303 `/`. |
+| `POST /einrichten` | `name`, `display`, `password`, `password2` | Nur ohne Konten und vom eigenen Rechner: Autor-Konto, Sitzung, 303 `/einstellungen/konten?ok=konto_angelegt`. Konto vorhanden oder nicht eigener Rechner → Seite mit 403; ungültige Eingabe → 422. |
+| `POST /konto/passwort` | `current`, `password`, `password2` | 303 `/konto?ok=passwort_geaendert` bzw. `?fehler=passwort_falsch\|passwort_kurz\|passwort_lang\|passwort_ungleich\|unbekanntes_konto` (ohne eigenes Konto) |
+| `POST /einstellungen/konten/act` | `action`, `id`, … | 303 `/einstellungen/konten?ok=…\|fehler=…`; nur volle Rechte (sonst 403 mit `x-baruch-abgelehnt: rolle`); unbekannte Aktion 422 |
+
+Aktionen von `/einstellungen/konten/act`:
+
+| `action` | Felder | ok | Fehler |
+|---|---|---|---|
+| `create` | `name`, `display`, `password`, `password2` – immer `kind = lektor` | `konto_angelegt` | `name_ungueltig`, `name_vergeben`, `passwort_kurz`, `passwort_lang`, `passwort_ungleich`; ohne jedes Konto 303 `/einrichten` |
+| `deactivate` | `id` | `konto_gesperrt` | `letzter_autor`, `unbekanntes_konto` |
+| `activate` | `id` | `konto_entsperrt` | `unbekanntes_konto` |
+| `reset_password` | `id`, `password`, `password2` | `passwort_geaendert` | wie `create` (Passwort), `unbekanntes_konto` |
+| `local_open` | `open` = `0` \| `1` | `lokal_offen` / `lokal_anmelden` | – |
+
+Namen: 1 bis 40 Zeichen ohne Steuerzeichen; der Slug (Regel wie `docx_import::word_author`) darf nicht `unbekannt`
+sein – ein Name braucht also mindestens einen Buchstaben a–z (auch ä, ö, ü, ß) oder eine Ziffer. Name
+(ohne Rücksicht auf Groß-/Kleinschreibung und Leerraum) und Slug sind eindeutig, auch gegenüber gesperrten Konten.
+Anzeigename höchstens 80 Zeichen.
+
+- `POST /lektorat/act` (hinter `guard::same_origin`): Felder `method`, `work`, `key`, `node`, `id`, `body`, `note`,
+  `kind`, `quote`, `confirm` (`1` | `on` | `true`), `back`. Ruft `rpc::call` – dieselbe Rechteprüfung wie `/rpc`.
+  Angenommen werden nur Methoden aus `LEKTOR_RPC` (auch vom Autor: sonst 403). Fehlt `work`, gilt für Lektoren das
+  kleinste freigegebene Werk. Danach 303: nach `revision.propose` auf `/?work=W&key=K&rev=N`, sonst auf den Abschnitt
+  `/?work=W&key=K`; mit `back=befunde` (und nach `finding.add` ohne `key`) auf `/werke/W/befunde`; mit `back=post`
+  auf `/beitrag?work=W&id=N` (nach `post.delete` auf den Abschnitt). Fehler: 403 „Abgelehnt: …“ mit
+  `x-baruch-abgelehnt: rolle` (`-32003`), 401 (`-32002`), 500 (intern), sonst 422 „Fehler: …“.
+- `POST /werke/{id}/mitwirkende/act` (nur volle Rechte): `action` = `grant` | `revoke`, `account`. 303 auf
+  `/werke/{id}/mitwirkende?ok=freigegeben` bzw. `?ok=entzogen`; `?fehler=unbekanntes_konto` (Konto fehlt, unbekannt
+  oder keine Zahl) bzw. `?fehler=kein_lektor` (Freigabe für ein Autor-Konto). Unbekannte Aktion 400, unbekanntes Werk
+  422.
+
+Seiten (`konten_ui::pages`):
+
+| Route | Verhalten |
+|---|---|
+| `GET /anmelden[?next=…][&ok=abgemeldet]` | ohne Konten 303 `/`; sonst Formular `POST /anmelden` (`name`, `password`, `next`), Link „Weiter“ auf `safe_next(next)`; mit Sitzung „Angemeldet als …“ |
+| `GET /einrichten` | mit Konten 303 `/einstellungen/konten`; nicht vom eigenen Rechner 403 mit Erklärung (ohne Formular); sonst Formular `POST /einrichten` (`name`, `display`, `password`, `password2`) |
+| `GET /konto[?ok=…][&fehler=…]` | Name, Rolle, Herkunft, Werke (`roles::visible_works`), `POST /konto/passwort` (`current`, `password`, `password2`), `POST /abmelden`; ohne Konten Erklärung; `LocalAuthor` Hinweis |
+| `GET /werke/{id}/mitwirkende[?ok=…][&fehler=…]` | nur volle Rechte (sonst 403), unbekanntes Werk 404; Daten aus `rpc::call("member.list", {work})`; Formulare `POST /werke/{id}/mitwirkende/act` (`action=grant|revoke`, `account`) |
+| `GET /einstellungen/konten[?ok=…][&fehler=…]` | Liste aus `Store::account_list`, Schalter aus `account.me` (`local_open`); Formulare `POST /einstellungen/konten/act` mit `action=create` (`name`, `display`, `password`, `password2`), `deactivate`/`activate` (`id`), `reset_password` (`id`, `password`, `password2`), `local_open` (`open=0|1`); ohne Konten Erklärung und „Einrichten“ |
+
+`?ok=`/`?fehler=` zeigen nur den Satz aus `MESSAGES` (ein Erfolgscode gilt nicht als Fehler und umgekehrt, Unbekanntes
+zeigt nichts). Alle Konto-Seiten antworten mit `Cache-Control: no-store`.

@@ -65,5 +65,6 @@ Danach im Browser `http://127.0.0.1:8765/` öffnen; Claude Code erreicht den MCP
   `systemctl --user daemon-reload` ausführen. Ist er nicht der Vorgabe-Ordner, bleiben Geheimnisse sonst nur im
   Speicher; für den Schlüsselbund zusätzlich `Environment=BARUCH_SECRETS=keyring`.
 - Nur `127.0.0.1`: Über andere Adressen ist Baruch nicht erreichbar. Für den Betrieb im Netz steht Baruch
-  hinter einem Reverse-Proxy mit TLS und Zugangsschutz (Baruch selbst hat keine Anmeldung); der Proxy-Name
+  hinter einem Reverse-Proxy mit TLS, dazu Konten in Baruch (Einstellungen → Konten) oder ein Zugangsschutz im
+  Proxy (ohne Konten hat Baruch keine Anmeldung); der Proxy-Name
   wird mit `--allow-host NAME` bzw. `Environment=BARUCH_ALLOWED_HOSTS=NAME` erlaubt (siehe `docs/Betrieb.md`).

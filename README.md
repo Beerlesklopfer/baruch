@@ -452,8 +452,9 @@ baut die Pakete, führt das APT-Repository fort und liefert Webseite und Reposit
   Schlüsselbund dort (macOS-Schlüsselbund, Windows-Anmeldeinformationsverwaltung) ist gebaut, aber ungeprüft.
   Für Linux gibt es nur amd64/x86_64; das `.deb` braucht glibc 2.39 oder neuer (Debian 13, Ubuntu 24.04).
 - **Aktualisierung:** nur über das APT-Repository oder von Hand. Baruch prüft nie selbst auf neue Versionen.
-- **Betrieb im Netz:** Baruch hat keine Anmeldung und antwortet von sich aus nur auf dem eigenen Rechner. Ohne
-  Zugangsschutz im Proxy gehört es nicht ins Netz. Unter einem Rechnernamen antwortet Baruch nur, wenn er beim
+- **Betrieb im Netz:** Baruch antwortet von sich aus nur auf dem eigenen Rechner und hat ohne Konten keine
+  Anmeldung. Ins Netz gehört es nur hinter einem Reverse-Proxy mit TLS und mit eingerichteten Konten
+  (Einstellungen → Konten) oder einem Zugangsschutz im Proxy. Unter einem Rechnernamen antwortet Baruch nur, wenn er beim
   Start erlaubt wurde (`--allow-host NAME`); Datenordner, Sicherung, Dauerbetrieb und der Betrieb hinter einem
   Reverse-Proxy mit TLS stehen in [docs/Betrieb.md](docs/Betrieb.md).
 - **Webseite:** <https://baruch.bernau.family/> – Quelle unter [site/](site/README.md), ausgeliefert nur über
