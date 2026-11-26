@@ -20,8 +20,16 @@
 //! (`--allow-host`, `BARUCH_ALLOWED_HOSTS`); nur genau diese Namen (mit beliebigem Port) passieren [`local_host`],
 //! jeder andere Name bleibt 421. Der Proxy muss `Host` unverändert durchreichen – [`check`] vergleicht `Origin` mit
 //! `Host`. Eine Anfrage unter einem zusätzlichen Namen gilt nie als lokal ([`via_proxy`]): `/mcp` verlangt dann
-//! immer einen Token, auch wenn die Gegenstelle (der Proxy) Loopback ist. `X-Forwarded-*` wertet Baruch nicht aus.
-//! Baruch hat keine Anmeldung; den Zugangsschutz stellt der Proxy (`docs/Betrieb.md`).
+//! immer einen Token, auch wenn die Gegenstelle (der Proxy) Loopback ist. `X-Forwarded-*` wertet Baruch nicht aus
+//! – mit einer Ausnahme: Schon das Vorhandensein einer solchen Kopfzeile ([`forwarded`]) nimmt einer Anfrage die
+//! Ausnahme „Am eigenen Rechner ohne Anmeldung“ und das Einrichten des ersten Kontos (ein Proxy auf demselben
+//! Rechner, der `Host` umschreibt, sähe sonst wie der eigene Rechner aus).
+//!
+//! **Anmeldung** (Runde 35): Ohne Konten hat Baruch keine Anmeldung, und den Zugangsschutz stellt der Proxy
+//! (`docs/Betrieb.md`). Mit Konten verlangt [`crate::auth::gate`] für Seiten, Formulare und `/rpc` eine Sitzung;
+//! was eine Rolle darf, entscheidet [`crate::roles`]. Die Schichten dieses Moduls bleiben davon unberührt und
+//! liegen außerhalb der Anmeldung: Eine fremde Seite, ein fremder Rechnername oder ein fremder Rechner kommt gar
+//! nicht bis zur Anmeldung.
 //!
 //! **Lesende Anfragen fremder Seiten** (Runde 23): [`own_reads`] lehnt für **alle** Routen ein GET/HEAD ab, das eine
 //! fremde Seite als Unterressource auslöst ([`cross_site_subresource`]: Bild, Skript, `fetch`, Rahmen) – 403. Eine
@@ -256,6 +264,17 @@ pub fn via_proxy(hosts: &AllowedHosts, headers: &HeaderMap) -> bool {
     }
 }
 
+/// Kopfzeilen, die ein Reverse-Proxy an eine weitergereichte Anfrage hängt.
+pub const FORWARDED_HEADERS: [&str; 6] =
+    ["forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "via"];
+
+/// Trägt die Anfrage eine der Kopfzeilen eines Proxys ([`FORWARDED_HEADERS`])? Der Inhalt wird nicht gelesen: Schon
+/// eine leere oder unlesbare Kopfzeile zählt. Eine solche Anfrage gilt für die Anmeldung nie als „eigener Rechner“
+/// (Runde 35, Entscheidung 0.2) – auch dann nicht, wenn Gegenstelle und `Host` nach dem eigenen Rechner aussehen.
+pub fn forwarded(headers: &HeaderMap) -> bool {
+    FORWARDED_HEADERS.iter().any(|name| headers.contains_key(*name))
+}
+
 /// Middleware für alle Routen: `Host` muss [`AllowedHosts::allows`] erfüllen (Schutz vor DNS-Rebinding).
 pub async fn local_host(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
     let host = request.headers().get(header::HOST).map(|h| h.to_str().map_err(|_| ()));
@@ -338,6 +357,20 @@ mod tests {
             map.insert(*k, v.parse().unwrap());
         }
         map
+    }
+
+    #[test]
+    fn every_proxy_header_alone_marks_a_request_as_forwarded() {
+        assert!(!forwarded(&headers(&[])), "ohne Kopfzeilen kommt die Anfrage direkt");
+        assert!(
+            !forwarded(&headers(&[("host", "127.0.0.1:8765"), ("cookie", "a=b"), ("origin", "http://127.0.0.1")])),
+            "gewöhnliche Kopfzeilen eines Browsers zählen nicht"
+        );
+        for name in ["forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "via"] {
+            assert!(forwarded(&headers(&[(name, "127.0.0.1")])), "{name} allein genügt");
+            assert!(forwarded(&headers(&[(name, "")])), "{name} zählt auch leer – der Inhalt wird nicht geglaubt");
+        }
+        assert_eq!(FORWARDED_HEADERS.len(), 6, "genau die sechs Kopfzeilen der Entscheidung 0.2");
     }
 
     #[test]

@@ -49,6 +49,11 @@
 //!   Exit 1 ohne Überschreiben. Logik in `baruch_server::docx_export::cli_export`.
 //! - Beenden (Runde 32): `serve` läuft in `baruch_server::shutdown::serve` und endet sauber auf ein Signal oder über
 //!   die Seite `/beenden` (nur vom eigenen Rechner).
+//! - `baruch-server passwort <name> [--data DIR]` (Runde 35): Notweg bei vergessenem Passwort – liest das neue
+//!   Passwort als eine Zeile von der Standardeingabe, setzt es für das vorhandene Konto und beendet dessen
+//!   Sitzungen; unbekanntes Konto oder ungültiges Passwort → Exit 1. Das Passwort steht nie auf der Befehlszeile
+//!   (dort läse es jeder Benutzer des Rechners in der Prozessliste). Logik in
+//!   `baruch_server::auth::cli::reset_password`.
 //!
 //! Vorgabe für die Adresse: `127.0.0.1:8765`. Vorgabe für die Daten: [`baruch_store::default_data_dir`],
 //! unter Linux `~/.local/share/baruch` (bzw. `$XDG_DATA_HOME/baruch`), unter Windows
@@ -73,7 +78,8 @@ baruch-server import DATEI.md|DATEI.markdown|DATEI.zip [--title \"TITEL\"] [--da
 baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--title \"TITEL\"] [--data ORDNER]
 baruch-server import DATEI.docx [--uebernehmen] [--title \"TITEL\"] [--data ORDNER]
 baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
-  serve     Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
+baruch-server passwort NAME [--data ORDNER]
+  serve    Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
             nur vom eigenen Rechner)
   import    Typst-Datei als neues Werk anlegen (Präambel = Werkvorlage, =/==/=== = Gliederung)
             Markdown (.md, .markdown) wird nach Typst umgewandelt; ein ZIP bringt eine Haupt-Datei
@@ -105,6 +111,9 @@ baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
   --abgleichen beim Einlesen einer Austauschdatei: ein hier schon vorhandenes Werk abgleichen (nur
             ergänzen, nie löschen oder überschreiben; Gliederungsänderungen werden Anträge)
   --vorschau beim Einlesen einer Austauschdatei: nichts schreiben, nur zeigen, was hinzukäme
+  passwort  Notweg bei vergessenem Passwort: das neue Passwort (10 bis 200 Zeichen) als eine Zeile von der
+            Standardeingabe lesen und für das Konto NAME setzen; alle Sitzungen des Kontos enden. Beispiel:
+            baruch-server passwort Erika < datei-mit-passwort   (oder eintippen und mit Eingabe abschließen)
   --listen  Adresse des Servers (Vorgabe 127.0.0.1:8765, auch BARUCH_LISTEN)
   --data    Datenordner mit baruch.sqlite und den Git-Spiegeln unter works/
             (Vorgabe ~/.local/share/baruch bzw. %LOCALAPPDATA%\\baruch, auch BARUCH_DATA)
@@ -113,14 +122,17 @@ baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
             Vorgabe-Datenordner, sonst memory (auch BARUCH_SECRETS)
   --allow-host zusätzlich erlaubter Rechnername hinter einem Reverse-Proxy (mehrfach; auch BARUCH_ALLOWED_HOSTS,
             Komma-getrennt), z. B. baruch.example.org – ohne Port, ohne Platzhalter, keine IP-Adresse. Der Proxy
-            muss Host durchreichen und den Zugang schützen (Baruch hat keine Anmeldung); /mcp verlangt unter
-            diesem Namen immer einen Token. Siehe docs/Betrieb.md
+            muss Host durchreichen und – solange keine Konten eingerichtet sind – den Zugang schützen (ohne
+            Konten hat Baruch keine Anmeldung); /mcp verlangt unter diesem Namen immer einen Token.
+            Siehe docs/Betrieb.md
   --version Version ausgeben (baruch-server VERSION)";
 
 enum Command {
     Serve,
     Import(PathBuf),
     Export(String),
+    /// Runde 35: Passwort eines Kontos neu setzen (Name des Kontos).
+    Password(String),
 }
 
 fn usage(message: &str) -> ! {
@@ -167,6 +179,13 @@ async fn main() {
             match args.next() {
                 Some(work) if !work.starts_with("--") => Command::Export(work),
                 _ => usage("export braucht eine Werk-id oder einen Ordnernamen (slug)"),
+            }
+        }
+        Some("passwort") => {
+            args.next();
+            match args.next() {
+                Some(name) if !name.starts_with("--") => Command::Password(name),
+                _ => usage("passwort braucht den Namen des Kontos"),
             }
         }
         _ => Command::Serve,
@@ -280,6 +299,7 @@ async fn main() {
         None => None,
     };
     match command {
+        Command::Password(name) => reset_password(&name, &data).await,
         Command::Serve => {
             // Nur `serve` liest die erlaubten Rechnernamen; ein ungültiger Name beendet den Start (Exit 2).
             let allowed_hosts =
@@ -320,6 +340,28 @@ async fn main() {
             (None, None, Some((file, options))) => export_notes(&work, &file, options, data).await,
             (None, None, None) => export(&work, out.as_deref(), data).await,
         },
+    }
+}
+
+/// `passwort <name>`: das neue Passwort als eine Zeile von der Standardeingabe (ohne den Zeilenumbruch), nie von der
+/// Befehlszeile. Ausgegeben wird nur der Name des Kontos.
+async fn reset_password(name: &str, data: &std::path::Path) {
+    use std::io::IsTerminal;
+    if std::io::stdin().is_terminal() {
+        eprintln!("Neues Passwort für „{name}“ (die Eingabe ist sichtbar), dann Eingabe:");
+    }
+    let mut line = String::new();
+    if let Err(e) = std::io::stdin().read_line(&mut line) {
+        eprintln!("Standardeingabe: {e}");
+        std::process::exit(1);
+    }
+    let password = line.trim_end_matches(['\n', '\r']);
+    match baruch_server::auth::cli::reset_password(data, name, password).await {
+        Ok(()) => println!("Passwort für „{name}“ gesetzt; alle Sitzungen des Kontos sind beendet."),
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
     }
 }
 
@@ -371,9 +413,15 @@ async fn serve(listen: &str, data: PathBuf, secrets: Option<&str>, allowed_hosts
     println!("Geheimnisse: {}", mode.describe());
     if !proxy_names.is_empty() {
         println!(
-            "Erlaubte Rechnernamen (Reverse-Proxy): {proxy_names} – Baruch hat keine Anmeldung; den Zugangsschutz \
-             muss der Proxy stellen. /mcp verlangt unter diesen Namen einen Token."
+            "Erlaubte Rechnernamen (Reverse-Proxy): {proxy_names} – ohne Konten hat Baruch keine Anmeldung; dann \
+             muss der Proxy den Zugangsschutz stellen. /mcp verlangt unter diesen Namen einen Token."
         );
+    }
+    // Runde 35: Mit Konten verlangen Seiten, Formulare und /rpc eine Anmeldung.
+    match state.store.account_count().await {
+        Ok(0) => println!("Anmeldung: aus (keine Konten; einrichten unter /einrichten am eigenen Rechner)"),
+        Ok(n) => println!("Anmeldung: an ({n} Konten)"),
+        Err(e) => eprintln!("Konten: {e}"),
     }
     // Runde 32: Bedienen und Herunterfahren (Signale, Seite /beenden) stehen in `shutdown`. Die Empfänger der Signale
     // sind eingerichtet, bevor die Zeile „Baruch läuft“ dasteht: Wer auf sie wartet und gleich ein SIGTERM schickt,

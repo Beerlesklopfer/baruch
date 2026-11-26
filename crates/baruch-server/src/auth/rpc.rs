@@ -1,11 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! RPC `account.*` (Runde 35, Vertrag §1.6). Anmelden, Abmelden und Einrichten gibt es nur als Formular (Cookie);
 //! Passwörter stehen nie in einer Antwort.
+//!
+//! Was eine Rolle aufrufen darf, entscheidet `roles::check_rpc` vor dem Dispatch. Die Methoden, die nur der Autor
+//! darf, prüfen hier zusätzlich [`Who::full_rights`] – zwei unabhängige Stellen müssten versagen, bevor ein Lektor
+//! Konten verwaltet. Antworten tragen nur, was [`baruch_store::Account`] hält (kein Hash) und das Handle.
 
-use serde_json::Value;
+use baruch_store::Account;
+use serde::Deserialize;
+use serde_json::{Value, json};
 
+use super::routes::{self, Problem};
+use super::{Who, session};
 use crate::AppState;
-use crate::rpc::{REFUSED, RpcError};
+use crate::rpc::{FORBIDDEN, INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 
 pub const METHODS: &[&str] = &[
     "account.me",
@@ -22,10 +30,171 @@ pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
+/// Deutscher Satz zu den Meldungscodes der Bausteine (die Oberfläche hat ihre eigene Tabelle).
+fn sentence(code: &str) -> &'static str {
+    match code {
+        "passwort_falsch" => "Das bisherige Passwort stimmt nicht.",
+        "passwort_kurz" => "Das Passwort braucht mindestens 10 Zeichen.",
+        "passwort_lang" => "Das Passwort darf höchstens 200 Zeichen haben.",
+        "passwort_ungleich" => "Die beiden Passwörter sind verschieden.",
+        "name_vergeben" => "Diesen Namen gibt es schon.",
+        "name_ungueltig" => {
+            "Ungültiger Name: 1 bis 40 Zeichen mit mindestens einem Buchstaben a–z oder einer Ziffer, nicht \
+             „unbekannt“; Anzeigename höchstens 80 Zeichen."
+        }
+        "letzter_autor" => "Das letzte aktive Autor-Konto lässt sich nicht sperren.",
+        "unbekanntes_konto" => "Dieses Konto gibt es nicht.",
+        routes::NEEDS_AUTHOR => {
+            "Es gibt noch kein Konto. Das erste Konto (der Autor) wird am eigenen Rechner unter /einrichten angelegt."
+        }
+        _ => "Das ging nicht.",
+    }
+}
+
+fn refused(problem: Problem) -> RpcError {
+    match problem {
+        Problem::Code(code) => RpcError::new(REFUSED, sentence(code)),
+        Problem::Internal(e) => RpcError::new(INTERNAL, e),
+    }
+}
+
+fn internal(e: impl std::fmt::Display) -> RpcError {
+    RpcError::new(INTERNAL, e.to_string())
+}
+
+/// Parameter lesen. Die Fehlermeldung nennt bewusst nicht den Text von serde: Er könnte einen Wert zitieren, und
+/// unter den Werten sind Passwörter.
+fn parse<T: for<'de> Deserialize<'de>>(method: &str, params: Value, expected: &str) -> Result<T, RpcError> {
+    let params = if params.is_null() { json!({}) } else { params };
+    serde_json::from_value(params).map_err(|_| RpcError::new(INVALID_PARAMS, format!("{method}: erwartet {expected}")))
+}
+
+fn author_only(who: &Who, method: &str) -> Result<(), RpcError> {
+    if who.full_rights() { Ok(()) } else { Err(RpcError::new(FORBIDDEN, format!("Das darf nur der Autor: {method}"))) }
+}
+
+/// Ein Konto, wie es in Antworten steht: die Felder von [`Account`] und das Handle. Kein Hash, kein Passwort.
+fn account_json(account: &Account) -> Value {
+    json!({
+        "id": account.id,
+        "name": account.name,
+        "display": account.display,
+        "kind": account.kind,
+        "handle": format!("@lektorat:{}", account.slug),
+        "active": account.active,
+        "created": account.created,
+        "last_login": account.last_login,
+    })
+}
+
+#[derive(Deserialize)]
+struct CreateParams {
+    name: String,
+    #[serde(default)]
+    display: String,
+    password: String,
+}
+
+#[derive(Deserialize)]
+struct ActiveParams {
+    id: i64,
+    active: bool,
+}
+
+#[derive(Deserialize)]
+struct OpenParams {
+    open: bool,
+}
+
+#[derive(Deserialize)]
+struct PasswordParams {
+    current: Option<String>,
+    password: String,
+    id: Option<i64>,
+}
+
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
-    // STUB: account.me/list/create/set_active/set_password/set_local_open/logout_all (Runde 35)
-    let _ = (state, params);
-    Err(RpcError::new(REFUSED, format!("{method}: noch nicht umgesetzt (Konten, Runde 35)")))
+    let who = super::current();
+    match method {
+        "account.me" => {
+            let local_open = state.store.auth_local_open().await.map_err(internal)?;
+            let mut me = json!({
+                "accounts_exist": super::accounts_exist(state).await,
+                "signed_in": who.identity().is_some(),
+                "local_open": local_open,
+            });
+            if let Some(identity) = who.identity() {
+                me["id"] = json!(identity.id);
+                me["name"] = json!(identity.name);
+                me["display"] = json!(identity.display);
+                me["kind"] = json!(identity.kind);
+                me["handle"] = json!(identity.handle);
+            }
+            Ok(me)
+        }
+        "account.list" => {
+            author_only(&who, method)?;
+            let accounts = state.store.account_list().await.map_err(internal)?;
+            Ok(json!({ "accounts": accounts.iter().map(account_json).collect::<Vec<_>>() }))
+        }
+        "account.create" => {
+            author_only(&who, method)?;
+            let p: CreateParams = parse(method, params, "{name, display?, password}")?;
+            // Weitere Konten sind immer Lektoren (Vertrag 0.4); das erste entsteht nur über /einrichten.
+            let account =
+                routes::create_account(state, &p.name, &p.display, p.password, None, false).await.map_err(refused)?;
+            Ok(account_json(&account))
+        }
+        "account.set_active" => {
+            author_only(&who, method)?;
+            let p: ActiveParams = parse(method, params, "{id, active}")?;
+            routes::set_active(state, p.id, p.active).await.map_err(refused)?;
+            let account = state.store.account_get(p.id).await.map_err(internal)?;
+            account.as_ref().map(account_json).ok_or_else(|| RpcError::new(REFUSED, sentence("unbekanntes_konto")))
+        }
+        "account.set_local_open" => {
+            author_only(&who, method)?;
+            let p: OpenParams = parse(method, params, "{open}")?;
+            state.store.set_auth_local_open(p.open).await.map_err(internal)?;
+            Ok(json!({ "local_open": p.open }))
+        }
+        "account.set_password" => {
+            let p: PasswordParams = parse(method, params, "{current?, password, id?}")?;
+            let own = who.identity().filter(|identity| p.id.is_none_or(|id| id == identity.id));
+            match (own, p.id) {
+                // Eigenes Passwort: nur mit dem bisherigen; die Sitzung dieser Anfrage bleibt, alle anderen enden.
+                (Some(identity), _) => {
+                    let Some(current) = p.current else {
+                        return Err(RpcError::new(INVALID_PARAMS, "account.set_password: current fehlt"));
+                    };
+                    routes::check_current(state, identity, current).await.map_err(refused)?;
+                    let keep = session::current_hash();
+                    routes::change_password(state, identity.id, p.password, None, keep.as_deref())
+                        .await
+                        .map_err(refused)?;
+                    Ok(json!({ "id": identity.id, "changed": true }))
+                }
+                // Fremdes Passwort: nur der Autor; alle Sitzungen des Kontos enden.
+                (None, Some(id)) => {
+                    author_only(&who, method)?;
+                    routes::change_password(state, id, p.password, None, None).await.map_err(refused)?;
+                    Ok(json!({ "id": id, "changed": true }))
+                }
+                (None, None) => Err(RpcError::new(
+                    REFUSED,
+                    "Ohne Anmeldung gibt es kein eigenes Konto; mit id das Passwort eines Kontos setzen.",
+                )),
+            }
+        }
+        "account.logout_all" => {
+            let Some(identity) = who.identity() else {
+                return Err(RpcError::new(REFUSED, "Ohne Anmeldung gibt es keine Sitzungen zu beenden."));
+            };
+            let sessions = state.store.session_delete_all(identity.id, None).await.map_err(internal)?;
+            Ok(json!({ "sessions": sessions }))
+        }
+        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode: {method}"))),
+    }
 }
 
 #[cfg(test)]
@@ -40,5 +209,37 @@ mod tests {
         }
         assert!(!handles("account.delete"), "Konten werden nie gelöscht – die Methode gibt es nicht");
         assert!(!handles("work.list"), "fremde Methoden gehören nicht hierher");
+    }
+
+    #[test]
+    fn a_wrong_parameter_is_reported_without_quoting_any_value() {
+        let params = json!({ "name": "Erika", "password": ["streng-geheimes-wort"] });
+        let error = parse::<CreateParams>("account.create", params, "{name, display?, password}").err().unwrap();
+        assert_eq!(error.code, INVALID_PARAMS, "falsche Parameter sind -32602");
+        assert!(!error.message.contains("streng-geheimes-wort"), "die Meldung zitiert keinen Wert: {}", error.message);
+        assert!(error.message.contains("{name, display?, password}"), "sie nennt, was erwartet wird");
+    }
+
+    #[test]
+    fn an_account_in_an_answer_has_a_handle_and_no_secret() {
+        let account = Account {
+            id: 2,
+            name: "Erika".into(),
+            slug: "erika".into(),
+            display: "Erika Beispiel".into(),
+            kind: "lektor".into(),
+            active: true,
+            created: "2026-11-26T10:00:00.000Z".into(),
+            last_login: None,
+        };
+        let value = account_json(&account);
+        assert_eq!(value["handle"], "@lektorat:erika", "die Herkunft, unter der das Konto schreibt");
+        let mut keys: Vec<&str> = value.as_object().unwrap().keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["active", "created", "display", "handle", "id", "kind", "last_login", "name"],
+            "genau diese Felder – kein Passwort, kein Hash, kein Token"
+        );
     }
 }
