@@ -5,16 +5,16 @@ der Arbeitsstand in `HANDOFF.md`.
 
 ## Nach 0.9.0 (Wünsche 2026-11-24/25, Stand nach Veröffentlichung von 0.9.0)
 
-Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1), Konten und Rollen, Reste (Typst-Alias, Pages je Commit, sqlx 0.9), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos:
+Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (Runde 35), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
 
-- **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 35.
-- **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 35.
+- **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
+- **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
 - **Menüband und Laptop-Modus (Nutzer 2026-11-24: „Die Menüführung ist DEV-State. Wir wollten ein klares Menüband-Design mit Popup (Laptop-Mode)“).** Entscheidungen:
   - **Reiter + Gruppen** wie Office/LibreOffice: eine Reiterzeile (etwa Start, Einfügen, Prüfen, Buch, Ansicht – Zuschnitt im Vertrag), darunter beschriftete Gruppen (Text, Absatz, Fassung, Assistenten …). Das App-Menü (heute Werk/Ansicht/Werkzeuge) wandert in einen Knopf „Baruch ▾“ links; Werkwahl, Hell/Dunkel, Einstellungen bleiben erreichbar. Ersetzt Kopfzeile UND die flache Knopfreihe im Editor (edit_toolbar.html, Satz-Seite).
   - **Laptop-Modus, alle drei:** (1) Gruppen klappen zu Knöpfen mit Popup (▾), nur die Reiterzeile bleibt; Klick klappt das Band auf/zu. (2) Gliederung links und Assistenten rechts einklappbar zu schmalen Leisten bzw. Popups. (3) Automatisch nach Fensterbreite, dazu ein Schalter, der den Laptop-Modus erzwingt (Einstellung gemerkt).
   - Ohne JavaScript bedienbar bleiben (Reiter als Links/Details-Elemente, Popups als <details>), Tastatur und Bildschirmleser (ARIA tablist/menu), hell/dunkel. Nach dem Umbau die Bildschirmfotos der Webseite neu aufnehmen.
-  - **Reihenfolge:** vor der Hilfe-Runde (die Bildschirmfotos je Punkt sollen das neue Band zeigen). Neue Planung: R33 Menüband und Laptop-Modus, R34 Konten und Rollen, R35 Hilfe auf der Webseite, R36 Reste (inkl. Typst-Alias, Pages je Commit, sqlx 0.9).
-- **Nächste Version 0.9.1 (Nutzer 2026-11-24).** Das Release v0.9.0 ist zurückgezogen („das sieht nicht nach 0.9.0 aus“; Release und Tag bei GitHub gelöscht, Webseite ohne Downloads/APT). 0.9.1 erscheint nach den Runden 32–36.
+  - **Reihenfolge:** vor der Hilfe-Runde (die Bildschirmfotos je Punkt sollen das neue Band zeigen). Planung vom 2026-11-24: R33 Menüband und Laptop-Modus, R34 Konten und Rollen, R35 Hilfe auf der Webseite, R36 Reste (inkl. Typst-Alias, Pages je Commit, sqlx 0.9). **Überholt 2026-11-25:** Die Mindmap wurde als Runde 34 vorgezogen; es folgen R35 Konten und Rollen, R36 Reste, R37 Hilfe (`docs/Fahrplan.md`).
+- **Nächste Version 0.9.1 (Nutzer 2026-11-24).** Das Release v0.9.0 ist zurückgezogen („das sieht nicht nach 0.9.0 aus“; Release und Tag bei GitHub gelöscht, Webseite ohne Downloads/APT). 0.9.1 erscheint nach den Runden 32–37 (Zählung seit der vorgezogenen Mindmap).
 - **(erledigt in Runde 34, 2026-11-25; Reste unter „Nach Runde 34 offen“)** **Echte Mindmap wie XMind (Nutzer 2026-11-24, für 0.9.1: „Daran sind zu viele gewöhnt. Mit der Gedankenwolke können zu wenige etwas anfangen.“).** Die Gedankenkarte (Einfälle um Teile/Kapitel, Wolke „Ohne Kapitel“) wird zu einer gewohnten Mindmap: zentrales Thema (Werk), Äste nach rechts/links, Unteräste, Knoten direkt anlegen/umbenennen/ziehen/einklappen, Tastatur wie XMind/FreeMind (Tab = Kind, Enter = Geschwister, F2 = umbenennen, Entf = löschen mit Rückfrage), Verbindungen und Notizen, Ausgabe nach FreeMind/Freeplane (.mm) sowie SVG/PDF/Markdown wie heute; möglichst Import/Export von .xmind (offenes ZIP-Format, prüfen). Knoten bleiben Einfälle (kein Buchtext, volles CRUD auch für Assistenten mit Herkunft). Ohne JavaScript bedienbar (Gliederungsansicht der Mindmap). → eigene Runde nach dem Menüband (R33), Reihenfolge mit dem PM.
 - **Ältere Fassungen ausblenden „bis hierhin“ (Nutzer 2026-11-24: „Ein Buch kann locker mehrere Dutzend Fassungen haben. Diese sollten ausblendbar sein. Also bis hierhin [toggle]“).** Im Fassungsbaum/Akkordeon „Fassungen“ und im Umschalter ‹ n/m › an jeder Fassung eine Marke „bis hierhin ausblenden“: alle älteren Fassungen (und abgelehnte/überholte Vorschläge davor) verschwinden hinter einem Schalter „n ältere Fassungen zeigen/verbergen“ (Toggle). Nichts wird gelöscht (Revisionen bleiben, Spiegel unverändert); die aktuelle Fassung ist nie ausgeblendet; Marke je Abschnitt gespeichert (Mensch setzt sie, Assistenten nicht), dazu werkweit „bis Datum/Fassungsstand ausblenden“. Zähler wie „6/7“ zählen dann nur die sichtbaren, mit Hinweis „+ n ausgeblendet“. Ohne JavaScript als Formular/Link. → 0.9.1 (oder früher, wenn der Nutzer es will).
   → Nutzer: „ja, noch in 0.9.0“ – Entwickler-Agent auf Zweig team/fassungen-ausblenden (von ed9d210, Migration 0051), beim Zusammenführen mit R32/R33 einbeziehen.
@@ -77,7 +77,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-25: R13–R33 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
+## Rundenplan (Stand 2026-11-26: R13–R34 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -114,12 +114,14 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R24 | Verteilung (B5) – **erledigt 2026-11-24** (≈ 175 min ab der Vorarbeit `3028194` mit Gutachten, Nachbesserung und PM-Abschluss; ohne die niedrigen Reste aus R23) | a pakete · b ci · c webseite (statt betrieb) | 200 |
 | R33 | Menüband und Laptop-Modus (Wunsch des Nutzers, parallel zu R32 auf dem Zweig `runde33`) – **erledigt 2026-11-25** auf `runde33` (≈ 170 min ab `ed9d210` mit Prüfung und PM-Abschluss); auf `development` seit `0f52492`, Gegenprobe `35140b5` (Tag `v0.9.0`) | menueband · laptop · seiten | – |
 | R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
+| R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
 
-### Nach Runde 34 offen (Integrator 2026-11-25)
+### Nach Runde 34 offen (Integrator 2026-11-25, PM-Abschluss 2026-11-26)
 
 Runde 34 „Mindmap wie XMind“ ist auf `development` integriert (Migration 0052, Austauschformat Unterversion 9). Der
 Wunsch „Echte Mindmap wie XMind“ (oben) ist damit umgesetzt, samt dem Nachtrag „Verbindung zwischen der Wolke und
-der Mindmap“. Der PM-Abschluss (Fahrplan, Gegenlauf) steht aus.
+der Mindmap“. Die Runde ist abgeschlossen: Prüfung mit zwei niedrigen Hinweisen (unten), keine Nachbesserung;
+PM-Abschluss mit vollem Lauf nach `cargo clean -p` (209 Testgruppen „ok“, 3334 bestanden, 0 gescheitert, 2 ignoriert (Server-Bündel 1460 bestanden, pgvector-Tests liefen mit; 2026-11-26)).
 
 - (→ Nutzer, vorher Datenordner sichern: **Migration 0052**) Handprüfung an Werk 3 im eigenen Browser: Die 33
   Einfälle sind da; Einfälle mit Bezug hängen an ihren Kapiteln, die übrigen liegen in der **Wolke** (nicht als
@@ -132,10 +134,25 @@ der Mindmap“. Der PM-Abschluss (Fahrplan, Gegenlauf) steht aus.
 - (→ Nutzer) `.xmind` in echtem XMind und `.mm` in Freeplane öffnen; eine dort gespeicherte Datei wieder einlesen.
   Der Aufbau der XMind-Datei folgt der Formatbeschreibung aus dem Gedächtnis (Annahmen in `docs/Bedienung.md`,
   „Annahmen zu XMind und Freeplane“).
-- (→ Nutzer, Entscheidung) Beim Ziehen in die Wolke wandern die Unterknoten mit (der Teilbaum bleibt beisammen, ein
-  Schritt „Rückgängig“ stellt alles wieder her). Gewünscht – oder soll nur der eine Einfall gelöst werden?
-- (→ Nutzer, Entscheidung) Einlesen ohne Zielknoten legt die obersten Knoten als **Hauptthemen am Werk** an, nicht
-  in die Wolke. Eine eigene Ausgabe mit Ast „Wolke“ kommt darum beim Wiedereinlesen ebenfalls als Hauptthemen an.
+- (entschieden vom PM 2026-11-25, der Nutzer kann es umstoßen) Beim Ziehen in die Wolke wandern die Unterknoten
+  mit: Der Teilbaum bleibt beisammen wie beim Umhängen im Baum, ein Schritt „Rückgängig“ stellt alles wieder her.
+  Alle drei Entwickler kamen unabhängig auf dieselbe Regel.
+- (entschieden vom PM 2026-11-25) Einlesen ohne Zielknoten legt die obersten Knoten als **Hauptthemen am Werk** an:
+  Eine fremde Mindmap ist ein Baum, keine Ablage.
+- (→ R36, Reste) Die eigene Ausgabe trägt die Wolke als letzten Ast „Wolke“ (`.mm`, `.xmind`); beim Wiedereinlesen
+  kommen diese Einfälle als Hauptthemen an, nicht wieder in der Wolke. Die Rundreise der eigenen Datei soll die
+  Wolke erhalten (den eigenen Ast beim Einlesen erkennen und mit `cloud: true` anlegen).
+- (Prüfung, niedrig, → R36) Beschriftungen der Verbindungen („widerspricht …“, „gehört zu“, „führt weiter …“)
+  liegen bei dichten Ästen auf den Knoten der Nachbaräste und werden von Linien gekreuzt (Bilder 01, 05, 06, 14
+  der Sichtprüfung). Ohne JavaScript ist das Bild breiter als der Rahmen; gerollt wird nur die Bildfläche.
+- (PM-Abschluss, niedrig, → R36) Die sechs Bilder der Sichtprüfung, die der Integrator nur erzeugt hatte (02, 03,
+  08, 10, 11, 13), sind angesehen bzw. geprüft (`10-ausgabe.svg` ist wohlgeformt). Gefunden: Im dunklen Modus steht
+  rechts ein heller Streifen in der Farbe eines Rollbalkens (Bild 02 neben der Bühne, Bild 08 am rechten Rand).
+  Ob das nur der Firefox ohne Fenster mit erzwungenem `data-theme` zeigt, ist nicht geklärt. Im PDF (Bild 11)
+  und im dunklen Bild überdeckt die Beschriftung „widerspricht …“ den Knoten „Springtide“ ganz.
+- (Prüfung, niedrig, keine Aufgabe) Die Tasten weichen leicht von XMind ab und stehen so auf der Seite: Auch die
+  Rücktaste löscht (wie Entf nach Rückfrage, wiederherstellbar, Strg+Z), Enter an Werk, Teil oder Kapitel legt ein
+  Unterthema an. Die Prüfung nannte das Löschen „sofort“; `mindmap.ts` fragt aber nach (`window.confirm`).
 - (offen) Titel über 48 Zeichen werden im Bild gekürzt, Textbreiten sind geschätzt (der Server kennt die Schrift des
   Browsers nicht); Beschriftungen von Beziehungen können Knoten überdecken.
 - (offen) Die Seite baut die Karte zweimal (Baum für das Bild, flache Karte für „Gruppen“), mit gleichem Filter.
@@ -149,7 +166,8 @@ der Mindmap“. Der PM-Abschluss (Fahrplan, Gegenlauf) steht aus.
   veraltet).
 - (offen) Der Filter `open=` der alten Karte gilt im Baum nicht mehr und fällt aus den Links; die Zahl am Einklapper
   zählt alle verborgenen Knoten, nicht nur Einfälle.
-- (PM) `docs/Fahrplan.md` nachführen (Runde 34 war dort „Konten und Rollen“; die Mindmap wurde vorgezogen).
+- (erledigt im PM-Abschluss) `docs/Fahrplan.md` nachgeführt: Runde 34 ist die Mindmap, „Konten und Rollen“ ist
+  Runde 35. Die Worktrees der Runde samt `target/` sind entfernt; die Zweige `team/mindmap_*` stehen noch.
 
 ### Nach Runde 32 offen (Integrator und PM-Abschluss 2026-11-25)
 

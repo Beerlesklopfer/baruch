@@ -80,12 +80,17 @@ gantt
     Runde 32 – Lektorat I, Word und Beenden       :done, r32, 2026-11-25 01:39, 158m
     Prüfung und Nachbesserung Runde 32            :done, r32n, 2026-11-25 04:17, 25m
     PM-Abschluss Runde 32                         :done, r32p, 2026-11-25 04:42, 20m
+    Backlog-Nachträge nach 0.9.0                  :milestone, b090, 2026-11-25 18:21, 0m
+
+    Runde 34 – Mindmap wie XMind, Wolke verbunden :done, r34, 2026-11-25 18:21, 110m
+    Prüfung und erster PM-Durchgang Runde 34      :done, r34q, 2026-11-25 20:11, 10m
+    PM-Abschluss Runde 34 nach Unterbrechung      :done, r34p, 2026-11-26 22:28, 9m
 
     section Geplant (geschätzt)
-    Release 0.9.0 durch den Nutzer – Tag, Lauf, Signaturen :rel090, after r32p, 90m
-    Runde 34 – Konten und Rollen (Lektor)         :r34, after rel090, 240m
-    Runde 35 – Einstieg, Befunde nach Gewicht, Anmerkungen zum Buch :r35, after r34, 180m
-    Runde 36 – Hilfe auf der Webseite mit Bildern :r36, after r35, 180m
+    Runde 35 – Konten und Rollen (Lektor)         :r35, after r34p, 240m
+    Runde 36 – Reste (Typst-Alias, Pages je Commit, sqlx 0.9) :r36, after r35, 180m
+    Runde 37 – Hilfe auf der Webseite mit Bildern :r37, after r36, 180m
+    Veröffentlichung 0.9.1 durch den Nutzer       :rel091, after r37, 90m
 ```
 
 ## Runden im Einzelnen
@@ -129,28 +134,45 @@ gantt
 | 0.9.0 | Erste Veröffentlichung `84558e8` (19:10) und Nacharbeit bis `ed9d210` (22:40): CI und Pages (`d798a5b` `eb03575`), Abhängigkeiten nach RustSec und Archivschlüssel (`d087d62` `398753d`), Backlog „Lektorat“ (`41e0961` `7280bac`), Webseite nach der Durchsicht (`88d42bb` … `0873f25`), Befunde anspringen (`a760132`), macOS-Signierung (`ed9d210`) | `84558e8` … `ed9d210` |
 | 33 | Menüband und Laptop-Modus (Wunsch des Nutzers; parallel zu Runde 32, darum auf dem Zweig `runde33` statt `development`): Beginn nach `ed9d210` (22:40), Vertrag ohne eigenen Commit, Schnittstelle R33-S1 `f7493c2` (23:26; Module `band`/`laptop`, Blöcke `band_*` in `base.html`, vier Testdateien), drei Worktrees davon abgezweigt: übrige Seiten im Band, Satz-Seite im Reiter Buch (seiten, `fdfc3fb` 00:00); Laptop-Modus mit Leisten und Schubladen, Zoom zurücksetzen (laptop, `d5f8fc0` 00:31); Menüband mit Baruch ▾, fünf Reitern, Gruppen, Abzeichen, Andocken der Editor-Knöpfe (menueband, `e9481ea` 00:32). Jeder Zweig hatte rote Tests in fremden Dateien (vom Vertrag ausgelöst). Zusammenführung `c8d83f3` `73460cd` `5c8e239` (00:33, ohne Konflikte), Integration mit Abnahmetest, Sichtprüfung in drei Breiten und neuen Bildschirmfotos `4215144` (01:14); Prüfung ohne belegten Fehler, keine Nachbesserung; PM-Abschluss (01:30). Die Runde war zwischendurch angehalten (Kontingent) und setzte auf den Zwischenständen in den Worktrees neu auf. Keine Migration, keine neue Route, RPC-Methode oder MCP-Werkzeug. Auf `development` seit `0f52492` (01:27), Gegenprobe 0.9.0 `35140b5` (01:39; Prüfgrundlage stand im Persona-Formular doppelt, behoben mit Test); der Tag `v0.9.0` zeigt auf `35140b5` | `f7493c2` … `4215144` + PM-Abschluss, `0f52492`, `35140b5` |
 | 32 | Lektorat I – Word und Beenden (Vorhaben Lektorat, erste Runde): Vorlage der Schnittstelle `ccd471f` (2026-11-24 23:35, Zweig `team/r32-schnittstelle`, neben Runde 33; die drei Entwickler begannen darauf und setzten nach einer Unterbrechung auf ihren Zwischenständen neu auf). Auf `development` beginnt die Runde nach der Gegenprobe 0.9.0 `35140b5` (2026-11-25 01:39): Schnittstelle R32-S1 `647ae42` (03:00; Crate `baruch-docx` mit Modell, Fehlern, Grenzen und OOXML-Konstanten, Server-Module `docx_import`, `docx_export`, `shutdown` als Stubs, drei Einträge im Menüband), die drei Zweige davon abgezweigt: Word-Import mit Vorschau, Änderungsverfolgung als Vorschläge unter `@word:<name>`, Kommentare als Beiträge, RPC `docx_import.*`, CLI `import` (docx_import, `6a2f506` 03:49); Baruch beenden über `/beenden`, sauberes Herunterfahren auf Signale, Starter mit App-Fenster, Pages in zwei Jobs (beenden, `08fd6c5` 03:50); Word-Export für den Verlag mit Vorschlägen als `w:ins`/`w:del`, RPC `work.docx_export`, CLI `export --docx` (docx_export, `2e3246b` 03:52). Jeder Zweig hatte genau einen roten Wächtertest in einer Datei des Integrators (`round33_seiten.rs`, Liste `TEMPLATES`). Zusammenführung `c582ee3` `36d3118` `f143904` (03:52, ohne Konflikte), Integration mit drei Fehlern an den Nahtstellen (Liste ab 3, Bild der Abbildung, SIGTERM gleich nach dem Start), Abnahme `round32_abnahme` und `roundtrip`, Sichtprüfung (17 Bilder) `9c836d6` (04:17); Prüfung mit drei Befunden (ein mittlerer zur Gruppe `pages`, über die Doku behoben, zwei niedrige), Nachbesserung `a9a1ffb` (04:42); PM-Abschluss (≈ 05:00). Keine Migration, kein neues MCP-Werkzeug. Nicht Teil von 0.9.0 (Tag auf `35140b5`), CHANGELOG „Unveröffentlicht“ | `647ae42` … `a9a1ffb` + PM-Abschluss |
+| 34 | Mindmap wie XMind (Wunsch des Nutzers 2026-11-24 für 0.9.1: „Daran sind zu viele gewöhnt. Mit der Gedankenwolke können zu wenige etwas anfangen.“; vorgezogen vor „Konten und Rollen“, das hier bisher als Runde 34 stand): Beginn nach den Backlog-Nachträgen `b7bcb91` (2026-11-25 18:21), Vertrag ohne eigenen Commit, Schnittstelle R34-S1 `67faa2f` (18:36; `idea_map/bild` geteilt, `idea_map/tree.rs` mit `MindMap`/`TreeNode`, Import und `mindmap::render` als Stubs, Migrationen 0052–0055 reserviert, vier Testdateien) direkt auf `development`, die drei Zweige davon abgezweigt: Ein- und Ausgabe `.mm`, `.xmind`, SVG, PDF, Markdown, Einlesen mit Vorschau, Gliederungsansicht ohne JavaScript (mindmap_austausch, `7513039` 19:26); Bild mit Werk in der Mitte, Ästen rechts und links, Seite „Mindmap“ und Widget `mindmap.ts` mit den Tasten von XMind (mindmap_widget, `d47d3af` 19:28); Einfälle als Baum mit Titel, Elternknoten, Reihenfolge und Hauptthema (Migration 0052), RPC `idea.move`/`idea.tree`, MCP `idea_move`/`idea_tree`, Baum-Import, Austauschformat Unterversion 9 (mindmap_daten, `38f4022` 19:36). **Nachtrag des Nutzers während der Runde:** „Es macht Sinn eine Verbindung zwischen der Wolke und der Mindmap zu machen.“ – alle drei Zweige haben die Wolke aufgenommen, aber zwei verschieden verstanden. Zusammenführung `89a45d3` `a8f31f5` `fef8dd3` (19:37, ohne Textkonflikte; 26 Tests im Server-Bündel rot), Integration `826964a` (20:11): gemeinsame Sicht `tree::Scene` für Seite, Bild, Gliederungsansicht und Ausgaben (eine Platzregel: Elternknoten → Unterknoten, sonst Bezug → am Kapitel, sonst Hauptthema am Werk, sonst Wolke), drei weitere Fehler an den Nähten behoben (`idea.delete` ohne `confirm`, „in die Wolke“ machte ein Hauptthema, Text der Einlesen-Seite), altes Bild (`layout.rs`, `svg.rs`, `idea_map.ts`) gelöscht, Abnahme `round34_abnahme` (5 Tests), Sichtprüfung (14 Dateien, Widget in Firefox mit künstlichen Ereignissen bedient); Prüfung mit zwei niedrigen Hinweisen (Beschriftungen der Verbindungen überdecken Knoten; Tasten weichen leicht von XMind ab und stehen auf der Seite), darum keine Nachbesserung; erster PM-Durchgang 20:11–20:21 (Doku nachgeführt, Worktrees entfernt, dann unterbrochen und ohne Commit), PM-Abschluss mit vollem Lauf 2026-11-26 22:28–22:37. Kein Stub der Runde offen. Nicht Teil von 0.9.0, CHANGELOG „Unveröffentlicht“ | `67faa2f` … `826964a` + PM-Abschluss |
 | SWORD | Eigener Zweig `team/sword` neben Runde 11: Crate `baruch-sword` (lokale SWORD-Module über `sword-modules`, CC0), Bibeln je Werk (Migration 0030), `bible.*` über RPC und MCP, `scripture_check` prüft den Wortlaut | `cb2f9a0` + Merge |
 
 ## Geplant (Reihenfolge aus `docs/Backlog.md`, Dauer geschätzt)
 
-**Stand 2026-11-25 (nach Runde 32): Das Vorhaben „Lektorat“ (`docs/Backlog.md`, „Nächstes Vorhaben“) hat seine
-erste Runde hinter sich. Runden 32 und 33 sind auf `development`, der Zweig `runde33` ist aufgelöst. Der Tag
-`v0.9.0` zeigt auf `35140b5` (ohne Runde 32); gepusht ist nichts davon.** Reihenfolge und Schätzung der nächsten
-Schritte:
+**Stand 2026-11-26 (nach Runde 34): Die Mindmap wie XMind ist auf `development`, samt der Verbindung von Wolke
+und Mindmap. Die Reihenfolge danach steht in `docs/Backlog.md`, „Nach 0.9.0“: Konten und Rollen, Reste, zuletzt
+die Hilfe auf der Webseite; die nächste Version ist nach dem Backlog 0.9.1 und erscheint nach diesen Runden.
+Lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; `development` liegt mit den Runden 32 und
+34 davor. Gepusht hat der PM nichts.** Reihenfolge und Schätzung der nächsten Schritte:
 
 | Schritt | Inhalt | Stand | Schätzung |
 |---|---|---|---|
-| Release 0.9.0 (Nutzer) | Nur den Tag `v0.9.0` schieben, Release-Lauf abwarten, Signaturen von macOS und APT prüfen, Release veröffentlichen, erst danach `main` (Regel in `docs/Verteilung.md`, Gruppe `pages`) | wartet auf das „ja“ des Nutzers; offen ist, **welcher Stand** nach `main` geht (`35140b5` oder `development` mit Runde 32 – die Webseite nennt dann Word und „Baruch beenden“, die 0.9.0 nicht enthält) | ≈ 90 min, davon ≈ 60 min Lauf; nie gelaufen, darum nicht belastbar |
-| Runde 34 (Vorschlag) | Konten und Rollen: Anmeldung, Autor/Lektor, Freigabe je Werk | nicht begonnen, kein Vertrag | ≈ 240 min – Querschnitt durch alle schreibenden Wege (wie Runde 23 mit 160 min, dazu Migration und Anmeldung) |
-| Runde 35 (Vorschlag) | Schlanker Einstieg, Befunde nach Gewicht (Nutzerfrage 14), Anmerkungen zum ganzen Buch | nicht begonnen | ≈ 180 min |
-| Runde 36 (Vorschlag) | Hilfe vollständig auf der Webseite, ein Bildschirmfoto je Punkt | nicht begonnen; sinnvoll erst nach den Runden, die die Oberfläche noch ändern | ≈ 180 min |
+| Runde 35 (Vorschlag) | Konten und Rollen: Anmeldung, Autor/Lektor, Freigabe je Werk; „Ändern/Löschen nur Mensch“ wird „nur der Autor“ | nicht begonnen, kein Vertrag | ≈ 240 min – Querschnitt durch alle schreibenden Wege (wie Runde 23 mit 160 min, dazu Migration und Anmeldung); seit Runde 34 kommen `idea.move`, `tree::import` und die Formulare der Gliederungsansicht als schreibende Wege dazu |
+| Runde 36 (Vorschlag) | Reste: Typst als Alias von Baruch, Pages je Commit, sqlx 0.9, dazu die Punkte „Nach Runde 34 offen“ (alte Bildregeln `.im-*`, Karte wird zweimal gebaut, Alt+E ohne Titelfeld, Beschreibung von `exchange_export`) | nicht begonnen | ≈ 180 min als eine Runde mit drei Aufgaben |
+| Runde 37 (Vorschlag) | Hilfe vollständig auf der Webseite, ein Bildschirmfoto je Punkt | nicht begonnen; zuletzt, weil die Bilder die fertige Oberfläche zeigen sollen (Menüband, Mindmap, Anmeldung) | ≈ 180 min |
+| Veröffentlichung 0.9.1 (Nutzer) | Version festlegen, Tag schieben, Release-Lauf abwarten, Signaturen von macOS und APT prüfen, erst danach `main` (Regel in `docs/Verteilung.md`, Gruppe `pages`) | nach den Runden; Version und Zeitpunkt legt der Nutzer fest | ≈ 90 min wie bisher für 0.9.0 geschätzt; Nacharbeit nach dem Lauf nicht eingerechnet |
+| Nicht eingereiht | Schlanker Einstieg, Befunde nach Gewicht (Nutzerfrage 14), Anmerkungen zum ganzen Buch (Vorhaben Lektorat; stand hier bisher als Runde 35) | in der Reihenfolge vom 2026-11-25 nicht genannt – der Nutzer entscheidet, ob vor oder nach 0.9.1 | ≈ 180 min |
 
-Die Nummern 34–36 sind ein Vorschlag des PM aus den Entscheidungen im Backlog; Zuschnitt und Reihenfolge legt der
-Nutzer fest. Die Schätzungen bleiben nach Runde 32 stehen: Sie lag mit rund 200 Minuten auf `development` im
-Rahmen der geschätzten 150–240 ab dem Stand vom PM-Abschluss Runde 33, und Runde 34 ist als Querschnitt mit
-Migration eher größer als kleiner. Die Stromregel aus `AGENTS.md` gilt: nie zwei volle Testläufe eines Agenten
-zugleich – zwei Runden nebeneinander (32 und 33) haben die Läufe spürbar verlängert (podman über zehn Minuten für
-die pgvector-Tests).
+Die Nummern 35–37 sind ein Vorschlag des PM nach der Reihenfolge im Backlog (dort an Typst-Alias und Pages
+nachgezogen: „→ Runde 36 (Reste)“). Zuschnitt und Reihenfolge legt der Nutzer fest. Die Stromregel aus `AGENTS.md` gilt: nie zwei volle Testläufe eines Agenten
+zugleich.
+
+Runde 34 brauchte rund 130 Minuten Arbeitszeit (2026-11-25 18:21–20:21 und, nach einer Unterbrechung des
+PM-Abschlusses, 2026-11-26 22:28–22:37; ab den Backlog-Nachträgen `b7bcb91`; eine
+Schätzung gab es nicht, die Mindmap stand nur als Wunsch im Backlog): Vertrag und Schnittstelle 15 Minuten
+(`67faa2f` 18:36), drei Entwickler parallel 51–61 Minuten danach, Zusammenführung ohne Textkonflikte,
+Integration mit Abnahme, vollem Lauf und Sichtprüfung 34 Minuten (`826964a` 20:11), Prüfung mit zwei niedrigen
+Hinweisen und ohne Nachbesserung, PM-Abschluss mit vollem Lauf nach `cargo clean -p` (209 Testgruppen „ok“, 3334 bestanden, 0 gescheitert, 2 ignoriert (Server-Bündel 1460 bestanden, pgvector-Tests liefen mit; 2026-11-26)).
+Lehren aus Runde 34: Ein Nachtrag des Nutzers mitten in der Runde („Verbindung zwischen der Wolke und der
+Mindmap“) erreicht drei Entwickler als drei Auslegungen – zwei Zweige nahmen „Einfälle direkt am Werk“ als
+Wolke, der dritte lieferte die Wolke getrennt. Ohne Textkonflikt zusammengeführt, hätte das Bild Hauptthemen als
+Wolke gezeichnet und die echte Wolke gar nicht. Ein Nachtrag gehört darum als **eine** Festlegung in den Vertrag
+(wer liefert die Wolke, in welchem Typ), bevor die Zweige ihn aufnehmen; hier hat erst die gemeinsame Sicht
+`tree::Scene` der Integration die Naht geschlossen. Zweitens: Ein Widget, das kein Entwickler im Browser
+starten darf, braucht in der Integration eine Probe mit echten Ereignissen – der fehlende `confirm: true` bei
+`idea.delete` war am ausgelieferten Skript nicht zu sehen. Drittens: Eine neue Unterversion des Austauschformats
+macht jede ältere Rundreise rot (elf Tests mit `version="8"`); die Zahl gehört an eine Stelle, die die Tests
+lesen, statt wörtlich in jede Datei.
 
 Runde 32 brauchte auf `development` rund 200 Minuten (2026-11-25 01:39–≈ 05:00, ab der Gegenprobe `35140b5`);
 gerechnet ab der Vorlage der Schnittstelle `ccd471f` (2026-11-24 23:35, neben Runde 33) sind es rund 325 Minuten

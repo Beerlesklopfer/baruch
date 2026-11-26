@@ -1,13 +1,26 @@
-# Übergabe (Stand 2026-11-25, Runde 34 „Mindmap wie XMind“ auf `development` **integriert** (Wolke und Mindmap verbunden; PM-Abschluss steht aus); davor: Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; Tag `v0.9.0` auf `35140b5` wartet auf das „ja“ des Nutzers)
+# Übergabe (Stand 2026-11-26, Runde 34 „Mindmap wie XMind“ **abgeschlossen** (Wolke und Mindmap verbunden; Integration `826964a`, PM-Abschluss mit vollem Lauf); davor: Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 34 „Mindmap wie XMind“ abgeschlossen** (PM-Abschluss 2026-11-26; ein erster Durchgang am 2026-11-25
+  wurde vor dem Lauf unterbrochen): Prüfung mit zwei niedrigen Hinweisen
+  (Beschriftungen der Verbindungen überdecken Knoten; Tasten weichen leicht von XMind ab und stehen auf der Seite),
+  keine Nachbesserung. Voller Lauf im Hauptordner nach `cargo clean -p` aller Workspace-Crates: 209 Testgruppen „ok“, 3334 bestanden, 0 gescheitert, 2 ignoriert (Server-Bündel 1460 bestanden, pgvector-Tests liefen mit; 2026-11-26).
+  `grep -rn "STUB:" crates` findet nur vier Zusicherungen in Tests, dass kein Vermerk mehr da ist – kein offener
+  Stub. Der PM hat die sechs nur erzeugten Bilder der Sichtprüfung nachgesehen (02, 03, 08, 11, 13; `10-ausgabe.svg`
+  ist wohlgeformt): heller Streifen wie ein Rollbalken im dunklen Modus (02, 08), Beschriftung „widerspricht …“
+  überdeckt „Springtide“ (02, 03, 11) – beides niedrig, im Backlog. **Vom PM entschieden** (der Nutzer kann es
+  umstoßen): Unterknoten wandern mit in die Wolke; Einlesen ohne Zielknoten legt Hauptthemen an; dass der eigene Ast
+  „Wolke“ beim Wiedereinlesen nicht in die Wolke zurückkommt, ist eine Aufgabe für die Runde „Reste“.
+  `docs/Fahrplan.md` nachgeführt (Runde 34 = Mindmap; Vorschlag: 35 Konten und Rollen, 36 Reste, 37 Hilfe, danach
+  0.9.1). Die Worktrees `.claude/worktrees/wf_f112b584-168-3/-4/-5` samt `target/` sind entfernt, die Zweige
+  `team/mindmap_*` stehen noch. Nicht gepusht.
 - **Runde 34 „Mindmap wie XMind“ integriert** (2026-11-25, Integrator, auf `development`; Schnittstelle R34-S1
   `67faa2f`; Zweige `team/mindmap_daten` `38f4022`, `team/mindmap_widget` `d47d3af`, `team/mindmap_austausch`
   `7513039` mit `--no-ff` in dieser Reihenfolge, **ohne Textkonflikte**; danach der Integrations-Commit; nicht
-  gepusht, Worktrees `.claude/worktrees/wf_f112b584-168-3/-4/-5` und team-Zweige stehen noch). Version unverändert
+  gepusht; die Worktrees hat der PM-Abschluss entfernt, die team-Zweige stehen noch). Version unverändert
   0.9.0, CHANGELOG unter „Unveröffentlicht“. **Migration 0052** (`idea`: `title`, `parent_id`, `position`,
   `main_topic`; nur `ADD COLUMN`) – vor dem Einspielen beim Nutzer den Datenordner sichern. Austauschformat
   Unterversion 9. Neue RPC `idea.move`, `idea.tree`; neue MCP-Werkzeuge `idea_move`, `idea_tree`; neue Seiten
@@ -57,7 +70,7 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
   - **Nicht geprüft:** das Widget von Hand mit echter Maus und Tastatur (die Probe schickt künstliche Ereignisse;
     Zoom, Verschieben der Fläche, Pfeiltasten, Alt+L mit Dialog und Alt+E liefen nicht mit); echtes XMind und Freeplane (Aufbau der `.xmind`-Datei aus dem
     Gedächtnis, Annahmen in `docs/Bedienung.md`); Werk 3 des Nutzers; macOS und Windows. Handprüfung und Reste:
-    `docs/Backlog.md`, „Nach Runde 34 offen“. `docs/Fahrplan.md` führt der PM nach.
+    `docs/Backlog.md`, „Nach Runde 34 offen“.
 - **Runde 32 „Lektorat I – Word und Beenden“ integriert** (2026-11-25, Integrator, auf `development`; Schnittstelle
   R32-S1 `647ae42`; Zweige `team/docx_import` `6a2f506`, `team/docx_export` `2e3246b`, `team/beenden` `08fd6c5` mit
   `--no-ff` in dieser Reihenfolge, **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht, Worktrees
@@ -2165,12 +2178,14 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
-0. Nach Runde 34 (integriert, **Migration 0052**): Der Dienst des Nutzers läuft mit `35140b5`; die Runden 32 und 34
-   sind dort nicht eingespielt. Vor dem Einspielen den Datenordner sichern. Danach die Handprüfung aus
-   `docs/Backlog.md`, „Nach Runde 34 offen“: Werk 3 (33 Einfälle; lose Einfälle in der Wolke, Verbindungen als
-   Linien), Tasten und Ziehen im eigenen Browser, `.xmind` in XMind und `.mm` in Freeplane öffnen. Zwei
-   Entscheidungen des Nutzers stehen dort (Unterknoten wandern mit in die Wolke; Einlesen legt Hauptthemen an).
-   Der PM führt `docs/Fahrplan.md` nach (Runde 34 war dort „Konten und Rollen“).
+0. Nach Runde 34 (abgeschlossen, **Migration 0052**): Nach dem Stand der Übergabe läuft der Dienst des Nutzers mit
+   `35140b5` (vom PM nicht nachgesehen – der Dienst wird nicht angefasst); die Runden 32 und 34 sind dort nicht
+   eingespielt. Vor dem Einspielen den Datenordner sichern. Danach die Handprüfung aus `docs/Backlog.md`, „Nach
+   Runde 34 offen“: Werk 3 (33 Einfälle; lose Einfälle in der Wolke, Verbindungen als Linien), Tasten und Ziehen im
+   eigenen Browser, `.xmind` in XMind und `.mm` in Freeplane öffnen. Nächste Runde nach Vorschlag des PM: 35 „Konten
+   und Rollen“, dann 36 „Reste“ und 37 „Hilfe auf der Webseite“ (`docs/Fahrplan.md`, „Geplant“). Offen für den
+   Nutzer: ob „schlanker Einstieg, Befunde nach Gewicht, Anmerkungen zum ganzen Buch“ (Vorhaben Lektorat) vor oder
+   nach 0.9.1 kommt – in der Reihenfolge vom 2026-11-25 ist es nicht genannt.
 0. Nach Runde 32 (abgeschlossen, **keine Migration** gegenüber dem eingespielten Stand `35140b5`): Der Dienst des
    Nutzers läuft mit `35140b5`; Runde 32 ist dort **nicht** eingespielt. Reihenfolge beim Nutzer: (1) Release
    0.9.0 – nur den Tag `v0.9.0` schieben, Release-Lauf abwarten, Signaturen von macOS und APT prüfen, Release
@@ -2272,6 +2287,10 @@ Frühere Runden:
 5. B2: Modell-Backends, `ask_persona`/`chat`, Token für `/mcp`, Literatur-Stubs (Volltext, an Persona geben).
 
 ## Offene Fragen an den Nutzer
+- **Nach Runde 34:** Kommt „schlanker Einstieg, Befunde nach Gewicht, Anmerkungen zum ganzen Buch“ (Vorhaben
+  Lektorat) vor oder nach 0.9.1? Die Reihenfolge vom 2026-11-25 nennt nur Konten und Rollen, Reste und Hilfe.
+  Zur Kenntnis, vom PM entschieden: Beim Ziehen in die Wolke wandern die Unterknoten mit; Einlesen ohne Zielknoten
+  legt Hauptthemen am Werk an.
 - **Nach Runde 20:** Java installieren, damit EPUBCheck einmal echt mit dem jar laufen kann (Baruch lädt nichts
   herunter)? Welche Hersteller-Reader auf Android sollen ein Profil bekommen (heute keines erfunden)? Vorgabe
   Rückenbreite 0,2 mm je Blatt beibehalten (Backlog Nutzerfrage 13)?
