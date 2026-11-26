@@ -146,14 +146,21 @@ async fn the_about_page_is_reachable_from_the_menu_without_javascript() {
             1,
             "{uri}: „Über Baruch“ genau einmal im Menü Baruch, als gewöhnlicher Link (ohne JavaScript): {tools}"
         );
-        // Runde 32 (Schnittstelle R32-S1): Hinter „Über Baruch“ steht nur noch „Baruch beenden…“ – der letzte Eintrag
-        // des Menüs, wie „Beenden“ in anderen Programmen.
+        // Runde 32 (Schnittstelle R32-S1): Hinter „Über Baruch“ steht „Baruch beenden…“, wie „Beenden“ in anderen
+        // Programmen. Runde 35 (Vertrag §3.2): Danach folgt der Eintrag zum Konto – ohne Konten „Konten einrichten…“.
         let quit = "<a class=\"menu-item\" role=\"menuitem\" href=\"/beenden\" \
-                    title=\"Baruch auf diesem Rechner beenden (mit Rückfrage)\">Baruch beenden…</a></div>";
+                    title=\"Baruch auf diesem Rechner beenden (mit Rückfrage)\">Baruch beenden…</a>";
         let rest = tools.split(entry).nth(1).unwrap_or("").trim();
-        assert_eq!(
-            rest, quit,
-            "{uri}: „Über Baruch“ steht am Ende des Menüs, dahinter folgt allein „Baruch beenden…“: {tools}"
+        let account = rest.strip_prefix(quit).unwrap_or_else(|| {
+            panic!("{uri}: „Über Baruch“ steht am Ende des Menüs, dahinter folgt „Baruch beenden…“: {tools}")
+        });
+        let account = account.trim();
+        assert!(
+            account.starts_with("<a class=\"menu-item\" role=\"menuitem\" href=\"/einrichten\"")
+                && account.ends_with(">Konten einrichten…</a></div>")
+                && account.matches("<a ").count() == 1,
+            "{uri}: hinter „Baruch beenden…“ folgt allein der Eintrag zum Konto (ohne Konten: „Konten einrichten…“): \
+             {tools}"
         );
     }
     // Der Link führt wirklich auf die Seite; ein Formular oder Skript ist dafür nicht nötig.

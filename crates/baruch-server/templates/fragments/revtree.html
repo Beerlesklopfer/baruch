@@ -39,7 +39,7 @@
       <span class="revtree-links tiny">
         {%- if r.shown %}<span class="muted">gezeigt</span>{% else %}<a data-nav href="{{ r.show_url }}">zeigen</a>{% endif %}
         · <a data-nav href="{{ r.try_url }}">in der Vorschau probieren</a>
-        {%- if r.fold %} · <button class="btn tiny" type="submit" form="rev-fold-{{ r.number }}" title="Ältere ersetzte und verworfene Fassungen unter Fassung {{ r.number }} ausblenden">bis hierhin ausblenden</button>{% endif %}</span>
+        {%- if r.fold and not lektor %} · <button class="btn tiny" type="submit" form="rev-fold-{{ r.number }}" title="Ältere ersetzte und verworfene Fassungen unter Fassung {{ r.number }} ausblenden">bis hierhin ausblenden</button>{% endif %}</span>
     </li>
   {%- endfor %}
   </ul>

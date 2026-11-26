@@ -48,10 +48,13 @@
         {%- for line in h.lines %}<span class="{{ line.kind }}">{% if line.kind == "added" %}+ {% elif line.kind == "removed" %}− {% else %}  {% endif %}{{ line.text }}</span>
         {%- endfor -%}
       </pre>
+      {#- Runde 35: Entscheiden kann nur der Autor – für Lektoren fehlen die Knöpfe und ihre Formulare. #}
+      {%- if not lektor %}
       <div class="pv-actions">
         <button class="btn success" type="submit" form="pv-accept-{{ h.id }}">Übernehmen</button>
         <button class="btn danger" type="submit" form="pv-reject-{{ h.id }}">Verwerfen</button>
       </div>
+      {%- endif %}
     </div>
   </details>
 {%- endmacro %}
@@ -62,12 +65,14 @@
   </div>
 {%- endmacro %}
 {%- macro pv_forms(inline) %}
+  {%- if not lektor %}
   <div class="pv-forms">
     {%- for p in inline.proposals %}
     {{- pv_form("revision.accept", "accept", p) }}
     {{- pv_form("revision.reject", "reject", p) }}
     {%- endfor %}
   </div>
+  {%- endif %}
 {%- endmacro %}
 {%- macro pv_bar(inline) %}
   {{- pv_line(inline, false) }}
@@ -75,7 +80,7 @@
 {%- endmacro %}
 {%- if view == "preview" %}
 <div class="pv-section"{% if inline.count %} data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}"{% endif %}>
-  {%- if inline.alternatives %}
+  {%- if inline.alternatives and not lektor %}
   <p class="rev-alt-hint tiny"><a data-nav href="/?work={{ work.id }}&amp;key={{ inline.key }}{{ lq_q }}" title="Abschnitt im Editor öffnen: dort die weiteren Fassungen mit „aktuell machen“">weitere Fassung{% if inline.alternatives != 1 %}en{% endif %}: {{ inline.alternatives }}</a></p>
   {%- endif %}
   {%- if inline.count %}{{ pv_bar(inline) }}{% endif %}

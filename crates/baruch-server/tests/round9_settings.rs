@@ -22,7 +22,8 @@ use baruch_server::settings::{PageRender, SettingsPage, registry};
 use baruch_store::{Store, WorkId};
 use serde_json::{Value, json};
 
-const SLUGS: [&str; 7] = ["darstellung", "werk", "assistenten", "verbindungen", "quellen", "mcp", "daten"];
+// Runde 35 (Vertrag §3.1): „konten“ ist der achte Eintrag.
+const SLUGS: [&str; 8] = ["darstellung", "werk", "assistenten", "verbindungen", "quellen", "mcp", "daten", "konten"];
 
 /// Anfrage mit Formular; Antwort Status, Kopfzeilen, Text.
 async fn form(server: &common::Server, uri: &str, body: &str) -> (StatusCode, HeaderMap, String) {
@@ -79,7 +80,7 @@ fn outside_render<'a>(
 }
 
 #[tokio::test]
-async fn the_registry_has_seven_pages_in_order_and_takes_a_render_function_from_outside() {
+async fn the_registry_has_eight_pages_in_order_and_takes_a_render_function_from_outside() {
     let titles: Vec<(&str, &str, &str)> = registry().iter().map(|p| (p.slug, p.title, p.storage)).collect();
     assert_eq!(
         titles,
@@ -91,6 +92,12 @@ async fn the_registry_has_seven_pages_in_order_and_takes_a_render_function_from_
             ("quellen", "Quellen", "SQLite (alle Werke)"),
             ("mcp", "MCP-Zugang", "SQLite (nur Hash der Tokens); Clients zur Laufzeit"),
             ("daten", "Daten", "Datenordner"),
+            // Runde 35 (Vertrag §3.1): achter Eintrag.
+            (
+                "konten",
+                "Konten",
+                "SQLite dieser Instanz (Passwort nur als Prüfwert; nicht im Austausch, nicht im Spiegel)"
+            ),
         ],
         "Seiten, Titel und Speicherorte nach Vertrag §3, in fester Reihenfolge"
     );
@@ -776,7 +783,7 @@ async fn settings_rpc_lists_renders_reads_and_writes_the_pages() {
     let server = common::open().await;
     let pages = server.rpc("settings.pages", json!({})).await;
     let list = pages["result"]["pages"].as_array().unwrap();
-    assert_eq!(list.len(), 7, "sieben Seiten: {pages}");
+    assert_eq!(list.len(), 8, "acht Seiten (seit Runde 35 mit Konten): {pages}");
     assert_eq!(
         list[0],
         json!({ "slug": "darstellung", "title": "Darstellung", "storage": "Cookie in diesem Browser", "url": "/einstellungen/darstellung" }),

@@ -280,9 +280,13 @@ async fn the_style_hangs_on_the_attributes_and_not_on_the_window_width() {
         "ohne JavaScript öffnet :target die eingeklappte Spalte als Schublade"
     );
     let laptop = include_str!("../static/laptop.css");
+    // Runde 35: Hinter laptop.css folgt nur noch konten.css (Konten und Rollen: eigene Klassen, keine Regel für die
+    // Zustände des Laptop-Modus – das prüft round35_oberflaeche).
+    let konten = include_str!("../static/konten.css");
+    let before_konten = served.trim_end().strip_suffix(konten.trim_end()).unwrap_or(&served);
     assert!(
-        served.trim_end().ends_with(laptop.trim_end()),
-        "laptop.css steht zuletzt und überschreibt damit das Grundgerüst (gleiche Spezifität, spätere Regel gewinnt)"
+        before_konten.trim_end().ends_with(laptop.trim_end()),
+        "laptop.css steht hinter dem Grundgerüst und überschreibt es damit (gleiche Spezifität, spätere Regel gewinnt)"
     );
 
     // Eigene Dateien der Aufgabe: Grundgerüst (app.css) und Laptop-Modus (laptop.css).

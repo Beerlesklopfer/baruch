@@ -3120,8 +3120,9 @@ wurde: `baruch-server --allow-host baruch.example.org` (mehrfach möglich) oder
 - Erlaubt ist genau der genannte Name, mit beliebigem Port in der Kopfzeile `Host` (`baruch.example.org`,
   `baruch.example.org:8443`); jeder andere Name bleibt 421. Kein Platzhalter (`*.example.org`), kein Port in der
   Angabe, keine IP-Adresse – ein ungültiger Name beendet den Start mit einer Meldung, die ihn nennt (Exit 2).
-- **Baruch hat keine Anmeldung.** Wer die Oberfläche unter dem Namen erreicht, kann alles lesen und ändern. Der
-  Proxy muss den Zugang schützen (Basic-Auth, Client-Zertifikat oder VPN) – das ist Pflicht.
+- **Ohne Konten hat Baruch keine Anmeldung.** Wer die Oberfläche unter dem Namen erreicht, kann dann alles lesen
+  und ändern; der Proxy muss den Zugang schützen (Basic-Auth, Client-Zertifikat oder VPN) – das ist Pflicht. Mit
+  Konten (siehe „Konten und Rollen“) verlangt Baruch selbst eine Anmeldung; TLS im Proxy bleibt Pflicht.
 - Der Proxy muss die Kopfzeile `Host` unverändert durchreichen, sonst antworten Speichern und Formulare mit 403
   („Origin passt nicht zu Host“). `X-Forwarded-*` wertet Baruch nicht aus.
 - Unter einem erlaubten Namen gilt eine Anfrage nie als „vom eigenen Rechner“: `/mcp` verlangt dort immer einen
@@ -3139,6 +3140,89 @@ ein Assistent nach einer Umstellung der Gliederung nicht in einen fremden Abschn
 
 Der Import liest nur gewöhnliche Dateien: Eine FIFO oder ein Gerät mit der Endung `.typ` wird vor dem
 Öffnen erkannt und abgelehnt, damit der Server nicht auf einen Schreiber wartet.
+
+## Konten und Rollen (Runde 35)
+
+Baruch läuft **ohne Konten** wie bisher: keine Anmeldung, wer die Oberfläche erreicht, ist der Autor. Konten braucht,
+wer Lektoren mitarbeiten lassen oder Baruch über einen Proxy erreichbar machen will.
+
+### Einrichten
+
+1. Am Rechner, auf dem Baruch läuft, **Baruch ▾ → Konten einrichten…** wählen (Seite `/einrichten`). Über einen
+   Proxy oder von einem anderen Rechner zeigt die Seite nur eine Erklärung (403) – das erste Konto entsteht nur am
+   eigenen Rechner.
+2. Name (zum Anmelden, höchstens 40 Zeichen), Anzeigename (freiwillig) und Passwort (10 bis 200 Zeichen, sonst
+   keine Regel) eingeben, **Konto anlegen**. Dieses erste Konto ist der **Autor**.
+3. Ab jetzt verlangt Baruch eine Anmeldung – für alle Seiten, Formulare und `/rpc`, **auch am eigenen Rechner**.
+   `/mcp` bleibt bei seinen Tokens (Einstellungen → MCP-Zugang).
+
+Wer am eigenen Rechner ohne Passwort weiterarbeiten will, schaltet unter **Einstellungen → Konten** „Am eigenen
+Rechner ohne Anmeldung“ ein. Die Warnung dort ernst nehmen: Steht ein Reverse-Proxy auf demselben Rechner, der die
+Kopfzeile `Host` umschreibt, sähe jeder Besucher aus wie der eigene Rechner (`docs/Betrieb.md`).
+
+### Anmelden, Mein Konto, Abmelden
+
+- Ohne Anmeldung führt jede Seite auf `/anmelden`; nach der Anmeldung geht es zur gewünschten Seite weiter.
+- Nach mehreren falschen Passwörtern bittet die Seite um Geduld (Wartezeit in Sekunden, wachsend bis 15 Minuten).
+- Kommt man über einen Link aus einer E-Mail oder von einer anderen Seite und sieht trotz Anmeldung die
+  Anmeldeseite: **„Schon angemeldet? Weiter“** anklicken. (Der Browser schickt das Sitzungs-Cookie bei einem Sprung
+  von außen nicht mit; das schützt vor fremden Seiten.)
+- **Baruch ▾** zeigt „Angemeldet: Name (Autor)“ bzw. „(Lektor)“, darunter **Mein Konto** (Name, Rolle, Herkunft,
+  freigegebene Werke, Passwort ändern) und **Abmelden**.
+- Ein neues Passwort meldet alle anderen Geräte dieses Kontos ab.
+
+### Lektoren
+
+Der Autor legt Lektoren unter **Einstellungen → Konten** an („Lektor anlegen“: Name, Anzeigename, Passwort) und gibt
+das Passwort selbst weiter. Dort lassen sich Konten auch **sperren** und **entsperren** und ein **Passwort
+zurücksetzen**. Konten werden nie gelöscht: Die Herkunft `@lektorat:<name>` bleibt vergeben, damit alte Vorschläge
+eindeutig bleiben. Das letzte aktive Autor-Konto lässt sich nicht sperren. In dieser Fassung gibt es genau einen
+Autor; jedes weitere Konto ist ein Lektor.
+
+Ein Lektor sieht zunächst **kein** Werk. Freigegeben wird je Werk: **Reiter Buch → Mitwirkende** (Seite
+`/werke/<id>/mitwirkende`) – Lektor wählen, **Freigeben**; **Entziehen** nimmt die Freigabe zurück. Sperren und
+Entziehen wirken bei der nächsten Anfrage. Was der Lektor geschrieben hat, bleibt im Werk.
+
+### Was ein Lektor sieht und darf
+
+Ein Lektor **liest** in freigegebenen Werken: Arbeitsseite mit Gliederung, allen Fassungen und dem Abschnitts-Chat,
+Beiträge, Fäden, Suche, Gliederung, Befunde, Verlauf der Fortschreibungen, Glossar, Register und die Bilder im Text.
+
+Ein Lektor **schreibt** genau drei Dinge, alle unter seiner Herkunft `@lektorat:<name>` und mit Commit im
+Git-Spiegel:
+
+| Was | Wo | Hinweis |
+|---|---|---|
+| Vorschlag einer Fassung | Arbeitsseite: Text ändern, **Vorschlagen** (statt „Speichern“), Notiz freiwillig | wird nie die aktuelle Fassung; der Autor übernimmt oder verwirft |
+| Beitrag im Abschnitts-Chat | rechts unter „Abschnitts-Chat“: **Senden** | eigene Beiträge unter „Verwalten“ ändern oder entfernen; ruft keine Persona auf |
+| Befund | rechts unter „Befunde“: **Befund schreiben**; auf der Seite Befunde: **Anmerkung zum Buch** (ohne Abschnitt) | Art Hinweis, Kritisch oder Lob; über den Status entscheidet der Autor |
+
+Alles andere bleibt dem **Autor**: Speichern, Übernehmen, Verwerfen, Umschalten, Löschen und Ausblenden von
+Fassungen, Gliederung ändern, Status der Befunde, Personas und ihre Aufträge, Literatur, Einfälle, Bilder
+hochladen, Satz, PDF, EPUB, Word, Austausch und jeder andere Export, Import, Einstellungen (außer „Darstellung“,
+die im eigenen Browser liegt), Beenden. Auf der Arbeitsseite fehlen diese Knöpfe für Lektoren ganz; auf den übrigen
+Seiten sind sie ausgeblendet. Die eigentliche Sperre sitzt im Server: Für Lektoren ist jede Seite und jede
+RPC-Methode verboten, die nicht ausdrücklich erlaubt ist (Antwort 403 „Abgelehnt: …“) – auch wenn jemand die
+Adresse von Hand eingibt. Offen ist, ob Lektoren das Buch als PDF lesen dürfen (zurzeit nicht).
+
+### Passwort vergessen
+
+- Ein Lektor: Der Autor setzt es unter Einstellungen → Konten → „Passwort zurücksetzen …“ neu.
+- Der Autor: am Rechner, auf dem Baruch läuft, im Terminal
+
+  ```sh
+  baruch-server passwort NAME            # fragt nichts, liest das neue Passwort als eine Zeile von der Eingabe
+  baruch-server passwort NAME --data /pfad/zum/datenordner
+  ```
+
+  Das setzt das Passwort und beendet alle Sitzungen des Kontos. Wer keinen Zugang zum Rechner hat, kommt nicht
+  hinein – eine Hintertür gibt es nicht.
+
+### Was gespeichert wird
+
+Konten, Sitzungen und Freigaben liegen in der Datenbank der Instanz (Passwort nur als Argon2id-Prüfwert, Sitzung nur
+als Hash). Sie stehen **nicht** im Austauschformat und nicht im Git-Spiegel; ein eingelesenes Werk bringt keine
+Konten mit. Vorschläge, Beiträge und Befunde eines Lektors gehören dagegen zum Werk und wandern mit.
 
 ## Austausch zwischen Instanzen
 

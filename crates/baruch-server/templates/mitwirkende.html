@@ -1,0 +1,80 @@
+{#- Seite /werke/{id}/mitwirkende (Runde 35, src/konten_ui/pages.rs): Wer darf dieses Werk als Lektor lesen? Liste der
+    Freigaben mit „Entziehen“ und die Lektor-Konten ohne Freigabe mit „Freigeben“ – beides Formulare an
+    POST /werke/{id}/mitwirkende/act (action = grant | revoke, account). Nur der Autor; ohne JavaScript bedienbar.
+    Daten aus der RPC-Methode member.list. Meldungen (notice, error) sind fertige Sätze aus konten_ui::MESSAGES.
+    Kontext: settings, work {id, title}, accounts_exist, members [{account, name, display, handle, role, granted,
+    active}], candidates [{account, name, display, handle}], notice, error, load_error (Text oder none). -#}
+{% extends "base.html" %}
+{% block title %}Mitwirkende · {{ work.title }} – Baruch{% endblock %}
+{% block page_title %}Mitwirkende · {{ work.title }}{% endblock %}
+{% block band_tab %}buch{% endblock %}
+{% block band_buch %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+    <a class="btn" href="/einstellungen/konten?work={{ work.id }}" title="Konten anlegen, sperren, Passwort zurücksetzen">Einstellungen → Konten</a>
+  </div></details>
+{% endblock %}
+{% block body %}
+<main class="works-page konto-page">
+  <h1 class="pane-title">Mitwirkende an „{{ work.title }}“</h1>
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if not accounts_exist %}
+  <p>Baruch läuft ohne Konten – es gibt niemanden, dem das Werk freigegeben werden könnte.</p>
+  <p><a class="btn primary" href="/einrichten">Konten einrichten…</a></p>
+  {%- elif load_error %}
+  <p class="notice error" role="alert">Die Freigaben lassen sich nicht lesen: {{ load_error }}</p>
+  {%- else %}
+  <p class="muted">Der Autor sieht und bearbeitet jedes Werk. Ein Lektor sieht nur freigegebene Werke und schreibt dort
+    Vorschläge, Beiträge und Befunde unter seiner Herkunft. Eine entzogene Freigabe wirkt bei der nächsten Anfrage;
+    was der Lektor geschrieben hat, bleibt im Werk.</p>
+  <h2 class="pane-title">Freigegeben für</h2>
+  {%- if members %}
+  <table class="works-table konto-table">
+    <thead>
+      <tr><th scope="col">Name</th><th scope="col">Anzeigename</th><th scope="col">Herkunft</th><th scope="col">Rolle</th><th scope="col">Freigegeben am</th><th scope="col"><span class="visually-hidden">Aktionen</span></th></tr>
+    </thead>
+    <tbody>
+    {%- for m in members %}
+      <tr data-member="{{ m.account }}">
+        <td>{{ m.name }}{% if not m.active %} <span class="badge warning" title="Das Konto ist gesperrt und kann sich nicht anmelden">gesperrt</span>{% endif %}</td>
+        <td>{{ m.display or "–" }}</td>
+        <td><code>{{ m.handle }}</code></td>
+        <td>{% if m.role == "lektor" %}Lektor{% else %}{{ m.role }}{% endif %}</td>
+        <td class="small">{{ m.granted }}</td>
+        <td class="works-actions">
+          <form method="post" action="/werke/{{ work.id }}/mitwirkende/act">
+            <input type="hidden" name="action" value="revoke">
+            <input type="hidden" name="account" value="{{ m.account }}">
+            <button class="btn danger" type="submit" title="{{ m.name }} sieht das Werk danach nicht mehr">Entziehen</button>
+          </form>
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted">Noch für niemanden freigegeben.</p>
+  {%- endif %}
+  <h2 class="pane-title">Freigeben</h2>
+  {%- if candidates %}
+  <form class="konto-form konto-grant" method="post" action="/werke/{{ work.id }}/mitwirkende/act">
+    <input type="hidden" name="action" value="grant">
+    <label>Lektor <select name="account" required>
+      {%- for c in candidates %}
+      <option value="{{ c.account }}">{{ c.name }}{% if c.display %} – {{ c.display }}{% endif %} ({{ c.handle }})</option>
+      {%- endfor %}
+    </select></label>
+    <button class="btn primary" type="submit">Freigeben</button>
+  </form>
+  {%- else %}
+  <p class="muted">Kein weiteres Lektor-Konto ohne Freigabe. Lektoren legt der Autor unter
+    <a href="/einstellungen/konten?work={{ work.id }}">Einstellungen → Konten</a> an.</p>
+  {%- endif %}
+  {%- endif %}
+</main>
+{% endblock %}

@@ -1,7 +1,8 @@
 # Betrieb
 
 Wie Baruch dauerhaft läuft: Datenordner und Sicherung, Aktualisieren, der Betrieb hinter einem Reverse-Proxy mit
-TLS und unter einem Rechnernamen, `/mcp` mit Token, TLS zu pgvector. Stand Runde 24 (2026-11-24).
+TLS und unter einem Rechnernamen, Konten und Anmeldung, `/mcp` mit Token, TLS zu pgvector. Stand Runde 35
+(2026-11-26; das Proxy-Kapitel stammt aus Runde 24).
 
 Was hier **geprüft** ist und was nur **Annahme**, steht jeweils dabei und gesammelt unter
 [Stand der Prüfung](#stand-der-prüfung). Installation und Pakete: `docs/Verteilung.md`. Bedienung:
@@ -9,10 +10,14 @@ Was hier **geprüft** ist und was nur **Annahme**, steht jeweils dabei und gesam
 
 ## Das Wichtigste zuerst
 
-- **Baruch hat keine Anmeldung.** Wer die Oberfläche erreicht, liest und ändert alles: Werke, Fassungen,
-  Einstellungen, Verbindungen. Die Vorgabe ist darum: nur der eigene Rechner (`127.0.0.1:8765`).
-- Wer Baruch über das Netz erreichen will, stellt einen Reverse-Proxy davor, der **TLS** spricht **und den
-  Zugang schützt** (Basic-Auth, Client-Zertifikat oder VPN). Der Zugangsschutz ist Pflicht, nicht Kür.
+- **Ohne Konten hat Baruch keine Anmeldung.** Wer die Oberfläche erreicht, liest und ändert alles: Werke,
+  Fassungen, Einstellungen, Verbindungen. Die Vorgabe ist darum: nur der eigene Rechner (`127.0.0.1:8765`).
+- **Mit Konten (seit Runde 35) verlangt Baruch selbst eine Anmeldung** – für Seiten, Formulare und `/rpc`.
+  `/mcp` bleibt bei seinen Tokens. Siehe [Anmeldung und Konten](#anmeldung-und-konten).
+- Wer Baruch über das Netz erreichen will, stellt einen Reverse-Proxy davor, der **TLS** spricht. TLS ist
+  Pflicht: Passwort und Sitzungs-Cookie gingen sonst im Klartext über die Leitung. **Ohne Konten** muss der Proxy
+  außerdem **den Zugang schützen** (Basic-Auth, Client-Zertifikat oder VPN); mit Konten ist dieser zusätzliche
+  Schutz kein Zwang mehr, bleibt aber eine sinnvolle zweite Schicht.
 - Baruch fragt nie von sich aus im Netz nach neuen Versionen. Aktualisiert wird über APT oder von Hand.
 
 ## Datenordner
@@ -81,7 +86,7 @@ verlinkt die Release-Seite; der Klick dorthin ist die einzige „Nachfrage“ na
 |---|---|---|---|
 | 1. Nur eigener Rechner (Vorgabe) | `baruch-server` | `http://127.0.0.1:8765/`, `localhost`, `[::1]` | Rechner und Benutzerkonto |
 | 2. Nur `/mcp` aus dem eigenen Netz | `--listen 192.168.…:8765` | von anderen Rechnern nur `/mcp`, unter der IP-Adresse | Token; **kein TLS** – nur im vertrauenswürdigen Netz |
-| 3. Hinter einem Reverse-Proxy | `--allow-host NAME` | alles unter `https://NAME/` | TLS und Zugangsschutz im Proxy, `/mcp` mit Token |
+| 3. Hinter einem Reverse-Proxy | `--allow-host NAME` | alles unter `https://NAME/` | TLS im Proxy; Anmeldung in Baruch (Konten) oder Zugangsschutz im Proxy; `/mcp` mit Token |
 
 Stufe 2 beschreibt `docs/Bedienung.md` („MCP-Zugang von anderen Rechnern“). Der Rest dieses Kapitels ist Stufe 3.
 
@@ -131,15 +136,17 @@ gleich unter welchem Namen.
 
 ### 3. Regeln für den Proxy
 
-1. **Zugangsschutz (Pflicht).** Basic-Auth, Client-Zertifikat oder VPN vor allem außer `/mcp`. Baruch selbst
-   prüft niemanden.
+1. **Zugangsschutz.** Ohne Konten Pflicht: Basic-Auth, Client-Zertifikat oder VPN vor allem außer `/mcp` –
+   Baruch selbst prüft dann niemanden. Mit Konten prüft Baruch selbst (Anmeldeseite, Sitzungs-Cookie); der
+   Schutz im Proxy ist dann freiwillig. Wer beides nutzt, meldet sich zweimal an.
 2. **`Host` unverändert durchreichen.** Baruch vergleicht bei jeder schreibenden Anfrage `Origin` mit `Host`
    (`guard::check`). Schreibt der Proxy `Host` um (bei nginx die Vorgabe!), antworten Speichern und alle
    Formulare mit 403 „Origin passt nicht zu Host“. Schlimmer: Baruch hielte dann jede Anfrage für lokal –
    siehe die Probe unten.
 3. **TLS endet im Proxy.** Baruch spricht nur HTTP. `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`
-   und `Forwarded` **wertet Baruch nicht aus** – weder für die Gegenstelle noch für das Schema. Sie zu setzen
-   schadet nicht, bewirkt aber nichts.
+   und `Forwarded` **wertet Baruch nicht aus** – weder für die Gegenstelle noch für das Schema. Einzige
+   Ausnahme (Runde 35): Ist „Am eigenen Rechner ohne Anmeldung“ eingeschaltet, gilt eine Anfrage mit einer dieser
+   Kopfzeilen (dazu `X-Real-IP`, `Via`) **nicht** als eigener Rechner. Sie zu setzen ist darum empfohlen.
 4. **HTTP/1.1 zum Dienst** (Vorgabe bei nginx und Caddy). Eine Anfrage ohne `Host`-Kopfzeile gilt, sobald Namen
    erlaubt sind, nicht als lokal.
 5. **Keine Zwischenspeicherung, keine Umschreibung** von Antworten; lange Antworten nicht puffern
@@ -241,6 +248,76 @@ curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: baruch.example.org' http://12
 curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: fremd.example.org'  http://127.0.0.1:8765/     # 421
 ```
 
+## Anmeldung und Konten
+
+Seit Runde 35 kennt Baruch Konten: einen **Autor** und beliebig viele **Lektoren**. Bedienung (Einrichten, Lektor
+anlegen, Werk freigeben, was ein Lektor darf): `docs/Bedienung.md`, Abschnitt „Konten und Rollen“. Hier steht,
+was das für den Betrieb heißt.
+
+- **Ohne Konten ändert sich nichts.** Keine Anmeldung, keine Sitzungs-Cookies, keine Umleitung – Baruch verhält
+  sich wie vor Runde 35. Dann gilt alles oben: nur der eigene Rechner, oder ein Proxy mit Zugangsschutz.
+- **Das erste Konto** legt der Autor **am eigenen Rechner** an (`http://127.0.0.1:8765/einrichten`), nie über den
+  Proxy: Über den Namen des Proxys oder mit einer Proxy-Kopfzeile antwortet `/einrichten` mit 403. Sonst könnte
+  der Erste, der die Adresse erreicht, die Schreibwerkstatt übernehmen.
+- **Mit Konten gilt die Anmeldung auch am eigenen Rechner** (Vorgabe, Entscheidung 0.2 der Runde 35). Grund: Ein
+  Proxy auf demselben Rechner verbindet sich ebenfalls über Loopback. Schreibt er `Host` um, sähe er aus wie der
+  eigene Rechner – eine Ausnahme für Loopback wäre dann eine vollständige Umgehung der Anmeldung. Der Autor kann
+  unter Einstellungen → Konten „Am eigenen Rechner ohne Anmeldung“ einschalten. Die Ausnahme gilt nur für eine
+  Gegenstelle auf Loopback, unter IP-Adresse oder `localhost` (nie unter einem Namen aus `--allow-host`) und nur
+  ohne die Kopfzeilen `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Real-IP`,
+  `Via`. **Nur einschalten, wenn der Proxy `Host` unverändert durchreicht** (Probe unten) – am besten setzt er
+  zusätzlich `X-Forwarded-For`.
+- **Direkter Zugriff von anderen Rechnern bleibt gesperrt** (Entscheidung 0.3): Von einer Gegenstelle außerhalb
+  von Loopback lässt Baruch weiterhin nur `/mcp` durch. Ein Lektor kommt über den Reverse-Proxy auf demselben
+  Rechner (`--allow-host`, TLS am Proxy) – nicht über `--listen` im Netz.
+- **`/mcp` bleibt bei Tokens.** Die Anmeldung gilt für Seiten, Formulare und `/rpc`; MCP-Clients melden sich
+  nicht an und brauchen kein Konto.
+- **Sitzung:** Nach der Anmeldung setzt Baruch das Cookie `baruch_session` (`HttpOnly`, `SameSite=Strict`,
+  über den Namen des Proxys zusätzlich `Secure`). Gespeichert ist nur ein Hash des Sitzungsschlüssels. Eine
+  Sitzung endet nach 30 Tagen ohne Benutzung, spätestens nach 90 Tagen, beim Abmelden, beim Sperren des Kontos
+  und – für alle anderen Sitzungen des Kontos – beim Passwortwechsel.
+- **`SameSite=Strict` und Links von außen:** Folgt jemand einem Link aus einer E-Mail oder von einer anderen
+  Seite, schickt der Browser das Sitzungs-Cookie bei diesem ersten Sprung nicht mit. Baruch zeigt dann die
+  Anmeldeseite; der Link „Schon angemeldet? Weiter“ dort führt ohne erneute Anmeldung ans Ziel.
+- **`Host` unverändert durchreichen** ist mit Konten doppelt wichtig: wegen der Prüfung schreibender Anfragen
+  (`Origin` gegen `Host`), wegen `Secure` am Cookie und wegen der Ausnahme für den eigenen Rechner.
+- **Durchprobieren von Passwörtern** bremst Baruch selbst: Ab dem vierten Fehlversuch je Konto (und je Adresse,
+  wenn die Anfrage nicht über den Proxy kommt) wächst eine Wartezeit bis höchstens 15 Minuten; solange antwortet
+  die Anmeldung mit 429 und `Retry-After`. Hinter dem Proxy sieht Baruch nur dessen Adresse – eine Bremse je
+  Besucheradresse gehört darum in den Proxy (bei nginx `limit_req`), wenn sie gewünscht ist.
+- **Passwörter** speichert Baruch nur als Argon2id-Prüfwert in der Datenbank (Tabelle `account`), nie im
+  Klartext und nie in Protokollen. Die Sicherung des Datenordners enthält diese Prüfwerte und die Hashes der
+  Sitzungen – sie gehört weiterhin unter Verschluss.
+- **Konten und Freigaben sind Daten der Instanz:** Sie stehen nicht im Austauschformat und nicht im Git-Spiegel.
+  Was ein Lektor schreibt (Vorschläge, Beiträge, Befunde), steht mit seiner Herkunft `@lektorat:<name>` im Werk
+  und im Spiegel.
+- **Passwort vergessen (Notweg):** am Rechner, auf dem Baruch läuft, als der Benutzer des Dienstes:
+
+  ```sh
+  baruch-server passwort NAME [--data ORDNER]     # liest das neue Passwort als eine Zeile von der Eingabe
+  ```
+
+  Das setzt das Passwort des Kontos und beendet seine Sitzungen. Der Befehl braucht keine Anmeldung – wer auf
+  dem Rechner als dieser Benutzer arbeiten kann, hat ohnehin den Datenordner.
+
+Probe mit Konten, von einem **anderen** Rechner (`NAME` = der erlaubte Name):
+
+```sh
+# 1. Ohne Anmeldung leitet Baruch auf die Anmeldeseite um: 303 mit Location /anmelden?next=…
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://NAME/
+
+# 2. /rpc ohne Anmeldung: 401
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://NAME/rpc -H 'Origin: https://NAME' \
+  -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"work.list"}'
+
+# 3. Einrichten über den Proxy ist gesperrt: 303 (es gibt schon Konten) bzw. 403 (noch keine)
+curl -s -o /dev/null -w '%{http_code}\n' https://NAME/einrichten
+```
+
+Kommt bei 1 eine **200** mit der Arbeitsseite, hält Baruch den Proxy für den eigenen Rechner („Am eigenen Rechner
+ohne Anmeldung“ ist eingeschaltet, und der Proxy schreibt `Host` um, ohne `X-Forwarded-For` zu setzen): sofort
+den Schalter ausschalten und den Proxy berichtigen.
+
 ## `/mcp` mit Token
 
 Unter einem zusätzlich erlaubten Namen gilt eine Anfrage **nie als lokal**: `/mcp` verlangt dort immer
@@ -313,13 +390,16 @@ Befund aus dem Quelltext von sqlx 0.8.6 (`sqlx-postgres/src/connection/tls.rs`,
 
 - **Gleich bleibt:** der Schutz schreibender Anfragen (`Origin`/`Sec-Fetch-Site`), die Ablehnung lesender
   Anfragen fremder Seiten als Unterressource, das Einrahmverbot, alle Grenzen für Dateien und Importe.
-- **Alle sind „der Mensch“.** Baruch unterscheidet keine Benutzer. Wer am Zugangsschutz vorbeikommt, handelt in
-  der Oberfläche als Autor – auch Übernehmen, Löschen, Einstellungen, Sicherung. Baruch ist für **eine**
-  Person oder eine Gruppe gedacht, die einander voll vertraut.
-- **Cookies** (`baruch_*`, nur Einstellungen der Oberfläche) setzt Baruch ohne `Secure`; sie enthalten keine
-  Geheimnisse (Annahme: nicht für den Betrieb über TLS angepasst).
+- **Ohne Konten sind alle „der Autor“.** Baruch unterscheidet dann keine Benutzer. Wer am Zugangsschutz
+  vorbeikommt, handelt in der Oberfläche als Autor – auch Übernehmen, Löschen, Einstellungen, Sicherung.
+- **Mit Konten** unterscheidet Baruch Autor und Lektoren (siehe [Anmeldung und Konten](#anmeldung-und-konten)).
+  Ein Lektor sieht nur freigegebene Werke und schreibt nur Vorschläge, Beiträge und Befunde; alles andere
+  beantwortet Baruch mit 403.
+- **Cookies** der Oberfläche (`baruch_*`, nur Einstellungen) setzt Baruch ohne `Secure`; sie enthalten keine
+  Geheimnisse. Das Sitzungs-Cookie `baruch_session` trägt über den Namen des Proxys `Secure`.
 - **Die Adresse des eigenen Rechners gilt weiter:** Unter `http://127.0.0.1:8765/` verhält sich Baruch wie
-  ohne Proxy, `/mcp` ohne Token eingeschlossen.
+  ohne Proxy, `/mcp` ohne Token eingeschlossen. Mit Konten verlangt auch diese Adresse eine Anmeldung, solange
+  „Am eigenen Rechner ohne Anmeldung“ ausgeschaltet ist.
 
 ## Stand der Prüfung
 
@@ -345,7 +425,9 @@ Nicht geprüft, also Annahme:
 
 ## Offen
 
-- Keine Anmeldung, keine Benutzer, keine Rechte in Baruch selbst.
-- Baruch kann einen Proxy, der `Host` umschreibt, nicht erkennen (siehe Probe).
-- `Secure`-Cookies und ein eigenes TLS in Baruch gibt es nicht.
+- Baruch kann einen Proxy, der `Host` umschreibt und keine Proxy-Kopfzeile setzt, nicht erkennen (siehe Proben).
+- Ein eigenes TLS in Baruch gibt es nicht; `Secure` trägt nur das Sitzungs-Cookie.
+- Konten (Runde 35): Anmeldung, Sitzung und Sperren sind mit Tests gegen den Server geprüft, **nicht** an einem
+  echten Proxy mit TLS und nicht in einem echten Browser (Handprüfliste: `docs/r35/oberflaeche_konten.md`).
+  Zwei-Faktor-Anmeldung, Zurücksetzen per E-Mail und mehrere Autoren gibt es nicht.
 - Der TLS-Hinweis der Verbindung pgvector kennt die Umgebungsvariablen nicht.

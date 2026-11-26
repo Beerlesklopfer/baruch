@@ -33,6 +33,12 @@
 {%- set proposals = tb.badges.open_proposals if tb else 0 %}
 {%- set open_findings = tb.badges.open_findings if tb else 0 %}
 {%- set no_js = scriptless is defined and scriptless %}
+{#- Runde 35 (Konten und Rollen): Was ein Lektor nicht nutzen kann, trägt als letzte Klasse `nur-autor` (Einträge)
+    bzw. das Attribut `data-nur-autor` (Gruppen – ihr class-Attribut muss wörtlich bleiben, siehe unten); beides
+    blendet static/konten.css für body[data-rolle="lektor"] aus, ohne Konten nimmt konten_ui::apply die Kennzeichen
+    wieder heraus. Auf der Arbeitsseite kennt die Vorlage die Rolle (`lektor` aus view.rs): Dort fehlen Reiter und
+    Feld „Einfügen“ für Lektoren ganz. #}
+{%- set lektor_view = lektor is defined and lektor %}
 {#- Runde 23a: Außerhalb der Arbeitsseite kennt die Vorlage die Zahlen nicht. Die Abzeichen tragen dann
     `data-badge-fill`, die Menüleiste das Werk (`data-badges-work`); die Schicht consent::inject lässt
     menu::fill_badges die Zahlen im fertigen HTML einsetzen – auch ohne JavaScript (menu.ts frischt nur noch auf).
@@ -46,13 +52,13 @@
         <div class="menu-list" role="menu">
           <a class="menu-item" role="menuitem" href="/werke">Alle Werke</a>
           {#- Auf der Arbeitsseite öffnet der Eintrag mit JavaScript den Dialog unten (works.ts). #}
-          <a class="menu-item" role="menuitem" href="/werke/neu"{% if tb %} data-work-import-open aria-haspopup="dialog" aria-controls="work-import"{% endif %}>Neues Werk / Importieren…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/werke/neu"{% if tb %} data-work-import-open aria-haspopup="dialog" aria-controls="work-import"{% endif %}>Neues Werk / Importieren…</a>
           {#- Runde 21a: PDF oder EPUB lesen, Gliederung prüfen, als Werk oder Quelle übernehmen (src/pdf_import/); mit und ohne Werk. #}
-          <a class="menu-item" role="menuitem" href="/werke/import/quelle" title="PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen">PDF oder EPUB importieren…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/werke/import/quelle" title="PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen">PDF oder EPUB importieren…</a>
           {#- R32-PLATZ import-word -#}
-          <a class="menu-item" role="menuitem" href="/werke/import/word" title="Word-Datei lesen, Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen">Word (.docx) importieren…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/werke/import/word" title="Word-Datei lesen, Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen">Word (.docx) importieren…</a>
           {#- Runde 26: Austausch zwischen Baruch-Instanzen (src/exchange/). #}
-          <a class="menu-item" role="menuitem" href="/austausch/einlesen{% if w %}?work={{ w }}{% endif %}" title="Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)">Austausch: Einlesen…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/austausch/einlesen{% if w %}?work={{ w }}{% endif %}" title="Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)">Austausch: Einlesen…</a>
           {%- if no_js %}
           {#- Seite ohne main.js (Satz-Seite, Nachbesserung Runde 18): Einstellungen ohne Dialog und ohne Alt+,
               (beides bräuchte main.js). #}
@@ -63,15 +69,19 @@
           {#- Runde 24: Über Baruch (Seite /ueber, src/about.rs) – Version, Lizenz, Quellcode. Ein gewöhnlicher Link,
               auf jeder Seite und ohne JavaScript erreichbar; das Werk bleibt im Cookie, die Seite braucht es nicht. #}
           <a class="menu-item" role="menuitem" href="/ueber" title="Version, Lizenz, Quellcode und Bibliotheken Dritter">Über Baruch</a>
-          <a class="menu-item" role="menuitem" href="/beenden" title="Baruch auf diesem Rechner beenden (mit Rückfrage)">Baruch beenden…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/beenden" title="Baruch auf diesem Rechner beenden (mit Rückfrage)">Baruch beenden…</a>
           {#- R32-PLATZ beenden -#}
+          {#- Runde 35: An dieser Marke setzt konten_ui::apply (Schicht consent::inject) den Eintrag zum Konto ein:
+              ohne Konten „Konten einrichten…“, sonst „Angemeldet: … (Autor|Lektor)“, „Mein Konto“ und „Abmelden“. -#}
+          <!--BARUCH-KONTO-->
+          {#- R35-PLATZ konto -#}
         </div>
       </details>
     </nav>
     {#- Reiter: Links (?tab=…), auch ohne JavaScript; band.ts wechselt ohne Neuladen (ARIA-Tabs). #}
     <nav class="band-tabs" role="tablist" aria-label="Menüband" data-band-default="{% block band_tab %}start{% endblock %}">
       <a class="band-tab" role="tab" id="band-tab-start" aria-controls="band-panel-start" data-band-tab="start" href="?tab=start" aria-selected="false">Start <span class="badge" data-badge="open_proposals" title="offene Vorschläge im Werk"{% if not proposals %}{{ fill }} hidden{% endif %}>{{ proposals }}</span></a>
-      {%- if tb %}
+      {%- if tb and not lektor_view %}
       <a class="band-tab" role="tab" id="band-tab-einfuegen" aria-controls="band-panel-einfuegen" data-band-tab="einfuegen" href="?tab=einfuegen" aria-selected="false">Einfügen</a>
       {%- endif %}
       {%- if w %}
@@ -123,7 +133,7 @@
       </div></details>
       {%- endif %}
       {% block page_actions %}{% endblock %}
-      <details class="band-group" data-band-after data-band-group open><summary class="band-group-label">Einfälle</summary><div class="band-items" role="group" aria-label="Einfälle">
+      <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">Einfälle</summary><div class="band-items" role="group" aria-label="Einfälle">
         {#- Einfall: ohne JavaScript die Seite /einfaelle mit Formular, auf der Arbeitsseite der Dialog (Alt+E). #}
         <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" data-idea-open{% if tb %} aria-haspopup="dialog" aria-controls="idea-capture"{% endif %} title="Einfall festhalten (Alt+E)" data-shortcut="Alt+E">Einfall festhalten</a>
         <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" title="Liste der Einfälle dieses Werks">Einfälle</a>
@@ -132,13 +142,13 @@
       </div></details>
       {%- if not w %}
       {#- Ohne Werk gibt es die Reiter Prüfen und Buch nicht; was kein Werk braucht, steht hier. #}
-      <details class="band-group" data-band-after data-band-group open><summary class="band-group-label">Werkzeuge</summary><div class="band-items" role="group" aria-label="Werkzeuge">
+      <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">Werkzeuge</summary><div class="band-items" role="group" aria-label="Werkzeuge">
         <a class="btn" href="/literatur" data-literature-open title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
         <a class="btn" href="/abgleich" title="Abgleich mit MultiGPT">Abgleichen</a>
       </div></details>
       {%- endif %}
     </div>
-    {%- if tb %}
+    {%- if tb and not lektor_view %}
     <div class="band-panel" role="tabpanel" id="band-panel-einfuegen" aria-labelledby="band-tab-einfuegen" data-band-panel="einfuegen" hidden>
       {#- Die Knöpfe (Fußnote, Zitat, Liste, …, Bild, Register und Glossar) stehen im Fragment edit_toolbar.html und
           docken mit JavaScript unten an (div[data-band-dock]). Ohne JavaScript führen diese Links ans Blatt. #}
@@ -154,15 +164,15 @@
         {#- Runde 28: Befunde der Personas (Matrix, Listen, Status; ohne JavaScript bedienbar). #}
         <a class="btn" href="/werke/{{ w }}/befunde" title="Befunde der Personas: offen, übernommen, verworfen, verschoben, erledigt">Befunde <span class="badge warning" data-badge="open_findings"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }}</span></a>
         {#- Runde 17c: Zitate gegen die Bibel des Werks prüfen (Seite, ohne JavaScript); auf der Arbeitsseite die gezeigte Fassung. #}
-        <a class="btn" href="/werke/{{ w }}/pruefung{% if tb %}?key={{ tb.key }}&amp;rev={{ tb.rev }}{% endif %}" title="Zitate gegen die Bibel des Werks prüfen (stimmt / weicht ab), Bibelstellen des Abschnitts">Zitate prüfen</a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/pruefung{% if tb %}?key={{ tb.key }}&amp;rev={{ tb.rev }}{% endif %}" title="Zitate gegen die Bibel des Werks prüfen (stimmt / weicht ab), Bibelstellen des Abschnitts">Zitate prüfen</a>
       </div></details>
       <details class="band-group" data-band-group open><summary class="band-group-label">Suchen und Verweise</summary><div class="band-items" role="group" aria-label="Suchen und Verweise">
         {#- Runde 30a: Suchen/Ersetzen im Werk (Seite /suche ohne JavaScript, auf der Arbeitsseite Seitenleiste mit
             Strg+Umschalt+F) und Querverweise (Seite /verweise: mögliche und kaputte Verweise). #}
         <a class="btn" href="/suche?work={{ w }}" title="Im Werk suchen und ersetzen (Strg+Umschalt+F)">Im Werk suchen und ersetzen (Strg+Umschalt+F)</a>
-        <a class="btn" href="/verweise?work={{ w }}" title="Mögliche und kaputte Querverweise des Werks">Querverweise prüfen</a>
+        <a class="btn nur-autor" href="/verweise?work={{ w }}" title="Mögliche und kaputte Querverweise des Werks">Querverweise prüfen</a>
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Quellen</summary><div class="band-items" role="group" aria-label="Quellen">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Quellen</summary><div class="band-items" role="group" aria-label="Quellen">
         {#- Literatur: ohne JavaScript die Seite /literatur, auf der Arbeitsseite das Popup (Alt+L). #}
         <a class="btn" href="/literatur?work={{ w }}{% if tb %}&key={{ tb.key }}&rev={{ tb.rev }}{{ tb.lq_q }}{% endif %}" data-literature-open{% if tb %} aria-haspopup="dialog" aria-controls="literature"{% endif %} title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
         {#- Abgleich mit MultiGPT (Runde 13): Seite /abgleich mit Knopf, ohne JavaScript bedienbar. #}
@@ -172,19 +182,20 @@
     <div class="band-panel" role="tabpanel" id="band-panel-buch" aria-labelledby="band-tab-buch" data-band-panel="buch" hidden>
       {% block band_buch %}{% endblock %}
       <details class="band-group" data-band-group open><summary class="band-group-label">Werk</summary><div class="band-items" role="group" aria-label="Werk">
-        <a class="btn" href="/werke/{{ w }}/bearbeiten">Werk bearbeiten</a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/bearbeiten">Werk bearbeiten</a>
         <a class="btn" href="/gliederung?work={{ w }}">Gliederung</a>
-        <a class="btn" href="/gliederung?work={{ w }}#antraege" data-badge-item="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>Anträge zur Gliederung <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }}{% endif %}>{{ requests }}</span></a>
-        <a class="btn" href="/werke/{{ w }}/nummerierung">Gliederungsschema</a>
-        <a class="btn" href="/werke/{{ w }}/bilder">Bilder</a>
+        <a class="btn nur-autor" href="/gliederung?work={{ w }}#antraege" data-badge-item="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>Anträge zur Gliederung <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }}{% endif %}>{{ requests }}</span></a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/nummerierung">Gliederungsschema</a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/bilder">Bilder</a><!--NUR-KONTEN-->
+        <a class="btn nur-autor" href="/werke/{{ w }}/mitwirkende" title="Wer darf dieses Werk als Lektor lesen? Freigeben und entziehen">Mitwirkende</a><!--/NUR-KONTEN-->
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Satz</summary><div class="band-items" role="group" aria-label="Satz">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Satz</summary><div class="band-items" role="group" aria-label="Satz">
         {#- Satz: gesetzte Seiten aus Typst mit der Werkvorlage (Seite /werke/W/satz, Runde 8). #}
         <a class="btn" href="/werke/{{ w }}/satz{% if tb %}?key={{ tb.key }}{% endif %}" title="Gesetzte Seiten aus Typst mit der Werkvorlage">Satz-Vorschau</a>
         {#- Runde 20b: EPUB-Vorschau je Reader (Seite /werke/W/epub/vorschau, src/epub_preview.rs). #}
         <a class="btn" href="/werke/{{ w }}/epub/vorschau" title="Das EPUB des Werks in mehreren Readern nebeneinander">EPUB-Vorschau</a>
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Ausgabe</summary><div class="band-items" role="group" aria-label="Ausgabe">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Ausgabe</summary><div class="band-items" role="group" aria-label="Ausgabe">
         {#- Runde 11: das Buch als PDF; Runde 22: mit Wasserzeichen „Entwurf“, ohne die Satz-Einstellung zu ändern
             (?entwurf=1); Runde 20: EPUB 3 (src/epub.rs). #}
         <a class="btn" href="/werke/{{ w }}/pdf" download title="Das ganze Werk als PDF herunterladen (Werkvorlage, aktuelle Fassungen, Bilder)">PDF</a>
@@ -198,7 +209,7 @@
         {#- Runde 26: Austausch zwischen Baruch-Instanzen (src/exchange/). #}
         <a class="btn" href="/werke/{{ w }}/austausch" title="Ganzes Werk mit allen Fassungen, Einfällen, Beiträgen und Bildern als Austauschdatei">Austausch: Ausgeben</a>
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Umschlag</summary><div class="band-items" role="group" aria-label="Umschlag">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Umschlag</summary><div class="band-items" role="group" aria-label="Umschlag">
         <a class="btn" href="/werke/{{ w }}/umschlag" title="Umschlag mit Vorderseite, Rücken und Rückseite">Umschlag</a>
         <a class="btn" href="/werke/{{ w }}/umschlag.pdf" download title="Umschlag als PDF für die Druckerei (mit Rücken und Beschnitt)">Umschlag-PDF</a>
       </div></details>

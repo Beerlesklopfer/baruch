@@ -115,11 +115,22 @@ Mehr dazu unter [MCP und Assistenten](/mcp/).
 - **Austausch zwischen Instanzen:** Die `.baruch`-Datei trägt ein Werk vollständig, aber keine Schlüssel. Beim
   Abgleich kommt nur dazu, was fehlt; nichts wird gelöscht oder überschrieben.
 
+## Lektorat: Konten und Rollen
+
+- **Allein am eigenen Rechner** braucht Baruch kein Konto und keine Anmeldung.
+- **Mit Lektoren:** Der Autor richtet ein Konto ein, legt Lektoren an und gibt ihnen einzelne Werke frei. Lektoren
+  melden sich im Browser an – gedacht über einen Reverse-Proxy mit TLS.
+- **Ein Lektor liest und schlägt vor:** Vorschläge für Fassungen, Beiträge im Abschnitts-Chat und Befunde, alles
+  unter seinem Namen (`@lektorat:<name>`) und im Git-Spiegel nachvollziehbar. Was gilt, entscheidet der Autor:
+  Übernehmen, Ändern und Löschen bleiben ihm vorbehalten, ebenso Assistenten, Export und Einstellungen.
+- **Streng gesperrt:** Für Lektoren ist alles verboten, was nicht ausdrücklich erlaubt ist – auch neue Funktionen
+  künftiger Versionen.
+
 ## Häufige Fragen
 
 **Auf welchen Systemen läuft Baruch?**
 Baruch ist ein kleines Programm, das auf dem eigenen Rechner läuft und im Browser bedient wird – keine Cloud,
-kein Konto. Pakete gibt es für Linux (Debian und Ubuntu, AppImage), macOS und Windows; die Pakete für macOS sind
+kein Konto bei einem Anbieter. Pakete gibt es für Linux (Debian und Ubuntu, AppImage), macOS und Windows; die Pakete für macOS sind
 signiert und von Apple notarisiert, das Paket für Windows ist noch nicht signiert. Siehe [Installation](/installation/).
 
 **Wie schnell ist man startklar?**

@@ -3,12 +3,15 @@
 
 /// Schnittstelle R32-S1: Die drei Einträge stehen an den Plätzen des Menübands (Vertrag Runde 32 §0.5) – wörtlich, als
 /// gewöhnliche Links (ohne JavaScript bedienbar). Die Marken selbst prüft Runde 33.
+/// Runde 35 (Vertrag §3.2): Import und Beenden tragen die Klasse `nur-autor` (für Lektoren ausgeblendet; ohne Konten
+/// nimmt `konten_ui::apply` sie aus der ausgelieferten Seite). Hinter „Baruch beenden…“ und seiner Marke folgt die Marke
+/// für den Eintrag zum Konto.
 #[test]
 fn the_three_entries_stand_at_their_places_in_the_ribbon() {
     let base = include_str!("../templates/base.html");
-    let import = "<a class=\"menu-item\" role=\"menuitem\" href=\"/werke/import/word\" title=\"Word-Datei lesen, \
+    let import = "<a class=\"menu-item nur-autor\" role=\"menuitem\" href=\"/werke/import/word\" title=\"Word-Datei lesen, \
                   Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen\">Word (.docx) importieren…</a>";
-    let quit = "<a class=\"menu-item\" role=\"menuitem\" href=\"/beenden\" title=\"Baruch auf diesem Rechner beenden \
+    let quit = "<a class=\"menu-item nur-autor\" role=\"menuitem\" href=\"/beenden\" title=\"Baruch auf diesem Rechner beenden \
                 (mit Rückfrage)\">Baruch beenden…</a>";
     let export = "<a class=\"btn\" href=\"/werke/{{ w }}/word\" title=\"Das Werk als Word-Datei für den Verlag \
                   (Formatvorlagen, Fußnoten, Bilder; auf Wunsch offene Vorschläge als Änderungsverfolgung)\">Word …</a>";
@@ -27,7 +30,12 @@ fn the_three_entries_stand_at_their_places_in_the_ribbon() {
     let before_quit = base.split("{#- R32-PLATZ beenden -#}").next().unwrap().trim_end();
     assert!(
         before_quit.ends_with(quit),
-        "„Baruch beenden…“ steht direkt vor seiner Marke – dahinter folgt im Menü kein Eintrag mehr (letzter Eintrag)"
+        "„Baruch beenden…“ steht direkt vor seiner Marke – der letzte feste Eintrag des Menüs"
+    );
+    let behind = after("{#- R32-PLATZ beenden -#}");
+    assert!(
+        behind.starts_with("{#- Runde 35:") && !behind[..behind.find("</div>").unwrap()].contains("<a "),
+        "dahinter folgt im Menü kein fester Eintrag mehr, nur die Marke für den Eintrag zum Konto (Runde 35)"
     );
 }
 

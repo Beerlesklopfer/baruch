@@ -1,0 +1,79 @@
+{#- Seite /konto „Mein Konto“ (Runde 35, src/konten_ui/pages.rs): Name, Rolle, Herkunft (Handle eines Lektors),
+    freigegebene Werke, Passwort ändern (POST /konto/passwort: current, password, password2) und Abmelden
+    (POST /abmelden). Ohne JavaScript bedienbar; Passwortfelder sind nie vorbelegt. Meldungen (notice, error) sind
+    fertige Sätze aus konten_ui::MESSAGES, nie Text aus der Adresse.
+    Kontext: settings, state („open“ = es gibt keine Konten, „local“ = Autor am eigenen Rechner ohne Anmeldung,
+    „account“ = angemeldet), name, display, role („Autor“|„Lektor“), handle (oder none), works [{id, title}],
+    notice, error, min, max. -#}
+{% extends "base.html" %}
+{% block title %}Mein Konto – Baruch{% endblock %}
+{% block page_title %}Mein Konto{% endblock %}
+{% block page_actions %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück zum Werk</a>
+  </div></details>
+{% endblock %}
+{% block body %}
+<main class="works-page konto-page">
+  <h1 class="pane-title">Mein Konto</h1>
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if state == "open" %}
+  <p>Baruch läuft ohne Konten: Alles ist offen wie bisher, eine Anmeldung gibt es nicht.</p>
+  <p class="muted">Konten braucht nur, wer Lektoren mitlesen lassen oder Baruch über einen Proxy erreichbar machen
+    will. Das erste Konto gehört dem Autor.</p>
+  <p><a class="btn primary" href="/einrichten">Konten einrichten…</a></p>
+  {%- elif state == "local" %}
+  <p>Du arbeitest als <strong>Autor</strong> am eigenen Rechner, ohne Anmeldung (Einstellungen → Konten: „Am eigenen
+    Rechner ohne Anmeldung“).</p>
+  <p><a class="btn" href="/anmelden?next=/konto">Anmelden</a> <a class="btn" href="/einstellungen/konten">Einstellungen → Konten</a></p>
+  {%- else %}
+  <dl class="settings-facts konto-facts">
+    <dt>Name</dt>
+    <dd data-konto-name>{{ name }}</dd>
+    {%- if display %}
+    <dt>Anzeigename</dt>
+    <dd>{{ display }}</dd>
+    {%- endif %}
+    <dt>Rolle</dt>
+    <dd data-konto-rolle>{{ role }}</dd>
+    {%- if handle %}
+    <dt>Herkunft</dt>
+    <dd><code>{{ handle }}</code> – unter diesem Namen stehen deine Vorschläge, Beiträge und Befunde im Werk und im Git-Spiegel.</dd>
+    {%- endif %}
+  </dl>
+  <h2 class="pane-title">{% if role == "Lektor" %}Freigegebene Werke{% else %}Werke{% endif %}</h2>
+  {%- if works %}
+  <ul class="konto-works">
+    {%- for w in works %}
+    <li><a href="/?work={{ w.id }}">{{ w.title }}</a></li>
+    {%- endfor %}
+  </ul>
+  {%- elif role == "Lektor" %}
+  <p class="muted">Noch kein Werk freigegeben. Der Autor gibt Werke einzeln frei (Seite „Mitwirkende“ des Werks).</p>
+  {%- else %}
+  <p class="muted">Noch kein Werk.</p>
+  {%- endif %}
+  {%- if role == "Lektor" %}
+  <p class="muted small">Als Lektor liest du die freigegebenen Werke und schreibst Vorschläge für Fassungen, Beiträge
+    im Abschnitts-Chat und Befunde. Übernehmen, ändern und löschen kann nur der Autor.</p>
+  {%- endif %}
+  <h2 class="pane-title">Passwort ändern</h2>
+  <form class="konto-form" method="post" action="/konto/passwort">
+    <label>Bisheriges Passwort <input type="password" name="current" autocomplete="current-password" required></label>
+    <label>Neues Passwort ({{ min }} bis {{ max }} Zeichen) <input type="password" name="password" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+    <label>Neues Passwort wiederholen <input type="password" name="password2" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+    <button class="btn primary" type="submit">Passwort ändern</button>
+    <span class="muted small">Danach sind alle anderen Sitzungen dieses Kontos abgemeldet.</span>
+  </form>
+  <h2 class="pane-title">Abmelden</h2>
+  <form class="konto-form" method="post" action="/abmelden">
+    <button class="btn" type="submit">Abmelden</button>
+  </form>
+  {%- endif %}
+</main>
+{% endblock %}

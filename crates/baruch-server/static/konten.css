@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Runde 35 (Konten und Rollen, src/konten_ui): Anmeldeseite, Einrichten, „Mein Konto“, Mitwirkende, Einstellungsseite
+   „Konten“ und die Regeln der Rollen. Farben nur aus den Variablen von app.css (hell, dunkel, Laptop-Modus).
+
+   Rollen (Vertrag §0.8): konten_ui::apply setzt data-rolle="autor|lektor" an <body>, sobald es Konten gibt. Die
+   Sicherheit liegt allein in der Sperre des Servers (src/roles) – hier wird nur ausgeblendet, was ein Lektor nicht
+   nutzen kann, und zwar ohne JavaScript:
+   - .nur-autor und [data-nur-autor] (Gruppen des Menübands, deren class-Attribut wörtlich bleiben muss): nie für
+     Lektoren;
+   - .nur-lektor: nur für Lektoren;
+   - jedes POST-Formular, das nicht an eine für Lektoren erlaubte Adresse geht (roles::LEKTOR_ROUTES): Wie im Server
+     gilt „alles verboten, was nicht erlaubt ist“ – ein Formular künftiger Runden ist damit für Lektoren von selbst
+     verborgen, statt mit 403 zu enden. */
+body:not([data-rolle="lektor"]) .nur-lektor { display: none !important; }
+body[data-rolle="lektor"] .nur-autor,
+body[data-rolle="lektor"] [data-nur-autor] { display: none !important; }
+body[data-rolle="lektor"] form[method="post"]:not([action="/lektorat/act"]):not([action="/abmelden"]):not([action="/konto/passwort"]):not([action="/einstellungen/darstellung/act"]) { display: none !important; }
+
+/* Eintrag zum Konto im Menü „Baruch ▾“ (konten_ui::apply): Zeile „Angemeldet: …“ und das Formular „Abmelden“. */
+.menu-konto {
+  display: block; margin-top: 4px; padding: 6px 10px 2px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 12.5px; white-space: normal;
+}
+.menu-form { margin: 0; display: flex; }
+.menu-form > .menu-item { flex: 1; border: 0; background: none; font: inherit; text-align: left; }
+
+/* Eigenständige Seiten /anmelden und /einrichten (ohne Menüband). */
+.konto-seite { align-items: center; justify-content: flex-start; padding: 6vh 12px 24px; overflow: auto; }
+.konto-karte {
+  width: min(30rem, 100%); display: flex; flex-direction: column; gap: 10px; padding: 18px 20px 20px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+}
+.konto-karte h1.pane-title { margin: 0 0 2px; font-size: 17px; color: var(--text); }
+.konto-karte p { margin: 0; }
+.konto-form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 0; max-width: 30rem; }
+.konto-form label { display: flex; flex-direction: column; gap: 3px; width: 100%; font-size: 12.5px; color: var(--muted); }
+.konto-form input[type="text"], .konto-form input[type="password"], .konto-form select,
+.konto-reset input[type="password"] {
+  min-height: 32px; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit;
+}
+.konto-form input:focus-visible, .konto-form select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.konto-form .btn { text-decoration: none; }
+
+/* „Mein Konto“, Mitwirkende, Einstellungen → Konten. */
+.konto-page h2.pane-title { margin: 8px 0 0; }
+.konto-facts { max-width: 46rem; }
+.konto-works { margin: 0; padding-left: 1.2em; }
+.konto-grant { flex-direction: row; flex-wrap: wrap; align-items: flex-end; max-width: none; }
+.konto-grant label { width: auto; min-width: 16rem; }
+.konto-table td form { margin: 0; }
+.konto-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.konto-reset > summary { list-style: none; }
+.konto-reset > summary::-webkit-details-marker { display: none; }
+.konto-reset[open] { flex-basis: 100%; }
+.konto-reset .settings-form { margin-top: 6px; }
+.konto-gesperrt td { color: var(--muted); }
+
+/* Arbeitsseite eines Lektors (fragments/lektor_*.html). */
+.lektor-badge { background: var(--primary-soft); color: var(--primary); }
+.lektor-note { display: inline-flex; align-items: center; gap: 6px; }
+.lektor-note input { min-height: 28px; min-width: 14rem; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.lektor-finding { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.lektor-finding label { display: flex; flex-direction: column; gap: 2px; }
+.lektor-finding textarea, .lektor-finding input[type="text"], .lektor-finding select {
+  padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+}
+.lektor-finding .btn { align-self: flex-start; }
+.befunde .lektor-finding { max-width: 46rem; }

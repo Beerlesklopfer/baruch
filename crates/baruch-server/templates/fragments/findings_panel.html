@@ -15,7 +15,7 @@
       <input type="hidden" name="work" value="{{ work_id }}">
       <input type="hidden" name="back" value="{{ back }}">
 {%- endmacro %}
-{%- macro decide_forms(c, work_id, back) %}
+{%- macro decide_forms(c, work_id, back, na="") %}
   {%- if c.pending_json and c.pending_json.question %}
   {%- set p = c.pending_json %}
   {#- Runde 22: Rückfrage einer Persona nach einem erledigten Befund – Ja/Nein = finding.decide confirm 1/0. #}
@@ -23,14 +23,14 @@
     <p class="small"><span class="badge primary" title="Rückfrage einer Persona">Rückfrage</span>
       {{ p.actor_label }}: <strong>{% if p.note %}{{ p.note }}{% else %}Befund {{ c.id }} scheint erledigt – als erledigt markieren?{% endif %}</strong>
       <span class="muted tiny">{{ p.time }}</span></p>
-    <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>
+    <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
       <input type="hidden" name="confirm" value="1">
       <button class="btn small success" type="submit">Ja, erledigt</button>
     </form>
-    <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>
+    <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
@@ -44,14 +44,14 @@
     <p class="small"><span class="badge warning" title="offener Vorschlag eines Assistenten">Vorschlag</span>
       {{ p.actor_label }} schlägt vor: <strong>{{ p.status_sign }} {{ p.words }}</strong>{% if p.note %} – „{{ p.note }}“{% endif %}
       <span class="muted tiny">{{ p.time }}</span></p>
-    <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>
+    <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
       <input type="hidden" name="confirm" value="1">
       <button class="btn small success" type="submit">Bestätigen</button>
     </form>
-    <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>
+    <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
@@ -61,9 +61,9 @@
   </div>
   {%- endif %}
 {%- endmacro %}
-{%- macro status_forms(c, work_id, back, targets, draft) %}
+{%- macro status_forms(c, work_id, back, targets, draft, na="") %}
   {%- set mine = draft and draft.id == c.id %}
-  <details class="fd-forms"{% if mine %} open{% endif %}>
+  <details class="fd-forms{{ na }}"{% if mine %} open{% endif %}>
     <summary class="small">{% if c.status == "open" %}Status setzen …{% else %}Status ändern …{% endif %}</summary>
     {%- if c.key is not none and c.revisions %}
     <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="Befund {{ c.ref }} übernommen">
@@ -116,9 +116,9 @@
     {%- endif %}
   </details>
 {%- endmacro %}
-{%- macro solutions(c, back) %}
+{%- macro solutions(c, back, na="") %}
   {%- if c.solution_views %}
-    <form class="fd-solutions" method="post" action="/loesungen/act" aria-label="Lösungen zu Befund {{ c.ref }}">
+    <form class="fd-solutions{{ na }}" method="post" action="/loesungen/act" aria-label="Lösungen zu Befund {{ c.ref }}">
       <input type="hidden" name="method" value="solution.adopt">
       <input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="key" value="{{ c.key }}">
@@ -141,7 +141,10 @@
     <p class="fd-nosolution tiny muted">ohne Lösungsvorschlag</p>
   {%- endif %}
 {%- endmacro %}
-{%- macro card(c, work_id, back, targets, draft, with_section) %}
+{#- Runde 35: `na` ist leer oder " nur-autor" (Seite Befunde): Die Formulare zum Status, zur Entscheidung und zu den
+    Lösungen kann nur der Autor nutzen; static/konten.css blendet sie für Lektoren aus. Die Arbeitsseite lässt `na`
+    leer – Lektoren bekommen dort eigene Karten ohne Formulare (fragments/lektor_assistants.html). #}
+{%- macro card(c, work_id, back, targets, draft, with_section, na="") %}
   <article class="fd-card fd-{{ c.status }} fd-kind-{{ c.kind }}" id="befund-{{ c.id }}" data-finding="{{ c.id }}" data-status="{{ c.status }}" data-kind="{{ c.kind }}" data-persona="{{ c.persona }}">
     <header class="fd-head small">
       <a class="fd-ref" href="{{ c.url }}" title="Befund {{ c.id }} einzeln">{{ c.ref }}</a>
@@ -155,14 +158,14 @@
     </header>
     <div class="fd-body">{% if c.body_html %}{{ c.body_html | safe }}{% else %}<p>{{ c.body }}</p>{% endif %}</div>
     {%- if c.quote %}<blockquote class="fd-quote small">{% if c.place_url %}<a href="{{ c.place_url }}" data-jump title="Stelle im Abschnitt anspringen">„{{ c.quote }}“</a>{% else %}„{{ c.quote }}“{% endif %}{% if c.quote_check %} <span class="muted tiny">({{ c.quote_check }})</span>{% endif %}</blockquote>{% endif %}
-    {{- solutions(c, back) }}
+    {{- solutions(c, back, na) }}
     {%- if c.reason %}<p class="fd-reason small">Begründung: {{ c.reason }}</p>{% endif %}
     {%- if c.summary %}
     <div class="fd-summary small"><strong>Sammelvorschlag von {{ c.persona }}</strong> zu
       {%- for s in c.summary %}{% if s.missing %} <span class="muted">(Ursprung fehlt)</span>{% else %} <a href="{{ s.url }}" title="{{ s.persona }}: {{ s.label }} ({{ s.status_label }})">{{ s.ref }}</a>{% endif %}{% if not loop.last %},{% endif %}{% endfor %}</div>
     {%- endif %}
-    {{- decide_forms(c, work_id, back) }}
-    {{- status_forms(c, work_id, back, targets, draft) }}
+    {{- decide_forms(c, work_id, back, na) }}
+    {{- status_forms(c, work_id, back, targets, draft, na) }}
     {%- if c.attached %}
     <details class="fd-attached small">
       <summary>{{ c.attached | length }} angehängt (gleichen diesem Befund, zählen nicht als offen)</summary>

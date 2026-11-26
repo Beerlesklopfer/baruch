@@ -1,0 +1,115 @@
+{#- Einstellungsseite „Konten“ (Runde 35, src/konten_ui/pages.rs, achte Seite in settings::PAGES): Liste der Konten
+    (Name, Anzeigename, Art, Herkunft, aktiv, letzte Anmeldung), Lektor anlegen, Sperren/Entsperren, Passwort
+    zurücksetzen und der Schalter „Am eigenen Rechner ohne Anmeldung“. Alle Formulare gehen ohne JavaScript an
+    POST /einstellungen/konten/act (action = create | deactivate | activate | reset_password | local_open); danach
+    kommt die Seite mit ?ok=<code> bzw. ?fehler=<code> zurück – gezeigt wird nur der Satz aus konten_ui::MESSAGES.
+    Passwortfelder sind nie vorbelegt. Ohne Konten: Erklärung und Knopf „Einrichten“.
+    Kontext: work (oder none), accounts_exist, allowed (volle Rechte), accounts [{id, name, display, kind, kind_label,
+    handle (oder none), active, last_login (oder none), created, own}], local_open, notice, error, load_error,
+    min, max. -#}
+<section class="settings-page" data-settings-page-body="konten">
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  <h3 class="pane-title">Konten</h3>
+  {%- if not accounts_exist %}
+  <p>Baruch läuft <strong>ohne Konten</strong>: Alles ist offen wie bisher, eine Anmeldung gibt es nicht. Das genügt,
+    solange nur du am eigenen Rechner schreibst.</p>
+  <p class="small">Konten braucht, wer Lektoren mitarbeiten lassen oder Baruch über einen Proxy erreichbar machen will.
+    Das erste Konto gehört dem Autor und lässt sich nur am eigenen Rechner anlegen. Sobald es besteht, verlangen
+    Seiten, Formulare und <code>/rpc</code> eine Anmeldung – auch an diesem Rechner (das lässt sich danach hier wieder
+    ausschalten). <code>/mcp</code> bleibt bei seinen Tokens.</p>
+  <p><a class="btn primary" href="/einrichten">Einrichten</a></p>
+  {%- elif not allowed %}
+  <p class="notice error" role="alert">Konten verwaltet nur der Autor.</p>
+  {%- else %}
+  {%- if load_error %}
+  <p class="notice error" role="alert">Die Konten lassen sich nicht lesen: {{ load_error }}</p>
+  {%- endif %}
+  <table class="settings-table konto-table">
+    <thead>
+      <tr><th scope="col">Name</th><th scope="col">Anzeigename</th><th scope="col">Art</th><th scope="col">Herkunft</th><th scope="col">Aktiv</th><th scope="col">Letzte Anmeldung</th><th scope="col"><span class="visually-hidden">Aktionen</span></th></tr>
+    </thead>
+    <tbody>
+    {%- for a in accounts %}
+      <tr data-account="{{ a.id }}"{% if not a.active %} class="konto-gesperrt"{% endif %}>
+        <td>{{ a.name }}{% if a.own %} <span class="badge" title="Mit diesem Konto bist du angemeldet">du</span>{% endif %}</td>
+        <td>{{ a.display or "–" }}</td>
+        <td>{{ a.kind_label }}</td>
+        <td>{% if a.handle %}<code>{{ a.handle }}</code>{% else %}<span class="muted" title="Der Autor schreibt als „Autor“">Autor</span>{% endif %}</td>
+        <td>{% if a.active %}ja{% else %}<span class="badge warning">gesperrt</span>{% endif %}</td>
+        <td class="small">{{ a.last_login or "noch nie" }}</td>
+        <td class="konto-actions">
+          <form method="post" action="/einstellungen/konten/act">
+            <input type="hidden" name="id" value="{{ a.id }}">
+            {%- if a.active %}
+            <input type="hidden" name="action" value="deactivate">
+            <button class="btn small" type="submit" title="{{ a.name }} kann sich danach nicht mehr anmelden; offene Sitzungen enden sofort. Was das Konto geschrieben hat, bleibt.">Sperren</button>
+            {%- else %}
+            <input type="hidden" name="action" value="activate">
+            <button class="btn small" type="submit">Entsperren</button>
+            {%- endif %}
+          </form>
+          <details class="konto-reset">
+            <summary class="btn small">Passwort zurücksetzen …</summary>
+            <form class="settings-form" method="post" action="/einstellungen/konten/act">
+              <input type="hidden" name="action" value="reset_password">
+              <input type="hidden" name="id" value="{{ a.id }}">
+              <label class="small">Neues Passwort für {{ a.name }} ({{ min }} bis {{ max }} Zeichen)
+                <input type="password" name="password" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+              <label class="small">Wiederholen
+                <input type="password" name="password2" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+              <button class="btn small" type="submit" title="Alle Sitzungen dieses Kontos enden">Passwort setzen</button>
+            </form>
+          </details>
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">Konten werden nie gelöscht, nur gesperrt: Die Herkunft (<code>@lektorat:…</code>) bleibt
+    vergeben, damit alte Vorschläge, Beiträge und Befunde eindeutig bleiben. Das letzte aktive Autor-Konto lässt sich
+    nicht sperren.</p>
+
+  <h4 class="pane-title" id="lektor-anlegen">Lektor anlegen</h4>
+  <form class="settings-form" method="post" action="/einstellungen/konten/act">
+    <input type="hidden" name="action" value="create">
+    <label class="small">Name (zum Anmelden, höchstens 40 Zeichen)
+      <input type="text" name="name" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" required></label>
+    <label class="small">Anzeigename (freiwillig)
+      <input type="text" name="display" maxlength="80" autocomplete="off"></label>
+    <label class="small">Passwort ({{ min }} bis {{ max }} Zeichen)
+      <input type="password" name="password" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+    <label class="small">Passwort wiederholen
+      <input type="password" name="password2" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+    <button class="btn primary" type="submit">Lektor anlegen</button>
+    <p class="muted small">Ein neues Konto ist immer ein Lektor und sieht zunächst kein Werk. Freigegeben wird je Werk
+      auf der Seite „Mitwirkende“{% if work %}: <a href="/werke/{{ work }}/mitwirkende">Mitwirkende dieses Werks</a>{% else %} (Reiter Buch → Mitwirkende){% endif %}.
+      Das Passwort gibst du dem Lektor selbst weiter; er kann es unter „Mein Konto“ ändern.</p>
+  </form>
+
+  <h4 class="pane-title" id="eigener-rechner">Am eigenen Rechner ohne Anmeldung</h4>
+  <p class="small">Stand: <strong data-local-open="{% if local_open %}1{% else %}0{% endif %}">{% if local_open %}eingeschaltet – am eigenen Rechner gelten Autorrechte ohne Passwort{% else %}ausgeschaltet – auch am eigenen Rechner ist eine Anmeldung nötig (Vorgabe){% endif %}</strong></p>
+  <p class="notice warning" role="note"><strong>Vorsicht mit einem Proxy auf demselben Rechner:</strong> Ein Reverse-Proxy
+    verbindet sich ebenfalls über 127.0.0.1. Baruch erkennt ihn an seinem Rechnernamen (<code>--allow-host</code>) und an
+    den Kopfzeilen <code>Forwarded</code>, <code>X-Forwarded-*</code>, <code>X-Real-IP</code> und <code>Via</code>. Ein Proxy,
+    der den <code>Host</code> umschreibt und keine dieser Kopfzeilen setzt, sähe aus wie der eigene Rechner – dann hätte
+    jeder Besucher Autorrechte. Nur einschalten, wenn kein solcher Proxy vor Baruch steht.</p>
+  <form class="settings-form" method="post" action="/einstellungen/konten/act">
+    <input type="hidden" name="action" value="local_open">
+    {%- if local_open %}
+    <input type="hidden" name="open" value="0">
+    <button class="btn primary" type="submit">Auch am eigenen Rechner anmelden</button>
+    {%- else %}
+    <input type="hidden" name="open" value="1">
+    <button class="btn" type="submit">Am eigenen Rechner ohne Anmeldung</button>
+    {%- endif %}
+  </form>
+  <p class="muted small">Passwort vergessen? Am Rechner, auf dem Baruch läuft:
+    <code>baruch-server passwort &lt;Name&gt;</code> liest ein neues Passwort von der Eingabe und beendet alle
+    Sitzungen des Kontos.</p>
+  {%- endif %}
+</section>

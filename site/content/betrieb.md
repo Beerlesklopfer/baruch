@@ -99,15 +99,33 @@ baruch-server --allow-host baruch.example.org
 Mehrere Namen: `--allow-host` mehrfach oder `BARUCH_ALLOWED_HOSTS=name1,name2`. Erlaubt ist genau der genannte
 Name, ohne Platzhalter.
 
-**Baruch hat keine Anmeldung.** Wer die Seite erreicht, kann alles lesen und ändern. Darum ist ein
-Zugangsschutz im Proxy **Pflicht**: Basic-Auth, Client-Zertifikat oder ein VPN. Ohne ihn gehört Baruch nicht
-ins Netz.
+**Ohne Konten hat Baruch keine Anmeldung.** Wer die Seite erreicht, kann dann alles lesen und ändern. Darum ist
+ohne Konten ein Zugangsschutz im Proxy **Pflicht**: Basic-Auth, Client-Zertifikat oder ein VPN. Mit
+[Konten](#anmeldung-mit-konten) meldet man sich bei Baruch selbst an; der Schutz im Proxy ist dann freiwillig.
 
 Dazu drei Regeln:
 
 - Der Proxy reicht die Kopfzeile `Host` unverändert durch. Sonst lehnt Baruch Formulare und Speichern ab.
-- TLS endet im Proxy; Baruch selbst spricht nur HTTP und bleibt auf `127.0.0.1`.
+- TLS endet im Proxy und ist Pflicht – auch mit Konten, sonst gingen Passwort und Sitzung im Klartext über die
+  Leitung. Baruch selbst spricht nur HTTP und bleibt auf `127.0.0.1`.
 - Unter dem erlaubten Namen nimmt `/mcp` Anfragen nur mit Token an (Einstellungen → MCP-Zugang).
+
+### Anmeldung mit Konten
+
+- Das erste Konto (der Autor) entsteht **am eigenen Rechner**: Baruch ▾ → „Konten einrichten…“. Über den Proxy ist
+  das Einrichten gesperrt.
+- Danach verlangt Baruch für Seiten, Formulare und `/rpc` eine Anmeldung – auch am eigenen Rechner. `/mcp` bleibt
+  bei seinen Tokens.
+- „Am eigenen Rechner ohne Anmeldung“ (Einstellungen → Konten) nur einschalten, wenn der Proxy `Host` unverändert
+  durchreicht. Ein Proxy auf demselben Rechner, der `Host` umschreibt, sähe sonst aus wie der eigene Rechner.
+- Direkt von anderen Rechnern bleibt alles außer `/mcp` gesperrt. Lektoren kommen über den Proxy.
+- Das Sitzungs-Cookie ist `HttpOnly` und `SameSite=Strict`, über den Namen des Proxys auch `Secure`. Nach einem
+  Link von außen (etwa aus einer E-Mail) zeigt Baruch darum einmal die Anmeldeseite; „Schon angemeldet? Weiter“
+  führt ohne neue Anmeldung ans Ziel.
+- Passwort vergessen: `baruch-server passwort NAME` am Rechner, auf dem Baruch läuft.
+
+Mit Konten antwortet die erste Probe unten nicht mit 401 vom Proxy, sondern mit einer Umleitung (303) auf
+`/anmelden`.
 
 ### Beispiel nginx
 

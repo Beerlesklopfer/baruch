@@ -87,7 +87,11 @@ async fn every_settings_page_loads_as_popup_fragment_and_as_page_without_javascr
     let work = server.import_garden().await.work;
     let pages = server.rpc("settings.pages", json!({})).await;
     let pages = pages["result"]["pages"].as_array().expect("settings.pages liefert die Liste").clone();
-    assert_eq!(pages.len(), 7, "sieben Seiten nach Vertrag, Verbindungen und Quellen eingehängt");
+    assert_eq!(
+        pages.len(),
+        8,
+        "acht Seiten nach Vertrag (seit Runde 35 mit Konten), Verbindungen und Quellen eingehängt"
+    );
     for page in &pages {
         let slug = page["slug"].as_str().unwrap();
         let body = format!("data-settings-page-body=\"{slug}\"");

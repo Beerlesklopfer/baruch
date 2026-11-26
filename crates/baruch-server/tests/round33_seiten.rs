@@ -720,6 +720,13 @@ fn loose(content: &str) -> String {
 const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ("about.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
     ("shutdown.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
+    // Runde 35 (Konten): „Mein Konto“ und „Mitwirkende“; Anmelden und Einrichten sind eigenständige Seiten ohne Menüband.
+    ("konto.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
+    (
+        "mitwirkende.html",
+        "buch",
+        &["href=\"/?work={{ work.id }}\"", "href=\"/einstellungen/konten?work={{ work.id }}\""],
+    ),
     ("asset.html", "buch", &["href=\"/werke/{{ work.id }}/bilder\"", "href=\"/?work={{ work.id }}\""]),
     ("assets.html", "buch", &["href=\"/?work={{ work.id }}\""]),
     ("assist_notice.html", "start", &["href=\"{{ back }}\" data-back>{{ back_label }}</a>"]),
