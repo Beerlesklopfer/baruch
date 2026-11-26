@@ -150,6 +150,23 @@ impl Actor {
         Actor { origin: IdeaOrigin::Human { name: mirror::HUMAN_NAME.to_owned() }, only_own: false, also: Vec::new() }
     }
 
+    /// Runde 35: wer die laufende Anfrage stellt. Ein Lektor handelt als Mensch unter seinem Handle
+    /// (`@lektorat:<slug>`) und darf nur eigene Beiträge anfassen; alle anderen (ohne Konten, Autor) sind der Mensch
+    /// wie bisher ([`Actor::human`]). Nie in abgespaltenen Aufgaben aufrufen (siehe [`crate::auth::current`]).
+    pub(crate) fn current() -> Actor {
+        match crate::auth::current().lektor() {
+            Some(identity) => {
+                Actor { origin: IdeaOrigin::Human { name: identity.handle.clone() }, only_own: true, also: Vec::new() }
+            }
+            None => Actor::human(),
+        }
+    }
+
+    /// Ein Mensch, der nur eigene Beiträge anfassen darf: ein Lektor (Runde 35).
+    fn lektor(&self) -> bool {
+        self.only_own && matches!(self.origin, IdeaOrigin::Human { .. })
+    }
+
     /// Ein Assistent bzw. MCP-Client, der nur eigene Beiträge anfassen darf.
     pub(crate) fn own(origin: IdeaOrigin, also: Vec<String>) -> Actor {
         Actor { origin, only_own: true, also }
@@ -188,7 +205,13 @@ pub(crate) async fn act(state: &AppState, work: WorkId, id: i64, op: Op, actor: 
     let held = state.write_lock.lock().await;
     let before = store.post_get(work, id).await?;
     if actor.only_own && !actor.owns(&before.author) {
-        return Err(RpcError::new(REFUSED, not_own(&before, &actor.origin)));
+        // Runde 35: ein Lektor bekommt dieselbe Meldung wie beim Bearbeiten (die MCP-Meldung passte nicht zu ihm).
+        let message = if actor.lektor() {
+            not_editable(id, &before.author, actor.origin.name())
+        } else {
+            not_own(&before, &actor.origin)
+        };
+        return Err(RpcError::new(REFUSED, message));
     }
     let action = match &op {
         Op::Delete => mirror::PostAction::Delete,
@@ -271,7 +294,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
                 Some(Value::String(body)) => body.clone(),
                 _ => return Err(invalid("body fehlt (neuer Text)")),
             };
-            return edit(state, work, id, &body, &Actor::human()).await;
+            return edit(state, work, id, &body, &Actor::current()).await;
         }
         "post.versions" => {
             let id = id_param(&params)?;
@@ -303,7 +326,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
     let op = op_of(method, &params)?;
     let id = id_param(&params)?;
-    act(state, work, id, op, &Actor::human()).await
+    act(state, work, id, op, &Actor::current()).await
 }
 
 // ---- Formular ohne JavaScript ------------------------------------------------------------------
@@ -454,6 +477,13 @@ pub(crate) fn not_editable(id: i64, author: &str, actor: &str) -> String {
     )
 }
 
+/// Ist der Beitrag des Autors `author` ein eigener dessen, der die Anfrage stellt (Runde 35)? Für einen Lektor die
+/// unter seinem Handle, für alle anderen wie bisher die des Menschen („Autor“). Steuert `own` in `post.page` und
+/// auf den Seiten (Knöpfe zum Bearbeiten und Löschen).
+fn own_post(author: &str) -> bool {
+    author == crate::roles::author_name(&crate::auth::current())
+}
+
 /// Höchstens so viele Zeichen des zitierten Texts (die Antwort selbst darf 4000 haben).
 const QUOTE_CHARS: usize = 1500;
 
@@ -511,7 +541,7 @@ fn post_json(work: WorkId, post: &baruch_core::Post, edited: Option<&String>, st
     json!({
         "id": post.id, "author": post.author, "body": post.body, "created": post.created,
         "time": crate::localtime::minutes(&post.created), "edited": edited,
-        "edited_time": edited.map(|t| crate::localtime::minutes(t)), "own": post.author == mirror::HUMAN_NAME,
+        "edited_time": edited.map(|t| crate::localtime::minutes(t)), "own": own_post(&post.author),
         "style": style, "sources": post.sources, "url": post_url(work, post.id),
     })
 }
@@ -754,7 +784,7 @@ fn chat_post_value(
         author => post.author.as_str(), body => post.body.as_str(), style => colors.get(&post.author).cloned(),
         sources => minijinja::Value::from(Serde(&post.sources)), refs => refs,
         edited => edited.map(String::as_str), edited_time => edited.map(|t| crate::localtime::minutes(t)),
-        own => post.author == mirror::HUMAN_NAME,
+        own => own_post(&post.author),
         extra => minijinja::Value::from(Serde(crate::chat_render::post_extra(&ctx, post))),
         solutions => minijinja::Value::from(Serde(crate::assist::solutions::post_solutions(&post.body, shown_body))),
     }
@@ -884,7 +914,7 @@ fn post_value(
         id => post.id, author => post.author.as_str(), body => post.body.as_str(),
         created => post.created.as_str(), time => crate::localtime::minutes(&post.created),
         edited => edited.map(|t| crate::localtime::minutes(t)), style => style,
-        own => post.author == mirror::HUMAN_NAME,
+        own => own_post(&post.author),
         persona => post.author.starts_with('@') && !post.author.starts_with("@mcp:"),
         sources => minijinja::Value::from(Serde(&post.sources)),
         url => href(post_url(work, post.id)),

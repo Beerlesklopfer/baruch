@@ -1549,6 +1549,51 @@ pub async fn record_finding(
     result
 }
 
+/// Commit-Auftrag ohne Dateien für einen Befund, den ein Lektor selbst schreibt (Runde 35, `finding.add`): Betreff
+/// „Befund <id>: angelegt von @lektorat:<slug>“, Rumpf mit Art, Ort und Text (wie [`describe_finding`]), Trailer
+/// `Baruch-Finding`, `Baruch-Action: finding-add`, `Baruch-Node` (falls der Befund einen Abschnitt hat),
+/// `Baruch-Origin: lektor` und `Baruch-Lektor` (Handle). Autor des Commits ist der Lektor („<Anzeigename>
+/// (<Handle>)“, `<slug>@lektorat.baruch.invalid`), Committer der Autor des Buchs wie bei allen Commits. Bewusst
+/// ohne Trailer `Persona`: [`record_finding`] hielte den Lektor sonst für einen MCP-Client. Immer ein Commit
+/// (`allow_empty`); `work` ist der Stand nach dem Anlegen.
+pub fn describe_finding_added(
+    work: &Work,
+    finding: &baruch_store::Finding,
+    handle: &str,
+    display: &str,
+) -> CommitRequest {
+    let mut trailers = vec![
+        ("Baruch-Finding".to_owned(), finding.id.to_string()),
+        ("Baruch-Action".to_owned(), "finding-add".to_owned()),
+    ];
+    if let Some(key) = finding.key {
+        trailers.push(("Baruch-Node".to_owned(), key.to_string()));
+    }
+    trailers.push(("Baruch-Origin".to_owned(), "lektor".to_owned()));
+    trailers.push(("Baruch-Lektor".to_owned(), handle.to_owned()));
+    let place = match finding.node {
+        Some(seq) => node_label(work, seq),
+        None => "Anmerkung zum Buch, ohne Abschnitt".to_owned(),
+    };
+    let quoted: Vec<String> = finding.body.lines().map(|l| format!("> {l}")).collect();
+    let mut body =
+        format!("[B{}] {} von {handle} ({place}):\n{}\n", finding.id, finding.kind.label(), quoted.join("\n"));
+    if !finding.quote.is_empty() {
+        body.push_str(&format!("\nZitat: {}\n", one_line(&finding.quote)));
+    }
+    body.push_str(&format!("\nStatus jetzt: {}\n", finding.status.label()));
+    let name = if display.trim().is_empty() { handle.to_owned() } else { format!("{} ({handle})", one_line(display)) };
+    CommitRequest {
+        files: Vec::new(),
+        author: Signature { name, email: format!("{}@lektorat.baruch.invalid", email_local_part(handle)) },
+        committer: human(HUMAN_NAME),
+        summary: format!("Befund {}: angelegt von {handle}", finding.id),
+        body,
+        trailers,
+        allow_empty: true,
+    }
+}
+
 pub(crate) async fn commit_ideas_without_work(
     state: &AppState,
     mut request: CommitRequest,

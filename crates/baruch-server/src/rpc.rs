@@ -502,9 +502,13 @@ pub struct LibraryView {
 
 /// Titel laden und, falls `lq` Wörter enthält, das Werk `work` und die Bibliothek durchsuchen; dazu
 /// den Revisionsbaum des Werks.
+///
+/// Runde 35: Für Lektoren ist die Literaturliste leer – keine Titel, keine Suche, keine Treffer, kein Bilderkasten
+/// (die Literatur gehört dem Autor, Vertrag §0.7/§0.8); alles Übrige der Arbeitsseite bleibt.
 pub async fn library_view(state: &AppState, work: WorkId, lq: Option<&str>) -> Result<LibraryView, RpcError> {
-    let titles = baruch_library::list_titles(state.store.pool()).await?;
-    let query = lq.map(str::trim).filter(|q| !q.is_empty()).map(str::to_owned);
+    let lektor = crate::auth::current().lektor().is_some();
+    let titles = if lektor { Vec::new() } else { baruch_library::list_titles(state.store.pool()).await? };
+    let query = lq.map(str::trim).filter(|q| !q.is_empty() && !lektor).map(str::to_owned);
     let hits = match &query {
         Some(q) => {
             let options = SearchOptions { work: Some(work), ..SearchOptions::default() };
@@ -786,7 +790,8 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let post = Post {
                 id: 0,
                 created: String::new(),
-                author: mirror::HUMAN_NAME.into(),
+                // Runde 35: ein Lektor schreibt unter seinem Handle, alle anderen wie bisher als „Autor“.
+                author: crate::roles::author_name(&crate::auth::current()),
                 body: p.body,
                 sources: vec![],
                 refs: vec![],
