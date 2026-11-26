@@ -3,6 +3,8 @@
 // registrierte Verhalten. Der Server liefert fertiges HTML (auch ohne JavaScript bedienbar);
 // nach jedem Austausch eines Bereichs hängt `mount` die Widgets darin neu ein.
 
+import { capturePlace, restorePlace, type Place } from "./place.js";
+
 export type Mount = (element: HTMLElement) => void;
 
 const registry = new Map<string, Mount>();
@@ -67,7 +69,10 @@ export function leaveEditor(): boolean {
 /// nach dem Abgreifen des Formulars getippt werden, beim Neuzeichnen ohne Rückfrage verloren, und ein zweites Strg+S
 /// schickte dieselbe Grundlage noch einmal. Mehrere Sperren zählen; die letzte Freigabe hebt die Sperre auf und gibt
 /// den Fokus zurück, wenn das Element noch da ist (nach einem Fehler; nach Erfolg ist der Bereich neu gezeichnet).
+/// Wunsch 2026-11-27 („Strg+S als normales Speichern“): Beim ersten Sperren merkt sich der Editor die Stelle (Cursor,
+/// Auswahl, Scrollstand); nach dem Neuzeichnen setzt die letzte Freigabe sie im neuen Editor wieder (place.ts).
 let editorLocks = 0;
+let editorPlace: Place | null = null;
 
 export function editorLocked(): boolean {
   return editorLocks > 0;
@@ -78,6 +83,7 @@ export function lockEditor(): () => void {
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // Runde 33: Die Knöpfe des Editors stehen angedockt im Menüband – während des Speicherns ebenfalls gesperrt.
   const dock = document.querySelector<HTMLElement>("[data-band-dock]");
+  if (editorLocks === 0) editorPlace = capturePlace();
   editorLocks += 1;
   if (pane) {
     pane.inert = true;
@@ -96,7 +102,10 @@ export function lockEditor(): () => void {
     if (!pane) return;
     pane.inert = false;
     pane.removeAttribute("aria-busy");
+    const place = editorPlace;
+    editorPlace = null;
     if (focused?.isConnected && pane.contains(focused)) focused.focus({ preventScroll: true });
+    else if (place) restorePlace(place);
   };
 }
 

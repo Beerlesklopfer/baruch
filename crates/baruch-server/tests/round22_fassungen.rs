@@ -247,10 +247,10 @@ async fn the_policy_is_read_set_checked_and_recorded_in_the_mirror() {
     let g = result(&got);
     assert_eq!(
         (g["amend"].as_bool(), g["max_change_percent"].as_u64(), g["new_after_minutes"].as_u64()),
-        (Some(true), Some(20), Some(30)),
-        "Vorgabe an, 20 %, 30 min: {g}"
+        (Some(true), Some(100), Some(0)),
+        "Vorgabe seit 2026-11-27: an, ohne Größen- und Zeitgrenze (100 %, 0 min): {g}"
     );
-    assert_eq!(g["defaults"]["max_change_percent"].as_u64(), Some(20), "Vorgaben mitgeliefert");
+    assert_eq!(g["defaults"]["max_change_percent"].as_u64(), Some(100), "Vorgaben mitgeliefert");
 
     let set = server.rpc("revision.policy_set", json!({ "work": work, "max_change_percent": 40 })).await;
     let s = result(&set);
@@ -260,7 +260,7 @@ async fn the_policy_is_read_set_checked_and_recorded_in_the_mirror() {
         let t = trailers(&dir).unwrap();
         assert!(t.contains("Baruch-Action: revision-policy-set"), "Trailer: {t}");
         let body = common::git(&dir, &["log", "-1", "--format=%b"]).unwrap();
-        assert!(body.contains("größte Änderung: 20 % → 40 %"), "Rumpf vorher → nachher: {body}");
+        assert!(body.contains("größte Änderung: 100 % → 40 %"), "Rumpf vorher → nachher: {body}");
     }
     let unchanged = server.rpc("revision.policy_set", json!({ "work": work, "max_change_percent": 40 })).await;
     assert!(result(&unchanged)["changed"].as_array().unwrap().is_empty(), "nichts geändert");
@@ -284,7 +284,7 @@ async fn without_javascript_the_editor_amends_or_saves_anew_and_reports_it_in_th
         page.contains(r#"name="as_new" value="1""#) && page.contains("Als neue Fassung speichern"),
         "zweiter Knopf „Als neue Fassung speichern“ mit as_new=1"
     );
-    assert!(page.contains("Speichern schreibt Fassung 1 fort"), "Hinweis nennt Fortschreiben und Stand");
+    assert!(page.contains("Speichern (Strg+S) schreibt Fassung 1 fort"), "Hinweis nennt Fortschreiben und Stand");
 
     let original = body_of(&server, work, key).await;
     let form = format!(
@@ -371,7 +371,10 @@ async fn settings_work_has_the_revisions_block_and_its_form_saves_the_policy() {
     assert_eq!(status, StatusCode::OK, "Einstellungen → Werk lädt");
     assert!(page.contains(r#"id="fassungen""#) && page.contains("<h3>Fassungen</h3>"), "Block „Fassungen“ mit Anker");
     assert!(page.contains(r#"action="/einstellungen/werk/fassungen""#), "Formular ohne JavaScript");
-    assert!(page.contains(r#"name="max_change_percent""#) && page.contains(r#"value="20""#), "Vorgabe 20 %");
+    assert!(
+        page.contains(r#"name="max_change_percent""#) && page.contains(r#"value="100""#),
+        "Vorgabe 100 % (seit 2026-11-27 keine Grenze)"
+    );
 
     let (status, location) = server
         .post_form("/einstellungen/werk/fassungen", &format!("work={work}&max_change_percent=50&new_after_minutes=0"))

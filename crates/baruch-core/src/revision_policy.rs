@@ -19,9 +19,13 @@ pub struct RevisionPolicy {
     pub new_after_minutes: u32,
 }
 
+/// Vorgabe seit 2026-11-27 (Nutzer: „Strg+S als normales Speichern“): Speichern schreibt die eigene aktuelle Fassung
+/// immer fort, wie in einer Textverarbeitung – keine Größen- und keine Zeitgrenze (100 %, 0 min). Jeder Stand bleibt im
+/// Verlauf der Fortschreibungen; eine neue Fassung gibt es auf Wunsch oder nach den festen Regeln (fremde Fassung,
+/// andere Basis, Überschrift/Gliederung). Die Grenzen lassen sich je Werk wieder einschalten.
 impl Default for RevisionPolicy {
     fn default() -> Self {
-        RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 }
+        RevisionPolicy { amend: true, max_change_percent: 100, new_after_minutes: 0 }
     }
 }
 
@@ -185,6 +189,11 @@ pub fn word_diff(old: &str, new: &str) -> Vec<(crate::DiffKind, String)> {
 mod tests {
     use super::*;
 
+    /// Die frühere Vorgabe (20 %, 30 min): an ihr prüfen die Tests die Grenzregeln.
+    fn limited() -> RevisionPolicy {
+        RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 }
+    }
+
     /// Tatsachen, unter denen fortgeschrieben wird (eigene aktuelle Fassung, kleine Änderung, eben geschrieben).
     fn amendable() -> SaveFacts {
         SaveFacts {
@@ -199,7 +208,7 @@ mod tests {
 
     #[test]
     fn a_small_own_change_on_the_current_version_is_amended() {
-        let policy = RevisionPolicy::default();
+        let policy = limited();
         assert_eq!(decide(&policy, SaveMode::Auto, &amendable()), None, "kleine eigene Änderung: fortschreiben");
         let edge = SaveFacts { change_percent: 20.0, minutes_since_last_write: 29, ..amendable() };
         assert_eq!(decide(&policy, SaveMode::Auto, &edge), None, "genau 20 % und 29 min liegen noch innerhalb");
@@ -207,7 +216,7 @@ mod tests {
 
     #[test]
     fn every_rule_gives_its_own_reason() {
-        let policy = RevisionPolicy::default();
+        let policy = limited();
         let cases = [
             (SaveFacts { has_current: false, ..amendable() }, NewReason::NoCurrent, "ohne aktuelle Fassung"),
             (SaveFacts { current_by_human: false, ..amendable() }, NewReason::NotOwn, "Fassung einer Persona"),
@@ -230,7 +239,7 @@ mod tests {
 
     #[test]
     fn the_first_matching_rule_wins_in_the_agreed_order() {
-        let off = RevisionPolicy { amend: false, ..RevisionPolicy::default() };
+        let off = RevisionPolicy { amend: false, ..limited() };
         let everything = SaveFacts {
             has_current: true,
             current_by_human: false,
@@ -243,7 +252,7 @@ mod tests {
         let no_current = SaveFacts { has_current: false, ..everything };
         assert_eq!(decide(&off, SaveMode::Auto, &no_current), Some(NewReason::NoCurrent), "dann no_current");
         assert_eq!(decide(&off, SaveMode::Auto, &everything), Some(NewReason::PolicyOff), "dann policy_off");
-        let on = RevisionPolicy::default();
+        let on = limited();
         assert_eq!(decide(&on, SaveMode::Auto, &everything), Some(NewReason::NotOwn), "dann not_own");
         let own = SaveFacts { current_by_human: true, ..everything };
         assert_eq!(decide(&on, SaveMode::Auto, &own), Some(NewReason::NotOnCurrent), "dann not_on_current");
@@ -269,7 +278,7 @@ mod tests {
 
     #[test]
     fn zero_minutes_means_no_time_limit() {
-        let policy = RevisionPolicy { new_after_minutes: 0, ..RevisionPolicy::default() };
+        let policy = RevisionPolicy { new_after_minutes: 0, ..limited() };
         let late = SaveFacts { minutes_since_last_write: 100_000, ..amendable() };
         assert_eq!(decide(&policy, SaveMode::Auto, &late), None, "0 = keine Zeitgrenze, also fortschreiben");
     }
@@ -296,10 +305,10 @@ mod tests {
         assert_eq!(SaveMode::from_param(None), Ok(SaveMode::New), "fehlt = new (wie vor Runde 22)");
         assert_eq!(SaveMode::from_param(Some("auto")), Ok(SaveMode::Auto));
         assert!(SaveMode::from_param(Some("immer")).is_err(), "Unbekanntes abgelehnt");
-        assert!(RevisionPolicy::default().validate().is_ok(), "Vorgabe gültig");
-        let zero = RevisionPolicy { max_change_percent: 0, ..RevisionPolicy::default() };
+        assert!(limited().validate().is_ok(), "Vorgabe gültig");
+        let zero = RevisionPolicy { max_change_percent: 0, ..limited() };
         assert!(zero.validate().unwrap_err().contains("1 bis 100"), "0 % abgelehnt mit Grenzen");
-        let long = RevisionPolicy { new_after_minutes: 1441, ..RevisionPolicy::default() };
+        let long = RevisionPolicy { new_after_minutes: 1441, ..limited() };
         assert!(long.validate().unwrap_err().contains("0 bis 1440"), "über einen Tag abgelehnt");
         assert_eq!(NewReason::LargeChange.id(), "large_change", "id = serde-Wert");
         assert_eq!(NewReason::LargeChange.label(), "große Änderung");

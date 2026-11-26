@@ -874,7 +874,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
     assert_eq!(seen["bandSaveLabel"], "Speichern", "der Knopf im Band behält seine Beschriftung");
     assert_eq!(
         seen["ctrlSPrevented"], true,
-        "Strg+S ist verdrahtet (der Browser-Dialog „Seite speichern“ erscheint nicht)"
+        "Strg+S ist verdrahtet, auch mit dem Fokus außerhalb des Textfelds (kein Browser-Dialog „Seite speichern“)"
     );
     assert_eq!(
         seen["dockInertWhileSaving"], true,
@@ -886,6 +886,11 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
         "Strg+S speichert über outline.save und zeichnet neu: {calls:?}"
     );
     assert_eq!(seen["dockInertAfter"], false, "danach ist der Andockplatz wieder frei");
+    assert_eq!(
+        seen["placeAfterSave"],
+        serde_json::json!({ "newArea": true, "focused": true, "start": 4, "end": 9 }),
+        "normales Speichern (2026-11-27): im neu gezeichneten Textfeld stehen Fokus und Auswahl wie vorher"
+    );
     assert_eq!(
         seen["redocked"],
         json!({ "bars": 1, "barInDock": true, "barInPane": false }),

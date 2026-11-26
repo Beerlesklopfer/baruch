@@ -316,13 +316,24 @@ switch (scenario.scene) {
     area.dispatchEvent(new Event("input", { bubbles: true }));
     out.saveLabelDirty = statusSave.textContent;
     out.bandSaveLabel = bandSave.textContent;
+    // Wunsch 2026-11-27: Strg+S gilt überall auf der Seite (hier mit dem Fokus im Menüband, nicht im Textfeld), und
+    // danach steht der Cursor wieder an derselben Stelle im neu gezeichneten Textfeld.
+    area.setSelectionRange(4, 9);
     const ctrlS = key("keydown", { ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, key: "s" });
-    area.dispatchEvent(ctrlS);
+    dock.dispatchEvent(ctrlS);
     out.ctrlSPrevented = ctrlS.defaultPrevented;
     out.dockInertWhileSaving = dock.inert === true;
     await settle(60);
     out.saveCalls = rpcCalls.map((c) => c.method);
     out.dockInertAfter = dock.inert === true;
+    {
+      const fresh = pane.querySelector("textarea[name=body]");
+      out.placeAfterSave = {
+        newArea: fresh !== area,
+        focused: document.activeElement === fresh,
+        start: fresh.selectionStart, end: fresh.selectionEnd,
+      };
+    }
     // Nach dem Neuzeichnen (ui.render mit dem Editor von vorher): wieder angedockt, genau eine Leiste.
     out.redocked = {
       bars: document.querySelectorAll("[data-edit-toolbar]").length,

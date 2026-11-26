@@ -1724,12 +1724,7 @@ register("wysiwyg", (root) => {
     markTouched(state);
   });
   sheet.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      const save = submitButton(form);
-      if (!save?.disabled) form.requestSubmit();
-      return;
-    }
+    // Strg+S speichert über den Hörer am Dokument (panes.ts), der Fokus darf überall stehen.
     if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "i" || event.key.toLowerCase() === "b")) {
       markSelection(state);
       markTouched(state);

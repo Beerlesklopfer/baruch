@@ -194,7 +194,13 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
     assert_eq!(status, StatusCode::SEE_OTHER, "Editor-Formular leitet weiter");
     assert!(location.unwrap().ends_with("&saved=new-2"), "neue Fassung 2 auf Wunsch");
 
-    // Große Änderung: neue Fassung mit Grund large_change.
+    // Große Änderung: mit der Vorgabe (seit 2026-11-27 ohne Grenzen) schreibt Speichern auch einen Umbau fort; erst
+    // mit eingeschalteter Grenze (20 %) entsteht eine neue Fassung mit Grund large_change.
+    let rebuilt =
+        format!("{}\nEin ganz neuer Absatz über Ebbe, Flut, Möwen, Priele und das Watt bei Nacht.\n", texts[2]);
+    let amended = save(&server, work, key, &rebuilt, 2).await;
+    assert_eq!(amended["saved"].as_str(), Some("amended"), "Vorgabe ohne Grenzen: fortgeschrieben: {amended}");
+    result(&server.rpc("revision.policy_set", json!({ "work": work, "max_change_percent": 20 })).await);
     let rewritten =
         "= Flut\n\nNachts kam der Sturm. Niemand hörte die Glocke am Siel, bis die Lampen im Dorf flackerten \
                      und der Deichgraf an jede Tür klopfte.\n"

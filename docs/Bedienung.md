@@ -3712,12 +3712,17 @@ Fassungen fortschreiben, Verlauf und Rückgängig, Rückfrage „Befund erledigt
 #### Fortschreiben und neue Fassung
 
 Im Editor gibt es zwei Knöpfe: **Speichern** und **Als neue Fassung speichern**. „Speichern“ schreibt die eigene
-aktuelle Fassung fort – sie behält ihre Nummer, der Stand zählt hoch („Fassung 3 · Stand 2“ im Kopf) –, solange die
-Änderung klein bleibt (Vorgabe: höchstens 20 %), Überschrift und Ebene gleich bleiben und seit dem letzten Speichern
-nicht mehr als 30 Minuten vergangen sind. Sonst entsteht automatisch eine neue Fassung; die Rückmeldung nennt den Grund
-(„Gespeichert: neue Fassung 4 (große Änderung).“). Eine neue Fassung entsteht außerdem immer, wenn die aktuelle Fassung
+aktuelle Fassung fort – sie behält ihre Nummer, der Stand zählt hoch („Fassung 3 · Stand 2“ im Kopf) –, solange
+Überschrift und Ebene gleich bleiben. Seit 2026-11-27 ist das **normales Speichern** wie in einer Textverarbeitung:
+Strg+S (⌘+S) speichert, gleich wo auf der Arbeitsseite der Fokus steht (der Dialog „Seite speichern“ des Browsers
+erscheint dort nicht), und danach steht der Cursor wieder an derselben Stelle, mit derselben Auswahl und demselben
+Scrollstand – im Satzbild wie im Quelltext. Die Vorgabe kennt keine Größen- und keine Zeitgrenze mehr (vorher
+entstand nach 30 Minuten Pause oder ab 20 % Änderung von selbst eine neue Fassung); jeder Stand bleibt im Verlauf der
+Fortschreibungen. Wer die Grenzen will, schaltet sie unter Einstellungen → Werk → Fassungen ein; dann entsteht bei
+einer größeren Änderung oder nach der Zeit eine neue Fassung, und die Rückmeldung nennt den Grund („Gespeichert: neue
+Fassung 4 (große Änderung).“). Eine neue Fassung entsteht außerdem immer, wenn die aktuelle Fassung
 von einer Persona stammt (auch ein übernommener Vorschlag) oder eine andere als die aktuelle Fassung bearbeitet wurde.
-„Als neue Fassung speichern“ legt immer eine neue an. Die 30 Minuten zählen ab dem letzten Schreiben der Fassung
+„Als neue Fassung speichern“ legt immer eine neue an. Eine eingeschaltete Zeitgrenze zählt ab dem letzten Schreiben der Fassung
 (Anlage oder letzte Fortschreibung): Die **erste** kleine Korrektur an einem älteren, nie fortgeschriebenen Abschnitt
 ergibt deshalb eine neue Fassung („Zeitgrenze überschritten“), erst das nächste Speichern schreibt diese fort. Sind
 zwei Reiter auf demselben Abschnitt offen und hat der eine inzwischen fortgeschrieben, schreibt der andere nicht still

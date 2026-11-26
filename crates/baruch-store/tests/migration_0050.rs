@@ -541,7 +541,13 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
 
     // Store::open danach: Fortschreiben über die Store-API, dann Werk löschen → Grabsteine aller zwanzig Arten.
     let store = Store::open(dir.path()).await.expect("Store::open nach 0050");
-    assert_eq!(store.revision_policy(work).await.unwrap(), RevisionPolicy::default(), "Zeile mit Vorgaben gelesen");
+    // Die Zeile oben trägt die Spaltenvorgaben von 0050 (20 %, 30 min); die Vorgabe ohne Zeile ist seit 2026-11-27
+    // eine andere (RevisionPolicy::default: ohne Grenzen), die Store-API schreibt immer alle Spalten.
+    assert_eq!(
+        store.revision_policy(work).await.unwrap(),
+        RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 },
+        "Zeile mit den Spaltenvorgaben gelesen"
+    );
     let loose = RevisionPolicy { max_change_percent: 100, ..RevisionPolicy::default() };
     store.set_revision_policy(work, &loose, "Mira").await.expect("Einstellung nach 0050 schreibbar");
     let saved = store

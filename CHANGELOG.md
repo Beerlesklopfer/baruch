@@ -6,6 +6,16 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Strg+S speichert normal
+
+- **Strg+S (⌘+S) schreibt fort statt eine neue Fassung anzulegen:** Die Vorgabe der Einstellung „Fassungen“ hat
+  keine Größen- und keine Zeitgrenze mehr (bisher 20 % und 30 Minuten; nach jeder Pause entstand so eine neue Fassung).
+  Jeder Stand bleibt im Verlauf der Fortschreibungen; die Grenzen lassen sich je Werk wieder einschalten.
+- **Strg+S gilt auf der ganzen Arbeitsseite**, auch mit dem Fokus in Gliederung, Menüband oder Chat; der Dialog
+  „Seite speichern“ des Browsers erscheint dort nicht mehr.
+- **Nach dem Speichern bleibt man an der Stelle:** Cursor, Auswahl und Scrollstand bleiben, der Fokus ist wieder im
+  Text, im Satzbild wie im Quelltext.
+
 ### Konten und Rollen (Runde 35)
 
 - **Ohne Konten bleibt alles wie bisher:** keine Anmeldung, keine Umleitung. Neu ist nur der Eintrag „Konten

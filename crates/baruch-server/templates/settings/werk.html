@@ -129,7 +129,7 @@
       <label class="small">Neue Fassung ab einer Änderung von mehr als <input type="number" name="max_change_percent" min="{{ revisions.percent_min }}" max="{{ revisions.percent_max }}" step="1" value="{{ revisions.max_change_percent }}" required> Prozent</label>
       <label class="small">Neue Fassung, wenn seit dem letzten Speichern <input type="number" name="new_after_minutes" min="{{ revisions.minutes_min }}" max="{{ revisions.minutes_max }}" step="1" value="{{ revisions.new_after_minutes }}" required> Minuten vergangen sind (0 = keine Zeitgrenze)</label>
       <button class="btn" type="submit">Fassungen speichern</button>
-      <p class="muted tiny">Vorgabe: an, {{ revisions.default_percent }} %, {{ revisions.default_minutes }} min. Eine neue
+      <p class="muted tiny">Vorgabe: an, {{ revisions.default_percent }} %, {{ revisions.default_minutes }} min – also keine Grenze, Speichern schreibt immer fort wie in einer Textverarbeitung. Eine neue
         Fassung entsteht außerdem immer, wenn „Als neue Fassung speichern“ gewählt ist, die aktuelle Fassung von einer
         Persona stammt (auch ein übernommener Vorschlag), auf einer anderen als der aktuellen Fassung bearbeitet oder die
         Überschrift bzw. Gliederung geändert wurde. Jede Fortschreibung ist ein Commit im Git-Spiegel und steht im Verlauf

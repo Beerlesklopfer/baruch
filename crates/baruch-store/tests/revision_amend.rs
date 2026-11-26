@@ -160,6 +160,9 @@ async fn revision_save_in_auto_mode_amends_too_and_new_mode_keeps_the_old_behavi
 #[tokio::test]
 async fn a_new_version_names_its_reason() {
     let (_dir, store, work) = fresh().await;
+    // Die Grenzregeln (große Änderung, Zeit) gelten nur, wo sie eingeschaltet sind; die Vorgabe seit 2026-11-27 hat keine.
+    let limited = RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 };
+    store.set_revision_policy(work, &limited, HUMAN).await.unwrap();
     let original = current_body(&store, work, 0).await;
 
     // not_own: übernommener Vorschlag einer Persona ist die aktuelle Fassung.
@@ -292,10 +295,10 @@ async fn the_policy_has_defaults_limits_and_goes_with_the_work() {
     assert_eq!(store.revision_policy(work).await.unwrap(), RevisionPolicy::default(), "Vorgabe ohne Zeile");
     assert_eq!(
         RevisionPolicy::default(),
-        RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 },
-        "Vorgabe: an, 20 %, 30 min"
+        RevisionPolicy { amend: true, max_change_percent: 100, new_after_minutes: 0 },
+        "Vorgabe seit 2026-11-27: an, ohne Größen- und Zeitgrenze (Speichern schreibt immer fort)"
     );
-    let wanted = RevisionPolicy { amend: true, max_change_percent: 35, new_after_minutes: 0 };
+    let wanted = RevisionPolicy { amend: true, max_change_percent: 35, new_after_minutes: 10 };
     let change = store.set_revision_policy(work, &wanted, HUMAN).await.unwrap();
     assert_eq!(change.changed, ["max_change_percent", "new_after_minutes"], "geänderte Felder");
     assert_eq!((change.before, change.after), (RevisionPolicy::default(), wanted), "vorher/nachher");

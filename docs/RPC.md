@@ -2301,7 +2301,7 @@ Archiv, Entwurf als Wasserzeichen, Austausch Unterversion 8. Migration 0050 (`00
 | `outline.save` | `{node, body, based_on?, based_on_amend?, split?, merge?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, outline?, commit?, mirror?}` – wie bisher; `mode` wie bei `revision.save`. Teilen, Zusammenführen, neue Überschrift oder Ebene ergeben immer eine neue Fassung (`reason: "heading_changed"`) |
 | `revision.amends` | `{node\|key, rev}` | `{node, key, rev, amend_seq, steps: [{uuid, seq, kind, undo_of?, author, created, body_before, body_after}]}` – Verlauf der Fortschreibungen der Fassung `rev` nach `seq` (nur lesend); `kind` `"amend"` (Fortschreibung des Menschen) oder `"undo"` (Rücknahme über den Verlauf, `undo_of` = Schritt, dessen Stand vorher wiederhergestellt wurde); unbekannte Fassung → -32602 wie bei den anderen Revisionsmethoden |
 | `revision.amend_undo` | `{node\|key, rev, seq}` | `{node, key, rev, amend_seq, commit?, mirror?}` – setzt den Text der Fassung auf den Stand **vor** Schritt `seq` (`body_before`) – als **neuer** Schritt (`kind: "undo"`, `undo_of: seq`), nie durch Löschen von Verlaufszeilen; nur auf der aktuellen Fassung des Menschen, sonst -32000 mit deutscher Meldung („… nur auf der aktuellen Fassung …“ bzw. „… nur auf einer Fassung des Menschen …“); unbekannter Schritt bzw. gleicher Stand → -32000. Nur Mensch: nicht über `/act`, nicht über MCP (Formular `POST /werke/fassungen/act`) |
-| `revision.policy_get` | `{work?}` | `{work, amend, max_change_percent, new_after_minutes, defaults: {amend, max_change_percent, new_after_minutes}, limits: {max_change_percent: [1, 100], new_after_minutes: [0, 1440]}}` – Einstellung „Fassungen“ des Werks (fehlt sie, die Vorgabe: an, 20 %, 30 min) |
+| `revision.policy_get` | `{work?}` | `{work, amend, max_change_percent, new_after_minutes, defaults: {amend, max_change_percent, new_after_minutes}, limits: {max_change_percent: [1, 100], new_after_minutes: [0, 1440]}}` – Einstellung „Fassungen“ des Werks (fehlt sie, die Vorgabe: an, 100 %, 0 min – seit 2026-11-27 ohne Größen- und Zeitgrenze, Speichern schreibt immer fort) |
 | `revision.policy_set` | `{work?, amend?, max_change_percent?, new_after_minutes?}` | `{work, changed: [Feld…], commit?, mirror?}` – Einstellung setzen (fehlende Felder bleiben; Wahrheitswerte auch `"1"`/`"0"`, Zahlen auch als Text); Grenzen 1–100 % bzw. 0–1440 min (0 = keine Zeitgrenze) → sonst -32602 mit Meldung; nur bei einer Änderung ein Commit „Fassungen: <Felder> geändert“ (`Baruch-Action: revision-policy-set`). Nur Mensch: nicht über `/act`, nicht über MCP (Formular `POST /einstellungen/werk/fassungen`) |
 
 `revision.tree` und `node.get`: jede Fassung (`RevisionInfo`) trägt `amend_seq` (Stand, 0 = nie fortgeschrieben)
@@ -2327,7 +2327,7 @@ entsteht stattdessen beim ersten zutreffenden Grund (`reason`, Reihenfolge fest,
 
 `change_percent(alt, neu) = (1 − similar::TextDiff::from_words(alt, neu).ratio()) · 100`. Hinweis: Die Wortgrenzen
 (Leerräume) zählen dabei als gleiche Teile; ein völlig neuer Satz mit gleich vielen Wörtern liegt darum bei etwa
-50 %, die Vorgabe 20 % entspricht grob einem Drittel bis der Hälfte geänderter Wörter.
+50 %, eine Grenze von 20 % (die Vorgabe bis 2026-11-26) entspricht grob einem Drittel bis der Hälfte geänderter Wörter.
 
 Nur das Speichern aus dem Editor schreibt fort (`outline.save`/`revision.save` mit `mode: "auto"`). Bild einfügen,
 Registermarken, Verweis umwandeln, Ersetzen und Gliederungsaktionen legen weiter neue Fassungen an. Personas und

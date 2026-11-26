@@ -189,7 +189,7 @@
   <div class="editor-status" data-zoom-zone="status">
     {%- set ws_hint = "Satzbild: Enter neuer Absatz · Umschalt+Enter Zeilenumbruch (in einer Überschrift: neuer Absatz) · Strg+S speichert · gelb hinterlegt: Typst-Insel, nur im Quelltext bearbeitbar · Rechtsklick, Kontextmenü-Taste oder Umschalt+F10: Register und Glossar" %}
     {%- if rev.own_current %}
-    {%- set save_hint = "Speichern schreibt Fassung " ~ rev.number ~ " fort (jetzt Stand " ~ rev.amend_seq ~ "), solange die Änderung klein bleibt und Überschrift und Ebene gleich bleiben; sonst entsteht eine neue Fassung" %}
+    {%- set save_hint = "Speichern (Strg+S) schreibt Fassung " ~ rev.number ~ " fort (jetzt Stand " ~ rev.amend_seq ~ "), solange Überschrift und Ebene gleich bleiben und keine Grenze unter Einstellungen → Werk → Fassungen greift; sonst entsteht eine neue Fassung" %}
     {%- else %}
     {%- set save_hint = "Speichern legt eine neue Fassung auf Fassung " ~ rev.number ~ " an (diese Fassung ist nicht die eigene aktuelle)" %}
     {%- endif %}

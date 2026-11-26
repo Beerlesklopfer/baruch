@@ -2,7 +2,7 @@
 // Widgets der einzelnen Bereiche: Spaltengrenzen, Thema, Editor, Gliederung, Akkordeon (Chat: chat.ts).
 
 import { convertLineAt, convertText } from "./markdown.js";
-import { register, store, submitButton } from "./widgets.js";
+import { editorLocked, register, store, submitButton } from "./widgets.js";
 
 // ---- splitter: Spaltenbreite ziehen (Maus) oder mit ←/→ verstellen (Tastatur) ------------
 register("splitter", (bar) => {
@@ -75,6 +75,20 @@ register("theme", (button) => {
 });
 
 // ---- editor: Speichern erst nach einer Änderung; Strg+S speichert ------------------------
+// Wunsch 2026-11-27 („Strg+S als normales Speichern“): Strg+S (⌘+S) gilt überall auf der Seite mit dem Editor, nicht
+// nur im Textfeld – auch mit dem Fokus in der Gliederung, im Menüband oder im Chat; der Dialog „Seite speichern“ des
+// Browsers erscheint dort nie. Ohne Änderung oder während ein Speichern läuft geschieht nichts. Danach bleibt die
+// Stelle im Text (place.ts über lockEditor). Ein Hörer am Dokument für alle Editoren (auch Satzbild).
+document.addEventListener("keydown", (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "s") return;
+  if (event.defaultPrevented) return;
+  const form = document.querySelector<HTMLFormElement>("form[data-widget=editor]");
+  if (!form) return;
+  event.preventDefault();
+  const save = submitButton(form);
+  if (save && !save.disabled && !editorLocked()) form.requestSubmit();
+});
+
 register("editor", (element) => {
   const form = element as HTMLFormElement;
   const area = form.querySelector("textarea");
@@ -89,10 +103,6 @@ register("editor", (element) => {
   };
   area.addEventListener("input", update);
   area.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      if (!save.disabled) form.requestSubmit();
-    }
     // Markdown-Überschrift (`# Titel`) wird beim Abschluss der Zeile mit Enter zur Typst-Überschrift;
     // danach fügt der Browser den Zeilenumbruch ein (Regel und Ausnahmen in markdown.ts).
     if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
