@@ -121,7 +121,7 @@ use std::time::Duration;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 
-pub use accounts::{Account, NewAccount};
+pub use accounts::{Account, LoginAttempt, NewAccount};
 pub use amend::{AmendKind, AmendStep, RevisionPolicyChange};
 pub use asset_requests::{ASSET_REQUEST_PURGE_DAYS, AssetOp, AssetRequest, AssetUsage};
 pub use assets::{

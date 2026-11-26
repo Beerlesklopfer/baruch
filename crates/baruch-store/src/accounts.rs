@@ -11,8 +11,8 @@
 //! `auth.local_open`). Alle Zeitpunkte rechnet SQLite (`strftime('%Y-%m-%dT%H:%M:%fZ','now')`), damit sie sich als
 //! Text vergleichen lassen. Konten werden nie gelöscht: Der Slug (Handle `@lektorat:<slug>`) bleibt vergeben.
 //!
-//! Diese Methoden ruft nur das Modul `auth` des Servers. Weil `lib.rs` aus diesem Modul nur [`Account`] und
-//! [`NewAccount`] herausreicht, hängen auch Hilfen und Meldungen als zugehörige Funktionen und Konstanten an
+//! Diese Methoden ruft nur das Modul `auth` des Servers. Weil `lib.rs` aus diesem Modul nur [`Account`],
+//! [`NewAccount`] und [`LoginAttempt`] herausreicht, hängen auch Hilfen und Meldungen als zugehörige Funktionen und Konstanten an
 //! [`Store`] ([`Store::account_name_key`], [`Store::session_token_hash`], [`Store::ACCOUNT_TAKEN`] …).
 
 use serde::Serialize;
@@ -26,6 +26,70 @@ const COLUMNS: &str = "id, name, slug, display, kind, active, created, last_logi
 const LOCAL_OPEN: &str = "auth.local_open";
 /// Bereich der Sperre, wenn `login_attempt` voll ist.
 const ALL_SCOPE: &str = "alle";
+
+/// Ausgang von [`Store::login_reserve`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoginAttempt {
+    /// Ein Bereich ist gesperrt: verbleibende Wartezeit in Sekunden. Nichts wurde gezählt, nichts wird geprüft.
+    Blocked(u64),
+    /// Der Versuch ist gezählt und darf geprüft werden. Die Zahl ist die Wartezeit in Sekunden, die gilt, wenn er
+    /// fehlschlägt (0 = keine).
+    Reserved(u64),
+}
+
+/// Rumpf von [`Store::login_wait`] auf einer Verbindung (auch innerhalb einer Transaktion).
+async fn wait_in(conn: &mut sqlx::SqliteConnection, scopes: &[&str]) -> Result<Option<u64>, StoreError> {
+    let mut longest: Option<u64> = None;
+    for scope in scopes.iter().copied().chain([ALL_SCOPE]) {
+        let left: Option<f64> = sqlx::query_scalar(
+            "SELECT (julianday(blocked_until) - julianday('now')) * 86400.0 FROM login_attempt \
+             WHERE scope = ? AND blocked_until IS NOT NULL \
+               AND blocked_until > strftime('%Y-%m-%dT%H:%M:%fZ','now')",
+        )
+        .bind(scope)
+        .fetch_optional(&mut *conn)
+        .await?;
+        if let Some(left) = left {
+            // Zeitpunkte stehen auf Millisekunden gerundet in der Tabelle: Ohne die kleine Toleranz würden aus
+            // frisch gesetzten 2 Sekunden beim Aufrunden 3.
+            let seconds = ((left - 0.002).ceil() as u64).max(1);
+            longest = Some(longest.map_or(seconds, |known| known.max(seconds)));
+        }
+    }
+    Ok(longest)
+}
+
+/// Rumpf von [`Store::login_failure`] auf einer Verbindung; die Transaktion gehört dem Aufrufer.
+async fn failure_in(conn: &mut sqlx::SqliteConnection, scope: &str, wait: fn(i64) -> u64) -> Result<u64, StoreError> {
+    sqlx::query("DELETE FROM login_attempt WHERE last <= strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')")
+        .execute(&mut *conn)
+        .await?;
+    let known: Option<i64> = sqlx::query_scalar("SELECT failures FROM login_attempt WHERE scope = ?")
+        .bind(scope)
+        .fetch_optional(&mut *conn)
+        .await?;
+    let others: i64 = sqlx::query_scalar("SELECT count(*) FROM login_attempt WHERE scope <> ?")
+        .bind(ALL_SCOPE)
+        .fetch_one(&mut *conn)
+        .await?;
+    let (scope, seconds) = if known.is_none() && others >= Store::LOGIN_ATTEMPT_ROWS - 1 {
+        (ALL_SCOPE, Store::LOGIN_FULL_WAIT)
+    } else {
+        (scope, wait(known.unwrap_or(0) + 1))
+    };
+    sqlx::query(
+        "INSERT INTO login_attempt (scope, failures, blocked_until) \
+         VALUES (?1, 1, CASE WHEN ?2 > 0 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now', ?3) END) \
+         ON CONFLICT(scope) DO UPDATE SET failures = failures + 1, \
+         last = strftime('%Y-%m-%dT%H:%M:%fZ','now'), blocked_until = excluded.blocked_until",
+    )
+    .bind(scope)
+    .bind(seconds as i64)
+    .bind(format!("+{seconds} seconds"))
+    .execute(&mut *conn)
+    .await?;
+    Ok(seconds)
+}
 
 /// Ein Konto ohne Geheimnis (kein Hash, kein Klartext). `kind` ist `author` oder `lektor`; `slug` ist der Teil des
 /// Handles nach `@lektorat:` (eindeutig, bleibt auch einem gesperrten Konto).
@@ -281,24 +345,8 @@ impl Store {
     /// Längste verbleibende Wartezeit (aufgerundete Sekunden) der genannten Bereiche und des Bereichs `alle`;
     /// `None`, wenn keiner gesperrt ist.
     pub async fn login_wait(&self, scopes: &[&str]) -> Result<Option<u64>, StoreError> {
-        let mut longest: Option<u64> = None;
-        for scope in scopes.iter().copied().chain([ALL_SCOPE]) {
-            let left: Option<f64> = sqlx::query_scalar(
-                "SELECT (julianday(blocked_until) - julianday('now')) * 86400.0 FROM login_attempt \
-                 WHERE scope = ? AND blocked_until IS NOT NULL \
-                   AND blocked_until > strftime('%Y-%m-%dT%H:%M:%fZ','now')",
-            )
-            .bind(scope)
-            .fetch_optional(self.pool())
-            .await?;
-            if let Some(left) = left {
-                // Zeitpunkte stehen auf Millisekunden gerundet in der Tabelle: Ohne die kleine Toleranz würden aus
-                // frisch gesetzten 2 Sekunden beim Aufrunden 3.
-                let seconds = ((left - 0.002).ceil() as u64).max(1);
-                longest = Some(longest.map_or(seconds, |known| known.max(seconds)));
-            }
-        }
-        Ok(longest)
+        let mut conn = self.pool().acquire().await?;
+        wait_in(&mut conn, scopes).await
     }
 
     /// Einen Fehlversuch im Bereich zählen und die Wartezeit setzen, die `wait` aus der neuen Zahl der Fehlversuche
@@ -306,36 +354,32 @@ impl Store {
     /// ([`Store::LOGIN_ATTEMPT_ROWS`]) und der Bereich neu, entsteht keine Zeile für ihn; stattdessen wartet der
     /// Bereich `alle` [`Store::LOGIN_FULL_WAIT`] Sekunden. Liefert die Wartezeit in Sekunden.
     pub async fn login_failure(&self, scope: &str, wait: fn(i64) -> u64) -> Result<u64, StoreError> {
-        let mut tx = self.pool().begin().await?;
-        sqlx::query("DELETE FROM login_attempt WHERE last <= strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')")
-            .execute(&mut *tx)
-            .await?;
-        let known: Option<i64> = sqlx::query_scalar("SELECT failures FROM login_attempt WHERE scope = ?")
-            .bind(scope)
-            .fetch_optional(&mut *tx)
-            .await?;
-        let others: i64 = sqlx::query_scalar("SELECT count(*) FROM login_attempt WHERE scope <> ?")
-            .bind(ALL_SCOPE)
-            .fetch_one(&mut *tx)
-            .await?;
-        let (scope, seconds) = if known.is_none() && others >= Self::LOGIN_ATTEMPT_ROWS - 1 {
-            (ALL_SCOPE, Self::LOGIN_FULL_WAIT)
-        } else {
-            (scope, wait(known.unwrap_or(0) + 1))
-        };
-        sqlx::query(
-            "INSERT INTO login_attempt (scope, failures, blocked_until) \
-             VALUES (?1, 1, CASE WHEN ?2 > 0 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now', ?3) END) \
-             ON CONFLICT(scope) DO UPDATE SET failures = failures + 1, \
-             last = strftime('%Y-%m-%dT%H:%M:%fZ','now'), blocked_until = excluded.blocked_until",
-        )
-        .bind(scope)
-        .bind(seconds as i64)
-        .bind(format!("+{seconds} seconds"))
-        .execute(&mut *tx)
-        .await?;
+        // `BEGIN IMMEDIATE`: Lesen und Zählen sind ein Schritt; eine aufgeschobene Transaktion, die erst liest und
+        // dann schreibt, scheitert unter gleichzeitigen Schreibern sofort (veralteter Lesestand).
+        let mut tx = self.pool().begin_with("BEGIN IMMEDIATE").await?;
+        let seconds = failure_in(&mut tx, scope, wait).await?;
         tx.commit().await?;
         Ok(seconds)
+    }
+
+    /// Einen Anmeldeversuch **vor** der Prüfung des Passworts reservieren – Prüfung der Sperre und Zählen in
+    /// **einer** Transaktion (`BEGIN IMMEDIATE`): Ist einer der Bereiche (oder `alle`) gesperrt, ändert sich nichts
+    /// ([`LoginAttempt::Blocked`]); sonst zählt der Versuch sofort in jedem Bereich als Fehlversuch
+    /// ([`LoginAttempt::Reserved`] mit der längsten Wartezeit, die daraus folgt; Regeln wie
+    /// [`Store::login_failure`]). Stimmt das Passwort, nimmt [`Store::login_reset`] die Zählung zurück. So kommen
+    /// von beliebig vielen gleichzeitigen Versuchen nur so viele bis zur Prüfung wie nacheinander – wer erst nach
+    /// der Prüfung zählt, lässt eine ganze Salve durch, bevor der erste Fehlversuch eingetragen ist.
+    pub async fn login_reserve(&self, scopes: &[&str], wait: fn(i64) -> u64) -> Result<LoginAttempt, StoreError> {
+        let mut tx = self.pool().begin_with("BEGIN IMMEDIATE").await?;
+        if let Some(left) = wait_in(&mut tx, scopes).await? {
+            return Ok(LoginAttempt::Blocked(left));
+        }
+        let mut longest = 0;
+        for scope in scopes {
+            longest = longest.max(failure_in(&mut tx, scope, wait).await?);
+        }
+        tx.commit().await?;
+        Ok(LoginAttempt::Reserved(longest))
     }
 
     /// Bereich nach einer erfolgreichen Anmeldung zurücksetzen.

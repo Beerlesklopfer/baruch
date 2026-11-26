@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::str::FromStr;
 
-use baruch_store::{NewAccount, Store, StoreError};
+use baruch_store::{LoginAttempt, NewAccount, Store, StoreError};
 use sha2::{Digest, Sha256};
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -622,6 +622,95 @@ async fn failures_block_a_scope_and_the_table_never_grows_past_a_thousand_rows()
         store.login_failure("konto:flut7", doubling).await.unwrap(),
         0,
         "ein Bereich, der schon eine Zeile hat, zählt auch bei voller Tabelle für sich weiter"
+    );
+}
+
+#[tokio::test]
+async fn reserving_counts_before_the_check_and_a_block_changes_nothing() {
+    let (_dir, store) = open_store().await;
+    let scopes = ["konto:erika", "adresse:192.0.2.7"];
+    for attempt in 1..=3 {
+        assert_eq!(
+            store.login_reserve(&scopes, doubling).await.unwrap(),
+            LoginAttempt::Reserved(0),
+            "Versuch {attempt}: reserviert, bei Fehlschlag ohne Wartezeit"
+        );
+    }
+    assert_eq!(
+        scalar(store.pool(), "SELECT sum(failures) FROM login_attempt").await,
+        6,
+        "jeder reservierte Versuch zählt sofort in beiden Bereichen – nicht erst nach der Prüfung"
+    );
+    assert_eq!(
+        store.login_reserve(&scopes, doubling).await.unwrap(),
+        LoginAttempt::Reserved(2),
+        "der vierte Versuch darf noch geprüft werden und setzt schon die Sperre von 2 Sekunden"
+    );
+    let blocked = store.login_reserve(&scopes, doubling).await.unwrap();
+    assert!(
+        matches!(blocked, LoginAttempt::Blocked(1..=2)),
+        "während der Sperre wird nicht reserviert, die verbleibende Wartezeit kommt zurück: {blocked:?}"
+    );
+    assert!(
+        matches!(
+            store.login_reserve(&["konto:jonas", "adresse:192.0.2.7"], doubling).await.unwrap(),
+            LoginAttempt::Blocked(_)
+        ),
+        "ein gesperrter Bereich genügt, auch wenn der andere frei ist"
+    );
+    assert_eq!(
+        scalar(store.pool(), "SELECT count(*) FROM login_attempt WHERE scope = 'konto:jonas'").await,
+        0,
+        "ein abgewiesener Versuch zählt in keinem Bereich – auch nicht im freien"
+    );
+    assert_eq!(
+        scalar(store.pool(), "SELECT sum(failures) FROM login_attempt").await,
+        8,
+        "abgewiesene Versuche ändern die Zählung nicht (zweimal vier)"
+    );
+    for scope in scopes {
+        store.login_reset(scope).await.unwrap();
+    }
+    assert_eq!(
+        store.login_reserve(&scopes, doubling).await.unwrap(),
+        LoginAttempt::Reserved(0),
+        "ein Erfolg nimmt die Reservierung zurück: danach zählt es von vorn"
+    );
+}
+
+// Mehrere Threads: Die Versuche sollen wirklich gleichzeitig auf verschiedenen Verbindungen ankommen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_salvo_of_simultaneous_attempts_gets_no_further_than_attempts_in_a_row() {
+    let (_dir, store) = open_store().await;
+    let mut tasks = tokio::task::JoinSet::new();
+    for _ in 0..24 {
+        let store = store.clone();
+        tasks.spawn(async move { store.login_reserve(&["konto:erika"], doubling).await });
+    }
+    let mut outcomes = Vec::new();
+    while let Some(outcome) = tasks.join_next().await {
+        outcomes.push(outcome.unwrap().expect("kein Versuch scheitert an der Datenbank (BEGIN IMMEDIATE wartet)"));
+    }
+    let count = |wanted: fn(&LoginAttempt) -> bool| outcomes.iter().filter(|outcome| wanted(outcome)).count();
+    assert_eq!(
+        count(|outcome| *outcome == LoginAttempt::Reserved(0)),
+        3,
+        "genau drei Versuche der Salve sind frei wie nacheinander: {outcomes:?}"
+    );
+    assert_eq!(
+        count(|outcome| *outcome == LoginAttempt::Reserved(2)),
+        1,
+        "genau einer ist der vierte, der die Sperre setzt: {outcomes:?}"
+    );
+    assert_eq!(
+        count(|outcome| matches!(outcome, LoginAttempt::Blocked(_))),
+        20,
+        "alle übrigen sind abgewiesen, bevor ein Passwort geprüft würde: {outcomes:?}"
+    );
+    assert_eq!(
+        scalar(store.pool(), "SELECT failures FROM login_attempt WHERE scope = 'konto:erika'").await,
+        4,
+        "gezählt sind genau die vier Versuche, die bis zur Prüfung kamen"
     );
 }
 

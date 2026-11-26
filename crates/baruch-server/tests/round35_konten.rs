@@ -546,6 +546,69 @@ async fn repeated_failures_block_the_account_with_a_growing_wait() {
     assert_eq!(status, StatusCode::UNAUTHORIZED, "danach zählt es wieder von vorn (401 ohne Wartezeit)");
 }
 
+/// Runde 35, Codereview: Die Sperre zählte erst nach der Prüfung des Passworts; eine Salve gleichzeitiger Versuche
+/// lief deshalb vollständig durch die Prüfung, bevor der erste Fehlversuch eingetragen war.
+#[tokio::test]
+async fn a_salvo_of_simultaneous_guesses_is_checked_no_further_than_guesses_in_a_row() {
+    let server = common::open().await;
+    let author = setup_author(&server).await;
+    let guesses: Vec<String> = (0..12).map(|i| format!("name=Erika&password=geraten-nummer-{i:02}")).collect();
+    let mut salvo = tokio::task::JoinSet::new();
+    for guess in &guesses {
+        let app = server.app.clone();
+        let request = form("/anmelden", guess);
+        salvo.spawn(async move { tower::ServiceExt::oneshot(app, request).await.unwrap().status() });
+    }
+    let mut statuses = Vec::new();
+    while let Some(status) = salvo.join_next().await {
+        statuses.push(status.unwrap());
+    }
+    assert_eq!(
+        statuses.iter().filter(|status| **status == StatusCode::UNAUTHORIZED).count(),
+        3,
+        "nur drei der zwölf gleichzeitigen Versuche sind frei (401): {statuses:?}"
+    );
+    assert_eq!(
+        statuses.iter().filter(|status| **status == StatusCode::TOO_MANY_REQUESTS).count(),
+        9,
+        "der vierte löst die Sperre aus, die übrigen acht sind abgewiesen (429): {statuses:?}"
+    );
+    assert_eq!(
+        scalar(&server, "SELECT failures FROM login_attempt WHERE scope = 'konto:erika'").await,
+        4,
+        "nur vier Passwörter kamen bis zur Prüfung – wer während der Sperre ankommt, wird nicht geprüft und nicht \
+         gezählt, auch wenn die Prüfung der ersten noch läuft"
+    );
+    let (status, _, _) = login(&server, "Erika", AUTHOR_PW).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "nach der Salve ist das Konto gesperrt");
+
+    // Dasselbe beim bisherigen Passwort des Passwortwechsels (Bereich des Kontos).
+    exec(&server, "DELETE FROM login_attempt").await;
+    let mut salvo = tokio::task::JoinSet::new();
+    for i in 0..8 {
+        let app = server.app.clone();
+        let fields = format!("current=geraten-nummer-{i:02}&password={NEW_PW}&password2={NEW_PW}");
+        let request = with_cookie(form("/konto/passwort", &fields), &author);
+        salvo.spawn(async move { tower::ServiceExt::oneshot(app, request).await.unwrap().status() });
+    }
+    while let Some(status) = salvo.join_next().await {
+        assert_eq!(status.unwrap(), StatusCode::SEE_OTHER, "jede Änderung antwortet mit der Umleitung auf /konto");
+    }
+    assert_eq!(
+        scalar(&server, "SELECT failures FROM login_attempt WHERE scope = 'konto:erika'").await,
+        4,
+        "auch beim Passwortwechsel kommen von acht gleichzeitigen Versuchen nur vier bis zur Prüfung"
+    );
+    expire_blocks(&server).await;
+    let (status, _, _) = login(&server, "Erika", AUTHOR_PW).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "kein geratenes Passwort hat das Konto geändert: das alte gilt noch");
+    assert_eq!(
+        scalar(&server, "SELECT count(*) FROM login_attempt WHERE scope = 'konto:erika'").await,
+        0,
+        "die Reservierung des gelungenen Versuchs ist zurückgenommen"
+    );
+}
+
 #[tokio::test]
 async fn unknown_names_and_addresses_are_counted_too() {
     let server = open_behind_proxy().await;

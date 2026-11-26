@@ -4,7 +4,9 @@
 //!
 //! Bereiche: `konto:<Namensschlüssel>` – immer, auch für Namen, die es nicht gibt (sonst verriete die Sperre, welche
 //! Konten bestehen) – und `adresse:<IP>`, wenn die Gegenstelle bekannt ist und die Anfrage nicht über den Proxy kam
-//! (hinter dem Proxy trügen alle dieselbe Adresse). Während der Sperre wird kein Passwort geprüft. Die Tabelle
+//! (hinter dem Proxy trügen alle dieselbe Adresse). Während der Sperre wird kein Passwort geprüft. Jeder Versuch wird
+//! vor der Prüfung gezählt ([`reserve`], eine Transaktion mit der Prüfung der Sperre) und bei Erfolg zurückgenommen:
+//! Gleichzeitige Versuche kommen so nicht weiter als Versuche nacheinander. Die Tabelle
 //! wächst nicht über 1000 Zeilen: Ist sie voll, bekommt ein neuer Bereich keine Zeile, stattdessen wartet der Bereich
 //! `alle` zwei Sekunden (`baruch_store::Store::login_failure`). Einträge, die älter als 24 Stunden sind, fallen
 //! beim nächsten Fehlversuch weg.
@@ -12,7 +14,7 @@
 use std::net::SocketAddr;
 
 use axum::http::HeaderMap;
-use baruch_store::{Store, StoreError};
+use baruch_store::{LoginAttempt, Store, StoreError};
 
 use crate::AppState;
 
@@ -56,18 +58,13 @@ fn borrowed(scopes: &[String]) -> Vec<&str> {
     scopes.iter().map(String::as_str).collect()
 }
 
-/// Verbleibende Wartezeit in Sekunden, wenn einer der Bereiche (oder `alle`) gesperrt ist.
-pub async fn blocked(state: &AppState, scopes: &[String]) -> Result<Option<u64>, StoreError> {
-    state.store.login_wait(&borrowed(scopes)).await
-}
-
-/// Zählt den Fehlversuch in jedem Bereich; liefert die längste Wartezeit, die daraus folgt (0 = keine).
-pub async fn failed(state: &AppState, scopes: &[String]) -> Result<u64, StoreError> {
-    let mut longest = 0;
-    for scope in scopes {
-        longest = longest.max(state.store.login_failure(scope, wait_seconds).await?);
-    }
-    Ok(longest)
+/// Reserviert den Versuch **vor** der Prüfung des Passworts, in einer Transaktion: Ist einer der Bereiche (oder
+/// `alle`) gesperrt, kommt [`LoginAttempt::Blocked`] mit der verbleibenden Wartezeit und nichts wird gezählt; sonst
+/// zählt der Versuch sofort als Fehlversuch ([`LoginAttempt::Reserved`] mit der Wartezeit, die bei einem Fehlschlag
+/// gilt; 0 = keine). Nach einem Erfolg nimmt [`succeeded`] die Zählung zurück. Erst zählen, dann prüfen: Sonst ginge
+/// eine Salve gleichzeitiger Versuche an der Sperre vorbei, solange die erste Prüfung (Argon2id) noch läuft.
+pub async fn reserve(state: &AppState, scopes: &[String]) -> Result<LoginAttempt, StoreError> {
+    state.store.login_reserve(&borrowed(scopes), wait_seconds).await
 }
 
 /// Erfolg setzt die Bereiche zurück.

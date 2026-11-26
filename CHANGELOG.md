@@ -24,6 +24,8 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 - **Sicherheit:** Passwörter nur als Argon2id-Prüfwert, Sitzungs-Cookie `HttpOnly` und `SameSite=Strict`, Bremse
   gegen Durchprobieren. Für Lektoren ist jede Seite und jede RPC-Methode gesperrt, die nicht ausdrücklich erlaubt
   ist.
+- **Bremse gegen Durchprobieren, nachgebessert:** Ein Anmeldeversuch zählt jetzt schon vor der Prüfung des Passworts
+  (und wird bei Erfolg zurückgenommen). Viele gleichzeitige Versuche kommen damit nicht mehr an der Sperre vorbei.
 - **Notweg:** `baruch-server passwort <Name>` setzt am Rechner ein neues Passwort.
 - Noch nicht in einem echten Browser und nicht hinter einem echten Proxy mit TLS geprüft; PDF-Lesen für Lektoren
   ist offen.

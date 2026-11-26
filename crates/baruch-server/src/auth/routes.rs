@@ -16,7 +16,7 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::post;
 use axum::{Form, Router};
-use baruch_store::{Account, NewAccount, Store, StoreError};
+use baruch_store::{Account, LoginAttempt, NewAccount, Store, StoreError};
 use serde::Deserialize;
 
 use super::{gate, password, session, throttle};
@@ -103,7 +103,8 @@ pub(super) async fn change_password(
 /// in der Hand hat, kann das Passwort nicht beliebig oft raten.
 pub(super) async fn check_current(state: &AppState, account: &super::Identity, current: String) -> Result<(), Problem> {
     let scopes = vec![throttle::account_scope(&account.name)];
-    if throttle::blocked(state, &scopes).await?.is_some() {
+    // Erst zählen, dann prüfen (eine Transaktion): Gleichzeitige Versuche kommen nicht an der Sperre vorbei.
+    if let LoginAttempt::Blocked(_) = throttle::reserve(state, &scopes).await? {
         return Err(Problem::Code("passwort_falsch"));
     }
     let phc = state.store.account_password(account.id).await?;
@@ -111,7 +112,6 @@ pub(super) async fn check_current(state: &AppState, account: &super::Identity, c
         throttle::succeeded(state, &scopes).await?;
         Ok(())
     } else {
-        throttle::failed(state, &scopes).await?;
         Err(Problem::Code("passwort_falsch"))
     }
 }
@@ -173,11 +173,13 @@ async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
         response
     };
     let scopes = throttle::scopes(&state, &name, gate::peer(&parts), &parts.headers);
-    match throttle::blocked(&state, &scopes).await {
-        Ok(Some(wait)) => return page(StatusCode::TOO_MANY_REQUESTS, LOGIN_BLOCKED, Some(wait)),
-        Ok(None) => {}
+    // Der Versuch zählt schon jetzt, in einer Transaktion mit der Prüfung der Sperre; ein Erfolg nimmt ihn zurück.
+    // Zählte er erst nach der Prüfung, ginge eine Salve gleichzeitiger Versuche an der Sperre vorbei.
+    let wait = match throttle::reserve(&state, &scopes).await {
+        Ok(LoginAttempt::Blocked(wait)) => return page(StatusCode::TOO_MANY_REQUESTS, LOGIN_BLOCKED, Some(wait)),
+        Ok(LoginAttempt::Reserved(wait)) => wait,
         Err(e) => return internal(e),
-    }
+    };
     let found = match state.store.account_for_login(&name).await {
         Ok(found) => found,
         Err(e) => return internal(e),
@@ -190,10 +192,9 @@ async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
     let fits = password.chars().count() <= password::MAX_PASSWORD_CHARS;
     let matches = password::verify_blocking(if fits { password } else { String::new() }, phc).await && fits;
     let Some(account) = account.filter(|account| matches && account.active) else {
-        return match throttle::failed(&state, &scopes).await {
-            Ok(0) => page(StatusCode::UNAUTHORIZED, LOGIN_FAILED, None),
-            Ok(wait) => page(StatusCode::TOO_MANY_REQUESTS, LOGIN_FAILED, Some(wait)),
-            Err(e) => internal(e),
+        return match wait {
+            0 => page(StatusCode::UNAUTHORIZED, LOGIN_FAILED, None),
+            wait => page(StatusCode::TOO_MANY_REQUESTS, LOGIN_FAILED, Some(wait)),
         };
     };
     if let Err(e) = throttle::succeeded(&state, &scopes).await {

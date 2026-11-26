@@ -5487,7 +5487,7 @@ Commit im Spiegel). Kein neues MCP-Werkzeug.
 | `auth/gate.rs` | Schicht `gate` (im Router direkt außerhalb von `consent::inject`), `resolve`, `own_machine`, `peer` |
 | `auth/password.rs` | Argon2id: `hash`, `hash_with`, `verify`, `policy`, `hash_blocking`, `verify_blocking`, `DUMMY_PHC` |
 | `auth/session.rs` | Token, Cookie, `current_hash()` (Sitzung der laufenden Anfrage, task-lokal) |
-| `auth/throttle.rs` | Sperre gegen Durchprobieren: `wait_seconds`, Bereiche, `blocked`/`failed`/`succeeded` |
+| `auth/throttle.rs` | Sperre gegen Durchprobieren: `wait_seconds`, Bereiche, `reserve`/`succeeded` |
 | `auth/routes.rs` | Formulare (hinter `guard::same_origin`) und die gemeinsamen Bausteine `create_account`, `change_password`, `check_current`, `set_active` |
 | `auth/rpc.rs` | `account.*` |
 | `auth/cli.rs`, `main.rs` | Notweg `baruch-server passwort <name>` |
@@ -5552,10 +5552,18 @@ selbst keine Angabe trägt (`/static/…` behält `no-cache`). Ohne Konten häng
 - Bis zum dritten Fehlversuch keine Wartezeit; ab dem vierten 2^(n−3) Sekunden (2, 4, 8 …), höchstens 900.
 - Der Fehlversuch, der die Sperre auslöst, und jeder Versuch während der Sperre antworten **429** mit
   `Retry-After: <Sekunden>`; während der Sperre wird kein Passwort geprüft und nichts gezählt.
-- Erfolg setzt die Bereiche des Versuchs zurück. Einträge, die älter als 24 Stunden sind, fallen beim nächsten
-  Fehlversuch weg.
+- Jeder Versuch wird **vor** der Prüfung des Passworts reserviert (`Store::login_reserve`, `throttle::reserve`):
+  Prüfung der Sperre und Zählen als Fehlversuch sind eine Transaktion (`BEGIN IMMEDIATE`). Von beliebig vielen
+  gleichzeitigen Versuchen kommen darum nur so viele bis zur Prüfung (Argon2id) wie nacheinander – bei leerem
+  Zähler vier, der Rest bekommt 429. Auch ein Versuch, dessen Verbindung während der Prüfung abbricht, bleibt
+  gezählt. (Bis zum Codereview nach Runde 35 wurde erst nach der Prüfung gezählt; eine Salve ging an der Sperre
+  vorbei.)
+- Erfolg nimmt die Reservierung zurück und setzt die Bereiche des Versuchs zurück. Einträge, die älter als 24 Stunden
+  sind, fallen beim nächsten Versuch weg.
 - Höchstens 1000 Zeilen: Ist die Tabelle voll (999 Bereiche), bekommt ein neuer Bereich keine Zeile; stattdessen
-  wartet der Bereich `alle` fest 2 Sekunden – in dieser Zeit wartet jeder Anmeldeversuch.
+  wartet der Bereich `alle` fest 2 Sekunden – in dieser Zeit wartet jeder Anmeldeversuch. Weil vor der Prüfung
+  gezählt wird, löst bei voller Tabelle auch eine gelungene Anmeldung aus einem neuen Bereich diese 2 Sekunden aus
+  (der Erfolg setzt `alle` nicht zurück, sonst könnte ein Konto die gemeinsame Bremse für andere aufheben).
 - Auch das bisherige Passwort beim Ändern (`/konto/passwort`, `account.set_password`) zählt in `konto:<…>`: Wer
   eine Sitzung in der Hand hat, kann das Passwort nicht beliebig oft raten.
 
@@ -5575,9 +5583,10 @@ stderr; ohne Namen Exit 2. Legt kein Konto an und entsperrt keines. Läuft auch 
 `account_create_first` (Prüfung „Tabelle leer“ und Einfügen in einer Anweisung: von zwei gleichzeitigen Aufrufen
 gewinnt genau einer), `account_for_login`, `account_password`, `account_set_password(id, phc, keep)`,
 `account_set_active` (letzter aktiver Autor bleibt – Prüfung und Änderung in einer Anweisung), `session_create`,
-`session_account`, `session_delete`, `session_delete_all`, `login_wait`, `login_failure`, `login_reset`,
+`session_account`, `session_delete`, `session_delete_all`, `login_reserve` (Sperre prüfen und Versuch zählen in
+einer Transaktion; Ausgang `LoginAttempt`), `login_wait`, `login_failure`, `login_reset`,
 `auth_local_open`, `set_auth_local_open`; Hilfen `Store::account_name_key`, `Store::session_token_hash`.
-`lib.rs` reicht aus dem Modul nur `Account` und `NewAccount` heraus; Meldungen und Grenzen hängen darum als
+`lib.rs` reicht aus dem Modul nur `Account`, `NewAccount` und `LoginAttempt` heraus; Meldungen und Grenzen hängen darum als
 zugehörige Konstanten an `Store` (`ACCOUNT_TAKEN`, `ACCOUNT_NOT_FIRST`, `ACCOUNT_NEEDS_AUTHOR`,
 `ACCOUNT_LAST_AUTHOR`, `LOGIN_ATTEMPT_ROWS`, `LOGIN_FULL_WAIT`).
 
