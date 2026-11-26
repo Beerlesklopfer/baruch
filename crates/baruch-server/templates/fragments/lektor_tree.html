@@ -1,0 +1,45 @@
+{#- Links für Lektoren (Runde 35, Vertrag §3.3): die Gliederung nur zum Lesen und Springen – keine Formulare, kein
+    Umstellen, kein Kontextmenü (das Widget „outline“ fehlt; „tree“ merkt sich zugeklappte Kapitel). Einträge und
+    Abzeichen wie in fragments/tree.html (Kontext tree, cover, timing, work, node, lq_q). -#}
+<div class="rail-bar">
+  <a class="tool tiny rail-collapse" href="?lrail=1" data-rail-collapse="left" title="Gliederung einklappen (schmale Leiste am Rand)">‹ Einklappen</a>
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Gliederung schließen">Schließen</a>
+</div>
+<div class="outline-head">
+  {% if cover %}<img class="tree-cover" src="{{ cover.thumb }}" alt="{{ cover.alt }}">{% endif %}
+  <h2 class="pane-title">Gliederung</h2>
+  <a class="tool small" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}" title="Die ganze Gliederung auf einer Seite">ganze Gliederung</a>
+  {%- if timing %}
+  <p class="outline-timing small">
+    <span title="Sprechdauer bei {{ timing.words_per_minute }} Wörtern je Minute">Gesamt ≈ {{ timing.total_clock }}{% if timing.target_clock %} / Ziel {{ timing.target_clock }}{% endif %}</span>
+  </p>
+  {%- endif %}
+</div>
+<div class="outline outline-lektor">
+<ul class="tree" data-widget="tree">
+{%- for item in tree recursive %}
+  <li data-key="{{ item.key }}" data-level="{{ item.level }}">
+    {%- set entry -%}
+      <span class="outline-row" title="{{ item.level_name }}">
+      <a class="tree-entry{% if item.selected %} selected{% endif %}{% if item.part %} part{% endif %}"
+         href="/?work={{ work.id }}&key={{ item.key }}{{ lq_q }}" data-nav
+         {% if item.selected %}aria-current="page"{% endif %}>
+        <span class="tree-label">{% if item.number %}<span class="num">{{ item.number }}</span>{% endif %}{{ item.title }}</span>
+        {%- if item.proposals %}<span class="badge primary" title="offene Vorschläge">{{ item.proposals }} {% if item.proposals == 1 %}Vorschlag{% else %}Vorschläge{% endif %}</span>{% endif %}
+        {%- if item.findings %}<span class="badge warning findings-badge" title="{{ item.findings }} offene{% if item.findings == 1 %}r{% endif %} Befund{% if item.findings != 1 %}e{% endif %}{% if item.children %} samt Unterpunkten{% endif %}">{{ item.findings }} offen</span>{% endif %}
+        {%- if item.duration %}<span class="tree-duration muted tiny" title="Sprechdauer ≈ {{ item.duration }}">≈ {{ item.duration }}</span>{% endif %}
+      </a>
+      </span>
+    {%- endset %}
+    {%- if item.children %}
+    <details{% if item.open %} open{% endif %} data-node="{{ item.id }}">
+      <summary>{{ entry }}</summary>
+      <ul>{{ loop(item.children) }}</ul>
+    </details>
+    {%- else %}
+    <span class="leaf">{{ entry }}</span>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+</div>

@@ -27,7 +27,18 @@
   <h1 class="pane-title">Befunde in „{{ title }}“</h1>
   <p class="muted small">Befunde sind die einzelnen Punkte aus den Antworten der Personas. Den Status setzt nur der Mensch;
     Assistenten schlagen höchstens vor. Offen zählt, was weder entschieden noch an einen gleichen Befund angehängt noch
-    Lob ist – dieselbe Zahl steht als Abzeichen „k offen“ in der Gliederung und im Editorkopf.</p>
+    Lob ist – dieselbe Zahl steht als Abzeichen „k offen“ in der Gliederung und im Editorkopf.</p>{#- Runde 35: Formular nur für Lektoren (finding.add ohne key über POST /lektorat/act, ohne JavaScript); konten_ui::apply
+    schneidet es für alle anderen heraus, die Karten tragen ihre Autor-Formulare als nur-autor. -#}
+<!--NUR-LEKTOR--><form class="fd-form lektor-finding nur-lektor" method="post" action="/lektorat/act" aria-label="Anmerkung zum Buch schreiben">
+    <input type="hidden" name="method" value="finding.add">
+    <input type="hidden" name="work" value="{{ work.id }}">
+    <input type="hidden" name="back" value="befunde">
+    <strong>Befund schreiben: Anmerkung zum Buch</strong>
+    <span class="muted small">Eine Anmerkung zum ganzen Buch, ohne Abschnitt. Befunde zu einem Abschnitt schreibst du auf der Arbeitsseite (rechts unter „Befunde“). Über den Status entscheidet der Autor.</span>
+    <label class="small">Art <select name="kind"><option value="hint" selected>Hinweis</option><option value="critical">Kritisch</option><option value="praise">Lob</option></select></label>
+    <label class="small">Anmerkung <textarea name="body" rows="3" maxlength="4000" required aria-label="Text der Anmerkung"></textarea></label>
+    <button class="btn small primary" type="submit">Anmerkung zum Buch schreiben</button>
+  </form><!--/NUR-LEKTOR-->
 
   <form class="fd-filter" method="get" action="{{ base }}" role="search" aria-label="Befunde filtern" data-findings-filter>
     <fieldset class="fd-filter-group"><legend class="small">Status</legend>
@@ -96,7 +107,7 @@
     <p class="notice error" role="alert">Befund {{ detail.missing }} gibt es in diesem Werk nicht.</p>
     {%- else %}
     <h2 class="pane-title">Befund {{ detail.card.ref }}</h2>
-    {{ fp.card(detail.card, work.id, here, targets, draft, true) }}
+    {{ fp.card(detail.card, work.id, here, targets, draft, true, " nur-autor") }}
     {%- if detail.similar %}
     <p class="small">Angehängt an <a href="{{ detail.similar.url }}">{{ detail.similar.ref }}</a> ({{ detail.similar.persona }}: {{ detail.similar.status_words }}) – zählt nicht als offen.</p>
     {%- endif %}
@@ -121,7 +132,7 @@
     {%- else %}
     <h2 class="pane-title">Befunde in <a href="{{ cell.node_url }}">{{ cell.label }}</a>{% if cell.persona %} von {{ cell.persona }}{% endif %} ({{ cell.count }})</h2>
     <p class="small"><a href="{{ base }}{% if filter.query %}?{{ filter.query }}{% endif %}">Zurück zur ganzen Matrix</a></p>
-    {%- for c in cell.cards %}{{ fp.card(c, work.id, here, targets, draft, true) }}{% else %}<p class="muted small">Keine Befunde in dieser Zelle.</p>{% endfor %}
+    {%- for c in cell.cards %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">Keine Befunde in dieser Zelle.</p>{% endfor %}
     {%- endif %}
   </section>
   {%- endif %}
@@ -137,13 +148,13 @@
     {%- if old_total > old_limit %}
     <p class="notice" role="status" data-old-truncated>Es gibt {{ old_total }} offene Befunde, die älter sind; gezeigt sind die {{ old_limit }} neuesten davon. Die älteren stehen in der Matrix (Zelle anklicken) oder erscheinen mit einer größeren Zahl bei „älter als … Tage“.</p>
     {%- endif %}
-    {%- for c in old %}{{ fp.card(c, work.id, here, targets, draft, true) }}{% else %}<p class="muted small">Keine offenen Befunde, die älter sind.</p>{% endfor %}
+    {%- for c in old %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">Keine offenen Befunde, die älter sind.</p>{% endfor %}
   </section>
 
   <section class="fd-summaries" id="sammelvorschlaege" aria-label="Sammelvorschläge">
     <h2 class="pane-title">Sammelvorschläge ({{ summaries | length }})</h2>
     <p class="muted small">Beim RFC fasst der Lektor die Befunde der anderen zusammen – nur als Vorschlag mit Verweis auf die Ursprünge.</p>
-    {%- for c in summaries %}{{ fp.card(c, work.id, here, targets, draft, true) }}{% else %}<p class="muted small">Keine Sammelvorschläge.</p>{% endfor %}
+    {%- for c in summaries %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">Keine Sammelvorschläge.</p>{% endfor %}
   </section>
 
   <section class="fd-history-section" id="verlauf" aria-label="Verlauf je Kapitel">

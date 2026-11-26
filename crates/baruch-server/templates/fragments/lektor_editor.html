@@ -1,0 +1,73 @@
+{#- Mitte für Lektoren (Runde 35, Vertrag §3.3): derselbe Abschnitt wie in fragments/editor.html, aber der Lektor
+    schreibt nur einen Vorschlag. Das Formular form#editor-form geht ohne JavaScript an POST /lektorat/act
+    (method=revision.propose, work, key, body, note); mit JavaScript ruft workspace.ts dieselbe Methode über /rpc
+    (data-rpc). Es gibt kein Fortschreiben und keine neue aktuelle Fassung, kein Umschalten („aktuell machen“), kein
+    Ausblenden, kein Bild-Einfügen, keine Markierung für Glossar und Register und keine Personas – das alles kann
+    nur der Autor. Offene Vorschläge stehen wie beim Autor im Lesefluss (fragments/proposals.html), dort ohne die
+    Knöpfe zum Entscheiden. Kontext wie editor.html (view.rs), dazu lektor {handle, name}. -#}
+{%- set view_q = "&view=preview" if view == "preview" else "" %}
+<div class="editor-head" data-zoom-zone="head">
+  <h2 class="node-title" title="{% if node.number %}{{ node.number }} {% endif %}{{ node.title }}">{% if node.number %}<span class="num">{{ node.number }}</span>{% endif %}{{ node.title }}</h2>
+  <span class="muted small rev-meta">Fassung {{ rev.number }}{% if rev.amend_seq %} · <a class="rev-amend" href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen von Fassung {{ rev.number }}">Stand {{ rev.amend_seq }}</a>{% endif %} · {{ rev.status }} · {% if rev.author_style %}<span class="pc pc-chip" style="{{ rev.author_style }}">{{ rev.author }}</span>{% else %}{{ rev.author }}{% endif %}{% if rev.edited %} · geändert {{ rev.edited }}{% endif %}{% if rev.proposal and rev.based_on %} · beruht auf Fassung {{ rev.based_on }}{% if rev.based_on_amend %}, Stand {{ rev.based_on_amend }}{% endif %}{% endif %}</span>
+  <nav class="switcher" aria-label="Fassungen">
+    {%- if rev.prev %}<a class="btn" data-nav data-key="prev" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Vorige Fassung (Alt+←)">‹</a>
+    {%- else %}<span class="btn" aria-disabled="true">‹</span>{% endif %}
+    <span class="counter{% if rev.is_current %} is-current{% endif %}" title="Fassung {{ rev.number }}{% if rev.is_current %}, aktuell{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
+    {%- if rev.next %}<a class="btn" data-nav data-key="next" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Nächste Fassung (Alt+→)">›</a>
+    {%- else %}<span class="btn" aria-disabled="true">›</span>{% endif %}
+  </nav>
+  {%- if node.open_findings %}
+  <a class="badge warning findings-badge editor-findings" href="{{ node.findings_url }}" title="offene Befunde dieses Abschnitts samt Unterpunkten">{{ node.open_findings }} offen</a>
+  {%- endif %}
+  {%- if not rev.is_current and rev.current %}
+  <a class="current-link small" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.current }}{{ view_q }}{{ pick_q }}{{ lq_q }}">aktuell: Fassung {{ rev.current }}</a>
+  {%- endif %}
+  <span class="badge lektor-badge" title="Du liest und schlägst vor; übernehmen, ändern und löschen kann nur der Autor">Lektor · {{ lektor.handle }}</span>
+  {%- if node.missing_key is not none %}
+  <p class="notice small missing-key" role="status">Abschnitt mit Schlüssel {{ node.missing_key }} gibt es nicht (mehr).</p>
+  {%- endif %}
+</div>
+
+{%- if view == "preview" %}
+<div class="editor-body" data-zoom-zone="sheet">
+  <div class="sheet-wrap">
+    <div class="sheet">
+      {%- for section in preview %}
+      {%- with inline = section.flow %}{% include "fragments/proposals.html" %}{% endwith %}
+      {%- endfor %}
+    </div>
+  </div>
+</div>
+<div class="editor-status" data-zoom-zone="status">
+  <span class="muted tiny status-hints">Vorschau im Browser (Näherung) · zum Vorschlagen in den Editor wechseln (Start → Editor)</span>
+</div>
+{%- else %}
+{%- set ws_satz = settings.editor != "quelltext" %}
+{%- set ws_sheet = proposals.sheet if proposals else none %}
+{%- if sheet_css %}
+<style id="ws-style" data-work="{{ work.id }}">{{ sheet_css | safe }}</style>
+{%- endif %}
+<div class="wysiwyg" data-widget="wysiwyg" data-work="{{ work.id }}" data-key="{{ node.key }}" data-node="{{ node.id }}" data-rev="{{ rev.number }}" data-ws-start="{% if ws_satz %}satz{% else %}quelltext{% endif %}">
+  {% include "fragments/edit_toolbar.html" %}
+  <div class="editor-body" data-zoom-zone="sheet">
+    <form class="editor-form" id="editor-form" method="post" action="/lektorat/act" data-rpc data-widget="editor" data-lektor-propose>
+      <input type="hidden" name="method" value="revision.propose">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+      <div class="ws-wrap" data-ws-wrap hidden>
+        <div class="ws-sheet" data-ws-sheet contenteditable="true" role="textbox" aria-multiline="true" aria-label="Satzbild des Abschnitts" spellcheck="true" lang="de"{% if ws_sheet is not none %} data-ws-ready{% endif %}>{% if ws_sheet is not none %}{{ ws_sheet | safe }}{% endif %}</div>
+      </div>
+      <textarea name="body" spellcheck="true" lang="de" aria-label="Text des Abschnitts (dein Vorschlag)">{{ rev.body }}</textarea>
+    </form>
+    {%- if proposals and proposals.count %}{% with inline = proposals %}{% include "fragments/proposals.html" %}{% endwith %}{% endif %}
+  </div>
+  <div class="editor-status" data-zoom-zone="status">
+    {%- set ws_hint = "Satzbild: Enter neuer Absatz · Umschalt+Enter Zeilenumbruch · gelb hinterlegt: Typst-Insel, nur im Quelltext bearbeitbar" %}
+    {%- set foot_hint = "Ändere den Text und wähle „Vorschlagen“: Dein Text wird ein Vorschlag auf Fassung " ~ rev.number ~ " unter " ~ lektor.handle ~ ". Die aktuelle Fassung bleibt, bis der Autor entscheidet." %}
+    <span class="muted tiny status-hints" title="{{ ws_hint }} · {{ foot_hint }}"><span class="ws-hint" data-ws-hint hidden>{{ ws_hint }} · </span><span>{{ foot_hint }}</span></span>
+    <label class="small lektor-note">Notiz <input type="text" name="note" form="editor-form" maxlength="500" placeholder="freiwillig, z. B. „Satzbau geglättet“" aria-label="Notiz zum Vorschlag"></label>
+    <button class="btn primary" type="submit" form="editor-form" data-saved="Vorschlagen" data-dirty="Vorschlagen" title="Den Text als Vorschlag einer neuen Fassung einreichen (entscheiden kann nur der Autor)">Vorschlagen</button>
+  </div>
+</div>
+{%- endif %}
+<span data-widget="band-dock" hidden></span>

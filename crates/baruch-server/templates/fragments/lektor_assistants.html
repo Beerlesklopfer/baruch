@@ -1,0 +1,149 @@
+{#- Rechts für Lektoren (Runde 35, Vertrag §3.3): Akkordeon Fassungen · Befunde · Abschnitts-Chat, alles zum Lesen,
+    dazu genau die drei Schreibwege eines Lektors – alle als Formulare an POST /lektorat/act (ohne JavaScript; mit
+    JavaScript über /rpc, data-rpc): Befund schreiben (finding.add), Beitrag schreiben (post.add) und eigene Beiträge
+    bearbeiten oder löschen (post.edit, post.delete; „eigen“ = Autor des Beitrags ist die eigene Herkunft, post.mine
+    aus view.rs). Es fehlen: Personas und ihre Aufträge, Umschalten/Ändern/Löschen/Ausblenden von Fassungen, Status
+    der Befunde, Lösungen umsetzen, Verschieben und Umwandeln von Beiträgen – das kann nur der Autor.
+    Kontext wie assistants.html (view.rs), dazu lektor {handle, name}. -#}
+{%- from "fragments/post_item.html" import post_item %}
+{%- macro act_hidden(method) %}
+      <input type="hidden" name="method" value="{{ method }}">
+      <input type="hidden" name="work" value="{{ work.id }}">
+      <input type="hidden" name="key" value="{{ node.key }}">
+{%- endmacro %}
+{%- macro finding_card(c) %}
+    <article class="fd-card fd-{{ c.status }} fd-kind-{{ c.kind }}" id="befund-{{ c.id }}" data-finding="{{ c.id }}" data-status="{{ c.status }}" data-kind="{{ c.kind }}" data-persona="{{ c.persona }}">
+      <header class="fd-head small">
+        <a class="fd-ref" href="{{ c.url }}" title="Befund {{ c.id }} einzeln">{{ c.ref }}</a>
+        <span class="fd-kind" title="Art: {{ c.kind_label }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
+        <span class="fd-status badge" title="Status: {{ c.status_label }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
+        <span class="fd-persona">{{ c.persona }}</span>
+        <span class="muted tiny">{{ c.time }}</span>
+      </header>
+      <div class="fd-body">{% if c.body_html %}{{ c.body_html | safe }}{% else %}<p>{{ c.body }}</p>{% endif %}</div>
+      {%- if c.quote %}<blockquote class="fd-quote small">„{{ c.quote }}“</blockquote>{% endif %}
+      {%- if c.reason %}<p class="fd-reason small">Begründung: {{ c.reason }}</p>{% endif %}
+    </article>
+{%- endmacro %}
+<div class="rail-bar">
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Seitenleiste schließen">Schließen</a>
+  <a class="tool tiny rail-collapse" href="?rrail=1" data-rail-collapse="right" title="Seitenleiste einklappen (schmale Leiste am Rand)">Einklappen ›</a>
+</div>
+<div class="accordion" data-widget="accordion">
+
+<details class="acc" name="right" data-section="revisions"{% if settings.accordion == "revisions" %} open{% endif %}>
+  <summary class="acc-head">
+    <span class="acc-title">Fassungen</span>
+    <span class="badge rev-count" title="{% if rev.total == 1 %}1 Fassung{% else %}{{ rev.total }} Fassungen{% endif %} dieses Abschnitts">{{ rev.total }}</span>
+    {%- if rev.open_proposals %}
+    <span class="badge warning proposal-count">{% if rev.open_proposals == 1 %}1 Vorschlag{% else %}{{ rev.open_proposals }} Vorschläge{% endif %}</span>
+    {%- endif %}
+    <span class="muted small acc-sub">gezeigt: Fassung {{ rev.number }}</span>
+  </summary>
+  <div class="acc-body" data-zoom-zone="revisions">
+    <div class="rev-actions">
+      <div class="small"><strong>Fassung {{ rev.number }}</strong> <span class="muted">· {{ rev.status }} · {{ rev.author }}</span>
+        {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen">Stand {{ rev.amend_seq }} · Verlauf</a>{% endif %}</div>
+      <p class="muted small">Welche Fassung gilt, entscheidet der Autor. Dein Weg ist „Vorschlagen“ unter dem Text.</p>
+    </div>
+    {% include "fragments/revtree.html" %}
+  </div>
+</details>
+
+{%- if findings_panel is defined and findings_panel %}
+{%- set fp = findings_panel %}
+<details class="acc" name="right" data-section="befunde"{% if settings.accordion == "befunde" %} open{% endif %}>
+  <summary class="acc-head">
+    <span class="acc-title">Befunde</span>
+    {%- if fp.open %}
+    <span class="badge warning findings-open" title="{{ fp.open }} offene Befunde in diesem Abschnitt">{{ fp.open }} offen</span>
+    {%- endif %}
+    <span class="muted small acc-sub">{{ fp.total }} insgesamt</span>
+  </summary>
+  <div class="acc-body findings-panel" data-zoom-zone="findings">
+    <p class="small"><a href="{{ fp.page_url }}">Alle Befunde dieses Abschnitts</a> · <a href="/werke/{{ work.id }}/befunde">Übersicht übers Werk</a></p>
+    <form class="fd-form lektor-finding" method="post" action="/lektorat/act" data-rpc aria-label="Befund zu diesem Abschnitt schreiben">
+      {{- act_hidden("finding.add") }}
+      <label class="small">Art <select name="kind">
+        <option value="hint" selected>Hinweis</option>
+        <option value="critical">Kritisch</option>
+        <option value="praise">Lob</option>
+      </select></label>
+      <label class="small wide">Befund <textarea name="body" rows="3" maxlength="4000" required aria-label="Text des Befunds"></textarea></label>
+      <label class="small wide">Zitat aus dem Abschnitt (freiwillig) <input type="text" name="quote" maxlength="500" aria-label="Zitat, auf das sich der Befund bezieht"></label>
+      <button class="btn small primary" type="submit" title="Der Befund steht unter {{ lektor.handle }}; über den Status entscheidet der Autor">Befund schreiben</button>
+    </form>
+    {%- for c in fp.cards %}{{ finding_card(c) }}{% else %}
+    <p class="muted small">Keine offenen Befunde in diesem Abschnitt.</p>
+    {%- endfor %}
+    {%- if fp.decided %}
+    <details class="fd-decided">
+      <summary class="small">{{ fp.decided | length }} entschieden</summary>
+      {%- for c in fp.decided %}{{ finding_card(c) }}{% endfor %}
+    </details>
+    {%- endif %}
+    {%- if fp.praise %}
+    <details class="fd-praise">
+      <summary class="small">{{ fp.praise | length }} Lob</summary>
+      {%- for c in fp.praise %}{{ finding_card(c) }}{% endfor %}
+    </details>
+    {%- endif %}
+  </div>
+</details>
+{%- endif %}
+
+<details class="acc" name="right" data-section="chat"{% if settings.accordion not in ["revisions", "befunde"] %} open{% endif %}>
+  <summary class="acc-head">
+    <span class="acc-title">Abschnitts-Chat</span>
+    <span class="badge chat-count" title="{% if node.post_count == 1 %}1 Beitrag{% else %}{{ node.post_count }} Beiträge{% endif %} zu diesem Abschnitt">{{ node.post_count }}</span>
+    <span class="muted small acc-sub">{{ node.title }}</span>
+  </summary>
+  <div class="acc-body">
+    <div class="chat-frame">
+    <div class="chat chat-lektor" tabindex="0" aria-label="Beiträge im Abschnitts-Chat">
+    {%- if node.post_older %}
+      <a class="chat-older small" href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="Die ganze Chat-Historie">Ältere Beiträge ({{ node.post_older }}) …</a>
+    {%- endif %}
+    {%- for post in node.posts %}
+      <div class="post-item" id="post-{{ post.id }}" data-post-id="{{ post.id }}"{% if post.mine %} data-post-own{% endif %} data-post-author="{{ post.author }}">
+      <div class="post{% if post.style %} pc{% endif %}"{% if post.style %} style="{{ post.style }}"{% endif %}>
+        {{- post_item(post) }}
+        {%- for source in post.sources %}<div class="muted tiny">Quelle: {{ source }}</div>{% endfor %}
+        <div class="post-tools">
+          <a class="tool small" href="/beitrag?work={{ work.id }}&amp;id={{ post.id }}" title="Beitrag zum Markieren und Kopieren, mit Verlauf">Beitrag öffnen</a>
+        </div>
+        {%- if post.mine %}
+        <details class="post-manage">
+          <summary class="tool small" title="Eigenen Beitrag bearbeiten oder löschen">Verwalten</summary>
+          <form class="post-form post-edit" method="post" action="/lektorat/act" data-rpc>
+            {{- act_hidden("post.edit") }}
+            <input type="hidden" name="id" value="{{ post.id }}">
+            <label class="small wide">Bearbeiten <textarea name="body" rows="3" maxlength="4000" required aria-label="Neuer Text des Beitrags">{{ post.body }}</textarea></label>
+            <button class="btn small" type="submit" title="die alte Fassung bleibt im Verlauf">Beitrag ändern</button>
+          </form>
+          <form class="post-form" method="post" action="/lektorat/act" data-rpc>
+            {{- act_hidden("post.delete") }}
+            <input type="hidden" name="id" value="{{ post.id }}">
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> eigenen Beitrag wirklich entfernen</label>
+            <button class="btn danger small" type="submit">Beitrag entfernen</button>
+          </form>
+        </details>
+        {%- endif %}
+      </div>
+      </div>
+    {%- else %}
+      <p class="muted small">Noch keine Beiträge zu diesem Abschnitt.</p>
+    {%- endfor %}
+      <div class="chat-end" id="chat-neueste" tabindex="-1"></div>
+    </div>
+    </div>
+    <form class="chat-input" method="post" action="/lektorat/act" data-rpc>
+      {{- act_hidden("post.add") }}
+      <input type="text" name="body" placeholder="Beitrag an den Autor …" title="Dein Beitrag steht unter {{ lektor.handle }} im Abschnitts-Chat; Personas ruft er nicht auf" aria-label="Beitrag" maxlength="4000" required autocomplete="off">
+      <button class="btn primary" type="submit">Senden</button>
+    </form>
+    <p class="muted tiny"><a href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="Alle Beiträge dieses Abschnitts auf einer Seite">Ganze Chat-Historie</a> · <a href="/faeden?work={{ work.id }}" title="Gespräche ohne Abschnitt (nur lesen)">Fäden ohne Abschnitt</a></p>
+  </div>
+</details>
+
+</div>

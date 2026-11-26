@@ -6,6 +6,28 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Konten und Rollen (Runde 35)
+
+- **Ohne Konten bleibt alles wie bisher:** keine Anmeldung, keine Umleitung. Neu ist nur der Eintrag „Konten
+  einrichten…“ im Menü „Baruch ▾“.
+- **Konten:** Das erste Konto gehört dem Autor und lässt sich nur am eigenen Rechner anlegen (`/einrichten`).
+  Danach verlangen Seiten, Formulare und `/rpc` eine Anmeldung – auch am eigenen Rechner; das lässt sich unter
+  Einstellungen → Konten ausschalten („Am eigenen Rechner ohne Anmeldung“). `/mcp` bleibt bei seinen Tokens.
+- **Lektoren:** Der Autor legt Lektoren an (Einstellungen → Konten) und gibt ihnen einzelne Werke frei (Reiter Buch
+  → Mitwirkende). Ein Lektor sieht nur freigegebene Werke und schreibt dort Vorschläge für Fassungen („Vorschlagen“
+  statt „Speichern“), Beiträge im Abschnitts-Chat und Befunde bzw. Anmerkungen zum Buch – alles unter seiner
+  Herkunft `@lektorat:<name>`, mit Commit im Git-Spiegel. Übernehmen, Ändern, Löschen, Personas, Export, Import und
+  Einstellungen bleiben dem Autor.
+- **Oberfläche:** Anmeldeseite, „Mein Konto“ (Passwort ändern, Abmelden), Einstellungsseite „Konten“ (Anlegen,
+  Sperren, Passwort zurücksetzen) und die Seite „Mitwirkende“ je Werk – alles ohne JavaScript bedienbar. Im Menü
+  „Baruch ▾“ steht, wer angemeldet ist.
+- **Sicherheit:** Passwörter nur als Argon2id-Prüfwert, Sitzungs-Cookie `HttpOnly` und `SameSite=Strict`, Bremse
+  gegen Durchprobieren. Für Lektoren ist jede Seite und jede RPC-Methode gesperrt, die nicht ausdrücklich erlaubt
+  ist.
+- **Notweg:** `baruch-server passwort <Name>` setzt am Rechner ein neues Passwort.
+- Noch nicht in einem echten Browser und nicht hinter einem echten Proxy mit TLS geprüft; PDF-Lesen für Lektoren
+  ist offen.
+
 ### Mindmap wie XMind (Runde 34)
 
 - **Mindmap statt Gedankenkarte:** Die Seite `/werke/<id>/karte` (Start → Einfälle → Mindmap) zeigt das Werk in der

@@ -1,0 +1,45 @@
+{#- Seite /anmelden (Runde 35, src/konten_ui): eigenständig, ohne Menüband und ohne JavaScript – wer nicht angemeldet
+    ist, sieht kein Menü. Das Formular schickt POST /anmelden (Felder name, password, next). Das Passwortfeld ist nie
+    vorbelegt. `next` ist schon durch konten_ui::safe_next gegangen (nur ein Pfad dieses Servers).
+    Der Link „Weiter“ hilft, wenn man über einen Link von außen (E-Mail, andere Seite) hierher geraten ist: Der
+    Browser schickt das Sitzungs-Cookie (SameSite=Strict) bei einem solchen Sprung nicht mit; der Klick auf „Weiter“
+    kommt von dieser Seite selbst, dann ist das Cookie dabei.
+    Kontext: name, next, error (Text oder none), retry_after (Sekunden oder none), notice (Satz aus MESSAGES oder
+    none), signed_in (Anzeigename oder none). -#}
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anmelden – Baruch</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="konto-seite">
+<main class="konto-karte">
+  <h1 class="pane-title">Baruch – Anmelden</h1>
+  {%- if notice %}
+  <p class="notice" role="status">{{ notice }}</p>
+  {%- endif %}
+  {%- if error %}
+  <p class="notice error" role="alert">{{ error }}</p>
+  {%- endif %}
+  {%- if retry_after is not none %}
+  <p class="notice warning" role="alert" data-retry-after="{{ retry_after }}">Zu viele Fehlversuche. Bitte {{ retry_after }} {% if retry_after == 1 %}Sekunde{% else %}Sekunden{% endif %} warten und dann erneut versuchen.</p>
+  {%- endif %}
+  {%- if signed_in %}
+  <p class="notice" role="status">Angemeldet als {{ signed_in }}. <a href="{{ next }}">Weiter</a></p>
+  {%- endif %}
+  <form class="konto-form" method="post" action="/anmelden">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Name <input type="text" name="name" value="{{ name }}" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+    <label>Passwort <input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Anmelden</button>
+  </form>
+  {%- if not signed_in %}
+  <p class="muted small">Schon angemeldet? <a href="{{ next }}">Weiter</a> – nach einem Link von außen (E-Mail, andere Seite) fragt Baruch einmal nach; der Klick hier genügt dann.</p>
+  {%- endif %}
+  <p class="muted small">Passwort vergessen? Der Autor setzt es unter Einstellungen → Konten neu. Hat der Autor selbst es vergessen, hilft am Rechner, auf dem Baruch läuft, der Befehl <code>baruch-server passwort &lt;Name&gt;</code>.</p>
+</main>
+</body>
+</html>

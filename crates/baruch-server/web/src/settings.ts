@@ -124,8 +124,13 @@ register("settings", (element) => {
     opener = null;
   });
 
+  // Runde 35: Ein Lektor (data-rolle am <body>, konten_ui::apply) darf `settings.render` nicht aufrufen – für ihn
+  // bleibt „Einstellungen“ ein gewöhnlicher Link auf die Seite Darstellung (Cookies im eigenen Browser).
+  const lektor = () => document.body.dataset.rolle === "lektor";
+
   // Öffnen: Links mit data-settings-open (Kopfzeile, „Farben …“ im Akkordeon) und Alt+,.
   document.addEventListener("click", (event) => {
+    if (lektor()) return;
     if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const link = (event.target as Element | null)?.closest<HTMLElement>("[data-settings-open]");
     if (!link || dialog.contains(link)) return;
@@ -136,6 +141,10 @@ register("settings", (element) => {
     if (!event.altKey || event.ctrlKey || event.metaKey || event.key !== ",") return;
     event.preventDefault();
     const link = document.querySelector<HTMLElement>("[data-settings-open]");
+    if (lektor()) {
+      window.location.assign(link ? targetOf(link) : pageUrl("darstellung"));
+      return;
+    }
     open(link ? targetOf(link) : pageUrl("darstellung"), null);
   });
 

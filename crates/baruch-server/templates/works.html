@@ -8,7 +8,7 @@
 {% block page_title %}Werke{% endblock %}
 {#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Werke</summary><div class="band-items" role="group" aria-label="Werke">
+  <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Werke</summary><div class="band-items" role="group" aria-label="Werke">
     <a class="btn primary" href="/werke/neu">Neues Werk oder Import…</a>
     <a class="btn" href="/werke/archiv" title="Gelöschte Werke ansehen und wiederherstellen">Archiv</a>
   </div></details>
@@ -44,17 +44,17 @@
         <td class="small">{{ w.updated or w.created }}</td>
         <td class="works-actions">
           <a class="btn" href="/?work={{ w.id }}">Öffnen</a>
-          <a class="btn" href="/werke/{{ w.id }}/bearbeiten">Ändern</a>
-          <a class="btn" href="/werke/{{ w.id }}/export" download>Export</a>
-          <a class="btn" href="/werke/{{ w.id }}/pdf" download title="Das Buch als PDF herunterladen">PDF</a>
-          <a class="btn danger" href="/werke/{{ w.id }}/loeschen">Löschen</a>
+          <a class="btn nur-autor" href="/werke/{{ w.id }}/bearbeiten">Ändern</a>
+          <a class="btn nur-autor" href="/werke/{{ w.id }}/export" download>Export</a>
+          <a class="btn nur-autor" href="/werke/{{ w.id }}/pdf" download title="Das Buch als PDF herunterladen">PDF</a>
+          <a class="btn danger nur-autor" href="/werke/{{ w.id }}/loeschen">Löschen</a>
         </td>
       </tr>
     {%- endfor %}
     </tbody>
   </table>
   {%- else %}
-  <p class="muted">Noch kein Werk. Lege eins an oder importiere eine Typst- oder Markdown-Datei (auch als ZIP oder Ordner mit Bildern): <a href="/werke/neu">Neues Werk oder Import…</a></p>
+  <p class="muted nur-autor">Noch kein Werk. Lege eins an oder importiere eine Typst- oder Markdown-Datei (auch als ZIP oder Ordner mit Bildern): <a href="/werke/neu">Neues Werk oder Import…</a></p><!--NUR-LEKTOR--><p class="muted nur-lektor">Noch kein Werk freigegeben. Der Autor gibt Werke einzeln frei (Seite „Mitwirkende“ des Werks).</p><!--/NUR-LEKTOR-->
   {%- endif %}
 </main>
 {% endblock %}

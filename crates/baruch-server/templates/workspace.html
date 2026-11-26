@@ -15,15 +15,18 @@
     (Schublade mit Esc/Klick daneben, im breiten Fenster dauerhaftes Auf- und Zuklappen). Die Spalten bleiben erstes
     und letztes Kind des Rasters (Widget „splitter“ misst sie so). #}
 <main class="workspace" data-widget="workspace">
-  <nav class="pane" id="pane-tree" aria-label="Gliederung" data-zoom-zone="tree">{% include "fragments/tree.html" %}</nav>
+  <nav class="pane" id="pane-tree" aria-label="Gliederung" data-zoom-zone="tree">{% if lektor %}{% include "fragments/lektor_tree.html" %}{% else %}{% include "fragments/tree.html" %}{% endif %}</nav>
   <a class="rail" href="#pane-tree" data-rail-open="left" aria-controls="pane-tree" title="Gliederung öffnen"><span class="rail-mark" aria-hidden="true">›</span><span class="rail-label">Gliederung</span></a>
   <div class="splitter" data-widget="splitter" data-side="left" role="separator" aria-orientation="vertical" tabindex="0"></div>
   <a class="rail-scrim" href="#pane-editor" data-rail-close tabindex="-1" aria-hidden="true"></a>
-  <section class="pane" id="pane-editor" aria-label="Editor">{% include "fragments/editor.html" %}</section>
+  <section class="pane" id="pane-editor" aria-label="Editor">{% if lektor %}{% include "fragments/lektor_editor.html" %}{% else %}{% include "fragments/editor.html" %}{% endif %}</section>
   <div class="splitter" data-widget="splitter" data-side="right" role="separator" aria-orientation="vertical" tabindex="0"></div>
   <a class="rail" href="#pane-assistants" data-rail-open="right" aria-controls="pane-assistants" title="Assistenten öffnen"><span class="rail-mark" aria-hidden="true">‹</span><span class="rail-label">Assistenten</span></a>
-  <aside class="pane" id="pane-assistants" aria-label="Assistenten" data-zoom-zone="assistants">{% include "fragments/assistants.html" %}</aside>
+  <aside class="pane" id="pane-assistants" aria-label="Assistenten" data-zoom-zone="assistants">{% if lektor %}{% include "fragments/lektor_assistants.html" %}{% else %}{% include "fragments/assistants.html" %}{% endif %}</aside>
 </main>
+{#- Runde 35: Für Lektoren (`lektor` aus view.rs) kommen die drei Spalten aus fragments/lektor_*.html (nur lesen,
+    vorschlagen, Beitrag, Befund); die Dialoge darunter (Literatur, Werk anlegen, Einfall) fehlen ihnen ganz. #}
+{%- if not lektor %}
 {#- Popup der Literatur: Inhalt wie /literatur; das Widget „literature“ lädt ihn über literature.render
     neu, hält die Suche über Schließen und Öffnen und gibt Werk-Treffer an den Arbeitsbereich. #}
 <dialog class="literature-dialog" id="literature" data-widget="literature" aria-labelledby="literature-title">
@@ -46,4 +49,5 @@
 {#- Schnellerfassung „Einfall“ (Widget „idea-capture“, web/src/ideas.ts): markierter Text als quote,
     key aus dem Editor-Formular, Enter speichert über idea.create, Fokus kehrt zurück. #}
 <dialog id="idea-capture" class="idea-dialog" data-widget="idea-capture" aria-labelledby="idea-capture-title">{% include "fragments/idea_capture.html" %}</dialog>
+{%- endif %}
 {% endblock %}

@@ -28,9 +28,10 @@ Freie Schreibwerkstatt (AGPL-3.0) für Bücher und Predigten. Plan: `docs/Plan.m
 - Doku wächst mit dem Code (Deutsch, unter `docs/`): Bedienung (`docs/Bedienung.md`), Aufbau
   (`docs/Architektur.md`), Schnittstellen (`docs/RPC.md`, `docs/MCP.md` mit jedem Werkzeug, Stubs markiert).
   Jede Änderung an Oberfläche, RPC oder MCP zieht die Doku im selben Commit nach.
-- Revisionen: je Abschnitt genau eine aktuelle Fassung (Markierung, jederzeit umschaltbar); Ändern/Löschen nur Mensch, protokolliert im Spiegel; Assistenten nur Vorschläge.
+- Revisionen: je Abschnitt genau eine aktuelle Fassung (Markierung, jederzeit umschaltbar); Ändern/Löschen nur der Autor, protokolliert im Spiegel; Assistenten und Lektoren nur Vorschläge. Ohne Konten ist der Mensch am eigenen Rechner der Autor.
   Ausnahme Gliederung (2026-11-06): Anlegen von Gliederungspunkten dürfen auch Assistenten (MCP `outline_add`, Herkunft im Spiegel); Umbenennen, Verschieben, Umstufen, Nummer an/aus und Löschen nur nach Bestätigung eines Antrags durch den Menschen.
   Ergänzung (2026-11-07): Ein neuer Teil, unter den vorhandene Kapitel wandern würden, ist kein bloßes Anlegen, sondern ein Antrag, dem der Mensch aktiv zustimmt (Popup, ohne JavaScript Hinweisleiste und Formular); nur ein Teil ohne Folgekapitel bleibt Anlegen.
+- Konten und Rollen (2026-11-26, Runde 35): Ohne Konten bleibt Baruch offen wie bisher. Mit Konten verlangen Seiten, Formulare und `/rpc` eine Anmeldung; `/mcp` bleibt bei Tokens. Lektoren (`@lektorat:<name>`) sehen nur freigegebene Werke und schreiben nur Vorschläge, Beiträge und Befunde. Für Lektoren ist jede Route und jede RPC-Methode gesperrt, bis sie in `roles` (`LEKTOR_ROUTES`, `LEKTOR_RPC`) erlaubt ist – die einzige Stelle der Rechteprüfung.
 - Lektor nach Einstellung (Einstellungen → Assistenten): „fest <Persona>“ oder „automatisch nach Kontext“ (aktive Persona mit dem größten Kontext; eine inaktive feste Persona fällt auf diese Regel zurück). Versuch seit 2026-11-06: fest @lektor (alle Personas auf einem Modell).
 - Oberfläche: `baruch-server` (axum + minijinja) liefert Seiten und Fragmente aus, der Kern ist über
   JSON-RPC (`POST /rpc`) erreichbar; Widgets in TypeScript (`crates/baruch-server/web/src`,

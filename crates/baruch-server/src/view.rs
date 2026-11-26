@@ -4,6 +4,14 @@
 //! Revisionen werden überall über ihre **Nummer** angesprochen (Adresse `rev`, Blättern, Formulare),
 //! nicht über ihre Stelle: Nach dem Löschen einer Fassung hat die Nummernfolge Lücken. „‹ n/m ›“
 //! zeigt die Stelle n unter m Fassungen, die aktuelle Fassung ist hervorgehoben (`is-current`).
+//!
+//! Runde 35 (Konten und Rollen, Vertrag §3.3): [`page`] und [`panes`] fragen [`crate::auth::current`]. Ist ein
+//! Lektor angemeldet, kommen die drei Bereiche aus eigenen Vorlagen (`fragments/lektor_tree.html`,
+//! `lektor_editor.html`, `lektor_assistants.html`): lesen, „Vorschlagen“ (`revision.propose`), Beitrag (`post.add`),
+//! eigene Beiträge ändern oder entfernen und Befund (`finding.add`) – alles über `POST /lektorat/act` bzw. `/rpc`.
+//! Die Knöpfe des Autors (Speichern, Übernehmen, Verwerfen, Umschalten, Löschen, Ausblenden, Personas, Literatur)
+//! stehen dann gar nicht im HTML. Für alle anderen bleibt die Seite Byte für Byte, wie sie war. Beide Funktionen
+//! laufen in der Aufgabe der Anfrage (nie abgespalten), sonst wäre die Antwort „ohne Konten“.
 
 use std::collections::HashMap;
 
@@ -570,8 +578,15 @@ fn status_label(status: RevisionStatus) -> &'static str {
 fn author_label(author: &Author) -> String {
     match author {
         Author::Human { name } => name.clone(),
+        // Runde 35: Ein Lektor schreibt ohne Modell – gezeigt wird nur die Herkunft, kein leeres „()“.
+        Author::Assistant { persona, model } if model.is_empty() && is_lektorat(persona) => persona.clone(),
         Author::Assistant { persona, model } => format!("{persona} ({model})"),
     }
+}
+
+/// Herkunft eines Lektor-Kontos (`@lektorat:<slug>`, [`crate::auth::lektor_handle`]) – ein Mensch, keine Persona.
+fn is_lektorat(handle: &str) -> bool {
+    handle.starts_with("@lektorat:")
 }
 
 /// Kapitel (bzw. Teil) eines Knotens: der Knoten selbst, wenn er kein Abschnitt ist, sonst der
@@ -1111,7 +1126,7 @@ fn tree_revisions(node: usize, key: i64, infos: &[RevisionInfo], links: &TreeLin
                 status: status_label(info.status),
                 status_key: status_key(info.status),
                 author: author_label(&info.author),
-                persona: matches!(info.author, Author::Assistant { .. }),
+                persona: matches!(&info.author, Author::Assistant { persona, .. } if !is_lektorat(persona)),
                 style: match &info.author {
                     Author::Assistant { persona, .. } => Some(persona_style(links.colors, persona)),
                     Author::Human { .. } => None,
@@ -1272,6 +1287,7 @@ fn posts(
     edits: &HashMap<i64, String>,
     shown_rev: u32,
     extras: &ViewExtras,
+    lektor: Option<&crate::auth::Identity>,
 ) -> Value {
     let shown_body = node.revisions.iter().find(|r| r.number == shown_rev).map_or("", |r| r.body.as_str());
     let ctx = crate::chat_render::PostCtx { work_id, work, key: node.key, shown_rev, extras };
@@ -1300,12 +1316,34 @@ fn posts(
                 sources => Value::from(Serde(&post.sources)), refs => refs,
                 edited => edited.map(String::as_str), edited_time => edited.map(|t| short_time(t)),
                 own => post.author == crate::mirror::HUMAN_NAME,
-                extra => Value::from(Serde(crate::chat_render::post_extra(&ctx, post))),
+                // Runde 35: eigener Beitrag eines Lektors (Autor des Beitrags = seine Herkunft) – nur den darf er
+                // ändern oder entfernen.
+                mine => lektor.is_some_and(|l| post.author == l.handle),
+                extra => post_extra_for(&ctx, post, lektor.is_some()),
                 solutions => Value::from(Serde(crate::assist::solutions::post_solutions(&post.body, shown_body))),
             }
         })
         .collect();
     Value::from(posts)
+}
+
+/// Zusatz eines Beitrags für die Vorlage ([`crate::chat_render::post_extra`]). Für Lektoren mit leerer Liste der
+/// Karten der Befund-Blöcke: Die Karten tragen die Formulare zum Status (nur der Autor); ohne Karte zeigt die Vorlage
+/// den Befund als gewöhnlichen Text des Beitrags. Die Liste bleibt als leere Abbildung stehen – die Vorlage schlägt
+/// darin nach, und ein Nachschlagen in einem fehlenden Wert wäre ein Fehler der Vorlage.
+fn post_extra_for(ctx: &crate::chat_render::PostCtx<'_>, post: &baruch_core::Post, lektor: bool) -> Value {
+    let extra = crate::chat_render::post_extra(ctx, post);
+    if !lektor {
+        return Value::from(Serde(extra));
+    }
+    match serde_json::to_value(&extra) {
+        Ok(serde_json::Value::Object(mut map)) => {
+            map.insert("finding_cards".to_owned(), serde_json::json!({}));
+            Value::from(Serde(serde_json::Value::Object(map)))
+        }
+        Ok(other) => Value::from(Serde(other)),
+        Err(_) => Value::from(()),
+    }
 }
 
 /// Ziele für „Verschieben…“ im Abschnitts-Chat: alle Abschnitte des Werks außer dem gezeigten, je
@@ -1374,6 +1412,9 @@ pub struct Panes {
 }
 
 fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, library: &LibraryView) -> Value {
+    // Runde 35: Wer fragt? Ein Lektor bekommt eigene Vorlagen (siehe Modulkopf).
+    let who = crate::auth::current();
+    let lektor = who.lektor();
     let node = &work.nodes[at.node];
     let revision = &node.revisions[at.index];
     let total = node.revisions.len();
@@ -1507,7 +1548,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         // veralten, wenn ein anderer Tab die Gliederung umstellt.
         node => context! {
             id => node.id, key => node.key, number => node.number.as_str(), title => node.title.as_str(),
-            posts => posts(work, node, shelf.id, &lq_q, colors, &library.extras.post_edits, at.rev, &library.extras),
+            posts => posts(work, node, shelf.id, &lq_q, colors, &library.extras.post_edits, at.rev, &library.extras, lektor),
             // Runde 28: Stelle des ersten gezeigten Beitrags (0 = alle gezeigt; ältere über /beitraege).
             post_older => crate::posts::visible_range(node.posts.len()).start,
             post_count => node.posts.len(),
@@ -1594,6 +1635,20 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         // Runde 18a/18c (Schnittstelle R18-S1): Knöpfe des Menübands und CSS des Satzbilds des Werks.
         ribbon => Value::from(Serde(&library.extras.ribbon)),
         sheet_css => library.extras.sheet_css.as_deref(),
+        // Runde 35: none außer für einen angemeldeten Lektor (dann Herkunft und Name für die Lektor-Vorlagen).
+        lektor => lektor.map(|l| context! {
+            handle => l.handle.as_str(),
+            name => if l.display.trim().is_empty() { l.name.as_str() } else { l.display.as_str() },
+        }),
+    }
+}
+
+/// Vorlagen der drei Bereiche: für Lektoren die eigenen (`fragments/lektor_*.html`), sonst die des Autors.
+fn pane_templates() -> [&'static str; 3] {
+    if crate::auth::current().lektor().is_some() {
+        ["fragments/lektor_tree.html", "fragments/lektor_editor.html", "fragments/lektor_assistants.html"]
+    } else {
+        ["fragments/tree.html", "fragments/editor.html", "fragments/assistants.html"]
     }
 }
 
@@ -1606,10 +1661,11 @@ pub fn panes(
     library: &LibraryView,
 ) -> Result<Panes, minijinja::Error> {
     let ctx = values(work, shelf, &at, settings, library);
+    let [tree, editor, assistants] = pane_templates();
     Ok(Panes {
-        tree: env.get_template("fragments/tree.html")?.render(&ctx)?,
-        editor: env.get_template("fragments/editor.html")?.render(&ctx)?,
-        assistants: env.get_template("fragments/assistants.html")?.render(&ctx)?,
+        tree: env.get_template(tree)?.render(&ctx)?,
+        editor: env.get_template(editor)?.render(&ctx)?,
+        assistants: env.get_template(assistants)?.render(&ctx)?,
     })
 }
 
@@ -1636,6 +1692,10 @@ pub fn environment() -> Environment<'static> {
         ("fragments/revisions.html", include_str!("../templates/fragments/revisions.html")),
         ("fragments/findings_panel.html", include_str!("../templates/fragments/findings_panel.html")),
         ("fragments/assistants.html", include_str!("../templates/fragments/assistants.html")),
+        // Runde 35: die drei Bereiche für Lektoren.
+        ("fragments/lektor_tree.html", include_str!("../templates/fragments/lektor_tree.html")),
+        ("fragments/lektor_editor.html", include_str!("../templates/fragments/lektor_editor.html")),
+        ("fragments/lektor_assistants.html", include_str!("../templates/fragments/lektor_assistants.html")),
         ("fragments/proposals.html", include_str!("../templates/fragments/proposals.html")),
         ("fragments/library.html", include_str!("../templates/fragments/library.html")),
         ("fragments/literature_bibles.html", include_str!("../templates/fragments/literature_bibles.html")),

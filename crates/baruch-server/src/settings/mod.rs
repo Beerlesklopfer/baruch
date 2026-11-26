@@ -68,7 +68,7 @@ pub struct SettingsPage {
     pub render: PageRender,
 }
 
-static PAGES: [SettingsPage; 7] = [
+static PAGES: [SettingsPage; 8] = [
     SettingsPage {
         slug: "darstellung",
         title: "Darstellung",
@@ -101,9 +101,16 @@ static PAGES: [SettingsPage; 7] = [
         render: render_access,
     },
     SettingsPage { slug: "daten", title: "Daten", storage: "Datenordner", render: render_data },
+    // Runde 35: Konten (Liste, Lektor anlegen, Sperren, Passwort zurücksetzen, „Am eigenen Rechner ohne Anmeldung“).
+    SettingsPage {
+        slug: "konten",
+        title: "Konten",
+        storage: "SQLite dieser Instanz (Passwort nur als Prüfwert; nicht im Austausch, nicht im Spiegel)",
+        render: crate::konten_ui::pages::render_settings,
+    },
 ];
 
-/// Die sieben Seiten in fester Reihenfolge.
+/// Die acht Seiten in fester Reihenfolge.
 pub fn registry() -> &'static [SettingsPage] {
     &PAGES
 }
@@ -220,6 +227,7 @@ fn templates() -> &'static Environment<'static> {
             ("settings/assistenten.html", include_str!("../../templates/settings/assistenten.html")),
             ("settings/mcp.html", include_str!("../../templates/settings/mcp.html")),
             ("settings/daten.html", include_str!("../../templates/settings/daten.html")),
+            ("settings/konten.html", include_str!("../../templates/settings/konten.html")),
             ("work_edit.html", include_str!("../../templates/work_edit.html")),
             ("work_numbering.html", include_str!("../../templates/work_numbering.html")),
         ] {
@@ -310,8 +318,12 @@ pub(crate) async fn frame(
     let page = page(slug).ok_or_else(|| FrameError::NotFound(format!("unbekannte Einstellungsseite „{slug}“")))?;
     let work = resolve_work(state, asked, info.settings.work).await?;
     let body = REQUEST.scope(info, (page.render)(state, work, &query)).await.map_err(FrameError::Internal)?;
+    // Runde 35: Ein Lektor erreicht nur „Darstellung“ (Cookies im eigenen Browser); die übrigen Seiten stehen für
+    // ihn nicht in der Navigation (die Sperre selbst liegt in `roles`).
+    let lektor = crate::auth::current().lektor().is_some();
     let pages: Vec<Value> = registry()
         .iter()
+        .filter(|p| !lektor || p.slug == "darstellung")
         .map(|p| context! { slug => p.slug, title => p.title, current => p.slug == page.slug })
         .collect();
     let html = render_template(
@@ -582,11 +594,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_registry_lists_seven_pages_in_the_agreed_order() {
+    fn the_registry_lists_eight_pages_in_the_agreed_order() {
         let slugs: Vec<&str> = registry().iter().map(|p| p.slug).collect();
         assert_eq!(
             slugs,
-            ["darstellung", "werk", "assistenten", "verbindungen", "quellen", "mcp", "daten"],
+            ["darstellung", "werk", "assistenten", "verbindungen", "quellen", "mcp", "daten", "konten"],
             "Reihenfolge nach Vertrag Runde 9, §3"
         );
         assert!(registry().iter().all(|p| !p.title.is_empty() && !p.storage.is_empty()), "Titel und Speicherort");

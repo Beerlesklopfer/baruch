@@ -49,7 +49,10 @@ register("menubar", (nav) => {
   if (menus.length === 0) return;
   const summaryOf = (menu: HTMLDetailsElement) => menu.querySelector<HTMLElement>(":scope > summary");
   const itemsOf = (menu: HTMLDetailsElement) =>
-    Array.from(menu.querySelectorAll<HTMLElement>(".menu-item")).filter((item) => !item.hidden);
+    Array.from(menu.querySelectorAll<HTMLElement>(".menu-item")).filter(
+      // Runde 35: Für Lektoren blendet konten.css die Einträge des Autors aus; die Pfeiltasten überspringen sie.
+      (item) => !item.hidden && !(document.body.dataset.rolle === "lektor" && item.classList.contains("nur-autor")),
+    );
 
   // Einträge sind nicht in der Tab-Folge (Tab springt von Menü zu Menü), Pfeile führen hinein.
   for (const menu of menus) {

@@ -10,7 +10,8 @@
 //! Klick: Kein Zeitablauf und kein Schließen des Dialogs gilt als Zustimmung.
 //!
 //! Umsetzung: `base.html` trägt die Marke [`MARKER`]; die Schicht [`inject`] ersetzt sie in jeder
-//! HTML-Antwort durch [`banner`] (leer, wenn nichts offen ist). So braucht keine der vielen
+//! HTML-Antwort durch [`banner`] (leer, wenn nichts offen ist; seit Runde 35 auch leer für Lektoren – zustimmen
+//! kann nur, wer volle Rechte hat). So braucht keine der vielen
 //! Template-Umgebungen eigene Daten dafür. Die Abfrage läuft nur, wenn die Marke in der Antwort steht.
 
 use std::sync::{Arc, OnceLock};
@@ -112,7 +113,11 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
     let Some(text) = std::str::from_utf8(&bytes).ok().filter(|t| t.contains(MARKER)) else {
         return Response::from_parts(parts, Body::from(bytes));
     };
-    let page = text.replacen(MARKER, &banner(&state).await, 1);
+    // Runde 35: Zustimmen kann nur der Autor – Hinweisleiste und Dialog bekommt darum nur, wer volle Rechte hat
+    // (ohne Konten jeder, wie bisher). Für Lektoren verschwindet nur die Marke.
+    let who = crate::auth::current();
+    let consent = if who.full_rights() { banner(&state).await } else { String::new() };
+    let page = text.replacen(MARKER, &consent, 1);
     // Runde 23a: Abzeichen der Kopfzeile außerhalb der Arbeitsseite serverseitig füllen (auch ohne JavaScript).
     let page = crate::menu::fill_page(&state, page).await;
     // Runde 33: aktiver Reiter, Adressen der Reiter und Laptop-Zustand im fertigen HTML; gültige Schlüssel der
@@ -122,7 +127,7 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
     // wenn die Marke in der Seite steht.
     let page = if page.contains(crate::konten_ui::KONTO_MARK) {
         let accounts_exist = crate::auth::accounts_exist(&state).await;
-        crate::konten_ui::apply(&page, &crate::auth::current(), accounts_exist)
+        crate::konten_ui::apply(&page, &who, accounts_exist)
     } else {
         page
     };
