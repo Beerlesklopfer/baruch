@@ -154,3 +154,223 @@ pub fn git(dir: &Path, args: &[&str]) -> Option<String> {
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
     Some(String::from_utf8(output.stdout).unwrap())
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Runde 35 (Schnittstelle R35-S1): Hilfen für die Tests der Konten und Rollen.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// Legt fest, wer die Anfrage stellt, ohne Sitzung und Passwort: `auth::gate` nimmt ein [`baruch_server::auth::Who`]
+/// aus den Extensions der Anfrage statt selbst aufzulösen. Extensions lassen sich nur im Prozess setzen, nie über
+/// das Netz.
+pub fn with_who(mut request: Request<Body>, who: baruch_server::auth::Who) -> Request<Body> {
+    request.extensions_mut().insert(who);
+    request
+}
+
+/// Alle Quelldateien des Servers (`crates/baruch-server/src/**/*.rs`) als `(Pfad, Inhalt)`, sortiert.
+fn server_sources() -> Vec<(PathBuf, String)> {
+    fn walk(dir: &Path, found: &mut Vec<(PathBuf, String)>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, found);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let text = std::fs::read_to_string(&path).unwrap();
+                found.push((path, text));
+            }
+        }
+    }
+    let mut found = Vec::new();
+    walk(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")), &mut found);
+    found.sort();
+    found
+}
+
+/// Ende des Aufrufs, dessen öffnende Klammer direkt vor `start` steht: Stelle der passenden schließenden Klammer.
+/// Zeichenketten und Zeilenkommentare werden übersprungen.
+fn closing_paren(text: &str, start: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let (mut depth, mut i) = (1usize, start);
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+            }
+            b'/' if bytes.get(i + 1) == Some(&b'/') => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Alle Routen des Servers als `("GET" | "POST", Muster)`: jedes `.route("…", …get(…)…post(…))` aus
+/// `crates/baruch-server/src/**/*.rs`, auch über mehrere Zeilen und mit dem Muster als Konstante derselben Datei.
+/// Ohne Testmodule (alles ab `#[cfg(test)]`) und ohne Nachbauten (`mock.rs`). Sortiert, ohne Doppel.
+///
+/// Die Liste entsteht aus dem Quelltext, nicht aus einer gepflegten Tabelle: Eine neue Route künftiger Runden steht
+/// von selbst darin, und die Tests der Rollen prüfen sie ohne Zutun.
+pub fn registered_routes() -> Vec<(String, String)> {
+    let call = regex::Regex::new(r#"\.route\(\s*(?:"([^"]*)"|([A-Z][A-Z0-9_]*))\s*,"#).unwrap();
+    let verb = regex::Regex::new(r"\b(get|post)\(").unwrap();
+    let mut routes = std::collections::BTreeSet::new();
+    for (path, text) in server_sources() {
+        if path.file_name().is_some_and(|name| name == "mock.rs") {
+            continue;
+        }
+        let text = text.split("#[cfg(test)]").next().unwrap();
+        for found in call.captures_iter(text) {
+            let pattern = match (found.get(1), found.get(2)) {
+                (Some(literal), _) => literal.as_str().to_owned(),
+                (None, Some(name)) => {
+                    let constant = regex::Regex::new(&format!(r#"const {}: &str = "([^"]*)""#, name.as_str())).unwrap();
+                    let value = constant.captures(text).unwrap_or_else(|| {
+                        panic!("{}: Konstante {} des Routenmusters nicht gefunden", path.display(), name.as_str())
+                    });
+                    value[1].to_owned()
+                }
+                (None, None) => unreachable!("eine der beiden Gruppen trifft immer"),
+            };
+            let start = found.get(0).unwrap().end();
+            let end = closing_paren(text, start)
+                .unwrap_or_else(|| panic!("{}: .route(\"{pattern}\" ohne schließende Klammer", path.display()));
+            let before = routes.len();
+            for method in verb.captures_iter(&text[start..end]) {
+                routes.insert((method[1].to_uppercase(), pattern.clone()));
+            }
+            assert!(
+                routes.len() > before || routes.iter().any(|(_, p)| *p == pattern),
+                "{}: .route(\"{pattern}\" ohne get(…) oder post(…) – registered_routes kennt die Methode nicht",
+                path.display()
+            );
+        }
+    }
+    routes.into_iter().collect()
+}
+
+/// Endungen, an denen eine Zeichenkette der Form `wort.wort` als Dateiname erkannt wird. `pdf` und `epub` fehlen
+/// bewusst: `work.pdf` und `work.epub` sind RPC-Methoden.
+const FILE_ENDINGS: &[&str] = &[
+    "html", "xhtml", "css", "js", "ts", "rs", "typ", "svg", "png", "jpg", "jpeg", "gif", "webp", "json", "xml", "md",
+    "mdx", "txt", "sqlite", "docx", "doc", "jar", "baruch", "toml", "zip",
+];
+
+/// Alles, was im Quelltext des Servers wie eine RPC-Methode aussieht: jede Zeichenkette
+/// `^[a-z][a-z_]*\.[a-z][a-z_]*$` aus `crates/baruch-server/src/**/*.rs` (auch aus Testmodulen), ohne Dateinamen
+/// ([`FILE_ENDINGS`]). Sortiert, ohne Doppel. Bewusst eine Obermenge (auch `baruch.example` o. ä.): Für Lektoren ist
+/// jede Methode gesperrt, die nicht ausdrücklich erlaubt ist – auch eine, die es gar nicht gibt.
+pub fn rpc_method_candidates() -> Vec<String> {
+    let literal = regex::Regex::new(r#""([a-z][a-z_]*\.([a-z][a-z_]*))""#).unwrap();
+    let mut methods = std::collections::BTreeSet::new();
+    for (_, text) in server_sources() {
+        for found in literal.captures_iter(&text) {
+            if !FILE_ENDINGS.contains(&&found[2]) {
+                methods.insert(found[1].to_owned());
+            }
+        }
+    }
+    methods.into_iter().collect()
+}
+
+#[test]
+fn registered_routes_finds_the_routes_of_the_server() {
+    let routes = registered_routes();
+    assert!(routes.len() >= 130, "mindestens 130 Routen (Stand Runde 34), gefunden: {}", routes.len());
+    let has = |method: &str, pattern: &str| routes.iter().any(|(m, p)| m == method && p == pattern);
+    assert!(has("POST", "/rpc"), "POST /rpc steht mit Schicht (.layer) hinter post(…) – trotzdem erkannt");
+    assert!(
+        has("POST", "/werke/{id}/karte/einlesen/anlegen"),
+        "eine über mehrere Zeilen geschriebene Route (idea_map::files) wird gefunden"
+    );
+    assert!(has("GET", "/"), "die Arbeitsseite");
+    assert!(has("GET", "/werke/import/word"), "ein Muster, das als Konstante (PAGE) im Router steht");
+    assert!(has("GET", "/static/js/{name}"), "eine Route mit Platzhalter");
+    assert!(
+        !routes.iter().any(|(_, p)| p == "/mcp") || has("POST", "/mcp"),
+        "/mcp gibt es nur als POST des Servers – die Nachbauten (mock.rs) zählen nicht mit"
+    );
+    assert!(
+        routes.iter().all(|(m, p)| (m == "GET" || m == "POST") && p.starts_with('/')),
+        "nur GET und POST, jedes Muster beginnt mit /"
+    );
+    let mut sorted = routes.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted, routes, "sortiert und ohne Doppel – Tests können die Liste direkt vergleichen");
+}
+
+#[test]
+fn rpc_method_candidates_contain_every_documented_method() {
+    let candidates = rpc_method_candidates();
+    let row = regex::Regex::new(r"^\| `([a-z][a-z_]*\.[a-z][a-z_]*)`").unwrap();
+    let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/RPC.md")).unwrap();
+    let documented: Vec<&str> =
+        doc.lines().filter_map(|line| row.captures(line)).map(|c| c.get(1).unwrap().as_str()).collect();
+    assert!(documented.len() >= 200, "docs/RPC.md nennt über 200 Methoden als Tabellenzeile: {}", documented.len());
+    let missing: Vec<&&str> = documented.iter().filter(|m| !candidates.iter().any(|c| c == **m)).collect();
+    assert!(missing.is_empty(), "dokumentierte Methoden, die rpc_method_candidates nicht findet: {missing:?}");
+    for method in ["work.pdf", "work.epub"] {
+        assert!(candidates.iter().any(|c| c == method), "{method} ist eine Methode, kein Dateiname");
+    }
+    for method in ["account.me", "member.grant", "revision.propose", "finding.add"] {
+        assert!(
+            candidates.iter().any(|c| c == method),
+            "{method}: die Methoden der Runde 35 stehen schon im Quelltext"
+        );
+    }
+    for file in ["base.html", "baruch.sqlite", "consent.html"] {
+        assert!(!candidates.iter().any(|c| c == file), "{file} ist ein Dateiname und keine Methode");
+    }
+}
+
+#[tokio::test]
+async fn with_who_decides_who_asks_without_a_session() {
+    use baruch_server::auth::Who;
+    let server = open().await;
+    let anonymous = with_who(Request::get("/werke?x=1&y=2").body(Body::empty()).unwrap(), Who::Anonymous);
+    let (status, headers, _) = server.send(anonymous).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "ohne Anmeldung leitet eine Seite zur Anmeldung um");
+    assert_eq!(
+        headers.get(header::LOCATION).unwrap(),
+        "/anmelden?next=/werke%3Fx%3D1%26y%3D2",
+        "das Ziel steht prozentkodiert in next, damit ? und & die Adresse nicht zerteilen"
+    );
+    let rpc_call = Request::post("/rpc")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(json!({ "jsonrpc": "2.0", "id": 1, "method": "work.list" }).to_string()))
+        .unwrap();
+    let (status, _, body) = server.send(with_who(rpc_call, Who::Anonymous)).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "/rpc ohne Anmeldung: 401 statt Umleitung (Skripte folgen keiner Seite)"
+    );
+    let answer: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(answer["error"]["code"], baruch_server::rpc::UNAUTHENTICATED, "JSON-RPC-Fehler „nicht angemeldet“");
+    let form = Request::post("/act")
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(Body::from("method=post.add&body=x"))
+        .unwrap();
+    let (status, _, _) = server.send(with_who(form, Who::Anonymous)).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "ein Formular ohne Anmeldung wird abgewiesen, nichts geschrieben");
+    let style = with_who(Request::get("/static/app.css").body(Body::empty()).unwrap(), Who::Anonymous);
+    assert_eq!(server.send(style).await.0, StatusCode::OK, "die Anmeldeseite braucht ihr Stylesheet ohne Anmeldung");
+    let open_page = Request::get("/werke").body(Body::empty()).unwrap();
+    assert_eq!(server.send(open_page).await.0, StatusCode::OK, "ohne Konten und ohne Who bleibt alles offen");
+    let local = with_who(Request::get("/werke").body(Body::empty()).unwrap(), Who::LocalAuthor);
+    assert_eq!(server.send(local).await.0, StatusCode::OK, "volle Rechte sehen die Seite");
+}

@@ -118,6 +118,9 @@ pulldown-cmark = { version = "0.13", default-features = false }
 # Beide liegen über baruch-store schon im Lock.
 base64 = "0.22"
 getrandom = "0.2"
+# Runde 35 (Schnittstelle R35-S1, konten): Passwörter der Konten als Argon2id-PHC-Text (`src/auth/password.rs`).
+# Lizenz MIT OR Apache-2.0.
+argon2 = "0.5"
 
 # „Sicherung jetzt“: freien Platz des Dateisystems prüfen (statvfs ohne unsafe).
 [target.'cfg(unix)'.dependencies]

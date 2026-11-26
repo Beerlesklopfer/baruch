@@ -369,6 +369,8 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
             "index_proposal",
             // Runde 22 (0050): Einstellung „Fassungen“ je Werk.
             "work_revision_policy",
+            // Runde 35 (0054): Freigabe eines Werks für ein Lektor-Konto.
+            "work_member",
         ]
         .contains(&table.as_str())
     });
@@ -533,6 +535,15 @@ fn without_0041(
                 || name == "node_revision_fold"
                 // Runde 34 (0052): Index über Elternknoten und Reihenfolge der Einfälle.
                 || name == "idea_parent"
+                // Runde 35 (0053, 0054): Konten, Sitzungen, Sperre gegen Durchprobieren und Freigaben samt Indizes –
+                // Instanzdaten ohne uuid, nicht im Austausch.
+                || name == "account"
+                || name.starts_with("account_session")
+                || name == "login_attempt"
+                || name.starts_with("work_member")
+                || name.starts_with("sqlite_autoindex_account_")
+                || name == "sqlite_autoindex_login_attempt_1"
+                || name == "sqlite_autoindex_work_member_1"
                 || name.ends_with("_uuid")
                 || name.ends_with("_uuid_fill")
                 || name.ends_with("_uuid_tombstone"))

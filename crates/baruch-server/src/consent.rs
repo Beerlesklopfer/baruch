@@ -118,6 +118,14 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
     // Runde 33: aktiver Reiter, Adressen der Reiter und Laptop-Zustand im fertigen HTML; gültige Schlüssel der
     // Adresse als Cookie merken – anhängen, nicht ersetzen (`/` setzt schon `baruch_work`).
     let page = crate::band::apply(&page, &band, &laptop);
+    // Runde 35 (Schnittstelle R35-S1): Konto-Eintrag im Menü „Baruch ▾“ und Rolle an <body>; die Abfrage läuft nur,
+    // wenn die Marke in der Seite steht.
+    let page = if page.contains(crate::konten_ui::KONTO_MARK) {
+        let accounts_exist = crate::auth::accounts_exist(&state).await;
+        crate::konten_ui::apply(&page, &crate::auth::current(), accounts_exist)
+    } else {
+        page
+    };
     for cookie in
         crate::band::set_cookies(query.as_deref()).into_iter().chain(crate::laptop::set_cookies(query.as_deref()))
     {

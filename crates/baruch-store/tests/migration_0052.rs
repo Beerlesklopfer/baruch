@@ -62,9 +62,10 @@ async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
 async fn migrate_before(pool: &SqlitePool) {
     let versions: Vec<i64> = baruch_store::MIGRATOR.iter().map(|m| m.version).filter(|v| *v < 100).collect();
     assert_eq!(
-        versions.iter().copied().filter(|v| *v > 51).collect::<Vec<_>>(),
+        versions.iter().copied().filter(|v| *v > 51 && *v < 53).collect::<Vec<_>>(),
         [52],
-        "einzige neue Store-Migration der Runde 34: 0052 (0053 bis 0055 reserviert, unbenutzt)"
+        "einzige Store-Migration der Runde 34: 0052 (ihre Reservierungen 0053 bis 0055 blieben unbenutzt; 0053 und \
+         0054 gehören seit Runde 35 den Konten und Freigaben)"
     );
     assert!(
         !baruch_store::FOREIGN_KEYS_OFF.contains(&52),

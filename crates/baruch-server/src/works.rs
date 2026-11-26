@@ -217,7 +217,8 @@ pub async fn call(
     params_value: serde_json::Value,
 ) -> Result<serde_json::Value, RpcError> {
     match method {
-        "work.list" => Ok(json!({ "works": state.store.work_list().await? })),
+        // Runde 35: gefiltert nach Rolle (ein Lektor sieht nur freigegebene Werke).
+        "work.list" => Ok(json!({ "works": crate::roles::visible_works(state, &crate::auth::current()).await? })),
         "work.meta" => {
             let p: MetaParams = params(params_value)?;
             let work = match p.work {
@@ -1107,7 +1108,8 @@ struct ListQuery {
 }
 
 async fn list_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
-    let works = match state.store.work_list().await {
+    // Runde 35: gefiltert nach Rolle (ein Lektor sieht nur freigegebene Werke).
+    let works = match crate::roles::visible_works(&state, &crate::auth::current()).await {
         Ok(works) => works,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
     };

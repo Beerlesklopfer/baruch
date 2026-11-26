@@ -60,10 +60,17 @@
 //!   [`Store::idea_delete_tree`]/[`Store::idea_restore_tree`] ([`IdeaTreeChange`]), [`Store::idea_tree_rows`],
 //!   [`Store::idea_import_tree`] ([`IdeaSeed`], [`IdeaSeedLink`]). Austauschformat Unterversion 9 (`titel`, `eltern`,
 //!   `platz`, `hauptthema` an `<einfall>`).
+//! - Runde 35 (Schnittstelle R35-S1, Konten und Rollen): Migration 0053 `accounts` (konten: `account`,
+//!   `account_session`, `login_attempt`) und 0054 `work_member` (rollen: Freigabe eines Werks für ein Lektor-Konto);
+//!   beide nur `CREATE`, nicht in [`FOREIGN_KEYS_OFF`], Inhalt nach S1 unveränderlich. Reserviert: 0055 Integrator
+//!   (erwartet unbenutzt); Bibliothek: keine. Die vier Tabellen sind Instanzdaten: ohne uuid, nicht im Austauschformat,
+//!   nicht im Spiegel. Module `accounts` ([`Account`], [`NewAccount`], [`Store::account_count`]) und `members`
+//!   ([`WorkMember`]); der Store hasht nie selbst und sieht nie ein Klartext-Passwort.
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
 
+mod accounts;
 mod amend;
 mod asset_requests;
 mod assets;
@@ -83,6 +90,7 @@ mod import;
 mod legacy_parts;
 mod load;
 mod mcp_tokens;
+mod members;
 mod model_connections;
 mod outline;
 mod persona_rag;
@@ -113,6 +121,7 @@ use std::time::Duration;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 
+pub use accounts::{Account, NewAccount};
 pub use amend::{AmendKind, AmendStep, RevisionPolicyChange};
 pub use asset_requests::{ASSET_REQUEST_PURGE_DAYS, AssetOp, AssetRequest, AssetUsage};
 pub use assets::{
@@ -147,6 +156,7 @@ pub use ideas::{
 };
 pub use legacy_parts::{CONVERSION_NOTE, CONVERTED_KEY, ConvertedPart, PartConversion, PartText};
 pub use mcp_tokens::{MCP_TOKEN_PREFIX, McpToken};
+pub use members::WorkMember;
 pub use model_connections::{
     ELIEZER_CONNECTION, MAX_CONNECTION_NAME, MAX_CONNECTION_URL, MODEL_CONNECTION_KINDS, ModelConnection,
     ModelConnectionEdit, PersonaBackend,

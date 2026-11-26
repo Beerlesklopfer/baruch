@@ -335,10 +335,27 @@ fn new_objects() -> BTreeSet<String> {
     names.insert("node_revision_fold".into());
     // Runde 34 (0052): Index über Elternknoten und Reihenfolge der Einfälle.
     names.insert("idea_parent".into());
+    // Runde 35 (0053, 0054): Konten, Sitzungen, Sperre gegen Durchprobieren und Freigaben samt Indizes – Instanzdaten
+    // ohne uuid, nicht im Austausch (geprüft in migration_0053.rs und migration_0054.rs).
+    names.extend(R35_OBJECTS.iter().map(|s| s.to_string()));
     names
 }
 
 /// Objekte, die 0050 (Runde 22) neu anlegt.
+const R35_OBJECTS: [&str; 11] = [
+    "account",
+    "account_session",
+    "account_session_account",
+    "login_attempt",
+    "sqlite_autoindex_account_1",
+    "sqlite_autoindex_account_2",
+    "sqlite_autoindex_account_session_1",
+    "sqlite_autoindex_login_attempt_1",
+    "sqlite_autoindex_work_member_1",
+    "work_member",
+    "work_member_account",
+];
+
 const R22_OBJECTS: [&str; 7] = [
     "revision_amend",
     "revision_amend_uuid",

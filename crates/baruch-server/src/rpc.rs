@@ -115,6 +115,10 @@ pub const INTERNAL: i64 = -32603;
 pub const REFUSED: i64 = -32000;
 /// Bedeutungssuche ausgefallen (Runde 19c, `idea.search` mit `mode: "rag"`): Einbettung/Index nicht nutzbar; die Nachricht nennt den Grund.
 pub const RAG_UNAVAILABLE: i64 = -32001;
+/// Runde 35: Es gibt Konten und die Anfrage trägt keine gültige Sitzung (HTTP 401 an `/rpc`).
+pub const UNAUTHENTICATED: i64 = -32002;
+/// Runde 35: Die Rolle darf die Methode bzw. das Werk nicht („Das darf nur der Autor: …“).
+pub const FORBIDDEN: i64 = -32003;
 
 #[derive(Debug)]
 pub struct RpcError {
@@ -536,7 +540,24 @@ pub async fn library_view(state: &AppState, work: WorkId, lq: Option<&str>) -> R
     })
 }
 
-pub async fn call(state: &AppState, settings: &Settings, method: &str, params_value: Value) -> Result<Value, RpcError> {
+/// Jede RPC-Methode, mit Rechteprüfung (Runde 35): [`crate::roles::check_rpc`] entscheidet vor jedem Dispatch – auch
+/// für unbekannte Namen –, ob wer die Anfrage stellt ([`crate::auth::current`]) die Methode darf, und darf `params`
+/// ergänzen (Werk eines Lektors). Das ist die EINZIGE Rechteprüfung für `/rpc`, `/act` und `/lektorat/act`.
+pub async fn call(state: &AppState, settings: &Settings, method: &str, mut params: Value) -> Result<Value, RpcError> {
+    let who = crate::auth::current();
+    crate::roles::check_rpc(state, &who, method, &mut params).await?;
+    dispatch(state, settings, method, params).await
+}
+
+async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_value: Value) -> Result<Value, RpcError> {
+    // Runde 35 (Schnittstelle R35-S1): Konten (`account.*`) und Rollen (`member.*`, `revision.propose`,
+    // `finding.add`) vor allen Fachmodulen.
+    if crate::auth::rpc::handles(method) {
+        return crate::auth::rpc::call(state, method, params_value).await;
+    }
+    if crate::roles::rpc::handles(method) {
+        return crate::roles::rpc::call(state, method, params_value).await;
+    }
     if crate::exchange::handles(method) {
         return crate::exchange::call(state, method, params_value).await;
     }

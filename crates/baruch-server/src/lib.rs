@@ -19,6 +19,7 @@ pub mod archive;
 pub mod asset_requests;
 pub mod assets;
 pub mod assist;
+pub mod auth;
 pub mod band;
 pub mod bible_research;
 pub mod bibles;
@@ -45,6 +46,7 @@ pub mod import;
 pub mod index_marks;
 pub mod index_page;
 pub mod instance;
+pub mod konten_ui;
 pub mod laptop;
 pub mod literature;
 pub mod localtime;
@@ -65,6 +67,7 @@ pub mod rag;
 mod revision_fold;
 mod revisions;
 pub mod ribbon;
+pub mod roles;
 pub mod rpc;
 pub mod scripture;
 pub mod scripture_check;
@@ -158,7 +161,9 @@ const STYLE: &str = concat!(
     include_str!("../static/shutdown.css"),
     // Runde 33 (Schnittstelle R33-S1): Menüband (menueband) und Laptop-Modus (laptop); laptop.css zuletzt.
     include_str!("../static/band.css"),
-    include_str!("../static/laptop.css")
+    include_str!("../static/laptop.css"),
+    // Runde 35 (Schnittstelle R35-S1): Anmeldung, Konten, Mitwirkende und die Regeln `nur-autor`/`nur-lektor`.
+    include_str!("../static/konten.css")
 );
 const ICON: &str = include_str!("../static/favicon.svg");
 
@@ -187,6 +192,8 @@ pub struct AppState {
     pub allowed_hosts: guard::AllowedHosts,
     /// Auslöser für das Herunterfahren (Runde 32): `POST /beenden` verlangt es, [`shutdown::serve`] wartet darauf.
     pub shutdown: shutdown::Shutdown,
+    /// Zustand der Anmeldung (Runde 35): je `AppState`, nie prozessweit; die Felder legt [`auth`] fest.
+    pub auth: auth::AuthState,
 }
 
 /// Fehler beim Start (Datenordner, Datenbank).
@@ -253,6 +260,7 @@ impl AppState {
             model,
             allowed_hosts: guard::AllowedHosts::default(),
             shutdown: shutdown::Shutdown::new(),
+            auth: auth::AuthState::default(),
         };
         mirror::sync_all(&state).await;
         mirror::convert_legacy_parts(&state).await;
@@ -370,6 +378,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Runde 32 (Schnittstelle R32-S1): Word-Import (Vorschau, Übernehmen, Verwerfen) und „Baruch beenden“.
         .merge(docx_import::writes())
         .merge(shutdown::writes())
+        // Runde 35 (Schnittstelle R35-S1): Anmelden/Abmelden/Einrichten/Konten und die Formulare der Rollen.
+        .merge(auth::routes::writes())
+        .merge(roles::routes::writes())
         .route_layer(middleware::from_fn(guard::same_origin));
     Router::new()
         .route("/", get(index))
@@ -411,6 +422,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(docx_import::pages())
         .merge(docx_export::pages())
         .merge(shutdown::pages())
+        // Runde 35 (Schnittstelle R35-S1): Anmeldeseite, Einrichten, Mein Konto, Mitwirkende.
+        .merge(konten_ui::pages())
         .merge(writes)
         .route("/static/app.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
         .route("/static/favicon.svg", get(|| async { asset("image/svg+xml", ICON) }))
@@ -418,6 +431,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Runde 10: Von anderen Rechnern nur `/mcp` (mit Token, geprüft in `mcp::endpoint`).
         // Nutzerfrage 12: Hinweisleiste und Dialog für Anträge, die Zustimmung brauchen, auf jeder Seite.
         .layer(middleware::from_fn_with_state(state.clone(), consent::inject))
+        // Runde 35: Anmeldung und Rollen – außerhalb von `inject` (Seite und Leiste entstehen schon unter der
+        // festgestellten Identität), innerhalb von `remote_only_mcp` (fremde Rechner kommen gar nicht bis hierher).
+        .layer(middleware::from_fn_with_state(state.clone(), auth::gate))
         .layer(middleware::from_fn(guard::remote_only_mcp))
         .layer(middleware::from_fn(guard::own_reads))
         .layer(middleware::from_fn_with_state(state.clone(), guard::local_host))
@@ -449,7 +465,8 @@ pub(crate) async fn shelf(state: &AppState, work: WorkId) -> Result<(baruch_core
         return Err(StoreError::Refused("Das Werk hat keine Abschnitte."));
     }
     let slug = state.store.work_slug(work).await?;
-    let works = state.store.work_list().await?;
+    // Runde 35: die Werkwahl zeigt nur, was die Rolle sehen darf.
+    let works = roles::visible_works(state, &auth::current()).await?;
     Ok((loaded, Shelf { id: work, slug, works }))
 }
 
