@@ -20,6 +20,32 @@
 #                       eine Anmeldung verlangt
 #             "sword"   nur mit --sword ORDNER (Ordner mit Bibelmodulen); sonst übersprungen und genannt
 #
+# Felder des Werkzeugs site/tools/bildschirmfotos.py (Aufgabe bilder; ausführlich in site/tools/README.md):
+#   adresse    Pfad am Wegwerf-Server, beginnt mit „/“. Platzhalter in geschweiften Klammern setzt das Werkzeug
+#              ein: {work} Beispielwerk, {sample} mitgeliefertes Beispielwerk, {key} Abschnitt „Der erste Morgen“
+#              (zwei Fassungen, Beiträge), {key_logbook} „Das Logbuch“ (Zitat, Bild, Registermarken),
+#              {key_proposal} „Besuch vom Festland“ (Vorschlag eines Assistenten, Fassung {rev_proposal}),
+#              {key_xref} „Was das Licht nicht zeigt“ (Bibelstelle, Querverweis, Fassung {rev_xref}),
+#              {key_night} „Die Nacht ohne Lampe“ (Befund, Vorschlag des Lektors), {key_farewell} „Abschied“,
+#              {idea} Einfall am Abschnitt, {branch} Hauptthema mit Unterknoten, {request} Gliederungsantrag,
+#              {thread} Faden, {post} Beitrag eines Assistenten, {title} Quelle in der Bibliothek.
+#              Adressen unter /_antwort/<name> liefert der Vermittler aus: die gespeicherte Antwort eines Formulars
+#              (Bericht bzw. Vorschau nach dem Einlesen einer Datei).
+#   fenster    Fenstergröße „BREITExHÖHE“; fehlt = 1400x860. Bei 1400 px steht der Laptop-Modus auf „Aus“ (volles
+#              Menüband), solange kein Schritt das Cookie baruch_laptop ändert.
+#   thema      "hell" (Vorgabe) oder "dunkel" für die Hauptaufnahme; dunkel = true ergibt zusätzlich die dunkle.
+#   ausschnitt "BxH+X+Y" (fester Ausschnitt) oder "css:SELEKTOR" (das Element wird im Browser gemessen; braucht
+#              JavaScript). Fehlt = ganzes Fenster.
+#   schritt    Liste, in dieser Reihenfolge: "cookie:NAME=WERT" (leer = Cookie weglassen), "offen:TEXT" (jedes
+#              <details>, dessen öffnendes Tag TEXT enthält, bekommt open – geht ohne JavaScript),
+#              "klick:SELEKTOR" (Klick nach dem Laden; braucht JavaScript), "sitzung:autorin" bzw.
+#              "sitzung:lektor" (angemeldet; nur mit stufe = "konten").
+#   erwartet   Texte, die --pruefen in der Antwort verlangt (roh oder HTML-maskiert) – der Beleg, dass der Aufbau
+#              des Beispielwerks das Motiv wirklich hergibt.
+#   stufe      "offen" (Vorgabe: aufgenommen, bevor es Konten gibt) oder "konten" (danach; jede Seite verlangt eine
+#              Anmeldung). „Konten einrichten“ gibt es nur in der Stufe „offen“, Befunde erst in der Stufe „konten“
+#              (finding.add ist den Lektoren vorbehalten).
+#
 # Regeln für Text und Bilder (Vertrag §4):
 # - Keine echten Namen, Werke oder Daten. Das Beispielwerk ist „Ein Jahr auf Mövenoog“ von Mara Tiedemann
 #   (erfunden); nichts aus fremden Werken oder Ordnern des Nutzers.
@@ -37,483 +63,673 @@
 name = "start-werkliste"
 seite = ["erste-schritte"]
 zeigt = "Liste der Werke (`/werke`)"
+adresse = "/werke"
+erwartet = ["Ein Jahr auf Mövenoog"]
 
 [[bild]]
 name = "start-neues-werk"
 seite = ["erste-schritte"]
 zeigt = "Formular „Neues Werk / Importieren“ (`/werke/neu`)"
+adresse = "/werke/neu"
 
 [[bild]]
 name = "start-arbeitsplatz"
 seite = ["erste-schritte"]
 zeigt = "ganze Arbeitsseite: Gliederung, Blatt, rechte Spalte"
 dunkel = true
+adresse = "/?work={work}&key={key}"
+erwartet = ["Der erste Morgen"]
 
 [[bild]]
 name = "start-werk-bearbeiten"
 seite = ["erste-schritte"]
 zeigt = "„Werk bearbeiten“ (`/werke/WERK/bearbeiten`)"
+adresse = "/werke/{work}/bearbeiten"
+erwartet = ["Mara Tiedemann"]
 
 [[bild]]
 name = "start-archiv"
 seite = ["erste-schritte"]
 zeigt = "Archiv gelöschter Werke mit einem gelöschten Wegwerf-Werk (`/werke/archiv`)"
+adresse = "/werke/archiv"
+erwartet = ["Notizen vom Festland"]
 
 [[bild]]
 name = "start-beenden"
 seite = ["erste-schritte"]
 zeigt = "Rückfrage „Baruch beenden“ (`/beenden`)"
+adresse = "/beenden"
 
 [[bild]]
 name = "start-ueber"
 seite = ["erste-schritte"]
 zeigt = "„Über Baruch“ (`/ueber`)"
+adresse = "/ueber"
+erwartet = ["Hilfe mit Bildern"]
 
 [[bild]]
 name = "einlesen-bericht"
 seite = ["einlesen"]
 zeigt = "Bericht nach dem Einlesen einer Typst- oder Markdown-Datei (Antwort auf das Formular)"
+adresse = "/_antwort/einlesen-bericht"
+erwartet = ["Notizen vom Festland", "faehre.png"]
 
 [[bild]]
 name = "einlesen-pdf-epub"
 seite = ["einlesen"]
 zeigt = "Formular „PDF oder EPUB importieren“ (`/werke/import/quelle`)"
+adresse = "/werke/import/quelle"
 
 [[bild]]
 name = "einlesen-pdf-vorschau"
 seite = ["einlesen"]
 zeigt = "Vorschau der Gliederung nach dem Lesen einer PDF (PDF des Beispielwerks vom eigenen Server)"
+adresse = "/_antwort/einlesen-pdf-vorschau"
+erwartet = ["Ankunft"]
 
 [[bild]]
 name = "einlesen-word"
 seite = ["einlesen"]
 zeigt = "Formular „Word (.docx) importieren“ (`/werke/import/word`)"
+adresse = "/werke/import/word"
 
 [[bild]]
 name = "einlesen-word-vorschau"
 seite = ["einlesen"]
 zeigt = "Vorschau mit Gliederung und Warnungen (Word-Export des Beispielwerks vom eigenen Server)"
+adresse = "/_antwort/einlesen-word-vorschau"
+erwartet = ["Ankunft"]
 
 [[bild]]
 name = "band-start"
 seite = ["menueband"]
 zeigt = "Menüband, Reiter Start, als Ausschnitt"
+adresse = "/?work={work}&key={key}&tab=start"
+ausschnitt = "css:header.band"
 
 [[bild]]
 name = "band-einfuegen"
 seite = ["menueband"]
 zeigt = "Reiter Einfügen (`?tab=einfuegen`), Ausschnitt"
+adresse = "/?work={work}&key={key}&tab=einfuegen"
+ausschnitt = "css:header.band"
 
 [[bild]]
 name = "band-pruefen"
 seite = ["menueband"]
 zeigt = "Reiter Prüfen mit Abzeichen „N offen“, Ausschnitt"
+adresse = "/?work={work}&key={key}&tab=pruefen"
+ausschnitt = "css:header.band"
+schritt = ["sitzung:autorin"]
+erwartet = ["3 offen"]
+stufe = "konten"
 
 [[bild]]
 name = "band-buch"
 seite = ["menueband"]
 zeigt = "Reiter Buch, Ausschnitt"
+adresse = "/?work={work}&key={key}&tab=buch"
+ausschnitt = "css:header.band"
 
 [[bild]]
 name = "band-ansicht"
 seite = ["menueband"]
 zeigt = "Reiter Ansicht mit Laptop-Modus und Thema, Ausschnitt"
+adresse = "/?work={work}&key={key}&tab=ansicht"
+ausschnitt = "css:header.band"
 
 [[bild]]
 name = "band-menue-baruch"
 seite = ["menueband"]
 zeigt = "Menü „Baruch ▾“ aufgeklappt, mit dem Eintrag „Hilfe“"
 braucht = ["klick"]
+adresse = "/?work={work}&key={key}"
+ausschnitt = "560x400+0+0"
+schritt = ["offen:data-menu=\"baruch\""]
+erwartet = ["https://baruch.bernau.family/hilfe/", ">Hilfe</a>"]
 
 [[bild]]
 name = "band-eingeklappt"
 seite = ["menueband"]
 zeigt = "Band eingeklappt (`?band=closed`)"
+adresse = "/?work={work}&key={key}&band=closed"
+ausschnitt = "1400x320+0+0"
 
 [[bild]]
 name = "band-kompakt"
 seite = ["menueband"]
 zeigt = "kompaktes Band bei 1366 px, Ausschnitt"
+adresse = "/?work={work}&key={key}"
+fenster = "1366x768"
+ausschnitt = "css:header.band"
+schritt = ["cookie:baruch_laptop="]
 
 [[bild]]
 name = "band-laptop-arbeitsseite"
 seite = ["menueband"]
 zeigt = "Arbeitsseite im Laptop-Modus (1366×768)"
+adresse = "/?work={work}&key={key}"
+fenster = "1366x768"
+schritt = ["cookie:baruch_laptop="]
 
 [[bild]]
 name = "band-ohne-javascript"
 seite = ["menueband"]
 zeigt = "Arbeitsseite ohne JavaScript"
 braucht = ["ohne-js"]
+adresse = "/?work={work}&key={key}"
 
 [[bild]]
 name = "gliederung-seite"
 seite = ["gliederung"]
 zeigt = "Seite Gliederung (`/gliederung?work=WERK`)"
+adresse = "/gliederung?work={work}"
+erwartet = ["Die Nacht ohne Lampe"]
 
 [[bild]]
 name = "gliederung-leiste"
 seite = ["gliederung"]
 zeigt = "Gliederung links auf der Arbeitsseite, Ausschnitt"
+adresse = "/?work={work}&key={key}"
+ausschnitt = "css:#pane-tree"
 
 [[bild]]
 name = "gliederung-bearbeiten"
 seite = ["gliederung"]
 zeigt = "Punkt bearbeiten: umbenennen, verschieben, umstufen (`/gliederung/bearbeiten`)"
+adresse = "/gliederung/bearbeiten?work={work}&key={key_farewell}"
+erwartet = ["Abschied"]
 
 [[bild]]
 name = "gliederung-antraege"
 seite = ["gliederung"]
 zeigt = "offener Antrag eines Assistenten (gestellt über MCP am eigenen Server)"
+adresse = "/gliederung?work={work}#antraege"
+erwartet = ["Abschied von der Hallig"]
 
 [[bild]]
 name = "gliederung-antrag-vorschau"
 seite = ["gliederung"]
 zeigt = "Vorschau eines Antrags (`/gliederung/antraege/ID/vorschau`)"
+adresse = "/gliederung/antraege/{request}/vorschau?work={work}"
+erwartet = ["Abschied von der Hallig"]
 
 [[bild]]
 name = "gliederung-schema"
 seite = ["gliederung"]
 zeigt = "Gliederungsschema mit Vorschau (`/werke/WERK/nummerierung`)"
+adresse = "/werke/{work}/nummerierung"
 
 [[bild]]
 name = "schreiben-satzbild"
 seite = ["schreiben"]
 zeigt = "Abschnitt im Satzbild mit den Knöpfen des Editors"
+adresse = "/?work={work}&key={key_logbook}"
+erwartet = ["Wachstuchdeckel"]
 
 [[bild]]
 name = "schreiben-quelltext"
 seite = ["schreiben"]
 zeigt = "derselbe Abschnitt im Quelltext"
+adresse = "/?work={work}&key={key_logbook}"
+schritt = ["cookie:baruch_editor=quelltext"]
+erwartet = ["#quote(block: true"]
 
 [[bild]]
 name = "schreiben-vorschau"
 seite = ["schreiben"]
 zeigt = "Umschalter „Vorschau“"
+adresse = "/?work={work}&key={key_logbook}&view=preview"
 
 [[bild]]
 name = "schreiben-fassungen"
 seite = ["schreiben"]
 zeigt = "rechte Spalte „Fassungen“ offen, zwei Fassungen"
 braucht = ["klick"]
+adresse = "/?work={work}&key={key}"
+schritt = ["cookie:baruch_accordion=revisions"]
+erwartet = ["2 Fassungen dieses Abschnitts"]
 
 [[bild]]
 name = "schreiben-aeltere-fassung"
 seite = ["schreiben"]
 zeigt = "ältere Fassung gezeigt (`rev=1`), Umschalter 1/2"
+adresse = "/?work={work}&key={key}&rev=1"
+schritt = ["cookie:baruch_accordion=revisions"]
 
 [[bild]]
 name = "schreiben-fassungsverlauf"
 seite = ["schreiben"]
 zeigt = "Verlauf einer Fassung (`/werke/WERK/fassungen/verlauf`)"
+adresse = "/werke/{work}/fassungen/verlauf?key={key}&rev=2"
+erwartet = ["Verlauf von Fassung 2"]
 
 [[bild]]
 name = "schreiben-fassungen-ausblenden"
 seite = ["schreiben"]
 zeigt = "Einstellungen → Werk, „Ältere Fassungen ausblenden“"
+adresse = "/einstellungen/werk?work={work}#fassungen-ausblenden"
+erwartet = ["Ältere Fassungen ausblenden"]
 
 [[bild]]
 name = "schreiben-vorschlag-lesefluss"
 seite = ["schreiben"]
 zeigt = "Vorschlag eines Assistenten im Lesefluss mit Annehmen/Ablehnen (per `revision.propose`)"
+adresse = "/?work={work}&key={key_proposal}"
+erwartet = ["pv-accept"]
 
 [[bild]]
 name = "schreiben-bilder"
 seite = ["schreiben"]
 zeigt = "Bilder des Werks mit einem erzeugten Beispielbild (`/werke/WERK/bilder`)"
+adresse = "/werke/{work}/bilder"
+erwartet = ["leuchtturm.png", "umschlag.png"]
 
 [[bild]]
 name = "schreiben-bild-einfuegen"
 seite = ["schreiben"]
 zeigt = "„Bild einfügen“"
+adresse = "/?work={work}&key={key_logbook}#bild-einfuegen"
+schritt = ["offen:data-image-insert"]
+erwartet = ["leuchtturm.png"]
 
 [[bild]]
 name = "schreiben-zeitwaechter"
 seite = ["schreiben"]
 zeigt = "Zeitwächter und Zeitangabe"
+adresse = "/?work={work}&key={key}"
+erwartet = ["Ziel 5:00"]
 
 [[bild]]
 name = "assistenten-leiste"
 seite = ["assistenten"]
 zeigt = "rechte Spalte „Assistenten“: Rolle wählen, Prüfen, Vorschlag"
+adresse = "/?work={work}&key={key}"
+ausschnitt = "css:#pane-assistants"
+schritt = ["cookie:baruch_accordion=personas"]
 
 [[bild]]
 name = "assistenten-chat"
 seite = ["assistenten"]
 zeigt = "Abschnitts-Chat mit erfundenen Beiträgen (ohne Modell angelegt)"
+adresse = "/?work={work}&key={key}"
+ausschnitt = "css:#pane-assistants"
+erwartet = ["@lektor", "Feder"]
 
 [[bild]]
 name = "assistenten-beitraege"
 seite = ["assistenten"]
 zeigt = "Seite der Beiträge (`/beitraege`)"
+adresse = "/beitraege?work={work}&key={key}"
+erwartet = ["@lektor"]
 
 [[bild]]
 name = "assistenten-faeden"
 seite = ["assistenten"]
 zeigt = "Liste der Fäden (`/faeden`)"
+adresse = "/faeden?work={work}"
+erwartet = ["Reihenfolge der Kapitel"]
 
 [[bild]]
 name = "assistenten-faden"
 seite = ["assistenten"]
 zeigt = "ein Faden mit Beiträgen (`/faden`)"
+adresse = "/faden?work={work}&thread={thread}"
+erwartet = ["@mcp:schreibhilfe"]
 
 [[bild]]
 name = "assistenten-befunde-liste"
 seite = ["assistenten"]
 zeigt = "Befunde des Werks, nach Gewicht (`/werke/WERK/befunde`, per `finding.add`)"
+adresse = "/werke/{work}/befunde"
+schritt = ["sitzung:autorin"]
+erwartet = ["4 offen", "@lektorat:jonte"]
+stufe = "konten"
 
 [[bild]]
 name = "assistenten-befunde-abschnitt"
 seite = ["assistenten"]
 zeigt = "Befunde am Abschnitt in der rechten Spalte"
+adresse = "/?work={work}&key={key_night}"
+schritt = ["sitzung:autorin", "cookie:baruch_accordion=befunde"]
+erwartet = ["Jahreszahlen abgleichen"]
+stufe = "konten"
 
 [[bild]]
 name = "assistenten-vorschlaege"
 seite = ["assistenten"]
 zeigt = "offene Vorschläge am Abschnitt"
+adresse = "/?work={work}&key={key_proposal}&rev={rev_proposal}"
+schritt = ["cookie:baruch_accordion=revisions"]
+erwartet = ["Er hatte recht."]
 
 [[bild]]
 name = "assistenten-websuche"
 seite = ["assistenten"]
 zeigt = "Belege der Websuche bzw. ihr ehrlicher Leerstand (`/websuche/belege`)"
+adresse = "/websuche/belege?work={work}&post={post}"
+erwartet = ["Belege zu Beitrag"]
 
 [[bild]]
 name = "einfaelle-liste"
 seite = ["einfaelle"]
 zeigt = "Liste der Einfälle (`/einfaelle?work=WERK`)"
+adresse = "/einfaelle?work={work}"
+erwartet = ["Leuchtfeuer", "Sturmflut"]
 
 [[bild]]
 name = "einfaelle-einfall"
 seite = ["einfaelle"]
 zeigt = "ein Einfall (`/einfaelle/ID`)"
+adresse = "/einfaelle/{idea}"
+erwartet = ["Die Feder auf dem Sims"]
 
 [[bild]]
 name = "einfaelle-festhalten"
 seite = ["einfaelle"]
 zeigt = "„Einfall festhalten“"
+adresse = "/?work={work}&key={key}"
+schritt = ["klick:[data-idea-open]"]
 
 [[bild]]
 name = "mindmap-karte"
 seite = ["einfaelle"]
 zeigt = "Mindmap mit Ästen und Wolke (`/werke/WERK/karte`)"
 dunkel = true
+adresse = "/werke/{work}/karte"
+erwartet = ["Docht und Petroleum"]
 
 [[bild]]
 name = "mindmap-eingeklappt"
 seite = ["einfaelle"]
 zeigt = "Mindmap mit eingeklapptem Ast (`zu=`)"
+adresse = "/werke/{work}/karte?zu=i:{branch}"
+erwartet = ["Leuchtfeuer"]
 
 [[bild]]
 name = "mindmap-gliederung"
 seite = ["einfaelle"]
 zeigt = "Gliederungsansicht der Mindmap (`/werke/WERK/karte/gliederung`)"
+adresse = "/werke/{work}/karte/gliederung?wahl=i:{branch}"
+erwartet = ["Leuchtfeuer"]
 
 [[bild]]
 name = "mindmap-einlesen"
 seite = ["einfaelle"]
 zeigt = "Mindmap einlesen (`/werke/WERK/karte/einlesen`)"
+adresse = "/werke/{work}/karte/einlesen"
 
 [[bild]]
 name = "mindmap-ohne-javascript"
 seite = ["einfaelle"]
 zeigt = "Mindmap ohne JavaScript"
 braucht = ["ohne-js"]
+adresse = "/werke/{work}/karte"
+erwartet = ["Docht und Petroleum"]
 
 [[bild]]
 name = "bibel-einstellungen"
 seite = ["bibel-quellen"]
 zeigt = "Einstellungen → Werk, Bibeln des Werks und Ordner der Module"
+adresse = "/einstellungen/werk?work={work}#kommentare"
 
 [[bild]]
 name = "bibel-zitate-pruefen"
 seite = ["bibel-quellen"]
 zeigt = "„Zitate prüfen“ mit erkannten Stellen (`/werke/WERK/pruefung`)"
+adresse = "/werke/{work}/pruefung?key={key_xref}&rev={rev_xref}"
+erwartet = ["Ps 119,105"]
 
 [[bild]]
 name = "bibel-nachschlagen"
 seite = ["bibel-quellen"]
 zeigt = "Bibel aufschlagen (`/literatur/bibel`)"
 braucht = ["sword"]
+adresse = "/literatur/bibel?work={work}"
 
 [[bild]]
 name = "literatur-seite"
 seite = ["bibel-quellen"]
 zeigt = "Literatur (`/literatur?work=WERK`)"
+adresse = "/literatur?work={work}&key={key}"
+erwartet = ["Dienstbuch"]
 
 [[bild]]
 name = "literatur-quelle"
 seite = ["bibel-quellen"]
 zeigt = "eine Quelle lesen (`/quelle`), erfundene Textdatei als lokale Quelle"
+adresse = "/quelle?work={work}&key={key}&title={title}"
+erwartet = ["Dienstbuch für die Leuchtfeuerwärter der Halligen"]
 
 [[bild]]
 name = "abgleich-seite"
 seite = ["bibel-quellen"]
 zeigt = "Abgleich mit MultiGPT (`/abgleich`), ehrlich im Zustand „nicht verbunden“"
+adresse = "/abgleich?work={work}"
 
 [[bild]]
 name = "suchen-treffer"
 seite = ["suchen"]
 zeigt = "Suche im Werk mit Treffern (`/suche?work=WERK&q=…`)"
+adresse = "/suche?work={work}&q=Licht&range=work"
+erwartet = ["Was das Licht nicht zeigt"]
 
 [[bild]]
 name = "suchen-ersetzen"
 seite = ["suchen"]
 zeigt = "Ersetzen mit Vorschau"
+adresse = "/suche?work={work}&q=Lampe&replacement=Leuchte&range=work&vorschau=1"
+erwartet = ["Vorschau: „Lampe“ → „Leuchte“"]
 
 [[bild]]
 name = "verweise-seite"
 seite = ["suchen"]
 zeigt = "Querverweise prüfen (`/verweise`)"
+adresse = "/verweise?work={work}"
+erwartet = ["Querverweise"]
 
 [[bild]]
 name = "glossar-seite"
 seite = ["suchen"]
 zeigt = "Glossar mit zwei erfundenen Begriffen (`/werke/WERK/glossar`)"
+adresse = "/werke/{work}/glossar"
+erwartet = ["Hallig", "Priel"]
 
 [[bild]]
 name = "register-seite"
 seite = ["suchen"]
 zeigt = "Register (`/werke/WERK/register`)"
+adresse = "/werke/{work}/register"
+erwartet = ["Handlaterne"]
 
 [[bild]]
 name = "glossar-markierung"
 seite = ["suchen"]
 zeigt = "Formular an der Markierung (`/werke/WERK/markierung?key=KEY`)"
+adresse = "/werke/{work}/markierung?key={key}&wort=Laterne"
+erwartet = ["Laterne"]
 
 [[bild]]
 name = "satz-vorschau"
 seite = ["buchsatz"]
 zeigt = "Satz-Vorschau (`/werke/WERK/satz`)"
+adresse = "/werke/{work}/satz"
 
 [[bild]]
 name = "satz-einstellungen"
 seite = ["buchsatz"]
 zeigt = "Einstellungen → Werk, Block Satz"
+adresse = "/einstellungen/werk?work={work}#satz"
 
 [[bild]]
 name = "satz-buchangaben"
 seite = ["buchsatz"]
 zeigt = "Buchangaben (Verlag, ISBN, Titelei) mit erfundenen Angaben"
+adresse = "/einstellungen/werk?work={work}#buchangaben"
+erwartet = ["Verlag Priel & Tonne"]
 
 [[bild]]
 name = "umschlag-editor"
 seite = ["buchsatz"]
 zeigt = "Umschlag-Editor mit erzeugtem Umschlagbild (`/werke/WERK/umschlag`)"
+adresse = "/werke/{work}/umschlag"
+erwartet = ["umschlag.png"]
 
 [[bild]]
 name = "epub-vorschau"
 seite = ["buchsatz"]
 zeigt = "EPUB-Vorschau je Lesegerät (`/werke/WERK/epub/vorschau`)"
+adresse = "/werke/{work}/epub/vorschau"
 
 [[bild]]
 name = "epub-pruefung"
 seite = ["buchsatz"]
 zeigt = "Prüfbericht des EPUB (`/werke/WERK/epub/pruefung`)"
+adresse = "/werke/{work}/epub/pruefung"
 
 [[bild]]
 name = "satz-stichwortzettel"
 seite = ["buchsatz"]
 zeigt = "Stichwortzettel (`/werke/WERK/stichwortzettel`)"
+adresse = "/werke/{work}/stichwortzettel"
 
 [[bild]]
 name = "satz-word-export"
 seite = ["buchsatz"]
 zeigt = "Word-Export für den Verlag (`/werke/WERK/word`)"
+adresse = "/werke/{work}/word"
 
 [[bild]]
 name = "austausch-ausgeben"
 seite = ["austausch-sicherung"]
 zeigt = "Austausch: Ausgeben (`/werke/WERK/austausch`)"
+adresse = "/werke/{work}/austausch"
 
 [[bild]]
 name = "austausch-einlesen"
 seite = ["austausch-sicherung"]
 zeigt = "Austausch: Einlesen (`/austausch/einlesen`)"
+adresse = "/austausch/einlesen"
 
 [[bild]]
 name = "austausch-vorschau"
 seite = ["austausch-sicherung"]
 zeigt = "Vorschau vor dem Übernehmen (Austauschdatei vom eigenen Server)"
+adresse = "/_antwort/austausch-vorschau"
+erwartet = ["Ein Jahr auf Mövenoog"]
 
 [[bild]]
 name = "einstellungen-darstellung"
 seite = ["einstellungen"]
 zeigt = "Einstellungen → Darstellung"
 dunkel = true
+adresse = "/einstellungen/darstellung?work={work}"
 
 [[bild]]
 name = "einstellungen-popup"
 seite = ["einstellungen"]
 zeigt = "Einstellungen als Fenster über der Arbeitsseite"
 braucht = ["klick"]
+adresse = "/?work={work}&key={key}"
+schritt = ["klick:[data-settings-open]"]
 
 [[bild]]
 name = "einstellungen-werk"
 seite = ["einstellungen"]
 zeigt = "Einstellungen → Werk"
+adresse = "/einstellungen/werk?work={work}"
 
 [[bild]]
 name = "einstellungen-assistenten"
 seite = ["einstellungen", "mcp"]
 zeigt = "Einstellungen → Assistenten"
+adresse = "/einstellungen/assistenten?work={work}"
 
 [[bild]]
 name = "einstellungen-verbindungen"
 seite = ["einstellungen", "mcp"]
 zeigt = "Einstellungen → Verbindungen (Adressen zeigen auf 127.0.0.1:9)"
+adresse = "/einstellungen/verbindungen?work={work}"
+erwartet = ["127.0.0.1:9"]
 
 [[bild]]
 name = "einstellungen-quellen"
 seite = ["einstellungen", "bibel-quellen"]
 zeigt = "Einstellungen → Quellen"
+adresse = "/einstellungen/quellen?work={work}"
 
 [[bild]]
 name = "einstellungen-mcp"
 seite = ["einstellungen", "mcp"]
 zeigt = "Einstellungen → MCP-Zugang, ohne lesbares Token"
+adresse = "/einstellungen/mcp?work={work}"
 
 [[bild]]
 name = "einstellungen-daten"
 seite = ["einstellungen", "austausch-sicherung", "betrieb"]
 zeigt = "Einstellungen → Daten (Sicherung, Name der Instanz)"
+adresse = "/einstellungen/daten?work={work}"
 
 [[bild]]
 name = "konten-einrichten"
 seite = ["konten", "betrieb"]
 zeigt = "„Konten einrichten“ (`/einrichten`)"
 braucht = ["konten"]
+adresse = "/einrichten"
+erwartet = ["Konten einrichten"]
 
 [[bild]]
 name = "konten-anmelden"
 seite = ["konten"]
 zeigt = "Anmeldeseite (`/anmelden`)"
 braucht = ["konten"]
+adresse = "/anmelden"
+erwartet = ["name=\"password\""]
+stufe = "konten"
 
 [[bild]]
 name = "konten-einstellungen"
 seite = ["konten", "betrieb"]
 zeigt = "Einstellungen → Konten mit Autorin und erfundenem Lektor"
 braucht = ["konten"]
+adresse = "/einstellungen/konten"
+schritt = ["sitzung:autorin"]
+erwartet = ["Mara Tiedemann", "Jonte Harksen"]
+stufe = "konten"
 
 [[bild]]
 name = "konten-mein-konto"
 seite = ["konten"]
 zeigt = "„Mein Konto“ (`/konto`)"
 braucht = ["konten"]
+adresse = "/konto"
+schritt = ["sitzung:autorin"]
+erwartet = ["Mara Tiedemann"]
+stufe = "konten"
 
 [[bild]]
 name = "konten-mitwirkende"
 seite = ["konten"]
 zeigt = "Werk für einen Lektor freigeben (`/werke/WERK/mitwirkende`)"
 braucht = ["konten"]
+adresse = "/werke/{work}/mitwirkende"
+schritt = ["sitzung:autorin"]
+erwartet = ["Jonte Harksen"]
+stufe = "konten"
 
 [[bild]]
 name = "konten-lektor-arbeitsplatz"
 seite = ["konten"]
 zeigt = "Arbeitsseite, wie ein Lektor sie sieht"
 braucht = ["konten"]
+adresse = "/?work={work}&key={key_night}"
+schritt = ["sitzung:lektor"]
+erwartet = ["data-rolle=\"lektor\""]
+stufe = "konten"
 
 [[bild]]
 name = "installation-erster-start"
 seite = ["installation"]
 zeigt = "Arbeitsseite direkt nach dem ersten Start mit dem mitgelieferten Beispielwerk (`/?work=1`)"
+adresse = "/?work={sample}"
+schritt = ["cookie:baruch_work={sample}"]
