@@ -597,6 +597,76 @@ pub fn describe_outline_by(work: &Work, change: &OutlineChange, by: OutlineBy<'_
     }
 }
 
+/// Rumpf-Absatz „was außer der aktuellen Fassung mitgelöscht wurde“ (Runde 36, store-5): jede übrige Fassung und
+/// jeder Beitrag des gelöschten Gliederungspunkts im Wortlaut, damit der Spiegel nichts verschweigt. Leer, wenn es
+/// nichts gab.
+pub fn describe_losses(losses: &baruch_store::OutlineLosses) -> String {
+    /// Kopfzeile und Wortlaut, immer mit Zeilenende.
+    fn block(body: &mut String, head: &str, text: &str) {
+        body.push_str(head);
+        body.push_str(text);
+        if !text.is_empty() && !text.ends_with('\n') {
+            body.push('\n');
+        }
+    }
+    let mut body = String::new();
+    if !losses.revisions.is_empty() {
+        let proposals = losses.revisions.iter().filter(|r| r.proposal).count();
+        let head =
+            format!("Mitgelöschte Fassungen: {} (davon offene Vorschläge: {proposals})\n", losses.revisions.len());
+        block(&mut body, &head, "");
+        for revision in &losses.revisions {
+            let kind = if revision.proposal { "offener Vorschlag" } else { "ältere Fassung" };
+            let head = format!("Fassung {} ({kind} von {}):\n", revision.number, one_line(&revision.author));
+            block(&mut body, &head, &revision.body);
+        }
+    }
+    if !losses.posts.is_empty() {
+        if !body.is_empty() {
+            body.push('\n');
+        }
+        block(&mut body, &format!("Mitgelöschte Beiträge: {}\n", losses.posts.len()), "");
+        for post in &losses.posts {
+            block(&mut body, &format!("Beitrag {} von {}:\n", post.id, one_line(&post.author)), &post.body);
+        }
+    }
+    body
+}
+
+/// Wie [`record_outline_by`] für das Löschen eines Gliederungspunkts (Runde 36, store-5): derselbe eine Commit,
+/// im Rumpf zusätzlich die mitgelöschten Fassungen und Beiträge ([`describe_losses`]; der Aufrufer liest sie vor dem
+/// Löschen mit `Store::outline_delete_losses`). Dazu die Trailer `Baruch-Lost-Revisions` und `Baruch-Lost-Posts`.
+pub async fn record_outline_losses(
+    state: &AppState,
+    held: &WriteGuard<'_>,
+    change: &OutlineChange,
+    by: OutlineBy<'_>,
+    losses: &baruch_store::OutlineLosses,
+) -> Result<Option<String>, String> {
+    if losses.revisions.is_empty() && losses.posts.is_empty() {
+        return record_outline_by(state, held, change, by).await;
+    }
+    crate::rag::notify(state, Some(change.work));
+    let result = match state.store.load_work(change.work).await {
+        Ok(work) => {
+            let mut request = describe_outline_by(&work, change, by);
+            if !request.body.is_empty() && !request.body.ends_with("\n\n") {
+                request.body.push('\n');
+            }
+            request.body.push_str(&describe_losses(losses));
+            request.trailers.push(("Baruch-Lost-Revisions".to_owned(), losses.revisions.len().to_string()));
+            request.trailers.push(("Baruch-Lost-Posts".to_owned(), losses.posts.len().to_string()));
+            name_persona_author(state, &mut request).await;
+            commit_revisions(state, held, change.work, request).await
+        }
+        Err(e) => Err(e.to_string()),
+    };
+    if let Err(e) = &result {
+        eprintln!("Git-Spiegel: {e}");
+    }
+    result
+}
+
 /// Gliederungsänderung des Menschen spiegeln (siehe [`record_outline_by`]).
 pub async fn record_outline(
     state: &AppState,

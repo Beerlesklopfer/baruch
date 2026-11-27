@@ -534,6 +534,11 @@ pub struct ImportNode {
     pub note: String,
     pub words: Vec<String>,
     pub children: Vec<ImportNode>,
+    /// Runde 36: Der Knoten lag in der Wolke der eigenen Ausgabe (Ast mit der Kennung `export::CLOUD_ID`) und kommt
+    /// wieder in die Wolke. Gilt nur auf der obersten Ebene und nur beim Einlesen ohne Zielknoten; fehlt das Feld
+    /// (ältere Vorschau im Formular), ist es `false`.
+    #[serde(default)]
+    pub cloud: bool,
 }
 
 /// Pfad = Indizes von `ImportTree::nodes` abwärts.
@@ -581,12 +586,26 @@ fn seed(node: &ImportNode) -> IdeaSeed {
     }
 }
 
+/// Zahl der Knoten eines Teilbaums, ohne Rekursion.
+fn subtree_size(node: &ImportNode) -> usize {
+    let (mut count, mut stack) = (0usize, vec![node]);
+    while let Some(node) = stack.pop() {
+        count += 1;
+        stack.extend(node.children.iter());
+    }
+    count
+}
+
 /// Legt den Baum als Einfälle des Werks an (unter `parent` oder als freie Hauptthemen): eine Transaktion,
 /// ein Spiegel-Commit mit Herkunft. Verbindungen als `leads_to` mit der Beschriftung als Notiz.
 ///
 /// Die obersten Knoten (`tree.nodes`) werden Unterknoten von `parent` bzw. – ohne – freie Hauptthemen am Werk
 /// (nicht Einfälle der Wolke: Wer einen Baum einliest, will ihn in der Mindmap sehen), in der Reihenfolge der
 /// Eingabe hinter den vorhandenen Geschwistern. `tree.title` und `tree.warnings` werden nicht gespeichert.
+///
+/// Runde 36: Oberste Knoten mit [`ImportNode::cloud`] (der Ast „Wolke“ einer eigenen Ausgabe) kommen ohne `parent`
+/// wieder in die Wolke, samt ihren Unterknoten – die Rundreise der eigenen Datei erhält die Wolke. Mit `parent`
+/// zählt das Kennzeichen nicht (unter einem Zielknoten gibt es keine Wolke).
 ///
 /// Abgelehnt mit [`REFUSED`], ohne etwas anzulegen: kein Knoten, mehr als [`MAX_IMPORT_NODES`] Knoten, tiefer als
 /// [`MAX_TREE_DEPTH`] (auch zusammen mit der Tiefe von `parent`), `parent` gelöscht oder in einem anderen Werk, ein
@@ -628,6 +647,24 @@ pub async fn import(
         Err(StoreError::Idea(message)) => return Err(refused(format!("{message} Nichts angelegt."))),
         Err(e) => return Err(e.into()),
     };
+    // Runde 36: Die Einfälle der Wolke zurück in die Wolke. `ideas` steht in Tiefensuche in der Reihenfolge der
+    // Eingabe; der i-te oberste Knoten beginnt also hinter den Teilbäumen seiner Vorgänger. Der Store legt oberste
+    // Knoten immer als Hauptthemen an (`idea_import_tree`, Datei von sqlx09 in dieser Runde) – darum hier ein
+    // zweiter Schritt unter derselben Schreibsperre und vor dem einen Spiegel-Commit.
+    let mut in_cloud = 0usize;
+    if parent.is_none() {
+        let mut offset = 0usize;
+        for node in &tree.nodes {
+            if node.cloud
+                && let Some(id) = ideas.get(offset)
+            {
+                let to_cloud = baruch_store::IdeaMove { cloud: Some(true), ..Default::default() };
+                state.store.idea_move(*id, &to_cloud).await?;
+                in_cloud += 1;
+            }
+            offset += subtree_size(node);
+        }
+    }
     // Ein Commit für den ganzen Baum: Autor und Trailer wie bei jeder Aktion an einem Einfall (der erste neue
     // Einfall steht im Trailer `Baruch-Idea`), Betreff und Rumpf nennen den Umfang.
     if let Some(first) = ideas.first() {
@@ -637,7 +674,9 @@ pub async fn import(
             format!("Mindmap eingelesen: {} {}", ideas.len(), if ideas.len() == 1 { "Einfall" } else { "Einfälle" });
         let place = match parent {
             Some(parent) => format!("unter Einfall {parent}"),
-            None => "als freie Hauptthemen am Werk".to_owned(),
+            None if in_cloud == 0 => "als freie Hauptthemen am Werk".to_owned(),
+            None if in_cloud == tree.nodes.len() => "in der Wolke".to_owned(),
+            None => format!("als freie Hauptthemen am Werk, davon {in_cloud} in der Wolke"),
         };
         let numbers: Vec<String> = ideas.iter().map(ToString::to_string).collect();
         let title = tree.title.split_whitespace().collect::<Vec<_>>().join(" ");

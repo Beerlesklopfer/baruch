@@ -198,6 +198,17 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
                 _ => return Err(invalid("decision: confirm oder reject erwartet")),
             };
             let held = held.ok_or_else(|| RpcError::new(INTERNAL, "Schreibsperre fehlt"))?;
+            // Runde 36 (store-5): Bestätigt der Mensch einen Antrag „Löschen“, wird vorher gelesen, was außer der
+            // aktuellen Fassung mitgelöscht wird (übrige Fassungen, Beiträge) – für den Spiegel-Commit.
+            let mut losses = baruch_store::OutlineLosses::default();
+            if confirm {
+                let open = store.outline_requests(work, true).await?;
+                if let Some(baruch_store::OutlineOp::Delete { key }) = open.iter().find(|r| r.id == id).map(|r| &r.op)
+                    && let Ok(seq) = store.node_seq(work, *key).await
+                {
+                    losses = store.outline_delete_losses(work, seq).await?;
+                }
+            }
             let decided = store.outline_request_decide(work, id, confirm, human).await?;
             let mut answer = json!({ "request": request_json(&decided.request) });
             if let Some(change) = &decided.change {
@@ -207,7 +218,9 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
                 answer["key"] = outline["key"].clone();
                 answer["outline"] = outline;
                 let by = mirror::OutlineBy::Confirmed(&decided.request);
-                add_mirror(&mut answer, mirror::record_outline_by(state, &held, change, by).await);
+                // Nur ein wirklich ausgeführtes Löschen nennt Verluste (ein veralteter Antrag ändert nichts).
+                let lost = if change.action == baruch_store::OutlineAction::Deleted { losses } else { Default::default() };
+                add_mirror(&mut answer, mirror::record_outline_losses(state, &held, change, by, &lost).await);
             } else {
                 // Nutzerentscheidung 2026-11-08 (Runde 16c): Jede Entscheidung ohne Gliederungsänderung –
                 // „abgelehnt“ oder „veraltet“ – steht für jede Antragsart als leerer Commit mit Herkunft im
@@ -309,6 +322,8 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
             };
             let held = held.ok_or_else(|| RpcError::new(INTERNAL, "Schreibsperre fehlt"))?;
             let mut adopted = None;
+            // Runde 36 (store-5): vor dem Löschen lesen, was außer der aktuellen Fassung mitgelöscht wird.
+            let mut losses = baruch_store::OutlineLosses::default();
             let change = match op {
                 Op::Move(node, target, place) => store.outline_move(work, node, target, place, human).await?,
                 Op::Level(node, level) => store.outline_set_level(work, node, level, human).await?,
@@ -321,7 +336,10 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
                     adopted = Some(added.adopted);
                     added.change
                 }
-                Op::Delete(node) => store.outline_delete(work, node, human).await?,
+                Op::Delete(node) => {
+                    losses = store.outline_delete_losses(work, node).await?;
+                    store.outline_delete(work, node, human).await?
+                }
                 Op::Numbered(node, numbered) => store.outline_set_numbered(work, node, numbered, human).await?,
             };
             let mut answer = outline_answer(&change);
@@ -329,7 +347,8 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
                 answer["adopted"] = json!(adopted);
             }
             add_key(state, work, &mut answer).await;
-            add_mirror(&mut answer, mirror::record_outline(state, &held, &change).await);
+            let by = mirror::OutlineBy::Human;
+            add_mirror(&mut answer, mirror::record_outline_losses(state, &held, &change, by, &losses).await);
             Ok(answer)
         }
         _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),

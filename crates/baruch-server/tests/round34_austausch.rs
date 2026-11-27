@@ -131,13 +131,15 @@ fn shipyard_as_import() -> ImportTree {
         note: "Erste Zeile\nZweite & letzte".to_owned(),
         words: vec!["Holz".to_owned(), "Eiche".to_owned()],
         children: vec![branch("Spanten", vec![leaf("Dampfbiegen")])],
+        cloud: false,
     };
     ImportTree {
         title: "Werftbuch".to_owned(),
         nodes: vec![
             branch("1 Helling", vec![keel, leaf("Planken")]),
             branch("2 Stapellauf", vec![leaf("Sekt")]),
-            branch("Namensfindung", vec![leaf("Taufpatin")]),
+            // Runde 36: Der Einfall aus dem Ast „Wolke“ merkt sich die Wolke (`cloud: true`).
+            ImportNode { cloud: true, ..branch("Namensfindung", vec![leaf("Taufpatin")]) },
         ],
         links: vec![
             ImportLink { from: vec![0, 0], to: vec![1, 0], note: "führt weiter: erst dann".to_owned() },
@@ -364,7 +366,8 @@ fn mm_and_xmind_round_trip_to_the_same_import_tree() {
     let from_mm = import::read(freemind::write(&sheet).as_bytes()).expect(".mm lässt sich wieder lesen");
     assert_eq!(
         from_mm, expected,
-        ".mm → eigener Leser: Titel, Notizen, Schlagwörter, Reihenfolge und Beziehungen bleiben; der Ast „Wolke“ ist aufgelöst"
+        ".mm → eigener Leser: Titel, Notizen, Schlagwörter, Reihenfolge und Beziehungen bleiben; der Ast „Wolke“ ist \
+         aufgelöst, sein Einfall trägt cloud = true (Runde 36)"
     );
     let from_xmind = import::read(&xmind::write(&sheet).unwrap()).expect(".xmind lässt sich wieder lesen");
     assert_eq!(from_xmind, expected, ".xmind → eigener Leser ergibt denselben Baum wie .mm");

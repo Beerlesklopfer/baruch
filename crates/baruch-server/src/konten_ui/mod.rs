@@ -17,6 +17,7 @@
 //! Menü); „Mein Konto“ und „Mitwirkende“ erweitern `base.html`. Seiten und reine Darstellungsfunktionen stehen in
 //! [`pages`].
 
+pub mod names;
 pub mod pages;
 
 use std::sync::{Arc, OnceLock};
@@ -311,6 +312,21 @@ pub fn apply(page: &str, who: &Who, accounts_exist: bool) -> String {
         Some(role) => page.replacen("<body>", &format!("<body data-rolle=\"{role}\">"), 1),
         None => page,
     }
+}
+
+/// Kopf der eigenständigen Seiten der Konten (`anmelden.html`, `einrichten.html`), wörtlich wie in den Vorlagen.
+const STANDALONE_HEAD: &str = "<!doctype html>\n<html lang=\"de\">";
+
+/// Runde 36: Die eigenständigen Seiten `/anmelden` und `/einrichten` (ohne Menüband) folgen dem Cookie
+/// `baruch_theme`: `theme` (`light` | `dark`, schon geprüft von [`crate::view::Settings`]) kommt als `data-theme`
+/// an `<html>`, wie bei `base.html`. `None` = die Seite bleibt, wie sie ist (keine eigenständige Seite der Konten
+/// oder kein Cookie: dann gilt weiter das Farbschema des Systems).
+pub fn themed(page: &str, theme: Option<&str>) -> Option<String> {
+    let theme = theme.filter(|theme| matches!(*theme, "light" | "dark"))?;
+    if !(page.starts_with(STANDALONE_HEAD) && page.contains("<body class=\"konto-seite\">")) {
+        return None;
+    }
+    Some(format!("<!doctype html>\n<html lang=\"de\" data-theme=\"{theme}\">{}", &page[STANDALONE_HEAD.len()..]))
 }
 
 /// Seiten der Konten: `/anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`.

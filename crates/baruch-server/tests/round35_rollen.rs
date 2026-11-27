@@ -251,12 +251,13 @@ async fn a_lektor_sees_only_granted_works_and_revoke_and_lock_act_on_the_next_re
         assert!(!denied_by_role(&headers), "{page}: keine Ablehnung der Rolle");
         assert!(!body.contains(&s.foreign_title), "{page} nennt kein fremdes Werk (Werkwahl im Menüband)");
     }
-    // Die Einstellungsseite zeigte ohne work das Vorgabewerk im Menüband: Darum führt sie auf das freigegebene.
-    let (status, headers, _) = get_as(server, &s.erika, "/einstellungen/darstellung").await;
-    assert_eq!(
-        (status, location(&headers)),
-        (StatusCode::SEE_OTHER, format!("/einstellungen/darstellung?work={}", s.granted).as_str()),
-        "Darstellung ohne work: Umleitung auf das freigegebene Werk, nie das Vorgabewerk"
+    // Runde 36: Die Einstellungsseite braucht kein work mehr (Werk-Bindung gelockert) – sie zeigt ohne work das
+    // freigegebene Werk, nie das Vorgabewerk der Instanz (vorher: Umleitung auf `?work=`; siehe `round36_lektor`).
+    let (status, _, page) = get_as(server, &s.erika, "/einstellungen/darstellung").await;
+    assert_eq!(status, StatusCode::OK, "Darstellung ohne work ist erreichbar");
+    assert!(
+        !page.contains(&s.foreign_title) && page.contains(&format!("work={}", s.granted)),
+        "Darstellung ohne work: das freigegebene Werk, nie das Vorgabewerk"
     );
     let (_, _, author_page) = get_as(server, &s.author, "/werke").await;
     assert!(

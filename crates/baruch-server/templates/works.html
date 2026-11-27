@@ -34,7 +34,7 @@
     <tbody>
     {%- for w in works %}
       <tr>
-        <td class="works-cover">{% if w.cover %}<a href="/werke/{{ w.id }}/umschlag"><img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or ('Umschlag von ' ~ w.title) }}" loading="lazy" width="48"></a>{% endif %}</td>
+        <td class="works-cover">{% if w.cover %}{% if lektor %}<img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or ('Umschlag von ' ~ w.title) }}" loading="lazy" width="48">{% else %}<a href="/werke/{{ w.id }}/umschlag"><img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or ('Umschlag von ' ~ w.title) }}" loading="lazy" width="48"></a>{% endif %}{% endif %}</td>
         <td><a href="/?work={{ w.id }}"><strong>{{ w.title }}</strong></a>
           {%- if w.subtitle %}<br><span class="muted small">{{ w.subtitle }}</span>{% endif %}</td>
         <td>{{ w.author or "–" }}</td>

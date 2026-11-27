@@ -65,16 +65,14 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     // ---- 1. Zitat über den Knopf, Stellenangabe in der Zeile danach, speichern ohne JavaScript ------------------
     let (rev, body) = current(&m.server, work, 0).await;
     let snippet = baruch_server::ribbon::QUOTE_SNIPPET;
-    assert!(
-        snippet.contains("#quote(block: true)[]") && snippet.ends_with("– \n"),
-        "Testvoraussetzung: der Knopf fügt den leeren Block und die Zeile für die Stellenangabe ein: {snippet:?}"
+    // Runde 36: Der Knopf fügt nur noch den leeren Block ein (keine Folgezeile „– “, die ungefüllt als einzelner
+    // Gedankenstrich im Buch stand); die Stellenangabe tippt der Mensch in die Zeile direkt darunter.
+    assert_eq!(
+        snippet, "#quote(block: true)[]\n",
+        "Testvoraussetzung: der Knopf fügt den leeren Block ein, ohne Zeile mit Gedankenstrich"
     );
-    // Was der Mensch nach dem Knopf tippt: das Zitat in den Rumpf, die Stelle hinter den Gedankenstrich.
-    let quote = snippet.replacen("[]", "[Wer mahlt, hört den Bach auch im Schlaf.]", 1).replacen(
-        "– \n",
-        "– Mühlenordnung 7\n",
-        1,
-    );
+    // Was der Mensch nach dem Knopf tippt: das Zitat in den Rumpf, die Stelle in die Zeile darunter.
+    let quote = format!("{}– Mühlenordnung 7\n", snippet.replacen("[]", "[Wer mahlt, hört den Bach auch im Schlaf.]", 1));
     let with_quote = format!("{}\n\n{quote}\nDann schloss der Müller das Wehr.\n", body.trim_end());
     let save = format!(
         "method=outline.save&work={work}&key={key}&based_on={rev}&based_on_amend=0&mode=auto&body={}",
@@ -240,7 +238,8 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     let (status, page) =
         m.server.get(&format!("/einstellungen/daten?work={work}&ok=sicherung&ziel=ordner-aus-der-adresse")).await;
     assert_eq!(status, StatusCode::OK, "die Seite lädt");
-    assert!(page.contains("Sicherung angelegt"), "der feste Code ok=sicherung ergibt die Meldung: {page}");
+    // Runde 36: Der feste Code allein ergibt keine Meldung mehr – nur nach einer eben angelegten Sicherung.
+    assert!(!page.contains("Sicherung angelegt"), "ein Link mit ok=sicherung zeigt keine Erfolgsmeldung: {page}");
     // Runde 33 (Menüband): Die Reiter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen (href, maskiert);
     // angezeigt wird sie nicht. Geprüft wird darum alles außer den href-Werten.
     let shown: String = page

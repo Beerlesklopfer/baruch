@@ -34,8 +34,11 @@ pub struct Ribbon {
     pub formats: Vec<RibbonFormat>,
 }
 
-/// Typst-Text des Knopfs „Zitat“ (Runde 23a): Zitatblock und darunter die Zeile für die Stellenangabe.
-pub const QUOTE_SNIPPET: &str = "#quote(block: true)[]\n– \n";
+/// Typst-Text des Knopfs „Zitat“: nur der Zitatblock. Bis Runde 35 stand darunter die Zeile „– “ für die
+/// Stellenangabe (Runde 23a); blieb sie ungefüllt, stand ein einzelner Gedankenstrich im Buch. Seit Runde 36 fügt
+/// der Knopf keine Folgezeile mehr ein: Die Stellenangabe schreibt der Autor selbst in die Zeile direkt unter den
+/// Block (das Satzbild liest sie seit Runde 23 als eigenen Absatz, keine Insel) – der Hinweis des Knopfs sagt es.
+pub const QUOTE_SNIPPET: &str = "#quote(block: true)[]\n";
 
 /// Funktionsnamen für Bibelstellen in der Werkvorlage, in dieser Vorrangfolge (Runde 19b).
 pub const SCRIPTURE_FUNCTIONS: [&str; 2] = ["bibelstelle", "bibel"];
@@ -79,14 +82,15 @@ pub fn formats(template: &str) -> Vec<RibbonFormat> {
         );
     }
     push("footnote", "Fußnote", "Fußnote an der Cursorstelle (#footnote)", "#footnote[]");
-    // Runde 23a (Befund des Nutzers): Unter dem Block steht eine eigene Zeile „– “ für die Stellenangabe. Eine leere
+    // Runde 23a (Befund des Nutzers): Platz für die Stellenangabe unter dem Block. Runde 36: ohne vorgegebene Zeile
+    // „– “ (sie blieb ungefüllt als einzelner Gedankenstrich stehen); der Hinweis nennt die Form. Eine leere
     // `attribution: []` kommt nicht in Frage: Typst setzt dafür eine Zeile mit dem Gedankenstrich (gemessen in
     // `crates/baruch-render/tests/quote_attribution.rs`). Die Leerzeilen davor und danach setzt das Widget je nach
     // Umgebung (`web/src/ribbon.ts`, `insertion`), der Cursor steht im Rumpf.
     push(
         "quote",
         "Zitat",
-        "Zitat als eigener Block (#quote); die Zeile „– “ darunter ist für die Stellenangabe",
+        "Zitat als eigener Block (#quote); die Stellenangabe kommt als eigene Zeile direkt darunter (– Stelle)",
         QUOTE_SNIPPET,
     );
     push("list", "Liste", "Liste mit Spiegelstrichen (- …)", "- \n");
@@ -340,9 +344,9 @@ mod tests {
         assert_eq!(get("break").snippet, "\\\n", "Zeilenumbruch ist ein Backslash am Zeilenende");
         assert_eq!(
             get("quote").snippet,
-            "#quote(block: true)[]\n– \n",
-            "Zitat als Block ohne `attribution` (eine leere setzte in Typst eine Strichzeile), darunter die Zeile für \
-             die Stellenangabe; die Leerzeilen davor und danach setzt das Widget (Runde 23a)"
+            "#quote(block: true)[]\n",
+            "Zitat als Block ohne `attribution` (eine leere setzte in Typst eine Strichzeile) und seit Runde 36 ohne \
+             Folgezeile „– “; die Leerzeilen davor und danach setzt das Widget (Runde 23a)"
         );
         assert_eq!(get("list").label, "Liste", "deutsche Beschriftung");
         assert!(

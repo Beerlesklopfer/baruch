@@ -42,7 +42,7 @@
   </summary>
   <div class="acc-body" data-zoom-zone="revisions">
     <div class="rev-actions">
-      <div class="small"><strong>Fassung {{ rev.number }}</strong> <span class="muted">· {{ rev.status }} · {{ rev.author }}</span>
+      <div class="small"><strong>Fassung {{ rev.number }}</strong> <span class="muted rev-origin">· {{ rev.status }} · {{ rev.author }}</span>
         {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen">Stand {{ rev.amend_seq }} · Verlauf</a>{% endif %}</div>
       <p class="muted small">Welche Fassung gilt, entscheidet der Autor. Dein Weg ist „Vorschlagen“ unter dem Text.</p>
     </div>

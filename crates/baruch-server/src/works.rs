@@ -1132,6 +1132,9 @@ async fn list_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query
     });
     let ctx = context! {
         settings => page_settings(&headers), works => rows, notice => notice, back_url => back_url(&state).await,
+        // Runde 36: Für Lektoren ist die Seite des Umschlags gesperrt – das kleine Bild bleibt, der Link entfällt
+        // (nur Bequemlichkeit; die Sperre selbst liegt in `roles`).
+        lektor => crate::auth::current().lektor().is_some(),
     };
     render(StatusCode::OK, "works.html", ctx)
 }

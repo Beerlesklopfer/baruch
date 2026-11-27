@@ -11,7 +11,8 @@
 //!
 //! Die Wurzel der fremden Datei wird nie selbst Einfall: Ihr Titel steht in `ImportTree::title`, ihre Kinder sind
 //! `ImportTree::nodes`. Der Ast „Wolke“ aus einer eigenen Ausgabe ([`super::export::CLOUD_ID`]) wird aufgelöst;
-//! seine Kinder stehen wieder auf der obersten Ebene.
+//! seine Kinder stehen wieder auf der obersten Ebene und tragen `ImportNode::cloud` (Runde 36: Sie kommen beim
+//! Anlegen zurück in die Wolke). Erkannt wird der Ast an seiner Kennung, nie am Titel „Wolke“.
 
 use std::collections::HashMap;
 
@@ -114,24 +115,26 @@ fn convert(node: RawNode, path: &mut Vec<usize>, ids: &mut HashMap<String, Vec<u
         children.push(convert(child, path, ids));
         path.pop();
     }
-    ImportNode { title: node.title, note: node.note, words: node.words, children }
+    ImportNode { title: node.title, note: node.note, words: node.words, children, cloud: false }
 }
 
 /// Vom rohen Baum zum geprüften [`ImportTree`]: Wurzel wird Titel, der Ast „Wolke“ wird aufgelöst, Beziehungen
 /// werden Pfade; danach [`check`]. Die Leser begrenzen Knotenzahl und Tiefe schon beim Lesen.
 pub fn finish(raw: Raw) -> Result<ImportTree, String> {
+    // Runde 36: Die Kinder des eigenen Astes „Wolke“ stehen wieder auf der obersten Ebene und merken sich, dass
+    // sie aus der Wolke kommen (`ImportNode::cloud`) – beim Anlegen kommen sie dorthin zurück.
     let mut top = Vec::new();
     for child in raw.root.children {
         if child.cloud {
-            top.extend(child.children);
+            top.extend(child.children.into_iter().map(|node| (node, true)));
         } else {
-            top.push(child);
+            top.push((child, false));
         }
     }
     let mut ids = HashMap::new();
     let mut nodes = Vec::with_capacity(top.len());
-    for (index, node) in top.into_iter().enumerate() {
-        nodes.push(convert(node, &mut vec![index], &mut ids));
+    for (index, (node, cloud)) in top.into_iter().enumerate() {
+        nodes.push(ImportNode { cloud, ..convert(node, &mut vec![index], &mut ids) });
     }
     let mut warnings = raw.warnings;
     let mut lost = 0usize;
@@ -477,6 +480,11 @@ mod tests {
             tree.nodes.iter().map(|n| n.title.as_str()).collect::<Vec<_>>(),
             vec!["A", "B"],
             "der Ast „Wolke“ ist aufgelöst: sein Kind steht auf der obersten Ebene"
+        );
+        assert_eq!(
+            tree.nodes.iter().map(|n| n.cloud).collect::<Vec<_>>(),
+            vec![false, true],
+            "Runde 36: Das Kind des Astes „Wolke“ merkt sich die Wolke, der gewöhnliche Ast nicht"
         );
         assert_eq!(
             tree.links,

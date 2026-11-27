@@ -643,7 +643,8 @@ fn finding_lines(work: &Work, units: &[Unit], personas: &[PersonaRow], handle: &
 }
 
 /// Ist der Auftrag ein erneutes Prüfen (Runde 22)? Prüfen (`review`, auch über MCP), ↻ Wiederholen
-/// (`links.repeat_of`) und jeder Auftrag eines RFC (`frame.recheck`); nie ein Vorschlag.
+/// (`links.repeat_of`), jeder Auftrag eines RFC und – seit Runde 36 nur noch bei einem Prüfauftrag
+/// ([`super::chat::is_check_order`]) – die direkt angesprochene Persona im Chat (`frame.recheck`); nie ein Vorschlag.
 pub fn is_recheck(order: &Order) -> bool {
     order.mode != Mode::Propose
         && (order.mode == Mode::Review || order.links.repeat_of.is_some() || order.frame.recheck)

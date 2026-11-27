@@ -42,12 +42,22 @@
           form="editor-form" zum Formular im Blatt – maßgeblich (Beschriftung „Gespeichert“/„Speichern“) bleibt der Knopf
           der Statuszeile. #}
       <span class="band-switcher" role="group" aria-label="Fassung wechseln">
-        {%- if rev.prev %}<a class="btn" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}" aria-label="Vorige Fassung" title="Vorige Fassung (Alt+←)">‹</a>
+        {%- if rev.prev %}<a class="btn" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" aria-label="Vorige Fassung" title="Vorige Fassung (Alt+←)">‹</a>
         {%- else %}<span class="btn" aria-disabled="true" aria-label="Vorige Fassung (dies ist die erste)">‹</span>{% endif %}
         <span class="counter{% if rev.is_current %} is-current{% endif %}" title="Fassung {{ rev.number }}{% if rev.is_current %}, aktuell{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
-        {%- if rev.next %}<a class="btn" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}" aria-label="Nächste Fassung" title="Nächste Fassung (Alt+→)">›</a>
+        {%- if rev.next %}<a class="btn" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" aria-label="Nächste Fassung" title="Nächste Fassung (Alt+→)">›</a>
         {%- else %}<span class="btn" aria-disabled="true" aria-label="Nächste Fassung (dies ist die letzte)">›</span>{% endif %}
       </span>
+      {#- Runde 36 (Hinweis aus der Gegenprobe 0.9.0): Der Zähler im Band zählt wie der im Editor-Kopf nur die
+          sichtbaren Fassungen – darum steht auch hier „(+ n ausgeblendet)“ bzw. „n ältere verbergen“, mit denselben
+          Adressen; ‹ › tragen den Schalter weiter (rev.fold.q). #}
+      {%- if rev.fold.hidden %}
+      {%- if rev.fold.open %}
+      <a class="rev-fold-toggle small" data-nav data-band-rev-fold="open" href="{{ rev.fold.hide_url }}" title="Ausgeblendete Fassungen beim Blättern wieder überspringen">{{ rev.fold.hidden }} ältere verbergen ▾</a>
+      {%- else %}
+      <a class="rev-fold-toggle small" data-nav data-band-rev-fold="closed" href="{{ rev.fold.show_url }}" title="{{ rev.fold.hidden }} ältere Fassungen zeigen (bis Fassung {{ rev.fold.cutoff }} ausgeblendet)">(+ {{ rev.fold.hidden }} ausgeblendet) ▸</a>
+      {%- endif %}
+      {%- endif %}
       {#- Runde 35: Ein Lektor reicht den Text nur als Vorschlag ein (fragments/lektor_editor.html); Personas und
           das Feld „Einfügen“ (Bild, Register, Glossar) gibt es für ihn nicht. #}
       {%- if lektor %}

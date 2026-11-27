@@ -95,3 +95,8 @@
 }
 .sheet-settings-form .sheet-settings-actions, .sheet-settings-form p { grid-column: 1 / -1; }
 .sheet-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Runde 36: Token-Liste – „(früher @mcp:…)“ bleibt in der schmalen Spalte beisammen (kein Umbruch mitten im Namen);
+   passt es nicht mehr neben den Handle, rückt die ganze Klammer in die nächste Zeile. */
+.token-former { white-space: nowrap; }
+.settings-table td .token-former code { white-space: nowrap; overflow-wrap: normal; word-break: keep-all; }

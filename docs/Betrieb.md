@@ -291,8 +291,9 @@ was das für den Betrieb heißt.
 - **Die Sperre kann den Autor aussperren:** Wer den Kontonamen kennt, hält das Konto mit falschen Anmeldungen in
   der Wartezeit; während der Sperre hilft auch das richtige Passwort nicht. An Daten kommt er damit nicht. Abhilfe:
   einen Kontonamen wählen, der sich nicht raten lässt, und die Bremse je Besucheradresse im Proxy einrichten. Der
-  Notweg `baruch-server passwort` setzt das Passwort, hebt eine laufende Sperre aber nicht auf (Stand Runde 35) –
-  sie läuft nach höchstens 15 Minuten ohne weiteren Fehlversuch ab.
+  Notweg `baruch-server passwort` setzt das Passwort und hebt die laufende Sperre dieses Kontos auf (seit
+  Runde 36): Die Anmeldung mit dem neuen Passwort gelingt sofort. Die Sperre je Adresse (nur ohne Proxy) bleibt und
+  läuft nach höchstens 15 Minuten ohne weiteren Fehlversuch ab.
 - **Passwörter** speichert Baruch nur als Argon2id-Prüfwert in der Datenbank (Tabelle `account`), nie im
   Klartext und nie in Protokollen. Die Sicherung des Datenordners enthält diese Prüfwerte und die Hashes der
   Sitzungen – sie gehört weiterhin unter Verschluss.
@@ -305,7 +306,8 @@ was das für den Betrieb heißt.
   baruch-server passwort NAME [--data ORDNER]     # liest das neue Passwort als eine Zeile von der Eingabe
   ```
 
-  Das setzt das Passwort des Kontos und beendet seine Sitzungen. Der Befehl braucht keine Anmeldung – wer auf
+  Das setzt das Passwort des Kontos, beendet seine Sitzungen und hebt eine Sperre nach Fehlversuchen für dieses
+  Konto auf. Der Befehl braucht keine Anmeldung – wer auf
   dem Rechner als dieser Benutzer arbeiten kann, hat ohnehin den Datenordner.
 
 Probe mit Konten, von einem **anderen** Rechner (`NAME` = der erlaubte Name):
@@ -439,3 +441,18 @@ Nicht geprüft, also Annahme:
   echten Proxy mit TLS und nicht in einem echten Browser (Handprüfliste: `docs/Architektur.md`, „Runde 35 – Konten und Rollen“).
   Zwei-Faktor-Anmeldung, Zurücksetzen per E-Mail und mehrere Autoren gibt es nicht.
 - Der TLS-Hinweis der Verbindung pgvector kennt die Umgebungsvariablen nicht.
+
+## Runde 36 – Reste (Betrieb)
+
+- **Notweg `baruch-server passwort`** hebt die Sperre nach Fehlversuchen für das Konto auf (siehe oben, „Die Sperre
+  kann den Autor aussperren“). Die Sperre je Adresse bleibt.
+- **Rechte des Datenordners:** Neue Datenordner legt Baruch mit 0700 an; die Rechte eines **vorhandenen** Ordners
+  ändert es nie. Sind sie offener (Gruppe oder andere dürfen etwas), steht das seit Runde 36 unter Einstellungen →
+  Daten als Hinweis mit den Rechten. Abhilfe von Hand: `chmod 700 <Datenordner>`; `baruch.sqlite*` und `works/`
+  entstehen weiter mit der umask des Dienstes.
+- **„Sicherung angelegt“** ist ein einmaliger Vermerk im laufenden Prozess: Nach einem Neustart oder beim erneuten
+  Aufruf der Adresse steht die Meldung nicht mehr da. Die Sicherung selbst liegt neben dem Datenordner
+  (`<Name>.sicherung-<Zeit>`).
+- **Anmelde- und Einrichtungsseite** folgen dem Cookie `baruch_theme` des Browsers (hell/dunkel), ohne JavaScript.
+- **Löschen eines Gliederungspunkts** steht im Git-Spiegel mit allem, was verloren geht (aktuelle Fassung, übrige
+  Fassungen, Beiträge) – ein versehentlich gelöschter Punkt lässt sich daraus von Hand wiederherstellen.

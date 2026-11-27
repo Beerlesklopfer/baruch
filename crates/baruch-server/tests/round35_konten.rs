@@ -1196,6 +1196,59 @@ async fn the_author_manages_accounts_over_rpc_and_no_answer_carries_a_secret() {
 
 // ---- Notweg `passwort` und das echte Programm ----------------------------------------------------------------
 
+/// Runde 36 (Rest aus Runde 35): Der Notweg hebt die Sperre gegen Durchprobieren für das Konto auf. Vorher hielt
+/// jeder, der den Kontonamen kannte, den Autor bis zu 15 Minuten je Runde ausgesperrt – auch nach dem Notweg.
+#[tokio::test]
+async fn the_command_line_lifts_the_block_of_the_account_after_failed_logins() {
+    let server = common::open().await;
+    setup_author(&server).await;
+    for attempt in 1..=3 {
+        let (status, _, _) = login(&server, "Erika", "falsch-geraten-1").await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "Fehlversuch {attempt}: noch ohne Wartezeit");
+    }
+    let (status, _, _) = login(&server, "Erika", "falsch-geraten-1").await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "Vorbedingung: nach vier Fehlversuchen ist das Konto gesperrt");
+    // Ein zweiter, fremder Bereich: Er darf vom Notweg für Erika nicht berührt werden.
+    for _ in 0..4 {
+        login(&server, "Nemo", "falsch-geraten-1").await;
+    }
+    let (status, _, _) = login(&server, "Erika", AUTHOR_PW).await;
+    assert_eq!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "Vorbedingung: während der Sperre hilft auch das richtige Passwort nicht"
+    );
+
+    // Abgelehnte Aufrufe (zu kurzes Passwort) ändern nichts, auch nicht die Sperre.
+    auth::cli::reset_password(server.path(), "Erika", "zu-kurz").await.expect_err("ein zu kurzes Passwort");
+    assert_eq!(
+        scalar(&server, "SELECT count(*) FROM login_attempt WHERE scope = 'konto:erika'").await,
+        1,
+        "ein abgelehnter Aufruf hebt die Sperre nicht auf"
+    );
+
+    // Andere Schreibweise des Namens: Der Bereich hängt am Namensschlüssel des Kontos.
+    auth::cli::reset_password(server.path(), " ERIKA ", NEW_PW).await.expect("das Passwort wird gesetzt");
+    assert_eq!(
+        scalar(&server, "SELECT count(*) FROM login_attempt WHERE scope = 'konto:erika'").await,
+        0,
+        "der Bereich des Kontos ist zurückgesetzt (login_reset für account_scope)"
+    );
+    assert_eq!(
+        scalar(&server, "SELECT failures FROM login_attempt WHERE scope = 'konto:nemo'").await,
+        4,
+        "die Sperre eines anderen Namens bleibt unberührt"
+    );
+    let (status, headers, text) = login(&server, "Erika", NEW_PW).await;
+    assert_eq!(
+        status,
+        StatusCode::SEE_OTHER,
+        "die Anmeldung mit dem neuen Passwort gelingt sofort, ohne die Sperre abzuwarten: {text}"
+    );
+    assert!(!session_cookies(&headers).is_empty(), "mit Sitzung");
+    assert_eq!(login(&server, "Nemo", NEW_PW).await.0, StatusCode::TOO_MANY_REQUESTS, "der fremde Bereich wartet weiter");
+}
+
 #[tokio::test]
 async fn the_command_line_resets_a_password_and_ends_the_sessions() {
     let server = common::open().await;

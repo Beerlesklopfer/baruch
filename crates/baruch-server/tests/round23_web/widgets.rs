@@ -452,11 +452,12 @@ fn the_quote_button_inserts_the_block_with_one_blank_line_around_and_a_line_for_
     });
     let Some(seen) = scene("Zitat", scenario) else { return };
     let values = seen["values"].as_array().unwrap();
-    let block = "#quote(block: true)[]\n– ";
+    // Runde 36: ohne Folgezeile „– “ (sie blieb ungefüllt als einzelner Gedankenstrich im Buch stehen).
+    let block = "#quote(block: true)[]";
     assert_eq!(
         values[0],
         json!({ "text": format!("\n\n{block}\n\n"), "caret": 2 + "#quote(block: true)[".len() }),
-        "mitten im Text: je eine Leerzeile davor und danach, darunter die Zeile für die Stellenangabe; Cursor im Rumpf"
+        "mitten im Text: je eine Leerzeile davor und danach, keine Zeile mit Gedankenstrich; Cursor im Rumpf"
     );
     assert_eq!(
         values[1]["text"],
@@ -466,7 +467,7 @@ fn the_quote_button_inserts_the_block_with_one_blank_line_around_and_a_line_for_
     assert_eq!(values[2]["text"], block, "stehen die Leerzeilen schon da, kommt keine doppelte dazu");
     assert_eq!(values[3]["text"], format!("{block}\n"), "am Anfang eines leeren Texts steht nichts davor");
     assert_eq!(
-        values[4]["text"], "#quote(block: true)[Wer sät, wartet.]\n– \n",
+        values[4]["text"], "#quote(block: true)[Wer sät, wartet.]\n",
         "eine Auswahl wandert in den Rumpf des Zitats"
     );
     assert_eq!(values[5], "#quote(block: true)[".len(), "der Cursor steht im Rumpf, nicht in der Zeile der Angabe");

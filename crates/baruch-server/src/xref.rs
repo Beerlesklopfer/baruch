@@ -118,11 +118,54 @@ pub struct OutlineMention {
 const ORDINALS: [&str; 12] =
     ["erst", "zweit", "dritt", "viert", "fünft", "sechst", "siebt", "acht", "neunt", "zehnt", "elft", "zwölft"];
 
-/// Römische Zahl (I bis XXXIX) als Zahl.
+/// Größte Ordnungszahl in Worten, die erkannt wird („hundertste“).
+pub const MAX_ORDINAL: usize = 100;
+
+/// Stamm der Ordnungszahl `n` (1 bis [`MAX_ORDINAL`], Runde 36 über „zwölfte“ hinaus): „dreizehnt“, „zwanzigst“,
+/// „einundvierzigst“, „hundertst“.
+fn ordinal_stem(n: usize) -> Option<String> {
+    const TEENS: [&str; 7] = ["drei", "vier", "fünf", "sech", "sieb", "acht", "neun"];
+    const UNITS: [&str; 9] = ["ein", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun"];
+    const TENS: [&str; 8] = ["zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig", "siebzig", "achtzig", "neunzig"];
+    match n {
+        1..=12 => Some(ORDINALS[n - 1].to_owned()),
+        13..=19 => Some(format!("{}zehnt", TEENS[n - 13])),
+        20..=99 => {
+            let tens = TENS[n / 10 - 2];
+            Some(match n % 10 {
+                0 => format!("{tens}st"),
+                unit => format!("{}und{tens}st", UNITS[unit - 1]),
+            })
+        }
+        100 => Some("hundertst".to_owned()),
+        _ => None,
+    }
+}
+
+/// Endungen einer gebeugten Ordnungszahl.
+const ORDINAL_ENDINGS: [&str; 5] = ["en", "er", "es", "em", "e"];
+
+/// Ordnungszahl in Worten als Zahl: „dritten“ → 3, „Einundvierzigstes“ → 41; alles andere → `None`. Verglichen wird
+/// der ganze Stamm (nicht sein Anfang): „achtzehnten“ ist 18, nicht 8.
+fn ordinal(word: &str) -> Option<usize> {
+    let lower = word.to_lowercase();
+    let stem = ORDINAL_ENDINGS.iter().find_map(|ending| lower.strip_suffix(ending))?;
+    (1..=MAX_ORDINAL).find(|n| ordinal_stem(*n).as_deref() == Some(stem))
+}
+
+/// Römische Zahl (I bis MMMCMXCIX, Runde 36 über XXXIX hinaus) als Zahl; nur die übliche Schreibweise gilt
+/// („IIII“, „VX“ oder „IC“ sind keine Zahl).
 fn roman(text: &str) -> Option<usize> {
-    const TENS: [&str; 4] = ["", "X", "XX", "XXX"];
+    const THOUSANDS: [&str; 4] = ["", "M", "MM", "MMM"];
+    const HUNDREDS: [&str; 10] = ["", "C", "CC", "CCC", "CD", "D", "DC", "DCC", "DCCC", "CM"];
+    const TENS: [&str; 10] = ["", "X", "XX", "XXX", "XL", "L", "LX", "LXX", "LXXX", "XC"];
     const ONES: [&str; 10] = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
-    (1..40).find(|n| format!("{}{}", TENS[n / 10], ONES[n % 10]) == text)
+    if text.is_empty() || text.len() > 15 {
+        return None;
+    }
+    (1..4000).find(|n| {
+        format!("{}{}{}{}", THOUSANDS[n / 1000], HUNDREDS[n / 100 % 10], TENS[n / 10 % 10], ONES[n % 10]) == text
+    })
 }
 
 /// Muster der Zählnennungen: „im dritten Kapitel“, „drittes Kapitel“, „Kapitel III“, „Kapitel 3“, „Teil II“,
@@ -130,9 +173,12 @@ fn roman(text: &str) -> Option<usize> {
 fn counted_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        let ordinals = ORDINALS.join("|");
+        // Alle Stämme von 1 bis MAX_ORDINAL, die längsten zuerst (sonst träfe „acht“ vor „achtzehnt“).
+        let mut stems: Vec<String> = (1..=MAX_ORDINAL).filter_map(ordinal_stem).collect();
+        stems.sort_by_key(|stem| std::cmp::Reverse(stem.len()));
+        let ordinals = stems.join("|");
         Regex::new(&format!(
-            r"\b(?:(?P<ord>(?i:{ordinals})(?:e|en|er|es|em))\s+(?P<kind1>Kapitel|Teil|Teils|Abschnitt|Abschnitts)\b|(?P<kind2>Kapitel|Teil|Abschnitt)\s+(?P<num>[IVX]+\b|\d+(?:\.\d+)*))"
+            r"\b(?:(?P<ord>(?i:{ordinals})(?:e|en|er|es|em))\s+(?P<kind1>Kapitel|Teil|Teils|Abschnitt|Abschnitts)\b|(?P<kind2>Kapitel|Teil|Abschnitt)\s+(?P<num>[IVXLCDM]+\b|\d+(?:\.\d+)*))"
         ))
         .expect("Muster der Gliederungsnennungen")
     })
@@ -170,7 +216,8 @@ fn counted_target(work: &Work, kind: NodeKind, index: Option<usize>, number: Opt
 }
 
 /// Eindeutige Nennungen von Gliederungspunkten in `text`, nach Stelle, ohne Überlappung: Zählnennungen („im dritten
-/// Kapitel“ → „dritten Kapitel“, „Kapitel III“, „Abschnitt 2.3“) und Titel (mindestens vier Zeichen, als ganze Wörter;
+/// Kapitel“ → „dritten Kapitel“, „Kapitel III“, „Abschnitt 2.3“; seit Runde 36 Ordnungszahlen bis „hundertste“
+/// und römische Zahlen in üblicher Schreibweise über XXXIX hinaus, etwa „Kapitel XLII“) und Titel (mindestens vier Zeichen, als ganze Wörter;
 /// mit vorangestelltem Artikel „die Einleitung“). Ein Titel, den mehrere Punkte tragen, und eine Zahl ohne genau ein
 /// Ziel werden nicht genannt (eindeutig oder gar nicht). Kürzere Titel zählen nur in Anführungszeichen.
 pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMention> {
@@ -178,9 +225,7 @@ pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMent
     for caps in counted_pattern().captures_iter(text) {
         let whole = caps.get(0).expect("Gruppe 0");
         let (kind_word, index, number) = if let Some(ord) = caps.name("ord") {
-            let lower = ord.as_str().to_lowercase();
-            let index = ORDINALS.iter().position(|o| lower.starts_with(o)).map(|i| i + 1);
-            (caps.name("kind1").map_or("", |m| m.as_str()), index, None)
+            (caps.name("kind1").map_or("", |m| m.as_str()), ordinal(ord.as_str()), None)
         } else {
             (caps.name("kind2").map_or("", |m| m.as_str()), None, caps.name("num").map(|m| m.as_str()))
         };
@@ -626,6 +671,48 @@ pub fn writes() -> Router<Arc<AppState>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordinals_in_words_reach_a_hundred_and_compare_the_whole_stem() {
+        for (word, n) in [
+            ("erste", 1),
+            ("Dritten", 3),
+            ("achtes", 8),
+            ("zwölfter", 12),
+            ("dreizehnten", 13),
+            ("sechzehnte", 16),
+            ("siebzehntem", 17),
+            ("achtzehnten", 18),
+            ("zwanzigstes", 20),
+            ("einundzwanzigsten", 21),
+            ("dreißigste", 30),
+            ("Einundvierzigstes", 41),
+            ("neunundneunzigsten", 99),
+            ("hundertste", 100),
+        ] {
+            assert_eq!(ordinal(word), Some(n), "„{word}“ ist die Ordnungszahl {n}");
+        }
+        for word in ["achte Kapitel", "letzten", "nächsten", "achtzehn", "zwanzig", "dritt", "hundertersten", ""] {
+            assert_eq!(ordinal(word), None, "„{word}“ ist keine erkannte Ordnungszahl");
+        }
+        let stems: Vec<String> = (1..=MAX_ORDINAL).filter_map(ordinal_stem).collect();
+        assert_eq!(stems.len(), MAX_ORDINAL, "jede Zahl bis hundert hat einen Stamm");
+        let mut unique = stems.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), stems.len(), "kein Stamm steht für zwei Zahlen (sonst wäre die Nennung mehrdeutig)");
+    }
+
+    #[test]
+    fn roman_numbers_reach_beyond_thirty_nine_in_the_usual_spelling_only() {
+        for (text, n) in [("I", 1), ("IV", 4), ("XXXIX", 39), ("XL", 40), ("XLII", 42), ("XC", 90), ("C", 100)] {
+            assert_eq!(roman(text), Some(n), "{text} = {n}");
+        }
+        assert_eq!(roman("MCMXCIV"), Some(1994), "auch große Zahlen in üblicher Schreibweise");
+        for text in ["", "IIII", "VX", "IC", "XXXX", "iv", "A", "MMMM"] {
+            assert_eq!(roman(text), None, "„{text}“ ist keine römische Zahl in üblicher Schreibweise");
+        }
+    }
 
     #[test]
     fn a_jump_url_carries_find_and_at_after_the_canonical_address() {
