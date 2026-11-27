@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB als ZIP packen (Besitz „epub“, Runde 20a; seit S1 echt).
+//! Pack the EPUB as a ZIP (ownership "epub", Round 20a; real since S1).
 //!
-//! Reihenfolge nach OCF: `mimetype` zuerst, unkomprimiert (STORED) und ohne Extra-Feld, dann
-//! [`CONTAINER_PATH`](crate::CONTAINER_PATH), [`OPF_PATH`](crate::OPF_PATH) und jedes Item unter `OEBPS/{href}`
-//! (DEFLATE) in Manifest-Reihenfolge. Feste Zeitstempel (1980-01-01) und Rechte: gleiche Eingabe → gleiche Bytes.
+//! Order according to OCF: `mimetype` first, uncompressed (STORED) and without extra field, then
+//! [`CONTAINER_PATH`](crate::CONTAINER_PATH), [`OPF_PATH`](crate::OPF_PATH) and every item under `OEBPS/{href}`
+//! (DEFLATE) in manifest order. Fixed timestamps (1980-01-01) and permissions: same input → same bytes.
 
 use std::io::{Cursor, Write};
 
@@ -12,7 +12,7 @@ use zip::{CompressionMethod, DateTime, ZipWriter};
 
 use crate::{CONTAINER_PATH, CONTENT_DIR, EpubBook, EpubError, MIMETYPE, OPF_PATH};
 
-/// Inhalt von `META-INF/container.xml`; verweist auf [`OPF_PATH`].
+/// Content of `META-INF/container.xml`; refers to [`OPF_PATH`].
 pub const CONTAINER_XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
 <container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\">\n\
 <rootfiles>\n\
@@ -24,7 +24,7 @@ fn zip_error(e: impl std::fmt::Display) -> EpubError {
     EpubError::Zip(e.to_string())
 }
 
-/// ZIP-Bytes des EPUB.
+/// ZIP bytes of the EPUB.
 pub fn package(book: &EpubBook) -> Result<Vec<u8>, EpubError> {
     debug_assert!(CONTAINER_XML.contains(OPF_PATH));
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));

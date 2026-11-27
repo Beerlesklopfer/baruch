@@ -1,42 +1,43 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Erfundenes Beispielwerk für Tests des Austauschformats (Vertrag R26, S1 (7)); alle Texte sind frei erfunden.
+//! Invented sample work for tests of the exchange format (contract R26, S1 (7)); all texts are freely invented.
 //!
-//! Buch mit zwei Teilen, drei Kapiteln und einem Abschnitt (das Kapitel „Das Seil“ ist nicht nummeriert). Das
-//! Kapitel „Der Eimer“ hat vier Fassungen (aktuell, abgelöst mit Basis, Vorschlag des Assistenten mit Modell,
-//! verworfen); die aktuelle trägt führende und folgende Leerzeichen, Tab, `<&>`, `]]>`, Umlaute und `\r`, genau
-//! der Vorschlag ein in XML 1.0 verbotenes Steuerzeichen (U+0001). Dazu Vorlage mit zwei Fassungen,
-//! Buchangaben mit Umschlag, Sprechdauer, zwei SWORD-Quellen, drei Einfälle (erledigt, gelöscht, mit Bezug),
-//! zwei Beiträge mit Quelle und Bezug, ein Faden mit zwei Beiträgen, zwei Bilder (PNG 1×1 mit zwei Fassungen,
-//! SVG) und ein Grabstein. Seit Runde 25 dazu die Karte (Unterversion 2): eine Verbindung „führt weiter“ und eine
-//! gelöschte „widerspricht“ mit Notiz (Zeilenumbruch, `&`, `<`), zwei Lagen (eine auf der Grenze −1 000 000, eine
-//! mit einer Zahl, die nur ihre kürzeste Darstellung genau trifft) und je ein Grabstein `verbindung` und `lage`.
-//! Seit Runde 27 (Unterversion 3): Anschriften des Verlags und der Druckerei, drei Umschlag-Blöcke (Titel vorn,
-//! Titel auf dem Rücken aufwärts, Motto mit eigenem Text im Beschnitt), Satzbild-Einstellungen und ein Grabstein
-//! `umschlag-block`. Seit Runde 28 (Unterversion 4): je ein bearbeiteter Beitrag im Abschnitt und im Faden mit alter
-//! Fassung, fünf Befunde (verworfen mit Begründung und veraltetem Vorschlag, übernommen in eine Fassung über einen
-//! bestätigten Vorschlag, verschoben in einen Einfall, ein Hinweis im Faden mit Anhang und Sammlung, ein Lob ohne
-//! Beitrag) und je ein Grabstein `befund`, `befund-status`, `beitrag-fassung`. Seit Runde 29 (Unterversion 6):
-//! Satz-Einstellungen mit allen sechzehn Feldern ([`crate::typeset::full_sample`]) und ein Grabstein `satz` (früher
-//! zurückgesetzte Einstellungen). Seit Runde 31 (Unterversion 7): zwei eigene Register, drei Glossarbegriffe (zwei
-//! angenommen, davon einer mit allen Feldern, einer vorgeschlagen von @lektor), die Register/Glossar-Felder der
-//! Satz-Einstellungen und je ein Grabstein `glossar-begriff` und `register`. Feste UUIDs ([`sample_uuid`]) und Zeiten.
+//! Book with two parts, three chapters and one section (the chapter „Das Seil“ is not numbered). The chapter
+//! „Der Eimer“ has four revisions (current, superseded with base, proposal of the assistant with model,
+//! rejected); the current one carries leading and trailing spaces, tab, `<&>`, `]]>`, umlauts and `\r`, exactly
+//! the proposal a control character forbidden in XML 1.0 (U+0001). Plus a template with two revisions, book
+//! details with cover, speaking time, two SWORD sources, three ideas (done, deleted, with reference), two posts
+//! with source and reference, a thread with two posts, two images (PNG 1×1 with two revisions, SVG) and a
+//! tombstone. Since Round 25 also the map (sub-version 2): one link „führt weiter“ and a deleted one
+//! „widerspricht“ with a note (line break, `&`, `<`), two positions (one on the limit −1 000 000, one with a
+//! number that only its shortest representation hits exactly) and one tombstone each of `verbindung` and `lage`.
+//! Since Round 27 (sub-version 3): addresses of the publisher and the printer, three cover blocks (title on the
+//! front, title on the spine upwards, motto with its own text in the bleed), typeset view settings and a
+//! tombstone `umschlag-block`. Since Round 28 (sub-version 4): one edited post each in the section and in the
+//! thread with an old version, five findings (rejected with a reason and an outdated proposal, adopted into a
+//! revision through a confirmed proposal, moved into an idea, a hint in the thread with attachment and
+//! collection, a praise without a post) and one tombstone each of `befund`, `befund-status`, `beitrag-fassung`.
+//! Since Round 29 (sub-version 6): typesetting settings with all sixteen fields
+//! ([`crate::typeset::full_sample`]) and a tombstone `satz` (settings reset earlier). Since Round 31
+//! (sub-version 7): two own indexes, three glossary terms (two accepted, one of them with all fields, one
+//! proposed by @lektor), the index/glossary fields of the typesetting settings and one tombstone each of
+//! `glossar-begriff` and `register`. Fixed UUIDs ([`sample_uuid`]) and times.
 //!
-//! Seit Runde 22 (Unterversion 8) gibt es zusätzlich [`sample_document_u8`]: dasselbe Werk, dazu drei Fortschreibungen
-//! der aktuellen Fassung von „Der Eimer“ (fortgeschrieben, zurückgenommen, fortgeschrieben; Stand 3), ein Vorschlag
-//! mit `beruht-stand`, der Stand am übernommenen Befund und seinem Verlaufseintrag, ein Entwurf in den
-//! Satz-Einstellungen ([`crate::typeset::full_draft`]) und ein Grabstein `fortschreibung`. [`sample_document`] selbst
-//! bleibt ohne diese Teile (ältere Tests bauen aus ihm Dateien der Unterversionen 1 bis 7).
+//! Since Round 22 (sub-version 8) there is additionally [`sample_document_u8`]: the same work, plus three
+//! amendments of the current revision of „Der Eimer“ (amended, undone, amended; state 3), a proposal with
+//! `beruht-stand`, the state on the adopted finding and its history entry, a draft in the typesetting settings
+//! ([`crate::typeset::full_draft`]) and a tombstone `fortschreibung`. [`sample_document`] itself stays without
+//! these parts (older tests build files of sub-versions 1 to 7 from it).
 //!
-//! export darf hier nur ergänzen (Vertrag Abschnitt 6).
+//! export may only add here (contract section 6).
 
 use crate::model::*;
 
-/// Feste UUID Nummer `n` des Beispiels (`26000000-0000-4000-8000-<n als 12 Hex-Stellen>`).
+/// Fixed UUID number `n` of the sample (`26000000-0000-4000-8000-<n as 12 hex digits>`).
 pub fn sample_uuid(n: u32) -> String {
     format!("26000000-0000-4000-8000-{n:012x}")
 }
 
-/// Gültiges PNG 1×1 (grün, RGBA).
+/// Valid PNG 1×1 (green, RGBA).
 pub const SAMPLE_PNG_GREEN: &[u8] = &[
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49,
@@ -44,7 +45,7 @@ pub const SAMPLE_PNG_GREEN: &[u8] = &[
     0x37, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 ];
 
-/// Gültiges PNG 1×1 (rot, RGBA).
+/// Valid PNG 1×1 (red, RGBA).
 pub const SAMPLE_PNG_RED: &[u8] = &[
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49,
@@ -52,15 +53,15 @@ pub const SAMPLE_PNG_RED: &[u8] = &[
     0xb5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 ];
 
-/// Kleines SVG (Lampe).
+/// Small SVG (lamp).
 pub const SAMPLE_SVG: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\" viewBox=\"0 0 10 10\">\
 <circle cx=\"5\" cy=\"4\" r=\"3\" fill=\"#f5c542\"/><rect x=\"4\" y=\"7\" width=\"2\" height=\"3\" fill=\"#555\"/></svg>\n";
 
-/// Aktuelle Fassung von „Der Eimer“: Leerzeichen vorn und hinten, Tab, `<&>`, `]]>`, Umlaute, `\r`.
+/// Current revision of „Der Eimer“: spaces at front and back, tab, `<&>`, `]]>`, umlauts, `\r`.
 pub const SAMPLE_TRICKY_BODY: &str =
     "  == Der Eimer\n\n\tDer Eimer hält <&> und schließt nie mit ]]> – Grüße aus Übersee.\r\nÄrger, Öl, Füße.  ";
 
-/// Vorschlag von „Der Eimer“ mit dem verbotenen Steuerzeichen U+0001.
+/// Proposal of „Der Eimer“ with the forbidden control character U+0001.
 pub const SAMPLE_CONTROL_BODY: &str = "== Der Eimer\n\nDer Eimer \u{1}klirrt leise am Rand des Brunnens.\n";
 
 fn t(day: u32, hour: u32) -> String {
@@ -126,7 +127,7 @@ fn asset_revision(n: u32, number: u32, mime: &str, data: &[u8], status: Exchange
     }
 }
 
-/// Befunde des Beispielwerks (Unterversion 4).
+/// Findings of the sample work (sub-version 4).
 fn sample_findings() -> Vec<ExchangeFinding> {
     use ExchangeFindingStatus as F;
     let lektor = |n: u32, position: u32, kind: ExchangeFindingKind, body: &str| ExchangeFinding {
@@ -166,7 +167,7 @@ Zweite Zeile."
     let mut set = entry(320, F::Rejected, ExchangeOriginKind::Human, "Hanna Probe", 2);
     set.reason = rejected.reason.clone();
     rejected.history = vec![stale, set];
-    // Unterversion 5 (Runde 30): Lösungen je Befund – eine Ersetzung mit Sonderzeichen und ein Schritt.
+    // Sub-version 5 (Round 30): solutions per finding – a replacement with special characters and a step.
     rejected.solutions = vec![ExchangeSolution {
         quote: "Der Eimer hält".into(),
         replacement: "Der Eimer trägt & <hält>".into(),
@@ -224,12 +225,12 @@ Zweite Zeile."
     vec![rejected, adopted, deferred, thread, praise]
 }
 
-/// Das Beispielwerk als ganzes Dokument.
+/// The sample work as a whole document.
 pub fn sample_document() -> ExchangeDocument {
     use ExchangeNodeKind::{Chapter, Part, Section};
     use ExchangeRevisionStatus as S;
 
-    // Kapitel „Der Eimer“ mit vier Fassungen.
+    // Chapter „Der Eimer“ with four revisions.
     let mut bucket = node(11, Chapter, "Der Eimer", "==", 111, 5);
     let mut current = revision(111, 1, S::Current, SAMPLE_TRICKY_BODY, 5);
     current.note = "Erste Niederschrift.".into();
@@ -240,7 +241,7 @@ pub fn sample_document() -> ExchangeDocument {
     proposal.author = ExchangeAuthor::Assistant { persona: "@lektor".into(), model: "probe/modell-7b".into() };
     proposal.based_on = Some(sample_uuid(111));
     proposal.note = "Klang ergänzt.".into();
-    // Unterversion 5: zwei Varianten derselben Gruppe auf derselben Basis (A offen, B verworfen).
+    // Sub-version 5: two variants of the same group on the same base (A open, B rejected).
     proposal.variant = Some(ExchangeVariant {
         group: sample_uuid(390),
         label: "A".into(),
@@ -270,7 +271,7 @@ pub fn sample_document() -> ExchangeDocument {
                 quote: "Der Eimer hält".into(),
             }],
             created: t(7, 11),
-            // Unterversion 5: geprüfte Fassung und Kopfzeile.
+            // Sub-version 5: reviewed revision and header line.
             meta: ExchangePostMeta {
                 basis_revision: Some(sample_uuid(111)),
                 basis_label: "geprüft: aktuelle Fassung 1".into(),
@@ -298,7 +299,7 @@ pub fn sample_document() -> ExchangeDocument {
         },
     ];
 
-    // Kapitel „Das Seil“ (nicht nummeriert) mit dem Abschnitt „Knoten“.
+    // Chapter „Das Seil“ (not numbered) with the section „Knoten“.
     let mut rope = node(12, Chapter, "Das Seil", "==", 121, 5);
     rope.numbered = false;
     rope.children = vec![node(13, Section, "Knoten", "===", 131, 5)];
@@ -595,7 +596,7 @@ pub fn sample_document() -> ExchangeDocument {
                 },
                 ExchangeLink {
                     uuid: sample_uuid(151),
-                    // „widerspricht“ ist ungerichtet; in der Reihenfolge der Einfälle, wie die Ausgabe sie schreibt.
+                    // „widerspricht“ is undirected; in the order of the ideas, as the output writes them.
                     from: sample_uuid(41),
                     to: sample_uuid(42),
                     kind: ExchangeLinkKind::Contradicts,
@@ -703,9 +704,9 @@ pub fn sample_document_u10() -> ExchangeDocument {
     doc
 }
 
-/// Das Beispielwerk der Unterversion 8 mit dem Baum der Mindmap (Unterversion 9, Runde 34): Der Einfall „Seil“ (am
-/// Abschnitt) trägt einen Titel, „Lampe“ ist sein Unterknoten mit Titel und Platz, der gelöschte „Eimer“ ein freies
-/// Hauptthema.
+/// The sample work of sub-version 8 with the tree of the mind map (sub-version 9, Round 34): the idea „Seil“ (at
+/// the section) carries a title, „Lampe“ is its child node with title and place, the deleted „Eimer“ a free main
+/// topic.
 pub fn sample_document_u9() -> ExchangeDocument {
     let mut doc = sample_document_u8();
     let rope = doc.work.ideas[0].uuid.clone();
@@ -719,7 +720,7 @@ pub fn sample_document_u9() -> ExchangeDocument {
     doc
 }
 
-/// Das Beispielwerk mit den Teilen der Unterversion 8 (Runde 22, siehe Modulkopf).
+/// The sample work with the parts of sub-version 8 (Round 22, see module header).
 pub fn sample_document_u8() -> ExchangeDocument {
     let mut doc = sample_document();
     let before = "== Der Eimer\n\nErster Entwurf.\n";
@@ -804,20 +805,20 @@ mod tests {
         let mut nodes = Vec::new();
         walk(&doc.work.outline, &mut nodes);
         let count = |kind| nodes.iter().filter(|n| n.kind == kind).count();
-        // Vertrag S1 (7): 2 Teile, 3 Kapitel, 1 Abschnitt, einer davon nicht nummeriert.
+        // Contract S1 (7): 2 parts, 3 chapters, 1 section, one of them not numbered.
         assert_eq!(count(ExchangeNodeKind::Part), 2, "zwei Teile");
         assert_eq!(count(ExchangeNodeKind::Chapter), 3, "drei Kapitel");
         assert_eq!(count(ExchangeNodeKind::Section), 1, "ein Abschnitt");
         assert_eq!(nodes.iter().filter(|n| !n.numbered).count(), 1, "genau ein Punkt ohne Nummer");
-        // Je Punkt genau eine aktuelle Fassung, sonst wäre das Beispiel selbst ungültig.
+        // Per item exactly one current revision, otherwise the sample itself would be invalid.
         for node in &nodes {
             let current = node.revisions.iter().filter(|r| r.status == ExchangeRevisionStatus::Current).count();
             assert_eq!(current, 1, "{}: genau eine aktuelle Fassung", node.title);
         }
-        // Das verbotene Steuerzeichen steht in genau einer Fassung (Base64-Zweig des Schreibers).
+        // The forbidden control character is in exactly one revision (Base64 branch of the writer).
         let control = nodes.iter().flat_map(|n| &n.revisions).filter(|r| r.body.contains('\u{1}')).count();
         assert_eq!(control, 1, "U+0001 in genau einer Fassung");
-        // Alle festen Kennungen sind kanonisch und eindeutig.
+        // All fixed identifiers are canonical and unique.
         let mut uuids: Vec<&str> = nodes.iter().map(|n| n.uuid.as_str()).collect();
         uuids.extend(nodes.iter().flat_map(|n| n.revisions.iter().map(|r| r.uuid.as_str())));
         uuids.extend(doc.work.assets.iter().flat_map(|a| a.revisions.iter().map(|r| r.uuid.as_str())));
@@ -826,7 +827,7 @@ mod tests {
         uuids.sort_unstable();
         uuids.dedup();
         assert_eq!(uuids.len(), before, "keine UUID doppelt");
-        // Karte (Runde 25): je eine aktive und eine gelöschte Verbindung, zwei Lagen, Grabsteine beider neuer Arten.
+        // Map (Round 25): one active and one deleted link each, two positions, tombstones of both new kinds.
         let map = &doc.work.map;
         assert_eq!(map.links.iter().filter(|l| l.deleted.is_none()).count(), 1, "eine aktive Verbindung");
         assert_eq!(map.links.iter().filter(|l| l.deleted.is_some()).count(), 1, "eine gelöschte Verbindung");
@@ -834,8 +835,8 @@ mod tests {
         for kind in [ExchangeTombstoneKind::Link, ExchangeTombstoneKind::Position] {
             assert!(doc.work.deleted.iter().any(|t| t.kind == kind), "Grabstein der Art {kind:?}");
         }
-        // Unterversion 3 (Runde 27): Anschriften, drei Umschlag-Blöcke (einer auf dem Rücken, einer mit eigenem Text),
-        // Satzbild und ein Grabstein der Art umschlag-block.
+        // Sub-version 3 (Round 27): addresses, three cover blocks (one on the spine, one with its own text),
+        // typeset view and a tombstone of the kind umschlag-block.
         let book = doc.work.book.as_ref().unwrap();
         assert!(book.publisher_address.contains('\n'), "mehrzeilige Anschrift des Verlags");
         assert_eq!(book.cover_blocks.len(), 3, "drei Umschlag-Blöcke");
@@ -847,7 +848,7 @@ mod tests {
             "Grabstein eines Umschlag-Blocks"
         );
         assert_eq!(doc.version, FORMAT_VERSION, "das Beispiel trägt die Unterversion dieses Programms");
-        // Unterversion 5 (Runde 30): Lösungen, zwei Varianten einer Gruppe, Metadaten an Beitrag und Fadenbeitrag.
+        // Sub-version 5 (Round 30): solutions, two variants of one group, metadata on post and thread post.
         assert!(doc.work.findings.iter().any(|f| !f.solutions.is_empty()), "ein Befund mit Lösung");
         let variants: Vec<&ExchangeVariant> =
             nodes.iter().flat_map(|n| &n.revisions).filter_map(|r| r.variant.as_ref()).collect();
@@ -861,11 +862,11 @@ mod tests {
     fn sample_images_carry_matching_checksums() {
         let doc = sample_document();
         for revision in doc.work.assets.iter().flat_map(|a| &a.revisions) {
-            // sha256 muss zu den Bytes passen, sonst lehnte der Leser die eigene Ausgabe ab.
+            // sha256 must match the bytes, otherwise the reader would reject its own output.
             assert_eq!(revision.sha256, sha256_hex(&revision.data), "Prüfsumme von {}", revision.uuid);
             assert!(image_extension(&revision.mime).is_some(), "Typ {} gehört zum Format", revision.mime);
         }
-        // Die PNGs sind echte PNG-Dateien (Signatur), damit dieselbe Prüfung wie beim Hochladen greift.
+        // The PNGs are real PNG files (signature), so that the same check as on upload takes effect.
         assert!(SAMPLE_PNG_GREEN.starts_with(b"\x89PNG\r\n\x1a\n") && SAMPLE_PNG_RED.starts_with(b"\x89PNG\r\n\x1a\n"));
     }
 }

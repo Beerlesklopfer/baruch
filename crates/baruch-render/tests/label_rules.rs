@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (spiegel-entwurf, R21b-Rest): Die Show-Regel über die Sprungmarke `<kN>`, die der Export für einen Knoten
-//! „ohne Nummer“ mit gleichlautender Überschrift schreibt (`snapshot::label_rules`), wirkt in Typst genau auf diese eine
-//! Überschrift – die gleichlautende nummerierte zählt weiter. Texte frei erfunden.
+//! Round 22 (spiegel-entwurf, R21b leftover): the show rule through the anchor `<kN>` that the export writes for
+//! a node "without number" with an identically worded heading (`snapshot::label_rules`) acts in Typst on exactly
+//! this one heading – the identically worded numbered one keeps counting. Texts freely invented.
 
 use baruch_render::{Severity, Source, compile, page_texts};
 

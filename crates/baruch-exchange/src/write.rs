@@ -1,42 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schreiben einer Austauschdatei (Vertrag R26 F1/F2).
+//! Writing an exchange file (contract R26 F1/F2).
 //!
-//! - [`write_xml`]: `werk.xml` im Namensraum [`crate::NAMESPACE`]; Text exakt (`\r` im Text, `\t`, `\n`, `\r` in
-//!   Attributen als Zeichenreferenz; in XML 1.0 verbotene Steuerzeichen im Text als Base64 mit
-//!   `kodierung="base64"`, in Attributen [`ExchangeError::Write`] mit dem Namen des Felds).
+//! - [`write_xml`]: `werk.xml` in the namespace [`crate::NAMESPACE`]; text exact (`\r` in text, `\t`, `\n`, `\r`
+//!   in attributes as a character reference; control characters forbidden in XML 1.0 in text as Base64 with
+//!   `kodierung="base64"`, in attributes [`ExchangeError::Write`] with the name of the field).
 //! - [`write_manifest`][]: `MANIFEST.xml`.
-//! - [`write_baruch`]: ZIP in der Reihenfolge `mimetype` (STORED), `werk.xml`, `bilder/…`, `MANIFEST.xml`.
-//! - `<karte>` (ab Unterversion 2, Runde 25) steht am Ende von `<werk>`, nur wenn es mindestens eine Verbindung
-//!   oder Lage gibt.
-//! - Ab Unterversion 3 (Runde 27): `<satzbild/>` am Ende von `<angaben>` (nur mit mindestens einer Einstellung), in
-//!   `<buch>` nach `<vita>` immer `<verlag-anschrift>` und `<druckerei-anschrift>`, danach `<umschlag>` mit den
-//!   Blöcken der Anordnung (nur wenn es welche gibt).
-//! - Ab Unterversion 4 (Runde 28): an `<beitrag>` (Abschnitt und Faden) `geaendert`, falls bearbeitet, und nach
-//!   den übrigen Kindern die `<alte-fassung>`-Elemente (älteste zuerst); `<befunde>` mit `<befund>` und deren
-//!   `<status-eintrag>` ganz am Ende von `<werk>` (nach `<karte>`), nur wenn es Befunde gibt.
+//! - [`write_baruch`]: ZIP in the order `mimetype` (STORED), `werk.xml`, `bilder/…`, `MANIFEST.xml`.
+//! - `<karte>` (from sub-version 2, Round 25) is at the end of `<werk>`, only if there is at least one link
+//!   or position.
+//! - From sub-version 3 (Round 27): `<satzbild/>` at the end of `<angaben>` (only with at least one setting), in
+//!   `<buch>` after `<vita>` always `<verlag-anschrift>` and `<druckerei-anschrift>`, then `<umschlag>` with the
+//!   blocks of the layout (only if there are any).
+//! - From sub-version 4 (Round 28): on `<beitrag>` (section and thread) `geaendert`, if edited, and after
+//!   the other children the `<alte-fassung>` elements (oldest first); `<befunde>` with `<befund>` and their
+//!   `<status-eintrag>` at the very end of `<werk>` (after `<karte>`), only if there are findings.
 //!
-//! Die Ausgabe ist deterministisch: dasselbe Dokument ergibt byte-gleiches XML und ZIP (feste Zeitstempel und
-//! Rechte im ZIP, Reihenfolge wie im Dokument). Zwischen Elementen steht nur Leerraum zum Lesen (Zeilenumbruch
-//! und Einrückung); er gehört nie zu einem Text – Text steht immer in genau einem Element ohne Kinder.
-//! - Ab Unterversion 5 (Runde 30): an `<befund>` nach dem Statusverlauf die `<loesung>`-Elemente (Attribute `zitat`,
-//!   `ersatz`, `schritt`, nur nicht leere); an `<fassung>` einer Variante `variante-gruppe`, `variante`,
-//!   `variante-zeile` und nach `<text>` je umgesetztem Befund `<setzt-um befund>`; an `<punkt>` `schluessel` (fester
-//!   Schlüssel der ausgebenden Instanz, für Querverweise); an `<beitrag>` (Abschnitt und Faden)
-//!   `grundlage-fassung`, `grundlage`, `antwort-auf`, `wiederholt`, `relay-von`, soweit gesetzt.
-//! - Ab Unterversion 6 (Runde 29): `<satz/>` am Ende von `<angaben>` hinter `<satzbild/>` (nur mit Satz-Einstellungen;
-//!   Attribute `uuid`, `geaendert`, `geaendert-von` und je gesetztem Feld die Wörter aus [`crate::typeset`]).
-//! - Ab Unterversion 7 (Runde 31): an `<satz/>` die Register/Glossar-Felder ([`crate::typeset::R31_ATTRIBUTES`]); am
-//!   Ende von `<werk>` hinter `<befunde>` die eigenen Register `<eigene-register>` und das Glossar `<glossar>` (nur,
-//!   wenn vorhanden).
-//! - Ab Unterversion 8 (Runde 22): an `<fassung>` `stand` (nur, wenn fortgeschrieben) und `beruht-stand` (nur, wenn
-//!   größer 0), nach `<setzt-um>` je Schritt `<fortschreibung uuid seq art undo-von? autor zeit>` mit `<vorher>` und
-//!   `<nachher>`; an `<befund>` und `<status-eintrag>` `stand` (nur, wenn größer 0); `<satz>` mit dem Kind
-//!   `<entwurf/>`, wenn die Satz-Einstellungen einen Entwurf tragen (sonst bleibt `<satz/>` leer).
-//! - Ab Unterversion 9 (Runde 34): an `<einfall>` `titel` (nur, wenn nicht leer), `eltern` (nur mit Elternknoten),
-//!   `platz` (nur, wenn nicht 0) und `hauptthema="true"` (nur bei einem freien Hauptthema).
+//! The output is deterministic: the same document yields byte-identical XML and ZIP (fixed timestamps and
+//! permissions in the ZIP, order as in the document). Between elements there is only whitespace for reading
+//! (line break and indentation); it never belongs to a text – text is always in exactly one element without
+//! children.
+//! - From sub-version 5 (Round 30): on `<befund>` after the status history the `<loesung>` elements (attributes
+//!   `zitat`, `ersatz`, `schritt`, only non-empty ones); on `<fassung>` of a variant `variante-gruppe`,
+//!   `variante`, `variante-zeile` and after `<text>` per implemented finding `<setzt-um befund>`; on `<punkt>`
+//!   `schluessel` (fixed key of the issuing instance, for cross-references); on `<beitrag>` (section and thread)
+//!   `grundlage-fassung`, `grundlage`, `antwort-auf`, `wiederholt`, `relay-von`, as far as set.
+//! - From sub-version 6 (Round 29): `<satz/>` at the end of `<angaben>` after `<satzbild/>` (only with
+//!   typesetting settings; attributes `uuid`, `geaendert`, `geaendert-von` and per set field the words from
+//!   [`crate::typeset`]).
+//! - From sub-version 7 (Round 31): on `<satz/>` the index/glossary fields
+//!   ([`crate::typeset::R31_ATTRIBUTES`]); at the end of `<werk>` after `<befunde>` the own indexes
+//!   `<eigene-register>` and the glossary `<glossar>` (only if present).
+//! - From sub-version 8 (Round 22): on `<fassung>` `stand` (only if amended) and `beruht-stand` (only if greater
+//!   than 0), after `<setzt-um>` per step `<fortschreibung uuid seq art undo-von? autor zeit>` with `<vorher>`
+//!   and `<nachher>`; on `<befund>` and `<status-eintrag>` `stand` (only if greater than 0); `<satz>` with the
+//!   child `<entwurf/>` if the typesetting settings carry a draft (otherwise `<satz/>` stays empty).
+//! - From sub-version 9 (Round 34): on `<einfall>` `titel` (only if not empty), `eltern` (only with a parent
+//!   node), `platz` (only if not 0) and `hauptthema="true"` (only for a free main topic).
 //!
-//! Geschrieben wird immer die Unterversion [`crate::FORMAT_VERSION`], die dieses Programm kennt, gleich welche
-//! `version` das Dokument trägt (Unbekanntes aus einer höheren Unterversion ist nicht im Modell).
+//! What is written is always the sub-version [`crate::FORMAT_VERSION`] that this program knows, whatever
+//! `version` the document carries (unknown things from a higher sub-version are not in the model).
 
 use std::io::{Cursor, Write as _};
 
@@ -46,22 +48,22 @@ use base64::engine::general_purpose::STANDARD;
 use crate::model::*;
 use crate::{ExchangeDocument, ExchangeError, ExchangeManifestEntry};
 
-/// Bilder im XML: als Base64 in `<daten>` (nur XML) oder als Verweis `datei` auf einen ZIP-Eintrag.
+/// Images in the XML: as Base64 in `<daten>` (XML only) or as a reference `datei` to a ZIP entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImageMode {
     Inline,
     Files,
 }
 
-/// `true` für ein Zeichen, das in XML 1.0 nicht vorkommen darf (auch nicht als Zeichenreferenz):
-/// Steuerzeichen unter U+0020 außer Tab, Zeilenumbruch und Wagenrücklauf sowie U+FFFE und U+FFFF.
-/// Ersatzzeichen (Surrogate) gibt es in einem Rust-`str` nicht.
+/// `true` for a character that must not occur in XML 1.0 (not even as a character reference):
+/// control characters below U+0020 except tab, line break and carriage return as well as U+FFFE and U+FFFF.
+/// Surrogates do not exist in a Rust `str`.
 pub fn forbidden_in_xml(c: char) -> bool {
     matches!(c, '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{fffe}' | '\u{ffff}')
 }
 
-/// Text als Elementinhalt maskiert: `&`, `<`, `>` (damit nie `]]>` entsteht) und `\r` als `&#13;`, sonst
-/// wörtlich (Tab und Zeilenumbruch bleiben, der Leser trimmt nie).
+/// Text escaped as element content: `&`, `<`, `>` (so that `]]>` never arises) and `\r` as `&#13;`, otherwise
+/// verbatim (tab and line break stay, the reader never trims).
 fn escape_text(value: &str, out: &mut String) {
     for c in value.chars() {
         match c {
@@ -74,8 +76,8 @@ fn escape_text(value: &str, out: &mut String) {
     }
 }
 
-/// Attributwert in doppelten Anführungszeichen: zusätzlich `"` sowie `\t`, `\n`, `\r` als Zeichenreferenz (sonst
-/// normalisierte ein Leser sie nach XML 1.0 §3.3.3 zu Leerzeichen).
+/// Attribute value in double quotation marks: additionally `"` as well as `\t`, `\n`, `\r` as a character
+/// reference (otherwise a reader would normalise them to spaces according to XML 1.0 §3.3.3).
 fn escape_attr(value: &str, out: &mut String) {
     for c in value.chars() {
         match c {
@@ -91,7 +93,7 @@ fn escape_attr(value: &str, out: &mut String) {
     }
 }
 
-/// Ein Attribut: Name und Wert.
+/// An attribute: name and value.
 type Attr<'a> = (&'static str, std::borrow::Cow<'a, str>);
 
 fn a<'a>(name: &'static str, value: &'a str) -> Attr<'a> {
@@ -106,7 +108,7 @@ fn bool_word(value: bool) -> &'static str {
     if value { "true" } else { "false" }
 }
 
-/// Kleiner XML-Schreiber mit Einrückung; jedes Element trägt seinen Pfad für Fehlermeldungen.
+/// Small XML writer with indentation; every element carries its path for error messages.
 struct Xml {
     out: String,
     path: Vec<&'static str>,
@@ -117,7 +119,7 @@ impl Xml {
         Xml { out: String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), path: Vec::new() }
     }
 
-    /// Name des Felds für Fehlermeldungen, z. B. `werk/gliederung/punkt/fassung/@autor`.
+    /// Name of the field for error messages, e.g. `werk/gliederung/punkt/fassung/@autor`.
     fn field(&self, element: &str, attribute: Option<&str>) -> String {
         let mut field = self.path.join("/");
         if !field.is_empty() {
@@ -161,7 +163,7 @@ impl Xml {
         Ok(())
     }
 
-    /// `<name …>` mit Kindern; danach [`Xml::end`].
+    /// `<name …>` with children; afterwards [`Xml::end`].
     fn start(&mut self, name: &'static str, attrs: &[Attr<'_>]) -> Result<(), ExchangeError> {
         self.tag_open(name, attrs)?;
         self.out.push('>');
@@ -177,14 +179,14 @@ impl Xml {
         self.out.push('>');
     }
 
-    /// Leeres Element `<name …/>`.
+    /// Empty element `<name …/>`.
     fn empty(&mut self, name: &'static str, attrs: &[Attr<'_>]) -> Result<(), ExchangeError> {
         self.tag_open(name, attrs)?;
         self.out.push_str("/>");
         Ok(())
     }
 
-    /// Textelement (Typ `Text` im XSD): exakt, bei verbotenen Zeichen als Base64 mit `kodierung="base64"`.
+    /// Text element (type `Text` in the XSD): exact, with forbidden characters as Base64 with `kodierung="base64"`.
     fn text(&mut self, name: &'static str, attrs: &[Attr<'_>], value: &str) -> Result<(), ExchangeError> {
         if value.chars().any(forbidden_in_xml) {
             let mut with = attrs.to_vec();
@@ -205,7 +207,7 @@ impl Xml {
         Ok(())
     }
 
-    /// Element mit schlichtem Inhalt ohne Base64 (Zeit, Base64-Daten): verbotene Zeichen → Fehler.
+    /// Element with plain content without Base64 (time, Base64 data): forbidden characters → error.
     fn plain(&mut self, name: &'static str, value: &str) -> Result<(), ExchangeError> {
         if let Some(c) = value.chars().find(|&c| forbidden_in_xml(c)) {
             return Err(ExchangeError::Write(format!(
@@ -229,7 +231,7 @@ impl Xml {
         self.out
     }
 
-    /// Prüft eine Kennung (kanonische UUID); sonst wäre die Ausgabe nicht gültig nach dem XSD.
+    /// Checks an identifier (canonical UUID); otherwise the output would not be valid according to the XSD.
     fn uuid<'a>(&self, element: &str, attribute: &'static str, value: &'a str) -> Result<Attr<'a>, ExchangeError> {
         if is_uuid(value) {
             Ok(a(attribute, value))
@@ -241,7 +243,7 @@ impl Xml {
         }
     }
 
-    /// Prüft einen Zeitpunkt (nicht leer, wie im XSD-Typ `Zeit`).
+    /// Checks a time (not empty, as in the XSD type `Zeit`).
     fn time<'a>(&self, element: &str, attribute: &'static str, value: &'a str) -> Result<Attr<'a>, ExchangeError> {
         if value.is_empty() {
             Err(ExchangeError::Write(format!("leerer Zeitpunkt in {}", self.field(element, Some(attribute)))))
@@ -250,7 +252,7 @@ impl Xml {
         }
     }
 
-    /// Positive Zahl (XSD `positiveInteger`).
+    /// Positive number (XSD `positiveInteger`).
     fn positive(&self, element: &str, attribute: &'static str, value: u32) -> Result<Attr<'static>, ExchangeError> {
         if value == 0 {
             Err(ExchangeError::Write(format!("0 ist keine gültige Zahl in {}", self.field(element, Some(attribute)))))
@@ -259,7 +261,7 @@ impl Xml {
         }
     }
 
-    /// Endliche Kommazahl (XSD `double`, ohne NaN und Unendlich).
+    /// Finite decimal number (XSD `double`, without NaN and infinity).
     fn double(&self, element: &str, attribute: &'static str, value: f64) -> Result<Attr<'static>, ExchangeError> {
         if value.is_finite() {
             Ok(owned(attribute, value.to_string()))
@@ -269,7 +271,7 @@ impl Xml {
     }
 }
 
-/// `werk.xml` als Text.
+/// `werk.xml` as text.
 pub fn write_xml(doc: &ExchangeDocument, images: ImageMode) -> Result<String, ExchangeError> {
     let mut x = Xml::new();
     let work = &doc.work;
@@ -347,7 +349,7 @@ pub fn write_xml(doc: &ExchangeDocument, images: ImageMode) -> Result<String, Ex
     Ok(x.finish())
 }
 
-/// `<eigene-register>` mit je `<register uuid kennung titel angelegt/>` in ihrer Reihenfolge (ab Unterversion 7).
+/// `<eigene-register>` with one `<register uuid kennung titel angelegt/>` each in their order (from sub-version 7).
 fn write_registers(x: &mut Xml, registers: &[ExchangeRegister]) -> Result<(), ExchangeError> {
     x.start("eigene-register", &[])?;
     for register in registers {
@@ -363,9 +365,9 @@ fn write_registers(x: &mut Xml, registers: &[ExchangeRegister]) -> Result<(), Ex
     Ok(())
 }
 
-/// `<glossar>` mit je `<begriff uuid status herkunft angelegt [geaendert] [geaendert-von]>` und den Kindern `<wort>`,
-/// `<kurz>`, `<ausfuehrlich>`, `<quelle>` (nur gesetzte), je Variante `<variante>`, je Stelle `<bibelstelle>` (ab
-/// Unterversion 7).
+/// `<glossar>` with one `<begriff uuid status herkunft angelegt [geaendert] [geaendert-von]>` each and the
+/// children `<wort>`, `<kurz>`, `<ausfuehrlich>`, `<quelle>` (only set ones), per variant `<variante>`, per
+/// reference `<bibelstelle>` (from sub-version 7).
 fn write_glossary(x: &mut Xml, glossary: &[ExchangeGlossaryTerm]) -> Result<(), ExchangeError> {
     x.start("glossar", &[])?;
     for term in glossary {
@@ -400,7 +402,7 @@ fn write_glossary(x: &mut Xml, glossary: &[ExchangeGlossaryTerm]) -> Result<(), 
     Ok(())
 }
 
-/// `<alte-fassung>` je alter Fassung eines Beitrags (ab Unterversion 4).
+/// `<alte-fassung>` per old version of a post (from sub-version 4).
 fn write_versions(x: &mut Xml, versions: &[ExchangePostVersion]) -> Result<(), ExchangeError> {
     for version in versions {
         let attrs = [
@@ -416,7 +418,7 @@ fn write_versions(x: &mut Xml, versions: &[ExchangePostVersion]) -> Result<(), E
     Ok(())
 }
 
-/// Wahlweise Kennung als Attribut.
+/// Optional identifier as an attribute.
 fn push_uuid<'a>(
     x: &Xml,
     attrs: &mut Vec<Attr<'a>>,
@@ -430,8 +432,8 @@ fn push_uuid<'a>(
     Ok(())
 }
 
-/// `<befunde>` (ab Unterversion 4): je Befund Herkunft, Art, Status, Text, Zitat, Prüfvermerk, Begründung, Sammlung
-/// und Statusverlauf, in der Reihenfolge des Dokuments.
+/// `<befunde>` (from sub-version 4): per finding origin, kind, status, text, quotation, review note, reason,
+/// collection and status history, in the order of the document.
 fn write_findings(x: &mut Xml, findings: &[ExchangeFinding]) -> Result<(), ExchangeError> {
     x.start("befunde", &[])?;
     for finding in findings {
@@ -449,8 +451,8 @@ fn write_findings(x: &mut Xml, findings: &[ExchangeFinding]) -> Result<(), Excha
         push_uuid(x, &mut attrs, "befund", "ziel-punkt", &finding.deferred_node)?;
         push_uuid(x, &mut attrs, "befund", "ziel-einfall", &finding.deferred_idea)?;
         push_uuid(x, &mut attrs, "befund", "gleicht", &finding.similar_to)?;
-        // Stand 0 (Fassung nie fortgeschrieben) wird nicht geschrieben: gleichbedeutend mit „kein Stand“, und Dateien
-        // ohne Fortschreibung bleiben gültig nach den älteren Schemata (Integrator Runde 22).
+        // State 0 (revision never amended) is not written: equivalent to "no state", and files
+        // without an amendment stay valid according to the older schemas (integrator Round 22).
         if let Some(stand) = finding.adopted_amend.filter(|&k| k > 0) {
             attrs.push(owned("stand", stand.to_string()));
         }
@@ -525,7 +527,7 @@ fn write_findings(x: &mut Xml, findings: &[ExchangeFinding]) -> Result<(), Excha
     Ok(())
 }
 
-/// Metadaten eines Beitrags als Attribute (ab Unterversion 5).
+/// Metadata of a post as attributes (from sub-version 5).
 fn push_post_meta<'a>(x: &Xml, attrs: &mut Vec<Attr<'a>>, meta: &'a ExchangePostMeta) -> Result<(), ExchangeError> {
     push_uuid(x, attrs, "beitrag", "grundlage-fassung", &meta.basis_revision)?;
     if !meta.basis_label.is_empty() {
@@ -539,8 +541,8 @@ fn push_post_meta<'a>(x: &Xml, attrs: &mut Vec<Attr<'a>>, meta: &'a ExchangePost
     Ok(())
 }
 
-/// `<karte>` (ab Unterversion 2): erst alle Verbindungen, dann alle Lagen, je in der Reihenfolge des Dokuments.
-/// Koordinaten als kürzeste Darstellung, die beim Lesen genau dieselbe Zahl ergibt (`f64` → `to_string`).
+/// `<karte>` (from sub-version 2): first all links, then all positions, each in the order of the document.
+/// Coordinates as the shortest representation that yields exactly the same number on reading (`f64` → `to_string`).
 fn write_map(x: &mut Xml, map: &ExchangeMap) -> Result<(), ExchangeError> {
     x.start("karte", &[])?;
     for link in &map.links {
@@ -664,7 +666,7 @@ fn write_details(x: &mut Xml, work: &ExchangeWork) -> Result<(), ExchangeError> 
     Ok(())
 }
 
-/// Farbe eines Umschlag-Blocks im XML: `hell`, `dunkel` oder `#rrggbb`.
+/// Colour of a cover block in the XML: `hell`, `dunkel` or `#rrggbb`.
 pub fn cover_color_word(color: &str) -> &str {
     match color {
         "light" => "hell",
@@ -673,7 +675,7 @@ pub fn cover_color_word(color: &str) -> &str {
     }
 }
 
-/// `<block>` der Umschlag-Anordnung (ab Unterversion 3).
+/// `<block>` of the cover layout (from sub-version 3).
 fn write_cover_block(x: &mut Xml, block: &ExchangeCoverBlock) -> Result<(), ExchangeError> {
     let color = cover_color_word(&block.color);
     if !(color == "hell"
@@ -908,8 +910,8 @@ fn write_idea(x: &mut Xml, idea: &ExchangeIdea) -> Result<(), ExchangeError> {
     if let Some(node) = &idea.node {
         attrs.push(x.uuid("einfall", "bezug", node)?);
     }
-    // Ab Unterversion 9 (Runde 34): nur, was von der Vorgabe abweicht – ein Werk ohne Baum gibt dieselben
-    // Attribute aus wie zuvor.
+    // From sub-version 9 (Round 34): only what deviates from the default – a work without a tree outputs the same
+    // attributes as before.
     if !idea.title.is_empty() {
         attrs.push(a("titel", &idea.title));
     }
@@ -969,7 +971,7 @@ fn write_thread(x: &mut Xml, thread: &ExchangeThread) -> Result<(), ExchangeErro
     Ok(())
 }
 
-/// Prüft eine Bildfassung (Typ des Formats, Prüfsumme passt zu den Bytes) und gibt den Eintrag im ZIP zurück.
+/// Checks an image revision (type of the format, checksum matches the bytes) and returns the entry in the ZIP.
 fn image_file(revision: &ExchangeAssetRevision) -> Result<String, ExchangeError> {
     let entry = image_entry(&revision.uuid, &revision.mime).ok_or_else(|| {
         ExchangeError::Write(format!("Bildfassung {}: Typ „{}“ gehört nicht zum Format", revision.uuid, revision.mime))
@@ -1021,7 +1023,7 @@ fn write_asset(x: &mut Xml, asset: &ExchangeAsset, images: ImageMode) -> Result<
     Ok(())
 }
 
-/// `MANIFEST.xml` als Text.
+/// `MANIFEST.xml` as text.
 pub fn write_manifest(entries: &[ExchangeManifestEntry]) -> Result<String, ExchangeError> {
     if entries.is_empty() {
         return Err(ExchangeError::Write("Manifest ohne Einträge".into()));
@@ -1040,12 +1042,12 @@ pub fn write_manifest(entries: &[ExchangeManifestEntry]) -> Result<String, Excha
     Ok(x.finish())
 }
 
-/// Ganzer Container `.baruch` (ZIP).
+/// Whole container `.baruch` (ZIP).
 ///
-/// Reihenfolge nach F1: `mimetype` (STORED, ohne Zeilenende), `werk.xml` (DEFLATE), je Bildfassung
-/// `bilder/<fassungs-uuid>.<ext>` in der Reihenfolge des Dokuments (Raster STORED, SVG DEFLATE), zuletzt
-/// `MANIFEST.xml` (DEFLATE) mit SHA-256 und Bytezahl aller Einträge außer `mimetype` und sich selbst. Alle
-/// Einträge tragen den festen Zeitstempel 1980-01-01 00:00:00 und die Rechte 0644.
+/// Order according to F1: `mimetype` (STORED, without line end), `werk.xml` (DEFLATE), per image revision
+/// `bilder/<fassungs-uuid>.<ext>` in the order of the document (raster STORED, SVG DEFLATE), last
+/// `MANIFEST.xml` (DEFLATE) with SHA-256 and byte count of all entries except `mimetype` and itself. All
+/// entries carry the fixed timestamp 1980-01-01 00:00:00 and the permissions 0644.
 pub fn write_baruch(doc: &ExchangeDocument) -> Result<Vec<u8>, ExchangeError> {
     let xml = write_xml(doc, ImageMode::Files)?;
     let mut files: Vec<(String, &[u8], bool)> = vec![(ENTRY_WORK.to_owned(), xml.as_bytes(), true)];
@@ -1089,7 +1091,7 @@ mod tests {
 
     #[test]
     fn forbidden_characters_follow_xml_1_0() {
-        // Tab, Zeilenumbruch und Wagenrücklauf sind erlaubt, die übrigen C0-Steuerzeichen nicht (XML 1.0 §2.2).
+        // Tab, line break and carriage return are allowed, the other C0 control characters are not (XML 1.0 §2.2).
         for c in ['\t', '\n', '\r', ' ', 'ä', '\u{7f}', '\u{fffd}', '\u{10000}'] {
             assert!(!forbidden_in_xml(c), "{c:?} ist in XML 1.0 erlaubt");
         }
@@ -1102,11 +1104,12 @@ mod tests {
     fn escaping_keeps_text_exact() {
         let mut text = String::new();
         escape_text(" a\t<&>]]>\r\n ", &mut text);
-        // `>` immer maskiert, damit nie `]]>` im Inhalt steht; `\r` als Zeichenreferenz, Leerraum wörtlich.
+        // `>` always escaped, so that `]]>` is never in the content; `\r` as a character reference, whitespace
+        // verbatim.
         assert_eq!(text, " a\t&lt;&amp;&gt;]]&gt;&#13;\n ", "Elementinhalt");
         let mut attr = String::new();
         escape_attr("\"a\tb\nc\rd\"", &mut attr);
-        // Im Attribut würden \t, \n und \r sonst zu Leerzeichen normalisiert.
+        // In an attribute \t, \n and \r would otherwise be normalised to spaces.
         assert_eq!(attr, "&quot;a&#9;b&#10;c&#13;d&quot;", "Attributwert");
     }
 }

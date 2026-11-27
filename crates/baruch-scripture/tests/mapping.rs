@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abbildung zwischen Verszählungen (Runde 17a): Regeltabelle `data/versification-map.tsv` gegen die Verszahlen
-//! beider Zählungen, Psalmüberschriften, Joel 2/3, Mal 3/4, Grenzen und ehrliches „Versifikation passt nicht“.
+//! Mapping between versifications (Round 17a): rule table `data/versification-map.tsv` against the verse counts
+//! of both versifications, psalm titles, Joel 2/3, Mal 3/4, limits and an honest „Versifikation passt nicht“.
 
 use std::collections::HashSet;
 
@@ -69,7 +69,7 @@ fn joel_and_malachi_follow_their_chapter_boundaries_in_both_directions() {
 #[test]
 fn an_uncovered_difference_is_never_guessed() {
     let (g, k) = (german(), v11n(KJV));
-    // 2. Kön 15 hat in German 39, in KJV 38 Verse, und keine Regel deckt das ab.
+    // 2. Kön 15 has 39 verses in German, 38 in KJV, and no rule covers that.
     match map_verse(g, k, verse("2Kgs", 15, 1)) {
         Mapped::Unmapped { reason } => {
             assert!(reason.starts_with(MISMATCH), "ehrlicher Grund: {reason}");
@@ -244,9 +244,9 @@ fn every_name_of_sword_modules_is_known_without_case() {
     assert!(versification("Phantasie").is_none(), "Erfundenes bleibt unbekannt");
 }
 
-/// Nachbesserung Runde 17: Catholic, Catholic2, Segond und Calvin zählen die Psalmüberschrift wie German als Vers 1
-/// (Ps 3 = 9, Ps 51 = 21 Verse), haben aber keine einzige Regel in der Tabelle. Ein Psalm mit zufällig gleich
-/// vielen Versen wie in KJV (Ps 13: 6 = 6) darf deshalb nicht als „gleich“ gelten.
+/// Follow-up fix Round 17: Catholic, Catholic2, Segond and Calvin count the psalm title as verse 1 like German
+/// (Ps 3 = 9, Ps 51 = 21 verses), but have not a single rule in the table. A psalm that happens to have the same
+/// number of verses as in KJV (Ps 13: 6 = 6) must therefore not count as "equal".
 #[test]
 fn a_versification_without_rules_never_guesses_a_differing_book() {
     let (g, k) = (german(), v11n(KJV));
@@ -288,8 +288,9 @@ fn a_versification_without_rules_never_guesses_a_differing_book() {
     );
 }
 
-/// Kein Kapitel einer Zählung ohne Regel für das Buch wird über die Kapitellänge geraten: Für jede Zählung, jedes
-/// Buch ohne Regel und jedes Kapitel gilt „gleich“ nur, wenn das ganze Buch mit KJV übereinstimmt.
+/// No chapter of a versification without a rule for the book is guessed through the chapter length: for every
+/// versification, every book without a rule and every chapter "equal" applies only if the whole book agrees
+/// with KJV.
 #[test]
 fn every_book_without_rules_maps_only_when_it_equals_kjv() {
     let k = v11n(KJV);

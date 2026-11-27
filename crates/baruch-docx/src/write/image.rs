@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder für den Schreiber: Dateiendung nach Medientyp und Größe im Dokument aus den Bildpunkten (PNG, JPEG, GIF).
+//! Images for the writer: file extension by media type and size in the document from the pixels (PNG, JPEG, GIF).
 
-/// Seite A4 in Twips (1/20 Punkt) und Ränder (2,5 cm seitlich und oben, 2 cm unten).
+/// A4 page in twips (1/20 point) and margins (2.5 cm at the sides and top, 2 cm at the bottom).
 pub(super) const PAGE_WIDTH_TWIPS: u32 = 11906;
 pub(super) const PAGE_HEIGHT_TWIPS: u32 = 16838;
 pub(super) const MARGIN_SIDE_TWIPS: u32 = 1418;
 pub(super) const MARGIN_TOP_TWIPS: u32 = 1418;
 pub(super) const MARGIN_BOTTOM_TWIPS: u32 = 1134;
-/// Breite des Satzspiegels.
+/// Width of the type area.
 pub(super) const TEXT_WIDTH_TWIPS: u32 = PAGE_WIDTH_TWIPS - 2 * MARGIN_SIDE_TWIPS;
 
-/// EMU (English Metric Units) je Twip und je Bildpunkt bei 96 dpi.
+/// EMU (English Metric Units) per twip and per pixel at 96 dpi.
 const EMU_PER_TWIP: u64 = 635;
 const EMU_PER_PIXEL: u64 = 9525;
-/// Größte Bildhöhe: zwei Drittel der Seite, damit die Unterschrift auf derselben Seite bleibt.
+/// Largest image height: two thirds of the page, so that the caption stays on the same page.
 const MAX_HEIGHT_EMU: u64 = (PAGE_HEIGHT_TWIPS as u64) * EMU_PER_TWIP * 2 / 3;
-/// Größe, wenn sich die Bildpunkte nicht lesen lassen (8 cm × 6 cm).
+/// Size if the pixels cannot be read (8 cm × 6 cm).
 const FALLBACK_EMU: (u64, u64) = (2_880_000, 2_160_000);
 
-/// Dateiendung unter `word/media/`: nach dem Medientyp, sonst nach dem Dateinamen, sonst `bin`.
+/// File extension under `word/media/`: by the media type, otherwise by the file name, otherwise `bin`.
 pub(super) fn extension(media_type: &str, file_name: &str) -> String {
     match media_type.trim().to_ascii_lowercase().as_str() {
         "image/png" => "png".into(),
@@ -36,7 +36,7 @@ pub(super) fn extension(media_type: &str, file_name: &str) -> String {
     }
 }
 
-/// Medientyp zu einer Dateiendung aus [`extension`] (für `[Content_Types].xml`).
+/// Media type for a file extension from [`extension`] (for `[Content_Types].xml`).
 pub(super) fn content_type(extension: &str) -> &'static str {
     match extension {
         "png" => "image/png",
@@ -54,7 +54,7 @@ fn be16(bytes: &[u8], at: usize) -> Option<u64> {
     Some(u64::from(u16::from_be_bytes([*bytes.get(at)?, *bytes.get(at + 1)?])))
 }
 
-/// Breite und Höhe in Bildpunkten aus dem Kopf eines PNG, GIF oder JPEG.
+/// Width and height in pixels from the header of a PNG, GIF or JPEG.
 pub(super) fn pixels(bytes: &[u8]) -> Option<(u64, u64)> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") && bytes.get(12..16) == Some(b"IHDR") {
         let width = (be16(bytes, 16)? << 16) | be16(bytes, 18)?;
@@ -67,7 +67,7 @@ pub(super) fn pixels(bytes: &[u8]) -> Option<(u64, u64)> {
         return Some((width, height));
     }
     if bytes.starts_with(&[0xff, 0xd8]) {
-        // JPEG: Segmente durchgehen bis zum Bildkopf (SOF0–SOF15 außer DHT, JPG, DAC).
+        // JPEG: walk through the segments up to the frame header (SOF0–SOF15 except DHT, JPG, DAC).
         let mut at = 2;
         while at + 4 <= bytes.len() {
             if bytes[at] != 0xff {
@@ -92,8 +92,8 @@ pub(super) fn pixels(bytes: &[u8]) -> Option<(u64, u64)> {
     None
 }
 
-/// Größe im Dokument in EMU: 96 Bildpunkte je Zoll, höchstens so breit wie der Satzspiegel und zwei Drittel der
-/// Seite hoch (Seitenverhältnis bleibt).
+/// Size in the document in EMU: 96 pixels per inch, at most as wide as the type area and two thirds of the page
+/// high (aspect ratio is kept).
 pub(super) fn extent(bytes: &[u8]) -> (u64, u64) {
     let Some((width, height)) = pixels(bytes).filter(|(w, h)| *w > 0 && *h > 0 && *w < 1 << 20 && *h < 1 << 20) else {
         return FALLBACK_EMU;
@@ -125,7 +125,7 @@ mod tests {
         let (cx, cy) = extent(gif);
         assert_eq!(cx, u64::from(TEXT_WIDTH_TWIPS) * 635, "ein zu breites Bild wird auf den Satzspiegel verkleinert");
         assert_eq!(cy, cx / 2, "das Seitenverhältnis 2:1 bleibt");
-        // SOI, APP0 (Länge 4), SOF0 mit Höhe 300 und Breite 200.
+        // SOI, APP0 (length 4), SOF0 with height 300 and width 200.
         let jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 11, 8, 0x01, 0x2c, 0, 0xc8, 3];
         assert_eq!(pixels(&jpeg), Some((200, 300)), "JPEG: der Bildkopf steht hinter anderen Segmenten");
         assert_eq!(extent(b"kein Bild"), FALLBACK_EMU, "ohne lesbaren Kopf gilt eine feste Größe statt null");

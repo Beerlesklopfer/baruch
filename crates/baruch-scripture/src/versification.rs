@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verszählungen (Versifikationen) als reine Zahlen: „German“ (die Zählung der Stellenprüfung,
-//! `data/versification.tsv`) und „KJV“ (`data/versification-kjv.tsv`) aus den eingebetteten Tabellen, seit Runde 17a
-//! dazu alle übrigen Zählungen, die die Crate `sword-modules` 0.1.0 kennt (Calvin, Catholic, Catholic2, DarbyFr,
-//! KJVA, LXX, Leningrad, Luther, MT, NRSV, NRSVA, Orthodox, Segond, Synodal, SynodalProt, Vulg), zur Laufzeit aus
-//! deren Daten (CC0). Die Tabellen German/KJV bleiben maßgeblich; der Test `tests/versification.rs` prüft, dass
-//! sword-modules dieselben Zahlen hat.
+//! Versifications as pure numbers: "German" (the versification of the reference check,
+//! `data/versification.tsv`) and "KJV" (`data/versification-kjv.tsv`) from the embedded tables, since Round 17a
+//! also all other versifications that the crate `sword-modules` 0.1.0 knows (Calvin, Catholic, Catholic2,
+//! DarbyFr, KJVA, LXX, Leningrad, Luther, MT, NRSV, NRSVA, Orthodox, Segond, Synodal, SynodalProt, Vulg), at run
+//! time from its data (CC0). The tables German/KJV stay authoritative; the test `tests/versification.rs` checks
+//! that sword-modules has the same numbers.
 //!
-//! Jede Zählung enthält nur die 66 Bücher von [`crate::books`] in deren Reihenfolge (39 im Alten, 27 im Neuen
-//! Testament); Spätschriften bleiben draußen, und fehlt einer Zählung ein Buch (MT und Leningrad haben kein Neues
-//! Testament), gibt [`Versification::chapters_of`] `None`. Abbildung zwischen den Zählungen: [`mapping`].
+//! Every versification contains only the 66 books of [`crate::books`] in their order (39 in the Old, 27 in the
+//! New Testament); deuterocanonical books stay outside, and if a versification lacks a book (MT and Leningrad
+//! have no New Testament), [`Versification::chapters_of`] gives `None`. Mapping between the versifications:
+//! [`mapping`].
 
 use std::sync::LazyLock;
 
@@ -16,15 +17,15 @@ use crate::books::{META, parse_table};
 
 pub mod mapping;
 
-/// Name der deutschen Zählung (wie in `Versification=German` einer SWORD-conf).
+/// Name of the German versification (as in `Versification=German` of a SWORD conf).
 pub const GERMAN: &str = "German";
-/// Name der englischen Zählung (SWORD-Vorgabe, wenn eine conf keine `Versification` nennt).
+/// Name of the English versification (SWORD default if a conf names no `Versification`).
 pub const KJV: &str = "KJV";
 
-/// Zahl der Bücher des Alten Testaments in German und KJV (in jeder Zählung, die alle 66 Bücher hat).
+/// Number of books of the Old Testament in German and KJV (in every versification that has all 66 books).
 pub const OLD_TESTAMENT_BOOKS: usize = 39;
 
-/// Eine Verszählung: je Buch (OSIS-Kürzel, Reihenfolge wie [`crate::books`]) die Verse je Kapitel.
+/// A versification: per book (OSIS code, order as in [`crate::books`]) the verses per chapter.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Versification {
     pub name: &'static str,
@@ -32,30 +33,30 @@ pub struct Versification {
 }
 
 impl Versification {
-    /// Bücher in kanonischer Reihenfolge mit den Versen je Kapitel (`[0]` = Kapitel 1).
+    /// Books in canonical order with the verses per chapter (`[0]` = chapter 1).
     pub fn books(&self) -> impl Iterator<Item = (&'static str, &[u16])> {
         self.books.iter().map(|(id, v)| (*id, v.as_slice()))
     }
 
-    /// Verse je Kapitel eines Buchs (OSIS-Kürzel).
+    /// Verses per chapter of a book (OSIS code).
     pub fn chapters_of(&self, book: &str) -> Option<&[u16]> {
         self.books.iter().find(|(id, _)| *id == book).map(|(_, v)| v.as_slice())
     }
 
-    /// Zahl der Verse eines Kapitels (ab 1); `None`, wenn es Buch oder Kapitel nicht gibt.
+    /// Number of verses of a chapter (from 1); `None` if book or chapter does not exist.
     pub fn verses_in(&self, book: &str, chapter: u16) -> Option<u16> {
         let chapters = self.chapters_of(book)?;
         chapter.checked_sub(1).and_then(|i| chapters.get(usize::from(i))).copied()
     }
 
-    /// Zahl aller Verse.
+    /// Number of all verses.
     pub fn total_verses(&self) -> u32 {
         self.books.iter().flat_map(|(_, v)| v.iter()).map(|&n| u32::from(n)).sum()
     }
 
-    /// Zahl der Verse von `start` bis `end` (je Kapitel, Vers; Vers 0 = ganzes Kapitel, also ab Vers 1 bzw. bis
-    /// zum letzten Vers); `None` bei unbekanntem Buch oder Kapitel, einem Vers jenseits des Kapitels oder einem
-    /// Ende vor dem Anfang.
+    /// Number of verses from `start` to `end` (chapter, verse each; verse 0 = whole chapter, i.e. from verse 1 or
+    /// up to the last verse); `None` for an unknown book or chapter, a verse beyond the chapter or an
+    /// end before the start.
     pub fn count_range(&self, book: &str, start: (u16, u16), end: (u16, u16)) -> Option<u32> {
         let first_len = self.verses_in(book, start.0)?;
         let last_len = self.verses_in(book, end.0)?;
@@ -88,7 +89,7 @@ static GERMAN_V11N: LazyLock<Versification> =
     LazyLock::new(|| build(GERMAN, include_str!("../data/versification.tsv")));
 static KJV_V11N: LazyLock<Versification> = LazyLock::new(|| build(KJV, include_str!("../data/versification-kjv.tsv")));
 
-/// Eine Zählung aus den Daten von sword-modules: die 66 Bücher in der Reihenfolge von [`META`], soweit vorhanden.
+/// A versification from the data of sword-modules: the 66 books in the order of [`META`], as far as present.
 fn from_sword(v: &'static sword_modules::Versification) -> Versification {
     let books = META
         .iter()
@@ -101,7 +102,7 @@ fn from_sword(v: &'static sword_modules::Versification) -> Versification {
     Versification { name: v.name(), books }
 }
 
-/// Die Zählungen aus sword-modules außer German und KJV (die kommen aus den Tabellen).
+/// The versifications from sword-modules except German and KJV (those come from the tables).
 static OTHERS: LazyLock<Vec<Versification>> = LazyLock::new(|| {
     sword_modules::Versification::all()
         .iter()
@@ -110,7 +111,7 @@ static OTHERS: LazyLock<Vec<Versification>> = LazyLock::new(|| {
         .collect()
 });
 
-/// Alle Zählungen: German, dann die übrigen alphabetisch (Groß-/Kleinschreibung egal), KJV aus der Tabelle.
+/// All versifications: German, then the others alphabetically (case does not matter), KJV from the table.
 static ALL: LazyLock<Vec<&'static Versification>> = LazyLock::new(|| {
     let mut others: Vec<&'static Versification> = OTHERS.iter().collect();
     others.push(&KJV_V11N);
@@ -118,24 +119,24 @@ static ALL: LazyLock<Vec<&'static Versification>> = LazyLock::new(|| {
     std::iter::once(&*GERMAN_V11N).chain(others).collect()
 });
 
-/// Die Verszählung zu einem Namen (Schreibweise von sword-modules, z. B. „German“, „KJV“, „Luther“, „NRSVA“;
-/// Groß-/Kleinschreibung und Leerraum egal). Unbekannte Namen: `None`.
+/// The versification for a name (spelling of sword-modules, e.g. "German", "KJV", "Luther", "NRSVA";
+/// case and whitespace do not matter). Unknown names: `None`.
 pub fn versification(name: &str) -> Option<&'static Versification> {
     let name = name.trim();
     ALL.iter().copied().find(|v| v.name.eq_ignore_ascii_case(name))
 }
 
-/// Alle Zählungen, die Baruch kennt: „German“ zuerst, dann alphabetisch.
+/// All versifications that Baruch knows: "German" first, then alphabetically.
 pub fn all() -> impl Iterator<Item = &'static Versification> {
     ALL.iter().copied()
 }
 
-/// Die Namen aus [`all`] in derselben Reihenfolge.
+/// The names from [`all`] in the same order.
 pub fn names() -> Vec<&'static str> {
     all().map(|v| v.name).collect()
 }
 
-/// Die deutsche Zählung der Stellenprüfung.
+/// The German versification of the reference check.
 pub fn german() -> &'static Versification {
     &GERMAN_V11N
 }

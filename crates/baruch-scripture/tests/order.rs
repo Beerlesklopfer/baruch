@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Biblische Buchreihenfolge und Sortierschlüssel (Runde 31b, Bibelstellenregister).
+//! Biblical book order and sort keys (Round 31b, index of Bible references).
 
 use baruch_scripture::{RefStatus, book_order, books, find_book, parse, scan};
 

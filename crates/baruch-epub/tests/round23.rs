@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a (Härtung, Reste aus R20): Fußnote in der Fußnote in richtiger Reihenfolge und Nummer, `@label` auf eine
-//! Abbildung als „Abbildung n“, Inhalt eines komprimierten `mimetype`. Texte frei erfunden (`baruch_epub::sample`
-//! und Abwandlungen hier).
+//! Round 23a (hardening, leftovers from R20): footnote in a footnote in the right order and number, `@label` on a
+//! figure as „Abbildung n“, content of a compressed `mimetype`. Texts freely invented (`baruch_epub::sample` and
+//! variations here).
 
 use std::io::{Cursor, Read, Write};
 
@@ -18,7 +18,7 @@ fn text(book: &EpubBook, href: &str) -> String {
     String::from_utf8(item.bytes.clone()).expect("UTF-8")
 }
 
-/// Stelle von `needle` in `hay` (mit Meldung, wenn es fehlt).
+/// Position of `needle` in `hay` (with a message if it is missing).
 fn at(hay: &str, needle: &str) -> usize {
     hay.find(needle).unwrap_or_else(|| panic!("„{needle}“ fehlt in: {hay}"))
 }
@@ -57,7 +57,7 @@ fn nested_footnotes_keep_their_order_in_the_built_book_in_both_modes() {
     for mode in [FootnoteMode::Popup, FootnoteMode::Endnotes] {
         let mut input = sample::input();
         input.footnotes = mode;
-        // Alle vorhandenen Fußnoten des Musters bleiben; dazu eine mit einer inneren, frei erfunden.
+        // All existing footnotes of the sample stay; plus one with an inner one, freely invented.
         input.sections[3].body.push_str("\nDer Zaun steht.#footnote[Aus Lärche.#footnote[Vom Nordhang.]]\n");
         let book = build(&input).unwrap();
         let file = if mode == FootnoteMode::Popup { format!("text/k{ch2}.xhtml") } else { "text/notes.xhtml".into() };
@@ -94,7 +94,7 @@ fn a_reference_to_a_labelled_figure_shows_its_number_like_typst() {
 
     let (ch1, ch2) = (KEYS[1], KEYS[3]);
     let mut input = sample::input();
-    // Das Muster hat schon eine Abbildung (`bilder/weide.png`); dazu eine zweite mit Label im zweiten Kapitel.
+    // The sample already has a figure (`bilder/weide.png`); plus a second one with a label in the second chapter.
     input.sections[3].body.push_str(
         "\n#figure(image(\"bilder/plan.png\"), caption: [Der Lageplan]) <lageplan>\n\nSiehe @lageplan und \
          @lageplan[Skizze].\n",
@@ -129,7 +129,7 @@ fn a_reference_to_a_labelled_figure_shows_its_number_like_typst() {
     let _ = ch1;
 }
 
-/// Baut das Paket neu, mit `mimetype` in der gewünschten Methode und mit dem gewünschten Inhalt.
+/// Rebuilds the package, with `mimetype` in the wanted method and with the wanted content.
 fn repack(epub: &[u8], method: CompressionMethod, mimetype: &[u8]) -> Vec<u8> {
     let mut zip = ZipArchive::new(Cursor::new(epub)).unwrap();
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
@@ -152,7 +152,7 @@ fn a_compressed_mimetype_with_wrong_content_reports_the_content_too() {
     let has = |epub: &[u8], code: &str| {
         check_structure(epub, None).0.iter().any(|f| f.code == code && f.severity == Severity::Error)
     };
-    // Lang genug, dass DEFLATE wirklich komprimiert; kein gültiger Medientyp.
+    // Long enough for DEFLATE to really compress; not a valid media type.
     let wrong = b"application/zip application/zip application/zip application/zip";
     let compressed_wrong = repack(&good, CompressionMethod::Deflated, wrong);
     assert!(has(&compressed_wrong, codes::MIMETYPE_COMPRESSED), "komprimiert bleibt ein Fehler (OCF verlangt STORED)");

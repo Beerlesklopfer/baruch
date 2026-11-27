@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31b: Registerseiten und Glossarseite im gesetzten Buch gemessen. Die Quelle ist so gebaut wie im Store
-//! (`snapshot::export_parts`): Werkvorlage, Regelblock [`rules`], je Abschnitt die Projektion [`Projector::project`],
-//! dahinter das Buchende [`back_matter`]. Gemessen wird mit [`baruch_render::page_texts`]: Auf welcher Seite (nach der
-//! gedruckten Seitenzahl in der Fußzeile) steht das markierte Wort, und was steht im Register? Alle Texte frei erfunden.
+//! Round 31b: index pages and glossary page measured in the typeset book. The source is built as in the store
+//! (`snapshot::export_parts`): work template, rule block [`rules`], per section the projection
+//! [`Projector::project`], after that the back matter [`back_matter`]. Measured with
+//! [`baruch_render::page_texts`]: on which page (by the printed page number in the footer) is the marked word,
+//! and what is in the index? All texts freely invented.
 
 use baruch_render::{PlacedText, Severity, Source, compile, page_texts};
 use baruch_typst::index::{
@@ -13,12 +14,12 @@ use baruch_typst::typeset::*;
 
 const PT_PER_MM: f64 = 72.0 / 25.4;
 
-/// Kleine Seite, damit wenig Text mehrere Seiten füllt; ohne Silbentrennung (Wörter bleiben ganze Textstücke).
+/// Small page, so that little text fills several pages; without hyphenation (words stay whole text pieces).
 const TEMPLATE: &str = "#set page(width: 110mm, height: 150mm, margin: 15mm)\n#set text(hyphenate: false)\n";
 const PAGE_HEIGHT_PT: f64 = 150.0 * PT_PER_MM;
 const PAGE_WIDTH_PT: f64 = 110.0 * PT_PER_MM;
 
-/// Frei erfundene Sätze (ohne die Stichwörter des Tests).
+/// Freely invented sentences (without the keywords of the test).
 const SENTENCES: [&str; 6] = [
     "Der Gärtner zählte am Morgen die Beete und schrieb jede neue Knospe in sein kleines Heft.",
     "Über dem Zaun hingen Bohnenranken, die der Wind in der Nacht zu einem grünen Knoten gedreht hatte.",
@@ -42,7 +43,7 @@ fn mark_with(register: &str, term: &str, f: impl FnOnce(&mut IndexMark)) -> Stri
     mark_source(&m)
 }
 
-/// Abschnitte des Testbuchs: Vorspann ohne Kapitel (eine Seite), dann drei Kapitel mit Marken.
+/// Sections of the test book: preamble without chapter (one page), then three chapters with marks.
 fn sections() -> Vec<String> {
     let zeder =
         |n: usize| format!("Im Schuppen lag Zedernholz{} vom Vorjahr. {}", mark("stichwort", "Zedernholz"), filler(n));
@@ -99,7 +100,7 @@ fn back(settings: TypesetSettings, glossary: Vec<GlossaryEntry>) -> BackMatter {
     BackMatter { settings, registers, glossary }
 }
 
-/// Quelle wie im Store: Vorlage, Regelblock, projizierte Abschnitte, Buchende.
+/// Source as in the store: template, rule block, projected sections, back matter.
 fn book(back: &BackMatter, sections: &[String]) -> String {
     let mut projector = Projector::new(back);
     let bodies: Vec<String> = sections.iter().map(|s| projector.project(s).into_owned()).collect();
@@ -116,22 +117,22 @@ fn set(main: &str) -> Vec<Vec<PlacedText>> {
     page_texts(&source).expect("ohne Satzfehler liefert page_texts die Seiten")
 }
 
-/// Gedruckte Seitenzahl einer Seite: Ziffern in der Fußzeile (unterhalb des Satzspiegels).
+/// Printed page number of a page: digits in the footer (below the type area).
 fn folio(page: &[PlacedText]) -> Option<u32> {
     page.iter()
         .filter(|t| t.y_pt > PAGE_HEIGHT_PT - 15.0 * PT_PER_MM && !t.text.is_empty())
         .find_map(|t| t.text.trim().parse().ok())
 }
 
-/// Zeilen einer Seite (Textstücke mit gleicher Grundlinie, nach x), je Zeile (x des ersten Stücks, Text mit
-/// zusammengefasstem Leerraum).
+/// Lines of a page (text pieces with the same baseline, by x), per line (x of the first piece, text with
+/// collapsed whitespace).
 fn lines(page: &[PlacedText]) -> Vec<(f64, String)> {
     let mut ys: Vec<i64> = page.iter().map(|t| (t.y_pt * 10.0).round() as i64).collect();
     ys.sort_unstable();
     ys.dedup();
     let mut out = Vec::new();
     for y in ys {
-        // Mehrspaltig: Stücke einer Grundlinie nach Spalten trennen (Lücke über 20 pt).
+        // Multi-column: separate pieces of one baseline by columns (gap above 20 pt).
         let mut row: Vec<&PlacedText> = page.iter().filter(|t| (t.y_pt * 10.0).round() as i64 == y).collect();
         row.sort_by(|a, b| a.x_pt.total_cmp(&b.x_pt));
         let mut current: Vec<&PlacedText> = Vec::new();
@@ -156,7 +157,7 @@ fn join(pieces: &[&PlacedText]) -> (f64, String) {
     (pieces[0].x_pt, text.split_whitespace().collect::<Vec<_>>().join(" "))
 }
 
-/// Erste Seite (Index), auf der eine Zeile genau `heading` lautet.
+/// First page (index) on which a line reads exactly `heading`.
 fn page_with_line(pages: &[Vec<PlacedText>], heading: &str) -> usize {
     pages
         .iter()
@@ -164,7 +165,7 @@ fn page_with_line(pages: &[Vec<PlacedText>], heading: &str) -> usize {
         .unwrap_or_else(|| panic!("Zeile {heading:?} fehlt im Satz"))
 }
 
-/// Gedruckte Seitenzahlen der Seiten vor `before`, auf denen `word` steht.
+/// Printed page numbers of the pages before `before` on which `word` is.
 fn folios_of(pages: &[Vec<PlacedText>], word: &str, before: usize) -> Vec<u32> {
     let mut out: Vec<u32> = pages[..before]
         .iter()
@@ -177,7 +178,7 @@ fn folios_of(pages: &[Vec<PlacedText>], word: &str, before: usize) -> Vec<u32> {
     out
 }
 
-/// Seitenbereiche wie im Register erwartet: Folgeseiten zu „a–b“.
+/// Page ranges as expected in the index: consecutive pages to "a–b".
 fn ranges(pages: &[u32]) -> String {
     let mut out: Vec<String> = Vec::new();
     let mut i = 0;
@@ -194,7 +195,7 @@ fn ranges(pages: &[u32]) -> String {
     out.join(", ")
 }
 
-/// Zeilen der Seiten ab `from` bis vor `to` (Registerseiten), ohne Fußzeile.
+/// Lines of the pages from `from` up to before `to` (index pages), without footer.
 fn register_lines(pages: &[Vec<PlacedText>], from: usize, to: usize) -> Vec<(f64, String)> {
     pages[from..to]
         .iter()
@@ -215,8 +216,8 @@ fn keyword_register_prints_measured_pages_ranges_subentries_and_references() {
     let lines = register_lines(&pages, index, pages.len());
     let texts: Vec<&str> = lines.iter().map(|(_, l)| l.as_str()).collect();
 
-    // Zedernholz steht in Kapitel 1 dreimal und in Kapitel 3 einmal; die gedruckten Seitenzahlen (ab dem ersten
-    // Kapitel gezählt, der Vorspann hat keine Zahl) bestimmt der Satz.
+    // Zedernholz is in chapter 1 three times and in chapter 3 once; the printed page numbers (counted from the
+    // first chapter, the preamble has no number) are determined by the typesetting.
     let zeder = folios_of(&pages, "Zedernholz", index);
     assert!(zeder.len() >= 3, "Zedernholz steht auf mindestens drei Seiten (Messung): {zeder:?}");
     assert!(zeder.windows(2).any(|w| w[1] == w[0] + 1), "mindestens zwei Folgeseiten für den Bereich: {zeder:?}");
@@ -225,14 +226,14 @@ fn keyword_register_prints_measured_pages_ranges_subentries_and_references() {
     assert!(expected.contains('–'), "Folgeseiten werden zum Bereich zusammengefasst: {expected}");
     assert!(texts.contains(&expected.as_str()), "Registerzeile mit gemessenen Seiten {expected:?}: {texts:?}");
 
-    // Deutsche Sortierung (DIN 5007-1): Ähre wie Ahre, also zwischen Abend und Garten; Gruppe A.
+    // German sorting (DIN 5007-1): Ähre like Ahre, so between Abend and Garten; group A.
     let pos = |prefix: &str| {
         texts.iter().position(|l| l.starts_with(prefix)).unwrap_or_else(|| panic!("{prefix} fehlt: {texts:?}"))
     };
     assert!(pos("Abend") < pos("Ähre") && pos("Ähre") < pos("Garten"), "Ä bei A einsortiert: {texts:?}");
     assert!(pos("A") < pos("Abend") && texts[pos("A")] == "A", "Buchstabe A als Gruppenkopf vor Abend: {texts:?}");
 
-    // Unterstichwörter eingerückt unter ihrem Stichwort.
+    // Subheadwords indented under their headword.
     let garten = &lines[pos("Garten")];
     let beet = &lines[pos("Beet")];
     let zaun = &lines[pos("Zaun")];
@@ -240,7 +241,7 @@ fn keyword_register_prints_measured_pages_ranges_subentries_and_references() {
     assert!(beet.0 > garten.0 + 5.0, "Unterstichwort eingerückt: Garten {:.1} pt, Beet {:.1} pt", garten.0, beet.0);
     assert!((beet.0 - zaun.0).abs() < 0.5, "beide Unterstichwörter gleich eingerückt");
 
-    // „siehe“ ohne Seitenzahl, „siehe auch“ hinter den Seiten.
+    // „siehe“ without page number, „siehe auch“ after the pages.
     assert!(texts.contains(&"Huld siehe Gnade"), "„siehe“-Eintrag ohne Seitenzahl: {texts:?}");
     let gnade = texts[pos("Gnade")];
     assert!(
@@ -261,7 +262,7 @@ fn scripture_register_lists_recognized_passages_in_biblical_order() {
     assert_eq!(page.len(), 1, "alle Stellen stehen in einem Absatz von Kapitel 2: {page:?}");
     let p = page[0];
     let at = |line: &str| texts.iter().position(|l| l == line).unwrap_or_else(|| panic!("{line:?} fehlt: {texts:?}"));
-    // Biblische Reihenfolge (nicht alphabetisch: „Johannes“ vor „Römer“, „1. Mose“ zuerst).
+    // Biblical order (not alphabetical: „Johannes“ before „Römer“, „1. Mose“ first).
     assert!(at("1. Mose") < at("Johannes") && at("Johannes") < at("Römer"), "Bücher in Bibelordnung: {texts:?}");
     assert!(at(&format!("1,1 {p}")) == at("1. Mose") + 1, "Stelle 1,1 unter 1. Mose mit Seite {p}: {texts:?}");
     assert!(at(&format!("3,16 {p}")) == at("Johannes") + 1, "Joh 3,16 mit Seite {p}: {texts:?}");
@@ -273,7 +274,7 @@ fn scripture_register_lists_recognized_passages_in_biblical_order() {
 #[test]
 fn person_and_custom_registers_get_their_own_pages_in_two_columns() {
     let back = back(settings(2, &["personen", "orte", "stichwort"], None), Vec::new());
-    // Viele Stichwörter, damit das Register mehr als eine Spalte füllt.
+    // Many headwords, so that the index fills more than one column.
     let mut many = sections();
     let words: Vec<String> =
         (0..80).map(|i| format!("Vogel{i:02}{}", mark("stichwort", &format!("Vogel {i:02}")))).collect();
@@ -290,7 +291,7 @@ fn person_and_custom_registers_get_their_own_pages_in_two_columns() {
     let place_lines: Vec<String> = register_lines(&pages, places, keywords).into_iter().map(|(_, l)| l).collect();
     let bethlehem = folios_of(&pages, "Bethlehem", persons)[0];
     assert!(place_lines.contains(&format!("Bethlehem {bethlehem}")), "eigenes Register (Orte): {place_lines:?}");
-    // Zwei Spalten: Einträge stehen rechts von der Seitenmitte.
+    // Two columns: entries are to the right of the page centre.
     let keyword_lines = register_lines(&pages, keywords, pages.len());
     assert!(
         keyword_lines.iter().any(|(x, _)| *x > PAGE_WIDTH_PT / 2.0),
@@ -356,7 +357,7 @@ fn first_mention_without_glossary_page_sets_without_a_dead_label() {
     assert!(!main.contains("baruch-gl-"), "ohne Glossarseite kein Verweis auf ein Label");
     assert!(main.contains("#emph[Zedernholz]"), "erste Erwähnung hervorgehoben");
     assert_eq!(main.matches("#emph[Zedernholz]").count(), 2, "je Kapitel einmal (Kapitel 1 und 3)");
-    // `set` prüft, dass das Buch ohne Fehler setzt (kein toter Label-Verweis).
+    // `set` checks that the book typesets without errors (no dead label reference).
     let pages = set(&main);
     assert!(!pages.is_empty(), "gesetzt");
 }

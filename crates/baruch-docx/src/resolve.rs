@@ -1,37 +1,37 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Änderungsverfolgung auflösen (Aufgabe docx_import, Vertrag Runde 32 §2): ein [`DocxDocument`] mit
-//! [`crate::Inline::Tracked`] und `mark` wird zu einem Stand ohne beides.
+//! Resolve tracked changes (task docx_import, contract Round 32 §2): a [`DocxDocument`] with
+//! [`crate::Inline::Tracked`] and `mark` becomes a state without either.
 //!
-//! Regeln:
-//! - Eine Einfügung bleibt, wo sie angewandt ist (Endstand), eine Löschung, wo sie nicht angewandt ist (Original).
-//! - Absatzmarken: Ist eine eingefügte Marke nicht angewandt, gab es die Trennung noch nicht – der Absatz geht im
-//!   folgenden auf (dessen Art gilt). Ist eine gelöschte Marke angewandt, nimmt der Absatz den folgenden auf (seine
-//!   eigene Art gilt). Vereint wird nur mit einem unmittelbar folgenden Absatz, einer Überschrift oder einem Teil
-//!   bzw. innerhalb einer Liste mit dem folgenden Punkt; sonst bleibt der Absatz für sich.
-//! - Was dabei leer wird (ein ganz eingefügter Absatz im Original), entfällt.
+//! Rules:
+//! - An insertion stays where it is applied (final state), a deletion where it is not applied (original).
+//! - Paragraph marks: if an inserted mark is not applied, the split did not exist yet – the paragraph merges into
+//!   the following one (whose kind applies). If a deleted mark is applied, the paragraph takes in the following
+//!   one (its own kind applies). Merging happens only with an immediately following paragraph, a heading or a
+//!   part, or within a list with the following item; otherwise the paragraph stays on its own.
+//! - What becomes empty in the process (an entirely inserted paragraph in the original) is dropped.
 
 use crate::{Block, Change, ChangeKind, DocxDocument, Inline, ListItem, ooxml};
 
-/// Welcher Stand entsteht.
+/// Which state results.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View<'a> {
-    /// Stand vor allen Änderungen (Löschungen bleiben, Einfügungen entfallen).
+    /// State before all changes (deletions stay, insertions are dropped).
     Original,
-    /// Stand nach allen Änderungen (Einfügungen bleiben, Löschungen entfallen).
+    /// State after all changes (insertions stay, deletions are dropped).
     Final,
-    /// Original, auf das nur die Änderungen dieses Bearbeiters (wörtlicher Name) angewandt sind.
+    /// Original to which only the changes of this editor (verbatim name) are applied.
     FinalBy(&'a str),
 }
 
 type Applies<'a> = &'a dyn Fn(&Change) -> bool;
 
-/// Wie ein Absatz mit dem folgenden zusammengehört.
+/// How a paragraph belongs together with the following one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Join {
     No,
-    /// Geht im folgenden auf.
+    /// Merges into the following one.
     IntoNext,
-    /// Nimmt den folgenden auf.
+    /// Takes in the following one.
     WithNext,
 }
 
@@ -100,7 +100,7 @@ fn is_blank(content: &[Inline]) -> bool {
     })
 }
 
-/// Text ohne Auszeichnung (ohne Fußnoten, Bilder und Inseln).
+/// Text without markup (without footnotes, images and islands).
 pub(crate) fn plain(content: &[Inline]) -> String {
     fn walk(content: &[Inline], out: &mut String) {
         for inline in content {
@@ -119,7 +119,7 @@ pub(crate) fn plain(content: &[Inline]) -> String {
     out.trim().to_owned()
 }
 
-/// Teil oder Überschrift der Gliederung (Ebene 1–3)?
+/// Part or heading of the outline (level 1–3)?
 pub(crate) fn is_outline(block: &Block) -> bool {
     match block {
         Block::Part { .. } => true,
@@ -128,7 +128,7 @@ pub(crate) fn is_outline(block: &Block) -> bool {
     }
 }
 
-/// Beginnt das Dokument mit Text vor der ersten Überschrift der Gliederung (Seitenumbrüche zählen nicht)?
+/// Does the document start with text before the first heading of the outline (page breaks do not count)?
 pub(crate) fn has_preamble(blocks: &[Block]) -> bool {
     blocks.iter().find(|b| !matches!(b, Block::PageBreak)).is_some_and(|b| !is_outline(b))
 }
@@ -142,10 +142,10 @@ fn content_mut(block: &mut Block) -> Option<&mut Vec<Inline>> {
     }
 }
 
-/// Zustand für [`proposal_view`]: Überschriften der Gliederung bleiben wie im Original.
+/// State for [`proposal_view`]: headings of the outline stay as in the original.
 struct Proposal {
     changes: Vec<HeadingChange>,
-    /// Zahl der bisher gesehenen Abschnitte (samt Vorspann).
+    /// Number of sections seen so far (including the preamble).
     seen: usize,
 }
 
@@ -217,7 +217,7 @@ fn blocks(source: &[Block], applies: Applies<'_>, mut proposal: Option<&mut Prop
                         let mut proposed = inlines(content, applies);
                         let (before, after) = (plain(&original), plain(&proposed));
                         if before.is_empty() {
-                            // Vom Bearbeiter eingefügt: kein Abschnitt, der Text bleibt als fetter Absatz.
+                            // Inserted by the editor: no section, the text stays as a bold paragraph.
                             if !after.is_empty() {
                                 state.changes.push(HeadingChange {
                                     section: state.seen.saturating_sub(1),
@@ -303,7 +303,7 @@ fn with(document: &DocxDocument, blocks: Vec<Block>) -> DocxDocument {
     }
 }
 
-/// Löst die Änderungen auf; das Ergebnis enthält weder [`crate::Inline::Tracked`] noch ein `mark`.
+/// Resolves the changes; the result contains neither [`crate::Inline::Tracked`] nor a `mark`.
 pub fn resolve(document: &DocxDocument, view: View<'_>) -> DocxDocument {
     let resolved = match view {
         View::Original => blocks(&document.blocks, &|_| false, None),
@@ -313,7 +313,7 @@ pub fn resolve(document: &DocxDocument, view: View<'_>) -> DocxDocument {
     with(document, resolved)
 }
 
-/// Bearbeiter aller verfolgten Änderungen: wörtliche Namen in der Reihenfolge des ersten Auftretens.
+/// Editors of all tracked changes: verbatim names in the order of first appearance.
 pub fn change_authors(document: &DocxDocument) -> Vec<String> {
     fn note(change: &Change, out: &mut Vec<String>) {
         if !out.contains(&change.author) {
@@ -366,14 +366,14 @@ pub fn change_authors(document: &DocxDocument) -> Vec<String> {
     out
 }
 
-/// Geänderte Überschrift: `section` ist die Stelle des Abschnitts in der Reihenfolge des Originals (ab 0), so wie
-/// [`crate::to_typst::to_typst`] die Abschnitte von `resolve(…, View::Original)` zählt (Text vor der ersten
-/// Überschrift ist dort ein eigener Abschnitt 0).
+/// Changed heading: `section` is the position of the section in the order of the original (from 0), the way
+/// [`crate::to_typst::to_typst`] counts the sections of `resolve(…, View::Original)` (text before the first
+/// heading is a section 0 of its own there).
 ///
-/// - `before` und `after` gefüllt: Wortlaut der Überschrift geändert.
-/// - `after` leer: Der Bearbeiter hat die Überschrift gelöscht (sie bleibt bestehen).
-/// - `before` leer: Der Bearbeiter hat eine Überschrift eingefügt; sie legt keinen Abschnitt an, ihr Text steht als
-///   fetter Absatz im Abschnitt `section` (dem vorangehenden; vor der ersten Überschrift: 0).
+/// - `before` and `after` filled: wording of the heading changed.
+/// - `after` empty: the editor deleted the heading (it persists).
+/// - `before` empty: the editor inserted a heading; it creates no section, its text is a bold paragraph in the
+///   section `section` (the preceding one; before the first heading: 0).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeadingChange {
     pub section: usize,
@@ -381,9 +381,9 @@ pub struct HeadingChange {
     pub after: String,
 }
 
-/// Stand für den Vorschlag eines Bearbeiters: wie [`View::FinalBy`], aber die Überschriften bleiben wie im Original
-/// (Änderungen an Überschriften ändern nie die Gliederung); die geänderten Überschriften kommen getrennt zurück.
-/// Überschriften der Gliederung (Teil, Ebene 1–3) werden dabei nie mit Nachbarabsätzen vereint.
+/// State for the proposal of an editor: like [`View::FinalBy`], but the headings stay as in the original (changes
+/// to headings never change the outline); the changed headings come back separately. Headings of the outline
+/// (part, level 1–3) are never merged with neighbouring paragraphs in the process.
 pub fn proposal_view(document: &DocxDocument, author: &str) -> (DocxDocument, Vec<HeadingChange>) {
     let original = blocks(&document.blocks, &|_| false, None);
     let mut state = Proposal { changes: Vec::new(), seen: usize::from(has_preamble(&original)) };

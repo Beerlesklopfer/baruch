@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fehler des Austauschformats (Vertrag R26, S1 (5)). Bei jedem Fehler wird nichts geschrieben.
+//! Errors of the exchange format (contract R26, S1 (5)). On every error nothing is written.
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExchangeError {
-    /// Weder ZIP mit passendem `mimetype` noch XML mit `<werk>` bzw. `<manifest>`.
+    /// Neither a ZIP with matching `mimetype` nor XML with `<werk>` or `<manifest>`.
     #[error("Keine Austauschdatei: {0}")]
     NotExchange(String),
-    /// Falscher Namensraum oder unlesbare Versionsangabe.
+    /// Wrong namespace or unreadable version.
     #[error("Version {found} wird nicht unterstützt (Namensraum {namespace})")]
     Version { found: String, namespace: String },
-    /// DTD, Verarbeitungsanweisung, unbekannte Entität.
+    /// DTD, processing instruction, unknown entity.
     #[error("Unsicheres XML: {0}")]
     Unsafe(String),
-    /// Eine Grenze aus [`crate::Limits`] ist überschritten.
+    /// A limit from [`crate::Limits`] is exceeded.
     #[error("Grenze überschritten: {0}")]
     Limit(String),
-    /// ZIP-Fehler: Name, Reihenfolge, Verknüpfung, Verschlüsselung, Kompression, Manifest.
+    /// ZIP error: name, order, link, encryption, compression, manifest.
     #[error("Archiv: {0}")]
     Archive(String),
     #[error("Prüfsumme stimmt nicht: {path}")]
     Checksum { path: String },
-    /// XML nicht wohlgeformt oder Pflichtelement fehlt.
+    /// XML not well-formed or a mandatory element is missing.
     #[error("XML: {0}")]
     Xml(String),
-    /// Inhaltlich ungültig (UUIDs, Doppel, Verweise, aktuelle Fassung).
+    /// Invalid in content (UUIDs, duplicates, references, current revision).
     #[error("Ungültig: {0}")]
     Invalid(String),
-    /// Beim Schreiben, z. B. ein verbotenes Zeichen in einem Attribut (mit dem Namen des Felds).
+    /// On writing, e.g. a forbidden character in an attribute (with the name of the field).
     #[error("Ausgabe: {0}")]
     Write(String),
 }

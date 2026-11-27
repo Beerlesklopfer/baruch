@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „export“: Die Ausgabe besteht das XSD; seit Runde 34 (Unterversion 9, Mindmap) das XSD
-//! `docs/schema/baruch-werk-1-u9.xsd`; `baruch-werk-1-u8.xsd` (Unterversion 8), `baruch-werk-1-u7.xsd` (Unterversion 7), `baruch-werk-1-u6.xsd` (Unterversion 6), `baruch-werk-1-u5.xsd` (Unterversion 5), `baruch-werk-1-u4.xsd` (Unterversion 4),
-//! `baruch-werk-1-u3.xsd` (Unterversion 3), `baruch-werk-1-u2.xsd` (Unterversion 2) und `baruch-werk-1.xsd`
-//! (Unterversion 1) bleiben eingefroren (byte-gleich, geprüft über SHA-256).
+//! Round 26 "export": the output passes the XSD; since Round 34 (sub-version 9, mind map) the XSD
+//! `docs/schema/baruch-werk-1-u9.xsd`; `baruch-werk-1-u8.xsd` (sub-version 8), `baruch-werk-1-u7.xsd`
+//! (sub-version 7), `baruch-werk-1-u6.xsd` (sub-version 6), `baruch-werk-1-u5.xsd` (sub-version 5),
+//! `baruch-werk-1-u4.xsd` (sub-version 4), `baruch-werk-1-u3.xsd` (sub-version 3), `baruch-werk-1-u2.xsd`
+//! (sub-version 2) and `baruch-werk-1.xsd` (sub-version 1) stay frozen (byte-identical, checked through SHA-256).
 //!
-//! Geprüft wird mit `xmllint --noout --nonet --schema docs/schema/baruch-werk-1-u9.xsd DATEI` (Vertrag F2). Fehlt
-//! xmllint, meldet der Test das ehrlich und überspringt nur diesen Teil; die Rust-Prüfung der Pflichtelemente über
-//! quick-xml-Ereignisse (nicht über den Leser von import) läuft immer.
+//! The check uses `xmllint --noout --nonet --schema docs/schema/baruch-werk-1-u9.xsd DATEI` (contract F2). If
+//! xmllint is missing, the test reports that honestly and skips only this part; the Rust check of the mandatory
+//! elements through quick-xml events (not through the reader of import) always runs.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -16,7 +17,7 @@ use baruch_exchange::write::{ImageMode, write_baruch, write_manifest, write_xml}
 use baruch_exchange::*;
 use quick_xml::events::Event;
 
-/// Schema der Unterversion 9 (Runde 34), gegen das jede Ausgabe geprüft wird.
+/// Schema of sub-version 9 (Round 34), against which every output is checked.
 fn schema() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd")
 }
@@ -26,23 +27,23 @@ fn schema_u9() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd")
 }
 
-/// Eingefrorenes Schema der Unterversion 8 (Runde 22).
+/// Frozen schema of sub-version 8 (Round 22).
 fn schema_u8() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd")
 }
 
-/// Eingefrorenes Schema der Unterversion 7 (Runde 31).
+/// Frozen schema of sub-version 7 (Round 31).
 fn schema_u7() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u7.xsd")
 }
 
-/// Eingefrorenes Schema der Unterversion 6 (Runde 29).
+/// Frozen schema of sub-version 6 (Round 29).
 fn schema_u6() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u6.xsd")
 }
 
-/// Runde 31: das Beispiel ohne die Teile der Unterversion 7 (eigene Register, Glossar, Register/Glossar-Felder der
-/// Satz-Einstellungen, Grabsteinarten `glossar-begriff` und `register`).
+/// Round 31: the sample without the parts of sub-version 7 (own indexes, glossary, index/glossary fields of the
+/// typesetting settings, tombstone kinds `glossar-begriff` and `register`).
 fn without_u7(mut doc: ExchangeDocument) -> ExchangeDocument {
     doc.work.registers.clear();
     doc.work.glossary.clear();
@@ -55,12 +56,12 @@ fn without_u7(mut doc: ExchangeDocument) -> ExchangeDocument {
     doc
 }
 
-/// Eingefrorenes Schema der Unterversion 5 (Runde 30).
+/// Frozen schema of sub-version 5 (Round 30).
 fn schema_u5() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u5.xsd")
 }
 
-/// Runde 29: das Beispiel ohne die Teile der Unterversion 6 (Satz-Einstellungen, Grabsteinart `satz`).
+/// Round 29: the sample without the parts of sub-version 6 (typesetting settings, tombstone kind `satz`).
 fn without_u6(doc: ExchangeDocument) -> ExchangeDocument {
     let mut doc = without_u7(doc);
     doc.work.typeset = None;
@@ -68,12 +69,12 @@ fn without_u6(doc: ExchangeDocument) -> ExchangeDocument {
     doc
 }
 
-/// Eingefrorenes Schema der Unterversion 4 (Runde 28).
+/// Frozen schema of sub-version 4 (Round 28).
 fn schema_u4() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u4.xsd")
 }
 
-/// Runde 30: das Beispiel ohne die Teile der Unterversion 5 (Lösungen, Varianten, Schlüssel, Beitrags-Metadaten).
+/// Round 30: the sample without the parts of sub-version 5 (solutions, variants, keys, post metadata).
 fn without_u5(doc: ExchangeDocument) -> ExchangeDocument {
     let mut doc = without_u6(doc);
     for finding in &mut doc.work.findings {
@@ -100,12 +101,12 @@ fn without_u5(doc: ExchangeDocument) -> ExchangeDocument {
     doc
 }
 
-/// Eingefrorenes Schema der Unterversion 3 (Runde 27).
+/// Frozen schema of sub-version 3 (Round 27).
 fn schema_u3() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u3.xsd")
 }
 
-/// Das Beispiel ohne die Teile der Unterversion 4 (Befunde, Bearbeitungen von Beiträgen, Grabsteine ab 4).
+/// The sample without the parts of sub-version 4 (findings, edits of posts, tombstones from 4).
 fn without_u4(doc: ExchangeDocument) -> ExchangeDocument {
     let mut doc = without_u5(doc);
     doc.work.findings.clear();
@@ -129,12 +130,12 @@ fn without_u4(doc: ExchangeDocument) -> ExchangeDocument {
     doc
 }
 
-/// Eingefrorenes Schema der Unterversion 2 (Runde 25).
+/// Frozen schema of sub-version 2 (Round 25).
 fn schema_u2() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u2.xsd")
 }
 
-/// Eingefrorenes Schema der Unterversion 1.
+/// Frozen schema of sub-version 1.
 fn schema_v1() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1.xsd")
 }
@@ -143,12 +144,12 @@ fn xmllint_available() -> bool {
     Command::new("xmllint").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
-/// Prüft eine Datei mit xmllint gegen das XSD; `false`, wenn xmllint fehlt (dann mit Meldung).
+/// Checks a file with xmllint against the XSD; `false` if xmllint is missing (then with a message).
 fn xmllint(name: &str, content: &str) -> bool {
     xmllint_with(&schema(), name, content)
 }
 
-/// Wie [`xmllint`], gegen ein bestimmtes Schema.
+/// Like [`xmllint`], against a particular schema.
 fn xmllint_with(schema: &Path, name: &str, content: &str) -> bool {
     if !xmllint_available() {
         eprintln!("xmllint fehlt: XSD-Prüfung von {name} übersprungen, es greift nur die Rust-Prüfung.");
@@ -168,13 +169,13 @@ fn xmllint_with(schema: &Path, name: &str, content: &str) -> bool {
     true
 }
 
-/// Rust-Prüfung der Pflichtelemente: Wurzel im Namensraum, Kinder in der Reihenfolge des Vokabulars,
-/// je Punkt Titel und mindestens eine Fassung, je Fassung genau ein `<text>`, je Bildfassung genau eines von
-/// `datei` und `<daten>`.
+/// Rust check of the mandatory elements: root in the namespace, children in the order of the vocabulary,
+/// per item a title and at least one revision, per revision exactly one `<text>`, per image revision exactly
+/// one of `datei` and `<daten>`.
 fn check_required(xml: &str, images: ImageMode) {
     let mut reader = quick_xml::Reader::from_str(xml);
     reader.config_mut().trim_text(false);
-    // Je offenes Element: Name, Namen der Kinder, ob `datei` gesetzt ist.
+    // Per open element: name, names of the children, whether `datei` is set.
     let mut stack: Vec<(String, Vec<String>, bool)> = Vec::new();
     let mut root_seen = false;
     let mut closed: Vec<(String, String, Vec<String>, bool)> = Vec::new();
@@ -243,7 +244,7 @@ fn check_required(xml: &str, images: ImageMode) {
         "eigene-register",
         "glossar",
     ];
-    // Runde 31: hinter <befunde> die eigenen Register und das Glossar (neue Elemente ans Ende der Folge, §6).
+    // Round 31: after <befunde> the own indexes and the glossary (new elements at the end of the sequence, §6).
     assert_eq!(
         &werk.2[werk.2.len() - 3..],
         ["befunde", "eigene-register", "glossar"],
@@ -259,8 +260,8 @@ fn check_required(xml: &str, images: ImageMode) {
     for required in ["titel", "untertitel", "autor", "zielgruppe", "bibel", "angelegt", "schema"] {
         assert!(details.2.iter().any(|k| k == required), "Pflichtelement angaben/{required}");
     }
-    // Unterversion 3: <satzbild> am Ende von <angaben>, seit Unterversion 6 dahinter <satz> (neue Elemente ans Ende
-    // der Folge, §6).
+    // Sub-version 3: <satzbild> at the end of <angaben>, since sub-version 6 <satz> after it (new elements at the
+    // end of the sequence, §6).
     assert_eq!(&details.2[details.2.len() - 2..], ["satzbild", "satz"], "satzbild und satz am Ende von angaben");
     let book = closed.iter().find(|(p, n, _, _)| p == "werk" && n == "buch").expect("<buch>");
     assert_eq!(
@@ -295,7 +296,7 @@ fn check_required(xml: &str, images: ImageMode) {
     }
     assert_eq!(points, 6, "alle sechs Punkte des Beispiels stehen in der Gliederung");
     let karte = closed.iter().find(|(p, n, _, _)| p == "werk" && n == "karte").expect("<karte>");
-    // Erst alle Verbindungen, dann alle Lagen (xs:sequence im XSD der Unterversion 2).
+    // First all links, then all positions (xs:sequence in the XSD of sub-version 2).
     assert_eq!(karte.2, ["verbindung", "verbindung", "lage", "lage"], "Kinder von <karte> in Reihenfolge");
     assert_eq!(image_revisions, 3, "alle drei Bildfassungen des Beispiels");
 }
@@ -316,21 +317,21 @@ fn files_xml_passes_the_schema() {
 
 #[test]
 fn manifest_passes_the_schema() {
-    // Das Manifest aus einem echten Container (mit Bildern), nicht von Hand gebaut.
+    // The manifest from a real container (with images), not built by hand.
     let bytes = write_baruch(&sample_document()).unwrap();
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
     let mut manifest = String::new();
     std::io::Read::read_to_string(&mut archive.by_name(ENTRY_MANIFEST).unwrap(), &mut manifest).unwrap();
     assert!(manifest.contains(&format!("<manifest xmlns=\"{NAMESPACE}\" version=\"10\">")), "Wurzel im Namensraum");
     xmllint("MANIFEST.xml", &manifest);
-    // Auch write_manifest allein.
+    // Also write_manifest alone.
     let entries = [ExchangeManifestEntry { path: ENTRY_WORK.into(), sha256: sha256_hex(b"x"), bytes: 1 }];
     xmllint("einzeln.xml", &write_manifest(&entries).unwrap());
 }
 
 #[test]
 fn schema_rejects_a_broken_file_so_the_check_has_teeth() {
-    // Gegenprobe: Ohne sie bliebe unbemerkt, wenn xmllint gar nicht gegen das Schema prüfte.
+    // Cross-check: without it, it would go unnoticed if xmllint did not check against the schema at all.
     if !xmllint_available() {
         eprintln!("xmllint fehlt: Gegenprobe übersprungen.");
         return;
@@ -346,27 +347,27 @@ fn schema_rejects_a_broken_file_so_the_check_has_teeth() {
 
 #[test]
 fn the_frozen_v1_and_u2_schemas_are_byte_unchanged() {
-    // Vertrag R27 1.11: u2 und v1 bleiben eingefroren. Die Prüfsummen sind die Stände von development vor Runde 27
-    // (af07921/cd54cbb); jede Änderung an den Dateien fiele hier auf. Seit Runde 28 ist auch u3 eingefroren (Stand
-    // von development cb7b169).
+    // Contract R27 1.11: u2 and v1 stay frozen. The checksums are the states of development before Round 27
+    // (af07921/cd54cbb); every change to the files would show up here. Since Round 28 u3 is frozen too (state
+    // of development cb7b169).
     let sha = |path: PathBuf| sha256_hex(&std::fs::read(path).unwrap());
-    // Runde 22: auch u7 ist eingefroren (Stand von development dfff467).
+    // Round 22: u7 is frozen too (state of development dfff467).
     assert_eq!(sha(schema_u7()), U7_SHA256, "baruch-werk-1-u7.xsd byte-unverändert");
-    // Runde 34: auch u8 ist eingefroren (Stand von development 67faa2f, Schnittstelle R34-S1).
+    // Round 34: u8 is frozen too (state of development 67faa2f, interface R34-S1).
     assert_eq!(sha(schema_u8()), U8_SHA256, "baruch-werk-1-u8.xsd byte-unverändert");
-    // Runde 31: auch u6 ist eingefroren (Stand von development 5f97a8b).
+    // Round 31: u6 is frozen too (state of development 5f97a8b).
     assert_eq!(
         sha(schema_u6()),
         "bab4657a6a971c129c5e4685d2bd8143f41aa18ed5c4cd7ef54ced807cf26d38",
         "baruch-werk-1-u6.xsd byte-unverändert"
     );
-    // Runde 29: auch u5 ist eingefroren (Stand von development d3a2a8f).
+    // Round 29: u5 is frozen too (state of development d3a2a8f).
     assert_eq!(
         sha(schema_u5()),
         "106d3a87dbc84351c65c1d1b2496f164ef8037d65c9f2270a9b9a8172627fe17",
         "baruch-werk-1-u5.xsd byte-unverändert"
     );
-    // Runde 30: auch u4 ist eingefroren (Stand von development aa6808c).
+    // Round 30: u4 is frozen too (state of development aa6808c).
     assert_eq!(
         sha(schema_u4()),
         "6c8833a52d473c0aa786663e427f63afa08d1b4821aa58abdc42b6ebf6b10924",
@@ -405,7 +406,7 @@ fn the_u3_schema_defines_cover_blocks_addresses_and_sheet() {
     ] {
         assert!(u3.contains(needle), "u3-XSD enthält {needle}");
     }
-    // Jedes XML-Wort des Modells steht im Schema (sonst bestünde eine Ausgabe das XSD nicht).
+    // Every XML word of the model is in the schema (otherwise an output would not pass the XSD).
     for kind in ExchangeCoverBlockKind::ALL {
         assert!(u3.contains(&format!("value=\"{}\"", kind.as_xml())), "Blockart {} im u3-XSD", kind.as_xml());
     }
@@ -430,7 +431,7 @@ fn the_u4_schema_defines_findings_and_old_post_versions() {
     ] {
         assert!(u4.contains(needle), "u4-XSD enthält {needle}");
     }
-    // Jedes XML-Wort des Modells steht im Schema (sonst bestünde eine Ausgabe das XSD nicht).
+    // Every XML word of the model is in the schema (otherwise an output would not pass the XSD).
     for kind in ExchangeTombstoneKind::ALL.iter().filter(|k| k.since_version() <= 4) {
         assert!(u4.contains(&format!("value=\"{}\"", kind.as_xml())), "Grabsteinart {} im u4-XSD", kind.as_xml());
     }
@@ -478,8 +479,8 @@ fn the_u5_schema_defines_solutions_variants_keys_and_post_links() {
 
 #[test]
 fn the_u6_schema_defines_the_typeset_settings() {
-    // Vertrag R29 §6.6: <satz> in <angaben> mit jedem Attribut, das der Schreiber kennt, und die Grabsteinart satz.
-    // Seit Runde 31 ist u6 eingefroren; geprüft werden die Teile bis Unterversion 6.
+    // Contract R29 §6.6: <satz> in <angaben> with every attribute the writer knows, and the tombstone kind satz.
+    // Since Round 31 u6 is frozen; the parts up to sub-version 6 are checked.
     let u6 = std::fs::read_to_string(schema_u6()).unwrap();
     for needle in ["name=\"satz\"", "name=\"Satz\"", "name=\"geaendert-von\"", "targetNamespace=\"urn:baruch:werk:1\""]
     {
@@ -495,7 +496,7 @@ fn the_u6_schema_defines_the_typeset_settings() {
     for kind in ExchangeTombstoneKind::ALL.iter().filter(|k| k.since_version() <= 6) {
         assert!(u6.contains(&format!("value=\"{}\"", kind.as_xml())), "Grabsteinart {} im u6-XSD", kind.as_xml());
     }
-    // Jedes Wort jeder Aufzählung, das der Schreiber ausgibt, steht im Schema.
+    // Every word of every enumeration that the writer outputs is in the schema.
     let custom = baruch_typst::typeset::TypesetSettings {
         page_format: Some(baruch_typst::typeset::PageFormat::Custom { width_mm: 130.0, height_mm: 200.0 }),
         glossary_page: None,
@@ -513,8 +514,8 @@ fn the_u6_schema_defines_the_typeset_settings() {
 
 #[test]
 fn the_u6_schema_accepts_a_u5_file_and_the_frozen_u5_schema_too() {
-    // Vertrag R29 §6.6: Eine Ausgabe ohne die Neuerungen der Unterversion 6 (wie sie Runde 30 schrieb) gilt nach u6
-    // und nach dem eingefrorenen u5.
+    // Contract R29 §6.6: an output without the novelties of sub-version 6 (as Round 30 wrote it) is valid by u6
+    // and by the frozen u5.
     let u5 = write_xml(&without_u6(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"5\"", 1)
@@ -523,7 +524,7 @@ fn the_u6_schema_accepts_a_u5_file_and_the_frozen_u5_schema_too() {
     if xmllint_with(&schema(), "u5.baruch.xml", &u5) {
         assert!(xmllint_with(&schema_u5(), "u5.baruch.xml", &u5), "dieselbe Datei gilt nach dem u5-XSD");
     }
-    // Eine u6-Ausgabe mit <satz> gilt dagegen nicht nach u5 (sonst wäre das Schema keine echte Erweiterung).
+    // A u6 output with <satz>, by contrast, is not valid by u5 (otherwise the schema would not be a real extension).
     let u6 = write_xml(&sample_document(), ImageMode::Inline).unwrap();
     if xmllint_available() {
         let dir = tempfile::tempdir().unwrap();
@@ -589,7 +590,7 @@ fn the_u5_schema_rejects_broken_variants_and_solutions() {
 
 #[test]
 fn the_u5_schema_accepts_a_u4_file_and_the_frozen_u4_schema_too() {
-    // Eine Ausgabe ohne die Neuerungen der Unterversion 5 (wie sie Runde 28 schrieb) gilt nach u5 und u4.
+    // An output without the novelties of sub-version 5 (as Round 28 wrote it) is valid by u5 and u4.
     let u4 = write_xml(&without_u5(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"4\"", 1)
@@ -601,7 +602,7 @@ fn the_u5_schema_accepts_a_u4_file_and_the_frozen_u4_schema_too() {
 
 #[test]
 fn the_u4_schema_rejects_broken_findings() {
-    // Gegenprobe für <befunde>: unbekannte Art, unbekannter Status, fremdes Kind, Persona leer, Entscheidung fremd.
+    // Cross-check for <befunde>: unknown kind, unknown status, foreign child, persona empty, decision foreign.
     if !xmllint_available() {
         eprintln!("xmllint fehlt: Gegenprobe der Befunde übersprungen.");
         return;
@@ -614,7 +615,7 @@ fn the_u4_schema_rejects_broken_findings() {
         ("Kind", xml.replace("<pruefvermerk>", "<farbe/><pruefvermerk>")),
         ("Persona", xml.replace("persona=\"@lektor\"", "persona=\"\"")),
         ("Entscheidung", xml.replace("entscheidung=\"veraltet\"", "entscheidung=\"vielleicht\"")),
-        // <bezug> nach <alte-fassung>: die alten Fassungen stehen am Ende des Beitrags.
+        // <bezug> after <alte-fassung>: the old versions are at the end of the post.
         (
             "Reihenfolge",
             xml.replacen(
@@ -636,7 +637,7 @@ fn the_u4_schema_rejects_broken_findings() {
 #[test]
 fn the_frozen_v1_schema_is_unchanged_and_the_u2_schema_defines_the_map() {
     let v1 = std::fs::read_to_string(schema_v1()).unwrap();
-    // Unterversion 1 bleibt eingefroren: lax geprüftes <karte>, Grabsteinarten ohne verbindung/lage.
+    // Sub-version 1 stays frozen: laxly checked <karte>, tombstone kinds without verbindung/lage.
     assert!(v1.contains("processContents=\"lax\""), "v1: <karte> lax wie in Runde 26");
     assert!(!v1.contains("\"verbindung\"") && !v1.contains("\"lage\""), "v1: keine neuen Grabsteinarten");
     let u2 = std::fs::read_to_string(schema_u2()).unwrap();
@@ -657,8 +658,8 @@ fn the_frozen_v1_schema_is_unchanged_and_the_u2_schema_defines_the_map() {
 
 #[test]
 fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
-    // Die handgeschriebene Prüfdatei der Unterversion 1 (die übrigen Dateien unter tests/data/import sind
-    // absichtlich unsicher – DTD, Entitäten – und gelten in keiner Unterversion).
+    // The hand-written test file of sub-version 1 (the other files under tests/data/import are
+    // deliberately unsafe – DTD, entities – and are valid in no sub-version).
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/import");
     let mut checked = 0;
     for entry in std::fs::read_dir(&dir).unwrap() {
@@ -675,7 +676,7 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
         checked += 1;
     }
     assert!(checked >= 1, "mindestens eine Prüfdatei der Unterversion 1 gefunden");
-    // Eine Ausgabe ohne die Neuerungen der Unterversion 4 (wie sie Runde 27 schrieb) gilt nach u4 und u3.
+    // An output without the novelties of sub-version 4 (as Round 27 wrote it) is valid by u4 and u3.
     let u3 = write_xml(&without_u4(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1)
@@ -683,7 +684,7 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
     if xmllint_with(&schema(), "u3.baruch.xml", &u3) {
         assert!(xmllint_with(&schema_u3(), "u3.baruch.xml", &u3), "dieselbe Datei gilt nach dem u3-XSD");
     }
-    // Eine Ausgabe ohne die Neuerungen der Unterversion 3 (wie sie Runde 25/26 schrieb) gilt nach u4 und u2.
+    // An output without the novelties of sub-version 3 (as Round 25/26 wrote it) is valid by u4 and u2.
     let mut u2 = without_u4(sample_document());
     u2.work.sheet = None;
     let book = u2.work.book.as_mut().unwrap();
@@ -699,7 +700,7 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
     if xmllint_with(&schema(), "u2.baruch.xml", &xml) {
         assert!(xmllint_with(&schema_u2(), "u2.baruch.xml", &xml), "dieselbe Datei gilt nach dem u2-XSD");
     }
-    // Und ohne die Neuerungen der Unterversion 2 (wie sie Runde 26 schrieb) auch nach v1.
+    // And without the novelties of sub-version 2 (as Round 26 wrote it) also by v1.
     let mut old = u2;
     old.work.map = ExchangeMap::default();
     old.work.deleted.retain(|t| t.kind.since_version() == 1);
@@ -716,8 +717,8 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
 
 #[test]
 fn the_u3_schema_rejects_broken_cover_blocks() {
-    // Gegenprobe für <umschlag>: unbekannte Art, Lage über 1000 mm, fremde Farbe, Schrift mit Semikolon, falsche
-    // Laufrichtung, Anschrift an falscher Stelle.
+    // Cross-check for <umschlag>: unknown kind, position above 1000 mm, foreign colour, font with semicolon, wrong
+    // direction, address in the wrong place.
     if !xmllint_available() {
         eprintln!("xmllint fehlt: Gegenprobe des Umschlags übersprungen.");
         return;
@@ -748,7 +749,7 @@ fn the_u3_schema_rejects_broken_cover_blocks() {
 
 #[test]
 fn the_u2_schema_rejects_a_broken_map() {
-    // Gegenprobe für <karte>: eine unbekannte Verbindungsart, eine Koordinate über 1e6 und ein fremdes Element.
+    // Cross-check for <karte>: an unknown link kind, a coordinate above 1e6 and a foreign element.
     if !xmllint_available() {
         eprintln!("xmllint fehlt: Gegenprobe der Karte übersprungen.");
         return;
@@ -771,8 +772,8 @@ fn the_u2_schema_rejects_a_broken_map() {
 
 #[test]
 fn the_u7_schema_defines_registers_glossary_and_the_new_typeset_attributes() {
-    // Runde 31 (glossar-daten): <eigene-register>, <glossar> mit <begriff>, die vier neuen <satz>-Attribute und die
-    // Grabsteinarten glossar-begriff und register; jedes Wort, das der Schreiber ausgibt, steht im Schema.
+    // Round 31 (glossar-daten): <eigene-register>, <glossar> with <begriff>, the four new <satz> attributes and the
+    // tombstone kinds glossar-begriff and register; every word the writer outputs is in the schema.
     let u7 = std::fs::read_to_string(schema()).unwrap();
     for needle in [
         "name=\"eigene-register\"",
@@ -801,7 +802,7 @@ fn the_u7_schema_defines_registers_glossary_and_the_new_typeset_attributes() {
 
 #[test]
 fn the_u7_schema_accepts_a_u6_file_and_the_frozen_u6_schema_too_but_not_a_u7_file() {
-    // Eine Ausgabe ohne die Neuerungen der Unterversion 7 (wie sie Runde 29 schrieb) gilt nach u7 und nach u6.
+    // An output without the novelties of sub-version 7 (as Round 29 wrote it) is valid by u7 and by u6.
     let u6 = write_xml(&without_u7(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"6\"", 1)
@@ -810,7 +811,7 @@ fn the_u7_schema_accepts_a_u6_file_and_the_frozen_u6_schema_too_but_not_a_u7_fil
     if xmllint_with(&schema(), "u6.baruch.xml", &u6) {
         assert!(xmllint_with(&schema_u6(), "u6.baruch.xml", &u6), "dieselbe Datei gilt nach dem u6-XSD");
     }
-    // Eine u7-Ausgabe mit Glossar gilt nicht nach u6 (sonst wäre das Schema keine echte Erweiterung).
+    // A u7 output with glossary is not valid by u6 (otherwise the schema would not be a real extension).
     let u7 = write_xml(&sample_document(), ImageMode::Inline).unwrap();
     assert!(xmllint("u7.baruch.xml", &u7) || !xmllint_available(), "u7-Ausgabe besteht das u7-XSD");
     if xmllint_available() {
@@ -859,12 +860,12 @@ fn the_u7_schema_rejects_broken_registers_and_glossary() {
     }
 }
 
-// ---- Unterversion 8 (Runde 22): Fortschreibungen, Entwurf, Stand an Befunden -------------------------------
+// ---- Sub-version 8 (Round 22): amendments, draft, state on findings ----------------------------------------
 
-/// SHA-256 des eingefrorenen u7-Schemas (Stand von development dfff467).
+/// SHA-256 of the frozen u7 schema (state of development dfff467).
 const U7_SHA256: &str = "a4def3e190d8a316be791734e621508bdcaaeeb97a5dce48f15d3dd4d63e9b7e";
 
-/// `Some(true)`, wenn xmllint die Datei gegen `schema` ablehnt (ohne xmllint: `None`, mit Meldung).
+/// `Some(true)` if xmllint rejects the file against `schema` (without xmllint: `None`, with a message).
 fn rejected_by(schema: &Path, content: &str) -> Option<bool> {
     if !xmllint_available() {
         eprintln!("xmllint fehlt: Gegenprobe übersprungen.");
@@ -880,8 +881,8 @@ fn rejected_by(schema: &Path, content: &str) -> Option<bool> {
 
 #[test]
 fn a_u8_output_with_amends_draft_and_stands_passes_the_u8_schema_but_not_the_frozen_u7() {
-    // R22 §2.11: jede Ausgabe besteht das neue XSD; die neuen Teile sind dem eingefrorenen u7 unbekannt (echte
-    // Erweiterung), und u7 ist byte-unverändert (the_frozen_v1_and_u2_schemas_are_byte_unchanged).
+    // R22 §2.11: every output passes the new XSD; the new parts are unknown to the frozen u7 (real
+    // extension), and u7 is byte-unchanged (the_frozen_v1_and_u2_schemas_are_byte_unchanged).
     let doc = baruch_exchange::sample::sample_document_u8();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in ["<fortschreibung ", "stand=\"3\"", "beruht-stand=\"2\"", "<entwurf ", "art=\"fortschreibung\""] {
@@ -896,7 +897,7 @@ fn a_u8_output_with_amends_draft_and_stands_passes_the_u8_schema_but_not_the_fro
 
 #[test]
 fn the_u8_schema_accepts_a_u7_file_and_the_frozen_u7_schema_too() {
-    // Abwärtsverträglich: eine Datei, wie Runde 31 sie schrieb (ohne u8-Teile, version 7), gilt nach u8 und u7.
+    // Downward compatible: a file as Round 31 wrote it (without u8 parts, version 7) is valid by u8 and u7.
     let u7 = write_xml(&sample_document(), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"7\"", 1)
@@ -925,15 +926,15 @@ fn the_u8_schema_rejects_broken_amends_and_drafts() {
     }
 }
 
-// ---- Unterversion 9 (Runde 34): Baum der Mindmap am Einfall ------------------------------------------------
+// ---- Sub-version 9 (Round 34): tree of the mind map on the idea --------------------------------------------
 
-/// SHA-256 des eingefrorenen u8-Schemas (Stand von development 67faa2f).
+/// SHA-256 of the frozen u8 schema (state of development 67faa2f).
 const U8_SHA256: &str = "c5fec0876e3914a8a31d43a5a07aeca48e11e464dc8dc120fa09223e7eb71aea";
 
 #[test]
 fn a_u9_output_with_the_idea_tree_passes_the_u9_schema_but_not_the_frozen_u8() {
-    // Vertrag R34 §1: Die Ausgabe mit titel, eltern, platz und hauptthema besteht das neue XSD; dem eingefrorenen u8
-    // sind die Attribute unbekannt (echte Erweiterung), und u8 ist byte-unverändert.
+    // Contract R34 §1: the output with titel, eltern, platz and hauptthema passes the new XSD; to the frozen u8
+    // the attributes are unknown (real extension), and u8 is byte-unchanged.
     let doc = baruch_exchange::sample::sample_document_u9();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in ["titel=\"Lampe am Seil\"", " eltern=\"", " platz=\"2\"", " hauptthema=\"true\""] {
@@ -948,7 +949,7 @@ fn a_u9_output_with_the_idea_tree_passes_the_u9_schema_but_not_the_frozen_u8() {
 
 #[test]
 fn the_u9_schema_accepts_a_u8_file_and_the_frozen_u8_schema_too() {
-    // Abwärtsverträglich: eine Datei, wie Runde 22 sie schrieb (ohne Baum, version 8), gilt nach u9 und u8.
+    // Downward compatible: a file as Round 22 wrote it (without tree, version 8) is valid by u9 and u8.
     let u8_file = write_xml(&baruch_exchange::sample::sample_document_u8(), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"8\"", 1)

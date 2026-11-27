@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Blockmodell einer Word-Datei (Schnittstelle R32-S1, eingefroren – Änderungen nur über den Integrator).
+//! Block model of a Word file (interface R32-S1, frozen – changes only through the integrator).
 //!
-//! Das Modell ist der Drehpunkt zwischen Leser ([`crate::read`]), Auflösung ([`crate::resolve`]), Typst
-//! ([`crate::to_typst`], [`crate::from_typst`]), Änderungsverfolgung ([`crate::diff`]) und Schreiber
+//! The model is the pivot between reader ([`crate::read`]), resolution ([`crate::resolve`]), Typst
+//! ([`crate::to_typst`], [`crate::from_typst`]), tracked changes ([`crate::diff`]) and writer
 //! ([`crate::write`]).
 //!
-//! Bedeutung der Felder:
-//! - `level` einer Überschrift ist 1–6: 1–3 bilden die Gliederung des Werks, 4–6 bleiben Überschriften im Text.
-//! - `mark` ist die Änderung der Absatzmarke: bei [`ChangeKind::Insert`] war der Absatz im Original mit dem
-//!   folgenden vereint, bei [`ChangeKind::Delete`] ist er es im Endstand.
-//! - `date` ist ISO 8601 in UTC (`2026-11-20T09:30:00Z`) oder leer.
-//! - `image` ist der Index in [`DocxDocument::images`]; [`DocxImage::path`] ist der Pfad im Werk (`bilder/…`).
-//! - [`Inline::Typst`]/[`Block::Typst`]: `raw` ist der wörtliche Typst-Quelltext einer Insel, `shown` das, was der
-//!   Leser in Word sieht (beim Lesen verworfen, wenn `raw` nicht leer ist).
-//! - [`Block::Figure`]: `raw` ist die wörtliche Insel des Bildes oder leer.
-//! - Fußnoten stehen inline; mehrere Absätze einer Word-Fußnote verbindet der Leser mit [`Inline::LineBreak`]
-//!   (mit Warnung).
+//! Meaning of the fields:
+//! - `level` of a heading is 1–6: 1–3 form the outline of the work, 4–6 stay headings in the text.
+//! - `mark` is the change of the paragraph mark: with [`ChangeKind::Insert`] the paragraph was joined with the
+//!   following one in the original, with [`ChangeKind::Delete`] it is in the final state.
+//! - `date` is ISO 8601 in UTC (`2026-11-20T09:30:00Z`) or empty.
+//! - `image` is the index in [`DocxDocument::images`]; [`DocxImage::path`] is the path in the work (`bilder/…`).
+//! - [`Inline::Typst`]/[`Block::Typst`]: `raw` is the verbatim Typst source text of an island, `shown` what the
+//!   reader sees in Word (discarded on reading if `raw` is not empty).
+//! - [`Block::Figure`]: `raw` is the verbatim island of the image or empty.
+//! - Footnotes are inline; several paragraphs of a Word footnote are joined by the reader with
+//!   [`Inline::LineBreak`] (with a warning).
 
-/// Ein ganzes Dokument: Titelei, Blöcke in Lesereihenfolge, Kommentare und eingebettete Bilder.
+/// A whole document: front matter, blocks in reading order, comments and embedded images.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DocxDocument {
     pub meta: DocxMeta,
@@ -26,60 +26,60 @@ pub struct DocxDocument {
     pub images: Vec<DocxImage>,
 }
 
-/// Titelei und Angaben aus `docProps/core.xml`.
+/// Front matter and details from `docProps/core.xml`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DocxMeta {
     pub title: String,
     pub subtitle: String,
     pub author: String,
-    /// Sprache als BCP-47-Kürzel (`de`, `de-DE`) oder leer.
+    /// Language as a BCP 47 tag (`de`, `de-DE`) or empty.
     pub lang: String,
-    /// Zeilen des Impressums (Schreiber: Vorlage `BaruchImpressum`).
+    /// Lines of the imprint (writer: style `BaruchImpressum`).
     pub imprint: Vec<String>,
 }
 
-/// Eingebettetes Bild.
+/// Embedded image.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DocxImage {
-    /// Pfad im Werk (`bilder/…`).
+    /// Path in the work (`bilder/…`).
     pub path: String,
-    /// Dateiname ohne Ordner.
+    /// File name without folder.
     pub file_name: String,
-    /// Medientyp (`image/png`, `image/jpeg`, …).
+    /// Media type (`image/png`, `image/jpeg`, …).
     pub media_type: String,
     pub bytes: Vec<u8>,
 }
 
-/// Word-Kommentar; verankert über [`Inline::CommentStart`] und [`Inline::CommentEnd`] mit derselben `id`.
+/// Word comment; anchored through [`Inline::CommentStart`] and [`Inline::CommentEnd`] with the same `id`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Comment {
     pub id: u32,
     pub author: String,
     pub initials: String,
-    /// ISO 8601 UTC oder leer.
+    /// ISO 8601 UTC or empty.
     pub date: String,
     pub text: String,
-    /// `id` des Kommentars, auf den dieser antwortet.
+    /// `id` of the comment this one replies to.
     pub reply_to: Option<u32>,
 }
 
-/// Art einer verfolgten Änderung.
+/// Kind of a tracked change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChangeKind {
     Insert,
     Delete,
 }
 
-/// Verfolgte Änderung: Art, Bearbeiter (wörtlicher Name aus Word) und Zeitpunkt.
+/// Tracked change: kind, editor (verbatim name from Word) and time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Change {
     pub kind: ChangeKind,
     pub author: String,
-    /// ISO 8601 UTC oder leer.
+    /// ISO 8601 UTC or empty.
     pub date: String,
 }
 
-/// Zeichenformate eines Textlaufs.
+/// Character formats of a text run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct Marks {
     pub bold: bool,
@@ -91,7 +91,7 @@ pub struct Marks {
     pub small_caps: bool,
 }
 
-/// Inhalt innerhalb eines Absatzes.
+/// Content within a paragraph.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Inline {
     Text {
@@ -102,7 +102,7 @@ pub enum Inline {
     Footnote {
         content: Vec<Inline>,
     },
-    /// Zitat im Fließtext (Schreiber: Zeichenvorlage `BaruchZitat`).
+    /// Inline quote (writer: character style `BaruchZitat`).
     Quote {
         content: Vec<Inline>,
     },
@@ -110,17 +110,17 @@ pub enum Inline {
         url: String,
         content: Vec<Inline>,
     },
-    /// Bild im Text; `image` ist der Index in [`DocxDocument::images`].
+    /// Image in the text; `image` is the index in [`DocxDocument::images`].
     Image {
         image: usize,
         alt: String,
     },
-    /// Typst-Insel im Text: `raw` wörtlich, `shown` das in Word Sichtbare.
+    /// Typst island in the text: `raw` verbatim, `shown` what is visible in Word.
     Typst {
         raw: String,
         shown: Vec<Inline>,
     },
-    /// Verfolgte Einfügung oder Löschung.
+    /// Tracked insertion or deletion.
     Tracked {
         change: Change,
         content: Vec<Inline>,
@@ -133,7 +133,7 @@ pub enum Inline {
     },
 }
 
-/// Punkt einer Liste; `depth` 0 ist die oberste Ebene.
+/// Item of a list; `depth` 0 is the top level.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ListItem {
     pub depth: u8,
@@ -141,15 +141,15 @@ pub struct ListItem {
     pub mark: Option<Change>,
 }
 
-/// Block des Dokuments.
+/// Block of the document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Block {
-    /// Teil des Werks (Schreiber: Vorlage `BaruchTeil`).
+    /// Part of the work (writer: style `BaruchTeil`).
     Part {
         content: Vec<Inline>,
         mark: Option<Change>,
     },
-    /// Überschrift der Ebene 1–6; `numbered: false` = ohne Nummer (Vorlage `BaruchOhneNummerN`).
+    /// Heading of level 1–6; `numbered: false` = without number (style `BaruchOhneNummerN`).
     Heading {
         level: u8,
         numbered: bool,
@@ -160,30 +160,30 @@ pub enum Block {
         content: Vec<Inline>,
         mark: Option<Change>,
     },
-    /// Blockzitat mit Quellenangabe (leer = ohne).
+    /// Block quote with source (empty = without).
     Quote {
         blocks: Vec<Block>,
         attribution: Vec<Inline>,
     },
-    /// Liste; `start` ist die erste Nummer einer geordneten Liste.
+    /// List; `start` is the first number of an ordered list.
     List {
         ordered: bool,
         start: u64,
         items: Vec<ListItem>,
     },
-    /// Tabelle: Zeilen → Zellen → Blöcke; die ersten `header_rows` Zeilen sind Kopfzeilen.
+    /// Table: rows → cells → blocks; the first `header_rows` rows are header rows.
     Table {
         header_rows: usize,
         rows: Vec<Vec<Vec<Block>>>,
     },
-    /// Abbildung mit Bildunterschrift; `raw` ist die wörtliche Typst-Insel des Bildes oder leer.
+    /// Figure with caption; `raw` is the verbatim Typst island of the image or empty.
     Figure {
         image: usize,
         alt: String,
         caption: Vec<Inline>,
         raw: String,
     },
-    /// Typst-Insel als Block: `raw` wörtlich, `shown` das in Word Sichtbare.
+    /// Typst island as a block: `raw` verbatim, `shown` what is visible in Word.
     Typst {
         raw: String,
         shown: Vec<Block>,
@@ -191,8 +191,8 @@ pub enum Block {
     PageBreak,
 }
 
-/// Hinweis des Lesers oder Schreibers (nie still verwerfen): fester `code` (z. B. `docx_formataenderung`) und
-/// Klartext für den Menschen.
+/// Note of the reader or writer (never discard silently): fixed `code` (e.g. `docx_formataenderung`) and plain
+/// text for the human.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DocxWarning {
     pub code: String,

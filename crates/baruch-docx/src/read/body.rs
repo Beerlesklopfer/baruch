@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Textkörper einer Word-Datei → Blockmodell: Absätze, Läufe, Änderungsverfolgung, Fußnoten, Bilder, Listen,
-//! Tabellen, Typst-Inseln. Alles, was nicht abgebildet wird, ergibt eine Warnung mit festem Code.
+//! Body of a Word file → block model: paragraphs, runs, tracked changes, footnotes, images, lists, tables, Typst
+//! islands. Everything that is not mapped yields a warning with a fixed code.
 
 use std::collections::{HashMap, HashSet};
 
@@ -19,18 +19,18 @@ pub(crate) struct BodyReader<'a, 'b> {
     pub rels: &'a HashMap<String, Rel>,
     pub meta: DocxMeta,
     pub images: Vec<DocxImage>,
-    /// Teilpfad → Index in `images` (`None` = übersprungen, schon gemeldet).
+    /// Part path → index in `images` (`None` = skipped, already reported).
     pub image_parts: HashMap<String, Option<usize>>,
     pub warnings: Warnings,
     pub text_bytes: usize,
     pub in_note: bool,
-    /// `numId` der Liste, die als letzter Block steht.
+    /// `numId` of the list that is the last block.
     pub last_list: Option<String>,
-    /// Kommentare, die über einen Bereich (`w:commentRangeStart`) verankert sind.
+    /// Comments that are anchored through a range (`w:commentRangeStart`).
     pub ranges: HashSet<u32>,
 }
 
-/// Was ein Absatz neben seinem Inhalt mitbringt.
+/// What a paragraph brings along besides its content.
 struct Para {
     role: Role,
     list: Option<(String, u8)>,
@@ -72,7 +72,7 @@ fn media_type(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// Text ohne Auszeichnung; `original` lässt Einfügungen weg, sonst Löschungen.
+/// Text without markup; `original` leaves out insertions, otherwise deletions.
 pub(crate) fn plain(inlines: &[Inline], original: bool, out: &mut String) {
     for inline in inlines {
         match inline {
@@ -108,7 +108,7 @@ fn has_text(inlines: &[Inline]) -> bool {
     })
 }
 
-/// Ist der Absatz nur ein Bild (neben Leerraum und Kommentarmarken)?
+/// Is the paragraph only an image (besides whitespace and comment marks)?
 fn only_image(inlines: &[Inline]) -> Option<(usize, String)> {
     let mut found = None;
     for inline in inlines {
@@ -122,7 +122,7 @@ fn only_image(inlines: &[Inline]) -> Option<(usize, String)> {
     found
 }
 
-/// Wörtlicher Typst-Quelltext einer Insel: der mit `w:vanish` verborgene Text; Absätze werden Zeilen.
+/// Verbatim Typst source text of an island: the text hidden with `w:vanish`; paragraphs become lines.
 fn island_raw(content: &Element) -> String {
     fn vanish(el: &Element, out: &mut String, any: &mut bool) {
         for e in el.elements() {
@@ -172,9 +172,9 @@ fn is_typst_island(sdt: &Element) -> bool {
     sdt.child("w:sdtPr").and_then(|p| p.child_val("w:tag")) == Some(ooxml::SDT_TAG_TYPST)
 }
 
-/// Der Name einer Zeichnung als Pfad eines Bildes im Werk – nur wenn er wie einer aussieht: relativ, ohne `..`,
-/// Rückstrich, Laufwerk oder Steuerzeichen, höchstens 200 Zeichen und mit der Endung, die zum Inhalt passt. Word
-/// selbst nennt Zeichnungen „Grafik 1“ oder „Picture 1“; das bleibt außen vor.
+/// The name of a drawing as the path of an image in the work – only if it looks like one: relative, without `..`,
+/// backslash, drive or control characters, at most 200 characters and with the extension that fits the content.
+/// Word itself calls drawings „Grafik 1“ or "Picture 1"; that stays out.
 fn work_path(name: &str, media: &str) -> Option<String> {
     let endings: &[&str] = match media {
         "image/png" => &["png"],
@@ -195,8 +195,8 @@ fn work_path(name: &str, media: &str) -> Option<String> {
 }
 
 impl BodyReader<'_, '_> {
-    /// Bilder im sichtbaren Teil einer Typst-Insel: Das Modell behält von der Insel nur den Quelltext, das Bild
-    /// selbst muss trotzdem ins Werk – der Quelltext nennt es (`image("bilder/…")`).
+    /// Images in the visible part of a Typst island: the model keeps only the source text of the island, the image
+    /// itself must get into the work all the same – the source text names it (`image("bilder/…")`).
     fn island_images(&mut self, el: &Element) -> Result<(), DocxError> {
         for e in el.elements() {
             if e.name == "w:drawing" {
@@ -245,11 +245,11 @@ impl BodyReader<'_, '_> {
         Ok(())
     }
 
-    /// Bild einer Beziehung einlesen; `None` = übersprungen (mit Warnung).
+    /// Read the image of a relationship; `None` = skipped (with a warning).
     ///
-    /// `wanted` ist der Name der Zeichnung (`wp:docPr name`): Der Schreiber von Baruch legt dort den Pfad des Bildes
-    /// im Werk ab. Sieht der Name wie ein solcher Pfad aus (siehe [`work_path`]), bekommt das Bild ihn wieder –
-    /// sonst zeigte der wörtliche Typst-Quelltext einer Abbildung nach der Rundreise auf ein Bild, das es nicht gibt.
+    /// `wanted` is the name of the drawing (`wp:docPr name`): the writer of Baruch stores the path of the image in
+    /// the work there. If the name looks like such a path (see [`work_path`]), the image gets it back – otherwise
+    /// the verbatim Typst source text of a figure would point to an image that does not exist after the round trip.
     fn image(&mut self, rid: &str, wanted: Option<&str>) -> Result<Option<usize>, DocxError> {
         let Some(rel) = self.rels.get(rid) else {
             self.warnings
@@ -312,7 +312,7 @@ impl BodyReader<'_, '_> {
             .add("docx_textfeld", format!("Ein Textfeld ist nicht übernommen (Anfang: „{}“).", short(&text, 80)));
     }
 
-    /// Zeichnung, VML-Bild, eingebettetes Objekt.
+    /// Drawing, VML image, embedded object.
     fn graphic(&mut self, el: &Element, out: &mut Vec<Inline>) -> Result<(), DocxError> {
         match el.name.as_str() {
             "mc:AlternateContent" => {
@@ -402,7 +402,7 @@ impl BodyReader<'_, '_> {
                 "Eine Fußnote mit mehreren Absätzen steht im Werk als ein Absatz mit Zeilenumbrüchen.",
             );
         }
-        // Word setzt hinter das Fußnotenzeichen ein Leerzeichen.
+        // Word puts a space after the footnote mark.
         if let Some(Inline::Text { text, .. }) = content.first_mut() {
             *text = text.trim_start().to_owned();
         }
@@ -526,7 +526,7 @@ impl BodyReader<'_, '_> {
         Ok(())
     }
 
-    /// Inhalt eines Absatzes (oder eines Behälters darin).
+    /// Content of a paragraph (or of a container inside it).
     fn inlines(&mut self, parent: &Element, out: &mut Vec<Inline>, state: &mut RunState) -> Result<(), DocxError> {
         for e in parent.elements() {
             match e.name.as_str() {
@@ -733,8 +733,8 @@ impl BodyReader<'_, '_> {
         Ok(())
     }
 
-    /// Blöcke eines Behälters (Textkörper, Tabellenzelle, Inhaltssteuerelement). `top` = Textkörper selbst: nur
-    /// dort werden Titel, Untertitel, Autor und Impressum zur Titelei.
+    /// Blocks of a container (body, table cell, content control). `top` = the body itself: only there do title,
+    /// subtitle, author and imprint become front matter.
     pub(crate) fn blocks(&mut self, parent: &Element, out: &mut Vec<Block>, top: bool) -> Result<(), DocxError> {
         for e in parent.elements() {
             match e.name.as_str() {

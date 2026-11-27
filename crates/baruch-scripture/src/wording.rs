@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Wortlaut eines Zitats gegen den Text einer Bibel vergleichen (rein, ohne Bibeltext): Zitate im
-//! Quelltext finden ([`inline_quotes`], auch verschachtelt und über Absätze; Blockzitate liefert der Aufrufer,
-//! im Server `crate::quotes::quote_spans`), einer Stelle zuordnen
-//! ([`quote_for`]) und normalisiert vergleichen ([`compare`]: Satzzeichen, Groß/Klein, Bindestriche,
-//! Trennungen, Leerraum, typografische Zeichen und Typst-Auszeichnung zählen nicht).
+//! Compare the wording of a quotation against the text of a Bible (pure, without Bible text): find quotations
+//! in the source text ([`inline_quotes`], also nested and across paragraphs; block quotes are delivered by the
+//! caller, in the server `crate::quotes::quote_spans`), assign them to a reference
+//! ([`quote_for`]) and compare normalised ([`compare`]: punctuation, case, hyphens,
+//! hyphenations, whitespace, typographic characters and Typst markup do not count).
 //!
-//! Runde 19c: Unicode-Normalform NFC vor dem Zerlegen (zerlegte Umlaute aus PDFs zählen wie zusammengesetzte);
-//! weicht ein Zitat nur im Leerraum ab (Trennreste im Modul: „die ses“, „Men schen“), stimmt es mit
-//! [`Comparison::spacing`]; [`fragment_survey`] schätzt, ob ein Modul auffällig viele Wortfragmente hat;
-//! [`quote_for`] lässt kurze Einleitungswörter zwischen Stelle und Zitat zu („wie Lk 15,6 erzählt: „…““).
+//! Round 19c: Unicode normal form NFC before splitting (decomposed umlauts from PDFs count like composed ones);
+//! if a quotation deviates only in whitespace (hyphenation leftovers in the module: „die ses“, „Men schen“), it
+//! matches with [`Comparison::spacing`]; [`fragment_survey`] estimates whether a module has conspicuously many
+//! word fragments; [`quote_for`] allows short introductory words between reference and quotation („wie Lk 15,6
+//! erzählt: „…““).
 
 use std::collections::HashSet;
 
@@ -17,33 +18,33 @@ use unicode_normalization::UnicodeNormalization;
 
 use crate::Found;
 
-/// Ein Zitat im durchsuchten Text: Bereich des Inhalts (ohne Anführungszeichen) in Bytes.
+/// A quotation in the searched text: range of the content (without quotation marks) in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct QuoteSpan {
     pub start: usize,
     pub end: usize,
-    /// Bereich einschließlich der Anführungszeichen bzw. des ganzen Blockzitats.
+    /// Range including the quotation marks or the whole block quote.
     pub outer: (usize, usize),
-    /// Blockzitat (`#quote(block: true …)[…]`) statt Anführungszeichen.
+    /// Block quote (`#quote(block: true …)[…]`) instead of quotation marks.
     pub block: bool,
 }
 
-/// Paare von Anführungszeichen: deutsch „…“, „…”, englisch “…”, französisch »…« und «…», gerade "…".
+/// Pairs of quotation marks: German „…“, „…”, English “…”, French »…« and «…», straight "…".
 const PAIRS: [(char, char); 6] = [('„', '“'), ('„', '”'), ('“', '”'), ('»', '«'), ('«', '»'), ('"', '"')];
 
-/// Höchstlänge eines Zitats in Anführungszeichen (Zeichen); längere sind wohl ein vergessenes Zeichen.
+/// Maximum length of a quotation in quotation marks (characters); longer ones are probably a forgotten mark.
 const MAX_QUOTE_CHARS: usize = 3000;
 
-/// Zitate in Anführungszeichen. Ein Zitat endet am passenden Schlusszeichen. Typst-`#quote[…]` im Fließtext
-/// zählt ebenfalls.
+/// Quotations in quotation marks. A quotation ends at the matching closing mark. Typst `#quote[…]` in running
+/// text counts as well.
 ///
-/// Seit Runde 17b:
-/// - **Verschachtelt:** Innere Anführungszeichen einer anderen Art („… ‚…‘ …“, „… »…« …“) gehören zum äußeren
-///   Zitat; ein inneres Paar wird übersprungen, sein Schlusszeichen beendet das äußere Zitat nicht.
-/// - **Über Absätze:** Eine Leerzeile beendet die Suche nicht mehr, wenn das Zitat im nächsten Absatz
-///   weitergeht – entweder mit dem wiederholten Anführungszeichen am Absatzanfang (deutscher Satz) oder bis
-///   zum Schlusszeichen, solange kein weiteres öffnendes Zeichen derselben Art kommt (dann war das erste nie
-///   geschlossen: kein Zitat).
+/// Since Round 17b:
+/// - **Nested:** inner quotation marks of another kind („… ‚…‘ …“, „… »…« …“) belong to the outer
+///   quotation; an inner pair is skipped, its closing mark does not end the outer quotation.
+/// - **Across paragraphs:** an empty line no longer ends the search if the quotation continues in the next
+///   paragraph – either with the repeated quotation mark at the start of the paragraph (German typesetting) or
+///   up to the closing mark, as long as no further opening mark of the same kind comes (then the first was never
+///   closed: no quotation).
 pub fn inline_quotes(text: &str) -> Vec<QuoteSpan> {
     let mut out = Vec::new();
     let mut i = 0;
@@ -69,14 +70,14 @@ pub fn inline_quotes(text: &str) -> Vec<QuoteSpan> {
     out
 }
 
-/// Innere Paare, die ein Zitat einer anderen Art enthalten darf (einfache deutsche/englische/französische
-/// Anführungszeichen und die anderen Paare aus [`PAIRS`]).
+/// Inner pairs that a quotation of another kind may contain (single German/English/French
+/// quotation marks and the other pairs from [`PAIRS`]).
 const INNER_PAIRS: [(char, char); 8] =
     [('‚', '‘'), ('‘', '’'), ('›', '‹'), ('‹', '›'), ('»', '«'), ('«', '»'), ('„', '“'), ('“', '”')];
 
-/// Ende (Byte, Breite des Schlusszeichens) des Zitats, das an `i` mit `open` beginnt; `None`, wenn `open` kein
-/// öffnendes Zeichen ist oder kein passendes Schlusszeichen kommt. Ein Schlusszeichen hängt am Wort davor;
-/// steht es nach Leerraum und öffnet es selbst ein Paar („er sagte “Ja”“), ist es ein inneres Zitat.
+/// End (byte, width of the closing mark) of the quotation that starts at `i` with `open`; `None` if `open` is
+/// not an opening mark or no matching closing mark comes. A closing mark hangs on the word before it;
+/// if it comes after whitespace and itself opens a pair („er sagte “Ja”“), it is an inner quotation.
 fn quote_end(text: &str, i: usize, open: char) -> Option<(usize, usize)> {
     let closers: Vec<char> = PAIRS.iter().filter(|(o, _)| *o == open).map(|(_, close)| *close).collect();
     if closers.is_empty() {
@@ -102,14 +103,15 @@ fn quote_end(text: &str, i: usize, open: char) -> Option<(usize, usize)> {
             continue;
         }
         if d == open {
-            // Wiederholtes Zeichen am Absatzanfang: das Zitat geht weiter; sonst war das erste nie geschlossen.
+            // Repeated mark at the start of the paragraph: the quotation continues; otherwise the first was never
+            // closed.
             let paragraph_start = text[..at].trim_end_matches([' ', '\t']).ends_with("\n\n");
             if crossed && paragraph_start {
                 continue;
             }
             return None;
         }
-        // Inneres Paar einer anderen Art überspringen („… ‚…‘ …“), nur innerhalb des Absatzes.
+        // Skip an inner pair of another kind („… ‚…‘ …“), only within the paragraph.
         if let Some(inner_close) = inner {
             let rest = &text[at + d.len_utf8()..];
             let limit = rest.find("\n\n").unwrap_or(rest.len());
@@ -125,7 +127,7 @@ fn quote_end(text: &str, i: usize, open: char) -> Option<(usize, usize)> {
     None
 }
 
-/// Länge bis zur schließenden `]` (ausschließlich) bei ausgeglichenen Klammern; `\]` zählt nicht.
+/// Length up to the closing `]` (exclusive) with balanced brackets; `\]` does not count.
 pub fn bracket_end(inner: &str) -> Option<usize> {
     let mut depth = 0usize;
     let mut escaped = false;
@@ -145,10 +147,10 @@ pub fn bracket_end(inner: &str) -> Option<usize> {
     None
 }
 
-/// Höchstabstand zwischen Zitat und Stelle (Bytes), ohne andere Stellen derselben Liste.
+/// Maximum distance between quotation and reference (bytes), without other references of the same list.
 const MAX_GAP: usize = 24;
 
-/// Steht zwischen `a` und `b` nur Leerraum, Satzzeichen oder eine der anderen Stellen?
+/// Is there only whitespace, punctuation or one of the other references between `a` and `b`?
 fn only_glue(text: &str, a: usize, b: usize, refs: &[Found]) -> bool {
     if a > b {
         return false;
@@ -172,9 +174,9 @@ fn only_glue(text: &str, a: usize, b: usize, refs: &[Found]) -> bool {
         })
 }
 
-/// Kurze Einleitungswörter zwischen einer Stelle und dem Zitat danach (Runde 19c): „wie Lk 15,6 erzählt: „…““,
-/// „In Joh 3 heißt es: „…““. Nur kleingeschriebene Wörter aus dieser Liste, höchstens [`MAX_INTRO_WORDS`], und
-/// zuletzt ein Doppelpunkt.
+/// Short introductory words between a reference and the quotation after it (Round 19c): „wie Lk 15,6 erzählt:
+/// „…““, „In Joh 3 heißt es: „…““. Only lower-case words from this list, at most [`MAX_INTRO_WORDS`], and
+/// last a colon.
 pub const INTRO_WORDS: [&str; 36] = [
     "erzählt",
     "erzählte",
@@ -213,13 +215,13 @@ pub const INTRO_WORDS: [&str; 36] = [
     "klagt",
     "dazu",
 ];
-/// Höchstens so viele Einleitungswörter.
+/// At most this many introductory words.
 pub const MAX_INTRO_WORDS: usize = 3;
-/// Höchstabstand mit Einleitungswörtern (Bytes, ohne andere Stellen).
+/// Maximum distance with introductory words (bytes, without other references).
 const MAX_INTRO_GAP: usize = 48;
 
-/// Zwischen `a` (Ende der Stelle) und `b` (Anfang des Zitats): Leerraum/Satzzeichen, dann 1 bis
-/// [`MAX_INTRO_WORDS`] Wörter aus [`INTRO_WORDS`], ein Doppelpunkt und danach nur noch Leerraum.
+/// Between `a` (end of the reference) and `b` (start of the quotation): whitespace/punctuation, then 1 to
+/// [`MAX_INTRO_WORDS`] words from [`INTRO_WORDS`], a colon and after that only whitespace.
 fn intro_glue(text: &str, a: usize, b: usize, refs: &[Found]) -> bool {
     if a > b {
         return false;
@@ -247,10 +249,11 @@ fn intro_glue(text: &str, a: usize, b: usize, refs: &[Found]) -> bool {
     !words.is_empty() && words.len() <= MAX_INTRO_WORDS && words.iter().all(|w| INTRO_WORDS.contains(w))
 }
 
-/// Das Zitat zur Stelle `refs[index]`: zuerst eines, das direkt davor endet („…“ (Joh 3,16)), sonst eines,
-/// das direkt danach beginnt (Joh 3,16: „…“). Dazwischen dürfen nur Leerraum, Klammern, Satzzeichen und
-/// andere Stellen derselben Liste stehen, vor einem Zitat danach seit Runde 19c auch kurze Einleitungswörter
-/// mit Doppelpunkt ([`INTRO_WORDS`]). Ein Blockzitat gilt auch, wenn die Stelle darin (Zuschreibung) steht.
+/// The quotation for the reference `refs[index]`: first one that ends directly before it („…“ (Joh 3,16)),
+/// otherwise one that starts directly after it (Joh 3,16: „…“). In between only whitespace, brackets,
+/// punctuation and other references of the same list may stand, before a quotation after it since Round 19c
+/// also short introductory words with colon ([`INTRO_WORDS`]). A block quote also counts if the reference is
+/// inside it (attribution).
 pub fn quote_for(text: &str, quotes: &[QuoteSpan], refs: &[Found], index: usize) -> Option<QuoteSpan> {
     let (a, b) = refs.get(index)?.span;
     if let Some(q) =
@@ -264,9 +267,9 @@ pub fn quote_for(text: &str, quotes: &[QuoteSpan], refs: &[Found], index: usize)
         .iter()
         .filter(|q| q.outer.0 >= b && (only_glue(text, b, q.outer.0, refs) || intro_glue(text, b, q.outer.0, refs)))
         .min_by_key(|q| q.outer.0);
-    // Integrator Runde 17: Liegt zwischen dem Zitat davor und der Stelle eine Leerzeile, im Zitat danach aber
-    // nicht, gehört die Stelle zum Zitat danach („„…“ (Joh 3,16)⏎⏎Psalm 139, Vers 23: „…““) – sonst bekäme sie
-    // das Zitat des vorigen Absatzes.
+    // Integrator Round 17: if there is an empty line between the quotation before and the reference, but not in
+    // the quotation after, the reference belongs to the quotation after („„…“ (Joh 3,16)⏎⏎Psalm 139, Vers 23:
+    // „…““) – otherwise it would get the quotation of the previous paragraph.
     if let (Some(q), Some(next)) = (before, after)
         && paragraph_break(text, q.outer.1, a)
         && !paragraph_break(text, b, next.outer.0)
@@ -276,7 +279,7 @@ pub fn quote_for(text: &str, quotes: &[QuoteSpan], refs: &[Found], index: usize)
     if let Some(q) = before {
         return Some(*q);
     }
-    // Stelle am Ende eines Blockzitats („… geliebt. (Joh 3,16)“): Zitat bis zur Stelle.
+    // Reference at the end of a block quote („… geliebt. (Joh 3,16)“): quotation up to the reference.
     if let Some(q) = quotes.iter().find(|q| q.block && q.start <= a && b <= q.end && only_glue(text, b, q.end, refs)) {
         let cut = text[q.start..a].trim_end_matches(|c: char| c.is_whitespace() || c == '(').len();
         return Some(QuoteSpan { start: q.start, end: q.start + cut, outer: q.outer, block: true });
@@ -284,7 +287,7 @@ pub fn quote_for(text: &str, quotes: &[QuoteSpan], refs: &[Found], index: usize)
     after.copied()
 }
 
-/// Steht zwischen `a` und `b` eine Leerzeile (zwei Zeilenumbrüche, dazwischen nur Leerraum)?
+/// Is there an empty line between `a` and `b` (two line breaks, only whitespace in between)?
 fn paragraph_break(text: &str, a: usize, b: usize) -> bool {
     let gap = text.get(a..b).unwrap_or("");
     let mut newline = false;
@@ -301,17 +304,17 @@ fn paragraph_break(text: &str, a: usize, b: usize) -> bool {
     false
 }
 
-// ---- Normalisieren ----------------------------------------------------------------------------------
+// ---- Normalising ------------------------------------------------------------------------------------
 
-/// Ein Wort: wie es dasteht (ohne umgebende Satzzeichen) und sein Vergleichsschlüssel.
+/// A word: as it stands there (without surrounding punctuation) and its comparison key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Word {
     pub shown: String,
     pub key: String,
 }
 
-/// Typst-Auszeichnung entfernen: `#footnote[…]` ganz, `#name[`/`#name(…)[` und Klammern, `_`, `*`,
-/// Maskierungen `\x` (`\` vor einem Zeichen), `~` als Leerzeichen, Kommentare `// …` bis zum Zeilenende.
+/// Remove Typst markup: `#footnote[…]` entirely, `#name[`/`#name(…)[` and brackets, `_`, `*`,
+/// escapes `\x` (`\` before a character), `~` as a space, comments `// …` up to the end of the line.
 pub fn strip_markup(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut i = 0;
@@ -369,7 +372,7 @@ pub fn strip_markup(text: &str) -> String {
     out
 }
 
-/// Zeichen, die innerhalb eines Worts wegfallen (Bindestriche, Apostrophe, weiches Trennzeichen, Breite null).
+/// Characters that are dropped within a word (hyphens, apostrophes, soft hyphen, zero width).
 fn joins(c: char) -> bool {
     matches!(
         c,
@@ -403,17 +406,18 @@ fn key_of(word: &str) -> String {
     key
 }
 
-/// Wörter eines Texts für den Vergleich (Auszeichnung entfernt). Ein Wort, das mit Bindestrich endet
-/// („Hei- land“), wird mit dem folgenden kleingeschriebenen Wort verbunden (Trennung), außer vor
-/// „und“/„oder“ (Ergänzungsstrich: „Vor- und Nachteile“).
+/// Words of a text for the comparison (markup removed). A word that ends with a hyphen
+/// („Hei- land“) is joined with the following lower-case word (hyphenation), except before
+/// „und“/„oder“ (suspended hyphen: „Vor- und Nachteile“).
 pub fn words(text: &str) -> Vec<Word> {
     plain_words(&strip_markup(text))
 }
 
-/// Wie [`words`], aber für Klartext ohne Typst-Auszeichnung (Bibeltext aus einem Modul): `#`, `_`, `*`, `\`
-/// sind dort gewöhnliche Zeichen (Runde 17b: „#1“ im Verstext ist kein Typst-Code).
+/// Like [`words`], but for plain text without Typst markup (Bible text from a module): `#`, `_`, `*`, `\`
+/// are ordinary characters there (Round 17b: "#1" in the verse text is not Typst code).
 pub fn plain_words(plain: &str) -> Vec<Word> {
-    // Runde 19c: NFC zuerst, sonst zerfiele ein zerlegtes „ü“ (u + U+0308) am Kombinationszeichen in zwei Wörter.
+    // Round 19c: NFC first, otherwise a decomposed „ü“ (u + U+0308) would fall apart into two words at the
+    // combining character.
     let plain: String = plain.nfc().collect();
     let mut raw: Vec<String> = Vec::new();
     for token in plain.split(|c: char| c.is_whitespace() || (!c.is_alphanumeric() && !joins(c))) {
@@ -458,31 +462,31 @@ fn push_word(out: &mut Vec<Word>, token: &str) {
     }
 }
 
-// ---- Vergleichen -------------------------------------------------------------------------------------
+// ---- Comparing ---------------------------------------------------------------------------------------
 
-/// Ein Stück des Wort-Diffs: `same` (in beiden), `bible` (nur in der Bibel, fehlt im Zitat), `quote` (nur im
-/// Zitat).
+/// A piece of the word diff: `same` (in both), `bible` (only in the Bible, missing in the quotation), `quote`
+/// (only in the quotation).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DiffPart {
     pub op: &'static str,
     pub text: String,
 }
 
-/// Ergebnis eines Vergleichs.
+/// Result of a comparison.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Comparison {
-    /// Alle Wörter des Zitats stehen in dieser Folge lückenlos im Bibeltext (je Teil bei Auslassungen „…“).
+    /// All words of the quotation are in this sequence without gaps in the Bible text (per part with omissions „…“).
     pub matches: bool,
-    /// Das Zitat ist kürzer als der Bibeltext (Teilzitat).
+    /// The quotation is shorter than the Bible text (partial quotation).
     pub partial: bool,
-    /// Wort-Diff zwischen Zitat und dem passenden Ausschnitt des Bibeltexts (leer, wenn `matches`).
+    /// Word diff between the quotation and the matching excerpt of the Bible text (empty if `matches`).
     pub diff: Vec<DiffPart>,
-    /// Runde 19c: Das Zitat stimmt nur, wenn man den Leerraum weglässt (Trennreste im Modul wie „die ses“ oder
-    /// ein zusammengeschriebenes Wort); dann ist `matches` wahr.
+    /// Round 19c: the quotation matches only if the whitespace is left out (hyphenation leftovers in the module
+    /// such as „die ses“ or a word written together); then `matches` is true.
     pub spacing: bool,
 }
 
-/// Teile eines Zitats an Auslassungen („…“, „...“, „[…]“, „(…)“).
+/// Parts of a quotation at omissions („…“, "...", „[…]“, „(…)“).
 fn pieces(quote: &str) -> Vec<String> {
     let marked = quote.replace("[…]", "\u{1}").replace("(…)", "\u{1}").replace("[...]", "\u{1}");
     let marked = marked.replace("...", "\u{1}").replace('…', "\u{1}");
@@ -497,7 +501,7 @@ fn find_run(hay: &[Word], needle: &[Word], from: usize) -> Option<usize> {
         .find(|&i| hay[i..i + needle.len()].iter().zip(needle).all(|(a, b)| a.key == b.key))
 }
 
-/// Vergleicht ein Zitat (Typst-Quelltext) mit dem Bibeltext (Klartext des Moduls, ohne Auszeichnung).
+/// Compares a quotation (Typst source text) with the Bible text (plain text of the module, without markup).
 pub fn compare(quote: &str, bible: &str) -> Comparison {
     let b = plain_words(bible);
     let parts: Vec<Vec<Word>> = pieces(quote).iter().map(|p| words(p)).filter(|w| !w.is_empty()).collect();
@@ -524,11 +528,11 @@ pub fn compare(quote: &str, bible: &str) -> Comparison {
     Comparison { matches: false, partial: false, diff: word_diff(&q, &b), spacing: false }
 }
 
-/// Runde 19c: Vergleich ohne Leerraum. Die Schlüssel der Bibelwörter werden aneinandergehängt; jeder Teil des
-/// Zitats muss darin (in Folge) vorkommen, und zwar von einer Wortgrenze des Moduls bis zu einer Wortgrenze –
-/// „dieses“ passt auf „die ses“, aber „ist“ nicht mitten in „Christus“. Runde 23a: Toleriert werden nur zusätzliche
-/// Wortgrenzen des **Moduls** (Fragmente); jede Wortgrenze des Zitats muss auch im Modul eine sein – „die Bein“ passt
-/// nicht auf „Diebe in“. `Some(Teilzitat?)` bei Erfolg.
+/// Round 19c: comparison without whitespace. The keys of the Bible words are concatenated; every part of the
+/// quotation must occur in it (in sequence), from a word boundary of the module to a word boundary – „dieses“
+/// fits „die ses“, but „ist“ not in the middle of „Christus“. Round 23a: only additional word boundaries of the
+/// **module** (fragments) are tolerated; every word boundary of the quotation must be one in the module too –
+/// „die Bein“ does not fit „Diebe in“. `Some(partial quotation?)` on success.
 fn matches_without_spacing(parts: &[Vec<Word>], bible: &[Word]) -> Option<bool> {
     let mut joined = String::new();
     let mut bounds = vec![0usize];
@@ -548,9 +552,9 @@ fn matches_without_spacing(parts: &[Vec<Word>], bible: &[Word]) -> Option<bool> 
         let mut end = None;
         while let Some(pos) = joined.get(search..).and_then(|rest| rest.find(&needle)).map(|p| p + search) {
             let stop = pos + needle.len();
-            // Runde 23a (Gutachten R19): Auch jede Wortgrenze **im Zitat** muss eine Wortgrenze des Moduls sein. Das
-            // Modul darf zusätzliche Grenzen haben (Wortfragmente wie „die ses“), das Zitat keine eigenen – sonst
-            // passte „die Bein“ auf „Diebe in“.
+            // Round 23a (review R19): every word boundary **in the quotation** must be a word boundary of the module
+            // too. The module may have additional boundaries (word fragments such as „die ses“), the quotation none
+            // of its own – otherwise „die Bein“ would fit „Diebe in“.
             let mut inner = pos;
             let quote_bounds_fit = part.iter().all(|w| {
                 inner += w.key.len();
@@ -567,11 +571,11 @@ fn matches_without_spacing(parts: &[Vec<Word>], bible: &[Word]) -> Option<bool> 
     Some(quoted < joined.len())
 }
 
-/// Wort-Diff über die längste gemeinsame Teilfolge; der Bibeltext wird auf den Bereich zwischen dem
-/// ersten und letzten gemeinsamen Wort beschränkt (ein Teilzitat zeigt nicht den ganzen Vers als fehlend).
+/// Word diff through the longest common subsequence; the Bible text is restricted to the range between the
+/// first and last common word (a partial quotation does not show the whole verse as missing).
 fn word_diff(q: &[Word], b: &[Word]) -> Vec<DiffPart> {
     let (n, m) = (q.len(), b.len());
-    // Bei sehr langen Texten nur grob: alles als verschieden.
+    // For very long texts only roughly: everything as different.
     if n.saturating_mul(m) > 4_000_000 {
         return vec![DiffPart { op: "quote", text: join(q) }];
     }
@@ -596,7 +600,7 @@ fn word_diff(q: &[Word], b: &[Word]) -> Vec<DiffPart> {
             i += 1;
         }
     }
-    // Bibelwörter vor dem ersten und nach dem letzten gemeinsamen Wort weglassen.
+    // Leave out Bible words before the first and after the last common word.
     let first = ops.iter().position(|(op, _)| *op != "bible").unwrap_or(ops.len());
     let last = ops.iter().rposition(|(op, _)| *op != "bible").map_or(0, |p| p + 1);
     let mut out: Vec<DiffPart> = Vec::new();
@@ -616,7 +620,7 @@ fn join(words: &[Word]) -> String {
     words.iter().map(|w| w.shown.as_str()).collect::<Vec<_>>().join(" ")
 }
 
-/// Diff als eine Zeile: `[−Bibel]` fehlt im Zitat, `[+Zitat]` steht nur im Zitat.
+/// Diff as one line: `[−Bibel]` is missing in the quotation, `[+Zitat]` is only in the quotation.
 pub fn diff_line(diff: &[DiffPart]) -> String {
     diff.iter()
         .map(|p| match p.op {
@@ -628,52 +632,52 @@ pub fn diff_line(diff: &[DiffPart]) -> String {
         .join(" ")
 }
 
-// ---- Wortfragmente im Modul (Runde 19c) ---------------------------------------------------------------
+// ---- Word fragments in the module (Round 19c) ---------------------------------------------------------
 
-/// Kurze, häufige Wörter, die als zweites Stück nie als Fragment zählen („da mit“, „hin aus“, „ich bin“).
+/// Short, frequent words that never count as a fragment as the second piece („da mit“, „hin aus“, „ich bin“).
 const NOT_FRAGMENTS: [&str; 62] = [
     "und", "oder", "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "eines", "er",
     "es", "sie", "ihn", "ihm", "ihr", "ihre", "wir", "uns", "euch", "ich", "mich", "mir", "du", "dich", "dir", "zu",
     "an", "auf", "aus", "in", "im", "mit", "von", "vom", "vor", "bei", "nach", "um", "ist", "sind", "war", "hat",
     "nicht", "so", "da", "wie", "als", "wo", "was", "wer", "ob", "noch", "auch", "nur", "sich", "hin", "her",
 ];
-/// Längstes zweites Stück, das als Fragment zählt (Zeichen).
+/// Longest second piece that counts as a fragment (characters).
 pub const MAX_FRAGMENT_CHARS: usize = 5;
-/// So viele Verdachtsfälle braucht ein Modul mindestens für den Hinweis.
+/// A module needs at least this many suspected cases for the hint.
 pub const MIN_FRAGMENTS: usize = 3;
-/// Anteil der Verdachtsfälle an allen Wortpaaren, ab dem ein Modul auffällig ist: 1 von 200 (0,5 %).
+/// Share of the suspected cases in all word pairs from which a module is conspicuous: 1 in 200 (0.5 %).
 pub const FRAGMENT_SHARE: usize = 200;
 
-/// Ergebnis von [`fragment_survey`].
+/// Result of [`fragment_survey`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct FragmentSurvey {
-    /// Benachbarte Wortpaare im gelesenen Text (innerhalb eines Verses).
+    /// Neighbouring word pairs in the text that was read (within a verse).
     pub pairs: usize,
-    /// Verdachtsfälle: Paare, die wie ein getrenntes Wort aussehen.
+    /// Suspected cases: pairs that look like a split word.
     pub suspects: usize,
-    /// Höchstens drei Beispiele („die ses“).
+    /// At most three examples („die ses“).
     pub examples: Vec<String>,
 }
 
 impl FragmentSurvey {
-    /// Auffällig viele Wortfragmente: mindestens [`MIN_FRAGMENTS`] Fälle und mindestens 1 von
-    /// [`FRAGMENT_SHARE`] Wortpaaren.
+    /// Conspicuously many word fragments: at least [`MIN_FRAGMENTS`] cases and at least 1 in
+    /// [`FRAGMENT_SHARE`] word pairs.
     pub fn fragmented(&self) -> bool {
         self.suspects >= MIN_FRAGMENTS && self.suspects * FRAGMENT_SHARE >= self.pairs
     }
 }
 
-/// Kern eines Leerraum-Stücks: Buchstaben ohne Satzzeichen davor/danach; `None`, wenn innen anderes steht.
+/// Core of a whitespace piece: letters without punctuation before/after; `None` if something else is inside.
 fn letters(token: &str) -> Option<&str> {
     let core = token.trim_matches(|c: char| !c.is_alphanumeric());
     (!core.is_empty() && core.chars().all(char::is_alphabetic)).then_some(core)
 }
 
-/// Schätzt Trennreste in Bibeltext (Klartext je Vers, NFC). Ein Verdachtsfall ist ein Paar benachbarter Stücke
-/// „A b“ im selben Vers, bei dem A ohne Satzzeichen endet, b kleingeschrieben und höchstens
-/// [`MAX_FRAGMENT_CHARS`] Zeichen lang ist, kein häufiges kurzes Wort ([`NOT_FRAGMENTS`]) ist – und „Ab“ als
-/// ganzes Wort sonst im gelesenen Text vorkommt („die ses“ neben „dieses“, „Men schen“ neben „Menschen“).
-/// Eine Schätzung, keine Silbentrennung: [`FragmentSurvey::fragmented`] entscheidet über den Hinweis.
+/// Estimates hyphenation leftovers in Bible text (plain text per verse, NFC). A suspected case is a pair of
+/// neighbouring pieces „A b“ in the same verse where A ends without punctuation, b is lower case and at most
+/// [`MAX_FRAGMENT_CHARS`] characters long and is not a frequent short word ([`NOT_FRAGMENTS`]) – and „Ab“ occurs
+/// as a whole word elsewhere in the text that was read („die ses“ next to „dieses“, „Men schen“ next to
+/// „Menschen“). An estimate, not hyphenation: [`FragmentSurvey::fragmented`] decides about the hint.
 pub fn fragment_survey<'a>(verses: impl IntoIterator<Item = &'a str>) -> FragmentSurvey {
     let verses: Vec<String> = verses.into_iter().map(|v| v.nfc().collect()).collect();
     let mut known: HashSet<String> = HashSet::new();
@@ -690,7 +694,7 @@ pub fn fragment_survey<'a>(verses: impl IntoIterator<Item = &'a str>) -> Fragmen
         for pair in tokens.windows(2) {
             survey.pairs += 1;
             let (first, second) = (pair[0], pair[1]);
-            // A endet mit einem Buchstaben (kein Satzzeichen, das ein Wortende anzeigt), b beginnt klein.
+            // A ends with a letter (no punctuation that indicates the end of a word), b starts in lower case.
             if !first.chars().next_back().is_some_and(char::is_alphabetic)
                 || !second.chars().next().is_some_and(char::is_lowercase)
             {
@@ -712,11 +716,11 @@ pub fn fragment_survey<'a>(verses: impl IntoIterator<Item = &'a str>) -> Fragmen
     survey
 }
 
-// ---- Getrennte Ziffern in Antworten -----------------------------------------------------------------
+// ---- Separated digits in answers --------------------------------------------------------------------
 
-/// Setzt Stellenangaben wieder zusammen, deren Ziffern in einer Antwort durch Leerraum getrennt sind
-/// („Mk 1 0,42–45“ statt „Mk 10,42–45“): Nur wenn das Ergebnis genau eine der Angaben in `labels` ist,
-/// wird ersetzt; sonst bleibt der Text, wie er ist.
+/// Puts references back together whose digits are separated by whitespace in an answer
+/// („Mk 1 0,42–45“ instead of „Mk 10,42–45“): only if the result is exactly one of the references in `labels`
+/// is it replaced; otherwise the text stays as it is.
 pub fn rejoin_split_refs(text: &str, labels: &[String]) -> String {
     let mut out = text.to_owned();
     for label in labels {
@@ -734,8 +738,8 @@ pub fn rejoin_split_refs(text: &str, labels: &[String]) -> String {
     out
 }
 
-/// Ab `start` den Text `tail` lesen und dabei Leerraum zwischen zwei Ziffern überspringen; `Some(Ende)` nur,
-/// wenn dabei mindestens ein Leerraum übersprungen wurde und danach keine weitere Ziffer folgt.
+/// Read the text `tail` from `start`, skipping whitespace between two digits; `Some(end)` only
+/// if at least one whitespace was skipped and no further digit follows after it.
 fn match_split(text: &str, start: usize, tail: &str) -> Option<usize> {
     let mut i = start;
     let mut skipped = false;

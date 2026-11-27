@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kleine Leser über Typst-Quelltext: Wo endet ein Raw-Text, ein Kommentar, eine Formel, ein
-//! `#`-Ausdruck, ein Inhaltsblock `[…]`? Alle Positionen sind Byte-Stellen in `&str` auf
-//! Zeichengrenzen. Ist etwas nicht geschlossen, reicht es bis zum Ende des Textes, und der
-//! [`Scanner`] merkt sich das (`open`); der Aufrufer macht daraus eine Insel. Die Schachtelung ist
-//! auf [`MAX_DEPTH`] begrenzt, damit ein bösartiger Text (`[[[[…`) den Stapel nicht sprengt.
+//! Small readers over Typst source text: where does a raw text, a comment, a formula, a
+//! `#` expression, a content block `[…]` end? All positions are byte positions in `&str` on
+//! character boundaries. If something is not closed, it reaches up to the end of the text, and the
+//! [`Scanner`] remembers that (`open`); the caller turns it into an island. The nesting is
+//! limited to [`MAX_DEPTH`], so that a malicious text (`[[[[…`) does not blow the stack.
 
-/// Tiefste Schachtelung von Klammern und Inhaltsblöcken, die noch gelesen wird.
+/// Deepest nesting of brackets and content blocks that is still read.
 pub(crate) const MAX_DEPTH: usize = 48;
 
-/// Schlüsselwörter, nach denen ein `#`-Ausdruck Code bis zum Zeilenende ist (`#let`, `#set` …).
+/// Keywords after which a `#` expression is code up to the end of the line (`#let`, `#set` …).
 const KEYWORDS: &[&str] =
     &["let", "set", "show", "import", "include", "if", "for", "while", "context", "return", "break", "continue"];
 
@@ -24,28 +24,28 @@ pub(crate) fn is_ident_continue(c: char) -> bool {
     c.is_alphanumeric() || c == '_' || c == '-'
 }
 
-/// Zeichen eines Labels `<…>` (wie in Typst).
+/// Characters of a label `<…>` (as in Typst).
 pub(crate) fn is_label_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '-' | ':' | '.')
 }
 
-/// Zeichen an Stelle `i` (falls vorhanden).
+/// Character at position `i` (if present).
 pub(crate) fn char_at(s: &str, i: usize) -> Option<char> {
     s.get(i..).and_then(|rest| rest.chars().next())
 }
 
-/// Stelle nach dem Zeichen an `i`.
+/// Position after the character at `i`.
 pub(crate) fn next_char(s: &str, i: usize) -> usize {
     i + char_at(s, i).map_or(1, char::len_utf8)
 }
 
-/// Steht vor Stelle `i` ein Linkanfang (`http:` bzw. `https:`)? Dann ist `//` kein Kommentar.
+/// Is there a link start (`http:` or `https:`) before position `i`? Then `//` is not a comment.
 pub(crate) fn after_scheme(s: &str, i: usize) -> bool {
     let before = &s[..i];
     before.ends_with("http:") || before.ends_with("https:")
 }
 
-/// Bezeichner ab `i`; Ende (exklusiv), `i` wenn dort keiner beginnt.
+/// Identifier from `i`; end (exclusive), `i` if none starts there.
 pub(crate) fn ident_end(s: &str, i: usize) -> usize {
     let mut j = i;
     while let Some(c) = char_at(s, j) {
@@ -57,9 +57,9 @@ pub(crate) fn ident_end(s: &str, i: usize) -> usize {
     j
 }
 
-/// Maskierung `\x` ab `i` (`s[i] == '\\'`): Ende. `\u{…}` reicht bis zur schließenden Klammer. Vor Leerraum
-/// (auch einem Zeilenende) ist `\` ein erzwungener Umbruch und nur das eine Zeichen (Runde 18b): Das
-/// Zeilenende dahinter beendet die Zeile weiterhin.
+/// Escape `\x` from `i` (`s[i] == '\\'`): end. `\u{…}` reaches up to the closing bracket. Before whitespace
+/// (also a line end) `\` is a forced break and only the one character (Round 18b): the
+/// line end after it still ends the line.
 pub(crate) fn skip_escape(s: &str, i: usize) -> usize {
     let j = i + 1;
     if char_at(s, j).is_some_and(char::is_whitespace) {
@@ -73,12 +73,12 @@ pub(crate) fn skip_escape(s: &str, i: usize) -> usize {
     if j >= s.len() { s.len() } else { next_char(s, j) }
 }
 
-/// Zeilenkommentar ab `i`: Ende (vor dem Zeilenende).
+/// Line comment from `i`: end (before the line end).
 pub(crate) fn skip_line_comment(s: &str, i: usize) -> usize {
     s[i..].find('\n').map_or(s.len(), |n| i + n)
 }
 
-/// Leser über einen Text; `open` wird wahr, sobald etwas nicht geschlossen ist.
+/// Reader over a text; `open` becomes true as soon as something is not closed.
 pub(crate) struct Scanner<'a> {
     pub s: &'a str,
     pub open: bool,
@@ -94,8 +94,8 @@ impl<'a> Scanner<'a> {
         self.s.len()
     }
 
-    /// Raw-Text ab `i` (Backticks): Ende. Zwei Backticks sind leerer Raw-Text, ab drei schließt
-    /// dieselbe Anzahl.
+    /// Raw text from `i` (backticks): end. Two backticks are empty raw text, from three on the
+    /// same number closes.
     pub fn raw(&mut self, i: usize) -> usize {
         let s = self.s;
         let run = s[i..].bytes().take_while(|&b| b == b'`').count();
@@ -109,7 +109,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    /// Blockkommentar `/* … */` ab `i` (geschachtelt): Ende.
+    /// Block comment `/* … */` from `i` (nested): end.
     pub fn block_comment(&mut self, i: usize) -> usize {
         let bytes = self.s.as_bytes();
         let mut depth = 0usize;
@@ -131,7 +131,7 @@ impl<'a> Scanner<'a> {
         self.unclosed()
     }
 
-    /// Formel `$…$` ab `i`: Ende.
+    /// Formula `$…$` from `i`: end.
     pub fn math(&mut self, i: usize) -> usize {
         let s = self.s;
         let mut j = i + 1;
@@ -145,7 +145,7 @@ impl<'a> Scanner<'a> {
         self.unclosed()
     }
 
-    /// String `"…"` ab `i`: Ende.
+    /// String `"…"` from `i`: end.
     pub fn string(&mut self, i: usize) -> usize {
         let s = self.s;
         let mut j = i + 1;
@@ -159,8 +159,8 @@ impl<'a> Scanner<'a> {
         self.unclosed()
     }
 
-    /// Code in Klammern `(…)` bzw. `{…}` ab `i`: Ende nach der schließenden Klammer. Eine fremde
-    /// schließende Klammer beendet das Lesen vor ihr (offen).
+    /// Code in brackets `(…)` or `{…}` from `i`: end after the closing bracket. A foreign
+    /// closing bracket ends the reading before it (open).
     pub fn code_group(&mut self, i: usize, depth: usize) -> usize {
         if depth > MAX_DEPTH {
             return self.unclosed();
@@ -188,7 +188,7 @@ impl<'a> Scanner<'a> {
         self.unclosed()
     }
 
-    /// Inhaltsblock `[…]` ab `i` (Markup, geschachtelt): Ende nach der schließenden Klammer.
+    /// Content block `[…]` from `i` (markup, nested): end after the closing bracket.
     pub fn content(&mut self, i: usize, depth: usize) -> usize {
         if depth > MAX_DEPTH {
             return self.unclosed();
@@ -211,8 +211,8 @@ impl<'a> Scanner<'a> {
         self.unclosed()
     }
 
-    /// Code nach einem Schlüsselwort (`#let …`, `#show …: it => […]`): bis zum Zeilenende außerhalb
-    /// von Klammern, bis `;` oder vor einer fremden schließenden Klammer.
+    /// Code after a keyword (`#let …`, `#show …: it => […]`): up to the line end outside
+    /// of brackets, up to `;` or before a foreign closing bracket.
     fn keyword_expr(&mut self, i: usize, depth: usize) -> usize {
         let s = self.s;
         let mut j = i;
@@ -232,9 +232,9 @@ impl<'a> Scanner<'a> {
         s.len()
     }
 
-    /// `#`-Ausdruck ab `i` (`s[i] == '#'`): Ende. Ein Name mit angehängten Aufrufen `(…)`,
-    /// Inhaltsblöcken `[…]` und Feldern `.name`; nach einem Schlüsselwort Code bis zum Zeilenende;
-    /// `#(…)`, `#{…}`, `#"…"`. Folgt dem `#` nichts davon, ist es nur das eine Zeichen.
+    /// `#` expression from `i` (`s[i] == '#'`): end. A name with attached calls `(…)`,
+    /// content blocks `[…]` and fields `.name`; after a keyword code up to the end of the line;
+    /// `#(…)`, `#{…}`, `#"…"`. If none of that follows the `#`, it is only the one character.
     pub fn hash(&mut self, i: usize, depth: usize) -> usize {
         if depth > MAX_DEPTH {
             return self.unclosed();
@@ -265,22 +265,22 @@ impl<'a> Scanner<'a> {
     }
 }
 
-/// Ende des geschlossenen Inhaltsblocks ab `i` in `s`, `None` wenn er nicht schließt.
+/// End of the closed content block from `i` in `s`, `None` if it does not close.
 pub(crate) fn closed_content(s: &str, i: usize) -> Option<usize> {
     let mut scanner = Scanner::new(s);
     let end = scanner.content(i, 0);
     (!scanner.open).then_some(end)
 }
 
-/// Ende der geschlossenen Klammer `(…)` ab `i` in `s`, `None` wenn sie nicht schließt.
+/// End of the closed bracket `(…)` from `i` in `s`, `None` if it does not close.
 pub(crate) fn closed_group(s: &str, i: usize) -> Option<usize> {
     let mut scanner = Scanner::new(s);
     let end = scanner.code_group(i, 0);
     (!scanner.open).then_some(end)
 }
 
-/// Stellen der Zeilenenden, die im Markup der obersten Ebene liegen (nicht in Raw-Text, Kommentaren,
-/// Formeln oder `#`-Ausdrücken): die „logischen Zeilen“ als Bereiche, jeweils mit Zeilenende.
+/// Positions of the line ends that lie in the markup of the top level (not in raw text, comments,
+/// formulas or `#` expressions): the "logical lines" as ranges, each with its line end.
 pub(crate) fn logical_lines(s: &str) -> Vec<(usize, usize)> {
     let mut scanner = Scanner::new(s);
     let mut lines = Vec::new();
@@ -308,8 +308,8 @@ pub(crate) fn logical_lines(s: &str) -> Vec<(usize, usize)> {
     lines
 }
 
-/// Anfang eines Kommentars in einer Überschriftszeile, genau wie `baruch_typst::heading_line` ihn
-/// sucht: Maskierungen und Inline-Raw zählen nicht, ebenso `//` hinter `http:`/`https:`.
+/// Start of a comment in a heading line, exactly as `baruch_typst::heading_line` looks for
+/// it: escapes and inline raw do not count, nor does `//` after `http:`/`https:`.
 pub(crate) fn heading_comment_start(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -329,25 +329,25 @@ pub(crate) fn heading_comment_start(text: &str) -> Option<usize> {
     None
 }
 
-/// Bildpfad einer Insel: das String-Literal im ersten Argument des ersten `image(`-Aufrufs, auch
-/// geschachtelt (`#figure(image("/bilder/haus.svg"), caption: […])`), außerhalb von Kommentaren,
-/// Raw-Text und Formeln. Ein berechneter Pfad (`image("a" + p)`) oder ein anderes erstes Argument
-/// ergibt `None`.
+/// Image path of an island: the string literal in the first argument of the first `image(` call, also
+/// nested (`#figure(image("/bilder/haus.svg"), caption: […])`), outside of comments,
+/// raw text and formulas. A computed path (`image("a" + p)`) or another first argument
+/// yields `None`.
 pub fn image_path(raw: &str) -> Option<String> {
     let mut found = Vec::new();
     find_image_markup(raw, 0, raw.len(), 0, &mut found, true);
     found.into_iter().next()?
 }
 
-/// Runde 18b: Bildpfade **aller** `image(`-Aufrufe einer Insel in Textreihenfolge (wie [`image_path`] je
-/// Aufruf; Aufrufe ohne String-Literal fehlen). Ein Block mit mehreren Bildern zeigt so alle.
+/// Round 18b: image paths of **all** `image(` calls of an island in text order (like [`image_path`] per
+/// call; calls without a string literal are missing). A block with several images thus shows all of them.
 pub fn image_paths(raw: &str) -> Vec<String> {
     let mut found = Vec::new();
     find_image_markup(raw, 0, raw.len(), 0, &mut found, false);
     found.into_iter().flatten().collect()
 }
 
-/// Wert eines String-Literals `"…"` (ganzer Text), Maskierungen aufgelöst; sonst `None`.
+/// Value of a string literal `"…"` (whole text), escapes resolved; otherwise `None`.
 pub(crate) fn string_value(literal: &str) -> Option<String> {
     let mut scanner = Scanner::new(literal);
     if !literal.starts_with('"') || scanner.string(0) != literal.len() || scanner.open {
@@ -356,7 +356,7 @@ pub(crate) fn string_value(literal: &str) -> Option<String> {
     unescape(&literal[1..literal.len() - 1])
 }
 
-/// Inhalt eines String-Literals ohne Anführungszeichen auflösen (`\n`, `\t`, `\r`, `\u{…}`, `\x` → `x`).
+/// Resolve the content of a string literal without quotation marks (`\n`, `\t`, `\r`, `\u{…}`, `\x` → `x`).
 fn unescape(inner: &str) -> Option<String> {
     let mut value = String::new();
     let mut chars = inner.chars();
@@ -380,8 +380,8 @@ fn unescape(inner: &str) -> Option<String> {
     Some(value)
 }
 
-/// Im Markup `s[from..to]` nach `#…`-Ausdrücken suchen und jeden `image(`-Aufruf in `found` sammeln
-/// (`None`: ohne String-Literal); mit `first` endet die Suche beim ersten. `true`, wenn sie enden soll.
+/// Search in the markup `s[from..to]` for `#…` expressions and collect every `image(` call in `found`
+/// (`None`: without string literal); with `first` the search ends at the first. `true` if it shall end.
 fn find_image_markup(
     s: &str,
     from: usize,
@@ -416,8 +416,8 @@ fn find_image_markup(
     false
 }
 
-/// Im Code `s[from..to]` (Argumente, Klammern) nach `image(` suchen; Inhaltsblöcke `[…]` sind wieder
-/// Markup. Wie [`find_image_markup`].
+/// Search in the code `s[from..to]` (arguments, brackets) for `image(`; content blocks `[…]` are
+/// markup again. Like [`find_image_markup`].
 fn find_image_code(
     s: &str,
     from: usize,
@@ -441,7 +441,7 @@ fn find_image_code(
             '/' if s[j..].starts_with("/*") => j = scanner.block_comment(j),
             '[' => {
                 let end = scanner.content(j, 0);
-                // Ohne die schließende Klammer, falls der Block geschlossen ist.
+                // Without the closing bracket, if the block is closed.
                 let inner_end = if s[..end].ends_with(']') && end > j + 1 { end - 1 } else { end };
                 if find_image_markup(s, j + 1, inner_end, depth + 1, found, first) {
                     return true;
@@ -465,7 +465,7 @@ fn find_image_code(
     false
 }
 
-/// String-Literal als ganzes erstes Argument ab `i` (hinter der öffnenden Klammer), aufgelöst.
+/// String literal as the whole first argument from `i` (after the opening bracket), resolved.
 fn string_argument(s: &str, i: usize) -> Option<String> {
     let start = i + (s[i..].len() - s[i..].trim_start().len());
     if !s[start..].starts_with('"') {

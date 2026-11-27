@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 19c (treffer): Reste der Stellen in `baruch-scripture` – „Mal“ als Buch oder Zahlwort, kurze
-//! Einleitungswörter zwischen Stelle und Zitat, Wortlaut ohne Leerraum (Trennreste im Modul), Unicode-Normalform
-//! und die Schätzung der Wortfragmente eines Moduls. Alle Texte frei erfunden.
+//! Round 19c (treffer): leftovers of the references in `baruch-scripture` – „Mal“ as a book or count word, short
+//! introductory words between reference and quotation, wording without whitespace (hyphenation leftovers in the
+//! module), Unicode normal form and the estimate of the word fragments of a module. All texts freely invented.
 
 use baruch_scripture::scan;
 use baruch_scripture::wording::{compare, fragment_survey, inline_quotes, quote_for};
@@ -45,7 +45,7 @@ fn mal_without_chapter_and_verse_stays_a_count_word() {
     );
 }
 
-// ---- Zitat-Bindeglied ----------------------------------------------------------------------------------
+// ---- Link between quotation and reference --------------------------------------------------------------
 
 #[test]
 fn short_introducing_words_between_reference_and_quote_are_allowed() {
@@ -85,7 +85,7 @@ fn long_text_between_reference_and_quote_still_means_no_quote() {
     );
 }
 
-// ---- Wortlaut ohne Leerraum ----------------------------------------------------------------------------
+// ---- Wording without whitespace ------------------------------------------------------------------------
 
 #[test]
 fn a_quote_that_differs_only_in_spacing_matches_with_the_spacing_flag() {
@@ -111,7 +111,8 @@ fn a_real_difference_stays_a_difference_even_without_spacing() {
     );
 }
 
-/// Runde 23a (Gutachten R19): Der Vergleich ohne Leerraum duldet nur zusätzliche Wortgrenzen des Moduls.
+/// Round 23a (review R19): the comparison without whitespace tolerates only additional word boundaries of the
+/// module.
 #[test]
 fn a_quote_with_its_own_word_boundaries_does_not_match_other_words_of_the_module() {
     let c = compare("die Bein", "Diebe in der Nacht.");
@@ -144,7 +145,7 @@ fn decomposed_umlauts_compare_like_composed_ones() {
     assert!(!c.spacing, "Begründung: der Treffer braucht keinen Vergleich ohne Leerraum: {c:?}");
 }
 
-// ---- Wortfragmente eines Moduls ------------------------------------------------------------------------
+// ---- Word fragments of a module ------------------------------------------------------------------------
 
 #[test]
 fn a_text_with_many_remnants_is_fragmented_and_a_clean_one_is_not() {

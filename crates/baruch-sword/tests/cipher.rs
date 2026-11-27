@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verschlüsselte SWORD-Module (R17c): nur selbst geschriebene Testmodule mit frei erfundenem Text, selbst mit
-//! Sapphire II verschlüsselt (`fixture::Fixture::enciphered`) und mit einem frei erfundenen Testschlüssel. Kein
-//! echtes oder fremdes Modul, kein geratener Schlüssel.
+//! Enciphered SWORD modules (R17c): only self-written test modules with freely invented text, enciphered
+//! independently with Sapphire II (`fixture::Fixture::enciphered`) and with a freely invented test key. No
+//! real or foreign module, no guessed key.
 
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ use baruch_scripture::versification::german;
 use baruch_sword::fixture::{Block, Compression, Fixture, Layout, write};
 use baruch_sword::{BibleError, open, open_commentary_with_key, open_with_key, scan};
 
-/// Frei erfundener Testschlüssel.
+/// Freely invented test key.
 const KEY: &str = "Kiesel-Amsel-1951";
 
 fn sealed(layout: Layout) -> Fixture {
@@ -78,7 +78,7 @@ fn the_right_key_unlocks_every_layout_and_compression_without_touching_the_conf(
 
 #[test]
 fn the_stored_bytes_are_really_enciphered() {
-    // Ohne Verschlüsselung stünde der Text bei RawText im Klartext in der Datei; mit Schlüssel nicht.
+    // Without encipherment the text would be in plain text in the file with RawText; with a key it is not.
     let (_dir, root) = written(&sealed(Layout::RawText));
     let data = std::fs::read(root.join("modules/texts/rawtext/siegel/ot")).unwrap();
     let plain = "Der Kiesel lag versiegelt am Bach.".as_bytes();
@@ -107,9 +107,9 @@ fn a_wrong_key_fails_the_probe_instead_of_giving_nonsense() {
     }
 }
 
-/// Nachbesserung Runde 17: RawText in Latin-1 (SWORD-Vorgabe ohne `Encoding`, gelesen als cp1252) kennt kein
-/// Ersatzzeichen; vorher prüfte das Probelesen dann nur auf NUL im ersten Eintrag, und ein falscher Schlüssel ging
-/// oft als „gültig“ durch. Viele falsche Schlüssel: Keiner darf das Probelesen bestehen.
+/// Follow-up fix Round 17: RawText in Latin-1 (SWORD default without `Encoding`, read as cp1252) knows no
+/// replacement character; before, the trial read then checked only for NUL in the first entry, and a wrong key
+/// often passed as "valid". Many wrong keys: none may pass the trial read.
 #[test]
 fn a_wrong_key_fails_the_probe_of_an_unpacked_latin1_module() {
     let mut f = Fixture::new("Siegel", Layout::RawText, german()).latin1().enciphered(KEY);
@@ -153,7 +153,7 @@ fn an_unenciphered_module_ignores_a_key_and_a_key_in_the_conf_unlocks() {
     let bible = open_with_key(info, Some(KEY)).unwrap();
     assert_eq!(bible.verse("Gen", 1, 1).unwrap().as_deref(), Some("Offener Vers."), "Schlüssel übergangen");
 
-    // Hat ein anderes Programm den Schlüssel schon in die conf geschrieben, liest Baruch ohne Schlüsselbund.
+    // If another program has already written the key into the conf, Baruch reads without the keyring.
     let (_dir2, root2) = written(&sealed(Layout::ZText(Block::Verse)));
     let conf = root2.join("mods.d/siegel.conf");
     let text = std::fs::read_to_string(&conf).unwrap();

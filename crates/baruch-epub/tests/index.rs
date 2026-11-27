@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31b (register-satz): Register und Glossar im EPUB – `text/glossary.xhtml` (glossterm/glossdef),
-//! `text/index-{slug}.xhtml` mit Links auf die Anker der Marken, erste Erwähnung als Link ins Glossar. Die Abschnitte
-//! kommen wie im Server aus der Projektion (`Projector`, dort über `Store::export_map`). Testwerk frei erfunden.
+//! Round 31b (register-satz): index and glossary in the EPUB – `text/glossary.xhtml` (glossterm/glossdef),
+//! `text/index-{slug}.xhtml` with links to the anchors of the marks, first mention as a link into the glossary.
+//! The sections come from the projection as in the server (`Projector`, there through `Store::export_map`). Test
+//! work freely invented.
 
 use baruch_epub::check::{Severity, check_structure, find_xmllint};
 use baruch_epub::{EpubBook, EpubInput, ItemKind, build, package, sample};
@@ -30,7 +31,7 @@ fn back(glossary_page: Option<GlossaryPosition>) -> BackMatter {
     }
 }
 
-/// Testwerk mit Marken in Kapitel 1 und 2 (eine in einer Fußnote) und einer Bibelstelle, projiziert wie im Export.
+/// Test work with marks in chapters 1 and 2 (one in a footnote) and a Bible reference, projected as in the export.
 fn input(glossary_page: Option<GlossaryPosition>) -> EpubInput {
     let mut input = sample::input();
     let lehm = mark_source(&IndexMark::new("stichwort", "Lehm"));
@@ -116,7 +117,7 @@ fn register_pages_link_to_the_anchors_of_the_marks() {
     let index = text(&book, "text/index-stichwort.xhtml");
     assert!(index.contains("epub:type=\"index\""), "epub:type index: {index}");
     let [_, ch1, _, ch2, _] = sample::KEYS;
-    // Lehm: in einer Fußnote von Kapitel 1 (Popup: dieselbe Datei) und im Text von Kapitel 2.
+    // Lehm: in a footnote of chapter 1 (popup: the same file) and in the text of chapter 2.
     let lehm_start = index.find("index-term\">Lehm</span>").expect("Lehm");
     let lehm = &index[lehm_start..index[lehm_start..].find("</li>").unwrap() + lehm_start];
     assert!(

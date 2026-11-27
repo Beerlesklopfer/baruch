@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Querverweise im Satz (Runde 30a, Vertrag §3.3): Die Sprungmarken `<kN>` aus `baruch_typst::xref` tragen
-//! `#link(<kN>)` und `counter(page).at(<kN>)` – an einer `=`-Überschrift (Label am Zeilenende) und an Überschriften mit
-//! eigenem Label (Teil mit Teil-Seite, „ohne Nummer“, Label des Menschen) über die Ankerzeile. Typst prüft selbst
-//! (`#context assert…`), dass jede Sprungmarke auf der Seite ihrer Überschrift liegt. Alle Texte frei erfunden.
+//! Cross-references in the typeset result (Round 30a, contract §3.3): the anchors `<kN>` from
+//! `baruch_typst::xref` carry `#link(<kN>)` and `counter(page).at(<kN>)` – on a `=` heading (label at the end of
+//! the line) and on headings with a label of their own (part with part page, "without number", label of the
+//! human) through the anchor line. Typst checks itself (`#context assert…`) that every anchor lies on the page
+//! of its heading. All texts freely invented.
 
 use baruch_render::{Rendered, Severity, Source, compile, compile_pdf};
 use baruch_typst::xref::{label_section, part_anchors_for_typesetting, xref_snippet};
@@ -14,7 +15,7 @@ fn errors(rendered: &Rendered) -> Vec<String> {
     rendered.diagnostics.iter().filter(|d| d.severity == Severity::Error).map(|d| d.message.clone()).collect()
 }
 
-/// Typst-Prüfung: Die Sprungmarke `<kN>` liegt auf derselben Seite wie die Überschrift mit dem Titel `title`.
+/// Typst check: the anchor `<kN>` lies on the same page as the heading with the title `title`.
 fn same_page(key: i64, title: &str) -> String {
     format!(
         "#context assert.eq(locate(<k{key}>).page(), query(heading).filter(h => h.body == [{title}]).first().location().page(), \
@@ -22,8 +23,8 @@ fn same_page(key: i64, title: &str) -> String {
     )
 }
 
-/// Ein Werk aus erfundenen Abschnitten, jeder mit Sprungmarke wie im Export; dahinter Verweise mit Seitenzahl und
-/// die Seitenprüfungen. `rule`: Regel für die Teil-Seite (wie im Satz) oder leer (wie im Export).
+/// A work of invented sections, each with an anchor as in the export; after that references with page number
+/// and the page checks. `rule`: rule for the part page (as in the typesetting) or empty (as in the export).
 fn book(rule: &str) -> String {
     let sections = [
         (1, format!("{}Ein Wort vorab.\n\n", unnumbered_line(1, "Vorwort"))),
@@ -61,8 +62,8 @@ fn every_key_label_sits_on_the_page_of_its_heading_in_the_export_form() {
 
 #[test]
 fn the_part_anchor_stays_on_the_part_page_with_the_typesetting_rule() {
-    // Satz: Teil allein auf einer rechten Seite, danach weicher Umbruch. Die Ankerzeile steht hinter der
-    // Teil-Überschrift; liegt sie dennoch auf deren Seite, zeigt „S. n“ auf die Teil-Seite.
+    // Typesetting: part alone on a right page, then a weak break. The anchor line comes after the
+    // part heading; if it nevertheless lies on its page, "S. n" points to the part page.
     let rule = part_page_rule(&["I".to_owned()]);
     let export = book(&rule);
     let rendered = compile(&Source { main: export.clone(), files: vec![] });
@@ -71,7 +72,8 @@ fn the_part_anchor_stays_on_the_part_page_with_the_typesetting_rule() {
         vec!["equality assertion failed: Sprungmarke k2 nicht auf der Seite von Vom Leuchtturm".to_owned()],
         "Beleg: hinter der Teil-Zeile landet die Ankerzeile nach dem Umbruch der Teil-Regel auf der Folgeseite"
     );
-    // Darum wandert die Ankerzeile im Satz vor die Teil-Zeile, mit eigenem weichem Umbruch auf eine rechte Seite.
+    // Therefore the anchor line moves before the part line in the typesetting, with a weak break of its own onto a
+    // right page.
     let typeset = part_anchors_for_typesetting(&export).into_owned();
     assert_ne!(typeset, export, "die Satz-Form ändert die Quelle");
     assert_eq!(typeset.lines().count(), export.lines().count(), "Zeilenzahl bleibt (Meldungen behalten ihre Zeile)");
@@ -81,7 +83,7 @@ fn the_part_anchor_stays_on_the_part_page_with_the_typesetting_rule() {
         Vec::<String>::new(),
         "Satz mit Teil-Seite: Sprungmarken auf der Seite ihrer Überschrift"
     );
-    // Vergleich: die Export-Form ohne die Seitenprüfung des Teils (Anker nach dem Umbruch, kein zusätzlicher Umbruch).
+    // Comparison: the export form without the page check of the part (anchor after the break, no additional break).
     let plain = compile(&Source { main: export.replace(&same_page(2, "Vom Leuchtturm"), ""), files: vec![] });
     assert_eq!(errors(&plain), Vec::<String>::new(), "Vergleichssatz fehlerfrei");
     assert_eq!(

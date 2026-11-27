@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abbruch eines Typst-Laufs (Runde 18a): [`baruch_render::compile_cancellable`] mit [`baruch_render::Cancel`] an
-//! frei erfundenen, absichtlich langsamen Quellen. Gemessen wird, was wirklich unterbrochen wird; die Zahlen
-//! stehen mit `--nocapture` in der Ausgabe (`Messung …`) und in `docs/Architektur.md` („Runde 18a“).
+//! Cancellation of a Typst run (Round 18a): [`baruch_render::compile_cancellable`] with [`baruch_render::Cancel`]
+//! on freely invented, deliberately slow sources. What is measured is what is really interrupted; the numbers
+//! are in the output with `--nocapture` (`Messung …`) and in `docs/Architektur.md` („Runde 18a“).
 //!
-//! Zusichern lässt sich hart nur, was nicht von der Last des Rechners abhängt: Ein abgebrochener Lauf liefert
-//! `None` (nie halbe Seiten), ein Abbruch vor dem Lauf kehrt sofort zurück, und ein späterer Lauf derselben Quelle
-//! setzt vollständig (der Abbruch vergiftet keine Zwischenergebnisse von Typst).
+//! Only what does not depend on the load of the machine can be asserted firmly: a cancelled run delivers
+//! `None` (never half pages), a cancellation before the run returns immediately, and a later run of the same
+//! source typesets completely (the cancellation poisons no intermediate results of Typst).
 
 use std::thread;
 use std::time::{Duration, Instant};
 
 use baruch_render::{Cancel, Source, compile, compile_cancellable};
 
-/// Langer Fließtext aus erfundenen Wörtern; `tag` macht den Text je Lauf verschieden, damit kein Lauf Satz-
-/// Ergebnisse eines anderen aus dem Speicher von Typst wiederverwendet.
+/// Long running text of invented words; `tag` makes the text different per run, so that no run reuses
+/// typesetting results of another from the memory of Typst.
 fn long_text(tag: &str, paragraphs: usize) -> Source {
     let mut main = String::from("#set page(width: 10cm, height: 14cm)\n#set text(lang: \"de\", size: 9pt)\n");
     main.push_str("#set par(justify: true)\n= Langer Text\n");
@@ -26,13 +26,13 @@ fn long_text(tag: &str, paragraphs: usize) -> Source {
     Source { main, files: Vec::new() }
 }
 
-/// Lange Auswertungsschleife der Vorlage (kein Satz, nur Rechnen).
+/// Long evaluation loop of the template (no typesetting, only computing).
 fn long_loop(tag: &str, rounds: u64) -> Source {
     let main = format!("// {tag}\n#let n = 0\n#for i in range({rounds}) {{ n += i }}\n= Schleife\nErgebnis #n.\n");
     Source { main, files: Vec::new() }
 }
 
-/// `compile_cancellable` in einem eigenen Faden, Abbruch nach `after`; (Ergebnis da?, Dauer ab Start).
+/// `compile_cancellable` in a thread of its own, cancellation after `after`; (result there?, duration from start).
 fn cancel_after(source: Source, after: Duration) -> (bool, Duration) {
     let cancel = Cancel::new();
     let run = cancel.clone();
@@ -74,8 +74,8 @@ fn without_cancel_the_cancellable_run_equals_the_plain_one() {
     assert!(plain.page_lines[0].contains(&4), "auf Seite 1 steht die Überschrift aus Zeile 4: {:?}", plain.page_lines);
 }
 
-/// Langer Satz: Abbruch nach 200 ms. Typst setzt zu Ende; gespart wird nur das Schreiben der SVG-Seiten (Prüfung
-/// vor jeder Seite). Das Ergebnis ist immer `None`.
+/// Long typesetting: cancellation after 200 ms. Typst typesets to the end; only the writing of the SVG pages is
+/// saved (check before every page). The result is always `None`.
 #[test]
 fn cancelling_a_long_layout_returns_none_and_a_later_run_is_complete() {
     let paragraphs = 500;
@@ -93,11 +93,11 @@ fn cancelling_a_long_layout_returns_none_and_a_later_run_is_complete() {
         full_time.as_millis()
     );
 
-    // Dieselbe Quelle wie der abgebrochene Lauf: Zwischenergebnisse von Typst aus dem Abbruch dürfen nichts verderben.
+    // The same source as the cancelled run: intermediate results of Typst from the cancellation must spoil nothing.
     let again = compile(&long_text("abbr", paragraphs));
     assert!(!again.has_errors(), "keine Folgefehler aus dem Abbruch: {:?}", again.diagnostics);
     assert_eq!(again.page_lines.len(), again.pages.len(), "alle Seiten geschrieben, je Seite eine Zeilenliste");
-    // Vier Kopfzeilen, dann je Absatz eine Textzeile und eine Leerzeile: der letzte Absatz steht in Zeile 5 + 2·499.
+    // Four header lines, then per paragraph one text line and one empty line: the last paragraph is in line 5 + 2·499.
     let last_line = 5 + 2 * (paragraphs - 1);
     assert!(
         again.page_lines.last().is_some_and(|lines| lines.contains(&last_line)),
@@ -106,7 +106,7 @@ fn cancelling_a_long_layout_returns_none_and_a_later_run_is_complete() {
     assert_eq!(full.page_lines.len(), full.pages.len(), "auch der volle Lauf schreibt jede Seite");
 }
 
-/// Auswertungsschleife: Typst lässt sich darin nicht unterbrechen – der Abbruch wirkt erst, wenn sie durch ist.
+/// Evaluation loop: Typst cannot be interrupted in it – the cancellation takes effect only when it is through.
 #[test]
 fn an_evaluation_loop_is_not_interrupted_but_still_yields_none() {
     let rounds = 3_000_000;

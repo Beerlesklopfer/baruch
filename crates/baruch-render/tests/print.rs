@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Druckprüfung (Vertrag Runde 11, Abschnitt 3): Rasterbilder unter 300 dpi in ihrer gesetzten Größe
-//! stehen in `Rendered::print` bzw. `Pdf::print`, nicht in `diagnostics`. Testbilder entstehen im Test
-//! (erfundenes Muster in der Größe 832 × 1216 Pixel wie ein typisches erzeugtes Bild).
+//! Print check (contract Round 11, section 3): raster images below 300 dpi in their typeset size
+//! are in `Rendered::print` or `Pdf::print`, not in `diagnostics`. Test images are created in the test
+//! (invented pattern in the size 832 × 1216 pixels like a typical generated image).
 
 use baruch_render::{MIN_DPI, Source, check_raster, compile, compile_pdf};
 
-/// Kleines PNG (Graustufen, ungepackte Deflate-Blöcke) aus einer Funktion je Pixel.
+/// Small PNG (greyscale, unpacked deflate blocks) from a function per pixel.
 fn png(width: u32, height: u32) -> Vec<u8> {
     fn crc32(bytes: &[u8]) -> u32 {
         let mut crc = 0xffff_ffffu32;
@@ -55,7 +55,7 @@ fn png(width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// A5 ohne Rand, das Bild füllt die Seite.
+/// A5 without margin, the image fills the page.
 fn full_page(path: &str, bytes: Vec<u8>) -> Source {
     let main = format!(
         "#set page(paper: \"a5\", margin: 0pt)\n#image(\"{path}\", width: 100%, height: 100%, fit: \"cover\")\n"
@@ -96,7 +96,7 @@ fn a_generated_picture_on_a_full_a5_page_is_too_coarse_for_print() {
 
 #[test]
 fn a_large_enough_picture_and_an_svg_give_no_warning() {
-    // 2000 × 1400 Pixel auf 6 cm Breite: über 800 dpi.
+    // 2000 × 1400 pixels on 6 cm width: above 800 dpi.
     let main = "#set page(paper: \"a5\")\n#image(\"bilder/gross.png\", width: 6cm)\n#image(\"bilder/linie.svg\", width: 100%)\n";
     let svg =
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"2\"><rect width=\"4\" height=\"2\"/></svg>";

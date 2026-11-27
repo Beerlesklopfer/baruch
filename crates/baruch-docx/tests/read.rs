@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Leser, Auflösung und Typst-Ausgabe an einer im Test gebauten, frei erfundenen Word-Datei (Runde 32,
-//! docx_import). Jede Zusicherung nennt ihren Grund.
+//! Reader, resolution and Typst output on a freely invented Word file built in the test (Round 32,
+//! docx_import). Every assertion names its reason.
 
 #[path = "data/import/mod.rs"]
 mod data;
@@ -27,7 +27,7 @@ fn codes(warnings: &[baruch_docx::DocxWarning]) -> Vec<&str> {
     warnings.iter().map(|w| w.code.as_str()).collect()
 }
 
-/// Enthält der Stand noch eine verfolgte Änderung oder eine Absatzmarke?
+/// Does the state still contain a tracked change or a paragraph mark?
 fn has_tracking(blocks: &[Block]) -> bool {
     fn inline(content: &[Inline]) -> bool {
         content.iter().any(|i| match i {

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Argumente der Inseln `#figure(…)`, `#image(…)` und `#table(…)` lesen – nur so weit, wie es für Abbildung und
-//! Tabelle nötig ist. Was nicht sicher verstanden wird, bleibt Sache des Aufrufers (Insel).
+//! Read the arguments of the islands `#figure(…)`, `#image(…)` and `#table(…)` – only as far as needed for figure
+//! and table. What is not understood with certainty stays the caller's business (island).
 
-/// Ein Argument eines Aufrufs: benannt (`name: wert`) oder nach Stelle.
+/// An argument of a call: named (`name: value`) or positional.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Arg<'a> {
     pub name: Option<&'a str>,
     pub value: &'a str,
 }
 
-/// Ende der Klammer, die bei `open` beginnt (Index hinter der schließenden Klammer); Zeichenketten (außer im
-/// Inhaltsblock `[…]`, wo `"` Text ist) und geschachtelte Klammern werden übersprungen. `None` = nicht geschlossen.
+/// End of the bracket that starts at `open` (index after the closing bracket); strings (except in the content
+/// block `[…]`, where `"` is text) and nested brackets are skipped. `None` = not closed.
 fn closing(text: &str, open: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut stack: Vec<u8> = Vec::new();
@@ -40,7 +40,7 @@ fn closing(text: &str, open: usize) -> Option<usize> {
     None
 }
 
-/// Index hinter dem schließenden Anführungszeichen der Zeichenkette, die bei `open` beginnt.
+/// Index after the closing quotation mark of the string that starts at `open`.
 fn string_end(text: &str, open: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut i = open + 1;
@@ -55,8 +55,8 @@ fn string_end(text: &str, open: usize) -> Option<usize> {
     None
 }
 
-/// Inhalt der Klammer eines Aufrufs `prefix…)`, wenn der Aufruf den ganzen Text ausmacht (ein Label `<…>`
-/// dahinter ist erlaubt). `prefix` endet mit der öffnenden Klammer.
+/// Content of the bracket of a call `prefix…)`, if the call makes up the whole text (a label `<…>` after it is
+/// allowed). `prefix` ends with the opening bracket.
 fn call_body<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
     let text = text.trim();
     if !text.starts_with(prefix) {
@@ -72,7 +72,7 @@ fn call_body<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
     (rest.is_empty() || label).then(|| &text[open + 1..end - 1])
 }
 
-/// Argumente an den Kommas der obersten Ebene trennen; `None` bei unausgeglichenen Klammern.
+/// Split arguments at the commas of the top level; `None` for unbalanced brackets.
 pub(super) fn split(body: &str) -> Option<Vec<Arg<'_>>> {
     let bytes = body.as_bytes();
     let mut pieces: Vec<&str> = Vec::new();
@@ -111,7 +111,7 @@ fn arg(piece: &str) -> Arg<'_> {
     Arg { name: None, value: piece }
 }
 
-/// Wert einer Zeichenkette `"…"` mit aufgelösten Maskierungen.
+/// Value of a string `"…"` with resolved escapes.
 fn string_value(literal: &str) -> Option<String> {
     let literal = literal.trim();
     if literal.len() < 2 || !literal.starts_with('"') || string_end(literal, 0) != Some(literal.len()) {
@@ -134,17 +134,17 @@ fn string_value(literal: &str) -> Option<String> {
     Some(out)
 }
 
-/// Inhalt eines Inhaltsblocks `[…]` (der ganze Wert), ohne die Klammern.
+/// Content of a content block `[…]` (the whole value), without the brackets.
 fn content_value(value: &str) -> Option<&str> {
     let value = value.trim();
     (value.starts_with('[') && closing(value, 0) == Some(value.len())).then(|| &value[1..value.len() - 1])
 }
 
-/// Was sich aus einer Abbildung lesen lässt.
+/// What can be read from a figure.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct Figure {
     pub alt: Option<String>,
-    /// Bildunterschrift als Typst-Markup.
+    /// Caption as Typst markup.
     pub caption: Option<String>,
 }
 
@@ -152,7 +152,7 @@ fn image_alt(body: &str) -> Option<String> {
     split(body)?.iter().find(|a| a.name == Some("alt")).and_then(|a| string_value(a.value))
 }
 
-/// Alternativtext und Bildunterschrift aus `#figure(image("…", alt: "…"), caption: […])` bzw.
+/// Alternative text and caption from `#figure(image("…", alt: "…"), caption: […])` or
 /// `#image("…", alt: "…")`.
 pub(super) fn figure(raw: &str) -> Figure {
     let mut figure = Figure::default();
@@ -174,12 +174,12 @@ pub(super) fn figure(raw: &str) -> Figure {
     figure
 }
 
-/// Eine verstandene Tabelle: Zeilen aus Zellen (Typst-Markup je Zelle).
+/// An understood table: rows of cells (Typst markup per cell).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct Table {
     pub header_rows: usize,
     pub rows: Vec<Vec<String>>,
-    /// Gestaltung (benannte Argumente außer `columns`, Linien) entfiel.
+    /// Styling (named arguments except `columns`, lines) was dropped.
     pub simplified: bool,
 }
 
@@ -194,8 +194,8 @@ fn column_count(value: &str) -> Option<usize> {
     None
 }
 
-/// `#table(columns: …, […], …)`; `None`, wenn etwas anderes als Zellen mit Inhalt, `table.header(…)` und
-/// Linien darin steht, die Spaltenzahl unklar ist oder die Kopfzellen nicht aufgehen.
+/// `#table(columns: …, […], …)`; `None` if it contains anything other than cells with content, `table.header(…)`
+/// and lines, the number of columns is unclear or the header cells do not add up.
 pub(super) fn table(raw: &str) -> Option<Table> {
     let args = split(call_body(raw, "#table(")?)?;
     let mut table = Table::default();

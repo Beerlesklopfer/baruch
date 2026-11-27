@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `baruch_render::compile_pdf` (Vertrag Runde 11, Abschnitt 3): dieselbe Welt wie `compile`, gültiges
-//! PDF mit eingebetteter Schrift und Bild, gleiche Seitenzahl, bei Fehlern keine Bytes. Werke und
-//! Bilder frei erfunden; das PNG entsteht im Test.
+//! `baruch_render::compile_pdf` (contract Round 11, section 3): the same world as `compile`, valid
+//! PDF with embedded font and image, same page count, no bytes on errors. Works and
+//! images freely invented; the PNG is created in the test.
 
 use baruch_render::{Severity, Source, compile, compile_pdf};
 
-/// Kleines PNG (Graustufen, ungepackte Deflate-Blöcke) aus einer Funktion je Pixel.
+/// Small PNG (greyscale, unpacked deflate blocks) from a function per pixel.
 fn png(width: u32, height: u32) -> Vec<u8> {
     fn crc32(bytes: &[u8]) -> u32 {
         let mut crc = 0xffff_ffffu32;
@@ -55,8 +55,8 @@ fn png(width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// Wie oft `name` mit dem Wert `value` vorkommt (`/Type /Page` bzw. kompakt `/Type/Page`), ohne längere
-/// Namen mitzuzählen (`/Pages`).
+/// How often `name` occurs with the value `value` (`/Type /Page` or compact `/Type/Page`), without counting
+/// longer names (`/Pages`).
 fn entries(pdf: &[u8], name: &str, value: &str) -> usize {
     let mut count = 0;
     let mut at = 0;
@@ -74,7 +74,7 @@ fn entries(pdf: &[u8], name: &str, value: &str) -> usize {
     count
 }
 
-/// Zahl der Seitenobjekte (`/Type /Page`, nicht `/Pages`).
+/// Number of page objects (`/Type /Page`, not `/Pages`).
 fn page_objects(pdf: &[u8]) -> usize {
     entries(pdf, "/Type", "/Page")
 }
@@ -83,7 +83,7 @@ fn contains(pdf: &[u8], text: &str) -> bool {
     pdf.windows(text.len()).any(|w| w == text.as_bytes())
 }
 
-/// Erfundenes Werk: drei Kapitel mit Seitenumbruch, eins mit Bild.
+/// Invented work: three chapters with page break, one with an image.
 fn book(with_image: bool) -> Source {
     let figure = if with_image { "#figure(image(\"bilder/beet.png\", width: 4cm), caption: [Das Beet])\n" } else { "" };
     let main = format!(

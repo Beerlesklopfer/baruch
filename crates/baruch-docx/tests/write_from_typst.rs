@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `from_typst` (Vertrag Runde 32 §3.4): die im Werk üblichen Formen werden Blöcke des Modells; was Word nicht
-//! abbilden kann, geht als Typst-Insel mit wörtlichem Quelltext und Warnung mit. Alle Texte sind frei erfunden.
+//! `from_typst` (contract Round 32 §3.4): the forms usual in the work become blocks of the model; what Word cannot
+//! represent travels along as a Typst island with verbatim source text and a warning. All texts are freely invented.
 
 use baruch_docx::from_typst::{FromTypst, WARN_IMAGE_MISSING, WARN_ISLAND, WARN_TABLE_SIMPLIFIED, from_typst};
 use baruch_docx::{Block, Inline, Marks};
 
-/// Liste als (geordnet, erste Nummer, Punkte mit Tiefe und Inhalt).
+/// List as (ordered, first number, items with depth and content).
 type ListShape = (bool, u64, Vec<(u8, Vec<Inline>)>);
 
 fn text(text: &str) -> Inline {
@@ -258,7 +258,8 @@ fn unknown_things_become_islands_with_literal_source_and_a_warning() {
 
 #[test]
 fn text_is_never_lost() {
-    // Jedes Wort des Abschnitts findet sich im Ergebnis wieder: als Text, als Sichtbares oder im Quelltext einer Insel.
+    // Every word of the section is found again in the result: as text, as visible part or in the source text of an
+    // island.
     let body = "= Ernte\n\nKürbis und *Mangold*#footnote[Winterhart.] wachsen.\n\n#szene[Abend im Garten.\n\nDie Amsel singt.]\n\n\
                 - Lauch\n\n#quote(block: true)[Geduld.]\n\n#table(columns: 1, [Rübe])\n\n#unbekannt(wert: \"Sellerie\")\n";
     let result = read(body);

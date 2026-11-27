@@ -1,42 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vorschlag als Änderungsverfolgung über die aktuelle Fassung legen (Aufgabe docx_export, Vertrag Runde 32 §3).
+//! Lay a proposal as tracked changes over the current revision (task docx_export, contract Round 32 §3).
 //!
-//! Zusage (Vertrag): Der Stand „Original“ des Ergebnisses entspricht `current`, der Stand „Final“ `proposed`.
+//! Promise (contract): the state "Original" of the result corresponds to `current`, the state "Final" to `proposed`.
 //!
-//! Vorgehen:
-//! 1. Blöcke ausrichten: gleiche Blöcke bleiben ohne Marke stehen ([`lcs`]).
-//! 2. In jeder Lücke werden ähnliche Blöcke gleicher Art einander zugeordnet und **wortweise** verglichen
-//!    (Absatz, Überschrift, Teil; Zitat, Liste, Tabelle gleicher Größe und Abbildung desselben Bildes je Bestandteil).
-//!    Ersetzt genau ein Block genau einen gleicher Art, gilt das immer als Änderung an Ort und Stelle.
-//! 3. Was übrig bleibt, ist ganz neu oder entfällt ganz: der Inhalt steht in [`Inline::Tracked`], die Absatzmarke
-//!    trägt `mark`.
+//! Procedure:
+//! 1. Align blocks: equal blocks stay without a mark ([`lcs`]).
+//! 2. In every gap, similar blocks of the same kind are assigned to each other and compared **word by word**
+//!    (paragraph, heading, part; quote, list, table of the same size and figure of the same image per component).
+//!    If exactly one block replaces exactly one of the same kind, that always counts as a change in place.
+//! 3. What remains is entirely new or dropped entirely: the content is in [`Inline::Tracked`], the paragraph mark
+//!    carries `mark`.
 //!
-//! Grenzen des Modells (ehrlich, siehe `docs/r32/docx_export.md`):
-//! - Eine ganz neue oder entfallene **Abbildung** wird ein Absatz mit dem Bild als verfolgter Änderung und ein Absatz
-//!   mit der Unterschrift; eine **Typst-Insel** ein Absatz mit der Insel im Text – so verschwinden sie im jeweils
-//!   anderen Stand wirklich.
-//! - In einer ganz neuen oder entfallenen **Tabelle** ist der Inhalt aller Zellen verfolgt; die leere Tabelle selbst
-//!   bleibt in beiden Ständen stehen (das Modell kennt keine verfolgte Tabellenzeile).
-//! - **Seitenumbrüche** werden nicht verfolgt: Im Ergebnis stehen die des Vorschlags.
-//! - Die erste Nummer einer Liste, die Kopfzeilen einer Tabelle und der Alternativtext kommen aus dem Vorschlag.
+//! Limits of the model (honest, see `docs/r32/docx_export.md`):
+//! - An entirely new or dropped **figure** becomes a paragraph with the image as a tracked change and a paragraph
+//!   with the caption; a **Typst island** a paragraph with the island in the text – that way they really disappear
+//!   in the respective other state.
+//! - In an entirely new or dropped **table** the content of all cells is tracked; the empty table itself stays in
+//!   both states (the model knows no tracked table row).
+//! - **Page breaks** are not tracked: the result has those of the proposal.
+//! - The first number of a list, the header rows of a table and the alternative text come from the proposal.
 
 use std::collections::HashMap;
 
 use crate::from_typst::merge;
 use crate::{Block, Change, ChangeKind, Inline, ListItem};
 
-/// Größte Tabelle der dynamischen Programmierung (Zellen); darüber gilt alles als geändert.
+/// Largest table of the dynamic programming (cells); above that everything counts as changed.
 const MAX_CELLS: usize = 6_000_000;
-/// Mindestähnlichkeit (Anteil gemeinsamer Wörter, in Tausendsteln), ab der zwei Blöcke wortweise verglichen werden.
+/// Minimum similarity (share of common words, in thousandths) from which two blocks are compared word by word.
 const MIN_SIMILARITY: u32 = 350;
 
-/// Richtet die Blöcke von `current` und `proposed` aus und markiert die Unterschiede mit `change` (Bearbeiter und
-/// Datum; die Art je Stelle setzt die Funktion selbst).
+/// Aligns the blocks of `current` and `proposed` and marks the differences with `change` (editor and date; the
+/// kind per place is set by the function itself).
 pub fn track_changes(current: &[Block], proposed: &[Block], change: &Change) -> Vec<Block> {
     Tracker { author: &change.author, date: &change.date }.blocks(current, proposed)
 }
 
-/// Schritt einer Ausrichtung: in beiden Folgen gleich, nur in der ersten, nur in der zweiten.
+/// Step of an alignment: equal in both sequences, only in the first, only in the second.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     Both(usize, usize),
@@ -44,8 +44,8 @@ enum Step {
     Right(usize),
 }
 
-/// Längste gemeinsame Teilfolge als Schritte in Lesereihenfolge. Gemeinsamer Anfang und Schluss werden vorab
-/// abgetrennt; ist der Rest zu groß für die Tabelle, gilt er als ganz verschieden.
+/// Longest common subsequence as steps in reading order. Common beginning and end are split off beforehand; if
+/// the rest is too large for the table, it counts as entirely different.
 fn lcs<T: PartialEq>(a: &[T], b: &[T]) -> Vec<Step> {
     let prefix = a.iter().zip(b).take_while(|(x, y)| x == y).count();
     let suffix = a[prefix..].iter().rev().zip(b[prefix..].iter().rev()).take_while(|(x, y)| x == y).count();
@@ -85,7 +85,7 @@ fn lcs<T: PartialEq>(a: &[T], b: &[T]) -> Vec<Step> {
     steps
 }
 
-/// Text eines Inline-Elements ohne Auszeichnung (für die Ähnlichkeit zweier Blöcke).
+/// Text of an inline element without markup (for the similarity of two blocks).
 fn plain_inlines(inlines: &[Inline], out: &mut String) {
     for inline in inlines {
         match inline {
@@ -123,7 +123,7 @@ fn plain_block(block: &Block, out: &mut String) {
     out.push(' ');
 }
 
-/// Passen zwei Blöcke der Art nach zusammen, sodass ein Vergleich ihrer Bestandteile sinnvoll ist?
+/// Do two blocks match in kind, so that comparing their components makes sense?
 fn same_shape(a: &Block, b: &Block) -> bool {
     match (a, b) {
         (Block::Paragraph { .. }, Block::Paragraph { .. })
@@ -141,7 +141,7 @@ fn same_shape(a: &Block, b: &Block) -> bool {
     }
 }
 
-/// Ähnlichkeit zweier Blöcke in Tausendsteln (Anteil gemeinsamer Wörter); `None` = nicht zuordnen.
+/// Similarity of two blocks in thousandths (share of common words); `None` = do not assign.
 fn similarity(a: &Block, b: &Block) -> Option<u32> {
     if !same_shape(a, b) {
         return None;
@@ -164,18 +164,18 @@ fn similarity(a: &Block, b: &Block) -> Option<u32> {
         }
     }
     if total_a + total_b == 0 {
-        // Tabellen, Abbildungen und Überschriften ohne Text: die gleiche Art genügt.
+        // Tables, figures and headings without text: the same kind is enough.
         return Some(1);
     }
     let score = 2000 * common / (total_a + total_b);
     (score >= MIN_SIMILARITY).then_some(score)
 }
 
-/// Zuordnung in einer Lücke: Paare ähnlicher Blöcke in gleicher Reihenfolge, die Summe der Ähnlichkeit ist größtmöglich.
+/// Assignment in a gap: pairs of similar blocks in the same order, the sum of the similarity is the largest possible.
 fn pair_up(removed: &[&Block], added: &[&Block]) -> Vec<Step> {
     let (n, m) = (removed.len(), added.len());
     if n.saturating_mul(m) > 40_000 {
-        // Sehr große Lücke: der Reihe nach, ohne Suche.
+        // Very large gap: in sequence, without a search.
         return (0..n).map(Step::Left).chain((0..m).map(Step::Right)).collect();
     }
     let width = m + 1;
@@ -212,7 +212,7 @@ fn pair_up(removed: &[&Block], added: &[&Block]) -> Vec<Step> {
     steps
 }
 
-/// Zerlegt Text in Wörter, Leerraum und einzelne Satzzeichen; alles andere bleibt ein unteilbares Stück.
+/// Splits text into words, whitespace and single punctuation marks; everything else stays an indivisible piece.
 fn tokens(inlines: &[Inline]) -> Vec<Inline> {
     #[derive(PartialEq, Clone, Copy)]
     enum Class {
@@ -290,8 +290,8 @@ impl Tracker<'_> {
     }
 
     fn gap(&self, removed: &[&Block], added: &[&Block], out: &mut Vec<Block>) {
-        // Genau ein Block ersetzt genau einen gleicher Art: Das ist eine Änderung an Ort und Stelle, auch wenn kein
-        // Wort gleich blieb – der Absatz bleibt bestehen, statt als gestrichen und neu dazustehen.
+        // Exactly one block replaces exactly one of the same kind: that is a change in place, even if no word
+        // stayed the same – the paragraph persists instead of standing there as deleted and new.
         if let ([old], [new]) = (removed, added)
             && same_shape(old, new)
         {
@@ -307,7 +307,7 @@ impl Tracker<'_> {
         }
     }
 
-    /// Zwei einander zugeordnete Blöcke gleicher Art: Bestandteile vergleichen.
+    /// Two blocks of the same kind assigned to each other: compare components.
     fn pair(&self, current: &Block, proposed: &Block) -> Block {
         match (current, proposed) {
             (Block::Paragraph { content: a, .. }, Block::Paragraph { content: b, .. }) => {
@@ -338,7 +338,7 @@ impl Tracker<'_> {
             (Block::Figure { caption: a, .. }, Block::Figure { image, alt, caption: b, raw }) => {
                 Block::Figure { image: *image, alt: alt.clone(), caption: self.inlines(a, b), raw: raw.clone() }
             }
-            // `same_shape` lässt nichts anderes zu; zur Sicherheit gilt der Vorschlag.
+            // `same_shape` allows nothing else; to be safe the proposal applies.
             (_, proposed) => proposed.clone(),
         }
     }
@@ -383,7 +383,7 @@ impl Tracker<'_> {
         ListItem { depth: item.depth, content: self.tracked(kind, item.content.clone()), mark: Some(self.change(kind)) }
     }
 
-    /// Ein ganz neuer (`Insert`) oder ganz entfallener (`Delete`) Block.
+    /// An entirely new (`Insert`) or entirely dropped (`Delete`) block.
     fn whole(&self, block: &Block, kind: ChangeKind, out: &mut Vec<Block>) {
         let mark = Some(self.change(kind));
         match block {
@@ -442,7 +442,7 @@ impl Tracker<'_> {
                 let island = vec![Inline::Typst { raw: raw.clone(), shown: visible }];
                 out.push(Block::Paragraph { content: self.tracked(kind, island), mark });
             }
-            // Nicht verfolgbar: Es gelten die Seitenumbrüche des Vorschlags.
+            // Not trackable: the page breaks of the proposal apply.
             Block::PageBreak => {
                 if kind == ChangeKind::Insert {
                     out.push(Block::PageBreak);
@@ -451,7 +451,7 @@ impl Tracker<'_> {
         }
     }
 
-    /// Wortweiser Vergleich innerhalb eines Absatzes.
+    /// Word-by-word comparison within a paragraph.
     fn inlines(&self, current: &[Inline], proposed: &[Inline]) -> Vec<Inline> {
         #[derive(Clone, Copy, PartialEq)]
         enum Op {
@@ -468,7 +468,7 @@ impl Tracker<'_> {
                 Step::Right(j) => (Op::Insert, &b[j]),
             })
             .collect();
-        // Leerraum zwischen zwei Änderungen gehört zur Änderung: „alten Zaun“ → „neuen Steg“ ist eine Stelle, nicht zwei.
+        // Whitespace between two changes belongs to the change: „alten Zaun“ → „neuen Steg“ is one place, not two.
         let mut at = 0;
         while at < ops.len() {
             if ops[at].0 != Op::Keep {

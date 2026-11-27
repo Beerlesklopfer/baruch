@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 27, Aufgabe umschlag-satz (R27b): Umschlag-Blöcke, Titelei aus der Werkvorlage und Schriften, gesetzt mit
-//! dem eingebetteten Typst. Lage gemessen mit `pdftotext -bbox` (fehlt es, wird der Test mit Meldung übersprungen).
-//! Alle Texte und Bilder sind erfunden.
+//! Round 27, task umschlag-satz (R27b): cover blocks, front matter from the work template and fonts, typeset
+//! with the embedded Typst. Position measured with `pdftotext -bbox` (if it is missing, the test is skipped with
+//! a message). All texts and images are invented.
 
 use std::process::Command;
 
@@ -17,7 +17,7 @@ use baruch_typst::cover_layout::{
 
 const MM_PER_PT: f64 = 25.4 / 72.0;
 
-/// Erfundenes Umschlagbild (SVG, hell oben, dunkel unten).
+/// Invented cover image (SVG, light at the top, dark at the bottom).
 const CLOUD: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"600\" height=\"900\">\
 <rect width=\"600\" height=\"900\" fill=\"#9ec5e8\"/><rect y=\"600\" width=\"600\" height=\"300\" fill=\"#203040\"/></svg>\n";
 
@@ -56,7 +56,7 @@ fn errors(diagnostics: &[baruch_render::Diagnostic]) -> Vec<String> {
     diagnostics.iter().filter(|d| d.severity == Severity::Error).map(|d| d.message.clone()).collect()
 }
 
-/// Ein Wort aus `pdftotext -bbox`: Seite (1-basiert), Rahmen in pt, Text.
+/// A word from `pdftotext -bbox`: page (1-based), box in pt, text.
 #[derive(Debug, Clone)]
 struct Word {
     page: usize,
@@ -67,7 +67,7 @@ struct Word {
     text: String,
 }
 
-/// Wörter eines PDF mit Lage; `None`, wenn `pdftotext` fehlt.
+/// Words of a PDF with position; `None` if `pdftotext` is missing.
 fn words(pdf: &[u8], tag: &str) -> Option<Vec<Word>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(format!("{tag}.pdf"));
@@ -180,8 +180,8 @@ fn a_block_lies_at_the_same_place_from_the_trim_edge_in_cover_pdf_and_book_pdf()
              {dx:.3} mm / {dy:.3} mm ({in_book:?} / {in_cover:?})"
         );
     }
-    // Und die Lage stimmt mit der Anordnung: Der Text beginnt am linken Blockrand (bis auf die Seitenpeilung der
-    // Glyphe) und liegt knapp unter der Oberkante (Typst setzt ab der Versalhöhe).
+    // And the position agrees with the layout: the text starts at the left edge of the block (except for the side
+    // bearing of the glyph) and lies just below the top edge (Typst typesets from the cap height).
     let title = find(&book_words, "Wolkenhaus", Some(1));
     assert!((title.x_min * MM_PER_PT - 21.0).abs() < 1.0, "Titel links bei 21 mm: {title:?}");
     assert!((title.y_min * MM_PER_PT - 33.0).abs() < 2.0, "Titel oben bei 33 mm: {title:?}");
@@ -218,7 +218,7 @@ fn the_spine_turns_down_or_up_and_stays_inside_the_spine() {
             eprintln!("ÜBERSPRUNGEN: pdftotext fehlt (Rücken nicht gemessen)");
             return;
         };
-        // Nur Wörter auf dem Rücken (die Vorgabeblöcke der Vorderseite tragen denselben Titel).
+        // Only words on the spine (the default blocks of the front carry the same title).
         let (ox, _) = geometry.face_origin(CoverFace::Spine);
         let on_spine: Vec<Word> = list
             .into_iter()
@@ -232,8 +232,8 @@ fn the_spine_turns_down_or_up_and_stays_inside_the_spine() {
     for (direction, first, second) in &measured {
         for word in [first, second] {
             let (left, right) = (word.x_min * MM_PER_PT - ox, word.x_max * MM_PER_PT - ox);
-            // pdftotext misst den Rahmen der Schrift samt Unterlänge, Typst den Block von der Versalhöhe bis zur
-            // Grundlinie: Der Wortrahmen darf darum gut 1 mm über den Block (ab x = 4 mm) hinausragen.
+            // pdftotext measures the box of the font including the descender, Typst the block from the cap height to
+            // the baseline: the word box may therefore protrude a good 1 mm beyond the block (from x = 4 mm).
             assert!(
                 left >= 2.0 && right <= 12.0,
                 "{direction:?}: Wort {} muss im Rücken nahe x = 4 mm liegen (Rücken 20 mm): {left:.2}–{right:.2} mm",
@@ -386,7 +386,7 @@ fn hostile_texts_and_font_names_are_set_literally_and_the_dictionary_holds_only_
     for token in ["\"", "\\", "#", "]", ")", "$", "//", "/*", "*/"] {
         assert!(list.iter().any(|w| w.text.contains(token)), "Zeichen {token:?} erscheint wörtlich im Buch-PDF");
     }
-    // Das Impressum aus der Vorlagenfunktion zeigt den Text der Anschrift wörtlich.
+    // The imprint from the template function shows the text of the address verbatim.
     let all: Vec<&str> = list.iter().map(|w| w.text.as_str()).collect();
     assert!(all.windows(2).any(|p| p == ["/*", "I"]), "/* I */ wörtlich in einer Zeile: {all:?}");
 }
@@ -439,7 +439,7 @@ fn imprint_template_gives_the_same_imprint_lines_as_the_built_in_page() {
     let text_of = |list: &[Word], page: usize| -> String {
         list.iter().filter(|w| w.page == page).map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ")
     };
-    // Seite 4 = Rückseite des Haupttitels (Schmutztitel, Seite 2, Haupttitel, Impressum).
+    // Page 4 = back of the main title (half title, page 2, main title, imprint).
     let expected = imprint_lines(&info).join(" ");
     assert_eq!(text_of(&a, 4), expected, "eingebautes Impressum auf Seite 4 mit allen Zeilen");
     assert_eq!(text_of(&b, 4), expected, "Impressum aus der Vorlage: dieselben Zeilen auf derselben Seite");

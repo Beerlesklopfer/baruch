@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Prüfung des EPUB (Runde 20c, Besitz „epub-pruefung“): eigene Strukturprüfung gegen das gültige Testwerk und je
-//! eine gezielt kaputte Variante, Wohlgeformtheit mit xmllint bzw. quick-xml, Warnungen je Reader, Suche und Lauf
-//! von EPUBCheck. EPUBCheck ist hier nie das echte Programm, sondern ein selbst geschriebenes Skript in einem
-//! Temp-Ordner, übergeben über `path_env` (der PATH des Prozesses bleibt unberührt); nichts wird heruntergeladen.
+//! Check of the EPUB (Round 20c, ownership "epub-pruefung"): own structure check against the valid test work and
+//! one deliberately broken variant each, well-formedness with xmllint or quick-xml, warnings per reader, search
+//! for and run of EPUBCheck. EPUBCheck is never the real program here, but a self-written script in a temp
+//! folder, passed through `path_env` (the PATH of the process stays untouched); nothing is downloaded.
 
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
@@ -25,7 +25,7 @@ fn good() -> Vec<u8> {
     package(&book()).expect("Das Testwerk lässt sich packen")
 }
 
-/// Einträge des ZIP in ihrer Reihenfolge.
+/// Entries of the ZIP in their order.
 fn entries(epub: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut zip = zip::ZipArchive::new(Cursor::new(epub)).expect("ZIP");
     (0..zip.len())
@@ -38,7 +38,7 @@ fn entries(epub: &[u8]) -> Vec<(String, Vec<u8>)> {
         .collect()
 }
 
-/// ZIP aus `entries`; `mimetype` wird mit `mimetype_method` gespeichert, alles andere DEFLATE.
+/// ZIP from `entries`; `mimetype` is stored with `mimetype_method`, everything else DEFLATE.
 fn zip_of(entries: &[(String, Vec<u8>)], mimetype_method: CompressionMethod) -> Vec<u8> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     for (name, bytes) in entries {
@@ -49,7 +49,7 @@ fn zip_of(entries: &[(String, Vec<u8>)], mimetype_method: CompressionMethod) -> 
     zip.finish().expect("fertig").into_inner()
 }
 
-/// Gültiges Testwerk mit geänderten Einträgen (in derselben Reihenfolge, mimetype STORED).
+/// Valid test work with changed entries (in the same order, mimetype STORED).
 fn variant(change: impl FnOnce(&mut Vec<(String, Vec<u8>)>)) -> Vec<u8> {
     let mut list = entries(&good());
     change(&mut list);
@@ -67,7 +67,7 @@ fn replace(list: &mut [(String, Vec<u8>)], name: &str, from: &str, to: &str) {
     *bytes = text.replacen(from, to, 1).into_bytes();
 }
 
-/// Erste Kapiteldatei des Testwerks (Pfad im ZIP).
+/// First chapter file of the test work (path in the ZIP).
 fn first_chapter() -> String {
     let book = book();
     let item = book.items.iter().find(|i| i.kind == ItemKind::Chapter).expect("Das Testwerk hat Kapitel");
@@ -82,7 +82,7 @@ fn errors(findings: &[Finding]) -> Vec<&Finding> {
     findings.iter().filter(|f| f.severity == Severity::Error).collect()
 }
 
-/// Prüft die Variante mit quick-xml und verlangt den Code als Fehler.
+/// Checks the variant with quick-xml and demands the code as an error.
 fn assert_error(epub: &[u8], code: &str, why: &str) -> Vec<Finding> {
     let (findings, tool) = check_structure(epub, None);
     assert_eq!(tool, XmlTool::QuickXml, "ohne xmllint prüft quick-xml");
@@ -186,7 +186,7 @@ fn a_missing_language_is_an_error() {
     assert_error(&epub, codes::LANGUAGE_MISSING, "ohne dc:language raten Reader Silbentrennung und Aussprache");
 }
 
-/// Testwerk mit einem zusätzlichen Bild in der ersten Kapiteldatei (`img` wie angegeben).
+/// Test work with an additional image in the first chapter file (`img` as given).
 fn with_image(img: &str) -> Vec<u8> {
     let chapter = first_chapter();
     let img = img.to_owned();
@@ -208,7 +208,7 @@ fn an_image_without_alt_is_an_error_and_an_empty_alt_only_a_hint() {
     assert_error(&missing, codes::IMG_ALT_MISSING, "ohne alt liest ein Vorleseprogramm den Dateinamen");
     let (findings, _) = check_structure(&with_image("<img src=\"../images/probe.png\" alt=\"\"/>"), None);
     assert!(errors(&findings).is_empty(), "alt=\"\" ist erlaubt (Schmuckbild): {findings:#?}");
-    // Seit R20a bringt das Testwerk selbst ein Schmuckbild (alt="") mit; gezählt wird darum gegen die Ausgangslage.
+    // Since R20a the test work itself brings a decorative image (alt=""); so the count is against the initial state.
     let alt_findings = |list: &[Finding], code: &str| list.iter().filter(|f| f.code == code).count();
     let (base, _) = check_structure(&good(), None);
     assert!(
@@ -240,7 +240,7 @@ fn a_table_of_contents_against_the_spine_order_is_reported() {
         book.items.iter().filter(|i| i.kind == ItemKind::Chapter).map(|i| i.id.clone()).collect();
     assert!(chapters.len() >= 2, "das Testwerk hat mindestens zwei Kapitel");
     let (a, b) = (&chapters[0], &chapters[1]);
-    // Spine umdrehen: die beiden Kapitel tauschen die Plätze, das Inhaltsverzeichnis bleibt.
+    // Reverse the spine: the two chapters swap places, the table of contents stays.
     let epub = variant(|list| {
         replace(list, OPF_PATH, &format!("<itemref idref=\"{a}\"/>"), "<itemref idref=\"PLATZHALTER\"/>");
         replace(list, OPF_PATH, &format!("<itemref idref=\"{b}\"/>"), &format!("<itemref idref=\"{a}\"/>"));
@@ -325,7 +325,7 @@ fn profile(slug: &'static str, supports: ReaderSupport) -> ReaderProfile {
     }
 }
 
-/// Testwerk mit einer Popup-Fußnote in der ersten Kapiteldatei.
+/// Test work with a popup footnote in the first chapter file.
 fn book_with_popup() -> EpubBook {
     let mut book = book();
     let chapter = book.items.iter_mut().find(|i| i.kind == ItemKind::Chapter).expect("Kapitel");
@@ -371,7 +371,7 @@ fn a_reader_without_page_break_css_gets_a_hint_about_chapter_breaks() {
 #[test]
 fn the_publisher_font_hint_needs_a_font_the_book_actually_sets() {
     let reader = profile("probe", ReaderSupport { overrides_publisher_font: true, ..NOTHING });
-    // Ohne Satz-Einstellung keine Schrift: der Grundstil (monospace für fehlende Bilder) zählt nicht.
+    // Without a typesetting setting no font: the base style (monospace for missing images) does not count.
     let plain = reader_warnings(&book(), &reader);
     assert!(
         !plain.iter().any(|f| f.code == codes::READER_PUBLISHER_FONT),

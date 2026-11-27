@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! SWORD-Module lesen: selbst geschriebene Mini-Module (zText in BOOK/CHAPTER/VERSE, RawText) mit frei
-//! erfundenem Text in den Zählungen German und KJV. Die Index-Stellen rechnet `fixture::slot` aus den
-//! Zahlen von `baruch-scripture`; gelesen wird über `sword-modules`. Dazu conf, DataPath, nicht
-//! unterstützte Zählungen und die Suche.
+//! Read SWORD modules: self-written mini modules (zText in BOOK/CHAPTER/VERSE, RawText) with freely
+//! invented text in the versifications German and KJV. The index slots are computed by `fixture::slot` from the
+//! numbers of `baruch-scripture`; reading goes through `sword-modules`. Plus conf, DataPath, unsupported
+//! versifications and the search.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -15,7 +15,7 @@ fn kjv() -> &'static Versification {
     versification(KJV).unwrap()
 }
 
-/// Einträge an allen Arten von Stellen: Köpfe, Bucheinleitung, Kapiteleinleitung, erste und letzte Verse.
+/// Entries at all kinds of slots: headers, book introduction, chapter introduction, first and last verses.
 fn sample(name: &str, layout: Layout, v11n: &'static Versification) -> Fixture {
     let last_of_mal = if v11n.name == GERMAN { (3, 24) } else { (4, 6) };
     Fixture::new(name, layout, v11n)
@@ -54,15 +54,15 @@ fn opened(root: &Path, name: &str) -> baruch_sword::Bible {
 #[test]
 fn the_slot_layout_follows_module_testament_book_and_chapter_entries() {
     let g = german();
-    // Stelle 0 Modulkopf, 1 Testamentkopf, 2 Bucheinleitung, 3 Kapiteleinleitung, 4 erster Vers.
+    // Slot 0 module header, 1 testament header, 2 book introduction, 3 chapter introduction, 4 first verse.
     assert_eq!(slot(g, &Key::Verse("Gen", 0, 0)), Some((0, 2)), "Bucheinleitung 1. Mose");
     assert_eq!(slot(g, &Key::Verse("Gen", 1, 0)), Some((0, 3)), "Kapiteleinleitung 1. Mose 1");
     assert_eq!(slot(g, &Key::Verse("Gen", 1, 1)), Some((0, 4)), "1. Mose 1,1 an Stelle 4");
     assert_eq!(slot(g, &Key::Verse("Gen", 2, 0)), Some((0, 4 + 31)), "nach 31 Versen die Einleitung von Kapitel 2");
     assert_eq!(slot(g, &Key::Verse("Matt", 1, 1)), Some((1, 4)), "Mt 1,1 ebenfalls an Stelle 4 (eigenes Testament)");
     assert_eq!(slot(g, &Key::Verse("Gen", 1, 32)), None, "1. Mose 1 hat 31 Verse");
-    // Zahl der Stellen: 2 + Bücher + Kapitel + Verse. Beobachtet am Modul GerSch (Versification=German):
-    // ot.bzv hat 241850 Bytes = 24185 Stellen zu 10 Bytes, nt.bzv 82460 Bytes = 8246 Stellen.
+    // Number of slots: 2 + books + chapters + verses. Observed on the module GerSch (Versification=German):
+    // ot.bzv has 241850 bytes = 24185 slots of 10 bytes, nt.bzv 82460 bytes = 8246 slots.
     assert_eq!(slot_count(g, 0), 2 + 39 + 929 + 23215, "Stellen AT (German)");
     assert_eq!((slot_count(g, 0), slot_count(g, 1)), (24185, 8246), "wie die Indexdateien von GerSch");
     assert_eq!(slot_count(kjv(), 0), 2 + 39 + 929 + 23145, "Stellen AT (KJV)");
@@ -96,7 +96,7 @@ fn every_layout_reads_every_kind_of_slot_in_both_versifications() {
 
 #[test]
 fn german_and_kjv_differ_where_the_counting_differs() {
-    // Joel 3,1 (KJV) ist Joel 4,1 (deutsch): gleiche Zahlen, andere Stelle im Index.
+    // Joel 3,1 (KJV) is Joel 4,1 (German): same numbers, another slot in the index.
     let g =
         Fixture::new("DeuProbe", Layout::ZText(Block::Chapter), german()).verse("Joel", 4, 1, "Erfundener Joel-Vers.");
     let (_d, root) = written(&g);
@@ -111,8 +111,8 @@ fn german_and_kjv_differ_where_the_counting_differs() {
 
 #[test]
 fn the_tables_of_sword_modules_equal_ours_for_german_and_kjv() {
-    // Der Leser rechnet die Stellen mit seinen eigenen Tabellen; sie müssen Vers für Vers mit unseren
-    // übereinstimmen, sonst läge jeder Vers an einer falschen Stelle.
+    // The reader computes the slots with its own tables; they must agree with ours verse by verse,
+    // otherwise every verse would lie at a wrong slot.
     for ours in [german(), kjv()] {
         let theirs = sword_modules::Versification::get(ours.name).expect("Zählung bekannt");
         let mut books = 0;
@@ -165,7 +165,7 @@ fn the_conf_is_read_and_data_path_is_relative_to_the_module_folder() {
     );
     assert_eq!(info.notice, "Public Domain; frei erfunden", "Lizenzvermerk aus DistributionLicense und Copyright");
     assert_eq!(info.dir, root, "Modulordner");
-    // Der Test läuft im Ordner der Crate; gelesen wird trotzdem aus dem Modulordner.
+    // The test runs in the folder of the crate; reading nevertheless happens from the module folder.
     assert!(!Path::new("modules").exists(), "kein Ordner modules im aktuellen Verzeichnis");
     let bible = open(info).unwrap();
     assert_eq!(bible.verse("Gen", 1, 1).unwrap().as_deref(), Some("Der Kiesel lag am Bach."), "Text über DataPath");

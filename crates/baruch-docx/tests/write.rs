@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schreiber (Vertrag Runde 32 §3, Aufgabe docx_export): `write` ergibt ein vollständiges, wohlgeformtes und
-//! deterministisches Archiv nach `ooxml.rs`. Geprüft wird mit eigenen kleinen Lesehilfen (zip, quick-xml), nicht mit
-//! dem Leser der Nachbaraufgabe. Alle Texte sind frei erfunden.
+//! Writer (contract Round 32 §3, task docx_export): `write` yields a complete, well-formed and deterministic
+//! archive according to `ooxml.rs`. It is checked with small reading helpers of its own (zip, quick-xml), not
+//! with the reader of the neighbouring task. All texts are freely invented.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read};
@@ -17,7 +17,7 @@ fn options() -> WriteOptions {
     WriteOptions { created: "2026-11-25T08:00:00Z".into(), generator: "Baruch Probe".into() }
 }
 
-/// Alle Einträge des Archivs in ihrer Reihenfolge.
+/// All entries of the archive in their order.
 fn unpack(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).expect("die Datei ist ein ZIP-Archiv");
     (0..zip.len())
@@ -35,7 +35,7 @@ fn part(files: &[(String, Vec<u8>)], name: &str) -> String {
     String::from_utf8(data.clone()).unwrap_or_else(|_| panic!("Teil {name} ist kein UTF-8"))
 }
 
-/// Ein Element mit seinen Attributen (Namen samt Präfix, wie geschrieben).
+/// An element with its attributes (names including prefix, as written).
 #[derive(Debug, Clone)]
 struct Element {
     name: String,
@@ -48,8 +48,8 @@ impl Element {
     }
 }
 
-/// Liest ein XML ganz durch: Elemente in Reihenfolge und der Text je Elementname (Entitäten aufgelöst). Scheitert
-/// laut, wenn das XML nicht wohlgeformt ist.
+/// Reads an XML all the way through: elements in order and the text per element name (entities resolved). Fails
+/// loudly if the XML is not well-formed.
 fn parse(name: &str, xml: &str) -> (Vec<Element>, Vec<(String, String)>) {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().check_end_names = true;
@@ -79,7 +79,7 @@ fn parse(name: &str, xml: &str) -> (Vec<Element>, Vec<(String, String)>) {
                 elements.push(Element { name: element_name.clone(), attrs });
                 if matches!(event, Event::Start(_)) {
                     stack.push(element_name);
-                    // Jeder Textlauf beginnt neu, damit zwei Läufe nicht zu einem Text verschmelzen.
+                    // Every text run starts anew, so that two runs do not merge into one text.
                     texts.push((stack.last().cloned().unwrap_or_default(), String::new()));
                 }
             }
@@ -120,7 +120,7 @@ fn elements(files: &[(String, Vec<u8>)], name: &str) -> Vec<Element> {
     parse(name, &part(files, name)).0
 }
 
-/// Texte aller Elemente `element` eines Teils.
+/// Texts of all elements `element` of a part.
 fn texts_of(files: &[(String, Vec<u8>)], name: &str, element: &str) -> Vec<String> {
     parse(name, &part(files, name)).1.into_iter().filter(|(e, _)| e == element).map(|(_, t)| t).collect()
 }
@@ -137,7 +137,7 @@ fn document(blocks: Vec<Block>) -> DocxDocument {
     DocxDocument { blocks, ..DocxDocument::default() }
 }
 
-/// Vorlagen (`w:pStyle`) der Absätze eines Teils in Lesereihenfolge; Absätze ohne Vorlage als „“.
+/// Styles (`w:pStyle`) of the paragraphs of a part in reading order; paragraphs without a style as „“.
 fn paragraph_styles(files: &[(String, Vec<u8>)]) -> Vec<String> {
     let mut styles = Vec::new();
     for element in elements(files, PART_DOCUMENT) {
@@ -283,7 +283,7 @@ fn every_used_style_is_defined_and_every_relationship_resolves() {
             relation.attr("Target")
         );
     }
-    // Jeder Teil hat einen Inhaltstyp: als Override oder über die Endung.
+    // Every part has a content type: as an override or through the extension.
     let types = elements(&files, PART_CONTENT_TYPES);
     for name in names.iter().filter(|n| **n != PART_CONTENT_TYPES) {
         let extension = name.rsplit_once('.').map_or("", |(_, e)| e);

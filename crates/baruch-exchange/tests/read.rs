@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lesen und Prüfen einer Austauschdatei (Runde 26, Vertrag F2/F7). Handgeschriebene Prüfdateien
-//! unter `tests/data/import/` (frei erfunden), Prüf-ZIPs entstehen im Test mit `zip`. Jede Zusicherung mit
-//! Begründung.
+//! Reading and checking an exchange file (Round 26, contract F2/F7). Hand-written test files
+//! under `tests/data/import/` (freely invented), test ZIPs are created in the test with `zip`. Every assertion
+//! with its reason.
 
 use std::io::{Cursor, Write};
 use std::path::Path;
@@ -88,7 +88,7 @@ fn the_handwritten_file_is_read_exactly() {
     assert_eq!(png.data.len(), 70, "Base64 mit Zeilenumbruch in <daten> entschlüsselt");
     assert_eq!(sha256_hex(&png.data), png.sha256, "Prüfsumme passt");
     assert_eq!(work.deleted.len(), 1, "ein Grabstein");
-    // `read` erkennt XML am Anfang und liefert dasselbe.
+    // `read` recognises XML at the beginning and delivers the same.
     assert_eq!(read(WERK.as_bytes(), &Limits::DEFAULT).unwrap(), doc, "read = read_xml bei XML");
 }
 
@@ -114,17 +114,17 @@ fn the_handwritten_file_is_valid_against_the_xsd() {
 
 #[test]
 fn dtds_and_entities_are_refused_as_unsafe() {
-    // Billion Laughs: abgelehnt, bevor eine Entität aufgelöst wird (sonst Milliarden Bytes).
+    // Billion Laughs: rejected before an entity is resolved (otherwise billions of bytes).
     assert!(matches!(read_xml(LACHEN.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Unsafe(_))), "Billion Laughs");
-    // Externe Entität: kein Dateizugriff, Ablehnung schon an der DTD.
+    // External entity: no file access, rejection already at the DTD.
     assert!(matches!(read_xml(EXTERN.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Unsafe(_))), "externe Entität");
-    // Unbekannte Entitätsreferenz ohne DTD.
+    // Unknown entity reference without a DTD.
     let unknown = WERK.replace("Wasser &amp; Mehl.", "Wasser &nbsp; Mehl.");
     assert!(
         matches!(read_xml(unknown.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Unsafe(_))),
         "unbekannte Entität"
     );
-    // Verarbeitungsanweisung außer der Deklaration.
+    // Processing instruction other than the declaration.
     let pi = WERK.replace("<werk xmlns", "<?xml-stylesheet href=\"boese.xsl\"?>\n<werk xmlns");
     assert!(
         matches!(read_xml(pi.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Unsafe(_))),
@@ -135,7 +135,7 @@ fn dtds_and_entities_are_refused_as_unsafe() {
 #[test]
 fn every_limit_is_enforced() {
     let limit = |limits: Limits| matches!(read_xml(WERK.as_bytes(), &limits), Err(ExchangeError::Limit(_)));
-    // Die Prüfdatei ist sechs Ebenen tief (werk/gliederung/punkt/punkt/punkt/fassung/text = 7).
+    // The test file is six levels deep (werk/gliederung/punkt/punkt/punkt/fassung/text = 7).
     assert!(limit(Limits { max_depth: 5, ..Limits::DEFAULT }), "Tiefe");
     assert!(limit(Limits { max_elements: 20, ..Limits::DEFAULT }), "Zahl der Elemente");
     assert!(limit(Limits { max_attributes: 4, ..Limits::DEFAULT }), "Attribute je Element (<fassung> hat 9)");
@@ -165,8 +165,8 @@ fn a_wrong_namespace_is_refused() {
     assert_eq!(kind(read(b"Hallo Welt", &Limits::DEFAULT)), "NotExchange", "weder ZIP noch XML");
 }
 
-/// Seit Runde 25 ist die höhere Unterversion `FORMAT_VERSION + 1` (3): `<karte>` kennt der Leser dann schon, nur ein
-/// unbekanntes Kind darin wird gemeldet.
+/// Since Round 25 the higher sub-version is `FORMAT_VERSION + 1` (3): the reader then already knows `<karte>`,
+/// only an unknown child in it is reported.
 #[test]
 fn a_newer_minor_version_is_read_and_unknown_parts_are_listed_but_not_taken() {
     let original = read_xml(WERK.as_bytes(), &Limits::DEFAULT).unwrap();
@@ -242,7 +242,7 @@ fn validate_checks_uuids_duplicates_references_and_the_current_mark() {
 
 // ---- ZIP ---------------------------------------------------------------------------------------
 
-/// werk.xml für den Container: die Bilder als `datei` statt `<daten>`.
+/// werk.xml for the container: the images as `datei` instead of `<daten>`.
 fn zip_xml() -> String {
     let png_daten =
         WERK[WERK.find("<daten>iVBOR").unwrap()..].split_once("</daten>").unwrap().0.to_owned() + "</daten>";
@@ -293,7 +293,7 @@ fn good_entries() -> Vec<Entry> {
     ]
 }
 
-/// ZIP in der Reihenfolge der Einträge; das Manifest (falls `with_manifest`) zuletzt.
+/// ZIP in the order of the entries; the manifest (if `with_manifest`) last.
 fn build(entries: &[Entry], extra_manifest: &[(&str, &str, u64)], with_manifest: bool) -> Vec<u8> {
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
     for e in entries {
@@ -308,7 +308,8 @@ fn build(entries: &[Entry], extra_manifest: &[(&str, &str, u64)], with_manifest:
     zip.finish().unwrap().into_inner()
 }
 
-/// Zentralverzeichnis durchgehen: (Stelle des Eintrags im Verzeichnis, Stelle des lokalen Kopfs, Name).
+/// Walk through the central directory: (position of the entry in the directory, position of the local header,
+/// name).
 fn central(bytes: &[u8]) -> Vec<(usize, usize, Vec<u8>)> {
     let mut out = Vec::new();
     let mut at = bytes.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
@@ -322,7 +323,7 @@ fn central(bytes: &[u8]) -> Vec<(usize, usize, Vec<u8>)> {
     out
 }
 
-/// Kopf eines Eintrags im lokalen Kopf und im Zentralverzeichnis ändern (Felder an gleicher Bedeutung).
+/// Change the header of an entry in the local header and in the central directory (fields of the same meaning).
 fn patch(bytes: &mut [u8], name: &str, local_offset: usize, central_offset: usize, value: &[u8]) {
     for (at, local, entry) in central(bytes) {
         if entry == name.as_bytes() {
@@ -364,7 +365,7 @@ fn unsafe_names_are_refused() {
 
 #[test]
 fn duplicates_unlisted_and_missing_entries_are_refused() {
-    // Doppelter Name: zip schreibt keine Doppel, darum den Namen „werk.xmm“ nachträglich zu „werk.xml“ machen.
+    // Duplicate name: zip writes no duplicates, so turn the name "werk.xmm" into "werk.xml" afterwards.
     let mut entries = good_entries();
     entries.push(entry("werk.xmm", b"<x/>", CompressionMethod::Stored));
     let mut zip = build(&entries, &[], true);
@@ -376,21 +377,21 @@ fn duplicates_unlisted_and_missing_entries_are_refused() {
         matches!(read_baruch(&zip, &Limits::DEFAULT), Err(ExchangeError::Archive(ref m)) if m.contains("doppelt")),
         "Doppel erkannt"
     );
-    // Eintrag, der nicht im Manifest steht.
+    // Entry that is not in the manifest.
     let mut entries = good_entries();
     entries[3].listed = false;
     assert!(
         matches!(read_baruch(&build(&entries, &[], true), &Limits::DEFAULT), Err(ExchangeError::Archive(ref m)) if m.contains("nicht im Manifest")),
         "nicht gelisteter Eintrag"
     );
-    // Gelistete Datei fehlt.
+    // Listed file is missing.
     let missing = [("bilder/c0000000-0000-4000-8000-0000000000ff.png", &*sha256_hex(b"x"), 1u64)];
     assert_eq!(
         archive_error(&build(&good_entries(), &missing, true), &Limits::DEFAULT),
         "Archive",
         "gelistet, aber fehlt"
     );
-    // Ohne Manifest.
+    // Without a manifest.
     assert_eq!(archive_error(&build(&good_entries(), &[], false), &Limits::DEFAULT), "Archive", "Manifest fehlt");
 }
 
@@ -399,7 +400,7 @@ fn a_wrong_checksum_is_refused() {
     let mut entries = good_entries();
     let honest = manifest(&entries, &[]);
     entries[1].bytes = zip_xml().replace("Die Mühle am Bach", "Die Mühle am Fluss").into_bytes();
-    // Manifest von vorher: werk.xml passt nicht mehr dazu.
+    // Manifest from before: werk.xml no longer matches it.
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
     for e in &entries {
         zip.start_file(e.name.as_str(), SimpleFileOptions::default().compression_method(e.method)).unwrap();
@@ -429,21 +430,21 @@ fn the_mimetype_must_come_first_stored_and_exact() {
 
 #[test]
 fn encrypted_unsupported_and_linked_entries_are_refused() {
-    // Verschlüsselt: Bit 0 der Flags (lokal +6, zentral +8).
+    // Encrypted: bit 0 of the flags (local +6, central +8).
     let mut zip = build(&good_entries(), &[], true);
     patch(&mut zip, "werk.xml", 6, 8, &[0x01, 0x00]);
     assert!(
         matches!(read_baruch(&zip, &Limits::DEFAULT), Err(ExchangeError::Archive(ref m)) if m.contains("verschlüsselt")),
         "verschlüsselter Eintrag"
     );
-    // Kompression 12 (bzip2; lokal +8, zentral +10).
+    // Compression 12 (bzip2; local +8, central +10).
     let mut zip = build(&good_entries(), &[], true);
     patch(&mut zip, "werk.xml", 8, 10, &[12, 0]);
     assert!(
         matches!(read_baruch(&zip, &Limits::DEFAULT), Err(ExchangeError::Archive(ref m)) if m.contains("Kompression")),
         "nicht unterstützte Kompression"
     );
-    // Verknüpfung mit erlaubtem Namen.
+    // Link with an allowed name.
     let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
     for e in good_entries() {
         writer.start_file(e.name.as_str(), SimpleFileOptions::default().compression_method(e.method)).unwrap();
@@ -461,7 +462,7 @@ fn encrypted_unsupported_and_linked_entries_are_refused() {
 
 #[test]
 fn zip_bombs_and_lying_headers_hit_the_limits() {
-    // Ein Eintrag, entpackt über der Grenze (stark komprimierbar: 4 MiB Nullen).
+    // One entry, unpacked above the limit (highly compressible: 4 MiB of zeros).
     let mut entries = good_entries();
     let zeros = vec![0u8; 4 * 1024 * 1024];
     entries.push(entry("bilder/c0000000-0000-4000-8000-0000000000bb.png", &zeros, CompressionMethod::Deflated));
@@ -469,11 +470,11 @@ fn zip_bombs_and_lying_headers_hit_the_limits() {
     assert!(bomb.len() < 64 * 1024, "die Bombe ist klein gepackt ({} Bytes)", bomb.len());
     let limits = Limits { max_entry_bytes: 1024 * 1024, ..Limits::DEFAULT };
     assert_eq!(archive_error(&bomb, &limits), "Limit", "Eintrag über der Grenze");
-    // Summe über der Grenze: jeder Eintrag darunter, zusammen darüber.
+    // Sum above the limit: every entry below it, together above it.
     let limits = Limits { max_unpacked_bytes: 2 * 1024 * 1024, ..Limits::DEFAULT };
     assert_eq!(archive_error(&bomb, &limits), "Limit", "Summe über der Grenze");
-    // Gelogene Größe im Kopf: 4 MiB Nullen, im Kopf 100 Bytes (lokal +22, zentral +24). Den Kopfgrößen wird
-    // nicht getraut: entpackt wird mit take(Grenze + 1).
+    // Forged size in the header: 4 MiB of zeros, 100 bytes in the header (local +22, central +24). The header
+    // sizes are not trusted: unpacking uses take(limit + 1).
     let mut lying = bomb.clone();
     patch(&mut lying, "bilder/c0000000-0000-4000-8000-0000000000bb.png", 22, 24, &100u32.to_le_bytes());
     let limits = Limits { max_entry_bytes: 1024 * 1024, ..Limits::DEFAULT };
@@ -482,7 +483,7 @@ fn zip_bombs_and_lying_headers_hit_the_limits() {
         matches!(result, Err(ExchangeError::Limit(_) | ExchangeError::Archive(_) | ExchangeError::Checksum { .. })),
         "gelogene Kopfgröße wird abgelehnt: {result:?}"
     );
-    // Zu viele Einträge.
+    // Too many entries.
     assert_eq!(
         archive_error(&build(&good_entries(), &[], true), &Limits { max_entries: 3, ..Limits::DEFAULT }),
         "Limit",
@@ -490,11 +491,11 @@ fn zip_bombs_and_lying_headers_hit_the_limits() {
     );
 }
 
-/// Nachbesserung R26, umgestellt in Runde 25: Eine neuere Unterversion darf neue Arten von Grabsteinen schreiben.
-/// Ein heutiger Leser meldet eine ihm unbekannte Art (hier die erfundene `wolke`) in `FORMAT_VERSION + 1` als
-/// unbekannt und überspringt nur diesen Grabstein (§6); in der eigenen Unterversion bleibt ein unbekannter Wert ein
-/// Fehler. Die Arten der Karte (`verbindung`, `lage`) gibt es erst ab Unterversion 2: in `version="1"` sind sie ein
-/// Fehler, in 2 werden sie übernommen.
+/// Follow-up fix R26, rearranged in Round 25: a newer sub-version may write new kinds of tombstones. A reader of
+/// today reports a kind unknown to it (here the invented `wolke`) in `FORMAT_VERSION + 1` as unknown and skips
+/// only this tombstone (§6); in its own sub-version an unknown value stays an error. The kinds of the map
+/// (`verbindung`, `lage`) exist only from sub-version 2: in `version="1"` they are an error, in 2 they are taken
+/// over.
 #[test]
 fn an_unknown_tombstone_kind_is_skipped_in_a_newer_minor_version_but_refused_in_version_one() {
     let entry =
@@ -511,7 +512,7 @@ fn an_unknown_tombstone_kind_is_skipped_in_a_newer_minor_version_but_refused_in_
         )
     };
 
-    // Erfundene Art: in der eigenen Unterversion ein Fehler, in einer höheren gemeldet und übersprungen.
+    // Invented kind: an error in the own sub-version, reported and skipped in a higher one.
     let own = with_kind("wolke").replace(root_v1, &root(FORMAT_VERSION));
     assert!(
         matches!(read_xml(own.as_bytes(), &Limits::DEFAULT), Err(ExchangeError::Xml(ref m)) if m.contains("wolke")),
@@ -526,7 +527,7 @@ fn an_unknown_tombstone_kind_is_skipped_in_a_newer_minor_version_but_refused_in_
         doc.unknown
     );
 
-    // `verbindung` und `lage`: in Unterversion 1 ein Fehler (Vertrag §4.6), ab 2 übernommen.
+    // `verbindung` and `lage`: an error in sub-version 1 (contract §4.6), taken over from 2.
     for (kind, expected) in [("verbindung", ExchangeTombstoneKind::Link), ("lage", ExchangeTombstoneKind::Position)] {
         let v1 = with_kind(kind);
         assert!(
@@ -543,8 +544,9 @@ fn an_unknown_tombstone_kind_is_skipped_in_a_newer_minor_version_but_refused_in_
     }
 }
 
-/// Nachbesserung R26: Der Instanzname aus einer fremden Datei wird gesäubert, denn er landet im Git-Autor (der `<`,
-/// `>` und Zeilenumbrüche ablehnt), in Antragsherkunft und Fassungsnotizen; er wird auf die lokale Höchstlänge gekürzt.
+/// Follow-up fix R26: the instance name from a foreign file is cleaned, because it ends up in the Git author
+/// (which rejects `<`, `>` and line breaks), in request origin and revision notes; it is shortened to the local
+/// maximum length.
 #[test]
 fn the_instance_name_from_a_file_is_cleaned_and_shortened() {
     let long = "y".repeat(300);
@@ -558,9 +560,9 @@ fn the_instance_name_from_a_file_is_cleaned_and_shortened() {
     assert_eq!(baruch_exchange::clean_instance_name("Prüfrechner"), "Prüfrechner", "ein sauberer Name bleibt");
 }
 
-// ---- Karte (Runde 25, Unterversion 2) -------------------------------------------------------------
+// ---- Map (Round 25, sub-version 2) ----------------------------------------------------------------
 
-/// Ein `<karte>`-Block zum Einsetzen in die Prüfdatei (Einfälle …40 und …41 gibt es dort).
+/// A `<karte>` block to insert into the test file (ideas …40 and …41 exist there).
 const MAP: &str = "  <karte>\n    <verbindung uuid=\"c0000000-0000-4000-8000-000000000090\" von=\"c0000000-0000-4000-8000-000000000040\" nach=\"c0000000-0000-4000-8000-000000000041\" art=\"widerspricht\" herkunft-art=\"mcp\" herkunft=\"@mcp:probe\" angelegt=\"2026-02-11T10:00:00.000Z\" geaendert=\"2026-02-11T10:00:00.000Z\">\n      <notiz>Zwei Zeilen\nund &lt;Klammern&gt;</notiz>\n    </verbindung>\n    <lage uuid=\"c0000000-0000-4000-8000-000000000091\" einfall=\"c0000000-0000-4000-8000-000000000041\" x=\"-12.5\" y=\"1e3\" geaendert=\"2026-02-11T11:00:00.000Z\"/>\n  </karte>\n</werk>";
 
 fn with_map(version: u32, map: &str) -> String {
@@ -638,7 +640,7 @@ fn validate_checks_links_and_positions() {
     assert!(invalid(&|d| d.work.map.positions[1].idea = sample_uuid(40)), "zwei Lagen für denselben Einfall");
     assert!(invalid(&|d| d.work.map.positions[0].y = 1.0e6 + 1.0), "Koordinate über der Grenze");
     assert!(invalid(&|d| d.work.deleted[1].uuid = sample_uuid(150)), "Grabstein für eine vorhandene Verbindung");
-    // Gerichtete Arten dürfen beide Richtungen haben: Das sind zwei verschiedene Verbindungen.
+    // Directed kinds may have both directions: those are two different links.
     let mut both = sample_document();
     let mut back = both.work.map.links[0].clone();
     back.uuid = sample_uuid(96);
@@ -650,7 +652,7 @@ fn validate_checks_links_and_positions() {
 #[test]
 fn the_sample_with_its_map_survives_writing_and_reading_exactly() {
     let doc = sample_document();
-    // Nur-XML und Container ergeben beim Lesen genau das Dokument (Koordinate 0.1+0.2 bit-genau, −1e6 auf der Grenze).
+    // XML only and container yield exactly the document on reading (coordinate 0.1+0.2 bit-exact, −1e6 on the limit).
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     assert!(xml.contains("y=\"0.30000000000000004\""), "kürzeste genaue Darstellung von 0.1+0.2");
     assert!(xml.contains("x=\"-1000000\""), "−1e6 ohne Nachkommastellen");
@@ -661,12 +663,12 @@ fn the_sample_with_its_map_survives_writing_and_reading_exactly() {
     assert_eq!(zip.work, doc.work, "Werk samt Karte ohne Verlust (Container)");
 }
 
-// ---- Unterversion 3 (Runde 27): Umschlag-Anordnung, Anschriften, Satzbild ----------------------------
+// ---- Sub-version 3 (Round 27): cover layout, addresses, typeset view ---------------------------------
 
-/// Grabstein `umschlag-block` des Beispiels (sample_uuid(163)) als Zeile im geschriebenen XML.
+/// Tombstone `umschlag-block` of the sample (sample_uuid(163)) as a line in the written XML.
 const COVER_TOMBSTONE: &str = "\n    <eintrag uuid=\"26000000-0000-4000-8000-0000000000a3\" art=\"umschlag-block\" zeit=\"2026-01-07T19:00:00.000Z\"/>";
 
-/// Die beiden Anschriften des Beispiels als Zeilen im geschriebenen XML.
+/// The two addresses of the sample as lines in the written XML.
 const ADDRESS_LINES: [&str; 2] = [
     "    <verlag-anschrift>Probeverlag\nAm Brunnen 1\n12345 Musterstadt</verlag-anschrift>\n",
     "    <druckerei-anschrift>Probedruck\nDruckgasse 2\n12345 Musterstadt</druckerei-anschrift>\n",
@@ -676,7 +678,7 @@ const ADDRESS_LINES: [&str; 2] = [
 fn version_three_carries_cover_blocks_addresses_and_sheet_exactly() {
     let doc = sample_document();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
-    // Wörter des Formats (Austauschformat.md §2): Farbe hell/dunkel, Laufrichtung, Text des Mottos maskiert.
+    // Words of the format (Austauschformat.md §2): colour hell/dunkel, direction, text of the motto escaped.
     for needle in [
         "art=\"vorderseite-titel\"",
         "farbe=\"hell\"",
@@ -701,11 +703,11 @@ fn version_three_carries_cover_blocks_addresses_and_sheet_exactly() {
 
 #[test]
 fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone() {
-    // Ohne die Teile der Unterversion 4 (eigener Test unten), damit nur die Teile der Unterversion 3 übrig bleiben.
+    // Without the parts of sub-version 4 (own test below), so that only the parts of sub-version 3 remain.
     let xml = write_xml(&without_u4(sample_document()), ImageMode::Inline).unwrap();
     assert!(xml.contains(COVER_TOMBSTONE), "Vorbedingung: Grabstein umschlag-block im XML");
-    // Eine Datei, die behauptet, Unterversion 2 zu sein, aber die neuen Teile trägt: Der Leser liest sie wie ein
-    // Leser der Unterversion 2 – die Teile sind unbekannt, übernommen wird nichts davon.
+    // A file that claims to be sub-version 2 but carries the new parts: the reader reads it like a
+    // reader of sub-version 2 – the parts are unknown, nothing of them is taken over.
     let v2 = xml
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1)
         .replacen(" sprache=\"de\"", "", 1)
@@ -720,7 +722,7 @@ fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone
     assert!(book.cover_blocks.is_empty(), "keine Blöcke übernommen");
     assert_eq!((book.publisher_address.as_str(), book.printer_address.as_str()), ("", ""), "Anschriften leer");
     assert_eq!(doc.work.sheet, None, "kein Satzbild übernommen");
-    // Den Grabstein umschlag-block gibt es erst ab Unterversion 3 (wie verbindung/lage erst ab 2).
+    // The tombstone umschlag-block exists only from sub-version 3 (as verbindung/lage only from 2).
     let with_stone =
         xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1).replacen(" sprache=\"de\"", "", 1);
     let result = read_xml(with_stone.as_bytes(), &Limits::DEFAULT);
@@ -728,7 +730,7 @@ fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone
         matches!(&result, Err(ExchangeError::Xml(m)) if m.contains("umschlag-block") && m.contains("Unterversion 3")),
         "umschlag-block in Unterversion 2 ist ein Fehler: {result:?}"
     );
-    // Eine echte Ausgabe der Unterversion 2 (ohne neue Teile) liest sich weiter ohne Hinweis.
+    // A real output of sub-version 2 (without new parts) still reads without a notice.
     let mut old = without_u4(sample_document());
     old.work.sheet = None;
     old.work.book.as_mut().unwrap().cover_blocks.clear();
@@ -746,7 +748,7 @@ fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone
 
 #[test]
 fn version_three_without_addresses_reads_them_as_empty() {
-    // Das Schema lässt die Anschriften weg (verträglich); der Leser setzt dann leer.
+    // The schema leaves out the addresses (compatible); the reader then sets empty.
     let xml = write_xml(&sample_document(), ImageMode::Inline).unwrap().replace(ADDRESS_LINES[0], "");
     let doc = read_xml(xml.as_bytes(), &Limits::DEFAULT).unwrap();
     assert_eq!(doc.work.book.unwrap().publisher_address, "", "fehlende Anschrift = leer");
@@ -787,20 +789,20 @@ fn validate_checks_cover_blocks_and_addresses() {
     assert!(matches!(validate(&stone), Err(ExchangeError::Invalid(_))), "Grabstein für einen vorhandenen Block");
 }
 
-// ---- Unterversion 4 (Runde 28): Befunde, alte Beitragsfassungen --------------------------------------------
+// ---- Sub-version 4 (Round 28): findings, old post versions -------------------------------------------------
 
-/// Das Beispiel ohne die Teile der Unterversion 4 (Befunde, Bearbeitungen, Grabsteine ab 4).
-/// Runde 29: das Beispiel ohne die Teile der Unterversion 6 (Satz-Einstellungen, Grabsteinart `satz`).
+/// The sample without the parts of sub-version 4 (findings, edits, tombstones from 4).
+/// Round 29: the sample without the parts of sub-version 6 (typesetting settings, tombstone kind `satz`).
 fn without_u6(doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::ExchangeDocument {
-    // Runde 31: ohne Unterversion 6 heißt auch ohne Unterversion 7.
+    // Round 31: without sub-version 6 also means without sub-version 7.
     let mut doc = without_u7(doc);
     doc.work.typeset = None;
     doc.work.deleted.retain(|t| t.kind.since_version() <= 5);
     doc
 }
 
-/// Runde 31: das Beispiel ohne die Teile der Unterversion 7 (eigene Register, Glossar, Register/Glossar-Felder der
-/// Satz-Einstellungen, Grabsteinarten `glossar-begriff` und `register`).
+/// Round 31: the sample without the parts of sub-version 7 (own indexes, glossary, index/glossary fields of the
+/// typesetting settings, tombstone kinds `glossar-begriff` and `register`).
 fn without_u7(mut doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::ExchangeDocument {
     doc.work.registers.clear();
     doc.work.glossary.clear();
@@ -813,9 +815,9 @@ fn without_u7(mut doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::Ex
     doc
 }
 
-/// Runde 30: das Beispiel ohne die Teile der Unterversion 5 (Lösungen, Varianten, Schlüssel, Beitrags-Metadaten).
+/// Round 30: the sample without the parts of sub-version 5 (solutions, variants, keys, post metadata).
 fn without_u5(doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::ExchangeDocument {
-    // Runde 29: ohne Unterversion 5 heißt auch ohne Unterversion 6.
+    // Round 29: without sub-version 5 also means without sub-version 6.
     let mut doc = without_u6(doc);
     for finding in &mut doc.work.findings {
         finding.solutions.clear();
@@ -842,7 +844,7 @@ fn without_u5(doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::Exchan
 }
 
 fn without_u4(doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::ExchangeDocument {
-    // Runde 30: ohne Unterversion 4 heißt auch ohne Unterversion 5.
+    // Round 30: without sub-version 4 also means without sub-version 5.
     let mut doc = without_u5(doc);
     doc.work.findings.clear();
     doc.work.deleted.retain(|t| t.kind.since_version() <= 3);
@@ -869,8 +871,8 @@ fn without_u4(doc: baruch_exchange::ExchangeDocument) -> baruch_exchange::Exchan
 fn version_four_carries_findings_history_and_old_post_versions_exactly() {
     let doc = sample_document();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
-    // Wörter des Formats (Austauschformat.md §2, Unterversion 4): Art, Status, Entscheidung, Prüfvermerk, alte
-    // Fassung mit maskiertem Text, Grabsteinarten.
+    // Words of the format (Austauschformat.md §2, sub-version 4): kind, status, decision, review note, old
+    // version with escaped text, tombstone kinds.
     for needle in [
         "<befunde>",
         "art=\"kritisch\" status=\"verworfen\" persona=\"@lektor\" stelle=\"0\"",
@@ -903,8 +905,8 @@ fn files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones() {
     let xml = write_xml(&sample_document(), ImageMode::Inline).unwrap();
     let mut no_stones = without_u5(sample_document());
     no_stones.work.deleted.retain(|t| t.kind.since_version() <= 3);
-    // Eine Datei, die behauptet, Unterversion 3 zu sein, aber Befunde und Bearbeitungen trägt: wie ein Leser der
-    // Unterversion 3 – unbekannt, nichts übernommen.
+    // A file that claims to be sub-version 3 but carries findings and edits: like a reader of
+    // sub-version 3 – unknown, nothing taken over.
     let v3 = write_xml(&no_stones, ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1)
@@ -917,7 +919,7 @@ fn files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones() {
     }
     assert!(doc.work.findings.is_empty(), "keine Befunde übernommen");
     assert!(doc.work.threads[0].posts.iter().all(|p| p.edited.is_none() && p.versions.is_empty()), "keine Fassungen");
-    // Die Grabsteine der Unterversion 4 sind in einer Datei der Unterversion 3 ein Fehler.
+    // The tombstones of sub-version 4 are an error in a file of sub-version 3.
     let with_stone =
         xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1).replacen(" sprache=\"de\"", "", 1);
     let result = read_xml(with_stone.as_bytes(), &Limits::DEFAULT);
@@ -925,7 +927,7 @@ fn files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones() {
         matches!(&result, Err(ExchangeError::Xml(m)) if m.contains("befund") && m.contains("Unterversion 4")),
         "befund in Unterversion 3 ist ein Fehler: {result:?}"
     );
-    // Eine echte Ausgabe der Unterversion 3 liest sich weiter ohne Hinweis.
+    // A real output of sub-version 3 still reads without a notice.
     let plain = write_xml(&without_u4(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1)
@@ -937,8 +939,8 @@ fn files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones() {
 
 #[test]
 fn version_five_carries_solutions_variants_keys_and_post_links_exactly() {
-    // Runde 30: Rundreise der Unterversion 5 – Lösungen (mit & und <), Varianten mit setzt-um, Schlüssel der Punkte,
-    // Grundlage, Antwort, Wiederholung und Relay an Beitrag und Fadenbeitrag.
+    // Round 30: round trip of sub-version 5 – solutions (with & and <), variants with setzt-um, keys of the items,
+    // basis, reply, repetition and relay on post and thread post.
     let doc = sample_document();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in [
@@ -960,9 +962,9 @@ fn version_five_carries_solutions_variants_keys_and_post_links_exactly() {
 
 #[test]
 fn files_of_version_four_leave_the_u5_parts_unknown_and_still_read() {
-    // Eine Datei, die behauptet, Unterversion 4 zu sein, aber Teile der Unterversionen 5 und 6 trägt: wie ein Leser
-    // der Unterversion 4 – unbekannt gemeldet, nichts davon übernommen. (Ohne den Grabstein `satz`, den es erst ab 6
-    // gibt; er wäre ein Fehler, siehe Test zur Unterversion 6.)
+    // A file that claims to be sub-version 4 but carries parts of sub-versions 5 and 6: like a reader of
+    // sub-version 4 – reported as unknown, nothing of it taken over. (Without the tombstone `satz`, which exists only
+    // from 6; it would be an error, see the test for sub-version 6.)
     let mut doc = without_u7(sample_document());
     doc.work.deleted.retain(|t| t.kind.since_version() <= 5);
     let v4 = write_xml(&doc, ImageMode::Inline)
@@ -980,7 +982,7 @@ fn files_of_version_four_leave_the_u5_parts_unknown_and_still_read() {
     }
     assert_eq!(doc.work.typeset, None, "keine Satz-Einstellungen übernommen");
     assert!(doc.work.findings.iter().all(|f| f.solutions.is_empty()), "keine Lösungen übernommen");
-    // Eine echte Ausgabe der Unterversion 4 (ohne die neuen Teile) liest sich weiter ohne Hinweis.
+    // A real output of sub-version 4 (without the new parts) still reads without a notice.
     let plain = write_xml(&without_u5(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"4\"", 1)
@@ -997,7 +999,7 @@ fn validate_checks_variants_post_links_and_solutions() {
         change(&mut doc.work);
         matches!(validate(&doc), Err(ExchangeError::Invalid(_)))
     };
-    /// Der Punkt „Der Eimer“ (der einzige mit Varianten).
+    /// The item „Der Eimer“ (the only one with variants).
     fn bucket(w: &mut baruch_exchange::ExchangeWork) -> &mut baruch_exchange::ExchangeNode {
         fn find(nodes: &mut [baruch_exchange::ExchangeNode]) -> Option<&mut baruch_exchange::ExchangeNode> {
             for n in nodes {
@@ -1082,11 +1084,11 @@ fn validate_checks_findings_like_the_database_does() {
     assert!(matches!(validate(&stone), Err(ExchangeError::Invalid(_))), "Grabstein für einen vorhandenen Befund");
 }
 
-// ---- Unterversion 6 (Runde 29): Satz-Einstellungen -------------------------------------------------------
+// ---- Sub-version 6 (Round 29): typesetting settings ------------------------------------------------------
 
 #[test]
 fn version_six_carries_every_typeset_field_exactly() {
-    // Vertrag R29 §6.6: <satz> in <angaben> hinter <satzbild>, jedes Feld aus §2 darstellbar, Rundreise ohne Verlust.
+    // Contract R29 §6.6: <satz> in <angaben> after <satzbild>, every field from §2 representable, lossless round trip.
     let doc = sample_document();
     assert!(doc.work.typeset.is_some(), "Vorbedingung: das Beispiel hat Satz-Einstellungen");
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
@@ -1120,7 +1122,7 @@ fn version_six_carries_every_typeset_field_exactly() {
 
 #[test]
 fn files_of_version_five_leave_the_typeset_unknown_and_refuse_its_tombstone() {
-    // Eine Datei, die behauptet, Unterversion 5 zu sein, aber <satz> trägt: unbekannt, nichts übernommen.
+    // A file that claims to be sub-version 5 but carries <satz>: unknown, nothing taken over.
     let mut no_stone = without_u7(sample_document());
     no_stone.work.deleted.retain(|t| t.kind.since_version() <= 5);
     let v5 = write_xml(&no_stone, ImageMode::Inline)
@@ -1130,9 +1132,9 @@ fn files_of_version_five_leave_the_typeset_unknown_and_refuse_its_tombstone() {
     let doc = read_xml(v5.as_bytes(), &Limits::DEFAULT).unwrap();
     assert_eq!(doc.unknown, ["werk/angaben/satz"], "nur <satz> ist in Unterversion 5 unbekannt");
     assert_eq!(doc.work.typeset, None, "keine Satz-Einstellungen übernommen");
-    // Den Grabstein satz gibt es erst ab Unterversion 6 (Vertrag §6.6: in Dateien mit version 1–5 ein Fehler).
+    // The tombstone satz exists only from sub-version 6 (contract §6.6: an error in files with version 1–5).
     for version in 1..=5 {
-        // Nur Grabsteine, die es in dieser Unterversion schon gibt, und dazu der Grabstein satz.
+        // Only tombstones that already exist in this sub-version, plus the tombstone satz.
         let mut doc = without_u7(sample_document());
         doc.work.deleted.retain(|t| t.kind.since_version() <= version || t.kind == ExchangeTombstoneKind::Typeset);
         let old = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
@@ -1146,7 +1148,7 @@ fn files_of_version_five_leave_the_typeset_unknown_and_refuse_its_tombstone() {
             "satz in Unterversion {version} ist ein Fehler: {result:?}"
         );
     }
-    // Eine echte Ausgabe der Unterversion 5 (ohne <satz>) liest sich weiter ohne Hinweis.
+    // A real output of sub-version 5 (without <satz>) still reads without a notice.
     let plain = write_xml(&without_u6(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"5\"", 1)
@@ -1158,7 +1160,7 @@ fn files_of_version_five_leave_the_typeset_unknown_and_refuse_its_tombstone() {
 
 #[test]
 fn broken_typeset_attributes_are_xml_errors_with_their_path() {
-    // Halbe zusammengesetzte Felder und fremde Wörter verlören still einen Wert; der Leser lehnt die Datei ab.
+    // Half compound fields and foreign words would silently lose a value; the reader rejects the file.
     let xml = write_xml(&sample_document(), ImageMode::Inline).unwrap();
     for (what, broken, expected) in [
         ("halbe Ränder", xml.replace(" bundsteg-mm=\"5\"", ""), "werk/angaben/satz/@bundsteg-mm"),
@@ -1171,24 +1173,24 @@ fn broken_typeset_attributes_are_xml_errors_with_their_path() {
             "{what}: Fehler mit {expected}: {result:?}"
         );
     }
-    // Eine doppelte Kennung (Satz-Einstellungen = Werk) ist ein Fehler der Prüfung.
+    // A duplicate identifier (typesetting settings = work) is an error of the check.
     let mut doc = sample_document();
     doc.work.typeset.as_mut().unwrap().uuid = doc.work.uuid.clone();
     assert!(matches!(validate(&doc), Err(ExchangeError::Invalid(m)) if m.contains("Satz-Einstellungen")), "doppelt");
 }
 
-// ---- Unterversion 7 (Runde 31): eigene Register, Glossar, Register/Glossar-Felder ----------------------------
+// ---- Sub-version 7 (Round 31): own indexes, glossary, index/glossary fields ----------------------------------
 
 #[test]
 fn version_seven_carries_registers_glossary_and_the_new_typeset_fields_exactly() {
-    // Vertrag R31 (Aufgabe glossar-daten): Glossar mit Varianten und Status, eigene Register, neue <satz>-Attribute,
-    // Grabsteinarten glossar-begriff und register – Rundreise ohne Verlust, auch mit & und < im Text.
+    // Contract R31 (task glossar-daten): glossary with variants and status, own indexes, new <satz> attributes,
+    // tombstone kinds glossar-begriff and register – lossless round trip, also with & and < in the text.
     let doc = sample_document();
     assert_eq!((doc.work.registers.len(), doc.work.glossary.len()), (2, 3), "Vorbedingung: Beispiel mit u7-Teilen");
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in [
-        // Runde 22: Der Schreiber schreibt immer die eigene Unterversion (8); die u7-Teile stehen weiter so da.
-        // Geschrieben wird die eigene Unterversion (seit Runde 34 die 9).
+        // Round 22: the writer always writes its own sub-version (8); the u7 parts are still there as before.
+        // What is written is the own sub-version (since Round 34 the 9).
         "version=\"10\"",
         "<register uuid=\"26000000-0000-4000-8000-000000000456\" kennung=\"orte\" titel=\"Orte im Hof\"",
         "titel=\"Werkzeuge &amp; Geräte\"",
@@ -1221,8 +1223,8 @@ fn version_seven_carries_registers_glossary_and_the_new_typeset_fields_exactly()
 
 #[test]
 fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones() {
-    // Eine Datei, die behauptet, Unterversion 6 zu sein, aber Teile der Unterversion 7 trägt: unbekannt gemeldet,
-    // nichts davon übernommen (auch nicht die neuen Attribute an <satz>).
+    // A file that claims to be sub-version 6 but carries parts of sub-version 7: reported as unknown,
+    // nothing of it taken over (not the new attributes on <satz> either).
     let mut doc = sample_document();
     doc.work.deleted.retain(|t| t.kind.since_version() <= 6);
     let v6 = write_xml(&doc, ImageMode::Inline)
@@ -1248,7 +1250,7 @@ fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones()
         "R31-Felder nicht übernommen"
     );
     assert_eq!(settings.chapter_start, doc.work.typeset.as_ref().unwrap().settings.chapter_start, "Rest gelesen");
-    // Die Grabsteine der Unterversion 7 sind in Dateien der Unterversionen 1 bis 6 ein Fehler.
+    // The tombstones of sub-version 7 are an error in files of sub-versions 1 to 6.
     for (stone, word) in
         [(ExchangeTombstoneKind::GlossaryTerm, "glossar-begriff"), (ExchangeTombstoneKind::Register, "register")]
     {
@@ -1265,7 +1267,7 @@ fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones()
             "{word} in Unterversion 6 ist ein Fehler: {result:?}"
         );
     }
-    // Eine echte Ausgabe der Unterversion 6 (ohne die neuen Teile) liest sich weiter ohne Hinweis.
+    // A real output of sub-version 6 (without the new parts) still reads without a notice.
     let plain = write_xml(&without_u7(sample_document()), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"6\"", 1)
@@ -1277,7 +1279,7 @@ fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones()
 
 #[test]
 fn validate_checks_registers_and_glossary() {
-    // Was sich nicht einlesen ließe, lehnt schon die Prüfung ab (Austauschformat.md, Runde 31).
+    // What could not be imported is already rejected by the check (Austauschformat.md, Round 31).
     type Case = (&'static str, fn(&mut baruch_exchange::ExchangeWork));
     let cases: [Case; 6] = [
         ("eingebaute Kennung", |w| w.registers[0].slug = "bibel".into()),
@@ -1292,7 +1294,7 @@ fn validate_checks_registers_and_glossary() {
         break_it(&mut doc.work);
         assert!(matches!(validate(&doc), Err(ExchangeError::Invalid(_))), "{what}: Invalid erwartet");
     }
-    // Ein Vorschlag mit dem Schlüssel eines angenommenen Begriffs ist erlaubt (so steht es auch in der Datenbank).
+    // A proposal with the key of an accepted term is allowed (that is how it is in the database too).
     let mut doc = sample_document();
     doc.work.glossary[2].term = "brunnenstube".into();
     assert!(validate(&doc).is_ok(), "Vorschlag neben angenommenem Begriff gleichen Schlüssels");
@@ -1301,16 +1303,16 @@ fn validate_checks_registers_and_glossary() {
     assert!(matches!(validate(&doc), Err(ExchangeError::Invalid(_))), "Grabstein für einen vorhandenen Begriff");
 }
 
-// ---- Unterversion 8 (Runde 22): Fortschreibungen, Entwurf, Stand an Befunden -------------------------------
+// ---- Sub-version 8 (Round 22): amendments, draft, state on findings ----------------------------------------
 
 #[test]
 fn version_eight_carries_amends_stands_and_the_draft_exactly() {
-    // R22 §2.11 (a)–(c): Fortschreibungen samt Stand und beruht-stand, Entwurf in <satz>, Stand an Befund und
-    // Verlaufseintrag, Grabsteinart fortschreibung – Rundreise ohne Verlust über XML und Container.
+    // R22 §2.11 (a)–(c): amendments including state and beruht-stand, draft in <satz>, state on finding and
+    // history entry, tombstone kind fortschreibung – lossless round trip through XML and container.
     let doc = baruch_exchange::sample::sample_document_u8();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in [
-        // Geschrieben wird immer die eigene Unterversion (seit Runde 34 die 9); die Teile der 8 stehen weiter darin.
+        // What is written is always the own sub-version (since Round 34 the 9); the parts of 8 are still in it.
         "version=\"10\"",
         "<fortschreibung uuid=\"26000000-0000-4000-8000-000000000898\" seq=\"1\" art=\"amend\" autor=\"Hanna Probe\"",
         "seq=\"2\" art=\"undo\" undo-von=\"1\"",
@@ -1333,7 +1335,7 @@ fn version_eight_carries_amends_stands_and_the_draft_exactly() {
 
 #[test]
 fn files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombstone() {
-    // Eine Datei, die Unterversion 7 behauptet, aber u8-Teile trägt: gemeldet, nichts davon übernommen.
+    // A file that claims sub-version 7 but carries u8 parts: reported, nothing of it taken over.
     let mut doc = baruch_exchange::sample::sample_document_u8();
     doc.work.deleted.retain(|t| t.kind.since_version() <= 7);
     let v7 = write_xml(&doc, ImageMode::Inline)
@@ -1353,7 +1355,7 @@ fn files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombst
     }
     assert!(read7.work.typeset.as_ref().is_some_and(|t| t.settings.draft.is_none()), "Entwurf nicht übernommen");
     assert!(read7.work.findings.iter().all(|f| f.adopted_amend.is_none()), "Stand am Befund nicht übernommen");
-    // Der Grabstein der Unterversion 8 ist in einer Datei der Unterversion 7 ein Fehler.
+    // The tombstone of sub-version 8 is an error in a file of sub-version 7.
     let mut doc = sample_document();
     doc.work.deleted.push(ExchangeTombstone {
         uuid: sample_uuid(2210),
@@ -1370,8 +1372,8 @@ fn files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombst
 
 #[test]
 fn validate_refuses_amends_with_gaps_wrong_undo_or_a_wrong_stand() {
-    // Was das XSD nicht prüft, prüft der Leser: Schritte lückenlos ab 1, undo-von genau bei undo und kleiner als seq,
-    // stand = Zahl der Schritte, Kennungen eindeutig, Autor 1–200 Zeichen.
+    // What the XSD does not check, the reader checks: steps without gaps from 1, undo-von exactly with undo and
+    // smaller than seq, stand = number of steps, identifiers unique, author 1–200 characters.
     let good = baruch_exchange::sample::sample_document_u8();
     validate(&good).expect("das Beispiel ist gültig");
     let edit = |f: &dyn Fn(&mut ExchangeRevision)| {
@@ -1388,7 +1390,7 @@ fn validate_refuses_amends_with_gaps_wrong_undo_or_a_wrong_stand() {
         ("amend mit undo-von", edit(&|r| r.amends[0].undo_of = Some(1))),
         ("Stand", edit(&|r| r.amend_seq = 2)),
         ("doppelte Kennung", edit(&|r| r.amends[2].uuid = r.amends[0].uuid.clone())),
-        // PM-Abschluss R22: Autor wie der CHECK der Migration 0050 (1–200 Zeichen), sonst bräche erst das Schreiben ab.
+        // PM close R22: author like the CHECK of migration 0050 (1–200 characters), otherwise only writing would abort.
         ("leerer Autor", edit(&|r| r.amends[0].author = "  ".into())),
         ("Autor zu lang", edit(&|r| r.amends[0].author = "A".repeat(201))),
     ] {
@@ -1396,12 +1398,12 @@ fn validate_refuses_amends_with_gaps_wrong_undo_or_a_wrong_stand() {
     }
 }
 
-// ---- Unterversion 9 (Runde 34): Baum der Mindmap am Einfall ------------------------------------------------
+// ---- Sub-version 9 (Round 34): tree of the mind map on the idea --------------------------------------------
 
 #[test]
 fn version_nine_carries_title_parent_place_and_main_topic_of_ideas_exactly() {
-    // Vertrag R34 §1: <einfall> trägt wahlfrei titel, eltern (UUID des Eltern-Einfalls) und platz; dazu hauptthema
-    // (Nachtrag 2026-11-25: ohne Elternknoten, Bezug und Hauptthema liegt ein Einfall in der Wolke).
+    // Contract R34 §1: <einfall> optionally carries titel, eltern (UUID of the parent idea) and platz; plus hauptthema
+    // (addendum 2026-11-25: without parent node, reference and main topic an idea lies in the cloud).
     let doc = baruch_exchange::sample::sample_document_u9();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     let rope = sample_uuid(40);
@@ -1429,8 +1431,8 @@ fn version_nine_carries_title_parent_place_and_main_topic_of_ideas_exactly() {
 
 #[test]
 fn an_idea_without_tree_fields_writes_no_new_attributes_and_reads_with_defaults() {
-    // Ein Werk ohne Baum sieht in Unterversion 9 aus wie zuvor: Die neuen Attribute stehen nur da, wenn sie von der
-    // Vorgabe abweichen – so bleibt eine Ausgabe ohne Mindmap auch nach dem eingefrorenen u8-XSD gültig.
+    // A work without a tree looks in sub-version 9 as before: the new attributes are only there if they deviate from
+    // the default – that way an output without a mind map stays valid according to the frozen u8 XSD too.
     let xml = write_xml(&sample_document(), ImageMode::Inline).unwrap();
     let ideas: Vec<&str> = xml.lines().filter(|line| line.trim_start().starts_with("<einfall ")).collect();
     assert_eq!(ideas.len(), 3, "Vorbedingung: die drei Einfälle des Beispiels stehen je in einer Zeile");
@@ -1451,8 +1453,8 @@ fn an_idea_without_tree_fields_writes_no_new_attributes_and_reads_with_defaults(
 
 #[test]
 fn files_of_version_eight_leave_the_tree_attributes_unknown_and_take_nothing_of_them() {
-    // Eine Datei, die Unterversion 8 behauptet, aber die Attribute der 9 trägt: gemeldet, nichts davon übernommen;
-    // alles Übrige der Datei wird gelesen (Dateien der Unterversionen 1 bis 8 bleiben lesbar).
+    // A file that claims sub-version 8 but carries the attributes of 9: reported, nothing of it taken over;
+    // everything else of the file is read (files of sub-versions 1 to 8 stay readable).
     let doc = baruch_exchange::sample::sample_document_u9();
     let v8 = write_xml(&doc, ImageMode::Inline)
         .unwrap()
@@ -1478,9 +1480,9 @@ fn files_of_version_eight_leave_the_tree_attributes_unknown_and_take_nothing_of_
 
 #[test]
 fn validate_refuses_a_long_title_a_broken_parent_and_an_idea_as_its_own_parent() {
-    // Was das XSD nicht oder nur teils prüft, prüft der Leser: Titel höchstens 200 Zeichen (wie idea.title), eltern
-    // eine UUID und nicht der Einfall selbst. Ein Elternknoten, der nicht im Dokument steht, ist erlaubt – das
-    // Einlesen löst den Einfall dann mit Hinweis (Vertrag R34 §1).
+    // What the XSD does not check or checks only partly, the reader checks: title at most 200 characters (like
+    // idea.title), eltern a UUID and not the idea itself. A parent node that is not in the document is allowed –
+    // the import then detaches the idea with a note (contract R34 §1).
     let mut doc = baruch_exchange::sample::sample_document_u9();
     assert!(validate(&doc).is_ok(), "das Beispiel der Unterversion 9 ist gültig");
     doc.work.ideas[1].title = "ä".repeat(200);

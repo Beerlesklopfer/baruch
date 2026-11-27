@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Wortlaut prüfen: Zitate finden und einer Stelle zuordnen, normalisiert vergleichen, Wort-Diff, Zählung
-//! KJV. Alle Texte frei erfunden.
+//! Check wording: find quotations and assign them to a reference, compare normalised, word diff, versification
+//! KJV. All texts freely invented.
 
 use baruch_scripture::versification::{KJV, versification};
 use baruch_scripture::wording::{QuoteSpan, compare, diff_line, inline_quotes, quote_for};
@@ -81,8 +81,8 @@ fn the_kjv_counting_has_the_english_numbers() {
 
 #[test]
 fn typst_characters_in_the_bible_text_are_plain_text() {
-    // Der Predigttext steht maskiert im Typst-Quelltext („\#1“), der Bibeltext ist Klartext („#1“): Beide müssen
-    // dieselben Wörter ergeben, sonst meldete Baruch beim eingefügten Predigttext selbst eine Abweichung.
+    // The sermon text is escaped in the Typst source text ("\#1"), the Bible text is plain text ("#1"): both must
+    // yield the same words, otherwise Baruch would itself report a deviation for the inserted sermon text.
     let quote = "Lobt \\#1 den \\*Hirten\\* \\_hier\\_ für \\$5 an \\@tor \\<weg\\> mit \\\\ Stab\\~Ende.";
     let bible = "Lobt #1 den *Hirten* _hier_ für $5 an @tor <weg> mit \\ Stab~Ende.";
     let c = compare(quote, bible);
@@ -116,8 +116,8 @@ fn nested_quotes_count_as_one_and_quotes_may_span_paragraphs() {
 
 #[test]
 fn a_reference_in_a_new_paragraph_takes_the_quote_after_it_not_the_one_of_the_previous_paragraph() {
-    // Integrator Runde 17: „Psalm 139, Vers 23: „…““ im nächsten Absatz bekam vorher das Zitat des vorigen
-    // Absatzes (das zu Joh 3,16 gehört), weil Leerraum über die Leerzeile als Bindeglied galt.
+    // Integrator Round 17: „Psalm 139, Vers 23: „…““ in the next paragraph previously got the quotation of the
+    // previous paragraph (which belongs to Joh 3,16), because whitespace across the empty line counted as a link.
     let text = "„Der Fährmann sprach.“ (Joh 3,16)\n\nPsalm 139, Vers 23: „Prüfe den Steg.“";
     let refs = scan(text);
     let quotes = inline_quotes(text);

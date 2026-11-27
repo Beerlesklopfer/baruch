@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Blöcke und Inhalte des Modells als WordprocessingML: Fließtext, Fußnoten, Kommentar-Anker, Bilder, Listen,
-//! Tabellen, Typst-Inseln und verfolgte Änderungen. Der [`Renderer`] sammelt nebenbei, was andere Teile der Datei
-//! brauchen: Fußnoten, Beziehungen je Teil, benutzte Bilder und zusätzliche Nummerierungen.
+//! Blocks and contents of the model as WordprocessingML: running text, footnotes, comment anchors, images, lists,
+//! tables, Typst islands and tracked changes. Along the way the [`Renderer`] collects what other parts of the
+//! file need: footnotes, relationships per part, used images and additional numberings.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -10,23 +10,23 @@ use super::image;
 use crate::ooxml::*;
 use crate::{Block, Change, ChangeKind, DocxDocument, DocxError, Inline, ListItem, Marks};
 
-/// Zeichenvorlage für Verweise (eingebaute Vorlage „Hyperlink“).
+/// Character style for references (built-in style "Hyperlink").
 pub(super) const STYLE_HYPERLINK: &str = "Hyperlink";
-/// Absatzvorlage des Kommentartexts (eingebaut „annotation text“) und Zeichenvorlage des Kommentarzeichens.
+/// Paragraph style of the comment text (built-in "annotation text") and character style of the comment mark.
 pub(super) const STYLE_COMMENT_TEXT: &str = "CommentText";
 pub(super) const STYLE_COMMENT_REFERENCE: &str = "CommentReference";
 
-/// Erste Kennung einer echten Fußnote; 0 und 1 sind die Trennlinien.
+/// First identifier of a real footnote; 0 and 1 are the separator lines.
 pub(super) const FIRST_FOOTNOTE_ID: u32 = 2;
 
-/// Teil der Datei, in dem gerade geschrieben wird (jeder hat eigene Beziehungen).
+/// Part of the file that is currently being written (each has its own relationships).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Part {
     Document,
     Footnotes,
 }
 
-/// Eine Beziehung eines Teils.
+/// A relationship of a part.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Rel {
     pub id: String,
@@ -35,7 +35,7 @@ pub(super) struct Rel {
     pub external: bool,
 }
 
-/// Beziehungen eines Teils; gleiche Ziele teilen sich eine Kennung.
+/// Relationships of a part; equal targets share an identifier.
 #[derive(Debug, Default)]
 pub(super) struct Rels {
     pub entries: Vec<Rel>,
@@ -54,7 +54,7 @@ impl Rels {
     }
 }
 
-/// Zeichen, die XML 1.0 nicht erlaubt, durch U+FFFD ersetzen; `\r` entfällt.
+/// Replace characters that XML 1.0 does not allow with U+FFFD; `\r` is dropped.
 fn clean(text: &str) -> impl Iterator<Item = char> + '_ {
     text.chars().filter(|c| *c != '\r').map(|c| match c {
         '\t' | '\n' => c,
@@ -63,7 +63,7 @@ fn clean(text: &str) -> impl Iterator<Item = char> + '_ {
     })
 }
 
-/// Text für Elementinhalt und Attributwerte maskieren.
+/// Escape text for element content and attribute values.
 pub(super) fn esc(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in clean(text) {
@@ -80,7 +80,7 @@ pub(super) fn esc(text: &str) -> String {
     out
 }
 
-/// Ist `date` ein Zeitpunkt, den Word als `w:date` annimmt (`2026-11-20T09:30:00Z`, auch mit Sekundenbruchteilen)?
+/// Is `date` a time that Word accepts as `w:date` (`2026-11-20T09:30:00Z`, also with fractions of a second)?
 pub(super) fn valid_date(date: &str) -> bool {
     let bytes = date.as_bytes();
     bytes.len() >= 20
@@ -94,14 +94,14 @@ pub(super) fn valid_date(date: &str) -> bool {
         && (bytes.len() == 20 || (bytes[19] == b'.' && bytes[20..bytes.len() - 1].iter().all(u8::is_ascii_digit)))
 }
 
-/// Umgebung eines Textlaufs.
+/// Environment of a text run.
 #[derive(Clone, Copy, Default)]
 struct Ctx<'c> {
-    /// Zeichenvorlage (Zitat im Text, Insel, Verweis).
+    /// Character style (inline quote, island, reference).
     style: Option<&'static str>,
-    /// Offene Änderung: jeder Lauf wird einzeln in `w:ins`/`w:del` gefasst (so bleibt es auch um Verweise gültig).
+    /// Open change: every run is wrapped individually in `w:ins`/`w:del` (so it stays valid around references too).
     change: Option<&'c Change>,
-    /// Der Text ist gelöscht (`w:delText`), auch wenn die Klammer `w:del` schon weiter außen steht.
+    /// The text is deleted (`w:delText`), even if the bracket `w:del` is already further outside.
     deleted: bool,
     in_footnote: bool,
 }
@@ -109,20 +109,20 @@ struct Ctx<'c> {
 pub(super) struct Renderer<'a> {
     doc: &'a DocxDocument,
     pub rels: BTreeMap<Part, Rels>,
-    /// Fertige `w:footnote`-Elemente in der Reihenfolge ihrer Kennungen (ab [`FIRST_FOOTNOTE_ID`]).
+    /// Finished `w:footnote` elements in the order of their identifiers (from [`FIRST_FOOTNOTE_ID`]).
     pub footnotes: Vec<String>,
-    /// Benutzte Bilder: Index → Dateiname unter `word/media/`.
+    /// Used images: index → file name under `word/media/`.
     pub media: BTreeMap<usize, String>,
-    /// Zusätzliche Nummerierungen geordneter Listen: (`w:numId`, erste Nummer).
+    /// Additional numberings of ordered lists: (`w:numId`, first number).
     pub extra_nums: Vec<(u32, u64)>,
     decimal_used: bool,
     next_change: u32,
     next_drawing: u32,
-    /// Kennungen der vorhandenen Kommentare.
+    /// Identifiers of the existing comments.
     known_comments: BTreeSet<u32>,
-    /// Antworten ohne eigenen Anker je Kommentar, an dessen Stelle sie mit verankert werden.
+    /// Replies without an anchor of their own per comment, at whose place they are anchored along with it.
     replies: BTreeMap<u32, Vec<u32>>,
-    /// Kommentare, deren Zeichen (`w:commentReference`) schon im Text steht.
+    /// Comments whose mark (`w:commentReference`) is already in the text.
     referenced: BTreeSet<u32>,
 }
 
@@ -159,8 +159,8 @@ fn walk_blocks(blocks: &[Block], visit: &mut dyn FnMut(&Inline)) {
     }
 }
 
-/// Besteht der Inhalt ganz aus verfolgten Änderungen einer Art (und Kommentar-Ankern)? Dann gilt sie auch für die
-/// Absatzmarke eines Absatzes, für den das Modell keine eigene Marke kennt (Quelle eines Zitats, Bildunterschrift).
+/// Does the content consist entirely of tracked changes of one kind (and comment anchors)? Then it also applies
+/// to the paragraph mark of a paragraph for which the model knows no mark of its own (source of a quote, caption).
 fn uniform_change(inlines: &[Inline]) -> Option<&Change> {
     let mut found: Option<&Change> = None;
     for inline in inlines {
@@ -187,7 +187,7 @@ impl<'a> Renderer<'a> {
             if let Some(parent) = comment.reply_to
                 && !anchored.contains(&comment.id)
             {
-                // Antwort auf eine Antwort: bis zum verankerten Kommentar hinaufgehen (höchstens so oft, wie es Kommentare gibt).
+                // Reply to a reply: go up to the anchored comment (at most as often as there are comments).
                 let mut root = parent;
                 for _ in 0..doc.comments.len() {
                     match doc.comments.iter().find(|c| c.id == root).and_then(|c| c.reply_to) {
@@ -217,7 +217,7 @@ impl<'a> Renderer<'a> {
         self.rels.entry(part).or_default()
     }
 
-    /// Kommentare, deren Zeichen nirgends im Text steht (ohne Anker, Antwort auf einen Kommentar ohne Anker).
+    /// Comments whose mark is nowhere in the text (without anchor, reply to a comment without anchor).
     pub fn unreferenced_comments(&self) -> Vec<u32> {
         self.doc.comments.iter().map(|c| c.id).filter(|id| !self.referenced.contains(id)).collect()
     }
@@ -239,7 +239,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    /// Ein Stück auf Laufebene, bei offener Änderung in `w:ins`/`w:del` gefasst.
+    /// A piece at run level, wrapped in `w:ins`/`w:del` when a change is open.
     fn leaf(&mut self, ctx: Ctx<'_>, inner: &str, out: &mut String) {
         match ctx.change {
             Some(change) => {
@@ -273,7 +273,7 @@ impl<'a> Renderer<'a> {
         if props.is_empty() { props } else { format!("<w:rPr>{props}</w:rPr>") }
     }
 
-    /// Ein Textlauf; Zeilenumbrüche werden `w:br`, Tabulatoren `w:tab`.
+    /// A text run; line breaks become `w:br`, tabs `w:tab`.
     fn text_run(text: &str, props: &str, deleted: bool) -> String {
         let tag = if deleted { "w:delText" } else { "w:t" };
         let mut run = format!("<w:r>{props}");
@@ -321,7 +321,7 @@ impl<'a> Renderer<'a> {
             Inline::LineBreak => self.leaf(ctx, "<w:r><w:br/></w:r>", out),
             Inline::Footnote { content } => {
                 if ctx.in_footnote {
-                    // Word kennt keine Fußnote in der Fußnote: der Text bleibt, in Klammern.
+                    // Word knows no footnote in a footnote: the text stays, in parentheses.
                     let open = Inline::Text { text: " (".into(), marks: Marks::default() };
                     let close = Inline::Text { text: ")".into(), marks: Marks::default() };
                     self.inline(part, &open, ctx, out)?;
@@ -329,7 +329,7 @@ impl<'a> Renderer<'a> {
                     self.inline(part, &close, ctx, out)?;
                 } else {
                     let id = FIRST_FOOTNOTE_ID + self.footnotes.len() as u32;
-                    // Platz reservieren, damit Fußnoten in Lesereihenfolge stehen.
+                    // Reserve the place so that footnotes are in reading order.
                     self.footnotes.push(String::new());
                     let mut body = String::new();
                     let inner = Ctx { in_footnote: true, ..Ctx::default() };
@@ -407,7 +407,7 @@ impl<'a> Renderer<'a> {
         )
     }
 
-    /// `w:drawing` eines eingebetteten Bildes; der Pfad im Werk steht in `wp:docPr name`, der Alternativtext in
+    /// `w:drawing` of an embedded image; the path in the work is in `wp:docPr name`, the alternative text in
     /// `descr`.
     fn drawing(&mut self, part: Part, index: usize, alt: &str) -> Result<String, DocxError> {
         let doc = self.doc;
@@ -437,8 +437,8 @@ impl<'a> Renderer<'a> {
         ))
     }
 
-    /// Ein Absatz: Vorlage, weitere Absatzeigenschaften (`extra`, in Schemareihenfolge hinter `w:pStyle`),
-    /// verfolgte Absatzmarke, Inhalt.
+    /// A paragraph: style, further paragraph properties (`extra`, in schema order after `w:pStyle`), tracked
+    /// paragraph mark, content.
     #[allow(clippy::too_many_arguments)]
     fn paragraph(
         &mut self,
@@ -469,7 +469,7 @@ impl<'a> Renderer<'a> {
         Ok(())
     }
 
-    /// Verborgener Absatz mit dem wörtlichen Typst-Quelltext einer Insel.
+    /// Hidden paragraph with the verbatim Typst source text of an island.
     fn hidden_source(raw: &str, out: &mut String) {
         let props = Self::run_properties(None, Marks::default(), true);
         let _ = write!(
@@ -486,7 +486,7 @@ impl<'a> Renderer<'a> {
         );
     }
 
-    /// Schreibt Blöcke; `plain` ist die Vorlage gewöhnlicher Absätze in dieser Umgebung (Zitat, Insel).
+    /// Writes blocks; `plain` is the style of ordinary paragraphs in this environment (quote, island).
     pub fn blocks(&mut self, blocks: &[Block], plain: Option<&'static str>, out: &mut String) -> Result<(), DocxError> {
         let part = Part::Document;
         let ctx = Ctx::default();
@@ -554,7 +554,7 @@ impl<'a> Renderer<'a> {
             self.decimal_used = true;
             NUM_DECIMAL
         } else {
-            // Jede weitere geordnete Liste zählt für sich: eigene Nummerierung mit ihrer ersten Nummer.
+            // Every further ordered list counts on its own: its own numbering with its first number.
             let id = NUM_DECIMAL + 1 + self.extra_nums.len() as u32;
             self.extra_nums.push((id, start));
             id
@@ -573,7 +573,7 @@ impl<'a> Renderer<'a> {
         if columns == 0 {
             return Ok(());
         }
-        // Satzspiegel der Seite (A4 mit 2,5 cm Rand) in Twips, gleichmäßig auf die Spalten verteilt.
+        // Type area of the page (A4 with 2.5 cm margin) in twips, distributed evenly over the columns.
         let width = image::TEXT_WIDTH_TWIPS / columns as u32;
         out.push_str("<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/><w:tblBorders>");
         for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
@@ -595,7 +595,7 @@ impl<'a> Renderer<'a> {
                 if let Some(blocks) = row.get(column) {
                     self.blocks(blocks, None, &mut cell)?;
                 }
-                // Eine Zelle endet immer mit einem Absatz, sonst öffnet Word die Datei nicht.
+                // A cell always ends with a paragraph, otherwise Word does not open the file.
                 if !cell.ends_with("</w:p>") {
                     cell.push_str("<w:p/>");
                 }
@@ -608,7 +608,7 @@ impl<'a> Renderer<'a> {
         Ok(())
     }
 
-    /// Ein Absatz der Titelei.
+    /// A paragraph of the front matter.
     pub fn front_line(&mut self, style: &str, text: &str, out: &mut String) -> Result<(), DocxError> {
         if text.trim().is_empty() {
             return Ok(());

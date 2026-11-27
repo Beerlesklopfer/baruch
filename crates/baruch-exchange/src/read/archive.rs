@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Container `.baruch` (ZIP) lesen und prüfen (Vertrag R26 F1/F7).
+//! Read and check the container `.baruch` (ZIP) (contract R26 F1/F7).
 //!
-//! Reihenfolge der Prüfungen, jede bricht mit einem Fehler ab (dann wird nichts geschrieben):
-//! 1. Größe der Datei, Zahl der Einträge; das Zentralverzeichnis wird selbst durchgezählt, weil die
-//!    ZIP-Bibliothek doppelte Namen still zusammenfasst (Doppel → [`ExchangeError::Archive`]).
-//! 2. Namen: kein absoluter Pfad, kein `..`, kein Backslash, kein Laufwerk, nur `mimetype`, `werk.xml`,
-//!    `MANIFEST.xml` und `bilder/<uuid>.<ext>`; keine Verknüpfung, kein Ordner, keine Verschlüsselung, nur
-//!    STORED oder DEFLATE.
-//! 3. Erster Eintrag `mimetype` (am Dateianfang, STORED, genau [`ZIP_MIMETYPE`]).
-//! 4. Entpacken mit `take(Grenze + 1)` (den Größen im Kopf wird nicht getraut), Grenzen je Eintrag, für
-//!    `werk.xml` und in Summe.
-//! 5. Manifest: jeder Eintrag außer `mimetype` und dem Manifest steht darin und umgekehrt; SHA-256 und
-//!    Bytezahl stimmen ([`ExchangeError::Checksum`]).
-//! 6. `werk.xml` lesen; jede Bildfassung mit `datei` bekommt die Bytes ihres Eintrags (Name passend zur UUID
-//!    und zum Typ, Bytezahl und SHA-256 wie im XML).
+//! Order of the checks, each aborts with an error (then nothing is written):
+//! 1. Size of the file, number of entries; the central directory is counted by hand, because the
+//!    ZIP library silently merges duplicate names (duplicate → [`ExchangeError::Archive`]).
+//! 2. Names: no absolute path, no `..`, no backslash, no drive, only `mimetype`, `werk.xml`,
+//!    `MANIFEST.xml` and `bilder/<uuid>.<ext>`; no link, no folder, no encryption, only
+//!    STORED or DEFLATE.
+//! 3. First entry `mimetype` (at the beginning of the file, STORED, exactly [`ZIP_MIMETYPE`]).
+//! 4. Unpacking with `take(limit + 1)` (the sizes in the header are not trusted), limits per entry, for
+//!    `werk.xml` and in total.
+//! 5. Manifest: every entry except `mimetype` and the manifest is in it and vice versa; SHA-256 and
+//!    byte count are correct ([`ExchangeError::Checksum`]).
+//! 6. Read `werk.xml`; every image revision with `datei` gets the bytes of its entry (name matching the UUID
+//!    and the type, byte count and SHA-256 as in the XML).
 
 use std::collections::HashMap;
 use std::io::{Cursor as IoCursor, Read};
@@ -29,7 +29,7 @@ fn archive(message: impl Into<String>) -> ExchangeError {
     ExchangeError::Archive(message.into())
 }
 
-/// Namen aller Einträge des Zentralverzeichnisses in dessen Reihenfolge, selbst gezählt (mit Doppeln).
+/// Names of all entries of the central directory in its order, counted by hand (with duplicates).
 fn central_names(bytes: &[u8], start: u64) -> Result<Vec<Vec<u8>>, ExchangeError> {
     let mut names = Vec::new();
     let mut at = usize::try_from(start).map_err(|_| archive("Zentralverzeichnis außerhalb der Datei"))?;
@@ -49,7 +49,7 @@ fn central_names(bytes: &[u8], start: u64) -> Result<Vec<Vec<u8>>, ExchangeError
     Ok(names)
 }
 
-/// Erlaubter Name eines Eintrags? Gibt einen sprechenden Fehler für unsichere Namen.
+/// Allowed name of an entry? Gives a telling error for unsafe names.
 fn check_name(name: &str) -> Result<(), ExchangeError> {
     if name.starts_with('/') {
         return Err(archive(format!("absoluter Pfad „{name}“ im Archiv")));
@@ -81,7 +81,7 @@ fn check_name(name: &str) -> Result<(), ExchangeError> {
     )))
 }
 
-/// Container lesen (siehe Moduldoc).
+/// Read the container (see module doc).
 pub(crate) fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, ExchangeError> {
     if bytes.len() as u64 > limits.max_file_bytes {
         return Err(ExchangeError::Limit(format!("Datei größer als {} Bytes", limits.max_file_bytes)));
@@ -97,7 +97,7 @@ pub(crate) fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, Ex
         return Err(archive("leeres Archiv"));
     }
 
-    // 1. Zentralverzeichnis selbst zählen: Doppel erkennen.
+    // 1. Count the central directory by hand: detect duplicates.
     let start = (0..zip.len())
         .filter_map(|i| zip.by_index_raw(i).ok().map(|f| f.central_header_start()))
         .min()
@@ -116,7 +116,7 @@ pub(crate) fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, Ex
         return Err(archive(format!("Zentralverzeichnis nennt {} Einträge, lesbar sind {}", names.len(), zip.len())));
     }
 
-    // 2. Namen und Art jedes Eintrags (ohne zu entpacken).
+    // 2. Names and kind of every entry (without unpacking).
     let mut entries: Vec<(String, CompressionMethod)> = Vec::with_capacity(zip.len());
     for index in 0..zip.len() {
         let file = zip.by_index_raw(index).map_err(|e| archive(format!("Eintrag {index} nicht lesbar ({e})")))?;
@@ -142,7 +142,7 @@ pub(crate) fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, Ex
         entries.push((name, method));
     }
 
-    // 3. mimetype zuerst, am Dateianfang, unkomprimiert.
+    // 3. mimetype first, at the beginning of the file, uncompressed.
     match entries.first() {
         Some((name, method)) if name == ENTRY_MIMETYPE => {
             if *method != CompressionMethod::Stored {
@@ -157,7 +157,7 @@ pub(crate) fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, Ex
         _ => return Err(archive("erster Eintrag ist nicht „mimetype“")),
     }
 
-    // 4. Entpacken mit Grenzen.
+    // 4. Unpacking with limits.
     let mut contents: HashMap<String, Vec<u8>> = HashMap::new();
     let mut total: u64 = 0;
     for (index, (name, _)) in entries.iter().enumerate() {
@@ -213,7 +213,7 @@ pub(crate) fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, Ex
         return Err(archive(format!("das Manifest nennt „{missing}“, das Archiv enthält es nicht")));
     }
 
-    // 6. werk.xml und Bilder.
+    // 6. werk.xml and images.
     let xml = contents.remove(ENTRY_WORK).ok_or_else(|| archive("„werk.xml“ fehlt"))?;
     let root = dom::parse(&xml, limits)?;
     let (mut doc, refs) = map::document(&root)?;

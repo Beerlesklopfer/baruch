@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild nach der Werkvorlage: Werte aus einer frei erfundenen Vorlage, Vorgaben ohne Angaben.
+//! Typeset view according to the work template: values from a freely invented template, defaults without values.
 
 use baruch_wysiwyg::{BoxStyle, SheetStyle, sheet_css, sheet_style, sheet_style_over, template_font};
 
-/// Frei erfundene Vorlage (Schrift, Farben und Funktionsnamen ausgedacht).
+/// Freely invented template (font, colours and function names made up).
 const TEMPLATE: &str = r##"#set document(title: "Der Brunnen", author: "Niemand")
 // #set text(font: "Auskommentiert")
 #set page(paper: "a4")
@@ -62,8 +62,8 @@ fn the_style_comes_from_the_template() {
     }
 }
 
-/// Frei erfundene Vorlage mit Regeln, die nur für einen Teil gelten (Show-Regel, Funktionsrumpf),
-/// neben den Regeln der obersten Ebene.
+/// Freely invented template with rules that apply only to a part (show rule, function body),
+/// next to the rules of the top level.
 const SCOPED: &str = r##"#show footnote: set text(size: 8.5pt)
 #set text(size: 10.5pt)
 #let f() = { set par(first-line-indent: 0pt) }
@@ -108,8 +108,8 @@ fn without_rules_the_defaults_apply() {
     assert_eq!(paper.width.as_deref(), Some("14.8cm"), "Breite aus dem Papierformat");
 }
 
-/// Runde 18c: Die Satzbild-Einstellungen des Werks überschreiben die Vorlage feldweise
-/// (`sheet_style_over`); was die Einstellungen offen lassen, bleibt aus der Vorlage.
+/// Round 18c: the typeset view settings of the work override the template field by field
+/// (`sheet_style_over`); what the settings leave open stays from the template.
 #[test]
 fn settings_override_the_template_field_by_field() {
     let base = sheet_style(TEMPLATE);
@@ -135,9 +135,9 @@ fn settings_override_the_template_field_by_field() {
     assert_eq!(sheet_style_over(base.clone(), &SheetStyle::default()), base, "leere Einstellungen ändern nichts");
 }
 
-/// Ein Wert mit unpaarigem Anführungszeichen öffnete im CSS eine Zeichenkette bis zum Zeilenende und nähme die
-/// übrigen Variablen (und die schließende Klammer) mit; spitze Klammern könnten das `<style>`-Element beenden.
-/// Beides fällt weg, der Rest bleibt.
+/// A value with an unpaired quotation mark would open a string in the CSS up to the end of the line and take
+/// the other variables (and the closing bracket) with it; angle brackets could end the `<style>` element.
+/// Both are dropped, the rest stays.
 #[test]
 fn values_that_could_break_the_rule_or_the_style_element_are_dropped() {
     let style = SheetStyle {
@@ -152,11 +152,11 @@ fn values_that_could_break_the_rule_or_the_style_element_are_dropped() {
     assert!(css.contains("--ws-size: 11pt;") && css.ends_with('}'), "die übrigen Werte und die Klammer bleiben: {css}");
 }
 
-// ---- Grundschrift für den Umschlag (Runde 27, Nachbesserung) ---------------------------------------------
+// ---- Base font for the cover (Round 27, follow-up fix) ---------------------------------------------------
 
 #[test]
 fn template_font_takes_the_first_font_of_the_last_top_level_set_text() {
-    // Typst lässt die spätere set-Regel gewinnen; der Umschlag muss dieselbe Schrift nehmen wie das Buch.
+    // Typst lets the later set rule win; the cover must take the same font as the book.
     assert_eq!(
         template_font("#set text(font: \"Erste Antiqua\")\n#set text(font: \"Zweite Antiqua\")"),
         Some("Zweite Antiqua".into()),
@@ -190,8 +190,8 @@ fn template_font_ignores_comments_show_rules_and_bodies() {
                     #show: rest => { set text(font: \"Rumpf\"); rest }\n\
                     #let f(x) = { set text(font: \"Funktion\"); x }\n\
                     ```\n#set text(font: \"Raw\")\n```\n";
-    // Jede dieser späteren Fundstellen stünde bei einer reinen Textsuche nach dem letzten „set text(“ vorn; Typst
-    // setzt den Fließtext (und damit den Umschlagblock ohne eigene Schrift) aber in der Grundschrift.
+    // Each of these later occurrences would be at the front in a pure text search for the last "set text("; but
+    // Typst sets the running text (and thus the cover block without a font of its own) in the base font.
     assert_eq!(
         template_font(template),
         Some("Grund Antiqua".into()),

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20a (epub): Dateien des EPUB aus der Eingabe – Aufteilung, Fußnoten, Querverweise, Bilder, Inseln,
-//! Werkvorlage, Metadaten. Testwerk frei erfunden (`baruch_epub::sample`), Abwandlungen hier im Test.
+//! Round 20a (epub): files of the EPUB from the input – split, footnotes, cross-references, images, islands, work
+//! template, metadata. Test work freely invented (`baruch_epub::sample`), variations here in the test.
 
 use baruch_epub::sample::{self, KEYS};
 use baruch_epub::{EpubBook, EpubError, EpubInput, EpubSection, FootnoteMode, ItemKind, build};
@@ -121,7 +121,7 @@ fn endnotes_collect_every_note_in_notes_xhtml_with_backlinks() {
 
 #[test]
 fn endnotes_stand_on_the_top_level_of_the_toc_even_in_works_with_parts() {
-    // Das Testwerk hat einen Teil (Ebene 0); mit Ebene 1 hinge „Anmerkungen“ als Kapitel unter dem letzten Teil.
+    // The test work has a part (level 0); with level 1 „Anmerkungen“ would hang as a chapter under the last part.
     let mut input = sample::input();
     input.footnotes = FootnoteMode::Endnotes;
     let book = build(&input).unwrap();
@@ -151,12 +151,12 @@ fn a_label_inside_a_footnote_points_to_the_file_where_the_note_stands() {
     let ch2 = KEYS[3];
     let mut input = sample::input();
     input.sections[3].body.push_str("\nEine Bemerkung.#footnote[Notiz mit Marke <notiz>.]\n\nSiehe @notiz.\n");
-    // Popup: die Fußnote steht in der Kapiteldatei, der Verweis bleibt dort.
+    // Popup: the footnote is in the chapter file, the reference stays there.
     let popup = build(&input).unwrap();
     let chapter = text(&popup, &format!("text/k{ch2}.xhtml"));
     assert!(chapter.contains("id=\"lbl-notiz\""), "Sprungmarke in der Kapiteldatei: {chapter}");
     assert!(chapter.contains(&format!("href=\"k{ch2}.xhtml#lbl-notiz\"")), "Verweis in dieselbe Datei: {chapter}");
-    // Endnoten: die Sprungmarke steht in notes.xhtml, also muss der Verweis dorthin zeigen (sonst toter Link).
+    // Endnotes: the anchor is in notes.xhtml, so the reference must point there (otherwise a dead link).
     input.footnotes = FootnoteMode::Endnotes;
     let book = build(&input).unwrap();
     let notes = text(&book, "text/notes.xhtml");
@@ -455,8 +455,8 @@ fn without_a_language_the_settings_then_the_template_decide() {
     assert!(book.opf.contains("<dc:language>de</dc:language>"), "sonst Deutsch, nie leer");
 }
 
-/// R22 (§2.9): Mit Entwurf trägt die Titelseite den Hinweis (Text und Zusatz, maskiert) und dc:title/docTitle
-/// „<Titel> (Entwurf)“; ohne Entwurf ist jede Datei byte-gleich zum Buch vorher.
+/// R22 (§2.9): with a draft the title page carries the notice (text and addition, escaped) and dc:title/docTitle
+/// „<Titel> (Entwurf)“; without a draft every file is byte-identical to the book before.
 #[test]
 fn a_draft_marks_the_title_page_and_the_title_metadata_and_nothing_else_changes_without_it() {
     let plain = build(&sample::input()).unwrap();
@@ -496,7 +496,8 @@ fn a_draft_marks_the_title_page_and_the_title_metadata_and_nothing_else_changes_
         "der Stil bleibt gleich (Hinweis mit Inline-Stil)"
     );
 
-    // Ohne Titelei entsteht mit Entwurf trotzdem eine Titelseite (der Hinweis braucht einen Ort), aber kein Impressum.
+    // Without front matter a title page is created with a draft all the same (the notice needs a place), but no
+    // imprint.
     input.front_matter = false;
     let bare = build(&input).unwrap();
     assert!(bare.spine.iter().any(|id| id == "title"), "Titelseite im Spine: {:?}", bare.spine);

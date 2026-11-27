@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachbesserung Runde 17: verschlüsselte und BZIP2/XZ-Module **von libsword** (nicht nur von Baruchs eigener
-//! Fixture). Vorher waren Verschlüssler (Fixture) und Entschlüssler (sword-modules) nach derselben Beschreibung
-//! gebaut; ein Fehler in der Beschreibung wäre so unentdeckt geblieben.
+//! Follow-up fix Round 17: enciphered and BZIP2/XZ modules **from libsword** (not only from Baruch's own
+//! fixture). Before, encipherer (fixture) and decipherer (sword-modules) were built according to the same
+//! description; an error in the description would thus have stayed undetected.
 //!
-//! `tests/data/libsword/` enthält zwei Module, erzeugt mit `osis2mod` aus libsword 1.9.0 (Debian
-//! `libsword-utils`) aus der frei erfundenen Datei `erfunden.osis.xml` und dem frei erfundenen Schlüssel [`KEY`]:
+//! `tests/data/libsword/` contains two modules, generated with `osis2mod` from libsword 1.9.0 (Debian
+//! `libsword-utils`) from the freely invented file `erfunden.osis.xml` and the freely invented key [`KEY`]:
 //!
 //! ```text
 //! osis2mod out/bzip2 erfunden.osis.xml -z b -b 3 -c Kiesel-Amsel-1951 -v German
 //! osis2mod out/xz    erfunden.osis.xml -z x -b 3 -c Kiesel-Amsel-1951 -v German
 //! ```
 //!
-//! Ein unkomprimiertes Modul (RawText) verschlüsselt `osis2mod` trotz `-c` nicht (die Einträge stehen im Klartext
-//! in der Datei, auch libsword liest sie mit Schlüssel als Kauderwelsch) – RawText prüft deshalb nur die
-//! Gegenrichtung mit `diatheke`.
+//! `osis2mod` does not encipher an uncompressed module (RawText) despite `-c` (the entries are in plain text in
+//! the file, libsword too reads them as gibberish with a key) – RawText therefore checks only the opposite
+//! direction with `diatheke`.
 //!
-//! Jede Datei ist mit `xz -6 --check=crc32` gepackt abgelegt (die Indexdateien bestehen fast nur aus Nullen); der
-//! Test entpackt sie mit lzma-rs in einen Wegwerf-Ordner und schreibt die conf (osis2mod schreibt keine). Ist
-//! `diatheke` vorhanden, liest umgekehrt libsword ein von Baruchs Fixture verschlüsseltes Modul.
+//! Every file is stored packed with `xz -6 --check=crc32` (the index files consist almost only of zeros); the
+//! test unpacks them with lzma-rs into a throwaway folder and writes the conf (osis2mod writes none). If
+//! `diatheke` is present, libsword conversely reads a module enciphered by Baruch's fixture.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -26,10 +26,10 @@ use baruch_scripture::versification::german;
 use baruch_sword::fixture::{Block, Compression, Fixture, Layout, write};
 use baruch_sword::{BibleError, open, open_with_key, scan};
 
-/// Frei erfundener Schlüssel (derselbe wie beim Erzeugen).
+/// Freely invented key (the same as when generating).
 const KEY: &str = "Kiesel-Amsel-1951";
 
-/// Verse aus `erfunden.osis.xml`.
+/// Verses from `erfunden.osis.xml`.
 const VERSES: [(&str, u16, u16, &str); 4] = [
     ("Gen", 1, 1, "Der Kiesel lag am Bach, und die Weiden standen still."),
     ("Gen", 1, 2, "Die Amsel sang über dem Tor, bis der Abend kam."),
@@ -37,7 +37,7 @@ const VERSES: [(&str, u16, u16, &str); 4] = [
     ("John", 3, 16, "Und der Wind ging über das Gras, und niemand wusste, woher."),
 ];
 
-/// Modul `kind` (bzip2, xz) unter `root` anlegen; Name „Libsword<Kind>“.
+/// Create the module `kind` (bzip2, xz) under `root`; name "Libsword<Kind>".
 fn unpack(root: &Path, kind: &str) -> String {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/libsword").join(kind);
     let name = format!("Libsword{kind}");
@@ -98,8 +98,9 @@ fn modules_enciphered_and_packed_by_libsword_are_read() {
     }
 }
 
-/// Die Gegenrichtung: libsword (`diatheke`) liest ein Modul, das Baruchs Fixture mit Sapphire II verschlüsselt und
-/// mit BZIP2 gepackt hat. Ohne `diatheke` (etwa in der CI) entfällt der Teil mit Hinweis.
+/// The opposite direction: libsword (`diatheke`) reads a module that Baruch's fixture has enciphered with
+/// Sapphire II and packed with BZIP2. Without `diatheke` (for instance in the CI) the part is skipped with a
+/// note.
 #[test]
 fn libsword_reads_a_module_enciphered_by_the_fixture() {
     if Command::new("diatheke").arg("-b").arg("system").arg("-k").arg("modulelist").output().is_err() {
@@ -119,7 +120,7 @@ fn libsword_reads_a_module_enciphered_by_the_fixture() {
             .verse("Ps", 23, 1, "Die Amsel sang hinter dem Siegel.")
             .enciphered(KEY);
         write(&root, &f).unwrap();
-        // diatheke kennt keinen Schlüssel-Parameter: Schlüssel in die conf (nur im Wegwerf-Ordner).
+        // diatheke knows no key parameter: key into the conf (only in the throwaway folder).
         let conf = root.join("mods.d/baruchfixturesiegel.conf");
         let text = std::fs::read_to_string(&conf).unwrap();
         std::fs::write(&conf, text.replace("CipherKey=\n", &format!("CipherKey={KEY}\n"))).unwrap();

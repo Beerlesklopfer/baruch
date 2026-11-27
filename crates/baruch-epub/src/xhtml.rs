@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! XHTML-Abbildung des Blockmodells von baruch-wysiwyg (Besitz „epub“, Runde 20a).
+//! XHTML mapping of the block model of baruch-wysiwyg (ownership "epub", Round 20a).
 //!
-//! Ein Abschnittstext wird mit [`baruch_wysiwyg::parse`] in Blöcke zerlegt und hier als XHTML geschrieben:
+//! A section text is split into blocks with [`baruch_wysiwyg::parse`] and written as XHTML here:
 //!
-//! | Blockmodell | XHTML |
+//! | Block model | XHTML |
 //! |---|---|
-//! | Überschrift des Abschnitts (`=`, Teil, „ohne Nummer“) | `<h1>`–`<h3>` mit `id="k{key}"`, Nummer aus dem Gliederungsschema |
-//! | weitere Überschrift im Text | `<h{Ebene}>` (höchstens `<h6>`) |
-//! | Absatz | `<p>` |
+//! | heading of the section (`=`, part, "without number") | `<h1>`–`<h3>` with `id="k{key}"`, number from the outline scheme |
+//! | further heading in the text | `<h{level}>` (at most `<h6>`) |
+//! | paragraph | `<p>` |
 //! | `_…_` / `*…*` | `<em>` / `<strong>` |
-//! | Liste `-` / `+`, Aufzählung `1.` | `<ul>` / `<ol>` (geschachtelt, `start`) |
-//! | Begriffsliste `/ A: B` | `<dl><dt>A</dt><dd>B</dd></dl>` |
-//! | `#quote(block: true)[…]` / `#quote[…]` | `<blockquote>` (Quelle in `<footer>`) / `<q>` |
+//! | list `-` / `+`, enumeration `1.` | `<ul>` / `<ol>` (nested, `start`) |
+//! | term list `/ A: B` | `<dl><dt>A</dt><dd>B</dd></dl>` |
+//! | `#quote(block: true)[…]` / `#quote[…]` | `<blockquote>` (source in `<footer>`) / `<q>` |
 //! | `#szene[…]` / `#arbeit[…]` | `<section class="baruch-scene">` / `<section class="baruch-work">` |
-//! | `#link("https://…")[…]` | `<a href="…">` (nur http, https, mailto; sonst nur der Text) |
-//! | Querverweis `#link(<kN>)[…]` | `<a href="k{Kapitel}.xhtml#kN">` |
-//! | Verweis `@name` | Link auf das Ziel, sonst der Name als Text |
-//! | Label `<name>` | `<span id="lbl-name"></span>` |
-//! | `#footnote[…]` | Popup: `<a epub:type="noteref">` + `<aside epub:type="footnote">` am Dateiende; Endnoten: Link in `notes.xhtml` |
-//! | Insel mit `image("…")` | `<figure>` mit `<img>` (Unterschrift aus `caption:`), im Satz `<img>` |
+//! | `#link("https://…")[…]` | `<a href="…">` (only http, https, mailto; otherwise only the text) |
+//! | cross-reference `#link(<kN>)[…]` | `<a href="k{chapter}.xhtml#kN">` |
+//! | reference `@name` | link to the target, otherwise the name as text |
+//! | label `<name>` | `<span id="lbl-name"></span>` |
+//! | `#footnote[…]` | popup: `<a epub:type="noteref">` + `<aside epub:type="footnote">` at the end of the file; endnotes: link into `notes.xhtml` |
+//! | island with `image("…")` | `<figure>` with `<img>` (caption from `caption:`), inline `<img>` |
 //! | `` `Code` `` | `<code>` |
-//! | Maskierung `\x` als Insel | das Zeichen |
-//! | Kommentar, Sprungmarken-Zeile `#metadata("baruch-key") <kN>` | nichts (ohne Warnung) |
-//! | Registermarke `#metadata((…))<baruch-idx>` (R31) | `<span id="baruch-idx-{key}-{n}" class="baruch-idx"></span>` (Ziel der Registerseiten) |
-//! | erste Erwähnung `#link(<baruch-gl-UUID>)[#emph[Wort]]` (R31) | `<a epub:type="glossref" href="glossary.xhtml#baruch-gl-UUID"><em>Wort</em></a>` |
-//! | jede andere Insel | nichts, Warnung `ISLAND_OMITTED` mit Schlüssel |
+//! | escape `\x` as an island | the character |
+//! | comment, anchor line `#metadata("baruch-key") <kN>` | nothing (without a warning) |
+//! | index mark `#metadata((…))<baruch-idx>` (R31) | `<span id="baruch-idx-{key}-{n}" class="baruch-idx"></span>` (target of the index pages) |
+//! | first mention `#link(<baruch-gl-UUID>)[#emph[Wort]]` (R31) | `<a epub:type="glossref" href="glossary.xhtml#baruch-gl-UUID"><em>Wort</em></a>` |
+//! | every other island | nothing, warning `ISLAND_OMITTED` with key |
 //!
-//! Aller Text ist mit [`escape_text`] maskiert; nichts aus dem Werk wird als HTML übernommen.
+//! All text is escaped with [`escape_text`]; nothing from the work is taken over as HTML.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -35,8 +35,8 @@ use baruch_wysiwyg::{Block, BlockKind, Inline, Term};
 
 use crate::EpubWarning;
 
-/// Text für XML/XHTML maskieren (`&`, `<`, `>`, `"`, `'`). Zeichen, die XML 1.0 verbietet (Steuerzeichen außer
-/// Tab, Zeilenvorschub und Wagenrücklauf), fallen weg – sonst wäre die Datei kein wohlgeformtes XML.
+/// Escape text for XML/XHTML (`&`, `<`, `>`, `"`, `'`). Characters that XML 1.0 forbids (control characters
+/// except tab, line feed and carriage return) are dropped – otherwise the file would not be well-formed XML.
 pub fn escape_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -55,84 +55,84 @@ pub fn escape_text(s: &str) -> String {
     out
 }
 
-/// Ein Bild im Paket: Ziel relativ zu `OEBPS/` und Alternativtext aus den Bildangaben.
+/// An image in the package: target relative to `OEBPS/` and alternative text from the image details.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageTarget {
     pub href: String,
     pub alt: String,
 }
 
-/// Eine Fußnote: Nummer, angezeigtes Zeichen, Inhalt (XHTML) und Datei, in der der Verweis steht.
+/// A footnote: number, displayed mark, content (XHTML) and file in which the reference is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Note {
     pub number: usize,
     pub marker: String,
     pub html: String,
-    /// Dateiname des Verweises innerhalb von `text/` (`k11.xhtml`).
+    /// File name of the reference within `text/` (`k11.xhtml`).
     pub file: String,
 }
 
-/// Wohin Fußnoten-Verweise zeigen.
+/// Where footnote references point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoteTarget {
-    /// In dieselbe Datei (`#fn3`), `<aside>` am Dateiende.
+    /// Into the same file (`#fn3`), `<aside>` at the end of the file.
     SameFile,
-    /// In `notes.xhtml`.
+    /// Into `notes.xhtml`.
     Endnotes,
 }
 
-/// Was alle Dateien gemeinsam kennen: Ziele der Querverweise, Labels, Bilder.
+/// What all files know in common: targets of the cross-references, labels, images.
 #[derive(Debug, Default)]
 pub struct Links {
-    /// R31: UUIDs der Glossarbegriffe in `glossary.xhtml` (nur mit Glossarseite); erste Erwähnungen verlinken dorthin.
+    /// R31: UUIDs of the glossary terms in `glossary.xhtml` (only with a glossary page); first mentions link there.
     pub glossary: BTreeSet<String>,
-    /// Schlüssel → Dateiname in `text/` (`k11.xhtml`).
+    /// Key → file name in `text/` (`k11.xhtml`).
     pub key_files: BTreeMap<i64, String>,
-    /// Schlüssel → angezeigte Überschrift (für `@kN`).
+    /// Key → displayed heading (for `@kN`).
     pub key_titles: BTreeMap<i64, String>,
-    /// Label → Dateiname in `text/`.
+    /// Label → file name in `text/`.
     pub labels: BTreeMap<String, String>,
-    /// Runde 23a: Label einer Abbildung (`#figure(…) <name>`) → laufende Nummer im Buch (1-basiert, alle Abbildungen
-    /// mit Bild zählen in Lesereihenfolge, wie Typst zählt). `@name` zeigt dann „Abbildung n“ statt des Labelnamens.
+    /// Round 23a: label of a figure (`#figure(…) <name>`) → running number in the book (1-based, all figures with
+    /// an image count in reading order, as Typst counts). `@name` then shows „Abbildung n“ instead of the label name.
     pub figures: BTreeMap<String, usize>,
-    /// Normalisierter Typst-Pfad → Bild im Paket.
+    /// Normalised Typst path → image in the package.
     pub images: BTreeMap<String, ImageTarget>,
 }
 
-/// Schreibt die Blöcke einer Datei. Fußnoten und Warnungen sammelt er über alle Abschnitte der Datei.
+/// Writes the blocks of a file. It collects footnotes and warnings across all sections of the file.
 pub struct Renderer<'a> {
     pub links: &'a Links,
-    /// Dateiname dieser Datei in `text/`.
+    /// File name of this file in `text/`.
     pub file: String,
-    /// Schlüssel des Abschnitts, der gerade geschrieben wird (für Warnungen).
+    /// Key of the section that is currently being written (for warnings).
     pub key: i64,
     pub notes: Vec<Note>,
-    /// Nächste Fußnotennummer.
+    /// Next footnote number.
     pub next_note: usize,
     pub note_target: NoteTarget,
     pub numbering: FootnoteNumbering,
     pub warnings: Vec<EpubWarning>,
-    /// R31: gesetzte Anker der Registermarken (Datei, id, Abschnitt, Marke) für die Registerseiten.
+    /// R31: anchors of the index marks that were set (file, id, section, mark) for the index pages.
     pub index_marks: Vec<PlacedMark>,
     ids: BTreeSet<String>,
     in_link: bool,
     in_note: bool,
 }
 
-/// R31: Anker einer Registermarke im EPUB.
+/// R31: anchor of an index mark in the EPUB.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedMark {
-    /// Abschnitt, in dem die Marke steht.
+    /// Section in which the mark is.
     pub key: i64,
-    /// Datei in `text/` (bei Endnoten `notes.xhtml`, wenn die Marke in einer Fußnote steht).
+    /// File in `text/` (with endnotes `notes.xhtml`, if the mark is in a footnote).
     pub file: String,
-    /// id des Ankers (`baruch-idx-{key}-{n}`, eindeutig im Buch).
+    /// id of the anchor (`baruch-idx-{key}-{n}`, unique in the book).
     pub id: String,
     pub mark: baruch_typst::index::IndexMark,
 }
 
-/// R31: Wort und UUID der Auszeichnung der ersten Erwähnung mit Glossarseite (`#link(<baruch-gl-UUID>)[#emph[Wort]]`,
-/// Form aus `baruch_typst::index::Projector`).
+/// R31: word and UUID of the markup of the first mention with a glossary page
+/// (`#link(<baruch-gl-UUID>)[#emph[Wort]]`, form from `baruch_typst::index::Projector`).
 pub fn glossary_mention(raw: &str) -> Option<(&str, &str)> {
     let rest = raw.strip_prefix("#link(<")?.strip_prefix(baruch_typst::index::GLOSSARY_ANCHOR_PREFIX)?;
     let (uuid, rest) = rest.split_once(">)[#emph[")?;
@@ -141,8 +141,8 @@ pub fn glossary_mention(raw: &str) -> Option<(&str, &str)> {
     (plain(uuid) && plain(word)).then_some((uuid, word))
 }
 
-/// Steht hier der `;`, mit dem die Projektion einen eingebetteten Ausdruck vor `(`, `[`, `;` oder `.Wort` beendet
-/// (Typst verschluckt ihn)?
+/// Is this the `;` with which the projection ends an embedded expression before `(`, `[`, `;` or `.Wort` (Typst
+/// swallows it)?
 fn expression_guard(text: &str) -> bool {
     let Some(rest) = text.strip_prefix(';') else { return false };
     let mut chars = rest.chars();
@@ -153,7 +153,7 @@ fn expression_guard(text: &str) -> bool {
     }
 }
 
-/// Normalform eines Bildpfads wie in Store und Export: ohne führendes `/`, ohne `.`-Teile; `..` → `None`.
+/// Normal form of an image path as in store and export: without leading `/`, without `.` parts; `..` → `None`.
 pub fn normalize_path(path: &str) -> Option<String> {
     let mut parts = Vec::new();
     for part in path.trim().split('/') {
@@ -166,7 +166,7 @@ pub fn normalize_path(path: &str) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join("/"))
 }
 
-/// Zeichen einer Fußnote zur Nummer (1-basiert) nach der Zählweise der Satz-Einstellungen.
+/// Mark of a footnote for the number (1-based) according to the numbering style of the typesetting settings.
 pub fn note_marker(numbering: FootnoteNumbering, n: usize) -> String {
     match numbering {
         FootnoteNumbering::Arabic => n.to_string(),
@@ -188,7 +188,7 @@ pub fn note_marker(numbering: FootnoteNumbering, n: usize) -> String {
     }
 }
 
-/// Inhalt eines String-Literals nach `name:` in `raw` (z. B. `alt: "…"`), Maskierungen `\"` und `\\` aufgelöst.
+/// Content of a string literal after `name:` in `raw` (e.g. `alt: "…"`), escapes `\"` and `\\` resolved.
 pub fn named_string(raw: &str, name: &str) -> Option<String> {
     let at = find_named(raw, name)?;
     let rest = raw[at..].trim_start().strip_prefix('"')?;
@@ -208,7 +208,7 @@ pub fn named_string(raw: &str, name: &str) -> Option<String> {
     None
 }
 
-/// Stelle hinter `name:` (als ganzes Wort) in `raw`.
+/// Position after `name:` (as a whole word) in `raw`.
 fn find_named(raw: &str, name: &str) -> Option<usize> {
     let pattern = format!("{name}:");
     let mut from = 0;
@@ -223,7 +223,7 @@ fn find_named(raw: &str, name: &str) -> Option<usize> {
     None
 }
 
-/// Inhalt von `caption: […]` (wörtlich, ohne Klammern) bzw. `caption: "…"` (als Text) einer Abbildung.
+/// Content of `caption: […]` (verbatim, without brackets) or `caption: "…"` (as text) of a figure.
 pub enum Caption {
     Markup(String),
     Text(String),
@@ -254,7 +254,7 @@ pub fn caption_of(raw: &str) -> Option<Caption> {
     None
 }
 
-/// Nur Kommentare (und Leerraum)?
+/// Only comments (and whitespace)?
 fn only_comments(raw: &str) -> bool {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -266,7 +266,7 @@ fn only_comments(raw: &str) -> bool {
     trimmed.lines().all(|l| l.trim().is_empty() || l.trim_start().starts_with("//"))
 }
 
-/// Kurzer Auszug für Warnungen (eine Zeile, höchstens 60 Zeichen).
+/// Short excerpt for warnings (one line, at most 60 characters).
 fn excerpt(raw: &str) -> String {
     let line = raw.trim().lines().next().unwrap_or("");
     let mut out: String = line.chars().take(60).collect();
@@ -276,9 +276,9 @@ fn excerpt(raw: &str) -> String {
     out
 }
 
-/// Gültige id aus einem Label (Zeichen außer Buchstaben, Ziffern, `-`, `_`, `.` → `_`).
-/// Runde 23a: Ist die Insel eine Abbildung (`#figure(…)`)? Dann ihr Label, falls eines dahinter steht
-/// (`#figure(…) <name>`): `Some(None)` = Abbildung ohne Label, `None` = keine Abbildung.
+/// Valid id from a label (characters other than letters, digits, `-`, `_`, `.` → `_`).
+/// Round 23a: is the island a figure (`#figure(…)`)? Then its label, if one follows it
+/// (`#figure(…) <name>`): `Some(None)` = figure without label, `None` = not a figure.
 pub fn figure_label(raw: &str) -> Option<Option<String>> {
     let text = raw.trim();
     if !text.starts_with("#figure(") {
@@ -292,8 +292,8 @@ pub fn figure_label(raw: &str) -> Option<Option<String>> {
     Some(label)
 }
 
-/// Runde 23a: Besteht der Absatz nur aus einer Abbildung und ihrem Label (`#figure(…) <name>`, dazwischen höchstens
-/// Leerraum)? Dann Rohtext der Abbildung und Labelname.
+/// Round 23a: does the paragraph consist only of a figure and its label (`#figure(…) <name>`, at most whitespace
+/// in between)? Then the raw text of the figure and the label name.
 pub fn labelled_figure(inlines: &[Inline]) -> Option<(&str, &str)> {
     let mut parts = inlines.iter().filter(|i| match i {
         Inline::Text { v } => !v.trim().is_empty(),
@@ -307,7 +307,7 @@ pub fn labelled_figure(inlines: &[Inline]) -> Option<(&str, &str)> {
     figure_label(raw).map(|_| (raw.as_str(), v.as_str()))
 }
 
-/// Wort vor der Nummer einer Abbildung, wenn der Verweis kein eigenes mitbringt (Typst mit `lang: "de"`).
+/// Word before the number of a figure if the reference does not bring its own (Typst with `lang: "de"`).
 pub const FIGURE_SUPPLEMENT: &str = "Abbildung";
 
 pub fn label_id(label: &str) -> String {
@@ -344,12 +344,12 @@ impl<'a> Renderer<'a> {
         self.warnings.push(EpubWarning { code: code.to_owned(), message, key: Some(self.key) });
     }
 
-    /// Eine id für diese Datei reservieren; schon vergeben → `None`.
+    /// Reserve an id for this file; already taken → `None`.
     pub fn claim_id(&mut self, id: &str) -> bool {
         self.ids.insert(id.to_owned())
     }
 
-    /// Ein Abschnitt: Überschrift (mit `id="k{key}"` und angezeigter Nummer) und Blöcke. `level` 0 = Teil.
+    /// A section: heading (with `id="k{key}"` and displayed number) and blocks. `level` 0 = part.
     pub fn section(&mut self, out: &mut String, key: i64, level: u8, number: Option<&str>, title: &str, body: &str) {
         self.key = key;
         let doc = baruch_wysiwyg::parse(body);
@@ -380,7 +380,7 @@ impl<'a> Renderer<'a> {
                     other => {
                         let shown = escape_text(title);
                         if other.is_none() {
-                            // Der Text beginnt nicht mit einer Überschrift: die Überschrift aus der Gliederung davor.
+                            // The text does not start with a heading: the heading from the outline before it.
                             self.heading(out, tag, class, &own_id, number, &shown);
                             self.block(out, block);
                             continue;
@@ -405,7 +405,7 @@ impl<'a> Renderer<'a> {
 
     fn label_anchor(&mut self, out: &mut String, label: &str) {
         if baruch_typst::xref::parse_key_label(label).is_some() {
-            // Sprungmarken `<kN>` tragen die Überschriften selbst.
+            // Anchors `<kN>` are carried by the headings themselves.
             return;
         }
         let id = label_id(label);
@@ -414,7 +414,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    /// Blöcke nacheinander.
+    /// Blocks one after another.
     pub fn blocks(&mut self, out: &mut String, blocks: &[Block]) {
         for block in blocks {
             self.block(out, block);
@@ -422,7 +422,7 @@ impl<'a> Renderer<'a> {
     }
 
     fn block(&mut self, out: &mut String, block: &Block) {
-        // Ankerzeile `#metadata("baruch-key") <kN>` (das Blockmodell sieht darin einen Absatz mit Insel und Label).
+        // Anchor line `#metadata("baruch-key") <kN>` (the block model sees a paragraph with island and label in it).
         if let Some(key) = baruch_typst::xref::parse_anchor_line(block.raw.trim()) {
             let id = format!("k{key}");
             if self.claim_id(&id) {
@@ -452,8 +452,9 @@ impl<'a> Renderer<'a> {
                 let tag = (*level).clamp(1, 6);
                 out.push_str(&format!("<h{tag}>{}</h{tag}>\n", escape_text(title)));
             }
-            // Runde 23a: `#figure(…) <name>` liest das Blockmodell als Absatz aus Insel und Label. Das ist eine
-            // Abbildung mit Anker (Ziel von `@name`), kein Bild im Satz – sonst fehlten Unterschrift und Anker.
+            // Round 23a: the block model reads `#figure(…) <name>` as a paragraph of island and label. That is a
+            // figure with an anchor (target of `@name`), not an inline image – otherwise caption and anchor would be
+            // missing.
             BlockKind::Paragraph { inlines } if labelled_figure(inlines).is_some() => {
                 let (raw, label) = labelled_figure(inlines).expect("eben geprüft");
                 self.block_island(out, &format!("{} <{label}>", raw.trim()));
@@ -541,7 +542,7 @@ impl<'a> Renderer<'a> {
         out.push_str(&format!("</{tag}>\n"));
     }
 
-    /// `<img>` je Bildpfad der Insel (fehlende Bilder als Hinweis, mit Warnung).
+    /// `<img>` per image path of the island (missing images as a hint, with a warning).
     fn images(&mut self, raw: &str, class: &str) -> Option<String> {
         let paths = baruch_wysiwyg::image_paths(raw);
         if paths.is_empty() {
@@ -590,7 +591,7 @@ impl<'a> Renderer<'a> {
             return;
         }
         if let Some(images) = self.images(raw, "baruch-image") {
-            // Runde 23a: Ein Label an der Abbildung wird ihr Anker (Ziel von `@name`).
+            // Round 23a: a label on the figure becomes its anchor (target of `@name`).
             let anchor = match figure_label(raw).flatten().map(|label| label_id(&label)) {
                 Some(id) if self.claim_id(&id) => format!(" id=\"{id}\""),
                 _ => String::new(),
@@ -628,7 +629,7 @@ impl<'a> Renderer<'a> {
         if only_comments(raw) {
             return;
         }
-        // Maskierung `\x`, die als Text eine Kurzschreibweise würde: im EPUB einfach das Zeichen.
+        // Escape `\x` that would become a shorthand as text: in the EPUB simply the character.
         if let Some(rest) = raw.strip_prefix('\\') {
             let mut chars = rest.chars();
             if let (Some(c), None) = (chars.next(), chars.next()) {
@@ -664,7 +665,7 @@ impl<'a> Renderer<'a> {
         );
     }
 
-    /// Inline-Elemente.
+    /// Inline elements.
     pub fn inlines(&mut self, out: &mut String, inlines: &[Inline]) {
         let mut after_expression = false;
         for inline in inlines {
@@ -682,7 +683,7 @@ impl<'a> Renderer<'a> {
                 ),
             );
             match inline {
-                // R31: das `;` hinter einem eingebetteten Ausdruck (Projektion der ersten Erwähnung) setzt Typst nicht.
+                // R31: Typst does not typeset the `;` after an embedded expression (projection of the first mention).
                 Inline::Text { v } if guard && expression_guard(v) => out.push_str(&escape_text(&v[1..])),
                 Inline::Text { v } => out.push_str(&escape_text(v)),
                 Inline::Soft => out.push('\n'),
@@ -728,9 +729,9 @@ impl<'a> Renderer<'a> {
                     }
                 },
                 Inline::Ref { target, supplement } => self.reference(out, target, supplement.as_deref()),
-                // R31: Anker der Registermarke; die Registerseiten verlinken hierher.
+                // R31: anchor of the index mark; the index pages link here.
                 Inline::IndexMark { mark } => {
-                    // Schlüssel in der id: eindeutig auch in notes.xhtml, wo Fußnoten aller Kapitel stehen.
+                    // Key in the id: unique also in notes.xhtml, where footnotes of all chapters are.
                     let key = self.key;
                     let mut n = self.index_marks.iter().filter(|m| m.key == key).count() + 1;
                     while !self.claim_id(&format!("baruch-idx-{key}-{n}")) {
@@ -756,7 +757,7 @@ impl<'a> Renderer<'a> {
             (href, title)
         } else {
             let href = self.links.labels.get(target).map(|f| format!("{f}#{}", label_id(target)));
-            // Runde 23a: Verweis auf eine Abbildung zeigt wie Typst ihre Nummer („Abbildung 3“), nicht den Labelnamen.
+            // Round 23a: a reference to a figure shows its number like Typst („Abbildung 3“), not the label name.
             match self.links.figures.get(target) {
                 Some(number) => {
                     let word = supplement.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(FIGURE_SUPPLEMENT);
@@ -796,9 +797,9 @@ impl<'a> Renderer<'a> {
         let number = self.next_note;
         self.next_note += 1;
         let marker = note_marker(self.numbering, number);
-        // Runde 23a (Gutachten R20): Der Platz in der Liste wird vergeben, **bevor** der Inhalt geschrieben ist. Eine
-        // Fußnote in der Fußnote bekommt die nächste Nummer und steht dahinter – vorher landete die innere vor der
-        // äußeren, und `start` samt sichtbaren Nummern der Liste verrutschten.
+        // Round 23a (review R20): the place in the list is assigned **before** the content is written. A footnote
+        // in a footnote gets the next number and comes after it – before, the inner one landed before the outer
+        // one, and `start` together with the visible numbers of the list shifted.
         let slot = self.notes.len();
         self.notes.push(Note { number, marker: marker.clone(), html: String::new(), file: self.file.clone() });
         let mut html = String::new();
@@ -813,7 +814,7 @@ impl<'a> Renderer<'a> {
             NoteTarget::Endnotes => format!("notes.xhtml#fn{number}"),
         };
         if self.in_link {
-            // Ein Link im Link wäre kein gültiges XHTML: das Zeichen ohne Link, die Fußnote steht trotzdem da.
+            // A link in a link would not be valid XHTML: the mark without a link, the footnote is there all the same.
             out.push_str(&format!("<sup id=\"fnref{number}\">{}</sup>", escape_text(&marker)));
         } else {
             out.push_str(&format!(
@@ -827,8 +828,8 @@ impl<'a> Renderer<'a> {
     }
 }
 
-/// Fußnoten am Ende einer Kapiteldatei (Popup): `<ol class="baruch-footnotes">` mit je einem
-/// `<aside epub:type="footnote">`; lesbar auch in Lesern ohne Popup.
+/// Footnotes at the end of a chapter file (popup): `<ol class="baruch-footnotes">` with one
+/// `<aside epub:type="footnote">` each; readable also in readers without popups.
 pub fn footnote_list(notes: &[Note]) -> String {
     if notes.is_empty() {
         return String::new();
@@ -848,7 +849,7 @@ pub fn footnote_list(notes: &[Note]) -> String {
     out
 }
 
-/// Liste der Endnoten (`text/notes.xhtml`) mit Rückverweisen in die Kapiteldateien.
+/// List of the endnotes (`text/notes.xhtml`) with back references into the chapter files.
 pub fn endnote_list(notes: &[Note]) -> String {
     let mut out = String::from("<ol class=\"baruch-footnotes\">\n");
     for note in notes {

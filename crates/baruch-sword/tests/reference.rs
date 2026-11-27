@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kommentare und Lexika lesen (Runde 15, Punkt 5a): selbst geschriebene Mini-Module mit frei erfundenem Inhalt
-//! (RawCom, zCom; RawLD, RawLD4, zLD), gelesen über `sword-modules`. Kommentar zu einer Stelle (auch über mehrere
-//! Verse), Stichwort → Artikel, Stichwortliste, Suche, Klartext ohne Auszeichnung, Größengrenzen und nicht
-//! lesbare Arten mit Grund.
+//! Read commentaries and lexicons (Round 15, item 5a): self-written mini modules with freely invented content
+//! (RawCom, zCom; RawLD, RawLD4, zLD), read through `sword-modules`. Commentary on a reference (also across
+//! several verses), keyword → article, keyword list, search, plain text without markup, size limits and
+//! unreadable kinds with a reason.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -16,7 +16,7 @@ fn commentary(name: &str, layout: Layout) -> Fixture {
         .conf("Description", "Erfundener Testkommentar")
         .conf("DistributionLicense", "Public Domain")
         .verse("Gen", 1, 1, "<p>Der <hi type=\"bold\">Kiesel</hi> steht für Geduld.</p><note>nur Fußnote</note>")
-        // Ein Eintrag für zwei Verse (gleicher Text an beiden Stellen).
+        // One entry for two verses (same text at both slots).
         .verse("Ps", 139, 23, "Prüfen heißt hier: ans Licht halten.")
         .verse("Ps", 139, 24, "Prüfen heißt hier: ans Licht halten.")
         .verse("Matt", 5, 3, "Die Amsel singt auch im Regen.")
@@ -148,7 +148,7 @@ fn unreadable_kinds_are_listed_with_a_reason() {
         assert!(open_commentary(info).is_err(), "{name}: Öffnen scheitert ehrlich statt Unsinn zu lesen");
     }
     let secret = found.find_lexicon("Geheim").expect("verschlüsseltes Lexikon gelistet");
-    // Seit R17c lehnt Baruch verschlüsselte Module nicht mehr ab: Die conf trägt hier schon einen Schlüssel.
+    // Since R17c Baruch no longer rejects enciphered modules: the conf already carries a key here.
     assert!(secret.enciphered, "CipherKey in der conf: verschlüsselt");
     assert!(secret.supported && !secret.locked(), "Schlüssel steht in der conf: lesbar: {:?}", secret.problem);
 }

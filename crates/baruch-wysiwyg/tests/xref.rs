@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Querverweise im Satzbild (Runde 30a): `#link(<kN>)[…]` samt Seitenzahl-Zusatz ist `Inline::Xref`, `emit`/`parse`
-//! ergeben eine Rundreise (auch als Eigenschaftstest mit fester Saat), andere Labels bleiben Inseln. Texte frei
-//! erfunden.
+//! Cross-references in the typeset view (Round 30a): `#link(<kN>)[…]` including page number addition is
+//! `Inline::Xref`, `emit`/`parse` yield a round trip (also as a property test with a fixed seed), other labels
+//! stay islands. Texts freely invented.
 
 use baruch_typst::xref::xref_snippet;
 use baruch_wysiwyg::{BlockKind, Inline, emit, parse, render_html};
@@ -10,7 +10,7 @@ fn text(v: &str) -> Inline {
     Inline::Text { v: v.into() }
 }
 
-/// Inlines des einzigen Absatzes von `typst`.
+/// Inlines of the only paragraph of `typst`.
 fn inlines(typst: &str) -> Vec<Inline> {
     let doc = parse(typst);
     assert_eq!(doc.blocks.len(), 1, "ein Block aus {typst:?}");
@@ -73,7 +73,7 @@ fn emit_writes_the_snippet_form_and_html_marks_the_block() {
     assert!(html.contains("Brücke &amp; "), "Linktext maskiert: {html}");
 }
 
-/// Zeichen für zufällige Linktexte, mit Typst-Sonderzeichen.
+/// Characters for random link texts, with Typst special characters.
 const ALPHABET: &[char] = &[
     'a', 'n', 'ä', 'ß', 'W', '1', ' ', ' ', '.', ',', ':', '-', '#', '*', '_', '$', '@', '<', '>', '[', ']', '~', '\\',
 ];

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild nach der Werkvorlage: Schrift, Größe, Farben, Einzug, Zeilenabstand, Satzbreite und die
-//! Kästen von `#szene`/`#arbeit`, gelesen aus `#set text/par/page(…)`, `#show emph/strong/heading:
-//! set text(…)` und `#let szene/arbeit(…) = block(…)`. Kommentare und Raw-Text zählen nicht, ebenso
-//! Regeln, die nicht auf der obersten Ebene stehen (in `#show …: it => […]`, `#show: …`, in
-//! Funktionsrümpfen `#let f() = {…}` oder anderen Ausdrücken): Die gelten nur für einen Teil des
-//! Dokuments. Gilt eine Regel mehrmals, gewinnt die letzte (wie in Typst). Werte, die sich nicht sicher
-//! nach CSS übersetzen lassen, fehlen; dann gelten die Vorgaben aus `wysiwyg.css`.
+//! Typeset view according to the work template: font, size, colours, indentation, line spacing, text width and
+//! the boxes of `#szene`/`#arbeit`, read from `#set text/par/page(…)`, `#show emph/strong/heading:
+//! set text(…)` and `#let szene/arbeit(…) = block(…)`. Comments and raw text do not count, nor do
+//! rules that are not at the top level (in `#show …: it => […]`, `#show: …`, in
+//! function bodies `#let f() = {…}` or other expressions): those apply only to a part of the
+//! document. If a rule applies several times, the last one wins (as in Typst). Values that cannot be
+//! translated safely to CSS are missing; then the defaults from `wysiwyg.css` apply.
 
 use serde::{Deserialize, Serialize};
 
@@ -14,46 +14,46 @@ use crate::scan::{
     Scanner, after_scheme, closed_group, ident_end, is_ident_continue, next_char, skip_escape, skip_line_comment,
 };
 
-/// Kasten eines Blocks (`#szene`, `#arbeit`), als CSS-Werte.
+/// Box of a block (`#szene`, `#arbeit`), as CSS values.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BoxStyle {
-    /// Hintergrund (`fill`).
+    /// Background (`fill`).
     pub fill: Option<String>,
-    /// Innenabstand (`inset`).
+    /// Padding (`inset`).
     pub inset: Option<String>,
-    /// Rahmen (`stroke`), z. B. `0.5pt solid #aaaaaa`.
+    /// Border (`stroke`), e.g. `0.5pt solid #aaaaaa`.
     pub stroke: Option<String>,
 }
 
-/// Darstellung des Satzbilds, als CSS-Werte; `None` = Vorgabe.
+/// Appearance of the typeset view, as CSS values; `None` = default.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SheetStyle {
-    /// Schriftfamilien, CSS-Liste (`"Erfundene Antiqua", serif`).
+    /// Font families, CSS list (`"Erfundene Antiqua", serif`).
     pub font: Option<String>,
     pub size: Option<String>,
-    /// Textfarbe.
+    /// Text colour.
     pub fill: Option<String>,
     pub emph_fill: Option<String>,
     pub strong_fill: Option<String>,
-    /// Aus `#show heading: set text(…)`.
+    /// From `#show heading: set text(…)`.
     pub heading_font: Option<String>,
     pub heading_fill: Option<String>,
-    /// Erstzeileneinzug (`first-line-indent`).
+    /// First-line indentation (`first-line-indent`).
     pub indent: Option<String>,
-    /// Zeilenabstand (`leading`, Abstand zwischen den Zeilen wie in Typst).
+    /// Line spacing (`leading`, distance between the lines as in Typst).
     pub leading: Option<String>,
     pub justify: Option<bool>,
-    /// Seitenbreite (`width` bzw. `paper`).
+    /// Page width (`width` or `paper`).
     pub width: Option<String>,
-    /// Blattfarbe. Die Werkvorlage liefert sie nie (das Blatt bleibt hell wie die Vorschau); nur die
-    /// Satzbild-Einstellungen des Werks setzen sie (Runde 18c, `--ws-background`, `static/sheet.css`).
+    /// Sheet colour. The work template never delivers it (the sheet stays light like the preview); only the
+    /// typeset view settings of the work set it (Round 18c, `--ws-background`, `static/sheet.css`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<String>,
     pub scene: Option<BoxStyle>,
     pub work: Option<BoxStyle>,
 }
 
-/// Darstellung `base` (aus der Vorlage) mit `over` überschrieben: jedes gesetzte Feld von `over` gewinnt.
+/// Appearance `base` (from the template) overridden with `over`: every set field of `over` wins.
 pub fn sheet_style_over(base: SheetStyle, over: &SheetStyle) -> SheetStyle {
     fn pick<T: Clone>(base: Option<T>, over: &Option<T>) -> Option<T> {
         over.clone().or(base)
@@ -76,7 +76,7 @@ pub fn sheet_style_over(base: SheetStyle, over: &SheetStyle) -> SheetStyle {
     }
 }
 
-/// Darstellung aus der Werkvorlage ableiten.
+/// Derive the appearance from the work template.
 pub fn sheet_style(template: &str) -> SheetStyle {
     let text = blank(template);
     let top = top_level(&text);
@@ -138,11 +138,11 @@ pub fn sheet_style(template: &str) -> SheetStyle {
     style
 }
 
-/// Grundschrift der Werkvorlage für den Umschlag (Runde 27): die erste Schrift (ein String oder das erste Element
-/// eines Arrays) aus dem **letzten** `#set text(font: …)` auf oberster Ebene – dieselbe Regel wie [`sheet_style`]
-/// und wie Typst selbst (die spätere Regel gewinnt). Kommentare, Raw-Text, `#show …: set text(…)`, Rümpfe von
-/// `#show: …` und Funktionsrümpfe zählen nicht. Eine Schrift, die sich nicht lesen lässt (Variable, Maskierung im
-/// String), wird übergangen; dann gilt die vorige Regel.
+/// Base font of the work template for the cover (Round 27): the first font (a string or the first element
+/// of an array) from the **last** `#set text(font: …)` at the top level – the same rule as [`sheet_style`]
+/// and as Typst itself (the later rule wins). Comments, raw text, `#show …: set text(…)`, bodies of
+/// `#show: …` and function bodies do not count. A font that cannot be read (variable, escape in the
+/// string) is skipped; then the previous rule applies.
 pub fn template_font(template: &str) -> Option<String> {
     let text = blank(template);
     let top = top_level(&text);
@@ -158,7 +158,7 @@ pub fn template_font(template: &str) -> Option<String> {
     found
 }
 
-/// Erster Schriftname aus `"Name"` oder `("A", "B")` (ohne Anführungszeichen).
+/// First font name from `"Name"` or `("A", "B")` (without quotation marks).
 fn first_font(value: &str) -> Option<String> {
     let v = value.trim();
     let first = if v.starts_with('(') {
@@ -174,14 +174,14 @@ fn first_font(value: &str) -> Option<String> {
     (!first.is_empty()).then(|| first.to_owned())
 }
 
-/// Neuen Wert übernehmen, wenn er sich übersetzen ließ (spätere Regeln gewinnen).
+/// Take over a new value if it could be translated (later rules win).
 fn set<T>(slot: &mut Option<T>, value: Option<T>) {
     if value.is_some() {
         *slot = value;
     }
 }
 
-/// CSS-Variablen unter `.ws-sheet` (nur gesetzte Werte; der Rest kommt aus `wysiwyg.css`).
+/// CSS variables under `.ws-sheet` (only set values; the rest comes from `wysiwyg.css`).
 pub fn sheet_css(style: &SheetStyle) -> String {
     let mut vars: Vec<(&str, String)> = Vec::new();
     let mut put = |name: &'static str, value: &Option<String>| {
@@ -222,9 +222,9 @@ pub fn sheet_css(style: &SheetStyle) -> String {
     format!(".ws-sheet {{ {} }}", body.join(" "))
 }
 
-/// Darf der Wert in CSS stehen? Nur Buchstaben, Ziffern und wenige Zeichen; nichts, was die Regel
-/// verlassen könnte (`;`, `{`, `}`, `<`, `\`), und Anführungszeichen nur paarig (eine offene
-/// CSS-Zeichenkette reichte bis zum Zeilenende und nähme die übrigen Variablen mit).
+/// May the value stand in CSS? Only letters, digits and a few characters; nothing that could leave the
+/// rule (`;`, `{`, `}`, `<`, `\`), and quotation marks only in pairs (an open
+/// CSS string would reach up to the end of the line and take the other variables with it).
 fn safe(value: &str) -> bool {
     !value.is_empty()
         && value.chars().all(|c| c.is_alphanumeric() || " #%.,()-+_\"'".contains(c))
@@ -232,7 +232,7 @@ fn safe(value: &str) -> bool {
         && value.matches('\'').count().is_multiple_of(2)
 }
 
-/// Kommentare und Raw-Text durch Leerzeichen ersetzen (Positionen bleiben).
+/// Replace comments and raw text with spaces (positions stay).
 fn blank(source: &str) -> String {
     let mut out = String::with_capacity(source.len());
     let mut scanner = Scanner::new(source);
@@ -263,7 +263,7 @@ fn blank(source: &str) -> String {
 
 type Args = Vec<(Option<String>, String)>;
 
-/// Argumente einer Klammer ab `open` (`text[open] == '('`).
+/// Arguments of a bracket from `open` (`text[open] == '('`).
 fn args_at(text: &str, open: usize) -> Option<Args> {
     let end = closed_group(text, open)?;
     let inner = &text[open + 1..end - 1];
@@ -280,40 +280,40 @@ fn args_at(text: &str, open: usize) -> Option<Args> {
     )
 }
 
-/// `name: wert` (Name aus Buchstaben, Ziffern, `-`, `_`).
+/// `name: value` (name of letters, digits, `-`, `_`).
 fn named(part: &str) -> Option<(&str, &str)> {
     let (name, value) = part.split_once(':')?;
     let name = name.trim();
     (!name.is_empty() && name.chars().all(is_ident_continue)).then_some((name, value))
 }
 
-/// Steht an `at` ein eigenständiges Wort (davor kein Bezeichnerzeichen)?
+/// Is there a standalone word at `at` (no identifier character before it)?
 fn word_start(text: &str, at: usize) -> bool {
     text[..at].chars().next_back().is_none_or(|c| !is_ident_continue(c) && c != '.')
 }
 
-/// Argumente aller `#set <name>(…)` in Reihenfolge.
+/// Arguments of all `#set <name>(…)` in order.
 fn set_rules(rules: &Rules, name: &str) -> Vec<Args> {
     let needle = format!("#set {name}(");
     rules.find(&needle).filter_map(|at| args_at(rules.text, at + needle.len() - 1)).collect()
 }
 
-/// Blankierter Vorlagentext mit den Stellen der `#`-Ausdrücke auf oberster Ebene.
+/// Blanked template text with the positions of the `#` expressions at the top level.
 struct Rules<'a> {
     text: &'a str,
     top: &'a [usize],
 }
 
 impl Rules<'_> {
-    /// Stellen von `needle`, die einen Ausdruck der obersten Ebene beginnen.
+    /// Positions of `needle` that start an expression of the top level.
     fn find<'n>(&self, needle: &'n str) -> impl Iterator<Item = usize> + use<'_, 'n> {
         self.text.match_indices(needle).map(|(at, _)| at).filter(|at| self.top.binary_search(at).is_ok())
     }
 }
 
-/// Anfänge der `#`-Ausdrücke im Markup der obersten Ebene, aufsteigend. Was in einem Ausdruck steht
-/// (Argumente, Inhaltsblöcke, Funktionsrümpfe, Show-Regeln), zählt nicht. Hinter `#set name(…)` geht
-/// es nach der Klammer weiter (mehrere Regeln in einer Zeile).
+/// Starts of the `#` expressions in the markup of the top level, ascending. What is inside an expression
+/// (arguments, content blocks, function bodies, show rules) does not count. After `#set name(…)` it
+/// continues after the bracket (several rules in one line).
 fn top_level(text: &str) -> Vec<usize> {
     let mut scanner = Scanner::new(text);
     let mut starts = Vec::new();
@@ -334,7 +334,7 @@ fn top_level(text: &str) -> Vec<usize> {
     starts
 }
 
-/// Ende von `#set name(…)` ab `at` (hinter der Klammer), sonst `None`.
+/// End of `#set name(…)` from `at` (after the bracket), otherwise `None`.
 fn set_rule_end(text: &str, at: usize) -> Option<usize> {
     let keyword_end = ident_end(text, at + 1);
     if &text[at + 1..keyword_end] != "set" {
@@ -346,7 +346,7 @@ fn set_rule_end(text: &str, at: usize) -> Option<usize> {
     (name_end > name && text[name_end..].starts_with('(')).then(|| closed_group(text, name_end)).flatten()
 }
 
-/// Argumente aller `#show <selector>: set text(…)`.
+/// Arguments of all `#show <selector>: set text(…)`.
 fn show_set_text(rules: &Rules, selector: &str) -> Vec<Args> {
     let text = rules.text;
     let mut found = Vec::new();
@@ -365,7 +365,7 @@ fn show_set_text(rules: &Rules, selector: &str) -> Vec<Args> {
     found
 }
 
-/// Kasten aus `#let <name>(…) = block|rect|box(…)`; die letzte Definition gilt.
+/// Box from `#let <name>(…) = block|rect|box(…)`; the last definition applies.
 fn box_style(rules: &Rules, name: &str) -> Option<BoxStyle> {
     let text = rules.text;
     let needle = format!("#let {name}(");
@@ -396,7 +396,7 @@ fn box_style(rules: &Rules, name: &str) -> Option<BoxStyle> {
     result
 }
 
-/// Länge in pt, mm, cm, in oder em (auch mit Nachkommastellen).
+/// Length in pt, mm, cm, in or em (also with decimal places).
 fn length(value: &str) -> Option<String> {
     let v = value.trim();
     let unit = ["pt", "mm", "cm", "in", "em"].into_iter().find(|u| v.ends_with(u))?;
@@ -407,7 +407,7 @@ fn length(value: &str) -> Option<String> {
     valid.then(|| format!("{number}{unit}"))
 }
 
-/// `first-line-indent`: Länge oder `(amount: …, all: …)`.
+/// `first-line-indent`: length or `(amount: …, all: …)`.
 fn indent(value: &str) -> Option<String> {
     let v = value.trim();
     if v.starts_with('(') {
@@ -425,7 +425,7 @@ fn boolean(value: &str) -> Option<bool> {
     }
 }
 
-/// Satzbreite nach dem Papierformat.
+/// Text width according to the paper format.
 fn paper(value: &str) -> Option<String> {
     let name = string(value)?;
     let width = match name.as_str() {
@@ -439,13 +439,13 @@ fn paper(value: &str) -> Option<String> {
     Some(width.into())
 }
 
-/// Inhalt eines String-Literals `"…"` (ohne Maskierungen).
+/// Content of a string literal `"…"` (without escapes).
 fn string(value: &str) -> Option<String> {
     let inner = value.trim().strip_prefix('"')?.strip_suffix('"')?;
     (!inner.contains(['"', '\\'])).then(|| inner.to_owned())
 }
 
-/// Schrift: `"Name"` oder `("A", "B")` → CSS-Liste mit Anführungszeichen.
+/// Font: `"Name"` or `("A", "B")` → CSS list with quotation marks.
 fn font(value: &str) -> Option<String> {
     let v = value.trim();
     let names: Vec<String> = if v.starts_with('(') {
@@ -461,7 +461,7 @@ fn font(value: &str) -> Option<String> {
     (!names.is_empty()).then(|| names.join(", "))
 }
 
-/// Farbe: `rgb("#rrggbb")`, `rgb(r, g, b)`, `luma(n)`, `cmyk(…)` oder ein Farbname von Typst.
+/// Colour: `rgb("#rrggbb")`, `rgb(r, g, b)`, `luma(n)`, `cmyk(…)` or a colour name of Typst.
 fn color(value: &str) -> Option<String> {
     let v = value.trim();
     if let Some(rest) = v.strip_prefix("rgb(").and_then(|r| r.strip_suffix(')')) {
@@ -515,7 +515,7 @@ fn color(value: &str) -> Option<String> {
     Some(named.into())
 }
 
-/// Farbkanal: Ganzzahl 0–255 oder Prozent.
+/// Colour channel: integer 0–255 or percent.
 fn channel(part: &str) -> Option<u8> {
     if part.ends_with('%') {
         return percent(part).map(|p| (p * 255.0).round() as u8);
@@ -529,7 +529,7 @@ fn percent(part: &str) -> Option<f64> {
     (0.0..=100.0).contains(&n).then_some(n / 100.0)
 }
 
-/// Rahmen: `1pt`, `gray`, `0.5pt + gray` → `0.5pt solid #aaaaaa`.
+/// Border: `1pt`, `gray`, `0.5pt + gray` → `0.5pt solid #aaaaaa`.
 fn stroke(value: &str) -> Option<String> {
     let mut width = None;
     let mut paint = None;

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Frei erfundenes Testwerk „Das Gartenhaus am Bach“ (Besitz „epub“; kein Text Dritter).
+//! Freely invented test work „Das Gartenhaus am Bach“ (ownership "epub"; no third-party text).
 //!
-//! Mindestinhalte laut Vertrag R20-S1 (dürfen erweitert, nicht entfernt werden): ein Teil, zwei Kapitel mit je
-//! einem Abschnitt der Ebene 2, eine Fußnote, ein Querverweis `#link(<kN>)[…]`, ein PNG mit und eines ohne
-//! Alternativtext (im Code erzeugt), ein Umschlag-PNG, eine ISBN mit gültiger Prüfziffer, Sprache „de“.
+//! Minimum contents according to contract R20-S1 (may be extended, not removed): one part, two chapters with one
+//! section of level 2 each, a footnote, a cross-reference `#link(<kN>)[…]`, one PNG with and one without
+//! alternative text (generated in code), a cover PNG, an ISBN with a valid check digit, language "de".
 
 use baruch_typst::typeset::TypesetSettings;
 
 use crate::{EpubImage, EpubInput, EpubMeta, EpubSection, FootnoteMode};
 
-/// Schlüssel der Abschnitte im Testwerk (Teil, Kapitel 1, Abschnitt 1.1, Kapitel 2, Abschnitt 2.1).
+/// Keys of the sections in the test work (part, chapter 1, section 1.1, chapter 2, section 2.1).
 pub const KEYS: [i64; 5] = [10, 11, 12, 13, 14];
 
-/// Das Testwerk als Eingabe für [`crate::build`].
+/// The test work as input for [`crate::build`].
 pub fn input() -> EpubInput {
     let [part, ch1, s11, ch2, s21] = KEYS;
     let sections = vec![
@@ -115,17 +115,17 @@ pub fn input() -> EpubInput {
     }
 }
 
-/// Einfarbiges RGB-PNG `width` × `height` (unkomprimierte DEFLATE-Blöcke; kein Bild-Crate nötig).
+/// Single-colour RGB PNG `width` × `height` (uncompressed DEFLATE blocks; no image crate needed).
 pub fn png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
     png_with(width, height, |_, _| rgb)
 }
 
-/// RGB-PNG `width` × `height` mit der Farbe `pixel(x, y)` je Bildpunkt (z. B. Rauschen für große Testdateien, die
-/// sich nicht komprimieren lassen).
+/// RGB PNG `width` × `height` with the colour `pixel(x, y)` per pixel (e.g. noise for large test files that
+/// cannot be compressed).
 pub fn png_with(width: u32, height: u32, pixel: impl Fn(u32, u32) -> [u8; 3]) -> Vec<u8> {
     let mut raw = Vec::new();
     for y in 0..height {
-        raw.push(0); // Filter „None“
+        raw.push(0); // filter "None"
         for x in 0..width {
             raw.extend_from_slice(&pixel(x, y));
         }
@@ -134,7 +134,7 @@ pub fn png_with(width: u32, height: u32, pixel: impl Fn(u32, u32) -> [u8; 3]) ->
     let mut ihdr = Vec::new();
     ihdr.extend_from_slice(&width.to_be_bytes());
     ihdr.extend_from_slice(&height.to_be_bytes());
-    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]); // 8 Bit, RGB, Deflate, Standardfilter, ohne Zeilensprung
+    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]); // 8 bit, RGB, deflate, default filter, no interlacing
     chunk(&mut out, b"IHDR", &ihdr);
     chunk(&mut out, b"IDAT", &zlib_stored(&raw));
     chunk(&mut out, b"IEND", &[]);

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kleiner XML-Baum für die Teile einer Word-Datei (quick-xml, ohne Namensraum-Auflösung).
+//! Small XML tree for the parts of a Word file (quick-xml, without namespace resolution).
 //!
-//! Elemente und Attribute heißen so, wie sie in der Datei stehen (`w:p`, `w:val`). Annahme: die üblichen Präfixe
-//! (`w`, `r`, `wp`, `a`, `pic`, `m`, `mc`, `v`, `w14`, `w15`) – Word und LibreOffice schreiben sie so.
+//! Elements and attributes are named as they are in the file (`w:p`, `w:val`). Assumption: the usual prefixes
+//! (`w`, `r`, `wp`, `a`, `pic`, `m`, `mc`, `v`, `w14`, `w15`) – Word and LibreOffice write them that way.
 //!
-//! Sicherheit: Eine DTD (`<!DOCTYPE …>`) wird abgelehnt ([`DocxError::Unsafe`]); Entitäten werden nie aus der Datei
-//! aufgelöst – nur die fünf festen (`&amp;` …) und Zeichenverweise (`&#x41;`), jede andere bleibt wörtlich Text.
-//! Tiefe und Zahl der Elemente sind begrenzt ([`Limits`]).
+//! Security: a DTD (`<!DOCTYPE …>`) is rejected ([`DocxError::Unsafe`]); entities are never resolved from the
+//! file – only the five fixed ones (`&amp;` …) and character references (`&#x41;`), every other one stays
+//! verbatim text. Depth and number of the elements are limited ([`Limits`]).
 
 use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
@@ -31,7 +31,7 @@ impl Element {
         self.attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
     }
 
-    /// Kindelemente (ohne Text).
+    /// Child elements (without text).
     pub fn elements(&self) -> impl Iterator<Item = &Element> {
         self.children.iter().filter_map(|n| match n {
             Node::Element(e) => Some(e),
@@ -39,17 +39,17 @@ impl Element {
         })
     }
 
-    /// Erstes Kind mit diesem Namen.
+    /// First child with this name.
     pub fn child(&self, name: &str) -> Option<&Element> {
         self.elements().find(|e| e.name == name)
     }
 
-    /// `w:val` des Kindes `name`.
+    /// `w:val` of the child `name`.
     pub fn child_val(&self, name: &str) -> Option<&str> {
         self.child(name).and_then(|e| e.attr("w:val"))
     }
 
-    /// Erster Nachfahre (Tiefensuche) mit diesem Namen.
+    /// First descendant (depth-first search) with this name.
     pub fn find(&self, name: &str) -> Option<&Element> {
         for e in self.elements() {
             if e.name == name {
@@ -62,7 +62,7 @@ impl Element {
         None
     }
 
-    /// Text aller Nachfahren mit dem Namen `leaf` (z. B. `w:t`), aneinandergehängt.
+    /// Text of all descendants with the name `leaf` (e.g. `w:t`), concatenated.
     pub fn text_of(&self, leaf: &str, out: &mut String) {
         for e in self.elements() {
             if e.name == leaf {
@@ -73,7 +73,7 @@ impl Element {
         }
     }
 
-    /// Unmittelbarer Text dieses Elements.
+    /// Immediate text of this element.
     pub fn text(&self) -> String {
         let mut out = String::new();
         for n in &self.children {
@@ -124,7 +124,7 @@ fn push_text(stack: &mut [Element], text: &str) {
     }
 }
 
-/// Einen Teil lesen; Ergebnis ist das Wurzelelement.
+/// Read one part; the result is the root element.
 pub(crate) fn parse(part: &str, bytes: &[u8], limits: &Limits) -> Result<Element, DocxError> {
     let xml = |message: String| DocxError::Xml { part: part.to_owned(), message };
     let text = std::str::from_utf8(bytes).map_err(|_| xml("kein UTF-8 (UTF-16 liest Baruch nicht)".into()))?;

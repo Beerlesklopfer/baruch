@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 19c (treffer) in `baruch-sword`: Lemma-Probe der Lexika (Umlaut-Rückführung, Komposita, Strong-Nummern mit
-//! und ohne `StrongsPadding`), Stichprobe eines Moduls und erfundene Module mit Trennresten
-//! ([`baruch_sword::fixture::hyphen_remnants`]). Alle Module und Texte frei erfunden, in Temp-Ordnern.
+//! Round 19c (treffer) in `baruch-sword`: lemma probe of the lexicons (umlaut reversal, compounds, Strong's
+//! numbers with and without `StrongsPadding`), sample of a module and invented modules with hyphenation
+//! leftovers ([`baruch_sword::fixture::hyphen_remnants`]). All modules and texts freely invented, in temp folders.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -24,7 +24,7 @@ fn lexicon(root: &std::path::Path, fixture: &LexiconFixture) -> baruch_sword::Le
     open_lexicon(found.find_lexicon(&fixture.name).expect("Testlexikon gefunden")).unwrap()
 }
 
-// ---- Kandidaten ----------------------------------------------------------------------------------------
+// ---- Candidates ----------------------------------------------------------------------------------------
 
 #[test]
 fn lemma_candidates_reverse_the_umlaut_after_the_endings() {
@@ -57,7 +57,7 @@ fn strong_numbers_are_recognised_by_their_shape() {
     }
 }
 
-// ---- Lexikon-Lookup mit Probe --------------------------------------------------------------------------
+// ---- Lexicon lookup with probe -------------------------------------------------------------------------
 
 #[test]
 fn the_lemma_probe_finds_baum_for_baeume_and_falls_back_to_the_last_part_of_a_compound() {
@@ -115,7 +115,7 @@ fn g26_finds_g0026_with_and_without_strongs_padding() {
     assert!(padded.lookup_lemma("G27").unwrap().is_none(), "Begründung: eine fehlende Nummer bleibt fehlend");
 }
 
-// ---- Module mit Trennresten ----------------------------------------------------------------------------
+// ---- Modules with hyphenation leftovers ----------------------------------------------------------------
 
 #[test]
 fn hyphen_remnants_split_long_words_in_the_middle() {
@@ -131,7 +131,7 @@ fn hyphen_remnants_split_long_words_in_the_middle() {
     );
 }
 
-/// Zehn erfundene Verse; jeder zweite mit Trennresten, die übrigen sauber (dort stehen die ganzen Wörter).
+/// Ten invented verses; every second one with hyphenation leftovers, the others clean (the whole words are there).
 fn verses(remnants: bool) -> Vec<(u16, String)> {
     let base = [
         "Am Morgen gingen die Fischer hinunter zum Ufer und warteten.",

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Auszeichnung eines Eintrags zu Klartext: OSIS (Vorgabe der meisten Module), ThML, GBF, reiner Text.
-//! Weggelassen werden Fußnoten, Querverweise, Überschriften (außer kanonischen, z. B. Psalmüberschriften,
-//! die in deutscher Zählung ein Vers sind), Strong-Nummern und Morphologie; `divineName`, Wörter (`w`),
-//! Ergänzungen (`transChange`) und Zitate (`q`) bleiben als Text.
+//! Markup of an entry to plain text: OSIS (default of most modules), ThML, GBF, pure text.
+//! Left out are footnotes, cross-references, headings (except canonical ones, e.g. psalm titles,
+//! which are a verse in German versification), Strong's numbers and morphology; `divineName`, words (`w`),
+//! additions (`transChange`) and quotations (`q`) stay as text.
 
 use sword_modules::Markup;
 
-/// Klartext eines Eintrags in der Auszeichnung `markup`; Leerraum zusammengefasst und getrimmt.
+/// Plain text of an entry in the markup `markup`; whitespace collapsed and trimmed.
 pub fn to_plain(raw: &str, markup: Markup) -> String {
     let text = match markup {
         Markup::Gbf => gbf(raw),
@@ -16,10 +16,10 @@ pub fn to_plain(raw: &str, markup: Markup) -> String {
     collapse(&decode_entities(&text))
 }
 
-/// R17c: Strong-Nummern eines Eintrags in der Reihenfolge des Textes, ohne Doppel, als „H1234“/„G26“ ohne
-/// führende Nullen (Zusätze wie „a“ hinter der Zahl fallen weg). Erkannt: OSIS `lemma="strong:H01234 …"`, ThML
-/// `<sync type="Strongs" value="G26"/>`, GBF `<WH1234>`/`<WG26>` (Morphologie `<WT…>` nicht). Eine Nummer ohne
-/// Buchstaben bekommt `default_prefix` (`H` im Alten, `G` im Neuen Testament). Reiner Text: leer.
+/// R17c: Strong's numbers of an entry in the order of the text, without duplicates, as "H1234"/"G26" without
+/// leading zeros (suffixes such as "a" after the number are dropped). Recognised: OSIS `lemma="strong:H01234 …"`,
+/// ThML `<sync type="Strongs" value="G26"/>`, GBF `<WH1234>`/`<WG26>` (morphology `<WT…>` not). A number
+/// without a letter gets `default_prefix` (`H` in the Old, `G` in the New Testament). Pure text: empty.
 pub fn strongs(raw: &str, markup: Markup, default_prefix: char) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     if markup == Markup::Plaintext {
@@ -37,7 +37,7 @@ pub fn strongs(raw: &str, markup: Markup, default_prefix: char) -> Vec<String> {
         let Some(gt) = rest[lt..].find('>') else { break };
         let tag = &rest[lt + 1..lt + gt];
         rest = &rest[lt + gt + 1..];
-        // GBF: <WH1234>, <WG26> (Großbuchstaben, direkt die Zahl).
+        // GBF: <WH1234>, <WG26> (upper-case letters, the number directly).
         if let Some(num) = tag.strip_prefix("WH").or_else(|| tag.strip_prefix("WG"))
             && num.starts_with(|c: char| c.is_ascii_digit())
         {
@@ -65,7 +65,7 @@ pub fn strongs(raw: &str, markup: Markup, default_prefix: char) -> Vec<String> {
     out
 }
 
-/// Wert des Attributs `name` („name="…"“ oder „name='…'“).
+/// Value of the attribute `name` ("name="…"" or "name='…'").
 fn attribute<'a>(attrs: &'a str, name: &str) -> Option<&'a str> {
     let mut rest = attrs;
     while let Some(pos) = rest.find(name) {
@@ -87,7 +87,7 @@ fn attribute<'a>(attrs: &'a str, name: &str) -> Option<&'a str> {
     None
 }
 
-/// „H01234“ → „H1234“, „g26a“ → „G26“, „26“ → `default_prefix` + „26“; `None` ohne Zahl oder bei 0.
+/// "H01234" → "H1234", "g26a" → "G26", "26" → `default_prefix` + "26"; `None` without a number or for 0.
 fn strong_number(value: &str, default_prefix: char) -> Option<String> {
     let value = value.trim();
     let (prefix, digits) = match value.chars().next()? {
@@ -99,25 +99,25 @@ fn strong_number(value: &str, default_prefix: char) -> Option<String> {
     (!trimmed.is_empty()).then(|| format!("{prefix}{trimmed}"))
 }
 
-/// Elemente, deren Inhalt ganz wegfällt.
+/// Elements whose content is dropped entirely.
 fn dropped(name: &str, attrs: &str, thml: bool) -> bool {
     match name {
         "note" | "rdg" | "catchword" | "figure" => true,
-        // Überschriften, außer kanonischen (Psalmüberschrift als Vers 1 in deutscher Zählung).
+        // Headings, except canonical ones (psalm title as verse 1 in German versification).
         "title" | "head" => !attrs.contains("canonical=\"true\""),
         "scripref" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => thml,
         _ => false,
     }
 }
 
-/// Elemente, die Wörter trennen (Zeilen, Absätze, Umbrüche).
+/// Elements that separate words (lines, paragraphs, breaks).
 fn separates(name: &str) -> bool {
     matches!(name, "lb" | "l" | "lg" | "p" | "div" | "br" | "chapter" | "verse" | "milestone" | "list" | "item")
 }
 
 fn xml_like(raw: &str, thml: bool) -> String {
     let mut out = String::with_capacity(raw.len());
-    // Offene Elemente mit „fällt weg“.
+    // Open elements with "is dropped".
     let mut stack: Vec<(String, bool)> = Vec::new();
     let mut rest = raw;
     while let Some(lt) = rest.find('<') {
@@ -126,7 +126,7 @@ fn xml_like(raw: &str, thml: bool) -> String {
             out.push_str(&rest[..lt]);
         }
         let Some(gt) = rest[lt..].find('>') else {
-            // Kein Ende: Rest als Text (kaputte Auszeichnung lieber zeigen als verschlucken).
+            // No end: the rest as text (rather show broken markup than swallow it).
             if !skipping {
                 out.push_str(&rest[lt..]);
             }
@@ -158,8 +158,8 @@ fn xml_like(raw: &str, thml: bool) -> String {
     out
 }
 
-/// GBF: `<RF>…<Rf>` (Fußnote) und `<TS>…<Ts>` (Überschrift) fallen weg, andere Marken (`<WG…>`, `<FI>`,
-/// `<CM>` …) auch, ihr Text bleibt.
+/// GBF: `<RF>…<Rf>` (footnote) and `<TS>…<Ts>` (heading) are dropped, other marks (`<WG…>`, `<FI>`,
+/// `<CM>` …) too, their text stays.
 fn gbf(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut skip: Option<&str> = None;

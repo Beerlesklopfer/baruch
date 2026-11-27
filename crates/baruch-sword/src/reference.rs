@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kommentare und Lexika als Recherchewerkzeug (Runde 15, Punkt 5a).
+//! Commentaries and lexicons as a research tool (Round 15, item 5a).
 //!
-//! - [`Commentary`]: Kommentar zu einer Stelle in der **Verszählung des Moduls** (jede, die Baruch kennt), Treiber
-//!   RawCom, RawCom4, zCom, zCom4. Stellen, die sich einen gespeicherten Eintrag teilen (ein Kommentar zu
-//!   mehreren Versen), werden zu einem [`CommentaryEntry`] mit Bereich zusammengefasst. Lineare Suche.
-//! - [`Lexicon`]: Stichwort → Artikel, Stichwortliste (mit Präfix) und Suche in Stichwort und Text, Treiber
+//! - [`Commentary`]: commentary on a reference in the **versification of the module** (any that Baruch knows),
+//!   drivers RawCom, RawCom4, zCom, zCom4. References that share a stored entry (one commentary on
+//!   several verses) are merged into one [`CommentaryEntry`] with a range. Linear search.
+//! - [`Lexicon`]: keyword → article, keyword list (with prefix) and search in keyword and text, drivers
 //!   RawLD, RawLD4, zLD.
 //!
-//! Runde 19c: **Lemma-Probe** für Stichwörter ([`Lexicon::lookup_lemma`]): das Wort, Strong-Nummern in ihren
-//! Schreibweisen (`G26` ↔ `G0026`, auch bei `StrongsPadding=false`), dann [`lemma_candidates`] (Stamm ohne einfache
-//! Endung, Umlaut-Rückführung „Bäume“ → „Baum“) und zuletzt [`compound_tails`] (letzter Bestandteil eines Kompositums,
-//! „Feigenbaum“ → „Baum“). Eine ehrliche Probe, keine Lemmatisierung.
+//! Round 19c: **lemma probe** for keywords ([`Lexicon::lookup_lemma`]): the word, Strong's numbers in their
+//! spellings (`G26` ↔ `G0026`, also with `StrongsPadding=false`), then [`lemma_candidates`] (stem without a
+//! simple ending, umlaut reversal „Bäume“ → „Baum“) and last [`compound_tails`] (last component of a compound,
+//! „Feigenbaum“ → „Baum“). An honest probe, not lemmatisation.
 //!
-//! Text immer als Klartext ohne Auszeichnung ([`crate::text::to_plain`]), je Eintrag höchstens
-//! [`MAX_ENTRY_CHARS`] Zeichen (dann `truncated`). HrefCom, RawFiles (persönliche Notizen) und unbekannte
-//! Verszählungen meldet [`crate::scan`] mit `supported: false` und Grund. Verschlüsselte Module (R17c) öffnen
-//! [`open_commentary_with_key`] und [`open_lexicon_with_key`] mit dem Schlüssel des Nutzers.
+//! Text always as plain text without markup ([`crate::text::to_plain`]), per entry at most
+//! [`MAX_ENTRY_CHARS`] characters (then `truncated`). HrefCom, RawFiles (personal notes) and unknown
+//! versifications are reported by [`crate::scan`] with `supported: false` and a reason. Enciphered modules
+//! (R17c) are opened by [`open_commentary_with_key`] and [`open_lexicon_with_key`] with the key of the user.
 
 use std::time::Instant;
 
@@ -28,14 +28,14 @@ use crate::{
     BibleError, BibleInfo, checked_data_path, common_support, conf_with_key, known_versification, open_error, text,
 };
 
-/// Höchstlänge eines Eintrags (Kommentar bzw. Artikel) in Zeichen; Längeres wird gekürzt.
+/// Maximum length of an entry (commentary or article) in characters; longer ones are shortened.
 pub const MAX_ENTRY_CHARS: usize = 20_000;
-/// Höchstzahl der Verse, die [`Commentary::entries`] durchsieht.
+/// Maximum number of verses that [`Commentary::entries`] looks through.
 pub const MAX_COMMENTARY_VERSES: usize = 400;
-/// Höchstzahl der Stichwörter in einer Liste.
+/// Maximum number of keywords in a list.
 pub const MAX_KEYS: usize = 500;
 
-/// Kann Baruch den Kommentar lesen? Treiber, Kompression, Verschlüsselung, Verszählung, DataPath.
+/// Can Baruch read the commentary? Driver, compression, encipherment, versification, DataPath.
 pub(crate) fn support_commentary(conf: &ModuleConf) -> Result<&'static Versification, String> {
     let drv = conf.mod_drv().map_err(|e| e.to_string())?;
     let compressed = match drv {
@@ -49,7 +49,7 @@ pub(crate) fn support_commentary(conf: &ModuleConf) -> Result<&'static Versifica
     known_versification(conf)
 }
 
-/// Kann Baruch das Lexikon lesen? Treiber, Kompression, Verschlüsselung, DataPath.
+/// Can Baruch read the lexicon? Driver, compression, encipherment, DataPath.
 pub(crate) fn support_lexicon(conf: &ModuleConf) -> Result<(), String> {
     let drv = conf.mod_drv().map_err(|e| e.to_string())?;
     let compressed = match drv {
@@ -60,7 +60,7 @@ pub(crate) fn support_lexicon(conf: &ModuleConf) -> Result<(), String> {
     common_support(conf, compressed)
 }
 
-/// Klartext gekürzt auf `max` Zeichen; `true`, wenn gekürzt.
+/// Plain text shortened to `max` characters; `true` if shortened.
 pub fn clip(text: &str, max: usize) -> (String, bool) {
     if text.chars().count() <= max {
         return (text.to_owned(), false);
@@ -70,7 +70,7 @@ pub fn clip(text: &str, max: usize) -> (String, bool) {
     (out, true)
 }
 
-/// Ein Eintrag eines Kommentars: Bereich (Kapitel, Vers) in der Zählung des Moduls und Klartext.
+/// An entry of a commentary: range (chapter, verse) in the versification of the module and plain text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CommentaryEntry {
     pub start: (u16, u16),
@@ -79,10 +79,10 @@ pub struct CommentaryEntry {
     pub truncated: bool,
 }
 
-/// Treffer der Kommentarsuche.
+/// Hit of the commentary search.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CommentaryHit {
-    /// OSIS-Buch.
+    /// OSIS book.
     pub book: String,
     pub chapter: u16,
     pub verse: u16,
@@ -90,7 +90,7 @@ pub struct CommentaryHit {
     pub truncated: bool,
 }
 
-/// Ein geöffneter Kommentar.
+/// An opened commentary.
 pub struct Commentary {
     pub info: BibleInfo,
     pub v11n: &'static Versification,
@@ -103,12 +103,12 @@ impl std::fmt::Debug for Commentary {
     }
 }
 
-/// Öffnet den Kommentar `info` (aus [`crate::scan`], `kind` commentary) ohne Schlüssel.
+/// Opens the commentary `info` (from [`crate::scan`], `kind` commentary) without a key.
 pub fn open_commentary(info: &BibleInfo) -> Result<Commentary, BibleError> {
     open_commentary_with_key(info, None)
 }
 
-/// Öffnet den Kommentar `info` mit dem Schlüssel `key` eines verschlüsselten Moduls (nur im Speicher, wie
+/// Opens the commentary `info` with the key `key` of an enciphered module (only in memory, like
 /// [`crate::open_with_key`]).
 pub fn open_commentary_with_key(info: &BibleInfo, key: Option<&str>) -> Result<Commentary, BibleError> {
     let conf = conf_with_key(info, key)?;
@@ -124,7 +124,7 @@ pub fn open_commentary_with_key(info: &BibleInfo, key: Option<&str>) -> Result<C
     Ok(Commentary { info: info.clone(), v11n, module })
 }
 
-/// Probelesen der ersten Einträge (R17c, wie [`crate::Bible::probe`]).
+/// Trial read of the first entries (R17c, like [`crate::Bible::probe`]).
 fn probe_first(
     entries: impl Iterator<Item = Result<sword_modules::Entry, sword_modules::Error>>,
 ) -> Result<(), BibleError> {
@@ -132,7 +132,7 @@ fn probe_first(
 }
 
 impl Commentary {
-    /// R17c: Probelesen des ersten vorhandenen Eintrags (prüft einen Schlüssel, bevor Baruch ihn speichert).
+    /// R17c: trial read of the first existing entry (checks a key before Baruch stores it).
     pub fn probe(&self) -> Result<(), BibleError> {
         probe_first(self.module.iter().map(|r| r.map(|(_, e)| e)))
     }
@@ -149,9 +149,9 @@ impl Commentary {
         Ok(entry.map(|e| text::to_plain(&e.raw, e.markup)).filter(|t| !t.is_empty()))
     }
 
-    /// Kommentar zu den Versen `start..=end` (Kapitel, Vers; Vers 0 = ganzes Kapitel) von `book` (OSIS) in
-    /// der Zählung des Moduls. Gleiche Einträge benachbarter Verse werden zu einem Bereich; Verse ohne
-    /// Kommentar fehlen. `Err(Unsupported)` bei einem Buch, das die Zählung nicht kennt.
+    /// Commentary on the verses `start..=end` (chapter, verse; verse 0 = whole chapter) of `book` (OSIS) in
+    /// the versification of the module. Equal entries of neighbouring verses become one range; verses without
+    /// commentary are missing. `Err(Unsupported)` for a book that the versification does not know.
     pub fn entries(&self, book: &str, start: (u16, u16), end: (u16, u16)) -> Result<Vec<CommentaryEntry>, BibleError> {
         let chapters = self.v11n.chapters_of(book).ok_or_else(|| BibleError::Unsupported(format!("Buch {book}")))?;
         let mut out: Vec<CommentaryEntry> = Vec::new();
@@ -176,8 +176,8 @@ impl Commentary {
         Ok(out)
     }
 
-    /// Lineare Suche nach einer Wortfolge (normalisiert wie die Bibelsuche); höchstens `limit` Treffer bis
-    /// `deadline`. Ein Eintrag, den sich mehrere Verse teilen, zählt einmal (erster Vers).
+    /// Linear search for a word sequence (normalised like the Bible search); at most `limit` hits until
+    /// `deadline`. An entry that several verses share counts once (first verse).
     pub fn search(
         &self,
         query: &str,
@@ -225,15 +225,15 @@ impl Commentary {
     }
 }
 
-/// Einfache deutsche Endungen, die die Lemma-Probe abschneidet (längste zuerst): „Hirten“ → „Hirte“,
-/// „Schafe“ → „Schaf“, „Weges“ → „Weg“, „Kindern“ → „Kind“. Keine Grammatik.
+/// Simple German endings that the lemma probe cuts off (longest first): „Hirten“ → „Hirte“,
+/// „Schafe“ → „Schaf“, „Weges“ → „Weg“, „Kindern“ → „Kind“. No grammar.
 pub const LEMMA_ENDINGS: [&str; 7] = ["ern", "en", "es", "er", "e", "n", "s"];
-/// Kürzester letzter Bestandteil eines Kompositums (Zeichen), den [`compound_tails`] probiert.
+/// Shortest last component of a compound (characters) that [`compound_tails`] tries.
 pub const MIN_COMPOUND_TAIL: usize = 4;
-/// Kürzester vorderer Teil eines Kompositums (Zeichen).
+/// Shortest front part of a compound (characters).
 pub const MIN_COMPOUND_HEAD: usize = 3;
 
-/// Letzter Umlaut zurückgeführt („Bäum“ → „Baum“, „Söhn“ → „Sohn“, „Füß“ → „Fuß“); `None` ohne Umlaut.
+/// Last umlaut reversed („Bäum“ → „Baum“, „Söhn“ → „Sohn“, „Füß“ → „Fuß“); `None` without umlaut.
 fn without_last_umlaut(word: &str) -> Option<String> {
     let (at, c) = word.char_indices().rev().find(|(_, c)| matches!(c, 'ä' | 'ö' | 'ü' | 'Ä' | 'Ö' | 'Ü'))?;
     let plain = match c {
@@ -251,8 +251,9 @@ fn without_last_umlaut(word: &str) -> Option<String> {
     Some(out)
 }
 
-/// Kandidaten der Lemma-Probe: das Wort selbst, dann die Stämme ohne Endung (mindestens drei Buchstaben, längere
-/// zuerst), dann (Runde 19c) dieselben Formen mit zurückgeführtem Umlaut („Bäume“ → „Bäum“ → „Baum“). Ohne Doppel.
+/// Candidates of the lemma probe: the word itself, then the stems without ending (at least three letters, longer
+/// ones first), then (Round 19c) the same forms with reversed umlaut („Bäume“ → „Bäum“ → „Baum“). Without
+/// duplicates.
 pub fn lemma_candidates(word: &str) -> Vec<String> {
     let word = word.trim();
     let mut stems: Vec<String> = Vec::new();
@@ -265,7 +266,7 @@ pub fn lemma_candidates(word: &str) -> Vec<String> {
             stems.push(stem.to_owned());
         }
     }
-    // Kleinste Änderung zuerst: längere Stämme vor kürzeren („Hirte“ vor „Hirt“).
+    // Smallest change first: longer stems before shorter ones („Hirte“ before „Hirt“).
     stems.sort_by_key(|stem| std::cmp::Reverse(stem.chars().count()));
     let mut out = vec![word.to_owned()];
     out.extend(stems);
@@ -278,9 +279,9 @@ pub fn lemma_candidates(word: &str) -> Vec<String> {
     out
 }
 
-/// Letzte Bestandteile eines Kompositums als Rückfall der Lemma-Probe (Runde 19c): jedes Ende ab
-/// [`MIN_COMPOUND_TAIL`] Zeichen hinter einem vorderen Teil ab [`MIN_COMPOUND_HEAD`] Zeichen, längere zuerst,
-/// großgeschrieben („Feigenbaum“ → „Eigenbaum“, …, „Baum“). Die Probe nimmt das erste, das es als Stichwort gibt.
+/// Last components of a compound as fallback of the lemma probe (Round 19c): every ending from
+/// [`MIN_COMPOUND_TAIL`] characters after a front part from [`MIN_COMPOUND_HEAD`] characters, longer ones first,
+/// capitalised („Feigenbaum“ → „Eigenbaum“, …, „Baum“). The probe takes the first that exists as a keyword.
 pub fn compound_tails(word: &str) -> Vec<String> {
     let chars: Vec<char> = word.trim().chars().collect();
     let mut out = Vec::new();
@@ -299,7 +300,7 @@ pub fn compound_tails(word: &str) -> Vec<String> {
     out
 }
 
-/// Sieht `key` aus wie eine Strong-Nummer („G26“, „h430“, „G0026a“)?
+/// Does `key` look like a Strong's number ("G26", "h430", "G0026a")?
 pub fn strong_like(key: &str) -> bool {
     let key = key.trim();
     let mut chars = key.chars();
@@ -308,36 +309,36 @@ pub fn strong_like(key: &str) -> bool {
         && chars.as_str().chars().all(|c| c.is_ascii_alphanumeric())
 }
 
-/// Ein Artikel eines Lexikons.
+/// An article of a lexicon.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LexiconArticle {
-    /// Stichwort, wie es im Modul steht.
+    /// Keyword as it is in the module.
     pub key: String,
     pub text: String,
     pub truncated: bool,
 }
 
-/// Treffer der Lexikonsuche: Stichwort und Ausschnitt.
+/// Hit of the lexicon search: keyword and excerpt.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LexiconHit {
     pub key: String,
-    /// Klartext des Artikels (gekürzt auf 300 Zeichen).
+    /// Plain text of the article (shortened to 300 characters).
     pub excerpt: String,
-    /// `true`, wenn das Stichwort selbst passt (sonst nur der Text).
+    /// `true` if the keyword itself matches (otherwise only the text).
     pub in_key: bool,
 }
 
-/// Stichwortliste.
+/// Keyword list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct KeyList {
     pub keys: Vec<String>,
-    /// Es gibt mehr als die gelieferten.
+    /// There are more than those delivered.
     pub truncated: bool,
-    /// Zahl aller Stichwörter im Modul.
+    /// Number of all keywords in the module.
     pub total: usize,
 }
 
-/// Ein geöffnetes Lexikon.
+/// An opened lexicon.
 pub struct Lexicon {
     pub info: BibleInfo,
     module: DictionaryModule,
@@ -349,12 +350,12 @@ impl std::fmt::Debug for Lexicon {
     }
 }
 
-/// Öffnet das Lexikon `info` (aus [`crate::scan`], `kind` lexicon) ohne Schlüssel.
+/// Opens the lexicon `info` (from [`crate::scan`], `kind` lexicon) without a key.
 pub fn open_lexicon(info: &BibleInfo) -> Result<Lexicon, BibleError> {
     open_lexicon_with_key(info, None)
 }
 
-/// Öffnet das Lexikon `info` mit dem Schlüssel `key` eines verschlüsselten Moduls (nur im Speicher).
+/// Opens the lexicon `info` with the key `key` of an enciphered module (only in memory).
 pub fn open_lexicon_with_key(info: &BibleInfo, key: Option<&str>) -> Result<Lexicon, BibleError> {
     let conf = conf_with_key(info, key)?;
     support_lexicon(&conf).map_err(BibleError::Unsupported)?;
@@ -371,12 +372,12 @@ fn read_err(e: sword_modules::Error) -> BibleError {
 }
 
 impl Lexicon {
-    /// R17c: Probelesen des ersten vorhandenen Artikels (prüft einen Schlüssel, bevor Baruch ihn speichert).
+    /// R17c: trial read of the first existing article (checks a key before Baruch stores it).
     pub fn probe(&self) -> Result<(), BibleError> {
         probe_first(self.module.iter().map(|r| r.map(|(_, e)| e)))
     }
 
-    /// Zahl der Stichwörter.
+    /// Number of keywords.
     pub fn len(&self) -> usize {
         self.module.len()
     }
@@ -385,8 +386,8 @@ impl Lexicon {
         self.module.is_empty()
     }
 
-    /// Artikel zu einem Stichwort (Groß-/Kleinschreibung nach der conf, `@LINK` gefolgt); `None`, wenn es
-    /// das Stichwort nicht gibt.
+    /// Article for a keyword (case according to the conf, `@LINK` followed); `None` if the
+    /// keyword does not exist.
     pub fn lookup(&self, key: &str) -> Result<Option<LexiconArticle>, BibleError> {
         let key = key.trim();
         if key.is_empty() {
@@ -394,16 +395,16 @@ impl Lexicon {
         }
         let Some(entry) = self.module.get(key).map_err(read_err)? else { return Ok(None) };
         let plain = text::to_plain(&entry.raw, entry.markup);
-        // Das Stichwort, wie es im Modul steht (nächstes ab der Eingabe ist bei einem Treffer es selbst).
+        // The keyword as it is in the module (the nearest from the input is, on a hit, the keyword itself).
         let stored = self.module.get_nearest(key).map_err(read_err)?.map(|(k, _)| k).unwrap_or_else(|| key.to_owned());
         let (text, truncated) = clip(&plain, MAX_ENTRY_CHARS);
         Ok(Some(LexiconArticle { key: stored, text, truncated }))
     }
 
-    /// Runde 19c: Artikel mit Lemma-Probe. Zuerst das Stichwort selbst ([`Self::lookup`]), bei einer Strong-Nummer
-    /// dann ihre gepolsterten Schreibweisen (`G26` → `00026`, `G0026`; über `get_strongs`, unabhängig von
-    /// `StrongsPadding`), sonst [`lemma_candidates`] und zuletzt die Bestandteile aus [`compound_tails`] (je mit
-    /// ihren Lemma-Kandidaten). Antwort: Artikel und – wenn nicht das Stichwort selbst passte – die probierte Form.
+    /// Round 19c: article with lemma probe. First the keyword itself ([`Self::lookup`]), for a Strong's number
+    /// then its padded spellings (`G26` → `00026`, `G0026`; through `get_strongs`, independent of
+    /// `StrongsPadding`), otherwise [`lemma_candidates`] and last the components from [`compound_tails`] (each with
+    /// their lemma candidates). Answer: article and – if not the keyword itself matched – the form that was tried.
     pub fn lookup_lemma(&self, key: &str) -> Result<Option<(LexiconArticle, Option<String>)>, BibleError> {
         let key = key.trim();
         if key.is_empty() {
@@ -436,7 +437,7 @@ impl Lexicon {
         Ok(None)
     }
 
-    /// Das Stichwort, unter dem `get_strongs` eine Strong-Nummer fand (gleiche Reihenfolge der Formen).
+    /// The keyword under which `get_strongs` found a Strong's number (same order of the forms).
     fn strong_key(&self, number: &str) -> Result<Option<String>, BibleError> {
         let digits: String = number.trim()[1..].chars().take_while(char::is_ascii_digit).collect();
         let Ok(value) = digits.parse::<u32>() else { return Ok(None) };
@@ -450,7 +451,7 @@ impl Lexicon {
         Ok(None)
     }
 
-    /// Stichwörter (sortiert wie im Modul), die mit `prefix` beginnen (ohne Präfix alle), höchstens `limit`
+    /// Keywords (sorted as in the module) that start with `prefix` (without prefix all), at most `limit`
     /// (≤ [`MAX_KEYS`]).
     pub fn keys(&self, prefix: &str, limit: usize) -> Result<KeyList, BibleError> {
         let limit = limit.clamp(1, MAX_KEYS);
@@ -460,8 +461,8 @@ impl Lexicon {
         let start = if prefix_fold.is_empty() {
             0
         } else {
-            // Erster Eintrag ab dem Präfix: über get_nearest das Stichwort, dann seine Stelle linear suchen
-            // wäre teuer; die Liste ist sortiert, also binär über key_at.
+            // First entry from the prefix: getting the keyword through get_nearest and then searching its position
+            // linearly would be expensive; the list is sorted, so binary through key_at.
             let (mut lo, mut hi) = (0, self.module.len());
             while lo < hi {
                 let mid = lo + (hi - lo) / 2;
@@ -487,8 +488,8 @@ impl Lexicon {
         Ok(KeyList { keys, truncated, total: self.module.len() })
     }
 
-    /// Suche nach einer Wortfolge in Stichwort und Artikel (normalisiert); Stichworttreffer zuerst,
-    /// höchstens `limit` Treffer bis `deadline`.
+    /// Search for a word sequence in keyword and article (normalised); keyword hits first,
+    /// at most `limit` hits until `deadline`.
     pub fn search(&self, query: &str, limit: usize, deadline: Instant) -> Result<(Vec<LexiconHit>, bool), BibleError> {
         let needle: Vec<String> = baruch_scripture::wording::words(query).into_iter().map(|w| w.key).collect();
         if needle.is_empty() || limit == 0 {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14: Teil und „ohne Nummer“ im Satzbild. Die Markierungszeilen aus `baruch_typst::marker` sind
-//! eigene Blöcke ([`BlockKind::Part`], [`BlockKind::Unnumbered`]); unberührt bleiben sie byte-gleich,
-//! geändert baut `serialize` sie neu (Kommentar bleibt). Alle Texte frei erfunden.
+//! Round 14: part and "without number" in the typeset view. The marker lines from `baruch_typst::marker` are
+//! blocks of their own ([`BlockKind::Part`], [`BlockKind::Unnumbered`]); untouched they stay byte-identical,
+//! changed, `serialize` builds them anew (comment stays). All texts freely invented.
 
 use baruch_wysiwyg::{BlockKind, Edit, WysiwygError, parse, render_html, serialize};
 
-/// Teil mit Kommentar, Kapitel, Abschnitt ohne Nummer und Absätze.
+/// Part with comment, chapter, section without number and paragraphs.
 const TEXT: &str = "#heading(level: 1, numbering: none)[Erster Teil \\# Wasser] <baruch-part> // Notiz
 Ein Satz direkt unter dem Teil.
 
@@ -88,9 +88,9 @@ fn renaming_an_unnumbered_point_keeps_the_marker() {
 
 #[test]
 fn a_new_part_block_is_refused_in_the_satzbild() {
-    // Runde 18b (Backlog „Nach Runde 14 offen“: ein Client konnte einen Teil-Block in einen Kapiteltext
-    // schreiben): Teile entstehen in der Gliederung (`outline.add` mit `level: 0`); das Satzbild bietet sie
-    // nicht an, und `serialize` lehnt einen neuen Teil-Block ab, statt still eine Teil-Markierung zu schreiben.
+    // Round 18b (backlog „Nach Runde 14 offen“: a client could write a part block into a chapter
+    // text): parts arise in the outline (`outline.add` with `level: 0`); the typeset view does not offer
+    // them, and `serialize` rejects a new part block instead of silently writing a part marker.
     let doc = parse("Absatz.\n");
     let edits = vec![Edit::Block { replaces: None, block: BlockKind::Part { title: "Neu".into() } }, keep(0)];
     assert_eq!(serialize(&doc, &edits), Err(WysiwygError::NewPart), "neuer Teil im Satzbild → Fehler, nichts erzeugt");
@@ -103,8 +103,8 @@ fn a_new_part_block_is_refused_in_the_satzbild() {
 
 #[test]
 fn a_heading_turned_into_a_part_is_refused() {
-    // Auch das Umwandeln eines anderen Blocks in einen Teil schriebe eine Teil-Markierung in den Text; die
-    // Gliederung lehnte sie als erste Überschrift ohnehin ab (TO_PART), als weitere legte sie still einen Teil an.
+    // Converting another block into a part would also write a part marker into the text; the
+    // outline rejected it as the first heading anyway (TO_PART), as a further one it silently created a part.
     let doc = parse("= Alt // bleibt\nText.\n");
     let edits = vec![Edit::Block { replaces: Some(0), block: BlockKind::Part { title: "Teil".into() } }, keep(1)];
     assert_eq!(serialize(&doc, &edits), Err(WysiwygError::NewPart), "Überschrift → Teil im Satzbild abgelehnt");

@@ -1,31 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Was das EPUB aus der Werkvorlage liest (Besitz „epub“, Runde 20a): Show-Regeln mit `pagebreak` und die Sprache.
+//! What the EPUB reads from the work template (ownership "epub", Round 20a): show rules with `pagebreak` and the
+//! language.
 //!
-//! Ein EPUB fließt; Typst-Regeln wirken dort nicht. Seitenumbrüche vor Kapiteln und Teilen bildet die
-//! Dateiaufteilung ab (jede Teil-Seite und jedes Kapitel eine eigene Datei, dazu `break-before` im CSS). Darum
-//! meldet [`pagebreak_rules`] jede Show-Regel der Vorlage, die `pagebreak` enthält:
-//! - Regel für Überschriften der Ebene 1 (bzw. für Teile, `<baruch-part>`) → abgebildet
-//!   ([`TEMPLATE_PAGEBREAK_MAPPED`], Info); die von [`baruch_typst::typeset::detect_chapter_break`] erkannte Regel
-//!   bestimmt dazu `break-before` (neue Seite bzw. rechte Seite).
-//! - jede andere Regel mit `pagebreak` → nicht abbildbar ([`TEMPLATE_PAGEBREAK_UNMAPPED`], Warnung).
+//! An EPUB flows; Typst rules have no effect there. Page breaks before chapters and parts are represented by the
+//! file split (every part page and every chapter a file of its own, plus `break-before` in the CSS). Therefore
+//! [`pagebreak_rules`] reports every show rule of the template that contains `pagebreak`:
+//! - rule for headings of level 1 (or for parts, `<baruch-part>`) → mapped
+//!   ([`TEMPLATE_PAGEBREAK_MAPPED`], info); the rule recognised by
+//!   [`baruch_typst::typeset::detect_chapter_break`] additionally determines `break-before` (new page or right
+//!   page).
+//! - every other rule with `pagebreak` → cannot be mapped ([`TEMPLATE_PAGEBREAK_UNMAPPED`], warning).
 
 use baruch_typst::typeset::{ChapterStart, detect_chapter_break};
 
 pub const TEMPLATE_PAGEBREAK_MAPPED: &str = "TEMPLATE_PAGEBREAK_MAPPED";
 pub const TEMPLATE_PAGEBREAK_UNMAPPED: &str = "TEMPLATE_PAGEBREAK_UNMAPPED";
 
-/// Eine Show-Regel der Vorlage mit `pagebreak`.
+/// A show rule of the template with `pagebreak`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PagebreakRule {
-    /// Erste Zeile (1-basiert).
+    /// First line (1-based).
     pub line: usize,
-    /// Regeltext (Kommentare entfernt, auf eine Zeile verkürzt).
+    /// Rule text (comments removed, shortened to one line).
     pub text: String,
-    /// `true` = Kapitel bzw. Teil (im EPUB abgebildet).
+    /// `true` = chapter or part (mapped in the EPUB).
     pub mapped: bool,
 }
 
-/// Kopie ohne Kommentare (durch Leerzeichen ersetzt, Zeilenenden bleiben), gleiche Bytelänge.
+/// Copy without comments (replaced by spaces, line ends stay), same byte length.
 fn strip_comments(source: &str) -> String {
     let bytes = source.as_bytes();
     let mut out = bytes.to_vec();
@@ -67,13 +69,13 @@ fn strip_comments(source: &str) -> String {
             i += 1;
         }
     }
-    // Nur ASCII-Bytes wurden ersetzt, aber mitten in Mehrbyte-Zeichen kann ein Kommentar nicht beginnen; ersetzte
-    // Folgebytes von Mehrbyte-Zeichen in Kommentaren sind Leerzeichen geworden – das Ergebnis bleibt gültiges UTF-8,
-    // weil ganze Zeichen bis zum Zeilenende ersetzt werden.
+    // Only ASCII bytes were replaced, but a comment cannot start in the middle of a multi-byte character; replaced
+    // continuation bytes of multi-byte characters in comments have become spaces – the result stays valid UTF-8,
+    // because whole characters up to the end of the line are replaced.
     String::from_utf8(out).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
-/// Ende eines Ausdrucks ab `start`: bis zum Zeilenende auf Klammertiefe 0.
+/// End of an expression from `start`: up to the end of the line at bracket depth 0.
 fn statement_end(clean: &str, start: usize) -> usize {
     let bytes = clean.as_bytes();
     let mut depth = 0i32;
@@ -101,7 +103,7 @@ fn statement_end(clean: &str, start: usize) -> usize {
     bytes.len()
 }
 
-/// Ist das Wort `show` an Stelle `at` ein eigenes Schlüsselwort (`#show` oder `show` am Zeilenanfang/in Code)?
+/// Is the word `show` at position `at` a keyword of its own (`#show` or `show` at the line start/in code)?
 fn show_at(clean: &str, at: usize) -> bool {
     let before = clean[..at].chars().next_back();
     let after = clean[at + 4..].chars().next();
@@ -110,7 +112,7 @@ fn show_at(clean: &str, at: usize) -> bool {
     !word_before && !word_after
 }
 
-/// Selektor einer Show-Regel: Text bis zum ersten `:` auf Klammertiefe 0 (außerhalb von Zeichenketten).
+/// Selector of a show rule: text up to the first `:` at bracket depth 0 (outside of strings).
 fn selector_of(rule: &str) -> &str {
     let mut depth = 0i32;
     let mut in_string = false;
@@ -136,7 +138,7 @@ fn selector_of(rule: &str) -> &str {
     rule
 }
 
-/// Alle Show-Regeln der Vorlage mit `pagebreak`, in Textreihenfolge.
+/// All show rules of the template with `pagebreak`, in text order.
 pub fn pagebreak_rules(template: &str) -> Vec<PagebreakRule> {
     let clean = strip_comments(template);
     let mut out = Vec::new();
@@ -167,12 +169,12 @@ pub fn pagebreak_rules(template: &str) -> Vec<PagebreakRule> {
     out
 }
 
-/// Kapitelanfang, den die Vorlage selbst setzt (erkannte Regel `#show heading.where(level: 1): …pagebreak…`).
+/// Chapter start that the template sets itself (recognised rule `#show heading.where(level: 1): …pagebreak…`).
 pub fn template_chapter_start(template: &str) -> Option<ChapterStart> {
     detect_chapter_break(template).map(|rule| rule.chapter_start)
 }
 
-/// Sprache aus `#set text(lang: "…")` der Vorlage (letzte Angabe gilt, Kommentare zählen nicht).
+/// Language from `#set text(lang: "…")` of the template (the last statement applies, comments do not count).
 pub fn template_lang(template: &str) -> Option<String> {
     let clean = strip_comments(template);
     let mut found = None;
@@ -201,7 +203,7 @@ pub fn template_lang(template: &str) -> Option<String> {
     found
 }
 
-/// Grobe Prüfung eines BCP-47-Tags: Teile aus 1–8 Buchstaben/Ziffern, getrennt durch `-`, der erste nur Buchstaben.
+/// Rough check of a BCP 47 tag: parts of 1–8 letters/digits, separated by `-`, the first letters only.
 pub fn is_language_tag(tag: &str) -> bool {
     let mut parts = tag.split('-');
     let first = parts.next().unwrap_or("");

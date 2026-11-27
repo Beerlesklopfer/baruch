@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Inhaltliche Prüfung eines gelesenen Dokuments ([`super::validate`], Vertrag R26 S1 (9)).
+//! Content check of a read document ([`super::validate`], contract R26 S1 (9)).
 //!
-//! - Alle Kennungen kanonisch ([`is_uuid`]) und im ganzen Dokument eindeutig (auch kein Grabstein mit der
-//!   Kennung eines vorhandenen Stücks).
-//! - Verweise: `basis` auf eine Fassung desselben Punkts bzw. Bilds mit kleinerer Nummer, Bezüge von
-//!   Beiträgen und Einfällen auf Punkte (und Fassungen dieses Punkts) im Dokument, Umschlag und Autorenfoto auf
-//!   Bilder im Dokument.
-//! - Je Punkt mindestens eine und genau eine aktuelle Fassung; je Bild genau eine aktuelle Fassung; Nummern je
-//!   Punkt, Bild und Vorlage eindeutig und ab 1; Positionen von Beiträgen je Punkt bzw. Faden eindeutig und ab 1.
-//! - Gliederung: Teile nur auf oberster Ebene, Kapitel oben oder unter einem Teil, Abschnitte unter Kapitel oder
-//!   Abschnitt, höchstens Ebene 3.
-//! - Bilder: Typ des Formats, SHA-256 passt zu den Bytes; erledigte Einfälle nennen, wozu (`erledigt-als`).
-//! - Karte (ab Unterversion 2): Verbindungen und Lagen nur zu Einfällen des Dokuments ([`check_map`]).
-//! - Umschlag-Anordnung (ab Unterversion 3, [`check_cover`]): je Art höchstens ein Block, Grenzen wie die CHECKs der
-//!   Migration 0045, `richtung` genau auf dem Rücken, `<text>` nur bei Arten mit eigenem Text, Schriftnamen nach der
-//!   Regel der Satzbild-Schriften; Anschriften höchstens 500 Zeichen.
-//! - Befunde (ab Unterversion 4, [`check_findings`]): Herkunft auf Punkte, Beiträge und Fadenbeiträge des Dokuments
-//!   (nie Beitrag und Fadenbeitrag zugleich), `gleicht` und `sammelt` auf Befunde des Dokuments, Grenzen und Regeln
-//!   wie die CHECKs der Migration 0046 (verworfen nur mit Begründung, übernommen nur mit Fassung, verschoben mit
-//!   genau einem Ziel; im Verlauf setzt ohne Vorschlag nur der Mensch, entschieden genau mit Zeitpunkt). Alte
-//!   Fassungen von Beiträgen tragen eigene Kennungen.
-//! - Unterversion 5 ([`check_u5`]): Varianten (Gruppe, Etikett A/B/C, Zeile, `setzt-um` auf Befunde des Dokuments),
-//!   Metadaten der Beiträge (Grundlage eine Fassung desselben Punkts, Antwort/Wiederholung ein anderer Beitrag
-//!   derselben Stelle) und Lösungen der Befunde (Zitat mit Ersatz oder Schritt).
+//! - All identifiers canonical ([`is_uuid`]) and unique in the whole document (also no tombstone with the
+//!   identifier of an existing piece).
+//! - References: `basis` to a revision of the same item or image with a smaller number, references of
+//!   posts and ideas to items (and revisions of this item) in the document, cover and author photo to
+//!   images in the document.
+//! - Per item at least one and exactly one current revision; per image exactly one current revision; numbers per
+//!   item, image and template unique and from 1; positions of posts per item or thread unique and from 1.
+//! - Outline: parts only at the top level, chapters at the top or under a part, sections under chapter or
+//!   section, at most level 3.
+//! - Images: type of the format, SHA-256 matches the bytes; done ideas name what they became (`erledigt-als`).
+//! - Map (from sub-version 2): links and positions only for ideas of the document ([`check_map`]).
+//! - Cover layout (from sub-version 3, [`check_cover`]): per kind at most one block, limits like the CHECKs of
+//!   migration 0045, `richtung` exactly on the spine, `<text>` only for kinds with their own text, font names
+//!   according to the rule of the typeset view fonts; addresses at most 500 characters.
+//! - Findings (from sub-version 4, [`check_findings`]): origin to items, posts and thread posts of the document
+//!   (never post and thread post at once), `gleicht` and `sammelt` to findings of the document, limits and rules
+//!   like the CHECKs of migration 0046 (rejected only with a reason, adopted only with a revision, moved with
+//!   exactly one target; in the history only the human sets without a proposal, decided exactly with a time).
+//!   Old versions of posts carry identifiers of their own.
+//! - Sub-version 5 ([`check_u5`]): variants (group, label A/B/C, line, `setzt-um` to findings of the document),
+//!   metadata of the posts (basis a revision of the same item, reply/repetition another post of the same place)
+//!   and solutions of the findings (quotation with replacement or step).
 
 use std::collections::{HashMap, HashSet};
 
@@ -53,7 +53,7 @@ fn check_ref(uuid: &str, what: &str) -> Result<(), ExchangeError> {
     if is_uuid(uuid) { Ok(()) } else { Err(invalid(format!("{what}: Verweis „{uuid}“ ist keine kanonische UUID"))) }
 }
 
-/// Punkt-Kennung → (Fassungs-Kennungen) für Bezüge.
+/// Item identifier → (revision identifiers) for references.
 type NodeIndex = HashMap<String, HashSet<String>>;
 
 fn walk<'a>(
@@ -129,20 +129,20 @@ fn walk<'a>(
     Ok(())
 }
 
-/// Unterversion 8 (Runde 22): Verlauf der Fortschreibungen einer Fassung – eigene Kennungen, Schritte ab 1 lückenlos
-/// in Reihenfolge, genau die Rücknahmen (`undo`) nennen einen früheren Schritt (`undo-von`, wie der CHECK der
-/// Migration 0050), und der Stand der Fassung ist die Zahl der Schritte.
+/// Sub-version 8 (Round 22): history of the amendments of a revision – identifiers of their own, steps from 1
+/// without gaps in order, exactly the undos (`undo`) name an earlier step (`undo-von`, like the CHECK of
+/// migration 0050), and the state of the revision is the number of steps.
 ///
-/// Ob die Texte zusammenpassen (nachher eines Schritts = vorher des nächsten, letzter Schritt = Text der Fassung),
-/// prüft das Lesen bewusst nicht: Das Ändern über den Baum (`edited`) ändert den Text einer Fassung ohne Schritt im
-/// Verlauf, eine gültige Datei kann also Lücken haben. Maßgeblich ist das Anwenden: Vorgespult wird nur, wenn die
-/// fehlenden Schritte die Änderung lückenlos wiedergeben (`baruch_store::exchange_apply`, `fast_forward`), sonst
-/// kommt der Text als abweichende Fassung.
+/// Whether the texts fit together (after of one step = before of the next, last step = text of the revision)
+/// is deliberately not checked by reading: changing through the tree (`edited`) changes the text of a revision
+/// without a step in the history, so a valid file can have gaps. What counts is applying: fast-forwarding only
+/// happens if the missing steps reproduce the change without gaps (`baruch_store::exchange_apply`,
+/// `fast_forward`), otherwise the text comes as a deviating revision.
 fn check_amends(revision: &ExchangeRevision, what: &str, seen: &mut Seen) -> Result<(), ExchangeError> {
     let label = format!("{what}, Fassung {}", revision.number);
     for (i, step) in revision.amends.iter().enumerate() {
         seen.add(&step.uuid, &format!("{label}, Fortschreibung {}", step.seq))?;
-        // Wie der CHECK der Migration 0050 (`author_name` 1–200 Zeichen): sonst bräche erst das Schreiben ab.
+        // Like the CHECK of migration 0050 (`author_name` 1–200 characters): otherwise only writing would abort.
         let author_len = step.author.trim().chars().count();
         if author_len == 0 || step.author.chars().count() > 200 {
             return Err(invalid(format!(
@@ -189,10 +189,10 @@ fn positions(items: impl Iterator<Item = u32>, what: &str) -> Result<(), Exchang
     Ok(())
 }
 
-/// `<karte>` (Runde 25, Vertrag §2/§4.6): Verbindungen nur zwischen zwei verschiedenen Einfällen des Dokuments,
-/// je Paar und Art höchstens eine („widerspricht“ ungerichtet, also auch nicht umgekehrt doppelt), Notiz höchstens
-/// [`MAX_LINK_NOTE_CHARS`] Zeichen ohne Steuerzeichen außer Zeilenumbruch; Lagen nur für Einfälle des Dokuments,
-/// je Einfall höchstens eine, Koordinaten endlich und höchstens ±[`MAP_COORD_LIMIT`].
+/// `<karte>` (Round 25, contract §2/§4.6): links only between two different ideas of the document, per pair and
+/// kind at most one („widerspricht“ undirected, so not twice the other way round either), note at most
+/// [`MAX_LINK_NOTE_CHARS`] characters without control characters except line break; positions only for ideas of
+/// the document, per idea at most one, coordinates finite and at most ±[`MAP_COORD_LIMIT`].
 fn check_map(work: &ExchangeWork, seen: &mut Seen) -> Result<(), ExchangeError> {
     let ideas: HashSet<&str> = work.ideas.iter().map(|i| i.uuid.as_str()).collect();
     let mut pairs = HashSet::new();
@@ -244,7 +244,7 @@ fn check_map(work: &ExchangeWork, seen: &mut Seen) -> Result<(), ExchangeError> 
     Ok(())
 }
 
-/// `<umschlag>` und Anschriften in `<buch>` (Runde 27, Vertrag 1.1–1.3 und 1.7).
+/// `<umschlag>` and addresses in `<buch>` (Round 27, contract 1.1–1.3 and 1.7).
 fn check_cover(book: &ExchangeBook, seen: &mut Seen) -> Result<(), ExchangeError> {
     for (value, what) in
         [(&book.publisher_address, "Anschrift des Verlags"), (&book.printer_address, "Anschrift der Druckerei")]
@@ -299,7 +299,7 @@ fn check_cover(book: &ExchangeBook, seen: &mut Seen) -> Result<(), ExchangeError
     Ok(())
 }
 
-/// Status samt Pflichtangaben (wie die CHECKs der Migration 0046) – für Befund und Verlauf gleich.
+/// Status including mandatory details (like the CHECKs of migration 0046) – the same for finding and history.
 fn check_status(
     what: &str,
     status: ExchangeFindingStatus,
@@ -329,7 +329,7 @@ fn check_status(
     Ok(())
 }
 
-/// `<befunde>` (Runde 28, Unterversion 4).
+/// `<befunde>` (Round 28, sub-version 4).
 fn check_findings(
     work: &ExchangeWork,
     nodes: &NodeIndex,
@@ -423,8 +423,8 @@ fn check_findings(
     Ok(())
 }
 
-/// Metadaten eines Beitrags (ab Unterversion 5): Grundlage eine Fassung derselben Stelle, Antwort auf und
-/// Wiederholung von ein anderer Beitrag derselben Stelle, Längen wie die CHECKs der Migration 0047.
+/// Metadata of a post (from sub-version 5): basis a revision of the same place, reply to and repetition of
+/// another post of the same place, lengths like the CHECKs of migration 0047.
 fn check_meta(
     meta: &ExchangePostMeta,
     own: &str,
@@ -462,15 +462,16 @@ fn check_meta(
     Ok(())
 }
 
-/// Unterversion 5 (Runde 30): Varianten der Fassungen (Gruppe als UUID, Etikett A/B/C, Zeile höchstens
-/// [`MAX_VARIANT_SUMMARY_CHARS`], `setzt-um` auf Befunde des Dokuments), Metadaten der Beiträge ([`check_meta`]) und
-/// Lösungen der Befunde (Zitat mit Formulierung oder ein Schritt, Längen wie `finding`).
-/// Eigene Register und Glossar (ab Unterversion 7): Kennungen eindeutig, Register-Kennung gültig und nicht eingebaut,
-/// je Werk eindeutig und höchstens 13; Begriff nicht leer, unter den angenommenen eindeutig (gleicher Schlüssel wie
-/// `baruch_typst::index::term_key`, sonst ließe sich die Datei nicht einlesen). Runde 23: Der Titel eines Registers
-/// hat (in einer Zeile, Leerraum zusammengezogen – so speichert ihn das Einlesen) höchstens
-/// `baruch_typst::index::MAX_REGISTER_TITLE_CHARS` Zeichen, wie beim Anlegen in der Oberfläche. Die Zahl der
-/// Glossarbegriffe zählt das Einlesen selbst (`baruch_store::MAX_GLOSSARY_TERMS`; diese Crate kennt den Speicher nicht).
+/// Sub-version 5 (Round 30): variants of the revisions (group as UUID, label A/B/C, line at most
+/// [`MAX_VARIANT_SUMMARY_CHARS`], `setzt-um` to findings of the document), metadata of the posts
+/// ([`check_meta`]) and solutions of the findings (quotation with wording or a step, lengths like `finding`).
+/// Own indexes and glossary (from sub-version 7): identifiers unique, index identifier valid and not built in,
+/// unique per work and at most 13; term not empty, unique among the accepted ones (same key as
+/// `baruch_typst::index::term_key`, otherwise the file could not be imported). Round 23: the title of an index
+/// has (in one line, whitespace collapsed – that is how the import stores it) at most
+/// `baruch_typst::index::MAX_REGISTER_TITLE_CHARS` characters, as when creating it in the user interface. The
+/// number of glossary terms is counted by the import itself (`baruch_store::MAX_GLOSSARY_TERMS`; this crate does
+/// not know the store).
 fn check_u7(work: &ExchangeWork, seen: &mut Seen) -> Result<(), ExchangeError> {
     use baruch_typst::index::{
         MAX_CUSTOM_REGISTERS, MAX_REGISTER_TITLE_CHARS, builtin_registers, term_key, valid_register_slug,
@@ -634,9 +635,9 @@ pub(crate) fn validate(doc: &ExchangeDocument) -> Result<(), ExchangeError> {
         if (idea.status == ExchangeIdeaStatus::Done) != idea.done_as.is_some() {
             return Err(invalid(format!("{what}: erledigt-als passt nicht zum Status")));
         }
-        // Unterversion 9 (Runde 34): Titel höchstens 200 Zeichen (wie `idea.title`), der Elternknoten eine UUID und
-        // nicht der Einfall selbst. Ob es den Elternknoten gibt (er kann fehlen oder gelöscht sein) und ob die Kette
-        // ohne Kreis und nicht zu tief ist, klärt das Einlesen: Dort wird ein solcher Einfall gelöst, mit Hinweis.
+        // Sub-version 9 (Round 34): title at most 200 characters (like `idea.title`), the parent node a UUID and
+        // not the idea itself. Whether the parent node exists (it can be missing or deleted) and whether the chain
+        // is without a cycle and not too deep is settled by the import: there such an idea is detached, with a note.
         let chars = idea.title.chars().count();
         if chars > 200 {
             return Err(invalid(format!("{what}: Titel zu lang (höchstens 200 Zeichen, hier {chars})")));

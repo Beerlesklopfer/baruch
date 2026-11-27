@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Grenzen beim Lesen einer Austauschdatei (Vertrag R26 F7, S1 (6)). Den Größen im ZIP-Kopf wird nicht
-//! getraut: Entpackt wird mit `take(Grenze + 1)`.
+//! Limits when reading an exchange file (contract R26 F7, S1 (6)). The sizes in the ZIP header are not
+//! trusted: unpacking uses `take(limit + 1)`.
 
 const MIB: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
-    /// Größe der ganzen Datei (ZIP oder XML).
+    /// Size of the whole file (ZIP or XML).
     pub max_file_bytes: u64,
-    /// Summe aller entpackten Einträge.
+    /// Sum of all unpacked entries.
     pub max_unpacked_bytes: u64,
-    /// Ein entpackter Eintrag.
+    /// One unpacked entry.
     pub max_entry_bytes: u64,
-    /// Zahl der Einträge im ZIP.
+    /// Number of entries in the ZIP.
     pub max_entries: usize,
-    /// Größe von `werk.xml` bzw. der `.baruch.xml`.
+    /// Size of `werk.xml` or of the `.baruch.xml`.
     pub max_xml_bytes: u64,
-    /// Verschachtelungstiefe der Elemente.
+    /// Nesting depth of the elements.
     pub max_depth: usize,
-    /// Zahl der Elemente.
+    /// Number of elements.
     pub max_elements: usize,
-    /// Attribute je Element.
+    /// Attributes per element.
     pub max_attributes: usize,
-    /// Bytes je Textinhalt.
+    /// Bytes per text content.
     pub max_text_bytes: usize,
 }
 

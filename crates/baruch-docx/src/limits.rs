@@ -1,35 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Grenzen beim Lesen einer Word-Datei (Schnittstelle R32-S1, eingefroren).
+//! Limits when reading a Word file (interface R32-S1, frozen).
 //!
-//! Den Größen im Kopf des ZIP-Archivs wird nicht getraut: Der Leser liest jeden Eintrag über `take(Grenze + 1)`
-//! und bricht mit [`crate::DocxError::Limit`] ab, sobald mehr kommt (Schutz vor Dekompressionsbomben).
+//! The sizes in the header of the ZIP archive are not trusted: the reader reads every entry through
+//! `take(limit + 1)` and aborts with [`crate::DocxError::Limit`] as soon as more comes (protection against
+//! decompression bombs).
 
-/// Obergrenzen des Lesers.
+/// Upper limits of the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
-    /// Größte Datei (gepackt), Bytes.
+    /// Largest file (packed), bytes.
     pub max_file_bytes: u64,
-    /// Summe aller entpackten Einträge, Bytes.
+    /// Sum of all unpacked entries, bytes.
     pub max_unpacked_bytes: u64,
-    /// Größter einzelner Eintrag (entpackt), Bytes.
+    /// Largest single entry (unpacked), bytes.
     pub max_entry_bytes: u64,
-    /// Zahl der Einträge im Archiv.
+    /// Number of entries in the archive.
     pub max_entries: usize,
-    /// Größter XML-Teil (entpackt), Bytes.
+    /// Largest XML part (unpacked), bytes.
     pub max_xml_bytes: u64,
-    /// Tiefste Verschachtelung der XML-Elemente.
+    /// Deepest nesting of the XML elements.
     pub max_depth: usize,
-    /// Zahl der XML-Elemente je Teil.
+    /// Number of XML elements per part.
     pub max_elements: usize,
-    /// Text des ganzen Dokuments, Bytes.
+    /// Text of the whole document, bytes.
     pub max_text_bytes: usize,
-    /// Zahl der Bilder.
+    /// Number of images.
     pub max_images: usize,
 }
 
 impl Limits {
-    /// Vorgabe: 64 MiB Datei, 256 MiB entpackt, 64 MiB je Eintrag, 4096 Einträge, 64 MiB je XML-Teil, Tiefe 128,
-    /// 2 000 000 Elemente, 16 MiB Text, 2000 Bilder.
+    /// Default: 64 MiB file, 256 MiB unpacked, 64 MiB per entry, 4096 entries, 64 MiB per XML part, depth 128,
+    /// 2 000 000 elements, 16 MiB text, 2000 images.
     pub const DEFAULT: Limits = Limits {
         max_file_bytes: 64 * 1024 * 1024,
         max_unpacked_bytes: 256 * 1024 * 1024,

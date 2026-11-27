@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Die dreizehn Gliederungsschemata (`baruch_typst::scheme::export_template`) setzen mit Typst ohne
-//! Fehler (Backlog: „nicht mit typst compile geprüft“, Vertrag Runde 8, Abschnitt 4e), und seit
-//! Runde 14 (Vertrag Abschnitt 3/4) zählt Typst wie Baruch: Je Überschrift prüft der Testtext selbst
-//! mit `#context assert.eq(…)`, dass Typst dieselbe Nummer setzt wie `Numbering::heading` – mit Teilen
-//! und Kapiteln ohne Nummer als Markierung (`baruch_typst::part_line`, `unnumbered_line`).
+//! The thirteen outline schemes (`baruch_typst::scheme::export_template`) typeset with Typst without
+//! errors (backlog: „nicht mit typst compile geprüft“, contract Round 8, section 4e), and since
+//! Round 14 (contract section 3/4) Typst counts like Baruch: per heading the test text itself checks
+//! with `#context assert.eq(…)` that Typst sets the same number as `Numbering::heading` – with parts
+//! and chapters without number as markers (`baruch_typst::part_line`, `unnumbered_line`).
 
 use baruch_render::{Severity, Source, compile};
 use baruch_typst::scheme::{Numbering, Scheme, export_template};
 
-/// Erfundene Gliederung mit Teil, Kapiteln, Abschnitten und Unterabschnitten – vier Kapitel, damit
-/// „Predigt“ und „Buch“ Einleitung, I., II. und Schluss bilden.
+/// Invented outline with part, chapters, sections and subsections – four chapters, so that
+/// „Predigt“ and „Buch“ form Einleitung, I., II. and Schluss.
 const BODY: &str = "= Erster Teil\n== Am Anfang\nText.\n=== Ein Unterpunkt\nMehr.\n== Mitte\nText.\n\
 = Zweiter Teil\n== Vorletztes\nText.\n== Ende\nSchluss.\n";
 
@@ -29,18 +29,18 @@ fn all_thirteen_numbering_schemes_compile_without_errors() {
 
 #[test]
 fn the_custom_scheme_with_the_part_pattern_compiles_too() {
-    // „I|1“ (Teile römisch, Kapitel arabisch) ist die zweite Form der Mustersprache.
+    // "I|1" (parts Roman, chapters Arabic) is the second form of the pattern language.
     let numbering = Numbering::of_scheme(Scheme::Custom, Some("I|1"), "").expect("Muster I|1 ist gültig");
     let main = format!("{}{BODY}", export_template("", Scheme::Custom, &numbering));
     let rendered = compile(&Source { main, files: Vec::new() });
     assert!(!rendered.has_errors(), "„I|1“ muss fehlerfrei setzen: {:?}", rendered.diagnostics);
 }
 
-// ---- Runde 14: Typst zählt wie Baruch ------------------------------------------------------------
+// ---- Round 14: Typst counts like Baruch ----------------------------------------------------------
 
-/// Gliederung (Ebene 0 = Teil, 1–3; mit Nummer?; Titel), frei erfunden: zwei Teile, ein Vorwort und
-/// ein Nachwort ohne Nummer, ein Abschnitt ohne Nummer zwischen nummerierten, 13 nummerierte Kapitel
-/// (≥ 12: römische Zahlen und Ordnungswörter über X hinaus).
+/// Outline (level 0 = part, 1–3; with number?; title), freely invented: two parts, a preface and
+/// an afterword without number, a section without number between numbered ones, 13 numbered chapters
+/// (≥ 12: Roman numerals and ordinal words beyond X).
 fn outline() -> Vec<(u8, bool, String)> {
     let mut items = vec![
         (1, false, "Vorwort".to_owned()),
@@ -63,8 +63,8 @@ fn outline() -> Vec<(u8, bool, String)> {
     items
 }
 
-/// Zählerstände wie `baruch-store` (`load::numbers`): Kapitel über Teile hinweg fortlaufend,
-/// Abschnitte je Elternteil, Punkte ohne Nummer zählen nicht. `None` für Teile und Punkte ohne Nummer.
+/// Counter values like `baruch-store` (`load::numbers`): chapters consecutive across parts,
+/// sections per parent, items without number do not count. `None` for parts and items without number.
 fn paths(items: &[(u8, bool, String)]) -> Vec<Option<Vec<usize>>> {
     let mut counters = [0usize; 4];
     items
@@ -83,14 +83,14 @@ fn paths(items: &[(u8, bool, String)]) -> Vec<Option<Vec<usize>>> {
         .collect()
 }
 
-/// Typst-String (`\` und `"` maskiert).
+/// Typst string (`\` and `"` escaped).
 fn typst_str(text: &str) -> String {
     format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-/// Prüfregel im Testtext: die Nummer, die Typst für die zuletzt gesetzte Überschrift bildet, ist
-/// `expected`. Eine Funktion, die Inhalt liefert (Predigt: `context { … }` für „Schluss“), lässt sich
-/// nicht als Text vergleichen; dann muss der gesetzte Inhalt genau so breit sein wie der erwartete Text.
+/// Check rule in the test text: the number that Typst forms for the heading set last is
+/// `expected`. A function that delivers content (Predigt: `context { … }` for „Schluss“) cannot be
+/// compared as text; then the typeset content must be exactly as wide as the expected text.
 const CHECK: &str = "#let baruch-check(expected) = context {\n\
   let numbering-rule = heading.numbering\n\
   if numbering-rule == none { assert.eq(\"\", expected, message: \"Typst nummeriert nicht\") } else {\n\
@@ -123,10 +123,10 @@ fn checked_body(numbering: &Numbering) -> String {
 
 #[test]
 fn typst_numbers_every_heading_like_baruch_in_all_thirteen_schemes() {
-    // Vertrag Runde 14, Abschnitt 3: eine Quelle für Baum und Satz. Jede Überschrift trägt eine
-    // `#context assert.eq(…)`-Prüfung mit der Nummer aus Numbering::heading; setzt Typst eine andere,
-    // bricht der Satz mit einem Fehler ab. Teile und Punkte ohne Nummer stehen als Markierung im Text
-    // und zählen in Typst nicht mit (wie in Baruch).
+    // Contract Round 14, section 3: one source for tree and typesetting. Every heading carries a
+    // `#context assert.eq(…)` check with the number from Numbering::heading; if Typst sets another one,
+    // the typesetting aborts with an error. Parts and items without number are markers in the text
+    // and do not count in Typst (as in Baruch).
     let template = "#set heading(numbering: \"1.1\")\n";
     let mut customs = vec![("I.;A.;1.;a);aa)", Scheme::Custom), ("I|1", Scheme::Custom), ("1.aa", Scheme::Custom)];
     customs.extend(Scheme::ALL.into_iter().filter(|s| *s != Scheme::Custom).map(|s| ("", s)));
@@ -147,7 +147,7 @@ fn typst_numbers_every_heading_like_baruch_in_all_thirteen_schemes() {
 
 #[test]
 fn a_wrong_expectation_makes_the_check_fail() {
-    // Gegenprobe: Die Prüfregel greift wirklich (sonst wäre der Test oben wertlos).
+    // Cross-check: the check rule really takes effect (otherwise the test above would be worthless).
     let numbering = Numbering::of_scheme(Scheme::Decimal, None, "").unwrap();
     let main = format!("{}{CHECK}= Eins\n#baruch-check(\"2\")\n", export_template("", Scheme::Decimal, &numbering));
     let rendered = compile(&Source { main, files: Vec::new() });

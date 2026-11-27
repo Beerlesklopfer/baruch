@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst eines Abschnitts → Blöcke des Modells (Aufgabe docx_export, Vertrag Runde 32 §3), über
-//! `baruch_wysiwyg::parse`. Nichts geht still verloren: Was Word nicht abbilden kann, geht als Typst-Insel mit
-//! wörtlichem Quelltext mit und zählt eine Warnung `docx_typst_insel`.
+//! Typst of a section → blocks of the model (task docx_export, contract Round 32 §3), through
+//! `baruch_wysiwyg::parse`. Nothing is lost silently: what Word cannot represent travels along as a Typst island
+//! with verbatim source text and counts a warning `docx_typst_insel`.
 //!
-//! Abbildung:
-//! - Überschrift `=` … → [`Block::Heading`], Teil-Markierung → [`Block::Part`], „ohne Nummer“ →
-//!   `Heading { numbered: false }`; Absatz, Listen (`-`, `+`, `1.`), Blockzitat mit Quelle;
-//! - im Absatz: fett, kursiv, Fußnote, Zitat, `#link("…")[…]`, erzwungener Zeilenumbruch;
-//! - `#figure(image("…"), caption: […])` und `#image("…")` → [`Block::Figure`] (der Quelltext bleibt in `raw`),
-//!   wenn der Pfad in `image_paths` steht; sonst Insel mit Warnung `docx_bild_fehlt`;
-//! - `#table(columns: …, […], …)` → [`Block::Table`], soweit die Tabelle nur aus Zellen mit Inhalt (und
-//!   `table.header(…)`) besteht; Gestaltung (`stroke`, `align`, …) entfällt mit Warnung `docx_tabelle_vereinfacht`;
+//! Mapping:
+//! - heading `=` … → [`Block::Heading`], part marker → [`Block::Part`], "without number" →
+//!   `Heading { numbered: false }`; paragraph, lists (`-`, `+`, `1.`), block quote with source;
+//! - in the paragraph: bold, italic, footnote, quote, `#link("…")[…]`, forced line break;
+//! - `#figure(image("…"), caption: […])` and `#image("…")` → [`Block::Figure`] (the source text stays in `raw`),
+//!   if the path is in `image_paths`; otherwise island with warning `docx_bild_fehlt`;
+//! - `#table(columns: …, […], …)` → [`Block::Table`], as far as the table consists only of cells with content (and
+//!   `table.header(…)`); styling (`stroke`, `align`, …) is dropped with warning `docx_tabelle_vereinfacht`;
 //! - `#pagebreak()` → [`Block::PageBreak`];
-//! - Unsichtbares (Label, Registermarke, Kommentar) geht als Insel ohne sichtbaren Ersatz und ohne Warnung mit;
-//!   Querverweise `#link(<k…>)[Text]` als Insel mit ihrem Text;
-//! - alles andere (eigene Funktionen, `#let`/`#set`/`#show`, Formeln, Raw-Text, Begriffslisten, `#szene[…]`,
-//!   `#arbeit[…]`, Verweise `@name`) als Insel mit sichtbarem Ersatz und Warnung `docx_typst_insel`.
+//! - invisible things (label, index mark, comment) travel along as an island without visible replacement and
+//!   without a warning; cross-references `#link(<k…>)[Text]` as an island with their text;
+//! - everything else (own functions, `#let`/`#set`/`#show`, formulas, raw text, term lists, `#szene[…]`,
+//!   `#arbeit[…]`, references `@name`) as an island with visible replacement and warning `docx_typst_insel`.
 
 mod args;
 
@@ -23,22 +23,22 @@ use baruch_wysiwyg as wy;
 
 use crate::{Block, DocxWarning, Inline, ListItem, Marks};
 
-/// Warnung: eine Typst-Insel ging nur als Quelltext mit sichtbarem Ersatz mit.
+/// Warning: a Typst island travelled along only as source text with a visible replacement.
 pub const WARN_ISLAND: &str = "docx_typst_insel";
-/// Warnung: Zu einem Bildpfad gibt es kein einbettbares Bild.
+/// Warning: there is no embeddable image for an image path.
 pub const WARN_IMAGE_MISSING: &str = "docx_bild_fehlt";
-/// Warnung: Gestaltung einer Tabelle (Linien, Ausrichtung, …) ging nicht mit.
+/// Warning: styling of a table (lines, alignment, …) did not travel along.
 pub const WARN_TABLE_SIMPLIFIED: &str = "docx_tabelle_vereinfacht";
 
-/// Ergebnis: Blöcke und Warnungen.
+/// Result: blocks and warnings.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FromTypst {
     pub blocks: Vec<Block>,
     pub warnings: Vec<DocxWarning>,
 }
 
-/// Liest einen Abschnitt samt Überschriftszeile (`body`). Der Index eines Pfads in `image_paths` ist der Index des
-/// Bildes in `DocxDocument::images`.
+/// Reads a section including its heading line (`body`). The index of a path in `image_paths` is the index of the
+/// image in `DocxDocument::images`.
 pub fn from_typst(body: &str, image_paths: &[String]) -> FromTypst {
     let mut cx = Cx { image_paths, warnings: Vec::new() };
     let blocks = cx.blocks(&wy::parse(body).blocks);
@@ -54,7 +54,7 @@ fn text(text: impl Into<String>) -> Inline {
     Inline::Text { text: text.into(), marks: Marks::default() }
 }
 
-/// Kurzer Auszug für eine Warnung (eine Zeile, höchstens 60 Zeichen).
+/// Short excerpt for a warning (one line, at most 60 characters).
 fn excerpt(raw: &str) -> String {
     let line = raw.trim().lines().next().unwrap_or("").trim();
     if line.chars().count() > 60 {
@@ -64,7 +64,7 @@ fn excerpt(raw: &str) -> String {
     }
 }
 
-/// Pfad ohne führendes `/` oder `./` (so stehen die Bildpfade im Werk).
+/// Path without leading `/` or `./` (that is how the image paths are stored in the work).
 fn normal_path(path: &str) -> &str {
     let mut path = path.trim();
     while let Some(rest) = path.strip_prefix("./").or_else(|| path.strip_prefix('/')) {
@@ -73,7 +73,7 @@ fn normal_path(path: &str) -> &str {
     path
 }
 
-/// Nur Kommentare (`// …`, `/* … */`) und Leerraum? Dann ist im Satz nichts zu sehen.
+/// Only comments (`// …`, `/* … */`) and whitespace? Then nothing is visible in the typeset result.
 fn only_comments(raw: &str) -> bool {
     let mut rest = raw.trim_start();
     if rest.is_empty() {
@@ -136,7 +136,7 @@ impl Cx<'_> {
             }
             wy::BlockKind::Quote { block: as_block, attribution, body } => {
                 let attribution = attribution.as_deref().map(|a| self.inlines(a)).unwrap_or_default();
-                // Ein Zitat im Fließtext, das allein im Absatz steht, bleibt ein Absatz mit Zitat im Text.
+                // An inline quote that stands alone in the paragraph stays a paragraph with a quote in the text.
                 if !*as_block
                     && attribution.is_empty()
                     && let [wy::Block { kind: wy::BlockKind::Paragraph { inlines }, .. }] = body.as_slice()
@@ -186,7 +186,7 @@ impl Cx<'_> {
             .collect()
     }
 
-    /// Insel als Block: Abbildung, Tabelle, Seitenumbruch – sonst wörtlich mit sichtbarem Ersatz.
+    /// Island as a block: figure, table, page break – otherwise verbatim with a visible replacement.
     fn island(&mut self, raw: String) -> Vec<Block> {
         if raw.trim().is_empty() {
             return Vec::new();
@@ -246,7 +246,7 @@ impl Cx<'_> {
         vec![Block::Typst { raw, shown }]
     }
 
-    /// Inhalt eines Inhaltsblocks `[…]` (Bildunterschrift) als Text im Absatz.
+    /// Content of a content block `[…]` (caption) as text in the paragraph.
     fn content_inlines(&mut self, source: &str) -> Vec<Inline> {
         let doc = wy::parse(source);
         match doc.blocks.as_slice() {
@@ -275,8 +275,8 @@ impl Cx<'_> {
     fn inline(&mut self, inline: &wy::Inline, marks: Marks, out: &mut Vec<Inline>) {
         match inline {
             wy::Inline::Text { v } => out.push(Inline::Text { text: v.clone(), marks }),
-            // Der Zeilenwechsel im Quelltext ist im Satz ein Leerzeichen – außer direkt hinter einem erzwungenen
-            // Zeilenumbruch, wo es die neue Zeile einrücken würde.
+            // The line change in the source text is a space in the typeset result – except directly after a forced
+            // line break, where it would indent the new line.
             wy::Inline::Soft => {
                 if !matches!(out.last(), Some(Inline::LineBreak)) {
                     out.push(Inline::Text { text: " ".into(), marks });
@@ -284,7 +284,7 @@ impl Cx<'_> {
             }
             wy::Inline::Emph { c } => out.extend(self.marked(c, Marks { italic: true, ..marks })),
             wy::Inline::Strong { c } => out.extend(self.marked(c, Marks { bold: true, ..marks })),
-            // Der Text einer Fußnote beginnt ohne die Auszeichnung der Stelle, an der ihr Zeichen steht.
+            // The text of a footnote starts without the markup of the place where its mark stands.
             wy::Inline::Footnote { c } => out.push(Inline::Footnote { content: self.inlines(c) }),
             wy::Inline::Quote { c } => out.push(Inline::Quote { content: self.marked(c, marks) }),
             wy::Inline::Linebreak => out.push(Inline::LineBreak),
@@ -295,10 +295,10 @@ impl Cx<'_> {
                 };
                 out.push(Inline::Link { url: url.clone(), content });
             }
-            // Unsichtbar im Satz: wörtlich mitnehmen, nichts zeigen, nichts melden.
+            // Invisible in the typeset result: take along verbatim, show nothing, report nothing.
             wy::Inline::Label { v } => out.push(Inline::Typst { raw: format!("<{v}>"), shown: Vec::new() }),
             wy::Inline::IndexMark { .. } => out.push(Inline::Typst { raw: canonical(inline), shown: Vec::new() }),
-            // Der Text des Querverweises bleibt lesbar; Ziel und Seitenzahl stehen im Quelltext.
+            // The text of the cross-reference stays readable; target and page number are in the source text.
             wy::Inline::Xref { c, .. } => {
                 let shown = self.marked(c, marks);
                 out.push(Inline::Typst { raw: canonical(inline), shown });
@@ -323,7 +323,7 @@ impl Cx<'_> {
     }
 }
 
-/// Kanonisches Typst eines einzelnen Inline-Elements (Verweis, Querverweis, Registermarke).
+/// Canonical Typst of a single inline element (reference, cross-reference, index mark).
 fn canonical(inline: &wy::Inline) -> String {
     wy::emit(&wy::BlockKind::Paragraph { inlines: vec![inline.clone()] })
 }
@@ -338,7 +338,7 @@ fn bold(inlines: Vec<Inline>) -> Vec<Inline> {
         .collect()
 }
 
-/// Benachbarte Textstücke mit gleicher Auszeichnung verbinden, leere entfernen.
+/// Join neighbouring text pieces with the same markup, remove empty ones.
 pub(crate) fn merge(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::with_capacity(inlines.len());
     for inline in inlines {

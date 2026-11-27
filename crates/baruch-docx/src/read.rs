@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Leser: .docx → [`DocxDocument`] samt Änderungsverfolgung, Kommentaren und Bildern (Aufgabe docx_import, Vertrag
-//! Runde 32 §2). Untermodule: `read/pack.rs` (Archiv, Beziehungen), `read/xml.rs` (XML-Baum), `read/body.rs`
-//! (Absätze, Läufe, Tabellen → Blockmodell).
+//! Reader: .docx → [`DocxDocument`] including tracked changes, comments and images (task docx_import, contract
+//! Round 32 §2). Submodules: `read/pack.rs` (archive, relationships), `read/xml.rs` (XML tree), `read/body.rs`
+//! (paragraphs, runs, tables → block model).
 //!
-//! Zusagen (Vertrag): ZIP nur innerhalb der [`Limits`] (den Größen im Kopf wird nicht getraut), keine
-//! Entity-Auflösung, Ziele von Beziehungen verlassen den Ordner nicht ([`DocxError::Unsafe`]), externe Bilder
-//! werden nie abgerufen; was nicht übernommen wird, steht als Warnung im Ergebnis.
+//! Promises (contract): ZIP only within the [`Limits`] (the sizes in the header are not trusted), no entity
+//! resolution, targets of relationships do not leave the folder ([`DocxError::Unsafe`]), external images are
+//! never fetched; what is not taken over is in the result as a warning.
 //!
-//! Warnungen tragen feste Codes (`docx_formataenderung`, `docx_verschoben`, `docx_textfeld`, `docx_formel`,
+//! Warnings carry fixed codes (`docx_formataenderung`, `docx_verschoben`, `docx_textfeld`, `docx_formel`,
 //! `docx_objekt`, `docx_tabelle_vereinfacht`, `docx_bild_format`, `docx_bild_extern`, `docx_endnote`,
-//! `docx_fussnote_absaetze`, `docx_verborgener_text`, `docx_symbol`, `docx_unbekannt`); je Code eine Warnung mit der
-//! Zahl der Stellen.
+//! `docx_fussnote_absaetze`, `docx_verborgener_text`, `docx_symbol`, `docx_unbekannt`); per code one warning with
+//! the number of places.
 
 mod body;
 mod pack;
@@ -22,14 +22,14 @@ use crate::{Comment, DocxDocument, DocxError, DocxMeta, DocxWarning, Limits, oox
 use pack::Package;
 use xml::Element;
 
-/// Ergebnis des Lesers: das Dokument und alles, was dabei auffiel.
+/// Result of the reader: the document and everything noticed along the way.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ReadDocx {
     pub document: DocxDocument,
     pub warnings: Vec<DocxWarning>,
 }
 
-/// Warnungen, je Code zusammengefasst (erste Meldung, Zahl der Stellen).
+/// Warnings, summarised per code (first message, number of places).
 #[derive(Debug, Default)]
 pub(crate) struct Warnings {
     list: Vec<(String, String, usize)>,
@@ -54,7 +54,7 @@ impl Warnings {
     }
 }
 
-/// Bedeutung einer Absatzvorlage.
+/// Meaning of a paragraph style.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Role {
     Normal,
@@ -71,13 +71,13 @@ pub(crate) enum Role {
 
 #[derive(Debug, Clone, Default)]
 struct Style {
-    /// `w:name`, klein.
+    /// `w:name`, lower case.
     name: String,
     based_on: Option<String>,
     outline: Option<u8>,
 }
 
-/// Die Formatvorlagen aus `styles.xml`, soweit sie für die Gliederung zählen.
+/// The styles from `styles.xml`, as far as they count for the outline.
 #[derive(Debug, Default)]
 pub(crate) struct Styles {
     map: HashMap<String, Style>,
@@ -152,7 +152,7 @@ impl Styles {
         style.and_then(|s| s.outline).map(|outline| Role::Heading { level: (outline + 1).min(6), numbered: true })
     }
 
-    /// Rolle der Vorlage `id` (über `basedOn` vererbt); `outline` ist `w:outlineLvl` direkt am Absatz.
+    /// Role of the style `id` (inherited through `basedOn`); `outline` is `w:outlineLvl` directly on the paragraph.
     pub(crate) fn role(&self, id: Option<&str>, outline: Option<u8>) -> Role {
         let mut current = id.map(str::to_owned);
         for _ in 0..16 {
@@ -170,13 +170,13 @@ impl Styles {
     }
 }
 
-/// Listen aus `numbering.xml`: je `numId` und Ebene, ob geordnet und mit welcher ersten Nummer.
+/// Lists from `numbering.xml`: per `numId` and level, whether ordered and with which first number.
 #[derive(Debug, Default)]
 pub(crate) struct Numbering {
     nums: HashMap<String, String>,
     levels: HashMap<(String, u8), (bool, u64)>,
-    /// Abweichende erste Nummer je `numId` und Ebene (`w:lvlOverride`/`w:startOverride`): So beginnt Word eine
-    /// Liste neu oder bei einer anderen Nummer, ohne eine eigene abstrakte Nummerierung anzulegen.
+    /// Deviating first number per `numId` and level (`w:lvlOverride`/`w:startOverride`): this is how Word restarts
+    /// a list or starts it at another number without creating an abstract numbering of its own.
     overrides: HashMap<(String, u8), u64>,
     known: bool,
 }
@@ -212,8 +212,8 @@ impl Numbering {
         numbering
     }
 
-    /// Ob die Liste `num` auf Ebene `level` geordnet ist und ihre erste Nummer. Ohne `numbering.xml` gilt die
-    /// Festlegung des Schreibers (`NUM_DECIMAL` geordnet, alles andere Aufzählung).
+    /// Whether the list `num` is ordered at level `level`, and its first number. Without `numbering.xml` the
+    /// convention of the writer applies (`NUM_DECIMAL` ordered, everything else bullets).
     pub(crate) fn level(&self, num: &str, level: u8) -> (bool, u64) {
         if !self.known {
             return (num == ooxml::NUM_DECIMAL.to_string(), 1);
@@ -236,7 +236,7 @@ fn iso_date(text: &str) -> String {
 
 fn load_comments(root: &Element, extended: Option<&Element>) -> Vec<Comment> {
     let mut comments = Vec::new();
-    // w14:paraId jedes Absatzes eines Kommentars → Kommentar (Bezug der Antworten).
+    // w14:paraId of every paragraph of a comment → comment (reference of the replies).
     let mut by_para: HashMap<String, u32> = HashMap::new();
     for c in root.elements().filter(|e| e.name == "w:comment") {
         let Some(id) = c.attr("w:id").and_then(|v| v.parse::<u32>().ok()) else { continue };
@@ -272,7 +272,7 @@ fn load_comments(root: &Element, extended: Option<&Element>) -> Vec<Comment> {
     comments
 }
 
-/// Liest eine .docx-Datei aus `bytes`.
+/// Reads a .docx file from `bytes`.
 pub fn read(bytes: &[u8], limits: &Limits) -> Result<ReadDocx, DocxError> {
     let mut package = Package::open(bytes, limits)?;
     if !package.has(ooxml::PART_CONTENT_TYPES) {

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stichwortzettel (Runde 16c): `baruch_render::notes::notes_source` baut eine Typst-Quelle, die
-//! `compile`/`compile_pdf` ohne Fehler setzen – A5 hoch (16 pt) oder Karten A6 quer (14 pt, je Abschnitt
-//! mindestens eine Karte), Texte mit Markup-Zeichen wörtlich. Predigttexte frei erfunden.
+//! Cue sheet (Round 16c): `baruch_render::notes::notes_source` builds a Typst source that
+//! `compile`/`compile_pdf` typeset without errors – A5 portrait (16 pt) or cards A6 landscape (14 pt, at least
+//! one card per section), texts with markup characters verbatim. Sermon texts freely invented.
 
 use baruch_render::notes::{MAX_FONT_PT, MIN_FONT_PT, NotesCard, NotesDoc, NotesFormat, notes_source, typst_string};
 use baruch_render::{Severity, Source, compile, compile_pdf};
 
-/// Text, der als Markup gelesen Fehler oder anderen Satz gäbe.
+/// Text that, read as markup, would give errors or different typesetting.
 const TRICKY: &str = "Gefahr #let x = 1 [Klammer] *fett* $a^2$ \\ Rückstrich <label> @verweis \"zitiert\"";
 
 fn card(number: &str, title: &str, points: &[&str], refs: &[&str]) -> NotesCard {
@@ -35,7 +35,7 @@ fn sermon() -> NotesDoc {
     }
 }
 
-/// Seitengröße (Breite, Höhe in pt) aus dem `viewBox` der ersten SVG-Seite.
+/// Page size (width, height in pt) from the `viewBox` of the first SVG page.
 fn page_size(svg: &str) -> (f64, f64) {
     let at = svg.find("viewBox=\"").expect("SVG mit viewBox") + "viewBox=\"".len();
     let numbers: Vec<f64> =
@@ -91,7 +91,7 @@ fn cards_are_landscape_a6_with_at_least_one_card_per_section() {
 fn texts_with_markup_characters_appear_literally() {
     let source = notes_source(&sermon(), NotesFormat::A5, 16);
     assert!(source.contains(&typst_string(TRICKY)), "der Text steht nur als Zeichenkette in der Quelle");
-    // Typst selbst fragen, welche Texte im Dokument stehen: Der Stichpunkt muss Zeichen für Zeichen ankommen.
+    // Ask Typst itself which texts are in the document: the key point must arrive character by character.
     let expected = TRICKY.replace('\\', "\\\\").replace('"', "\\\"");
     let check = format!(
         "{source}\n#context {{ let texts = query(<baruch-note>).map(m => m.value); \
