@@ -51,9 +51,16 @@
 //!   die Seite `/beenden` (nur vom eigenen Rechner).
 //! - `baruch-server passwort <name> [--data DIR]` (Runde 35): Notweg bei vergessenem Passwort – liest das neue
 //!   Passwort als eine Zeile von der Standardeingabe, setzt es für das vorhandene Konto und beendet dessen
-//!   Sitzungen; unbekanntes Konto oder ungültiges Passwort → Exit 1. Das Passwort steht nie auf der Befehlszeile
-//!   (dort läse es jeder Benutzer des Rechners in der Prozessliste). Logik in
-//!   `baruch_server::auth::cli::reset_password`.
+//!   Sitzungen; eine Sperre nach Fehlversuchen wird aufgehoben; unbekanntes Konto oder ungültiges Passwort →
+//!   Exit 1. Das Passwort steht nie auf der Befehlszeile (dort läse es jeder Benutzer des Rechners in der
+//!   Prozessliste). Logik in `baruch_server::auth::cli::reset_password`.
+//! - `baruch-server typst …` (Runde 36), ebenso das Programm unter dem Namen `baruch-typst` oder `typst` gerufen
+//!   (Symlink; die Pakete liefern nur `baruch-typst`): die Typst-Kommandozeile mit der eingebauten Engine –
+//!   `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `--ppi`; `fonts`; `--version`
+//!   (`typst <Typst-Version> (Baruch <Version>)`); `--help`. Kein Datenordner, kein Server, kein Netz, keine Pakete;
+//!   Nicht-Unterstütztes (watch, query …) → Exit 2. Entschieden wird vor allem anderen in `main`
+//!   ([`baruch_server::typst_cli::dispatch`]), Argumente in `baruch_server::typst_cli`, Satz in
+//!   `baruch_render::cli`.
 //!
 //! Vorgabe für die Adresse: `127.0.0.1:8765`. Vorgabe für die Daten: [`baruch_store::default_data_dir`],
 //! unter Linux `~/.local/share/baruch` (bzw. `$XDG_DATA_HOME/baruch`), unter Windows
@@ -79,7 +86,9 @@ baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--titl
 baruch-server import DATEI.docx [--uebernehmen] [--title \"TITEL\"] [--data ORDNER]
 baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
 baruch-server passwort NAME [--data ORDNER]
-  serve    Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
+baruch-server typst compile EINGABE.typ [AUSGABE] [--root ORDNER] [--font-path ORDNER]… [--format pdf|png|svg]
+baruch-server typst fonts | --version | --help
+  serve   Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
             nur vom eigenen Rechner)
   import    Typst-Datei als neues Werk anlegen (Präambel = Werkvorlage, =/==/=== = Gliederung)
             Markdown (.md, .markdown) wird nach Typst umgewandelt; ein ZIP bringt eine Haupt-Datei
@@ -112,8 +121,12 @@ baruch-server passwort NAME [--data ORDNER]
             ergänzen, nie löschen oder überschreiben; Gliederungsänderungen werden Anträge)
   --vorschau beim Einlesen einer Austauschdatei: nichts schreiben, nur zeigen, was hinzukäme
   passwort  Notweg bei vergessenem Passwort: das neue Passwort (10 bis 200 Zeichen) als eine Zeile von der
-            Standardeingabe lesen und für das Konto NAME setzen; alle Sitzungen des Kontos enden. Beispiel:
+            Standardeingabe lesen und für das Konto NAME setzen; alle Sitzungen des Kontos enden, eine Sperre
+            nach Fehlversuchen wird aufgehoben. Beispiel:
             baruch-server passwort Erika < datei-mit-passwort   (oder eintippen und mit Eingabe abschließen)
+  typst     die Typst-Kommandozeile mit der eingebauten Engine (ohne Datenordner, ohne Netz, ohne Pakete):
+            eine .typ-Datei zu PDF, PNG oder SVG setzen; eine vorhandene Ausgabedatei wird überschrieben.
+            Auch als baruch-typst … (Symlink auf dieses Programm). Einzelheiten: baruch-server typst --help
   --listen  Adresse des Servers (Vorgabe 127.0.0.1:8765, auch BARUCH_LISTEN)
   --data    Datenordner mit baruch.sqlite und den Git-Spiegeln unter works/
             (Vorgabe ~/.local/share/baruch bzw. %LOCALAPPDATA%\\baruch, auch BARUCH_DATA)

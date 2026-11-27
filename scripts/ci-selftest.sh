@@ -233,13 +233,71 @@ check_exit 1 "ohne GH_REPO bricht ci-apt-fetch.sh ab" \
     env -u GH_REPO PATH="$tmp/bin:$PATH" sh "$scripts/ci-apt-fetch.sh" "$tmp/fetch-norepo"
 
 # ---- 4. Werkzeugversionen --------------------------------------------------------------------------------
-check "ci-tool.sh: die Typst-Version des Skripts ist die aus Cargo.lock" \
-    "Die CI soll mit demselben Compiler setzen wie Baruch; nach einem Anheben von typst muss das Skript nachziehen." \
+check "ci-tool.sh kennt Hugo (nur der Aufruf, nichts wird geladen)" \
+    "Hugo ist das einzige Werkzeug, das die CI noch lädt; der Aufruf muss stimmen, bevor ein Lauf am Netz hängt." \
+    env CI_TOOL_CHECK_ONLY=1 sh "$scripts/ci-tool.sh" hugo "$tmp/werkzeug"
+check_exit 2 "ci-tool.sh lädt kein Typst mehr" \
+    "Seit Runde 36 setzt die CI mit dem eigenen Programm (baruch-typst); ein Download wäre ein zweiter Compiler." \
     env CI_TOOL_CHECK_ONLY=1 sh "$scripts/ci-tool.sh" typst "$tmp/werkzeug"
-printf 'name = "typst"\nversion = "0.0.0"\n' > "$tmp/Cargo.lock.falsch"
-check_exit 1 "ci-tool.sh bricht ab, wenn Cargo.lock eine andere Typst-Version führt" \
-    "Gegenprobe zur Zeile darüber." \
-    env CI_TOOL_CHECK_ONLY=1 CI_TOOL_LOCK="$tmp/Cargo.lock.falsch" sh "$scripts/ci-tool.sh" typst "$tmp/werkzeug"
+no_typst_download() {
+    ! grep -n 'typst/typst/releases\|typst-x86_64' "$root/.github/workflows/"*.yml "$scripts/ci-tool.sh" \
+        "$scripts/ci-typst.sh" || return 1
+    ! grep -n 'ci-tool.sh typst' "$root/.github/workflows/"*.yml
+}
+check "kein Arbeitsablauf und kein Skript lädt Typst" \
+    "Gegenprobe über die Dateien: Der Download darf nicht an anderer Stelle wiederkommen." no_typst_download
+typst_step_uses_own_program() {
+    grep -q 'sh scripts/ci-typst.sh target/debug/baruch-server$' "$root/.github/workflows/ci.yml"
+}
+check "ci.yml ruft ci-typst.sh ohne fremdes Typst auf" \
+    "Ohne zweites Argument setzt das eigene Programm über den Symlink baruch-typst – das ist die Prüfung der Runde 36." \
+    typst_step_uses_own_program
+# Nachbau von baruch-server für ci-typst.sh: import/export wie das echte Programm, dazu die Typst-Kommandozeile
+# unter dem Namen baruch-typst. So läuft der Ablauf des Skripts hier ohne gebaute Binärdatei.
+typst_version="$(awk '
+    $0 == "name = \"typst\"" { hit = 1; next }
+    hit && /^version = / { gsub(/[" ]/, "", $0); sub(/^version=/, "", $0); print; exit }
+' "$root/Cargo.lock")"
+fake_server() {
+    mkdir -p "$tmp/$1"
+    cat > "$tmp/$1/baruch-server" <<EOF
+#!/bin/sh
+case "\$(basename "\$0")" in
+    baruch-typst)
+        case "\$1" in
+            --version) echo "typst $2 (Baruch 0.0.0)"; exit 0 ;;
+            watch) echo "typst: Den Unterbefehl watch unterstützt Baruch als Typst-Alias nicht." >&2; exit 2 ;;
+            compile)
+                shift
+                [ "\$1" = --root ] && shift 2
+                if grep -q gibt_es_nicht "\$1"; then
+                    echo "\$1:1:12: error: unknown variable: gibt_es_nicht" >&2
+                    exit $3
+                fi
+                printf '%%PDF-1.7 Nachbau\n' > "\$2"
+                exit 0 ;;
+        esac
+        exit 2 ;;
+esac
+case "\$1" in
+    import) printf 'Werk: 1\nOrdnername: der-leuchtturm\nAbschnitte: 6\n' ;;
+    export) mkdir -p "\$4"; cp "$scripts/ci-data/leuchtturm.typ" "\$4/der-leuchtturm.typ" ;;
+esac
+EOF
+    chmod +x "$tmp/$1/baruch-server"
+}
+fake_server typst-gut "$typst_version" 1
+check "ci-typst.sh setzt mit dem eigenen Programm unter dem Namen baruch-typst (Nachbau)" \
+    "Ablauf des Skripts ohne gebaute Binärdatei: Symlink, Versionsabgleich mit Cargo.lock, Satz, Gegenproben." \
+    sh "$scripts/ci-typst.sh" "$tmp/typst-gut/baruch-server"
+fake_server typst-alt 0.0.0 1
+check_exit 1 "ci-typst.sh scheitert, wenn --version eine andere Typst-Version nennt als Cargo.lock" \
+    "TYPST_VERSION in baruch-render muss dem Crate folgen; sonst belöge --version die Nutzer." \
+    sh "$scripts/ci-typst.sh" "$tmp/typst-alt/baruch-server"
+fake_server typst-still "$typst_version" 0
+check_exit 1 "ci-typst.sh scheitert, wenn ein Satzfehler mit Exit 0 endet" \
+    "Gegenprobe: Ein Programm, das alles durchwinkt, darf die Prüfung nicht bestehen." \
+    sh "$scripts/ci-typst.sh" "$tmp/typst-still/baruch-server"
 check_exit 2 "ci-tool.sh lehnt ein unbekanntes Werkzeug ab" \
     "Es lädt nur, wofür eine Prüfsumme hinterlegt ist." sh "$scripts/ci-tool.sh" anderes "$tmp/werkzeug"
 
@@ -340,6 +398,20 @@ jobs:
     steps:
       - run: echo hallo
 EOF
+    bad_workflow release-typen <<'EOF'
+on:
+  release:
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo hallo
+EOF
+    mkdir -p "$tmp/wf-release-published"
+    sed 's/^  release:$/  release:\n    types: [published]/' "$tmp/wf-release-typen/probe.yml" \
+        > "$tmp/wf-release-published/probe.yml"
     bad_workflow secret <<'EOF'
 on: push
 permissions:
@@ -471,6 +543,27 @@ EOF
         sh "$scripts/ci-check-workflows.sh" "$tmp/wf-tag"
     check_exit 1 "Regelprüfung lehnt pull_request_target ab" \
         "Fremder Code liefe mit den Rechten des Repositorys." sh "$scripts/ci-check-workflows.sh" "$tmp/wf-prt"
+    check_exit 1 "Regelprüfung lehnt den Auslöser release ohne types: [published] ab" \
+        "Sonst lieferte pages.yml bei jedem Ereignis eines Release aus, auch bei einem Entwurf ohne abrufbares Archiv." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-release-typen"
+    check "derselbe Ablauf mit types: [published] besteht die Regelprüfung" \
+        "Gegenprobe: Abgelehnt wird die fehlende Einschränkung, nicht der Auslöser an sich." \
+        sh "$scripts/ci-check-workflows.sh" "$tmp/wf-release-published"
+    pages_follow_a_published_release() {
+        python3 - "$root/.github/workflows/pages.yml" <<'PY'
+import sys
+import yaml
+
+doc = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+on = doc.get("on", doc.get(True))
+assert on.get("release") == {"types": ["published"]}, on
+assert "workflow_dispatch" in on and on.get("push") == {"branches": ["main"]}, on
+assert doc["concurrency"] == {"group": "pages", "cancel-in-progress": False}, doc["concurrency"]
+PY
+    }
+    check "pages.yml läuft auch beim Veröffentlichen eines Release, in der Gruppe pages" \
+        "Runde 36: So kommt die Seite samt /apt/ auch an, wenn der Tag auf dem Commit des letzten main-Laufs liegt; der Handweg (workflow_dispatch) und der Push auf main bleiben." \
+        pages_follow_a_published_release
     check_exit 1 "Regelprüfung lehnt ein Geheimnis in einer Befehlszeile ab" \
         "Es stünde in der Prozessliste und im Protokoll des Befehls." sh "$scripts/ci-check-workflows.sh" "$tmp/wf-secret"
     check_exit 1 "Regelprüfung lehnt checkout ohne persist-credentials: false ab" \

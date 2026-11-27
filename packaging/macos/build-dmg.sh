@@ -47,6 +47,9 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$out"
 install -m755 "$binary" "$app/Contents/MacOS/baruch-server"
 strip -x "$app/Contents/MacOS/baruch-server" || true
 install -m755 packaging/linux/baruch "$app/Contents/MacOS/baruch"
+# Typst-Kommandozeile (Runde 36): nur der Name baruch-typst, als Symlink im selben Ordner; nie eine Datei „typst“.
+# Aufruf: /Applications/Baruch.app/Contents/MacOS/baruch-typst compile … (docs/Verteilung.md).
+ln -s baruch-server "$app/Contents/MacOS/baruch-typst"
 sed "s/@VERSION@/$version/g" packaging/macos/Info.plist.in > "$app/Contents/Info.plist"
 install -m644 LICENSE "$app/Contents/Resources/LICENSE"
 install -m644 "$licenses" "$app/Contents/Resources/THIRD-PARTY-LICENSES.txt"
