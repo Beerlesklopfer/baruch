@@ -348,6 +348,23 @@ EOF
     check_exit 1 "ci-site.sh bricht bei falschem CNAME ab" \
         "GitHub Pages stellte die Seite sonst auf einen anderen Namen um." \
         env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-cname"
+    check "site-check.py besteht seinen Selbsttest" \
+        "ci-site.sh verlässt sich auf die Linkprüfung; der Selbsttest zeigt an einem erfundenen Baum, dass sie tote Links, Anker und fremde Adressen wirklich findet." \
+        python3 "$scripts/site-check.py" --selbsttest
+    make_site seite-tot "$version" "baruch.bernau.family"
+    printf '<!doctype html><title>Probe</title><p>Version {{ site.Params.version }}</p><a href="/gibt-es-nicht/">tot</a>\n' > "$tmp/seite-tot/layouts/index.html"
+    check_exit 1 "ci-site.sh bricht bei einem toten internen Link ab" \
+        "Gegenprobe zum Normalfall oben: Ruft ci-site.sh die Linkprüfung nicht mehr auf, bliebe das hier unbemerkt." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-tot"
+    check "ci-site.sh nennt den toten Link mit Datei und Adresse" \
+        "Exit 1 allein könnte auch von einer anderen Prüfung stammen (Version, CNAME)." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-tot' 2>&1 | grep -q '^index.html: toter Verweis <a href>: /gibt-es-nicht/'"
+    mkdir -p "$tmp/seite-tot/content/hilfe"
+    printf -- '---\ntitle: "Hilfe"\n---\nErfundene Probe.\n' > "$tmp/seite-tot/content/hilfe/_index.md"
+    printf '<!doctype html><title>Probe</title><p>Version {{ site.Params.version }}</p>\n' > "$tmp/seite-tot/layouts/index.html"
+    check "mit einem Abschnitt content/hilfe verlangt ci-site.sh die Weiterleitung von /bedienung/" \
+        "Alte Links auf /bedienung/ sollen in der Hilfe ankommen; die Probe hat den Abschnitt, aber keine Weiterleitung." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-tot' 2>&1 | grep -q 'bedienung/index.html: die alte Adresse /bedienung/ fehlt'"
     if [ -f "$tmp/repo2/dists/stable/Release" ]; then
         tar -C "$tmp/repo2" -czf "$tmp/apt-repo-neu.tar.gz" .
         check "ci-site.sh --apt legt das Repository nach public/apt/" \

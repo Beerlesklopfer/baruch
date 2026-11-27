@@ -6,7 +6,8 @@ baseURL = "https://baruch.bernau.family/"
 locale = "de"
 title = "Baruch"
 theme = "baruch"
-# Keine Schlagwörter, Kategorien oder Feeds: Die Seite besteht aus acht festen Seiten.
+# Keine Schlagwörter, Kategorien oder Feeds: Die Seite besteht aus sieben festen Seiten und dem Abschnitt Hilfe
+# (content/hilfe/, eine Startseite und je Thema eine Seite).
 disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = false
 enableGitInfo = false
@@ -55,5 +56,10 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
   [markup.highlight]
     # Kein Syntax-Hervorheber: Codeblöcke bleiben schlichtes <pre><code>.
     codeFences = false
+  [markup.tableOfContents]
+    # Inhaltsverzeichnis der Hilfeseiten (und der Seiten mit `inhalt: true`): Überschriften der Ebenen 2 und 3.
+    startLevel = 2
+    endLevel = 3
+    ordered = false
   [markup.goldmark.renderer]
     unsafe = false

@@ -140,7 +140,8 @@ a:focus-visible, .knopf:focus-visible { outline: 3px solid var(--siegel); outlin
   border-bottom: 2px solid transparent;
 }
 .menue a:hover { border-bottom-color: var(--linie); }
-.menue a[aria-current="page"] { border-bottom-color: var(--siegel); color: var(--siegel); }
+/* aria-current="page" auf der Seite selbst, "true" auf den Unterseiten eines Abschnitts (Hilfe). */
+.menue a[aria-current] { border-bottom-color: var(--siegel); color: var(--siegel); }
 .menue a.aussen::after { content: " ↗"; color: var(--leise); }
 
 /* Auftakt der Startseite */
@@ -281,6 +282,179 @@ pre code { background: none; padding: 0; font-size: 1em; overflow-wrap: normal; 
 }
 .bild figcaption { margin-top: 0.5rem; font-family: var(--schrift-zeile); font-size: 0.9rem; color: var(--leise); }
 
+/* Bilder der Hilfe (Shortcode hilfebild): figure.bild.hilfebild > picture > img, figcaption.
+   Ein Bild wird nie breiter als die Spalte und nie größer als es ist (Ausschnitte bleiben scharf); die größte
+   Anzeigebreite setzt der Shortcode als max-width an der Figur. Der Rahmen hebt helle Fotos vom hellen Papier ab
+   und dunkle vom dunklen. */
+
+.text > .hilfebild { max-width: 100%; }
+.hilfebild picture { display: block; }
+.hilfebild img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  box-shadow: 0 0.25rem 0.9rem rgba(0, 0, 0, 0.08);
+}
+.hilfebild figcaption { max-width: var(--breite); }
+
+/* Tastenangaben: <kbd> aus dem Shortcode taste, „Strg+S (Mac: ⌘S)“ */
+
+kbd {
+  display: inline-block;
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--linie);
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: var(--blatt);
+  color: var(--tinte);
+  font-size: 0.82em;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+/* Hilfe: Startseite mit der Liste der Seiten */
+
+.text .hilfe-seiten {
+  list-style: none;
+  max-width: 100%;
+  margin: 2rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.9rem;
+  counter-reset: hilfe;
+}
+.text .hilfe-seiten li {
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--linie);
+  border-radius: 0.35rem;
+  background: var(--blatt);
+  counter-increment: hilfe;
+}
+.hilfe-seiten a {
+  display: block;
+  font-family: var(--schrift-zeile);
+  font-weight: 600;
+  text-decoration: none;
+}
+.hilfe-seiten a::before {
+  content: counter(hilfe) ". ";
+  color: var(--leise);
+  font-weight: 400;
+}
+.hilfe-seiten a:hover { text-decoration: underline; }
+.hilfe-seiten-text { display: block; margin-top: 0.3rem; font-size: 0.95rem; line-height: 1.45; color: var(--leise); }
+
+/* Hilfe: eine Seite mit der Navigation des Abschnitts daneben */
+
+.hilfe {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 0 2.5rem;
+  align-items: start;
+}
+
+.hilfe-nav {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  margin-block: 2.5rem 2rem;
+  padding-right: 1rem;
+  border-right: 1px solid var(--linie);
+  font-family: var(--schrift-zeile);
+  font-size: 0.93rem;
+  line-height: 1.35;
+  scrollbar-color: var(--leise) var(--papier);
+}
+.hilfe-nav-titel {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hilfe-nav-titel a { color: var(--siegel); text-decoration: none; }
+.hilfe-nav-titel a:hover { text-decoration: underline; }
+.hilfe-nav ul { list-style: none; margin: 0; padding: 0; }
+.hilfe-nav li { margin: 0; }
+.hilfe-nav li a {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  border-left: 3px solid transparent;
+  border-radius: 0 0.25rem 0.25rem 0;
+  color: var(--tinte);
+  text-decoration: none;
+}
+.hilfe-nav li a:hover { background: var(--siegel-hell); }
+.hilfe-nav li a[aria-current="page"] {
+  border-left-color: var(--siegel);
+  background: var(--siegel-hell);
+  color: var(--siegel-tief);
+  font-weight: 600;
+}
+
+.hilfe-seite { min-width: 0; }
+
+/* Inhaltsverzeichnis aus den Überschriften (Hugo .TableOfContents), aufklappbar ohne JavaScript */
+
+.hilfe-inhalt {
+  margin: 0 0 2rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--linie);
+  border-radius: 0.35rem;
+  background: var(--blatt);
+  font-family: var(--schrift-zeile);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.hilfe-inhalt summary { cursor: pointer; font-weight: 600; color: var(--leise); }
+.hilfe-inhalt summary:focus-visible { outline: 3px solid var(--siegel); outline-offset: 3px; border-radius: 2px; }
+.hilfe-inhalt nav { margin-top: 0.6rem; }
+.text .hilfe-inhalt ul { list-style: none; margin: 0; padding: 0; }
+.text .hilfe-inhalt ul ul { padding-left: 1.1rem; }
+.text .hilfe-inhalt li { margin: 0; padding-block: 0.18rem; }
+.hilfe-inhalt a { text-decoration: none; }
+.hilfe-inhalt a:hover { text-decoration: underline; }
+
+/* Sprungziele nicht unter den oberen Fensterrand kleben */
+.text :is(h2, h3, h4)[id] { scroll-margin-top: 1rem; }
+
+/* Vorige und nächste Seite */
+
+.hilfe-weiter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+  max-width: 100%;
+  margin-top: 3rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--linie);
+  font-family: var(--schrift-zeile);
+}
+.hilfe-weiter a {
+  display: block;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--linie);
+  border-radius: 0.35rem;
+  background: var(--blatt);
+  font-weight: 600;
+  text-decoration: none;
+}
+.hilfe-weiter a:hover { border-color: var(--siegel); }
+.hilfe-vor { grid-column: 2; text-align: right; }
+.hilfe-zurueck { grid-column: 1; }
+.hilfe-weiter-wort {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--leise);
+}
+.hilfe-zurueck .hilfe-weiter-wort::before { content: "← "; }
+.hilfe-vor .hilfe-weiter-wort::after { content: " →"; }
+
 /* Fußzeile */
 
 .fuss {
@@ -294,12 +468,63 @@ pre code { background: none; padding: 0; font-size: 1em; overflow-wrap: normal; 
 .fuss p { margin: 0; }
 .fuss .leise { font-size: 0.85rem; }
 
+/* Schmale Fenster: Die Navigation der Hilfe wandert über den Text und wird eine Zeile, die sich waagerecht
+   rollen lässt – so schiebt sie den Text nicht um vierzehn Zeilen nach unten. */
+@media (max-width: 60rem) {
+  .hilfe { display: block; }
+  .hilfe-nav {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    margin-block: 1rem 0;
+    padding: 0 0 0.6rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--linie);
+  }
+  .hilfe-nav-titel { margin-bottom: 0.4rem; }
+  .hilfe-nav ul {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    padding-bottom: 0.4rem;
+    scrollbar-color: var(--leise) var(--papier);
+  }
+  .hilfe-nav li { flex: none; }
+  .hilfe-nav li a {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--linie);
+    border-radius: 0.3rem;
+    white-space: nowrap;
+  }
+  .hilfe-nav li a[aria-current="page"] { border-color: var(--siegel); }
+  .hilfe-seite.text { padding-top: 1.5rem; }
+}
+
 @media (max-width: 40rem) {
   body { font-size: 1.05rem; }
   .kopf-zeile { flex-direction: column; align-items: flex-start; }
+  /* Tabellen rollen waagerecht in ihrem eigenen Kasten (display: block, overflow-x: auto oben), statt die Seite
+     zu verbreitern; Kopfzellen dürfen hier umbrechen. */
+  .text table { max-width: 100%; font-size: 0.9rem; scrollbar-color: var(--leise) var(--papier); }
+  .text th { white-space: normal; }
+  .text th, .text td { padding-right: 0.7rem; }
+  .hilfe-weiter { grid-template-columns: 1fr; }
+  .hilfe-vor, .hilfe-zurueck { grid-column: 1; }
+  .text .hilfe-seiten { grid-template-columns: 1fr; }
 }
 
 @media print {
-  .kopf, .fuss, .skip, .auftakt-wege { display: none; }
-  body { background: #fff; color: #000; }
+  .kopf, .fuss, .skip, .auftakt-wege, .hilfe-nav, .hilfe-weiter, .hilfe-inhalt { display: none; }
+  body { display: block; background: #fff; color: #000; font-size: 11pt; }
+  .hilfe { display: block; }
+  .rand, .text > *, .seitenkopf > * { max-width: none; }
+  a { color: inherit; }
+  .text table { display: table; overflow: visible; }
+  pre { white-space: pre-wrap; overflow: visible; border-color: #999; background: none; }
+  code, kbd { background: none; }
+  .bild, .text tr, pre { break-inside: avoid; }
+  .text h2, .text h3 { break-after: avoid; }
+  .bild img { max-width: 100%; border-color: #999; box-shadow: none; }
+  /* Annahme, nicht geprüft: Browser werten prefers-color-scheme beim Drucken als hell, es druckt also die helle
+     Fassung eines Bildes. */
 }
