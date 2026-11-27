@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ältere Fassungen ausblenden (Nutzer 2026-11-24, Release 0.9.0; Migration 0051 `node_revision_fold`) auf echten
-//! SQLite-Dateien im Temp-Ordner mit einem frei erfundenen Werk: Marke setzen, ersetzen, aufheben, Ablehnung über der
-//! aktuellen Fassung, werkweit nach Datum, Kaskade mit dem Abschnitt – und 0051 auf einer Datenbank im Stand vor
-//! 0.9.0 (ed9d210, Store bis 0050) verlustfrei.
+//! Hiding older revisions (user 2026-11-24, release 0.9.0; migration 0051 `node_revision_fold`) on real SQLite files in
+//! the temp directory with a freely invented work: set the marker, replace it, clear it, rejection above the current
+//! revision, work-wide by date, cascade with the section – and 0051 on a database in the state before 0.9.0 (ed9d210,
+//! store up to 0050) without loss.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ async fn current_body(store: &Store, work: i64, node: usize) -> String {
     n.revisions[n.current_index().unwrap()].body.clone()
 }
 
-/// Neue Fassung des Menschen auf Abschnitt 0 (ersetzt die bisherige aktuelle); `word` macht den Text verschieden.
+/// New revision of the human on section 0 (supersedes the previous current one); `word` makes the text different.
 async fn new_revision(store: &Store, work: i64, word: &str) -> u32 {
     let body = current_body(store, work, 0).await.replacen("Glocke", &format!("{word} Glocke"), 1);
     store.save_human(work, 0, &body, HUMAN).await.unwrap().expect("neue Fassung").rev
@@ -47,7 +47,7 @@ async fn the_mark_is_set_replaced_and_cleared_without_touching_any_revision() {
     for word in ["alte", "neue", "helle", "dunkle"] {
         new_revision(&store, work, word).await;
     }
-    // Fassungen 1–4 ersetzt, 5 aktuell; dazu ein offener Vorschlag 6.
+    // Revisions 1–4 superseded, 5 current; plus an open proposal 6.
     let proposal = current_body(&store, work, 0).await.replacen("Moor", "Hochmoor", 1);
     let six = store.add_proposal(work, 0, &proposal, "@lektor", "probe", "Hochmoor").await.unwrap();
     assert_eq!(six, 6);
@@ -61,23 +61,23 @@ async fn the_mark_is_set_replaced_and_cleared_without_touching_any_revision() {
     assert!(fold.updated.ends_with('Z'), "Zeitpunkt in UTC wie revision.created: {}", fold.updated);
     assert_eq!(store.work_revision_folds(work).await.unwrap().get(&key), Some(&3), "werkweit nach Schlüssel");
 
-    // Ersetzen: eine Zeile je Abschnitt, neue Nummer.
+    // Replace: one row per section, new number.
     store.set_revision_fold(work, 0, 5, HUMAN).await.unwrap();
     assert_eq!(store.revision_fold(work, 0).await.unwrap().unwrap().below, 5, "Marke ersetzt");
     assert_eq!(store.work_revision_folds(work).await.unwrap().len(), 1, "nur eine Marke je Abschnitt");
 
-    // Über der aktuellen Fassung (Vorschlag 6) abgelehnt, damit die aktuelle nie verschwindet; nichts geändert.
+    // Rejected above the current revision (proposal 6), so that the current one never disappears; nothing changed.
     let refused = store.set_revision_fold(work, 0, 6, HUMAN).await.unwrap_err();
     assert!(matches!(refused, StoreError::Refused(m) if m.contains("aktuellen Fassung")), "{refused}");
     assert_eq!(store.revision_fold(work, 0).await.unwrap().unwrap().below, 5, "abgelehnt: Marke bleibt");
-    // Unbekannte Fassung wie bei den übrigen Revisionsmethoden.
+    // Unknown revision as with the other revision methods.
     let unknown = store.set_revision_fold(work, 0, 99, HUMAN).await.unwrap_err();
     assert!(matches!(unknown, StoreError::UnknownRevision { rev: 99, .. }), "{unknown}");
 
     assert!(store.clear_revision_fold(work, 0).await.unwrap(), "aufgehoben");
     assert!(!store.clear_revision_fold(work, 0).await.unwrap(), "zweites Aufheben meldet: keine Marke");
     assert_eq!(store.revision_fold(work, 0).await.unwrap(), None);
-    // Nichts gelöscht, kein Status verändert (die Marke ist eine reine Ansichtsmarke).
+    // Nothing deleted, no status changed (the marker is a pure view marker).
     assert_eq!(statuses(&store, work).await, before, "Fassungen und Status unverändert");
 }
 
@@ -86,18 +86,18 @@ async fn folding_by_date_sets_each_section_to_its_last_revision_before_the_day_a
     let (_dir, store, work) = fresh().await;
     new_revision(&store, work, "alte").await;
     new_revision(&store, work, "neue").await;
-    // Nach dem Tag (weit in der Zukunft): Marke auf die letzte Fassung, das ist die aktuelle 3; Abschnitt 1 hat nur
-    // Fassung 1 (aktuell).
+    // After the day (far in the future): marker on the last revision, that is the current 3; section 1 has only
+    // revision 1 (current).
     let done = store.fold_revisions_before(work, "2999-01-01T00:00:00.000Z", HUMAN).await.unwrap();
     let loaded = store.load_work(work).await.unwrap();
     let (k0, k1) = (loaded.nodes[0].key, loaded.nodes[1].key);
     assert_eq!(done.set, vec![(k0, 3), (k1, 1)], "je Abschnitt die letzte Fassung vor dem Tag");
-    // Ein Vorschlag über der aktuellen zählt mit, die Marke bleibt aber höchstens auf der aktuellen.
+    // A proposal above the current one counts, but the marker stays on the current one at most.
     let proposal = current_body(&store, work, 0).await.replacen("Moor", "Hochmoor", 1);
     store.add_proposal(work, 0, &proposal, "@lektor", "probe", "Hochmoor").await.unwrap();
     let done = store.fold_revisions_before(work, "2999-01-01T00:00:00.000Z", HUMAN).await.unwrap();
     assert_eq!(done.set[0], (k0, 3), "Vorschlag 4 liegt über der aktuellen Fassung 3: Marke höchstens dort");
-    // Vor allen Fassungen: nichts zu setzen, vorhandene Marken bleiben.
+    // Before all revisions: nothing to set, existing markers stay.
     let none = store.fold_revisions_before(work, "2000-01-01T00:00:00.000Z", HUMAN).await.unwrap();
     assert!(none.set.is_empty(), "keine Fassung vor 2000: {none:?}");
     assert_eq!(store.revision_fold(work, 0).await.unwrap().unwrap().below, 3, "unverändert");
@@ -114,7 +114,7 @@ async fn the_mark_goes_with_its_section_and_its_work() {
     let rows: i64 =
         sqlx::query_scalar("SELECT count(*) FROM node_revision_fold").fetch_one(store.pool()).await.unwrap();
     assert_eq!(rows, 1);
-    // Werk löschen: Abschnitte gehen, die Marke per ON DELETE CASCADE mit (Fremdschlüssel sind an).
+    // Delete the work: sections go, the marker with them via ON DELETE CASCADE (foreign keys are on).
     let title = store.load_work(work).await.unwrap().title;
     store.delete_work(work, &title).await.unwrap();
     let rows: i64 =
@@ -127,7 +127,7 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
     Migrator { migrations: Cow::Owned(list), ignore_missing: true, ..Migrator::DEFAULT }
 }
 
-/// Inhalt aller Tabellen (außer `_sqlx_migrations`), je Zeile alle Spalten per `quote()`.
+/// Content of all tables (except `_sqlx_migrations`), per row all columns via `quote()`.
 async fn contents(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let names: Vec<String> = sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND sql NOT LIKE 'CREATE VIRTUAL%' \
@@ -162,9 +162,9 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
 
 #[tokio::test]
 async fn migration_0051_on_a_database_from_before_0_9_0_keeps_every_row_and_adds_only_the_fold_table() {
-    // Stand ed9d210 nachbauen: eine echte Datenbank über die Store-API füllen (Werk, ersetzte Fassungen, Vorschlag,
-    // Beitrag) und 0051 wieder herausnehmen. 0051 legt nur die Tabelle an, darum ist das genau der Stand mit Store bis
-    // 0050 (geprüft: danach fehlen Tabelle und Eintrag in _sqlx_migrations, höchste Version 0050).
+    // Reconstruct the state ed9d210: fill a real database through the store API (work, superseded revisions, proposal,
+    // post) and take 0051 out again. 0051 only creates the table, therefore that is exactly the state with the store up
+    // to 0050 (checked: afterwards table and entry in _sqlx_migrations are missing, highest version 0050).
     let (dir, store, work) = fresh().await;
     new_revision(&store, work, "alte").await;
     new_revision(&store, work, "neue").await;
@@ -173,7 +173,7 @@ async fn migration_0051_on_a_database_from_before_0_9_0_keeps_every_row_and_adds
     let pool = store.pool().clone();
     sqlx::query("DROP TABLE node_revision_fold").execute(&pool).await.unwrap();
     sqlx::query("DELETE FROM _sqlx_migrations WHERE version = 51").execute(&pool).await.unwrap();
-    // Runde 34: 0052 (Spalten an `idea`) liegt danach und bleibt eingespielt; sie berührt die Fassungen nicht.
+    // Round 34: 0052 (columns at `idea`) lies after it and stays applied; it does not touch the revisions.
     let highest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE version < 52")
         .fetch_one(&pool)
         .await
@@ -201,7 +201,7 @@ async fn migration_0051_on_a_database_from_before_0_9_0_keeps_every_row_and_adds
     for (name, sql) in &schema_before {
         assert_eq!(schema_after.get(name), Some(sql), "Schema von {name} unverändert");
     }
-    // CHECKs: Marke ab 1, Abschnitt muss es geben (Fremdschlüssel an).
+    // CHECKs: marker from 1 on, the section has to exist (foreign keys on).
     let node: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 0")
         .bind(work)
         .fetch_one(&pool)
@@ -216,7 +216,7 @@ async fn migration_0051_on_a_database_from_before_0_9_0_keeps_every_row_and_adds
     assert_eq!(integrity, "ok");
     drop(store);
 
-    // Store::open danach: Marke über die Store-API auf den alten Daten.
+    // Store::open afterwards: marker through the store API on the old data.
     let reopened = Store::open(dir.path()).await.expect("Store::open nach 0051");
     reopened.set_revision_fold(work, 0, 3, HUMAN).await.unwrap();
     assert_eq!(reopened.revision_fold(work, 0).await.unwrap().unwrap().below, 3);

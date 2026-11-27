@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 35, konten (Vertrag §1): Passwort, Sitzung, Sperre gegen Durchprobieren, Anmelden/Abmelden/Einrichten,
-//! `account.*`, Notweg `passwort`.
+//! Round 35, konten (contract §1): password, session, brute-force lock, sign-in/sign-out/setup, `account.*`, emergency
+//! path `passwort`.
 //!
-//! Die Tests gehen den echten Weg (Formulare, Cookie, Schicht `auth::gate`) über den Router; die Gegenstelle
-//! (`ConnectInfo`) setzt jeder Test selbst – ohne sie gilt eine Anfrage nie als „eigener Rechner“. Wer die Anfrage
-//! stellt, fragen die Tests über `auth::gate::resolve` ab: Das Ergebnis hängt nicht davon ab, was `roles` einer Rolle
-//! schon erlaubt. Die Gestaltung der Seiten gehört „oberflaeche_konten“ – geprüft werden nur Status, Kopfzeilen,
-//! Cookies und Feldnamen. Zwei Tests starten das echte Programm (Standardfehlerausgabe, Befehl `passwort`); ihre
-//! Verbindungen zeigen auf eine tote Adresse, kein Test fragt einen echten Dienst.
+//! The tests go the real way (forms, cookie, layer `auth::gate`) through the router; the peer (`ConnectInfo`) is set by
+//! every test itself – without it a request never counts as „eigener Rechner“. Who makes the request is asked by the
+//! tests through `auth::gate::resolve`: the result does not depend on what `roles` already allows a role. The design of
+//! the pages belongs to „oberflaeche_konten“ – only status, headers, cookies and field names are checked. Two tests
+//! start the real program (standard error output, command `passwort`); their connections point to a dead address, no
+//! test asks a real service.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::SocketAddr;
@@ -24,11 +24,11 @@ use serde_json::{Value, json};
 
 use crate::common::{self, Server};
 
-/// Erfundene Passwörter (10 bis 200 Zeichen, nur Zeichen, die im Formular ohne Kodierung stehen dürfen).
+/// Invented passwords (10 to 200 characters, only characters that may stand in the form without encoding).
 const AUTHOR_PW: &str = "muehle-am-hang-26";
 const LEKTOR_PW: &str = "wehrgraben-im-mai";
 const NEW_PW: &str = "mahlgang-neu-2027";
-/// Name, unter dem der Proxy im Test erreichbar ist (`--allow-host`).
+/// Name under which the proxy is reachable in the test (`--allow-host`).
 const PROXY: &str = "baruch.example.org";
 
 const LOOPBACK: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 50000);
@@ -49,14 +49,14 @@ fn rpc_request(method: &str, params: Value) -> Request<Body> {
     Request::post("/rpc").header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())).unwrap()
 }
 
-/// Die Anfrage kommt vom eigenen Rechner: Gegenstelle Loopback, `Host` eine IP-Adresse.
+/// The request comes from the own machine: peer loopback, `Host` an IP address.
 fn local(mut request: Request<Body>) -> Request<Body> {
     request.extensions_mut().insert(ConnectInfo(LOOPBACK));
     request.headers_mut().insert(header::HOST, "127.0.0.1:8765".parse().unwrap());
     request
 }
 
-/// Die Anfrage kommt über den Proxy auf demselben Rechner: Gegenstelle Loopback, `Host` der Proxy-Name.
+/// The request comes through the proxy on the same machine: peer loopback, `Host` the proxy name.
 fn proxied(mut request: Request<Body>) -> Request<Body> {
     request.extensions_mut().insert(ConnectInfo(LOOPBACK));
     request.headers_mut().insert(header::HOST, PROXY.parse().unwrap());
@@ -73,7 +73,7 @@ fn with_header(mut request: Request<Body>, name: &'static str, value: &'static s
     request
 }
 
-/// Alle `Set-Cookie` der Antwort, die das Cookie der Sitzung setzen.
+/// All `Set-Cookie` of the answer that set the cookie of the session.
 fn session_cookies(headers: &HeaderMap) -> Vec<String> {
     headers
         .get_all(header::SET_COOKIE)
@@ -83,7 +83,7 @@ fn session_cookies(headers: &HeaderMap) -> Vec<String> {
         .collect()
 }
 
-/// Das Token aus dem `Set-Cookie` der Antwort.
+/// The token from the `Set-Cookie` of the answer.
 fn token_of(headers: &HeaderMap) -> String {
     let cookies = session_cookies(headers);
     assert_eq!(cookies.len(), 1, "genau ein Set-Cookie der Sitzung erwartet: {cookies:?}");
@@ -94,7 +94,7 @@ fn location(headers: &HeaderMap) -> &str {
     headers.get(header::LOCATION).map_or("", |value| value.to_str().unwrap())
 }
 
-/// Server, der zusätzlich den Proxy-Namen erlaubt (wie `serve --allow-host baruch.example.org`).
+/// Server that additionally allows the proxy name (like `serve --allow-host baruch.example.org`).
 async fn open_behind_proxy() -> Server {
     let data = tempfile::tempdir().unwrap();
     let mut state = baruch_server::AppState::open(data.path()).await.expect("Datenordner");
@@ -103,7 +103,7 @@ async fn open_behind_proxy() -> Server {
     Server { app: baruch_server::router(state.clone()), state, data }
 }
 
-/// Richtet das erste Konto vom eigenen Rechner ein; liefert das Token der Sitzung des Autors.
+/// Sets up the first account from the own machine; returns the token of the author's session.
 async fn setup_author(server: &Server) -> String {
     let body = format!("name=Erika&display=Erika+Beispiel&password={AUTHOR_PW}&password2={AUTHOR_PW}");
     let (status, headers, text) = server.send(local(form("/einrichten", &body))).await;
@@ -111,7 +111,7 @@ async fn setup_author(server: &Server) -> String {
     token_of(&headers)
 }
 
-/// Der Autor legt einen Lektor an; liefert dessen id.
+/// The author creates a Lektor; returns its id.
 async fn create_lektor(server: &Server, author: &str, name: &str, password: &str) -> i64 {
     let body = format!("action=create&name={name}&display=&password={password}&password2={password}");
     let (status, headers, text) = server.send(with_cookie(form("/einstellungen/konten/act", &body), author)).await;
@@ -131,14 +131,14 @@ async fn login(server: &Server, name: &str, password: &str) -> (StatusCode, Head
     server.send(form("/anmelden", &format!("name={name}&password={password}&next=/"))).await
 }
 
-/// Meldet an und liefert das Token.
+/// Signs in and returns the token.
 async fn sign_in(server: &Server, name: &str, password: &str) -> String {
     let (status, headers, text) = login(server, name, password).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Anmelden als {name} gelingt: {text}");
     token_of(&headers)
 }
 
-/// Wer stellt diese Anfrage (ohne sie auszuführen)?
+/// Who makes this request (without executing it)?
 async fn who(server: &Server, request: Request<Body>) -> Who {
     let (parts, _) = request.into_parts();
     auth::gate::resolve(&server.state, &parts).await
@@ -158,7 +158,7 @@ async fn exec(server: &Server, sql: &str) {
         .unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Lässt jede Sperre gegen Durchprobieren ablaufen (die Zählung bleibt).
+/// Lets every brute-force lock expire (the count stays).
 async fn expire_blocks(server: &Server) {
     exec(server, "UPDATE login_attempt SET blocked_until = strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 seconds')").await;
 }
@@ -169,7 +169,7 @@ async fn rpc_as(server: &Server, token: &str, method: &str, params: Value) -> Va
     serde_json::from_str(&body).unwrap()
 }
 
-// ---- ohne Konten ---------------------------------------------------------------------------------------------
+// ---- without accounts ----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_accounts_pages_rpc_and_forms_answer_as_before() {
@@ -215,7 +215,7 @@ async fn without_accounts_pages_rpc_and_forms_answer_as_before() {
     assert_eq!(scalar(&server, "SELECT count(*) FROM login_attempt").await, 0, "und kein Fehlversuch gezählt");
 }
 
-// ---- Einrichten ----------------------------------------------------------------------------------------------
+// ---- Setup ---------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_first_account_is_set_up_only_from_the_own_machine() {
@@ -273,7 +273,7 @@ async fn the_first_account_is_set_up_only_from_the_own_machine() {
         }
         other => panic!("nach dem Einrichten ist der Autor angemeldet, bekommen: {other:?}"),
     }
-    // Ein zweites „erstes“ Konto gibt es nicht – weder für den Autor noch für Unangemeldete.
+    // There is no second „first“ account – neither for the author nor for those not signed in.
     let again = format!("name=Jonas&password={AUTHOR_PW}&password2={AUTHOR_PW}");
     let (status, _, _) = server.send(with_cookie(local(form("/einrichten", &again)), &token)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "mit vorhandenem Konto ist Einrichten abgelehnt");
@@ -304,7 +304,7 @@ async fn two_simultaneous_setups_create_exactly_one_account() {
     assert!(session_cookies(&loser.1).is_empty(), "die abgelehnte Einrichtung bekommt kein Cookie");
 }
 
-// ---- mit Konten, ohne Sitzung --------------------------------------------------------------------------------
+// ---- with accounts, without a session ------------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_a_session_every_route_asks_for_the_login() {
@@ -355,7 +355,7 @@ async fn without_a_session_every_route_asks_for_the_login() {
         scalar(&common::open().await, "SELECT count(*) FROM post").await,
         "keine der abgewiesenen Formularanfragen hat einen Beitrag geschrieben"
     );
-    // Öffentlich bleibt nur, was die Anmeldeseite braucht.
+    // Only what the sign-in page needs stays public.
     for path in auth::PUBLIC_PATHS.iter().filter(|path| path.starts_with("/static/")) {
         assert_eq!(server.send(get(path)).await.0, StatusCode::OK, "{path} lädt die Anmeldeseite ohne Sitzung");
     }
@@ -399,7 +399,7 @@ async fn mcp_stays_with_tokens_and_ignores_accounts() {
     assert_eq!(status, StatusCode::OK, "vom eigenen Rechner gelingt initialize ohne Anmeldung: {body}");
 }
 
-// ---- Anmelden ------------------------------------------------------------------------------------------------
+// ---- Sign-in -------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_right_password_sets_the_cookie_and_wrong_or_unknown_look_the_same() {
@@ -438,7 +438,7 @@ async fn the_right_password_sets_the_cookie_and_wrong_or_unknown_look_the_same()
     assert_eq!(status, StatusCode::SEE_OTHER, "der Name gilt ohne Rücksicht auf Rand und Großschreibung");
     assert!(!session_cookies(&headers).is_empty(), "auch dann mit Sitzung");
 
-    // next wird nur als Pfad dieses Servers befolgt.
+    // next is followed only as a path of this server.
     for (next, target) in [
         ("%2F%2Ffremd.example%2Fx", "/"),
         ("https%3A%2F%2Ffremd.example%2F", "/"),
@@ -454,7 +454,7 @@ async fn the_right_password_sets_the_cookie_and_wrong_or_unknown_look_the_same()
         assert_eq!(location(&headers), target, "next={next}: nur ein lokaler Pfad wird befolgt");
     }
 
-    // Falsches Passwort, unbekannter Name, überlanges Passwort: gleicher Status, gleiche Seite, kein Cookie.
+    // Wrong password, unknown name, overlong password: same status, same page, no cookie.
     let (wrong_status, wrong_headers, wrong_body) = login(&server, "Erika", "falsches-passwort").await;
     let (unknown_status, unknown_headers, unknown_body) = login(&server, "Nemo", "falsches-passwort").await;
     assert_eq!(wrong_status, StatusCode::UNAUTHORIZED, "falsches Passwort: 401");
@@ -474,7 +474,7 @@ async fn the_right_password_sets_the_cookie_and_wrong_or_unknown_look_the_same()
     let (status, _, _) = server.send(form("/anmelden", "")).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "ein leeres Formular ist ein Fehlversuch, kein Serverfehler");
 
-    // Mit Sitzung zeigt GET / die Seite, ohne Zwischenspeicher.
+    // With a session GET / shows the page, without caching.
     let (status, headers, _) = server.send(with_cookie(get("/"), &token)).await;
     assert_eq!(status, StatusCode::OK, "mit dem Cookie zeigt GET / die Arbeitsseite");
     assert_eq!(
@@ -502,7 +502,7 @@ async fn the_right_password_sets_the_cookie_and_wrong_or_unknown_look_the_same()
     assert!(last_login.is_some(), "die Anmeldung ist am Konto vermerkt");
 }
 
-// ---- Sperre gegen Durchprobieren -----------------------------------------------------------------------------
+// ---- Brute-force lock ----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn repeated_failures_block_the_account_with_a_growing_wait() {
@@ -530,7 +530,7 @@ async fn repeated_failures_block_the_account_with_a_growing_wait() {
     let (status, _, _) = login(&server, "eRIKA ", AUTHOR_PW).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "eine andere Schreibweise des Namens umgeht die Sperre nicht");
 
-    // Wachsende Wartezeit: 4, 8 … bis höchstens 900 Sekunden.
+    // Growing waiting time: 4, 8 … up to at most 900 seconds.
     for expected in ["4", "8", "16"] {
         expire_blocks(&server).await;
         let (status, headers, _) = login(&server, "Erika", "falsch-geraten-2").await;
@@ -542,7 +542,7 @@ async fn repeated_failures_block_the_account_with_a_growing_wait() {
     let (_, headers, _) = login(&server, "Erika", "falsch-geraten-3").await;
     assert_eq!(headers.get(header::RETRY_AFTER).unwrap(), "900", "höchstens 900 Sekunden, auch nach 41 Versuchen");
 
-    // Erfolg nach Ablauf setzt zurück.
+    // Success after expiry resets.
     expire_blocks(&server).await;
     let (status, headers, _) = login(&server, "Erika", AUTHOR_PW).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "nach Ablauf der Sperre gelingt die Anmeldung");
@@ -552,8 +552,8 @@ async fn repeated_failures_block_the_account_with_a_growing_wait() {
     assert_eq!(status, StatusCode::UNAUTHORIZED, "danach zählt es wieder von vorn (401 ohne Wartezeit)");
 }
 
-/// Runde 35, Codereview: Die Sperre zählte erst nach der Prüfung des Passworts; eine Salve gleichzeitiger Versuche
-/// lief deshalb vollständig durch die Prüfung, bevor der erste Fehlversuch eingetragen war.
+/// Round 35, code review: the lock counted only after the check of the password; a salvo of simultaneous attempts
+/// therefore ran completely through the check before the first failed attempt was recorded.
 #[tokio::test]
 async fn a_salvo_of_simultaneous_guesses_is_checked_no_further_than_guesses_in_a_row() {
     let server = common::open().await;
@@ -588,7 +588,7 @@ async fn a_salvo_of_simultaneous_guesses_is_checked_no_further_than_guesses_in_a
     let (status, _, _) = login(&server, "Erika", AUTHOR_PW).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "nach der Salve ist das Konto gesperrt");
 
-    // Dasselbe beim bisherigen Passwort des Passwortwechsels (Bereich des Kontos).
+    // The same for the current password of the password change (scope of the account).
     exec(&server, "DELETE FROM login_attempt").await;
     let mut salvo = tokio::task::JoinSet::new();
     for i in 0..8 {
@@ -619,7 +619,7 @@ async fn a_salvo_of_simultaneous_guesses_is_checked_no_further_than_guesses_in_a
 async fn unknown_names_and_addresses_are_counted_too() {
     let server = open_behind_proxy().await;
     setup_author(&server).await;
-    // Unbekannter Name: dieselbe Sperre wie für ein vorhandenes Konto.
+    // Unknown name: the same lock as for an existing account.
     for attempt in 1..=3 {
         let (status, _, _) = login(&server, "Niemand", "falsch-geraten-1").await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "unbekannter Name, Fehlversuch {attempt}: 401");
@@ -640,7 +640,7 @@ async fn unknown_names_and_addresses_are_counted_too() {
     let (status, _, _) = login(&server, "Erika", AUTHOR_PW).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "ein anderes Konto ist davon nicht gesperrt");
 
-    // Adresse: vier Fehlversuche mit vier Namen von derselben Gegenstelle sperren die Adresse.
+    // Address: four failed attempts with four names from the same peer lock the address.
     exec(&server, "DELETE FROM login_attempt").await;
     for name in ["Ada", "Bela", "Cleo", "Dana"] {
         let body = format!("name={name}&password=falsch-geraten-2");
@@ -672,7 +672,7 @@ async fn unknown_names_and_addresses_are_counted_too() {
         "über den Proxy entsteht kein Bereich der Adresse"
     );
 
-    // Volle Tabelle: Sie wächst nicht über 1000 Zeilen, neue Namen warten gemeinsam.
+    // Full table: it does not grow beyond 1000 rows, new names wait together.
     exec(&server, "DELETE FROM login_attempt").await;
     exec(
         &server,
@@ -693,7 +693,7 @@ async fn unknown_names_and_addresses_are_counted_too() {
     );
 }
 
-// ---- Sitzung -------------------------------------------------------------------------------------------------
+// ---- Session -------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_database_keeps_only_the_hash_and_logout_ends_the_session() {
@@ -789,7 +789,7 @@ async fn expired_sessions_do_not_count_and_an_idle_one_gets_a_fresh_cookie() {
     let (status, _, _) = server.send(with_cookie(get("/"), &token)).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "mit abgelaufener Sitzung leitet die Seite zur Anmeldung um");
 
-    // Erneuern: Nach einer Pause von mehr als einer Stunde bekommt der Browser das Cookie mit frischer Frist.
+    // Renewal: after a pause of more than one hour the browser gets the cookie with a fresh expiry.
     exec(&server, &set("created", "-10 days")).await;
     exec(&server, &set("last_seen", "-2 hours")).await;
     let (status, headers, _) = server.send(with_cookie(local(get("/")), &token)).await;
@@ -829,7 +829,7 @@ async fn a_password_change_ends_the_other_sessions_and_a_lock_ends_all() {
     };
     assert!(valid(&first).await && valid(&second).await, "Vorbedingung: zwei Sitzungen des Autors");
 
-    // Abgelehnte Änderungen lassen alles, wie es ist.
+    // Rejected changes leave everything as it is.
     for (fields, code) in [
         (format!("current=falsches-passwort&password={NEW_PW}&password2={NEW_PW}"), "passwort_falsch"),
         (format!("current={AUTHOR_PW}&password=zu-kurz&password2=zu-kurz"), "passwort_kurz"),
@@ -866,7 +866,7 @@ async fn a_password_change_ends_the_other_sessions_and_a_lock_ends_all() {
     assert_eq!(status, StatusCode::UNAUTHORIZED, "ohne Sitzung lässt sich kein Passwort ändern");
     assert!(location(&headers).is_empty(), "und es gibt keine Umleitung mit Erfolgsmeldung");
 
-    // Sperren beendet alle Sitzungen des Kontos; Entsperren bringt sie nicht zurück.
+    // Locking ends all sessions of the account; unlocking does not bring them back.
     let lea = create_lektor(&server, &author, "Lea", LEKTOR_PW).await;
     let lektor = sign_in(&server, "Lea", LEKTOR_PW).await;
     match who(&server, with_cookie(get("/"), &lektor)).await {
@@ -900,7 +900,7 @@ async fn a_password_change_ends_the_other_sessions_and_a_lock_ends_all() {
     assert_eq!(login(&server, "Lea", LEKTOR_PW).await.0, StatusCode::SEE_OTHER, "neu anmelden geht wieder");
 }
 
-// ---- Ausnahme „Am eigenen Rechner ohne Anmeldung“ ---------------------------------------------------------------
+// ---- Exception „Am eigenen Rechner ohne Anmeldung“ --------------------------------------------------------------
 
 #[tokio::test]
 async fn the_own_machine_needs_the_switch_and_no_proxy_header() {
@@ -986,7 +986,7 @@ async fn the_own_machine_needs_the_switch_and_no_proxy_header() {
     assert_eq!(who(&server, local(get("/"))).await, Who::Anonymous, "ausgeschaltet gilt sofort wieder die Anmeldung");
 }
 
-// ---- Konten verwalten ----------------------------------------------------------------------------------------
+// ---- Managing accounts ---------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn further_accounts_are_always_lektor_and_the_last_author_stays() {
@@ -1037,7 +1037,7 @@ async fn further_accounts_are_always_lektor_and_the_last_author_stays() {
     assert_eq!(act("action=deactivate&id=99".into()).await, "fehler=unbekanntes_konto", "ein Konto, das es nicht gibt");
     assert_eq!(act("action=deactivate".into()).await, "fehler=unbekanntes_konto", "ohne id");
 
-    // Passwort eines Lektors zurücksetzen: seine Sitzungen enden, das neue Passwort gilt.
+    // Reset the password of a Lektor: its sessions end, the new password applies.
     let lektor = sign_in(&server, "Lea", LEKTOR_PW).await;
     assert_eq!(
         act(format!("action=reset_password&id=2&password={NEW_PW}&password2={NEW_PW}")).await,
@@ -1058,7 +1058,7 @@ async fn further_accounts_are_always_lektor_and_the_last_author_stays() {
         "dabei bleibt die Sitzung, in der er es tut"
     );
 
-    // Ein Lektor verwaltet keine Konten: weder über das Formular noch über RPC.
+    // A Lektor does not manage accounts: neither through the form nor over RPC.
     let (status, _, _) =
         server.send(with_cookie(form("/einstellungen/konten/act", "action=deactivate&id=1"), &lektor)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "das Formular der Konten ist für einen Lektor gesperrt");
@@ -1082,7 +1082,7 @@ async fn further_accounts_are_always_lektor_and_the_last_author_stays() {
     assert!(!server.state.store.auth_local_open().await.unwrap(), "der Schalter steht weiter auf aus");
     let me = auth::scope(as_lektor.clone(), auth::rpc::call(&server.state, "account.me", json!({}))).await.unwrap();
     assert_eq!((&me["kind"], &me["handle"]), (&json!("lektor"), &json!("@lektorat:lea")), "account.me darf jeder");
-    // Ein Lektor ändert sein eigenes Passwort (mit dem bisherigen) und beendet seine Sitzungen.
+    // A Lektor changes its own password (with the current one) and ends its sessions.
     let wrong = json!({ "current": "falsches-passwort", "password": LEKTOR_PW });
     let error = auth::scope(as_lektor.clone(), auth::rpc::call(&server.state, "account.set_password", wrong))
         .await
@@ -1143,7 +1143,7 @@ async fn the_author_manages_accounts_over_rpc_and_no_answer_carries_a_secret() {
     assert!(server.state.store.auth_local_open().await.unwrap(), "der Schalter steht in der Datenbank");
     call("account.set_local_open", json!({ "open": false })).await;
 
-    // Fremdes Passwort setzen (Autor), eigenes nur mit dem bisherigen.
+    // Set a foreign password (author), the own one only with the current one.
     let lektor = sign_in(&server, "Lea", LEKTOR_PW).await;
     let reset = call("account.set_password", json!({ "id": lea, "password": NEW_PW })).await;
     assert_eq!(reset["result"], json!({ "id": lea, "changed": true }), "der Autor setzt das Passwort des Lektors");
@@ -1169,7 +1169,7 @@ async fn the_author_manages_accounts_over_rpc_and_no_answer_carries_a_secret() {
     assert_eq!(ended["result"]["sessions"], 2, "account.logout_all beendet beide Sitzungen des Autors: {ended}");
     assert_eq!(who(&server, with_cookie(get("/"), &third)).await, Who::Anonymous, "danach gilt keine mehr");
 
-    // Kein Geheimnis in irgendeiner Antwort von account.*.
+    // No secret in any answer of account.*.
     let hashes: Vec<String> =
         sqlx::query_scalar("SELECT password FROM account").fetch_all(server.state.store.pool()).await.unwrap();
     assert_eq!(answers.len(), 20, "alle Antworten von account.* sind gesammelt");
@@ -1186,7 +1186,7 @@ async fn the_author_manages_accounts_over_rpc_and_no_answer_carries_a_secret() {
         }
         assert!(!answer.contains("\"password"), "kein Feld namens password steht in einer Antwort: {answer}");
     }
-    // Debug-Ausgaben der Typen, die durch die Anfrage wandern.
+    // Debug outputs of the types that travel through the request.
     let Who::Account(identity) = who(&server, with_cookie(get("/"), &sign_in(&server, "Erika", NEW_PW).await)).await
     else {
         panic!("der Autor ist angemeldet");
@@ -1200,10 +1200,10 @@ async fn the_author_manages_accounts_over_rpc_and_no_answer_carries_a_secret() {
     );
 }
 
-// ---- Notweg `passwort` und das echte Programm ----------------------------------------------------------------
+// ---- Emergency path `passwort` and the real program ----------------------------------------------------------
 
-/// Runde 36 (Rest aus Runde 35): Der Notweg hebt die Sperre gegen Durchprobieren für das Konto auf. Vorher hielt
-/// jeder, der den Kontonamen kannte, den Autor bis zu 15 Minuten je Runde ausgesperrt – auch nach dem Notweg.
+/// Round 36 (rest from Round 35): the emergency path lifts the brute-force lock for the account. Before, anybody who
+/// knew the account name kept the author locked out for up to 15 minutes per round – even after the emergency path.
 #[tokio::test]
 async fn the_command_line_lifts_the_block_of_the_account_after_failed_logins() {
     let server = common::open().await;
@@ -1214,7 +1214,7 @@ async fn the_command_line_lifts_the_block_of_the_account_after_failed_logins() {
     }
     let (status, _, _) = login(&server, "Erika", "falsch-geraten-1").await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "Vorbedingung: nach vier Fehlversuchen ist das Konto gesperrt");
-    // Ein zweiter, fremder Bereich: Er darf vom Notweg für Erika nicht berührt werden.
+    // A second, foreign scope: it must not be touched by the emergency path for Erika.
     for _ in 0..4 {
         login(&server, "Nemo", "falsch-geraten-1").await;
     }
@@ -1225,7 +1225,7 @@ async fn the_command_line_lifts_the_block_of_the_account_after_failed_logins() {
         "Vorbedingung: während der Sperre hilft auch das richtige Passwort nicht"
     );
 
-    // Abgelehnte Aufrufe (zu kurzes Passwort) ändern nichts, auch nicht die Sperre.
+    // Rejected calls (password too short) change nothing, not the lock either.
     auth::cli::reset_password(server.path(), "Erika", "zu-kurz").await.expect_err("ein zu kurzes Passwort");
     assert_eq!(
         scalar(&server, "SELECT count(*) FROM login_attempt WHERE scope = 'konto:erika'").await,
@@ -1233,7 +1233,7 @@ async fn the_command_line_lifts_the_block_of_the_account_after_failed_logins() {
         "ein abgelehnter Aufruf hebt die Sperre nicht auf"
     );
 
-    // Andere Schreibweise des Namens: Der Bereich hängt am Namensschlüssel des Kontos.
+    // Different spelling of the name: the scope depends on the name key of the account.
     auth::cli::reset_password(server.path(), " ERIKA ", NEW_PW).await.expect("das Passwort wird gesetzt");
     assert_eq!(
         scalar(&server, "SELECT count(*) FROM login_attempt WHERE scope = 'konto:erika'").await,
@@ -1299,7 +1299,7 @@ async fn the_command_line_resets_a_password_and_ends_the_sessions() {
     assert!(error.contains("/einrichten"), "ohne Konten verweist der Notweg auf das Einrichten: {error}");
 }
 
-/// Führt `baruch-server passwort <name> --data <ordner>` aus; liefert Exit-Code, Standardausgabe und Fehlerausgabe.
+/// Runs `baruch-server passwort <name> --data <ordner>`; returns exit code, standard output and error output.
 fn run_password_command(data: &std::path::Path, name: &str, input: &str) -> (Option<i32>, String, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_baruch-server"))
         .args(["passwort", name, "--data"])
@@ -1356,7 +1356,7 @@ async fn the_program_reads_the_new_password_from_stdin_and_never_prints_it() {
     );
 }
 
-/// Der echte Server als Prozess, mit Standardausgabe und Fehlerausgabe in Dateien.
+/// The real server as a process, with standard output and error output in files.
 struct Process {
     child: std::process::Child,
     url: String,
@@ -1372,8 +1372,8 @@ impl Drop for Process {
 }
 
 impl Process {
-    /// Datenordner vorbereiten (Verbindungen auf eine tote Adresse: keine Anfrage an echte Dienste), Server starten,
-    /// auf „Baruch läuft“ warten.
+    /// Prepare the data directory (connections to a dead address: no request to real services), start the server, wait
+    /// for „Baruch läuft“.
     async fn start() -> Process {
         let data = tempfile::tempdir().unwrap();
         {
@@ -1424,11 +1424,11 @@ impl Process {
         process
     }
 
-    /// Beendet den Prozess und liefert alles, was er ausgegeben hat (stdout und stderr).
+    /// Terminates the process and returns everything it has printed (stdout and stderr).
     fn stop(mut self) -> String {
         let _ = self.child.kill();
         let _ = self.child.wait();
-        // Der Faden, der stdout mitschreibt, endet mit dem Prozess; kurz warten, bis die Datei vollständig ist.
+        // The thread that records stdout ends with the process; wait briefly until the file is complete.
         std::thread::sleep(Duration::from_millis(200));
         let out = std::fs::read_to_string(self.logs.path().join("stdout.log")).unwrap_or_default();
         let err = std::fs::read_to_string(self.logs.path().join("stderr.log")).unwrap_or_default();
@@ -1451,12 +1451,12 @@ async fn the_running_server_logs_no_password_token_or_hash() {
             .map(|rest| rest.split(';').next().unwrap().to_owned())
     };
 
-    // Ohne Konten ist der Server offen wie bisher.
+    // Without accounts the server is open as before.
     let start = client.get(url("/")).send().await.unwrap();
     assert_eq!(start.status().as_u16(), 200, "ohne Konten zeigt der laufende Server die Arbeitsseite");
     assert!(cookie_of(&start).is_none(), "ohne Cookie der Sitzung");
 
-    // Einrichten über die echte Verbindung (Gegenstelle Loopback aus dem Betriebssystem, nicht aus dem Test).
+    // Setup through the real connection (peer loopback from the operating system, not from the test).
     let setup = [("name", "Erika"), ("display", "Erika Beispiel"), ("password", AUTHOR_PW), ("password2", AUTHOR_PW)];
     let forwarded =
         client.post(url("/einrichten")).header("x-forwarded-for", "203.0.113.9").form(&setup).send().await.unwrap();

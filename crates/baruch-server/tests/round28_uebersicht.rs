@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Übersicht der Befunde: Matrix, Seite /werke/<id>/befunde, Abzeichen, Akkordeon, Gedankenkarte, Fassungsbaum, MCP
-//! findings/finding_propose_status (Runde 28, Aufgabe befund-uebersicht).
+//! Overview of the findings: matrix, page /werke/<id>/befunde, badges, accordion, idea map, revision tree, MCP
+//! findings/finding_propose_status (Round 28, task befund-uebersicht).
 //!
-//! Das „Wanderbuch“ (3 Teile, 12 Kapitel, zwei Abschnitte) und alle Befunde sind frei erfunden. Befunde entstehen hier
-//! über `Store::finding_insert` (S1 voll), Status und Vorschläge über rohes SQL auf `store.pool()`: Die Statuswege
-//! (`finding.set_status`, `finding.decide`, `finding_propose_status`) setzt die Aufgabe befunde um. Wo ein Test durch
-//! diese Wege geht (Formular, MCP-Vorschlag), nimmt er bis zum Zusammenführen die ehrliche Ablehnung „noch nicht
-//! umgesetzt (R28a)“ an und prüft danach den Erfolg; den ganzen Weg bis zum Commit prüft der Integrator in
-//! `round28_abnahme.rs`. Kein Modell, kein Netz.
+//! The „Wanderbuch“ (3 parts, 12 chapters, two sections) and all findings are freely invented. Findings are created
+//! here through `Store::finding_insert` (S1 complete), status and proposals through raw SQL on `store.pool()`: the
+//! status paths (`finding.set_status`, `finding.decide`, `finding_propose_status`) are implemented by the task befunde.
+//! Where a test goes through these paths (form, MCP proposal), it accepts the honest rejection „noch nicht umgesetzt
+//! (R28a)“ until the merge and checks the success afterwards; the whole way up to the commit is checked by the
+//! integrator in `round28_abnahme.rs`. No model, no network.
 
 use crate::common;
 
@@ -46,7 +46,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Ids der erfundenen Befunde (für Zusicherungen).
+/// Ids of the invented findings (for assertions).
 #[derive(Default)]
 struct Ids {
     morgen_lektor: Vec<i64>,
@@ -88,7 +88,7 @@ impl Book {
         (status, unescape(&html))
     }
 
-    /// Arbeitsseite eines Abschnitts (Adressen entmaskiert wie bei [`Book::page`]).
+    /// Work page of a section (addresses unescaped as in [`Book::page`]).
     async fn workspace(&self, key: i64) -> (StatusCode, String) {
         let (status, html) = self.server.get(&format!("/?work={}&key={key}", self.work)).await;
         (status, unescape(&html))
@@ -101,7 +101,7 @@ impl Book {
     }
 }
 
-/// Befund anlegen (S1 voll: `Store::finding_insert`).
+/// Create a finding (S1 complete: `Store::finding_insert`).
 async fn insert(
     b: &Book,
     key: Option<i64>,
@@ -128,7 +128,7 @@ async fn insert(
     b.server.state.store.finding_insert(&new).await.expect("Befund lässt sich anlegen").id
 }
 
-/// Uuid einer Fassung (Abschnitt `key`, Nummer `rev`).
+/// Uuid of a revision (section `key`, number `rev`).
 async fn revision_uuid(b: &Book, key: i64, rev: i64) -> String {
     sqlx::query_scalar("SELECT uuid FROM revision WHERE node_id = ? AND number = ?")
         .bind(key)
@@ -142,7 +142,7 @@ async fn uuid_of(b: &Book, id: i64) -> String {
     sqlx::query_scalar("SELECT uuid FROM finding WHERE id = ?").bind(id).fetch_one(b.pool()).await.unwrap()
 }
 
-/// Erfundenes Werk mit Befunden in drei Teilen (siehe Kommentare je Gruppe).
+/// Invented work with findings in three parts (see the comments per group).
 async fn open_book() -> Book {
     let server = common::open().await;
     let report = server.import(&book(), "wanderbuch.typ").await;
@@ -158,7 +158,7 @@ async fn open_book() -> Book {
         (b.key("Morgen"), b.key("Nebel"), b.key("Sturm"), b.key("Abend"), b.key("Tal"));
     let hint = FindingKind::Hint;
 
-    // Morgen: @lektor zwei offen, einer verworfen; @exeget einer übernommen (Fassung 1); @hoerer Lob; ein angehängter.
+    // Morgen: @lektor two open, one discarded; @exeget one accepted (revision 1); @hoerer praise; one attached.
     let l1 = insert(&b, Some(morgen), "@lektor", hint, "Der erste Satz trägt den Leser.", None, &[]).await;
     let l2 = insert(&b, Some(morgen), "@lektor", hint, "Der Übergang zum Nebel fehlt.", None, &[]).await;
     let rejected = insert(&b, Some(morgen), "@lektor", hint, "Das Wort Weg kommt zu oft vor.", None, &[]).await;
@@ -178,7 +178,7 @@ async fn open_book() -> Book {
         .execute(b.pool())
         .await
         .unwrap();
-    // Offener Vorschlag von @lektor: l1 sei in Fassung 1 übernommen.
+    // Open proposal of @lektor: l1 is said to be accepted in revision 1.
     sqlx::query(
         "INSERT INTO finding_status (finding_id, status, adopted_revision, actor_kind, actor, proposed, note) \
          VALUES (?, 'adopted', ?, 'persona', '@lektor', 1, 'steht schon so da')",
@@ -188,10 +188,10 @@ async fn open_book() -> Book {
     .execute(b.pool())
     .await
     .unwrap();
-    // Nebel (Abschnitt unter Morgen): @nathan einer offen.
+    // Nebel (section below Morgen): @nathan one open.
     let nebel_nathan = insert(&b, Some(nebel), "@nathan", hint, "Grau ist kein Bild.", None, &[]).await;
 
-    // Sturm (Teil Wanderung): @nathan drei offen und kritisch (einer alt), @schrift einer verschoben nach Tal.
+    // Sturm (part Wanderung): @nathan three open and critical (one old), @schrift one postponed to Tal.
     let mut sturm_nathan = Vec::new();
     for body in ["Der Sturm kommt ohne Ankündigung.", "Wer spricht hier?", "Zeitform wechselt."] {
         sturm_nathan.push(insert(&b, Some(sturm), "@nathan", FindingKind::Critical, body, None, &[]).await);
@@ -211,14 +211,14 @@ async fn open_book() -> Book {
         .await
         .unwrap();
 
-    // Abend (Teil Ankunft): @belege einer erledigt; Sammelvorschlag von @lektor über zwei fremde Befunde.
+    // Abend (part Ankunft): @belege one done; summary proposal of @lektor over two foreign findings.
     let done = insert(&b, Some(abend), "@belege", hint, "Quelle steht schon im Anhang.", None, &[]).await;
     sqlx::query("UPDATE finding SET status = 'done' WHERE id = ?").bind(done).execute(b.pool()).await.unwrap();
     let origins = vec![uuid_of(&b, sturm_nathan[1]).await, uuid_of(&b, l2).await];
     let summary =
         insert(&b, Some(abend), "@lektor", hint, "Jetzt wichtig: Sprecher und Übergang klären.", None, &origins).await;
 
-    // Ohne Abschnitt (Faden): zählt in der Matrix unter „Ohne Abschnitt“, nicht in den Abzeichen.
+    // Without a section (thread): counts in the matrix under „Ohne Abschnitt“, not in the badges.
     let unplaced = insert(&b, None, "@lektor", hint, "Allgemein: mehr Pausen.", None, &[]).await;
 
     b.ids = Ids {
@@ -237,13 +237,13 @@ async fn open_book() -> Book {
     b
 }
 
-/// HTML-Maskierung von minijinja zurücknehmen, soweit Adressen sie tragen (`/` als `&#x2f;`, `&` als `&amp;`):
-/// Zusicherungen vergleichen dann mit den Adressen, die der Browser liest.
+/// Undo the HTML escaping of minijinja as far as addresses carry it (`/` as `&#x2f;`, `&` as `&amp;`): assertions then
+/// compare with the addresses that the browser reads.
 fn unescape(html: &str) -> String {
     html.replace("&#x2f;", "/").replace("&amp;", "&")
 }
 
-/// Wert eines Attributs im ersten Tag, das `marker` enthält.
+/// Value of an attribute in the first tag that contains `marker`.
 fn attr(html: &str, marker: &str, name: &str) -> String {
     let at = html.find(marker).unwrap_or_else(|| panic!("{marker} fehlt: {html}"));
     let start = if html[at..].starts_with('<') { at } else { html[..at].rfind('<').unwrap() };
@@ -254,11 +254,11 @@ fn attr(html: &str, marker: &str, name: &str) -> String {
     tag[from..from + tag[from..].find('"').unwrap()].to_owned()
 }
 
-/// Erste Zahl `data-findings-open` nach dem Eintrag mit `data-key="<key>"` in der Gliederung der Arbeitsseite.
+/// First number `data-findings-open` after the entry with `data-key="<key>"` in the outline of the work page.
 fn tree_badge(html: &str, key: i64) -> Option<usize> {
     let at = html.find(&format!(" data-key=\"{key}\" data-level="))?;
     let rest = &html[at..];
-    // Nur innerhalb des eigenen Eintrags (bis zum ersten Unterpunkt bzw. nächsten Eintrag).
+    // Only within the own entry (up to the first sub-item or the next entry).
     let end = rest[1..].find("<li ").map_or(rest.len(), |e| e + 1);
     let entry = &rest[..end];
     let from = entry.find("data-findings-open=\"")? + "data-findings-open=\"".len();
@@ -326,11 +326,11 @@ async fn the_matrix_groups_twelve_chapters_into_three_parts_with_counts_per_stat
         "Abzeichen ohne den Befund ohne Abschnitt (Zählregel §1.5) und ohne den Sammelvorschlag (Runde 23a)"
     );
 
-    // Ohne Filter ist „offen“ je Zeile genau die Summe der Abzeichen ihrer Punkte.
+    // Without a filter „offen“ per row is exactly the sum of the badges of its items.
     for row in groups.iter().filter(|g| g["kind"] != "unplaced").flat_map(|g| g["rows"].as_array().unwrap()) {
         assert_eq!(row["total"]["open"], row["open_badge"], "Matrix und Abzeichen gleich für {}", row["title"]);
     }
-    // Verlauf je Kapitel: Morgen hat eine Übernahme in Fassung 1.
+    // History per chapter: Morgen has one acceptance in revision 1.
     let history = m["history"].as_array().unwrap();
     let morgen_history = history.iter().find(|h| h["key"] == b.key("Morgen")).expect("Morgen im Verlauf");
     assert_eq!(morgen_history["revisions"][0]["rev"], 1, "eingeflossen in Fassung 1: {morgen_history}");
@@ -356,7 +356,7 @@ async fn the_page_shows_the_matrix_with_signs_and_numbers_without_javascript() {
         "Sturm mit drei offenen ist hervorgehoben, auch als Text"
     );
     assert!(html.contains("method=\"get\"") && html.contains("name=\"older_than_days\""), "Filter als GET-Formular");
-    // Übersicht: offen und alt, Sammelvorschlag mit Ursprüngen, Verlauf.
+    // Overview: open and old, summary proposal with origins, history.
     assert!(
         html.contains(&format!("id=\"befund-{}\"", b.ids.sturm_nathan[0])),
         "der alte offene Befund in „älter als“"
@@ -402,7 +402,7 @@ async fn a_cell_link_shows_exactly_the_findings_of_that_cell_with_attached_ones_
     assert!(html.contains("1 angehängt (gleichen diesem Befund, zählen nicht als offen)"), "als angehängt benannt");
     assert!(html.contains("Befunde in <a"), "Überschrift der Zelle");
 
-    // Zelle samt Abschnitt: Summe Morgen (alle Personas) enthält den Befund im Abschnitt Nebel.
+    // Cell including section: the sum Morgen (all personas) contains the finding in the section Nebel.
     let (_, all) = b.page(&format!("key={morgen}")).await;
     assert!(all.contains(&format!("id=\"befund-{}\"", b.ids.nebel_nathan)), "Kapitel samt Unterpunkten");
 }
@@ -424,7 +424,7 @@ async fn filters_act_through_get_parameters_and_praise_waits_for_its_switch() {
     let bad = b.server.rpc("finding.matrix", json!({ "work": b.work, "status": "offen" })).await;
     assert_eq!(bad["error"]["code"], -32602, "deutsches Wort statt Datenbankwort → ungültig: {bad}");
 
-    // Dieselben Filter als GET-Parameter der Seite.
+    // The same filters as GET parameters of the page.
     let (_, html) = b.page("status=rejected").await;
     assert!(html.contains(">✗1</a>"), "nur verworfen gezählt");
     assert!(!html.contains(">○2 ✗1</a>"), "offene fallen mit dem Statusfilter weg");
@@ -432,7 +432,7 @@ async fn filters_act_through_get_parameters_and_praise_waits_for_its_switch() {
     let (_, empty) = b.page("since=2999-01-01").await;
     assert!(empty.contains("Keine Befunde für diesen Filter"), "ehrlich leer");
 
-    // Lob erst mit Schalter.
+    // Praise only with the switch.
     let (_, plain) = b.page("").await;
     assert!(!plain.contains("<th scope=\"col\">@hoerer</th>"), "Lob standardmäßig ausgeblendet");
     assert!(plain.contains("Lob einblenden"), "Schalter als Link (ohne JavaScript)");
@@ -502,8 +502,8 @@ async fn badges_in_outline_editor_and_menu_agree_with_the_matrix() {
         "Editorkopf zeigt die Summe samt Abschnitten"
     );
     assert!(html.contains(">3 offen</a>"), "Editorkopf als Text „3 offen“");
-    // Runde 33 (Menüband): Das Abzeichen stand am Menüknopf „Werk ▾“ und steht jetzt am Reiter Prüfen (dort liegen
-    // die Befunde) – dieselbe Zahl, derselbe Haken.
+    // Round 33 (ribbon): the badge stood at the menu button „Werk ▾“ and now stands at the tab Prüfen (that is where
+    // the findings are) – the same number, the same check mark.
     assert!(
         html.contains(&format!(">Prüfen <span class=\"badge warning\" data-badge=\"open_findings\" title=\"offene Befunde im Werk\">{total} offen</span></a>")),
         "Abzeichen am Reiter Prüfen mit der Summe, vom Server gezeichnet"
@@ -572,14 +572,14 @@ async fn posting_a_status_form_goes_through_findings_rpc_and_keeps_the_draft_on_
         .body(Body::from(form.clone()))
         .unwrap();
     let (status, headers, body) = b.server.send(request).await;
-    // Seit dem Zusammenführen mit befunde (Integrator R28): Status gesetzt, 303 zurück auf die Arbeitsseite.
+    // Since the merge with befunde (integrator R28): status set, 303 back to the work page.
     assert_eq!(status, StatusCode::SEE_OTHER, "Formular erfolgreich: {body}");
     assert_eq!(headers.get(header::LOCATION).unwrap(), back.as_str(), "303 zurück auf back");
     let finding = b.server.state.store.finding_get(b.work, id).await.unwrap();
     assert_eq!(finding.status.as_db(), "rejected", "Status gesetzt");
     assert_eq!(finding.reason, "Bleibt so, mit Absicht", "Begründung gespeichert");
 
-    // Fehlerweg: verschoben mit zwei Zielen → 200 mit Hinweis statt Umleitung (Vertrag 4.5).
+    // Error path: postponed with two targets → 200 with a hint instead of a redirect (contract 4.5).
     let other = b.ids.morgen_lektor[0];
     let bad = format!(
         "method=finding.set_status&work={}&id={other}&status=deferred&target_key={}&target_idea=1",
@@ -649,7 +649,7 @@ async fn the_idea_map_findings_layer_highlights_chapters_with_many_open_findings
     assert_eq!(status, StatusCode::OK, "die Gedankenkarte mit Ebene Befunde lädt");
     let marker = format!("data-node=\"n:{sturm}\"");
     assert_eq!(attr(&html, &marker, "data-open-findings"), "3", "Sturm trägt seine offenen Befunde im Bild");
-    // Runde 34: Die Gedankenkarte ist die Mindmap (Klassen `mm-…`, Zahl am Ast des Kapitels).
+    // Round 34: the idea map is the mind map (classes `mm-…`, number at the branch of the chapter).
     assert!(attr(&html, &marker, "class").contains("mm-many-findings"), "Sturm hervorgehoben (≥ 3 offen)");
     assert!(html.contains(">3 offen</text>"), "Zahl als Text im Bild, nicht nur Farbe");
     assert!(html.contains("Ebene Befunde ausblenden"), "Schalter zurück");
@@ -762,7 +762,7 @@ async fn mcp_reads_findings_and_only_proposes_status_changes() {
     ] {
         let answer = tool(&b.server, &s, "finding_propose_status", args).await;
         let text = answer.to_string();
-        // Seit dem Zusammenführen mit befunde: Vorschlag angenommen, Status unverändert.
+        // Since the merge with befunde: proposal accepted, status unchanged.
         assert_eq!(answer["result"]["isError"], false, "Vorschlag angenommen: {text}");
         assert!(text.contains(origin), "Herkunft {origin} im Vorschlag: {text}");
         let finding = b.server.state.store.finding_get(b.work, id).await.unwrap();

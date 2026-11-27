@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31c (kontextmenue): Kontextmenü im Satzbild und Quelltext, Glossar- und Registerseite, Formular „an der
-//! Markierung“ ohne JavaScript, Menüband „Register und Glossar“, Registermarken im Satzbild, Satz-Einstellungen für
-//! Register und Glossar.
+//! Round 31c (kontextmenue): context menu in typeset view and source text, glossary and index page, form „an der
+//! Markierung“ without JavaScript, ribbon „Register und Glossar“, index marks in the typeset view, typesetting settings
+//! for index and glossary.
 //!
-//! Die Seiten nutzen nur `crate::glossary` (glossar-daten) und `crate::index_marks` (register-satz). Seit dem
-//! Zusammenführen gibt es beide Körper: Die Tests verlangen den Weg über das Formular bis zur Anzeige; die Zweige aus
-//! der Schnittstellenzeit, die ein „noch nicht umgesetzt“ als richtig gelten ließen, sind entfernt (Nachbesserung R31,
-//! wie in R27) – fiele ein RPC-Körper auf einen Stub zurück, wird der Test rot ([`implemented`]). Abgelehnte Formulare
-//! (422 mit erhaltenen Eingaben) prüfen echte Fehler (unlesbare Bibelstelle, eingebaute Register-Kennung). Reine
-//! Funktionen der Widgets laufen unter Node (fehlt `node`, „ÜBERSPRUNGEN“). Kein Netz, kein Modell. Werke frei erfunden.
+//! The pages use only `crate::glossary` (glossar-daten) and `crate::index_marks` (register-satz). Since the merge both
+//! bodies exist: the tests demand the way through the form up to the display; the branches from the interface time that
+//! accepted a „noch nicht umgesetzt“ as correct are removed (follow-up fix R31, as in R27) – if an RPC body fell back
+//! to a stub, the test turns red ([`implemented`]). Rejected forms (422 with the inputs kept) check real errors
+//! (unreadable Bible reference, built-in index identifier). Pure functions of the widgets run under Node (if `node` is
+//! missing, „ÜBERSPRUNGEN“). No network, no model. Works freely invented.
 
 use crate::common;
 
@@ -21,7 +21,7 @@ use baruch_typst::index::{IndexMark, mark_source, parse_mark};
 use baruch_typst::typeset::{GlossaryPosition, IndexPages, TypesetSettings};
 use serde_json::{Value, json};
 
-/// Erfundenes Werk: zwei Kapitel, im zweiten schon eine Registermarke.
+/// Invented work: two chapters, in the second already an index mark.
 fn book(tag: &str) -> String {
     format!(
         "#set text(lang: \"de\")\n\n= Vom Warten\n\nDie Langmut der Gärtnerin ist groß. Sie wartet auf den Regen.\n\n\
@@ -52,14 +52,14 @@ async fn post(server: &common::Server, uri: &str, form: &str) -> (StatusCode, Op
     (status, headers.get(header::LOCATION).map(|v| v.to_str().unwrap().to_owned()), body)
 }
 
-/// Die RPC-Methode ist umgesetzt: Sie antwortet ohne Fehler (lesende Sonden ändern nichts). Ein Rückfall auf einen
-/// Stub („noch nicht umgesetzt“) oder ein anderer Fehler macht den Test rot, statt einen zweiten, milden Zweig zu prüfen.
+/// The RPC method is implemented: it answers without error (reading probes change nothing). A fallback to a stub („noch
+/// nicht umgesetzt“) or another error turns the test red instead of checking a second, mild branch.
 async fn implemented(server: &common::Server, method: &str, params: Value) {
     let answer = server.rpc(method, params).await;
     assert!(answer.get("error").is_none(), "{method} ist umgesetzt und antwortet ohne Fehler: {answer}");
 }
 
-/// Zahl der Fassungen, aktuelle Fassung und ihr Text des Abschnitts `key`.
+/// Number of revisions, current revision and its text of the section `key`.
 async fn section_state(server: &common::Server, work: i64, key: i64) -> (usize, u32, String) {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = loaded.nodes.iter().find(|n| n.key == key).unwrap();
@@ -67,14 +67,14 @@ async fn section_state(server: &common::Server, work: i64, key: i64) -> (usize, 
     (node.revisions.len(), current, node.revision(current).unwrap().body.clone())
 }
 
-/// Ausschnitt zwischen `from` und dem nächsten `to` (oder Ende).
+/// Excerpt between `from` and the next `to` (or the end).
 fn cut<'a>(page: &'a str, from: &str, to: &str) -> &'a str {
     let start = page.find(from).unwrap_or_else(|| panic!("{from} fehlt: {page}"));
     let end = page[start..].find(to).map_or(page.len(), |e| start + e);
     &page[start..end]
 }
 
-// ---- Editor: Link ohne JavaScript, Menüband, Satzbild ------------------------------------------------------------
+// ---- Editor: link without JavaScript, ribbon, typeset view -------------------------------------------------------
 
 #[tokio::test]
 async fn the_editor_offers_the_marking_link_without_javascript_and_the_ribbon_group() {
@@ -91,8 +91,8 @@ async fn the_editor_offers_the_marking_link_without_javascript_and_the_ribbon_gr
     assert!(page.contains(">Markierung …</a>"), "deutsche Beschriftung des Links");
     let status_line = cut(&page, "<div class=\"editor-status\"", "</div>\n</div>");
     assert!(status_line.contains("data-ctx-open"), "der Link steht in der Statuszeile des Editors (nicht im Menüband)");
-    // Runde 33 (Menüband): Die Leiste hat zwei Teile; die Gruppe steht im Teil „einfuegen“ als Gruppe des Bands
-    // (<details class="band-group">, Name für Hilfsmittel an div.band-items), das Widget sitzt auf dem Rahmen darum.
+    // Round 33 (ribbon): the bar has two parts; the group is in the part „einfuegen“ as a group of the band (<details
+    // class="band-group">, name for assistive technology at div.band-items), the widget sits on the frame around it.
     let ribbon = cut(&page, "data-edit-toolbar hidden>", "<div class=\"search-bar\"");
     let group = cut(ribbon, "<div class=\"ribbon-group ribbon-index\"", "</details>");
     assert!(
@@ -136,7 +136,7 @@ async fn the_sheet_shows_marks_quietly_and_serialize_writes_them_canonically() {
             && html.contains("aria-label=\"Registereintrag im Stichwortregister: Ernte\""),
         "die Marke kommt als dezentes, nicht tippbares Element mit Beschreibung ins Satzbild: {html}"
     );
-    // So schickt wysiwyg.ts eine geänderte Marke (ein Absatz neu, Feld sub dazu).
+    // This is how wysiwyg.ts sends a changed mark (one paragraph new, field sub added).
     let edits = json!([{ "replaces": 0, "block": { "kind": "paragraph", "inlines": [
         { "t": "text", "v": "Die Ernte" },
         { "t": "index_mark", "mark": { "register": "stichwort", "term": "Ernte", "sub": "Äpfel" } },
@@ -156,7 +156,7 @@ async fn the_sheet_shows_marks_quietly_and_serialize_writes_them_canonically() {
     assert!(!js.contains("context_menu.js"), "kein Import zwischen Satzbild und Kontextmenü (nur baruch:ws-command)");
 }
 
-// ---- Seite „an der Markierung“ ------------------------------------------------------------------------------------
+// ---- Page „an der Markierung“ -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_marking_page_offers_the_three_actions_as_forms() {
@@ -199,7 +199,7 @@ async fn the_marking_page_offers_the_three_actions_as_forms() {
             && lookup.contains("name=\"nachschlagen\" required value=\"Langmut\""),
         "„Im Glossar nachschlagen“ als GET-Formular: {lookup}"
     );
-    // Registereinträge des Abschnitts: Liste mit Entfernen oder die ehrliche Meldung von index.entries.
+    // Index entries of the section: list with Entfernen or the honest message of index.entries.
     let entries = cut(&page, "id=\"eintraege\"", "</section>");
     implemented(&server, "index.entries", json!({ "work": work, "key": key })).await;
     assert!(!entries.contains("data-marking-entries-error"), "keine Fehlermeldung statt der Liste: {entries}");
@@ -226,7 +226,7 @@ async fn the_marking_page_names_missing_sections_and_versions_and_defaults_to_th
     assert_eq!(status, StatusCode::NOT_FOUND, "unbekanntes Werk 404");
 }
 
-// ---- Glossarseite -------------------------------------------------------------------------------------------------
+// ---- Glossary page ------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_glossary_page_has_every_form_and_shows_the_honest_state_of_the_data() {
@@ -262,7 +262,7 @@ async fn glossary_forms_redirect_with_a_hint_or_answer_422_with_the_inputs() {
     let server = common::open().await;
     let (work, _) = import(&server, "glossar-formulare").await;
     let uri = format!("/werke/{work}/glossar/act");
-    // Vor jedem Aufruf geprüft (unabhängig von glossar-daten): Löschen nur mit Häkchen, unbekannte Aktion.
+    // Checked before every call (independent of glossar-daten): delete only with the check box, unknown action.
     let (status, _, page) = post(&server, &uri, "action=delete&id=1").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Löschen ohne Häkchen → 422");
     assert!(page.contains("Löschen bitte mit dem Häkchen bestätigen"), "Meldung beim Formular: {page}");
@@ -287,7 +287,7 @@ async fn glossary_forms_redirect_with_a_hint_or_answer_422_with_the_inputs() {
     assert!(page.contains("<h3 class=\"glossary-term-title\">Langmut</h3>"), "Begriff in der Liste: {page}");
     assert!(page.contains("auch: langmütig, Geduld"), "Varianten je Zeile übernommen: {page}");
 
-    // Ein echter Fehler des RPC (unbekannte Bibelstelle): 422 mit der Meldung, die Eingaben bleiben erhalten.
+    // A real error of the RPC (unknown Bible reference): 422 with the message, the inputs are kept.
     let (status, _, page) = post(
         &server,
         &uri,
@@ -307,7 +307,7 @@ async fn glossary_forms_redirect_with_a_hint_or_answer_422_with_the_inputs() {
     );
 }
 
-// ---- Registerseite ------------------------------------------------------------------------------------------------
+// ---- Index page ---------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_register_page_lists_every_register_with_anchors_and_management_forms() {
@@ -347,7 +347,7 @@ async fn the_register_page_lists_every_register_with_anchors_and_management_form
     assert!(!page.contains("data-index-overview-error"), "die Übersicht lässt sich lesen: {page}");
     let keyword = cut(&page, "id=\"register-stichwort\"", "</section>");
     assert!(keyword.contains("Ernte ›</span> im Herbst"), "Unterstichwort eingerückt unter dem Stichwort: {keyword}");
-    // Seit der Sichtprüfung R31 nennt der Verweis Nummer und Titel des Abschnitts statt „k<Schlüssel>“.
+    // Since the visual check R31 the reference names number and title of the section instead of „k<Schlüssel>“.
     assert!(
         keyword.contains(&format!("key={key}\">2 Vom Ernten</a>")),
         "Eintrag verweist auf seinen Abschnitt (Nummer und Titel): {keyword}"
@@ -393,8 +393,8 @@ async fn register_forms_check_their_inputs_and_keep_them_on_422() {
     let (revisions, rev_now, current) = section_state(&server, work, key).await;
     assert!(current.contains(&mark_source(&marked)), "neue Fassung des Menschen mit der Marke: {current}");
 
-    // Dasselbe Formular noch einmal (Doppelklick, Zurück-Taste): keine zweite, gleiche Marke, keine neue Fassung,
-    // sondern 422 mit verständlicher Meldung (Befund nach R31).
+    // The same form once more (double click, back button): no second identical mark, no new revision, but 422 with an
+    // understandable message (finding after R31).
     let (status, _, page) = post(
         &server,
         &uri,
@@ -409,7 +409,7 @@ async fn register_forms_check_their_inputs_and_keep_them_on_422() {
 
     let (status, _, _) = post(&server, &uri, "action=register_add&slug=orte&title=Ortsregister").await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Register angelegt → 303");
-    // Ein echter Fehler (eingebaute Kennung): 422, Eingaben bleiben.
+    // A real error (built-in identifier): 422, inputs stay.
     let (status, _, page) = post(&server, &uri, "action=register_add&slug=stichwort&title=Schlagworte").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "eingebaute Kennung → 422: {page}");
     let add = cut(&page, "class=\"index-register-add\"", "</form>");
@@ -435,7 +435,7 @@ async fn every_new_post_refuses_a_foreign_origin() {
     }
 }
 
-// ---- Satz-Einstellungen -------------------------------------------------------------------------------------------
+// ---- Typesetting settings -----------------------------------------------------------------------------------------
 
 fn pairs(form: &[(&str, &str)]) -> Vec<(String, String)> {
     form.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
@@ -551,7 +551,7 @@ async fn the_typeset_block_offers_register_and_glossary_and_shows_errors_at_the_
         !group.contains("aus der Werkvorlage"),
         "für Register und Glossar gibt es keine Regel der Werkvorlage (die Zählung der Vorlagen-Wahlen bleibt bei 11)"
     );
-    // Ungültige Spaltenzahl: 422, Meldung von validate beim Feld, Eingaben bleiben.
+    // Invalid number of columns: 422, message of validate at the field, inputs stay.
     let (status, _, page) = post(
         &server,
         "/einstellungen/werk/satz",
@@ -567,7 +567,7 @@ async fn the_typeset_block_offers_register_and_glossary_and_shows_errors_at_the_
     let personen = group.find("value=\"personen\" checked").expect("Personen gewählt");
     let stichwort = group.find("value=\"stichwort\" checked").expect("Stichwort gewählt");
     assert!(personen < stichwort, "die gewählten Register stehen in der eingegebenen Reihenfolge vorn: {group}");
-    // Gültig speichern und wieder zeigen.
+    // Save validly and show again.
     let (status, location, page) = post(
         &server,
         "/einstellungen/werk/satz",
@@ -600,9 +600,9 @@ async fn the_typeset_block_offers_register_and_glossary_and_shows_errors_at_the_
     assert!(group.contains("<option value=\"on\" selected>ja</option>"), "erste Erwähnung gewählt: {group}");
 }
 
-// ---- Widgets unter Node -------------------------------------------------------------------------------------------
+// ---- Widgets under Node -------------------------------------------------------------------------------------------
 
-/// Ruft einen Ausdruck mit den ausgelieferten Modulen unter Node auf; `None`, wenn `node` fehlt (dann „ÜBERSPRUNGEN“).
+/// Calls an expression with the delivered modules under Node; `None` if `node` is missing (then „ÜBERSPRUNGEN“).
 fn node(module: &str, expr: &str) -> Option<Value> {
     if Command::new("node").arg("--version").output().is_err() {
         eprintln!("ÜBERSPRUNGEN: node fehlt");
@@ -765,8 +765,8 @@ fn a_mark_in_the_source_lands_directly_behind_the_word_and_never_in_a_heading() 
     );
     let inside = node("ws_command.js", &format!("m.markRefusal({:?}, 5)", format!("A{source}"))).unwrap();
     assert_eq!(inside, json!("Hier steht schon eine Registermarke."), "nie in einer anderen Marke");
-    // Nachbesserung R31: dieselbe Marke nicht zweimal hinter dasselbe Wort, auch nicht hinter einer anderen Marke;
-    // eine andere Marke (anderes Unterstichwort) bleibt erlaubt.
+    // Follow-up fix R31: the same mark not twice after the same word, not even after another mark; another mark
+    // (different sub-entry) stays allowed.
     let other = mark_source(&IndexMark { sub: "Geduld".into(), ..IndexMark::new("stichwort", "Langmut") });
     let twice = node(
         "ws_command.js",

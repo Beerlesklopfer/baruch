@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0053 (Runde 35 „Konten und Rollen“, Vertrag §S1.2: `account`, `account_session`, `login_attempt`) auf
-//! einer nachgebauten Datenbank im Stand von development vor Runde 35 (Store bis 0052, Bibliothek vollständig) mit
-//! frei erfundenen Daten (ein Werk mit zwei Kapiteln, Beiträge, Einfälle, Einträge in `store_meta`).
+//! Migration 0053 (Round 35 „Konten und Rollen“, contract §S1.2: `account`, `account_session`, `login_attempt`) on a
+//! reconstructed database in the state of development before Round 35 (store up to 0052, library complete) with freely
+//! invented data (a work with two chapters, posts, ideas, entries in `store_meta`).
 //!
-//! Belegt: 0053 legt nur an (nicht in `FOREIGN_KEYS_OFF`); jede Zeile jeder vorhandenen Tabelle bleibt byte-gleich,
-//! kein vorhandenes Schemaobjekt ändert sich; neu sind genau die drei Tabellen samt Index, alle leer; die CHECKs
-//! lehnen ab, was der Vertrag verbietet (Klartext statt PHC-Text, unbekannte Kontoart, doppelter Name oder Slug,
-//! Token-Hash falscher Länge); die Datei ist gegenüber der Schnittstelle S1 unverändert; der Store arbeitet danach
-//! auf der migrierten Datenbank (Konten, Sitzungen, Sperre, Schalter) – ohne Konten zählt er 0.
+//! Proven: 0053 only creates (not in `FOREIGN_KEYS_OFF`); every row of every existing table stays byte-identical, no
+//! existing schema object changes; new are exactly the three tables including the index, all empty; the CHECKs reject
+//! what the contract forbids (plain text instead of PHC text, unknown account kind, duplicate name or slug, token hash
+//! of the wrong length); the file is unchanged compared with the interface S1; the store works afterwards on the
+//! migrated database (accounts, sessions, lock, switch) – without accounts it counts 0.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -23,10 +23,10 @@ use sqlx::{Row, SqlitePool};
 const BOOK: &str = "#set document(title: \"Die Mühle am Hang\", author: \"Arvid Lohse\")\n\n\
 = Mahlgang\n\nDer Stein dreht sich schwer.\n\n= Wehrgraben\n\nDas Wasser kommt spät im Jahr.\n";
 
-/// SHA-256 der Datei `0053_accounts.sql`, wie die Schnittstelle S1 (Commit e56c3f3) sie festgelegt hat.
+/// SHA-256 of the file `0053_accounts.sql` as the interface S1 (commit e56c3f3) fixed it.
 const S1_SHA256: &str = "178570808ad20234925e7d50f17ed51aee9af6b8cb8ad734f137577cf30a5faf";
 
-/// Ein Hash-Text, wie ihn die Spalte verlangt (kein echtes Passwort dahinter).
+/// A hash text as the column demands it (no real password behind it).
 const PHC: &str = "$argon2id$test";
 
 async fn raw_pool(dir: &Path) -> SqlitePool {
@@ -55,8 +55,8 @@ async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.is_err()
 }
 
-/// Store bis 0052 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek: der
-/// Stand von development vor Runde 35.
+/// Store up to 0052 (0040 with foreign keys switched off as in `baruch_store::migrate`) and the library: the state of
+/// development before Round 35.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(
         baruch_store::MIGRATOR.iter().any(|m| m.version == 53),
@@ -85,8 +85,8 @@ async fn migrate_before(pool: &SqlitePool) {
     );
 }
 
-/// Ein Werk mit zwei Kapiteln, zwei Beiträgen, drei Einfällen (einer gelöscht, einer ohne Werk) und zwei eigenen
-/// Einträgen in `store_meta`, direkt in SQLite.
+/// A work with two chapters, two posts, three ideas (one deleted, one without a work) and two own entries in
+/// `store_meta`, directly in SQLite.
 async fn insert_rows(pool: &SqlitePool) {
     let doc = baruch_typst::parse(BOOK).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -145,7 +145,7 @@ async fn insert_rows(pool: &SqlitePool) {
         .await
         .unwrap();
     }
-    // Eine Datenbank im Betrieb hat der Store schon einmal geöffnet: Die Markierung „gesät“ steht.
+    // A database in operation has been opened by the store before: the marker „gesät“ is set.
     exec(pool, "INSERT OR IGNORE INTO store_meta (key, value) VALUES ('seeded', '1')").await;
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('instance_name', 'Mühlenrechner')").await;
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('probe.r35', 'bleibt')").await;
@@ -170,14 +170,14 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → (Typ, Tabelle, SQL).
+/// All schema objects: name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), (r.get(1), r.get(2), r.get(3)))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout`, Werte per `quote()` (Typ und Bytes sichtbar).
+/// Content of every table in the columns from `layout`, values via `quote()` (type and bytes visible).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -222,10 +222,10 @@ async fn migration_0053_keeps_every_row_and_adds_three_empty_tables() {
         "vor 0053 gibt es die Tabelle account nicht (sonst prüfte dieser Test nichts)"
     );
 
-    // Nur 0053, wie `baruch_store::migrate` sie ausführt (Fremdschlüssel bleiben an).
+    // Only 0053, as `baruch_store::migrate` runs it (foreign keys stay on).
     store_migrator(|v| v == 53).run(&pool).await.expect("0053 läuft auf dem Stand von development");
 
-    // Daten: jede Zeile jeder vorhandenen Tabelle byte-gleich, gleiche Spalten in gleicher Reihenfolge.
+    // Data: every row of every existing table byte-identical, same columns in the same order.
     let layout_after = tables(&pool).await;
     let after = contents(&pool, &layout).await;
     for (table, old) in &before {
@@ -235,8 +235,8 @@ async fn migration_0053_keeps_every_row_and_adds_three_empty_tables() {
         }
     }
 
-    // Schema: kein vorhandenes Objekt ändert sich; neu sind genau die drei Tabellen, ihr Index und die Indizes, die
-    // SQLite für PRIMARY KEY und UNIQUE selbst anlegt.
+    // Schema: no existing object changes; new are exactly the three tables, their index and the indexes that SQLite
+    // creates itself for PRIMARY KEY and UNIQUE.
     let schema_after = schema(&pool).await;
     for (name, old) in &schema_before {
         assert_eq!(schema_after.get(name), Some(old), "{name}: unverändert");
@@ -283,7 +283,7 @@ async fn migration_0053_keeps_every_row_and_adds_three_empty_tables() {
     let violations = sqlx::query("PRAGMA foreign_key_check").fetch_all(&pool).await.unwrap();
     assert!(violations.is_empty(), "kein verletzter Fremdschlüssel nach 0053");
 
-    // CHECKs und Eindeutigkeit.
+    // CHECKs and uniqueness.
     let insert = |name: &str, key: &str, slug: &str, kind: &str, password: &str| {
         format!(
             "INSERT INTO account (name, name_key, slug, kind, password) \
@@ -341,7 +341,7 @@ async fn migration_0053_keeps_every_row_and_adds_three_empty_tables() {
     exec(&pool, "DELETE FROM sqlite_sequence WHERE name = 'account'").await;
     pool.close().await;
 
-    // Der Store öffnet die migrierte Datenbank (führt die späteren Migrationen aus) und findet die alten Daten.
+    // The store opens the migrated database (runs the later migrations) and finds the old data.
     let store = Store::open(dir.path()).await.expect("Store öffnet die migrierte Datenbank");
     assert_eq!(store.account_count().await.unwrap(), 0, "ohne Konten zählt der Store 0 – Baruch bleibt offen");
     assert!(store.account_list().await.unwrap().is_empty(), "die Liste der Konten ist leer");
@@ -444,7 +444,7 @@ async fn names_and_handles_are_unique_and_the_last_active_author_stays() {
     );
     assert!(store.account_set_active(lektor.id, true).await.unwrap(), "und wieder entsperren");
     assert!(!store.account_set_active(999, false).await.unwrap(), "ein unbekanntes Konto meldet false");
-    // Mit einem zweiten aktiven Autor lässt sich der erste sperren, der letzte dann wieder nicht.
+    // With a second active author the first can be locked, the last one then cannot.
     let second = store.account_create(&new_account("Jonas", "jonas", "author")).await.unwrap();
     assert!(store.account_set_active(author.id, false).await.unwrap(), "mit zwei Autoren darf einer gesperrt werden");
     assert_eq!(
@@ -475,7 +475,7 @@ async fn sessions_store_only_a_hash_expire_and_end_with_password_or_lock() {
     assert!(account.last_login.is_some(), "die Anmeldung ist am Konto vermerkt");
     assert!(store.session_account(token).await.unwrap().is_none(), "mit dem Token statt dem Hash findet sich nichts");
 
-    // last_seen höchstens einmal je Minute: 30 s alt bleibt stehen, 5 min alt wird aufgefrischt.
+    // last_seen at most once per minute: 30 s old stays, 5 min old is refreshed.
     let set = |column: &str, modifier: &str| {
         format!("UPDATE account_session SET {column} = strftime('%Y-%m-%dT%H:%M:%fZ','now','{modifier}')")
     };
@@ -492,7 +492,7 @@ async fn sessions_store_only_a_hash_expire_and_end_with_password_or_lock() {
     let (_, idle) = store.session_account(&hash).await.unwrap().unwrap();
     assert!(idle < 60, "danach ist last_seen aufgefrischt: {idle} s");
 
-    // Fristen: 30 Tage ohne Benutzung, 90 Tage insgesamt.
+    // Time limits: 30 days without use, 90 days in total.
     exec(store.pool(), &set("last_seen", "-29 days")).await;
     assert!(store.session_account(&hash).await.unwrap().is_some(), "29 Tage ohne Benutzung: gilt noch");
     exec(store.pool(), &set("last_seen", "-31 days")).await;
@@ -502,12 +502,12 @@ async fn sessions_store_only_a_hash_expire_and_end_with_password_or_lock() {
     assert!(store.session_account(&hash).await.unwrap().is_some(), "89 Tage alt und benutzt: gilt noch");
     exec(store.pool(), &set("created", "-91 days")).await;
     assert!(store.session_account(&hash).await.unwrap().is_none(), "91 Tage alt: abgelaufen, auch wenn benutzt");
-    // Eine neue Sitzung räumt die abgelaufene weg.
+    // A new session clears away the expired one.
     let fresh = Store::session_token_hash("zweites-token");
     store.session_create(&fresh, author.id).await.unwrap();
     assert_eq!(scalar(store.pool(), "SELECT count(*) FROM account_session").await, 1, "die abgelaufene ist gelöscht");
 
-    // Passwortwechsel: alle anderen Sitzungen enden, die genannte bleibt.
+    // Password change: all other sessions end, the named one stays.
     let other = Store::session_token_hash("drittes-token");
     store.session_create(&other, author.id).await.unwrap();
     let changed_before: String =
@@ -527,7 +527,7 @@ async fn sessions_store_only_a_hash_expire_and_end_with_password_or_lock() {
     );
     assert!(store.session_account(&fresh).await.unwrap().is_some(), "ein gescheiterter Wechsel beendet keine Sitzung");
 
-    // Abmelden und Sperren.
+    // Sign out and lock.
     assert!(store.session_delete(&fresh).await.unwrap(), "Abmelden löscht die Sitzung");
     assert!(!store.session_delete(&fresh).await.unwrap(), "ein zweites Mal gibt es sie nicht mehr");
     let lektor = store.account_create(&new_account("Lea", "lea", "lektor")).await.unwrap();
@@ -571,7 +571,7 @@ async fn failures_block_a_scope_and_the_table_never_grows_past_a_thousand_rows()
     assert_eq!(store.login_failure("konto:erika", doubling).await.unwrap(), 900, "nie mehr als 900 Sekunden");
     let wait = store.login_wait(&["konto:erika"]).await.unwrap().unwrap();
     assert!((899..=900).contains(&wait), "die Sperre läuft 900 Sekunden: {wait}");
-    // Abgelaufene Sperre: keine Wartezeit mehr, die Zählung bleibt bis zum Erfolg.
+    // Expired lock: no waiting time any more, the count stays until success.
     exec(store.pool(), "UPDATE login_attempt SET blocked_until = strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 seconds')")
         .await;
     assert_eq!(store.login_wait(&["konto:erika"]).await.unwrap(), None, "nach Ablauf ist der Bereich frei");
@@ -579,7 +579,7 @@ async fn failures_block_a_scope_and_the_table_never_grows_past_a_thousand_rows()
     assert_eq!(scalar(store.pool(), "SELECT count(*) FROM login_attempt").await, 0, "Erfolg setzt den Bereich zurück");
     assert_eq!(store.login_failure("konto:erika", doubling).await.unwrap(), 0, "danach zählt es wieder von vorn");
 
-    // Älter als 24 Stunden: fällt beim nächsten Schreiben weg.
+    // Older than 24 hours: dropped on the next write.
     exec(
         store.pool(),
         "INSERT INTO login_attempt (scope, failures, last) \
@@ -593,7 +593,7 @@ async fn failures_block_a_scope_and_the_table_never_grows_past_a_thousand_rows()
         "ein Eintrag, der älter als 24 Stunden ist, wird beim Schreiben entfernt"
     );
 
-    // Obergrenze: 999 Bereiche und der Bereich `alle`.
+    // Upper limit: 999 scopes and the scope `alle`.
     exec(store.pool(), "DELETE FROM login_attempt").await;
     exec(
         store.pool(),
@@ -681,7 +681,7 @@ async fn reserving_counts_before_the_check_and_a_block_changes_nothing() {
     );
 }
 
-// Mehrere Threads: Die Versuche sollen wirklich gleichzeitig auf verschiedenen Verbindungen ankommen.
+// Several threads: the attempts are meant to really arrive simultaneously on different connections.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_salvo_of_simultaneous_attempts_gets_no_further_than_attempts_in_a_row() {
     let (_dir, store) = open_store().await;

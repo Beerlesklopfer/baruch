@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 (Vertrag Abschnitte 1 und 2): Import einer Datei mit Teil-Markierungen und Markierungen
-//! „ohne Nummer“ (`baruch-typst/tests/data/teile.typ`, frei erfunden), Export byte-gleich, Spiegel
-//! mit den Teil-Abschnitten. Bestehende Texte werden nie umgewandelt.
+//! Round 14 (contract sections 1 and 2): import of a file with part markings and markings „ohne Nummer“
+//! (`baruch-typst/tests/data/teile.typ`, freely invented), export byte-identical, mirror with the part sections.
+//! Existing texts are never converted.
 
 use baruch_core::NodeKind;
 use baruch_store::Store;
 
 const PARTS: &str = include_str!("../../baruch-typst/tests/data/teile.typ");
 
-/// Ohne Werkvorlage: beginnt direkt mit einem Teil.
+/// Without a work template: begins directly with a part.
 const PLAIN: &str = "#heading(level: 1, numbering: none)[Anfang] <baruch-part>\n\n= Erstes\nText.\n\n\
 #heading(level: 1, numbering: none)[Mitte] <baruch-part> // Notiz\n= Zweites\nMehr.\n";
 
@@ -70,7 +70,7 @@ async fn unnumbered_markers_import_as_numbered_zero_and_chapters_count_across_pa
          Teile zählen eigen (Vorgabe der Nummerierung aus der Werkvorlage)"
     );
     drop(store);
-    // numbered direkt in der Datenbank: die Markierung setzt node.numbered = 0, sonst 1.
+    // numbered directly in the database: the marking sets node.numbered = 0, otherwise 1.
     let pool =
         sqlx::SqlitePool::connect(&format!("sqlite://{}", dir.path().join("baruch.sqlite").display())).await.unwrap();
     let flags: Vec<(String, i64)> = sqlx::query_as("SELECT title, numbered FROM node WHERE work_id = ? ORDER BY seq")
@@ -128,8 +128,8 @@ async fn the_mirror_contains_the_part_sections() {
     let main = files.iter().find(|f| f.path == "main.typ").unwrap();
     let part_files: Vec<&str> = files
         .iter()
-        // Erste Zeile nach der Import-Zeile ist die Teil-Markierung (im Raw-Block des Kapitels „Der
-        // Stein im Weg“ steht eine zum Schein, die zählt nicht).
+        // The first line after the import line is the part marking (in the raw block of the chapter „Der Stein im Weg“
+        // there is a sham one, which does not count).
         .filter(|f| {
             f.path.starts_with("abschnitte/")
                 && f.contents.lines().nth(1).is_some_and(|l| l.contains("] <baruch-part>"))
@@ -152,8 +152,8 @@ async fn the_mirror_contains_the_part_sections() {
 
 #[tokio::test]
 async fn existing_parts_without_marker_stay_as_they_are() {
-    // Altbestand: ein Teil mit „= Teil …“ als Kapitelzeile wird beim Import ein Kapitel und bleibt es
-    // (keine automatische Umwandlung, Nutzerfrage 8).
+    // Legacy data: a part with „= Teil …“ as a chapter line becomes a chapter on import and stays one (no automatic
+    // conversion, user question 8).
     let (_dir, store) = fresh().await;
     let source = "= Teil I: Altes\nText.\n= Kapitel\nMehr.\n";
     let imported = store.import_typst(source, "alt.typ", "Autor").await.unwrap();
@@ -168,10 +168,10 @@ async fn existing_parts_without_marker_stay_as_they_are() {
 
 #[tokio::test]
 async fn a_part_cannot_be_counted_without_number_because_the_marker_cannot_carry_it() {
-    // Befund Gutachten Runde 14: Ein Teil mit numbered = 0 überstand Export → Import nicht (die
-    // Teil-Markierung kennt kein „ohne Nummer“, parse liefert Teile nummeriert); danach verschoben sich
-    // die Nummern aller folgenden Teile. Darum lehnt set_numbered „Teil ohne Nummer“ ab – direkt (RPC,
-    // Mensch) und schon beim Anlegen eines Antrags (MCP, Probelauf).
+    // Finding review Round 14: a part with numbered = 0 did not survive export → import (the part marking knows no
+    // „ohne Nummer“, parse returns parts numbered); afterwards the numbers of all following parts shifted. Therefore
+    // set_numbered rejects „Teil ohne Nummer“ – directly (RPC, human) and already when a request is created (MCP, dry
+    // run).
     use baruch_store::{IdeaOrigin, OutlineOp, StoreError};
     let (_dir, store) = fresh().await;
     let imported = store.import_typst(PLAIN, "teile.typ", "Autor").await.unwrap();
@@ -191,8 +191,8 @@ async fn a_part_cannot_be_counted_without_number_because_the_marker_cannot_carry
     assert!(store.outline_requests(work, true).await.unwrap().is_empty(), "nichts angelegt");
     assert_eq!(numbers(&store.load_work(work).await.unwrap()), before, "Nummern unverändert");
 
-    // Ein Teil, der aus einem älteren Stand schon ohne Nummer ist, lässt sich wieder mit Nummer zählen
-    // (sonst bliebe er hängen).
+    // A part that is already without number from an older state can be counted with a number again (otherwise it would
+    // stay stuck).
     sqlx::query("UPDATE node SET numbered = 0 WHERE work_id = ? AND kind = 'part' AND title = 'Mitte'")
         .bind(work)
         .execute(store.pool())
@@ -202,15 +202,15 @@ async fn a_part_cannot_be_counted_without_number_because_the_marker_cannot_carry
     let healed = store.load_work(work).await.unwrap();
     assert_eq!(numbers(&healed), before, "danach dieselben Nummern wie vorher");
 
-    // Rundreise: Export → Import gibt dieselben Nummern (alle Teile nummeriert).
+    // Round trip: export → import gives the same numbers (all parts numbered).
     let exported = baruch_typst::xref::strip_key_labels(&store.export_typst(work).await.unwrap()).into_owned();
     let (_other_dir, other) = fresh().await;
     let again = other.import_typst(&exported, "wieder.typ", "Autor").await.unwrap();
     assert_eq!(numbers(&other.load_work(again.work).await.unwrap()), before, "Export → Import: gleiche Nummern");
 }
 
-/// Grenzfälle der Rundreise (Gutachten Runde 14): zwei Teile direkt hintereinander (der erste ohne
-/// Kapitel) und ein Teil als letzte Überschrift des Werks.
+/// Edge cases of the round trip (review Round 14): two parts directly after one another (the first without a chapter)
+/// and a part as the last heading of the work.
 const EDGES: &str = "= Auftakt\nText.\n\n\
 #heading(level: 1, numbering: none)[Leerer Teil] <baruch-part>\n\n\
 #heading(level: 1, numbering: none)[Voller Teil] <baruch-part>\n= Mitte\nMehr.\n\n\

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 25 „karte-daten“: Verbindungen, Lagen, Nähe und Filter der Gedankenkarte über RPC und MCP (Vertrag
-//! §4.1/§4.2). Tests schreibt karte-daten.
+//! Round 25 „karte-daten“: links, positions, proximity and filters of the idea map over RPC and MCP (contract
+//! §4.1/§4.2). Tests are written by karte-daten.
 //!
-//! - `idea.map` mit 40 erfundenen Einfällen: Knoten, Anker, Zähler, Aufklappen, Filter status/word/origin, `q`.
-//! - Verbindungen über RPC: genau ein Spiegel-Commit je Änderung mit Trailern, Zeile in `einfaelle.md`; gleiches
-//!   Paar ohne Commit; Lagen ohne Commit; -32602 bei falschen Parametern.
-//! - MCP `idea_map`/`idea_links`/`idea_link`/`idea_unlink` mit Herkunft Persona bzw. `@mcp:<client>`.
-//! - Gelöschter Einfall fällt aus Karte, Verbindungen und Lagen und kommt mit dem Wiederherstellen zurück.
-//! - Nähe aus gespeicherten Vektoren (eigener Nachbau-Einbetter, nie Eliezer) ohne Einbettungsanfrage beim Zeichnen;
-//!   ohne Einbetter ehrlich `no_embedder` mit Schlagwort-Nähe.
+//! - `idea.map` with 40 invented ideas: nodes, anchors, counters, unfolding, filters status/word/origin, `q`.
+//! - Links over RPC: exactly one mirror commit per change with trailers, line in `einfaelle.md`; same pair without
+//!   commit; positions without commit; -32602 for wrong parameters.
+//! - MCP `idea_map`/`idea_links`/`idea_link`/`idea_unlink` with origin persona or `@mcp:<client>`.
+//! - A deleted idea drops out of map, links and positions and comes back when restored.
+//! - Proximity from stored vectors (own mock embedder, never Eliezer) without an embedding request when drawing;
+//!   without an embedder honestly `no_embedder` with keyword proximity.
 //!
-//! Kein Netz: keine Anfrage an Eliezer, MultiGPT oder das Internet. Texte frei erfunden.
+//! No network: no request to Eliezer, MultiGPT or the internet. Texts freely invented.
 
 use crate::common;
 
@@ -27,7 +27,7 @@ use baruch_server::rag;
 use baruch_store::{IdeaOrigin, NewIdea};
 use serde_json::{Value, json};
 
-/// Erfundenes Buch: zwei Teile, Kapitel, ein Abschnitt mit Unterabschnitt.
+/// Invented book: two parts, chapters, one section with a subsection.
 fn book() -> String {
     format!(
         "#set document(title: \"Das Laubenbuch\", author: \"Erna Efeu\")\n\n{}\n= Säen\n\nSamen in Reihen.\n\n\
@@ -44,13 +44,13 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Fehlercode einer RPC-Antwort (muss scheitern).
+/// Error code of an RPC answer (must fail).
 async fn code(server: &common::Server, method: &str, params: Value) -> i64 {
     let answer = server.rpc(method, params).await;
     answer["error"]["code"].as_i64().unwrap_or_else(|| panic!("{method} sollte scheitern: {answer}"))
 }
 
-/// Feste Schlüssel nach Titel.
+/// Stable keys by title.
 async fn keys(server: &common::Server, work: i64) -> BTreeMap<String, (i64, NodeKind)> {
     let loaded = server.state.store.load_work(work).await.unwrap();
     loaded.nodes.iter().map(|n| (n.title.clone(), (n.key, n.kind))).collect()
@@ -64,7 +64,7 @@ fn origin_of(i: usize) -> IdeaOrigin {
     }
 }
 
-/// Ein erfundener Einfall des Plans: (Bezug als Titel oder None, Schlagwörter, Status offen?, Herkunft).
+/// One invented idea of the plan: (reference as title or None, keywords, status open?, origin).
 struct Planned {
     at: Option<&'static str>,
     words: Vec<String>,
@@ -72,8 +72,8 @@ struct Planned {
     origin: IdeaOrigin,
 }
 
-/// 40 erfundene Einfälle: 8 am Kapitel „Säen“, 6 am Abschnitt „Beete“, 4 am Unterabschnitt „Ränder“, 8 an
-/// „Gießen“, 6 an „Ernten“, 8 ohne Bezug; jeder vierte verarbeitet, Herkunft reihum, jeder fünfte mit „Regen“.
+/// 40 invented ideas: 8 at the chapter „Säen“, 6 at the section „Beete“, 4 at the subsection „Ränder“, 8 at „Gießen“, 6
+/// at „Ernten“, 8 without reference; every fourth processed, origin in rotation, every fifth with „Regen“.
 fn plan() -> Vec<Planned> {
     let spread: [(Option<&'static str>, usize, &str); 6] = [
         (Some("Säen"), 8, "Saat"),
@@ -98,7 +98,7 @@ fn plan() -> Vec<Planned> {
     out
 }
 
-/// Werk mit dem Buch und den 40 Einfällen; (Werk, slug, ids in Planreihenfolge).
+/// Work with the book and the 40 ideas; (work, slug, ids in plan order).
 async fn forty(server: &common::Server) -> (i64, String, Vec<i64>, Vec<Planned>) {
     let report = server.import(&book(), "laube.typ").await;
     let work = report.work;
@@ -146,7 +146,7 @@ fn commits(dir: &std::path::Path) -> Option<usize> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|s| s.trim().parse().unwrap())
 }
 
-// ---- Karte ---------------------------------------------------------------------------------------------
+// ---- Map -----------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_map_of_forty_ideas_has_nodes_anchors_and_counters() {
@@ -162,7 +162,7 @@ async fn the_map_of_forty_ideas_has_nodes_anchors_and_counters() {
     let open_total = plan.iter().filter(|p| p.open).count();
     assert_eq!(w["open_ideas"], open_total, "offene beim Werk");
 
-    // Teile und Kapitel als Knoten; Abschnitte unter einem Kapitel sind zum Kapitel zusammengefasst.
+    // Parts and chapters as nodes; sections below a chapter are merged into the chapter.
     let part = node(&map, &format!("n:{}", keys["Frühling"].0));
     assert_eq!((part["kind"].as_str(), part["parent"].as_str()), (Some("part"), Some("w")), "Teil hängt am Werk");
     let sow = node(&map, &format!("n:{}", keys["Säen"].0));
@@ -173,14 +173,14 @@ async fn the_map_of_forty_ideas_has_nodes_anchors_and_counters() {
     assert_eq!(sections, ["Beete", "Ränder"], "Abschnitt und Unterabschnitt zusammengefasst");
     let nodes: Vec<&str> = map["nodes"].as_array().unwrap().iter().map(|n| n["id"].as_str().unwrap()).collect();
     assert!(!nodes.contains(&format!("n:{}", keys["Beete"].0).as_str()), "zugeklappt kein eigener Knoten: {nodes:?}");
-    // Zähler: Säen trägt die eigenen 8 und die 6 + 4 aus den zusammengefassten Abschnitten.
+    // Counters: Säen carries its own 8 and the 6 + 4 from the merged sections.
     assert_eq!(sow["total_ideas"], 18, "8 + 6 + 4 an „Säen“: {sow}");
     let open_sow = plan.iter().filter(|p| matches!(p.at, Some("Säen" | "Beete" | "Ränder")) && p.open).count();
     assert_eq!(sow["open_ideas"], open_sow, "offene an „Säen“");
     let beete = sow["sections"].as_array().unwrap().iter().find(|s| s["title"] == "Beete").unwrap();
     assert_eq!(beete["ideas"], 6, "Abschnitt zählt genau seine Einfälle");
     assert_eq!(node(&map, &format!("n:{}", keys["Ernten"].0))["total_ideas"], 6, "Ernten");
-    // Ein Teil zählt die Einfälle seiner Kapitel mit (sonst sähe er leer aus, Befund Runde 25): Frühling =
+    // A part counts the ideas of its chapters as well (otherwise it would look empty, finding Round 25): Frühling =
     // Säen (18) + Gießen (8), Herbst = Ernten (6).
     assert_eq!(part["total_ideas"], 26, "Frühling samt Kapiteln: {part}");
     let open_spring =
@@ -191,9 +191,9 @@ async fn the_map_of_forty_ideas_has_nodes_anchors_and_counters() {
     assert_eq!((none["kind"].as_str(), none["title"].as_str()), (Some("no_chapter"), Some("Ohne Kapitel")), "Wolke");
     assert_eq!(none["total_ideas"], 8, "acht ohne Bezug");
 
-    // Einfälle: Anker = Kapitel (auch für Abschnitte), key = genauer Bezug, Beschriftung aus den Schlagwörtern.
+    // Ideas: anchor = chapter (also for sections), key = exact reference, label from the keywords.
     assert_eq!(idea_ids(&map), ids, "alle 40, nach id");
-    let edge = &map["ideas"][15]; // Plan 15 liegt in „Ränder“
+    let edge = &map["ideas"][15]; // plan 15 lies in „Ränder“
     assert_eq!(edge["anchor"], sow["id"], "Unterabschnitt hängt zugeklappt am Kapitel: {edge}");
     assert_eq!(edge["key"], keys["Ränder"].0, "genauer Bezug bleibt: {edge}");
     assert_eq!(edge["node"], format!("i:{}", ids[15]), "Knoten-id des Einfalls");
@@ -204,7 +204,7 @@ async fn the_map_of_forty_ideas_has_nodes_anchors_and_counters() {
     assert!((map["filter"]["near_threshold"].as_f64().unwrap() - 0.75).abs() < 1e-6, "Vorgabe near_threshold");
     assert_eq!(map["near"]["state"], "off", "near=false: aus");
 
-    // Aufklappen: open=[Säen] macht Abschnitte zu eigenen Knoten; Ränder hängt an Beete.
+    // Unfolding: open=[Säen] turns sections into nodes of their own; Ränder hangs at Beete.
     let open = ok(&server, "idea.map", json!({ "work": work, "near": false, "open": [keys["Säen"].0, 999_999] })).await;
     let beete = node(&open, &format!("n:{}", keys["Beete"].0));
     assert_eq!((beete["kind"].as_str(), beete["parent"].clone()), (Some("section"), sow["id"].clone()), "{beete}");
@@ -212,7 +212,7 @@ async fn the_map_of_forty_ideas_has_nodes_anchors_and_counters() {
     let edges = node(&open, &format!("n:{}", keys["Ränder"].0));
     assert_eq!(edges["parent"], beete["id"], "Unterabschnitt hängt am Abschnitt");
     assert_eq!(edges["total_ideas"], 4, "Ränder zählt nur seine vier");
-    // Die Zahl am Kapitel ändert sich beim Aufklappen nicht: Es zählt die Einfälle seiner Abschnitte mit.
+    // The number at the chapter does not change when unfolding: it counts the ideas of its sections as well.
     assert_eq!(node(&open, sow["id"].as_str().unwrap())["total_ideas"], 18, "Kapitel samt aufgeklappten Abschnitten");
     assert_eq!(node(&open, &format!("n:{}", keys["Frühling"].0))["total_ideas"], part["total_ideas"], "Teil gleich");
     assert!(
@@ -246,7 +246,7 @@ async fn filters_remove_ideas_and_q_marks_hits() {
         persona["ideas"].as_array().unwrap().iter().all(|i| i["origin"]["kind"] == "persona"),
         "nur Persona-Herkunft"
     );
-    // Ohne Einfälle ohne Bezug entfällt die Wolke „Ohne Kapitel“.
+    // Without ideas without reference the cloud „Ohne Kapitel“ is dropped.
     let saat = ok(&server, "idea.map", json!({ "work": work, "word": "Saat", "near": false })).await;
     assert!(saat["nodes"].as_array().unwrap().iter().all(|n| n["id"] != "none"), "keine Wolke ohne passende Einfälle");
 
@@ -270,7 +270,7 @@ async fn filters_remove_ideas_and_q_marks_hits() {
     }
 }
 
-// ---- Verbindungen und Lagen über RPC -------------------------------------------------------------------
+// ---- Links and positions over RPC ----------------------------------------------------------------------
 
 #[tokio::test]
 async fn every_link_change_is_one_commit_with_trailers_and_shows_in_einfaelle_md() {
@@ -310,7 +310,7 @@ async fn every_link_change_is_one_commit_with_trailers_and_shows_in_einfaelle_md
     );
     assert!(lines.contains(&format!("- Verbindungen: ← {a} führt weiter\n")), "eingehend bei b: {lines}");
 
-    // Gleiches Paar und Art noch einmal: unverändert, kein Commit.
+    // Same pair and kind once more: unchanged, no commit.
     let after_two = commits(&mirror);
     let same = ok(&server, "idea.link", json!({ "from": a, "to": c, "kind": "contradicts", "note": "neu" })).await;
     assert_eq!(same["changed"], false, "aktiv → unverändert");
@@ -328,7 +328,7 @@ async fn every_link_change_is_one_commit_with_trailers_and_shows_in_einfaelle_md
     if let Some(log) = common::git(&mirror, &["log", "-1", "--format=%s%n%b"]) {
         assert!(log.contains("(wiederhergestellt)") && log.contains("Baruch-Action: idea-link-restore"), "{log}");
     }
-    // Erneutes idea.link auf eine gelöschte Verbindung stellt sie ebenfalls wieder her.
+    // A repeated idea.link on a deleted link restores it as well.
     ok(&server, "idea.unlink", json!({ "id": led["link"]["id"] })).await;
     let relinked = ok(&server, "idea.link", json!({ "from": a, "to": b, "kind": "leads_to", "note": "doch" })).await;
     assert_eq!(
@@ -501,7 +501,7 @@ async fn mcp_links_carry_persona_or_client_origin_and_the_map_carries_urls() {
 
     let links = tool_ok(&server, &s, "idea_links", json!({ "id": ids[8] })).await;
     assert_eq!(links["links"].as_array().unwrap().len(), 2, "zwei am Einfall: {links}");
-    // Jede Verbindung darf jeder lösen (wie Einfälle): der Client löst die der Persona.
+    // Anybody may remove any link (like ideas): the client removes the one of the persona.
     let gone = tool_ok(&server, &s, "idea_unlink", json!({ "id": by_persona["link"]["id"] })).await;
     assert!(gone["link"]["deleted"].is_string() && gone["commit"].is_string(), "gelöst mit Commit: {gone}");
     if let Some(log) = common::git(&mirror, &["log", "-1", "--format=%B"]) {
@@ -512,7 +512,7 @@ async fn mcp_links_carry_persona_or_client_origin_and_the_map_carries_urls() {
     let all = tool_ok(&server, &s, "idea_links", json!({ "work": work, "deleted": true })).await;
     assert_eq!(all["links"].as_array().unwrap().len(), 2, "mit deleted beide");
 
-    // Fachliche Ablehnungen sind isError, falsche Argumente -32602.
+    // Domain rejections are isError, wrong arguments -32602.
     let unknown = tool(
         &server,
         &s,
@@ -535,9 +535,9 @@ async fn mcp_links_carry_persona_or_client_origin_and_the_map_carries_urls() {
     }
 }
 
-// ---- Nähe ----------------------------------------------------------------------------------------------
+// ---- Proximity -----------------------------------------------------------------------------------------
 
-/// Begriffsachsen des Nachbau-Vektorraums (wie `round12.rs`): Wörter derselben Achse sind „bedeutungsgleich“.
+/// Concept axes of the mock vector space (as in `round12.rs`): words of the same axis are „bedeutungsgleich“.
 const AXES: [&[&str]; 3] = [
     &["meer", "wellen", "brandung", "küste", "schiff", "hafen", "kutter", "segel"],
     &["laterne", "flamme", "docht", "kerze", "schein", "lampe"],
@@ -558,7 +558,7 @@ fn concept_vector(text: &str) -> Vec<f32> {
     v
 }
 
-/// Nachbau-Einbetter mit festem Vektorraum; zählt jeden eingebetteten Text (Beleg: beim Zeichnen keiner).
+/// Mock embedder with a fixed vector space; counts every embedded text (proof: none when drawing).
 #[derive(Clone, Default)]
 struct Concepts {
     seen: Arc<Mutex<Vec<String>>>,
@@ -639,7 +639,7 @@ async fn nearness_comes_from_stored_vectors_without_embedding_while_drawing() {
     assert!(embedded > 0, "der Index hat die Einfälle eingebettet (Hintergrund-Aufgabe)");
 
     let map = ok(&server, "idea.map", json!({ "work": work })).await;
-    // Beleg: Das Zeichnen liest nur gespeicherte Vektoren – keine einzige Einbettungsanfrage dazu.
+    // Proof: drawing reads only stored vectors – not a single embedding request for it.
     assert_eq!(concepts.seen.lock().unwrap().len(), embedded, "keine Einbettungsanfrage beim Zeichnen");
     assert_eq!(map["near"]["state"], "ok", "Nähe verfügbar: {}", map["near"]);
     assert!(map["near"]["message"].as_str().unwrap().contains("gespeicherten Einbettungen"), "{}", map["near"]);
@@ -654,7 +654,7 @@ async fn nearness_comes_from_stored_vectors_without_embedding_while_drawing() {
     for p in map["near"]["pairs"].as_array().unwrap() {
         assert!(p["a"].as_i64() < p["b"].as_i64(), "a < b: {p}");
     }
-    // near=false schaltet ab, near_threshold wirkt.
+    // near=false switches it off, near_threshold takes effect.
     let off = ok(&server, "idea.map", json!({ "work": work, "near": false })).await;
     assert_eq!(
         (off["near"]["state"].as_str(), off["near"]["pairs"].as_array().unwrap().len()),
@@ -696,8 +696,8 @@ async fn without_an_embedder_the_map_says_so_and_keeps_word_nearness() {
 
 #[tokio::test]
 async fn moving_a_linked_idea_to_another_work_unlinks_it_everywhere() {
-    // Befund Runde 25: Verbindungen gibt es nur innerhalb eines Werks; ein Umzug ließ sie vorher aktiv, die Seite
-    // des Einfalls und einfaelle.md beider Werke zeigten sie weiter, die Karte nicht.
+    // Finding Round 25: links exist only within one work; a move used to leave them active, the page of the idea and
+    // einfaelle.md of both works kept showing them, the map did not.
     let server = common::open().await;
     let (work, slug, ids, _) = forty(&server).await;
     let other = server
@@ -726,7 +726,7 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_everywhere() {
     if let Some(log) = common::git(&old_mirror, &["log", "-1", "--format=%B"]) {
         assert!(log.contains("Verbindungen gelöst"), "Commit im alten Spiegel nennt das Lösen: {log}");
     }
-    // Wiederherstellen über die Werkgrenze bleibt abgelehnt (-32602), zurück im Werk geht es wieder.
+    // Restoring across the work boundary stays rejected (-32602), back in the work it works again.
     assert_eq!(code(&server, "idea.link_restore", json!({ "id": ab })).await, -32602, "über Werke abgelehnt");
     ok(&server, "idea.update", json!({ "id": a, "work": work })).await;
     ok(&server, "idea.link_restore", json!({ "id": ab })).await;

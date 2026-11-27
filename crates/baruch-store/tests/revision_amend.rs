@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fortschreiben der aktuellen Fassung (Runde 22, Vertrag §2.1–2.6) auf echten SQLite-Dateien im Temp-Ordner, mit
-//! einem frei erfundenen Werk: Fortschreiben im Modus `Auto` (Editor und `revision.save`), neue Fassung mit Grund in der
-//! Reihenfolge aus §2.2, Verlauf und Rückgängig als neuer Schritt, Stand der Basis an Vorschlägen, Einstellung
-//! „Fassungen“ und Grabsteine beim Löschen.
+//! Amending the current revision (Round 22, contract §2.1–2.6) on real SQLite files in the temp directory, with a
+//! freely invented work: amending in the mode `Auto` (editor and `revision.save`), new revision with a reason in the
+//! order from §2.2, history and undo as a new step, state of the base at proposals, setting „Fassungen“ and tombstones
+//! on deletion.
 
 use baruch_core::{Author, RevisionStatus};
 use baruch_store::{
@@ -25,14 +25,14 @@ async fn fresh() -> (tempfile::TempDir, Store, i64) {
     (dir, store, imported.work)
 }
 
-/// Aktueller Text des Abschnitts `node`.
+/// Current text of the section `node`.
 async fn current_body(store: &Store, work: i64, node: usize) -> String {
     let loaded = store.load_work(work).await.unwrap();
     let n = &loaded.nodes[node];
     n.revisions[n.current_index().expect("aktuelle Fassung")].body.clone()
 }
 
-/// Text mit einem kleinen Zusatz im ersten Absatz (ein Wort vor „Licht“, weit unter 20 %).
+/// Text with a small addition in the first paragraph (one word before „Licht“, far below 20 %).
 fn touched(body: &str, word: &str) -> String {
     let changed = body.replacen("Licht", &format!("{word} Licht"), 1);
     assert_ne!(changed, body, "Testtext enthält „Licht“");
@@ -55,8 +55,8 @@ async fn currents(pool: &SqlitePool, work: i64, seq: i64) -> i64 {
     .unwrap()
 }
 
-/// Anlagezeit einer Fassung in die Vergangenheit setzen (ohne Schlafen). Die Herkunft ist per Trigger unveränderlich;
-/// der Test nimmt den Trigger dafür kurz heraus und setzt ihn wörtlich wieder ein.
+/// Set the creation time of a revision into the past (without sleeping). The origin is immutable through a trigger; the
+/// test takes the trigger out briefly for this and puts it back verbatim.
 async fn age_revision(pool: &SqlitePool, work: i64, number: u32) {
     let trigger: String = sqlx::query_scalar(
         "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'revision_origin_immutable'",
@@ -119,7 +119,7 @@ async fn saving_in_the_editor_amends_the_own_current_version_and_records_each_st
     assert!(steps.iter().all(|s| s.uuid.len() == 36), "jeder Schritt hat eine uuid (Austausch, Grabstein)");
     assert_ne!(steps[0].uuid, steps[1].uuid, "uuids verschieden");
 
-    // Gleicher Text: nichts geschrieben.
+    // Same text: nothing written.
     let same = editor_save(&store, work, &second, 1).await;
     assert!(same.change.is_none() && same.new_reason.is_none(), "unverändert: weder Schritt noch neue Fassung");
     assert_eq!(store.amend_history(work, 0, 1).await.unwrap().len(), 2, "kein leerer Schritt");
@@ -140,7 +140,7 @@ async fn revision_save_in_auto_mode_amends_too_and_new_mode_keeps_the_old_behavi
     let change = store.save_human_mode(work, 0, &newer, HUMAN, Some(1), SaveMode::New).await.unwrap().unwrap();
     assert_eq!((change.kind, change.rev, change.amend_seq), (ChangeKind::Saved, 2, None), "Modus new: neue Fassung 2");
 
-    // Die alten Funktionen legen wie bisher neue Fassungen an (mode fehlt = new).
+    // The old functions create new revisions as before (mode missing = new).
     let change = store.save_human(work, 0, &touched(&newer, "kleines"), HUMAN).await.unwrap().unwrap();
     assert_eq!((change.kind, change.rev), (ChangeKind::Saved, 3), "save_human: neue Fassung 3");
     let body = current_body(&store, work, 0).await;
@@ -160,12 +160,13 @@ async fn revision_save_in_auto_mode_amends_too_and_new_mode_keeps_the_old_behavi
 #[tokio::test]
 async fn a_new_version_names_its_reason() {
     let (_dir, store, work) = fresh().await;
-    // Die Grenzregeln (große Änderung, Zeit) gelten nur, wo sie eingeschaltet sind; die Vorgabe seit 2026-11-27 hat keine.
+    // The limit rules (large change, time) apply only where they are switched on; the default since 2026-11-27 has
+    // none.
     let limited = RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 };
     store.set_revision_policy(work, &limited, HUMAN).await.unwrap();
     let original = current_body(&store, work, 0).await;
 
-    // not_own: übernommener Vorschlag einer Persona ist die aktuelle Fassung.
+    // not_own: an accepted proposal of a persona is the current revision.
     let proposal = store.add_proposal(work, 0, &touched(&original, "fremdes"), "@lektor", "mock", "").await.unwrap();
     store.accept(work, 0, proposal).await.unwrap();
     let body = current_body(&store, work, 0).await;
@@ -174,11 +175,11 @@ async fn a_new_version_names_its_reason() {
     let own = saved.change.expect("neue Fassung");
     assert_eq!((own.kind, own.rev), (ChangeKind::Saved, 3), "neue Fassung 3 vom Menschen");
 
-    // not_on_current: auf einer anderen Fassung (1) bearbeitet.
+    // not_on_current: edited on another revision (1).
     let saved = editor_save(&store, work, &touched(&original, "altes"), 1).await;
     assert_eq!(saved.new_reason, Some(NewReason::NotOnCurrent), "Basis ist nicht die aktuelle Fassung");
 
-    // heading_changed: neuer Titel.
+    // heading_changed: new title.
     let current = infos(&store, work, 0).await.iter().find(|r| r.status == RevisionStatus::Current).unwrap().number;
     let body = current_body(&store, work, 0).await;
     let renamed = body.replacen("= Ankunft", "= Ankunft am Deich", 1);
@@ -186,20 +187,20 @@ async fn a_new_version_names_its_reason() {
     assert_eq!(saved.new_reason, Some(NewReason::HeadingChanged), "Überschrift geändert");
     assert!(saved.outline.is_some(), "Umbenennen bleibt eine Gliederungsänderung");
 
-    // large_change: derselbe Titel, ganz anderer Text.
+    // large_change: the same title, entirely different text.
     let current = saved.change.unwrap().rev;
     let rewritten = "= Ankunft am Deich\n\nNebel. Stille. Ein Hund bellt dreimal, dann nichts mehr.\n";
     let saved = editor_save(&store, work, rewritten, current).await;
     assert_eq!(saved.new_reason, Some(NewReason::LargeChange), "Änderung über 20 %");
 
-    // time_elapsed: Zeitstempel der Fassung in die Vergangenheit (ohne Schlafen).
+    // time_elapsed: time stamp of the revision into the past (without sleeping).
     let current = saved.change.unwrap().rev;
     age_revision(store.pool(), work, current).await;
     let body = current_body(&store, work, 0).await;
     let saved = editor_save(&store, work, &body.replacen("Hund", "Hund leise", 1), current).await;
     assert_eq!(saved.new_reason, Some(NewReason::TimeElapsed), "seit dem letzten Schreiben mehr als 30 min");
 
-    // Eine Fortschreibung zählt als letztes Schreiben: alte Fassung, frischer Schritt → weiter fortschreiben.
+    // An amendment counts as the last write: old revision, fresh step → keep amending.
     let current = saved.change.unwrap().rev;
     let body = current_body(&store, work, 0).await;
     let amended = editor_save(&store, work, &body.replacen("dreimal", "dreimal kurz", 1), current).await;
@@ -213,7 +214,7 @@ async fn a_new_version_names_its_reason() {
         "maßgeblich ist max(Anlage, letzte Fortschreibung): der Schritt eben zählt"
     );
 
-    // policy_off: Fortschreiben im Werk ausgeschaltet.
+    // policy_off: amending switched off in the work.
     let off = RevisionPolicy { amend: false, ..RevisionPolicy::default() };
     store.set_revision_policy(work, &off, HUMAN).await.unwrap();
     let body = current_body(&store, work, 0).await;
@@ -244,14 +245,14 @@ async fn undo_restores_the_text_before_a_step_as_a_new_step_and_only_on_the_own_
     let unknown = store.amend_undo(work, 0, 1, 9, HUMAN).await;
     assert!(matches!(unknown, Err(StoreError::Refused(m)) if m.contains("Schritt")), "unbekannter Schritt");
 
-    // Nicht die aktuelle Fassung: abgelehnt.
+    // Not the current revision: rejected.
     let newer = store.save_human_mode(work, 0, &second, HUMAN, Some(1), SaveMode::New).await.unwrap().unwrap();
     let not_current = store.amend_undo(work, 0, 1, 2, HUMAN).await;
     assert!(
         matches!(not_current, Err(StoreError::Refused(m)) if m.contains("aktuellen Fassung")),
         "Rückgängig nur auf der aktuellen Fassung"
     );
-    // Fassung einer Persona als aktuelle: abgelehnt (dort gibt es ohnehin keine Schritte).
+    // Revision of a persona as the current one: rejected (there are no steps there anyway).
     let proposal = store.add_proposal(work, 0, &touched(&second, "fremdes"), "@lektor", "mock", "").await.unwrap();
     store.accept(work, 0, proposal).await.unwrap();
     let persona = store.amend_undo(work, 0, proposal, 1, HUMAN).await;
@@ -278,7 +279,7 @@ async fn proposals_remember_the_amend_state_of_their_base() {
     assert_eq!(base_of(on), Some(2), "add_proposal_on ebenso");
     assert_eq!(base_of(1), None, "die Fassung des Menschen selbst hat keinen Basis-Stand");
 
-    // Weitere Fortschreibung ändert den gemerkten Stand nicht.
+    // A further amendment does not change the remembered state.
     let body = current_body(&store, work, 0).await;
     editor_save(&store, work, &touched(&body, "drittes"), 1).await;
     let list = infos(&store, work, 0).await;
@@ -330,7 +331,7 @@ async fn deleting_a_version_or_the_work_leaves_tombstones_of_the_steps_with_the_
     let original = current_body(&store, work, 0).await;
     editor_save(&store, work, &touched(&original, "gelbes"), 1).await;
     let steps = store.amend_history(work, 0, 1).await.unwrap();
-    // Neue Fassung, dann Fassung 1 (mit Schritt) löschen.
+    // New revision, then delete revision 1 (with a step).
     store.save_human_mode(work, 0, &touched(&original, "rotes"), HUMAN, Some(1), SaveMode::New).await.unwrap();
     store.delete_revision(work, 0, 1, HUMAN).await.unwrap();
     let work_uuid: String =
@@ -342,7 +343,7 @@ async fn deleting_a_version_or_the_work_leaves_tombstones_of_the_steps_with_the_
         .unwrap();
     assert_eq!(grave, ("revision_amend".into(), Some(work_uuid.clone())), "Grabstein des Schritts mit Werk-uuid");
 
-    // Werk löschen: Schritte der jetzt aktuellen Fassung hinterlassen ebenfalls Grabsteine.
+    // Delete the work: steps of the now current revision leave tombstones as well.
     let current = infos(&store, work, 0).await.iter().find(|r| r.status == RevisionStatus::Current).unwrap().number;
     let body = current_body(&store, work, 0).await;
     editor_save(&store, work, &touched(&body, "spätes"), current).await;
@@ -361,9 +362,9 @@ async fn deleting_a_version_or_the_work_leaves_tombstones_of_the_steps_with_the_
 
 #[tokio::test]
 async fn a_stale_editor_on_an_amended_version_gives_a_new_version_instead_of_silently_overwriting() {
-    // Befund (Nachbesserung R22): Reiter A und B öffnen Fassung 1 mit Stand 0. A schreibt fort (Stand 1). B speichert
-    // danach eine kleine Änderung auf seinem alten Text. Die Basis von B ist nicht mehr aktuell (anderer Stand): Es
-    // entsteht eine neue Fassung, beide Texte bleiben als Fassungen sichtbar – die Änderung von A verschwindet nicht.
+    // Finding (follow-up fix R22): tabs A and B open revision 1 with state 0. A amends (state 1). B then saves a small
+    // change on its old text. The base of B is no longer current (different state): a new revision is created, both
+    // texts stay visible as revisions – the change of A does not disappear.
     let (_dir, store, work) = fresh().await;
     let original = current_body(&store, work, 0).await;
     let tab_a = touched(&original, "gelbes");
@@ -392,7 +393,7 @@ async fn a_stale_editor_on_an_amended_version_gives_a_new_version_instead_of_sil
     assert!(bodies.contains(&tab_b.as_str()), "der Text von B ist Fassung 2: {bodies:?}");
     assert_eq!(store.amend_history(work, 0, 1).await.unwrap().len(), 1, "Fassung 1 behält genau den Schritt von A");
 
-    // Mit dem richtigen Stand (der Editor nach dem Neuzeichnen) wird weiter fortgeschrieben.
+    // With the right state (the editor after the redraw) amending continues.
     let next = touched(&tab_b, "kleines");
     let saved = store
         .outline_save_at(work, 0, &next, Some(2), Some(0), Restructure::default(), HUMAN, SaveMode::Auto)
@@ -400,7 +401,7 @@ async fn a_stale_editor_on_an_amended_version_gives_a_new_version_instead_of_sil
         .unwrap();
     assert_eq!(saved.change.map(|c| (c.kind, c.rev)), Some((ChangeKind::Amended, 2)), "aktueller Stand: fortschreiben");
 
-    // Derselbe Fall über `revision.save` (Store::save_human_at).
+    // The same case through `revision.save` (Store::save_human_at).
     let stale = touched(&tab_b, "großes");
     let (change, reason) = store.save_human_at(work, 0, &stale, HUMAN, Some(2), Some(0), SaveMode::Auto).await.unwrap();
     assert_eq!(reason, Some(NewReason::NotOnCurrent), "revision.save mit veraltetem Stand: neue Fassung");

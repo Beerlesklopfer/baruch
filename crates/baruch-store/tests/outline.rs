@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsmanager im Store (Vertrag Runde 4, Abschnitte 1, 2 und 3c): Migration 0006 auf einer
-//! Datenbank im Stand davor, Nummern nach Werkvorlage und Einstellung, Verschieben, Ebene ändern,
-//! Umbenennen, Anlegen, Löschen, Überschriften im Text. Echte SQLite-Datei im Temp-Ordner, eigene
-//! kleine Typst-Texte (unten im Test).
+//! Outline manager in the store (contract Round 4, sections 1, 2 and 3c): migration 0006 on a database in the state
+//! before it, numbers according to work template and setting, moving, changing the level, renaming, creating, deleting,
+//! headings in the text. Real SQLite file in the temp directory, own small Typst texts (below in the test).
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -13,7 +12,7 @@ use baruch_store::{OutlineAction, Place, Restructure, Store, StoreError, WorkId}
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-/// Eigenes kleines Buch ohne Nummerierungsregel (Vorgabe 1.1).
+/// Own small book without a numbering rule (default 1.1).
 const GARDEN: &str = "\
 #set document(title: \"Gliederungsprobe\", author: \"Test\")
 #set text(lang: \"de\")
@@ -39,7 +38,7 @@ Gießen.
 Ernte.
 ";
 
-/// Eigenes Buch mit römischer Nummerierung und maskierten Überschriften.
+/// Own book with Roman numbering and escaped headings.
 const MASKED: &str = "\
 #set document(title: \"Maskiertes Buch\", author: \"Test\")
 #set heading(numbering: \"I.1\")
@@ -84,7 +83,7 @@ fn current_body(work: &Work, seq: usize) -> &str {
     &node.revisions[node.current_index().expect("aktuelle Fassung")].body
 }
 
-/// Ebene je Knoten aus Art und Elternteil (wie der Store sie sieht).
+/// Level per node from kind and parent (as the store sees it).
 fn levels(work: &Work) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for node in &work.nodes {
@@ -101,9 +100,9 @@ fn levels(work: &Work) -> Vec<u8> {
     out
 }
 
-/// Regeln nach jeder Änderung: seq lückenlos in Baumreihenfolge (prüft `load_work`), Elternteil =
-/// nächster Vorgänger mit kleinerer Ebene, genau eine aktuelle Fassung je Abschnitt, Export = Text
-/// in Baumreihenfolge und als Typst zerlegbar in dieselbe Gliederung.
+/// Rules after every change: seq without gaps in tree order (checked by `load_work`), parent = nearest predecessor with
+/// a smaller level, exactly one current revision per section, export = text in tree order and, as Typst, splittable
+/// into the same outline.
 async fn assert_consistent(store: &Store, work: WorkId) -> Work {
     let loaded = store.load_work(work).await.expect("Werk lädt (seq lückenlos, genau eine current)");
     let levels = levels(&loaded);
@@ -123,8 +122,8 @@ async fn assert_consistent(store: &Store, work: WorkId) -> Work {
         .filter_map(|(n, l)| {
             let body = current_body(&loaded, n.id);
             match *l {
-                // Teile seit Runde 14 mit Teil-Markierung (Ebene 0 beim Zerlegen); die des
-                // Beispielwerks tragen als Text noch „= Teil …“ (Altbestand, Ebene 1), leere gar nichts.
+                // Parts since Round 14 with a part marking (level 0 when splitting); those of the sample work still
+                // carry „= Teil …“ as text (legacy data, level 1), empty ones nothing at all.
                 0 if body.starts_with(&baruch_typst::part_line(&n.title)) => Some((0, n.title.clone())),
                 0 if body.starts_with("= ") => Some((1, n.title.clone())),
                 0 => None,
@@ -136,7 +135,7 @@ async fn assert_consistent(store: &Store, work: WorkId) -> Work {
     loaded
 }
 
-// ---- Migration 0006 auf einer Datenbank im Stand davor ---------------------------------------
+// ---- Migration 0006 on a database in the state before it -------------------------------------
 
 async fn database_before_0006(dir: &Path) -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite:")
@@ -156,7 +155,7 @@ async fn database_before_0006(dir: &Path) -> SqlitePool {
     pool
 }
 
-/// Beispielwerk wie die alte Saat (mit Teilen, Vorwort ohne Nummer, Beiträgen und Verweisen).
+/// Sample work like the old seed (with parts, preface without number, posts and references).
 async fn insert_sample(pool: &SqlitePool) {
     let work = sample::work();
     let work_id: i64 = sqlx::query_scalar(
@@ -249,8 +248,7 @@ async fn insert_sample(pool: &SqlitePool) {
     }
 }
 
-/// Typst-Datei so, wie der Import vor Runde 4 sie ablegte: Titel wörtlich (mit Maskierungen),
-/// Nummern „1“, „1.1“.
+/// Typst file the way the import before Round 4 stored it: titles verbatim (with escapes), numbers „1“, „1.1“.
 async fn insert_old_import(pool: &SqlitePool, source: &str, slug: &str) {
     let doc = baruch_typst::parse(source).unwrap();
     let work_id: i64 = sqlx::query_scalar(
@@ -362,8 +360,8 @@ async fn migration_0006_resolves_escaped_titles_and_loses_nothing() {
         ["", "I", "1", "2", "2.1", "2.2", "II", "3", "3.1", "4", "4.1"],
         "Beispielwerk behält seine Nummern"
     );
-    // Seit Runde 14 (Vertrag §4) projiziert der Export das Vorwort ohne Nummer als Markierung in der ersten
-    // Überschriftszeile; die Revisionstexte bleiben unverändert (oben geprüft).
+    // Since Round 14 (contract §4) the export projects the preface without number as a marking in the first heading
+    // line; the revision texts stay unchanged (checked above).
     let expected: String = sample::work()
         .nodes
         .iter()
@@ -440,7 +438,7 @@ async fn the_numbering_can_be_set_switched_off_and_taken_from_the_template_again
     assert_eq!(stored, ["I", "I.1", "II"], "node.number in der Datenbank ist mitgeschrieben");
 }
 
-// ---- Verschieben, Ebene, Umbenennen, Anlegen, Löschen ----------------------------------------
+// ---- Move, level, rename, create, delete -----------------------------------------------------
 
 #[tokio::test]
 async fn moving_a_chapter_renumbers_in_tree_order_and_keeps_the_texts() {
@@ -469,7 +467,7 @@ async fn moving_a_chapter_renumbers_in_tree_order_and_keeps_the_texts() {
 #[tokio::test]
 async fn moving_a_section_to_another_chapter_rewrites_only_heading_lines_and_post_refs() {
     let (_dir, store, work) = garden().await;
-    // Beitrag in „Herbst“ mit Verweis auf „Tiefe“ (seq 2).
+    // Post in „Herbst“ with a reference to „Tiefe“ (seq 2).
     let post = Post {
         id: 0,
         created: String::new(),
@@ -479,7 +477,7 @@ async fn moving_a_section_to_another_chapter_rewrites_only_heading_lines_and_pos
         refs: vec![TextRef { node: 2, rev: 1, quote: "Zwei Zentimeter.".into() }],
     };
     store.add_post(work, 4, &post).await.unwrap();
-    // „Aussaat“ (Ebene 2, mit „Tiefe“) unter „Herbst“: bleibt Abschnitt, „Tiefe“ wandert mit.
+    // „Aussaat“ (level 2, with „Tiefe“) below „Herbst“: stays a section, „Tiefe“ moves along.
     let done = store.outline_move(work, 1, 4, Place::Into, HUMAN).await.unwrap();
     let after = assert_consistent(&store, work).await;
     assert_eq!(titles(&after), ["Frühling", "Sommer", "Herbst", "Aussaat", "Tiefe"], "Teilbaum wandert mit");
@@ -508,7 +506,7 @@ async fn invalid_targets_are_refused_and_nothing_changes() {
         let result = store.outline_move(work, *node, *target, *place, HUMAN).await;
         assert!(matches!(result, Err(StoreError::Refused(_))), "{why}: {result:?}");
     }
-    // Ändert ein Zug die Ebene, nennt die Meldung den Weg über ← / →.
+    // If a move changes the level, the message names the way through ← / →.
     for (node, target, place) in [(2, 3, Place::Into), (1, 0, Place::Before), (3, 1, Place::Into)] {
         let refused = store.outline_move(work, node, target, place, HUMAN).await.unwrap_err().to_string();
         assert_eq!(
@@ -529,7 +527,7 @@ async fn invalid_targets_are_refused_and_nothing_changes() {
     );
     assert_eq!(count(store.pool(), "revision").await, revisions, "und legen keine Fassung an");
     assert_consistent(&store, work).await;
-    // Gegenprobe: Erst umstufen (Tiefe 3 → 2), dann geht derselbe Zug unter das andere Kapitel.
+    // Cross-check: first change the level (Tiefe 3 → 2), then the same move below the other chapter works.
     store.outline_set_level(work, 2, 2, HUMAN).await.expect("Tiefe wird Abschnitt");
     let moved = store.outline_move(work, 2, 3, Place::Into, HUMAN).await;
     assert!(moved.is_ok(), "ein Abschnitt (Ebene 2) unter ein Kapitel behält die Ebene: {moved:?}");
@@ -546,7 +544,7 @@ async fn invalid_targets_are_refused_and_nothing_changes() {
 async fn parts_never_change_their_level_and_a_point_beside_a_chapter_stays_a_chapter() {
     let (_dir, store) = fresh().await;
     let example = store.default_work().await.unwrap();
-    // Teil I (seq 1) des Beispielwerks: kein Umstufen, kein Teil unter einem Kapitel.
+    // Part I (seq 1) of the sample work: no level change, no part below a chapter.
     assert!(
         matches!(store.outline_set_level(example, 1, 1, HUMAN).await, Err(StoreError::Refused(_))),
         "Teil → Kapitel"
@@ -563,9 +561,9 @@ async fn parts_never_change_their_level_and_a_point_beside_a_chapter_stays_a_cha
     let after = assert_consistent(&store, example).await;
     assert_eq!(after.nodes[added.node].kind, baruch_core::NodeKind::Part, "neben einem Teil entsteht ein Teil");
     assert_eq!(after.nodes[added.node].number, "III", "Teile zählen römisch");
-    // Ohne Ebene gilt die Ebene des Orts: neben einem Kapitel entsteht ein Kapitel, kein Teil. (Bis
-    // Runde 13 hieß es hier „mit Werkvorlage gibt es keine Teile“; seit Runde 14 legt Ebene 0 auch dort
-    // einen Teil an – siehe round14_outline.rs.)
+    // Without a level the level of the place applies: next to a chapter a chapter is created, not a part. (Up to Round
+    // 13 it said here „mit Werkvorlage gibt es keine Teile“; since Round 14 level 0 creates a part there as well – see
+    // round14_outline.rs.)
     let masked = store.import_typst(MASKED, "maskiert.typ", HUMAN).await.unwrap().work;
     let none = store.outline_add(masked, 0, Place::After, "Kapitel", HUMAN).await.unwrap();
     assert_eq!(
@@ -632,7 +630,7 @@ async fn deleting_keeps_the_text_for_the_mirror_and_refuses_points_with_children
         matches!(refused, Err(StoreError::Refused(m)) if m.contains("Unterpunkte")),
         "mit Unterpunkten: {refused:?}"
     );
-    // Verweis aus „Sommer“ auf „Tiefe“ (seq 2) entfällt mit dem Knoten.
+    // The reference from „Sommer“ to „Tiefe“ (seq 2) is dropped with the node.
     let post = Post {
         id: 0,
         created: String::new(),
@@ -666,7 +664,7 @@ async fn deleting_keeps_the_text_for_the_mirror_and_refuses_points_with_children
         .await
         .unwrap();
     assert_eq!(orphans, 0, "keine Revisionen ohne Knoten");
-    // Der Trigger schützt weiter lebende Abschnitte.
+    // The trigger still protects living sections.
     let protect = sqlx::query("DELETE FROM revision WHERE status = 'current'").execute(store.pool()).await;
     assert!(protect.is_err(), "aktuelle Fassungen lebender Abschnitte bleiben unlöschbar");
     for seq in [3, 2, 1] {
@@ -676,7 +674,7 @@ async fn deleting_keeps_the_text_for_the_mirror_and_refuses_points_with_children
     assert!(matches!(last, Err(StoreError::Refused(_))), "das letzte Kapitel bleibt: {last:?}");
 }
 
-// ---- Überschriften im Text -------------------------------------------------------------------
+// ---- Headings in the text --------------------------------------------------------------------
 
 #[tokio::test]
 async fn checking_a_text_reports_split_and_merge_without_writing() {
@@ -715,7 +713,7 @@ async fn saving_a_changed_heading_line_adapts_title_and_level() {
     assert_eq!(levels(&after), [1, 1, 2, 1, 1], "Aussaat wird Kapitel, Tiefe wandert mit (Ebene 3 → 2)");
     assert_eq!(current_body(&after, 2), "== Tiefe\n\nZwei Zentimeter.\n\n", "Unterpunkt bekommt die neue Zeile");
     assert_eq!(outline.revisions, vec![(1, 2), (2, 2)], "gespeicherte Fassung und neue Zeile des Unterpunkts");
-    // Nur der Titel: Umbenennen ohne Umstellen.
+    // Only the title: renaming without rearranging.
     let renamed =
         store.outline_save(work, 3, "= Hochsommer\n\nGießen.\n\n", None, Restructure::default(), HUMAN).await.unwrap();
     assert_eq!(renamed.outline.unwrap().action, OutlineAction::Renamed, "nur der Titel: Umbenennen");
@@ -724,7 +722,7 @@ async fn saving_a_changed_heading_line_adapts_title_and_level() {
         "Hochsommer",
         "der Punkt heißt wie die Überschrift"
     );
-    // Reiner Text: keine Gliederungsänderung.
+    // Pure text: no change of the outline.
     let text =
         store.outline_save(work, 4, "= Herbst\n\nErnte, viel.\n", None, Restructure::default(), HUMAN).await.unwrap();
     assert!(text.outline.is_none() && text.change.is_some(), "nur der Text ändert sich");
@@ -819,13 +817,13 @@ async fn without_any_change_the_export_stays_byte_for_byte_the_source() {
     );
 }
 
-// ---- Überschriften außerhalb des Editors und feste Schlüssel ------------------------------------
+// ---- Headings outside the editor and stable keys ------------------------------------------------
 
 #[tokio::test]
 async fn accepting_an_old_proposal_with_other_headings_is_refused_and_rolled_back() {
     let (_dir, store, work) = garden().await;
-    // Ein Vorschlag aus der Zeit vor der Prüfung (direkt in der Datenbank): Sommer als Abschnitt
-    // und ein neues Kapitel „Winter“.
+    // A proposal from the time before the check (directly in the database): Sommer as a section and a new chapter
+    // „Winter“.
     let sommer = work_node_id(&store, work, 3).await;
     sqlx::query(
         "INSERT INTO revision (node_id, number, body, author_kind, author_name, model, status, note, based_on) \
@@ -878,7 +876,7 @@ async fn work_node_id(store: &Store, work: WorkId, seq: i64) -> i64 {
 
 #[tokio::test]
 async fn the_numbering_label_names_the_matching_scheme_instead_of_the_raw_pattern() {
-    // Runde 7: Der Gliederungskopf zeigte „Nummern: I|1“ roh.
+    // Round 7: the outline header showed „Nummern: I|1“ raw.
     let (_dir, store, work) = garden().await;
     let label = |info: baruch_store::NumberingInfo| info.label;
     assert_eq!(

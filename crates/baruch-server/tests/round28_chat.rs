@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Chat bedienen und Aufträge: kopieren, zitieren, bearbeiten, Verlauf, Scrollen, RFC/@alle, Schreibauftrag, Lektor als
-//! Begleiter (Runde 28, Aufgabe chat-auftrag).
+//! Using the chat, and orders: copy, quote, edit, history, scrolling, RFC/@alle, writing order, lector as companion
+//! (Round 28, task chat-auftrag).
 //!
-//! Kein Netz, kein Eliezer: Modelle nur über `ScriptedModel` (zeichnet jeden gesendeten Aufruf auf). Befunde, die ein
-//! Test braucht, legt er über `Store::finding_insert` an und setzt den Status per SQL (das Statusformular gehört
-//! befunde). Befunde aus `findings::ingest` und Statusvorschläge über `findings::rpc::propose` werden seit der
-//! Integration hart geprüft (die Ausweichzweige aus der S1-Zeit sind entfernt); den ganzen Weg bis zum Commit prüft
-//! zusätzlich `round28_abnahme.rs`. Alle Texte sind frei erfunden (ein kleiner Hafenroman).
+//! No network, no Eliezer: models only through `ScriptedModel` (records every call sent). Findings that a test needs
+//! are created through `Store::finding_insert`, and the status is set via SQL (the status form belongs to befunde).
+//! Findings from `findings::ingest` and status proposals through `findings::rpc::propose` have been checked hard since
+//! the integration (the fallback branches from the S1 time are removed); the whole way up to the commit is additionally
+//! checked by `round28_abnahme.rs`. All texts are freely invented (a small harbour novel).
 
 use crate::common;
 
@@ -34,7 +34,7 @@ struct Harbour {
     model: ScriptedModel,
     work: i64,
     slug: String,
-    /// Schlüssel von Ankunft, Mole, Zoll, Abfahrt.
+    /// Keys of Ankunft, Mole, Zoll, Abfahrt.
     keys: Vec<i64>,
 }
 
@@ -87,7 +87,7 @@ fn order(h: &Harbour, key: usize, persona: &str, mode: Mode) -> Order {
     }
 }
 
-/// Auftrag ausführen und die Ereignisse `Retry` (Persona, Grund) einsammeln.
+/// Run the order and collect the events `Retry` (persona, reason).
 async fn run_collect(h: &Harbour, order: &Order) -> (baruch_server::assist::Outcome, Vec<(String, String)>) {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Progress>();
     let outcome = baruch_server::assist::run(&h.server.state, order, Some(&tx)).await.expect("Auftrag gelingt");
@@ -150,7 +150,7 @@ async fn reject(h: &Harbour, id: i64, reason: &str) {
         .unwrap();
 }
 
-// ---- Lektor als Begleiter: Kritisch-Pflicht nur für Nathan ---------------------------------------------------------
+// ---- Lector as companion: the critical duty only for Nathan --------------------------------------------------------
 
 #[tokio::test]
 async fn lector_and_exegete_answers_without_kritisch_are_kept_but_nathan_is_asked_once_more() {
@@ -249,7 +249,7 @@ fn the_lector_default_prompt_begins_with_what_carries_and_a_custom_prompt_replac
     assert_eq!(prompts::CRITICAL_HANDLES, ["nathan"], "Kritisch-Pflicht nur für Nathan (Vertrag R28 §1.8)");
 }
 
-// ---- Entscheidungen und Chatverlauf als Daten ----------------------------------------------------------------------
+// ---- Decisions and chat history as data ----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_rejected_finding_reaches_the_model_framed_with_its_reference_and_not_to_be_reported_again() {
@@ -264,7 +264,7 @@ async fn a_rejected_finding_reaches_the_model_framed_with_its_reference_and_not_
     let elsewhere = finding(&h, 3, "@nathan", "Die Möwen sind zu laut.").await;
     reject(&h, elsewhere, "gehört zur Abfahrt").await;
     let open = finding(&h, 2, "@nathan", "Der Zöllner bleibt namenlos.").await;
-    // Über die Einfuhr (Austausch u4) ist die Persona ein beliebiger Text: hier per SQL nachgestellt.
+    // Through the import (exchange u4) the persona is an arbitrary text: reproduced here via SQL.
     let imported = finding(&h, 1, "@nathan", "Der Steg knarrt.").await;
     reject(&h, imported, "gewollt").await;
     sqlx::query("UPDATE finding SET persona = ? WHERE id = ?")
@@ -326,7 +326,7 @@ async fn a_rejected_finding_reaches_the_model_framed_with_its_reference_and_not_
     );
 }
 
-// ---- Schreibauftrag ------------------------------------------------------------------------------------------------
+// ---- Writing order -------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_write_order_makes_exactly_one_proposal_and_a_short_post_and_deletes_nothing() {
@@ -365,7 +365,7 @@ async fn a_write_order_makes_exactly_one_proposal_and_a_short_post_and_deletes_n
     assert!(task.contains("Schreibe eine vollständige neue Fassung"), "Auftrag als Vorschlag: {task}");
     assert!(task.contains(context::AS_ORDER_TASK), "mit dem Hinweis auf den Chat und die Grenzen: {task}");
     assert!(task.contains(context::RECENT_TITLE), "der Chatverlauf geht als Daten mit: {task}");
-    // [B<id>] im Auftrag (Befund desselben Abschnitts): Statusvorschlag „übernommen in Fassung n“ am Befund.
+    // [B<id>] in the order (finding of the same section): status proposal „übernommen in Fassung n“ at the finding.
     let pending = h.server.state.store.finding_get(h.work, target).await.unwrap().pending;
     assert!(pending.is_some(), "der genannte Befund bekommt einen offenen Statusvorschlag: {r}");
     assert_eq!(
@@ -374,7 +374,7 @@ async fn a_write_order_makes_exactly_one_proposal_and_a_short_post_and_deletes_n
         "den Status setzt nur der Mensch"
     );
 
-    // Ohne Auftrag bleibt es beim Beitrag.
+    // Without an order it stays a post.
     let plain = h
         .server
         .rpc("persona.chat", json!({ "work": h.work, "key": h.keys[1], "message": "@lektor Wie wirkt die Mole?" }))
@@ -383,7 +383,7 @@ async fn a_write_order_makes_exactly_one_proposal_and_a_short_post_and_deletes_n
     let nodes = h.server.state.store.load_work(h.work).await.unwrap().nodes;
     assert_eq!(nodes[1].revisions.len(), after.revisions.len(), "kein weiterer Vorschlag");
 
-    // „als Auftrag“ ohne Erwähnung und ohne Schreibverb: der Lektor schreibt.
+    // „als Auftrag“ without a mention and without a writing verb: the lector writes.
     let ordered = h
         .server
         .rpc(
@@ -399,9 +399,9 @@ async fn a_write_order_makes_exactly_one_proposal_and_a_short_post_and_deletes_n
 
 #[tokio::test]
 async fn a_write_order_proposes_adopted_only_for_findings_of_its_own_section() {
-    // Befund aus „Ankunft“, Schreibauftrag im Chat der „Mole“: Die neue Fassung n gehört zur Mole. Hätte „Ankunft“
-    // auch eine Fassung n, hinge der Vorschlag „übernommen in Fassung n“ sonst an einer fremden, unbeteiligten
-    // Fassung. Darum legt der Test in „Ankunft“ vorher eine Fassung mit derselben Nummer an.
+    // Finding from „Ankunft“, writing order in the chat of the „Mole“: the new revision n belongs to the Mole. If
+    // „Ankunft“ also had a revision n, the proposal „übernommen in Fassung n“ would otherwise hang at a foreign,
+    // uninvolved revision. Therefore the test creates a revision with the same number in „Ankunft“ beforehand.
     let h = harbour([Step::words("== Die Mole\n\nAuf der Mole brennt eine Laterne.\n")]).await;
     let nodes = h.server.state.store.load_work(h.work).await.unwrap().nodes;
     let arrival_seq = nodes[0].id;
@@ -448,8 +448,8 @@ async fn a_write_order_proposes_adopted_only_for_findings_of_its_own_section() {
 
 #[tokio::test]
 async fn over_the_view_limit_the_matrix_and_the_list_say_that_they_are_capped() {
-    // 2001 offene Befunde in einem Abschnitt (eine SQL-Anweisung statt 2001 Aufrufe): Die Matrix zählt nur die
-    // neuesten 2000, die Abzeichen alle – das sagt die Seite jetzt, statt still zu kappen.
+    // 2001 open findings in one section (one SQL statement instead of 2001 calls): the matrix counts only the newest
+    // 2000, the badges all – the page now says so instead of silently cutting off.
     let h = harbour([]).await;
     sqlx::query(
         "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2001) \
@@ -555,7 +555,7 @@ async fn rfc_works_in_a_thread_and_over_mcp_chat() {
     assert_rfc(&h.model.calls()[before..], "RFC über MCP chat");
 }
 
-// ---- Beiträge bearbeiten ---------------------------------------------------------------------------------------------
+// ---- Editing posts ---------------------------------------------------------------------------------------------------
 
 async fn mcp(h: &Harbour, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -635,7 +635,7 @@ async fn post_edit_changes_only_the_humans_own_posts_with_a_version_and_one_comm
     let node = h.server.state.store.load_work(h.work).await.unwrap().nodes[1].clone();
     assert_eq!(node.posts.iter().find(|p| p.id == persona).unwrap().body, "Was trägt: die Laternen.", "Persona bleibt");
 
-    // MCP: nur eigene Beiträge des Clients.
+    // MCP: only the client's own posts.
     let edited =
         mcp_tool(&h, &session, "post_edit", json!({ "work": h.work, "id": client_post, "body": "Notiz, verbessert." }))
             .await;
@@ -676,7 +676,7 @@ async fn a_thread_post_is_edited_with_history_but_without_a_commit() {
         .await;
     assert_eq!(refused["error"]["code"], -32000, "Persona-Beitrag im Faden nicht bearbeitbar: {refused}");
 
-    // Ohne JavaScript: Formular POST /faden/bearbeiten, danach zurück an den Beitrag.
+    // Without JavaScript: form POST /faden/bearbeiten, then back to the post.
     let form = format!("work={}&thread={thread}&id={id}&body=Wie+heißt+der+Hafen%3F", h.work);
     let (status, location) = h.server.post_form("/faden/bearbeiten", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "gespeichert, Weiterleitung");
@@ -712,7 +712,7 @@ async fn post_to_findings_leaves_the_post_unchanged() {
     let answer = h.server.rpc("post.to_findings", json!({ "work": h.work, "id": id })).await;
     let r = result(&answer);
     assert!(r["findings"].is_array() && r["attached"].is_array(), "Antwort mit findings und attached: {r}");
-    // Der Text ohne Marken wird beim manuellen Umwandeln als Ganzes ein Befund (Vertrag R28 §1.3, manual).
+    // The text without marks becomes one finding as a whole when converted manually (contract R28 §1.3, manual).
     assert!(!r["findings"].as_array().unwrap().is_empty(), "das Umwandeln ergibt mindestens einen Befund: {r}");
     for f in r["findings"].as_array().unwrap() {
         assert_eq!(f["post"], id, "jeder Befund verweist auf den Beitrag: {f}");
@@ -725,7 +725,7 @@ async fn post_to_findings_leaves_the_post_unchanged() {
     assert_eq!(after, before, "der Beitrag bleibt byte-gleich (Vertrag R28 §1.3)");
 }
 
-// ---- Chat ohne und mit JavaScript ----------------------------------------------------------------------------------------
+// ---- Chat without and with JavaScript ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_chat_works_without_javascript_and_shows_only_the_newest_posts() {
@@ -756,7 +756,7 @@ async fn the_chat_works_without_javascript_and_shows_only_the_newest_posts() {
     assert!(!pane.contains("value=\"post.edit\""), "die sichtbaren 50 sind fremde Beiträge: nichts zu bearbeiten");
     assert!(pane.contains("value=\"post.to_findings\""), "Persona-Beiträge lassen sich in Befunde umwandeln");
 
-    // Ältere nachladen (das Widget ruft post.page): vor dem ersten gezeigten Beitrag stehen noch zehn.
+    // Load older ones (the widget calls post.page): before the first post shown there are ten more.
     let first_shown: i64 = pane.split("data-before=\"").nth(1).unwrap().split('"').next().unwrap().parse().unwrap();
     let page = h.server.rpc("post.page", json!({ "work": h.work, "key": h.keys[1], "before": first_shown })).await;
     let r = result(&page);
@@ -769,7 +769,7 @@ async fn the_chat_works_without_javascript_and_shows_only_the_newest_posts() {
     assert_eq!(status, StatusCode::OK, "Chat-Historie ohne JavaScript");
     assert_eq!(history.matches("class=\"post-item\"").count(), 60, "die ganze Historie: alle 60 Beiträge");
     assert!(history.contains(&format!("id=\"post-{own}\"")) && history.contains("id=\"chat-neueste\""), "Anker");
-    assert!(history.contains("<header class=\"band\""), "gemeinsame Kopfzeile (base.html)"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    assert!(history.contains("<header class=\"band\""), "gemeinsame Kopfzeile (base.html)"); // Round 33: the header is the ribbon (header.band, not header.topbar)
 
     let (status, single) = h.server.get(&format!("/beitrag?work={}&id={own}", h.work)).await;
     assert_eq!(status, StatusCode::OK, "Beitragsseite");
@@ -783,7 +783,7 @@ async fn the_chat_works_without_javascript_and_shows_only_the_newest_posts() {
     assert!(!other.contains("value=\"post.edit\""), "Persona-Beitrag: kein Bearbeiten");
     assert!(other.contains("value=\"post.to_findings\""), "Persona-Beitrag: in Befunde umwandeln");
 
-    // Bearbeiten ohne JavaScript über /beitraege/act, zurück auf die Beitragsseite.
+    // Editing without JavaScript through /beitraege/act, back to the posts page.
     let form = format!("method=post.edit&work={}&key={}&id={own}&back=post&body=Neue+Frage", h.work, h.keys[1]);
     let (status, location) = h.server.post_form("/beitraege/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "gespeichert");
@@ -794,7 +794,7 @@ async fn the_chat_works_without_javascript_and_shows_only_the_newest_posts() {
     let (status, _) = h.server.post_form("/beitraege/act", &form).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Persona-Beitrag über das Formular abgelehnt");
 
-    // Nach einer Chat-Nachricht ohne JavaScript landet die Seite am neuesten Beitrag.
+    // After a chat message without JavaScript the page lands at the newest post.
     let form = format!("method=persona.chat&work={}&key={}&message=Notiz+ohne+Persona", h.work, h.keys[1]);
     let (status, location) = h.server.post_form("/assistenten/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Beitrag gespeichert");

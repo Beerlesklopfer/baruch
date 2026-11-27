@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme der Runde 30 (Vertrag §7) mit erfundenem Werk, ScriptedModel bzw. MockEliezer, ohne Netz.
+//! Acceptance of Round 30 (contract §7) with an invented work, ScriptedModel or MockEliezer, without network.
 //!
-//! Besitz: Integrator. Von der Schnittstelle R30-S1 leer angelegt.
+//! Owner: integrator. Created empty by the interface R30-S1.
 //!
-//! Hier steht, was erst nach dem Zusammenführen der drei Zweige zusammen geht: Suchen/Ersetzen und Querverweise
-//! (suchen-verweise) auf einem Werk, dessen Abschnitte Personas prüfen (chat-loesungen), deren Antworten der Chat
-//! gegliedert setzt (chat-bedienung) – mit den Befund-Blöcken aus dem echten `finding_spans`, den Sprungmarken aus dem
-//! echten `check_marker` und der Austausch-Rundreise u5 mit dem echten `remap_keys`. Das „Küstenbuch“ ist frei
-//! erfunden: 3 Teile, 12 Kapitel, 48 Abschnitte, 6 Personas (Vorgabe). Modelle nur über `ScriptedModel`, das jeden
-//! Aufruf aufzeichnet; keine Netzanfrage.
+//! Here is what only works together after the three branches have been merged: search/replace and cross-references
+//! (suchen-verweise) on a work whose sections are reviewed by personas (chat-loesungen), whose answers the chat renders
+//! structured (chat-bedienung) – with the finding blocks from the real `finding_spans`, the jump labels from the real
+//! `check_marker` and the exchange round trip u5 with the real `remap_keys`. The „Küstenbuch“ is freely invented: 3
+//! parts, 12 chapters, 48 sections, 6 personas (default). Models only through `ScriptedModel`, which records every
+//! call; no network request.
 
 use crate::common;
 
@@ -34,9 +34,9 @@ const PARTS: [(&str, [&str; 4]); 3] = [
     ("Vom Land", ["Deich", "Marsch", "Geest", "Heimweg"]),
 ];
 
-/// Das Küstenbuch: in jedem Kapitel und Abschnitt „Leuchtturm“ im Fließtext (60 Stellen in 60 Abschnitten); der
-/// „Hafen“ trägt dazu ein Bibelzitat mit „Leuchtturm“ (bleibt beim Ersetzen), die „Brücke“ den Text für die Personas,
-/// „Rückschau“ die Wendung „die Einleitung“ (möglicher Querverweis).
+/// The coast book: in every chapter and section „Leuchtturm“ in the running text (60 places in 60 sections); the
+/// „Hafen“ additionally carries a Bible quotation with „Leuchtturm“ (stays when replacing), the „Brücke“ the text for
+/// the personas, „Rückschau“ the phrase „die Einleitung“ (possible cross-reference).
 fn book() -> String {
     let mut out =
         String::from("#set document(title: \"Küstenbuch\", author: \"Ida Kai\")\n#set heading(numbering: \"1.1\")\n");
@@ -146,14 +146,14 @@ fn authors(posts: &[baruch_core::Post]) -> Vec<&str> {
     posts.iter().map(|p| p.author.as_str()).collect()
 }
 
-// ---- §7.1 Suchen und Ersetzen ------------------------------------------------------------------------------------
+// ---- §7.1 Search and replace -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn regex_search_matches_the_page_and_replacing_fifty_sections_is_one_commit_and_one_undo() {
     let c = coast([]).await;
     let harbour = c.key("Hafen");
 
-    // Regex über das Werk: RPC und Seite /suche ohne JavaScript zeigen dieselben Treffer.
+    // Regex across the work: RPC and the page /suche without JavaScript show the same hits.
     let found = c.ok("search.find", json!({ "q": "Leuchtturm \\d+", "re": true, "range": "work" })).await;
     let total = found["total"].as_u64().unwrap() as usize;
     assert_eq!(total, 44, "„Der Leuchtturm n“ steht in 48 Abschnitten außer den vier benannten: {found}");
@@ -162,19 +162,19 @@ async fn regex_search_matches_the_page_and_replacing_fifty_sections_is_one_commi
     assert!(html.contains("data-search-results"), "Trefferliste ohne JavaScript");
     assert_eq!(html.matches("<mark>").count(), total, "die Seite zeigt genau die Treffer der RPC");
 
-    // Zeitgrenze: ohne verbleibende Zeit bricht die Suche mit timed_out ab (Vertrag §3.1, 2000 ms je Aufruf).
+    // Time limit: without remaining time the search aborts with timed_out (contract §3.1, 2000 ms per call).
     let query = SearchQuery { q: "Leucht.+".into(), regex: true, range: SearchRange::Work, ..SearchQuery::default() };
     let late = baruch_server::search::find_within(&c.server.state, c.work, &query, Duration::ZERO).await.unwrap();
     assert!(late.timed_out && late.hits.is_empty(), "abgelaufene Zeitgrenze: timed_out, keine Treffer");
 
-    // Vorschau über das ganze Werk: 12 Kapitel und 48 Abschnitte, das Zitat im Hafen zählt nicht.
+    // Preview across the whole work: 12 chapters and 48 sections, the quotation in the Hafen does not count.
     let preview =
         c.ok("search.preview", json!({ "q": "Leuchtturm", "replacement": "Wachturm", "range": "work" })).await;
     let sections = preview["sections"].as_array().unwrap().clone();
     assert_eq!(sections.len(), 60, "jedes Kapitel und jeder Abschnitt hat eine Stelle im Fließtext");
     let hafen = sections.iter().find(|s| s["key"] == json!(harbour)).unwrap();
     assert_eq!(hafen["hits"].as_array().unwrap().len(), 1, "im Hafen nur der Fließtext, nicht das Bibelzitat");
-    // Genau 50 ersetzen: der Hafen und 49 weitere.
+    // Replace exactly 50: the Hafen and 49 more.
     let mut picks: Vec<Value> = vec![json!({ "key": harbour, "base_rev": 1, "skip": [] })];
     picks.extend(
         sections
@@ -206,7 +206,7 @@ async fn regex_search_matches_the_page_and_replacing_fifty_sections_is_one_commi
     assert!(hafen_text.contains("Der Wachturm blinkt."), "Fließtext ersetzt: {hafen_text}");
     assert!(hafen_text.contains("„Ein Leuchtturm ist mein Licht“"), "das Bibelzitat bleibt unverändert: {hafen_text}");
 
-    // Rückgängig ohne JavaScript über /suche/act: ein Commit, alle wieder auf Fassung 1.
+    // Undo without JavaScript through /suche/act: one commit, all back at revision 1.
     let batch = done["batch"]["id"].as_i64().unwrap();
     let (status, location) = c
         .server
@@ -227,7 +227,7 @@ async fn regex_search_matches_the_page_and_replacing_fifty_sections_is_one_commi
     );
 }
 
-// ---- §7.2 Querverweise --------------------------------------------------------------------------------------------
+// ---- §7.2 Cross-references ----------------------------------------------------------------------------------------
 
 async fn pdf_bytes(c: &Coast) -> Vec<u8> {
     let _serial = common::PDF_SERIAL.lock().await;
@@ -248,7 +248,7 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
     let intro = c.key("Einleitung");
     let watch = c.key("Wachturm");
 
-    // Ziel über xref.targets suchen, Verweis mit Seitenzahl einsetzen und als Mensch speichern.
+    // Search the target through xref.targets, insert a reference with page number and save as the human.
     let targets = c.ok("xref.targets", json!({ "q": "Einl" })).await;
     let target = targets["targets"]
         .as_array()
@@ -265,12 +265,12 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
     let saved = c.ok("revision.save", json!({ "key": watch, "based_on": 1, "body": body })).await;
     assert_eq!(saved["rev"], 2, "neue Fassung vom Menschen: {saved}");
 
-    // Export trägt die Sprungmarken; die Datenbank nicht.
+    // The export carries the jump labels; the database does not.
     let export = c.ok("work.export", json!({})).await["typst"].as_str().unwrap().to_owned();
     assert!(export.contains(&format!("= Einleitung <k{intro}>")), "Export mit Sprungmarke an der Überschrift");
     assert!(!c.body(intro).await.contains("<k"), "der Text in der Datenbank bleibt ohne Sprungmarke");
 
-    // PDF: interner Link und „S. n“ (pdftotext).
+    // PDF: internal link and „S. n“ (pdftotext).
     let pdf = pdf_bytes(&c).await;
     let raw = String::from_utf8_lossy(&pdf);
     assert!(raw.contains("/Link") && (raw.contains("/GoTo") || raw.contains("/Dest")), "interner Link im PDF");
@@ -287,7 +287,7 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
         _ => eprintln!("ÜBERSPRUNGEN: pdftotext fehlt (nur der Link im PDF geprüft)"),
     }
 
-    // Einlesen des Exports als neues Werk: der Verweis zeigt auf die neue Einleitung.
+    // Importing the export as a new work: the reference points to the new Einleitung.
     let report = c.server.import(&export.replace("Küstenbuch", "Küstenbuch zwei"), "kueste-zwei.typ").await;
     let copy = c.server.state.store.load_work(report.work).await.unwrap();
     let new_intro = copy.nodes.iter().find(|n| n.title == "Einleitung").unwrap().key;
@@ -298,7 +298,7 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
     assert_eq!(uses[0].key, new_intro, "umgeschlüsselt auf die neue Einleitung");
     assert!(uses[0].page, "mit Seitenzahl-Zusatz");
 
-    // Austausch u5 in eine zweite Instanz (dort sind schon Schlüssel vergeben): Verweis umgeschlüsselt.
+    // Exchange u5 into a second instance (keys are already assigned there): reference re-keyed.
     let xml = c.ok("work.exchange_export", json!({ "format": "xml" })).await["xml"].as_str().unwrap().to_owned();
     let other = common::open().await;
     other.import_garden().await;
@@ -317,7 +317,7 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
     assert_ne!(there_intro, intro, "andere Instanz, anderer Schlüssel der Einleitung");
     assert_eq!(find_xrefs(body)[0].key, there_intro, "Austausch u5 schlüsselt den Verweis um: {body}");
 
-    // Mögliche Querverweise: „die Einleitung“ in der Rückschau; umwandeln ohne JavaScript, eine neue Fassung.
+    // Possible cross-references: „die Einleitung“ in the Rückschau; convert without JavaScript, one new revision.
     let review = c.key("Rückschau");
     let candidates = c.ok("xref.candidates", json!({ "key": review })).await;
     let list = candidates["candidates"].as_array().unwrap();
@@ -334,7 +334,7 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
     assert_eq!(c.node(review).await.current_number(), Some(2), "neue Fassung vom Menschen");
     assert_eq!(find_xrefs(&c.body(review).await)[0].key, intro, "Verweis eingesetzt");
 
-    // Ein kaputter Verweis steht in der Druckprüfung der Satz-Seite.
+    // A broken reference is listed in the print check of the typesetting page.
     let broken = format!(
         "== Brücke\n\nDie Brücke trägt drei Laternen. Siehe {}.\n",
         xref_snippet(999_999, "das Nirgendwo", false)
@@ -346,7 +346,7 @@ async fn a_reference_becomes_an_internal_pdf_link_with_page_and_survives_import_
     assert!(page.contains("data-xref-broken"), "auch auf /verweise");
 }
 
-// ---- §7.3 RFC, Lösungen, Varianten --------------------------------------------------------------------------------
+// ---- §7.3 RFC, solutions, variants --------------------------------------------------------------------------------
 
 const EXEGET: &str = "Kritisch: „drei Laternen“ wirkt schwer.\n- statt: „drei Laternen“\n- besser: „zwei Laternen“\n\
 Kritisch: „über den Fluss“ ist blass.\n- statt: „über den Fluss“\n- besser: „über den stillen Fluss“";
@@ -374,7 +374,7 @@ async fn the_rfc_checks_one_basis_asks_for_missing_solutions_and_solutions_becom
     for handle in &others {
         match handle.as_str() {
             "@exeget" => c.model.push(Step::words(EXEGET)),
-            // Nathan bleibt zweimal ohne Lösung: einmal nachgefordert, danach der Vermerk.
+            // Nathan stays without a solution twice: demanded once more, after that the note.
             "@nathan" => {
                 c.model.push(Step::words(NATHAN));
                 c.model.push(Step::words(NATHAN));
@@ -393,7 +393,7 @@ async fn the_rfc_checks_one_basis_asks_for_missing_solutions_and_solutions_becom
     }
     assert!(user(calls.last().unwrap()).contains(context::RFC_TASK), "der Lektor schließt mit „Mein Vorschlag:“");
 
-    // Jede kritische Zeile hat eine Lösung oder den Vermerk; alle Beiträge nennen dieselbe Prüfgrundlage.
+    // Every critical line has a solution or the note; all posts name the same review basis.
     let posts = c.posts(bridge).await;
     let nathan = posts.iter().find(|p| p.author == "@nathan").unwrap();
     assert!(nathan.body.contains("(ohne Lösungsvorschlag)"), "Vermerk nach der Nachforderung: {}", nathan.body);
@@ -409,7 +409,7 @@ async fn the_rfc_checks_one_basis_asks_for_missing_solutions_and_solutions_becom
         "der Kopf „geprüft: …“ steht sichtbar an jedem Persona-Beitrag"
     );
 
-    // Lektor „Mein Vorschlag“ → genau ein Sammel-Vorschlag.
+    // Lector „Mein Vorschlag“ → exactly one summary proposal.
     let proposals = answer["proposals"].as_array().unwrap();
     assert_eq!(proposals.len(), 1, "ein Sammel-Vorschlag: {answer}");
     let node = c.node(bridge).await;
@@ -417,7 +417,7 @@ async fn the_rfc_checks_one_basis_asks_for_missing_solutions_and_solutions_becom
     assert!(rev.note.starts_with("Mein Vorschlag von @lektor (Beitrag "), "Notiz: {}", rev.note);
     assert!(rev.body.contains("zwei Laternen") && rev.body.contains("hält Wache"), "beide Lösungen: {}", rev.body);
 
-    // „Als Vorschlag übernehmen“ mit zwei Lösungen aus dem Beitrag des Exegeten, ohne JavaScript.
+    // „Als Vorschlag übernehmen“ with two solutions from the post of the exegete, without JavaScript.
     let exeget = posts.iter().find(|p| p.author == "@exeget").unwrap().id;
     assert!(html.contains("Als Vorschlag übernehmen"), "Knopf am Befund-Block bzw. an der Lösungsliste");
     let (status, location) = c
@@ -441,14 +441,14 @@ async fn the_rfc_checks_one_basis_asks_for_missing_solutions_and_solutions_becom
         assert_eq!(f.pending.and_then(|p| p.adopted_rev), Some(adopted.number), "Statusvorschlag „übernommen in …“");
     }
 
-    // „Lektor, … Varianten“ im Chat → 2 Geschwister-Vorschläge mit Etikett.
+    // „Lektor, … Varianten“ in the chat → 2 sibling proposals with a label.
     c.model.push(variant("knapp", &findings, "zwei Laternen über den Fluss."));
     c.model.push(variant("gründlich", &findings, "zwei Laternen über den stillen Fluss."));
     let chatted =
         c.ok("persona.chat", json!({ "key": bridge, "message": "Lektor, setze die Lösungen als Varianten um." })).await;
     assert_eq!(chatted["proposals"].as_array().unwrap().len(), 2, "zwei Varianten aus dem Chat: {chatted}");
 
-    // solution.variants count 3 → A/B/C auf gleicher Basis; Vergleich nebeneinander; übrige verwerfen.
+    // solution.variants count 3 → A/B/C on the same base; comparison side by side; discard the rest.
     for (summary, sentence) in [("eins", "eine Laterne."), ("zwei", "zwei Laternen."), ("drei", "keine Laterne.")] {
         c.model.push(variant(summary, &findings, sentence));
     }
@@ -503,7 +503,7 @@ async fn the_chat_addresses_relays_lives_repeats_deletes_and_sets_safe_blocks() 
     c.model.push(Step::words(&lector_text));
     c.model.push(Step::words("Die Stelle passt."));
 
-    // „Lektor, …“ ohne @ ruft den Lektor; seine Zeile „@schrift: …“ führt zu genau einer Antwort von @schrift.
+    // „Lektor, …“ without @ calls the lector; its line „@schrift: …“ leads to exactly one answer from @schrift.
     let chatted = c.ok("persona.chat", json!({ "key": bridge, "message": "Lektor, was meinst du?" })).await;
     assert!(chatted["errors"].as_array().unwrap().is_empty(), "keine Fehler: {chatted}");
     let posts = c.posts(bridge).await;
@@ -513,7 +513,7 @@ async fn the_chat_addresses_relays_lives_repeats_deletes_and_sets_safe_blocks() 
     let meta = c.server.state.store.post_meta(c.work, &[relay]).await.unwrap().remove(&relay).unwrap();
     assert_eq!((meta.relay_from.as_deref(), meta.reply_to), (Some("@lektor"), Some(lector)), "Relay-Metadaten");
 
-    // Gegliederte Blöcke, geprüfte Sprungmarke als Link, ungeprüfte als Text, Befund-Block mit Lösung.
+    // Structured blocks, checked jump label as a link, unchecked one as text, finding block with solution.
     let html = c.page(&format!("/?work={}&key={bridge}", c.work)).await;
     assert!(
         html.contains(&format!("antwortet auf <a href=\"#post-{lector}\">Beitrag {lector}</a> von @lektor")),
@@ -534,13 +534,13 @@ async fn the_chat_addresses_relays_lives_repeats_deletes_and_sets_safe_blocks() 
     let block = &block[..block.find("</form>").unwrap_or(block.len())];
     assert_eq!(block.matches("wirken schwer").count(), 1, "der Befundtext steht im Block genau einmal");
 
-    // <script> aus der Nachricht des Menschen wird maskiert (keine Persona angesprochen, kein Modellaufruf).
+    // <script> from the message of the human is escaped (no persona addressed, no model call).
     c.ok("persona.chat", json!({ "key": bridge, "message": "Notiz <script>alert(1)</script>" })).await;
     let html = c.page(&format!("/?work={}&key={bridge}", c.work)).await;
     assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;") && !html.contains("<script>alert"), "maskiert");
     assert_eq!(c.model.calls().len(), 2, "die Notiz ruft niemanden");
 
-    // Live: post.since meldet „@lektor schreibt …“ und danach den neuen Beitrag.
+    // Live: post.since reports „@lektor schreibt …“ and after that the new post.
     c.model.push(Step::Wait { before: vec![], then: Box::new(Step::words("Hinweis: Die Brücke hält.")) });
     let app = c.server.app.clone();
     let (work, key) = (c.work, bridge);
@@ -564,7 +564,7 @@ async fn the_chat_addresses_relays_lives_repeats_deletes_and_sets_safe_blocks() 
     let fresh: Vec<&str> = since["posts"].as_array().unwrap().iter().map(|p| p["author"].as_str().unwrap()).collect();
     assert_eq!(fresh, ["Autor", "Autor", "@lektor"], "neue Beiträge ohne Neuladen: Notiz, Frage, Antwort");
 
-    // ↻ nach einer Korrektur: repeat_of und „erledigt?“-Vorschlag für den verschwundenen kritischen Befund.
+    // ↻ after a correction: repeat_of and the proposal „erledigt?“ for the critical finding that disappeared.
     let filter = baruch_store::FindingFilter { post: Some(lector), ..Default::default() };
     let critical = c
         .server
@@ -592,7 +592,7 @@ async fn the_chat_addresses_relays_lives_repeats_deletes_and_sets_safe_blocks() 
     let f = c.server.state.store.finding_get(c.work, critical).await.unwrap();
     assert_eq!(f.pending.map(|p| p.status), Some(baruch_store::FindingStatus::Done), "„erledigt?“ vorgeschlagen");
 
-    // ✕ löscht mit genau einem Commit.
+    // ✕ deletes with exactly one commit.
     let before = c.subjects().len();
     let (status, _) = c
         .server
@@ -603,7 +603,7 @@ async fn the_chat_addresses_relays_lives_repeats_deletes_and_sets_safe_blocks() 
     assert_eq!(c.subjects().len(), before + 1, "genau ein Commit");
 }
 
-// ---- §7.5 Ohne JavaScript: neue schreibende Formulare lehnen fremde Herkunft ab --------------------------------
+// ---- §7.5 Without JavaScript: new writing forms reject a foreign origin ----------------------------------------
 
 #[tokio::test]
 async fn every_new_form_refuses_a_foreign_origin() {
@@ -625,7 +625,7 @@ async fn every_new_form_refuses_a_foreign_origin() {
     }
 }
 
-// ---- Verdrahtung des Integrators: MCP `ask_persona` mit `basis`, `post_delete {thread}` nur eigene ---------------
+// ---- Wiring by the integrator: MCP `ask_persona` with `basis`, `post_delete {thread}` own ones only --------------
 
 async fn mcp(c: &Coast, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -645,7 +645,7 @@ async fn tool(c: &Coast, session: &str, name: &str, arguments: Value) -> Value {
     mcp(c, Some(session), message).await.1["result"].clone()
 }
 
-/// Inhalt einer MCP-Werkzeugantwort als JSON.
+/// Content of an MCP tool answer as JSON.
 fn content(result: &Value) -> Value {
     serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap_or(Value::Null)
 }
@@ -667,7 +667,7 @@ async fn mcp_ask_persona_names_the_basis_and_post_delete_removes_only_own_thread
     assert!(!hint.contains("noch Stubs"), "der Hinweis nennt text_search/solution_variants nicht mehr als Stub");
     let session = headers.get("mcp-session-id").unwrap().to_str().unwrap().to_owned();
 
-    // ask_persona: die geprüfte Fassung steht als `basis` in der Antwort (wie bei der RPC-Methode).
+    // ask_persona: the reviewed revision is in the answer as `basis` (as with the RPC method).
     let asked = tool(
         &c,
         &session,
@@ -680,7 +680,7 @@ async fn mcp_ask_persona_names_the_basis_and_post_delete_removes_only_own_thread
     assert_eq!(asked["basis"]["rev"], 1, "Prüfgrundlage Fassung 1: {asked}");
     assert_eq!(asked["basis"]["label"], "geprüft: aktuelle Fassung 1", "Kopfzeile wie im Beitrag: {asked}");
 
-    // Faden ohne Abschnitt: der Mensch fragt, der Lektor antwortet; MCP darf nur eigene Fadenbeiträge löschen.
+    // Thread without a section: the human asks, the lector answers; MCP may delete only its own thread posts.
     let posted = c.ok("thread.post", json!({ "message": "@lektor Hallo?" })).await;
     let thread = posted["thread"].as_i64().unwrap_or_else(|| panic!("Faden: {posted}"));
     let read = c.server.state.store.thread_get(c.work, thread).await.unwrap();

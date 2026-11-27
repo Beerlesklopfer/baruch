@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 9, Integrator: Ende-zu-Ende über den ganzen Router, nachdem menu, settings und connections
-//! zusammengeführt sind. Die Teams haben ihre Teile je für sich geprüft (connections die Seiten direkt
-//! über die Render-Funktionen); hier läuft alles durch den Rahmen der Einstellungen, die Kopfzeile aus
-//! `base.html` und die Formulare ohne JavaScript – so, wie das Popup (`settings.ts`) und der Browser ohne
-//! Skript sie sehen. Alle Testtexte frei erfunden.
+//! Round 9, integrator: end to end through the whole router after menu, settings and connections have been merged. The
+//! teams have checked their parts each for themselves (connections the pages directly through the render functions);
+//! here everything runs through the frame of the settings, the header from `base.html` and the forms without JavaScript
+//! – the way the popup (`settings.ts`) and the browser without script see them. All test texts freely invented.
 
 use crate::common;
 
@@ -18,7 +17,7 @@ use axum::routing::get;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-/// Eindeutiges Test-Geheimnis (Speicher-Schlüsselbund `MemorySecrets` aus `AppState::open`).
+/// Unique test secret (in-memory keyring `MemorySecrets` from `AppState::open`).
 const SECRET: &str = "Qx7-integrator-geheim-41b2-Probe";
 
 fn form_escape(text: &str) -> String {
@@ -30,7 +29,7 @@ fn form_escape(text: &str) -> String {
         .collect()
 }
 
-/// Formular schicken: Status, Kopfzeilen, Text.
+/// Send a form: status, headers, text.
 async fn form(server: &common::Server, uri: &str, body: &str) -> (StatusCode, HeaderMap, String) {
     let request = Request::post(uri)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -43,14 +42,14 @@ fn location(headers: &HeaderMap) -> String {
     headers.get(header::LOCATION).and_then(|v| v.to_str().ok()).expect("Weiterleitung mit Location").to_owned()
 }
 
-/// Ziel einer Weiterleitung ohne Sprungmarke, als Fragment des Popups (`settings.ts` hängt
-/// `fragment=1` an).
+/// Target of a redirect without the fragment identifier, as a fragment of the popup (`settings.ts` appends
+/// `fragment=1`).
 fn as_fragment(location: &str) -> String {
     let path = location.split('#').next().unwrap();
     if path.contains('?') { format!("{path}&fragment=1") } else { format!("{path}?fragment=1") }
 }
 
-/// Eliezer zum Nachbilden auf 127.0.0.1:0: `/v1/models` nur mit dem richtigen Bearer.
+/// Eliezer as a mock on 127.0.0.1:0: `/v1/models` only with the right bearer.
 async fn fake_eliezer() -> String {
     let app = Router::new().route(
         "/v1/models",
@@ -98,7 +97,7 @@ async fn every_settings_page_loads_as_popup_fragment_and_as_page_without_javascr
         let (status, html) = server.get(&format!("/einstellungen/{slug}?work={work}")).await;
         assert_eq!(status, StatusCode::OK, "{slug}: Seite ohne JavaScript lädt: {html}");
         assert_eq!(
-            html.matches("<header class=\"band\"").count(), // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+            html.matches("<header class=\"band\"").count(), // Round 33: the header is the ribbon (header.band instead of header.topbar)
             1,
             "{slug}: genau die gemeinsame Kopfzeile aus base.html"
         );
@@ -109,7 +108,7 @@ async fn every_settings_page_loads_as_popup_fragment_and_as_page_without_javascr
             fragment.starts_with("<div class=\"settings-frame\"") && fragment.contains(&body),
             "{slug}: das Popup bekommt denselben Rahmen mit demselben Inhalt: {fragment}"
         );
-        assert!(!fragment.contains("<header class=\"band\""), "{slug}: im Fragment keine zweite Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+        assert!(!fragment.contains("<header class=\"band\""), "{slug}: im Fragment keine zweite Kopfzeile"); // Round 33: the header is the ribbon (header.band, not header.topbar)
         let rendered = server.rpc("settings.render", json!({ "page": slug, "work": work })).await;
         assert!(
             rendered["result"]["html"].as_str().is_some_and(|h| h.contains(&body)),
@@ -210,7 +209,7 @@ async fn saving_in_display_and_assistants_takes_effect_on_the_next_page() {
     let (_, _, html) = server.send(request).await;
     assert!(html.contains("data-theme=\"dark\""), "die Arbeitsseite zeichnet das gespeicherte Thema");
 
-    // Runde 10: Vorgabe ist fest @lektor; der Lektor folgt dem Kontext erst mit „automatisch“.
+    // Round 10: the default is fixed @lektor; the lector follows the context only with „automatisch“.
     server.rpc("persona.set_lector", json!({ "mode": "auto" })).await;
     let (status, _, _) = form(
         &server,

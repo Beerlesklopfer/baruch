@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 24, Aufgabe „webseite“ (Schnittstelle R24-S1): Betrieb hinter einem Reverse-Proxy – erlaubte Rechnernamen
-//! (`--allow-host`, `guard::AllowedHosts`), `/mcp` unter einem zusätzlichen Namen nur mit Token, leere
-//! MultiGPT-Vorgabe.
+//! Round 24, task „webseite“ (interface R24-S1): operation behind a reverse proxy – allowed host names (`--allow-host`,
+//! `guard::AllowedHosts`), `/mcp` under an additional name only with a token, empty MultiGPT default.
 //!
-//! Der Proxy ist nachgestellt: Anfragen an den Router mit der `Host`-Kopfzeile, die ein Proxy durchreicht, und
-//! Loopback als Gegenstelle (`ConnectInfo`), denn der Proxy läuft auf demselben Rechner. Namen sind erfunden
-//! (`*.example`, `*.example.org`); kein Netz, kein Eliezer, kein MultiGPT.
+//! The proxy is simulated: requests to the router with the `Host` header that a proxy passes on, and loopback as the
+//! peer (`ConnectInfo`), because the proxy runs on the same machine. Names are invented (`*.example`, `*.example.org`);
+//! no network, no Eliezer, no MultiGPT.
 
 use crate::common;
 
@@ -25,7 +24,7 @@ use serde_json::{Value, json};
 const NAME: &str = "baruch.example.org";
 const LOOPBACK: ([u8; 4], u16) = ([127, 0, 0, 1], 40000);
 
-/// Server wie nach `serve --allow-host <names>` (leer = ohne die Angabe).
+/// Server as after `serve --allow-host <names>` (empty = without the option).
 pub(crate) async fn open_allowing(names: &str) -> common::Server {
     let data = tempfile::tempdir().unwrap();
     open_in(data, names).await
@@ -38,19 +37,19 @@ async fn open_in(data: tempfile::TempDir, names: &str) -> common::Server {
     common::Server { app: baruch_server::router(state.clone()), state, data }
 }
 
-/// `GET /` mit dieser `Host`-Kopfzeile: Status und Text.
+/// `GET /` with this `Host` header: status and text.
 async fn get_as(server: &common::Server, host: &str) -> (StatusCode, String) {
     let request = Request::get("/").header(header::HOST, host).body(Body::empty()).unwrap();
     let (status, _, body) = server.send(request).await;
     (status, body)
 }
 
-/// HTML-Escaping der Vorlagen (minijinja).
+/// HTML escaping of the templates (minijinja).
 fn esc(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('/', "&#x2f;")
 }
 
-/// `POST /rpc` (`work.export`, nur lesend) wie aus einem Browser: `Host` und `Origin`.
+/// `POST /rpc` (`work.export`, read-only) as from a browser: `Host` and `Origin`.
 async fn rpc_as(server: &common::Server, host: &str, origin: &str) -> (StatusCode, String) {
     let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "work.export", "params": {} });
     let mut request = Request::post("/rpc")
@@ -64,7 +63,7 @@ async fn rpc_as(server: &common::Server, host: &str, origin: &str) -> (StatusCod
     (status, text)
 }
 
-/// MCP `ping` an `/mcp` von Loopback (der Proxy bzw. ein Programm auf dem eigenen Rechner).
+/// MCP `ping` to `/mcp` from loopback (the proxy or a program on the same machine).
 pub(crate) async fn mcp_ping(server: &common::Server, host: Option<&str>, token: Option<&str>) -> (StatusCode, String) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
     if let Some(host) = host {
@@ -86,7 +85,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-// ---- Host-Regel ------------------------------------------------------------------------------------------
+// ---- Host rule -------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_allow_host_a_name_stays_refused() {
@@ -163,7 +162,7 @@ async fn a_post_passes_the_origin_check_only_if_the_proxy_keeps_the_host() {
     let (status, body) = rpc_as(&server, "baruch.example.org:8443", "https://baruch.example.org:8443").await;
     assert_eq!(status, StatusCode::OK, "auch mit Port, wenn er in Origin und Host gleich ist: {body}");
 
-    // Der Proxy schreibt Host um (nginx ohne `proxy_set_header Host $host`): Origin passt nicht mehr zu Host.
+    // The proxy rewrites Host (nginx without `proxy_set_header Host $host`): Origin no longer matches Host.
     let (status, body) = rpc_as(&server, "127.0.0.1:8765", "https://baruch.example.org").await;
     assert_eq!(status, StatusCode::FORBIDDEN, "umgeschriebener Host: same_origin lehnt ab (403): {body}");
     assert!(body.contains("Origin passt nicht zu Host"), "die Meldung nennt den Grund: {body}");
@@ -266,7 +265,7 @@ async fn the_mcp_page_shows_the_command_with_token_under_an_extra_name() {
     );
 }
 
-// ---- Kommandozeile ---------------------------------------------------------------------------------------
+// ---- Command line ----------------------------------------------------------------------------------------
 
 #[test]
 fn parse_refuses_invalid_names_with_a_message() {
@@ -293,7 +292,7 @@ fn parse_refuses_invalid_names_with_a_message() {
 #[test]
 fn the_program_refuses_an_invalid_allow_host_before_it_starts() {
     let data = tempfile::tempdir().unwrap();
-    // Erst der Befehl samt `--data`, dann die geprüften Angaben (so steht `--allow-host` auch am Ende).
+    // First the command with `--data`, then the options under test (so `--allow-host` also stands at the end).
     let run = |command: &[&str], args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_baruch-server"))
             .args(command)
@@ -327,7 +326,7 @@ fn the_program_refuses_an_invalid_allow_host_before_it_starts() {
 
 #[test]
 fn the_program_prints_its_version_and_starts_nothing() {
-    // Nachtrag PM-Abschluss R24 (Gutachten): `--version`/`-V` war nur von Hand geprüft.
+    // Addendum PM close R24 (review): `--version`/`-V` had only been checked by hand.
     let home = tempfile::tempdir().unwrap();
     for flag in ["--version", "-V"] {
         let out = Command::new(env!("CARGO_BIN_EXE_baruch-server"))
@@ -372,7 +371,7 @@ fn the_environment_variable_is_checked_like_the_argument() {
     assert!(!data.path().join("baruch.sqlite").exists(), "vor dem Fehler wurde kein Datenordner angelegt");
 }
 
-// ---- MultiGPT-Vorgabe ------------------------------------------------------------------------------------
+// ---- MultiGPT default ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_new_database_has_no_multigpt_address_and_shows_only_a_placeholder() {
@@ -432,7 +431,7 @@ async fn without_an_address_multigpt_is_not_set_up_and_nothing_is_asked() {
         "die Meldung nennt den Grund und den Ort der Einstellung: {refused}"
     );
 
-    // Auch wenn das Werk den Weg MultiGPT gewählt hat: Die Suche meldet ihn als „aus“ und fragt niemanden.
+    // Even if the work has chosen the way MultiGPT: the search reports it as „aus“ and asks nobody.
     let work = server.state.default_work().await.unwrap();
     ok(&server, "connection.rag_set", json!({ "work": work, "ways": ["lancedb", "multigpt"] })).await;
     let found =

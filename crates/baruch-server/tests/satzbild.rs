@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild-Feinschliff (Vertrag Runde 6, „satzbild“) im Server: Szenen und Labels über RPC, Bilder
-//! in Inseln mit Adresse zur Bilderseite, Darstellung nur aus Regeln der obersten Ebene, Stil und
-//! Widget ohne leere Fläche im Quelltext, Vorgabe Satzbild nach jedem Neuzeichnen, ohne JavaScript nur
-//! das Textfeld. Alle Texte frei erfunden.
+//! Typeset view polish (contract Round 6, „satzbild“) in the server: scenes and labels over RPC, images in islands with
+//! the address of the images page, presentation only from rules of the top level, style and widget without an empty
+//! area in source text mode, default typeset view after every redraw, without JavaScript only the text field. All texts
+//! freely invented.
 
 use crate::common;
 
@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use baruch_server::wysiwyg;
 use serde_json::{Value, json};
 
-/// Frei erfundenes Werk mit Szene, Label an der Überschrift und Abbildung.
+/// Freely invented work with scene, label at the heading and figure.
 const BOOK: &str = r##"#set text(size: 10.5pt)
 #show footnote: set text(size: 8.5pt)
 #let f() = { set par(first-line-indent: 0pt) }
@@ -32,7 +32,8 @@ async fn call(server: &common::Server, work: i64, method: &str, params: Value) -
     wysiwyg::call(&server.state, work, method, params).await.map_err(|e| (e.code, e.message))
 }
 
-/// Erfundenes Bild zum Pfad anlegen (seit Runde 11 zeigt das Satzbild ohne Bild im Werk „Bild fehlt“).
+/// Create an invented image for the path (since Round 11 the typeset view shows „Bild fehlt“ without the image in the
+/// work).
 async fn add_image(server: &common::Server, work: i64, file_name: &str, path: &str) {
     let svg =
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"><rect width=\"4\" height=\"4\"/></svg>\n";
@@ -73,7 +74,7 @@ async fn parse_shows_scene_label_and_the_image_with_the_address_of_the_image_pag
         html.contains(&format!("<img class=\"ws-image\" {src} alt=\"\" loading=\"eager\">")),
         "Bild mit Adresse der Bilderseite: {html}"
     );
-    // Runde 7: Die Abbildung erscheint als Bild mit Unterschrift, nicht als Rohtext.
+    // Round 7: the figure appears as an image with caption, not as raw text.
     assert!(
         html.contains("<div class=\"ws-block ws-figure\" data-b=\"2\" data-kind=\"island\" data-image=\"1\" contenteditable=\"false\""),
         "die Bildinsel bleibt nicht bearbeitbar und ist als Abbildung markiert: {html}"
@@ -145,14 +146,14 @@ async fn without_javascript_only_the_text_field_is_there_and_the_area_stays_hidd
     let start = html.find("data-widget=\"wysiwyg\"").expect("Satzbild-Bereich vorhanden");
     let tag = &html[html[..start].rfind('<').unwrap()..start + html[start..].find('>').unwrap()];
     assert!(!tag.contains("data-ws-open"), "ohne JavaScript nie „offen“: {tag}");
-    // Wunsch 2026-11-06: Der Bereich umfasst Werkzeugleiste, Blatt und Statuszeile; ohne JavaScript verborgen
-    // sind Werkzeugleiste, Satzbild und sein Hinweis – das Textfeld und „Speichern“ bleiben.
+    // Wish 2026-11-06: the area encloses toolbar, sheet and status line; hidden without JavaScript are toolbar, typeset
+    // view and its hint – the text field and „Speichern“ stay.
     for hidden in ["data-edit-toolbar hidden>", "<div class=\"ws-wrap\" data-ws-wrap hidden>", "data-ws-hint hidden>"] {
         assert!(html.contains(hidden), "ohne JavaScript verborgen: {hidden}");
     }
     assert!(html.contains("<textarea name=\"body\""), "das Textfeld ist da: {html}");
-    // Neuzeichnen per ui.render (Klick in der Gliederung): derselbe Bereich, wieder verborgen, bis das
-    // Widget ihn öffnet; kein Quelltext-Zustand kommt vom Server.
+    // Redraw via ui.render (click in the outline): the same area, hidden again until the widget opens it; no source
+    // text state comes from the server.
     let rendered = server.rpc("ui.render", json!({ "work": work, "node": 3 })).await;
     let editor =
         rendered["result"]["editor"].as_str().unwrap_or_else(|| panic!("ui.render liefert den Editor: {rendered}"));
@@ -167,8 +168,8 @@ async fn without_javascript_only_the_text_field_is_there_and_the_area_stays_hidd
         let at = css.find(&format!("{selector} {{")).unwrap_or_else(|| panic!("Regel {selector} fehlt: {css}"));
         css[at..at + css[at..].find('}').unwrap()].to_owned()
     };
-    // Im Quelltext ist das Satzbild ganz weg (keine leere Fläche über dem Textfeld), das Textfeld füllt das
-    // Blatt; offen füllt das Satzbild das Blatt.
+    // In source text mode the typeset view is gone entirely (no empty area above the text field), the text field fills
+    // the sheet; when open the typeset view fills the sheet.
     let wrap = rule(".ws-wrap[hidden]");
     assert!(wrap.contains("display: none"), "verborgenes Satzbild nimmt keinen Platz: {wrap}");
     let area = rule(".editor-form textarea");
@@ -199,7 +200,7 @@ fn the_widget_opens_the_satzbild_by_default_and_only_an_explicit_choice_keeps_th
 
 #[test]
 fn the_widgets_check_titles_like_the_server_and_never_pull_a_paragraph_into_a_heading() {
-    // Runde 7: dieselben Meldungen wie `baruch_store::check_title`; maßgeblich bleibt der Server.
+    // Round 7: the same messages as `baruch_store::check_title`; the server stays authoritative.
     for name in ["wysiwyg.js", "outline.js"] {
         let js = script(name);
         for message in [
@@ -219,7 +220,7 @@ fn the_widgets_check_titles_like_the_server_and_never_pull_a_paragraph_into_a_he
 
 #[tokio::test]
 async fn a_figure_shown_as_an_image_is_saved_byte_for_byte() {
-    // Runde 7: Die Abbildung erscheint als Bild (ws-figure); gespeichert bleibt sie Zeichen für Zeichen.
+    // Round 7: the figure appears as an image (ws-figure); it stays stored character for character.
     let server = common::open().await;
     let work = server.import(BOOK, "werkstatt.typ").await.work;
     let loaded = server.rpc("work.get", json!({ "work": work })).await;
@@ -235,7 +236,7 @@ async fn a_figure_shown_as_an_image_is_saved_byte_for_byte() {
     let same = call(&server, work, "wysiwyg.serialize", json!({ "body": body, "edits": keep_all })).await.unwrap();
     assert_eq!(same["body"], body.as_str(), "ohne Änderung byte-gleich");
 
-    // Ein neuer Absatz hinter der Abbildung; die Insel geht als keep mit.
+    // A new paragraph after the figure; the island goes along as keep.
     let mut edits: Vec<Value> = (0..count).map(|i| json!({ "keep": i })).collect();
     edits.push(
         json!({ "replaces": null, "block": { "kind": "paragraph", "inlines": [{ "t": "text", "v": "Späne." }] } }),

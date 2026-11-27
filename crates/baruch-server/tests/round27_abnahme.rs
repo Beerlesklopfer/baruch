@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 27, Abnahme des Integrators: Umschlag-Editor und Impressum in der Werkvorlage über alle drei Aufgaben
+//! Round 27, acceptance by the integrator: cover editor and imprint in the work template across all three tasks
 //! (umschlag-daten, umschlag-satz, umschlag-widget).
 //!
-//! Ein frei erfundenes Werk („Das Leuchtturmjahr“, 148 × 210 mm) mit einem im Test erzeugten PNG-Umschlag (dunkles
-//! oberes Drittel) und vollständigen erfundenen Buchangaben. Geprüft werden: dieselbe Lage in Vorschau, Umschlag-PDF
-//! und Buch-PDF (gemessen mit `pdftotext -bbox`), dieselbe Satzquelle (`baruch_render::stand`) von Vorschau und
-//! Umschlag-PDF, die Druckprüfung (Beschnitt, Strichcode, Kontrast, Schrift), Formular ohne JavaScript gleich RPC,
-//! Schnellwahl und Zurücksetzen bis zum byte-gleichen Satz, Impressum aus der Werkvorlage samt Knopf, MCP nur lesend
-//! bzw. als Antrag und der Austausch zwischen zwei Wegwerf-Instanzen. Kein Netz, kein Modell, kein Eliezer.
+//! A freely invented work („Das Leuchtturmjahr“, 148 × 210 mm) with a PNG cover generated in the test (dark upper
+//! third) and complete invented book details. Checked are: the same position in preview, cover PDF and book PDF
+//! (measured with `pdftotext -bbox`), the same typesetting source (`baruch_render::stand`) of preview and cover PDF,
+//! the print check (bleed, barcode, contrast, font), form without JavaScript equal to RPC, quick choice and reset down
+//! to the byte-identical typesetting, imprint from the work template including the button, MCP read-only or as a
+//! request, and the exchange between two throwaway instances. No network, no model, no Eliezer.
 
 use crate::common;
 use crate::round27_satz::dark_top_png;
@@ -22,7 +22,7 @@ use std::process::Command;
 
 const MM_PER_PT: f64 = 25.4 / 72.0;
 
-/// Das erfundene Werk: Werkvorlage mit Seitenmaß, zwei Kapitel.
+/// The invented work: work template with page size, two chapters.
 const LIGHTHOUSE: &str = "// Leuchtturmbuch für die Abnahme der Runde 27 (frei erfunden).
 #set document(title: \"Das Leuchtturmjahr\", author: \"Hanna Wellen\")
 #set page(width: 148mm, height: 210mm)
@@ -37,9 +37,9 @@ Die Lampe dreht sich über dem Eis, und die Wärterin zählt die Schiffe.
 Die Möwen schreien über der Mole.
 ";
 
-/// Verlag mit Typst-Sonderzeichen: muss überall wörtlich erscheinen.
+/// Publisher with Typst special characters: must appear verbatim everywhere.
 const PUBLISHER: &str = "Verlag \"Mole\" #1 [Hafen] \\ Süd";
-/// Eigener Text des Freitext-Blocks mit Typst-Sonderzeichen.
+/// Own text of the free-text block with Typst special characters.
 const FREE_TEXT: &str = "Erstausgabe #7 [Mole] \"frei\" \\ Ende";
 
 fn result(answer: &Value) -> &Value {
@@ -47,7 +47,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Neuer Wegwerf-Datenordner mit dem Leuchtturmbuch, PNG-Umschlag und vollständigen Buchangaben; Werk-id und slug.
+/// New throwaway data directory with the lighthouse book, PNG cover and complete book details; work id and slug.
 async fn lighthouse() -> (common::Server, i64, String) {
     let server = common::open().await;
     let report = server.import(LIGHTHOUSE, "leuchtturm.typ").await;
@@ -83,7 +83,7 @@ async fn layout(server: &common::Server, work: i64) -> Value {
     result(&server.rpc("cover.layout", json!({ "work": work })).await).clone()
 }
 
-/// Wirksamer Block der Art aus `cover.layout` als `CoverBlock` (ohne `stored` und `height_mm`).
+/// Effective block of the kind from `cover.layout` as `CoverBlock` (without `stored` and `height_mm`).
 fn block_in(view: &Value, kind: CoverBlockKind) -> CoverBlock {
     let mut value = view["blocks"].as_array().unwrap().iter().find(|b| b["kind"] == kind.as_str()).unwrap().clone();
     let object = value.as_object_mut().unwrap();
@@ -92,8 +92,8 @@ fn block_in(view: &Value, kind: CoverBlockKind) -> CoverBlock {
     serde_json::from_value(value).unwrap()
 }
 
-/// Die Änderungen der Abnahme als Formularfelder `b.<kind>.<feld>`: Titel ins obere (dunkle) Drittel, Autor nach
-/// unten, Klappentext verschoben und schmaler, Freitext auf der Vorderseite.
+/// The changes of the acceptance as form fields `b.<kind>.<feld>`: title into the upper (dark) third, author to the
+/// bottom, blurb moved and narrower, free text on the front.
 fn moved_fields(blurb_width: f64) -> Vec<(String, String)> {
     let mut fields = Vec::new();
     let mut put = |kind: &str, field: &str, value: &str| fields.push((format!("b.{kind}.{field}"), value.to_owned()));
@@ -124,7 +124,7 @@ fn moved_fields(blurb_width: f64) -> Vec<(String, String)> {
     fields
 }
 
-/// Formular- bzw. Abfrage-Kodierung.
+/// Form or query encoding.
 fn encode(pairs: &[(String, String)]) -> String {
     let escape = |text: &str| {
         let mut out = String::new();
@@ -153,7 +153,7 @@ async fn post(server: &common::Server, uri: &str, form: &str) -> (StatusCode, Op
     (status, location, text)
 }
 
-/// Umschlag-PDF über `work.cover_pdf {inline: true}`; Antwort samt Bytes.
+/// Cover PDF through `work.cover_pdf {inline: true}`; answer together with the bytes.
 async fn cover_pdf(server: &common::Server, work: i64) -> (Value, Vec<u8>) {
     let answer = {
         let _serial = common::PDF_SERIAL.lock().await;
@@ -169,7 +169,7 @@ async fn book_pdf(server: &common::Server, work: i64) -> baruch_server::pdf::Pdf
     baruch_server::pdf::book_pdf(&server.state, work).await.expect("Buch-PDF")
 }
 
-/// Ein Wort aus `pdftotext -bbox`: Seite (1-basiert), linke obere Ecke in pt, Text.
+/// One word from `pdftotext -bbox`: page (1-based), upper left corner in pt, text.
 #[derive(Debug, Clone)]
 struct Word {
     page: usize,
@@ -178,7 +178,7 @@ struct Word {
     text: String,
 }
 
-/// Wörter eines PDF mit Lage; `None`, wenn `pdftotext` fehlt.
+/// Words of a PDF with position; `None` if `pdftotext` is missing.
 fn words(pdf: &[u8]) -> Option<Vec<Word>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("probe.pdf");
@@ -215,7 +215,7 @@ fn find<'a>(list: &'a [Word], text: &str, page: usize) -> &'a Word {
         .unwrap_or_else(|| panic!("Wort {text:?} auf Seite {page} fehlt: {list:?}"))
 }
 
-/// Text einer Seite (`pdftotext -f n -l n`); `None`, wenn `pdftotext` fehlt.
+/// Text of one page (`pdftotext -f n -l n`); `None` if `pdftotext` is missing.
 fn page_text(pdf: &[u8], page: usize) -> Option<String> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("seite.pdf");
@@ -233,10 +233,10 @@ fn commit_count(server: &common::Server, slug: &str) -> u32 {
     common::git(&server.mirror_dir_of(slug), &["rev-list", "--count", "HEAD"]).map_or(0, |c| c.trim().parse().unwrap())
 }
 
-/// Titel ins obere Drittel, Autor nach unten, Klappentext verschoben und schmaler, Freitext: Die Vorschau ohne
-/// JavaScript (GET mit `b.*`-Feldern) speichert nichts; das Formular speichert dasselbe wie `cover.layout_set` auf
-/// einer zweiten Instanz; Vorschau-SVG und Satzquelle der Vorschau sind gleich dem gespeicherten Umschlag; die Lage in
-/// Umschlag-PDF und Buch-PDF ist relativ zur Schnittkante dieselbe (bis 0,5 mm).
+/// Title into the upper third, author to the bottom, blurb moved and narrower, free text: the preview without
+/// JavaScript (GET with `b.*` fields) saves nothing; the form saves the same as `cover.layout_set` on a second
+/// instance; preview SVG and typesetting source of the preview equal the saved cover; the position in cover PDF and
+/// book PDF is the same relative to the trim edge (within 0.5 mm).
 #[tokio::test]
 async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_pdf_with_and_without_javascript() {
     let (form_side, work, slug) = lighthouse().await;
@@ -253,7 +253,7 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
     assert!(blurb_width >= 40.0, "Klappentext wird schmaler, bleibt aber lesbar: {old_blurb:?}");
     let fields = moved_fields(blurb_width);
 
-    // Vorschau ohne JavaScript: Seite und SVG mit den Feldern, nichts gespeichert.
+    // Preview without JavaScript: page and SVG with the fields, nothing saved.
     let query = encode(&fields);
     let (status, page) = form_side.get(&format!("/werke/{work}/umschlag?{query}")).await;
     assert_eq!(status, StatusCode::OK, "Vorschau-Seite: {page}");
@@ -270,7 +270,7 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
             .unwrap();
     let preview_stand = baruch_render::stand(&preview_wrap.source);
 
-    // Ohne JavaScript speichern (Formular) …
+    // Save without JavaScript (form) …
     let commits = commit_count(&form_side, &slug);
     let mut form =
         pairs(&[("work", &work.to_string()), ("action", "save"), ("back", &format!("/werke/{work}/umschlag"))]);
@@ -282,7 +282,7 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
     let message = last_commit(&form_side, &slug);
     assert!(message.starts_with("Umschlag: Anordnung geändert"), "Betreff: {message}");
     assert!(message.contains("Titel (Vorderseite): x "), "Rumpf mit vorher → nachher: {message}");
-    // … und mit JavaScript (das Widget schickt cover.layout_set) auf der zweiten Instanz.
+    // … and with JavaScript (the widget sends cover.layout_set) on the second instance.
     result(&rpc_side.rpc("cover.layout_set", json!({ "work": work_rpc, "blocks": preview })).await);
     let stored = form_side.state.store.cover_layout(work).await.unwrap();
     assert_eq!(stored.blocks.len(), 4, "vier Zeilen gespeichert");
@@ -292,7 +292,7 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
         "Formular und RPC speichern dieselbe Anordnung"
     );
 
-    // Gleiche Quelle: Vorschau, gespeicherter Umschlag (Umschlag-PDF) und die zweite Instanz.
+    // Same source: preview, saved cover (cover PDF) and the second instance.
     let cover_source = baruch_server::cover::cover_source(&form_side.state, work).await.unwrap();
     assert_eq!(baruch_render::stand(&cover_source), preview_stand, "Vorschau und Umschlag-PDF setzen dieselbe Quelle");
     let other = baruch_server::cover::cover_source(&rpc_side.state, work_rpc).await.unwrap();
@@ -300,7 +300,7 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
     let (_, saved_svg) = form_side.get(&format!("/werke/{work}/umschlag.svg")).await;
     assert_eq!(saved_svg, preview_svg, "Vorschau-SVG vor dem Speichern = SVG der gespeicherten Anordnung");
 
-    // Lage messen: Umschlag-PDF und Buch-PDF (Vorderseite = Seite 1, Rückseite = letzte Seite).
+    // Measure the position: cover PDF and book PDF (front = page 1, back = last page).
     let (answer, cover_bytes) = cover_pdf(&form_side, work).await;
     let checks = answer["checks"].as_array().unwrap();
     for kind in ["front_title", "front_author", "back_blurb", "front_free"] {
@@ -334,7 +334,7 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
              ({in_book:?} / {in_cover:?})"
         );
     }
-    // Und die Lage folgt der Anordnung (Seitenpeilung der Glyphe und Versalhöhe als Spielraum).
+    // And the position follows the layout (side bearing of the glyph and cap height as tolerance).
     let title = find(&book_words, "Das", 1);
     assert!(
         (title.x_min * MM_PER_PT - 14.0).abs() < 1.5 && (title.y_min * MM_PER_PT - 18.0).abs() < 3.0,
@@ -344,15 +344,15 @@ async fn the_moved_layout_lies_at_the_same_place_in_preview_cover_pdf_and_book_p
     assert!(author.y_min * MM_PER_PT > 170.0, "Autor unten (y 175 mm): {author:?}");
     let blurb = find(&book_words, "Brandung,", book.pages);
     assert!((blurb.x_min * MM_PER_PT - 24.0).abs() < 1.5, "Klappentext bei x 24 mm: {blurb:?}");
-    // Der Freitext steht wörtlich da, Sonderzeichen inklusive.
+    // The free text stands there verbatim, special characters included.
     let front: Vec<&str> = cover_words.iter().map(|w| w.text.as_str()).collect();
     let joined = front.join(" ");
     assert!(joined.contains(FREE_TEXT), "Freitext wörtlich im Umschlag-PDF: {joined}");
     assert!(joined.contains(PUBLISHER), "Verlag mit Sonderzeichen wörtlich auf dem Umschlag: {joined}");
 }
 
-/// Druckprüfung über die Vorschau ohne JavaScript: Block im Beschnitt, Klappentext über dem Strichcode, heller Autor
-/// auf hellem Grund und eine fehlende Schrift werden gewarnt; die Schrift fällt im Satz auf die Vorgabe zurück.
+/// Print check through the preview without JavaScript: a block in the bleed, blurb above the barcode, light author on a
+/// light background and a missing font are warned about; in the typesetting the font falls back to the default.
 #[tokio::test]
 async fn bleed_barcode_contrast_and_a_missing_font_are_warned_and_the_font_falls_back() {
     let (server, work, _) = lighthouse().await;
@@ -389,7 +389,7 @@ async fn bleed_barcode_contrast_and_a_missing_font_are_warned_and_the_font_falls
     );
     assert!(server.state.store.cover_layout(work).await.unwrap().is_empty(), "die Vorschau speichert nichts");
 
-    // Satz: die fehlende Schrift wird gar nicht verlangt (Rückfall), der Umschlag setzt fehlerfrei.
+    // Typesetting: the missing font is not requested at all (fallback), the cover typesets without error.
     let base: Vec<CoverBlock> = CoverBlockKind::ALL.iter().map(|k| block_in(&view, *k)).collect();
     let blocks = baruch_server::cover::blocks_from_fields(&fields, &base).unwrap();
     let wrap = baruch_server::cover::build_wrap_for(&server.state, work, Some(&CoverLayout { blocks })).await.unwrap();
@@ -397,7 +397,7 @@ async fn bleed_barcode_contrast_and_a_missing_font_are_warned_and_the_font_falls
     let rendered = baruch_render::compile(&wrap.source);
     assert!(!rendered.has_errors(), "Umschlag mit Rückfall setzt fehlerfrei: {:?}", rendered.diagnostics);
 
-    // Dieselbe Anordnung gespeichert: work.cover_pdf nennt dieselben Warnungen.
+    // The same layout saved: work.cover_pdf names the same warnings.
     let mut form = pairs(&[("work", &work.to_string()), ("action", "save")]);
     form.extend(fields);
     let (status, _, text) = post(&server, "/werke/umschlag/anordnung", &encode(&form)).await;
@@ -419,8 +419,8 @@ async fn bleed_barcode_contrast_and_a_missing_font_are_warned_and_the_font_falls
     }
 }
 
-/// Schnellwahl oben/Mitte/unten und Zurücksetzen über das Formular; nach dem Zurücksetzen setzen Buch und Umschlag
-/// byte-gleich wie vor der ersten Anordnung (ohne Anordnung, ohne Vorlagenfunktionen).
+/// Quick choice top/middle/bottom and reset through the form; after the reset book and cover typeset byte-identically
+/// as before the first layout (without layout, without template functions).
 #[tokio::test]
 async fn quick_choices_and_reset_return_to_a_byte_identical_typesetting() {
     let (server, work, slug) = lighthouse().await;
@@ -471,9 +471,9 @@ async fn quick_choices_and_reset_return_to_a_byte_identical_typesetting() {
     assert_eq!(after_cover, before_cover, "Umschlag byte-gleich wie vor der ersten Anordnung");
 }
 
-/// Impressum aus der Werkvorlage: ohne Funktion die eingebaute Seite; eine eigene `impressum(buch)` setzt Seite 4
-/// mit den Buchangaben wörtlich; der Knopf ergänzt die übrigen Funktionen als neue Vorlagenfassung mit Commit und
-/// lehnt danach ehrlich ab; die Druckprüfung nennt fehlende Pflichtangaben.
+/// Imprint from the work template: without the function the built-in page; an own `impressum(buch)` typesets page 4
+/// with the book details verbatim; the button adds the remaining functions as a new template revision with a commit and
+/// honestly refuses afterwards; the print check names missing mandatory details.
 #[tokio::test]
 async fn the_imprint_comes_from_the_template_and_the_button_adopts_the_rest() {
     let (server, work, slug) = lighthouse().await;
@@ -508,7 +508,7 @@ async fn the_imprint_comes_from_the_template_and_the_button_adopts_the_rest() {
     let prepared = baruch_server::typeset::prepare(&server.state, work).await.unwrap();
     assert_eq!(prepared.source.main.matches("#let baruch_buch = (").count(), 1, "Wörterbuch genau einmal");
     let book = book_pdf(&server, work).await;
-    // Die Titelei beginnt nach der Umschlagseite; gesucht wird die Seite mit dem Impressum.
+    // The front matter begins after the cover page; the page with the imprint is searched for.
     let mut found = None;
     for page in 1..=book.pages {
         let Some(text) = page_text(&book.bytes, page) else {
@@ -535,7 +535,7 @@ async fn the_imprint_comes_from_the_template_and_the_button_adopts_the_rest() {
         "Buchangaben wörtlich, Sonderzeichen inklusive: {text}"
     );
 
-    // Druckprüfung der Pflichtangaben: Druckerei weg → Warnung auf der Satz-Seite und in work.cover_pdf.
+    // Print check of the mandatory details: printer gone → warning on the typesetting page and in work.cover_pdf.
     result(&server.rpc("work.meta.set", json!({ "work": work, "printer": "", "printer_address": "" })).await);
     let (_, html) = server.get(&format!("/werke/{work}/satz")).await;
     assert!(html.contains("data-code=\"imprint_printer\""), "Satz-Seite warnt: Druckerei fehlt");
@@ -567,9 +567,9 @@ async fn mcp_tool(server: &common::Server, session: &str, tool: &str, arguments:
     answer["result"]["structuredContent"].clone()
 }
 
-/// MCP liest die gespeicherte Anordnung und stellt nur einen Antrag; erst die Bestätigung ändert. Danach trägt der
-/// Austausch (Datei `.baruch`) Anordnung, Anschriften und Satzbild ohne Verlust auf eine zweite Instanz, die den
-/// Umschlag mit derselben Quelle setzt.
+/// MCP reads the saved layout and only files a request; only the confirmation changes anything. After that the exchange
+/// (file `.baruch`) carries layout, addresses and typeset view without loss to a second instance, which typesets the
+/// cover with the same source.
 #[tokio::test]
 async fn mcp_reads_and_requests_and_the_exchange_carries_layout_addresses_and_sheet() {
     let (a, work, _) = lighthouse().await;
@@ -586,7 +586,7 @@ async fn mcp_reads_and_requests_and_the_exchange_carries_layout_addresses_and_sh
     )
     .await;
     assert!(init["result"].is_object(), "initialize: {init}");
-    // Der Hinweis beim Verbinden nennt die Werkzeuge, sonst findet ein Client sie nur über tools/list.
+    // The hint on connecting names the tools, otherwise a client finds them only through tools/list.
     let instructions = init["result"]["instructions"].as_str().unwrap();
     assert!(
         instructions.contains("cover_layout reads")

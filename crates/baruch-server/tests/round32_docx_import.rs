@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 32, Aufgabe docx_import: Word-Import mit Vorschau (Seiten, RPC docx_import.*, CLI).
+//! Round 32, task docx_import: Word import with preview (pages, RPC docx_import.*, CLI).
 //!
-//! Die Word-Datei „Das Haus am Deich“ ist frei erfunden und entsteht im Test als Archiv
-//! (`crates/baruch-docx/tests/data/import/mod.rs`, dieselbe wie in den Tests des Lesers): drei Abschnitte
-//! (Überschrift 1–3), eine Löschung und eine Einfügung von „Erika Beispiel“, zwei Einfügungen von „Jörg Müller“
-//! (eine davon in einer Überschrift), drei Kommentare (einer ist eine Antwort), eine Fußnote, ein Bild. Kein echtes
-//! Word, kein Netz, kein Modell.
+//! The Word file „Das Haus am Deich“ is freely invented and is created in the test as an archive
+//! (`crates/baruch-docx/tests/data/import/mod.rs`, the same as in the tests of the reader): three sections (heading
+//! 1–3), one deletion and one insertion by „Erika Beispiel“, two insertions by „Jörg Müller“ (one of them in a
+//! heading), three comments (one is a reply), one footnote, one image. No real Word, no network, no model.
 
 use std::net::SocketAddr;
 
@@ -53,7 +52,7 @@ fn codes(value: &Value) -> Vec<String> {
     value["warnings"].as_array().unwrap().iter().map(|w| w["code"].as_str().unwrap().to_owned()).collect()
 }
 
-/// multipart/form-data mit Textfeldern und höchstens einer Datei.
+/// multipart/form-data with text fields and at most one file.
 fn multipart(fields: &[(&str, &str)], file: Option<(&str, &[u8])>) -> (String, Vec<u8>) {
     let boundary = "----baruch-r32-grenze".to_owned();
     let mut body = Vec::new();
@@ -311,7 +310,7 @@ async fn apply_creates_the_work_with_proposals_and_posts_and_nothing_becomes_cur
         work.nodes[1].revisions[0].body
     );
 
-    // Herkunft im Spiegel: der Import als Commit des Menschen, jeder Vorschlag als Seitenzweig mit Persona.
+    // Origin in the mirror: the import as a commit of the human, every proposal as a side branch with persona.
     let dir = server.mirror_dir_of(&slug);
     if common::git(&dir, &["--version"]).is_some() {
         let log = common::git(&dir, &["log", "--format=%s"]).unwrap();
@@ -412,7 +411,7 @@ async fn the_pages_work_without_javascript() {
         "je Bearbeiter die Zahl der Einfügungen, Löschungen und Abschnitte"
     );
 
-    // Übernehmen: 303 auf das neue Werk.
+    // Accept: 303 to the new work.
     let form = format!("draft={id}&title=Deich+vom+Formular&changes=1&comments=1");
     let (status, target) = server.post_form("/werke/import/word/uebernehmen", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "nach dem Übernehmen leitet die Seite um (303)");
@@ -424,7 +423,7 @@ async fn the_pages_work_without_javascript() {
     assert_eq!(work.nodes[0].revisions.len(), 3, "mit Häkchen „Änderungen“ entstehen die Vorschläge");
     assert_eq!(work.nodes[0].posts.len(), 2, "mit Häkchen „Kommentare“ die Beiträge");
 
-    // Ohne Häkchen (ein Formular ohne JavaScript schickt sie dann gar nicht): nur das Werk.
+    // Without the check boxes (a form without JavaScript then does not send them at all): only the work.
     let (_, headers, _) = post_multipart(
         &server,
         "/werke/import/word/vorschau",
@@ -443,7 +442,7 @@ async fn the_pages_work_without_javascript() {
         "ohne Häkchen keine Vorschläge und keine Beiträge"
     );
 
-    // Vergebener Titel: 422 mit der Vorschau und der Meldung, der Entwurf bleibt.
+    // Title already taken: 422 with the preview and the message, the draft stays.
     let (_, headers, _) =
         post_multipart(&server, "/werke/import/word/vorschau", &[], Some(("deich.docx", &sample))).await;
     let third = location(&headers).rsplit('=').next().unwrap().to_owned();
@@ -462,7 +461,7 @@ async fn the_pages_work_without_javascript() {
         "die Eingaben bleiben stehen (Titel, Häkchen)"
     );
 
-    // Verwerfen: 303 zurück zum Formular, der Entwurf ist weg.
+    // Discard: 303 back to the form, the draft is gone.
     let (status, target) = server.post_form("/werke/import/word/verwerfen", &format!("draft={third}")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "verwerfen leitet um (303)");
     assert_eq!(target.as_deref(), Some("/werke/import/word"), "zurück auf die Formularseite");
@@ -529,7 +528,7 @@ fn snapshot(dir: &std::path::Path) -> Vec<String> {
     while let Some(current) = stack.pop() {
         for entry in std::fs::read_dir(&current).unwrap().flatten() {
             let path = entry.path();
-            // Verglichen werden die Ordner (Werke, Entwürfe); die Datenbank schreibt beim Lesen ihre Begleitdateien.
+            // The directories are compared (works, drafts); the database writes its companion files when reading.
             if path.is_dir() {
                 found.push(format!("{}/", path.strip_prefix(dir).unwrap().display()));
                 if !path.ends_with(".git") {

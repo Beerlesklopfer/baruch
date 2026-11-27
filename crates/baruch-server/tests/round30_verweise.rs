@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Querverweise und Sprung-Infrastruktur (Runde 30a): Sprungmarken `<kN>` in Export und Spiegel, `xref.*`,
-//! Gliederungsnennungen (`outline_mentions`), mögliche Verweise und Umwandeln durch den Menschen, kaputte Verweise in
-//! der Druckprüfung, Seite `/verweise` ohne JavaScript, Prüfung von Sprungmarken (`check_marker`) und die reinen
-//! Funktionen von `jump.ts`/`xref.ts` unter Node. Alle Werke und Texte frei erfunden; kein Modell, kein Netz.
+//! Cross-references and jump infrastructure (Round 30a): jump labels `<kN>` in export and mirror, `xref.*`, outline
+//! mentions (`outline_mentions`), possible references and conversion by the human, broken references in the print
+//! check, page `/verweise` without JavaScript, checking of jump labels (`check_marker`) and the pure functions of
+//! `jump.ts`/`xref.ts` under Node. All works and texts freely invented; no model, no network.
 
 use crate::common;
 
@@ -12,8 +12,8 @@ use baruch_server::xref::{JumpTarget, MarkerCheck, check_marker, outline_mention
 use baruch_typst::xref::{find_xrefs, xref_snippet};
 use serde_json::{Value, json};
 
-/// Ein Werk mit Vorwort, Einleitung, drei Kapiteln (drittes mit Abschnitt) und zwei gleichnamigen Abschnitten
-/// „Rückblick“ (nicht eindeutig).
+/// A work with preface, introduction, three chapters (the third with a section) and two sections of the same name
+/// „Rückblick“ (not unique).
 const BRIDGE: &str = "#set heading(numbering: \"1.\")\n\
 #heading(level: 1, numbering: none)[Vorwort] <baruch-unnumbered>\n\nKurz vorab.\n\n\
 = Einleitung\n\nHier beginnt das Brückenbuch.\n\n== Rückblick\n\nErster Blick zurück.\n\n\
@@ -286,9 +286,9 @@ async fn importing_the_export_as_a_new_work_remaps_the_references() {
     assert!(!text.contains(&format!("<k{}>", new_tower.key)), "die eigene Sprungmarke ist beim Einlesen entfernt");
 }
 
-// ---- reine Funktionen unter Node ------------------------------------------------------------------------------
+// ---- pure functions under Node --------------------------------------------------------------------------------
 
-/// Alle ausgelieferten Module in einen Ordner (ES-Module) und `expr` mit `import * as m from './<module>'` auswerten.
+/// All delivered modules into one directory (ES modules) and evaluate `expr` with `import * as m from './<module>'`.
 fn node(module: &str, expr: &str) -> Value {
     let dir = tempfile::tempdir().unwrap();
     for (name, source) in baruch_server::SCRIPTS {

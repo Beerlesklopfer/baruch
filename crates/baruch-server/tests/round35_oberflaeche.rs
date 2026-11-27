@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 35, oberflaeche_konten (Vertrag §3): Anmeldeseite, Einrichten, Mein Konto, Mitwirkende, Einstellungsseite
-//! „Konten“, der Konto-Eintrag im Menü und was ein Lektor sieht.
+//! Round 35, oberflaeche_konten (contract §3): sign-in page, setup, Mein Konto, Mitwirkende, settings page „Konten“,
+//! the account entry in the menu and what a Lektor sees.
 //!
-//! Jede Zusicherung mit Begründung; nur erfundene Werke und Namen, kein Netz, kein Eliezer. Wer eine Anfrage stellt,
-//! legen die Tests ohne Sitzung und Passwort fest: über `common::with_who` (durch den ganzen Router) oder – wo die
-//! Sperre der Rollen (`roles`, Aufgabe „rollen“) die Seite für Lektoren erst noch öffnen muss – über `auth::scope`
-//! um die Seiten selbst (kleiner Router aus `pages()` und der Schicht `consent::inject` bzw. `view::page` direkt).
-//! So prüfen die Tests, **was die Oberfläche zeigt**; ob eine Rolle eine Route erreichen darf, prüft „rollen“.
-//! Konten entstehen per SQL (Hash-Spalte: fester Text `$argon2id$test`) – angemeldet wird hier nie.
+//! Every assertion with its reason; only invented works and names, no network, no Eliezer. Who makes a request is
+//! determined by the tests without session and password: through `common::with_who` (through the whole router) or –
+//! where the lock of the roles (`roles`, task „rollen“) still has to open the page for Lektors – through `auth::scope`
+//! around the pages themselves (small router from `pages()` and the layer `consent::inject`, or `view::page` directly).
+//! That way the tests check **what the user interface shows**; whether a role may reach a route is checked by „rollen“.
+//! Accounts are created via SQL (hash column: fixed text `$argon2id$test`) – nobody ever signs in here.
 
 use crate::common;
 
@@ -29,7 +29,7 @@ use baruch_store::{FindingKind, NewFinding};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Ein Name voller Sonderzeichen: Jede Ausgabe muss ihn maskieren.
+/// A name full of special characters: every output has to escape it.
 const NASTY: &str = "<b>\"O'Neil\" & Söhne</b>";
 const NASTY_ESCAPED: &str = "&lt;b&gt;&quot;O&#x27;Neil&quot; &amp; Söhne&lt;&#x2f;b&gt;";
 
@@ -55,7 +55,7 @@ fn lektor_account() -> Who {
     })
 }
 
-/// Legt ein Konto per SQL an (kein Passwort im Spiel: der Hash ist ein fester Text, der nie geprüft wird).
+/// Creates an account via SQL (no password involved: the hash is a fixed text that is never checked).
 async fn insert_account(server: &common::Server, name: &str, slug: &str, kind: &str) -> i64 {
     sqlx::query("INSERT INTO account (name, name_key, slug, display, kind, password) VALUES (?, ?, ?, '', ?, ?)")
         .bind(name)
@@ -69,13 +69,13 @@ async fn insert_account(server: &common::Server, name: &str, slug: &str, kind: &
         .last_insert_rowid()
 }
 
-/// Beispielwerk mit einem Abschnitt, in dem der Autor, die Lektorin Erika und eine Persona geschrieben haben, dazu
-/// ein Vorschlag und zwei Befunde der Lektorin (einer am Abschnitt, einer als Anmerkung zum Buch).
+/// Sample work with one section in which the author, the Lektor Erika and a persona have written, plus one proposal and
+/// two findings of the Lektor (one at the section, one as a remark on the book).
 struct Desk {
     server: common::Server,
     work: i64,
     key: i64,
-    /// Nummer des Vorschlags der Lektorin.
+    /// Number of the Lektor's proposal.
     proposal: u32,
 }
 
@@ -101,7 +101,7 @@ async fn new_desk() -> Desk {
         };
         persona_post = server.state.store.add_post(work, node, &post).await.unwrap();
     }
-    // Der Befund der Persona gehört zu ihrem Beitrag (Stelle 0): Der Chat zeigt ihn dort als Befund-Block.
+    // The finding of the persona belongs to its post (position 0): the chat shows it there as a finding block.
     let block = NewFinding {
         work,
         key: Some(key),
@@ -147,13 +147,13 @@ async fn body_of(response: axum::response::Response) -> String {
     String::from_utf8(axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap()
 }
 
-/// GET durch den ganzen Router als `who` (Schicht `auth::gate` nimmt `who` aus den Extensions).
+/// GET through the whole router as `who` (the layer `auth::gate` takes `who` from the extensions).
 async fn get_as(server: &common::Server, uri: &str, who: Who) -> (StatusCode, axum::http::HeaderMap, String) {
     server.send(common::with_who(Request::get(uri).body(Body::empty()).unwrap(), who)).await
 }
 
-/// GET auf die Seiten `pages` hinter der Schicht `consent::inject`, ausgeführt als `who` (`auth::scope`) – ohne die
-/// Schicht `auth::gate`: Was `who` sähe, wenn die Rollen die Seite erlauben.
+/// GET to the pages `pages` behind the layer `consent::inject`, executed as `who` (`auth::scope`) – without the layer
+/// `auth::gate`: what `who` would see if the roles allow the page.
 async fn page_as(
     server: &common::Server,
     pages: Router<Arc<baruch_server::AppState>>,
@@ -168,7 +168,7 @@ async fn page_as(
     (status, body_of(response).await)
 }
 
-/// Die Arbeitsseite, wie `who` sie bekäme: `view::page` in `auth::scope`, danach `konten_ui::apply` (mit Konten).
+/// The work page as `who` would get it: `view::page` in `auth::scope`, then `konten_ui::apply` (with accounts).
 async fn workspace_as(desk: &Desk, who: &Who, rev: Option<u32>, preview: bool) -> String {
     let state = desk.server.state.clone();
     let at = Location {
@@ -194,7 +194,7 @@ async fn workspace_as(desk: &Desk, who: &Who, rev: Option<u32>, preview: bool) -
     konten_ui::apply(&html, who, true)
 }
 
-/// Die drei Bereiche (wie `ui.render`), gezeichnet als `who`.
+/// The three panes (like `ui.render`), drawn as `who`.
 async fn panes_as(desk: &Desk, who: Who) -> view::Panes {
     let state = desk.server.state.clone();
     let (work_id, key) = (desk.work, desk.key);
@@ -209,38 +209,38 @@ async fn panes_as(desk: &Desk, who: Who) -> view::Panes {
     .await
 }
 
-/// Der Inhalt der Seite (`<main>…</main>`), ohne Menüband.
+/// The content of the page (`<main>…</main>`), without ribbon.
 fn main_of(page: &str) -> &str {
     &page[page.find("<main").expect("Seite mit <main>")..page.find("</main>").expect("Ende von <main>")]
 }
 
-/// Alle öffnenden Tags `<name …>` einer Seite.
+/// All opening tags `<name …>` of a page.
 fn tags<'a>(html: &'a str, name: &str) -> Vec<&'a str> {
     let open = format!("<{name} ");
     html.match_indices(&open).map(|(at, _)| &html[at..at + html[at..].find('>').unwrap() + 1]).collect()
 }
 
-/// Wert eines Attributs in einem Tag (minijinja maskiert `/` als `&#x2f;`).
+/// Value of an attribute in a tag (minijinja escapes `/` as `&#x2f;`).
 fn attr(tag: &str, name: &str) -> Option<String> {
     let rest = &tag[tag.find(&format!(" {name}=\""))? + name.len() + 3..];
     Some(rest[..rest.find('"')?].replace("&#x2f;", "/").replace("&amp;", "&"))
 }
 
-/// Das öffnende Tag des Elements, das `needle` enthält (z. B. der Link mit einer bestimmten Adresse).
+/// The opening tag of the element that contains `needle` (e.g. the link with a certain address).
 fn tag_with<'a>(html: &'a str, needle: &str) -> &'a str {
     let at = html.find(needle).unwrap_or_else(|| panic!("{needle} steht nicht in der Seite"));
     let start = html[..at].rfind('<').unwrap();
     &html[start..start + html[start..].find('>').unwrap() + 1]
 }
 
-/// Das Formular (von `<form` bis `</form>`), das `needle` enthält.
+/// The form (from `<form` to `</form>`) that contains `needle`.
 fn form_with<'a>(html: &'a str, needle: &str) -> &'a str {
     let at = html.find(needle).unwrap_or_else(|| panic!("{needle} steht nicht in der Seite"));
     let start = html[..at].rfind("<form").unwrap_or_else(|| panic!("{needle} steht in keinem Formular"));
     &html[start..start + html[start..].find("</form>").unwrap()]
 }
 
-/// Passwortfelder einer Seite: nie vorbelegt, mit dem erwarteten `autocomplete`.
+/// Password fields of a page: never prefilled, with the expected `autocomplete`.
 fn assert_password_fields(html: &str, expected: &[(&str, &str)], at: &str) {
     let fields: Vec<&str> = tags(html, "input").into_iter().filter(|t| t.contains("type=\"password\"")).collect();
     assert_eq!(fields.len(), expected.len(), "{at}: genau die Passwortfelder des Vertrags: {fields:?}");
@@ -255,14 +255,14 @@ fn assert_password_fields(html: &str, expected: &[(&str, &str)], at: &str) {
     }
 }
 
-/// Die Seite kommt ohne JavaScript aus: kein Skript, kein Knopf ohne Formular, kein Widget.
+/// The page works without JavaScript: no script, no button without a form, no widget.
 fn assert_plain_forms(html: &str, at: &str) {
     assert!(!html.contains("type=\"button\""), "{at}: jeder Knopf schickt ein Formular ab (ohne JavaScript bedienbar)");
     assert!(!html.contains("data-widget"), "{at}: die Seite braucht kein Widget");
     assert!(!html.contains("onclick") && !html.contains("javascript:"), "{at}: kein Skript im Markup");
 }
 
-// ---- Ohne Konten ---------------------------------------------------------------------------------------------
+// ---- Without accounts ----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_accounts_every_page_only_gains_the_one_menu_entry() {
@@ -359,7 +359,7 @@ async fn without_accounts_the_account_pages_explain_and_offer_setup() {
     assert_eq!(status, StatusCode::NOT_FOUND, "ein unbekanntes Werk ist 404, keine leere Seite");
 }
 
-// ---- Anmelden und Einrichten -----------------------------------------------------------------------------------
+// ---- Sign-in and setup -----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_login_page_has_the_form_the_notice_and_a_safe_way_on() {
@@ -504,7 +504,7 @@ async fn setup_is_offered_only_on_the_own_machine_and_only_without_accounts() {
     assert_eq!(headers.get(header::LOCATION).unwrap(), "/einstellungen/konten", "weiter zur Verwaltung der Konten");
 }
 
-// ---- Menü „Baruch ▾“ -------------------------------------------------------------------------------------------
+// ---- Menu „Baruch ▾“ -------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn an_author_account_sees_who_is_signed_in_and_keeps_every_button() {
@@ -545,7 +545,7 @@ async fn an_author_account_sees_who_is_signed_in_and_keeps_every_button() {
         tag_with(&page, &format!("/werke/{}/mitwirkende", desk.work)).contains("class=\"btn nur-autor\""),
         "mit Konten führt der Reiter Buch auf die Seite Mitwirkende"
     );
-    // Herkunft der Lektorin in Fassung, Fassungsbaum und Beitrag – lesbar, ohne leeres Modell und nicht als Persona.
+    // Origin of the Lektor in revision, revision tree and post – readable, without an empty model and not as a persona.
     let meta = &page[page.find("<span class=\"muted small rev-meta\">").unwrap()..];
     let meta = &meta[..meta.find("</nav>").unwrap()];
     assert!(
@@ -570,9 +570,9 @@ async fn the_local_author_gets_the_hint_and_the_way_to_sign_in() {
     assert!(konto.contains("ohne Anmeldung") && !konto.contains("action=\"/konto/passwort\""), "Mein Konto erklärt es");
 }
 
-// ---- Arbeitsseite eines Lektors ----------------------------------------------------------------------------------
+// ---- Work page of a Lektor ---------------------------------------------------------------------------------------
 
-/// Wörter und Methoden, die nur der Autor auslösen darf: Sie stehen für Lektoren gar nicht im HTML.
+/// Words and methods that only the author may trigger: for Lektors they are not in the HTML at all.
 const AUTHOR_ONLY: &[&str] = &[
     "outline.save",
     "revision.save",
@@ -624,10 +624,11 @@ async fn a_lektor_gets_propose_post_and_finding_but_no_author_button() {
     for (rev, preview) in [(None, false), (Some(desk.proposal), false), (None, true)] {
         let page = workspace_as(&desk, &who, rev, preview).await;
         let at = format!("Fassung {rev:?}, Vorschau {preview}");
-        // Das Menüband trägt die Autor-Einträge als nur-autor (konten.css blendet sie aus); alles andere fehlt.
+        // The ribbon carries the author entries as nur-autor (konten.css hides them); everything else is missing.
         let body = &page[page.find("<main class=\"workspace\"").unwrap()..];
         for absent in AUTHOR_ONLY {
-            // Im Menüband stehen Links des Autors mit Kennzeichen; im Arbeitsbereich und in den Dialogen gar nichts.
+            // In the ribbon links of the author have the marker; in the work area and in the dialogs there is nothing
+            // at all.
             let scope = if absent.starts_with('/') { body } else { page.as_str() };
             assert!(!scope.contains(absent), "{at}: für Lektoren fehlt im HTML, was nur der Autor darf: {absent}");
         }
@@ -713,7 +714,7 @@ async fn a_lektor_gets_propose_post_and_finding_but_no_author_button() {
     );
     assert!(page.contains("data-widget=\"wysiwyg\""), "das Satzbild bleibt (nur lesende RPC-Methoden)");
 
-    // Menüband: was nur der Autor nutzen kann, trägt das Kennzeichen.
+    // Ribbon: what only the author can use carries the marker.
     for href in ["/werke/neu", "/werke/import/quelle", "/werke/import/word", "/austausch/einlesen", "/beenden"] {
         let tag = tag_with(&page, &format!("href=\"{href}"));
         assert!(tag.contains("class=\"menu-item nur-autor\""), "Menü „Baruch ▾“: {href} nur für den Autor: {tag}");
@@ -757,7 +758,7 @@ async fn the_panes_of_a_lektor_come_from_the_lektor_templates() {
     assert!(open.editor.contains("value=\"outline.save\"") && !open.editor.contains("/lektorat/act"), "wie bisher");
 }
 
-// ---- Übrige Seiten: Kennzeichen und CSS --------------------------------------------------------------------------
+// ---- Remaining pages: marker and CSS -----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_stylesheet_hides_author_things_for_lektors_without_javascript() {
@@ -841,7 +842,7 @@ async fn the_findings_page_marks_status_forms_for_the_author_and_offers_the_lekt
         "seine Status-Knöpfe bleiben (nur gekennzeichnet)"
     );
 
-    // Ohne Konten (eigener Datenordner): die Befundseite wie bisher, ohne Kennzeichen und ohne Lektor-Formular.
+    // Without accounts (own data directory): the findings page as before, without marker and without Lektor form.
     let plain = new_desk().await;
     let (_, open) = plain.server.get(&format!("/werke/{}/befunde?key={}", plain.work, plain.key)).await;
     assert!(
@@ -855,7 +856,7 @@ async fn the_work_list_of_a_lektor_has_no_author_buttons_and_says_when_nothing_i
     let desk = new_desk().await;
     insert_account(&desk.server, "joerg", "joerg", "author").await;
     insert_account(&desk.server, "Erika", "erika", "lektor").await;
-    // Keine Freigabe in work_member: Die Lektorin sieht kein Werk.
+    // No grant in work_member: the Lektor sees no work.
     let (status, page) = page_as(&desk.server, baruch_server::works::pages(), "/werke", lektor_account()).await;
     assert_eq!(status, StatusCode::OK, "die Werkliste zeichnet sich für einen Lektor");
     assert!(
@@ -904,9 +905,9 @@ async fn a_lektor_only_finds_the_display_page_in_the_settings() {
     );
 }
 
-// ---- Zustimmung (Hinweisleiste und Dialog) -------------------------------------------------------------------------
+// ---- Consent (notice bar and dialog) -------------------------------------------------------------------------------
 
-/// Ein MCP-Client beantragt einen Teil, unter den vorhandene Kapitel wandern würden: ein Antrag, der Zustimmung braucht.
+/// An MCP client requests a part under which existing chapters would move: a request that needs consent.
 async fn request_needing_consent(server: &common::Server) -> i64 {
     let report = server
         .import("= Saat\n\nKörner im Boden.\n\n= Wuchs\n\nHalme im Wind.\n\n= Ernte\n\nGarben am Weg.\n", "feld.typ")
@@ -958,7 +959,7 @@ async fn the_consent_bar_and_dialog_are_only_for_full_rights() {
     assert!(!lektor.contains("<!--baruch-consent-->"), "die Marke verschwindet trotzdem");
 }
 
-// ---- Einstellungen → Konten (reine Darstellung, erfundene Daten) ------------------------------------------------------
+// ---- Einstellungen → Konten (pure presentation, invented data) --------------------------------------------------------
 
 fn sample_accounts() -> AccountsView {
     AccountsView {
@@ -1084,7 +1085,7 @@ fn the_accounts_page_lists_accounts_and_offers_every_action_of_the_contract() {
     );
 }
 
-// ---- Mitwirkende (reine Darstellung, erfundene Daten) -----------------------------------------------------------------
+// ---- Mitwirkende (pure presentation, invented data) -------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_members_page_lists_shares_and_offers_grant_and_revoke() {
@@ -1148,8 +1149,8 @@ async fn the_members_page_lists_shares_and_offers_grant_and_revoke() {
     let (status, _, page) = get_as(&server, &uri, author_account()).await;
     assert_eq!(status, StatusCode::OK, "der Autor erreicht die Seite");
     assert!(page.contains("role=\"status\">Die Freigabe ist entzogen.</p>"), "?ok=entzogen zeigt den Satz der Tabelle");
-    // Das Menüband trägt die Abfrage der Adresse prozentkodiert in den Adressen seiner Reiter weiter (band::apply);
-    // im Inhalt der Seite steht davon nichts.
+    // The ribbon carries the query of the address on, percent-encoded, in the addresses of its tabs (band::apply);
+    // nothing of it is in the content of the page.
     assert!(
         !main_of(&page).contains("alert(1)"),
         "ein unbekannter Code zeigt nichts – kein Text aus der Adresse im Inhalt"
@@ -1214,7 +1215,7 @@ async fn my_account_shows_role_handle_works_password_form_and_logout() {
     assert!(page.contains("role=\"alert\">Die beiden Passwörter stimmen nicht überein.</p>"), "?fehler= als Alarm");
 }
 
-// ---- Vorlagen ---------------------------------------------------------------------------------------------------------
+// ---- Templates --------------------------------------------------------------------------------------------------------
 
 #[test]
 fn the_new_templates_are_plain_forms_and_links() {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“, Besitz reste: Reste der Mindmap aus Runde 34 (Wolke in der Rundreise, Beschriftungen, dunkler Modus).
+//! Round 36 „Reste“, owner reste: rests of the mind map from Round 34 (cloud in the round trip, labels, dark mode).
 //!
-//! Werke, Einfälle und Dateien sind frei erfunden (ein „Deichbuch“); kein Modell, kein Netz.
+//! Works, ideas and files are freely invented (a „Deichbuch“); no model, no network.
 
 use crate::common;
 
@@ -25,7 +25,7 @@ async fn bytes_of(server: &common::Server, uri: &str) -> Vec<u8> {
     to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec()
 }
 
-/// Vorschau wie das Formular (multipart, Feld `file`); liefert das HTML der Vorschau.
+/// Preview like the form (multipart, field `file`); returns the HTML of the preview.
 async fn preview(server: &common::Server, work: i64, bytes: &[u8]) -> String {
     let boundary = "----baruch-r36-grenze";
     let mut body = format!(
@@ -66,7 +66,7 @@ fn form_encode(value: &str) -> String {
         .collect()
 }
 
-/// Bestätigt die Vorschau (Formular „Anlegen“ ohne Zielknoten).
+/// Confirms the preview (form „Anlegen“ without a target node).
 async fn apply(server: &common::Server, work: i64, tree_json: &str) {
     let request = Request::post(format!("/werke/{work}/karte/einlesen/anlegen"))
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -76,16 +76,16 @@ async fn apply(server: &common::Server, work: i64, tree_json: &str) {
     assert_eq!(status, StatusCode::SEE_OTHER, "die Bestätigung legt an: {page}");
 }
 
-/// Ort eines Einfalls, wie `idea.list` ihn meldet.
+/// Place of an idea as `idea.list` reports it.
 #[derive(Debug, PartialEq, Eq)]
 struct Place {
     cloud: bool,
     main_topic: bool,
-    /// Titel des Elternknotens.
+    /// Title of the parent node.
     parent: Option<String>,
 }
 
-/// Titel → Ort aller Einfälle des Werks.
+/// Title → place of all ideas of the work.
 async fn places(server: &common::Server, work: i64) -> BTreeMap<String, Place> {
     let answer = server.rpc("idea.list", json!({ "work": work })).await;
     let ideas = result(&answer)["ideas"].as_array().unwrap().clone();
@@ -109,8 +109,8 @@ async fn empty_work(server: &common::Server, title: &str, file: &str) -> i64 {
     server.import(&source, file).await.work
 }
 
-/// Die Rundreise der eigenen `.mm` und `.xmind` erhält die Wolke: Was in der Wolke lag, liegt nach dem
-/// Wiedereinlesen in ein leeres Werk wieder in der Wolke (samt Unterknoten), alles andere an seinem Platz im Baum.
+/// The round trip of the own `.mm` and `.xmind` preserves the cloud: what lay in the cloud lies in the cloud again
+/// after re-importing into an empty work (including child nodes), everything else at its place in the tree.
 #[tokio::test]
 async fn the_round_trip_of_the_own_files_keeps_the_cloud() {
     let server = common::open().await;
@@ -121,11 +121,11 @@ async fn the_round_trip_of_the_own_files_keeps_the_cloud() {
     let create = async |params: Value| -> i64 {
         result(&server.rpc("idea.create", params).await)["idea"]["id"].as_i64().unwrap()
     };
-    // Im Baum: ein Einfall am Kapitel, ein freies Hauptthema mit Unterknoten.
+    // In the tree: one idea at the chapter, one free main topic with child nodes.
     let sod = create(json!({ "work": work, "title": "Grassoden", "key": foot })).await;
     let sheep = create(json!({ "work": work, "title": "Schafe", "cloud": false })).await;
     create(json!({ "work": work, "title": "Trittfest", "parent": sheep })).await;
-    // In der Wolke: zwei Einfälle, einer mit Unterknoten.
+    // In the cloud: two ideas, one with child nodes.
     let gate = create(json!({ "work": work, "title": "Sturmflut 1962" })).await;
     create(json!({ "work": work, "title": "Pegelstand", "parent": gate })).await;
     create(json!({ "work": work, "title": "Reetdach" })).await;
@@ -202,14 +202,14 @@ async fn the_round_trip_of_the_own_files_keeps_the_cloud() {
             !after.contains_key(export::CLOUD_TITLE) && !after.contains_key("Deichbuch"),
             "{name}: Werk-Wurzel und Ast „Wolke“ sind keine Einfälle geworden: {after:?}"
         );
-        // Die Beziehung über die Wolke hinweg kommt mit.
+        // The relation across the cloud comes along.
         let map = server.rpc("idea.tree", json!({ "work": target })).await;
         let links = result(&map).to_string();
         assert!(links.contains("prüft"), "{name}: Die Verbindung zwischen Wolke und Baum bleibt erhalten: {links}");
     }
 }
 
-/// Ein fremder Ast, der nur „Wolke“ heißt, aber die eigene Kennung nicht trägt, ist ein gewöhnliches Hauptthema.
+/// A foreign branch that is merely called „Wolke“ but does not carry the own identifier is an ordinary main topic.
 #[tokio::test]
 async fn a_foreign_branch_that_is_only_called_wolke_becomes_a_main_topic() {
     let server = common::open().await;
@@ -232,7 +232,7 @@ async fn a_foreign_branch_that_is_only_called_wolke_becomes_a_main_topic() {
     assert_eq!(after["Nieselregen"].parent.as_deref(), Some("Wolke"), "sein Kind bleibt sein Unterknoten");
     assert!(after.values().all(|p| !p.cloud), "nichts landet in der Wolke: {after:?}");
 
-    // Gegenprobe: Mit der eigenen Kennung ist derselbe Ast die Wolke.
+    // Cross-check: with the own identifier the same branch is the cloud.
     let own = file.replace("ID=\"ID_2\"", &format!("ID=\"ID_{}\"", export::CLOUD_ID.replace('-', "")));
     let other = empty_work(&server, "Zweites Wetterbuch", "wetterbuch2.typ").await;
     let field = hidden_field(&preview(&server, other, own.as_bytes()).await);
@@ -244,8 +244,8 @@ async fn a_foreign_branch_that_is_only_called_wolke_becomes_a_main_topic() {
     );
 }
 
-/// Ein gefälschtes Kennzeichen `cloud` an einem Unterknoten oder beim Einlesen unter einen Zielknoten wirkt nicht:
-/// In der Wolke liegen nur oberste Knoten ohne Zielknoten.
+/// A forged marker `cloud` at a child node or when importing below a target node has no effect: only top-level nodes
+/// without a target node lie in the cloud.
 #[tokio::test]
 async fn the_cloud_flag_counts_only_at_the_top_and_without_a_target() {
     let server = common::open().await;
@@ -280,16 +280,16 @@ async fn the_cloud_flag_counts_only_at_the_top_and_without_a_target() {
     );
 }
 
-// ---- Beschriftungen der Verbindungen ------------------------------------------------------------------------
+// ---- Labels of the links ------------------------------------------------------------------------------------
 
-/// Wert des Attributs `name` im Tag (Zahl).
+/// Value of the attribute `name` in the tag (number).
 fn number(tag: &str, name: &str) -> f64 {
     let start = tag.find(&format!(" {name}=\"")).unwrap_or_else(|| panic!("Attribut {name} in {tag}")) + name.len() + 3;
     let end = start + tag[start..].find('"').unwrap();
     tag[start..end].parse().unwrap_or_else(|_| panic!("{name} ist eine Zahl: {tag}"))
 }
 
-/// Alle Rechtecke `<rect class="{class}" …>` des SVG als (x, y, Breite, Höhe).
+/// All rectangles `<rect class="{class}" …>` of the SVG as (x, y, width, height).
 fn rects(svg: &str, class: &str) -> Vec<(f64, f64, f64, f64)> {
     let open = format!("<rect class=\"{class}\"");
     svg.match_indices(&open)
@@ -304,8 +304,8 @@ fn overlap(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> bool {
     a.0 < b.0 + b.2 && b.0 < a.0 + a.2 && a.1 < b.1 + b.3 && b.1 < a.1 + a.3
 }
 
-/// Dichte, frei erfundene Karte: vier Kapitel mit je vier Einfällen und Untereinfällen, eine volle Wolke und
-/// vierzehn Beziehungen kreuz und quer, die Hälfte mit langer Notiz.
+/// Dense, freely invented map: four chapters with four ideas each and sub-ideas, a full cloud and fourteen relations
+/// criss-cross, half of them with a long note.
 async fn dense_map(server: &common::Server) -> (i64, usize) {
     let source = "#set document(title: \"Tidenbuch\")\n\n= Ebbe\n\nText.\n\n= Flut\n\nText.\n\n= Priel\n\nText.\n\n\
                   = Watt\n\nText.\n";
@@ -347,8 +347,8 @@ async fn dense_map(server: &common::Server) -> (i64, usize) {
     (work, links)
 }
 
-/// Prüfung R34: Beschriftungen lagen bei dichten Ästen auf den Knoten der Nachbaräste. Jetzt überschneidet das
-/// Rechteck keiner Beschriftung einen Knoten oder eine andere Beschriftung, und jede trägt einen deckenden Grund.
+/// Review R34: with dense branches labels lay on the nodes of the neighbouring branches. Now the rectangle of no label
+/// overlaps a node or another label, and each one carries an opaque background.
 #[tokio::test]
 async fn link_labels_never_lie_on_a_node_or_on_each_other_in_a_dense_map() {
     let server = common::open().await;
@@ -378,7 +378,7 @@ async fn link_labels_never_lie_on_a_node_or_on_each_other_in_a_dense_map() {
             "die Beschriftung bleibt im Bild ({width} × {height}): {label:?}"
         );
     }
-    // Der Text steht in seinem Rechteck (Mitte waagerecht, Grundlinie innerhalb), direkt hinter dem Rechteck.
+    // The text is in its rectangle (centre horizontally, baseline within), directly after the rectangle.
     for (at, _) in svg.match_indices("<rect class=\"mm-link-label-bg\"") {
         let end = at + svg[at..].find("/>").unwrap() + 2;
         let rect = &svg[at..end];
@@ -395,7 +395,7 @@ async fn link_labels_never_lie_on_a_node_or_on_each_other_in_a_dense_map() {
     let first_label = svg.find("mm-link-label-bg\"").unwrap();
     assert!(last_node < first_label, "die Beschriftungen werden zuletzt gezeichnet (über Linien und Knoten)");
 
-    // Auf der Seite färbt karte.css den Grund (hell wie dunkel): kein festes Weiß im Fragment.
+    // On the page karte.css colours the background (light as well as dark): no fixed white in the fragment.
     let (status, page) = server.get(&format!("/werke/{work}/karte")).await;
     assert_eq!(status, StatusCode::OK, "die Seite der Mindmap antwortet");
     let at = page.find("<rect class=\"mm-link-label-bg\"").expect("auch die Seite zeichnet den Grund");
@@ -403,9 +403,9 @@ async fn link_labels_never_lie_on_a_node_or_on_each_other_in_a_dense_map() {
     assert!(!rect.contains("fill="), "im Fragment kommt die Farbe aus karte.css (var(--panel)): {rect}");
 }
 
-/// Stil der Seite: Grund der Beschriftungen in der Flächenfarbe; der Scrollbehälter der Seite reicht über die volle
-/// Breite. Vorher war `.karte` auf 1400 px begrenzt und mittig – ihre Bildlaufleiste stand in breiten Fenstern
-/// neben der Bühne (im dunklen Modus ein heller Streifen). Belegt ist die CSS-Ursache; ein Browser misst hier nicht.
+/// Style of the page: background of the labels in the surface colour; the scroll container of the page spans the full
+/// width. Before, `.karte` was limited to 1400 px and centred – its scroll bar stood next to the stage in wide windows
+/// (a light stripe in dark mode). The CSS cause is proven; no browser measures here.
 #[test]
 fn the_page_style_paints_the_label_ground_and_keeps_the_scrollbar_at_the_window_edge() {
     let css = include_str!("../static/karte.css");

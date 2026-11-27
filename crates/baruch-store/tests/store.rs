@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme von baruch-store (Vertrag B1, Abschnitte 3, 4 und 6) auf Temp-Ordnern.
+//! Acceptance of baruch-store (contract B1, sections 3, 4 and 6) on temp directories.
 
 use baruch_core::{Author, Post, RevisionStatus, TextRef, sample};
 use baruch_store::{Change, ChangeKind, Store, StoreError, slug};
@@ -11,9 +11,9 @@ async fn fresh() -> (tempfile::TempDir, Store, i64) {
     (dir, store, work)
 }
 
-/// Werk als JSON ohne die festen Schlüssel (`key` = Datenbank-id; die Beispieldaten im Speicher
-/// haben keine) und ohne id und Zeitpunkt der Beiträge (vergibt die Datenbank, Runde 8), damit sich
-/// geladenes Werk und Beispielwerk Feld für Feld vergleichen lassen.
+/// Work as JSON without the stable keys (`key` = database id; the sample data in memory have none) and without id and
+/// time of the posts (assigned by the database, Round 8), so that the loaded work and the sample work can be compared
+/// field by field.
 fn without_keys(work: &baruch_core::Work) -> serde_json::Value {
     let mut value = serde_json::to_value(work).unwrap();
     for node in value["nodes"].as_array_mut().unwrap() {
@@ -42,8 +42,8 @@ async fn open_creates_db_and_round_trips_sample() {
 
     let loaded = store.load_work(work).await.unwrap();
     let expected = sample::work();
-    // Feldweise über serde: Knoten (id/seq, parent, number, title, kind, findings), Revisionen
-    // (number, body, author, status, note), Beiträge samt sources und refs, Personas.
+    // Field by field through serde: nodes (id/seq, parent, number, title, kind, findings), revisions (number, body,
+    // author, status, note), posts including sources and refs, personas.
     assert_eq!(without_keys(&loaded), without_keys(&expected), "das Beispielwerk kommt unverändert zurück");
     let keys: Vec<i64> = loaded.nodes.iter().map(|n| n.key).collect();
     assert!(keys.iter().all(|&k| k > 0), "jeder geladene Knoten trägt seinen festen Schlüssel: {keys:?}");
@@ -68,8 +68,8 @@ async fn open_creates_db_and_round_trips_sample() {
 async fn second_open_does_not_seed_again() {
     let dir = tempfile::tempdir().unwrap();
     let first = Store::open(dir.path()).await.unwrap();
-    // Eine Migration eines anderen Migrators (Bibliothek, 0101) in derselben Tabelle darf den
-    // Kernmigrator nicht stören (ignore_missing).
+    // A migration of another migrator (library, 0101) in the same table must not interfere with the core migrator
+    // (ignore_missing).
     sqlx::query(
         "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) \
          VALUES (101, 'library', 1, x'00', 0)",
@@ -84,7 +84,7 @@ async fn second_open_does_not_seed_again() {
     assert_eq!(personas, sample::work().personas.len() as i64, "keine doppelten Personas");
     let migrations: i64 =
         sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations").fetch_one(second.pool()).await.unwrap();
-    // Jede Kernmigration genau einmal, dazu die fremde 0101.
+    // Every core migration exactly once, plus the foreign 0101.
     let core = baruch_store::MIGRATOR.iter().count() as i64;
     assert_eq!(migrations, core + 1, "Kernmigrationen einmal, 0101 bleibt stehen");
 }
@@ -146,8 +146,8 @@ async fn concurrent_accepts_take_effect_once() {
 async fn failing_step_inside_accept_rolls_back() {
     let (_dir, store, work) = fresh().await;
     let before = store.load_work(work).await.unwrap();
-    // Der zweite Schritt (Vorschlag → current) scheitert; der erste (alte current → superseded)
-    // ist dann schon ausgeführt und muss zurückgerollt werden.
+    // The second step (proposal → current) fails; the first (old current → superseded) has already been executed then
+    // and has to be rolled back.
     sqlx::query(
         "CREATE TRIGGER test_fail_accept BEFORE UPDATE OF status ON revision WHEN NEW.status = 'current' \
          BEGIN SELECT RAISE(ABORT, 'Testfehler'); END",
@@ -230,7 +230,7 @@ async fn save_human_appends_current_and_skips_unchanged() {
     .unwrap();
     assert_eq!(kind, "human", "Autor in der Datenbank ist der Mensch");
 
-    // Gleicher Text (auch mit CRLF) → nichts.
+    // Same text (also with CRLF) → nothing.
     assert_eq!(
         store.save_human(work, 0, "= Vorwort\r\n\r\nNeu.\r\n", "Autor").await.unwrap(),
         None,
@@ -243,7 +243,7 @@ async fn save_human_appends_current_and_skips_unchanged() {
     );
     assert_eq!(store.load_work(work).await.unwrap().nodes[0].revisions.len(), 2, "weiter zwei Fassungen");
 
-    // Speichern bei offenem Vorschlag: neue Nummer hinter dem Vorschlag, Vorschlag bleibt offen.
+    // Saving with an open proposal: new number after the proposal, the proposal stays open.
     let change = store.save_human(work, 2, "= Einleitung\n\nEigene Fassung\n", "Autor").await.unwrap().unwrap();
     assert_eq!(change.rev, 4, "neue Nummer hinter dem Vorschlag");
     let after = store.load_work(work).await.unwrap();
@@ -329,14 +329,14 @@ async fn add_post_appends_with_sources_and_refs() {
 async fn triggers_guard_origin_current_and_the_one_current_index() {
     let (_dir, store, _work) = fresh().await;
     let pool = store.pool();
-    // Seit 0004 darf der Mensch löschen, aber nie die aktuelle Fassung.
+    // Since 0004 the human may delete, but never the current revision.
     let delete = sqlx::query("DELETE FROM revision WHERE status = 'current'").execute(pool).await.unwrap_err();
     assert!(delete.to_string().contains("Die aktuelle Fassung lässt sich nicht löschen"), "{delete}");
-    // Herkunft bleibt unveränderlich, auch wenn der Text sich ändern darf.
+    // The origin stays immutable even though the text may change.
     let update = sqlx::query("UPDATE revision SET author_name = 'Fremd'").execute(pool).await.unwrap_err();
     assert!(update.to_string().contains("Herkunft einer Revision ist unveränderlich"), "{update}");
-    // Eine zweite current im selben Abschnitt: superseded → current ist jetzt ein erlaubter Übergang,
-    // also muss der Teilindex sie verhindern.
+    // A second current in the same section: superseded → current is now an allowed transition, so the partial index has
+    // to prevent it.
     let second = sqlx::query(
         "UPDATE revision SET status = 'current' WHERE status = 'superseded' \
          AND node_id = (SELECT id FROM node WHERE seq = 2)",
@@ -345,7 +345,7 @@ async fn triggers_guard_origin_current_and_the_one_current_index() {
     .await
     .unwrap_err();
     assert!(second.to_string().contains("UNIQUE"), "Teilindex muss eine zweite current verhindern: {second}");
-    // Auch ein neu eingefügter zweiter current-Eintrag scheitert am Teilindex.
+    // A newly inserted second current entry also fails on the partial index.
     let insert = sqlx::query(
         "INSERT INTO revision (node_id, number, body, author_kind, author_name, status) \
          SELECT id, 99, 'x', 'human', 'Autor', 'current' FROM node WHERE seq = 2",
@@ -354,7 +354,7 @@ async fn triggers_guard_origin_current_and_the_one_current_index() {
     .await
     .unwrap_err();
     assert!(insert.to_string().contains("UNIQUE"), "Teilindex muss eine zweite current verhindern: {insert}");
-    // Nichts davon hat etwas geändert.
+    // None of this has changed anything.
     assert_eq!(
         without_keys(&store.load_work(store.default_work().await.unwrap()).await.unwrap()),
         without_keys(&sample::work()),
@@ -365,7 +365,7 @@ async fn triggers_guard_origin_current_and_the_one_current_index() {
 #[tokio::test]
 async fn mirror_snapshot_follows_tree_order() {
     let (_dir, store, work) = fresh().await;
-    // Ein Abschnitt, der nach seq hinten steht, im Baum aber unter Teil I hinter Kapitel 2 hängt.
+    // A section that stands at the back by seq but hangs below part I after chapter 2 in the tree.
     let node_id: i64 = sqlx::query_scalar(
         "INSERT INTO node (work_id, seq, parent_seq, position, number, title, kind) \
          VALUES (?, 11, 1, 2, '2a', 'Nachtrag Ä', 'chapter') RETURNING id",
@@ -400,8 +400,8 @@ async fn mirror_snapshot_follows_tree_order() {
         assert_eq!(&file.path, path, "Abschnittsdatei in Baumreihenfolge");
         let node = &loaded.nodes[seq];
         let current = &node.revisions[node.current_index().unwrap()].body;
-        // Seit Runde 14 (Vertrag §4) projiziert der Spiegel „ohne Nummer“ (hier das Vorwort, seq 0) als
-        // Markierung in der ersten Überschriftszeile; die DB bleibt unverändert.
+        // Since Round 14 (contract §4) the mirror projects „ohne Nummer“ (here the preface, seq 0) as a marking in the
+        // first heading line; the DB stays unchanged.
         let expected =
             if seq == 0 { baruch_typst::set_numbered_line(current, false).unwrap() } else { current.clone() };
         assert_eq!(

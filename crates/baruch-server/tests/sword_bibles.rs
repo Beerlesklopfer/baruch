@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! SWORD-Bibeln im Server (Wunsch 2026-11-06): Modulordner und Bibel je Werk (RPC und Formular ohne
-//! JavaScript), `bible.lookup`/`bible.search`/`bible.check`, Wortlautprüfung in `scripture.check`, Faktenblock
-//! und Hinweis für @schrift, MCP `bible_*` und `scripture_check {key}`. Die Bibeln schreibt der Test selbst
-//! (`baruch_sword::fixture`) mit frei erfundenem Text in einen Temp-Ordner; die echten Modulordner des Rechners
-//! werden nie gelesen (jeder Test setzt seine Ordner).
+//! SWORD Bibles in the server (wish 2026-11-06): module directory and Bible per work (RPC and form without JavaScript),
+//! `bible.lookup`/`bible.search`/`bible.check`, wording check in `scripture.check`, fact block and hint for @schrift,
+//! MCP `bible_*` and `scripture_check {key}`. The test writes the Bibles itself (`baruch_sword::fixture`) with freely
+//! invented text into a temp directory; the real module directories of the machine are never read (every test sets its
+//! directories).
 
 use crate::common;
 
@@ -21,7 +21,7 @@ Nur halb: „und die Amsel sang“ (Joh 3,16). Falsch erinnert: „Der Stein lag
 Ohne Zitat Ps 23,1. Die Stelle Ps 23,2 fehlt im Modul. Ungültig: Ps 151,1.\n\n\
 #quote(block: true, attribution: [Ps 23,1])[Ein Lied vom stillen Wasser.]\n";
 
-/// Erfundene Testbibel in deutscher Zählung (zText, Blöcke je Buch).
+/// Invented test Bible in German versification (zText, blocks per book).
 fn kiesel() -> Fixture {
     Fixture::new("Kiesel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Kieselbibel")
@@ -38,7 +38,7 @@ fn kiesel() -> Fixture {
         .verse("Mal", 3, 24, "Ende des erfundenen Alten Testaments.")
 }
 
-/// Erfundene Testbibel in englischer Zählung (RawText).
+/// Invented test Bible in English versification (RawText).
 fn english() -> Fixture {
     Fixture::new("Englisch", Layout::RawText, versification("KJV").unwrap())
         .conf("Description", "Erfundene Bibel mit KJV-Zählung")
@@ -66,7 +66,7 @@ async fn err(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// Server mit eigenem Modulordner und dem Kieselbuch; gibt Server, Werk und den Schlüssel des Abschnitts.
+/// Server with its own module directory and the pebble book; returns server, work and the key of the section.
 async fn setup(modules: &[Fixture]) -> (common::Server, tempfile::TempDir, i64, i64) {
     let server = common::open().await;
     let bibles = tempfile::tempdir().unwrap();
@@ -211,7 +211,7 @@ async fn the_reference_check_compares_quotes_with_the_chosen_bible() {
     assert_eq!(checked["bible"]["module"], "Kiesel", "Modul genannt: {checked}");
     assert_eq!(checked["title"], "Am Bach", "Abschnitt genannt: {checked}");
 
-    // scripture.check mit Text nimmt die Bibel des Werks; MCP scripture_check mit key prüft den Abschnitt.
+    // scripture.check with text takes the Bible of the work; MCP scripture_check with key checks the section.
     let text =
         ok(&server, "scripture.check", json!({ "work": work, "text": "„Der Kiesel lag am Bach“ (Joh 3,16)" })).await;
     assert_eq!(text["refs"][0]["wording_code"], "match", "Teilzitat im Text: {text}");
@@ -226,8 +226,8 @@ async fn a_bible_with_english_counting_reports_where_the_versification_does_not_
     let text = "„Der Kiesel lag am Bach“ (Joh 3,16) und „Ende“ (Mal 3,24).";
     let checked = ok(&server, "scripture.check", json!({ "work": work, "text": text })).await;
     assert_eq!(checked["refs"][0]["wording_code"], "match", "Joh 3 hat in beiden Zählungen 36 Verse: {checked}");
-    // Seit R17c liest Baruch über die Abbildung (R17a: Mal 3,19–24 deutsch = Mal 4,1–6 KJV). Ohne Regel für die
-    // Stelle bleibt es „Versifikation passt nicht“ mit Grund; die Erwartung folgt der Abbildung selbst.
+    // Since R17c Baruch reads through the mapping (R17a: Mal 3,19–24 German = Mal 4,1–6 KJV). Without a rule for the
+    // reference it stays „Versifikation passt nicht“ with a reason; the expectation follows the mapping itself.
     let kjv = versification("KJV").unwrap();
     match baruch_scripture::versification::mapping::map_range(german(), kjv, "Mal", (3, 24), (3, 24), 400) {
         Ok(_) => {
@@ -289,7 +289,7 @@ async fn schrift_gets_the_results_as_facts_and_the_answer_names_the_module() {
     assert!(facts.contains("Ps 23,2: vorhanden; Vers fehlt im Modul Kiesel"), "fehlender Vers als Fakt: {facts}");
     assert!(facts.ends_with(FACTS_END_BIBLE), "Schlusssatz verbietet eigenes Bestätigen: {facts}");
     assert!(FACTS_END_BIBLE.contains("nie selbst"), "ausdrückliches Verbot");
-    // Der vollständige Bibeltext steht nur bei einer Abweichung (der geprüfte Vers), sonst nicht.
+    // The complete Bible text appears only for a deviation (the checked verse), otherwise not.
     assert!(!facts.contains("Ein Lied vom stillen Wasser.“, Unterschiede"), "keine Abweichung bei Ps 23,1: {facts}");
     assert_eq!(
         baruch_server::scripture::facts_for_work(&server.state, work, "@lektor", section).await,

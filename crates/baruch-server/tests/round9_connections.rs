@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 9, Aufgabe „connections“: Einstellungsseiten „Verbindungen“ und „Quellen“ (direkt über
-//! `render_connections`/`render_sources`, ohne den Rahmen der Einstellungen), ihre Formulare, RPC
-//! `connection.*`/`sources.*`, „Verbindung prüfen“ gegen eigene Test-Server auf 127.0.0.1:0 und das
-//! MCP-Werkzeug `sources_list`.
+//! Round 9, task „connections“: settings pages „Verbindungen“ and „Quellen“ (directly through
+//! `render_connections`/`render_sources`, without the frame of the settings), their forms, RPC
+//! `connection.*`/`sources.*`, „Verbindung prüfen“ against own test servers on 127.0.0.1:0 and the MCP tool
+//! `sources_list`.
 //!
-//! Geheimnisse: Jeder Test nimmt `MemorySecrets` (über `AppState::open_with_secrets` bzw.
-//! `AppState::open`); der echte Schlüsselbund (`KeyringSecrets`) kommt in keinem Test vor. Ein
-//! eindeutiges Test-Geheimnis darf in keiner Seite, Antwort, Meldung, Weiterleitung und keinem
-//! Prüfergebnis stehen.
+//! Secrets: every test takes `MemorySecrets` (through `AppState::open_with_secrets` or `AppState::open`); the real
+//! keyring (`KeyringSecrets`) occurs in no test. A unique test secret must not appear in any page, answer, message,
+//! redirect or check result.
 //!
-//! pgvector: Fehlerpfade (geschlossener Port, abgelehntes Passwort über eine nachgebaute Gegenstelle)
-//! laufen immer; mit `/usr/lib/postgresql/*/bin` zusätzlich gegen einen eigenen Wegwerf-Cluster unter
-//! `CARGO_TARGET_TMPDIR` (scram-sha-256, nur 127.0.0.1, ohne Unix-Socket), gestoppt mit `pg_ctl` des
-//! eigenen Clusters.
+//! pgvector: error paths (closed port, rejected password through a mocked peer) always run; with
+//! `/usr/lib/postgresql/*/bin` additionally against an own throwaway cluster under `CARGO_TARGET_TMPDIR`
+//! (scram-sha-256, only 127.0.0.1, without Unix socket), stopped with `pg_ctl` of the own cluster.
 
 use crate::common;
 
@@ -35,7 +33,7 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-/// Eindeutiges Test-Geheimnis; es darf nirgends erscheinen.
+/// Unique test secret; it must not appear anywhere.
 const SECRET: &str = "Zz9-geheim-7f3c1e-Test-Wert";
 
 async fn open_with(secrets: MemorySecrets) -> common::Server {
@@ -45,7 +43,7 @@ async fn open_with(secrets: MemorySecrets) -> common::Server {
     common::Server { app: baruch_server::router(state.clone()), state, data }
 }
 
-/// So maskiert minijinja Text in HTML (auch `/`).
+/// This is how minijinja escapes text in HTML (also `/`).
 fn esc(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -69,21 +67,21 @@ async fn sources_page(server: &common::Server, pairs: &[(&str, &str)]) -> String
     render_sources(&server.state, None, &q).await.expect("Seite Quellen")
 }
 
-/// Erfolgreicher RPC-Aufruf.
+/// Successful RPC call.
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     let answer = server.rpc(method, params).await;
     assert!(answer["error"].is_null(), "{method} sollte gelingen: {answer}");
     answer["result"].clone()
 }
 
-/// RPC-Fehler mit Code; liefert die Meldung.
+/// RPC error with code; returns the message.
 async fn fails(server: &common::Server, method: &str, params: Value, code: i64) -> String {
     let answer = server.rpc(method, params).await;
     assert_eq!(answer["error"]["code"], code, "{method} muss mit {code} scheitern: {answer}");
     answer["error"]["message"].as_str().unwrap().to_owned()
 }
 
-/// Ausschnitt einer Seite: die Verbindung `kind` (bis zur nächsten).
+/// Excerpt of a page: the connection `kind` (up to the next one).
 fn section<'a>(html: &'a str, kind: &str) -> &'a str {
     let start = html.find(&format!("id=\"{kind}\"")).unwrap_or_else(|| panic!("Abschnitt {kind} fehlt: {html}"));
     let rest = &html[start..];
@@ -91,7 +89,7 @@ fn section<'a>(html: &'a str, kind: &str) -> &'a str {
     &rest[..end]
 }
 
-/// Formular schicken und den Ort der Weiterleitung zurückgeben (immer 303).
+/// Send a form and return the location of the redirect (always 303).
 async fn form(server: &common::Server, uri: &str, body: &str) -> String {
     let (status, location) = server.post_form(uri, body).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{uri} antwortet immer mit 303 ({body})");
@@ -107,7 +105,7 @@ fn form_escape(text: &str) -> String {
         .collect()
 }
 
-/// Test-Server auf 127.0.0.1:0; liefert die Adresse `http://127.0.0.1:PORT`.
+/// Test server on 127.0.0.1:0; returns the address `http://127.0.0.1:PORT`.
 async fn serve(app: Router) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -119,9 +117,8 @@ fn bearer(headers: &HeaderMap) -> String {
     headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).unwrap_or("").to_owned()
 }
 
-/// Eliezer zum Nachbilden: `/v1/models` nur mit dem richtigen Bearer. Bei falschem Schlüssel spiegelt
-/// die Antwort den Schlüssel zurück, und ein Modell trägt das Geheimnis im Namen – beides darf Baruch
-/// nicht weitergeben.
+/// Eliezer as a mock: `/v1/models` only with the right bearer. With a wrong key the answer mirrors the key back, and
+/// one model carries the secret in its name – Baruch must not pass on either.
 async fn fake_eliezer() -> String {
     let app = Router::new().route(
         "/v1/models",
@@ -138,8 +135,8 @@ async fn fake_eliezer() -> String {
     serve(app).await
 }
 
-/// MultiGPT (MCP) zum Nachbilden, Antworten als `application/json`: Bearer und `Mcp-Session-Id`
-/// werden geprüft; die Methoden in ihrer Reihenfolge landen in `seen`.
+/// MultiGPT (MCP) as a mock, answers as `application/json`: bearer and `Mcp-Session-Id` are checked; the methods in
+/// their order end up in `seen`.
 async fn fake_mcp_json(seen: Arc<Mutex<Vec<String>>>) -> String {
     let app = Router::new().route(
         "/mcp/",
@@ -177,7 +174,7 @@ async fn fake_mcp_json(seen: Arc<Mutex<Vec<String>>>) -> String {
     format!("{}/mcp/", serve(app).await)
 }
 
-/// Eine HTTP-Anfrage von einem rohen Socket lesen: (Kopf, Rumpf). `None` am Ende der Verbindung.
+/// Read one HTTP request from a raw socket: (head, body). `None` at the end of the connection.
 async fn read_request(socket: &mut tokio::net::TcpStream) -> Option<(String, String)> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 4096];
@@ -208,8 +205,8 @@ async fn read_request(socket: &mut tokio::net::TcpStream) -> Option<(String, Str
     }
 }
 
-/// MultiGPT als `text/event-stream`, roh über TCP: Der Strom bleibt nach der Antwort offen (wie bei
-/// manchen MCP-Servern); Baruch muss die Antwort trotzdem lesen, ohne auf das Ende zu warten.
+/// MultiGPT as `text/event-stream`, raw over TCP: the stream stays open after the answer (as with some MCP servers);
+/// Baruch has to read the answer nevertheless, without waiting for the end.
 async fn fake_mcp_sse(seen: Arc<Mutex<Vec<String>>>) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -247,7 +244,7 @@ async fn fake_mcp_sse(seen: Arc<Mutex<Vec<String>>>) -> String {
                                 "serverInfo": { "name": "multigpt-sse", "version": "0.9" } }));
                             let response = format!("{}{payload}", head_sse("mcp-session-id: sitzung-sse\r\n"));
                             let _ = socket.write_all(response.as_bytes()).await;
-                            // Strom offen lassen (keine Länge, kein Ende).
+                            // Leave the stream open (no length, no end).
                             tokio::time::sleep(Duration::from_secs(60)).await;
                             return;
                         }
@@ -271,7 +268,7 @@ async fn fake_mcp_sse(seen: Arc<Mutex<Vec<String>>>) -> String {
     format!("http://{address}/mcp/")
 }
 
-/// Nimmt Verbindungen an und antwortet nie.
+/// Accepts connections and never answers.
 async fn silent_server() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -285,7 +282,7 @@ async fn silent_server() -> String {
     format!("http://{address}")
 }
 
-/// Ein freier Port, auf dem niemand lauscht.
+/// A free port on which nobody listens.
 async fn closed_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -293,10 +290,10 @@ async fn closed_port() -> u16 {
     port
 }
 
-/// Alles, was ein Mensch oder ein Programm von Baruch zu sehen bekommt, darf das Geheimnis nicht
-/// enthalten.
-/// Geheimnis für das jetzige Ziel neu eintragen – wie der Mensch nach einer Adressänderung (das
-/// vorher hinterlegte gilt nur für das alte Ziel und wird sonst zurückgehalten).
+/// Everything that a human or a program gets to see from Baruch must not contain the
+/// secret.
+/// Enter the secret anew for the present target – like the human after a change of address (the
+/// one stored before applies only to the old target and is otherwise held back).
 async fn confirm_secret(server: &common::Server, kind: &str) {
     ok(server, "connection.set_secret", json!({ "kind": kind, "secret": SECRET })).await;
 }
@@ -305,7 +302,7 @@ fn assert_clean(what: &str, text: &str) {
     assert!(!text.contains(SECRET), "{what} enthält das Geheimnis: {text}");
 }
 
-// ---- Seiten ----------------------------------------------------------------------------------------
+// ---- Pages -----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_connections_page_shows_defaults_secret_states_and_honest_stubs() {
@@ -320,7 +317,7 @@ async fn the_connections_page_shows_defaults_secret_states_and_honest_stubs() {
     for value in ["http://127.0.0.1:1234", "lancedb", "nomic-embed-text"] {
         assert!(html.contains(&format!("value=\"{}\"", esc(value))), "Vorgabe {value} im Formular: {html}");
     }
-    // Runde 24: MultiGPT hat keine Adresse als Vorgabe; das Feld ist leer und zeigt nur eine Beispieladresse.
+    // Round 24: MultiGPT has no address as a default; the field is empty and only shows an example address.
     let multigpt = section(&html, "multigpt");
     assert!(multigpt.contains("name=\"url\" value=\"\""), "MultiGPT ohne Vorgabe-Adresse (leeres Feld): {multigpt}");
     assert!(
@@ -343,13 +340,13 @@ async fn the_connections_page_shows_defaults_secret_states_and_honest_stubs() {
         );
         assert!(part.contains("Verbindung prüfen") && !part.contains("disabled title"), "{kind} lässt sich prüfen");
         if kind == "eliezer" {
-            // Runde 10 (backend): Die Personas nutzen Eliezer; der Nutzungs-STUB ist entfallen.
+            // Round 10 (backend): the personas use Eliezer; the usage STUB has been dropped.
             assert!(
                 part.contains("data-usage") && part.contains("Personas nutzen Eliezer") && !part.contains("data-stub"),
                 "eliezer: Nutzung ehrlich als umgesetzt benannt, kein STUB-Hinweis mehr: {part}"
             );
         } else {
-            // Runde 12: Die Nutzung ist für alle Wege umgesetzt (Nutzungstexte nach Vertrag §5).
+            // Round 12: the usage is implemented for all ways (usage texts according to contract §5).
             let usage = baruch_server::connections::usage_stub(
                 baruch_store::ConnectionKind::ALL.into_iter().find(|k| k.as_str() == kind).unwrap(),
             );
@@ -432,7 +429,7 @@ async fn the_sources_page_lists_and_offers_every_form_without_javascript() {
         "Seiteninhalt für den Rahmen: {empty}"
     );
     assert!(empty.contains("Noch keine Quellen.") && empty.contains("value=\"sources.create\""), "leer, Anlegen da");
-    // Runde 13 (websuche): Die Websuche von @belege nutzt die Liste; der STUB-Hinweis ist entfallen.
+    // Round 13 (websuche): the web search of @belege uses the list; the STUB hint has been dropped.
     let usage = esc("Die Websuche für @belege (Einstellungen → Assistenten, Vorgabe aus) fragt zuerst die ersten drei");
     assert!(
         empty.contains(&format!("<p class=\"muted tiny\" data-usage>{usage}"))
@@ -468,7 +465,7 @@ async fn the_sources_page_lists_and_offers_every_form_without_javascript() {
     assert!(html.contains("name=\"confirm\" value=\"1\" required"), "Löschen mit Kästchen");
 }
 
-// ---- Formulare -----------------------------------------------------------------------------------
+// ---- Forms ---------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn connection_forms_always_redirect_with_codes_only() {
@@ -514,8 +511,8 @@ async fn connection_forms_always_redirect_with_codes_only() {
     let location = form(&server, act, "method=connection.drop&kind=eliezer").await;
     assert_eq!(location, "/einstellungen/verbindungen?fehler=methode&kind=eliezer", "unbekannte Aktion");
     let location = form(&server, act, "method=connection.check&kind=lancedb").await;
-    // Seit Runde 12 prüft LanceDB wirklich (Ordner, Index, Einbettungsmodell); ohne Einbetter ist das ein
-    // Ergebnis bei der Verbindung (ok: false), kein Fehler der Aktion.
+    // Since Round 12 LanceDB really checks (directory, index, embedding model); without an embedder that is a result of
+    // the connection (ok: false), not an error of the action.
     assert_eq!(location, "/einstellungen/verbindungen?ok=geprueft#lancedb", "LanceDB-Prüfung ist ein Ergebnis");
 }
 
@@ -716,8 +713,8 @@ async fn connection_rpc_lists_and_validates() {
     assert_eq!(ok(&server, "connection.get", json!({ "kind": "eliezer" })).await["secret"], "hinterlegt", "noch da");
     let answer = ok(&server, "connection.delete_secret", json!({ "kind": "eliezer", "confirm": true })).await;
     assert_eq!(answer, json!({ "kind": "eliezer", "secret": "fehlt" }), "entfernt");
-    // Seit Runde 12 prüft LanceDB wirklich: Ohne Einbetter (Tests binden keinen an, nie Netz) ist das ehrlich
-    // ein Fehlschlag mit Grund, kein STUB mehr.
+    // Since Round 12 LanceDB really checks: without an embedder (tests attach none, never network) that is honestly a
+    // failure with a reason, no longer a STUB.
     let check = ok(&server, "connection.check", json!({ "kind": "lancedb" })).await;
     assert_eq!(check["kind"], "lancedb", "Art der Prüfung: {check}");
     assert_eq!(check["ok"], false, "ohne Einbettungsmodell nicht nutzbar: {check}");
@@ -785,7 +782,7 @@ async fn sources_rpc_keeps_order_and_validates() {
     assert_eq!(positions, [1, 2], "lückenlos nach Verschieben und Löschen: {list}");
 }
 
-// ---- Prüfen ----------------------------------------------------------------------------------------
+// ---- Checking --------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn checking_eliezer_lists_models_with_the_bearer_and_stores_the_result() {
@@ -809,7 +806,7 @@ async fn checking_eliezer_lists_models_with_the_bearer_and_stores_the_result() {
     assert_clean("connection.check", &result.to_string());
     let row = ok(&server, "connection.get", json!({ "kind": "eliezer" })).await;
     assert_eq!(row["check"]["ok"], true, "Ergebnis in connection gespeichert: {row}");
-    // Runde 10 (backend): Die Meldung nennt danach die Persona-Modelle, die der Nachbau nicht kennt.
+    // Round 10 (backend): after that the message names the persona models that the mock does not know.
     let message = row["check"]["message"].as_str().unwrap();
     assert!(
         message.starts_with("Verbindung steht: 3 Modelle.") && message.contains("Unbekannt bei Eliezer"),
@@ -825,7 +822,7 @@ async fn checking_eliezer_lists_models_with_the_bearer_and_stores_the_result() {
         .unwrap();
     assert_clean("check_details", &details);
 
-    // Falscher Schlüssel: ok:false mit Meldung, die Antwort der Gegenstelle (mit dem Schlüssel) geht nicht weiter.
+    // Wrong key: ok:false with a message, the answer of the peer (with the key) is not passed on.
     server.state.secrets.set("eliezer", "falsch-aber-lang").unwrap();
     let result = ok(&server, "connection.check", json!({ "kind": "eliezer" })).await;
     assert_eq!(result["ok"], false, "falscher Schlüssel ist ein Ergebnis, kein RPC-Fehler: {result}");
@@ -939,8 +936,8 @@ async fn a_check_gives_up_after_ten_seconds_and_on_oversized_answers() {
     assert!(result["message"].as_str().unwrap().contains("Keine Verbindung"), "Meldung: {result}");
 }
 
-/// Nachgebaute PostgreSQL-Gegenstelle: verlangt ein Klartext-Passwort, merkt es sich und lehnt ab
-/// (SQLSTATE 28P01), wie ein Server bei falschem Passwort.
+/// Mocked PostgreSQL peer: demands a plain-text password, remembers it and rejects (SQLSTATE 28P01), like a server on a
+/// wrong password.
 async fn fake_postgres(received: Arc<Mutex<Option<String>>>) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -949,7 +946,7 @@ async fn fake_postgres(received: Arc<Mutex<Option<String>>>) -> u16 {
             let (mut socket, _) = listener.accept().await.unwrap();
             let received = received.clone();
             tokio::spawn(async move {
-                // Startnachricht (ggf. vorher SSLRequest, dann „N“).
+                // Startup message (possibly an SSLRequest before it, then „N“).
                 loop {
                     let mut len = [0u8; 4];
                     if socket.read_exact(&mut len).await.is_err() {
@@ -1023,7 +1020,7 @@ async fn pgvector_failures_are_results_with_a_message() {
     assert_eq!(row["check"]["ok"], false, "Fehlschlag gespeichert: {row}");
 }
 
-/// Eigener Wegwerf-Cluster; `Drop` stoppt ihn mit `pg_ctl -m immediate` (nur diesen Datenordner).
+/// Own throwaway cluster; `Drop` stops it with `pg_ctl -m immediate` (only this data directory).
 struct Cluster {
     pg_ctl: PathBuf,
     data: PathBuf,
@@ -1041,7 +1038,7 @@ impl Drop for Cluster {
     }
 }
 
-/// `/usr/lib/postgresql/<n>/bin` mit `initdb`, `pg_ctl`, `postgres`; höchste Version zuerst.
+/// `/usr/lib/postgresql/<n>/bin` with `initdb`, `pg_ctl`, `postgres`; highest version first.
 fn postgres_bin() -> Option<PathBuf> {
     let mut found: Vec<PathBuf> = std::fs::read_dir("/usr/lib/postgresql")
         .ok()?
@@ -1145,7 +1142,7 @@ async fn pgvector_against_an_own_throwaway_cluster_connects_and_reports_the_miss
     drop(cluster);
 }
 
-// ---- Geheimnisse über alle Wege --------------------------------------------------------------------
+// ---- Secrets across all ways -----------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_test_secret_appears_in_no_page_answer_message_or_check() {
@@ -1269,9 +1266,9 @@ async fn mcp_sources_list_reads_the_list_and_changes_nothing() {
     assert_eq!(ok(&server, "sources.list", json!({})).await, before, "nichts geändert (auch nicht mit Argumenten)");
 }
 
-// ---- Bindung des Geheimnisses an das Ziel --------------------------------------------------------
+// ---- Binding of the secret to the target ---------------------------------------------------------
 
-/// Fremdes Ziel, das jeden `Authorization`-Kopf mitschreibt und wie Eliezer antwortet.
+/// Foreign target that records every `Authorization` header and answers like Eliezer.
 async fn recording_eliezer(seen: Arc<Mutex<Vec<String>>>) -> String {
     let app = Router::new().route(
         "/v1/models",
@@ -1288,8 +1285,8 @@ async fn recording_eliezer(seen: Arc<Mutex<Vec<String>>>) -> String {
 
 #[tokio::test]
 async fn a_changed_address_never_receives_the_stored_secret() {
-    // Ohne Bindung zögen zwei RPC-Aufrufe (connection.set mit fremder Adresse, connection.check) jeden
-    // hinterlegten Schlüssel ab: als Bearer bzw. als Klartext-Passwort an das neue Ziel.
+    // Without the binding two RPC calls (connection.set with a foreign address, connection.check) would draw off every
+    // stored key: as a bearer or as a plain-text password to the new target.
     let server = open_with(MemorySecrets::with([("eliezer", SECRET), ("pgvector", SECRET)])).await;
     let seen = Arc::new(Mutex::new(Vec::new()));
     let url = recording_eliezer(seen.clone()).await;
@@ -1310,7 +1307,7 @@ async fn a_changed_address_never_receives_the_stored_secret() {
     assert!(part.contains("data-secret-for") && part.contains("127.0.0.1:1234"), "Hinweis auf der Seite: {part}");
     assert_clean("Seite mit Hinweis", &html);
 
-    // pgvector: auch mit TLS „prefer“ und einer Gegenstelle, die Klartext verlangt, geht nichts hinaus.
+    // pgvector: even with TLS „prefer“ and a peer that demands plain text nothing goes out.
     let received = Arc::new(Mutex::new(None));
     let port = fake_postgres(received.clone()).await;
     let config = json!({ "host": "127.0.0.1", "port": port, "user": "probe", "tls": "prefer" });
@@ -1319,12 +1316,12 @@ async fn a_changed_address_never_receives_the_stored_secret() {
     assert_eq!(result["details"]["secret_withheld"], true, "pgvector zurückgehalten: {result}");
     assert_eq!(*received.lock().unwrap(), None, "kein Passwort beim neuen Rechner");
 
-    // Ein anderer Pfad beim selben Server ist dasselbe Ziel; zurück beim alten Ziel gilt es wieder.
+    // Another path on the same server is the same target; back at the old target it applies again.
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": "http://127.0.0.1:1234/v1" } })).await;
     let row = ok(&server, "connection.get", json!({ "kind": "eliezer" })).await;
     assert!(row.get("secret_for").is_none(), "wieder beim gebundenen Ziel: {row}");
 
-    // Bestätigen heißt: das Geheimnis für das neue Ziel neu eintragen. Erst dann geht es dorthin.
+    // Confirming means: entering the secret anew for the new target. Only then does it go there.
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": url } })).await;
     let result = ok(&server, "connection.check", json!({ "kind": "eliezer" })).await;
     assert_eq!(result["details"]["secret_withheld"], true, "weiter zurückgehalten: {result}");
@@ -1333,7 +1330,7 @@ async fn a_changed_address_never_receives_the_stored_secret() {
     assert_eq!(result["ok"], true, "neu eingetragen: jetzt geprüft: {result}");
     assert_eq!(*seen.lock().unwrap(), [format!("Bearer {SECRET}")], "genau einmal, nach dem Neueintrag");
 
-    // Entfernen löst die Bindung; ein später (außerhalb) hinterlegtes Geheimnis gilt dem jetzigen Ziel.
+    // Removing dissolves the binding; a secret stored later (outside) applies to the present target.
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": "http://127.0.0.1:1234" } })).await;
     ok(&server, "connection.delete_secret", json!({ "kind": "eliezer", "confirm": true })).await;
     let row = ok(&server, "connection.get", json!({ "kind": "eliezer" })).await;
@@ -1356,7 +1353,7 @@ async fn without_a_stored_secret_an_address_change_binds_nothing() {
     assert_eq!(result["ok"], true, "ein danach hinterlegtes Geheimnis gilt dem jetzigen Ziel: {result}");
 }
 
-/// Schlüsselbund, der liest, aber jedes Schreiben ablehnt (gesperrt).
+/// Keyring that reads but rejects every write (locked).
 struct LockedKeyring;
 
 impl baruch_server::connections::SecretStore for LockedKeyring {
@@ -1383,7 +1380,7 @@ async fn saving_with_a_secret_checks_it_first_and_reports_what_really_changed() 
         .await
         .unwrap();
 
-    // Ungültiges Geheimnis (Steuerzeichen) mit neuer Adresse: abgelehnt, bevor etwas gespeichert wird.
+    // Invalid secret (control character) with a new address: rejected before anything is saved.
     let body =
         format!("method=connection.set&kind=multigpt&url={}&secret=ab%07cd", form_escape("https://neu.example/mcp/"));
     let location = form(&server, act, &body).await;
@@ -1398,7 +1395,7 @@ async fn saving_with_a_secret_checks_it_first_and_reports_what_really_changed() 
     let row = ok(&server, "connection.get", json!({ "kind": "multigpt" })).await;
     assert_eq!(row["config"]["url"], "https://alt.example/mcp/", "auch dann nichts gespeichert");
 
-    // Gesperrter Schlüsselbund: Die Einstellungen sind gespeichert, das Geheimnis nicht – und so steht es da.
+    // Locked keyring: the settings are saved, the secret is not – and that is what the page says.
     let data = tempfile::tempdir().unwrap();
     let state = AppState::open_with_secrets(data.path(), Arc::new(LockedKeyring)).await.unwrap();
     let state = Arc::new(state);

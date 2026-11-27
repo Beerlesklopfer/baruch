@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende-Tests der Runde 6 (Integrator): Gliederungsschema, Satzbild mit Szene und Bild,
-//! Import und Export mit Bildern, Migrationen 0008 und 0009 gemeinsam. Echter Datenordner im
-//! Temp-Ordner (SQLite, Bibliothek, Git-Spiegel); alle Texte und Bilder frei erfunden und im Test
-//! erzeugt.
+//! End-to-end tests of Round 6 (integrator): outline scheme, typeset view with scene and image, import and export with
+//! images, migrations 0008 and 0009 together. Real data directory in the temp directory (SQLite, library, Git mirror);
+//! all texts and images freely invented and generated in the test.
 
 use crate::common;
 
@@ -43,7 +42,7 @@ fn editor_head(html: &str) -> &str {
     &rest[..rest.find("</h2>").unwrap()]
 }
 
-// ---- Gliederungsschema ------------------------------------------------------------------------
+// ---- Outline scheme ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn choosing_a_scheme_without_javascript_drives_outline_editor_and_export_and_template_is_byte_identical() {
@@ -96,22 +95,21 @@ async fn choosing_a_scheme_without_javascript_drives_outline_editor_and_export_a
     assert_eq!(numbers(&server, work).await, ["1", "1.1", "1.1.1", "2"], "und die alten Nummern");
 }
 
-// ---- Satzbild mit Szene und Bild, Import und Export mit Bildern -------------------------------
+// ---- Typeset view with scene and image, import and export with images -------------------------
 
-/// SVG-Text, frei erfunden.
+/// SVG text, freely invented.
 const HOUSE: &str =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><path d=\"M0 8 L4 0 L8 8 Z\"/></svg>\n";
 const HOUSE_RED: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><path fill=\"red\" d=\"M0 8 L4 0 L8 8 Z\"/></svg>\n";
 
-/// Frei erfundenes Werk: Vorlage mit `#let szene`, Kapitel mit Label und Szene, Abbildung, Abschnitt
-/// mit PNG.
+/// Freely invented work: template with `#let szene`, chapter with label and scene, figure, section with PNG.
 const WORKSHOP: &str = "#set document(title: \"Die Hobelbank\", author: \"Ida Feder\")\n\
 #let szene(body) = block(fill: luma(245), inset: 6pt)[#body]\n\n\
 = Die Werkstatt\n<werkstatt>\n#szene[\n  Der Morgen begann mit Hobeln.\n\n  Jonas strich über das Brett.\n]\n\n\
 #figure(image(\"/bilder/haus.svg\"), caption: [Das Haus am Hang.])\n\n\
 == Der Hof\n\n#image(\"bilder/punkt.png\", width: 1cm)\n\nSpäne im Wind.\n";
 
-/// CRC-32 (PNG), bitweise.
+/// CRC-32 (PNG), bitwise.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for &byte in data {
@@ -123,7 +121,7 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-/// Gültiges PNG mit einem grauen Pixel, im Test erzeugt (keine Binärdatei im Repo).
+/// Valid PNG with one grey pixel, generated in the test (no binary file in the repository).
 fn tiny_png(gray: u8) -> Vec<u8> {
     fn chunk(out: &mut Vec<u8>, kind: &[u8], data: &[u8]) {
         out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -148,7 +146,7 @@ fn tiny_png(gray: u8) -> Vec<u8> {
     out
 }
 
-/// Ordner mit `hobelbank.typ`, `bilder/haus.svg` und `bilder/punkt.png`.
+/// Directory with `hobelbank.typ`, `bilder/haus.svg` and `bilder/punkt.png`.
 fn workshop_folder() -> tempfile::TempDir {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(tmp.path().join("bilder")).unwrap();
@@ -284,14 +282,14 @@ async fn a_folder_import_with_images_shows_them_replacing_is_a_new_revision_and_
         assert_eq!(std::fs::read_to_string(dir.join("bilder/haus.svg")).unwrap(), HOUSE_RED, "Spiegel hat Fassung 2");
     }
 
-    // Zurück auf Fassung 1, dann ist der Export byte-gleich zum Ordner.
+    // Back to revision 1, then the export is byte-identical to the directory.
     let back = server.rpc("asset.set_current", json!({ "work": work, "name": "haus.svg", "rev": 1 })).await;
     result(&back);
     let target = tempfile::tempdir().unwrap();
     let out = target.path().join("zurueck");
     baruch_server::import::export_to_dir(&server.state.store, work, &out).await.unwrap();
     for path in ["hobelbank.typ", "bilder/haus.svg", "bilder/punkt.png"] {
-        // Runde 30a: die Typst-Datei trägt die Sprungmarken `<kN>`; ohne sie ist sie byte-gleich.
+        // Round 30a: the Typst file carries the jump labels `<kN>`; without them it is byte-identical.
         let got = std::fs::read(out.join(path)).unwrap();
         let got = if path.ends_with(".typ") {
             baruch_typst::xref::strip_key_labels(&String::from_utf8(got).unwrap()).into_owned().into_bytes()
@@ -306,7 +304,7 @@ async fn a_folder_import_with_images_shows_them_replacing_is_a_new_revision_and_
     }
 }
 
-// ---- Migrationen 0008 und 0009 gemeinsam ------------------------------------------------------
+// ---- Migrations 0008 and 0009 together --------------------------------------------------------
 
 async fn raw_pool(dir: &Path) -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite:")
@@ -327,7 +325,7 @@ async fn migrate_up_to(pool: &SqlitePool, store_version: i64) {
     library.run(pool).await.unwrap();
 }
 
-/// Werk wie ein Import in development (Stand 0007): Vorlage, Knoten, Revision 1 je Knoten.
+/// Work like an import in development (state 0007): template, nodes, revision 1 per node.
 async fn insert_work(pool: &SqlitePool, slug: &str, source: &str, numbering: Option<&str>) -> i64 {
     let doc = baruch_typst::parse(source).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -387,7 +385,7 @@ async fn insert_work(pool: &SqlitePool, slug: &str, source: &str, numbering: Opt
     work
 }
 
-/// Alle Zeilen aller Tabellen (je Tabelle die Spalten aus `columns`), sortiert.
+/// All rows of all tables (per table the columns from `columns`), sorted.
 async fn rows(pool: &SqlitePool, columns: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in columns {
@@ -433,10 +431,10 @@ async fn migrations_0008_and_0009_together_keep_a_development_database_lossless(
     let plain = insert_work(&pool, "hobelbank", WORKSHOP, None).await;
     let without = insert_work(&pool, "spaene", &WORKSHOP.replace("Hobelbank", "Späne"), Some("")).await;
     let custom = insert_work(&pool, "zwinge", &WORKSHOP.replace("Hobelbank", "Zwinge"), Some("I.a")).await;
-    // Wie in development: Saat erledigt, Beispielbibliothek vorhanden.
+    // As in development: seed done, sample library present.
     sqlx::query("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('seeded', '1')").execute(&pool).await.unwrap();
-    // Die Umwandlung alter Teiltexte beim Start (Nutzerfrage 8) prüft `round14_conversion.rs`; hier geht es nur um die
-    // Migrationen, darum gilt sie als erledigt (Merker `parts_marked_r14`).
+    // The conversion of old part texts at start (user question 8) is checked by `round14_conversion.rs`; this is only
+    // about the migrations, therefore it counts as done (flag `parts_marked_r14`).
     sqlx::query("INSERT OR REPLACE INTO store_meta (key, value) VALUES (?, '1')")
         .bind(baruch_store::CONVERTED_KEY)
         .execute(&pool)
@@ -447,12 +445,12 @@ async fn migrations_0008_and_0009_together_keep_a_development_database_lossless(
     let before = rows(&pool, &old_columns).await;
     pool.close().await;
 
-    // Voller Serverstart: Store::open (0008, 0009), Bibliothek, keine Saat, Spiegel nachführen.
+    // Full server start: Store::open (0008, 0009), library, no seed, bring the mirror up to date.
     let state = baruch_server::AppState::open(data.path()).await.expect("Start auf der alten Datenbank");
     let pool = state.store.pool().clone();
     let mut after = rows(&pool, &old_columns).await;
-    // Migration 0041 (Runde 26) trägt die Instanzkennung als neue Zeile in store_meta ein; das ist eine
-    // Ergänzung, keine Änderung einer alten Zeile. Genau diese eine Zeile nimmt der Vergleich heraus.
+    // Migration 0041 (Round 26) enters the instance identifier as a new row in store_meta; that is an addition, not a
+    // change of an old row. The comparison takes out exactly this one row.
     if let Some(meta) = after.get_mut("store_meta") {
         let count = meta.len();
         meta.retain(|row| !row.starts_with("'instance_uuid'\u{1f}"));
@@ -496,7 +494,7 @@ async fn migrations_0008_and_0009_together_keep_a_development_database_lossless(
         "0008, 0009, 0105: {versions:?}"
     );
 
-    // Nach der Migration lassen sich Bilder anlegen.
+    // After the migration images can be created.
     let state = std::sync::Arc::new(state);
     let server = common::Server { app: baruch_server::router(state.clone()), state, data };
     let added = server
@@ -504,7 +502,7 @@ async fn migrations_0008_and_0009_together_keep_a_development_database_lossless(
         .await;
     assert_eq!(result(&added)["rev"], 1, "Bild nach der Migration angelegt: {added}");
 
-    // Ein zweiter Start ändert nichts mehr.
+    // A second start changes nothing any more.
     let all = table_columns(&pool).await;
     let once = rows(&pool, &all).await;
     let migrations_once = count(&pool, "SELECT count(*) FROM _sqlx_migrations").await;

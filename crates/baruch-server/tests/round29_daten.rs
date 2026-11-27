@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen, Daten (Runde 29a, Vertrag §8.1): RPC work.typeset_get/set/reset/adopt_rule, Spiegel-Commits mit
-//! Trailer, MCP typeset_settings (nur lesend), Austausch über zwei Instanzen.
+//! Typesetting settings, data (Round 29a, contract §8.1): RPC work.typeset_get/set/reset/adopt_rule, mirror commits
+//! with trailer, MCP typeset_settings (read-only), exchange across two instances.
 //!
-//! Besitz: satz-daten. Werk frei erfunden (`tests/data/gartenbuch.typ`); jede Zusicherung mit Begründung. Geprüft wird
-//! über die echten Wege: RPC wie die Oberfläche, Git-Spiegel im Temp-Ordner, MCP über `/mcp` mit Loopback-Gegenstelle,
-//! Austausch über `work.exchange_export`/`work.exchange_import` (XSD der Unterversion 7 seit Runde 31).
+//! Owner: satz-daten. Work freely invented (`tests/data/gartenbuch.typ`); every assertion with its reason. The check
+//! goes through the real ways: RPC like the user interface, Git mirror in the temp directory, MCP through `/mcp` with a
+//! loopback peer, exchange through `work.exchange_export`/`work.exchange_import` (XSD of minor version 7 since Round
+//! 31).
 
 use std::net::SocketAddr;
 
@@ -18,9 +19,9 @@ use serde_json::{Value, json};
 
 use crate::common;
 
-/// Beispiel des Vertrags §2 (alle sechzehn Felder).
-/// Die Felder aus Runde 29, die [`full`] setzt; die drei R31-Felder (Register und Glossar) hängen dahinter und kommen
-/// erst mit Unterversion 7 in den Austausch (R31 glossar-daten), darum setzt `full` sie nicht.
+/// Example of the contract §2 (all sixteen fields).
+/// The fields from Round 29 that [`full`] sets; the three R31 fields (index and glossary) come after them and enter
+/// the exchange only with minor version 7 (R31 glossar-daten), therefore `full` does not set them.
 fn r29_fields() -> &'static [(&'static str, &'static str)] {
     &FIELDS[..16]
 }
@@ -84,7 +85,7 @@ async fn typeset_get_without_settings_names_every_field_and_has_no_rules() {
     let fields = view["fields"].as_array().unwrap();
     assert_eq!(fields.len(), FIELDS.len(), "alle sechzehn Felder für die Oberfläche");
     assert_eq!(fields[0], json!({ "id": "chapter_start", "label": "Kapitelanfang" }), "id und Bezeichnung");
-    // Ohne `work` das Vorgabewerk (kleinste id = Beispielwerk); ein unbekanntes Werk ist ein Parameterfehler.
+    // Without `work` the default work (smallest id = sample work); an unknown work is a parameter error.
     let default = result(&server.rpc("work.typeset_get", json!({})).await).clone();
     assert_eq!(default["work"], server.state.default_work().await.unwrap(), "Vorgabewerk ohne work");
     assert_eq!(error_code(&server.rpc("work.typeset_get", json!({ "work": 9999 })).await), INVALID_PARAMS);
@@ -118,20 +119,20 @@ async fn typeset_set_saves_commits_once_with_trailer_and_body_and_skips_equal_va
     assert_eq!(view["uuid"].as_str().map(str::len), Some(36), "uuid der Zeile");
     let settings: TypesetSettings = serde_json::from_value(full()).unwrap();
     assert_eq!(view["rules"], rules(&settings), "erzeugter Regelblock aus baruch_typst::typeset::rules");
-    // main.typ im Spiegel trägt den Regelblock über snapshot::head (kein eigenes Spiegel-File).
+    // main.typ in the mirror carries the rule block through snapshot::head (no mirror file of its own).
     let main = std::fs::read_to_string(server.mirror_dir_of(&slug).join("main.typ")).unwrap();
     let block = rules(&settings);
     assert!(main.contains(&block), "main.typ enthält den Block „// Baruch: Satz“: {main}");
     let snapshot = server.state.store.mirror_snapshot(work).await.unwrap();
     assert_eq!(snapshot.iter().find(|f| f.path == "main.typ").unwrap().contents, main, "Spiegel = Datenbankstand");
 
-    // Gleiche Werte: nichts geändert, kein Commit.
+    // Same values: nothing changed, no commit.
     let same = result(&server.rpc("work.typeset_set", json!({ "work": work, "settings": full() })).await).clone();
     assert_eq!(same["changed"], json!([]), "gleiche Werte → changed leer");
     assert!(same["commit"].is_null(), "ohne Änderung kein Commit: {same}");
     assert_eq!(commits(&server, &slug), before + 1, "weiterhin ein Commit");
 
-    // Nur „Verweis mit Seitenzahl“: keine Datei ändert sich, trotzdem genau ein Commit (allow_empty).
+    // Only „Verweis mit Seitenzahl“: no file changes, nevertheless exactly one commit (allow_empty).
     let mut xref = full();
     xref["xref_with_page"] = json!(false);
     let saved = result(&server.rpc("work.typeset_set", json!({ "work": work, "settings": xref })).await).clone();
@@ -195,7 +196,7 @@ async fn adopting_the_canonical_rule_moves_it_into_the_settings_with_one_commit(
     let template = server.state.store.work_template(work).await.unwrap();
     let with_rule = format!("{template}{CANONICAL_CHAPTER_BREAK}\n");
     result(&server.rpc("work.update", json!({ "work": work, "template": with_rule })).await);
-    // Ein Feld schon gesetzt: die übrigen Felder bleiben bei der Übernahme.
+    // One field already set: the remaining fields stay on adoption.
     let keep = json!({ "font_size_pt": 11.0 });
     result(&server.rpc("work.typeset_set", json!({ "work": work, "settings": keep })).await);
     let view = get(&server, work).await;
@@ -207,7 +208,7 @@ async fn adopting_the_canonical_rule_moves_it_into_the_settings_with_one_commit(
 
     let before = commits(&server, &slug);
     let revisions_before = server.state.store.template_revisions(work).await.unwrap().len();
-    // Runde 23a: über RPC nur mit ausdrücklicher Bestätigung.
+    // Round 23a: over RPC only with explicit confirmation.
     let unconfirmed = server.rpc("work.typeset_adopt_rule", json!({ "work": work })).await;
     assert_eq!(unconfirmed["error"]["code"], -32602, "ohne confirm: true → -32602: {unconfirmed}");
     assert_eq!(unconfirmed["error"]["message"], "confirm: true erwartet", "mit dem festen Wortlaut: {unconfirmed}");
@@ -235,7 +236,7 @@ async fn adopting_the_canonical_rule_moves_it_into_the_settings_with_one_commit(
     let vorlage = std::fs::read_to_string(server.mirror_dir_of(&slug).join("vorlage.typ")).unwrap();
     assert!(!vorlage.contains(CANONICAL_CHAPTER_BREAK), "vorlage.typ im selben Commit ohne die Zeile");
 
-    // Ohne erkannte Regel: abgelehnt, nichts geändert.
+    // Without a recognised rule: rejected, nothing changed.
     let again = server.rpc("work.typeset_adopt_rule", json!({ "work": work, "confirm": true })).await;
     assert_eq!(error_code(&again), REFUSED, "keine Regel → -32000");
     assert_eq!(again["error"]["message"], NO_RULE, "Meldung des Vertrags §6.1");
@@ -256,7 +257,7 @@ async fn an_unknown_font_is_named_in_the_warnings() {
             .any(|w| w == "Schrift „Erfundene Grotesk Probe“ fehlt; Typst setzt mit der eingebetteten Schrift"),
         "Hinweis auf die fehlende Schrift (Vertrag §6.1): {view}"
     );
-    // Eine eingebettete Schrift fehlt nicht.
+    // An embedded font is not missing.
     let families = tokio::task::spawn_blocking(baruch_render::font_families).await.unwrap();
     let embedded = families.iter().find(|f| f.embedded).expect("Typst bringt Schriften mit");
     result(&server.rpc("work.typeset_set", json!({ "work": work, "settings": { "font": embedded.name } })).await);
@@ -360,12 +361,12 @@ fn xmllint_u6(xml: &str) {
 
 #[tokio::test]
 async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
-    // A setzt, B liest neu ein: alle Felder samt Kennung kommen mit.
+    // A sets, B imports anew: all fields including the identifier come along.
     let (a, work_a, _) = garden().await;
     result(&a.rpc("work.typeset_set", json!({ "work": work_a, "settings": full() })).await);
     let xml = export_xml(&a, work_a).await;
     assert!(
-        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
         xml.contains("version=\"10\"") && xml.contains("<satz uuid="),
         "Ausgabe in Unterversion 9 (seit Runde 34) mit <satz>"
     );
@@ -380,7 +381,7 @@ async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
         assert_eq!(view_b[key], view_a[key], "{key} auf B wie auf A");
     }
 
-    // A ändert: B gleicht ab – nichts still überschrieben, ein Hinweis nennt Feld und beide Stände.
+    // A changes: B merges – nothing silently overwritten, a hint names the field and both states.
     let mut changed = full();
     changed["running_head"] = json!("work_title");
     result(&a.rpc("work.typeset_set", json!({ "work": work_a, "settings": changed })).await);
@@ -397,7 +398,7 @@ async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
     assert!(hint["there"].as_str().unwrap().contains("work_title"), "Stand der Datei im Hinweis: {hint}");
     assert_eq!(get(&b, work_b).await["settings"], full(), "B behält seinen Stand");
 
-    // B setzt zurück (Grabstein); ein weiterer Abgleich bringt die Einstellungen nicht zurück.
+    // B resets (tombstone); a further merge does not bring the settings back.
     result(&b.rpc("work.typeset_reset", json!({ "work": work_b })).await);
     let merged = import(&b, &export_xml(&a, work_a).await, "merge").await;
     assert!(
@@ -406,7 +407,7 @@ async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
     );
     assert_eq!(get(&b, work_b).await["set"], false, "B bleibt zurückgesetzt");
 
-    // A setzt zurück: die Ausgabe trägt den Grabstein satz, eine dritte Instanz übernimmt ihn ohne Einstellungen.
+    // A resets: the output carries the tombstone satz, a third instance takes it over without settings.
     let uuid_a = view_a["uuid"].as_str().unwrap().to_owned();
     result(&a.rpc("work.typeset_reset", json!({ "work": work_a })).await);
     let xml = export_xml(&a, work_a).await;
@@ -417,7 +418,7 @@ async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
     let work_c = import(&c, &xml, "new").await["work"].as_i64().unwrap();
     assert_eq!(get(&c, work_c).await["set"], false, "C ohne Einstellungen");
     assert_eq!(tombstones(&c).await, vec![uuid_a.clone()], "C kennt den Grabstein (kommt nie wieder)");
-    // Und B, das die Einstellungen von A schon selbst zurückgesetzt hat, bekommt keinen Fehler.
+    // And B, which has already reset the settings of A itself, gets no error.
     let merged = import(&b, &xml, "merge").await;
     assert!(merged["refusals"].as_array().unwrap().is_empty(), "nichts abgelehnt: {merged}");
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Suchen und Ersetzen im Werk (Runde 30a): `search.find`/`preview`/`replace`/`undo`, Seite `/suche` ohne JavaScript,
-//! MCP `text_search` (nur lesend) und die Tastenbelegung (`keyAction` aus `search_keys.ts` unter Node). Alle Werke und
-//! Texte frei erfunden; kein Modell, kein Netz.
+//! Search and replace in the work (Round 30a): `search.find`/`preview`/`replace`/`undo`, page `/suche` without
+//! JavaScript, MCP `text_search` (read-only) and the key bindings (`keyAction` from `search_keys.ts` under Node). All
+//! works and texts freely invented; no model, no network.
 
 use crate::common;
 
@@ -14,9 +14,9 @@ use axum::http::{Request, StatusCode, header};
 use baruch_server::search::{SearchQuery, SearchRange};
 use serde_json::{Value, json};
 
-/// Werk mit zwei Teilen, je zwei Kapiteln und darunter Abschnitten (`sections` je Kapitel), überall „Leuchtturm“;
-/// im ersten Abschnitt ein Bibelzitat mit „Leuchtturm“ in Anführungszeichen, eine Fußnote, Typst-Code und ein
-/// maskiertes `\#`.
+/// Work with two parts, two chapters each and sections below them (`sections` per chapter), „Leuchtturm“ everywhere; in
+/// the first section a Bible quotation with „Leuchtturm“ in quotation marks, a footnote, Typst code and an escaped
+/// `\#`.
 fn coast(sections: usize) -> String {
     let mut out = String::from("#set heading(numbering: \"1.1\")\n");
     let mut n = 0;
@@ -177,10 +177,10 @@ async fn hits_carry_kinds_byte_and_utf16_offsets_and_typst_escapes() {
     let quote = &found["hits"][1];
     assert!(quote["before"].as_str().unwrap().ends_with("„Ein "), "Umfeld davor: {quote}");
     assert!(quote["after"].as_str().unwrap().starts_with(" ist mein"), "Umfeld dahinter: {quote}");
-    // Typst-Sonderzeichen: „C#“ findet die maskierte Form „C\#“.
+    // Typst special characters: „C#“ finds the escaped form „C\#“.
     let sharp = coast.find(json!({ "q": "C#", "range": "section", "key": harbour })).await;
     assert_eq!(matched(&sharp), ["C\\#"], "`#` findet auch `\\#`");
-    // Unicode: Umlaute und Akzente ohne Groß/klein, UTF-16 zählt das Emoji doppelt.
+    // Unicode: umlauts and accents case-insensitively, UTF-16 counts the emoji twice.
     let accents = "= Café\n\nÄPFEL im Café 😀 und äpfel.\n";
     let report = coast.server.import(accents, "cafe.typ").await;
     let cafe = coast.server.state.store.load_work(report.work).await.unwrap().nodes[0].key;
@@ -268,7 +268,7 @@ async fn the_time_limit_and_the_regex_limits_hold() {
 
 #[tokio::test]
 async fn replacing_in_fifty_sections_makes_one_commit_and_spares_the_bible_quote() {
-    // 2 Teile × 2 Kapitel × 12 Abschnitte: 48 Abschnitte und 4 Kapitel mit Treffern im Fließtext = 52.
+    // 2 parts × 2 chapters × 12 sections: 48 sections and 4 chapters with hits in the running text = 52.
     let coast = open(12).await;
     let harbour = coast.key_of("Hafen").await;
     let before = coast.subjects();
@@ -294,7 +294,7 @@ async fn replacing_in_fifty_sections_makes_one_commit_and_spares_the_bible_quote
             .contains("<del data-hit=\"0\">Leuchtturm</del><ins data-hit=\"0\">Wachturm</ins>"),
         "Diff"
     );
-    // Zwei Abschnitte werden abgewählt, damit genau 50 ersetzt werden.
+    // Two sections are deselected so that exactly 50 are replaced.
     let picks: Vec<Value> =
         sections.iter().skip(2).map(|s| json!({ "key": s["key"], "base_rev": s["base_rev"], "skip": [] })).collect();
     let unconfirmed = coast
@@ -331,7 +331,7 @@ async fn replacing_in_fifty_sections_makes_one_commit_and_spares_the_bible_quote
         "abgewählt und Zitat ohnehin unberührt"
     );
 
-    // Rückgängig: ein Commit, alle wieder auf Fassung 1.
+    // Undo: one commit, all back at revision 1.
     let batch = result["batch"]["id"].as_i64().unwrap();
     let undone = coast.server.rpc("search.undo", json!({ "work": coast.work, "batch": batch, "confirm": true })).await;
     assert_eq!(undone["result"]["restored"].as_array().unwrap().len(), 50, "alle 50 zurück: {undone}");
@@ -351,7 +351,7 @@ async fn the_bible_quote_stays_by_default_and_changed_sections_are_skipped() {
         .rpc("search.preview", json!({ "work": coast.work, "q": "Leuchtturm", "replacement": "Wachturm", "range": "picked", "sel": [harbour, other] }))
         .await;
     let sections = preview["result"]["sections"].as_array().unwrap().clone();
-    // Der zweite Abschnitt wird nach der Vorschau vom Menschen gespeichert.
+    // The second section is saved by the human after the preview.
     let node = coast.server.state.store.node_seq(coast.work, other).await.unwrap();
     let body = coast.body_of(other).await;
     coast.server.state.store.save_human(coast.work, node, &format!("{body}Neu.\n"), "Ida").await.unwrap();
@@ -446,7 +446,7 @@ async fn the_search_page_works_without_javascript() {
     assert!(preview.contains("<del data-hit=\"0\">Leuchtturm</del>"), "Diff je Abschnitt");
     assert!(preview.contains(&format!("name=\"pick\" value=\"{harbour}:1\" checked")), "Abschnitt abwählbar");
     assert!(preview.contains("Alle ersetzen"), "Knopf");
-    // Ersetzen ohne Häkchen „Ja, ersetzen“: zurück mit Hinweis, nichts geändert.
+    // Replace without the check box „Ja, ersetzen“: back with a hint, nothing changed.
     let base = format!(
         "work={}&q=Leuchtturm&replacement=Wachturm&range=picked&sel={harbour}&pick={harbour}%3A1&count_{harbour}=2&keep={harbour}%3A0",
         coast.work
@@ -485,8 +485,8 @@ async fn the_search_page_works_without_javascript() {
 
 #[tokio::test]
 async fn the_replace_preview_is_bounded_and_never_starts_for_a_foreign_page() {
-    // Befund der Begutachtung: GET /suche?vorschau=1 sammelte alle Treffer samt Ersatz (bis 2000 Zeichen je Treffer)
-    // ohne Grenze – ein <img> einer fremden Seite konnte so den Speicher füllen.
+    // Finding of the review: GET /suche?vorschau=1 collected all hits including the replacement (up to 2000 characters
+    // per hit) without a limit – an <img> of a foreign page could fill the memory that way.
     let coast = open(1).await;
     let wide = format!("= Weite\n\n{}\n", "Meer ".repeat(4000));
     let report = coast.server.import(&wide, "weite.typ").await;
@@ -495,7 +495,8 @@ async fn the_replace_preview_is_bounded_and_never_starts_for_a_foreign_page() {
     let request = Request::get(&url).header("sec-fetch-site", "cross-site").body(Body::empty()).unwrap();
     let (status, _, body) = coast.server.send(request).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "Vorschau auf Anfrage einer fremden Seite: 403: {body}");
-    // Von Baruch selbst: 20 000 Treffer × 2000 Zeichen wären 40 MB Ersatz – über dem Budget, ehrlich abgelehnt.
+    // From Baruch itself: 20 000 hits × 2000 characters would be 40 MB of replacement – above the budget, honestly
+    // rejected.
     let started = Instant::now();
     let (status, html) = coast.server.get(&url).await;
     assert_eq!(status, StatusCode::OK, "die Seite antwortet");
@@ -510,7 +511,7 @@ async fn the_replace_preview_is_bounded_and_never_starts_for_a_foreign_page() {
         )
         .await;
     assert_eq!(rpc["error"]["code"], -32000, "auch über RPC abgelehnt: {rpc}");
-    // Unter dem Budget, aber über 2000 Stellen in einem Abschnitt: kein Abschnitt halb, Vorschau als gekürzt vermerkt.
+    // Below the budget but more than 2000 places in one section: no section by halves, preview noted as truncated.
     let (_, html) =
         coast.server.get(&format!("/suche?work={}&q=e&replacement=a&range=work&vorschau=1", report.work)).await;
     assert!(html.contains("data-search-preview-truncated"), "gekürzt vermerkt: {html}");
@@ -519,8 +520,8 @@ async fn the_replace_preview_is_bounded_and_never_starts_for_a_foreign_page() {
 
 #[tokio::test]
 async fn the_search_page_keeps_selection_and_shown_revision_and_offers_both() {
-    // Befund der Begutachtung: Bereich „Markierung“ und Fassung „gezeigte“ waren auf /suche nicht wählbar und gingen
-    // beim Absenden verloren.
+    // Finding of the review: range „Markierung“ and revision „gezeigte“ could not be chosen on /suche and were lost on
+    // submitting.
     let coast = open(1).await;
     let harbour = coast.key_of("Hafen").await;
     let seq = coast.server.state.store.node_seq(coast.work, harbour).await.unwrap();
@@ -543,7 +544,7 @@ async fn the_search_page_keeps_selection_and_shown_revision_and_offers_both() {
         .get(&format!("/suche?work={}&key={harbour}&q=blinkt&range=section&rev=current&shown_rev=1", coast.work))
         .await;
     assert!(!current.contains("<mark>blinkt</mark>"), "aktuelle Fassung: kein Treffer mehr");
-    // Markierung: nur der markierte Teil (UTF-16) wird durchsucht, start/end bleiben im Formular.
+    // Selection: only the selected part (UTF-16) is searched, start/end stay in the form.
     let start = body.find("Leuchtturm blinkt").unwrap();
     let start16 = body[..start].encode_utf16().count();
     let end16 = start16 + "Leuchtturm blinkt".encode_utf16().count();
@@ -638,9 +639,9 @@ async fn mcp_text_search_only_reads_and_keeps_its_limits() {
     );
 }
 
-// ---- Tastenbelegung (Node) ------------------------------------------------------------------------------------
+// ---- Key bindings (Node) --------------------------------------------------------------------------------------
 
-/// `keyAction` aus der ausgelieferten `search_keys.js` unter Node; je Fall `[taste, kontext]` → Aktion oder null.
+/// `keyAction` from the delivered `search_keys.js` under Node; per case `[taste, kontext]` → action or null.
 fn key_actions(cases: Value) -> Value {
     let (_, module) = baruch_server::SCRIPTS
         .iter()

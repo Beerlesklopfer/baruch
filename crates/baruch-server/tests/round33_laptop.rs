@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 33 – Laptop-Modus (Aufgabe „laptop“, Vertrag §2/§6): Zustand aus Adresse und Cookies, Attribute an <html>, Seitenleisten.
+//! Round 33 – laptop mode (task „laptop“, contract §2/§6): state from address and cookies, attributes at <html>, side
+//! rails.
 //!
-//! Echter Datenordner im Temp-Ordner mit dem erfundenen Gartenbuch der Server-Tests; kein Netz, kein Eliezer, kein
-//! Browser. Geprüft wird, was der Server ausliefert (Attribute an `<html>`, `Set-Cookie`, Markup der Arbeitsseite,
-//! CSS, Skript), und das Verhalten von laptop.js in Node auf einem kleinen DOM-Nachbau (fehlt `node`: ÜBERSPRUNGEN).
-//! Ehrlich: Ob Leisten und Schubladen im Fenster gut aussehen und ob `:target` im Browser greift, zeigt erst die
-//! Sichtprüfung des Integrators (Firefox, mit und ohne JavaScript) – hier stehen Markup und Regeln, keine Pixel.
+//! Real data directory in the temp directory with the invented garden book of the server tests; no network, no Eliezer,
+//! no browser. Checked is what the server delivers (attributes at `<html>`, `Set-Cookie`, markup of the work page, CSS,
+//! script), and the behaviour of laptop.js in Node on a small DOM mock (if `node` is missing: ÜBERSPRUNGEN). Honestly:
+//! whether rails and drawers look good in the window and whether `:target` takes hold in the browser is shown only by
+//! the visual check of the integrator (Firefox, with and without JavaScript) – here are markup and rules, no pixels.
 
 use crate::common;
 
@@ -22,7 +23,7 @@ fn script(name: &str) -> &'static str {
         .unwrap_or_else(|| panic!("{name} fehlt"))
 }
 
-/// Seite holen, auf Wunsch mit Cookie-Kopf; Kopfzeilen und Text der Antwort.
+/// Fetch a page, optionally with a cookie header; headers and text of the answer.
 async fn page(server: &common::Server, uri: &str, cookies: Option<&str>) -> (HeaderMap, String) {
     let mut request = Request::get(uri);
     if let Some(cookies) = cookies {
@@ -33,13 +34,13 @@ async fn page(server: &common::Server, uri: &str, cookies: Option<&str>) -> (Hea
     (headers, body)
 }
 
-/// Das öffnende `<html …>` der Seite.
+/// The opening `<html …>` of the page.
 fn html_tag(page: &str) -> &str {
     let start = page.find("<html").expect("Seite beginnt mit <html>");
     &page[start..start + page[start..].find('>').unwrap() + 1]
 }
 
-/// Trägt das Tag das Attribut als ganzes Wort (nicht bloß als Anfang eines anderen)?
+/// Does the tag carry the attribute as a whole word (not merely as the beginning of another one)?
 fn has_attr(tag: &str, attr: &str) -> bool {
     tag.trim_end_matches('>').split(' ').any(|part| part == attr)
 }
@@ -114,8 +115,8 @@ async fn the_page_carries_the_state_from_the_cookies_at_the_html_element() {
 async fn a_key_in_the_address_works_in_the_same_answer_and_is_remembered() {
     let server = common::open().await;
 
-    // Arbeitsseite ohne Werk in der Adresse: Sie merkt schon das Werk (baruch_work) – das Cookie des Laptop-Modus
-    // muss daneben stehen, nicht an seiner Stelle.
+    // Work page without a work in the address: it already remembers the work (baruch_work) – the cookie of the laptop
+    // mode has to stand next to it, not in its place.
     let (headers, body) = page(&server, "/?laptop=on", Some("baruch_laptop=off")).await;
     let tag = html_tag(&body);
     assert!(
@@ -156,7 +157,7 @@ async fn a_key_in_the_address_works_in_the_same_answer_and_is_remembered() {
         );
     }
 
-    // Ungültiges aus der Adresse: wirkt nicht, wird nicht gemerkt und steht nicht am Element.
+    // Invalid input from the address: has no effect, is not remembered and is not at the element.
     let (headers, body) = page(&server, &format!("/?work={work}&laptop=%22%3E%3Cscript%3E&lrail=7"), None).await;
     let tag = html_tag(&body);
     assert!(
@@ -169,7 +170,7 @@ async fn a_key_in_the_address_works_in_the_same_answer_and_is_remembered() {
         set_cookies(&headers)
     );
 
-    // Auch Seiten ohne Arbeitsfläche tragen den Zustand (das Band ist überall dasselbe).
+    // Pages without a work area carry the state as well (the band is the same everywhere).
     let (headers, body) = page(&server, "/werke?laptop=off", Some("baruch_vw=s")).await;
     assert!(html_tag(&body).contains("data-laptop=\"off\""), "die Werkliste trägt den Modus: {}", html_tag(&body));
     assert!(
@@ -185,7 +186,7 @@ async fn the_workspace_keeps_its_hooks_and_gets_a_rail_per_side_usable_without_j
     let work = server.import_garden().await.work;
     let (_, html) = page(&server, &format!("/?work={work}"), None).await;
 
-    // Haken, an denen Widgets, Tests und fremde Seiten hängen (Vertrag §6: wörtlich erhalten).
+    // Hooks that widgets, tests and foreign pages depend on (contract §6: kept verbatim).
     for hook in [
         "<main class=\"workspace\" data-widget=\"workspace\">",
         "id=\"pane-tree\" aria-label=\"Gliederung\" data-zoom-zone=\"tree\"",
@@ -211,7 +212,7 @@ async fn the_workspace_keeps_its_hooks_and_gets_a_rail_per_side_usable_without_j
         "die rechte Spalte bleibt letztes Kind des Rasters (lastElementChild im Widget „splitter“)"
     );
 
-    // Je Seite eine Leiste: ein gewöhnlicher Link auf die Spalte – ohne JavaScript öffnet er sie über :target.
+    // One rail per side: an ordinary link to the column – without JavaScript it opens it through :target.
     for (side, target, label) in [("left", "pane-tree", "Gliederung"), ("right", "pane-assistants", "Assistenten")] {
         let rail = format!("<a class=\"rail\" href=\"#{target}\" data-rail-open=\"{side}\" aria-controls=\"{target}\"");
         assert_eq!(main.matches(&rail).count(), 1, "genau eine Leiste für {label} mit Link auf #{target}");
@@ -221,7 +222,7 @@ async fn the_workspace_keeps_its_hooks_and_gets_a_rail_per_side_usable_without_j
             link.contains(&format!("<span class=\"rail-label\">{label}</span>")),
             "die Leiste nennt ihre Spalte beim Namen (nicht nur ein Pfeil): {link}"
         );
-        // Schließen-Link in der Spalte selbst: Er wechselt das Sprungziel auf den Editor, damit fällt :target weg.
+        // Close link in the column itself: it changes the jump target to the editor, so :target drops away.
         let pane = &main[main.find(&format!("id=\"{target}\"")).unwrap()..];
         let bar = &pane[pane.find("<div class=\"rail-bar\">").unwrap_or_else(|| panic!("Bedienzeile in {label}"))..];
         let bar = &bar[..bar.find("</div>").unwrap()];
@@ -245,7 +246,7 @@ async fn the_workspace_keeps_its_hooks_and_gets_a_rail_per_side_usable_without_j
         "die Fläche neben der Schublade ist ein Link auf #pane-editor, aber kein Halt für Tab und Vorleser"
     );
 
-    // Die Bedienzeile steckt in den Fragmenten: ui.render ersetzt den Inhalt der Spalten, sie muss das überstehen.
+    // The control line is inside the fragments: ui.render replaces the content of the columns, it has to survive that.
     let ui = server.rpc("ui.render", json!({ "work": work })).await;
     assert!(ui["error"].is_null(), "ui.render antwortet: {ui}");
     for (pane, side) in [("tree", "left"), ("assistants", "right")] {
@@ -257,7 +258,7 @@ async fn the_workspace_keeps_its_hooks_and_gets_a_rail_per_side_usable_without_j
     }
 }
 
-/// Alle `@media`-Köpfe eines Stylesheets.
+/// All `@media` heads of a stylesheet.
 fn media_queries(css: &str) -> Vec<&str> {
     css.match_indices("@media").map(|(at, _)| &css[at..at + css[at..].find('{').unwrap()]).collect()
 }
@@ -280,8 +281,8 @@ async fn the_style_hangs_on_the_attributes_and_not_on_the_window_width() {
         "ohne JavaScript öffnet :target die eingeklappte Spalte als Schublade"
     );
     let laptop = include_str!("../static/laptop.css");
-    // Runde 35: Hinter laptop.css folgt nur noch konten.css (Konten und Rollen: eigene Klassen, keine Regel für die
-    // Zustände des Laptop-Modus – das prüft round35_oberflaeche).
+    // Round 35: after laptop.css only konten.css follows (accounts and roles: own classes, no rule for the states of
+    // the laptop mode – round35_oberflaeche checks that).
     let konten = include_str!("../static/konten.css");
     let before_konten = served.trim_end().strip_suffix(konten.trim_end()).unwrap_or(&served);
     assert!(
@@ -289,7 +290,7 @@ async fn the_style_hangs_on_the_attributes_and_not_on_the_window_width() {
         "laptop.css steht hinter dem Grundgerüst und überschreibt es damit (gleiche Spezifität, spätere Regel gewinnt)"
     );
 
-    // Eigene Dateien der Aufgabe: Grundgerüst (app.css) und Laptop-Modus (laptop.css).
+    // Own files of the task: basic framework (app.css) and laptop mode (laptop.css).
     let base = include_str!("../static/app.css");
     for (name, css) in [("app.css", base), ("laptop.css", laptop)] {
         assert!(
@@ -319,8 +320,8 @@ async fn the_style_hangs_on_the_attributes_and_not_on_the_window_width() {
     );
 }
 
-/// Skript in Node ausführen: alle ausgelieferten Skripte als Module in einem Temp-Ordner, `probe.js` gibt JSON aus.
-/// Fehlt `node`, `None` (der Test meldet „ÜBERSPRUNGEN“).
+/// Run a script in Node: all delivered scripts as modules in a temp directory, `probe.js` prints JSON.
+/// If `node` is missing, `None` (the test reports „ÜBERSPRUNGEN“).
 fn node(probe: &str) -> Option<Value> {
     let dir = tempfile::tempdir().unwrap();
     for (name, body) in baruch_server::SCRIPTS {
@@ -362,7 +363,7 @@ fn the_widget_shares_thresholds_and_formula_with_the_server() {
     );
     assert!(!laptop.contains("band-group"), "laptop.ts fasst die Gruppen des Bands nie an (Vertrag §6)");
 
-    // Reine Funktionen gegen die Rust-Seite: Breitenklasse an den Grenzen und alle Kombinationen der Formel.
+    // Pure functions against the Rust side: width class at the limits and all combinations of the formula.
     let pixels = [0u32, 1023, 1279, 1280, 1366, 1599, 1600, 1920, 3840];
     let Some(result) = node(&format!(
         "import {{ widthClass, effective, htmlAttrs, parseMode }} from './laptop.js';\n\
@@ -404,8 +405,8 @@ fn the_widget_shares_thresholds_and_formula_with_the_server() {
     );
 }
 
-/// DOM-Nachbau für laptop.js: <html> mit Attributen, Cookies, zwei Spalten, die Schalter des Bands. Das Skript führt
-/// die Schritte aus und gibt nach jedem den Zustand aus.
+/// DOM mock for laptop.js: <html> with attributes, cookies, two columns, the switches of the band. The script runs the
+/// steps and prints the state after each one.
 const HARNESS: &str = r#"
 const camel = (s) => s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 const focusLog = [];
@@ -633,8 +634,8 @@ fn the_widget_measures_remembers_and_opens_drawers() {
 
 #[test]
 fn zoom_reset_and_ctrl_zero_set_the_levels_back() {
-    // Ehrlich: zoom.js hängt beim Laden an window und document und braucht für echtes Verhalten einen Browser; hier
-    // steht nur, dass die Wege im ausgelieferten Skript verdrahtet sind. Die Sichtprüfung macht der Integrator.
+    // Honestly: zoom.js hooks into window and document on loading and needs a browser for real behaviour; here is only
+    // that the paths are wired in the delivered script. The visual check is done by the integrator.
     let zoom = script("zoom.js");
     assert!(
         zoom.contains("closest(\"[data-zoom-reset]\")"),

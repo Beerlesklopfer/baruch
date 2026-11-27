@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 34 „Mindmap“ – Bild, Seite und Widget (Besitz mindmap_widget). Geprüft werden die Zeichnung
-//! `idea_map::bild::mindmap::render` am von Hand gebauten Baum (DOM-Vertrag §6, Anordnung, Einklappen, Beziehungen,
-//! Wolke), die Seite `/werke/{id}/karte` mit `/karte/bild` und das ausgelieferte Skript `mindmap.js` (Tasten und
-//! RPC aus §7). Werke und Einfälle sind frei erfunden; kein Modell, kein Netz.
+//! Round 34 „Mindmap“ – image, page and widget (owner mindmap_widget). Checked are the drawing
+//! `idea_map::bild::mindmap::render` on the hand-built tree (DOM contract §6, layout, folding, relations, cloud), the
+//! page `/werke/{id}/karte` with `/karte/bild` and the delivered script `mindmap.js` (keys and RPC from §7). Works and
+//! ideas are freely invented; no model, no network.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -18,7 +18,7 @@ use serde_json::json;
 
 use crate::common;
 
-// ---- Bau von Hand (alle Felder sind pub, Vertrag §9) ---------------------------------------------------------
+// ---- Built by hand (all fields are pub, contract §9) ---------------------------------------------------------
 
 fn node(id: &str, kind: TreeKind, title: &str, children: Vec<TreeNode>) -> TreeNode {
     let idea = id.strip_prefix("i:").and_then(|n| n.parse().ok());
@@ -81,7 +81,7 @@ fn link(id: i64, from: i64, to: i64, kind: LinkKind, note: &str) -> IdeaLink {
     }
 }
 
-/// Vier Kapitel, darunter Einfälle in zwei weiteren Ebenen (Werk → Kapitel → Einfall → Untereinfall).
+/// Four chapters, below them ideas in two further levels (work → chapter → idea → sub-idea).
 fn three_levels() -> MindMap {
     map(
         vec![
@@ -94,13 +94,13 @@ fn three_levels() -> MindMap {
     )
 }
 
-// ---- SVG lesen -----------------------------------------------------------------------------------------------
+// ---- Reading SVG ---------------------------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 struct El {
     name: String,
     attrs: HashMap<String, String>,
-    /// Roher (maskierter) Text direkt in diesem Element.
+    /// Raw (escaped) text directly in this element.
     text: String,
     parent: Option<usize>,
 }
@@ -117,9 +117,9 @@ impl El {
     }
 }
 
-/// Liest das SVG mit einem XML-Parser (Schlusstags müssen passen, Attribute gültig maskiert sein) – scheitert er,
-/// ist das SVG nicht wohlgeformt.
-#[allow(deprecated)] // unescape_value ist in quick-xml 0.42 abgekündigt; hier genügt es (keine DTD, keine Entitäten).
+/// Reads the SVG with an XML parser (closing tags have to match, attributes have to be validly escaped) – if it fails,
+/// the SVG is not well-formed.
+#[allow(deprecated)] // unescape_value is deprecated in quick-xml 0.42; it is enough here (no DTD, no entities).
 fn parse(svg: &str) -> Vec<El> {
     let mut reader = Reader::from_str(svg);
     let mut out: Vec<El> = Vec::new();
@@ -148,7 +148,8 @@ fn parse(svg: &str) -> Vec<El> {
                     out[at].text.push_str(t);
                 }
             }
-            // quick-xml liefert Zeichenverweise als eigenes Ereignis; im rohen Text bleiben sie, wie sie dastehen.
+            // quick-xml delivers character references as an event of their own; in the raw text they stay as they are
+            // written.
             Event::GeneralRef(ref r) => {
                 if let Some(&at) = stack.last() {
                     out[at].text.push('&');
@@ -176,25 +177,25 @@ fn children_of(els: &[El], at: usize) -> Vec<&El> {
     els.iter().filter(|e| e.parent == Some(at)).collect()
 }
 
-/// Stelle des ersten Kinds von `at` mit der Klasse `class`.
+/// Position of the first child of `at` with the class `class`.
 fn child_at(els: &[El], at: usize, class: &str) -> Option<usize> {
     els.iter().position(|e| e.parent == Some(at) && e.has_class(class))
 }
 
-/// Roher Text des ersten Kinds `name` von `at`.
+/// Raw text of the first child `name` of `at`.
 fn text_in(els: &[El], at: usize, name: &str) -> String {
     els.iter().find(|e| e.parent == Some(at) && e.name == name).map(|e| e.text.clone()).unwrap_or_default()
 }
 
-/// Kasten eines Knotens: (x, y, Breite, Höhe).
+/// Box of a node: (x, y, width, height).
 fn rect_of(els: &[El], at: usize) -> (f64, f64, f64, f64) {
     let rect = children_of(els, at).into_iter().find(|e| e.has_class("mm-box")).expect("jeder Knoten hat mm-box");
     (rect.number("x"), rect.number("y"), rect.number("width"), rect.number("height"))
 }
 
-/// Zeichnet einen von Hand gebauten Baum. In diesen Bäumen gilt: Einfälle direkt an der Wurzel liegen in der Wolke
-/// (so nennt es die Sicht `tree::Scene` für die Seite); nennt ein Test `cloud` selbst, gilt seine Angabe. Freie
-/// Hauptthemen (Einfälle direkt am Werk als Hauptast) prüft `free_main_topics_are_main_branches_not_cloud_cards`.
+/// Draws a hand-built tree. In these trees the rule is: ideas directly at the root lie in the cloud (that is what the
+/// view `tree::Scene` calls it for the page); if a test names `cloud` itself, its value applies. Free main topics
+/// (ideas directly at the work as a main branch) are checked by `free_main_topics_are_main_branches_not_cloud_cards`.
 fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     let mut options = options.clone();
     if options.cloud.is_empty() {
@@ -207,7 +208,7 @@ fn fragment(map: &MindMap) -> String {
     render(map, &RenderOptions::default()).svg
 }
 
-// ---- Zeichnung -----------------------------------------------------------------------------------------------
+// ---- Drawing -------------------------------------------------------------------------------------------------
 
 #[test]
 fn three_levels_follow_the_dom_contract_with_branches_on_both_sides() {
@@ -229,7 +230,7 @@ fn three_levels_follow_the_dom_contract_with_branches_on_both_sides() {
     assert!(root.has_class("mm-work") && root.attr("data-depth") == "0", "das Werk ist der Knoten der Tiefe 0");
     assert_eq!(root.attr("data-editable"), "0", "das Werk ist in der Mindmap nicht umbenennbar");
 
-    // Hauptäste: erste Hälfte rechts, zweite links; das Werk steht dazwischen.
+    // Main branches: first half on the right, second on the left; the work stands in between.
     let (rx, _, rw, _) = rect_of(&els, root_at);
     for (id, side) in [("n:1", "right"), ("n:2", "right"), ("n:3", "left"), ("n:4", "left")] {
         let (at, main) = node_of(&els, id);
@@ -245,7 +246,7 @@ fn three_levels_follow_the_dom_contract_with_branches_on_both_sides() {
         }
     }
 
-    // Farbe je Hauptast auf allen Nachfahren, Seite geerbt, Tiefe gezählt.
+    // Colour per main branch on all descendants, side inherited, depth counted.
     for (main, branch, below) in [("n:1", "0", vec!["i:11", "i:111", "i:12"]), ("n:4", "3", vec!["i:41", "i:411"])] {
         let side = node_of(&els, main).1.attr("data-side").to_owned();
         for id in std::iter::once(main).chain(below) {
@@ -260,7 +261,7 @@ fn three_levels_follow_the_dom_contract_with_branches_on_both_sides() {
     assert!(deep.has_class("mm-idea") && deep.attr("data-idea") == "111", "Einfälle tragen data-idea");
     assert_eq!(deep.attr("data-editable"), "1", "Einfälle sind änderbar");
 
-    // Äste: je Knoten außer dem Werk eine kubische Kurve vom Eltern- zum Kindknoten, in der Astfarbe.
+    // Branches: per node except the work one cubic curve from the parent to the child node, in the branch colour.
     let edges: Vec<&El> = els.iter().filter(|e| e.name == "path" && e.has_class("mm-edge")).collect();
     assert_eq!(edges.len(), all.len() - 1, "ein Ast je Knoten außer dem Werk");
     for edge in &edges {
@@ -291,7 +292,7 @@ fn user_text_is_escaped_in_content_and_attributes() {
             !svg.contains("<Seile>") && !svg.contains("<c>") && !svg.contains("<x>"),
             "auch nicht aus Titel/Wort/back"
         );
-        // Der Parser lehnt rohe & < und offene Anführungszeichen ab; er liefert die Werte entmaskiert zurück.
+        // The parser rejects raw & < and open quotation marks; it returns the values unescaped.
         let els = parse(&svg);
         let (_, n) = node_of(&els, "i:5");
         assert_eq!(n.attr("data-title"), nasty, "data-title trägt den Titel verlustfrei (für das Umbenennen)");
@@ -303,7 +304,7 @@ fn user_text_is_escaped_in_content_and_attributes() {
     }
 }
 
-/// 40 Knoten in vier Ebenen (Werk, 4 Kapitel, 12 Einfälle, 23 Untereinfälle) mit sehr verschieden langen Titeln.
+/// 40 nodes in four levels (work, 4 chapters, 12 ideas, 23 sub-ideas) with titles of very different lengths.
 fn forty() -> MindMap {
     let mut chapters = Vec::new();
     let mut next = 100;
@@ -343,7 +344,7 @@ fn forty_nodes_in_four_levels_do_not_overlap_and_the_layout_is_deterministic() {
                 assert!(apart, "die Kästen von {a} {ra:?} und {b} {rb:?} überlappen sich nicht");
             }
         }
-        // Kein Zufall, keine Uhr, keine Hash-Reihenfolge: zweimal dasselbe SVG.
+        // No randomness, no clock, no hash order: the same SVG twice.
         assert_eq!(first.svg, render(&map, &options).svg, "gleiche Eingabe, gleiches SVG");
         assert_eq!(first.svg, render(&map.clone(), &options).svg, "auch aus einer Kopie des Baums");
     }
@@ -443,7 +444,7 @@ fn relations_are_labelled_contradictions_stand_out_and_hidden_ends_stop_at_the_v
     let links: Vec<&El> = els.iter().filter(|e| e.name == "path" && e.has_class("mm-link")).collect();
     assert_eq!(links.len(), 3, "drei Beziehungen zwischen gezeigten Einfällen; die zum fehlenden Einfall entfällt");
     let by = |id: &str| *links.iter().find(|e| e.attr("data-link") == id).unwrap_or_else(|| panic!("Beziehung {id}"));
-    // Die Beschriftungen stehen in einer eigenen Gruppe hinter den Knoten (darüber gezeichnet, bleiben lesbar).
+    // The labels are in a group of their own after the nodes (drawn on top, stay readable).
     let label_of = |id: &str| {
         els.iter()
             .find(|e| e.has_class("mm-link-label") && e.attr("data-link") == id)
@@ -471,8 +472,8 @@ fn relations_are_labelled_contradictions_stand_out_and_hidden_ends_stop_at_the_v
     assert_eq!(label_of("2").text, "widerspricht", "ohne Notiz nur die Art");
     assert_eq!(contra.attr("data-end-from"), "i:111", "sichtbar: die Linie endet am Einfall selbst");
 
-    // i:11 eingeklappt: i:111 ist verborgen – Beziehung 2 endet am sichtbaren Vorfahren i:11; Beziehung 3 läge
-    // ganz in einem Knoten und entfällt.
+    // i:11 folded: i:111 is hidden – relation 2 ends at the visible ancestor i:11; relation 3 would lie entirely within
+    // one node and is dropped.
     let svg = render(&map, &RenderOptions { closed: vec!["i:11".to_owned()], ..Default::default() }).svg;
     let els = parse(&svg);
     let links: Vec<&El> = els.iter().filter(|e| e.has_class("mm-link")).collect();
@@ -484,7 +485,7 @@ fn relations_are_labelled_contradictions_stand_out_and_hidden_ends_stop_at_the_v
         !links.iter().any(|e| e.attr("data-link") == "3"),
         "Beziehung innerhalb eines eingeklappten Knotens entfällt"
     );
-    // Noch weiter oben eingeklappt: Ende am Kapitel.
+    // Folded even further up: end at the chapter.
     let svg = render(&map, &RenderOptions { closed: vec!["n:1".to_owned()], ..Default::default() }).svg;
     let els = parse(&svg);
     let moved = els.iter().find(|e| e.has_class("mm-link") && e.attr("data-link") == "2").unwrap();
@@ -493,8 +494,8 @@ fn relations_are_labelled_contradictions_stand_out_and_hidden_ends_stop_at_the_v
 
 #[test]
 fn free_main_topics_are_main_branches_not_cloud_cards() {
-    // Integration Runde 34: Ein Einfall direkt am Werk, den die Sicht nicht als Wolke nennt, ist ein freies
-    // Hauptthema – ein eigener Hauptast mit Farbe und Ast zum Werk; nur die genannten liegen in der Wolke.
+    // Integration Round 34: an idea directly at the work that the view does not name as cloud is a free main topic – a
+    // main branch of its own with colour and branch to the work; only the named ones lie in the cloud.
     let mut map = three_levels();
     map.root.children.push(idea(95, "Freies Thema", vec![idea(96, "Unterpunkt", vec![])]));
     map.root.children.push(idea(97, "Ohne Platz", vec![]));
@@ -530,7 +531,7 @@ fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
             NearPair { a: 12, b: 21, score: 0.85, via: NearVia::Both, shared_words: Vec::new() },
         ],
     };
-    // Der Vorschlag kommt aus der Wolke der Daten (`Cloud::hints`): bestes Paar mit einem Einfall im Baum.
+    // The suggestion comes from the cloud of the data (`Cloud::hints`): best pair with an idea in the tree.
     let hinted = RenderOptions {
         hints: vec![CloudHint {
             idea: 92,
@@ -576,7 +577,7 @@ fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
         !els.iter().any(|e| e.has_class("mm-edge") && e.attr("data-to") == "i:90"),
         "kein Ast vom Werk in die Wolke"
     );
-    // Der Baum liegt über der Wolke, nichts überlappt.
+    // The tree lies above the cloud, nothing overlaps.
     for (at, e) in nodes(&els) {
         if e.attr("data-cloud") != "1" {
             let (_, ny, _, nh) = rect_of(&els, at);
@@ -584,27 +585,27 @@ fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
         }
     }
 
-    // Nähe als Hilfe: Vorschlag der Wolke → „passt zu Ast …“ (hier i:41 unter „Sturm“).
+    // Proximity as help: suggestion of the cloud → „passt zu Ast …“ (here i:41 below „Sturm“).
     let (at, near) = node_of(&els, "i:92");
     assert_eq!(near.attr("data-fits"), "n:4", "der Vorschlag nennt den Hauptast des nächsten Einfalls");
     let hint = &els[child_at(&els, at, "mm-cloud-hint").expect("Vorschlag am Kärtchen")];
     assert_eq!(hint.text, "passt zu Ast „Sturm“", "in Worten");
     assert!(hint.has_class("mm-b3"), "in der Farbe dieses Asts");
     assert_eq!(node_of(&els, "i:90").1.attr("data-fits"), "", "ohne nahes Paar kein Vorschlag");
-    // Nähe-Linien nur im Baum (zur Wolke steht der Vorschlag am Kärtchen).
+    // Proximity lines only in the tree (towards the cloud the suggestion is on the card).
     let near: Vec<&El> = els.iter().filter(|e| e.has_class("mm-near")).collect();
     assert_eq!(near.len(), 1, "eine gepunktete Linie für das Paar im Baum");
     assert_eq!((near[0].attr("data-from"), near[0].attr("data-to")), ("i:12", "i:21"), "zwischen den nahen Einfällen");
     map.filter.near = false;
     assert!(!fragment(&map).contains("mm-near"), "ohne zugeschaltete Nähe keine Linien");
 
-    // Leere Wolke: bleibt als Ablagefläche stehen.
+    // Empty cloud: stays as a drop area.
     let empty = parse(&fragment(&three_levels()));
     assert_eq!(empty[0].attr("data-cloud-count"), "0", "Zähler 0");
     assert!(empty.iter().any(|e| e.has_class("mm-cloud-area")), "die Fläche bleibt (Ziel beim Ziehen)");
 
-    // Sichtprüfung von Hand (kein Teil der Zusicherungen): BARUCH_MM_SAMPLE=<Datei> schreibt ein Beispielbild mit
-    // Baum, Beziehungen, Nähe und Wolke als eigenständiges SVG.
+    // Visual check by hand (not part of the assertions): BARUCH_MM_SAMPLE=<file> writes a sample image with tree,
+    // relations, proximity and cloud as a standalone SVG.
     if let Ok(path) = std::env::var("BARUCH_MM_SAMPLE") {
         map.filter.near = true;
         map.links =
@@ -649,7 +650,7 @@ fn the_standalone_file_carries_its_own_style_and_colours_and_the_fragment_only_c
     );
 }
 
-// ---- Seite und Bildroute -------------------------------------------------------------------------------------
+// ---- Page and image route ------------------------------------------------------------------------------------
 
 const BOOK: &str = "#set document(title: \"Ebbe & Flut\")\n\n= Priel\n\nText.\n\n= Watt\n\nMehr Text.\n";
 
@@ -657,7 +658,7 @@ async fn book() -> (common::Server, i64, Vec<i64>) {
     let server = common::open().await;
     let work = server.import(BOOK, "ebbe.typ").await.work;
     let answer = server.rpc("work.get", json!({ "work": work })).await;
-    // Kapitel „Priel“ und „Watt“ in Gliederungsreihenfolge.
+    // Chapters „Priel“ and „Watt“ in outline order.
     let keys = answer["result"]["work"]["nodes"]
         .as_array()
         .unwrap_or_else(|| panic!("work.get nennt die Punkte: {answer}"))
@@ -678,7 +679,7 @@ async fn the_tree_of_a_real_work_renders_with_escaped_titles() {
     let (server, work, _) = book().await;
     new_idea(&server, json!({ "work": work, "words": "Watt <nass>" })).await;
     let filter = MapFilter { near: false, ..MapFilter::default() };
-    // Die Sicht der Seite: Baum und – daneben – die Wolke, in der der Einfall ohne Platz liegt.
+    // The view of the page: tree and – next to it – the cloud, in which the idea without a place lies.
     let scene = tree::scene(&server.state, work, &filter).await.expect("scene gelingt");
     let map = &scene.map;
     let svg = mindmap::render(map, &RenderOptions::of(&scene, false, Vec::new())).svg;
@@ -722,7 +723,7 @@ async fn the_page_is_called_mindmap_and_carries_stage_ribbon_and_links_without_j
         "Zähler „n in der Wolke“: der Einfall ohne Platz"
     );
 
-    // Menüband: Gruppen nach Vertrag §9, als details.band-group wie in Runde 33 (Laptop-Modus).
+    // Ribbon: groups according to contract §9, as details.band-group as in Round 33 (laptop mode).
     let band = html.split("<main").next().unwrap();
     for group in ["Knoten", "Ansicht", "Ausgabe", "Einlesen", "Gliederungsansicht", "Zurück"] {
         assert!(
@@ -752,7 +753,7 @@ async fn the_page_is_called_mindmap_and_carries_stage_ribbon_and_links_without_j
         "Verweis auf die Gliederungsansicht auch im Text"
     );
 
-    // Ohne JavaScript: Einklapper und Abschnitt sind Links.
+    // Without JavaScript: fold toggle and section are links.
     let toggle = format!("class=\"mm-toggle\" href=\"?status=open&amp;zu=n:{key}\"");
     assert!(html.contains(&toggle), "der Einklapper des Kapitels ist ein Link, der zu= setzt: {toggle}");
     assert!(
@@ -764,7 +765,7 @@ async fn the_page_is_called_mindmap_and_carries_stage_ribbon_and_links_without_j
         "„Alles zuklappen“ ist ein Link mit zu="
     );
 
-    // zu= klappt wirklich, wahl= markiert den Knoten; beides bleibt reine Anzeige.
+    // zu= really folds, wahl= marks the node; both stay pure display.
     let (_, closed) = server.get(&format!("/werke/{work}/karte?zu=n:{key},x:1,%22&wahl=i:{loose}")).await;
     assert!(
         !closed.contains(&format!("data-node=\"i:{placed}\"")),
@@ -815,7 +816,7 @@ async fn the_image_route_returns_only_the_svg_with_the_same_filters() {
     let ids: BTreeSet<String> = nodes(&els).iter().map(|(_, e)| e.attr("data-node").to_owned()).collect();
     assert!(ids.contains(&format!("i:{open}")) && ids.contains(&format!("i:{done}")), "ohne Filter beide Einfälle");
 
-    // Gleiche Filter wie die Seite: status, zu, wahl.
+    // Same filters as the page: status, zu, wahl.
     let (_, filtered) = server.get(&format!("/werke/{work}/karte/bild?status=open")).await;
     assert!(
         filtered.contains(&format!("data-node=\"i:{open}\"")) && !filtered.contains(&format!("data-node=\"i:{done}\"")),
@@ -838,7 +839,7 @@ async fn the_image_route_returns_only_the_svg_with_the_same_filters() {
 
 // ---- Widget --------------------------------------------------------------------------------------------------
 
-/// RPC, die das Widget rufen darf (Vertrag §7 und Abnahme).
+/// RPC that the widget may call (contract §7 and acceptance).
 const ALLOWED_METHODS: &[&str] = &[
     "idea.create",
     "idea.update",
@@ -850,7 +851,7 @@ const ALLOWED_METHODS: &[&str] = &[
     "idea.link_restore",
 ];
 
-/// Alle RPC-Methoden in `call("…")` des übersetzten Skripts.
+/// All RPC methods in `call("…")` of the compiled script.
 fn methods_in(js: &str) -> BTreeSet<String> {
     js.match_indices("call(\"")
         .map(|(at, m)| &js[at + m.len()..])
@@ -876,7 +877,7 @@ async fn the_widget_is_compiled_bundled_and_binds_the_keys_and_only_the_allowed_
     );
     assert!(!js.contains("STUB"), "kein Stub im Widget");
 
-    // Nur die RPC des Vertrags, und jede davon wird gebraucht (Aktion bzw. Umkehr für Strg+Z).
+    // Only the RPC of the contract, and each of them is needed (action or reversal for Ctrl+Z).
     let methods = methods_in(&js);
     let allowed: BTreeSet<String> = ALLOWED_METHODS.iter().map(|m| (*m).to_owned()).collect();
     assert_eq!(methods, allowed, "das Widget ruft genau die RPC aus §7");
@@ -886,7 +887,7 @@ async fn the_widget_is_compiled_bundled_and_binds_the_keys_and_only_the_allowed_
         "nach jeder Aktion holt es das Bild über data-bild neu"
     );
 
-    // Tastenbelegung §7: jede Taste steht als eigener Fall bzw. eigene Abfrage im Skript.
+    // Key bindings §7: every key is in the script as a case of its own or a query of its own.
     for key in [
         "\"Tab\"",
         "\"Enter\"",
@@ -914,7 +915,7 @@ async fn the_widget_is_compiled_bundled_and_binds_the_keys_and_only_the_allowed_
         js.contains("\"pointerdown\"") && js.contains("elementFromPoint"),
         "Ziehen mit Ablageziel unter dem Zeiger"
     );
-    // Umkehr-RPC je Aktion (eine Stufe).
+    // Reversal RPC per action (one level).
     for (action, reverse) in [
         ("idea.create", "idea.delete"),
         ("idea.delete", "idea.restore"),
@@ -928,10 +929,10 @@ async fn the_widget_is_compiled_bundled_and_binds_the_keys_and_only_the_allowed_
         });
         assert!(paired, "{action} merkt sich {reverse} als Umkehr");
     }
-    // Wolke: Ablegen in der Wolke bzw. auf dem Werk löst vom Elternknoten und vom Bezug.
+    // Cloud: dropping in the cloud or on the work detaches from the parent node and from the reference.
     assert!(js.contains("parent: null, key: null"), "in die Wolke = parent und key leer (idea.move)");
     assert!(js.contains(".mm-cloud"), "die Wolke ist Ablageziel");
-    // Texte nie als HTML – außer dem fertigen Bild des Servers.
+    // Texts never as HTML – except the finished image of the server.
     assert_eq!(js.matches(".innerHTML").count(), 1, "innerHTML nur für das vom Server maskierte Bild");
 }
 

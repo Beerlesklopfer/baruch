@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26: Hin- und Rückweg zwischen zwei Instanzen ohne Verlust und wiederholbarer Abgleich. Ausgegeben wird über
-//! RPC `work.exchange_export` (R26b), eingelesen über `work.exchange_import` (R26c). Ausgangswerk ist die
-//! handgeschriebene, frei erfundene Prüfdatei des Lesers.
+//! Round 26: there and back between two instances without loss, and a repeatable merge. Output goes through RPC
+//! `work.exchange_export` (R26b), input through `work.exchange_import` (R26c). The starting work is the hand-written,
+//! freely invented test file of the reader.
 //!
-//! Seit der Integration (export und import zusammengeführt) laufen alle Tests vollständig. Einen Ausweg für einen
-//! Stub gibt es nicht mehr: Antwortet die Ausgabe mit einem Fehler, scheitert der Test hart.
+//! Since the integration (export and import merged) all tests run completely. There is no way out for a stub any more:
+//! if the output answers with an error, the test fails hard.
 
 use serde_json::{Value, json};
 
@@ -27,7 +27,7 @@ async fn import(server: &common::Server, bytes: &[u8], mode: &str) -> Value {
     answer["result"].clone()
 }
 
-/// Ausgabe eines Werks als Bytes (`format` "xml" oder "baruch"); jeder Fehler lässt den Test scheitern.
+/// Output of a work as bytes (`format` "xml" or "baruch"); every error makes the test fail.
 async fn export(server: &common::Server, work: i64, format: &str) -> Vec<u8> {
     let answer = server.rpc("work.exchange_export", json!({ "work": work, "format": format })).await;
     let result = &answer["result"];
@@ -40,7 +40,7 @@ async fn export(server: &common::Server, work: i64, format: &str) -> Vec<u8> {
     bytes
 }
 
-/// XML ohne `<ausgabe …/>` (Zeit und Instanz der Ausgabe unterscheiden sich naturgemäß).
+/// XML without `<ausgabe …/>` (time and instance of the output naturally differ).
 fn without_output(xml: &[u8]) -> String {
     let text = String::from_utf8(xml.to_vec()).expect("UTF-8");
     let Some(start) = text.find("<ausgabe") else { return text };
@@ -55,7 +55,7 @@ async fn a_to_b_as_new_and_back_loses_nothing() {
     let xml_a = export(&a, work_a, "xml").await;
     let zip_a = export(&a, work_a, "baruch").await;
 
-    // B liest die XML-Ausgabe, C den Container: beide geben dasselbe aus wie A (bis auf <ausgabe>).
+    // B reads the XML output, C the container: both write the same as A (except for <ausgabe>).
     let b = common::open().await;
     let work_b = import(&b, &xml_a, "new").await["work"].as_i64().unwrap();
     let xml_b = export(&b, work_b, "xml").await;
@@ -65,7 +65,7 @@ async fn a_to_b_as_new_and_back_loses_nothing() {
     let xml_c = export(&c, work_c, "xml").await;
     assert_eq!(without_output(&xml_c), without_output(&xml_a), "Rückweg über den Container ohne Verlust");
 
-    // Die Ausgabe ist gültig nach dem XSD (xmllint; fehlt es, ehrlich übersprungen).
+    // The output is valid according to the XSD (xmllint; if it is missing, honestly skipped).
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a.baruch.xml");
     std::fs::write(&file, &xml_a).unwrap();
@@ -89,12 +89,12 @@ async fn a_change_on_b_arrives_on_a_as_revision_and_request_and_a_second_pass_ad
     let b = common::open().await;
     let work_b = import(&b, &zip_a, "new").await["work"].as_i64().unwrap();
 
-    // Auf B ändert der Mensch: neue Fassung von „Die Speichen“ und „Das Rad“ wieder mit Nummer.
+    // On B the human changes: a new revision of „Die Speichen“, and „Das Rad“ with a number again.
     let loaded = b.state.store.load_work(work_b).await.unwrap();
     let spokes = loaded.nodes.iter().find(|n| n.title == "Die Speichen").unwrap();
     let wheel = loaded.nodes.iter().find(|n| n.title == "Das Rad").unwrap();
-    // Überschrift mit der Ebene des Punkts (Abschnitt = `==`); die Prüfdatei schreibt `===`, der Store verlangt beim
-    // Speichern des Menschen die passende Ebene.
+    // Heading with the level of the item (section = `==`); the test file writes `===`, the store demands the matching
+    // level when the human saves.
     b.state.store.save_human(work_b, spokes.id, "== Die Speichen\n\nVierzehn Speichen.\n", "Autor").await.unwrap();
     b.state.store.outline_set_numbered(work_b, wheel.id, true, "Autor").await.unwrap();
 
@@ -128,9 +128,9 @@ async fn a_change_on_b_arrives_on_a_as_revision_and_request_and_a_second_pass_ad
     assert!(again["requests"].as_array().unwrap().is_empty(), "keine neuen Anträge");
 }
 
-/// Integration R26: Umbenennen auf B legt dort eine Fassung mit der neuen Überschrift an. Auf A kommt diese Fassung
-/// mit (nicht aktuell), und nach F6 (b) wird daraus kein Antrag „Umbenennen“, sondern der Hinweis „Umschalten genügt“
-/// mit Link; ein auf B angelegter Einfall kommt dazu. Gelöscht oder umgeschaltet wird auf A nichts.
+/// Integration R26: renaming on B creates a revision with the new heading there. On A this revision comes along (not
+/// current), and according to F6 (b) it does not become a request „Umbenennen“ but the hint „Umschalten genügt“ with a
+/// link; an idea created on B comes in addition. Nothing is deleted or switched on A.
 #[tokio::test]
 async fn a_rename_on_b_arrives_as_revision_with_a_hint_and_a_new_idea_arrives_too() {
     let a = common::open().await;
@@ -181,10 +181,9 @@ async fn a_rename_on_b_arrives_as_revision_with_a_hint_and_a_new_idea_arrives_to
     assert_eq!(ideas_after, ideas_before + 1, "genau ein Einfall mehr, keiner verloren");
 }
 
-/// Befund Nachbesserung R26: Ein gelöschtes Werk hinterlässt seine Einfälle als Einfälle ohne Werk (Migration 0011,
-/// `ON DELETE SET NULL`) mit derselben Kennung. Die eigene Sicherung zurückzuspielen darf daran nicht scheitern: Das
-/// neue Werk bekommt diese Einfälle wieder, statt das Einlesen mit „gibt es hier schon in einem anderen Werk“
-/// abzulehnen.
+/// Finding follow-up fix R26: a deleted work leaves its ideas behind as ideas without a work (migration 0011, `ON
+/// DELETE SET NULL`) with the same identifier. Restoring one's own backup must not fail on that: the new work gets
+/// these ideas back instead of rejecting the import with „gibt es hier schon in einem anderen Werk“.
 #[tokio::test]
 async fn a_deleted_work_comes_back_from_its_own_file_and_gets_its_ideas_back() {
     let a = common::open().await;
@@ -220,7 +219,7 @@ async fn a_deleted_work_comes_back_from_its_own_file_and_gets_its_ideas_back() {
     assert_eq!(total as usize, ideas_before.len(), "wieder zugeordnet, nicht doppelt angelegt");
 }
 
-/// Zahl der Paare (Punkt, Text), die in einem Werk mehr als einmal vorkommen.
+/// Number of pairs (item, text) that occur more than once in a work.
 async fn same_text_pairs(server: &common::Server, work: i64) -> i64 {
     sqlx::query_scalar(
         "SELECT count(*) FROM (SELECT r.node_id FROM revision r JOIN node n ON n.id = r.node_id WHERE n.work_id = ? \
@@ -232,9 +231,9 @@ async fn same_text_pairs(server: &common::Server, work: i64) -> i64 {
     .unwrap()
 }
 
-/// Befund Nachbesserung R26: B bearbeitet eine gemeinsame Fassung an Ort und Stelle, dann wird im Wechsel abgeglichen.
-/// Beide Texte kommen auf beiden Seiten an (nichts verloren), aber kein Punkt bekommt denselben Text zweimal, und
-/// spätestens der dritte Durchgang legt nichts mehr an.
+/// Finding follow-up fix R26: B edits a shared revision in place, then the two sides are merged in turn. Both texts
+/// arrive on both sides (nothing lost), but no item gets the same text twice, and the third pass at the latest creates
+/// nothing any more.
 #[tokio::test]
 async fn merging_back_and_forth_after_an_in_place_edit_creates_no_duplicate_texts() {
     let a = common::open().await;
@@ -243,8 +242,8 @@ async fn merging_back_and_forth_after_an_in_place_edit_creates_no_duplicate_text
     let work_b = import(&b, &export(&a, work_a, "baruch").await, "new").await["work"].as_i64().unwrap();
     let baseline = same_text_pairs(&a, work_a).await;
 
-    // Eine Fassung auf B an Ort und Stelle ändern (Überschrift bleibt, eine Zeile kommt dazu).
-    // `update_revision` nimmt die Stelle (`seq`) des Punkts, nicht seine id.
+    // Change a revision on B in place (heading stays, one line is added).
+    // `update_revision` takes the position (`seq`) of the item, not its id.
     let (node, number, old_body, uuid): (i64, i64, String, String) = sqlx::query_as(
         "SELECT n.seq, r.number, r.body, r.uuid FROM revision r JOIN node n ON n.id = r.node_id WHERE n.work_id = ? \
          ORDER BY n.seq, r.number LIMIT 1",
@@ -275,8 +274,8 @@ async fn merging_back_and_forth_after_an_in_place_edit_creates_no_duplicate_text
         .fetch_all(server.state.store.pool())
         .await
         .unwrap();
-        // Runde 23: `revision.update` legt einen Schritt im Verlauf an; die Gegenseite spult vor. Der alte Text
-        // steht dann im Verlauf der Fortschreibungen statt als eigene Fassung.
+        // Round 23: `revision.update` creates a step in the history; the other side fast-forwards. The old text is then
+        // in the history of the amendments instead of being a revision of its own.
         let history: Vec<String> = sqlx::query_scalar(
             "SELECT a.body_before FROM revision_amend a JOIN revision r ON r.id = a.revision_id \
              JOIN node n ON n.id = r.node_id WHERE n.work_id = ?",
@@ -293,8 +292,8 @@ async fn merging_back_and_forth_after_an_in_place_edit_creates_no_duplicate_text
     }
 }
 
-/// Befund Nachbesserung R26: Ein Instanzname mit `<`, `>` oder Zeilenumbruch in der Datei darf den Commit im Spiegel
-/// nicht verhindern (Git lehnt diese Zeichen im Autor ab); sonst fehlte das Protokoll mit Herkunft.
+/// Finding follow-up fix R26: an instance name with `<`, `>` or a line break in the file must not prevent the commit in
+/// the mirror (Git rejects these characters in the author); otherwise the log with the origin would be missing.
 #[tokio::test]
 async fn an_instance_name_with_angle_brackets_and_newline_still_reaches_the_mirror() {
     let evil = WERK.replace(

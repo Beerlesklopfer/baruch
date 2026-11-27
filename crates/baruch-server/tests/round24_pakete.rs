@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 24, Aufgabe „pakete“ (Schnittstelle R24-S1): Über-Seite (`/ueber`, `/ueber/lizenz`), Menüeintrag
-//! „Über Baruch“, Link neben der Version unter Einstellungen → Daten.
+//! Round 24, task „pakete“ (interface R24-S1): about page (`/ueber`, `/ueber/lizenz`), menu entry „Über Baruch“, link
+//! next to the version under Einstellungen → Daten.
 //!
-//! Die Seite fragt nie im Netz nach: Geprüft wird das am ausgelieferten HTML (nichts, was ein Browser von selbst
-//! von einem fremden Rechner lädt), an einem lauschenden Nachbau auf 127.0.0.1:0, auf den die Verbindungen
-//! zeigen (keine Verbindung beim Abruf), und am Quelltext des Moduls (kein HTTP-Client). Alle Texte frei erfunden.
+//! The page never asks the network: this is checked on the delivered HTML (nothing that a browser loads on its own from
+//! a foreign host), on a listening mock on 127.0.0.1:0 that the connections point to (no connection on retrieval), and
+//! on the source of the module (no HTTP client). All texts are freely invented.
 
 use crate::common;
 
@@ -16,12 +16,12 @@ use axum::http::{Request, StatusCode, header};
 use baruch_server::about;
 use serde_json::json;
 
-/// minijinja maskiert `/` als `&#x2f;`; der Browser liest beides gleich.
+/// minijinja escapes `/` as `&#x2f;`; the browser reads both the same way.
 fn unescape(html: &str) -> String {
     html.replace("&#x2f;", "/")
 }
 
-/// Ein Menü der Kopfzeile (`<details class="menu" data-menu="…">` bis `</details>`).
+/// One menu of the header (`<details class="menu" data-menu="…">` up to `</details>`).
 fn menu<'a>(html: &'a str, name: &str) -> &'a str {
     let marker = format!("<details class=\"menu\" data-menu=\"{name}\">");
     let start = html.find(&marker).unwrap_or_else(|| panic!("Menü {name} fehlt: {html}"));
@@ -29,14 +29,14 @@ fn menu<'a>(html: &'a str, name: &str) -> &'a str {
     &html[start..end]
 }
 
-/// Der Inhalt der Seite (`<main …>` bis `</main>`), ohne Kopfzeile und Dialoge.
+/// The content of the page (`<main …>` up to `</main>`), without header and dialogs.
 fn main_part(html: &str) -> &str {
     let start = html.find("<main").unwrap_or_else(|| panic!("kein <main>: {html}"));
     let end = start + html[start..].find("</main>").expect("<main> ohne Ende");
     &html[start..end]
 }
 
-/// Werte aller Attribute `name="…"` im HTML.
+/// Values of all attributes `name="…"` in the HTML.
 fn attributes<'a>(html: &'a str, name: &str) -> Vec<&'a str> {
     let marker = format!(" {name}=\"");
     html.split(marker.as_str()).skip(1).filter_map(|rest| rest.split('"').next()).collect()
@@ -126,7 +126,7 @@ async fn the_about_page_is_reachable_from_the_menu_without_javascript() {
     let work = server.import_garden().await.work;
     let entry = "<a class=\"menu-item\" role=\"menuitem\" href=\"/ueber\" \
                  title=\"Version, Lizenz, Quellcode und Bibliotheken Dritter\">Über Baruch</a>";
-    // Arbeitsseite, eine Seite mit Werk, eine ohne Werk, eine Einstellungsseite und die Über-Seite selbst.
+    // Work page, a page with a work, one without a work, a settings page and the about page itself.
     for uri in [
         format!("/?work={work}"),
         format!("/gliederung?work={work}"),
@@ -137,17 +137,18 @@ async fn the_about_page_is_reachable_from_the_menu_without_javascript() {
         let (status, raw) = server.get(&uri).await;
         assert_eq!(status, StatusCode::OK, "{uri} lädt: {raw}");
         let html = unescape(&raw);
-        // Runde 33 (Menüband): „Über Baruch“ stand am Ende des Menüs Werkzeuge ▾ und steht jetzt im Menü Baruch ▾
-        // (Programm) – weiter genau einmal, als gewöhnlicher Link (dahinter folgt seit
-        // Runde 32 nur „Baruch beenden…“, siehe unten).
+        // Round 33 (ribbon): „Über Baruch“ stood at the end of the menu Werkzeuge ▾ and now stands in the menu Baruch ▾
+        // (program) – still exactly once, as an ordinary link (since Round 32 only „Baruch beenden…“ follows after it,
+        // see below).
         let tools = menu(&html, "baruch");
         assert_eq!(
             tools.matches(entry).count(),
             1,
             "{uri}: „Über Baruch“ genau einmal im Menü Baruch, als gewöhnlicher Link (ohne JavaScript): {tools}"
         );
-        // Runde 32 (Schnittstelle R32-S1): Hinter „Über Baruch“ steht „Baruch beenden…“, wie „Beenden“ in anderen
-        // Programmen. Runde 35 (Vertrag §3.2): Danach folgt der Eintrag zum Konto – ohne Konten „Konten einrichten…“.
+        // Round 32 (interface R32-S1): after „Über Baruch“ comes „Baruch beenden…“, like „Beenden“ in other programs.
+        // Round 35 (contract §3.2): after that follows the entry for the account – without accounts „Konten
+        // einrichten…“.
         let quit = "<a class=\"menu-item\" role=\"menuitem\" href=\"/beenden\" \
                     title=\"Baruch auf diesem Rechner beenden (mit Rückfrage)\">Baruch beenden…</a>";
         let rest = tools.split(entry).nth(1).unwrap_or("").trim();
@@ -163,7 +164,7 @@ async fn the_about_page_is_reachable_from_the_menu_without_javascript() {
              {tools}"
         );
     }
-    // Der Link führt wirklich auf die Seite; ein Formular oder Skript ist dafür nicht nötig.
+    // The link really leads to the page; no form or script is needed for it.
     let (status, raw) = server.get("/ueber").await;
     assert_eq!(status, StatusCode::OK, "Ziel des Menüeintrags lädt");
     let html = unescape(&raw);
@@ -216,7 +217,7 @@ async fn the_data_settings_link_the_about_page_next_to_the_version() {
         )),
         "neben der Version steht der Link auf /ueber (gewöhnlicher Link, ohne JavaScript): {html}"
     );
-    // Auch das Fragment des Einstellungs-Dialogs (mit JavaScript) trägt den Link.
+    // The fragment of the settings dialog (with JavaScript) carries the link as well.
     let page = server.rpc("settings.get", json!({ "page": "daten" })).await;
     assert!(page["error"].is_null(), "settings.get daten: {page}");
     assert_eq!(page["result"]["version"], about::VERSION, "RPC nennt dieselbe Version wie die Über-Seite: {page}");
@@ -226,7 +227,7 @@ async fn the_data_settings_link_the_about_page_next_to_the_version() {
 async fn the_about_page_triggers_no_network_access() {
     let server = common::open().await;
 
-    // 1. Lauschender Nachbau: Beide Verbindungen, über die Baruch sonst ins Netz ginge, zeigen auf ihn.
+    // 1. Listening mock: both connections through which Baruch would otherwise reach the network point to it.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let seen = Arc::new(AtomicUsize::new(0));
@@ -241,7 +242,7 @@ async fn the_about_page_triggers_no_network_access() {
         let set = server.rpc("connection.set", json!({ "kind": kind, "config": { "url": url } })).await;
         assert!(set["error"].is_null(), "Verbindung {kind} zeigt auf den Nachbau: {set}");
     }
-    // Kurz warten: Was das Speichern der Verbindungen selbst auslösen könnte, zählt nicht zur Über-Seite.
+    // Wait briefly: whatever saving the connections themselves might trigger does not count towards the about page.
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     let before = seen.load(Ordering::SeqCst);
     for _ in 0..3 {
@@ -256,7 +257,7 @@ async fn the_about_page_triggers_no_network_access() {
         before,
         "der Abruf der Über-Seite und des Lizenztexts öffnet keine Verbindung zu den eingestellten Diensten"
     );
-    // Gegenprobe: Der Nachbau bemerkt eine Verbindung wirklich (sonst bewiese die Null oben nichts).
+    // Cross-check: the mock really notices a connection (otherwise the zero above would prove nothing).
     drop(tokio::net::TcpStream::connect(url.trim_start_matches("http://")).await.unwrap());
     for _ in 0..100 {
         if seen.load(Ordering::SeqCst) > before {
@@ -266,7 +267,7 @@ async fn the_about_page_triggers_no_network_access() {
     }
     assert_eq!(seen.load(Ordering::SeqCst), before + 1, "Gegenprobe: eine echte Verbindung zählt der Nachbau");
 
-    // 2. Das HTML: Nichts, was ein Browser von selbst lädt oder abschickt, zeigt auf einen fremden Rechner.
+    // 2. The HTML: nothing that a browser loads or submits on its own points to a foreign host.
     let (_, raw) = server.get("/ueber").await;
     let html = unescape(&raw);
     for name in ["src", "action", "srcset", "poster", "data", "formaction", "ping"] {
@@ -285,8 +286,8 @@ async fn the_about_page_triggers_no_network_access() {
         !html.contains("http-equiv=\"refresh\"") && !html.contains("@import") && !html.contains("url(http"),
         "keine Weiterleitung und kein fremdes Stylesheet im HTML"
     );
-    // Fremde Adressen stehen nur in gewöhnlichen Links – und zwar genau die vier bekannten. Runde 37: dazu die Hilfe
-    // auf der Webseite (Eintrag „Hilfe“ im Menü „Baruch ▾“ und die Zeile unter „Webseite“).
+    // Foreign addresses appear only in ordinary links – exactly the four known ones. Round 37: plus the help on the
+    // website (entry „Hilfe“ in the menu „Baruch ▾“ and the line under „Webseite“).
     let mut external: Vec<&str> = attributes(&html, "href").into_iter().filter(|h| h.contains("://")).collect();
     external.sort_unstable();
     external.dedup();
@@ -306,8 +307,8 @@ async fn the_about_page_triggers_no_network_access() {
         }
     }
 
-    // 3. Der Quelltext des Moduls: kein HTTP-Client, keine Steckdose, kein Start fremder Programme. So bleibt die
-    //    Zusage „keine Aktualisierungsprüfung“ auch bei späteren Änderungen an dieser Stelle sichtbar.
+    // 3. The source of the module: no HTTP client, no socket, no start of foreign programs. That way the
+    //    promise „keine Aktualisierungsprüfung“ stays visible at this place even after later changes.
     let source = include_str!("../src/about.rs");
     let code = source.split("#[cfg(test)]").next().unwrap();
     for forbidden in ["reqwest", "TcpStream", "UdpSocket", "hyper::", "Command::new", "baruch_llm", "connections::"] {

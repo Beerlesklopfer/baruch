@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“, Besitz sqlx09: Umstieg auf sqlx 0.9 (Verhalten unverändert).
+//! Round 36 „Reste“, owner sqlx09: move to sqlx 0.9 (behaviour unchanged).
 //!
-//! Belegt hier, was nur im ganzen Programm zu sehen ist: Das Lock führt genau eine Ausprägung von sqlx (0.9) und ein
-//! `libsqlite3-sys` mit behobenem gebündeltem SQLite; die Ausnahme dafür steht nicht mehr in `deny.toml`; der Server
-//! behält `postgres` und TLS mit Systemzertifikaten; und ein Datenordner im Stand von `development` – Store **und**
-//! Bibliothek in der gemeinsamen Tabelle `_sqlx_migrations`, mit der Buchführung von sqlx 0.8 und frei erfundenen
-//! Daten – startet mit `AppState::open` ohne `VersionMismatch` und verlustfrei.
+//! Proven here is what can only be seen in the whole program: the lock carries exactly one instance of sqlx (0.9) and
+//! one `libsqlite3-sys` with the fixed bundled SQLite; the exception for it is no longer in `deny.toml`; the server
+//! keeps `postgres` and TLS with system certificates; and a data directory in the state of `development` – store
+//! **and** library in the shared table `_sqlx_migrations`, with the bookkeeping of sqlx 0.8 and freely invented data –
+//! starts with `AppState::open` without `VersionMismatch` and without loss.
 //!
-//! Die Vorlagen `sqlx08_migrations.tsv` (Store und Bibliothek) hat der alte Stand mit sqlx 0.8.6 geschrieben; die
-//! Einzelprüfungen je Crate stehen in `baruch-store/tests/sqlx09_migrations.rs` und
-//! `baruch-library/tests/sqlx09_migrations.rs`. Die Abfragen gegen pgvector unter 0.9 prüfen `round12_*`.
+//! The templates `sqlx08_migrations.tsv` (store and library) were written by the old state with sqlx 0.8.6; the
+//! individual checks per crate are in `baruch-store/tests/sqlx09_migrations.rs` and
+//! `baruch-library/tests/sqlx09_migrations.rs`. The queries against pgvector under 0.9 are checked by `round12_*`.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -23,7 +23,7 @@ const LIBRARY_08: &str = include_str!("../../baruch-library/tests/fixtures/sqlx0
 const LOCK: &str = include_str!("../../../Cargo.lock");
 const DENY: &str = include_str!("../../../deny.toml");
 
-/// Die Tabelle, wie sqlx-sqlite 0.8.6 sie angelegt hat (aus einer Datenbank des alten Stands gelesen).
+/// The table as sqlx-sqlite 0.8.6 created it (read from a database of the old state).
 const SQLX08_TABLE: &str = "CREATE TABLE _sqlx_migrations (
     version BIGINT PRIMARY KEY,
     description TEXT NOT NULL,
@@ -36,7 +36,7 @@ const SQLX08_TABLE: &str = "CREATE TABLE _sqlx_migrations (
 const BOOK: &str = "#set document(title: \"Die Fähre nach Süden\", author: \"Enno Wibben\")\n\n\
 = Anleger\n\nDas Tau liegt nass auf den Planken.\n\n= Überfahrt\n\nMitten im Strom dreht der Wind.\n";
 
-/// Versionen eines Pakets im Lock (`[[package]]` mit `name = "<name>"`).
+/// Versions of a package in the lock (`[[package]]` with `name = "<name>"`).
 fn locked_versions(name: &str) -> Vec<String> {
     let needle = format!("name = \"{name}\"");
     let mut lines = LOCK.lines();
@@ -116,8 +116,8 @@ fn the_three_crates_ask_for_sqlx_09_and_the_server_keeps_postgres_with_tls() {
         server.contains("\"tls-rustls-ring-native-roots\""),
         "TLS zu pgvector bleibt rustls mit ring und den Zertifikaten des Systems (Hauszertifizierungsstelle): {server}"
     );
-    // Dass die Features wirklich wirken, zeigt der Typ: Ohne `postgres` gäbe es ihn nicht, und `PgSslMode::VerifyFull`
-    // lässt sich nur mit einem TLS-Feature sinnvoll einstellen.
+    // That the features really take effect is shown by the type: without `postgres` it would not exist, and
+    // `PgSslMode::VerifyFull` can only be set sensibly with a TLS feature.
     let options = sqlx::postgres::PgConnectOptions::new().ssl_mode(sqlx::postgres::PgSslMode::VerifyFull);
     assert!(
         matches!(options.get_ssl_mode(), sqlx::postgres::PgSslMode::VerifyFull),
@@ -142,8 +142,8 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Spielt die Migrationen einer Vorlage als rohes SQL ein (ohne den Migrator von sqlx 0.9) und schreibt je Migration
-/// die Zeile, die sqlx 0.8 geschrieben hat; `off` nennt die Versionen mit ausgeschalteten Fremdschlüsseln.
+/// Replays the migrations of a template as raw SQL (without the migrator of sqlx 0.9) and writes per migration the row
+/// that sqlx 0.8 wrote; `off` names the versions with foreign keys switched off.
 async fn replay(pool: &SqlitePool, old: &str, migrator: &sqlx::migrate::Migrator, off: &[i64]) -> usize {
     let mut conn = pool.acquire().await.unwrap();
     let mut count = 0;
@@ -182,8 +182,8 @@ async fn replay(pool: &SqlitePool, old: &str, migrator: &sqlx::migrate::Migrator
     count
 }
 
-/// Frei erfundene Daten direkt in SQLite: ein Werk mit zwei Kapiteln (je eine aktuelle Fassung), ein Beitrag, ein
-/// Einfall, ein Titel der Bibliothek mit Zitat.
+/// Freely invented data directly in SQLite: a work with two chapters (one current revision each), one post, one idea,
+/// one title of the library with a quotation.
 async fn insert_rows(pool: &SqlitePool) {
     let doc = baruch_typst::parse(BOOK).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -252,7 +252,7 @@ async fn insert_rows(pool: &SqlitePool) {
     exec(pool, "INSERT OR IGNORE INTO store_meta (key, value) VALUES ('seeded', '1')").await;
 }
 
-/// Jede Zeile der genannten Tabellen als Text (jede Spalte über `quote()`), sortiert.
+/// Every row of the named tables as text (every column through `quote()`), sorted.
 async fn dump(pool: &SqlitePool, tables: &[&str]) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for table in tables {
@@ -274,7 +274,7 @@ async fn dump(pool: &SqlitePool, tables: &[&str]) -> BTreeMap<String, Vec<String
     out
 }
 
-/// Tabellen mit dem Inhalt des Autors; `AppState::open` darf darin nichts ändern.
+/// Tables with the content of the author; `AppState::open` must not change anything in them.
 const CONTENT: &[&str] = &[
     "_sqlx_migrations",
     "work",

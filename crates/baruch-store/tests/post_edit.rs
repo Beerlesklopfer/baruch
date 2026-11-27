@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Beiträge bearbeiten (Runde 28, Migration 0046): die lesenden Abfragen (`post_versions`, `thread_post_versions`,
-//! `post_edited_map`, `PostInfo::edited`, `ThreadPost::edited`) und das Bearbeiten selbst (chat-auftrag): alte Fassung
-//! als `post_version`, `edited` gesetzt, Grenzen, fremdes Werk, Faden. Echte SQLite-Datei im Temp-Ordner, Testtexte
-//! frei erfunden.
+//! Editing posts (Round 28, migration 0046): the reading queries (`post_versions`, `thread_post_versions`,
+//! `post_edited_map`, `PostInfo::edited`, `ThreadPost::edited`) and the editing itself (chat-auftrag): old version as
+//! `post_version`, `edited` set, limits, foreign work, thread. Real SQLite file in the temp directory, test texts
+//! freely invented.
 
 use baruch_core::Post;
 use baruch_store::{Store, StoreError, WorkId};

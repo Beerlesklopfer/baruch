@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Statusübergänge der Revisionen (Migration 0004, Trigger `revision_status_transition`, ersetzt den
-//! aus 0003) auf einer echten SQLite-Datei im Temp-Ordner. Erlaubt sind nur: jede nicht aktuelle
-//! Fassung (proposed, rejected, superseded) → current (Umschalten), current → superseded und
-//! proposed → rejected (Verwerfen). Alles andere, auch derselbe Status, lehnt die Datenbank ab.
+//! Status transitions of the revisions (migration 0004, trigger `revision_status_transition`, replaces the one from
+//! 0003) on a real SQLite file in the temp directory. Allowed are only: every non-current revision (proposed, rejected,
+//! superseded) → current (switching), current → superseded and proposed → rejected (discarding). Everything else, also
+//! the same status, is rejected by the database.
 
 use baruch_core::RevisionStatus;
 use baruch_store::{Store, StoreError};
@@ -17,7 +17,7 @@ async fn fresh() -> (tempfile::TempDir, Store, i64) {
     (dir, store, work)
 }
 
-/// Id der Revision `rev` im Abschnitt `seq`.
+/// Id of the revision `rev` in the section `seq`.
 async fn revision_id(pool: &SqlitePool, seq: i64, rev: i64) -> i64 {
     sqlx::query_scalar("SELECT r.id FROM revision r JOIN node n ON n.id = r.node_id WHERE n.seq = ? AND r.number = ?")
         .bind(seq)
@@ -27,7 +27,7 @@ async fn revision_id(pool: &SqlitePool, seq: i64, rev: i64) -> i64 {
         .unwrap_or_else(|e| panic!("Revision {rev} in Abschnitt {seq} fehlt: {e}"))
 }
 
-/// Irgendeine Revision mit diesem Status (Id und Abschnitts-Id).
+/// Any revision with this status (id and section id).
 async fn any_with(pool: &SqlitePool, status: &str) -> (i64, i64) {
     sqlx::query_as("SELECT id, node_id FROM revision WHERE status = ? ORDER BY id LIMIT 1")
         .bind(status)
@@ -44,7 +44,7 @@ async fn set(pool: &SqlitePool, id: i64, to: &str) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE revision SET status = ? WHERE id = ?").bind(to).bind(id).execute(pool).await.map(|_| ())
 }
 
-/// Prüft, dass der Wechsel abgelehnt wird und der Status bleibt.
+/// Checks that the change is rejected and the status stays.
 async fn assert_refused(pool: &SqlitePool, id: i64, to: &str) {
     let before = status(pool, id).await;
     let err = set(pool, id, to).await.expect_err(&format!("{before} → {to} hätte abgelehnt werden müssen"));
@@ -89,8 +89,8 @@ async fn the_current_revision_may_be_superseded() {
     assert_eq!(status(pool, current).await, "superseded", "aktuelle Fassung ist abgelöst");
 }
 
-/// Löst die aktuelle Fassung des Abschnitts ab, damit ein Wechsel auf current nicht erst am Teilindex
-/// scheitert, sondern am Trigger geprüft wird.
+/// Supersedes the current revision of the section, so that a change to current does not already fail on the partial
+/// index but is checked by the trigger.
 async fn free_current(pool: &SqlitePool, node: i64) {
     let (current,): (i64,) = sqlx::query_as("SELECT id FROM revision WHERE node_id = ? AND status = 'current'")
         .bind(node)
@@ -131,7 +131,7 @@ async fn the_current_version_cannot_be_rejected() {
     let (_dir, store, _work) = fresh().await;
     let pool = store.pool();
     let (current, _) = any_with(pool, "current").await;
-    // Verwerfen ist ein Status für Vorschläge; die aktuelle Fassung wird nur durch Umschalten abgelöst.
+    // Discarding is a status for proposals; the current revision is only superseded by switching.
     assert_refused(pool, current, "rejected").await;
 }
 
@@ -141,7 +141,7 @@ async fn a_rejected_proposal_cannot_become_a_proposal_again() {
     let pool = store.pool();
     store.reject(work, 10, 2).await.unwrap();
     let rejected = revision_id(pool, 10, 2).await;
-    // Zurück zu „offen“ gibt es nicht; wer ihn will, schaltet auf ihn um.
+    // There is no way back to „offen“; whoever wants it switches to it.
     assert_refused(pool, rejected, "proposed").await;
 }
 
@@ -163,7 +163,7 @@ async fn every_other_status_change_is_refused_by_the_database() {
     assert_refused(pool, current, "rejected").await;
     assert_refused(pool, proposed, "superseded").await;
 
-    // Derselbe Status gilt nicht als Übergang.
+    // The same status does not count as a transition.
     for (id, same) in [(proposed, "proposed"), (current, "current"), (superseded, "superseded"), (rejected, "rejected")]
     {
         assert_refused(pool, id, same).await;
@@ -198,7 +198,7 @@ async fn accept_reject_and_save_keep_working_with_the_trigger() {
         "verworfener Vorschlag bleibt verworfen"
     );
 
-    // Ein zweites Verwerfen derselben Revision bleibt eine fachliche Ablehnung des Stores.
+    // A second discarding of the same revision stays a domain rejection of the store.
     let again = store.reject(work, 10, 2).await;
     assert!(matches!(again, Err(StoreError::Refused(_))), "Store lehnt vor dem Trigger ab: {again:?}");
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31b (register-satz): Registermarken (`index.entries/mark/unmark/overview`), Projektion (Bibelstellen) und
-//! Registerseiten in Export, Spiegel, Satz und PDF. Werke frei erfunden; jede Zusicherung mit Begründung.
+//! Round 31b (register-satz): index marks (`index.entries/mark/unmark/overview`), projection (Bible references) and
+//! index pages in export, mirror, typesetting and PDF. Works freely invented; every assertion with its reason.
 
 use crate::common;
 
@@ -35,7 +35,7 @@ async fn bees() -> Bees {
 }
 
 impl Bees {
-    /// Fester Schlüssel und aktuelle Fassung des Abschnitts mit diesem Titel.
+    /// Stable key and current revision of the section with this title.
     async fn section(&self, title: &str) -> (i64, u32, String) {
         let work = self.server.state.store.load_work(self.work).await.unwrap();
         let node = work.nodes.iter().find(|n| n.title == title).unwrap_or_else(|| panic!("Abschnitt {title}"));
@@ -211,7 +211,7 @@ async fn overview_and_entries_show_automatic_scripture_passages_only_with_the_sc
     assert_eq!(registers[2]["kind"], json!("scripture"), "Art des Registers");
 }
 
-/// Text des PDFs je Seite (pdftotext, Seiten an `\x0c` getrennt); `None`, wenn pdftotext fehlt.
+/// Text of the PDF per page (pdftotext, pages separated at `\x0c`); `None` if pdftotext is missing.
 fn pdf_pages(pdf: &[u8]) -> Option<Vec<String>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("buch.pdf");
@@ -269,8 +269,8 @@ async fn the_book_pdf_and_the_standalone_export_print_the_registers_with_measure
         None => eprintln!("ÜBERSPRUNGEN: pdftotext fehlt (Seitenzahlen im PDF nicht gemessen)"),
     }
 
-    // Der Typst-Export als eigenständige Datei ohne Paket und ohne Netz: mit `typst compile`, falls vorhanden; sonst
-    // mit dem eingebetteten Compiler (dieselbe Typst-Version, keine Dateien außer main).
+    // The Typst export as a standalone file without a package and without network: with `typst compile` if available;
+    // otherwise with the embedded compiler (the same Typst version, no files except main).
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("bienenjahr.typ");
     std::fs::write(&file, &typst).unwrap();

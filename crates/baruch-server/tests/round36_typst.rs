@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“, Besitz typst_alias: Typst-Kommandozeile (`baruch-server typst`, Alias `baruch-typst`).
+//! Round 36 „Reste“, owner typst_alias: Typst command line (`baruch-server typst`, alias `baruch-typst`).
 //!
-//! - Die Kommandozeile selbst über `baruch_server::typst_cli::run` (ohne Prozess): `compile` zu PDF, PNG, SVG,
-//!   `--root`, Satzfehler, `--version`, `fonts`, Nicht-Unterstütztes.
-//! - Die gebaute Binärdatei über Symlinks `baruch-typst` und `typst` in einem Temp-Ordner und als
-//!   `baruch-server typst`.
-//! - Paketvorschriften (.deb, AppImage, .dmg, .msi), CI und Doku am Text; `AppRun` läuft gegen einen Nachbau.
+//! - The command line itself through `baruch_server::typst_cli::run` (without a process): `compile` to PDF, PNG, SVG,
+//!   `--root`, typesetting errors, `--version`, `fonts`, unsupported things.
+//! - The built binary through symlinks `baruch-typst` and `typst` in a temp directory and as `baruch-server typst`.
+//! - Package recipes (.deb, AppImage, .dmg, .msi), CI and docs on the text; `AppRun` runs against a mock.
 //!
-//! Alle Texte frei erfunden. Kein Server, kein Netz, kein Datenordner.
+//! All texts freely invented. No server, no network, no data directory.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -16,10 +15,10 @@ use baruch_server::typst_cli::{ALIAS_NAMES, is_alias, run};
 
 const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 
-/// Eine Seite über die Glockengießerin von Harlund.
+/// A page about the bell founder of Harlund.
 const BELL: &str = "#set page(width: 105mm, height: 148mm)\n= Die Glockengießerin von Harlund\n\nMarit goss die \
                     größte Glocke im Winter.\n";
-/// Dasselbe mit einer zweiten Seite.
+/// The same with a second page.
 const BELL_TWO_PAGES: &str = "#set page(width: 105mm, height: 148mm)\n= Die Glockengießerin von Harlund\n\nMarit goss \
                               die größte Glocke im Winter.\n#pagebreak()\nIm Frühjahr läutete sie zum ersten Mal.\n";
 
@@ -31,7 +30,7 @@ fn repo_file(path: &str) -> String {
     std::fs::read_to_string(root().join(path)).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
-/// Ruft die Kommandozeile im Prozess: (Exit-Code, Standardausgabe, Fehlerausgabe).
+/// Calls the command line in the process: (exit code, standard output, error output).
 fn typst(args: &[&str]) -> (i32, String, String) {
     let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
     let (mut out, mut err) = (Vec::new(), Vec::new());
@@ -46,7 +45,7 @@ fn write(dir: &Path, name: &str, text: &str) -> String {
     path.to_str().unwrap().to_owned()
 }
 
-/// Die Dateinamen eines Ordners, sortiert (ohne Unterordner abzusteigen).
+/// The file names of a directory, sorted (without descending into subdirectories).
 fn names(dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(dir)
         .unwrap()
@@ -81,7 +80,7 @@ fn compile_sets_a_file_to_pdf_png_and_svg() {
     assert_eq!(typst(&["compile", &input, &path("anders.dat"), "-f", "png"]).0, 0, "-f schlägt die Endung der Ausgabe");
     assert!(std::fs::read(path("anders.dat")).unwrap().starts_with(PNG_SIGNATURE), "anders.dat ist trotzdem ein PNG");
 
-    // Überschreiben wie Typst (anders als `baruch-server export --pdf`, das eine vorhandene Datei ablehnt).
+    // Overwrite like Typst (unlike `baruch-server export --pdf`, which rejects an existing file).
     std::fs::write(path("glocke.pdf"), "alt").unwrap();
     assert_eq!(typst(&["compile", &input]).0, 0, "eine vorhandene Ausgabedatei ist kein Fehler");
     assert!(
@@ -262,7 +261,7 @@ fn unsupported_calls_are_refused_in_german_and_write_nothing() {
     assert!(err.contains("unbekannter Unterbefehl „setze“") && err.contains("typst --help"), "mit Hinweis: {err}");
     assert_eq!(typst(&[]).0, 2, "ohne jede Angabe: Exit 2 mit der Hilfe");
 
-    // Pakete: kein falscher Aufruf, sondern ein Dateifehler beim Satz – Exit 1 mit der Meldung des Servers.
+    // Packages: not a wrong call but a file error during typesetting – exit 1 with the message of the server.
     let package = write(dir.path(), "paket.typ", "#import \"@preview/harlund:0.1.0\": glocke\nText.\n");
     let (code, _, err) = typst(&["compile", &package]);
     assert_eq!(code, 1, "ein @preview-Paket: Exit 1");
@@ -280,8 +279,8 @@ fn unsupported_calls_are_refused_in_german_and_write_nothing() {
     }
 }
 
-/// Startet die gebaute Binärdatei unter `program` mit eigenem HOME (damit kein Datenordner des Rechners in Reichweite
-/// ist) und ohne `TYPST_FONT_PATHS`.
+/// Starts the built binary under `program` with its own HOME (so that no data directory of the machine is within reach)
+/// and without `TYPST_FONT_PATHS`.
 fn process(program: &Path, home: &Path, args: &[&str]) -> std::process::Output {
     Command::new(program)
         .args(args)
@@ -311,7 +310,7 @@ fn the_built_program_answers_as_typst_under_its_alias_names() {
     let input = write(dir.path(), "werk/glocke.typ", BELL);
     let version = format!("typst {} (Baruch {})\n", baruch_render::cli::TYPST_VERSION, env!("CARGO_PKG_VERSION"));
 
-    // Dreimal dasselbe: Symlink baruch-typst (so liefern es die Pakete), Symlink typst, Unterbefehl typst.
+    // Three times the same: symlink baruch-typst (that is how the packages ship it), symlink typst, subcommand typst.
     let ways: [(&str, PathBuf, &[&str]); 3] = [
         ("baruch-typst", bin.join("baruch-typst"), &[]),
         ("typst", bin.join("typst"), &[]),
@@ -347,7 +346,7 @@ fn the_built_program_answers_as_typst_under_its_alias_names() {
         "alle drei Wege setzen mit derselben Engine dasselbe SVG (Byte für Byte)"
     );
 
-    // TYPST_FONT_PATHS wird gelesen wie --font-path (ein leerer Ordner ändert nichts und ist kein Fehler).
+    // TYPST_FONT_PATHS is read like --font-path (an empty directory changes nothing and is not an error).
     let out = Command::new(bin.join("baruch-typst"))
         .arg("fonts")
         .env("HOME", &home)
@@ -357,7 +356,7 @@ fn the_built_program_answers_as_typst_under_its_alias_names() {
     assert_eq!(out.status.code(), Some(0), "fonts mit TYPST_FONT_PATHS: Exit 0");
     assert!(String::from_utf8_lossy(&out.stdout).lines().any(|line| line == "Libertinus Serif"), "die Liste steht da");
 
-    // Ein anderer Name ist kein Alias: Dort antwortet der Server wie immer.
+    // Another name is not an alias: there the server answers as always.
     let out = process(&bin.join("setzer"), &home, &["--version"]);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
@@ -404,9 +403,9 @@ fn alias_names_cover_exe_and_paths_but_no_other_name() {
     }
 }
 
-// ---- Pakete ----------------------------------------------------------------------------------------------------
+// ---- Packages --------------------------------------------------------------------------------------------------
 
-/// Die Zeilen `["quelle", "ziel", "modus"]` aus `[package.metadata.deb] assets`.
+/// The lines `["quelle", "ziel", "modus"]` from `[package.metadata.deb] assets`.
 fn deb_assets() -> Vec<(String, String, String)> {
     let manifest = repo_file("crates/baruch-server/Cargo.toml");
     let deb = &manifest[manifest.find("[package.metadata.deb]").expect("Abschnitt deb")..];
@@ -459,7 +458,7 @@ fn no_package_installs_a_file_named_typst() {
             ".deb: {source} → {dest} – ein fremdes /usr/bin/typst darf das Paket nie überschreiben"
         );
     }
-    // Skripte und Vorschriften: Kein Ziel heißt typst. Geprüft werden die Zeilen, die etwas ablegen.
+    // Scripts and recipes: no target is called typst. Checked are the lines that install something.
     for path in [
         "packaging/appimage/build-appimage.sh",
         "packaging/macos/build-dmg.sh",
@@ -524,8 +523,8 @@ fn appimage_dmg_and_msi_carry_baruch_typst() {
     assert!(cmd.contains("\nexit /b %ERRORLEVEL%\n"), "und gibt dessen Exit-Code zurück (1 Satzfehler, 2 Aufruf)");
 }
 
-/// `AppRun` gegen einen Nachbau von `baruch-server`, der seine Argumente nennt: Die Laufzeit des AppImage setzt
-/// `ARGV0` auf den Namen, unter dem das AppImage gerufen wurde.
+/// `AppRun` against a mock of `baruch-server` that names its arguments: the runtime of the AppImage sets `ARGV0` to the
+/// name under which the AppImage was called.
 #[cfg(unix)]
 #[test]
 fn apprun_passes_the_alias_names_on_to_the_typst_command_line() {
@@ -568,7 +567,7 @@ fn apprun_passes_the_alias_names_on_to_the_typst_command_line() {
     assert_eq!(apprun(None, &["export", "1"]), "server:export 1\n", "ohne ARGV0 (entpacktes AppDir) wie bisher");
 }
 
-// ---- CI und Doku -----------------------------------------------------------------------------------------------
+// ---- CI and docs -----------------------------------------------------------------------------------------------
 
 #[test]
 fn the_ci_sets_with_its_own_program_and_downloads_no_typst() {

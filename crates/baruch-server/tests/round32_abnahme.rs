@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme der Runde 32 (Integrator): Rundreise Word über den Server, Menüeinträge, kein MCP-Werkzeug, Doku.
+//! Acceptance of Round 32 (integrator): round trip Word through the server, menu entries, no MCP tool, docs.
 
-/// Schnittstelle R32-S1: Die drei Einträge stehen an den Plätzen des Menübands (Vertrag Runde 32 §0.5) – wörtlich, als
-/// gewöhnliche Links (ohne JavaScript bedienbar). Die Marken selbst prüft Runde 33.
-/// Runde 35 (Vertrag §3.2): Import und Beenden tragen die Klasse `nur-autor` (für Lektoren ausgeblendet; ohne Konten
-/// nimmt `konten_ui::apply` sie aus der ausgelieferten Seite). Hinter „Baruch beenden…“ und seiner Marke folgt die Marke
-/// für den Eintrag zum Konto.
+/// Interface R32-S1: the three entries are at the places of the ribbon (contract Round 32 §0.5) – verbatim, as
+/// ordinary links (usable without JavaScript). The markers themselves are checked by Round 33.
+/// Round 35 (contract §3.2): import and quit carry the class `nur-autor` (hidden for Lektors; without accounts
+/// `konten_ui::apply` takes it out of the delivered page). After „Baruch beenden…“ and its marker follows the marker
+/// for the entry for the account.
 #[test]
 fn the_three_entries_stand_at_their_places_in_the_ribbon() {
     let base = include_str!("../templates/base.html");
@@ -39,7 +39,7 @@ fn the_three_entries_stand_at_their_places_in_the_ribbon() {
     );
 }
 
-// ---- Rundreise Word über den Server ---------------------------------------------------------------------------
+// ---- Round trip Word through the server -----------------------------------------------------------------------
 
 use std::io::{Cursor, Read};
 
@@ -48,8 +48,8 @@ use serde_json::{Value, json};
 
 use crate::common;
 
-/// Dieselbe frei erfundene Word-Datei „Das Haus am Deich“, mit der der Leser geprüft ist: Überschriften, Fußnote,
-/// Bild, Listen, Tabelle, Änderungsverfolgung zweier Bearbeiter und Kommentare samt Antwort.
+/// The same freely invented Word file „Das Haus am Deich“ with which the reader is tested: headings, footnote, image,
+/// lists, table, change tracking of two editors and comments including a reply.
 use crate::round32_docx_import::docx;
 
 const ERIKA: &str = "@word:erika-beispiel";
@@ -61,7 +61,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Liest eine Word-Datei über die Vorschau ein und übernimmt sie unter `title`; liefert die Vorschau und das Ergebnis.
+/// Reads a Word file through the preview and accepts it under `title`; returns the preview and the result.
 async fn import(server: &common::Server, file: &[u8], title: &str) -> (Value, Value) {
     let shown = ok(
         server,
@@ -99,7 +99,7 @@ fn text(file: &[u8], name: &str) -> String {
     String::from_utf8(part(file, name)).unwrap_or_else(|_| panic!("Teil {name} ist UTF-8"))
 }
 
-/// Gliederung (Art, Nummer, Titel) und aktueller Text je Abschnitt.
+/// Outline (kind, number, title) and current text per section.
 async fn current(server: &common::Server, work: i64) -> Vec<(String, String)> {
     let loaded = server.state.store.load_work(work).await.unwrap();
     loaded
@@ -116,7 +116,7 @@ fn codes(value: &Value) -> Vec<String> {
     value["warnings"].as_array().unwrap().iter().map(|w| w["code"].as_str().unwrap().to_owned()).collect()
 }
 
-/// Ende zu Ende: Word-Datei → Werk → Word-Datei → Werk. Geprüft wird, was der Vertrag der Runde zusagt.
+/// End to end: Word file → work → Word file → work. Checked is what the contract of the round promises.
 #[tokio::test]
 async fn a_word_file_survives_import_export_and_import_again() {
     let server = common::open().await;
@@ -158,7 +158,7 @@ async fn a_word_file_survives_import_export_and_import_again() {
         "der Kommentar steht als Beitrag unter dem Namen der Kommentierenden am Abschnitt der Stelle"
     );
 
-    // Export: gültiges OOXML mit den festgelegten Teilen.
+    // Export: valid OOXML with the specified parts.
     let (answer, file) = export(&server, first, false).await;
     assert_eq!(answer["proposals"], 0, "ohne Wunsch stehen keine Vorschläge in der Datei");
     let listed = names(&file);
@@ -201,7 +201,7 @@ async fn a_word_file_survives_import_export_and_import_again() {
         }
     }
 
-    // Re-Import der eigenen Datei: gleiche Gliederung, gleicher Text.
+    // Re-import of the own file: same outline, same text.
     let (again, applied) = import(&server, &file, "Das Haus am Deich (Rundreise)").await;
     assert_eq!(again["editors"], json!([]), "die exportierte Datei ohne Vorschläge kennt keine Bearbeiter");
     assert_eq!(applied["proposals"], 0, "und ergibt darum keinen Vorschlag");
@@ -226,8 +226,8 @@ async fn a_word_file_survives_import_export_and_import_again() {
     );
 }
 
-/// Export mit offenen Vorschlägen: Änderungsverfolgung mit der Persona als Bearbeiter – und beim Wiedereinlesen
-/// wird daraus wieder genau dieser Vorschlag gegen die aktuelle Fassung.
+/// Export with open proposals: change tracking with the persona as the editor – and on reading it in again it becomes
+/// exactly this proposal against the current revision again.
 #[tokio::test]
 async fn open_proposals_travel_as_tracked_changes_and_come_back_as_proposals() {
     let server = common::open().await;
@@ -281,7 +281,7 @@ async fn open_proposals_travel_as_tracked_changes_and_come_back_as_proposals() {
     );
 }
 
-// ---- Wegwerf-Server als echter Prozess: Word hinein, Word heraus, beenden --------------------------------------
+// ---- Throwaway server as a real process: Word in, Word out, quit -----------------------------------------------
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -295,7 +295,7 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
 }
 
-/// Laufender `baruch-server serve`; beim Verwerfen wird der eigene Kindprozess beendet (falls der Test scheitert).
+/// Running `baruch-server serve`; on drop the own child process is terminated (in case the test fails).
 struct Process {
     child: Child,
     url: String,
@@ -311,8 +311,8 @@ impl Drop for Process {
 }
 
 impl Process {
-    /// Datenordner vorbereiten (Verbindungen auf eine tote Adresse – keine Anfrage an echte Dienste), Server mit
-    /// einem erlaubten Proxy-Namen starten, auf „Baruch läuft“ warten.
+    /// Prepare the data directory (connections to a dead address – no request to real services), start the server with
+    /// one allowed proxy name, wait for „Baruch läuft“.
     async fn start() -> Process {
         let data = tempfile::tempdir().unwrap();
         {
@@ -364,7 +364,7 @@ impl Process {
         format!("{}{path}", self.url)
     }
 
-    /// Wartet auf das Ende des Prozesses; liefert Exit-Code und die weiteren Zeilen der Standardausgabe.
+    /// Waits for the end of the process; returns the exit code and the further lines of the standard output.
     fn finish(&mut self, limit: Duration) -> (Option<i32>, Vec<String>) {
         let end = Instant::now() + limit;
         let status = loop {
@@ -386,20 +386,20 @@ fn location(response: &reqwest::Response) -> String {
     response.headers().get("location").map(|v| v.to_str().unwrap().to_owned()).unwrap_or_default()
 }
 
-/// Der ganze Weg an einem echten Prozess, nur mit dem, was ein Browser ohne JavaScript kann (Seiten, Formulare,
-/// Umleitungen): Word-Datei hochladen, Vorschau, übernehmen, als Word herunterladen, Baruch beenden.
+/// The whole way on a real process, only with what a browser without JavaScript can do (pages, forms, redirects):
+/// upload a Word file, preview, accept, download as Word, quit Baruch.
 #[tokio::test]
 async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
     let mut process = Process::start().await;
     let client = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).build().unwrap();
 
-    // Menü: die drei Einträge der Runde stehen als gewöhnliche Links auf der Startseite.
+    // Menu: the three entries of the round are on the start page as ordinary links.
     let home = client.get(process.at("/")).send().await.unwrap().text().await.unwrap();
     for link in ["href=\"/werke/import/word\"", "href=\"/beenden\"", "/word\" title=\"Das Werk als Word-Datei"] {
         assert!(home.contains(link), "die Startseite trägt den Eintrag {link} im Menüband (ohne JavaScript ein Link)");
     }
 
-    // Word-Import: Formular mit Datei → 303 auf die Vorschau.
+    // Word import: form with file → 303 to the preview.
     let boundary = "----baruch-r32-abnahme";
     let mut body = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\n\r\n").into_bytes();
     body.extend_from_slice(
@@ -440,7 +440,7 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
     let target = location(&answer);
     let work: i64 = target.strip_prefix("/?work=").and_then(|id| id.parse().ok()).expect("Umleitung auf /?work=<id>");
 
-    // Word-Export: Seite mit GET-Formular, Datei mit offenen Vorschlägen als Änderungsverfolgung.
+    // Word export: page with a GET form, file with open proposals as change tracking.
     let page = client.get(process.at(&format!("/werke/{work}/word"))).send().await.unwrap().text().await.unwrap();
     assert!(
         page.contains(&format!("action=\"/werke/{work}/word.docx\"")) && page.contains("name=\"vorschlaege\""),
@@ -460,7 +460,7 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
         "der jüngste offene Vorschlag steht als Einfügung mit seinem Bearbeiter in der Datei"
     );
 
-    // Beenden: unter dem Proxy-Namen und über MCP abgelehnt, vom eigenen Rechner mit Rückfrage erlaubt.
+    // Quit: rejected under the proxy name and over MCP, allowed from the own machine with a confirmation prompt.
     let answer = client.get(process.at("/beenden")).header("host", PROXY_NAME).send().await.unwrap();
     assert_eq!(answer.status(), 403, "unter dem erlaubten Proxy-Namen gibt es die Rückfrage nicht");
     assert!(!answer.text().await.unwrap().contains("action=\"/beenden\""), "und kein Formular zum Beenden");
@@ -512,7 +512,7 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
         "letzte Zeile der Standardausgabe: {lines:?}"
     );
 
-    // Datenbank nach dem Beenden: in sich stimmig, und alles Geschriebene steht darin.
+    // Database after quitting: consistent in itself, and everything written is in it.
     let state = baruch_server::AppState::open(process.data.path()).await.expect("der Datenordner öffnet sich wieder");
     let check: String = sqlx::query_scalar("PRAGMA integrity_check").fetch_one(state.store.pool()).await.unwrap();
     assert_eq!(check, "ok", "SQLite findet die Datenbank nach dem Beenden unversehrt");
@@ -523,8 +523,8 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
     state.store.pool().close().await;
 }
 
-/// `SIGTERM` (systemctl stop, kill) beendet denselben Prozess genauso sauber – auch unmittelbar nach der Zeile
-/// „Baruch läuft“: Die Empfänger der Signale sind vorher eingerichtet (sonst endete der Prozess hart am Signal).
+/// `SIGTERM` (systemctl stop, kill) ends the same process just as cleanly – even immediately after the line „Baruch
+/// läuft“: the receivers of the signals are set up beforehand (otherwise the process would end hard on the signal).
 #[cfg(unix)]
 #[tokio::test]
 async fn sigterm_ends_the_throwaway_server_with_exit_0() {
@@ -544,9 +544,9 @@ async fn sigterm_ends_the_throwaway_server_with_exit_0() {
     state.store.pool().close().await;
 }
 
-// ---- CI, MCP, Doku ----------------------------------------------------------------------------------------------
+// ---- CI, MCP, docs ----------------------------------------------------------------------------------------------
 
-/// Die Regelprüfung der Arbeitsabläufe erkennt `pages.yml` und `release.yml` mit getrennten Jobs als gültig.
+/// The rule check of the workflows recognises `pages.yml` and `release.yml` with separate jobs as valid.
 #[cfg(unix)]
 #[test]
 fn the_workflow_check_accepts_the_separated_pages_jobs() {
@@ -564,15 +564,15 @@ fn the_workflow_check_accepts_the_separated_pages_jobs() {
     }
 }
 
-/// Die Doku ist nachgezogen: Bedienung, RPC, MCP, Architektur, README und CHANGELOG nennen die Runde; die Bausteine
-/// der Entwickler sind eingesetzt und gelöscht; kein Stub der Runde ist offen.
+/// The docs have been brought up to date: user guide, RPC, MCP, architecture, README and CHANGELOG name the round; the
+/// building blocks of the developers are inserted and deleted; no stub of the round is open.
 #[test]
 fn the_documentation_names_word_and_quitting_and_no_stub_is_left() {
     let read = |path: &str| std::fs::read_to_string(root().join(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
     for (path, needles) in [
-        // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite. Die sichtbaren Texte der Oberfläche
-        // (Menüeinträge) werden darum in der zuständigen Hilfeseite gesucht, das Technische (Route, Herkunft der
-        // Word-Vorschläge) weiter in docs/Bedienung.md, das seitdem nur Verweis und technische Anmerkung ist.
+        // Round 37: the user guide for users is in the help of the website. The visible texts of the user interface
+        // (menu entries) are therefore searched for in the responsible help page, the technical part (route, origin of
+        // the Word proposals) still in docs/Bedienung.md, which since then is only a pointer and a technical note.
         ("site/content/de/hilfe/einlesen.md", &["Word (.docx) importieren…"][..]),
         ("site/content/de/hilfe/erste-schritte.md", &["Baruch beenden…"][..]),
         ("docs/Bedienung.md", &["/werke/<id>/word", "@word:"][..]),

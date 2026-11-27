@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende-Abnahme der Runde 5 (tree · wysiwyg · r4) nach der Zusammenführung, alles über `/rpc`
-//! bzw. die Seiten wie im Browser: Klick im Baum öffnet den Editor mit Satzbild-Bereich (ohne
-//! JavaScript nur das Textfeld), im Satzbild bearbeiten und speichern ergibt eine neue Fassung mit
-//! richtigem Typst; Laden und Speichern ohne Änderung ist über das ganze Beispielwerk byte-gleich;
-//! Ebene ändern und auf eine alte Fassung umschalten lässt die Gliederung folgen (ein Commit, die
-//! Fassung bleibt unverändert); MCP schreibt nur mit `key`; `work.import` über `/rpc` mit 3 MiB;
-//! ein neues Werk nach dem Löschen bekommt keine alte id; Migration 0007 auf einer Datenbank im
-//! Stand von Runde 4. Echter Datenordner im Temp-Ordner, Gartenbuch aus `tests/data`, sonst frei
-//! erfundene Texte.
+//! End-to-end acceptance of Round 5 (tree · wysiwyg · r4) after the merge, everything through `/rpc` or the pages as in
+//! the browser: a click in the tree opens the editor with the typeset view area (without JavaScript only the text
+//! field), editing in the typeset view and saving yields a new revision with correct Typst; loading and saving without
+//! a change is byte-identical across the whole sample work; changing the level and switching to an old revision makes
+//! the outline follow (one commit, the revision stays unchanged); MCP writes only with `key`; `work.import` through
+//! `/rpc` with 3 MiB; a new work after the deletion gets no old id; migration 0007 on a database in the state of Round
+//! 4. Real data directory in the temp directory, garden book from `tests/data`, otherwise freely invented texts.
 
 use crate::common;
 
@@ -24,13 +22,13 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Fester Schlüssel des Abschnitts an Stelle `seq` (laut `node.get`).
+/// Stable key of the section at position `seq` (according to `node.get`).
 async fn key_of(server: &common::Server, work: i64, seq: usize) -> i64 {
     let node = server.rpc("node.get", json!({ "work": work, "node": seq })).await;
     result(&node)["key"].as_i64().expect("node.get nennt den festen Schlüssel")
 }
 
-/// Text der aktuellen Fassung und ihre Nummer.
+/// Text of the current revision and its number.
 async fn current(server: &common::Server, work: i64, seq: usize) -> (String, u64) {
     let node = server.rpc("node.get", json!({ "work": work, "node": seq })).await;
     assert_eq!(common::currents(result(&node)), 1, "je Abschnitt genau eine aktuelle Fassung: {node}");
@@ -44,7 +42,7 @@ async fn current(server: &common::Server, work: i64, seq: usize) -> (String, u64
     (rev["body"].as_str().unwrap().to_owned(), rev["number"].as_u64().unwrap())
 }
 
-/// (Nummer, Titel) aller Gliederungspunkte.
+/// (number, title) of all outline items.
 async fn outline_of(server: &common::Server, work: i64) -> Vec<(String, String)> {
     let answer = server.rpc("work.get", json!({ "work": work })).await;
     result(&answer)["work"]["nodes"]
@@ -59,7 +57,7 @@ fn commits(dir: &Path) -> Option<u64> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|c| c.trim().parse().unwrap())
 }
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Token nur Loopback).
+/// MCP request from the own machine (without a token only loopback).
 async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut request = Request::post("/mcp")
@@ -72,12 +70,12 @@ async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     serde_json::from_str(&body).unwrap()
 }
 
-/// Lauter `Keep` – so schickt das Widget einen Text, in dem nichts berührt wurde.
+/// Nothing but `Keep` – this is how the widget sends a text in which nothing was touched.
 fn keep_all(blocks: &Value) -> Value {
     Value::Array((0..blocks.as_array().unwrap().len()).map(|i| json!({ "keep": i })).collect())
 }
 
-// ---- Klick → Satzbild → speichern ---------------------------------------------------------------
+// ---- Click → typeset view → save ----------------------------------------------------------------
 
 #[tokio::test]
 async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_revision_with_correct_typst() {
@@ -87,7 +85,7 @@ async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_rev
     let dir = server.mirror_dir_of(&garden.slug);
     let key = key_of(&server, work, 3).await;
 
-    // Ohne JavaScript: die Seite hat das Textfeld, der Satzbild-Bereich bleibt verborgen.
+    // Without JavaScript: the page has the text field, the typeset view area stays hidden.
     let (status, page) = server.get(&format!("/?work={work}&node=3")).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsseite lädt: {page}");
     assert!(page.contains("<textarea name=\"body\""), "ohne JavaScript bleibt das Textfeld die Eingabe: {page}");
@@ -95,8 +93,8 @@ async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_rev
         "<div class=\"wysiwyg\" data-widget=\"wysiwyg\" data-work=\"{work}\" data-key=\"{key}\" data-node=\"3\" data-rev=\"1\""
     );
     let at = page.find(&area).unwrap_or_else(|| panic!("Satzbild-Bereich mit festem Schlüssel fehlt: {page}"));
-    // Wunsch 2026-11-06: div.wysiwyg umfasst Werkzeugleiste, Blatt (mit dem Formular) und Statuszeile; ohne
-    // JavaScript verborgen sind Werkzeugleiste und Satzbild, nicht der ganze Bereich (sonst fehlte das Textfeld).
+    // Wish 2026-11-06: div.wysiwyg encloses toolbar, sheet (with the form) and status line; without JavaScript toolbar
+    // and typeset view are hidden, not the whole area (otherwise the text field would be missing).
     let form = page.find("<form class=\"editor-form\"").expect("Editor-Formular vorhanden");
     let wrap = page.find("<div class=\"ws-wrap\" data-ws-wrap hidden>").expect("Satzbild ohne JavaScript verborgen");
     let textarea = page.find("aria-label=\"Text des Abschnitts\"").expect("Textfeld des Editors vorhanden");
@@ -106,8 +104,8 @@ async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_rev
     );
     assert!(page.contains("data-edit-toolbar hidden>"), "ohne JavaScript ist die Werkzeugleiste verborgen: {page}");
 
-    // Das Widget ist verdrahtet: main.js lädt wysiwyg.js, und beide Seiten des Ereignisses „vor dem Speichern“
-    // sind ausgeliefert (outline.js löst es aus, wysiwyg.js hört darauf).
+    // The widget is wired: main.js loads wysiwyg.js, and both sides of the event „vor dem Speichern“ are delivered
+    // (outline.js triggers it, wysiwyg.js listens for it).
     for (script, needle) in
         [("main.js", "./wysiwyg.js"), ("wysiwyg.js", "baruch:before-save"), ("outline.js", "baruch:before-save")]
     {
@@ -116,7 +114,7 @@ async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_rev
         assert!(js.contains(needle), "{script} enthält {needle}, sonst bleibt das Satzbild ungespeichert");
     }
 
-    // Der Klick im Baum: ui.render liefert den Editor mit Satzbild-Bereich, das Widget parst den Text.
+    // The click in the tree: ui.render returns the editor with the typeset view area, the widget parses the text.
     let click = server.rpc("ui.render", json!({ "work": work, "node": 3 })).await;
     let editor = result(&click)["editor"].as_str().unwrap();
     assert!(editor.contains(&area), "auch der neu gezeichnete Editor trägt den Satzbild-Bereich: {editor}");
@@ -133,7 +131,7 @@ async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_rev
         "Satzbild-Stil aus der Werkvorlage: {style}"
     );
 
-    // Absatz im Satzbild ändern (Hervorhebung), Überschrift unberührt → Keep.
+    // Change a paragraph in the typeset view (emphasis), heading untouched → Keep.
     let edits = json!([
         { "keep": 0 },
         { "replaces": 1, "block": { "kind": "paragraph", "inlines": [
@@ -150,7 +148,7 @@ async fn a_click_opens_the_typeset_view_and_saving_an_edit_there_makes_a_new_rev
         "kanonisches Typst; die Überschriftszeile bleibt wörtlich"
     );
 
-    // Speichern wie das Formular: outline.save mit key und based_on.
+    // Save like the form: outline.save with key and based_on.
     let saved = server
         .rpc("outline.save", json!({ "work": work, "node": 3, "key": key, "based_on": 1, "body": new_body }))
         .await;
@@ -203,7 +201,7 @@ async fn loading_and_saving_without_a_change_is_byte_identical_over_the_whole_sa
             );
             revisions += 1;
         }
-        // Speichern des unveränderten Textes wie das Formular legt keine neue Fassung an.
+        // Saving the unchanged text like the form creates no new revision.
         let (body, number) = current(&server, work, seq).await;
         let saved =
             server.rpc("outline.save", json!({ "work": work, "node": seq, "based_on": number, "body": body })).await;
@@ -215,7 +213,7 @@ async fn loading_and_saving_without_a_change_is_byte_identical_over_the_whole_sa
     assert_eq!(after, before, "der Export des ganzen Beispielwerks ist danach byte-gleich");
 }
 
-// ---- Ebene ändern → alte Fassung → Gliederung folgt -------------------------------------------
+// ---- Change the level → old revision → outline follows ----------------------------------------
 
 #[tokio::test]
 async fn changing_the_level_and_switching_back_to_an_old_version_lets_the_outline_follow_in_one_commit() {
@@ -261,7 +259,7 @@ async fn changing_the_level_and_switching_back_to_an_old_version_lets_the_outlin
     }
 }
 
-// ---- MCP nur mit key -----------------------------------------------------------------------------
+// ---- MCP only with key ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn mcp_writes_proposals_only_with_a_key() {
@@ -289,9 +287,9 @@ async fn mcp_writes_proposals_only_with_a_key() {
     assert_eq!(current(&server, work, 3).await.1, 1, "Fassung 1 bleibt aktuell");
 }
 
-// ---- Import über /rpc und Werk-ids -----------------------------------------------------------------
+// ---- Import through /rpc and work ids --------------------------------------------------------------
 
-/// Typst-Text mit gut `len` Bytes aus erfundenen Kapiteln.
+/// Typst text with a good `len` bytes from invented chapters.
 fn book_of_size(len: usize) -> String {
     let mut text = String::from("#set document(title: \"Das dicke Mühlenbuch\")\n\n");
     let mut chapter = 0;
@@ -353,7 +351,7 @@ async fn a_new_work_after_deleting_one_gets_neither_its_id_nor_its_slug() {
     assert_eq!(works.len(), 2, "Beispielwerk und das neue Werk, kein neu gesätes Beispiel: {works:?}");
 }
 
-// ---- Migration 0007 auf einer Datenbank im Stand von Runde 4 --------------------------------------
+// ---- Migration 0007 on a database in the state of Round 4 -----------------------------------------
 
 fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migrator {
     sqlx::migrate::Migrator {
@@ -368,7 +366,7 @@ fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migr
 }
 
 const TEMPLATE: &str = "#set document(title: \"Laternenbuch\")\n\n";
-/// (Titel, Nummer, Elternteil, Stelle, Art, Text) eines Knotens, wie ihn der Import vor Runde 5 schrieb.
+/// (title, number, parent, position, kind, text) of a node as the import before Round 5 wrote it.
 type OldNode = (&'static str, &'static str, Option<i64>, i64, &'static str, &'static str);
 const BOOK: [OldNode; 3] = [
     ("Abend", "1", None, 0, "chapter", "= Abend\n\nDie Laternen gehen an.\n\n"),

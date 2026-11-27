@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Archiv im Store (Runde 22, befund-rueckfrage): `Store::retired_works` listet gelöschte Werke, `Store::restore_retired`
-//! legt eines mit dem reservierten slug aus dem Typst-Text des Archivordners wieder an. Echte SQLite-Datei im
-//! Temp-Ordner; das Werk ist frei erfunden.
+//! Archive in the store (Round 22, befund-rueckfrage): `Store::retired_works` lists deleted works,
+//! `Store::restore_retired` recreates one with the reserved slug from the Typst text of the archive directory. Real
+//! SQLite file in the temp directory; the work is freely invented.
 
 use baruch_core::{Author, RevisionStatus};
 use baruch_store::{Store, StoreError, WorkId};
@@ -25,13 +25,13 @@ In der dritten Nacht reißt die Kette der Boje.
 
 const TITLE: &str = "Der Leuchtturmwärter";
 
-/// Aktuelle Texte in Baumreihenfolge.
+/// Current texts in tree order.
 async fn current_texts(store: &Store, work: WorkId) -> Vec<String> {
     let loaded = store.load_work(work).await.unwrap();
     loaded.nodes.iter().map(|n| n.current_index().map(|i| n.revisions[i].body.clone()).unwrap_or_default()).collect()
 }
 
-/// Werk anlegen, eine Fassung ändern (damit nicht nur der Import zurückkommt), exportieren und löschen.
+/// Create a work, change a revision (so that not only the import comes back), export and delete.
 async fn deleted_lighthouse() -> (tempfile::TempDir, Store, String, String, Vec<String>, String) {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();

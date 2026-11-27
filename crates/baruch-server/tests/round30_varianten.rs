@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Varianten (Runde 30b): solution.variants (Geschwister A/B/C auf gleicher Basis, Zeile, umgesetzte Befunde),
-//! Teilvorschlag langer Abschnitte, Vergleichsseite /varianten, „übrige verwerfen“, Chat-Auftrag, MCP
-//! solution_variants, Formular ohne JavaScript und die Rundreise im Austauschformat Unterversion 5.
+//! Variants (Round 30b): solution.variants (siblings A/B/C on the same base, line, implemented findings), partial
+//! proposal for long sections, comparison page /varianten, „übrige verwerfen“, chat order, MCP solution_variants, form
+//! without JavaScript and the round trip in the exchange format minor version 5.
 //!
-//! Besitz: chat-loesungen. Kein Netz, kein Eliezer: Modelle nur über `ScriptedModel`. Texte frei erfunden.
+//! Owner: chat-loesungen. No network, no Eliezer: models only through `ScriptedModel`. Texts freely invented.
 
 use crate::common;
 
@@ -61,8 +61,8 @@ fn user(call: &ModelCall) -> &str {
     call.messages.iter().find(|m| m.role == Role::User).map(|m| m.content.as_str()).unwrap()
 }
 
-/// Beitrag von @lektor zum Leuchtturm mit einem kritischen Punkt samt Lösung, zerlegt wie nach einem Auftrag; gibt
-/// (Beitrag, Befund) zurück.
+/// Post of @lektor on the Leuchtturm with one critical point including a solution, split as after an order; returns
+/// (post, finding).
 async fn finding_with_solution(t: &Tower) -> (i64, i64) {
     let body = "Kritisch: „Immer leuchtet der Turm“ behauptet zu viel.\n- statt: „Immer leuchtet der Turm“\n\
                 - besser: „Meist leuchtet der Turm“";
@@ -141,7 +141,7 @@ async fn three_variants_are_siblings_on_the_same_base_with_labels_lines_and_find
         "C weiß, was A und B tun"
     );
 
-    // Fassungsbaum und Vergleichsseite.
+    // Revision tree and comparison page.
     let (_, page) = t.server.get(&format!("/?work={}&key={}", t.work, t.keys[1])).await;
     assert!(page.contains("Variante A") && page.contains("Variante C"), "der Fassungsbaum zeigt die Etiketten");
     assert!(page.contains(&format!("/varianten?work={}&amp;group={group}", t.work)), "Link „vergleichen“: {page}");
@@ -237,7 +237,7 @@ async fn a_long_section_gets_partial_variants_for_the_affected_paragraph_only() 
         };
         (id, baruch_server::findings::ingest(&t.server.state, &source).await.unwrap().created[0].id)
     };
-    // Kontextlänge so klein, dass der ganze Abschnitt samt Antwort nicht passt, ein Absatz aber schon.
+    // Context length so small that the whole section plus answer does not fit, but one paragraph does.
     result(&t.server.rpc("persona.update", json!({ "handle": "@lektor", "context_length": 2600 })).await);
     for summary in ["knapp", "gründlich"] {
         t.model.push(Step::words(&format!(
@@ -371,7 +371,7 @@ async fn mcp_solution_variants_creates_only_proposals_and_is_no_stub() {
     )
     .await;
     assert_eq!(wrong["result"]["isError"], true, "count 5 → isError: {wrong}");
-    // MCP `findings` liefert je Befund seine Lösungen.
+    // MCP `findings` returns the solutions of each finding.
     let (_, listed) = mcp(
         &t.server,
         Some(&session),
@@ -383,7 +383,7 @@ async fn mcp_solution_variants_creates_only_proposals_and_is_no_stub() {
     assert_eq!(found["solutions"][0]["replacement"], "Meist leuchtet der Turm", "Lösung im MCP-Ergebnis: {listed}");
 }
 
-// ---- Austausch Unterversion 5 ------------------------------------------------------------------------------
+// ---- Exchange minor version 5 ------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn solutions_variants_and_post_links_travel_to_another_instance_in_version_five() {
@@ -406,7 +406,7 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
         .unwrap()
         .to_owned();
     for needle in [
-        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
         "version=\"10\"",
         "variante=\"A\"",
         "variante-zeile=\"knapp\"",
@@ -417,7 +417,7 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
     ] {
         assert!(xml.contains(needle), "{needle} in der Ausgabe: {xml}");
     }
-    // XSD der Unterversion 5 (fehlt xmllint, ehrlich übersprungen).
+    // XSD of minor version 5 (if xmllint is missing, honestly skipped).
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("u5.baruch.xml");
     std::fs::write(&file, &xml).unwrap();
@@ -431,7 +431,7 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
         Ok(output) => assert!(output.status.success(), "XSD u8: {}", String::from_utf8_lossy(&output.stderr)),
         Err(e) => eprintln!("ÜBERSPRUNGEN: xmllint nicht gefunden ({e})"),
     }
-    // Zweite Instanz: als neues Werk einlesen, dann wieder ausgeben – bis auf <ausgabe> und die Schlüssel gleich.
+    // Second instance: import as a new work, then write out again – identical except for <ausgabe> and the keys.
     let b = common::open().await;
     let imported = b
         .rpc(
@@ -448,7 +448,7 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
         let start = text.find("<ausgabe").unwrap();
         let end = start + text[start..].find("/>").unwrap() + 2;
         let rest = format!("{}{}", &text[..start], &text[end..]);
-        // Schlüssel sind je Instanz verschieden (schluessel="N").
+        // Keys differ per instance (schluessel="N").
         let mut out = String::new();
         let mut tail = rest.as_str();
         while let Some(at) = tail.find(" schluessel=\"") {

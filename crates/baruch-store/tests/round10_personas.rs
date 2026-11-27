@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Personas im Store, Runde 10: Wahl des Lektors in `store_meta` (fest eine Persona oder automatisch;
-//! Vorgabe des Versuchs fest `@lektor`) und eigener Rollen-Prompt je Persona (`persona.prompt`, Migration
-//! 0015). Jede abgelehnte Änderung lässt alles, wie es ist.
+//! Personas in the store, Round 10: choice of the lector in `store_meta` (fixed one persona or automatic; default of
+//! the trial fixed `@lektor`) and an own role prompt per persona (`persona.prompt`, migration 0015). Every rejected
+//! change leaves everything as it is.
 
 use baruch_core::LectorChoice;
 use baruch_store::{MAX_PROMPT_CHARS, PersonaEdit, Store, StoreError};
@@ -52,7 +52,7 @@ async fn automatic_takes_the_largest_context_and_the_first_on_a_tie() {
     let (_dir, store) = open().await;
     store.set_lector_choice(&LectorChoice::Auto).await.unwrap();
     assert_eq!(store.lector_choice().await.unwrap(), LectorChoice::Auto, "automatisch gespeichert");
-    // Beispiel: @lektor, @schrift und @belege haben 32768 (wie Eliezer Gemma lädt), @exeget weniger.
+    // Example: @lektor, @schrift and @belege have 32768 (as Eliezer loads Gemma), @exeget less.
     store.update_persona("@exeget", &PersonaEdit { context_length: Some(32_768), ..Default::default() }).await.unwrap();
     assert_eq!(lector(&store).await, "@lektor", "Gleichstand mit @lektor (32768): die erste in der Reihenfolge");
     store.update_persona("@exeget", &PersonaEdit { context_length: Some(32_769), ..Default::default() }).await.unwrap();

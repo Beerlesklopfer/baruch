@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werke verwalten (Vertrag Runde 4, Abschnitte 1 und 3b) auf einer echten SQLite-Datei im
-//! Temp-Ordner: eindeutige Titel, Anlegen aus Grundgerüst, Metadaten, Fassungen der Werkvorlage,
-//! Löschen ganzer Werke, Nachtrag der Titelschlüssel beim Öffnen.
+//! Managing works (contract Round 4, sections 1 and 3b) on a real SQLite file in the temp directory: unique titles,
+//! creating from the basic framework, metadata, revisions of the work template, deleting whole works, backfill of the
+//! title keys on opening.
 
 use baruch_core::{NodeKind, RevisionStatus, WorkKind};
 use baruch_store::{ChatScope, NewWork, Preset, Store, StoreError, WorkEdit};
@@ -178,7 +178,7 @@ async fn titles_are_unique_ignoring_case_and_whitespace() {
     );
     assert_eq!(StoreError::EmptyTitle.to_string(), "Ein Werk braucht einen Titel.", "deutsche Meldung");
 
-    // Auch ein Import mit dem Titel eines angelegten Werks ist ein Doppel.
+    // An import with the title of a created work is a duplicate as well.
     let err = store.import_typst("= Eins\n", "Das Buch.typ", "Autor").await.unwrap_err();
     assert!(matches!(err, StoreError::DuplicateTitle { .. }), "Titel aus dem Dateinamen ist vergeben: {err:?}");
 }
@@ -285,7 +285,7 @@ async fn deleting_needs_the_typed_title_and_removes_everything_of_that_work_only
     let (_dir, store) = fresh().await;
     let sample = store.default_work().await.unwrap();
     let book = store.import_typst(BOOK, "probebuch.typ", "Autor").await.unwrap();
-    // Etwas Leben im Werk: Vorschlag, eigene Fassung, Beitrag mit Verweis.
+    // Some life in the work: proposal, own revision, post with reference.
     store.add_proposal(book.work, 1, "= Hauptteil\n\nVorschlag.\n", "@lektor", "test", "").await.unwrap();
     store.save_human(book.work, 2, "== Erster Gang\n\nNeu.\n", "Autor").await.unwrap();
     let post = baruch_core::Post {
@@ -329,7 +329,7 @@ async fn deleting_needs_the_typed_title_and_removes_everything_of_that_work_only
         "das andere Werk bleibt unberührt"
     );
 
-    // Das Werk mit der kleinsten id löschen: das nächste wird Vorgabe.
+    // Delete the work with the smallest id: the next one becomes the default.
     let next = store.create_work(&new_work("Nächstes", Preset::Book), "Autor").await.unwrap();
     store.delete_work(sample, "Beispielwerk: Leise Abhängigkeit (Auszug)").await.unwrap();
     assert_eq!(store.default_work().await.unwrap(), next.work, "Vorgabewerk ist jetzt das nächste");
@@ -367,7 +367,7 @@ async fn reopening_fills_missing_title_keys_and_resolves_old_doubles_once() {
     let store = Store::open(dir.path()).await.unwrap();
     let book = store.import_typst(BOOK, "probebuch.typ", "Autor").await.unwrap();
     let third = store.create_work(&new_work("Drittes", Preset::Book), "Autor").await.unwrap();
-    // Stand vor 0005 nachstellen: keine Schlüssel, zwei Werke mit dem Titel des Imports.
+    // Reproduce the state before 0005: no keys, two works with the title of the import.
     sqlx::query("UPDATE work SET title_key = NULL").execute(store.pool()).await.unwrap();
     sqlx::query("UPDATE work SET title = 'Das Probebuch' WHERE id <> ?")
         .bind(book.work)
@@ -396,7 +396,7 @@ async fn reopening_fills_missing_title_keys_and_resolves_old_doubles_once() {
     assert_eq!(again, titles, "zweites Öffnen ändert nichts");
 }
 
-// ---- Saat und Werk-ids (Vertrag Runde 5) -------------------------------------------------------
+// ---- Seed and work ids (contract Round 5) ------------------------------------------------------
 
 #[tokio::test]
 async fn a_new_database_is_seeded_once_with_parts_that_carry_no_text() {

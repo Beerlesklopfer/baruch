@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild-Einstellungen im Store (Runde 18c, Migration 0044): ohne Zeile alles aus der Vorlage, Setzen und
-//! Lesen (vereinheitlicht), Zurücknehmen löscht die Zeile, Prüfung jedes Felds mit deutscher Meldung (nichts
-//! geändert), unbekanntes Werk, kein Spiegel (die Werte stehen nie im Schnappschuss), gelöschtes Werk nimmt die
-//! Zeile mit. Werke kommen über `import_typst` (frei erfundener Text).
+//! Typeset view settings in the store (Round 18c, migration 0044): without a row everything from the template, setting
+//! and reading (normalised), taking back deletes the row, check of every field with a German message (nothing changed),
+//! unknown work, no mirror (the values are never in the snapshot), a deleted work takes the row along. Works come
+//! through `import_typst` (freely invented text).
 
 use baruch_store::{MAX_SHEET_FONT_CHARS, SheetSettings, Store, StoreError};
 

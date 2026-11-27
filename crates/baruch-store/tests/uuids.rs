@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Weltweit eindeutige Kennungen (Runde 26 „ids“, Migrationen 0041 und 0042) auf einer echten SQLite-Datei im
-//! Temp-Ordner, Testtexte frei erfunden.
+//! Globally unique identifiers (Round 26 „ids“, migrations 0041 and 0042) on a real SQLite file in the temp directory,
+//! test texts freely invented.
 //!
-//! Belegt:
-//! - Jeder Schreibweg des Stores vergibt neuen Zeilen eine kanonische v4-uuid (über die Fülltrigger), ohne die
-//!   Spalte selbst zu nennen.
-//! - Verschieben, Umbenennen, Ebene, Nummer, Umschalten, Übernehmen, Ändern einer Fassung und Umschalten eines
-//!   Bilds erhalten jede vorhandene uuid.
-//! - Löschen hinterlässt je gelöschter Zeile genau einen Grabstein mit Art und Werk-uuid, auch für Fäden, die mit
-//!   dem Werk per Kaskade gehen (0042); weiches Löschen eines Einfalls hinterlässt keinen; ein Grabstein hält
-//!   im Store nichts auf.
-//! - Die Abfragen über uuid (`work_uuid`, `work_by_uuid`, `node_key_by_uuid`, `node_uuid`) und der Name der
-//!   Instanz.
-//! - Kein Codepfad außer `exchange_apply` schreibt die Spalte uuid (Quelltextprüfung).
-//! - Runde 25 (Migration 0043): Verbindungen (`idea_link`) und Lagen (`idea_map_pos`) bekommen ihre uuid ebenso
-//!   über Fülltrigger und hinterlassen Grabsteine `idea_link`/`idea_map_pos` mit der Werk-uuid, auch über die
-//!   Kaskade eines hart gelöschten Einfalls bzw. Werks.
+//! Proven:
+//! - Every write path of the store assigns new rows a canonical v4 uuid (through the fill triggers) without naming the
+//!   column itself.
+//! - Moving, renaming, level, number, switching, accepting, changing a revision and switching an image preserve every
+//!   existing uuid.
+//! - Deleting leaves exactly one tombstone with kind and work uuid per deleted row, also for threads that go with the
+//!   work via cascade (0042); soft deletion of an idea leaves none; a tombstone holds up nothing in the store.
+//! - The queries through uuid (`work_uuid`, `work_by_uuid`, `node_key_by_uuid`, `node_uuid`) and the name of the
+//!   instance.
+//! - No code path except `exchange_apply` writes the column uuid (source check).
+//! - Round 25 (migration 0043): links (`idea_link`) and positions (`idea_map_pos`) get their uuid likewise through fill
+//!   triggers and leave tombstones `idea_link`/`idea_map_pos` with the work uuid, also through the cascade of a
+//!   hard-deleted idea or work.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -28,15 +27,15 @@ use baruch_store::{
 
 const HUMAN: &str = "Anna";
 
-/// Frei erfundenes Buch mit Werkvorlage, zwei Kapiteln und einem Abschnitt.
+/// Freely invented book with work template, two chapters and one section.
 const ORCHARD: &str = "#set document(title: \"Der Obstgarten\", author: \"Anna Apfel\")\n\n\
 = Die Bäume\n\nApfel und Birne.\n\n== Der Schnitt\n\nIm Februar.\n\n= Die Ernte\n\nKörbe und Leitern.\n";
 
-/// Frei erfundenes Buch mit einem Bild.
+/// Freely invented book with an image.
 const BARN_SVG: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"4\" height=\"3\"/></svg>\n";
 const BARN_SOURCE: &str = "#set document(title: \"Die Scheune\")\n\n= Das Dach\n\n#image(\"bilder/scheune.svg\")\n";
 
-/// Die zehn Tabellen mit uuid und ihre Art im Grabstein.
+/// The ten tables with a uuid and their kind in the tombstone.
 const TABLES: [(&str, &str); 10] = [
     ("work", "work"),
     ("node", "node"),
@@ -50,8 +49,7 @@ const TABLES: [(&str, &str); 10] = [
     ("asset_revision", "asset_revision"),
 ];
 
-/// Je Tabelle: id, uuid und die uuid des Werks, zu dem die Zeile gehört (so, wie der Grabstein-Trigger sie
-/// bestimmt).
+/// Per table: id, uuid and the uuid of the work to which the row belongs (the way the tombstone trigger determines it).
 fn rows_sql(table: &str) -> &'static str {
     match table {
         "work" => "SELECT id, uuid, uuid FROM work",
@@ -82,7 +80,7 @@ fn rows_sql(table: &str) -> &'static str {
     }
 }
 
-/// Eine Zeile mit uuid: Art (für den Grabstein), uuid, Werk-uuid.
+/// One row with a uuid: kind (for the tombstone), uuid, work uuid.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Row {
     kind: &'static str,
@@ -110,13 +108,12 @@ async fn tombstones(store: &Store) -> BTreeMap<String, (String, Option<String>)>
     rows.into_iter().map(|(u, k, w)| (u, (k, w))).collect()
 }
 
-/// Kanonisch klein 8-4-4-4-12, Version 4, Variante 10 (RFC 9562).
+/// Canonical lower case 8-4-4-4-12, version 4, variant 10 (RFC 9562).
 fn is_v4(uuid: &str) -> bool {
     baruch_exchange::is_uuid(uuid) && &uuid[14..15] == "4" && matches!(&uuid[19..20], "8" | "9" | "a" | "b")
 }
 
-/// Jede Zeile jeder Tabelle hat eine kanonische v4-uuid, und keine kommt doppelt vor (auch nicht über
-/// Tabellen hinweg).
+/// Every row of every table has a canonical v4 uuid, and none occurs twice (not across tables either).
 fn assert_all_v4(snap: &Snapshot, step: &str) {
     let mut seen = BTreeSet::new();
     for ((table, id), row) in snap {
@@ -126,7 +123,7 @@ fn assert_all_v4(snap: &Snapshot, step: &str) {
     }
 }
 
-/// Alle Zeilen von `before` stehen in `after` mit derselben uuid (nichts gelöscht, nichts umgeschrieben).
+/// All rows of `before` are in `after` with the same uuid (nothing deleted, nothing rewritten).
 fn assert_kept(before: &Snapshot, after: &Snapshot, step: &str) {
     for (key, row) in before {
         let now = after.get(key).unwrap_or_else(|| panic!("{step}: Zeile {key:?} verschwunden"));
@@ -134,13 +131,13 @@ fn assert_kept(before: &Snapshot, after: &Snapshot, step: &str) {
     }
 }
 
-/// Neue Zeilen in `table` zwischen zwei Ständen.
+/// New rows in `table` between two states.
 fn added(before: &Snapshot, after: &Snapshot, table: &str) -> usize {
     after.keys().filter(|key| key.0 == table && !before.contains_key(*key)).count()
 }
 
-/// Nach einem Schreibweg: Alte Zeilen behalten ihre uuid, jede Zeile hat eine v4-uuid, und in jeder Tabelle
-/// aus `tables` ist mindestens eine Zeile dazugekommen. Gibt den neuen Stand zurück.
+/// After a write path: old rows keep their uuid, every row has a v4 uuid, and in every table from `tables` at least one
+/// row has been added. Returns the new state.
 async fn after_write(store: &Store, before: &Snapshot, step: &str, tables: &[&str]) -> Snapshot {
     let after = snapshot(store).await;
     assert_kept(before, &after, step);
@@ -151,8 +148,8 @@ async fn after_write(store: &Store, before: &Snapshot, step: &str, tables: &[&st
     after
 }
 
-/// Nach einem Löschen: Je verschwundener Zeile genau ein neuer Grabstein mit Art und Werk-uuid, keine
-/// anderen neuen Grabsteine, alle übrigen Zeilen unverändert. Gibt die Zahl der Grabsteine zurück.
+/// After a deletion: exactly one new tombstone with kind and work uuid per row that disappeared, no other new
+/// tombstones, all remaining rows unchanged. Returns the number of tombstones.
 async fn after_delete(store: &Store, before: &Snapshot, graves_before: usize, step: &str) -> BTreeSet<&'static str> {
     let after = snapshot(store).await;
     let graves = tombstones(store).await;
@@ -218,7 +215,7 @@ async fn key(store: &Store, work: WorkId, seq: usize) -> i64 {
 #[tokio::test]
 async fn every_write_path_gives_new_rows_a_canonical_v4_uuid() {
     let (_dir, store) = fresh().await;
-    // Beispielwerk: Store::open sät es in die leere Datenbank (Saat aus baruch-core) – Werk, Punkte, Fassungen.
+    // Sample work: Store::open seeds it into the empty database (seed from baruch-core) – work, items, revisions.
     let empty = Snapshot::new();
     let snap = after_write(&store, &empty, "Beispielwerk", &["work", "node", "revision"]).await;
 
@@ -273,7 +270,7 @@ async fn every_write_path_gives_new_rows_a_canonical_v4_uuid() {
     };
     store.idea_create(&idea).await.unwrap();
     let snap = after_write(&store, &snap, "idea_create", &["idea"]).await;
-    // Umwandeln: neuer Einfall mit eigener uuid, der Beitrag geht (mit Grabstein, er ist gelöscht).
+    // Convert: new idea with a uuid of its own, the post goes (with a tombstone, it is deleted).
     let post_uuid = snap[&("post", post_id)].uuid.clone().unwrap();
     store.post_to_idea(orchard, post_id, &words).await.unwrap();
     let mut without_post = snap.clone();
@@ -298,7 +295,7 @@ async fn every_write_path_gives_new_rows_a_canonical_v4_uuid() {
     after_write(&store, &snap, "update_work (neue Vorlagenfassung)", &["work_template_revision"]).await;
 }
 
-/// Werk mit Teilbaum, mehreren Fassungen, Beitrag, Einfall, Faden und Bild mit zwei Fassungen.
+/// Work with subtree, several revisions, post, idea, thread and an image with two versions.
 async fn orchard_with_everything(store: &Store) -> WorkId {
     let work = store.import_typst(ORCHARD, "obstgarten.typ", HUMAN).await.unwrap().work;
     store.save_human(work, 0, "= Die Bäume\n\nApfel, Birne, Pflaume.\n", HUMAN).await.unwrap().unwrap();
@@ -328,7 +325,7 @@ async fn orchard_with_everything(store: &Store) -> WorkId {
     work
 }
 
-/// Nach einer Änderung ohne Löschen: jede alte Zeile mit derselben uuid, kein Grabstein.
+/// After a change without deletion: every old row with the same uuid, no tombstone.
 async fn assert_unchanged_ids(store: &Store, before: &Snapshot, step: &str) -> Snapshot {
     let after = snapshot(store).await;
     assert_kept(before, &after, step);
@@ -345,20 +342,20 @@ async fn moving_renaming_switching_and_editing_keep_every_uuid() {
     let harvest = key(&store, work, 2).await;
     let harvest_uuid = store.node_uuid(work, harvest).await.unwrap();
 
-    // „Die Ernte“ (seq 2) vor „Die Bäume“: der Punkt behält key und uuid.
+    // „Die Ernte“ (seq 2) before „Die Bäume“: the item keeps key and uuid.
     store.outline_move(work, 2, 0, Place::Before, HUMAN).await.unwrap();
     let snap = assert_unchanged_ids(&store, &snap, "outline_move").await;
     assert_eq!(key(&store, work, 0).await, harvest, "der verschobene Punkt steht vorn");
     assert_eq!(store.node_uuid(work, harvest).await.unwrap(), harvest_uuid, "uuid des Punkts nach dem Verschieben");
     store.outline_rename(work, 0, "Die Lese", HUMAN).await.unwrap();
     let snap = assert_unchanged_ids(&store, &snap, "outline_rename").await;
-    // „Der Schnitt“ (jetzt seq 2, Ebene 2) wird Kapitel und wieder Abschnitt.
+    // „Der Schnitt“ (now seq 2, level 2) becomes a chapter and a section again.
     store.outline_set_level(work, 2, 1, HUMAN).await.unwrap();
     let snap = assert_unchanged_ids(&store, &snap, "outline_set_level").await;
     store.outline_set_numbered(work, 2, false, HUMAN).await.unwrap();
     let snap = assert_unchanged_ids(&store, &snap, "outline_set_numbered").await;
 
-    // Fassungen von „Die Bäume“ (jetzt seq 1): 1 Import, 2 gespeichert (aktuell), 3 Vorschlag.
+    // Revisions of „Die Bäume“ (now seq 1): 1 import, 2 saved (current), 3 proposal.
     store.switch_to(work, 1, 1, false, HUMAN).await.unwrap();
     let snap = assert_unchanged_ids(&store, &snap, "switch_to").await;
     store.accept(work, 1, 3).await.unwrap();
@@ -376,7 +373,7 @@ async fn deleting_leaves_one_tombstone_per_row_with_kind_and_work_uuid() {
     let work = orchard_with_everything(&store).await;
     let work_uuid = store.work_uuid(work).await.unwrap();
 
-    // Fassung 3 (Vorschlag) von „Die Bäume“.
+    // Revision 3 (proposal) of „Die Bäume“.
     let snap = snapshot(&store).await;
     store.delete_revision(work, 0, 3, HUMAN).await.unwrap();
     let kinds = after_delete(&store, &snap, 0, "delete_revision").await;
@@ -398,7 +395,7 @@ async fn deleting_leaves_one_tombstone_per_row_with_kind_and_work_uuid() {
     let kinds = after_delete(&store, &snap, 3, "delete_asset").await;
     assert_eq!(kinds, BTreeSet::from(["asset", "asset_revision"]), "Bild samt übrigen Fassungen");
 
-    // „Der Schnitt“ (seq 1, ohne Unterpunkte) mit Fassung und gelöschtem Beitrag.
+    // „Der Schnitt“ (seq 1, without sub-items) with revision and deleted post.
     let graves = tombstones(&store).await.len();
     let snap = snapshot(&store).await;
     store.add_post(work, 1, &post("@lektor", "Noch ein Gedanke.", vec![])).await.unwrap();
@@ -408,15 +405,15 @@ async fn deleting_leaves_one_tombstone_per_row_with_kind_and_work_uuid() {
     let kinds = after_delete(&store, &snap_with_post, graves, "outline_delete").await;
     assert_eq!(kinds, BTreeSet::from(["node", "post", "revision"]), "Punkt mit Fassungen und Beiträgen");
 
-    // Weiches Löschen eines Einfalls: kein Grabstein, die Zeile bleibt (wiederherstellbar).
+    // Soft deletion of an idea: no tombstone, the row stays (restorable).
     let graves = tombstones(&store).await.len();
     let idea_id: i64 =
         sqlx::query_scalar("SELECT id FROM idea WHERE work_id = ?").bind(work).fetch_one(store.pool()).await.unwrap();
     store.idea_delete(idea_id).await.unwrap();
     assert_eq!(tombstones(&store).await.len(), graves, "idea_delete ist weich: kein Grabstein");
 
-    // Ganzes Werk: jede Zeile des Werks (Werk, Punkte, Fassungen, Vorlagenfassung, Faden samt Beiträgen) mit
-    // Werk-uuid; der Einfall bleibt ohne Werk (ON DELETE SET NULL) und hat darum keinen Grabstein.
+    // Whole work: every row of the work (work, items, revisions, template revision, thread including posts) with the
+    // work uuid; the idea stays without a work (ON DELETE SET NULL) and therefore has no tombstone.
     let snap = snapshot(&store).await;
     let title: String =
         sqlx::query_scalar("SELECT title FROM work WHERE id = ?").bind(work).fetch_one(store.pool()).await.unwrap();
@@ -442,8 +439,8 @@ async fn deleting_leaves_one_tombstone_per_row_with_kind_and_work_uuid() {
 
 #[tokio::test]
 async fn without_0042_threads_deleted_by_cascade_would_forget_their_work() {
-    // Belegt den Grund für 0042: Ohne die BEFORE-Trigger löscht die Kaskade Faden und Fadenbeiträge erst,
-    // wenn das Werk schon fort ist; der Grabstein-Trigger aus 0041 findet dann keine Werk-uuid mehr.
+    // Proves the reason for 0042: without the BEFORE triggers the cascade deletes thread and thread posts only when the
+    // work is already gone; the tombstone trigger from 0041 then no longer finds a work uuid.
     let (_dir, store) = fresh().await;
     let work = store.create_work(&new_work("Der Zaun", Preset::Book), HUMAN).await.unwrap().work;
     let (thread, first) = store.thread_create(work, HUMAN, "Holz oder Draht?").await.unwrap();
@@ -474,11 +471,11 @@ async fn a_tombstone_stops_nothing_in_the_store_itself() {
         sqlx::query_scalar("SELECT uuid FROM post WHERE id = ?").bind(id).fetch_one(store.pool()).await.unwrap();
     store.post_delete(work, id).await.unwrap();
     assert!(tombstones(&store).await.contains_key(&gone), "Grabstein für den Beitrag");
-    // Der Store schaut nicht in die Grabsteine: Ein neuer Beitrag entsteht wie immer, und eine Zeile darf die
-    // begrabene uuid wieder tragen (so legt `exchange_apply` beim Einlesen als neues Werk an, Vertrag F4).
+    // The store does not look into the tombstones: a new post is created as always, and a row may carry the buried uuid
+    // again (this is how `exchange_apply` creates on import as a new work, contract F4).
     let again = store.add_post(work, 0, &post(HUMAN, "Hainbuche.", vec![])).await.unwrap();
     sqlx::query("UPDATE post SET uuid = ? WHERE id = ?").bind(&gone).bind(again).execute(store.pool()).await.unwrap();
-    // Ein zweites Löschen derselben uuid ist kein Fehler (INSERT OR IGNORE); der erste Grabstein bleibt.
+    // A second deletion of the same uuid is not an error (INSERT OR IGNORE); the first tombstone stays.
     let first_time = tombstones(&store).await[&gone].clone();
     store.post_delete(work, again).await.expect("zweites Löschen derselben uuid geht");
     assert_eq!(tombstones(&store).await[&gone], first_time, "der erste Grabstein bleibt, keiner doppelt");
@@ -498,7 +495,7 @@ async fn uuid_lookups_answer_only_for_canonical_uuids_of_the_right_work() {
     assert!(matches!(store.work_uuid(9999).await, Err(StoreError::UnknownWork(9999))), "unbekanntes Werk");
     let unknown = baruch_store::new_uuid();
     assert_eq!(store.work_by_uuid(&unknown).await.unwrap(), None, "unbekannte uuid → None");
-    // Nicht kanonisch (groß, ohne Bindestriche, mit Leerraum): kein Treffer, die Spalte hält nur Kleinschreibung.
+    // Not canonical (upper case, without hyphens, with whitespace): no hit, the column holds only lower case.
     for odd in [a_uuid.to_uppercase(), a_uuid.replace('-', ""), format!(" {a_uuid}"), String::new()] {
         assert_eq!(store.work_by_uuid(&odd).await.unwrap(), None, "nicht kanonisch „{odd}“ → None");
     }
@@ -531,7 +528,7 @@ async fn the_instance_has_a_stable_uuid_and_a_checked_name() {
     let named = store.set_instance_name("  Arbeitszimmer \t").await.unwrap();
     assert_eq!((named.uuid.as_str(), named.name.as_str()), (first.uuid.as_str(), "Arbeitszimmer"), "getrimmt");
     assert_eq!(named.label(), "Arbeitszimmer", "Anzeige mit Namen");
-    // Höchstlänge in Zeichen, nicht in Bytes: 80 Umlaute (160 Bytes) gehen, 81 nicht.
+    // Maximum length in characters, not in bytes: 80 umlauts (160 bytes) work, 81 do not.
     let longest = "ä".repeat(MAX_INSTANCE_NAME_CHARS);
     assert_eq!(store.set_instance_name(&longest).await.unwrap().name, longest, "80 Zeichen gehen");
     let too_long = store.set_instance_name(&"ä".repeat(MAX_INSTANCE_NAME_CHARS + 1)).await;
@@ -563,9 +560,9 @@ async fn the_instance_has_a_stable_uuid_and_a_checked_name() {
     assert_eq!(reopened.name, "Laptop", "Name bleibt gespeichert");
 }
 
-/// Runde 25: Die Tabellen der Gedankenkarte folgen denselben Regeln wie die zehn aus 0041. Die Zeilen entstehen hier
-/// über SQL ohne uuid (wie jeder Schreibweg des Stores, der die Spalte nie nennt); die Schreibwege selbst gehören
-/// karte-daten.
+/// Round 25: the tables of the idea map follow the same rules as the ten from 0041. The rows are created here through
+/// SQL without a uuid (like every write path of the store, which never names the column); the write paths themselves
+/// belong to karte-daten.
 #[tokio::test]
 async fn links_and_positions_get_v4_uuids_and_leave_tombstones_with_the_work_uuid() {
     let (_dir, store) = fresh().await;
@@ -610,10 +607,10 @@ async fn links_and_positions_get_v4_uuids_and_leave_tombstones_with_the_work_uui
         assert!(is_v4(uuid), "Fülltrigger aus 0043 vergibt eine kanonische v4-uuid: {uuid}");
     }
     let graves = tombstones(&store).await;
-    // Einfall 2 hart gelöscht (nur in einer Reparatur denkbar): Er ist Ziel der einen und Quelle der anderen
-    // Verbindung; beide und seine Lage gehen. Der BEFORE-DELETE-Trigger `idea_link_cascade_uuid_tombstone` aus 0043
-    // löscht die Verbindungen, solange die Einfallzeile noch steht – sonst schriebe der Grabstein der Verbindung, deren
-    // `from_id` er ist, work_uuid NULL.
+    // Idea 2 hard-deleted (only conceivable in a repair): it is the target of the one and the source of the other link;
+    // both and its position go. The BEFORE DELETE trigger `idea_link_cascade_uuid_tombstone` from 0043 deletes the
+    // links while the idea row still exists – otherwise the tombstone of the link whose `from_id` it is would write
+    // work_uuid NULL.
     sqlx::query("DELETE FROM idea WHERE id = ?").bind(ideas[1]).execute(pool).await.unwrap();
     let after = tombstones(&store).await;
     let new: Vec<(String, Option<String>)> =
@@ -626,7 +623,7 @@ async fn links_and_positions_get_v4_uuids_and_leave_tombstones_with_the_work_uui
     );
     assert_eq!(count("idea_map_pos"), 1, "seine Lage hinterlässt einen Grabstein: {new:?}");
     assert!(new.iter().all(|(_, w)| w.as_deref() == Some(work_uuid.as_str())), "alle mit der Werk-uuid: {new:?}");
-    // Ganzes Werk gelöscht: die übrigen Lagen gehen vor dem Werk (Trigger wie 0042) und kennen seine uuid.
+    // Whole work deleted: the remaining positions go before the work (trigger as in 0042) and know its uuid.
     let title = store.works().await.unwrap().into_iter().find(|w| w.0 == work).unwrap().2;
     store.delete_work(work, &title).await.unwrap();
     let last = tombstones(&store).await;
@@ -639,7 +636,7 @@ async fn links_and_positions_get_v4_uuids_and_leave_tombstones_with_the_work_uui
     }
 }
 
-/// Alle `.rs`-Dateien unter `dir`, rekursiv.
+/// All `.rs` files below `dir`, recursively.
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
@@ -653,9 +650,9 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
 
 #[test]
 fn no_code_path_but_exchange_apply_writes_the_uuid_column() {
-    // Vertrag 0041: Neue Zeilen bekommen ihre uuid nur über die Fülltrigger; setzen darf sie nur
-    // `exchange_apply` (auf eben angelegten Zeilen). Geprüft wird der Quelltext aller Crates: Keine Zeile außerhalb
-    // von exchange_apply.rs schreibt `SET uuid` oder nennt uuid in einem `INSERT INTO`.
+    // Contract 0041: new rows get their uuid only through the fill triggers; only `exchange_apply` may set it (on rows
+    // just created). Checked is the source of all crates: no line outside of exchange_apply.rs writes `SET uuid` or
+    // names uuid in an `INSERT INTO`.
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut files = Vec::new();
     for entry in std::fs::read_dir(&crates).unwrap() {
@@ -673,8 +670,8 @@ fn no_code_path_but_exchange_apply_writes_the_uuid_column() {
         let text = std::fs::read_to_string(file).unwrap();
         for (n, line) in text.lines().enumerate() {
             let upper = line.to_uppercase();
-            // SQL, nicht Rust: `INSERT INTO` (nicht `HashSet::insert`) und `, uuid =` ohne `>` (nicht `uuid => …`
-            // in minijinja-Kontexten); beides kam mit export und import als Fehlalarm.
+            // SQL, not Rust: `INSERT INTO` (not `HashSet::insert`) and `, uuid =` without `>` (not `uuid => …` in
+            // minijinja contexts); both came as a false alarm with export and import.
             let writes = upper.contains("SET UUID")
                 || (upper.contains("INSERT INTO") && line.contains("uuid") && !line.contains("instance_uuid"))
                 || upper.match_indices(", UUID =").any(|(at, m)| !upper[at + m.len()..].starts_with('>'));

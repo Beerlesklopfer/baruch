@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Beiträge verwalten (Vertrag Runde 8, 3b): lesen, löschen, verschieben und in einen Einfall
-//! umwandeln, je in einer Transaktion. Echte SQLite-Datei im Temp-Ordner, Testtexte frei erfunden.
+//! Managing posts (contract Round 8, 3b): read, delete, move and convert into an idea, each in one transaction. Real
+//! SQLite file in the temp directory, test texts freely invented.
 
 use baruch_core::{Post, TextRef};
 use baruch_store::{IdeaFilter, IdeaOrigin, IdeaScope, Store, StoreError, WorkId};

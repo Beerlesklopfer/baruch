@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende-Abnahme der Runde 4 (works · outline · fixes) nach der Zusammenführung: Werk anlegen,
-//! umbenennen (doppelter Titel abgelehnt), Gliederung umstellen, Überschrift im Text ändern, Export
-//! gültig (lässt sich wieder importieren), Werk löschen (Spiegel archiviert); Hochladen ohne JavaScript
-//! und Gliederung über Formulare; Werkwahl per Cookie; Teilen im Editor mit Rückfrage; übernommener
-//! Vorschlag mit neuer Überschrift benennt den Gliederungspunkt um; MCP ohne Werk- und
-//! Gliederungswerkzeuge; Migrationen 0005/0006/0105 auf einer Datenbank im Stand davor mit zwei gleichen
-//! Titeln. Echter Datenordner (SQLite, Bibliothek, Git-Spiegel) im Temp-Ordner.
+//! End-to-end acceptance of Round 4 (works · outline · fixes) after the merge: create a work, rename it (duplicate
+//! title rejected), rearrange the outline, change a heading in the text, export valid (can be imported again), delete
+//! the work (mirror archived); upload without JavaScript and outline through forms; work choice via cookie; splitting
+//! in the editor with a confirmation prompt; an accepted proposal with a new heading renames the outline item; MCP
+//! without work and outline tools; migrations 0005/0006/0105 on a database in the state before them with two identical
+//! titles. Real data directory (SQLite, library, Git mirror) in the temp directory.
 
 use crate::common;
 
@@ -23,8 +22,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Fester Schlüssel (`key`) des Abschnitts an Stelle `seq`: Schreiben über MCP und Zitieren nehmen
-/// nur ihn (Vertrag Runde 5).
+/// Stable key (`key`) of the section at position `seq`: writing over MCP and quoting take only it (contract Round 5).
 async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)
@@ -34,7 +32,7 @@ async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
         .unwrap()
 }
 
-/// (Nummer, Titel) aller Gliederungspunkte eines Werks laut `work.get`, in seq-Reihenfolge.
+/// (number, title) of all outline items of a work according to `work.get`, in seq order.
 async fn outline_of(server: &common::Server, work: i64) -> Vec<(String, String)> {
     let answer = server.rpc("work.get", json!({ "work": work })).await;
     result(&answer)["work"]["nodes"]
@@ -53,7 +51,7 @@ fn subjects(dir: &Path) -> Option<Vec<String>> {
     common::git(dir, &["log", "--format=%s"]).map(|log| log.lines().map(str::to_owned).collect())
 }
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Token nur Loopback).
+/// MCP request from the own machine (without a token only loopback).
 async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut request = Request::post("/mcp")
@@ -81,7 +79,7 @@ async fn a_new_work_is_renamed_restructured_exported_and_deleted_with_its_mirror
         "ein neues Buch beginnt mit einem nummerierten Kapitel (Muster 1.1 aus der Vorlage)"
     );
 
-    // Umbenennen: der Titel des Beispielwerks ist vergeben (auch in anderer Schreibung), ein neuer nicht.
+    // Rename: the title of the sample work is taken (also in another spelling), a new one is not.
     let taken = server.rpc("work.update", json!({ "work": work, "title": sample_title.to_uppercase() })).await;
     assert_eq!(
         taken["error"]["code"],
@@ -96,7 +94,7 @@ async fn a_new_work_is_renamed_restructured_exported_and_deleted_with_its_mirror
     assert_eq!(result(&renamed)["changed"], json!(["title"]), "nur der Titel ändert sich: {renamed}");
     assert!(dir.is_dir(), "der Spiegelordner bleibt beim Umbenennen (slug bleibt)");
 
-    // Gliederung: zweites Kapitel dahinter, Abschnitt unter das erste, dann umstellen und umstufen.
+    // Outline: a second chapter after it, a section below the first, then rearrange and change levels.
     let added = server
         .rpc("outline.add", json!({ "work": work, "target": 0, "place": "after", "title": "Zweites Kapitel" }))
         .await;
@@ -118,19 +116,19 @@ async fn a_new_work_is_renamed_restructured_exported_and_deleted_with_its_mirror
         "Reihenfolge und Nummern folgen der neuen Gliederung"
     );
 
-    // Überschrift im Text ändern: der Editor speichert über outline.save, der Titel folgt.
+    // Change a heading in the text: the editor saves through outline.save, the title follows.
     let saved = server
         .rpc("outline.save", json!({ "work": work, "node": 0, "body": "= Der zweite Weg\n\nÜber den Berg.\n" }))
         .await;
     assert_eq!(result(&saved)["outline"]["action"], "renamed", "geänderte Überschriftszeile benennt um: {saved}");
-    // Auch der rohe Weg (revision.save) übernimmt eine Überschrift derselben Ebene als Titel (sync_heading).
+    // The raw way (revision.save) also takes a heading of the same level as the title (sync_heading).
     let raw =
         server.rpc("revision.save", json!({ "work": work, "node": 1, "body": "= Das erste Kapitel\n\nNeu.\n" })).await;
     result(&raw);
     let outline = outline_of(&server, work).await;
     assert_eq!(titles(&outline), ["Der zweite Weg", "Das erste Kapitel", "Am Morgen"], "die Gliederung passt zum Text");
 
-    // Export ist gültiges Typst: wieder importiert ergibt er dieselbe Gliederung.
+    // The export is valid Typst: imported again it yields the same outline.
     let export = server.rpc("work.export", json!({ "work": work })).await;
     let typst = result(&export)["typst"].as_str().unwrap().to_owned();
     assert!(typst.starts_with("#set document(title: \"Das Wanderbuch\""), "Werkvorlage vorn: {typst}");
@@ -157,7 +155,7 @@ async fn a_new_work_is_renamed_restructured_exported_and_deleted_with_its_mirror
         assert!(dir.join("abschnitte/000-der-zweite-weg.typ").is_file(), "Dateiname folgt seq und Titel");
     }
 
-    // Löschen: falscher Titel abgelehnt, richtiger löscht und archiviert den Spiegel.
+    // Delete: wrong title rejected, the right one deletes and archives the mirror.
     let wrong = server.rpc("work.delete", json!({ "work": work, "confirm_title": "Das Wanderbuch" })).await;
     assert_eq!(wrong["error"]["code"], rpc::REFUSED, "der alte Titel bestätigt nicht mehr: {wrong}");
     let deleted = server.rpc("work.delete", json!({ "work": work, "confirm_title": " wege UND pfade " })).await;
@@ -205,7 +203,7 @@ async fn an_uploaded_book_is_restructured_with_forms_and_exports_in_the_new_orde
     assert_eq!(status, StatusCode::CONFLICT, "andere Datei, gleicher Titel → 409");
     assert!(html.contains("Es gibt schon ein Werk"), "Hinweis auf den vergebenen Titel: {html}");
 
-    // ↑ am Sommer (Formular aus der linken Spalte) stellt ihn vor den Frühling.
+    // ↑ at Sommer (form from the left column) puts it before Frühling.
     let (_, page) = server.get(&format!("/?work={work}&node=3")).await;
     assert!(page.contains("id=\"o-up-3\""), "linke Spalte hat das Formular ↑ für Sommer");
     let (status, location) = server
@@ -218,7 +216,7 @@ async fn an_uploaded_book_is_restructured_with_forms_and_exports_in_the_new_orde
         Some(format!("/?work={work}&key={summer}").as_str()),
         "der Sommer ist jetzt Punkt 0; die Adresse nennt seinen Schlüssel"
     );
-    // → an der Aussaat (Ebene 2 → 3 geht nicht unter dem Frühling ohne Abschnitt davor): abgelehnt, nichts geändert.
+    // → at Aussaat (level 2 → 3 is not possible below Frühling without a section before it): rejected, nothing changed.
     let (status, _) =
         server.post_form("/gliederung/act", &format!("method=outline.set_level&work={work}&node=2&level=3")).await;
     assert_eq!(status, StatusCode::CONFLICT, "ungültige Ebene → 409");
@@ -230,7 +228,7 @@ async fn an_uploaded_book_is_restructured_with_forms_and_exports_in_the_new_orde
         "Nummern ohne Muster nach Vorgabe 1.1, Kapitel neu gezählt"
     );
     let export = server.rpc("work.export", json!({ "work": work })).await;
-    // Runde 30a: ohne die Sprungmarken `<kN>` (sie stehen nur im Export).
+    // Round 30a: without the jump labels `<kN>` (they are only in the export).
     let typst = baruch_typst::xref::strip_key_labels(result(&export)["typst"].as_str().unwrap()).into_owned();
     assert!(typst.starts_with("// Gartenbuch"), "Vorlage bleibt vorn");
     assert!(typst.find("= Sommer").unwrap() < typst.find("= Frühling").unwrap(), "Export in neuer Reihenfolge");
@@ -417,7 +415,7 @@ async fn mcp_lists_no_tool_for_works_or_the_outline() {
     }
 }
 
-// ---- Migrationen 0005, 0006, 0105 auf einer Datenbank im Stand davor -----------------------------
+// ---- Migrations 0005, 0006, 0105 on a database in the state before them --------------------------
 
 fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migrator {
     sqlx::migrate::Migrator {
@@ -432,7 +430,7 @@ fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migr
 }
 
 const TEMPLATE: &str = "#set document(title: \"Kostenbuch\")\n\n";
-/// (Titel wie ihn der alte Import speicherte – wörtlich mit Maskierung –, Nummer, Elternteil, Stelle, Art, Text)
+/// (title as the old import stored it – verbatim with escaping –, number, parent, position, kind, text)
 type Old = (&'static str, &'static str, Option<i64>, i64, &'static str, &'static str);
 const HEADINGS: [Old; 3] = [
     ("Kosten \\#1", "1", None, 0, "chapter", "= Kosten \\#1\n\nRechnung.\n\n"),
@@ -440,7 +438,7 @@ const HEADINGS: [Old; 3] = [
     ("Summe", "2", None, 1, "chapter", "= Summe\n\nAlles.\n"),
 ];
 
-/// Ein Buch, wie der Import vor Runde 4 es schrieb (ohne title_key, Titel mit Maskierung), mit Beitrag.
+/// A book as the import before Round 4 wrote it (without title_key, titles with escaping), with a post.
 async fn insert_book(pool: &sqlx::SqlitePool, slug: &str, sha: &str) -> i64 {
     let work: i64 = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, template, source_name, source_sha256) \
@@ -562,14 +560,14 @@ async fn the_migrations_of_round_4_keep_every_row_and_make_titles_unique_and_une
     assert_eq!(wrong, 0, "genau eine aktuelle Fassung je Abschnitt");
     assert_eq!(post_hits(&state).await, 2, "die Beiträge beider Bücher sind weiter im Volltext auffindbar");
 
-    // 0105: Löschen eines ganzen Werks nimmt seine Beiträge aus dem Index (Trigger post_fts_delete).
+    // 0105: deleting a whole work takes its posts out of the index (trigger post_fts_delete).
     let deleted = state.store.delete_work(second, "Kostenbuch (2)").await.unwrap();
     assert_eq!(deleted.nodes, 3, "drei Gliederungspunkte gelöscht");
     assert_eq!(post_hits(&state).await, 1, "nur der Beitrag des verbliebenen Buchs wird noch gefunden");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Stable key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

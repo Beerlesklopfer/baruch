@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 33 – Abnahme des Integrators (Vertrag §11): Durchstich über die Seiten mit Band, aktivem Reiter und
-//! data-laptop, nach dem Zusammenführen der drei Aufgaben (menueband, laptop, seiten).
+//! Round 33 – acceptance by the integrator (contract §11): cut through the pages with band, active tab and data-laptop,
+//! after the three tasks (menueband, laptop, seiten) have been merged.
 //!
-//! Die Einzelheiten prüfen die Aufgaben selbst (round33_menueband, round33_laptop, round33_seiten); hier steht, was
-//! erst zusammen gilt: jede Seite trägt das Band samt Zustand, die Reiter sind ohne JavaScript Links, die Einträge
-//! der alten Menüs stehen auch auf einer Unterseite, Cookies und `?laptop=on` wirken überall, die Abzeichen stehen.
-//! Jede Zusicherung mit Begründung, nur ein erfundenes Werk (Gartenbuch der Tests), kein Netz, kein Eliezer.
+//! The details are checked by the tasks themselves (round33_menueband, round33_laptop, round33_seiten); here is what
+//! only holds together: every page carries the band including its state, the tabs are links without JavaScript, the
+//! entries of the old menus are also on a subpage, cookies and `?laptop=on` take effect everywhere, the badges are
+//! there. Every assertion with its reason, only one invented work (garden book of the tests), no network, no Eliezer.
 
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
 
 use crate::common;
 
-/// Das Band der Seite (vom öffnenden Tag bis `</header>`).
+/// The band of the page (from the opening tag to `</header>`).
 fn band(html: &str) -> &str {
     let start = html.find("<header class=\"band\"").unwrap_or_else(|| panic!("kein Menüband: {html}"));
     let end = start + html[start..].find("</header>").expect("Band ohne Ende");
     &html[start..end]
 }
 
-/// Der öffnende Tag `<html …>` (dort stehen data-laptop, data-compact, data-narrow, data-rail-*, data-band).
+/// The opening tag `<html …>` (data-laptop, data-compact, data-narrow, data-rail-*, data-band are there).
 fn html_tag(html: &str) -> &str {
     let start = html.find("<html").expect("<html>");
     &html[start..start + html[start..].find('>').unwrap()]
 }
 
-/// Kennungen der Reiter in der Reihenfolge der Seite.
+/// Identifiers of the tabs in the order of the page.
 fn tabs(head: &str) -> Vec<&str> {
     head.split("data-band-tab=\"").skip(1).filter_map(|rest| rest.split('"').next()).collect()
 }
 
-/// Der öffnende Tag des Reiters `id` (von `<a class="band-tab"` bis `>`).
+/// The opening tag of the tab `id` (from `<a class="band-tab"` to `>`).
 fn tab_tag<'a>(head: &'a str, id: &str) -> &'a str {
     let at = head.find(&format!("data-band-tab=\"{id}\"")).unwrap_or_else(|| panic!("Reiter {id} fehlt: {head}"));
     let start = head[..at].rfind("<a ").unwrap();
@@ -51,7 +51,7 @@ fn set_cookies(headers: &HeaderMap) -> Vec<String> {
     headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap().to_owned()).collect()
 }
 
-/// Prüft, dass genau der Reiter `active` gewählt ist: data-tab am Kopf, aria-selected, genau ein offenes Feld.
+/// Checks that exactly the tab `active` is selected: data-tab at the header, aria-selected, exactly one open panel.
 fn assert_active(html: &str, uri: &str, active: &str) {
     let head = band(html);
     assert!(
@@ -82,9 +82,9 @@ async fn garden() -> Garden {
     Garden { server, work, key }
 }
 
-/// (Adresse, Vorgabe-Reiter, Reiter der Seite). Seiten mit vier oder fünf Reitern werden wie im Browser mit dem
-/// Cookie `baruch_work` abgerufen (die Arbeitsseite setzt es; manche Seiten – z. B. `/einfaelle` – kennen ihr Werk im
-/// Band nur darüber, wie schon vor Runde 33); Seiten mit zwei Reitern ohne Cookie, damit sie wirklich kein Werk haben.
+/// (address, default tab, tabs of the page). Pages with four or five tabs are fetched as in the browser with the cookie
+/// `baruch_work` (the work page sets it; some pages – e.g. `/einfaelle` – know their work in the band only through it,
+/// as already before Round 33); pages with two tabs without the cookie, so that they really have no work.
 fn pages(g: &Garden) -> Vec<(String, &'static str, Vec<&'static str>)> {
     let (w, k) = (g.work, g.key);
     let all = vec!["start", "einfuegen", "pruefen", "buch", "ansicht"];
@@ -143,7 +143,7 @@ async fn every_page_carries_the_band_its_tab_and_the_laptop_state_and_every_tab_
             html.contains("</header>\n<!--baruch-consent-->") || !html.contains("<!--baruch-consent-->"),
             "{uri}: die Marke für die Zustimmung bleibt direkt unter dem Kopf (oder ist schon ersetzt)"
         );
-        // Jeder Reiter ist ohne JavaScript ein Link auf dieselbe Seite mit ?tab=…; ihm zu folgen wählt ihn.
+        // Every tab is a link to the same page with ?tab=… without JavaScript; following it selects it.
         let join = if uri.contains('?') { '&' } else { '?' };
         for id in &expected_tabs {
             let link = tab_tag(head, id);
@@ -155,7 +155,7 @@ async fn every_page_carries_the_band_its_tab_and_the_laptop_state_and_every_tab_
             let (_, html) = get(&g.server, &followed, cookie).await;
             assert_active(&html, &followed, id);
         }
-        // Laptop-Modus „An“ aus dem Cookie: kompakt und schmal auf jeder Seite, Gruppen als zugeklappte details.
+        // Laptop mode „An“ from the cookie: compact and narrow on every page, groups as closed details.
         let laptop_on = cookie.map_or_else(|| "baruch_laptop=on".to_owned(), |c| format!("{c}; baruch_laptop=on"));
         let (_, html) = get(&g.server, &uri, Some(&laptop_on)).await;
         let tag = html_tag(&html);
@@ -173,8 +173,8 @@ async fn every_page_carries_the_band_its_tab_and_the_laptop_state_and_every_tab_
 
 #[tokio::test]
 async fn every_entry_of_the_former_menus_is_a_link_on_a_sub_page_too() {
-    // Die Arbeitsseite prüft round33_menueband::every_entry_of_the_former_menus_is_a_link_on_the_workspace; hier
-    // dieselbe Liste alt → neu auf einer Unterseite (Gliederung), wo es weder Dialoge noch Andockplatz gibt.
+    // The work page is checked by round33_menueband::every_entry_of_the_former_menus_is_a_link_on_the_workspace; here
+    // the same list old → new on a subpage (outline), where there are neither dialogs nor a dock.
     let g = garden().await;
     let w = g.work;
     let (_, html) = get(&g.server, &format!("/gliederung?work={w}"), None).await;
@@ -253,7 +253,7 @@ async fn every_entry_of_the_former_menus_is_a_link_on_a_sub_page_too() {
 async fn laptop_keys_and_cookies_work_together_with_the_band_and_the_work_cookie() {
     let g = garden().await;
     let w = g.work;
-    // Schlüssel in der Adresse: wirken in derselben Antwort und werden gemerkt – neben baruch_work (anhängen!).
+    // Keys in the address: take effect in the same answer and are remembered – next to baruch_work (append!).
     let (headers, html) = get(&g.server, &format!("/?work={w}&laptop=on&band=closed&tab=buch"), None).await;
     let cookies = set_cookies(&headers);
     for wanted in ["baruch_laptop=on;", "baruch_band=closed;", "baruch_work="] {
@@ -274,7 +274,7 @@ async fn laptop_keys_and_cookies_work_together_with_the_band_and_the_work_cookie
         "die Reiter behalten das Werk, lassen laptop/band/tab aus dem Rest und öffnen das zugeklappte Band: {}",
         tab_tag(head, "pruefen")
     );
-    // Breite aus dem Cookie des Widgets: mittel = nur kompakt, schmal = auch Leisten; „Aus“ schlägt beides.
+    // Width from the cookie of the widget: medium = only compact, narrow = rails as well; „Aus“ beats both.
     let cases = [
         ("baruch_vw=m", true, false),
         ("baruch_vw=s", true, true),
@@ -297,7 +297,8 @@ async fn laptop_keys_and_cookies_work_together_with_the_band_and_the_work_cookie
             "die Spalten bleiben im HTML (Schublade)"
         );
     }
-    // Eine Leiste allein, dauerhaft: ?lrail=1 wirkt sofort und wird gemerkt; der Schalter im Reiter Ansicht dreht sich.
+    // One rail alone, permanently: ?lrail=1 takes effect immediately and is remembered; the switch in the tab Ansicht
+    // flips.
     let (headers, html) = get(&g.server, &format!("/?work={w}&lrail=1"), None).await;
     assert!(set_cookies(&headers).iter().any(|c| c.starts_with("baruch_lrail=1;")), "lrail wird gemerkt");
     let tag = html_tag(&html);
@@ -314,7 +315,7 @@ async fn laptop_keys_and_cookies_work_together_with_the_band_and_the_work_cookie
         head.contains("data-rail-toggle=\"right\" aria-pressed=\"true\""),
         "der Schalter „Assistenten“ ist gedrückt (Spalte sichtbar): {head}"
     );
-    // Ungültiges wird übergangen: kein Cookie, kein Zustand, nichts davon im HTML-Tag.
+    // Invalid input is ignored: no cookie, no state, nothing of it in the HTML tag.
     let (headers, html) = get(&g.server, &format!("/?work={w}&laptop=%22%3E%3Cscript%3E&tab=quatsch"), None).await;
     assert!(
         !set_cookies(&headers).iter().any(|c| c.starts_with("baruch_laptop")),
@@ -336,7 +337,7 @@ async fn badges_stand_at_the_tabs_of_a_sub_page_without_javascript() {
     let seq = g.server.state.store.node_seq(w, g.key).await.unwrap();
     let loaded = g.server.state.store.load_work(w).await.unwrap();
     let base = loaded.nodes[seq].current_number().unwrap();
-    // Ein Vorschlag behält die Überschrift des Abschnitts (sonst lehnt der Store ihn ab): aktueller Text plus ein Satz.
+    // A proposal keeps the heading of the section (otherwise the store rejects it): current text plus one sentence.
     let body =
         format!("{}\nDie Beete liegen jetzt am Zaun.\n", loaded.nodes[seq].revision(base).unwrap().body.trim_end());
     g.server.state.store.add_proposal_on(w, seq, &body, "@lektor", "m", "", base, None).await.unwrap();
@@ -380,8 +381,8 @@ fn the_integration_left_no_dead_branch_and_no_placeholder_behind() {
         !guide.contains("<!-- R33 menueband -->") && !guide.contains("<!-- R33 laptop -->"),
         "die Abschnitte aus docs/r33 sind an den Platzhaltern eingesetzt (Vertrag §8, Doku-Regel)"
     );
-    // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite; die Abschnitte des Menübands werden
-    // darum in der zuständigen Hilfeseite gesucht (docs/Bedienung.md ist nur noch Verweis und technische Anmerkung).
+    // Round 37: the user guide for users is in the help of the website; the sections of the ribbon are therefore
+    // searched for in the responsible help page (docs/Bedienung.md is only a pointer and a technical note now).
     let help = include_str!("../../../site/content/de/hilfe/menueband.md");
     assert!(
         !help.contains("<!-- R33 menueband -->") && !help.contains("<!-- R33 laptop -->"),

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0054 (Runde 35 „Konten und Rollen“, fachlich: rollen – Tabelle `work_member`) auf einer nachgebauten
-//! Datenbank im Stand 0053 mit frei erfundenen Werken und Konten, dazu das Store-Modul `members`.
+//! Migration 0054 (Round 35 „Konten und Rollen“, by subject: rollen – table `work_member`) on a reconstructed database
+//! in the state 0053 with freely invented works and accounts, plus the store module `members`.
 //!
-//! Belegt: Die Datei 0054 ist gegenüber der Schnittstelle S1 unverändert und steht nicht in `FOREIGN_KEYS_OFF`; jede
-//! Zeile der alten Tabellen und jedes alte Schemaobjekt bleibt byte-gleich; `work_member` ist danach leer; die CHECKs
-//! und Fremdschlüssel lehnen ab, was der Vertrag verbietet; das Löschen eines Werks oder eines Kontos entfernt seine
-//! Freigaben; `member_grant` gibt nur Lektor-Konten und nur vorhandene Werke frei und ist idempotent; ein gesperrtes
-//! Konto hat keine wirksame Freigabe.
+//! Proven: the file 0054 is unchanged compared with the interface S1 and is not in `FOREIGN_KEYS_OFF`; every row of the
+//! old tables and every old schema object stays byte-identical; `work_member` is empty afterwards; the CHECKs and
+//! foreign keys reject what the contract forbids; deleting a work or an account removes its grants; `member_grant`
+//! grants only Lektor accounts and only existing works and is idempotent; a locked account has no effective grant.
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -17,7 +16,7 @@ use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 
-/// Die Tabelle wörtlich aus dem Vertrag (§S1.2), ohne die Kommentarzeilen der Datei.
+/// The table verbatim from the contract (§S1.2), without the comment lines of the file.
 const CONTRACT_SQL: &str = "CREATE TABLE work_member (
   work_id INTEGER NOT NULL REFERENCES work(id) ON DELETE CASCADE,
   account_id INTEGER NOT NULL REFERENCES account(id) ON DELETE CASCADE,
@@ -54,7 +53,7 @@ async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.is_err()
 }
 
-/// Store bis 0053 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln): der Stand vor 0054.
+/// Store up to 0053 (0040 with foreign keys switched off as in `baruch_store::migrate`): the state before 0054.
 async fn migrate_before(pool: &SqlitePool) {
     assert_eq!(baruch_store::FOREIGN_KEYS_OFF, &[40], "Vorbedingung des Nachbaus: nur 0040 baut Tabellen um");
     store_migrator(|v| v < 40).run(pool).await.unwrap();
@@ -103,7 +102,7 @@ fn grant_sql(work: i64, account: i64, role: &str) -> String {
     format!("INSERT INTO work_member (work_id, account_id, role) VALUES ({work}, {account}, '{role}')")
 }
 
-/// Alle Zeilen einer Tabelle als Text (jede Spalte über `quote()`), nach rowid.
+/// All rows of a table as text (every column through `quote()`), by rowid.
 async fn dump(pool: &SqlitePool, table: &str) -> Vec<String> {
     let columns: Vec<String> = sqlx::query(sqlx::AssertSqlSafe(format!("PRAGMA table_info({table})")))
         .fetch_all(pool)
@@ -117,7 +116,7 @@ async fn dump(pool: &SqlitePool, table: &str) -> Vec<String> {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).fetch_all(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Namen aller gewöhnlichen Tabellen (ohne die Buchführung von sqlx, Volltextindizes und ihre Schattentabellen).
+/// Names of all ordinary tables (without the bookkeeping of sqlx, full-text indexes and their shadow tables).
 async fn tables(pool: &SqlitePool) -> Vec<String> {
     sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' \
@@ -219,7 +218,7 @@ async fn existing_rows_and_schema_survive_and_the_new_table_starts_empty() {
     assert_eq!(added, ["index work_member_account", "table work_member"], "0054 bringt die Tabelle und ihren Index");
     assert_eq!(scalar(&pool, "SELECT count(*) FROM work_member").await, 0, "ohne Zutun ist kein Werk freigegeben");
 
-    // Was die Tabelle ablehnt (Fremdschlüssel sind eingeschaltet wie im Store).
+    // What the table rejects (foreign keys are switched on as in the store).
     assert!(
         rejected(&pool, &grant_sql(kahn, lektor, "author")).await,
         "eine andere Rolle als lektor lehnt der CHECK ab (der Autor braucht keine Zeile)"
@@ -237,7 +236,7 @@ async fn existing_rows_and_schema_survive_and_the_new_table_starts_empty() {
         "der Zeitpunkt der Freigabe steht in der Zeile: {granted}"
     );
 
-    // Löschen eines Werks bzw. Kontos nimmt die Freigaben mit.
+    // Deleting a work or an account takes the grants along.
     exec(&pool, &grant_sql(moor, lektor, "lektor")).await;
     exec(&pool, &format!("DELETE FROM work WHERE id = {kahn}")).await;
     assert_eq!(
@@ -259,7 +258,7 @@ async fn existing_rows_and_schema_survive_and_the_new_table_starts_empty() {
     );
 }
 
-/// Ein Store mit zwei erfundenen Werken, einem Autor und zwei Lektoren (einer gesperrt).
+/// A store with two invented works, one author and two Lektors (one locked).
 async fn store_with_accounts(dir: &Path) -> (Store, [i64; 2], [i64; 3]) {
     let store = Store::open(dir).await.unwrap();
     let pool = store.pool();

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Chat-Bedienung (Runde 30c): Wiederholen, Löschen, Anrede, Relay, gegliederte Beiträge, Sprungmarken-Links.
+//! Using the chat (Round 30c): repeat, delete, form of address, relay, structured posts, jump label links.
 //!
-//! Besitz: chat-bedienung. Kein Netz, kein Eliezer: Modelle nur über `ScriptedModel` (zeichnet jeden Aufruf auf).
-//! Alle Texte frei erfunden (ein kleines „Brückenbuch“ mit Leuchtturm, Wachturm und Brücke).
+//! Owner: chat-bedienung. No network, no Eliezer: models only through `ScriptedModel` (records every call). All texts
+//! freely invented (a small „Brückenbuch“ with Leuchtturm, Wachturm and Brücke).
 
 use crate::common;
 
@@ -25,7 +25,7 @@ struct Bridge {
     model: ScriptedModel,
     work: i64,
     slug: String,
-    /// Schlüssel von Leuchtturm, Wachturm, Brücke.
+    /// Keys of Leuchtturm, Wachturm, Brücke.
     keys: Vec<i64>,
 }
 
@@ -55,7 +55,7 @@ fn error_code(answer: &Value) -> i64 {
     answer["error"]["code"].as_i64().unwrap_or_else(|| panic!("Fehler erwartet: {answer}"))
 }
 
-/// Alle Texte eines Modellaufrufs (System und Nutzer) hintereinander.
+/// All texts of a model call (system and user) one after the other.
 fn all_text(call: &ModelCall) -> String {
     call.messages.iter().map(|m| m.content.as_str()).collect::<Vec<_>>().join("\n")
 }
@@ -103,7 +103,7 @@ async fn chat(b: &Bridge, key: usize, message: &str) -> Value {
     result(&answer).clone()
 }
 
-// ---- Anrede ---------------------------------------------------------------------------------------------------------
+// ---- Form of address ------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn an_address_with_the_name_calls_the_persona_but_the_name_mid_sentence_does_not() {
@@ -181,12 +181,12 @@ async fn the_relay_keeps_one_stage_three_answers_each_persona_once_and_is_off_in
         assert_eq!(metas[&post.id].relay_from.as_deref(), Some("@lektor"), "{}: Relay vom Lektor", post.author);
     }
 
-    // RFC: jede aktive Persona genau einmal, Anreden in den Antworten rufen niemanden.
+    // RFC: every active persona exactly once, forms of address in the answers call nobody.
     let (others, lector) = baruch_server::assist::chat::rfc_personas(&b.server.state).await.unwrap();
     let expected = others.len() + usize::from(lector.is_some());
     for _ in 0..expected {
-        // Integrator Runde 30: mit Lösungszeile, sonst fordert die Lösungspflicht (chat-loesungen) einmal nach und
-        // verbraucht einen weiteren Aufruf, der hier fälschlich als Relay zählte.
+        // Integrator Round 30: with a solution line, otherwise the solution duty (chat-loesungen) demands once more and
+        // uses up a further call, which was wrongly counted as a relay here.
         b.model
             .push(Step::words("Kritisch: „drei Laternen“ wirkt schwer.\n- Schritt: prüfen.\n@hoerer: Was meinst du?"));
     }
@@ -195,14 +195,14 @@ async fn the_relay_keeps_one_stage_three_answers_each_persona_once_and_is_off_in
     assert_eq!(b.model.calls().len() - before, expected, "beim RFC kein Relay: genau ein Aufruf je aktiver Persona");
 }
 
-// ---- Wiederholen ----------------------------------------------------------------------------------------------------
+// ---- Repeat ---------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn repeating_asks_the_same_against_the_shown_revision_and_proposes_vanished_findings_as_done() {
     let _turn = common::model_queue(module_path!()).await;
     let b = bridge([
-        // Integrator Runde 30: der kritische Punkt mit Lösung (Lösungspflicht, chat-loesungen), sonst würde einmal
-        // nachgefordert und der zweite Schritt verbraucht.
+        // Integrator Round 30: the critical point with a solution (solution duty, chat-loesungen), otherwise there
+        // would be one more demand and the second step would be used up.
         Step::words("- Kritisch: „drei Laternen“ wirken schwer.\n  Schritt: eine Laterne streichen.\n- Hinweis: „über den Fluss“ ist blass."),
         Step::words("- Hinweis: „über den Fluss“ ist blass."),
     ])
@@ -269,7 +269,7 @@ async fn an_old_post_without_request_repeats_the_previous_human_message_or_offer
     let html = page(&b, 1, None).await;
     assert!(html.contains("aria-label=\"Antwort von @exeget wiederholen\""), "Rückfall: ↻ auch ohne Auftrag: {html}");
 
-    // Ohne JavaScript: Formular an /beitraege/act, danach 303 an den neuen Beitrag.
+    // Without JavaScript: form to /beitraege/act, then 303 to the new post.
     let form = format!("method=post.repeat&work={}&key={}&id={old}&rev=1", b.work, b.keys[1]);
     let (status, location) = b.server.post_form("/beitraege/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Formular → 303");
@@ -290,7 +290,7 @@ async fn an_old_post_without_request_repeats_the_previous_human_message_or_offer
     assert_eq!(error_code(&refused), -32000, "Beiträge des Menschen wiederholt niemand: {refused}");
 }
 
-// ---- Löschen --------------------------------------------------------------------------------------------------------
+// ---- Delete ---------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_delete_cross_is_visible_with_a_link_without_javascript_and_deleting_makes_one_commit() {
@@ -407,7 +407,7 @@ async fn in_threads_addresses_relay_once_and_repeating_marks_the_new_post() {
     assert!(html.contains(&format!("Wiederholung von <a href=\"#beitrag-{lector}\">")), "sichtbar: {html}");
 }
 
-// ---- Gegliederte Beiträge und Links ---------------------------------------------------------------------------------
+// ---- Structured posts and links -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn posts_are_set_as_safe_markdown_and_only_checked_marks_become_links() {
@@ -450,8 +450,8 @@ async fn posts_are_set_as_safe_markdown_and_only_checked_marks_become_links() {
         ("&lt;a href=&quot;javascript:alert(1)&quot;&gt;x&lt;/a&gt;", "rohes <a> nur maskiert"),
         (
             &format!(
-                // Integrator Runde 30: `check_marker` (suchen-verweise) liefert beim wörtlich gefundenen Zitat auch die
-                // Byte-Stelle `at`; die Sprung-Adresse trägt sie darum hinter `find`.
+                // Integrator Round 30: `check_marker` (suchen-verweise) also returns the byte position `at` for a
+                // quotation found verbatim; the jump address therefore carries it after `find`.
                 "href=\"/?work={w}&amp;key={k2}&amp;rev=1&amp;find=drei%20Laternen&amp;at="
             ),
             "geprüfte Marke → Sprung",

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“ (store-5): `Store::outline_delete_losses` nennt, was das Löschen eines Gliederungspunkts außer
-//! der aktuellen Fassung mitlöscht. Echte SQLite-Datei im Temp-Ordner, Testtexte frei erfunden.
+//! Round 36 „Reste“ (store-5): `Store::outline_delete_losses` names what deleting an outline item deletes along with
+//! the current revision. Real SQLite file in the temp directory, test texts freely invented.
 
 use baruch_core::Post;
 use baruch_store::{LostPost, LostRevision, OutlineLosses, Store, StoreError, WorkId};
@@ -32,7 +32,7 @@ fn post(author: &str, body: &str) -> Post {
     Post { id: 0, created: String::new(), author: author.into(), body: body.into(), sources: vec![], refs: vec![] }
 }
 
-/// Zeilenzahl jeder Tabelle: der ganze Stand der Datenbank in Zahlen.
+/// Row count of every table: the whole state of the database in numbers.
 async fn row_counts(store: &Store) -> Vec<(String, i64)> {
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .fetch_all(store.pool())
@@ -54,8 +54,8 @@ async fn row_counts(store: &Store) -> Vec<(String, i64)> {
 #[tokio::test]
 async fn the_losses_name_every_other_revision_and_every_post_of_the_point_and_change_nothing() {
     let (_dir, store, work) = orchard().await;
-    // Abschnitt 1 „Der Schuppen“: Fassung 1 (Import, wird ersetzt), 2 Vorschlag verworfen, 3 Mensch (aktuell),
-    // 4 offener Vorschlag; dazu zwei Beiträge. Abschnitt 0 bekommt einen fremden Beitrag und einen Vorschlag.
+    // Section 1 „Der Schuppen“: revision 1 (import, gets superseded), 2 proposal discarded, 3 human (current), 4 open
+    // proposal; plus two posts. Section 0 gets a foreign post and a proposal.
     let rejected = store
         .add_proposal(work, 1, "= Der Schuppen\n\nLeitern, Körbe und ein Fass.\n", "@lektor", "probe", "mit Fass")
         .await
@@ -84,7 +84,7 @@ async fn the_losses_name_every_other_revision_and_every_post_of_the_point_and_ch
                 number: 1,
                 author: HUMAN.to_owned(),
                 proposal: false,
-                // Wortlaut wie eingelesen: Der Import lässt die Leerzeile vor der nächsten Überschrift beim Abschnitt.
+                // Wording as imported: the import leaves the empty line before the next heading with the section.
                 body: "= Der Schuppen\n\nLeitern und Körbe.\n\n".to_owned(),
             },
             LostRevision {
@@ -112,14 +112,14 @@ async fn the_losses_name_every_other_revision_and_every_post_of_the_point_and_ch
         "alle Beiträge des Punkts in ihrer Reihenfolge – und keiner eines anderen Abschnitts"
     );
 
-    // Ein Punkt ohne weitere Fassungen und Beiträge verliert nichts außer der aktuellen Fassung.
+    // An item without further revisions and posts loses nothing except the current revision.
     assert_eq!(
         store.outline_delete_losses(work, 2).await.unwrap(),
         OutlineLosses::default(),
         "nur die aktuelle Fassung: keine Verluste zu melden"
     );
 
-    // Was gemeldet wurde, ist genau das, was outline_delete danach entfernt.
+    // What was reported is exactly what outline_delete removes afterwards.
     let lost_revisions = losses.revisions.len() as i64 + 1;
     let lost_posts = losses.posts.len() as i64;
     store.outline_delete(work, 1, HUMAN).await.unwrap();

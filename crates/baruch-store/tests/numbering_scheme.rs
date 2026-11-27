@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsschemata im Store (Vertrag Runde 6, Abschnitte 2c und 2d): Nummern aller dreizehn
-//! Schemata an einer frei erfundenen Gliederung mit Teilen, Kapiteln, Abschnitten,
-//! Unterabschnitten und einem Kapitel ohne Nummer; Vorschau, Einstellen, Fehler; Export und
-//! Spiegel (bei „aus der Werkvorlage“ byte-gleich). Echte SQLite-Datei im Temp-Ordner.
+//! Outline schemes in the store (contract Round 6, sections 2c and 2d): numbers of all thirteen schemes on a freely
+//! invented outline with parts, chapters, sections, subsections and a chapter without number; preview, setting, errors;
+//! export and mirror (byte-identical with „aus der Werkvorlage“). Real SQLite file in the temp directory.
 
 use baruch_store::{NumberingScheme, OutlineAction, Store, StoreError, WorkId};
 
 const HUMAN: &str = "Autor";
 
-/// Vorlage mit einer Tiefenbedingung: Kapitel und Abschnitte „A.1“, Unterabschnitte ohne Nummer.
+/// Template with a depth condition: chapters and sections „A.1“, subsections without number.
 const HARBOUR_TEMPLATE: &str =
     "#set heading(numbering: (..n) => if n.pos().len() <= 2 { numbering(\"A.1\", ..n) } else { \"\" })\n\n";
 
-/// Die erfundene Gliederung: (Art, Elternteil, Titel, zählt mit).
+/// The invented outline: (kind, parent, title, is counted).
 const HARBOUR: &[(&str, Option<i64>, &str, bool)] = &[
     ("part", None, "Ankunft", true),
     ("chapter", Some(0), "Vorwort", false),
@@ -33,7 +32,7 @@ async fn fresh() -> (tempfile::TempDir, Store) {
     (dir, store)
 }
 
-/// Werk „Hafenbuch“ mit der Gliederung oben, direkt in SQLite (Teile gibt es beim Import nicht).
+/// Work „Hafenbuch“ with the outline above, directly in SQLite (parts do not exist on import).
 async fn harbour(store: &Store) -> WorkId {
     let pool = store.pool();
     let work: WorkId = sqlx::query_scalar(
@@ -89,7 +88,7 @@ async fn numbers(store: &Store, work: WorkId) -> Vec<String> {
     store.load_work(work).await.unwrap().nodes.iter().map(|n| n.number.clone()).collect()
 }
 
-/// Erwartete Nummern je Schema, in der Reihenfolge von [`HARBOUR`].
+/// Expected numbers per scheme, in the order of [`HARBOUR`].
 fn expected(scheme: &str) -> [&'static str; 11] {
     match scheme {
         "template" => ["I", "", "A", "A.1", "", "", "A.2", "II", "B", "B.1", "C"],
@@ -153,7 +152,7 @@ async fn every_scheme_numbers_the_invented_outline_in_preview_load_and_database(
             .await
             .unwrap();
         if scheme != NumberingScheme::Template {
-            // Die eingefügten Knoten tragen „x“; erst das Einstellen schreibt alle Nummern.
+            // The inserted nodes carry „x“; only the setting writes all numbers.
             assert_eq!(stored, expected(id), "{id}: node.number in der Datenbank mitgeschrieben");
         }
         let info = store.outline_numbering(work).await.unwrap();
@@ -200,7 +199,7 @@ async fn the_own_pattern_survives_switching_to_another_scheme_and_back() {
     let back = store.set_numbering_scheme(work, "custom", None).await.unwrap();
     assert_eq!(back.detail, "Nummerierung „I.;;a)“", "zurück zum gespeicherten eigenen Muster");
     assert_eq!(numbers(&store, work).await, expected("custom"), "dieselben Nummern wie vorher");
-    // Die alte Schnittstelle: „“ = keine, None = Vorlage, sonst eigenes Muster.
+    // The old interface: „“ = none, None = template, otherwise a custom pattern.
     assert_eq!(store.set_numbering(work, Some("")).await.unwrap().detail, "keine Nummern", "set_numbering(\"\")");
     assert_eq!(store.outline_numbering(work).await.unwrap().scheme, "none", "→ Schema none");
     store.set_numbering(work, Some("1|1")).await.unwrap();
@@ -259,8 +258,8 @@ async fn other_schemes_append_their_rule_to_export_and_main_but_not_to_the_store
         assert_eq!(store.work_template(work).await.unwrap(), template, "{scheme}: work.template unverändert");
 
         {
-            // Rundreise: Der Export als neues Werk importiert ergibt dieselben Nummern (aus der Vorlage) –
-            // seit Runde 14 auch „Juristisch“ (Numbering::from_template erkennt Baruchs eigene Regel).
+            // Round trip: the export imported as a new work yields the same numbers (from the template) – since Round
+            // 14 also „Juristisch“ (Numbering::from_template recognises Baruch's own rule).
             let copy = store
                 .import_typst_titled(&exported, "kopie.typ", HUMAN, "Kopie", Some(&format!("Kopie {scheme}")))
                 .await
@@ -293,14 +292,14 @@ async fn a_work_without_template_gets_the_rule_behind_its_title_comment() {
     );
 }
 
-/// Text des Vorworts (`numbered = 0`) in SQLite und seine Projektion im Export (Runde 14).
+/// Text of the preface (`numbered = 0`) in SQLite and its projection in the export (Round 14).
 const PREFACE_BODY: &str = "= Vorwort\n\nText.\n\n";
 
 fn preface_marker() -> String {
     format!("{}\nText.\n\n", baruch_typst::unnumbered_line(1, "Vorwort"))
 }
 
-/// Text des Vorworts in SQLite (aktuelle Fassung).
+/// Text of the preface in SQLite (current revision).
 async fn preface_in_db(store: &Store, work: WorkId) -> String {
     sqlx::query_scalar(
         "SELECT r.body FROM revision r JOIN node n ON n.id = r.node_id \
@@ -314,10 +313,10 @@ async fn preface_in_db(store: &Store, work: WorkId) -> String {
 
 #[tokio::test]
 async fn headings_baruch_does_not_count_are_marked_without_number_in_export_and_mirror() {
-    // Vertrag Runde 14, Abschnitt 4: Statt einer Show-Regel `heading.where(level, body)` (Runde 6) steht
-    // das Vorwort in Export und Spiegel als Markierung „ohne Nummer“ – in allen Schemata mit Nummern,
-    // auch „aus der Werkvorlage“. Typst zählt es so wie Baruch nicht mit (sonst verschöben sich alle
-    // Kapitel, bei „Predigt“ auch die Gesamtzahl für „Schluss“). Der Text in SQLite bleibt unverändert.
+    // Contract Round 14, section 4: instead of a show rule `heading.where(level, body)` (Round 6) the preface stands in
+    // export and mirror as the marking „ohne Nummer“ – in all schemes with numbers, also „aus der Werkvorlage“. That
+    // way Typst does not count it, like Baruch (otherwise all chapters would shift, with „Predigt“ also the total for
+    // „Schluss“). The text in SQLite stays unchanged.
     let (_dir, store) = fresh().await;
     let work = harbour(&store).await;
     for scheme in ["template", "decimal", "sermon", "book", "chapter_words", "legal", "parts_chapters"] {
@@ -341,8 +340,8 @@ async fn headings_baruch_does_not_count_are_marked_without_number_in_export_and_
     let exported = baruch_typst::xref::strip_key_labels(&store.export_typst(work).await.unwrap()).into_owned();
     assert!(exported.contains(PREFACE_BODY), "„Ohne Nummern“ nummeriert ohnehin nichts: Text wie gespeichert");
 
-    // Gleiche Überschrift wie ein nummerierter Knoten: die Markierung trifft nur das Vorwort (Runde 6
-    // musste die Regel dann weglassen, und Typst zählte das Vorwort mit).
+    // Same heading as a numbered node: the marking hits only the preface (Round 6 had to leave out the rule then, and
+    // Typst counted the preface).
     sqlx::query(
         "UPDATE revision SET body = '= Vorwort\n\nText.\n\n' WHERE status = 'current' AND node_id = \
          (SELECT id FROM node WHERE work_id = ? AND title = 'Heimkehr')",
@@ -361,8 +360,8 @@ async fn headings_baruch_does_not_count_are_marked_without_number_in_export_and_
 
 #[tokio::test]
 async fn a_heading_with_its_own_label_falls_back_to_the_show_rule() {
-    // Eine =-Zeile mit eigenem Label lässt sich nicht markieren (set_numbered_line → None): dafür bleibt
-    // die Show-Regel von Runde 6, auch bei „aus der Werkvorlage“ (dann hinter der Vorlage).
+    // A = line with a label of its own cannot be marked (set_numbered_line → None): for that the show rule of Round 6
+    // stays, also with „aus der Werkvorlage“ (then after the template).
     let (_dir, store) = fresh().await;
     let work = harbour(&store).await;
     sqlx::query(
@@ -393,10 +392,10 @@ async fn a_heading_with_its_own_label_falls_back_to_the_show_rule() {
 
 #[tokio::test]
 async fn a_heading_with_code_in_its_title_keeps_its_line_and_falls_back_to_the_show_rule() {
-    // Befund Gutachten Runde 14: Die Markierung maskierte die Klammern von `#emph[…]`, Typst setzte
-    // dann „emph“ als Raw-Text. Ein Titel mit Code bleibt =-Zeile (byte-gleich, Re-Import und
-    // Rückschalten verlustfrei), „ohne Nummer“ kommt über die Show-Regel; dass Typst sie trifft und den
-    // Titel richtig setzt, prüft `baruch-render/tests/parts.rs`.
+    // Finding review Round 14: the marking escaped the brackets of `#emph[…]`, Typst then typeset „emph“ as raw text. A
+    // title with code stays a = line (byte-identical, re-import and switching back without loss), „ohne Nummer“ comes
+    // through the show rule; that Typst hits it and typesets the title correctly is checked by
+    // `baruch-render/tests/parts.rs`.
     let (_dir, store) = fresh().await;
     let work = harbour(&store).await;
     sqlx::query(

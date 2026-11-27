@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende-Abnahme der Runde 3 (revtree · litpopup · small) nach der Zusammenführung: Vorschlag
-//! über MCP → Umschalten → Zurückschalten mit je einem Spiegel-Commit; Ändern und Löschen nur durch den
-//! Menschen; MCP liest nach dem Löschen über Nummern; Literatur-Treffer öffnet den Abschnitt an der
-//! Fundstelle; Hervorhebung → Zitat als Vorschlag → Übernehmen; Port-Vorgabe 8765; kein `import_typst`
-//! in `tools/list`. Echter Datenordner (SQLite, Bibliothek, Git-Spiegel) im Temp-Ordner.
+//! End-to-end acceptance of Round 3 (revtree · litpopup · small) after the merge: proposal over MCP → switch → switch
+//! back with one mirror commit each; changing and deleting only by the human; MCP reads through numbers after the
+//! deletion; a literature hit opens the section at the place found; highlight → quotation as a proposal → accept; port
+//! default 8765; no `import_typst` in `tools/list`. Real data directory (SQLite, library, Git mirror) in the temp
+//! directory.
 
 use crate::common;
 
@@ -16,7 +16,7 @@ use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Token nur Loopback).
+/// MCP request from the own machine (without a token only loopback).
 async fn mcp(server: &common::Server, id: u64, method: &str, params: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
     let mut request = Request::post("/mcp")
@@ -29,7 +29,7 @@ async fn mcp(server: &common::Server, id: u64, method: &str, params: Value) -> V
     serde_json::from_str(&body).unwrap()
 }
 
-/// Erfolgreicher MCP-Werkzeugaufruf: `structuredContent`.
+/// Successful MCP tool call: `structuredContent`.
 async fn tool(server: &common::Server, name: &str, arguments: Value) -> Value {
     let answer = mcp(server, 9, "tools/call", json!({ "name": name, "arguments": arguments })).await;
     assert_eq!(answer["result"]["isError"], false, "Werkzeug {name} sollte gelingen: {answer}");
@@ -48,8 +48,7 @@ fn last_trailers(dir: &Path) -> String {
     common::git(dir, &["log", "-1", "--format=%(trailers:only,unfold)"]).unwrap()
 }
 
-/// Fester Schlüssel (`key`) des Abschnitts an Stelle `seq`: Schreiben über MCP und Zitieren nehmen
-/// nur ihn (Vertrag Runde 5).
+/// Stable key (`key`) of the section at position `seq`: writing over MCP and quoting take only it (contract Round 5).
 async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)
@@ -59,7 +58,7 @@ async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
         .unwrap()
 }
 
-/// (Nummer, Status) aller Fassungen eines Abschnitts laut `node.get`.
+/// (number, status) of all revisions of a section according to `node.get`.
 async fn numbers(server: &common::Server, node: usize) -> Vec<(u64, String)> {
     let answer = server.rpc("node.get", json!({ "node": node })).await;
     answer["result"]["revisions"]
@@ -127,7 +126,7 @@ async fn the_human_edits_and_deletes_but_mcp_cannot_and_reads_by_number_afterwar
     let older = all.iter().find(|(n, _)| *n < current).map(|(n, _)| *n).expect("eine ältere Fassung");
     let proposal = all.iter().find(|(_, s)| s == "proposed").map(|(n, _)| *n).expect("ein Vorschlag");
 
-    // MCP: weder Ändern noch Löschen noch Umschalten.
+    // MCP: neither changing nor deleting nor switching.
     let list = mcp(&server, 1, "tools/list", json!({})).await;
     let names: Vec<&str> =
         list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
@@ -139,7 +138,7 @@ async fn the_human_edits_and_deletes_but_mcp_cannot_and_reads_by_number_afterwar
     }
     assert_eq!(numbers(&server, 2).await, all, "die MCP-Versuche ändern nichts");
 
-    // Mensch: Ändern und Löschen über RPC.
+    // Human: changing and deleting over RPC.
     let edited = server.rpc("revision.update", json!({ "node": 2, "rev": older, "note": "vom Menschen" })).await;
     assert_eq!(edited["result"]["changed"], true, "der Mensch darf eine Fassung ändern: {edited}");
     let deleted = server.rpc("revision.delete", json!({ "node": 2, "rev": proposal, "confirm": true })).await;
@@ -147,7 +146,7 @@ async fn the_human_edits_and_deletes_but_mcp_cannot_and_reads_by_number_afterwar
     let refused = server.rpc("revision.delete", json!({ "node": 2, "rev": current, "confirm": true })).await;
     assert_eq!(refused["error"]["code"], -32000, "die aktuelle Fassung lässt sich nicht löschen: {refused}");
 
-    // Neue Fassung nach der Lücke: MCP liest über Nummern, nicht über Stellen.
+    // New revision after the gap: MCP reads through numbers, not through positions.
     let saved = server.rpc("revision.save", json!({ "node": 2, "body": "= Einleitung\n\nNach der Lücke.\n" })).await;
     let fresh = saved["result"]["rev"].as_u64().unwrap_or_else(|| panic!("Speichern scheiterte: {saved}"));
     assert!(fresh > proposal, "die gelöschte Nummer wird nicht wiederverwendet: {fresh} nach {proposal}");
@@ -249,8 +248,8 @@ fn the_default_port_is_8765() {
     assert!(include_str!("../src/main.rs").contains("127.0.0.1:8765"), "Vorgabe auch im Code");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Stable key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

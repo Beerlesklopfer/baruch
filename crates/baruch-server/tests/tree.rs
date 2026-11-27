@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Eine Gliederung im Baum (Vertrag Runde 5, Aufgabe „tree“): Seiten als HTML-Ausschnitte mit und ohne
-//! JavaScript, Verschieben behält die Ebene (RPC und Formular), Umschalten bringt die Ebene mit
-//! (Antwort und Spiegel), römische Kapitelnummern aus einer Nummerierungsfunktion der Vorlage und die
-//! Absprachen im TypeScript (am Quelltext, ohne Browser). Echter Datenordner im Temp-Ordner,
-//! Gartenbuch aus `tests/data`, sonst frei erfundene Texte.
+//! An outline in the tree (contract Round 5, task „tree“): pages as HTML excerpts with and without JavaScript, moving
+//! keeps the level (RPC and form), switching brings the level along (answer and mirror), Roman chapter numbers from a
+//! numbering function of the template and the agreements in the TypeScript (on the source, without a browser). Real
+//! data directory in the temp directory, garden book from `tests/data`, otherwise freely invented texts.
 
 use crate::common;
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
-/// Gartenbuch importieren: Frühling (0), Aussaat (1), Tiefe (2), Sommer (3).
+/// Import the garden book: Frühling (0), Aussaat (1), Tiefe (2), Sommer (3).
 async fn garden() -> (common::Server, i64, std::path::PathBuf) {
     let server = common::open().await;
     let report = server.import_garden().await;
@@ -26,14 +25,14 @@ fn commits(dir: &std::path::Path) -> Option<u64> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|c| c.trim().parse().unwrap())
 }
 
-/// Das Stück HTML der linken Spalte (Gliederung).
+/// The piece of HTML of the left column (outline).
 fn tree_pane(html: &str) -> &str {
     let start = html.find("id=\"pane-tree\"").expect("linke Spalte vorhanden");
     let rest = &html[start..];
     &rest[..rest.find("</nav>").expect("Ende der linken Spalte")]
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn tree_entries_open_the_editor_even_from_the_preview() {
@@ -55,7 +54,7 @@ async fn the_tree_offers_the_context_menu_and_hides_the_fallback_links_with_java
     let (server, work, _) = garden().await;
     let (_, html) = server.get(&format!("/?work={work}&node=1")).await;
     let tree = tree_pane(&html);
-    // Kontextmenü: verborgen (ohne JavaScript unsichtbar), mit allen Aktionen auf Deutsch.
+    // Context menu: hidden (invisible without JavaScript), with all actions in German.
     assert!(tree.contains("<div class=\"outline-menu\" role=\"menu\""), "Kontextmenü im Baum: {tree}");
     assert!(tree.contains("hidden data-outline-menu"), "das Menü ist ohne JavaScript verborgen: {tree}");
     for (action, label) in [
@@ -72,7 +71,7 @@ async fn the_tree_offers_the_context_menu_and_hides_the_fallback_links_with_java
     }
     assert!(tree.contains("data-outline-menu-open"), "Knopf „⋯“ öffnet das Menü auch per Maus: {tree}");
     assert!(tree.contains("class=\"tool js-only\""), "der Knopf „⋯“ erscheint nur mit JavaScript: {tree}");
-    // Rückfall-Links nur ohne JavaScript (CSS `.js .nojs-only { display: none }`).
+    // Fallback links only without JavaScript (CSS `.js .nojs-only { display: none }`).
     let links: Vec<&str> = tree.match_indices("href=\"/gliederung").map(|(i, _)| &tree[..i]).collect();
     assert!(!links.is_empty(), "ohne JavaScript bleiben die Links auf /gliederung: {tree}");
     for before in links {
@@ -82,9 +81,9 @@ async fn the_tree_offers_the_context_menu_and_hides_the_fallback_links_with_java
     let css = include_str!("../static/outline.css");
     assert!(css.contains(".js .nojs-only { display: none !important; }"), "mit JavaScript verborgen");
     assert!(css.contains("html:not(.js) .js-only { display: none !important; }"), "ohne JavaScript verborgen");
-    // Ohne JavaScript stehen die Werkzeuge immer da; sie bekommen eine eigene Zeile, sonst verdrängen sie mit dem
-    // Abzeichen „k offen“ den Titel (R28, Sichtprüfung „2.. 4 offen“). Der Titel behält eine Mindestbreite, Abzeichen
-    // rutschen darunter.
+    // Without JavaScript the tools are always there; they get a line of their own, otherwise they push out the title
+    // together with the badge „k offen“ (R28, visual check „2.. 4 offen“). The title keeps a minimum width, badges slip
+    // below it.
     assert!(css.contains("html:not(.js) .outline-row { flex-wrap: wrap; }"), "Zeile darf umbrechen: {css}");
     assert!(
         css.contains("html:not(.js) .outline-row > .outline-tools { flex-basis: 100%;"),
@@ -94,12 +93,12 @@ async fn the_tree_offers_the_context_menu_and_hides_the_fallback_links_with_java
         css.contains(".outline-row > .tree-entry > .tree-label { flex: 1 1 8em; }"),
         "Titel mit Mindestbreite: {css}"
     );
-    // Die Formulare ↑ ↓ ← → bleiben als Rückfall ohne JavaScript (an /gliederung/act).
+    // The forms ↑ ↓ ← → stay as a fallback without JavaScript (to /gliederung/act).
     for id in ["o-down-0", "o-up-3", "o-left-1", "o-right-1"] {
         assert!(tree.contains(&format!("id=\"{id}\"")), "Formular {id} bleibt: {tree}");
     }
     assert!(tree.contains("action=\"/gliederung/act\""), "Formulare gehen ohne JavaScript an /gliederung/act");
-    // Angaben für Menü und Löschen am Eintrag.
+    // Data for menu and deletion at the entry.
     assert!(tree.contains("data-level=\"1\" data-title=\"Frühling\""), "Ebene und Titel am Eintrag: {tree}");
     assert!(tree.contains(" data-children"), "Punkte mit Unterpunkten sind markiert (Löschen gesperrt): {tree}");
     assert!(tree.contains(" data-promote") && tree.contains(" data-demote"), "Umstufen möglich markiert: {tree}");
@@ -113,11 +112,11 @@ async fn the_numbering_form_sits_in_the_head_of_the_tree_and_works_without_javas
     assert!(tree.contains("<form class=\"numbering-form\" method=\"post\" action=\"/gliederung/act\""), "{tree}");
     assert!(tree.contains("value=\"outline.set_numbering\""), "das Formular stellt die Nummerierung ein: {tree}");
     assert!(tree.contains("name=\"numbering\" value=\"vorlage\""), "Vorgabe: aus der Werkvorlage: {tree}");
-    // Runde 7: der Name des passenden Schemas („1.1“ = Dezimal), das Muster nur im title.
+    // Round 7: the name of the matching scheme („1.1“ = Dezimal), the pattern only in the title.
     assert!(tree.contains("Nummern: Dezimal (DIN 1421)</summary>"), "der Kopf nennt das passende Schema: {tree}");
     assert!(tree.contains("Gliederungsschema: Aus der Werkvorlage, Muster 1.1)"), "das Muster im title: {tree}");
     assert!(tree.find("numbering-form").unwrap() < tree.find("data-widget=\"outline\"").unwrap(), "im Kopf");
-    // Ohne JavaScript: Formular an /gliederung/act, danach zurück zum Werk.
+    // Without JavaScript: form to /gliederung/act, then back to the work.
     let before = commits(&dir);
     let (status, location) = server
         .post_form("/gliederung/act", &format!("method=outline.set_numbering&work={work}&node=1&numbering=I.1"))
@@ -130,7 +129,7 @@ async fn the_numbering_form_sits_in_the_head_of_the_tree_and_works_without_javas
     if let (Some(before), Some(after)) = (before, commits(&dir)) {
         assert_eq!(after, before + 1, "die Nummerierung ist genau ein Commit");
     }
-    // „keine“ = keine Nummern.
+    // „keine“ = no numbers.
     server
         .post_form("/gliederung/act", &format!("method=outline.set_numbering&work={work}&node=1&numbering=keine"))
         .await;
@@ -141,7 +140,7 @@ async fn the_numbering_form_sits_in_the_head_of_the_tree_and_works_without_javas
 #[tokio::test]
 async fn a_numbering_function_in_the_template_gives_roman_chapter_numbers() {
     let server = common::open().await;
-    // Frei erfundene Vorlage: eine eigene Funktion zählt Kapitel römisch.
+    // Freely invented template: an own function counts chapters in Roman numerals.
     let source = "#set document(title: \"Römisch gezählt\", author: \"Test\")\n\
                   #let kapitelzahl(..teile) = numbering(\"I\", ..teile)\n\
                   #set heading(numbering: kapitelzahl)\n\n\
@@ -159,7 +158,7 @@ async fn a_numbering_function_in_the_template_gives_roman_chapter_numbers() {
     assert!(tree.contains("Nummern: I"), "der Kopf zeigt das Muster aus der Vorlage: {tree}");
 }
 
-// ---- Verschieben behält die Ebene ---------------------------------------------------------------
+// ---- Moving keeps the level ---------------------------------------------------------------------
 
 #[tokio::test]
 async fn moving_keeps_the_level_over_rpc_and_without_javascript() {
@@ -178,15 +177,15 @@ async fn moving_keeps_the_level_over_rpc_and_without_javascript() {
     }
     let loaded = server.rpc("work.get", json!({ "work": work })).await;
     assert_eq!(titles(&loaded), ["Frühling", "Aussaat", "Tiefe", "Sommer"], "nichts verschoben");
-    // Ohne JavaScript: 409 mit derselben Meldung.
+    // Without JavaScript: 409 with the same message.
     let (status, _) = server
         .post_form("/gliederung/act", &format!("method=outline.move&work={work}&node=2&target=3&place=into"))
         .await;
     assert_eq!(status, StatusCode::CONFLICT, "das Formular wird mit 409 abgelehnt");
-    // Gleiche Ebene geht: Sommer vor Frühling.
+    // Same level works: Sommer before Frühling.
     let ok = server.rpc("outline.move", json!({ "work": work, "node": 3, "target": 0, "place": "before" })).await;
     assert!(ok.get("error").is_none(), "Kapitel vor Kapitel: {ok}");
-    // Das Urteil im Browser sagt dasselbe (am Quelltext geprüft).
+    // The verdict in the browser says the same (checked on the source).
     let script = include_str!("../web/src/outline.ts");
     assert!(script.contains(refusal), "judge() zeigt dieselbe Meldung wie der Server");
     assert!(
@@ -195,12 +194,12 @@ async fn moving_keeps_the_level_over_rpc_and_without_javascript() {
     );
 }
 
-// ---- Umschalten bringt die Ebene mit ------------------------------------------------------------
+// ---- Switching brings the level along -----------------------------------------------------------
 
 #[tokio::test]
 async fn accepting_and_switching_answer_with_the_outline_and_write_one_commit() {
     let (server, work, dir) = garden().await;
-    // Ein Vorschlag für Sommer; der Mensch ändert ihn danach zu einer Abschnittsüberschrift.
+    // A proposal for Sommer; the human then changes it into a section heading.
     let proposal = server
         .state
         .store
@@ -229,10 +228,10 @@ async fn accepting_and_switching_answer_with_the_outline_and_write_one_commit() 
         assert!(log.contains(&format!("Vorschlag {proposal} übernommen · Ebene 1 → 2")), "Betreff: {log}");
         assert!(log.contains("Baruch-Action: switched"), "auch Übernehmen mit Ebene trägt den Trailer: {log}");
     }
-    // Zurück auf Fassung 1 (Kapitel): wieder ein Commit, Gliederung folgt.
+    // Back to revision 1 (chapter): one commit again, the outline follows.
     let back = server.rpc("revision.set_current", json!({ "work": work, "node": 3, "rev": 1 })).await;
     assert_eq!(back["result"]["outline"]["detail"], "„Sommer“ Ebene 2 → 1", "{back}");
-    // Gleiche Ebene: keine Gliederungsantwort, aber weiter genau ein Commit je Umschaltung.
+    // Same level: no outline answer, but still exactly one commit per switch.
     let save = server.rpc("revision.save", json!({ "work": work, "node": 3, "body": "= Sommer\n\nNeu.\n" })).await;
     assert!(save.get("error").is_none(), "{save}");
     let before = commits(&dir);
@@ -259,7 +258,7 @@ async fn a_version_with_several_headings_is_refused_with_a_hint_to_the_editor() 
     assert_eq!(node["result"]["revisions"][1]["status"], "current", "Fassung 2 bleibt aktuell: {node}");
 }
 
-// ---- TypeScript (am Quelltext, ohne Browser) ----------------------------------------------------
+// ---- TypeScript (on the source, without a browser) ----------------------------------------------
 
 #[test]
 fn the_outline_script_waits_for_before_save_and_asks_before_every_write() {
@@ -271,7 +270,7 @@ fn the_outline_script_waits_for_before_save_and_asks_before_every_write() {
     let read = check + script[check..].find("new FormData(form)").expect("liest das Formular");
     assert!(dispatch < read, "das Ereignis kommt vor dem Lesen des Formulars (Satzbild schreibt ins Textfeld)");
     assert!(script.contains("await Promise.all(wait);"), "es wartet auf alle Promises");
-    // Jede schreibende Baumaktion geht über act(): erst leaveEditor(), dann RPC, dann baruch:navigate.
+    // Every writing tree action goes through act(): first leaveEditor(), then RPC, then baruch:navigate.
     let act = &script[script.find("async function act(").unwrap()..];
     let act = &act[..act.find("\n}\n").unwrap()];
     let ask = act.find("if (!leaveEditor()) return false;").expect("act fragt zuerst");
@@ -297,7 +296,7 @@ fn the_outline_script_waits_for_before_save_and_asks_before_every_write() {
     }
     assert!(script.contains("confirm: true"), "Löschen schickt confirm: true");
     assert!(script.contains("if (!confirm(`„${title}“ mit allen Fassungen"), "Löschen fragt mit confirm()");
-    // Tasten: F2/Entf/Kontextmenü nur im Baum, Alt+Umschalt+Pfeile außer in Eingabefeldern.
+    // Keys: F2/Del/context menu only in the tree, Alt+Shift+arrows except in input fields.
     assert!(
         script.contains("event.key === \"ContextMenu\" || (event.key === \"F10\" && event.shiftKey)"),
         "das Kontextmenü öffnet auch mit der Kontextmenü-Taste und Umschalt+F10"
@@ -313,8 +312,8 @@ fn the_outline_script_waits_for_before_save_and_asks_before_every_write() {
     assert!(script.contains("event.key === \"Escape\""), "Esc bricht ab");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Stable key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“, Besitz Integrator: Abnahme über die Grenzen der drei Aufgaben hinweg.
+//! Round 36 „Reste“, owner integrator: acceptance across the boundaries of the three tasks.
 //!
-//! Die gebaute Binärdatei exportiert ein Werk (Typst-Datei samt Bild und als PDF); die eingebaute
-//! Typst-Kommandozeile – als Symlink `baruch-typst` und als `baruch-server typst` – setzt die exportierte
-//! Typst-Datei zu derselben PDF. Die übrigen Abnahmepunkte der Runde stehen bei ihren Besitzern
-//! (`round36_typst`, `round36_sqlx`, `round36_lektor`, `round36_mindmap`, `round36_reste`, `round35_konten`).
+//! The built binary exports a work (Typst file including image, and as PDF); the built-in Typst command line – as the
+//! symlink `baruch-typst` and as `baruch-server typst` – typesets the exported Typst file to the same PDF. The
+//! remaining acceptance items of the round are with their owners (`round36_typst`, `round36_sqlx`, `round36_lektor`,
+//! `round36_mindmap`, `round36_reste`, `round35_konten`).
 //!
-//! Alle Texte frei erfunden. Kein Server, kein Netz; der Datenordner ist ein Temp-Ordner.
+//! All texts freely invented. No server, no network; the data directory is a temp directory.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -19,8 +19,7 @@ const BOOK: &str = "#set document(title: \"Die Fähre nach Skarvik\", author: \"
                     Die Fähre legte bei Nebel an, und niemand stieg aus.\n\n#image(\"zeichen.svg\", width: 3cm)\n\n\
                     #pagebreak()\n\n= Ablegen\n\nGegen Abend nahm sie drei Kisten Äpfel und einen Brief mit.\n";
 
-/// Startet die gebaute Binärdatei unter `program` mit eigenem HOME, damit kein Datenordner des Rechners in
-/// Reichweite ist.
+/// Starts the built binary under `program` with its own HOME, so that no data directory of the machine is within reach.
 fn process(program: &Path, home: &Path, args: &[&str]) -> Output {
     Command::new(program)
         .args(args)
@@ -69,7 +68,7 @@ fn the_typst_alias_sets_an_exported_work_to_the_same_pdf_as_the_export() {
     assert!(out.status.success(), "der Import legt das Werk an: {}", text(&out.stderr));
     let slug = "die-faehre-nach-skarvik";
 
-    // Der Export von Baruch: einmal als PDF, einmal als Typst-Datei samt Bild.
+    // The export of Baruch: once as PDF, once as a Typst file including the image.
     let exported = dir.path().join("export.pdf");
     let out = process(server, &home, &["export", slug, "--pdf", exported.to_str().unwrap(), "--data", data_arg]);
     assert!(out.status.success(), "export --pdf gelingt (der Titel ergibt den slug {slug}): {}", text(&out.stderr));
@@ -83,8 +82,8 @@ fn the_typst_alias_sets_an_exported_work_to_the_same_pdf_as_the_export() {
     let expected = std::fs::read(&exported).unwrap();
     assert!(expected.starts_with(b"%PDF-"), "der Export ist ein PDF");
 
-    // Dieselbe Engine, dieselben Schriften, dieselbe Quelle: Beide Wege der Kommandozeile liefern Byte für Byte
-    // die PDF des Exports (das Werk hat keinen Umschlag und keine Titelei, der Rahmen des Exports ist also leer).
+    // The same engine, the same fonts, the same source: both ways of the command line deliver byte for byte the PDF of
+    // the export (the work has no cover and no front matter, so the frame of the export is empty).
     let by_alias = dir.path().join("alias.pdf");
     let out = process(&alias, &home, &["compile", input, by_alias.to_str().unwrap()]);
     assert_eq!(out.status.code(), Some(0), "baruch-typst compile x.typ x.pdf: {}", text(&out.stderr));
@@ -100,7 +99,7 @@ fn the_typst_alias_sets_an_exported_work_to_the_same_pdf_as_the_export() {
         expected.len()
     );
 
-    // Gegenprobe: `watch` gibt es nicht – ehrliche Meldung, Exit 2, und keine Datei entsteht.
+    // Cross-check: `watch` does not exist – honest message, exit 2, and no file is created.
     let before = std::fs::read_dir(&folder).unwrap().count();
     let out = process(&alias, &home, &["watch", input]);
     assert_eq!(out.status.code(), Some(2), "watch ist Nicht-Unterstütztes: Exit 2");

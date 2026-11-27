@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 „Teile und Gliederung“ (R14b) im Store: Teile anlegen (auch mit Werkvorlage, `adopted`),
-//! Teile umbenennen, umschalten und speichern (mit und ohne Teil-Markierung), Ebenenwechsel einer
-//! Markierung „ohne Nummer“, Vorschau eines Antrags und `idea_to_outline` in einer Transaktion.
-//! Echte SQLite-Datei im Temp-Ordner; alle Texte sind frei erfunden.
+//! Round 14 „Teile und Gliederung“ (R14b) in the store: create parts (also with a work template, `adopted`), rename
+//! parts, switch and save them (with and without part marking), level change of a marking „ohne Nummer“, preview of a
+//! request and `idea_to_outline` in one transaction. Real SQLite file in the temp directory; all texts are freely
+//! invented.
 
 use baruch_core::{Author, NodeKind, RevisionStatus, Work};
 use baruch_store::{
@@ -10,7 +10,7 @@ use baruch_store::{
     Restructure, Store, StoreError, WorkId,
 };
 
-/// Werk mit Werkvorlage (`#set …` vor der ersten Überschrift), drei Kapiteln und einem Abschnitt.
+/// Work with a work template (`#set …` before the first heading), three chapters and one section.
 const WITH_TEMPLATE: &str = "\
 #set document(title: \"Wegzeichen\", author: \"Test\")
 #set text(lang: \"de\")
@@ -32,7 +32,7 @@ Am Brunnen.
 Das Ziel.
 ";
 
-/// Werk ohne Werkvorlage (beginnt sofort mit dem ersten Kapitel).
+/// Work without a work template (begins immediately with the first chapter).
 const PLAIN: &str = "\
 = Saat
 
@@ -51,7 +51,7 @@ Jäten.
 Körbe voll.
 ";
 
-/// Werk mit einem Vorwort und einem Exkurs als Markierung „ohne Nummer“ (Runde 14, Schnittstelle A).
+/// Work with a preface and an excursus as the marking „ohne Nummer“ (Round 14, interface A).
 const UNNUMBERED: &str = "\
 #heading(level: 1, numbering: none)[Vorwort] <baruch-unnumbered>
 
@@ -95,7 +95,7 @@ fn by_key(work: &Work, key: i64) -> &baruch_core::Node {
     work.nodes.iter().find(|n| n.key == key).expect("Punkt mit diesem Schlüssel")
 }
 
-/// Ebene je Knoten aus Art und Elternteil (wie der Store sie sieht).
+/// Level per node from kind and parent (as the store sees it).
 fn levels(work: &Work) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for node in &work.nodes {
@@ -112,7 +112,7 @@ fn levels(work: &Work) -> Vec<u8> {
     out
 }
 
-/// (Schlüssel, Nummer, Text der aktuellen Fassung) aller Kapitel und Abschnitte.
+/// (key, number, text of the current revision) of all chapters and sections.
 fn chapter_state(work: &Work) -> Vec<(i64, String, String)> {
     work.nodes
         .iter()
@@ -125,7 +125,7 @@ async fn count(store: &Store, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(store.pool()).await.unwrap()
 }
 
-// ---- Teile anlegen ------------------------------------------------------------------------------
+// ---- Creating parts -----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_first_part_before_the_first_chapter_adopts_all_chapters_even_with_a_template() {
@@ -137,12 +137,12 @@ async fn a_first_part_before_the_first_chapter_adopts_all_chapters_even_with_a_t
     let added = store.outline_add_many(work, Some(0), Place::Before, &[part("Erster Teil")], &human()).await.unwrap();
     let after = store.load_work(work).await.unwrap();
 
-    // Die Sperre „Teile nur ohne Werkvorlage“ ist gefallen (Vertrag 5): Der Teil steht vorn.
+    // The lock „Teile nur ohne Werkvorlage“ has fallen (contract 5): the part is at the front.
     assert_eq!(after.nodes[0].kind, NodeKind::Part, "der neue Punkt ist ein Teil, auch mit Werkvorlage");
     assert_eq!(after.nodes[0].title, "Erster Teil", "Titel wie angegeben");
     assert_eq!(added.points.len(), 1, "genau ein neuer Punkt");
     assert_eq!(added.points[0].level, 0, "Ebene 0 = Teil");
-    // Revision 1 trägt die Teil-Markierung (Vertrag 2), damit Export und Re-Import den Teil erkennen.
+    // Revision 1 carries the part marking (contract 2), so that export and re-import recognise the part.
     let rev = current(&after, 0);
     assert_eq!(rev.number, 1, "der neue Teil hat genau Revision 1");
     assert_eq!(
@@ -155,13 +155,13 @@ async fn a_first_part_before_the_first_chapter_adopts_all_chapters_even_with_a_t
         "das ist die Teil-Markierung aus Schnittstelle A"
     );
     assert_eq!(rev.author, human(), "Autor von Revision 1 ist der Anlegende (hier der Mensch)");
-    // Alle Kapitel standen auf oberster Ebene; jetzt stehen sie unter dem Teil und werden genannt.
+    // All chapters were at top level; now they are below the part and are named.
     assert_eq!(added.adopted, chapters, "adopted = alle vorhandenen Kapitel in Baumreihenfolge");
     for key in &chapters {
         assert_eq!(by_key(&after, *key).parent, Some(0), "Kapitel {key} hat den neuen Teil als Elternteil");
     }
-    // Texte und Kapitelnummern bleiben: Kapitel zählen über Teile hinweg (load::numbers), und das
-    // Anlegen schreibt keine bestehende Fassung um.
+    // Texts and chapter numbers stay: chapters count across parts (load::numbers), and creating does not rewrite any
+    // existing revision.
     let mut kept = chapter_state(&before);
     kept.sort();
     let mut now = chapter_state(&after);
@@ -179,16 +179,16 @@ async fn a_part_after_a_chapter_in_the_middle_adopts_only_the_following_chapters
     let key_of = |title: &str| before.nodes.iter().find(|n| n.title == title).unwrap().key;
     let (saat, wachstum, unkraut, ernte) = (key_of("Saat"), key_of("Wachstum"), key_of("Unkraut"), key_of("Ernte"));
 
-    // Hinter „Saat“ (seq 0) ohne Werkvorlage.
+    // After „Saat“ (seq 0) without a work template.
     let first = store.outline_add_many(work, Some(0), Place::After, &[part("Mitte")], &human()).await.unwrap();
-    // Nur direkte Kinder (Kapitel) gelten als übernommen; der Abschnitt bleibt unter seinem Kapitel.
+    // Only direct children (chapters) count as adopted; the section stays below its chapter.
     assert_eq!(first.adopted, vec![wachstum, ernte], "die Kapitel hinter dem neuen Teil bis zum Ende");
     let mid = store.load_work(work).await.unwrap();
     assert_eq!(by_key(&mid, saat).parent, None, "das Kapitel vor dem Teil bleibt auf oberster Ebene");
     assert_eq!(mid.nodes[1].kind, NodeKind::Part, "der Teil steht hinter „Saat“");
     assert_eq!(by_key(&mid, unkraut).parent, Some(by_key(&mid, wachstum).id), "Abschnitt bleibt unter „Wachstum“");
 
-    // Ein zweiter Teil vor „Ernte“ übernimmt nur noch „Ernte“: Ein Teil reicht bis zum nächsten Teil.
+    // A second part before „Ernte“ adopts only „Ernte“: a part reaches up to the next part.
     let ernte_seq = by_key(&mid, ernte).id;
     let second =
         store.outline_add_many(work, Some(ernte_seq), Place::Before, &[part("Schluss")], &human()).await.unwrap();
@@ -215,20 +215,20 @@ async fn parts_are_refused_into_beside_sections_and_never_change_their_level() {
     let work = import(&store, PLAIN, "garten.typ").await;
     let nodes_before = count(&store, "SELECT count(*) FROM node").await;
     let revisions_before = count(&store, "SELECT count(*) FROM revision").await;
-    // `into` mit Ebene 0: ein Teil stünde unter einem Punkt (Vertrag 5: -32000 = Refused).
+    // `into` with level 0: a part would be below an item (contract 5: -32000 = Refused).
     let into = store.outline_add_many(work, Some(1), Place::Into, &[part("Falsch")], &human()).await;
     assert!(matches!(into, Err(StoreError::Refused(_))), "into mit Ebene 0 abgelehnt: {into:?}");
-    // Neben einem Abschnitt („Unkraut“, seq 2) entsteht kein Teil (er risse den Abschnitt vom Kapitel).
+    // Next to a section („Unkraut“, seq 2) no part is created (it would tear the section from the chapter).
     let beside = store.outline_add_many(work, Some(2), Place::After, &[part("Falsch")], &human()).await;
     assert!(matches!(beside, Err(StoreError::Refused(_))), "Teil neben einem Abschnitt abgelehnt: {beside:?}");
-    // Ein Teil in einem Block hinter einem Abschnitt ebenso.
+    // A part in a block after a section likewise.
     let block = [NewPoint { title: "Neu".into(), level: None }, part("Falsch")];
     let mixed = store.outline_add_many(work, Some(2), Place::After, &block, &human()).await;
     assert!(matches!(mixed, Err(StoreError::Refused(_))), "Block mit Teil neben einem Abschnitt abgelehnt");
     assert_eq!(count(&store, "SELECT count(*) FROM node").await, nodes_before, "nichts angelegt");
     assert_eq!(count(&store, "SELECT count(*) FROM revision").await, revisions_before, "keine Fassung geschrieben");
 
-    // Umstufen zu und von 0 bleibt dem Menschen verwehrt (AGENTS.md: nichts wird zum Teil).
+    // Changing the level to and from 0 stays denied to the human (AGENTS.md: nothing becomes a part).
     store.outline_add_many(work, Some(0), Place::Before, &[part("Vorn")], &human()).await.unwrap();
     let to_part = store.outline_set_level(work, 1, 0, HUMAN).await;
     assert!(matches!(to_part, Err(StoreError::Refused(_))), "Kapitel → Teil abgelehnt");
@@ -241,8 +241,8 @@ async fn assistants_create_parts_with_their_name_on_revision_one() {
     let (_dir, store) = fresh().await;
     let work = import(&store, WITH_TEMPLATE, "wegzeichen.typ").await;
     let author = Author::Assistant { persona: "@mcp:probe".into(), model: "probe 1".into() };
-    // Ein Block mit einem Kapitel und dann einem Teil hinter dem ersten Kapitel: Der Teil darf höher
-    // stehen als der erste Punkt (Ausnahme Teile) und übernimmt die folgenden Kapitel.
+    // A block with a chapter and then a part after the first chapter: the part may stand higher than the first item
+    // (exception parts) and adopts the following chapters.
     let block = [NewPoint { title: "Zwischenhalt".into(), level: None }, part("Zweiter Abschnitt der Reise")];
     let added = store.outline_add_many(work, Some(0), Place::After, &block, &author).await.unwrap();
     let after = store.load_work(work).await.unwrap();
@@ -262,7 +262,7 @@ async fn assistants_create_parts_with_their_name_on_revision_one() {
     );
 }
 
-// ---- Teile umbenennen, speichern, umschalten ------------------------------------------------------
+// ---- Renaming, saving, switching parts ------------------------------------------------------------
 
 #[tokio::test]
 async fn renaming_a_part_with_marker_rewrites_only_the_marker_line_and_keeps_the_comment() {
@@ -294,7 +294,7 @@ async fn renaming_a_part_with_marker_rewrites_only_the_marker_line_and_keeps_the
 async fn renaming_an_empty_part_gives_it_the_marker_and_an_old_part_text_stays() {
     let (_dir, store) = fresh().await;
     let example = store.default_work().await.unwrap();
-    // Das Beispielwerk hat Teile mit leerem Text (seq 1 und 6, vor Runde 14 angelegt).
+    // The sample work has parts with empty text (seq 1 and 6, created before Round 14).
     let empty = store.load_work(example).await.unwrap();
     assert_eq!(current(&empty, 1).body, "", "Voraussetzung: Teil I hat leeren Text");
     store.outline_rename(example, 1, "Teil I – Sehen", HUMAN).await.unwrap();
@@ -305,8 +305,8 @@ async fn renaming_an_empty_part_gives_it_the_marker_and_an_old_part_text_stays()
         "leerer Teiltext → Teil-Markierung mit Leerzeile (wie ein neuer Teil)"
     );
 
-    // Teil II bekommt vom Menschen einen alten Text „= Teil …“ ohne Markierung (Altbestand):
-    // Speichern geht ohne Abgleich wie bisher, Umbenennen lässt den Text stehen (Nutzerfrage 8).
+    // Part II gets an old text „= Teil …“ without marking from the human (legacy data): saving works without
+    // reconciliation as before, renaming leaves the text as it is (user question 8).
     let legacy = "= Teil II – Lösen\n\nAlter Einleitungstext.\n";
     let saved = store.outline_save(example, 6, legacy, None, Restructure::default(), HUMAN).await.unwrap();
     assert!(saved.outline.is_none(), "Teiltext ohne Markierung: keine Gliederungsänderung beim Speichern");
@@ -329,7 +329,7 @@ async fn saving_and_proposing_a_marked_part_text_needs_exactly_one_marker_at_the
     let none = Restructure::default();
     let revisions = count(&store, "SELECT count(*) FROM revision").await;
 
-    // Ohne Markierung, mit Text davor, mit einer weiteren Überschrift: abgelehnt, nichts gespeichert.
+    // Without marking, with text before it, with a further heading: rejected, nothing saved.
     for (body, why) in [
         ("Nur Text.\n".to_owned(), "Markierung entfernt"),
         (format!("Davor.\n{marker}\nText.\n"), "Text vor der Markierung"),
@@ -342,19 +342,19 @@ async fn saving_and_proposing_a_marked_part_text_needs_exactly_one_marker_at_the
     }
     assert_eq!(count(&store, "SELECT count(*) FROM revision").await, revisions, "nichts gespeichert");
 
-    // Mit genau einer Markierung und anderem Titel: speichert und benennt den Teil um.
+    // With exactly one marking and a different title: saves and renames the part.
     let body = format!("{}\nDie Ouvertüre.\n", baruch_typst::part_line("Ouvertüre"));
     let saved = store.outline_save(work, 0, &body, None, none, HUMAN).await.unwrap();
     let outline = saved.outline.expect("ein anderer Titel in der Markierung benennt um");
     assert_eq!(outline.action, OutlineAction::Renamed, "Aktion umbenannt");
     assert_eq!(store.load_work(work).await.unwrap().nodes[0].title, "Ouvertüre", "Titel aus der Markierung");
-    // Ein Vorschlag mit Markierung wird angenommen (Assistenten: nur Vorschläge).
+    // A proposal with marking is accepted (assistants: only proposals).
     let proposal = format!("{}\nDie Ouvertüre, kürzer.\n", baruch_typst::part_line("Ouvertüre"));
     assert!(
         store.add_proposal(work, 0, &proposal, "@lektor", "m", "").await.is_ok(),
         "Vorschlag mit Markierung angelegt"
     );
-    // Prüfen (`outline.check`) meldet dasselbe wie Speichern, ohne zu schreiben.
+    // Checking (`outline.check`) reports the same as saving, without writing.
     let check = store.outline_check(work, 0, "Nur Text.\n").await.unwrap();
     assert!(!check.valid, "Prüfen: ohne Markierung ungültig");
 }
@@ -367,12 +367,12 @@ async fn switching_to_a_marked_part_version_follows_its_title_and_an_unmarked_on
     let second = format!("{}\nText.\n", baruch_typst::part_line("Zweite Fassung"));
     store.outline_save(work, 0, &second, None, Restructure::default(), HUMAN).await.unwrap();
     assert_eq!(store.load_work(work).await.unwrap().nodes[0].title, "Zweite Fassung", "Voraussetzung: Titel 2");
-    // Zurück auf Revision 1 (Markierung „Erste Fassung“): der Titel gleicht sich an.
+    // Back to revision 1 (marking „Erste Fassung“): the title adapts.
     store.switch_to(work, 0, 1, false, HUMAN).await.unwrap();
     assert_eq!(store.load_work(work).await.unwrap().nodes[0].title, "Erste Fassung", "Umschalten gleicht den Titel ab");
 
-    // Ein Teil des Beispielwerks (leerer Text, keine Markierung) mit einer zweiten Fassung ohne
-    // Markierung: Umschalten wie bisher, ohne Abgleich und ohne Fehler.
+    // A part of the sample work (empty text, no marking) with a second revision without marking: switching as before,
+    // without reconciliation and without error.
     let example = store.default_work().await.unwrap();
     store
         .outline_save(example, 1, "Freier Text ohne Überschrift.\n", None, Restructure::default(), HUMAN)
@@ -394,7 +394,7 @@ async fn an_unnumbered_marker_keeps_its_form_when_its_level_or_title_changes() {
     let old = current(&loaded, exkurs).body.clone();
     let old_line = old.split_inclusive('\n').next().unwrap();
 
-    // Ebenenwechsel 2 → 1 über relevel_line: die Markierung bleibt, nur `level:` ändert sich.
+    // Level change 2 → 1 through relevel_line: the marking stays, only `level:` changes.
     store.outline_set_level(work, exkurs, 1, HUMAN).await.unwrap();
     let after = store.load_work(work).await.unwrap();
     let body = &current(&after, exkurs).body;
@@ -410,7 +410,7 @@ async fn an_unnumbered_marker_keeps_its_form_when_its_level_or_title_changes() {
     assert!(body.lines().next().unwrap().ends_with("// Randnotiz"), "Kommentar bleibt");
     assert_eq!(levels(&after)[exkurs], 1, "die Gliederung folgt (Ebene 1)");
 
-    // Umbenennen des Vorworts: heading_line hält die Form „ohne Nummer“ (Schnittstelle A).
+    // Renaming the preface: heading_line keeps the form „ohne Nummer“ (interface A).
     store.outline_rename(work, 0, "Geleitwort", HUMAN).await.unwrap();
     let renamed = store.load_work(work).await.unwrap();
     assert!(
@@ -420,9 +420,9 @@ async fn an_unnumbered_marker_keeps_its_form_when_its_level_or_title_changes() {
     );
 }
 
-// ---- Vorschau eines Antrags -----------------------------------------------------------------------
+// ---- Preview of a request -------------------------------------------------------------------------
 
-/// Gliederung als Vorschau-Punkte (ohne Marke) aus dem geladenen Werk.
+/// Outline as preview items (without mark) from the loaded work.
 fn outline_rows(work: &Work) -> Vec<(i64, u8, String, String)> {
     let levels = levels(work);
     work.nodes.iter().map(|n| (n.key, levels[n.id], n.number.clone(), n.title.clone())).collect()
@@ -461,8 +461,8 @@ async fn the_preview_changes_nothing_and_matches_the_outline_after_confirming() 
     let (saat, wachstum, unkraut, ernte) =
         (key(&loaded, "Saat"), key(&loaded, "Wachstum"), key(&loaded, "Unkraut"), key(&loaded, "Ernte"));
 
-    // Jede Art von Antrag nacheinander: Vorschau, Bestätigen, Vergleich. Die erwartete Marke des
-    // betroffenen Punkts steht dabei.
+    // Every kind of request one after the other: preview, confirm, comparison. The expected mark of the affected item
+    // is given with it.
     let cases = [
         (OutlineOp::Rename { key: saat, title: "Aussaat".into() }, saat, PreviewMark::Renamed),
         (OutlineOp::Move { key: ernte, target_key: saat, place: Place::Before }, ernte, PreviewMark::Moved),
@@ -475,7 +475,7 @@ async fn the_preview_changes_nothing_and_matches_the_outline_after_confirming() 
         let before = store.load_work(work).await.unwrap();
         let counts = table_counts(&store).await;
         let preview = store.outline_request_preview(work, request.id).await.unwrap();
-        // Die Vorschau rollt zurück: Zählung und Gliederung wie vorher.
+        // The preview rolls back: counts and outline as before.
         assert_eq!(table_counts(&store).await, counts, "{op:?}: Vorschau ändert keine Zeile");
         assert_eq!(
             outline_rows(&store.load_work(work).await.unwrap()),
@@ -487,17 +487,17 @@ async fn the_preview_changes_nothing_and_matches_the_outline_after_confirming() 
 
         store.outline_request_decide(work, request.id, true, HUMAN).await.unwrap();
         let after = store.load_work(work).await.unwrap();
-        // Titel, Ebenen, Nummern und Reihenfolge der Vorschau = Gliederung nach dem Bestätigen.
+        // Titles, levels, numbers and order of the preview = outline after confirming.
         assert_eq!(preview_rows(&preview), outline_rows(&after), "{op:?}: Vorschau = Gliederung danach");
         if mark == PreviewMark::Deleted {
-            // Gelöschte Punkte stehen an ihrer alten Stelle (hinter ihrem alten Vorgänger).
+            // Deleted items stand at their old position (after their old predecessor).
             let at = preview.iter().position(|p| p.key == point).unwrap();
             let old_index = before.nodes.iter().position(|n| n.key == point).unwrap();
             let previous = before.nodes[old_index - 1].key;
             assert_eq!(preview[at - 1].key, previous, "gelöschter Punkt hinter seinem alten Vorgänger");
         }
-        // Andere Punkte ohne Änderung an Titel, Ebene und Nummernart tragen „same“ (oder „moved“
-        // als Unterpunkt des verschobenen Punkts).
+        // Other items without a change of title, level and numbering kind carry „same“ (or „moved“ as a sub-item of the
+        // moved item).
         for p in preview.iter().filter(|p| p.key != point) {
             assert!(matches!(p.mark, PreviewMark::Same | PreviewMark::Moved), "{op:?}: {} trägt {:?}", p.title, p.mark);
         }
@@ -518,10 +518,10 @@ async fn decided_or_stale_requests_have_no_preview() {
 
     let second =
         store.outline_request(work, OutlineOp::Rename { key: saat, title: "Säen".into() }, &origin, "").await.unwrap();
-    // Der Mensch benennt inzwischen selbst um: Der Antrag ist veraltet, die Vorschau sagt warum.
+    // Meanwhile the human renames it himself: the request is outdated, the preview says why.
     store.outline_rename(work, 0, "Pflanzen", HUMAN).await.unwrap();
     match store.outline_request_preview(work, second.id).await {
-        // Runde 23: eigene Variante `Stale` statt `Heading` (der Wortlaut „Veraltet: <Grund>“ bleibt).
+        // Round 23: own variant `Stale` instead of `Heading` (the wording „Veraltet: <Grund>“ stays).
         Err(StoreError::Stale(message)) => {
             assert!(message.starts_with("Veraltet: ") && message.contains("Pflanzen"), "Grund genannt: {message}")
         }
@@ -533,7 +533,7 @@ async fn decided_or_stale_requests_have_no_preview() {
     );
 }
 
-// ---- Einfall als Gliederungspunkt in einer Transaktion -------------------------------------------
+// ---- Idea as outline item in one transaction -----------------------------------------------------
 
 async fn idea_for(store: &Store, work: WorkId, key: i64) -> i64 {
     let words = vec!["Brunnen".to_owned()];
@@ -580,7 +580,7 @@ async fn idea_to_outline_changes_nothing_when_closing_the_idea_fails() {
     let idea = idea_for(&store, work, saat).await;
     let nodes = count(&store, "SELECT count(*) FROM node").await;
     let revisions = count(&store, "SELECT count(*) FROM revision").await;
-    // Der zweite Schritt (Einfall erledigen) scheitert erzwungen: ein Trigger auf UPDATE idea.
+    // The second step (mark the idea done) is forced to fail: a trigger on UPDATE idea.
     sqlx::query("CREATE TRIGGER test_idea_fails BEFORE UPDATE ON idea BEGIN SELECT RAISE(ABORT, 'Probe'); END")
         .execute(store.pool())
         .await
@@ -588,7 +588,7 @@ async fn idea_to_outline_changes_nothing_when_closing_the_idea_fails() {
     let failed = store.idea_to_outline(idea, work, 0, Place::After, "Brunnen", HUMAN).await;
     assert!(failed.is_err(), "der Trigger lässt das Erledigen scheitern: {failed:?}");
     sqlx::query("DROP TRIGGER test_idea_fails").execute(store.pool()).await.unwrap();
-    // Eine Transaktion: Auch der schon angelegte Punkt ist zurückgerollt.
+    // One transaction: the item already created is rolled back as well.
     assert_eq!(count(&store, "SELECT count(*) FROM node").await, nodes, "kein neuer Knoten");
     assert_eq!(count(&store, "SELECT count(*) FROM revision").await, revisions, "keine neue Revision");
     let open = store.idea_get(idea).await.unwrap();

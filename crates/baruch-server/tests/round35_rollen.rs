@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 35 „Konten und Rollen“, Besitz rollen: Rollen je Werk, Werk-Bindung, Herkunft `@lektorat:<slug>`.
+//! Round 35 „Konten und Rollen“, owner rollen: roles per work, work binding, origin `@lektorat:<slug>`.
 //!
-//! Wer die Anfrage stellt, legen die Tests über `common::with_who` fest (keine Sitzung, kein Passwort); Konten
-//! entstehen per SQL mit dem festen Hash-Text `$argon2id$test`. Sobald es Konten gibt, trägt JEDE Anfrage ein
-//! ausdrückliches `Who` – ohne wäre sie nach dem Zusammenführen mit „konten“ unangemeldet. Zwei frei erfundene
-//! Werke: das Beispielwerk der neuen Instanz (kleinste id, also das Vorgabewerk – für den Lektor fremd) und ein
-//! importiertes (freigegeben). Kein Modell, kein Netz.
+//! Who makes the request is determined by the tests through `common::with_who` (no session, no password); accounts are
+//! created via SQL with the fixed hash text `$argon2id$test`. As soon as there are accounts, EVERY request carries an
+//! explicit `Who` – without it it would be unauthenticated after the merge with „konten“. Two freely invented works:
+//! the sample work of the new instance (smallest id, i.e. the default work – foreign for the Lektor) and an imported
+//! one (granted). No model, no network.
 
 use crate::common;
 
@@ -25,7 +25,7 @@ const BOOK: &str = "#set document(title: \"Der Leuchtturm am Sund\", author: \"M
 = Nebelhorn\n\nDas Horn rief dreimal über den Sund, und die Möwen stoben vom Geländer.\n\n\
 = Lampenöl\n\nIm Keller roch es nach Öl und kaltem Stein.\n";
 
-/// Bühne: Server, das freigegebene und das fremde Werk, je der feste Schlüssel des ersten Abschnitts, die Konten.
+/// Stage: server, the granted and the foreign work, the stable key of the first section of each, the accounts.
 pub(crate) struct Stage {
     pub server: common::Server,
     pub granted: i64,
@@ -34,12 +34,12 @@ pub(crate) struct Stage {
     pub foreign: i64,
     pub foreign_key: i64,
     pub foreign_title: String,
-    /// Autor-Konto „Tilda“.
+    /// Author account „Tilda“.
     pub author: Who,
-    /// Lektor-Konto „Erika“ mit Freigabe für `granted`.
+    /// Lektor account „Erika“ with a grant for `granted`.
     pub erika: Who,
     pub erika_id: i64,
-    /// Lektor-Konto „Gustav“ ohne Freigabe.
+    /// Lektor account „Gustav“ without a grant.
     pub gustav: Who,
     pub gustav_id: i64,
     pub author_id: i64,
@@ -55,7 +55,7 @@ pub(crate) fn account(id: i64, name: &str, kind: AccountKind) -> Who {
     })
 }
 
-/// Konto per SQL (Fremdschlüssel für `work_member`); der Hash ist ein fester Text, angemeldet wird nie.
+/// Account via SQL (foreign key for `work_member`); the hash is a fixed text, nobody ever signs in.
 pub(crate) async fn insert_account(server: &common::Server, name: &str, kind: &str) -> i64 {
     sqlx::query_scalar(
         "INSERT INTO account (name, name_key, slug, display, kind, password) \
@@ -73,7 +73,7 @@ pub(crate) async fn insert_account(server: &common::Server, name: &str, kind: &s
 
 pub(crate) async fn stage() -> Stage {
     let server = common::open().await;
-    // Noch gibt es keine Konten: Die Vorbereitung läuft offen wie vor Runde 35.
+    // There are no accounts yet: the preparation runs open as before Round 35.
     let works = server.rpc("work.list", json!({})).await;
     let sample = &works["result"]["works"][0];
     let foreign = sample["id"].as_i64().expect("das Beispielwerk der neuen Instanz");
@@ -130,7 +130,7 @@ pub(crate) async fn form_as(
     send_as(server, who, request).await
 }
 
-/// Rohe JSON-RPC-Anfrage (einzeln oder Batch) als `who`.
+/// Raw JSON-RPC request (single or batch) as `who`.
 pub(crate) async fn rpc_raw(server: &common::Server, who: &Who, body: Value) -> Value {
     let request = Request::post("/rpc")
         .header(header::CONTENT_TYPE, "application/json")
@@ -166,7 +166,7 @@ pub(crate) fn denied_by_role(headers: &HeaderMap) -> bool {
     headers.get("x-baruch-abgelehnt").is_some_and(|v| v == "rolle")
 }
 
-/// Zeilenzahl jeder Tabelle (auch der Volltextindizes): der ganze Stand der Datenbank in Zahlen.
+/// Row count of every table (also of the full-text indexes): the whole state of the database in numbers.
 pub(crate) async fn row_counts(server: &common::Server) -> BTreeMap<String, i64> {
     let pool = server.state.store.pool();
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
@@ -184,7 +184,7 @@ pub(crate) async fn row_counts(server: &common::Server) -> BTreeMap<String, i64>
     counts
 }
 
-/// HEAD des Spiegels je Werk.
+/// HEAD of the mirror per work.
 pub(crate) async fn heads(server: &common::Server, works: &[i64]) -> Vec<Option<String>> {
     let mut out = Vec::new();
     for work in works {
@@ -205,7 +205,7 @@ async fn current_body(server: &common::Server, work: i64, node: usize) -> String
     n.revision(n.current_number().unwrap()).unwrap().body.clone()
 }
 
-// ---- Rollen und Sichtbarkeit ----------------------------------------------------------------------------------
+// ---- Roles and visibility -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_role_follows_the_account_kind_and_the_grant() {
@@ -254,8 +254,8 @@ async fn a_lektor_sees_only_granted_works_and_revoke_and_lock_act_on_the_next_re
         assert!(!denied_by_role(&headers), "{page}: keine Ablehnung der Rolle");
         assert!(!body.contains(&s.foreign_title), "{page} nennt kein fremdes Werk (Werkwahl im Menüband)");
     }
-    // Runde 36: Die Einstellungsseite braucht kein work mehr (Werk-Bindung gelockert) – sie zeigt ohne work das
-    // freigegebene Werk, nie das Vorgabewerk der Instanz (vorher: Umleitung auf `?work=`; siehe `round36_lektor`).
+    // Round 36: the settings page no longer needs a work (work binding loosened) – without work it shows the granted
+    // work, never the default work of the instance (before: redirect to `?work=`; see `round36_lektor`).
     let (status, _, page) = get_as(server, &s.erika, "/einstellungen/darstellung").await;
     assert_eq!(status, StatusCode::OK, "Darstellung ohne work ist erreichbar");
     assert!(
@@ -268,7 +268,7 @@ async fn a_lektor_sees_only_granted_works_and_revoke_and_lock_act_on_the_next_re
         "Gegenprobe: der Autor sieht beide Werke"
     );
 
-    // Ohne Freigabe: leere Liste, und die Startseite führt auf die (leere) Werkliste.
+    // Without a grant: empty list, and the start page leads to the (empty) work list.
     let none = rpc_as(server, &s.gustav, "work.list", json!({})).await;
     assert!(titles(&none).is_empty(), "ohne Freigabe ist work.list leer");
     let (status, headers, _) = get_as(server, &s.gustav, "/").await;
@@ -286,7 +286,7 @@ async fn a_lektor_sees_only_granted_works_and_revoke_and_lock_act_on_the_next_re
         "ohne Freigabe gibt es kein Werk zu lesen – auch nicht das Vorgabewerk"
     );
 
-    // Entzug wirkt bei der nächsten Anfrage.
+    // Revocation takes effect on the next request.
     assert_eq!(code(&rpc_as(server, &s.erika, "work.get", json!({ "work": s.granted })).await), None, "vorher lesbar");
     assert!(server.state.store.member_revoke(s.granted, s.erika_id).await.unwrap(), "Freigabe entzogen");
     let after = rpc_as(server, &s.erika, "work.get", json!({ "work": s.granted })).await;
@@ -295,7 +295,7 @@ async fn a_lektor_sees_only_granted_works_and_revoke_and_lock_act_on_the_next_re
     assert!(status == StatusCode::FORBIDDEN && denied_by_role(&headers), "auch die Seite ist nach dem Entzug gesperrt");
     assert!(titles(&rpc_as(server, &s.erika, "work.list", json!({})).await).is_empty(), "und work.list ist leer");
 
-    // Sperre des Kontos wirkt bei der nächsten Anfrage, auch wenn noch jemand mit der alten Identität käme.
+    // Locking the account takes effect on the next request, even if somebody still came with the old identity.
     server.state.store.member_grant(s.granted, s.erika_id, "lektor").await.unwrap();
     assert_eq!(code(&rpc_as(server, &s.erika, "work.get", json!({ "work": s.granted })).await), None, "wieder lesbar");
     sqlx::query("UPDATE account SET active = 0 WHERE id = ?")
@@ -309,7 +309,7 @@ async fn a_lektor_sees_only_granted_works_and_revoke_and_lock_act_on_the_next_re
     assert!(status == StatusCode::FORBIDDEN && denied_by_role(&headers), "auch Seiten sind nach der Sperre zu");
 }
 
-// ---- Werk-Bindung ---------------------------------------------------------------------------------------------
+// ---- Work binding ---------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn every_allowed_route_refuses_a_work_that_is_not_granted() {
@@ -348,14 +348,14 @@ async fn every_allowed_route_refuses_a_work_that_is_not_granted() {
                     "{verb} {pattern}: ein nicht freigegebenes Werk in der Adresse ist gesperrt (Status {status})"
                 );
                 assert_eq!(body, format!("Abgelehnt: unbekanntes Werk {}", s.foreign), "{pattern}: Meldung");
-                // Ein zweites, kodiert benanntes work darf die Prüfung nicht unterlaufen.
+                // A second work with an encoded name must not undermine the check.
                 let smuggled = format!("{pattern}?work={}&wor%6B={}", s.granted, s.foreign);
                 let (status, headers, _) = get_as(server, &s.erika, &smuggled).await;
                 assert!(
                     status == StatusCode::FORBIDDEN && denied_by_role(&headers),
                     "{pattern}: auch ein zusätzliches (kodiertes) fremdes work wird abgelehnt"
                 );
-                // Ohne work: nie das Vorgabewerk, sondern Umleitung auf das freigegebene.
+                // Without work: never the default work, but a redirect to the granted one.
                 let (status, headers, _) = get_as(server, &s.erika, &format!("{pattern}?key=5")).await;
                 let path = if *pattern == "/" { "/".to_owned() } else { (*pattern).to_owned() };
                 assert_eq!(
@@ -376,7 +376,8 @@ async fn every_allowed_route_refuses_a_work_that_is_not_granted() {
                 );
             }
             WorkFrom::None | WorkFrom::Param => {
-                // Auch Seiten ohne eigenes Werk nehmen kein fremdes work in der Adresse an (Menüband, Werkwahl).
+                // Pages without a work of their own do not accept a foreign work in the address either (ribbon, work
+                // choice).
                 let (status, headers, _) = get_as(server, &s.erika, &format!("{pattern}?work={}", s.foreign)).await;
                 let filled = fill(pattern, s.granted);
                 assert!(
@@ -394,7 +395,7 @@ async fn every_allowed_method_refuses_a_work_that_is_not_granted_and_never_falls
     let server = &s.server;
     let before = (row_counts(server).await, heads(server, &[s.granted, s.foreign]).await);
     for (method, from) in LEKTOR_RPC {
-        // Ein genanntes fremdes Werk wird bei JEDER erlaubten Methode abgelehnt, auch bei denen ohne Werk.
+        // A named foreign work is rejected for EVERY allowed method, also for those without a work.
         for (work, what) in
             [(json!(s.foreign), "fremdes Werk"), (json!(s.foreign.to_string()), "fremdes Werk als Text")]
         {
@@ -425,7 +426,7 @@ async fn every_allowed_method_refuses_a_work_that_is_not_granted_and_never_falls
         "kein abgelehnter Aufruf hat eine Zeile oder einen Commit hinterlassen"
     );
 
-    // Fehlt work, gilt das freigegebene Werk – das Vorgabewerk der Instanz ist das fremde.
+    // If work is missing, the granted work applies – the default work of the instance is the foreign one.
     let got = rpc_as(server, &s.erika, "work.get", json!({})).await;
     assert_eq!(result(&got)["work"]["title"], "Der Leuchtturm am Sund", "work.get ohne work liest das freigegebene");
     let badges = rpc_as(server, &s.erika, "menu.badges", json!({})).await;
@@ -450,7 +451,7 @@ async fn every_allowed_method_refuses_a_work_that_is_not_granted_and_never_falls
 async fn ids_of_a_foreign_work_yield_nothing_under_the_granted_work() {
     let s = stage().await;
     let server = &s.server;
-    // Fremde Daten als Autor anlegen: Beitrag, Befund, Faden und Bild im nicht freigegebenen Werk.
+    // Create foreign data as the author: post, finding, thread and image in the work that is not granted.
     let post = rpc_as(
         server,
         &s.author,
@@ -541,7 +542,7 @@ async fn ids_of_a_foreign_work_yield_nothing_under_the_granted_work() {
     }
 }
 
-// ---- Vorschlag ------------------------------------------------------------------------------------------------
+// ---- Proposal -------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
@@ -578,7 +579,7 @@ async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
     assert_eq!(common::currents(result(&node)), 1, "es bleibt bei genau einer aktuellen Fassung");
     assert_eq!(current_body(server, g, 0).await, original, "die aktuelle Fassung ist unverändert");
 
-    // Spiegel: kein Commit auf dem Hauptzweig, aber der Seitenzweig der Fassung – mit Herkunft.
+    // Mirror: no commit on the main branch, but the side branch of the revision – with origin.
     assert_eq!(heads(server, &[g]).await, head_before, "ein Vorschlag ist kein Commit am Buch");
     let mirror = server.state.mirror(g).await.unwrap();
     let refs = mirror.side_refs("refs/revisions/").unwrap();
@@ -588,7 +589,7 @@ async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
         assert!(log.contains("@lektorat:erika"), "der Commit des Seitenzweigs nennt den Lektor als Herkunft: {log}");
     }
 
-    // Formularweg ohne JavaScript: derselbe Vorschlag über /lektorat/act, danach zurück zur neuen Fassung.
+    // Form path without JavaScript: the same proposal through /lektorat/act, then back to the new revision.
     let form =
         format!("method=revision.propose&work={g}&key={key}&body={}", enc("= Nebelhorn\n\nDas Horn rief fünfmal."));
     let (status, headers, body) = form_as(server, &s.erika, "/lektorat/act", &form).await;
@@ -599,7 +600,7 @@ async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
     );
     assert_eq!(current_body(server, g, 0).await, original, "auch danach ist die aktuelle Fassung unverändert");
 
-    // Was abgelehnt wird, ohne etwas zu schreiben.
+    // What is rejected without writing anything.
     let counts = row_counts(server).await;
     let empty = rpc_as(server, &s.erika, "revision.propose", json!({ "work": g, "key": key, "body": "  \n" })).await;
     assert_eq!(code(&empty), Some(INVALID_PARAMS), "ein leerer Vorschlag ist keiner");
@@ -614,7 +615,7 @@ async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Fehler des Formulars sind 422 mit Text");
     assert_eq!(row_counts(server).await, counts, "keiner der abgelehnten Versuche hat eine Zeile angelegt");
 
-    // Entscheiden darf nur der Autor.
+    // Only the author may decide.
     for method in [
         "revision.accept",
         "revision.set_current",
@@ -641,9 +642,9 @@ async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
     );
 }
 
-// ---- Beiträge -------------------------------------------------------------------------------------------------
+// ---- Posts ----------------------------------------------------------------------------------------------------
 
-/// Die Meldung aus `posts::not_editable` (dort `pub(crate)`), wörtlich.
+/// The message from `posts::not_editable` (there `pub(crate)`), verbatim.
 fn not_editable(id: i64, author: &str, actor: &str) -> String {
     format!(
         "Nur eigene Beiträge lassen sich bearbeiten: Beitrag {id} stammt von {author}, nicht von {actor}. Beiträge von \
@@ -691,7 +692,7 @@ async fn posts_of_a_lektor_carry_the_handle_and_only_own_posts_are_editable() {
         result(&author_view)["posts"].as_array().unwrap().iter().map(|p| p["own"].as_bool().unwrap()).collect();
     assert_eq!(own, [true, false, false, false], "für den Autor sind wie bisher nur die Beiträge unter „Autor“ eigene");
 
-    // Bearbeiten und Löschen: nur eigene.
+    // Edit and delete: only own ones.
     let edited = rpc_as(
         server,
         &s.erika,
@@ -745,7 +746,7 @@ async fn posts_of_a_lektor_carry_the_handle_and_only_own_posts_are_editable() {
     let ids: Vec<i64> = result(&left)["posts"].as_array().unwrap().iter().map(|p| p["id"].as_i64().unwrap()).collect();
     assert!(ids.contains(&by_author) && ids.contains(&by_gustav) && !ids.contains(&by_erika), "weg ist nur der eigene");
 
-    // Der Autor handelt weiter als „Autor“ und verwaltet jeden Beitrag.
+    // The author still acts as „Autor“ and manages every post.
     let own_edit = rpc_as(
         server,
         &s.author,
@@ -763,7 +764,7 @@ async fn posts_of_a_lektor_carry_the_handle_and_only_own_posts_are_editable() {
     );
 }
 
-// ---- Befunde --------------------------------------------------------------------------------------------------
+// ---- Findings -------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_lektor_adds_findings_under_the_handle_and_the_author_decides() {
@@ -802,7 +803,7 @@ async fn a_lektor_adds_findings_under_the_handle_and_the_author_decides() {
         assert!(!log.contains("MCP-Client"), "ein Lektor ist kein MCP-Client");
     }
 
-    // Ohne key: Anmerkung zum Buch, über das Formular, danach auf die Befundseite.
+    // Without key: remark on the book, through the form, then to the findings page.
     let form = format!(
         "method=finding.add&work={g}&kind=praise&body={}&back=befunde",
         enc("Der Ton trägt durch das ganze Buch.")
@@ -830,7 +831,7 @@ async fn a_lektor_adds_findings_under_the_handle_and_the_author_decides() {
         );
     }
 
-    // Abgelehnt, ohne zu schreiben.
+    // Rejected without writing.
     let before = (row_counts(server).await, heads(server, &[g]).await);
     for (params, why) in [
         (json!({ "work": g, "kind": "hint", "body": "   " }), "ein Befund braucht einen Text"),
@@ -849,7 +850,7 @@ async fn a_lektor_adds_findings_under_the_handle_and_the_author_decides() {
     assert_eq!(code(&by_author), Some(REFUSED), "finding.add ist der Weg der Lektoren, nicht des Autors");
     assert_eq!((row_counts(server).await, heads(server, &[g]).await), before, "nichts davon hat geschrieben");
 
-    // Der Status bleibt dem Autor.
+    // The status stays with the author.
     for (method, params) in [
         ("finding.set_status", json!({ "work": g, "id": id, "status": "done" })),
         ("finding.decide", json!({ "work": g, "entry": 1, "confirm": true })),
@@ -867,7 +868,7 @@ async fn a_lektor_adds_findings_under_the_handle_and_the_author_decides() {
     assert_eq!(result(&done)["finding"]["status"], "done", "der Autor setzt den Status des Lektor-Befunds");
 }
 
-// ---- Freigaben ------------------------------------------------------------------------------------------------
+// ---- Grants ---------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn members_are_managed_with_full_rights_only() {
@@ -904,7 +905,7 @@ async fn members_are_managed_with_full_rights_only() {
     );
     assert!(!listed.to_string().contains("argon2"), "kein Hash in der Antwort");
 
-    // Freigeben: idempotent, nur Lektor-Konten, nur vorhandene Werke.
+    // Granting: idempotent, only Lektor accounts, only existing works.
     let first = rpc_as(server, &s.author, "member.grant", json!({ "work": g, "account": s.gustav_id })).await;
     assert_eq!(result(&first)["role"], "lektor", "Gustav bekommt die Rolle lektor");
     let again =
@@ -937,7 +938,7 @@ async fn members_are_managed_with_full_rights_only() {
     let nothing = rpc_as(server, &s.author, "member.revoke", json!({ "work": g, "account": s.gustav_id })).await;
     assert_eq!(result(&nothing)["revoked"], false, "ein zweites Mal gibt es nichts zu entziehen");
 
-    // Formular des Autors mit den Codes aus Vertrag §3.4; auch ohne Konten (Who::Open) und am eigenen Rechner.
+    // Form of the author with the codes from contract §3.4; also without accounts (Who::Open) and on the own machine.
     let uri = format!("/werke/{g}/mitwirkende/act");
     let back = |code: &str| format!("/werke/{g}/mitwirkende?{code}");
     let cases = [
@@ -971,7 +972,7 @@ async fn members_are_managed_with_full_rights_only() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ein unbekanntes Werk lässt sich nicht freigeben");
 }
 
-// ---- Literatur und volle Rechte -------------------------------------------------------------------------------
+// ---- Literature and full rights -------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_literature_list_is_empty_for_a_lektor() {
@@ -982,7 +983,7 @@ async fn the_literature_list_is_empty_for_a_lektor() {
     let title = result(&titles)["titles"][0]["title"].as_str().expect("die Beispielbibliothek hat Titel").to_owned();
     let (_, _, author_page) = get_as(server, &s.author, &format!("/?work={g}")).await;
     assert!(author_page.contains(&title), "Vorbedingung: die Arbeitsseite des Autors nennt den Titel „{title}“");
-    // ui.render trägt die Literatursuche in der Adresse weiter (`lq`): für den Autor ja, für den Lektor nie.
+    // ui.render carries the literature search on in the address (`lq`): for the author yes, for the Lektor never.
     let author_render = rpc_as(server, &s.author, "ui.render", json!({ "work": g, "lq": "Horn" })).await;
     let author_url = result(&author_render)["url"].as_str().unwrap().to_owned();
     assert!(author_url.contains("lq=Horn"), "Vorbedingung: ui.render des Autors sucht in der Literatur: {author_url}");
@@ -1010,7 +1011,7 @@ async fn with_full_rights_everything_answers_as_before() {
     let s = stage().await;
     let server = &s.server;
     let g = s.granted;
-    // Lesende Antworten sind für alle drei Arten voller Rechte gleich (auch ohne Angabe des Werks: Vorgabewerk).
+    // Reading answers are the same for all three kinds of full rights (also without naming the work: default work).
     for (method, params) in [
         ("work.get", json!({})),
         ("work.list", json!({})),
@@ -1031,7 +1032,7 @@ async fn with_full_rights_everything_answers_as_before() {
     }
     let unknown = rpc_as(server, &s.author, "gibt.es_nicht", json!({})).await;
     assert_eq!(code(&unknown), Some(-32601), "unbekannte Methoden bleiben für den Autor „unbekannt“, nicht „verboten“");
-    // Autor-Aktionen stehen weiter unter „Autor“.
+    // Author actions still stand under „Autor“.
     let saved = rpc_as(
         server,
         &s.author,
@@ -1060,7 +1061,7 @@ async fn with_full_rights_everything_answers_as_before() {
     if let Some(log) = common::git(&server.mirror_dir_of(&s.granted_slug), &["log", "-1", "--format=%an"]) {
         assert_eq!(log.trim(), "Autor", "auch im Spiegel ist der Autor des Commits „Autor“");
     }
-    // Ohne Anmeldung geht nichts: 401 statt Daten.
+    // Without sign-in nothing works: 401 instead of data.
     let request = Request::post("/rpc")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(json!({ "jsonrpc": "2.0", "id": 1, "method": "work.list" }).to_string()))

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 27, Aufgabe umschlag-widget (R27c): Editor-Seite, Formulare ohne JavaScript, Widget cover-editor, Impressum-Vorlage übernehmen.
+//! Round 27, task umschlag-widget (R27c): editor page, forms without JavaScript, widget cover-editor, adopting the
+//! imprint template.
 //!
-//! Echter Datenordner (SQLite, Git-Spiegel) im Temp-Ordner mit dem erfundenen Gartenbuch der Server-Tests. Geprüft
-//! werden die Umschlagseite als Editor (Rahmen mit aria-label, Hilfslinien, Druckprüfung, Formular je Block), die
-//! Vorschau per GET ohne Speichern (auch als SVG), das Formular `POST /werke/umschlag/anordnung` (save, quick, reset,
-//! 422 mit Eingabe, 403 von fremder Herkunft), GET mit Satz von fremden Seiten ohne Typst-Lauf, die Anschriften in den
-//! Buchangaben, der Knopf „Impressum-Vorlage in die Werkvorlage übernehmen“, `checks` in `work.cover_pdf` und das
-//! Widget im Node-Nachbau des DOM (fehlt `node`: ÜBERSPRUNGEN).
+//! Real data directory (SQLite, Git mirror) in the temp directory with the invented garden book of the server tests.
+//! Checked are the cover page as an editor (frame with aria-label, guide lines, print check, form per block), the
+//! preview via GET without saving (also as SVG), the form `POST /werke/umschlag/anordnung` (save, quick, reset, 422
+//! with the input, 403 from a foreign origin), GET with typesetting from foreign pages without a Typst run, the
+//! addresses in the book details, the button „Impressum-Vorlage in die Werkvorlage übernehmen“, `checks` in
+//! `work.cover_pdf` and the widget in the Node mock of the DOM (if `node` is missing: ÜBERSPRUNGEN).
 //!
-//! Seit dem Zusammenführen von umschlag-daten (R27a) und umschlag-satz (R27b) durch den Integrator prüfen die Tests
-//! nur noch die Wirkung (Store, Commit, Weiterleitung); antwortet ein Platzhalter „noch nicht umgesetzt“, schlagen
-//! sie fehl.
+//! Since the integrator merged umschlag-daten (R27a) and umschlag-satz (R27b) the tests check only the effect (store,
+//! commit, redirect); if a placeholder answers „noch nicht umgesetzt“, they fail.
 
 use crate::common;
 
@@ -24,12 +24,12 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Platzhalter der Aufgabe umschlag-daten bzw. umschlag-satz noch nicht ersetzt?
+/// Placeholder of the task umschlag-daten or umschlag-satz not replaced yet?
 fn stub(message: &str, round: &str) -> bool {
     message.contains("noch nicht umgesetzt") && message.contains(round)
 }
 
-/// Gartenbuch importieren; Werk-id und slug.
+/// Import the garden book; work id and slug.
 async fn garden(server: &common::Server) -> (i64, String) {
     let report = server.import_garden().await;
     (report.work, report.slug)
@@ -43,7 +43,7 @@ fn last_commit(server: &common::Server, slug: &str) -> String {
     common::git(&server.mirror_dir_of(slug), &["log", "-1", "--format=%B"]).unwrap_or_default()
 }
 
-/// HTML-Entitäten eines Attributwerts auflösen (minijinja maskiert `"`, `'`, `/`, `&`, `<`, `>`).
+/// Resolve HTML entities of an attribute value (minijinja escapes `"`, `'`, `/`, `&`, `<`, `>`).
 fn unescape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -77,7 +77,7 @@ fn unescape(text: &str) -> String {
     out
 }
 
-/// Wert eines Attributs im ersten Tag, das `marker` enthält.
+/// Value of an attribute in the first tag that contains `marker`.
 fn attribute(html: &str, marker: &str, name: &str) -> Option<String> {
     let at = html.find(marker)?;
     let start = html[..=at].rfind('<')?;
@@ -89,15 +89,15 @@ fn attribute(html: &str, marker: &str, name: &str) -> Option<String> {
     Some(unescape(&tag[from..to]))
 }
 
-/// Der Editor-Abschnitt der Seite (`<section class="cover-editor" …>…</section>`).
+/// The editor section of the page (`<section class="cover-editor" …>…</section>`).
 fn editor_section(page: &str) -> String {
     let start = page.find("<section class=\"cover-editor\"").expect("Editor-Abschnitt fehlt");
     let end = start + page[start..].find("</section>").expect("Ende des Editors") + "</section>".len();
     page[start..end].to_owned()
 }
 
-/// Alle Felder `b.<kind>.<feld>` des Formulars mit ihren Werten, wie ein Browser sie abschickt (Eingabefeld:
-/// `value`, Auswahl: die gewählte Option, Textfeld: Inhalt).
+/// All fields `b.<kind>.<feld>` of the form with their values as a browser submits them (input field: `value`, select:
+/// the chosen option, text area: content).
 fn block_fields(page: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut rest = page;
@@ -124,7 +124,7 @@ fn block_fields(page: &str) -> Vec<(String, String)> {
     out
 }
 
-/// Formular-Kodierung (application/x-www-form-urlencoded).
+/// Form encoding (application/x-www-form-urlencoded).
 fn encode(pairs: &[(String, String)]) -> String {
     let escape = |text: &str| {
         let mut out = String::new();
@@ -144,7 +144,7 @@ fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
     list.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
 }
 
-/// POST eines Formulars; Status, Weiterleitung und Text.
+/// POST of a form; status, redirect and text.
 async fn post(server: &common::Server, uri: &str, form: &str) -> (StatusCode, Option<String>, String) {
     let request = Request::post(uri)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -155,12 +155,12 @@ async fn post(server: &common::Server, uri: &str, form: &str) -> (StatusCode, Op
     (status, location, text)
 }
 
-/// Antwort von `cover.layout` (Maße und wirksame Blöcke).
+/// Answer of `cover.layout` (dimensions and effective blocks).
 async fn layout(server: &common::Server, work: i64) -> Value {
     result(&server.rpc("cover.layout", json!({ "work": work })).await).clone()
 }
 
-/// Ist das Speichern der Anordnung (R27a) schon da? Probe mit einem gültigen Block über RPC.
+/// Is saving the layout (R27a) there already? Probe with a valid block over RPC.
 async fn layout_set_is_stub(server: &common::Server, work: i64) -> bool {
     let view = layout(server, work).await;
     let block = view["blocks"][0].clone();
@@ -172,16 +172,16 @@ async fn layout_set_is_stub(server: &common::Server, work: i64) -> bool {
         Some(message) if stub(message, "R27a") => true,
         Some(message) => panic!("Probe cover.layout_set scheitert unerwartet: {message}"),
         None => {
-            // Probe hat gespeichert: wieder zurücksetzen, damit der Test vom leeren Stand ausgeht.
+            // The probe has saved: reset again so that the test starts from the empty state.
             result(&server.rpc("cover.layout_reset", json!({ "work": work })).await);
             false
         }
     }
 }
 
-/// Die Umschlagseite ist ein Editor: Rahmen je Block mit aria-label (Art und Fläche), Hilfslinien für Beschnitt,
-/// Schnittkante, Sicherheitsabstand, Rückenkanten und Mitte, Daten aus `cover.layout` im Attribut `data-layout`, je
-/// Block ein Formularteil; die Elemente aus Runde 11 (Vorschau-SVG, Druckprüfung, PDF, Formulare) bleiben.
+/// The cover page is an editor: a frame per block with aria-label (kind and face), guide lines for bleed, trim edge,
+/// safety margin, spine edges and centre, data from `cover.layout` in the attribute `data-layout`, one form part per
+/// block; the elements from Round 11 (preview SVG, print check, PDF, forms) stay.
 #[tokio::test]
 async fn the_cover_page_is_an_editor_with_frames_guides_and_fields() {
     let server = common::open().await;
@@ -215,7 +215,7 @@ async fn the_cover_page_is_an_editor_with_frames_guides_and_fields() {
         assert!(page.contains(&format!("data-guide=\"{guide}\"")), "Hilfslinie {guide} fehlt");
     }
     assert!(page.contains("title=\"Schnittkante\"") && page.contains("Rückenkante links"), "Hilfslinien beschriftet");
-    // Ohne JavaScript: Formular mit Zahlenfeldern, Vorschau per GET, Übernehmen per POST, Schnellwahl, Zurücksetzen.
+    // Without JavaScript: form with number fields, preview via GET, accepting via POST, quick choice, reset.
     assert!(page.contains("action=\"/werke/umschlag/anordnung\""), "Formular an POST /werke/umschlag/anordnung");
     assert!(page.contains("type=\"number\" name=\"b.front_title.y_mm\""), "Zahlenfelder");
     assert!(page.contains("formmethod=\"get\""), "Vorschau ohne Speichern per GET");
@@ -225,10 +225,10 @@ async fn the_cover_page_is_an_editor_with_frames_guides_and_fields() {
         page.contains("value=\"reset\"") && page.contains("name=\"faces\" value=\"spine\""),
         "Zurücksetzen je Fläche"
     );
-    // Die Tastaturhilfe steht da, Knöpfe nur mit JavaScript sichtbar.
+    // The keyboard help is there, buttons visible only with JavaScript.
     assert!(page.contains("Pfeiltasten 0,5 mm (mit Umschalt 5 mm)"), "Tastaturhilfe");
     assert!(page.contains("class=\"cover-editor-toolbar cover-js-only\""), "Werkzeugleiste nur mit JavaScript");
-    // Runde 11 bleibt (round11_cover.rs prüft dasselbe).
+    // Round 11 stays (round11_cover.rs checks the same).
     assert!(page.contains("id=\"druckpruefung\""), "Druckprüfung");
     assert!(page.contains(&format!("/werke/{work}/umschlag.svg?stand=")), "Vorschau als SVG");
     assert!(page.contains(&format!("/werke/{work}/umschlag.pdf")), "Link zum Umschlag-PDF");
@@ -236,12 +236,12 @@ async fn the_cover_page_is_an_editor_with_frames_guides_and_fields() {
         page.contains("action=\"/werke/umschlag/act\"") && page.contains("id=\"buchangaben\""),
         "Formulare bleiben"
     );
-    // Warnungen der Druckprüfung: jede aus cover.layout steht als Listenpunkt da.
+    // Warnings of the print check: each one from cover.layout is there as a list item.
     for warning in view["warnings"].as_array().unwrap() {
         let code = warning["code"].as_str().unwrap();
         assert!(page.contains(&format!("data-cover-warning=\"{code}\"")), "Warnung {code} als Listenpunkt");
     }
-    // Hell und Dunkel: der Editor nutzt die Farb-Tokens von app.css.
+    // Light and dark: the editor uses the colour tokens of app.css.
     let (_, css) = server.get("/static/app.css").await;
     let editor_css = &css[css.find("/* Umschlag-Editor (Runde 27c)").expect("Stil des Editors in app.css")..];
     let editor_css = &editor_css[..editor_css.find(".cover-imprint-form").unwrap()];
@@ -252,8 +252,8 @@ async fn the_cover_page_is_an_editor_with_frames_guides_and_fields() {
     assert_eq!(raw_colors, 1, "außer dem weißen Grund der Vorschau keine festen Farben: {editor_css}");
 }
 
-/// Ohne JavaScript: `GET /werke/{id}/umschlag?b.front_title.y_mm=…` zeigt die Werte als Vorschau (Rahmen, Felder,
-/// SVG-Adresse), speichert aber nichts; ungültige Werte → 422 mit Meldung; die SVG-Vorschau nimmt dieselben Felder.
+/// Without JavaScript: `GET /werke/{id}/umschlag?b.front_title.y_mm=…` shows the values as a preview (frame, fields,
+/// SVG address) but saves nothing; invalid values → 422 with a message; the SVG preview takes the same fields.
 #[tokio::test]
 async fn a_preview_by_get_shows_the_values_without_saving() {
     let server = common::open().await;
@@ -291,8 +291,8 @@ async fn a_preview_by_get_shows_the_values_without_saving() {
     assert!(server.state.store.cover_layout(work).await.unwrap().is_empty(), "auch danach nichts gespeichert");
 }
 
-/// GET mit Satz von fremden Seiten (Seite und SVG, auch mit Vorschau) → 403 ohne Typst-Lauf; Formulare von fremder
-/// Herkunft → 403.
+/// GET with typesetting from foreign pages (page and SVG, also with preview) → 403 without a Typst run; forms from a
+/// foreign origin → 403.
 #[tokio::test]
 async fn foreign_sites_get_403_without_typesetting() {
     let server = common::open().await;
@@ -327,14 +327,14 @@ async fn foreign_sites_get_403_without_typesetting() {
     }
 }
 
-/// `POST /werke/umschlag/anordnung`: `save` übergibt alle Blöcke des Formulars an `cover_layout::layout_set` und
-/// leitet mit 303 und `ok=anordnung` auf die sichere `back`-Adresse; `quick` und `reset` rufen `layout_reset` mit
-/// `area` bzw. `faces`; ungültige Eingabe → 422 mit Eingabe und Meldung, nichts gespeichert.
+/// `POST /werke/umschlag/anordnung`: `save` passes all blocks of the form to `cover_layout::layout_set` and redirects
+/// with 303 and `ok=anordnung` to the safe `back` address; `quick` and `reset` call `layout_reset` with `area` or
+/// `faces`; invalid input → 422 with input and message, nothing saved.
 #[tokio::test]
 async fn the_layout_form_saves_quick_selects_and_resets_without_javascript() {
     let server = common::open().await;
     let (work, slug) = garden(&server).await;
-    // Seit dem Zusammenführen von R27a (Integrator) muss der echte Fall laufen, nicht mehr der Platzhalter.
+    // Since R27a was merged (integrator) the real case has to run, no longer the placeholder.
     assert!(!layout_set_is_stub(&server, work).await, "cover.layout_set ist umgesetzt (R27a)");
     let (_, page) = server.get(&format!("/werke/{work}/umschlag")).await;
     let mut fields = block_fields(&editor_section(&page));
@@ -348,7 +348,7 @@ async fn the_layout_form_saves_quick_selects_and_resets_without_javascript() {
     ]);
     form.extend(fields.clone());
 
-    // Ungültig: 422, Eingabe und Meldung bleiben, nichts gespeichert.
+    // Invalid: 422, input and message stay, nothing saved.
     let mut wrong = form.clone();
     wrong.iter_mut().find(|(k, _)| k == "b.back_blurb.width_mm").unwrap().1 = "0".to_owned();
     let (status, _, text) = post(&server, "/werke/umschlag/anordnung", &encode(&wrong)).await;
@@ -407,8 +407,8 @@ async fn the_layout_form_saves_quick_selects_and_resets_without_javascript() {
     assert!(server.state.store.cover_layout(work).await.unwrap().is_empty(), "ohne Fläche: alle zurückgesetzt");
 }
 
-/// Buchangaben: Formular mit beiden Anschriften (mehrzeilig); `work.meta.set` nimmt `publisher_address` und
-/// `printer_address` an und nennt sie im Commit-Rumpf; `work.meta.get` liefert sie.
+/// Book details: form with both addresses (multi-line); `work.meta.set` accepts `publisher_address` and
+/// `printer_address` and names them in the commit body; `work.meta.get` returns them.
 #[tokio::test]
 async fn book_meta_takes_both_addresses_and_names_them_in_the_commit() {
     let server = common::open().await;
@@ -429,7 +429,7 @@ async fn book_meta_takes_both_addresses_and_names_them_in_the_commit() {
     assert_eq!(baruch_server::cover::field_label("publisher_address"), "Anschrift des Verlags bzw. Herausgebers");
     assert_eq!(baruch_server::cover::field_label("printer_address"), "Anschrift der Druckerei");
 
-    // Leere Werte gehen immer durch.
+    // Empty values always pass.
     result(&server.rpc("work.meta.set", json!({ "work": work, "publisher_address": "", "printer_address": "" })).await);
     let commits = commit_count(&server, &slug);
     let address = "Gartenweg 7\n12345 Erfundstadt";
@@ -464,9 +464,9 @@ async fn book_meta_takes_both_addresses_and_names_them_in_the_commit() {
     assert!(meta["printer_address"].as_str().unwrap().starts_with("Neue Druckerei"), "aus dem Formular: {meta}");
 }
 
-/// Knopf „Impressum-Vorlage in die Werkvorlage übernehmen“ (Einstellungen → Werk und Umschlagseite): neue
-/// Vorlagenfassung über `work.update` mit Commit; ist alles schon da, ehrliche
-/// Meldung ohne Änderung; `ok=impressum` zeigt den Hinweis. Dasselbe per RPC `cover.imprint_adopt`.
+/// Button „Impressum-Vorlage in die Werkvorlage übernehmen“ (Einstellungen → Werk and cover page): new template
+/// revision through `work.update` with a commit; if everything is there already, an honest message without a change;
+/// `ok=impressum` shows the notice. The same via RPC `cover.imprint_adopt`.
 #[tokio::test]
 async fn the_imprint_button_adopts_the_template_or_refuses_honestly() {
     let server = common::open().await;
@@ -502,7 +502,7 @@ async fn the_imprint_button_adopts_the_template_or_refuses_honestly() {
                 page.contains("Die Impressum-Vorlage ist in die Werkvorlage übernommen"),
                 "Hinweis nach ok=impressum"
             );
-            // Jetzt ist alles da: ehrliche Ablehnung ohne Änderung.
+            // Now everything is there: honest rejection without a change.
             let (status, _, text) =
                 post(&server, "/werke/umschlag/impressum", &format!("work={work}&back=%2Fwerke%2F{work}%2Fumschlag"))
                     .await;
@@ -518,10 +518,10 @@ async fn the_imprint_button_adopts_the_template_or_refuses_honestly() {
     );
 }
 
-/// `work.cover_pdf` liefert zusätzlich `checks` aus `cover_print::cover_checks` (gespeicherte Anordnung).
+/// `work.cover_pdf` additionally returns `checks` from `cover_print::cover_checks` (saved layout).
 #[tokio::test]
 async fn work_cover_pdf_carries_the_cover_checks() {
-    // Erzeugt ein Umschlag-PDF: die Markierung „PDF entsteht“ ist prozessweit je Werk-id.
+    // Produces a cover PDF: the marker „PDF entsteht“ is process-wide per work id.
     let _serial = common::PDF_SERIAL.lock().await;
     let server = common::open().await;
     let (work, _) = garden(&server).await;
@@ -533,7 +533,7 @@ async fn work_cover_pdf_carries_the_cover_checks() {
     assert!(result(&answer)["sha256"].is_string(), "die übrigen Felder bleiben");
 }
 
-/// Szene im Nachbau ausführen; `None`, wenn Node fehlt (dann wird ehrlich übersprungen).
+/// Run the scenario in the mock; `None` if Node is missing (then it is honestly skipped).
 fn run_widget(scenario: &Value) -> Option<Value> {
     let node = std::process::Command::new("node").arg("--version").output().ok()?;
     if !node.status.success() {
@@ -564,11 +564,11 @@ fn close(a: &Value, b: f64) -> bool {
     a.as_f64().is_some_and(|a| (a - b).abs() < 0.011)
 }
 
-/// Verhaltenstest des Widgets im Node-Nachbau (echtes `cover_editor.js` auf dem HTML der Umschlagseite):
-/// Ziehen ändert x/y, der Griff ändert die Breite, Pfeiltasten 0,5 mm bzw. 5 mm mit Umschalt, Einrasten an der
-/// Hilfslinie „Sicherheitsabstand“, Rückgängig stellt den vorigen Wert her, „Hell/Dunkel“ und ein geändertes Feld
-/// wirken auf den Block, Strg+↓ ändert die Breite des Rückentitels, Speichern schickt `cover.layout_set` mit allen
-/// geänderten Blöcken (und nur ihnen).
+/// Behaviour test of the widget in the Node mock (real `cover_editor.js` on the HTML of the cover page): dragging
+/// changes x/y, the handle changes the width, arrow keys 0.5 mm or 5 mm with Shift, snapping to the guide line
+/// „Sicherheitsabstand“, undo restores the previous value, „Hell/Dunkel“ and a changed field take effect on the block,
+/// Ctrl+↓ changes the width of the spine title, saving sends `cover.layout_set` with all changed blocks (and only
+/// them).
 #[tokio::test]
 async fn the_widget_drags_resizes_steps_snaps_undoes_and_saves_without_a_browser() {
     let server = common::open().await;
@@ -579,7 +579,7 @@ async fn the_widget_drags_resizes_steps_snaps_undoes_and_saves_without_a_browser
     let safety = geometry["safety_mm"].as_f64().unwrap();
     let bleed = geometry["bleed_mm"].as_f64().unwrap();
     let spine = geometry["spine_mm"].as_f64().unwrap();
-    // Gartenbuch ohne Seitenmaß: A4. Die Wege unten liegen dann fern jeder Hilfslinie (außer dem Einrast-Schritt).
+    // Garden book without page size: A4. The paths below then lie far from every guide line (except the snap step).
     assert!(w > 130.0 && h > 150.0, "Seitenmaß reicht für die Szene: {geometry}");
     let x0 = w / 2.0 + 20.0;
     let query =
@@ -589,7 +589,7 @@ async fn the_widget_drags_resizes_steps_snaps_undoes_and_saves_without_a_browser
     let view: Value =
         serde_json::from_str(&attribute(&page, "data-widget=\"cover-editor\"", "data-layout").unwrap()).unwrap();
     let wrap_w = 2.0 * w + spine + 2.0 * bleed;
-    // 2 px je mm: 20 px Ziehen = 10 mm.
+    // 2 px per mm: dragging 20 px = 10 mm.
     let snap_dx = ((safety + 0.8) - (x0 + 10.5)) * 2.0;
     let steps = json!([
         { "name": "move", "type": "drag", "dx": 20, "dy": 30 },

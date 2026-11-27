@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“, Besitz reste: 0.9.0-Hinweise und Punkte aus „offen nach R24“.
+//! Round 36 „Reste“, owner reste: 0.9.0 notes and items from „offen nach R24“.
 //!
-//! Werke und Texte sind frei erfunden; kein Modell, kein Netz. Skripte laufen in Node auf einem kleinen DOM-Nachbau
-//! (fehlt `node`: ÜBERSPRUNGEN). Die Tests zu den Personas (schlichte Frage, Vorschlag fürs Kapitel) stehen bei
-//! ihren Nachbauten in `round22_befunde` und `kritik_zyklus`.
+//! Works and texts are freely invented; no model, no network. Scripts run in Node on a small DOM mock (if `node` is
+//! missing: ÜBERSPRUNGEN). The tests for the personas (plain question, proposal for the chapter) are with their mocks
+//! in `round22_befunde` and `kritik_zyklus`.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -22,7 +22,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Maskierung der Vorlagen zurücknehmen (nur für das Lesen von Adressen in den Zusicherungen).
+/// Undo the escaping of the templates (only for reading addresses in the assertions).
 fn readable(page: &str) -> String {
     page.replace("&#x2f;", "/").replace("&amp;", "&").replace("&quot;", "\"")
 }
@@ -33,14 +33,14 @@ fn part<'a>(page: &'a str, start: &str, end: &str) -> &'a str {
     &page[from..from + to]
 }
 
-// ---- Zähler der Fassungen im Band ---------------------------------------------------------------------------
+// ---- Counter of the revisions in the band -------------------------------------------------------------------
 
 const FERRY: &str = "#set document(title: \"Die Seilfähre\", author: \"Ole Strom\")\n\n\
 = Am Anleger\n\nDas Boot liegt fest. Der Fährmann wartet auf den Wind.\n\n\
 = Drüben\n\nEin Licht brennt im Zollhaus.\n";
 
-/// Hinweis aus der Gegenprobe 0.9.0: Der Zähler im Editor-Kopf zeigte „(+ n ausgeblendet)“, der Zähler im Band
-/// nicht – dort sah „2/2“ aus, als gäbe es nur zwei Fassungen.
+/// Note from the cross-check 0.9.0: the counter in the editor header showed „(+ n ausgeblendet)“, the counter in the
+/// band did not – there „2/2“ looked as if there were only two revisions.
 #[tokio::test]
 async fn the_revision_counter_in_the_band_shows_the_hidden_ones_like_the_editor_head() {
     let server = common::open().await;
@@ -94,7 +94,7 @@ async fn the_revision_counter_in_the_band_shows_the_hidden_ones_like_the_editor_
     );
 }
 
-// ---- Cookie baruch_vw beim ersten Aufruf -------------------------------------------------------------------
+// ---- Cookie baruch_vw on the first call --------------------------------------------------------------------
 
 fn script(name: &str) -> &'static str {
     baruch_server::SCRIPTS
@@ -104,7 +104,7 @@ fn script(name: &str) -> &'static str {
         .unwrap_or_else(|| panic!("{name} fehlt in den ausgelieferten Skripten"))
 }
 
-/// Skript in Node ausführen (alle ausgelieferten Skripte in einem Temp-Ordner); `None`, wenn `node` fehlt.
+/// Run a script in Node (all delivered scripts in a temp directory); `None` if `node` is missing.
 fn node(probe: &str) -> Option<Value> {
     let dir = tempfile::tempdir().unwrap();
     for (name, body) in baruch_server::SCRIPTS {
@@ -146,7 +146,7 @@ async fn the_early_script_is_loaded_before_the_modules_and_pages_without_scripts
             && js.contains(&format!("NARROW_BELOW_PX = {NARROW_BELOW_PX};")),
         "vw.js rechnet mit denselben Schwellen wie der Server"
     );
-    // Ohne JavaScript unverändert: Ohne Cookie zeichnet der Server breit, mit Cookie nach dem Cookie.
+    // Unchanged without JavaScript: without the cookie the server draws wide, with the cookie according to the cookie.
     let tag = part(&page, "<html", ">");
     assert!(
         tag.contains("data-laptop=\"auto\"") && !tag.contains("data-compact") && !tag.contains("data-narrow"),
@@ -156,15 +156,15 @@ async fn the_early_script_is_loaded_before_the_modules_and_pages_without_scripts
         Request::get(format!("/?work={work}")).header(header::COOKIE, "baruch_vw=s").body(Body::empty()).unwrap();
     let (_, _, narrow) = server.send(request).await;
     assert!(part(&narrow, "<html", ">").contains("data-narrow"), "mit Cookie zeichnet der Server wie bisher schmal");
-    // Die Satzansicht kommt ohne Skripte aus – auch ohne das frühe.
+    // The typeset view works without scripts – also without the early one.
     let (status, typeset) = server.get(&format!("/werke/{work}/satz")).await;
     if status == StatusCode::OK {
         assert!(!typeset.contains("/static/js/vw.js"), "eine Seite ohne Skripte bekommt auch dieses nicht");
     }
 }
 
-/// DOM-Nachbau für vw.js: <html> mit den Attributen, die der Server für die alten Cookies gezeichnet hat, Cookies
-/// und Fensterbreite. Jeder Fall lädt das Skript neu und meldet Attribute und Cookies danach.
+/// DOM mock for vw.js: <html> with the attributes that the server has drawn for the old cookies, cookies and window
+/// width. Every case loads the script anew and reports attributes and cookies afterwards.
 const VW_HARNESS: &str = r#"
 const FLAGS = ["data-compact", "data-narrow", "data-rail-left", "data-rail-right"];
 const cases = CASES;
@@ -202,13 +202,13 @@ for (const c of cases) {
 console.log(JSON.stringify(out));
 "#;
 
-/// Hinweis der Prüfung R33: Nach einer Größenänderung (neues Fenster, anderer Bildschirm) trug die erste Anfrage
-/// noch die alte Breite; die Seite sprang um, sobald laptop.ts als Modul lief. Das frühe Skript berichtigt Cookie
-/// und Attribute vor dem ersten Zeichnen – nach derselben Formel wie der Server.
+/// Note of the review R33: after a change of size (new window, other screen) the first request still carried the old
+/// width; the page jumped as soon as laptop.ts ran as a module. The early script corrects cookie and attributes before
+/// the first paint – by the same formula as the server.
 #[test]
 fn the_early_script_corrects_cookie_and_attributes_on_the_first_call_after_a_resize() {
     let drawn = |state: &LaptopState| -> Value {
-        // Was der Server für die alten Cookies an <html> geschrieben hat, als Paare [Name, Wert].
+        // What the server has written to <html> for the old cookies, as pairs [name, value].
         let mut pairs = vec![json!(["data-laptop", state.mode.name()])];
         for (on, name) in [
             (state.compact(), "data-compact"),
@@ -278,7 +278,7 @@ fn the_early_script_corrects_cookie_and_attributes_on_the_first_call_after_a_res
     );
 }
 
-// ---- „Sicherung angelegt“ nur einmal ------------------------------------------------------------------------
+// ---- „Sicherung angelegt“ only once -------------------------------------------------------------------------
 
 async fn open_in_subdir() -> common::Server {
     let root = tempfile::tempdir().unwrap();
@@ -307,7 +307,7 @@ async fn the_backup_notice_shows_once_after_a_real_backup_and_never_for_a_mere_l
         .collect();
     assert_eq!(made.len(), 1, "Vorbedingung: genau eine Sicherung liegt neben dem Datenordner: {made:?}");
 
-    // Der Vermerk gehört zu diesem Datenordner: Eine andere Instanz im selben Prozess zeigt nichts.
+    // The note belongs to this data directory: another instance in the same process shows nothing.
     let (_, foreign) = other.get("/einstellungen/daten?ok=sicherung").await;
     assert!(!foreign.contains(notice), "der Vermerk einer anderen Instanz gilt hier nicht");
 
@@ -321,14 +321,14 @@ async fn the_backup_notice_shows_once_after_a_real_backup_and_never_for_a_mere_l
     let (_, second) = server.get("/einstellungen/daten?ok=sicherung").await;
     assert!(!second.contains(notice), "beim Neuladen bzw. über den Link steht die Meldung nicht noch einmal da");
 
-    // Eine abgelehnte Sicherung (ohne Bestätigung) hinterlässt keinen Vermerk.
+    // A rejected backup (without confirmation) leaves no note behind.
     let (status, _) = server.post_form("/einstellungen/daten/sicherung", "").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ohne Bestätigung keine Sicherung");
     let (_, after_refusal) = server.get("/einstellungen/daten?ok=sicherung").await;
     assert!(!after_refusal.contains(notice), "ohne angelegte Sicherung keine Meldung");
 }
 
-// ---- Rechte des Datenordners --------------------------------------------------------------------------------
+// ---- Permissions of the data directory ----------------------------------------------------------------------
 
 #[cfg(unix)]
 #[tokio::test]
@@ -370,7 +370,7 @@ async fn open_permissions_of_an_existing_data_folder_are_reported_and_never_chan
     );
 }
 
-// ---- Token-Liste und Knopf „Zitat“ --------------------------------------------------------------------------
+// ---- Token list and button „Zitat“ --------------------------------------------------------------------------
 
 #[test]
 fn the_former_name_in_the_token_list_does_not_break_inside_the_name() {
@@ -416,7 +416,8 @@ async fn the_quote_button_leaves_no_lonely_dash() {
             || quote.to_string().contains("Stellenangabe"),
         "der Hinweis des Knopfs sagt, wohin die Stellenangabe gehört: {quote}"
     );
-    // Was der Knopf einfügt, setzt das Satzbild als Zitatblock – ohne einen Absatz, der nur aus einem Strich besteht.
+    // What the button inserts is typeset by the typeset view as a quote block – without a paragraph that consists of a
+    // dash only.
     let inserted = format!("Der Satz davor.\n\n{snippet}\nDer Satz danach.\n");
     let doc = baruch_wysiwyg::parse(&inserted);
     assert!(
@@ -427,7 +428,7 @@ async fn the_quote_button_leaves_no_lonely_dash() {
     assert!(!inserted.lines().any(|line| line.trim() == "–"), "keine Zeile, die nur aus dem Gedankenstrich besteht");
 }
 
-// ---- Gliederungsnennungen -----------------------------------------------------------------------------------
+// ---- Outline mentions ---------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn outline_mentions_know_ordinals_beyond_twelve_and_roman_numbers_beyond_xxxix() {
@@ -454,12 +455,12 @@ async fn outline_mentions_know_ordinals_beyond_twelve_and_roman_numbers_beyond_x
         ],
         "Ordnungszahlen über „zwölfte“ und römische Zahlen über XXXIX hinaus führen zum gezählten Kapitel"
     );
-    // Weiter nur bei Eindeutigkeit: kein Ziel, keine Nennung – und nie ein falsches.
+    // Still only when unambiguous: no target, no mention – and never a wrong one.
     let none = "Im sechsundvierzigsten Kapitel, in Kapitel XLVI, in Kapitel L und im hundertsten Kapitel steht nichts. \
                 Kapitel IIII und Kapitel VX sind keine Zahlen; das achtzehn Kapitel lange Buch auch nicht.";
     let found: Vec<String> = outline_mentions(&work, none).into_iter().map(|m| m.text).collect();
     assert!(found.is_empty(), "ohne genau ein Ziel wird nichts genannt: {found:?}");
-    // „achtzehnten“ ist das achtzehnte, nicht das achte Kapitel (der ganze Stamm zählt, nicht sein Anfang).
+    // „achtzehnten“ is the eighteenth, not the eighth chapter (the whole stem counts, not its beginning).
     let eighteen = outline_mentions(&work, "Das steht im achtzehnten Kapitel und im achten Kapitel.");
     assert_eq!(
         eighteen.iter().map(|m| m.key).collect::<Vec<_>>(),
@@ -468,7 +469,7 @@ async fn outline_mentions_know_ordinals_beyond_twelve_and_roman_numbers_beyond_x
     );
 }
 
-// ---- store-5: Löschen eines Gliederungspunkts protokolliert Vorschläge und Beiträge --------------------------
+// ---- store-5: deleting an outline item logs proposals and posts ----------------------------------------------
 
 const MILL: &str = "#set document(title: \"Die Windmühle\", author: \"Ole Strom\")\n\n\
 = Der Mahlgang\n\nDer Stein dreht sich langsam.\n\n\
@@ -483,7 +484,7 @@ fn commits(server: &common::Server, slug: &str) -> usize {
     common::git(&server.mirror_dir_of(slug), &["rev-list", "--count", "HEAD"]).map_or(0, |c| c.trim().parse().unwrap())
 }
 
-/// Abschnitt `node` bekommt einen offenen Vorschlag, einen verworfenen und zwei Beiträge.
+/// Section `node` gets one open proposal, one discarded one and two posts.
 async fn fill(server: &common::Server, work: i64, node: usize, title: &str) {
     let store = &server.state.store;
     let proposal = format!("= {title}\n\nVorschlag: Hier lagert das Korn in Leinensäcken.\n");
@@ -512,7 +513,7 @@ async fn deleting_an_outline_point_records_the_lost_proposals_and_posts_in_the_m
     let report = server.import(MILL, "windmuehle.typ").await;
     let (work, slug) = (report.work, report.slug);
     fill(&server, work, 1, "Der Sackboden").await;
-    // Ein Commit vorab, damit der Spiegel den Stand vor dem Löschen kennt.
+    // One commit in advance so that the mirror knows the state before the deletion.
     let before = commits(&server, &slug);
 
     let answer = server.rpc("outline.delete", json!({ "work": work, "node": 1, "confirm": true })).await;
@@ -550,7 +551,7 @@ async fn deleting_an_outline_point_records_the_lost_proposals_and_posts_in_the_m
     );
     assert!(commit.starts_with("Autor\n"), "gelöscht hat der Mensch (Autor des Commits): {commit}");
 
-    // Ein Punkt ohne Vorschläge und Beiträge: der Commit bleibt, wie er war.
+    // An item without proposals and posts: the commit stays as it was.
     let answer = server.rpc("outline.delete", json!({ "work": work, "node": 1, "confirm": true })).await;
     result(&answer);
     let plain = last_commit(&server, &slug);
@@ -573,8 +574,8 @@ async fn mcp_post(server: &common::Server, session: Option<&str>, message: Value
     (headers, serde_json::from_str(&body).unwrap())
 }
 
-/// Der Mensch bleibt der Einzige, der löscht: Ein Client stellt über MCP nur einen Antrag. Bestätigt der Mensch
-/// ihn, nennt der Commit dieselben Verluste; der Antrag allein löscht und protokolliert nichts.
+/// The human stays the only one who deletes: a client only files a request over MCP. If the human confirms it, the
+/// commit names the same losses; the request alone deletes and logs nothing.
 #[tokio::test]
 async fn a_confirmed_delete_request_records_the_losses_too_and_the_request_alone_deletes_nothing() {
     let server = common::open().await;

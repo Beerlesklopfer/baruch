@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungen (Runde 9, Aufgabe settings): Registrierung der sieben Seiten mit der Vertragssignatur,
-//! Seiten `/einstellungen/<seite>` ohne JavaScript (genau ein Rahmen, Navigation, Speicherort,
-//! `?fragment=1`), Darstellung über Cookies, `baruch_pv`, Werk mit den wiederverwendeten Formularen und
-//! `back`, Assistenten mit `persona.update` und Lektor, MCP-Zugang mit gesehenen Clients, Daten mit
-//! Sicherung und RPC `settings.*`.
+//! Settings (Round 9, task settings): registration of the seven pages with the contract signature, pages
+//! `/einstellungen/<seite>` without JavaScript (exactly one frame, navigation, storage location, `?fragment=1`),
+//! appearance through cookies, `baruch_pv`, work with the reused forms and `back`, assistants with `persona.update` and
+//! lector, MCP access with the clients seen, data with backup and RPC `settings.*`.
 
 use crate::common;
 
@@ -22,10 +21,10 @@ use baruch_server::settings::{PageRender, SettingsPage, registry};
 use baruch_store::{Store, WorkId};
 use serde_json::{Value, json};
 
-// Runde 35 (Vertrag §3.1): „konten“ ist der achte Eintrag.
+// Round 35 (contract §3.1): „konten“ is the eighth entry.
 const SLUGS: [&str; 8] = ["darstellung", "werk", "assistenten", "verbindungen", "quellen", "mcp", "daten", "konten"];
 
-/// Anfrage mit Formular; Antwort Status, Kopfzeilen, Text.
+/// Request with a form; answer status, headers, text.
 async fn form(server: &common::Server, uri: &str, body: &str) -> (StatusCode, HeaderMap, String) {
     let request = Request::post(uri)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -50,22 +49,22 @@ fn error_code(answer: &Value) -> Option<i64> {
     answer["error"]["code"].as_i64()
 }
 
-/// Ausschnitt ab `start` bis einschließlich des ersten `end` dahinter.
+/// Excerpt from `start` up to and including the first `end` after it.
 fn cut<'a>(html: &'a str, start: &str, end: &str) -> &'a str {
     let at = html.find(start).unwrap_or_else(|| panic!("{start} fehlt: {html}"));
     let len = html[at..].find(end).unwrap_or_else(|| panic!("{end} fehlt hinter {start}")) + end.len();
     &html[at..at + len]
 }
 
-/// minijinja maskiert `/` in Werten als `&#x2f;`.
+/// minijinja escapes `/` in values as `&#x2f;`.
 fn unescape(html: &str) -> String {
     html.replace("&#x2f;", "/").replace("&amp;", "&")
 }
 
-// ---- Registrierung ------------------------------------------------------------------------------
+// ---- Registration -------------------------------------------------------------------------------
 
-/// Eine Seite mit genau der Vertragssignatur, außerhalb des Moduls geschrieben (wie connections sie
-/// liefern wird): Sie lässt sich als `render` eintragen.
+/// A page with exactly the contract signature, written outside the module (as connections will deliver it): it can be
+/// entered as `render`.
 fn outside_render<'a>(
     _state: &'a AppState,
     work: Option<WorkId>,
@@ -92,7 +91,7 @@ async fn the_registry_has_eight_pages_in_order_and_takes_a_render_function_from_
             ("quellen", "Quellen", "SQLite (alle Werke)"),
             ("mcp", "MCP-Zugang", "SQLite (nur Hash der Tokens); Clients zur Laufzeit"),
             ("daten", "Daten", "Datenordner"),
-            // Runde 35 (Vertrag §3.1): achter Eintrag.
+            // Round 35 (contract §3.1): eighth entry.
             (
                 "konten",
                 "Konten",
@@ -113,7 +112,7 @@ async fn the_registry_has_eight_pages_in_order_and_takes_a_render_function_from_
     );
 }
 
-// ---- Seiten und Rahmen --------------------------------------------------------------------------
+// ---- Pages and frame ----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn every_settings_page_has_exactly_one_frame_with_navigation_and_storage() {
@@ -197,7 +196,7 @@ async fn the_work_of_a_page_comes_from_query_then_cookie_then_default() {
     assert!(html.contains("href=\"/einstellungen/werk?work=1\""), "ein Cookie mit unbekanntem Werk zählt nicht");
 }
 
-// ---- Darstellung ---------------------------------------------------------------------------------
+// ---- Appearance ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_display_form_sets_and_deletes_cookies_in_the_widget_format() {
@@ -270,8 +269,8 @@ async fn the_display_page_shows_the_cookies_of_the_request() {
         assert!(html.contains(checked), "{checked}: die Seite zeigt den Wert aus dem Cookie: {html}");
     }
     assert!(html.contains("links 22\u{a0}%"), "Breite links aus dem Cookie");
-    // Alle drei Abschnitte des Akkordeons sind wählbar; steht das Cookie auf „Fassungen“, ist genau das
-    // markiert (vorher war dann gar nichts markiert und das Formular lehnte den Wert ab).
+    // All three sections of the accordion can be chosen; if the cookie is set to „Fassungen“, exactly that is marked
+    // (before, nothing at all was marked then and the form rejected the value).
     for value in ["personas", "revisions", "chat"] {
         assert!(html.contains(&format!("name=\"accordion\" value=\"{value}\"")), "Wahl {value} auf der Seite");
     }
@@ -298,7 +297,7 @@ async fn the_display_page_shows_the_cookies_of_the_request() {
 
 // ---- baruch_pv -----------------------------------------------------------------------------------
 
-/// Öffnendes `<details …>` des ersten Stücks von Vorschlag `<key>-<rev>`.
+/// Opening `<details …>` of the first piece of proposal `<key>-<rev>`.
 fn pv_tag(html: &str, key: i64, rev: u32) -> String {
     let at = html.find(&format!("data-pv=\"{key}-{rev}\"")).unwrap_or_else(|| panic!("Vorschlag {rev} fehlt: {html}"));
     let start = html[..at].rfind("<details").expect("data-pv steht an einem <details>");
@@ -308,7 +307,7 @@ fn pv_tag(html: &str, key: i64, rev: u32) -> String {
 #[tokio::test]
 async fn closed_proposals_start_folded_except_the_shown_one() {
     let server = common::open().await;
-    // Einleitung (Stelle 2): Fassung 2 aktuell, 3 Vorschlag von @lektor; dazu 4 von @nathan.
+    // Introduction (position 2): revision 2 current, 3 proposal of @lektor; plus 4 of @nathan.
     let four = server
         .state
         .store
@@ -342,9 +341,9 @@ async fn closed_proposals_start_folded_except_the_shown_one() {
     assert!(!pv_tag(&preview, key, 3).contains(" open"), "auch in der Vorschau eingeklappt");
 }
 
-// ---- Werk ----------------------------------------------------------------------------------------
+// ---- Work ----------------------------------------------------------------------------------------
 
-/// Formular ohne das versteckte Feld `back` (das nur die Einstellungsseite trägt).
+/// Form without the hidden field `back` (which only the settings page carries).
 fn without_back(form: &str) -> String {
     let Some(at) = form.find("<input type=\"hidden\" name=\"back\"") else { return form.to_owned() };
     let end = at + form[at..].find('>').unwrap() + 1;
@@ -423,8 +422,8 @@ async fn forms_with_back_return_to_the_settings_and_foreign_back_is_ignored() {
         "die Fehlerseite behält back für den zweiten Versuch"
     );
 
-    // Abgelehnt im Popup: Die Antwort muss einen Rahmen tragen, den settings.ts übernehmen kann, mit der
-    // Meldung und der Eingabe – sonst ersetzt das Popup alles durch den Fehlertext und die Eingabe ist weg.
+    // Rejected in the popup: the answer has to carry a frame that settings.ts can take over, with the message and the
+    // input – otherwise the popup replaces everything by the error text and the input is gone.
     let body =
         format!("action=update&work=1&title=&subtitle=Eingabe+bleibt&template=%2F%2F+eigene+Vorlage&back={back}");
     let (status, _, page) = form(&server, "/werke/act", &body).await;
@@ -448,23 +447,23 @@ async fn forms_with_back_return_to_the_settings_and_foreign_back_is_ignored() {
     );
 }
 
-// ---- Assistenten ---------------------------------------------------------------------------------
+// ---- Assistants ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn personas_are_edited_by_form_and_rpc_and_the_lector_follows() {
     let server = common::open().await;
     let (_, page) = server.get("/einstellungen/assistenten?work=1").await;
     assert!(page.contains("Lektor: <strong>Lektor</strong>"), "Vorgabe: @lektor hat den größten Kontext: {page}");
-    // Runde 10: kein STUB-Hinweis mehr; ohne Modell-Backend sagt die Seite das ehrlich.
+    // Round 10: no STUB hint any more; without a model backend the page says so honestly.
     assert!(!page.contains("Noch nicht umgesetzt: Modell und Kontext"), "STUB-Hinweis B2 entfernt");
-    // Runde 17a (L4): Die Modellliste fragt die Seite nur auf Wunsch ab („Modellliste abfragen“).
+    // Round 17a (L4): the page queries the model list only on request („Modellliste abfragen“).
     assert!(page.contains("Modellliste noch nicht abgefragt"), "beim Laden keine Abfrage: {page}");
     let (_, fetched) = server.get("/einstellungen/assistenten?work=1&modelle=abfragen").await;
     assert!(fetched.contains("Modellliste nicht verfügbar: Kein Modell-Backend"), "ehrliche Meldung ohne Backend");
-    // Der Lektor folgt dem Kontext nur mit „automatisch“ (Vorgabe des Versuchs: fest @lektor).
+    // The lector follows the context only with „automatisch“ (default of the trial: fixed @lektor).
     server.rpc("persona.set_lector", json!({ "mode": "auto" })).await;
     assert!(page.contains("id=\"persona-nathan\""), "Anker je Persona");
-    // Runde 11: ein Formular je Persona (action=save); das alte method=persona.update geht weiter.
+    // Round 11: one form per persona (action=save); the old method=persona.update still works.
     assert!(page.contains("name=\"action\" value=\"save\""), "Formular „Speichern“ je Persona");
 
     let (status, headers, _) = form(
@@ -487,7 +486,7 @@ async fn personas_are_edited_by_form_and_rpc_and_the_lector_follows() {
         "Rolle und Modell gespeichert"
     );
 
-    // Kästchen „aktiv“ fehlt → inaktiv; der Lektor wechselt zurück.
+    // Check box „aktiv“ missing → inactive; the lector switches back.
     let (status, ..) = form(
         &server,
         "/einstellungen/personas/act",
@@ -551,7 +550,7 @@ async fn persona_list_reads_every_field_even_without_a_work() {
     assert!(werk.contains("Es gibt noch kein Werk."), "Seite Werk ohne Werk: ein Hinweis");
 }
 
-// ---- MCP-Zugang ----------------------------------------------------------------------------------
+// ---- MCP access ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_mcp_page_shows_the_address_and_the_clients_seen_after_initialize() {
@@ -604,9 +603,9 @@ async fn the_mcp_page_shows_the_address_and_the_clients_seen_after_initialize() 
     );
 }
 
-// ---- Daten ---------------------------------------------------------------------------------------
+// ---- Data ----------------------------------------------------------------------------------------
 
-/// Server mit Datenordner `<tempdir>/daten`, damit eine Sicherung im tempdir landet (nicht in /tmp).
+/// Server with the data directory `<tempdir>/daten`, so that a backup lands in the tempdir (not in /tmp).
 async fn open_in_subdir() -> common::Server {
     let root = tempfile::tempdir().unwrap();
     let data = root.path().join("daten");
@@ -615,7 +614,7 @@ async fn open_in_subdir() -> common::Server {
     common::Server { app: baruch_server::router(state.clone()), state, data: root }
 }
 
-/// Alle Dateien unter `dir` (relativ, sortiert).
+/// All files below `dir` (relative, sorted).
 fn files(dir: &Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut stack = vec![dir.to_owned()];
@@ -721,12 +720,12 @@ async fn a_backup_needs_confirmation_and_copies_the_data_folder_next_to_it() {
     if rpc["result"].is_object() {
         assert_eq!(skipped, &json!(["verknuepfung"]), "übersprungene Verknüpfung gemeldet: {rpc}");
     } else {
-        // Zweite Sicherung in derselben Sekunde: sauber abgelehnt (siehe unten), nicht überschrieben.
+        // Second backup in the same second: cleanly rejected (see below), not overwritten.
         assert!(rpc["error"]["message"].as_str().unwrap().contains("gibt es schon"), "{rpc}");
     }
 
-    // Zweite Sicherung in derselben Sekunde: Die Ordner der nächsten Sekunden gibt es schon (wie nach
-    // einer Sicherung eben); die Sicherung scheitert, ohne etwas zu überschreiben.
+    // Second backup in the same second: the directories of the next seconds already exist (as just after a backup); the
+    // backup fails without overwriting anything.
     let pool = server.state.store.pool();
     let mut blocked = Vec::new();
     for offset in 0..4 {
@@ -753,8 +752,8 @@ async fn a_backup_needs_confirmation_and_copies_the_data_folder_next_to_it() {
 
 #[tokio::test]
 async fn backups_stop_at_the_limit_instead_of_filling_the_disk() {
-    // Jede Sicherung ist eine volle Kopie; ohne Obergrenze füllten wiederholte Aufrufe (RPC ohne Browser)
-    // das Dateisystem, das auch die laufende Datenbank trägt.
+    // Every backup is a full copy; without an upper limit repeated calls (RPC without a browser) would fill the file
+    // system that also carries the running database.
     let server = open_in_subdir().await;
     let root = server.path().to_owned();
     for n in 0..baruch_server::settings::MAX_BACKUPS {
@@ -824,7 +823,7 @@ async fn settings_rpc_lists_renders_reads_and_writes_the_pages() {
 
     let set = server.rpc("settings.set", json!({ "page": "werk", "work": 1, "values": { "subtitle": "Neu" } })).await;
     assert_eq!(set["result"]["changed"], json!(["subtitle"]), "dieselbe Funktion wie work.update: {set}");
-    // Der Lektor folgt dem Kontext nur mit „automatisch“ (Runde 10, Vorgabe fest @lektor).
+    // The lector follows the context only with „automatisch“ (Round 10, default fixed @lektor).
     server.rpc("persona.set_lector", json!({ "mode": "auto" })).await;
     let set = server
         .rpc("settings.set", json!({ "page": "assistenten", "values": { "handle": "@hoerer", "context_length": 999999, "color": "#123456" } }))
@@ -865,8 +864,9 @@ async fn settings_are_not_reachable_over_mcp_or_act() {
     let list: Value = serde_json::from_str(&body).unwrap();
     let tools = list["result"]["tools"].as_array().expect("Werkzeugliste");
     assert!(
-        // Ausnahme Runde 29: `typeset_settings` liest die Satz-Einstellungen nur (Vertrag R29 §6.2); ändern kann sie nur
-        // der Mensch. Dass es nur liest, prüft round29_daten; hier zählt, dass kein weiteres Einstellungswerkzeug kommt.
+        // Exception Round 29: `typeset_settings` only reads the typesetting settings (contract R29 §6.2); only the
+        // human can change them. That it only reads is checked by round29_daten; what counts here is that no further
+        // settings tool is added.
         !tools.iter().any(|t| t["name"].as_str().is_some_and(|n| n != "typeset_settings"
             && (n.contains("setting") || n.contains("backup") || n.contains("persona_update")))),
         "kein MCP-Werkzeug für Einstellungen, Sicherung oder persona.update: {list}"

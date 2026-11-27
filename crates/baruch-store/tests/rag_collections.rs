@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sammlungen je Werk und Remote-Weg im Store (Migration 0031, Runde 12, Aufgabe „pgvector“): leer ohne
-//! Zeile, Reihenfolge der Wahl mit lückenloser `position`, Doppelte entfernt, Ablehnungen ohne Änderung
-//! (LanceDB, leer, mehrzeilig, zu lang, mehr als 100), Wege getrennt, unbekanntes Werk, Wachen der Tabelle.
+//! Collections per work and remote way in the store (migration 0031, Round 12, task „pgvector“): empty without a row,
+//! order of the choice with a gapless `position`, duplicates removed, rejections without a change (LanceDB, empty,
+//! multi-line, too long, more than 100), ways separate, unknown work, guards of the table.
 
 use baruch_store::{RagWay, Store, StoreError};
 
@@ -16,7 +16,7 @@ fn names(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| (*s).to_owned()).collect()
 }
 
-/// (Sammlung, position) eines Werks und Wegs, wie sie in der Tabelle stehen.
+/// (collection, position) of a work and way as they are in the table.
 async fn rows(store: &Store, work: i64, way: &str) -> Vec<(String, i64)> {
     sqlx::query_as(
         "SELECT collection, position FROM work_rag_collection WHERE work_id = ? AND way = ? ORDER BY position",

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werkweites Ersetzen und Rückgängig im Store (Runde 30a, Migration 0047): eine Transaktion, je Abschnitt eine neue
-//! Fassung vom Menschen, Überspringen mit Grund, Rückgängig per Umschalten. Echte SQLite-Datei im Temp-Ordner,
-//! Testtexte frei erfunden.
+//! Work-wide replace and undo in the store (Round 30a, migration 0047): one transaction, one new revision by the human
+//! per section, skipping with a reason, undo by switching. Real SQLite file in the temp directory, test texts freely
+//! invented.
 
 use baruch_core::{Author, RevisionStatus};
 use baruch_store::{ReplaceEdit, ReplaceItem, Store, StoreError};
 use serde_json::json;
 
-/// Werk mit `n` Abschnitten „Turm i“ unter einem Kapitel, je mit „Leuchtturm“ im Text.
+/// Work with `n` sections „Turm i“ below one chapter, each with „Leuchtturm“ in the text.
 async fn towers(n: usize) -> (tempfile::TempDir, Store, i64) {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
@@ -19,7 +19,7 @@ async fn towers(n: usize) -> (tempfile::TempDir, Store, i64) {
     (dir, store, work)
 }
 
-/// (Schlüssel, aktuelle Nummer, aktueller Text) je Abschnitt.
+/// (key, current number, current text) per section.
 async fn currents(store: &Store, work: i64) -> Vec<(i64, u32, String)> {
     let loaded = store.load_work(work).await.unwrap();
     loaded
@@ -163,7 +163,7 @@ async fn undo_switches_back_and_skips_sections_changed_afterwards() {
         .collect();
     let (batch, _, _) = store.replace_apply(work, "Leuchtturm", "Wachturm", &json!({}), &edits, "Ida").await.unwrap();
     assert_eq!(store.replace_latest(work).await.unwrap().map(|b| b.id), Some(batch.id), "jüngstes Ersetzen");
-    // Der dritte Abschnitt wird nach dem Ersetzen noch einmal gespeichert.
+    // The third section is saved once more after the replacement.
     let changed = currents(&store, work).await;
     let node = store.node_seq(work, changed[3].0).await.unwrap();
     store.save_human(work, node, &format!("{}Später.\n", changed[3].2), "Ida").await.unwrap();

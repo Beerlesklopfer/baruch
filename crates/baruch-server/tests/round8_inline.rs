@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 8, Aufgabe „inline“: Vorschläge an ihrer Stelle im Lesefluss (Vertrag 2a–2c), Satzbild als
-//! Vorgabe schon im Server-HTML (2d) und die Linien in Persona-Farbe (2e, Test in `personas.rs`).
+//! Round 8, task „inline“: proposals at their place in the reading flow (contract 2a–2c), typeset view as the default
+//! already in the server HTML (2d) and the lines in the persona colour (2e, test in `personas.rs`).
 //!
-//! Aufbau: Der Mensch speichert die Einleitung des Beispielwerks (Stelle 2) als Fassung 4 mit drei
-//! Absätzen (frei erfundener Gartentext). Darauf schlagen vor: @lektor (5) und @nathan (6) je eine
-//! Änderung des mittleren Absatzes, @lektor (7) einen neuen ersten Absatz und das Streichen des
-//! letzten (zwei Stücke). Der alte Vorschlag 3 des Beispiels bleibt offen.
+//! Setup: the human saves the introduction of the sample work (position 2) as revision 4 with three paragraphs (freely
+//! invented garden text). On it propose: @lektor (5) and @nathan (6) one change of the middle paragraph each, @lektor
+//! (7) a new first paragraph and the deletion of the last one (two pieces). The old proposal 3 of the sample stays
+//! open.
 
 use crate::common;
 
@@ -53,13 +53,13 @@ impl Setup {
     }
 }
 
-/// Der Lesefluss `section.pv-flow` bis `</section>`.
+/// The reading flow `section.pv-flow` up to `</section>`.
 fn flow(html: &str) -> &str {
     let at = html.find("<section class=\"pv-flow\"").unwrap_or_else(|| panic!("Lesefluss fehlt: {html}"));
     &html[at..at + html[at..].find("</section>").unwrap()]
 }
 
-/// Alle `<details …>…</details>` eines Ausschnitts.
+/// All `<details …>…</details>` of an excerpt.
 fn all_details(html: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut rest = html;
@@ -71,13 +71,13 @@ fn all_details(html: &str) -> Vec<&str> {
     out
 }
 
-/// Das `<details>`, zu dem die Stelle `at` (sein `data-pv`) gehört.
+/// The `<details>` to which the position `at` (its `data-pv`) belongs.
 fn details_at(html: &str, at: usize) -> &str {
     let start = html[..at].rfind("<details class=\"pv").expect("data-pv steht an einem <details>");
     &html[start..at + html[at..].find("</details>").unwrap()]
 }
 
-/// Stellen der Stücke eines Vorschlags im Ausschnitt.
+/// Positions of the pieces of a proposal in the excerpt.
 fn places(html: &str, key: i64, rev: u32) -> Vec<usize> {
     html.match_indices(&format!("data-pv=\"{key}-{rev}\"")).map(|(at, _)| at).collect()
 }
@@ -86,7 +86,7 @@ fn block_at(html: &str, b: usize) -> usize {
     html.find(&format!("<pre class=\"pv-src\" data-b=\"{b}\">")).unwrap_or_else(|| panic!("Block {b} fehlt: {html}"))
 }
 
-/// Wie oft `needle` vorkommt, ohne dass gleich eine Ziffer folgt („Fassung 4“ zählt nicht in „Fassung 42“).
+/// How often `needle` occurs without a digit following directly („Fassung 4“ does not count in „Fassung 42“).
 fn count_exact(haystack: &str, needle: &str) -> usize {
     haystack
         .match_indices(needle)
@@ -119,7 +119,7 @@ async fn each_proposal_stands_directly_at_the_block_it_changes_inserts_or_remove
         "die gezeigte Fassung blockweise als Quelltext, wörtlich: {flow}"
     );
 
-    // Mittlerer Absatz (Block 2): Lektor (5) und Nathan (6) direkt dahinter, vor Block 3, untereinander.
+    // Middle paragraph (block 2): lector (5) and Nathan (6) directly after it, before block 3, one below the other.
     let (lektor, nathan) = (places(flow, key, 5), places(flow, key, 6));
     assert_eq!((lektor.len(), nathan.len()), (1, 1), "je ein Stück");
     assert!(
@@ -138,7 +138,7 @@ async fn each_proposal_stands_directly_at_the_block_it_changes_inserts_or_remove
     );
     assert!(!first.contains("Flieder") && !first.contains("Zaun"), "unveränderte Nachbarn nicht im Stück: {first}");
 
-    // Vorschlag 7: neuer erster Absatz (vor Block 1) und gestrichener letzter (Block 3, am Ende).
+    // Proposal 7: new first paragraph (before block 1) and deleted last one (block 3, at the end).
     let seven = places(flow, key, 7);
     assert_eq!(seven.len(), 2, "zwei Stücke eines Vorschlags: {flow}");
     assert!(
@@ -158,7 +158,7 @@ async fn each_proposal_stands_directly_at_the_block_it_changes_inserts_or_remove
     assert!(last.contains("· Teil 2&#x2f;2</span>"), "Teil 2 von 2: {last}");
     assert!(last.contains("<span class=\"removed\">− Der Zaun braucht neue Farbe.</span>"), "das Gestrichene: {last}");
 
-    // Satzbild der Stücke (für wysiwyg.ts), die Liste unter dem Editor ist fort.
+    // Typeset view of the pieces (for wysiwyg.ts), the list below the editor is gone.
     assert!(
         first.contains("<div class=\"pv-satz ws-sheet\"><div class=\"ws-diff-doc\" data-kind=\"changed\">"),
         "das Stück trägt sein Satzbild (für wysiwyg.ts im Satzbild) mit der Art „geändert“: {first}"
@@ -219,7 +219,7 @@ async fn folding_a_proposal_folds_all_its_parts_and_accepting_by_its_form_is_one
         assert_eq!(!tag.ends_with(" open>"), folded, "nur die Stücke von 7 eingeklappt (beide): {tag}");
     }
 
-    // Übernehmen ohne JavaScript: genau die Felder des Formulars, auf das der Knopf zeigt.
+    // Accept without JavaScript: exactly the fields of the form to which the button points.
     let id = format!("pv-accept-{key}-6");
     let at = html.find(&format!("<form id=\"{id}\"")).expect("Formular des Vorschlags 6");
     let form = &html[at..at + html[at..].find("</form>").unwrap()];
@@ -267,11 +267,11 @@ async fn in_the_preview_proposals_stand_at_their_place_inside_the_section() {
     );
 }
 
-/// Ursache „Quelltext aktiv nach dem Laden“ (Backlog, Runde 8): Der Server lieferte den Umschalter
-/// immer mit „Satzbild“ gedrückt und ein leeres Satzbild; das Widget schaltete beim Einhängen erst auf
-/// Quelltext und öffnete das Satzbild erst nach zwei RPC-Antworten. Jetzt zeichnet der Server den
-/// Zustand aus dem Cookie `baruch_editor` und liefert das Satzbild fertig mit (`data-ws-ready`).
-/// Vor der Behebung scheitert dieser Test an `data-ws-ready` und am Cookie `quelltext`.
+/// Cause of „Quelltext aktiv nach dem Laden“ (backlog, Round 8): the server always delivered the toggle
+/// with „Satzbild“ pressed and an empty typeset view; on mounting the widget first switched to
+/// source text and opened the typeset view only after two RPC answers. Now the server draws the
+/// state from the cookie `baruch_editor` and delivers the typeset view ready-made (`data-ws-ready`).
+/// Before the fix this test fails on `data-ws-ready` and on the cookie `quelltext`.
 #[tokio::test]
 async fn the_server_already_renders_the_satzbild_as_default_and_the_source_only_on_request() {
     let setup = Setup::new().await;
@@ -291,8 +291,8 @@ async fn the_server_already_renders_the_satzbild_as_default_and_the_source_only_
         "das Satzbild der gezeigten Fassung kommt fertig vom Server, gleich wysiwyg.parse: {area}"
     );
     assert!(area.contains("<span class=\"ws-tools\" data-ws-tools>"), "Werkzeuge sichtbar (im Satzbild)");
-    // Runde 33 (Menüband): Die Leiste über dem Blatt besteht jetzt aus Gruppen (<details class="band-group">); die
-    // Zusicherung gilt darum für das Blatt selbst (ab div.editor-body), nicht mehr für den ganzen Bereich.
+    // Round 33 (ribbon): the bar above the sheet now consists of groups (<details class="band-group">); the assertion
+    // therefore applies to the sheet itself (from div.editor-body on), no longer to the whole area.
     let sheet = &area[area.find("<div class=\"editor-body\"").expect("Blatt")..];
     assert!(!sheet.contains("details"), "die Vorschläge setzt erst das Widget ins Satzbild");
 
@@ -308,7 +308,7 @@ async fn the_server_already_renders_the_satzbild_as_default_and_the_source_only_
     assert!(area.contains("data-ws-tools hidden") && area.contains("data-ws-wrap hidden"), "Satzbild-Teile verborgen");
     assert!(area.contains("data-ws-start=\"quelltext\""), "{area}");
 
-    // ui.render (Klick in der Gliederung) liest dasselbe Cookie.
+    // ui.render (click in the outline) reads the same cookie.
     let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "ui.render", "params": { "node": 2 } });
     let request = Request::post("/rpc")
         .header(header::CONTENT_TYPE, "application/json")
@@ -323,7 +323,7 @@ async fn the_server_already_renders_the_satzbild_as_default_and_the_source_only_
     let editor = rendered["result"]["editor"].as_str().unwrap();
     assert!(editor.contains(" data-ws-ready>"), "ohne Cookie auch nach ui.render das fertige Satzbild");
 
-    // Das Widget übernimmt das fertige Satzbild beim Einhängen und setzt die Vorschläge an ihre Stelle.
+    // The widget takes over the ready-made typeset view on mounting and puts the proposals at their place.
     let js = baruch_server::SCRIPTS.iter().find(|(name, _)| *name == "wysiwyg.js").unwrap().1;
     for part in ["function adoptSheet", "data-ws-ready", "function placeProposals", "function returnProposals"] {
         assert!(js.contains(part), "wysiwyg.js enthält {part}");

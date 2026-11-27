@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme der Runde 28 (Integrator): erfundenes Werk mit 3 Teilen, 12 Kapiteln, 6 Personas; RFC, Status, Matrix,
-//! Abzeichen, Rundreise u4, Chat (Vertrag R28 §6).
+//! Acceptance of Round 28 (integrator): invented work with 3 parts, 12 chapters, 6 personas; RFC, status, matrix,
+//! badges, round trip u4, chat (contract R28 §6).
 //!
-//! Hier steht, was erst nach dem Zusammenführen der drei Zweige geht: Das Zerlegen (befunde) hängt am RFC und an den
-//! Entscheidungen im Kontext (chat-auftrag), die Zahlen zeigen Matrix, Abzeichen, Karte und Fassungsbaum
-//! (befund-uebersicht). Kein Netz, kein Eliezer: Modelle nur über `ScriptedModel`, das jeden gesendeten Aufruf
-//! aufzeichnet; die Reihenfolge der Antworten legt der Test aus `assist::chat::rfc_personas` fest, damit kein
-//! Skript an der Reihenfolge der Personas in der Datenbank hängt. Das „Brückenbuch“ ist frei erfunden.
+//! Here is what only works after the three branches have been merged: the splitting (befunde) depends on the RFC and on
+//! the decisions in the context (chat-auftrag), the numbers are shown by matrix, badges, map and revision tree
+//! (befund-uebersicht). No network, no Eliezer: models only through `ScriptedModel`, which records every call sent; the
+//! order of the answers is set by the test from `assist::chat::rfc_personas`, so that no script depends on the order of
+//! the personas in the database. The „Brückenbuch“ is freely invented.
 
 use crate::common;
 
@@ -27,7 +27,7 @@ const PARTS: [(&str, [&str; 4]); 3] = [
     ("Meer", ["Hafen", "Leuchtfeuer", "Sandbank", "Heimkehr"]),
 ];
 
-/// Wortlaut des Kapitels „Brücke“: Nathans kritischer Befund zitiert daraus (Belegpflicht, Runde 17).
+/// Wording of the chapter „Brücke“: Nathan's critical finding quotes from it (duty to give evidence, Round 17).
 const BRIDGE_TEXT: &str = "Die Brücke ächzt unter dem Karren. Unten zieht der Fluss grau vorbei.";
 
 fn book() -> String {
@@ -69,7 +69,7 @@ impl Bridge {
         common::git(&self.server.mirror_dir_of(&self.slug), &["log", "-1", "--format=%s%n%b"]).unwrap_or_default()
     }
 
-    /// Formular ohne JavaScript; liefert Status, Location und Rumpf.
+    /// Form without JavaScript; returns status, Location and body.
     async fn form(&self, uri: &str, form: String) -> (StatusCode, Option<String>, String) {
         let request = Request::post(uri)
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -126,12 +126,12 @@ fn system(call: &ModelCall) -> &str {
     call.messages.iter().find(|m| m.role == Role::System).map(|m| m.content.as_str()).unwrap()
 }
 
-/// HTML-Maskierung von minijinja zurücknehmen, soweit Adressen sie tragen.
+/// Undo the HTML escaping of minijinja as far as addresses carry it.
 fn unescape(html: &str) -> String {
     html.replace("&#x2f;", "/").replace("&amp;", "&")
 }
 
-/// Wert eines Attributs im ersten Tag, das `marker` enthält.
+/// Value of an attribute in the first tag that contains `marker`.
 fn attr(html: &str, marker: &str, name: &str) -> String {
     let at = html.find(marker).unwrap_or_else(|| panic!("{marker} fehlt: {html}"));
     let start = if html[at..].starts_with('<') { at } else { html[..at].rfind('<').unwrap() };
@@ -142,7 +142,7 @@ fn attr(html: &str, marker: &str, name: &str) -> String {
     tag[from..from + tag[from..].find('"').unwrap()].to_owned()
 }
 
-/// Zahl `data-findings-open` am Eintrag `data-key="<key>"` der Gliederung auf der Arbeitsseite.
+/// Number `data-findings-open` at the entry `data-key="<key>"` of the outline on the work page.
 fn tree_badge(html: &str, key: i64) -> Option<usize> {
     let at = html.find(&format!(" data-key=\"{key}\" data-level="))?;
     let rest = &html[at..];
@@ -163,7 +163,7 @@ fn row_of(matrix: &Value, key: i64) -> Value {
         .clone()
 }
 
-/// Antworten der fünf anderen Personas beim RFC (je genau ein Befund mit Marke), nach Handle.
+/// Answers of the five other personas in the RFC (exactly one finding with a mark each), by handle.
 fn rfc_answer(handle: &str) -> &'static str {
     match handle {
         "@exeget" => "Hinweis: Der Übergang vom Steg zur Brücke kommt ohne Ankündigung.",
@@ -177,7 +177,8 @@ fn rfc_answer(handle: &str) -> &'static str {
     }
 }
 
-/// Uuid, Art, Status, Begründung, Fassung, Ursprünge, Anhang und Verlaufslänge je Befund (ohne ids der Instanz).
+/// Uuid, kind, status, reason, revision, origins, attachment and history length per finding (without ids of the
+/// instance).
 async fn finding_rows(server: &common::Server, work: i64) -> Vec<String> {
     sqlx::query_scalar(
         "SELECT f.uuid || '|' || f.persona || '|' || f.kind || '|' || f.status || '|' || f.reason || '|' \
@@ -200,7 +201,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     let bridge_key = b.key("Brücke");
     let pass = b.key("Pass");
 
-    // ---- RFC im Kapitel Brücke: alle sechs Personas, der Lektor zuletzt mit Sammlung ----------------------------
+    // ---- RFC in the chapter Brücke: all six personas, the lector last with the summary --------------------------
     let (others, lector) = baruch_server::assist::chat::rfc_personas(state).await.unwrap();
     assert_eq!(lector.as_deref(), Some("@lektor"), "Vorgabe: fester Lektor @lektor");
     let mut sorted = others.clone();
@@ -208,7 +209,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     assert_eq!(sorted, ["@belege", "@exeget", "@hoerer", "@nathan", "@schrift"], "sechs aktive Personas");
     let base: i64 =
         sqlx::query_scalar("SELECT coalesce(max(id), 0) FROM finding").fetch_one(state.store.pool()).await.unwrap();
-    // Jede Antwort ergibt genau einen Befund; ihre ids folgen darum der Reihenfolge der Aufrufe (unten geprüft).
+    // Every answer yields exactly one finding; their ids therefore follow the order of the calls (checked below).
     let id_of = |handle: &str| base + 1 + others.iter().position(|h| h == handle).unwrap() as i64;
     for handle in &others {
         b.model.push(Step::words(rfc_answer(handle)));
@@ -241,7 +242,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
         "der Lektor sieht die Befunde der anderen mit ihren Verweisen [B<id>] (zum Zitieren): {last}"
     );
 
-    // Zerlegt: je Persona ein Befund (Lob gespeichert, aber ausgeblendet), der Lektor zwei Sammelvorschläge.
+    // Split: one finding per persona (praise stored but hidden), the lector two summary proposals.
     let all = FindingFilter { include_praise: true, include_attached: true, ..FindingFilter::default() };
     let found = state.store.finding_list(b.work, &all).await.unwrap();
     assert_eq!(found.len(), 7, "fünf Befunde der anderen und zwei Sammelvorschläge des Lektors: {found:#?}");
@@ -275,7 +276,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
         .unwrap();
     assert_eq!(lector_post, lector_answer, "der Beitrag des Lektors steht wörtlich im Chat");
 
-    // ---- Der Autor entscheidet ohne JavaScript (Formulare), je Entscheidung ein Commit ------------------------
+    // ---- The author decides without JavaScript (forms), one commit per decision -------------------------------
     let back = format!("%2F%3Fwork%3D{}%26key%3D{bridge_key}", b.work);
     let before = b.commits().await;
     for (form, what) in [
@@ -314,7 +315,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     assert!(body.contains("Begründung"), "der Hinweis nennt die fehlende Begründung: {body}");
     assert_eq!(b.commits().await, before + 3, "abgelehnt: kein Commit");
 
-    // ---- Nächste Prüfung: Entscheidungen gerahmt, die Wiederholung wird angehängt -----------------------------
+    // ---- Next review: decisions framed, the repetition is attached --------------------------------------------
     b.model.push(Step::words(rfc_answer("@nathan")));
     let review = Order {
         work: b.work,
@@ -344,11 +345,11 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     let repeat = found.iter().find(|f| f.id > base + 7).expect("die Wiederholung ist gespeichert");
     assert_eq!(repeat.similar_to, Some(nathan), "wiederholter verworfener Befund wird angehängt (Vertrag 1.4)");
 
-    // ---- Zahlen: Matrix, finding_open_counts, Abzeichen in Gliederung, Editorkopf, /gliederung, Karte ---------
-    // Offen an der Brücke zählt der Hinweis von @schrift; nicht: Lob, übernommen, verworfen, verschoben, die
-    // angehängte Wiederholung (Zählregel 1.5) und – seit Runde 23a (PM-Entscheidung) – die beiden Sammelvorschläge:
-    // ihre Ursprünge zählen schon, sonst stiege „k offen“ nach einem RFC doppelt. Matrix und Abzeichen zählen
-    // gleich; die Sammelvorschläge stehen weiter in der Liste „Sammelvorschläge“ der Befundseite.
+    // ---- Numbers: matrix, finding_open_counts, badges in outline, editor header, /gliederung, map ---------
+    // Open at the bridge counts the hint of @schrift; not: praise, accepted, discarded, postponed, the
+    // attached repetition (counting rule 1.5) and – since Round 23a (PM decision) – the two summary proposals:
+    // their origins already count, otherwise „k offen“ would rise twice after an RFC. Matrix and badges count
+    // alike; the summary proposals are still in the list „Sammelvorschläge“ of the findings page.
     let counts = state.store.finding_open_counts(b.work).await.unwrap();
     assert_eq!(counts.get(&bridge_key), Some(&1), "finding_open_counts ohne Sammelvorschläge: {counts:?}");
     let m = result(&b.server.rpc("finding.matrix", json!({ "work": b.work })).await).clone();
@@ -365,7 +366,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     assert_eq!(attr(&map, &format!("data-node=\"n:{bridge_key}\""), "data-open-findings"), "1", "Gedankenkarte");
     assert!(map.contains(">1 offen</text>"), "Ebene Befunde als Text im Bild, nicht nur Farbe");
 
-    // ---- Fassungsbaum, Befundseite, Akkordeon ohne JavaScript -------------------------------------------------
+    // ---- Revision tree, findings page, accordion without JavaScript -------------------------------------------
     assert!(
         workspace.contains(&format!(
             "✓ setzt Befund <a href=\"/werke/{}/befunde?befund={exeget}\">[B{exeget}]</a> um",
@@ -384,7 +385,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
         "die Wiederholung verweist auf das verworfene Original"
     );
 
-    // ---- Lektor als Begleiter, Nathan als Prüfer --------------------------------------------------------------
+    // ---- Lector as companion, Nathan as reviewer --------------------------------------------------------------
     let calls_before = b.model.calls().len();
     b.model.push(Step::words("Der Pass wirkt still und gut. Vorschlag: einen Laut der Höhe ergänzen."));
     let answer = b
@@ -409,12 +410,12 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     assert_eq!(calls.len(), calls_before + 3, "Nathan ohne „Kritisch:“ wird einmal nachgefordert");
     assert!(system(calls.last().unwrap()).contains(prompts::CRITICAL_RETRY_NOTE), "mit Hinweis auf den Befund");
 
-    // ---- Rundreise u4 zwischen zwei Wegwerf-Instanzen --------------------------------------------------------
+    // ---- Round trip u4 between two throwaway instances -------------------------------------------------------
     let xml = result(&b.server.rpc("work.exchange_export", json!({ "work": b.work, "format": "xml" })).await)["xml"]
         .as_str()
         .unwrap()
         .to_owned();
-    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
     assert!(xml.contains("version=\"10\"") && xml.contains("<befunde>"), "Unterversion 9 (seit Runde 34) mit Befunden");
     let other = common::open().await;
     let bytes = xml.as_bytes();
@@ -442,7 +443,7 @@ async fn chat_orders_and_post_edits_work_end_to_end_without_javascript() {
     let state = &b.server.state;
     let bridge_key = b.key("Brücke");
 
-    // Ein Befund der Persona, den ein Schreibauftrag umsetzen soll: der Statusvorschlag landet am Befund.
+    // A finding of the persona that a writing order is to implement: the status proposal lands at the finding.
     b.model.push(Step::words("Hinweis: Der Fluss bekommt keinen Namen."));
     let answer = b
         .server
@@ -478,7 +479,7 @@ async fn chat_orders_and_post_edits_work_end_to_end_without_javascript() {
     assert_eq!(b.commits().await, before + 1, "die Entscheidung ist ein Commit");
     assert_eq!(state.store.finding_get(b.work, target).await.unwrap().pending, None, "kein offener Vorschlag mehr");
 
-    // Persona-Beitrag in Befunde umwandeln: der Beitrag bleibt byte-gleich.
+    // Convert a persona post into findings: the post stays byte-identical.
     let persona_post: (i64, String) =
         sqlx::query_as("SELECT id, body FROM post WHERE author = '@lektor' ORDER BY id DESC")
             .fetch_one(state.store.pool())
@@ -497,7 +498,7 @@ async fn chat_orders_and_post_edits_work_end_to_end_without_javascript() {
         .unwrap();
     assert_eq!(now, persona_post.1, "der Beitrag bleibt unverändert");
 
-    // Eigener Beitrag: bearbeiten mit Verlauf und Commit; Persona-Beitrag nicht bearbeitbar.
+    // Own post: edit with history and commit; a persona post cannot be edited.
     let (status, _) = b
         .server
         .post_form(
@@ -527,7 +528,7 @@ async fn chat_orders_and_post_edits_work_end_to_end_without_javascript() {
     let (status, _) = b.server.post_form("/beitraege/act", &form).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Persona-Beitrag über das Formular abgelehnt");
 
-    // Chat rollt in begrenzter Höhe und steht am neuesten Beitrag; ganze Historie ohne JavaScript.
+    // The chat scrolls within a limited height and stands at the newest post; whole history without JavaScript.
     let workspace = b.page(&format!("/?work={}&key={bridge_key}", b.work)).await;
     assert!(workspace.contains("id=\"chat-neueste\""), "Anker auf den neuesten Beitrag");
     assert!(
@@ -541,7 +542,7 @@ async fn chat_orders_and_post_edits_work_end_to_end_without_javascript() {
     let history = b.page(&format!("/beitraege?work={}&key={bridge_key}", b.work)).await;
     assert!(history.contains(&format!("id=\"post-{own}\"")), "ganze Historie mit Ankern je Beitrag");
 
-    // Faden: RFC wird zu Befunden mit Herkunft Fadenbeitrag; Anker am neuesten Beitrag.
+    // Thread: the RFC becomes findings with the origin thread post; anchor at the newest post.
     let (others, _) = baruch_server::assist::chat::rfc_personas(state).await.unwrap();
     for handle in &others {
         b.model.push(Step::words(rfc_answer(handle)));

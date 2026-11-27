@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 27, Aufgabe umschlag-daten (R27a): Umschlag-Anordnung über RPC und MCP, Anträge, Anschriften und Austausch-Unterversion 3.
+//! Round 27, task umschlag-daten (R27a): cover layout over RPC and MCP, requests, addresses and exchange minor version
+//! 3.
 //!
-//! Werk frei erfunden (`tests/data/gartenbuch.typ`); jede Zusicherung mit Begründung. Geprüft wird über die echten
-//! Wege: RPC `cover.layout`, `cover.layout_set`, `cover.layout_reset`, `cover.fonts`, MCP `cover_layout`,
-//! `cover_layout_set` mit Bestätigen und Ablehnen über `asset.request_decide`, Spiegel-Commits im Git-Ordner und der
-//! Austausch zwischen zwei Instanzen über `work.exchange_export`/`work.exchange_import` (XSD der Unterversion 3).
+//! Work freely invented (`tests/data/gartenbuch.typ`); every assertion with its reason. The check goes through the real
+//! ways: RPC `cover.layout`, `cover.layout_set`, `cover.layout_reset`, `cover.fonts`, MCP `cover_layout`,
+//! `cover_layout_set` with confirming and rejecting through `asset.request_decide`, mirror commits in the Git directory
+//! and the exchange between two instances through `work.exchange_export`/`work.exchange_import` (XSD of minor version
+//! 3).
 
 use std::net::SocketAddr;
 
@@ -75,7 +77,7 @@ async fn layout(server: &common::Server, work: i64) -> Value {
     result(&server.rpc("cover.layout", json!({ "work": work })).await).clone()
 }
 
-/// Wirksamer Block der Art `kind` aus `cover.layout` (samt `stored` und `height_mm`).
+/// Effective block of the kind `kind` from `cover.layout` (including `stored` and `height_mm`).
 fn block_of(view: &Value, kind: &str) -> Value {
     view["blocks"].as_array().unwrap().iter().find(|b| b["kind"] == kind).cloned().unwrap_or(Value::Null)
 }
@@ -97,7 +99,7 @@ async fn without_rows_cover_layout_shows_all_default_blocks_with_geometry() {
     let blocks = view["blocks"].as_array().unwrap();
     assert_eq!(blocks.len(), 15, "alle 15 Arten (Vertrag 1.1)");
     assert!(blocks.iter().all(|b| b["stored"] == false), "alles Vorgabeblöcke");
-    // R27b: ein Block ohne Inhalt (etwa der Untertitel eines Werks ohne Untertitel) hat die gemessene Höhe 0.
+    // R27b: a block without content (for example the subtitle of a work without subtitle) has the measured height 0.
     assert!(blocks.iter().all(|b| b["height_mm"].as_f64().is_some_and(|h| h >= 0.0)), "jede Höhe gemessen: {view}");
     assert!(
         block_of(&view, "front_title")["height_mm"].as_f64().is_some_and(|h| h > 0.0),
@@ -145,7 +147,7 @@ async fn layout_set_replaces_named_kinds_keeps_the_others_and_commits_once_with_
     assert_eq!(block_of(shown, "spine_author")["direction"], "up", "Laufrichtung aufwärts");
     assert_eq!(block_of(shown, "front_author")["stored"], false, "ungenannte Arten bleiben Vorgabe");
 
-    // Zweites Setzen nur des Titels: der Rücken-Block bleibt gespeichert, wie er war.
+    // Second set of the title only: the spine block stays stored as it was.
     let mut again = block_of(shown, "front_title");
     again["width_mm"] = json!(90.0);
     let answer = server.rpc("cover.layout_set", json!({ "work": work, "blocks": [again] })).await;
@@ -153,7 +155,7 @@ async fn layout_set_replaces_named_kinds_keeps_the_others_and_commits_once_with_
     assert_eq!(block_of(after, "spine_author")["stored"], true, "ungenannter Block bleibt (Vertrag 4)");
     assert_eq!(block_of(after, "spine_author")["direction"], "up", "mit seinen Werten");
     assert_eq!(commits(&server, &slug), before + 2, "wieder genau ein Commit");
-    // Unverändert noch einmal: kein Commit.
+    // Unchanged once more: no commit.
     let same = block_of(after, "front_title");
     let answer = server.rpc("cover.layout_set", json!({ "work": work, "blocks": [same] })).await;
     assert!(result(&answer).get("commit").is_none(), "ohne Änderung kein Commit: {answer}");
@@ -243,7 +245,7 @@ async fn a_quick_choice_resets_only_the_front_with_the_area_and_a_full_reset_lea
         .await
         .unwrap();
     assert_eq!(stones, 3, "je gelöschter Zeile ein Grabstein 'cover_block'");
-    // Nichts mehr zurückzusetzen: kein Commit.
+    // Nothing left to reset: no commit.
     result(&server.rpc("cover.layout_reset", json!({ "work": work })).await);
     assert_eq!(commits(&server, &slug), before + 2, "ohne Änderung kein Commit");
     let wrong = server.rpc("cover.layout_reset", json!({ "work": work, "faces": ["inside"] })).await;
@@ -332,7 +334,7 @@ async fn mcp_reads_without_change_and_a_confirmed_request_is_executed_with_reque
         requests[0]["blocks"].is_array() && requests[0]["expected_layout"].is_string(),
         "Liste zeigt blocks und expected_layout"
     );
-    // Die Seite „Bilder“ zeigt den Antrag ohne JavaScript mit Bestätigen/Ablehnen und je Block eine Zeile.
+    // The page „Bilder“ shows the request without JavaScript with Bestätigen/Ablehnen and one line per block.
     let (status, page) = server.get(&format!("/werke/{work}/bilder")).await;
     assert_eq!(status, StatusCode::OK, "Seite Bilder");
     assert!(page.contains("Umschlag-Anordnung ändern (1 Block)"), "Zusammenfassung in der Liste");
@@ -369,7 +371,7 @@ async fn a_request_goes_stale_after_a_human_change_and_rejecting_changes_nothing
     )
     .await;
     let id = filed["request"]["id"].as_i64().unwrap();
-    // Der Mensch ändert inzwischen direkt.
+    // Meanwhile the human changes it directly.
     let view = layout(&server, work).await;
     let mut author = block_of(&view, "front_author");
     author["y_mm"] = json!(150.0);
@@ -417,7 +419,7 @@ async fn no_mcp_tool_changes_the_layout_directly() {
             .all(|t| !t["description"].as_str().unwrap().contains("STUB")),
         "kein Stub mehr (R27a umgesetzt)"
     );
-    // Auch ein vollständiger Block über MCP ändert nichts sofort.
+    // A complete block over MCP does not change anything immediately either.
     let read = ok_tool(&server, &session, "cover_layout", json!({ "work": work })).await;
     let mut full = block_of(&read, "front_title");
     full["x_mm"] = json!(9.0);
@@ -427,8 +429,8 @@ async fn no_mcp_tool_changes_the_layout_directly() {
 
 #[tokio::test]
 async fn without_a_page_size_rpc_refuses_but_mcp_reads_the_stored_blocks_and_saving_still_works() {
-    // Ein Buch mit Satzfehler hat kein Seitenmaß: cover.layout lehnt ab wie build_wrap (Vertrag 4), MCP liest mit
-    // geometry: null und geometry_error, und Speichern geht trotzdem (Antwort layout: null, layout_error).
+    // A book with a typesetting error has no page size: cover.layout rejects like build_wrap (contract 4), MCP reads
+    // with geometry: null and geometry_error, and saving works nevertheless (answer layout: null, layout_error).
     let server = common::open().await;
     let report = server.import("= Kaputt\n#gibt-es-nicht-im-garten()\n", "kaputt.typ").await;
     let work = report.work;
@@ -511,7 +513,7 @@ async fn two_instances_carry_layout_addresses_and_sheet_and_merge_after_f6() {
     result(&a.rpc("work.sheet_set", json!({ "work": work_a, "size": "12pt", "background": "#fbf8f1" })).await);
 
     let xml = export_xml(&a, work_a).await;
-    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
     assert!(xml.contains("version=\"10\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
     assert!(
         xml.contains("<umschlag>") && xml.contains("art=\"ruecken-autor\"") && xml.contains("<satzbild "),
@@ -519,7 +521,7 @@ async fn two_instances_carry_layout_addresses_and_sheet_and_merge_after_f6() {
     );
     xmllint_u3(&xml);
 
-    // B liest neu ein: Anordnung samt Kennungen, Anschriften und Satzbild kommen mit.
+    // B imports anew: layout including identifiers, addresses and typeset view come along.
     let b = common::open().await;
     let work_b = import(&b, &xml, "new").await["work"].as_i64().unwrap();
     assert_eq!(
@@ -555,7 +557,7 @@ async fn two_instances_carry_layout_addresses_and_sheet_and_merge_after_f6() {
         "Rückweg byte-gleich ab <angaben>"
     );
 
-    // F6: A setzt den Rücken zurück (Grabstein); B setzt den Titel zurück (Grabstein) und verschiebt den Freitext.
+    // F6: A resets the spine (tombstone); B resets the title (tombstone) and moves the free text.
     result(&a.rpc("cover.layout_reset", json!({ "work": work_a, "faces": ["spine"] })).await);
     result(&b.rpc("cover.layout_reset", json!({ "work": work_b, "faces": ["front"] })).await);
     let mut moved = block_of(&layout(&b, work_b).await, "back_free");

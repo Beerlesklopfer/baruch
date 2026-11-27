@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild-Editor im Server: RPC `wysiwyg.*` (direkt über `baruch_server::wysiwyg::call`; den Eintrag
-//! unter `/rpc` verdrahtet der Integrator), Editor-Seite ohne JavaScript und Rundreise über alle
-//! Fassungen des Beispielwerks.
+//! Typeset view editor in the server: RPC `wysiwyg.*` (directly through `baruch_server::wysiwyg::call`; the entry under
+//! `/rpc` is wired by the integrator), editor page without JavaScript and round trip across all revisions of the sample
+//! work.
 
 use crate::common;
 
@@ -11,7 +11,7 @@ use baruch_server::wysiwyg;
 use baruch_wysiwyg::{Edit, parse, serialize};
 use serde_json::{Value, json};
 
-/// Frei erfundenes Werk mit eigener Vorlage (Schrift, Farbe, Kasten ausgedacht).
+/// Freely invented work with its own template (font, colour, box made up).
 const BOOK: &str = r##"#set document(title: "Der Brunnenbauer", author: "Niemand")
 #set text(font: "Erfundene Antiqua", size: 10pt, fill: rgb("#223344"))
 #set par(first-line-indent: 1em)
@@ -110,7 +110,7 @@ async fn style_comes_from_the_work_template() {
 async fn diff_compares_a_proposal_with_its_parent() {
     let server = common::open().await;
     let work = default_work(&server).await;
-    // Beispielwerk: Einleitung (Stelle 2) hat Fassung 3 als Vorschlag.
+    // Sample work: the introduction (position 2) has revision 3 as a proposal.
     let tree = server.rpc("revision.tree", json!({ "work": work, "node": 2 })).await;
     let revisions = tree["result"]["revisions"].as_array().unwrap();
     let proposal = revisions.iter().find(|r| r["status"] == "proposed").expect("Vorschlag im Beispielwerk");
@@ -169,8 +169,8 @@ async fn the_editor_works_without_javascript_and_carries_the_satzbild_hidden() {
     assert!(!html[form..area].contains("</form>"), "zwischen Formularbeginn und Textfeld endet das Formular nicht");
     let save = html.find("form=\"editor-form\" data-saved=\"Gespeichert\"").expect("Speichern in der Statuszeile");
     assert!(area < save, "„Speichern“ steht in der Statuszeile unter dem Blatt und gehört über form= zum Formular");
-    // Runde 7: Der Vorschlag steht als Variante im Lesefluss; der Satzbild-Diff kommt vom Server
-    // (pv-satz, per CSS nur bei offenem Satzbild sichtbar), der Zeilen-Diff bleibt der Rückfall.
+    // Round 7: the proposal stands as a variant in the reading flow; the typeset view diff comes from the server
+    // (pv-satz, visible via CSS only with the typeset view open), the line diff stays the fallback.
     assert!(html.contains("<pre class=\"pv-quelltext diff\">"), "der Quelltext-Diff bleibt als Rückfall: {html}");
     assert!(
         html.contains("<div class=\"pv-satz ws-sheet\"><div class=\"ws-diff-doc\" data-kind=\"changed\">"),
@@ -198,7 +198,7 @@ async fn the_editor_works_without_javascript_and_carries_the_satzbild_hidden() {
     assert!(main.contains("./wysiwyg.js"), "main.js lädt das Widget");
 }
 
-/// Verkettung der raw und `serialize` mit lauter Keep ergeben den Text.
+/// Concatenating the raw and `serialize` with nothing but Keep yield the text.
 fn assert_round_trip(body: &str, origin: &str) {
     let doc = parse(body);
     let joined: String = doc.blocks.iter().map(|b| b.raw.as_str()).collect();
@@ -209,7 +209,7 @@ fn assert_round_trip(body: &str, origin: &str) {
 
 #[tokio::test]
 async fn every_revision_of_the_sample_work_comes_back_byte_for_byte() {
-    // Beispieldaten im Quelltext …
+    // Sample data in the source …
     let sample = baruch_core::sample::work();
     let mut count = 0;
     for node in &sample.nodes {
@@ -219,7 +219,7 @@ async fn every_revision_of_the_sample_work_comes_back_byte_for_byte() {
         }
     }
     assert!(count > sample.nodes.len(), "auch ältere Fassungen und Vorschläge geprüft ({count})");
-    // … und wie sie in der Datenbank stehen (gesät), samt Werkvorlage und Export.
+    // … and as they are in the database (seeded), including work template and export.
     let server = common::open().await;
     let work = default_work(&server).await;
     let loaded = server.rpc("work.get", json!({ "work": work })).await;
@@ -238,7 +238,7 @@ async fn every_revision_of_the_sample_work_comes_back_byte_for_byte() {
     assert_round_trip(export["result"]["typst"].as_str().unwrap(), "Export des Gartenbuchs");
 }
 
-/// Vorgabewerk (das gesäte Beispielwerk).
+/// Default work (the seeded sample work).
 async fn default_work(server: &common::Server) -> i64 {
     server.state.default_work().await.unwrap()
 }

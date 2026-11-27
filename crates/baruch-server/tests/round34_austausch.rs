@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 34 „Mindmap“ – Ein- und Ausgabe und Gliederungsansicht (Besitz mindmap_austausch).
+//! Round 34 „Mindmap“ – input, output and outline view (owner mindmap_austausch).
 //!
-//! Geprüft werden die Ausgaben (.mm, .xmind, .md, .svg, .pdf) aus einem von Hand gebauten `MindMap` (drei Ebenen,
-//! Wolke, Beziehungen) und über die Routen, das Einlesen (Vorschau legt nichts an; fremde Eingabe wird abgelehnt)
-//! und die Gliederungsansicht mit ihren Formularen. Werke, Einfälle und Dateien sind frei erfunden; kein Modell,
-//! kein Netz.
+//! Checked are the outputs (.mm, .xmind, .md, .svg, .pdf) from a hand-built `MindMap` (three levels, cloud, relations)
+//! and through the routes, the import (the preview creates nothing; foreign input is rejected) and the outline view
+//! with its forms. Works, ideas and files are freely invented; no model, no network.
 //!
-//! Stand der Schnittstelle: `tree::import`, `idea.move` und Titel/Elternknoten der Einfälle kommen von
-//! mindmap_daten. Wo das Verhalten davon abhängt, prüft der Test beide ehrlichen Ausgänge (S1: Ablehnung mit
-//! Meldung, nie 500; danach: es wirkt) und sagt das an der Stelle.
+//! State of the interface: `tree::import`, `idea.move` and title/parent node of the ideas come from mindmap_daten.
+//! Where the behaviour depends on that, the test checks both honest outcomes (S1: rejection with a message, never 500;
+//! afterwards: it takes effect) and says so at the place.
 
 use crate::common;
 
@@ -29,13 +28,13 @@ use baruch_store::{IdeaLink, IdeaOrigin, IdeaStatus, LinkKind};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-// ---- Bausteine -----------------------------------------------------------------------------------
+// ---- Building blocks -----------------------------------------------------------------------------
 
 fn human() -> IdeaOrigin {
     IdeaOrigin::Human { name: "Autor".to_owned() }
 }
 
-/// Knoten von Hand (alle Felder sind `pub`); Art und Nummern aus der Kennung.
+/// Node by hand (all fields are `pub`); kind and numbers from the identifier.
 fn node(id: &str, title: &str, children: Vec<TreeNode>) -> TreeNode {
     let idea = id.strip_prefix("i:").and_then(|n| n.parse().ok());
     let key = id.strip_prefix("n:").and_then(|n| n.parse().ok());
@@ -83,7 +82,7 @@ fn link(id: i64, from: i64, to: i64, kind: LinkKind, note: &str) -> IdeaLink {
     }
 }
 
-/// Erfundenes „Werftbuch“: zwei Kapitel, Einfälle über drei Ebenen, zwei Einfälle in der Wolke, zwei Beziehungen.
+/// Invented „Werftbuch“: two chapters, ideas across three levels, two ideas in the cloud, two relations.
 fn shipyard() -> MindMap {
     let mut keel = node(
         "i:1",
@@ -117,8 +116,8 @@ fn branch(title: &str, children: Vec<ImportNode>) -> ImportNode {
     ImportNode { title: title.to_owned(), children, ..ImportNode::default() }
 }
 
-/// Was der eigene Leser aus einer Ausgabe von [`shipyard`] holen muss.
-/// Die Sicht zum Baum von Hand: Die Einfälle direkt an der Wurzel („Namensfindung“) liegen in der Wolke.
+/// What the own reader has to get out of an output of [`shipyard`].
+/// The view for the hand-built tree: the ideas directly at the root („Namensfindung“) lie in the cloud.
 fn scene_of(map: MindMap) -> Scene {
     let cloud: Vec<String> =
         map.root.children.iter().filter(|c| c.kind == TreeKind::Idea).map(|c| c.id.clone()).collect();
@@ -138,7 +137,7 @@ fn shipyard_as_import() -> ImportTree {
         nodes: vec![
             branch("1 Helling", vec![keel, leaf("Planken")]),
             branch("2 Stapellauf", vec![leaf("Sekt")]),
-            // Runde 36: Der Einfall aus dem Ast „Wolke“ merkt sich die Wolke (`cloud: true`).
+            // Round 36: the idea from the branch „Wolke“ remembers the cloud (`cloud: true`).
             ImportNode { cloud: true, ..branch("Namensfindung", vec![leaf("Taufpatin")]) },
         ],
         links: vec![
@@ -179,7 +178,7 @@ async fn send_bytes(server: &common::Server, request: Request<Body>) -> (StatusC
     (status, headers, bytes.to_vec())
 }
 
-/// Hochladen wie das Formular (multipart: wahlweise `parent`, dann `file`).
+/// Upload like the form (multipart: optionally `parent`, then `file`).
 fn upload(work: i64, bytes: &[u8], parent: Option<i64>) -> Request<Body> {
     let boundary = "----baruch-r34-grenze";
     let mut body = Vec::new();
@@ -242,7 +241,7 @@ impl Book {
     }
 }
 
-/// Erfundenes Werk „Werftbuch“ mit den Kapiteln „Helling“ und „Stapellauf“.
+/// Invented work „Werftbuch“ with the chapters „Helling“ and „Stapellauf“.
 async fn open_book() -> Book {
     let server = common::open().await;
     let source = "#set document(title: \"Werftbuch\")\n\n= Helling\n\nText.\n\n= Stapellauf\n\nText.\n";
@@ -253,7 +252,7 @@ async fn open_book() -> Book {
     Book { work, slip: key("Helling"), launch: key("Stapellauf"), server }
 }
 
-/// HTML-Maskierung der Vorlage zurücknehmen (für das verborgene Feld mit dem Baum).
+/// Undo the HTML escaping of the template (for the hidden field with the tree).
 fn unescape(html: &str) -> String {
     html.replace("&quot;", "\"")
         .replace("&#34;", "\"")
@@ -284,7 +283,7 @@ fn form_encode(value: &str) -> String {
     out
 }
 
-// ---- Ausgaben aus dem von Hand gebauten Baum -----------------------------------------------------
+// ---- Outputs from the hand-built tree ------------------------------------------------------------
 
 #[test]
 fn the_mm_output_is_well_formed_nested_xml_with_notes_and_arrowlinks() {
@@ -431,7 +430,7 @@ fn the_pdf_source_embeds_the_standalone_drawing() {
     assert_eq!(source.files[0].0, "mindmap.svg", "die übergebene SVG-Datei liegt unter ihrem Namen bei");
 }
 
-// ---- Ausgaben über die Routen --------------------------------------------------------------------
+// ---- Outputs through the routes ------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_routes_deliver_every_output_and_take_the_filters() {
@@ -521,7 +520,7 @@ async fn the_pdf_is_built_from_the_mindmap_drawing() {
     );
 }
 
-// ---- Einlesen ------------------------------------------------------------------------------------
+// ---- Import --------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_preview_creates_nothing_and_only_the_confirmation_imports() {
@@ -627,7 +626,7 @@ async fn foreign_input_is_refused_with_a_clear_message_and_no_crash() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ZIP mit mehr als 50 Einträgen → abgelehnt");
     assert!(html.contains("erlaubt sind höchstens 50"), "Meldung nennt die Grenze: {html}");
 
-    // Zip-Bombe: 21 MiB Leerzeichen schrumpfen auf wenige Kilobyte; gezählt wird beim Entpacken.
+    // Zip bomb: 21 MiB of spaces shrink to a few kilobytes; counting happens while unpacking.
     let blown = vec![b' '; MAX_UNPACKED_BYTES as usize + 1024 * 1024];
     let bomb = zip_of(&[("content.json", &blown)]);
     assert!(bomb.len() < 200 * 1024, "die Testdatei ist hoch komprimiert ({} Bytes)", bomb.len());
@@ -720,7 +719,7 @@ async fn foreign_input_is_refused_with_a_clear_message_and_no_crash() {
     assert_eq!(status, StatusCode::OK, "der Server läuft nach all dem weiter");
 }
 
-// ---- Gliederungsansicht und Formulare ------------------------------------------------------------
+// ---- Outline view and forms ----------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_outline_view_shows_tree_cloud_and_forms_without_javascript() {
@@ -853,7 +852,7 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
     let keel = b.idea(Some(b.slip), "Kiel", "").await;
     let champagne = b.idea(Some(b.launch), "Sekt", "").await;
 
-    // Anlegen: mit Bezug (Kapitel) und – ohne Platz – in die Wolke.
+    // Create: with reference (chapter) and – without a place – into the cloud.
     let form =
         format!("method=idea.create&words=Planken&key={}&back=near%3D0&seite=gliederung&wahl=n:{}", b.slip, b.slip);
     let (status, location) = b.server.post_form(&act, &form).await;
@@ -874,7 +873,8 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
     assert!(html.contains("role=\"status\">Einfall angelegt."), "die Seite meldet es: {html}");
     assert!(html.contains("data-cloud-count=\"1\""), "der Einfall ohne Platz liegt in der Wolke");
 
-    // Bezug setzen (idea.update mit key) – Umbenennen (title) wirkt, sobald mindmap_daten den Titel speichert.
+    // Set the reference (idea.update with key) – renaming (title) takes effect as soon as mindmap_daten stores the
+    // title.
     let form = format!("method=idea.update&id={champagne}&key={}&seite=gliederung&wahl=i:{champagne}", b.slip);
     let (status, location) = b.server.post_form(&act, &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Bezug setzen leitet weiter");
@@ -900,7 +900,7 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
     );
     assert_eq!(stored["title"], "Schaumwein", "der Titel ist gesetzt: {stored}");
 
-    // Umhängen unter einen anderen Einfall.
+    // Move below another idea.
     let form = format!("method=idea.move&id={champagne}&ziel=i:{keel}&seite=gliederung");
     let (status, location) = b.server.post_form(&act, &form).await;
     assert_eq!(
@@ -913,7 +913,7 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
     let (status, _) = b.server.post_form(&act, &format!("method=idea.move&id={champagne}&ziel=unsinn")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ein unbekanntes Ziel ist eine ungültige Eingabe");
 
-    // Verbinden, Lösen, Wiederherstellen.
+    // Link, unlink, restore.
     let form = format!("method=idea.link&from={keel}&to={champagne}&kind=leads_to&note=erst+dann&seite=gliederung");
     let (status, location) = b.server.post_form(&act, &form).await;
     assert_eq!(
@@ -944,7 +944,7 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
         "Wiederherstellen"
     );
 
-    // Löschen und Wiederherstellen eines Einfalls.
+    // Deleting and restoring an idea.
     let before = idea_count(&b.server, b.work).await;
     let form = format!("method=idea.delete&id={keel}&seite=gliederung&wahl=i:{keel}");
     let (status, location) = b.server.post_form(&act, &form).await;
@@ -969,7 +969,7 @@ async fn the_forms_post_to_act_and_return_to_the_outline() {
     );
     assert_eq!(idea_count(&b.server, b.work).await, before, "der Einfall ist wieder da");
 
-    // Ohne seite: zurück zur Mindmap (Vorgabe karte).
+    // Without seite: back to the mind map (default karte).
     let (status, location) = b.server.post_form(&act, &format!("method=idea.update&id={keel}&key={}", b.launch)).await;
     assert_eq!(
         (status, location.as_deref()),
@@ -1026,7 +1026,7 @@ async fn act_refuses_unknown_methods_foreign_ideas_and_foreign_origins() {
     assert_eq!(status, StatusCode::FORBIDDEN, "fremde Herkunft → 403 (guard::same_origin)");
     assert_eq!(idea_count(&b.server, b.work).await, 1, "nichts gelöscht");
 
-    // Die Gruppen-Formulare aus Runde 19b laufen weiter über dasselbe Formular.
+    // The group forms from Round 19b still run through the same form.
     let (status, location) = b.server.post_form(&act, "method=idea.map_group_dismiss&group=g1&back=near%3D0").await;
     assert_eq!(
         (status, location.as_deref()),
@@ -1050,7 +1050,7 @@ async fn act_refuses_unknown_methods_foreign_ideas_and_foreign_origins() {
     assert_eq!(status, StatusCode::NOT_FOUND, "unbekanntes Werk → 404");
 }
 
-/// `tree::import` legt genau die Knoten des Baums an (mehr dazu in `round34_daten`).
+/// `tree::import` creates exactly the nodes of the tree (more on that in `round34_daten`).
 #[tokio::test]
 async fn import_creates_exactly_the_tree() {
     let b = open_book().await;
