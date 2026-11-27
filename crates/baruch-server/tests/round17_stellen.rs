@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 17b („stellen“): Stellen im Fließtext, Zitat-Zuordnung, Lexikon-Stichwörter und Predigt-Reste –
-//! über die Wege, die die Oberfläche und die Personas nehmen:
-//! - `bible_research::research` meldet „Psalm 139, … Vers 23“ als Ps 139,23 (nicht das ganze Kapitel) und findet
-//!   Lexikon-Artikel über die Lemma-Probe bzw. über die Strong-Nummern der Verse einer Bibel mit Auszeichnung.
-//! - `scripture.check` liest Verslisten mit Komma, keine Uhrzeiten und keine Anzahlen.
-//! - Predigttext: genau 400 Verse sind nicht gekürzt, 401 schon; Typst-Sonderzeichen im Verstext überstehen den
-//!   Weg Predigttext → `#quote` → Wortzählung und Wortlautprüfung.
-//! - Zeitwächter (L6): Das Widget schickt den Quelltext (Ereignis `baruch:serialize-text`), der Server zählt ihn
-//!   wie beim Laden der Seite; Stichwortzettel (L7): Abkürzungen und `@`-Verweise; Antrag „neuer Teil“ in einer
-//!   Predigt (L8): „Predigtteile“ und Nummer in Schemaform.
+//! Round 17b („stellen“): passages in running text, quotation mapping, lexicon keywords and sermon leftovers – through
+//! the ways that the user interface and the personas take:
+//! - `bible_research::research` reports „Psalm 139, … Vers 23“ as Ps 139:23 (not the whole chapter) and finds lexicon
+//!   articles through the lemma probe or through the Strong numbers of the verses of a Bible with markup.
+//! - `scripture.check` reads verse lists with a comma, no times of day and no counts.
+//! - Sermon text: exactly 400 verses are not shortened, 401 are; Typst special characters in the verse text survive the
+//!   way sermon text → `#quote` → word count and verbatim check.
+//! - Time keeper (L6): the widget sends the source text (event `baruch:serialize-text`), the server counts it as on
+//!   loading the page; cue sheet (L7): abbreviations and `@` references; request "new part" in a sermon (L8):
+//!   „Predigtteile“ and number in scheme form.
 //!
-//! Alle Texte, Bibeln und Lexika sind frei erfunden und werden im Temp-Ordner geschrieben
-//! (`baruch_sword::fixture`); kein Modell, kein Netz.
+//! All texts, Bibles and lexicons are freely invented and are written in the temp folder (`baruch_sword::fixture`); no
+//! model, no network.
 
 use crate::common;
 
@@ -30,7 +30,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Modulordner mit Bibeln und Lexika im Temp-Ordner setzen.
+/// Set the module folder with Bibles and lexicons in the temp folder.
 async fn modules(server: &common::Server, dir: &Path, bibles: &[Fixture], lexicons: &[LexiconFixture]) {
     let root = dir.join("sword");
     std::fs::create_dir_all(&root).unwrap();
@@ -43,7 +43,7 @@ async fn modules(server: &common::Server, dir: &Path, bibles: &[Fixture], lexico
     ok(server, "bible.set_dirs", json!({ "dirs": [root.display().to_string()] })).await;
 }
 
-/// Erfundene Bibel in deutscher Zählung: von Psalm 139 nur Vers 23 und 24.
+/// Invented Bible in German versification: of Psalm 139 only verses 23 and 24.
 fn heath_bible() -> Fixture {
     Fixture::new("Heidebibel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Heidebibel")
@@ -61,7 +61,7 @@ fn heath_lexicon() -> LexiconFixture {
         .article("Brunnen", "Gegrabene Wasserstelle.")
 }
 
-// ---- Stellen im Fließtext und Belege -------------------------------------------------------------------
+// ---- Passages in running text and evidence ------------------------------------------------------------
 
 #[tokio::test]
 async fn research_reports_psalm_139_verse_23_instead_of_the_whole_chapter() {
@@ -194,7 +194,7 @@ async fn scripture_check_assigns_nested_quotes_and_block_quotes_in_scenes() {
     }
 }
 
-// ---- Stichwortzettel (L7) ------------------------------------------------------------------------------
+// ---- Cue sheet (L7) -----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn notes_keep_abbreviations_in_the_first_sentence_and_drop_references_after_brackets() {
@@ -213,12 +213,12 @@ async fn notes_keep_abbreviations_in_the_first_sentence_and_drop_references_afte
     );
 }
 
-// ---- Zeitwächter (L6) ----------------------------------------------------------------------------------
+// ---- Time keeper (L6) ---------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_live_count_of_the_source_text_equals_the_count_on_page_load() {
     let server = common::open().await;
-    // Typst-Inseln mit und ohne gesprochenen Text: Fußnote und Arbeitsauftrag zählen nicht, die Szene schon.
+    // Typst islands with and without spoken text: footnote and work order do not count, the scene does.
     let text = "= Inseln\n\nDer Hirte ruft.#footnote[Anmerkung des Autors]\n\n#szene(ort: [Heide])[\n  Die Schafe \
                 hören.\n]\n\n#arbeit[noch prüfen] Dann gehen alle heim.\n";
     let work = server.import(text, "inseln.typ").await.work;
@@ -242,7 +242,7 @@ async fn the_live_count_of_the_source_text_equals_the_count_on_page_load() {
     assert!(script.1.contains("timing.count"), "gezählt wird weiter nur auf dem Server");
 }
 
-// ---- Antrag „neuer Teil“ in einer Predigt (L8) ---------------------------------------------------------
+// ---- Request "new part" in a sermon (L8) --------------------------------------------------------------
 
 #[tokio::test]
 async fn a_new_part_in_a_sermon_moves_sermon_parts_and_shows_the_schema_number() {
@@ -251,7 +251,7 @@ async fn a_new_part_in_a_sermon_moves_sermon_parts_and_shows_the_schema_number()
     let work = created["work"].as_i64().unwrap();
     let loaded = server.state.store.load_work(work).await.unwrap();
     let target = loaded.nodes.iter().find(|n| n.number == "I.").expect("Predigtteil I.").id;
-    // Alle Punkte ab „I.“ sind Predigtteile (Ebene 1) und wandern unter den neuen Teil.
+    // All items from „I.“ on are sermon parts (level 1) and move below the new part.
     let adopted_count = loaded.nodes.len() - target;
     let added = server
         .state
@@ -290,9 +290,9 @@ async fn a_new_part_in_a_sermon_moves_sermon_parts_and_shows_the_schema_number()
     assert!(page.contains("vorhandene Predigtteile wandern"), "auch die Seite ohne JavaScript nennt Predigtteile");
 }
 
-// ---- Predigttext: 400-Verse-Grenze und Typst-Sonderzeichen ---------------------------------------------
+// ---- Sermon text: 400-verse limit and Typst special characters ----------------------------------------
 
-/// Die ersten `n` Verse von 1. Mose in deutscher Zählung (Kapitel, Vers).
+/// The first `n` verses of Genesis in German versification (chapter, verse).
 fn genesis_verses(n: usize) -> Vec<(u16, u16)> {
     let mut out = Vec::new();
     let mut chapter = 1;
@@ -308,7 +308,7 @@ fn genesis_verses(n: usize) -> Vec<(u16, u16)> {
     out
 }
 
-/// Erfundene Bibel mit den ersten 401 Versen von 1. Mose (je Vers ein eigener Satz).
+/// Invented Bible with the first 401 verses of Genesis (one sentence of its own per verse).
 fn long_bible() -> Fixture {
     genesis_verses(401).into_iter().fold(
         Fixture::new("Langbibel", Layout::ZText(Block::Book), german())
@@ -350,7 +350,7 @@ async fn typst_special_characters_in_the_verse_survive_quote_word_count_and_word
     let server = common::open().await;
     let dir = tempfile::tempdir().unwrap();
     let verse = "Lobt #1 den *Hirten* _hier_ für $5 an @tor <weg> [x] mit \\ Stab~Ende.";
-    // Im Modul steht „<“ als Entität (ein rohes „<weg>“ wäre Auszeichnung und fiele beim Lesen weg).
+    // In the module „<“ is an entity (a raw „<weg>“ would be markup and would be dropped on reading).
     let stored = verse.replace('<', "&lt;").replace('>', "&gt;");
     let bible = Fixture::new("Zeichenbibel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Zeichenbibel")
@@ -373,8 +373,8 @@ async fn typst_special_characters_in_the_verse_survive_quote_word_count_and_word
         ),
         "jedes Typst-Zeichen im Verstext ist im #quote maskiert (sonst würde es Code, Mathe, Verweis oder Label): {body}"
     );
-    // Wörter des Verses: Folgen ohne Leerraum mit Buchstabe oder Ziffer („\“ allein ist keins); „Stab~Ende.“
-    // ist im Bibeltext ein Wort, im Typst-Quelltext aber geschütztes Leerzeichen – maskiert bleibt es eins.
+    // Words of the verse: sequences without whitespace with a letter or digit („\“ alone is none); „Stab~Ende.“ is one
+    // word in the Bible text, but in the Typst source text a non-breaking space – escaped it stays one.
     let expected = verse.split_whitespace().filter(|w| w.chars().any(char::is_alphanumeric)).count();
     let timing = ok(&server, "work.timing", json!({ "work": work })).await;
     assert_eq!(

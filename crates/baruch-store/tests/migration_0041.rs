@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0041 (Kennungen, Runde 26) und ihre Nachbesserung 0042 auf einer nachgebauten Datenbank im Stand
-//! von development vor Runde 26 (Store bis 0040, Bibliothek bis 0106) mit frei erfundenen Zeilen in allen zehn
-//! Tabellen, die eine uuid bekommen.
+//! Migration 0041 (identifiers, Round 26) and its follow-up fix 0042 on a reproduced database in the state of
+//! development before Round 26 (store up to 0040, library up to 0106) with freely invented rows in all ten tables that
+//! get a uuid.
 //!
-//! Belegt: Jede Zeile jeder Tabelle bleibt bis auf die neue Spalte gleich; alle uuid sind gefüllt, eindeutig
-//! und kanonisch v4; das Schema aller anderen Objekte bleibt unverändert, neu sind genau die Objekte aus
-//! 0041/0042; Fremdschlüssel sind danach an und greifen; die Spalte hält nur kanonische, eindeutige Werte;
-//! `store_meta.instance_uuid` ist da; ein zweites `Store::open` ist wiederholbar und vergibt keine neue uuid.
+//! Evidenced: every row of every table stays the same except for the new column; all uuid are filled, unique and
+//! canonical v4; the schema of all other objects stays unchanged, new are exactly the objects from 0041/0042; foreign
+//! keys are on afterwards and take effect; the column holds only canonical, unique values; `store_meta.instance_uuid`
+//! is there; a second `Store::open` is repeatable and assigns no new uuid.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,7 +24,7 @@ const BOOK: &str = "#set document(title: \"Das Wiesenbuch\", author: \"Hanne Heu
 const SERMON: &str = "#set document(title: \"Vom Senfkorn\", author: \"Hanne Heu\")\n\n\
 = Hinführung\n\nKlein fängt es an.\n\n= Ausblick\n\nVögel nisten darin.\n";
 
-/// Die zehn Tabellen mit Werkinhalt, die 0041 um `uuid` erweitert.
+/// The ten tables with work content that 0041 extends by `uuid`.
 const TABLES: [&str; 10] = [
     "work",
     "node",
@@ -38,8 +38,8 @@ const TABLES: [&str; 10] = [
     "asset_revision",
 ];
 
-/// Zusätze aus 0045 (Runde 27), die `Store::open` mit ausführt: die vierte Antragsart in `asset_request` und die
-/// zwei Anschriften in `work_book` (geprüft in migration_0045.rs).
+/// Additions from 0045 (Round 27) that `Store::open` runs along: the fourth request kind in `asset_request` and the two
+/// addresses in `work_book` (checked in migration_0045.rs).
 const OP_COVER_LAYOUT: &str = ",'cover_layout'";
 const ADDRESS_COLUMNS: &str = ", publisher_address TEXT NOT NULL DEFAULT '', printer_address TEXT NOT NULL DEFAULT ''";
 
@@ -47,17 +47,17 @@ fn without_0045(sql: &str) -> String {
     sql.replace(OP_COVER_LAYOUT, "").replace(ADDRESS_COLUMNS, "")
 }
 
-/// Runde 28 (0046): `edited` an `post` und `chat_thread_post` (andere Tabellen wie `revision` haben eine Spalte
-/// `edited` schon vorher und bleiben wörtlich).
+/// Round 28 (0046): `edited` on `post` and `chat_thread_post` (other tables such as `revision` already have a column
+/// `edited` before and stay literal).
 fn without_0046(name: &str, sql: &str) -> String {
     if name == "post" || name == "chat_thread_post" { sql.replace(", edited TEXT", "") } else { sql.to_owned() }
 }
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 
-/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (der gespeicherte CREATE-Text
-/// wächst um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in migration_0052.rs); der Vergleich des
-/// alten Schemas nimmt ihn heraus.
+/// Round 34 (0052) appends title, parent node, order and main topic to `idea` (the stored CREATE text grows by exactly
+/// this addition, directly after the column uuid; checked in migration_0052.rs); the comparison of the old schema takes
+/// it out.
 const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
 /// Round 38 (0055): column appended to `work` after that (as SQLite stores it in the definition of the table).
 const R38_WORK_COLUMN: &str = ", language TEXT NOT NULL DEFAULT 'de' CHECK (language IN ('de', 'en'))";
@@ -76,8 +76,8 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
     Migrator { migrations: Cow::Owned(list), ignore_missing: true, ..Migrator::DEFAULT }
 }
 
-/// Store bis 0040 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und Bibliothek
-/// bis 0106: der Stand von development vor Runde 26.
+/// Store up to 0040 (0040 as in `baruch_store::migrate` with foreign keys switched off) and library up to 0106: the
+/// state of development before Round 26.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 41), "die neue Migration ist 0041");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 42), "Nachbesserung 0042 gibt es");
@@ -107,7 +107,7 @@ async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Werk mit Gliederung (je Überschrift ein Kapitel mit aktueller Fassung) und Vorlagenfassung direkt in SQLite.
+/// Work with outline (per heading one chapter with current revision) and template revision directly in SQLite.
 async fn insert_work(pool: &SqlitePool, slug: &str, kind: &str, source: &str) -> (i64, Vec<i64>) {
     let doc = baruch_typst::parse(source).unwrap();
     let title = slug.replace('-', " ");
@@ -165,7 +165,7 @@ async fn insert_work(pool: &SqlitePool, slug: &str, kind: &str, source: &str) ->
     (work, nodes)
 }
 
-/// Zeilen in allen zehn Tabellen (und den Nachbartabellen, die auf sie verweisen).
+/// Rows in all ten tables (and the neighbouring tables that refer to them).
 async fn insert_rows(pool: &SqlitePool) {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     let (book, nodes) = insert_work(pool, "das-wiesenbuch", "book", BOOK).await;
@@ -249,14 +249,14 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → (Typ, Tabelle, SQL).
+/// All schema objects: name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), (r.get(1), r.get(2), r.get(3)))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout` (alte Spalten; die neue Spalte uuid fehlt darin).
+/// Content of every table in the columns from `layout` (old columns; the new column uuid is missing in it).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -272,7 +272,7 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     out
 }
 
-/// (Tabelle, id) → uuid über alle zehn Tabellen.
+/// (table, id) → uuid across all ten tables.
 async fn uuids(pool: &SqlitePool) -> BTreeMap<(String, i64), Option<String>> {
     let mut out = BTreeMap::new();
     for table in TABLES {
@@ -289,7 +289,7 @@ fn is_v4(uuid: &str) -> bool {
     baruch_exchange::is_uuid(uuid) && &uuid[14..15] == "4" && matches!(&uuid[19..20], "8" | "9" | "a" | "b")
 }
 
-/// Objekte, die 0041 und 0042 neu anlegen (Namen), dazu die aus 0043, die `Store::open` mit ausführt.
+/// Objects that 0041 and 0042 newly create (names), plus those from 0043 that `Store::open` runs along.
 fn new_objects() -> BTreeSet<String> {
     let mut names: BTreeSet<String> = ["uuid_tombstone", "uuid_tombstone_work", "sqlite_autoindex_uuid_tombstone_1"]
         .iter()
@@ -302,8 +302,8 @@ fn new_objects() -> BTreeSet<String> {
     }
     names.insert("work_cascade_uuid_tombstone".into());
     names.insert("chat_thread_cascade_uuid_tombstone".into());
-    // Runde 25 (0043): `Store::open` legt auch die Tabellen der Gedankenkarte samt Indizes und Triggern an; die
-    // zehn Grabstein-Trigger und uuid_tombstone baut 0043 nur um (oben schon enthalten).
+    // Round 25 (0043): `Store::open` also creates the tables of the thought map including indexes and triggers; the ten
+    // tombstone triggers and uuid_tombstone are only rebuilt by 0043 (already contained above).
     for table in ["idea_link", "idea_map_pos"] {
         for suffix in ["", "_uuid", "_uuid_fill", "_uuid_tombstone"] {
             names.insert(format!("{table}{suffix}"));
@@ -313,40 +313,41 @@ fn new_objects() -> BTreeSet<String> {
     names.insert("idea_link_to".into());
     names.insert("work_map_pos_cascade_uuid_tombstone".into());
     names.insert("idea_link_cascade_uuid_tombstone".into());
-    // Runde 18c (0044): `Store::open` legt auch die Tabelle der Satzbild-Einstellungen an (ohne Index und Trigger).
+    // Round 18c (0044): `Store::open` also creates the table of the typeset-view settings (without index and trigger).
     names.insert("work_sheet".into());
-    // Runde 27 (0045): `Store::open` legt auch die Blöcke der Umschlag-Anordnung an; uuid_tombstone, die zwölf
-    // Grabstein-Trigger und asset_request baut 0045 nur um.
+    // Round 27 (0045): `Store::open` also creates the blocks of the cover layout; uuid_tombstone, the twelve tombstone
+    // triggers and asset_request are only rebuilt by 0045.
     for suffix in ["", "_uuid", "_uuid_fill", "_uuid_tombstone"] {
         names.insert(format!("cover_block{suffix}"));
     }
     names.insert("sqlite_autoindex_cover_block_1".into());
     names.insert("work_cover_block_cascade_uuid_tombstone".into());
-    // Runde 28 (0046): Befunde, ihr Verlauf und alte Beitragsfassungen samt Indizes und Triggern; uuid_tombstone und
-    // die dreizehn Grabstein-Trigger baut 0046 nur um (geprüft in migration_0046.rs).
+    // Round 28 (0046): findings, their history and old post versions including indexes and triggers; uuid_tombstone and
+    // the thirteen tombstone triggers are only rebuilt by 0046 (checked in migration_0046.rs).
     names.extend(R28_OBJECTS.iter().map(|s| s.to_string()));
-    // Runde 30 (0047): Protokoll des Ersetzens samt Index, Teilindex der Varianten (geprüft in migration_0047.rs).
+    // Round 30 (0047): log of the replacing including index, partial index of the variants (checked in
+    // migration_0047.rs).
     names.extend(R30_OBJECTS.iter().map(|s| s.to_string()));
-    // Runde 29 (0048): Satz-Einstellungen je Werk samt Index, Fülltrigger, Grabstein und Kaskade; uuid_tombstone und
-    // die sechzehn Grabstein-Trigger baut 0048 nur um (geprüft in migration_0048.rs).
+    // Round 29 (0048): typesetting settings per work including index, fill trigger, tombstone and cascade;
+    // uuid_tombstone and the sixteen tombstone triggers are only rebuilt by 0048 (checked in migration_0048.rs).
     names.extend(R29_OBJECTS.iter().map(|s| s.to_string()));
-    // Runde 31 (0049): Glossar, eigene Register und Registervorschläge samt Indizes und Triggern; uuid_tombstone und die
-    // siebzehn Grabstein-Trigger baut 0049 nur um (geprüft in migration_0049.rs).
+    // Round 31 (0049): glossary, own indexes and index proposals including indexes and triggers; uuid_tombstone and the
+    // seventeen tombstone triggers are only rebuilt by 0049 (checked in migration_0049.rs).
     names.extend(R31_OBJECTS.iter().map(|s| s.to_string()));
-    // Runde 22 (0050): Verlauf der Fortschreibungen samt Index und Triggern, Einstellung „Fassungen“; uuid_tombstone
-    // und die neunzehn Grabstein-Trigger baut 0050 nur um (geprüft in migration_0050.rs).
+    // Round 22 (0050): history of the amendments including index and triggers, setting „Fassungen“; uuid_tombstone and
+    // the nineteen tombstone triggers are only rebuilt by 0050 (checked in migration_0050.rs).
     names.extend(R22_OBJECTS.iter().map(|s| s.to_string()));
-    // 0.9.0 (0051): Marke „ältere Fassungen ausblenden“ je Abschnitt (geprüft in revision_fold.rs).
+    // 0.9.0 (0051): mark „ältere Fassungen ausblenden“ per section (checked in revision_fold.rs).
     names.insert("node_revision_fold".into());
-    // Runde 34 (0052): Index über Elternknoten und Reihenfolge der Einfälle.
+    // Round 34 (0052): index over parent node and order of the ideas.
     names.insert("idea_parent".into());
-    // Runde 35 (0053, 0054): Konten, Sitzungen, Sperre gegen Durchprobieren und Freigaben samt Indizes – Instanzdaten
-    // ohne uuid, nicht im Austausch (geprüft in migration_0053.rs und migration_0054.rs).
+    // Round 35 (0053, 0054): accounts, sessions, lock against brute-force attempts and shares including indexes –
+    // instance data without uuid, not in the exchange (checked in migration_0053.rs and migration_0054.rs).
     names.extend(R35_OBJECTS.iter().map(|s| s.to_string()));
     names
 }
 
-/// Objekte, die 0050 (Runde 22) neu anlegt.
+/// Objects that 0050 (Round 22) newly creates.
 const R35_OBJECTS: [&str; 11] = [
     "account",
     "account_session",
@@ -371,7 +372,7 @@ const R22_OBJECTS: [&str; 7] = [
     "work_revision_policy",
 ];
 
-/// Objekte, die 0049 (Runde 31) neu anlegt.
+/// Objects that 0049 (Round 31) newly creates.
 const R31_OBJECTS: [&str; 18] = [
     "glossary_term",
     "glossary_term_uuid",
@@ -393,7 +394,7 @@ const R31_OBJECTS: [&str; 18] = [
     "index_proposal_work_status",
 ];
 
-/// Objekte, die 0048 (Runde 29) neu anlegt.
+/// Objects that 0048 (Round 29) newly creates.
 const R29_OBJECTS: [&str; 5] = [
     "work_typeset",
     "work_typeset_uuid",
@@ -402,7 +403,7 @@ const R29_OBJECTS: [&str; 5] = [
     "work_typeset_cascade_uuid_tombstone",
 ];
 
-/// Objekte, die 0046 (Runde 28) neu anlegt.
+/// Objects that 0046 (Round 28) newly creates.
 const R28_OBJECTS: [&str; 22] = [
     "finding",
     "finding_uuid",
@@ -450,7 +451,7 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
         assert_eq!(ran, 1, "{version:04} lief");
     }
 
-    // Daten: jede alte Zeile jeder Tabelle in den alten Spalten unverändert; neu ist nur die Zeile instance_uuid.
+    // Data: every old row of every table unchanged in the old columns; new is only the row instance_uuid.
     let mut after = contents(pool, &layout).await;
     let meta = after.get_mut("store_meta").unwrap();
     let count = meta.len();
@@ -462,23 +463,23 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
         }
     }
 
-    // Spalte uuid: zuletzt angehängt, jede Zeile gefüllt, kanonisch v4, eindeutig auch über Tabellen hinweg.
+    // Column uuid: appended last, every row filled, canonical v4, unique across tables too.
     let layout_after = tables(pool).await;
     for table in TABLES {
         let mut cols = layout_after[table].clone();
-        // Runde 30 (0047) hängt danach Metadaten an Beiträge und Fadenbeiträge und Varianten an Fassungen an.
+        // Round 30 (0047) appends metadata to posts and thread posts and variants to revisions after that.
         let r30 = match table {
             "post" | "chat_thread_post" => 6,
-            // Runde 22 (0050) hängt danach amend_seq und based_on_amend an Fassungen an.
+            // Round 22 (0050) appends amend_seq and based_on_amend to revisions after that.
             "revision" => 6,
-            // Runde 34 (0052) hängt danach title, parent_id, position und main_topic an Einfälle an.
+            // Round 34 (0052) appends title, parent_id, position and main_topic to ideas after that.
             "idea" => 4,
             // Round 38 (0055) appends language to works after that.
             "work" => 1,
             _ => 0,
         };
         cols.truncate(cols.len() - r30);
-        // Runde 28 (0046) hängt danach `edited` an Beiträge und Fadenbeiträge an.
+        // Round 28 (0046) appends `edited` to posts and thread posts after that.
         if ["post", "chat_thread_post"].contains(&table) {
             assert_eq!(cols.pop().as_deref(), Some("edited"), "{table}: edited aus 0046 zuletzt");
         }
@@ -497,8 +498,8 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
     assert_eq!(instance.name, "", "Name der Instanz leer");
     assert_eq!(scalar(pool, "SELECT count(*) FROM uuid_tombstone").await, 0, "die Migration löscht nichts");
 
-    // Schema: jedes alte Objekt unverändert (bis auf den Spaltenzusatz im CREATE-Text der zehn Tabellen), neu
-    // sind genau die Objekte aus 0041/0042.
+    // Schema: every old object unchanged (except for the column addition in the CREATE text of the ten tables), new are
+    // exactly the objects from 0041/0042.
     let schema_after = schema(pool).await;
     let added: BTreeSet<String> = schema_after.keys().filter(|k| !schema_before.contains_key(*k)).cloned().collect();
     assert_eq!(added, new_objects(), "neu sind genau Tabelle uuid_tombstone, Indizes und Trigger aus 0041/0042");
@@ -515,7 +516,7 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
         }
     }
 
-    // Fremdschlüssel an, ohne Verstöße, und sie greifen.
+    // Foreign keys on, without violations, and they take effect.
     assert_eq!(scalar(pool, "SELECT count(*) FROM pragma_foreign_key_check").await, 0, "foreign_key_check leer");
     let integrity: String = sqlx::query_scalar("PRAGMA integrity_check").fetch_one(pool).await.unwrap();
     assert_eq!(integrity, "ok", "integrity_check");
@@ -535,7 +536,7 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
     .await;
     assert!(orphan.is_err(), "Fremdschlüssel greifen: Punkt braucht ein vorhandenes Werk");
 
-    // Die Spalte nimmt nur kanonische, eindeutige Werte (CHECK und eindeutiger Index).
+    // The column takes only canonical, unique values (CHECK and unique index).
     let (some_id, some_uuid): (i64, String) =
         sqlx::query_as("SELECT id, uuid FROM node ORDER BY id LIMIT 1").fetch_one(pool).await.unwrap();
     let upper = sqlx::query("UPDATE node SET uuid = upper(uuid) WHERE id = ?").bind(some_id).execute(pool).await;
@@ -549,7 +550,7 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
         .await;
     assert!(twice.is_err(), "doppelte uuid abgelehnt (UNIQUE INDEX node_uuid)");
 
-    // Wiederholbar: zweites Öffnen vergibt keine neue uuid, ändert Instanz, Zeilen und Schema nicht.
+    // Repeatable: a second opening assigns no new uuid, does not change instance, rows and schema.
     let full_layout = tables(pool).await;
     let full = contents(pool, &full_layout).await;
     drop(store);
@@ -562,7 +563,7 @@ async fn migration_0041_adds_canonical_uuids_and_keeps_every_row_and_object() {
 
 #[tokio::test]
 async fn new_rows_get_a_uuid_from_the_trigger_and_deleted_rows_a_tombstone() {
-    // Die Trigger arbeiten auch für Zeilen, die nicht über den Store entstehen (z. B. nachgebaute Datenbanken).
+    // The triggers also work for rows that do not arise through the store (e.g. reproduced databases).
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
     let pool = store.pool();
@@ -575,7 +576,7 @@ async fn new_rows_get_a_uuid_from_the_trigger_and_deleted_rows_a_tombstone() {
     let uuid: String =
         sqlx::query_scalar("SELECT uuid FROM work WHERE id = ?").bind(work).fetch_one(pool).await.unwrap();
     assert!(is_v4(&uuid), "Fülltrigger vergibt v4: {uuid}");
-    // Eine mitgegebene uuid überschreibt der Trigger nicht (WHEN NEW.uuid IS NULL): so legt exchange_apply an.
+    // The trigger does not overwrite a uuid passed in (WHEN NEW.uuid IS NULL): this is how exchange_apply creates.
     let given = "0f0e0d0c-0b0a-4908-8706-050403020100";
     let other: i64 = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, title_key, uuid) VALUES ('gegeben', 'book', 'Gegeben', 'X', 'gegeben', ?) RETURNING id",
@@ -600,9 +601,9 @@ async fn new_rows_get_a_uuid_from_the_trigger_and_deleted_rows_a_tombstone() {
     );
 }
 
-/// Runde 30 (0047) hängt Spalten an `post`, `chat_thread_post`, `finding` und `revision` an (`ALTER TABLE … ADD
-/// COLUMN` erweitert den gespeicherten CREATE-Text um genau diese Zusätze; geprüft in migration_0047.rs); der
-/// Vergleich des alten Schemas nimmt sie heraus.
+/// Round 30 (0047) appends columns to `post`, `chat_thread_post`, `finding` and `revision` (`ALTER TABLE … ADD COLUMN`
+/// extends the stored CREATE text by exactly these additions; checked in migration_0047.rs); the comparison of the old
+/// schema takes them out.
 fn without_r30(name: &str, sql: &str) -> String {
     let sql: &str = &without_r22(name, sql);
     const POST: &str = ", basis_rev INTEGER CHECK (basis_rev IS NULL OR basis_rev >= 1), basis_label TEXT NOT NULL \
@@ -626,13 +627,13 @@ fn without_r30(name: &str, sql: &str) -> String {
     sql.replace(&added, "")
 }
 
-/// Objekte, die 0047 (Runde 30) neu anlegt.
+/// Objects that 0047 (Round 30) newly creates.
 #[allow(dead_code)]
 const R30_OBJECTS: [&str; 3] = ["replace_batch", "replace_batch_work", "revision_variant_group"];
 
-/// Runde 22 (0050) hängt `amend_seq`/`based_on_amend` an `revision` und `adopted_amend` an `finding` und
-/// `finding_status` an (`ALTER TABLE … ADD COLUMN`, geprüft in migration_0050.rs); der Vergleich des alten Schemas
-/// nimmt sie heraus.
+/// Round 22 (0050) appends `amend_seq`/`based_on_amend` to `revision` and `adopted_amend` to `finding` and
+/// `finding_status` (`ALTER TABLE … ADD COLUMN`, checked in migration_0050.rs); the comparison of the old schema takes
+/// them out.
 fn without_r22(name: &str, sql: &str) -> String {
     const REVISION: &str = ", amend_seq INTEGER NOT NULL DEFAULT 0 CHECK (amend_seq >= 0), based_on_amend INTEGER \
         CHECK (based_on_amend IS NULL OR based_on_amend >= 0)";

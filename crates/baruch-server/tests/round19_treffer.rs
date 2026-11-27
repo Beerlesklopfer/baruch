@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 19c (treffer): schwache Treffer in Literatur, Einfällen und Belegen, `idea.search` mit `mode: "rag"`
-//! (Ausfall -32001), Wortlaut mit Trennresten im Modul (`module_spacing`, `module_note`), „Mal“, Lektor-Hinweis mit
-//! Bibel, Rückabbildung der Bibelseite, Lemma-Probe der Lexika und der Bibel-Kontext der Arbeitsseite ohne
+//! Round 19c (treffer): weak hits in literature, ideas and evidence, `idea.search` with `mode: "rag"` (failure -32001),
+//! wording with hyphenation leftovers in the module (`module_spacing`, `module_note`), „Mal“, lector hint with Bible,
+//! reverse mapping of the Bible page, lemma probe of the lexicons and the Bible context of the work page without
 //! JavaScript.
 //!
-//! Kein Netz: Einbettungen nur über einen eigenen Nachbau-Vektorraum ([`Concepts`]), Bibeln und Lexika schreibt der
-//! Test selbst (`baruch_sword::fixture`, frei erfunden, Temp-Ordner); fremde Module werden nie gelesen.
+//! No network: embeddings only through an own mock vector space ([`Concepts`]), Bibles and lexicons are written by the
+//! test itself (`baruch_sword::fixture`, freely invented, temp folder); foreign modules are never read.
 
 use crate::common;
 
@@ -24,7 +24,7 @@ use baruch_server::scripture::{MARK_BIBLE, MARK_OTHERS};
 use baruch_sword::fixture::{Block, Fixture, Layout, LexLayout, LexiconFixture, hyphen_remnants, write, write_lexicon};
 use serde_json::{Value, json};
 
-// ---- Hilfen ----------------------------------------------------------------------------------------------
+// ---- Helpers --------------------------------------------------------------------------------------------
 
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     let answer = server.rpc(method, params).await;
@@ -32,7 +32,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// MCP-Werkzeug vom eigenen Rechner (ohne Token, Sitzung aus `initialize`).
+/// MCP tool from the own machine (without token, session from `initialize`).
 async fn mcp(server: &common::Server, tool: &str, arguments: Value) -> Value {
     async fn post(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
         let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -72,7 +72,7 @@ fn url_escape(text: &str) -> String {
         .collect()
 }
 
-/// HTML-Maskierung wie minijinja (auch `/`).
+/// HTML escaping like minijinja (also `/`).
 fn esc(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -82,16 +82,16 @@ fn esc(text: &str) -> String {
         .replace('/', "&#x2f;")
 }
 
-/// Teil von `html` ab `start` bis zum nächsten `end` (Panik mit Text, wenn es fehlt).
+/// Part of `html` from `start` to the next `end` (panic with text if it is missing).
 fn between<'a>(html: &'a str, start: &str, end: &str) -> &'a str {
     let from = html.find(start).unwrap_or_else(|| panic!("„{start}“ fehlt: {html}"));
     let rest = &html[from..];
     &rest[..rest.find(end).map_or(rest.len(), |i| i + end.len())]
 }
 
-// ---- Nachbau-Vektorraum (fest, ohne Netz) -----------------------------------------------------------------
+// ---- Mock vector space (fixed, without network) -----------------------------------------------------------
 
-/// Begriffsachsen: Wörter derselben Achse sind „bedeutungsgleich“, verschiedene Achsen stehen senkrecht.
+/// Concept axes: words of the same axis are "equal in meaning", different axes are perpendicular.
 const AXES: [&[&str]; 3] = [
     &["meer", "wellen", "wogen", "gischt", "küste", "flut", "ebbe", "kutter", "hafen", "segel"],
     &["garten", "beet", "samen", "wurzel", "erde", "pflanze", "blüte", "saat"],
@@ -144,7 +144,7 @@ impl EmbedderFactory for Concepts {
     }
 }
 
-/// Testbuch (frei erfunden) mit einem Meeres- und einem Gartenabschnitt.
+/// Test book (freely invented) with a sea section and a garden section.
 const SEA_BOOK: &str = "// Testbuch Runde 19c (frei erfunden).
 = Am Meer
 
@@ -155,7 +155,7 @@ Die Wellen rollen an die Küste, und bei Flut kreuzt ein Kutter mit weißem Sege
 Im Beet keimen die Samen, die Wurzel greift in die Erde, und bald trägt die Pflanze eine Blüte.
 ";
 
-/// Server mit Nachbau-Einbetter, Testbuch und zwei Einfällen (Meer und Garten); Index aufgebaut.
+/// Server with mock embedder, test book and two ideas (sea and garden); index built.
 async fn indexed() -> (common::Server, i64, i64, i64) {
     let server = common::open().await;
     rag::set_embedders(&server.state, Arc::new(Concepts));
@@ -174,7 +174,7 @@ async fn indexed() -> (common::Server, i64, i64, i64) {
     (server, work, sea, garden)
 }
 
-// ---- Schwache Treffer ------------------------------------------------------------------------------------
+// ---- Weak hits ------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn idea_search_by_meaning_marks_weak_hits_and_puts_them_last() {
@@ -227,7 +227,7 @@ async fn literature_by_meaning_folds_weak_hits_on_the_page_and_in_the_popup() {
     let strong = html.find("Am Meer").expect("Meeresabschnitt als Treffer");
     assert!(strong < html.find("data-weak-hits").unwrap(), "Begründung: starke Treffer vor den schwachen");
 
-    // Arbeitsseite: das Popup lädt dieselbe Vorlage über literature.render.
+    // Work page: the popup loads the same template through literature.render.
     let rendered =
         ok(&server, "literature.render", json!({ "work": work, "lq": "Wogen und Gischt", "lmode": "rag" })).await;
     let popup = rendered["html"].as_str().unwrap();
@@ -260,7 +260,7 @@ async fn literature_by_meaning_folds_weak_hits_on_the_page_and_in_the_popup() {
     );
 }
 
-// ---- idea.search ohne Einbetter ----------------------------------------------------------------------------
+// ---- idea.search without embedder --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn idea_search_by_meaning_without_an_embedder_fails_with_rag_unavailable() {
@@ -294,9 +294,9 @@ async fn idea_search_by_meaning_without_an_embedder_fails_with_rag_unavailable()
     );
 }
 
-// ---- Wortlaut mit Trennresten ------------------------------------------------------------------------------
+// ---- Wording with hyphenation leftovers --------------------------------------------------------------------
 
-/// Zehn erfundene Verse (Ps 119,1–10); `remnants`: jeder zweite mit Trennresten (`hyphen_remnants`).
+/// Ten invented verses (Ps 119:1–10); `remnants`: every second one with hyphenation leftovers (`hyphen_remnants`).
 fn psalm(name: &str, remnants: bool) -> Fixture {
     let base = [
         "Am Morgen gingen die Fischer hinunter zum Ufer und warteten.",
@@ -320,7 +320,7 @@ fn psalm(name: &str, remnants: bool) -> Fixture {
     fixture
 }
 
-/// Erfundene Bibel in KJV-Zählung (Maleachi 4 = deutsch Maleachi 3,19–24).
+/// Invented Bible in KJV versification (Malachi 4 = German Malachi 3:19–24).
 fn english() -> Fixture {
     Fixture::new("Englisch", Layout::RawText, versification("KJV").unwrap())
         .conf("Description", "Erfundene Bibel mit KJV-Zählung")
@@ -449,7 +449,7 @@ async fn the_module_note_reaches_mcp_the_check_page_and_the_belege_facts() {
     );
 }
 
-// ---- Lektor-Hinweis ----------------------------------------------------------------------------------------
+// ---- Lector hint ------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_lector_note_names_the_module_when_the_work_has_a_bible() {
@@ -478,7 +478,7 @@ async fn the_lector_note_names_the_module_when_the_work_has_a_bible() {
     assert!(without.ends_with(MARK_OTHERS), "Begründung: ohne Bibel bleibt der Hinweis wie bisher: {without}");
 }
 
-// ---- Rückabbildung der Bibelseite --------------------------------------------------------------------------
+// ---- Reverse mapping of the Bible page --------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_verse_of_a_kjv_module_sets_the_german_reference_by_link() {
@@ -509,7 +509,7 @@ async fn a_verse_of_a_kjv_module_sets_the_german_reference_by_link() {
         "Begründung: RPC liefert german_ref: {looked}"
     );
 
-    // Nicht abbildbar (2. Kön 15 hat in German 39, in KJV 38 Verse und keine Regel): ehrlicher Grund.
+    // Not mappable (2 Kings 15 has 39 verses in German, 38 in KJV and no rule): honest reason.
     let Choice::Ready(bible) = baruch_server::bibles::by_name(&server.state, "Englisch").await.unwrap() else {
         panic!("Testbibel lesbar");
     };
@@ -525,7 +525,7 @@ async fn a_verse_of_a_kjv_module_sets_the_german_reference_by_link() {
     assert_eq!(german().name, "German", "Begründung: Ziel der Rückabbildung ist die deutsche Zählung");
 }
 
-// ---- Lemma-Probe -------------------------------------------------------------------------------------------
+// ---- Lemma probe ------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn lexicon_lookup_probes_umlaut_compound_and_strong_padding() {
@@ -567,7 +567,7 @@ async fn lexicon_lookup_probes_umlaut_compound_and_strong_padding() {
     );
 }
 
-// ---- Bibel-Kontext der Arbeitsseite ------------------------------------------------------------------------
+// ---- Bible context of the work page -----------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_workspace_renders_the_bible_shelf_without_javascript() {
@@ -591,7 +591,8 @@ async fn the_workspace_renders_the_bible_shelf_without_javascript() {
         "Begründung: der Link trägt Werk, Schlüssel und Fassung (Zitieren aus dem Abschnitt geht): {shelf}"
     );
 
-    // Ohne eingestellte Modulordner und ohne Bibel des Werks: ehrlicher Hinweis, kein Lesen der Vorgabeordner.
+    // Without configured module folders and without a Bible of the work: honest hint, no reading of the default
+    // folders.
     let plain = common::open().await;
     let other = plain.import(PSALM_BOOK, "hafen.typ").await.work;
     let (_, html) = plain.get(&format!("/?work={other}")).await;

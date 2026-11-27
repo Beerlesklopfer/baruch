@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 „Teile und Gliederung“ (R14b) im Server: Teile anlegen über RPC `outline.add` mit `level`,
-//! das Formular ohne JavaScript und MCP `outline_add` (Autor im Spiegel), Umbenennen eines Teils,
-//! Anträge mit Vorschau (RPC, MCP, Seite `/gliederung#antraege` ohne JavaScript) und `idea.process`
-//! als Gliederungspunkt in einer Transaktion. Alle Testtexte frei erfunden (`tests/data/gartenbuch.typ`).
+//! Round 14 „Teile und Gliederung“ (R14b) in the server: creating parts through RPC `outline.add` with `level`, the
+//! form without JavaScript and MCP `outline_add` (author in the mirror), renaming a part, requests with preview (RPC,
+//! MCP, page `/gliederung#antraege` without JavaScript) and `idea.process` as an outline item in one transaction. All
+//! test texts freely invented (`tests/data/gartenbuch.typ`).
 
 use crate::common;
 
@@ -49,7 +49,7 @@ fn last_commit(server: &common::Server, slug: &str) -> Option<String> {
     common::git(&server.mirror_dir_of(slug), &["log", "-1", "--format=%an <%ae>%n%cn <%ce>%n%B"])
 }
 
-/// Aktuelle Fassung (Text, Autor) des Punkts mit dem Schlüssel `key`, direkt aus dem Store.
+/// Current revision (text, author) of the item with the key `key`, directly from the store.
 async fn current_of(server: &common::Server, work: i64, key: i64) -> (String, Author, NodeKind) {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = loaded.nodes.iter().find(|n| n.key == key).expect("Punkt mit diesem Schlüssel");
@@ -57,7 +57,7 @@ async fn current_of(server: &common::Server, work: i64, key: i64) -> (String, Au
     (rev.body.clone(), rev.author.clone(), node.kind)
 }
 
-// ---- MCP-Hilfen (wie outline_mcp.rs) -----------------------------------------------------------
+// ---- MCP helpers (as in outline_mcp.rs) ---------------------------------------------------------
 
 async fn mcp_post(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -96,7 +96,7 @@ async fn mcp_ok(server: &common::Server, session: &str, tool: &str, arguments: V
     answer["result"]["structuredContent"].clone()
 }
 
-// ---- Teile anlegen ---------------------------------------------------------------------------------
+// ---- Creating parts -------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn rpc_outline_add_with_level_zero_puts_a_first_part_before_the_first_chapter_of_a_template_work() {
@@ -111,7 +111,7 @@ async fn rpc_outline_add_with_level_zero_puts_a_first_part_before_the_first_chap
         )
         .await;
     let added = result(&answer);
-    // Das Gartenbuch hat eine Werkvorlage: Bis Runde 13 lehnte Baruch hier ab, jetzt nicht mehr.
+    // The Gartenbuch has a work template: up to Round 13 Baruch rejected here, now no longer.
     assert_eq!(added["action"], "added", "angelegt: {added}");
     assert_eq!(added["node"], 0, "der Teil steht vor dem ersten Kapitel");
     assert_eq!(added["adopted"], json!([spring, summer]), "adopted = die Kapitel, die jetzt unter dem Teil stehen");
@@ -120,7 +120,7 @@ async fn rpc_outline_add_with_level_zero_puts_a_first_part_before_the_first_chap
     assert_eq!(kind, NodeKind::Part, "der neue Punkt ist ein Teil");
     assert_eq!(body, format!("{}\n", baruch_typst::heading_line(0, "Erster Teil", None)), "Text = Teil-Markierung");
     assert_eq!(author, Author::Human { name: "Autor".into() }, "Revision 1 vom Menschen");
-    // Nummern der Kapitel bleiben (Kapitel zählen über Teile hinweg).
+    // Numbers of the chapters stay (chapters count across parts).
     let after = nodes(&server, work).await;
     for old in before {
         let now = after.iter().find(|n| n["key"] == old["key"]).unwrap();
@@ -131,7 +131,7 @@ async fn rpc_outline_add_with_level_zero_puts_a_first_part_before_the_first_chap
         assert!(commit.starts_with("Autor <autor@baruch.invalid>"), "Autor des Commits ist der Mensch: {commit}");
     }
 
-    // `into` mit Ebene 0 → -32000 (Vertrag 5), nichts angelegt.
+    // `into` with level 0 → -32000 (contract 5), nothing created.
     let count = after.len();
     let answer = server
         .rpc(
@@ -145,7 +145,7 @@ async fn rpc_outline_add_with_level_zero_puts_a_first_part_before_the_first_chap
         .await;
     assert!(answer["error"].is_object(), "Ebene 9 abgelehnt: {answer}");
     assert_eq!(nodes(&server, work).await.len(), count, "nichts angelegt");
-    // Ohne `level` wie bisher: Ebene des Orts, `adopted` leer.
+    // Without `level` as before: level of the place, `adopted` empty.
     let answer = server
         .rpc("outline.add", json!({ "work": work, "target_key": summer, "place": "after", "title": "Herbst" }))
         .await;
@@ -156,7 +156,7 @@ async fn rpc_outline_add_with_level_zero_puts_a_first_part_before_the_first_chap
 async fn the_form_without_javascript_creates_a_part_with_the_level_field() {
     let (server, work, _) = garden().await;
     let summer = key_of(&server, work, "Sommer").await;
-    // Die Bearbeiten-Seite eines Kapitels bietet „Ebene: Teil“ im Formular „Neuer Gliederungspunkt“.
+    // The edit page of a chapter offers „Ebene: Teil“ in the form „Neuer Gliederungspunkt“.
     let (status, page) = server.get(&format!("/gliederung/bearbeiten?work={work}&key={summer}")).await;
     assert_eq!(status, StatusCode::OK, "Seite lädt");
     assert!(page.contains(r#"<select name="level">"#) && page.contains(r#"<option value="0">"#), "Feld level mit Teil");
@@ -169,7 +169,7 @@ async fn the_form_without_javascript_creates_a_part_with_the_level_field() {
     let all = nodes(&server, work).await;
     let part = all.iter().find(|n| n["title"] == "Zweiter Teil").expect("der Teil steht im Werk");
     assert_eq!(part["kind"], "part", "Art Teil");
-    // Leeres Feld level = Ebene des Orts (wie vor Runde 14).
+    // Empty field level = level of the place (as before Round 14).
     let form = format!("method=outline.add&work={work}&target_key={summer}&place=after&title=Nachsommer&level=");
     let (status, _) = server.post_form("/gliederung/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "leeres level wird angenommen");
@@ -183,7 +183,7 @@ async fn mcp_outline_add_creates_parts_as_the_assistant_with_adopted_chapters() 
     let s = mcp_session(&server).await;
     let spring = key_of(&server, work, "Frühling").await;
     let summer = key_of(&server, work, "Sommer").await;
-    // Einzelpunkt mit level 0 vor dem ersten Kapitel: übernähme beide Kapitel → Antrag (Nutzerfrage 12).
+    // Single item with level 0 before the first chapter: would take over both chapters → request (user question 12).
     let answer = mcp_ok(
         &server,
         &s,
@@ -207,14 +207,14 @@ async fn mcp_outline_add_creates_parts_as_the_assistant_with_adopted_chapters() 
         assert!(commit.contains("Baruch-Requested-By: @mcp:teilprobe"), "Antragsteller im Commit: {commit}");
         assert!(commit.starts_with("Autor <"), "Autor des Commits ist der zustimmende Mensch: {commit}");
     }
-    // items mit einem zweiten Teil vor „Sommer“ (Ebene des Orts 1, Teil als erster Punkt erlaubt).
+    // items with a second part before „Sommer“ (level of the place 1, part allowed as the first item).
     let items = json!([{ "title": "Teil B", "level": 0 }]);
     let answer =
         mcp_ok(&server, &s, "outline_add", json!({ "work": work, "key": summer, "place": "before", "items": items }))
             .await;
     assert_eq!(answer["action"], "requested", "auch als items ein Antrag: {answer}");
     assert_eq!(answer["adopted"], json!([summer]), "nur „Sommer“ würde zum neuen Teil wechseln");
-    // Ein Teil am Werkende übernimmt nichts: sofort angelegt, Autor des Commits der Client.
+    // A part at the end of the work takes over nothing: created at once, author of the commit is the client.
     let answer = mcp_ok(
         &server,
         &s,
@@ -226,14 +226,14 @@ async fn mcp_outline_add_creates_parts_as_the_assistant_with_adopted_chapters() 
     if let Some(commit) = last_commit(&server, &slug) {
         assert!(commit.starts_with("MCP-Client (@mcp:teilprobe)"), "Autor des Commits ist der Client: {commit}");
     }
-    // level neben items ist widersprüchlich.
+    // level next to items is contradictory.
     let answer =
         mcp_call(&server, &s, "outline_add", json!({ "work": work, "key": summer, "level": 0, "items": items })).await;
     assert_eq!(answer["error"]["code"], -32602, "level neben items abgelehnt: {answer}");
-    // Umstufen zum Teil bleibt auch als Antrag abgelehnt.
+    // Changing the level to a part stays rejected as a request too.
     let answer = mcp_call(&server, &s, "outline_set_level", json!({ "work": work, "key": summer, "level": 0 })).await;
     assert_eq!(answer["result"]["isError"], true, "outline_set_level auf 0 abgelehnt: {answer}");
-    // Die Beschreibungen nennen level 0, adopted und preview (Vertrag 5).
+    // The descriptions name level 0, adopted and preview (contract 5).
     let (_, list) = mcp_post(&server, Some(&s), json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/list" })).await;
     let tools = list["result"]["tools"].as_array().unwrap();
     let describe =
@@ -261,7 +261,7 @@ async fn renaming_a_part_over_rpc_rewrites_its_marker_line() {
     assert_eq!(author, Author::Human { name: "Autor".into() }, "vom Menschen");
 }
 
-// ---- Anträge mit Vorschau ----------------------------------------------------------------------------
+// ---- Requests with preview --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn requests_show_a_preview_over_rpc_mcp_and_on_the_page_without_javascript() {
@@ -279,31 +279,31 @@ async fn requests_show_a_preview_over_rpc_mcp_and_on_the_page_without_javascript
     let shown = titles(&server, work).await;
     let commits = log(&server, &slug);
 
-    // RPC ohne preview: wie bisher kein Feld.
+    // RPC without preview: no field, as before.
     let plain = server.rpc("outline.requests", json!({ "work": work })).await;
     assert!(result(&plain)["requests"][0].get("preview").is_none(), "ohne preview keine Vorschau");
-    // RPC mit preview: Gliederung danach, der umbenannte Punkt markiert.
+    // RPC with preview: outline afterwards, the renamed item marked.
     let answer = server.rpc("outline.requests", json!({ "work": work, "preview": true })).await;
     let preview = result(&answer)["requests"][0]["preview"].as_array().expect("preview je offenem Antrag").clone();
     let point = preview.iter().find(|p| p["key"] == summer).unwrap();
     assert_eq!(point["title"], "Hochsommer", "Titel nach dem Bestätigen");
     assert_eq!(point["mark"], "renamed", "Marke umbenannt");
     assert_eq!(preview.len(), shown.len(), "alle Punkte der Gliederung");
-    // MCP mit preview: dasselbe.
+    // MCP with preview: the same.
     let listed = mcp_ok(&server, &s, "outline_requests", json!({ "work": work, "preview": true })).await;
     assert_eq!(listed["requests"][0]["preview"], json!(preview), "MCP liefert dieselbe Vorschau wie RPC");
-    // Seite ohne JavaScript: <details> mit der Vorschau beim Antrag.
+    // Page without JavaScript: <details> with the preview at the request.
     let (status, page) = server.get(&format!("/gliederung?work={work}")).await;
     assert_eq!(status, StatusCode::OK, "Gliederungsseite lädt");
     let row = page.split(&format!(r#"id="antrag-{id}""#)).nth(1).expect("Zeile des Antrags");
     let row = row.split("</tr>").next().unwrap();
     assert!(row.contains("<details class=\"request-preview\">"), "Vorschau als <details> (ohne JavaScript)");
     assert!(row.contains("Hochsommer") && row.contains("umbenannt"), "neuer Titel und Marke sichtbar: {row}");
-    // Nichts geändert: Gliederung und Spiegel wie vorher.
+    // Nothing changed: outline and mirror as before.
     assert_eq!(titles(&server, work).await, shown, "die Vorschau ändert die Gliederung nicht");
     assert_eq!(log(&server, &slug), commits, "kein Commit durch die Vorschau");
 
-    // Bestätigen ergibt genau die Vorschau (Titel, Nummern, Reihenfolge).
+    // Confirming yields exactly the preview (titles, numbers, order).
     server.rpc("outline.request_decide", json!({ "work": work, "id": id, "decision": "confirm" })).await;
     let after = nodes(&server, work).await;
     let rows: Vec<(Value, Value, Value)> =
@@ -323,7 +323,7 @@ async fn stale_and_decided_requests_carry_a_preview_error() {
     let rejected = mcp_ok(&server, &s, "outline_rename", json!({ "work": work, "key": spring, "title": "Lenz" })).await;
     let rejected = rejected["request"]["id"].as_i64().unwrap();
     server.rpc("outline.request_decide", json!({ "work": work, "id": rejected, "decision": "reject" })).await;
-    // Der Mensch benennt „Sommer“ selbst um: der offene Antrag ist veraltet.
+    // The human renames „Sommer“ himself: the open request is outdated.
     server.rpc("outline.rename", json!({ "work": work, "key": summer, "title": "Spätsommer" })).await;
     let answer = server.rpc("outline.requests", json!({ "work": work, "open": false, "preview": true })).await;
     let requests = result(&answer)["requests"].as_array().unwrap().clone();
@@ -333,12 +333,12 @@ async fn stale_and_decided_requests_carry_a_preview_error() {
     assert!(text.contains("Veraltet") && text.contains("Spätsommer"), "Grund genannt: {text}");
     let decided = requests.iter().find(|r| r["id"] == rejected).unwrap();
     assert!(decided["preview_error"].as_str().unwrap().contains("schon entschieden"), "entschieden: {decided}");
-    // Die Seite zeigt den Grund statt der Vorschau.
+    // The page shows the reason instead of the preview.
     let (_, page) = server.get(&format!("/gliederung?work={work}")).await;
     assert!(page.contains("Keine Vorschau: Veraltet"), "Seite nennt den Grund ohne JavaScript");
 }
 
-// ---- idea.process als Gliederungspunkt ------------------------------------------------------------
+// ---- idea.process as an outline item --------------------------------------------------------------
 
 #[tokio::test]
 async fn idea_process_as_outline_is_one_transaction_without_a_commit_on_failure() {
@@ -350,7 +350,7 @@ async fn idea_process_as_outline_is_one_transaction_without_a_commit_on_failure(
     let id = result(&created)["idea"]["id"].as_i64().unwrap();
     let shown = titles(&server, work).await;
     let commits = log(&server, &slug);
-    // Zweiter Schritt scheitert erzwungen (Trigger auf UPDATE idea): nichts darf bleiben.
+    // The second step fails by force (trigger on UPDATE idea): nothing may stay.
     sqlx::query("CREATE TRIGGER test_idea_fails BEFORE UPDATE ON idea BEGIN SELECT RAISE(ABORT, 'Probe'); END")
         .execute(server.state.store.pool())
         .await
@@ -364,7 +364,7 @@ async fn idea_process_as_outline_is_one_transaction_without_a_commit_on_failure(
     let idea = server.rpc("idea.get", json!({ "id": id })).await;
     assert_eq!(result(&idea)["idea"]["status"], "open", "der Einfall bleibt offen");
 
-    // Ohne Trigger: Punkt und „verarbeitet“ zusammen, done_ref nennt den Schlüssel.
+    // Without the trigger: item and „verarbeitet“ together, done_ref names the key.
     let done = server.rpc("idea.process", json!({ "id": id, "as": "outline", "key": summer, "title": "Herbst" })).await;
     let done = result(&done);
     let key = done["key"].as_i64().expect("Schlüssel des neuen Punkts");

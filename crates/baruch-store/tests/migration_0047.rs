@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0047 (Runde 30: Metadaten von Beiträgen, Lösungen je Befund, Varianten, Protokoll des Ersetzens) auf einer
-//! nachgebauten Datenbank im Stand von development vor Runde 30 (Store bis 0046, Bibliothek vollständig) mit frei
-//! erfundenen Zeilen: Werk mit Kapiteln und Fassungen, Beiträge, Faden mit Beiträgen, Befunde.
+//! Migration 0047 (Round 30: metadata of posts, solutions per finding, variants, log of the replacing) on a reproduced
+//! database in the state of development before Round 30 (store up to 0046, library complete) with freely invented rows:
+//! work with chapters and revisions, posts, thread with posts, findings.
 //!
-//! Belegt: 0047 steht nicht in `FOREIGN_KEYS_OFF` und baut keine Tabelle um; jede Zeile jeder alten Tabelle bleibt in
-//! den alten Spalten byte-gleich samt ids und uuids; die neuen Spalten hängen hinten an mit ihren Vorgaben; neu sind
-//! genau `replace_batch` (samt Index und AUTOINCREMENT-Zähler) und der Teilindex `revision_variant_group`; die
-//! Fremdschlüssel bleiben intakt (`pragma_foreign_key_check` leer); die CHECKs lehnen ab, was der Vertrag verbietet;
-//! ein Löschen eines Beitrags setzt `reply_to` der Antwort auf NULL, ein Löschen des Werks nimmt `replace_batch` mit.
+//! Evidenced: 0047 is not in `FOREIGN_KEYS_OFF` and rebuilds no table; every row of every old table stays
+//! byte-identical in the old columns including ids and uuids; the new columns are appended at the end with their
+//! defaults; new are exactly `replace_batch` (including index and AUTOINCREMENT counter) and the partial index
+//! `revision_variant_group`; the foreign keys stay intact (`pragma_foreign_key_check` empty); the CHECKs reject what
+//! the contract forbids; deleting a post sets `reply_to` of the reply to NULL, deleting the work takes `replace_batch`
+//! along.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,7 +23,7 @@ use sqlx::{Row, SqlitePool};
 const BOOK: &str = "#set document(title: \"Der Leuchtturm am Kap\", author: \"Mira Docht\")\n\n\
 = Abend\n\nDer Leuchtturm wirft sein Licht.\n\n= Nacht\n\nDer Wachturm schweigt bis zum Morgen.\n";
 
-/// Neue Spalten je Tabelle in der Reihenfolge der Migration.
+/// New columns per table in the order of the migration.
 const NEW_COLUMNS: [(&str, &[&str]); 4] = [
     ("post", &["basis_rev", "basis_label", "reply_to", "repeat_of", "relay_from", "request"]),
     ("chat_thread_post", &["basis_rev", "basis_label", "reply_to", "repeat_of", "relay_from", "request"]),
@@ -52,8 +53,8 @@ async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Store bis 0046 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek: der
-/// Stand von development vor Runde 30.
+/// Store up to 0046 (0040 as in `baruch_store::migrate` with foreign keys switched off) and the library: the state of
+/// development before Round 30.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 47), "die neue Migration ist 0047");
     assert!(!baruch_store::FOREIGN_KEYS_OFF.contains(&47), "0047 baut keine Tabelle um (Vertrag R30 §1.1)");
@@ -73,14 +74,14 @@ async fn migrate_before(pool: &SqlitePool) {
     assert_eq!(highest, 46, "Stand davor: Store bis 0046");
 }
 
-/// Ids der Testdaten.
+/// Ids of the test data.
 struct Rows {
     work: i64,
     posts: Vec<i64>,
     thread_posts: Vec<i64>,
 }
 
-/// Werk mit Kapiteln, zwei Fassungen, Beiträgen, Faden und Befunden direkt in SQLite.
+/// Work with chapters, two revisions, posts, thread and findings directly in SQLite.
 async fn insert_rows(pool: &SqlitePool) -> Rows {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     let doc = baruch_typst::parse(BOOK).unwrap();
@@ -208,13 +209,13 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → SQL.
+/// All schema objects: name → SQL.
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows = sqlx::query("SELECT name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), r.get(1))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout`, Werte per `quote()` (Typ und Bytes sichtbar).
+/// Content of every table in the columns from `layout`, values through `quote()` (type and bytes visible).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -244,10 +245,10 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
     let schema_before = schema(&pool).await;
     let before = contents(&pool, &layout).await;
 
-    // Nur 0047, wie `baruch_store::migrate` sie ausführt (nicht in FOREIGN_KEYS_OFF: Fremdschlüssel bleiben an).
+    // Only 0047, as `baruch_store::migrate` runs it (not in FOREIGN_KEYS_OFF: foreign keys stay on).
     store_migrator(|v| v == 47).run(&pool).await.expect("0047 läuft auf dem Stand von development");
 
-    // Daten: jede Zeile jeder alten Tabelle in den alten Spalten byte-gleich (ids, uuids, Texte).
+    // Data: every row of every old table byte-identical in the old columns (ids, uuids, texts).
     let after = contents(&pool, &layout).await;
     for (table, old) in &before {
         if table != "_sqlx_migrations" {
@@ -270,7 +271,7 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
     .await;
     assert_eq!(uuids_null, 0, "uuids bleiben gesetzt (Austausch kennt die Zeilen weiter)");
 
-    // Vorgaben der neuen Spalten.
+    // Defaults of the new columns.
     for table in ["post", "chat_thread_post"] {
         let unset = scalar(
             &pool,
@@ -291,9 +292,9 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
     .await;
     assert_eq!(plain, 3, "vorhandene Fassungen sind keine Varianten");
 
-    // Schema: alte Objekte wörtlich bis auf die angehängten Spalten, neu genau replace_batch und die zwei Indizes.
+    // Schema: old objects literal except for the appended columns, new exactly replace_batch and the two indexes.
     let schema_after = schema(&pool).await;
-    // `sqlite_sequence` (Zähler von AUTOINCREMENT) legt SQLite selbst an, falls es ihn noch nicht gab.
+    // `sqlite_sequence` (counter of AUTOINCREMENT) is created by SQLite itself if it did not exist yet.
     let added: BTreeSet<&str> = schema_after
         .keys()
         .filter(|k| !schema_before.contains_key(*k) && k.as_str() != "sqlite_sequence")
@@ -309,11 +310,11 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
         assert_eq!(schema_after.get(name), Some(sql), "Schema von {name} unverändert");
     }
 
-    // Fremdschlüssel intakt.
+    // Foreign keys intact.
     let broken = scalar(&pool, "SELECT count(*) FROM pragma_foreign_key_check").await;
     assert_eq!(broken, 0, "pragma_foreign_key_check ist leer");
 
-    // CHECKs: gültige Werte gehen, verbotene nicht.
+    // CHECKs: valid values work, forbidden ones do not.
     let (question, answer) = (rows.posts[0], rows.posts[1]);
     exec(
         &pool,
@@ -372,7 +373,7 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
     )
     .await;
 
-    // Löschen: Antworten bleiben, der Verweis fällt weg; das Werk nimmt sein Protokoll mit.
+    // Deleting: replies stay, the reference is dropped; the work takes its log along.
     exec(&pool, &format!("DELETE FROM post WHERE id = {question}")).await;
     let reply: Option<i64> =
         sqlx::query_scalar("SELECT reply_to FROM post WHERE id = ?").bind(answer).fetch_one(&pool).await.unwrap();
@@ -384,7 +385,7 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
         .await
         .unwrap();
     assert_eq!(reply, None, "Fadenbeitrag ebenso");
-    // Ein leeres zweites Werk mit eigenem Protokoll: Löschen des Werks nimmt nur sein Protokoll mit.
+    // An empty second work with a log of its own: deleting the work takes only its log along.
     let empty: i64 = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, template, title_key) \
          VALUES ('leer', 'book', 'Leer', '', '', 'leer') RETURNING id",
@@ -405,7 +406,7 @@ async fn migration_0047_keeps_every_row_and_adds_metadata_solutions_variants_and
 
 #[tokio::test]
 async fn a_store_opened_after_0047_reads_works_with_the_new_columns() {
-    // Der ganze Weg wie beim Nutzer: `Store::open` führt alle Migrationen aus, Lesen und Schreiben gehen.
+    // The whole way as with the user: `Store::open` runs all migrations, reading and writing work.
     let dir = tempfile::tempdir().unwrap();
     let store = baruch_store::Store::open(dir.path()).await.unwrap();
     let work = store.import_typst(BOOK, "kap.typ", "Mira").await.unwrap().work;

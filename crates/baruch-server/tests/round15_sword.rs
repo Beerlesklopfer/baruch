@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 15, Punkte 5a–5c (Zweig anbieter): SWORD-Kommentare und -Lexika als Recherchewerkzeug im Server –
-//! `bible.modules` mit `kind`, Auswahl je Werk (RPC und Formular ohne JavaScript), `commentary.*`, `lexicon.*`,
-//! MCP `commentary_lookup`/`lexicon_lookup`/`lexicon_search` (nur lesend), die HTML-Bausteine für die Literatur
-//! (maskiert, `<details>`, Links mit Anfragerest) und `bible_research::research` (Reihenfolge, Lizenz,
-//! Grenzen, keine erfundenen Stellen, Schalter).
+//! Round 15, items 5a–5c (branch anbieter): SWORD commentaries and lexicons as a research tool in the server –
+//! `bible.modules` with `kind`, selection per work (RPC and form without JavaScript), `commentary.*`, `lexicon.*`, MCP
+//! `commentary_lookup`/`lexicon_lookup`/`lexicon_search` (read-only), the HTML building blocks for the literature
+//! (escaped, `<details>`, links with the rest of the query) and `bible_research::research` (order, licence, limits, no
+//! invented passages, switch).
 //!
-//! Alle Module schreibt der Test selbst (`baruch_sword::fixture`) mit frei erfundenem Inhalt in einen
-//! Temp-Ordner; die echten Modulordner des Rechners werden nie gelesen (jeder Test setzt seine Ordner).
+//! All modules are written by the test itself (`baruch_sword::fixture`) with freely invented content into a temp
+//! folder; the real module folders of the machine are never read (every test sets its folders).
 
 use crate::common;
 
@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 const BOOK: &str = "#set document(title: \"Der Turm im Moor\", author: \"Ole Riedel\")\n\n\
 = Prüfung\n\nWie Ps 139,23 sagt, steht der Kiesel am Bach. Dazu Mt 5,3 und die Amsel. Ungültig: Ps 151,1.\n";
 
-/// Erfundene Testbibel (deutsche Zählung).
+/// Invented test Bible (German versification).
 fn bible() -> Fixture {
     Fixture::new("Moorbibel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Moorbibel")
@@ -30,7 +30,7 @@ fn bible() -> Fixture {
         .verse("Matt", 5, 3, "Selig sind die Kiesel am Bach.")
 }
 
-/// Erfundener Kommentar; ein Eintrag trägt kodiertes Markup, das nach dem Auflösen wie ein Skript aussieht.
+/// Invented commentary; one entry carries encoded markup that looks like a script after resolving.
 fn commentary() -> Fixture {
     Fixture::new("Moorkommentar", Layout::RawCom, german())
         .conf("Description", "Erfundener Moorkommentar")
@@ -68,7 +68,7 @@ async fn err(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// Server mit eigenem Modulordner und einem Werk; gibt Server, Ordner und Werk.
+/// Server with a module folder of its own and a work; returns server, folder and work.
 async fn setup() -> (common::Server, tempfile::TempDir, i64) {
     let server = common::open().await;
     let modules = tempfile::tempdir().unwrap();
@@ -78,7 +78,7 @@ async fn setup() -> (common::Server, tempfile::TempDir, i64) {
     (server, modules, work)
 }
 
-/// Werk mit Bibel, Kommentar und Lexikon.
+/// Work with Bible, commentary and lexicon.
 async fn chosen() -> (common::Server, tempfile::TempDir, i64) {
     let (server, modules, work) = setup().await;
     ok(&server, "bible.set_work", json!({ "work": work, "module": "Moorbibel" })).await;

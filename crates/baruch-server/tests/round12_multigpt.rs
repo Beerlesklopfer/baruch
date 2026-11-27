@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 12 („multigpt“): MultiGPT-MCP als RAG-Weg und die MCP-Werkzeuge `rag_search`/`rag_status`.
+//! Round 12 („multigpt“): MultiGPT MCP as a RAG way and the MCP tools `rag_search`/`rag_status`.
 //!
-//! Alles gegen den Nachbau `baruch_server::connections::multigpt::mock::MockMultigpt` auf 127.0.0.1:0 –
-//! nie gegen das echte MultiGPT, nie gegen Eliezer. Geheimnisse nur in `MemorySecrets`. Testtexte frei
-//! erfunden („Das Jahr am Leuchtturm“, „Senfkornbuch“).
+//! Everything against the mock `baruch_server::connections::multigpt::mock::MockMultigpt` on 127.0.0.1:0 – never
+//! against the real MultiGPT, never against Eliezer. Secrets only in `MemorySecrets`. Test texts freely invented
+//! („Das Jahr am Leuchtturm“, „Senfkornbuch“).
 
 use crate::common;
 
@@ -21,7 +21,7 @@ use baruch_server::connections::multigpt::mock::{MockMultigpt, ResultForm};
 use baruch_server::connections::multigpt::{Limits, MultigptWay, open_way, rank_score};
 use serde_json::{Value, json};
 
-/// Eindeutiges Test-Token; es darf nirgends erscheinen.
+/// Unique test token; it must appear nowhere.
 const TOKEN: &str = "Mg7-nachbau-token-4b2e9d";
 
 async fn open_with(secrets: MemorySecrets) -> common::Server {
@@ -37,7 +37,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// MultiGPT auf den Nachbau stellen und (wie der Mensch nach einer Adressänderung) das Token neu eintragen.
+/// Point MultiGPT to the mock and (like the human after an address change) enter the token anew.
 async fn point_to(server: &common::Server, mock: &MockMultigpt, token: Option<&str>) {
     ok(server, "connection.set", json!({ "kind": "multigpt", "config": { "url": mock.url() } })).await;
     if let Some(token) = token {
@@ -73,7 +73,7 @@ fn hits() -> Vec<Value> {
     ]
 }
 
-// ---- Verbindung prüfen ---------------------------------------------------------------------------------
+// ---- Checking the connection --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_check_reads_every_tools_page_and_the_collections() {
@@ -169,7 +169,7 @@ async fn a_missing_or_wrong_token_is_denied_with_a_hint_and_never_shown() {
     assert!(message.contains("Schlüssel baruch/multigpt prüfen"), "Hinweis auf das Konto: {message}");
     assert!(!result.to_string().contains("falsches-token-1"), "das Token steht nirgends im Ergebnis: {result}");
 
-    // Die Gegenstelle spiegelt das Token in ihrem Namen und in Sammlungen zurück: Baruch ersetzt es überall.
+    // The peer mirrors the token back in its name and in collections: Baruch replaces it everywhere.
     ok(&server, "connection.set_secret", json!({ "kind": "multigpt", "secret": TOKEN })).await;
     mock.configure(|b| {
         b.server_name = format!("spiegel {TOKEN}");
@@ -191,7 +191,7 @@ async fn the_token_never_goes_to_another_address() {
     let second = MockMultigpt::start().await;
     let server = open_with(MemorySecrets::with([("multigpt", TOKEN)])).await;
     point_to(&server, &first, Some(TOKEN)).await;
-    // Neue Adresse ohne neues Token: Das alte gilt nur für die alte Adresse.
+    // New address without a new token: the old one holds only for the old address.
     ok(&server, "connection.set", json!({ "kind": "multigpt", "config": { "url": second.url() } })).await;
     let result = check(&server).await;
     assert_eq!(result["ok"], false, "nicht geprüft: {result}");
@@ -202,7 +202,7 @@ async fn the_token_never_goes_to_another_address() {
     assert!(second.requests().is_empty(), "auch die Suche fragt die neue Adresse nicht");
 }
 
-// ---- Suche ---------------------------------------------------------------------------------------------
+// ---- Search -------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn search_asks_only_the_chosen_collections_and_reads_source_details() {
@@ -334,8 +334,8 @@ async fn search_works_over_an_event_stream_and_scrubs_reflected_tokens() {
 #[tokio::test]
 async fn an_event_stream_cut_inside_an_umlaut_is_read_to_the_end() {
     let mock = MockMultigpt::start().await;
-    // Begründung: Der Nachbau schickt jede Antwort in zwei Stücken, das erste endet nach dem ersten Byte des
-    // ersten Mehrbyte-Zeichens; vorher brach die Suche dann mit „kein UTF-8-Text“ ab.
+    // Reason: the mock sends every response in two pieces, the first ends after the first byte of the first multi-byte
+    // character; before, the search then aborted with „kein UTF-8-Text“.
     mock.configure(|b| {
         b.event_stream = true;
         b.split_utf8 = true;
@@ -374,7 +374,7 @@ async fn read_document_only_ever_gives_an_excerpt_and_document_info_completes_hi
     assert_eq!(mock.tool_calls("read_document"), vec![json!({ "document_id": "sk-1" })], "Dokument aus dem Schema");
     let excerpt = way.excerpt("sk-1", None).await.expect("Ausschnitt");
     assert!(excerpt.chars().count() <= baruch_rag::MAX_SNIPPET_CHARS && excerpt.ends_with('…'), "nur Ausschnitt");
-    // Runde 13: read_full liefert den ganzen Text (der Stub ist entfallen); die Suche bleibt beim Ausschnitt.
+    // Round 13: read_full delivers the whole text (the stub is gone); the search stays with the excerpt.
     let full = way.read_full("sk-1").await.expect("Volltext");
     assert_eq!(full, long, "read_full gibt den Text der Gegenstelle unverändert zurück");
 }
@@ -382,7 +382,7 @@ async fn read_document_only_ever_gives_an_excerpt_and_document_info_completes_hi
 #[tokio::test]
 async fn open_way_needs_an_address() {
     let server = common::open().await;
-    // Die Seite lehnt eine leere Adresse ab; eine alte Datenbank könnte sie trotzdem enthalten.
+    // The page rejects an empty address; an old database could contain it nevertheless.
     server.state.store.connection_set(baruch_store::ConnectionKind::Multigpt, &json!({ "url": " " })).await.unwrap();
     let e = open_way(&server.state).await.err().expect("ohne Adresse kein Weg");
     assert_eq!(e.code(), "not_configured", "aus: {e}");
@@ -441,7 +441,7 @@ async fn mcp_rag_tools_answer_honestly_over_loopback_and_with_a_token() {
     for token in [None, Some(secret.as_str())] {
         let (status, answer) = mcp(&server, token, call("rag_search", json!({ "query": "Leuchtturm" }))).await;
         assert_eq!(status, StatusCode::OK, "Zugang über Loopback bzw. mit Token");
-        // Verdrahtet: die Suche antwortet, ohne Einbetter (Tests) ist LanceDB ehrlich ausgefallen.
+        // Wired: the search answers, without an embedder (tests) LanceDB has honestly failed.
         assert_ne!(answer["result"]["isError"], true, "Suche beantwortet: {answer}");
         let text = answer["result"]["content"][0]["text"].as_str().unwrap();
         assert!(

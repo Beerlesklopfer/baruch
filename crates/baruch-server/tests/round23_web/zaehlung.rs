@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a (Codereview quellen-1, quellen-2, ki-1): Belege aus SWORD und Kommentare lesen eine Stelle in deutscher
-//! Zählung über die Abbildung in die Zählung des Moduls; `source.read` begrenzt die Suchanfrage zum Markieren; Anträge
-//! zur Gliederung jenseits der ersten zwanzig bekommen ihre Vorschau auf Anforderung. Module, Texte und Werke frei
-//! erfunden (`baruch_sword::fixture`).
+//! Round 23a (code review quellen-1, quellen-2, ki-1): evidence from SWORD and commentaries read a passage in German
+//! versification through the mapping into the versification of the module; `source.read` limits the search query for
+//! marking; outline requests beyond the first twenty get their preview on demand. Modules, texts and works freely
+//! invented (`baruch_sword::fixture`).
 
 use axum::http::StatusCode;
 use baruch_scripture::versification::versification;
@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 
 use crate::common;
 
-/// Erfundener Text mit zwei Stellen, deren Kapitel in der KJV-Zählung anders liegen: Joel 3,1 (deutsch) ist KJV
-/// Joel 2,28; Mal 3,20 (deutsch) ist KJV Mal 4,2.
+/// Invented text with two passages whose chapters lie differently in the KJV versification: Joel 3:1 (German) is KJV
+/// Joel 2:28; Mal 3:20 (German) is KJV Mal 4:2.
 const BOOK: &str = "#set document(title: \"Der Regen im Tal\", author: \"Hanne Voss\")\n\n\
 = Zusage\n\nWie Joel 3,1 sagt, kommt der Regen. Und Mal 3,20 nennt die Sonne.\n";
 
@@ -24,7 +24,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Server mit einer Bibel und einem Kommentar in KJV-Zählung (frei erfundener Inhalt), beides für das Werk gewählt.
+/// Server with a Bible and a commentary in KJV versification (freely invented content), both chosen for the work.
 async fn kjv_work() -> (common::Server, tempfile::TempDir, i64) {
     let kjv = versification("KJV").expect("KJV ist eingebettet");
     let bible = Fixture::new("Talbibel", Layout::ZText(Block::Book), kjv)
@@ -116,7 +116,7 @@ async fn source_read_refuses_an_overlong_marking_query() {
         "die Meldung nennt die Grenze: {refused}"
     );
 
-    // Die Markierung selbst sucht höchstens zwanzig verschiedene Wörter und bleibt damit schnell.
+    // The marking itself searches for at most twenty different words and so stays fast.
     let text = "Das Licht kreist über dem Wasser. ".repeat(400);
     let query: String = (0..5000).map(|n| format!("wort{n} ")).collect();
     let started = std::time::Instant::now();

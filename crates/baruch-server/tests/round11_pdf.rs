@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Das Buch als PDF und die Druckprüfung (Vertrag Runde 11): RPC `work.pdf`, Seite `GET /werke/{id}/pdf`,
-//! CLI `export --pdf`, gleiche Seitenzahl wie `preview.typst`, keine halbe Datei bei Fehlern, eine
-//! Erzeugung je Werk, Zeitgrenze; Druckprüfung in `preview.typst`, `typst_check` und der Satz-Seite.
-//! Werke frei erfunden, Testbilder entstehen im Test (PNG per Code, SVG als Text).
+//! The book as PDF and the print check (contract Round 11): RPC `work.pdf`, page `GET /werke/{id}/pdf`, CLI
+//! `export --pdf`, same page count as `preview.typst`, no half file on errors, one generation per work, time limit;
+//! print check in `preview.typst`, `typst_check` and the typesetting page. Works freely invented, test images are
+//! created in the test (PNG by code, SVG as text).
 //!
-//! Der Zwischenspeicher der Vorschau ist statisch: Jedes Werk hier hat einen eigenen Titel und Text, also
-//! einen eigenen Stand.
+//! The cache of the preview is static: every work here has a title and text of its own, hence a state of its own.
 
 use crate::common;
 
@@ -19,7 +18,7 @@ use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// PNG in Graustufen (ungepackte Deflate-Blöcke) mit erfundenem Muster.
+/// PNG in greyscale (unpacked deflate blocks) with an invented pattern.
 fn png(width: u32, height: u32) -> Vec<u8> {
     fn crc32(bytes: &[u8]) -> u32 {
         let mut crc = 0xffff_ffffu32;
@@ -69,7 +68,7 @@ fn png(width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// Wie oft `name` mit dem Wert `value` vorkommt (`/Type /Page` bzw. kompakt `/Type/Page`, nicht `/Pages`).
+/// How often `name` occurs with the value `value` (`/Type /Page` or compact `/Type/Page`, not `/Pages`).
 fn entries(pdf: &[u8], name: &str, value: &str) -> usize {
     let mut count = 0;
     let mut at = 0;
@@ -91,8 +90,8 @@ fn contains(pdf: &[u8], text: &str) -> bool {
     pdf.windows(text.len()).any(|w| w == text.as_bytes())
 }
 
-/// Die Markierung „PDF entsteht“ gilt je Werk-id im ganzen Prozess; alle Server-Tests (ein Bündel) haben
-/// eigene Datenordner mit denselben ids und erzeugen PDFs darum nacheinander (gemeinsame Sperre).
+/// The mark „PDF entsteht“ holds per work id in the whole process; all server tests (one bundle) have data folders of
+/// their own with the same ids and therefore build PDFs one after the other (shared lock).
 use crate::common::PDF_SERIAL as SERIAL;
 
 fn result(answer: &Value) -> &Value {
@@ -100,7 +99,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Erfundenes Buch: drei Kapitel mit Seitenumbruch, im ersten ein PNG.
+/// Invented book: three chapters with page break, in the first a PNG.
 fn book(title: &str) -> String {
     format!(
         "#set document(title: \"{title}\", author: \"Erna Erfunden\")\n#set page(width: 12cm, height: 16cm)\n\
@@ -121,7 +120,7 @@ async fn add_png(server: &common::Server, work: i64, name: &str, path: &str, byt
     assert!(added["result"].is_object(), "Bild muss sich anlegen lassen: {added}");
 }
 
-/// Werk mit Bild anlegen: (id, slug).
+/// Create a work with an image: (id, slug).
 async fn book_work(server: &common::Server, title: &str) -> (i64, String) {
     let report = server.import(&book(title), &format!("{}.typ", report_name(title))).await;
     add_png(server, report.work, "beet.png", "bilder/beet.png", &png(64, 48)).await;
@@ -132,7 +131,7 @@ fn report_name(title: &str) -> String {
     title.to_lowercase().replace(' ', "-")
 }
 
-/// GET mit Kopfzeilen und Bytes.
+/// GET with headers and bytes.
 async fn get_bytes(server: &common::Server, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
     let response = server.app.clone().oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
     let status = response.status();
@@ -207,7 +206,8 @@ async fn a_typst_error_gives_422_with_links_refused_over_rpc_and_no_pdf() {
         html.contains(&format!("href=\"/?work={work}&amp;key={weed}\"")),
         "Link zum Abschnitt mit dem Fehler: {html}"
     );
-    assert!(html.contains("<header class=\"band\""), "mit Kopfzeile wie jede Seite"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    assert!(html.contains("<header class=\"band\""), "mit Kopfzeile wie jede Seite");
 }
 
 #[tokio::test]
@@ -241,7 +241,7 @@ async fn the_time_limit_refuses_honestly() {
     assert_eq!(refused.code, -32000, "Zeit abgelaufen → REFUSED");
     assert_eq!(refused.message, "Typst brauchte länger als 0 s", "die Meldung nennt das Limit");
     assert_eq!(baruch_server::pdf::PDF_TIMEOUT, Duration::from_secs(120), "im Betrieb 120 s");
-    // Der abgelaufene Lauf rechnet im Hintergrund zu Ende und hält so lange das Werk; danach ist es frei.
+    // The timed-out run finishes computing in the background and holds the work for that long; afterwards it is free.
     let freed = async {
         loop {
             if let Some(claim) = baruch_server::pdf::claim(work) {
@@ -267,7 +267,7 @@ async fn unknown_works_are_404_and_invalid_params_over_rpc() {
     assert_eq!(answer["error"]["code"], -32602, "inline nur true/false: {answer}");
 }
 
-// ---- Kommandozeile -------------------------------------------------------------------------------
+// ---- Command line -------------------------------------------------------------------------------
 
 fn cli(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_baruch-server")).args(args).output().expect("baruch-server startet")
@@ -335,9 +335,9 @@ async fn the_cli_writes_a_valid_pdf_never_overwrites_and_writes_nothing_on_error
     assert!(!both.exists() && !out_dir.exists(), "und nichts geschrieben");
 }
 
-// ---- Druckprüfung --------------------------------------------------------------------------------
+// ---- Print check --------------------------------------------------------------------------------
 
-/// Werk mit einem Bild auf einer A5-Seite ohne Rand.
+/// Work with an image on an A5 page without margin.
 async fn print_work(server: &common::Server, title: &str, image: Option<(&str, Vec<u8>)>) -> i64 {
     let figure = match &image {
         Some((name, _)) => format!(
@@ -421,7 +421,7 @@ async fn enough_pixels_or_svg_give_no_warning_and_missing_pictures_are_named() {
     assert_eq!(status, StatusCode::OK, "auch mit fehlendem Bild lädt die Seite");
     let at = html.find("id=\"druckpruefung\"").expect("Abschnitt #druckpruefung");
     let section = &html[at..at + html[at..].find("</section>").unwrap()];
-    // minijinja maskiert / im Pfad als &#x2f; (der Browser zeigt „bilder/fehlt.png“).
+    // minijinja escapes / in the path as &#x2f; (the browser shows „bilder/fehlt.png“).
     assert!(section.contains("Bild fehlt: bilder&#x2f;fehlt.png"), "das fehlende Bild steht deutlich da: {section}");
     assert!(section.contains(&format!("href=\"/werke/{missing}/bilder\"")), "mit Link zur Seite „Bilder“: {section}");
     let check = typst_check(&server, missing).await;

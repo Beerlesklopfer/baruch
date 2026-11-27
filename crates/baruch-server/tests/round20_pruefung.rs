@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20c (epub-pruefung, Besitz „epub-pruefung“): eigene Prüfung über RPC, Seite und Formular, EPUBCheck nur als
-//! selbst geschriebenes Skript über `path_env` (nie der PATH des Prozesses, nie ein Download), Einstellung des
-//! epubcheck.jar (RPC und Formular, kein MCP), MCP `epub_check` ohne EPUBCheck, Buchangaben-Reste (ISBN-Präfix und
-//! Schreibweise, Dicke je Blatt, Umschlagbild löschen mit Spiegel-Commit, ein Commit je bestätigtem Umschlag-Antrag)
-//! und die Textregeln der Werkvorlage im Umschlag für die Druckerei. Werke frei erfunden.
+//! Round 20c (epub-pruefung, ownership „epub-pruefung“): own check through RPC, page and form, EPUBCheck only as a
+//! self-written script through `path_env` (never the PATH of the process, never a download), setting of the
+//! epubcheck.jar (RPC and form, no MCP), MCP `epub_check` without EPUBCheck, book-detail leftovers (ISBN prefix and
+//! spelling, thickness per sheet, deleting the cover image with a mirror commit, one commit per confirmed cover
+//! request) and the text rules of the work template in the cover for the print shop. Works freely invented.
 
 use crate::common;
 
@@ -35,7 +35,7 @@ fn make_executable(path: &Path) {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-/// Steht ein echtes EPUBCheck im PATH dieses Rechners, gelten die Zusicherungen zu „nicht gefunden“ nicht.
+/// If a real EPUBCheck is in the PATH of this machine, the assertions about „nicht gefunden“ do not hold.
 fn epubcheck_on_this_machine() -> bool {
     find_epubcheck(std::env::var_os("PATH").as_deref(), None).is_some()
 }
@@ -91,7 +91,7 @@ fn last_body(server: &common::Server, slug: &str) -> String {
     common::git(&server.mirror_dir_of(slug), &["log", "-1", "--format=%B"]).unwrap_or_default()
 }
 
-/// Gartenbuch mit dem Bild `beet.svg` als Umschlag.
+/// Gartenbuch with the image `beet.svg` as cover.
 async fn garden_with_cover() -> (common::Server, i64, String) {
     let server = common::open().await;
     let report = server.import_garden().await;
@@ -106,7 +106,7 @@ async fn garden_with_cover() -> (common::Server, i64, String) {
     (server, report.work, report.slug)
 }
 
-// ---- Prüfung -----------------------------------------------------------------------------------------
+// ---- Check ------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn epub_check_reports_no_error_for_a_built_book_and_names_tool_and_readers() {
@@ -167,8 +167,8 @@ async fn without_epubcheck_the_report_says_not_found_and_shows_the_own_check() {
 
 #[tokio::test]
 async fn the_check_page_is_not_built_on_behalf_of_a_foreign_site() {
-    // Die Prüfung baut und packt das EPUB und startet xmllint je Datei: eine fremde Seite (etwa per <img>)
-    // darf diese Last nicht auslösen, wie bei /epub und /epub/vorschau.
+    // The check builds and packs the EPUB and starts xmllint per file: a foreign page (for instance through <img>) must
+    // not trigger this load, as with /epub and /epub/vorschau.
     let server = common::open().await;
     let work = server.import_garden().await.work;
     for site in ["cross-site", "same-site"] {
@@ -229,7 +229,7 @@ async fn a_fake_epubcheck_in_the_given_path_runs_only_when_asked() {
     assert_eq!(ran.summary.errors, 1, "die Meldung zählt als Fehler");
 }
 
-// ---- Einstellung -------------------------------------------------------------------------------------
+// ---- Setting ----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn checker_set_accepts_only_absolute_existing_jars_and_null_removes() {
@@ -283,7 +283,7 @@ async fn the_epubcheck_form_in_settings_redirects_or_explains_and_there_is_no_mc
     assert_eq!(server.state.store.epubcheck_jar().await.unwrap().as_deref(), jar.to_str(), "gespeichert");
     let (status, html) = server.get("/einstellungen/daten?ok=epubcheck").await;
     assert_eq!(status, StatusCode::OK, "Einstellungen → Daten: {html}");
-    let shown = jar.to_str().unwrap().replace('/', "&#x2f;"); // minijinja maskiert auch „/“
+    let shown = jar.to_str().unwrap().replace('/', "&#x2f;"); // minijinja escapes „/“ too
     assert!(html.contains("id=\"epubcheck\"") && html.contains(&shown), "Block mit dem Pfad: {html}");
     assert!(html.contains("Einstellung für EPUBCheck gespeichert"), "Hinweis nach dem Speichern");
 
@@ -314,7 +314,7 @@ async fn the_epubcheck_form_in_settings_redirects_or_explains_and_there_is_no_mc
 async fn mcp_epub_check_never_starts_epubcheck() {
     let server = common::open().await;
     let work = server.import_garden().await.work;
-    // Ein eingestelltes Jar wäre für den Menschen „gefunden“ – MCP startet trotzdem nichts.
+    // A configured jar would be "found" for the human – MCP starts nothing nevertheless.
     let dir = tempfile::tempdir().unwrap();
     let jar = dir.path().join("epubcheck.jar");
     std::fs::write(&jar, b"PK").unwrap();
@@ -342,7 +342,7 @@ async fn the_preview_panel_is_a_finished_fragment_with_summary_and_reader_warnin
     assert!(none.contains("role=\"alert\""), "Fehler erscheinen als Meldung im Fragment: {none}");
 }
 
-// ---- Buchangaben-Reste -------------------------------------------------------------------------------
+// ---- Book-detail leftovers --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn isbn_prefix_lowercase_label_and_a_differently_written_isbn() {
@@ -469,7 +469,7 @@ async fn a_confirmed_cover_request_writes_exactly_one_commit() {
     assert_eq!(server.state.store.work_cover(work).await.unwrap().as_deref(), Some("beet.svg"), "Umschlag gesetzt");
 }
 
-// ---- Umschlag für die Druckerei ----------------------------------------------------------------------
+// ---- Cover for the print shop -----------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_printer_cover_takes_the_text_rules_of_the_template() {

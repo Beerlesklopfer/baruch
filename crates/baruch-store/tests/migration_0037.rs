@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0037 (Kommentare und Lexika je Werk, Schalter Bibel-Belege je Persona; Runde 15 Punkt 5a/5c) auf
-//! einer nachgebauten Datenbank im Stand von development (Store bis 0035, Bibliothek 0101–0105) samt 0036 aus
-//! diesem Zweig, mit frei erfundenem Werk, Personas und gewählter Bibel.
+//! Migration 0037 (commentaries and lexicons per work, switch Bible evidence per persona; Round 15 item 5a/5c) on a
+//! reproduced database in the state of development (store up to 0035, library 0101–0105) including 0036 from this
+//! branch, with a freely invented work, personas and chosen Bible.
 //!
-//! Nach einem Migrator bis 0037: Das Schema jeder alten Tabelle bleibt, neu sind genau `work_sword_source` und
-//! `persona_bible`, beide leer (Vorgaben des Servers gelten). Danach `Store::open`: jede alte Zeile unverändert;
-//! Auswahl je Werk und Schalter je Persona lassen sich setzen, ein gelöschtes Werk nimmt seine Auswahl mit.
+//! After a migrator up to 0037: the schema of every old table stays, new are exactly `work_sword_source` and
+//! `persona_bible`, both empty (defaults of the server hold). Afterwards `Store::open`: every old row unchanged;
+//! selection per work and switch per persona can be set, a deleted work takes its selection along.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -35,7 +35,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store bis 0036 (development bis 0035 und 0036 dieses Zweigs) und Bibliothek 0101–0105.
+/// Store up to 0036 (development up to 0035 and 0036 of this branch) and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 37), "die neue Migration ist 0037");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 35), "Stand davor hat 0035 (development, ca04c58)");
@@ -51,7 +51,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Werk mit zwei Kapiteln, Personas und gewählter Bibel.
+/// Work with two chapters, personas and chosen Bible.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -213,8 +213,8 @@ async fn migration_0037_adds_empty_tables_for_work_sources_and_the_bible_switch(
     assert_eq!(left, 0, "ON DELETE CASCADE: ein gelöschtes Werk nimmt seine Auswahl mit");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

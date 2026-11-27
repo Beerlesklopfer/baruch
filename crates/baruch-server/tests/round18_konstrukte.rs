@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 18b (konstrukte): neue Konstrukte im Satzbild (Aufzählungen, Begriffslisten, geschachtelte Listen,
-//! Umbruch, Links, Verweise), Inseln an Ort und Stelle (`{replaces, raw}`), mehrere Bilder in einem Block, Bildadresse
-//! in Normalform, Teil-Block im Kapiteltext, Markdown bei `revision.update`, `guardHeadingMerge` über Vorschläge und
-//! die Befehle `baruch:ws-command`/`baruch:ws-caret` im Widget. Abläufe über RPC so, wie das Widget sie schickt (SKILLS
-//! „Fehler aus der Arbeit nachstellen“); was nur im Browser geschieht, prüft der Test an den Stellen im übersetzten
-//! Widget und sagt das. Alle Texte frei erfunden, kein Netz, kein Modell.
+//! Round 18b (konstrukte): new constructs in the typeset view (bullet lists, term lists, nested lists, line break,
+//! links, references), islands in place (`{replaces, raw}`), several images in one block, image address in normal form,
+//! part block in the chapter text, Markdown with `revision.update`, `guardHeadingMerge` across proposals and the
+//! commands `baruch:ws-command`/`baruch:ws-caret` in the widget. Flows through RPC the way the widget sends them
+//! (SKILLS „Fehler aus der Arbeit nachstellen“); what happens only in the browser the test checks at the places in the
+//! compiled widget and says so. All texts freely invented, no network, no model.
 
 use crate::common;
 
@@ -24,7 +24,7 @@ fn script(name: &str) -> &'static str {
     baruch_server::SCRIPTS.iter().find(|(n, _)| *n == name).map(|(_, js)| *js).expect("übersetztes Widget")
 }
 
-/// Aktueller Text eines Abschnitts (über den Schlüssel).
+/// Current text of a section (through the key).
 async fn body_of(server: &common::Server, work: i64, key: i64) -> String {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = loaded.nodes.iter().find(|n| n.key == key).unwrap();
@@ -80,7 +80,7 @@ async fn the_new_constructs_are_shown_and_saved_byte_equal_or_canonical() {
     );
     assert_eq!(same["body"], body, "lauter keep: byte-gleich");
 
-    // Wie das Widget: die Aufzählung bekommt einen Punkt dazu (data-dirty), der Rest ist keep.
+    // Like the widget: the bullet list gets one more item (data-dirty), the rest is keep.
     let mut edits: Vec<Value> = (0..count).map(|i| json!({ "keep": i })).collect();
     edits[2] = json!({ "replaces": 2, "block": { "kind": "enum", "start": 1, "items": [
         [{ "t": "text", "v": "Wasser holen" }], [{ "t": "text", "v": "Feuer machen" }], [{ "t": "text", "v": "Brot backen" }]
@@ -138,7 +138,7 @@ async fn an_island_is_edited_in_place_and_invalid_raw_edits_are_refused() {
     assert!(message.contains("Typst-Insel lässt sich im Satzbild nicht anlegen"), "NewIsland: {message}");
 }
 
-/// Erfundenes Bild zum Pfad anlegen.
+/// Create an invented image for the path.
 async fn add_image(server: &common::Server, work: i64, file_name: &str, path: &str) {
     let svg =
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"><rect width=\"4\" height=\"4\"/></svg>\n";
@@ -177,8 +177,8 @@ async fn a_block_with_two_images_shows_both_and_the_address_has_no_leading_slash
 
 #[tokio::test]
 async fn revision_update_converts_markdown_headings_like_revision_save() {
-    // Backlog „Nach Runde 14 offen“ (Nachgang Markdown-Überschriften): revision.save wandelte `# Titel` um,
-    // revision.update (Fassung ändern) nicht – dort blieb die Raute als Text stehen.
+    // Backlog „Nach Runde 14 offen“ (follow-up Markdown headings): revision.save converted `# Titel`, revision.update
+    // (changing a revision) did not – there the hash stayed as text.
     let server = common::open().await;
     let work = server.import("= Hafen\n\nDie Fähre.\n", "hafen.typ").await.work;
     let key = keys_of(&server, work).await[0].1;
@@ -198,8 +198,8 @@ async fn revision_update_converts_markdown_headings_like_revision_save() {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let text = loaded.nodes.iter().find(|n| n.key == key).unwrap().revision(rev).unwrap().body.clone();
     assert_eq!(text, "= Hafen\n\nDie Fähre legt an.\n\nNotiz.\n", "`# Hafen` wird `= Hafen` wie bei revision.save");
-    // Eine weitere Markdown-Überschrift wird wie eine getippte `==`-Zeile behandelt: Fassung ändern stellt die
-    // Gliederung nicht um und lehnt ehrlich ab (vorher blieb `## Der Steg` still als Text stehen).
+    // A further Markdown heading is treated like a typed `==` line: changing a revision does not rearrange the outline
+    // and rejects honestly (before, `## Der Steg` silently stayed as text).
     let more = "= Hafen\n\nDie Fähre legt an.\n\n## Der Steg\nNotiz.\n";
     let refused = server.rpc("revision.update", json!({ "work": work, "key": key, "rev": rev, "body": more })).await;
     let message = refused["error"]["message"].as_str().unwrap_or("");
@@ -208,8 +208,8 @@ async fn revision_update_converts_markdown_headings_like_revision_save() {
 
 #[tokio::test]
 async fn a_part_block_in_a_chapter_text_is_refused_in_the_satzbild_and_needs_confirmation_in_outline_save() {
-    // Backlog „Nach Runde 14 offen“: Ein Client konnte einen Teil-Block in einen Kapiteltext schreiben. Festgelegt
-    // (Runde 18b): Das Satzbild bietet Teile nicht an, und wysiwyg.serialize lehnt einen neuen Teil-Block ab.
+    // Backlog „Nach Runde 14 offen“: a client could write a part block into a chapter text. Decided (Round 18b): the
+    // typeset view does not offer parts, and wysiwyg.serialize rejects a new part block.
     let server = common::open().await;
     let work = server.import(MARKT, "markt.typ").await.work;
     let keys = keys_of(&server, work).await;
@@ -223,8 +223,8 @@ async fn a_part_block_in_a_chapter_text_is_refused_in_the_satzbild_and_needs_con
     assert_eq!(code, -32602, "INVALID_PARAMS: {message}");
     assert_eq!(message, "Einen Teil legt man in der Gliederung an, nicht im Satzbild.", "Meldung nennt den Weg");
 
-    // Im Quelltext (Mensch) als weitere Überschrift: outline.check verlangt die Rückfrage zum Teilen; ohne
-    // Bestätigung wird nichts gespeichert, mit Bestätigung entsteht der Teil (Aktion des Menschen).
+    // In the source text (human) as a further heading: outline.check demands the confirmation prompt for splitting;
+    // without confirmation nothing is stored, with confirmation the part is created (action of the human).
     let text = format!(
         "{}\n#heading(level: 1, numbering: none)[Zweiter Teil] <baruch-part>\n\nNach dem Teil.\n",
         body.trim_end()
@@ -246,14 +246,14 @@ async fn a_part_block_in_a_chapter_text_is_refused_in_the_satzbild_and_needs_con
 
 #[tokio::test]
 async fn a_proposal_between_heading_and_paragraph_does_not_disarm_the_merge_guard() {
-    // Gutachten R8 (Backlog): Stand ein Vorschlag (`details.pv`) zwischen Überschrift und Absatz, griff
-    // `guardHeadingMerge` nicht (Nachbar war das details), und Rückschritt zog den Absatz in die Überschrift.
+    // Review R8 (backlog): if a proposal (`details.pv`) stood between heading and paragraph, `guardHeadingMerge` did
+    // not take effect (the neighbour was the details), and backspace pulled the paragraph into the heading.
     let server = common::open().await;
     let work = server.import(MARKT, "markt.typ").await.work;
     let key = keys_of(&server, work).await.into_iter().find(|(t, _)| t == "Abend").unwrap().1;
     let body = body_of(&server, work, key).await;
-    // Ein Vorschlag, der vor dem Absatz (Block 1) einfügt: das Widget setzt sein Stück vor [data-b=1], also genau
-    // zwischen Überschrift (0) und Absatz (1).
+    // A proposal that inserts before the paragraph (block 1): the widget puts its piece before [data-b=1], hence
+    // exactly between heading (0) and paragraph (1).
     let proposal = body.replace("Die Stände schließen.", "Ein Händler zählt.\n\nDie Stände schließen.");
     server.state.store.add_proposal(work, 1, &proposal, "@lektor", "erfunden", "Satz davor").await.unwrap();
     let (_, page) = server.get(&format!("/?work={work}&key={key}")).await;
@@ -261,7 +261,7 @@ async fn a_proposal_between_heading_and_paragraph_does_not_disarm_the_merge_guar
         page.contains("data-pv-gap=\"1\""),
         "das Stück steht in der Lücke vor Block 1 (zwischen Überschrift und Absatz)"
     );
-    // Was ohne Schutz geschähe (Nachbau über RPC): der Absatz in der Überschrift wird ihr Titel.
+    // What would happen without protection (reproduction through RPC): the paragraph in the heading becomes its title.
     let merged = json!([{ "replaces": 0, "block": { "kind": "heading", "level": 1, "inlines": [
         { "t": "text", "v": "AbendDie Stände schließen." }] } }]);
     let text = ok(
@@ -274,7 +274,8 @@ async fn a_proposal_between_heading_and_paragraph_does_not_disarm_the_merge_guar
     let check =
         ok(&server.rpc("outline.check", json!({ "work": work, "key": key, "body": text })).await, "outline.check");
     assert!(check.to_string().contains("AbendDie Stände schließen."), "verschmolzen würde der Absatz Titel: {check}");
-    // Der Schutz im Widget überspringt jetzt Vorschläge beim Nachbarn (nur im Browser wirksam; geprüft an der Stelle).
+    // The protection in the widget now skips proposals at the neighbour (effective only in the browser; checked at the
+    // place).
     let js = script("wysiwyg.js");
     assert!(js.contains("function blockNeighbour"), "eigene Nachbarsuche im Widget");
     assert!(
@@ -289,15 +290,15 @@ async fn a_proposal_between_heading_and_paragraph_does_not_disarm_the_merge_guar
 
 #[tokio::test]
 async fn the_caret_offset_for_images_comes_from_the_same_edits_as_the_full_text() {
-    // Ablauf von `baruch:ws-caret` über RPC: wysiwyg.ts serialisiert alle Blöcke (Text) und die Blöcke bis zum
-    // Block am Cursor (Präfix); die Stelle ist die Länge des Präfixes – ein Zeilenanfang im Text.
+    // Flow of `baruch:ws-caret` through RPC: wysiwyg.ts serialises all blocks (text) and the blocks up to the block at
+    // the cursor (prefix); the position is the length of the prefix – a line start in the text.
     let server = common::open().await;
     let work = server.import(MARKT, "markt.typ").await.work;
     let key = keys_of(&server, work).await.into_iter().find(|(t, _)| t == "Markttag").unwrap().1;
     let body = body_of(&server, work, key).await;
     let parsed = ok(&server.rpc("wysiwyg.parse", json!({ "work": work, "body": body })).await, "wysiwyg.parse");
     let count = parsed["blocks"].as_array().unwrap().len();
-    // Ungespeichert: im Absatz (Block 1) getippt; Cursor in der Aufzählung (Block 2).
+    // Unsaved: typed in the paragraph (block 1); cursor in the bullet list (block 2).
     let mut edits: Vec<Value> = (0..count).map(|i| json!({ "keep": i })).collect();
     edits[1] = json!({ "replaces": 1, "block": { "kind": "paragraph", "inlines": [{ "t": "text", "v": "Am Morgen öffnen die Stände früh." }] } });
     let full = ok(
@@ -331,7 +332,7 @@ async fn the_caret_offset_for_images_comes_from_the_same_edits_as_the_full_text(
 
 #[tokio::test]
 async fn the_widget_handles_every_ribbon_command_and_adopts_the_server_style() {
-    // Nur im Browser wirksam (Firefox läuft hier nicht): geprüft an den Stellen im übersetzten Widget.
+    // Effective only in the browser (Firefox does not run here): checked at the places in the compiled widget.
     let js = script("wysiwyg.js");
     let frozen = script("ws_command.js");
     assert!(frozen.contains("export const WS_COMMAND = \"baruch:ws-command\""), "Vertragsdatei unverändert übersetzt");

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gemeinsame Hilfen der Server-Tests: echter Datenordner im Temp-Verzeichnis (SQLite-Datei,
-//! Bibliothek, Git-Spiegel), Router über `tower::ServiceExt::oneshot`.
+//! Shared helpers of the server tests: real data folder in the temp directory (SQLite file, library, Git mirror),
+//! router through `tower::ServiceExt::oneshot`.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
@@ -12,19 +12,19 @@ use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Eigene kleine Typst-Datei: Präambel mit `#set document`, zwei Kapitel, Abschnitt, Unterabschnitt.
+/// Own small Typst file: preamble with `#set document`, two chapters, section, subsection.
 pub const GARDEN: &str = include_str!("../data/gartenbuch.typ");
 
-/// Die Markierung „PDF entsteht“ (`baruch_server::pdf::claim`) gilt je Werk-id im ganzen Prozess. Seit alle
-/// Server-Tests in einer Binärdatei laufen (`tests/main.rs`), teilen sich die Datenordner **aller** Module
-/// dieselben Werk-ids: Wer ein PDF erzeugt oder die Markierung setzt, hält vorher diese Sperre.
+/// The mark "PDF is being built" (`baruch_server::pdf::claim`) holds per work id in the whole process. Since all server
+/// tests run in one binary (`tests/main.rs`), the data folders of **all** modules share the same work ids: whoever
+/// builds a PDF or sets the mark holds this lock first.
 pub static PDF_SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-/// Die Warteschlange der Modelle (`baruch_server::models`, eine Anfrage zur Zeit, höchstens acht Wartende) gilt
-/// im ganzen Prozess. Früher lief jede Testdatei in einem eigenen Prozess; im Bündel (`tests/main.rs`) würden
-/// sich die Dateien, die sie füllen bzw. ihren Zustand prüfen (`round10.rs`, `round10_models.rs`), gegenseitig
-/// stören („Warteschlange voll“, fremder `running`). [`model_queue`] lässt darum nur Tests **eines** Moduls
-/// zugleich hinein; Tests desselben Moduls laufen weiter gleichzeitig (wie vorher in ihrer Datei).
+/// The queue of the models (`baruch_server::models`, one request at a time, at most eight waiting) holds in the whole
+/// process. Formerly every test file ran in its own process; in the bundle (`tests/main.rs`) the files that fill it or
+/// check its state (`round10.rs`, `round10_models.rs`) would disturb each other („Warteschlange voll“, a foreign
+/// `running`). [`model_queue`] therefore lets in only tests of **one** module at a time; tests of the same module keep
+/// running concurrently (as before in their file).
 pub async fn model_queue(module: &'static str) -> ModuleTurn {
     loop {
         let changed = TURN_CHANGED.notified();
@@ -36,7 +36,7 @@ pub async fn model_queue(module: &'static str) -> ModuleTurn {
                 return ModuleTurn;
             }
         }
-        // `notified()` ist schon vor dem Freigeben angelegt: kein Wecken geht verloren.
+        // `notified()` is created before the release already: no wake-up gets lost.
         changed.await;
     }
 }
@@ -44,7 +44,7 @@ pub async fn model_queue(module: &'static str) -> ModuleTurn {
 static TURN: std::sync::Mutex<(Option<&'static str>, usize)> = std::sync::Mutex::new((None, 0));
 static TURN_CHANGED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
-/// Anteil eines Tests an der Reihe seines Moduls ([`model_queue`]); gibt sie beim Verwerfen frei.
+/// Share of one test in the turn of its module ([`model_queue`]); releases it on drop.
 pub struct ModuleTurn;
 
 impl Drop for ModuleTurn {
@@ -64,7 +64,7 @@ pub struct Server {
     pub app: Router,
 }
 
-/// Neuer Datenordner mit Beispielwerk und Beispielbibliothek.
+/// New data folder with sample work and sample library.
 pub async fn open() -> Server {
     let data = tempfile::tempdir().unwrap();
     let state = baruch_server::AppState::open(data.path()).await.expect("Datenordner lässt sich nicht öffnen");
@@ -77,7 +77,7 @@ impl Server {
         self.data.path()
     }
 
-    /// Der einzige Spiegelordner unter `<data>/works/`.
+    /// The only mirror folder under `<data>/works/`.
     pub fn mirror_dir(&self) -> PathBuf {
         let mut dirs: Vec<PathBuf> =
             std::fs::read_dir(self.path().join("works")).unwrap().map(|e| e.unwrap().path()).collect();
@@ -85,17 +85,17 @@ impl Server {
         dirs.pop().unwrap()
     }
 
-    /// Spiegelordner eines bestimmten Werks: `<data>/works/<slug>`.
+    /// Mirror folder of a particular work: `<data>/works/<slug>`.
     pub fn mirror_dir_of(&self, slug: &str) -> PathBuf {
         self.path().join("works").join(slug)
     }
 
-    /// Typst-Quelltext über `baruch_server::import::import_typst` als neues Werk anlegen.
+    /// Create Typst source text as a new work through `baruch_server::import::import_typst`.
     pub async fn import(&self, source: &str, file_name: &str) -> baruch_server::import::ImportReport {
         baruch_server::import::import_typst(&self.state, source, file_name).await.expect("Import scheitert")
     }
 
-    /// Die eigene Testdatei `tests/data/gartenbuch.typ` importieren.
+    /// Import the own test file `tests/data/gartenbuch.typ`.
     pub async fn import_garden(&self) -> baruch_server::import::ImportReport {
         self.import(GARDEN, "gartenbuch.typ").await
     }
@@ -104,7 +104,7 @@ impl Server {
         rpc(self.app.clone(), method, params).await
     }
 
-    /// Beliebige Anfrage; Antwort als Status, Kopfzeilen und Text.
+    /// Any request; response as status, headers and text.
     pub async fn send(&self, request: Request<Body>) -> (StatusCode, axum::http::HeaderMap, String) {
         let response = self.app.clone().oneshot(request).await.unwrap();
         let status = response.status();
@@ -131,7 +131,7 @@ impl Server {
     }
 }
 
-/// JSON-RPC-Aufruf an einen Router (auch aus `tokio::spawn`, daher ohne `&Server`).
+/// JSON-RPC call to a router (also from `tokio::spawn`, hence without `&Server`).
 pub async fn rpc(app: Router, method: &str, params: Value) -> Value {
     let body = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let request = Request::post("/rpc")
@@ -143,12 +143,12 @@ pub async fn rpc(app: Router, method: &str, params: Value) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-/// Anzahl der Revisionen mit Status `current` in einer `node.get`-Antwort.
+/// Number of revisions with status `current` in a `node.get` response.
 pub fn currents(node: &Value) -> usize {
     node["revisions"].as_array().unwrap().iter().filter(|r| r["status"] == "current").count()
 }
 
-/// `git` im Spiegelordner; `None`, wenn kein git-Programm da ist.
+/// `git` in the mirror folder; `None` if there is no git program.
 pub fn git(dir: &Path, args: &[&str]) -> Option<String> {
     let output = std::process::Command::new("git").arg("-C").arg(dir).args(args).output().ok()?;
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
@@ -156,18 +156,18 @@ pub fn git(dir: &Path, args: &[&str]) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Runde 35 (Schnittstelle R35-S1): Hilfen für die Tests der Konten und Rollen.
+// Round 35 (interface R35-S1): helpers for the tests of accounts and roles.
 // ---------------------------------------------------------------------------------------------------------------
 
-/// Legt fest, wer die Anfrage stellt, ohne Sitzung und Passwort: `auth::gate` nimmt ein [`baruch_server::auth::Who`]
-/// aus den Extensions der Anfrage statt selbst aufzulösen. Extensions lassen sich nur im Prozess setzen, nie über
-/// das Netz.
+/// Determines who makes the request, without session and password: `auth::gate` takes a [`baruch_server::auth::Who`]
+/// from the extensions of the request instead of resolving it itself. Extensions can only be set inside the process,
+/// never over the network.
 pub fn with_who(mut request: Request<Body>, who: baruch_server::auth::Who) -> Request<Body> {
     request.extensions_mut().insert(who);
     request
 }
 
-/// Alle Quelldateien des Servers (`crates/baruch-server/src/**/*.rs`) als `(Pfad, Inhalt)`, sortiert.
+/// All source files of the server (`crates/baruch-server/src/**/*.rs`) as `(path, content)`, sorted.
 fn server_sources() -> Vec<(PathBuf, String)> {
     fn walk(dir: &Path, found: &mut Vec<(PathBuf, String)>) {
         for entry in std::fs::read_dir(dir).unwrap() {
@@ -186,8 +186,8 @@ fn server_sources() -> Vec<(PathBuf, String)> {
     found
 }
 
-/// Ende des Aufrufs, dessen öffnende Klammer direkt vor `start` steht: Stelle der passenden schließenden Klammer.
-/// Zeichenketten und Zeilenkommentare werden übersprungen.
+/// End of the call whose opening parenthesis is directly before `start`: position of the matching closing parenthesis.
+/// Strings and line comments are skipped.
 fn closing_paren(text: &str, start: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let (mut depth, mut i) = (1usize, start);
@@ -218,12 +218,12 @@ fn closing_paren(text: &str, start: usize) -> Option<usize> {
     None
 }
 
-/// Alle Routen des Servers als `("GET" | "POST", Muster)`: jedes `.route("…", …get(…)…post(…))` aus
-/// `crates/baruch-server/src/**/*.rs`, auch über mehrere Zeilen und mit dem Muster als Konstante derselben Datei.
-/// Ohne Testmodule (alles ab `#[cfg(test)]`) und ohne Nachbauten (`mock.rs`). Sortiert, ohne Doppel.
+/// All routes of the server as `("GET" | "POST", pattern)`: every `.route("…", …get(…)…post(…))` from
+/// `crates/baruch-server/src/**/*.rs`, also across several lines and with the pattern as a constant of the same file.
+/// Without test modules (everything from `#[cfg(test)]` on) and without mocks (`mock.rs`). Sorted, without duplicates.
 ///
-/// Die Liste entsteht aus dem Quelltext, nicht aus einer gepflegten Tabelle: Eine neue Route künftiger Runden steht
-/// von selbst darin, und die Tests der Rollen prüfen sie ohne Zutun.
+/// The list is built from the source text, not from a maintained table: a new route of future rounds is in it by
+/// itself, and the tests of the roles check it without further effort.
 pub fn registered_routes() -> Vec<(String, String)> {
     let call = regex::Regex::new(r#"\.route\(\s*(?:"([^"]*)"|([A-Z][A-Z0-9_]*))\s*,"#).unwrap();
     let verb = regex::Regex::new(r"\b(get|post)\(").unwrap();
@@ -262,17 +262,17 @@ pub fn registered_routes() -> Vec<(String, String)> {
     routes.into_iter().collect()
 }
 
-/// Endungen, an denen eine Zeichenkette der Form `wort.wort` als Dateiname erkannt wird. `pdf` und `epub` fehlen
-/// bewusst: `work.pdf` und `work.epub` sind RPC-Methoden.
+/// Endings by which a string of the form `word.word` is recognised as a file name. `pdf` and `epub` are missing on
+/// purpose: `work.pdf` and `work.epub` are RPC methods.
 const FILE_ENDINGS: &[&str] = &[
     "html", "xhtml", "css", "js", "ts", "rs", "typ", "svg", "png", "jpg", "jpeg", "gif", "webp", "json", "xml", "md",
     "mdx", "txt", "sqlite", "docx", "doc", "jar", "baruch", "toml", "zip",
 ];
 
-/// Alles, was im Quelltext des Servers wie eine RPC-Methode aussieht: jede Zeichenkette
-/// `^[a-z][a-z_]*\.[a-z][a-z_]*$` aus `crates/baruch-server/src/**/*.rs` (auch aus Testmodulen), ohne Dateinamen
-/// ([`FILE_ENDINGS`]). Sortiert, ohne Doppel. Bewusst eine Obermenge (auch `baruch.example` o. ä.): Für Lektoren ist
-/// jede Methode gesperrt, die nicht ausdrücklich erlaubt ist – auch eine, die es gar nicht gibt.
+/// Everything in the source text of the server that looks like an RPC method: every string
+/// `^[a-z][a-z_]*\.[a-z][a-z_]*$` from `crates/baruch-server/src/**/*.rs` (also from test modules), without file names
+/// ([`FILE_ENDINGS`]). Sorted, without duplicates. Deliberately a superset (also `baruch.example` and the like): for
+/// Lektors every method is locked that is not explicitly allowed – even one that does not exist at all.
 pub fn rpc_method_candidates() -> Vec<String> {
     let literal = regex::Regex::new(r#""([a-z][a-z_]*\.([a-z][a-z_]*))""#).unwrap();
     let mut methods = std::collections::BTreeSet::new();

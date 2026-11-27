@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 24 „Verteilung“ (Besitz Integrator): Abnahme über die Grenzen der drei Aufgaben hinweg.
+//! Round 24 „Verteilung“ (ownership integrator): acceptance across the boundaries of the three tasks.
 //!
-//! Über-Seite (pakete) unter einem erlaubten Rechnernamen (webseite) und die eine Versionsnummer in Manifest,
-//! Programm, Webseite und Änderungsliste (pakete, ci, webseite). Namen erfunden (`*.example.org`); kein Netz, kein
-//! Eliezer, kein MultiGPT. Jede Zusicherung mit Begründung.
+//! About page (pakete) under an allowed host name (webseite) and the one version number in manifest, program, website
+//! and change list (pakete, ci, webseite). Names invented (`*.example.org`); no network, no Eliezer, no MultiGPT. Every
+//! assertion with a reason.
 
 use crate::round24_betrieb::{mcp_ping, open_allowing};
 
@@ -17,15 +17,15 @@ fn get(uri: &str, host: &str) -> Request<Body> {
     Request::get(uri).header(header::HOST, host).body(Body::empty()).unwrap()
 }
 
-/// Datei des Repos, vom Manifest der Crate aus gesehen.
+/// File of the repo, seen from the manifest of the crate.
 fn repo_file(path: &str) -> String {
     let full = format!("{}/../../{path}", env!("CARGO_MANIFEST_DIR"));
     std::fs::read_to_string(&full).unwrap_or_else(|e| panic!("{full} lesen: {e}"))
 }
 
-/// Alle Seiten der Hilfe (`site/content/de/hilfe/*.md`) als Pfade ab dem Repo – im Verzeichnis gelesen, nicht einzeln
-/// aufgezählt, damit eine neue Hilfeseite von selbst unter die Verbote fällt (Runde 37: Die Bedienung für Anwender
-/// steht seitdem dort, `docs/Bedienung.md` ist nur noch Verweis und technische Anmerkung).
+/// All pages of the help (`site/content/de/hilfe/*.md`) as paths from the repo – read in the directory, not listed
+/// individually, so that a new help page falls under the bans by itself (Round 37: the manual for users has been there
+/// since, `docs/Bedienung.md` is only a pointer and technical note any more).
 fn help_pages() -> Vec<String> {
     let dir = format!("{}/../../site/content/de/hilfe", env!("CARGO_MANIFEST_DIR"));
     let mut pages: Vec<String> = std::fs::read_dir(&dir)
@@ -43,8 +43,8 @@ fn help_pages() -> Vec<String> {
     pages
 }
 
-/// Hinter einem Proxy erreicht ein Mensch die Über-Seite und den Lizenztext unter dem erlaubten Namen; ein fremder
-/// Name bekommt nichts davon zu sehen, und `/mcp` verlangt unter dem Namen den Token.
+/// Behind a proxy a human reaches the about page and the licence text under the allowed name; a foreign name gets to
+/// see nothing of it, and `/mcp` demands the token under the name.
 #[tokio::test]
 async fn behind_a_proxy_the_about_page_answers_under_the_allowed_name_only() {
     let server = open_allowing(NAME).await;
@@ -91,8 +91,8 @@ async fn behind_a_proxy_the_about_page_answers_under_the_allowed_name_only() {
     );
 }
 
-/// Die Version hat eine Quelle (`[workspace.package] version`); alle Stellen, die sie wiederholen müssen, stimmen
-/// damit überein. Ändert der Nutzer die Version, zeigt dieser Test die Stellen, die er nachziehen muss.
+/// The version has one source (`[workspace.package] version`); all places that must repeat it agree with it. If the
+/// user changes the version, this test shows the places he must update.
 #[test]
 fn the_version_is_the_same_in_manifest_program_site_and_changelog() {
     let version = about::VERSION;
@@ -122,9 +122,9 @@ fn the_version_is_the_same_in_manifest_program_site_and_changelog() {
         site.lines().any(|l| l.trim() == format!("repo = \"{}\"", about::REPOSITORY)),
         "die Webseite verlinkt dasselbe Repo wie die Über-Seite"
     );
-    // Nachbesserung R24: Die frühere Zusicherung verlangte den leeren Wert und wäre gescheitert, sobald der Nutzer
-    // den Fingerabdruck einträgt. Erlaubt ist leer (noch offen) oder ein ganzer Fingerabdruck; ob er zum
-    // Schlüssel passt, prüft `scripts/ci-fingerprint.sh` im Release-Lauf.
+    // Follow-up fix R24: the former assertion demanded the empty value and would have failed as soon as the user enters
+    // the fingerprint. Allowed is empty (still open) or a whole fingerprint; whether it fits the key is checked by
+    // `scripts/ci-fingerprint.sh` in the release run.
     let fingerprint = site
         .lines()
         .find_map(|l| l.trim().strip_prefix("aptFingerprint = \""))
@@ -138,8 +138,8 @@ fn the_version_is_the_same_in_manifest_program_site_and_changelog() {
     );
 
     let changelog = repo_file("CHANGELOG.md");
-    // Runde 32: Über der Version darf ein Abschnitt „Unveröffentlicht“ stehen (Arbeit seit dem Release; die
-    // Versionsnummer legt nur der Autor fest) – dann beschreibt der Abschnitt darunter diese Version.
+    // Round 32: above the version there may be a section „Unveröffentlicht“ (work since the release; the version number
+    // is set only by the author) – then the section below it describes this version.
     let first = changelog
         .lines()
         .find(|l| l.starts_with("## ") && *l != "## Unveröffentlicht")
@@ -167,9 +167,8 @@ fn the_version_is_the_same_in_manifest_program_site_and_changelog() {
     }
 }
 
-/// Der private Rechnername der früheren MultiGPT-Vorgabe steht in keiner Datei mehr, die das Programm oder die
-/// Webseite ausliefert (Vertrag §0/§5). Gesucht wird in Teilen zusammengesetzt, damit dieser Test ihn nicht selbst
-/// enthält.
+/// The private host name of the former MultiGPT default is no longer in any file that the program or the website
+/// delivers (contract §0/§5). The search is assembled from parts, so that this test does not contain it itself.
 #[test]
 fn the_former_private_default_address_is_gone_from_what_ships() {
     let needle = ["gpt", "intranet"].join(".");
@@ -184,7 +183,7 @@ fn the_former_private_default_address_is_gone_from_what_ships() {
     ]
     .into_iter()
     .map(String::from)
-    // Runde 37: Die Bedienung steht in der Hilfe der Webseite; sie wird ausgeliefert wie `site/content/de/mcp.md`.
+    // Round 37: the manual is in the help of the website; it is delivered like `site/content/de/mcp.md`.
     .chain(help_pages())
     {
         assert!(!repo_file(&path).contains(&needle), "{path} nennt die frühere Intranet-Adresse nicht mehr");
@@ -196,10 +195,10 @@ fn the_former_private_default_address_is_gone_from_what_ships() {
     );
 }
 
-/// Nachbesserung R24 (Gutachten): Was mit dem Repo öffentlich wird, nennt weder den Rechner des Entwicklers noch
-/// den Namen eines Dritten oder den Titel seines Buchs. Die Suchwörter sind zusammengesetzt, damit dieser Test sie
-/// nicht selbst enthält. Geprüft wird nur der heutige Stand; über die Git-Historie entscheidet der Nutzer
-/// (`docs/Backlog.md`, „Schritte des Nutzers“).
+/// Follow-up fix R24 (review): what becomes public with the repo names neither the machine of the developer nor the
+/// name of a third party or the title of his book. The search words are assembled, so that this test does not contain
+/// them itself. Only today's state is checked; the user decides about the Git history (`docs/Backlog.md`,
+/// „Schritte des Nutzers“).
 #[test]
 fn the_current_tree_names_no_private_machine_and_no_third_party() {
     let needles = [
@@ -230,7 +229,7 @@ fn the_current_tree_names_no_private_machine_and_no_third_party() {
     ]
     .into_iter()
     .map(String::from)
-    // Runde 37: Die Hilfeseiten werden mit der Webseite öffentlich; für sie gilt dasselbe Verbot.
+    // Round 37: the help pages become public with the website; the same ban holds for them.
     .chain(help_pages())
     {
         let text = repo_file(&path);
@@ -240,8 +239,8 @@ fn the_current_tree_names_no_private_machine_and_no_third_party() {
     }
 }
 
-/// Nachbesserung R24 (Gutachten): Die Zugangsregel von `/mcp` hat sich mit `--allow-host` geändert; `docs/MCP.md`
-/// und `docs/RPC.md` müssen sie nennen (AGENTS.md: Doku im selben Commit). Das Verhalten selbst prüft
+/// Follow-up fix R24 (review): the access rule of `/mcp` has changed with `--allow-host`; `docs/MCP.md` and
+/// `docs/RPC.md` must name it (AGENTS.md: docs in the same commit). The behaviour itself is checked by
 /// `round24_betrieb::mcp_under_an_extra_name_needs_a_token_even_from_loopback`.
 #[test]
 fn the_interface_docs_name_the_token_rule_behind_a_proxy() {

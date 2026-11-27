@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 10, Aufgabe „backend“: Modell-Backend Eliezer im Server (`baruch_server::models`), RPC
-//! `model.list`/`model.status`/`model.probe` (direkt über `models::call`; die Verdrahtung in
-//! `rpc.rs` macht der Integrator), „Verbindung prüfen“ mit Abgleich der Persona-Modelle und der
-//! Kurztest auf der Verbindungsseite (ohne JavaScript).
+//! Round 10, task „backend“: model backend Eliezer in the server (`baruch_server::models`), RPC
+//! `model.list`/`model.status`/`model.probe` (directly through `models::call`; the wiring in `rpc.rs` is done by the
+//! integrator), „Verbindung prüfen“ with reconciliation of the persona models and the short test on the connection page
+//! (without JavaScript).
 //!
-//! Jeder Test spricht nur mit einem eigenen Nachbau (`baruch_llm::mock`, 127.0.0.1:0), dessen Adresse
-//! vorher per `connection.set` eingestellt wird; Geheimnisse nur in `MemorySecrets` (eindeutiges
-//! Test-Geheimnis, das nirgends erscheinen darf). Kein Test nennt oder erreicht den echten Eliezer.
+//! Every test talks only to an own mock (`baruch_llm::mock`, 127.0.0.1:0), whose address is set beforehand through
+//! `connection.set`; secrets only in `MemorySecrets` (unique test secret that must appear nowhere). No test names or
+//! reaches the real Eliezer.
 
 use crate::common;
 
@@ -25,7 +25,7 @@ use baruch_server::connections::{MemorySecrets, render_connections};
 use baruch_server::models;
 use serde_json::{Value, json};
 
-/// Eindeutiges Test-Geheimnis; es darf nirgends erscheinen.
+/// Unique test secret; it must appear nowhere.
 const SECRET: &str = "Mm4-geheim-b2e9d1-Modell-Test";
 
 async fn open_with(secrets: MemorySecrets) -> common::Server {
@@ -35,14 +35,14 @@ async fn open_with(secrets: MemorySecrets) -> common::Server {
     common::Server { app: baruch_server::router(state.clone()), state, data }
 }
 
-/// Erfolgreicher RPC-Aufruf über den Router (connection.*).
+/// Successful RPC call through the router (connection.*).
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     let answer = server.rpc(method, params).await;
     assert!(answer["error"].is_null(), "{method} sollte gelingen: {answer}");
     answer["result"].clone()
 }
 
-/// `model.*` direkt über das Modul.
+/// `model.*` directly through the module.
 async fn model_call(server: &common::Server, method: &str, params: Value) -> Result<Value, (i64, String)> {
     models::call(&server.state, method, params).await.map_err(|e| (e.code, e.message))
 }
@@ -56,7 +56,7 @@ async fn page(server: &common::Server, pairs: &[(&str, &str)]) -> String {
     render_connections(&server.state, None, &q).await.expect("Seite Verbindungen")
 }
 
-/// Ausschnitt der Seite: die Verbindung `kind` (bis zur nächsten).
+/// Excerpt of the page: the connection `kind` (up to the next one).
 fn section<'a>(html: &'a str, kind: &str) -> &'a str {
     let start = html.find(&format!("id=\"{kind}\"")).unwrap_or_else(|| panic!("Abschnitt {kind} fehlt: {html}"));
     let rest = &html[start..];
@@ -97,7 +97,7 @@ async fn the_key_goes_only_to_the_address_it_was_entered_for() {
     let server = open_with(MemorySecrets::with([("eliezer", SECRET)])).await;
     let mock = MockEliezer::start().await;
     mock.require_bearer(Some(SECRET));
-    // Neue Adresse, Schlüssel noch für die alte hinterlegt: nichts darf hinausgehen.
+    // New address, key still stored for the old one: nothing may go out.
     use_mock(&server, &mock).await;
     let (result, _) = chat(&server, "mock-modell", "Test Bindung").await;
     let error = result.unwrap_err();
@@ -110,7 +110,7 @@ async fn the_key_goes_only_to_the_address_it_was_entered_for() {
     assert!(listed.1.contains("anderes Ziel"), "Meldung nennt den Grund: {listed:?}");
     assert!(mock.requests().is_empty(), "der Nachbau wird gar nicht gefragt: {:?}", mock.requests());
 
-    // Für die neue Adresse eingetragen: jetzt geht der Schlüssel als Bearer dorthin.
+    // Entered for the new address: now the key goes there as Bearer.
     ok(&server, "connection.set_secret", json!({ "kind": "eliezer", "secret": SECRET })).await;
     let (result, _) = chat(&server, "mock-modell", "Test Bindung").await;
     assert_eq!(result.expect("mit gebundenem Schlüssel").text, "OK", "Vorgabe-Antwort des Nachbaus");
@@ -118,7 +118,7 @@ async fn the_key_goes_only_to_the_address_it_was_entered_for() {
     assert_eq!(seen.len(), 1, "genau ein Aufruf: {seen:?}");
     assert_eq!(seen[0].authorization.as_deref(), Some(format!("Bearer {SECRET}").as_str()), "Bearer gesendet");
 
-    // Wieder eine andere Adresse ohne neues Geheimnis: dort kommt kein Authorization an.
+    // Yet another address without a new secret: no Authorization arrives there.
     let other = MockEliezer::start().await;
     use_mock(&server, &other).await;
     let (result, _) = chat(&server, "mock-modell", "Test Bindung").await;
@@ -261,7 +261,7 @@ async fn no_secret_appears_in_rpc_answers_messages_or_html() {
     let mock = MockEliezer::start().await;
     use_mock(&server, &mock).await;
     ok(&server, "connection.set_secret", json!({ "kind": "eliezer", "secret": SECRET })).await;
-    // Der Nachbau will einen anderen Schlüssel und spiegelt den vorgelegten in seiner Meldung.
+    // The mock wants a different key and mirrors the presented one in its message.
     mock.require_bearer(Some("anderer-schluessel-0000"));
     let probe = model_call(&server, "model.probe", json!({ "model": "mock-modell" })).await.expect("Ergebnis");
     assert_eq!(probe["ok"], false, "abgewiesen: {probe}");
@@ -277,7 +277,7 @@ async fn no_secret_appears_in_rpc_answers_messages_or_html() {
         "gesendet"
     );
 
-    // Richtiger Schlüssel, aber ein Modellname trägt das Geheimnis: auch das geht nicht weiter.
+    // Right key, but a model name carries the secret: that does not get passed on either.
     mock.require_bearer(Some(SECRET));
     let echo = format!("spiegel-{SECRET}");
     mock.set_models(&["mock-modell", &echo]);
@@ -363,13 +363,13 @@ async fn checking_eliezer_compares_persona_models_and_the_page_offers_a_probe_wi
     assert_eq!(location.as_deref(), Some("/einstellungen/verbindungen?fehler=methode&kind=multigpt"), "nur Eliezer");
     assert_eq!(mock.chat_bodies().len(), 1, "abgelehnte Formulare schicken nichts");
 
-    // Nur der Mensch: `POST /act` kennt model.* nicht.
+    // Only the human: `POST /act` does not know model.*.
     let (status, _) = server.post_form("/act", "method=model.probe&model=mock-modell").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "model.probe nicht über /act");
     assert_eq!(mock.chat_bodies().len(), 1, "über /act geht nichts hinaus");
 }
 
-/// MCP-Gegenstelle, die jede Anfrage 4 s liegen lässt: drei Anfragen dauern zusammen 12 s.
+/// MCP peer that lets every request lie for 4 s: three requests together take 12 s.
 async fn slow_mcp() -> String {
     let app = Router::new().route(
         "/mcp",

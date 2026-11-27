@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 19a (index): RAG-Index-Pflege – Auftrags-Worker ohne Versuchszyklus je Suche, liegengebliebene
-//! Aufträge, `weak` an rag.search/rag_search, Abgleich mit MultiGPT.
+//! Round 19a (index): RAG index maintenance – job worker without a retry cycle per search, jobs left lying, `weak` on
+//! rag.search/rag_search, sync with MultiGPT.
 //!
-//! - Nach dem Rückzug (Einbetter scheitert) stoßen Suchen keinen neuen Versuch an; `rag.status` bleibt ehrlich
-//!   (Problem und `index.stale`), bis eine echte Änderung oder „Index neu aufbauen“ die Aufträge zurückholt.
-//! - `rag.reindex` antwortet sofort, auch wenn eine Einbettung hängt (`deferred`); ein dabei unterbrochener
-//!   Auftrag eines anderen Werks kommt zurück in die Warteschlange.
-//! - Einfälle eines gelöschten Werks sind sofort im gemeinsamen Bereich.
-//! - `rag::catch_up` mit eigenem Datenordner ohne gespeicherte Verbindung Eliezer bindet keinen Einbetter.
-//! - Aufgaben-Präfixe in LanceDB (Dokument/Anfrage), Wechsel = ModelMismatch bis zum Neuaufbau.
-//! - `weak` je Treffer in `rag.search` und MCP `rag_search`.
-//! - Abgleich mit MultiGPT gehärtet (MockDocs) und die Verbindungsprüfung endet mit `DELETE`.
+//! - After the fallback (embedder fails) searches trigger no new attempt; `rag.status` stays honest (problem and
+//!   `index.stale`) until a real change or „Index neu aufbauen“ brings the jobs back.
+//! - `rag.reindex` answers at once, even if an embedding hangs (`deferred`); a job of another work interrupted by it
+//!   comes back into the queue.
+//! - Ideas of a deleted work are at once in the shared area.
+//! - `rag::catch_up` with an own data folder without a stored connection Eliezer attaches no embedder.
+//! - Task prefixes in LanceDB (document/query), change = ModelMismatch until the rebuild.
+//! - `weak` per hit in `rag.search` and MCP `rag_search`.
+//! - Sync with MultiGPT hardened (MockDocs) and the connection check ends with `DELETE`.
 //!
-//! Einbettungen nur von eigenen Nachbauten ([`Recording`], [`MockEliezer`] auf 127.0.0.1:0), MultiGPT nur als
-//! [`MockDocs`]/[`MockMultigpt`] auf 127.0.0.1:0. Texte frei erfunden („Der Hafen der Anker“).
+//! Embeddings only from own mocks ([`Recording`], [`MockEliezer`] on 127.0.0.1:0), MultiGPT only as
+//! [`MockDocs`]/[`MockMultigpt`] on 127.0.0.1:0. Texts freely invented („Der Hafen der Anker“).
 
 use crate::common;
 
@@ -66,17 +66,17 @@ fn hits(answer: &Value) -> Vec<Value> {
     answer["hits"].as_array().unwrap().clone()
 }
 
-/// Wie der Nachbau gerade antwortet.
+/// How the mock currently answers.
 #[derive(Debug, Clone)]
 enum Mode {
     Ok,
     Fail(RagError),
-    /// Hängt, bis wieder `Ok` gilt (höchstens 30 s), dann wie `Ok`.
+    /// Hangs until `Ok` holds again (at most 30 s), then like `Ok`.
     Hang,
 }
 
-/// Einbetter-Nachbau, der jeden Aufruf aufzeichnet. Vektoren nach Schlüsselwörtern (3 Dimensionen, von Hand
-/// gewählt): „Anker“ → (1, 0, 0), „Kompass“ → Kosinus 0,5 zu „Anker“, „Wolke“ → Kosinus 0,4, sonst senkrecht.
+/// Embedder mock that records every call. Vectors by keywords (3 dimensions, chosen by hand): „Anker“ → (1, 0, 0),
+/// „Kompass“ → cosine 0.5 to „Anker“, „Wolke“ → cosine 0.4, otherwise perpendicular.
 #[derive(Clone)]
 struct Recording {
     calls: Arc<Mutex<Vec<Vec<String>>>>,
@@ -93,7 +93,7 @@ impl Recording {
         *self.mode.lock().unwrap() = mode;
     }
 
-    /// Aufrufe, die keine Anfrage `query` (allein) waren: Einbettungen für den Index.
+    /// Calls that were not a query `query` (alone): embeddings for the index.
     fn index_calls(&self, query: &str) -> usize {
         self.calls.lock().unwrap().iter().filter(|texts| !(texts.len() == 1 && texts[0].ends_with(query))).count()
     }
@@ -155,12 +155,12 @@ async fn search(server: &common::Server, params: Value) -> Value {
     result(&server.rpc("rag.search", params).await).clone()
 }
 
-/// Server mit eigenem Werk und dem aufzeichnenden Nachbau als Einbetter (das Werk ist schon eingereiht).
+/// Server with a work of its own and the recording mock as embedder (the work is already enqueued).
 async fn harbour(mode: Mode) -> (common::Server, Recording, i64) {
     harbour_with(mode, None).await
 }
 
-/// Wie [`harbour`]; mit Aufgaben-Präfixen (Anfrage, Dokument), die vor dem ersten Auftrag gelten.
+/// Like [`harbour`]; with task prefixes (query, document) that hold before the first job.
 async fn harbour_with(mode: Mode, prefixes: Option<(&str, &str)>) -> (common::Server, Recording, i64) {
     let server = common::open().await;
     if let Some((query, document)) = prefixes {
@@ -172,14 +172,14 @@ async fn harbour_with(mode: Mode, prefixes: Option<(&str, &str)>) -> (common::Se
     (server, embedder, work)
 }
 
-/// Wie `rag::wait_idle`, mit Obergrenze (ein hängender Test soll scheitern, nicht ewig warten).
+/// Like `rag::wait_idle`, with an upper limit (a hanging test is to fail, not wait forever).
 async fn idle(server: &common::Server) {
     tokio::time::timeout(Duration::from_secs(90), rag::wait_idle(&server.state))
         .await
         .expect("Index-Worker kommt innerhalb von 90 s zur Ruhe");
 }
 
-// ---- Worker, Status, Neuaufbau --------------------------------------------------------------------------
+// ---- Worker, status, rebuild ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn after_the_retreat_searches_start_no_new_embedding_cycle_and_the_status_stays_honest() {
@@ -204,7 +204,7 @@ async fn after_the_retreat_searches_start_no_new_embedding_cycle_and_the_status_
                 "failed",
                 "{failure:?}: Suche {n} ehrlich ausgefallen: {found}"
             );
-            // Gleich nach der Suche (das billige Aufräumen läuft womöglich noch) und danach: nie „kein Problem“.
+            // Right after the search (the cheap clean-up possibly still runs) and afterwards: never "no problem".
             let now = status(&server, work).await;
             assert!(now["index"]["problem"].is_string(), "{failure:?}: Suche {n}, sofort: Problem bleibt: {now}");
             idle(&server).await;
@@ -224,7 +224,7 @@ async fn after_the_retreat_searches_start_no_new_embedding_cycle_and_the_status_
              fünf Suchen lösen keinen einzigen weiteren Einbettungsaufruf für den Index aus ({failure:?})"
         );
 
-        // Eine echte Änderung (Runde 0) bzw. „Index neu aufbauen“ (Runde 1) holt die Aufträge zurück.
+        // A real change (round 0) or „Index neu aufbauen“ (round 1) brings the jobs back.
         embedder.set(Mode::Ok);
         if round == 0 {
             rag::notify(&server.state, None);
@@ -252,7 +252,7 @@ async fn reindex_answers_at_once_while_an_embedding_hangs_and_rebuilds_after_rel
         assert!(waited.elapsed() < Duration::from_secs(20), "der Worker beginnt einzubetten");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    // Zahl der Aufrufe des Einbetters, während der erste hängt (für die Prüfung der Unterbrechung unten).
+    // Number of calls of the embedder while the first one hangs (for the check of the interruption below).
     let hanging_calls = embedder.started.load(Ordering::SeqCst);
     let started = Instant::now();
     let queued = server.rpc("rag.reindex", json!({ "work": work, "confirm": true })).await;
@@ -264,12 +264,12 @@ async fn reindex_answers_at_once_while_an_embedding_hangs_and_rebuilds_after_rel
     assert_eq!(result(&queued)["deferred"], true, "Rücksetzwunsch vermerkt (Worker hielt die Sperre): {queued}");
     assert_eq!(result(&queued)["queued"], true, "eingereiht: {queued}");
 
-    // Runde 23 (Backlog „Nach Runde 19 offen“): Vor der Freigabe warten, bis der Worker die hängende Einbettung
-    // wirklich unterbrochen hat. Begründung: Der Worker prüft den Rücksetzwunsch alle 50 ms (`ABORT_POLL`), lässt
-    // die hängende Einbettung fallen, setzt zurück und beginnt den wieder eingereihten Auftrag neu – das zeigt sich
-    // als **weiterer** Aufruf des Einbetters, während dieser noch hängt. Gäbe der Test sofort frei, würde die
-    // Einbettung regulär fertig, und der Test wäre grün, ohne dass je etwas unterbrochen wurde. Ohne Unterbrechung
-    // bleibt `started` stehen (der Einbetter hängt bis zu 30 s), und diese Zusicherung schlägt nach 10 s an.
+    // Round 23 (backlog „Nach Runde 19 offen“): before the release, wait until the worker has really interrupted the
+    // hanging embedding. Reason: the worker checks the reset wish every 50 ms (`ABORT_POLL`), drops the hanging
+    // embedding, resets and starts the re-enqueued job anew – that shows as a **further** call of the embedder while
+    // this one still hangs. If the test released at once, the embedding would finish regularly, and the test would be
+    // green without anything ever having been interrupted. Without an interruption `started` stays put (the embedder
+    // hangs for up to 30 s), and this assertion triggers after 10 s.
     let waited = Instant::now();
     while embedder.started.load(Ordering::SeqCst) == hanging_calls {
         assert!(
@@ -291,7 +291,7 @@ async fn reindex_answers_at_once_while_an_embedding_hangs_and_rebuilds_after_rel
     let found = search(&server, json!({ "work": work, "query": "Anker" })).await;
     assert!(hits(&found)[0]["snippet"].as_str().unwrap().contains("Anker"), "neu aufgebaut und auffindbar: {found}");
 
-    // Ohne laufenden Auftrag geht es sofort (deferred false); die Suche eben reihte noch das Aufräumen ein.
+    // Without a running job it works at once (deferred false); the search just now still enqueued the clean-up.
     idle(&server).await;
     let queued = server.rpc("rag.reindex", json!({ "work": work, "confirm": true })).await;
     assert_eq!(result(&queued)["deferred"], false, "freie Sperre: sofort zurückgesetzt: {queued}");
@@ -308,8 +308,8 @@ An der alten Leiter lehnte ein Korb voller Birnen.
 
 #[tokio::test]
 async fn reindexing_one_work_requeues_the_interrupted_job_of_another_work() {
-    // Beide Werke erst fertig aufbauen; dann den Hafen allein neu aufbauen lassen (freie Sperre, sofort), so dass
-    // genau ein Auftrag `Work(Hafen)` läuft und hängt – kein zweiter für dasselbe Werk wartet in der Schlange.
+    // First build both works completely; then have the harbour alone rebuilt (free lock, at once), so that exactly one
+    // job `Work(Hafen)` runs and hangs – no second one for the same work waits in the queue.
     let (server, embedder, harbour_work) = harbour(Mode::Ok).await;
     let orchard = server.import(ORCHARD, "obstgarten.typ").await.work;
     idle(&server).await;
@@ -329,8 +329,8 @@ async fn reindexing_one_work_requeues_the_interrupted_job_of_another_work() {
     );
     let queued = server.rpc("rag.reindex", json!({ "work": orchard, "confirm": true })).await;
     assert_eq!(result(&queued)["deferred"], true, "Rücksetzwunsch vermerkt (Worker hielt die Sperre): {queued}");
-    // Der Worker prüft den Wunsch alle 50 ms; erst danach freigeben, sonst könnte die hängende Einbettung noch
-    // regulär fertig werden und es gäbe nichts zu unterbrechen.
+    // The worker checks the wish every 50 ms; release only after that, otherwise the hanging embedding could still
+    // finish regularly and there would be nothing to interrupt.
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     embedder.set(Mode::Ok);
@@ -367,7 +367,7 @@ async fn ideas_of_a_deleted_work_are_found_at_once_in_the_shared_area_of_another
     let deleted = server.rpc("work.delete", json!({ "work": work, "confirm_title": "Der Hafen der Anker" })).await;
     result(&deleted);
     idle(&server).await;
-    // Keine Suche dazwischen: Erst die Suche frischt den gemeinsamen Bereich sonst auf (bis zu 30 s später).
+    // No search in between: otherwise only the search refreshes the shared area (up to 30 s later).
     let other = server.state.default_work().await.unwrap();
     let found = search(&server, json!({ "work": other, "query": "Anker", "collections": ["idea"] })).await;
     let hit = hits(&found).into_iter().find(|h| h["document"] == format!("idea:{idea}"));
@@ -405,7 +405,7 @@ async fn catch_up_with_own_data_and_no_saved_eliezer_binds_no_embedder_and_says_
     assert_eq!(error_code(&refused), -32000, "neu aufbauen ohne Einbetter: abgelehnt: {refused}");
     assert!(refused["error"]["message"].as_str().unwrap().contains("eigener Datenordner"), "mit Grund: {refused}");
 
-    // Wird Eliezer gespeichert (hier der Nachbau), bindet „Index neu aufbauen“ ihn an.
+    // If Eliezer is stored (here the mock), „Index neu aufbauen“ attaches it.
     let mock = MockEliezer::start().await;
     result(&server.rpc("connection.set", json!({ "kind": "eliezer", "config": { "url": mock.url() } })).await);
     let queued = server.rpc("rag.reindex", json!({ "work": work, "confirm": true })).await;
@@ -414,7 +414,7 @@ async fn catch_up_with_own_data_and_no_saved_eliezer_binds_no_embedder_and_says_
     assert!(!mock.embedding_inputs().is_empty(), "über den gespeicherten Nachbau eingebettet");
     assert!(status(&server, work).await["index"]["problem"].is_null(), "kein Problem mehr");
 
-    // Mit gesetztem Nachbau-Einbetter unverändert: catch_up bettet über ihn ein.
+    // With a mock embedder set, unchanged: catch_up embeds through it.
     let (other, embedder, work) = harbour(Mode::Ok).await;
     rag::catch_up(&other.state).await;
     idle(&other).await;
@@ -422,7 +422,7 @@ async fn catch_up_with_own_data_and_no_saved_eliezer_binds_no_embedder_and_says_
     assert!(status(&other, work).await["index"]["problem"].is_null(), "kein Problem");
 }
 
-// ---- Präfixe ---------------------------------------------------------------------------------------------
+// ---- Prefixes -------------------------------------------------------------------------------------------
 
 async fn set_prefixes(server: &common::Server, query: &str, document: &str) {
     let config = json!({ "dir": "lancedb", "embedding_model": "nomic-embed-text", "query_prefix": query,
@@ -432,7 +432,7 @@ async fn set_prefixes(server: &common::Server, query: &str, document: &str) {
 
 #[tokio::test]
 async fn lancedb_embeds_documents_and_queries_with_their_prefixes_and_a_changed_prefix_waits_for_reindex() {
-    // Ohne Präfix: byte-gleich wie bisher.
+    // Without prefix: byte-identical as before.
     let (plain, plain_embedder, plain_work) = harbour(Mode::Ok).await;
     rag::catch_up(&plain.state).await;
     idle(&plain).await;
@@ -448,7 +448,7 @@ async fn lancedb_embeds_documents_and_queries_with_their_prefixes_and_a_changed_
     search(&plain, json!({ "work": plain_work, "query": "Anker" })).await;
     assert_eq!(plain_embedder.texts().last().map(String::as_str), Some("Anker"), "Anfrage unverändert");
 
-    // Mit Präfixen (über den Store gesetzt; die Seite lernt die Felder mit pgvector).
+    // With prefixes (set through the store; the page learns the fields with pgvector).
     let (server, embedder, work) = harbour_with(Mode::Ok, Some(("search_query: ", "search_document: "))).await;
     rag::catch_up(&server.state).await;
     idle(&server).await;
@@ -467,7 +467,7 @@ async fn lancedb_embeds_documents_and_queries_with_their_prefixes_and_a_changed_
     let meta = std::fs::read_to_string(server.path().join("lancedb/baruch-index.json")).unwrap();
     assert!(meta.contains("\"document_prefix\": \"search_document: \""), "Präfix im Index vermerkt: {meta}");
 
-    // Anderes Dokument-Präfix: nichts gemischt, bis neu aufgebaut wird.
+    // Different document prefix: nothing mixed until a rebuild.
     set_prefixes(&server, "search_query: ", "passage: ").await;
     let found = search(&server, json!({ "work": work, "query": "Anker" })).await;
     let lance = way(&found, "lancedb");
@@ -496,7 +496,7 @@ async fn lancedb_embeds_documents_and_queries_with_their_prefixes_and_a_changed_
     assert_eq!(way(&found, "lancedb")["state"], "connected", "nach dem Neuaufbau wieder verbunden: {found}");
 }
 
-// ---- schwach -------------------------------------------------------------------------------------------
+// ---- weak ---------------------------------------------------------------------------------------------
 
 async fn mcp(server: &common::Server, name: &str, arguments: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": { "name": name, "arguments": arguments } });
@@ -546,7 +546,7 @@ async fn rag_search_and_mcp_rag_search_mark_exactly_the_hits_below_the_threshold
     check_weak(&found, "MCP rag_search");
 }
 
-// ---- Abgleich mit MultiGPT -----------------------------------------------------------------------------
+// ---- Sync with MultiGPT -------------------------------------------------------------------------------
 
 const ISLAND: &str = "// Testbuch Runde 19a „abgleich“ (frei erfunden).
 #set document(title: \"Die Insel der Möwen\", author: \"Ole Wind\")
@@ -634,7 +634,7 @@ async fn an_error_for_one_document_blocks_only_that_one_but_missing_rights_block
     run(&server).await;
     assert_eq!(mock.tool_calls("upload_document").len(), 1, "der nächste Lauf versucht nur das leere Kapitel erneut");
 
-    // Fehlende Rechte (HTTP 403 bzw. isError mit „docs.write“) blockieren weiter nach dem ersten Versuch.
+    // Missing rights (HTTP 403 or isError with „docs.write“) still block after the first attempt.
     for deny in [Deny::Forbidden, Deny::ToolError] {
         let (server, mock, work) = island().await;
         upload_on(&server, work).await;
@@ -654,7 +654,7 @@ async fn a_capped_listing_deletes_no_local_copy() {
     for (id, title) in [("g-1", "Psalmen am Meer"), ("g-2", "Lieder der Fischer"), ("g-3", "Gebete im Sturm")] {
         mock.put_document("Gemeinde", id, title, &format!("{title}: frei erfundener Text."));
     }
-    // Das Schema nennt für limit höchstens 2 (die Werkzeugliste merkt sich die Sitzung, darum von Anfang an).
+    // The schema names at most 2 for limit (the tool list is remembered by the session, therefore from the start).
     mock.configure(|b| {
         for tool in b.tools.iter_mut().filter(|t| t["name"] == "list_documents") {
             tool["inputSchema"]["properties"]["limit"]["maximum"] = json!(2);
@@ -664,7 +664,7 @@ async fn a_capped_listing_deletes_no_local_copy() {
     let last = run(&server).await;
     assert_eq!(last["downloaded"], 3, "drei geholt: {last}");
 
-    // Jetzt kappt der Server still bei zwei Einträgen (wie erbeten), aber ohne Fortsetzung.
+    // Now the server silently cuts at two entries (as requested), but without continuation.
     mock.configure(|b| b.silent_cap = 2);
     let last = run(&server).await;
     let local: Vec<(String, String)> = server.state.store.sync_document_ids().await.unwrap();
@@ -758,7 +758,7 @@ async fn an_answer_lost_between_upload_and_state_is_reported_by_the_next_run() {
     assert!(!last["message"].as_str().unwrap().contains("brach"), "der Hinweis kommt nur einmal: {last}");
 }
 
-// ---- Verbindungsprüfung -------------------------------------------------------------------------------
+// ---- Connection check --------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn checking_multigpt_ends_its_session_with_delete() {

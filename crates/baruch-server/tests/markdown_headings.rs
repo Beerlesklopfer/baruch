@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Markdown-Überschriften beim Tippen werden Gliederung (Nutzerentscheidung 2026-11-07): `# Titel` bis
-//! `###### Titel` im Text des Menschen wird beim Speichern zur Typst-Überschrift (`=` × Ebene, 4–6 → 3),
-//! und die Gliederung gleicht sich ab wie bei einer getippten `=`-Zeile – über RPC und ohne JavaScript
-//! über das Formular. Vorschläge von Assistenten bleiben, wie sie sind; übernimmt der Mensch einen, gilt
-//! dieselbe Regel. Die Regel selbst (Tabelle mit allen Ausnahmen) prüft `baruch_typst::markdown`. Alle
-//! Texte frei erfunden.
+//! Markdown headings while typing become outline (user decision 2026-11-07): `# Titel` to `###### Titel` in the text of
+//! the human becomes a Typst heading on saving (`=` × level, 4–6 → 3), and the outline is reconciled as with a typed
+//! `=` line – through RPC and without JavaScript through the form. Proposals of assistants stay as they are; if the
+//! human accepts one, the same rule holds. The rule itself (table with all exceptions) is checked by
+//! `baruch_typst::markdown`. All texts freely invented.
 
 use crate::common;
 
@@ -19,7 +18,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// (Titel, Ebene als Tiefe im Baum) in Baumreihenfolge und der aktuelle Text je Punkt.
+/// (title, level as depth in the tree) in tree order and the current text per item.
 async fn outline(server: &common::Server, work: i64) -> Vec<(String, usize, String)> {
     let loaded = server.state.store.load_work(work).await.unwrap();
     loaded
@@ -60,7 +59,7 @@ async fn markdown_headings_typed_by_the_human_become_outline_points_over_rpc() {
     assert_eq!(tree[1].2, "== Das Logbuch\nErste Eintragung.\n\n", "`##` → `==`");
     assert_eq!(tree[2].2, "=== Am Rand\nNotiz.\n", "`####` → `===`");
 
-    // outline.check sieht dieselben Überschriften (das Widget fragt vor dem Speichern).
+    // outline.check sees the same headings (the widget asks before saving).
     let check = server
         .rpc(
             "outline.check",
@@ -73,7 +72,7 @@ async fn markdown_headings_typed_by_the_human_become_outline_points_over_rpc() {
         "die Prüfung zählt `## Die Flaute` als neuen Punkt: {check}"
     );
 
-    // revision.save (roher Weg des Menschen): `# Titel` derselben Ebene benennt um.
+    // revision.save (raw way of the human): `# Titel` of the same level renames.
     let saved =
         server.rpc("revision.save", json!({ "work": work, "node": 3, "body": "# Der große Sturm\n\nWind.\n" })).await;
     result(&saved);

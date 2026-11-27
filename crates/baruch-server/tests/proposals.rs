@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vorschläge im Lesefluss (Vertrag Runde 7, „proposals“, 5e; an ihrer Stelle seit Runde 8, „inline“):
-//! je Stück eines offenen Vorschlags ein `<details class="pv">` in der Farbe der Persona, mit einem
-//! Kopf, Satzbild- und Zeilen-Diff des Stücks, Übernehmen/Verwerfen über `/act` (ohne JavaScript),
-//! an derselben Stelle nach Persona-Reihenfolge, gefaltet über das Cookie `baruch_folded`; im Editor
-//! und in der Vorschau. Die Vorschläge an ihrer Stelle im Einzelnen prüft `round8_inline.rs`.
+//! Proposals in the reading flow (contract Round 7, „proposals“, 5e; in their place since Round 8, „inline“): per piece
+//! of an open proposal one `<details class="pv">` in the colour of the persona, with a head, typeset-view diff and line
+//! diff of the piece, accepting/rejecting through `/act` (without JavaScript), in the same place in persona order,
+//! folded through the cookie `baruch_folded`; in the editor and in the preview. The proposals in their place are
+//! checked in detail by `round8_inline.rs`.
 //!
-//! Beispielwerk: Einleitung (Stelle 2) hat Fassung 1 (ersetzt), 2 (aktuell), 3 (Vorschlag von @lektor
-//! auf 2). Die Tests hängen frei erfundene Gartentexte als weitere Vorschläge an.
+//! Sample work: the introduction (position 2) has revision 1 (superseded), 2 (current), 3 (proposal by @lektor on 2).
+//! The tests append freely invented garden texts as further proposals.
 
 use crate::common;
 
@@ -19,13 +19,13 @@ use serde_json::{Value, json};
 const GARDEN_NATHAN: &str = "= Einleitung\n\nIn Annas Laube wächst der Efeu über die Bank.\n";
 const GARDEN_LEKTOR: &str = "= Einleitung\n\nDie Rosen am Zaun brauchen Wasser.\n";
 
-/// Key der Einleitung.
+/// Key of the introduction.
 async fn intro_key(server: &common::Server) -> i64 {
     let node = server.rpc("node.get", json!({ "node": 2 })).await;
     node["result"]["key"].as_i64().expect("key der Einleitung")
 }
 
-/// Zwei weitere Vorschläge: 4 von @nathan, 5 von @lektor (beide auf der aktuellen Fassung 2).
+/// Two further proposals: 4 by @nathan, 5 by @lektor (both on the current revision 2).
 async fn two_more_proposals(server: &common::Server) {
     let store = &server.state.store;
     let four = store.add_proposal(1, 2, GARDEN_NATHAN, "@nathan", "gpt-4.1-mini", "Efeu ergänzt").await.unwrap();
@@ -40,20 +40,20 @@ async fn get_with_cookie(server: &common::Server, uri: &str, cookie: &str) -> St
     html
 }
 
-/// Öffnendes `<details …>` des (ersten) Stücks von Vorschlag `<key>-<rev>`.
+/// Opening `<details …>` of the (first) piece of proposal `<key>-<rev>`.
 fn pv_tag(html: &str, key: i64, rev: u32) -> &str {
     let at = html.find(&format!("data-pv=\"{key}-{rev}\"")).unwrap_or_else(|| panic!("Vorschlag {rev} fehlt: {html}"));
     let start = html[..at].rfind("<details").expect("data-pv steht an einem <details>");
     &html[start..at + html[at..].find('>').unwrap() + 1]
 }
 
-/// Inhalt des (ersten) Stücks eines Vorschlags bis zu seinem `</details>`.
+/// Content of the (first) piece of a proposal up to its `</details>`.
 fn pv_body(html: &str, key: i64, rev: u32) -> &str {
     let at = html.find(&format!("data-pv=\"{key}-{rev}\"")).unwrap();
     &html[at..at + html[at..].find("</details>").unwrap()]
 }
 
-/// Formular `id` (Übernehmen/Verwerfen eines Vorschlags) bis `</form>`.
+/// Form `id` (accepting/rejecting a proposal) up to `</form>`.
 fn form_by_id<'a>(html: &'a str, id: &str) -> &'a str {
     let at = html.find(&format!("<form id=\"{id}\"")).unwrap_or_else(|| panic!("Formular {id} fehlt: {html}"));
     &html[at..at + html[at..].find("</form>").unwrap()]
@@ -236,7 +236,7 @@ async fn the_cookie_folds_exactly_the_named_proposals_but_never_the_shown_one() 
     let bad = get_with_cookie(&server, "/?work=1&node=2", &format!("baruch_folded={key}-4.x\"><b>")).await;
     assert!(pv_tag(&bad, key, 4).ends_with(" open>"), "ein Cookie mit fremden Zeichen gilt nicht");
 
-    // ui.render liest dasselbe Cookie: der Zustand bleibt nach dem Neuzeichnen.
+    // ui.render reads the same cookie: the state stays after the redraw.
     let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "ui.render", "params": { "node": 2, "rev": 2 } });
     let request = Request::post("/rpc")
         .header(header::CONTENT_TYPE, "application/json")

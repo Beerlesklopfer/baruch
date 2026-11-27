@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0030 (SWORD-Bibeln: Modulordner und Bibel je Werk) auf einer nachgebauten Datenbank im Stand
-//! davor (alle Store-Migrationen unter 0030 und Bibliothek 0101–0105), mit einem frei erfundenen Werk,
-//! Vorschlag, Beitrag, Personas, Lektor-Wahl und Verbindung.
+//! Migration 0030 (SWORD Bibles: module folders and Bible per work) on a reproduced database in the state before it
+//! (all store migrations below 0030 and library 0101–0105), with a freely invented work, proposal, post, personas,
+//! lector choice and connection.
 //!
-//! Nach einem Migrator bis 0030: Das Schema jeder alten Tabelle bleibt, neu sind genau `bible_dir` und
-//! `work_bible`, beide leer. Danach `Store::open`: jede Zeile jeder alten Tabelle unverändert, keine
-//! Modulordner gesetzt (Vorgaben gelten), kein Werk mit Bibel; Wählen und Abwählen gehen, Löschen des Werks
-//! nimmt die Wahl mit, ein zweites Öffnen ändert nichts.
+//! After a migrator up to 0030: the schema of every old table stays, new are exactly `bible_dir` and `work_bible`, both
+//! empty. Afterwards `Store::open`: every row of every old table unchanged, no module folders set (defaults hold), no
+//! work with a Bible; choosing and deselecting work, deleting the work takes the choice along, a second opening changes
+//! nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store unter 0030 und Bibliothek 0101–0105.
+/// Store below 0030 and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 30), "die neue Migration ist 0030");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 16), "Stand davor hat mindestens 0016");
@@ -227,7 +227,7 @@ async fn migration_0030_keeps_every_row_and_only_adds_the_bible_tables() {
     store.set_work_bible(work, None).await.unwrap();
     assert_eq!(store.work_bible(work).await.unwrap(), None, "abgewählt");
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
@@ -249,8 +249,8 @@ async fn deleting_a_work_removes_its_bible_choice() {
     assert_eq!(left, 0, "ON DELETE CASCADE nimmt die Wahl mit");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

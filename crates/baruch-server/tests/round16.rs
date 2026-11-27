@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 16 „Predigt (B4)“, Ende-zu-Ende nach dem Zusammenführen von predigt-vorlage, zeitwaechter und
-//! stichwortzettel: Eine Predigt entsteht über das Formular „Neues Werk“ (ohne JavaScript) mit dem Predigttext
-//! aus einer Testbibel, bekommt Text, Zielzeit und Zeiten in Baum, Editorkopf, Gliederung, RPC und MCP, wird zum
-//! Stichwortzettel (Seite, RPC, PDF-Download, Datei wie bei der Kommandozeile), jede Art von
-//! Gliederungsantrag wird abgelehnt und protokolliert, und der Lektor sieht die Predigt mit gerahmten fremden
-//! Befunden und belegter Kritik.
+//! Round 16 „Predigt (B4)“, end to end after merging predigt-vorlage, zeitwaechter and stichwortzettel: a sermon is
+//! created through the form „Neues Werk“ (without JavaScript) with the sermon text from a test Bible, gets text, target
+//! time and times in tree, editor header, outline, RPC and MCP, becomes the cue sheet (page, RPC, PDF download, file as
+//! with the command line), every kind of outline request is declined and logged, and the lector sees the sermon with
+//! framed foreign findings and evidenced criticism.
 //!
-//! Alle Texte sind frei erfunden. Die Bibel schreibt der Test selbst (`baruch_sword::fixture`) in einen
-//! Temp-Ordner; Modelle nur über `ScriptedModel`. Kein Eliezer, kein Netz.
+//! All texts are freely invented. The Bible is written by the test itself (`baruch_sword::fixture`) into a temp folder;
+//! models only through `ScriptedModel`. No Eliezer, no network.
 
 use crate::common;
 
@@ -29,7 +28,7 @@ use baruch_typst::timing::spoken_words;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Erfundene Testbibel in deutscher Zählung mit Joh 3,16.
+/// Invented test Bible in German versification with John 3:16.
 fn lantern_bible() -> Fixture {
     Fixture::new("Laternenbibel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Laternenbibel")
@@ -39,8 +38,8 @@ fn lantern_bible() -> Fixture {
         .verse("Mal", 3, 24, "Ende des erfundenen Alten Testaments.")
 }
 
-/// Erfundener Text der Punkte nach dem Predigttext (Titel, Text); Röm 8,28 ist eine gültige Stelle für den
-/// Stichwortzettel, `// Stichwort:` liefert die Stichpunkte nach der ersten Regel.
+/// Invented text of the items after the sermon text (title, text); Rom 8:28 is a valid passage for the cue sheet,
+/// `// Stichwort:` delivers the cues by the first rule.
 const BODIES: [(&str, &str); 6] = [
     (
         "Hinführung",
@@ -84,7 +83,7 @@ async fn mcp_tool(server: &common::Server, tool: &str, arguments: Value) -> Valu
     serde_json::from_str(&text).unwrap()
 }
 
-/// Modulordner mit der Testbibel (oder leer = keine Bibel) setzen.
+/// Set the module folder with the test Bible (or empty = no Bible).
 async fn bibles(server: &common::Server, dir: &Path, with_bible: bool) {
     let root = dir.join("sword");
     std::fs::create_dir_all(&root).unwrap();
@@ -101,7 +100,7 @@ struct Sermon {
     titles: Vec<String>,
 }
 
-/// Predigt über das Formular „Neues Werk“ (ohne JavaScript) anlegen und mit Text füllen.
+/// Create a sermon through the form „Neues Werk“ (without JavaScript) and fill it with text.
 async fn sermon(server: &common::Server, text_ref: &str, module: &str) -> Sermon {
     let body = format!(
         "action=create&title=Laternenpredigt&author=&kind=sermon&preset=&subtitle=&audience=Gemeinde&bible=\
@@ -125,12 +124,12 @@ async fn sermon(server: &common::Server, text_ref: &str, module: &str) -> Sermon
     Sermon { work, slug, keys, titles }
 }
 
-/// Text der aktuellen Fassung eines Punkts.
+/// Text of the current revision of an item.
 fn current_text(node: &baruch_core::Node) -> String {
     node.current_index().map(|i| node.revisions[i].body.clone()).unwrap_or_default()
 }
 
-/// Text ohne Tags, Leerraum zusammengefasst.
+/// Text without tags, whitespace collapsed.
 fn visible(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut inside = false;
@@ -163,7 +162,7 @@ async fn a_sermon_from_the_form_with_a_bible_shows_its_times_and_the_target_warn
         "der Predigttext steht im Wortlaut der gewählten Bibel mit Stelle und Modul im ersten Punkt: {first}"
     );
 
-    // Über das Formular „Predigtzeit“ (ohne JavaScript): 60 Wörter je Minute (ein Wort = eine Sekunde), Ziel 1 min.
+    // Through the form „Predigtzeit“ (without JavaScript): 60 words per minute (one word = one second), target 1 min.
     let (status, location, _) = form(
         &server,
         "/einstellungen/werk/zeit",
@@ -364,7 +363,7 @@ fn user(call: &ModelCall) -> &str {
 #[tokio::test]
 async fn the_lector_of_the_sermon_sees_framed_foreign_findings_and_only_backed_criticism_stays_unmarked() {
     let _turn = common::model_queue(module_path!()).await;
-    // Runde 30b: jeder kritische Punkt mit Lösung (sonst forderte Baruch nach).
+    // Round 30b: every critical point with a solution (otherwise Baruch asked again).
     let answer = "Kritisch: „die Laterne darf ruhen“ kommt zu früh.\n\
                   - Schritt: später setzen.\n\
                   Kritisch: „Die Laterne wurde 1823 gestiftet“ fehlt als Hintergrund.\n\
@@ -438,7 +437,7 @@ async fn the_lector_of_the_sermon_sees_framed_foreign_findings_and_only_backed_c
 #[tokio::test]
 async fn reviewing_the_whole_sermon_accepts_critical_findings_behind_a_part_label_without_asking_again() {
     let _turn = common::model_queue(module_path!()).await;
-    // So antwortete das echte Lektor-Modell in der Handprüfung: je Befund der Teil, dann „Kritisch:“.
+    // This is how the real lector model answered in the manual check: per finding the part, then „Kritisch:“.
     let answer = "- Einleitung Hinführung: Der Übergang ist flüssig.\n\
                   - III. Zuspruch: Kritisch: „das Glas ... gesprungen [ist]“ ist ein neues Bild.\n\
                   \x20 - Schritt: Bild vorbereiten.\n\

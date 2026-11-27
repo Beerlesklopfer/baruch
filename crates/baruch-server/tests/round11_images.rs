@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 11 („images“): Bilder in der Oberfläche. Suche auf der Seite „Bilder“ (`?q=`, RPC
-//! `asset.search`), Vorschaubilder (`…/vorschau?b=`), Plätze für Umschlag und Anträge (Haken bis zur
-//! Integration), Knopf „Als Umschlag“, Kapitelbild aus der Werkvorlage im Editorkopf, „Bild einfügen“
-//! als neue Fassung des Menschen mit einem Commit und fehlende Bilder in Vorschau und Satzbild. Echter
-//! Datenordner im Temp-Ordner; alle Bilder im Test erzeugt (PNG über die image-Crate, SVG als Text).
+//! Round 11 („images“): images in the user interface. Search on the page „Bilder“ (`?q=`, RPC `asset.search`),
+//! thumbnails (`…/vorschau?b=`), places for cover and requests (hooks until the integration), button „Als Umschlag“,
+//! chapter image from the work template in the editor header, „Bild einfügen“ as a new revision of the human with one
+//! commit and missing images in preview and typeset view. Real data folder in the temp folder; all images created in
+//! the test (PNG through the image crate, SVG as text).
 
 use crate::common;
 
@@ -17,14 +17,14 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Erfundenes SVG mit einer Farbe (verschiedene Bytes je Farbe).
+/// Invented SVG with one colour (different bytes per colour).
 fn svg(fill: &str) -> String {
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect fill=\"{fill}\" width=\"20\" height=\"10\"/></svg>\n"
     )
 }
 
-/// Gültiges PNG `width` × `height` mit Farbverlauf, im Test erzeugt.
+/// Valid PNG `width` × `height` with a colour gradient, created in the test.
 fn png(width: u32, height: u32) -> Vec<u8> {
     let picture = image::RgbImage::from_fn(width, height, |x, y| image::Rgb([(x % 256) as u8, (y % 256) as u8, 90]));
     let mut out = std::io::Cursor::new(Vec::new());
@@ -54,7 +54,7 @@ fn get(uri: &str) -> Request<Body> {
     Request::get(uri).body(Body::empty()).unwrap()
 }
 
-/// Knoten eines Werks aus `work.get`.
+/// Nodes of a work from `work.get`.
 async fn nodes(server: &common::Server, work: i64) -> Vec<Value> {
     result(&server.rpc("work.get", json!({ "work": work })).await)["work"]["nodes"].as_array().unwrap().clone()
 }
@@ -191,8 +191,8 @@ async fn the_images_page_has_places_for_cover_and_requests_and_a_cover_button_pe
     let requests = template.find("{{ requests_panel|safe }}").expect("Platz für die Anträge");
     let table = template.find("<table").unwrap();
     assert!(cover < table && requests > table, "Umschlag oben, Anträge unten");
-    // Seit der Integration sind die Haken verdrahtet: der Umschlag-Block (id="umschlag") steht oben, die
-    // Anträge (id="antraege") unten (Ende-zu-Ende in tests/round11.rs).
+    // Since the integration the hooks are wired: the cover block (id="umschlag") is at the top, the requests
+    // (id="antraege") at the bottom (end to end in tests/round11.rs).
     let at_cover = page.find("id=\"umschlag\"").expect("Umschlag-Block auf der Seite");
     let at_requests = page.find("id=\"antraege\"").expect("Anträge-Block auf der Seite");
     assert!(at_cover < at_requests, "Umschlag oben, Anträge unten: {page}");
@@ -200,8 +200,8 @@ async fn the_images_page_has_places_for_cover_and_requests_and_a_cover_button_pe
     assert!(!source.contains("VERTRAG R11"), "kein offener Haken mehr in assets.rs");
 }
 
-/// Erfundene Werkvorlage: Kapitelbilder aus einer literalen Liste, Index = Kapitelnummer − 1. Die Vorlage
-/// nummeriert die Überschriften; nur dann zählt Typst sie in `counter(heading)`.
+/// Invented work template: chapter images from a literal list, index = chapter number − 1. The template numbers the
+/// headings; only then does Typst count them in `counter(heading)`.
 const CHAPTERS: &str = "#set document(title: \"Tageszeiten\", author: \"Erika Erfunden\")\n\
     #set heading(numbering: \"1.\")\n\
     #let kapitelbilder = (\"bilder/morgen.svg\", \"bilder/mittag.svg\")\n\
@@ -209,16 +209,16 @@ const CHAPTERS: &str = "#set document(title: \"Tageszeiten\", author: \"Erika Er
     image(kapitelbilder.at(counter(heading).get().first() - 1))\n  it\n}\n\n\
     = Morgen\n\nDer Tau liegt.\n\n= Mittag\n\nDie Sonne steht hoch.\n\n= Abend\n\nEs wird still.\n";
 
-/// Kopf des Editors für einen Knoten (bis zum Titel).
+/// Header of the editor for a node (up to the title).
 async fn editor_head(server: &common::Server, work: i64, key: i64) -> String {
     let (_, page) = server.get(&format!("/?work={work}&key={key}")).await;
     page[page.find("class=\"editor-head\"").unwrap()..page.find("class=\"node-title\"").unwrap()].to_owned()
 }
 
-/// Nachbesserung Runde 11: Typst zählt in `counter(heading)` nur nummerierte Überschriften
-/// (`baruch-render/tests/frame_pages.rs`, `typst_counts_only_numbered_headings`). Der Editorkopf muss
-/// dasselbe Bild wie der Satz nennen – auch nach einem Vorwort mit „Nummer aus“ und bei einer Vorlage
-/// ohne Nummerierung (dort ist der Zähler 0 und `at(0 - 1)` das letzte Bild).
+/// Follow-up fix Round 11: Typst counts only numbered headings in `counter(heading)`
+/// (`baruch-render/tests/frame_pages.rs`, `typst_counts_only_numbered_headings`). The editor header must name the same
+/// image as the typesetting – also after a preface with „Nummer aus“ and with a template without numbering (there the
+/// counter is 0 and `at(0 - 1)` the last image).
 #[tokio::test]
 async fn the_chapter_image_follows_typsts_heading_counter() {
     let server = common::open().await;
@@ -231,9 +231,9 @@ async fn the_chapter_image_follows_typsts_heading_counter() {
     let morning = "alt=\"Helle Fläche\"";
     let noon = "alt=\"Gelbe Scheibe\"";
 
-    // Schema „aus der Werkvorlage“: Die Vorlage nummeriert alle Überschriften. Seit Runde 14 (Vertrag §4)
-    // projiziert Baruch „Nummer aus“ als Markierung `numbering: none` auch hier; Typst zählt das Vorwort
-    // darum nicht mit (wie Baruch: Morgen 1), im Vorwort steht der Zähler auf 0 → `at(0 - 1)` = letztes Bild.
+    // Scheme „aus der Werkvorlage“: the template numbers all headings. Since Round 14 (contract §4) Baruch projects
+    // „Nummer aus“ as the marking `numbering: none` here too; Typst therefore does not count the preface (like Baruch:
+    // Morgen 1), in the preface the counter is at 0 → `at(0 - 1)` = last image.
     let off =
         server.rpc("outline.set_numbered", json!({ "work": work, "key": key("Vorwort"), "numbered": false })).await;
     result(&off);
@@ -245,7 +245,7 @@ async fn the_chapter_image_follows_typsts_heading_counter() {
     assert!(editor_head(&server, work, key("Morgen")).await.contains(morning), "Morgen ist Kapitel 1 → Bild 1");
     assert!(editor_head(&server, work, key("Vorwort")).await.contains(noon), "Vorwort: Zähler 0 → letztes Bild");
 
-    // Eigenes Schema: dieselbe Markierung, Typst zählt das Vorwort nicht.
+    // Own scheme: the same marking, Typst does not count the preface.
     result(&server.rpc("numbering.set", json!({ "work": work, "scheme": "decimal" })).await);
     let export = server.state.store.export_typst(work).await.unwrap();
     assert!(
@@ -257,7 +257,7 @@ async fn the_chapter_image_follows_typsts_heading_counter() {
     assert!(editor_head(&server, work, key("Mittag")).await.contains(noon), "Mittag ist Kapitel 2 → Bild 2");
     assert!(editor_head(&server, work, key("Vorwort")).await.contains(noon), "Vorwort: Zähler 0 → letztes Bild");
 
-    // Vorlage ohne Nummerierung: Typst zählt keine Überschrift, jedes Kapitel zeigt das letzte Bild.
+    // Template without numbering: Typst counts no heading, every chapter shows the last image.
     let plain = CHAPTERS.replace("#set heading(numbering: \"1.\")\n", "").replace("Tageszeiten", "Ohne Nummern");
     let other = server.import(&plain, "ohne.typ").await.work;
     add_svg(&server, other, "mittag.svg", "gold", "bilder/mittag.svg", "Sonne", "Gelbe Scheibe").await;

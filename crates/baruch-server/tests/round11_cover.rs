@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 11, Aufgabe cover: Umschlag, Titelei und Buchangaben im Server. Echter Datenordner (SQLite,
-//! Git-Spiegel) im Temp-Ordner, die eigene Testdatei `gartenbuch.typ` und im Test erzeugte SVG-Bilder.
+//! Round 11, task cover: cover, front matter and book details in the server. Real data folder (SQLite, Git mirror) in
+//! the temp folder, the own test file `gartenbuch.typ` and SVG images created in the test.
 //!
-//! Geprüft werden der Rahmen im Buchsatz (`cover::frame`: ohne Umschlag byte-gleich, mit Umschlag
-//! Vorder- und Rückseite, Titelei, Zuordnung der Meldungen), Nutzertexte als String-Literale, der
-//! Umschlag für die Druckerei (`cover::cover_source`), RPC mit Grenzen und Commits, Formulare ohne
-//! JavaScript, Einstellungsseite „Werk“ und Werkübersicht.
+//! Checked are the frame in the book typesetting (`cover::frame`: without cover byte-identical, with cover front and
+//! back, front matter, mapping of the messages), user texts as string literals, the cover for the print shop
+//! (`cover::cover_source`), RPC with limits and commits, forms without JavaScript, settings page „Werk“ and work
+//! overview.
 
 use crate::common;
 
@@ -14,13 +14,13 @@ use axum::http::{Request, StatusCode, header};
 use baruch_render::Severity;
 use serde_json::{Value, json};
 
-/// Erfundenes Umschlagbild (Hochformat, zwei Flächen).
+/// Invented cover image (portrait format, two areas).
 const POND: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"600\" height=\"900\">\
 <rect width=\"600\" height=\"900\" fill=\"#2e7d4f\"/><circle cx=\"300\" cy=\"500\" r=\"180\" fill=\"#6fb3d9\"/></svg>\n";
-/// Erfundenes Autorenfoto.
+/// Invented author photo.
 const FACE: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"50\">\
 <rect width=\"40\" height=\"50\" fill=\"#c9a27e\"/></svg>\n";
-/// Gültige ISBN-13 (Lehrbuchbeispiel 978-3-16-148410-0).
+/// Valid ISBN-13 (textbook example 978-3-16-148410-0).
 const ISBN: &str = "978-3-16-148410-0";
 
 fn result(answer: &Value) -> &Value {
@@ -44,7 +44,7 @@ async fn add_svg(server: &common::Server, work: i64, file_name: &str, svg: &str,
     result(&answer)["name"].as_str().unwrap().to_owned()
 }
 
-/// Gartenbuch importieren; Werk-id und slug.
+/// Import the Gartenbuch; work id and slug.
 async fn garden(server: &common::Server) -> (i64, String) {
     let report = server.import_garden().await;
     (report.work, report.slug)
@@ -58,8 +58,8 @@ async fn frame_of(
     server: &common::Server,
     work: i64,
 ) -> (baruch_render::Source, baruch_store::ExportMap, baruch_render::Source, baruch_store::ExportMap) {
-    // Die Quelle ohne Rahmen wie in `typeset::prepare` vor dem Rahmen (prepare selbst rahmt seit der
-    // Integration schon ein; hier geht es um den Rahmen allein).
+    // The source without frame as in `typeset::prepare` before the frame (prepare itself has framed since the
+    // integration already; here it is about the frame alone).
     let map = server.state.store.export_map(work).await.unwrap();
     let files = server.state.store.export_assets(work).await.unwrap().into_iter().map(|f| (f.path, f.bytes)).collect();
     let plain = baruch_render::Source { main: map.typst.clone(), files };
@@ -81,7 +81,7 @@ async fn without_cover_and_front_matter_the_frame_changes_nothing() {
         "derselbe Stand → derselbe Zwischenspeicher"
     );
 
-    // Ein Umschlag ohne „Umschlagseiten im Satz“ ändert den Buchsatz ebenfalls nicht.
+    // A cover without „Umschlagseiten im Satz“ does not change the book typesetting either.
     let name = add_svg(&server, work, "teich.svg", POND, "Teich im Garten", "Ein Teich").await;
     result(&server.rpc("work.set_cover", json!({ "work": work, "name": name })).await);
     result(&server.rpc("work.meta.set", json!({ "work": work, "cover_pages": false })).await);
@@ -113,7 +113,7 @@ async fn with_cover_and_front_matter_the_book_gains_cover_title_pages_and_back()
     let front = &framed.main[..framed_map.sections[0].start];
     let back = &framed.main[framed.main.len() - (framed.main.len() - framed_map.sections.last().unwrap().end)..];
 
-    // Reihenfolge der Titelei im Quelltext: Umschlag, Schmutztitel, Seite 2, Haupttitel, Impressum, Widmung.
+    // Order of the front matter in the source text: cover, half-title, page 2, main title, imprint, dedication.
     let at = |needle: &str| front.find(needle).unwrap_or_else(|| panic!("{needle:?} fehlt in der Titelei:\n{front}"));
     assert!(at("image(\".baruch/teich.svg\"") < at("Bibliografische Information"), "Umschlag vor dem Impressum");
     for line in [
@@ -153,7 +153,7 @@ async fn with_cover_and_front_matter_the_book_gains_cover_title_pages_and_back()
 
     let rendered = baruch_render::compile(&framed);
     assert!(!rendered.has_errors(), "Buch mit Rahmen setzt fehlerfrei: {:?}", rendered.diagnostics);
-    // Umschlag 3 (Vorder-, Innen-, Rückseite) + Schmutztitel, Seite 2, Haupttitel, Impressum + Widmung mit leerer Rückseite 2.
+    // Cover 3 (front, inside, back) + half-title, page 2, main title, imprint + dedication with empty reverse 2.
     assert_eq!(
         rendered.pages.len(),
         plain.pages.len() + 9,
@@ -220,7 +220,7 @@ async fn user_texts_are_set_literally_and_never_run_as_typst() {
     assert!(!rendered.has_errors(), "auch der Umschlag für die Druckerei: {:?}", rendered.diagnostics);
 }
 
-/// Breite und Höhe (mm) einer SVG-Seite von Typst.
+/// Width and height (mm) of an SVG page of Typst.
 fn svg_mm(svg: &str) -> (f64, f64) {
     let head = &svg[..svg.find('>').unwrap()];
     let attr = |name: &str| -> f64 {
@@ -233,7 +233,7 @@ fn svg_mm(svg: &str) -> (f64, f64) {
 
 #[tokio::test]
 async fn the_wrap_is_one_page_as_wide_as_both_sides_spine_and_bleed() {
-    // Erzeugt unten ein Umschlag-PDF: die Markierung „PDF entsteht“ ist prozessweit je Werk-id.
+    // Builds a cover PDF below: the mark „PDF entsteht“ is process-wide per work id.
     let _serial = common::PDF_SERIAL.lock().await;
     let server = common::open().await;
     let (work, _) = garden(&server).await;
@@ -248,9 +248,8 @@ async fn the_wrap_is_one_page_as_wide_as_both_sides_spine_and_bleed() {
     assert!(!rendered.has_errors(), "Umschlag setzt fehlerfrei: {:?}", rendered.diagnostics);
     assert_eq!(rendered.pages.len(), 1, "Rückseite, Rücken und Vorderseite auf einer Seite");
     let (w, h) = svg_mm(&rendered.pages[0]);
-    // Vorgaben: 0,1 mm Papier je Seite, 3 mm Beschnitt. Seit der Integration steht der Rahmen im Buchsatz
-    // (Vorder-, Innen- und Rückseite des Umschlags, `cover_pages` an); diese drei Seiten zählen nicht zum
-    // Buchblock.
+    // Defaults: 0.1 mm paper per page, 3 mm bleed. Since the integration the frame is in the book typesetting (front,
+    // inside and back of the cover, `cover_pages` on); these three pages do not count towards the book block.
     let block = pages - baruch_typst::cover::COVER_PAGES;
     let expected_w = 2.0 * page_w + block as f64 * 0.1 + 2.0 * 3.0;
     assert!(
@@ -260,7 +259,7 @@ async fn the_wrap_is_one_page_as_wide_as_both_sides_spine_and_bleed() {
     assert!((h - (page_h + 6.0)).abs() < 0.05, "Höhe {h:.2} mm = Seitenhöhe {page_h:.2} + 2 × 3 mm Beschnitt");
     assert!(rendered.pages[0].contains("<image"), "Umschlagbild und Strichcode sind eingebettet");
 
-    // Integration: das Umschlag-PDF entsteht über crate::pdf::source_to_pdf.
+    // Integration: the cover PDF is built through crate::pdf::source_to_pdf.
     let pdf = server.rpc("work.cover_pdf", json!({ "work": work, "inline": true })).await;
     let answer = result(&pdf);
     assert_eq!(answer["pages"], 1, "Umschlag-PDF hat eine Seite: {answer}");
@@ -271,7 +270,7 @@ async fn the_wrap_is_one_page_as_wide_as_both_sides_spine_and_bleed() {
     assert!(bytes.starts_with(b"%PDF-"), "gültiger PDF-Kopf");
     assert_eq!(answer["bytes"].as_u64().unwrap() as usize, bytes.len(), "bytes = Länge der Datei");
     assert_eq!(answer["sha256"].as_str().unwrap(), baruch_render::sha256_hex(&bytes), "sha256 der Datei");
-    // Antwort sind Bytes (kein UTF-8): direkt über den Router, nicht über `send`.
+    // The response is bytes (no UTF-8): directly through the router, not through `send`.
     let response = tower::ServiceExt::oneshot(
         server.app.clone(),
         Request::get(format!("/werke/{work}/umschlag.pdf")).body(Body::empty()).unwrap(),
@@ -515,7 +514,7 @@ async fn pages_show_the_cover_groups_preview_and_pdf_links() {
     );
     assert!(svg.starts_with("<svg"), "eine SVG-Seite");
 
-    // minijinja maskiert „/“ in Werten als &#x2f; (der Browser liest es als „/“).
+    // minijinja escapes „/“ in values as &#x2f; (the browser reads it as „/“).
     let panel = baruch_server::cover::assets_panel(&server.state, work).await.unwrap().replace("&#x2f;", "/");
     assert!(
         panel.contains("id=\"umschlag\"") && panel.contains(&format!("value=\"/werke/{work}/bilder\"")),

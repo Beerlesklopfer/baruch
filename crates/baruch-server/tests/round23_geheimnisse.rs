@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23 „Härtung“ (Besitz geheimnisse): Geheimnisse und Scrub, Weiterleitungs-Policy, Filter für fetch_url/web_search, Grenzen beim Einlesen, Temp-Ordner für EPUBCheck, `confirm` bei `model.connection_delete`.
+//! Round 23 „Härtung“ (ownership geheimnisse): secrets and scrub, redirect policy, filter for fetch_url/web_search,
+//! limits on reading in, temp folder for EPUBCheck, `confirm` for `model.connection_delete`.
 //!
-//! Werke frei erfunden; kein Eliezer, kein Netz (Modelle nur über Nachbauten auf 127.0.0.1:0). Jede Zusicherung mit
-//! Begründung. Weitere Dateien als Untermodule unter `tests/round23_geheimnisse/*.rs`, eingebunden mit
-//! `#[path = "round23_geheimnisse/x.rs"] mod x;` – `tests/main.rs` bleibt unverändert.
+//! Works freely invented; no Eliezer, no network (models only through mocks on 127.0.0.1:0). Every assertion with a
+//! reason. Further files as submodules under `tests/round23_geheimnisse/*.rs`, included with
+//! `#[path = "round23_geheimnisse/x.rs"] mod x;` – `tests/main.rs` stays unchanged.
 //!
-//! Der Temp-Ordner für EPUBCheck ist im Modul geprüft (`epub_check::tests`), `baruch_llm::scrub` und die
-//! Weiterleitungen des Modell-Clients in `baruch-llm` (`secret.rs`, `tests/redirect.rs`), `fetch_allowed` als
-//! Tabelle in `websearch::fetch::tests`.
+//! The temp folder for EPUBCheck is checked in the module (`epub_check::tests`), `baruch_llm::scrub` and the redirects
+//! of the model client in `baruch-llm` (`secret.rs`, `tests/redirect.rs`), `fetch_allowed` as a table in
+//! `websearch::fetch::tests`.
 
 use crate::common;
 
@@ -28,8 +29,8 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-/// Erfundenes Geheimnis; „Wmlubm9iZXItNDcxMQ==“ ist sein Base64 (`printf … | base64`), „Zinnober%2D4711“ seine
-/// Prozentform. Es darf in keiner Antwort stehen.
+/// Invented secret; „Wmlubm9iZXItNDcxMQ==“ is its Base64 (`printf … | base64`), „Zinnober%2D4711“ its percent form. It
+/// must be in no response.
 const SECRET: &str = "Zinnober-4711";
 const SECRET_BASE64: &str = "Wmlubm9iZXItNDcxMQ==";
 const SHA: &str = "0000000000000000000000000000000000000000000000000000000000000023";
@@ -46,7 +47,7 @@ async fn err(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// Server mit dem echten Modell-Adapter; Eliezer zeigt auf einen eigenen Nachbau (nie 127.0.0.1:1234).
+/// Server with the real model adapter; Eliezer points to an own mock (never 127.0.0.1:1234).
 pub(crate) async fn with_models() -> (common::Server, MockEliezer) {
     let data = tempfile::tempdir().unwrap();
     let state = AppState::open_with(data.path(), Arc::new(MemorySecrets::default()), Arc::new(EliezerPort))
@@ -65,9 +66,9 @@ async fn store() -> (tempfile::TempDir, Store) {
     (dir, store)
 }
 
-// ---- Nachbau für Weiterleitungen -------------------------------------------------------------------
+// ---- Mock for redirects ---------------------------------------------------------------------------
 
-/// Kleiner HTTP-Nachbau: beantwortet jede Anfrage mit `answer(pfad)` und merkt sich die rohe Anfrage.
+/// Small HTTP mock: answers every request with `answer(pfad)` and remembers the raw request.
 pub(crate) struct Recorder {
     pub(crate) url: String,
     seen: Arc<Mutex<Vec<String>>>,
@@ -117,7 +118,7 @@ impl Recorder {
     }
 }
 
-/// Erster Nachbau (Weiterleitung auf denselben Pfad beim zweiten) und zweiter Nachbau (antwortet 200).
+/// First mock (redirect to the same path at the second) and second mock (answers 200).
 pub(crate) async fn redirecting(status: &'static str) -> (Recorder, Recorder) {
     let target = Recorder::start(|_| {
         let body = r#"{"data":[{"id":"fremdes-modell"}]}"#;
@@ -148,7 +149,7 @@ fn untouched(what: &str, answer: &Value, first: &Recorder, target: &Recorder) {
     assert!(!text.contains(SECRET), "{what}: der Schlüssel steht nicht im Ergebnis: {text}");
 }
 
-// ---- Scrub an einer Stelle ---------------------------------------------------------------------------
+// ---- Scrub in one place -----------------------------------------------------------------------------
 
 #[test]
 fn the_scrubbers_of_all_ways_mask_encoded_secrets_with_the_shared_function() {
@@ -183,7 +184,7 @@ fn the_scrubbers_of_all_ways_mask_encoded_secrets_with_the_shared_function() {
 #[tokio::test]
 async fn checking_a_connection_masks_a_base64_echo_of_the_key() {
     let (server, eliezer) = with_models().await;
-    // Die Gegenstelle spiegelt den Schlüssel kodiert zurück (hier als Modellname).
+    // The peer mirrors the key back encoded (here as a model name).
     let echoed = format!("echo-{SECRET_BASE64}");
     eliezer.set_models(&[echoed.as_str(), "echo-Zinnober%2D4711"]);
     ok(&server, "connection.set_secret", json!({ "kind": "eliezer", "secret": SECRET })).await;
@@ -201,7 +202,7 @@ async fn checking_a_connection_masks_a_base64_echo_of_the_key() {
     );
 }
 
-// ---- Prüfung folgt keiner Weiterleitung ----------------------------------------------------------------
+// ---- The check follows no redirect --------------------------------------------------------------------
 
 #[tokio::test]
 async fn checking_eliezer_does_not_follow_a_redirect() {
@@ -223,7 +224,7 @@ async fn checking_eliezer_does_not_follow_a_redirect() {
 #[tokio::test]
 async fn checking_multigpt_does_not_follow_a_redirect() {
     let server = common::open().await;
-    // 307 behält Methode und Rumpf – gerade dann ginge `initialize` samt Token an die fremde Adresse.
+    // 307 keeps method and body – precisely then `initialize` including the token would go to the foreign address.
     let (first, target) = redirecting("307 Temporary Redirect").await;
     ok(&server, "connection.set", json!({ "kind": "multigpt", "config": { "url": format!("{}/mcp", first.url) } }))
         .await;
@@ -254,7 +255,7 @@ async fn checking_a_model_connection_does_not_follow_a_redirect() {
     untouched("Modell-Verbindung prüfen (baruch-llm)", &checked, &first, &target);
 }
 
-// ---- Filter vor fetch_url ---------------------------------------------------------------------------------
+// ---- Filter before fetch_url -----------------------------------------------------------------------------
 
 fn hit(title: &str, url: &str) -> Value {
     json!({ "title": title, "url": url, "content": format!("Ausschnitt zu {title}") })
@@ -280,7 +281,7 @@ async fn search_hits_with_addresses_of_the_own_network_are_not_fetched_and_appea
     let site = MockSite::with_fixtures().await;
     let mcp = MockWebMcp::start(Some(&site)).await;
     ok(&server, "connection.set", json!({ "kind": "multigpt", "config": { "url": mcp.url() } })).await;
-    // Die abgelehnten Treffer stehen vorn: Sie dürfen keinen der vier Abrufe verbrauchen.
+    // The rejected hits are at the front: they must not use up any of the four fetches.
     let mut results: Vec<Value> = private.iter().map(|url| hit("Intern", url)).collect();
     results.push(hit("Licht", LIGHT));
     results.push(hit("Chronik", ARCHIVE));
@@ -309,7 +310,7 @@ async fn search_hits_with_addresses_of_the_own_network_are_not_fetched_and_appea
     }
     assert_eq!(research.pages.len(), 2, "beide öffentlichen Seiten sind abgerufen: {:?}", research.notes);
 
-    // Ausnahmeweg nur für Tests (je Datenordner, keine Einstellung): Dann geht genau dieser Rechner an fetch_url.
+    // Exception way only for tests (per data folder, no setting): then exactly this host goes to fetch_url.
     baruch_server::websearch::fetch::set_fetch_exceptions(&server.state, &["192.168.178.1"]);
     let again = baruch_server::websearch::research(&server.state, "Feuer am Leuchtturm").await;
     assert!(
@@ -321,7 +322,7 @@ async fn search_hits_with_addresses_of_the_own_network_are_not_fetched_and_appea
     baruch_server::websearch::fetch::set_fetch_exceptions(&server.state, &[]);
 }
 
-// ---- model.connection_delete / _delete_secret nur mit confirm -------------------------------------------------
+// ---- model.connection_delete / _delete_secret only with confirm ----------------------------------------------
 
 #[tokio::test]
 async fn deleting_a_model_connection_or_its_key_needs_confirm_and_the_forms_still_work() {
@@ -354,7 +355,7 @@ async fn deleting_a_model_connection_or_its_key_needs_confirm_and_the_forms_stil
     let gone = ok(&server, "model.connection_delete_secret", json!({ "id": id, "confirm": true })).await;
     assert_eq!(gone, json!({ "id": id, "secret": "fehlt" }), "mit confirm wie bisher");
 
-    // Formulare ohne JavaScript: Pflicht-Kästchen statt RPC-Parameter.
+    // Forms without JavaScript: mandatory checkbox instead of RPC parameter.
     let (status, location) = server.post_form("/einstellungen/modelle/act", &format!("action=delete&id={id}")).await;
     assert_eq!(status, 303, "Formular antwortet mit Weiterleitung");
     assert!(
@@ -385,7 +386,7 @@ async fn deleting_a_model_connection_or_its_key_needs_confirm_and_the_forms_stil
     assert_eq!(deleted["deleted"], true, "über RPC mit confirm: true wie bisher: {deleted}");
 }
 
-// ---- Kontextabgleich nach der Freigabe; Zwischenspeicher je Art ------------------------------------------------
+// ---- Context reconciliation after the clearance; cache per kind ------------------------------------------------
 
 #[tokio::test]
 async fn the_context_check_of_an_external_connection_without_release_sends_nothing() {
@@ -413,7 +414,7 @@ async fn the_context_check_of_an_external_connection_without_release_sends_nothi
     assert_eq!(budget["tokens"], 32768, "es gilt die Einstellung: {budget}");
     assert!(budget["reported"].is_null(), "nichts gemeldet, weil nichts gefragt: {budget}");
 
-    // Gegenprobe: Mit Freigabe fragt derselbe Aufruf die Gegenstelle – der Test oben prüft also wirklich die Freigabe.
+    // Counter-check: with clearance the same call asks the peer – so the test above really checks the clearance.
     ok(&server, "persona.backend_set", json!({ "persona": "@exeget", "connection": id, "external_allowed": true }))
         .await;
     let budget = ok(&server, "model.context", json!({ "persona": "@exeget" })).await;
@@ -449,7 +450,7 @@ async fn two_connections_of_different_kind_on_one_address_share_neither_list_nor
     let nathan = ok(&server, "model.context", json!({ "persona": "@nathan" })).await;
     assert_eq!(nathan["reported"], 16384, "Eliezer meldet 16384: {nathan}");
 
-    // Dieselbe Adresse spielt jetzt Ollama und meldet eine andere Länge.
+    // The same address now plays Ollama and reports a different length.
     shared.set_flavor(Flavor::Ollama);
     shared.set_context_length("kiesel:8b", 8192);
     let second = ok(&server, "model.list", json!({ "connection": as_ollama })).await;
@@ -467,7 +468,7 @@ async fn two_connections_of_different_kind_on_one_address_share_neither_list_nor
     assert_eq!(nathan["reported"], 16384, "und die Eliezer-Verbindung behält ihren Wert: {nathan}");
 }
 
-// ---- Predigt mit Bibel atomar ---------------------------------------------------------------------------------
+// ---- Sermon with Bible atomic --------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_sermon_whose_bible_cannot_be_set_leaves_no_half_work_and_a_second_try_succeeds() {
@@ -480,7 +481,7 @@ async fn a_sermon_whose_bible_cannot_be_set_leaves_no_half_work_and_a_second_try
     let before = works().await;
     let title = "Vom Brunnen am Morgen";
 
-    // (1) Über RPC: ein Modulname, den die Tabelle `work_bible` nicht nimmt (über 100 Zeichen).
+    // (1) Through RPC: a module name that the table `work_bible` does not take (over 100 characters).
     let long = "M".repeat(101);
     let refused = err(
         &server,
@@ -491,7 +492,8 @@ async fn a_sermon_whose_bible_cannot_be_set_leaves_no_half_work_and_a_second_try
     assert_eq!(refused["code"], -32602, "unzulässiger Modulname ist ein Parameterfehler: {refused}");
     assert_eq!(works().await, before, "kein halbes Werk nach dem abgelehnten Anlegen");
 
-    // (2) Im Speicher: Scheitert die Bibel in der Transaktion, entsteht nichts (vorher: Werk ohne Bibel und Spiegel).
+    // (2) In the store: if the Bible fails in the transaction, nothing is created (before: work without Bible and
+    //     mirror).
     let new = baruch_store::NewWork {
         title,
         author: "Hanna Probe",
@@ -506,13 +508,13 @@ async fn a_sermon_whose_bible_cannot_be_set_leaves_no_half_work_and_a_second_try
     assert!(failed.is_err(), "ein Modulname mit Zeilenumbruch scheitert: {failed:?}");
     assert_eq!(works().await, before, "nach dem gescheiterten Setzen der Bibel existiert kein Werk");
 
-    // (3) Zweiter Versuch mit demselben Titel: kein DuplicateTitle.
+    // (3) Second attempt with the same title: no DuplicateTitle.
     let created =
         ok(&server, "work.create", json!({ "title": title, "preset": "sermon", "text_ref": "Joh 3,16" })).await;
     assert!(created["work"].is_i64(), "der zweite Versuch legt das Werk an (kein „Es gibt schon ein Werk“): {created}");
     assert_eq!(works().await, before + 1, "genau ein Werk: {created}");
 
-    // (4) Mit zulässigem Modul stehen Werk und Bibel nach einem Schritt zusammen.
+    // (4) With an admissible module work and Bible are there together after one step.
     let other = baruch_store::NewWork { title: "Vom Brunnen am Abend", ..new };
     let made = server
         .state
@@ -527,13 +529,13 @@ async fn a_sermon_whose_bible_cannot_be_set_leaves_no_half_work_and_a_second_try
     );
 }
 
-// ---- Austausch: Grenzen u7 ----------------------------------------------------------------------------------------
+// ---- Exchange: limits u7 -----------------------------------------------------------------------------------------
 
 fn uuid(n: usize) -> String {
     format!("d0000000-0000-4000-8000-{n:012x}")
 }
 
-/// Beispielwerk mit `extra` weiteren erfundenen Glossarbegriffen.
+/// Sample work with `extra` further invented glossary terms.
 fn with_terms(extra: usize) -> ExchangeDocument {
     let mut doc = sample_document();
     let pattern = doc.work.glossary[0].clone();
@@ -579,7 +581,7 @@ async fn a_file_with_too_many_glossary_terms_is_refused_before_anything_is_writt
     );
     assert_eq!((count("work").await, count("glossary_term").await), (works, terms), "nichts ist geschrieben");
 
-    // Abgleichen: Das Werk gibt es hier schon; mit den Begriffen der Datei wäre es über der Grenze.
+    // Syncing: the work already exists here; with the terms of the file it would be over the limit.
     let (_dir, store) = store().await;
     let work = store.exchange_apply(&sample_document(), SHA, ApplyMode::New, None).await.unwrap().work;
     let here: i64 = sqlx::query_scalar("SELECT count(*) FROM glossary_term WHERE work_id = ?")
@@ -597,7 +599,7 @@ async fn a_file_with_too_many_glossary_terms_is_refused_before_anything_is_writt
         .unwrap();
     assert_eq!(after, here, "die Transaktion rollt zurück: kein einziger Begriff der Datei bleibt");
 
-    // Gegenprobe: genau bis zur Grenze geht es.
+    // Counter-check: exactly up to the limit it works.
     let (_dir, fresh) = store_pair().await;
     let fits = with_terms(max - sample_document().work.glossary.len());
     let applied = fresh.exchange_apply(&fits, SHA, ApplyMode::New, None).await.expect("genau die Grenze ist erlaubt");
@@ -626,7 +628,7 @@ async fn a_register_title_over_the_limit_is_refused_and_one_at_the_limit_is_read
         .await
         .unwrap();
     assert_eq!(works, 0, "nichts ist geschrieben");
-    // Auch die Vorschau (und damit die Seite) meldet es, statt es erst beim Übernehmen zu merken.
+    // The preview (and with it the page) reports it too, instead of noticing it only on adopting.
     assert!(store.exchange_preview(&doc, SHA, None).await.is_err(), "schon die Vorschau lehnt ab");
 
     doc.work.registers[0].title = format!("  {}  ", "Ö".repeat(max));
@@ -640,14 +642,14 @@ async fn a_register_title_over_the_limit_is_refused_and_one_at_the_limit_is_read
     assert!(applied.report.add.registers >= 1, "das Register ist eingelesen");
 }
 
-/// Handgeschriebene Prüfdatei der Unterversion 1 (Runde 26, frei erfunden).
+/// Hand-written check file of sub-version 1 (Round 26, freely invented).
 const OLD_FILE: &str = include_str!("../../baruch-exchange/tests/data/import/werk.baruch.xml");
 
 #[tokio::test]
 async fn valid_files_of_the_oldest_and_the_current_subversion_are_still_read() {
-    // Die Unterversionen 2 bis 7 prüft `baruch-exchange/tests/xsd.rs` am Leser (der Leser ist streng: Teile einer
-    // späteren Unterversion in einer älteren Datei lehnt er ab); hier der ganze Weg bis in den Speicher für die
-    // älteste und die aktuelle – die neuen Grenzen (Glossar, Registertitel) treffen keine gültige Datei.
+    // The sub-versions 2 to 7 are checked by `baruch-exchange/tests/xsd.rs` on the reader (the reader is strict: it
+    // rejects parts of a later sub-version in an older file); here the whole way into the store for the oldest and the
+    // current one – the new limits (glossary, index titles) hit no valid file.
     assert!(OLD_FILE.contains("version=\"1\""), "die Prüfdatei ist eine Datei der Unterversion 1");
     let current = write_xml(&sample_document_u8(), ImageMode::Inline).unwrap();
     assert!(
@@ -668,7 +670,7 @@ async fn valid_files_of_the_oldest_and_the_current_subversion_are_still_read() {
     }
 }
 
-// ---- Austausch: Umschlagblöcke in Normalform --------------------------------------------------------------------------
+// ---- Exchange: cover blocks in normal form --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn an_imported_cover_block_is_stored_in_normal_form_and_can_be_changed_in_the_editor() {
@@ -703,7 +705,7 @@ async fn an_imported_cover_block_is_stored_in_normal_form_and_can_be_changed_in_
     moved.x_mm += 1.0;
     let change = store.set_cover_blocks(applied.work, &[moved]).await.expect("im Editor ohne Bereinigen änderbar");
     assert_eq!(change.changed.len(), 1, "genau dieser Block ist geändert");
-    // Zweiter Abgleich derselben Datei: Die Normalform gilt auch beim Vergleichen – nur die Verschiebung weicht ab.
+    // Second sync of the same file: the normal form holds for comparing too – only the shift deviates.
     let again = store.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap();
     assert_eq!(again.report.add.cover_blocks, 0, "nichts kommt doppelt");
 }
@@ -715,7 +717,7 @@ async fn a_cover_block_that_cannot_be_normalised_is_taken_as_before_and_reported
     let uuid = {
         let book = doc.work.book.as_mut().expect("Beispiel mit Buchangaben");
         let block = book.cover_blocks.iter_mut().find(|b| b.text.is_some()).expect("Block mit eigenem Text");
-        // U+0085 (NEL) ist ein Steuerzeichen, das XML 1.0 erlaubt; der Editor lehnt es im Text ab.
+        // U+0085 (NEL) is a control character that XML 1.0 allows; the editor rejects it in the text.
         block.text = Some("Zeile\u{85}Ende".into());
         block.uuid.clone()
     };
@@ -736,7 +738,7 @@ async fn a_cover_block_that_cannot_be_normalised_is_taken_as_before_and_reported
     assert!(hint.label.contains("Steuerzeichen"), "der Hinweis nennt den Grund der Prüfung: {}", hint.label);
 }
 
-// ---- Austausch: Regeln beim Abgleich ------------------------------------------------------------------------------------
+// ---- Exchange: rules on syncing -------------------------------------------------------------------------------------
 
 fn find<'a>(nodes: &'a mut [ExchangeNode], uuid: &str) -> Option<&'a mut ExchangeNode> {
     for node in nodes {
@@ -750,7 +752,7 @@ fn find<'a>(nodes: &'a mut [ExchangeNode], uuid: &str) -> Option<&'a mut Exchang
     None
 }
 
-/// Fassung `rev` von „Der Eimer“ (Kennung 11) im Beispiel.
+/// Revision `rev` of „Der Eimer“ (identifier 11) in the sample.
 fn bucket_revision(doc: &mut ExchangeDocument, rev: u32) -> &mut ExchangeRevision {
     let bucket = find(&mut doc.work.outline, &sample_uuid(11)).expect("„Der Eimer“");
     bucket.revisions.iter_mut().find(|r| r.uuid == sample_uuid(rev)).expect("Fassung")
@@ -771,7 +773,7 @@ async fn a_known_finding_keeps_status_and_history_and_the_hint_counts_the_entrie
         n
     };
     let before = entries().await;
-    // Die andere Instanz hat zum verschobenen Befund (312) einen weiteren Eintrag im Verlauf.
+    // The other instance has a further entry in the history for the moved finding (312).
     let mut doc = sample_document();
     let finding = doc.work.findings.iter_mut().find(|f| f.uuid == sample_uuid(312)).expect("Befund 312");
     let mut more = finding.history[0].clone();
@@ -792,7 +794,7 @@ async fn a_known_finding_keeps_status_and_history_and_the_hint_counts_the_entrie
         "der Hinweis nennt, was nicht übernommen ist: {}",
         hint.label
     );
-    // Abweichender Status: bleibt ebenfalls, der Hinweis nennt Status und Einträge.
+    // Deviating status: stays as well, the hint names status and entries.
     let finding = doc.work.findings.iter_mut().find(|f| f.uuid == sample_uuid(310)).expect("Befund 310");
     finding.reason = "Drüben anders begründet.".into();
     let merged = store.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap();
@@ -813,7 +815,7 @@ async fn a_known_finding_keeps_status_and_history_and_the_hint_counts_the_entrie
 async fn a_divergent_variant_keeps_its_variant_mark_under_the_derived_id() {
     let (_dir, store) = store().await;
     store.exchange_apply(&sample_document(), SHA, ApplyMode::New, None).await.unwrap();
-    // Drüben wurde die Variante A (Fassung 3, Kennung 113) an Ort und Stelle geändert.
+    // Over there variant A (revision 3, identifier 113) was changed in place.
     let mut doc = sample_document();
     let body = "== Der Eimer\n\nDer Eimer klirrt lauter am Rand des Brunnens.\n";
     let original = bucket_revision(&mut doc, 113);
@@ -838,7 +840,7 @@ async fn a_divergent_variant_keeps_its_variant_mark_under_the_derived_id() {
 #[tokio::test]
 async fn a_fast_forward_never_changes_the_heading_in_place() {
     let (_dir, store) = store().await;
-    // Hier: „Der Eimer“ Fassung 1 nach dem ersten Schritt.
+    // Here: „Der Eimer“ revision 1 after the first step.
     let mut local = sample_document_u8();
     {
         let revision = bucket_revision(&mut local, 111);
@@ -852,7 +854,7 @@ async fn a_fast_forward_never_changes_the_heading_in_place() {
         .fetch_one(store.pool())
         .await
         .unwrap();
-    // Datei: lückenlose Kette, deren letzter Schritt die Überschrift umschreibt (von Hand bearbeitet).
+    // File: gapless chain whose last step rewrites the heading (edited by hand).
     let mut file = sample_document_u8();
     {
         let revision = bucket_revision(&mut file, 111);
@@ -890,7 +892,7 @@ async fn a_fast_forward_never_changes_the_heading_in_place() {
 async fn a_heading_level_that_does_not_fit_the_point_is_reported_as_a_hint_when_reading() {
     let (_dir, store) = store().await;
     let mut doc = sample_document();
-    // Handgeschriebene Datei: Kapitel „Der Eimer“ mit einer Überschrift der Ebene 3.
+    // Hand-written file: chapter „Der Eimer“ with a heading of level 3.
     bucket_revision(&mut doc, 111).body = "=== Der Eimer\n\nDer Eimer steht am Brunnen.\n".into();
     let applied = store.exchange_apply(&doc, SHA, ApplyMode::New, None).await.expect("das Einlesen bleibt möglich");
     let body: String = sqlx::query_scalar("SELECT body FROM revision WHERE uuid = ?")

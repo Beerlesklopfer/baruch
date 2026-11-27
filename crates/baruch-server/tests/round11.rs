@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende Runde 11 (Integrator): „Bilder und Umschlag“ nach dem Zusammenführen von mcp-assets,
-//! cover und images. Geprüft wird das Zusammenspiel über den ganzen Router:
-//! - Umschlag über einen MCP-Antrag (`asset_add` mit `role: "cover"`), bestätigt vom Menschen;
-//! - Buch mit Umschlag und Titelei: Satz-Ansicht und PDF (RPC, Route, Kommandozeile) haben gleich viele
-//!   Seiten, Seite 1 ist der Umschlag, die letzte die Rückseite mit Klappentext und EAN-13;
-//! - Werk ohne Umschlag und Titelei setzt unverändert (gleicher Stand);
-//! - Umschlag-PDF mit Rückenbreite aus der Seitenzahl und Beschnitt;
-//! - Druckprüfung meldet ein 832 × 1216-Pixel-Bild (im Test erzeugt) unter 300 dpi;
-//! - Seite „Bilder“ mit Umschlag-Block, Anträgen und Suche; Bild einfügen; Gliederung und Werkübersicht
-//!   zeigen das Umschlagbild.
+//! End to end Round 11 (integrator): „Bilder und Umschlag“ after merging mcp-assets, cover and images. What is checked
+//! is the interplay across the whole router:
+//! - cover through an MCP request (`asset_add` with `role: "cover"`), confirmed by the human;
+//! - book with cover and front matter: typesetting view and PDF (RPC, route, command line) have the same number of
+//!   pages, page 1 is the cover, the last one the back with blurb and EAN-13;
+//! - a work without cover and front matter typesets unchanged (same state);
+//! - cover PDF with spine width from the page count and bleed;
+//! - the print check reports an 832 × 1216 pixel image (created in the test) below 300 dpi;
+//! - page „Bilder“ with cover block, requests and search; inserting an image; outline and work overview show the cover
+//!   image.
 //!
-//! Text frei erfunden, Testbilder entstehen im Test (PNG per Code, SVG als Text).
+//! Text freely invented, test images are created in the test (PNG by code, SVG as text).
 
 use crate::common;
 
@@ -23,14 +23,14 @@ use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Die Markierung „PDF entsteht“ gilt je Werk-id im ganzen Prozess; alle Server-Tests (ein Bündel) haben
-/// eigene Datenordner mit denselben ids und erzeugen PDFs darum nacheinander (gemeinsame Sperre).
+/// The mark „PDF entsteht“ holds per work id in the whole process; all server tests (one bundle) have data folders of
+/// their own with the same ids and therefore build PDFs one after the other (shared lock).
 use crate::common::PDF_SERIAL as SERIAL;
 
-/// Gültige ISBN-13 (Lehrbuchbeispiel).
+/// Valid ISBN-13 (textbook example).
 const ISBN: &str = "978-3-16-148410-0";
 
-/// Erfundenes Buch: Werkvorlage mit Seitengröße 12 × 16 cm, drei Kapitel mit Seitenumbruch.
+/// Invented book: work template with page size 12 × 16 cm, three chapters with page break.
 fn book(title: &str) -> String {
     format!(
         "#set document(title: \"{title}\", author: \"Hanne Holm\")\n#set page(width: 12cm, height: 16cm)\n\
@@ -39,7 +39,7 @@ fn book(title: &str) -> String {
     )
 }
 
-/// PNG in Graustufen (ungepackte Deflate-Blöcke), dunkles erfundenes Muster.
+/// PNG in greyscale (unpacked deflate blocks), dark invented pattern.
 fn dark_png(width: u32, height: u32) -> Vec<u8> {
     fn crc32(bytes: &[u8]) -> u32 {
         let mut crc = 0xffff_ffffu32;
@@ -97,7 +97,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Wie oft `name` mit dem Wert `value` vorkommt (`/Type /Page`, nicht `/Pages`).
+/// How often `name` occurs with the value `value` (`/Type /Page`, not `/Pages`).
 fn entries(pdf: &[u8], name: &str, value: &str) -> usize {
     let mut count = 0;
     let mut at = 0;
@@ -119,7 +119,7 @@ fn contains(pdf: &[u8], text: &str) -> bool {
     pdf.windows(text.len()).any(|w| w == text.as_bytes())
 }
 
-/// Breite und Höhe (in mm) aller `/MediaBox [x0 y0 x1 y1]` im PDF.
+/// Width and height (in mm) of all `/MediaBox [x0 y0 x1 y1]` in the PDF.
 fn media_boxes_mm(pdf: &[u8]) -> Vec<(f64, f64)> {
     let text = String::from_utf8_lossy(pdf);
     let mut boxes = Vec::new();
@@ -178,8 +178,8 @@ async fn get_bytes(server: &common::Server, uri: &str) -> (StatusCode, axum::htt
     (status, headers, bytes)
 }
 
-/// Werk importieren, Umschlag über MCP beantragen und per Formular bestätigen, Buchangaben setzen.
-/// Antwort: (Werk, slug).
+/// Import the work, request the cover through MCP and confirm it through the form, set the book details. Response:
+/// (work, slug).
 async fn lighthouse(server: &common::Server, title: &str, file: &str) -> (i64, String) {
     let report = server.import(&book(title), file).await;
     let (work, slug) = (report.work, report.slug);
@@ -226,13 +226,13 @@ async fn a_cover_requested_over_mcp_and_confirmed_by_the_human_frames_the_book_i
     let server = common::open().await;
     let (work, slug) = lighthouse(&server, "Leuchtturmjahr Eins", "eins.typ").await;
 
-    // Der Umschlag ist gesetzt, mit Herkunft im Spiegel.
+    // The cover is set, with origin in the mirror.
     let got = server.rpc("work.get", json!({ "work": work })).await;
     let cover = &result(&got)["cover"];
     assert_eq!(cover["name"], "umschlag.png", "work.get nennt den Umschlag: {got}");
     assert_eq!(cover["thumb"], format!("/werke/{work}/bilder/umschlag.png/vorschau?b=320"), "mit Vorschaubild");
     if let Some(log) = common::git(&server.mirror_dir_of(&slug), &["log", "-3", "--format=%B%n----"]) {
-        // Runde 20c: ein Commit je bestätigtem Umschlag-Antrag („Bildantrag n bestätigt“ mit Umschlag vorher/nachher).
+        // Round 20c: one commit per confirmed cover request („Bildantrag n bestätigt“ with cover before/after).
         assert!(
             log.contains("Baruch-Action: asset-request-confirmed") && log.contains("Umschlag nachher: umschlag.png"),
             "Commit des bestätigten Umschlag-Antrags im Spiegel: {log}"
@@ -241,11 +241,11 @@ async fn a_cover_requested_over_mcp_and_confirmed_by_the_human_frames_the_book_i
         assert!(log.contains("Baruch-Confirmed-By: Autor"), "der bestätigende Mensch steht im Spiegel: {log}");
     }
 
-    // Satz-Ansicht und PDF: gleich viele Seiten, erste Seite Umschlag, letzte Rückseite.
+    // Typesetting view and PDF: the same number of pages, first page cover, last page back.
     let preview = server.rpc("preview.typst", json!({ "work": work })).await;
     let preview = result(&preview);
     let pages = preview["pages"].as_u64().unwrap() as usize;
-    // 3 Kapitel + Vorderseite, Innenseite und Rückseite + 4 Seiten Titelei (ohne Widmung).
+    // 3 chapters + front, inside and back + 4 pages of front matter (without dedication).
     assert_eq!(pages, 3 + 3 + 4, "Buch mit Rahmen: {preview}");
     let typeset = baruch_server::typeset::typeset(&server.state, work).await.unwrap();
     let rendered = typeset.rendered();
@@ -285,7 +285,7 @@ async fn a_cover_requested_over_mcp_and_confirmed_by_the_human_frames_the_book_i
         "der beigelegte Strichcode ist die EAN-13 der ISBN"
     );
 
-    // PDF über RPC und Route: gleich viele Seiten wie die Satz-Ansicht.
+    // PDF through RPC and route: the same number of pages as the typesetting view.
     let answer = server.rpc("work.pdf", json!({ "work": work })).await;
     assert_eq!(result(&answer)["pages"].as_u64().unwrap() as usize, pages, "work.pdf = Satz-Ansicht: {answer}");
     let (status, headers, bytes) = get_bytes(&server, &format!("/werke/{work}/pdf")).await;
@@ -295,7 +295,7 @@ async fn a_cover_requested_over_mcp_and_confirmed_by_the_human_frames_the_book_i
     assert_eq!(entries(&bytes, "/Type", "/Page"), pages, "Seitenobjekte im PDF = Seiten der Satz-Ansicht");
     assert!(entries(&bytes, "/Subtype", "/Image") >= 1, "das Umschlagbild steht im PDF");
 
-    // Druckprüfung: 832 × 1216 Pixel auf 12 × 16 cm sind deutlich unter 300 dpi.
+    // Print check: 832 × 1216 pixels on 12 × 16 cm are clearly below 300 dpi.
     let print = preview["print"].as_array().unwrap();
     let warning = print
         .iter()
@@ -326,7 +326,7 @@ async fn a_work_without_cover_and_front_matter_is_set_unchanged() {
     assert_eq!(result(&preview)["pages"], 3, "drei Kapitel, drei Seiten – kein Rahmen");
     assert!(result(&server.rpc("work.get", json!({ "work": work })).await)["cover"].is_null(), "kein Umschlag");
 
-    // Titelei ohne Umschlag: genau 4 Seiten mehr, Kapitel bleiben unverändert im Satz.
+    // Front matter without cover: exactly 4 pages more, chapters stay unchanged in the typesetting.
     result(&server.rpc("work.meta.set", json!({ "work": work, "front_matter": true })).await);
     let preview = server.rpc("preview.typst", json!({ "work": work })).await;
     assert_eq!(result(&preview)["pages"], 3 + 4, "nur die Titelei kommt dazu: {preview}");
@@ -343,7 +343,7 @@ async fn the_cover_pdf_has_one_page_with_both_sides_spine_from_the_page_count_an
     let r = result(&answer);
     assert_eq!(r["file_name"], format!("{slug}-umschlag.pdf"), "Dateiname");
     assert_eq!(r["pages"], 1, "Rückseite, Rücken und Vorderseite auf einer Seite");
-    // Rücken: Seiten des Buchblocks (ohne Vorder-, Innen- und Rückseite des Umschlags) × 0,1 mm.
+    // Spine: pages of the book block (without front, inside and back of the cover) × 0.1 mm.
     let block = pages - 3;
     let spine = r["spine_mm"].as_f64().unwrap();
     assert!((spine - block as f64 * 0.1).abs() < 1e-9, "Rücken {spine} mm = {block} Seiten × 0,1 mm");
@@ -462,7 +462,7 @@ async fn the_images_page_shows_cover_block_requests_and_search_and_the_cover_app
         result(&searched)["assets"].as_array().unwrap().iter().filter_map(|a| a["name"].as_str()).collect();
     assert_eq!(names, ["kai.svg"], "asset.search über den Alternativtext");
 
-    // Gliederung und Werkübersicht zeigen das Umschlagbild.
+    // Outline and work overview show the cover image.
     let (_, workspace) = server.get(&format!("/?work={work}")).await;
     assert!(workspace.contains("class=\"tree-cover\""), "kleines Umschlagbild im Kopf der Gliederung");
     let (_, works) = server.get("/werke").await;
@@ -472,7 +472,7 @@ async fn the_images_page_shows_cover_block_requests_and_search_and_the_cover_app
     );
     assert!(works.contains(&format!("/werke/{work}/pdf")), "Werkübersicht mit Link „PDF“");
 
-    // Bild aus dem Satzbild einfügen: neue Fassung des Menschen, der Satz bleibt fehlerfrei.
+    // Insert an image from the typeset view: new revision of the human, the typesetting stays free of errors.
     let nodes = result(&server.rpc("work.get", json!({ "work": work })).await)["work"]["nodes"].clone();
     let section = nodes.as_array().unwrap().iter().find(|n| n["title"] == "Flut").expect("Kapitel Flut").clone();
     let key = section["key"].as_i64().unwrap();

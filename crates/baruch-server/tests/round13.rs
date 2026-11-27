@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 13, Ende-zu-Ende (Integrator): Quellen über MultiGPT, Websuche für `@belege`, Abgleich – zusammen
-//! gegen **ein** MultiGPT, wie der Mensch es einträgt.
+//! Round 13, end to end (integrator): sources through MultiGPT, web search for `@belege`, sync – together against
+//! **one** MultiGPT, as the human enters it.
 //!
-//! Das eine MultiGPT ist hier eine kleine Vorderseite ([`OneMultigpt`], MCP über Streamable HTTP auf
-//! 127.0.0.1:0), die jedes Werkzeug an den Nachbau seiner Aufgabe weitergibt: `search_documents` an
-//! `MockMultigpt` (quellen), `web_search`/`fetch_url` an `MockWebMcp` mit der lokalen `MockSite` (websuche),
-//! die Dokument-Werkzeuge an `MockDocs` (abgleich). Einbettungen kommen von `MockEliezer`, Antworten der Personas
-//! von `ScriptedModel`. Nie das echte MultiGPT, Eliezer oder das Internet; Testtexte frei erfunden
-//! („Das Jahr am Leuchtturm“ hier als eigenes Testbuch „Die Fähre im Nebel“).
+//! The one MultiGPT is here a small front ([`OneMultigpt`], MCP over Streamable HTTP on 127.0.0.1:0) that passes every
+//! tool on to the mock of its task: `search_documents` to `MockMultigpt` (quellen), `web_search`/`fetch_url` to
+//! `MockWebMcp` with the local `MockSite` (websuche), the document tools to `MockDocs` (abgleich). Embeddings come from
+//! `MockEliezer`, answers of the personas from `ScriptedModel`. Never the real MultiGPT, Eliezer or the internet; test
+//! texts freely invented („Das Jahr am Leuchtturm“ here as a test book of its own „Die Fähre im Nebel“).
 //!
-//! Geprüft wird nur, was die Teile zusammen tun: Dokumentansicht mit Volltext, Prüfung von Hervorhebungen,
-//! Übernahme in die Bibliothek samt Index, @belege mit Websuche (bevorzugte Quelle zuerst und gekennzeichnet,
-//! Zitat nicht auf der Seite, Seite mit eingeschleuster Anweisung), Abgleich (nur nach Bestätigung, nur Geändertes,
-//! Holen und offline finden, Ausfall), und offline die lokale Kopie in der Dokumentansicht. Alles über RPC oder
-//! Formulare (ohne JavaScript).
+//! Only what the parts do together is checked: document view with full text, check of highlights, adoption into the
+//! library including index, @belege with web search (preferred source first and labelled, quotation not on the page,
+//! page with an injected instruction), sync (only after confirmation, only what changed, fetching and finding offline,
+//! failure), and offline the local copy in the document view. Everything through RPC or forms (without JavaScript).
 
 use crate::common;
 
@@ -59,13 +57,13 @@ const COLLECTION: &str = "Baruch: Die Fähre im Nebel";
 const LIGHT: &str = "https://lichtkunde.example/feuer";
 const GUESTS: &str = "https://gaeste.example/buch";
 const QUESTION: &str = "Wie oft dreht sich das Leuchtfeuer?";
-/// Volltext des erfundenen MultiGPT-Dokuments `lf-1` in der Sammlung „Leuchtfeuer“.
+/// Full text of the invented MultiGPT document `lf-1` in the collection „Leuchtfeuer“.
 const BEACON: &str = "Der Wärter putzte jeden Abend die Linse der Laterne.\n\n\
 Über dem Wasser kreiste das Licht, und die Möwen schrien im Wind.";
 
-// ---- Ein MultiGPT aus drei Nachbauten -------------------------------------------------------------------------
+// ---- One MultiGPT from three mocks ---------------------------------------------------------------------------
 
-/// Welcher Nachbau ein Werkzeug beantwortet: 0 = MockMultigpt, 1 = MockWebMcp, 2 = MockDocs.
+/// Which mock answers a tool: 0 = MockMultigpt, 1 = MockWebMcp, 2 = MockDocs.
 fn owner(tool: &str) -> Option<usize> {
     match tool {
         "search_documents" => Some(0),
@@ -83,9 +81,8 @@ struct Front {
     http: reqwest::Client,
 }
 
-/// MCP-Vorderseite auf 127.0.0.1:0: `initialize` beantwortet sie selbst, `tools/list` vereinigt die Werkzeuge
-/// der Nachbauten (jedes Werkzeug von seinem Besitzer), `tools/call` geht unverändert an den Besitzer, `DELETE`
-/// an alle (jeder Nachbau zählt es).
+/// MCP front on 127.0.0.1:0: it answers `initialize` itself, `tools/list` unites the tools of the mocks (every tool
+/// from its owner), `tools/call` goes unchanged to the owner, `DELETE` to all (every mock counts it).
 struct OneMultigpt {
     url: String,
     task: tokio::task::JoinHandle<()>,
@@ -191,7 +188,7 @@ async fn front_mcp(State(front): State<Arc<Front>>, method: Method, headers: Hea
     }
 }
 
-// ---- Aufbau --------------------------------------------------------------------------------------------------
+// ---- Setup --------------------------------------------------------------------------------------------------
 
 struct World {
     server: common::Server,
@@ -205,8 +202,8 @@ struct World {
     _site: MockSite,
 }
 
-/// Datenordner mit Testbuch, Nachbau-Modell (`steps`), Einbettungen über `MockEliezer` und das eine MultiGPT
-/// eingetragen (ohne Token); Websuche und Hochladen sind aus (Vorgabe).
+/// Data folder with test book, mock model (`steps`), embeddings through `MockEliezer` and the one MultiGPT entered
+/// (without token); web search and upload are off (default).
 async fn world(steps: impl IntoIterator<Item = Step>) -> World {
     let model = ScriptedModel::with(steps);
     let data = tempfile::tempdir().unwrap();
@@ -248,7 +245,7 @@ fn user(call: &ModelCall) -> &str {
     call.messages.iter().find(|m| m.role == Role::User).map(|m| m.content.as_str()).unwrap()
 }
 
-/// Knoten des Werks: (Schlüssel, Titel, Text der aktuellen Fassung, Nummer der aktuellen Fassung).
+/// Nodes of the work: (key, title, text of the current revision, number of the current revision).
 async fn nodes(server: &common::Server, work: i64) -> Vec<(i64, String, String, i64)> {
     let loaded = ok(server, "work.get", json!({ "work": work })).await;
     loaded["work"]["nodes"]
@@ -267,14 +264,14 @@ async fn nodes(server: &common::Server, work: i64) -> Vec<(i64, String, String, 
         .collect()
 }
 
-/// Zahl aller Fassungen des Werks (Begründung: am Buchtext legen Assistenten nur Vorschläge an; eine Antwort im
-/// Gespräch ändert keine einzige Fassung).
+/// Number of all revisions of the work (reason: on the book text assistants create only proposals; an answer in the
+/// conversation changes not a single revision).
 async fn revision_count(server: &common::Server, work: i64) -> usize {
     let loaded = ok(server, "work.get", json!({ "work": work })).await;
     loaded["work"]["nodes"].as_array().unwrap().iter().map(|n| n["revisions"].as_array().unwrap().len()).sum()
 }
 
-/// Abgleich über das Formular (ohne JavaScript) starten, abwarten, letzten Lauf liefern.
+/// Start the sync through the form (without JavaScript), wait, deliver the last run.
 async fn sync_run(server: &common::Server, work: i64) -> Value {
     let (status, location) = server.post_form("/abgleich/act", &format!("action=run&work={work}")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Knopf „Abgleichen“ leitet zurück");
@@ -285,7 +282,7 @@ async fn sync_run(server: &common::Server, work: i64) -> Value {
     status["last"].clone()
 }
 
-/// Nur die Werkzeugaufrufe aus der Aufzeichnung eines Nachbaus (die Vorderseite fragt `tools/list` bei allen).
+/// Only the tool calls from the recording of a mock (the front asks `tools/list` of all).
 fn calls(requests: &[Value]) -> Vec<Value> {
     requests.iter().filter(|r| r["method"] == "tools/call").cloned().collect()
 }
@@ -296,14 +293,14 @@ fn char_range(text: &str, needle: &str) -> (i64, i64) {
     (start, start + needle.chars().count() as i64)
 }
 
-/// Treffer der lokalen Suche (LanceDB) einer Art.
+/// Hits of the local search (LanceDB) of one kind.
 async fn local_hits(server: &common::Server, work: i64, query: &str, kind: &str) -> Vec<Value> {
     rag::wait_idle(&server.state).await;
     let found = ok(server, "rag.search", json!({ "work": work, "query": query, "collections": [kind] })).await;
     found["hits"].as_array().cloned().unwrap_or_default()
 }
 
-// ---- Quellen ---------------------------------------------------------------------------------------------------
+// ---- Sources --------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_multigpt_source_is_read_checked_and_adopted_and_its_title_reaches_the_index() {
@@ -318,7 +315,7 @@ async fn a_multigpt_source_is_read_checked_and_adopted_and_its_title_reaches_the
     )
     .await;
 
-    // Suche über MultiGPT (MockMultigpt) → Link „Volltext“ → Dokumentansicht (Text von MockDocs).
+    // Search through MultiGPT (MockMultigpt) → link „Volltext“ → document view (text from MockDocs).
     let (status, literature) = w.server.get(&format!("/literatur?work={}&lq=Linse&lmode=rag", w.work)).await;
     assert_eq!(status, StatusCode::OK, "Literatur mit Bedeutungssuche: {literature}");
     assert!(
@@ -338,7 +335,7 @@ async fn a_multigpt_source_is_read_checked_and_adopted_and_its_title_reaches_the
         "Begründung: Die Vorderseite gibt read_document an den Dokument-Nachbau; Baruch liest einmal und teilt selbst"
     );
 
-    // Übernehmen nur über das Formular (Mensch), danach ist der Titel im lokalen Index.
+    // Adopting only through the form (human), afterwards the title is in the local index.
     let (status, location) = w
         .server
         .post_form("/literatur/act", &format!("action=adopt&work={}&document=lf-1&collection=Leuchtfeuer", w.work))
@@ -354,7 +351,7 @@ async fn a_multigpt_source_is_read_checked_and_adopted_and_its_title_reaches_the
         "Begründung: source.adopt meldet sich mit rag::notify beim Index – der Titel ist sofort lokal findbar: {hits:?}"
     );
 
-    // Hervorhebungen ohne Zitat werden gegen den Volltext geprüft: gefunden, nicht gefunden, nicht prüfbar.
+    // Highlights without a quotation are checked against the full text: found, not found, not checkable.
     let (start, end) = char_range(BEACON, "Über dem Wasser kreiste das Licht");
     let found = ok(
         &w.server,
@@ -393,7 +390,7 @@ async fn a_multigpt_source_is_read_checked_and_adopted_and_its_title_reaches_the
     assert!(w.docs.tool_calls("upload_document").is_empty(), "Lesen lädt nichts hoch");
 }
 
-// ---- Websuche ----------------------------------------------------------------------------------------------------
+// ---- Web search -------------------------------------------------------------------------------------------------
 
 const ANSWER: &str = "Das Leuchtfeuer dreht sich laut [W1] „alle zwölf Sekunden einmal um sich selbst“.\n\
 Der Wärter nannte es „das schlafende Auge der Küste“ [W1].\n\
@@ -463,7 +460,7 @@ async fn belege_searches_the_preferred_source_first_checks_quotes_and_adopts_onl
         "Begründung: Die Seite mit eingeschleuster Anweisung legt nichts am Buchtext an – keine neue Fassung"
     );
 
-    // Belege und Übernahme in die Bibliothek (Formular), danach im lokalen Index.
+    // Evidence and adoption into the library (form), afterwards in the local index.
     let post = answer["post"]["id"].as_i64().unwrap();
     let evidence = ok(&w.server, "websearch.evidence", json!({ "post": post })).await["evidence"].clone();
     let verdicts: Vec<(String, String)> = evidence
@@ -510,13 +507,13 @@ async fn belege_searches_the_preferred_source_first_checks_quotes_and_adopts_onl
     );
 }
 
-// ---- Abgleich ----------------------------------------------------------------------------------------------------
+// ---- Sync -------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_sync_uploads_only_after_confirmation_replaces_changed_chapters_and_fetches_for_offline_use() {
     let w = world([]).await;
 
-    // Schalter aus (Vorgabe): ein Lauf schickt nichts hinaus.
+    // Switch off (default): a run sends nothing out.
     let last = sync_run(&w.server, w.work).await;
     assert_eq!(last["uploaded"], 0, "nichts hochgeladen: {last}");
     assert!(
@@ -524,7 +521,7 @@ async fn the_sync_uploads_only_after_confirmation_replaces_changed_chapters_and_
         "Begründung: Vorgabe AUS – ohne Schalter verlässt kein Buchtext Baruch"
     );
 
-    // Einschalten nur mit Bestätigung (Formular ohne Kontrollkästchen → Rückfrage).
+    // Switching on only with confirmation (form without checkbox → confirmation prompt).
     let (_, location) = w.server.post_form("/abgleich/act", &format!("action=upload&work={}&on=1", w.work)).await;
     assert!(location.unwrap().contains("fehler=bestaetigen"), "ohne Bestätigung bleibt der Schalter aus");
     assert_eq!(ok(&w.server, "sync.status", json!({ "work": w.work })).await["works"][0]["upload"], false, "aus");
@@ -537,7 +534,7 @@ async fn the_sync_uploads_only_after_confirmation_replaces_changed_chapters_and_
     let first = w.docs.documents(COLLECTION);
     assert_eq!(first.len(), 3, "ein Dokument je Kapitel in „{COLLECTION}“: {first:?}");
 
-    // Zweiter Lauf ohne Änderung: nichts.
+    // Second run without a change: nothing.
     w.docs.clear_requests();
     let last = sync_run(&w.server, w.work).await;
     assert!(
@@ -545,7 +542,7 @@ async fn the_sync_uploads_only_after_confirmation_replaces_changed_chapters_and_
         "unverändert: kein Hochladen, kein Löschen: {last}"
     );
 
-    // Ein Kapitel ändert sich: genau dieses wird ersetzt.
+    // One chapter changes: exactly this one is replaced.
     let list = nodes(&w.server, w.work).await;
     let (key, _, body, number) = list.iter().find(|n| n.1 == "Überfahrt").cloned().unwrap();
     ok(
@@ -562,7 +559,7 @@ async fn the_sync_uploads_only_after_confirmation_replaces_changed_chapters_and_
     assert_eq!(w.docs.tool_calls("delete_document").len(), 1, "danach das alte Dokument gelöscht");
     assert_eq!(w.docs.documents(COLLECTION).len(), 3, "weiter drei Dokumente");
 
-    // Sammlung holen → offline per rag.search findbar.
+    // Fetch the collection → findable offline through rag.search.
     ok(&w.server, "sync.set_collections", json!({ "collections": ["Leuchtfeuer"] })).await;
     let last = sync_run(&w.server, w.work).await;
     assert_eq!(last["downloaded"], 1, "lf-1 geholt: {last}");
@@ -572,7 +569,7 @@ async fn the_sync_uploads_only_after_confirmation_replaces_changed_chapters_and_
     assert_eq!(hit["url"], "/quelle/multigpt?collection=Leuchtfeuer&document=lf-1", "Link zur Dokumentansicht");
     assert!(w.eliezer.requests().iter().all(|r| r.path == "/v1/embeddings"), "Eliezer-Nachbau: nur Einbettungen");
 
-    // MultiGPT fällt aus: Hinweis, die lokale Arbeit geht weiter, die Dokumentansicht zeigt die lokale Kopie.
+    // MultiGPT fails: hint, the local work goes on, the document view shows the local copy.
     let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
     ok(&w.server, "connection.set", json!({ "kind": "multigpt", "config": { "url": format!("http://{closed}/mcp") } }))
         .await;
@@ -633,7 +630,7 @@ async fn offline_without_a_collection_the_single_local_copy_with_that_id_is_show
         read["origin"], "lokal",
         "Begründung: Genau eine lokale Kopie trägt die ID lf-1 – sie ist eindeutig und wird gezeigt: {read}"
     );
-    // Eine zweite Kopie mit derselben ID in einer anderen Sammlung macht die Wahl mehrdeutig: dann keine.
+    // A second copy with the same ID in another collection makes the choice ambiguous: then none.
     w.server.state.store.sync_document_put("Zweite", "lf-1", "Fremd", "", "Ganz anderer Text.").await.unwrap();
     let answer = w.server.rpc("source.read", json!({ "title": title })).await;
     assert_eq!(

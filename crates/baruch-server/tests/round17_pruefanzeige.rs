@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 17c „Prüfanzeige“: Ergebnis der Wortlautprüfung im Editor (RPC `bible.marks`, Seite
-//! `/werke/{id}/pruefung`, Widget `scripture-check`), Lesen in der Zählung des Moduls über die Abbildung
-//! (`bibles::read_passage`), verschlüsselte SWORD-Module (RPC `bible.cipher_key_set/_delete`, Formular unter
-//! Einstellungen → Quellen), BZIP2/XZ, Lizenzvermerk und Kommentar-Widget. Alle Bibeln schreibt der Test selbst
-//! (`baruch_sword::fixture`, frei erfundener Text, Temp-Ordner); verschlüsselt wird mit einem frei erfundenen
-//! Testschlüssel. Kein echtes Modul, kein Modell, kein Netz.
+//! Round 17c „Prüfanzeige“: result of the verbatim check in the editor (RPC `bible.marks`, page `/werke/{id}/pruefung`,
+//! widget `scripture-check`), reading in the versification of the module through the mapping (`bibles::read_passage`),
+//! encrypted SWORD modules (RPC `bible.cipher_key_set/_delete`, form under Einstellungen → Quellen), BZIP2/XZ, licence
+//! note and commentary widget. All Bibles are written by the test itself (`baruch_sword::fixture`, freely invented
+//! text, temp folder); encryption uses a freely invented test key. No real module, no model, no network.
 
 use crate::common;
 
@@ -17,7 +16,7 @@ use baruch_scripture::versification::{german, versification};
 use baruch_sword::fixture::{Block, Compression, Fixture, Layout, write};
 use serde_json::{Value, json};
 
-/// Frei erfundener Testschlüssel; darf nie in einer Antwort, Seite oder Meldung stehen.
+/// Freely invented test key; must never be in a response, page or message.
 const TEST_KEY: &str = "Kieselamsel-Testschluessel-7f3a9";
 
 const SERMON: &str = "#set document(title: \"Kieselpredigt\", author: \"Lena Fluss\")\n\n\
@@ -25,7 +24,7 @@ const SERMON: &str = "#set document(title: \"Kieselpredigt\", author: \"Lena Flu
 Wie es heißt: „Der Kiesel lag am Bach, und die Amsel sang.“ (Joh 3,16)\n\n\
 Falsch erinnert: „Der Stein lag am Bach“ (Joh 3,16). Ohne Zitat Ps 23,1.\n";
 
-/// Erfundene Testbibel in deutscher Zählung.
+/// Invented test Bible in German versification.
 fn kiesel(layout: Layout) -> Fixture {
     Fixture::new("Kiesel", layout, german())
         .conf("Description", "Erfundene Kieselbibel")
@@ -35,7 +34,7 @@ fn kiesel(layout: Layout) -> Fixture {
         .verse("Ps", 23, 1, "Ein Lied vom stillen Wasser.")
 }
 
-/// Erfundene Testbibel in KJV-Zählung: Maleachi hat dort vier Kapitel (Mal 4,1–6 = deutsch Mal 3,19–24).
+/// Invented test Bible in KJV versification: Malachi has four chapters there (Mal 4:1–6 = German Mal 3:19–24).
 fn english() -> Fixture {
     let kjv = versification("KJV").unwrap();
     let mut f = Fixture::new("Englisch", Layout::ZText(Block::Chapter), kjv)
@@ -48,7 +47,7 @@ fn english() -> Fixture {
     f
 }
 
-/// Verschlüsselte Testbibel (zText, mit Sapphire II und dem Testschlüssel selbst verschlüsselt).
+/// Encrypted test Bible (zText, encrypted by the test itself with Sapphire II and the test key).
 fn sealed() -> Fixture {
     Fixture::new("Siegel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene verschlüsselte Bibel")
@@ -77,7 +76,7 @@ async fn err(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// Server mit eigenem Modulordner, der Kieselpredigt und gewählter Bibel `bible` (falls gegeben).
+/// Server with a module folder of its own, the Kieselpredigt and chosen Bible `bible` (if given).
 async fn setup(modules: &[Fixture], bible: Option<&str>) -> (common::Server, tempfile::TempDir, i64, i64) {
     let server = common::open().await;
     let dir = tempfile::tempdir().unwrap();
@@ -92,7 +91,7 @@ async fn setup(modules: &[Fixture], bible: Option<&str>) -> (common::Server, tem
     (server, dir, work, key)
 }
 
-// ---- Lesen über die Abbildung ---------------------------------------------------------------------
+// ---- Reading through the mapping -----------------------------------------------------------------
 
 #[tokio::test]
 async fn a_kjv_module_reads_german_references_through_the_mapping() {
@@ -103,12 +102,12 @@ async fn a_kjv_module_reads_german_references_through_the_mapping() {
     let checked = ok(&server, "scripture.check", json!({ "work": work, "text": text })).await;
     let mal = &checked["refs"][0];
     let joh = &checked["refs"][1];
-    // Joh 3 hat in beiden Zählungen 36 Verse: gleiche Stelle, kein module_ref.
+    // John 3 has 36 verses in both versifications: same passage, no module_ref.
     assert_eq!(joh["wording_code"], "match", "Joh 3,16 gleich gezählt: {checked}");
     assert_eq!(joh["module_ref"], Value::Null, "gleiche Stelle: kein Hinweis auf die Zählung des Moduls: {checked}");
-    // Die Erwartung kommt aus der Abbildung selbst (R17a liefert die Regeltabelle; bis dahin ist die Abbildung
-    // vorläufig und Mal 3,19 nicht abbildbar). So prüft der Test, dass die Wortlautprüfung genau die Verse liest,
-    // die map_range nennt – und mit der Regeltabelle den Vertrag „Mal 3,19–24 → Mal 4,1–6 (KJV)“.
+    // The expectation comes from the mapping itself (R17a delivers the rule table; until then the mapping is
+    // provisional and Mal 3:19 cannot be mapped). So the test checks that the verbatim check reads exactly the verses
+    // that map_range names – and with the rule table the contract „Mal 3,19–24 → Mal 4,1–6 (KJV)“.
     let kjv = versification("KJV").unwrap();
     match mapping::map_range(german(), kjv, "Mal", (3, 19), (3, 24), baruch_sword::MAX_PASSAGE_VERSES) {
         Ok(mapped) => {
@@ -140,7 +139,7 @@ async fn a_kjv_module_reads_german_references_through_the_mapping() {
 
 #[tokio::test]
 async fn an_unmappable_verse_stays_a_versification_mismatch_with_a_reason() {
-    // Einen deutschen Vers suchen, den die Abbildung nicht nach KJV bringt (mit Regeltabelle seltener).
+    // Look for a German verse that the mapping does not bring to KJV (rarer with the rule table).
     let kjv = versification("KJV").unwrap();
     let mut unmapped = None;
     'search: for (book, chapters) in german().books() {
@@ -155,7 +154,7 @@ async fn an_unmappable_verse_stays_a_versification_mismatch_with_a_reason() {
         }
     }
     let Some((at, reason)) = unmapped else {
-        // Deckt die Regeltabelle jeden deutschen Vers ab, gibt es nichts zu prüfen – das ist dann der Befund.
+        // If the rule table covers every German verse, there is nothing to check – that is then the finding.
         eprintln!("Jeder deutsche Vers lässt sich nach KJV abbilden; kein nicht abbildbarer Vers zum Prüfen.");
         return;
     };
@@ -172,7 +171,7 @@ async fn an_unmappable_verse_stays_a_versification_mismatch_with_a_reason() {
 #[tokio::test]
 async fn bible_lookup_takes_truncated_from_the_passage_text() {
     let (server, _dir, work, _key) = setup(&[kiesel(Layout::RawText)], Some("Kiesel")).await;
-    // 1. Mose 1–16 hat 398 Verse, dazu 17,1–2: genau 400 – nicht gekürzt; bis 17,27 sind es 425 – gekürzt.
+    // Genesis 1–16 has 398 verses, plus 17:1–2: exactly 400 – not shortened; up to 17:27 it is 425 – shortened.
     let exact = ok(&server, "bible.lookup", json!({ "work": work, "ref": "1. Mose 1,1–17,2" })).await;
     assert_eq!(
         exact["refs"][0]["verses"].as_array().map(Vec::len),
@@ -186,7 +185,7 @@ async fn bible_lookup_takes_truncated_from_the_passage_text() {
     assert_eq!(long["refs"][0]["truncated"], true, "425 Verse: gekürzt (aus PassageText, nicht aus der Länge)");
 }
 
-// ---- bible.marks und die Prüfseite ------------------------------------------------------------------
+// ---- bible.marks and the check page ----------------------------------------------------------------
 
 #[tokio::test]
 async fn bible_marks_lists_states_and_byte_spans_of_the_shown_revision() {
@@ -221,7 +220,7 @@ async fn bible_marks_lists_states_and_byte_spans_of_the_shown_revision() {
     assert_eq!(list[2]["quote_span"], Value::Null, "ohne Zitat kein Bereich: {marks}");
     assert_eq!(list[1]["diff_line"], "Der [−Kiesel] [+Stein] lag am Bach", "Unterschiede: {marks}");
 
-    // scripture.check bekommt dieselben Felder additiv.
+    // scripture.check gets the same fields additively.
     let checked = ok(&server, "scripture.check", json!({ "work": work, "text": body })).await;
     assert_eq!(checked["refs"][0]["quote_span"], list[0]["quote_span"], "quote_span auch in scripture.check");
     assert!(checked["refs"][0].get("module_ref").is_some_and(Value::is_null), "module_ref da (null): {checked}");
@@ -230,7 +229,7 @@ async fn bible_marks_lists_states_and_byte_spans_of_the_shown_revision() {
         "alte Felder bleiben"
     );
 
-    // Eine neue Fassung: rev wählt die gezeigte; die Spans gelten für deren Text.
+    // A new revision: rev chooses the one shown; the spans hold for its text.
     let saved = ok(&server, "revision.save", json!({ "work": work, "key": key, "body": "= Am Bach\n\nNur noch: „Ein Lied vom stillen Wasser“ (Ps 23,1).\n" })).await;
     let new_rev = saved["rev"].as_u64().unwrap();
     let now = ok(&server, "bible.marks", json!({ "work": work, "key": key })).await;
@@ -300,7 +299,7 @@ async fn the_editor_links_to_the_check_page_and_the_widget_never_touches_the_sav
     let status_line = page.find("class=\"editor-status\"").expect("Statuszeile");
     assert!(widget > status_line, "das Widget steht in der Statuszeile");
 
-    // Das Widget markiert nur über die CSS Custom Highlight API: keine DOM-Änderung im Satzbild.
+    // The widget marks only through the CSS Custom Highlight API: no DOM change in the typeset view.
     let ts = include_str!("../web/src/scripture_check.ts");
     assert!(
         ts.contains("CSS as unknown as { highlights")
@@ -325,7 +324,7 @@ async fn the_editor_links_to_the_check_page_and_the_widget_never_touches_the_sav
         "Stil der Markierungen"
     );
 
-    // Speichern bleibt unverändert: Das Satzbild ohne Eingabe gibt den Text byte-gleich zurück.
+    // Saving stays unchanged: the typeset view without input returns the text byte-identical.
     let loaded = ok(&server, "work.get", json!({ "work": work })).await;
     let body = loaded["work"]["nodes"][0]["revisions"][0]["body"].as_str().unwrap().to_owned();
     let parsed = ok(&server, "wysiwyg.parse", json!({ "work": work, "body": body })).await;
@@ -333,7 +332,7 @@ async fn the_editor_links_to_the_check_page_and_the_widget_never_touches_the_sav
     let same = ok(&server, "wysiwyg.serialize", json!({ "work": work, "body": body, "edits": keep })).await;
     assert_eq!(same["body"], body.as_str(), "ohne Eingabe byte-gleich (die Markierung ist keine Eingabe)");
 
-    // Ereignis baruch:serialize-text (Vertrag §2.6): Quelltext ohne Speichern, touched und Textfeld bleiben.
+    // Event baruch:serialize-text (contract §2.6): source text without saving, touched and text field stay.
     let ws = include_str!("../web/src/wysiwyg.ts");
     let start = ws.find("async function serializeText").expect("serializeText in wysiwyg.ts");
     let end = start + ws[start..].find("\n}\n").expect("Ende von serializeText");
@@ -345,9 +344,9 @@ async fn the_editor_links_to_the_check_page_and_the_widget_never_touches_the_sav
     assert!(ws.contains("\"baruch:serialize-text\""), "Hörer am Editor-Formular");
 }
 
-// ---- Verschlüsselte Module ------------------------------------------------------------------------
+// ---- Encrypted modules ---------------------------------------------------------------------------
 
-/// Kein Testschlüssel im Text (Antworten, Seiten, Meldungen).
+/// No test key in the text (responses, pages, messages).
 fn no_key(what: &str, text: &str) {
     assert!(!text.contains(TEST_KEY), "{what}: der Schlüssel steht nie in Antworten oder Seiten");
 }
@@ -414,7 +413,7 @@ async fn cipher_keys_are_human_only_and_never_shown() {
     let (server, _dir, work, key) = setup(&[sealed()], None).await;
     ok(&server, "bible.cipher_key_set", json!({ "module": "Siegel", "key": TEST_KEY })).await;
     ok(&server, "bible.set_work", json!({ "work": work, "module": "Siegel" })).await;
-    // Nicht über MCP: kein Werkzeug setzt oder löscht einen Schlüssel.
+    // Not through MCP: no tool sets or deletes a key.
     let names: Vec<&str> = baruch_server::mcp::tools::TOOLS.iter().map(|t| t.name).collect();
     assert!(!names.iter().any(|n| n.contains("cipher")), "kein MCP-Werkzeug für Schlüssel: {names:?}");
     assert!(
@@ -428,7 +427,7 @@ async fn cipher_keys_are_human_only_and_never_shown() {
     let checked =
         baruch_server::mcp::scripture::call(&server.state, json!({ "work": work, "key": key })).await.unwrap();
     no_key("MCP scripture_check", &checked.to_string());
-    // Nicht über /act.
+    // Not through /act.
     let request = Request::post("/act")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(Body::from(format!("method=bible.cipher_key_delete&work={work}&module=Siegel&confirm=1")))
@@ -436,7 +435,7 @@ async fn cipher_keys_are_human_only_and_never_shown() {
     let (status, _, _) = server.send(request).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "/act kennt keine Schlüssel-Methoden");
     assert!(server.state.secrets.get("sword-cipher:siegel").unwrap().is_some(), "Schlüssel blieb");
-    // Seiten zeigen nur „hinterlegt“.
+    // Pages show only „hinterlegt“.
     for uri in [
         format!("/einstellungen/quellen?work={work}"),
         format!("/werke/{work}/pruefung?key={key}"),
@@ -507,7 +506,7 @@ async fn the_cipher_form_on_the_sources_page_works_without_javascript() {
     assert_eq!(server.state.secrets.get("sword-cipher:siegel").unwrap(), None, "aus dem Schlüsselbund entfernt");
 }
 
-// ---- Kompression, Lizenz, Kommentar-Widget ----------------------------------------------------------
+// ---- Compression, licence, commentary widget -------------------------------------------------------
 
 #[tokio::test]
 async fn bzip2_and_xz_bibles_are_checked_by_the_server() {
@@ -584,7 +583,7 @@ async fn the_commentary_panel_has_one_details_per_module_and_unified_group_title
 
     let ts = include_str!("../web/src/commentaries.ts");
     assert!(ts.contains("alle aufklappen") && ts.contains("alle zuklappen"), "Knöpfe zum Auf-/Zuklappen");
-    // Jeder Zugriff (window.localStorage) steht in einem offenen try-Block; Erwähnungen im Kommentar zählen nicht.
+    // Every access (window.localStorage) is in an open try block; mentions in the comment do not count.
     assert!(ts.contains("window.localStorage"), "Zustand in localStorage gemerkt");
     for (i, _) in ts.match_indices("window.localStorage") {
         let before = &ts[..i];

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 18, Abnahme des Integrators: ein frei erfundenes Werk mit allen Konstrukten der Runde (Szenen, Arbeitsaufträge,
-//! Fußnoten, Zitate, Aufzählungen, Begriffslisten, geschachtelte Listen, Umbruch `\`, `#link`, Verweise, zwei Bilder in
-//! einem Block, eine Insel) läuft Ende zu Ende durch alle drei Teile: Menüband (18a), Konstrukte (18b) und Satzbild je
-//! Werk (18c). Jeder Schritt geht den Weg, den die Oberfläche geht – ohne JavaScript über Formulare, mit JavaScript
-//! über dieselben RPC-Aufrufe wie die Widgets. Kein Netz, kein Modell; der Satz läuft nur, wo er geprüft wird.
+//! Round 18, acceptance of the integrator: a freely invented work with all constructs of the round (scenes, work
+//! orders, footnotes, quotations, bullet lists, term lists, nested lists, line break `\`, `#link`, references, two
+//! images in one block, an island) runs end to end through all three parts: ribbon (18a), constructs (18b) and typeset
+//! view per work (18c). Every step goes the way the user interface goes – without JavaScript through forms, with
+//! JavaScript through the same RPC calls as the widgets. No network, no model; the typesetting runs only where it is
+//! checked.
 
 use crate::common;
 
@@ -18,10 +19,10 @@ fn ok(answer: &Value, what: &str) -> Value {
     answer["result"].clone()
 }
 
-/// Werkvorlage mit `#szene` und `#arbeit`; ein Kapitel mit jedem Konstrukt in kanonischer Schreibweise (so, wie
-/// `emit` es schreibt), ein zweites Kapitel als Nachbar. Eigene Schlusszeile: eigener Stand im Satz-Zwischenspeicher.
-/// Kanonisch heißt auch: kein Verweis direkt vor einem Punkt – `@kai.` schreibt `emit` vorsichtig als `#ref(<kai>).`
-/// (in Typst gleichbedeutend, aber nicht byte-gleich; betrifft nur einen bearbeiteten Block).
+/// Work template with `#szene` and `#arbeit`; one chapter with every construct in canonical spelling (the way `emit`
+/// writes it), a second chapter as neighbour. Own closing line: own state in the typesetting cache. Canonical also
+/// means: no reference directly before a full stop – `@kai.` is written by `emit` cautiously as `#ref(<kai>).`
+/// (equivalent in Typst, but not byte-identical; concerns only an edited block).
 const HAFEN: &str = "#let szene(body) = block(fill: luma(240), inset: 6pt, body)\n\
 #let arbeit(body) = rect(inset: 6pt, body)\n\n\
 = Hafen\n\n\
@@ -50,7 +51,7 @@ async fn add_image(server: &common::Server, work: i64, file: &str, path: &str) {
     ok(&answer, "asset.add");
 }
 
-/// (Fassungsnummer, Text) der aktuellen Fassung.
+/// (revision number, text) of the current revision.
 async fn current(server: &common::Server, work: i64, key: i64) -> (u64, String) {
     let got = ok(&server.rpc("work.get", json!({ "work": work })).await, "work.get");
     let nodes = got["work"]["nodes"].as_array().unwrap().clone();
@@ -75,7 +76,7 @@ fn urlencoding(text: &str) -> String {
         .collect()
 }
 
-/// Inhalt von `<style id="ws-style" data-work="W">…</style>`.
+/// Content of `<style id="ws-style" data-work="W">…</style>`.
 fn served_style(page: &str, work: i64) -> Option<String> {
     let open = format!("<style id=\"ws-style\" data-work=\"{work}\">");
     let at = page.find(&open)? + open.len();
@@ -130,7 +131,7 @@ async fn every_construct_of_the_round_goes_typst_to_satzbild_to_typst_byte_equal
         "Bildadresse in Normalform: {html}"
     );
 
-    // Alles unberührt (keep): byte-gleich.
+    // Everything untouched (keep): byte-identical.
     let keep: Vec<Value> = (0..blocks.len()).map(|i| json!({ "keep": i })).collect();
     let same = ok(
         &server.rpc("wysiwyg.serialize", json!({ "work": work, "body": body, "edits": keep })).await,
@@ -138,8 +139,8 @@ async fn every_construct_of_the_round_goes_typst_to_satzbild_to_typst_byte_equal
     );
     assert_eq!(same["body"], body, "lauter keep: byte-gleich");
 
-    // Jeder Block so, wie das Widget ihn nach einer Bearbeitung schickt (`replaces` + Block bzw. bei Inseln `raw`):
-    // weil der Text kanonisch geschrieben ist, schreibt `emit` ihn byte-gleich zurück – für jedes Konstrukt.
+    // Every block the way the widget sends it after an edit (`replaces` + block or, for islands, `raw`): because the
+    // text is written canonically, `emit` writes it back byte-identical – for every construct.
     for (i, block) in blocks.iter().enumerate().skip(1) {
         let mut edits: Vec<Value> = (0..blocks.len()).map(|j| json!({ "keep": j })).collect();
         edits[i] = if block["kind"] == "island" {
@@ -152,7 +153,7 @@ async fn every_construct_of_the_round_goes_typst_to_satzbild_to_typst_byte_equal
         assert_eq!(again["body"], body, "Block {i} ({}) neu geschrieben bleibt byte-gleich: {block}", block["kind"]);
     }
 
-    // Insel an Ort und Stelle: nur sie ändert sich, und gespeichert wird genau das.
+    // Island in place: only it changes, and exactly that is stored.
     let island = kinds.iter().rposition(|k| *k == "island").unwrap();
     let mut edits: Vec<Value> = (0..blocks.len()).map(|j| json!({ "keep": j })).collect();
     edits[island] = json!({ "replaces": island, "raw": "#let tiefe = 9\n" });
@@ -190,8 +191,8 @@ async fn the_ribbon_offers_the_template_formats_and_a_snippet_saved_without_java
     assert!(page.contains("data-image-insert"), "sein Ziel „Bild einfügen …“ steht im Editor");
     assert!(page.contains("<textarea"), "ohne JavaScript bleibt der Quelltext das Eingabefeld");
 
-    // Ohne JavaScript tippt man den Typst-Text des Knopfs selbst; mit JavaScript fügt ribbon.ts genau diesen Text
-    // ein. Beide Wege enden in demselben gespeicherten Text, und das Satzbild erkennt die Szene.
+    // Without JavaScript one types the Typst text of the button oneself; with JavaScript ribbon.ts inserts exactly this
+    // text. Both ways end in the same stored text, and the typeset view recognises the scene.
     let snippet = list[0]["snippet"].as_str().unwrap().replace("\n\n", "\nDie Fähre legt an.\n");
     let (rev, body) = current(&server, work, key).await;
     let text = format!("{}\n\n{snippet}", body.trim_end());
@@ -204,7 +205,8 @@ async fn the_ribbon_offers_the_template_formats_and_a_snippet_saved_without_java
     let last = parsed["blocks"].as_array().unwrap().last().unwrap().clone();
     assert_eq!(last["kind"], "scene", "der eingefügte Text ist eine Szene im Satzbild: {last}");
 
-    // Mit JavaScript: das übersetzte Widget sendet bei offenem Satzbild den Befehl und fügt sonst den Text ein.
+    // With JavaScript: the compiled widget sends the command while the typeset view is open and otherwise inserts the
+    // text.
     let (status, js) = server.get("/static/js/ribbon.js").await;
     assert_eq!(status, StatusCode::OK, "ribbon.js wird ausgeliefert");
     assert!(js.contains("sendWsCommand") && js.contains("data-ribbon-snippet"), "ribbon.js nutzt beide Wege");
@@ -237,7 +239,7 @@ async fn work_sheet_settings_reach_the_html_before_any_script_and_survive_a_rest
     let rpc = ok(&server.rpc("wysiwyg.style", json!({ "work": work })).await, "wysiwyg.style");
     assert_eq!(rpc["css"].as_str().unwrap(), style, "Widget und HTML haben dasselbe CSS");
 
-    // Neustart: neuer Zustand auf demselben Datenordner.
+    // Restart: new state on the same data folder.
     let common::Server { data, state, app } = server;
     drop(app);
     drop(state);
@@ -246,7 +248,7 @@ async fn work_sheet_settings_reach_the_html_before_any_script_and_survive_a_rest
     let (_, page) = restarted.get(&format!("/?work={work}&key={key}")).await;
     check(&page, "nach dem Neustart");
 
-    // Satzbild-Einstellungen ändern den Satz nicht: Typst-Quelle bleibt die des Werks.
+    // Typeset-view settings do not change the typesetting: the Typst source stays that of the work.
     let source = baruch_server::typeset::prepare(&restarted.state, work).await.unwrap();
     assert!(!source.source.main.contains("Probe Antiqua"), "Typst bleibt unberührt");
 }
@@ -257,7 +259,8 @@ async fn an_image_lands_at_the_caret_with_its_path_in_the_same_revision() {
     let (work, key) = hafen(&server).await;
     add_image(&server, work, "leuchtturm.svg", "bilder/leuchtturm.svg").await;
     let (rev, body) = current(&server, work, key).await;
-    // Cursor mitten im Satz über die Möwen: Das Bild rückt an die nächste Zeilengrenze, als eigener Block.
+    // Cursor in the middle of the sentence about the seagulls: the image moves to the next line boundary, as a block of
+    // its own.
     let offset = body.find("kreisen").map(|b| body[..b].encode_utf16().count()).unwrap();
     let form = format!("work={work}&key={key}&rev={rev}&name=leuchtturm.svg&place=offset:{offset}");
     let (status, _) = server.post_form("/werke/bilder/einfuegen", &form).await;

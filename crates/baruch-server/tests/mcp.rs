@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge über `POST /mcp`: echter Datenordner (SQLite, Bibliothek, Git-Spiegel) im
-//! Temp-Ordner, Anfragen als Loopback-Client mit `ConnectInfo`.
+//! MCP tools through `POST /mcp`: real data folder (SQLite, library, Git mirror) in the temp folder, requests as a
+//! loopback client with `ConnectInfo`.
 
 use crate::common;
 
@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 const LOOPBACK: ([u8; 4], u16) = ([127, 0, 0, 1], 40000);
 
-/// MCP-Anfrage vom eigenen Rechner, wahlweise mit Sitzung.
+/// MCP request from the own machine, optionally with a session.
 async fn post(server: &common::Server, session: Option<&str>, message: Value) -> (StatusCode, HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
     if let Some(id) = session {
@@ -26,7 +26,7 @@ async fn post(server: &common::Server, session: Option<&str>, message: Value) ->
     (status, headers, value)
 }
 
-/// `initialize` mit `clientInfo`; gibt die neue Sitzungs-Id zurück.
+/// `initialize` with `clientInfo`; returns the new session id.
 async fn initialize(server: &common::Server, name: &str, version: &str) -> String {
     let (status, headers, answer) = post(
         server,
@@ -43,7 +43,7 @@ async fn initialize(server: &common::Server, name: &str, version: &str) -> Strin
     id.to_owned()
 }
 
-/// `tools/call`; gibt das ganze JSON-RPC-Antwortobjekt zurück.
+/// `tools/call`; returns the whole JSON-RPC response object.
 async fn call(server: &common::Server, session: Option<&str>, tool: &str, arguments: Value) -> Value {
     let (status, _, answer) = post(
         server,
@@ -56,7 +56,7 @@ async fn call(server: &common::Server, session: Option<&str>, tool: &str, argume
     answer
 }
 
-/// Erfolgreicher Aufruf: `structuredContent`, dazu dieselben Daten als Text.
+/// Successful call: `structuredContent`, plus the same data as text.
 async fn ok(server: &common::Server, session: Option<&str>, tool: &str, arguments: Value) -> Value {
     let answer = call(server, session, tool, arguments).await;
     let result = &answer["result"];
@@ -67,14 +67,14 @@ async fn ok(server: &common::Server, session: Option<&str>, tool: &str, argument
     result["structuredContent"].clone()
 }
 
-/// Fachlicher Fehler: `isError: true`, Text zurück.
+/// Domain error: `isError: true`, returns the text.
 async fn refused(server: &common::Server, session: Option<&str>, tool: &str, arguments: Value) -> String {
     let answer = call(server, session, tool, arguments).await;
     assert_eq!(answer["result"]["isError"], true, "{tool} sollte fachlich scheitern: {answer}");
     answer["result"]["content"][0]["text"].as_str().unwrap().to_owned()
 }
 
-/// Fester Schlüssel (`key`) des Abschnitts an Stelle `seq`; schreibende Werkzeuge nehmen nur ihn.
+/// Fixed key (`key`) of the section at position `seq`; writing tools take only it.
 async fn key(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)
@@ -181,11 +181,11 @@ async fn tools_are_listed_in_contract_order_and_stubs_say_so() {
     for tool in tools {
         assert_eq!(tool["inputSchema"]["type"], "object", "jedes Werkzeug hat ein Objekt-Schema: {tool}");
         let stub = tool["description"].as_str().unwrap().starts_with("STUB");
-        // Runde 20/31: epub_* und die Glossar-Werkzeuge sind umgesetzt, die S1-Ausnahmen sind entfallen.
+        // Round 20/31: epub_* and the glossary tools are implemented, the S1 exceptions are gone.
         assert!(!stub, "Runde 10: kein Werkzeug ist mehr als STUB beschrieben (ask_persona und chat gehen): {tool}");
     }
-    // Ohne Modell-Backend (AppState::open = NoModel) antworten ask_persona und chat ehrlich mit isError;
-    // chat ohne key legt seit Runde 15 einen Faden ohne Abschnitt an (kein Stub mehr).
+    // Without a model backend (AppState::open = NoModel) ask_persona and chat answer honestly with isError; chat
+    // without key has created a thread without a section since Round 15 (no longer a stub).
     let work = server.state.default_work().await.unwrap();
     let key = server.state.store.load_work(work).await.unwrap().nodes[2].key;
     let text = refused(
@@ -271,7 +271,7 @@ async fn read_node_names_the_existing_numbers_after_a_deletion() {
     let server = common::open().await;
     let slug = slug(&server).await;
     let work = server.state.store.default_work().await.unwrap();
-    // Einleitung (seq 2): 1, 2 (aktuell), 3 (Vorschlag); 4 speichern, dann 3 löschen → 1, 2, 4.
+    // Introduction (seq 2): 1, 2 (current), 3 (proposal); save 4, then delete 3 → 1, 2, 4.
     server.state.store.save_human(work, 2, "= Einleitung\n\nVierte Fassung.\n", "Autor").await.unwrap().unwrap();
     server.state.store.delete_revision(work, 2, 3, "Autor").await.unwrap();
     let text = refused(&server, None, "read_node", json!({ "work": slug, "node": 2, "rev": 3 })).await;
@@ -537,8 +537,8 @@ async fn list_personas_comes_from_sqlite_and_marks_the_lector() {
 
 #[tokio::test]
 async fn import_typst_is_no_longer_a_tool_and_imports_nothing() {
-    // Ein Import legt aktuelle Revisionen unter dem Namen des Menschen an; das darf ein Assistent
-    // nicht (Entscheidung 2026-11-05). Import nur noch über `baruch-server import`.
+    // An import creates current revisions under the name of the human; an assistant must not do that (decision
+    // 2026-11-05). Import only through `baruch-server import` any more.
     let server = common::open().await;
     let (_, _, list) = post(&server, None, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).await;
     let tools = list["result"]["tools"].as_array().unwrap();
@@ -570,7 +570,7 @@ async fn import_typst_is_no_longer_a_tool_and_imports_nothing() {
     );
 }
 
-/// Anfrage mit fremdem `Origin` vom eigenen Rechner: der guard lehnt vor dem MCP-Endpunkt ab.
+/// Request with a foreign `Origin` from the own machine: the guard rejects before the MCP endpoint.
 async fn post_from_origin(server: &common::Server, origin: &str, message: Value) -> StatusCode {
     let mut request = Request::post("/mcp")
         .header(header::CONTENT_TYPE, "application/json")
@@ -584,20 +584,20 @@ async fn post_from_origin(server: &common::Server, origin: &str, message: Value)
 #[tokio::test]
 async fn a_client_reads_and_proposes_in_an_imported_work_and_the_accepted_proposal_is_committed() {
     let server = common::open().await;
-    // Das Werk kommt wie beim Nutzer aus dem Import (CLI-Weg), nicht über MCP.
+    // The work comes from the import as with the user (CLI way), not through MCP.
     let made = server.import_garden().await;
     let work = json!(made.work);
     let slug = made.slug.clone();
     let dir = server.mirror_dir_of(&slug);
     assert!(made.commit.is_some(), "der Import committet im Spiegel des neuen Werks: {made:?}");
 
-    // Loopback ohne Origin: initialize und tools/list gehen durch.
+    // Loopback without Origin: initialize and tools/list pass.
     let session = initialize(&server, "Claude Code", "2.1.0").await;
     let (status, _, list) =
         post(&server, Some(&session), json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).await;
     assert_eq!(status, StatusCode::OK, "tools/list über Loopback ohne Origin: {list}");
 
-    // Fremder Origin auf demselben Rechner (Webseite im Browser): abgelehnt, nichts vorgeschlagen.
+    // Foreign Origin on the same machine (web page in the browser): rejected, nothing proposed.
     let status = post_from_origin(
         &server,
         "http://evil.example",
@@ -609,7 +609,7 @@ async fn a_client_reads_and_proposes_in_an_imported_work_and_the_accepted_propos
     let node = ok(&server, Some(&session), "read_node", json!({ "work": work, "node": 1 })).await;
     assert_eq!(node["revisions"].as_array().unwrap().len(), 1, "der abgelehnte Aufruf legte nichts an: {node}");
 
-    // Gliederung: Unterabschnitt „Tiefe“ hängt unter „Aussaat“, nummeriert 1.1.1.
+    // Outline: subsection „Tiefe“ hangs below „Aussaat“, numbered 1.1.1.
     let outline = ok(&server, Some(&session), "outline", json!({ "work": slug })).await;
     let nodes = outline["nodes"].as_array().unwrap();
     let titles: Vec<&str> = nodes.iter().map(|n| n["title"].as_str().unwrap()).collect();
@@ -618,12 +618,12 @@ async fn a_client_reads_and_proposes_in_an_imported_work_and_the_accepted_propos
     assert_eq!(nodes[2]["parent"], 1, "Tiefe steht unter Aussaat: {outline}");
     assert_eq!(nodes[1]["current_rev"], 1, "Revision 1 ist aktuell: {outline}");
 
-    // Lesen: Revision 1 vom Menschen, aktuell, Text ab der Überschriftszeile (ohne Import-Zeile des Spiegels).
+    // Reading: revision 1 by the human, current, text from the heading line on (without the import line of the mirror).
     assert_eq!(node["text"], "== Aussaat\n\n#beet[Radieschen & Möhren.]\n\n", "Text des Abschnitts: {node}");
     assert_eq!(node["revisions"][0]["status"], "current", "die importierte Revision ist aktuell: {node}");
     assert_eq!(node["revisions"][0]["author"]["kind"], "human", "der Import schreibt als Mensch: {node}");
 
-    // Vorschlag über MCP: bleibt proposed, bis der Mensch per RPC übernimmt.
+    // Proposal through MCP: stays proposed until the human accepts through RPC.
     let body = "== Aussaat\n\n#beet[Radieschen, Möhren und Dill.]\n\n";
     let proposed = ok(
         &server,
@@ -644,8 +644,8 @@ async fn a_client_reads_and_proposes_in_an_imported_work_and_the_accepted_propos
         node["revisions"].as_array().unwrap().iter().map(|r| r["status"].as_str().unwrap()).collect();
     assert_eq!(statuses, ["superseded", "current"], "genau eine current, die alte superseded");
 
-    // Spiegel des importierten Werks: Datei mit Import der Vorlage und dem neuen Text, Commit mit dem
-    // MCP-Client als Autor.
+    // Mirror of the imported work: file with the import of the template and the new text, commit with the MCP client as
+    // author.
     let file = std::fs::read_dir(dir.join("abschnitte"))
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -674,7 +674,7 @@ async fn a_proposal_that_would_change_the_outline_is_refused_and_nothing_is_stor
     let garden = server.import_garden().await;
     let work = json!(garden.work);
     let summer = key(&server, garden.work, 3).await;
-    // Befund Runde 4: Sommer (Kapitel) als Abschnitt plus ein neues Kapitel „Herbst“.
+    // Finding Round 4: Sommer (chapter) as a section plus a new chapter „Herbst“.
     let restructure = "== Sommer\n\nText C.\n\n= Herbst\n\nText D.\n";
     let text =
         refused(&server, None, "propose_revision", json!({ "work": work, "key": summer, "body": restructure })).await;
@@ -688,7 +688,7 @@ async fn a_proposal_that_would_change_the_outline_is_refused_and_nothing_is_stor
     assert!(bare.contains("keine Überschrift"), "ein Text ohne Überschrift ist kein Vorschlag: {bare}");
     let node = ok(&server, None, "read_node", json!({ "work": work, "node": 3 })).await;
     assert_eq!(node["revisions"].as_array().unwrap().len(), 1, "keiner der Vorschläge wurde angelegt: {node}");
-    // Ein neuer Titel derselben Ebene ist erlaubt und benennt beim Übernehmen um.
+    // A new title of the same level is allowed and renames on accepting.
     let renamed =
         ok(&server, None, "propose_revision", json!({ "work": work, "key": summer, "body": "= Hochsommer\n\nC.\n" }))
             .await;
@@ -706,7 +706,7 @@ async fn a_client_with_an_old_outline_writes_through_the_key_into_the_right_sect
     let outline = ok(&server, None, "outline", json!({ "work": work })).await;
     let summer = outline["nodes"][3]["key"].as_i64().expect("outline nennt den festen Schlüssel");
     assert_eq!(outline["nodes"][3]["title"], "Sommer", "Testaufbau: an Stelle 3 steht „Sommer“: {outline}");
-    // Der Mensch stellt um: „Sommer“ nach vorn, an Stelle 3 steht jetzt „Tiefe“.
+    // The human rearranges: „Sommer“ to the front, at position 3 there is now „Tiefe“.
     let moved = server.rpc("outline.move", json!({ "work": work, "node": 3, "target": 0, "place": "before" })).await;
     assert!(moved.get("error").is_none(), "Testaufbau: Umstellen gelingt: {moved}");
     let stale = call(
@@ -744,7 +744,7 @@ async fn a_client_with_an_old_outline_writes_through_the_key_into_the_right_sect
     assert!(gone.contains("gibt es nicht mehr"), "unbekannter Schlüssel → klare Meldung: {gone}");
 }
 
-// ---- key ist Pflicht beim Schreiben (Vertrag Runde 5) -----------------------------------------
+// ---- key is mandatory when writing (contract Round 5) ------------------------------------------
 
 #[tokio::test]
 async fn writing_tools_need_the_key_and_refuse_the_position() {
@@ -793,7 +793,7 @@ async fn writing_tools_need_the_key_and_refuse_the_position() {
     );
     let pious_after = node(5).await;
     assert_eq!(pious_after["result"]["posts"].as_array().unwrap().len(), 2, "kein Beitrag angelegt: {pious_after}");
-    // Lesen bleibt wie es war: read_node nimmt weiter die Stelle.
+    // Reading stays as it was: read_node still takes the position.
     let read = ok(&server, None, "read_node", json!({ "work": work, "node": 4 })).await;
     assert_eq!(read["key"], signs, "read_node über die Stelle nennt den Schlüssel: {read}");
 }

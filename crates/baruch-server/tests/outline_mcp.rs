@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederung über MCP (Wunsch 2026-11-06): `outline_add` legt Punkte sofort an (einen oder eine ganze
-//! Liste, atomar, ein Commit, Herkunft = Persona bzw. Client); `outline_rename`, `outline_move`,
-//! `outline_set_level`, `outline_set_numbered`, `outline_delete` legen nur Anträge an, über die der
-//! Mensch entscheidet (RPC `outline.request_decide`, Formular auf `/gliederung`). Dazu `outline.set_numbered`.
-//! Alle Testtexte frei erfunden (`tests/data/gartenbuch.typ`).
+//! Outline through MCP (wish 2026-11-06): `outline_add` creates items at once (one or a whole list, atomically, one
+//! commit, origin = persona or client); `outline_rename`, `outline_move`, `outline_set_level`, `outline_set_numbered`,
+//! `outline_delete` only file requests on which the human decides (RPC `outline.request_decide`, form on
+//! `/gliederung`). Plus `outline.set_numbered`. All test texts freely invented (`tests/data/gartenbuch.typ`).
 
 use crate::common;
 
@@ -62,7 +61,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Titel der Gliederung in Baumreihenfolge.
+/// Titles of the outline in tree order.
 async fn titles(server: &common::Server, work: i64) -> Vec<String> {
     let answer = server.rpc("work.get", json!({ "work": work })).await;
     result(&answer)["work"]["nodes"]
@@ -73,7 +72,7 @@ async fn titles(server: &common::Server, work: i64) -> Vec<String> {
         .collect()
 }
 
-/// Fester Schlüssel des Punkts mit diesem Titel.
+/// Fixed key of the item with this title.
 async fn key_of(server: &common::Server, work: i64, title: &str) -> i64 {
     let answer = server.rpc("work.get", json!({ "work": work })).await;
     let nodes = result(&answer)["work"]["nodes"].as_array().unwrap().clone();
@@ -165,7 +164,7 @@ async fn a_whole_outline_in_one_call_is_one_transaction_and_one_commit() {
         );
     }
 
-    // Atomar: ein ungültiger Titel an dritter Stelle → nichts angelegt, kein Commit.
+    // Atomic: an invalid title in third place → nothing created, no commit.
     let shown = titles(&server, work).await;
     let commits = log(&server, &slug);
     let bad = json!([{ "title": "Eins" }, { "title": "Zwei" }, { "title": "   " }]);
@@ -174,9 +173,9 @@ async fn a_whole_outline_in_one_call_is_one_transaction_and_one_commit() {
     let jump = json!([{ "title": "Eins" }, { "title": "Drei", "level": 3 }]);
     let text = refused(&server, &s, "outline_add", json!({ "work": work, "key": summer, "items": jump })).await;
     assert!(text.contains("höchstens eine Ebene tiefer"), "Ebenensprung abgelehnt: {text}");
-    // Bis Runde 13 stand hier „kein Teil in einem Werk mit Werkvorlage“. Seit Runde 14 dürfen
-    // Assistenten Teile auch dort anlegen (round14_outline.rs); abgelehnt bleibt ein Teil *unter*
-    // einem Punkt (into), weil ein Teil immer auf oberster Ebene steht.
+    // Up to Round 13 this said „kein Teil in einem Werk mit Werkvorlage“. Since Round 14 assistants may create parts
+    // there too (round14_outline.rs); a part *below* an item (into) stays rejected, because a part is always on the top
+    // level.
     let part = json!([{ "title": "Erster Teil", "level": 0 }]);
     let args = json!({ "work": work, "key": summer, "place": "into", "items": part });
     let text = refused(&server, &s, "outline_add", args).await;
@@ -205,8 +204,8 @@ async fn outline_add_keeps_the_title_rules_and_refuses_node() {
 #[tokio::test]
 async fn in_a_work_without_points_outline_add_creates_the_first_one_without_key() {
     let (server, work, _, s) = garden().await;
-    // Ein Werk ohne Gliederungspunkt entsteht über die Oberfläche nicht (Anlegen bringt ein Kapitel,
-    // das letzte lässt sich nicht löschen); nachgestellt direkt in SQLite.
+    // A work without an outline item does not arise through the user interface (creating brings a chapter, the last one
+    // cannot be deleted); reproduced directly in SQLite.
     let pool = server.state.store.pool();
     for sql in [
         "UPDATE revision SET status = 'superseded' WHERE status = 'current' AND node_id IN (SELECT id FROM node WHERE work_id = ?)",
@@ -274,7 +273,7 @@ async fn rejecting_a_request_changes_nothing() {
     assert_eq!(result(&decided)["request"]["decision"], "rejected", "{decided}");
     assert!(result(&decided)["outline"].is_null(), "keine Gliederungsänderung: {decided}");
     assert_eq!(titles(&server, work).await, before, "Ablehnen ändert die Gliederung nicht");
-    // Nutzerentscheidung 2026-11-08: Ablehnen steht für jede Antragsart als ein leerer Protokoll-Commit im Spiegel.
+    // User decision 2026-11-08: declining is recorded for every kind of request as an empty log commit in the mirror.
     if let (Some(before), Some(after)) = (commits, log(&server, &slug)) {
         let mut expected = vec![format!("Gliederung: Antrag {id} abgelehnt")];
         expected.extend(before);
@@ -291,7 +290,7 @@ async fn a_stale_request_is_closed_with_a_reason_and_changes_nothing() {
     let depth = key_of(&server, work, "Tiefe").await;
     ok(&server, &s, "outline_rename", json!({ "work": work, "key": summer, "title": "Hochsommer" })).await;
     ok(&server, &s, "outline_delete", json!({ "work": work, "key": depth })).await;
-    // Inzwischen benennt der Mensch selbst um und löscht „Tiefe“.
+    // Meanwhile the human renames himself and deletes „Tiefe“.
     result(&server.rpc("outline.rename", json!({ "work": work, "key": summer, "title": "Spätsommer" })).await);
     result(&server.rpc("outline.delete", json!({ "work": work, "key": depth, "confirm": true })).await);
     let commits = log(&server, &slug);
@@ -311,7 +310,7 @@ async fn a_stale_request_is_closed_with_a_reason_and_changes_nothing() {
     assert_eq!(result(&deleted)["request"]["decision"], "stale", "{deleted}");
     assert!(result(&deleted)["request"]["message"].as_str().unwrap().contains("gibt es nicht mehr"), "{deleted}");
     assert_eq!(titles(&server, work).await, ["Frühling", "Aussaat", "Spätsommer"], "Gliederung unverändert");
-    // Nutzerentscheidung 2026-11-08: auch „veraltet“ steht je Antrag als leerer Protokoll-Commit im Spiegel.
+    // User decision 2026-11-08: „veraltet“ too is recorded per request as an empty log commit in the mirror.
     if let (Some(before), Some(after)) = (commits, log(&server, &slug)) {
         let mut expected =
             vec![format!("Gliederung: Antrag {} veraltet", ids[1]), format!("Gliederung: Antrag {} veraltet", ids[0])];

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Import im Server (Vertrag B1.5, Abschnitt 4): neues Werk in SQLite, eigener Git-Spiegel mit
-//! Commit „Import aus <datei>“, Duplikatschutz, Export; dazu die Befehle `import` (mit `--title`) und
-//! `export` und das Hochladen über `POST /werke/import` (Runde 4, multipart, ohne JavaScript).
-//! Echte SQLite-Datei und echtes Git-Repo im Temp-Ordner, Testdatei `tests/data/gartenbuch.typ`.
+//! Typst import in the server (contract B1.5, section 4): new work in SQLite, own Git mirror with commit
+//! „Import aus <datei>“, duplicate protection, export; in addition the commands `import` (with `--title`) and `export`
+//! and the upload through `POST /werke/import` (Round 4, multipart, without JavaScript). Real SQLite file and real Git
+//! repo in the temp folder, test file `tests/data/gartenbuch.typ`.
 
 use crate::common;
 
@@ -135,9 +135,9 @@ async fn import_file_refuses_files_that_are_not_utf8_or_have_no_headings() {
     assert!(err.message.ends_with("ist keine Datei"), "ein Ordner mit Endung .typ ist keine Datei: {}", err.message);
 }
 
-/// Eine FIFO ohne Schreiber: `File::open` würde blockieren, bis jemand schreibt. Der Import prüft vorher
-/// mit `metadata`, dass es eine reguläre Datei ist, und lehnt sofort ab. `mkfifo` aus coreutils legt
-/// die FIFO an (ohne zusätzliche Crate); fehlt das Programm, wird der Test übersprungen.
+/// A FIFO without a writer: `File::open` would block until someone writes. The import checks beforehand with `metadata`
+/// that it is a regular file and rejects at once. `mkfifo` from coreutils creates the FIFO (without an additional
+/// crate); if the program is missing, the test is skipped.
 #[cfg(unix)]
 #[tokio::test]
 async fn importing_a_fifo_does_not_block_and_says_it_is_no_file() {
@@ -197,7 +197,7 @@ async fn import_file_takes_the_name_from_the_path() {
     assert_eq!(log, "Import aus Herbstlaub.typ\n", "Commit nennt die Datei");
 }
 
-/// Programm `baruch-server` mit Datenordner `data` aufrufen: (Exit-Code, stdout, stderr).
+/// Call the program `baruch-server` with data folder `data`: (exit code, stdout, stderr).
 fn cli(data: &std::path::Path, args: &[&str]) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_baruch-server"))
         .args(args)
@@ -261,7 +261,7 @@ fn the_import_command_refuses_a_taken_title_and_takes_another_with_title() {
     let (code, _, err) = cli(data.path(), &["import", file]);
     assert_eq!(code, 0, "erster Import gelingt: {err}");
 
-    // Andere Datei mit demselben Titel in #set document.
+    // Another file with the same title in #set document.
     let other = data.path().join("garten-neu.typ");
     std::fs::write(&other, GARDEN.replace("Gießen, gießen, gießen.", "Ernten.")).unwrap();
     let other = other.to_str().unwrap();
@@ -284,11 +284,11 @@ fn the_import_command_refuses_a_taken_title_and_takes_another_with_title() {
     assert!(help.contains("--title"), "Hilfe nennt --title: {help}");
 }
 
-// ---- Hochladen über POST /werke/import ---------------------------------------------------------
+// ---- Upload through POST /werke/import ---------------------------------------------------------
 
 const BOUNDARY: &str = "baruch-test-grenze";
 
-/// Multipart-Anfrage wie ein Browserformular: Feld `title`, dann Feld `file`.
+/// Multipart request like a browser form: field `title`, then field `file`.
 fn upload(file_name: &str, content: &[u8], title: &str) -> Request<Body> {
     let mut body = Vec::new();
     body.extend_from_slice(
@@ -377,13 +377,13 @@ async fn an_upload_from_a_foreign_page_is_refused() {
     assert_eq!(works["result"]["works"].as_array().unwrap().len(), 1, "nichts importiert: {works}");
 }
 
-// ---- Bilder beim Import und Export --out (Vertrag Runde 6, Abschnitte 4d und 4e) ---------------
+// ---- Images on import and export --out (contract Round 6, sections 4d and 4e) -------------------
 
-/// Frei erfundenes SVG.
+/// Freely invented SVG.
 const HOUSE: &str = "<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\">\
                      <path d=\"M0 8 L4 0 L8 8 Z\"/></svg>\n";
 
-/// CRC-32 (PNG), bitweise.
+/// CRC-32 (PNG), bitwise.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for &byte in data {
@@ -395,7 +395,7 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-/// Gültiges PNG mit einem grauen Pixel, im Test erzeugt (keine Binärdatei im Repo).
+/// Valid PNG with one grey pixel, created in the test (no binary file in the repo).
 fn tiny_png(gray: u8) -> Vec<u8> {
     fn chunk(out: &mut Vec<u8>, kind: &[u8], data: &[u8]) {
         out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -420,15 +420,15 @@ fn tiny_png(gray: u8) -> Vec<u8> {
     out
 }
 
-/// Erfundenes Buch, das sechs Bilder nennt: zwei liegen im Ordner, die übrigen sind außerhalb, ein
-/// Symlink hinaus, fehlend oder kein Bild.
+/// Invented book that names six images: two lie in the folder, the others are outside, a symlink leading out, missing
+/// or not an image.
 const HILLS: &str = "// Hügelbuch für die Bild-Tests\n#set document(title: \"Das Hügelbuch\", author: \"Ida Feder\")\n\
                      #let bild(p) = figure(image(p))\n\n= Der Hang\n\n#figure(image(\"/bilder/haus.svg\"), caption: [Das Haus])\n\n\
                      Text am Hang.\n\n== Die Wiese\n\n#image(\"bilder/punkt.png\", width: 2cm)\n\
                      #image(\"../draussen.svg\")\n#image(\"bilder/link.svg\")\n#image(\"bilder/fehlt.png\")\n\
                      #image(\"bilder/notiz.png\")\n// #image(\"bilder/kommentar.png\")\n";
 
-/// Ordner `<tmp>/projekt` mit `huegel.typ` und den Bildern; daneben `draussen.svg`.
+/// Folder `<tmp>/projekt` with `huegel.typ` and the images; next to it `draussen.svg`.
 fn hills_folder() -> (tempfile::TempDir, std::path::PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let project = tmp.path().join("projekt");
@@ -487,8 +487,8 @@ async fn importing_a_file_reads_its_images_from_its_folder_and_skips_the_rest_wi
 
 #[tokio::test]
 async fn image_paths_with_dot_parts_are_imported_found_and_exported_and_parent_dirs_are_skipped() {
-    // Runde 7: `./bilder/beet.svg` wurde vorher übersprungen; jetzt gilt die Normalform
-    // (`baruch_store::normalize_asset_path`), nur `..` bleibt verboten.
+    // Round 7: `./bilder/beet.svg` was skipped before; now the normal form holds
+    // (`baruch_store::normalize_asset_path`), only `..` stays forbidden.
     let server = common::open().await;
     let tmp = tempfile::tempdir().unwrap();
     let source = "= Der Garten\n\n#image(\"./bilder/beet.svg\")\n\n#image(\"bilder//zaun.svg\")\n\n\
@@ -515,7 +515,7 @@ async fn image_paths_with_dot_parts_are_imported_found_and_exported_and_parent_d
         "der Text bleibt byte-gleich"
     );
 
-    // Die Bilderseite findet das Bild unter jeder Schreibweise, aber nicht mit `..`.
+    // The images page finds the image under every spelling, but not with `..`.
     for query in ["./bilder/beet.svg", ".%2Fbilder%2Fbeet.svg", "bilder/beet.svg", "%2Fbilder%2Fbeet.svg"] {
         let (status, svg) = server.get(&format!("/werke/{work}/bilder/pfad?p={query}")).await;
         assert_eq!((status, svg.as_str()), (StatusCode::OK, HOUSE), "?p={query} liefert das Bild");
@@ -523,7 +523,7 @@ async fn image_paths_with_dot_parts_are_imported_found_and_exported_and_parent_d
     let (status, _) = server.get(&format!("/werke/{work}/bilder/pfad?p=..%2Fbilder%2Fbeet.svg")).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "mit .. gibt es kein Bild");
 
-    // Im Satzbild erscheint das Bild mit der Adresse in Normalform, und die Adresse liefert es.
+    // In the typeset view the image appears with the address in normal form, and the address delivers it.
     let node = server.rpc("node.get", json!({ "work": work, "node": 0 })).await;
     let body = node["result"]["revisions"][0]["body"].as_str().unwrap().to_owned();
     let parsed = server.rpc("wysiwyg.parse", json!({ "work": work, "body": body })).await;
@@ -533,7 +533,7 @@ async fn image_paths_with_dot_parts_are_imported_found_and_exported_and_parent_d
     let (status, svg) = server.get(&src).await;
     assert_eq!((status, svg.as_str()), (StatusCode::OK, HOUSE), "die Adresse im Satzbild liefert das Bild");
 
-    // export --out schreibt die Bilder an ihren Pfad in Normalform.
+    // export --out writes the images to their path in normal form.
     let target = tempfile::tempdir().unwrap();
     let written = baruch_server::import::export_to_dir(&server.state.store, work, &target.path().join("aus"))
         .await
@@ -610,7 +610,7 @@ fn export_out_writes_the_typst_file_and_all_images_byte_for_byte() {
     assert!(help.contains("--out"), "Hilfe nennt --out: {help}");
 }
 
-/// Dateien unter `dir`, relativ und mit `/`.
+/// Files under `dir`, relative and with `/`.
 fn walk(dir: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut stack = vec![dir.to_owned()];

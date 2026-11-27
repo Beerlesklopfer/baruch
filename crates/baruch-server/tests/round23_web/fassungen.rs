@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a: Reste aus Runde 22 – `revision.update` auf einer fortgeschriebenen Fassung legt einen Schritt im Verlauf
-//! an (Vorspulen und Austausch bleiben heil), ein veralteter Stand wird abgelehnt, die Rückfrageseite reicht den
-//! Speichermodus weiter, ein abgelehntes Speichern ohne JavaScript behält den Text, `ui.render` ohne `work` zeigt das
-//! Werk aus dem Cookie. Werk frei erfunden.
+//! Round 23a: leftovers from Round 22 – `revision.update` on an amended revision creates a step in the history
+//! (fast-forwarding and exchange stay intact), an outdated state is rejected, the confirmation page passes the save
+//! mode on, a rejected save without JavaScript keeps the text, `ui.render` without `work` shows the work from the
+//! cookie. Work freely invented.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
@@ -55,7 +55,7 @@ async fn revision_update_on_an_amended_version_writes_a_step_and_exchange_and_fa
     let (work, keys) = weberei(&a).await;
     let (rev, body) = current(&a, work, 0).await;
 
-    // Im Editor fortschreiben (Stand 1) …
+    // Amend in the editor (state 1) …
     let amended = body.replacen("Mittag", "frühen Mittag", 1);
     let saved = a
         .rpc(
@@ -66,7 +66,7 @@ async fn revision_update_on_an_amended_version_writes_a_step_and_exchange_and_fa
     assert_eq!(ok(&saved)["saved"], "amended", "Testvoraussetzung: der Editor schreibt fort: {saved}");
     assert_eq!(ok(&saved)["amend_seq"], 1, "Stand 1");
 
-    // … dann über den Baum ändern: ein Schritt im Verlauf, Stand 2.
+    // … then change through the tree: one step in the history, state 2.
     let over_tree = amended.replacen("unberührt", "ganz unberührt", 1);
     let updated = a
         .rpc(
@@ -84,7 +84,7 @@ async fn revision_update_on_an_amended_version_writes_a_step_and_exchange_and_fa
     assert_eq!(steps[1]["body_before"], steps[0]["body_after"], "lückenlose Kette der Schritte: {history}");
     assert_eq!(steps[1]["body_after"], json!(over_tree), "Text nachher ist der neue: {history}");
 
-    // Austausch: Ausgeben und in einer zweiten Instanz neu einlesen.
+    // Exchange: export and read in anew in a second instance.
     let out_a = export_xml(&a, work).await;
     assert!(out_a.contains("<fortschreibung "), "die Schritte stehen in der Austauschdatei");
     let b = common::open().await;
@@ -100,7 +100,8 @@ async fn revision_update_on_an_amended_version_writes_a_step_and_exchange_and_fa
     );
     assert_eq!(ok(&history_b)["amend_seq"], 2, "B steht auf Stand 2");
 
-    // Vorspulen: A ändert noch einmal über den Baum (Stand 3); B gleicht ab und folgt, ohne „abweichende Fassung“.
+    // Fast-forwarding: A changes once more through the tree (state 3); B syncs and follows, without
+    // „abweichende Fassung“.
     let third = over_tree.replacen("auf der Bank", "auf der Fensterbank", 1);
     let again = a
         .rpc("revision.update", json!({ "work": work, "key": keys[0], "rev": rev, "body": third, "based_on_amend": 2 }))
@@ -126,7 +127,7 @@ async fn revision_update_with_an_outdated_stand_is_refused_over_rpc() {
     let done = server.rpc("revision.update", json!({ "work": work, "key": keys[1], "rev": rev, "body": first })).await;
     assert_eq!(ok(&done)["amend_seq"], 1, "auf der aktuellen Fassung entsteht Stand 1 (auch ohne Angabe des Stands)");
 
-    // Ein Formular, das noch Stand 0 zeigt (zweiter Reiter).
+    // A form that still shows state 0 (second tab).
     let late = body.replacen("drei Tage", "vier Tage", 1);
     let refused = server
         .rpc("revision.update", json!({ "work": work, "key": keys[1], "rev": rev, "body": late, "based_on_amend": 0 }))
@@ -136,7 +137,7 @@ async fn revision_update_with_an_outdated_stand_is_refused_over_rpc() {
     assert!(message.starts_with("Veraltet: "), "die Meldung beginnt mit „Veraltet: “: {message}");
     assert_eq!(current(&server, work, 1).await.1, first, "der neuere Text bleibt stehen");
 
-    // Das Formular „Fassung ändern“ schickt den Stand mit.
+    // The form „Fassung ändern“ sends the state along.
     let (_, page) = server.get(&format!("/?work={work}&key={}", keys[1])).await;
     let form = &page[page.find("class=\"rev-edit-form\"").expect("Formular „Fassung ändern“")..];
     let form = &form[..form.find("</form>").unwrap()];
@@ -151,7 +152,7 @@ async fn the_confirm_page_passes_the_mode_on_and_the_feedback_names_the_changed_
     let server = common::open().await;
     let (work, keys) = weberei(&server).await;
     let (rev, body) = current(&server, work, 0).await;
-    // Ohne JavaScript: neue Überschrift im Text → Rückfrage „Teilen und speichern“.
+    // Without JavaScript: new heading in the text → confirmation prompt „Teilen und speichern“.
     let split = format!("{body}\n= Leinen\n\nDas Leinen kam aus dem Tal.\n");
     let fields = |extra: &str| {
         format!(
@@ -172,7 +173,7 @@ async fn the_confirm_page_passes_the_mode_on_and_the_feedback_names_the_changed_
         "die Rückfrage reicht den Speichermodus weiter (vorher fehlte er): {page}"
     );
 
-    // Bestätigen wie der Knopf der Rückfrageseite: mit `mode` aus dem versteckten Feld.
+    // Confirm like the button of the confirmation page: with `mode` from the hidden field.
     let (status, location) = server.post_form("/gliederung/act", &fields("&split=1")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "gespeichert und weitergeleitet");
     let location = location.expect("Ziel der Weiterleitung");
@@ -187,7 +188,7 @@ async fn the_confirm_page_passes_the_mode_on_and_the_feedback_names_the_changed_
         &shown[..shown.len().min(400)]
     );
 
-    // „Als neue Fassung speichern“ auf der Rückfrage: der Modus new geht ebenso durch.
+    // „Als neue Fassung speichern“ on the confirmation prompt: the mode new passes likewise.
     let (rev2, body2) = current(&server, work, 1).await;
     let split2 = format!("{body2}\n= Wolle\n\nDie Wolle roch nach Regen.\n");
     let as_new = format!(
@@ -211,7 +212,7 @@ async fn a_refused_save_without_javascript_keeps_the_text_on_the_page() {
     let server = common::open().await;
     let (work, keys) = weberei(&server).await;
     let (rev, _) = current(&server, work, 0).await;
-    // Unzulässige Überschriftenebene: ein Kapitel (=) bekommt als erste Zeile eine Unter-Unterüberschrift.
+    // Inadmissible heading level: a chapter (=) gets a sub-subheading as its first line.
     let bad = "==== Kettfaden\n\nDer lange Text mit <Zeichen> & „Anführungen“, der nicht verloren gehen darf.\n";
     let form = format!(
         "method=outline.save&work={work}&key={}&based_on={rev}&based_on_amend=0&mode=auto&body={}",

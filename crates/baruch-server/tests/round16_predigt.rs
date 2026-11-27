@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 16a „predigt-vorlage“: Neues Werk → Predigt mit Gliederung (Predigttext, Einleitung, drei Hauptpunkte,
-//! Anwendung, Schluss; Schema `sermon`) und Predigttext aus der SWORD-Bibel – über RPC und Formular ohne
-//! JavaScript. Bibeln schreibt der Test selbst (`baruch_sword::fixture`, frei erfundener Text) in einen
-//! Temp-Ordner und setzt die Modulordner per `bible.set_dirs`; die echten Modulordner des Rechners werden nie
-//! gelesen. Kein Modell, kein Netz.
+//! Round 16a „predigt-vorlage“: new work → sermon with outline (sermon text, introduction, three main points,
+//! application, conclusion; scheme `sermon`) and sermon text from the SWORD Bible – through RPC and form without
+//! JavaScript. Bibles are written by the test itself (`baruch_sword::fixture`, freely invented text) into a temp
+//! folder, and it sets the module folders through `bible.set_dirs`; the real module folders of the machine are never
+//! read. No model, no network.
 
 use crate::common;
 
@@ -15,7 +15,7 @@ use baruch_scripture::versification::german;
 use baruch_sword::fixture::{Block, Fixture, Layout, write};
 use serde_json::{Value, json};
 
-/// Erfundene Testbibel in deutscher Zählung: Joh 3,16 und 3,18 vorhanden, 3,17 fehlt.
+/// Invented test Bible in German versification: John 3:16 and 3:18 present, 3:17 missing.
 fn kiesel() -> Fixture {
     Fixture::new("Kieselbibel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Kieselbibel")
@@ -32,7 +32,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Modulordner mit den Bibeln `modules` (leer = ein leerer Ordner, also „keine Bibel“) setzen.
+/// Set the module folder with the Bibles `modules` (empty = an empty folder, hence "no Bible").
 async fn bibles(server: &common::Server, dir: &Path, modules: &[Fixture]) {
     let root = dir.join("sword");
     std::fs::create_dir_all(&root).unwrap();
@@ -50,7 +50,7 @@ async fn form(server: &common::Server, uri: &str, body: &str) -> (StatusCode, ax
     server.send(request).await
 }
 
-/// Nummern der Spalte „Nummer“ auf `/gliederung` in ihrer Reihenfolge.
+/// Numbers of the column „Nummer“ on `/gliederung` in their order.
 fn outline_numbers(html: &str) -> Vec<String> {
     html.split("<td class=\"num\">").skip(1).map(|rest| rest.split("</td>").next().unwrap_or("").to_owned()).collect()
 }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Entwurf, Besitz spiegel-entwurf, Vertrag §2.9): Wasserzeichen in Satz-Vorschau, Buch-PDF,
-//! Stichwortzettel, Umschlag und EPUB; Download-Schalter dreiwertig; Satz-Einstellung „Entwurf“ (RPC, Formular,
-//! Spiegel-Commit); Export, Spiegel und Regelblock bleiben ohne Wasserzeichen.
+//! Round 22 (draft, ownership spiegel-entwurf, contract §2.9): watermark in typesetting preview, book PDF, cue sheet,
+//! cover and EPUB; download switch three-valued; typesetting setting „Entwurf“ (RPC, form, mirror commit); export,
+//! mirror and rule block stay without watermark.
 //!
-//! Werk frei erfunden (`tests/data/gartenbuch.typ`). PDFs nur unter `common::PDF_SERIAL`; Textauszug mit `pdftotext`
-//! (fehlt es, prüft der Test die Satzquelle mit `baruch_render::page_texts` und sagt es). Jede Zusicherung mit
-//! Begründung.
+//! Work freely invented (`tests/data/gartenbuch.typ`). PDFs only under `common::PDF_SERIAL`; text extract with
+//! `pdftotext` (if it is missing, the test checks the typesetting source with `baruch_render::page_texts` and says so).
+//! Every assertion with a reason.
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header};
@@ -25,7 +25,7 @@ async fn garden() -> (common::Server, i64, String) {
     (server, report.work, report.slug)
 }
 
-/// GET mit Rohbytes (PDF, EPUB).
+/// GET with raw bytes (PDF, EPUB).
 async fn get_bytes(server: &common::Server, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
     let response = server.app.clone().oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
     let status = response.status();
@@ -34,13 +34,13 @@ async fn get_bytes(server: &common::Server, uri: &str) -> (StatusCode, axum::htt
     (status, headers, bytes)
 }
 
-/// Gespeicherte Satz-Einstellungen (JSON) – die Schalter dürfen sie nie ändern.
+/// Stored typesetting settings (JSON) – the switches must never change them.
 async fn settings(server: &common::Server, work: i64) -> Value {
     result(&server.rpc("work.typeset_get", json!({ "work": work })).await)["settings"].clone()
 }
 
-/// Text eines PDFs über `pdftotext` **ohne jeden Leerraum** (das Wasserzeichen ist gesperrt bzw. gedreht gesetzt;
-/// pdftotext trennt seine Buchstaben dann mit Leerzeichen oder Zeilenumbrüchen); `None`, wenn es fehlt.
+/// Text of a PDF through `pdftotext` **without any whitespace** (the watermark is set letter-spaced or rotated;
+/// pdftotext then separates its letters with spaces or line breaks); `None` if it is missing.
 fn pdf_text(bytes: &[u8]) -> Option<String> {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("probe.pdf");
@@ -118,10 +118,10 @@ async fn the_draft_setting_is_checked_trimmed_committed_and_stays_out_of_export_
     assert_eq!(main_after, main_before, "main.typ des Spiegels bleibt byte-gleich");
     let map = server.state.store.export_map(work).await.unwrap();
     assert!(!map.typst.contains(baruch_typst::typeset::DRAFT_MARK), "die Export-Karte trägt keine Regel");
-    // Der Regelblock liest den Entwurf nie zurück (settings_from_rules unberührt).
+    // The rule block never reads the draft back (settings_from_rules untouched).
     assert!(baruch_typst::typeset::settings_from_rules(&map.typst).is_none_or(|s| s.draft.is_none()), "kein Entwurf");
 
-    // Formular „Entwurf“ in Einstellungen → Werk → Satz (ohne JavaScript): die Felder tragen den Stand.
+    // Form „Entwurf“ in Einstellungen → Werk → Satz (without JavaScript): the fields carry the state.
     let (status, page) = server.get(&format!("/einstellungen/werk?work={work}")).await;
     assert_eq!(status, StatusCode::OK, "Einstellungsseite lädt");
     for needle in [
@@ -136,7 +136,7 @@ async fn the_draft_setting_is_checked_trimmed_committed_and_stays_out_of_export_
     ] {
         assert!(page.contains(needle), "Formularfeld {needle} im Block „Satz“");
     }
-    // Speichern über das Formular (ohne Häkchen = kein Entwurf).
+    // Saving through the form (without tick = no draft).
     let form = format!("work={work}&action=save&draft=1&draft_text=Vorabzug&draft_opacity=20&draft_placement=header");
     let (status, _) = server.post_form("/einstellungen/werk/satz", &form).await;
     assert!(status.is_redirection(), "Formular speichert und leitet weiter: {status}");
@@ -148,7 +148,7 @@ async fn the_draft_setting_is_checked_trimmed_committed_and_stays_out_of_export_
 async fn book_pdf_notes_and_preview_carry_the_watermark_as_asked_without_touching_the_setting() {
     let _serial = common::PDF_SERIAL.lock().await;
     let (server, work, _) = garden().await;
-    // Ohne Einstellung: Schalter fehlt = draft:false = byte-gleich (Stand vor R22).
+    // Without the setting: switch missing = draft:false = byte-identical (state before R22).
     let (plain, plain_bytes) = pdf_sha(&server, "work.pdf", json!({ "work": work })).await;
     let (off, _) = pdf_sha(&server, "work.pdf", json!({ "work": work, "draft": false })).await;
     assert_eq!(off, plain, "draft:false ohne Einstellung byte-gleich");
@@ -162,9 +162,9 @@ async fn book_pdf_notes_and_preview_carry_the_watermark_as_asked_without_touchin
 
     let (on, on_bytes) = pdf_sha(&server, "work.pdf", json!({ "work": work, "draft": true })).await;
     assert_ne!(on, plain, "draft:true setzt das Wasserzeichen");
-    // Diagonaler Text (−45°): pdftotext zerlegt ihn in Stücke zwischen den Zeilen des Buchtexts; darum hier die
-    // Satzquelle des PDFs (prepare_with, dieselbe Quelle wie work.pdf) mit baruch_render::page_texts. Die Fußzeile
-    // unten prüft der Textauszug des PDFs selbst.
+    // Diagonal text (−45°): pdftotext splits it into pieces between the lines of the book text; therefore here the
+    // typesetting source of the PDF (prepare_with, the same source as work.pdf) with baruch_render::page_texts. The
+    // footer below is checked by the text extract of the PDF itself.
     let _ = &on_bytes;
     let draft = baruch_server::typeset::prepare_with(&server.state, work, Some(true)).await.unwrap();
     let texts = baruch_render::page_texts(&draft.source).expect("setzbar");
@@ -181,7 +181,7 @@ async fn book_pdf_notes_and_preview_carry_the_watermark_as_asked_without_touchin
     let (status, _, _) = get_bytes(&server, &format!("/werke/{work}/pdf?entwurf=vielleicht")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "ein fremder Wert wird abgelehnt");
 
-    // Mit Einstellung: fehlt der Schalter = nach Einstellung; draft:false = ohne, byte-gleich zu vorher.
+    // With the setting: if the switch is missing = by the setting; draft:false = without, byte-identical to before.
     result(
         &server
             .rpc(
@@ -201,7 +201,7 @@ async fn book_pdf_notes_and_preview_carry_the_watermark_as_asked_without_touchin
     assert_eq!(baruch_render::sha256_hex(&no), plain, "?entwurf=0 ebenso");
     assert_eq!(settings(&server, work).await, stored, "auch danach bleibt die Einstellung, wie sie war");
 
-    // Stichwortzettel: nach Einstellung mit, draft:false ohne, Link „Als Entwurf herunterladen“ ohne JavaScript.
+    // Cue sheet: by the setting with, draft:false without, link „Als Entwurf herunterladen“ without JavaScript.
     let (notes_on, notes_bytes) = pdf_sha(&server, "notes.pdf", json!({ "work": work })).await;
     assert_text(&notes_bytes, "Vorabzug", "Stichwortzettel nach Einstellung");
     let (notes_off, notes_off_bytes) = pdf_sha(&server, "notes.pdf", json!({ "work": work, "draft": false })).await;
@@ -217,7 +217,7 @@ async fn book_pdf_notes_and_preview_carry_the_watermark_as_asked_without_touchin
     let (status, _, _) = get_bytes(&server, &format!("/werke/{work}/stichwortzettel.pdf?entwurf=1")).await;
     assert_eq!(status, StatusCode::OK, "Stichwortzettel mit ?entwurf=1");
 
-    // Satz-Vorschau: preview.typst dreiwertig, Seite mit Links und SVG im selben Stand.
+    // Typesetting preview: preview.typst three-valued, page with links and SVG in the same state.
     let shown = result(&server.rpc("preview.typst", json!({ "work": work })).await).clone();
     let off = result(&server.rpc("preview.typst", json!({ "work": work, "draft": false })).await).clone();
     assert_eq!(shown["draft"], true, "nach Einstellung trägt die Vorschau das Wasserzeichen");
@@ -302,7 +302,7 @@ async fn the_cover_pdf_gets_the_watermark_only_with_draft_cover_or_explicitly_an
     assert_eq!((&kept["text"], &kept["cover"]), (&json!("Vorabzug"), &json!(true)), "die Einstellung bleibt: {kept}");
 }
 
-/// Datei `name` aus einem EPUB.
+/// File `name` from an EPUB.
 fn epub_entry(bytes: &[u8], name: &str) -> String {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
     let mut text = String::new();
@@ -335,7 +335,7 @@ async fn the_epub_marks_title_page_and_title_metadata_as_draft_only_when_asked()
     let (status, _, download) = get_bytes(&server, &format!("/werke/{work}/epub?entwurf=1")).await;
     assert_eq!(status, StatusCode::OK, "EPUB mit ?entwurf=1");
     assert!(epub_entry(&download, "OEBPS/content.opf").contains("(Entwurf)"), "Download als Entwurf");
-    // MCP epub_export nimmt draft.
+    // MCP epub_export takes draft.
     let answer = baruch_server::mcp::epub::call(&server.state, json!({ "work": work, "draft": true }))
         .await
         .unwrap_or_else(|_| panic!("epub_export mit draft"));

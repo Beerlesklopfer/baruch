@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 15 „auftraege“ (R15c): Aufträge an Personas aus der Oberfläche.
+//! Round 15 „auftraege“ (R15c): jobs for personas from the user interface.
 //!
-//! - Strom `POST /assistenten/stream`: `posted` (eigener Beitrag) vor dem ersten `delta`, `retry` bei einer neu
-//!   angeforderten Antwort, `compressed` mit `message`/`summarized`/`chunks` und `done.compressed`.
-//! - Ohne JavaScript: Hinweisseite (`assist_notice.html`, Status 200) statt 422, mit Toast-Baustein bei
-//!   `compressed`; `scope` aus dem Formular erreicht die RPC.
-//! - Einfall verarbeiten mit Persona-Auswahl und sichtbarer Herkunft; Literatur „an Persona geben“
-//!   (`literature.to_persona`, Formular `action=persona`); Persona-Hervorhebung als eigene übernehmen
-//!   (`highlight.own`); Abzeichen „neu“ (Server-Daten).
+//! - Stream `POST /assistenten/stream`: `posted` (own post) before the first `delta`, `retry` on a newly requested
+//!   answer, `compressed` with `message`/`summarized`/`chunks` and `done.compressed`.
+//! - Without JavaScript: notice page (`assist_notice.html`, status 200) instead of 422, with toast building block on
+//!   `compressed`; `scope` from the form reaches the RPC.
+//! - Processing an idea with persona selection and visible origin; literature „an Persona geben“
+//!   (`literature.to_persona`, form `action=persona`); adopting a persona highlight as one's own (`highlight.own`);
+//!   badge „neu“ (server data).
 //!
-//! Modell: `assist::mock::ScriptedModel` – kein Netz, kein Eliezer. Texte frei erfunden (ein kleines Buch über
-//! einen Obstgarten).
+//! Model: `assist::mock::ScriptedModel` – no network, no Eliezer. Texts freely invented (a small book about an
+//! orchard).
 
 use crate::common;
 
@@ -70,7 +70,7 @@ async fn posts(o: &Orchard, node: usize) -> Vec<baruch_core::Post> {
     o.server.state.store.load_work(o.work).await.unwrap().nodes[node].posts.clone()
 }
 
-// ---- Ohne JavaScript: Hinweisseite statt 422 ------------------------------------------------------
+// ---- Without JavaScript: notice page instead of 422 ----------------------------------------------
 
 #[tokio::test]
 async fn a_failing_persona_shows_a_notice_page_with_status_200_and_a_link_back() {
@@ -80,7 +80,8 @@ async fn a_failing_persona_shows_a_notice_page_with_status_200_and_a_link_back()
     let (status, _, page) = o.server.send(form_request("/assistenten/act", &form)).await;
     assert_eq!(status, StatusCode::OK, "Hinweisseite statt 422: {page}");
     assert!(page.contains("Der Modellserver schläft"), "die ehrliche Meldung steht auf der Seite: {page}");
-    assert!(page.contains("<header class=\"band\""), "eine echte Seite (base.html), kein nackter Text: {page}"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    assert!(page.contains("<header class=\"band\""), "eine echte Seite (base.html), kein nackter Text: {page}");
     assert!(
         page.contains(&format!("href=\"/?work={}&amp;key={}&amp;lq=Kirsche\"", o.work, o.keys[0])),
         "Link zurück zum Abschnitt (mit Suche): {page}"
@@ -103,8 +104,8 @@ async fn a_chat_with_a_failing_persona_says_what_was_saved_on_the_notice_page() 
 
 #[tokio::test]
 async fn a_compressed_result_without_javascript_shows_the_notice_page_with_the_toast() {
-    // Ohne „compressed“ (heute im Zweig ohne Stückelung) leitet das Formular wie bisher weiter; die Hinweisseite
-    // mit Toast-Baustein prüft der Baustein selbst (Rendern mit einem Ergebnis, das compressed trägt).
+    // Without „compressed“ (today in the branch without chunking) the form redirects as before; the notice page with
+    // toast building block is checked by the building block itself (rendering with a result that carries compressed).
     let compressed = json!({ "message": "Komprimiert: Teile 2 und 3 nur zusammengefasst.", "summarized": ["== Ernte"], "chunks": 2 });
     let response =
         baruch_server::assist::routes::notice_page("Die Antwort ist gespeichert.", "/?work=1&key=2", Some(&compressed));
@@ -122,7 +123,7 @@ async fn a_compressed_result_without_javascript_shows_the_notice_page_with_the_t
     assert!(!page.contains("fremd.example"), "fremde oder unsichere Rücksprünge werden nicht verlinkt: {page}");
 }
 
-// ---- Einfall verarbeiten -------------------------------------------------------------------------
+// ---- Processing an idea -------------------------------------------------------------------------
 
 async fn mcp_tool(o: &Orchard, name: &str, arguments: Value) -> Value {
     let init = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -185,7 +186,7 @@ async fn processing_an_idea_offers_a_persona_choice_without_javascript_and_shows
     assert!(workspace.contains(&format!("Quelle: Einfall {other} von @mcp:probe")), "sichtbar im Chat: {workspace}");
 }
 
-// ---- Literatur: an Persona geben, Hervorhebung übernehmen ------------------------------------------
+// ---- Literature: giving to a persona, adopting a highlight ----------------------------------------
 
 #[tokio::test]
 async fn literature_to_persona_posts_the_answer_with_the_source_and_changes_no_text() {
@@ -310,7 +311,7 @@ async fn owning_a_persona_highlight_makes_an_active_copy_and_the_original_stays_
     assert!(location.unwrap().contains("notice=owned"), "Hinweis „übernommen“");
 }
 
-// ---- Abzeichen „neu“ (Server-Daten) --------------------------------------------------------------
+// ---- Badge „neu“ (server data) ------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_chat_marks_own_posts_and_links_the_threads_for_the_new_badge() {
@@ -327,9 +328,9 @@ async fn the_chat_marks_own_posts_and_links_the_threads_for_the_new_badge() {
     assert!(!script.contains("new Date()"), "keine Uhrzeit des Browsers mehr (leerer Chat merkt „leer“)");
 }
 
-// ---- Strom (SSE) ---------------------------------------------------------------------------------
+// ---- Stream (SSE) -------------------------------------------------------------------------------
 
-/// SSE-Text in (Ereignis, Daten) zerlegen.
+/// Split an SSE text into (event, data).
 fn events(text: &str) -> Vec<(String, Value)> {
     text.replace("\r\n", "\n")
         .split("\n\n")

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 12, Aufgabe „lancedb“: das Haupt-RAG im Datenordner über den Dienst `crate::rag` – Index
-//! nachziehen (nur geänderte Stücke), Suche über RPC `rag.search` mit Zuständen je Weg, Modellwechsel,
-//! Rückzug ohne Einbettungsmodell, `rag.status`, `rag.reindex` und „Verbindung prüfen“.
+//! Round 12, task „lancedb“: the main RAG in the data folder through the service `crate::rag` – catching up the index
+//! (only changed pieces), search through RPC `rag.search` with states per way, model change, fallback without an
+//! embedding model, `rag.status`, `rag.reindex` and „Verbindung prüfen“.
 //!
-//! Einbettungen nur vom Nachbau [`MockEliezer`] auf 127.0.0.1:0 (nie der echte Eliezer); Texte frei
-//! erfunden („Das Jahr am Leuchtturm“).
+//! Embeddings only from the mock [`MockEliezer`] on 127.0.0.1:0 (never the real Eliezer); texts freely invented
+//! („Das Jahr am Leuchtturm“).
 
 use crate::common;
 
@@ -48,7 +48,7 @@ async fn nodes(server: &common::Server, work: i64) -> Vec<Value> {
     result(&loaded)["work"]["nodes"].as_array().unwrap().clone()
 }
 
-/// Server mit Nachbau als Eliezer, eigenes Werk, Index aufgebaut.
+/// Server with a mock as Eliezer, own work, index built.
 async fn lighthouse() -> (common::Server, MockEliezer, i64) {
     let server = common::open().await;
     let mock = MockEliezer::start().await;
@@ -109,7 +109,7 @@ async fn the_index_follows_saving_switching_and_ideas_and_embeds_only_changed_pi
     );
     assert_eq!(way(&found, "lancedb")["state"], "connected", "LanceDB verbunden: {found}");
 
-    // Nur das dritte Stück ändern: genau ein Text wird neu eingebettet.
+    // Change only the third piece: exactly one text is embedded anew.
     let before = mock.embedding_inputs().len();
     let body = list[0]["revisions"][0]["body"].as_str().unwrap().replace(
         "Im Logbuch notierte er Wind",
@@ -129,7 +129,7 @@ async fn the_index_follows_saving_switching_and_ideas_and_embeds_only_changed_pi
     assert_eq!(hits(&found)[0]["meta"]["rev"], 2, "Treffer aus der neuen Fassung: {found}");
     assert_eq!(hits(&found)[0]["meta"]["chunk"], 3, "drittes Stück: {found}");
 
-    // Zurückschalten: das alte dritte Stück kommt zurück, die anderen bleiben unberührt.
+    // Switching back: the old third piece comes back, the others stay untouched.
     let before = mock.embedding_inputs().len();
     let back = server.rpc("revision.set_current", json!({ "work": work, "key": keeper, "rev": 1 })).await;
     result(&back);
@@ -142,7 +142,7 @@ async fn the_index_follows_saving_switching_and_ideas_and_embeds_only_changed_pi
         "der Text der abgeschalteten Fassung ist aus dem Index: {found}"
     );
 
-    // Einfälle: anlegen, ändern, löschen.
+    // Ideas: create, change, delete.
     let created = server
         .rpc(
             "idea.create",
@@ -174,7 +174,7 @@ async fn the_index_follows_saving_switching_and_ideas_and_embeds_only_changed_pi
         search(&server, json!({ "work": work, "query": "Kompass Bronze Nachttisch", "collections": ["idea"] })).await;
     assert!(hits(&found).iter().all(|h| h["document"] != format!("idea:{id}")), "gelöschter Einfall ist weg: {found}");
 
-    // Die Suche reiht das Aufräumen ein; danach ruht die Warteschlange.
+    // The search enqueues the clean-up; after that the queue rests.
     rag::wait_idle(&server.state).await;
     let status = result(&server.rpc("rag.status", json!({ "work": work })).await).clone();
     assert_eq!(status["index"]["model"], "text-embedding-nomic-embed-text-v1.5", "Modell vermerkt: {status}");
@@ -197,7 +197,7 @@ async fn highlights_and_library_entries_are_found_and_a_deleted_work_takes_its_e
         .rpc("highlight.add", json!({ "title": title["id"], "text": "Quargelperle im Nebelmeer", "kind": "core" }))
         .await;
     let highlight = result(&added)["highlight"]["id"].as_i64().unwrap();
-    // Hervorhebungen melden sich nicht über den Spiegel: notify(None) bzw. die nächste Suche reiht ein.
+    // Highlights do not report through the mirror: notify(None) or the next search enqueues.
     rag::notify(&server.state, None);
     rag::wait_idle(&server.state).await;
     let found =
@@ -224,7 +224,7 @@ async fn highlights_and_library_entries_are_found_and_a_deleted_work_takes_its_e
     let title = works.iter().find(|(id, _, _)| *id == work).map(|(_, _, t)| t.clone()).unwrap();
     let deleted = server.rpc("work.delete", json!({ "work": work, "confirm_title": title })).await;
     result(&deleted);
-    // Das Löschen eines Werks meldet sich nicht über den Spiegel; die nächste Suche räumt auf.
+    // Deleting a work does not report through the mirror; the next search cleans up.
     let other = server.state.default_work().await.unwrap();
     search(&server, json!({ "work": other, "query": "Garten" })).await;
     rag::wait_idle(&server.state).await;
@@ -290,7 +290,7 @@ async fn a_different_model_is_reported_as_mismatch_without_mixing_and_reindex_re
     );
     assert!(hits(&found).is_empty(), "keine Treffer aus einem fremden Modell: {found}");
 
-    // Speichern bettet nichts mit dem falschen Modell ein.
+    // Saving embeds nothing with the wrong model.
     let keeper = nodes(&server, work).await[0].clone();
     let body = keeper["revisions"][0]["body"].as_str().unwrap().replace("Möwen", "Kormorane");
     let saved =
@@ -321,7 +321,7 @@ async fn a_different_model_is_reported_as_mismatch_without_mixing_and_reindex_re
     assert!(hits(&found)[0]["snippet"].as_str().unwrap().contains("Kormorane"), "neuer Text gefunden: {found}");
 }
 
-/// Einbetter, der immer scheitert und zählt.
+/// Embedder that always fails and counts.
 struct Failing(Arc<AtomicUsize>, RagError);
 
 impl Embedder for Failing {
@@ -346,7 +346,7 @@ impl EmbedderFactory for Failing {
 async fn without_an_embedding_model_lancedb_fails_honestly_and_fts_keeps_working() {
     let server = common::open().await;
     let work = server.import(LIGHTHOUSE, "leuchtturm.typ").await.work;
-    // Ohne Einbetter (wie in Tests und Hilfsbefehlen): ehrlich, ohne Netz.
+    // Without an embedder (as in tests and helper commands): honest, without network.
     let found = search(&server, json!({ "work": work, "query": "Nebelhorn" })).await;
     let lance = way(&found, "lancedb");
     assert_eq!(lance["state"], "failed", "kein Einbettungsmodell: ausgefallen: {found}");
@@ -356,7 +356,7 @@ async fn without_an_embedding_model_lancedb_fails_honestly_and_fts_keeps_working
     let fts = server.rpc("library.search", json!({ "work": work, "query": "Nebelhorn" })).await;
     assert!(!result(&fts)["hits"].as_array().unwrap().is_empty(), "Wortlaut-Suche (FTS) geht weiter: {fts}");
 
-    // Nachbau weg (Adresse zeigt auf einen geschlossenen Port): NoEmbedder-Satz.
+    // Mock gone (address points to a closed port): NoEmbedder sentence.
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     drop(listener);
@@ -386,7 +386,7 @@ async fn failing_embeddings_are_retried_a_bounded_number_of_times_without_an_end
     let status = result(&server.rpc("rag.status", json!({ "work": work })).await).clone();
     assert!(status["index"]["problem"].as_str().unwrap().contains("Testnachbau aus"), "Grund im Status: {status}");
     assert_eq!(status["index"]["pending"], 0, "nichts läuft weiter: {status}");
-    // Neues Speichern versucht es wieder (auch das Liegengebliebene), wieder begrenzt.
+    // A new save tries again (also what was left lying), limited again.
     rag::notify(&server.state, None);
     rag::wait_idle(&server.state).await;
     let after = calls.load(Ordering::SeqCst);
@@ -430,8 +430,8 @@ async fn rag_search_validates_its_parameters_and_always_names_all_three_ways() {
     let found = search(&server, json!({ "work": work, "query": "Senfkorn", "collections": ["Predigten"] })).await;
     assert_eq!(way(&found, "lancedb")["state"], "off", "keine LanceDB-Art gewünscht: aus: {found}");
 
-    // Seit der Integration verdrahtet: pgvector ohne Rechner ist „aus“. Seit Runde 24 hat MultiGPT keine
-    // Vorgabe-Adresse mehr: Ohne gespeicherte Adresse ist auch dieser Weg „aus“ (nicht eingerichtet), ohne Netz.
+    // Wired since the integration: pgvector without a host is „aus“. Since Round 24 MultiGPT no longer has a default
+    // address: without a stored address this way is „aus“ too (not set up), without network.
     let opened = rag::hooks::open_pgvector(&server.state, rag::eliezer_embedders(&server.state)).await;
     assert!(opened.err().is_some_and(|e| e.is_off()), "pgvector ohne Rechner: nicht eingerichtet, Weg aus");
     let opened = rag::hooks::open_multigpt(&server.state).await;
@@ -507,7 +507,7 @@ async fn a_rejected_highlight_leaves_the_index_like_in_the_wording_search() {
     let update = server.rpc("highlight.update", json!({ "highlight": rejected, "status": "rejected" })).await;
     assert_eq!(result(&update)["highlight"]["status"], "rejected", "abgelehnt gespeichert: {update}");
 
-    // Begründung: Der gewünschte Inhalt des gemeinsamen Bereichs entscheidet, was eingebettet wird.
+    // Reason: the wanted content of the shared area decides what is embedded.
     let desired = rag::index::desired_shared(&server.state.store).await.unwrap();
     let sections: Vec<String> = desired.iter().filter_map(|e| e.section.clone()).collect();
     assert!(sections.contains(&format!("highlight:{kept}")), "aktive Hervorhebung im Index: {sections:?}");

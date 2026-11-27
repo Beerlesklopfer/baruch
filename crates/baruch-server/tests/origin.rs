@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schreibende Endpunkte lehnen Anfragen fremder Webseiten ab (CSRF); MCP nimmt ohne Token nur
-//! Anfragen vom eigenen Rechner (Loopback) an.
+//! Writing endpoints reject requests of foreign web pages (CSRF); without a token MCP accepts only requests from the
+//! own machine (loopback).
 
 use crate::common;
 
@@ -17,8 +17,7 @@ fn rpc_body(method: &str, params: Value) -> String {
     json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params }).to_string()
 }
 
-/// Fester Schlüssel (`key`) des Abschnitts an Stelle `seq`: Schreiben über MCP und Zitieren nehmen
-/// nur ihn (Vertrag Runde 5).
+/// Fixed key (`key`) of the section at position `seq`: writing through MCP and quoting take only it (contract Round 5).
 async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)
@@ -101,7 +100,7 @@ async fn form_from_a_foreign_origin_is_refused() {
     );
 }
 
-/// MCP-`ping` mit wählbarer Gegenstelle (`None`: ohne `ConnectInfo`) und Zusatz-Kopfzeilen.
+/// MCP `ping` with a selectable peer (`None`: without `ConnectInfo`) and additional headers.
 async fn mcp_ping(
     server: &common::Server,
     peer: Option<SocketAddr>,
@@ -176,7 +175,7 @@ async fn mcp_needs_json_content_type_also_from_loopback() {
 
 #[tokio::test]
 async fn a_foreign_host_name_is_refused_even_from_loopback_with_matching_origin() {
-    // DNS-Rebinding: rebind.example zeigt auf 127.0.0.1, Origin und Host passen zusammen.
+    // DNS rebinding: rebind.example points to 127.0.0.1, Origin and Host match.
     let server = common::open().await;
     let revisions = |v: &Value| v["result"]["revisions"].as_array().map_or(0, Vec::len);
     let before = revisions(&server.rpc("node.get", json!({ "node": 4 })).await);

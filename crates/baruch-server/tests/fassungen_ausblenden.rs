@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ältere Fassungen ausblenden (Nutzer 2026-11-24, Release 0.9.0): Marke „bis hierhin“ je Abschnitt über Formular
-//! (`/act`, ohne JavaScript), RPC und Einstellungen → Werk; ausgelieferte Seiten und Fragmente (Akkordeon „Fassungen“,
-//! Editor-Kopf mit Zähler, Baumansicht), `ui.render` mit offenem Schalter und `/mcp` (kann nicht setzen). Echter
-//! Datenordner, frei erfundenes Werk, kein Modell, kein Netz.
+//! Hiding older revisions (user 2026-11-24, release 0.9.0): mark „bis hierhin“ per section through the form (`/act`,
+//! without JavaScript), RPC and Einstellungen → Werk; delivered pages and fragments (accordion „Fassungen“, editor
+//! header with counter, tree view), `ui.render` with the switch open and `/mcp` (cannot set it). Real data folder,
+//! freely invented work, no model, no network.
 
 use crate::common;
 
@@ -27,12 +27,12 @@ fn error(answer: &Value) -> (i64, String) {
     (e["code"].as_i64().unwrap(), e["message"].as_str().unwrap().to_owned())
 }
 
-/// Seite mit aufgelösten Maskierungen in Adressen (minijinja maskiert `/` als `&#x2f;`, `&` als `&amp;`).
+/// Page with resolved escapes in addresses (minijinja escapes `/` as `&#x2f;`, `&` as `&amp;`).
 fn readable(page: &str) -> String {
     page.replace("&#x2f;", "/").replace("&amp;", "&")
 }
 
-/// Ausschnitt eines Bereichs der Seite (ab `start` bis zum nächsten `end`).
+/// Excerpt of an area of the page (from `start` to the next `end`).
 fn part<'a>(page: &'a str, start: &str, end: &str) -> &'a str {
     let from = page.find(start).unwrap_or_else(|| panic!("{start} fehlt in der Seite"));
     let rest = &page[from..];
@@ -44,15 +44,15 @@ struct Book {
     key: i64,
 }
 
-/// Aktueller Text von Abschnitt 0 mit einem Wort vor „Boot“ (macht die Fassung verschieden).
+/// Current text of section 0 with a word before „Boot“ (makes the revision different).
 async fn variant(server: &common::Server, work: i64, word: &str) -> String {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let n = &loaded.nodes[0];
     n.revisions[n.current_index().unwrap()].body.replacen("Boot", &format!("{word} Boot"), 1)
 }
 
-/// Werk mit Abschnitt 0 in diesen Fassungen: 1 Import, 2 Mensch (beide ersetzt), 3 Vorschlag verworfen, 4 Mensch
-/// (ersetzt), 5 offener Vorschlag (älter als die spätere Marke), 6 Mensch (aktuell), 7 offener Vorschlag (neuer).
+/// Work with section 0 in these revisions: 1 import, 2 human (both superseded), 3 proposal rejected, 4 human
+/// (superseded), 5 open proposal (older than the later mark), 6 human (current), 7 open proposal (newer).
 async fn setup(server: &common::Server) -> Book {
     let report = server.import(BOOK, "faehrmann.typ").await;
     let work = report.work;
@@ -100,7 +100,8 @@ async fn folding_without_javascript_hides_older_revisions_behind_the_switch_and_
     let server = common::open().await;
     let Book { work, key } = setup(&server).await;
 
-    // Vorher: alles sichtbar, Zähler über alle sieben, Angebot an der aktuellen Fassung (darunter ist Ersetztes).
+    // Before: everything visible, counter over all seven, offer at the current revision (below it there is superseded
+    // material).
     let before = page(&server, &format!("/?work={work}&key={key}")).await;
     assert!(before.contains(">6/7</span>"), "ohne Marke zählt der Umschalter alle Fassungen");
     assert!(!before.contains("ausgeblendet)"), "ohne Marke kein Zusatz am Zähler");
@@ -110,26 +111,26 @@ async fn folding_without_javascript_hides_older_revisions_behind_the_switch_and_
         "„bis hier ausblenden“ an der aktuellen Fassung, Formular an /act (ohne JavaScript)"
     );
 
-    // Formular wie ohne JavaScript: Marke an Fassung 6, zurück auf die Fassung.
+    // Form as without JavaScript: mark at revision 6, back to the revision.
     let (status, location) =
         server.post_form("/act", &format!("method=revision.fold_set&work={work}&key={key}&rev=6&view=edit")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Weiterleitung nach dem Formular");
     assert_eq!(location.as_deref(), Some(format!("/?work={work}&key={key}&rev=6").as_str()), "zurück auf Fassung 6");
 
     let after = page(&server, &format!("/?work={work}&key={key}&rev=6")).await;
-    // Zähler: sichtbar sind 5 (offener Vorschlag, älter als die Marke), 6 (aktuell) und 7 (Vorschlag) → 2/3, dazu der
-    // Zusatz mit den vier ausgeblendeten (1, 2, 4 ersetzt, 3 verworfen).
+    // Counter: visible are 5 (open proposal, older than the mark), 6 (current) and 7 (proposal) → 2/3, plus the
+    // addition with the four hidden ones (1, 2, 4 superseded, 3 rejected).
     assert!(after.contains(">2/3</span>"), "Zähler über die sichtbaren Fassungen");
     assert!(after.contains("(+ 4 ausgeblendet) ▸"), "Zusatz am Zähler nennt die Ausgeblendeten");
     assert!(
         after.contains(&format!(r#"href="/?work={work}&key={key}&rev=6&fassungen=alle""#)),
         "der Zusatz öffnet den Schalter per Link (ohne JavaScript)"
     );
-    // Blättern überspringt Ausgeblendete: ‹ führt zu 5, nicht zu 4.
+    // Paging skips hidden ones: ‹ leads to 5, not to 4.
     assert!(after.contains(&format!(r#"data-key="prev" href="/?work={work}&key={key}&rev=5""#)), "‹ → Fassung 5");
     assert!(after.contains(&format!(r#"data-key="next" href="/?work={work}&key={key}&rev=7""#)), "› → Fassung 7");
 
-    // Akkordeon: Schalter als <details> (zu), Abzeichen, „Wieder alle zeigen“ als Formular an /act.
+    // Accordion: switch as <details> (closed), badge, „Wieder alle zeigen“ as a form to /act.
     let accordion = part(&after, r#"data-section="revisions""#, "</details>\n</div>");
     assert!(accordion.contains("4 ausgeblendet</span>"), "Abzeichen im Kopf des Akkordeons");
     assert!(
@@ -143,7 +144,7 @@ async fn folding_without_javascript_hides_older_revisions_behind_the_switch_and_
             && accordion.contains("Wieder alle zeigen"),
         "Marke aufheben per Formular"
     );
-    // Baumansicht: die vier Ausgeblendeten hinter „4 ältere Fassungen zeigen“, die übrigen davor.
+    // Tree view: the four hidden ones behind „4 ältere Fassungen zeigen“, the others before it.
     let tree = part(&after, r#"<section class="revtree""#, "</section>");
     let (shown, folded) = tree.split_once(r#"<details class="rev-fold""#).expect("Schalter in der Baumansicht");
     let folded = folded.split("</details>").next().unwrap();
@@ -158,7 +159,7 @@ async fn folding_without_javascript_hides_older_revisions_behind_the_switch_and_
     assert!(folded.starts_with(r#" data-rev-fold-list>"#), "Baumansicht: Schalter zu");
     assert!(folded.contains("4 ältere Fassungen zeigen ▸"), "Zahl im Schalter der Baumansicht");
 
-    // Nichts gelöscht: alle sieben Fassungen über RPC, Status unverändert.
+    // Nothing deleted: all seven revisions through RPC, status unchanged.
     let node = server.rpc("node.get", json!({ "work": work, "key": key })).await;
     assert_eq!(result(&node)["revisions"].as_array().unwrap().len(), 7, "alle Fassungen bleiben");
 }
@@ -169,8 +170,8 @@ async fn the_open_switch_counts_all_and_a_hidden_revision_opens_it_by_itself() {
     let Book { work, key } = setup(&server).await;
     result(&server.rpc("revision.fold_set", json!({ "work": work, "key": key, "rev": 6 })).await);
 
-    // Schalter offen über die Adresse: Zähler über alle, Blättern behält den Schalter (von 6 nach 5, von 5 zur
-    // ausgeblendeten 4), „verbergen“ führt zurück.
+    // Switch open through the address: counter over all, paging keeps the switch (from 6 to 5, from 5 to the hidden 4),
+    // „verbergen“ leads back.
     let open = page(&server, &format!("/?work={work}&key={key}&rev=6&fassungen=alle")).await;
     assert!(open.contains(">6/7</span>"), "offener Schalter: Zähler über alle");
     assert!(
@@ -191,12 +192,12 @@ async fn the_open_switch_counts_all_and_a_hidden_revision_opens_it_by_itself() {
     );
     assert!(open.contains(r#"<details class="rev-fold" data-rev-fold-list open>"#), "Schalter im Akkordeon offen");
 
-    // Direkt auf eine ausgeblendete Fassung: Schalter offen, Zähler über alle; „verbergen“ führt auf die aktuelle.
+    // Directly onto a hidden revision: switch open, counter over all; „verbergen“ leads to the current one.
     let hidden = page(&server, &format!("/?work={work}&key={key}&rev=2")).await;
     assert!(hidden.contains(">2/7</span>"), "ausgeblendete Fassung gezeigt: Zähler über alle");
     assert!(hidden.contains(&format!(r#"href="/?work={work}&key={key}&rev=6" title="Ausgeblendete"#)), "verbergen → 6");
 
-    // Mit JavaScript: ui.render nimmt `fassungen` und gibt die Adresse mit dem Zusatz zurück.
+    // With JavaScript: ui.render takes `fassungen` and returns the address with the addition.
     let rendered = server.rpc("ui.render", json!({ "work": work, "key": key, "rev": 6, "fassungen": "alle" })).await;
     let rendered = result(&rendered);
     assert!(rendered["editor"].as_str().unwrap().contains(">6/7</span>"), "ui.render mit offenem Schalter");
@@ -210,7 +211,7 @@ async fn a_mark_above_the_current_revision_only_reaches_below_it_and_cannot_be_s
     let server = common::open().await;
     let Book { work, key } = setup(&server).await;
     result(&server.rpc("revision.fold_set", json!({ "work": work, "key": key, "rev": 6 })).await);
-    // Zurück auf Fassung 4: die Marke an 6 liegt jetzt über der aktuellen und gilt nur bis unter 4.
+    // Back to revision 4: the mark at 6 now lies above the current one and holds only up to below 4.
     result(&server.rpc("revision.set_current", json!({ "work": work, "key": key, "rev": 4 })).await);
     let fold = server.rpc("revision.fold_get", json!({ "work": work, "key": key })).await;
     let fold = result(&fold);
@@ -222,7 +223,7 @@ async fn a_mark_above_the_current_revision_only_reaches_below_it_and_cannot_be_s
     let shown = page(&server, &format!("/?work={work}&key={key}&rev=4")).await;
     assert!(shown.contains("(+ 3 ausgeblendet)"), "Zähler-Zusatz nach der wirksamen Grenze");
     assert!(shown.contains("gilt nur bis unter die aktuelle"), "Hinweis auf die gekappte Marke im Akkordeon");
-    // An der nun ersetzten Fassung 6 (über der aktuellen) wird nichts angeboten, und RPC lehnt dort ab.
+    // At the now superseded revision 6 (above the current one) nothing is offered, and RPC rejects there.
     let six = page(&server, &format!("/?work={work}&key={key}&rev=6")).await;
     assert!(
         !six.contains(r#"form="rev-fold-6""#) && !six.contains(r#"id="rev-fold-6""#),
@@ -246,7 +247,7 @@ async fn rpc_and_the_work_settings_set_and_clear_marks() {
     let (code, _) = error(&server.rpc("revision.fold_set", json!({ "work": work, "key": key })).await);
     assert_eq!(code, -32602, "rev fehlt");
 
-    // Aufheben über /act (ohne JavaScript): zurück auf die gezeigte Fassung.
+    // Lifting through /act (without JavaScript): back to the revision shown.
     let (status, location) =
         server.post_form("/act", &format!("method=revision.fold_clear&work={work}&key={key}&rev=6&view=edit")).await;
     assert_eq!(status, StatusCode::SEE_OTHER);
@@ -255,7 +256,7 @@ async fn rpc_and_the_work_settings_set_and_clear_marks() {
     assert_eq!(result(&fold)["below"], Value::Null, "Marke aufgehoben");
     assert!(page(&server, &format!("/?work={work}&key={key}")).await.contains(">6/7</span>"), "wieder alle");
 
-    // Werkweit über die Einstellungen: Tag in der Zukunft → Marke je Abschnitt auf die aktuelle Fassung.
+    // Work-wide through the settings: day in the future → mark per section on the current revision.
     let (status, location) = server
         .post_form("/einstellungen/werk/fassungen/ausblenden", &format!("work={work}&date=2999-01-01&do=fold"))
         .await;
@@ -277,13 +278,13 @@ async fn rpc_and_the_work_settings_set_and_clear_marks() {
         "Formular in Einstellungen → Werk"
     );
     assert!(settings.contains("haben 2 Abschnitte eine Marke"), "Zahl der Abschnitte mit Marke");
-    // Ungültiger Tag → zurück mit Fehler, nichts geändert.
+    // Invalid day → back with an error, nothing changed.
     let (_, location) =
         server.post_form("/einstellungen/werk/fassungen/ausblenden", &format!("work={work}&date=morgen")).await;
     assert!(location.unwrap().ends_with("&ausblendenfehler=1#fassungen"), "abgelehnt");
     let (code, _) = error(&server.rpc("revision.fold_before", json!({ "work": work, "date": "24.11.2026" })).await);
     assert_eq!(code, -32602, "nur JJJJ-MM-TT");
-    // Alle aufheben.
+    // Lift all.
     let (_, location) =
         server.post_form("/einstellungen/werk/fassungen/ausblenden", &format!("work={work}&do=clear")).await;
     assert!(location.unwrap().ends_with("&ok=eingeblendet#fassungen"));
@@ -291,7 +292,7 @@ async fn rpc_and_the_work_settings_set_and_clear_marks() {
     assert_eq!(result(&all)["cleared"].as_u64(), Some(0), "schon alle aufgehoben");
 }
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Token nur Loopback).
+/// MCP request from the own machine (without token only loopback).
 async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut request = Request::post("/mcp")

@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0040 (Gliederungsschema „Buch“): Umbau von `work` mit neuem CHECK nach dem offiziellen
-//! SQLite-Verfahren, auf einer nachgebauten Datenbank im Stand 0039 (Store bis 0039, Bibliothek bis
-//! 0106) mit frei erfundenen Werken und Zeilen in jeder Tabelle, die auf `work` verweist – auch in denen
-//! mit ON DELETE CASCADE bzw. SET NULL, die ein `DROP TABLE work` mit eingeschalteten Fremdschlüsseln
-//! leeren würde.
+//! Migration 0040 (outline scheme „Buch“): rebuild of `work` with a new CHECK following the official SQLite procedure,
+//! on a reproduced database in the state 0039 (store up to 0039, library up to 0106) with freely invented works and
+//! rows in every table that refers to `work` – also in those with ON DELETE CASCADE or SET NULL, which a
+//! `DROP TABLE work` with foreign keys switched on would empty.
 //!
-//! Belegt: was an `work` hängt (Indizes, keine Trigger, keine Views), dass die Migration mit
-//! eingeschalteten Fremdschlüsseln (ein Migrator direkt auf dem Pool) abbricht, ohne etwas zu ändern,
-//! und dass `Store::open` (über `baruch_store::migrate`) jede Zeile jeder Tabelle erhält, das Schema
-//! jedes anderen Objekts unverändert lässt, Fremdschlüssel danach wieder an sind und greifen,
-//! `sqlite_sequence` die größte je vergebene id behält und 'book' wie alle alten Werte gespeichert wird.
+//! Evidenced: what hangs on `work` (indexes, no triggers, no views), that the migration aborts with foreign keys
+//! switched on (a migrator directly on the pool) without changing anything, and that `Store::open` (through
+//! `baruch_store::migrate`) preserves every row of every table, leaves the schema of every other object unchanged,
+//! foreign keys are on again afterwards and take effect, `sqlite_sequence` keeps the largest id ever assigned and
+//! 'book' is stored like all old values.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -41,7 +40,7 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
     Migrator { migrations: Cow::Owned(list), ignore_missing: true, ..Migrator::DEFAULT }
 }
 
-/// Store bis 0039 und Bibliothek bis 0106.
+/// Store up to 0039 and library up to 0106.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 40), "die neue Migration ist 0040");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 39), "Stand davor hat 0039");
@@ -62,7 +61,7 @@ async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Werk mit Gliederung (je Überschrift ein Kapitel mit aktueller Fassung) direkt in SQLite.
+/// Work with outline (per heading one chapter with current revision) directly in SQLite.
 async fn insert_work(pool: &SqlitePool, slug: &str, kind: &str, scheme: &str, source: &str) -> (i64, Vec<i64>) {
     let doc = baruch_typst::parse(source).unwrap();
     let title = slug.replace('-', " ");
@@ -116,7 +115,7 @@ async fn insert_work(pool: &SqlitePool, slug: &str, kind: &str, scheme: &str, so
     (work, nodes)
 }
 
-/// Zeilen in jeder Tabelle, die auf `work` verweist; gibt (Buch, Predigt) zurück.
+/// Rows in every table that refers to `work`; returns (book, sermon).
 async fn insert_rows(pool: &SqlitePool) -> (i64, i64) {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     exec(
@@ -127,8 +126,8 @@ async fn insert_rows(pool: &SqlitePool) -> (i64, i64) {
     .await;
     let (book, book_nodes) = insert_work(pool, "das-moorbuch", "book", "sermon", BOOK).await;
     let (sermon, sermon_nodes) = insert_work(pool, "vom-schilfrohr", "sermon", "sermon", SERMON).await;
-    // Ein gelöschtes Werk (ohne Gliederung) mit der größten id: sqlite_sequence muss sich diese id merken
-    // (0007: ids nie wiederverwenden).
+    // A deleted work (without outline) with the largest id: sqlite_sequence must remember this id (0007: never reuse
+    // ids).
     let empty: i64 = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, title_key) VALUES ('leer', 'book', 'Leer', 'X', 'leer') RETURNING id",
     )
@@ -226,7 +225,7 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte (auch Indizes, Trigger, Views, automatische Indizes): Name → (Typ, Tabelle, SQL).
+/// All schema objects (also indexes, triggers, views, automatic indexes): name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
@@ -248,7 +247,7 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     out
 }
 
-/// Jeder Fremdschlüssel auf `work`: (Tabelle, Spalte, on_update, on_delete).
+/// Every foreign key on `work`: (table, column, on_update, on_delete).
 async fn references_to_work(pool: &SqlitePool) -> Vec<(String, String, String, String)> {
     sqlx::query_as(
         "SELECT m.name, f.\"from\", f.on_update, f.on_delete FROM sqlite_master m, pragma_foreign_key_list(m.name) f \
@@ -266,7 +265,7 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
     migrate_before(&pool).await;
     let (book, sermon) = insert_rows(&pool).await;
 
-    // Was an `work` hängt (Stand 0039): nur Indizes, kein Trigger, keine View.
+    // What hangs on `work` (state 0039): only indexes, no trigger, no view.
     let on_work: Vec<(String, String)> =
         sqlx::query_as("SELECT type, name FROM sqlite_master WHERE tbl_name = 'work' ORDER BY type, name")
             .fetch_all(&pool)
@@ -308,7 +307,7 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
         assert!(!before[table].is_empty(), "{table} hat Zeilen vor der Migration");
     }
 
-    // Mit eingeschalteten Fremdschlüsseln bricht 0040 an der Wache ab, nichts ändert sich.
+    // With foreign keys switched on 0040 aborts at the guard, nothing changes.
     let refused = store_migrator(|v| v <= 40).run(&pool).await;
     let refused = refused.expect_err("0040 direkt auf dem Pool (Fremdschlüssel an) muss scheitern");
     assert!(refused.to_string().contains("CHECK constraint failed"), "die Wache (a) greift: {refused}");
@@ -325,7 +324,7 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
         "0040 lief"
     );
 
-    // Daten: jede Zeile jeder Tabelle (auch sqlite_sequence) unverändert.
+    // Data: every row of every table (also sqlite_sequence) unchanged.
     let after = without_instance_row(contents(pool, &layout).await);
     for (table, rows) in &before {
         if table == "_sqlx_migrations" {
@@ -335,8 +334,8 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
     }
     assert_eq!(scalar(pool, "SELECT seq FROM sqlite_sequence WHERE name = 'work'").await, seq_before, "Zähler bleibt");
 
-    // Schema: jedes andere Objekt unverändert, work mit denselben Spalten, Indizes wieder da. `Store::open` führt
-    // auch 0041 (Runde 26) und 0043 (Runde 25) aus; deren Objekte und die Spalte uuid nimmt der Vergleich heraus.
+    // Schema: every other object unchanged, work with the same columns, indexes back. `Store::open` also runs 0041
+    // (Round 26) and 0043 (Round 25); the comparison takes out their objects and the column uuid.
     let schema_after = without_0041(schema(pool).await);
     assert_eq!(
         schema_after.keys().collect::<Vec<_>>(),
@@ -356,9 +355,9 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
     assert_eq!(work_columns.pop().as_deref(), Some("language"), "0055 appends language as the last column of work");
     assert_eq!(work_columns.pop().as_deref(), Some("uuid"), "0041 hängt uuid als letzte Spalte an");
     assert_eq!(work_columns, layout["work"], "Spalten von work in alter Reihenfolge");
-    // Runde 25 (0043), Runde 18c (0044) und Runde 27 (0045), von `Store::open` mit ausgeführt: `idea_map_pos`,
-    // `work_sheet` und `cover_block` verweisen neu auf work, ebenso `finding` (0046), `replace_batch` (0047) und
-    // `work_typeset` (0048); der Vergleich gilt den Verweisen von vorher.
+    // Round 25 (0043), Round 18c (0044) and Round 27 (0045), run along by `Store::open`: `idea_map_pos`, `work_sheet`
+    // and `cover_block` newly refer to work, likewise `finding` (0046), `replace_batch` (0047) and `work_typeset`
+    // (0048); the comparison concerns the references from before.
     let mut references_after = references_to_work(pool).await;
     references_after.retain(|(table, ..)| {
         ![
@@ -368,20 +367,20 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
             "finding",
             "replace_batch",
             "work_typeset",
-            // Runde 31 (0049): Glossar, eigene Register und Registervorschläge.
+            // Round 31 (0049): glossary, own indexes and index proposals.
             "glossary_term",
             "index_register",
             "index_proposal",
-            // Runde 22 (0050): Einstellung „Fassungen“ je Werk.
+            // Round 22 (0050): setting „Fassungen“ per work.
             "work_revision_policy",
-            // Runde 35 (0054): Freigabe eines Werks für ein Lektor-Konto.
+            // Round 35 (0054): sharing of a work with a Lektor account.
             "work_member",
         ]
         .contains(&table.as_str())
     });
     assert_eq!(references_after, references, "alle Verweise auf work samt Aktionen gelten weiter");
 
-    // Prüfungen von SQLite; Fremdschlüssel auf jeder Verbindung des Pools wieder an.
+    // Checks of SQLite; foreign keys on again on every connection of the pool.
     assert_eq!(scalar(pool, "SELECT count(*) FROM pragma_foreign_key_check").await, 0, "foreign_key_check leer");
     let integrity: String = sqlx::query_scalar("PRAGMA integrity_check").fetch_one(pool).await.unwrap();
     assert_eq!(integrity, "ok", "integrity_check");
@@ -395,7 +394,7 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
     }
     drop(held);
 
-    // Werte: 'book' und alle alten Schemata speicherbar, Unbekanntes weiter abgelehnt.
+    // Values: 'book' and all old schemes storable, unknown ones still rejected.
     for scheme in NumberingScheme::ALL {
         sqlx::query("UPDATE work SET numbering_scheme = ? WHERE id = ?")
             .bind(scheme.id())
@@ -419,7 +418,7 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
     let numbers: Vec<String> = store.load_work(book).await.unwrap().nodes.iter().map(|n| n.number.clone()).collect();
     assert_eq!(numbers, ["Einleitung", "I.", "Schluss"], "Buch nummeriert wie die Predigt");
 
-    // Fremdschlüssel greifen: neue Werke bekommen eine nie vergebene id, Löschen kaskadiert wie vorher.
+    // Foreign keys take effect: new works get an id never assigned, deleting cascades as before.
     let orphan =
         sqlx::query("INSERT INTO work_timing (work_id, words_per_minute) VALUES (99999, 110)").execute(pool).await;
     assert!(orphan.is_err(), "Fremdschlüssel: Zeile braucht ein vorhandenes Werk");
@@ -456,7 +455,7 @@ async fn a_fresh_database_runs_0040_and_stores_the_book_scheme() {
     let on: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(pool).await.unwrap();
     assert_eq!(on, 1, "Fremdschlüssel an");
     drop(store);
-    // Zweites Öffnen: nichts mehr zu tun, Wert bleibt.
+    // Second opening: nothing left to do, the value stays.
     let again = Store::open(dir.path()).await.expect("wiederholbar");
     let scheme: String = sqlx::query_scalar("SELECT numbering_scheme FROM work WHERE id = ?")
         .bind(work)
@@ -466,8 +465,8 @@ async fn a_fresh_database_runs_0040_and_stores_the_book_scheme() {
     assert_eq!(scheme, "book");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();
@@ -477,8 +476,8 @@ fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap
     contents
 }
 
-/// Zusätze aus 0045 (Runde 27), die `Store::open` mit ausführt: die vierte Antragsart in `asset_request` und die
-/// zwei Anschriften in `work_book` (geprüft in migration_0045.rs).
+/// Additions from 0045 (Round 27) that `Store::open` runs along: the fourth request kind in `asset_request` and the two
+/// addresses in `work_book` (checked in migration_0045.rs).
 const OP_COVER_LAYOUT: &str = ",'cover_layout'";
 const ADDRESS_COLUMNS: &str = ", publisher_address TEXT NOT NULL DEFAULT '', printer_address TEXT NOT NULL DEFAULT ''";
 
@@ -488,15 +487,15 @@ fn without_0045(sql: &str) -> String {
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 
-/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (der gespeicherte CREATE-Text
-/// wächst um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in migration_0052.rs); der Vergleich des
-/// alten Schemas nimmt ihn heraus.
+/// Round 34 (0052) appends title, parent node, order and main topic to `idea` (the stored CREATE text grows by exactly
+/// this addition, directly after the column uuid; checked in migration_0052.rs); the comparison of the old schema takes
+/// it out.
 const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
 
-/// Schema ohne die Objekte aus Migration 0041 (Runde 26: Tabelle `uuid_tombstone` samt Index, je Tabelle
-/// `<T>_uuid`, `<T>_uuid_fill`, `<T>_uuid_tombstone`, Primärschlüsselindex von `uuid_tombstone`), ohne die
-/// späteren Objekte, die `Store::open` mit anlegt (0043: `idea_link`, `idea_map_pos` samt Indizes und Triggern),
-/// und ohne den Zusatz der Spalte uuid im CREATE-Text.
+/// Schema without the objects from migration 0041 (Round 26: table `uuid_tombstone` including index, per table
+/// `<T>_uuid`, `<T>_uuid_fill`, `<T>_uuid_tombstone`, primary key index of `uuid_tombstone`), without the later objects
+/// that `Store::open` creates along (0043: `idea_link`, `idea_map_pos` including indexes and triggers), and without the
+/// addition of the column uuid in the CREATE text.
 fn without_0041(
     schema: BTreeMap<String, (String, String, Option<String>)>,
 ) -> BTreeMap<String, (String, String, Option<String>)> {
@@ -505,43 +504,43 @@ fn without_0041(
         .filter(|(name, _)| {
             !(name.starts_with("uuid_tombstone")
                 || name == "sqlite_autoindex_uuid_tombstone_1"
-                // Runde 25 (0043): Tabellen der Gedankenkarte samt Indizes und Triggern.
+                // Round 25 (0043): tables of the thought map including indexes and triggers.
                 || name.starts_with("idea_link")
                 || name.starts_with("idea_map_pos")
                 || name.starts_with("sqlite_autoindex_idea_link_")
                 || name.starts_with("sqlite_autoindex_idea_map_pos_")
-                // Runde 18c (0044): Satzbild-Einstellungen je Werk, eine neue Tabelle ohne Index und Trigger.
+                // Round 18c (0044): typeset-view settings per work, one new table without index and trigger.
                 || name == "work_sheet"
-                // Runde 27 (0045): Blöcke der Umschlag-Anordnung samt Indizes und Triggern.
+                // Round 27 (0045): blocks of the cover layout including indexes and triggers.
                 || name.starts_with("cover_block")
                 || name == "sqlite_autoindex_cover_block_1"
                 || name == "work_cover_block_cascade_uuid_tombstone"
-                // Runde 28 (0046): Befunde, Befundverlauf und alte Beitragsfassungen samt Indizes und Triggern.
+                // Round 28 (0046): findings, finding history and old post versions including indexes and triggers.
                 || name.starts_with("finding")
                 || name.starts_with("post_version")
                 || name == "thread_post_version_cascade_uuid_tombstone"
                 || name == "work_finding_cascade_uuid_tombstone"
-                // Runde 30 (0047): Protokoll des Ersetzens samt Index, Teilindex der Varianten.
+                // Round 30 (0047): log of the replacing including index, partial index of the variants.
                 || R30_OBJECTS.contains(&name.as_str())
-                // Runde 29 (0048): Satz-Einstellungen je Werk (Index, Fülltrigger, Grabstein und Kaskade enden auf
-                // _uuid, _uuid_fill bzw. _uuid_tombstone).
+                // Round 29 (0048): typesetting settings per work (index, fill trigger, tombstone and cascade end in
+                // _uuid, _uuid_fill and _uuid_tombstone respectively).
                 || name == "work_typeset"
-                // Runde 31 (0049): Glossar, eigene Register und Registervorschläge samt Indizes und Triggern.
+                // Round 31 (0049): glossary, own indexes and index proposals including indexes and triggers.
                 || name.starts_with("glossary_")
                 || name.starts_with("index_register")
                 || name.starts_with("index_proposal")
                 || name == "sqlite_autoindex_glossary_variant_1"
                 || name == "sqlite_autoindex_index_register_1"
-                // Runde 22 (0050): Verlauf der Fortschreibungen samt Index und Triggern, Einstellung „Fassungen“.
+                // Round 22 (0050): history of the amendments including index and triggers, setting „Fassungen“.
                 || name.starts_with("revision_amend")
                 || name == "sqlite_autoindex_revision_amend_1"
                 || name == "work_revision_policy"
-                // 0.9.0 (0051): Marke „ältere Fassungen ausblenden“ je Abschnitt.
+                // 0.9.0 (0051): mark „ältere Fassungen ausblenden“ per section.
                 || name == "node_revision_fold"
-                // Runde 34 (0052): Index über Elternknoten und Reihenfolge der Einfälle.
+                // Round 34 (0052): index over parent node and order of the ideas.
                 || name == "idea_parent"
-                // Runde 35 (0053, 0054): Konten, Sitzungen, Sperre gegen Durchprobieren und Freigaben samt Indizes –
-                // Instanzdaten ohne uuid, nicht im Austausch.
+                // Round 35 (0053, 0054): accounts, sessions, lock against brute-force attempts and shares including
+                // indexes – instance data without uuid, not in the exchange.
                 || name == "account"
                 || name.starts_with("account_session")
                 || name == "login_attempt"
@@ -554,7 +553,7 @@ fn without_0041(
                 || name.ends_with("_uuid_tombstone"))
         })
         .map(|(name, (kind, table, sql))| {
-            // Runde 28 (0046): `edited` an Beiträgen und Fadenbeiträgen (revision hat schon vorher eine Spalte edited).
+            // Round 28 (0046): `edited` on posts and thread posts (revision already has a column edited before).
             let edited = name == "post" || name == "chat_thread_post";
             let sql = sql
                 .map(|s| without_0045(&s.replace(R34_IDEA_COLUMNS, "").replace(UUID_COLUMN, "")))
@@ -565,9 +564,9 @@ fn without_0041(
         .collect()
 }
 
-/// Runde 30 (0047) hängt Spalten an `post`, `chat_thread_post`, `finding` und `revision` an (`ALTER TABLE … ADD
-/// COLUMN` erweitert den gespeicherten CREATE-Text um genau diese Zusätze; geprüft in migration_0047.rs); der
-/// Vergleich des alten Schemas nimmt sie heraus.
+/// Round 30 (0047) appends columns to `post`, `chat_thread_post`, `finding` and `revision` (`ALTER TABLE … ADD COLUMN`
+/// extends the stored CREATE text by exactly these additions; checked in migration_0047.rs); the comparison of the old
+/// schema takes them out.
 fn without_r30(name: &str, sql: &str) -> String {
     let sql: &str = &without_r22(name, sql);
     const POST: &str = ", basis_rev INTEGER CHECK (basis_rev IS NULL OR basis_rev >= 1), basis_label TEXT NOT NULL \
@@ -591,13 +590,13 @@ fn without_r30(name: &str, sql: &str) -> String {
     sql.replace(&added, "")
 }
 
-/// Objekte, die 0047 (Runde 30) neu anlegt.
+/// Objects that 0047 (Round 30) newly creates.
 #[allow(dead_code)]
 const R30_OBJECTS: [&str; 3] = ["replace_batch", "replace_batch_work", "revision_variant_group"];
 
-/// Runde 22 (0050) hängt `amend_seq`/`based_on_amend` an `revision` und `adopted_amend` an `finding` und
-/// `finding_status` an (`ALTER TABLE … ADD COLUMN`, geprüft in migration_0050.rs); der Vergleich des alten Schemas
-/// nimmt sie heraus.
+/// Round 22 (0050) appends `amend_seq`/`based_on_amend` to `revision` and `adopted_amend` to `finding` and
+/// `finding_status` (`ALTER TABLE … ADD COLUMN`, checked in migration_0050.rs); the comparison of the old schema takes
+/// them out.
 fn without_r22(name: &str, sql: &str) -> String {
     const REVISION: &str = ", amend_seq INTEGER NOT NULL DEFAULT 0 CHECK (amend_seq >= 0), based_on_amend INTEGER \
         CHECK (based_on_amend IS NULL OR based_on_amend >= 0)";

@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 19b (pgvector): Aufgaben-Präfixe der Einbettung (LanceDB, pgvector), Gruppen der Gedankenkarte benennen, Menüband Bibelstelle/Literaturverweis, NFC im Zitatabgleich (Tests folgen).
+//! Round 19b (pgvector): task prefixes of the embedding (LanceDB, pgvector), naming groups of the thought map, ribbon
+//! Bibelstelle/Literaturverweis, NFC in the quotation matching (tests follow).
 //!
-//! Geprüft (Vertrag R19 §4/§5, Aufgabe „pgvector“):
-//! - pgvector gegen einen eigenen Wegwerf-Container (`pgvector_support`, nie das pgvector des Nutzers): jedes Feld in
-//!   SQL gekürzt (Längen gemessen), über 1000 Sammlungen in der Prüfung gekürzt, ein Schema mit Anführungszeichen und
-//!   SQL darin sicher gequotet, eine Tabelle mit Anführungszeichen mit deutschem Grund abgelehnt; die Anfrage wird
-//!   mit dem Aufgaben-Präfix eingebettet (aufzeichnender Nachbau-Einbetter), ohne Präfix wie bisher.
-//! - Seite „Verbindungen“: TLS-Hinweis bei Passwort mit `prefer`/`disable`/`require` (dort ohne
-//!   Zertifikatsprüfung), nicht bei `verify-full`.
-//! - `connection.set` und Formular: Präfixe je Weg, Ablehnungen mit -32602.
-//! - Gedankenkarte: Gruppen der Nähe, Namen eines Assistenten (`ScriptedModel`) nur im Speicher, Übernehmen als
-//!   Schlagwort mit Commit, Verwerfen, Formulare ohne JavaScript, kein MCP-Weg; MCP `idea_map` mit `near_limit` und
+//! Checked (contract R19 §4/§5, task „pgvector“):
+//! - pgvector against an own throwaway container (`pgvector_support`, never the pgvector of the user): every field
+//!   shortened in SQL (lengths measured), over 1000 collections shortened in the check, a schema with quotation marks
+//!   and SQL in it safely quoted, a table with quotation marks rejected with a German reason; the query is embedded
+//!   with the task prefix (recording mock embedder), without prefix as before.
+//! - Page „Verbindungen“: TLS hint for a password with `prefer`/`disable`/`require` (there without certificate check),
+//!   not with `verify-full`.
+//! - `connection.set` and form: prefixes per way, rejections with -32602.
+//! - Thought map: groups of the nearness, names of an assistant (`ScriptedModel`) only in memory, adopting as a tag
+//!   with a commit, discarding, forms without JavaScript, no MCP way; MCP `idea_map` with `near_limit` and
 //!   `near_threshold`.
-//! - Menüband: „Bibelstelle“ und „Literaturverweis“ nur aus der Werkvorlage, Quelltext-Snippet und Satzbild-Befehl.
-//! - NFC im Zitatabgleich der Websuche.
+//! - Ribbon: „Bibelstelle“ and „Literaturverweis“ only from the work template, source-text snippet and typeset-view
+//!   command.
+//! - NFC in the quotation matching of the web search.
 //!
-//! Alle Texte, Werke und Daten sind frei erfunden. Kein Eliezer, kein MultiGPT, kein Internet.
+//! All texts, works and data are freely invented. No Eliezer, no MultiGPT, no internet.
 
 use crate::common;
 use crate::pgvector_support;
@@ -33,7 +35,7 @@ use baruch_server::connections::pgvector;
 use pgvector_support::{FixedFactory, PASSWORD, Pg};
 use serde_json::{Value, json};
 
-// ---- Hilfen --------------------------------------------------------------------------------------------------------
+// ---- Helpers ------------------------------------------------------------------------------------------------------
 
 async fn open_with(secrets: MemorySecrets) -> common::Server {
     let data = tempfile::tempdir().unwrap();
@@ -72,7 +74,7 @@ fn query(text: &str, collections: &[&str]) -> Query {
     }
 }
 
-/// Einstellungen mit ganzer Zuordnung (`extra` darüber), dann das Passwort für genau dieses Ziel.
+/// Settings with the whole mapping (`extra` on top), then the password for exactly this target.
 async fn configure(server: &common::Server, pg: &Pg, table: &str, optional: bool, extra: Value) {
     let mut config = pg.config();
     for (k, v) in [
@@ -95,10 +97,10 @@ async fn configure(server: &common::Server, pg: &Pg, table: &str, optional: bool
     ok(server, "connection.set_secret", json!({ "kind": "pgvector", "secret": PASSWORD })).await;
 }
 
-/// Name des Schemas mit Anführungszeichen und angehängtem SQL (frei erfunden; die Tabelle `opfer` muss bleiben).
+/// Name of the schema with quotation marks and appended SQL (freely invented; the table `opfer` must stay).
 const EVIL_SCHEMA: &str = "x\"; DROP TABLE public.opfer; --";
 
-/// Testdaten: überlange Werte in jedem Feld, 1100 Sammlungen mit langen Namen, ein Schema mit Anführungszeichen.
+/// Test data: overlong values in every field, 1100 collections with long names, a schema with quotation marks.
 fn fixture() -> String {
     let evil = EVIL_SCHEMA.replace('"', "\"\"");
     format!(
@@ -122,7 +124,7 @@ INSERT INTO \"{evil}\".chunks (collection, document, content, embedding)
     )
 }
 
-// ---- pgvector im Container -----------------------------------------------------------------------------------------
+// ---- pgvector in the container ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn pgvector_truncates_every_field_in_sql_and_quotes_odd_schemas_safely() {
@@ -134,7 +136,7 @@ async fn pgvector_truncates_every_field_in_sql_and_quotes_odd_schemas_safely() {
     pg.exec(&fixture()).await;
     let server = open_with(MemorySecrets::default()).await;
 
-    // Suche: jedes Feld kommt gekürzt an (Längen in Zeichen gemessen).
+    // Search: every field arrives shortened (lengths measured in characters).
     configure(&server, &pg, "lang", true, json!({})).await;
     let factory = Arc::new(FixedFactory::new(vec![], vec![1.0, 0.0, 0.0]));
     let way = pgvector::open_way(&server.state, factory.clone()).await.expect("Weg pgvector offen");
@@ -156,13 +158,13 @@ async fn pgvector_truncates_every_field_in_sql_and_quotes_odd_schemas_safely() {
     );
     assert_eq!(hit.collection, "kurz", "kurze Sammlung bleibt");
 
-    // Eine Sammlung mit 300 Zeichen erscheint gekürzt und ist über den gekürzten Namen wählbar.
+    // A collection with 300 characters appears shortened and can be chosen through the shortened name.
     let short_name = "k".repeat(pgvector::MAX_COLLECTION_CHARS as usize);
     let long = way.search(&query("Kutter", &[short_name.as_str()])).await.expect("Suche über den gekürzten Namen");
     assert_eq!(long.len(), 1, "der gekürzte Name (wie die Prüfung ihn zeigt) findet die Sammlung: {long:?}");
     assert_eq!(chars(&long[0].collection), pgvector::MAX_COLLECTION_CHARS, "Sammlung im Treffer gekürzt");
 
-    // Prüfung: Modelle und Sammlungen gekürzt, TLS-Hinweis (Testcontainer läuft mit tls disable und Passwort).
+    // Check: models and collections shortened, TLS hint (the test container runs with tls disable and a password).
     let checked = ok(&server, "connection.check", json!({ "kind": "pgvector" })).await;
     assert_eq!(checked["ok"], true, "Prüfung der Tabelle lang gelingt: {checked}");
     let models: Vec<&str> = checked["details"]["models"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
@@ -175,7 +177,7 @@ async fn pgvector_truncates_every_field_in_sql_and_quotes_odd_schemas_safely() {
     assert!(message.contains("„disable“"), "Prüfung nennt das Risiko von tls disable mit Passwort: {message}");
     assert!(!checked.to_string().contains(PASSWORD), "kein Passwort im Ergebnis");
 
-    // Über 1000 Sammlungen mit 404 Zeichen: höchstens 1000 gelistet, jeder Name gekürzt.
+    // Over 1000 collections with 404 characters: at most 1000 listed, every name shortened.
     configure(&server, &pg, "viele", false, json!({})).await;
     let many = ok(&server, "connection.check", json!({ "kind": "pgvector" })).await;
     assert_eq!(many["ok"], true, "Prüfung der Tabelle viele gelingt: {many}");
@@ -188,7 +190,7 @@ async fn pgvector_truncates_every_field_in_sql_and_quotes_odd_schemas_safely() {
     assert!(listed[0]["name"].as_str().unwrap().starts_with("0001"), "sortiert nach Namen: {}", listed[0]);
     assert_eq!(listed[0]["count"], 1, "gezählt je vollem Namen");
 
-    // Schema mit Anführungszeichen und SQL darin, gefunden über den Suchpfad: sicher gequotet, keine Einschleusung.
+    // Schema with quotation marks and SQL in it, found through the search path: safely quoted, no injection.
     let evil = EVIL_SCHEMA.replace('"', "\"\"");
     pg.exec(&format!("ALTER DATABASE {} SET search_path TO \"{evil}\", public", pg.database)).await;
     configure(&server, &pg, "chunks", false, json!({})).await;
@@ -202,7 +204,7 @@ async fn pgvector_truncates_every_field_in_sql_and_quotes_odd_schemas_safely() {
     let victim: i64 = sqlx::query_scalar("SELECT count(*) FROM public.opfer").fetch_one(&mut conn).await.unwrap();
     assert_eq!(victim, 1, "die Tabelle opfer steht noch: der Name im Schema wurde nie als SQL ausgeführt");
 
-    // Eine eingestellte Tabelle mit Anführungszeichen lehnt schon connection.set mit deutschem Grund ab.
+    // A configured table with quotation marks is rejected by connection.set already, with a German reason.
     let refused = server
         .rpc("connection.set", json!({ "kind": "pgvector", "config": { "table": "chunks\"; DROP TABLE opfer; --" } }))
         .await;
@@ -246,9 +248,9 @@ async fn pgvector_embeds_the_query_with_its_task_prefix_and_without_one_as_befor
     assert_eq!(hits.len(), 1, "die Suche selbst geht weiter: {hits:?}");
 }
 
-// ---- Seite und Einstellungen (ohne Container) ----------------------------------------------------------------------
+// ---- Page and settings (without container) ------------------------------------------------------------------------
 
-/// Abschnitt der Verbindung pgvector auf der Seite „Verbindungen“.
+/// Section of the connection pgvector on the page „Verbindungen“.
 async fn pgvector_section(server: &common::Server) -> String {
     let (status, page) = server.get("/einstellungen/verbindungen").await;
     assert_eq!(status, StatusCode::OK, "Seite Verbindungen: {page}");
@@ -275,7 +277,7 @@ async fn the_connections_page_warns_about_tls_prefer_or_disable_only_with_a_pass
     ok(&server, "connection.set_secret", json!({ "kind": "pgvector", "secret": "Probe-Geheimnis-19b" })).await;
     for (tls, warned) in [("prefer", true), ("disable", true), ("require", true), ("verify-full", false)] {
         ok(&server, "connection.set", json!({ "kind": "pgvector", "config": { "tls": tls } })).await;
-        // Ein schwächeres TLS bindet das Passwort an das alte Ziel; für den Hinweis zählt nur, dass eins hinterlegt ist.
+        // A weaker TLS binds the password to the old target; for the hint it only counts that one is stored.
         ok(&server, "connection.set_secret", json!({ "kind": "pgvector", "secret": "Probe-Geheimnis-19b" })).await;
         let section = pgvector_section(&server).await;
         assert_eq!(
@@ -327,7 +329,7 @@ async fn connection_set_takes_task_prefixes_per_way_and_refuses_bad_ones() {
     let unchanged = ok(&server, "connection.get", json!({ "kind": "lancedb" })).await;
     assert_eq!(unchanged["config"]["query_prefix"], "search_query: ", "abgelehnte Änderung ändert nichts");
 
-    // Formular ohne JavaScript („+“ ist im Formular ein Leerzeichen).
+    // Form without JavaScript („+“ is a space in the form).
     let (status, location) = server
         .post_form(
             "/einstellungen/verbindungen/act",
@@ -351,7 +353,7 @@ async fn connection_set_takes_task_prefixes_per_way_and_refuses_bad_ones() {
         .await;
     assert!(location.as_deref().is_some_and(|l| l.contains("fehler=praefix")), "zu langes Präfix: {location:?}");
 
-    // Die Seite zeigt die Felder mit dem Vorschlag für nomic-embed-text.
+    // The page shows the fields with the suggestion for nomic-embed-text.
     let (_, page) = server.get("/einstellungen/verbindungen").await;
     assert!(
         page.contains("name=\"query_prefix\"") && page.contains("name=\"document_prefix\""),
@@ -361,10 +363,10 @@ async fn connection_set_takes_task_prefixes_per_way_and_refuses_bad_ones() {
     assert!(page.contains("„search_document: “"), "Vorschlag für die Dokumente im Hinweis");
 }
 
-// ---- Gedankenkarte: Gruppen -----------------------------------------------------------------------------------------
+// ---- Thought map: groups -------------------------------------------------------------------------------------------
 
-/// Werk mit sechs Einfällen: Meer–Welle–Brandung hängen über gleiche Schlagwörter zusammen, Laterne zweimal, einer
-/// allein. Rückgabe: (Werk, slug, ids in Anlagereihenfolge).
+/// Work with six ideas: Meer–Welle–Brandung hang together through the same tags, Laterne twice, one alone. Return
+/// value: (work, slug, ids in order of creation).
 async fn idea_work(server: &common::Server) -> (i64, String, Vec<i64>) {
     let report = server.import("= Am Hafen\n\nDie Boote liegen still.\n", "hafen-19b.typ").await;
     let mut ids = Vec::new();
@@ -483,7 +485,7 @@ async fn a_persona_names_groups_as_a_proposal_only_and_the_human_takes_it_over_w
     assert_eq!(listed["groups"][0]["proposal"]["persona"], "@lektor", "mit Persona");
     assert!(listed["groups"][0]["proposal"]["at"].is_string(), "und Zeitpunkt");
 
-    // Übernehmen: Schlagwort an allen drei Einfällen, je ein Commit mit Herkunft Mensch, Vorschlag weg.
+    // Adopting: tag on all three ideas, one commit each with origin human, proposal gone.
     let taken = ok(&server, "idea.map_group_accept", json!({ "work": work, "group": sea })).await;
     assert_eq!(taken["changed"], json!([ids[0], ids[1], ids[2]]), "alle Einfälle der Gruppe geändert: {taken}");
     for id in &ids[..3] {
@@ -502,7 +504,7 @@ async fn a_persona_names_groups_as_a_proposal_only_and_the_human_takes_it_over_w
         ok(&server, "idea.map_group_accept", json!({ "work": work, "group": sea, "name": "Meer und Welle" })).await;
     assert_eq!(again["changed"], json!([]), "wer das Schlagwort schon trägt, bleibt unverändert: {again}");
 
-    // Verwerfen.
+    // Discarding.
     let dropped = ok(&server, "idea.map_group_dismiss", json!({ "work": work, "group": light })).await;
     assert_eq!(dropped["removed"], true, "Vorschlag verworfen");
     let listed = ok(&server, "idea.map_groups", json!({ "work": work })).await;
@@ -561,7 +563,7 @@ async fn naming_and_taking_over_groups_works_with_forms_without_javascript_and_n
     assert_eq!(status, StatusCode::SEE_OTHER, "Verwerfen per Formular → 303");
     assert!(location.as_deref().is_some_and(|l| l.contains("ok=verworfen")), "{location:?}");
 
-    // Kein MCP-Werkzeug zum Übernehmen oder Benennen.
+    // No MCP tool for adopting or naming.
     let s = initialize(&server, "gruppen-probe").await;
     let (_, listed) = mcp(&server, Some(&s), json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).await;
     let names: Vec<&str> =
@@ -572,7 +574,7 @@ async fn naming_and_taking_over_groups_works_with_forms_without_javascript_and_n
     assert!(refused, "Übernehmen über MCP gibt es nicht: {answer}");
 }
 
-// ---- MCP idea_map mit near_limit/near_threshold ----------------------------------------------------------------------
+// ---- MCP idea_map with near_limit/near_threshold --------------------------------------------------------------------
 
 async fn mcp(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -651,7 +653,7 @@ async fn mcp_idea_map_honours_near_limit_and_near_threshold_and_refuses_bad_valu
     }
 }
 
-// ---- Menüband ------------------------------------------------------------------------------------------------------
+// ---- Ribbon -------------------------------------------------------------------------------------------------------
 
 async fn ribbon_cmds(server: &common::Server, work: i64) -> Vec<(String, String)> {
     let answer = ok(server, "ribbon.formats", json!({ "work": work })).await;
@@ -693,7 +695,7 @@ async fn the_ribbon_offers_scripture_and_cite_only_when_the_template_gives_them(
         "auch #let bibel ergibt den Knopf"
     );
 
-    // Editor: die Knöpfe stehen im Menüband mit ihrem Snippet für den Quelltext.
+    // Editor: the buttons are in the ribbon with their snippet for the source text.
     let key = server.state.store.load_work(with.work).await.unwrap().nodes[0].key;
     let editor =
         ok(&server, "ui.render", json!({ "work": with.work, "key": key })).await["editor"].as_str().unwrap().to_owned();
@@ -710,8 +712,8 @@ async fn the_ribbon_offers_scripture_and_cite_only_when_the_template_gives_them(
 
 #[tokio::test]
 async fn what_the_satzbild_inserts_for_scripture_and_cite_saves_as_typst() {
-    // Das Satzbild setzt eine Insel mit `#bibelstelle[…]` bzw. einen Verweis (button.ws-ref) – wysiwyg.serialize macht
-    // daraus genau den Typst-Text, den der Quelltext-Knopf auch ergäbe.
+    // The typeset view puts an island with `#bibelstelle[…]` or a reference (button.ws-ref) – wysiwyg.serialize makes
+    // of it exactly the Typst text that the source-text button would yield too.
     let server = common::open().await;
     let report = server.import("#let bibelstelle(s) = s\n\n= Kapitel\n\nAlt.\n", "satzbild-19b.typ").await;
     let body = server.state.store.load_work(report.work).await.unwrap().nodes[0].revisions[0].body.clone();
@@ -727,7 +729,7 @@ async fn what_the_satzbild_inserts_for_scripture_and_cite_saves_as_typst() {
     assert!(text.contains("Wie #bibelstelle[Joh 3,16] sagt"), "Insel wörtlich im Text: {text}");
     assert!(text.contains("@mueller2020 zitiert"), "Verweis als @schlüssel: {text}");
 
-    // Ausgeliefert: ribbon.js schickt den Funktionsnamen mit, wysiwyg.js führt beide Befehle aus.
+    // Delivered: ribbon.js sends the function name along, wysiwyg.js executes both commands.
     let (_, ribbon) = server.get("/static/js/ribbon.js").await;
     assert!(ribbon.contains("sendWsCommand(root, cmd, arg)"), "Satzbild nur über baruch:ws-command: {ribbon}");
     assert!(ribbon.contains("scriptureFunction("), "Funktionsname aus dem Snippet");
@@ -739,8 +741,8 @@ async fn what_the_satzbild_inserts_for_scripture_and_cite_saves_as_typst() {
     );
 }
 
-/// Die reinen Bausteine aus ws_command.ts (importiert nichts) unter Node: Snippet → Funktionsname, Stelle → Typst,
-/// Schlüssel prüfen. Fehlt `node`, wird ehrlich übersprungen.
+/// The pure building blocks from ws_command.ts (imports nothing) under Node: snippet → function name, position → Typst,
+/// checking the key. If `node` is missing, it is honestly skipped.
 #[tokio::test]
 async fn the_satzbild_building_blocks_escape_the_reference_and_check_the_key() {
     let Some(node) = std::process::Command::new("node").arg("--version").output().ok().filter(|o| o.status.success())
@@ -777,13 +779,13 @@ process.stdout.write(JSON.stringify({
     assert_eq!(seen["keyBad"], Value::Null, "Leerzeichen gehört in keinen Schlüssel");
 }
 
-// ---- NFC im Zitatabgleich der Websuche ------------------------------------------------------------------------------
+// ---- NFC in the quotation matching of the web search ---------------------------------------------------------------
 
 #[test]
 fn a_web_quote_with_composed_umlauts_counts_as_backed_by_a_page_with_decomposed_ones() {
     use baruch_server::websearch::verify::{NOT_BELEGT, Verdict, check};
     use baruch_server::websearch::{Research, WebPage};
-    // Seite mit zerlegten Umlauten (u + U+0308, a + U+0308 – so liefern sie manche PDFs), Antwort in NFC.
+    // Page with decomposed umlauts (u + U+0308, a + U+0308 – some PDFs deliver them like this), answer in NFC.
     let research = Research {
         query: "Brücke".into(),
         pages: vec![WebPage {

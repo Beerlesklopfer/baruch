@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 18a (menueband): Menüband für das Bearbeiten, Formate der Werkvorlage als Knöpfe, Satz-Seite
-//! (Abbruch, keine Läufe fremder Seiten, ohne main.js), Kapitel einer geteilten Seite, Kopfzeile, „neu“ als Wort
-//! und Gedankenkarte (Beschriftung, Pfeil, Strichart).
+//! Round 18a (menueband): ribbon for editing, formats of the work template as buttons, typesetting page (abort, no runs
+//! from foreign pages, without main.js), chapters of a shared page, header, „neu“ as a word and thought map (labelling,
+//! arrow, line style).
 //!
-//! Alle Werke und Texte sind frei erfunden. Der Zwischenspeicher des Satzes ist prozessweit: Jeder Test setzt eine
-//! eigene Schlusszeile, damit sein Stand nur ihm gehört. Läufe, die abgebrochen werden, sind absichtlich lang
-//! (viele Seiten), damit der Abbruch sicher während des Laufs ankommt.
+//! All works and texts are freely invented. The cache of the typesetting is process-wide: every test sets a closing
+//! line of its own so that its state belongs only to it. Runs that are aborted are long on purpose (many pages), so
+//! that the abort surely arrives during the run.
 
 use crate::common;
 
@@ -21,7 +21,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Werk aus `source` mit eigener Schlusszeile `tag` (eigener Stand) anlegen; (Werk, Titel → key).
+/// Create a work from `source` with an own closing line `tag` (own state); (work, title → key).
 async fn import(server: &common::Server, source: &str, tag: &str) -> (i64, Vec<(String, i64)>) {
     let report = server.import(&format!("{source}\n// Test: {tag}\n"), &format!("{tag}.typ")).await;
     let work = server.state.store.load_work(report.work).await.unwrap();
@@ -32,7 +32,7 @@ fn key_of(keys: &[(String, i64)], title: &str) -> i64 {
     keys.iter().find(|(t, _)| t == title).unwrap_or_else(|| panic!("kein Abschnitt {title}: {keys:?}")).1
 }
 
-/// Langes Werk: viele Seiten aus Typsts eingebautem Blindtext, damit ein Lauf lange genug dauert, um ihn abzubrechen.
+/// Long work: many pages of Typst's built-in dummy text, so that a run takes long enough to abort it.
 fn slow_book() -> String {
     "#set page(width: 10cm, height: 14cm)\n\n= Sehr lang\n\n#for i in range(1500) [#lorem(90)\n\n]\n".to_owned()
 }
@@ -41,7 +41,7 @@ async fn stand_of(server: &common::Server, work: i64) -> String {
     baruch_server::typeset::prepare(&server.state, work).await.unwrap().stand
 }
 
-/// Wartet, bis für `stand` ein Typst-Lauf begonnen hat (höchstens 60 s, andere Tests können die Sperre halten).
+/// Waits until a Typst run has begun for `stand` (at most 60 s, other tests may hold the lock).
 async fn wait_for_run(stand: &str) {
     let started = Instant::now();
     while baruch_server::typeset::runs_of(stand) == 0 {
@@ -50,7 +50,7 @@ async fn wait_for_run(stand: &str) {
     }
 }
 
-/// Wartet, bis die Typst-Sperre wieder frei ist: ein winziger eigener Satz braucht sie.
+/// Waits until the Typst lock is free again: a tiny typesetting of its own needs it.
 async fn wait_for_lock(tag: &str) {
     let source = baruch_render::Source { main: format!("= Sperre\n{tag}\n"), files: Vec::new() };
     let stand = baruch_render::stand(&source);
@@ -61,7 +61,7 @@ fn get_from(uri: &str, site: &str) -> Request<Body> {
     Request::get(uri).header("sec-fetch-site", site).body(Body::empty()).unwrap()
 }
 
-// ---- Formate der Vorlage -----------------------------------------------------------------------------------
+// ---- Formats of the template ------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn ribbon_formats_offer_scene_and_work_only_when_the_template_defines_them() {
@@ -102,12 +102,12 @@ async fn the_editor_ribbon_keeps_every_hook_and_shows_the_formats_of_the_templat
     let key = key_of(&keys, "Kapitel");
     let (status, page) = server.get(&format!("/?work={work}&key={key}")).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsseite lädt");
-    // Runde 33 (Menüband): Die Leiste hat jetzt zwei Teile mit Gruppen (geschachtelte <div>), darum reicht der
-    // Ausschnitt bis zur Suchleiste dahinter statt bis zum ersten </div>. Alle Haken sind dieselben.
+    // Round 33 (ribbon): the bar now has two parts with groups (nested <div>), therefore the excerpt reaches up to the
+    // search bar behind it instead of up to the first </div>. All hooks are the same.
     let start = page.find("<div class=\"ws-bar edit-toolbar ribbon\"").expect("Leiste des Editors");
     let ribbon =
         &page[start..start + page[start..].find("<div class=\"search-bar\"").expect("Suchleiste hinter der Leiste")];
-    // DOM-Vertrag §2: die Haken des Satzbilds bleiben unverändert (wysiwyg.ts liest sie).
+    // DOM contract §2: the hooks of the typeset view stay unchanged (wysiwyg.ts reads them).
     for hook in [
         "data-edit-toolbar hidden>",
         "data-ws-mode=\"satz\"",
@@ -132,7 +132,8 @@ async fn the_editor_ribbon_keeps_every_hook_and_shows_the_formats_of_the_templat
     }
     assert!(ribbon.contains("data-ribbon-image"), "Knopf „Bild“ öffnet das Einfügen: {ribbon}");
     assert!(
-        // Runde 33: das Ziel trägt zusätzlich den Anker id="bild-einfuegen" (Hinweis ohne JavaScript im Reiter Einfügen).
+        // Round 33: the target additionally carries the anchor id="bild-einfuegen" (hint without JavaScript in the tab
+        // Einfügen).
         page.contains("<details class=\"image-insert\" id=\"bild-einfuegen\" data-image-insert"),
         "das Ziel des Knopfs „Bild“ steht im Editor: {page}"
     );
@@ -156,7 +157,7 @@ async fn the_ribbon_widget_sends_commands_inserts_snippets_and_says_honestly_wha
     assert!(main.contains("import \"./ribbon.js\""), "main.js lädt das Widget");
 }
 
-// ---- Satz-Seite --------------------------------------------------------------------------------------------
+// ---- Typesetting page -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_typeset_page_has_an_accessible_ribbon_without_main_js() {
@@ -168,10 +169,11 @@ async fn the_typeset_page_has_an_accessible_ribbon_without_main_js() {
     assert_eq!(status, StatusCode::OK, "Satz-Seite lädt: {html}");
     assert!(!html.contains("main.js"), "die Satz-Seite lädt kein main.js (sie braucht kein Widget): {html}");
     assert!(!html.contains("<script"), "überhaupt kein Skript: Menüband aus Links und einem Formular");
-    // Runde 33: Das eigene Band unter der Kopfzeile (edit_toolbar.html, Zweig satz_page, aria-label „Menüband der
-    // Satz-Ansicht“) ist entfernt; die Bedienung steht als Gruppen im Reiter „Buch“ des Menübands (typeset.html, Block
-    // band_buch, Haken data-ribbon-satz an der ersten Gruppe). Die Zusicherungen gelten darum für das Feld „Buch“;
-    // „nie verborgen“ heißt jetzt: das Feld Buch ist auf der Satz-Seite das offene (ohne JavaScript, vom Server).
+    // Round 33: the own band below the header (edit_toolbar.html, branch satz_page, aria-label
+    // „Menüband der Satz-Ansicht“) is removed; the controls are groups in the tab „Buch“ of the ribbon (typeset.html,
+    // block band_buch, hook data-ribbon-satz on the first group). The assertions therefore hold for the panel „Buch“;
+    // "never hidden" now means: the panel Buch is the open one on the typesetting page (without JavaScript, from the
+    // server).
     assert!(!html.contains("aria-label=\"Menüband der Satz-Ansicht\""), "kein zweites Band unter dem Kopf: {html}");
     let ribbon = &html[html.find("data-band-panel=\"buch\"").expect("Feld Buch")..];
     let ribbon = &ribbon[..ribbon.find("</header>").expect("Ende des Kopfs")];
@@ -207,18 +209,21 @@ async fn the_typeset_page_has_an_accessible_ribbon_without_main_js() {
 
 #[tokio::test]
 async fn the_typeset_page_header_works_without_main_js() {
-    // Befund nach Runde 18: Ohne main.js täte der Thema-Knopf (Widget „theme“) nichts, und Dialog/Alt+, der
-    // Einstellungen gäbe es nicht. Die Kopfzeile der Satz-Seite bietet darum nur, was ohne JavaScript geht.
+    // Finding after Round 18: without main.js the theme button (widget „theme“) would do nothing, and the dialog/Alt+,
+    // of the settings would not exist. The header of the typesetting page therefore offers only what works without
+    // JavaScript.
     let server = common::open().await;
     let (work, keys) = import(&server, "= Eins\n\nText für die Kopfzeile.\n", "satz-kopfzeile").await;
     let key = key_of(&keys, "Eins");
     let (status, html) = server.get(&format!("/werke/{work}/satz?key={key}")).await;
     assert_eq!(status, StatusCode::OK, "Satz-Seite lädt: {html}");
-    let header = &html[html.find("<header class=\"band\"").expect("Kopfzeile")..]; // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    let header = &html[html.find("<header class=\"band\"").expect("Kopfzeile")..];
     let header = &header[..header.find("</header>").unwrap()];
     assert!(
-        // Runde 33: vorher „kein <button im Kopf“. Im Kopf steht jetzt der Absende-Knopf von „Satz abbrechen“
-        // (type="submit", geht ohne JavaScript); verboten bleiben Knöpfe, die nur ein Skript bedient (type="button").
+        // Round 33: before, "no <button in the header". The header now contains the submit button of „Satz abbrechen“
+        // (type="submit", works without JavaScript); buttons that only a script operates (type="button") stay
+        // forbidden.
         !header.contains("data-widget=\"theme\"") && !header.contains("type=\"button\""),
         "kein Knopf in der Kopfzeile, der nur mit main.js etwas täte (die Menüs sind <details>/Links): {header}"
     );
@@ -361,7 +366,7 @@ async fn foreign_pages_cannot_start_a_typeset_or_a_pdf() {
         assert_eq!(status, StatusCode::FORBIDDEN, "PDF von fremder Seite → 403");
         assert_eq!(baruch_server::pdf::pdf_runs(), before, "keine PDF-Erzeugung begonnen");
     }
-    // Eigene Seite (same-origin), Aufruf aus der Adresszeile (none) und ohne Kopf (curl, Tests): unverändert.
+    // Own page (same-origin), call from the address bar (none) and without header (curl, tests): unchanged.
     let (status, _, html) = server.send(get_from(&format!("/werke/{work}/satz"), "same-origin")).await;
     assert_eq!(status, StatusCode::OK, "eigene Seite setzt: {html}");
     assert_eq!(baruch_server::typeset::runs_of(&stand), 1, "genau ein Lauf – die Zählung funktioniert");
@@ -373,8 +378,8 @@ async fn foreign_pages_cannot_start_a_typeset_or_a_pdf() {
 
 #[tokio::test]
 async fn foreign_pages_cannot_start_cover_notes_or_map_runs() {
-    // Befund nach Runde 18: Umschlag (Seite, SVG, PDF), Stichwortzettel und Gedankenkarte als PDF halten dieselbe
-    // Typst-Sperre wie der Satz, ohne dass `preview.cancel` sie erreicht – eine fremde Seite darf sie nicht anstoßen.
+    // Finding after Round 18: cover (page, SVG, PDF), cue sheet and thought map as PDF hold the same Typst lock as the
+    // typesetting without `preview.cancel` reaching them – a foreign page must not trigger them.
     let server = common::open().await;
     let (work, _) = import(&server, "= Eins\n\nText für Umschlag, Zettel und Karte.\n", "fremde-seite-pdf").await;
     let uris = [
@@ -394,10 +399,10 @@ async fn foreign_pages_cannot_start_cover_notes_or_map_runs() {
         }
     }
     assert_eq!(baruch_server::pdf::pdf_runs(), before, "keine der abgelehnten Anfragen hat ein PDF begonnen");
-    // Gegenprobe: Von der eigenen Seite (same-origin) entstehen PDFs und Umschlag wie bisher – der Schutz sperrt
-    // nicht pauschal, und die Zählung erfasst diese Wege.
+    // Counter-check: from the own page (same-origin) PDFs and cover are created as before – the protection does not
+    // lock wholesale, and the count captures these ways.
     for uri in [format!("/werke/{work}/stichwortzettel.pdf"), format!("/werke/{work}/karte.pdf")] {
-        // Ein PDF ist kein UTF-8: Antwort direkt lesen statt über `send`.
+        // A PDF is not UTF-8: read the response directly instead of through `send`.
         let response = server.app.clone().oneshot(get_from(&uri, "same-origin")).await.unwrap();
         let (status, content_type) = (response.status(), response.headers().get(header::CONTENT_TYPE).cloned());
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -411,10 +416,10 @@ async fn foreign_pages_cannot_start_cover_notes_or_map_runs() {
     assert_eq!(headers.get(header::CONTENT_TYPE).unwrap(), "image/svg+xml", "als SVG");
 }
 
-// ---- Kapitel einer geteilten Seite -------------------------------------------------------------------------
+// ---- Chapters of a shared page ----------------------------------------------------------------------------
 
-/// Drei Kapitel auf kleinen Seiten mit lebendem Kolumnentitel: „Anfang“ füllt mehr als eine Seite, „Mitte“ beginnt
-/// mitten auf der Seite, auf der „Anfang“ endet, und endet mit einem Seitenumbruch vor „Ende“.
+/// Three chapters on small pages with a running header: „Anfang“ fills more than one page, „Mitte“ begins in the middle
+/// of the page on which „Anfang“ ends, and ends with a page break before „Ende“.
 fn shared_book() -> String {
     let mut text = String::from(
         "#set page(width: 8cm, height: 9cm, header: context { let h = query(heading.where(level: 1).before(here())); \
@@ -463,7 +468,7 @@ async fn a_page_two_chapters_share_counts_for_both_and_a_running_head_does_not()
         (shared + 1, typeset.page_count()),
         "„Ende“ beginnt nach dem Umbruch; der Kolumnentitel „Mitte“ oben auf seiner Seite macht sie nicht zu „Mitte“"
     );
-    // Dasselbe über RPC und auf der Seite (Seitenliste des Kapitels).
+    // The same through RPC and on the page (page list of the chapter).
     let answer = server.rpc("preview.typst", json!({ "work": work, "key": anfang })).await;
     assert_eq!(result(&answer)["chapter"], json!({ "first": 1, "last": shared }), "RPC wie die Seite: {answer}");
     let (_, html) = server.get(&format!("/werke/{work}/satz?key={anfang}")).await;
@@ -474,7 +479,7 @@ async fn a_page_two_chapters_share_counts_for_both_and_a_running_head_does_not()
     );
 }
 
-// ---- Kopfzeile, „neu“, Schriften ---------------------------------------------------------------------------
+// ---- Header, „neu“, fonts ---------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn new_posts_are_marked_with_the_word_neu_not_only_by_colour() {
@@ -493,7 +498,7 @@ async fn warming_the_fonts_returns_at_once() {
     assert!(started.elapsed() < Duration::from_millis(500), "die Schriftsuche läuft im Hintergrund");
 }
 
-// ---- Gedankenkarte ----------------------------------------------------------------------------------------
+// ---- Thought map -----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn map_edges_carry_a_visible_label_an_arrow_for_directed_kinds_and_their_own_stroke() {
@@ -514,7 +519,7 @@ async fn map_edges_carry_a_visible_label_an_arrow_for_directed_kinds_and_their_o
         let answer = server.rpc("idea.link", json!({ "work": work, "from": from, "to": to, "kind": kind })).await;
         assert!(answer["error"].is_null(), "Verbindung {kind}: {answer}");
     }
-    // Runde 34: Die Gedankenkarte ist die Mindmap; aus Kanten (`im-edge`) wurden Beziehungslinien (`mm-link`).
+    // Round 34: the thought map is the mind map; edges (`im-edge`) became relation lines (`mm-link`).
     let (status, html) = server.get(&format!("/werke/{work}/karte")).await;
     assert_eq!(status, StatusCode::OK, "Mindmap lädt: {html}");
     assert!(html.contains("<marker id=\"mm-arrow\""), "Pfeilspitze für gerichtete Beziehungen: {html}");
@@ -542,7 +547,7 @@ async fn map_edges_carry_a_visible_label_an_arrow_for_directed_kinds_and_their_o
     assert!(last_link < first_node, "Knoten liegen über den Linien (zuletzt gezeichnet)");
     assert!(html.contains("im-key-leads_to"), "die Legende nennt die Arten der Beziehungen");
 
-    // Eigenständige Datei (auch Quelle des PDF): Farben als Attribute, eingebetteter Stil für die Beschriftung.
+    // Standalone file (also source of the PDF): colours as attributes, embedded style for the labelling.
     let (status, svg) = server.get(&format!("/werke/{work}/karte.svg")).await;
     assert_eq!(status, StatusCode::OK, "karte.svg");
     assert!(svg.contains(".mm-link-label"), "Stil der Beschriftung eingebettet");
@@ -555,13 +560,13 @@ async fn map_edges_carry_a_visible_label_an_arrow_for_directed_kinds_and_their_o
     );
 }
 
-// Runde 34: Die Seitenleiste der Gedankenkarte (`.im-side`, Test the_map_side_panel_starts_below_the_toolbar) gibt es
-// nicht mehr; die Mindmap hat keine Leiste über dem Bild (Ersatz: round34_widget).
+// Round 34: the side bar of the thought map (`.im-side`, test the_map_side_panel_starts_below_the_toolbar) no longer
+// exists; the mind map has no bar above the image (replacement: round34_widget).
 
 #[test]
 fn typeset_and_numbering_pages_scroll_at_the_window_edge() {
-    // Ursache des hellen Streifens: .works-page (works.css) ist Scrollbehälter und auf 1100px begrenzt – die
-    // Bildlaufleiste stand mitten im Fenster. Geprüft wird die Regel, nicht das Bild (Sichtprüfung).
+    // Cause of the light stripe: .works-page (works.css) is a scroll container and limited to 1100px – the scroll bar
+    // stood in the middle of the window. The rule is checked, not the image (visual check).
     for (file, css) in [
         ("typeset.css", include_str!("../static/typeset.css")),
         ("numbering.css", include_str!("../static/numbering.css")),

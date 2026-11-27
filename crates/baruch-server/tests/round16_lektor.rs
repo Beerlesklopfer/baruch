@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 16a „predigt-vorlage“, Teil Personas: Der Lektor kennt die Predigt („Predigt“/„Text der Predigt“ statt
-//! „Buch“), fremde Befunde und Relay-/Fadenbeiträge stehen gerahmt und entschärft im Prompt, Fäden und „Lektor
-//! automatisch nach Kontext“ rechnen mit der wirksamen Kontextlänge, die Einstellung „Chat nur Abschnitt“ und die
-//! Belegpflicht für „Kritisch:“ (Zitat nicht im Kontext → „(nicht im Text belegt)“).
+//! Round 16a „predigt-vorlage“, part personas: the lector knows the sermon („Predigt“/„Text der Predigt“ instead of
+//! „Buch“), foreign findings and relay/thread posts are framed and defused in the prompt, threads and "lector
+//! automatically by context" calculate with the effective context length, the setting „Chat nur Abschnitt“ and the
+//! evidence obligation for „Kritisch:“ (quotation not in the context → „(nicht im Text belegt)“).
 //!
-//! Kein Netz, kein Eliezer: nur `ScriptedModel`. Alle Texte sind frei erfunden.
+//! No network, no Eliezer: only `ScriptedModel`. All texts are freely invented.
 
 use crate::common;
 
@@ -17,7 +17,7 @@ use baruch_server::assist::{ChatOrder, Mode, Order, Scope, prompts};
 use baruch_server::threads::ThreadOrder;
 use serde_json::{Value, json};
 
-/// Ein frei erfundenes Buch mit einem Kapitel und zwei Abschnitten.
+/// A freely invented book with one chapter and two sections.
 const BOOK: &str = "#set document(title: \"Das Mühlenjahr\", author: \"Pia Rad\")\n#set heading(numbering: \"1.1\")\n\n\
 = Frühling\n\nDas Mühlrad dreht sich wieder.\n\n\
 == Schleuse\n\nDer Müller öffnet morgens die Schleuse und lauscht dem Wasser.\n\n\
@@ -69,12 +69,12 @@ fn order(work: i64, key: i64, persona: &str, mode: Mode) -> Order {
     }
 }
 
-/// Schlüssel der Punkte eines Werks in ihrer Reihenfolge.
+/// Keys of the items of a work in their order.
 async fn keys_of(server: &common::Server, work: i64) -> Vec<i64> {
     server.state.store.load_work(work).await.unwrap().nodes.iter().map(|n| n.key).collect()
 }
 
-/// Eine Predigt (Vorlage aus Runde 16a) mit erfundenem Text im ersten Hauptpunkt.
+/// A sermon (template from Round 16a) with invented text in the first main point.
 async fn sermon(server: &common::Server) -> (i64, Vec<i64>) {
     let created =
         ok(server, "work.create", json!({ "title": "Mühlenpredigt", "kind": "sermon", "audience": "Gemeinde" })).await;

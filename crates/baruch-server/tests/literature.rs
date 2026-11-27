@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Literatur als Popup und eigene Seiten (`/literatur`, `/quelle`), Hervorhebungen über RPC und
-//! Formular (`POST /literatur/act`), Zitat als Vorschlag-Revision. Echter Datenordner im Temp-Ordner.
+//! Literature as a popup and pages of its own (`/literatur`, `/quelle`), highlights through RPC and form
+//! (`POST /literatur/act`), quotation as a proposal revision. Real data folder in the temp folder.
 
 use crate::common;
 
@@ -9,7 +9,7 @@ use axum::http::{Request, StatusCode, header};
 use baruch_library::{HighlightAuthor, HighlightKind, NewHighlight, NewTitle};
 use serde_json::{Value, json};
 
-/// Beispieltitel `luther1912` und sein Zitat 1. Kor 13,4: (Titel-id, Zitat-id).
+/// Sample title `luther1912` and its quotation 1 Cor 13:4: (title id, quotation id).
 async fn luther(server: &common::Server) -> (i64, i64) {
     let answer = server.rpc("library.list", json!(null)).await;
     let titles = answer["result"]["titles"].as_array().unwrap_or_else(|| panic!("keine Titel: {answer}"));
@@ -18,7 +18,7 @@ async fn luther(server: &common::Server) -> (i64, i64) {
     (t["id"].as_i64().unwrap(), q["id"].as_i64().unwrap())
 }
 
-/// Fester Schlüssel (`key`) des Abschnitts an Stelle `seq` im Werk `work`.
+/// Fixed key (`key`) of the section at position `seq` in the work `work`.
 async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)
@@ -28,7 +28,7 @@ async fn key_of(server: &common::Server, work: i64, seq: i64) -> i64 {
         .unwrap()
 }
 
-/// `highlight.add` über RPC; gibt die Hervorhebung zurück.
+/// `highlight.add` through RPC; returns the highlight.
 async fn add(server: &common::Server, params: Value) -> Value {
     let answer = server.rpc("highlight.add", params).await;
     let highlight = answer["result"]["highlight"].clone();
@@ -36,21 +36,21 @@ async fn add(server: &common::Server, params: Value) -> Value {
     highlight
 }
 
-/// Ausschnitt `from` … `to` (erstes Vorkommen danach).
+/// Excerpt `from` … `to` (first occurrence after it).
 fn between<'a>(html: &'a str, from: &str, to: &str) -> &'a str {
     let start = html.find(from).unwrap_or_else(|| panic!("{from:?} fehlt: {html}"));
     let rest = &html[start..];
     &rest[..rest.find(to).unwrap_or(rest.len())]
 }
 
-/// `href` des ersten Treffers einer Art (Maskierung von `&` zurückgenommen).
+/// `href` of the first hit of a kind (escaping of `&` undone).
 fn hit_link(html: &str, kind: &str) -> String {
     let item = between(html, &format!("<li class=\"library-hit\" data-kind=\"{kind}\""), "</li>");
     let href = item.split("href=\"").nth(1).and_then(|s| s.split('"').next()).unwrap();
     href.replace("&amp;", "&")
 }
 
-/// Text des Abschnitts 4 (2.1 Erste Anzeichen) in der aktuellen Fassung und deren Nummer.
+/// Text of section 4 (2.1 Erste Anzeichen) in the current revision and its number.
 async fn current(server: &common::Server) -> (u64, String) {
     let node = server.rpc("node.get", json!({ "node": 4 })).await;
     let rev = node["result"]["revisions"]
@@ -71,7 +71,8 @@ async fn the_workspace_has_no_literature_column_but_a_header_link_and_a_dialog()
     let tree = between(&html, "id=\"pane-tree\"", "</nav>");
     assert!(!tree.contains("data-widget=\"library\""), "linke Spalte zeigt noch die Literatur: {tree}");
     assert!(!tree.contains("Literatur"), "linke Spalte nennt die Literatur noch: {tree}");
-    let head = between(&html, "<header class=\"band\"", "</header>"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    let head = between(&html, "<header class=\"band\"", "</header>");
     let k = key_of(&server, 1, 2).await;
     assert!(
         head.contains(&format!("href=\"/literatur?work=1&key={k}&rev=")) && head.contains("&amp;lq=langm%C3%BCtig\""),
@@ -146,9 +147,9 @@ async fn the_search_is_kept_in_every_link_and_control_characters_give_no_hits() 
     );
     let sources = html.matches("href=\"/quelle?").count();
     assert!(sources > 0, "keine Links auf Quellen: {html}");
-    // Runde 33 (Menüband): Auch die Reiter und Schalter des Kopfs behalten die Abfrage der Seite (band::apply), also
-    // die Suche – dort als erstes Paar hinter dem Fragezeichen (`?lq=…&amp;tab=…`; das `node=` der alten Adressform
-    // geht nicht mit), ebenfalls kodiert. Die Zählung unten trifft weiter nur die Links der Seite (`&amp;lq=…`).
+    // Round 33 (ribbon): the tabs and switches of the header also keep the query of the page (band::apply), hence the
+    // search – there as the first pair after the question mark (`?lq=…&amp;tab=…`; the `node=` of the old address form
+    // does not go along), encoded as well. The count below still hits only the links of the page (`&amp;lq=…`).
     let head = between(&html, "<header class=\"band\"", "</header>");
     assert!(
         head.contains(&format!("href=\"?{encoded}&amp;tab=buch\"")),
@@ -198,7 +199,7 @@ async fn hit_links_open_the_editor_or_the_source_view_at_the_place_found() {
         "Hervorhebungs-Treffer öffnet die Dokumentansicht an der Hervorhebung"
     );
 
-    // Dem Link folgen (ohne Anker, den schickt kein Browser mit).
+    // Follow the link (without the anchor, no browser sends that along).
     let (status, page) = server.get(marked.split('#').next().unwrap()).await;
     assert_eq!(status, StatusCode::OK, "der Link führt auf eine Dokumentansicht: {page}");
     assert!(
@@ -223,7 +224,7 @@ async fn hit_links_open_the_editor_or_the_source_view_at_the_place_found() {
         )),
         "Bereich der Hervorhebung im Zitattext markiert: {page}"
     );
-    // Runde 13: Der Volltext kommt über MultiGPT; eine Quelle ohne Verknüpfung sagt das ehrlich (kein Stub mehr).
+    // Round 13: the full text comes through MultiGPT; a source without a link says so honestly (no longer a stub).
     assert!(
         page.contains("data-fulltext=\"none\"") && page.contains("nicht mit MultiGPT verknüpft"),
         "Quelle ohne Verknüpfung: ehrlicher Hinweis statt Volltext: {page}"
@@ -263,7 +264,7 @@ async fn highlight_rpc_adds_lists_updates_and_deletes() {
     assert_eq!(changed["result"]["highlight"]["kind"], "contradiction", "Art geändert: {changed}");
     assert_eq!(changed["result"]["highlight"]["note"], "anders", "Notiz geändert: {changed}");
 
-    // Persona-Vorschlag: bleibt Vorschlag.
+    // Persona proposal: stays a proposal.
     let proposal = NewHighlight {
         title_id: title,
         quote_id: None,
@@ -426,7 +427,7 @@ async fn forms_without_javascript_highlight_cite_search_and_answer_the_persona_s
     let proposal = node["result"]["revisions"].as_array().unwrap().iter().find(|r| r["number"] == rev).unwrap();
     assert!(proposal["body"].as_str().unwrap().contains("[Glaube \\#x]"), "Zitat im Vorschlag: {proposal}");
 
-    // Runde 15: „An Persona geben“ ist umgesetzt; ohne Abschnitt zeigt eine Hinweisseite (200) „Abschnitt wählen“.
+    // Round 15: „An Persona geben“ is implemented; without a section a notice page (200) shows „Abschnitt wählen“.
     let request = axum::http::Request::post("/literatur/act")
         .header(axum::http::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(axum::body::Body::from(format!("action=persona&title={title}&text=Liebe")))
@@ -481,7 +482,7 @@ async fn citing_without_a_section_is_refused_and_creates_nothing() {
         format!("action=cite&work=1&title={title}&quote={quote}&start=4&end=9&text=Liebe"),
         format!("action=cite&work=1&node=&title={title}&text=Liebe"),
         format!("action=cite&work=1&node=999&title={title}&text=Liebe"),
-        // Die Stelle allein genügt nicht mehr (Vertrag Runde 5): Ohne Schlüssel kein Zitat.
+        // The position alone is no longer enough (contract Round 5): without a key no quotation.
         format!("action=cite&work=1&node=4&title={title}&text=Liebe"),
         format!("action=cite&work=1&node=4&key=&title={title}&text=Liebe"),
     ] {
@@ -585,7 +586,7 @@ async fn the_widgets_are_registered_and_shipped() {
     assert_eq!(status, StatusCode::OK, "Skript wird ausgeliefert");
 }
 
-// ---- Zitieren über den festen Schlüssel (Vertrag Runde 5) --------------------------------------
+// ---- Quoting through the fixed key (contract Round 5) ------------------------------------------
 
 #[tokio::test]
 async fn the_source_page_carries_the_key_and_citing_from_an_old_tab_lands_in_the_right_section() {
@@ -594,7 +595,7 @@ async fn the_source_page_carries_the_key_and_citing_from_an_old_tab_lands_in_the
     let work = garden.work;
     let (title, quote) = luther(&server).await;
     let summer = key_of(&server, work, 3).await;
-    // Die Dokumentansicht wurde geöffnet, als „Sommer“ an Stelle 3 stand.
+    // The document view was opened when „Sommer“ was at position 3.
     let (status, page) = server.get(&format!("/quelle?title={title}&quote={quote}&work={work}&node=3")).await;
     assert_eq!(status, StatusCode::OK, "Dokumentansicht lädt: {page}");
     assert!(
@@ -618,7 +619,7 @@ async fn the_source_page_carries_the_key_and_citing_from_an_old_tab_lands_in_the
         "„Als Zitat“ schickt den Schlüssel mit: {cite_form}"
     );
 
-    // In einem anderen Tab stellt der Mensch um: „Sommer“ nach vorn, an Stelle 3 steht jetzt „Tiefe“.
+    // In another tab the human rearranges: „Sommer“ to the front, at position 3 there is now „Tiefe“.
     let moved = server.rpc("outline.move", json!({ "work": work, "node": 3, "target": 0, "place": "before" })).await;
     assert!(moved.get("error").is_none(), "Umstellen gelingt: {moved}");
     let (status, location) = server
@@ -642,7 +643,7 @@ async fn the_source_page_carries_the_key_and_citing_from_an_old_tab_lands_in_the
     assert_eq!(deep["result"]["title"], "Tiefe", "an Stelle 3 steht jetzt „Tiefe“: {deep}");
     assert_eq!(deep["result"]["revisions"].as_array().unwrap().len(), 1, "„Tiefe“ bekam keinen Vorschlag: {deep}");
 
-    // Eine Adresse mit Schlüssel und veralteter Stelle zeigt den Abschnitt des Schlüssels.
+    // An address with a key and an outdated position shows the section of the key.
     let (_, page) = server.get(&format!("/literatur?work={work}&node=3&key={summer}")).await;
     assert!(
         page.contains(&format!("href=\"/?work={work}&amp;key={summer}\" data-back")),
@@ -652,8 +653,8 @@ async fn the_source_page_carries_the_key_and_citing_from_an_old_tab_lands_in_the
 
 #[test]
 fn literature_stubs_name_an_open_round_not_the_finished_stage_b2() {
-    // B2 (Personas wirklich) ist mit Runde 10 erledigt; ein Stub muss ehrlich die Runde nennen, die noch
-    // aussteht (AGENTS.md „Stub antwortet ehrlich … mit Stufe“).
+    // B2 (personas for real) is done with Round 10; a stub must honestly name the round that is still outstanding
+    // (AGENTS.md „Stub antwortet ehrlich … mit Stufe“).
     let texts = [
         baruch_server::literature::PICK_SECTION,
         baruch_server::literature::NOT_LINKED,

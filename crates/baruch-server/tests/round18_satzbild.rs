@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 18c (satzbild-werk): Satzbild-Einstellungen je Werk (RPC `work.sheet`/`work.sheet_set`, Formular
-//! `POST /einstellungen/werk/satzbild`, Stil schon im HTML), lange Abschnitte ohne vorab gesetztes Satzbild, Bild an
-//! der Cursorstelle (`POST /werke/bilder/einfuegen` mit `place` und `body`), Vorschläge-Reste (leere „−“-Zeile,
-//! „Alle einklappen“ vor dem Lesefluss) und ein Verhaltenstest „Satzbild als Vorgabe“: die übersetzten Widgets
-//! (`wysiwyg.js`, `proposals.js`, `sheet.js`) laufen in Node 20 auf einem kleinen nachgebauten DOM gegen das
-//! Editor-HTML des Servers – ohne Browser, ohne Netz (fetch ist nachgebaut). Alle Texte frei erfunden.
+//! Round 18c (satzbild-werk): typeset-view settings per work (RPC `work.sheet`/`work.sheet_set`, form
+//! `POST /einstellungen/werk/satzbild`, style already in the HTML), long sections without a typeset view set in
+//! advance, image at the cursor position (`POST /werke/bilder/einfuegen` with `place` and `body`), proposal leftovers
+//! (empty „−“ line, „Alle einklappen“ before the reading flow) and a behaviour test "typeset view as default": the
+//! compiled widgets (`wysiwyg.js`, `proposals.js`, `sheet.js`) run in Node 20 on a small mocked DOM against the editor
+//! HTML of the server – without browser, without network (fetch is mocked). All texts freely invented.
 
 use crate::common;
 
@@ -12,7 +12,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 
-/// Frei erfundenes Werk mit Vorlage (Schrift, Größe, Satzbreite) und zwei Kapiteln.
+/// Freely invented work with template (font, size, measure) and two chapters.
 const BOOK: &str = "#set document(title: \"Das Zimmerbuch\", author: \"Ida Probe\")\n\
 #set text(font: \"Erfundene Antiqua\", size: 10pt)\n#set page(width: 13cm)\n\n\
 = Fenster\n\nDas Licht fällt schräg.\n\nDer Vorhang weht.\n\nAm Rahmen blättert Farbe.\n\n\
@@ -23,7 +23,7 @@ fn ok(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Werk importieren; Werk-id und Schlüssel/Fassung des ersten Kapitels.
+/// Import the work; work id and key/revision of the first chapter.
 async fn book(server: &common::Server) -> (i64, i64, u64) {
     let work = server.import(BOOK, "zimmer.typ").await.work;
     let (key, rev) = first_chapter(server, work).await;
@@ -47,7 +47,7 @@ async fn current_body(server: &common::Server, work: i64, key: i64) -> (u64, Str
     (current["number"].as_u64().unwrap(), current["body"].as_str().unwrap().to_owned())
 }
 
-/// Inhalt von `<style id="ws-style" data-work="W">…</style>` einer Seite.
+/// Content of `<style id="ws-style" data-work="W">…</style>` of a page.
 fn served_style(page: &str, work: i64) -> Option<&str> {
     let open = format!("<style id=\"ws-style\" data-work=\"{work}\">");
     let at = page.find(&open)? + open.len();
@@ -58,7 +58,7 @@ fn commits(server: &common::Server, slug: &str) -> Option<u32> {
     common::git(&server.mirror_dir_of(slug), &["rev-list", "--count", "HEAD"]).and_then(|c| c.trim().parse().ok())
 }
 
-// ---- Satzbild-Einstellungen: RPC, Stil an allen Stellen gleich -----------------------------------
+// ---- Typeset-view settings: RPC, style the same in all places -----------------------------------
 
 #[tokio::test]
 async fn work_sheet_settings_override_the_template_the_same_way_in_rpc_style_and_page() {
@@ -99,7 +99,7 @@ async fn work_sheet_settings_override_the_template_the_same_way_in_rpc_style_and
         "der Stil steht schon im HTML, gleich work.sheet (kein Wechsel von Schrift und Größe nach dem Laden)"
     );
 
-    // Fehlendes Feld bleibt, null nimmt zurück, reset nimmt alles zurück.
+    // A missing field stays, null takes back, reset takes everything back.
     let more = server.rpc("work.sheet_set", json!({ "work": work, "size": "12pt" })).await;
     assert_eq!(ok(&more)["settings"]["width"], "16cm", "ein fehlendes Feld bleibt, wie es war: {more}");
     assert_eq!(ok(&more)["settings"]["size"], "12pt", "das genannte Feld ist gesetzt: {more}");
@@ -205,8 +205,8 @@ async fn the_settings_form_works_without_javascript_and_refuses_a_foreign_origin
     assert!(ok(&read)["settings"]["size"].is_null(), "die fremde Anfrage hat nichts gesetzt: {read}");
 }
 
-/// Ein Wert, der an der Prüfung des Stores vorbei in die Tabelle käme (hier direkt per SQL, nur die
-/// Längen-CHECKs greifen), erreicht das `<style>`-Element nie: `sheet_css` lässt ihn fallen.
+/// A value that would get into the table past the check of the store (here directly by SQL, only the length CHECKs take
+/// effect) never reaches the `<style>` element: `sheet_css` drops it.
 #[tokio::test]
 async fn a_malicious_value_never_leaves_the_style_element() {
     let server = common::open().await;
@@ -254,13 +254,13 @@ async fn sheet_settings_leave_typst_export_and_pdf_byte_equal() {
     if first == second {
         assert_eq!(pdf, first, "das PDF ist byte-gleich: Satzbild-Einstellungen gelten nur im Browser");
     } else {
-        // Zwei Läufe ohne Änderung unterscheiden sich schon (z. B. Zeitstempel): dann nur Größe und Seiten.
+        // Two runs without a change already differ (e.g. timestamps): then only size and pages.
         eprintln!("Hinweis: zwei PDF-Läufe ohne Änderung sind nicht byte-gleich; verglichen wird die Länge.");
         assert_eq!(pdf.len(), first.len(), "das PDF hat dieselbe Länge wie vorher");
     }
 }
 
-// ---- Lange Abschnitte ------------------------------------------------------------------------------
+// ---- Long sections --------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn sections_over_64_kib_get_no_ready_satzbild_but_the_widget_can_fetch_it() {
@@ -292,7 +292,7 @@ async fn sections_over_64_kib_get_no_ready_satzbild_but_the_widget_can_fetch_it(
     assert!(ok(&parsed)["html"].as_str().unwrap().contains("Der Staub tanzt"), "das Widget holt es per RPC");
 }
 
-// ---- Vorschläge: leere „−“-Zeile, Leiste vor dem Lesefluss ------------------------------------------
+// ---- Proposals: empty „−“ line, bar before the reading flow ----------------------------------------
 
 #[tokio::test]
 async fn a_removed_block_shows_no_empty_minus_line_and_the_bar_stands_before_the_flow() {
@@ -324,7 +324,7 @@ async fn a_removed_block_shows_no_empty_minus_line_and_the_bar_stands_before_the
     );
 }
 
-// ---- Bild an der Cursorstelle ------------------------------------------------------------------------
+// ---- Image at the cursor position -------------------------------------------------------------------
 
 async fn add_image(server: &common::Server, work: i64, file: &str, path: &str) {
     let svg =
@@ -381,7 +381,7 @@ async fn an_image_lands_at_end_start_before_a_block_or_at_an_offset_as_its_own_b
         ),
         ("block:99".into(), None, format!("{}\n\n{FIGURE}\n", original.trim_end()), "Blockzahl überschritten: am Ende"),
         (
-            // „ä“ zählt in UTF-16 eine Einheit; die Stelle mitten in „Licht“ rückt an die nächste Zeilengrenze.
+            // „ä“ counts one unit in UTF-16; the position in the middle of „Licht“ moves to the next line boundary.
             format!("offset:{}", "= Fenster\n\nDas Li".encode_utf16().count()),
             None,
             format!(
@@ -391,7 +391,7 @@ async fn an_image_lands_at_end_start_before_a_block_or_at_an_offset_as_its_own_b
         ),
     ];
     for (place, body, expected, why) in cases {
-        // Jede Stelle auf der ursprünglichen Fassung: erst zurück auf den Ausgangstext.
+        // Every position on the original revision: first back to the initial text.
         let (rev, text) = current_body(&server, work, key).await;
         if text != original {
             ok(&server
@@ -419,8 +419,8 @@ async fn an_image_lands_at_end_start_before_a_block_or_at_an_offset_as_its_own_b
     }
 }
 
-/// Mit JavaScript schickt das Widget den ungespeicherten Text (`body`) und die UTF-16-Stelle; das Formular kodiert
-/// Zeilenumbrüche als CRLF. Die Überschriftszeile muss gleich bleiben, sonst „erst speichern“.
+/// With JavaScript the widget sends the unsaved text (`body`) and the UTF-16 position; the form encodes line breaks as
+/// CRLF. The heading line must stay the same, otherwise „erst speichern“.
 #[tokio::test]
 async fn with_an_unsaved_body_the_offset_counts_in_it_and_a_changed_heading_is_refused() {
     let server = common::open().await;
@@ -459,8 +459,8 @@ async fn with_an_unsaved_body_the_offset_counts_in_it_and_a_changed_heading_is_r
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "unbekannte Stelle → 422");
 }
 
-/// Backlog Runde 11: Der Pfad wurde vor dem Speichern der Fassung vergeben; scheiterte das Speichern, blieb er
-/// ohne Spiegel-Commit zurück. Jetzt stehen Pfad und Fassung in einer Transaktion.
+/// Backlog Round 11: the path was assigned before saving the revision; if saving failed, it was left behind without a
+/// mirror commit. Now path and revision are in one transaction.
 #[tokio::test]
 async fn when_saving_fails_the_image_gets_no_path_and_nothing_is_committed() {
     let server = common::open().await;
@@ -469,8 +469,8 @@ async fn when_saving_fails_the_image_gets_no_path_and_nothing_is_committed() {
     assert_eq!(asset_paths(&server, work, "ohnepfad.svg").await, json!([]), "das Bild hat noch keinen Pfad");
     let slug = server.state.store.work_slug(work).await.unwrap();
     let before = commits(&server, &slug);
-    // Gleiche Überschriftszeile, aber eine zweite Überschrift derselben Ebene: Das Speichern scheitert im Store
-    // (genau eine Überschrift je Abschnitt) – nach der Pfadvergabe in derselben Transaktion.
+    // Same heading line, but a second heading of the same level: saving fails in the store (exactly one heading per
+    // section) – after the path assignment in the same transaction.
     let broken = "= Fenster\n\nText.\n\n= Noch ein Kapitel\n\nMehr.\n";
     let form = format!("work={work}&key={key}&rev={rev}&name=ohnepfad.svg&place=end&body={}", urlencoding(broken));
     let (status, _) = server.post_form("/werke/bilder/einfuegen", &form).await;
@@ -521,7 +521,7 @@ async fn the_insert_form_offers_the_places_without_javascript() {
     assert!(page.contains("data-image-insert data-widget=\"sheet-tools\""), "Widget sheet-tools am details");
 }
 
-/// Form-Kodierung für Testtexte (Buchstaben, Ziffern und `-_.~` bleiben, alles andere `%XX`).
+/// Form encoding for test texts (letters, digits and `-_.~` stay, everything else `%XX`).
 fn urlencoding(text: &str) -> String {
     text.bytes()
         .map(|b| match b {
@@ -531,13 +531,13 @@ fn urlencoding(text: &str) -> String {
         .collect()
 }
 
-// ---- Verhaltenstest „Satzbild als Vorgabe“ (Node, ohne Browser, ohne Netz) ---------------------------
+// ---- Behaviour test "typeset view as default" (Node, without browser, without network) --------------
 
-/// Kleiner DOM-Nachbau und Ablauf der Szenen. Liest `scenario.json` (HTML des Editors, Cookie, Antworten für
-/// den nachgebauten `fetch`), hängt die echten, übersetzten Widgets ein und schreibt das Beobachtete als JSON.
-/// Nachgebaut ist nur, was die Widgets beim Einhängen brauchen; fehlt etwas, steht der Fehler in `errors`.
-/// Runde 23a: Der DOM-Nachbau ([`DOM`]) steht allein, damit auch andere Verhaltenstests (`round23_web/`) ihn mit
-/// einem eigenen Ablauf nutzen ([`run_harness`]); [`SCENE`] ist der Ablauf dieses Tests.
+/// Small DOM mock and flow of the scenes. Reads `scenario.json` (HTML of the editor, cookie, responses for the mocked
+/// `fetch`), mounts the real, compiled widgets and writes what was observed as JSON. Only what the widgets need on
+/// mounting is mocked; if something is missing, the error is in `errors`. Round 23a: the DOM mock ([`DOM`]) stands
+/// alone, so that other behaviour tests (`round23_web/`) can use it with a flow of their own too ([`run_harness`]);
+/// [`SCENE`] is the flow of this test.
 pub(crate) const DOM: &str = r#####"
 import { readFileSync } from "node:fs";
 const scenario = JSON.parse(readFileSync(process.argv[2], "utf8"));
@@ -803,7 +803,7 @@ globalThis.fetch = async (url, init) => {
 };
 "#####;
 
-/// Ablauf „Satzbild als Vorgabe“ hinter [`DOM`].
+/// Flow "typeset view as default" behind [`DOM`].
 const SCENE: &str = r#####"
 const pane = make("div"); pane.setAttribute("id", "pane-editor"); body.append(pane);
 pane.innerHTML = scenario.html;
@@ -849,14 +849,14 @@ out.errors = errors;
 process.stdout.write(JSON.stringify(out));
 "#####;
 
-/// Szene im Nachbau ausführen; `None`, wenn Node fehlt (dann wird ehrlich übersprungen).
+/// Run the scene in the mock; `None` if Node is missing (then it is honestly skipped).
 fn run_widgets(scenario: &Value) -> Option<Value> {
     run_harness(SCENE, scenario)
 }
 
-/// Runde 23a: [`DOM`] und dahinter `scene` (JavaScript-Modul; liest `scenario`, hängt Widgets aus `process.argv[3]`
-/// ein und schreibt genau ein JSON nach stdout) unter Node ausführen. `None`, wenn Node fehlt – der Aufrufer meldet
-/// dann „ÜBERSPRUNGEN“.
+/// Round 23a: run [`DOM`] and behind it `scene` (JavaScript module; reads `scenario`, mounts widgets from
+/// `process.argv[3]` and writes exactly one JSON to stdout) under Node. `None` if Node is missing – the caller then
+/// reports „ÜBERSPRUNGEN“.
 pub(crate) fn run_harness(scene: &str, scenario: &Value) -> Option<Value> {
     let node = std::process::Command::new("node").arg("--version").output().ok()?;
     if !node.status.success() {
@@ -883,16 +883,16 @@ pub(crate) fn run_harness(scene: &str, scenario: &Value) -> Option<Value> {
     Some(serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("Ausgabe des Nachbaus ist kein JSON ({e}): {stdout}")))
 }
 
-/// Verhaltenstest „Satzbild als Vorgabe“ (Backlog Runde 8: bisher nur Textstellen in `wysiwyg.js`): Die echten
-/// Widgets hängen sich in das Editor-HTML des Servers ein. Belegt wird das Verhalten, nicht der Quelltext:
-/// - Vorgabe (ohne Cookie): Das Satzbild ist sofort beim Einhängen offen (ohne Zwischenzustand Quelltext), ohne
-///   `wysiwyg.parse`; die Stücke der Vorschläge stehen im Satzbild, der Lesefluss ist verborgen, „Alle einklappen“
-///   bleibt sichtbar; „Bild einfügen“ bietet „an der Cursorstelle“; nach `baruch:settings-changed` holt sheet.js
-///   `work.sheet` und ersetzt den Stil.
-/// - Cookie `quelltext`: Textfeld sichtbar, Satzbild zu, kein `wysiwyg.parse`; „Bild einfügen“ an der Cursorstelle
-///   schickt `place=offset:<selectionStart>` und den Text als `body`.
-/// - Langer Abschnitt (kein vorab gesetztes Satzbild): Das Widget holt das Satzbild per `wysiwyg.parse` und öffnet
-///   es danach, ohne vorher den Quelltext zu zeigen.
+/// Behaviour test "typeset view as default" (backlog Round 8: so far only text places in `wysiwyg.js`): the real
+/// widgets mount themselves into the editor HTML of the server. The behaviour is evidenced, not the source text:
+/// - Default (without cookie): the typeset view is open at once on mounting (without the intermediate state source
+///   text), without `wysiwyg.parse`; the pieces of the proposals are in the typeset view, the reading flow is hidden,
+///   „Alle einklappen“ stays visible; „Bild einfügen“ offers „an der Cursorstelle“; after `baruch:settings-changed`
+///   sheet.js fetches `work.sheet` and replaces the style.
+/// - Cookie `quelltext`: text field visible, typeset view closed, no `wysiwyg.parse`; „Bild einfügen“ at the cursor
+///   position sends `place=offset:<selectionStart>` and the text as `body`.
+/// - Long section (no typeset view set in advance): the widget fetches the typeset view through `wysiwyg.parse` and
+///   opens it afterwards, without showing the source text first.
 #[tokio::test]
 async fn satzbild_as_default_behaves_right_in_the_real_widgets_without_a_browser() {
     let server = common::open().await;
@@ -929,7 +929,7 @@ async fn satzbild_as_default_behaves_right_in_the_real_widgets_without_a_browser
     let after: Vec<String> = serde_json::from_value(seen["callsAfter"].clone()).unwrap();
     assert!(after.iter().any(|c| c == "work.sheet"), "dafür fragt es work.sheet: {after:?}");
 
-    // Quelltext auf Wunsch (Cookie).
+    // Source text on request (cookie).
     let request = Request::post("/rpc")
         .header(header::CONTENT_TYPE, "application/json")
         .header(header::COOKIE, "baruch_editor=quelltext")
@@ -955,7 +955,7 @@ async fn satzbild_as_default_behaves_right_in_the_real_widgets_without_a_browser
     assert_eq!(sent["fields"]["body"], current_body(&server, work, key).await.1, "der Text geht als body mit: {seen}");
     assert_eq!(sent["fields"]["rev"], rev.to_string(), "auf der gezeigten Fassung: {seen}");
 
-    // Langer Abschnitt: ohne vorab gesetztes Satzbild holt das Widget es per RPC.
+    // Long section: without a typeset view set in advance the widget fetches it through RPC.
     let parsed =
         server.rpc("wysiwyg.parse", json!({ "work": work, "body": current_body(&server, work, key).await.1 })).await;
     let html = ok(&parsed)["html"].as_str().unwrap().to_owned();

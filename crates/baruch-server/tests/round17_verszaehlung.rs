@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 17a „verszaehlung“: Stellen zwischen Verszählungen umrechnen – RPC `scripture.map` und
-//! `scripture.versifications`, MCP `scripture_map`. Nur lesend, ohne Modell, ohne Netz.
+//! Round 17a „verszaehlung“: converting passages between versifications – RPC `scripture.map` and
+//! `scripture.versifications`, MCP `scripture_map`. Read-only, without model, without network.
 
 use crate::common;
 
@@ -61,7 +61,7 @@ async fn an_english_reference_is_mapped_to_the_german_versification() {
 #[tokio::test]
 async fn the_reference_is_checked_against_the_source_versification_and_gaps_are_honest() {
     let server = common::open().await;
-    // Joel 3,21 gibt es in KJV (21 Verse), in der deutschen Zählung nicht (Joel 3 hat 5) – geprüft wird gegen from.
+    // Joel 3:21 exists in KJV (21 verses), not in the German versification (Joel 3 has 5) – the check is against from.
     let kjv = ok(&server, "scripture.map", json!({ "ref": "Joel 3,21" })).await;
     assert_eq!(kjv["refs"][0]["target"], "Joel 4,21", "gegen KJV gelesen, nicht gegen German: {kjv}");
     let german = ok(&server, "scripture.map", json!({ "ref": "Joel 3,21", "from": "German", "to": "KJV" })).await;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Übernehmen und Speichern: erst atomar in die Datenbank, danach genau ein Commit im
-//! Typst-Spiegel `<data>/works/<slug>/`.
+//! Accepting and saving: first atomically into the database, then exactly one commit in the Typst mirror
+//! `<data>/works/<slug>/`.
 
 use crate::common;
 
@@ -15,7 +15,7 @@ async fn the_mirror_holds_the_database_state_after_start() {
     assert!(main.starts_with("// Baruch: "), "ohne Werkvorlage beginnt main.typ mit dem Kommentar: {main}");
     assert!(main.contains("#include \"abschnitte/"), "main.typ bindet die Abschnittsdateien ein: {main}");
     assert!(Mirror::open_or_init(&dir).unwrap().head().unwrap().is_some(), "Startstand nicht committet");
-    // Ein zweiter Start ändert nichts und committet nicht erneut.
+    // A second start changes nothing and does not commit again.
     let head = Mirror::open_or_init(&dir).unwrap().head().unwrap();
     drop(baruch_server::AppState::open(server.path()).await.unwrap());
     assert_eq!(Mirror::open_or_init(&dir).unwrap().head().unwrap(), head, "leerer Commit beim Neustart");
@@ -32,12 +32,12 @@ async fn accepting_a_proposal_writes_exactly_one_commit_with_trailers() {
     let commit = answer["result"]["commit"].as_str().unwrap_or_else(|| panic!("kein Commit gemeldet: {answer}"));
     assert!(answer["result"].get("mirror").is_none(), "Spiegel meldet Fehler: {answer}");
 
-    // Datenbank: der Vorschlag ist jetzt die einzige aktuelle Revision.
+    // Database: the proposal is now the only current revision.
     let node = server.rpc("node.get", json!({ "node": 2 })).await;
     assert_eq!(common::currents(&node["result"]), 1, "nach dem Übernehmen genau eine aktuelle Fassung");
     let body = node["result"]["revisions"][2]["body"].as_str().unwrap().to_owned();
 
-    // Spiegel: HEAD ist der gemeldete Commit, die Datei trägt den übernommenen Text.
+    // Mirror: HEAD is the reported commit, the file carries the accepted text.
     let head = Mirror::open_or_init(&dir).unwrap().head().unwrap();
     assert_ne!(head, before, "kein neuer Commit");
     assert_eq!(head.as_deref(), Some(commit), "die Antwort meldet genau den neuen HEAD");
@@ -92,7 +92,7 @@ async fn saving_commits_as_the_human_without_persona_trailers() {
 async fn a_broken_mirror_does_not_block_the_work_and_is_reported() {
     let server = common::open().await;
     let dir = server.mirror_dir();
-    // Spiegel zerstören: .git durch eine Datei ersetzen.
+    // Destroy the mirror: replace .git by a file.
     std::fs::remove_dir_all(dir.join(".git")).unwrap();
     std::fs::write(dir.join(".git"), "kaputt").unwrap();
     let answer = server.rpc("revision.accept", json!({ "node": 2, "rev": 3 })).await;
@@ -102,7 +102,7 @@ async fn a_broken_mirror_does_not_block_the_work_and_is_reported() {
     assert_eq!(node["result"]["revisions"][2]["status"], "current", "Datenbank ist die Quelle");
 }
 
-/// Spiegeldatei eines Abschnitts (`abschnitte/NNN-…`).
+/// Mirror file of a section (`abschnitte/NNN-…`).
 fn section_file(dir: &std::path::Path, seq: usize) -> std::path::PathBuf {
     let prefix = format!("{seq:03}-");
     std::fs::read_dir(dir.join("abschnitte"))
@@ -117,7 +117,7 @@ async fn a_mirror_catches_up_after_an_error() {
     let server = common::open().await;
     let dir = server.mirror_dir();
     let head = Mirror::open_or_init(&dir).unwrap().head().unwrap();
-    // Spiegel stören: An der Stelle der Datei von Abschnitt 2 steht ein Ordner.
+    // Disturb the mirror: in the place of the file of section 2 there is a folder.
     let blocked = section_file(&dir, 2);
     std::fs::remove_file(&blocked).unwrap();
     std::fs::create_dir(&blocked).unwrap();
@@ -129,7 +129,7 @@ async fn a_mirror_catches_up_after_an_error() {
     assert!(answer["result"].get("commit").is_none(), "trotz Fehler ein Commit gemeldet: {answer}");
     assert_eq!(Mirror::open_or_init(&dir).unwrap().head().unwrap(), head, "fehlgeschlagener Spiegel hat committet");
 
-    // Reparieren; die nächste Änderung (an einem anderen Abschnitt) bringt den vollen DB-Stand.
+    // Repair; the next change (to another section) brings the full database state.
     std::fs::remove_dir_all(&blocked).unwrap();
     let body = "== Erste Anzeichen\n\nNach der Reparatur.\n";
     let answer = server.rpc("revision.save", json!({ "node": 4, "body": body })).await;
@@ -160,7 +160,7 @@ async fn a_mirror_catches_up_after_an_error() {
     assert_eq!(common::git(&dir, &["status", "--porcelain"]).unwrap(), "", "Spiegel nach dem Nachholen nicht sauber");
 }
 
-/// Dateien, die ein Commit gegenüber seinem Vorgänger ändert.
+/// Files that a commit changes compared with its predecessor.
 fn changed_files(dir: &std::path::Path, commit: &str) -> Option<Vec<String>> {
     let out = common::git(dir, &["show", "--name-only", "--format=", commit])?;
     Some(out.lines().filter(|l| !l.is_empty()).map(str::to_owned).collect())
@@ -171,8 +171,8 @@ async fn concurrent_changes_each_get_their_own_commit() {
     let server = common::open().await;
     let dir = server.mirror_dir();
     for round in 0..8 {
-        // Übernehmen (nur in der ersten Runde, Abschnitt 2 hat einen Vorschlag) bzw. Speichern auf
-        // Abschnitt 2 und gleichzeitig Speichern auf Abschnitt 4.
+        // Accepting (only in the first round, section 2 has a proposal) or saving on section 2 and at the same time
+        // saving on section 4.
         let first = if round == 0 {
             tokio::spawn(common::rpc(server.app.clone(), "revision.accept", json!({ "node": 2, "rev": 3 })))
         } else {
@@ -200,9 +200,9 @@ async fn concurrent_changes_each_get_their_own_commit() {
     }
 }
 
-/// Deterministisch: Die Schreibsperre wird von außen gehalten, während zwei Änderungen anlaufen.
-/// Keine darf vorher in der Datenbank landen (sonst nähme der erste Schnappschuss beide mit), und
-/// danach hat jede ihren eigenen Commit mit genau ihrer Datei.
+/// Deterministic: the write lock is held from outside while two changes start. Neither may land in the database before
+/// that (otherwise the first snapshot would take both along), and afterwards each has its own commit with exactly its
+/// file.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_write_lock_covers_the_database_write() {
     let server = common::open().await;

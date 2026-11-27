@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a: lesende Anfragen fremder Seiten (`guard::own_reads`), feste Meldecodes statt Text aus der Adresse,
-//! Abzeichen und „Anträge zur Gliederung“ ohne JavaScript auf allen Seiten, Kasten „Bilder des Werks“ auf der
-//! Arbeitsseite mit `?lq=`. Werke frei erfunden; das Modell ist ein Nachbau im Prozess (kein Netz).
+//! Round 23a: reading requests of foreign pages (`guard::own_reads`), fixed message codes instead of text from the
+//! address, badges and „Anträge zur Gliederung“ without JavaScript on all pages, box „Bilder des Werks“ on the work
+//! page with `?lq=`. Works freely invented; the model is a mock in the process (no network).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,7 +15,7 @@ use serde_json::json;
 
 use crate::common;
 
-/// Nachbau des Modell-Backends, der zählt, wie oft die Modellliste abgefragt wird.
+/// Mock of the model backend that counts how often the model list is queried.
 struct CountingModel {
     inner: ScriptedModel,
     lists: Arc<AtomicUsize>,
@@ -71,7 +71,7 @@ fn get(uri: &str, headers: &[(&str, &str)]) -> Request<Body> {
 async fn a_foreign_page_cannot_trigger_the_model_list_as_an_image() {
     let (server, lists) = with_counting_model().await;
     let uri = "/einstellungen/assistenten?modelle=abfragen";
-    // <img src="http://127.0.0.1:8765/einstellungen/assistenten?modelle=abfragen"> auf einer fremden Seite.
+    // <img src="http://127.0.0.1:8765/einstellungen/assistenten?modelle=abfragen"> on a foreign page.
     for (site, mode, dest) in [
         ("cross-site", "no-cors", "image"),
         ("same-site", "no-cors", "image"),
@@ -88,7 +88,7 @@ async fn a_foreign_page_cannot_trigger_the_model_list_as_an_image() {
     }
     assert_eq!(lists.load(Ordering::SeqCst), 0, "die Gegenstelle (Nachbau) wurde dabei nie nach Modellen gefragt");
 
-    // Der Mensch selbst: gleiche Herkunft, Adresse getippt, Link von außen (Navigation), kein Browser.
+    // The human himself: same origin, address typed, link from outside (navigation), no browser.
     for (headers, why) in [
         (
             vec![("sec-fetch-site", "same-origin"), ("sec-fetch-mode", "cors"), ("sec-fetch-dest", "empty")],
@@ -126,7 +126,7 @@ async fn other_reading_routes_refuse_foreign_subresources_but_the_epub_preview_f
         let (status, _, _) = server.send(get(&uri, &[])).await;
         assert_ne!(status, StatusCode::FORBIDDEN, "{uri}: ohne Browser-Kopfzeilen wie bisher erreichbar");
     }
-    // Schreibende Routen prüft weiter same_origin (POST zählt nicht als „lesend“).
+    // Writing routes are still checked by same_origin (POST does not count as "reading").
     let post = Request::post("/rpc")
         .header(header::CONTENT_TYPE, "application/json")
         .header("sec-fetch-site", "cross-site")
@@ -136,8 +136,8 @@ async fn other_reading_routes_refuse_foreign_subresources_but_the_epub_preview_f
     assert_eq!(status, StatusCode::FORBIDDEN, "POST von einer fremden Seite bleibt abgelehnt");
     assert!(body.contains("Sec-Fetch-Site"), "…mit der Meldung von same_origin, nicht von own_reads: {body}");
 
-    // Dateien der EPUB-Vorschau: Der Rahmen mit `sandbox` meldet seine Bilder als cross-site; dort entscheidet die
-    // Route selbst über den Referer (Runde 20b) – own_reads lässt sie durch.
+    // Files of the EPUB preview: the frame with `sandbox` reports its images as cross-site; there the route itself
+    // decides by the Referer (Round 20b) – own_reads lets them through.
     let reader = format!("/werke/{work}/epub/leser/kindle/OEBPS/nichtda.xhtml");
     let referer = format!("http://127.0.0.1:8765/werke/{work}/epub/leser/kindle/OEBPS/text/k1.xhtml");
     let from_frame = get(
@@ -161,7 +161,7 @@ async fn other_reading_routes_refuse_foreign_subresources_but_the_epub_preview_f
     assert!(body.contains("EPUB-Vorschau"), "…mit ihrer eigenen Meldung: {body}");
 }
 
-// ---- Meldecodes ----------------------------------------------------------------------------------------------------
+// ---- Message codes ------------------------------------------------------------------------------------------------
 
 async fn open_in_subdir() -> common::Server {
     let root = tempfile::tempdir().unwrap();
@@ -174,11 +174,11 @@ async fn open_in_subdir() -> common::Server {
 #[tokio::test]
 async fn the_backup_notice_never_shows_a_name_from_the_address() {
     let server = open_in_subdir().await;
-    // Ein Link mit erfundenem Ziel, ohne dass es eine Sicherung gibt.
+    // A link with an invented target, without a backup existing.
     let (status, page) = server.get("/einstellungen/daten?ok=sicherung&ziel=geheimer-ordner-aus-der-adresse").await;
     assert_eq!(status, StatusCode::OK, "die Seite lädt");
-    // Runde 33 (Menüband): Die Reiter und Schalter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen
-    // (href, maskiert) – das ist kein angezeigter Text. Geprüft wird darum alles außer den href-Werten.
+    // Round 33 (ribbon): the tabs and switches of the header repeat the query of the page in their addresses (href,
+    // escaped) – that is no displayed text. Therefore everything except the href values is checked.
     let shown: String = page
         .split("href=\"")
         .enumerate()
@@ -192,14 +192,14 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
         !shown.contains("geheimer-ordner-aus-der-adresse"),
         "ein mitgeschicktes `ziel` wird nie angezeigt (sonst falsche Erfolgsmeldung über einen Link): {page}"
     );
-    // Runde 36: Ein bloßer Link zeigt gar keine Erfolgsmeldung mehr (vorher die allgemeine „Sicherung angelegt“) –
-    // die Meldung gibt es nur einmal nach einer wirklich angelegten Sicherung.
+    // Round 36: a mere link shows no success message at all any more (before, the general „Sicherung angelegt“) – the
+    // message exists only once after a backup that was really created.
     assert!(
         !page.contains("Sicherung angelegt"),
         "ohne eben angelegte Sicherung zeigt der Link keine Erfolgsmeldung: {page}"
     );
 
-    // Die echte Sicherung leitet mit festem Meldecode weiter, ohne `ziel`.
+    // The real backup redirects with a fixed message code, without `ziel`.
     let (status, location) = server.post_form("/einstellungen/daten/sicherung", "confirm=1").await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Sicherung angelegt");
     assert_eq!(
@@ -218,7 +218,7 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
         page.contains(&format!("Sicherung angelegt: <code>{}</code>", made[0])),
         "die Seite nennt den Ordner, den der Server selbst im Dateisystem findet: {page}"
     );
-    // Runde 33: wie oben – geprüft wird alles außer den href-Werten (die Reiter wiederholen die Abfrage als Adresse).
+    // Round 33: as above – everything except the href values is checked (the tabs repeat the query as an address).
     let shown: String = page
         .split("href=\"")
         .enumerate()
@@ -232,11 +232,12 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
     );
 }
 
-// ---- Abzeichen ohne JavaScript -------------------------------------------------------------------------------------
+// ---- Badges without JavaScript ------------------------------------------------------------------------------------
 
-/// Kopfzeile einer Seite (bis `</header>`).
+/// Header of a page (up to `</header>`).
 fn topbar(page: &str) -> &str {
-    let start = page.find("<header class=\"band\"").expect("Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    let start = page.find("<header class=\"band\"").expect("Kopfzeile");
     &page[start..start + page[start..].find("</header>").expect("Ende der Kopfzeile")]
 }
 
@@ -249,7 +250,7 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
         .work;
     let keys: Vec<i64> = server.state.store.load_work(work).await.unwrap().nodes.iter().map(|n| n.key).collect();
 
-    // Ohne offene Dinge: alles verborgen, kein Kennzeichen bleibt im HTML.
+    // Without open things: everything hidden, no marker stays in the HTML.
     let (_, empty) = server.get(&format!("/gliederung?work={work}")).await;
     let head = topbar(&empty);
     assert!(!head.contains("data-badge-fill"), "das Kennzeichen zum Füllen ist immer entfernt: {head}");
@@ -258,7 +259,7 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
         "ohne offene Anträge ist der Eintrag verborgen: {head}"
     );
 
-    // Zwei offene Anträge zur Gliederung, ein offener Vorschlag, drei offene Befunde.
+    // Two open outline requests, one open proposal, three open findings.
     let mcp = IdeaOrigin::Mcp { handle: "@mcp:probe".into() };
     for title in ["Am alten Brunnen", "Am tiefen Brunnen"] {
         let op = OutlineOp::Rename { key: keys[0], title: title.into() };
@@ -298,7 +299,7 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
         server.state.store.finding_insert(&new).await.unwrap();
     }
 
-    // Seiten verschiedener Module, alle ohne JavaScript ausgeliefert (nur das HTML zählt).
+    // Pages of different modules, all delivered without JavaScript (only the HTML counts).
     for uri in [
         format!("/gliederung?work={work}"),
         format!("/werke/{work}/bilder"),
@@ -309,8 +310,8 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
         let (status, page) = server.get(&uri).await;
         assert_eq!(status, StatusCode::OK, "{uri} lädt");
         let head = topbar(&page);
-        // Runde 33 (Menüband): Die Abzeichen standen an den Menüknöpfen Werk ▾ (Anträge, Befunde) und Ansicht ▾
-        // (Vorschläge) und stehen jetzt an den Reitern Buch, Prüfen und Start – weiter vom Server gefüllt.
+        // Round 33 (ribbon): the badges were on the menu buttons Werk ▾ (requests, findings) and Ansicht ▾ (proposals)
+        // and are now on the tabs Buch, Prüfen and Start – still filled by the server.
         assert!(
             head.contains(">Buch <span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">2</span></a>"),
             "{uri}: Abzeichen der offenen Anträge am Reiter Buch im ausgelieferten HTML: {head}"
@@ -335,7 +336,7 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
         );
         assert!(!page.contains("data-badge-fill"), "{uri}: kein Kennzeichen bleibt im HTML");
     }
-    // Die Zahlen sind dieselben wie über die RPC-Methode für das Widget.
+    // The numbers are the same as through the RPC method for the widget.
     let badges = server.rpc("menu.badges", json!({ "work": work })).await;
     assert_eq!(
         (
@@ -348,7 +349,7 @@ async fn pages_outside_the_workspace_show_badges_and_the_requests_entry_without_
     );
 }
 
-// ---- Kasten „Bilder des Werks“ -------------------------------------------------------------------------------------
+// ---- Box „Bilder des Werks“ ---------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_workspace_with_a_search_shows_the_images_of_the_work_without_javascript() {
@@ -364,7 +365,7 @@ async fn the_workspace_with_a_search_shows_the_images_of_the_work_without_javasc
         .await;
     assert!(added["result"]["name"].is_string(), "Bild angelegt: {added}");
 
-    /// Der Kasten „Bilder des Werks“ der Seite (ohne die Bildauswahl des Editors, die alle Bilder nennt).
+    /// The box „Bilder des Werks“ of the page (without the image selection of the editor, which names all images).
     fn images_box(page: &str) -> Option<&str> {
         let start = page.find("data-library-images")?;
         Some(&page[start..start + page[start..].find("</section>")?])

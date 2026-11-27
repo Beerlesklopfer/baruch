@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachgang zu Runde 14 (Nutzerfrage 8, entschieden 2026-11-07: „automatisch umwandeln“): Teile mit dem
-//! alten Text „= Teil …“ oder leerem Text bekommen beim Start einmalig die Teil-Markierung.
+//! Follow-up to Round 14 (user question 8, decided 2026-11-07: „automatisch umwandeln“): parts with the old text
+//! „= Teil …“ or an empty text get the part marking once at start.
 //!
-//! Die Datenbank „vor Runde 14“ wird nachgebaut: Runde 14 hatte keine Migration, also gleiches Schema,
-//! nur die Daten sind alt – Teile mit `= …`-Zeile (alte Saat, auch ein vor Runde 14 umbenannter Teil),
-//! ein leerer Teil (so legte `outline.add` vor Runde 14 Teile an) und Teile mit eigenem Text. Der Store
-//! wird dafür ohne Server geöffnet (kein Startschritt), erst `AppState::open` wandelt um. Alle Werke und
-//! Texte frei erfunden.
+//! The database "before Round 14" is reproduced: Round 14 had no migration, so the same schema, only the data are old –
+//! parts with a `= …` line (old seed, also a part renamed before Round 14), an empty part (this is how `outline.add`
+//! created parts before Round 14) and parts with a text of their own. For this the store is opened without a server (no
+//! start step), only `AppState::open` converts. All works and texts freely invented.
 
 use crate::common;
 
@@ -19,7 +18,7 @@ use baruch_core::{Author, NodeKind, RevisionStatus};
 use baruch_store::{CONVERSION_NOTE, CONVERTED_KEY, Store};
 use serde_json::{Value, json};
 
-/// Werk mit Werkvorlage; die Teile stehen noch als `=`-Zeilen da (werden unten zu Teilen gemacht).
+/// Work with work template; the parts are still there as `=` lines (made into parts below).
 const FERRY: &str = "#set document(title: \"Das Jahr der Fähre\", author: \"Ilse Erdacht\")\n\
 #set page(width: 10cm, height: 14cm)\n#set heading(numbering: \"1.1\")\n\n\
 = Teil I – Am Ufer\n\n\
@@ -28,7 +27,7 @@ const FERRY: &str = "#set document(title: \"Das Jahr der Fähre\", author: \"Ils
 = Teil II – Das Meer\n\n\
 = Der Sturm\nDie Wellen schlagen über die Reling.\n";
 
-/// Werk ohne Werkvorlage mit Teilen, deren Text der Mensch selbst geschrieben hat.
+/// Work without work template with parts whose text the human wrote himself.
 const ORCHARD: &str = "= Zwischenspiel\n\nEin eigener Satz, den niemand anfassen darf.\n\n\
 = Der Garten\nÄpfel im Gras.\n\n\
 = Andere Zeile\n\n\
@@ -47,7 +46,7 @@ async fn exec(store: &Store, sql: &str, binds: &[&str]) {
     query.execute(store.pool()).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Knoten mit Stelle `seq` zum Teil machen bzw. umhängen (Werk `work`).
+/// Make the node with position `seq` a part or re-hang it (work `work`).
 async fn set_node(store: &Store, work: i64, seq: i64, kind: &str, parent: Option<i64>, position: i64, number: &str) {
     sqlx::query("UPDATE node SET kind = ?, parent_seq = ?, position = ?, number = ? WHERE work_id = ? AND seq = ?")
         .bind(kind)
@@ -61,19 +60,19 @@ async fn set_node(store: &Store, work: i64, seq: i64, kind: &str, parent: Option
         .unwrap();
 }
 
-/// Datenbank im Stand vor Runde 14 anlegen; gibt (Fähre, Obstgarten) zurück.
+/// Create the database in the state before Round 14; returns (Fähre, Obstgarten).
 async fn old_database(dir: &Path) -> (i64, i64) {
     let store = Store::open(dir).await.unwrap();
     let ferry = store.import_typst(FERRY, "faehre.typ", "Autor").await.unwrap().work;
-    // seq 0 Teil I, 1 Ankunft, 2 Logbuch (unter 1), 3 Teil II, 4 Sturm.
+    // seq 0 Teil I, 1 Ankunft, 2 Logbuch (below 1), 3 Teil II, 4 Sturm.
     set_node(&store, ferry, 0, "part", None, 0, "I").await;
     set_node(&store, ferry, 1, "chapter", Some(0), 0, "1").await;
     set_node(&store, ferry, 3, "part", None, 1, "II").await;
     set_node(&store, ferry, 4, "chapter", Some(3), 0, "2").await;
-    // Teil II wurde vor Runde 14 umbenannt: nur der Titel änderte sich, der Text blieb „= Teil II – Das Meer“.
+    // Teil II was renamed before Round 14: only the title changed, the text stayed „= Teil II – Das Meer“.
     exec(&store, "UPDATE node SET title = 'Teil II – Die Weite' WHERE seq = 3 AND work_id = ?", &[&ferry.to_string()])
         .await;
-    // Leerer Teil am Ende, wie `outline.add` vor Runde 14 Teile anlegte (Fassung 1 mit leerem Text).
+    // Empty part at the end, as `outline.add` created parts before Round 14 (revision 1 with empty text).
     let empty: i64 = sqlx::query_scalar(
         "INSERT INTO node (work_id, seq, parent_seq, position, number, title, kind) \
          VALUES (?, 5, NULL, 2, 'III', 'Teil III – Nachklang', 'part') RETURNING id",
@@ -92,7 +91,7 @@ async fn old_database(dir: &Path) -> (i64, i64) {
     .unwrap();
 
     let orchard = store.import_typst(ORCHARD, "obstgarten.typ", "Autor").await.unwrap().work;
-    // seq 0 Zwischenspiel (eigener Text), 1 Garten, 2 „Andere Zeile“ als Teil „Am Ende“ (fremde Zeile), 3 Ernte.
+    // seq 0 Zwischenspiel (own text), 1 Garten, 2 „Andere Zeile“ as part „Am Ende“ (foreign line), 3 Ernte.
     set_node(&store, orchard, 0, "part", None, 0, "I").await;
     set_node(&store, orchard, 1, "chapter", Some(0), 0, "1").await;
     set_node(&store, orchard, 2, "part", None, 1, "II").await;
@@ -104,19 +103,19 @@ async fn old_database(dir: &Path) -> (i64, i64) {
         .await
         .unwrap();
     assert_eq!(marked.as_deref(), Some("1"), "eine frisch gesäte Datenbank setzt den Merker gleich mit");
-    // Eine Datenbank von vor Runde 14 hat den Merker nicht (es gab ihn nicht).
+    // A database from before Round 14 does not have the flag (it did not exist).
     sqlx::query("DELETE FROM store_meta WHERE key = ?").bind(CONVERTED_KEY).execute(store.pool()).await.unwrap();
     store.pool().close().await;
     (ferry, orchard)
 }
 
-/// Alle Fassungen eines Teils: (Nummer, Text, Status, Autor, Notiz, Elternteil).
+/// All revisions of a part: (number, text, status, author, note, parent).
 type Rev = (u32, String, RevisionStatus, Author, String, Option<u32>);
 
 async fn revisions(server: &common::Server, work: i64, title: &str) -> (i64, NodeKind, Vec<Rev>) {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = loaded.nodes.iter().find(|n| n.title == title).unwrap_or_else(|| panic!("kein Punkt „{title}“"));
-    // Elternteil (`based_on`) steht nicht im geladenen Werk: aus SQLite.
+    // The parent (`based_on`) is not in the loaded work: from SQLite.
     let parents: Vec<(i64, Option<i64>)> =
         sqlx::query_as("SELECT number, based_on FROM revision WHERE node_id = ? ORDER BY number")
             .bind(node.key)
@@ -152,7 +151,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
     let store = &server.state.store;
     let marker = |title: &str| format!("{}\n", baruch_typst::part_line(title));
 
-    // Umgewandelt: alte Saat, vor Runde 14 umbenannt (Titel des Teils zählt), leer.
+    // Converted: old seed, renamed before Round 14 (the title of the part counts), empty.
     for (title, old_body) in [
         ("Teil I – Am Ufer", "= Teil I – Am Ufer\n\n"),
         ("Teil II – Die Weite", "= Teil II – Das Meer\n\n"),
@@ -174,7 +173,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
         assert_eq!(new.5, Some(old.0), "{title}: Elternteil im Revisionsbaum ist die alte Fassung");
     }
 
-    // Nicht angefasst: eigener Text, fremde `=`-Zeile; Teile ohne Fassung (Beispielwerk) ebenso.
+    // Not touched: own text, foreign `=` line; parts without a revision (sample work) likewise.
     let mut kept = Vec::new();
     for title in ["Zwischenspiel", "Am Ende"] {
         let (key, kind, revs) = revisions(&server, orchard, title).await;
@@ -182,7 +181,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
         assert_eq!(revs.len(), 1, "{title}: eigener Text bleibt unverändert, keine neue Fassung: {revs:?}");
         kept.push(key);
     }
-    // Das Beispielwerk einer alten Datenbank: leere Teile (Saat seit Runde 5) werden ebenfalls umgewandelt.
+    // The sample work of an old database: empty parts (seed since Round 5) are converted as well.
     let sample = store.default_work().await.unwrap();
     let loaded = store.load_work(sample).await.unwrap();
     let sample_parts: Vec<_> = loaded.nodes.iter().filter(|n| n.kind == NodeKind::Part).collect();
@@ -193,7 +192,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
         assert_eq!(part.revisions[0].body, "", "Beispielwerk: leere Fassung 1 bleibt erhalten");
     }
 
-    // Spiegel: genau ein Protokoll-Commit für die Fähre, keiner für den Obstgarten.
+    // Mirror: exactly one log commit for the Fähre, none for the Obstgarten.
     let ferry_slug = store.work_slug(ferry).await.unwrap();
     let orchard_slug = store.work_slug(orchard).await.unwrap();
     let mirrored_before = log(&server, &ferry_slug);
@@ -222,7 +221,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
         );
     }
 
-    // Idempotent: ein zweiter Aufruf tut nichts (Merker); ohne Merker fände er auch nichts mehr umzuwandeln.
+    // Idempotent: a second call does nothing (flag); without the flag it would find nothing to convert any more either.
     let again = store.convert_legacy_parts("Autor").await.unwrap();
     assert!(!again.ran && again.converted.is_empty(), "Merker gesetzt: kein zweiter Lauf: {again:?}");
     sqlx::query("DELETE FROM store_meta WHERE key = ?").bind(CONVERTED_KEY).execute(store.pool()).await.unwrap();
@@ -234,7 +233,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
     rerun_kept.sort_unstable();
     assert_eq!(rerun_kept, kept, "gemeldet werden nur die Knoten-ids der Teile mit eigenem Text");
 
-    // Export → Import → Export byte-gleich, die Teile kommen als Teile zurück.
+    // Export → import → export byte-identical, the parts come back as parts.
     let exported = store.export_typst(ferry).await.unwrap();
     for title in ["Teil I – Am Ufer", "Teil II – Die Weite", "Teil III – Nachklang"] {
         assert!(
@@ -261,7 +260,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
         .collect();
     assert_eq!(parts, ["Teil I – Am Ufer", "Teil II – Die Weite", "Teil III – Nachklang"], "Teile beim Re-Import");
 
-    // Satz und Buch-PDF mit Teil-Seiten (rechte Seiten).
+    // Typesetting and book PDF with part pages (right-hand pages).
     let typeset = baruch_server::typeset::typeset(&server.state, ferry).await.unwrap();
     let errors: Vec<_> = typeset.diagnostics().into_iter().filter(|d| d.severity == "error").collect();
     assert!(errors.is_empty(), "Satz ohne Fehler: {errors:?}");
@@ -285,7 +284,7 @@ async fn old_part_texts_become_part_markers_once_without_loss_and_survive_export
     assert_eq!(response.status(), StatusCode::OK, "Buch-PDF über die Seite");
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/pdf", "als PDF");
 
-    // Neustart: keine neue Fassung, kein neuer Commit.
+    // Restart: no new revision, no new commit.
     let revs_before = revisions(&server, ferry, "Teil I – Am Ufer").await.2.len();
     let common::Server { data, state, app } = server;
     drop(app);

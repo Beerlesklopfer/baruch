@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Editor in eigenen Bereichen (Wunsch 2026-11-06, „die Elemente voneinander entkoppeln“): Kopf und
-//! Werkzeugleiste fest oben, das Blatt füllt den Rest und scrollt allein, Hinweise und „Speichern“ in der
-//! Statuszeile; die Werkzeugleiste als eigenes Fragment; Fassungsliste, Umschalten, Ändern und Löschen im
-//! Akkordeon „Fassungen“ rechts. Ohne JavaScript bleibt alles bedienbar, mit JavaScript trifft das
-//! Neuzeichnen (ui.render) die neuen Container. Beispielwerk: Einleitung (Stelle 2) mit Fassung 1, 2
-//! (aktuell) und Vorschlag 3.
+//! Editor in separate areas (wish 2026-11-06, „die Elemente voneinander entkoppeln“): header and toolbar fixed at the
+//! top, the sheet fills the rest and scrolls alone, hints and „Speichern“ in the status line; the toolbar as a fragment
+//! of its own; revision list, switching, changing and deleting in the accordion „Fassungen“ on the right. Without
+//! JavaScript everything stays usable, with JavaScript the redraw (ui.render) hits the new containers. Sample work:
+//! introduction (position 2) with revision 1, 2 (current) and proposal 3.
 
 use crate::common;
 
@@ -19,12 +18,12 @@ fn script(name: &str) -> &'static str {
         .unwrap_or_else(|| panic!("{name} fehlt"))
 }
 
-/// Stelle von `needle` in `html`, sonst Abbruch mit Meldung.
+/// Position of `needle` in `html`, otherwise abort with a message.
 fn at(html: &str, needle: &str) -> usize {
     html.find(needle).unwrap_or_else(|| panic!("{needle} fehlt: {html}"))
 }
 
-/// Kopf eines `<details data-section="…">` bis `</summary>`.
+/// Head of a `<details data-section="…">` up to `</summary>`.
 fn summary_of<'a>(html: &'a str, section: &str) -> &'a str {
     let start = at(html, &format!("data-section=\"{section}\""));
     &html[start..start + html[start..].find("</summary>").expect("summary endet")]
@@ -44,12 +43,12 @@ async fn the_editor_has_head_toolbar_sheet_and_status_line_in_this_order() {
         head < toolbar && toolbar < body && body < form && form < status,
         "Kopf und Werkzeugleiste stehen über dem Blatt, das Formular im Blatt, die Statuszeile darunter"
     );
-    // Der Kopf behält nur Fassungsanzeige, Blättern und den Link zur aktuellen Fassung.
+    // The header keeps only the revision display, paging and the link to the current revision.
     let head_html = &editor[head..toolbar];
     assert!(head_html.contains("Fassung 1 · "), "Fassungsanzeige im Kopf: {head_html}");
     assert!(head_html.contains("data-key=\"next\""), "„›“ im Kopf, Alt+→ findet ihn dort");
     assert!(head_html.contains(">aktuell: Fassung 2</a>"), "Link zur aktuellen Fassung im Kopf");
-    // Statuszeile: Hinweise und „Speichern“, das über form= zum Formular im Blatt gehört.
+    // Status line: hints and „Speichern“, which belongs to the form in the sheet through form=.
     let status_html = &editor[status..];
     assert!(status_html.contains("wechselt die Fassung"), "Hinweis in der Statuszeile");
     assert!(
@@ -146,7 +145,7 @@ async fn deleting_a_version_works_without_javascript_from_the_accordion() {
     );
     assert!(form.contains("<input type=\"hidden\" name=\"rev\" value=\"1\">"), "löscht die gezeigte Fassung");
 
-    // Ohne Kästchen lehnt der Server ab; mit Kästchen ist Fassung 1 fort, zurück geht es zum Abschnitt.
+    // Without the checkbox the server rejects; with the checkbox revision 1 is gone, and it goes back to the section.
     let key = server.rpc("node.get", json!({ "node": 2 })).await["result"]["key"].as_i64().unwrap();
     let fields = format!("method=revision.delete&work=1&node=2&key={key}&rev=1&view=edit");
     let (refused, _) = server.post_form("/act", &fields).await;
@@ -159,7 +158,7 @@ async fn deleting_a_version_works_without_javascript_from_the_accordion() {
         node["revisions"].as_array().unwrap().iter().map(|r| r["number"].as_i64().unwrap()).collect();
     assert!(!numbers.contains(&1), "Fassung 1 ist gelöscht: {numbers:?}");
 
-    // Die aktuelle Fassung bleibt gesperrt, auch im Akkordeon.
+    // The current revision stays locked, in the accordion too.
     let (_, current) = server.get("/?work=1&node=2&rev=2").await;
     let right = &current[at(&current, "id=\"pane-assistants\"")..];
     assert!(

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0018 (Anträge zu Bildern, Runde 11) auf einer nachgebauten Datenbank im Stand von
-//! development davor: Store-Migrationen 0001–0016 und Bibliothek 0101 ff., ein frei erfundenes Werk mit
-//! Kapiteln, Personas, Beiträgen, Einfällen, einem Bild, einem Gliederungsantrag und einem MCP-Token.
+//! Migration 0018 (requests about images, Round 11) on a reproduced database in the state of development before it:
+//! store migrations 0001–0016 and library 0101 ff., a freely invented work with chapters, personas, posts, ideas, an
+//! image, an outline request and an MCP token.
 //!
-//! Danach `Store::open`: Jede Zeile jeder Tabelle bleibt unverändert, das Schema jeder alten Tabelle
-//! ebenso; dazu kommt die leere Tabelle `asset_request` mit ihrem Index. Ein zweites Öffnen ändert nichts
-//! mehr; ein Werk mit Bildantrag lässt sich löschen (die Anträge gehen mit). Andere Migrationen derselben
-//! oder späterer Runden (z. B. 0017) laufen beim Öffnen mit; der Test nimmt nicht an, dass 0018 die
-//! letzte ist, und vergleicht nur, was 0018 betrifft.
+//! Afterwards `Store::open`: every row of every table stays unchanged, the schema of every old table likewise; the
+//! empty table `asset_request` with its index is added. A second opening changes nothing any more; a work with an image
+//! request can be deleted (the requests go along). Other migrations of the same or later rounds (e.g. 0017) run along
+//! on opening; the test does not assume that 0018 is the last one and compares only what concerns 0018.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -31,7 +30,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store bis 0016 (Stand development vor Runde 11) und die Bibliothek.
+/// Store up to 0016 (state of development before Round 11) and the library.
 async fn migrate_before(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 16).cloned().collect();
     assert!(old.iter().any(|m| m.version == 16), "Stand vorher hat 0016");
@@ -119,7 +118,7 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
         "INSERT INTO preferred_source (title, url, note, position) VALUES ('Hafenkunde', 'https://hafen.example/', 'erfunden', 1)",
     )
     .await;
-    // Ein Bild (0009) mit Pfad, ein Gliederungsantrag (0012) und ein Token (0016).
+    // An image (0009) with path, an outline request (0012) and a token (0016).
     let asset: i64 = sqlx::query_scalar("INSERT INTO asset (work_id, name) VALUES (?, 'kai.svg') RETURNING id")
         .bind(work)
         .fetch_one(pool)
@@ -180,7 +179,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Alle Zeilen über die Spalten von `layout` (vorher), sortiert.
+/// All rows over the columns of `layout` (before), sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -232,9 +231,9 @@ async fn migration_0018_keeps_every_row_and_only_adds_the_request_table() {
     }
     let schema_after = schema(pool).await;
     for (name, sql) in &schema_before {
-        // `Store::open` führt alle Migrationen aus; die spätere 0035 (Nutzerfrage 12) legt `outline_request`
-        // mit der Antragsart `add` neu an (geprüft in migration_0035.rs), 0040 `work` mit dem Schema `book`
-        // (geprüft in migration_0040.rs).
+        // `Store::open` runs all migrations; the later 0035 (user question 12) recreates `outline_request` with the
+        // request kind `add` (checked in migration_0035.rs), 0040 `work` with the scheme `book` (checked in
+        // migration_0040.rs).
         if name == "outline_request" || name == "work" {
             continue;
         }
@@ -248,8 +247,8 @@ async fn migration_0018_keeps_every_row_and_only_adds_the_request_table() {
     }
     let table = schema_after.get("asset_request").cloned().flatten().expect("neue Tabelle asset_request");
     assert!(table.contains("REFERENCES work(id) ON DELETE CASCADE"), "Anträge hängen am Werk: {table}");
-    // Die spätere 0045 (Runde 27) baut `asset_request` mit der vierten Art `cover_layout` neu (geprüft in
-    // migration_0045.rs); die drei Arten aus 0018 stehen vorn.
+    // The later 0045 (Round 27) rebuilds `asset_request` with the fourth kind `cover_layout` (checked in
+    // migration_0045.rs); the three kinds from 0018 are at the front.
     assert!(
         table.contains("CHECK (op IN ('replace','set_cover','delete','cover_layout'))"),
         "drei Arten aus 0018, dazu cover_layout aus 0045: {table}"
@@ -296,7 +295,7 @@ async fn migration_0018_keeps_every_row_and_only_adds_the_request_table() {
     assert_eq!(schema(again.pool()).await, full_schema, "zweites Öffnen ändert das Schema nicht");
     assert_eq!(contents(again.pool(), &full_layout).await, full, "zweites Öffnen ändert keine Zeile");
 
-    // Mit den neuen Zeilen: ein Bild über den Store, ein Antrag, dann das Werk löschen.
+    // With the new rows: an image through the store, a request, then delete the work.
     let new = NewAsset {
         file_name: "laterne.svg",
         name: None,
@@ -315,8 +314,8 @@ async fn migration_0018_keeps_every_row_and_only_adds_the_request_table() {
     assert_eq!(left, 0, "die Anträge gehen mit dem Werk");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();
@@ -326,10 +325,10 @@ fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap
     contents
 }
 
-/// Migration 0041 (Runde 26) hängt an Tabellen mit Werkinhalt die Spalte `uuid` an (`ALTER TABLE … ADD COLUMN`
-/// erweitert den gespeicherten CREATE-Text um genau diesen Zusatz); der Vergleich des alten Schemas nimmt ihn heraus.
-/// Runde 28 (0046) hängt `edited` an `post` und `chat_thread_post` an (geprüft in migration_0046.rs); sonst
-/// bleibt das Schema wörtlich.
+/// Migration 0041 (Round 26) appends the column `uuid` to tables with work content (`ALTER TABLE … ADD COLUMN` extends
+/// the stored CREATE text by exactly this addition); the comparison of the old schema takes it out. Round 28 (0046)
+/// appends `edited` to `post` and `chat_thread_post` (checked in migration_0046.rs); otherwise the schema stays
+/// literal.
 fn without_r28_edited(name: &str, sql: &str) -> String {
     if name == "post" || name == "chat_thread_post" { sql.replace(", edited TEXT", "") } else { sql.to_owned() }
 }
@@ -338,16 +337,16 @@ fn without_uuid_column(sql: &str) -> String {
     sql.replace(R34_IDEA_COLUMNS, "").replace(UUID_COLUMN, "")
 }
 
-/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (`ALTER TABLE … ADD COLUMN`
-/// erweitert den gespeicherten CREATE-Text um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in
-/// migration_0052.rs); der Vergleich des alten Schemas nimmt ihn heraus.
+/// Round 34 (0052) appends title, parent node, order and main topic to `idea` (`ALTER TABLE … ADD COLUMN` extends the
+/// stored CREATE text by exactly this addition, directly after the column uuid; checked in migration_0052.rs); the
+/// comparison of the old schema takes it out.
 const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 
-/// Runde 30 (0047) hängt Spalten an `post`, `chat_thread_post`, `finding` und `revision` an (`ALTER TABLE … ADD
-/// COLUMN` erweitert den gespeicherten CREATE-Text um genau diese Zusätze; geprüft in migration_0047.rs); der
-/// Vergleich des alten Schemas nimmt sie heraus.
+/// Round 30 (0047) appends columns to `post`, `chat_thread_post`, `finding` and `revision` (`ALTER TABLE … ADD COLUMN`
+/// extends the stored CREATE text by exactly these additions; checked in migration_0047.rs); the comparison of the old
+/// schema takes them out.
 fn without_r30(name: &str, sql: &str) -> String {
     let sql: &str = &without_r22(name, sql);
     const POST: &str = ", basis_rev INTEGER CHECK (basis_rev IS NULL OR basis_rev >= 1), basis_label TEXT NOT NULL \
@@ -371,13 +370,13 @@ fn without_r30(name: &str, sql: &str) -> String {
     sql.replace(&added, "")
 }
 
-/// Objekte, die 0047 (Runde 30) neu anlegt.
+/// Objects that 0047 (Round 30) newly creates.
 #[allow(dead_code)]
 const R30_OBJECTS: [&str; 3] = ["replace_batch", "replace_batch_work", "revision_variant_group"];
 
-/// Runde 22 (0050) hängt `amend_seq`/`based_on_amend` an `revision` und `adopted_amend` an `finding` und
-/// `finding_status` an (`ALTER TABLE … ADD COLUMN`, geprüft in migration_0050.rs); der Vergleich des alten Schemas
-/// nimmt sie heraus.
+/// Round 22 (0050) appends `amend_seq`/`based_on_amend` to `revision` and `adopted_amend` to `finding` and
+/// `finding_status` (`ALTER TABLE … ADD COLUMN`, checked in migration_0050.rs); the comparison of the old schema takes
+/// them out.
 fn without_r22(name: &str, sql: &str) -> String {
     const REVISION: &str = ", amend_seq INTEGER NOT NULL DEFAULT 0 CHECK (amend_seq >= 0), based_on_amend INTEGER \
         CHECK (based_on_amend IS NULL OR based_on_amend >= 0)";

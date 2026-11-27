@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0044 (Satzbild-Einstellungen je Werk, Runde 18c) auf einer nachgebauten Datenbank im Stand von
-//! development vor Runde 18 (Store bis 0043, Bibliothek vollständig) mit frei erfundenem Werk: Kapitel mit aktueller
-//! Fassung und Vorschlag, Vorlagenfassung, Beitrag, Bild, Zeit-Einstellung.
+//! Migration 0044 (typeset-view settings per work, Round 18c) on a reproduced database in the state of development
+//! before Round 18 (store up to 0043, library complete) with a freely invented work: chapters with current revision and
+//! proposal, template revision, post, image, time setting.
 //!
-//! Belegt: 0044 steht nicht in `FOREIGN_KEYS_OFF` (legt nur eine neue Tabelle an); jede Zeile jeder alten Tabelle
-//! und das Schema jeder alten Tabelle bleiben gleich; neu ist genau `work_sheet` (leer, kein Index, kein Trigger);
-//! die CHECK-Regeln und der Fremdschlüssel greifen schon in der Tabelle; `Store::open` danach gelingt, der Export
-//! ist byte-gleich, ohne Zeile ist nichts gesetzt; Einstellungen lassen sich setzen; Löschen des Werks nimmt die
-//! Zeile mit (ON DELETE CASCADE, ohne dass `Store::delete_work` sie kennt); keine Verstöße gegen Fremdschlüssel.
+//! Evidenced: 0044 is not in `FOREIGN_KEYS_OFF` (creates only a new table); every row of every old table and the schema
+//! of every old table stay the same; new is exactly `work_sheet` (empty, no index, no trigger); the CHECK rules and the
+//! foreign key take effect in the table already; `Store::open` afterwards succeeds, the export is byte-identical,
+//! without a row nothing is set; settings can be set; deleting the work takes the row along (ON DELETE CASCADE, without
+//! `Store::delete_work` knowing it); no foreign key violations.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -44,8 +44,8 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Store bis 0043 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
-/// der Stand von development vor Runde 18.
+/// Store up to 0043 (0040 as in `baruch_store::migrate` with foreign keys switched off) and the library: the state of
+/// development before Round 18.
 async fn migrate_upto_0043(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 44), "die neue Migration ist 0044");
     assert!(
@@ -68,7 +68,7 @@ async fn migrate_upto_0043(pool: &SqlitePool) {
     assert_eq!(highest, 43, "Stand davor: Store bis 0043");
 }
 
-/// Werk mit zwei Kapiteln, Vorschlag, Vorlagenfassung, Beitrag, Bild und Zeit-Einstellung direkt in SQLite.
+/// Work with two chapters, proposal, template revision, post, image and time setting directly in SQLite.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     let doc = baruch_typst::parse(BOOK).unwrap();
@@ -209,7 +209,7 @@ async fn migration_0044_keeps_every_row_and_only_adds_the_sheet_table() {
         "vor 0044 gibt es work_sheet nicht (sonst prüfte der Test nichts)"
     );
 
-    // Nur 0044, wie `baruch_store::migrate` sie ausführt (nicht in FOREIGN_KEYS_OFF: Fremdschlüssel bleiben an).
+    // Only 0044, as `baruch_store::migrate` runs it (not in FOREIGN_KEYS_OFF: foreign keys stay on).
     store_migrator(|v| v == 44).run(&pool).await.expect("0044 läuft auf dem Stand von development");
 
     let after = contents(&pool, &layout).await;
@@ -233,7 +233,7 @@ async fn migration_0044_keeps_every_row_and_only_adds_the_sheet_table() {
         "Spalten wie im Vertrag (gemeinsame Namen §2)"
     );
 
-    // Die Tabelle selbst setzt die äußeren Grenzen.
+    // The table itself sets the outer limits.
     let orphan = sqlx::query("INSERT INTO work_sheet (work_id, size) VALUES (99999, '11pt')").execute(&pool).await;
     assert!(orphan.is_err(), "Fremdschlüssel: eine Zeile braucht ein vorhandenes Werk");
     for (column, value, why) in [

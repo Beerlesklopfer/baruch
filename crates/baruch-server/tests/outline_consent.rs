@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nutzerfrage 12 (Entscheidung des Nutzers 2026-11-07: „es braucht eine aktive Zustimmung (Popup)“):
-//! Legt ein Assistent über MCP `outline_add` einen Teil so an, dass vorhandene Kapitel unter ihn wandern,
-//! entsteht ein Antrag statt des Teils. Der Mensch stimmt zu oder lehnt ab – im Dialog (Widget
-//! `consent`) oder ohne JavaScript über Hinweisleiste und Formular auf `/gliederung`. Herkunft und
-//! Entscheidung stehen im Git-Spiegel. Ein Teil, der nichts übernimmt (am Werkende), bleibt Anlegen.
-//! Alle Werke und Texte frei erfunden.
+//! User question 12 (decision of the user 2026-11-07: „es braucht eine aktive Zustimmung (Popup)“): if an assistant
+//! creates a part through MCP `outline_add` in such a way that existing chapters move below it, a request is created
+//! instead of the part. The human agrees or declines – in the dialog (widget `consent`) or without JavaScript through
+//! notice bar and form on `/gliederung`. Origin and decision are in the Git mirror. A part that takes over nothing (at
+//! the end of the work) stays a creation. All works and texts freely invented.
 
 use crate::common;
 
@@ -28,13 +27,13 @@ async fn key_of(server: &common::Server, work: i64, title: &str) -> i64 {
     loaded.nodes.iter().find(|n| n.title == title).unwrap_or_else(|| panic!("kein Punkt „{title}“")).key
 }
 
-/// Baum als (Art, Titel, Titel des Elternpunkts) in Baumreihenfolge.
+/// Tree as (kind, title, title of the parent item) in tree order.
 async fn tree(server: &common::Server, work: i64) -> Vec<(NodeKind, String, Option<String>)> {
     let loaded = server.state.store.load_work(work).await.unwrap();
     loaded.nodes.iter().map(|n| (n.kind, n.title.clone(), n.parent.map(|p| loaded.nodes[p].title.clone()))).collect()
 }
 
-/// Commits im Spiegel (neueste zuerst); `None` ohne git-Programm.
+/// Commits in the mirror (newest first); `None` without a git program.
 fn log(server: &common::Server, slug: &str) -> Option<Vec<String>> {
     common::git(&server.mirror_dir_of(slug), &["log", "--format=%H"])
         .map(|text| text.lines().map(str::to_owned).collect())
@@ -44,7 +43,7 @@ fn last_commit(server: &common::Server, slug: &str) -> Option<String> {
     common::git(&server.mirror_dir_of(slug), &["log", "-1", "--format=%an%n%B"])
 }
 
-// ---- MCP (wie round14.rs) ---------------------------------------------------------------------------
+// ---- MCP (as in round14.rs) ------------------------------------------------------------------------
 
 async fn mcp_post(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -93,7 +92,7 @@ async fn coast() -> Coast {
     Coast { server, work: report.work, slug: report.slug, session }
 }
 
-/// Der Assistent will „Vom Wasser“ vor „Flut“ anlegen: „Flut“ und „Brandung“ würden wandern → Antrag.
+/// The assistant wants to create „Vom Wasser“ before „Flut“: „Flut“ and „Brandung“ would move → request.
 async fn request_part(c: &Coast) -> (i64, Value) {
     let flood = key_of(&c.server, c.work, "Flut").await;
     let answer = mcp_ok(
@@ -111,7 +110,7 @@ fn original_tree() -> Vec<(NodeKind, String, Option<String>)> {
     ["Ebbe", "Flut", "Brandung"].iter().map(|t| (NodeKind::Chapter, (*t).to_owned(), None)).collect()
 }
 
-// ---- Antrag statt Anlegen ---------------------------------------------------------------------------
+// ---- Request instead of creation -------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_part_in_the_middle_becomes_a_request_and_changes_nothing() {
@@ -133,7 +132,7 @@ async fn a_part_in_the_middle_becomes_a_request_and_changes_nothing() {
     assert_eq!(tree(&c.server, c.work).await, original_tree(), "die Gliederung ist unverändert");
     assert_eq!(log(&c.server, &c.slug), commits, "und kein Commit, solange der Mensch nicht entschieden hat");
 
-    // outline_requests zeigt die Vorschau: der neue Teil „neu“, die beiden Kapitel „wandern“.
+    // outline_requests shows the preview: the new part „neu“, the two chapters „wandern“.
     let listed = mcp_ok(&c.server, &c.session, "outline_requests", json!({ "work": c.work, "preview": true })).await;
     let request = &listed["requests"][0];
     assert_eq!(request["id"], id, "der Antrag steht in der Liste: {listed}");
@@ -237,7 +236,7 @@ async fn a_part_at_the_end_of_the_work_is_still_created_directly() {
 async fn a_request_whose_chapters_changed_meanwhile_is_closed_as_stale() {
     let c = coast().await;
     let (id, _) = request_part(&c).await;
-    // Inzwischen legt der Mensch selbst einen Teil vor „Brandung“ an: der Antrag übernähme nur noch „Flut“.
+    // Meanwhile the human creates a part before „Brandung“ himself: the request would only take over „Flut“ any more.
     let surf = key_of(&c.server, c.work, "Brandung").await;
     let own = c
         .server
@@ -259,7 +258,7 @@ async fn a_request_whose_chapters_changed_meanwhile_is_closed_as_stale() {
     assert_eq!(tree(&c.server, c.work).await, shown, "nichts geändert");
 }
 
-// ---- Oberfläche: Hinweisleiste, Dialog, ohne JavaScript ---------------------------------------------
+// ---- User interface: notice bar, dialog, without JavaScript ----------------------------------------
 
 #[tokio::test]
 async fn every_page_shows_the_bar_and_the_dialog_while_a_request_waits() {
@@ -297,7 +296,7 @@ async fn every_page_shows_the_bar_and_the_dialog_while_a_request_waits() {
     );
     let main = baruch_server::SCRIPTS.iter().find(|(name, _)| *name == "main.js").unwrap();
     assert!(main.1.contains("./consent.js"), "main.js lädt das Widget");
-    // JSON bleibt unberührt.
+    // JSON stays untouched.
     let answer = c.server.rpc("outline.requests", json!({ "work": c.work })).await;
     assert!(!answer.to_string().contains("consent-bar"), "nur HTML-Seiten bekommen die Leiste");
 }
@@ -313,7 +312,7 @@ async fn without_javascript_the_form_on_the_request_page_decides_with_csrf_prote
     assert!(row.contains(">Zustimmen</button>") && row.contains(">Ablehnen</button>"), "Formular-Knöpfe: {row}");
     assert!(row.contains("wandert unter den neuen Teil"), "Vorschau ohne JavaScript: {row}");
 
-    // Fremde Seite: abgelehnt, nichts geändert (derselbe Schutz wie bei allen Formularen).
+    // Foreign page: rejected, nothing changed (the same protection as with all forms).
     let form = format!("method=outline.request_decide&work={}&id={id}&decision=confirm&view=gliederung", c.work);
     let request = Request::post("/gliederung/act")
         .header(header::HOST, "127.0.0.1:8765")

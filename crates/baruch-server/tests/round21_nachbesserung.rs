@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21, Nachbesserung nach dem Gutachten: Schutz-`;` hinter eingebetteten Ausdrücken beim EPUB-Import, führende
-//! Zahlen in Fußnoten, Bilder in Fußnoten, Bildtyp im EPUB-Export nach einem Typwechsel, Seitengrenze des lokalen
-//! PDF-Wegs.
+//! Round 21, follow-up fix after the review: protective `;` after embedded expressions in the EPUB import, leading
+//! numbers in footnotes, images in footnotes, image type in the EPUB export after a type change, page limit of the
+//! local PDF way.
 //!
-//! Alle Texte und Bilder sind frei erfunden und entstehen im Test (EPUB von Hand gezippt, PNG über
-//! `baruch_epub::sample::png`). Poppler wird für die Seitengrenze durch zwei kleine Shell-Skripte ersetzt, die ihre
-//! Argumente mitschreiben; kein Eliezer, kein Netz. Satz und EPUB unter `common::PDF_SERIAL`.
+//! All texts and images are freely invented and are created in the test (EPUB zipped by hand, PNG through
+//! `baruch_epub::sample::png`). For the page limit Poppler is replaced by two small shell scripts that log their
+//! arguments; no Eliezer, no network. Typesetting and EPUB under `common::PDF_SERIAL`.
 
 use std::io::{Read as _, Write as _};
 
@@ -42,9 +42,9 @@ fn zip_entry(zip_bytes: &[u8], name: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-/// EPUB 3 mit einem Kapitel: Zeilenumbruch vor „(“, Code vor „.Feld“, Hervorhebung mitten im Wort vor „(n)“; drei
-/// Fußnoten: eine beginnt mit einer Bibelstelle (Rücksprung trägt die Nummer), eine mit ihrer eigenen Nummer
-/// (gehört zum Zeichen), eine enthält ein Bild.
+/// EPUB 3 with one chapter: line break before „(“, code before „.Feld“, emphasis in the middle of a word before „(n)“;
+/// three footnotes: one begins with a Bible passage (the back link carries the number), one with its own number
+/// (belongs to the mark), one contains an image.
 fn tricky_epub() -> Vec<u8> {
     let container = r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#;
     let opf = r#"<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">urn:uuid:7d0c2a4e-0000-4000-8000-0000000021fe</dc:identifier><dc:title>Die Leiter am Kai</dc:title><dc:language>de</dc:language></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="k1" href="kap1.xhtml" media-type="application/xhtml+xml"/><item id="b" href="b.png" media-type="image/png"/></manifest><spine><itemref idref="k1"/></spine></package>"#;
@@ -100,7 +100,7 @@ async fn an_imported_epub_with_breaks_code_and_footnotes_sets_without_errors_and
     let expected = format!("#footnote[Die Leiter: #image(\"{}\", alt: \"Bild in Note\")]", assets[0].path);
     assert!(typst.contains(&expected), "Begründung: das Bild der Fußnote steht in der Fußnote ({expected}): {typst}");
 
-    // Gemessen am Satz: das Buch-PDF entsteht ohne Fehler (vorher „expected function, found content“).
+    // Measured on the typesetting: the book PDF is created without errors (before, „expected function, found content“).
     let _serial = common::PDF_SERIAL.lock().await;
     let response = server
         .app
@@ -120,7 +120,7 @@ async fn an_imported_epub_with_breaks_code_and_footnotes_sets_without_errors_and
     assert_eq!(content_type.unwrap(), "application/pdf");
 }
 
-/// Frei erfundenes Buch mit einem Bild unter `bilder/haus.svg`.
+/// Freely invented book with an image under `bilder/haus.svg`.
 const BOOK: &str = "#set document(title: \"Das Haus am Hang\")\n#set text(lang: \"de\")\n\n= Das Haus\nDas Dach ist neu.\n\n\
 #figure(image(\"bilder/haus.svg\", width: 40mm), caption: [Das Haus])\n";
 

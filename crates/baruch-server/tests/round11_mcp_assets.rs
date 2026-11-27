@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder über MCP mit Anträgen (Vertrag Runde 11, Abschnitt 7): `asset_add` legt sofort an (Herkunft im
-//! Spiegel), `role: "cover"` beantragt zusätzlich den Umschlag; `asset_replace`, `asset_set_cover`,
-//! `asset_delete` ändern nichts und legen nur Anträge an; der Mensch bestätigt (RPC
-//! `asset.request_decide` bzw. Formular `POST /werke/bilder/antraege/act`) oder lehnt ab; veraltete
-//! Anträge werden mit Grund geschlossen. Werk frei erfunden (`tests/data/gartenbuch.typ`), Bilder im Test
-//! erzeugt.
+//! Images through MCP with requests (contract Round 11, section 7): `asset_add` creates at once (origin in the mirror),
+//! `role: "cover"` additionally requests the cover; `asset_replace`, `asset_set_cover`, `asset_delete` change nothing
+//! and only file requests; the human confirms (RPC `asset.request_decide` or form `POST /werke/bilder/antraege/act`) or
+//! declines; outdated requests are closed with a reason. Work freely invented (`tests/data/gartenbuch.typ`), images
+//! created in the test.
 
 use crate::common;
 
@@ -75,7 +74,7 @@ fn last_commit(server: &common::Server, slug: &str) -> String {
     common::git(&server.mirror_dir_of(slug), &["log", "-1", "--format=%an <%ae>%n%cn <%ce>%n%B"]).unwrap_or_default()
 }
 
-/// Gartenbuch mit dem Bild `beet.svg` (vom Menschen) und einer MCP-Sitzung.
+/// Gartenbuch with the image `beet.svg` (by the human) and an MCP session.
 async fn garden() -> (common::Server, i64, String, String) {
     let server = common::open().await;
     let report = server.import_garden().await;
@@ -147,8 +146,8 @@ async fn asset_add_creates_the_picture_at_once_with_the_client_as_author_in_one_
 async fn asset_add_refuses_more_than_8_mib_and_wrong_arguments() {
     let (server, work, slug, s) = garden().await;
     let before = commits(&server, &slug);
-    // Über 8 MiB: Die Route /mcp nimmt heute höchstens 2 MiB an (Vorgabe von axum, 413); das Werkzeug selbst
-    // lehnt über 8 MiB entschlüsselt ab (Unit-Test in src/mcp/assets.rs). Beides ändert nichts.
+    // Over 8 MiB: the route /mcp today accepts at most 2 MiB (default of axum, 413); the tool itself rejects over 8 MiB
+    // decoded (unit test in src/mcp/assets.rs). Neither changes anything.
     let big = vec![0u8; baruch_store::MAX_ASSET_BYTES + 1];
     let message = json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "asset_add",
         "arguments": { "work": work, "file_name": "riesig.png", "content": baruch_store::encode_base64(&big), "encoding": "base64" } } });
@@ -362,7 +361,7 @@ async fn a_stale_request_is_closed_with_a_reason_and_changes_nothing() {
     .await["request"]["id"]
         .as_i64()
         .unwrap();
-    // Inzwischen ersetzt der Mensch das Bild selbst.
+    // Meanwhile the human replaces the image himself.
     let other = BED.replace("width=\"8\" height=\"4\"/>", "width=\"8\" height=\"3\"/>");
     let human = server
         .rpc(

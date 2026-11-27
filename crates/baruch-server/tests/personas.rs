@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Farben der Personas im Server (Vertrag Runde 7, „proposals“): RPC `persona.list`/`persona.set_color`,
-//! Seite `/einstellungen/assistenten` (seit Runde 9; `/einstellungen/personas` leitet dorthin) mit
-//! Formular (ohne JavaScript), Fehler -32602 bzw. 422, kein Weg über
-//! `/act` und MCP, Kontrast der Tönungen (WCAG AA), der Linien (WCAG 1.4.11, Runde 8) und die Farbe
-//! überall, wo die Persona auftritt (Assistentenliste, Abschnitts-Chat, Fassungsliste, Fassungskopf).
+//! Colours of the personas in the server (contract Round 7, „proposals“): RPC `persona.list`/`persona.set_color`, page
+//! `/einstellungen/assistenten` (since Round 9; `/einstellungen/personas` redirects there) with a form (without
+//! JavaScript), errors -32602 or 422, no way through `/act` and MCP, contrast of the tints (WCAG AA), of the lines
+//! (WCAG 1.4.11, Round 8) and the colour everywhere the persona appears (assistant list, section chat, revision list,
+//! revision header).
 
 use crate::common;
 
@@ -20,7 +20,7 @@ use baruch_server::rpc::INVALID_PARAMS;
 use baruch_store::{FALLBACK_COLOR, PERSONA_PALETTE};
 use serde_json::{Value, json};
 
-/// Formular an eine Adresse; Antwort Status, Weiterleitung, Text.
+/// Form to an address; response status, redirect, text.
 async fn form(server: &common::Server, uri: &str, body: &str) -> (StatusCode, Option<String>, String) {
     let request = Request::post(uri)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -50,16 +50,15 @@ fn every_tint_keeps_the_text_readable_in_both_themes() {
             );
         }
     }
-    // Die Tönung bleibt erkennbar: nicht einfach die Fläche selbst, wenn die Farbe es zulässt.
+    // The tint stays recognisable: not simply the surface itself, if the colour allows it.
     assert_ne!(tints(PERSONA_PALETTE[0]).light, "#ffffff", "Blau hell getönt, nicht weiß");
     assert_ne!(tints(PERSONA_PALETTE[0]).dark, "#1f2328", "Blau dunkel getönt, nicht die Fläche");
 }
 
-/// Runde 8 (WCAG 1.4.11, Nicht-Text-Kontrast): Die eingeklappte Linie eines Vorschlags ist oft das
-/// Einzige, was von ihm zu sehen ist. Vorher war `--pc-line` die Farbe selbst – Gelb erreicht auf Weiß
-/// nur 1,07:1, ein dunkles Braun auf der dunklen Fläche kaum mehr. Jetzt: `--pc-line` mindestens 3:1
-/// gegen die helle Fläche, `--pc-line-dark` mindestens 3:1 gegen die dunkle, für die Palette und frei
-/// erfundene Farben (Ocker, Braun, Magenta, Violett, dazu die Extreme).
+/// Round 8 (WCAG 1.4.11, non-text contrast): the collapsed line of a proposal is often the only thing to be seen of it.
+/// Before, `--pc-line` was the colour itself – yellow reaches only 1.07:1 on white, a dark brown on the dark surface
+/// hardly more. Now: `--pc-line` at least 3:1 against the light surface, `--pc-line-dark` at least 3:1 against the dark
+/// one, for the palette and freely invented colours (ochre, brown, magenta, violet, plus the extremes).
 #[test]
 fn persona_lines_reach_three_to_one_against_the_panel_in_both_themes() {
     let invented = [
@@ -75,8 +74,8 @@ fn persona_lines_reach_three_to_one_against_the_panel_in_both_themes() {
     let palette = PERSONA_PALETTE.iter().map(|c| ("Palette", *c));
     for (name, color) in palette.chain(invented) {
         let t = tints(color);
-        // --pc-line steht im hellen Thema auf Weiß und auf dem Blatt in beiden Themen, im dunklen also
-        // auf #f4f1ea (dunkler als Weiß): gegen jede dieser Flächen 3:1.
+        // --pc-line stands on white in the light theme and on the sheet in both themes, in the dark one therefore on
+        // #f4f1ea (darker than white): 3:1 against each of these surfaces.
         for surface in LIGHT_SURFACES {
             let light = contrast_ratio(&t.line, surface);
             assert!(light >= MIN_LINE_CONTRAST, "{name} {color}: --pc-line {} auf {surface} nur {light:.2}:1", t.line);
@@ -93,20 +92,20 @@ fn persona_lines_reach_three_to_one_against_the_panel_in_both_themes() {
             "{name}: beide Linien stehen im style: {s}"
         );
     }
-    // Eine Farbe, die schon reicht, bleibt unverändert (die Persona bleibt an ihrer Farbe erkennbar).
+    // A colour that is already sufficient stays unchanged (the persona stays recognisable by its colour).
     for color in
         PERSONA_PALETTE.iter().filter(|c| LIGHT_SURFACES.iter().all(|s| contrast_ratio(c, s) >= MIN_LINE_CONTRAST))
     {
         assert_eq!(tints(color).line, *color, "{color} reicht auf beiden hellen Flächen schon und bleibt die Linie");
     }
-    // Der Befund aus Runde 8: Palettenfarbe #e0a800 wurde nur gegen Weiß gerechnet (#b38600, 3,32:1)
-    // und hielt auf dem Blatt des dunklen Themas nur 2,94:1.
+    // The finding from Round 8: palette colour #e0a800 was only computed against white (#b38600, 3.32:1) and held only
+    // 2.94:1 on the sheet of the dark theme.
     assert!(contrast_ratio("#b38600", DARK_SHEET) < MIN_LINE_CONTRAST, "Ausgangslage: Weiß allein reicht nicht");
     assert!(contrast_ratio(&tints("#e0a800").line, DARK_SHEET) >= MIN_LINE_CONTRAST, "jetzt auch auf dem Blatt");
     assert_ne!(tints("#ffff00").line, "#ffff00", "Gelb wird für die helle Fläche abgedunkelt");
     assert_ne!(tints("#5b3a1e").line_dark, "#5b3a1e", "dunkles Braun wird für die dunkle Fläche aufgehellt");
     assert_eq!(MIN_LINE_CONTRAST, 3.0, "WCAG 1.4.11 verlangt 3:1");
-    // proposals.css nimmt je Thema die passende Linie (und auf dem stets hellen Blatt die helle).
+    // proposals.css takes the fitting line per theme (and on the always light sheet the light one).
     let css = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/static/proposals.css")).unwrap();
     assert!(css.contains(".pc { --pc-bg: var(--pc-light, var(--bg)); --pc-edge: var(--pc-line, "), "hell: --pc-line");
     assert_eq!(css.matches("--pc-edge: var(--pc-line-dark, ").count(), 2, "dunkel (System und Wahl): --pc-line-dark");
@@ -120,10 +119,9 @@ fn persona_lines_reach_three_to_one_against_the_panel_in_both_themes() {
     );
 }
 
-/// Nachbesserung Runde 7: Auf den Tönungen steht nicht nur `--text`, sondern auch gedämpfter Text
-/// (`.muted`: Handle und „Vorgabe #…“ auf /einstellungen/personas, „Quelle: …“ im Chat) und Linktext
-/// (`.ref` in `--primary`). Vorher erreichten etwa `--muted` auf Magenta hell nur 4,09:1 und
-/// `--primary` auf Ocker dunkel nur 3,16:1.
+/// Follow-up fix Round 7: on the tints there is not only `--text`, but also muted text (`.muted`: handle and
+/// „Vorgabe #…“ on /einstellungen/personas, „Quelle: …“ in the chat) and link text (`.ref` in `--primary`). Before, for
+/// instance, `--muted` on light magenta reached only 4.09:1 and `--primary` on dark ochre only 3.16:1.
 #[test]
 fn muted_and_link_text_stay_readable_on_every_tint() {
     let extremes = ["#000000", "#ffffff", "#ffff00", "#0000ff", "#ff00ff", FALLBACK_COLOR];
@@ -138,8 +136,8 @@ fn muted_and_link_text_stay_readable_on_every_tint() {
             }
         }
     }
-    // Die geprüften Schriftfarben sind die von app.css (sonst prüfte der Test die falschen Farben):
-    // jede Variable steht im hellen bzw. in beiden dunklen Blöcken mit genau diesem Wert.
+    // The font colours checked are those of app.css (otherwise the test would check the wrong colours): every variable
+    // is in the light or in both dark blocks with exactly this value.
     let css = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/static/app.css")).unwrap();
     let names = ["--text", "--muted", "--primary"];
     for (name, (light, dark)) in names.iter().zip(LIGHT_FOREGROUNDS.iter().zip(DARK_FOREGROUNDS.iter())) {
@@ -154,7 +152,7 @@ fn muted_and_link_text_stay_readable_on_every_tint() {
     assert!(css.contains(&format!("--sheet: {LIGHT_PANEL};")), "Blatt im hellen Thema = Weiß wie app.css");
     assert_eq!(css.matches(&format!("--sheet: {DARK_SHEET};")).count(), 2, "Blatt dunkel wie app.css (beide Blöcke)");
     assert_eq!(css.matches(&format!("--panel: {DARK_PANEL};")).count(), 2, "Fläche dunkel wie app.css");
-    // Die Tönung bleibt erkennbar, wo die Farbe es zulässt (sonst wäre die Prüfung trivial erfüllt).
+    // The tint stays recognisable where the colour allows it (otherwise the check would be trivially fulfilled).
     let tinted =
         PERSONA_PALETTE.iter().filter(|c| tints(c).light != LIGHT_PANEL && tints(c).dark != DARK_PANEL).count();
     assert_eq!(tinted, PERSONA_PALETTE.len(), "jede Palettenfarbe bleibt in beiden Themen getönt");
@@ -171,7 +169,7 @@ async fn persona_list_names_every_persona_with_color_tints_and_lector() {
     assert_eq!(lektor["color"], PERSONA_PALETTE[0], "Vorgabefarbe der ersten Persona");
     assert_eq!(lektor["chosen"], false, "nicht gewählt");
     assert_eq!(lektor["lector"], true, "der Lektor ist markiert (aktiv, größter Kontext)");
-    // Die Vorgabe 32768 ist die Kontextlänge, mit der Eliezer Gemma lädt; mehr ergäbe ein zu großes Budget.
+    // The default 32768 is the context length with which Eliezer loads Gemma; more would yield too large a budget.
     assert_eq!(lektor["context_length"], 32_768, "Kontextlänge mitgeliefert");
     assert_eq!(lektor["model"], "google/gemma-4-26b-a4b", "Modell mitgeliefert");
     assert!(lektor["role"].as_str().is_some_and(|r| !r.is_empty()), "Rolle mitgeliefert");
@@ -219,8 +217,8 @@ async fn persona_set_color_sets_resets_and_refuses_with_invalid_params() {
 #[tokio::test]
 async fn the_settings_page_changes_colors_with_forms_and_answers_422_on_errors() {
     let server = common::open().await;
-    // Runde 9: Die Farben stehen jetzt auf der Einstellungsseite „Assistenten“; die alte Adresse leitet
-    // dorthin weiter (Lesezeichen bleiben gültig), das Formular und seine Adresse bleiben gleich.
+    // Round 9: the colours are now on the settings page „Assistenten“; the old address redirects there (bookmarks stay
+    // valid), the form and its address stay the same.
     let request = Request::get("/einstellungen/personas?work=1").body(Body::empty()).unwrap();
     let (status, headers, _) = server.send(request).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "alte Adresse → Weiterleitung");
@@ -242,8 +240,8 @@ async fn the_settings_page_changes_colors_with_forms_and_answers_422_on_errors()
     );
     assert!(page.contains("name=\"color_text\""), "Textfeld für #rrggbb");
     assert!(page.contains(&format!("style=\"{}\"", style(PERSONA_PALETTE[0]))), "Vorschau in der Farbe: {page}");
-    // Die Kopfzeile mit „Zurück zum Werk“ zeichnet seit Runde 9 base.html (Aufgabe menu); hier zählt,
-    // dass die Navigation der Einstellungen das Werk behält.
+    // The header with „Zurück zum Werk“ has been drawn by base.html since Round 9 (task menu); what counts here is that
+    // the navigation of the settings keeps the work.
     assert!(page.contains("href=\"/einstellungen/darstellung?work=1\""), "Navigation behält das Werk: {page}");
 
     let (status, location, _) = form(
@@ -307,7 +305,7 @@ async fn the_settings_page_escapes_names_and_handles() {
     .execute(server.state.store.pool())
     .await
     .unwrap();
-    // Runde 9: Die Seite heißt jetzt /einstellungen/assistenten (und zeigt dazu Rolle und Modell).
+    // Round 9: the page is now called /einstellungen/assistenten (and additionally shows role and model).
     let (_, page) = server.get("/einstellungen/assistenten").await;
     assert!(page.contains("Rosa &quot;&lt;&gt;&amp;&#x27;"), "Name maskiert: {page}");
     assert!(page.contains("value=\"@x&quot;&lt;&gt;&amp;&#x27;\""), "Handle im Formular maskiert: {page}");
@@ -341,7 +339,7 @@ async fn the_persona_color_appears_wherever_the_persona_does() {
     server.rpc("persona.set_color", json!({ "handle": "@lektor", "color": "#c0ffee" })).await;
     let lektor = format!("style=\"{}\"", style("#c0ffee"));
     let nathan = format!("style=\"{}\"", style(PERSONA_PALETTE[4]));
-    // Einleitung (Stelle 2): Beiträge von @nathan, @hoerer, @lektor; Fassung 3 ist ein Vorschlag von @lektor.
+    // Introduction (position 2): posts by @nathan, @hoerer, @lektor; revision 3 is a proposal by @lektor.
     let (status, page) = server.get("/?work=1&node=2&rev=3").await;
     assert_eq!(status, StatusCode::OK, "Seite lädt");
     assert!(
@@ -358,8 +356,8 @@ async fn the_persona_color_appears_wherever_the_persona_does() {
         page.contains(&format!("<span class=\"pc pc-chip\" {lektor}>@lektor (google&#x2f;gemma-4-26b-a4b)</span>")),
         "Fassungskopf im Editor in der Farbe: {page}"
     );
-    // Runde 9: „Farben …“ führt auf die Einstellungsseite „Assistenten“ (ohne JavaScript als Seite, mit
-    // JavaScript im Einstellungs-Popup über data-settings-open/data-settings-page).
+    // Round 9: „Farben …“ leads to the settings page „Assistenten“ (without JavaScript as a page, with JavaScript in
+    // the settings popup through data-settings-open/data-settings-page).
     assert!(
         page.contains(
             "href=\"/einstellungen/assistenten?work=1\" data-settings-open data-settings-page=\"assistenten\""
@@ -369,10 +367,11 @@ async fn the_persona_color_appears_wherever_the_persona_does() {
     let assistants = &page[page.find("data-section=\"personas\"").unwrap()..];
     let personas_section = &assistants[..assistants.find("data-section=\"chat\"").unwrap()];
     assert!(personas_section.contains(">Farben …</a>"), "der Link steht im Akkordeon „Assistenten“");
-    let header = page.find("<header class=\"band\"").expect("Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    let header = page.find("<header class=\"band\"").expect("Kopfzeile");
     let topbar = &page[header..header + page[header..].find("</header>").unwrap()];
     assert!(!topbar.contains("/einstellungen/assistenten"), "nicht in der Kopfzeile: {topbar}");
-    // Menschliche Beiträge und Fassungen bleiben ungefärbt.
+    // Human posts and revisions stay uncoloured.
     let (_, current) = server.get("/?work=1&node=2&rev=2").await;
     assert!(
         current.contains("<span class=\"revtree-author small\">Autor</span>"),

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23 „Härtung“ (Besitz Integrator): Abnahme Ende zu Ende über die Grenzen der drei Aufgaben hinweg.
+//! Round 23 „Härtung“ (ownership integrator): acceptance end to end across the boundaries of the three tasks.
 //!
-//! Werke frei erfunden; kein Eliezer, kein Netz (Modelle nur über Nachbauten auf 127.0.0.1:0). Jede Zusicherung mit
-//! Begründung. Weitere Dateien als Untermodule unter `tests/round23_abnahme/*.rs`, eingebunden mit
-//! `#[path = "round23_abnahme/x.rs"] mod x;` – `tests/main.rs` bleibt unverändert.
+//! Works freely invented; no Eliezer, no network (models only through mocks on 127.0.0.1:0). Every assertion with a
+//! reason. Further files as submodules under `tests/round23_abnahme/*.rs`, included with
+//! `#[path = "round23_abnahme/x.rs"] mod x;` – `tests/main.rs` stays unchanged.
 
 use crate::common;
 use crate::round23_geheimnisse::{redirecting, with_models};
@@ -18,7 +18,7 @@ use baruch_server::assist::prompts;
 use baruch_server::websearch::mock::{MockSite, MockWebMcp};
 use serde_json::{Value, json};
 
-/// Erfundenes Geheimnis mit seinen kodierten Formen (`printf 'Bernstein-2311' | base64` usw.).
+/// Invented secret with its encoded forms (`printf 'Bernstein-2311' | base64` etc.).
 const SECRET: &str = "Bernstein-2311";
 
 fn urlencode(text: &str) -> String {
@@ -44,7 +44,7 @@ fn get(uri: &str, headers: &[(&str, &str)]) -> Request<Body> {
     request.body(Body::empty()).unwrap()
 }
 
-/// Aktuelle Fassung (Nummer, Text) des Punkts an Stelle `node`.
+/// Current revision (number, text) of the item at position `node`.
 async fn current(server: &common::Server, work: i64, node: usize) -> (u32, String) {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let n = &loaded.nodes[node];
@@ -52,26 +52,26 @@ async fn current(server: &common::Server, work: i64, node: usize) -> (u32, Strin
     (rev.number, rev.body.clone())
 }
 
-/// Der durchgehende Ablauf an einem erfundenen Werk („Das Mühlenbuch“), alles ohne JavaScript bzw. über die Wege,
-/// die auch ohne JavaScript gehen (Formulare, RPC, MCP): Zitat einfügen und speichern, fortschreiben und über den Baum
-/// ändern, Rückfrage-Felder von `ask_persona`, Tokens mit Umlaut und Kollision, Client ohne Token, `own_reads`,
-/// feste Meldecodes.
+/// The continuous flow on an invented work („Das Mühlenbuch“), everything without JavaScript or through the ways that
+/// also work without JavaScript (forms, RPC, MCP): inserting a quotation and saving, amending and changing through the
+/// tree, question fields of `ask_persona`, tokens with umlaut and collision, client without token, `own_reads`, fixed
+/// message codes.
 #[tokio::test]
 async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     let _turn = common::model_queue(module_path!()).await;
     let m = mill([]).await;
     let (work, key) = (m.work, m.keys[0]);
 
-    // ---- 1. Zitat über den Knopf, Stellenangabe in der Zeile danach, speichern ohne JavaScript ------------------
+    // ---- 1. Quotation through the button, passage reference in the line after it, saving without JavaScript ------
     let (rev, body) = current(&m.server, work, 0).await;
     let snippet = baruch_server::ribbon::QUOTE_SNIPPET;
-    // Runde 36: Der Knopf fügt nur noch den leeren Block ein (keine Folgezeile „– “, die ungefüllt als einzelner
-    // Gedankenstrich im Buch stand); die Stellenangabe tippt der Mensch in die Zeile direkt darunter.
+    // Round 36: the button inserts only the empty block any more (no following line „– “, which unfilled stood in the
+    // book as a single dash); the human types the passage reference into the line directly below.
     assert_eq!(
         snippet, "#quote(block: true)[]\n",
         "Testvoraussetzung: der Knopf fügt den leeren Block ein, ohne Zeile mit Gedankenstrich"
     );
-    // Was der Mensch nach dem Knopf tippt: das Zitat in den Rumpf, die Stelle in die Zeile darunter.
+    // What the human types after the button: the quotation into the body, the passage into the line below.
     let quote =
         format!("{}– Mühlenordnung 7\n", snippet.replacen("[]", "[Wer mahlt, hört den Bach auch im Schlaf.]", 1));
     let with_quote = format!("{}\n\n{quote}\nDann schloss der Müller das Wehr.\n", body.trim_end());
@@ -110,8 +110,8 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
         assert_eq!(checked["ok"], true, "das Werk mit Zitat und Stellenangabe setzt Typst ohne Fehler: {checked}");
     }
 
-    // ---- 2. Fortschreiben, dann Ändern über den Baum (Formular an /act) → Schritte im Verlauf -------------------
-    // Stand der Fassung nach dem Speichern des Zitats (0 bei neuer Fassung, 1 falls schon fortgeschrieben).
+    // ---- 2. Amending, then changing through the tree (form to /act) → steps in the history ----------------------
+    // State of the revision after saving the quotation (0 for a new revision, 1 if already amended).
     let before = m.server.rpc("revision.amends", json!({ "work": work, "key": key, "rev": rev })).await;
     let base = u32::try_from(result(&before)["amend_seq"].as_u64().expect("amend_seq")).unwrap();
     let amended = stored.replacen("im Schlaf", "noch im Schlaf", 1);
@@ -151,7 +151,7 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     assert_eq!(last["body_after"], json!(over_tree), "und nennt den Text danach: {history}");
     assert_eq!(result(&history)["amend_seq"], base + 2, "die Fassung steht zwei Stände weiter");
 
-    // ---- 3. ask_persona liefert die Rückfrage-Felder -----------------------------------------------------------
+    // ---- 3. ask_persona delivers the question fields ----------------------------------------------------------
     let own = finding(&m, 0, None, 0, "@nathan", "„alten Wehr“ bleibt ohne Bild.").await;
     m.model
         .push(Step::words(&format!("Erledigt: Befund {own} (Stelle „alten Wehr“)\n\n{}", prompts::ALL_DONE_SENTENCE)));
@@ -161,7 +161,7 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     assert_eq!(asked["done_proposals"], json!([own]), "der als erledigt gemeldete eigene Befund: {asked}");
     assert_eq!(asked["all_done"], true, "die Persona meldet, dass alle ihre Befunde erledigt scheinen: {asked}");
 
-    // ---- 4. Tokens: Umlaut umschrieben, eindeutige Handles, Kollision abgelehnt ---------------------------------
+    // ---- 4. Tokens: umlaut transliterated, unique handles, collision rejected ----------------------------------
     let kueche = result(&create_token(&m, "Laptop Küche").await)["secret"].as_str().unwrap().to_owned();
     let kuche = result(&create_token(&m, "laptop-kuche").await)["secret"].as_str().unwrap().to_owned();
     for name in ["Laptop Kueche", "laptop-k-che", "LAPTOP KUCHE"] {
@@ -187,7 +187,7 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     );
     assert!(!page.contains(&kueche) && !page.contains(&kuche), "nie ein Klartext eines Tokens auf der Seite");
 
-    // ---- 5. Ohne Token: nie der Name eines Tokens, nie der einer Persona als Autor ------------------------------
+    // ---- 5. Without token: never the name of a token, never that of a persona as author ------------------------
     let twin = local(&m, "Laptop Küche").await;
     let post = tool(&m, &twin, "add_post", json!({ "work": work, "key": key, "body": "Vom Zwilling." })).await;
     assert_eq!(post["author"], "@mcp:lokal-laptop-kueche", "Client ohne Token mit dem Namen eines Tokens: {post}");
@@ -212,7 +212,7 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     let (status, _, answer) = mcp(&m, &stranger, message).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "von einem anderen Rechner ohne Token geht gar nichts: {answer}");
 
-    // ---- 6. own_reads: fremde Seite als Unterressource, eigene Navigation -----------------------------------------
+    // ---- 6. own_reads: foreign page as a subresource, own navigation ---------------------------------------------
     let uri = format!("/gliederung?work={work}");
     let image = [("sec-fetch-site", "cross-site"), ("sec-fetch-mode", "no-cors"), ("sec-fetch-dest", "image")];
     let (status, _, text) = m.server.send(get(&uri, &image)).await;
@@ -222,7 +222,7 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     let (status, _, page) = m.server.send(get(&uri, &link)).await;
     assert_eq!(status, StatusCode::OK, "ein Link von außen (Navigation) geht weiter durch");
 
-    // ---- 7. Ohne JavaScript: Antrag zur Gliederung im Menü, Meldung nur über feste Codes -------------------------
+    // ---- 7. Without JavaScript: outline request in the menu, message only through fixed codes -------------------
     assert!(
         page.contains("data-badge-item=\"outline_requests\" hidden>"),
         "ohne offenen Antrag ist der Eintrag „Anträge zur Gliederung“ verborgen"
@@ -233,16 +233,16 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
         page.contains("<span class=\"badge\" data-badge=\"outline_requests\">1</span>")
             && page.contains(">Buch <span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">1</span></a>")
             && page.contains("data-badge-item=\"outline_requests\">Anträge zur Gliederung"),
-        // Runde 33 (Menüband): Eintrag und Zahl stehen im Reiter Buch (früher Menü Werk ▾), dazu das Abzeichen am Reiter.
+        // Round 33 (ribbon): entry and number are in the tab Buch (formerly menu Werk ▾), plus the badge on the tab.
         "der Antrag des Clients steht ohne JavaScript im Band jeder Seite (hier: Einstellungen): {page}"
     );
     let (status, page) =
         m.server.get(&format!("/einstellungen/daten?work={work}&ok=sicherung&ziel=ordner-aus-der-adresse")).await;
     assert_eq!(status, StatusCode::OK, "die Seite lädt");
-    // Runde 36: Der feste Code allein ergibt keine Meldung mehr – nur nach einer eben angelegten Sicherung.
+    // Round 36: the fixed code alone yields no message any more – only after a backup that was just created.
     assert!(!page.contains("Sicherung angelegt"), "ein Link mit ok=sicherung zeigt keine Erfolgsmeldung: {page}");
-    // Runde 33 (Menüband): Die Reiter des Kopfs wiederholen die Abfrage der Seite in ihren Adressen (href, maskiert);
-    // angezeigt wird sie nicht. Geprüft wird darum alles außer den href-Werten.
+    // Round 33 (ribbon): the tabs of the header repeat the query of the page in their addresses (href, escaped); it is
+    // not displayed. Therefore everything except the href values is checked.
     let shown: String = page
         .split("href=\"")
         .enumerate()
@@ -251,11 +251,11 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
     assert!(!shown.contains("ordner-aus-der-adresse"), "Text aus der Adresse (ziel) wird nie angezeigt: {page}");
 }
 
-/// Geheimnisse Ende zu Ende: Ein Schlüssel, den die Gegenstelle kodiert zurückspiegelt, erscheint in keiner Meldung;
-/// die Prüfung einer Verbindung folgt keiner Weiterleitung; Treffer der Websuche im eigenen Netz werden nicht abgerufen.
+/// Secrets end to end: a key that the peer mirrors back encoded appears in no message; the check of a connection
+/// follows no redirect; hits of the web search in the own network are not fetched.
 #[tokio::test]
 async fn secrets_stay_masked_checks_follow_no_redirect_and_private_hits_are_not_fetched() {
-    // Kodiert zurückgespiegelt: Base64 (auch als Teil von `Basic base64(nutzer:schlüssel)`) und Prozentform.
+    // Mirrored back encoded: Base64 (also as part of `Basic base64(nutzer:schlüssel)`) and percent form.
     let base64 = baruch_store::encode_base64(SECRET.as_bytes());
     let basic = baruch_store::encode_base64(format!("nutzer:{SECRET}").as_bytes());
     let percent = SECRET.replace('-', "%2D");
@@ -279,7 +279,7 @@ async fn secrets_stay_masked_checks_follow_no_redirect_and_private_hits_are_not_
     }
     assert!(checked.contains("***"), "die gespiegelten Namen sind geschwärzt, nicht weggelassen: {checked}");
 
-    // Prüfung folgt keiner Weiterleitung: Der zweite Nachbau sieht keine Anfrage und keinen Schlüssel.
+    // The check follows no redirect: the second mock sees no request and no key.
     let (first, target) = redirecting("302 Found").await;
     let set = server.rpc("connection.set", json!({ "kind": "eliezer", "config": { "url": first.url } })).await;
     assert!(set["error"].is_null(), "Adresse gesetzt: {set}");
@@ -293,7 +293,7 @@ async fn secrets_stay_masked_checks_follow_no_redirect_and_private_hits_are_not_
     );
     assert!(target.requests().is_empty(), "das Ziel der Weiterleitung sieht keine Anfrage: {:?}", target.requests());
 
-    // Websuche: Adressen des eigenen Netzes gehen nie an fetch_url.
+    // Web search: addresses of the own network never go to fetch_url.
     let site = MockSite::with_fixtures().await;
     let mcp = MockWebMcp::start(Some(&site)).await;
     let set = server.rpc("connection.set", json!({ "kind": "multigpt", "config": { "url": mcp.url() } })).await;
@@ -317,7 +317,7 @@ async fn secrets_stay_masked_checks_follow_no_redirect_and_private_hits_are_not_
     }
 }
 
-/// Codereview ki-2 (Rest, Integrator): `/mcp` hat eine eigene, kleinere Größengrenze als `/rpc`.
+/// Code review ki-2 (rest, integrator): `/mcp` has a size limit of its own, smaller than that of `/rpc`.
 #[tokio::test]
 async fn an_mcp_request_over_its_own_body_limit_is_refused_with_413() {
     let server = common::open().await;

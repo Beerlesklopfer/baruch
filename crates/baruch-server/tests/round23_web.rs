@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23 „Härtung“ (Besitz web): Meldecodes, lesende Anfragen fremder Seiten (`guard::own_reads`), Abzeichen ohne
-//! JavaScript, Fortschreiben mit Verlaufsschritt beim Ändern über den Baum, Rückfrageseite mit Modus, Umschlagblöcke,
-//! Gedankenkarte, Befunde, Verszählung der SWORD-Belege und die Verhaltenstests der Widgets im Node-Nachbau.
+//! Round 23 „Härtung“ (ownership web): message codes, reading requests of foreign pages (`guard::own_reads`), badges
+//! without JavaScript, amending with a history step when changing through the tree, confirmation page with mode, cover
+//! blocks, thought map, findings, versification of the SWORD evidence and the behaviour tests of the widgets in the
+//! Node mock.
 //!
-//! Werke frei erfunden; kein Eliezer, kein Netz (Modelle nur als Nachbau im Prozess). Jede Zusicherung mit
-//! Begründung. Die Tests stehen nach Gebiet in Untermodulen unter `tests/round23_web/*.rs`, eingebunden mit
-//! `#[path = "round23_web/x.rs"] mod x;` – `tests/main.rs` bleibt unverändert. Die Szenen der Widget-Tests stehen in
+//! Works freely invented; no Eliezer, no network (models only as a mock in the process). Every assertion with a reason.
+//! The tests are by area in submodules under `tests/round23_web/*.rs`, included with
+//! `#[path = "round23_web/x.rs"] mod x;` – `tests/main.rs` stays unchanged. The scenes of the widget tests are in
 //! `tests/round23_web/widgets.mjs`.
 
 #[path = "round23_web/befunde.rs"]

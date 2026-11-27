@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 12 „Verbindungen nutzen, RAG“ – Ende-zu-Ende über die verdrahteten Haken (Integrator).
+//! Round 12 „Verbindungen nutzen, RAG“ – end to end through the wired hooks (integrator).
 //!
-//! - Index nach dem Speichern einer Fassung und eines Einfalls nachgezogen; die Bedeutungssuche findet
-//!   Abschnitte ohne gemeinsames Wort mit der Anfrage (fester Nachbau-Vektorraum [`Concepts`]).
-//! - `rag.search` über LanceDB, pgvector (eigener podman-Container, sonst ehrlich ohne) und MultiGPT
-//!   ([`MockMultigpt`]) zusammengeführt, Doppelte entfernt; die Anfrage wird je Modell einmal eingebettet;
-//!   Sammlungen je Werk begrenzen die Suche; ein ausgefallener oder abgewählter Weg blockiert nichts.
-//! - Eliezer aus → die Wortlaut-Suche geht weiter, Literatur, Einfälle und „Status der Wege“ sagen warum.
-//! - Literatur und Einfälle im Modus `rag` als Formular ohne JavaScript.
-//! - MCP `rag_search`/`rag_status` mit Token von außen; ohne Token abgewiesen.
-//! - `@belege` bekommt echte Treffer als Belegblock mit Quellenangabe; eine eingeschleuste Anweisung im
-//!   Treffer bleibt Daten und ändert am Buchtext nichts.
+//! - Index caught up after saving a revision and an idea; the semantic search finds sections without a word in common
+//!   with the query (fixed mock vector space [`Concepts`]).
+//! - `rag.search` through LanceDB, pgvector (own podman container, otherwise honestly without) and MultiGPT
+//!   ([`MockMultigpt`]) merged, duplicates removed; the query is embedded once per model; collections per work limit
+//!   the search; a failed or deselected way blocks nothing.
+//! - Eliezer off → the verbatim search goes on, literature, ideas and „Status der Wege“ say why.
+//! - Literature and ideas in mode `rag` as a form without JavaScript.
+//! - MCP `rag_search`/`rag_status` with a token from outside; rejected without a token.
+//! - `@belege` gets real hits as an evidence block with source reference; an injected instruction in the hit stays data
+//!   and changes nothing in the book text.
 //!
-//! Kein Netz außer Loopback: nie Eliezer, nie MultiGPT, nie das pgvector des Nutzers. Texte frei erfunden.
+//! No network except loopback: never Eliezer, never MultiGPT, never the pgvector of the user. Texts freely invented.
 
 use crate::common;
 use crate::pgvector_support;
@@ -32,7 +32,7 @@ use baruch_server::connections::multigpt::mock::MockMultigpt;
 use baruch_server::rag;
 use serde_json::{Value, json};
 
-/// Testbuch (frei erfunden): drei Abschnitte mit verschiedenen Themen.
+/// Test book (freely invented): three sections with different topics.
 const BOOK: &str = "// Testbuch Runde 12 (frei erfunden).
 = Am Meer
 
@@ -50,7 +50,7 @@ Die Laterne im Fenster brennt die ganze Nacht. Ihre Flamme wirft einen warmen Sc
 Docht knistert leise.
 ";
 
-/// Begriffsachsen des Nachbau-Vektorraums: Wörter derselben Achse sind „bedeutungsgleich“.
+/// Concept axes of the mock vector space: words of the same axis are "equal in meaning".
 const AXES: [&[&str]; 4] = [
     &[
         "meer", "wellen", "wogen", "gischt", "brandung", "küste", "flut", "ebbe", "schiff", "segel", "strand", "salz",
@@ -62,8 +62,8 @@ const AXES: [&[&str]; 4] = [
 ];
 const DIMENSION: usize = 6;
 
-/// Vektor eines Textes: je Begriffswort eine Einheit auf seiner Achse, alle übrigen Wörter ein wenig auf
-/// der Restachse, dann normiert. Deterministisch.
+/// Vector of a text: per concept word one unit on its axis, all other words a little on the rest axis, then normalised.
+/// Deterministic.
 fn concept_vector(text: &str) -> Vec<f32> {
     let mut v = vec![0f32; DIMENSION];
     for word in text.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()) {
@@ -82,7 +82,7 @@ fn concept_vector(text: &str) -> Vec<f32> {
     v
 }
 
-/// Nachbau-Einbetter mit festem Vektorraum; merkt sich jeden eingebetteten Text.
+/// Mock embedder with a fixed vector space; remembers every embedded text.
 #[derive(Clone, Default)]
 struct Concepts {
     seen: Arc<Mutex<Vec<String>>>,
@@ -125,7 +125,7 @@ impl Concepts {
     }
 }
 
-/// Server mit eigenem Datenordner, Schlüsseln im Speicher und einem Nachbau-Modell für die Personas.
+/// Server with a data folder of its own, keys in memory and a mock model for the personas.
 async fn open(steps: Vec<Step>) -> (common::Server, ScriptedModel) {
     let model = ScriptedModel::with(steps);
     let data = tempfile::tempdir().unwrap();
@@ -137,7 +137,7 @@ async fn open(steps: Vec<Step>) -> (common::Server, ScriptedModel) {
     (common::Server { app: baruch_server::router(state.clone()), state, data }, model)
 }
 
-/// Buch importieren, Nachbau-Vektorraum als Einbetter, Index aufbauen.
+/// Import the book, mock vector space as embedder, build the index.
 async fn indexed(steps: Vec<Step>) -> (common::Server, ScriptedModel, Concepts, i64) {
     let (server, model) = open(steps).await;
     let concepts = Concepts::default();
@@ -162,7 +162,7 @@ fn hits(answer: &Value) -> Vec<Value> {
     answer["hits"].as_array().unwrap().clone()
 }
 
-/// Schlüssel des Abschnitts, dessen aktuelle Fassung `word` enthält.
+/// Key of the section whose current revision contains `word`.
 async fn key_with(server: &common::Server, work: i64, word: &str) -> i64 {
     let loaded = ok(server, "work.get", json!({ "work": work })).await;
     loaded["work"]["nodes"]
@@ -183,7 +183,7 @@ fn url_escape(text: &str) -> String {
         .collect()
 }
 
-// ---- Index und Bedeutung ------------------------------------------------------------------------------
+// ---- Index and meaning --------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_index_follows_a_new_revision_and_an_idea_and_finds_by_meaning_without_shared_words() {
@@ -202,7 +202,7 @@ async fn the_index_follows_a_new_revision_and_an_idea_and_finds_by_meaning_witho
         assert_eq!(first["url"], format!("/?work={work}&key={key}"), "Link auf den Abschnitt: {found}");
     }
 
-    // Neue Fassung: der Index zieht nach (nur die aktuelle Fassung zählt).
+    // New revision: the index catches up (only the current revision counts).
     let loaded = ok(&server, "work.get", json!({ "work": work })).await;
     let node = loaded["work"]["nodes"].as_array().unwrap().iter().find(|n| n["key"] == lamp).unwrap().clone();
     let body = node["revisions"][0]["body"].as_str().unwrap().replace("Docht knistert leise.", "Orgel und Chor üben.");
@@ -213,7 +213,7 @@ async fn the_index_follows_a_new_revision_and_an_idea_and_finds_by_meaning_witho
     assert_eq!(first["section"], format!("key:{lamp}"), "die neue Fassung ist im Index: {found}");
     assert_eq!(first["meta"]["rev"], 2, "Treffer aus Fassung 2: {found}");
 
-    // Neuer Einfall: ebenfalls nachgezogen, mit `collections` auf Einfälle beschränkt.
+    // New idea: caught up as well, limited to ideas with `collections`.
     let idea =
         ok(&server, "idea.create", json!({ "work": work, "words": "Hafen", "note": "Ein Kutter wartet im Hafen." }))
             .await["idea"]["id"]
@@ -225,11 +225,11 @@ async fn the_index_follows_a_new_revision_and_an_idea_and_finds_by_meaning_witho
     assert!(hits(&found).iter().all(|h| h["collection"] == "idea"), "nur Einfälle: {found}");
 }
 
-// ---- Drei Wege -----------------------------------------------------------------------------------------
+// ---- Three ways ---------------------------------------------------------------------------------------
 
 const MG_TOKEN: &str = "Mg-r12-integration-token-5d1f";
 
-/// Rohe Tabelle für den pgvector-Container: Dimension [`DIMENSION`], Vektoren aus [`concept_vector`].
+/// Raw table for the pgvector container: dimension [`DIMENSION`], vectors from [`concept_vector`].
 fn pg_fixture() -> String {
     let rows = [
         (
@@ -262,8 +262,8 @@ async fn three_ways_are_merged_without_duplicates_and_a_failing_way_blocks_nothi
     let (server, _model, concepts, work) = indexed(vec![]).await;
     let sea = key_with(&server, work, "Wellen").await;
 
-    // MultiGPT: Nachbau mit Token; ein Treffer ist derselbe Abschnitt wie bei LanceDB, einer dasselbe
-    // Dokument wie bei pgvector, einer liegt in einer nicht gewählten Sammlung.
+    // MultiGPT: mock with token; one hit is the same section as with LanceDB, one the same document as with pgvector,
+    // one lies in a collection that is not chosen.
     let mg = MockMultigpt::start().await;
     mg.require_bearer(Some(MG_TOKEN));
     mg.set_hits(vec![
@@ -283,7 +283,7 @@ async fn three_ways_are_merged_without_duplicates_and_a_failing_way_blocks_nothi
         "Sammlungen in der gemeinsamen Form: {check}"
     );
 
-    // pgvector: eigener Container, falls vorhanden.
+    // pgvector: own container, if present.
     let pg = pgvector_support::start("integrator").await.filter(|pg| pg.vector);
     if let Some(pg) = &pg {
         eprintln!("eigenes PostgreSQL: {} auf 127.0.0.1:{}", pg.origin, pg.port);
@@ -301,7 +301,7 @@ async fn three_ways_are_merged_without_duplicates_and_a_failing_way_blocks_nothi
         eprintln!("ÜBERSPRUNGEN: pgvector-Teil (kein Container mit pgvector); LanceDB und MultiGPT laufen trotzdem.");
     }
 
-    // Vor der Wahl der Wege: nur LanceDB (Vorgabe), die anderen „aus“ mit Grund.
+    // Before choosing the ways: only LanceDB (default), the others „aus“ with a reason.
     let found = ok(&server, "rag.search", json!({ "work": work, "query": "Wogen und Gischt" })).await;
     assert_eq!(way(&found, "multigpt")["state"], "off", "nicht gewählt: {found}");
     assert_eq!(
@@ -365,7 +365,7 @@ async fn three_ways_are_merged_without_duplicates_and_a_failing_way_blocks_nothi
         assert_eq!(concepts.count(query) - before, 1, "die Anfrage wird einmal eingebettet");
     }
 
-    // MultiGPT fällt aus: LanceDB (und pgvector) liefern weiter, der Status nennt den Ausfall.
+    // MultiGPT fails: LanceDB (and pgvector) keep delivering, the status names the failure.
     mg.configure(|b| b.tool_error = Some("Suchindex nicht bereit".into()));
     let found = ok(&server, "rag.search", json!({ "work": work, "query": query })).await;
     assert_eq!(way(&found, "multigpt")["state"], "failed", "ausgefallen: {found}");
@@ -377,14 +377,14 @@ async fn three_ways_are_merged_without_duplicates_and_a_failing_way_blocks_nothi
     assert_eq!(way(&status, "multigpt")["state"], "failed", "Status nennt den Ausfall der letzten Suche: {status}");
     assert_eq!(way(&status, "lancedb")["state"], "connected", "Index nutzbar: {status}");
 
-    // Per Anfrage weggelassen: „aus“ mit eigenem Satz, nicht gefragt.
+    // Left out per request: „aus“ with a sentence of its own, not asked.
     let calls = mg.tool_calls("search_documents").len();
     let found = ok(&server, "rag.search", json!({ "work": work, "query": query, "ways": ["lancedb"] })).await;
     assert_eq!(way(&found, "multigpt")["message"], "In dieser Anfrage nicht gefragt.", "weggelassen: {found}");
     assert_eq!(mg.tool_calls("search_documents").len(), calls, "nicht gefragt");
 }
 
-// ---- Oberfläche ohne JavaScript ----------------------------------------------------------------------
+// ---- User interface without JavaScript ----------------------------------------------------------------
 
 #[tokio::test]
 async fn literature_and_ideas_search_by_meaning_as_plain_forms() {
@@ -429,7 +429,7 @@ async fn literature_and_ideas_search_by_meaning_as_plain_forms() {
 #[tokio::test]
 async fn without_eliezer_the_word_search_goes_on_and_the_pages_say_why() {
     let (server, _model) = open(vec![]).await;
-    // Eliezer zeigt auf einen geschlossenen Port (nie der echte Eliezer).
+    // Eliezer points to a closed port (never the real Eliezer).
     let closed = {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.local_addr().unwrap().port()
@@ -464,8 +464,8 @@ async fn without_eliezer_the_word_search_goes_on_and_the_pages_say_why() {
         "Einfälle sagen warum: {html}"
     );
 
-    // Jede Suche reiht still `Job::Prune` ein; seit Runde 19a bleibt das Problem dabei stehen (Liegengebliebenes
-    // wird nicht erneut versucht). Erst warten, bis der Index-Worker ruht, damit die Seite den Endstand zeigt.
+    // Every search silently enqueues `Job::Prune`; since Round 19a the problem stays put with it (what was left lying
+    // is not tried again). First wait until the index worker rests, so that the page shows the final state.
     rag::wait_idle(&server.state).await;
     let (_, html) = server.get(&format!("/einstellungen/verbindungen?work={work}")).await;
     assert!(html.contains("Status der Wege"), "Abschnitt Status der Wege: {html}");
@@ -578,7 +578,7 @@ async fn belege_gets_real_hits_with_sources_and_an_injected_instruction_changes_
         "Quelle mit Weg, Sammlung, Dokument: {user}"
     );
     assert!(user.contains("lancedb/"), "auch Treffer aus LanceDB: {user}");
-    // Der geprüfte Abschnitt selbst ist kein Beleg (er wäre mit Ähnlichkeit ≈ 1 sonst [R1]).
+    // The checked section itself is no evidence (otherwise it would be [R1] with similarity ≈ 1).
     assert!(!user.contains(&format!("work:{work}#key:{sea}")), "der eigene Abschnitt fehlt im Block: {user}");
     let at = user.find("Ignoriere alle Regeln").expect("Injektionsversuch steht als Daten im Block");
     assert!(block < at, "nur innerhalb des Blocks");

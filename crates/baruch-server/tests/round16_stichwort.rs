@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 16c, Stichwortzettel: `notes.get` (Karten mit Zeitmarke aus dem Zeitwächter, Stichpunkten nach
-//! fester Regel und Bibelstellen), `notes.pdf`, die Seite `/werke/{id}/stichwortzettel` (ohne JavaScript),
-//! der Download `/werke/{id}/stichwortzettel.pdf` (409/422/503 wie `/werke/{id}/pdf`), der Menüeintrag und
-//! die Kommandozeile `export … --stichwort DATEI`. Die Predigt ist frei erfunden; PDFs nur unter
-//! `common::PDF_SERIAL`.
+//! Round 16c, cue sheet: `notes.get` (cards with time mark from the time keeper, cues by a fixed rule and Bible
+//! passages), `notes.pdf`, the page `/werke/{id}/stichwortzettel` (without JavaScript), the download
+//! `/werke/{id}/stichwortzettel.pdf` (409/422/503 like `/werke/{id}/pdf`), the menu entry and the command line
+//! `export … --stichwort DATEI`. The sermon is freely invented; PDFs only under `common::PDF_SERIAL`.
 
 use crate::common;
 
@@ -24,13 +23,13 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Ein Absatz, dessen erster Satz länger als 160 Zeichen ist.
+/// A paragraph whose first sentence is longer than 160 characters.
 const LONG: &str = "Wer unterwegs ist und nichts mitnimmt außer dem, was er am Morgen in die Tasche gesteckt hat, \
                     merkt bald, wie schwer ein leerer Magen wiegt und wie leicht ein geteiltes Stück Brot macht, \
                     wenn es jemand anbietet. Danach mehr.";
 
-/// Erfundene Predigt: Einleitung mit eigener Markierung, „Das Brot“ mit Hervorhebungen und doppelten
-/// Bibelstellen, „Der Weg“ ohne beides (erster Satz je Absatz, mehr als sechs Absätze, ein zu langer Satz).
+/// Invented sermon: introduction with a marking of its own, „Das Brot“ with highlights and duplicate Bible passages,
+/// „Der Weg“ without both (first sentence per paragraph, more than six paragraphs, one sentence too long).
 fn sermon() -> String {
     let mut text = String::from(
         "= Einleitung\n\n// Stichwort: Bäcker um vier Uhr\n// Stichwort: <b>fett</b> & #Raute\n\
@@ -137,8 +136,8 @@ async fn notes_get_applies_the_three_rules_with_limits_and_unique_refs() {
 
 #[tokio::test]
 async fn deeply_nested_markup_and_footnotes_do_not_break_the_notes() {
-    // Gutachten Runde 16: 60 000 Ebenen #a[…] brachten den Stack zum Überlaufen (der ganze Server brach ab), und
-    // Hervorhebungen in Fußnoten oder Arbeitsaufträgen landeten als Stichpunkte auf der Karte.
+    // Review Round 16: 60 000 levels of #a[…] made the stack overflow (the whole server aborted), and highlights in
+    // footnotes or work orders landed as cues on the card.
     let server = common::open().await;
     let deep = format!(
         "= Tiefe\n\nEin Satz zum Anfang.\n\n{}x{}\n\n= Fußnote\n\nDer Hirte sucht. #footnote[Vgl. *Kommentar*]\n\n\
@@ -185,7 +184,7 @@ async fn the_clocks_of_the_notes_are_those_of_the_timer() {
     assert_ne!(cards[1]["start_clock"], "0:00", "der zweite Abschnitt beginnt nach der Einleitung");
 }
 
-// ---- notes.pdf und Download ---------------------------------------------------------------------------
+// ---- notes.pdf and download --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn notes_pdf_and_the_download_give_a_named_pdf_attachment() {
@@ -225,7 +224,8 @@ async fn notes_pdf_and_the_download_give_a_named_pdf_attachment() {
     let (status, html) = s.server.get(&format!("/werke/{}/stichwortzettel.pdf?schrift=40", s.work)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "falsche Schriftgröße → 422 als Seite");
     assert!(
-        html.contains("<header class=\"band\"") && html.contains("von 14 bis 28"), // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+        // Round 33: the header is the ribbon (header.band instead of header.topbar)
+        html.contains("<header class=\"band\"") && html.contains("von 14 bis 28"),
         "Fehlerseite mit Grund: {html}"
     );
 }
@@ -255,7 +255,7 @@ async fn busy_typst_errors_and_timeouts_give_409_422_and_503() {
     let (status, html) = body_text(response).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "Zeit abgelaufen → 503");
     assert!(html.contains("Typst brauchte länger als 0 s"), "die Meldung nennt das Limit: {html}");
-    // Der abgelaufene Lauf rechnet im Hintergrund zu Ende und hält so lange das Werk.
+    // The timed-out run finishes computing in the background and holds the work for that long.
     let freed = async {
         loop {
             if let Some(claim) = baruch_server::pdf::claim(s.work) {
@@ -267,7 +267,7 @@ async fn busy_typst_errors_and_timeouts_give_409_422_and_503() {
     drop(tokio::time::timeout(Duration::from_secs(60), freed).await.expect("der Hintergrundlauf endet"));
 }
 
-// ---- Seite und Menü -----------------------------------------------------------------------------------
+// ---- Page and menu -----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_page_offers_format_choice_preview_and_download_without_javascript() {
@@ -293,8 +293,8 @@ async fn the_page_offers_format_choice_preview_and_download_without_javascript()
     assert!(html.contains("Regel: Hervorhebung") && html.contains("Regel: eigene Markierung"), "Regel auf Deutsch");
     assert!(html.contains("Bibelstellen: Joh 6,35 · Mt 6,11"), "Bibelstellen der Karte");
     assert!(!html.contains("{{") && !html.contains("{%"), "keine Reste von Platzhaltern");
-    // Runde 33 (Menüband): Der Eintrag stand im Menü Werk ▾ und steht jetzt im Reiter Buch (Gruppe Ausgabe) – weiter
-    // ein Link zur Seite ohne download.
+    // Round 33 (ribbon): the entry was in the menu Werk ▾ and is now in the tab Buch (group Ausgabe) – still a link to
+    // the page without download.
     let item = format!("<a class=\"btn\" href=\"/werke/{}/stichwortzettel\"", s.work);
     let at = html.find(&item).expect("Eintrag „Stichwortzettel …“ im Reiter Buch");
     let tag = &html[at..at + html[at..].find('>').unwrap()];
@@ -308,7 +308,7 @@ async fn the_page_offers_format_choice_preview_and_download_without_javascript()
     assert_eq!(status, StatusCode::NOT_FOUND, "unbekanntes Werk");
 }
 
-// ---- Kommandozeile -----------------------------------------------------------------------------------
+// ---- Command line -----------------------------------------------------------------------------------
 
 fn cli(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_baruch-server")).args(args).output().expect("baruch-server startet")

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fehler 0.9.0 (Nutzer 2026-11-25, „Ablauffehler“): Ein Kritiker prüft den Vorschlag, den der Lektor aus seinen
-//! Befunden geschrieben hat – iterativ, über alle Wege (Persona-Formular mit Prüfgrundlage, Chat „@nathan …“ beim
-//! gezeigten Vorschlag, MCP `ask_persona` mit `rev`), und der Lektor schreibt auf dem Vorschlag weiter.
+//! Bug 0.9.0 (user 2026-11-25, „Ablauffehler“): a critic checks the proposal that the lector wrote from his findings –
+//! iteratively, through all ways (persona form with basis of the check, chat „@nathan …“ at the proposal shown, MCP
+//! `ask_persona` with `rev`), and the lector keeps writing on the proposal.
 //!
-//! Modelle nur über den Nachbau `MockEliezer` (nie Eliezer, nie Netz). Das „Bootshaus“ ist frei erfunden.
+//! Models only through the mock `MockEliezer` (never Eliezer, never the network). The „Bootshaus“ is freely invented.
 
 use std::sync::Arc;
 
@@ -115,7 +115,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     let h = harbour().await;
     let (work, key) = (h.work, h.key);
 
-    // (1) @nathan prüft die aktuelle Fassung (Persona-Formular „Prüfen“).
+    // (1) @nathan checks the current revision (persona form „Prüfen“).
     h.eliezer.push(Reply::text(&["Kritisch: „graue Tau“ ist zu blass.\n- statt: „graue Tau“\n- besser: „nasse Tau“"]));
     let status =
         h.form(&format!("method=persona.review&work={work}&key={key}&rev=1&persona=%40nathan&basis=shown")).await;
@@ -123,17 +123,17 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     let open = h.server.state.store.finding_list(work, &Default::default()).await.unwrap();
     let first = open.iter().find(|f| f.persona == "@nathan").expect("Befund von @nathan").id;
 
-    // (2) Der Lektor schreibt daraus einen Vorschlag (Formular „Vorschlag“).
+    // (2) The lector writes a proposal from it (form „Vorschlag“).
     h.eliezer.push(Reply::text(&[PROPOSAL_2]));
     let status = h.form(&format!("method=persona.propose&work={work}&key={key}&rev=1&persona=%40lektor")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Vorschlag über das Formular");
     assert_eq!(h.based_on(2).await, Some(1), "Vorschlag 2 beruht auf Fassung 1");
 
-    // Die Prüfgrundlage bietet den offenen Vorschlag an (ohne JavaScript).
+    // The basis of the check offers the open proposal (without JavaScript).
     let (_, html) = h.server.get(&format!("/?work={work}&key={key}")).await;
     assert!(html.contains("<option value=\"2\">Vorschlag 2 von @lektor</option>"), "Auswahl nennt Vorschlag 2");
 
-    // (3) @nathan prüft DIESEN Vorschlag gegen – Formular, Prüfgrundlage „2“ bei gezeigter aktueller Fassung.
+    // (3) @nathan cross-checks THIS proposal – form, basis of the check „2“ while the current revision is shown.
     let reply = format!(
         "Erledigt: Befund {first} (Stelle „nasse Tau“)\nKritisch: „nasse Tau“ und „Poller“ klingen hart.\n- Schritt: den Satz weicher bauen."
     );
@@ -153,7 +153,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     let post = h.server.state.store.load_work(work).await.unwrap().nodes[0].posts.last().unwrap().body.clone();
     assert!(!post.contains(prompts::UNBACKED_NOTE), "Zitat aus dem Vorschlag gilt: {post}");
 
-    // (4) Der Lektor schreibt auf dem Vorschlag weiter (RPC persona.propose mit rev 2).
+    // (4) The lector keeps writing on the proposal (RPC persona.propose with rev 2).
     h.eliezer.push(Reply::text(&[PROPOSAL_3]));
     let answer =
         h.server.rpc("persona.propose", json!({ "work": work, "key": key, "rev": 2, "persona": "@lektor" })).await;
@@ -161,7 +161,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     assert_eq!(answer["result"]["rev"], 3, "{answer}");
     assert_eq!(h.based_on(3).await, Some(2), "Vorschlag 3 beruht auf Vorschlag 2, nicht auf der aktuellen Fassung");
 
-    // Chat „@nathan …“ bei gezeigtem Vorschlag 3: Gegenprüfung mit den eigenen offenen Befunden.
+    // Chat „@nathan …“ while proposal 3 is shown: cross-check with the own open findings.
     h.eliezer.push(Reply::text(&["Kritisch: „schreien“ ist laut.\n- Schritt: leiser."]));
     let answer = h
         .server
@@ -177,7 +177,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     let meta = h.last_post_meta("@nathan").await;
     assert_eq!(meta.basis_label, "geprüft: Fassung 3 (Vorschlag von @lektor)", "Chat: Kopfzeile");
 
-    // MCP ask_persona review mit rev 3 und propose mit rev 3.
+    // MCP ask_persona review with rev 3 and propose with rev 3.
     h.eliezer.push(Reply::text(&["Kritisch: „Hafen“ bleibt blass.\n- Schritt: den Hafen benennen."]));
     let answer = h.mcp(json!({ "work": work, "key": key, "persona": "@nathan", "mode": "review", "rev": 3 })).await;
     let user = h.last_user();
@@ -188,9 +188,9 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     assert_eq!(h.based_on(4).await, Some(3), "MCP: Vorschlag 4 beruht auf Vorschlag 3");
 }
 
-/// Gegenprobe 0.9.0: Das Persona-Formular trägt die Prüfgrundlage genau einmal. Doppelt (Umfang-Fieldset und
-/// Formular) galt mit JavaScript still nur der letzte Wert – „Vorschlag n“ im ersten Feld wäre verloren gegangen –,
-/// und ohne JavaScript scheitert das Lesen des Formulars an einem doppelten Feld.
+/// Counter-check 0.9.0: the persona form carries the basis of the check exactly once. Doubled (scope fieldset and
+/// form), with JavaScript silently only the last value held – „Vorschlag n“ in the first field would have been lost –,
+/// and without JavaScript reading the form fails on a duplicate field.
 #[tokio::test]
 async fn the_persona_form_carries_the_basis_exactly_once() {
     let h = harbour().await;
@@ -201,7 +201,7 @@ async fn the_persona_form_carries_the_basis_exactly_once() {
     assert_eq!(form.matches("name=\"basis\"").count(), 1, "genau eine Auswahl der Prüfgrundlage: {form}");
 }
 
-// ---- Runde 36: Vorschlag für das ganze Kapitel auf der richtigen Grundlage --------------------------------------
+// ---- Round 36: proposal for the whole chapter on the right basis -----------------------------------------------
 
 const CHAPTER_BOOK: &str = "#set document(title: \"Die Schleuse\", author: \"Mira Kiel\")\n#set heading(numbering: \"1.\")\n\n\
 = Oberwasser\n\nDas Tor steht offen. Ein Kahn wartet vor der Kammer.\n\n\
@@ -210,7 +210,7 @@ const CHAMBER_2: &str = "== Die Kammer\n\nDas Wasser steigt gurgelnd. Der Schleu
 const CHAMBER_3: &str = "== Die Kammer\n\nDas Wasser steigt gurgelnd. Die Schleusenwärterin zählt die Stufen.\n";
 const UPPER_2: &str = "= Oberwasser\n\nDas Tor steht weit offen. Ein Kahn wartet vor der Kammer.\n";
 
-/// `based_on` der Fassung `rev` des Abschnitts `key`.
+/// `based_on` of revision `rev` of section `key`.
 async fn based_on_of(h: &Harbour, key: i64, rev: u64) -> Option<u32> {
     sqlx::query_scalar("SELECT based_on FROM revision WHERE node_id = ? AND number = ?")
         .bind(key)
@@ -220,9 +220,9 @@ async fn based_on_of(h: &Harbour, key: i64, rev: u64) -> Option<u32> {
         .unwrap()
 }
 
-/// Hinweis aus 0.9.0: Der Vorschlag für das ganze Kapitel (`scope: chapter`) beruhte für den eigenen Teil stets auf
-/// der aktuellen Fassung, auch wenn ein Vorschlag gezeigt bzw. gewählt war und die Persona genau den überarbeitete;
-/// die Antwort nannte keine Grundlage. Jetzt beruht er auf der gewählten bzw. gezeigten Fassung und nennt sie.
+/// Note from 0.9.0: the proposal for the whole chapter (`scope: chapter`) was, for its own part, always based on the
+/// current revision, even if a proposal was shown or chosen and the persona revised exactly that one; the response
+/// named no basis. Now it is based on the chosen or shown revision and names it.
 #[tokio::test]
 async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_version() {
     let _turn = common::model_queue(module_path!()).await;
@@ -236,7 +236,7 @@ async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_versio
         "Vorbedingung: ein Kapitel mit einem Unterabschnitt"
     );
 
-    // Der Lektor schlägt für den Unterabschnitt Fassung 2 vor (ein Abschnitt): Die Antwort nennt die Grundlage.
+    // The lector proposes revision 2 for the subsection (one section): the response names the basis.
     h.eliezer.push(Reply::text(&[CHAMBER_2]));
     let answer = h.server.rpc("persona.propose", json!({ "work": work, "key": chamber, "persona": "@lektor" })).await;
     assert!(answer["error"].is_null(), "Vorschlag für den Abschnitt: {answer}");
@@ -247,7 +247,7 @@ async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_versio
         "die Antwort nennt die Fassung, auf der der Vorschlag beruht"
     );
 
-    // Ganzes Kapitel, gezeigt ist Vorschlag 2 des Unterabschnitts: je Teil ein Aufruf, in der Reihenfolge des Kapitels.
+    // Whole chapter, shown is proposal 2 of the subsection: one call per part, in the order of the chapter.
     let before = h.eliezer.chat_bodies().len();
     h.eliezer.push(Reply::text(&[UPPER_2]));
     h.eliezer.push(Reply::text(&[CHAMBER_3]));
@@ -281,11 +281,11 @@ async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_versio
         json!({ "rev": 2, "label": "Grundlage: Fassung 2 (Vorschlag von @lektor)", "proposal": true }),
         "Outcome::basis und ihre Kopfzeile nennen die gezeigte Fassung"
     );
-    // Die Kopfzeile des neuen Vorschlags auf der Arbeitsseite nennt dieselbe Grundlage (ohne JavaScript).
+    // The header line of the new proposal on the work page names the same basis (without JavaScript).
     let (_, page) = h.server.get(&format!("/?work={work}&key={chamber}&rev={chamber_rev}")).await;
     assert!(page.contains("beruht auf Fassung 2"), "der Kopf des Vorschlags nennt Fassung 2 als Grundlage");
 
-    // Ausdrücklich gewählte Grundlage „current“ bei gezeigtem Vorschlag: Der eigene Teil beruht auf der aktuellen.
+    // Explicitly chosen basis „current“ while a proposal is shown: the own part is based on the current one.
     h.eliezer
         .push(Reply::text(&["= Oberwasser\n\nDas Tor steht sperrangelweit offen. Ein Kahn wartet vor der Kammer.\n"]));
     h.eliezer.push(Reply::text(&["== Die Kammer\n\nDas Wasser steigt träge. Der Schleusenwärter zählt die Stufen.\n"]));
@@ -302,7 +302,7 @@ async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_versio
     let own = result["proposals"].as_array().unwrap().iter().find(|p| p["key"] == chamber).unwrap()["rev"].clone();
     assert_eq!(based_on_of(&h, chamber, own.as_u64().unwrap()).await, Some(1), "und ist die Basis des Vorschlags");
 
-    // Gleicht die Antwort für den eigenen Teil der gezeigten Fassung, entsteht dafür kein Vorschlag.
+    // If the response for the own part equals the revision shown, no proposal is created for it.
     let count = async || -> i64 {
         sqlx::query_scalar("SELECT count(*) FROM revision WHERE node_id IN (?, ?)")
             .bind(upper)
