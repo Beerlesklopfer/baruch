@@ -244,9 +244,9 @@ async fn the_work_argument_takes_an_id_or_a_slug() {
     let by_slug = ok(&server, None, "outline", json!({ "work": slug })).await;
     assert_eq!(by_id, by_slug, "id und slug meinen dasselbe Werk");
     let text = refused(&server, None, "outline", json!({ "work": "gibt-es-nicht" })).await;
-    assert!(text.contains("Unbekanntes Werk"), "deutscher Text für unbekannten slug: {text}");
+    assert!(text.contains("Unknown work"), "deutscher Text für unbekannten slug: {text}");
     let text = refused(&server, None, "outline", json!({ "work": 999 })).await;
-    assert!(text.contains("Unbekanntes Werk 999"), "deutscher Text für unbekannte id: {text}");
+    assert!(text.contains("Unknown work 999"), "deutscher Text für unbekannte id: {text}");
 }
 
 #[tokio::test]
@@ -396,18 +396,18 @@ async fn a_proposal_with_a_persona_uses_its_handle_and_bad_proposals_are_refused
         json!({ "work": work, "key": signs, "body": "x", "persona": "@niemand" }),
     )
     .await;
-    assert!(text.contains("Unbekannte Persona"), "deutscher Text für unbekannte Persona: {text}");
+    assert!(text.contains("Unknown persona"), "deutscher Text für unbekannte Persona: {text}");
     let text =
         refused(&server, Some(&session), "propose_revision", json!({ "work": "nirgends", "key": signs, "body": "x" }))
             .await;
-    assert!(text.contains("Unbekanntes Werk"), "unbekanntes Werk: {text}");
+    assert!(text.contains("Unknown work"), "unbekanntes Werk: {text}");
     let text =
         refused(&server, Some(&session), "propose_revision", json!({ "work": work, "key": 99_999, "body": "x" })).await;
     assert!(text.contains("gibt es nicht mehr"), "unbekannter Schlüssel: {text}");
     let text =
         refused(&server, Some(&session), "propose_revision", json!({ "work": work, "key": signs, "body": "  \n" }))
             .await;
-    assert!(text.contains("Leerer Text"), "leerer Text: {text}");
+    assert!(text.contains("Empty text"), "leerer Text: {text}");
     let current = server.rpc("node.get", json!({ "node": 4 })).await["result"]["revisions"]
         .as_array()
         .unwrap()
@@ -420,7 +420,7 @@ async fn a_proposal_with_a_persona_uses_its_handle_and_bad_proposals_are_refused
     let text =
         refused(&server, Some(&session), "propose_revision", json!({ "work": work, "key": signs, "body": current }))
             .await;
-    assert!(text.contains("gleicht der aktuellen Revision"), "gleicher Text (auch mit CRLF) wird abgelehnt: {text}");
+    assert!(text.contains("equals the current revision"), "gleicher Text (auch mit CRLF) wird abgelehnt: {text}");
     let count = server.rpc("node.get", json!({ "node": 4 })).await["result"]["revisions"].as_array().unwrap().len();
     assert_eq!(count, 3, "nur der Lektor-Vorschlag kam dazu (2 + 1), keine der Ablehnungen");
 }
@@ -481,12 +481,12 @@ async fn add_post_writes_a_post_by_persona_or_client_and_checks_refs() {
     assert_eq!(made["author"], "@nathan", "Persona als Autor: {made}");
 
     let bad = [
-        (json!([{ "key": 99_999, "rev": 1, "quote": "x" }]), "gibt es nicht (mehr)"),
+        (json!([{ "key": 99_999, "rev": 1, "quote": "x" }]), "does not exist (any more)"),
         (
             json!([{ "key": signs, "rev": 9, "quote": "x" }]),
-            "Revision 9 von Abschnitt 4: die gibt es nicht (vorhanden: 1, 2)",
+            "revision 9 of section 4: it does not exist (existing: 1, 2)",
         ),
-        (json!([{ "key": signs, "rev": 1, "quote": "Langmut heißt nicht" }]), "nicht wörtlich"),
+        (json!([{ "key": signs, "rev": 1, "quote": "Langmut heißt nicht" }]), "not literally"),
     ];
     for (refs, why) in bad {
         let text = refused(
@@ -507,7 +507,7 @@ async fn add_post_writes_a_post_by_persona_or_client_and_checks_refs() {
         json!({ "work": work, "key": pious, "body": "x", "persona": "@niemand" }),
     )
     .await;
-    assert!(text.contains("Unbekannte Persona"), "unbekannte Persona: {text}");
+    assert!(text.contains("Unknown persona"), "unbekannte Persona: {text}");
     assert_eq!(
         posts(&server.rpc("node.get", json!({ "node": 5 })).await).len(),
         before + 2,
@@ -550,7 +550,7 @@ async fn import_typst_is_no_longer_a_tool_and_imports_nothing() {
         let answer = call(&server, None, "import_typst", arguments).await;
         assert_eq!(answer["error"]["code"], -32602, "import_typst ist ein unbekanntes Werkzeug (-32602): {answer}");
         assert!(
-            answer["error"]["message"].as_str().unwrap().contains("unbekanntes Werkzeug import_typst"),
+            answer["error"]["message"].as_str().unwrap().contains("unknown tool import_typst"),
             "Meldung nennt das unbekannte Werkzeug: {answer}"
         );
     }
@@ -565,7 +565,7 @@ async fn import_typst_is_no_longer_a_tool_and_imports_nothing() {
     let instructions = init["result"]["instructions"].as_str().unwrap();
     assert!(!instructions.contains("import_typst"), "instructions bieten keinen Import an: {instructions}");
     assert!(
-        instructions.contains("Import gibt es über MCP nicht"),
+        instructions.contains("the import do not exist over MCP"),
         "instructions sagen es ausdrücklich: {instructions}"
     );
 }
@@ -753,26 +753,26 @@ async fn writing_tools_need_the_key_and_refuse_the_position() {
     let (signs, pious) = (key(&server, work, 4).await, key(&server, work, 5).await);
     let body = "== Erste Anzeichen\n\nOhne Schlüssel.\n";
     let cases = [
-        ("propose_revision", json!({ "work": work, "node": 4, "body": body }), "node (Stelle) wird nicht angenommen"),
+        ("propose_revision", json!({ "work": work, "node": 4, "body": body }), "node (position) is not accepted"),
         (
             "propose_revision",
             json!({ "work": work, "node": 4, "key": signs, "body": body }),
-            "node (Stelle) wird nicht angenommen",
+            "node (position) is not accepted",
         ),
-        ("propose_revision", json!({ "work": work, "body": body }), "key fehlt"),
-        ("add_post", json!({ "work": work, "node": 5, "body": "Beitrag" }), "node (Stelle) wird nicht angenommen"),
-        ("add_post", json!({ "work": work, "body": "Beitrag" }), "key fehlt"),
+        ("propose_revision", json!({ "work": work, "body": body }), "key is missing"),
+        ("add_post", json!({ "work": work, "node": 5, "body": "Beitrag" }), "node (position) is not accepted"),
+        ("add_post", json!({ "work": work, "body": "Beitrag" }), "key is missing"),
         (
             "add_post",
             json!({ "work": work, "key": pious, "body": "Beitrag",
                     "refs": [{ "node": 4, "rev": 2, "quote": "Langmut heißt nicht, Unrecht zu dulden." }] }),
-            "refs[0]: node (Stelle) wird nicht angenommen",
+            "refs[0]: node (position) is not accepted",
         ),
         (
             "add_post",
             json!({ "work": work, "key": pious, "body": "Beitrag",
                     "refs": [{ "key": signs, "rev": 2, "quote": "Langmut" }, { "rev": 2, "quote": "Langmut" }] }),
-            "refs[1]: key fehlt",
+            "refs[1]: key is missing",
         ),
     ];
     for (tool, arguments, why) in cases {

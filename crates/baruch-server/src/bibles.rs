@@ -1563,7 +1563,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 params.get("limit").and_then(Value::as_u64).map_or(SEARCH_LIMIT, |l| (l as usize).clamp(1, SEARCH_MAX));
             lexicon_search(state, work, query, module, limit).await
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

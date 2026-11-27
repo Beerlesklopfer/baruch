@@ -589,7 +589,8 @@ async fn mcp_reads_and_requests_and_the_exchange_carries_layout_addresses_and_sh
     // Der Hinweis beim Verbinden nennt die Werkzeuge, sonst findet ein Client sie nur über tools/list.
     let instructions = init["result"]["instructions"].as_str().unwrap();
     assert!(
-        instructions.contains("cover_layout liest") && instructions.contains("cover_layout_set ändert nichts sofort"),
+        instructions.contains("cover_layout reads")
+            && instructions.contains("cover_layout_set changes nothing immediately"),
         "instructions nennen cover_layout und sagen, dass cover_layout_set nur ein Antrag ist: {instructions}"
     );
     let session = headers.get("mcp-session-id").unwrap().to_str().unwrap().to_owned();

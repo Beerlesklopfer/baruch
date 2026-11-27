@@ -272,7 +272,7 @@ fn footnotes_param(params: &Value) -> Result<FootnoteMode, RpcError> {
 
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     if !handles(method) {
-        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
+        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     let params = if params.is_null() { json!({}) } else { params };
     let readers = readers_of(&slugs_param(&params)?)?;
@@ -325,7 +325,7 @@ pub async fn checker_state(state: &AppState, path_env: Option<&OsStr>) -> Result
 
 pub async fn call_global(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     if !handles_global(method) {
-        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
+        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     let path = process_path();
     if method == "epub.checker_set" {

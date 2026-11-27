@@ -258,6 +258,9 @@ async fn dump(conn: &mut SqliteConnection, work: WorkId) -> Result<ExchangeWork,
     })
     .collect::<Result<Vec<_>, StoreError>>()?;
 
+    let language: String =
+        sqlx::query_scalar("SELECT language FROM work WHERE id = ?").bind(work).fetch_one(&mut *conn).await?;
+    let language = baruch_exchange::ExchangeLanguage::from_xml(&language).unwrap_or_default();
     Ok(ExchangeWork {
         uuid,
         kind,
@@ -266,6 +269,7 @@ async fn dump(conn: &mut SqliteConnection, work: WorkId) -> Result<ExchangeWork,
         author,
         audience,
         bible,
+        language,
         created,
         updated,
         numbering_scheme: scheme,

@@ -195,7 +195,7 @@ pub async fn call_with(
         "persona.review" => Mode::Review,
         "persona.propose" => Mode::Propose,
         "persona.chat" => return Ok(chat_json(&run_chat(state, params, progress).await?)),
-        _ => return Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => return Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {method}"))),
     };
     let order = order(state, mode, params).await?;
     Ok(outcome_json(&super::run(state, &order, progress).await?))

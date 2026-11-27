@@ -838,7 +838,7 @@ fn check_key(work: &Work, work_id: WorkId, key: Option<i64>) -> Result<(), RpcEr
 /// Abschnitts `key` (ohne `key`: 1); `svg` nur mit `page`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     if !handles(method) {
-        return Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
+        return Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     if method == "preview.cancel" {
         // Unbekanntes Werk: dieselbe Meldung wie überall (`UnknownWork` → -32602), nicht still `false`.

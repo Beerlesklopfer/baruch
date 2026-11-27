@@ -104,7 +104,7 @@ pub struct RenderInput<'a> {
 // ---- Markdown subset -------------------------------------------------------------------------------------------
 
 /// Starts of the closing notes of Baruch (footer).
-fn footer_prefixes() -> [&'static str; 8] {
+fn footer_prefixes() -> [&'static str; 9] {
     [
         crate::scripture::MARK_OTHERS,
         crate::scripture::MARK_SCRIPTURE,
@@ -112,6 +112,7 @@ fn footer_prefixes() -> [&'static str; 8] {
         crate::assist::CUT_NOTE,
         crate::assist::TRUNCATED_NOTE,
         crate::assist::prompts::CRITICAL_MISSING_NOTE,
+        crate::assist::prompts::CRITICAL_MISSING_NOTE_EN,
         "Komprimiert:",
         "(Antwort abgeschnitten",
     ]

@@ -40,7 +40,7 @@ pub const NAMESPACE: &str = "urn:baruch:werk:1";
 /// `fortschreibung`), in `<satz>` das Kind `<entwurf/>`, an `<befund>` und `<status-eintrag>` `stand`. 9 seit Runde
 /// 34 (Mindmap): an `<einfall>` die wahlfreien Attribute `titel`, `eltern` (UUID des Eltern-Einfalls), `platz`
 /// (Reihenfolge unter Geschwistern) und `hauptthema` (freies Hauptthema am Werk; fehlt = Wolke bzw. am Bezug).
-pub const FORMAT_VERSION: u32 = 9;
+pub const FORMAT_VERSION: u32 = 10;
 pub const ZIP_MIMETYPE: &str = "application/vnd.baruch.werk+zip";
 pub const XML_MEDIA_TYPE: &str = "application/vnd.baruch.werk+xml";
 pub const ZIP_SUFFIX: &str = ".baruch";
@@ -140,6 +140,10 @@ macro_rules! xml_enum {
 xml_enum!(
     /// Art des Werks (`art` an `<werk>`).
     ExchangeWorkKind { Book = "buch", Sermon = "predigt" }
+);
+xml_enum!(
+    /// Work language (`sprache` at `<angaben>`, from sub-version 10; missing = German).
+    ExchangeLanguage { De = "de", En = "en" }
 );
 xml_enum!(
     /// Art einer SWORD-Quelle (`art` an `<quelle>` in `<angaben>`).
@@ -457,6 +461,8 @@ pub struct ExchangeWork {
     pub author: String,
     pub audience: String,
     pub bible: String,
+    /// Work language (`sprache` at `<angaben>`, sub-version 10); files up to sub-version 9 read as German.
+    pub language: ExchangeLanguage,
     pub created: String,
     pub updated: Option<String>,
     /// Gliederungsschema (`work.numbering_scheme`).

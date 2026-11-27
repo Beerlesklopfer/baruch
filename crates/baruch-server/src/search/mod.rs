@@ -602,7 +602,7 @@ pub async fn call(
         "search.preview" => replace::preview_rpc(state, work, &params).await,
         "search.replace" => replace::replace_rpc(state, work, &params).await,
         "search.undo" => replace::undo_rpc(state, work, &params).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

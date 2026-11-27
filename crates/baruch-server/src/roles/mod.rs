@@ -165,7 +165,7 @@ pub fn unknown_work(work: WorkId) -> String {
 /// Meldung und Code, wenn ein Lektor die Methode `method` nicht darf ([`FORBIDDEN`]).
 pub(crate) fn author_only(method: &str) -> RpcError {
     let shown: String = method.chars().take(80).collect();
-    RpcError::new(FORBIDDEN, format!("{AUTHOR_ONLY}: {shown}"))
+    RpcError::new(FORBIDDEN, format!("Only the author may do this: {shown}"))
 }
 
 /// Die für `who` freigegebenen Werke, aufsteigend; nur ein Lektor hat welche (volle Rechte brauchen keine Freigabe).
@@ -287,7 +287,7 @@ pub async fn check_request_preferring(
         match value.parse::<WorkId>() {
             Ok(work) if granted.contains(&work) => {}
             Ok(work) => return Verdict::Deny(unknown_work(work)),
-            Err(_) => return Verdict::Deny("work: Werk-id (Zahl) erwartet".to_owned()),
+            Err(_) => return Verdict::Deny("work: work id (number) expected".to_owned()),
         }
     }
     match from {

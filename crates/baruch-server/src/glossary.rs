@@ -202,7 +202,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             Ok(json!({ "work": work, "proposals": list.iter().map(proposal_json).collect::<Vec<_>>() }))
         }
         "index.decide" => index_decide(state, work, int_param(&params, "id")?, bool_param(&params, "accept")?).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

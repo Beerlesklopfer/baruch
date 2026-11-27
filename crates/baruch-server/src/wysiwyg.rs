@@ -260,6 +260,6 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params_value: Va
                 baruch_wysiwyg::diff_html_with(base_body, &shown.body, &|path| Some(image_ref_in(work, path, &alts)));
             Ok(json!({ "html": html, "base": base }))
         }
-        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }

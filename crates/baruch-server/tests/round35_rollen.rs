@@ -626,7 +626,7 @@ async fn a_lektor_proposes_under_the_handle_and_only_the_author_accepts() {
         let params = json!({ "work": g, "key": key, "rev": rev, "body": "Übernommen?", "confirm": true });
         let answer = rpc_as(server, &s.erika, method, params).await;
         assert_eq!(code(&answer), Some(FORBIDDEN), "{method} bleibt dem Autor: {answer}");
-        assert_eq!(message(&answer), format!("Das darf nur der Autor: {method}"), "{method}: Meldung");
+        assert_eq!(message(&answer), format!("Only the author may do this: {method}"), "{method}: Meldung");
     }
     let (status, headers, _) =
         form_as(server, &s.erika, "/act", &format!("method=revision.accept&work={g}&key={key}&rev={rev}")).await;

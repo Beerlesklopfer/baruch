@@ -715,7 +715,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let matrix = matrix(state, work, &filter).await?;
             serde_json::to_value(matrix).map_err(|e| RpcError::new(INTERNAL, e.to_string()))
         }
-        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {other}"))),
+        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {other}"))),
     }
 }
 

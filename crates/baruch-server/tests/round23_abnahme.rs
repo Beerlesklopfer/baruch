@@ -205,7 +205,7 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
         json!({ "work": work, "key": key, "body": "Als Lektor ausgegeben.", "persona": "@lektor" }),
     )
     .await;
-    assert!(text.contains("nur im eigenen Namen"), "mit Token gibt es keinen Beitrag unter Persona-Namen: {text}");
+    assert!(text.contains("only in its own name"), "mit Token gibt es keinen Beitrag unter Persona-Namen: {text}");
     let stranger = Caller { foreign: true, token: None, session: None };
     let message = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call",
                           "params": { "name": "add_post", "arguments": { "work": work, "key": key, "body": "Fremd." } } });

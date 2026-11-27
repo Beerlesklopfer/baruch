@@ -102,8 +102,9 @@ pub async fn suggest(
     if text.trim().is_empty() {
         return Err(RpcError::new(REFUSED, "Kein Text, aus dem sich Begriffe vorschlagen ließen; nichts angelegt."));
     }
+    let language = crate::work_language::of(state, work).await;
     let mut system =
-        prompts::effective_prompt_for(&persona.handle, &persona.role, persona.prompt.as_deref(), loaded.kind);
+        prompts::effective_prompt_in(&persona.handle, &persona.role, persona.prompt.as_deref(), loaded.kind, language);
     system.push_str("\n\n");
     system.push_str(SUGGEST_RULE);
     // Context length: characters ≈ 3 per token, minus answer and reserve.

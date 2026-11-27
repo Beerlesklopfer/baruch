@@ -436,17 +436,25 @@ jobs:
           set -eu
           version="$(sh scripts/version.sh "$TAG")"
           {
-            echo "Baruch $version – freie Schreibwerkstatt für Bücher und Predigten (AGPL-3.0-or-later)."
+            echo "Baruch $version – a free writing workshop for sermons, talks and books (AGPL-3.0-or-later). The user interface is in German."
             echo
-            echo "Installation: https://baruch.bernau.family/ und docs/Verteilung.md."
+            echo "Installation and help: https://baruch.bernau.family/installation/"
             echo
-            echo "Prüfsummen: SHA256SUMS. \`apt-repo.tar.gz\` ist der Stand des APT-Repositorys unter https://baruch.bernau.family/apt/ (mit den Paketen früherer Releases); der Arbeitsablauf liefert es über GitHub Pages aus."
+            echo "Checksums: SHA256SUMS. \`apt-repo.tar.gz\` is a snapshot of the APT repository at https://baruch.bernau.family/apt/ (including the packages of earlier releases), for running your own mirror."
             echo
-            ls dist/*.AppImage >/dev/null 2>&1 || echo "- AppImage fehlt in diesem Release (Bau gescheitert)."
-            [ "$MACOS_RESULT" = success ] || echo "- macOS-Pakete fehlen ganz oder teilweise (Bau: $MACOS_RESULT)."
-            [ "$WINDOWS_RESULT" = success ] || echo "- Windows-Paket fehlt (Bau: $WINDOWS_RESULT)."
-            [ "$MACOS_SIGNED" = true ] || echo "- macOS: unsigniert und nicht notarisiert (Gatekeeper warnt; siehe docs/Verteilung.md)."
-            [ "$WINDOWS_SIGNED" = true ] || echo "- Windows: unsigniert (SmartScreen warnt; siehe docs/Verteilung.md)."
+            ls dist/*.AppImage >/dev/null 2>&1 || echo "- AppImage is missing from this release (build failed)."
+            [ "$MACOS_RESULT" = success ] || echo "- macOS packages are missing in whole or in part (build: $MACOS_RESULT)."
+            [ "$WINDOWS_RESULT" = success ] || echo "- Windows package is missing (build: $WINDOWS_RESULT)."
+            if [ "$MACOS_SIGNED" = true ]; then
+              echo "- macOS: signed (Developer ID) and notarized by Apple."
+            else
+              echo "- macOS: not signed and not notarized (Gatekeeper will warn; see the installation page)."
+            fi
+            if [ "$WINDOWS_SIGNED" = true ]; then
+              echo "- Windows: signed."
+            else
+              echo "- Windows: not signed (SmartScreen will warn; see the installation page)."
+            fi
           } > notes.md
           draft="--draft"
           [ "$RELEASE_DRAFT" = false ] && draft=""

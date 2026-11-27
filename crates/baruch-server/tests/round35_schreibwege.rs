@@ -237,7 +237,7 @@ async fn every_method_outside_the_table_is_forbidden_for_a_lektor() {
         assert_eq!(code(&answer), Some(FORBIDDEN), "{method} steht nicht in LEKTOR_RPC: -32003, nicht {answer}");
         assert_eq!(
             answer["error"]["message"],
-            json!(format!("Das darf nur der Autor: {method}")),
+            json!(format!("Only the author may do this: {method}")),
             "{method}: die Meldung nennt die Methode"
         );
         let form = format!("method={method}&work={}&key={}&rev=1&id=1&confirm=on&body=Text", s.granted, s.granted_key);

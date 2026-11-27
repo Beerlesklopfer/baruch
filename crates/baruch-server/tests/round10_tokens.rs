@@ -209,7 +209,7 @@ async fn wrong_or_revoked_tokens_are_refused_even_from_loopback() {
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{why}: {body}");
         let challenge = headers.get(header::WWW_AUTHENTICATE).unwrap().to_str().unwrap();
         assert!(challenge.contains("invalid_token"), "{why}: 401 nennt den Grund im Verfahren: {challenge}");
-        assert!(body.contains("ungültig oder widerrufen"), "{why}: deutscher Text: {body}");
+        assert!(body.contains("invalid or revoked"), "{why}: deutscher Text: {body}");
         assert!(!body.contains(&secret), "{why}: kein Token in der Meldung");
     }
     let (status, _, body) =
@@ -347,7 +347,7 @@ async fn a_token_client_cannot_act_as_a_persona_but_loopback_still_can() {
         let answer = call_tool(&server, FOREIGN, Some(&secret), tool, args).await;
         assert_eq!(answer["isError"], true, "{tool} mit Token und persona → isError: {answer}");
         let text = answer["content"][0]["text"].as_str().unwrap();
-        assert!(text.contains("nur im eigenen Namen"), "{tool}: Meldung nennt den Grund: {text}");
+        assert!(text.contains("only in its own name"), "{tool}: Meldung nennt den Grund: {text}");
     }
     let still: Option<String> = sqlx::query_scalar("SELECT author FROM post WHERE id = ?")
         .bind(post_id)

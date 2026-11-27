@@ -36,7 +36,7 @@ pub async fn call(_state: &AppState, method: &str, params: Value) -> Result<Valu
     match method {
         "scripture.map" => map_json(&params),
         "scripture.versifications" => Ok(versifications_json()),
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

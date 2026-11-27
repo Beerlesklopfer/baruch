@@ -407,7 +407,7 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
         .to_owned();
     for needle in [
         // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-        "version=\"9\"",
+        "version=\"10\"",
         "variante=\"A\"",
         "variante-zeile=\"knapp\"",
         "<setzt-um befund=",
@@ -421,7 +421,7 @@ async fn solutions_variants_and_post_links_travel_to_another_instance_in_version
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("u5.baruch.xml");
     std::fs::write(&file, &xml).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)

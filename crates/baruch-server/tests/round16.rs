@@ -415,7 +415,7 @@ async fn the_lector_of_the_sermon_sees_framed_foreign_findings_and_only_backed_c
 
     let calls = model.calls();
     assert!(
-        system(&calls[0]).contains("Lektor dieser Predigt"),
+        system(&calls[0]).contains("the lector of this sermon"),
         "der Prompt spricht von der Predigt: {}",
         system(&calls[0])
     );

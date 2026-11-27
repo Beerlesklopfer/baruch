@@ -128,7 +128,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
                 .collect();
             Ok(json!({ "work": work, "registers": registers }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

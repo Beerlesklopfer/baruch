@@ -74,6 +74,97 @@ pub const EN: Markers = Markers {
 /// Both marker sets; a recognition goes through all of them.
 pub const ALL: [&Markers; 2] = [&DE, &EN];
 
+/// Further markers found in Round 38, same pattern as [`Markers`]: the solution lines below a critical finding and
+/// the words of a "done" line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MoreMarkers {
+    /// New wording of a solution (`- besser: "…"`).
+    pub better: &'static str,
+    /// Next step of a solution (`- Schritt: …`).
+    pub step: &'static str,
+    /// Word before the number in a "done" line ("Erledigt: Befund 7 …"), lower case.
+    pub finding: &'static str,
+    /// Word before the quoted place in a "done" line.
+    pub place: &'static str,
+    /// Headings of the outline of an answer besides `what_works`, lower case without colon.
+    pub what_is_missing: &'static str,
+    pub what_disturbs: &'static str,
+}
+
+/// Further German markers: literally the words used before Round 38.
+pub const MORE_DE: MoreMarkers = MoreMarkers {
+    better: "besser:",
+    step: "Schritt:",
+    finding: "befund",
+    place: "Stelle",
+    what_is_missing: "was fehlt",
+    what_disturbs: "was stört",
+};
+
+/// Further English markers.
+pub const MORE_EN: MoreMarkers = MoreMarkers {
+    better: "better:",
+    step: "Step:",
+    finding: "finding",
+    place: "place",
+    what_is_missing: "what is missing",
+    what_disturbs: "what disturbs",
+};
+
+/// Both sets of further markers; a recognition goes through all of them.
+pub const MORE: [&MoreMarkers; 2] = [&MORE_DE, &MORE_EN];
+
+/// Further markers of a work language.
+pub fn more(language: WorkLanguage) -> &'static MoreMarkers {
+    match language {
+        WorkLanguage::De => &MORE_DE,
+        WorkLanguage::En => &MORE_EN,
+    }
+}
+
+/// A prompt text written with the German markers, with the markers of the work language instead. German: unchanged.
+/// The prompt texts in [`prompts`] are English prose that names the German markers literally; no English word in
+/// them equals a German marker, so replacing the markers is exact.
+pub fn localized(text: &str, language: WorkLanguage) -> String {
+    if language == WorkLanguage::De {
+        return text.to_owned();
+    }
+    let (m, more) = (markers(language), more(language));
+    let done_line = format!("Done: {} n ({}", more.finding, more.place);
+    let pairs: [(&str, &str); 16] = [
+        (DE.all_done_sentence, m.all_done_sentence),
+        (DE.unbacked_note, m.unbacked_note),
+        (DE.no_solution_note, m.no_solution_note),
+        ("Erledigt: Befund n (Stelle", &done_line),
+        (DE.my_proposal, m.my_proposal),
+        (DE.critical, m.critical),
+        (DE.suggestion, m.suggestion),
+        (DE.note, m.note),
+        (DE.praise, m.praise),
+        (DE.what_works, m.what_works),
+        (DE.important_now, m.important_now),
+        (DE.can_wait, m.can_wait),
+        (DE.instead_of, m.instead_of),
+        (MORE_DE.better, more.better),
+        (MORE_DE.step, more.step),
+        (DE.done, m.done),
+    ];
+    let mut out = text.to_owned();
+    for (german, other) in pairs {
+        out = out.replace(german, other);
+    }
+    out
+}
+
+/// Work language of a model call: read from the language rule that [`prompts::effective_prompt_in`] puts below
+/// every effective prompt. A call without the rule counts as German (every work from before Round 38).
+pub fn of_prompt(system: &str) -> WorkLanguage {
+    WorkLanguage::ALL
+        .into_iter()
+        .find(|language| *language != WorkLanguage::De && system.contains(&language_rule(*language)))
+        .unwrap_or_default()
+}
+
 /// Markers of a work language.
 pub fn markers(language: WorkLanguage) -> &'static Markers {
     match language {
@@ -97,6 +188,8 @@ pub fn language_rule(language: WorkLanguage) -> String {
         m.my_proposal,
         m.done,
         m.instead_of,
+        more(language).better,
+        more(language).step,
     ];
     let listed: Vec<String> = line_markers.iter().map(|marker| format!("\"{marker}\"")).collect();
     format!(

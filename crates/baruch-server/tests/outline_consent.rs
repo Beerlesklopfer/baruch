@@ -124,7 +124,7 @@ async fn a_part_in_the_middle_becomes_a_request_and_changes_nothing() {
     assert_eq!(answer["status"], "open", "der Antrag ist offen: {answer}");
     let message = answer["message"].as_str().unwrap();
     assert!(
-        message.contains(&format!("Antrag {id} gestellt, wartet auf Zustimmung")),
+        message.contains(&format!("Request {id} filed, waiting for approval")),
         "die Antwort sagt ehrlich, dass nichts geschehen ist und worauf sie wartet: {message}"
     );
     assert_eq!(answer["adopted"], json!([flood, surf]), "adopted nennt die Kapitel, die wandern würden");

@@ -765,26 +765,26 @@ async fn every_default_prompt_carries_the_hard_rules_with_a_counter_example() {
         let prompt = result(&got)["prompt"].as_str().unwrap().to_owned();
         assert_eq!(result(&got)["custom"], false, "{handle}: Vorgabe");
         for rule in [
-            "Deutsch",
-            "„Als Assistent“",
-            "„Als KI“",
-            "„Als Sprachmodell“",
-            "„Gerne“",
-            "„Natürlich“",
-            "Falsch:",
-            "Richtig:",
-            "Erfinde keine Quellen",
-            "wörtliches Zitat",
+            "work language",
+            "\"Als Assistent\"",
+            "\"Als KI\"",
+            "\"Als Sprachmodell\"",
+            "\"Gerne\"",
+            "\"Natürlich\"",
+            "Wrong:",
+            "Right:",
+            "Invent no sources",
+            "a literal quote",
         ] {
             assert!(prompt.contains(rule), "{handle}: Regel {rule:?} fehlt: {prompt}");
         }
         let critical = matches!(handle, "@lektor" | "@exeget" | "@nathan");
         assert_eq!(
-            prompt.contains("„Kritisch:“"),
+            prompt.contains("\"Kritisch:\""),
             critical,
             "{handle}: kritischer Befund nur bei Lektor, Exeget, Nathan"
         );
-        assert!(prompt.contains("Bibelverse") || prompt.contains("Bibelzitate"), "{handle}: Regel zu Bibelzitaten");
+        assert!(prompt.contains("Bible verses") || prompt.contains("Bible quotes"), "{handle}: Regel zu Bibelzitaten");
     }
     let lektor = result(&b.server.rpc("persona.prompt_get", json!({ "handle": "@lektor" })).await)["prompt"]
         .as_str()
@@ -793,20 +793,23 @@ async fn every_default_prompt_carries_the_hard_rules_with_a_counter_example() {
     // Der Kontext enthält nur Abschnitt, Kapitelumfeld und Einfälle: Der Prompt darf keine Verweise auf
     // Stellen verlangen, die das Modell nie sieht (sonst lädt er zum Erfinden ein).
     assert!(
-        lektor.contains("nicht das ganze Werk") && !lektor.contains("Du kennst das ganze Werk"),
+        lektor.contains("not the whole work") && !lektor.contains("You know the whole work"),
         "Lektor-Prompt sagt, was er sieht: {lektor}"
     );
     let nathan = result(&b.server.rpc("persona.prompt_get", json!({ "handle": "@nathan" })).await)["prompt"]
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(nathan.contains("nie frei") && nathan.contains("„unbedenklich“"), "Nathan gibt nie frei: {nathan}");
+    assert!(
+        nathan.contains("You never approve") && nathan.contains("\"unbedenklich\""),
+        "Nathan gibt nie frei: {nathan}"
+    );
     let schrift = result(&b.server.rpc("persona.prompt_get", json!({ "handle": "schrift" })).await)["prompt"]
         .as_str()
         .unwrap()
         .to_owned();
     assert!(
-        schrift.contains("Wortlaut ungeprüft") && schrift.contains("nie"),
+        schrift.contains("Wortlaut ungeprüft") && schrift.contains("never"),
         "Schrift bestätigt nie Wortlaut: {schrift}"
     );
     let belege = result(&b.server.rpc("persona.prompt_get", json!({ "handle": "@belege" })).await)["prompt"]
@@ -814,14 +817,16 @@ async fn every_default_prompt_carries_the_hard_rules_with_a_counter_example() {
         .unwrap()
         .to_owned();
     assert!(
-        belege.contains("„nicht belegt“") && belege.contains("„Angabe prüfen“") && belege.contains("nicht pauschal"),
+        belege.contains("\"nicht belegt\"")
+            && belege.contains("\"Angabe prüfen\"")
+            && belege.contains("not mark Bible quotes wholesale"),
         "{belege}"
     );
     let hoerer = result(&b.server.rpc("persona.prompt_get", json!({ "handle": "@hoerer" })).await)["prompt"]
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(hoerer.contains("Zielgruppe") && hoerer.contains("Ich-Perspektive"), "Hörer liest als Leser: {hoerer}");
+    assert!(hoerer.contains("Zielgruppe") && hoerer.contains("in the first person"), "Hörer liest als Leser: {hoerer}");
 }
 
 #[tokio::test]
@@ -835,7 +840,7 @@ async fn a_saved_prompt_replaces_the_default_and_can_be_reset() {
         .await;
     assert_eq!(result(&set)["custom"], true, "{set}");
     assert_eq!(result(&set)["prompt"], "Nur Bienen. Kritisch: immer.", "wirksamer Prompt");
-    assert!(result(&set)["default"].as_str().unwrap().contains("Exeget"), "Vorgabe bleibt abrufbar");
+    assert!(result(&set)["default"].as_str().unwrap().contains("the exegete"), "Vorgabe bleibt abrufbar");
     b.server.rpc("persona.review", json!({ "work": b.work, "key": b.keys[1], "persona": "@exeget" })).await;
     assert!(system(&b.model.calls()[0]).starts_with("Nur Bienen."), "gespeicherter Prompt ersetzt die Vorgabe");
     let list = b.server.rpc("persona.list", json!({})).await;
@@ -849,7 +854,7 @@ async fn a_saved_prompt_replaces_the_default_and_can_be_reset() {
     let reset = b.server.rpc("persona.set_prompt", json!({ "handle": "@exeget", "prompt": null })).await;
     assert_eq!(result(&reset)["custom"], false, "zurück zur Vorgabe");
     b.server.rpc("persona.review", json!({ "work": b.work, "key": b.keys[1], "persona": "@exeget" })).await;
-    assert!(system(&b.model.calls()[1]).starts_with("Du bist @exeget"), "wieder die Vorgabe");
+    assert!(system(&b.model.calls()[1]).starts_with("You are @exeget"), "wieder die Vorgabe");
 
     let page = format!("method=persona.set_prompt&handle=%40exeget&prompt=Eigener+Text&work={}", b.work);
     let (status, location) = b.server.post_form("/einstellungen/personas/act", &page).await;

@@ -1858,7 +1858,7 @@ pub async fn call(
             let (node, rev) = cite(state, work, p.highlight, key).await?;
             Ok(json!({ "node": node, "key": key, "rev": rev }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

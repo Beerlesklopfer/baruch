@@ -70,7 +70,11 @@ fn parse<T: for<'de> Deserialize<'de>>(method: &str, params: Value, expected: &s
 }
 
 fn author_only(who: &Who, method: &str) -> Result<(), RpcError> {
-    if who.full_rights() { Ok(()) } else { Err(RpcError::new(FORBIDDEN, format!("Das darf nur der Autor: {method}"))) }
+    if who.full_rights() {
+        Ok(())
+    } else {
+        Err(RpcError::new(FORBIDDEN, format!("Only the author may do this: {method}")))
+    }
 }
 
 /// An account as it stands in answers: the fields of [`Account`] and the handle. No hash, no password.
@@ -193,7 +197,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             let sessions = state.store.session_delete_all(identity.id, None).await.map_err(internal)?;
             Ok(json!({ "sessions": sessions }))
         }
-        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode: {method}"))),
+        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method: {method}"))),
     }
 }
 

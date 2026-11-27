@@ -12,6 +12,9 @@ Zwei Grundsätze gelten überall:
 
 - **Assistenten ändern nie den gültigen Text.** Antworten werden Beiträge im Chat, neue Texte nur Vorschläge.
   Annehmen kann nur der Mensch.
+- **Assistenten antworten in der Sprache des Werks.** Deutsch oder Englisch stellt man je Werk ein:
+  [Werksprache](/hilfe/einstellungen/#werksprache). Baruch erkennt die Marken der Antworten („Kritisch:“,
+  „Critical:“ …) in beiden Sprachen.
 - **Baruch bringt kein Sprachmodell mit.** Welcher Dienst die Assistenten antreibt, stellt man einmal ein:
   [Assistenten einrichten](/mcp/#assistenten-einrichten). Solange nichts eingerichtet ist, meldet Baruch das
   ehrlich; Schreiben, Fassungen und Buchsatz gehen trotzdem.

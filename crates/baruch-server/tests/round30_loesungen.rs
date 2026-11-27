@@ -134,7 +134,7 @@ fn every_default_prompt_asks_for_a_solution_in_the_fixed_form() {
             );
         }
     }
-    for form in ["- statt: „", "- besser: „", "- Schritt:"] {
+    for form in ["- statt: \"", "- besser: \"", "- Schritt:"] {
         assert!(prompts::SOLUTION_RULE.contains(form), "die feste Form steht wörtlich in der Regel: {form}");
     }
 }

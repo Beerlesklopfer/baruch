@@ -104,17 +104,18 @@ async fn in_a_sermon_the_prompts_speak_of_the_sermon_and_in_a_book_they_stay_as_
     let calls = model.calls();
     assert_eq!(calls.len(), 3, "drei Aufträge, je ein Aufruf: {calls:?}");
     let lector = system(&calls[0]);
-    assert!(lector.contains("Du bist @lektor, der Lektor dieser Predigt."), "Lektor der Predigt: {lector}");
+    assert!(lector.contains("You are @lektor, the lector of this sermon."), "Lektor der Predigt: {lector}");
     assert!(lector.contains(prompts::SERMON_NOTE), "der Predigt-Hinweis steht im System-Prompt: {lector}");
     assert!(
-        lector.contains("„Text der Predigt“") && lector.contains("nie von „Buch“ oder „Buchtext“"),
+        lector.contains("\"text of the sermon\"") && lector.contains("never of \"book\" or \"book text\""),
         "die Persona soll „Predigt“/„Text der Predigt“ sagen, nicht „Buch“/„Buchtext“: {lector}"
     );
-    assert!(!lector.contains("Lektor dieses Werks"), "die Buch-Formulierung ist ersetzt: {lector}");
+    assert!(!lector.contains("the lector of this work"), "die Buch-Formulierung ist ersetzt: {lector}");
     assert!(user(&calls[0]).contains("(Predigt)"), "die Werkzeile nennt die Werkart Predigt: {}", user(&calls[0]));
     let listener = system(&calls[1]);
     assert!(
-        listener.contains("ein Hörer aus der Gemeinde") && listener.contains("Hör den Abschnitt als dieser Hörer"),
+        listener.contains("a listener from the congregation")
+            && listener.contains("Listen to the section as this listener"),
         "@hoerer hört die Predigt, statt sie zu lesen: {listener}"
     );
     let rows = ok(&server, "persona.list", json!({})).await;
@@ -128,7 +129,7 @@ async fn in_a_sermon_the_prompts_speak_of_the_sermon_and_in_a_book_they_stay_as_
         "beim Buch beginnt der System-Prompt unverändert mit der bisherigen Vorgabe: {book_system}"
     );
     assert!(
-        !book_system.contains(prompts::SERMON_NOTE) && !book_system.contains("dieser Predigt"),
+        !book_system.contains(prompts::SERMON_NOTE) && !book_system.contains("of this sermon"),
         "beim Buch kein Predigt-Hinweis: {book_system}"
     );
 }
@@ -368,7 +369,7 @@ async fn a_critical_finding_whose_quote_is_not_in_the_context_is_marked_as_unbac
     );
     let system = system(&model.calls()[0]).to_owned();
     assert!(
-        system.contains("wörtliches Kurzzitat in „…“") && system.contains(prompts::UNBACKED_NOTE),
+        system.contains("a literal short quote in quotation marks") && system.contains(prompts::UNBACKED_NOTE),
         "der Prompt verlangt die Stützung auf den Text und kündigt die Prüfung an: {system}"
     );
 }

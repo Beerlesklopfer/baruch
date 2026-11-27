@@ -451,7 +451,7 @@ async fn clients_without_token_share_the_model_slots_whatever_they_call_themselv
     let arguments = json!({ "work": m.work, "key": m.keys[0], "persona": "@lektor", "question": "?" });
     let text = refused(&m, &next, "ask_persona", arguments.clone()).await;
     assert!(
-        text.contains("ohne Token") && text.contains("nichts gespeichert"),
+        text.contains("without a token") && text.contains("nothing was stored"),
         "ein neuer Name bekommt keine frischen Plätze – die Clients ohne Token teilen sich vier: {text}"
     );
     assert_eq!(m.model.calls().len(), quota::MAX_WITHOUT_TOKEN, "für den abgelehnten Auftrag geht nichts ans Modell");
@@ -613,7 +613,7 @@ async fn clients_without_token_share_one_asset_quota_and_a_token_has_its_own() {
     )
     .await;
     assert!(
-        text.contains("Kontingent") && text.contains("ohne Token"),
+        text.contains("Quota") && text.contains("without a token"),
         "ein neuer Name öffnet kein neues Kontingent, und die Meldung sagt, wessen es ist: {text}"
     );
     let text = refused(
@@ -623,7 +623,7 @@ async fn clients_without_token_share_one_asset_quota_and_a_token_has_its_own() {
         json!({ "work": m.work, "file_name": "persona.svg", "content": svg(901), "encoding": "svg", "persona": "@exeget" }),
     )
     .await;
-    assert!(text.contains("Kontingent"), "auch `persona` öffnet keines: {text}");
+    assert!(text.contains("Quota"), "auch `persona` öffnet keines: {text}");
     assert_eq!(m.server.state.store.asset_list(m.work).await.unwrap().len(), before, "nichts gespeichert");
 
     let owner = remote(&m, &secret).await;
@@ -774,7 +774,7 @@ async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
     let key = m.keys[0];
     let long = "ä".repeat(MAX_MCP_POST_CHARS + 1);
     let text = refused(&m, &client, "add_post", json!({ "work": m.work, "key": key, "body": long })).await;
-    assert!(text.contains("höchstens 20000 Zeichen") && text.contains("Nichts gespeichert"), "Länge gemeldet: {text}");
+    assert!(text.contains("at most 20000 characters") && text.contains("Nothing stored"), "Länge gemeldet: {text}");
     let exact = "ä".repeat(MAX_MCP_POST_CHARS);
     ok(&m, &client, "add_post", json!({ "work": m.work, "key": key, "body": exact })).await;
     let sources: Vec<String> = (0..21).map(|n| format!("Quelle {n}")).collect();
@@ -784,7 +784,7 @@ async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
     assert!(text.contains("sources"), "zu viele Quellen: {text}");
     let big = format!("= Das Wehr\n\n{}\n", "Wasser ".repeat(MAX_MCP_PROPOSAL_BYTES / 7 + 1));
     let text = refused(&m, &client, "propose_revision", json!({ "work": m.work, "key": key, "body": big })).await;
-    assert!(text.contains("Der Vorschlag") && text.contains("Bytes"), "zu großer Vorschlag: {text}");
+    assert!(text.contains("The proposal") && text.contains("bytes"), "zu großer Vorschlag: {text}");
     assert_eq!(posts(&m, 0).await.len(), 1, "nur der eine erlaubte Beitrag ist gespeichert");
 
     // Tageskontingent der Beiträge und Grenze offener Vorschläge: Bestand per SQL auffüllen.
@@ -799,12 +799,12 @@ async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
     .await
     .unwrap();
     let text = refused(&m, &client, "add_post", json!({ "work": m.work, "key": key, "body": "einer zu viel" })).await;
-    assert!(text.contains("Kontingent") && text.contains("300"), "301. Beitrag in 24 Stunden abgelehnt: {text}");
+    assert!(text.contains("Quota") && text.contains("300"), "301. Beitrag in 24 Stunden abgelehnt: {text}");
     // Nachbesserung Runde 23: Ein neuer Name ohne Token öffnet kein neues Kontingent, ein Token hat sein eigenes.
     let renamed = local(&m, "Wenigschreiber").await;
     let text = refused(&m, &renamed, "add_post", json!({ "work": m.work, "key": key, "body": "neuer Name" })).await;
     assert!(
-        text.contains("Clients ohne Token") && text.contains("300"),
+        text.contains("clients without a token") && text.contains("300"),
         "derselbe Rechner unter anderem Namen bleibt im gemeinsamen Kontingent: {text}"
     );
     let (_, secret) = m.server.state.store.mcp_token_create("Zweitrechner").await.unwrap();
@@ -828,10 +828,10 @@ async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
     .unwrap();
     let body = "= Das Wehr\n\nNoch ein Vorschlag.\n";
     let text = refused(&m, &client, "propose_revision", json!({ "work": m.work, "key": key, "body": body })).await;
-    assert!(text.contains("offene Vorschläge") && text.contains("100"), "101. offener Vorschlag abgelehnt: {text}");
+    assert!(text.contains("open proposals") && text.contains("100"), "101. offener Vorschlag abgelehnt: {text}");
     let text = refused(&m, &renamed, "propose_revision", json!({ "work": m.work, "key": key, "body": body })).await;
     assert!(
-        text.contains("Clients ohne Token") && text.contains("offene Vorschläge"),
+        text.contains("clients without a token") && text.contains("open proposals"),
         "auch die Grenze offener Vorschläge gilt für alle Namen ohne Token zusammen: {text}"
     );
     let fine = ok(&m, &other, "propose_revision", json!({ "work": m.work, "key": key, "body": body })).await;
@@ -851,12 +851,12 @@ async fn a_batch_is_bounded_and_source_read_bounds_its_query() {
     let words = "zqx ".repeat(60);
     let text = refused(&m, &client, "source_read", json!({ "document": "d1", "collection": "c", "q": words })).await;
     assert!(
-        text.starts_with("q: höchstens 500 Zeichen und 40 Wörter"),
+        text.starts_with("q: at most 500 characters and 40 words"),
         "zu viele Wörter, bevor etwas gesucht wird: {text}"
     );
     let text =
         refused(&m, &client, "source_read", json!({ "document": "d1", "collection": "c", "q": "x".repeat(501) })).await;
-    assert!(text.starts_with("q: höchstens 500 Zeichen"), "zu lang: {text}");
+    assert!(text.starts_with("q: at most 500 characters"), "zu lang: {text}");
 }
 
 // ---- Befunde ziehen beim Verschieben mit --------------------------------------------------------------------------------

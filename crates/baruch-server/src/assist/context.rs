@@ -1088,7 +1088,9 @@ pub async fn prepare_inputs(
         Scope::Chapter => units.iter().map(|u| u.text.as_str()).collect::<Vec<_>>().join("\n\n"),
     };
 
-    let mut system = super::prompts::effective_prompt_for(handle, &persona.role, persona.prompt.as_deref(), work.kind);
+    let language = crate::work_language::of(state, work_id).await;
+    let mut system =
+        super::prompts::effective_prompt_in(handle, &persona.role, persona.prompt.as_deref(), work.kind, language);
     let scripture = super::hooks::scripture_facts(state, work_id, handle, &subject).await;
     if let Some(facts) = &scripture {
         system.push_str("\n\n");
@@ -1190,7 +1192,7 @@ pub async fn prepare_inputs(
     };
     if !own.is_empty() {
         system.push_str("\n\n");
-        system.push_str(super::prompts::RECHECK_RULE);
+        system.push_str(&super::prompts::recheck_rule(language));
     }
     if !findings.is_empty()
         || !recent.is_empty()

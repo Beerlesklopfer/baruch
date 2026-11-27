@@ -344,10 +344,7 @@ async fn mcp_work_timing_is_read_only_and_says_so() {
     let list: Value = serde_json::from_str(&text).unwrap();
     let tool = list["result"]["tools"].as_array().unwrap().iter().find(|t| t["name"] == "work_timing").cloned();
     let tool = tool.expect("work_timing steht in tools/list");
-    assert!(
-        tool["description"].as_str().unwrap().contains("nur lesend"),
-        "die Beschreibung nennt „nur lesend“: {tool}"
-    );
+    assert!(tool["description"].as_str().unwrap().contains("read-only"), "die Beschreibung nennt „nur lesend“: {tool}");
     assert_eq!(tool["inputSchema"]["required"], json!(["work"]), "work ist Pflicht: {tool}");
     for setter in ["work_timing_set", "work.timing_set", "timing_set"] {
         let call = mcp_tool(&server, setter, json!({ "work": 1, "words_per_minute": 90 })).await;

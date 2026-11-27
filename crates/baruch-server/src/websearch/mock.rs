@@ -272,7 +272,7 @@ async fn handle(State(shared): State<Arc<Shared>>, headers: HeaderMap, body: Str
         }
         other => {
             return axum::Json(json!({ "jsonrpc": "2.0", "id": id,
-                "error": { "code": -32601, "message": format!("unbekannte Methode {other}") } }))
+                "error": { "code": -32601, "message": format!("unknown method {other}") } }))
             .into_response();
         }
     };

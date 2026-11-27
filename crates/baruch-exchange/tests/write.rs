@@ -333,8 +333,8 @@ fn root_carries_namespace_version_and_instance() {
     let elements = parse(&xml);
     let root = &elements[0];
     assert_eq!(root.attr("xmlns"), Some(NAMESPACE), "Namensraum urn:baruch:werk:1");
-    assert_eq!(root.attr("version"), Some("9"), "Unterversion FORMAT_VERSION (9 seit Runde 34)");
-    assert_eq!(FORMAT_VERSION, 9, "Runde 34 (Mindmap: titel, eltern, platz, hauptthema am Einfall) zählt auf 9");
+    assert_eq!(root.attr("version"), Some("10"), "Unterversion FORMAT_VERSION (10 seit Runde 38)");
+    assert_eq!(FORMAT_VERSION, 10, "Runde 38 (Werksprache: sprache an <angaben>) zählt auf 10");
     assert_eq!(root.attr("art"), Some("buch"), "Werkart");
     let output = elements.iter().find(|e| e.path == "werk/ausgabe").unwrap();
     assert_eq!(output.attr("instanzname"), Some("Probeinstanz"), "Instanzname");
@@ -351,7 +351,7 @@ fn root_carries_namespace_version_and_instance() {
     for absent in ["<einfaelle", "<faeden", "<bilder", "<geloescht", "<buch", "<karte"] {
         assert!(!xml.contains(absent), "{absent} entfällt ohne Inhalt");
     }
-    for present in ["<vorlage>", "<gliederung>", "<angaben>"] {
+    for present in ["<vorlage>", "<gliederung>", "<angaben "] {
         assert!(xml.contains(present), "{present} steht immer da");
     }
     // Ohne Bilder besteht das ZIP aus mimetype, werk.xml und MANIFEST.xml.

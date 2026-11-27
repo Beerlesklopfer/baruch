@@ -136,13 +136,13 @@ enum Piece {
 /// Read a line by the solution form (at the start of the line after list and Markdown characters).
 fn piece(line: &str) -> Option<Piece> {
     let probe = strip_marks(line);
-    if let Some(rest) = keyword(probe, "statt") {
+    if let Some(rest) = keyword(probe, "statt").or_else(|| keyword(probe, "instead of")) {
         let (rest, _) = after_colon(rest);
         let (quote, rest) = take_quote(rest)?;
         let better = short_better(rest);
         return Some(Piece::Instead(quote, better));
     }
-    if let Some(rest) = keyword(probe, "besser") {
+    if let Some(rest) = keyword(probe, "besser").or_else(|| keyword(probe, "better")) {
         let (rest, colon) = after_colon(rest);
         // „besser“ without colon only with a quotation („besser „…““), otherwise it is a sentence („Besser wäre …“).
         if !colon && take_quote(rest).is_none() {
@@ -150,7 +150,7 @@ fn piece(line: &str) -> Option<Piece> {
         }
         return better_text(rest).map(Piece::Better);
     }
-    if let Some(rest) = keyword(probe, "schritt") {
+    if let Some(rest) = keyword(probe, "schritt").or_else(|| keyword(probe, "step")) {
         let (rest, colon) = after_colon(rest);
         // Only with colon: „Schritt für Schritt …“ is not a solution step.
         let step = rest.trim().trim_matches(|c: char| matches!(c, '*' | '_')).trim();
@@ -165,7 +165,7 @@ fn short_better(rest: &str) -> Option<String> {
     if let Some(after) = rest.strip_prefix('→') {
         return take_quote(after).map(|(q, _)| q);
     }
-    let after = keyword(rest, "besser")?;
+    let after = keyword(rest, "besser").or_else(|| keyword(rest, "better"))?;
     let (after, _) = after_colon(after);
     take_quote(after).map(|(q, _)| q)
 }
@@ -177,7 +177,8 @@ pub fn strip_replacements(line: &str) -> String {
     let mut rest = line;
     loop {
         let lower = rest.to_ascii_lowercase();
-        let next = [lower.find("besser"), rest.find('→')].into_iter().flatten().min();
+        // Both words have six ASCII letters ("besser", "better"), so the length is the same.
+        let next = [lower.find("besser"), lower.find("better"), rest.find('→')].into_iter().flatten().min();
         let Some(at) = next else { break };
         let word = if rest[at..].starts_with('→') { '→'.len_utf8() } else { "besser".len() };
         let (after, _) = after_colon(&rest[at + word..]);
@@ -206,14 +207,17 @@ fn inline_pairs(line: &str) -> Vec<Solution> {
     let mut out = Vec::new();
     let lower = line.to_ascii_lowercase();
     let mut from = 0;
-    while let Some(found) = lower[from..].find("statt") {
+    loop {
+        let german = lower[from..].find("statt").map(|found| (found, "statt".len()));
+        let english = lower[from..].find("instead of").map(|found| (found, "instead of".len()));
+        let Some((found, word)) = [german, english].into_iter().flatten().min() else { break };
         let at = from + found;
-        from = at + "statt".len();
+        from = at + word;
         let boundary = line[..at].chars().next_back().is_none_or(|c| !c.is_alphanumeric());
         if !boundary {
             continue;
         }
-        let (rest, _) = after_colon(&line[at + "statt".len()..]);
+        let (rest, _) = after_colon(&line[at + word..]);
         let Some((quote, rest)) = take_quote(rest) else { continue };
         if let Some(better) = short_better(rest) {
             out.push(solution(&quote, &better, ""));
@@ -529,7 +533,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         "solution.variants" => variants(state, work, &params, crate::mirror::HUMAN_NAME).await,
         "solution.reject_siblings" => reject_siblings(state, work, &params).await,
         "solution.compare" => compare(state, work, &params).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

@@ -664,7 +664,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             let done = reindex_report(state, work).await.map_err(rpc_error)?;
             Ok(json!({ "work": work, "queued": true, "pending": done.pending, "deferred": done.deferred }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

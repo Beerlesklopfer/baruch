@@ -121,7 +121,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 .ok_or_else(|| invalid("confirm fehlt (true = bestätigen, false = ablehnen)"))?;
             decide(state, work, entry, confirm).await
         }
-        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {other}"))),
+        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {other}"))),
     }
 }
 

@@ -448,7 +448,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             check_work(state, work).await?;
             Ok(groups::dismiss(state, work, &group))
         }
-        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {other}"))),
+        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {other}"))),
     }
 }
 

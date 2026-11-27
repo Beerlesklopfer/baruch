@@ -15,24 +15,24 @@ use crate::search::{SearchQuery, SearchRange, TextKind};
 
 pub const NAME: &str = "text_search";
 
-pub const DESCRIPTION: &str = "Im Werk suchen (nur lesend): Wortlaut, Groß/klein, ganzes Wort oder regulärer \
-Ausdruck über Abschnitt, Kapitel, Teil, ab einem Abschnitt oder das ganze Werk; je Treffer Abschnitt (key, Nummer, \
-Titel), Fassung, Textart, Stelle (Byte und UTF-16), Zeile, Umfeld und Adresse (url) zum Abschnitt. Vorgabe-Textarten: \
-text, heading, footnote, quote. Grenzen: höchstens 500 Zeichen Suchtext, höchstens 2000 Treffer (Vorgabe 100), 2 s. \
-Ersetzen gibt es über MCP nicht – Vorschläge je Abschnitt über propose_revision.";
+pub const DESCRIPTION: &str = "Search in the work (read-only): wording, case, whole word or regular expression over \
+section, chapter, part, from a section on or the whole work; per hit section (key, number, title), revision, text \
+kind, place (byte and UTF-16), line, context and address (url) of the section. Default text kinds: text, heading, \
+footnote, quote. Limits: at most 500 characters of search text, at most 2000 hits (default 100), 2 s. Replacing \
+does not exist over MCP – proposals per section through propose_revision.";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "required": ["work", "q"], "properties": {
         "work": work_schema(),
-        "q": { "type": "string", "description": "Suchtext (höchstens 500 Zeichen)" },
-        "case": { "type": "boolean", "description": "Groß/klein beachten (Vorgabe false)" },
-        "word": { "type": "boolean", "description": "nur ganze Wörter (Vorgabe false)" },
-        "re": { "type": "boolean", "description": "regulärer Ausdruck (Vorgabe false; Syntax des Rust-Crates regex)" },
+        "q": { "type": "string", "description": "search text (at most 500 characters)" },
+        "case": { "type": "boolean", "description": "case-sensitive (default false)" },
+        "word": { "type": "boolean", "description": "whole words only (default false)" },
+        "re": { "type": "boolean", "description": "regular expression (default false; syntax of the Rust crate regex)" },
         "range": { "type": "string", "enum": ["section", "chapter", "part", "from", "work"],
-                   "description": "Bereich (Vorgabe work)" },
-        "key": { "type": "integer", "description": "fester Schlüssel des Abschnitts (bei section, chapter, part, from)" },
+                   "description": "range (default work)" },
+        "key": { "type": "integer", "description": "stable key of the section (for section, chapter, part, from)" },
         "kinds": { "type": "array", "items": { "type": "string", "enum": ["text", "heading", "footnote", "quote", "code"] },
-                   "description": "Textarten (Vorgabe text, heading, footnote, quote)" },
+                   "description": "text kinds (default text, heading, footnote, quote)" },
         "limit": { "type": "integer", "minimum": 1, "maximum": 2000 } } })
 }
 
@@ -71,7 +71,7 @@ pub async fn call_tool(state: &AppState, client: &Client, arguments: Value) -> R
             ) => r,
             _ => {
                 return Err(Failure::Args(format!(
-                    "arguments: range section, chapter, part, from oder work, nicht „{word}“"
+                    "arguments: range section, chapter, part, from or work, not \"{word}\""
                 )));
             }
         },
@@ -82,7 +82,7 @@ pub async fn call_tool(state: &AppState, client: &Client, arguments: Value) -> R
             let mut out = Vec::new();
             for word in list {
                 out.push(TextKind::parse(word.trim()).ok_or_else(|| {
-                    Failure::Args(format!("arguments: kinds text, heading, footnote, quote oder code, nicht „{word}“"))
+                    Failure::Args(format!("arguments: kinds text, heading, footnote, quote or code, not \"{word}\""))
                 })?);
             }
             Some(out)
@@ -91,7 +91,7 @@ pub async fn call_tool(state: &AppState, client: &Client, arguments: Value) -> R
     if let Some(limit) = a.limit
         && !(1..=crate::search::MAX_HITS).contains(&limit)
     {
-        return Err(Failure::Args("arguments: limit 1 bis 2000".into()));
+        return Err(Failure::Args("arguments: limit 1 to 2000".into()));
     }
     let query = SearchQuery {
         q: a.q,

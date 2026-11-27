@@ -399,6 +399,8 @@ pub struct WorkSummary {
     pub created: String,
     /// Letzte Änderung: größter Zeitpunkt aus `work.updated`, `revision.created`, `revision.edited`.
     pub updated: Option<String>,
+    /// Work language (migration 0055): personas answer in it.
+    pub language: WorkLanguage,
 }
 
 /// Verletzte Regel in den gespeicherten Daten (z. B. zwei oder keine `current`). Wird als

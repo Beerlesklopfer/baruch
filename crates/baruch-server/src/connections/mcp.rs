@@ -9,8 +9,8 @@ use crate::AppState;
 use crate::mcp::tools::Failure;
 
 /// Description in `tools/list`.
-pub const DESCRIPTION: &str = "Bevorzugte Quellen für @belege lesen (nur lesend): Titel, Adresse, Notiz und \
-                               Reihenfolge, wie der Mensch sie unter Einstellungen → Quellen pflegt.";
+pub const DESCRIPTION: &str = "Read the preferred sources for @belege (read-only): title, address, note and \
+    order as the human maintains them under Einstellungen → Quellen.";
 
 /// Input schema: no arguments.
 pub fn schema() -> Value {

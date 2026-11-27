@@ -313,7 +313,8 @@ pub fn is_write_order(message: &str) -> bool {
 }
 
 /// Word stems of a check order (lower case): „prüf den Vorschlag“, „bitte überprüfen“, „check das“, „Review bitte“.
-const CHECK_STEMS: &[&str] = &["prüf", "überprüf", "nachprüf", "gegenprüf", "kontrollier", "check", "review"];
+const CHECK_STEMS: &[&str] =
+    &["prüf", "überprüf", "nachprüf", "gegenprüf", "kontrollier", "check", "review", "verif", "examin", "proofread"];
 
 /// Is the message to a directly addressed persona a check order (Round 36)? A word starts with one of the
 /// [`CHECK_STEMS`] (anywhere in the message, also as a question „Kannst du das prüfen?“), or the message names

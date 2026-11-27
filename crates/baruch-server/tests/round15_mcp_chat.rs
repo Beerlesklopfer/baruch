@@ -289,7 +289,7 @@ async fn a_third_concurrent_order_of_one_client_is_refused_and_others_are_not_af
     .await;
     assert_eq!(third["isError"], true, "der dritte gleichzeitige Auftrag desselben Clients wird abgelehnt: {third}");
     let text = third["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains("nichts gespeichert") && text.contains("2"), "ehrliche Meldung mit Grenze: {text}");
+    assert!(text.contains("nothing was stored") && text.contains("2"), "ehrliche Meldung mit Grenze: {text}");
     assert_eq!(l.model.calls().len(), 2, "für den abgelehnten Auftrag geht keine Anfrage an das Modell");
 
     let other = tool(&l, &calm, "chat", json!({ "work": l.work, "message": "@lektor kurz" })).await;

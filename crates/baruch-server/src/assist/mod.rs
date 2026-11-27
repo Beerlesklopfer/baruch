@@ -395,6 +395,11 @@ async fn quiet_call(state: &AppState, call: ModelCall) -> Result<ModelAnswer, Mo
     state.model.chat(state, call, tx).await
 }
 
+/// Work language of a call, read from the language rule in its system prompt ([`lang::of_prompt`]).
+fn call_language(call: &ModelCall) -> baruch_core::WorkLanguage {
+    call.messages.iter().find(|m| m.role == Role::System).map(|m| lang::of_prompt(&m.content)).unwrap_or_default()
+}
+
 /// Append an addition to the system prompt of a call (new request).
 fn with_note(call: &ModelCall, note: &str) -> ModelCall {
     let mut again = call.clone();
@@ -480,7 +485,7 @@ async fn answer_call(
     {
         retries.critical = false;
         send(progress, Progress::Retry { persona: persona.to_owned(), reason: CRITICAL_RETRY_REASON.to_owned() });
-        let again = with_note(call, prompts::CRITICAL_RETRY_NOTE);
+        let again = with_note(call, &prompts::critical_retry_note(call_language(call)));
         answer = ask_model(state, &again, persona, mode, progress).await.unwrap_or(answer);
     }
     // A cut-off answer is incomplete anyway (note CUT_NOTE): no retry for the solution.
@@ -491,7 +496,7 @@ async fn answer_call(
             progress,
             Progress::Retry { persona: persona.to_owned(), reason: prompts::SOLUTION_RETRY_REASON.to_owned() },
         );
-        let again = with_note(call, prompts::SOLUTION_RETRY_NOTE);
+        let again = with_note(call, &prompts::solution_retry_note(call_language(call)));
         if let Ok(second) = ask_model(state, &again, persona, mode, progress).await {
             let keeps_critical = !prompts::needs_critical(persona)
                 || prompts::has_critical(&second.text)
@@ -532,15 +537,15 @@ fn post_body(
     text: &str,
     truncated: bool,
     cut: bool,
-    critical_missing: bool,
+    critical_missing: Option<&str>,
     compressed: Option<&Compression>,
 ) -> String {
     let mut body = text.trim_end().to_owned();
     if cut {
         body = format!("{body} …\n\n{CUT_NOTE}");
     }
-    if critical_missing {
-        body = format!("{body}\n\n{}", prompts::CRITICAL_MISSING_NOTE);
+    if let Some(note) = critical_missing {
+        body = format!("{body}\n\n{note}");
     }
     if truncated {
         body = format!("{body}\n\n{TRUNCATED_NOTE}");
@@ -635,10 +640,11 @@ pub async fn run_inputs(
             // Round 16a: mark „Kritisch:“ findings with a quotation that is not in the context passed along;
             // Round 17a: corpus = the shown text of the calls sent without foreign findings, posts and
             // ideas, then wrong reference claims ([`ref_claims`]).
-            let unbacked = prompts::mark_unbacked_criticals(&marked, &corpus);
+            let language = crate::work_language::of(state, order.work).await;
+            let unbacked = prompts::mark_unbacked_criticals_in(&marked, &corpus, language);
             // Round 30b: critical points without a solution (also after the retry) get a note.
             let claimed = ref_claims::mark_ref_claims(&unbacked, &corpus);
-            if cut_off(&answer) { claimed } else { prompts::mark_missing_solutions(&claimed) }
+            if cut_off(&answer) { claimed } else { prompts::mark_missing_solutions_in(&claimed, language) }
         }
     };
     let text = match prepared.rag_hits {
@@ -761,7 +767,8 @@ async fn save(
         let id = state.store.add_post(order.work, seq, &post(asker, order.text.trim(), vec![])).await?;
         outcome.question = Some(SavedPost { id, author: asker.to_owned(), body: order.text.trim().to_owned() });
     }
-    let body = post_body(&text, prepared.truncated, outcome.cut, critical_missing, compressed.as_ref());
+    let missing_note = critical_missing.then(|| prompts::critical_missing_note(call_language(&prepared.call)));
+    let body = post_body(&text, prepared.truncated, outcome.cut, missing_note, compressed.as_ref());
     let meta = post_meta(order, prepared, handle);
     let id = state.store.add_post_meta(order.work, seq, &post(handle, &body, sources), &meta).await?;
     outcome.post = Some(SavedPost { id, author: handle.to_owned(), body });

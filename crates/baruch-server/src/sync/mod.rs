@@ -511,7 +511,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             set_collections(state, &list).await
         }
         "sync.collections" => offered_collections(state).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 
