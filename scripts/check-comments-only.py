@@ -209,7 +209,8 @@ def rust_doc_blocks(items):
 
 
 LINK_TARGETS = (
-    re.compile(r"\[`([^`\]\n]+)`\]"),  # [`Type::method`]
+    # [`Type::method`] – a target neither starts nor ends with a blank: "`[` and `]`" is prose about two brackets
+    re.compile(r"\[`((?! )[^`\]\n]+(?<! ))`\]"),
     re.compile(r"\]\(([^)\s]+)\)"),  # [text](target)
     re.compile(r"\]\[([^\]\n]+)\]"),  # [text][target]
     # [label]: target – a label in backticks is an intra-doc link followed by a colon, not a link definition
@@ -890,6 +891,12 @@ def selftest():
         "rust: intra-doc links survive a translation of the text around them",
         "The targets are the same.",
         "a.rs", link, "/// See [`Store::accept`] and the [plan](docs/Plan.md).\nfn a() {}\n",
+    )  # fmt: skip
+    brackets = "/// Der Inhalt steht zwischen `[` und `]`.\nfn a() {}\n"
+    same(
+        "rust: two bracket characters in code spans with prose between them are not an intra-doc link",
+        "Otherwise the German word between „`[`“ and „`]`“ counts as a link target and can never be translated.",
+        "a.rs", brackets, "/// The content stands between `[` and `]`.\nfn a() {}\n",
     )  # fmt: skip
     differs(
         "rust: a changed intra-doc link target is reported",
