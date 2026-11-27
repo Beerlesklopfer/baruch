@@ -1,50 +1,50 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Teil und „ohne Nummer“ als Markierung im Typst-Text (Vertrag Runde 14, Abschnitt 1).
+//! Part and „ohne Nummer“ as a marker in the Typst text (contract Round 14, section 1).
 //!
-//! Zwei Zeilenformen, wörtlich, eine Zeile in Spalte 0:
+//! Two line forms, verbatim, one line in column 0:
 //!
 //! ```text
 //! #heading(level: 1, numbering: none)[T] <baruch-part>          Teil
 //! #heading(level: N, numbering: none)[T] <baruch-unnumbered>    Kapitel/Abschnitt ohne Nummer, N = 1..=3
 //! ```
 //!
-//! Dahinter darf nach Leerzeichen/Tab ein Kommentar `// …` stehen (er bleibt beim Umbenennen
-//! erhalten). `T` ist der Titel maskiert wie [`crate::escape_title`], dazu ein `\` vor einem führenden
-//! `=`, `-`, `+`, `/` und vor dem Punkt eines führenden `Ziffern.` (sonst begänne im Inhaltsblock eine
-//! Struktur). `T` enthält kein unmaskiertes `[` oder `]`, keinen Kommentar und kein offenes Inline-Raw.
+//! Behind it a comment `// …` may stand after space/tab (it is kept when renaming). `T` is the title escaped like
+//! [`crate::escape_title`], plus a `\` before a leading `=`, `-`, `+`, `/` and before the dot of a leading
+//! `digits.` (otherwise a structure would start in the content block). `T` contains no unescaped `[` or `]`, no
+//! comment and no open inline raw.
 //!
-//! Warum diese Form: Typst setzt beide ohne Definition in der Werkvorlage, `numbering: none` zählt in
-//! Typst nicht mit (Kapitel laufen über Teile hinweg fort wie in Baruch), und die Labels machen die
-//! Zeilen eindeutig als Baruch-Markierung. Erkannt wird nur die kanonische Form; jede Abweichung
-//! (andere Abstände, anderes Label, Einzug, Ziffer ≠ 1 beim Teil) bleibt Text bzw. Werkvorlage – so
-//! bleibt ein frei geschriebenes `#heading(...)` wie bisher unangetastet.
+//! Why this form: Typst sets both without a definition in the work template, `numbering: none` does not count in
+//! Typst (chapters continue across parts as in Baruch), and the labels make the lines unambiguous as Baruch
+//! markers. Only the canonical form is recognised; every deviation (other spacing, other label, indentation, digit
+//! ≠ 1 for the part) stays text or work template – this way a freely written `#heading(...)` stays untouched as
+//! before.
 
 use crate::{comment_start, escape_title, label_start, read_heading};
 
-/// Label der Teil-Markierung.
+/// Label of the part marker.
 pub const PART_LABEL: &str = "baruch-part";
-/// Label der Markierung „ohne Nummer“.
+/// Label of the marker „ohne Nummer“.
 pub const UNNUMBERED_LABEL: &str = "baruch-unnumbered";
 
-/// Anfang beider Markierungen bis zur Ebene.
+/// Start of both markers up to the level.
 const PREFIX: &str = "#heading(level: ";
-/// Zwischen Ebene und Titel.
+/// Between level and title.
 const MIDDLE: &str = ", numbering: none)[";
 
-/// Eine erkannte Markierungszeile (ohne Rücksicht auf Raw/Kommentar davor).
+/// A recognised marker line (regardless of raw/comment before it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Marker<'a> {
-    /// 0 = Teil, 1–3 = „ohne Nummer“.
+    /// 0 = part, 1–3 = „ohne Nummer“.
     pub level: u8,
-    /// `T` wörtlich.
+    /// `T` verbatim.
     pub raw_title: &'a str,
-    /// Kommentar ab `//` bis vor das Zeilenende (leer, wenn keiner).
+    /// Comment from `//` to before the line end (empty if there is none).
     pub comment: &'a str,
-    /// `\n`, `\r\n` oder leer (letzte Zeile ohne Zeilenende).
+    /// `\n`, `\r\n` or empty (last line without line end).
     pub ending: &'a str,
 }
 
-/// Zeilenende abtrennen: (Inhalt, Zeilenende).
+/// Split off the line end: (content, line end).
 fn split_ending(line: &str) -> (&str, &str) {
     if let Some(content) = line.strip_suffix("\r\n") {
         (content, "\r\n")
@@ -55,15 +55,15 @@ fn split_ending(line: &str) -> (&str, &str) {
     }
 }
 
-/// Länge von `T` bis vor das schließende `]`, wenn `T` kanonisch ist: Maskierungen `\X` werden
-/// übersprungen, Inline-Raw muss in der Zeile schließen, kein unmaskiertes `[`, kein Kommentar.
+/// Length of `T` to before the closing `]` if `T` is canonical: escapes `\X` are skipped, inline raw must close in
+/// the line, no unescaped `[`, no comment.
 fn title_end(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
             b'\\' => {
-                // Ein Backslash am Ende maskiert das `]` – dann schließt der Block nicht.
+                // A backslash at the end escapes the `]` – then the block does not close.
                 let next = text[i + 1..].chars().next()?;
                 i += 1 + next.len_utf8();
             }
@@ -82,7 +82,7 @@ fn title_end(text: &str) -> Option<usize> {
     None
 }
 
-/// Liest eine Markierungszeile in kanonischer Form, sonst `None`.
+/// Reads a marker line in canonical form, otherwise `None`.
 pub(crate) fn read_marker(line: &str) -> Option<Marker<'_>> {
     let (content, ending) = split_ending(line);
     let rest = content.strip_prefix(PREFIX)?;
@@ -114,8 +114,7 @@ pub(crate) fn read_marker(line: &str) -> Option<Marker<'_>> {
     Some(Marker { level, raw_title, comment, ending })
 }
 
-/// `T` für den Inhaltsblock aus einem schon maskierten Titel: führende Strukturzeichen bekommen
-/// einen Backslash.
+/// `T` for the content block from an already escaped title: leading structure characters get a backslash.
 fn guard_start(escaped: &str) -> String {
     if escaped.starts_with(['=', '-', '+', '/']) {
         return format!("\\{escaped}");
@@ -127,17 +126,16 @@ fn guard_start(escaped: &str) -> String {
     escaped.to_owned()
 }
 
-/// `T` aus einem Titel (Klartext).
+/// `T` from a title (plain text).
 fn content_title(title: &str) -> String {
     guard_start(&escape_title(title))
 }
 
-/// `T` aus dem wörtlichen Titel einer `=`-Zeile: unmaskierte `[` und `]` (außerhalb von Inline-Raw)
-/// bekommen einen Backslash, führende Strukturzeichen ebenso. `None`, wenn der Titel im Inhaltsblock
-/// nicht sicher stünde (offenes Inline-Raw, Kommentar) oder Code enthält (unmaskiertes `#` außerhalb
-/// von Inline-Raw, z. B. `#emph[…]`, `#footnote[…]`): Die Klammern eines Aufrufs dürfen keinen
-/// Backslash bekommen, sonst setzte Typst den Funktionswert als Raw-Text. Dann greift der Rückfall
-/// über die Show-Regel (`snapshot::fallback_rules`), der Text bleibt.
+/// `T` from the literal title of a `=` line: unescaped `[` and `]` (outside of inline raw) get a backslash, leading
+/// structure characters as well. `None` if the title would not stand safely in the content block (open inline raw,
+/// comment) or contains code (unescaped `#` outside of inline raw, e.g. `#emph[…]`, `#footnote[…]`): the brackets
+/// of a call must not get a backslash, otherwise Typst would set the function value as raw text. Then the fallback
+/// through the show rule (`snapshot::fallback_rules`) applies, the text stays.
 fn content_title_from_raw(raw: &str) -> Option<String> {
     let mut out = String::with_capacity(raw.len() + 4);
     let mut i = 0;
@@ -180,17 +178,17 @@ fn with_comment(mut line: String, comment: &str) -> String {
     line
 }
 
-/// Teil-Markierung mit Zeilenende.
+/// Part marker with line end.
 pub fn part_line(title: &str) -> String {
     format!("{PREFIX}1{MIDDLE}{}] <{PART_LABEL}>\n", content_title(title))
 }
 
-/// Markierung „ohne Nummer“ (level auf 1..=3 geklemmt) mit Zeilenende.
+/// Marker „ohne Nummer“ (level clamped to 1..=3) with line end.
 pub fn unnumbered_line(level: u8, title: &str) -> String {
     format!("{PREFIX}{}{MIDDLE}{}] <{UNNUMBERED_LABEL}>\n", level.clamp(1, 3), content_title(title))
 }
 
-/// Kommentar (ab `//` bzw. `/*`) einer `=`-Zeile oder einer Markierung, sonst leer.
+/// Comment (from `//` or `/*`) of a `=` line or of a marker, otherwise empty.
 pub(crate) fn line_comment(line: &str) -> &str {
     if let Some(marker) = read_marker(line) {
         return marker.comment;
@@ -205,8 +203,8 @@ pub(crate) fn line_comment(line: &str) -> &str {
     rest[cut..].trim_end()
 }
 
-/// Neue Zeile für [`crate::heading_line`], wenn eine Markierung entsteht: Ebene 0 → Teil;
-/// vorige Zeile „ohne Nummer“ und Ebene 1–3 → wieder „ohne Nummer“. Kommentar der vorigen Zeile bleibt.
+/// New line for [`crate::heading_line`] if a marker is created: level 0 → part; previous line „ohne Nummer“ and
+/// level 1–3 → „ohne Nummer“ again. The comment of the previous line stays.
 pub(crate) fn marker_heading_line(level: u8, title: &str, previous: Option<&str>) -> Option<String> {
     let comment = previous.map_or("", line_comment);
     let line = if level == 0 {
@@ -220,9 +218,9 @@ pub(crate) fn marker_heading_line(level: u8, title: &str, previous: Option<&str>
     Some(with_comment(line, comment) + "\n")
 }
 
-/// Ebene einer Überschriftszeile ändern, Titel wörtlich: `=`-Zeile → Zahl der `=`; Markierung „ohne
-/// Nummer“ → `level: N`. Teil-Markierung, level 0 oder keine Überschrift → None. Zeilenende bleibt.
-/// Ebenen über 3 gibt es in der Gliederung nicht; auch sie ergeben `None`.
+/// Change the level of a heading line, title verbatim: `=` line → number of `=`; marker „ohne Nummer“ → `level: N`.
+/// Part marker, level 0 or no heading → None. The line end stays. Levels above 3 do not exist in the outline; they
+/// yield `None` too.
 pub fn relevel_line(line: &str, level: u8) -> Option<String> {
     if !(1..=3).contains(&level) {
         return None;
@@ -231,7 +229,7 @@ pub fn relevel_line(line: &str, level: u8) -> Option<String> {
         if marker.level == 0 {
             return None;
         }
-        // Die Ziffer steht an fester Stelle direkt hinter dem Präfix.
+        // The digit stands at a fixed place directly behind the prefix.
         return Some(format!("{PREFIX}{level}{}", &line[PREFIX.len() + 1..]));
     }
     read_heading(line)?;
@@ -239,16 +237,15 @@ pub fn relevel_line(line: &str, level: u8) -> Option<String> {
     Some(format!("{}{}", "=".repeat(usize::from(level)), &line[equals..]))
 }
 
-/// Erste Überschriftszeile von `body` (davor nur Leerraum) umstellen, Rest byte-gleich:
-/// numbered=false und `=`-Zeile ohne Label → Markierung „ohne Nummer“ (Titel wörtlich, Kommentar
-/// bleibt); numbered=true und Markierung „ohne Nummer“ → `=`-Zeile. Sonst (schon so, Teil, `=`-Zeile
-/// mit eigenem Label, keine Überschrift) → None. `None` auch, wenn der wörtliche Titel im
-/// Inhaltsblock nicht sicher stünde (offenes Inline-Raw).
+/// Convert the first heading line of `body` (only whitespace before it), rest byte-identical: numbered=false and
+/// `=` line without label → marker „ohne Nummer“ (title verbatim, comment stays); numbered=true and marker „ohne
+/// Nummer“ → `=` line. Otherwise (already so, part, `=` line with a label of its own, no heading) → None. `None`
+/// also if the literal title would not stand safely in the content block (open inline raw).
 pub fn set_numbered_line(body: &str, numbered: bool) -> Option<String> {
     let first = body.len() - body.trim_start().len();
     let start = body[..first].rfind('\n').map_or(0, |at| at + 1);
     if start != first {
-        return None; // eingerückt: keine Überschrift
+        return None; // indented: no heading
     }
     let end = body[start..].find('\n').map_or(body.len(), |at| start + at + 1);
     let line = &body[start..end];
@@ -276,7 +273,7 @@ pub fn set_numbered_line(body: &str, numbered: bool) -> Option<String> {
     Some(format!("{}{replaced}{}", &body[..start], &body[end..]))
 }
 
-/// Typst-String-Literal.
+/// Typst string literal.
 fn string_literal(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -294,18 +291,16 @@ fn string_literal(text: &str) -> String {
     out
 }
 
-/// Typst-Regeln für die Teil-Seite im Satz (nur R14a benutzt sie): je Teil-Markierung in
-/// Reihenfolge labels[i] als Nummer (leer = ohne), eigene rechte Seite, danach Seitenumbruch;
-/// endet mit Zeilenende.
+/// Typst rules for the part page in the typesetting (only R14a uses them): per part marker in order labels[i] as
+/// number (empty = without), a right-hand page of its own, then a page break; ends with a line end.
 ///
-/// Die Regel greift über das Label `<baruch-part>` und benutzt nur `it.body`, nicht `it` selbst:
-/// So wirken Überschrift-Regeln der Werkvorlage nicht auf die Teil-Seite, die Überschrift bleibt
-/// aber für `outline` und `query` erhalten. Sie gehört hinter die Werkvorlage (die zuletzt
-/// definierte Regel greift zuerst). Gezählt wird mit dem eigenen Zähler `baruch-part`, nicht mit
-/// dem Überschriftenzähler.
+/// The rule applies through the label `<baruch-part>` and uses only `it.body`, not `it` itself: this way heading
+/// rules of the work template do not affect the part page, but the heading is kept for `outline` and `query`. It
+/// belongs behind the work template (the rule defined last applies first). Counting uses the own counter
+/// `baruch-part`, not the heading counter.
 pub fn part_page_rule(labels: &[String]) -> String {
     let list: Vec<String> = labels.iter().map(|l| string_literal(l)).collect();
-    // Ein Element braucht das Komma, sonst wäre `("I")` kein Array.
+    // One element needs the comma, otherwise `("I")` would not be an array.
     let array = format!("({}{})", list.join(", "), if list.len() == 1 { "," } else { "" });
     format!(
         "#show <{PART_LABEL}>: it => {{ \
