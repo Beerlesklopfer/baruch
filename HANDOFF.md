@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-27, Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 > From Round 38 on, new entries are written in English; older entries stay German.
 
@@ -34,7 +34,19 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
   with the code. Visual check with an own throwaway server (no request to Eliezer): `.claude/sicht/r38/` (settings
   page with the block „Werksprache“ light and dark, work page light and dark; not in the repository). Worktrees
   `.claude/worktrees/wf_8703464a-e4f-{3,4,5}` and the team branches are still there (the PM removes the worktrees).
-  The PM still has to update `docs/Fahrplan.md`.
+  (Done by the PM, see the next entry.)
+- **Round 38, part 1, closed (PM, 2026-11-27):** review with one medium and four low findings. The medium one –
+  `round25_abnahme::forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp` fails under four test threads –
+  was a race in the test (the index rewrites the row of a moved idea in two steps), not caused by Round 38; fixed
+  in the follow-up `478be2a` (the test waits with `rag::wait_idle`, rule in `SKILLS.md`). The four low ones are
+  not fixed and stand in `docs/Backlog.md`, "Open after Round 38" (silent fallback to `de` on a read error,
+  language form without a message for an unknown work, English markers also read in German works, `AGENTS.md`
+  ahead of the state of the docs). Full run of the PM in the main folder after `cargo clean -p` of all workspace
+  crates: 3586 passed, 0 failed, 2 ignored in 218 test binaries (the PM session ended during its run at 19:50; the run was repeated on the same build by a second session, 19:51–19:54). `grep -rn "STUB:" crates` finds only assertions in tests that no marker is left and the rule
+  keyword in `round38_doku.rs` – no open stub. Worktrees of the round with their `target/` removed, the branches
+  `team/regeln_doku`, `team/mcp_rpc`, `team/kommentare_server` stay. Roadmap updated: Round 38 as part 1
+  (≈ 162 min from `3fa5806`), the rest as **Round 38b** (comments, ≈ 150 min) and **Round 38c**
+  (developer docs, task texts to models, low findings, ≈ 120 min) before Round 39. Nothing pushed.
 - **Runde 37 abgeschlossen (PM, 2026-11-27):** Prüfung mit drei niedrigen Befunden, keine Nachbesserungsrunde.
   Zwei hat der PM behoben (Fotowerkzeug nimmt ohne `--server` die zuletzt gebaute Datei statt immer des
   Release-Baus; alt-Text von `einfaelle-festhalten` nach dem Bild berichtigt), der dritte steht in
@@ -2333,6 +2345,12 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. After Round 38, part 1 (**migration 0055** `work.language`, default `de`; exchange format sub-version 10): the
+   service of the user is not touched. Back up the data folder before installing this state (new migration; a
+   file exported by this state carries `sprache` and version 10 – an older Baruch reads a higher sub-version and
+   reports `sprache` as unknown). To look at in the own browser: Einstellungen → Werk → „Werksprache“ (pictures in
+   `.claude/sicht/r38/`; the narrow one, `einstellungen-werk-schmal.png`, was taken but not looked at). Next:
+   Round 38b (comments) and Round 38c (developer docs), then Round 39 (user interface German and English).
 0. Nach Runde 37 (abgeschlossen, **keine Migration**): Der Dienst des Nutzers wird nicht angefasst. Die Hilfe erscheint erst mit dem Fast-Forward nach `main` auf der Webseite; bis
    dahin führt der neue Eintrag Baruch ▾ → Hilfe auf eine Adresse, die es noch nicht gibt (`/hilfe/`; die alte
    Seite `/bedienung/` bleibt bis dahin online). Vor der Veröffentlichung im eigenen Browser ansehen: die Hilfe
@@ -2463,6 +2481,13 @@ Frühere Runden:
 5. B2: Modell-Backends, `ask_persona`/`chat`, Token für `/mcp`, Literatur-Stubs (Volltext, an Persona geben).
 
 ## Offene Fragen an den Nutzer
+- **After Round 38, part 1:** (1) Follow-up as planned – two rounds 38b (comments) and 38c (developer docs) before
+  Round 39, about 270 minutes – or stop translating the bulk (for example leave `docs/Architektur.md`, 588 KB, and
+  the comments of the tests German) and go on to Round 39? (2) Which messages stay German until Round 39: the PM
+  assumed "every message the user interface shows as well" (store errors, refusals, form checks); they travel
+  through RPC and MCP in German for now – right? (3) Words read back from @schrift/@belege (`Wortlaut ungeprüft`,
+  `nicht belegt`, `Angabe prüfen`) are German also in an English work – translate with 38c or with the book
+  output in Round 39?
 - **Nach Runde 37 (Hilfe auf der Webseite):** (1) AGENTS.md: Die Zeile „Bedienung (`docs/Bedienung.md`)“ sollte
   künftig „Bedienung (`site/content/hilfe/`, Einstieg `docs/Bedienung.md`), Betrieb (`site/content/betrieb.md`)“
   lauten – ändern? (2) Bilder zur Bibel: die erzeugte „Beispielbibel“ mit einem Vers behalten oder mit einem

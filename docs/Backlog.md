@@ -86,7 +86,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-27: R13–R37 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
+## Rundenplan (Stand 2026-11-27: R13–R37 erledigt, R38 part 1 done; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -127,7 +127,9 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
 | R36 | Reste: Typst-Kommandozeile als Alias, Pages beim Release, sqlx 0.9.1, Reste aus R34, R35, 0.9.0 und „offen nach R24“ – **erledigt 2026-11-27** (≈ 155 min ab `bdd6d9f` mit Stromausfall 01:39, Prüfung und PM-Abschluss; S1 `d03be8d`, Integration `f2bb112`); nicht Teil von 0.9.0 | typst_alias · sqlx09 · reste | 150 |
 | R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **erledigt 2026-11-27** (≈ 95 min ab S1 `4a5b9d2` mit Prüfung und PM-Abschluss, Vertrag davor nicht in Git; Integration `ef9a9f0`; Offenes unter „Nach Runde 37 offen“ und „Runde 37 – integriert“); nicht Teil von 0.9.0 | a hilfe_text · b webseite · c bilder | 150 |
-| R38 | A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
+| R38 | **Part 1 done 2026-11-27, delivered in part** (≈ 162 min from `3fa5806` with review, follow-up `478be2a` and PM close; S1 `4315b01`, integration `511527f`; only a, b, c started, none finished its whole scope – see "Open after Round 38"; rest in R38b and R38c). Plan as it was: A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
+| R38b | Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
+| R38c | Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models and the words read back from @schrift/@belege; the low review findings of Round 38 | a skills_plan · b bedienung_verteilung_wysiwyg · c architektur_1 · d architektur_2_austausch · e mcp_rpc_doku (two waves) | 120 |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
@@ -1595,15 +1597,38 @@ never started (the round's output schema allowed three tasks, see contract §0) 
   `.yml`, `packaging/`, `site/content`, the German output (`echo`) of the scripts, every German string of the user
   interface (Round 39), messages that the user interface shows as well and that also travel through RPC or MCP
   (list in `docs/RPC.md`, "Language of the interfaces").
-- **Load-dependent test:** `round25_abnahme::forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp` failed
-  once in the full run of the integration (the cloud card lacked `data-fits` after `idea.move`) and passed in the
-  second full run and in five single runs. Not caused by Round 38 as far as seen (only comments and one error
-  string changed in `idea_map`); to be examined.
-- **Old test containers:** `podman ps -a` shows four exited `baruch-r12-*` containers from 2026-11-24/25 (earlier
-  rounds); the integrator of Round 38 did not touch them.
+- (**fixed in the follow-up `478be2a`**, 2026-11-27) **Load-dependent test:**
+  `round25_abnahme::forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp` failed once in the full run of
+  the integration and reproducibly for the reviewer under four test threads (the cloud card lacked `data-fits`
+  after `idea.move`). Cause: the background task replaces the index row of the moved idea in two steps (delete,
+  then write again with the old vector; `Index::replace` in `crates/baruch-lancedb/src/lib.rs`); in between the
+  vector is missing. The test now waits with `rag::wait_idle`; rule in `SKILLS.md`. Not caused by Round 38.
+- **Same window in the running service (open, later round):** shortly after an idea is moved, the map can lack
+  its vector nearness („passt zu Ast“, nearness lines) until the index has rewritten the row; the next load is
+  right again. Replacing the row in one step (for example `merge_insert` in LanceDB) is a change in
+  `baruch-lancedb` with a risk of its own; identifiers are unique per work only.
+- **Low findings of the review (2026-11-27, not fixed, → R38c):**
+  - `work_language::of` (`crates/baruch-server/src/work_language.rs`) swallows a read error of the store with
+    `unwrap_or_default()` and falls back to `de` silently; an English work would then be answered in German
+    without a message. `exchange_dump` falls back the same way (there the CHECK of migration 0055 prevents it).
+  - `POST /einstellungen/werk/sprache` (`settings::work::language_act`) redirects to `/einstellungen/werk`
+    without a message when the work is unknown; an invalid language value is reported properly
+    (`sprachfehler=1`).
+  - English markers are now recognised in German works as well (`besser`/`better`, `Schritt`/`Step`,
+    `critical:`, `note:`, `praise:` …): a model line that starts with "Step …" or "Note: …" is read as a marker.
+    Intended and documented (`docs/RPC.md`, "every recognition accepts both languages"), but it is a small change
+    of the German behaviour.
+  - `AGENTS.md` says developer documents are English while nine of them are still German or mixed; the rule is an
+    intention until R38c is done. All older rules are kept in substance (compared line by line by the reviewer).
+- **Old test containers:** `podman ps -a` shows exited `baruch-r12-*`/pgvector containers from earlier rounds
+  (the integrator counted four, the follow-up five); nobody of Round 38 touched them. The user may remove them.
 - **Decisions for the user:** (1) the boundary of contract §4.4 – which messages stay German until Round 39 – was
   an assumption of the PM; (2) `effective_prompt` for display carries no language rule (otherwise saving the shown
   prompt would store the rule of one work); (3) commits are English from this round on.
+- **PM close (2026-11-27):** full run in the main folder after `cargo clean -p` of all workspace crates:
+  3586 passed, 0 failed, 2 ignored in 218 test binaries (the PM session ended during its run at 19:50; the run was repeated on the same build by a second session, 19:51–19:54). Worktrees `.claude/worktrees/wf_8703464a-e4f-{3,4,5}` with their `target/` removed; the branches
+  `team/regeln_doku`, `team/mcp_rpc`, `team/kommentare_server` stay. `docs/Fahrplan.md` updated: Round 38 as
+  part 1, the rest as Rounds 38b (comments) and 38c (developer docs) before Round 39.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 
