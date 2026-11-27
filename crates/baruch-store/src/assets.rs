@@ -533,21 +533,23 @@ async fn asset_id(conn: &mut SqliteConnection, work: WorkId, name: &str) -> Resu
 }
 
 async fn revisions_of(conn: &mut SqliteConnection, asset: i64) -> Result<Vec<AssetRevisionInfo>, StoreError> {
-    let rows: Vec<InfoRow> =
-        sqlx::query_as(&format!("SELECT {INFO_COLUMNS} FROM asset_revision WHERE asset_id = ? ORDER BY number"))
-            .bind(asset)
-            .fetch_all(&mut *conn)
-            .await?;
+    let rows: Vec<InfoRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {INFO_COLUMNS} FROM asset_revision WHERE asset_id = ? ORDER BY number"
+    )))
+    .bind(asset)
+    .fetch_all(&mut *conn)
+    .await?;
     rows.into_iter().map(info_of).collect()
 }
 
 /// Die aktuelle Fassung; fehlt sie, ist eine Regel verletzt.
 async fn current_of(conn: &mut SqliteConnection, asset: i64, name: &str) -> Result<AssetRevisionInfo, StoreError> {
-    let row: Option<InfoRow> =
-        sqlx::query_as(&format!("SELECT {INFO_COLUMNS} FROM asset_revision WHERE asset_id = ? AND status = 'current'"))
-            .bind(asset)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let row: Option<InfoRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {INFO_COLUMNS} FROM asset_revision WHERE asset_id = ? AND status = 'current'"
+    )))
+    .bind(asset)
+    .fetch_optional(&mut *conn)
+    .await?;
     row.map(info_of).transpose()?.ok_or_else(|| broken(format!("Bild {name}: keine aktuelle Fassung")))
 }
 

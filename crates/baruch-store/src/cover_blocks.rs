@@ -216,10 +216,11 @@ async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), St
 /// Gespeicherte Blöcke des Werks in [`CoverBlockKind::ALL`]-Reihenfolge (Werk muss es geben).
 pub(crate) async fn read_layout(conn: &mut SqliteConnection, work: WorkId) -> Result<CoverLayout, StoreError> {
     work_exists(conn, work).await?;
-    let rows: Vec<BlockRow> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM cover_block WHERE work_id = ?"))
-        .bind(work)
-        .fetch_all(&mut *conn)
-        .await?;
+    let rows: Vec<BlockRow> =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM cover_block WHERE work_id = ?")))
+            .bind(work)
+            .fetch_all(&mut *conn)
+            .await?;
     let mut blocks = rows.into_iter().map(block_of).collect::<Result<Vec<_>, _>>()?;
     blocks.sort_by_key(|b| b.kind);
     Ok(CoverLayout { blocks })
@@ -227,14 +228,14 @@ pub(crate) async fn read_layout(conn: &mut SqliteConnection, work: WorkId) -> Re
 
 /// Block schreiben (anlegen oder die Zeile der Art ersetzen; die uuid der Zeile bleibt).
 async fn upsert(conn: &mut SqliteConnection, work: WorkId, block: &CoverBlock) -> Result<(), StoreError> {
-    sqlx::query(&format!(
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO cover_block (work_id, {COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (work_id, kind) DO UPDATE SET x_mm = excluded.x_mm, y_mm = excluded.y_mm, \
          width_mm = excluded.width_mm, align = excluded.align, size_pt = excluded.size_pt, \
          leading_em = excluded.leading_em, color = excluded.color, font = excluded.font, style = excluded.style, \
          backdrop = excluded.backdrop, visible = excluded.visible, direction = excluded.direction, \
          text = excluded.text, updated = strftime('%Y-%m-%dT%H:%M:%fZ','now')"
-    ))
+    )))
     .bind(work)
     .bind(block.kind.as_str())
     .bind(block.x_mm)

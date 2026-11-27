@@ -93,13 +93,14 @@ async fn insert(tx: &mut sqlx::SqliteConnection, name: &str) -> Result<(McpToken
             "Es gibt schon einen gültigen Token mit diesem Namen; anderen Namen wählen oder den alten widerrufen.",
         ));
     }
-    let token: McpToken =
-        sqlx::query_as(&format!("INSERT INTO mcp_token (name, hash, prefix) VALUES (?, ?, ?) RETURNING {COLUMNS}"))
-            .bind(name)
-            .bind(hash(&plain))
-            .bind(&prefix)
-            .fetch_one(&mut *tx)
-            .await?;
+    let token: McpToken = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO mcp_token (name, hash, prefix) VALUES (?, ?, ?) RETURNING {COLUMNS}"
+    )))
+    .bind(name)
+    .bind(hash(&plain))
+    .bind(&prefix)
+    .fetch_one(&mut *tx)
+    .await?;
     Ok((token, plain))
 }
 
@@ -151,7 +152,9 @@ impl Store {
 
     /// Alle Tokens (auch widerrufene), älteste zuerst.
     pub async fn mcp_token_list(&self) -> Result<Vec<McpToken>, StoreError> {
-        Ok(sqlx::query_as(&format!("SELECT {COLUMNS} FROM mcp_token ORDER BY id")).fetch_all(&self.pool).await?)
+        Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM mcp_token ORDER BY id")))
+            .fetch_all(&self.pool)
+            .await?)
     }
 
     /// Widerruft den Token `id` (setzt `revoked`; ein zweites Mal ändert nichts). Unbekannt → `Refused`.
@@ -163,10 +166,11 @@ impl Store {
         .bind(id)
         .execute(&mut *tx)
         .await?;
-        let token: Option<McpToken> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM mcp_token WHERE id = ?"))
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?;
+        let token: Option<McpToken> =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM mcp_token WHERE id = ?")))
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
         let token = token.ok_or(StoreError::Refused("Diesen Token gibt es nicht."))?;
         tx.commit().await?;
         Ok(token)
@@ -179,11 +183,12 @@ impl Store {
             return Ok(None);
         }
         let digest = hash(plain);
-        let found: Option<McpToken> =
-            sqlx::query_as(&format!("SELECT {COLUMNS} FROM mcp_token WHERE hash = ? AND revoked IS NULL"))
-                .bind(&digest)
-                .fetch_optional(&self.pool)
-                .await?;
+        let found: Option<McpToken> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT {COLUMNS} FROM mcp_token WHERE hash = ? AND revoked IS NULL"
+        )))
+        .bind(&digest)
+        .fetch_optional(&self.pool)
+        .await?;
         let Some(token) = found else { return Ok(None) };
         let stale = sqlx::query(
             "UPDATE mcp_token SET last_used = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND revoked IS NULL \
@@ -195,10 +200,11 @@ impl Store {
         if stale.rows_affected() == 0 {
             return Ok(Some(token));
         }
-        let fresh: Option<McpToken> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM mcp_token WHERE id = ?"))
-            .bind(token.id)
-            .fetch_optional(&self.pool)
-            .await?;
+        let fresh: Option<McpToken> =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM mcp_token WHERE id = ?")))
+                .bind(token.id)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(fresh.or(Some(token)))
     }
 }

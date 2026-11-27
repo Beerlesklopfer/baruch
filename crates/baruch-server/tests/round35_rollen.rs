@@ -175,7 +175,10 @@ pub(crate) async fn row_counts(server: &common::Server) -> BTreeMap<String, i64>
         .unwrap();
     let mut counts = BTreeMap::new();
     for table in tables {
-        let n: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM \"{table}\"")).fetch_one(pool).await.unwrap();
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM \"{table}\"")))
+            .fetch_one(pool)
+            .await
+            .unwrap();
         counts.insert(table, n);
     }
     counts

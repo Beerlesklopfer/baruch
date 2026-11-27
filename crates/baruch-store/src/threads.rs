@@ -90,11 +90,12 @@ impl Store {
     /// Fäden eines Werks, zuletzt beschriebene zuerst.
     pub async fn thread_list(&self, work: WorkId) -> Result<Vec<ThreadSummary>, StoreError> {
         self.check_work(work).await?;
-        let rows: Vec<SummaryRow> =
-            sqlx::query_as(&format!("{SUMMARY_SELECT} WHERE t.work_id = ? ORDER BY t.updated DESC, t.id DESC"))
-                .bind(work)
-                .fetch_all(&self.pool)
-                .await?;
+        let rows: Vec<SummaryRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "{SUMMARY_SELECT} WHERE t.work_id = ? ORDER BY t.updated DESC, t.id DESC"
+        )))
+        .bind(work)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(rows.into_iter().map(summary).collect())
     }
 
@@ -102,11 +103,12 @@ impl Store {
     /// `Refused(UNKNOWN_THREAD)`.
     pub async fn thread_get(&self, work: WorkId, id: i64) -> Result<Thread, StoreError> {
         self.check_work(work).await?;
-        let row: Option<SummaryRow> = sqlx::query_as(&format!("{SUMMARY_SELECT} WHERE t.id = ? AND t.work_id = ?"))
-            .bind(id)
-            .bind(work)
-            .fetch_optional(&self.pool)
-            .await?;
+        let row: Option<SummaryRow> =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!("{SUMMARY_SELECT} WHERE t.id = ? AND t.work_id = ?")))
+                .bind(id)
+                .bind(work)
+                .fetch_optional(&self.pool)
+                .await?;
         let summary = summary(row.ok_or(StoreError::Refused(UNKNOWN_THREAD))?);
         let rows: Vec<PostRow> = sqlx::query_as(
             "SELECT id, position, author, body, sources, created, edited FROM chat_thread_post WHERE thread_id = ? \

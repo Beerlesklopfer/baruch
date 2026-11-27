@@ -295,10 +295,10 @@ pub async fn add_highlight(pool: &SqlitePool, new: &NewHighlight) -> Result<i64,
 
 /// Alle Hervorhebungen (oder die eines Titels), nach Titel, Zitat, Anfang und id.
 pub async fn list_highlights(pool: &SqlitePool, title_id: Option<i64>) -> Result<Vec<Highlight>, HighlightError> {
-    let rows: Vec<Row> = sqlx::query_as(&format!(
+    let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {COLUMNS} FROM library_highlight WHERE ?1 IS NULL OR title_id = ?1 \
          ORDER BY title_id, quote_id IS NULL, quote_id, start_char IS NULL, start_char, id"
-    ))
+    )))
     .bind(title_id)
     .fetch_all(pool)
     .await?;
@@ -307,10 +307,11 @@ pub async fn list_highlights(pool: &SqlitePool, title_id: Option<i64>) -> Result
 
 /// Eine Hervorhebung; unbekannt → [`HighlightError::Unknown`].
 pub async fn get_highlight(pool: &SqlitePool, id: i64) -> Result<Highlight, HighlightError> {
-    let row: Option<Row> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM library_highlight WHERE id = ?1"))
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+    let row: Option<Row> =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM library_highlight WHERE id = ?1")))
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
     highlight(row.ok_or(HighlightError::Unknown(id))?)
 }
 

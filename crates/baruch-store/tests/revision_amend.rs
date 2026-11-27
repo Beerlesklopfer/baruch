@@ -75,7 +75,7 @@ async fn age_revision(pool: &SqlitePool, work: i64, number: u32) {
     .execute(&mut *conn)
     .await
     .unwrap();
-    sqlx::query(&trigger).execute(&mut *conn).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(trigger.as_str())).execute(&mut *conn).await.unwrap();
 }
 
 async fn editor_save(store: &Store, work: i64, body: &str, based_on: u32) -> baruch_store::OutlineSave {

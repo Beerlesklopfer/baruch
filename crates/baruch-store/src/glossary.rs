@@ -335,11 +335,12 @@ fn sort_terms(terms: &mut [GlossaryTerm]) {
 
 /// Begriffe des Werks, die `filter` (SQL hinter `WHERE work_id = ?`, ohne weitere Parameter) erfüllen, mit Varianten.
 async fn terms_where(conn: &mut SqliteConnection, work: WorkId, filter: &str) -> Result<Vec<GlossaryTerm>, StoreError> {
-    let rows: Vec<TermRow> =
-        sqlx::query_as(&format!("SELECT {TERM_COLUMNS} FROM glossary_term WHERE work_id = ? {filter}"))
-            .bind(work)
-            .fetch_all(&mut *conn)
-            .await?;
+    let rows: Vec<TermRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {TERM_COLUMNS} FROM glossary_term WHERE work_id = ? {filter}"
+    )))
+    .bind(work)
+    .fetch_all(&mut *conn)
+    .await?;
     let variant_rows: Vec<(i64, String)> = sqlx::query_as(
         "SELECT v.term_id, v.form FROM glossary_variant v JOIN glossary_term t ON t.id = v.term_id \
          WHERE t.work_id = ? ORDER BY v.term_id, v.position",
@@ -363,12 +364,13 @@ async fn terms_where(conn: &mut SqliteConnection, work: WorkId, filter: &str) ->
 }
 
 async fn term_in(conn: &mut SqliteConnection, work: WorkId, id: GlossaryTermId) -> Result<GlossaryTerm, StoreError> {
-    let row: Option<TermRow> =
-        sqlx::query_as(&format!("SELECT {TERM_COLUMNS} FROM glossary_term WHERE work_id = ? AND id = ?"))
-            .bind(work)
-            .bind(id)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let row: Option<TermRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {TERM_COLUMNS} FROM glossary_term WHERE work_id = ? AND id = ?"
+    )))
+    .bind(work)
+    .bind(id)
+    .fetch_optional(&mut *conn)
+    .await?;
     let Some(row) = row else {
         ensure_work(conn, work).await?;
         return Err(StoreError::UnknownGlossaryTerm { work, id });
@@ -601,12 +603,13 @@ async fn proposal_in(
     work: WorkId,
     id: IndexProposalId,
 ) -> Result<IndexProposal, StoreError> {
-    let row: Option<ProposalRow> =
-        sqlx::query_as(&format!("SELECT {PROPOSAL_COLUMNS} FROM index_proposal WHERE work_id = ? AND id = ?"))
-            .bind(work)
-            .bind(id)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let row: Option<ProposalRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {PROPOSAL_COLUMNS} FROM index_proposal WHERE work_id = ? AND id = ?"
+    )))
+    .bind(work)
+    .bind(id)
+    .fetch_optional(&mut *conn)
+    .await?;
     match row {
         Some(row) => proposal_of(work, row),
         None => {
@@ -1029,9 +1032,9 @@ impl Store {
     ) -> Result<Vec<IndexProposal>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         ensure_work(&mut conn, work).await?;
-        let rows: Vec<ProposalRow> = sqlx::query_as(&format!(
+        let rows: Vec<ProposalRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT {PROPOSAL_COLUMNS} FROM index_proposal WHERE work_id = ? AND (? IS NULL OR status = ?) ORDER BY id"
-        ))
+        )))
         .bind(work)
         .bind(status.map(proposal_status_db))
         .bind(status.map(proposal_status_db))

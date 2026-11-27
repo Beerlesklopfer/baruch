@@ -43,15 +43,15 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
-    sqlx::query(sql).execute(pool).await.is_err()
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.is_err()
 }
 
 /// Store bis 0053 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln): der Stand vor 0054.
@@ -105,7 +105,7 @@ fn grant_sql(work: i64, account: i64, role: &str) -> String {
 
 /// Alle Zeilen einer Tabelle als Text (jede Spalte über `quote()`), nach rowid.
 async fn dump(pool: &SqlitePool, table: &str) -> Vec<String> {
-    let columns: Vec<String> = sqlx::query(&format!("PRAGMA table_info({table})"))
+    let columns: Vec<String> = sqlx::query(sqlx::AssertSqlSafe(format!("PRAGMA table_info({table})")))
         .fetch_all(pool)
         .await
         .unwrap()
@@ -114,7 +114,7 @@ async fn dump(pool: &SqlitePool, table: &str) -> Vec<String> {
         .collect();
     assert!(!columns.is_empty(), "Tabelle {table} gibt es");
     let sql = format!("SELECT {} FROM {table} ORDER BY rowid", columns.join(" || '|' || "));
-    sqlx::query_scalar(&sql).fetch_all(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).fetch_all(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 /// Namen aller gewöhnlichen Tabellen (ohne die Buchführung von sqlx, Volltextindizes und ihre Schattentabellen).
@@ -141,8 +141,13 @@ async fn schema(pool: &SqlitePool) -> Vec<String> {
 #[tokio::test]
 async fn the_migration_file_is_the_one_from_the_interface_and_only_creates() {
     let migration = baruch_store::MIGRATOR.iter().find(|m| m.version == 54).expect("Migration 0054 ist eingebunden");
-    let statements: String =
-        migration.sql.lines().filter(|l| !l.trim_start().starts_with("--")).map(|l| format!("{l}\n")).collect();
+    let statements: String = migration
+        .sql
+        .as_str()
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("--"))
+        .map(|l| format!("{l}\n"))
+        .collect();
     assert_eq!(statements, CONTRACT_SQL, "0054 steht wörtlich im Vertrag und ist nach S1 unveränderlich");
     assert!(
         !baruch_store::FOREIGN_KEYS_OFF.contains(&54),

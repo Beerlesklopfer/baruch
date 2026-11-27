@@ -149,7 +149,7 @@ async fn open_empty() -> (tempfile::TempDir, Store) {
 }
 
 async fn id_of(store: &Store, table: &str, uuid: &str) -> i64 {
-    sqlx::query_scalar(&format!("SELECT id FROM {table} WHERE uuid = ?"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT id FROM {table} WHERE uuid = ?")))
         .bind(uuid)
         .fetch_one(store.pool())
         .await

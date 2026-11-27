@@ -391,7 +391,10 @@ async fn contents(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
             .unwrap();
         let select = columns.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         rows.insert(0, columns.join(","));
         out.insert(table, rows);
@@ -400,7 +403,7 @@ async fn contents(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
 }
 
 async fn count(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap()
 }
 
 // ---- Tests ------------------------------------------------------------------------------------
@@ -607,12 +610,15 @@ async fn an_empty_database_from_before_0007_is_seeded_but_one_with_only_personas
     );
 }
 
-/// Beleg für den gewählten Weg: sqlx-sqlite 0.8.6 erkennt `-- no-transaction` (`no_tx`), führt die
-/// Migration aber trotzdem in einer Transaktion aus. Ein eigenes `BEGIN IMMEDIATE` scheitert darum,
-/// und `PRAGMA foreign_keys=OFF` wäre dort wirkungslos. 0007 läuft deshalb mit
-/// `PRAGMA defer_foreign_keys=ON` in der Transaktion von sqlx.
+/// Beleg für den gewählten Weg, nachgeführt in Runde 36: sqlx-sqlite 0.8.6 erkannte `-- no-transaction` (`no_tx`),
+/// führte die Migration aber trotzdem in einer Transaktion aus – ein eigenes `BEGIN IMMEDIATE` scheiterte, und
+/// `PRAGMA foreign_keys=OFF` war dort wirkungslos. 0007 läuft deshalb mit `PRAGMA defer_foreign_keys=ON` in der
+/// Transaktion von sqlx. **sqlx-sqlite 0.9 beachtet die Markierung** (`sqlx-sqlite-0.9.1/src/migrate.rs`, `apply`):
+/// Eine so markierte Migration läuft ohne Transaktion. Für Baruch ändert das nichts, weil keine Store-Migration die
+/// Markierung trägt – jede läuft weiter in der Transaktion von sqlx, und 0040 braucht weiter
+/// `baruch_store::migrate` mit `FOREIGN_KEYS_OFF`.
 #[tokio::test]
-async fn sqlx_runs_even_a_no_transaction_migration_inside_a_transaction() {
+async fn sqlx_09_honours_no_transaction_but_no_store_migration_carries_the_mark() {
     let dir = tempfile::tempdir().unwrap();
     let migrations = dir.path().join("probe");
     std::fs::create_dir(&migrations).unwrap();
@@ -621,18 +627,28 @@ async fn sqlx_runs_even_a_no_transaction_migration_inside_a_transaction() {
         "-- no-transaction\nPRAGMA foreign_keys=OFF;\nBEGIN IMMEDIATE;\nCREATE TABLE probe (x);\nCOMMIT;\nPRAGMA foreign_keys=ON;\n",
     )
     .unwrap();
+    std::fs::write(migrations.join("0002_plain.sql"), "BEGIN IMMEDIATE;\nCREATE TABLE plain (x);\nCOMMIT;\n").unwrap();
     let migrator = Migrator::new(migrations.as_path()).await.unwrap();
-    assert!(migrator.iter().all(|m| m.no_tx), "sqlx liest die Markierung -- no-transaction");
+    let marks: Vec<bool> = migrator.iter().map(|m| m.no_tx).collect();
+    assert_eq!(marks, [true, false], "sqlx liest die Markierung -- no-transaction (nur in der ersten Datei)");
     let pool = raw_pool(dir.path()).await;
-    let err = migrator.run(&pool).await.expect_err("BEGIN in der Transaktion von sqlx");
+    let err = migrator.run(&pool).await.expect_err("BEGIN in der Transaktion von sqlx (zweite Datei, ohne Markierung)");
     assert!(err.to_string().contains("within a transaction"), "SQLite lehnt die verschachtelte Transaktion ab: {err}");
     assert_eq!(
         count(&pool, "SELECT count(*) FROM sqlite_master WHERE name = 'probe'").await,
+        1,
+        "mit Markierung läuft die Migration unter sqlx 0.9 ohne Transaktion: das eigene BEGIN gelingt (unter 0.8 nicht)"
+    );
+    assert_eq!(
+        count(&pool, "SELECT count(*) FROM sqlite_master WHERE name = 'plain'").await,
         0,
-        "die Probe-Tabelle entsteht nicht"
+        "ohne Markierung bleibt es wie bisher: Die Migration läuft in der Transaktion von sqlx, ein eigenes BEGIN \
+         scheitert und nichts entsteht"
     );
     assert!(
         baruch_store::MIGRATOR.iter().all(|m| !m.no_tx),
-        "darum trägt keine Store-Migration (auch 0007 nicht) die Markierung"
+        "keine Store-Migration (auch 0007 nicht) trägt die Markierung – der Wechsel im Verhalten von sqlx trifft Baruch \
+         nicht"
     );
+    assert!(!baruch_store::MIGRATOR.no_tx, "auch der Migrator als Ganzes verzichtet nicht auf die Transaktion");
 }

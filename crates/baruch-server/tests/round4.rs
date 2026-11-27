@@ -427,6 +427,7 @@ fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migr
         ignore_missing: true,
         locking: true,
         no_tx: false,
+        ..sqlx::migrate::Migrator::DEFAULT
     }
 }
 
@@ -490,7 +491,12 @@ async fn insert_book(pool: &sqlx::SqlitePool, slug: &str, sha: &str) -> i64 {
 async fn counts(pool: &sqlx::SqlitePool) -> Vec<i64> {
     let mut out = Vec::new();
     for table in ["work", "node", "revision", "post", "post_ref"] {
-        out.push(sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(pool).await.unwrap());
+        out.push(
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+                .fetch_one(pool)
+                .await
+                .unwrap(),
+        );
     }
     out
 }

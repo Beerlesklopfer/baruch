@@ -70,7 +70,7 @@ fn svg<'a>(file_name: &'a str, text: &'a str) -> NewAsset<'a> {
 }
 
 async fn count(store: &Store, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(store.pool()).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(store.pool()).await.unwrap()
 }
 
 async fn currents(store: &Store, work: WorkId, name: &str) -> Vec<u32> {
@@ -267,14 +267,16 @@ async fn the_content_of_a_version_cannot_be_changed_in_the_database() {
     for (column, value) in
         [("content", "'<svg/>'"), ("mime", "'image/png'"), ("bytes", "1"), ("sha256", "'00'"), ("encoding", "'base64'")]
     {
-        let err = sqlx::query(&format!("UPDATE asset_revision SET {column} = {value}"))
+        let err = sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE asset_revision SET {column} = {value}")))
             .execute(store.pool())
             .await
             .expect_err("Inhalt unveränderlich");
         assert!(err.to_string().contains("unveränderlich"), "{column}: Trigger meldet: {err}");
     }
     for (column, value) in [("number", "7"), ("author_name", "'@lektor'"), ("created", "'gestern'")] {
-        let err = sqlx::query(&format!("UPDATE asset_revision SET {column} = {value}")).execute(store.pool()).await;
+        let err = sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE asset_revision SET {column} = {value}")))
+            .execute(store.pool())
+            .await;
         assert!(err.is_err(), "Herkunft ({column}) unveränderlich");
     }
     let err = sqlx::query("DELETE FROM asset_revision").execute(store.pool()).await;
@@ -405,11 +407,12 @@ async fn deleting_a_work_removes_all_its_image_rows() {
 
     store.delete_work(imported.work, &imported.title).await.unwrap();
     for table in ["asset", "asset_path"] {
-        let left: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table} WHERE work_id = ?"))
-            .bind(imported.work)
-            .fetch_one(store.pool())
-            .await
-            .unwrap();
+        let left: i64 =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table} WHERE work_id = ?")))
+                .bind(imported.work)
+                .fetch_one(store.pool())
+                .await
+                .unwrap();
         assert_eq!(left, 0, "{table}: keine Zeile des gelöschten Werks");
     }
     assert_eq!(

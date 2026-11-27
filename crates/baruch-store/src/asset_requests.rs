@@ -357,12 +357,13 @@ fn from_row(row: RequestRow) -> Result<AssetRequest, StoreError> {
 }
 
 async fn fetch(conn: &mut SqliteConnection, work: WorkId, id: i64) -> Result<AssetRequest, StoreError> {
-    let row: Option<RequestRow> =
-        sqlx::query_as(&format!("SELECT {COLUMNS} FROM asset_request WHERE id = ? AND work_id = ?"))
-            .bind(id)
-            .bind(work)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let row: Option<RequestRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {COLUMNS} FROM asset_request WHERE id = ? AND work_id = ?"
+    )))
+    .bind(id)
+    .bind(work)
+    .fetch_optional(&mut *conn)
+    .await?;
     from_row(row.ok_or(StoreError::UnknownRequest { work, id })?)
 }
 
@@ -592,11 +593,12 @@ impl Store {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
         let filter = if open_only { " AND decided IS NULL" } else { "" };
-        let rows: Vec<RequestRow> =
-            sqlx::query_as(&format!("SELECT {COLUMNS} FROM asset_request WHERE work_id = ?{filter} ORDER BY id"))
-                .bind(work)
-                .fetch_all(&mut *conn)
-                .await?;
+        let rows: Vec<RequestRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT {COLUMNS} FROM asset_request WHERE work_id = ?{filter} ORDER BY id"
+        )))
+        .bind(work)
+        .fetch_all(&mut *conn)
+        .await?;
         rows.into_iter().map(from_row).collect()
     }
 
@@ -679,20 +681,20 @@ impl Store {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
         let since = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')";
-        let (revisions, revision_bytes): (i64, i64) = sqlx::query_as(&format!(
+        let (revisions, revision_bytes): (i64, i64) = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT count(*), coalesce(sum(r.bytes), 0) FROM asset_revision r JOIN asset a ON a.id = r.asset_id \
              WHERE a.work_id = ? AND {authors} AND r.created >= {since}"
-        ))
+        )))
         .bind(work)
         .bind(names)
         .fetch_one(&mut *conn)
         .await?;
         // Größe aus `params.bytes` (seit Runde 21c immer geschrieben); nur ältere Zeilen ohne `bytes` liefern den
         // ganzen Inhalt zum Nachrechnen.
-        let requests: Vec<(Option<i64>, Option<String>)> = sqlx::query_as(&format!(
+        let requests: Vec<(Option<i64>, Option<String>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT json_extract(params, '$.bytes'), CASE WHEN json_extract(params, '$.bytes') IS NULL THEN params END \
              FROM asset_request WHERE work_id = ? AND op = 'replace' AND {origins} AND created >= {since}"
-        ))
+        )))
         .bind(work)
         .bind(names)
         .fetch_all(&mut *conn)
@@ -708,9 +710,9 @@ impl Store {
                 (None, None) => 0,
             };
         }
-        let open: i64 = sqlx::query_scalar(&format!(
+        let open: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT count(*) FROM asset_request WHERE work_id = ? AND op = 'replace' AND {origins} AND decided IS NULL"
-        ))
+        )))
         .bind(work)
         .bind(names)
         .fetch_one(&mut *conn)

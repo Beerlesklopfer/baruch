@@ -99,19 +99,19 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 async fn text(pool: &SqlitePool, sql: &str) -> String {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
-    sqlx::query(sql).execute(pool).await.is_err()
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.is_err()
 }
 
 /// Store bis 0048 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
@@ -369,7 +369,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -417,10 +420,11 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
         assert_eq!(layout_after[table], expected, "{table}: alte Spalten in Reihenfolge, neue hinten");
     }
     for (table, column, default, _) in NEW_COLUMNS {
-        let values: Vec<String> = sqlx::query_scalar(&format!("SELECT DISTINCT quote({column}) FROM {table}"))
-            .fetch_all(&pool)
-            .await
-            .unwrap();
+        let values: Vec<String> =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT DISTINCT quote({column}) FROM {table}")))
+                .fetch_all(&pool)
+                .await
+                .unwrap();
         assert_eq!(values, [default], "{table}.{column}: jede alte Zeile trägt die Vorgabe {default}");
     }
 

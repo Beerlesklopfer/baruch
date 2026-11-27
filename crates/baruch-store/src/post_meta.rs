@@ -242,7 +242,7 @@ impl Store {
             "SELECT {META_COLUMNS} FROM post p JOIN node n ON n.id = p.node_id WHERE n.work_id = ? AND p.id IN ({})",
             placeholders(ids.len())
         );
-        let mut query = sqlx::query_as::<_, MetaRow>(&sql).bind(work);
+        let mut query = sqlx::query_as::<_, MetaRow>(sqlx::AssertSqlSafe(sql.as_str())).bind(work);
         for id in ids {
             query = query.bind(id);
         }
@@ -256,7 +256,8 @@ impl Store {
              (p.basis_rev IS NOT NULL OR p.basis_label <> '' OR p.reply_to IS NOT NULL OR p.repeat_of IS NOT NULL \
               OR p.relay_from IS NOT NULL OR p.request IS NOT NULL)"
         );
-        let rows: Vec<MetaRow> = sqlx::query_as(&sql).bind(work).fetch_all(&self.pool).await?;
+        let rows: Vec<MetaRow> =
+            sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str())).bind(work).fetch_all(&self.pool).await?;
         rows.into_iter().map(meta_of).collect()
     }
 
@@ -309,7 +310,7 @@ impl Store {
              WHERE t.work_id = ? AND p.id IN ({})",
             placeholders(ids.len())
         );
-        let mut query = sqlx::query_as::<_, MetaRow>(&sql).bind(work);
+        let mut query = sqlx::query_as::<_, MetaRow>(sqlx::AssertSqlSafe(sql.as_str())).bind(work);
         for id in ids {
             query = query.bind(id);
         }

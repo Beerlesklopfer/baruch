@@ -144,12 +144,14 @@ impl Store {
 
     /// Alle Konten nach id.
     pub async fn account_list(&self) -> Result<Vec<Account>, StoreError> {
-        Ok(sqlx::query_as(&format!("SELECT {COLUMNS} FROM account ORDER BY id")).fetch_all(self.pool()).await?)
+        Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM account ORDER BY id")))
+            .fetch_all(self.pool())
+            .await?)
     }
 
     /// Ein Konto; `None`, wenn es die id nicht gibt.
     pub async fn account_get(&self, id: i64) -> Result<Option<Account>, StoreError> {
-        Ok(sqlx::query_as(&format!("SELECT {COLUMNS} FROM account WHERE id = ?"))
+        Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM account WHERE id = ?")))
             .bind(id)
             .fetch_optional(self.pool())
             .await?)
@@ -159,10 +161,10 @@ impl Store {
     /// wenn es schon ein Autor-Konto gibt ([`Store::ACCOUNT_NEEDS_AUTHOR`]) – sonst gäbe es Konten, aber niemanden
     /// mit vollen Rechten. Das erste Konto legt [`Store::account_create_first`] an.
     pub async fn account_create(&self, new: &NewAccount<'_>) -> Result<Account, StoreError> {
-        let created: Option<Account> = sqlx::query_as(&format!(
+        let created: Option<Account> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "INSERT INTO account (name, name_key, slug, display, kind, password) SELECT ?1, ?2, ?3, ?4, ?5, ?6 \
              WHERE ?5 = 'author' OR EXISTS (SELECT 1 FROM account WHERE kind = 'author') RETURNING {COLUMNS}"
-        ))
+        )))
         .bind(new.name.trim())
         .bind(Self::account_name_key(new.name))
         .bind(new.slug)
@@ -178,10 +180,10 @@ impl Store {
     /// Das erste Konto anlegen: nur wenn die Tabelle leer ist, sonst [`Store::ACCOUNT_NOT_FIRST`]. Prüfung und
     /// Einfügen sind eine Anweisung (eine Transaktion): Von zwei gleichzeitigen Aufrufen gewinnt genau einer.
     pub async fn account_create_first(&self, new: &NewAccount<'_>) -> Result<Account, StoreError> {
-        let created: Option<Account> = sqlx::query_as(&format!(
+        let created: Option<Account> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "INSERT INTO account (name, name_key, slug, display, kind, password) SELECT ?, ?, ?, ?, ?, ? \
              WHERE NOT EXISTS (SELECT 1 FROM account) RETURNING {COLUMNS}"
-        ))
+        )))
         .bind(new.name.trim())
         .bind(Self::account_name_key(new.name))
         .bind(new.slug)

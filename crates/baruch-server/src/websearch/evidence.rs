@@ -87,7 +87,7 @@ pub async fn record(
 
 /// Belege eines Beitrags in der Reihenfolge des Anlegens.
 pub async fn for_post(pool: &SqlitePool, post: i64) -> Result<Vec<Evidence>, sqlx::Error> {
-    sqlx::query_as(&format!("SELECT {COLUMNS} FROM web_evidence WHERE post_id = ? ORDER BY id"))
+    sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM web_evidence WHERE post_id = ? ORDER BY id")))
         .bind(post)
         .fetch_all(pool)
         .await
@@ -95,7 +95,10 @@ pub async fn for_post(pool: &SqlitePool, post: i64) -> Result<Vec<Evidence>, sql
 
 /// Ein Beleg.
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Evidence>, sqlx::Error> {
-    sqlx::query_as(&format!("SELECT {COLUMNS} FROM web_evidence WHERE id = ?")).bind(id).fetch_optional(pool).await
+    sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM web_evidence WHERE id = ?")))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
 }
 
 fn invalid(message: impl Into<String>) -> RpcError {

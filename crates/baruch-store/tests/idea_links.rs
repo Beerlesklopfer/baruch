@@ -36,7 +36,7 @@ fn link(from: IdeaId, to: IdeaId, kind: LinkKind, note: &str) -> NewIdeaLink<'_>
 }
 
 async fn count(store: &Store, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(store.pool()).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(store.pool()).await.unwrap()
 }
 
 fn is_v4(uuid: &str) -> bool {

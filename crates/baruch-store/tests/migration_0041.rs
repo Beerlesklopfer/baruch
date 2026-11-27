@@ -98,11 +98,11 @@ async fn migrate_before(pool: &SqlitePool) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 /// Werk mit Gliederung (je Überschrift ein Kapitel mit aktueller Fassung) und Vorlagenfassung direkt in SQLite.
@@ -260,7 +260,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -272,7 +275,7 @@ async fn uuids(pool: &SqlitePool) -> BTreeMap<(String, i64), Option<String>> {
     let mut out = BTreeMap::new();
     for table in TABLES {
         let rows: Vec<(i64, Option<String>)> =
-            sqlx::query_as(&format!("SELECT id, uuid FROM {table}")).fetch_all(pool).await.unwrap();
+            sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT id, uuid FROM {table}"))).fetch_all(pool).await.unwrap();
         for (id, uuid) in rows {
             out.insert((table.to_owned(), id), uuid);
         }

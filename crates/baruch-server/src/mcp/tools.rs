@@ -1089,11 +1089,11 @@ impl Counted {
 
 /// Offene Vorschläge im Werk, die für `counted` zählen (für [`MAX_MCP_OPEN_PROPOSALS`]).
 async fn open_proposals_by(store: &Store, work: WorkId, counted: &Counted) -> Result<usize, Failure> {
-    let count: i64 = sqlx::query_scalar(&format!(
+    let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT count(*) FROM revision r JOIN node n ON n.id = r.node_id \
          WHERE n.work_id = ? AND r.status = 'proposed' AND {}",
         counted.condition("r.author_name")
-    ))
+    )))
     .bind(work)
     .bind(counted.bound())
     .fetch_one(store.pool())
@@ -1104,11 +1104,11 @@ async fn open_proposals_by(store: &Store, work: WorkId, counted: &Counted) -> Re
 
 /// Beiträge im Werk in den letzten 24 Stunden, die für `counted` zählen (für [`MAX_MCP_POSTS_PER_DAY`]).
 async fn posts_today_by(store: &Store, work: WorkId, counted: &Counted) -> Result<usize, Failure> {
-    let count: i64 = sqlx::query_scalar(&format!(
+    let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT count(*) FROM post p JOIN node n ON n.id = p.node_id WHERE n.work_id = ? AND {} \
          AND p.created >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')",
         counted.condition("p.author")
-    ))
+    )))
     .bind(work)
     .bind(counted.bound())
     .fetch_one(store.pool())

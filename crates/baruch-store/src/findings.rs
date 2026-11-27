@@ -361,7 +361,7 @@ async fn complete(conn: &mut SqliteConnection, work: WorkId, findings: &mut [Fin
             "{ENTRY_SELECT} WHERE s.id IN (SELECT max(p.id) FROM finding_status p WHERE p.finding_id IN ({marks}) \
              AND p.proposed = 1 AND p.decision IS NULL GROUP BY p.finding_id)"
         );
-        let mut query = sqlx::query(&sql);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
         for id in chunk {
             query = query.bind(*id);
         }
@@ -380,7 +380,7 @@ async fn complete(conn: &mut SqliteConnection, work: WorkId, findings: &mut [Fin
     for chunk in origins.chunks(500) {
         let marks = vec!["?"; chunk.len()].join(", ");
         let sql = format!("SELECT uuid FROM finding WHERE work_id = ? AND status = 'open' AND uuid IN ({marks})");
-        let mut query = sqlx::query_scalar::<_, String>(&sql).bind(work);
+        let mut query = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(sql.as_str())).bind(work);
         for uuid in chunk {
             query = query.bind(*uuid);
         }
@@ -474,7 +474,7 @@ async fn check_work(conn: &mut SqliteConnection, work: WorkId) -> Result<(), Sto
 /// [`StoreError::UnknownFinding`], unbekanntes Werk → [`StoreError::UnknownWork`].
 pub(crate) async fn get(conn: &mut SqliteConnection, work: WorkId, id: i64) -> Result<Finding, StoreError> {
     check_work(conn, work).await?;
-    let row = sqlx::query(&format!("{FINDING_SELECT} WHERE f.id = ? AND f.work_id = ?"))
+    let row = sqlx::query(sqlx::AssertSqlSafe(format!("{FINDING_SELECT} WHERE f.id = ? AND f.work_id = ?")))
         .bind(id)
         .bind(work)
         .fetch_optional(&mut *conn)
@@ -535,7 +535,7 @@ fn too_long(what: &str, max: usize) -> StoreError {
 }
 
 /// Gehört die Zeile `id` der Tabelle über `sql` (ein `SELECT 1 … WHERE <id> AND <werk>`) zum Werk?
-async fn belongs(conn: &mut SqliteConnection, sql: &str, id: i64, work: WorkId) -> Result<bool, StoreError> {
+async fn belongs(conn: &mut SqliteConnection, sql: &'static str, id: i64, work: WorkId) -> Result<bool, StoreError> {
     let found: Option<i64> = sqlx::query_scalar(sql).bind(id).bind(work).fetch_optional(&mut *conn).await?;
     Ok(found.is_some())
 }
@@ -678,7 +678,7 @@ impl Store {
         let limit = filter.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
         let sql =
             format!("{FINDING_SELECT} WHERE f.work_id = ?{clause} ORDER BY f.created DESC, f.id DESC LIMIT {limit}");
-        let mut query = sqlx::query(&sql).bind(work);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind(work);
         for n in &numbers {
             query = query.bind(*n);
         }
@@ -696,7 +696,7 @@ impl Store {
         check_work(&mut conn, work).await?;
         let (clause, numbers, texts) = filter_clause(filter);
         let sql = format!("SELECT count(*) FROM finding f WHERE f.work_id = ?{clause}");
-        let mut query = sqlx::query_scalar::<_, i64>(&sql).bind(work);
+        let mut query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql.as_str())).bind(work);
         for n in &numbers {
             query = query.bind(*n);
         }
@@ -710,12 +710,13 @@ impl Store {
     pub async fn finding_attached_to(&self, work: WorkId, id: i64) -> Result<Vec<Finding>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, work, id).await?;
-        let rows =
-            sqlx::query(&format!("{FINDING_SELECT} WHERE f.work_id = ? AND f.similar_to = ? ORDER BY f.created, f.id"))
-                .bind(work)
-                .bind(id)
-                .fetch_all(&mut *conn)
-                .await?;
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{FINDING_SELECT} WHERE f.work_id = ? AND f.similar_to = ? ORDER BY f.created, f.id"
+        )))
+        .bind(work)
+        .bind(id)
+        .fetch_all(&mut *conn)
+        .await?;
         findings_of(&mut conn, work, rows.iter()).await
     }
 
@@ -727,7 +728,7 @@ impl Store {
         for chunk in uuids.chunks(500) {
             let marks = vec!["?"; chunk.len()].join(", ");
             let sql = format!("{FINDING_SELECT} WHERE f.work_id = ? AND f.uuid IN ({marks}) ORDER BY f.created, f.id");
-            let mut query = sqlx::query(&sql).bind(work);
+            let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind(work);
             for u in chunk {
                 query = query.bind(u.as_str());
             }
@@ -742,7 +743,7 @@ impl Store {
     pub async fn finding_history(&self, work: WorkId, id: i64) -> Result<Vec<FindingStatusEntry>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, work, id).await?;
-        let rows = sqlx::query(&format!("{ENTRY_SELECT} WHERE s.finding_id = ? ORDER BY s.id"))
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!("{ENTRY_SELECT} WHERE s.finding_id = ? ORDER BY s.id")))
             .bind(id)
             .fetch_all(&mut *conn)
             .await?;
@@ -1148,7 +1149,7 @@ async fn write_status(conn: &mut SqliteConnection, id: i64, target: &Target) -> 
 
 /// Eintrag `entry` im Verlauf eines Befunds des Werks; sonst [`StoreError::Finding`].
 async fn entry_by_id(conn: &mut SqliteConnection, work: WorkId, entry: i64) -> Result<FindingStatusEntry, StoreError> {
-    let row = sqlx::query(&format!("{ENTRY_SELECT} WHERE s.id = ? AND f.work_id = ?"))
+    let row = sqlx::query(sqlx::AssertSqlSafe(format!("{ENTRY_SELECT} WHERE s.id = ? AND f.work_id = ?")))
         .bind(entry)
         .bind(work)
         .fetch_optional(&mut *conn)
@@ -1187,10 +1188,11 @@ fn one_line(text: &str) -> String {
 /// Befund Art, Status, Persona, Text, Zitat mit Prüfvermerk, Begründung, Fassung bzw. Ziel, Anhang, Sammlung, offener
 /// Vorschlag, Herkunft und der Verlauf.
 pub(crate) async fn mirror_files(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<MirrorFile>, StoreError> {
-    let rows = sqlx::query(&format!("{FINDING_SELECT} WHERE f.work_id = ? ORDER BY f.created, f.id"))
-        .bind(work)
-        .fetch_all(&mut *conn)
-        .await?;
+    let rows =
+        sqlx::query(sqlx::AssertSqlSafe(format!("{FINDING_SELECT} WHERE f.work_id = ? ORDER BY f.created, f.id")))
+            .bind(work)
+            .fetch_all(&mut *conn)
+            .await?;
     if rows.is_empty() {
         return Ok(Vec::new());
     }
@@ -1292,7 +1294,7 @@ pub(crate) async fn mirror_files(conn: &mut SqliteConnection, work: WorkId) -> R
             (None, None) => "Beitrag gelöscht".to_owned(),
         };
         out.push_str(&format!("- Herkunft: {origin}, Stelle {}, angelegt {}\n", f.position, f.created));
-        let history = sqlx::query(&format!("{ENTRY_SELECT} WHERE s.finding_id = ? ORDER BY s.id"))
+        let history = sqlx::query(sqlx::AssertSqlSafe(format!("{ENTRY_SELECT} WHERE s.finding_id = ? ORDER BY s.id")))
             .bind(f.id)
             .fetch_all(&mut *conn)
             .await?;

@@ -101,7 +101,7 @@ impl Pg {
     /// Mehrere Anweisungen ohne Parameter (Testdaten anlegen).
     pub async fn exec(&self, sql: &str) {
         let mut conn = self.connect().await;
-        sqlx::raw_sql(sql).execute(&mut conn).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql)).execute(&mut conn).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
         let _ = conn.close().await;
     }
 
@@ -265,7 +265,10 @@ async fn start_cluster(bin: &Path) -> Result<Instance, String> {
         .database("postgres")
         .ssl_mode(PgSslMode::Disable);
     let mut conn = PgConnection::connect_with(&admin).await.map_err(|e| e.to_string())?;
-    sqlx::raw_sql(&format!("CREATE DATABASE {DATABASE}")).execute(&mut conn).await.map_err(|e| e.to_string())?;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {DATABASE}")))
+        .execute(&mut conn)
+        .await
+        .map_err(|e| e.to_string())?;
     let _ = conn.close().await;
     Ok(server)
 }
@@ -293,7 +296,7 @@ pub async fn start(task: &str) -> Option<Pg> {
         .database(DATABASE)
         .ssl_mode(PgSslMode::Disable);
     let mut conn = PgConnection::connect_with(&admin).await.expect("Verbindung zum Wegwerf-Server");
-    sqlx::raw_sql(&format!("CREATE DATABASE {database}"))
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {database}")))
         .execute(&mut conn)
         .await
         .unwrap_or_else(|e| panic!("CREATE DATABASE {database}: {e}"));

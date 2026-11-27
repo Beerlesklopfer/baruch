@@ -253,7 +253,10 @@ async fn contents(pool: &SqlitePool, only: &BTreeMap<String, Vec<String>>) -> BT
         };
         let select = columns.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         rows.insert(0, columns.join(","));
         out.insert(table, rows);
@@ -262,7 +265,7 @@ async fn contents(pool: &SqlitePool, only: &BTreeMap<String, Vec<String>>) -> BT
 }
 
 async fn count(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap()
 }
 
 // ---- Tests ------------------------------------------------------------------------------------

@@ -214,16 +214,17 @@ fn source_of((id, title, url, note, position, created, updated): SourceTuple) ->
 const SOURCE_COLUMNS: &str = "id, title, url, note, position, created, updated";
 
 async fn sources(conn: &mut SqliteConnection) -> Result<Vec<PreferredSource>, StoreError> {
-    let rows: Vec<SourceTuple> =
-        sqlx::query_as(&format!("SELECT {SOURCE_COLUMNS} FROM preferred_source ORDER BY position, id"))
-            .fetch_all(&mut *conn)
-            .await?;
+    let rows: Vec<SourceTuple> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {SOURCE_COLUMNS} FROM preferred_source ORDER BY position, id"
+    )))
+    .fetch_all(&mut *conn)
+    .await?;
     Ok(rows.into_iter().map(source_of).collect())
 }
 
 async fn source(conn: &mut SqliteConnection, id: i64) -> Result<PreferredSource, StoreError> {
     let row: Option<SourceTuple> =
-        sqlx::query_as(&format!("SELECT {SOURCE_COLUMNS} FROM preferred_source WHERE id = ?"))
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {SOURCE_COLUMNS} FROM preferred_source WHERE id = ?")))
             .bind(id)
             .fetch_optional(&mut *conn)
             .await?;

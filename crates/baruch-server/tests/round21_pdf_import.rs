@@ -751,9 +751,9 @@ async fn migration_0108_keeps_a_development_database_intact() {
             .unwrap();
             let mut out = std::collections::BTreeMap::new();
             for table in tables {
-                let rows: Vec<String> = sqlx::query_scalar(&format!(
+                let rows: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
                     "SELECT quote(json_group_array(json_array(*))) FROM (SELECT * FROM \"{table}\")"
-                ))
+                )))
                 .fetch_all(&pool)
                 .await
                 .unwrap_or_default();

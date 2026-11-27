@@ -180,13 +180,15 @@ fn to_link(row: Row) -> Result<IdeaLink, StoreError> {
 }
 
 async fn get(conn: &mut SqliteConnection, id: IdeaLinkId) -> Result<IdeaLink, StoreError> {
-    let row: Option<Row> =
-        sqlx::query_as(&format!("{SELECT} WHERE l.id = ?")).bind(id).fetch_optional(&mut *conn).await?;
+    let row: Option<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE l.id = ?")))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await?;
     to_link(row.ok_or_else(|| refuse(format!("Verbindung {id} gibt es nicht.")))?)
 }
 
 async fn many(conn: &mut SqliteConnection, sql: &str, binds: &[i64]) -> Result<Vec<IdeaLink>, StoreError> {
-    let mut query = sqlx::query_as::<_, Row>(sql);
+    let mut query = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(sql));
     for value in binds {
         query = query.bind(*value);
     }
@@ -232,7 +234,7 @@ pub(crate) async fn mirror_lines(
         "{SELECT} JOIN idea a ON a.id = l.from_id JOIN idea b ON b.id = l.to_id \
          WHERE {ACTIVE} AND (a.work_id IS ? OR b.work_id IS ?) ORDER BY l.id"
     );
-    let links: Vec<IdeaLink> = sqlx::query_as::<_, Row>(&sql)
+    let links: Vec<IdeaLink> = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(sql.as_str()))
         .bind(work)
         .bind(work)
         .fetch_all(&mut *conn)
@@ -277,10 +279,10 @@ pub(crate) async fn create_in(
     let (id, changed) = match existing {
         Some((id, None)) => (id, false),
         Some((id, Some(_))) => {
-            sqlx::query(&format!(
+            sqlx::query(sqlx::AssertSqlSafe(format!(
                 "UPDATE idea_link SET deleted = NULL, note = CASE WHEN ? = '' THEN note ELSE ? END, \
                  updated = {NOW} WHERE id = ?"
-            ))
+            )))
             .bind(&note)
             .bind(&note)
             .bind(id)
@@ -334,7 +336,7 @@ impl Store {
         if before.deleted.is_some() {
             return Err(refuse(format!("Verbindung {id} ist schon gelöscht.")));
         }
-        sqlx::query(&format!("UPDATE idea_link SET deleted = {NOW}, updated = {NOW} WHERE id = ?"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE idea_link SET deleted = {NOW}, updated = {NOW} WHERE id = ?")))
             .bind(id)
             .execute(&mut *tx)
             .await?;
@@ -352,7 +354,7 @@ impl Store {
             return Err(refuse(format!("Verbindung {id} ist nicht gelöscht.")));
         }
         check_pair(&mut tx, before.from, before.to).await?;
-        sqlx::query(&format!("UPDATE idea_link SET deleted = NULL, updated = {NOW} WHERE id = ?"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE idea_link SET deleted = NULL, updated = {NOW} WHERE id = ?")))
             .bind(id)
             .execute(&mut *tx)
             .await?;
@@ -421,11 +423,11 @@ impl Store {
         if found.work != Some(work) {
             return Err(refuse(format!("Einfall {idea} gehört nicht zu Werk {work}.")));
         }
-        let (x, y, updated): (f64, f64, String) = sqlx::query_as(&format!(
+        let (x, y, updated): (f64, f64, String) = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "INSERT INTO idea_map_pos (work_id, idea_id, x, y) VALUES (?, ?, ?, ?) \
              ON CONFLICT (work_id, idea_id) DO UPDATE SET x = excluded.x, y = excluded.y, updated = {NOW} \
              RETURNING x, y, updated"
-        ))
+        )))
         .bind(work)
         .bind(idea)
         .bind(x)

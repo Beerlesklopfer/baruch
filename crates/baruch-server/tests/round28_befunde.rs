@@ -60,10 +60,10 @@ async fn answer(
 
 /// Zeilen eines Beitrags als Text (für „byte-gleich vorher/nachher“).
 async fn post_row(server: &common::Server, table: &str, id: i64) -> String {
-    sqlx::query_scalar(&format!(
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT quote(author) || '|' || quote(body) || '|' || quote(sources) || '|' || quote(created) || '|' || \
          quote(position) || '|' || quote(edited) || '|' || quote(uuid) FROM {table} WHERE id = ?"
-    ))
+    )))
     .bind(id)
     .fetch_one(server.state.store.pool())
     .await

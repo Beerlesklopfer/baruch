@@ -100,7 +100,7 @@ async fn age_revision(server: &common::Server, key: i64, number: u64) {
         .execute(&mut *conn)
         .await
         .unwrap();
-    sqlx::query(&trigger).execute(&mut *conn).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(trigger.as_str())).execute(&mut *conn).await.unwrap();
 }
 
 async fn meadow(server: &common::Server) -> (i64, i64, std::path::PathBuf) {
@@ -536,7 +536,7 @@ fn comparable(xml: &str) -> String {
 }
 
 async fn uuid_of(server: &common::Server, sql: &str, id: i64) -> String {
-    sqlx::query_scalar(sql).bind(id).fetch_one(server.state.store.pool()).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).bind(id).fetch_one(server.state.store.pool()).await.unwrap()
 }
 
 #[tokio::test]
