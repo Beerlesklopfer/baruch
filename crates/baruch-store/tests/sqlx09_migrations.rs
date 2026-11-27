@@ -376,7 +376,9 @@ async fn a_really_changed_checksum_is_still_refused() {
     let rows_before = dump_all(&pool).await;
     pool.close().await;
 
-    let error = Store::open(dir.path()).await.err().expect("eine fremde Prüfsumme lehnt der Store ab");
+    let Err(error) = Store::open(dir.path()).await else {
+        panic!("eine fremde Prüfsumme lehnt der Store ab");
+    };
     assert!(
         matches!(&error, StoreError::Migrate(sqlx::migrate::MigrateError::VersionMismatch(12))),
         "die Prüfung der Prüfsummen ist unter 0.9 nicht abgeschaltet (Gegenprobe zum Test davor): {error}"
