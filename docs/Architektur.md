@@ -3041,6 +3041,8 @@ Seite, Kopfzeile in schmalen Fenstern und die Kanten der Gedankenkarte.
   - Ausgaben: SVG/PDF wie die Seite (Stil der Beschriftung in `STANDALONE_STYLE`); FreeMind `arrowlink` mit `COLOR`
     je Art (FreeMind kennt keine Strichart für Pfeile); Markdown nennt die Art wie bisher als Wort.
 
+<!-- R38c split: architektur_1 above, architektur_2 below -->
+
 ## Runde 18b – Konstrukte
 
 **Satzbild (`crates/baruch-wysiwyg`):** Neue Blockarten `Enum` (Aufzählung `1.`, `start`) und `Terms` (Begriffsliste,

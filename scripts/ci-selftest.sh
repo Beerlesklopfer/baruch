@@ -679,8 +679,15 @@ if has python3; then
     check_exit 0 "the allow list for umlauts in comments is well-formed" \
         "A malformed line (no TAB) would make every --umlaute run fail with a usage error." \
         python3 "$scripts/check-comments-only.py" --umlaute "$scripts/comment-umlaut-allow.txt"
+    check "check-doc-language.py --selftest" \
+        "The acceptance of the doc translation (Round 38c) rests on this tool: it must tell prose from quotations and code." \
+        python3 "$scripts/check-doc-language.py" --selftest
+    check "check-doc-language.py is valid Python" \
+        "A syntax error would otherwise only show up when a developer runs the check (py_compile into the temp directory)." \
+        python3 -c 'import py_compile, sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)' \
+        "$scripts/check-doc-language.py" "$tmp/check-doc-language.pyc"
 else
-    skipped="$skipped python3(check-comments-only)"
+    skipped="$skipped python3(check-comments-only,check-doc-language)"
 fi
 
 echo

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Round 38 "English for agents and developers", task regeln_doku: the rules (`AGENTS.md`), the developer docs and
-//! the history files.
+//! Round 38 "English for agents and developers", task regeln_doku, and Round 38c "developer docs in English, rest":
+//! the rules (`AGENTS.md`), the developer docs and the history files.
 //!
 //! These tests only read files of the repository: no server, no network, no data folder. They check what a
 //! translation can silently lose or leave half done: a rule missing from `AGENTS.md`, German prose left in a file
@@ -9,34 +9,55 @@
 
 use std::path::PathBuf;
 
-/// The ten Markdown files of the translation task (contract §2, first row; the contract counts eleven with the
-/// release notes in `release.yml`, which [`the_release_notes_are_english`] covers).
-const ALL_FILES: [&str; 10] = [
-    "AGENTS.md",
-    "SKILLS.md",
-    "README.md",
-    "docs/Architektur.md",
-    "docs/Plan.md",
-    "docs/Austauschformat.md",
-    "docs/WYSIWYG.md",
-    "docs/Verteilung.md",
-    "docs/Betrieb.md",
-    "docs/Bedienung.md",
-];
+/// The marker that splits `docs/Architektur.md` between the two translation tasks of Round 38c (contract S1 (a)):
+/// architektur_1 owns everything above it, architektur_2 everything below. Nobody edits the marker or the empty
+/// lines around it, so git merges both halves without conflict.
+const SPLIT: &str = "<!-- R38c split: architektur_1 above, architektur_2 below -->";
 
-/// Files that are English as a whole. A file moves here from [`PENDING`] in the commit that translates it.
-const TRANSLATED: [&str; 3] = ["AGENTS.md", "README.md", "docs/Betrieb.md"];
+/// Which part of a file an entry of [`FILES`] covers.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Part {
+    /// The whole file.
+    Whole,
+    /// Everything before the [`SPLIT`] line.
+    Above,
+    /// Everything after the [`SPLIT`] line.
+    Below,
+}
 
-/// Files of the task that Round 38 did not get to: still German, except for sections added since Round 38 (those
-/// are English and say so).
-const PENDING: [&str; 7] = [
-    "SKILLS.md",
-    "docs/Architektur.md",
-    "docs/Plan.md",
-    "docs/Austauschformat.md",
-    "docs/WYSIWYG.md",
-    "docs/Verteilung.md",
-    "docs/Bedienung.md",
+/// The state of an entry of [`FILES`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum State {
+    /// English as a whole; German only quoted or as code.
+    Translated,
+    /// Not yet translated: still German, except for sections added since Round 38 (those are English).
+    Pending,
+}
+
+/// The Markdown files (or parts of files) of the translation tasks of Rounds 38 and 38c (the release notes in
+/// `release.yml` are covered by [`the_release_notes_are_english`]). An entry flips from `Pending` to `Translated`
+/// in the commit that translates its last line. The blocks belong to their owners; the comment line above each
+/// block is the unchanged separator that lets git merge the blocks – nobody edits another block or a separator.
+const FILES: [(&str, Part, State); 13] = [
+    // Round 38, regeln_doku (done).
+    ("AGENTS.md", Part::Whole, State::Translated),
+    ("README.md", Part::Whole, State::Translated),
+    ("docs/Betrieb.md", Part::Whole, State::Translated),
+    // Round 38c, skills_plan.
+    ("SKILLS.md", Part::Whole, State::Pending),
+    ("docs/Plan.md", Part::Whole, State::Pending),
+    ("docs/Verteilung.md", Part::Whole, State::Pending),
+    ("docs/Bedienung.md", Part::Whole, State::Pending),
+    // Round 38c, mcp_austausch_wysiwyg.
+    ("docs/MCP.md", Part::Whole, State::Pending),
+    ("docs/Austauschformat.md", Part::Whole, State::Pending),
+    ("docs/WYSIWYG.md", Part::Whole, State::Pending),
+    // Round 38c, rpc_doku.
+    ("docs/RPC.md", Part::Whole, State::Pending),
+    // Round 38c, architektur_1.
+    ("docs/Architektur.md", Part::Above, State::Pending),
+    // Round 38c, architektur_2.
+    ("docs/Architektur.md", Part::Below, State::Pending),
 ];
 
 /// The four history files (contract §3).
@@ -104,8 +125,9 @@ fn prose(text: &str) -> Vec<String> {
     out
 }
 
-/// Lines of the prose that still carry a German letter, without the allowed exceptions.
-fn german_lines(file: &str, text: &str) -> Vec<String> {
+/// Lines of the prose that still carry a German letter, without the allowed exceptions. `offset` is the number of
+/// lines of the file before `text`, so that the reported line numbers are those of the file.
+fn german_lines(file: &str, text: &str, offset: usize) -> Vec<String> {
     let mut cleaned = text.to_string();
     for (owner, allowed, _) in ALLOWED {
         if owner == file {
@@ -116,8 +138,41 @@ fn german_lines(file: &str, text: &str) -> Vec<String> {
         .into_iter()
         .enumerate()
         .filter(|(_, line)| line.chars().any(is_german_letter))
-        .map(|(at, line)| format!("{file}:{}: {line}", at + 1))
+        .map(|(at, line)| format!("{file}:{}: {line}", offset + at + 1))
         .collect()
+}
+
+/// The text of one part of a file and the number of lines of the file before it: `Whole` is the whole file with
+/// offset 0, `Above` the text before the [`SPLIT`] line, `Below` the text after it (offset = lines up to and
+/// including the marker). Panics if a split part is asked for and the marker is missing or occurs more than once.
+fn part_text(file: &str, part: Part) -> (String, usize) {
+    let text = repo_file(file);
+    if part == Part::Whole {
+        return (text, 0);
+    }
+    let lines: Vec<&str> = text.lines().collect();
+    let at: Vec<usize> = lines.iter().enumerate().filter(|(_, l)| l.trim() == SPLIT).map(|(i, _)| i).collect();
+    assert!(
+        at.len() == 1,
+        "{file} has an entry {part:?} in FILES, so the marker {SPLIT} must stand in it exactly once on a line of its \
+         own (found {} times) – the two halves of the file are checked separately until the integrator joins them",
+        at.len()
+    );
+    let at = at[0];
+    // Every line keeps its own line break: a joined part would lose a trailing empty line (the one above the
+    // marker) when it is split into lines again.
+    let joined = |part: &[&str]| part.iter().map(|l| format!("{l}\n")).collect::<String>();
+    match part {
+        Part::Above => (joined(&lines[..at]), 0),
+        _ => (joined(&lines[at + 1..]), at + 1),
+    }
+}
+
+/// The German prose lines of one part of a file (prose filter and [`ALLOWED`] as for whole files), with the line
+/// numbers of the file.
+fn german_lines_of(file: &str, part: Part) -> Vec<String> {
+    let (text, offset) = part_text(file, part);
+    german_lines(file, &text, offset)
 }
 
 #[test]
@@ -135,26 +190,63 @@ fn the_prose_filter_keeps_prose_and_drops_quotations_and_code() {
 }
 
 #[test]
-fn every_file_of_the_task_is_translated_or_still_german() {
-    for file in ALL_FILES {
-        let translated = TRANSLATED.contains(&file);
-        let pending = PENDING.contains(&file);
-        assert!(
-            translated != pending,
-            "{file} has exactly one state – translated as a whole or not yet (contract §1: no half-translated files)"
+fn part_text_splits_at_the_marker_with_real_line_numbers() {
+    for (file, _, _) in FILES.iter().filter(|(_, part, _)| *part == Part::Above) {
+        let (above, above_offset) = part_text(file, Part::Above);
+        let (below, below_offset) = part_text(file, Part::Below);
+        let whole = repo_file(file);
+        assert_eq!(above_offset, 0, "{file}: the upper part starts at line 1 of the file");
+        assert_eq!(
+            above.lines().count() + 1 + below.lines().count(),
+            whole.lines().count(),
+            "{file}: above, the marker line and below together are the whole file – no line is lost or counted twice"
+        );
+        assert_eq!(
+            whole.lines().nth(below_offset - 1).map(str::trim),
+            Some(SPLIT),
+            "{file}: the offset of the lower part counts the lines up to and including the marker, so reported \
+             line numbers are those of the file"
+        );
+        assert_eq!(
+            whole.lines().nth(below_offset),
+            below.lines().next(),
+            "{file}: the lower part begins with the line right after the marker"
         );
     }
-    assert_eq!(
-        TRANSLATED.len() + PENDING.len(),
-        ALL_FILES.len(),
-        "the two lists name no file outside the task and none twice"
-    );
-    for file in PENDING {
-        let left = german_lines(file, &repo_file(file)).len();
+}
+
+#[test]
+fn every_file_of_the_task_is_translated_or_still_german() {
+    for (at, (file, part, _)) in FILES.iter().enumerate() {
+        assert!(
+            !FILES[..at].iter().any(|(f, p, _)| f == file && p == part),
+            "{file} ({part:?}) is listed at most once in FILES (one state per part, contract §1)"
+        );
+        let parts: Vec<Part> = FILES.iter().filter(|(f, _, _)| f == file).map(|(_, p, _)| *p).collect();
+        let whole = parts == [Part::Whole];
+        let split = parts.len() == 2 && parts.contains(&Part::Above) && parts.contains(&Part::Below);
+        assert!(
+            whole || split,
+            "{file} has either one Whole entry or both an Above and a Below entry, never a mix (found {parts:?}) – \
+             otherwise part of the file would be checked twice or not at all"
+        );
+        let markers = repo_file(file).lines().filter(|l| l.trim() == SPLIT).count();
+        assert_eq!(
+            markers,
+            usize::from(split),
+            "{file}: the split marker stands exactly once in a file with Above/Below entries and nowhere else (a \
+             stray marker would mean a half the test does not know)"
+        );
+    }
+    for (file, part, state) in FILES {
+        if state != State::Pending {
+            continue;
+        }
+        let left = german_lines_of(file, part).len();
         assert!(
             left >= 20,
-            "{file} is listed as not yet translated but has only {left} German lines of prose: a translated file \
-             belongs in TRANSLATED, where the check for leftover German applies to it"
+            "{file} ({part:?}) is listed as not yet translated but has only {left} German lines of prose: a \
+             translated part belongs to State::Translated, where the check for leftover German applies to it"
         );
     }
 }
@@ -167,12 +259,15 @@ fn translated_files_carry_german_only_as_quotation_or_code() {
             "the exception „{allowed}“ ({reason}) still occurs in {file} – an exception nobody needs is removed"
         );
     }
-    for file in TRANSLATED {
-        let left = german_lines(file, &repo_file(file));
+    for (file, part, state) in FILES {
+        if state != State::Translated {
+            continue;
+        }
+        let left = german_lines_of(file, part);
         assert!(
             left.is_empty(),
-            "{file} is English: umlauts and ß only inside „…“, \"…\" or code (quoted texts of the German user \
-             interface, paths, commands). Leftover German prose:\n{}",
+            "{file} ({part:?}) is English: umlauts and ß only inside „…“, \"…\" or code (quoted texts of the German \
+             user interface, paths, commands). Leftover German prose:\n{}",
             left.join("\n")
         );
     }
