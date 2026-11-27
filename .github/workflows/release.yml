@@ -6,8 +6,11 @@
 #
 # - Von Hand gestartet (workflow_dispatch) baut der Ablauf nur die Pakete als Artefakte, ohne Release und
 #   ohne Auslieferung.
-# - Das Release entsteht als Entwurf; der Nutzer veröffentlicht es. Repository-Variable RELEASE_DRAFT=false
-#   veröffentlicht sofort. Grenze: Ein Token mit `contents: read` sieht Entwürfe nicht – den Entwurf vor dem
+# - Das Release entsteht als Entwurf; der Nutzer veröffentlicht es – das löst pages.yml aus (`release:
+#   published`, Runde 36), das die Seite samt /apt/ noch einmal ausliefert, auch wenn der Tag auf dem Commit des
+#   letzten main-Laufs liegt. Repository-Variable RELEASE_DRAFT=false veröffentlicht sofort; dann löst nichts
+#   aus (Ereignisse des GITHUB_TOKEN starten keine Abläufe) und es bleibt bei den Jobs unten bzw. dem Handweg
+#   `gh workflow run pages.yml`. Grenze: Ein Token mit `contents: read` sieht Entwürfe nicht – den Entwurf vor dem
 #   nächsten Push auf main veröffentlichen, sonst fällt /apt/ auf den vorigen veröffentlichten Stand zurück.
 # - Linux (.deb) ist Pflicht. AppImage, macOS und Windows sind noch nie gebaut worden; scheitern sie, entsteht
 #   das Release trotzdem und nennt, was fehlt.
@@ -104,6 +107,10 @@ jobs:
           set -eu
           mkdir -p probe/root probe/data
           dpkg-deb -x dist/*.deb probe/root
+          # Runde 36: Die Typst-Kommandozeile ist ein Symlink auf den Server; eine Datei „typst“ gibt es nie.
+          [ "$(readlink probe/root/usr/bin/baruch-typst)" = baruch-server ]
+          [ ! -e probe/root/usr/bin/typst ]
+          probe/root/usr/bin/baruch-typst --version
           probe/root/usr/bin/baruch-server --data probe/data --secrets memory --listen 127.0.0.1:18765 &
           pid=$!
           ok=0

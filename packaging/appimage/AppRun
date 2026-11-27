@@ -5,8 +5,13 @@
 #                   usr/bin/baruch (packaging/linux/baruch) wählt das Fenster: BARUCH_BROWSER=app|standard,
 #                   BARUCH_NO_BROWSER=1 (beide werden unverändert durchgereicht)
 #   mit Argumenten: unverändert an baruch-server (z. B. `--help`, `import DATEI.typ`, `serve --listen …`)
+#   unter dem Namen baruch-typst oder typst gerufen (Symlink auf das AppImage; die Laufzeit nennt den Namen in
+#                   ARGV0): die Typst-Kommandozeile, also `baruch-server typst …` – auch ohne Argumente
 here="$(dirname "$(readlink -f "$0")")"
 export BARUCH_SERVER="$here/usr/bin/baruch-server"
+case "$(basename -- "${ARGV0:-}")" in
+    baruch-typst|typst) exec "$BARUCH_SERVER" typst "$@" ;;
+esac
 if [ $# -eq 0 ]; then
     exec "$here/usr/bin/baruch"
 fi

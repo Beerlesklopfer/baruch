@@ -112,6 +112,28 @@ selbst. Das minimierte Fenster zu schließen beendet Baruch ebenfalls.
 Die Pakete für macOS und Windows entstehen nur im automatischen Bau und sind weniger erprobt als die für
 Linux. Was geprüft ist und was nicht, steht in {{< doku "docs/Verteilung.md" "docs/Verteilung.md" >}}.
 
+## Typst-Kommandozeile
+
+Baruch bringt die Typst-Kommandozeile gleich mit – dasselbe Programm unter dem Namen `baruch-typst`, mit der
+eingebauten Engine und den eingebetteten Schriften. Ein eigenes Typst ist für den Typst-Ordner eines Exports
+nicht nötig:
+
+```sh
+baruch-typst compile buch.typ               # → buch.pdf
+baruch-typst compile buch.typ --root . --font-path ~/schriften
+baruch-typst fonts
+baruch-server typst --help                   # dasselbe ohne den Namen baruch-typst
+```
+
+Unter Debian und Ubuntu liegt `baruch-typst` in `/usr/bin`, unter macOS in `Baruch.app/Contents/MacOS/`, unter
+Windows als `baruch-typst.cmd` im Installationsordner; beim AppImage: `./Baruch-…AppImage typst compile …`. Ein
+Programm namens `typst` installiert kein Paket – ein eigenes Typst bleibt unberührt.
+
+Der Umfang ist bewusst klein: `compile` (PDF, PNG, SVG), `fonts`, `--version`. Eine vorhandene Ausgabedatei wird
+überschrieben, wie bei Typst. Pakete aus dem Netz (`@preview/…`), `watch` und `query` gibt es nicht; Baruch
+sagt das ehrlich und beendet sich mit einem Fehler. Einzelheiten:
+{{< doku "docs/Verteilung.md" "docs/Verteilung.md" >}}, Abschnitt „Typst-Kommandozeile“.
+
 ## Optional: Prüfsumme vergleichen
 
 Wer sichergehen will, dass die Datei unverändert ist, vergleicht ihre Prüfsumme mit `SHA256SUMS` von der

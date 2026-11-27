@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# CI: Tests, clippy, Typst-Satz eines Exports, Abhängigkeitsprüfung, Webseite, Hilfsskripte.
+# CI: Tests, clippy, Typst-Satz eines Exports (eigenes Programm), Abhängigkeitsprüfung, Webseite, Hilfsskripte.
 # Läuft bei Push auf main (Fast-Forward durch den Nutzer) und von Hand. Ablauf und Pflege: docs/Verteilung.md.
 #
 # - Aktionen sind auf Commit-SHAs festgelegt (am 2026-11-24 mit `git ls-remote` gegen die Tags geprüft).
-# - Rust steht in fester Version in RUST_VERSION (= `rustc --version` auf dem Entwicklungsrechner); Hugo und
-#   Typst lädt scripts/ci-tool.sh in fester Version mit Prüfsumme.
+# - Rust steht in fester Version in RUST_VERSION (= `rustc --version` auf dem Entwicklungsrechner); Hugo lädt
+#   scripts/ci-tool.sh in fester Version mit Prüfsumme. Typst wird nicht geladen: Den Satz prüft das eigene
+#   Programm unter dem Namen baruch-typst (scripts/ci-typst.sh, Runde 36).
 # - Kein Geheimnis: Dieser Ablauf braucht keins und bekommt nur Leserechte.
 # - scripts/ci-check-workflows.sh (Job „skripte“) prüft diese Regeln bei jedem Lauf nach.
 name: CI
@@ -73,14 +74,15 @@ jobs:
       - name: clippy (Warnungen sind Fehler)
         run: cargo clippy --workspace --all-targets --locked -j 4 -- -D warnings
 
-      # Der Export muss sich mit der Typst-Kommandozeile setzen lassen, nicht nur mit dem eingebetteten Compiler.
+      # Der Export muss sich als Datei von der Platte setzen lassen (`typst compile`), nicht nur aus der Datenbank.
+      # Seit Runde 36 setzt das eigene Programm als Typst-Kommandozeile: ci-typst.sh legt in seinem Temp-Ordner
+      # den Symlink baruch-typst an (wie die Pakete) – kein Download, derselbe Compiler wie in Baruch.
       # Die Binärdatei liegt nach den Tests schon unter target/debug; der Bau ist dann nur eine Prüfung.
-      - name: typst – erfundenes Werk importieren, exportieren, mit `typst compile` setzen
+      - name: typst – erfundenes Werk importieren, exportieren, mit `baruch-typst compile` setzen
         run: |
           set -eu
           cargo build --locked -p baruch-server -j 4
-          sh scripts/ci-tool.sh typst "$RUNNER_TEMP/werkzeug"
-          sh scripts/ci-typst.sh target/debug/baruch-server "$RUNNER_TEMP/werkzeug/typst"
+          sh scripts/ci-typst.sh target/debug/baruch-server
 
       - name: Platz am Ende (für die Pflege der Laufzeitgrenzen)
         if: always()

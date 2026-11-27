@@ -82,6 +82,15 @@ for path in files:
     if "pull_request_target" in listed:
         problem(name, "Auslöser pull_request_target ist verboten.")
 
+    # 12. Der Auslöser `release` nur als `types: [published]`. Grund: Ohne `types` startete der Ablauf bei jedem
+    #     Ereignis eines Release (angelegt, bearbeitet, gelöscht …) und lieferte die Seite mehrfach aus; gemeint
+    #     ist genau der Augenblick, in dem das Release öffentlich wird – erst dann ist sein apt-repo.tar.gz mit
+    #     Leserechten abrufbar (pages.yml, „Auslieferung über GitHub Pages“).
+    if "release" in listed:
+        release = triggers.get("release") if isinstance(triggers, dict) else None
+        if not isinstance(release, dict) or release.get("types") != ["published"]:
+            problem(name, "Auslöser release nur mit types: [published].")
+
     # 3. Oberste Rechte genau `contents: read`. Grund: Jeder Job ohne eigene Angabe erbt sie.
     if doc.get("permissions") != {"contents": "read"}:
         problem(name, f"oberste permissions müssen genau contents: read sein, sind: {doc.get('permissions')!r}")

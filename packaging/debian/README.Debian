@@ -7,6 +7,10 @@ Starten
   baruch              Server starten (falls noch keiner läuft) und die Oberfläche im Browser öffnen
   baruch-server       nur der Server (http://127.0.0.1:8765/); `baruch-server --help` zeigt Import/Export,
                       `baruch-server --version` die Version
+  baruch-typst        die Typst-Kommandozeile mit der eingebauten Engine (Symlink auf baruch-server):
+                      `baruch-typst compile buch.typ`, `baruch-typst fonts`, `baruch-typst --help`.
+                      Ohne Netz, ohne Pakete (@preview/…), ohne watch/query. Ein Programm namens
+                      `typst` installiert dieses Paket nicht; ein eigenes Typst bleibt unberührt.
 
 Im Startmenü heißt der Eintrag „Baruch“.
 

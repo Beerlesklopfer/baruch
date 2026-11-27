@@ -1,7 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Webseite: baut die Hugo-Seite (site/) und liefert sie über GitHub Pages aus – bei Push auf main und von Hand.
-# Ablauf und einmalige Einrichtung: docs/Verteilung.md.
+# Webseite: baut die Hugo-Seite (site/) und liefert sie über GitHub Pages aus – bei Push auf main, beim
+# Veröffentlichen eines Release und von Hand. Ablauf und einmalige Einrichtung: docs/Verteilung.md.
 #
+# - Auslöser `release: published` (Runde 36): Am 2026-11-24 kam die Auslieferung eines Release, dessen Tag auf dem
+#   Commit des letzten main-Laufs lag, nicht an. Sobald der Nutzer das Release veröffentlicht, läuft darum dieser
+#   Ablauf noch einmal – unabhängig vom Release-Lauf und mit /apt/ aus dem eben veröffentlichten Release. Gebaut
+#   wird dabei der Stand von main (nicht der des Tags), damit ein spät veröffentlichtes Release die Seite nicht
+#   auf einen älteren Stand zurücksetzt. Grenze: Ein Release, das der Arbeitsablauf selbst sofort veröffentlicht
+#   (RELEASE_DRAFT=false), löst nichts aus – Ereignisse des GITHUB_TOKEN starten keine Abläufe; dann von Hand
+#   (`gh workflow run pages.yml`). Nie ausgeführt geprüft (docs/Verteilung.md, „Stand der Prüfung“).
 # - Ein Seiten-Push darf das APT-Repository nicht löschen: Pages ersetzt immer die ganze Seite. Darum holt der
 #   Ablauf apt-repo.tar.gz des letzten veröffentlichten Release und legt es wieder nach /apt/.
 # - Gibt es noch kein veröffentlichtes Release mit dem Archiv, erscheint die Seite ohne /apt/ (Warnung). Jeder
@@ -15,6 +22,8 @@ name: Webseite
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -39,9 +48,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Beim Ereignis `release` zeigt der Lauf auf den Commit des Tags; gebaut wird trotzdem main (Kopf der Datei).
+      # Bei Push und von Hand bleibt `ref` leer – dann gilt der Commit des Laufs wie bisher.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'release' && 'main' || '' }}
 
       - name: Hugo (feste Version, Prüfsumme)
         run: sh scripts/ci-tool.sh hugo "$RUNNER_TEMP/werkzeug"

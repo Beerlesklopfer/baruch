@@ -60,6 +60,8 @@ if command -v strip >/dev/null 2>&1; then
     strip --strip-unneeded "$appdir/usr/bin/baruch-server"
 fi
 install -Dm755 packaging/linux/baruch "$appdir/usr/bin/baruch"
+# Typst-Kommandozeile (Runde 36): nur der Name baruch-typst, als Symlink im selben Ordner; nie eine Datei „typst“.
+ln -s baruch-server "$appdir/usr/bin/baruch-typst"
 install -Dm755 packaging/appimage/AppRun "$appdir/AppRun"
 install -Dm644 packaging/linux/baruch.desktop "$appdir/usr/share/applications/baruch.desktop"
 install -Dm644 packaging/icons/baruch.svg "$appdir/usr/share/icons/hicolor/scalable/apps/baruch.svg"

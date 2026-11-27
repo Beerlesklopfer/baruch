@@ -20,9 +20,9 @@ an und liefert Webseite und Repository über GitHub Pages aus. Es gibt keinen Ha
 
 | Arbeitsablauf | Auslöser | Was er tut |
 |---|---|---|
-| `.github/workflows/ci.yml` | Push auf `main`, von Hand | `cargo fmt --check`, Tests, clippy (`-D warnings`), `typst compile` eines Exports, `cargo deny check`, Seitenbau (ohne Auslieferung), Selbsttest der Hilfsskripte |
+| `.github/workflows/ci.yml` | Push auf `main`, von Hand | `cargo fmt --check`, Tests, clippy (`-D warnings`), `typst compile` eines Exports mit dem eigenen Programm (`baruch-typst`, ohne Download), `cargo deny check`, Seitenbau (ohne Auslieferung), Selbsttest der Hilfsskripte |
 | `.github/workflows/release.yml` | Tag `v*`, von Hand (dann nur Pakete als Artefakte) | Pakete → APT-Repository → `SHA256SUMS` → GitHub-Release → Webseite samt `/apt/` über GitHub Pages |
-| `.github/workflows/pages.yml` | Push auf `main`, von Hand | Webseite neu bauen, `/apt/` aus dem letzten veröffentlichten Release wieder einspielen (Job `pages-build`), ausliefern (Job `pages-deploy`) |
+| `.github/workflows/pages.yml` | Push auf `main`, Veröffentlichen eines Release, von Hand | Webseite neu bauen, `/apt/` aus dem letzten veröffentlichten Release wieder einspielen (Job `pages-build`), ausliefern (Job `pages-deploy`) |
 
 Die Version steht an einer Stelle: `[workspace.package] version` in `Cargo.toml` (`scripts/version.sh` liest sie).
 Ein Tag `v<Version>` muss dazu passen, sonst bricht der Bau ab; `params.version` in `site/hugo.toml` muss
@@ -126,12 +126,48 @@ Repositorys mehr aus, und ein gescheitertes Ausliefern lässt sich allein wieder
 (`!cancelled() && needs.pages-build.result == 'success'`), sonst gälte er als übersprungen, wenn macOS oder
 Windows scheitern. **Ungeprüft:** Die Trennung ist nie gelaufen (nichts ausgelöst, kein Push); ob sie den
 beobachteten Fehler behebt, zeigt erst der nächste Lauf. Die zweite Beobachtung vom selben Tag – ein Tag auf
-demselben Commit wie der letzte Lauf von `main` wird nicht neu ausgeliefert – löst sie nicht (steht im Backlog).
+demselben Commit wie der letzte Lauf von `main` wird nicht neu ausgeliefert – löst sie nicht; dafür steht seit
+Runde 36 der Abschnitt „Auslieferung je Commit“ unten.
 
 Das Repository ist ansammelnd: `Packages` nennt alle bisher veröffentlichten Versionen
 (`apt install baruch=0.9.0-1` bleibt möglich). Die Kette läuft über die Releases – jedes `apt-repo.tar.gz`
 enthält die Pakete aller Vorgänger. Ein Paket ganz zurückziehen heißt darum: das Archiv des jüngsten Release
 ohne dieses Paket neu erzeugen und am Release ersetzen.
+
+### Auslieferung je Commit
+
+Beobachtung vom 2026-11-24: Der Tag des Release lag auf demselben Commit wie der letzte Lauf von `main`, und die
+Auslieferung des Release-Laufs kam nicht an – auf der Seite stand weiter der Stand von `pages.yml`. Die Ursache
+ist nicht gemessen (in Frage kommen die Gruppe `pages` – der wartende Job wird verdrängt, siehe oben – und der am
+selben Tag beobachtete Fehler von `deploy-pages`).
+
+Vorgehen seit Runde 36: `pages.yml` hat zusätzlich den Auslöser `release: types: [published]`. Sobald der
+Nutzer den Entwurf veröffentlicht, läuft `pages.yml` noch einmal und liefert die Seite samt `/apt/` aus dem eben
+veröffentlichten Release aus – ein eigener Lauf, unabhängig vom Release-Lauf und davon, auf welchem Commit der
+Tag liegt.
+
+- **Gebaut wird `main`, nicht der Tag.** Beim Ereignis `release` zeigt der Lauf auf den Commit des Tags; der
+  Checkout nennt darum `ref: main`. Sonst setzte ein spät veröffentlichtes Release die Seite auf den Stand
+  seines Tags zurück. Bei Push und von Hand bleibt es beim Commit des Laufs.
+- **Warum dieser Weg:** Er braucht kein weiteres Recht. Den Ablauf aus `release.yml` heraus zu starten
+  (`gh workflow run`) verlangte dort `actions: write` – ein Schreibrecht mehr, gegen die Regel „nur dort, wo es
+  gebraucht wird“. Der Auslöser sitzt außerdem an der richtigen Stelle: Erst mit dem Veröffentlichen ist
+  `apt-repo.tar.gz` für `pages.yml` (Leserechte) abrufbar.
+- **Grenze `RELEASE_DRAFT=false`:** Veröffentlicht der Release-Lauf selbst, löst das nichts aus – Ereignisse des
+  `GITHUB_TOKEN` starten keine Abläufe. Dann bleibt es bei den Jobs `pages-build`/`pages-deploy` des
+  Release-Laufs und dem Handweg.
+- **Umgebung `github-pages`:** Der Lauf kommt vom Tag (`refs/tags/v…`); die Umgebung muss Tags `v*` zulassen
+  (wie schon für `release.yml`, „Einmalige Einrichtung“).
+- **Handweg**, wenn die Seite nach einem Release nicht den neuen Stand zeigt (Release muss veröffentlicht
+  sein): `gh workflow run pages.yml --ref main` oder Actions → Webseite → „Run workflow“. Ein abgebrochenes
+  `pages-deploy` des Release-Laufs lässt sich auch allein wiederholen.
+- Die Gruppe `pages` und die Regel „`main` erst nach dem Release-Lauf schieben“ gelten unverändert; der neue
+  Lauf reiht sich in die Gruppe ein. `scripts/ci-check-workflows.sh` lässt den Auslöser `release` nur als
+  `types: [published]` zu.
+
+**Nie ausgeführt geprüft:** Der Auslöser, der Checkout von `main` beim Ereignis `release` und die Freigabe der
+Umgebung für diesen Lauf sind nur gelesen (YAML, Regelprüfung, Selbsttest) – nichts wurde ausgelöst, kein Push,
+kein Tag. Ob damit die Beobachtung vom 2026-11-24 behoben ist, zeigt erst das nächste Release.
 
 ### Grenze bei Entwürfen
 
@@ -145,7 +181,8 @@ Ein Token mit `contents: read` sieht Entwürfe nicht. Solange das neue Release e
 - zeigen die Download-Links der Webseite ins Leere (die Dateien eines Entwurfs sind nicht öffentlich).
 
 Darum: den Entwurf zeitnah und vor dem nächsten Push auf `main` veröffentlichen. Nach dem Veröffentlichen ist
-kein weiterer Schritt nötig; die Seite samt `/apt/` hat `release.yml` schon ausgeliefert.
+kein weiterer Schritt nötig: Die Seite samt `/apt/` hat `release.yml` schon ausgeliefert, und das Veröffentlichen
+löst `pages.yml` noch einmal aus („Auslieferung je Commit“).
 
 ## Einmalige Einrichtung
 
@@ -269,7 +306,7 @@ Die Signierung für macOS und Windows ist vorbereitet und **abgeschaltet**; beid
 
 - Jede Aktion ist auf einen 40-stelligen Commit-SHA festgelegt, mit der Version als Kommentar
   (`uses: actions/checkout@<SHA> # v4.2.2`). Ein Tag lässt sich verschieben, ein SHA nicht.
-- Kein `pull_request_target`.
+- Kein `pull_request_target`. Der Auslöser `release` nur als `types: [published]` (nur `pages.yml` nutzt ihn).
 - Oberste Rechte sind genau `contents: read`. `contents: write` hat nur der Job `publish` in `release.yml`;
   `pages: write` und `id-token: write` haben nur die Jobs `pages-deploy` (in `release.yml` und `pages.yml`),
   beide in der Umgebung `github-pages`.
@@ -294,7 +331,6 @@ Festgelegte Werkzeuge (Stand 2026-11-24):
 | cargo-deny | 0.22.0 | `CARGO_DENY_VERSION` in `ci.yml` | Quellbau mit `--locked` (crates.io) |
 | cargo-deb | 3.7.0 | `CARGO_DEB_VERSION` in `release.yml` | Quellbau mit `--locked` (crates.io) |
 | Hugo | 0.168.0 (nicht „extended“) | `scripts/ci-tool.sh` | SHA-256 aus `hugo_0.168.0_checksums.txt` |
-| Typst | 0.15.1 (= Crate `typst` in `Cargo.lock`) | `scripts/ci-tool.sh` | SHA-256 aus dem Feld `digest` des GitHub-Release |
 | appimagetool, type2-runtime | 1.9.1, 20251108 | `packaging/appimage/build-appimage.sh` | SHA-256 aus dem Feld `digest` |
 | actions/checkout | v4.2.2 | alle Abläufe | `11bd71901bbe5b1630ceea73d27597364c9af683` |
 | actions/setup-node | v4.4.0 | `ci.yml`, `release.yml` | `49933ea5288caeca8642d1e84afbd3f7d6820020` |
@@ -302,6 +338,9 @@ Festgelegte Werkzeuge (Stand 2026-11-24):
 | actions/download-artifact | v4.3.0 | `release.yml` | `d3f86a106a0bac45b974a628896c90dbdf5c8093` |
 | actions/upload-pages-artifact | v5.0.0 | `release.yml`, `pages.yml` | `fc324d3547104276b827a68afc52ff2a11cc49c9` |
 | actions/deploy-pages | v5.0.1 | `release.yml`, `pages.yml` | `368f82528645a54fb793d4d04e342629a3f51346` |
+
+Typst steht seit Runde 36 nicht mehr in der Tabelle: Die CI lädt keine Typst-Kommandozeile, sie setzt mit dem
+eigenen Programm (`baruch-typst`, Abschnitt „Typst-Kommandozeile“).
 
 Nicht festgelegt: `protoc`, `apt-utils`, `gnupg` und `python3-yaml` kommen aus der Paketquelle des Runners (apt,
 Homebrew, Chocolatey), `gh` aus dem Abbild des Runners, Node ist die jeweils aktuelle 22, WiX das des
@@ -409,6 +448,71 @@ Prüfsumme vergleichen (`Get-FileHash Baruch-0.9.0-x64.msi -Algorithm SHA256`). 
 Startmenü: ein minimiertes Fenster mit dem Server, dazu der Browser (Edge als eigenes App-Fenster, sonst der
 Standardbrowser). Beenden: Baruch ▾ → „Baruch beenden…“ in der Oberfläche oder das minimierte Fenster schließen.
 
+## Typst-Kommandozeile
+
+Seit Runde 36 ist Baruch auch die Typst-Kommandozeile – dasselbe Programm, dieselbe eingebaute Engine (Typst
+0.15.1) und dieselben eingebetteten Schriften wie im Server, ohne zweite Binärdatei:
+
+```sh
+baruch-typst compile buch.typ                 # → buch.pdf neben der Eingabe
+baruch-typst compile buch.typ aus/buch.pdf --root . --font-path ~/schriften
+baruch-typst compile buch.typ "seite-{0p}.png" --ppi 300      # je Seite ein Bild
+baruch-typst fonts                            # Familiennamen, eine je Zeile
+baruch-typst --version                        # typst 0.15.1 (Baruch <Version>)
+baruch-server typst compile buch.typ          # dasselbe ohne Symlink
+```
+
+Das Programm wird zur Typst-Kommandozeile, wenn es unter dem Namen `baruch-typst` oder `typst` gerufen wird
+(Symlink; unter Windows zählt auch `.exe`, Groß und Klein sind egal) oder wenn das erste Argument `typst` ist
+(`baruch-server typst …`). Es braucht dann keinen Datenordner, startet keinen Server und fasst das Netz nicht an.
+Gedacht ist es für den Typst-Ordner eines Exports (`baruch-server export <Werk> --out ORDNER` oder der
+Git-Spiegel des Werks): Er lässt sich ohne ein eigenes Typst setzen.
+
+| Angabe | Bedeutung |
+|---|---|
+| `compile EINGABE [AUSGABE]` (kurz `c`) | setzt die Datei; ohne AUSGABE entsteht die Eingabe mit der Endung des Formats |
+| `--root ORDNER` | Wurzelordner des Projekts (Vorgabe: Ordner der Eingabe). Dateien außerhalb sind gesperrt, auch über `../` oder einen Symlink |
+| `--font-path ORDNER` | weitere Schriften (mehrfach; auch die Umgebungsvariable `TYPST_FONT_PATHS`), zusätzlich zu den eingebetteten und den Systemschriften |
+| `--format pdf\|png\|svg` (kurz `-f`) | ohne Angabe nach der Endung der Ausgabe, sonst PDF |
+| `--ppi ZAHL` | Auflösung für PNG (Vorgabe 144) |
+| `{p}`, `{0p}`, `{t}` im Namen der Ausgabe | Seitennummer, Seitennummer mit führenden Nullen, Seitenzahl. PNG und SVG mit mehreren Seiten verlangen eine dieser Marken, sonst Exit 1 |
+| `fonts [--font-path ORDNER]` | Familiennamen der verfügbaren Schriften |
+| `--version`, `--help` | `typst <Typst-Version> (Baruch <Version>)`; Hilfe auf Deutsch |
+
+Exit-Codes: 0 Erfolg; 1 Satz- oder Dateifehler (Meldungen als `datei:zeile:spalte: error: text` auf der
+Fehlerausgabe, Warnungen ebenso mit `warning:`); 2 falscher Aufruf oder Nicht-Unterstütztes.
+
+Unterschiede zu Typst und zum Export von Baruch:
+
+- **`compile` überschreibt** eine vorhandene Ausgabedatei, wie Typst. Der Export von Baruch
+  (`baruch-server export … --pdf DATEI`) tut das nie. Geschrieben wird erst nach gelungenem Satz: Bei einem
+  Fehler entsteht keine Datei, und eine vorhandene bleibt, wie sie war.
+- **Keine Pakete, kein Netz:** `#import "@preview/…"` endet mit Exit 1 und der Meldung „Typst-Pakete werden
+  nicht geladen (offline)“ – wie im Server.
+- **Nicht unterstützt** (Exit 2, deutsche Meldung „… unterstützt Baruch als Typst-Alias nicht“, nichts wird
+  gelesen oder geschrieben): `watch`, `query`, `init`, `update`, `eval`, `completions`, `info`, die Eingabe von
+  der Standardeingabe (`-`), die Ausgabe auf die Standardausgabe, HTML und jeder weitere Schalter von Typst
+  (`--input`, `--pages`, `--pdf-standard`, `--open`, `--jobs` …). Ein Schalter wird nie still übergangen.
+- Ein Werk setzt Baruch selbst (`export --pdf`, Satz-Vorschau) mit den Bildern aus der Datenbank; die
+  Kommandozeile liest nur Dateien von der Platte.
+
+Was die Pakete mitbringen – **nie eine Datei namens `typst`**, ein eigenes Typst bleibt unberührt:
+
+| Paket | Typst-Kommandozeile |
+|---|---|
+| .deb | `/usr/bin/baruch-typst`, Symlink auf `baruch-server` (cargo-deb `preserve-symlinks`, Quelle `packaging/linux/baruch-typst`) |
+| AppImage | im Abbild `usr/bin/baruch-typst` (Symlink). Von außen: `./Baruch-…AppImage typst compile …`, oder ein eigener Symlink `ln -s /pfad/Baruch-…AppImage ~/bin/baruch-typst` – `AppRun` erkennt den Namen an `ARGV0` |
+| macOS | `Baruch.app/Contents/MacOS/baruch-typst` (Symlink), Aufruf z. B. `/Applications/Baruch.app/Contents/MacOS/baruch-typst compile buch.typ` |
+| Windows | `baruch-typst.cmd` neben `baruch-server.exe` (ruft `baruch-server.exe typst %*`); der Installationsordner steht nicht im `PATH` |
+
+Wer das Programm lieber als `typst` ruft, legt den Symlink selbst an (`ln -s "$(command -v baruch-server)"
+~/bin/typst`). Der Name `baruch-typst` meint hier das Kommando; das gleichnamige Crate im Quelltext
+(`crates/baruch-typst`, Werkvorlage und Gliederung) ist etwas anderes.
+
+Quelltext: Argumente in `crates/baruch-server/src/typst_cli.rs`, Satz in `crates/baruch-render/src/cli.rs`;
+`TYPST_VERSION` dort folgt dem Crate `typst` in `Cargo.lock` (Tests `baruch-render/tests/cli.rs` und
+`round36_typst.rs` halten das fest).
+
 ## Baruch beenden
 
 Seit Runde 32 beendet sich Baruch über die Oberfläche: **Baruch ▾ → „Baruch beenden…“** öffnet die Rückfrage
@@ -476,8 +580,9 @@ scripts/ci-selftest.sh                    # Hilfsskripte und Regeln der Arbeitsa
 scripts/ci-check-workflows.sh             # nur die Regeln der Arbeitsabläufe
 scripts/ci-fingerprint.sh                 # Fingerabdruck des Archivschlüssels: Exit 3 = noch nicht eingetragen
 scripts/ci-site.sh                        # Versionsabgleich und hugo --minify --panicOnWarning -s site
-scripts/ci-typst.sh target/debug/baruch-server            # Import, Export, typst compile (braucht typst)
-scripts/ci-typst.sh target/debug/baruch-server -          # ohne Typst-Kommandozeile: nur Import und Export
+scripts/ci-typst.sh target/debug/baruch-server            # Import, Export, Satz mit dem eigenen Programm (baruch-typst)
+scripts/ci-typst.sh target/debug/baruch-server typst      # Gegenprobe mit einem fremden Typst aus dem PATH
+scripts/ci-typst.sh target/debug/baruch-server -          # nur Import und Export
 ```
 
 `scripts/ci-selftest.sh` arbeitet nur mit erfundenen Daten in einem Temp-Ordner: zwei erfundene
@@ -560,17 +665,16 @@ zusammengeführten Stand durch den Integrator, Neubau im Release-Profil):
   `git ls-remote` gegen die Tags geprüft (Tabelle oben).
 - `scripts/ci-typst.sh … -`: Import und Export des erfundenen Werks `scripts/ci-data/leuchtturm.typ` mit der
   lokal gebauten Binärdatei.
-- `scripts/ci-tool.sh typst ORDNER`: geladen, Prüfsumme geprüft, entpackt, `typst --version` meldet 0.15.1.
-  Die SHA-256-Summen beider Archive (Hugo, Typst) sind zusätzlich von Hand nachgerechnet (`sha256sum` auf den
-  geladenen Dateien) und stimmen mit `scripts/ci-tool.sh` überein; die Namen im Archiv (`hugo` bzw.
-  `typst-x86_64-unknown-linux-musl/typst`) ebenso.
+- Die SHA-256-Summe des Hugo-Archivs ist von Hand nachgerechnet (`sha256sum` auf der geladenen Datei) und
+  stimmt mit `scripts/ci-tool.sh` überein, der Name im Archiv (`hugo`) ebenso. (Der Download von Typst, damals
+  ebenso geprüft, ist seit Runde 36 entfernt.)
 **Nie gelaufen** (nur in der CI prüfbar; der erste Lauf per „Run workflow“ zeigt es):
 
 - alle drei Arbeitsabläufe selbst, auch die Auslieferung über Pages (Umgebung `github-pages` von einem Tag aus,
   eigene Domain, HTTPS);
-- `typst compile` des exportierten Werks mit der Typst-Kommandozeile: Die Arbeitsumgebung der Runde ließ den
-  Aufruf nicht zu (vom Entwickler zweimal und vom Integrator einmal versucht, nicht umgangen). Ob der Export mit Typst 0.15.1 von der Kommandozeile
-  setzt, zeigt erst der Job `test` in `ci.yml`;
+- `typst compile` des exportierten Werks mit einem **fremden** Typst (Gegenprobe `scripts/ci-typst.sh … typst`):
+  nie gelaufen. Mit dem eigenen Programm läuft der Satz seit Runde 36 lokal (siehe unten);
+- der Auslöser `release: published` von `pages.yml` samt Checkout von `main` („Auslieferung je Commit“);
 - `scripts/ci-tool.sh hugo` (das Laden von Hugo; lokal liegt Hugo 0.168.0 schon vor – die Prüfsumme des
   Archivs ist nachgerechnet, siehe oben);
 - `scripts/ci-apt-fetch.sh` gegen das echte GitHub (`gh api`, `gh release download`);
@@ -582,7 +686,31 @@ zusammengeführten Stand durch den Integrator, Neubau im Release-Profil):
   macOS, der Schlüsselbund dort, die Programmsuche und der Abbruch fremder Programme unter Windows (`taskkill`);
   der Bau des AppImage **in der CI** (lokal gebaut, siehe oben); `lintian`;
 - `actionlint` und `shellcheck`: fehlen auf dem Rechner und liefen **nicht**. Die Skripte sind mit `sh -n`
-  geprüft und – bis auf `ci-tool.sh hugo` und den Satz in `ci-typst.sh` – ausgeführt.
+  geprüft und – bis auf `ci-tool.sh hugo` – ausgeführt.
+
+Runde 36 (2026-11-27, Typst-Kommandozeile und „Auslieferung je Commit“), lokal geprüft:
+
+- Tests `crates/baruch-render/tests/cli.rs` (Engine: PDF, PNG, SVG, Wurzelordner samt Symlink nach außen,
+  Schriftordner mit einer umbenannten Schrift, Meldungen mit Ort, keine Pakete) und
+  `crates/baruch-server/tests/round36_typst.rs` (Kommandozeile im Prozess und über die gebaute Binärdatei als
+  Symlink `baruch-typst`, als Symlink `typst` und als `baruch-server typst`; Paketvorschriften, CI und Doku am
+  Text; `AppRun` gegen einen Nachbau von `baruch-server`).
+- `scripts/ci-typst.sh target/debug/baruch-server`: Import, Export und Satz des erfundenen Werks mit dem eigenen
+  Programm über den Symlink `baruch-typst` (PDF mit 28928 Bytes), dazu die Gegenproben (`watch` → Exit 2,
+  Satzfehler → Exit 1 ohne Datei).
+- .deb mit `scripts/build-deb.sh --no-build` paketiert (als Binärdatei diente der Debug-Bau, kein Release-Bau):
+  `dpkg-deb -c` zeigt `./usr/bin/baruch-typst -> baruch-server` als Symlink und keine Datei `typst`; aus dem
+  entpackten Paket meldet `usr/bin/baruch-typst --version` „typst 0.15.1 (Baruch 0.9.0)“.
+- AppDir mit `packaging/appimage/build-appimage.sh --appdir-only`: `usr/bin/baruch-typst` ist der Symlink und
+  antwortet ebenso. Das AppImage selbst (Laufzeit, `ARGV0`) ist nicht gebaut worden.
+- `scripts/ci-selftest.sh` (80 Zusicherungen, darunter der Ablauf von `ci-typst.sh` gegen einen Nachbau, „kein
+  Typst-Download“ und der Auslöser `release`), `scripts/ci-check-workflows.sh`, alle drei Arbeitsabläufe mit
+  Python `yaml.safe_load` gelesen, `hugo --minify --panicOnWarning -s site` ohne Warnung.
+
+Nicht geprüft in Runde 36: AppImage, .dmg und .msi sind nicht gebaut worden (die Vorschriften sind nur am Text
+und `AppRun` gegen einen Nachbau geprüft); `baruch-typst.cmd` ist auf keinem Windows gelaufen; ob `codesign` und
+die Notarisierung den Symlink `Contents/MacOS/baruch-typst` hinnehmen, zeigt erst der nächste Release-Lauf; die
+Arbeitsabläufe sind nicht ausgelöst worden. `actionlint`, `yamllint` und `shellcheck` fehlen weiterhin.
 
 ## Werkzeuge anheben
 
@@ -591,11 +719,12 @@ zusammengeführten Stand durch den Integrator, Neubau im Release-Profil):
   oben ändern. `scripts/ci-check-workflows.sh` prüft die Form, nicht, ob der SHA zum Tag gehört.
 - **Rust:** `RUST_VERSION` in `ci.yml` und `release.yml` auf denselben Wert; vorher lokal mit dieser Version
   clippy laufen lassen (neue Versionen bringen neue Warnungen).
-- **Hugo, Typst:** Version und SHA-256 stehen oben in `scripts/ci-tool.sh`. Hugo: Zeile
-  `hugo_<Version>_linux-amd64.tar.gz` aus `hugo_<Version>_checksums.txt` des Release. Typst: Feld `digest` von
-  `typst-x86_64-unknown-linux-musl.tar.xz` unter
-  `https://api.github.com/repos/typst/typst/releases/tags/v<Version>`. Typst folgt dem Crate `typst` in
-  `Cargo.lock`; nach einem `cargo update` meldet `scripts/ci-selftest.sh` die Abweichung.
+- **Hugo:** Version und SHA-256 stehen oben in `scripts/ci-tool.sh`: Zeile
+  `hugo_<Version>_linux-amd64.tar.gz` aus `hugo_<Version>_checksums.txt` des Release.
+- **Typst:** kein Download mehr, also keine Prüfsumme. Wer die Crates `typst*` in `crates/baruch-render/Cargo.toml`
+  anhebt, zieht `TYPST_VERSION` in `crates/baruch-render/src/cli.rs` nach (das meldet `typst --version`). Vergisst
+  man es, scheitern `baruch-render/tests/cli.rs`, `round36_typst.rs` und in der CI `scripts/ci-typst.sh`
+  (Abgleich mit `Cargo.lock`).
 - **appimagetool und Laufzeit:** Version und SHA-256 stehen oben in `packaging/appimage/build-appimage.sh`
   (Feld `digest` unter `https://api.github.com/repos/AppImage/appimagetool/releases/tags/<Version>`, ebenso
   `AppImage/type2-runtime`).
