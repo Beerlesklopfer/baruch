@@ -111,6 +111,13 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
         }
     };
     let Some(text) = std::str::from_utf8(&bytes).ok().filter(|t| t.contains(MARKER)) else {
+        // Runde 36: Die eigenständigen Seiten der Konten (`/anmelden`, `/einrichten`, ohne Menüband und ohne Marke)
+        // folgen dem Cookie `baruch_theme` – ohne JavaScript, ohne Cookie unverändert.
+        let theme = crate::view::Settings::from_cookie_header(cookies.as_deref()).theme;
+        if let Some(page) = std::str::from_utf8(&bytes).ok().and_then(|t| crate::konten_ui::themed(t, theme)) {
+            parts.headers.remove(header::CONTENT_LENGTH);
+            return Response::from_parts(parts, Body::from(page));
+        }
         return Response::from_parts(parts, Body::from(bytes));
     };
     // Runde 35: Zustimmen kann nur der Autor – Hinweisleiste und Dialog bekommt darum nur, wer volle Rechte hat
@@ -131,6 +138,8 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
     } else {
         page
     };
+    // Runde 36: Anzeigename zur Herkunft `@lektorat:<slug>` (nur mit Konten, nur im Text der Herkunfts-Elemente).
+    let page = crate::konten_ui::names::show_for(&state, page).await;
     for cookie in
         crate::band::set_cookies(query.as_deref()).into_iter().chain(crate::laptop::set_cookies(query.as_deref()))
     {

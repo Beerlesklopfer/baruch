@@ -5953,3 +5953,127 @@ Vorher eine Sicherung anlegen oder mit einem eigenen Datenordner prüfen (`--dat
     account_session'` → nur `$argon2id$v=19$m=19456,t=2,p=1$…` und 64 Hex-Zeichen.
 24. Als Lektor mit zwei freigegebenen Werken: im zweiten Werk arbeiten, dann „Baruch ▾ → Alle Werke“ und „Zurück zum
     Werk“ → das zuletzt geöffnete Werk, nie ein fremdes.
+
+## Runde 36 – Reste
+
+Kleine, klar abgegrenzte Punkte aus den Runden 33 bis 35, aus der Gegenprobe 0.9.0 und aus der Liste „offen nach
+R24“ (Aufgabe `reste`; Bedienung in `docs/Bedienung.md`, „Runde 36 – Reste“). Keine neue Route, keine neue
+RPC-Methode, kein neues MCP-Werkzeug, keine Migration (die reservierte Nummer 0055 bleibt unbenutzt), keine neue
+Abhängigkeit. Neues SQL steht nur in `crates/baruch-store/src/reste36.rs`, als Zeichenketten-Literale mit gebundenen
+Werten.
+
+### Konten und Rollen
+
+- **Notweg `passwort`** (`auth/cli.rs`): Nach `account_set_password` ruft `reset_password`
+  `Store::login_reset(&throttle::account_scope(name))` auf. Der Bereich hängt am Namensschlüssel des Kontos; der
+  Bereich der Adresse und die Bereiche anderer Namen bleiben. Ein abgelehnter Aufruf (zu kurzes Passwort,
+  unbekanntes Konto) ändert nichts.
+- **Werk-Bindung gelockert** (`roles/mod.rs`): `GET /einstellungen/darstellung` in `LEKTOR_ROUTES` sowie
+  `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`, `wysiwyg.style` und `ribbon.formats` in `LEKTOR_RPC` stehen
+  auf `WorkFrom::None`. Das trägt, weil alle Wege zu einem Werk ohne ausdrückliches `work` für einen Lektor nur
+  Freigegebenes liefern: `AppState::default_work` gibt ihm das kleinste freigegebene Werk und ohne Freigabe keines;
+  `settings::resolve_work` lässt das Cookie `baruch_work` für einen Lektor nur gelten, wenn `roles::role_in` das Werk
+  als freigegeben kennt (vorher hätte die Seite ohne `work` das zuletzt geöffnete Werk aus dem Cookie genommen). Ein
+  in der Adresse oder im Parameter genanntes `work` prüft `roles` wie bisher. `roles` bleibt die einzige Stelle der
+  Rechteprüfung; die Änderung in `resolve_work` wählt nur aus, was gezeigt wird. Beleg: `round36_lektor`
+  (Vorgabewerk nie fremd, Seite ohne Freigabe erreichbar und ohne fremden Titel, Methoden ohne `work`).
+- **Anzeigename zur Herkunft** (`konten_ui/names.rs`): Ein Nachbearbeitungsschritt über das fertige HTML, an zwei
+  Stellen eingehängt – `consent::inject` (ganze Seiten) und `ui.render` (die drei Stücke für das Nachladen). Er
+  liest `Store::account_list`, bildet je Konto `@lektorat:<slug>` → Anzeigename und ersetzt nur den **Text** der
+  Herkunfts-Elemente durch „Anzeigename (@lektorat:slug)“; Attribute (`data-post-author` …) und alles Gespeicherte
+  bleiben der Handle. Ohne Konten und ohne Treffer gibt er die Seite unverändert zurück (Byte für Byte, Test).
+  Gewählt wurde die Nachbearbeitung, weil `LibraryView` und die Vorlagen keine Konten kennen und der Store in dieser
+  Runde nicht umgebaut wird.
+- **Beschriftung und Links für Lektoren:** `base.html` trägt den Knopf der Suche zweimal (`nur-autor` „Im Werk
+  suchen und ersetzen“, `nur-lektor` „Im Werk suchen“); `konten_ui::apply` lässt wie bei den übrigen Paaren nur den
+  passenden stehen. `works.html` zeichnet das Umschlagbild für Lektoren ohne Link (`lektor` im Kontext von
+  `works::list_page`). Beides ist Bequemlichkeit; gesperrt wird weiter allein in `roles`.
+- **Thema auf `/anmelden` und `/einrichten`** (`konten_ui::themed`, eingehängt in `consent::inject`): Die beiden
+  eigenständigen Seiten (ohne Menüband, erkannt am Kopf der Vorlage und an `body.konto-seite`) bekommen
+  `data-theme` aus dem Cookie `baruch_theme` an `<html>`, wie `base.html`. Ohne Cookie oder mit einem unbekannten
+  Wert bleibt die Seite unverändert (Farbschema des Systems). Kein JavaScript.
+
+### Mindmap
+
+- **Rundreise mit Wolke:** `files/import.rs` erkennt den eigenen Ast an der Kennung `export::CLOUD_ID` (nie am
+  Titel), löst ihn auf und gibt seinen Kindern `ImportNode::cloud = true` (`tree.rs`, `#[serde(default)]`, damit
+  eine ältere Vorschau im Formular weiter gilt). Beim Anlegen ohne Zielknoten legt der Store die obersten Knoten
+  wie bisher als Hauptthemen an (`idea_import_tree`, eine Store-Datei von sqlx09 in dieser Runde); danach verschiebt
+  `tree.rs` die gekennzeichneten mit `Store::idea_move` in die Wolke – unter derselben Schreibsperre und vor dem
+  einen Spiegel-Commit. Mit Zielknoten zählt das Kennzeichen nicht, tiefer im Baum auch nicht.
+- **Beschriftungen der Verbindungen** (`bild/mindmap.rs`, `free_label_spot`): Jede Beschriftung ist ein Rechteck
+  (geschätzte Textbreite plus Rand). Gesucht wird ein Platz, der kein Knotenrechteck und keine schon gesetzte
+  Beschriftung überschneidet (3 px Abstand) und im Bild liegt: zuerst an sieben Stellen der Kurve mit wachsendem
+  Abstand darüber und darunter, dann in Ringen um die Mitte der Linie. Findet sich nichts, bleibt sie an der Mitte
+  und trägt `data-crowded`. Dazu ein deckender Grund (`rect.mm-link-label-bg`, in der Datei-Ausgabe weiß), damit
+  kreuzende Linien sie nicht durchstreichen. Grenze: Die Textbreite ist geschätzt, der Server kennt die Schrift des
+  Browsers nicht.
+- **Heller Streifen im dunklen Modus** (`static/karte.css`): `.karte` ist der Scrollbehälter der Seite und war auf
+  1400 px begrenzt und zentriert; ihre Bildlaufleiste stand in breiten Fenstern darum neben der Bühne statt am
+  Fensterrand, in den Farben des Systems. Jetzt reicht `.karte` über die volle Breite und rückt den Inhalt über
+  `padding-inline` in die Mitte; `.karte` und `.mm-canvas` setzen `scrollbar-color` aus den Variablen der Seite.
+  Die Ursache ist aus dem Stylesheet abgeleitet und dort zugesichert; im Browser angesehen ist es nicht
+  (Handprüfung beim Nutzer).
+
+### Fassungen und Assistenten
+
+- **Zähler im Band** (`fragments/edit_toolbar.html`): derselbe Schalter wie im Editor-Kopf aus `rev.fold`
+  („(+ n ausgeblendet) ▸“ bzw. „n ältere verbergen ▾“, gleiche Adressen); ‹ und › tragen `rev.fold.q` weiter.
+- **Eigene offene Befunde nur beim Prüfen** (`assist/chat.rs`, `is_check_order`): `OrderFrame::recheck` einer
+  direkt angesprochenen Persona ist `rfc || is_check_order(message)`. Ein Prüfauftrag ist eine Nachricht, in der
+  ein Wort (außerhalb von Erwähnungen und Zitatzeilen) mit prüf, überprüf, nachprüf, gegenprüf, kontrollier, check
+  oder review beginnt, oder die einen Befund „[B<n>]“ nennt. „Prüfen“, ↻ und RFC bleiben erneutes Prüfen. Die
+  Erkennung ist eine Wortliste, kein Verstehen: „geprüft“ zählt nicht, „Checkliste“ zählt.
+- **`propose_chapter` auf der richtigen Grundlage** (`assist/mod.rs`, `assist/basis.rs`): Der Vorschlag für den
+  Teil des Auftrags entsteht über `Store::add_proposal_on` auf `prepared.shown_rev` (gewählt bzw. gezeigt), die
+  übrigen Teile wie bisher auf ihrer aktuellen Fassung. `Outcome::basis` kommt aus `basis::of_proposal` (Kopfzeile
+  „Grundlage: …“) und steht in der Antwort von `persona.propose` – auch beim Vorschlag für einen Abschnitt. Ein
+  Text, der der gezeigten Fassung gleicht, zählt als unverändert.
+- **`baruch_vw` beim ersten Aufruf** (`web/src/vw.ts`, `base.html`): ein klassisches Skript im `<head>` vor dem
+  Modul `main.js`. Es läuft vor dem ersten Zeichnen, vergleicht die Breitenklasse des Fensters mit dem Cookie,
+  schreibt bei Abweichung das Cookie neu und setzt die Attribute an `<html>` nach derselben Formel wie
+  `laptop.rs` und `laptop.ts` (Schwellen 1280/1600). Stimmt das Cookie, tut es nichts. Der Server kann die Breite
+  bei der ersten Anfrage nicht kennen; ohne JavaScript bleibt es bei „breit“. Ausgeliefert wird `vw.js` über die
+  vorhandene Route `/static/js/{name}`; `build.rs` übersetzt es wie die übrigen Dateien unter `web/src`.
+
+### Einstellungen, Editor, Spiegel
+
+- **„Sicherung angelegt“** (`settings/data.rs`): ein prozessweiter Vermerk je Datenordner
+  (`static BACKUP_NOTES: Mutex<BTreeMap<PathBuf, String>>`, kein Feld in `AppState`). Das Formular legt ihn nach
+  einer gelungenen Sicherung ab, die Seite mit `?ok=sicherung` holt ihn genau einmal ab. Nach einem Neustart ist er
+  weg; `settings.backup` über RPC antwortet wie bisher direkt.
+- **Rechte des Datenordners** (`settings::open_permissions`, `permissions_warning`): nur lesend
+  (`metadata().permissions().mode() & 0o777`, gemeldet wenn `& 0o077 != 0`), nur unter Unix. Baruch ändert die
+  Rechte eines vorhandenen Ordners nie.
+- **Token-Liste** (`settings/mcp.html`, `settings.css`): Klasse `token-former` mit `white-space: nowrap`.
+- **Knopf „Zitat“** (`ribbon::QUOTE_SNIPPET`): `#quote(block: true)[]\n` ohne Folgezeile „– “.
+- **`outline_mentions`** (`xref.rs`): Ordnungszahlen bis `MAX_ORDINAL` = 100 aus Stämmen gebildet und am ganzen
+  Stamm verglichen („achtzehnten“ ist 18, nicht 8); römische Zahlen bis 3999, nur in üblicher Schreibweise. Die
+  Regel „nur bei Eindeutigkeit“ ist unverändert.
+- **store-5** (`baruch-store/src/reste36.rs`, `outline.rs`, `mirror.rs`): `Store::outline_delete_losses` liest alle
+  Fassungen außer der aktuellen (`proposal` für `status = 'proposed'`) und alle Beiträge des Punkts. Der Server
+  ruft es unter der Schreibsperre unmittelbar vor `outline_delete` auf – beim Löschen durch den Menschen und beim
+  Bestätigen eines Antrags „Löschen“ – und gibt das Ergebnis an `mirror::record_outline_losses`: derselbe eine
+  Commit, im Rumpf zusätzlich jede mitgelöschte Fassung und jeder Beitrag im Wortlaut, dazu die Trailer
+  `Baruch-Lost-Revisions` und `Baruch-Lost-Posts`. Ohne Verluste ist der Commit wie bisher. Ein Antrag allein
+  löscht nichts; löschen kann nur der Mensch.
+
+### Grenzen und Ehrliches
+
+- Kein Browser in dieser Runde: Token-Liste, heller Streifen, Lage der Beschriftungen im echten Schriftbild und
+  das frühe Skript `vw.js` sind über Markup, Stylesheet, erzeugtes SVG und das Node-Harness geprüft, nicht gesehen.
+- Der Vermerk „Sicherung angelegt“ gilt je Prozess und Datenordner, nicht je Sitzung: Bei mehreren Menschen an
+  einer Instanz sieht ihn, wer die Seite zuerst mit `?ok=sicherung` lädt.
+- Nicht bearbeitete Punkte stehen mit Grund in `docs/Backlog.md` („R36: nicht bearbeitet, …“).
+
+### Tests
+
+- `crates/baruch-store/tests/reste36.rs`: `outline_delete_losses` (übrige Fassungen, Beiträge, nur lesend,
+  unbekanntes Werk und unbekannter Punkt).
+- `crates/baruch-server/tests/round36_lektor.rs` (Werk-Bindung, Anzeigename, „Im Werk suchen“, Umschlagbild,
+  Thema), `round36_mindmap.rs` (Rundreise `.mm`/`.xmind`, fremder Ast „Wolke“, Beschriftungen im SVG, Stylesheet),
+  `round36_reste.rs` (Band-Zähler, `vw.js` am Server und im Node-Harness, Sicherung, Rechte, Token-Liste, Zitat,
+  Nennungen, Spiegel-Commit beim Löschen direkt und über einen bestätigten Antrag).
+- In vorhandenen Dateien: `round35_konten.rs` (Notweg hebt die Sperre auf), `kritik_zyklus.rs` (Vorschlag fürs
+  Kapitel auf der gezeigten bzw. gewählten Fassung), `round22_befunde.rs` (schlichte Frage ohne eigene Befunde,
+  Prüfauftrag mit).

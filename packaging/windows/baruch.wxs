@@ -44,6 +44,12 @@
         <File Id="StartCmd" Name="baruch-start.cmd"
               Source="$(var.SourceDir)\packaging\windows\baruch-start.cmd" KeyPath="yes" />
       </Component>
+      <!-- Runde 36: Typst-Kommandozeile als baruch-typst.cmd neben der exe (Windows kennt keinen Symlink ohne
+           besondere Rechte); nie eine Datei typst.exe oder typst.cmd. -->
+      <Component Id="TypstCmd" Guid="*" Win64="yes">
+        <File Id="TypstCmd" Name="baruch-typst.cmd"
+              Source="$(var.SourceDir)\packaging\windows\baruch-typst.cmd" KeyPath="yes" />
+      </Component>
       <Component Id="IconFile" Guid="*" Win64="yes">
         <File Id="IconFile" Name="baruch.ico" Source="$(var.SourceDir)\packaging\icons\baruch.ico" KeyPath="yes" />
       </Component>

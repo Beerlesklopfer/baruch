@@ -922,3 +922,19 @@ auch dann, wenn Konten eingerichtet sind. Die Anmelde-Schicht (`auth::gate`) lä
 (Cookie) gibt über MCP kein Recht und wird dort nicht gelesen. Wer als Lektor mitarbeitet, nutzt die Oberfläche; ein
 MCP-Token ist weiter ein Zugang mit den Rechten eines MCP-Clients (Vorschläge, Beiträge, Einfälle, Anträge), nicht
 auf freigegebene Werke beschränkt. Offene Frage für den Nutzer (Backlog): Tokens je Lektor und Werk.
+
+## Runde 36 – Reste
+
+Kein neues Werkzeug. Verhalten, das MCP-Clients bemerken können:
+
+- **`chat`:** Eine direkt angesprochene Persona (`@handle`) bekommt ihre eigenen offenen Befunde nur noch bei einem
+  Prüfauftrag in den Kontext (ein Wort der Nachricht beginnt mit prüf, überprüf, nachprüf, gegenprüf, kontrollier,
+  check oder review, oder die Nachricht nennt „[B<n>]“) und beim RFC – nicht bei einer schlichten Frage.
+  `ask_persona` mit `mode: "review"` bleibt immer erneutes Prüfen.
+- **`ask_persona` mit `mode: "propose"`, `scope: "chapter"`:** Der Vorschlag für den Abschnitt des Auftrags beruht
+  auf `rev` (der gezeigten Fassung, auch einem offenen Vorschlag), die übrigen Teile des Kapitels auf ihrer aktuellen
+  Fassung. Es bleibt ein Vorschlag; übernehmen kann nur der Mensch.
+- **`outline_delete`:** weiterhin nur ein Antrag. Bestätigt der Mensch ihn, nennt der Commit im Git-Spiegel jetzt
+  auch die mitgelöschten Fassungen (offene Vorschläge eigens gezählt) und Beiträge im Wortlaut.
+- **Herkunft `@lektorat:<name>`:** Über MCP bleibt der Autor einer Fassung oder eines Beitrags der Handle; den
+  Anzeigenamen zeigt nur die Arbeitsseite.

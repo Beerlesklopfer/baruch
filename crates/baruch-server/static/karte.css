@@ -4,9 +4,16 @@
    Farben aus app.css (hell und dunkel über dieselben Variablen); die Verbindungsarten unterscheiden sich
    zusätzlich durch die Strichart, nicht nur durch die Farbe. Ziehen, Fokus, Seitenleiste: karte_widget.css. */
 
+/* Runde 36 (heller Streifen im dunklen Modus): .karte ist der Scrollbehälter der Seite. Solange sie auf 1400 px
+   begrenzt und mittig war, stand ihre Bildlaufleiste in breiten Fenstern mitten im Fenster rechts neben der Bühne –
+   im dunklen Modus ein heller Streifen. Jetzt reicht sie über die volle Breite (Leiste am Fensterrand) und rückt
+   den Inhalt über padding-inline gleich breit in die Mitte (wie typeset.css/numbering.css seit Runde 18a); die
+   Leisten nehmen die Farben der Seite (scrollbar-color), hell wie dunkel. */
 .karte {
   flex: 1; overflow: auto; padding: 14px 18px 28px; display: flex; flex-direction: column; gap: 12px;
-  width: 100%; max-width: 1400px; margin: 0 auto;
+  width: 100%; max-width: none; margin: 0;
+  padding-inline: max(18px, calc((100% - 1400px) / 2 + 18px));
+  scrollbar-color: var(--line) var(--bg);
 }
 .karte .pane-title { margin: 0; }
 /* Die Seite scrollt in .karte; ohne flex-shrink: 0 drückte die Spalte die Bühne auf ihre Mindesthöhe. */
@@ -229,7 +236,10 @@ a.im-node:focus-visible { outline: none; }
   border-bottom: 1px solid var(--line); background: var(--bg);
 }
 .mm-cloud-counter { font-weight: 600; }
-.mm-canvas { overflow: auto; max-height: min(80vh, 1000px); min-height: 320px; background: var(--panel); }
+.mm-canvas {
+  overflow: auto; max-height: min(80vh, 1000px); min-height: 320px; background: var(--panel);
+  scrollbar-color: var(--line) var(--panel);
+}
 .mm-svg { display: block; margin: 0 auto; font-family: inherit; }
 .mm-status { margin: 0; padding: 4px 10px; min-height: 1.6em; border-top: 1px solid var(--line); color: var(--muted); }
 .mm-status:empty { display: none; }
@@ -274,6 +284,8 @@ a.im-node:focus-visible { outline: none; }
   pointer-events: none; /* liegt über den Knoten (eigene Gruppe am Ende), darf aber keinen Klick abfangen */
 }
 .mm-svg .mm-link-label.mm-contradiction { fill: var(--danger); font-weight: 700; }
+/* Runde 36: deckender Grund der Beschriftung – kreuzende Linien streichen sie nicht durch. */
+.mm-svg .mm-link-label-bg { fill: var(--panel); stroke: none; pointer-events: none; }
 .mm-near { stroke: var(--primary); fill: none; opacity: .8; }
 .mm-hide-near .mm-near { display: none; }
 

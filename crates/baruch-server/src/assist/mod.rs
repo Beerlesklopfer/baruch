@@ -751,6 +751,8 @@ async fn save(
         crate::mirror::side_refs_after_proposal(state, &held, order.work).await;
         outcome.rev = Some(rev);
         outcome.url = crate::view::node_url(order.work, order.key, Some(rev), false, "", "");
+        // Runde 36: Die Antwort nennt die Fassung, auf der der Vorschlag beruht (gewählt bzw. gezeigt).
+        outcome.basis = basis::of_proposal(state, order.work, order.key, prepared.shown_rev).await.ok();
         return Ok(outcome);
     }
     if order.mode == Mode::Ask && order.post_question {
@@ -1545,7 +1547,9 @@ async fn propose_chapter(
         }
         let text = proposal_text(&answer.text, &heading);
         let current = if unit.own { prepared.current.as_str() } else { unit.text.as_str() };
-        if text.trim_end() == current.trim_end() {
+        // Runde 36: Der eigene Teil steht in der gewählten bzw. gezeigten Fassung im Auftrag (`unit.text`); ein
+        // Vorschlag, der ihr gleicht, ist so wenig einer wie einer, der der aktuellen gleicht.
+        if text.trim_end() == current.trim_end() || text.trim_end() == unit.text.trim_end() {
             skipped.push(format!("{} (unverändert)", unit.label));
             continue;
         }
@@ -1560,12 +1564,23 @@ async fn propose_chapter(
         let _held = state.write_lock.lock().await;
         for (key, label, text, model) in &drafts {
             let seq = state.store.node_seq(order.work, *key).await?;
-            let rev = state.store.add_proposal(order.work, seq, text, handle, model, &note).await?;
+            // Runde 36 (Hinweis 0.9.0): Der Vorschlag für den eigenen Teil beruht auf der Fassung, die die Persona
+            // gesehen hat (gewählt bzw. gezeigt, `prepared.shown_rev`) – wie beim Vorschlag für einen Abschnitt.
+            // Vorher beruhte er stets auf der aktuellen Fassung, auch wenn ein Vorschlag gezeigt und überarbeitet
+            // wurde. Die übrigen Teile stehen in ihrer aktuellen Fassung im Auftrag und beruhen auf ihr.
+            let rev = if *key == order.key {
+                let on = prepared.shown_rev;
+                state.store.add_proposal_on(order.work, seq, text, handle, model, &note, on, None).await?
+            } else {
+                state.store.add_proposal(order.work, seq, text, handle, model, &note).await?
+            };
             proposals.push(ProposalRef { key: *key, rev, label: label.clone() });
         }
         crate::mirror::side_refs_after_proposal(state, &_held, order.work).await;
     }
     let first = proposals[0].clone();
+    // Runde 36: Die Antwort nennt die Grundlage des eigenen Teils (gewählt bzw. gezeigt), nie eine ungefragte.
+    let shown_basis = basis::of_proposal(state, order.work, order.key, prepared.shown_rev).await.ok();
     let mut text = format!(
         "Vorschläge: {}.",
         proposals.iter().map(|p| format!("{} (Fassung {})", p.label, p.rev)).collect::<Vec<_>>().join("; ")
@@ -1589,7 +1604,7 @@ async fn propose_chapter(
         compressed,
         proposals,
         findings: Vec::new(),
-        basis: order.basis.clone(),
+        basis: shown_basis,
         done_proposals: Vec::new(),
         done_notes: Vec::new(),
         all_done: false,

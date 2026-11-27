@@ -200,3 +200,127 @@ async fn the_persona_form_carries_the_basis_exactly_once() {
     let form = form.split("</form>").next().unwrap();
     assert_eq!(form.matches("name=\"basis\"").count(), 1, "genau eine Auswahl der Prüfgrundlage: {form}");
 }
+
+// ---- Runde 36: Vorschlag für das ganze Kapitel auf der richtigen Grundlage --------------------------------------
+
+const CHAPTER_BOOK: &str = "#set document(title: \"Die Schleuse\", author: \"Mira Kiel\")\n#set heading(numbering: \"1.\")\n\n\
+= Oberwasser\n\nDas Tor steht offen. Ein Kahn wartet vor der Kammer.\n\n\
+== Die Kammer\n\nDas Wasser steigt langsam. Der Schleusenwärter zählt die Stufen.\n";
+const CHAMBER_2: &str = "== Die Kammer\n\nDas Wasser steigt gurgelnd. Der Schleusenwärter zählt die Stufen.\n";
+const CHAMBER_3: &str = "== Die Kammer\n\nDas Wasser steigt gurgelnd. Die Schleusenwärterin zählt die Stufen.\n";
+const UPPER_2: &str = "= Oberwasser\n\nDas Tor steht weit offen. Ein Kahn wartet vor der Kammer.\n";
+
+/// `based_on` der Fassung `rev` des Abschnitts `key`.
+async fn based_on_of(h: &Harbour, key: i64, rev: u64) -> Option<u32> {
+    sqlx::query_scalar("SELECT based_on FROM revision WHERE node_id = ? AND number = ?")
+        .bind(key)
+        .bind(rev as i64)
+        .fetch_one(h.server.state.store.pool())
+        .await
+        .unwrap()
+}
+
+/// Hinweis aus 0.9.0: Der Vorschlag für das ganze Kapitel (`scope: chapter`) beruhte für den eigenen Teil stets auf
+/// der aktuellen Fassung, auch wenn ein Vorschlag gezeigt bzw. gewählt war und die Persona genau den überarbeitete;
+/// die Antwort nannte keine Grundlage. Jetzt beruht er auf der gewählten bzw. gezeigten Fassung und nennt sie.
+#[tokio::test]
+async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_version() {
+    let _turn = common::model_queue(module_path!()).await;
+    let h = harbour().await;
+    let work = h.server.import(CHAPTER_BOOK, "schleuse.typ").await.work;
+    let nodes = h.server.state.store.load_work(work).await.unwrap().nodes;
+    let (upper, chamber) = (nodes[0].key, nodes[1].key);
+    assert_eq!(
+        (nodes[0].title.as_str(), nodes[1].title.as_str()),
+        ("Oberwasser", "Die Kammer"),
+        "Vorbedingung: ein Kapitel mit einem Unterabschnitt"
+    );
+
+    // Der Lektor schlägt für den Unterabschnitt Fassung 2 vor (ein Abschnitt): Die Antwort nennt die Grundlage.
+    h.eliezer.push(Reply::text(&[CHAMBER_2]));
+    let answer = h.server.rpc("persona.propose", json!({ "work": work, "key": chamber, "persona": "@lektor" })).await;
+    assert!(answer["error"].is_null(), "Vorschlag für den Abschnitt: {answer}");
+    assert_eq!(answer["result"]["rev"], 2, "{answer}");
+    assert_eq!(
+        answer["result"]["basis"],
+        json!({ "rev": 1, "label": "Grundlage: aktuelle Fassung 1", "proposal": false }),
+        "die Antwort nennt die Fassung, auf der der Vorschlag beruht"
+    );
+
+    // Ganzes Kapitel, gezeigt ist Vorschlag 2 des Unterabschnitts: je Teil ein Aufruf, in der Reihenfolge des Kapitels.
+    let before = h.eliezer.chat_bodies().len();
+    h.eliezer.push(Reply::text(&[UPPER_2]));
+    h.eliezer.push(Reply::text(&[CHAMBER_3]));
+    let params = json!({ "work": work, "key": chamber, "rev": 2, "persona": "@lektor", "scope": "chapter" });
+    let answer = h.server.rpc("persona.propose", params).await;
+    assert!(answer["error"].is_null(), "Vorschlag für das ganze Kapitel: {answer}");
+    let result = &answer["result"];
+    let calls = h.eliezer.chat_bodies()[before..].to_vec();
+    assert_eq!(calls.len(), 2, "je Teil mit Text ein Aufruf");
+    let own_call = calls[1]["messages"].to_string();
+    assert!(
+        own_call.contains("steigt gurgelnd") && own_call.contains("(Fassung 2)"),
+        "der eigene Teil steht in der gezeigten Fassung 2 im Auftrag (nicht in der aktuellen): {own_call}"
+    );
+    let proposals = result["proposals"].as_array().expect("die Antwort nennt die Vorschläge je Teil");
+    let rev_of = |key: i64| proposals.iter().find(|p| p["key"] == key).map(|p| p["rev"].as_u64().unwrap());
+    let (upper_rev, chamber_rev) = (rev_of(upper).expect("Teil Oberwasser"), rev_of(chamber).expect("Teil Kammer"));
+    assert_eq!((upper_rev, chamber_rev), (2, 3), "je Teil genau ein neuer Vorschlag: {result}");
+    assert_eq!(
+        based_on_of(&h, chamber, chamber_rev).await,
+        Some(2),
+        "der Vorschlag für den eigenen Teil beruht auf der gezeigten Fassung 2 (vorher: stets auf der aktuellen)"
+    );
+    assert_eq!(
+        based_on_of(&h, upper, upper_rev).await,
+        Some(1),
+        "die übrigen Teile standen in ihrer aktuellen Fassung im Auftrag und beruhen auf ihr"
+    );
+    assert_eq!(
+        result["basis"],
+        json!({ "rev": 2, "label": "Grundlage: Fassung 2 (Vorschlag von @lektor)", "proposal": true }),
+        "Outcome::basis und ihre Kopfzeile nennen die gezeigte Fassung"
+    );
+    // Die Kopfzeile des neuen Vorschlags auf der Arbeitsseite nennt dieselbe Grundlage (ohne JavaScript).
+    let (_, page) = h.server.get(&format!("/?work={work}&key={chamber}&rev={chamber_rev}")).await;
+    assert!(page.contains("beruht auf Fassung 2"), "der Kopf des Vorschlags nennt Fassung 2 als Grundlage");
+
+    // Ausdrücklich gewählte Grundlage „current“ bei gezeigtem Vorschlag: Der eigene Teil beruht auf der aktuellen.
+    h.eliezer
+        .push(Reply::text(&["= Oberwasser\n\nDas Tor steht sperrangelweit offen. Ein Kahn wartet vor der Kammer.\n"]));
+    h.eliezer.push(Reply::text(&["== Die Kammer\n\nDas Wasser steigt träge. Der Schleusenwärter zählt die Stufen.\n"]));
+    let params =
+        json!({ "work": work, "key": chamber, "rev": 3, "basis": "current", "persona": "@lektor", "scope": "chapter" });
+    let answer = h.server.rpc("persona.propose", params).await;
+    assert!(answer["error"].is_null(), "Vorschlag fürs Kapitel auf der aktuellen Fassung: {answer}");
+    let result = &answer["result"];
+    assert_eq!(
+        result["basis"],
+        json!({ "rev": 1, "label": "Grundlage: aktuelle Fassung 1", "proposal": false }),
+        "die gewählte Grundlage (aktuelle Fassung) steht in der Antwort"
+    );
+    let own = result["proposals"].as_array().unwrap().iter().find(|p| p["key"] == chamber).unwrap()["rev"].clone();
+    assert_eq!(based_on_of(&h, chamber, own.as_u64().unwrap()).await, Some(1), "und ist die Basis des Vorschlags");
+
+    // Gleicht die Antwort für den eigenen Teil der gezeigten Fassung, entsteht dafür kein Vorschlag.
+    let count = async || -> i64 {
+        sqlx::query_scalar("SELECT count(*) FROM revision WHERE node_id IN (?, ?)")
+            .bind(upper)
+            .bind(chamber)
+            .fetch_one(h.server.state.store.pool())
+            .await
+            .unwrap()
+    };
+    let revisions = count().await;
+    let current_upper = nodes[0].revisions[0].body.clone();
+    h.eliezer.push(Reply::text(&[&current_upper]));
+    h.eliezer.push(Reply::text(&[CHAMBER_2]));
+    let params = json!({ "work": work, "key": chamber, "rev": 2, "persona": "@lektor", "scope": "chapter" });
+    let answer = h.server.rpc("persona.propose", params).await;
+    assert_eq!(answer["error"]["code"], -32000, "nichts geändert → abgelehnt: {answer}");
+    assert!(
+        answer["error"]["message"].as_str().unwrap().contains("Die Kammer (unverändert)"),
+        "ein Vorschlag, der der gezeigten Fassung gleicht, zählt als unverändert: {answer}"
+    );
+    assert_eq!(count().await, revisions, "nichts gespeichert");
+}

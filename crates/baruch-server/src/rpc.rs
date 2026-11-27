@@ -818,10 +818,12 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let panes = view::panes(&state.templates, &work, &shelf, resolved.clone(), settings, &library)
                 .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
             let n = &work.nodes[resolved.node];
+            // Runde 36: Anzeigename zur Herkunft `@lektorat:<slug>` wie auf der ganzen Seite (`consent::inject`).
+            let names = crate::konten_ui::names::show_for;
             Ok(json!({
-                "tree": panes.tree,
-                "editor": panes.editor,
-                "assistants": panes.assistants,
+                "tree": names(state, panes.tree).await,
+                "editor": names(state, panes.editor).await,
+                "assistants": names(state, panes.assistants).await,
                 "url": resolved.url(work_id, library.query.as_deref()),
                 "title": format!("{} – Baruch", n.title),
             }))

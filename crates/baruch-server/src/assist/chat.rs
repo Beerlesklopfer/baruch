@@ -312,6 +312,28 @@ pub fn is_write_order(message: &str) -> bool {
     false
 }
 
+/// Wortanfänge eines Prüfauftrags (klein): „prüf den Vorschlag“, „bitte überprüfen“, „check das“, „Review bitte“.
+const CHECK_STEMS: &[&str] = &["prüf", "überprüf", "nachprüf", "gegenprüf", "kontrollier", "check", "review"];
+
+/// Ist die Nachricht an eine direkt angesprochene Persona ein Prüfauftrag (Runde 36)? Ein Wort beginnt mit einem der
+/// [`CHECK_STEMS`] (irgendwo in der Nachricht, auch als Frage „Kannst du das prüfen?“), oder die Nachricht nennt
+/// einen Befund („[B12]“). Nur dann sieht die Persona ihre eigenen offenen Befunde ([`context::is_recheck`]); bei
+/// einer schlichten Frage („@nathan wie alt war Mose?“) nicht – sonst zöge jede Frage die alten Befunde in die
+/// Antwort. Erwähnungen (`@…`) und Zitatzeilen („> …“, [`unquoted`]) zählen nicht.
+pub fn is_check_order(message: &str) -> bool {
+    let message = unquoted(message);
+    if !finding_refs(&message).is_empty() {
+        return true;
+    }
+    message
+        .split(|c: char| !(c.is_alphanumeric() || c == '@' || c == '_' || c == '-'))
+        .filter(|word| !word.is_empty() && !word.starts_with('@'))
+        .any(|word| {
+            let lower = word.to_lowercase();
+            CHECK_STEMS.iter().any(|stem| lower.starts_with(stem))
+        })
+}
+
 /// „[B<id>]“ in einem Text (ohne Doppelte, in der Reihenfolge des Texts).
 pub fn finding_refs(text: &str) -> Vec<i64> {
     let mut out: Vec<i64> = Vec::new();
@@ -530,7 +552,10 @@ pub async fn chat(
         // Runde 22: Beim RFC prüft jede Persona erneut und sieht ihre eigenen offenen Befunde des Abschnitts. Fehler
         // 0.9.0 (Kritik-Zyklus): auch eine direkt angesprochene Persona („@nathan prüf den Vorschlag“) – sonst meldete
         // der Kritiker am Vorschlag seine alten Befunde erneut, statt sie nachzuprüfen.
-        let order = base(&handle, Mode::Chat, OrderFrame { recheck: true, ..OrderFrame::default() });
+        // Runde 36 (Hinweis 0.9.0): nur beim RFC und bei einem Prüfauftrag ([`is_check_order`]). Eine schlichte Frage
+        // an die Persona zieht ihre offenen Befunde nicht mehr in den Kontext.
+        let recheck = rfc || is_check_order(message);
+        let order = base(&handle, Mode::Chat, OrderFrame { recheck, ..OrderFrame::default() });
         match run(state, &order, progress).await {
             Ok(outcome) => {
                 let answer = FramedAnswer {

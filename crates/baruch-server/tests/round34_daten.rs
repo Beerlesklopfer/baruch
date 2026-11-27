@@ -486,6 +486,7 @@ async fn import_creates_the_tree_in_one_transaction_with_one_commit_and_the_give
                 note: "Salz in der Luft.".into(),
                 words: vec!["Meer".into()],
                 children: vec![ImportNode { children: vec![leaf("Strandhafer")], ..leaf("Düne") }, leaf("Watt")],
+                cloud: false,
             },
             leaf("Insel"),
         ],

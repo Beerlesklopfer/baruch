@@ -61,7 +61,7 @@
       <th scope="col">zuletzt benutzt</th><th scope="col">Stand</th></tr></thead>
     <tbody>
     {%- for t in tokens %}
-      <tr><td>{{ t.name }}</td><td><code>{{ t.prefix }}…</code></td><td><code>{{ t.handle }}</code>{% if t.legacy %} <span class="muted tiny">(früher <code>{{ t.legacy }}</code>)</span>{% endif %}{% if t.taken %} <span class="muted tiny">(behält den Autor von vor Runde 23: <code>{{ t.taken }}</code> gehört einem anderen Token)</span>{% endif %}</td><td>{{ t.created }}</td>
+      <tr><td>{{ t.name }}</td><td><code>{{ t.prefix }}…</code></td><td><code>{{ t.handle }}</code>{% if t.legacy %} <span class="muted tiny token-former">(früher <code>{{ t.legacy }}</code>)</span>{% endif %}{% if t.taken %} <span class="muted tiny">(behält den Autor von vor Runde 23: <code>{{ t.taken }}</code> gehört einem anderen Token)</span>{% endif %}</td><td>{{ t.created }}</td>
         <td>{% if t.last_used %}{{ t.last_used }}{% else %}<span class="muted">noch nie</span>{% endif %}</td>
         <td>{% if t.revoked %}<span class="muted">widerrufen {{ t.revoked }}</span>{% else %}
           <form class="mcp-revoke" method="post" action="/einstellungen/mcp/act">

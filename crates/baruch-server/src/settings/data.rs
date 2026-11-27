@@ -50,6 +50,55 @@ pub const RESERVE_BYTES: u64 = 512 * 1024 * 1024;
 /// Dateien der Datenbank, die nicht kopiert werden (`baruch.sqlite` kommt per `VACUUM INTO`).
 const DB_FILES: [&str; 3] = ["baruch.sqlite", "baruch.sqlite-wal", "baruch.sqlite-shm"];
 
+/// Einmaliger Vermerk „Sicherung angelegt“ je Datenordner (Runde 36): Das Formular „Sicherung jetzt“ legt nach einer
+/// wirklich angelegten Sicherung ihren Ordnernamen ab, die Seite `?ok=sicherung` holt ihn genau einmal ab. Ein
+/// bloßer Link mit `?ok=sicherung` (oder ein Neuladen) zeigt darum keine Erfolgsmeldung mehr. Der Vermerk lebt nur
+/// im Prozess (kein Feld in `AppState`, nichts in der Datenbank); nach einem Neustart ist er weg – die Sicherung
+/// selbst steht weiter neben dem Datenordner. Je Datenordner, weil in einem Prozess mehrere Instanzen laufen können
+/// (Tests).
+static BACKUP_NOTES: std::sync::Mutex<BTreeMap<PathBuf, String>> = std::sync::Mutex::new(BTreeMap::new());
+
+fn backup_notes() -> std::sync::MutexGuard<'static, BTreeMap<PathBuf, String>> {
+    BACKUP_NOTES.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Vermerkt die eben angelegte Sicherung `made` für die nächste Anzeige der Seite.
+fn note_backup(data: &Path, made: &Backup) {
+    let name = made.dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    backup_notes().insert(data.to_owned(), name);
+}
+
+/// Holt den Vermerk ab (danach ist er weg): Ordnername der eben angelegten Sicherung.
+fn take_backup_note(data: &Path) -> Option<String> {
+    backup_notes().remove(data)
+}
+
+/// Zu offene Rechte eines Datenordners (Runde 36): `Some(Rechte)` (die unteren neun Bits), wenn Gruppe oder andere
+/// irgendetwas dürfen; `None`, wenn nur der Besitzer Zugriff hat, der Ordner nicht lesbar ist oder das System keine
+/// Unix-Rechte kennt. Nur lesend – Baruch ändert die Rechte eines vorhandenen Ordners nie (der Mensch kann Gründe
+/// haben: Gruppenzugriff für die Sicherung, ein eingehängtes Laufwerk); neue Datenordner bekommen 0700.
+#[cfg(unix)]
+pub fn open_permissions(path: &Path) -> Option<u32> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = std::fs::metadata(path).ok()?.permissions().mode() & 0o777;
+    (mode & 0o077 != 0).then_some(mode)
+}
+
+/// Ohne Unix-Rechte gibt es nichts zu melden.
+#[cfg(not(unix))]
+pub fn open_permissions(_path: &Path) -> Option<u32> {
+    None
+}
+
+/// Hinweis für die Seite „Daten“ zu [`open_permissions`]; `None`, wenn nichts zu melden ist.
+pub fn permissions_warning(path: &Path) -> Option<String> {
+    let mode = open_permissions(path)?;
+    Some(format!(
+        "Der Datenordner ist auch für andere Benutzer dieses Rechners zugänglich (Rechte {mode:04o}). Baruch ändert \
+         die Rechte eines vorhandenen Ordners nicht; „chmod 700“ auf den Ordner lässt nur noch den Besitzer hinein."
+    ))
+}
+
 /// Größe eines Ordners in Bytes, rekursiv; symbolische Verknüpfungen zählen nicht und werden nicht
 /// verfolgt. Unlesbares wird übergangen.
 pub(crate) fn dir_size(path: &Path) -> u64 {
@@ -130,15 +179,14 @@ pub(super) async fn render(
             }
         })
         .collect();
-    // Runde 23a: fester Meldecode `?ok=sicherung`. Den Ordnernamen bestimmt der Server selbst (neueste Sicherung neben
-    // dem Datenordner); ein mitgeschicktes `ziel` aus der Adresse wird nie angezeigt (sonst ließe sich über einen Link
-    // eine falsche Erfolgsmeldung mit beliebigem Namen zeigen). Ohne lesbare Sicherung bleibt die Meldung allgemein.
-    let saved = if query.get("ok").map(String::as_str) == Some("sicherung") {
-        let data = state.data.clone();
-        Some(tokio::task::spawn_blocking(move || newest_backup(&data)).await.ok().flatten().unwrap_or_default())
-    } else {
-        None
-    };
+    // Runde 23a: fester Meldecode `?ok=sicherung`; ein mitgeschicktes `ziel` aus der Adresse wird nie angezeigt.
+    // Runde 36: Die Meldung erscheint nur, wenn das Formular eben wirklich eine Sicherung angelegt hat – genau
+    // einmal ([`take_backup_note`]). Ein Link mit `?ok=sicherung` allein zeigt nichts.
+    let saved =
+        if query.get("ok").map(String::as_str) == Some("sicherung") { take_backup_note(&state.data) } else { None };
+    // Runde 36: zu offene Rechte des Datenordners nur melden, nie ändern.
+    let data = state.data.clone();
+    let permissions = tokio::task::spawn_blocking(move || permissions_warning(&data)).await.ok().flatten();
     let instance = state.store.instance().await.map_err(|e| e.to_string())?;
     let instance_saved = query.get("ok").map(String::as_str) == Some("instanz");
     // Runde 20c: Block „EPUBCheck“ (Pfad zum epubcheck.jar, Formular in crate::epub_check).
@@ -147,7 +195,7 @@ pub(super) async fn render(
     super::render_template(
         "settings/daten.html",
         context! {
-            work => work, error => info.error, saved => saved,
+            work => work, error => info.error, saved => saved, permissions => permissions,
             dir => state.data.display().to_string(), size => human_size(size), size_bytes => size,
             mirrors => rows, version => crate::about::VERSION,
             instance_uuid => instance.uuid.clone(), instance_name => instance.name.clone(),
@@ -350,7 +398,8 @@ pub(super) async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, 
         return super::error_page(&state, &headers, "daten", work, message).await;
     }
     match backup(&state).await {
-        Ok(_) => {
+        Ok(made) => {
+            note_backup(&state.data, &made);
             Redirect::to(&format!("/einstellungen/daten?ok=sicherung{}", super::work_suffix(work))).into_response()
         }
         Err(message) => super::error_page(&state, &headers, "daten", work, &message).await,

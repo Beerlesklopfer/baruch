@@ -117,6 +117,37 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
 
+### Runde 36 – Reste (Aufgabe `reste`, 2026-11-27)
+
+Erledigt (jeweils mit Test; Einzelheiten in `docs/Architektur.md`, „Runde 36 – Reste“; an den alten Stellen unten als
+„erledigt R36“ markiert):
+
+- Aus Runde 35: Notweg `passwort` hebt die Sperre auf; Werk-Bindung von `/einstellungen/darstellung`, `wysiwyg.*`
+  und `ribbon.formats` gelockert (mit Beleg); Anzeigename zu `@lektorat:<slug>`; „Im Werk suchen“ für Lektoren;
+  Anmelde- und Einrichtungsseite nach `baruch_theme`; Umschlagbild in der Werkliste für Lektoren ohne Link.
+- Aus Runde 34: Rundreise der eigenen `.mm`/`.xmind` erhält die Wolke; Beschriftungen der Verbindungen liegen nicht
+  auf Knoten; heller Streifen im dunklen Modus über das Stylesheet behoben (Sichtprüfung beim Nutzer steht aus);
+  Beschreibung von MCP `exchange_export` ohne veraltete Unterversion.
+- Hinweise aus 0.9.0 (standen bisher nicht ausformuliert im Backlog): Der Zähler der Fassungen im Band zeigt
+  „(+ n ausgeblendet)“; eine direkt angesprochene Persona bekommt bei einer schlichten Frage ihre eigenen offenen
+  Befunde nicht mehr in den Kontext (weiter bei Prüfauftrag, „Prüfen“, ↻, RFC); der Vorschlag für das ganze Kapitel
+  beruht auf der gewählten bzw. gezeigten Fassung und nennt sie (`Outcome::basis`, Kopfzeile); das frühe Skript
+  `vw.js` berichtigt `baruch_vw` und die Attribute schon beim ersten Aufruf nach einer Größenänderung.
+- Aus „offen nach R24“: „Sicherung angelegt“ nur einmal, Token-Liste ohne Umbruch im Namen, Knopf „Zitat“ ohne
+  Folgezeile, Rechte des Datenordners melden, `outline_mentions` über „zwölfte“ und XXXIX hinaus, store-5.
+
+Offen geblieben bzw. beim Nutzer:
+
+- (→ Nutzer, Browser nötig) Ansehen im Browser: Mindmap im dunklen Modus in einem breiten Fenster (kein heller
+  Streifen), Beschriftungen in einer dichten Karte, Token-Liste in schmaler Spalte, erster Aufruf nach einer
+  Größenänderung des Fensters (kein Umspringen), Anmeldeseite im dunklen Thema.
+- Die Erkennung des Prüfauftrags ist eine Wortliste (`assist::chat::is_check_order`); ob sie im Alltag trifft, zeigt
+  der Gebrauch (Fachentscheidung, falls Wörter fehlen).
+- Migration 0055 (für `reste` reserviert) blieb unbenutzt.
+- Keine vorhandene Store-Datei wurde angefasst. Die Wolke beim Einlesen setzt der Server darum in einem zweiten
+  Schritt (`idea_move` nach `idea_import_tree`); in einem Schritt ginge es nur in `baruch-store/src/…` (Store-Datei
+  von sqlx09 in dieser Runde).
+
 ### Nach Runde 35 offen (Integrator und PM-Abschluss 2026-11-27)
 
 Runde 35 „Konten und Rollen (Lektorat II)“ ist abgeschlossen (`docs/Architektur.md`, „Runde 35 – Konten und Rollen“;
@@ -135,7 +166,9 @@ Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf).
 - **Behoben (mittel):** Die Sperre gegen Durchprobieren zählte einen Fehlversuch erst nach der Passwortprüfung; eine
   Salve gleichzeitiger Anmeldungen kam daran vorbei (nachgestellt: 12 statt 4 geprüfte Versuche). Seit `40d6591`
   reserviert `Store::login_reserve` den Versuch vor der Prüfung in einer Transaktion.
-- **Niedrig, dokumentiert (`docs/Betrieb.md`), Code offen (→ R36):** Wer den Kontonamen des Autors kennt, hält ihn mit
+- **Erledigt R36** (`auth::cli::reset_password` ruft `login_reset` für `account_scope(name)` auf; Test
+  `round35_konten::the_command_line_lifts_the_block_of_the_account_after_failed_logins`; vorher niedrig, dokumentiert,
+  Code offen): Wer den Kontonamen des Autors kennt, hält ihn mit
   falschen Anmeldungen in der Sperre (bis 15 Minuten je Runde; kein Zugriff auf Daten). `baruch-server passwort` setzt
   das Passwort, hebt die Sperre aber nicht auf – der Befehl sollte `login_reset` für das Konto aufrufen. Bis dahin
   hilft „Am eigenen Rechner ohne Anmeldung“ oder Warten.
@@ -149,7 +182,8 @@ Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf).
   einem neuen Bereich die gemeinsame Wartezeit von 2 Sekunden aus; ein abgebrochener Versuch bleibt gezählt (gewollt,
   `docs/Architektur.md`). Eine gelungene Anmeldung setzt auch den Bereich der Adresse zurück (keine Aufgabe).
 
-**Vom PM entschieden (2026-11-27):** Die Abweichungen der Aufgabe rollen vom Vertrag bleiben: `wysiwyg.*`,
+**Vom PM entschieden (2026-11-27; die Werk-Bindung ist in Runde 36 gelockert, siehe unten „Ein Lektor ohne
+freigegebenes Werk“):** Die Abweichungen der Aufgabe rollen vom Vertrag bleiben: `wysiwyg.*`,
 `ribbon.formats` und `GET /einstellungen/darstellung` mit Werk-Bindung (sicherer als „ohne Werk“, das für einen Lektor
 das Vorgabewerk der Instanz hieße), `work.sheet` und `search.find` als lesende Ergänzungen. Die vier dunklen Bilder der
 Sichtprüfung (02, 05, 09, 13) hat der PM angesehen: dunkle Darstellung greift, nichts überlappt.
@@ -158,31 +192,41 @@ Sichtprüfung (02, 05, 09, 13) hat der PM angesehen: dunkle Darstellung greift, 
 Konten und Rollen“, „Handprüfung für den Nutzer“. Besonders: Passwortmanager, `Secure`-Cookie hinter dem Proxy,
 `SameSite=Strict` bei einem Link aus einer E-Mail („Schon angemeldet? Weiter“), Schalter 0.2 über den Proxy.
 
-**Niedrig, nicht umgesetzt:**
-- Anzeigename zur Herkunft `@lektorat:<slug>` auf der Arbeitsseite (Fassungen, Beiträge, Befunde zeigen nur den Handle;
+**Niedrig, nicht umgesetzt** (Stand nach Runde 36 je Punkt):
+- (**erledigt R36**: `konten_ui::names`, über `Store::account_list`; ohne Konten Byte für Byte gleich; Test
+  `round36_lektor`) Anzeigename zur Herkunft `@lektorat:<slug>` auf der Arbeitsseite (Fassungen, Beiträge, Befunde zeigen nur den Handle;
   `LibraryView` kennt keine Konten). Der Kopf eines Vorschlags nennt den Handle seit der Integration nur noch einmal.
 - Live-Chat für Lektoren: Das Widget „chat“ fehlt (neue Beiträge erst nach dem Neuladen), weil `post.since` Beiträge mit
-  den Werkzeugen des Autors liefert.
-- Eigene Beiträge ändert und entfernt ein Lektor nur auf der Arbeitsseite, nicht auf `/beitrag` und `/beitraege`.
-- Links auf gesperrte Seiten außerhalb von `base.html` bleiben für Lektoren sichtbar und enden mit 403 (z. B.
+  den Werkzeugen des Autors liefert. – R36: nicht bearbeitet, zu groß (verlangt eine eigene Fassung von `post.since` für Lektoren und
+  einen neuen Eintrag in `LEKTOR_RPC`; Vertrag §2 ändert in dieser Runde nur drei Einträge).
+- Eigene Beiträge ändert und entfernt ein Lektor nur auf der Arbeitsseite, nicht auf `/beitrag` und `/beitraege`. – R36: nicht bearbeitet, zu groß (zwei weitere Seiten in `LEKTOR_ROUTES` mit eigener
+  Darstellung für Lektoren; Vertrag §2 ändert nur drei Einträge).
+- (**teilweise R36**: Das Umschlagbild in der Werkliste ist für Lektoren kein Link mehr, der Knopf heißt für sie „Im
+  Werk suchen“; Test `round36_lektor`. Übrige Links außerhalb von `base.html` nicht gesucht: zu groß, jede Seite
+  einzeln – sie enden weiter mit 403.) Links auf gesperrte Seiten außerhalb von `base.html` bleiben für Lektoren sichtbar und enden mit 403 (z. B.
   Umschlagbild in der Werkliste); der Knopf „Im Werk suchen und ersetzen“ führt Lektoren auf die Suche, ersetzen können
   sie nicht (Beschriftung anpassen).
-- Ein Lektor ohne freigegebenes Werk erreicht Einstellungen → Darstellung nicht (Umleitung auf `/werke`). Seit der
+- (**erledigt R36**: Bindung gelockert – `GET /einstellungen/darstellung`, `wysiwyg.*` und `ribbon.formats` stehen
+  „ohne Werk“; Beleg `round36_lektor`: Über `AppState::default_work` und `settings::resolve_work` erreicht ein Lektor
+  nie ein nicht freigegebenes Werk, auch nicht ohne Freigabe und nicht über das Cookie `baruch_work`.) Ein Lektor
+  ohne freigegebenes Werk erreicht Einstellungen → Darstellung nicht (Umleitung auf `/werke`). Seit der
   Integration liefert `AppState::default_work` einem Lektor nur freigegebene Werke – die Werk-Bindung von
   `/einstellungen/darstellung`, `wysiwyg.*` und `ribbon.formats` ließe sich damit wieder lockern (prüfen, → R36).
-- Anmelde- und Einrichtungsseite folgen dem Farbschema des Systems, nicht dem Cookie `baruch_theme` (die Seiten stehen
+- (**erledigt R36**: `data-theme` nach Cookie `baruch_theme`, ohne JavaScript; ohne Cookie wie bisher; Test
+  `round36_lektor`) Anmelde- und Einrichtungsseite folgen dem Farbschema des Systems, nicht dem Cookie `baruch_theme` (die Seiten stehen
   ohne Menüband und ohne `data-theme`).
 - Editor-Kopf eines Lektors ist eng: Das Abzeichen „Lektor · @lektorat:…“ kürzt Titel und Herkunft der Fassung
-  (Sichtprüfung, 1400 px).
+  (Sichtprüfung, 1400 px). – R36: nicht bearbeitet, Browser nötig.
 - Die Befundseite zeigt die Matrix; den Text einer „Anmerkung zum Buch“ sieht man dort erst über die Zelle „Ohne
-  Abschnitt“. Ein eigener Kasten „Anmerkungen zum Buch“ wäre deutlicher.
-- Keine Grenze für offene Vorschläge je Lektor (MCP hat eine je Client); nur die Größen (1 MiB Text, 2000 Zeichen Notiz).
+  Abschnitt“. Ein eigener Kasten „Anmerkungen zum Buch“ wäre deutlicher. – R36: nicht bearbeitet, Fachentscheidung (Aufbau der Befundseite).
+- Keine Grenze für offene Vorschläge je Lektor (MCP hat eine je Client); nur die Größen (1 MiB Text, 2000 Zeichen Notiz). – R36: nicht bearbeitet, Fachentscheidung (welche Grenze?).
 - Während der Sperre gegen Durchprobieren lautet der Code beim Passwortwechsel `passwort_falsch` (kein eigener Code
-  „gesperrt“ in `konten_ui::MESSAGES`).
+  „gesperrt“ in `konten_ui::MESSAGES`). – R36: nicht bearbeitet, Fachentscheidung (Wortlaut einer neuen Meldung).
 - Der Vergleich Byte für Byte „ohne Konten“ gegen ein Programm vom Stand vor S1 ist nur vom Entwickler der Oberfläche
-  gemacht (23 Seiten, `ui.render`); ein Golden-Test dafür fehlt.
+  gemacht (23 Seiten, `ui.render`); ein Golden-Test dafür fehlt. – R36: nicht bearbeitet, zu groß (braucht ein Programm vom Stand vor S1 der Runde 35 als
+  Vergleich); für die Neuerungen der Runde 36 hält `round36_lektor` „ohne Konten unverändert“ fest.
 - `/lektorat/act` nimmt auch vom Autor nur Methoden aus `LEKTOR_RPC` (er nutzt `/act`); `revision.propose` antwortet
-  zusätzlich mit `work`.
+  zusätzlich mit `work`. – R36: nicht bearbeitet, Fachentscheidung (keine Aufgabe genannt).
 
 ### Nach Runde 34 offen (Integrator 2026-11-25, PM-Abschluss 2026-11-26)
 
@@ -207,13 +251,21 @@ PM-Abschluss mit vollem Lauf nach `cargo clean -p` (209 Testgruppen „ok“, 33
   Alle drei Entwickler kamen unabhängig auf dieselbe Regel.
 - (entschieden vom PM 2026-11-25) Einlesen ohne Zielknoten legt die obersten Knoten als **Hauptthemen am Werk** an:
   Eine fremde Mindmap ist ein Baum, keine Ablage.
-- (→ R36, Reste) Die eigene Ausgabe trägt die Wolke als letzten Ast „Wolke“ (`.mm`, `.xmind`); beim Wiedereinlesen
+- (**erledigt R36**: Der eigene Ast wird an `export::CLOUD_ID` erkannt, seine Knoten kommen mit `cloud: true` wieder
+  in die Wolke; ein fremder Ast, der nur „Wolke“ heißt, bleibt Hauptthema; Tests `round36_mindmap`,
+  `round34_abnahme`) Die eigene Ausgabe trägt die Wolke als letzten Ast „Wolke“ (`.mm`, `.xmind`); beim Wiedereinlesen
   kommen diese Einfälle als Hauptthemen an, nicht wieder in der Wolke. Die Rundreise der eigenen Datei soll die
   Wolke erhalten (den eigenen Ast beim Einlesen erkennen und mit `cloud: true` anlegen).
-- (Prüfung, niedrig, → R36) Beschriftungen der Verbindungen („widerspricht …“, „gehört zu“, „führt weiter …“)
+- (**erledigt R36** für die Beschriftungen: Jede sucht einen freien Platz an ihrer Linie und steht auf deckendem
+  Grund; Test auf dem erzeugten SVG einer dichten Karte, `round36_mindmap`. Der zweite Satz – ohne JavaScript ist
+  das Bild breiter als der Rahmen – bleibt: Browser nötig.) Beschriftungen der Verbindungen („widerspricht …“, „gehört zu“, „führt weiter …“)
   liegen bei dichten Ästen auf den Knoten der Nachbaräste und werden von Linien gekreuzt (Bilder 01, 05, 06, 14
   der Sichtprüfung). Ohne JavaScript ist das Bild breiter als der Rahmen; gerollt wird nur die Bildfläche.
-- (PM-Abschluss, niedrig, → R36) Die sechs Bilder der Sichtprüfung, die der Integrator nur erzeugt hatte (02, 03,
+- (**erledigt R36, Sichtprüfung beim Nutzer**: Ursache des hellen Streifens im CSS belegt – `.karte` ist der
+  Scrollbehälter und war auf 1400 px begrenzt und mittig, ihre Bildlaufleiste stand darum in breiten Fenstern neben
+  der Bühne; jetzt volle Breite, Leiste am Fensterrand, `scrollbar-color` aus den Farben der Seite; Zusicherung am
+  Stylesheet in `round36_mindmap`. Im Browser angesehen hat das in Runde 36 niemand. Die überdeckte Beschriftung
+  ist mit dem Punkt darüber erledigt.) Die sechs Bilder der Sichtprüfung, die der Integrator nur erzeugt hatte (02, 03,
   08, 10, 11, 13), sind angesehen bzw. geprüft (`10-ausgabe.svg` ist wohlgeformt). Gefunden: Im dunklen Modus steht
   rechts ein heller Streifen in der Farbe eines Rollbalkens (Bild 02 neben der Bühne, Bild 08 am rechten Rand).
   Ob das nur der Firefox ohne Fenster mit erzwungenem `data-theme` zeigt, ist nicht geklärt. Im PDF (Bild 11)
@@ -222,18 +274,19 @@ PM-Abschluss mit vollem Lauf nach `cargo clean -p` (209 Testgruppen „ok“, 33
   Rücktaste löscht (wie Entf nach Rückfrage, wiederherstellbar, Strg+Z), Enter an Werk, Teil oder Kapitel legt ein
   Unterthema an. Die Prüfung nannte das Löschen „sofort“; `mindmap.ts` fragt aber nach (`window.confirm`).
 - (offen) Titel über 48 Zeichen werden im Bild gekürzt, Textbreiten sind geschätzt (der Server kennt die Schrift des
-  Browsers nicht); Beschriftungen von Beziehungen können Knoten überdecken.
-- (offen) Die Seite baut die Karte zweimal (Baum für das Bild, flache Karte für „Gruppen“), mit gleichem Filter.
+  Browsers nicht); Beschriftungen von Beziehungen können Knoten überdecken. – R36: Die Beschriftungen überdecken keine Knoten mehr
+  (erledigt, siehe oben); gekürzte Titel und geschätzte Textbreiten nicht bearbeitet, Browser nötig.
+- (offen) Die Seite baut die Karte zweimal (Baum für das Bild, flache Karte für „Gruppen“), mit gleichem Filter. – R36: nicht bearbeitet, zu groß (Umbau der Seite).
 - (offen) Alte Bildregeln `.im-*` in `static/karte.css` ausmisten (Filter, Gruppen, Widersprüche und Legende
-  benutzen einen Teil davon weiter).
+  benutzen einen Teil davon weiter). – R36: nicht bearbeitet, Browser nötig (welche Regel noch wirkt, zeigt nur die Sichtprüfung).
 - (offen) Schnellerfassung Alt+E außerhalb der Mindmap (`web/src/ideas.ts`) verlangt weiter ein Schlagwort und kennt
-  kein Titelfeld.
+  kein Titelfeld. – R36: nicht bearbeitet, Fachentscheidung (Form der Schnellerfassung).
 - (offen) Bezug auf einen Unterabschnitt lässt sich in der Gliederungsansicht nicht setzen (nur Teile/Kapitel);
-  dafür die Seite des Einfalls.
-- (offen) Die Beschreibung von MCP `exchange_export` nennt noch „Unterversion 2“ (`mcp/exchange.rs`, schon vorher
-  veraltet).
+  dafür die Seite des Einfalls. – R36: nicht bearbeitet, Fachentscheidung.
+- (**erledigt R36**) Die Beschreibung von MCP `exchange_export` nannte noch „Unterversion 2“ (`mcp/exchange.rs`); sie
+  verweist jetzt ohne Zahl auf `docs/Austauschformat.md`.
 - (offen) Der Filter `open=` der alten Karte gilt im Baum nicht mehr und fällt aus den Links; die Zahl am Einklapper
-  zählt alle verborgenen Knoten, nicht nur Einfälle.
+  zählt alle verborgenen Knoten, nicht nur Einfälle. – R36: nicht bearbeitet, Fachentscheidung.
 - (erledigt im PM-Abschluss) `docs/Fahrplan.md` nachgeführt: Runde 34 ist die Mindmap, „Konten und Rollen“ ist
   Runde 35. Die Worktrees der Runde samt `target/` sind entfernt; die Zweige `team/mindmap_*` stehen noch.
 
@@ -1299,6 +1352,12 @@ setzt doppelt, Zähl-Abgleich, Tests ohne Satzprobe), Werkvorlagen (`p.at(i)±k`
 MCP-Kontingente und Clients ohne Token, `fetch_allowed` ohne DNS-Auflösung, `scrub` (Hex, Base64), Rechte eines
 vorhandenen Datenordners, Kosmetik (Token-Liste, Zitat-Folgezeile, Platzhalter der Zahlenfelder).
 
+**Runde 36 (Reste, 2026-11-27):** Erledigt und an ihrer Stelle als „erledigt R36“ markiert sind die Meldung
+„Sicherung angelegt“, die Token-Liste, die Folgezeile des Knopfs „Zitat“, die Rechte eines vorhandenen Datenordners
+(nur melden), `outline_mentions` (zwei Stellen) und store-5. Jeder andere Punkt behält seine Marke für die Zeit nach
+Runde 24 und trägt am Ende den Satz „R36: nicht bearbeitet, …“ mit dem Grund (Fachentscheidung, Browser nötig, zu
+groß, Store-Datei von sqlx09).
+
 ### Schritte des Nutzers (vor und bei der Veröffentlichung)
 
 **Reihenfolge** (Nachbesserung 2026-11-24; die Punkte darunter beschreiben die Schritte im Einzelnen):
@@ -1508,7 +1567,7 @@ zusätzlich unten in dieser Liste. Probe: `grep -n "→ R23" docs/Backlog.md` tr
   `…::add_post_and_propose_revision_have_size_limits_and_quotas`.
 - (offen nach R24, niedrig) Mit `persona` ohne Token zählt für `add_post`/`propose_revision` der Bestand der genannten Persona
   (begrenzt durch die Zahl der Personas); Registervorschläge und Gliederungsanträge zählen weiter je Herkunft (dort
-  begrenzen 2000 je Werk bzw. die Zustimmung des Menschen). Hängt an Nutzerfrage 15.
+  begrenzen 2000 je Werk bzw. die Zustimmung des Menschen). Hängt an Nutzerfrage 15. – R36: nicht bearbeitet, Fachentscheidung (hängt an Nutzerfrage 15).
 - (erledigt, Nachbesserung) Überholte Stellen der Doku: `?ok=sicherung` ohne `ziel` (RPC.md), `MCP_BODY_LIMIT`
   (Architektur.md), `defined_functions` mit Blockkommentaren, Klammertiefe und `#import` (RPC.md, Architektur.md),
   Vorwärtsverweise auf die abgeschlossene Runde (Architektur.md, WYSIWYG.md); README „Stand und Grenzen“.
@@ -1549,13 +1608,13 @@ Entscheidung des Nutzers („Vor einer Veröffentlichung“). Von den niedrigen:
 - (offen nach R24, niedrig) `ribbon::code_lines` zählt Klammern ohne Unterschied zwischen Markup und Code: Eine nicht
   geschlossene Klammer im Fließtext der Werkvorlage (oder eine maskierte `\[`) oberhalb einer `#let szene(…)`-Definition
   lässt die Knöpfe Szene/Arbeit/Bibelstelle still wegfallen (bis R22 zählte jede `#let` am Zeilenanfang). Sauber geht
-  das nur mit dem Typst-Parser statt der Zeilenregel; kein Test mit unausgeglichenen Klammern.
+  das nur mit dem Typst-Parser statt der Zeilenregel; kein Test mit unausgeglichenen Klammern. – R36: nicht bearbeitet, zu groß (verlangt den Typst-Parser statt der Klammerzählung über die Werkvorlage).
 - (offen nach R24, niedrig) `fetch_allowed` ohne DNS-Auflösung (Rebinding, Weiterleitung auf private Adressen): Grenze dessen,
-  was Baruch leisten kann, weil MultiGPT die Seite abruft; ob MultiGPT filtert, prüft der Nutzer.
-- (offen nach R24, niedrig) `/einstellungen/daten?ok=sicherung` zeigt „Sicherung angelegt“ bei jedem Aufruf (auch über einen
+  was Baruch leisten kann, weil MultiGPT die Seite abruft; ob MultiGPT filtert, prüft der Nutzer. – R36: nicht bearbeitet, Fachentscheidung (Grenze des Entwurfs: MultiGPT ruft die Seite ab; die Prüfung liegt beim Nutzer).
+- (**erledigt R36** (einmaliger Vermerk im Prozess in `settings/data.rs`: Die Meldung steht nur einmal nach einer wirklich angelegten Sicherung, ein bloßer Link zeigt nichts; Test `round36_reste`), vorher niedrig) `/einstellungen/daten?ok=sicherung` zeigt „Sicherung angelegt“ bei jedem Aufruf (auch über einen
   Link) – mit dem Namen der neuesten vorhandenen Sicherung oder allgemein; kein beliebiger Name mehr, aber auch kein
   Beleg, dass gerade eine Sicherung entstand (`settings/data.rs`). Abhilfe wäre ein einmaliger Vermerk am Server.
-- (offen nach R24, niedrig, Kosmetik) Token-Liste: „(früher `@mcp:…`)“ bricht in der schmalen Spalte mitten im Namen um.
+- (**erledigt R36** (`.token-former` bricht nicht um, die ganze Klammer rückt in die nächste Zeile; Zusicherung an Markup und CSS, Sichtprüfung beim Nutzer), niedrig, Kosmetik) Token-Liste: „(früher `@mcp:…`)“ bricht in der schmalen Spalte mitten im Namen um.
 - (bleibt, dokumentiert) Rechte eines vorhandenen Datenordners: siehe „Aus der Integration“.
 - (aufgeräumt) Worktrees `.claude/worktrees/wf_20e1b3fd-3f9-3/4/5` samt `target/` entfernt; die Zweige `team/web`,
   `team/mcp-namen`, `team/geheimnisse` bleiben (gemergt).
@@ -1575,14 +1634,14 @@ für `/mcp`, satz-1, quellen-1 bis -3), dazu die niedrigen store-2, store-3, web
 - (offen nach R24, niedrig) `guard::cross_site_subresource` weicht in einem Punkt vom Wortlaut des Vertrags ab: Fehlen
   `Sec-Fetch-Mode` **und** `Sec-Fetch-Dest`, gilt die Anfrage nicht als Unterressource (Browser schicken die drei
   Kopfzeilen immer zusammen; ältere Tests bilden so den Link von außen nach). Rückweg zur wörtlichen Regel: Zweig
-  `(None, None)` auf `true`, dazu `round12_search_ui`/`round13_quellen` um die beiden Kopfzeilen ergänzen.
-- (offen nach R24, niedrig) Die Rechte eines **vorhandenen** Datenordners ändert Baruch nicht (nur neue bekommen 0700);
+  `(None, None)` auf `true`, dazu `round12_search_ui`/`round13_quellen` um die beiden Kopfzeilen ergänzen. – R36: nicht bearbeitet, Fachentscheidung (Wortlaut des Vertrags gegen das Verhalten der Browser); `guard.rs` blieb in Runde 36 unverändert (Vertrag §3).
+- (**erledigt R36** im Umfang „nur melden“ (Einstellungen → Daten nennt zu offene Rechte, geändert werden sie nie; Test `round36_reste`), vorher niedrig) Die Rechte eines **vorhandenen** Datenordners ändert Baruch nicht (nur neue bekommen 0700);
   `baruch.sqlite*` und `works/` entstehen weiter mit der umask. Der Dienst des Nutzers liegt unter dem geschützten Home.
-- (offen nach R24, niedrig) Die Folgezeile des Knopfs „Zitat“ ist „– “; bleibt sie ungefüllt, steht ein einzelner
+- (**erledigt R36** (`ribbon::QUOTE_SNIPPET` ohne Folgezeile „– “; Tests `round36_reste`, `round23_web/widgets`), vorher niedrig) Die Folgezeile des Knopfs „Zitat“ ist „– “; bleibt sie ungefüllt, steht ein einzelner
   Gedankenstrich im Text (`ribbon::QUOTE_SNIPPET`; Entscheidung web, in der Sichtprüfung bestätigt oder zu ändern).
 - (offen nach R24, niedrig) R30-Widgets im Node-Harness: geprüft ist der Dialog „Verweis“; Suchleiste, Seitenleiste und
   Strg+Klick bleiben ohne Verhaltenstest. Ohne eigenen Test: store-3, web-5, quellen-6, `work.sheet_set` unter der
-  Schreibsperre, Einhängen der Pfeiltasten im Menüband, ↻ Wiederholen eines Relay-Beitrags im Faden ohne Abschnitt.
+  Schreibsperre, Einhängen der Pfeiltasten im Menüband, ↻ Wiederholen eines Relay-Beitrags im Faden ohne Abschnitt. – R36: nicht bearbeitet, zu groß (Verhaltenstests für drei Widgets und sechs Einzelpunkte; das DOM-Verhalten braucht einen Browser).
 - (keine Aufgabe) `baruch_exchange::sample` trägt Kapitel mit `==` unter Teilen; jedes Einlesen des Beispiels meldet
   dafür seit Runde 23 Hinweise in `deviations`.
 
@@ -1590,53 +1649,53 @@ für `/mcp`, satz-1, quellen-1 bis -3), dazu die niedrigen store-2, store-3, web
 
 - (offen nach R24) `bibles::module_note` läuft weiter auf dem async-Faden (bis 2 s beim ersten Aufruf je Modul); „ein Lauf je
   Modul“ ist umgesetzt, `spawn_blocking` verlangt den Umbau von vier synchronen Aufrufstellen (`bibles.rs:choice_note`,
-  `scripture.rs` dreimal).
+  `scripture.rs` dreimal). – R36: nicht bearbeitet, zu groß (Umbau von vier synchronen Aufrufstellen).
 - (offen nach R24) `with_image_formats` ergänzt `format:` weiter rein textuell (auch in Kommentaren/Raw), nur bei
-  Zeichenketten-Literalen; Export nach Typwechsel. Nicht angefasst.
+  Zeichenketten-Literalen; Export nach Typwechsel. Nicht angefasst. – R36: nicht bearbeitet, zu groß (verlangt den Typst-Syntaxbaum statt Textersetzung; `baruch-render/src/lib.rs` blieb in Runde 36 unverändert, Vertrag S1.1).
 - (offen nach R24) Markierung eines Treffers im Satzbild nach Quelltext-Offsets; Suchen in der Markierung weitergeben;
-  Trefferumfeld an Wortgrenzen; Chat-Höhe. Nicht angefasst (brauchen Sichtprüfung im Browser).
+  Trefferumfeld an Wortgrenzen; Chat-Höhe. Nicht angefasst (brauchen Sichtprüfung im Browser). – R36: nicht bearbeitet, Browser nötig.
 - (offen nach R24) Vorschau der Satz-Einstellungen verdrängt weiter einen Platz im Satz-Zwischenspeicher und ist nicht
-  abbrechbar. Nicht angefasst.
-- (offen nach R24) Block „Satz“: Platzhalter der Zahlenfelder, `aria-describedby` für Konflikt-Hinweise. Nicht angefasst.
-- (offen nach R24) `cover_checks` setzt den Umschlag noch einmal nur für die Maße.
+  abbrechbar. Nicht angefasst. – R36: nicht bearbeitet, zu groß (eigener Zwischenspeicher und Abbruchweg für die Vorschau).
+- (offen nach R24) Block „Satz“: Platzhalter der Zahlenfelder, `aria-describedby` für Konflikt-Hinweise. Nicht angefasst. – R36: nicht bearbeitet, Browser nötig (Breite der Platzhalter).
+- (offen nach R24) `cover_checks` setzt den Umschlag noch einmal nur für die Maße. – R36: nicht bearbeitet, zu groß (Umbau des Umschlag-Satzes).
 - (offen nach R24) Seitenzweige ohne Umstellung „Nummer an/aus“ und ohne Register-Projektion; Bildpfad ungleich
-  `bilder/<Name>` im Spiegel. Kein kleiner Eingriff (Spiegel-Format), dokumentiert wie bisher.
-- (offen nach R24, Codereview niedrig) store-5 (Löschen eines Gliederungspunkts protokolliert Vorschläge und Beiträge nicht),
+  `bilder/<Name>` im Spiegel. Kein kleiner Eingriff (Spiegel-Format), dokumentiert wie bisher. – R36: nicht bearbeitet, zu groß (Spiegel-Format).
+- (teilweise R36, Rest offen nach R24; Codereview niedrig) store-5 **erledigt R36** (`Store::outline_delete_losses` in `reste36.rs`; der Spiegel-Commit nennt die mitgelöschten Fassungen und Beiträge im Wortlaut, Tests `baruch-store/tests/reste36.rs`, `round36_reste`); offen bleiben
   satz-2 (EPUB streicht ein echtes `;` hinter `_x_`/`*x*`), ki-5 (Modulangaben ungerahmt im Faktenblock der
-  Stellenprüfung), store-6 (unklar: Wort-Diff in der Transaktion).
+  Stellenprüfung), store-6 (unklar: Wort-Diff in der Transaktion). – R36: satz-2 und ki-5 nicht bearbeitet, zu groß für einen Rest (eigene Prüfung von EPUB-Ausgabe bzw. Faktenblock); store-6 liegt in einer Store-Datei von sqlx09.
 - (→ Nutzer, Sichtprüfung) Zitat im Satzbild (neuer Block ohne Auswahl), Sperre des Editors während des Speicherns,
   Namensschilder am Rücken, Farben der Registermarke in beiden Themen, Spalten der EPUB-Dateiliste, Pfeiltasten im
   Menüband – im Browser ansehen (Entwickler ohne Firefox). Ablauf in `HANDOFF.md` (Runde 23, „Handprüfung durch den
   Nutzer“).
 - (offen nach R24) Geschachtelte Begriffslisten im Satzbild bleiben eine Insel; gemischte Listenzeichen und springende Nummern
-  ebenso (das Blockmodell `Term {term, desc}` hat keine Tiefe; docs/WYSIWYG.md).
+  ebenso (das Blockmodell `Term {term, desc}` hat keine Tiefe; docs/WYSIWYG.md). – R36: nicht bearbeitet, zu groß (das Blockmodell hat keine Tiefe).
 - (offen nach R24) Vorlagenfunktionen mit `p.at(i)±k`, `slice()` oder Inhalt als Ergebnis: Nummern in Baum und Gliederung können
-  vom Satz abweichen (Grenze in docs/Architektur.md, dort auch der Vorschlag „Nummern aus dem Satz übernehmen“).
+  vom Satz abweichen (Grenze in docs/Architektur.md, dort auch der Vorschlag „Nummern aus dem Satz übernehmen“). – R36: nicht bearbeitet, zu groß; dazu Fachentscheidung („Nummern aus dem Satz übernehmen“).
 - (offen nach R24, bei Bedarf) Regelblock „// Baruch: Satz“: Register, Glossar und „Querverweis mit Seite“ kommen beim
-  Re-Import nicht als Einstellung zurück.
-- (offen nach R24) Kolumnentitel „Werktitel“ bleibt ohne `#set document(title: …)` leer (Hinweis `NO_DOCUMENT_TITLE` vorhanden).
-- (offen nach R24) Abgleich der Satz-Einstellungen überschreibt nie; ein Knopf „übernehmen“ fehlt.
-- (offen nach R24) `outline_mentions` kennt Ordnungszahlen nur bis „zwölfte“ und römische Zahlen bis XXXIX.
-- (offen nach R24) Zeilenangaben in Satzmeldungen verschieben sich bei Teilen und Abschnitten ohne Nummer hinter der Ankerzeile.
-- (offen nach R24) Kapitelzuordnung einer geteilten Seite über `page_lines` zählt nur Text (nicht Bild oder Linie).
-- (offen nach R24) Die Tests prüfen weiter nicht durchgehend, ob Typst die erzeugte Ausgabe setzt.
-- (offen nach R24) Zähl-Abgleich Typst ↔ Baruch (Wörter/Zeichen) fehlt.
+  Re-Import nicht als Einstellung zurück. – R36: nicht bearbeitet, zu groß (Re-Import der Regeln; weiter nur bei Bedarf).
+- (offen nach R24) Kolumnentitel „Werktitel“ bleibt ohne `#set document(title: …)` leer (Hinweis `NO_DOCUMENT_TITLE` vorhanden). – R36: nicht bearbeitet, Fachentscheidung (soll Baruch den Dokumenttitel selbst setzen? der Hinweis ist vorhanden).
+- (offen nach R24) Abgleich der Satz-Einstellungen überschreibt nie; ein Knopf „übernehmen“ fehlt. – R36: nicht bearbeitet, Fachentscheidung (Abgleichregel des Austauschformats).
+- (**erledigt R36** (Ordnungszahlen bis „hundertste“, römische Zahlen in üblicher Schreibweise bis 3999, weiter nur bei Eindeutigkeit; `xref.rs`, Test `round36_reste`)) `outline_mentions` kennt Ordnungszahlen nur bis „zwölfte“ und römische Zahlen bis XXXIX.
+- (offen nach R24) Zeilenangaben in Satzmeldungen verschieben sich bei Teilen und Abschnitten ohne Nummer hinter der Ankerzeile. – R36: nicht bearbeitet, zu groß (Zeilenabbildung zwischen Satz und Abschnitt).
+- (offen nach R24) Kapitelzuordnung einer geteilten Seite über `page_lines` zählt nur Text (nicht Bild oder Linie). – R36: nicht bearbeitet, zu groß (Zuordnung über die Rahmen des Satzes statt über Textzeilen).
+- (offen nach R24) Die Tests prüfen weiter nicht durchgehend, ob Typst die erzeugte Ausgabe setzt. – R36: nicht bearbeitet, zu groß (ein Typst-Lauf je erzeugter Ausgabe; Laufzeit der Tests).
+- (offen nach R24) Zähl-Abgleich Typst ↔ Baruch (Wörter/Zeichen) fehlt. – R36: nicht bearbeitet, zu groß.
 - (offen nach R24, braucht einen Browser) `the_topbar_stays_on_one_line_at_1024_pixels` prüft nur CSS-Regeln und misst keine
-  Breite der Kopfzeile.
+  Breite der Kopfzeile. – R36: nicht bearbeitet, Browser nötig.
 - (offen nach R24, Fachentscheidung) Wasserzeichen überdeckt ein `foreground` der Vorlage in Ausgaben mit Entwurf;
-  EPUB-Titelseite ohne Wasserzeichen. Dokumentiert, keine Änderung.
+  EPUB-Titelseite ohne Wasserzeichen. Dokumentiert, keine Änderung. – R36: nicht bearbeitet, Fachentscheidung.
 - (offen nach R24) Typst lässt sich nicht hart abbrechen: Auswertung und Umbruch laufen zu Ende und halten so lange die Sperre
-  (nicht wieder versucht, siehe SKILLS.md).
+  (nicht wieder versucht, siehe SKILLS.md). – R36: nicht bearbeitet, zu groß (eigener Prozess je Satzlauf).
 - (keine Aufgabe, bei Bedarf) Die Saat einer neuen Datenbank legt die Teile des Beispielwerks weiter mit leerem Text an.
 - (→ Nutzerfrage 14) Befund-Blöcke kompakter: jeder Listenpunkt einer Persona-Antwort ist ein eigener Block.
 
 ### mcp-namen
 
-- (offen nach R24, niedrig) Clients ohne Token sind untereinander nicht unterscheidbar; `persona` ohne Token bleibt erlaubt (bewusste Entscheidung, siehe MCP).
+- (offen nach R24, niedrig) Clients ohne Token sind untereinander nicht unterscheidbar; `persona` ohne Token bleibt erlaubt (bewusste Entscheidung, siehe MCP). – R36: nicht bearbeitet, Fachentscheidung (bewusste Entscheidung, siehe MCP).
 - (erledigt, Nachbesserung R23) ~~Das Tageskontingent von `add_post` und die Grenze offener Vorschläge zählen je Autor; ein Client ohne Token umgeht sie mit einem neuen Namen (anders als bei Bildern).~~ Alle Clients ohne Token zählen zusammen (siehe „Aus Gutachten und Nachbesserung“).
-- (offen nach R24, niedrig) Das Bildkontingent eines Tokens zählt nur den neuen Handle; Bilder, die derselbe Token in den 24 Stunden vor dem Einspielen unter dem Alt-Handle schrieb, zählen nicht mit.
-- (offen nach R24, niedrig) Angehängte Befunde (`similar_to`) bleiben beim Verschieben eines Beitrags an ihrem Hauptbefund hängen, auch wenn der in einem anderen Abschnitt steht.
-- (offen nach R24, niedrig) `all_done` in `persona.chat` sagt nicht, welche Persona es meldete (die Beiträge zeigen es).
+- (offen nach R24, niedrig) Das Bildkontingent eines Tokens zählt nur den neuen Handle; Bilder, die derselbe Token in den 24 Stunden vor dem Einspielen unter dem Alt-Handle schrieb, zählen nicht mit. – R36: nicht bearbeitet, zu groß gemessen am Nutzen (betrifft nur die 24 Stunden nach dem Einspielen von Runde 23).
+- (offen nach R24, niedrig) Angehängte Befunde (`similar_to`) bleiben beim Verschieben eines Beitrags an ihrem Hauptbefund hängen, auch wenn der in einem anderen Abschnitt steht. – R36: nicht bearbeitet, Fachentscheidung (sollen angehängte Befunde mitwandern?); die Zuordnung liegt in `baruch-store/src/findings.rs`, einer Store-Datei von sqlx09.
+- (offen nach R24, niedrig) `all_done` in `persona.chat` sagt nicht, welche Persona es meldete (die Beiträge zeigen es). – R36: nicht bearbeitet, Fachentscheidung (Form der Antwort von `persona.chat`).
 - (→ Nutzer, Handprüfung) Lektor-Regel 6 „bei einer Prüfung“: Ton im Chat am echten Modell prüfen.
 
 ### geheimnisse
@@ -1645,10 +1704,10 @@ für `/mcp`, satz-1, quellen-1 bis -3), dazu die niedrigen store-2, store-3, web
   Handprüfung).
 - (→ Nutzerfrage 16) Befunde beim Abgleich „vorspulen“ wie Fassungen (Status und Verlauf übernehmen, wenn der Verlauf
   hier ein Präfix des Verlaufs der Datei ist): bewusst nicht gebaut; Regel dieser Runde ist „bleibt, mit Hinweis“.
-- (offen nach R24, niedrig) Lage „lokal/extern“ bei Intranet-Namen: weiter ohne DNS (siehe Punkte).
-- (offen nach R24, niedrig) `scrub` erkennt Hex, JSON-Escapes, doppelte Kodierung und umbrochenes Base64 nicht.
+- (offen nach R24, niedrig) Lage „lokal/extern“ bei Intranet-Namen: weiter ohne DNS (siehe Punkte). – R36: nicht bearbeitet, Fachentscheidung (eine DNS-Auflösung wäre eine Netzanfrage beim Prüfen).
+- (offen nach R24, niedrig) `scrub` erkennt Hex, JSON-Escapes, doppelte Kodierung und umbrochenes Base64 nicht. – R36: nicht bearbeitet, zu groß.
 - (offen nach R24, niedrig) `fetch_allowed` ohne DNS: öffentliche Namen auf private Adressen (auch der eigene
-  Intranet-Name) gehen an MultiGPT.
+  Intranet-Name) gehen an MultiGPT. – R36: nicht bearbeitet, Fachentscheidung (wie oben: MultiGPT ruft ab, Prüfung beim Nutzer).
 
 ## Nach Runde 22 offen (PM-Abschluss 2026-11-10)
 
@@ -1678,14 +1737,14 @@ Runde 22 **Pause** – keine neue Runde vorbereitet.
 - (erledigt R23) Rückfrageseite vor Teilen/Zusammenführen (`outline_confirm.html`) reicht `mode` nicht weiter: die neue
   Fassung entsteht richtig, die Rückmeldung nennt aber keinen Grund `heading_changed` (`based_on_amend` reicht sie seit
   der Nachbesserung weiter).
-- (offen nach R24) Seitenzweig-Inhalt ohne Umstellung „Nummer an/aus“ und ohne Register-Projektion (dokumentiert).
+- (offen nach R24) Seitenzweig-Inhalt ohne Umstellung „Nummer an/aus“ und ohne Register-Projektion (dokumentiert). – R36: nicht bearbeitet, zu groß (Spiegel-Format).
 - (erledigt R23) `persona.chat` und MCP `ask_persona` geben `done_proposals`/`done_notes`/`all_done` nicht eigens aus.
 - (→ Nutzerfrage) Archiv: Bilder und Werkart (Predigt) kommen beim Wiederherstellen nicht mit; ältere Fassungen,
   Beiträge und Befunde nur in der Git-Historie des Archivordners.
 - (offen nach R24) Spiegel setzen: Rasterbilder liegen im Spiegel als `bilder/<name>.b64`; ein Bildpfad ungleich
-  `bilder/<Name>` fehlt im Spiegel (dokumentierte Abweichung).
+  `bilder/<Name>` fehlt im Spiegel (dokumentierte Abweichung). – R36: nicht bearbeitet, zu groß (Spiegel-Format).
 - (offen nach R24) Wasserzeichen: Eine Vorlage, die selbst `foreground` setzt, wird in Ausgaben mit Entwurf überdeckt; ein EPUB
-  ohne Titelei bekommt mit Entwurf eine Titelseite (Fachentscheidung, dokumentiert).
+  ohne Titelei bekommt mit Entwurf eine Titelseite (Fachentscheidung, dokumentiert). – R36: nicht bearbeitet, Fachentscheidung.
 - (erledigt R23) JS-Wege des Editors (Knopf-Weitergabe über `requestSubmit(submitter)`, Hinweis nach dem Speichern) ohne
   eigenen Browser-Verhaltenstest (Sichtprüfung R22 mit und ohne JavaScript ohne Befund).
 - (erledigt R23, Befund Nutzer 2026-11-10 am echten Buch) **Zitat-Werkzeug:** Der Knopf „Zitat“ (`ribbon.rs`) fügt
@@ -1706,7 +1765,7 @@ Aus den Berichten der Entwickler, der Integration, dem Gutachten und der Nachbes
   der Bibliothek erst beim nächsten Neustart des Dienstes – vorher Sicherung von `~/.local/share/baruch`.
 - (offen nach R24, Gutachten R21, niedrig) `baruch_render::with_image_formats` ergänzt `format:` rein textuell, auch in
   Kommentaren, Raw-Blöcken und Zeichenketten; `export --out` schreibt nach einem Typwechsel PNG-Bytes unter `.svg`
-  mit einem Typst-Text, der außerhalb von Baruch nicht setzbar ist (Export umbenennen oder `format:` mitschreiben).
+  mit einem Typst-Text, der außerhalb von Baruch nicht setzbar ist (Export umbenennen oder `format:` mitschreiben). – R36: nicht bearbeitet, zu groß (Typst-Syntaxbaum statt Textersetzung; `baruch-render/src/lib.rs` blieb in Runde 36 unverändert).
 - (erledigt R23, Gutachten R21, niedrig) MCP-Kontingent für Bilder gilt je selbst gewähltem Namen
   (`clientInfo.name`, `persona`): ein Client ohne Token vom eigenen Rechner bekommt mit neuem Namen ein neues
   Kontingent (in `docs/MCP.md` vermerkt). Zusammen mit den eindeutigen Handles lösen.
@@ -1725,16 +1784,16 @@ Aus den Berichten der Entwickler, der Integration, dem Gutachten und der Nachbes
   Schrift; Hervorhebungen, Fußnoten und Bilder aus PDF kommen nicht mit – Warnung `import-pdf-plain`).
 - (R23 nicht geändert → Nutzer, Handprüfung, nur falls die Handprüfung es zeigt) Hochladen nach MultiGPT in einem Aufruf mit höchstens 30 s (`SESSION_CEILING`): sehr große
   PDFs über langsames Netz scheitern, die Meldung bietet „lokal lesen“ an.
-- (offen nach R24) Geschachtelte Begriffslisten im Satzbild bleiben eine Insel (docs/WYSIWYG.md).
-- (offen nach R24) Vorlagenfunktionen mit `p.at(i)±k` oder `slice()`: Nummern in Baum und Gliederung können abweichen.
+- (offen nach R24) Geschachtelte Begriffslisten im Satzbild bleiben eine Insel (docs/WYSIWYG.md). – R36: nicht bearbeitet, zu groß (Blockmodell ohne Tiefe).
+- (offen nach R24) Vorlagenfunktionen mit `p.at(i)±k` oder `slice()`: Nummern in Baum und Gliederung können abweichen. – R36: nicht bearbeitet, zu groß.
 - (erledigt R22, mit dem Integrator) Titel mit Code an einem gleichlautenden nummerierten Knoten: Show-Regel über `<kN>`.
 - (offen nach R24, bei Bedarf) Regelblock „// Baruch: Satz“: Register, Glossar, „Querverweis mit Seite“ kommen beim Re-Import
-  nicht mit; Bundsteg kommt als Teil des Innenrands zurück (Satz gleich).
+  nicht mit; Bundsteg kommt als Teil des Innenrands zurück (Satz gleich). – R36: nicht bearbeitet, zu groß (weiter nur bei Bedarf).
 - (erledigt R23) Arbeitsseite mit `?lq=`: Kasten „Bilder des Werks“ steht nicht im ausgelieferten HTML
   (erst über `literature.render` im Popup; ohne JavaScript über `/literatur`). Eine Include-Zeile in
   `fragments/library.html` würde genügen.
 - (offen nach R24, mit `with_image_formats` oben) `format:` wird nur in `image()`-Aufrufen mit Zeichenketten-Literal ergänzt; berechnete Pfade der Werkvorlage
-  mit Typwechsel scheitern weiter in Typst.
+  mit Typwechsel scheitern weiter in Typst. – R36: nicht bearbeitet, zu groß (wie `with_image_formats` oben).
 - (dokumentiert, kein Fehler) `pdfinfo` meldet bei jedem Typst-PDF die Suspects-Zeile (krilla schreibt `/Suspects
   false`, poppler 25.03 meldet jeden Wert außer `true`).
 - (→ Nutzer, Handprüfung) EPUB-Cover rastert jetzt immer (auch ohne Umschlagbild); Sichtprüfung am echten Werk.
@@ -1831,7 +1890,7 @@ Aus den Berichten der Entwickler, der Integration, dem Gutachten und der Nachbes
   wenn die Gruppe inzwischen andere Einfälle hat (Anzeige blendet ihn aus, `of_map`); scheitert ein `idea.update`
   mittendrin, bleiben die schon geänderten Einfälle geändert. Abhilfe: veralteten Vorschlag ablehnen, Grenzen vorab.
 - (teilweise R23, Rest offen nach R24; Gutachten R19, niedrig) `bibles::module_note` liest die Stichprobe (bis 4000 Verse/2 s) blockierend im
-  async-Pfad und ohne Single-Flight; `spawn_blocking` und ein Lauf je Modul.
+  async-Pfad und ohne Single-Flight; `spawn_blocking` und ein Lauf je Modul. – R36: nicht bearbeitet, zu groß (Umbau von vier synchronen Aufrufstellen).
 - (erledigt R23) Test `round19_index::reindex_answers_at_once_while_an_embedding_hangs_and_rebuilds_after_release` kann
   grün sein, ohne dass etwas unterbrochen wird (Freigabe vor der nächsten 50-ms-Abfrage); Wartezeit vor der Freigabe
   wie im Nachbesserungstest.
@@ -1864,18 +1923,18 @@ Aus den Berichten der Entwickler, der Integration, dem Gutachten und der Nachbes
   Messtest `the_blank_page_before_a_second_part_stays_empty`).
 - (offen nach R24) Vorschau der Satz-Einstellungen (`work.typeset_preview`, Formular „Vorschau“) setzt über `typeset::compile`:
   nicht über `preview.cancel` abbrechbar, hält bis zum Ende die einzige Satz-Sperre; jeder Vorschaustand verdrängt einen
-  der 8 Plätze im Satz-Zwischenspeicher (Buchsatz wird dann neu gerechnet). Eigener Zwischenspeicher oder `compile_for`.
+  der 8 Plätze im Satz-Zwischenspeicher (Buchsatz wird dann neu gerechnet). Eigener Zwischenspeicher oder `compile_for`. – R36: nicht bearbeitet, zu groß (eigener Zwischenspeicher und Abbruchweg).
 - (offen nach R24) Block „Satz“: Platzhalter der Zahlenfelder (6em) abgeschnitten; Konflikt-Hinweise und Fehler beim Feld nicht
-  per `aria-describedby` verbunden (die Erklärungen der Satzbegriffe sind es seit `066ab17`).
+  per `aria-describedby` verbunden (die Erklärungen der Satzbegriffe sind es seit `066ab17`). – R36: nicht bearbeitet, Browser nötig.
 - (erledigt R23) `work.typeset_adopt_rule` verlangt über RPC keine Bestätigung (wie `work.typeset_reset`; RPC ist der Weg des
   Menschen, das Formular verlangt das Häkchen). Falls ein Widget die Methode nutzt: Bestätigung dort.
 - Verhaltensänderung (Nachbesserung `066ab17`, bewusst): Mit gesetztem Kapitelanfang bricht der Export auch vor Teilen
   um, wie die übernehmbare Vorlagenregel; Werke ohne Satz-Einstellungen bleiben byte-gleich.
 - (offen nach R24) Kolumnentitel „Werktitel“ liest `document.title`; ohne `#set document(title: …)` bleibt er leer (Hinweis
-  `NO_DOCUMENT_TITLE` in `work.typeset_get` und im Block „Satz“).
+  `NO_DOCUMENT_TITLE` in `work.typeset_get` und im Block „Satz“). – R36: nicht bearbeitet, Fachentscheidung.
 - (offen nach R24) Abgleich der Satz-Einstellungen überschreibt nie: Ändern und Zurücksetzen auf einer Instanz erreichen die
   andere nur als Hinweis bzw. „hier gelöscht“ (Regel in `docs/Austauschformat.md`); ein „übernehmen“-Knopf je Hinweis
-  fehlt.
+  fehlt. – R36: nicht bearbeitet, Fachentscheidung.
 - (erledigt R23) Ältere Server-Tests prüfen ihre Ausgaben weiter gegen das u5-XSD (round26_export, round26_roundtrip,
   round27_daten, round28_befunde, round30_varianten) – gültig, solange sie kein `<satz>` ausgeben.
 
@@ -1886,29 +1945,29 @@ Aus den Berichten der Entwickler, der Integration, dem Gutachten und der Nachbes
   einmal (ein Commit je Werk durch `sync_all`). Schritte in `HANDOFF.md` (Runde 30).
 - (teilweise R23, Rest offen nach R24) Die DOM-Teile der neuen Widgets (Suchleiste, Seitenleiste, Markierung im Satzbild, Strg+Klick, Dialog
   „Verweis“, Live-Anzeige) sind nur über reine Funktionen unter Node und die headless Sichtprüfung des Integrators
-  geprüft; ein Verhaltenstest im Browser fehlt.
+  geprüft; ein Verhaltenstest im Browser fehlt. – R36: nicht bearbeitet, Browser nötig.
 - (offen nach R24) Die Markierung eines Treffers im Satzbild sucht den Treffertext und bildet die Quelltext-Offsets nicht genau
-  ab (bei mehrfach vorkommendem Text kann die falsche Stelle markiert werden).
+  ab (bei mehrfach vorkommendem Text kann die falsche Stelle markiert werden). – R36: nicht bearbeitet, Browser nötig.
 - ~~(→ R29c) Verweis mit Seitenzahl als Werk-Einstellung; heute merkt sich der Browser die Wahl (localStorage).~~
   **Erledigt in Runde 29c** (Einstellung `xref_with_page`, `xref.ts` liest `work.typeset_get`; localStorage nur ungesetzt).
 - (erledigt R20a) EPUB: die Sprungmarken `<kN>` der Export-Quelle als interne Links abbilden.
 - (→ Nutzerfrage) Vorwärts-Sprung per Taste (heute nur Knopf; Alt+→ bleibt „nächste Fassung“, siehe
   `docs/Bedienung.md` „Blättern durch die Fassungen“).
-- (offen nach R24) `outline_mentions` kennt Ordnungszahlen bis „zwölfte“ und römische Zahlen bis XXXIX.
+- (**erledigt R36** (siehe „Nach Runde 23 offen“, web)) `outline_mentions` kennt Ordnungszahlen bis „zwölfte“ und römische Zahlen bis XXXIX.
 - (offen nach R24) Bei Teilen und Abschnitten ohne Nummer verschieben sich Zeilenangaben in Satzmeldungen hinter der
-  Überschrift um eine Zeile (Ankerzeile).
+  Überschrift um eine Zeile (Ankerzeile). – R36: nicht bearbeitet, zu groß.
 - (erledigt R23) Varianten: Eine Fassung, die beim Abgleich (Austausch) eine abgeleitete Kennung bekommt, verliert ihr
   Varianten-Kennzeichen.
 - (R23 nicht geändert → Nutzerfrage 14) Jeder Listenpunkt einer Persona-Antwort wird ein eigener Befund-Block mit Statusknöpfen; bei langen Listen
   von Hinweisen wird der Beitrag lang. Prüfen, ob Hinweise kompakter gesetzt werden (Nutzer beim Handtest fragen).
 - (offen nach R24) Sichtprüfung R30: Der Chat behält seine feste Höhe aus Runde 28, unter den Beiträgen bleibt im Akkordeon
-  Platz frei; im Trefferumfeld der Werk-Suche wird der Text hinter einem Treffer mitten im Wort abgeschnitten.
+  Platz frei; im Trefferumfeld der Werk-Suche wird der Text hinter einem Treffer mitten im Wort abgeschnitten. – R36: nicht bearbeitet, Browser nötig.
 - (erledigt R23) MCP-Relay aus Runde 15 (`relay_section` in `mcp/tools.rs`) und Relay bei direkter Anrede (Runde 30c)
   laufen nebeneinander (seit der Nachbesserung in einer Stufe und beide gerahmt); zusammenlegen.
 - (offen nach R24) Suchen in der Markierung: Die Seite `/suche` bietet „Markierung im Editor“ nur an, wenn die Adresse
   `start`/`end` trägt; der Editor selbst sucht in der Markierung über „⌶“ (Alt+L), gibt die Markierung aber nicht an
   den Link „im Werk …“ weiter. Die Offsets einer Markierung beziehen sich auf den Editortext; auf `/suche` (ohne
-  ungespeicherten Text) gelten sie gegen die gewählte Fassung.
+  ungespeicherten Text) gelten sie gegen die gewählte Fassung. – R36: nicht bearbeitet, Browser nötig.
 - Gutachten R30 (15 Befunde: 0 hoch, 6 mittel, 9 niedrig): Nachbesserung `88df145` behob die fünf mittleren im Code
   (Abgleich mit Querverweisen, Lösung nach Leerzeile, MCP-Relay zweistufig/ungerahmt, Ersetzen-Vorschau ohne
   Speichergrenze, Bereich Markierung/Fassung); der sechste mittlere war der PM-Merkposten Fahrplan. Im PM-Abschluss
@@ -1995,7 +2054,7 @@ Aus den Berichten der Entwickler, der Integration, dem Gutachten und der Nachbes
   wie der alte Titelblock; die Kontrastprüfung zählt ihn pauschal als 30 % Abdunklung. SVG-Umschläge werden nicht
   auf Kontrast gemessen.
 - (offen nach R24) `cover_checks` setzt den Umschlag noch einmal nur für die Maße (Satz aus dem Zwischenspeicher, Extras neu
-  gelesen); ließe sich mit `layout_view` teilen.
+  gelesen); ließe sich mit `layout_view` teilen. – R36: nicht bearbeitet, zu groß.
 - (erledigt R23, vom PM entschieden) Vorgabeblöcke rechnen aus dem Seitenmaß in pt; Koordinaten wie 20,999999 mm stehen so in
   `cover.layout` (die Oberfläche rundet). `default_blocks` rundet künftig auf 0,01 mm.
 - (erledigt R20c statt R20a, Gutachten) Umschlag für die Druckerei (`wrap_source`) und Höhenmessung (`block_measure_source`) setzen nur
@@ -2032,12 +2091,12 @@ wurden (die vier mittleren sind behoben, `d721b1c`; drei niedrige hat der PM sel
 - (offen nach R24) Typst lässt sich nicht hart abbrechen: Auswertung und Umbruch laufen zu Ende und halten so lange die Sperre
   (gemessen: 512 Seiten abgebrochen nach 200 ms → 252 ms statt 777 ms; eine Auswertungsschleife wird nicht
   unterbrochen). Ein harter Abbruch bräuchte einen eigenen Prozess je Lauf. PDF-Erzeugungen bricht `preview.cancel`
-  nicht ab.
+  nicht ab. – R36: nicht bearbeitet, zu groß (eigener Prozess je Satzlauf).
 - (offen nach R24) Kapitelzuordnung einer geteilten Seite über `page_lines` zählt nur Text: Endet ein Kapitel auf der Seite nur
-  mit Bild oder Linie, zählt die Seite nicht zu ihm; Text, den die Vorlage auf fremde Seiten zitiert, erkennt sie nicht.
+  mit Bild oder Linie, zählt die Seite nicht zu ihm; Text, den die Vorlage auf fremde Seiten zitiert, erkennt sie nicht. – R36: nicht bearbeitet, zu groß.
 - (erledigt in R27a, Austauschformat Unterversion 3 mit `<satzbild>`) ~~Satzbild-Einstellungen je Werk reisen nicht
   mit~~ (`docs/Austauschformat.md`).
-- (offen nach R24, aus R21 verschoben) Begriffslisten bleiben ohne Schachtelung; gemischte Listenzeichen und springende Nummern bleiben eine Insel.
+- (offen nach R24, aus R21 verschoben) Begriffslisten bleiben ohne Schachtelung; gemischte Listenzeichen und springende Nummern bleiben eine Insel. – R36: nicht bearbeitet, zu groß.
 - (keine Aufgabe, dokumentiert) `emit` schreibt einen Verweis vor einem Zeichen, das zum Ziel gehören könnte, als
   `#ref(<…>)`: `@kai.` wird in einem **bearbeiteten** Absatz zu `#ref(<kai>).` (in Typst gleichbedeutend; unberührte
   Blöcke bleiben byte-gleich). `\` vor Leerraum gilt seit 18b als Umbruch wie in Typst; das ändert Blockgrenzen bei
@@ -2070,7 +2129,7 @@ wurden (die vier mittleren sind behoben, `d721b1c`; drei niedrige hat der PM sel
   mehrzeiligen Inline-Konstrukt (`#footnote[eins⏎zwei]`, `#link(…)[…]`), nimmt `insert_figure_at` die nächste
   Zeilengrenze und setzt `#figure` in die Fußnote. Über das Satzbild tritt das nicht auf (dort immer Blockgrenze).
 - (offen nach R24; Rest aus „Nach Runde 8/9 offen“, dort als erledigt geführt) Die Tests prüfen weiter nicht, ob Typst
-  genauso zählt wie Baruch; der Test der Kopfzeile in schmalen Fenstern liest nur CSS-Regeln und misst keine Breite.
+  genauso zählt wie Baruch; der Test der Kopfzeile in schmalen Fenstern liest nur CSS-Regeln und misst keine Breite. – R36: nicht bearbeitet, zu groß (Zähl-Abgleich) bzw. Browser nötig (Breite der Kopfzeile).
 - (erledigt R22b; Rest aus „Nach Runde 8 offen“) Der Spiegel (`main.typ` mit `#include`) wird weiter nicht gesetzt, nur der
   Export.
 - (→ Nutzer; Gutachten R18, niedrig) Gedankenkarte: Seit der Sichtprüfung liegen die Kantenbeschriftungen über den
@@ -2247,7 +2306,7 @@ ein externes Eliezer; Lage „lokal/extern“ nach der Adresse mit Warnung; kein
   Teile zu einer Zeile zusammenfassen („nicht mitgegeben: A; B; C“) würde Platz sparen.
 - (offen nach R24) Lage „lokal/extern“: Ein Name im Intranet (z. B. `gpt.example.family`) gilt ohne DNS als nicht erkennbar lokal
   (Vorgabe extern, Warnung, wenn lokal gesetzt); eine Auflösung des Namens bei „Verbindung prüfen“ könnte das
-  genauer machen.
+  genauer machen. – R36: nicht bearbeitet, Fachentscheidung (DNS-Auflösung beim Prüfen).
 
 - (→ Nutzer) **Handprüfung mit Werk 3, Kapitel I** (Anleitung in `HANDOFF.md`): Kontextlänge @lektor, „Prüfen“ für
   Abschnitt und ganzes Kapitel, Kontext testweise 8192 (Komprimiert-Hinweis), Vorschlag für das ganze Kapitel (ein
@@ -2318,7 +2377,7 @@ Aus den Berichten der drei Entwickler und der Integration (Gutachten folgt):
   leere Teile in Werk 3) wandelt der Server beim ersten Start einmal in die Teil-Markierung um (neue Fassung,
   Spiegel-Commit, eigene Texte bleiben). Offen (keine Aufgabe, in R21 nicht angefasst; offen nach R24 bei Bedarf): Die Saat einer **neuen**
   Datenbank legt die Teile des Beispielwerks weiter mit leerem Text an (Merker gleich gesetzt); erst Umbenennen
-  schreibt dort die Markierung.
+  schreibt dort die Markierung. – R36: nicht bearbeitet, Fachentscheidung (Rest nur bei Bedarf).
 - (keine Aufgabe: Entscheidung des Integrators, Einspruch jederzeit) **Projektion auch ohne Regel in der Vorlage:**
   Werke „aus der Werkvorlage“ ohne `#set heading(numbering: …)` gelten mit der Vorgabe „1.1“ als nummeriert; ihr Export
   stellt Punkte mit „Nummer aus“ darum als Markierung dar (das Beispielwerk sein Vorwort). Im Satz ändert das nichts,
@@ -2331,7 +2390,7 @@ Aus den Berichten der drei Entwickler und der Integration (Gutachten folgt):
   Rückfalls mit `numbered = 1` zurück (Export byte-gleich, Baruch zählt sie aber wieder mit).
 - (offen nach R24, aus R21b verschoben; Grenze in Architektur.md) **Funktionen der Werkvorlage** mit `p.at(i) ± k`, `slice()` oder Inhalt als Ergebnis wertet Baruch nicht je
   Ebene aus (Näherung wie bisher); die Predigt-Regel mit `context` erkennt es nur über Textgleichheit. Andere
-  Typst-Zählzeichen als `1 a A i I *` (z. B. `α`, `一`) sind für Baruch Text (Architektur.md).
+  Typst-Zählzeichen als `1 a A i I *` (z. B. `α`, `一`) sind für Baruch Text (Architektur.md). – R36: nicht bearbeitet, zu groß.
 - (erledigt R18b) **Satzbild:** Ein Client kann einen `part`-Block in einen Kapiteltext schreiben (die Oberfläche bietet es
   nicht an; `outline.save` lehnt eine Teil-Markierung als erste Überschrift eines Kapitels ab, als weitere Überschrift
   beim Teilen kann sie einen Teil anlegen – Aktion des Menschen, aber nicht eigens getestet).
@@ -2596,7 +2655,7 @@ Farben, Fahrplan). Offen, niedrig:
   - (erledigt R23) Daten: `?ok=sicherung&ziel=…` zeigt den Ordnernamen ungeprüft aus der Adresse (kein XSS, aber falsche
     Meldung möglich) – wie bei Verbindungen nur feste Codes verwenden.
   - (erledigt R23) `settings.ts` ohne Test (auch kein Inhaltstest des Skripts für Alt+, wie bei `menu.js`/`literature.js`).
-  - (teilweise R18a: neuer Test für schmale Fenster; misst weiter keine Breite offen nach R24, „Nach Runde 18 offen“) `the_topbar_stays_on_one_line_at_1024_pixels` prüft nur CSS-Regeln, misst keine Breite.
+  - (teilweise R18a: neuer Test für schmale Fenster; misst weiter keine Breite offen nach R24, „Nach Runde 18 offen“) `the_topbar_stays_on_one_line_at_1024_pixels` prüft nur CSS-Regeln, misst keine Breite. – R36: nicht bearbeitet, Browser nötig.
   - (erledigt R23) Ohne JavaScript außerhalb der Arbeitsseite kein Abzeichen und kein Eintrag „Anträge zur Gliederung“.
   - (erledigt R23) Popup meldet `baruch:settings-changed` auch nach abgelehnten Formularen von Verbindungen/Quellen (303 auf
     `?fehler=`); heute folgenlos.
@@ -2649,7 +2708,7 @@ Farben, Fahrplan). Offen, niedrig:
   eine Seite, die zwei Kapitel teilen, zählt in der Seitenliste zum nächsten Kapitel; die Satz-Seite lädt
   `main.js` mit, ohne es zu brauchen; Systemschriften werden beim ersten Satz je Prozess gesucht (einmalig
   spürbar). Die Tests prüfen, dass alle zwölf Gliederungsschemata fehlerfrei setzen, nicht, ob Typst genauso
-  zählt wie Baruch. Der Spiegel (`main.typ` mit `#include`) wird nicht gesetzt, nur der Export.
+  zählt wie Baruch. Der Spiegel (`main.typ` mit `#include`) wird nicht gesetzt, nur der Export. – R36: nicht bearbeitet, zu groß (Zähl-Abgleich Typst ↔ Baruch).
 - (erledigt R18a) **Kopfzeile:** Bei 1400 px passt sie jetzt in eine Zeile (Werktitel und Autor kürzen sich); in schmaleren
   Fenstern laufen die Knöpfe weiter aus dem Bild (schon vor Runde 8).
 - (→ Nutzer) **Leerer Abschnitt im Buch des Nutzers:** steht weiter als `== ` im Werk; seit Runde 8 lässt er sich speichern,

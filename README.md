@@ -43,7 +43,9 @@ Windows; Schnittstellen können sich noch ändern (siehe [Stand und Grenzen](#st
 - **Nichts geht verloren.** Jeder Abschnitt hat beliebig viele Fassungen; genau eine ist „aktuell“. Jede
   Änderung wird ein Commit in einem Git-Spiegel des Werks – mit Herkunft (Mensch, Persona, MCP-Client).
 - **Typst ist die Quelle.** Der Spiegel ist ein gewöhnlicher Typst-Ordner, der sich mit `typst compile main.typ`
-  auch ohne Baruch setzen lässt.
+  auch ohne Baruch setzen lässt – oder mit Baruch selbst: `baruch-typst compile main.typ` ist dasselbe Programm
+  als Typst-Kommandozeile (eingebaute Engine, ohne Netz und ohne Pakete; `compile`, `fonts`, `--version`;
+  [docs/Verteilung.md](docs/Verteilung.md), „Typst-Kommandozeile“).
 - **Ohne JavaScript bedienbar.** Jede Seite funktioniert mit Links und Formularen. JavaScript bringt Komfort:
   Ziehen, Tastatur, Popups, Live-Aktualisierung.
 - **Lokal und ehrlich.** Baruch antwortet nur auf dem eigenen Rechner. Schlüssel liegen im Schlüsselbund.
@@ -437,7 +439,8 @@ Clippy-Warnungen sind Fehler. Ein `#[allow(clippy::…)]` braucht eine Begründu
 Arbeitsabläufe (Aktionen nur mit Commit-SHA, minimale Rechte, keine Geheimnisse in Befehlszeilen).
 
 Die CI läuft bei jedem Push auf `main` (`.github/workflows/ci.yml`): Tests, clippy, `cargo deny check`,
-der Satz eines exportierten Werks mit der Typst-Kommandozeile und der Bau der Webseite. Ein Tag `v<Version>`
+der Satz eines exportierten Werks mit dem eigenen Programm als Typst-Kommandozeile (`baruch-typst`, kein
+Download) und der Bau der Webseite. Ein Tag `v<Version>`
 baut die Pakete, führt das APT-Repository fort und liefert Webseite und Repository über GitHub Pages aus
 (`.github/workflows/release.yml`). Ablauf, einmalige Einrichtung und Stand der Prüfung:
 [docs/Verteilung.md](docs/Verteilung.md). Die Quelle der Webseite liegt unter [site/](site/README.md).

@@ -489,3 +489,81 @@ async fn the_quote_of_a_finding_jumps_to_its_place_in_the_section() {
     let detail = f.page(&format!("/werke/{}/befunde?befund={id}", f.work)).await;
     assert!(detail.contains(&format!("href=\"{jump}\" data-jump")), "auch auf der Befundseite anspringbar");
 }
+
+/// Runde 36 (Hinweis aus 0.9.0): Seit dem Kritik-Zyklus bekam jede direkt angesprochene Persona ihre eigenen offenen
+/// Befunde in den Kontext – auch bei einer schlichten Frage, die mit dem Prüfen nichts zu tun hat. Jetzt nur noch
+/// bei einem Prüfauftrag (`chat::is_check_order`); RFC, „Prüfen“ und ↻ bleiben erneutes Prüfen.
+#[tokio::test]
+async fn a_plain_question_to_an_addressed_persona_carries_no_own_findings_but_a_check_order_does() {
+    let _turn = common::model_queue(module_path!()).await;
+    let f = ferry().await;
+    let id = nathan_finding(&f).await;
+    // Der erste Aufruf an den Nachbau, den die Nachricht auslöst (eine Nachforderung käme danach).
+    let ask = async |message: &str| -> (String, String) {
+        let before = f.eliezer.chat_bodies().len();
+        f.eliezer.push(Reply::text(&["Kritisch: „Rolle“ knarrt nicht.\n- Schritt: das Knarren hörbar machen."]));
+        let params = json!({ "work": f.work, "key": f.keys[0], "message": message });
+        let answer = f.server.rpc("persona.chat", params).await;
+        assert!(answer["error"].is_null(), "Chat „{message}“ gelingt: {answer}");
+        let bodies = f.eliezer.chat_bodies();
+        assert!(bodies.len() > before, "die Nachricht „{message}“ ruft die Persona");
+        messages(&bodies[before])
+    };
+    let own = format!("[B{id}]");
+
+    let (system, user) = ask("@nathan wie breit ist der Fluss an dieser Stelle?").await;
+    assert!(user.contains("wie breit ist der Fluss"), "Vorbedingung: der Aufruf trägt die Frage: {user}");
+    assert!(
+        !user.contains(prompts::OWN_FINDINGS_TITLE) && !user.contains(&own),
+        "eine schlichte Frage zieht die eigenen offenen Befunde nicht in den Kontext: {user}"
+    );
+    assert!(!system.contains(prompts::RECHECK_RULE), "und nicht die Regel des erneuten Prüfens ins System");
+
+    let (system, user) = ask("@nathan prüf den Abschnitt bitte noch einmal").await;
+    assert!(
+        user.contains(prompts::OWN_FINDINGS_TITLE) && user.contains(&own),
+        "ein Prüfauftrag an die Persona bleibt erneutes Prüfen mit den eigenen offenen Befunden: {user}"
+    );
+    assert!(system.contains(prompts::RECHECK_RULE), "samt Regel im System");
+
+    let (_, user) = ask("@nathan kannst du das bitte überprüfen?").await;
+    assert!(user.contains(prompts::OWN_FINDINGS_TITLE), "auch als Frage formuliert ist es ein Prüfauftrag: {user}");
+
+    let (_, user) = ask(&format!("@nathan was meinst du mit {own}?")).await;
+    assert!(
+        user.contains(prompts::OWN_FINDINGS_TITLE),
+        "wer einen Befund nennt, fragt nach den Befunden – die Persona braucht sie: {user}"
+    );
+
+    let (_, user) = ask("> bitte prüfen\n@nathan wie heißt der Hund am Ufer?").await;
+    assert!(
+        !user.contains(prompts::OWN_FINDINGS_TITLE),
+        "ein Prüfwort in einer Zitatzeile macht die Frage nicht zum Prüfauftrag: {user}"
+    );
+}
+
+#[test]
+fn check_orders_are_recognised_by_word_starts_and_finding_numbers() {
+    use baruch_server::assist::chat::is_check_order;
+    for message in [
+        "@nathan prüf den Vorschlag",
+        "Bitte PRÜFE das noch einmal, @nathan",
+        "@nathan kannst du das überprüfen?",
+        "@nathan Review bitte",
+        "@nathan check das Zitat",
+        "@nathan kontrolliere die Zahlen",
+        "@nathan ist [B12] noch offen?",
+    ] {
+        assert!(is_check_order(message), "„{message}“ ist ein Prüfauftrag");
+    }
+    for message in [
+        "@nathan wie alt war der Fährmann?",
+        "@nathan das hast du schon geprüft, danke",
+        "@pruefer wie spät ist es?",
+        "> prüf das\n@nathan danke",
+        "@nathan [B] und [Bx] sind keine Nummern",
+        "",
+    ] {
+        assert!(!is_check_order(message), "„{message}“ ist kein Prüfauftrag");
+    }
+}

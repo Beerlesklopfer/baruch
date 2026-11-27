@@ -1,15 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Kommandozeile von Baruch (Runde 36, Schnittstelle R36-S1, Besitz `typst_alias`): `baruch-server typst …`
-//! oder das Programm unter einem der Namen aus [`ALIAS_NAMES`] gerufen (Symlink `baruch-typst`). Die Engine steht
-//! in `baruch_render::cli`, hier stehen die Argumente.
+//! Typst-Kommandozeile von Baruch (Runde 36, Besitz `typst_alias`): `baruch-server typst …` oder das Programm unter
+//! einem der Namen aus [`ALIAS_NAMES`] gerufen (Symlink `baruch-typst`). Die Engine steht in `baruch_render::cli`,
+//! hier stehen die Argumente.
+//!
+//! Umfang: `compile EINGABE [AUSGABE]` (Kurzform `c`) mit `--root`, `--font-path` (mehrfach, auch
+//! `TYPST_FONT_PATHS`), `--format pdf|png|svg` (`-f`) und `--ppi`; `fonts`; `--version`; `--help`. Alles andere von
+//! Typst (watch, query, init, update, eval, completions, info, weitere Schalter, Eingabe von der Standardeingabe)
+//! wird ehrlich abgelehnt, bevor irgendetwas gelesen oder geschrieben wird. Pakete und Netz gibt es nicht
+//! ([`baruch_render::OFFLINE`]). Wie Typst – und anders als der Export von Baruch – überschreibt `compile` eine
+//! vorhandene Ausgabedatei; geschrieben wird aber erst, wenn der ganze Satz gelungen ist.
 //!
 //! Exit-Codes (fest): 0 Erfolg; 1 Satz- oder Dateifehler; 2 falscher Aufruf oder Nicht-Unterstütztes.
-//!
-//! Stand S1: [`is_alias`] und [`dispatch`] sind fertig, [`run`] ist ein Stub.
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use baruch_render::cli::{CompileJob, OutputFormat, TYPST_VERSION, compile_file, font_names};
 
 /// Namen, unter denen das Programm als Typst-Kommandozeile läuft.
 pub const ALIAS_NAMES: &[&str] = &["typst", "baruch-typst"];
@@ -38,12 +45,260 @@ pub fn dispatch(args: Vec<OsString>) -> Option<i32> {
     Some(run(&rest, &mut std::io::stdout().lock(), &mut std::io::stderr().lock()))
 }
 
+/// Hilfe der Typst-Kommandozeile (`--help`).
+pub const HELP: &str = "Typst-Kommandozeile von Baruch (eingebaute Engine, ohne Netz)
+
+typst compile EINGABE.typ [AUSGABE] [--root ORDNER] [--font-path ORDNER]… [--format pdf|png|svg] [--ppi ZAHL]
+typst fonts [--font-path ORDNER]…
+typst --version
+typst --help
+
+Aufruf als baruch-typst … oder baruch-server typst …
+  compile     (kurz: c) eine Typst-Datei setzen. Ohne AUSGABE entsteht die Datei neben der Eingabe mit der
+              Endung des Formats. Eine vorhandene Ausgabedatei wird überschrieben (wie bei Typst); bei einem
+              Satzfehler wird nichts geschrieben.
+  --root      Wurzelordner des Projekts (Vorgabe: Ordner der Eingabe); Dateien außerhalb sind gesperrt
+  --font-path Ordner mit weiteren Schriften (mehrfach; auch TYPST_FONT_PATHS), zusätzlich zu den
+              eingebetteten und den Systemschriften
+  --format    (kurz: -f) pdf, png oder svg; ohne Angabe nach der Endung der Ausgabe, sonst pdf
+  --ppi       Auflösung für png (Vorgabe 144)
+              png und svg mit mehreren Seiten brauchen {p}, {0p} oder {t} im Namen der Ausgabe
+              (Seitennummer, Seitennummer mit führenden Nullen, Seitenzahl), z. B. seite-{0p}.png
+  fonts       die Familiennamen der verfügbaren Schriften, eine je Zeile
+  --version   typst VERSION (Baruch VERSION)
+Nicht unterstützt: watch, query, init, update, eval, completions, info, Eingabe von der Standardeingabe (-),
+Pakete (@preview/…) und alles aus dem Netz, weitere Schalter von Typst.
+Exit: 0 Erfolg, 1 Satz- oder Dateifehler, 2 falscher Aufruf oder Nicht-Unterstütztes.";
+
+/// Unterbefehle von Typst, die es hier nicht gibt.
+const UNSUPPORTED_COMMANDS: &[&str] = &["watch", "w", "query", "init", "update", "eval", "completions", "info"];
+
+/// Ein falscher Aufruf oder etwas Nicht-Unterstütztes: Meldung für `err`, Exit 2.
+#[derive(Debug, PartialEq, Eq)]
+struct Usage(String);
+
+fn unsupported(what: &str) -> Usage {
+    Usage(format!("{what} unterstützt Baruch als Typst-Alias nicht"))
+}
+
+/// Die gelesenen Angaben eines Aufrufs von `compile` oder `fonts`.
+#[derive(Default)]
+struct Options {
+    positional: Vec<String>,
+    root: Option<PathBuf>,
+    font_paths: Vec<PathBuf>,
+    format: Option<String>,
+    ppi: Option<String>,
+}
+
+/// Liest Schalter und freie Angaben; `allowed` nennt die Schalter mit Wert, die der Unterbefehl kennt. `--name WERT`
+/// und `--name=WERT` gelten beide; nach `--` ist alles eine freie Angabe.
+fn parse(args: &[String], allowed: &[&str]) -> Result<Options, Usage> {
+    let mut options = Options::default();
+    let mut rest = args.iter();
+    let mut only_positional = false;
+    while let Some(arg) = rest.next() {
+        if only_positional || arg == "-" || !arg.starts_with('-') {
+            options.positional.push(arg.clone());
+            continue;
+        }
+        if arg == "--" {
+            only_positional = true;
+            continue;
+        }
+        let (name, inline) = match arg.split_once('=') {
+            Some((name, value)) => (name, Some(value.to_owned())),
+            None => (arg.as_str(), None),
+        };
+        let name = if name == "-f" { "--format" } else { name };
+        if !allowed.contains(&name) {
+            return Err(unsupported(&format!("Den Schalter „{name}“")));
+        }
+        let value = match inline.or_else(|| rest.next().cloned()) {
+            Some(value) if !value.is_empty() => value,
+            _ => return Err(Usage(format!("{name} braucht einen Wert"))),
+        };
+        match name {
+            "--root" => options.root = Some(PathBuf::from(value)),
+            "--font-path" => options.font_paths.push(PathBuf::from(value)),
+            "--format" => options.format = Some(value),
+            _ => options.ppi = Some(value),
+        }
+    }
+    // Wie bei Typst: die Ordner aus der Umgebung zusätzlich, nach denen der Befehlszeile.
+    if allowed.contains(&"--font-path")
+        && let Some(paths) = std::env::var_os("TYPST_FONT_PATHS")
+    {
+        options.font_paths.extend(std::env::split_paths(&paths).filter(|path| !path.as_os_str().is_empty()));
+    }
+    Ok(options)
+}
+
+fn format_of(word: &str) -> Option<OutputFormat> {
+    match word.to_lowercase().as_str() {
+        "pdf" => Some(OutputFormat::Pdf),
+        "png" => Some(OutputFormat::Png),
+        "svg" => Some(OutputFormat::Svg),
+        _ => None,
+    }
+}
+
+fn extension(format: OutputFormat) -> &'static str {
+    match format {
+        OutputFormat::Pdf => "pdf",
+        OutputFormat::Png => "png",
+        OutputFormat::Svg => "svg",
+    }
+}
+
+/// Ein fertig geprüfter Auftrag von `compile`: was gesetzt wird und wohin.
+#[derive(Debug)]
+struct Compile {
+    job: CompileJob,
+    output: PathBuf,
+}
+
+fn compile_args(args: &[String]) -> Result<Compile, Usage> {
+    let options = parse(args, &["--root", "--font-path", "--format", "--ppi"])?;
+    let (input, output) = match options.positional.as_slice() {
+        [] => return Err(Usage("compile braucht eine Eingabedatei".into())),
+        [input] => (input, None),
+        [input, output] => (input, Some(output)),
+        _ => return Err(Usage("compile nimmt eine Eingabe und höchstens eine Ausgabe".into())),
+    };
+    if input == "-" {
+        return Err(unsupported("Die Eingabe von der Standardeingabe (-)"));
+    }
+    if output.is_some_and(|output| output == "-") {
+        return Err(unsupported("Die Ausgabe auf die Standardausgabe (-)"));
+    }
+    let output = output.map(PathBuf::from);
+    let format = match (&options.format, &output) {
+        (Some(word), _) => format_of(word)
+            .ok_or_else(|| unsupported(&format!("Das Format „{word}“ (möglich sind pdf, png und svg)")))?,
+        (None, Some(path)) => match path.extension().and_then(OsStr::to_str) {
+            Some(word) => format_of(word).ok_or_else(|| {
+                unsupported(&format!("Die Endung „.{word}“ der Ausgabe (möglich sind .pdf, .png und .svg)"))
+            })?,
+            None => return Err(Usage("die Ausgabe hat keine Endung; --format pdf|png|svg angeben".into())),
+        },
+        (None, None) => OutputFormat::Pdf,
+    };
+    let ppi = match &options.ppi {
+        Some(word) => match word.parse::<f32>() {
+            Ok(ppi) if ppi.is_finite() && ppi > 0.0 => ppi,
+            _ => return Err(Usage(format!("--ppi braucht eine Zahl größer als 0, nicht „{word}“"))),
+        },
+        None => 144.0,
+    };
+    let input = PathBuf::from(input);
+    let output = output.unwrap_or_else(|| input.with_extension(extension(format)));
+    Ok(Compile { job: CompileJob { input, root: options.root, font_paths: options.font_paths, format, ppi }, output })
+}
+
+/// Der Ausgabename einer Seite: `{p}` Seitennummer, `{0p}` mit führenden Nullen, `{t}` Seitenzahl.
+fn page_path(template: &Path, page: usize, total: usize) -> PathBuf {
+    let width = total.to_string().len();
+    let name = template
+        .to_string_lossy()
+        .replace("{0p}", &format!("{page:0width$}"))
+        .replace("{p}", &page.to_string())
+        .replace("{t}", &total.to_string());
+    PathBuf::from(name)
+}
+
+fn has_page_template(path: &Path) -> bool {
+    let name = path.to_string_lossy();
+    ["{p}", "{0p}", "{t}"].iter().any(|mark| name.contains(mark))
+}
+
+fn compile(args: &[String], err: &mut dyn Write) -> i32 {
+    let Compile { job, output } = match compile_args(args) {
+        Ok(compile) => compile,
+        Err(Usage(message)) => return usage(err, &message),
+    };
+    let result = match compile_file(&job) {
+        Ok(result) => result,
+        Err(error) => {
+            for message in &error.messages {
+                let _ = writeln!(err, "{message}");
+            }
+            return 1;
+        }
+    };
+    for warning in &result.warnings {
+        let _ = writeln!(err, "{warning}");
+    }
+    let total = result.pages.len();
+    // Erst alles prüfen, dann schreiben: Bei einem Fehler entsteht keine Datei.
+    let targets: Vec<PathBuf> = if job.format == OutputFormat::Pdf || (total == 1 && !has_page_template(&output)) {
+        vec![output]
+    } else if has_page_template(&output) {
+        (1..=total).map(|page| page_path(&output, page, total)).collect()
+    } else {
+        let word = extension(job.format);
+        let _ = writeln!(
+            err,
+            "error: {total} Seiten als {word} brauchen {{p}}, {{0p}} oder {{t}} im Namen der Ausgabe (z. B. \
+             seite-{{0p}}.{word}); nichts geschrieben"
+        );
+        return 1;
+    };
+    for (target, bytes) in targets.iter().zip(&result.pages) {
+        if let Err(error) = std::fs::write(target, bytes) {
+            let _ = writeln!(err, "{}: error: Ausgabe lässt sich nicht schreiben ({error})", target.display());
+            return 1;
+        }
+    }
+    0
+}
+
+fn fonts(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let options = match parse(args, &["--font-path"]) {
+        Ok(options) => options,
+        Err(Usage(message)) => return usage(err, &message),
+    };
+    if let Some(extra) = options.positional.first() {
+        return usage(err, &format!("fonts nimmt keine weitere Angabe („{extra}“)"));
+    }
+    for name in font_names(&options.font_paths) {
+        let _ = writeln!(out, "{name}");
+    }
+    0
+}
+
+fn usage(err: &mut dyn Write, message: &str) -> i32 {
+    let _ = writeln!(err, "typst: {message}.\nHilfe: typst --help");
+    2
+}
+
 /// Die Typst-Kommandozeile ohne Programmnamen; schreibt nur in `out`/`err`, beendet den Prozess nie.
 pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
-    // STUB: Typst-Kommandozeile (Runde 36, typst_alias)
-    let _ = (args, out);
-    let _ = writeln!(err, "typst: in diesem Stand noch nicht umgesetzt (Runde 36).");
-    2
+    let Some((command, rest)) = args.split_first() else {
+        let _ = writeln!(err, "{HELP}");
+        return 2;
+    };
+    match command.as_str() {
+        "--version" | "-V" => {
+            let _ = writeln!(out, "typst {TYPST_VERSION} (Baruch {})", env!("CARGO_PKG_VERSION"));
+            0
+        }
+        "--help" | "-h" | "help" => {
+            let _ = writeln!(out, "{HELP}");
+            0
+        }
+        "compile" | "c" => compile(rest, err),
+        "fonts" => fonts(rest, out, err),
+        name if UNSUPPORTED_COMMANDS.contains(&name) => {
+            let Usage(message) = unsupported(&format!("Den Unterbefehl „{name}“"));
+            usage(err, &message)
+        }
+        name if name.starts_with('-') => {
+            let Usage(message) = unsupported(&format!("Den Schalter „{name}“"));
+            usage(err, &message)
+        }
+        name => usage(err, &format!("unbekannter Unterbefehl „{name}“")),
+    }
 }
 
 #[cfg(test)]
@@ -74,18 +329,65 @@ mod tests {
                 "{args:?}: kein Alias und args[1] nicht „typst“ – der Server läuft wie bisher"
             );
         }
-        assert_eq!(call(&["baruch-server", "typst", "--version"]), Some(2), "Unterbefehl typst: Stub meldet Exit 2");
-        assert_eq!(call(&["/usr/bin/baruch-typst", "--version"]), Some(2), "Aliasname in argv[0]: Stub meldet Exit 2");
+        assert_eq!(
+            call(&["baruch-server", "typst", "watch", "a.typ"]),
+            Some(2),
+            "Unterbefehl typst: die Typst-Kommandozeile antwortet (watch gibt es nicht, Exit 2)"
+        );
+        assert_eq!(
+            call(&["/usr/bin/baruch-typst", "watch", "a.typ"]),
+            Some(2),
+            "Aliasname in argv[0]: dieselbe Antwort ohne das Wort typst"
+        );
     }
 
     #[test]
-    fn the_stub_writes_only_to_err() {
-        let (mut out, mut err) = (Vec::new(), Vec::new());
-        assert_eq!(run(&["compile".into(), "a.typ".into()], &mut out, &mut err), 2, "Nicht-Unterstütztes ist Exit 2");
-        assert!(out.is_empty(), "ein Stub gibt nichts auf der Standardausgabe aus");
+    fn page_templates_number_the_output_files() {
+        let path = |template: &str, page| page_path(Path::new(template), page, 12).to_string_lossy().into_owned();
+        assert_eq!(path("seite-{p}.png", 3), "seite-3.png", "{{p}} ist die Seitennummer ab 1");
+        assert_eq!(path("seite-{0p}.png", 3), "seite-03.png", "{{0p}} füllt auf die Stellen der Seitenzahl auf");
+        assert_eq!(path("{p}-von-{t}.svg", 12), "12-von-12.svg", "{{t}} ist die Seitenzahl");
+        assert!(has_page_template(Path::new("a-{t}.png")), "auch {{t}} allein gilt als Vorlage (wie bei Typst)");
+        assert!(!has_page_template(Path::new("a-{n}.png")), "ein anderes Wort in Klammern ist keine Vorlage");
+    }
+
+    #[test]
+    fn the_format_follows_the_flag_then_the_output_name() {
+        let format = |list: &[&str]| {
+            let args: Vec<String> = list.iter().map(|word| (*word).to_owned()).collect();
+            compile_args(&args).map(|c| (c.job.format, c.output)).map_err(|u| u.0)
+        };
+        assert_eq!(
+            format(&["a.typ"]),
+            Ok((OutputFormat::Pdf, PathBuf::from("a.pdf"))),
+            "ohne Angabe: PDF neben der Eingabe"
+        );
+        assert_eq!(
+            format(&["a.typ", "b.svg"]),
+            Ok((OutputFormat::Svg, PathBuf::from("b.svg"))),
+            "ohne --format entscheidet die Endung der Ausgabe"
+        );
+        assert_eq!(
+            format(&["-f", "png", "a.typ"]),
+            Ok((OutputFormat::Png, PathBuf::from("a.png"))),
+            "-f vor der Eingabe; die Ausgabe bekommt die Endung des Formats"
+        );
+        assert_eq!(
+            format(&["a.typ", "b.pdf", "--format=svg"]),
+            Ok((OutputFormat::Svg, PathBuf::from("b.pdf"))),
+            "--format=… schlägt die Endung; der genannte Name bleibt"
+        );
         assert!(
-            String::from_utf8_lossy(&err).contains("noch nicht umgesetzt"),
-            "der Stub antwortet ehrlich (AGENTS.md, Stubs)"
+            format(&["a.typ", "b.html"]).unwrap_err().contains("unterstützt Baruch als Typst-Alias nicht"),
+            "HTML setzt die eingebaute Kommandozeile nicht – ehrlich abgelehnt statt als PDF geschrieben"
+        );
+        assert!(
+            format(&["a.typ", "--ppi", "0"]).unwrap_err().contains("--ppi"),
+            "eine Auflösung von 0 ist ein Aufruffehler"
+        );
+        assert!(
+            format(&["a.typ", "--root"]).unwrap_err().contains("--root braucht einen Wert"),
+            "ein Schalter ohne Wert wird genannt"
         );
     }
 }

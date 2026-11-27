@@ -833,8 +833,9 @@ ihren Absatz – wie Typst setzt. Bis Runde 22 wurde ein Zitatblock mit der Stel
 Code-Insel. `#quote[…]`, `block: false` und unlesbare Argumente bleiben Teil ihres Absatzes. Unberührte Blöcke gehen
 byte-gleich zurück (`serialize`).
 
-Der Knopf „Zitat“ (`ribbon::QUOTE_SNIPPET`) fügt `#quote(block: true)[]` mit der Folgezeile „– “ für die Stellenangabe
-ein, mit genau einer Leerzeile davor und danach (vorhandene zählen mit), Cursor im Rumpf; mit einer Auswahl wandert die
+Der Knopf „Zitat“ (`ribbon::QUOTE_SNIPPET`) fügt `#quote(block: true)[]` ein – seit Runde 36 ohne die Folgezeile
+„– “ für die Stellenangabe (ungefüllt blieb ein einzelner Gedankenstrich im Buch; die Stellenangabe schreibt der Autor
+selbst in die Zeile unter dem Block) –, mit genau einer Leerzeile davor und danach (vorhandene zählen mit), Cursor im Rumpf; mit einer Auswahl wandert die
 Auswahl in den Rumpf. Nicht `attribution: []`: Eine leere `attribution` setzt in Typst 0.15.1 eine Zeile mit dem
 Geviertstrich (gemessen in `crates/baruch-render/tests/quote_attribution.rs`). Im Satzbild entsteht ohne Auswahl
 dasselbe als eigener Block hinter dem Absatz am Cursor; mit Auswahl bleibt es beim Zitat im Fließtext. Ohne JavaScript

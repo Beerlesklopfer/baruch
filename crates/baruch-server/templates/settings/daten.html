@@ -15,6 +15,10 @@
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
   <h3 class="pane-title">Daten</h3>
+  {%- if permissions %}
+  {#- Runde 36: nur ein Hinweis – Baruch ändert die Rechte eines vorhandenen Datenordners nie. #}
+  <p class="notice warning" role="status" data-open-permissions>{{ permissions }}</p>
+  {%- endif %}
   <dl class="settings-facts">
     <dt>Datenordner</dt><dd><code>{{ dir }}</code></dd>
     <dt>Größe</dt><dd>{{ size }} <span class="muted tiny">({{ size_bytes }} Bytes, symbolische Verknüpfungen nicht mitgezählt)</span></dd>

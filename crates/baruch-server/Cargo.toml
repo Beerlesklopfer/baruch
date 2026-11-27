@@ -32,13 +32,19 @@ vorschlagen – übernehmen kann nur der Mensch.
 .
 Das Paket bringt den lokalen Server baruch-server (Oberfläche unter
 http://127.0.0.1:8765/), den Starter baruch (Server starten und Browser
-öffnen) und ein Beispiel für einen systemd-Benutzerdienst unter
-/usr/share/doc/baruch/examples. Die Daten liegen im Ordner
-~/.local/share/baruch des Benutzers; ein Systemdienst wird nicht
-eingerichtet."""
+öffnen), die Typst-Kommandozeile baruch-typst (ein Symlink auf
+baruch-server, eingebaute Engine) und ein Beispiel für einen
+systemd-Benutzerdienst unter /usr/share/doc/baruch/examples. Die Daten
+liegen im Ordner ~/.local/share/baruch des Benutzers; ein Systemdienst
+wird nicht eingerichtet."""
+# Runde 36: packaging/linux/baruch-typst ist ein Symlink auf „baruch-server“ und kommt als Symlink ins Paket
+# (/usr/bin/baruch-typst → baruch-server, im selben Ordner). Ohne preserve-symlinks kopierte cargo-deb das Ziel.
+# Eine Datei namens „typst“ installiert das Paket nie (ein fremdes Typst bleibt unberührt).
+preserve-symlinks = true
 assets = [
     ["target/release/baruch-server", "usr/bin/baruch-server", "755"],
     ["../../packaging/linux/baruch", "usr/bin/baruch", "755"],
+    ["../../packaging/linux/baruch-typst", "usr/bin/baruch-typst", "777"],
     ["../../packaging/linux/baruch.desktop", "usr/share/applications/baruch.desktop", "644"],
     ["../../packaging/icons/baruch.svg", "usr/share/icons/hicolor/scalable/apps/baruch.svg", "644"],
     ["../../packaging/icons/baruch-256.png", "usr/share/icons/hicolor/256x256/apps/baruch.png", "644"],

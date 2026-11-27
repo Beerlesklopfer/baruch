@@ -82,9 +82,11 @@ pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
     ("GET", "/ueber/lizenz", WorkFrom::None),
     ("GET", "/konto", WorkFrom::None),
     ("GET", "/anmelden", WorkFrom::None),
-    // Mit Werk aus der Adresse (Abweichung vom Start des Vertrags): Ohne `work` zeigte die Seite im Menüband das
-    // Vorgabewerk der Instanz – für einen Lektor ein fremdes Werk.
-    ("GET", "/einstellungen/darstellung", WorkFrom::Query),
+    // Ohne Werk (Runde 36, vorher `WorkFrom::Query`): Die Seite nimmt ihr Werk aus `settings::resolve_work`, das für
+    // einen Lektor nur freigegebene Werke kennt (`AppState::default_work`, Cookie `baruch_work` nur wenn
+    // freigegeben) – so erreicht auch ein Lektor ohne Freigabe seine Darstellung. Ein `work` in der Adresse wird
+    // weiter geprüft (siehe `check_request_preferring`).
+    ("GET", "/einstellungen/darstellung", WorkFrom::None),
     ("GET", "/static/app.css", WorkFrom::None),
     ("GET", "/static/favicon.svg", WorkFrom::None),
     ("GET", "/static/js/{name}", WorkFrom::None),
@@ -98,9 +100,11 @@ pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
 /// RPC-Methoden, die ein Lektor aufrufen darf, mit der Herkunft des Werks (Vertrag §2.2; Begründungen in
 /// `docs/Architektur.md`, „Runde 35“). [`WorkFrom::Param`]: fehlt `work`, wird das kleinste freigegebene Werk eingesetzt.
 ///
-/// Abweichungen vom Start des Vertrags, zur sicheren Seite bzw. rein lesend:
-/// - `wysiwyg.*` und `ribbon.formats` stehen als [`WorkFrom::Param`] statt „ohne Werk“: `rpc::dispatch` gibt ihnen
-///   ohne `work` das Vorgabewerk der Instanz (Bildtexte, Satzbild, Formate der Vorlage) – das wäre ein fremdes Werk.
+/// Abweichungen vom Start des Vertrags, rein lesend:
+/// - `wysiwyg.*` und `ribbon.formats` stehen seit Runde 36 wieder „ohne Werk“ ([`WorkFrom::None`]; in Runde 35
+///   [`WorkFrom::Param`]): Ohne `work` nimmt `rpc::work_param` [`AppState::default_work`], das einem Lektor nur das
+///   kleinste freigegebene Werk gibt und ohne Freigabe `UnknownWork(0)` – nie das Vorgabewerk der Instanz
+///   (`round36_lektor`). Ein genanntes `work` wird wie bei jeder Methode geprüft.
 /// - ergänzt (rein lesend, je Werk): `work.sheet` (Satzbild für den Editor) und `search.find` (Suche im Werk, Seite
 ///   `/suche`).
 pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
@@ -126,11 +130,6 @@ pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
     ("glossary.lookup", WorkFrom::Param),
     ("index.entries", WorkFrom::Param),
     ("index.overview", WorkFrom::Param),
-    ("wysiwyg.parse", WorkFrom::Param),
-    ("wysiwyg.serialize", WorkFrom::Param),
-    ("wysiwyg.diff", WorkFrom::Param),
-    ("wysiwyg.style", WorkFrom::Param),
-    ("ribbon.formats", WorkFrom::Param),
     ("work.sheet", WorkFrom::Param),
     ("search.find", WorkFrom::Param),
     // ohne Werk
@@ -138,6 +137,12 @@ pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
     ("account.me", WorkFrom::None),
     ("account.set_password", WorkFrom::None),
     ("account.logout_all", WorkFrom::None),
+    // ohne Werk-Bindung (Runde 36): fehlt `work`, gilt `AppState::default_work` (für Lektoren nur Freigegebenes)
+    ("wysiwyg.parse", WorkFrom::None),
+    ("wysiwyg.serialize", WorkFrom::None),
+    ("wysiwyg.diff", WorkFrom::None),
+    ("wysiwyg.style", WorkFrom::None),
+    ("ribbon.formats", WorkFrom::None),
     // schreibend, je Werk
     ("revision.propose", WorkFrom::Param),
     ("post.add", WorkFrom::Param),

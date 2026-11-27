@@ -162,6 +162,8 @@ pub fn outcome_json(outcome: &Outcome) -> Value {
             "rev": outcome.rev, "status": "proposed", "author": outcome.persona, "model": outcome.model,
             "truncated": outcome.truncated, "url": outcome.url, "key": outcome.key, "work": outcome.work,
             "compressed": outcome.compressed, "proposals": outcome.proposals,
+            // Runde 36: die Fassung, auf der der Vorschlag (beim Kapitel: der des eigenen Teils) beruht.
+            "basis": outcome.basis,
         }),
         _ => {
             let mut value = json!({
