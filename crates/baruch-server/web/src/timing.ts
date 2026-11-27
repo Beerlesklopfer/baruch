@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Zeitwächter im Editorkopf (Runde 16b): Das Widget „timing“ (p.editor-timing, nur bei Predigt oder
-// Zielzeit) zählt beim Tippen entprellt nach. Gezählt wird nur auf dem Server (RPC `timing.count`, dieselbe
-// Regel wie beim Laden der Seite) – hier gibt es keine zweite Zählregel. Geschickt wird immer der Quelltext
-// (Runde 17b, L6): Ist das Satzbild offen, liefert es ihn über das Ereignis `baruch:serialize-text` am
-// Editor-Formular (`detail.wait`, Besitz wysiwyg.ts, ohne zu speichern); so zählen Typst-Inseln (Fußnoten,
-// Arbeitsaufträge, Code) genau wie beim Laden der Seite. Antwortet niemand, gilt im offenen Satzbild dessen
-// sichtbarer Text (innerText, Rückfall), sonst das Textfeld. Fehler bleiben leise: Die Anzeige behält den
-// letzten Stand.
+// Time guard in the editor head (Round 16b): the widget „timing“ (p.editor-timing, only for a sermon or a
+// target time) recounts while typing, debounced. Counting happens only on the server (RPC `timing.count`, the same
+// rule as on loading the page) – there is no second counting rule here. What is sent is always the source text
+// (Round 17b, L6): if the typeset view is open, it supplies it through the event `baruch:serialize-text` on the
+// editor form (`detail.wait`, ownership wysiwyg.ts, without saving); this way Typst islands (footnotes,
+// work orders, code) count exactly as on loading the page. If nobody answers, in the open typeset view its
+// visible text applies (innerText, fallback), otherwise the text field. Errors stay quiet: the display keeps the
+// last state.
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -20,7 +20,7 @@ interface Counted {
 
 const WAIT_MS = 700;
 
-/// Uhr-Schreibweise wie `baruch_typst::timing::clock` (nur Anzeige der Summe, keine Zählung).
+/// Clock notation like `baruch_typst::timing::clock` (only display of the sum, no counting).
 function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600);
@@ -29,8 +29,8 @@ function clock(seconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 }
 
-/// Quelltext, der gerade im Editor steht: vom Satzbild über `baruch:serialize-text` (wenn offen); ohne Antwort
-/// beim offenen Satzbild dessen sichtbarer Text, sonst das Textfeld.
+/// Source text that currently stands in the editor: from the typeset view through `baruch:serialize-text` (if
+/// open); without an answer, with the typeset view open, its visible text, otherwise the text field.
 async function editorText(editor: HTMLElement): Promise<string | null> {
   const form = editor.querySelector<HTMLFormElement>("form[data-widget=editor]");
   if (form) {
@@ -42,11 +42,11 @@ async function editorText(editor: HTMLElement): Promise<string | null> {
         const text = texts.find((t) => typeof t === "string");
         if (text !== undefined) return text;
       } catch {
-        // Rückfall unten
+        // fallback below
       }
     }
   }
-  // Niemand zuständig: offenes Satzbild → sein sichtbarer Text, sonst das Textfeld.
+  // Nobody responsible: open typeset view → its visible text, otherwise the text field.
   const wrap = editor.querySelector<HTMLElement>("[data-ws-wrap]");
   const sheet = editor.querySelector<HTMLElement>("[data-ws-sheet]");
   if (wrap && sheet && !wrap.hidden) return sheet.innerText;
@@ -83,7 +83,7 @@ register("timing", (element) => {
         overOut.textContent = over ? `Zielzeit überschritten um ${clock(total - target)}` : "Zielzeit überschritten";
       }
     } catch {
-      // leise: der letzte Stand bleibt stehen
+      // quiet: the last state stays
     }
   };
 

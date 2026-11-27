@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „workspace“: Links und Formulare ohne Neuladen. Ein Link `data-nav` holt die drei
-// Bereiche über `ui.render`; ein Formular `data-rpc` ruft seine Methode (Feld `method`) über RPC
-// und zeichnet danach neu. Alt+←/→ blättert durch die Fassungen (nach Nummer, mit Lücken);
-// Alt+Umschalt+Pfeil gehört der Gliederung (`outline.ts`). Runde 30a: Alt+← springt bei vorhandenem
-// Sprungverlauf (jump.ts) zur Ausgangsstelle zurück; nach jedem Neuzeichnen kommt `baruch:rendered`. Andere Widgets lösen mit dem Ereignis
-// `baruch:navigate` (`detail.url`) ein Neuzeichnen über `ui.render` aus. Vor allem, was neu
-// zeichnet, fragt `leaveEditor()` bei ungespeichertem Text im Editor nach.
-// Runde 22: Der auslösende Knopf eines Formulars geht mit (Name/Wert, z. B. `as_new=1` → `mode: "new"` bei
-// `outline.save`); nach dem Speichern zeigt eine Meldung „fortgeschrieben (Stand k)“ bzw. „neue Fassung n (Grund)“.
+// Widget „workspace“: links and forms without reloading. A link `data-nav` fetches the three
+// areas through `ui.render`; a form `data-rpc` calls its method (field `method`) through RPC
+// and redraws afterwards. Alt+←/→ pages through the revisions (by number, with gaps);
+// Alt+Shift+arrow belongs to the outline (`outline.ts`). Round 30a: with an existing jump history (jump.ts)
+// Alt+← jumps back to the place of origin; after every redraw `baruch:rendered` follows. Other widgets trigger a
+// redraw through `ui.render` with the event `baruch:navigate` (`detail.url`). Before everything that
+// redraws, `leaveEditor()` asks if there is unsaved text in the editor.
+// Round 22: the triggering button of a form goes along (name/value, e.g. `as_new=1` → `mode: "new"` for
+// `outline.save`); after saving a message shows „fortgeschrieben (Stand k)“ or „neue Fassung n (Grund)“.
 
 import { jumpBack } from "./jump.js";
 import { call, locationFrom, savedMessage, urlFor, type Location, type Rendered, type SaveAnswer } from "./rpc.js";
@@ -24,7 +24,7 @@ function showError(message: string): void {
   setTimeout(() => toast.remove(), 5000);
 }
 
-/// Hinweis ohne Alarm (Runde 22: Rückmeldung nach dem Speichern).
+/// Notice without alarm (Round 22: feedback after saving).
 function showNotice(message: string): void {
   const toast = document.createElement("div");
   toast.className = "toast toast-notice";
@@ -34,9 +34,9 @@ function showNotice(message: string): void {
   setTimeout(() => toast.remove(), 4000);
 }
 
-/// Runde 23a (Codereview web-5): laufende Nummer des Neuzeichnens. Es gilt die zuletzt **ausgelöste** Anfrage, nicht
-/// die zuletzt eintreffende Antwort; eine überholte Antwort wird verworfen (sonst zeigte ein schneller zweiter Klick
-/// wieder den ersten Abschnitt, mit vertauschten Einträgen im Verlauf).
+/// Round 23a (code review web-5): running number of the redraw. The request **triggered** last applies, not
+/// the answer arriving last; an overtaken answer is discarded (otherwise a fast second click would show
+/// the first section again, with swapped entries in the history).
 let renderSeq = 0;
 
 async function render(at: Location, push: boolean): Promise<void> {
@@ -50,7 +50,7 @@ async function render(at: Location, push: boolean): Promise<void> {
     mount(element);
   }
   document.title = result.title;
-  // Kopfzeile: Umschalter Editor/Vorschau zeigt auf die andere Ansicht (Werk und Suche bleiben).
+  // Header: the toggle Editor/Vorschau points to the other view (work and search stay).
   const toggle = document.querySelector<HTMLAnchorElement>("[data-view-toggle]");
   if (toggle) {
     const now = locationFrom(result.url);
@@ -60,13 +60,13 @@ async function render(at: Location, push: boolean): Promise<void> {
   }
   if (push) history.pushState(null, "", result.url);
   else history.replaceState(null, "", result.url);
-  // Runde 30a: jump.ts markiert danach eine ausstehende Fundstelle (`baruch:find`).
+  // Round 30a: jump.ts afterwards marks a pending place found (`baruch:find`).
   document.dispatchEvent(new CustomEvent("baruch:rendered", { detail: { url: result.url } }));
 }
 
 async function navigate(url: string, push = true): Promise<void> {
   try {
-    // Fehlen Werk oder Suche im Link, bleiben die der aktuellen Adresse (Navigation im Werk).
+    // If work or search are missing in the link, those of the current address stay (navigation in the work).
     const at = locationFrom(url);
     const here = locationFrom(window.location.href);
     await render({ ...at, work: at.work ?? here.work, lq: at.lq ?? here.lq }, push);
@@ -76,8 +76,8 @@ async function navigate(url: string, push = true): Promise<void> {
 }
 
 async function submit(form: HTMLFormElement, submitter: HTMLElement | null = null): Promise<void> {
-  // Runde 23a (Codereview web-1): Das Editor-Formular sperrt den Editor, bis gespeichert und neu gezeichnet ist; ein
-  // zweites Absenden während des Laufs entfällt.
+  // Round 23a (code review web-1): the editor form locks the editor until saving and redrawing are done; a
+  // second submit during the run is dropped.
   const editor = form.matches("[data-widget=editor]");
   if (editor && form.dataset.saving === "1") return;
   const release = editor ? lockEditor() : null;
@@ -92,13 +92,13 @@ async function submit(form: HTMLFormElement, submitter: HTMLElement | null = nul
 
 async function send(form: HTMLFormElement, submitter: HTMLElement | null): Promise<void> {
   const data = new FormData(form);
-  // Der auslösende Knopf mit Name (z. B. „Als neue Fassung speichern“, `as_new=1`) zählt wie ein Feld.
+  // The triggering button with a name (e.g. „Als neue Fassung speichern“, `as_new=1`) counts like a field.
   if (submitter instanceof HTMLButtonElement && submitter.name) data.append(submitter.name, submitter.value);
   const method = String(data.get("method") ?? "");
   const params: Record<string, unknown> = {};
   for (const [key, value] of data) {
     if (key === "method" || key === "view" || key === "lq") continue;
-    // Pflicht-Kontrollkästchen vor dem Löschen: angehakt → `confirm: true` (der Server prüft es).
+    // Mandatory checkbox before deleting: checked → `confirm: true` (the server checks it).
     if (key === "confirm") {
       params.confirm = true;
       continue;
@@ -109,13 +109,13 @@ async function send(form: HTMLFormElement, submitter: HTMLElement | null): Promi
       key === "target_key";
     params[key] = numeric ? Number(value) : String(value);
   }
-  // Runde 22: „Als neue Fassung speichern“ geht vor dem versteckten `mode=auto` (wie `/gliederung/act`).
+  // Round 22: „Als neue Fassung speichern“ takes precedence over the hidden `mode=auto` (like `/gliederung/act`).
   if (params.as_new !== undefined) {
     if (params.as_new === "1") params.mode = "new";
     delete params.as_new;
   }
   const view = data.get("view") === "preview" ? "preview" : undefined;
-  // Werk und Suche: aus dem Formular, sonst aus der aktuellen Adresse.
+  // Work and search: from the form, otherwise from the current address.
   const here = locationFrom(window.location.href);
   if (params.work === undefined && here.work !== undefined) params.work = here.work;
   const lq = data.get("lq") !== null ? String(data.get("lq")) : here.lq;
@@ -123,9 +123,9 @@ async function send(form: HTMLFormElement, submitter: HTMLElement | null): Promi
     const result = await call<SaveAnswer>(method, params);
     const rev = result.rev ?? (params.rev as number | undefined);
     const work = params.work as number | undefined;
-    // Danach zu zeigen (Key-Form, Runde 8): Beiträge verwalten bleibt im gezeigten Abschnitt (`key` des
-    // Formulars; beim Verschieben nennt die Antwort das Ziel); sonst der Schlüssel der Antwort, dann der
-    // des Formulars, zuletzt die Stelle.
+    // To show afterwards (key form, Round 8): managing posts stays in the shown section (`key` of the
+    // form; when moving, the answer names the target); otherwise the key of the answer, then that of
+    // the form, last the position.
     const shown = params.key as number | undefined;
     const answered = typeof result.key === "number" ? result.key : undefined;
     const key = method.startsWith("post.") ? (shown ?? answered) : (answered ?? shown);
@@ -141,7 +141,7 @@ async function send(form: HTMLFormElement, submitter: HTMLElement | null): Promi
   }
 }
 
-/// Sprungverlauf nicht leer: (nach der Rückfrage bei ungespeichertem Text) zurückspringen; `true` = erledigt.
+/// Jump history not empty: jump back (after the confirmation for unsaved text); `true` = done.
 function leaveEditorIfJump(): boolean {
   try {
     const raw = sessionStorage.getItem("baruch_jumps");
@@ -155,8 +155,8 @@ function leaveEditorIfJump(): boolean {
 }
 
 register("workspace", (root) => {
-  // Runde 33: am Dokument statt am Arbeitsbereich – auch der Umschalter Editor/Vorschau und die ‹ ›-Links der
-  // angedockten Leiste stehen im Menüband, außerhalb von <main>.
+  // Round 33: on the document instead of on the workspace – the toggle Editor/Vorschau and the ‹ › links of the
+  // docked bar also stand in the ribbon, outside <main>.
   document.addEventListener("click", (event) => {
     const link = (event.target as Element | null)?.closest?.<HTMLAnchorElement>("a[data-nav]");
     if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -167,16 +167,16 @@ register("workspace", (root) => {
     const form = (event.target as Element).closest<HTMLFormElement>("form[data-rpc]");
     if (!form) return;
     event.preventDefault();
-    // Jedes Formular außer dem Editor selbst zeichnet danach neu und verwürfe ungespeicherten Text
-    // (Gliederung ↑ ↓ ← →, Umschalten, Fassung ändern, Beitrag senden): erst fragen.
+    // Every form except the editor itself redraws afterwards and would discard unsaved text
+    // (outline ↑ ↓ ← →, switching, changing a revision, sending a post): ask first.
     if (!form.matches("[data-widget=editor]") && !leaveEditor()) return;
     void submit(form, (event as SubmitEvent).submitter ?? null);
   });
   document.addEventListener("keydown", (event) => {
-    // Nur Alt ohne Umschalt; Alt+Umschalt+Pfeil stuft in der Gliederung um.
+    // Only Alt without Shift; Alt+Shift+arrow changes the level in the outline.
     if (!event.altKey || event.shiftKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
     const key = event.key === "ArrowLeft" ? "prev" : "next";
-    // Runde 30a: Alt+← kehrt bei vorhandenem Sprungverlauf zur Ausgangsstelle zurück (jump.ts).
+    // Round 30a: with an existing jump history Alt+← returns to the place of origin (jump.ts).
     if (key === "prev" && leaveEditorIfJump()) {
       event.preventDefault();
       return;
@@ -187,8 +187,8 @@ register("workspace", (root) => {
     if (leaveEditor()) void navigate(link.href);
   });
   window.addEventListener("popstate", () => void navigate(window.location.href, false));
-  // Andere Widgets (z. B. die Gliederung nach dem Verschieben) zeichnen die Bereiche neu.
-  // `detail.asked: true` = der Absender hat schon gefragt (outline.ts vor dem RPC-Aufruf).
+  // Other widgets (e.g. the outline after moving) redraw the areas.
+  // `detail.asked: true` = the sender has already asked (outline.ts before the RPC call).
   document.addEventListener("baruch:navigate", (event) => {
     const detail = (event as CustomEvent<{ url?: unknown; asked?: unknown }>).detail;
     const url = detail?.url;

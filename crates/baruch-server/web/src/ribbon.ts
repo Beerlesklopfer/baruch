@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Menüband für das Bearbeiten (Runde 18a): Widget „ribbon“ auf `div.ribbon-formats` in
-// templates/fragments/edit_toolbar.html. Die Knöpfe `data-ribbon-cmd` (Formate der Werkvorlage aus crate::ribbon)
-// wirken je nach Ansicht:
-// - Satzbild offen (`div.wysiwyg[data-ws-open]`): Befehl über `baruch:ws-command` (ws_command.ts) an das Satzbild.
-//   Führt es ihn nicht aus (`handled` bleibt `false`), sagt ein Hinweis ehrlich, dass das Format im Satzbild noch
-//   nicht geht und im Quelltext einzufügen ist – es wird nichts still verschluckt.
-// - Quelltext: Das Widget fügt den Typst-Text `data-ribbon-snippet` selbst an der Cursorstelle ins Textfeld ein
-//   (Blöcke an einem Zeilenanfang; eine Auswahl wandert in den Inhalt), Cursor in den Inhalt. Ein Zitat (Runde 23a)
-//   steht mit genau einer Leerzeile davor und danach, darunter eine Zeile „– “ für die Stellenangabe. Das Einfügen löst
-//   `input` aus wie Tippen, damit Zeitwächter und „ungespeichert“ es sehen.
-// - „Bild“ (`data-ribbon-image`) öffnet nur `details[data-image-insert]` in der Statuszeile (Formular von
-//   satzbild-werk) und setzt den Fokus hinein.
-// Das Widget ändert wysiwyg.ts nicht und importiert es nicht (Vertrag R18 §4).
-// Runde 33: Die Leiste hat zwei Teile (`data-band-part`) und dockt mit JavaScript in das Menüband an (band.ts); das
-// Widget sitzt auf `div.ribbon-formats` im Teil „einfuegen“ und merkt sich seinen Editor beim Einhängen (vor dem
-// Andocken) – danach liegt die Leiste nicht mehr in `div.wysiwyg`.
-// Runde 23a: Pfeiltasten im Menüband (←/→ mit Umlauf, Pos1/Ende) nach dem ARIA-Muster für `role="toolbar"`.
-// Runde 19b: „Bibelstelle“ (`scripture`) schickt im Satzbild den Funktionsnamen der Vorlage aus dem Snippet mit
-// (`arg` = JSON `{fn}`), „Literaturverweis“ (`cite`) fügt im Quelltext `@` ein; das Satzbild fragt selbst nach Stelle
-// bzw. Schlüssel (ws_command.ts).
+// Ribbon for editing (Round 18a): widget „ribbon“ on `div.ribbon-formats` in
+// templates/fragments/edit_toolbar.html. The buttons `data-ribbon-cmd` (formats of the work template from
+// crate::ribbon) act depending on the view:
+// - Typeset view open (`div.wysiwyg[data-ws-open]`): command through `baruch:ws-command` (ws_command.ts) to the
+//   typeset view. If it does not carry it out (`handled` stays `false`), a notice says honestly that the format does
+//   not work in the typeset view yet and is to be inserted in the source text – nothing is swallowed silently.
+// - Source text: the widget inserts the Typst text `data-ribbon-snippet` itself at the cursor position into the
+//   text field (blocks at a line start; a selection moves into the content), cursor into the content. A quotation
+//   (Round 23a) stands with exactly one empty line before and after, below it a line „– “ for the reference. The
+//   insertion triggers `input` like typing so that the time guard and "unsaved" see it.
+// - „Bild“ (`data-ribbon-image`) only opens `details[data-image-insert]` in the status line (form of
+//   satzbild-werk) and puts the focus into it.
+// The widget does not change wysiwyg.ts and does not import it (contract R18 §4).
+// Round 33: the bar has two parts (`data-band-part`) and docks into the ribbon with JavaScript (band.ts); the
+// widget sits on `div.ribbon-formats` in the part „einfuegen“ and remembers its editor when mounting (before
+// docking) – afterwards the bar no longer lies in `div.wysiwyg`.
+// Round 23a: arrow keys in the ribbon (←/→ wrapping, Home/End) following the ARIA pattern for `role="toolbar"`.
+// Round 19b: „Bibelstelle“ (`scripture`) sends along, in the typeset view, the function name of the template from the
+// snippet (`arg` = JSON `{fn}`), „Literaturverweis“ (`cite`) inserts `@` in the source text; the typeset view asks
+// for passage or key itself (ws_command.ts).
 
 import { register } from "./widgets.js";
 import { scriptureFunction, sendWsCommand, type WsCommandName } from "./ws_command.js";
@@ -37,17 +37,18 @@ const COMMANDS: readonly WsCommandName[] = [
   "link",
   "xref",
 ];
-/// Befehle, deren Typst-Text ein eigener Block ist (beginnt an einem Zeilenanfang).
+/// Commands whose Typst text is a block of its own (begins at a line start).
 const BLOCKS: readonly WsCommandName[] = ["scene", "work", "quote", "list", "enum", "terms"];
-/// Runde 23a (Befund des Nutzers): Befehle, deren Block genau eine Leerzeile davor und danach bekommt. Beim Zitat
-/// klebte sonst der Block am Absatz davor und die Stellenangabe der nächsten Zeile am Block.
+/// Round 23a (finding of the user): commands whose block gets exactly one empty line before and after. With the
+/// quotation the block otherwise stuck to the paragraph before it and the reference of the next line to the block.
 const SPACED: readonly WsCommandName[] = ["quote"];
 
 function isCommand(value: string | undefined): value is WsCommandName {
   return value !== undefined && (COMMANDS as readonly string[]).includes(value);
 }
 
-/// Stelle des Cursors im eingefügten Text: in den Inhalt (`[⏎|⏎]`, `[|]`), hinter das Listenzeichen, sonst ans Ende.
+/// Position of the cursor in the inserted text: into the content (`[⏎|⏎]`, `[|]`), behind the list sign, otherwise
+/// to the end.
 export function caretIn(snippet: string, cmd: WsCommandName): number {
   if (cmd === "break") return snippet.length;
   const block = snippet.indexOf("[\n\n]");
@@ -58,10 +59,10 @@ export function caretIn(snippet: string, cmd: WsCommandName): number {
   return snippet.length;
 }
 
-/// Text zum Einfügen und Cursor darin: `before` = Text vor der Cursorstelle, `selected` = markierter Text, `after` =
-/// Text hinter der Auswahl (Runde 23a; nur für die Leerzeile hinter einem Zitat). Ein Zitat bekommt genau eine
-/// Leerzeile davor und danach: vorhandene Zeilenenden zählen mit (keine doppelte Leerzeile), am Anfang des Texts
-/// steht nichts davor, am Ende nur das Zeilenende.
+/// Text to insert and cursor in it: `before` = text before the cursor position, `selected` = selected text, `after`
+/// = text behind the selection (Round 23a; only for the empty line behind a quotation). A quotation gets exactly one
+/// empty line before and after: existing line ends count (no double empty line), at the start of the text
+/// nothing stands before it, at the end only the line end.
 export function insertion(
   snippet: string,
   cmd: WsCommandName,
@@ -83,9 +84,9 @@ export function insertion(
   return { text, caret: prefix.length + at + selected.length };
 }
 
-/// Runde 23a (Gutachten R18): Ziel der Pfeiltasten in einer Werkzeugleiste (`role="toolbar"`, ARIA-Muster): ←/→
-/// wandern mit Umlauf, Pos1/Ende springen an den Rand. `index` = Stelle des Elements mit Fokus unter `count`
-/// bedienbaren Elementen; `null`, wenn die Taste nichts bewegt.
+/// Round 23a (review R18): target of the arrow keys in a toolbar (`role="toolbar"`, ARIA pattern): ←/→
+/// move with wrapping, Home/End jump to the edge. `index` = position of the element with focus among `count`
+/// operable elements; `null` if the key moves nothing.
 export function toolbarTarget(key: string, index: number, count: number): number | null {
   if (count <= 0 || index < 0) return null;
   switch (key) {
@@ -102,9 +103,9 @@ export function toolbarTarget(key: string, index: number, count: number): number
   }
 }
 
-/// Runde 33: Die Leiste steht angedockt im Menüband (band.ts). Erreichbar ist dort nur der Teil des gewählten Reiters
-/// (`data-band-part` gegen `header.band[data-tab]`; den anderen verbirgt band.css), im kompakten Band nur die
-/// Beschriftung einer zugeklappten Gruppe, im vollen Band die Beschriftung nie (sie ist dort kein Schalter).
+/// Round 33: the bar stands docked in the ribbon (band.ts). Reachable there is only the part of the selected tab
+/// (`data-band-part` against `header.band[data-tab]`; band.css hides the other), in the compact ribbon only the
+/// label of a collapsed group, in the full ribbon never the label (it is not a switch there).
 function reachable(item: HTMLElement): boolean {
   const head = item.closest("header.band");
   const part = item.closest("[data-band-part]");
@@ -116,8 +117,8 @@ function reachable(item: HTMLElement): boolean {
   return !popup || group.hasAttribute("open");
 }
 
-/// Pfeiltasten im Menüband: Fokus wandert zwischen den sichtbaren, nicht gesperrten Knöpfen und Links. In einer
-/// Auswahlliste gehören die Pfeile der Liste; Tab bleibt wie bisher.
+/// Arrow keys in the ribbon: the focus moves between the visible, not disabled buttons and links. In a
+/// choice list the arrows belong to the list; Tab stays as before.
 function toolbarKeys(bar: HTMLElement): void {
   if (bar.dataset.toolbarKeys === "1") return;
   bar.dataset.toolbarKeys = "1";
@@ -139,7 +140,7 @@ function hint(message: string): void {
   document.dispatchEvent(new CustomEvent("baruch:toast", { detail: { message, level: "info" } }));
 }
 
-/// Typst-Text ins Textfeld an der Cursorstelle (wie Tippen: Rückgängig bleibt möglich, `input` wird ausgelöst).
+/// Typst text into the text field at the cursor position (like typing: undo stays possible, `input` is triggered).
 function insertIntoArea(area: HTMLTextAreaElement, snippet: string, cmd: WsCommandName): void {
   const start = area.selectionStart ?? area.value.length;
   const end = area.selectionEnd ?? start;
@@ -171,13 +172,13 @@ register("ribbon", (group) => {
   const bar = group.closest<HTMLElement>("[role=toolbar]");
   if (bar) toolbarKeys(bar);
   group.querySelectorAll<HTMLButtonElement>("[data-ribbon-cmd]").forEach((button) => {
-    // Die Auswahl im Satzbild bzw. Textfeld bleibt beim Klick erhalten.
+    // The selection in the typeset view or text field is kept on the click.
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", () => {
       const cmd = button.dataset.ribbonCmd;
       if (!isCommand(cmd)) return;
       const label = button.textContent?.trim() ?? cmd;
-      // Runde 30a: „Verweis“ öffnet den Dialog (xref.ts), der im Satzbild bzw. Quelltext einfügt.
+      // Round 30a: „Verweis“ opens the dialog (xref.ts), which inserts in the typeset view or source text.
       if (cmd === "xref") {
         root.dispatchEvent(new CustomEvent("baruch:xref-open", { bubbles: true }));
         return;

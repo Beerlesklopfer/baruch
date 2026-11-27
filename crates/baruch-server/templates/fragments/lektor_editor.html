@@ -1,10 +1,10 @@
-{#- Mitte für Lektoren (Runde 35, Vertrag §3.3): derselbe Abschnitt wie in fragments/editor.html, aber der Lektor
-    schreibt nur einen Vorschlag. Das Formular form#editor-form geht ohne JavaScript an POST /lektorat/act
-    (method=revision.propose, work, key, body, note); mit JavaScript ruft workspace.ts dieselbe Methode über /rpc
-    (data-rpc). Es gibt kein Fortschreiben und keine neue aktuelle Fassung, kein Umschalten („aktuell machen“), kein
-    Ausblenden, kein Bild-Einfügen, keine Markierung für Glossar und Register und keine Personas – das alles kann
-    nur der Autor. Offene Vorschläge stehen wie beim Autor im Lesefluss (fragments/proposals.html), dort ohne die
-    Knöpfe zum Entscheiden. Kontext wie editor.html (view.rs), dazu lektor {handle, name}. -#}
+{#- Centre for Lektors (Round 35, contract §3.3): the same section as in fragments/editor.html, but the Lektor
+    writes only a proposal. The form form#editor-form goes without JavaScript to POST /lektorat/act
+    (method=revision.propose, work, key, body, note); with JavaScript workspace.ts calls the same method through /rpc
+    (data-rpc). There is no continuing and no new current revision, no switching („aktuell machen“), no
+    hiding, no image insertion, no selection for glossary and index and no personas – all of that only the
+    author can do. Open proposals stand in the reading flow as for the author (fragments/proposals.html), there without
+    the buttons for deciding. Context as in editor.html (view.rs), plus lektor {handle, name}. -#}
 {%- set view_q = "&view=preview" if view == "preview" else "" %}
 <div class="editor-head" data-zoom-zone="head">
   <h2 class="node-title" title="{% if node.number %}{{ node.number }} {% endif %}{{ node.title }}">{% if node.number %}<span class="num">{{ node.number }}</span>{% endif %}{{ node.title }}</h2>

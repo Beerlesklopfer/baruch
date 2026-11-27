@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „laptop“ (Runde 33; Besitz: Aufgabe „laptop“): Laptop-Modus im Browser.
+// Widget „laptop“ (Round 33; ownership: task „laptop“): laptop mode in the browser.
 //
-// Der Server zeichnet den Zustand aus Cookies und Adresse (src/laptop.rs) als Attribute an <html>; dieses Modul
-// hält sie aktuell, ohne die Seite neu zu laden:
-// - beim Laden und bei jeder Größenänderung die Fensterbreite messen (`window.innerWidth`), als Klasse `w` (ab
-//   COMPACT_BELOW_PX), `m` oder `s` (unter NARROW_BELOW_PX) im Cookie baruch_vw merken – so zeichnet der Server
-//   die nächste Seite gleich richtig – und die Attribute `data-laptop`, `data-compact`, `data-narrow`,
-//   `data-rail-left`, `data-rail-right` nach derselben Formel wie der Server setzen (`effective`);
-// - das Ereignis `baruch:laptop` mit `{compact, narrow}` am `document` senden (einmal beim Laden, danach bei jedem
-//   Wechsel) – band.ts klappt danach seine Gruppen; dieses Modul fasst die Gruppen des Bands nie an;
-// - Klicks auf `[data-laptop-set]` (Automatisch/An/Aus) und `[data-rail-toggle]` (Seitenleisten im Reiter Ansicht),
-//   auf die Leisten (`[data-rail-open]`), „Einklappen“ (`[data-rail-collapse]`) und „Schließen“
-//   (`[data-rail-close]`) abfangen: Cookie, Attribute und `aria-pressed` statt eines Seitenwechsels;
-// - Schubladen: Im schmalen Zustand (`data-narrow`) öffnet eine Leiste ihre Spalte über dem Text
-//   (`data-drawer="left|right"` an <html>, Stil in laptop.css); Esc, ein Klick daneben oder die Wahl eines Abschnitts
-//   in der Gliederung schließen sie, der Fokus kehrt zum Auslöser zurück. Im breiten Fenster klappt dieselbe
-//   Leiste die Spalte dauerhaft auf (Cookie baruch_lrail bzw. baruch_rrail).
+// The server draws the state from cookies and address (src/laptop.rs) as attributes on <html>; this module
+// keeps them current without reloading the page:
+// - on loading and on every resize measure the window width (`window.innerWidth`), remember it as class `w` (from
+//   COMPACT_BELOW_PX), `m` or `s` (below NARROW_BELOW_PX) in the cookie baruch_vw – this way the server draws
+//   the next page right at once – and set the attributes `data-laptop`, `data-compact`, `data-narrow`,
+//   `data-rail-left`, `data-rail-right` by the same formula as the server (`effective`);
+// - send the event `baruch:laptop` with `{compact, narrow}` on the `document` (once on loading, afterwards on every
+//   change) – band.ts then folds its groups; this module never touches the groups of the ribbon;
+// - intercept clicks on `[data-laptop-set]` (Automatisch/An/Aus) and `[data-rail-toggle]` (sidebars in the tab
+//   Ansicht), on the rails (`[data-rail-open]`), „Einklappen“ (`[data-rail-collapse]`) and „Schließen“
+//   (`[data-rail-close]`): cookie, attributes and `aria-pressed` instead of a page change;
+// - drawers: in the narrow state (`data-narrow`) a rail opens its column above the text
+//   (`data-drawer="left|right"` on <html>, style in laptop.css); Esc, a click next to it or choosing a section
+//   in the outline close it, the focus returns to the trigger. In the wide window the same
+//   rail unfolds the column permanently (cookie baruch_lrail or baruch_rrail).
 //
-// Ohne JavaScript bleibt alles bedienbar: Die Schalter sind Links (`?laptop=on`, `?lrail=1`), die Leisten öffnen
-// die Spalte über `:target`. Die Breite kennt der Server dann nicht – „automatisch“ zeichnet breit.
+// Without JavaScript everything stays usable: the switches are links (`?laptop=on`, `?lrail=1`), the rails open
+// the column through `:target`. The server then does not know the width – „automatisch“ draws wide.
 //
-// Die Schwellen stehen auch in src/laptop.rs (COMPACT_BELOW_PX, NARROW_BELOW_PX); ein Test hält beide gleich.
-// Das Modul hängt sich selbst am `document` ein (es gibt Seiten ohne Arbeitsfläche); das Widget „laptop“ bleibt
-// registriert, damit ein Element mit `data-widget="laptop"` dasselbe auslöst.
+// The thresholds also stand in src/laptop.rs (COMPACT_BELOW_PX, NARROW_BELOW_PX); a test keeps both equal.
+// The module attaches itself to the `document` (there are pages without a workspace); the widget „laptop“ stays
+// registered so that an element with `data-widget="laptop"` triggers the same.
 
 import { register, store } from "./widgets.js";
 
-/** Unterhalb dieser Fensterbreite ist das Band kompakt (wie src/laptop.rs). */
+/** Below this window width the ribbon is compact (as in src/laptop.rs). */
 export const COMPACT_BELOW_PX = 1600;
-/** Unterhalb dieser Fensterbreite sind die Seitenleisten eingeklappt (wie src/laptop.rs). */
+/** Below this window width the sidebars are collapsed (as in src/laptop.rs). */
 export const NARROW_BELOW_PX = 1280;
 
 export type Mode = "auto" | "on" | "off";
@@ -42,26 +42,26 @@ export interface Effective {
   railRight: boolean;
 }
 
-/** Breitenklasse des Fensters (Wert des Cookies baruch_vw). */
+/** Width class of the window (value of the cookie baruch_vw). */
 export function widthClass(px: number): WidthClass {
   if (px < NARROW_BELOW_PX) return "s";
   if (px < COMPACT_BELOW_PX) return "m";
   return "w";
 }
 
-/** Modus aus Cookie oder Attribut; alles Unbekannte ist „automatisch“. */
+/** Mode from cookie or attribute; everything unknown is „automatisch“. */
 export function parseMode(value: string | null | undefined): Mode {
   return value === "on" || value === "off" ? value : "auto";
 }
 
-/** Wirksamer Zustand – dieselbe Formel wie `LaptopState` in src/laptop.rs. */
+/** Effective state – the same formula as `LaptopState` in src/laptop.rs. */
 export function effective(mode: Mode, width: WidthClass, lrail: boolean, rrail: boolean): Effective {
   const compact = mode === "on" || (mode === "auto" && width !== "w");
   const narrow = mode === "on" || (mode === "auto" && width === "s");
   return { compact, narrow, railLeft: narrow || lrail, railRight: narrow || rrail };
 }
 
-/** Attribute an <html>: Name → Wert, `null` heißt „fehlt“ (Reihenfolge wie `html_attrs` im Server). */
+/** Attributes on <html>: name → value, `null` means "missing" (order as `html_attrs` in the server). */
 export function htmlAttrs(mode: Mode, state: Effective): [string, string | null][] {
   return [
     ["data-laptop", mode],
@@ -93,7 +93,7 @@ function pane(which: Side): HTMLElement | null {
   return document.getElementById(PANES[which]);
 }
 
-/** Schalter im Band und Leisten an den Zustand angleichen (`aria-pressed`, Adresse des Rückfall-Links). */
+/** Align switches in the ribbon and rails with the state (`aria-pressed`, address of the fallback link). */
 function syncControls(): void {
   document.querySelectorAll<HTMLElement>("[data-laptop-set]").forEach((control) => {
     control.setAttribute("aria-pressed", String(control.dataset.laptopSet === mode));
@@ -103,7 +103,7 @@ function syncControls(): void {
     if (!which) return;
     const visible = !railed(which) || drawer?.side === which;
     control.setAttribute("aria-pressed", String(visible));
-    // Der Link bleibt für „in neuem Tab öffnen“ richtig: sichtbar → einklappen (=1), eingeklappt → zeigen (=0).
+    // The link stays right for "open in a new tab": visible → collapse (=1), collapsed → show (=0).
     const key = RAIL_COOKIE[which];
     const href = control.getAttribute("href");
     if (href) control.setAttribute("href", href.replace(new RegExp(`${key}=[01]`), `${key}=${railed(which) ? 0 : 1}`));
@@ -114,7 +114,7 @@ function syncControls(): void {
   });
 }
 
-/** Breite messen, Zustand berechnen, Attribute setzen, Wechsel melden. */
+/** Measure the width, compute the state, set the attributes, report a change. */
 function refresh(): void {
   const root = document.documentElement;
   const width = widthClass(window.innerWidth);
@@ -124,7 +124,7 @@ function refresh(): void {
     if (value === null) root.removeAttribute(name);
     else if (root.getAttribute(name) !== value) root.setAttribute(name, value);
   }
-  // Eine Schublade gibt es nur über einer eingeklappten Spalte.
+  // A drawer exists only above a collapsed column.
   if (drawer && !railed(drawer.side)) closeDrawer(false);
   syncControls();
   const signature = `${current.compact}-${current.narrow}`;
@@ -143,7 +143,7 @@ function openDrawer(which: Side, opener: HTMLElement | null): void {
   drawer = { side: which, opener };
   document.documentElement.dataset.drawer = which;
   syncControls();
-  // Die Spalte selbst nimmt den Fokus (Tab führt dann in ihren Inhalt), ohne in der Tab-Reihenfolge zu stehen.
+  // The column itself takes the focus (Tab then leads into its content) without being in the tab order.
   target.tabIndex = -1;
   target.focus({ preventScroll: true });
 }
@@ -156,12 +156,12 @@ function closeDrawer(returnFocus: boolean): void {
   syncControls();
   if (!returnFocus) return;
   const rail = document.querySelector<HTMLElement>(`[data-rail-open="${which}"]`);
-  // Zurück zum Auslöser; steht er nicht mehr sichtbar da (Popup des Bands zu), zur Leiste der Spalte.
+  // Back to the trigger; if it is no longer visible (popup of the ribbon closed), to the rail of the column.
   const back = opener?.isConnected && opener.getClientRects().length > 0 ? opener : rail;
   back?.focus({ preventScroll: true });
 }
 
-/** Spalte dauerhaft ein- bzw. ausklappen (Cookie; „fehlt“ heißt sichtbar). */
+/** Collapse or unfold the column permanently (cookie; "missing" means visible). */
 function setCollapsed(which: Side, value: boolean): void {
   collapsed[which] = value;
   store.set(RAIL_COOKIE[which], value ? "1" : null);
@@ -179,8 +179,8 @@ function plainClick(event: MouseEvent): boolean {
 }
 
 function onClick(event: MouseEvent): void {
-  // Kein Blick auf `defaultPrevented`: Die Arbeitsfläche fängt Links der Gliederung selbst ab (workspace.ts,
-  // `a[data-nav]`), und gerade dann soll die Schublade zugehen.
+  // No look at `defaultPrevented`: the workspace intercepts links of the outline itself (workspace.ts,
+  // `a[data-nav]`), and exactly then the drawer is to close.
   if (!plainClick(event) || !(event.target instanceof Element)) return;
   const target = event.target;
 
@@ -203,14 +203,14 @@ function onClick(event: MouseEvent): void {
   const control = target.closest<HTMLElement>("[data-rail-toggle], [data-rail-open], [data-rail-collapse]");
   if (control) {
     const which = side(control.dataset.railToggle ?? control.dataset.railOpen ?? control.dataset.railCollapse);
-    // Ohne Spalte auf dieser Seite bleibt der Link ein gewöhnlicher Link (der Server merkt das Cookie).
+    // Without a column on this page the link stays an ordinary link (the server remembers the cookie).
     if (!which || !pane(which)) return;
     event.preventDefault();
     if (control.dataset.railCollapse !== undefined) {
       setCollapsed(which, true);
       document.querySelector<HTMLElement>(`[data-rail-open="${which}"]`)?.focus({ preventScroll: true });
     } else if (current.narrow) {
-      // Schmal: kein Platz für die Spalte neben dem Text – als Schublade darüber, bis sie geschlossen wird.
+      // Narrow: no room for the column next to the text – as a drawer above it until it is closed.
       if (drawer?.side === which) closeDrawer(true);
       else openDrawer(which, control);
     } else if (control.dataset.railOpen !== undefined) {
@@ -225,19 +225,19 @@ function onClick(event: MouseEvent): void {
   if (!drawer) return;
   const open = pane(drawer.side);
   if (open?.contains(target)) {
-    // Ein Abschnitt in der Gliederung ist gewählt: Die Schublade hat ihren Dienst getan, der Text ist wieder frei.
+    // A section in the outline is chosen: the drawer has done its service, the text is free again.
     if (drawer.side === "left" && target.closest("a.tree-entry")) closeDrawer(false);
     return;
   }
-  // Klick daneben schließt; der Fokus bleibt, wohin der Mensch geklickt hat. Popups (Dialoge, Menüs der
-  // Gliederung) liegen außerhalb der Spalte und gehören trotzdem zu ihr.
+  // A click next to it closes; the focus stays where the human clicked. Popups (dialogs, menus of the
+  // outline) lie outside the column and still belong to it.
   if (target.closest("dialog, [role=menu], .toast")) return;
   closeDrawer(false);
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== "Escape" || !drawer || event.defaultPrevented) return;
-  // Esc in einem Popup oder Eingabefeld über der Schublade gehört zuerst diesem.
+  // Esc in a popup or input field above the drawer belongs to that first.
   if (event.target instanceof Element && event.target.closest("dialog[open], [role=menu]")) return;
   event.preventDefault();
   closeDrawer(true);
@@ -249,13 +249,13 @@ function start(): void {
   if (started) return;
   started = true;
   const root = document.documentElement;
-  // Die Cookies sind die gemerkte Wahl; sind sie nicht lesbar (Cookies gesperrt), gilt, was der Server gezeichnet hat.
+  // The cookies are the remembered choice; if they cannot be read (cookies blocked), what the server drew applies.
   const saved = store.get("laptop");
   mode = parseMode(saved ?? (navigator.cookieEnabled ? null : root.dataset.laptop));
   collapsed.left = store.get("lrail") === "1";
   collapsed.right = store.get("rrail") === "1";
   refresh();
-  // Eine Adresse mit #pane-tree (ohne JavaScript geöffnet, dann neu geladen) wird zur Schublade dieses Moduls.
+  // An address with #pane-tree (opened without JavaScript, then reloaded) becomes the drawer of this module.
   const hash = window.location.hash.slice(1);
   for (const which of ["left", "right"] as const) {
     if (hash === PANES[which] && railed(which)) {
@@ -273,7 +273,7 @@ function start(): void {
   });
   document.addEventListener("click", onClick);
   document.addEventListener("keydown", onKeydown);
-  // Nach einem Wechsel in den Einstellungen (Popup) stimmen Schalter und Attribute wieder.
+  // After a change in the settings (popup) switches and attributes are right again.
   document.addEventListener("baruch:settings-changed", refresh);
 }
 

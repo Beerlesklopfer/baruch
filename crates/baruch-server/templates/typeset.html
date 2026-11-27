@@ -1,33 +1,34 @@
-{#- Seite /werke/{id}/satz?key=&page=: das Werk mit Typst gesetzt (Werkvorlage, Gliederungsschema,
-    Bilder). Eine Seite groß als <img> (SVG unter /werke/{id}/satz/{stand}/{n}.svg), ‹ › und die
-    Seiten des Kapitels als Links, Fehler und Warnungen mit Zeile, Abschnitt und Link zum Abschnitt.
-    Geht ohne JavaScript. Kontext: settings, work {id, title}, back, error?, section?, total, shown,
+{#- Page /werke/{id}/satz?key=&page=: the work typeset with Typst (work template, outline scheme,
+    images). One page large as <img> (SVG under /werke/{id}/satz/{stand}/{n}.svg), ‹ › and the
+    pages of the chapter as links, errors and warnings with line, section and a link to the section.
+    Works without JavaScript. Context: settings, work {id, title}, back, error?, section?, total, shown,
     image?, previous?, next?, chapter {first, last}, chapter_pages [{number, href, current}],
     diagnostics [{label, severity, message, hints, line, column, file?, key, section, section_line,
-    href?}], errors, warnings, cached, millis; Runde 11: print [PrintWarning], missing [Pfad],
-    images_href, min_dpi, imprint (Runde 27: fehlende Pflichtangaben bei eingeschalteter Titelei, je {code, message})
-    (Abschnitt #druckpruefung), Knopf „PDF herunterladen“ (/werke/{id}/pdf);
-    pdf_error? (Fehlerseite von /werke/{id}/pdf: Meldungen ohne Seiten).
-    Runde 18a: die Seite lädt kein main.js (Block scripts leer) – alles geht ohne JavaScript.
-    Runde 33: Die Bedienung der Seite (Zurück, PDF, ‹ › mit aria-label und „Seite n von m“, „Satz abbrechen“ als
-    Formular) steht als Gruppen im Reiter „Buch“ des Menübands (Block band_buch, Haken data-ribbon-satz an der
-    ersten Gruppe); fragments/edit_toolbar.html wird hier nicht mehr eingebunden. Kontext dafür: back, key?, total,
+    href?}], errors, warnings, cached, millis; Round 11: print [PrintWarning], missing [path],
+    images_href, min_dpi, imprint (Round 27: missing mandatory details with the front matter switched on, each {code,
+    message}) (section #druckpruefung), button „PDF herunterladen“ (/werke/{id}/pdf);
+    pdf_error? (error page of /werke/{id}/pdf: messages without pages).
+    Round 18a: the page loads no main.js (block scripts empty) – everything works without JavaScript.
+    Round 33: the controls of the page (Zurück, PDF, ‹ › with aria-label and „Seite n von m“, „Satz abbrechen“ as a
+    form) stand as groups in the tab „Buch“ of the ribbon (block band_buch, hook data-ribbon-satz on the
+    first group); fragments/edit_toolbar.html is no longer included here. Context for that: back, key?, total,
     shown, previous?, next?.
-    cancelled_notice? (nach „Satz abbrechen“ bzw. abgebrochenem Lauf), idle (kein Satz gezeigt), restart (Link
+    cancelled_notice? (after „Satz abbrechen“ or a cancelled run), idle (no typesetting shown), restart (link
     „Neu setzen“), key?.
-    Runde 29: conflicts [{field, label, line, text, effect (overrides|ineffective), message}] (Werkvorlage setzt eine
-    gesetzte Satz-Einstellung selbst), template_rule? {line, text, chapter_start, label, applied} (erkannte
-    Kapitelanfangs-Regel der Vorlage), typeset_settings_href (/einstellungen/werk?work=W#satz) – im Abschnitt
+    Round 29: conflicts [{field, label, line, text, effect (overrides|ineffective), message}] (the work template sets a
+    set typeset setting itself), template_rule? {line, text, chapter_start, label, applied} (recognised
+    chapter-start rule of the template), typeset_settings_href (/einstellungen/werk?work=W#satz) – in the section
     #druckpruefung.
-    Runde 22: draft_links {pdf_draft, pdf_plain?, toggle, toggle_label} (Zeile #entwurf: „Als Entwurf herunterladen“,
-    Vorschau mit/ohne Wasserzeichen über ?entwurf=1|0, ändert die Einstellung nicht), watermarked (Vorschau trägt es). -#}
+    Round 22: draft_links {pdf_draft, pdf_plain?, toggle, toggle_label} (row #entwurf: „Als Entwurf herunterladen“,
+    preview with/without watermark through ?entwurf=1|0, does not change the setting), watermarked (the preview carries
+    it). -#}
 {% extends "base.html" %}
 {% block title %}Satz – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Satz{% if section %} · {{ section }}{% endif %}{% endblock %}
-{#- Runde 18a: kein main.js – die Seite braucht kein Widget (Menüband aus Links und einem Formular). #}
+{#- Round 18a: no main.js – the page needs no widget (ribbon made of links and one form). #}
 {% block scripts %}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Bedienung der Satz-Ansicht als Gruppen im Reiter „Buch“ – gewöhnliche Links und
-    ein Formular, ohne JavaScript bedienbar. #}
+{#- Round 33 (ribbon, contract §7): controls of the typeset page as groups in the tab „Buch“ – ordinary links and
+    one form, usable without JavaScript. #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-ribbon-satz data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
@@ -55,7 +56,7 @@
 {% block body %}
 <main class="works-page typeset-page">
   <h1 class="pane-title">Satz mit Typst</h1>
-  {#- Runde 22: Wasserzeichen „Entwurf“ – Links ändern die Einstellung nicht (dreiwertiger Schalter ?entwurf=1|0). #}
+  {#- Round 22: watermark „Entwurf“ – links do not change the setting (three-valued switch ?entwurf=1|0). #}
   {%- if draft_links %}
   <p class="typeset-draft small" id="entwurf">
     {%- if watermarked %}<span class="badge warning">Entwurf</span> Die Vorschau zeigt das Wasserzeichen. {% endif %}
@@ -100,7 +101,7 @@
   </section>
   {%- endif %}
   {%- if not pdf_error %}
-  {#- Druckprüfung (Runde 11): fehlende Bilder und Rasterbilder unter 300 dpi in ihrer gesetzten Größe. #}
+  {#- Print check (Round 11): missing images and raster images below 300 dpi at their typeset size. #}
   <section class="typeset-print card" id="druckpruefung" aria-labelledby="druckpruefung-title">
     <h2 id="druckpruefung-title" class="pane-title">Druckprüfung</h2>
     {%- if missing or print or imprint or broken or conflicts or template_rule %}
@@ -143,7 +144,7 @@
   {%- endif %}
   {%- if image %}
   <nav class="typeset-nav" aria-label="Seiten des Kapitels">
-    {#- ‹ › und „Seite n von m“ stehen im Menüband (Runde 33: Reiter „Buch“, Gruppe „Seiten“). #}
+    {#- ‹ › and „Seite n von m“ stand in the ribbon (Round 33: tab „Buch“, group „Seiten“). #}
     <span class="typeset-chapter">{% if section %}Kapitel{% else %}Seiten{% endif %}:
     {%- for p in chapter_pages %}
       {% if p.current %}<a class="page current" aria-current="page" href="{{ p.href }}">{{ p.number }}</a>{% else %}<a class="page" href="{{ p.href }}">{{ p.number }}</a>{% endif %}

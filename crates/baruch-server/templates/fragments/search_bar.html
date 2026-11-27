@@ -1,6 +1,6 @@
-{#- Suchleiste im Editor (Runde 30a, web/src/search.ts): oben rechts im Editor, ohne JavaScript verborgen (dann gilt die
-    Seite /suche, Link unten). Pfeil ▸ klappt die Ersetzen-Zeile auf. Ersetzen hier ändert nur den ungespeicherten
-    Editortext; gespeichert wird wie immer mit „Speichern“. Kontext: work.id, node.key, rev.number. -#}
+{#- Search bar in the editor (Round 30a, web/src/search.ts): at the top right of the editor, hidden without JavaScript
+    (then the page /suche applies, link below). The arrow ▸ unfolds the replace row. Replacing here changes only the
+    unsaved editor text; saving is done as always with „Speichern“. Context: work.id, node.key, rev.number. -#}
 <div class="search-bar" data-widget="search-bar" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}" role="search" aria-label="Im Abschnitt suchen" hidden>
   <button type="button" class="btn sb-expand" data-sb-expand aria-expanded="false" title="Ersetzen ein-/ausblenden (Strg+H)">▸</button>
   <div class="sb-rows">

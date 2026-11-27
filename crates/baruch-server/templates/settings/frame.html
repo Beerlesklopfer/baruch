@@ -1,7 +1,7 @@
-{#- Rahmen einer Einstellungsseite (Runde 9): links die Seiten (je ein Link mit data-settings-page,
-    die gezeigte mit aria-current="page"), rechts „Gespeichert: …“ und der Inhalt der Seite (body, fertiges
-    HTML aus der Seite). Dasselbe div liefert ?fragment=1 und settings.render für das Popup.
-    Kontext: slug, storage, pages [{slug, title, current}], work, body. -#}
+{#- Frame of a settings page (Round 9): on the left the pages (one link each with data-settings-page,
+    the shown one with aria-current="page"), on the right „Gespeichert: …“ and the content of the page (body, finished
+    HTML from the page). The same div is supplied by ?fragment=1 and settings.render for the popup.
+    Context: slug, storage, pages [{slug, title, current}], work, body. -#}
 <div class="settings-frame" data-settings-frame data-page="{{ slug }}">
   <nav class="settings-nav" aria-label="Einstellungen">
   {%- for p in pages %}

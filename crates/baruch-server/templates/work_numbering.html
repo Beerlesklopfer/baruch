@@ -1,18 +1,19 @@
-{#- Seite /werke/{id}/nummerierung: Gliederungsschema des Werks wählen (Vertrag Runde 6). Alle
-    Schemata als Radioknöpfe mit Beispiel und Vorschau an der eigenen Gliederung (die ersten
-    preview_points Punkte), Feld „eigenes Muster“. „Vorschau“ schickt das Formular per GET an diese
-    Seite (formmethod/formaction, ohne JavaScript), „Übernehmen“ per POST an /werke/nummerierung/act.
-    Kontext: settings, work {id, title}, current (NumberingInfo), schemes [{id, label, example,
+{#- Page /werke/{id}/nummerierung: choose the outline scheme of the work (contract Round 6). All
+    schemes as radio buttons with an example and a preview on the own outline (the first
+    preview_points items), field „eigenes Muster“. „Vorschau“ sends the form by GET to this
+    page (formmethod/formaction, without JavaScript), „Übernehmen“ by POST to /werke/nummerierung/act.
+    Context: settings, work {id, title}, current (NumberingInfo), schemes [{id, label, example,
     preview [{node, key, level, number, title}], more, error, checked, current}], custom, rule,
     notice, error, preview_points, back.
-    Runde 9: Die Kopfzeile kommt aus base.html (Blöcke page_title, page_actions); der Formularteil steht
-    in {% block content %}, den auch die Einstellungsseite „Werk“ zeigt (crate::settings, render_block).
-    back (nur dort): Rücksprung nach „Übernehmen“ als verstecktes Feld; „Vorschau“ geht dann an
-    /einstellungen/werk statt an diese Seite. -#}
+    Round 9: the header comes from base.html (blocks page_title, page_actions); the form part stands
+    in {% block content %}, which the settings page „Werk“ shows as well (crate::settings, render_block).
+    back (only there): return after „Übernehmen“ as a hidden field; „Vorschau“ then goes to
+    /einstellungen/werk instead of this page. -#}
 {% extends "base.html" %}
 {% block title %}Gliederungsschema – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}Gliederungsschema · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
@@ -25,7 +26,7 @@
 {% block body %}
 <main class="works-page numbering-page">
 {%- block content %}
-  {#- Runde 14: Kopf als ein Block mit engen Abständen (vorher Absatzränder plus Lücke der Seite). #}
+  {#- Round 14: head as one block with tight spacing (before: paragraph margins plus the gap of the page). #}
   <header class="numbering-head">
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>

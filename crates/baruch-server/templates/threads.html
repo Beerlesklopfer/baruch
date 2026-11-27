@@ -1,11 +1,12 @@
-{#- Seite /faeden (Runde 15): Fäden ohne Abschnitt eines Werks – Gespräche, die MCP-Clients mit `chat` ohne key
-    beginnen oder der Mensch hier anlegt. Kein Buchtext. Ohne JavaScript: Liste mit Links, Formular „Neuer
-    Faden“ an POST /faden/act (hinter same_origin). Kontext: settings, work {id, title}, threads [{id, title,
-    created_by, updated, posts, last_author, url}], personas [{handle, name}] (aktiv), notice, work_url. -#}
+{#- Page /faeden (Round 15): threads without a section of a work – conversations that MCP clients start with `chat`
+    without key or that the human creates here. No book text. Without JavaScript: list with links, form „Neuer
+    Faden“ to POST /faden/act (behind same_origin). Context: settings, work {id, title}, threads [{id, title,
+    created_by, updated, posts, last_author, url}], personas [{handle, name}] (active), notice, work_url. -#}
 {% extends "base.html" %}
 {% block title %}Fäden – Baruch{% endblock %}
 {% block page_title %}Fäden · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>

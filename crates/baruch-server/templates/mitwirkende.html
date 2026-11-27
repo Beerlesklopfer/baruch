@@ -1,9 +1,9 @@
-{#- Seite /werke/{id}/mitwirkende (Runde 35, src/konten_ui/pages.rs): Wer darf dieses Werk als Lektor lesen? Liste der
-    Freigaben mit „Entziehen“ und die Lektor-Konten ohne Freigabe mit „Freigeben“ – beides Formulare an
-    POST /werke/{id}/mitwirkende/act (action = grant | revoke, account). Nur der Autor; ohne JavaScript bedienbar.
-    Daten aus der RPC-Methode member.list. Meldungen (notice, error) sind fertige Sätze aus konten_ui::MESSAGES.
-    Kontext: settings, work {id, title}, accounts_exist, members [{account, name, display, handle, role, granted,
-    active}], candidates [{account, name, display, handle}], notice, error, load_error (Text oder none). -#}
+{#- Page /werke/{id}/mitwirkende (Round 35, src/konten_ui/pages.rs): who may read this work as a Lektor? List of the
+    shares with „Entziehen“ and the Lektor accounts without a share with „Freigeben“ – both forms to
+    POST /werke/{id}/mitwirkende/act (action = grant | revoke, account). Only the author; usable without JavaScript.
+    Data from the RPC method member.list. Messages (notice, error) are finished sentences from konten_ui::MESSAGES.
+    Context: settings, work {id, title}, accounts_exist, members [{account, name, display, handle, role, granted,
+    active}], candidates [{account, name, display, handle}], notice, error, load_error (text or none). -#}
 {% extends "base.html" %}
 {% block title %}Mitwirkende · {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}Mitwirkende · {{ work.title }}{% endblock %}

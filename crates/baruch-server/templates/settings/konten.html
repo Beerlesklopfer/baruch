@@ -1,11 +1,11 @@
-{#- Einstellungsseite „Konten“ (Runde 35, src/konten_ui/pages.rs, achte Seite in settings::PAGES): Liste der Konten
-    (Name, Anzeigename, Art, Herkunft, aktiv, letzte Anmeldung), Lektor anlegen, Sperren/Entsperren, Passwort
-    zurücksetzen und der Schalter „Am eigenen Rechner ohne Anmeldung“. Alle Formulare gehen ohne JavaScript an
-    POST /einstellungen/konten/act (action = create | deactivate | activate | reset_password | local_open); danach
-    kommt die Seite mit ?ok=<code> bzw. ?fehler=<code> zurück – gezeigt wird nur der Satz aus konten_ui::MESSAGES.
-    Passwortfelder sind nie vorbelegt. Ohne Konten: Erklärung und Knopf „Einrichten“.
-    Kontext: work (oder none), accounts_exist, allowed (volle Rechte), accounts [{id, name, display, kind, kind_label,
-    handle (oder none), active, last_login (oder none), created, own}], local_open, notice, error, load_error,
+{#- Settings page „Konten“ (Round 35, src/konten_ui/pages.rs, eighth page in settings::PAGES): list of the accounts
+    (name, display name, kind, origin, active, last sign-in), create a Lektor, lock/unlock, reset the
+    password and the switch „Am eigenen Rechner ohne Anmeldung“. All forms go without JavaScript to
+    POST /einstellungen/konten/act (action = create | deactivate | activate | reset_password | local_open); afterwards
+    the page comes back with ?ok=<code> or ?fehler=<code> – only the sentence from konten_ui::MESSAGES is shown.
+    Password fields are never prefilled. Without accounts: explanation and the button „Einrichten“.
+    Context: work (or none), accounts_exist, allowed (full rights), accounts [{id, name, display, kind, kind_label,
+    handle (or none), active, last_login (or none), created, own}], local_open, notice, error, load_error,
     min, max. -#}
 <section class="settings-page" data-settings-page-body="konten">
   {%- if notice %}

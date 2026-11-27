@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Befunde (Runde 28, befund-uebersicht): Widget „findings“ für das Akkordeon „Befunde“ der Arbeitsseite
-// (fragments/findings_panel.html) und die Seite /werke/<id>/befunde (templates/befunde.html). Ohne JavaScript bleibt
-// alles über Links, GET-Filter und Formulare an POST /werke/befunde/act bedienbar; hier kommt dazu:
-// - Seite: Filter ohne Neuladen – Absenden des Filters, Ändern eines Kästchens bzw. einer Auswahl, Klick auf eine Zelle
-//   der Matrix oder auf „Lob einblenden“ holt dieselbe Adresse per fetch und tauscht nur den Inhalt
-//   ([data-findings-main]); die Adresse wandert in den Verlauf (Zurück funktioniert).
-// - Tastatur in der Matrix: Pfeiltasten wandern zwischen den Zellen (auch leeren), Pos1/Ende an den Zeilenrand,
-//   Enter öffnet die Zelle (gewöhnlicher Link).
-// - Statusformulare ([data-finding-form]): über RPC finding.set_status bzw. finding.decide; danach zeichnet die
-//   Arbeitsseite ihre Bereiche neu (Ereignis baruch:navigate) bzw. lädt die Seite ihren Inhalt neu. Fehler stehen
-//   als Hinweis am Formular, der Entwurf bleibt stehen.
-// - Runde 22: Die Rückfrage einer Persona „Befund n scheint erledigt?“ („Ja, erledigt“ / „Nein, noch offen“) besteht aus
-//   denselben Formularen (finding.decide mit confirm); in der Befundkarte eines Chat-Beitrags trägt der Kasten der
-//   Rückfrage selbst `data-widget="findings"`, damit auch dort ohne Neuladen entschieden wird.
+// Findings (Round 28, befund-uebersicht): widget „findings“ for the accordion „Befunde“ of the workspace page
+// (fragments/findings_panel.html) and the page /werke/<id>/befunde (templates/befunde.html). Without JavaScript
+// everything stays usable through links, GET filters and forms to POST /werke/befunde/act; added here:
+// - Page: filters without reloading – submitting the filter, changing a checkbox or a choice, a click on a cell
+//   of the matrix or on „Lob einblenden“ fetches the same address by fetch and swaps only the content
+//   ([data-findings-main]); the address moves into the history (back works).
+// - Keyboard in the matrix: arrow keys move between the cells (also empty ones), Home/End to the edge of the row,
+//   Enter opens the cell (ordinary link).
+// - Status forms ([data-finding-form]): through RPC finding.set_status or finding.decide; afterwards the
+//   workspace page redraws its areas (event baruch:navigate) or the page reloads its content. Errors stand
+//   as a notice at the form, the draft stays.
+// - Round 22: the query of a persona „Befund n scheint erledigt?“ („Ja, erledigt“ / „Nein, noch offen“) consists of
+//   the same forms (finding.decide with confirm); in the finding card of a chat post the box of the
+//   query itself carries `data-widget="findings"` so that the decision works without reloading there as well.
 
 import { call } from "./rpc.js";
 import { mount, register } from "./widgets.js";
 
 const NUMERIC = new Set(["work", "id", "entry", "rev", "target_key", "target_idea"]);
 
-/// Parameter eines Statusformulars: leere Felder fallen weg, Zahlen als Zahlen, `confirm` als Wahrheitswert;
-/// `method` und `back` gehören nicht zur RPC.
+/// Parameters of a status form: empty fields drop out, numbers as numbers, `confirm` as a boolean;
+/// `method` and `back` do not belong to the RPC.
 function formParams(form: HTMLFormElement): { method: string; params: Record<string, unknown> } {
   const data = new FormData(form);
   const method = String(data.get("method") ?? "");
@@ -32,12 +32,12 @@ function formParams(form: HTMLFormElement): { method: string; params: Record<str
     else if (NUMERIC.has(key)) params[key] = Number(value);
     else params[key] = value;
   }
-  // finding.decide braucht nur `entry` (die id des Befunds steht nur für die Seite ohne JavaScript im Formular).
+  // finding.decide only needs `entry` (the id of the finding stands in the form only for the page without JavaScript).
   if (method === "finding.decide") delete params.id;
   return { method, params };
 }
 
-/// Hinweis am Formular (role=alert); ein früherer wird ersetzt.
+/// Notice at the form (role=alert); an earlier one is replaced.
 function showError(form: HTMLFormElement, message: string): void {
   form.querySelector(".fd-error")?.remove();
   const note = document.createElement("p");
@@ -47,7 +47,7 @@ function showError(form: HTMLFormElement, message: string): void {
   form.append(note);
 }
 
-/// Inhalt der Seite neu holen und tauschen; `push` legt die Adresse in den Verlauf.
+/// Fetch the content of the page anew and swap it; `push` puts the address into the history.
 async function reload(root: HTMLElement, url: string, push: boolean): Promise<void> {
   const main = root.querySelector<HTMLElement>("[data-findings-main]");
   if (!main) {
@@ -67,14 +67,14 @@ async function reload(root: HTMLElement, url: string, push: boolean): Promise<vo
     const hash = new URL(url, window.location.href).hash;
     if (hash) main.querySelector<HTMLElement>(hash)?.scrollIntoView({ block: "start" });
   } catch {
-    // Ohne Antwort wie ohne JavaScript: die Seite selbst laden.
+    // Without an answer as without JavaScript: load the page itself.
     window.location.assign(url);
   } finally {
     root.removeAttribute("aria-busy");
   }
 }
 
-/// Adresse eines GET-Formulars mit seinen Feldern.
+/// Address of a GET form with its fields.
 function formUrl(form: HTMLFormElement): string {
   const url = new URL(form.action, window.location.href);
   const query = new URLSearchParams();
@@ -85,7 +85,7 @@ function formUrl(form: HTMLFormElement): string {
   return url.pathname + url.search;
 }
 
-/// Pfeiltasten in der Matrix: Fokus wandert zwischen den Zellen (Links bzw. Zellen mit tabindex).
+/// Arrow keys in the matrix: the focus moves between the cells (links or cells with tabindex).
 function matrixKeys(table: HTMLTableElement): void {
   const rows = () => Array.from(table.querySelectorAll<HTMLTableRowElement>("tr.fd-row"));
   const target = (cell: HTMLTableCellElement): HTMLElement => {
@@ -133,7 +133,7 @@ function matrixKeys(table: HTMLTableElement): void {
 register("findings", (root) => {
   const page = root.hasAttribute("data-findings-page");
 
-  // Statusformulare über RPC (Akkordeon und Seite).
+  // Status forms through RPC (accordion and page).
   root.addEventListener("submit", (event) => {
     const form = (event.target as Element).closest<HTMLFormElement>("form[data-finding-form]");
     if (form) {
@@ -144,7 +144,7 @@ register("findings", (root) => {
       void call(method, params)
         .then(() => {
           if (page) return reload(root, window.location.pathname + window.location.search, false);
-          // Arbeitsseite: Bereiche neu zeichnen (Abzeichen, Akkordeon, Fassungsbaum).
+          // Workspace page: redraw the areas (badges, accordion, revision tree).
           document.dispatchEvent(new CustomEvent("baruch:navigate", { detail: { url: window.location.href } }));
           return undefined;
         })
@@ -163,7 +163,7 @@ register("findings", (root) => {
 
   if (!page) return;
 
-  // Filter ändern wirkt sofort (Kästchen, Auswahl); Textfelder wirken beim Absenden.
+  // Changing the filter takes effect at once (checkbox, choice); text fields take effect on submitting.
   root.addEventListener("change", (event) => {
     const field = event.target as HTMLInputElement | HTMLSelectElement;
     const filter = field.closest<HTMLFormElement>("form[data-findings-filter]");
@@ -171,7 +171,7 @@ register("findings", (root) => {
     if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) void reload(root, formUrl(filter), true);
   });
 
-  // Zellen, „Lob einblenden“, „Filter aufheben“ und „Zurück zur ganzen Matrix“ ohne Neuladen.
+  // Cells, „Lob einblenden“, „Filter aufheben“ and „Zurück zur ganzen Matrix“ without reloading.
   root.addEventListener("click", (event) => {
     const mouse = event as MouseEvent;
     if (mouse.button !== 0 || mouse.ctrlKey || mouse.metaKey || mouse.shiftKey) return;
@@ -187,7 +187,7 @@ register("findings", (root) => {
 
   const table = root.querySelector<HTMLTableElement>("table[data-findings-matrix]");
   if (table) matrixKeys(table);
-  // Nach dem Tausch des Inhalts gibt es eine neue Tabelle: Tastatur dort wieder einhängen.
+  // After swapping the content there is a new table: attach the keyboard there again.
   new MutationObserver(() => {
     const fresh = root.querySelector<HTMLTableElement>("table[data-findings-matrix]");
     if (fresh && !fresh.dataset.keys) {

@@ -1,25 +1,25 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Prüft den veröffentlichten Fingerabdruck des APT-Archivschlüssels (docs/Verteilung.md, „Schlüssel für das
+# Checks the published fingerprint of the APT archive key (docs/Verteilung.md, „Schlüssel für das
 # APT-Repository“).
 #
 #   scripts/ci-fingerprint.sh [--root ORDNER] [--key FINGERABDRUCK]
 #
-#   --root  Wurzel des Repositorys (Vorgabe: der Ordner über diesem Skript)
-#   --key   Fingerabdruck des Schlüssels, mit dem gleich signiert wird (release.yml, Job „publish“)
+#   --root  root of the repository (default: the directory above this script)
+#   --key   fingerprint of the key that is about to sign (release.yml, job „publish“)
 #
-# Der Fingerabdruck steht an drei Stellen, die der Nutzer von Hand füllt: `params.aptFingerprint` in
-# site/hugo.toml (Webseite), README.md und docs/Verteilung.md. Geprüft wird:
-#   1. Ist er in site/hugo.toml eingetragen, sind es 40 Hex-Zeichen (Leerzeichen erlaubt), README.md und
-#      docs/Verteilung.md nennen denselben, und der Platzhalter steht in keiner der beiden mehr.
-#   2. Mit --key: Er ist eingetragen und gleich dem Schlüssel. Grund: Wer die Schlüsseldatei von der Webseite
-#      lädt, kann sie nur mit einem Fingerabdruck vergleichen, den er auf einem zweiten Weg kennt (README im
-#      Repository, Quelltext der Pakete). Ein signiertes Repository ohne oder mit falschem Fingerabdruck wäre
-#      nicht prüfbar – darum scheitert dann das Release, bevor etwas signiert ist.
+# The fingerprint stands in three places that the user fills by hand: `params.aptFingerprint` in
+# site/hugo.toml (website), README.md and docs/Verteilung.md. Checked is:
+#   1. If it is entered in site/hugo.toml, it is 40 hex characters (spaces allowed), README.md and
+#      docs/Verteilung.md name the same one, and the placeholder no longer stands in either of the two.
+#   2. With --key: it is entered and equal to the key. Reason: whoever loads the key file from the website
+#      can only compare it with a fingerprint known by a second way (README in the
+#      repository, source text of the packages). A signed repository without or with a wrong fingerprint would
+#      not be verifiable – therefore the release then fails before anything is signed.
 #
-# Exit 0: eingetragen und stimmig. Exit 3: noch nicht eingetragen (nur ohne --key; der Aufrufer warnt).
-# Exit 1: widersprüchlich, falsche Form oder (mit --key) fehlend bzw. ein anderer Schlüssel. Exit 2: Aufruf.
-# Der Fingerabdruck ist öffentlich; das Skript liest keinen Schlüssel und kein Geheimnis.
+# Exit 0: entered and consistent. Exit 3: not entered yet (only without --key; the caller warns).
+# Exit 1: contradictory, wrong form or (with --key) missing or another key. Exit 2: usage.
+# The fingerprint is public; the script reads no key and no secret.
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,7 +37,7 @@ toml="$root/site/hugo.toml"
 others="README.md docs/Verteilung.md"
 [ -f "$toml" ] || { echo "ci-fingerprint.sh: $toml fehlt." >&2; exit 1; }
 
-# Ohne Leerzeichen, in Großbuchstaben: So lassen sich „ABCD 1234 …“ und „abcd1234…“ vergleichen.
+# Without spaces, in upper case: this way „ABCD 1234 …“ and „abcd1234…“ can be compared.
 normal() { printf '%s' "$1" | tr -d ' \t' | tr 'abcdef' 'ABCDEF'; }
 is_fingerprint() { printf '%s' "$1" | grep -Eq '^[0-9A-F]{40}$'; }
 

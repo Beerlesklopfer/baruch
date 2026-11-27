@@ -1,9 +1,10 @@
-{#- Seite /werke/neu: Hochladen und Anlegen ohne JavaScript (Inhalt fragments/work_new.html).
-    Kontext: settings, form, error, back_url. -#}
+{#- Page /werke/neu: uploading and creating without JavaScript (content fragments/work_new.html).
+    Context: settings, form, error, back_url. -#}
 {% extends "base.html" %}
 {% block title %}Neues Werk – Baruch{% endblock %}
 {% block page_title %}Neues Werk{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="/werke">Werke</a>

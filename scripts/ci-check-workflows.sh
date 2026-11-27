@@ -1,11 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Prüft die Regeln der Arbeitsabläufe unter .github/workflows (docs/Verteilung.md, „Regeln der Arbeitsabläufe“).
+# Checks the rules of the workflows under .github/workflows (docs/Verteilung.md, „Regeln der Arbeitsabläufe“).
 #
 #   scripts/ci-check-workflows.sh [ORDNER]
 #
-# Braucht python3 mit PyYAML (Debian/Ubuntu: python3-yaml). Jede Regel nennt ihren Grund; ein Verstoß endet mit
-# Exit 1 und einer Zeile je Fundstelle. Ersetzt weder actionlint noch einen echten Lauf.
+# Needs python3 with PyYAML (Debian/Ubuntu: python3-yaml). Every rule names its reason; a violation ends with
+# exit 1 and one line per place found. Replaces neither actionlint nor a real run.
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"

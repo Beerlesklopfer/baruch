@@ -96,7 +96,7 @@ def linked_packages(meta: dict, package: str) -> list[dict]:
             continue
         seen.add(pid)
         for dep in nodes[pid]["deps"]:
-            # kind None = gewöhnliche Abhängigkeit; "build" und "dev" landen nicht in der Binärdatei.
+            # kind None = ordinary dependency; "build" and "dev" do not end up in the binary.
             if any(k.get("kind") is None for k in dep["dep_kinds"]):
                 stack.append(dep["pkg"])
     return sorted((by_id[i] for i in seen), key=lambda p: (p["name"].lower(), p["version"]))
@@ -129,7 +129,7 @@ def main() -> int:
     version = next(p["version"] for p in meta["packages"] if p["name"] == args.package and p["id"] in members)
     packages = [p for p in linked_packages(meta, args.package) if p["id"] not in members]
 
-    texts: dict[str, tuple[int, str]] = {}  # sha256 -> (Nummer, Text)
+    texts: dict[str, tuple[int, str]] = {}  # sha256 -> (number, text)
     users: dict[int, list[str]] = {}
     lines: list[str] = []
     missing_license: list[str] = []

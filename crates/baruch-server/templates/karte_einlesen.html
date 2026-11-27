@@ -1,11 +1,11 @@
-{#- Seite /werke/{id}/karte/einlesen (Vertrag Runde 34 §5/§8, src/idea_map/files/upload.rs), ganz ohne JavaScript.
-    mode "form": Formular (POST /werke/{id}/karte/einlesen, multipart: file, parent).
-    mode "preview": Vorschau des gelesenen Baums; angelegt wird erst mit „Anlegen“
-    (POST /werke/{id}/karte/einlesen/anlegen, Felder tree = JSON des Baums, parent).
-    Kontext: settings, work {id, title}, title, mode, preview {title, count, links, warnings, nodes, json}, parents
+{#- Page /werke/{id}/karte/einlesen (contract Round 34 §5/§8, src/idea_map/files/upload.rs), entirely without
+    JavaScript. mode "form": form (POST /werke/{id}/karte/einlesen, multipart: file, parent).
+    mode "preview": preview of the tree read; it is created only with „Anlegen“
+    (POST /werke/{id}/karte/einlesen/anlegen, fields tree = JSON of the tree, parent).
+    Context: settings, work {id, title}, title, mode, preview {title, count, links, warnings, nodes, json}, parents
     [{id, label, selected}], parent, parent_label, error, max_mib, max_nodes, max_depth, form_href, apply_href,
     map_href, outline_href, workspace.
-    Inhalte aus der Datei (Titel, Notizen, Hinweise) sind Daten: nur maskiert (Autoescape). -#}
+    Contents from the file (titles, notes, hints) are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
 {% block title %}Mindmap einlesen · {{ title }} – Baruch{% endblock %}
 {% block page_title %}Mindmap einlesen · {{ title }}{% endblock %}

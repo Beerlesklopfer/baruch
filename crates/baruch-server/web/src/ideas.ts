@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Schnellerfassung eines Einfalls (Vertrag Runde 7, Abschnitt 6e). Ohne JavaScript führt die
-// Schaltfläche „Einfall“ der Kopfzeile auf die Seite /einfaelle mit Formular.
+// Quick capture of an idea (contract Round 7, section 6e). Without JavaScript the
+// button „Einfall“ of the header leads to the page /einfaelle with a form.
 //
-// - Widget „idea-capture“ (<dialog id="idea-capture">): Klick auf „Einfall“ ([data-idea-open]) und
-//   Alt+E öffnen den Dialog. Markierter Text aus dem Satzbild, dem Textfeld des Editors
-//   (selectionStart/End) oder dem Literatur-Popup (#literature) wird zum Feld „Markiert“ (quote);
-//   aus der Literatur kommt dazu die Quelle „Literatur“ (mit Titel, falls im DOM). `key` ist der
-//   feste Schlüssel aus dem Editor-Formular, `work` das Werk der Seite.
-// - Enter speichert über RPC idea.create (Umschalt+Enter: neue Zeile im Gedanken), Escape schließt;
-//   danach kehren Fokus und Markierung an die alte Stelle zurück.
+// - Widget „idea-capture“ (<dialog id="idea-capture">): a click on „Einfall“ ([data-idea-open]) and
+//   Alt+E open the dialog. Selected text from the typeset view, the text field of the editor
+//   (selectionStart/End) or the literature popup (#literature) becomes the field „Markiert“ (quote);
+//   from the literature the source „Literatur“ is added (with the title, if in the DOM). `key` is the
+//   fixed key from the editor form, `work` the work of the page.
+// - Enter saves through RPC idea.create (Shift+Enter: new line in the thought), Escape closes;
+//   afterwards focus and selection return to the old place.
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -19,7 +19,7 @@ interface Created {
   mirror?: string;
 }
 
-/// Wo vor dem Öffnen gearbeitet wurde: Element mit Fokus und Markierung.
+/// Where work was done before opening: element with focus and selection.
 interface Spot {
   focus: HTMLElement | null;
   start?: number;
@@ -41,7 +41,7 @@ function isTextField(element: Element | null): element is HTMLTextAreaElement | 
   return element instanceof HTMLTextAreaElement || (element instanceof HTMLInputElement && element.type === "text");
 }
 
-/// Markierter Text und Quelle: Textfeld des Editors, Satzbild oder Literatur-Popup.
+/// Selected text and source: text field of the editor, typeset view or literature popup.
 function picked(spot: Spot): { quote: string; source: string } {
   const focus = spot.focus;
   if (isTextField(focus) && focus.closest("#pane-editor") && spot.start !== undefined && spot.end !== undefined) {
@@ -66,14 +66,14 @@ function picked(spot: Spot): { quote: string; source: string } {
   return { quote: "", source: "" };
 }
 
-/// Werk der Seite: Werkwahl der Kopfzeile, sonst das verborgene Feld des Dialogs.
+/// Work of the page: work selection of the header, otherwise the hidden field of the dialog.
 function workOf(form: HTMLFormElement): number | null {
   const select = document.querySelector<HTMLSelectElement>("select[data-widget=work-select]");
   const value = select?.value ?? form.querySelector<HTMLInputElement>("input[name=work]")?.value ?? "";
   return value.trim() === "" || Number.isNaN(Number(value)) ? null : Number(value);
 }
 
-/// Fester Schlüssel des offenen Abschnitts aus dem Editor-Formular (nach ui.render aktuell).
+/// Fixed key of the open section from the editor form (current after ui.render).
 function keyOf(): number | null {
   const field = document.querySelector<HTMLInputElement>("form.editor-form input[name=key]");
   const value = field?.value ?? "";
@@ -121,7 +121,7 @@ register("idea-capture", (element) => {
     spot = { focus: null };
   };
 
-  /// `fresh`: Fokus und Markierung jetzt merken (Tastatur); beim Klick stammen sie vom mousedown.
+  /// `fresh`: remember focus and selection now (keyboard); on a click they come from the mousedown.
   const open = (fresh: boolean): void => {
     if (dialog.open) return;
     if (fresh || spot.focus === null) spot = remember();
@@ -174,12 +174,12 @@ register("idea-capture", (element) => {
     event.preventDefault();
     open(false);
   });
-  // Die Markierung vor dem Klick merken: Ein Klick auf den Link nimmt dem Textfeld den Fokus.
+  // Remember the selection before the click: a click on the link takes the focus away from the text field.
   opener?.addEventListener("mousedown", () => {
     spot = remember();
   });
   document.addEventListener("keydown", (event) => {
-    // `code` dazu: Auf manchen Tastaturen ergibt Alt+E ein anderes Zeichen (z. B. „€“).
+    // Plus `code`: on some keyboards Alt+E yields another character (e.g. „€“).
     if (!event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.key.toLowerCase() !== "e" && event.code !== "KeyE") return;
     event.preventDefault();
@@ -192,11 +192,11 @@ register("idea-capture", (element) => {
   });
   form.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-    if (!(event.target instanceof HTMLTextAreaElement)) return; // im Eingabefeld schickt Enter ohnehin ab
+    if (!(event.target instanceof HTMLTextAreaElement)) return; // in the input field Enter submits anyway
     event.preventDefault();
     void save();
   });
   form.querySelector("[data-idea-close]")?.addEventListener("click", () => dialog.close());
-  // Escape (cancel) und Schließen: Fokus und Markierung zurück.
+  // Escape (cancel) and closing: focus and selection back.
   dialog.addEventListener("close", restore);
 });

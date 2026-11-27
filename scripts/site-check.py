@@ -35,11 +35,11 @@ from html.parser import HTMLParser
 from urllib.parse import unquote, urlsplit
 
 BASIS = "https://baruch.bernau.family/"
-# Dateien im Repository, deren Inhalt seit Runde 37 auf der Webseite steht.
+# Files in the repository whose content has stood on the website since Round 37.
 VERBOTENE_DOKU = ("blob/main/docs/Bedienung.md", "blob/main/docs/Betrieb.md")
-# rel-Werte von <link>, die den Browser etwas laden lassen.
+# rel values of <link> that make the browser load something.
 LADENDE_REL = {"stylesheet", "icon", "preload", "prefetch", "modulepreload", "apple-touch-icon", "manifest"}
-# Attribute, deren Wert der Browser ohne Zutun des Lesers lädt.
+# Attributes whose value the browser loads without the reader doing anything.
 LADENDE_ATTRIBUTE = {
     "img": ("src", "srcset"),
     "source": ("src", "srcset"),
@@ -59,8 +59,8 @@ class Seite(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.ids = set()
-        self.links = []       # (Adresse, im_main)
-        self.geladen = []     # (Adresse, Beschreibung) – lädt der Browser von selbst
+        self.links = []       # (address, im_main)
+        self.geladen = []     # (address, description) – the browser loads it by itself
         self.bilder_ohne_alt = []
         self.skripte = []
         self.weiterleitung = None
@@ -242,7 +242,7 @@ def pruefe(ordner, basis=BASIS, mit_hilfe=True):
     return funde
 
 
-# ---- Selbsttest ---------------------------------------------------------------------------------------------
+# ---- Self-test ----------------------------------------------------------------------------------------------
 
 def schreibe(ordner, pfad, inhalt):
     voll = os.path.join(ordner, pfad)

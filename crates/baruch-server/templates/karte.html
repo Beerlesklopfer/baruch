@@ -1,21 +1,22 @@
-{#- Seite /werke/{id}/karte (Vertrag Runde 34 §5–§7, src/idea_map/bild/mod.rs): Mindmap der Einfälle eines Werks.
-    Das Bild zeichnet der Server (src/idea_map/bild/mindmap.rs, DOM-Vertrag §6: .mm-stage[data-widget=mindmap],
-    svg.mm-svg, g.mm-viewport, g.mm-node, path.mm-edge, path.mm-link, g.mm-cloud); unter dem Baum liegt die Wolke
-    (Einfälle ohne Platz, Nachtrag 2026-11-25). Ohne JavaScript ist die Seite ein Bild mit Links (Einklappen über
-    zu=, Abschnitt, Einfall) plus Verweis auf die Gliederungsansicht mit den Formularen; das Widget mindmap
-    (web/src/mindmap.ts) ergänzt Auswahl, Tasten, Ziehen, Zoom und holt das Bild nach jeder Aktion über data-bild neu.
-    Die Knöpfe der Gruppe „Knoten“ sind Links in die Gliederungsansicht (data-mm-action: das Widget übernimmt sie).
-    fragments/idea_capture.html ist hier bewusst nicht eingebunden (Alt+E gehört auf der Mindmap dem Widget).
-    Kontext: settings, work {id, title}, title, svg (sicher, in mindmap.rs maskiert), back (Abfrageteil des Filters),
+{#- Page /werke/{id}/karte (contract Round 34 §5–§7, src/idea_map/bild/mod.rs): mind map of the ideas of a work.
+    The server draws the image (src/idea_map/bild/mindmap.rs, DOM contract §6: .mm-stage[data-widget=mindmap],
+    svg.mm-svg, g.mm-viewport, g.mm-node, path.mm-edge, path.mm-link, g.mm-cloud); below the tree lies the cloud
+    (ideas without a place, addendum 2026-11-25). Without JavaScript the page is an image with links (collapsing through
+    zu=, section, idea) plus a reference to the outline view with the forms; the widget mindmap
+    (web/src/mindmap.ts) adds selection, keys, dragging, zoom and fetches the image anew through data-bild after every
+    action. The buttons of the group „Knoten“ are links into the outline view (data-mm-action: the widget takes them
+    over). fragments/idea_capture.html is deliberately not included here (on the mind map Alt+E belongs to the widget).
+    Context: settings, work {id, title}, title, svg (safe, escaped in mindmap.rs), back (query part of the filter),
     zu, wahl, here, bild, outputs {xmind, mm, svg, pdf, md}, einlesen, gliederung, open_all, close_all, act,
     ideas_href, workspace, near_toggle, findings_toggle, findings_href, many_findings, filter {status, word, origin,
     q, near, open, words, findings}, words, near_note, contradictions, stats {ideas, links, cloud}, clusters
-    [{group, ideas [{id, href, label}], words, proposal {name, persona, model, at} | none}] (Runde 19b), notice,
+    [{group, ideas [{id, href, label}], words, proposal {name, persona, model, at} | none}] (Round 19b), notice,
     undo, error. -#}
 {% extends "base.html" %}
 {% block title %}Mindmap · {{ title }} – Baruch{% endblock %}
 {% block page_title %}Mindmap · {{ title }}{% endblock %}
-{#- Runde 33/34 (Menüband): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33/34 (ribbon): actions of the page as groups in the tab „Start“ (details/summary with ordinary links, usable
+without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Knoten</summary><div class="band-items" role="group" aria-label="Knoten">
     <a class="btn" href="{{ gliederung }}" data-mm-action="child" title="Unterknoten anlegen (Tab) – ohne JavaScript in der Gliederungsansicht">Unterknoten</a>
@@ -87,7 +88,7 @@
         <option value="mcp"{% if filter.origin == "mcp" %} selected{% endif %}>MCP</option>
       </select></label>
     <label>Suche <input type="search" name="q" value="{{ filter.q }}" size="16" placeholder="Wörter hervorheben"></label>
-    {#- Ein nicht angekreuztes Kästchen schickt nichts: das versteckte near=0 davor gilt dann (letzter Wert gewinnt). #}
+    {#- An unchecked checkbox sends nothing: the hidden near=0 before it then applies (the last value wins). #}
     <input type="hidden" name="near" value="0">
     <label class="inline"><input type="checkbox" name="near" value="1"{% if filter.near %} checked{% endif %}> Nähe zeigen</label>
     <input type="hidden" name="befunde" value="0">
@@ -106,7 +107,7 @@
     <div class="mm-toolbar" data-mm-toolbar>
       <span class="muted small mm-stats">{{ stats.ideas }} Einfälle · {{ stats.links }} Verbindungen · <span class="mm-cloud-counter" data-mm-cloud-count="{{ stats.cloud }}">{{ stats.cloud }} in der Wolke</span></span>
       <span class="grow"></span>
-      {#- Runde 19b: Der Assistent schlägt Namen für die Gruppen vor (nur im Speicher); übernehmen kann nur der Mensch (unten). #}
+      {#- Round 19b: the assistant proposes names for the groups (only in memory); only the human can accept (below). #}
       <form class="im-inline" method="post" action="{{ act }}" data-im-name-groups>
         <input type="hidden" name="method" value="idea.map_groups_name">
         <input type="hidden" name="back" value="{{ back }}">

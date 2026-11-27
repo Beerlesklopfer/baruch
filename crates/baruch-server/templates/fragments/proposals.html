@@ -1,24 +1,24 @@
-{#- Offene Vorschläge an ihrer Stelle im Lesefluss (Vertrag Runde 8, „inline“, 2c). Kontext `inline`
+{#- Open proposals at their place in the reading flow (contract Round 8, „inline“, 2c). Context `inline`
     (view.rs InlineView): {key, rev, count, proposals [{id, key, node, rev}], entries [{b, raw, lines,
-    hunks}]}, dazu work, view, library_query.
+    hunks}]}, plus work, view, library_query.
 
-    Die gezeigte Fassung steht blockweise da (Editor: Quelltext-Lesemodus pre.pv-src[data-b]; Vorschau:
-    Zeilen als h1–h3/p), dazwischen je Stück (Hunk) eines offenen Vorschlags ein
+    The shown revision stands there block by block (editor: source reading mode pre.pv-src[data-b]; preview:
+    lines as h1–h3/p), in between, per piece (hunk) of an open proposal, a
     <details class="pv pc" data-pv="<key>-<rev>" data-pv-at="<b>" data-pv-gap="<g>" data-pv-kind="…">
-    in der Farbe der Persona (CSS-Variablen --pc-* im style, nur geprüfte #rrggbb), eingeklappt eine
-    farbige Linie genau an dieser Stelle (Cookie baruch_folded gilt für alle Stücke eines Vorschlags,
-    proposals.ts). `at` = erster betroffener Block der gezeigten Fassung (data-b), `gap` = das Stück
-    steht vor Block `gap` (am Ende die Blockzahl). Mehrere Vorschläge an derselben Stelle stehen
-    untereinander in Persona-Reihenfolge, darin nach Nummer. Der Kopf steht nur einmal, in der Linie.
+    in the colour of the persona (CSS variables --pc-* in the style, only checked #rrggbb), collapsed a
+    coloured line exactly at this place (the cookie baruch_folded applies to all pieces of a proposal,
+    proposals.ts). `at` = first affected block of the shown revision (data-b), `gap` = the piece
+    stands before block `gap` (at the end the number of blocks). Several proposals at the same place stand
+    one below the other in persona order, within that by number. The head stands only once, in the line.
 
-    Übernehmen/Verwerfen: je Vorschlag EIN Formular an /act (revision.accept bzw. revision.reject mit
-    der Nummer DIESES Vorschlags), außerhalb der Stücke; die Knöpfe in jedem Stück zeigen über das
-    Attribut form darauf. So bleiben sie gültig, wenn wysiwyg.ts die Stücke ins Satzbild setzt (das im
-    Editor-Formular liegt; Formulare lassen sich nicht schachteln). Ohne JavaScript geht alles.
+    Accept/reject: per proposal ONE form to /act (revision.accept or revision.reject with
+    the number of THIS proposal), outside the pieces; the buttons in every piece point to it through the
+    attribute form. This keeps them valid when wysiwyg.ts puts the pieces into the typeset view (which lies in the
+    editor form; forms cannot be nested). Everything works without JavaScript.
 
-    Runde 22 (R22a): In der Vorschau trägt jeder Abschnitt mit weiteren nicht aktuellen Fassungen (inline.alternatives:
-    ersetzt, verworfen; ohne offene Vorschläge) den Hinweis „weitere Fassung(en): n“ mit Link in den Editor des
-    Abschnitts (dort Liste mit „aktuell machen“). Der Kopf eines Vorschlags nennt den Stand seiner Basis („beruht auf
+    Round 22 (R22a): in the preview every section with further non-current revisions (inline.alternatives:
+    replaced, rejected; without open proposals) carries the note „weitere Fassung(en): n“ with a link into the editor of
+    the section (there a list with „aktuell machen“). The head of a proposal names the state of its base („beruht auf
     Fassung n, Stand k“, view.rs). -#}
 {%- macro pv_form(method, action, p) %}
     <form id="pv-{{ action }}-{{ p.id }}" class="pv-form" method="post" action="/act" data-rpc>
@@ -48,7 +48,7 @@
         {%- for line in h.lines %}<span class="{{ line.kind }}">{% if line.kind == "added" %}+ {% elif line.kind == "removed" %}− {% else %}  {% endif %}{{ line.text }}</span>
         {%- endfor -%}
       </pre>
-      {#- Runde 35: Entscheiden kann nur der Autor – für Lektoren fehlen die Knöpfe und ihre Formulare. #}
+      {#- Round 35: only the author can decide – for Lektors the buttons and their forms are missing. #}
       {%- if not lektor %}
       <div class="pv-actions">
         <button class="btn success" type="submit" form="pv-accept-{{ h.id }}">Übernehmen</button>
@@ -98,9 +98,9 @@
   {%- endfor %}
 </div>
 {%- elif inline.count %}
-{#- Runde 18c: Im Editor steht die Leiste („n offene Vorschläge“, „Alle einklappen“) VOR dem Lesefluss als eigenes
-    Kind des Blatts (div.pv-bar-editor[data-pv-bar=<key>], proposals.css: oben und klebend): Bei offenem Satzbild
-    verbirgt wysiwyg.ts den Lesefluss, die Leiste bleibt sichtbar (wysiwyg.ts bleibt unverändert). #}
+{#- Round 18c: in the editor the bar („n offene Vorschläge“, „Alle einklappen“) stands BEFORE the reading flow as a
+    child of the sheet of its own (div.pv-bar-editor[data-pv-bar=<key>], proposals.css: at the top and sticky): with the
+    typeset view open wysiwyg.ts hides the reading flow, the bar stays visible (wysiwyg.ts stays unchanged). #}
 {{- pv_line(inline, true) }}
 <section class="pv-flow" data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}" aria-label="Text mit offenen Vorschlägen an ihrer Stelle">
   {{- pv_forms(inline) }}

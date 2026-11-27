@@ -1,11 +1,11 @@
-{#- Word-Datei importieren (Runde 32, src/docx_import/pages.rs), ganz ohne JavaScript.
-    mode "form": Formular (POST /werke/import/word/vorschau, multipart). Kontext: settings, title_value, error,
+{#- Import a Word file (Round 32, src/docx_import/pages.rs), entirely without JavaScript.
+    mode "form": form (POST /werke/import/word/vorschau, multipart). Context: settings, title_value, error,
     max_mib, back_url.
-    mode "preview": Vorschau des Entwurfs. Kontext: settings, preview (Antwort von docx_import.preview), values
+    mode "preview": preview of the draft. Context: settings, preview (answer of docx_import.preview), values
     {title, changes, comments}, error, back_url.
-    mode "report": Bericht nach dem Übernehmen, wenn dabei neue Hinweise entstanden. Kontext: settings, report
-    (Antwort von docx_import.apply), report_title, back_url.
-    Inhalte aus der Datei (Titel, Namen, Textproben, Warnungen) sind Daten: nur maskiert (Autoescape). -#}
+    mode "report": report after adopting, if new notes arose in the process. Context: settings, report
+    (answer of docx_import.apply), report_title, back_url.
+    Contents from the file (titles, names, text samples, warnings) are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
 {% block title %}Word-Datei importieren – Baruch{% endblock %}
 {% block page_title %}Word-Datei importieren{% endblock %}

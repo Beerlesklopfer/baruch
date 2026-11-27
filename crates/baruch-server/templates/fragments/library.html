@@ -1,31 +1,32 @@
-{#- Literatur: Suche über Werk und Bibliothek, Treffer, Titel mit Zitaten und Hervorhebungen.
-    Inhalt des Popups (Kopfzeile „Literatur“, <dialog data-widget="literature">), der Seite /literatur
-    und der RPC-Methode literature.render.
-    Kontext: library (Liste von TitleEntry, bei /literatur und literature.render mit highlights),
-    optional library_query (String), library_hits (SearchHit), work.id, node.id, node.key, rev.number, view.
-    Ohne JavaScript: GET-Formular an /literatur (?lq=…), Titel als <details>; Titel mit Treffern sind
-    aufgeklappt. Links zur Dokumentansicht tragen work, key (fester Schlüssel des Abschnitts, für
-    „Zitieren“) und lq; Werk-Treffer zeigen ihren eigenen Abschnitt:
-    - Werk (revision, post): /?work&key&rev&lq#fundstelle (key = hit.node_key, Runde 8) – literature.ts markiert dort die Fundstelle;
-    - Titel, Zitat, Hervorhebung: Dokumentansicht /quelle?title=…[&quote=…][&highlight=…] mit Anker.
-    hit.snippet ist HTML aus baruch-library (Text maskiert, Treffer in <mark>), darum `safe`.
-    Das Widget „library“ filtert die Titelliste zusätzlich beim Tippen.
-    Runde 12 (pgvector): Umschalter „Suche nach“ (Radio lmode = fts | rag, Vorgabe fts; ohne JavaScript GET
-    /literatur?…&lq=…&lmode=rag). library_mode ("fts" | "rag") reist in allen Links mit (lmode_tail);
-    library_rag = Antwort der Bedeutungssuche (literature::rag_view: available, hits [{rank, title, way,
-    way_title, collection, snippet, percent, link, found_by}], ways_line, message), fts_url = dieselbe Suche
-    im Wortlaut. Ohne library_mode (Arbeitsseite) gilt fts.
-    Runde 15: bibles (literature::bibles::Shelf) – Kasten „Bibeln“ und Treffergruppen, siehe
+{#- Literature: search across work and library, hits, titles with quotations and highlights.
+    Content of the popup (header „Literatur“, <dialog data-widget="literature">), of the page /literatur
+    and of the RPC method literature.render.
+    Context: library (list of TitleEntry, for /literatur and literature.render with highlights),
+    optionally library_query (string), library_hits (SearchHit), work.id, node.id, node.key, rev.number, view.
+    Without JavaScript: GET form to /literatur (?lq=…), titles as <details>; titles with hits are
+    expanded. Links to the document view carry work, key (fixed key of the section, for
+    „Zitieren“) and lq; work hits show their own section:
+    - work (revision, post): /?work&key&rev&lq#fundstelle (key = hit.node_key, Round 8) – literature.ts marks the place
+    found there;
+    - title, quotation, highlight: document view /quelle?title=…[&quote=…][&highlight=…] with an anchor.
+    hit.snippet is HTML from baruch-library (text escaped, hits in <mark>), therefore `safe`.
+    The widget „library“ additionally filters the title list while typing.
+    Round 12 (pgvector): switch „Suche nach“ (radio lmode = fts | rag, default fts; without JavaScript GET
+    /literatur?…&lq=…&lmode=rag). library_mode ("fts" | "rag") travels along in all links (lmode_tail);
+    library_rag = answer of the semantic search (literature::rag_view: available, hits [{rank, title, way,
+    way_title, collection, snippet, percent, link, found_by}], ways_line, message), fts_url = the same search
+    verbatim. Without library_mode (workspace page) fts applies.
+    Round 15: bibles (literature::bibles::Shelf) – box „Bibeln“ and hit groups, see
     fragments/literature_bibles.html.
-    Runde 13: MultiGPT-Treffer haben fulltext_link (/quelle/multigpt?collection&document[&section]&q) – Link
-    „Volltext“ mit work, key und lq. -#}
-{#- lq in Links: Filter `urlencode` (minijinja-Feature „urlencode“, kodiert alles außer
-    Buchstaben, Ziffern und / . - _). -#}
+    Round 13: MultiGPT hits have fulltext_link (/quelle/multigpt?collection&document[&section]&q) – link
+    „Volltext“ with work, key and lq. -#}
+{#- lq in links: filter `urlencode` (minijinja feature „urlencode“, encodes everything except
+    letters, digits and / . - _). -#}
 {%- set lq_url = (library_query | urlencode) if library_query else "" %}
 {%- set rag_mode = library_mode is defined and library_mode == "rag" %}
 {%- set lmode_tail = "&lmode=rag" if rag_mode else "" %}
 {%- set lq_tail = (("&lq=" ~ lq_url) if library_query else "") ~ lmode_tail %}
-{#- Runde 8: Links tragen den festen Schlüssel (key), keine Stelle (node) mehr. -#}
+{#- Round 8: links carry the fixed key (key), no longer a position (node). -#}
 {%- set at_q = (("&work=" ~ work.id) if (work is defined and work.id is defined) else "")
              ~ (("&key=" ~ node.key) if (node is defined and node.key is defined) else "") %}
 {%- set hit_keys = (library_hits | default([]) | selectattr("key") | map(attribute="key") | list) if library_query else [] %}
@@ -35,7 +36,7 @@
   {%- if work is defined and work.id is defined %}
   <input type="hidden" name="work" value="{{ work.id }}">
   {%- endif %}
-  {#- GET-Formular: seine Adresse trägt den Schlüssel; die Stelle nur, wenn es keinen gibt. #}
+  {#- GET form: its address carries the key; the position only if there is none. #}
   {%- if node is defined and node.id is defined and node.key is not defined %}
   <input type="hidden" name="node" value="{{ node.id }}">
   {%- endif %}
@@ -65,8 +66,8 @@
   {%- if not library_rag.available %}
   <p class="notice small" role="status" data-rag-missing>{{ library_rag.message }} <a href="{{ fts_url }}" data-fts-link>Dieselbe Suche im Wortlaut (FTS)</a></p>
   {%- else %}
-  {#- Runde 19c: schwache Treffer (hit.weak, Ähnlichkeit unter baruch_rag::WEAK_SCORE) stehen mit „schwach“ neben dem
-      Prozentwert hinter den übrigen, zugeklappt in <details> „n schwache Treffer“ (ohne JavaScript aufklappbar). #}
+  {#- Round 19c: weak hits (hit.weak, similarity below baruch_rag::WEAK_SCORE) stand with „schwach“ next to the
+      percentage behind the others, collapsed in <details> „n schwache Treffer“ (expandable without JavaScript). #}
   {%- macro rag_hit(hit, at_q, lq_tail, weak_label) %}
     <li class="library-hit rag-hit{% if hit.weak %} weak-hit{% endif %}" data-way="{{ hit.way }}"{% if hit.weak %} data-weak{% endif %}>
       {%- if hit.link %}
@@ -129,7 +130,7 @@
   </ul>
 </div>
 {%- endif %}
-{#- Runde 15: Bibeln (Kasten und Treffergruppen „Bibel“/„Kommentar“), nur mit Kontext `bibles`. #}
+{#- Round 15: Bibles (box and hit groups „Bibel“/„Kommentar“), only with the context `bibles`. #}
 {% include "fragments/literature_bibles.html" ignore missing %}
 <div class="library-titles">
 {%- for t in library %}
@@ -179,7 +180,7 @@
 {%- endfor %}
   <p class="muted small library-none" hidden>Keine passenden Titel.</p>
 </div>
-{#- Runde 23a: Kasten „Bilder des Werks“ zur Suche auf der Arbeitsseite (library_images_html, fertiges HTML aus
-    literature::image_hits_box); /literatur und literature.render setzen ihren Kasten selbst (images_html). #}
+{#- Round 23a: box „Bilder des Werks“ for the search on the workspace page (library_images_html, finished HTML from
+    literature::image_hits_box); /literatur and literature.render set their box themselves (images_html). #}
 {%- if library_images_html is defined and library_images_html %}{{ library_images_html }}{% endif %}
 </section>

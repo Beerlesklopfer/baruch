@@ -1,10 +1,10 @@
-{#- Seite /werke/{id}/word (Runde 32, src/docx_export/mod.rs): das Werk als Word-Datei für den Verlag. Das Formular
-    schickt per GET an /werke/{id}/word.docx (Häkchen vorschlaege=1) und geht ohne JavaScript. Kontext: settings,
-    work {id, title, slug}, sections_with_proposals (Abschnitte mit offenem Vorschlag), open_proposals (Zahl). -#}
+{#- Page /werke/{id}/word (Round 32, src/docx_export/mod.rs): the work as a Word file for the publisher. The form
+    sends by GET to /werke/{id}/word.docx (checkbox vorschlaege=1) and works without JavaScript. Context: settings,
+    work {id, title, slug}, sections_with_proposals (sections with an open proposal), open_proposals (number). -#}
 {% extends "base.html" %}
 {% block title %}Word-Export – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Word-Export{% endblock %}
-{#- Menüband (Runde 33): Aktionen der Seite als Gruppe im Reiter „Buch“ (details/summary mit gewöhnlichen Links). #}
+{#- Ribbon (Round 33): actions of the page as a group in the tab „Buch“ (details/summary with ordinary links). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

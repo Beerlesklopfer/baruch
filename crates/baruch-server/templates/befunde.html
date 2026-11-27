@@ -1,17 +1,20 @@
-{#- Seite /werke/{id}/befunde (Runde 28, befund-uebersicht, src/findings/page.rs): Übersicht der Befunde eines Werks.
-    Oben die Filter (GET: status, kind, persona, since, until, include_praise, older_than_days), darunter die Matrix
-    Kapitel × Persona mit Teilen als Gruppen (Summen je Teil und gesamt), je Zelle Zeichen und Zahl je Status (nicht nur
-    Farbe; Worte im title und für Bildschirmleser), Link auf die Befunde der Zelle (?key=&persona=#zelle). Darunter je
-    nach Adresse ein einzelner Befund (?befund=) mit Verlauf, die Befunde einer Zelle oder die Liste „offen, älter als
-    n Tagen“, die Sammelvorschläge des Lektors (mit Links auf die Ursprünge) und der Verlauf je Kapitel. Statusformulare
-    aus fragments/findings_panel.html (Makros), alle an POST /werke/befunde/act. Ohne JavaScript vollständig; das Widget
-    „findings“ (web/src/findings.ts) filtert ohne Neuladen und bedient die Matrix mit den Pfeiltasten.
-    Kontext: settings, work, title, base, here, reset, workspace, filter, praise_toggle, statuses, kinds, personas,
-    matrix, history, detail, cell, old, old_total, old_limit (Runde 23a: Kappungshinweis), older_days, summaries, targets, many, notice, error, draft. -#}
+{#- Page /werke/{id}/befunde (Round 28, befund-uebersicht, src/findings/page.rs): overview of the findings of a work.
+    At the top the filters (GET: status, kind, persona, since, until, include_praise, older_than_days), below the matrix
+    chapter × persona with parts as groups (sums per part and in total), per cell a sign and a number per status (not
+    only colour; words in the title and for screen readers), link to the findings of the cell (?key=&persona=#zelle).
+    Below, depending on the address, a single finding (?befund=) with history, the findings of a cell or the list
+    „offen, älter als n Tagen“, the collective proposals of the lector (with links to the origins) and the history per
+    chapter. Status forms from fragments/findings_panel.html (macros), all to POST /werke/befunde/act. Complete without
+    JavaScript; the widget „findings“ (web/src/findings.ts) filters without reloading and operates the matrix with the
+    arrow keys.
+    Context: settings, work, title, base, here, reset, workspace, filter, praise_toggle, statuses, kinds, personas,
+    matrix, history, detail, cell, old, old_total, old_limit (Round 23a: note on the cap), older_days, summaries,
+    targets, many, notice, error, draft. -#}
 {% extends "base.html" %}
 {% block title %}Befunde · {{ title }} – Baruch{% endblock %}
 {% block page_title %}Befunde · {{ title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
@@ -27,8 +30,9 @@
   <h1 class="pane-title">Befunde in „{{ title }}“</h1>
   <p class="muted small">Befunde sind die einzelnen Punkte aus den Antworten der Personas. Den Status setzt nur der Mensch;
     Assistenten schlagen höchstens vor. Offen zählt, was weder entschieden noch an einen gleichen Befund angehängt noch
-    Lob ist – dieselbe Zahl steht als Abzeichen „k offen“ in der Gliederung und im Editorkopf.</p>{#- Runde 35: Formular nur für Lektoren (finding.add ohne key über POST /lektorat/act, ohne JavaScript); konten_ui::apply
-    schneidet es für alle anderen heraus, die Karten tragen ihre Autor-Formulare als nur-autor. -#}
+    Lob ist – dieselbe Zahl steht als Abzeichen „k offen“ in der Gliederung und im Editorkopf.</p>{#- Round 35: form
+    only for Lektors (finding.add without key through POST /lektorat/act, without JavaScript); konten_ui::apply cuts it
+    out for everyone else, the cards carry their author forms as nur-autor. -#}
 <!--NUR-LEKTOR--><form class="fd-form lektor-finding nur-lektor" method="post" action="/lektorat/act" aria-label="Anmerkung zum Buch schreiben">
     <input type="hidden" name="method" value="finding.add">
     <input type="hidden" name="work" value="{{ work.id }}">
@@ -144,7 +148,7 @@
       <label>älter als <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ older_days }}"> Tage</label>
       <button class="btn small" type="submit">Zeigen</button>
     </form>
-    {#- Runde 23a: Über der Grenze fehlen die ältesten Befunde in der Liste – das sagt die Seite jetzt. #}
+    {#- Round 23a: above the limit the oldest findings are missing from the list – the page now says so. #}
     {%- if old_total > old_limit %}
     <p class="notice" role="status" data-old-truncated>Es gibt {{ old_total }} offene Befunde, die älter sind; gezeigt sind die {{ old_limit }} neuesten davon. Die älteren stehen in der Matrix (Zelle anklicken) oder erscheinen mit einer größeren Zahl bei „älter als … Tage“.</p>
     {%- endif %}

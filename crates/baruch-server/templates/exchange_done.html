@@ -1,12 +1,13 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Antwort auf POST /austausch/uebernehmen (Runde 26, src/exchange/import.rs): Ergebnis des
-    Einlesens mit Links zu den Abweichungen (/?work=W&key=K&rev=R) und zu den Anträgen (/gliederung?work=W#antraege).
-    Kontext: settings, work {id, title, slug}, mode_label, instance, add [(Art, Zahl)], add_total, requests (Zahl),
+{#- Answer to POST /austausch/uebernehmen (Round 26, src/exchange/import.rs): result of
+    reading in, with links to the deviations (/?work=W&key=K&rev=R) and to the requests (/gliederung?work=W#antraege).
+    Context: settings, work {id, title, slug}, mode_label, instance, add [(kind, number)], add_total, requests (number),
     deviations [{label, here, there, action, href?}], report (ExchangeReport), commit?, mirror?. -#}
 {% extends "base.html" %}
 {% block title %}Austausch übernommen – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}Austausch übernommen{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Weiter</summary><div class="band-items" role="group" aria-label="Weiter">

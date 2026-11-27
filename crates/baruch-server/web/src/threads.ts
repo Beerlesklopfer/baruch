@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „threads“ (Runde 15, Fäden ohne Abschnitt). Ohne JavaScript gehen die Seiten /faeden und /faden mit dem
-// Formular an POST /faden/act. Mit JavaScript: der Faden rollt zum letzten Beitrag, Strg+Enter im Antwortfeld
-// schickt das Formular ab, und während die Personas antworten, sind die Knöpfe gesperrt und sagen das.
-// Runde 28 (chat-auftrag): Die Beiträge rollen in `.thread-scroll`; beim Öffnen steht er am neuesten Beitrag
-// (`#chat-neueste`, ohne JavaScript über den Anker der Weiterleitung). „Kopieren“ je Beitrag (`enableCopy` aus chat.ts);
-// „Zitieren“ ist ein Link (`?zitat=<id>#antwort`), der auch ohne JavaScript die Antwort mit „> …“ vorbelegt.
-// Runde 30c (chat-bedienung):
-// - ✕ (`summary[data-thread-delete]`, ohne JavaScript klappt es ein Formular mit Kästchen auf): Rückfrage mit `confirm`,
-//   RPC `thread.post_delete {confirm: true}`, der Beitrag verschwindet; scheitert der Aufruf, bleibt das Formular.
-// - ↻ (`form[data-thread-rpc]`, ohne JavaScript POST /faden/act): RPC `thread.repeat`, danach sofort eine Abfrage.
-// - Live: `thread.since` alle 3 s bei sichtbarer Seite (`startLive` aus chat.ts) – neue Beiträge, „@x schreibt …“,
-//   Fehler in `div[data-chat-live]`.
+// Widget „threads“ (Round 15, threads without a section). Without JavaScript the pages /faeden and /faden work with
+// the form to POST /faden/act. With JavaScript: the thread scrolls to the last post, Ctrl+Enter in the answer field
+// submits the form, and while the personas answer, the buttons are disabled and say so.
+// Round 28 (chat-auftrag): the posts scroll in `.thread-scroll`; on opening it stands at the newest post
+// (`#chat-neueste`, without JavaScript through the anchor of the redirect). „Kopieren“ per post (`enableCopy` from
+// chat.ts); „Zitieren“ is a link (`?zitat=<id>#antwort`) that prefills the answer with „> …“ also without JavaScript.
+// Round 30c (chat-bedienung):
+// - ✕ (`summary[data-thread-delete]`, without JavaScript it unfolds a form with a checkbox): confirmation with
+//   `confirm`, RPC `thread.post_delete {confirm: true}`, the post disappears; if the call fails, the form stays.
+// - ↻ (`form[data-thread-rpc]`, without JavaScript POST /faden/act): RPC `thread.repeat`, then a query at once.
+// - Live: `thread.since` every 3 s while the page is visible (`startLive` from chat.ts) – new posts, „@x schreibt …“,
+//   errors in `div[data-chat-live]`.
 
 import { call } from "./rpc.js";
 import { deleteQuestion, enableCopy, startLive, type SinceAnswer } from "./chat.js";
 import { register } from "./widgets.js";
 
-/// ✕ und ↻ der Fadenbeiträge bedienbar machen (einmal je Element).
+/// Make ✕ and ↻ of the thread posts operable (once per element).
 function enableThreadTools(root: ParentNode, work: number, thread: number, status: HTMLElement | null): void {
   for (const summary of root.querySelectorAll<HTMLElement>("summary[data-thread-delete]")) {
     if (summary.dataset.deleteReady) continue;
@@ -30,7 +30,7 @@ function enableThreadTools(root: ParentNode, work: number, thread: number, statu
       void call("thread.post_delete", { work, thread, id, confirm: true })
         .then(() => item.remove())
         .catch(() => {
-          // Rückfall: das Formular mit Kästchen (wie ohne JavaScript).
+          // Fallback: the form with the checkbox (as without JavaScript).
           summary.closest("details")?.setAttribute("open", "");
         });
     });

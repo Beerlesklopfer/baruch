@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Markdown-Überschriften beim Tippen (Nutzerentscheidung 2026-11-07): `# Titel` … `###### Titel` am
-// Zeilenanfang wird zur Typst-Überschrift (`=` × Ebene, Ebene 4–6 auf 3 begrenzt). Maßgeblich ist die
-// Regel des Servers (`baruch_typst::markdown`, beim Speichern auch ohne JavaScript); hier dieselben Fälle
-// für die Umwandlung live im Quelltext-Editor und im Satzbild. Im Zweifel wandelt das Widget nicht um –
-// der Server entscheidet beim Speichern.
+// Markdown headings while typing (user decision 2026-11-07): `# Titel` … `###### Titel` at the
+// start of a line becomes a Typst heading (`=` × level, levels 4–6 limited to 3). Authoritative is the
+// rule of the server (`baruch_typst::markdown`, on saving also without JavaScript); here the same cases
+// for the conversion live in the source editor and in the typeset view. In doubt the widget does not convert –
+// the server decides on saving.
 
-/// Tiefste Überschriftsebene der Gliederung.
+/// Deepest heading level of the outline.
 const MAX_LEVEL = 3;
 
-/// Markdown-Überschrift einer Zeile (ohne Zeilenende): Ebene (begrenzt) und Titel, sonst `null`.
-/// Ausnahmen wie im Server: `\#`, Anführungszeichen, Typst-Code (`#heading`, `#set`, `#let`), Einzug,
-/// ohne Titel, mehr als sechs Rauten.
+/// Markdown heading of a line (without line end): level (limited) and title, otherwise `null`.
+/// Exceptions as in the server: `\#`, quotation marks, Typst code (`#heading`, `#set`, `#let`), indentation,
+/// without a title, more than six hash signs.
 export function markdownHeading(line: string): { level: number; title: string } | null {
   const match = /^(#{1,6}) (.*)$/.exec(line);
   if (!match) return null;
   let title = match[2].trim();
-  // Schließende Folge „ ##“ entfällt (nur nach Leerraum, wie in Markdown).
+  // A closing sequence „ ##“ is dropped (only after whitespace, as in Markdown).
   const closing = /^(.*?)[ \t]+#+$|^#+$/.exec(title);
   if (closing) title = (closing[1] ?? "").trim();
   if (!title) return null;
   return { level: Math.min(match[1].length, MAX_LEVEL), title };
 }
 
-/// Die Zeile als Typst-Überschrift, sonst `null`.
+/// The line as a Typst heading, otherwise `null`.
 export function typstHeadingLine(line: string): string | null {
   const found = markdownHeading(line);
   return found ? `${"=".repeat(found.level)} ${found.title}` : null;
 }
 
-/// Beginnt die Zeile, die bei `offset` anfängt, im Markup der obersten Ebene? Vorsichtige Näherung
-/// an den Scanner des Servers, Zeile für Zeile: Raw-Blöcke (```), Block- und Zeilenkommentare, Strings
-/// in Klammern und offene Klammern davor zählen; im Zweifel `false`.
+/// Does the line that begins at `offset` start in top-level markup? A cautious approximation
+/// of the scanner of the server, line by line: raw blocks (```), block and line comments, strings
+/// in brackets and open brackets before it count; in doubt `false`.
 export function lineInMarkup(text: string, offset: number): boolean {
   let fence = 0;
   let comment = 0;
@@ -38,7 +38,7 @@ export function lineInMarkup(text: string, offset: number): boolean {
   let inString = false;
   const before = text.slice(0, offset);
   const lines = before.split("\n");
-  lines.pop(); // der Anfang der Zeile selbst (leer, wenn `offset` ein Zeilenanfang ist)
+  lines.pop(); // the start of the line itself (empty if `offset` is a line start)
   for (const line of lines) {
     if (fence > 0) {
       const close = /^\s*(`{3,})/.exec(line);
@@ -80,8 +80,8 @@ export function lineInMarkup(text: string, offset: number): boolean {
   return fence === 0 && comment === 0 && depth === 0 && !inString;
 }
 
-/// Quelltext-Editor: die Zeile am Cursor umwandeln (beim Enter bzw. beim Verlassen). Der Cursor bleibt
-/// an derselben Stelle im Titel. `true`, wenn sich der Text geändert hat.
+/// Source editor: convert the line at the cursor (on Enter or on leaving). The cursor stays
+/// at the same place in the title. `true` if the text has changed.
 export function convertLineAt(area: HTMLTextAreaElement, caret = area.selectionStart): boolean {
   const value = area.value;
   const start = value.lastIndexOf("\n", caret - 1) + 1;
@@ -98,7 +98,7 @@ export function convertLineAt(area: HTMLTextAreaElement, caret = area.selectionS
   return true;
 }
 
-/// Alle Zeilen eines Texts umwandeln (beim Verlassen des Editors): wie `markdown_headings` im Server.
+/// Convert all lines of a text (on leaving the editor): like `markdown_headings` in the server.
 export function convertText(text: string): string {
   let out = "";
   for (const raw of text.split("\n")) {

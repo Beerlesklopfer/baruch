@@ -1,21 +1,21 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Lädt ein Werkzeug der CI in fester Version und prüft die SHA-256-Prüfsumme, bevor es entpackt wird.
+# Downloads a tool of the CI in a fixed version and checks the SHA-256 checksum before it is unpacked.
 #
 #   scripts/ci-tool.sh hugo ZIELORDNER
 #
-# Legt ZIELORDNER/hugo ab (Linux x86_64, wie die Runner). Ohne passende Prüfsumme bricht das Skript ab; nichts
-# Ungeprüftes wird ausgeführt. Die Version steht nur hier (eine Stelle für ci.yml, release.yml und pages.yml).
-# Anheben: docs/Verteilung.md, „Werkzeuge anheben“.
+# Puts ZIELORDNER/hugo in place (Linux x86_64, like the runners). Without a matching checksum the script aborts;
+# nothing unchecked is executed. The version stands only here (one place for ci.yml, release.yml and pages.yml).
+# Raising it: docs/Verteilung.md, „Werkzeuge anheben“.
 #
-# - Hugo: dieselbe Version wie auf dem Entwicklungsrechner (nicht „extended“, das Theme braucht kein SCSS).
-#   Prüfsumme aus hugo_<Version>_checksums.txt des Release, abgefragt am 2026-11-24.
-# - Typst lädt die CI seit Runde 36 nicht mehr: `typst compile` prüft scripts/ci-typst.sh mit dem eigenen
-#   Programm (baruch-typst, eingebaute Engine). `ci-tool.sh typst` endet darum wie jedes unbekannte Werkzeug
-#   mit Exit 2.
+# - Hugo: the same version as on the development machine (not "extended", the theme needs no SCSS).
+#   Checksum from hugo_<Version>_checksums.txt of the release, queried on 2026-11-24.
+# - The CI has not downloaded Typst since Round 36: `typst compile` is checked by scripts/ci-typst.sh with the own
+#   program (baruch-typst, built-in engine). `ci-tool.sh typst` therefore ends like every unknown tool
+#   with exit 2.
 #
-# Mit CI_TOOL_CHECK_ONLY=1 lädt das Skript nichts: Es prüft nur den Aufruf (für scripts/ci-selftest.sh, ohne
-# Netz).
+# With CI_TOOL_CHECK_ONLY=1 the script downloads nothing: it only checks the invocation (for scripts/ci-selftest.sh,
+# without network).
 set -eu
 
 HUGO_VERSION="0.168.0"
@@ -60,12 +60,12 @@ trap 'rm -rf "$work"' EXIT
 archive="$work/${url##*/}"
 
 curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$archive" "$url"
-# Prüfen vor dem Entpacken (zwei Leerzeichen: das Format von `sha256sum --check`).
+# Check before unpacking (two spaces: the format of `sha256sum --check`).
 if ! printf '%s  %s\n' "$sum" "$archive" | sha256sum --check --status; then
     echo "ci-tool.sh: Prüfsumme von ${url##*/} stimmt nicht (erwartet $sum)." >&2
     exit 1
 fi
 tar -xf "$archive" -C "$work" --no-same-owner --strip-components="$strip" "$member"
 install -m 755 "$work/$tool" "$dest/$tool"
-# Die Zeile belegt im Protokoll, was läuft (`hugo version`).
+# The line proves in the log what runs (`hugo version`).
 echo "ci-tool.sh: $dest/$tool – $("$dest/$tool" "$show" | head -n 1)"

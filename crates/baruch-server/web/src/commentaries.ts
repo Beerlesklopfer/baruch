@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „commentaries“ (Runde 17c) für das Kommentar-Panel `<details class="commentaries">` aus
-// `bibles::commentary_panel_html` (Bibelseite /literatur/bibel). Ohne JavaScript bleiben Panel und je Modul ein
-// `<details class="commentary">` gewöhnlich auf- und zuklappbar. Mit JavaScript:
-// - Knöpfe „alle aufklappen“ / „alle zuklappen“ für die Module im Panel;
-// - der Zustand (Panel offen?, je Modul offen?) bleibt in localStorage (`baruch_commentaries`) gemerkt – nur in
-//   try/catch, denn localStorage kann fehlen oder gesperrt sein; dann gilt einfach das HTML des Servers.
-//   Ein ausdrückliches `open` vom Server (Link mit kom=1) geht vor.
+// Widget „commentaries“ (Round 17c) for the commentary panel `<details class="commentaries">` from
+// `bibles::commentary_panel_html` (Bible page /literatur/bibel). Without JavaScript the panel and, per module, a
+// `<details class="commentary">` stay expandable and collapsible in the ordinary way. With JavaScript:
+// - buttons „alle aufklappen“ / „alle zuklappen“ for the modules in the panel;
+// - the state (panel open?, open per module?) stays remembered in localStorage (`baruch_commentaries`) – only in
+//   try/catch, because localStorage can be missing or blocked; then simply the HTML of the server applies.
+//   An explicit `open` from the server (link with kom=1) takes precedence.
 
 import { register } from "./widgets.js";
 
@@ -30,7 +30,7 @@ function save(state: Remembered): void {
   try {
     window.localStorage.setItem(STORE, JSON.stringify(state));
   } catch {
-    // gesperrt oder voll: nichts merken
+    // blocked or full: remember nothing
   }
 }
 

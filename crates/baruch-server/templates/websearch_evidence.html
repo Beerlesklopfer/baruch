@@ -1,16 +1,17 @@
 {#- SPDX-License-Identifier: AGPL-3.0-or-later
-    Seite /websuche/belege?work&key&post (Runde 13, websuche): die Belege eines Beitrags von @belege aus der
-    Websuche – je Beleg [Wn], Titel (Link auf die Seite, rel=noopener noreferrer), Adresse, „abgerufen am“,
-    „bevorzugte Quelle“, das Zitat und das Urteil der Prüfung im Code. Bei „belegt“ ein Formular an
-    POST /websuche/act (action=adopt, evidence) mit dem Knopf „In die Bibliothek“; danach steht dort der Link auf
-    den Titel. Inhalte der Seiten sind Daten: alles maskiert. Ohne JavaScript bedienbar.
-    Kontext: settings, work {id}?, key?, post, post_author?, post_body?, back?, evidence [{id, label, url,
+    Page /websuche/belege?work&key&post (Round 13, websuche): the evidence of a post by @belege from the
+    web search – per item [Wn], title (link to the page, rel=noopener noreferrer), address, „abgerufen am“,
+    „bevorzugte Quelle“, the quotation and the verdict of the check in the code. For „belegt“ a form to
+    POST /websuche/act (action=adopt, evidence) with the button „In die Bibliothek“; afterwards the link to the
+    title stands there. Contents of the pages are data: everything escaped. Usable without JavaScript.
+    Context: settings, work {id}?, key?, post, post_author?, post_body?, back?, evidence [{id, label, url,
     title, preferred, accessed, quote, verdict, verdict_label, library_title, library_href, can_adopt}],
     notice?, error?. -#}
 {% extends "base.html" %}
 {% block title %}Belege der Websuche – Baruch{% endblock %}
 {% block page_title %}Belege der Websuche{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   {%- if back %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

@@ -1,15 +1,17 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /werke/{id}/austausch (Runde 26, src/exchange/export.rs): Werk als Austauschdatei
-    ausgeben. Ohne JavaScript bedienbar: zwei gewöhnliche Download-Links und ein Link zum Einlesen.
-    Kontext: settings, work {id, title, slug, uuid}, instance {uuid, label, named}, counts {nodes, revisions,
+{#- Page /werke/{id}/austausch (Round 26, src/exchange/export.rs): output the work as an exchange file.
+    Usable without JavaScript: two ordinary download links and a link for reading in.
+    Context: settings, work {id, title, slug, uuid}, instance {uuid, label, named}, counts {nodes, revisions,
     posts, template_revisions, ideas, deleted_ideas, threads, thread_posts, assets, asset_revisions, tombstones,
-    links, deleted_links, positions, findings, open_findings, post_versions (Runde 28), typeset, typeset_fields (Runde 29), glossary_terms, proposed_terms,
-    registers (Runde 31)},
+    links, deleted_links, positions, findings, open_findings, post_versions (Round 28), typeset, typeset_fields (Round
+    29), glossary_terms, proposed_terms,
+    registers (Round 31)},
     back, baruch_name, xml_name, version, namespace. -#}
 {% extends "base.html" %}
 {% block title %}Austausch – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Austausch{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

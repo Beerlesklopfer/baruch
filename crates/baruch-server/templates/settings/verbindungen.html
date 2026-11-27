@@ -1,25 +1,25 @@
 {#- SPDX-License-Identifier: AGPL-3.0-or-later
-    Einstellungsseite „Verbindungen“ (Runde 9, Aufgabe „connections“): nur der Seiteninhalt für den Rahmen
-    der Einstellungen (crate::connections::render_connections). Je Verbindung ein Formular an
-    POST /einstellungen/verbindungen/act (method=connection.set, dazu wahlweise secret), „Geheimnis
-    entfernen“ (connection.delete_secret mit confirm=1), „Verbindung prüfen“ (connection.check); am Ende die
-    RAG-Wege des Werks (connection.rag_set, Kästchen way_*). Geheimnisse erscheinen nie, nur „hinterlegt“
-    bzw. „fehlt“, dazu secret_for (Ziel, für das es gilt, wenn die Adresse seitdem anderswohin zeigt). Geht
-    ohne JavaScript. Kontext: notice, error, connections [{kind, title, account, secret,
+    Settings page „Verbindungen“ (Round 9, task „connections“): only the page content for the frame
+    of the settings (crate::connections::render_connections). Per connection one form to
+    POST /einstellungen/verbindungen/act (method=connection.set, optionally with secret), „Geheimnis
+    entfernen“ (connection.delete_secret with confirm=1), „Verbindung prüfen“ (connection.check); at the end the
+    RAG ways of the work (connection.rag_set, checkboxes way_*). Secrets never appear, only „hinterlegt“
+    or „fehlt“, plus secret_for (the target it applies to if the address has pointed elsewhere since). Works
+    without JavaScript. Context: notice, error, connections [{kind, title, account, secret,
     secret_error, secret_for, fields, check {ok, message, at, lines, personas}, checkable, stub, stub_open, probe
     {options, selected, listed, last} | none, default, error}], rag {work, title, ways, default} | none, work.
-    Runde 10 (backend): bei Eliezer der Abgleich der Persona-Modelle (check.personas) und der Kurztest
-    (method=model.probe, Feld model, ohne JavaScript); stub_open = false heißt: Nutzung umgesetzt (data-usage).
-    Runde 12 (pgvector): open_part = was an der Verbindung noch offen ist (data-stub); rag.collections
-    [{way, label, on, options [{name, count, checked, gone}], checked_at, chosen, unit}] als Formular
-    connection.collections_set (wiederholtes Feld collection, dazu collection_new), rag.status {ok, ways
-    [{way, title, state, label, message}], index {...}} bzw. {ok: false, message}, „Index neu aufbauen“
-    (method=rag.reindex, confirm=1). Alle Verbindungen lassen sich prüfen.
-    Runde 19b (pgvector): c.tls_warning (Passwort hinterlegt und TLS prefer/disable/require, data-tls-warning), Felder mit
-    placeholder/maxlength (Aufgaben-Präfixe query_prefix/document_prefix, Vorschlag für nomic-embed-text),
-    rag.status.index.stale (nur bei > 0, data-index-stale).
-    Runde 24: MultiGPT hat keine Adresse als Vorgabe mehr (leer); das Adressfeld zeigt dann den Platzhalter
-    https://multigpt.example/mcp/ (nur ein Beispiel, wird nie gespeichert oder angefragt). -#}
+    Round 10 (backend): for Eliezer the reconciliation of the persona models (check.personas) and the quick test
+    (method=model.probe, field model, without JavaScript); stub_open = false means: usage implemented (data-usage).
+    Round 12 (pgvector): open_part = what is still open on the connection (data-stub); rag.collections
+    [{way, label, on, options [{name, count, checked, gone}], checked_at, chosen, unit}] as the form
+    connection.collections_set (repeated field collection, plus collection_new), rag.status {ok, ways
+    [{way, title, state, label, message}], index {...}} or {ok: false, message}, „Index neu aufbauen“
+    (method=rag.reindex, confirm=1). All connections can be checked.
+    Round 19b (pgvector): c.tls_warning (password stored and TLS prefer/disable/require, data-tls-warning), fields with
+    placeholder/maxlength (task prefixes query_prefix/document_prefix, suggestion for nomic-embed-text),
+    rag.status.index.stale (only if > 0, data-index-stale).
+    Round 24: MultiGPT no longer has an address as a default (empty); the address field then shows the placeholder
+    https://multigpt.example/mcp/ (only an example, is never stored or requested). -#}
 <section class="settings-page connections-page" data-settings-page-body="verbindungen">
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
@@ -153,9 +153,9 @@
     {%- endif %}
   </section>
   {%- endfor %}
-  {#- Runde 15b: Modell-Verbindungen (Eliezer, OpenAI-kompatibel, Ollama) mit lokal/extern, Schlüssel je
-      Verbindung (an ihr Ziel gebunden), Prüfen und Kurztest. Formulare an POST /einstellungen/modelle/act
-      (action=save|secret|delete_secret|delete|check|probe), ohne JavaScript. Kontext models {connections
+  {#- Round 15b: model connections (Eliezer, OpenAI-compatible, Ollama) with local/external, a key per
+      connection (bound to its target), check and quick test. Forms to POST /einstellungen/modelle/act
+      (action=save|secret|delete_secret|delete|check|probe), without JavaScript. Context models {connections
       [{id, name, kind, kind_title, url, external, locality, locality_warning?, account, secret, secret_for, eliezer, personas,
       check {ok, message, at, lines}, probe {ok, at, ms, model, reply, message}, options}], kinds [{kind, title}],
       error}. #}

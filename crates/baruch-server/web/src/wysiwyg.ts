@@ -1,78 +1,78 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „wysiwyg“: der Abschnitt im Satzbild der Werkvorlage (contenteditable) mit Umschalter
-// „Satzbild | Quelltext“. Der Server zerlegt den Text in Blöcke (RPC wysiwyg.parse) und liefert das
-// HTML; Inseln (nicht abbildbares Typst) stehen mit contenteditable=false da. Vor dem Speichern
-// (Ereignis `baruch:before-save` am Editor-Formular, ausgelöst von outline.ts) baut wysiwyg.serialize
-// den Text neu: Ein Block ohne Eingabe wird als `keep` geschickt und bleibt Byte für Byte erhalten,
-// nur Blöcke mit Eingabe werden neu erzeugt. Abgeschickt wird immer das Textfeld.
+// Widget „wysiwyg“: the section in the typeset view of the work template (contenteditable) with the toggle
+// „Satzbild | Quelltext“. The server splits the text into blocks (RPC wysiwyg.parse) and supplies the
+// HTML; islands (Typst that cannot be represented) stand there with contenteditable=false. Before saving
+// (event `baruch:before-save` on the editor form, triggered by outline.ts) wysiwyg.serialize rebuilds
+// the text: a block without input is sent as `keep` and is preserved byte for byte,
+// only blocks with input are generated anew. What is submitted is always the text field.
 //
-// Den Satzbild-Diff der Vorschläge rendert seit Runde 7 der Server (fragments/proposals.html,
-// `pv-satz`); das frühere Widget „wysiwyg-diff“ ist entfallen, die RPC-Methode wysiwyg.diff bleibt.
+// The typeset-view diff of the proposals has been rendered by the server since Round 7 (fragments/proposals.html,
+// `pv-satz`); the former widget „wysiwyg-diff“ is dropped, the RPC method wysiwyg.diff stays.
 //
-// Vorschläge an ihrer Stelle (Runde 8): Der Server stellt jedes Stück (Hunk) eines offenen Vorschlags
-// als <details class="pv" data-pv-gap="g"> in den Lesefluss `section.pv-flow` unter dem Formular. Bei
-// offenem Satzbild setzt das Widget jedes Stück als nicht bearbeitbares Geschwister (contenteditable
-// = false) vor den Block `[data-b=g]` des Satzbilds (am Ende: dahinter) und verbirgt den Lesefluss; im
-// Quelltext kommen die Stücke an ihren Platz im Lesefluss zurück. editsOf, blocksIn und markSelection
-// übergehen `.pv`: Speichern ändert dadurch nichts. Die Knöpfe „Übernehmen“/„Verwerfen“ zeigen über das
-// Attribut `form` auf Formulare im Lesefluss (keine Formulare im Editor-Formular).
+// Proposals at their place (Round 8): the server puts every piece (hunk) of an open proposal
+// as <details class="pv" data-pv-gap="g"> into the reading flow `section.pv-flow` below the form. With the
+// typeset view open the widget puts every piece as a non-editable sibling (contenteditable
+// = false) before the block `[data-b=g]` of the typeset view (at the end: behind it) and hides the reading flow; in
+// the source text the pieces come back to their place in the reading flow. editsOf, blocksIn and markSelection
+// skip `.pv`: saving thereby changes nothing. The buttons „Übernehmen“/„Verwerfen“ point through the
+// attribute `form` to forms in the reading flow (no forms in the editor form).
 //
-// Szenen und Arbeitsaufträge (`#szene[…]`, `#arbeit[…]`): Ihr Rumpf besteht aus eigenen Blöcken
-// (`data-n` = Index im Rumpf, beim Öffnen vergeben). Ist nur ein Absatz darin bearbeitet, geht eine
-// Rumpf-Anweisung `{replaces, body: [...]}` an den Server; die übrigen Blöcke bleiben byte-gleich.
+// Scenes and work orders (`#szene[…]`, `#arbeit[…]`): their body consists of blocks of their own
+// (`data-n` = index in the body, assigned on opening). If only one paragraph in it is edited, a
+// body instruction `{replaces, body: [...]}` goes to the server; the other blocks stay byte-identical.
 //
-// Überschriften (Runde 7, „Absatz wird Titel“): Eine Überschrift ist immer eine Zeile. Ein einfacher
-// Zeilenumbruch in ihr (Umschalt+Enter, `<br>` des Browsers, ein Zeilenende im Text) beendet sie; was
-// dahinter steht, geht als eigener Absatz an den Server (der Server teilt ebenso). Umschalt+Enter und
-// Einfügen mehrerer Zeilen in einer Überschrift beginnen einen neuen Absatz; Rückschritt am Anfang
-// eines Absatzes bzw. Entf am Ende einer Überschrift ziehen keinen Absatz in die Überschrift. Vor dem
-// Speichern gelten die Titelregeln des Servers (leer, Zeilenumbruch, über 200 Zeichen) mit derselben
-// Meldung; maßgeblich bleibt der Server.
+// Headings (Round 7, „Absatz wird Titel“): a heading is always one line. A simple
+// line break in it (Shift+Enter, `<br>` of the browser, a line end in the text) ends it; what
+// stands behind it goes to the server as a paragraph of its own (the server splits likewise). Shift+Enter and
+// pasting several lines in a heading begin a new paragraph; Backspace at the beginning
+// of a paragraph or Del at the end of a heading do not pull a paragraph into the heading. Before
+// saving the title rules of the server apply (empty, line break, over 200 characters) with the same
+// message; the server stays authoritative.
 //
-// Teile und „ohne Nummer“ (Runde 14): Die Markierungszeilen `#heading(level: 1, numbering: none)[T]
-// <baruch-part>` bzw. `… <baruch-unnumbered>` kommen als `div.ws-block.ws-part[data-kind=part]` bzw.
-// `div.ws-block.ws-unnumbered[data-kind=unnumbered][data-level]` mit dem Titel als Klartext. Sie
-// verhalten sich wie Überschriften (eine Zeile, Enter beginnt einen Absatz dahinter, gleiche
-// Titelregeln); geändert geht `{kind: "part", title}` bzw. `{kind: "unnumbered", level, title}` an den
-// Server, der die Markierung baut (Kommentar der Zeile bleibt). Das Absatzformat lässt sich für sie
-// nicht wählen: Teil und „ohne Nummer“ ändert die Gliederung bzw. der Quelltext.
+// Parts and „ohne Nummer“ (Round 14): the marker lines `#heading(level: 1, numbering: none)[T]
+// <baruch-part>` or `… <baruch-unnumbered>` come as `div.ws-block.ws-part[data-kind=part]` or
+// `div.ws-block.ws-unnumbered[data-kind=unnumbered][data-level]` with the title as plain text. They
+// behave like headings (one line, Enter begins a paragraph behind it, same
+// title rules); when changed, `{kind: "part", title}` or `{kind: "unnumbered", level, title}` goes to the
+// server, which builds the marker (the comment of the line stays). The paragraph format cannot be
+// chosen for them: part and „ohne Nummer“ are changed by the outline or the source text.
 //
-// Bilder (Runde 7): Eine Insel mit Bild kommt als `div.ws-block.ws-figure[data-kind=island]` bzw.
-// `span.ws-island.ws-inline-image`; sie ist eine Insel wie jede andere (nicht bearbeitbar, `keep`,
-// als Ganzes löschbar, Rohtext in `data-raw`).
+// Images (Round 7): an island with an image comes as `div.ws-block.ws-figure[data-kind=island]` or
+// `span.ws-island.ws-inline-image`; it is an island like any other (not editable, `keep`,
+// deletable as a whole, raw text in `data-raw`).
 //
-// Das Widget sitzt auf `div.wysiwyg`, das Werkzeugleiste (`[data-edit-toolbar]`), Blatt
-// (`div.editor-body` mit dem Formular und dem Satzbild `[data-ws-wrap]`) und Statuszeile (Hinweis
-// `[data-ws-hint]`, „Speichern“ mit `form="editor-form"`) umfasst (Wunsch 2026-11-06). Ohne JavaScript
-// bleiben Werkzeugleiste, Satzbild und Hinweis `hidden`, es gibt nur das Textfeld. Runde 33: Nach dem Einhängen
-// hängt band.ts die Werkzeugleiste in das Menüband um (Andockplatz); was danach noch in die Leiste greift, nimmt
-// `editToolbar` (widgets.ts) statt `root.querySelector`. Vorgabe ist das
-// Satzbild (auch nach jedem Neuzeichnen über ui.render), außer das Cookie `baruch_editor` sagt
-// ausdrücklich `quelltext`. Mit `#fundstelle` in der Adresse beim Laden der Seite beginnt der erste Editor
-// im Quelltext (die Markierung der Fundstelle liegt im Textfeld). Bei offenem Satzbild trägt der Bereich
-// `data-ws-open`; das Blatt füllt die Höhe des Editors und scrollt allein (app.css, wysiwyg.css).
+// The widget sits on `div.wysiwyg`, which comprises the toolbar (`[data-edit-toolbar]`), the sheet
+// (`div.editor-body` with the form and the typeset view `[data-ws-wrap]`) and the status line (note
+// `[data-ws-hint]`, „Speichern“ with `form="editor-form"`) (wish 2026-11-06). Without JavaScript
+// toolbar, typeset view and note stay `hidden`, there is only the text field. Round 33: after mounting
+// band.ts moves the toolbar into the ribbon (docking place); what reaches into the bar afterwards uses
+// `editToolbar` (widgets.ts) instead of `root.querySelector`. The default is the
+// typeset view (also after every redraw through ui.render), unless the cookie `baruch_editor` says
+// `quelltext` explicitly. With `#fundstelle` in the address on loading the page the first editor starts
+// in the source text (the marking of the place found lies in the text field). With the typeset view open the area
+// carries `data-ws-open`; the sheet fills the height of the editor and scrolls alone (app.css, wysiwyg.css).
 //
-// Satzbild als Vorgabe (Runde 8, Ursache in docs/WYSIWYG.md): Früher schaltete das Widget beim
-// Einhängen erst auf Quelltext (`show` mit `open = false`: Umschalter „Quelltext“ gedrückt, Textfeld
-// sichtbar) und öffnete das Satzbild erst nach zwei RPC-Antworten (wysiwyg.parse, wysiwyg.style);
-// ein Bildschirmfoto nach dem Laden zeigte darum den Quelltext. Jetzt liefert der Server das Satzbild
-// der gezeigten Fassung fertig mit (`[data-ws-sheet][data-ws-ready]`) und `aria-pressed` passend zum
-// Cookie; `adoptSheet` öffnet es beim Einhängen sofort, ohne Zwischenzustand. Fehlt es (Text, den das
-// Textfeld anders liefert), öffnet `openSheet` wie bisher über RPC, ohne vorher umzuschalten.
+// Typeset view as the default (Round 8, cause in docs/WYSIWYG.md): formerly the widget first switched to the
+// source text when mounting (`show` with `open = false`: toggle „Quelltext“ pressed, text field
+// visible) and opened the typeset view only after two RPC answers (wysiwyg.parse, wysiwyg.style);
+// a screenshot after loading therefore showed the source text. Now the server supplies the typeset view
+// of the shown revision ready-made (`[data-ws-sheet][data-ws-ready]`) and `aria-pressed` matching the
+// cookie; `adoptSheet` opens it at once when mounting, without an intermediate state. If it is missing (text that
+// the text field supplies differently), `openSheet` opens through RPC as before, without switching first.
 
-// Runde 18b („konstrukte“): Aufzählungen `1.` (kind `enum`, `<ol start>`), Begriffslisten (kind `terms`,
-// `<dl>`), geschachtelte Listen (Liste im `<li>`, `depths`), erzwungener Umbruch (`span.ws-linebreak`, t
-// `linebreak`), Links (`a.ws-link`, Text bearbeitbar) und Verweise (`button.ws-ref`, nicht bearbeitbar) sind
-// Satzbild statt Insel. Eine Insel öffnet per Doppelklick ein Quelltextfeld an Ort und Stelle; geändert geht sie als
-// `{replaces, raw}` (Block-Insel) bzw. im neu erzeugten Absatz (Insel im Satz) an den Server. Das Menüband
-// (ribbon.ts) schickt Befehle nur über `baruch:ws-command`, die Bild-Werkzeuge fragen die Cursorstelle über
-// `baruch:ws-caret` (ws_command.ts). Ein vom Server mitgeliefertes `<style id="ws-style" data-work="W">` wird
-// ohne RPC übernommen.
+// Round 18b („konstrukte“): numbered lists `1.` (kind `enum`, `<ol start>`), term lists (kind `terms`,
+// `<dl>`), nested lists (list in the `<li>`, `depths`), forced break (`span.ws-linebreak`, t
+// `linebreak`), links (`a.ws-link`, text editable) and references (`button.ws-ref`, not editable) are
+// typeset view instead of island. An island opens a source text field in place by double click; when changed it goes
+// as `{replaces, raw}` (block island) or in the newly generated paragraph (island in the sentence) to the server. The
+// ribbon (ribbon.ts) sends commands only through `baruch:ws-command`, the image tools ask for the cursor position
+// through `baruch:ws-caret` (ws_command.ts). A `<style id="ws-style" data-work="W">` supplied by the server is
+// taken over without RPC.
 //
-// Runde 31c („kontextmenue“): Registermarken `#metadata((…))<baruch-idx>` kommen als leeres, nicht tippbares
-// `span.ws-index-mark` (Felder in data-*, Beschreibung in title/aria-label, Zeichen aus dem Stil) und gehen als
-// `{t: "index_mark", mark}` zurück; der Server schreibt sie kanonisch. Setzen, Ändern und Entfernen kommen als Befehl
-// `index_mark` (ws_command.ts) vom Kontextmenü bzw. Menüband (context_menu.ts); kein Import zwischen den beiden.
+// Round 31c („kontextmenue“): index marks `#metadata((…))<baruch-idx>` come as an empty, non-typeable
+// `span.ws-index-mark` (fields in data-*, description in title/aria-label, sign from the style) and go back as
+// `{t: "index_mark", mark}`; the server writes them canonically. Setting, changing and removing come as the command
+// `index_mark` (ws_command.ts) from the context menu or ribbon (context_menu.ts); no import between the two.
 
 import { markdownHeading } from "./markdown.js";
 import { call } from "./rpc.js";
@@ -137,8 +137,8 @@ interface Style {
 
 const COOKIE = "editor";
 
-/// `#fundstelle` gilt nur für den Editor, der beim Laden der Seite entsteht; nach einem Neuzeichnen
-/// (Klick in der Gliederung, ui.render) steht noch die alte Adresse da, bis workspace.ts sie ersetzt.
+/// `#fundstelle` applies only to the editor that is created on loading the page; after a redraw
+/// (click in the outline, ui.render) the old address still stands there until workspace.ts replaces it.
 let fundstelle = window.location.hash === "#fundstelle";
 
 function notify(message: string): void {
@@ -150,19 +150,20 @@ function notify(message: string): void {
   setTimeout(() => toast.remove(), 5000);
 }
 
-// ---- Darstellung nach der Werkvorlage (einmal je Werk) ------------------------------------
-/// Laufende Anfragen `wysiwyg.style` je Werk (nur solange sie laufen; danach steht das Element im Dokument).
+// ---- Appearance following the work template (once per work) -------------------------------
+/// Running requests `wysiwyg.style` per work (only while they run; afterwards the element stands in the document).
 const styling = new Map<number, Promise<void>>();
 
-/// Nur `keep` bleibt: alle anderen `<style id="ws-style">` (anderer Werke oder veraltet) entfallen.
+/// Only `keep` stays: all other `<style id="ws-style">` (of other works or outdated) are dropped.
 function dropOtherStyles(keep: HTMLStyleElement | null): void {
   document.querySelectorAll<HTMLStyleElement>("style#ws-style").forEach((element) => {
     if (element !== keep) element.remove();
   });
 }
 
-/// Stil der Werkvorlage für `work`. Runde 18b: Liefert der Server ihn schon im HTML (`<style id="ws-style"
-/// data-work="W">`, Satzbild je Werk), wird er ohne RPC übernommen; sonst wie bisher über `wysiwyg.style`.
+/// Style of the work template for `work`. Round 18b: if the server already supplies it in the HTML (`<style
+/// id="ws-style" data-work="W">`, typeset view per work), it is taken over without RPC; otherwise through
+/// `wysiwyg.style` as before.
 function applyStyle(work: number): Promise<void> {
   const own = document.querySelector<HTMLStyleElement>(`style#ws-style[data-work="${work}"]`);
   if (own) {
@@ -186,7 +187,7 @@ function applyStyle(work: number): Promise<void> {
   return pending;
 }
 
-// ---- DOM → Blöcke ---------------------------------------------------------------------------
+// ---- DOM → blocks ---------------------------------------------------------------------------
 function pushText(out: Inline[], text: string): void {
   if (text === "") return;
   const last = out[out.length - 1];
@@ -194,13 +195,13 @@ function pushText(out: Inline[], text: string): void {
   else out.push({ t: "text", v: text });
 }
 
-/// Zeilenenden im Sinn von Typst (wie `baruch_typst::is_newline`); der Server ersetzt sie ebenfalls.
+/// Line ends in the sense of Typst (like `baruch_typst::is_newline`); the server replaces them as well.
 const NEWLINES = /[\n\r\v\f\u0085\u2028\u2029]/g;
 
-// ---- Titelregeln (wie `baruch_store::check_title`, maßgeblich bleibt der Server) -------------
+// ---- Title rules (like `baruch_store::check_title`, the server stays authoritative) ---------
 const MAX_TITLE_CHARS = 200;
 
-/// Meldung, wenn ein Titel gegen die Regeln des Servers verstößt, sonst `null`.
+/// Message if a title violates the rules of the server, otherwise `null`.
 function titleProblem(title: string): string | null {
   const trimmed = title.trim();
   if (trimmed === "") return "Ein Gliederungspunkt braucht einen Titel.";
@@ -210,7 +211,7 @@ function titleProblem(title: string): string | null {
   return null;
 }
 
-/// Sichtbarer Text einer Folge (für die Titelregeln; Inseln mit ihrem Rohtext).
+/// Visible text of a sequence (for the title rules; islands with their raw text).
 function plainText(inlines: Inline[]): string {
   return inlines
     .map((inline) => {
@@ -238,10 +239,10 @@ function plainText(inlines: Inline[]): string {
     .join("");
 }
 
-/// Überschrift am ersten einfachen Umbruch teilen, auf oberster Ebene wie in emph/strong (beliebig
-/// tief): davor der Titel, dahinter (falls etwas übrig bleibt) ein Absatz; eine geteilte
-/// Hervorhebung steht mit ihrem vorderen Teil im Titel und mit dem hinteren im Absatz. Fußnoten und
-/// Zitate bleiben ganz. Wie `split_heading` im Server; Umbrüche am Anfang zählen nicht.
+/// Split a heading at the first simple break, at top level as in emph/strong (arbitrarily
+/// deep): before it the title, behind it (if anything is left) a paragraph; a split
+/// emphasis stands with its front part in the title and with the rear part in the paragraph. Footnotes and
+/// quotations stay whole. Like `split_heading` in the server; breaks at the beginning do not count.
 function splitHeading(inlines: Inline[]): { head: Inline[]; rest: Inline[] | null } {
   const { head, rest } = cutAtBreak(trimFront(inlines));
   if (rest === null) return { head, rest: null };
@@ -249,7 +250,7 @@ function splitHeading(inlines: Inline[]): { head: Inline[]; rest: Inline[] | nul
   return { head: trimBack(head), rest: tail.length > 0 ? tail : null };
 }
 
-/// Am ersten Umbruch teilen, der in der Überschriftszeile stünde (oberste Ebene oder in emph/strong).
+/// Split at the first break that would stand in the heading line (top level or in emph/strong).
 function cutAtBreak(inlines: Inline[]): { head: Inline[]; rest: Inline[] | null } {
   const head: Inline[] = [];
   for (let k = 0; k < inlines.length; k++) {
@@ -271,7 +272,7 @@ function cutAtBreak(inlines: Inline[]): { head: Inline[]; rest: Inline[] | null 
   return { head, rest: null };
 }
 
-/// Umbrüche, leere Texte, leere Hervorhebungen und Leerraum am Anfang entfernen (auch in emph/strong).
+/// Remove breaks, empty texts, empty emphases and whitespace at the beginning (also in emph/strong).
 function trimFront(inlines: Inline[]): Inline[] {
   const list = inlines.slice();
   while (list.length > 0) {
@@ -296,7 +297,7 @@ function trimFront(inlines: Inline[]): Inline[] {
   return list;
 }
 
-/// Wie `trimFront`, aber am Ende.
+/// Like `trimFront`, but at the end.
 function trimBack(inlines: Inline[]): Inline[] {
   const list = inlines.slice();
   while (list.length > 0) {
@@ -322,9 +323,9 @@ function trimBack(inlines: Inline[]): Inline[] {
   return list;
 }
 
-/// Runde 31c: Marke aus einem `span.ws-index-mark` (Felder in `data-register`, `data-term`, `data-sub`, `data-see`,
-/// `data-also`, `data-sort`, wie baruch-wysiwyg sie schreibt); ungültig → `null` (die Marke entfällt nicht still: das
-/// Kontextmenü prüft vorher mit `validateMark`).
+/// Round 31c: mark from a `span.ws-index-mark` (fields in `data-register`, `data-term`, `data-sub`, `data-see`,
+/// `data-also`, `data-sort`, as baruch-wysiwyg writes them); invalid → `null` (the mark is not dropped silently: the
+/// context menu checks beforehand with `validateMark`).
 function markOf(element: HTMLElement): IndexMark | null {
   const d = element.dataset;
   const mark = cleanMark({
@@ -338,8 +339,8 @@ function markOf(element: HTMLElement): IndexMark | null {
   return validateMark(mark) === null ? mark : null;
 }
 
-/// Runde 31c: Felder, Beschreibung und `data-raw` einer Marke an ein (neues oder vorhandenes) Element schreiben –
-/// dieselbe Form wie `render_index_mark` in baruch-wysiwyg.
+/// Round 31c: write fields, description and `data-raw` of a mark to a (new or existing) element –
+/// the same form as `render_index_mark` in baruch-wysiwyg.
 function fillMark(element: HTMLElement, mark: IndexMark): void {
   const clean = cleanMark(mark);
   element.className = "ws-index-mark";
@@ -358,7 +359,7 @@ function fillMark(element: HTMLElement, mark: IndexMark): void {
   element.textContent = "";
 }
 
-/// Alle Blöcke um `node` (oberster und geschachtelte) als bearbeitet markieren.
+/// Mark all blocks around `node` (topmost and nested) as edited.
 function dirtyAround(node: Node): void {
   for (let el = node instanceof HTMLElement ? node : node.parentElement; el; el = el.parentElement) {
     if (el.classList.contains("ws-block")) el.dataset.dirty = "1";
@@ -366,17 +367,17 @@ function dirtyAround(node: Node): void {
   }
 }
 
-/// Fließtext eines Elements; unbekannte Elemente (span, font, div des Browsers) zählen nur mit ihrem Inhalt.
-/// `heading`: das Label hinter der Überschrift (`data-heading-label`) gehört nicht zum Titel.
+/// Running text of an element; unknown elements (span, font, div of the browser) count only with their content.
+/// `heading`: the label behind the heading (`data-heading-label`) does not belong to the title.
 function inlinesOf(element: Node, heading = false): Inline[] {
   const out: Inline[] = [];
   const walk = (node: Node, into: Inline[]) => {
     for (const child of Array.from(node.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE) {
-        // Geschützte Leerzeichen setzt der Browser auch selbst; echte stehen in span.ws-nbsp.
+        // The browser also sets non-breaking spaces itself; real ones stand in span.ws-nbsp.
         const raw = (child.textContent ?? "").replace(/\u00a0/g, " ");
         if (heading) {
-          // In einer Überschrift beendet ein Zeilenende sie (Runde 7), statt Text anzuhängen.
+          // In a heading a line end ends it (Round 7) instead of appending text.
           raw.split(NEWLINES).forEach((piece, k) => {
             if (k > 0) into.push({ t: "soft" });
             pushText(into, piece);
@@ -392,9 +393,9 @@ function inlinesOf(element: Node, heading = false): Inline[] {
         if (c.length > 0) into.push({ t, c });
       };
       if (heading && child.dataset.headingLabel !== undefined) continue;
-      // Das Quelltextfeld einer Insel (Runde 18b) ist Bedienung, kein Text.
+      // The source text field of an island (Round 18b) is a control, not text.
       if (child.classList.contains("ws-island-edit")) continue;
-      // Runde 31c: Registermarke (leeres Element, Felder in data-*); vor der Insel geprüft.
+      // Round 31c: index mark (empty element, fields in data-*); checked before the island.
       if (child.classList.contains("ws-index-mark")) {
         const mark = markOf(child);
         if (mark) into.push({ t: "index_mark", mark });
@@ -405,7 +406,7 @@ function inlinesOf(element: Node, heading = false): Inline[] {
         if (child.dataset.supplement !== undefined) ref.supplement = child.dataset.supplement;
         into.push(ref);
       } else if (child.classList.contains("ws-xref")) {
-        // Runde 30a: Querverweis; der Seitenzahl-Zusatz (span.ws-xref-page) ist Anzeige, kein Text.
+        // Round 30a: cross-reference; the page number addition (span.ws-xref-page) is display, not text.
         const key = Number(child.dataset.key);
         const c: Inline[] = [];
         const shown = child.cloneNode(true) as HTMLElement;
@@ -416,7 +417,7 @@ function inlinesOf(element: Node, heading = false): Inline[] {
         const url = child.dataset.url ?? "";
         if (child.dataset.bare !== undefined) into.push({ t: "link", url });
         else {
-          // Ein Link ohne Text (alles gelöscht) entfällt mit seiner Adresse.
+          // A link without text (everything deleted) is dropped with its address.
           const c: Inline[] = [];
           walk(child, c);
           if (c.length > 0) into.push({ t: "link", url, c });
@@ -439,7 +440,7 @@ function inlinesOf(element: Node, heading = false): Inline[] {
     }
   };
   walk(element, out);
-  // Umbrüche am Rand und doppelte entfallen, Leerraum am Rand auch.
+  // Breaks at the edge and double ones are dropped, whitespace at the edge too.
   const clean: Inline[] = [];
   for (const inline of out) {
     if (inline.t === "soft" && (clean.length === 0 || clean[clean.length - 1].t === "soft")) continue;
@@ -453,13 +454,13 @@ function inlinesOf(element: Node, heading = false): Inline[] {
   return clean.filter((inline) => inline.t !== "text" || inline.v !== "");
 }
 
-/// Blöcke, die eine Zeile mit Titel sind: Überschrift, Teil, „ohne Nummer“ (Runde 14).
+/// Blocks that are one line with a title: heading, part, „ohne Nummer“ (Round 14).
 function isTitleKind(kind: string | undefined): boolean {
   return kind === "heading" || kind === "part" || kind === "unnumbered";
 }
 
-/// Titel eines Teils bzw. einer Markierung „ohne Nummer“: Klartext, Zeilenenden und geschützte
-/// Leerzeichen werden Leerzeichen.
+/// Title of a part or of a marker „ohne Nummer“: plain text, line ends and non-breaking
+/// spaces become spaces.
 function markerTitle(element: HTMLElement): string {
   return (element.textContent ?? "").replace(/\u00a0/g, " ").replace(NEWLINES, " ").trim();
 }
@@ -468,12 +469,12 @@ function isBlock(node: Node): node is HTMLElement {
   return node instanceof HTMLElement && node.classList.contains("ws-block");
 }
 
-/// Ein Stück eines Vorschlags (details.pv), das im Satzbild steht: kein Teil des Texts.
+/// A piece of a proposal (details.pv) that stands in the typeset view: not part of the text.
 function isProposal(node: Node): boolean {
   return node instanceof HTMLElement && node.classList.contains("pv");
 }
 
-/// Art eines Blocks aus seinem Element (auch geschachtelt; Inseln mit ihrem Rohtext).
+/// Kind of a block from its element (also nested; islands with their raw text).
 function kindOf(element: HTMLElement): Block | null {
   const kind = element.dataset.kind;
   const body = (): Block[] => {
@@ -489,7 +490,7 @@ function kindOf(element: HTMLElement): Block | null {
     }
     case "list":
     case "enum": {
-      // Runde 18b: geschachtelte Punkte (Liste im `<li>`) mit Tiefe; ohne Schachtelung kein `depths`.
+      // Round 18b: nested items (list in the `<li>`) with depth; without nesting no `depths`.
       const list = element.querySelector<HTMLElement>(":scope > ul, :scope > ol");
       const items: Inline[][] = [];
       const depths: number[] = [];
@@ -507,7 +508,7 @@ function kindOf(element: HTMLElement): Block | null {
       return block;
     }
     case "terms": {
-      // Runde 18b: Begriffsliste als `<dl>`; jedes `<dt>` beginnt einen Eintrag, `<dd>` ist seine Erklärung.
+      // Round 18b: term list as `<dl>`; every `<dt>` begins an entry, `<dd>` is its explanation.
       const items: Term[] = [];
       for (const child of Array.from(element.querySelector(":scope > dl")?.children ?? [])) {
         if (child.tagName === "DT") items.push({ term: inlinesOf(child), desc: [] });
@@ -545,8 +546,8 @@ function kindOf(element: HTMLElement): Block | null {
   }
 }
 
-/// Punkte einer Liste in Reihenfolge mit ihrer Tiefe (Runde 18b): je `<li>` der Text ohne geschachtelte Listen, dann
-/// die geschachtelten Listen eine Ebene tiefer (auch eine Liste direkt in der Liste, wie Browser einrücken).
+/// Items of a list in order with their depth (Round 18b): per `<li>` the text without nested lists, then
+/// the nested lists one level deeper (also a list directly in the list, as browsers indent).
 function listItems(list: Element, depth: number, items: Inline[][], depths: number[]): void {
   for (const child of Array.from(list.children)) {
     if (child.tagName === "UL" || child.tagName === "OL") {
@@ -567,7 +568,7 @@ function listItems(list: Element, depth: number, items: Inline[][], depths: numb
   }
 }
 
-/// Geschachtelte Blöcke eines Rumpfs; lose Texte (vom Browser eingefügt) werden Absätze.
+/// Nested blocks of a body; loose texts (inserted by the browser) become paragraphs.
 function blocksIn(holder: HTMLElement): Block[] {
   const out: Block[] = [];
   for (const child of Array.from(holder.childNodes)) {
@@ -585,7 +586,7 @@ function looseParagraph(node: Node): Block | null {
   return inlines.length > 0 ? { kind: "paragraph", inlines } : null;
 }
 
-/// Rumpf-Blöcke einer Szene/Arbeit durchnummerieren (`data-n`, Index im Rumpf wie beim Server).
+/// Number the body blocks of a scene/work order (`data-n`, index in the body as on the server).
 function numberBodies(sheet: HTMLElement): void {
   sheet.querySelectorAll<HTMLElement>(".ws-body").forEach((body) => {
     let n = 0;
@@ -595,17 +596,17 @@ function numberBodies(sheet: HTMLElement): void {
   });
 }
 
-/// Anweisungen für wysiwyg.serialize: `keep` für jeden Block ohne Eingabe, sonst der neue Block; für
-/// eine bearbeitete Szene/Arbeit Anweisungen für ihren Rumpf (nur der bearbeitete Absatz wird neu).
-/// Ein zweiter Block mit demselben Index (vom Browser kopiert) gilt als neu. `holder`: das Satzbild
-/// (Index `data-b`) oder ein Rumpf (`data-n`).
+/// Instructions for wysiwyg.serialize: `keep` for every block without input, otherwise the new block; for
+/// an edited scene/work order instructions for its body (only the edited paragraph becomes new).
+/// A second block with the same index (copied by the browser) counts as new. `holder`: the typeset view
+/// (index `data-b`) or a body (`data-n`).
 function editsOf(holder: HTMLElement, nested = false, upTo: Node | null = null): Edit[] {
   const edits: Edit[] = [];
   const seen = new Set<number>();
   for (const child of Array.from(holder.childNodes)) {
-    // `upTo` (Runde 18b, Cursorstelle): nur die Blöcke bis einschließlich dieses einen.
+    // `upTo` (Round 18b, cursor position): only the blocks up to and including this one.
     if (upTo && child !== upTo && upTo.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING) break;
-    // Vorschläge im Satzbild gehören nicht zum Text.
+    // Proposals in the typeset view do not belong to the text.
     if (isProposal(child)) continue;
     if (!isBlock(child)) {
       const block = looseParagraph(child);
@@ -616,7 +617,7 @@ function editsOf(holder: HTMLElement, nested = false, upTo: Node | null = null):
     const index = mark === undefined ? null : Number(mark);
     const fresh = index === null || seen.has(index);
     if (index !== null) seen.add(index);
-    // Runde 18b: eine an Ort und Stelle geänderte Insel geht wörtlich als `{replaces, raw}`.
+    // Round 18b: an island changed in place goes verbatim as `{replaces, raw}`.
     if (!fresh && child.dataset.kind === "island" && child.dataset.edited === "1") {
       edits.push({ replaces: index as number, raw: child.dataset.raw ?? "" });
       continue;
@@ -643,7 +644,7 @@ function editsOf(holder: HTMLElement, nested = false, upTo: Node | null = null):
   return edits;
 }
 
-/// Ein Überschriftsblock: die Überschrift bis zum ersten Umbruch, dahinter (falls vorhanden) ein Absatz.
+/// A heading block: the heading up to the first break, behind it (if present) a paragraph.
 function headingEdits(block: Block & { kind: "heading" }, replaces: number | null): Edit[] {
   const { head, rest } = splitHeading(block.inlines);
   const heading: Extract<BlockKind, { kind: "heading" }> = { kind: "heading", level: block.level, inlines: head };
@@ -653,7 +654,7 @@ function headingEdits(block: Block & { kind: "heading" }, replaces: number | nul
   return edits;
 }
 
-/// Titelregeln für alle Überschriften im Satzbild (Ebene 1–3 sind Gliederungspunkte); `null` = gut.
+/// Title rules for all headings in the typeset view (levels 1–3 are outline items); `null` = good.
 function headingProblem(sheet: HTMLElement): string | null {
   for (const child of Array.from(sheet.children)) {
     if (!(child instanceof HTMLElement) || !isBlock(child)) continue;
@@ -671,7 +672,7 @@ function headingProblem(sheet: HTMLElement): string | null {
   return null;
 }
 
-/// Eingefügter Text → Absätze (an Leerzeilen getrennt, einfache Zeilenenden werden Leerzeichen).
+/// Pasted text → paragraphs (separated at empty lines, simple line ends become spaces).
 function pastedParagraphs(text: string): string[] {
   return text
     .split(/\n[ \t]*\n\s*/)
@@ -685,19 +686,19 @@ interface State {
   area: HTMLTextAreaElement;
   sheet: HTMLElement;
   work: number;
-  /// Text, aus dem das Satzbild gebaut ist (die Indizes `data-b` beziehen sich darauf).
+  /// Text from which the typeset view is built (the indexes `data-b` refer to it).
   parsed: string;
-  /// Satzbild offen?
+  /// Typeset view open?
   open: boolean;
-  /// Eingabe im Satzbild seit dem letzten Übertragen ins Textfeld?
+  /// Input in the typeset view since the last transfer into the text field?
   touched: boolean;
-  /// Ins Satzbild gesetzte Vorschläge mit ihrem Platz (Kommentar) im Lesefluss.
+  /// Proposals put into the typeset view with their place (comment) in the reading flow.
   placed: { item: HTMLElement; home: Comment }[];
 }
 
 const states = new WeakMap<HTMLFormElement, State>();
 
-/// Zuletzt eingehängtes Satzbild mit seiner Formatwahl (für `selectionchange`, einmal je Seite).
+/// Typeset view mounted last with its format choice (for `selectionchange`, once per page).
 let current: { state: State; format: HTMLSelectElement | null } | null = null;
 
 document.addEventListener("selectionchange", () => {
@@ -707,10 +708,10 @@ document.addEventListener("selectionchange", () => {
   current.format.value = isTitleKind(block.dataset.kind) && block.dataset.kind !== "part" ? (block.dataset.level ?? "1") : "paragraph";
 });
 
-/// Markdown-Überschrift im Satzbild (Nutzerentscheidung 2026-11-07): Ein Absatz, dessen Text mit `# `
-/// bis `###### ` beginnt, wird eine Überschrift dieser Ebene (4–6 → 3, Regel in `markdown.ts`); die
-/// Rauten und eine schließende Folge ` ##` entfallen, der Cursor bleibt an seiner Stelle im Titel.
-/// `true`, wenn umgewandelt.
+/// Markdown heading in the typeset view (user decision 2026-11-07): a paragraph whose text begins with `# `
+/// to `###### ` becomes a heading of this level (4–6 → 3, rule in `markdown.ts`); the
+/// hash signs and a closing sequence ` ##` are dropped, the cursor stays at its place in the title.
+/// `true` if converted.
 function convertMarkdownHeading(state: State, block: HTMLElement): boolean {
   if (block.dataset.kind !== "paragraph" || block.closest("li")) return false;
   const found = markdownHeading((block.textContent ?? "").replace(/\n/g, " "));
@@ -741,8 +742,8 @@ function convertMarkdownHeading(state: State, block: HTMLElement): boolean {
   return true;
 }
 
-/// Satzbild ins Textfeld übertragen (wysiwyg.serialize), danach `input` am Textfeld. Vorher werden
-/// Absätze mit Markdown-Überschrift umgewandelt (wer ohne Enter speichert).
+/// Transfer the typeset view into the text field (wysiwyg.serialize), then `input` on the text field. Before that
+/// paragraphs with a Markdown heading are converted (for whoever saves without Enter).
 async function sync(state: State): Promise<void> {
   if (!state.open || !state.touched) return;
   for (const child of Array.from(state.sheet.children)) {
@@ -760,9 +761,9 @@ async function sync(state: State): Promise<void> {
   state.area.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/// Quelltext des offenen Satzbilds wie `sync`, aber ohne Folgen (Vertrag Runde 17 §2.6): kein Umwandeln von
-/// Markdown-Überschriften im Satzbild, Textfeld und `touched` bleiben, wie sie sind. Ohne Eingabe seit dem
-/// letzten Übertragen steht der Quelltext schon im Textfeld.
+/// Source text of the open typeset view like `sync`, but without consequences (contract Round 17 §2.6): no converting
+/// of Markdown headings in the typeset view, text field and `touched` stay as they are. Without input since the
+/// last transfer the source text already stands in the text field.
 async function serializeText(state: State): Promise<string> {
   if (!state.touched) return state.area.value;
   const result = await call<{ body: string }>("wysiwyg.serialize", {
@@ -773,27 +774,27 @@ async function serializeText(state: State): Promise<string> {
   return result.body;
 }
 
-/// Oberster Block, in dem ein Knoten liegt.
+/// Topmost block in which a node lies.
 function topBlock(sheet: HTMLElement, node: Node | null): HTMLElement | null {
   let current: Node | null = node;
   while (current && current.parentNode !== sheet) current = current.parentNode;
   return current && isBlock(current) ? current : null;
 }
 
-/// Alle Blöcke, die die Auswahl berührt, als bearbeitet markieren: oberste und geschachtelte (im
-/// Rumpf einer Szene), damit nur diese neu erzeugt werden.
+/// Mark all blocks that the selection touches as edited: topmost and nested ones (in the
+/// body of a scene) so that only these are generated anew.
 function markSelection(state: State): void {
   const selection = document.getSelection();
   if (!selection || selection.rangeCount === 0) return;
   const range = selection.getRangeAt(0);
   state.sheet.querySelectorAll<HTMLElement>(".ws-block").forEach((block) => {
-    // Blöcke im Satzbild eines Vorschlags (details.pv) sind nicht der Text.
+    // Blocks in the typeset view of a proposal (details.pv) are not the text.
     if (block.closest(".pv")) return;
     if (range.intersectsNode(block)) block.dataset.dirty = "1";
   });
 }
 
-/// Steht der (leere) Cursor am Anfang bzw. Ende des Blocks?
+/// Does the (empty) cursor stand at the beginning or end of the block?
 function caretAt(block: HTMLElement, range: Range, edge: "start" | "end"): boolean {
   if (!range.collapsed) return false;
   const probe = document.createRange();
@@ -803,17 +804,17 @@ function caretAt(block: HTMLElement, range: Range, edge: "start" | "end"): boole
   return probe.toString().replace(NEWLINES, "") === "";
 }
 
-/// Nachbarblock davor bzw. dahinter; Stücke der Vorschläge (`details.pv`) dazwischen zählen nicht (Runde 18b: sonst
-/// griff der Schutz unten nicht, wenn ein Vorschlag zwischen Überschrift und Absatz stand).
+/// Neighbouring block before or behind; pieces of the proposals (`details.pv`) in between do not count (Round 18b:
+/// otherwise the protection below did not take hold when a proposal stood between heading and paragraph).
 function blockNeighbour(block: HTMLElement, backward: boolean): HTMLElement | null {
   let node = backward ? block.previousElementSibling : block.nextElementSibling;
   while (node && isProposal(node)) node = backward ? node.previousElementSibling : node.nextElementSibling;
   return node instanceof HTMLElement ? node : null;
 }
 
-/// Rückschritt am Anfang eines Absatzes hinter einer Überschrift bzw. Entf am Ende einer Überschrift
-/// vor einem Absatz: Der Browser zöge den Absatz in die Überschrift (Runde 7). Stattdessen entfällt nur
-/// ein leerer Absatz; sonst bleibt alles, wie es ist. `true` = abgefangen.
+/// Backspace at the beginning of a paragraph behind a heading or Del at the end of a heading
+/// before a paragraph: the browser would pull the paragraph into the heading (Round 7). Instead only
+/// an empty paragraph is dropped; otherwise everything stays as it is. `true` = intercepted.
 function guardHeadingMerge(state: State, event: InputEvent): boolean {
   if (event.inputType !== "deleteContentBackward" && event.inputType !== "deleteContentForward") return false;
   const selection = document.getSelection();
@@ -852,8 +853,8 @@ function markTouched(state: State): void {
   }
 }
 
-/// Enter: Block am Cursor teilen (neuer Absatz ohne Index). In Listen macht der Browser einen
-/// neuen Punkt.
+/// Enter: split the block at the cursor (new paragraph without index). In lists the browser makes a
+/// new item.
 function splitBlock(state: State): void {
   const selection = document.getSelection();
   if (!selection || selection.rangeCount === 0) return;
@@ -864,7 +865,7 @@ function splitBlock(state: State): void {
   range.deleteContents();
   const tail = document.createRange();
   tail.setStart(range.startContainer, range.startOffset);
-  // Das Label hinter einer Überschrift bleibt bei ihr.
+  // The label behind a heading stays with it.
   const label = block.querySelector<HTMLElement>(":scope > [data-heading-label]");
   if (label && range.comparePoint(label, 0) > 0) tail.setEndBefore(label);
   else tail.setEnd(block, block.childNodes.length);
@@ -874,7 +875,7 @@ function splitBlock(state: State): void {
   fresh.dataset.kind = "paragraph";
   fresh.dataset.dirty = "1";
   fresh.append(rest);
-  // Ein leerer Block braucht einen Platzhalter, sonst setzt der Browser den Cursor nicht hinein.
+  // An empty block needs a placeholder, otherwise the browser does not put the cursor into it.
   if (!fresh.textContent) fresh.append(document.createElement("br"));
   block.after(fresh);
   const top = topBlock(state.sheet, block);
@@ -887,7 +888,7 @@ function splitBlock(state: State): void {
   selection.addRange(caret);
 }
 
-/// Umschalt+Enter: einfacher Zeilenumbruch (im Satz ein Leerzeichen, im Quelltext eine neue Zeile).
+/// Shift+Enter: simple line break (a space in the typesetting, a new line in the source text).
 function insertSoft(): void {
   const selection = document.getSelection();
   if (!selection || selection.rangeCount === 0) return;
@@ -903,7 +904,7 @@ function insertSoft(): void {
   selection.addRange(range);
 }
 
-/// Absatzformat des Blocks am Cursor (nur Absatz und Überschrift).
+/// Paragraph format of the block at the cursor (only paragraph and heading).
 function setFormat(state: State, value: string): void {
   const selection = document.getSelection();
   const block = topBlock(state.sheet, selection?.anchorNode ?? null);
@@ -926,12 +927,12 @@ function setFormat(state: State, value: string): void {
   markTouched(state);
 }
 
-/// Lesefluss mit den Vorschlägen dieses Editors (section.pv-flow neben dem Formular), falls da.
+/// Reading flow with the proposals of this editor (section.pv-flow next to the form), if there.
 function flowOf(state: State): HTMLElement | null {
   return state.form.parentElement?.querySelector<HTMLElement>(":scope > section.pv-flow") ?? null;
 }
 
-/// Erster Block des Satzbilds mit `data-b` ≥ `gap` (neue Blöcke ohne Index zählen nicht).
+/// First block of the typeset view with `data-b` ≥ `gap` (new blocks without index do not count).
 function blockFrom(sheet: HTMLElement, gap: number): HTMLElement | null {
   for (const child of Array.from(sheet.children)) {
     if (child instanceof HTMLElement && isBlock(child) && child.dataset.b !== undefined && Number(child.dataset.b) >= gap) {
@@ -941,9 +942,9 @@ function blockFrom(sheet: HTMLElement, gap: number): HTMLElement | null {
   return null;
 }
 
-/// Stücke der Vorschläge aus dem Lesefluss an ihre Stelle im Satzbild setzen: vor den Block
-/// `[data-b=gap]` (am Ende dahinter), in der Reihenfolge des Servers (an derselben Stelle untereinander
-/// nach Persona, darin nach Nummer), nicht bearbeitbar. Der Lesefluss wird verborgen.
+/// Put pieces of the proposals from the reading flow at their place in the typeset view: before the block
+/// `[data-b=gap]` (at the end behind it), in the order of the server (at the same place one below the other
+/// by persona, within that by number), not editable. The reading flow is hidden.
 function placeProposals(state: State): void {
   const flow = flowOf(state);
   if (!flow) return;
@@ -960,7 +961,8 @@ function placeProposals(state: State): void {
   flow.hidden = true;
 }
 
-/// Stücke zurück an ihren Platz im Lesefluss (vor neuem Satzbild und im Quelltext); Lesefluss zeigen.
+/// Pieces back to their place in the reading flow (before a new typeset view and in the source text); show the reading
+/// flow.
 function returnProposals(state: State): void {
   for (const { item, home } of state.placed) {
     item.removeAttribute("contenteditable");
@@ -971,7 +973,7 @@ function returnProposals(state: State): void {
   if (flow) flow.hidden = false;
 }
 
-/// Satzbild öffnen, dessen HTML schon im Blatt steht (vom Server oder aus wysiwyg.parse).
+/// Open a typeset view whose HTML already stands in the sheet (from the server or from wysiwyg.parse).
 function sheetReady(state: State, root: HTMLElement): void {
   numberBodies(state.sheet);
   state.parsed = state.area.value;
@@ -997,8 +999,8 @@ async function openSheet(state: State, root: HTMLElement): Promise<boolean> {
   }
 }
 
-/// Beim Einhängen: das fertige Satzbild des Servers (`data-ws-ready`, Runde 8) sofort öffnen, ohne
-/// erst den Quelltext zu zeigen; der Stil der Werkvorlage kommt nach. `false`, wenn es fehlt.
+/// When mounting: open the finished typeset view of the server (`data-ws-ready`, Round 8) at once without
+/// showing the source text first; the style of the work template follows. `false` if it is missing.
 function adoptSheet(state: State, root: HTMLElement): boolean {
   if (!state.sheet.hasAttribute("data-ws-ready")) return false;
   state.sheet.removeAttribute("data-ws-ready");
@@ -1008,7 +1010,7 @@ function adoptSheet(state: State, root: HTMLElement): boolean {
 }
 
 function show(state: State, root: HTMLElement): void {
-  // Runde 33: Die Leiste steht nach dem Andocken im Menüband (band.ts), nicht mehr unter `root`.
+  // Round 33: after docking the bar stands in the ribbon (band.ts), no longer under `root`.
   const bar = editToolbar(root);
   bar?.querySelectorAll<HTMLButtonElement>("[data-ws-mode]").forEach((button) => {
     button.setAttribute("aria-pressed", String((button.dataset.wsMode === "satz") === state.open));
@@ -1021,23 +1023,23 @@ function show(state: State, root: HTMLElement): void {
   if (hint) hint.hidden = !state.open;
   const wrap = root.querySelector<HTMLElement>("[data-ws-wrap]");
   if (wrap) wrap.hidden = !state.open;
-  // Nur das offene Satzbild wächst (wysiwyg.css); im Quelltext nimmt das Textfeld den Platz.
+  // Only the open typeset view grows (wysiwyg.css); in the source text the text field takes the room.
   root.toggleAttribute("data-ws-open", state.open);
   state.area.hidden = state.open;
 }
 
-// ---- Runde 18b: Befehle des Menübands, Cursorstelle, Inseln an Ort und Stelle ------------------
+// ---- Round 18b: commands of the ribbon, cursor position, islands in place ----------------------
 
-/// Zuletzt gesehene Auswahl im Satzbild je Formular (ein Klick ins Menüband nimmt den Fokus).
+/// Selection last seen in the typeset view per form (a click into the ribbon takes the focus).
 const lastRanges = new WeakMap<State, Range>();
 
-/// Liegt der Knoten im Text des Satzbilds (nicht in einem Vorschlag, nicht im Quelltextfeld einer Insel)?
+/// Does the node lie in the text of the typeset view (not in a proposal, not in the source text field of an island)?
 function inSheetText(state: State, node: Node | null): boolean {
   const element = node instanceof Element ? node : (node?.parentElement ?? null);
   return !!element && state.sheet.contains(element) && !element.closest(".pv, .ws-island-edit");
 }
 
-/// Auswahl im Satzbild: die aktuelle, sonst die zuletzt gesehene (wiederhergestellt), sonst `null`.
+/// Selection in the typeset view: the current one, otherwise the one last seen (restored), otherwise `null`.
 function sheetRange(state: State): Range | null {
   const selection = document.getSelection();
   if (selection && selection.rangeCount > 0 && inSheetText(state, selection.getRangeAt(0).startContainer)) {
@@ -1051,7 +1053,7 @@ function sheetRange(state: State): Range | null {
   return last;
 }
 
-/// Neues Element ans Ende eines Blocks bzw. an die Auswahl setzen und den Cursor hinein stellen.
+/// Put a new element at the end of a block or at the selection and place the cursor into it.
 function placeCaret(node: Node, select: boolean): void {
   const selection = document.getSelection();
   if (!selection) return;
@@ -1065,7 +1067,7 @@ function placeCaret(node: Node, select: boolean): void {
   selection.addRange(range);
 }
 
-/// Inline-Element an der Auswahl: die Auswahl kommt hinein, sonst `placeholder` (markiert zum Überschreiben).
+/// Inline element at the selection: the selection goes into it, otherwise `placeholder` (selected for overwriting).
 function wrapInline(range: Range, element: HTMLElement, placeholder: string): void {
   if (range.collapsed) element.textContent = placeholder;
   else element.append(range.extractContents());
@@ -1073,7 +1075,7 @@ function wrapInline(range: Range, element: HTMLElement, placeholder: string): vo
   placeCaret(element, range.collapsed || element.textContent === placeholder);
 }
 
-/// Neuer Block (ohne Index) mit Art `kind`.
+/// New block (without index) of kind `kind`.
 function newBlock(kind: string): HTMLElement {
   const block = document.createElement("div");
   block.className = "ws-block";
@@ -1082,7 +1084,8 @@ function newBlock(kind: string): HTMLElement {
   return block;
 }
 
-/// Nachbesserung R31: Steht dieselbe Marke schon in der Kette der Marken direkt an `at` (wie `mark_word` im Server)?
+/// Follow-up fix R31: does the same mark already stand in the chain of marks directly at `at` (like `mark_word` in the
+/// server)?
 export function sameMarkBehind(at: Range, mark: IndexMark): boolean {
   const node = at.startContainer;
   const offset = at.startOffset;
@@ -1105,8 +1108,8 @@ export function sameMarkBehind(at: Range, mark: IndexMark): boolean {
   return false;
 }
 
-/// Runde 31c: Ende des markierten Worts als leere Stelle – eine Auswahl ohne Leerraum am Ende, ohne Auswahl das Ende
-/// des Worts am Cursor. Dort steht die Marke („direkt hinter dem markierten Wort“).
+/// Round 31c: end of the selected word as an empty position – a selection without whitespace at the end, without a
+/// selection the end of the word at the cursor. The mark stands there ("directly behind the selected word").
 function wordEnd(range: Range): Range {
   const end = document.createRange();
   let node = range.endContainer;
@@ -1124,10 +1127,10 @@ function wordEnd(range: Range): Range {
   return end;
 }
 
-/// Runde 31c: Befehl `index_mark` (`arg` = JSON {op, mark}, ws_command.ts). `add` setzt eine neue Marke hinter das
-/// markierte Wort (nicht in Überschrift, Teil, „ohne Nummer“, Insel, Verweis, Label oder einer anderen Marke), `edit`
-/// und `remove` wirken auf die Marke mit `data-ctx-target` (vom Kontextmenü gesetzt). Der Block wird neu erzeugt, der
-/// Editor ist danach ungespeichert; gespeichert wird mit „Speichern“ als neue Fassung.
+/// Round 31c: command `index_mark` (`arg` = JSON {op, mark}, ws_command.ts). `add` puts a new mark behind the
+/// selected word (not in a heading, part, „ohne Nummer“, island, reference, label or another mark), `edit`
+/// and `remove` act on the mark with `data-ctx-target` (set by the context menu). The block is generated anew, the
+/// editor is unsaved afterwards; saving is done with „Speichern“ as a new revision.
 function runIndexMark(state: State, arg?: string): void {
   let command: IndexMarkCommand;
   try {
@@ -1192,9 +1195,9 @@ function runIndexMark(state: State, arg?: string): void {
   markTouched(state);
 }
 
-/// Befehl des Menübands im offenen Satzbild ausführen (Vertrag R18-S1, `baruch:ws-command`). Jeder Befehl gilt als
-/// erledigt, solange das Satzbild offen ist – auch wenn er an der Stelle nicht geht (dann mit Meldung), damit der
-/// Absender nicht ins verborgene Textfeld schreibt.
+/// Carry out a command of the ribbon in the open typeset view (contract R18-S1, `baruch:ws-command`). Every command
+/// counts as done as long as the typeset view is open – even if it does not work at that place (then with a
+/// message), so that the sender does not write into the hidden text field.
 function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
   if (cmd === "index_mark") {
     runIndexMark(state, arg);
@@ -1223,7 +1226,8 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         return;
       }
       if (cmd === "scripture") {
-        // Runde 19b: Bibelstelle nach der Werkvorlage als Insel `#fn[Stelle]` (nur als Ganzes änderbar, wie im Satz).
+        // Round 19b: Bible passage following the work template as an island `#fn[Stelle]` (changeable only as a whole,
+        // as in the typesetting).
         let choice: { fn?: unknown; text?: unknown } = {};
         try {
           choice = JSON.parse(arg ?? "{}");
@@ -1248,7 +1252,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         range.insertNode(island);
         placeCaret(island, false);
       } else if (cmd === "cite") {
-        // Runde 19b: Literaturverweis `@schlüssel` wie ein Verweis aus dem Quelltext (button.ws-ref).
+        // Round 19b: literature reference `@schlüssel` like a reference from the source text (button.ws-ref).
         const key = citeKey(arg ?? window.prompt("Schlüssel des Literaturverweises (z. B. mueller2020):") ?? "");
         if (!key) {
           if (arg !== undefined) notify("Ungültiger Schlüssel (Buchstaben, Ziffern, _ - : .).");
@@ -1276,7 +1280,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         range.insertNode(brk);
         placeCaret(brk, false);
       } else if (cmd === "xref") {
-        // Runde 30a: Querverweis aus dem Dialog (xref.ts), `arg` = JSON {key, text, page}.
+        // Round 30a: cross-reference from the dialog (xref.ts), `arg` = JSON {key, text, page}.
         let choice: { key?: unknown; text?: unknown; page?: unknown } = {};
         try {
           choice = JSON.parse(arg ?? "{}");
@@ -1306,9 +1310,9 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         link.title = `Link: ${url}`;
         wrapInline(range, link, url);
       } else if (cmd === "quote" && range.collapsed && top) {
-        // Runde 23a (Befund des Nutzers): Ohne Auswahl entsteht ein Zitatblock als eigener Block hinter dem Block am
-        // Cursor, darunter ein Absatz „– “ für die Stellenangabe (beide neu, also mit Leerzeilen im Quelltext).
-        // Mit Auswahl bleibt es beim Zitat im Fließtext (`#quote[…]`).
+        // Round 23a (finding of the user): without a selection a quotation block is created as a block of its own
+        // behind the block at the cursor, below it a paragraph „– “ for the reference (both new, so with empty lines in
+        // the source text). With a selection it stays a quotation in the running text (`#quote[…]`).
         const box = newBlock("quote");
         box.dataset.block = "true";
         const body = document.createElement("div");
@@ -1339,7 +1343,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         return;
       }
       if (top.dataset.kind !== "paragraph") {
-        // Liste ↔ Aufzählung: nur die Art und das Listenelement wechseln, die Punkte bleiben.
+        // List ↔ numbered list: only the kind and the list element change, the items stay.
         if (cmd === "terms") {
           notify("Eine Liste wird keine Begriffsliste; bitte einen Absatz wählen.");
           return;
@@ -1392,7 +1396,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
       body.className = "ws-body";
       box.append(body);
       if (top && textual(top) && top.dataset.kind !== "heading") {
-        // Der Block am Cursor wandert in den Rumpf (dort neu, ohne Index); der alte Block entfällt.
+        // The block at the cursor moves into the body (new there, without index); the old block is dropped.
         top.before(box);
         delete top.dataset.b;
         top.dataset.dirty = "1";
@@ -1411,10 +1415,10 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
   }
 }
 
-/// Quelltext des offenen Satzbilds (wie `baruch:serialize-text`) und die UTF-16-Stelle des Zeilenanfangs hinter dem
-/// obersten Block am Cursor (Vertrag R18-S1, `baruch:ws-caret`). Die Stelle ist die Länge des Texts, den dieselben
-/// Anweisungen bis einschließlich dieses Blocks ergeben (samt seiner Leerzeilen); ohne Cursor oder hinter dem
-/// letzten Block das Ende.
+/// Source text of the open typeset view (like `baruch:serialize-text`) and the UTF-16 position of the line start
+/// behind the topmost block at the cursor (contract R18-S1, `baruch:ws-caret`). The position is the length of the
+/// text that the same instructions yield up to and including this block (with its empty lines); without a cursor or
+/// behind the last block the end.
 async function caretPlace(state: State): Promise<{ body: string; offset: number }> {
   const body = await serializeText(state);
   const range = sheetRange(state);
@@ -1430,8 +1434,8 @@ async function caretPlace(state: State): Promise<{ body: string; offset: number 
   return { body, offset: fits ? head.length : body.length };
 }
 
-/// Quelltextfeld einer Insel an Ort und Stelle (Doppelklick): Übernehmen setzt `data-raw` und markiert die Insel
-/// (`data-edited`), Abbrechen bzw. Escape stellt sie wieder her. Tasten im Feld gehen nicht an das Satzbild.
+/// Source text field of an island in place (double click): accepting sets `data-raw` and marks the island
+/// (`data-edited`), cancelling or Escape restores it. Keys in the field do not go to the typeset view.
 function editIsland(state: State, island: HTMLElement): void {
   if (island.querySelector(".ws-island-edit") || island.closest(".pv")) return;
   const saved = Array.from(island.childNodes);
@@ -1463,13 +1467,13 @@ function editIsland(state: State, island: HTMLElement): void {
       island.dataset.raw = island.tagName === "SPAN" ? value : `${value}\n`;
       island.dataset.edited = "1";
       island.dataset.dirty = "1";
-      // Die Insel zeigt ihren neuen Rohtext (ein Bild erst nach dem Speichern wieder als Bild).
+      // The island shows its new raw text (an image only after saving as an image again).
       const code = document.createElement("code");
       code.className = "ws-raw";
       code.textContent = value;
       island.replaceChildren(island.tagName === "SPAN" ? document.createTextNode(value) : code);
       island.classList.remove("ws-inline-image", "ws-figure");
-      // Inseln im Satz gehören zu ihrem Absatz; der wird mit der neuen Insel neu erzeugt.
+      // Islands in the sentence belong to their paragraph; it is generated anew with the new island.
       if (island.tagName === "SPAN") {
         let holder = island.parentElement?.closest<HTMLElement>(".ws-block") ?? null;
         while (holder) {
@@ -1494,7 +1498,7 @@ function editIsland(state: State, island: HTMLElement): void {
       close(true);
     }
   });
-  // Wer woanders hinklickt oder speichert, übernimmt (blur kommt vor dem Absenden).
+  // Whoever clicks elsewhere or saves accepts (blur comes before submitting).
   area.addEventListener("change", () => close(true));
   ok.addEventListener("click", () => close(true));
   cancel.addEventListener("mousedown", (event) => event.preventDefault());
@@ -1502,7 +1506,7 @@ function editIsland(state: State, island: HTMLElement): void {
   area.focus();
 }
 
-/// Enter in einer Begriffsliste: ein neuer Eintrag (Begriff und Erklärung) hinter dem aktuellen; `true` = erledigt.
+/// Enter in a term list: a new entry (term and explanation) behind the current one; `true` = done.
 function newTerm(state: State): boolean {
   const anchor = document.getSelection()?.anchorNode ?? null;
   const cell = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest<HTMLElement>("dt, dd");
@@ -1519,8 +1523,8 @@ function newTerm(state: State): boolean {
   return true;
 }
 
-/// Runde 30a: Text `find` im Satzbild markieren (Highlight „baruch-find“) und hinscrollen; Typst-Maskierungen und
-/// Leerraumfolgen zählen nicht. Ohne Highlight-API nur hinscrollen.
+/// Round 30a: mark the text `find` in the typeset view (highlight „baruch-find“) and scroll to it; Typst escapes and
+/// whitespace runs do not count. Without the Highlight API only scroll to it.
 function markFound(sheet: HTMLElement, find: string): void {
   const plain = find.replace(/\\(.)/g, "$1").replace(/[_*]/g, "").trim();
   if (!plain) return;
@@ -1553,7 +1557,7 @@ function markFound(sheet: HTMLElement, find: string): void {
 }
 
 register("wysiwyg", (root) => {
-  // Das Widget umfasst Werkzeugleiste, Blatt (mit dem Formular) und Statuszeile (editor.html).
+  // The widget comprises toolbar, sheet (with the form) and status line (editor.html).
   const form = root.querySelector<HTMLFormElement>("form[data-widget=editor]");
   const area = form?.querySelector<HTMLTextAreaElement>("textarea[name=body]");
   const sheet = root.querySelector<HTMLElement>("[data-ws-sheet]");
@@ -1569,14 +1573,14 @@ register("wysiwyg", (root) => {
     placed: [],
   };
   states.set(form, state);
-  // Vorgabe Satzbild; Quelltext nur nach ausdrücklicher Wahl (Cookie) oder für die Fundstelle beim Laden.
+  // Default typeset view; source text only after an explicit choice (cookie) or for the place found on loading.
   const source = fundstelle || store.get(COOKIE) === "quelltext";
   fundstelle = false;
-  // Die Werkzeugleiste (fragments/edit_toolbar.html) ist ohne JavaScript verborgen.
+  // The toolbar (fragments/edit_toolbar.html) is hidden without JavaScript.
   const toolbar = root.querySelector<HTMLElement>("[data-edit-toolbar]");
   if (toolbar) toolbar.hidden = false;
-  // Satzbild vom Server: gleich offen. Sonst Quelltext zeigen, nur wenn er gewünscht ist; das Satzbild
-  // über RPC öffnet unten, ohne vorher auf Quelltext umzuschalten.
+  // Typeset view from the server: open right away. Otherwise show the source text only if it is wanted; the typeset
+  // view through RPC opens below without switching to the source text first.
   if (source || !adoptSheet(state, root)) {
     if (source) show(state, root);
     else state.area.hidden = true;
@@ -1586,7 +1590,7 @@ register("wysiwyg", (root) => {
     button.addEventListener("click", async () => {
       const satz = button.dataset.wsMode === "satz";
       if (satz === state.open) return;
-      // Ausdrückliche Wahl: nur sie setzt das Cookie.
+      // Explicit choice: only it sets the cookie.
       store.set(COOKIE, satz ? "satz" : "quelltext");
       if (satz) {
         await openSheet(state, root);
@@ -1607,7 +1611,7 @@ register("wysiwyg", (root) => {
   });
 
   root.querySelectorAll<HTMLButtonElement>("[data-ws-cmd]").forEach((button) => {
-    // Die Auswahl im Satzbild bleibt beim Klick erhalten.
+    // The selection in the typeset view is kept on the click.
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", () => {
       markSelection(state);
@@ -1622,14 +1626,15 @@ register("wysiwyg", (root) => {
   });
   current = { state, format };
 
-  // Runde 18b: Befehle des Menübands (ws_command.ts). Ohne bubbles am Bereich; nur bei offenem Satzbild erledigt.
+  // Round 18b: commands of the ribbon (ws_command.ts). Without bubbles on the area; done only with the typeset view
+  // open.
   root.addEventListener(WS_COMMAND, (event) => {
     const detail = (event as CustomEvent<WsCommandDetail>).detail;
     if (!detail || !state.open || !state.sheet.isConnected) return;
     detail.handled = true;
     runCommand(state, detail.cmd, detail.arg);
   });
-  // Cursorstelle für Bilder (ws_command.ts): genau ein Promise, auch wenn das Ereignis am Formular ankommt.
+  // Cursor position for images (ws_command.ts): exactly one promise, even if the event arrives at the form.
   const answered = new WeakSet<Event>();
   const onCaret = (event: Event) => {
     const detail = (event as CustomEvent<WsCaretDetail>).detail;
@@ -1639,9 +1644,9 @@ register("wysiwyg", (root) => {
   };
   root.addEventListener(WS_CARET, onCaret);
   form.addEventListener(WS_CARET, onCaret);
-  // Runde 30a: Fundstelle eines Sprungs (jump.ts, `baruch:find {text, at}`) im Satzbild markieren – über die CSS
-  // Custom Highlight API, ohne das DOM zu ändern; den Quelltext übernimmt search.ts. Ist das Satzbild noch nicht
-  // offen (es lädt über RPC), wird kurz gewartet.
+  // Round 30a: mark the place found of a jump (jump.ts, `baruch:find {text, at}`) in the typeset view – through the CSS
+  // Custom Highlight API, without changing the DOM; search.ts takes care of the source text. If the typeset view is
+  // not open yet (it loads through RPC), there is a short wait.
   const onFind = (event: Event) => {
     const detail = (event as CustomEvent<{ text?: unknown }>).detail;
     if (typeof detail?.text !== "string" || !root.isConnected) return;
@@ -1664,7 +1669,7 @@ register("wysiwyg", (root) => {
       lastRanges.set(state, selection.getRangeAt(0).cloneRange());
     }
   });
-  // Inseln an Ort und Stelle: Doppelklick öffnet das Quelltextfeld (auch Bilder; Inseln in Vorschlägen nicht).
+  // Islands in place: a double click opens the source text field (also images; not islands in proposals).
   sheet.addEventListener("dblclick", (event) => {
     const target = event.target instanceof Element ? event.target : null;
     const island = target?.closest<HTMLElement>(".ws-island, .ws-block[data-kind=island]");
@@ -1672,7 +1677,7 @@ register("wysiwyg", (root) => {
     event.preventDefault();
     editIsland(state, island);
   });
-  // Ein Verweis ist eine Schaltfläche: der Klick zeigt das Ziel (Label im Satzbild), ändert aber nichts.
+  // A reference is a button: the click shows the target (label in the typeset view) but changes nothing.
   sheet.addEventListener("click", (event) => {
     const ref = event.target instanceof Element ? event.target.closest<HTMLElement>("button.ws-ref") : null;
     if (!ref || !sheet.contains(ref)) return;
@@ -1692,8 +1697,8 @@ register("wysiwyg", (root) => {
     markTouched(state);
   });
   sheet.addEventListener("paste", (event) => {
-    // Nur Text einfügen; fremdes HTML wäre kein Typst. Leerzeilen trennen Absätze: Jedes weitere
-    // Stück beginnt wie mit Enter einen neuen Absatz (in Listen bleibt es ein Punkt).
+    // Paste text only; foreign HTML would not be Typst. Empty lines separate paragraphs: every further
+    // piece begins a new paragraph as with Enter (in lists it stays an item).
     event.preventDefault();
     const text = (event.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
     markSelection(state);
@@ -1702,7 +1707,7 @@ register("wysiwyg", (root) => {
     const inList = (anchor?.parentElement ?? null)?.closest("li");
     const inHeading = isTitleKind(topBlock(state.sheet, anchor)?.dataset.kind);
     if (inHeading && NEWLINES.test(text.trim())) {
-      // Mehrere Zeilen in einer Überschrift: Sie gehören darunter, nie in die Überschriftszeile.
+      // Several lines in a heading: they belong below it, never into the heading line.
       NEWLINES.lastIndex = 0;
       for (const part of text.split(/\n\s*\n|\n/).map((p) => p.replace(NEWLINES, " ").trim()).filter((p) => p !== "")) {
         splitBlock(state);
@@ -1724,7 +1729,7 @@ register("wysiwyg", (root) => {
     markTouched(state);
   });
   sheet.addEventListener("keydown", (event) => {
-    // Strg+S speichert über den Hörer am Dokument (panes.ts), der Fokus darf überall stehen.
+    // Ctrl+S saves through the listener on the document (panes.ts), the focus may be anywhere.
     if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "i" || event.key.toLowerCase() === "b")) {
       markSelection(state);
       markTouched(state);
@@ -1736,26 +1741,26 @@ register("wysiwyg", (root) => {
     markTouched(state);
     if (inList && !event.shiftKey) return;
     event.preventDefault();
-    // Runde 18b: In einer Begriffsliste beginnt Enter einen neuen Eintrag.
+    // Round 18b: in a term list Enter begins a new entry.
     if (!event.shiftKey && newTerm(state)) return;
-    // Enter schließt eine Markdown-Überschrift ab (`# Titel` → Überschrift), danach wie immer ein Absatz.
+    // Enter completes a Markdown heading (`# Titel` → heading), then a paragraph as always.
     const current = topBlock(state.sheet, document.getSelection()?.anchorNode ?? null);
     if (!event.shiftKey && current) convertMarkdownHeading(state, current);
-    // In einer Überschrift beginnt auch Umschalt+Enter einen neuen Absatz (Runde 7).
+    // In a heading Shift+Enter also begins a new paragraph (Round 7).
     const inHeading = isTitleKind(topBlock(state.sheet, document.getSelection()?.anchorNode ?? null)?.dataset.kind);
     if (event.shiftKey && !inHeading) insertSoft();
     else splitBlock(state);
   });
 
-  // Vor dem Speichern: Satzbild ins Textfeld (Vertrag Runde 5, 3b; ausgelöst von outline.ts).
+  // Before saving: typeset view into the text field (contract Round 5, 3b; triggered by outline.ts).
   form.addEventListener("baruch:before-save", (event) => {
     const detail = (event as CustomEvent<{ wait?: Promise<unknown>[] }>).detail;
     if (state.open && state.touched && Array.isArray(detail?.wait)) detail.wait.push(sync(state));
   });
 
-  // Vollständiger Quelltext, ohne zu speichern (Vertrag Runde 17 §2.6, z. B. für die Live-Zählung in
-  // timing.ts): Nur bei offenem Satzbild legt das Widget ein Promise in `wait`; Textfeld und `touched`
-  // bleiben unverändert. Ist niemand zuständig, bleibt `wait` leer (Rückfall beim Auslöser).
+  // Complete source text without saving (contract Round 17 §2.6, e.g. for the live count in
+  // timing.ts): only with the typeset view open does the widget put a promise into `wait`; text field and `touched`
+  // stay unchanged. If nobody is responsible, `wait` stays empty (fallback at the trigger).
   form.addEventListener("baruch:serialize-text", (event) => {
     const detail = (event as CustomEvent<{ wait?: Promise<string>[] }>).detail;
     if (state.open && Array.isArray(detail?.wait)) detail.wait.push(serializeText(state));
@@ -1763,14 +1768,14 @@ register("wysiwyg", (root) => {
 
   if (!source && !state.open) {
     void openSheet(state, root).then((opened) => {
-      // Scheitert das Öffnen, bleibt der Quelltext (Textfeld wieder zeigen).
+      // If opening fails, the source text stays (show the text field again).
       if (!opened) show(state, root);
     });
   }
 });
 
-// Rückfall, falls niemand `baruch:before-save` auslöst: Vor jedem anderen Hörer (Fenster, Einfang-
-// Phase) das Satzbild übertragen und danach erneut absenden.
+// Fallback in case nobody triggers `baruch:before-save`: before every other listener (window, capture
+// phase) transfer the typeset view and then submit again.
 window.addEventListener(
   "submit",
   (event) => {
@@ -1779,7 +1784,7 @@ window.addEventListener(
     if (!form || !state || !state.open || !state.touched) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    // Runde 22: Der auslösende Knopf („Als neue Fassung speichern“) geht beim erneuten Absenden mit.
+    // Round 22: the triggering button („Als neue Fassung speichern“) goes along on submitting again.
     const submitter = (event as SubmitEvent).submitter;
     sync(state)
       .then(() => {

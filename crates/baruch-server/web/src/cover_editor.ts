@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Umschlag-Editor (Runde 27, Aufgabe umschlag-widget). Ohne JavaScript geht alles über das Formular
-// `POST /werke/umschlag/anordnung` auf der Seite `/werke/{id}/umschlag` (Felder `b.<kind>.<feld>`, Vorschau per GET).
+// Cover editor (Round 27, task umschlag-widget). Without JavaScript everything goes through the form
+// `POST /werke/umschlag/anordnung` on the page `/werke/{id}/umschlag` (fields `b.<kind>.<feld>`, preview by GET).
 //
-// - Widget „cover-editor“ auf dem Editor-Container (`data-widget="cover-editor"`); Daten: JSON aus `cover.layout`
-//   im Attribut `data-layout` (vom Server gerendert). Die Rahmen der Blöcke (`[data-cover-block]`) und die Felder
-//   (`[name="b.<kind>.<feld>"]`) liefert der Server; das Widget hält beide auf demselben Stand.
-// - Ziehen verschiebt einen Rahmen, die Griffe (`[data-cover-handle=start|end]`) ändern die Breite in Leserichtung
-//   (beim Rücken senkrecht). Beim Ziehen rastet der Rahmen an den Hilfslinien ein (Schnittkante, Sicherheitsabstand,
-//   Mitte; SNAP_MM).
-// - Tastatur auf einem Rahmen: Pfeiltasten STEP_MM (mit Umschalt BIG_STEP_MM), Strg+←/→ Breite, Strg+Z rückgängig,
-//   Strg+S speichern; „Hell/Dunkel“ schaltet die Farbe des gewählten Blocks um.
-// - Speichern über RPC `cover.layout_set` mit allen geänderten Blöcken (ganze Blöcke), Schnellwahl und Zurücksetzen
-//   über `cover.layout_reset` (danach lädt die Seite neu).
-// - Koordinaten wie im Server (Vertrag 1.2): mm ab der Schnittkante der eigenen Fläche; Flächen im Gesamtumschlag
-//   Rückseite (b, b), Rücken (b + W, b), Vorderseite (b + W + S, b).
+// - Widget „cover-editor“ on the editor container (`data-widget="cover-editor"`); data: JSON from `cover.layout`
+//   in the attribute `data-layout` (rendered by the server). The frames of the blocks (`[data-cover-block]`) and the
+//   fields (`[name="b.<kind>.<feld>"]`) are supplied by the server; the widget keeps both in the same state.
+// - Dragging moves a frame, the handles (`[data-cover-handle=start|end]`) change the width in reading direction
+//   (vertically for the spine). While dragging, the frame snaps to the guide lines (trim edge, safety margin,
+//   centre; SNAP_MM).
+// - Keyboard on a frame: arrow keys STEP_MM (with Shift BIG_STEP_MM), Ctrl+←/→ width, Ctrl+Z undo,
+//   Ctrl+S save; „Hell/Dunkel“ toggles the colour of the chosen block.
+// - Saving through RPC `cover.layout_set` with all changed blocks (whole blocks), quick choice and resetting
+//   through `cover.layout_reset` (afterwards the page reloads).
+// - Coordinates as in the server (contract 1.2): mm from the trim edge of the own face; faces in the whole cover
+//   back (b, b), spine (b + W, b), front (b + W + S, b).
 
 import { call, RpcError } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -55,12 +55,12 @@ interface Layout {
   warnings: { code: string; block: string | null; message: string }[];
 }
 
-/// Schritt der Pfeiltasten (mm) und mit Umschalt.
+/// Step of the arrow keys (mm) and with Shift.
 export const STEP_MM = 0.5;
 export const BIG_STEP_MM = 5;
-/// Einrasten an Hilfslinien bis zu diesem Abstand (mm).
+/// Snapping to guide lines up to this distance (mm).
 export const SNAP_MM = 1.5;
-/// Grenzen wie im Store (Vertrag Abschnitt 2).
+/// Limits as in the store (contract section 2).
 const POS_MM: [number, number] = [-50, 1000];
 const WIDTH_MM: [number, number] = [1, 1000];
 
@@ -91,7 +91,7 @@ function wrapSize(g: Geometry): [number, number] {
   return [2 * g.page_width_mm + g.spine_mm + 2 * g.bleed_mm, g.page_height_mm + 2 * g.bleed_mm];
 }
 
-/// Auf 1/100 mm runden (gegen Fließkomma-Reste beim Ziehen).
+/// Round to 1/100 mm (against floating-point remainders while dragging).
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -100,18 +100,18 @@ function clamp(value: number, [low, high]: [number, number]): number {
   return Math.min(high, Math.max(low, value));
 }
 
-/// „12,5“ für Beschriftungen.
+/// „12,5“ for labels.
 function mm(value: number): string {
   return value.toFixed(1).replace(".", ",");
 }
 
-/// Ausdehnung des Rahmens auf der Fläche (mm): auf dem Rücken läuft der Text gedreht, `width_mm` ist senkrecht.
+/// Extent of the frame on the face (mm): on the spine the text runs rotated, `width_mm` is vertical.
 function extent(block: Block): [number, number] {
   const height = block.height_mm ?? 0;
   return faceOf(block.kind) === "spine" ? [height, block.width_mm] : [block.width_mm, height];
 }
 
-/// Der Block, wie ihn `cover.layout_set` erwartet (ohne `stored` und `height_mm`).
+/// The block as `cover.layout_set` expects it (without `stored` and `height_mm`).
 function payload(block: Block): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const field of SENT_FIELDS) out[field] = block[field];
@@ -126,7 +126,7 @@ function same(a: Block, b: Block): boolean {
   return JSON.stringify(payload(a)) === JSON.stringify(payload(b));
 }
 
-/// Nächste Hilfslinie zu einer der Kanten (`edges`), höchstens SNAP_MM entfernt; Verschiebung oder `null`.
+/// Nearest guide line to one of the edges (`edges`), at most SNAP_MM away; shift or `null`.
 function snapDelta(edges: number[], targets: number[]): number | null {
   let best: number | null = null;
   for (const edge of edges) {
@@ -143,7 +143,7 @@ register("cover-editor", (root) => {
   try {
     layout = JSON.parse(root.dataset.layout ?? "") as Layout;
   } catch {
-    return; // ohne Daten bleibt das Formular (geht ohne JavaScript)
+    return; // without data the form stays (works without JavaScript)
   }
   if (!layout || !Array.isArray(layout.blocks) || !layout.geometry) return;
   const work = Number(root.dataset.work ?? layout.work);
@@ -192,7 +192,7 @@ register("cover-editor", (root) => {
     return root.querySelector<HTMLInputElement>(`[name="b.${kind}.${name}"]`);
   }
 
-  /// Rahmen und Felder eines Blocks auf den Stand bringen.
+  /// Bring frame and fields of a block up to date.
   function place(kind: string): void {
     const block = blocks.get(kind);
     if (!block) return;
@@ -236,7 +236,7 @@ register("cover-editor", (root) => {
     }
   }
 
-  /// Vorschau des Satzes (Typst-SVG) für die geänderten Blöcke, verzögert.
+  /// Preview of the typesetting (Typst SVG) for the changed blocks, delayed.
   function schedulePreview(): void {
     if (!image) return;
     if (previewTimer !== null) clearTimeout(previewTimer);
@@ -257,7 +257,7 @@ register("cover-editor", (root) => {
     }, 700);
   }
 
-  /// Eine Änderung an einem Block: vorher merken (Rückgängig), anwenden, zeigen.
+  /// A change to a block: remember the state before (undo), apply, show.
   function change(kind: string, apply: (block: Block) => void, remember = true): void {
     const block = blocks.get(kind);
     if (!block) return;
@@ -346,7 +346,7 @@ register("cover-editor", (root) => {
     }
   }
 
-  // ---- Ziehen und Breite ändern -----------------------------------------------------------------
+  // ---- Dragging and changing the width ----------------------------------------------------------
 
   interface Drag {
     kind: string;
@@ -359,7 +359,7 @@ register("cover-editor", (root) => {
   }
   let drag: Drag | null = null;
 
-  /// Ziele auf der Fläche (mm): Schnittkante, Sicherheitsabstand, Mitte.
+  /// Targets on the face (mm): trim edge, safety margin, centre.
   function targets(face: Face): [number[], number[]] {
     const [fw, fh] = faceSize(geometry, face);
     const s = geometry.safety_mm;
@@ -437,7 +437,7 @@ register("cover-editor", (root) => {
       try {
         frame.setPointerCapture?.(event.pointerId);
       } catch {
-        // ohne Zeigerfang geht es auch (Ereignisse kommen dann nur über dem Rahmen)
+        // it also works without pointer capture (events then only arrive above the frame)
       }
     });
     frame.addEventListener("pointermove", (event: PointerEvent) => {
@@ -460,7 +460,7 @@ register("cover-editor", (root) => {
     frame.addEventListener("focus", () => select(kind));
   });
 
-  // ---- Tastatur -----------------------------------------------------------------------------------
+  // ---- Keyboard -----------------------------------------------------------------------------------
 
   root.addEventListener("keydown", (event: KeyboardEvent) => {
     const target = event.target as HTMLElement | null;
@@ -507,7 +507,7 @@ register("cover-editor", (root) => {
     say(`${labelOf(kind)}: x ${mm(block.x_mm)} mm, y ${mm(block.y_mm)} mm, Breite ${mm(block.width_mm)} mm.`);
   });
 
-  // ---- Felder der Seitenleiste ------------------------------------------------------------------
+  // ---- Fields of the sidebar --------------------------------------------------------------------
 
   const onField = (event: Event) => {
     const input = event.target as HTMLInputElement | null;
@@ -521,7 +521,7 @@ register("cover-editor", (root) => {
         const value = Number(raw.replace(",", "."));
         if (raw === "" || !Number.isFinite(value)) return;
         if (key === "size_pt" || key === "leading_em") {
-          // Höhe grob mitführen, bis der Satz sie misst (Speichern bzw. Vorschau).
+          // Carry the height along roughly until the typesetting measures it (saving or preview).
           const old = block.size_pt * (1 + block.leading_em);
           (block as unknown as Record<string, number>)[key] = value;
           const now = block.size_pt * (1 + block.leading_em);
@@ -544,7 +544,7 @@ register("cover-editor", (root) => {
   };
   root.addEventListener("change", onField);
 
-  // ---- Knöpfe ------------------------------------------------------------------------------------
+  // ---- Buttons -----------------------------------------------------------------------------------
 
   undoButton?.addEventListener("click", (event) => {
     event.preventDefault();

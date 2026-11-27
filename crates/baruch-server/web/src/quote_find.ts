@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Zitate im Satzbild wiederfinden (Nachbesserung Runde 17, für das Widget „scripture-check“): reine Funktionen ohne
-// DOM, damit ein Test sie unter Node prüfen kann (tests/quote_find.rs).
+// Finding quotations again in the typeset view (follow-up fix Round 17, for the widget „scripture-check“): pure
+// functions without DOM so that a test can check them under Node (tests/quote_find.rs).
 //
-// Der Server liefert je Stelle den Zitattext (`quote`, Typst-Quelltext) und seinen Bereich im Quelltext
-// (`quote_span`, Bytes). Das Satzbild kennt keine Quellpositionen; deshalb:
-// - Der Zitattext wird von Typst-Auszeichnung befreit (`#emph[…]`, `*`, `_`, `\`), wie er im Satzbild steht.
-// - Gesucht wird nur nach ganzen Wörtern (kein Buchstabe und keine Ziffer direkt davor oder danach).
-// - Gleicher Wortlaut an mehreren Stellen: Die Zitate werden in der Reihenfolge ihres `quote_span` den Fundstellen
-//   zugeordnet – zuerst den Fundstellen in Anführungszeichen, sonst allen. Passt die Zahl nicht, bleibt das Zitat
-//   unmarkiert (nicht eindeutig), statt jede Fundstelle in beiden Farben zu zeigen.
+// The server supplies per passage the quotation text (`quote`, Typst source text) and its range in the source text
+// (`quote_span`, bytes). The typeset view knows no source positions; therefore:
+// - The quotation text is stripped of Typst markup (`#emph[…]`, `*`, `_`, `\`), as it stands in the typeset view.
+// - The search is only for whole words (no letter and no digit directly before or after).
+// - Same wording at several places: the quotations are assigned to the places found in the order of their
+//   `quote_span` – first to the places found in quotation marks, otherwise to all. If the number does not fit, the
+//   quotation stays unmarked (not unambiguous) instead of showing every place found in both colours.
 
-/// Text mit zusammengefasstem Leerraum und der Stelle jedes Zeichens im Ausgangstext.
+/// Text with collapsed whitespace and the position of every character in the original text.
 export function collapse(text: string): { flat: string; at: number[] } {
   let flat = "";
   const at: number[] = [];
@@ -32,7 +32,7 @@ export function collapse(text: string): { flat: string; at: number[] } {
   return { flat, at };
 }
 
-/// Zitattext ohne Typst-Auszeichnung: `#emph[x]`/`#strong[x]` → x, `\x` → x, `*` und `_` entfallen.
+/// Quotation text without Typst markup: `#emph[x]`/`#strong[x]` → x, `\x` → x, `*` and `_` are dropped.
 export function plainQuote(typst: string): string {
   let text = typst;
   for (let i = 0; i < 8; i++) {
@@ -56,8 +56,8 @@ function isWordChar(c: string | undefined): boolean {
   return c !== undefined && /[\p{L}\p{N}]/u.test(c);
 }
 
-/// Alle Fundstellen von `needle` in `haystack` als ganze Wörter (Leerraum zählt als ein Leerzeichen): [Anfang, Ende)
-/// im Ausgangstext.
+/// All places where `needle` is found in `haystack` as whole words (whitespace counts as one space): [start, end)
+/// in the original text.
 export function findAll(haystack: string, needle: string): [number, number][] {
   const n = collapse(needle.trim()).flat;
   if (n === "") return [];
@@ -82,7 +82,7 @@ export function findAll(haystack: string, needle: string): [number, number][] {
 const OPENING = "„“\"»«‚‘‹›'";
 const CLOSING = "“”\"«»‘’‹›'";
 
-/// Steht die Fundstelle [s, e) in Anführungszeichen (Leerraum dazwischen zählt nicht)?
+/// Does the place found [s, e) stand in quotation marks (whitespace in between does not count)?
 function quoted(haystack: string, s: number, e: number): boolean {
   let a = s - 1;
   while (a >= 0 && /\s/.test(haystack[a])) a--;
@@ -91,15 +91,15 @@ function quoted(haystack: string, s: number, e: number): boolean {
   return a >= 0 && b < haystack.length && OPENING.includes(haystack[a]) && CLOSING.includes(haystack[b]);
 }
 
-/// Ein Zitat, wie das Widget es zuordnet.
+/// A quotation as the widget assigns it.
 export interface Placeable {
   quote: string | null;
   quote_span?: [number, number] | null;
 }
 
-/// Ordnet jedem Zitat höchstens eine Fundstelle im Satzbild zu (siehe Kopf der Datei). Ergebnis in der Reihenfolge
-/// von `marks`; `null` = ohne Zitat oder nicht eindeutig gefunden. Zwei Stellen mit demselben `quote_span` sind
-/// dasselbe Zitat und bekommen dieselbe Fundstelle.
+/// Assigns to every quotation at most one place found in the typeset view (see the header of the file). Result in
+/// the order of `marks`; `null` = without quotation or not found unambiguously. Two passages with the same
+/// `quote_span` are the same quotation and get the same place found.
 export function placeQuotes(haystack: string, marks: Placeable[]): ([number, number] | null)[] {
   const result: ([number, number] | null)[] = marks.map(() => null);
   const groups = new Map<string, number[]>();
@@ -112,7 +112,7 @@ export function placeQuotes(haystack: string, marks: Placeable[]): ([number, num
     groups.set(text, list);
   });
   for (const [text, members] of groups) {
-    // Gleiche Bereiche = ein Zitat; ohne Bereich zählt jede Stelle für sich (Reihenfolge der Liste).
+    // Same ranges = one quotation; without a range every passage counts for itself (order of the list).
     const spans: string[] = [];
     const slotOf = new Map<number, number>();
     for (const i of members) {

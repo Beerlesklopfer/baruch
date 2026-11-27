@@ -1,16 +1,17 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /werke/{id}/register (Runde 31c, src/index_page.rs, Besitz kontextmenue). Kontext: settings, work {id, title},
-    registers [{slug, title, kind, builtin}], sections [{register, terms [{term, sub, keys [{key, url}], see, also, auto,
-    filter}]}], overview_error?, open [Vorschlag wie RPC index.proposals], decided [Vorschlag], proposals_error?,
-    section {key, rev, number, title, entries [{register, term, sub, see, also, auto, start, end}], error?}? (aus Query
-    key), custom_left, ok?, retry {action, v {Feld → Wert}, message}? (abgelehntes Formular, 422).
-    Ohne JavaScript: alle Formulare an POST /werke/{id}/register/act (action = mark|unmark|accept|reject|register_add|
-    register_rename|register_delete); Löschen mit Pflicht-Häkchen. Vorschläge der Assistenten gekennzeichnet; Übernehmen
-    (neue Fassung des Menschen mit der Marke) und Verwerfen nur hier per Formular. -#}
+{#- Page /werke/{id}/register (Round 31c, src/index_page.rs, ownership kontextmenue). Context: settings, work {id,
+    title}, registers [{slug, title, kind, builtin}], sections [{register, terms [{term, sub, keys [{key, url}], see,
+    also, auto, filter}]}], overview_error?, open [proposal as in RPC index.proposals], decided [proposal],
+    proposals_error?, section {key, rev, number, title, entries [{register, term, sub, see, also, auto, start, end}],
+    error?}? (from the query key), custom_left, ok?, retry {action, v {field → value}, message}? (rejected form, 422).
+    Without JavaScript: all forms to POST /werke/{id}/register/act (action = mark|unmark|accept|reject|register_add|
+    register_rename|register_delete); deleting with a mandatory checkbox. Proposals of the assistants are marked;
+    accepting (a new revision of the human with the mark) and rejecting only here by form. -#}
 {% extends "base.html" %}
 {% block title %}Register – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Register{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">

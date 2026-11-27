@@ -1,17 +1,17 @@
-{#- Akkordeon „Fassungen“ rechts (Wunsch 2026-11-06, aus dem Editor ausgelagert): Kopf mit der Zahl der
-    Fassungen und der offenen Vorschläge als Abzeichen (auch eingeklappt, ohne JavaScript), darin für die
-    gezeigte Fassung „Diese Fassung verwenden“, „Fassung ändern“ und „Löschen“ (nur Mensch, mit Kästchen;
-    die aktuelle Fassung lässt sich nicht löschen) und die kleine Baumansicht (fragments/revtree.html).
-    Alle Formulare gehen ohne JavaScript an /act, mit JavaScript über RPC (workspace.ts); danach zeichnet
-    ui.render diesen Bereich mit der rechten Spalte neu. Der Inhalt ist eine eigene Zoom-Zone.
-    Runde 22 (fassungen): „Stand k“ der gezeigten Fassung mit Link „Verlauf“ (Fortschreibungen, Rückgängig) und die
-    Liste „Weitere Fassungen“ (ersetzt, verworfen) mit je einem Formular „aktuell machen“ (id="rev-alt-<n>",
-    revision.set_current an /act); die Knöpfe im Editor-Kopf zeigen über form="rev-alt-<n>" auf diese Formulare.
-    0.9.0 (Nutzer 2026-11-24, ältere Fassungen ausblenden): je Fassung mit Angebot ein Formular id="rev-fold-<n>"
-    (revision.fold_set an /act, im versteckten Block .rev-fold-forms); die Knöpfe „bis hier ausblenden“ hier, im
-    Editor-Kopf und in der Baumansicht zeigen über form darauf. Ausgeblendete Fassungen stehen hinter dem Schalter
+{#- Accordion „Fassungen“ on the right (wish 2026-11-06, moved out of the editor): head with the number of
+    revisions and of open proposals as badges (also when collapsed, without JavaScript), inside it, for the
+    shown revision, „Diese Fassung verwenden“, „Fassung ändern“ and „Löschen“ (only the human, with a checkbox;
+    the current revision cannot be deleted) and the small tree view (fragments/revtree.html).
+    All forms go without JavaScript to /act, with JavaScript through RPC (workspace.ts); afterwards
+    ui.render redraws this area together with the right column. The content is a zoom zone of its own.
+    Round 22 (fassungen): „Stand k“ of the shown revision with the link „Verlauf“ (continuations, undo) and the
+    list „Weitere Fassungen“ (replaced, rejected), each with a form „aktuell machen“ (id="rev-alt-<n>",
+    revision.set_current to /act); the buttons in the editor head point to these forms through form="rev-alt-<n>".
+    0.9.0 (user 2026-11-24, hide older revisions): per revision with an offer one form id="rev-fold-<n>"
+    (revision.fold_set to /act, in the hidden block .rev-fold-forms); the buttons „bis hier ausblenden“ here, in the
+    editor head and in the tree view point to it through form. Hidden revisions stand behind the switch
     <details class="rev-fold"> („n ältere Fassungen zeigen ▸ / verbergen ▾“); „Wieder alle zeigen“ (revision.fold_clear)
-    hebt die Marke auf. Kontext rev.fold (view::FoldView), a.hidden/a.fold je weiterer Fassung. -#}
+    lifts the mark. Context rev.fold (view::FoldView), a.hidden/a.fold per further revision. -#}
 {%- macro hidden(method) %}
       <input type="hidden" name="method" value="{{ method }}">
       <input type="hidden" name="work" value="{{ work.id }}">
@@ -47,7 +47,8 @@
         <summary class="btn">Fassung ändern</summary>
         <form class="rev-edit-form" method="post" action="/act" data-rpc>
           {{- hidden("revision.update") }}
-          {#- Runde 23a (Codereview web-3): Stand, auf dem das Textfeld beruht; ist die Fassung inzwischen fortgeschrieben, lehnt revision.update ab („Veraltet: …“). #}
+          {#- Round 23a (code review web-3): state the text field is based on; if the revision has been continued
+          meanwhile, revision.update refuses („Veraltet: …“). #}
           <input type="hidden" name="based_on_amend" value="{{ rev.amend_seq | default(0) }}">
           <label class="small">Text von Fassung {{ rev.number }}
             <textarea name="body" required spellcheck="true" lang="de">{{ rev.body }}</textarea></label>

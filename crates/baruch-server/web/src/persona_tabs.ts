@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „persona-tabs“ (Runde 11, Einstellungen → Assistenten): je Persona ein Tab. Der Server liefert
-// alle Tafeln (`[role=tabpanel]`, die nicht gewählten mit `hidden`) und je Tab einen Link
-// `?persona=<handle ohne @>`; ohne JavaScript lädt der Link die Seite mit diesem Tab neu.
+// Widget „persona-tabs“ (Round 11, Einstellungen → Assistenten): one tab per persona. The server supplies
+// all panels (`[role=tabpanel]`, those not chosen with `hidden`) and per tab a link
+// `?persona=<handle ohne @>`; without JavaScript the link reloads the page with this tab.
 //
-// Mit JavaScript schaltet ein Klick (bzw. Pfeil links/rechts, Pos1, Ende auf dem Tab) ohne Neuladen um:
-// `aria-selected`, `tabindex` (nur der gewählte Tab ist in der Tab-Reihenfolge) und `hidden` der Tafeln
-// folgen; auf der Seite /einstellungen/assistenten folgt die Adresse per `history.replaceState`
-// (`persona=` gesetzt, Anker `#persona-<handle>`). Im Einstellungs-Popup bleibt die Adresse der
-// Arbeitsseite unberührt. Strg-/Umschalt-/Mittelklick öffnen den Link wie gewohnt.
+// With JavaScript a click (or arrow left/right, Home, End on the tab) switches without reloading:
+// `aria-selected`, `tabindex` (only the chosen tab is in the tab order) and `hidden` of the panels
+// follow; on the page /einstellungen/assistenten the address follows by `history.replaceState`
+// (`persona=` set, anchor `#persona-<handle>`). In the settings popup the address of the
+// workspace page stays untouched. Ctrl/Shift/middle click open the link as usual.
 
 import { register } from "./widgets.js";
 
-/// Neue Adresse der Seite mit `persona=<wert>` (übrige Paare bleiben, `ok`/`rueckfrage` entfallen,
-/// damit ein alter Hinweis nicht beim nächsten Laden wieder erscheint).
+/// New address of the page with `persona=<wert>` (the other pairs stay, `ok`/`rueckfrage` are dropped
+/// so that an old notice does not appear again on the next load).
 export function withPersona(href: string, persona: string): string {
   const url = new URL(href);
   url.searchParams.delete("ok");
@@ -22,7 +22,7 @@ export function withPersona(href: string, persona: string): string {
   return url.toString();
 }
 
-/// Index des Tabs nach einer Taste: Pfeile wandern im Kreis, Pos1/Ende springen; sonst `null`.
+/// Index of the tab after a key: arrows move in a circle, Home/End jump; otherwise `null`.
 export function nextIndex(key: string, at: number, count: number): number | null {
   if (count <= 0) return null;
   switch (key) {
@@ -61,7 +61,7 @@ register("persona-tabs", (root) => {
       try {
         history.replaceState(history.state, "", withPersona(window.location.href, decodeURIComponent(persona)));
       } catch {
-        // Adresse lässt sich nicht ändern (z. B. eingebettet): die Tafel ist trotzdem gewechselt.
+        // The address cannot be changed (e.g. embedded): the panel is switched all the same.
       }
     }
   };

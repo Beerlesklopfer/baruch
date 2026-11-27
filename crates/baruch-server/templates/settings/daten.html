@@ -1,14 +1,14 @@
-{#- Einstellungsseite „Daten“ (Runde 9): Datenordner, Größe, je Werk der Git-Spiegel mit letztem Commit,
-    Version (nur Anzeige, seit Runde 24 mit Link auf die Seite /ueber) und „Sicherung jetzt“ (Formular an POST /einstellungen/daten/sicherung, Kästchen
-    confirm Pflicht – der Server prüft es). Kontext: work, error, saved (Ordnername der neuesten Sicherung vom Server, leer = allgemeine Meldung)?, dir, size,
-    size_bytes, mirrors [{work, title, slug, dir, head, error}], version.
-    Runde 26: Instanz – instance_uuid (nur Anzeige), instance_name, instance_label, instance_saved,
-    max_instance_name; Formular an POST /einstellungen/daten/instanz (Feld name, leer = zurücksetzen).
-    Runde 20c: epubcheck {jar, has_jar, jar_missing, found (Text)?, java, saved, max}; Formular an
-    POST /einstellungen/daten/epubcheck (Feld jar, leer = entfernen). -#}
+{#- Settings page „Daten“ (Round 9): data directory, size, per work the Git mirror with its last commit,
+    version (display only, since Round 24 with a link to the page /ueber) and „Sicherung jetzt“ (form to POST
+    /einstellungen/daten/sicherung, checkbox confirm mandatory – the server checks it). Context: work, error, saved
+    (directory name of the newest backup from the server, empty = general message)?, dir, size, size_bytes, mirrors
+    [{work, title, slug, dir, head, error}], version. Round 26: instance – instance_uuid (display only), instance_name,
+    instance_label, instance_saved, max_instance_name; form to POST /einstellungen/daten/instanz (field name, empty =
+    reset). Round 20c: epubcheck {jar, has_jar, jar_missing, found (text)?, java, saved, max}; form to
+    POST /einstellungen/daten/epubcheck (field jar, empty = remove). -#}
 <section class="settings-page" data-settings-page-body="daten">
   {%- if saved is not none %}
-  {#- Runde 23a: Der Name kommt vom Server (neueste Sicherung im Dateisystem), nie aus der Adresse. #}
+  {#- Round 23a: the name comes from the server (newest backup in the file system), never from the address. #}
   <p class="notice" role="status">{% if saved %}Sicherung angelegt: <code>{{ saved }}</code> (neben dem Datenordner).{% else %}Sicherung angelegt (neben dem Datenordner).{% endif %}</p>
   {%- endif %}
   {%- if error %}
@@ -16,7 +16,7 @@
   {%- endif %}
   <h3 class="pane-title">Daten</h3>
   {%- if permissions %}
-  {#- Runde 36: nur ein Hinweis – Baruch ändert die Rechte eines vorhandenen Datenordners nie. #}
+  {#- Round 36: only a note – Baruch never changes the permissions of an existing data directory. #}
   <p class="notice warning" role="status" data-open-permissions>{{ permissions }}</p>
   {%- endif %}
   <dl class="settings-facts">

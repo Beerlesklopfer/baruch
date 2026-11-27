@@ -1,14 +1,15 @@
-{#- PDF oder EPUB importieren (Runde 21a, src/pdf_import/pages.rs), ganz ohne JavaScript.
-    mode "form": Formular (POST /werke/import/quelle/vorschau, multipart). Kontext: settings, form {way, collection,
-    upload, title}, error, notice, retry_local ({draft, file_name} nach einem Fehler von MultiGPT: „Lokal lesen“ ohne
-    erneutes Wählen der Datei), multigpt_configured, max_mib, back_url.
-    mode "preview": Vorschau des Entwurfs. Kontext: settings, preview (Antwort von source_import.preview), way_label,
+{#- Import a PDF or EPUB (Round 21a, src/pdf_import/pages.rs), entirely without JavaScript.
+    mode "form": form (POST /werke/import/quelle/vorschau, multipart). Context: settings, form {way, collection,
+    upload, title}, error, notice, retry_local ({draft, file_name} after an error of MultiGPT: „Lokal lesen“ without
+    choosing the file again), multigpt_configured, max_mib, back_url.
+    mode "preview": preview of the draft. Context: settings, preview (answer of source_import.preview), way_label,
     kind_label, rows [{src, line, part_hint, chars, sample}], values {target, title, author}, error, back_url.
-    Inhalte aus der Datei (Titel, Textproben, Warnungen) sind Daten: nur maskiert (Autoescape). -#}
+    Contents from the file (titles, text samples, warnings) are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
 {% block title %}PDF oder EPUB importieren – Baruch{% endblock %}
 {% block page_title %}PDF oder EPUB importieren{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="/werke">Werke</a>

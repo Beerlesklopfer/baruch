@@ -1,12 +1,13 @@
-{#- Seite /werke/{id}/epub/pruefung (Runde 20c, src/epub_check.rs): Prüfbericht des EPUB ohne EPUBCheck, darunter das
-    Formular „EPUBCheck ausführen“ (POST /werke/epub/pruefen, hinter same_origin; die Antwort ist dieselbe Seite mit dem
-    Lauf). Geht ohne JavaScript: Reader und Fußnoten per Formular (GET auf diese Seite bzw. POST). Kontext: settings,
-    work {id, title}, panel (fertiges HTML des Berichts)?, epubcheck {kind, title, text}?, error?, readers [{slug,
-    name, required, checked}], endnotes, ran (EPUBCheck war angefordert). -#}
+{#- Page /werke/{id}/epub/pruefung (Round 20c, src/epub_check.rs): check report of the EPUB without EPUBCheck, below it
+    the form „EPUBCheck ausführen“ (POST /werke/epub/pruefen, behind same_origin; the answer is the same page with the
+    run). Works without JavaScript: reader and footnotes by form (GET to this page or POST). Context: settings,
+    work {id, title}, panel (finished HTML of the report)?, epubcheck {kind, title, text}?, error?, readers [{slug,
+    name, required, checked}], endnotes, ran (EPUBCheck was requested). -#}
 {% extends "base.html" %}
 {% block title %}EPUB prüfen – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: EPUB prüfen{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">EPUB</summary><div class="band-items" role="group" aria-label="EPUB">

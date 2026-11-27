@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Aktive Zustimmung zu Anträgen (Nutzerfrage 12, Entscheidung 2026-11-07: „es braucht eine aktive
-// Zustimmung (Popup)“). Der Server (crate::consent) liefert auf jeder Seite, solange ein solcher Antrag
-// offen ist, die Hinweisleiste mit Link zum Antrag (ohne JavaScript bedienbar) und den <dialog
+// Active consent to requests (user question 12, decision 2026-11-07: „es braucht eine aktive
+// Zustimmung (Popup)“). The server (crate::consent) supplies on every page, as long as such a request
+// is open, the notice bar with a link to the request (usable without JavaScript) and the <dialog
 // id="consent">.
 //
-// - Widget „consent“: öffnet den Dialog beim Laden modal (showModal). „Ansehen und entscheiden“ in der
-//   Leiste ([data-consent-open]) öffnet ihn wieder, statt zur Gliederungsseite zu gehen.
-// - „Zustimmen“/„Ablehnen“ sind gewöhnliche Formulare an /gliederung/act; das Widget schickt sie über
-//   RPC outline.request_decide und lädt danach die Seite neu (bei ungespeicherter Änderung im Editor
-//   erst nach Rückfrage). Ist der Antrag veraltet, steht der Grund im Dialog.
-// - Nichts geschieht ohne Klick: kein Zeitablauf, und Schließen („Später entscheiden“, Escape) lässt den
-//   Antrag offen.
+// - Widget „consent“: opens the dialog modally on loading (showModal). „Ansehen und entscheiden“ in the
+//   bar ([data-consent-open]) opens it again instead of going to the outline page.
+// - „Zustimmen“/„Ablehnen“ are ordinary forms to /gliederung/act; the widget sends them through
+//   RPC outline.request_decide and reloads the page afterwards (with an unsaved change in the editor
+//   only after a confirmation). If the request is outdated, the reason stands in the dialog.
+// - Nothing happens without a click: no timeout, and closing („Später entscheiden“, Escape) leaves the
+//   request open.
 
 import { call, RpcError } from "./rpc.js";
 import { leaveEditor, register } from "./widgets.js";
@@ -62,7 +62,7 @@ register("consent", (element) => {
         changed = true;
         const request = result.request;
         if (request.decision === "stale") {
-          // Veraltet: nichts geändert; der Grund bleibt stehen, bis der Mensch den Dialog schließt.
+          // Outdated: nothing changed; the reason stays until the human closes the dialog.
           if (message) message.textContent = `Nicht ausgeführt (${request.decision_label}): ${request.message ?? ""}`;
           return;
         }

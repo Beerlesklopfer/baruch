@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Stelle im Editor über das Speichern hinweg (Wunsch 2026-11-27: „Strg+S als normales Speichern“). Speichern
-// zeichnet den Editor neu (`ui.render`); wie in einer Textverarbeitung soll man danach dort weiterschreiben, wo man
-// war: gleiche Cursorstelle bzw. Auswahl, gleicher Scrollstand, Fokus wieder im Text – im Satzbild wie im
-// Quelltext. `capturePlace` liest die Stelle beim ersten Sperren des Editors (widgets.ts `lockEditor`), bevor
-// irgendetwas neu gezeichnet wird; `restorePlace` setzt sie nach dem Neuzeichnen, wenn derselbe Abschnitt (Key)
-// wieder im Editor steht. Die Stelle zählt Zeichen des sichtbaren Texts; ist der Text danach kürzer, endet sie am
-// Ende.
+// Place in the editor across saving (wish 2026-11-27: „Strg+S als normales Speichern“). Saving
+// redraws the editor (`ui.render`); as in a word processor one should afterwards continue writing where one
+// was: same cursor position or selection, same scroll position, focus in the text again – in the typeset view as in
+// the source text. `capturePlace` reads the place when the editor is first locked (widgets.ts `lockEditor`), before
+// anything is redrawn; `restorePlace` sets it after the redraw if the same section (key)
+// stands in the editor again. The place counts characters of the visible text; if the text is shorter afterwards, it
+// ends at the end.
 
 export type Place = {
   key: string;
@@ -26,7 +26,7 @@ function openSheet(form: HTMLFormElement): HTMLElement | null {
   return root?.hasAttribute("data-ws-open") && sheet ? sheet : null;
 }
 
-/// Zeichen vom Anfang des Blatts bis zur Stelle (`node`, `offset`).
+/// Characters from the start of the sheet to the place (`node`, `offset`).
 function offsetIn(sheet: HTMLElement, node: Node, offset: number): number {
   const range = document.createRange();
   range.setStart(sheet, 0);
@@ -34,7 +34,7 @@ function offsetIn(sheet: HTMLElement, node: Node, offset: number): number {
   return range.toString().length;
 }
 
-/// Umkehrung von `offsetIn`: Textknoten und Versatz zur Zeichenzahl (am Ende geklemmt).
+/// Reverse of `offsetIn`: text node and offset for the character count (clamped at the end).
 function pointAt(sheet: HTMLElement, chars: number): [Node, number] {
   const walker = document.createTreeWalker(sheet, NodeFilter.SHOW_TEXT);
   let rest = chars;
@@ -71,7 +71,7 @@ export function capturePlace(): Place | null {
   return { key, sheet: !!sheet, start, end, scroll: body?.scrollTop ?? 0, areaScroll: area.scrollTop };
 }
 
-/// `true`, wenn die Stelle gesetzt wurde (derselbe Abschnitt steht wieder im Editor).
+/// `true` if the place was set (the same section stands in the editor again).
 export function restorePlace(place: Place): boolean {
   const form = editorForm();
   const key = form?.querySelector<HTMLInputElement>("input[name=key]")?.value;
@@ -99,7 +99,7 @@ export function restorePlace(place: Place): boolean {
     }
     area.scrollTop = place.areaScroll;
   } else {
-    // Ansicht gewechselt (Satzbild ↔ Quelltext): nur der Scrollstand passt nicht mehr sicher; Fokus in den Text.
+    // View changed (typeset view ↔ source text): only the scroll position no longer fits for sure; focus into the text.
     (sheet ?? area).focus({ preventScroll: true });
   }
   if (body) body.scrollTop = place.scroll;

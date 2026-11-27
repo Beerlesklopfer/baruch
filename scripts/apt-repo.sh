@@ -1,27 +1,27 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Erzeugt ein statisches APT-Repository (ausgeliefert unter https://baruch.bernau.family/apt/).
+# Creates a static APT repository (served under https://baruch.bernau.family/apt/).
 #
 #   scripts/apt-repo.sh [--base ARCHIV.tar.gz] ZIELORDNER PAKET.deb [PAKET.deb …]
 #
-#   --base   früherer Stand des Repositorys (apt-repo.tar.gz eines Release): Seine Pakete unter pool/ werden
-#            übernommen, damit ältere Versionen installierbar bleiben. Übernommen werden nur echte .deb-Dateien
-#            (keine Verweise, nichts außerhalb von pool/); dists/ und der Schlüssel entstehen immer neu.
+#   --base   earlier state of the repository (apt-repo.tar.gz of a release): its packages under pool/ are
+#            taken over so that older versions stay installable. Only real .deb files are taken over
+#            (no links, nothing outside pool/); dists/ and the key are always created anew.
 #
-# Aufbau:
+# Layout:
 #   ZIELORDNER/pool/main/b/baruch/*.deb
 #   ZIELORDNER/dists/stable/main/binary-{amd64,arm64}/Packages{,.gz}
-#   ZIELORDNER/dists/stable/Release            (mit Prüfsummen)
-#   ZIELORDNER/dists/stable/InRelease, Release.gpg   (nur mit Schlüssel)
-#   ZIELORDNER/baruch-archive-keyring.gpg      (öffentlicher Schlüssel, nur mit Schlüssel)
+#   ZIELORDNER/dists/stable/Release            (with checksums)
+#   ZIELORDNER/dists/stable/InRelease, Release.gpg   (only with a key)
+#   ZIELORDNER/baruch-archive-keyring.gpg      (public key, only with a key)
 #
-# Signieren: APT_GPG_KEY auf den Fingerabdruck (oder die Schlüssel-ID) eines geheimen Schlüssels setzen, der im
-# GnuPG-Schlüsselbund (GNUPGHOME) liegt. Eine Passphrase kommt aus der Datei APT_GPG_PASSPHRASE_FILE (nie als
-# Argument). Ohne APT_GPG_KEY entsteht ein unsigniertes Repository (nur zur Probe; apt lehnt es ohne
-# [trusted=yes] ab). Das Skript erzeugt nie einen Schlüssel.
+# Signing: set APT_GPG_KEY to the fingerprint (or the key ID) of a secret key that lies in the
+# GnuPG keyring (GNUPGHOME). A passphrase comes from the file APT_GPG_PASSPHRASE_FILE (never as an
+# argument). Without APT_GPG_KEY an unsigned repository is created (only as a trial; apt rejects it without
+# [trusted=yes]). The script never creates a key.
 #
-# Vorhandene Pakete im ZIELORDNER/pool bleiben liegen und werden mit aufgenommen. Ein neues Paket ersetzt ein
-# gleichnamiges aus --base (derselbe Dateiname = dieselbe Version).
+# Existing packages in ZIELORDNER/pool stay and are included. A new package replaces one
+# of the same name from --base (the same file name = the same version).
 set -eu
 
 SUITE="${APT_SUITE:-stable}"
@@ -52,8 +52,8 @@ done
 mkdir -p "$repo"
 repo="$(cd "$repo" && pwd)"
 
-# Legt ein Paket nach pool/<Komponente>/<Anfangsbuchstabe>/<Name>/; der Ort folgt aus den Feldern des Pakets,
-# nicht aus einem Pfad im Archiv.
+# Puts a package into pool/<component>/<initial letter>/<name>/; the place follows from the fields of the package,
+# not from a path in the archive.
 add_deb() {
     deb="$1"
     name="$(dpkg-deb -f "$deb" Package)"
@@ -78,7 +78,7 @@ if [ -n "$base" ]; then
     tar -xzf "$base" -C "$old" --no-same-owner --no-same-permissions
     taken=0
     if [ -d "$old/pool" ]; then
-        # -type f folgt keinen Verweisen; die Liste steht in einer Datei, damit ein Fehler in add_deb abbricht.
+        # -type f follows no links; the list stands in a file so that an error in add_deb aborts.
         find "$old/pool" -type f -name '*.deb' | sort > "$old/list"
         while IFS= read -r deb; do
             add_deb "$deb"
@@ -99,7 +99,7 @@ cd "$repo"
 for arch in $ARCHS; do
     dir="dists/$SUITE/$COMPONENT/binary-$arch"
     mkdir -p "$dir"
-    # Leere Liste für Architekturen ohne Paket: apt meldet dann keinen Fehler 404.
+    # Empty list for architectures without a package: apt then reports no error 404.
     apt-ftparchive --arch "$arch" packages "pool/$COMPONENT" > "$dir/Packages"
     gzip -9 -n -c "$dir/Packages" > "$dir/Packages.gz"
 done
@@ -124,7 +124,7 @@ if [ -n "${APT_GPG_KEY:-}" ]; then
     fi
     gpg "$@" --clearsign --output "dists/$SUITE/InRelease" "dists/$SUITE/Release"
     gpg "$@" --armor --detach-sign --output "dists/$SUITE/Release.gpg" "dists/$SUITE/Release"
-    # Öffentlicher Schlüssel im Binärformat, wie ihn `Signed-By:` erwartet.
+    # Public key in binary format, as `Signed-By:` expects it.
     gpg --batch --yes --export "$APT_GPG_KEY" > baruch-archive-keyring.gpg
     echo "apt-repo.sh: signiert mit $APT_GPG_KEY (InRelease, Release.gpg, baruch-archive-keyring.gpg)."
 else

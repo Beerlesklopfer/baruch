@@ -1,11 +1,12 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /verweise (Runde 30a, src/xref.rs): mögliche und kaputte Querverweise ohne JavaScript. Kontext: settings,
+{#- Page /verweise (Round 30a, src/xref.rs): possible and broken cross-references without JavaScript. Context: settings,
     work {id, title}, key, section, groups [{key, rev, label, items [{index, text, line, target, replacement,
     target_url, at_url}]}], broken [{section, label, text, url}], done, error. -#}
 {% extends "base.html" %}
 {% block title %}Querverweise – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Querverweise{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

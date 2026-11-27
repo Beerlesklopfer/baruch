@@ -1,16 +1,17 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /suche (Runde 30a, src/search/page.rs): im Werk suchen und ersetzen ohne JavaScript. Kontext: settings,
+{#- Page /suche (Round 30a, src/search/page.rs): search and replace in the work without JavaScript. Context: settings,
     work {id, title}, q, replacement, case, word, re, range, key, ranges [{word, label, checked}], revs {shown_rev,
-    shown} (nur mit Abschnitt), carried [{name, value}] (start/end/shown_rev für das Suchformular), kinds [{word, label,
-    checked}], outline [{key, label, depth, checked, current}], groups [{key, label, hits [{url, before, matched, after,
-    line, kind, kind_label}]}], summary {total, shown, truncated, timed_out, range_label}, preview {sections [{key, label,
-    base_rev, count, indices, diff_html, url}], total, truncated, timed_out, range_label}, hidden [{name, value}],
-    batch {id, query, replacement, count, undone, checks [{label, url}]}, latest {id, query, replacement, count,
-    created}, undone, error, self_url, preview_url, back_url. -#}
+    shown} (only with a section), carried [{name, value}] (start/end/shown_rev for the search form), kinds [{word,
+    label, checked}], outline [{key, label, depth, checked, current}], groups [{key, label, hits [{url, before, matched,
+    after, line, kind, kind_label}]}], summary {total, shown, truncated, timed_out, range_label}, preview {sections
+    [{key, label, base_rev, count, indices, diff_html, url}], total, truncated, timed_out, range_label}, hidden [{name,
+    value}], batch {id, query, replacement, count, undone, checks [{label, url}]}, latest {id, query, replacement,
+    count, created}, undone, error, self_url, preview_url, back_url. -#}
 {% extends "base.html" %}
 {% block title %}Suchen und ersetzen – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Suchen und ersetzen{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

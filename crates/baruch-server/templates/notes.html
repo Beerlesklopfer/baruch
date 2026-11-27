@@ -1,15 +1,16 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /werke/{id}/stichwortzettel (Runde 16c, src/pdf/notes.rs): Formatwahl als gewöhnliches
-    GET-Formular (format=a5|karten, schrift=14–28), Vorschau der Karten (je Abschnitt Nummer, Titel,
-    Zeitmarke, Dauer, Stichpunkte, Bibelstellen und welche Regel die Punkte lieferte) und der Link zum PDF.
-    Ohne JavaScript bedienbar. Auch Fehlerseite des PDF-Downloads (409, 422, 503) mit `error`.
-    Kontext: settings, work {id, title}, back, pdf_url, choices [{value, label, selected}], font_pt,
-    min_pt, max_pt, cards, total_clock, target_clock, file_name, error; Runde 22: draft_url (Link „Als Entwurf
-    herunterladen“ mit &entwurf=1, ändert die Einstellung nicht). -#}
+{#- Page /werke/{id}/stichwortzettel (Round 16c, src/pdf/notes.rs): format choice as an ordinary
+    GET form (format=a5|karten, schrift=14–28), preview of the cards (per section number, title,
+    time mark, duration, key points, Bible passages and which rule supplied the points) and the link to the PDF.
+    Usable without JavaScript. Also the error page of the PDF download (409, 422, 503) with `error`.
+    Context: settings, work {id, title}, back, pdf_url, choices [{value, label, selected}], font_pt,
+    min_pt, max_pt, cards, total_clock, target_clock, file_name, error; Round 22: draft_url (link „Als Entwurf
+    herunterladen“ with &entwurf=1, does not change the setting). -#}
 {% extends "base.html" %}
 {% block title %}Stichwortzettel – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Stichwortzettel{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ back }}">Zurück zum Werk</a>

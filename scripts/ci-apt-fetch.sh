@@ -1,20 +1,20 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Holt apt-repo.tar.gz des letzten veröffentlichten Release (Grundlage für das nächste APT-Repository in
-# release.yml; in pages.yml der Stand, der unter /apt/ wieder ausgeliefert wird).
+# Fetches apt-repo.tar.gz of the last published release (basis for the next APT repository in
+# release.yml; in pages.yml the state that is served again under /apt/).
 #
 #   scripts/ci-apt-fetch.sh ZIELORDNER
 #
-# Umgebung: GH_REPO (Besitzer/Name), GH_TOKEN (nur Leserechte nötig); Werkzeug: gh.
-# Ergebnis: ZIELORDNER/apt-repo.tar.gz, geprüft gegen SHA256SUMS desselben Release; das Tag steht auf der
-# Standardausgabe.
+# Environment: GH_REPO (owner/name), GH_TOKEN (only read rights needed); tool: gh.
+# Result: ZIELORDNER/apt-repo.tar.gz, checked against SHA256SUMS of the same release; the tag is printed on
+# standard output.
 #
-# Exit 0  Archiv liegt vor.
-# Exit 3  Es gibt kein veröffentlichtes Release mit apt-repo.tar.gz (erstes Release) – kein Fehler.
-# Exit 1  alles andere (Netz, Rechte, Prüfsumme). Ein Fehler darf nie wie „kein Release“ aussehen, sonst
-#         verschwände das Repository bei einer Störung von der Webseite.
+# Exit 0  the archive is there.
+# Exit 3  there is no published release with apt-repo.tar.gz (first release) – not an error.
+# Exit 1  everything else (network, rights, checksum). An error must never look like "no release", otherwise
+#         the repository would disappear from the website on a disruption.
 #
-# Grenze: Entwürfe und Vorabversionen zählen nicht; ein Token mit `contents: read` sieht Entwürfe gar nicht
+# Limit: drafts and pre-releases do not count; a token with `contents: read` does not see drafts at all
 # (docs/Verteilung.md).
 set -eu
 
@@ -28,8 +28,8 @@ for needed in gh sha256sum python3; do
     command -v "$needed" >/dev/null 2>&1 || { echo "ci-apt-fetch.sh: $needed fehlt." >&2; exit 1; }
 done
 
-# Jüngstes veröffentlichtes Release, das das Archiv trägt (nicht bloß „latest“: ein Release ohne Archiv würde
-# sonst das Repository leeren). Entwürfe und Vorabversionen zählen nicht.
+# Youngest published release that carries the archive (not merely "latest": a release without the archive would
+# otherwise empty the repository). Drafts and pre-releases do not count.
 if ! releases="$(gh api "repos/$GH_REPO/releases?per_page=100")"; then
     echo "ci-apt-fetch.sh: Die Liste der Releases von $GH_REPO ließ sich nicht lesen." >&2
     exit 1

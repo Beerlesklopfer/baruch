@@ -1,10 +1,11 @@
-{#- Seite /gliederung/bearbeiten: ein Gliederungspunkt ohne JavaScript – umbenennen, Ebene ändern,
-    verschieben, neuen Punkt davor/danach/darunter anlegen, löschen (mit Kästchen confirm). Formulare an
-    /gliederung/act. Kontext: work, entry, entries (Ziele), lq, lq_q, work_url, manager_url. -#}
+{#- Page /gliederung/bearbeiten: one outline item without JavaScript – rename, change the level,
+    move, create a new item before/after/below, delete (with the checkbox confirm). Forms to
+    /gliederung/act. Context: work, entry, entries (targets), lq, lq_q, work_url, manager_url. -#}
 {% extends "base.html" %}
 {% block title %}{{ entry.title }} bearbeiten – Gliederung – Baruch{% endblock %}
 {% block page_title %}Gliederungspunkt bearbeiten · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ manager_url }}">Gliederung</a>

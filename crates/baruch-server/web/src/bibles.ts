@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „bibles“ (Runde 15, Bibeln in der Literatur). Ohne JavaScript geht alles über die Seite
-// /literatur/bibel (GET-Formulare, Feld „Stelle“, POST /literatur/bibel/act). Mit JavaScript:
-// - Klick auf eine Versnummer setzt die Stelle („Ps 139,23“) ins Feld „Stelle“ des Formulars „Verse verwenden“
-//   (Runde 19c: immer die deutsche Stelle, auch bei einem Modul in anderer Verszählung – der Server bildet jeden
-//   Vers zurück und schreibt sie in `data-verse-ref`; ohne JavaScript schlägt der Link sie auf);
-//   Umschalt-Klick erweitert sie bis zu diesem Vers („Ps 139,23-24“) und markiert die Verse.
-// - Markierter Text in den Versen: die berührten Verse werden zur Stelle (Anfang bis Ende der Markierung).
-// Der Text selbst kommt immer vom Server aus dem Modul (Feld `ref`), nie aus dem Browser.
+// Widget „bibles“ (Round 15, Bibles in the literature). Without JavaScript everything goes through the page
+// /literatur/bibel (GET forms, field „Stelle“, POST /literatur/bibel/act). With JavaScript:
+// - A click on a verse number puts the passage („Ps 139,23“) into the field „Stelle“ of the form „Verse verwenden“
+//   (Round 19c: always the German passage, also for a module with a different versification – the server maps every
+//   verse back and writes it into `data-verse-ref`; without JavaScript the link looks it up);
+//   Shift-click extends it up to this verse („Ps 139,23-24“) and marks the verses.
+// - Selected text in the verses: the touched verses become the passage (start to end of the selection).
+// The text itself always comes from the server out of the module (field `ref`), never from the browser.
 
 import { register } from "./widgets.js";
 
@@ -17,7 +17,7 @@ export function splitRef(reference: string): { book: string; chapter: number; ve
   return { book: match[1], chapter: Number(match[2]), verse: Number(match[3]) };
 }
 
-/// Stelle von `from` bis `to` (beide „Buch Kap,Vers“): gleiches Kapitel „Ps 139,23-24“, sonst „Ps 139,23-140,2“.
+/// Passage from `from` to `to` (both „Buch Kap,Vers“): same chapter „Ps 139,23-24“, otherwise „Ps 139,23-140,2“.
 export function spanRef(from: string, to: string): string {
   const a = splitRef(from);
   const b = splitRef(to);

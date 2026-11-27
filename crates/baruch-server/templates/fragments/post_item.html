@@ -1,19 +1,20 @@
-{#- Beiträge im Chat (Runde 30c, chat-bedienung). Drei Makros, alle ohne Zugriff auf den Kontext der Seite (alles kommt
-    über die Argumente):
-    - post_item(post): Kopf und Text eines Beitrags. Kopf: Autor (Farbe nur über post.style aus personas::style), Zeit,
-      „bearbeitet“, die Grundlage „geprüft: …“ (post.extra.basis aus PostMeta.basis_label, nicht vom Modell), „antwortet
-      auf Beitrag n von @…“ (Relay), „Wiederholung von Beitrag n nach Fassung m“. Text: post.extra.segments – sicheres
-      Markdown-Teilset aus chat_render (maskiert, Links nur von Baruch), Befunde als eigene Blöcke div.post-finding mit dem
-      Makro finding_block(card) (chat-loesungen; Karte aus post.extra.finding_cards). Ohne post.extra der Text wörtlich.
-      Der Klartext für „Kopieren“ steht versteckt in pre.post-plain (mit „- “-Zeilen).
-    - post_entry(post, at): ein ganzer Beitrag des Abschnitts-Chats (Arbeitsseite und post.since) mit Werkzeugen:
-      ↻ Wiederholen (Formular an POST /beitraege/act, method post.repeat, data-rpc; nur Persona-Beiträge mit bekanntem
-      Auftrag, post.extra.can_repeat), ✕ Löschen (ohne JavaScript Link auf /beitrag?work&id#loeschen, mit JavaScript
-      Rückfrage und RPC post.delete, data-post-delete), Kopieren/Zitieren (Knöpfe erst mit JavaScript), „Beitrag öffnen“,
-      Lösungen (Makro post_solutions, chat-loesungen) und „Verwalten“. at = {work, key, node, rev, view, lq, targets}.
-    - thread_entry(e, at): ein Fadenbeitrag (Seite /faden und thread.since) mit ↻ (POST /faden/act, method
-      thread.repeat) und ✕ (Kästchen und POST /faden/act, method thread.post_delete; mit JavaScript Rückfrage und RPC).
-      at = {work, thread}. -#}
+{#- Posts in the chat (Round 30c, chat-bedienung). Three macros, all without access to the context of the page
+    (everything comes through the arguments):
+    - post_item(post): head and text of a post. Head: author (colour only through post.style from personas::style),
+      time, „bearbeitet“, the basis „geprüft: …“ (post.extra.basis from PostMeta.basis_label, not from the model),
+      „antwortet auf Beitrag n von @…“ (relay), „Wiederholung von Beitrag n nach Fassung m“. Text: post.extra.segments –
+      safe Markdown subset from chat_render (escaped, links only from Baruch), findings as blocks of their own
+      div.post-finding with the macro finding_block(card) (chat-loesungen; card from post.extra.finding_cards). Without
+      post.extra the text verbatim. The plain text for „Kopieren“ stands hidden in pre.post-plain (with „- “ lines).
+    - post_entry(post, at): a whole post of the section chat (workspace page and post.since) with tools:
+      ↻ Wiederholen (form to POST /beitraege/act, method post.repeat, data-rpc; only persona posts with a known
+      job, post.extra.can_repeat), ✕ Löschen (without JavaScript a link to /beitrag?work&id#loeschen, with JavaScript
+      a confirmation and RPC post.delete, data-post-delete), Kopieren/Zitieren (buttons only with JavaScript), „Beitrag
+      öffnen“, solutions (macro post_solutions, chat-loesungen) and „Verwalten“. at = {work, key, node, rev, view, lq,
+      targets}.
+    - thread_entry(e, at): a thread post (page /faden and thread.since) with ↻ (POST /faden/act, method
+      thread.repeat) and ✕ (checkbox and POST /faden/act, method thread.post_delete; with JavaScript a confirmation and
+      RPC). at = {work, thread}. -#}
 {%- from "fragments/finding_block.html" import finding_block %}
 {%- from "fragments/post_solutions.html" import post_solutions %}
 

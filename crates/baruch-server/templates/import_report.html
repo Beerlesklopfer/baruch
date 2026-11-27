@@ -1,10 +1,11 @@
-{#- Bericht eines Imports mit Hinweisen (Runde 21b, POST /werke/import → 200): Das Werk ist angelegt; der Bericht nennt,
-    was nicht wörtlich übernommen wurde (Hinweise mit Zeile) und welche Bilder übersprungen sind (mit Grund).
-    Ohne JavaScript bedienbar. Kontext: settings, report (ImportReport), work_url. -#}
+{#- Report of an import with notes (Round 21b, POST /werke/import → 200): the work is created; the report names
+    what was not taken over verbatim (notes with line) and which images were skipped (with reason).
+    Usable without JavaScript. Context: settings, report (ImportReport), work_url. -#}
 {% extends "base.html" %}
 {% block title %}Import: {{ report.title }} – Baruch{% endblock %}
 {% block page_title %}Import-Bericht{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Weiter</summary><div class="band-items" role="group" aria-label="Weiter">
     <a class="btn" href="/werke">Werke</a>

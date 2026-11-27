@@ -1,15 +1,16 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /werke/{id}/epub/vorschau (Runde 20b, src/epub_preview.rs): das EPUB des Werks in mehreren
-    Reader-Profilen nebeneinander, ohne JavaScript bedienbar (Formular-GET, iframes, Links). Kontext: settings,
-    work {id, title}, notices [Text], choices [{slug, name, required, checked}], files [{href, title, kind, boundary,
+{#- Page /werke/{id}/epub/vorschau (Round 20b, src/epub_preview.rs): the EPUB of the work in several
+    reader profiles side by side, usable without JavaScript (form GET, iframes, links). Context: settings,
+    work {id, title}, notices [text], choices [{slug, name, required, checked}], files [{href, title, kind, boundary,
     current, link}], file?, frames [{slug, name, device, width, height, via_conversion, note, night, src, open,
-    lacks [Text]}], endnotes, night, warnings [{code, message, key}], panel (fertiges HTML von
+    lacks [text]}], endnotes, night, warnings [{code, message, key}], panel (finished HTML from
     epub_check::preview_panel), download, check_href, action. Widget epub-preview (web/src/epub_preview.ts):
-    schickt das Formular bei jeder Änderung selbst ab. -#}
+    submits the form itself on every change. -#}
 {% extends "base.html" %}
 {% block title %}EPUB-Vorschau – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: EPUB-Vorschau{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">EPUB</summary><div class="band-items" role="group" aria-label="EPUB">

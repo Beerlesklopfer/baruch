@@ -1,45 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „chat“ (Runde 8, Abzeichen „neu“ seit Runde 15): Abschnitts-Chat ans Ende rollen und Beiträge
-// markieren, die seit dem letzten Besuch dieses Abschnitts dazukamen (Klasse `post-new` und seit Runde 18a das
-// Wort „neu“ als `span.post-new-label` hinter dem Namen). Der Server liefert je Beitrag
-// `data-post-created` (Zeit des Servers, vergleichbar als Text), bei Beiträgen des Menschen `data-post-own` und
-// im Akkordeon-Kopf das Abzeichen `.chat-count` mit der Zahl; ohne JavaScript bleibt es bei der Zahl.
+// Widget „chat“ (Round 8, badge „neu“ since Round 15): scroll the section chat to the end and mark posts
+// that were added since the last visit of this section (class `post-new` and since Round 18a the
+// word „neu“ as `span.post-new-label` behind the name). The server supplies per post
+// `data-post-created` (time of the server, comparable as text), for posts of the human `data-post-own` and
+// in the accordion head the badge `.chat-count` with the number; without JavaScript only the number remains.
 //
-// Gemerkt wird in LocalStorage `baruch_chat_seen` = {"<work>-<key>": "<größtes created>" | "", "w:<work>":
-// "<größtes created im Werk>"}. Regeln (Runde 15):
-// - Eigene Beiträge (`data-post-own`) zählen nie als neu – auch nicht, wenn sie nach dem Neuzeichnen erscheinen.
-// - Erster Besuch eines Abschnitts: neu sind fremde Beiträge seit dem letzten Besuch irgendeines Abschnitts
-//   dieses Werks (`w:<work>`); gab es auch den nicht, ist nichts neu (erste Nutzung).
-// - Leerer Chat: gemerkt wird „leer“ (""), keine Uhrzeit des Browsers – beim nächsten Besuch ist dann jeder
-//   fremde Beitrag neu. Verglichen werden nur Zeiten des Servers.
-// Jeder Zugriff auf LocalStorage steht in try/catch (gesperrt, voll, privates Fenster): Dann gibt es eben keine
-// Markierung.
+// Remembered in LocalStorage `baruch_chat_seen` = {"<work>-<key>": "<largest created>" | "", "w:<work>":
+// "<largest created in the work>"}. Rules (Round 15):
+// - Own posts (`data-post-own`) never count as new – not even when they appear after the redraw.
+// - First visit of a section: new are foreign posts since the last visit of any section
+//   of this work (`w:<work>`); if there was none either, nothing is new (first use).
+// - Empty chat: „leer“ ("") is remembered, not a clock time of the browser – on the next visit every
+//   foreign post is then new. Only times of the server are compared.
+// Every access to LocalStorage stands in try/catch (blocked, full, private window): then there simply is no
+// marking.
 //
-// Runde 28 (chat-auftrag), Chat bedienbar: Der Chat rollt in sich (Höhe in app.css begrenzt) und steht beim Öffnen am
-// neuesten Beitrag; ist er nicht unten, zeigt „Neue Beiträge ↓“ (`[data-chat-jump]`) den Weg zurück. „Ältere
-// Beiträge“ (`[data-chat-older]`, ohne JavaScript ein Link auf /beitraege) lädt über RPC `post.page` nach. Je Beitrag
-// „Kopieren“ (`[data-post-copy]`, Zwischenablage; ohne JavaScript das markierbare Feld auf /beitrag) und „Zitieren“
-// (`[data-post-quote]`, „> Autor: …“ ins Eingabefeld). Die Knöpfe stehen mit `hidden` im HTML und erscheinen erst
-// hier – ohne JavaScript täten sie nichts. `enableCopy` nutzen auch /beitraege, /beitrag („chat-page“) und /faden.
+// Round 28 (chat-auftrag), chat usable: the chat scrolls within itself (height limited in app.css) and stands at the
+// newest post on opening; if it is not at the bottom, „Neue Beiträge ↓“ (`[data-chat-jump]`) shows the way back.
+// „Ältere Beiträge“ (`[data-chat-older]`, without JavaScript a link to /beitraege) loads more through RPC `post.page`.
+// Per post „Kopieren“ (`[data-post-copy]`, clipboard; without JavaScript the selectable field on /beitrag) and
+// „Zitieren“ (`[data-post-quote]`, „> Autor: …“ into the input field). The buttons stand in the HTML with `hidden` and
+// appear only here – without JavaScript they would do nothing. `enableCopy` is also used by /beitraege, /beitrag
+// („chat-page“) and /faden.
 //
-// Runde 30c (chat-bedienung):
-// - „Kopieren“ liefert den Klartext des Servers (`pre.post-plain`, „- “-Zeilen, ohne Auszeichnung).
-// - ✕ Löschen (`a[data-post-delete]`, ohne JavaScript ein Link auf /beitrag#loeschen): Rückfrage mit `confirm`, dann RPC
-//   `post.delete {confirm: true}`; der Beitrag verschwindet ohne Neuladen. Scheitert der Aufruf, führt der Link weiter.
-// - Live ([`startLive`]): Solange das Chat-Akkordeon offen und die Seite sichtbar ist, fragt das Widget alle
-//   [`POLL_MS`] ms `post.since {key, after}` ab (sofort nach dem Ende eines SSE-Stroms: Ereignis `baruch:chat-refresh`
-//   aus assist.ts). Neue Beiträge kommen als fertiges HTML des Servers (Makro `post_entry`) ans Ende, „@x schreibt …“
-//   und Fehler gescheiterter Modellaufrufe stehen in `div[data-chat-live]` (role=status). Ohne JavaScript bleibt es bei
-//   der Weiterleitung auf den Chat mit der Antwort. Dieselbe Abfrage nutzt der Faden (`thread.since`, threads.ts).
-// - `a[data-jump]` in Beiträgen öffnet jump.ts (suchen-verweise); dieses Widget fasst sie nicht an.
+// Round 30c (chat-bedienung):
+// - „Kopieren“ supplies the plain text of the server (`pre.post-plain`, „- “ lines, without markup).
+// - ✕ Löschen (`a[data-post-delete]`, without JavaScript a link to /beitrag#loeschen): confirmation with `confirm`,
+//   then RPC `post.delete {confirm: true}`; the post disappears without reloading. If the call fails, the link leads
+//   on.
+// - Live ([`startLive`]): as long as the chat accordion is open and the page visible, the widget queries every
+//   [`POLL_MS`] ms `post.since {key, after}` (at once after the end of an SSE stream: event `baruch:chat-refresh`
+//   from assist.ts). New posts come as finished HTML of the server (macro `post_entry`) to the end, „@x schreibt …“
+//   and errors of failed model calls stand in `div[data-chat-live]` (role=status). Without JavaScript the
+//   redirect to the chat with the answer remains. The thread uses the same query (`thread.since`, threads.ts).
+// - `a[data-jump]` in posts opens jump.ts (suchen-verweise); this widget does not touch them.
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
 const STORAGE = "baruch_chat_seen";
-/// Höchstzahl gemerkter Einträge; ältere fallen heraus.
+/// Maximum number of remembered entries; older ones drop out.
 const MAX_ENTRIES = 500;
-/// Gemerkter Wert für „beim letzten Besuch war der Chat leer“.
+/// Remembered value for "the chat was empty on the last visit".
 export const EMPTY = "";
 
 type Seen = Record<string, string>;
@@ -66,12 +68,12 @@ function writeSeen(seen: Seen): void {
     for (const key of keys.slice(0, Math.max(0, keys.length - MAX_ENTRIES))) delete seen[key];
     window.localStorage.setItem(STORAGE, JSON.stringify(seen));
   } catch {
-    // LocalStorage gesperrt oder voll: nichts merken.
+    // LocalStorage blocked or full: remember nothing.
   }
 }
 
-/// Welche Beiträge sind neu? `last` = gemerkter Stand des Abschnitts (`undefined` = nie besucht, `""` = war
-/// leer), `workLast` = gemerkter Stand des Werks (für den ersten Besuch). Eigene Beiträge sind nie neu.
+/// Which posts are new? `last` = remembered state of the section (`undefined` = never visited, `""` = was
+/// empty), `workLast` = remembered state of the work (for the first visit). Own posts are never new.
 export function newSince(created: string[], own: boolean[], last: string | undefined, workLast?: string): boolean[] {
   const since = last ?? (workLast === EMPTY ? undefined : workLast);
   return created.map((c, i) => {
@@ -80,19 +82,19 @@ export function newSince(created: string[], own: boolean[], last: string | undef
   });
 }
 
-/// Größter Zeitpunkt (ISO-Zeiten sind als Text vergleichbar); `before`, wenn nichts größer ist.
+/// Largest point in time (ISO times are comparable as text); `before` if nothing is larger.
 export function latest(created: string[], before: string | undefined): string | undefined {
   const start = before === EMPTY ? undefined : before;
   return created.reduce<string | undefined>((max, c) => (c !== "" && (max === undefined || c > max) ? c : max), start);
 }
 
-/// Neu einreihen, damit die Kürzung die ältesten Einträge trifft.
+/// Re-insert so that the trimming hits the oldest entries.
 function remember(seen: Seen, key: string, value: string): void {
   delete seen[key];
   seen[key] = value;
 }
 
-/// Beiträge markieren, die seit dem letzten Besuch dazukamen (siehe Kopf), und den Stand merken.
+/// Mark posts that were added since the last visit (see the header) and remember the state.
 function markNew(chat: HTMLElement): void {
   const work = chat.dataset.work;
   const key = chat.dataset.key;
@@ -108,7 +110,7 @@ function markNew(chat: HTMLElement): void {
   posts.forEach((post, i) => {
     if (!marks[i]) return;
     post.classList.add("post-new");
-    // Runde 18a: „neu“ auch als Wort hinter dem Namen, nicht nur als farbiger Rand (Farbe allein reicht nicht).
+    // Round 18a: „neu“ also as a word behind the name, not only as a coloured border (colour alone is not enough).
     const author = post.querySelector<HTMLElement>(".post-author");
     if (author && !author.querySelector(".post-new-label")) {
       const label = document.createElement("span");
@@ -129,7 +131,7 @@ function markNew(chat: HTMLElement): void {
   }
   const newest = latest(created, seen[id]);
   if (newest === undefined) {
-    // Leerer Chat: „leer“ merken (keine Uhrzeit des Browsers).
+    // Empty chat: remember „leer“ (no clock time of the browser).
     if (seen[id] !== EMPTY) remember(seen, id, EMPTY);
   } else if (newest !== seen[id]) {
     remember(seen, id, newest);
@@ -139,23 +141,23 @@ function markNew(chat: HTMLElement): void {
   writeSeen(seen);
 }
 
-// ---- Runde 28: Kopieren, Zitieren, Rollen, ältere Beiträge ----------------------------------------------------
+// ---- Round 28: copying, quoting, scrolling, older posts -------------------------------------------------------
 
-/// Höchstens so viele Zeichen des zitierten Beitrags im (einzeiligen) Eingabefeld.
+/// At most this many characters of the quoted post in the (single-line) input field.
 export const QUOTE_CHARS = 300;
-/// Abstand zum unteren Rand (Pixel), ab dem der Chat als „unten“ gilt.
+/// Distance to the bottom edge (pixels) from which the chat counts as "at the bottom".
 const NEAR_BOTTOM = 24;
 
-/// Zitat für das einzeilige Eingabefeld: „> Autor: Text“, Leerraum zusammengezogen, lange Texte mit „…“ gekürzt,
-/// danach ein Leerzeichen für die eigene Antwort.
+/// Quotation for the single-line input field: „> Autor: Text“, whitespace collapsed, long texts shortened with „…“,
+/// then a space for the own answer.
 export function quoteLine(author: string, body: string): string {
   const flat = body.replace(/\s+/g, " ").trim();
   const cut = flat.length > QUOTE_CHARS ? `${flat.slice(0, QUOTE_CHARS).trimEnd()} …` : flat;
   return `> ${author}: ${cut} `;
 }
 
-/// Text eines Beitrags: der Klartext des Servers (Runde 30c), das markierbare Feld der Beitragsseite oder der Text im
-/// Chat.
+/// Text of a post: the plain text of the server (Round 30c), the selectable field of the post page or the text in the
+/// chat.
 export function postText(item: Element): string {
   const plain = item.querySelector<HTMLElement>("pre.post-plain");
   if (plain?.textContent) return plain.textContent;
@@ -164,7 +166,7 @@ export function postText(item: Element): string {
   return item.querySelector(".post-body")?.textContent ?? "";
 }
 
-/// In die Zwischenablage; ohne Clipboard-API (unsicherer Ursprung, alter Browser) über ein verstecktes Textfeld.
+/// Into the clipboard; without the Clipboard API (insecure origin, old browser) through a hidden text field.
 export async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -172,7 +174,7 @@ export async function copyText(text: string): Promise<boolean> {
       return true;
     }
   } catch {
-    // weiter mit dem Rückfall
+    // continue with the fallback
   }
   const area = document.createElement("textarea");
   area.value = text;
@@ -191,7 +193,7 @@ export async function copyText(text: string): Promise<boolean> {
   return ok;
 }
 
-/// „Kopieren“ je Beitrag sichtbar machen und bedienen (einmal je Wurzel).
+/// Make „Kopieren“ per post visible and operable (once per root).
 export function enableCopy(root: ParentNode): void {
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-post-copy]")) {
     if (button.dataset.copyReady) continue;
@@ -209,7 +211,7 @@ export function enableCopy(root: ParentNode): void {
   }
 }
 
-/// „Zitieren“ je Beitrag: „> Autor: …“ an den Anfang des Eingabefelds des Chats.
+/// „Zitieren“ per post: „> Autor: …“ at the beginning of the input field of the chat.
 function enableQuote(chat: HTMLElement): void {
   const input = chat.closest(".acc-body")?.querySelector<HTMLInputElement>(".chat-input input[name=message]");
   for (const button of chat.querySelectorAll<HTMLButtonElement>("[data-post-quote]")) {
@@ -231,12 +233,12 @@ function nearBottom(chat: HTMLElement): boolean {
   return chat.scrollHeight - chat.scrollTop - chat.clientHeight <= NEAR_BOTTOM;
 }
 
-/// An den neuesten Beitrag rollen.
+/// Scroll to the newest post.
 export function toNewest(chat: HTMLElement): void {
   chat.scrollTop = chat.scrollHeight;
 }
 
-/// „Neue Beiträge ↓“: sichtbar, solange der Chat nicht unten steht; ein Klick rollt hinunter.
+/// „Neue Beiträge ↓“: visible as long as the chat is not at the bottom; a click scrolls down.
 function enableJump(chat: HTMLElement): void {
   const jump = chat.parentElement?.querySelector<HTMLButtonElement>("[data-chat-jump]");
   if (!jump) return;
@@ -251,8 +253,8 @@ function enableJump(chat: HTMLElement): void {
 
 type PagePost = { id: number; author: string; body: string; time: string; edited?: string | null; style?: string | null; url: string };
 
-/// Einen nachgeladenen Beitrag bauen (schlicht: Autor, Zeit, Text, Kopieren/Zitieren, „Beitrag öffnen“ für alles
-/// Weitere). Text nur über textContent, Farbe nur aus dem Server (geprüfte Variablen).
+/// Build a post loaded later (plain: author, time, text, Kopieren/Zitieren, „Beitrag öffnen“ for everything
+/// else). Text only through textContent, colour only from the server (checked variables).
 function olderItem(post: PagePost): HTMLElement {
   const item = document.createElement("div");
   item.className = "post-item";
@@ -299,7 +301,7 @@ function olderItem(post: PagePost): HTMLElement {
   return item;
 }
 
-/// „Ältere Beiträge“: über `post.page` vor dem ersten gezeigten Beitrag nachladen, ohne die Stelle zu verlieren.
+/// „Ältere Beiträge“: load more through `post.page` before the first shown post without losing the place.
 function enableOlder(chat: HTMLElement, work: number, key: number): void {
   const link = chat.querySelector<HTMLAnchorElement>("[data-chat-older]");
   if (!link) return;
@@ -322,23 +324,23 @@ function enableOlder(chat: HTMLElement, work: number, key: number): void {
         }
       })
       .catch(() => {
-        // Ohne Antwort bleibt der Link: Er führt auf die ganze Chat-Historie (/beitraege).
+        // Without an answer the link stays: it leads to the whole chat history (/beitraege).
         window.location.href = link.href;
       });
   });
 }
 
-// ---- Runde 30c: Löschen, Live-Anzeige ---------------------------------------------------------------------------
+// ---- Round 30c: deleting, live display --------------------------------------------------------------------------
 
-/// Abstand der Abfragen (ms).
+/// Interval of the queries (ms).
 export const POLL_MS = 3000;
 
-/// Frage vor dem Löschen.
+/// Question before deleting.
 export function deleteQuestion(id: number, author: string): string {
   return `Beitrag ${id} von ${author} löschen? Der Spiegel hält ihn im Lösch-Commit fest.`;
 }
 
-/// ✕ je Beitrag: Rückfrage, RPC `post.delete`, Beitrag entfernen (einmal je Link).
+/// ✕ per post: confirmation, RPC `post.delete`, remove the post (once per link).
 export function enableDelete(root: ParentNode): void {
   for (const link of root.querySelectorAll<HTMLAnchorElement>("a[data-post-delete]")) {
     if (link.dataset.deleteReady) continue;
@@ -362,21 +364,21 @@ export function enableDelete(root: ParentNode): void {
           }
         })
         .catch(() => {
-          // Ohne Antwort führt der Link auf die Bestätigungsseite (wie ohne JavaScript).
+          // Without an answer the link leads to the confirmation page (as without JavaScript).
           window.location.href = link.href;
         });
     });
   }
 }
 
-/// Antwort von `post.since` bzw. `thread.since`.
+/// Answer of `post.since` or `thread.since`.
 export type SinceAnswer = {
   posts: { id: number; author: string; html: string }[];
   typing: { persona: string; since: string }[];
   failures: { persona: string; message: string; at: string }[];
 };
 
-/// Zeile „@lektor schreibt …“ (mehrere mit „und“).
+/// Line „@lektor schreibt …“ (several with „und“).
 export function typingLine(typing: { persona: string }[]): string {
   const names = [...new Set(typing.map((t) => t.persona))];
   if (names.length === 0) return "";
@@ -384,7 +386,7 @@ export function typingLine(typing: { persona: string }[]): string {
   return `${list} ${names.length === 1 ? "schreibt" : "schreiben"} …`;
 }
 
-/// Fehler, die noch nicht gezeigt wurden (Schlüssel aus Zeit und Persona), und die Schlüssel danach.
+/// Errors that have not been shown yet (key from time and persona), and the keys afterwards.
 export function freshFailures<T extends { persona: string; at: string }>(failures: T[], seen: Set<string>): T[] {
   return failures.filter((f) => {
     const id = `${f.at}|${f.persona}`;
@@ -394,10 +396,10 @@ export function freshFailures<T extends { persona: string; at: string }>(failure
   });
 }
 
-/// Schon gezeigte Fehler (über das Neuzeichnen hinweg, solange die Seite offen ist).
+/// Errors already shown (across the redraw, as long as the page is open).
 const SEEN_FAILURES = new Set<string>();
 
-/// Größte id unter den Beiträgen der Wurzel.
+/// Largest id among the posts of the root.
 function lastPostId(root: ParentNode): number {
   let max = 0;
   for (const item of root.querySelectorAll<HTMLElement>("[data-post-id]")) {
@@ -408,20 +410,20 @@ function lastPostId(root: ParentNode): number {
 }
 
 export type LiveOptions = {
-  /// Wurzel der Beiträge (neue kommen vor `before` bzw. ans Ende).
+  /// Root of the posts (new ones come before `before` or to the end).
   list: HTMLElement;
   before: Element | null;
-  /// Anzeige „schreibt …“ und Fehler.
+  /// Display „schreibt …“ and errors.
   status: HTMLElement | null;
-  /// Läuft die Abfrage gerade (Akkordeon offen, Seite sichtbar)?
+  /// Is the query running right now (accordion open, page visible)?
   active: () => boolean;
-  /// Abfrage nach `after`.
+  /// Query after `after`.
   fetch: (after: number) => Promise<SinceAnswer>;
-  /// Nach dem Einfügen neuer Beiträge (Knöpfe bedienbar machen, rollen).
+  /// After inserting new posts (make buttons operable, scroll).
   inserted: (items: HTMLElement[]) => void;
 };
 
-/// Live-Abfrage starten (siehe Kopf); endet von selbst, wenn die Wurzel aus dem Dokument verschwindet.
+/// Start the live query (see the header); ends by itself when the root disappears from the document.
 export function startLive(options: LiveOptions): void {
   let busy = false;
   const tick = async (force: boolean) => {
@@ -434,7 +436,7 @@ export function startLive(options: LiveOptions): void {
       for (const post of answer.posts) {
         if (options.list.querySelector(`[data-post-id="${post.id}"]`)) continue;
         const template = document.createElement("template");
-        // HTML des Servers (Makro der Vorlage, alles maskiert); kein Text aus dem Browser.
+        // HTML of the server (macro of the template, everything escaped); no text from the browser.
         template.innerHTML = post.html.trim();
         const item = template.content.firstElementChild;
         if (item instanceof HTMLElement) {
@@ -461,7 +463,7 @@ export function startLive(options: LiveOptions): void {
         options.status.hidden = lines.length === 0;
       }
     } catch {
-      // Abfrage gescheitert (Server weg, Werk gewechselt): beim nächsten Mal wieder.
+      // Query failed (server gone, work changed): again next time.
     } finally {
       busy = false;
     }
@@ -505,7 +507,7 @@ register("chat", (chat) => {
         enableDelete(chat);
         for (const item of items) {
           item.classList.add("post-new");
-          // Formulare der neuen Beiträge (data-rpc) bedient der Arbeitsbereich über seinen Listener am Wurzelelement.
+          // Forms of the new posts (data-rpc) are served by the workspace through its listener on the root element.
         }
         const badge = details?.querySelector<HTMLElement>(".chat-count");
         if (badge) {
@@ -519,7 +521,7 @@ register("chat", (chat) => {
   }
 });
 
-// Seiten /beitraege und /beitrag: „Kopieren“; /beitraege steht beim Öffnen am neuesten Beitrag (wie der Anker).
+// Pages /beitraege and /beitrag: „Kopieren“; /beitraege stands at the newest post on opening (like the anchor).
 register("chat-page", (page) => {
   enableCopy(page);
   enableDelete(page);

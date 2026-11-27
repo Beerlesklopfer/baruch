@@ -1,28 +1,29 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Baut die Webseite (Hugo) und prüft sie; auf Wunsch kommt das APT-Repository nach <Ausgabe>/apt/.
+# Builds the website (Hugo) and checks it; on request the APT repository goes to <Ausgabe>/apt/.
 #
 #   scripts/ci-site.sh [--site ORDNER] [--apt ARCHIV.tar.gz]
 #
-#   --site  Quelle der Seite (Vorgabe: site im Repository)
-#   --apt   apt-repo.tar.gz (aus release.yml bzw. scripts/ci-apt-fetch.sh): wird nach public/apt/ entpackt
+#   --site  source of the site (default: site in the repository)
+#   --apt   apt-repo.tar.gz (from release.yml or scripts/ci-apt-fetch.sh): is unpacked to public/apt/
 #
-# Prüfungen:
-#   1. params.version in hugo.toml = Version in Cargo.toml (scripts/version.sh) – sonst wirbt die Seite für
-#      eine Version, die es nicht gibt, und die Download-Links zeigen ins Leere.
-#   2. `hugo --minify --panicOnWarning -s ORDNER` ohne Warnung.
-#   3. public/index.html liegt vor; public/CNAME nennt genau baruch.bernau.family (GitHub Pages).
-#   3a. scripts/site-check.py über public/ (vor dem Entpacken von /apt/): keine toten internen Links und Anker,
-#      kein Bild ohne alt-Text, kein JavaScript, keine fremde Adresse für Stil, Schrift oder Bild, kein Link auf
-#      docs/Bedienung.md oder docs/Betrieb.md bei GitHub. Hat die Seite einen Abschnitt content/hilfe (mehrsprachig content/de/hilfe), muss
-#      /bedienung/ auf /hilfe/ weiterleiten; ohne ihn (Probe in ci-selftest.sh) entfällt nur diese Prüfung.
-#   4. mit --apt: public/apt/dists/stable/Release und mindestens ein Paket unter public/apt/pool/.
-#   5. Warnung (kein Abbruch), solange Platzhalter ausgeliefert würden: `aptFingerprint` in hugo.toml leer
-#      (die Seite Installation zeigt dann keinen Fingerabdruck) oder eine Seite mit `platzhalter: true` im
-#      Kopf (Impressum). Beides trägt nur der Nutzer ein; ein Abbruch verhinderte die Generalprobe.
+# Checks:
+#   1. params.version in hugo.toml = version in Cargo.toml (scripts/version.sh) – otherwise the site advertises
+#      a version that does not exist, and the download links point into the void.
+#   2. `hugo --minify --panicOnWarning -s ORDNER` without a warning.
+#   3. public/index.html is there; public/CNAME names exactly baruch.bernau.family (GitHub Pages).
+#   3a. scripts/site-check.py over public/ (before unpacking /apt/): no dead internal links and anchors,
+#      no image without alt text, no JavaScript, no foreign address for style, font or image, no link to
+#      docs/Bedienung.md or docs/Betrieb.md at GitHub. If the site has a section content/hilfe (multilingual
+#      content/de/hilfe), /bedienung/ must redirect to /hilfe/; without it (trial in ci-selftest.sh) only this check is
+#      dropped.
+#   4. with --apt: public/apt/dists/stable/Release and at least one package under public/apt/pool/.
+#   5. Warning (no abort) as long as placeholders would be served: `aptFingerprint` in hugo.toml empty
+#      (the page Installation then shows no fingerprint) or a page with `platzhalter: true` in the
+#      header (Impressum). Only the user enters both; an abort would prevent the dress rehearsal.
 #
-# Die Ausgabe ORDNER/public wird vorher gelöscht (Bauergebnis, nicht eingecheckt). HUGO nennt eine andere
-# Binärdatei als `hugo` aus dem PATH, PYTHON eine andere als `python3` (für site-check.py).
+# The output ORDNER/public is deleted beforehand (build result, not checked in). HUGO names a binary other
+# than `hugo` from the PATH, PYTHON one other than `python3` (for site-check.py).
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"

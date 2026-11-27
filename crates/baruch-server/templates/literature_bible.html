@@ -1,17 +1,19 @@
-{#- Seite /literatur/bibel (Runde 15, Bibeln in der Literatur): Bibel öffnen, Buch/Kapitel blättern, Stelle
-    aufschlagen, Wortlaut suchen, Verse zitieren (Vorschlag im Abschnitt) oder an eine Persona geben – alles ohne
-    JavaScript (GET-Formulare und POST /literatur/bibel/act). Das Widget „bibles“ (web/src/bibles.ts) füllt mit
-    einem Klick auf eine Versnummer das Feld „Stelle“ (Umschalt-Klick: bis hierher), ohne JavaScript schlägt der Link
-    die deutsche Stelle auf (Runde 19c: auch bei einem Modul in anderer Verszählung).
-    Kontext: settings, work, node?, rev?, bibles [BibleEntry], module, entry, books [{id, name, abbr, chapters,
-    url}], problem, missing (keine Bibel), reference, normalized, passages [{normalized, book, status, message,
-    verses [{chapter, verse, text, ref (deutsche Stelle, R19c), module_label, moved, url, unmapped}]}], prev_url, next_url, commentaries (HTML aus
-    bibles::commentary_panel_html, maskiert), personas, q, hits, truncated, lookup_error, search_error,
-    place_fields, has_key, notice, no_bible, no_highlight, settings_url, literature_url, work_url. -#}
+{#- Page /literatur/bibel (Round 15, Bibles in the literature): open a Bible, page through book/chapter, look up
+    a passage, search verbatim, quote verses (proposal in the section) or give them to a persona – all without
+    JavaScript (GET forms and POST /literatur/bibel/act). The widget „bibles“ (web/src/bibles.ts) fills, with
+    a click on a verse number, the field „Stelle“ (Shift-click: up to here), without JavaScript the link looks up
+    the German passage (Round 19c: also for a module with a different versification).
+    Context: settings, work, node?, rev?, bibles [BibleEntry], module, entry, books [{id, name, abbr, chapters,
+    url}], problem, missing (no Bible), reference, normalized, passages [{normalized, book, status, message,
+    verses [{chapter, verse, text, ref (German passage, R19c), module_label, moved, url, unmapped}]}], prev_url,
+    next_url, commentaries (HTML from bibles::commentary_panel_html, escaped), personas, q, hits, truncated,
+    lookup_error, search_error, place_fields, has_key, notice, no_bible, no_highlight, settings_url, literature_url,
+    work_url. -#}
 {% extends "base.html" %}
 {% block title %}Bibel{% if module %} {{ module }}{% endif %} – Literatur – Baruch{% endblock %}
 {% block page_title %}Bibel · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
@@ -36,7 +38,7 @@
   <h1 class="pane-title">Bibel {{ module }}{% if entry and entry.work_bible %} <span class="badge primary">Bibel des Werks</span>{% endif %}</h1>
   {%- if entry %}
   <p class="muted small">{{ entry.description }}</p>
-  {#- R17c: Lizenzvermerk der conf (DistributionLicense, Copyright) immer sichtbar. #}
+  {#- R17c: licence note of the conf (DistributionLicense, Copyright) always visible. #}
   <p class="small bible-notice">Lizenz (laut conf): <span data-notice>{{ entry.notice or "keine Angabe in der conf" }}</span></p>
   {%- endif %}
   {%- if problem %}
@@ -80,9 +82,9 @@
     {%- if p.status != "valid" %}
     <p class="notice small" role="status">{{ p.message }}</p>
     {%- endif %}
-    {#- Runde 19c: v.ref ist die deutsche Stelle des Verses (Rückabbildung aus der Zählung des Moduls); der Link setzt
-        sie ohne JavaScript über die Adresse (v.url, vom Server gebaut), mit JavaScript ins Feld „Stelle“. Ein Vers,
-        der sich nicht abbilden lässt, hat keinen Link, sondern den Grund (v.unmapped). #}
+    {#- Round 19c: v.ref is the German passage of the verse (mapped back from the versification of the module); the link
+        sets it without JavaScript through the address (v.url, built by the server), with JavaScript into the field
+        „Stelle“. A verse that cannot be mapped has no link but the reason (v.unmapped). #}
     <ol class="bible-verses">
       {%- for v in p.verses %}
       {%- if v.ref %}

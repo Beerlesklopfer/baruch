@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Gibt die Version von Baruch aus: [workspace.package] version in Cargo.toml.
-# Läuft der Bau für ein Tag v* (GITHUB_REF_NAME oder erstes Argument), muss das Tag dazu passen –
-# sonst Abbruch, damit kein Paket mit falscher Nummer entsteht. Versionsnummern legt nur der Nutzer fest.
+# Prints the version of Baruch: [workspace.package] version in Cargo.toml.
+# If the build runs for a tag v* (GITHUB_REF_NAME or first argument), the tag must match it –
+# otherwise abort so that no package with a wrong number is created. Only the user sets version numbers.
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"

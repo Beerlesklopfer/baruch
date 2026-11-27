@@ -1,33 +1,34 @@
-{#- Einstellungsseite „Assistenten“ (Runde 9; Runde 10: Lektor-Wahl, Modell aus der Liste des Backends,
-    Rollen-Prompt; Runde 11: je Persona ein Tab). Alle Formulare an POST /einstellungen/personas/act, ohne
-    JavaScript bedienbar:
-    - oben der Lektor (method=persona.set_lector): mode=fixed mit handle oder mode=auto (größter Kontext);
-      Vorgabe des Versuchs seit 2026-11-06: fest @lektor.
-    - Runde 16a: „Chat nur Abschnitt“ (method=persona.chat_scope_set, scope=chapter|section, id="chat").
-    - darunter je Persona ein Tab (Farbe + Name). Ohne JavaScript ist jeder Tab ein Link
-      ?persona=<handle ohne @>; alle Tafeln stehen im HTML, die nicht gewählten mit hidden. Mit
-      JavaScript schaltet web/src/persona_tabs.ts ohne Neuladen um (Adresse per history.replaceState).
-    - im Tab EIN Formular (action=save) mit Farbe, Name, Rolle (textarea), Modell (<input list> mit
-      <datalist> aus dem Backend, Freitext bleibt), Kontext, aktiv und Rollen-Prompt (großes Textfeld)
-      und genau einem Knopf „Speichern“; „Vorgabe wiederherstellen“ (action=reset_prompt) fragt erst
-      nach (rueckfrage=vorgabe), wirksam erst mit confirm=1.
-    - Runde 12: im Tab von @belege und des Lektors (rag_allowed) ein eigenes Formular action=rag mit dem
-      Kästchen on („Treffer der Bedeutungssuche als Belege mitgeben“).
-    - Runde 13: im Tab von @belege (web_allowed) das Formular an POST /websuche/act (action=switch, Kästchen
-      on, Vorgabe aus) für die Websuche über MultiGPT; ohne eingerichtetes MultiGPT ein Hinweis.
-    - Runde 15b: je Tab das Formular action=backend (Auswahl connection, Kästchen external_allowed, Anzeige
-      lokal/extern, Warnung bei externer Verbindung ohne Freigabe, wirksamer Kontext mit Warnung) und im Tab von
-      @belege und des Lektors action=bible (Kästchen on, „Bibel-Belege aus SWORD mitgeben“).
-    Kontext: work, notice, error, unknown_persona?, confirm_reset, personas [{handle, anchor, tab_q, name,
+{#- Settings page „Assistenten“ (Round 9; Round 10: choice of the lector, model from the list of the backend,
+    role prompt; Round 11: one tab per persona). All forms to POST /einstellungen/personas/act, usable without
+    JavaScript:
+    - at the top the lector (method=persona.set_lector): mode=fixed with handle or mode=auto (largest context);
+      default of the trial since 2026-11-06: fixed @lektor.
+    - Round 16a: „Chat nur Abschnitt“ (method=persona.chat_scope_set, scope=chapter|section, id="chat").
+    - below it one tab per persona (colour + name). Without JavaScript every tab is a link
+      ?persona=<handle without @>; all panels are in the HTML, those not chosen with hidden. With
+      JavaScript web/src/persona_tabs.ts switches without reloading (address by history.replaceState).
+    - in the tab ONE form (action=save) with colour, name, role (textarea), model (<input list> with
+      <datalist> from the backend, free text stays), context, active and role prompt (large text field)
+      and exactly one button „Speichern“; „Vorgabe wiederherstellen“ (action=reset_prompt) asks first
+      (rueckfrage=vorgabe), effective only with confirm=1.
+    - Round 12: in the tab of @belege and of the lector (rag_allowed) a form of its own action=rag with the
+      checkbox on („Treffer der Bedeutungssuche als Belege mitgeben“).
+    - Round 13: in the tab of @belege (web_allowed) the form to POST /websuche/act (action=switch, checkbox
+      on, default off) for the web search through MultiGPT; without a configured MultiGPT a note.
+    - Round 15b: per tab the form action=backend (choice connection, checkbox external_allowed, display
+      local/external, warning for an external connection without clearance, effective context with warning) and in the
+      tab of
+      @belege and of the lector action=bible (checkbox on, „Bibel-Belege aus SWORD mitgeben“).
+    Context: work, notice, error, unknown_persona?, confirm_reset, personas [{handle, anchor, tab_q, name,
     name_value, role, model, context_length, active, stored_active, color, chosen, color_text?, style,
     lector, model_state, model_target, prompt, prompt_custom, selected, summary, rag_allowed, rag_context, web_allowed,
     backend {connections [{id, name, kind, locality, selected}], connection_name, locality, external, external_allowed,
     blocked, context_tokens, context_reported, context_warning, bible_allowed, bible_context, bible_default}}], lector {name, handle,
     context_length, tokens, reported?, warning?}?, lector_mode, lector_fixed?, fixed_fallback, palette, models?, models_note?,
     models_pending, fetch_q, mixed_models?, websearch {on, configured}, chat_scope.
-    Runde 17a: Der Lektor zeigt die wirksame Kontextlänge (tokens, ohne Netzabfrage aus dem Zwischenspeicher, sonst
-    die Einstellung). Beim Laden fragt die Seite keine Gegenstelle; „Modellliste abfragen“ (?modelle=abfragen) holt
-    Liste und Kontext des gezeigten Tabs auf Wunsch. -#}
+    Round 17a: the lector shows the effective context length (tokens, without a network query from the cache, otherwise
+    the setting). On loading the page asks no remote side; „Modellliste abfragen“ (?modelle=abfragen) fetches
+    list and context of the shown tab on request. -#}
 {%- set work_q = "&work=" ~ work if work else "" %}
 <section class="settings-page persona-settings" data-settings-page-body="assistenten">
   {%- if notice %}
@@ -107,8 +108,8 @@
         <a class="btn" href="/einstellungen/assistenten?persona={{ p.tab_q }}{{ work_q }}" data-settings-page="assistenten">Abbrechen</a>
       </form>
       {%- endif %}
-      {#- Kein verstecktes action-Feld: Der Knopf nennt die Aktion (Enter in einem Feld löst den ersten
-          Knopf aus, also „Speichern“). #}
+      {#- No hidden action field: the button names the action (Enter in a field triggers the first
+          button, that is „Speichern“). #}
       <form class="persona-save" method="post" action="/einstellungen/personas/act">
         <input type="hidden" name="handle" value="{{ p.handle }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
@@ -130,7 +131,7 @@
           <button class="btn" type="submit" name="action" value="reset_prompt" formnovalidate{% if not p.prompt_custom %} disabled title="Es gilt schon die Vorgabe."{% else %} title="fragt vorher nach"{% endif %}>Vorgabe wiederherstellen</button>
         </div>
       </form>
-      {#- Runde 15b: Verbindung der Persona, lokal/extern, Freigabe, wirksamer Kontext. #}
+      {#- Round 15b: connection of the persona, local/external, clearance, effective context. #}
       <form class="persona-backend" id="verbindung-{{ p.anchor }}" method="post" action="/einstellungen/personas/act" data-locality="{{ p.backend.locality }}">
         <input type="hidden" name="action" value="backend">
         <input type="hidden" name="handle" value="{{ p.handle }}">

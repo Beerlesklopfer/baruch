@@ -1,7 +1,7 @@
-{#- Einstellungsseite „Darstellung“ (Runde 9): Cookies dieses Browsers. Ein Formular an
-    POST /einstellungen/darstellung/act mit allen Wahlen, ein zweites setzt die Spaltenbreiten zurück.
-    Kontext: work, notice, error, theme (system|light|dark), editor (satz|quelltext), pv (open|closed),
-    accordion (chat|personas|revisions), left, right (Text oder none). -#}
+{#- Settings page „Darstellung“ (Round 9): cookies of this browser. One form to
+    POST /einstellungen/darstellung/act with all choices, a second one resets the column widths.
+    Context: work, notice, error, theme (system|light|dark), editor (satz|quelltext), pv (open|closed),
+    accordion (chat|personas|revisions), left, right (text or none). -#}
 {%- macro choice(name, value, label, current) %}
       <label class="settings-choice"><input type="radio" name="{{ name }}" value="{{ value }}"{% if value == current %} checked{% endif %}> {{ label }}</label>
 {%- endmacro %}

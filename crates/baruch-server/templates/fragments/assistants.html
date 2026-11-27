@@ -1,28 +1,28 @@
-{#- Rechts: Akkordeon Assistenten · Fassungen · Abschnitts-Chat (immer ein Abschnitt offen; <details name>
-    geht auch ohne JavaScript; Cookie baruch_accordion = personas, revisions oder chat).
-    Das Widget „accordion“ merkt sich den offenen Abschnitt über das Neuzeichnen hinweg. Personas und
-    ihre Beiträge im Chat tragen ihre Farbe (p.style bzw. post.style: CSS-Variablen --pc-*, nur geprüfte
-    #rrggbb); „Farben …“ führt auf die Einstellungsseite /einstellungen/assistenten (Runde 9; mit
-    JavaScript öffnet settings.ts sie im Einstellungs-Popup, data-settings-open/data-settings-page).
-    Runde 10: „Prüfen“ und „Vorschlag“ an POST /assistenten/act (method persona.review bzw. persona.propose,
-    Auswahl der aktiven Persona, Vorgabe der Lektor), ohne JavaScript mit Weiterleitung; mit JavaScript
-    (Widget „assist“, web/src/assist.ts) über POST /assistenten/stream Wort für Wort mit „Abbrechen“.
-    Das Lektor-Abzeichen nennt die Wahl (lector_fixed: „fest gewählt“, sonst „größter Kontext“).
-    Runde 16b: Je Persona „lokal“ bzw. „extern“ (p.locality aus persona.list, Verbindung p.connection); extern
-    ohne Freigabe (p.blocked) ist gekennzeichnet („gesperrt“ mit Hinweis auf Einstellungen → Assistenten) und
-    nicht wählbar.
-    Runde 13: Trägt ein Beitrag eine Quelle mit dem Präfix „Web:“ (Belege der Websuche von @belege), verlinkt er
-    auf die Belegseite /websuche/belege?work&key&post (ohne JavaScript).
-    Runde 30c (chat-bedienung): Jeder Beitrag kommt aus dem Makro post_entry (fragments/post_item.html): Markdown-Teilset
-    mit geprüften Links, Befund-Blöcke, Kopf „geprüft: …“, ↻ Wiederholen und ✕ Löschen direkt sichtbar. Chat- und
-    Persona-Formular tragen die Auswahl der Prüfgrundlage (Makro basis_select, chat-loesungen; Feld basis). Über dem
-    Eingabefeld zeigt das Widget „chat“ live „@x schreibt …“ und Fehler (div.chat-live, role=status).
-    Runde 33 (Laptop-Modus): oben die Zeile `rail-bar` – „Einklappen“ (`?rrail=1`, Cookie baruch_rrail) bzw. in der
-    Schublade „Schließen“ (`#pane-editor`), wie in fragments/tree.html. -#}
+{#- Right: accordion Assistenten · Fassungen · Abschnitts-Chat (always one part open; <details name>
+    also works without JavaScript; cookie baruch_accordion = personas, revisions or chat).
+    The widget „accordion“ remembers the open part across the redraw. Personas and
+    their posts in the chat carry their colour (p.style or post.style: CSS variables --pc-*, only checked
+    #rrggbb); „Farben …“ leads to the settings page /einstellungen/assistenten (Round 9; with
+    JavaScript settings.ts opens it in the settings popup, data-settings-open/data-settings-page).
+    Round 10: „Prüfen“ and „Vorschlag“ to POST /assistenten/act (method persona.review or persona.propose,
+    choice of the active persona, default the lector), without JavaScript with a redirect; with JavaScript
+    (widget „assist“, web/src/assist.ts) through POST /assistenten/stream word by word with „Abbrechen“.
+    The lector badge names the choice (lector_fixed: „fest gewählt“, otherwise „größter Kontext“).
+    Round 16b: per persona „lokal“ or „extern“ (p.locality from persona.list, connection p.connection); external
+    without clearance (p.blocked) is marked („gesperrt“ with a pointer to Einstellungen → Assistenten) and
+    cannot be chosen.
+    Round 13: if a post carries a source with the prefix „Web:“ (evidence of the web search by @belege), it links
+    to the evidence page /websuche/belege?work&key&post (without JavaScript).
+    Round 30c (chat-bedienung): every post comes from the macro post_entry (fragments/post_item.html): Markdown subset
+    with checked links, finding blocks, head „geprüft: …“, ↻ Wiederholen and ✕ Löschen directly visible. Chat and
+    persona form carry the choice of the review basis (macro basis_select, chat-loesungen; field basis). Above the
+    input field the widget „chat“ shows live „@x schreibt …“ and errors (div.chat-live, role=status).
+    Round 33 (laptop mode): at the top the row `rail-bar` – „Einklappen“ (`?rrail=1`, cookie baruch_rrail) or, in the
+    drawer, „Schließen“ (`#pane-editor`), as in fragments/tree.html. -#}
 {%- from "fragments/post_item.html" import post_entry %}
 {%- from "fragments/basis_select.html" import basis_select %}
 {%- set lector = personas | selectattr("lector") | first %}
-{#- Runde 16b: extern ohne Freigabe (blocked) ist gesperrt: nicht wählbar für Prüfen, Vorschlag und Chat. #}
+{#- Round 16b: external without clearance (blocked) is locked: cannot be chosen for Prüfen, Vorschlag and chat. #}
 {%- set active_personas = personas | selectattr("active") | rejectattr("blocked") | list %}
 {%- macro assist_hidden() %}
       <input type="hidden" name="work" value="{{ work.id }}">
@@ -63,9 +63,9 @@
         {%- for p in active_personas %}<option value="{{ p.handle }}"{% if p.lector %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
       </select></label>
       <input type="text" name="instruction" maxlength="4000" placeholder="Hinweis (optional)" aria-label="Hinweis oder Auftrag an die Persona">
-      {#- Runde 15: Prüfen/Vorschlag für Abschnitt oder Kapitel (Baustein des Lektors, Feld name="scope"). #}
+      {#- Round 15: Prüfen/Vorschlag for section or chapter (building block of the lector, field name="scope"). #}
       {% include "fragments/assist_scope.html" ignore missing %}
-      {#- Runde 30: Prüfgrundlage (Feld name="basis"). #}
+      {#- Round 30: review basis (field name="basis"). #}
       {{- basis_select(rev.number if rev is mapping else rev, rev.open_list if rev is defined and rev is mapping else none) }}
       <div class="actions">
         <button class="btn" type="submit" name="method" value="persona.review" title="Befunde der Persona als Beitrag im Abschnitts-Chat">Prüfen</button>
@@ -81,26 +81,26 @@
   </div>
 </details>
 
-{#- Fassungen des Abschnitts (aus dem Editor ausgelagert, Wunsch 2026-11-06). #}
+{#- Revisions of the section (moved out of the editor, wish 2026-11-06). #}
 {% include "fragments/revisions.html" %}
 {% include "fragments/findings_panel.html" %}
 
-{#- Abschnitts-Chat (Runde 8): Das Abzeichen chat-count nennt die Zahl der Beiträge (auch eingeklappt, ohne
-    JavaScript); das Widget „chat“ (web/src/chat.ts) markiert Beiträge, die seit dem letzten Besuch dazukamen
-    (Klasse post-new, „k neu“ am Abzeichen; LocalStorage baruch_chat_seen). Je Beitrag ein div.post-item mit data-post-id
-    und data-post-created um den Beitrag (div.post, Farbe der Persona) und unter „Verwalten“ Formulare an POST /beitraege/act (ohne JavaScript; mit
-    JavaScript über RPC post.*): Löschen (Kästchen, der Server prüft es), Verschieben… (Ziel als festen
-    Schlüssel target_key) und In Einfall umwandeln (Schlagwörter Pflicht). key ist der gezeigte Abschnitt:
-    Dorthin geht es danach zurück.
-    Runde 15 (Abzeichen „neu“): Beiträge des Menschen tragen data-post-own (zählen nie als neu); der Link „Fäden
-    ohne Abschnitt“ führt auf /faeden (Gespräche ohne Abschnitt, z. B. aus MCP chat ohne key).
-    Runde 28 (chat-auftrag): Der Chat hat eine begrenzte Höhe und rollt (static/app.css, static/chat.css); er zeigt die
-    neuesten Beiträge (posts::visible_range), ältere über „Ältere Beiträge“ (mit JavaScript post.page, ohne die Seite
-    /beitraege). Anker id="post-<id>" je Beitrag und id="chat-neueste" am Ende (Formular-Weiterleitung landet dort).
-    Je Beitrag „Kopieren“ und „Zitieren“ (Knöpfe nur mit JavaScript, data-post-copy/data-post-quote) und der Link
-    „Beitrag öffnen“ (/beitrag: markierbares Feld, Zitieren als Formular, Verlauf – ohne JavaScript). Eigene Beiträge
-    (post.own) lassen sich unter „Verwalten“ bearbeiten (post.edit), Beiträge von Personas in Befunde umwandeln
-    (post.to_findings); „bearbeitet“ nennt die letzte Änderung. „als Auftrag“ macht einen Schreibauftrag zum Vorschlag. -#}
+{#- Section chat (Round 8): the badge chat-count names the number of posts (also when collapsed, without
+    JavaScript); the widget „chat“ (web/src/chat.ts) marks posts that were added since the last visit
+    (class post-new, „k neu“ on the badge; LocalStorage baruch_chat_seen). Per post one div.post-item with data-post-id
+    and data-post-created around the post (div.post, colour of the persona) and under „Verwalten“ forms to POST
+    /beitraege/act (without JavaScript; with JavaScript through RPC post.*): Löschen (checkbox, the server checks it),
+    Verschieben… (target as fixed key target_key) and In Einfall umwandeln (keywords mandatory). key is the shown
+    section: that is where it goes back to afterwards.
+    Round 15 (badge „neu“): posts of the human carry data-post-own (never count as new); the link „Fäden
+    ohne Abschnitt“ leads to /faeden (conversations without a section, e.g. from MCP chat without key).
+    Round 28 (chat-auftrag): the chat has a limited height and scrolls (static/app.css, static/chat.css); it shows the
+    newest posts (posts::visible_range), older ones through „Ältere Beiträge“ (with JavaScript post.page, without it the
+    page /beitraege). Anchor id="post-<id>" per post and id="chat-neueste" at the end (the form redirect lands there).
+    Per post „Kopieren“ and „Zitieren“ (buttons only with JavaScript, data-post-copy/data-post-quote) and the link
+    „Beitrag öffnen“ (/beitrag: selectable field, quoting as a form, history – without JavaScript). Own posts
+    (post.own) can be edited under „Verwalten“ (post.edit), posts of personas can be turned into findings
+    (post.to_findings); „bearbeitet“ names the last change. „als Auftrag“ turns a writing order into a proposal. -#}
 <details class="acc" name="right" data-section="chat"{% if settings.accordion == "chat" %} open{% endif %}>
   <summary class="acc-head">
     <span class="acc-title">Abschnitts-Chat</span>
@@ -124,12 +124,12 @@
     <button class="btn small chat-jump" type="button" data-chat-jump hidden title="Zum neuesten Beitrag rollen">Neue Beiträge ↓</button>
     </div>
     <div class="chat-live small" data-chat-live role="status" aria-live="polite" hidden></div>
-    {#- Runde 10: Beitrag des Menschen; erwähnte aktive Personas (@handle, höchstens drei) antworten.
-        Runde 11: Vervollständigung von „@…“. Ohne JavaScript schlägt der Browser aus dem <datalist>
-        der aktiven Personas vor; mit JavaScript ersetzt das Widget „mention“ (web/src/mention.ts) es
-        durch eine eigene Liste (role=combobox/listbox, Pfeiltasten, Tab/Enter übernimmt, Esc schließt).
-        Runde 28: „RFC …“ am Anfang bzw. „@alle“ ruft alle aktiven Personas (Lektor zuletzt mit Sammlung);
-        „als Auftrag“ (as_order) bzw. ein Schreibauftrag („@lektor Schreibe …“) wird ein Vorschlag. #}
+    {#- Round 10: post of the human; mentioned active personas (@handle, at most three) answer.
+        Round 11: completion of „@…“. Without JavaScript the browser suggests from the <datalist>
+        of the active personas; with JavaScript the widget „mention“ (web/src/mention.ts) replaces it
+        with a list of its own (role=combobox/listbox, arrow keys, Tab/Enter accepts, Esc closes).
+        Round 28: „RFC …“ at the beginning or „@alle“ calls all active personas (the lector last, with a summary);
+        „als Auftrag“ (as_order) or a writing order („@lektor Schreibe …“) becomes a proposal. #}
     <form class="chat-input" method="post" action="/assistenten/act" data-widget="assist">
       <input type="hidden" name="method" value="persona.chat">
       {{- assist_hidden() }}
@@ -137,7 +137,8 @@
       <datalist id="chat-personas-{{ node.key }}">
         <option value="@alle" data-name="alle" data-role="RFC: alle aktiven Personas, der Lektor zuletzt mit Sammlung">alle – RFC an alle aktiven Personas</option>
         {%- for p in active_personas %}<option value="{{ p.handle }}" data-name="{{ p.name }}" data-role="{{ p.role }}" data-style="{{ p.style }}">{{ p.name }} – {{ p.role }}</option>{% endfor %}
-        {#- Runde 30c: Anrede mit Namen am Anfang („Lektor, …“) – ohne JavaScript schlägt der Browser auch sie vor. #}
+        {#- Round 30c: address by name at the beginning („Lektor, …“) – without JavaScript the browser suggests these
+        too. #}
         {%- for p in active_personas %}<option value="{{ p.name }}, " data-address="1">{{ p.name }}, … – Anrede am Satzanfang</option>{% endfor %}
       </datalist>
       {%- endif %}

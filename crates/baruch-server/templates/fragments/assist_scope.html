@@ -1,9 +1,10 @@
-{#- Umfang für „Prüfen“ und „Vorschlag“ (Runde 15, Vertrag §4): eigenständig, nutzt nur node und work; Feld
-    scope = section (Vorgabe: der Abschnitt im Wortlaut, das ganze Kapitel als Umfeld) oder chapter (das
-    ganze Kapitel bzw. die ganze Predigt prüfen; Vorschlag je Abschnitt des Kapitels, jeder nur als
-    Vorschlag). Eingebunden per Include in die Formulare von fragments/assistants.html; ohne JavaScript
-    bedienbar (Optionsfelder). Die Prüfgrundlage `basis` steht seit 0.9.0 nur noch einmal im Persona-Formular (fragments/assistants.html,
-    nach diesem Include) – vorher doppelt, dann galt still nur der letzte Wert (Gegenprobe 0.9.0). -#}
+{#- Scope for „Prüfen“ and „Vorschlag“ (Round 15, contract §4): standalone, uses only node and work; field
+    scope = section (default: the section verbatim, the whole chapter as surroundings) or chapter (check the
+    whole chapter or the whole sermon; a proposal per section of the chapter, each only as a
+    proposal). Included into the forms of fragments/assistants.html; usable without JavaScript
+    (radio buttons). Since 0.9.0 the review basis `basis` stands only once in the persona form
+    (fragments/assistants.html, after this include) – before it was there twice, then only the last value applied
+    silently (cross-check 0.9.0). -#}
 <fieldset class="assist-scope small" aria-label="Umfang für Prüfen und Vorschlag">
   <label title="Der Abschnitt im Wortlaut, das ganze Kapitel als Umfeld"><input type="radio" name="scope" value="section" checked> Abschnitt{% if node and node.number %} {{ node.number }}{% endif %}</label>
   <label title="Das ganze Kapitel (bei einer Predigt die ganze Predigt) prüfen bzw. je Abschnitt einen Vorschlag schreiben lassen"><input type="radio" name="scope" value="chapter"> ganzes Kapitel</label>

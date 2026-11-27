@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Strg+Mausrad vergrößert nur den Bereich unter dem Mauszeiger (Wunsch 2026-11-06), nie die ganze Seite.
+// Ctrl+mouse wheel enlarges only the area under the mouse pointer (wish 2026-11-06), never the whole page.
 //
-// Bereiche (Zonen): jedes Element mit `data-zoom-zone="<name>"` – die Gliederung (`tree`), die rechte
-// Spalte (`assistants`) und darin das Akkordeon „Fassungen“ (`revisions`), im Editor je für sich Kopf
-// (`head`), Werkzeugleiste (`toolbar`), Blatt (`sheet`: Satzbild, Textfeld oder Vorschau) und Statuszeile
-// (`status`) –, außerdem ein offenes Popup (<dialog>) und auf den übrigen Seiten der Inhalt (<main>). Die
-// innerste Zone unter dem Mauszeiger gewinnt (`closest`). Außerhalb jeder Zone (Kopfzeile, Ränder) wird
-// Strg+Mausrad nur abgefangen, damit die Seite nicht als Ganzes zoomt. Strg+0 setzt die Zone unter dem
-// Mauszeiger zurück. Die Stufen stehen je Name im Cookie baruch_zoom („tree_1.2-sheet_1.5“), damit sie das
-// Neuladen überstehen. Gezoomt wird mit CSS `zoom` auf den Kindern der Zone (app.css, `[data-zoomed]`): Die
-// Zone selbst behält ihre Größe im Layout. Zonen, die beim Neuzeichnen (ui.render) neu entstehen, bekommen
-// ihre Stufe sofort wieder (MutationObserver).
-// Runde 33: Der Knopf „Zoom zurücksetzen“ im Band (Reiter Ansicht, `[data-zoom-reset]`) setzt alle Zonen auf
-// einmal zurück und löscht das Cookie – Strg+0 bleibt bei der einen Zone unter dem Mauszeiger.
+// Areas (zones): every element with `data-zoom-zone="<name>"` – the outline (`tree`), the right
+// column (`assistants`) and in it the accordion „Fassungen“ (`revisions`), in the editor each on its own head
+// (`head`), toolbar (`toolbar`), sheet (`sheet`: typeset view, text field or preview) and status line
+// (`status`) –, also an open popup (<dialog>) and on the other pages the content (<main>). The
+// innermost zone under the mouse pointer wins (`closest`). Outside every zone (header, margins)
+// Ctrl+mouse wheel is only intercepted so that the page does not zoom as a whole. Ctrl+0 resets the zone under the
+// mouse pointer. The levels stand per name in the cookie baruch_zoom („tree_1.2-sheet_1.5“) so that they
+// survive reloading. Zooming uses CSS `zoom` on the children of the zone (app.css, `[data-zoomed]`): the
+// zone itself keeps its size in the layout. Zones that are created anew on redrawing (ui.render) get
+// their level back at once (MutationObserver).
+// Round 33: the button „Zoom zurücksetzen“ in the ribbon (tab Ansicht, `[data-zoom-reset]`) resets all zones at
+// once and deletes the cookie – Ctrl+0 stays with the one zone under the mouse pointer.
 
 import { store } from "./widgets.js";
 
-/** Zonen, die innerste gefunden über `closest`. */
+/** Zones, the innermost found through `closest`. */
 export const ZONES = "dialog[open], [data-zoom-zone], main";
 const MIN = 0.5;
 const MAX = 3;
@@ -24,7 +24,7 @@ const STEP = 1.1;
 
 const levels = new Map<string, number>();
 
-/** Name der Zone im Cookie: nur Buchstaben und Ziffern (Trennzeichen sind `_` und `-`). */
+/** Name of the zone in the cookie: only letters and digits (separators are `_` and `-`). */
 function zoneKey(zone: Element): string {
   const named = zone instanceof HTMLElement ? zone.dataset.zoomZone : undefined;
   const raw = named || zone.id || (zone.tagName === "MAIN" ? `main${location.pathname.split("/")[1] ?? ""}` : zone.tagName);
@@ -41,7 +41,7 @@ function apply(zone: HTMLElement, factor: number): void {
   }
 }
 
-/** Gemerkte Stufen auf alle Zonen in `root` (und `root` selbst) anwenden. */
+/** Apply remembered levels to all zones in `root` (and `root` itself). */
 function restore(root: ParentNode): void {
   const zones: HTMLElement[] = [];
   if (root instanceof HTMLElement && root.matches(`${ZONES}, dialog`)) zones.push(root);
@@ -84,7 +84,7 @@ window.addEventListener(
   "wheel",
   (event) => {
     if (!event.ctrlKey) return;
-    // Immer abfangen: Strg+Mausrad (auch Zwei-Finger-Zoom am Touchpad) zoomt nie die ganze Seite.
+    // Always intercept: Ctrl+mouse wheel (also two-finger zoom on the touchpad) never zooms the whole page.
     event.preventDefault();
     const zone = zoneAt(event.target);
     if (!zone || event.deltaY === 0) return;
@@ -105,21 +105,21 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-/** Alle Zonen auf 100 %: gemerkte Stufen vergessen (Cookie gelöscht), jede gezoomte Zone der Seite zurücksetzen. */
+/** All zones to 100 %: forget remembered levels (cookie deleted), reset every zoomed zone of the page. */
 function resetAll(): void {
   levels.clear();
   document.querySelectorAll<HTMLElement>("[data-zoomed]").forEach((zone) => apply(zone, 1));
   save();
 }
 
-// „Zoom zurücksetzen“ im Band (Reiter Ansicht): ein Knopf für alle Zonen, auch ohne Maus über einer Zone.
+// „Zoom zurücksetzen“ in the ribbon (tab Ansicht): one button for all zones, also without the mouse over a zone.
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element) || !event.target.closest("[data-zoom-reset]")) return;
   event.preventDefault();
   resetAll();
 });
 
-// Ein Popup, das später aufgeht, bekommt seine gemerkte Stufe beim Öffnen.
+// A popup that opens later gets its remembered level on opening.
 document.addEventListener(
   "toggle",
   (event) => {
@@ -132,7 +132,7 @@ document.addEventListener(
   true,
 );
 
-// Neu gezeichnete Bereiche (ui.render ersetzt den Inhalt der Spalten) tragen neue Zonen: Stufe wieder setzen.
+// Redrawn areas (ui.render replaces the content of the columns) carry new zones: set the level again.
 new MutationObserver((records) => {
   for (const record of records) {
     record.addedNodes.forEach((node) => {

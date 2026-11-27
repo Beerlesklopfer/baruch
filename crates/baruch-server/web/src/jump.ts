@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Sprünge zu Stellen (Runde 30a, Vertrag §3.2): find/at aus der Adresse, a[data-jump], Sprungverlauf, Alt+←.
+// Jumps to places (Round 30a, contract §3.2): find/at from the address, a[data-jump], jump history, Alt+←.
 //
-// - Sprung-Adresse `/?work=W&key=K[&rev=R]&find=<Text>[&at=<Byte>]` (Server: crate::xref::jump_url). Der Server
-//   ignoriert find/at; hier wird daraus das Ereignis `baruch:find {text, at}` am Dokument, auf das wysiwyg.ts
-//   (Satzbild, CSS Custom Highlight API) und search.ts (Quelltext, Auswahl im Textfeld) hören – beim Laden der Seite
-//   und nach jedem Neuzeichnen durch workspace.ts (`baruch:rendered`).
-// - Jedes `a[data-jump]` öffnet auf der Arbeitsseite den Abschnitt ohne Seitenwechsel (`baruch:navigate`); die
-//   Ausgangsstelle kommt in den Sprungverlauf (sessionStorage `baruch_jumps`, nur in try/catch). Mit
-//   `data-jump-origin="chat"` erscheint danach der Knopf „Zurück zum Chat“. Außerhalb der Arbeitsseite bleibt der
-//   Link ein gewöhnlicher Link (die Seite lädt mit find/at).
-// - Alt+← (workspace.ts): ist der Verlauf nicht leer, zurück zur Ausgangsstelle ([`popJump`]); sonst wie bisher.
-//   „Vorwärts“ gibt es nur als Knopf in der Sprungleiste.
-// Keine Importe: Die reinen Funktionen (Verlauf, Byte → UTF-16) laufen unter Node (tests/round30_verweise.rs).
+// - Jump address `/?work=W&key=K[&rev=R]&find=<Text>[&at=<Byte>]` (server: crate::xref::jump_url). The server
+//   ignores find/at; here it becomes the event `baruch:find {text, at}` on the document, to which wysiwyg.ts
+//   (typeset view, CSS Custom Highlight API) and search.ts (source text, selection in the text field) listen – on
+//   loading the page and after every redraw by workspace.ts (`baruch:rendered`).
+// - Every `a[data-jump]` opens the section on the workspace page without a page change (`baruch:navigate`); the
+//   place of origin goes into the jump history (sessionStorage `baruch_jumps`, only in try/catch). With
+//   `data-jump-origin="chat"` the button „Zurück zum Chat“ appears afterwards. Outside the workspace page the
+//   link stays an ordinary link (the page loads with find/at).
+// - Alt+← (workspace.ts): if the history is not empty, back to the place of origin ([`popJump`]); otherwise as before.
+//   "Forward" exists only as a button in the jump bar.
+// No imports: the pure functions (history, byte → UTF-16) run under Node (tests/round30_verweise.rs).
 
 export interface JumpEntry {
   url: string;
@@ -23,34 +23,34 @@ export interface JumpState {
   forward: JumpEntry[];
 }
 
-/// Höchstzahl gemerkter Sprünge.
+/// Maximum number of remembered jumps.
 export const MAX_JUMPS = 50;
 
 export function emptyState(): JumpState {
   return { back: [], forward: [] };
 }
 
-/// Sprung von `from` aus: Ausgangsstelle in den Verlauf, „Vorwärts“ verfällt.
+/// Jump from `from`: place of origin into the history, "forward" expires.
 export function pushJump(state: JumpState, from: JumpEntry): JumpState {
   const back = [...state.back, from].slice(-MAX_JUMPS);
   return { back, forward: [] };
 }
 
-/// Zurück: letzte Ausgangsstelle und neuer Stand (die aktuelle Stelle `here` kommt nach „Vorwärts“); leer → null.
+/// Back: last place of origin and new state (the current place `here` goes to "forward"); empty → null.
 export function popJump(state: JumpState, here: string): { state: JumpState; entry: JumpEntry } | null {
   const entry = state.back[state.back.length - 1];
   if (!entry) return null;
   return { state: { back: state.back.slice(0, -1), forward: [...state.forward, { url: here }].slice(-MAX_JUMPS) }, entry };
 }
 
-/// Vorwärts (nur über den Knopf): umgekehrt zu [`popJump`].
+/// Forward (only through the button): the reverse of [`popJump`].
 export function forwardJump(state: JumpState, here: string): { state: JumpState; entry: JumpEntry } | null {
   const entry = state.forward[state.forward.length - 1];
   if (!entry) return null;
   return { state: { back: [...state.back, { url: here }].slice(-MAX_JUMPS), forward: state.forward.slice(0, -1) }, entry };
 }
 
-/// UTF-16-Stelle des Bytes `byte` (UTF-8) in `text`; hinter dem Ende → Länge.
+/// UTF-16 position of the byte `byte` (UTF-8) in `text`; behind the end → length.
 export function byteToUtf16(text: string, byte: number): number {
   let bytes = 0;
   let i = 0;
@@ -63,8 +63,8 @@ export function byteToUtf16(text: string, byte: number): number {
   return text.length;
 }
 
-/// Stelle des Texts `find` in `text`, die `near` (UTF-16) am nächsten liegt; Leerraum zählt als beliebiger Leerraum.
-/// Nicht gefunden → null. Ergebnis `[start, end]` in UTF-16.
+/// Position of the text `find` in `text` that lies nearest to `near` (UTF-16); whitespace counts as any whitespace.
+/// Not found → null. Result `[start, end]` in UTF-16.
 export function locate(text: string, find: string, near: number): [number, number] | null {
   const needle = find.trim();
   if (!needle) return null;
@@ -78,7 +78,7 @@ export function locate(text: string, find: string, near: number): [number, numbe
   return best;
 }
 
-/// find/at aus einer Adresse (oder null).
+/// find/at from an address (or null).
 export function findOf(url: string): { text: string; at: number | null } | null {
   let parsed: URL;
   try {
@@ -92,7 +92,7 @@ export function findOf(url: string): { text: string; at: number | null } | null 
   return { text, at: at !== null && /^\d+$/.test(at) ? Number(at) : null };
 }
 
-// ---- Seite --------------------------------------------------------------------------------------------------
+// ---- Page ---------------------------------------------------------------------------------------------------
 
 const STORE_KEY = "baruch_jumps";
 
@@ -103,7 +103,7 @@ function load(): JumpState {
     const parsed = JSON.parse(raw) as JumpState;
     if (Array.isArray(parsed.back) && Array.isArray(parsed.forward)) return parsed;
   } catch {
-    // Kein Speicher (privates Fenster, gesperrt): ohne Verlauf weiter.
+    // No storage (private window, blocked): continue without history.
   }
   return emptyState();
 }
@@ -112,12 +112,12 @@ function save(state: JumpState): void {
   try {
     sessionStorage.setItem(STORE_KEY, JSON.stringify(state));
   } catch {
-    // Ohne Speicher bleibt der Verlauf nur bis zum Neuladen.
+    // Without storage the history lasts only until reloading.
   }
   renderBar(state);
 }
 
-/// Ausstehende Fundstelle für das nächste Neuzeichnen.
+/// Pending place found for the next redraw.
 let pending: { text: string; at: number | null } | null = null;
 
 function announce(found: { text: string; at: number | null }): void {
@@ -132,14 +132,14 @@ function here(): string {
   return window.location.pathname + window.location.search;
 }
 
-/// Zu `url` springen: auf der Arbeitsseite ohne Seitenwechsel, sonst normal.
+/// Jump to `url`: on the workspace page without a page change, otherwise normally.
 function go(url: string): void {
   pending = findOf(url);
   if (onWorkspace()) document.dispatchEvent(new CustomEvent("baruch:navigate", { detail: { url } }));
   else window.location.href = url;
 }
 
-/// Zurück zur letzten Ausgangsstelle (Alt+← bei nicht leerem Verlauf); `false` = Verlauf leer.
+/// Back to the last place of origin (Alt+← with a non-empty history); `false` = history empty.
 export function jumpBack(): boolean {
   const result = popJump(load(), here());
   if (!result) return false;
@@ -155,7 +155,7 @@ function jumpForward(): void {
   go(result.entry.url);
 }
 
-/// Sprungleiste: „← Zurück“, „Vorwärts →“, „Zurück zum Chat“ (nur bei Verlauf).
+/// Jump bar: „← Zurück“, „Vorwärts →“, „Zurück zum Chat“ (only with a history).
 function renderBar(state: JumpState): void {
   if (typeof document === "undefined") return;
   let bar = document.querySelector<HTMLElement>("[data-jump-bar]");
@@ -190,18 +190,18 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
   document.addEventListener("click", (event) => {
     const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[data-jump]") : null;
     if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    if (!onWorkspace()) return; // gewöhnlicher Link: die Seite lädt mit find/at
+    if (!onWorkspace()) return; // ordinary link: the page loads with find/at
     event.preventDefault();
     const origin = link.dataset.jumpOrigin;
     save(pushJump(load(), origin ? { url: here(), origin } : { url: here() }));
     go(link.getAttribute("href") ?? link.href);
   });
-  // Nach dem Neuzeichnen (workspace.ts) die ausstehende Fundstelle markieren.
+  // After the redraw (workspace.ts) mark the pending place found.
   document.addEventListener("baruch:rendered", () => {
     if (!pending) return;
     const found = pending;
     pending = null;
-    // Satzbild bzw. Textfeld sind eben eingehängt; einen Takt warten, bis die Widgets stehen.
+    // Typeset view or text field have just been mounted; wait one tick until the widgets stand.
     setTimeout(() => announce(found), 0);
   });
   const start = () => {
