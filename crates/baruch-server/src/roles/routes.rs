@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Formulare der Rollen (Runde 35, Vertrag §2.4): `POST /lektorat/act` (Formularweg eines Lektors über
-//! `rpc::call`) und `POST /werke/{id}/mitwirkende/act` (Freigeben, Entziehen) – hinter `guard::same_origin`.
+//! Forms of the roles (Round 35, contract §2.4): `POST /lektorat/act` (form path of a Lektor through
+//! `rpc::call`) and `POST /werke/{id}/mitwirkende/act` (release, withdraw) – behind `guard::same_origin`.
 //!
-//! `POST /lektorat/act` nimmt die Felder `method`, `work`, `key`, `node`, `id`, `body`, `note`, `kind`, `quote`,
-//! `confirm`, `back` (alles Text) und ruft damit [`crate::rpc::call`] – dort entscheidet
-//! [`crate::roles::check_rpc`], dieselbe Prüfung wie für `/rpc`. Angenommen werden nur Methoden aus
-//! [`crate::roles::LEKTOR_RPC`]: Das Formular ist kein zweiter Weg zu Methoden, die es über Formulare bewusst nicht
-//! gibt (auch nicht für den Autor). Danach 303 zurück: auf den Abschnitt (`view::node_url`, nach einem Vorschlag auf
-//! die neue Fassung), mit `back=befunde` auf `/werke/{work}/befunde`, mit `back=post` auf die Beitragsseite. Fehler:
-//! 403 „Abgelehnt: …“ mit `x-baruch-abgelehnt: rolle` bei [`FORBIDDEN`], 500 bei internen, sonst 422 „Fehler: …“.
+//! `POST /lektorat/act` takes the fields `method`, `work`, `key`, `node`, `id`, `body`, `note`, `kind`, `quote`,
+//! `confirm`, `back` (all text) and calls [`crate::rpc::call`] with them – there
+//! [`crate::roles::check_rpc`] decides, the same check as for `/rpc`. Only methods from
+//! [`crate::roles::LEKTOR_RPC`] are accepted: the form is no second path to methods that deliberately do not exist
+//! through forms (not for the author either). Afterwards 303 back: to the section (`view::node_url`, after a
+//! proposal to the new revision), with `back=befunde` to `/werke/{work}/befunde`, with `back=post` to the post page.
+//! Errors: 403 „Abgelehnt: …“ with `x-baruch-abgelehnt: rolle` for [`FORBIDDEN`], 500 for internal ones, otherwise
+//! 422 „Fehler: …“.
 //!
-//! `POST /werke/{id}/mitwirkende/act` (`action` = `grant` | `revoke`, `account`) ruft `member.grant` bzw.
-//! `member.revoke` über [`crate::rpc::call`] und leitet auf `/werke/{id}/mitwirkende?ok=freigegeben|entzogen` bzw.
-//! `?fehler=unbekanntes_konto|kein_lektor` um (Codes aus `konten_ui::MESSAGES`).
+//! `POST /werke/{id}/mitwirkende/act` (`action` = `grant` | `revoke`, `account`) calls `member.grant` or
+//! `member.revoke` through [`crate::rpc::call`] and redirects to `/werke/{id}/mitwirkende?ok=freigegeben|entzogen` or
+//! `?fehler=unbekanntes_konto|kein_lektor` (codes from `konten_ui::MESSAGES`).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -31,12 +32,12 @@ use crate::rpc::{FORBIDDEN, INTERNAL, RpcError, UNAUTHENTICATED};
 use crate::view::Settings;
 use crate::{AppState, auth, rpc};
 
-/// Schreibende Routen der Rollen.
+/// Writing routes of the roles.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/lektorat/act", post(lektorat_act)).route("/werke/{id}/mitwirkende/act", post(members_act))
 }
 
-/// Antwort auf einen RPC-Fehler eines Formulars.
+/// Answer to an RPC error of a form.
 fn failure(error: &RpcError) -> Response {
     match error.code {
         FORBIDDEN => {
@@ -49,7 +50,7 @@ fn failure(error: &RpcError) -> Response {
     }
 }
 
-/// Zahl aus einem Formularfeld; leer oder fehlend → `Ok(None)`, anderes als Ziffern → `Err` mit dem Feldnamen.
+/// Number from a form field; empty or missing → `Ok(None)`, anything other than digits → `Err` with the field name.
 fn number(form: &HashMap<String, String>, name: &str) -> Result<Option<i64>, String> {
     match form.get(name).map(|v| v.trim()).filter(|v| !v.is_empty()) {
         None => Ok(None),
@@ -57,8 +58,8 @@ fn number(form: &HashMap<String, String>, name: &str) -> Result<Option<i64>, Str
     }
 }
 
-/// RPC-Parameter aus den Formularfeldern: Zahlen als Zahlen, das Kästchen `confirm` (`1` | `on` | `true`) als
-/// `true`, Texte unverändert. Unbekannte Felder werden übergangen.
+/// RPC parameters from the form fields: numbers as numbers, the checkbox `confirm` (`1` | `on` | `true`) as
+/// `true`, texts unchanged. Unknown fields are skipped.
 fn params_of(form: &HashMap<String, String>) -> Result<Value, String> {
     let mut params = json!({});
     for name in ["work", "key", "node", "id"] {
@@ -77,12 +78,12 @@ fn params_of(form: &HashMap<String, String>) -> Result<Value, String> {
     Ok(params)
 }
 
-/// Wohin es nach der Aktion geht.
+/// Where to go after the action.
 fn back_url(form: &HashMap<String, String>, method: &str, work: WorkId, answer: &Value) -> String {
     let key = answer["key"].as_i64().or_else(|| number(form, "key").ok().flatten());
     match form.get("back").map(String::as_str) {
         Some("befunde") => return format!("/werke/{work}/befunde"),
-        // Nach dem Löschen gibt es die Beitragsseite nicht mehr: dann zurück zum Abschnitt.
+        // After deleting, the post page no longer exists: then back to the section.
         Some("post") if method != "post.delete" => {
             if let Some(id) = answer["id"].as_i64().or_else(|| number(form, "id").ok().flatten()) {
                 return crate::posts::post_url(work, id);
@@ -101,20 +102,20 @@ fn back_url(form: &HashMap<String, String>, method: &str, work: WorkId, answer: 
     }
 }
 
-/// `POST /lektorat/act`: siehe Modulkopf.
+/// `POST /lektorat/act`: see the module header.
 async fn lektorat_act(State(state): State<Arc<AppState>>, Form(form): Form<HashMap<String, String>>) -> Response {
     let who = auth::current();
     let method = form.get("method").map(String::as_str).unwrap_or_default();
     if !super::LEKTOR_RPC.iter().any(|(name, _)| *name == method) {
-        // Dieselbe Antwort wie `check_rpc` sie einem Lektor gäbe; der Autor hat für alles andere `/act` und `/rpc`.
+        // The same answer `check_rpc` would give a Lektor; the author has `/act` and `/rpc` for everything else.
         return failure(&super::author_only(method));
     }
     let mut params = match params_of(&form) {
         Ok(params) => params,
         Err(message) => return (StatusCode::UNPROCESSABLE_ENTITY, format!("Fehler: {message}")).into_response(),
     };
-    // Das Werk steht danach fest (für die Umleitung): das genannte, sonst das kleinste freigegebene – nie das
-    // Vorgabewerk der Instanz. Ob es freigegeben ist, prüft `check_rpc` in `rpc::call`.
+    // The work is fixed afterwards (for the redirect): the named one, otherwise the smallest released one – never
+    // the default work of the instance. Whether it is released is checked by `check_rpc` in `rpc::call`.
     let work = match params["work"].as_i64() {
         Some(work) => work,
         None if who.full_rights() => match state.default_work().await {
@@ -142,7 +143,7 @@ struct MembersForm {
     account: Option<String>,
 }
 
-/// `POST /werke/{id}/mitwirkende/act`: siehe Modulkopf.
+/// `POST /werke/{id}/mitwirkende/act`: see the module header.
 async fn members_act(
     State(state): State<Arc<AppState>>,
     Path(work): Path<WorkId>,
@@ -153,8 +154,8 @@ async fn members_act(
         "revoke" => ("member.revoke", "entzogen"),
         _ => return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
     };
-    // Die Rechte prüfen die Schicht (Route nicht in LEKTOR_ROUTES) und `rpc::call` (member.* nicht in LEKTOR_RPC);
-    // hier noch einmal zuerst, damit vor der Prüfung nichts über Werke und Konten verraten wird.
+    // The rights are checked by the layer (route not in LEKTOR_ROUTES) and `rpc::call` (member.* not in LEKTOR_RPC);
+    // here once more first, so that nothing about works and accounts is revealed before the check.
     if !auth::current().full_rights() {
         return failure(&super::author_only(method));
     }
@@ -168,7 +169,7 @@ async fn members_act(
     }
     match super::rpc::grantable(&state, account).await {
         Ok(Ok(())) => {}
-        // Entziehen geht auch bei einem Konto, das (inzwischen) kein Lektor ist – nur ein unbekanntes ist ein Fehler.
+        // Withdrawing also works for an account that is not a Lektor (any more) – only an unknown one is an error.
         Ok(Err(GrantRefusal::NotLektor)) if method == "member.revoke" => {}
         Ok(Err(refusal)) => return refused(refusal),
         Err(error) => return failure(&error),

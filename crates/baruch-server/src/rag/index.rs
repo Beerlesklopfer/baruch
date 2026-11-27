@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Der lokale Index (LanceDB) im Dienst: was hineingehört ([`desired_work`], [`desired_shared`]),
-//! Abgleich nur der geänderten Stücke ([`sync`]), die Hintergrund-Aufgabe mit entdoppelter
-//! Warteschlange ([`Runtime`], [`notify`](super::notify)) und der Suchweg [`LanceWay`].
+//! The local index (LanceDB) in the service: what belongs into it ([`desired_work`], [`desired_shared`]),
+//! reconciliation of the changed chunks only ([`sync`]), the background task with a deduplicated
+//! queue ([`Runtime`], [`notify`](super::notify)) and the search way [`LanceWay`].
 //!
-//! Abgleich eines Bereichs (ein Werk bzw. „gemeinsam“ = Einfälle ohne Werk und Bibliothek):
-//! gespeicherte Zeilen lesen; Zeilen mit gleichem `row_hash` bleiben unberührt; Zeilen, deren Text
-//! (`content_hash`) schon irgendwo im Bereich steht, übernehmen dessen Vektor; nur der Rest wird
-//! eingebettet (Stapel ≤ 32), entfernte Zeilen werden gelöscht. Jeder Stapel wird sofort geschrieben,
-//! so geht nach einem Abbruch nichts Fertiges verloren.
+//! Reconciliation of one scope (a work, or "shared" = ideas without a work and the library):
+//! read the stored rows; rows with the same `row_hash` stay untouched; rows whose text
+//! (`content_hash`) already stands somewhere in the scope take over its vector; only the rest is
+//! embedded (batch ≤ 32), removed rows are deleted. Every batch is written at once,
+//! so nothing finished is lost after an abort.
 //!
-//! Modell: Der Index vermerkt Modell und Dimension in `baruch-index.json`. Passt das eingestellte
-//! Modell (nach Alias) nicht zu dem des Index oder liefert es eine andere Dimension, wird nichts
-//! gemischt ([`RagError::ModelMismatch`]) – bis „Index neu aufbauen“ ([`super::reindex`]).
+//! Model: the index records model and dimension in `baruch-index.json`. If the configured
+//! model (after the alias) does not match that of the index or delivers another dimension, nothing is
+//! mixed ([`RagError::ModelMismatch`]) – until „Index neu aufbauen“ ([`super::reindex`]).
 //!
-//! Fehler der Einbettung: höchstens [`MAX_ATTEMPTS`] Versuche je Auftrag mit wachsender Pause, dann
-//! Rückzug: Der Auftrag (und bei fehlendem Einbettungsmodell alle wartenden) kommt in die Liste der
-//! liegengebliebenen ([`Runtime::stale`]) und wird erst wieder versucht, wenn etwas Neues gespeichert wird
-//! ([`super::notify`]), ein späterer Auftrag tatsächlich wieder einbetten konnte oder der Mensch neu aufbaut.
-//! Suchen holen Liegengebliebenes **nicht** zurück (Runde 19a): Sie reihen nur still
-//! ([`Runtime::refresh_shared`]) das billige Aufräumen gelöschter Werke und höchstens alle [`SHARED_REFRESH`]
-//! den gemeinsamen Bereich ein – einen liegengebliebenen Auftrag überspringen sie. Das Problem bleibt im Status
-//! stehen, solange etwas liegengeblieben ist. Keine Dauerschleife, kein Versuchszyklus je Suche.
+//! Errors of the embedding: at most [`MAX_ATTEMPTS`] attempts per job with a growing pause, then
+//! retreat: the job (and, if the embedding model is missing, all waiting ones) goes into the list of the
+//! stale ones ([`Runtime::stale`]) and is tried again only when something new is saved
+//! ([`super::notify`]), a later job could actually embed again or the human rebuilds.
+//! Searches do **not** fetch stale jobs back (Round 19a): they only enqueue quietly
+//! ([`Runtime::refresh_shared`]) the cheap pruning of deleted works and at most every [`SHARED_REFRESH`]
+//! the shared scope – they skip a stale job. The problem stays in the status
+//! as long as something is stale. No endless loop, no cycle of attempts per search.
 //!
-//! „Index neu aufbauen“ ([`super::reindex`]) wartet nicht auf die Schreibsperre: Hält der Worker sie gerade,
-//! wird ein Rücksetzwunsch vermerkt ([`Runtime::wish_reset`]); der Worker bricht den laufenden Auftrag
-//! zwischen zwei Stapeln (eine hängende Einbettung sofort) ab, setzt zurück und reiht neu ein.
+//! „Index neu aufbauen“ ([`super::reindex`]) does not wait for the write lock: if the worker holds it right now,
+//! a reset wish is recorded ([`Runtime::wish_reset`]); the worker aborts the running job
+//! between two batches (a hanging embedding at once), resets and enqueues anew.
 //!
-//! Aufgaben-Präfixe (Runde 19b, Einstellung der Verbindung LanceDB): Dokumente werden mit dem Dokument-Präfix
-//! eingebettet, die Anfrage mit dem Anfrage-Präfix; ohne Präfix byte-gleich wie bisher. Das Dokument-Präfix
-//! steht in `baruch-index.json`; ein anderes eingestelltes Präfix mischt nichts ([`RagError::ModelMismatch`]).
+//! Task prefixes (Round 19b, setting of the connection LanceDB): documents are embedded with the document
+//! prefix, the query with the query prefix; without a prefix byte-identical as before. The document prefix
+//! is recorded in `baruch-index.json`; another configured prefix mixes nothing ([`RagError::ModelMismatch`]).
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
@@ -45,28 +45,28 @@ use baruch_rag::{
 use baruch_store::{ConnectionKind, IdeaFilter, IdeaScope, Store, StoreError, WorkId};
 use serde_json::{Value, json};
 
-/// Höchstzahl der Versuche je Auftrag.
+/// Maximum number of attempts per job.
 pub const MAX_ATTEMPTS: usize = 3;
-/// Pause vor dem zweiten bzw. dritten Versuch.
+/// Pause before the second and the third attempt.
 pub const BACKOFF: [Duration; 2] = [Duration::from_millis(300), Duration::from_millis(1200)];
-/// Arten im lokalen Index (auch die Werte von `collections` für LanceDB). Seit Runde 13 („abgleich“) dazu
-/// `remote`: lokale Kopien der aus MultiGPT geholten Dokumente (`sync_document`, offline suchbar).
+/// Kinds in the local index (also the values of `collections` for LanceDB). Since Round 13 ("abgleich") also
+/// `remote`: local copies of the documents fetched from MultiGPT (`sync_document`, searchable offline).
 pub const KINDS: [&str; 5] = ["section", "idea", "highlight", "library", "remote"];
-/// Vorgabe des Ordners (relativ zum Datenordner).
+/// Default of the folder (relative to the data folder).
 pub const DEFAULT_DIR: &str = "lancedb";
-/// Vorgabe des Einbettungsmodells.
+/// Default of the embedding model.
 pub const DEFAULT_MODEL: &str = "nomic-embed-text";
-/// So oft schaut eine laufende Einbettung bzw. Pause nach einem Rücksetzwunsch.
+/// This often a running embedding or pause looks for a reset wish.
 const ABORT_POLL: Duration = Duration::from_millis(50);
 
-/// Ein Auftrag der Hintergrund-Aufgabe.
+/// A job of the background task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Job {
-    /// Zeilen gelöschter Werke verwerfen.
+    /// Discard rows of deleted works.
     Prune,
-    /// Einfälle ohne Werk, Bibliothek, Hervorhebungen.
+    /// Ideas without a work, library, highlights.
     Shared,
-    /// Abschnitte (aktuelle Fassungen) und Einfälle eines Werks.
+    /// Sections (current revisions) and ideas of a work.
     Work(WorkId),
 }
 
@@ -80,21 +80,21 @@ impl Job {
     }
 }
 
-/// Was ein gelungener Auftrag bewirkt hat.
+/// What a successful job has achieved.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Outcome {
-    /// Mindestens ein Stapel wurde tatsächlich eingebettet (das Einbettungsmodell antwortet also wieder).
+    /// At least one batch was actually embedded (so the embedding model answers again).
     pub embedded: bool,
-    /// Aufträge, die gleich danach dran sind (der gemeinsame Bereich nach einem gelöschten Werk).
+    /// Jobs that are due right afterwards (the shared scope after a deleted work).
     pub follow: Vec<Job>,
 }
 
-/// Rücksetzwunsch aus „Index neu aufbauen“, solange der Worker die Schreibsperre hält.
+/// Reset wish from „Index neu aufbauen“ while the worker holds the write lock.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct ResetWish {
-    /// Ganzer Index (anderes Modell oder Präfix, beschädigte Datei).
+    /// Whole index (another model or prefix, damaged file).
     whole: bool,
-    /// Sonst diese Werke.
+    /// Otherwise these works.
     works: BTreeSet<WorkId>,
 }
 
@@ -103,31 +103,31 @@ struct Queue {
     pending: VecDeque<Job>,
     running: Option<Job>,
     worker: bool,
-    /// Liegengeblieben nach erschöpften Versuchen.
+    /// Stale after exhausted attempts.
     stale: BTreeSet<Job>,
-    /// Letzter Fehler der Hintergrund-Aufgabe (`None` nach einem gelungenen Auftrag, sofern nichts
-    /// liegengeblieben ist).
+    /// Last error of the background task (`None` after a successful job, provided nothing
+    /// is stale).
     problem: Option<RagError>,
-    /// Offener Rücksetzwunsch ([`Runtime::wish_reset`]).
+    /// Open reset wish ([`Runtime::wish_reset`]).
     reset: Option<ResetWish>,
 }
 
-/// Laufzeit des RAG für einen Datenordner (prozessweit, Muster `models::LAST_PROBE`).
+/// Runtime of the RAG for one data folder (process-wide, pattern `models::LAST_PROBE`).
 pub struct Runtime {
     pub(crate) data: PathBuf,
     store: Mutex<Store>,
     embedders: Mutex<Option<Arc<dyn EmbedderFactory>>>,
-    /// Warum kein Einbetter angebunden ist (eigener Datenordner ohne gespeicherte Verbindung Eliezer).
+    /// Why no embedder is connected (own data folder without a stored connection Eliezer).
     unbound: Mutex<Option<String>>,
     queue: Mutex<Queue>,
     index: tokio::sync::Mutex<Option<Index>>,
-    /// Hält die Hintergrund-Aufgabe und „Neu aufbauen“ auseinander.
+    /// Keeps the background task and „Neu aufbauen“ apart.
     pub(crate) writing: tokio::sync::Mutex<()>,
-    /// Gesetzt, solange ein Rücksetzwunsch offen ist: Der laufende Auftrag bricht ab.
+    /// Set as long as a reset wish is open: the running job aborts.
     abort: AtomicBool,
-    /// Letzte Berichte der Remote-Wege aus Suchen dieses Prozesses (Zeit, Bericht).
+    /// Last reports of the remote ways from searches of this process (time, report).
     pub(crate) reports: Mutex<HashMap<Way, (String, WayReport)>>,
-    /// Letzte Auffrischung des gemeinsamen Bereichs durch eine Suche.
+    /// Last refresh of the shared scope by a search.
     shared_refreshed: Mutex<Option<Instant>>,
 }
 
@@ -135,8 +135,8 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Höchstens so oft frischt eine Suche den gemeinsamen Bereich auf (Bibliothek und Hervorhebungen
-/// melden ihre Änderungen nicht über den Spiegel).
+/// A search refreshes the shared scope at most this often (library and highlights
+/// do not report their changes through the mirror).
 pub const SHARED_REFRESH: Duration = Duration::from_secs(30);
 
 impl Runtime {
@@ -155,7 +155,7 @@ impl Runtime {
         }
     }
 
-    /// Store des jüngsten `AppState` dieses Datenordners übernehmen.
+    /// Take over the store of the most recent `AppState` of this data folder.
     pub(crate) fn refresh(&self, store: &Store) {
         *lock(&self.store) = store.clone();
     }
@@ -164,7 +164,7 @@ impl Runtime {
         lock(&self.store).clone()
     }
 
-    /// Einbetter dieses Datenordners; `None` = nicht angebunden (Tests, Hilfsbefehle).
+    /// Embedders of this data folder; `None` = not connected (tests, helper commands).
     pub(crate) fn embedders(&self) -> Option<Arc<dyn EmbedderFactory>> {
         lock(&self.embedders).clone()
     }
@@ -174,7 +174,7 @@ impl Runtime {
         *lock(&self.unbound) = None;
     }
 
-    /// Grund, warum beim Start kein Einbetter angebunden wurde (`None` = keiner vermerkt).
+    /// Reason why no embedder was connected at start (`None` = none recorded).
     pub(crate) fn unbound(&self) -> Option<String> {
         lock(&self.unbound).clone()
     }
@@ -183,18 +183,18 @@ impl Runtime {
         *lock(&self.unbound) = Some(reason.into());
     }
 
-    /// Einbetter oder der ehrliche Ersatz ohne Backend.
+    /// Embedders or the honest substitute without a backend.
     pub(crate) fn factory(&self) -> Arc<dyn EmbedderFactory> {
         self.embedders().unwrap_or_else(|| Arc::new(super::embed::NoEmbedders))
     }
 
-    /// Ausstehende Aufträge (wartend und laufend).
+    /// Outstanding jobs (waiting and running).
     pub(crate) fn pending(&self) -> usize {
         let q = lock(&self.queue);
         q.pending.len() + usize::from(q.running.is_some())
     }
 
-    /// Liegengebliebene Aufträge (nach erschöpften Versuchen).
+    /// Stale jobs (after exhausted attempts).
     pub(crate) fn stale(&self) -> usize {
         lock(&self.queue).stale.len()
     }
@@ -214,14 +214,14 @@ impl Runtime {
         q.stale.clear();
     }
 
-    /// Auftrag einreihen (entdoppelt) und die Hintergrund-Aufgabe starten. Nur mit Einbetter. Das ist der
-    /// Weg einer echten Änderung ([`super::notify`]): Auch Liegengebliebenes wird noch einmal versucht.
+    /// Enqueue a job (deduplicated) and start the background task. Only with an embedder. This is the
+    /// path of a real change ([`super::notify`]): stale jobs are tried once more as well.
     pub(crate) fn enqueue(self: &Arc<Self>, jobs: &[Job]) {
         self.push(jobs, true);
     }
 
-    /// Still einreihen (aus der Suche): Liegengebliebene Aufträge bleiben liegen, auch wenn sie in `jobs`
-    /// stehen, und nichts Liegengebliebenes wird zurückgeholt.
+    /// Enqueue quietly (from the search): stale jobs stay stale, even if they are in `jobs`,
+    /// and nothing stale is fetched back.
     pub(crate) fn enqueue_quiet(self: &Arc<Self>, jobs: &[Job]) {
         self.push(jobs, false);
     }
@@ -242,7 +242,7 @@ impl Runtime {
                 }
             }
             if reclaim {
-                // Neues kam: auch Liegengebliebenes noch einmal versuchen.
+                // Something new came: try stale jobs once more as well.
                 reclaim_stale(&mut q);
             }
             start_locked(&mut q)
@@ -257,8 +257,8 @@ impl Runtime {
         baruch_lancedb::runtime().spawn(async move { worker(rt).await });
     }
 
-    /// Rücksetzwunsch vermerken (ganzer Index bzw. ein Werk), den laufenden Auftrag abbrechen lassen und die
-    /// Hintergrund-Aufgabe starten, falls sie ruht. Wartet nicht.
+    /// Record a reset wish (whole index or one work), let the running job abort and start the
+    /// background task if it is idle. Does not wait.
     pub(crate) fn wish_reset(self: &Arc<Self>, whole: bool, work: WorkId) {
         let start = {
             let mut q = lock(&self.queue);
@@ -273,13 +273,13 @@ impl Runtime {
         }
     }
 
-    /// Ist ein Rücksetzwunsch offen (der laufende Auftrag soll abbrechen)?
+    /// Is a reset wish open (the running job is to abort)?
     pub(crate) fn reset_wished(&self) -> bool {
         self.abort.load(Ordering::SeqCst)
     }
 
-    /// Aus der Suche: Zeilen gelöschter Werke verwerfen (billig: erst zählen) und den gemeinsamen
-    /// Bereich höchstens alle [`SHARED_REFRESH`] auffrischen – still, ohne Liegengebliebenes zurückzuholen.
+    /// From the search: discard rows of deleted works (cheap: count first) and refresh the shared
+    /// scope at most every [`SHARED_REFRESH`] – quietly, without fetching stale jobs back.
     pub(crate) fn refresh_shared(self: &Arc<Self>) {
         let due = {
             let mut last = lock(&self.shared_refreshed);
@@ -292,7 +292,7 @@ impl Runtime {
         self.enqueue_quiet(if due { &[Job::Prune, Job::Shared] } else { &[Job::Prune] });
     }
 
-    /// Den geöffneten Index (bzw. den im eingestellten Ordner) holen.
+    /// Get the opened index (or the one in the configured folder).
     pub(crate) async fn index(&self, dir: &Path) -> Result<Index, RagError> {
         let mut held = self.index.lock().await;
         if let Some(index) = held.as_ref().filter(|i| i.dir() == dir) {
@@ -304,7 +304,7 @@ impl Runtime {
     }
 }
 
-/// Soll eine Hintergrund-Aufgabe starten? (Vermerkt sie gleich als laufend.)
+/// Is a background task to start? (Records it as running right away.)
 fn start_locked(q: &mut Queue) -> bool {
     let start = !q.worker && (!q.pending.is_empty() || q.reset.is_some());
     if start {
@@ -313,7 +313,7 @@ fn start_locked(q: &mut Queue) -> bool {
     start
 }
 
-/// Liegengebliebenes zurück in die Warteschlange.
+/// Stale jobs back into the queue.
 fn reclaim_stale(q: &mut Queue) {
     let stale: Vec<Job> = std::mem::take(&mut q.stale).into_iter().collect();
     for job in stale {
@@ -327,8 +327,8 @@ fn retryable(e: &RagError) -> bool {
     matches!(e, RagError::NoEmbedder(_) | RagError::Unreachable(_) | RagError::Timeout(_) | RagError::Failed(_))
 }
 
-/// Index verwerfen – ganz (gewünscht, anderes Modell oder Präfix, beschädigte Datei) bzw. die genannten
-/// Werke – und die Aufträge für den Neuaufbau liefern. Der Aufrufer hält die Schreibsperre.
+/// Discard the index – entirely (wished, another model or prefix, damaged file) or the named
+/// works – and deliver the jobs for the rebuild. The caller holds the write lock.
 pub(crate) async fn reset_index(rt: &Runtime, whole: bool, works: &BTreeSet<WorkId>) -> Result<Vec<Job>, RagError> {
     let store = rt.store();
     let cfg = config(&store, &rt.data).await?;
@@ -354,7 +354,7 @@ pub(crate) async fn reset_index(rt: &Runtime, whole: bool, works: &BTreeSet<Work
     Ok(jobs)
 }
 
-/// Aufträge nach einem Neuaufbau einreihen: Problem und Liegengebliebenes vergessen.
+/// Enqueue jobs after a rebuild: forget the problem and the stale jobs.
 pub(crate) fn after_reset(q_owner: &Runtime, jobs: Vec<Job>) {
     let mut q = lock(&q_owner.queue);
     q.problem = None;
@@ -366,7 +366,7 @@ pub(crate) fn after_reset(q_owner: &Runtime, jobs: Vec<Job>) {
     }
 }
 
-/// Offenen Rücksetzwunsch ausführen (unter der Schreibsperre), danach neu einreihen.
+/// Carry out an open reset wish (under the write lock), then enqueue anew.
 async fn apply_reset(rt: &Arc<Runtime>) {
     let Some(wish) = lock(&rt.queue).reset.clone() else {
         rt.abort.store(false, Ordering::SeqCst);
@@ -378,7 +378,7 @@ async fn apply_reset(rt: &Arc<Runtime>) {
     };
     {
         let mut q = lock(&rt.queue);
-        // Kam während des Zurücksetzens ein weiterer Wunsch dazu, bleibt er für die nächste Runde stehen.
+        // If another wish arrived during the reset, it stays for the next pass.
         let newer = q.reset.take().filter(|now| *now != wish);
         q.reset = newer;
         rt.abort.store(q.reset.is_some(), Ordering::SeqCst);
@@ -401,7 +401,7 @@ async fn worker(rt: Arc<Runtime>) {
         let job = {
             let mut q = lock(&rt.queue);
             if q.reset.is_some() {
-                // Ein Wunsch kam nach der Prüfung oben (unter derselben Sperre gesetzt): erst ihn ausführen.
+                // A wish arrived after the check above (set under the same lock): carry it out first.
                 None
             } else {
                 match q.pending.pop_front() {
@@ -419,21 +419,21 @@ async fn worker(rt: Arc<Runtime>) {
         };
         let Some(job) = job else { continue };
         let mut attempt = 1;
-        // Vom Rücksetzwunsch unterbrochen: Der Auftrag kommt zurück in die Warteschlange. Der Neuaufbau eines
-        // Werks liefert nur dessen Auftrag (und den gemeinsamen Bereich) – ein laufender Auftrag eines anderen
-        // Werks oder das Aufräumen ginge sonst verloren und bliebe halb abgeglichen, ohne Vermerk.
+        // Interrupted by the reset wish: the job goes back into the queue. The rebuild of a
+        // work delivers only its job (and the shared scope) – a running job of another
+        // work or the pruning would otherwise be lost and stay half reconciled, without a record.
         let mut interrupted = false;
         loop {
             let result = {
                 let _held = rt.writing.lock().await;
-                // Eigene Aufgabe: Ein Panic im Auftrag wird zum Fehler und hält die Warteschlange nicht an.
+                // Own task: a panic in the job becomes an error and does not stop the queue.
                 let owned = rt.clone();
                 tokio::spawn(async move { process(&owned, job).await })
                     .await
                     .unwrap_or_else(|e| Err(RagError::Failed(format!("Auftrag abgebrochen: {e}"))))
             };
             if rt.reset_wished() {
-                // Neu aufbauen geht vor; der Auftrag wird danach wieder eingereiht (doppelt nur einmal).
+                // Rebuilding takes precedence; the job is enqueued again afterwards (a duplicate only once).
                 interrupted = true;
                 break;
             }
@@ -441,7 +441,7 @@ async fn worker(rt: Arc<Runtime>) {
                 Ok(outcome) => {
                     let mut q = lock(&rt.queue);
                     if outcome.embedded {
-                        // Das Einbettungsmodell antwortet wieder: Liegengebliebenes noch einmal versuchen.
+                        // The embedding model answers again: try stale jobs once more.
                         q.problem = None;
                         reclaim_stale(&mut q);
                     } else if q.stale.is_empty() {
@@ -474,8 +474,8 @@ async fn worker(rt: Arc<Runtime>) {
                     if retryable(&e) {
                         q.stale.insert(job);
                         if matches!(e, RagError::NoEmbedder(_)) {
-                            // Ohne Einbettungsmodell scheitern die übrigen genauso: Rückzug. Das Aufräumen
-                            // gelöschter Werke braucht kein Modell und bleibt in der Warteschlange.
+                            // Without an embedding model the others fail in the same way: retreat. The pruning of
+                            // deleted works needs no model and stays in the queue.
                             let waiting: Vec<Job> = q.pending.drain(..).collect();
                             for other in waiting {
                                 if other == Job::Prune {
@@ -499,20 +499,20 @@ async fn worker(rt: Arc<Runtime>) {
     }
 }
 
-/// Einstellungen der Verbindung LanceDB.
+/// Settings of the connection LanceDB.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanceConfig {
-    /// Ordner (absolut, lexikalisch bereinigt).
+    /// Folder (absolute, lexically cleaned).
     pub dir: PathBuf,
-    /// Eingestelltes Modell (wie gespeichert).
+    /// Configured model (as stored).
     pub configured: String,
-    /// Name bei Eliezer (Alias aufgelöst).
+    /// Name at Eliezer (alias resolved).
     pub model: String,
-    /// Aufgaben-Präfixe (Runde 19b, `query_prefix`/`document_prefix`; leer = keins).
+    /// Task prefixes (Round 19b, `query_prefix`/`document_prefix`; empty = none).
     pub prefixes: EmbedPrefixes,
 }
 
-/// Pfad lexikalisch bereinigen (`.` weg, `..` hebt auf).
+/// Clean a path lexically (`.` removed, `..` cancels).
 fn normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for part in path.components() {
@@ -527,8 +527,8 @@ fn normalize(path: &Path) -> PathBuf {
     out
 }
 
-/// Ordner aus der Einstellung: relativ zum Datenordner; weder der Datenordner selbst noch unter
-/// `<data>/works/` (Git-Spiegel).
+/// Folder from the setting: relative to the data folder; neither the data folder itself nor below
+/// `<data>/works/` (Git mirror).
 pub fn resolve_dir(data: &Path, dir: &str) -> Result<PathBuf, RagError> {
     let dir = dir.trim();
     let dir = if dir.is_empty() { DEFAULT_DIR } else { dir };
@@ -550,7 +550,7 @@ pub fn resolve_dir(data: &Path, dir: &str) -> Result<PathBuf, RagError> {
     Ok(path)
 }
 
-/// Einstellungen lesen.
+/// Read the settings.
 pub async fn config(store: &Store, data: &Path) -> Result<LanceConfig, RagError> {
     let row = store
         .connection_get(ConnectionKind::Lancedb)
@@ -566,11 +566,11 @@ pub async fn config(store: &Store, data: &Path) -> Result<LanceConfig, RagError>
     })
 }
 
-/// Satz: das Dokument-Präfix des Index passt nicht zum eingestellten.
+/// Sentence: the document prefix of the index does not match the configured one.
 pub const PREFIX_CHANGED: &str = "Aufgaben-Präfix geändert; Index neu aufbauen.";
 
-/// Passen Modell und Dokument-Präfix zum Index? Sonst der ehrliche Satz. Ein leerer Index passt zu allem;
-/// ein Index ohne vermerktes Präfix (vor Runde 19) gilt als „ohne Präfix“.
+/// Do model and document prefix match the index? Otherwise the honest sentence. An empty index matches
+/// everything; an index without a recorded prefix (before Round 19) counts as "without prefix".
 pub fn mismatch(meta: &IndexMeta, cfg: &LanceConfig) -> Option<RagError> {
     let built = meta.requested.as_deref()?;
     if built != cfg.model {
@@ -595,7 +595,7 @@ fn store_failed(e: StoreError) -> RagError {
     RagError::Failed(format!("Speicher: {e}"))
 }
 
-/// Ein Auftrag.
+/// One job.
 async fn process(rt: &Runtime, job: Job) -> Result<Outcome, RagError> {
     let store = rt.store();
     let cfg = config(&store, &rt.data).await?;
@@ -618,8 +618,8 @@ async fn process(rt: &Runtime, job: Job) -> Result<Outcome, RagError> {
         }
         Job::Work(work) => match store.load_work(work).await {
             Err(StoreError::UnknownWork(_)) => {
-                // Gelöschtes Werk: Seine Zeilen gehen, seine Einfälle sind jetzt „ohne Werk“ – der gemeinsame
-                // Bereich zieht sie sofort nach (nicht erst mit der nächsten Suche).
+                // Deleted work: its rows go, its ideas are now "without a work" – the shared
+                // scope pulls them in at once (not only with the next search).
                 index.delete_scope(Scope::Work(work)).await?;
                 Ok(Outcome { embedded: false, follow: vec![Job::Shared] })
             }
@@ -637,7 +637,7 @@ async fn process(rt: &Runtime, job: Job) -> Result<Outcome, RagError> {
     }
 }
 
-/// Einbetten, aber abbrechen, sobald `abort` gilt (Rücksetzwunsch); `None` = abgebrochen.
+/// Embed, but abort as soon as `abort` holds (reset wish); `None` = aborted.
 async fn embed_or_abort(
     embedder: &dyn baruch_rag::Embedder,
     texts: &[String],
@@ -654,7 +654,7 @@ async fn embed_or_abort(
     }
 }
 
-/// Abschnitte eines Werks: aktuelle Fassung in Stücken.
+/// Sections of a work: current revision in chunks.
 pub fn desired_sections(work: WorkId, loaded: &Work) -> Vec<Entry> {
     let mut out = Vec::new();
     for node in &loaded.nodes {
@@ -680,7 +680,7 @@ pub fn desired_sections(work: WorkId, loaded: &Work) -> Vec<Entry> {
     out
 }
 
-/// Text eines Einfalls zum Einbetten (leer = nichts).
+/// Text of an idea for embedding (empty = nothing).
 fn idea_text(idea: &baruch_store::Idea) -> String {
     let mut parts = Vec::new();
     if !idea.words.is_empty() {
@@ -696,7 +696,7 @@ fn idea_text(idea: &baruch_store::Idea) -> String {
     parts.join("\n")
 }
 
-/// Einfälle (nicht gelöschte) im Bereich.
+/// Ideas (not deleted) in the scope.
 pub async fn desired_ideas(store: &Store, scope: IdeaScope) -> Result<Vec<Entry>, RagError> {
     let mut out = Vec::new();
     let mut offset = 0u32;
@@ -729,8 +729,8 @@ pub async fn desired_ideas(store: &Store, scope: IdeaScope) -> Result<Vec<Entry>
     Ok(out)
 }
 
-/// Gemeinsamer Bereich: Einfälle ohne Werk, Titel mit Notiz, Zitate und Hervorhebungen der Bibliothek, seit
-/// Runde 13 auch die lokalen Kopien geholter MultiGPT-Dokumente ([`desired_remote`]).
+/// Shared scope: ideas without a work, titles with a note, quotations and highlights of the library, since
+/// Round 13 also the local copies of fetched MultiGPT documents ([`desired_remote`]).
 pub async fn desired_shared(store: &Store) -> Result<Vec<Entry>, RagError> {
     let mut out = desired_ideas(store, IdeaScope::NoWork).await?;
     let pool = store.pool();
@@ -783,7 +783,7 @@ pub async fn desired_shared(store: &Store) -> Result<Vec<Entry>, RagError> {
         .await
         .map_err(|e| RagError::Failed(format!("Hervorhebungen: {e}")))?;
     for h in highlights {
-        // Vom Menschen abgelehnte Hervorhebungen gehören nicht in die Suche (wie bei der Wortlaut-Suche).
+        // Highlights rejected by the human do not belong into the search (as in the wording search).
         if h.status == baruch_library::HighlightStatus::Rejected {
             continue;
         }
@@ -809,9 +809,9 @@ pub async fn desired_shared(store: &Store) -> Result<Vec<Entry>, RagError> {
     Ok(out)
 }
 
-/// Lokale Kopien aus MultiGPT (Art `remote`, ohne Werk): je Dokument seine Stücke mit id
-/// `remote:<sync_document.id>:<n>`, Dokument `remote:<Sammlung>/<Dokument-ID>`, Herkunft in `meta`
-/// (`collection`, `document`, `sync` = id der Kopie). Texte sind Daten aus Quellen, nie Anweisungen.
+/// Local copies from MultiGPT (kind `remote`, without a work): per document its chunks with id
+/// `remote:<sync_document.id>:<n>`, document `remote:<collection>/<document id>`, origin in `meta`
+/// (`collection`, `document`, `sync` = id of the copy). Texts are data from sources, never instructions.
 pub async fn desired_remote(store: &Store) -> Result<Vec<Entry>, RagError> {
     let documents = store.sync_documents().await.map_err(store_failed)?;
     let mut out = Vec::new();
@@ -833,7 +833,7 @@ pub async fn desired_remote(store: &Store) -> Result<Vec<Entry>, RagError> {
     Ok(out)
 }
 
-/// Bereich auf `desired` bringen (siehe Modulkopf).
+/// Bring a scope to `desired` (see the module header).
 pub async fn sync(
     index: &Index,
     job: Job,
@@ -876,10 +876,10 @@ pub async fn sync(
         let embedder = factory.for_model(&cfg.model);
         for batch in to_embed.chunks(MAX_EMBED_BATCH) {
             if abort() {
-                // Rücksetzwunsch: zwischen zwei Stapeln aufhören (Fertiges ist schon geschrieben).
+                // Reset wish: stop between two batches (finished work is already written).
                 return Ok(outcome);
             }
-            // Eingebettet wird mit dem Dokument-Präfix (leer = der Text byte-gleich); gespeichert der Text selbst.
+            // Embedding uses the document prefix (empty = the text byte-identical); stored is the text itself.
             let texts: Vec<String> = batch.iter().map(|e| cfg.prefixes.document_text(&e.text)).collect();
             let Some(answer) = embed_or_abort(embedder.as_ref(), &texts, abort).await else { return Ok(outcome) };
             let answer = answer?;
@@ -925,13 +925,13 @@ pub async fn sync(
     Ok(outcome)
 }
 
-/// Der lokale Suchweg für eine Suche.
+/// The local search way for one search.
 pub struct LanceWay {
     pub(crate) rt: Arc<Runtime>,
     pub(crate) factory: Arc<dyn EmbedderFactory>,
 }
 
-/// Adresse eines Treffers in Baruch.
+/// Address of a hit in Baruch.
 fn url_of(entry: &Entry, work: WorkId) -> Option<String> {
     let number = |name: &str| entry.meta.get(name).and_then(Value::as_i64);
     match entry.kind.as_str() {
@@ -966,7 +966,7 @@ impl LanceWay {
             return Err(e);
         }
         let embedder = self.factory.for_model(&cfg.model);
-        // Anfrage mit dem Anfrage-Präfix (leer = byte-gleich wie bisher).
+        // Query with the query prefix (empty = byte-identical as before).
         let answer = embedder.embed(&[cfg.prefixes.query_text(&query.text)]).await?;
         if let Some(d) = meta.dimension.filter(|d| *d != answer.dimension) {
             return Err(RagError::ModelMismatch(format!(
@@ -1049,7 +1049,7 @@ mod tests {
         assert!(e.message().contains("bge-m3") && e.message().contains("neu aufbauen"), "Satz: {e}");
         assert!(mismatch(&IndexMeta::default(), &cfg("bge-m3")).is_none(), "leerer Index passt zu jedem Modell");
 
-        // Runde 19b: ein anderes Dokument-Präfix mischt so wenig wie ein anderes Modell.
+        // Round 19b: another document prefix mixes as little as another model.
         let mut prefixed = cfg("nomic-embed-text");
         prefixed.prefixes.document = "search_document: ".into();
         let e = mismatch(&meta, &prefixed).expect("Index ohne Präfix, eingestellt mit Präfix");

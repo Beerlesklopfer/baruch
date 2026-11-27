@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! RPC der Rollen (Runde 35, Vertrag §2.3): Freigaben (`member.*`, nur volle Rechte) und die Schreibwege eines
-//! Lektors (`revision.propose`, `finding.add`, [`crate::roles::lektor`]).
+//! RPC of the roles (Round 35, contract §2.3): releases (`member.*`, full rights only) and the write paths of a
+//! Lektor (`revision.propose`, `finding.add`, [`crate::roles::lektor`]).
 //!
 //! - `member.list {work}` → `{work, members: [{account, name, display, handle, role, granted, active}],
-//!   candidates: [{account, name, display, handle}]}`: Freigaben des Werks (auch die gesperrter Konten, `active`
-//!   sagt es) und die aktiven Lektor-Konten ohne Freigabe.
-//! - `member.grant {work, account, role?: "lektor"}` → `{work, account, role, granted}`: idempotent; nur Konten der
-//!   Art `lektor` (-32000), unbekanntes Konto bzw. Werk -32602.
-//! - `member.revoke {work, account}` → `{work, account, revoked}` (`revoked: false`, wenn es keine Freigabe gab).
+//!   candidates: [{account, name, display, handle}]}`: releases of the work (also those of locked accounts, `active`
+//!   says so) and the active Lektor accounts without a release.
+//! - `member.grant {work, account, role?: "lektor"}` → `{work, account, role, granted}`: idempotent; only accounts of
+//!   the kind `lektor` (-32000), unknown account or work -32602.
+//! - `member.revoke {work, account}` → `{work, account, revoked}` (`revoked: false` if there was no release).
 //!
-//! `member.*` verlangt `work` (kein Vorgabewerk: eine Freigabe soll nie versehentlich das falsche Werk treffen) und
-//! volle Rechte – für Lektoren sperrt sie schon [`crate::roles::check_rpc`], hier steht die Prüfung noch einmal,
-//! damit auch ein direkter Aufruf von [`call`] nichts freigibt. Freigaben sind Instanzdaten: kein Commit im Spiegel.
+//! `member.*` requires `work` (no default work: a release must never hit the wrong work by accident) and
+//! full rights – for Lektors [`crate::roles::check_rpc`] already locks them, here the check stands once more
+//! so that a direct call of [`call`] releases nothing either. Releases are instance data: no commit in the mirror.
 
 use baruch_store::WorkId;
 use serde_json::{Value, json};
@@ -22,7 +22,7 @@ use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
 pub const METHODS: &[&str] = &["member.list", "member.grant", "member.revoke", "revision.propose", "finding.add"];
 
-/// `crate::rpc` fragt vor den Fachmodulen, ob die Methode hierher gehört.
+/// `crate::rpc` asks before the domain modules whether the method belongs here.
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -31,7 +31,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Ganzzahl aus `params[name]` (Zahl oder Ziffern als Text aus Formularen); fehlt → -32602.
+/// Integer from `params[name]` (number or digits as text from forms); missing → -32602.
 fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match params.get(name) {
@@ -42,7 +42,7 @@ fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
     }
 }
 
-/// Ein Konto, soweit die Freigaben es zeigen (nie der Hash).
+/// An account as far as the releases show it (never the hash).
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct AccountRow {
     id: i64,
@@ -59,7 +59,7 @@ impl AccountRow {
     }
 }
 
-/// Alle Konten, nach id. Gelesen wird die Tabelle direkt: Die Freigaben brauchen nur Name, Slug, Art und „aktiv“.
+/// All accounts, by id. The table is read directly: the releases need only name, slug, kind and "active".
 async fn accounts(state: &AppState) -> Result<Vec<AccountRow>, RpcError> {
     sqlx::query_as::<_, AccountRow>("SELECT id, name, slug, display, kind, active FROM account ORDER BY id")
         .fetch_all(state.store.pool())
@@ -67,7 +67,7 @@ async fn accounts(state: &AppState) -> Result<Vec<AccountRow>, RpcError> {
         .map_err(|e| baruch_store::StoreError::from(e).into())
 }
 
-/// Warum sich ein Werk für ein Konto nicht freigeben lässt (für die Codes des Formulars, Vertrag §3.4).
+/// Why a work cannot be released for an account (for the codes of the form, contract §3.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GrantRefusal {
     UnknownAccount,
@@ -75,7 +75,7 @@ pub enum GrantRefusal {
 }
 
 impl GrantRefusal {
-    /// Code für `?fehler=` (`konten_ui::MESSAGES`).
+    /// Code for `?fehler=` (`konten_ui::MESSAGES`).
     pub fn code(self) -> &'static str {
         match self {
             GrantRefusal::UnknownAccount => "unbekanntes_konto",
@@ -84,7 +84,7 @@ impl GrantRefusal {
     }
 }
 
-/// Lässt sich für das Konto freigeben? Unbekannt → [`GrantRefusal::UnknownAccount`], kein Lektor-Konto →
+/// Can a work be released for the account? Unknown → [`GrantRefusal::UnknownAccount`], not a Lektor account →
 /// [`GrantRefusal::NotLektor`].
 pub async fn grantable(state: &AppState, account: i64) -> Result<Result<(), GrantRefusal>, RpcError> {
     let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM account WHERE id = ?")
@@ -127,7 +127,7 @@ async fn grant(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
         Some(Value::String(role)) if role == "lektor" => "lektor",
         Some(_) => return Err(invalid("role: nur „lektor“ lässt sich freigeben")),
     };
-    // Erst das Werk (unbekannt → -32602 wie überall), dann das Konto.
+    // First the work (unknown → -32602 as everywhere), then the account.
     state.store.work_slug(work).await?;
     match grantable(state, account).await? {
         Ok(()) => {}
@@ -149,7 +149,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
     call_as(state, &who, method, params).await
 }
 
-/// Wie [`call`], mit ausdrücklich genanntem Handelnden.
+/// Like [`call`], with the actor named explicitly.
 pub async fn call_as(state: &AppState, who: &Who, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
@@ -157,8 +157,8 @@ pub async fn call_as(state: &AppState, who: &Who, method: &str, params: Value) -
     }
     match method {
         "revision.propose" | "finding.add" => {
-            // Für Lektoren hat `check_rpc` das Werk schon eingesetzt und geprüft; alle anderen werden gleich
-            // abgelehnt (nur Lektoren), das Werk dient dann nur der einheitlichen Fehlermeldung.
+            // For Lektors `check_rpc` has already inserted and checked the work; all others are rejected right
+            // away (Lektors only), the work then only serves the uniform error message.
             let work = crate::rpc::work_param(state, &params).await?;
             if method == "revision.propose" {
                 super::lektor::propose(state, who, work, params).await

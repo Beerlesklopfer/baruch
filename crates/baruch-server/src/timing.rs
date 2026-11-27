@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zeitwächter (Runde 16b, Schnittstelle R16-S1): Sprechdauer je Gliederungspunkt und gesamt.
+//! Time guard (Round 16b, interface R16-S1): speaking time per outline item and in total.
 //!
-//! Je Punkt in `seq`-Reihenfolge zählt die **aktuelle** Fassung ([`baruch_typst::timing::spoken_words`]);
-//! `words`/`seconds` sind nur der eigene Text, `start_seconds` ist die Summe der `seconds` aller
-//! vorherigen Punkte (Zeitmarke), `subtree_seconds` eigener Text und alle Nachfahren, `depth` die Zahl der
-//! Vorfahren. Gesamt ist die Summe der Punkte; `status` ist `over` genau dann, wenn die Gesamtzeit die
-//! Zielzeit übersteigt (`over_seconds` = Differenz), `none` ohne Zielzeit.
+//! Per item in `seq` order the **current** revision counts ([`baruch_typst::timing::spoken_words`]);
+//! `words`/`seconds` are only the own text, `start_seconds` is the sum of the `seconds` of all
+//! previous items (time mark), `subtree_seconds` own text and all descendants, `depth` the number of
+//! ancestors. The total is the sum of the items; `status` is `over` exactly when the total time exceeds the
+//! target time (`over_seconds` = difference), `none` without a target time.
 //!
-//! Nur lesend: keine Schreibsperre, kein Spiegel-Commit. Die Einstellungen (Wörter je Minute, Zielzeit)
-//! stehen nur in SQLite (`work_timing`), nicht im Spiegel.
+//! Read only: no write lock, no mirror commit. The settings (words per minute, target time)
+//! are only in SQLite (`work_timing`), not in the mirror.
 
 use baruch_core::WorkKind;
 use baruch_store::WorkId;
@@ -18,17 +18,17 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::RpcError;
 
-/// Stand gegenüber der Zielzeit.
+/// State compared with the target time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TimingStatus {
-    /// Keine Zielzeit gesetzt.
+    /// No target time set.
     None,
     Ok,
     Over,
 }
 
-/// Sprechdauer eines Gliederungspunkts.
+/// Speaking time of an outline item.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SectionTiming {
     pub key: i64,
@@ -42,7 +42,7 @@ pub struct SectionTiming {
     pub subtree_seconds: u32,
 }
 
-/// Sprechdauer eines Werks.
+/// Speaking time of a work.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct WorkTiming {
     pub work: WorkId,
@@ -57,20 +57,20 @@ pub struct WorkTiming {
 }
 
 impl WorkTiming {
-    /// `true`, wenn Predigt oder Zielzeit gesetzt (dann zeigen Gliederung, Baum und Editorkopf die Zeiten).
+    /// `true` if sermon or target time set (then outline, tree and editor header show the times).
     pub fn shown(&self) -> bool {
         self.kind == WorkKind::Sermon || self.target_seconds.is_some()
     }
 }
 
-/// Zeiten eines geladenen Werks mit seinen Einstellungen (rein, ohne Datenbank).
+/// Times of a loaded work with its settings (pure, without database).
 pub fn timing_of(work_id: WorkId, work: &baruch_core::Work, settings: baruch_store::TimingSettings) -> WorkTiming {
     let wpm = settings.words_per_minute;
     let count = work.nodes.len();
     let words: Vec<usize> =
         work.nodes.iter().map(|n| n.current_index().map_or(0, |i| spoken_words(&n.revisions[i].body))).collect();
     let seconds: Vec<u32> = words.iter().map(|&w| speaking_seconds(w, wpm)).collect();
-    // Nachfahren stehen in Baumreihenfolge hinter ihrem Elternteil: rückwärts aufsummieren.
+    // Descendants stand in tree order behind their parent: sum up backwards.
     let mut subtree = seconds.clone();
     for index in (0..count).rev() {
         if let Some(parent) = work.nodes[index].parent.filter(|&p| p < index) {
@@ -121,15 +121,15 @@ pub fn timing_of(work_id: WorkId, work: &baruch_core::Work, settings: baruch_sto
     }
 }
 
-/// Zeiten eines Werks aus der Datenbank (nur lesend).
+/// Times of a work from the database (read only).
 pub async fn work_timing(state: &AppState, work: WorkId) -> Result<WorkTiming, RpcError> {
     let settings = state.store.timing_settings(work).await?;
     let loaded = state.store.load_work(work).await?;
     Ok(timing_of(work, &loaded, settings))
 }
 
-/// JSON-Antwort von `work.timing` (und MCP `work_timing`): alle Felder, dazu `shown`, `clock`,
-/// `target_clock`, `over_clock` und je Abschnitt `clock`, `start_clock`, `subtree_clock`.
+/// JSON answer of `work.timing` (and MCP `work_timing`): all fields, plus `shown`, `clock`,
+/// `target_clock`, `over_clock` and per section `clock`, `start_clock`, `subtree_clock`.
 pub fn timing_json(timing: &WorkTiming) -> Value {
     let mut value = json!(timing);
     value["shown"] = json!(timing.shown());
@@ -148,10 +148,10 @@ pub fn timing_json(timing: &WorkTiming) -> Value {
 
 // ---- RPC ------------------------------------------------------------------------------------------
 
-/// Längster Text für `timing.count` (Zeichen).
+/// Longest text for `timing.count` (characters).
 pub const MAX_COUNT_CHARS: usize = 1_000_000;
 
-/// Bedient dieses Modul die RPC-Methode? `work.timing`, `work.timing_set`, `timing.count`.
+/// Does this module serve the RPC method? `work.timing`, `work.timing_set`, `timing.count`.
 pub fn handles(method: &str) -> bool {
     matches!(method, "work.timing" | "work.timing_set" | "timing.count")
 }
@@ -160,8 +160,8 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(crate::rpc::INVALID_PARAMS, message)
 }
 
-/// Ganze Zahl aus `params[name]` (Zahl oder Ziffern als Text, Formulare): fehlt → `None`, `null` oder
-/// leerer Text → `Some(None)`.
+/// Whole number from `params[name]` (number or digits as text, forms): missing → `None`, `null` or
+/// empty text → `Some(None)`.
 fn whole_number(params: &Value, name: &str) -> Result<Option<Option<i64>>, RpcError> {
     let wrong = || invalid(format!("{name}: ganze Zahl erwartet"));
     match params.get(name) {
@@ -180,7 +180,7 @@ fn whole_number(params: &Value, name: &str) -> Result<Option<Option<i64>>, RpcEr
     }
 }
 
-/// `work.timing_set`: neue Einstellungen aus den Parametern über die alten gelegt (fehlende Felder bleiben).
+/// `work.timing_set`: new settings from the parameters laid over the old ones (missing fields stay).
 pub fn settings_from_params(
     old: baruch_store::TimingSettings,
     params: &Value,
@@ -210,7 +210,7 @@ pub fn settings_from_params(
     Ok(new)
 }
 
-/// Einstellungen eines Werks setzen (nur der Mensch: RPC und Formular, nicht MCP, nicht `/act`).
+/// Set the settings of a work (only the human: RPC and form, not MCP, not `/act`).
 pub async fn set_timing(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let old = state.store.timing_settings(work).await?;
     let new = settings_from_params(old, params)?;
@@ -222,8 +222,8 @@ pub async fn set_timing(state: &AppState, work: WorkId, params: &Value) -> Resul
 }
 
 /// RPC `work.timing {work?}`, `work.timing_set {work, words_per_minute?, target_minutes?}`,
-/// `timing.count {work?, text}` (`docs/RPC.md`, „Zeitwächter“). `work` ist schon aufgelöst
-/// (fehlt → Vorgabewerk); `work.timing_set` verlangt es ausdrücklich.
+/// `timing.count {work?, text}` (`docs/RPC.md`, „Zeitwächter“). `work` is already resolved
+/// (missing → default work); `work.timing_set` requires it explicitly.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     match method {

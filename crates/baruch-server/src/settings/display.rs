@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungsseite „Darstellung“: Werte in Cookies dieses Browsers (`baruch_theme`, `baruch_editor`,
-//! `baruch_pv`, `baruch_accordion`, `baruch_left`/`baruch_right`). Das Formular
-//! `POST /einstellungen/darstellung/act` setzt sie im Format von `widgets.ts` `store`
-//! (`baruch_<n>=<v>; Path=/; Max-Age=31536000; SameSite=Lax`, Löschen mit `Max-Age=0`) und leitet mit
-//! 303 zurück; ein ungültiger Wert → 422 mit der Seite, dann wird kein Cookie gesetzt.
+//! Settings page „Darstellung“: values in cookies of this browser (`baruch_theme`, `baruch_editor`,
+//! `baruch_pv`, `baruch_accordion`, `baruch_left`/`baruch_right`). The form
+//! `POST /einstellungen/darstellung/act` sets them in the format of `widgets.ts` `store`
+//! (`baruch_<n>=<v>; Path=/; Max-Age=31536000; SameSite=Lax`, deleting with `Max-Age=0`) and redirects back with
+//! 303; an invalid value → 422 with the page, then no cookie is set.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -19,12 +19,12 @@ use serde_json::{Value as Json, json};
 use crate::AppState;
 use crate::view::Settings;
 
-/// Thema für Anzeige und RPC: `system` (kein Cookie), `light`, `dark`.
+/// Theme for display and RPC: `system` (no cookie), `light`, `dark`.
 fn theme_of(settings: &Settings) -> &'static str {
     settings.theme.unwrap_or("system")
 }
 
-/// `settings.get {page: "darstellung"}`: die Cookies der Anfrage.
+/// `settings.get {page: "darstellung"}`: the cookies of the request.
 pub(super) fn values(settings: &Settings) -> Json {
     json!({
         "theme": theme_of(settings), "editor": settings.editor, "pv": settings.pv, "accordion": settings.accordion,
@@ -51,7 +51,7 @@ pub(super) async fn render(
     )
 }
 
-/// Felder des Formulars; jedes ist freiwillig, nur genannte werden gesetzt.
+/// Fields of the form; each is optional, only named ones are set.
 #[derive(Deserialize, Default)]
 pub(super) struct ActForm {
     work: Option<String>,
@@ -62,7 +62,7 @@ pub(super) struct ActForm {
     reset_widths: Option<String>,
 }
 
-/// Ein Cookie im Format von `widgets.ts` `store`; `None` = löschen.
+/// A cookie in the format of `widgets.ts` `store`; `None` = delete.
 fn cookie(name: &str, value: Option<&str>) -> String {
     match value {
         Some(value) => format!("baruch_{name}={value}; Path=/; Max-Age=31536000; SameSite=Lax"),
@@ -70,7 +70,7 @@ fn cookie(name: &str, value: Option<&str>) -> String {
     }
 }
 
-/// Cookies zu den Formularfeldern; `Err` nennt das erste ungültige Feld (dann wird nichts gesetzt).
+/// Cookies for the form fields; `Err` names the first invalid field (then nothing is set).
 pub(crate) fn cookies_for(
     theme: Option<&str>,
     editor: Option<&str>,
@@ -92,7 +92,7 @@ pub(crate) fn cookies_for(
     }
     match pv {
         None => {}
-        // Offen ist die Vorgabe: dann braucht es kein Cookie.
+        // Open is the default: then no cookie is needed.
         Some("open") => out.push(cookie("pv", None)),
         Some("closed") => out.push(cookie("pv", Some("closed"))),
         Some(_) => return Err("Vorschläge: „aufgeklappt“ oder „eingeklappt“ wählen.".into()),
@@ -110,8 +110,8 @@ pub(crate) fn cookies_for(
 }
 
 /// `POST /einstellungen/darstellung/act`: `theme=system|light|dark`, `editor=satz|quelltext`,
-/// `pv=open|closed`, `accordion=chat|personas|revisions`, `reset_widths=1` (jedes freiwillig) → Set-Cookie,
-/// 303 `/einstellungen/darstellung?ok=1[&work=W]`; ungültig → 422 mit der Seite.
+/// `pv=open|closed`, `accordion=chat|personas|revisions`, `reset_widths=1` (each optional) → Set-Cookie,
+/// 303 `/einstellungen/darstellung?ok=1[&work=W]`; invalid → 422 with the page.
 pub(super) async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work = form.work.as_deref().and_then(|w| w.trim().parse::<WorkId>().ok()).filter(|&w| w > 0);
     let pick = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_owned);
@@ -124,7 +124,7 @@ pub(super) async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, 
     let mut response =
         Redirect::to(&format!("/einstellungen/darstellung?ok=1{}", super::work_suffix(work))).into_response();
     for value in cookies {
-        // Die Werte stammen nur aus den festen Listen oben; ein ungültiger Kopf ist ausgeschlossen.
+        // The values come only from the fixed lists above; an invalid header is ruled out.
         if let Ok(value) = HeaderValue::from_str(&value) {
             response.headers_mut().append(header::SET_COOKIE, value);
         }
@@ -165,8 +165,8 @@ mod tests {
         ] {
             assert!(bad.is_err(), "ungültiger Wert abgelehnt: {bad:?}");
         }
-        // Das Akkordeon hat drei Abschnitte (fragments/assistants.html, fragments/revisions.html); jeder
-        // muss wählbar sein, auch „Fassungen“, das view.rs als baruch_accordion=revisions liest.
+        // The accordion has three sections (fragments/assistants.html, fragments/revisions.html); each
+        // must be selectable, also „Fassungen“, which view.rs reads as baruch_accordion=revisions.
         assert_eq!(
             cookies_for(None, None, None, Some("revisions"), false).unwrap(),
             ["baruch_accordion=revisions; Path=/; Max-Age=31536000; SameSite=Lax"],

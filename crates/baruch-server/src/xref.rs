@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Querverweise und Sprungmarken (Runde 30a).
+//! Cross-references and jump marks (Round 30a).
 //!
-//! - Sprung-Adresse [`jump_url`]: `/?work=W&key=K[&rev=R]&find=<Text>[&at=<Byte>]`; der Server ignoriert `find` und
-//!   `at`, `web/src/jump.ts` markiert damit die Stelle. Gebraucht von Suche, Querverweisen und Persona-Sprungmarken.
-//! - Sprungmarken in Persona-Beiträgen (`[[key:N]]`, `[[key:N|„Zitat“]]`) prüft [`check_marker`]: nur geprüfte werden
-//!   Links (gebaut von Baruch, nie vom Modell).
-//! - [`outline_mentions`]: eindeutige Nennungen von Gliederungspunkten im Text („die Einleitung“, „Vorwort“, „im
-//!   dritten Kapitel“, „Kapitel III“, „Abschnitt 2.3“, Titel in Anführungszeichen) – Grundlage der Liste „mögliche
-//!   Querverweise“ ([`candidates`]) und der Gliederungs-Links im Chat.
-//! - RPC `xref.targets`, `xref.resolve`, `xref.candidates`, `xref.convert` (nur der Mensch, `confirm: true`, eine
-//!   neue Fassung, ein Commit), `xref.broken`; Seiten `GET /verweise` und `POST /verweise/act` (ohne JavaScript).
-//! - Kaputte Verweise ([`broken_in`]) stehen auch in der Druckprüfung der Satz-Seite; im Satz werden sie zum bloßen
-//!   Linktext, damit der Rest des Werks gesetzt wird (`typeset.rs`).
+//! - Jump address [`jump_url`]: `/?work=W&key=K[&rev=R]&find=<Text>[&at=<Byte>]`; the server ignores `find` and
+//!   `at`, `web/src/jump.ts` marks the place with them. Used by search, cross-references and persona jump marks.
+//! - Jump marks in persona posts (`[[key:N]]`, `[[key:N|„Zitat“]]`) are checked by [`check_marker`]: only checked
+//!   ones become links (built by Baruch, never by the model).
+//! - [`outline_mentions`]: unambiguous mentions of outline items in the text („die Einleitung“, „Vorwort“, „im
+//!   dritten Kapitel“, „Kapitel III“, „Abschnitt 2.3“, titles in quotation marks) – basis of the list „mögliche
+//!   Querverweise“ ([`candidates`]) and of the outline links in the chat.
+//! - RPC `xref.targets`, `xref.resolve`, `xref.candidates`, `xref.convert` (only the human, `confirm: true`, one
+//!   new revision, one commit), `xref.broken`; pages `GET /verweise` and `POST /verweise/act` (without JavaScript).
+//! - Broken references ([`broken_in`]) also stand in the print check of the typesetting page; in typesetting they
+//!   become the mere link text, so that the rest of the work is typeset (`typeset.rs`).
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -34,10 +34,10 @@ use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::search::TextKind;
 use crate::view::Settings;
 
-/// Höchstens so viele Zeichen von `find` kommen in die Sprung-Adresse.
+/// At most this many characters of `find` go into the jump address.
 const MAX_FIND_CHARS: usize = 200;
 
-/// Ziel eines Sprungs: Werk, Abschnitt, wahlweise Fassung, zu markierender Text und Byte-Stelle.
+/// Target of a jump: work, section, optionally revision, text to mark and byte position.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct JumpTarget {
     pub work: WorkId,
@@ -47,7 +47,7 @@ pub struct JumpTarget {
     pub at: Option<usize>,
 }
 
-/// `view::node_url(work, key, rev, false, "", "")` + `&find=<prozentkodiert, höchstens 200 Zeichen>` + `&at=<Byte>`.
+/// `view::node_url(work, key, rev, false, "", "")` + `&find=<percent-encoded, at most 200 characters>` + `&at=<Byte>`.
 pub fn jump_url(target: &JumpTarget) -> String {
     let mut url = crate::view::node_url(target.work, target.key, target.rev, false, "", "");
     if let Some(find) = target.find.as_deref().filter(|f| !f.is_empty()) {
@@ -60,25 +60,26 @@ pub fn jump_url(target: &JumpTarget) -> String {
     url
 }
 
-/// Ergebnis der Prüfung einer Sprungmarke.
+/// Result of the check of a jump mark.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MarkerCheck {
-    /// Geprüft: Ziel und Beschriftung („<Nummer> <Titel>“ bzw. „Zitat“).
+    /// Checked: target and label („<Nummer> <Titel>“ or „Zitat“).
     Linked { target: JumpTarget, label: String },
-    /// Den Schlüssel gibt es im Werk nicht.
+    /// The key does not exist in the work.
     UnknownKey { key: i64 },
-    /// Das Zitat steht nicht in der Fassung.
+    /// The quotation does not stand in the revision.
     QuoteMissing { key: i64, quote: String },
 }
 
-/// Leerraum vereinheitlichen (Folgen → ein Leerzeichen, Ränder weg).
+/// Unify whitespace (runs → one space, edges removed).
 fn squash(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Sprungmarke prüfen: Gibt es den Schlüssel im Werk? Steht das Zitat (Leerraum vereinheitlicht, Anführungszeichen
-/// „…“ bzw. "…" am Rand entfernt) in Fassung `rev` bzw. der aktuellen? Beschriftung „<Nummer> <Titel>“ bzw. „Zitat“.
-/// Beim Zitat trägt das Ziel die Byte-Stelle des Zitats (`at`), wenn es wörtlich (ohne Vereinheitlichung) vorkommt.
+/// Check a jump mark: does the key exist in the work? Does the quotation (whitespace unified, quotation marks
+/// „…“ or "…" at the edge removed) stand in revision `rev` or the current one? Label „<Nummer> <Titel>“ or „Zitat“.
+/// For the quotation the target carries the byte position of the quotation (`at`) if it occurs literally (without
+/// unification).
 pub fn check_marker(
     work_id: WorkId,
     work: &baruch_core::Work,
@@ -105,7 +106,7 @@ pub fn check_marker(
     MarkerCheck::Linked { target, label: "Zitat".to_owned() }
 }
 
-/// Eine Nennung eines Gliederungspunkts im Text (Bytes `start..end`, Schlüssel, Text).
+/// A mention of an outline item in the text (bytes `start..end`, key, text).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct OutlineMention {
     pub start: usize,
@@ -114,14 +115,14 @@ pub struct OutlineMention {
     pub text: String,
 }
 
-/// Ordnungszahlen eins bis zwölf (Stamm, gebeugt mit -e, -en, -er, -es, -em).
+/// Ordinal numbers one to twelve (stem, inflected with -e, -en, -er, -es, -em).
 const ORDINALS: [&str; 12] =
     ["erst", "zweit", "dritt", "viert", "fünft", "sechst", "siebt", "acht", "neunt", "zehnt", "elft", "zwölft"];
 
-/// Größte Ordnungszahl in Worten, die erkannt wird („hundertste“).
+/// Largest ordinal number in words that is recognised („hundertste“).
 pub const MAX_ORDINAL: usize = 100;
 
-/// Stamm der Ordnungszahl `n` (1 bis [`MAX_ORDINAL`], Runde 36 über „zwölfte“ hinaus): „dreizehnt“, „zwanzigst“,
+/// Stem of the ordinal number `n` (1 to [`MAX_ORDINAL`], Round 36 beyond „zwölfte“): „dreizehnt“, „zwanzigst“,
 /// „einundvierzigst“, „hundertst“.
 fn ordinal_stem(n: usize) -> Option<String> {
     const TEENS: [&str; 7] = ["drei", "vier", "fünf", "sech", "sieb", "acht", "neun"];
@@ -142,19 +143,19 @@ fn ordinal_stem(n: usize) -> Option<String> {
     }
 }
 
-/// Endungen einer gebeugten Ordnungszahl.
+/// Endings of an inflected ordinal number.
 const ORDINAL_ENDINGS: [&str; 5] = ["en", "er", "es", "em", "e"];
 
-/// Ordnungszahl in Worten als Zahl: „dritten“ → 3, „Einundvierzigstes“ → 41; alles andere → `None`. Verglichen wird
-/// der ganze Stamm (nicht sein Anfang): „achtzehnten“ ist 18, nicht 8.
+/// Ordinal number in words as a number: „dritten“ → 3, „Einundvierzigstes“ → 41; everything else → `None`. The
+/// whole stem is compared (not its beginning): „achtzehnten“ is 18, not 8.
 fn ordinal(word: &str) -> Option<usize> {
     let lower = word.to_lowercase();
     let stem = ORDINAL_ENDINGS.iter().find_map(|ending| lower.strip_suffix(ending))?;
     (1..=MAX_ORDINAL).find(|n| ordinal_stem(*n).as_deref() == Some(stem))
 }
 
-/// Römische Zahl (I bis MMMCMXCIX, Runde 36 über XXXIX hinaus) als Zahl; nur die übliche Schreibweise gilt
-/// („IIII“, „VX“ oder „IC“ sind keine Zahl).
+/// Roman numeral (I to MMMCMXCIX, Round 36 beyond XXXIX) as a number; only the usual notation counts
+/// ("IIII", "VX" or "IC" are not a number).
 fn roman(text: &str) -> Option<usize> {
     const THOUSANDS: [&str; 4] = ["", "M", "MM", "MMM"];
     const HUNDREDS: [&str; 10] = ["", "C", "CC", "CCC", "CD", "D", "DC", "DCC", "DCCC", "CM"];
@@ -168,12 +169,12 @@ fn roman(text: &str) -> Option<usize> {
     })
 }
 
-/// Muster der Zählnennungen: „im dritten Kapitel“, „drittes Kapitel“, „Kapitel III“, „Kapitel 3“, „Teil II“,
+/// Pattern of the counted mentions: „im dritten Kapitel“, „drittes Kapitel“, „Kapitel III“, „Kapitel 3“, „Teil II“,
 /// „zweiten Teil“, „Abschnitt 2.3“.
 fn counted_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        // Alle Stämme von 1 bis MAX_ORDINAL, die längsten zuerst (sonst träfe „acht“ vor „achtzehnt“).
+        // All stems from 1 to MAX_ORDINAL, the longest first (otherwise „acht“ would match before „achtzehnt“).
         let mut stems: Vec<String> = (1..=MAX_ORDINAL).filter_map(ordinal_stem).collect();
         stems.sort_by_key(|stem| std::cmp::Reverse(stem.len()));
         let ordinals = stems.join("|");
@@ -184,15 +185,15 @@ fn counted_pattern() -> &'static Regex {
     })
 }
 
-/// Zahl ohne Schlusspunkt („3.“ → „3“).
+/// Number without a final dot ("3." → "3").
 fn bare_number(number: &str) -> &str {
     number.trim().trim_end_matches('.')
 }
 
-/// Ziel einer Zählnennung: Art und Ordnungszahl bzw. Nummer → eindeutiger Punkt.
+/// Target of a counted mention: kind and ordinal number or number → unambiguous item.
 fn counted_target(work: &Work, kind: NodeKind, index: Option<usize>, number: Option<&str>) -> Option<i64> {
     let of_kind: Vec<&baruch_core::Node> = work.nodes.iter().filter(|n| n.kind == kind).collect();
-    // Gezählt („das dritte Kapitel“) werden nur Punkte mit Nummer: ein Vorwort ohne Nummer ist kein erstes Kapitel.
+    // Counted („das dritte Kapitel“) are only items with a number: a preface without a number is no first chapter.
     let counted: Vec<&baruch_core::Node> = of_kind.iter().copied().filter(|n| !n.number.trim().is_empty()).collect();
     if let Some(number) = number {
         let by_number: Vec<&&baruch_core::Node> = of_kind.iter().filter(|n| bare_number(&n.number) == number).collect();
@@ -202,7 +203,7 @@ fn counted_target(work: &Work, kind: NodeKind, index: Option<usize>, number: Opt
         if !by_number.is_empty() {
             return None;
         }
-        // „Abschnitt 2.3“ ohne passende Nummer: auch Unterabschnitte mit dieser Nummer.
+        // „Abschnitt 2.3“ without a matching number: also subsections with this number.
         let any: Vec<&baruch_core::Node> = work.nodes.iter().filter(|n| bare_number(&n.number) == number).collect();
         if let [one] = any.as_slice()
             && number.contains('.')
@@ -215,11 +216,12 @@ fn counted_target(work: &Work, kind: NodeKind, index: Option<usize>, number: Opt
     counted.get(index?.checked_sub(1)?).map(|n| n.key)
 }
 
-/// Eindeutige Nennungen von Gliederungspunkten in `text`, nach Stelle, ohne Überlappung: Zählnennungen („im dritten
-/// Kapitel“ → „dritten Kapitel“, „Kapitel III“, „Abschnitt 2.3“; seit Runde 36 Ordnungszahlen bis „hundertste“
-/// und römische Zahlen in üblicher Schreibweise über XXXIX hinaus, etwa „Kapitel XLII“) und Titel (mindestens vier Zeichen, als ganze Wörter;
-/// mit vorangestelltem Artikel „die Einleitung“). Ein Titel, den mehrere Punkte tragen, und eine Zahl ohne genau ein
-/// Ziel werden nicht genannt (eindeutig oder gar nicht). Kürzere Titel zählen nur in Anführungszeichen.
+/// Unambiguous mentions of outline items in `text`, by position, without overlap: counted mentions („im dritten
+/// Kapitel“ → „dritten Kapitel“, „Kapitel III“, „Abschnitt 2.3“; since Round 36 ordinal numbers up to „hundertste“
+/// and Roman numerals in the usual notation beyond XXXIX, such as „Kapitel XLII“) and titles (at least four
+/// characters, as whole words; with a preceding article „die Einleitung“). A title that several items carry, and
+/// a number without exactly one target, are not mentioned (unambiguous or not at all). Shorter titles count only
+/// in quotation marks.
 pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMention> {
     let mut found: Vec<OutlineMention> = Vec::new();
     for caps in counted_pattern().captures_iter(text) {
@@ -238,7 +240,7 @@ pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMent
             found.push(OutlineMention { start: whole.start(), end: whole.end(), key, text: whole.as_str().to_owned() });
         }
     }
-    // Titel: je Titel (ohne Groß/klein) genau ein Punkt.
+    // Titles: per title (ignoring case) exactly one item.
     let mut titles: HashMap<String, Vec<i64>> = HashMap::new();
     for node in &work.nodes {
         let title = node.title.trim();
@@ -257,7 +259,7 @@ pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMent
         for caps in re.captures_iter(text) {
             let whole = caps.get(0).expect("Gruppe 0");
             let title_start = whole.end() - title.len();
-            // Ganze Wörter: kein Wortzeichen direkt davor bzw. dahinter.
+            // Whole words: no word character directly before or behind.
             let before = text[..title_start].chars().next_back();
             let after = text[whole.end()..].chars().next();
             let wordy = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
@@ -268,7 +270,7 @@ pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMent
             if quoted_only && !quoted {
                 continue;
             }
-            // Groß/klein des Titels selbst muss stimmen (der Artikel darf klein oder groß sein).
+            // The case of the title itself must match (the article may be lower or upper case).
             if &text[title_start..whole.end()] != title {
                 continue;
             }
@@ -291,7 +293,7 @@ pub fn outline_mentions(work: &baruch_core::Work, text: &str) -> Vec<OutlineMent
     out
 }
 
-/// Ein möglicher Querverweis: Abschnitt, Fassung, Stelle, Text, Ziel und der Ersatz (`#link(<kN>)[Text]`).
+/// A possible cross-reference: section, revision, position, text, target and the replacement (`#link(<kN>)[Text]`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Candidate {
     pub key: i64,
@@ -303,8 +305,8 @@ pub struct Candidate {
     pub replacement: String,
 }
 
-/// Mögliche Querverweise in einem Text: Nennungen im Fließtext (nicht in Überschrift, Zitat, Code, Fußnote), nicht in
-/// einem vorhandenen Verweis, nicht auf den eigenen Abschnitt.
+/// Possible cross-references in a text: mentions in the running text (not in heading, quotation, code, footnote),
+/// not in an existing reference, not to the own section.
 pub fn candidates_in(work: &Work, key: i64, rev: u32, text: &str) -> Vec<Candidate> {
     let kinds = crate::search::scan::classify(text);
     let existing = find_xrefs(text);
@@ -325,7 +327,7 @@ pub fn candidates_in(work: &Work, key: i64, rev: u32, text: &str) -> Vec<Candida
         .collect()
 }
 
-/// Mögliche Querverweise eines Abschnitts (aktuelle Fassung) bzw. des ganzen Werks.
+/// Possible cross-references of a section (current revision) or of the whole work.
 pub fn candidates(work: &Work, key: Option<i64>) -> Vec<Candidate> {
     work.nodes
         .iter()
@@ -335,7 +337,7 @@ pub fn candidates(work: &Work, key: Option<i64>) -> Vec<Candidate> {
         .collect()
 }
 
-/// Ein kaputter Verweis: Abschnitt, Fassung, Sprungmarke, Stelle und Linktext.
+/// A broken reference: section, revision, jump mark, position and link text.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Broken {
     pub key: i64,
@@ -346,8 +348,8 @@ pub struct Broken {
     pub target: i64,
 }
 
-/// Kaputte Verweise des Werks (aktuelle Fassungen): Ziel gibt es nicht oder es hat keine aktuelle Fassung (dann
-/// steht seine Sprungmarke nicht im Export).
+/// Broken references of the work (current revisions): the target does not exist or it has no current revision
+/// (then its jump mark does not stand in the export).
 pub fn broken_in(work: &Work) -> Vec<Broken> {
     let present: std::collections::HashSet<i64> =
         work.nodes.iter().filter(|n| n.current_number().is_some()).map(|n| n.key).collect();
@@ -370,7 +372,7 @@ pub fn broken_in(work: &Work) -> Vec<Broken> {
     out
 }
 
-/// Ziele für den Dialog „Verweis“: Schlüssel, Sprungmarke, Nummer, Titel, Ebene, fertiger Verweis.
+/// Targets for the dialog „Verweis“: key, jump mark, number, title, level, finished reference.
 fn targets(work: &Work, q: &str, limit: usize) -> Vec<Value> {
     let needle = q.trim().to_lowercase();
     work.nodes
@@ -392,7 +394,7 @@ fn targets(work: &Work, q: &str, limit: usize) -> Vec<Value> {
         .collect()
 }
 
-/// Ebene eines Punkts: 0 Teil, 1 Kapitel, 2 Abschnitt, 3 Unterabschnitt.
+/// Level of an item: 0 part, 1 chapter, 2 section, 3 subsection.
 fn level_of(work: &Work, node: &baruch_core::Node) -> u8 {
     match node.kind {
         NodeKind::Part => 0,
@@ -408,8 +410,8 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Querverweise umwandeln (nur der Mensch): die gewählten möglichen Verweise der Fassung `rev` einsetzen und als neue
-/// Fassung auf `rev` speichern (ein Commit). Antwort `{node, key, rev, converted}`.
+/// Convert cross-references (only the human): insert the chosen possible references of the revision `rev` and
+/// store them as a new revision on `rev` (one commit). Answer `{node, key, rev, converted}`.
 pub async fn convert(state: &AppState, work: WorkId, key: i64, rev: u32, picks: &[usize]) -> Result<Value, RpcError> {
     if picks.is_empty() {
         return Err(invalid("Bitte mindestens einen möglichen Verweis wählen (picks)."));
@@ -454,7 +456,7 @@ pub async fn convert(state: &AppState, work: WorkId, key: i64, rev: u32, picks: 
     Ok(answer)
 }
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub const METHODS: &[&str] = &["xref.targets", "xref.resolve", "xref.candidates", "xref.convert", "xref.broken"];
 
 pub fn handles(method: &str) -> bool {
@@ -471,7 +473,7 @@ fn key_param(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     }
 }
 
-/// RPC `xref.*` beantworten.
+/// Answer RPC `xref.*`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "xref.targets" => {
@@ -548,7 +550,7 @@ fn first<'a>(pairs: &'a [(String, String)], name: &str) -> Option<&'a str> {
     pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.trim()).filter(|v| !v.is_empty())
 }
 
-/// Beschriftung „2.3 Titel“ eines Schlüssels.
+/// Label „2.3 Titel“ of a key.
 fn label_for(work: &Work, key: i64) -> String {
     work.nodes
         .iter()
@@ -574,7 +576,7 @@ async fn page(
         return plain(StatusCode::NOT_FOUND, "Unbekanntes Werk.");
     };
     let key = first(&pairs, "key").and_then(|k| k.parse::<i64>().ok());
-    // Mögliche Verweise je Abschnitt (Formular je Abschnitt).
+    // Possible references per section (one form per section).
     let mut groups: Vec<Value> = Vec::new();
     for c in candidates(&loaded, key) {
         let node = loaded.nodes.iter().find(|n| n.key == c.key);
@@ -621,7 +623,7 @@ async fn page(
     }
 }
 
-/// `POST /verweise/act`: `method=xref.convert`, `work`, `key`, `rev`, `picks` (mehrfach), `confirm` → 303 zurück.
+/// `POST /verweise/act`: `method=xref.convert`, `work`, `key`, `rev`, `picks` (several times), `confirm` → 303 back.
 async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, String)>>) -> Response {
     let work = match first(&pairs, "work").and_then(|w| w.parse::<WorkId>().ok()) {
         Some(w) => w,
@@ -658,12 +660,12 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
     }
 }
 
-/// Seiten (`GET /verweise`).
+/// Pages (`GET /verweise`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/verweise", get(page))
 }
 
-/// Schreibende Routen (`POST /verweise/act`, hinter `guard::same_origin`).
+/// Writing routes (`POST /verweise/act`, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/verweise/act", post(act))
 }

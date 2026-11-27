@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Prüfanzeige der Zitate (Runde 17c): `GET /werke/{id}/pruefung?key=K[&rev=N]` zeigt das Ergebnis der
-//! Wortlautprüfung eines Abschnitts **ohne JavaScript** als Liste – je Stelle Stellenangabe, Zitat, Ergebnis
-//! („stimmt“, „weicht ab“, „ohne Zitat“, „ungeprüft“, „nicht prüfbar“), Unterschiede, die gelesene Stelle in
-//! der Zählung des Moduls, Versifikation und Lizenzvermerk der conf; seit Runde 19c „Wortlaut stimmt (Leerraum im
-//! Modul)“ bei Trennresten und der Hinweis auf ein Modul mit auffällig vielen Wortfragmenten. Dieselben Daten wie RPC `bible.marks`
-//! ([`crate::bibles::marks_with`]). Mit JavaScript markiert das Widget `scripture-check`
-//! (`web/src/scripture_check.ts`) dieselben Ergebnisse im Satzbild über die CSS Custom Highlight API; der Link
-//! „Zitate prüfen“ in der Statuszeile des Editors führt ohne JavaScript hierher. Nur lesend.
+//! Check display of the quotations (Round 17c): `GET /werke/{id}/pruefung?key=K[&rev=N]` shows the result of the
+//! wording check of a section **without JavaScript** as a list – per passage the reference, quotation, result
+//! („stimmt“, „weicht ab“, „ohne Zitat“, „ungeprüft“, „nicht prüfbar“), differences, the passage read in
+//! the versification of the module, versification and licence note of the conf; since Round 19c „Wortlaut stimmt
+//! (Leerraum im Modul)“ for hyphenation remnants and the note on a module with strikingly many word fragments.
+//! The same data as RPC `bible.marks`
+//! ([`crate::bibles::marks_with`]). With JavaScript the widget `scripture-check`
+//! (`web/src/scripture_check.ts`) marks the same results in the typeset view through the CSS Custom Highlight API;
+//! the link „Zitate prüfen“ in the status line of the editor leads here without JavaScript. Read only.
 
 use std::sync::{Arc, OnceLock};
 
@@ -25,7 +26,7 @@ use crate::AppState;
 use crate::bibles::{marks_with, state_label};
 use crate::view::Settings;
 
-/// Routen der Seite (gemischt in `lib.rs`).
+/// Routes of the page (merged in `lib.rs`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/pruefung", get(check_page))
 }
@@ -44,7 +45,7 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Abfrage der Seite: `key` (fester Schlüssel des Abschnitts), `rev` (Nummer der Fassung, Vorgabe aktuelle).
+/// Query of the page: `key` (fixed key of the section), `rev` (number of the revision, default the current one).
 #[derive(Debug, Default, Deserialize)]
 pub struct CheckQuery {
     pub key: Option<String>,
@@ -62,7 +63,7 @@ fn error_page(status: StatusCode, message: &str) -> Response {
         .into_response()
 }
 
-/// Markierungen für die Vorlage: je Eintrag dazu `state_label`.
+/// Marks for the template: per entry additionally `state_label`.
 fn rows(result: &Value) -> Vec<Value> {
     result["marks"]
         .as_array()
@@ -130,7 +131,7 @@ pub async fn check_page(
         notice => result["notice"].as_str().map(str::to_owned),
         marks => JinjaValue::from(Serde(rows(&result))),
         counts => JinjaValue::from(Serde(result["counts"].clone())),
-        // Runde 19c: Hinweis auf auffällig viele Wortfragmente im Modul (Trennreste), sonst leer.
+        // Round 19c: note on strikingly many word fragments in the module (hyphenation remnants), else empty.
         module_note => result["module_note"].as_str().map(str::to_owned),
     };
     match templates().get_template("scripture_check.html").and_then(|t| t.render(ctx)) {

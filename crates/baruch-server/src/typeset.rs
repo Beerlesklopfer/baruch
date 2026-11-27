@@ -1,60 +1,62 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Vorschau mit Werkvorlage (Vertrag Runde 8, Abschnitt 4c): das ganze Werk mit dem
-//! eingebetteten Typst-Compiler ([`baruch_render`]) zu SVG-Seiten gesetzt.
+//! Typst preview with the work template (contract Round 8, section 4c): the whole work typeset with the
+//! embedded Typst compiler ([`baruch_render`]) into SVG pages.
 //!
-//! - **Quelle:** [`baruch_store::Store::export_map`] (byte-gleich mit `work.export`, also mit
-//!   Werkvorlage und Gliederungsschema) und die Bilder aus `Store::export_assets` als virtuelle
-//!   Dateien. Die Karte führt jede Meldung über ihre Zeile auf den Abschnitt zurück (fester
-//!   Schlüssel, „2.1 Titel“, Zeile im Abschnitt) bzw. auf „Werkvorlage“.
-//! - **Lauf:** nur in `spawn_blocking`, höchstens einer gleichzeitig ([`RUNS`]), mit Zeitlimit
-//!   [`COMPILE_TIMEOUT`]; danach antwortet der Server mit `REFUSED` „Typst brauchte länger als 60 s“.
-//!   Nach dem Zeitlimit rechnet der Lauf im Hintergrund zu Ende, hält so lange die Sperre und legt sein
-//!   Ergebnis noch in den Zwischenspeicher.
-//! - **Abbruch (Runde 18a):** Jeder Lauf für ein Werk (Satz-Seite, SVG-Seite, `preview.typst`, `typst_check`)
-//!   steht mit seinem [`baruch_render::Cancel`] in einer prozessweiten Liste ([`cancel`], [`cancel_in`]); RPC
-//!   `preview.cancel` und das Formular `POST /werke/{id}/satz/abbrechen` brechen alle Läufe des Werks ab, auch
-//!   solche, die noch auf die Sperre warten oder nach dem Zeitlimit im Hintergrund weiterrechnen. Die wartende
-//!   Anfrage kehrt sofort mit `REFUSED` [`CANCELLED`] zurück; Typst selbst wird nur vor dem Lauf, zwischen Satz
-//!   und SVG und vor jeder SVG-Seite unterbrochen (nicht über Welt-Zugriffe – das bricht comemo, siehe
-//!   `baruch_render`); Auswertung und Umbruch laufen also zu Ende und halten bis dahin die Sperre.
-//!   Ein abgebrochener Lauf legt nichts in den Zwischenspeicher.
-//! - **Fremde Seiten (Runde 18a):** `GET /werke/{id}/satz`, `…/{stand}/{n}.svg` und `/werke/{id}/pdf` antworten
-//!   bei `Sec-Fetch-Site: cross-site|same-site` mit 403, ohne Typst zu bemühen ([`crate::guard::cross_site_get`]).
-//! - **Zwischenspeicher:** statisch, nach Fassungsstand ([`baruch_render::stand`] über Text und
-//!   Bilder), höchstens [`CACHE_SIZE`] Einträge und zusammen höchstens [`CACHE_BYTES`] SVG-Bytes (Runde 18a; der
-//!   neueste Stand bleibt immer), der älteste Gebrauch fliegt zuerst. Kein Feld in
-//!   [`AppState`]: Der Stand ist ein Inhaltsschlüssel, gleiche Quellen ergeben gleiche Seiten.
-//! - **Kapitel einer Seite (Runde 18a):** Eine Seite, die zwei Kapitel teilen, zählt zu beiden – zum Kapitel, das
-//!   auf ihr beginnt (seine Überschrift steht dort), und zum Kapitel, das auf ihr endet (Text aus seinen Zeilen
-//!   steht dort, [`baruch_render::Rendered::page_lines`]). Zeilen von Überschriften zählen dabei nicht, weil die
-//!   Vorlage sie als lebenden Kolumnentitel oder im Inhaltsverzeichnis auf fremde Seiten zitieren kann.
-//! - **Schriften (Runde 18a):** [`warm_fonts`] sucht die Systemschriften vorab (für den Start des Dienstes).
-//! - **RPC** `preview.typst {work?, key?, page?}` ([`call`]), **Seiten** `GET /werke/{id}/satz?key=&page=`
-//!   (ohne JavaScript: eine Seite groß, ‹ ›, Seitenliste des Kapitels, Meldungen mit Link zum
-//!   Abschnitt) und `GET /werke/{id}/satz/{stand}/{n}.svg` ([`pages`]); MCP `typst_check` in
-//!   [`crate::mcp::typst`]. Nur lesend: kein Schreibweg, kein Commit.
-//! - **Rahmen (Runde 11):** [`prepare`] reicht Quelle und Karte nach `export_map`/`export_assets` an
-//!   den Rahmen des Werks weiter (Umschlag, Titelei; `crate::cover::frame` nach der Integration) und
-//!   berechnet den Stand erst danach. Satz-Ansicht und PDF ([`crate::pdf`]) nutzen dasselbe
-//!   [`prepare`] und haben darum dieselbe Seitenzahl.
-//! - **Teil-Seiten (Runde 14):** Stehen Teil-Markierungen (`<baruch-part>`, [`baruch_typst::marker`])
-//!   im Werk, setzt [`prepare`] hinter Werkvorlage und Rahmen die Regel
-//!   [`baruch_typst::part_page_rule`] mit den Nummern der Teile ([`part_labels`]): jeder Teil allein auf
-//!   einer eigenen rechten Seite. Ohne Teil-Markierung ist die Quelle byte-gleich zum Stand vorher.
-//! - **Pflichtangaben (Runde 27):** Bei eingeschalteter Titelei nennt `#druckpruefung` auch fehlende
-//!   Impressumsangaben (`crate::cover_print::imprint_checks`: Verlag/Anschrift, Druckerei/Anschrift, Jahr,
-//!   Rechtehinweis der Bibelübersetzung).
-//! - **Druckprüfung (Runde 11):** `preview.typst` und `typst_check` tragen `print` (Rasterbilder unter
-//!   300 dpi, [`baruch_render::PrintWarning`]); die Satz-Seite zeigt sie im Abschnitt `#druckpruefung`
-//!   zusammen mit fehlenden Bildern („Bild fehlt: <Pfad>“) und dem Knopf „PDF herunterladen“.
-//! - **Satz-Einstellungen (Runde 29):** Die Regeln „// Baruch: Satz“ stehen schon in der Quelle (`export_map`, Haken in
-//!   `baruch_store::snapshot::head`); [`prepare`] reicht nur die Teil-Seite (`part_page`) an die Regel der Teil-Seiten
-//!   weiter. `#druckpruefung` nennt Stellen der Werkvorlage, die eine gesetzte Einstellung selbst setzen, und eine
-//!   erkannte Kapitelanfangs-Regel der Vorlage mit Link zu Einstellungen → Werk → Satz ([`template_hints`]).
-//! - **Entwurf (Runde 22):** [`prepare_with`] setzt das Wasserzeichen ([`draft_rule_for`]) hinter Werkvorlage und
-//!   Regelblock vor den Rahmen, dreiwertig nach [`effective_draft`] (`preview.typst {draft?}`, Seite und SVG mit
-//!   `?entwurf=1|0`); ohne Wasserzeichen ist die Quelle byte-gleich. Die Satz-Seite trägt die Zeile `#entwurf` mit
-//!   „Als Entwurf herunterladen“ und „Vorschau als Entwurf/ohne Wasserzeichen“ (ändern die Einstellung nicht).
+//! - **Source:** [`baruch_store::Store::export_map`] (byte-identical with `work.export`, that is with
+//!   work template and outline scheme) and the images from `Store::export_assets` as virtual
+//!   files. The map leads every message through its line back to the section (fixed
+//!   key, „2.1 Titel“, line in the section) or to „Werkvorlage“.
+//! - **Run:** only in `spawn_blocking`, at most one at a time ([`RUNS`]), with the time limit
+//!   [`COMPILE_TIMEOUT`]; after that the server answers with `REFUSED` „Typst brauchte länger als 60 s“.
+//!   After the time limit the run computes to the end in the background, holds the lock that long and still puts
+//!   its result into the cache.
+//! - **Cancelling (Round 18a):** every run for a work (typesetting page, SVG page, `preview.typst`, `typst_check`)
+//!   stands with its [`baruch_render::Cancel`] in a process-wide list ([`cancel`], [`cancel_in`]); RPC
+//!   `preview.cancel` and the form `POST /werke/{id}/satz/abbrechen` cancel all runs of the work, also
+//!   those that still wait for the lock or go on computing in the background after the time limit. The waiting
+//!   request returns at once with `REFUSED` [`CANCELLED`]; Typst itself is interrupted only before the run, between
+//!   typesetting and SVG and before every SVG page (not through world accesses – that breaks comemo, see
+//!   `baruch_render`); evaluation and layout therefore run to the end and hold the lock until then.
+//!   A cancelled run puts nothing into the cache.
+//! - **Foreign pages (Round 18a):** `GET /werke/{id}/satz`, `…/{stand}/{n}.svg` and `/werke/{id}/pdf` answer
+//!   `Sec-Fetch-Site: cross-site|same-site` with 403, without troubling Typst ([`crate::guard::cross_site_get`]).
+//! - **Cache:** static, by revision state ([`baruch_render::stand`] over text and
+//!   images), at most [`CACHE_SIZE`] entries and together at most [`CACHE_BYTES`] SVG bytes (Round 18a; the
+//!   newest state always stays), the least recently used goes first. No field in
+//!   [`AppState`]: the state is a content key, equal sources result in equal pages.
+//! - **Chapter of a page (Round 18a):** a page that two chapters share counts for both – for the chapter that
+//!   begins on it (its heading stands there) and for the chapter that ends on it (text from its lines
+//!   stands there, [`baruch_render::Rendered::page_lines`]). Lines of headings do not count here, because the
+//!   template can quote them as a running head or in the table of contents on foreign pages.
+//! - **Fonts (Round 18a):** [`warm_fonts`] searches the system fonts in advance (for the start of the service).
+//! - **RPC** `preview.typst {work?, key?, page?}` ([`call`]), **pages** `GET /werke/{id}/satz?key=&page=`
+//!   (without JavaScript: one page large, ‹ ›, page list of the chapter, messages with a link to the
+//!   section) and `GET /werke/{id}/satz/{stand}/{n}.svg` ([`pages`]); MCP `typst_check` in
+//!   [`crate::mcp::typst`]. Read only: no write path, no commit.
+//! - **Frame (Round 11):** [`prepare`] hands source and map after `export_map`/`export_assets` on to
+//!   the frame of the work (cover, front matter; `crate::cover::frame` after the integration) and
+//!   computes the state only afterwards. Typesetting view and PDF ([`crate::pdf`]) use the same
+//!   [`prepare`] and therefore have the same number of pages.
+//! - **Part pages (Round 14):** if part markers (`<baruch-part>`, [`baruch_typst::marker`]) stand
+//!   in the work, [`prepare`] puts the rule
+//!   [`baruch_typst::part_page_rule`] with the numbers of the parts ([`part_labels`]) behind work template and
+//!   frame: every part alone on a right-hand page of its own. Without a part marker the source is byte-identical
+//!   to the state before.
+//! - **Mandatory details (Round 27):** with the front matter switched on `#druckpruefung` also names missing
+//!   imprint details (`crate::cover_print::imprint_checks`: publisher/address, printer/address, year,
+//!   rights notice of the Bible translation).
+//! - **Print check (Round 11):** `preview.typst` and `typst_check` carry `print` (raster images below
+//!   300 dpi, [`baruch_render::PrintWarning`]); the typesetting page shows them in the section `#druckpruefung`
+//!   together with missing images („Bild fehlt: <Pfad>“) and the button „PDF herunterladen“.
+//! - **Typeset settings (Round 29):** the rules "// Baruch: Satz" already stand in the source (`export_map`, hook in
+//!   `baruch_store::snapshot::head`); [`prepare`] only hands the part page (`part_page`) on to the rule of the part
+//!   pages. `#druckpruefung` names places of the work template that set a set setting themselves, and a
+//!   detected chapter start rule of the template with a link to Einstellungen → Werk → Satz ([`template_hints`]).
+//! - **Draft (Round 22):** [`prepare_with`] puts the watermark ([`draft_rule_for`]) behind work template and
+//!   rule block before the frame, three-valued according to [`effective_draft`] (`preview.typst {draft?}`, page and
+//!   SVG with `?entwurf=1|0`); without a watermark the source is byte-identical. The typesetting page carries the
+//!   line `#entwurf` with „Als Entwurf herunterladen“ and „Vorschau als Entwurf/ohne Wasserzeichen“ (they do not
+//!   change the setting).
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path as FsPath, PathBuf};
@@ -81,36 +83,36 @@ use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use crate::view::Settings;
 
-/// Zeitlimit eines Typst-Laufs.
+/// Time limit of a Typst run.
 pub const COMPILE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Höchstzahl gesetzter Stände im Zwischenspeicher.
+/// Maximum number of typeset states in the cache.
 pub const CACHE_SIZE: usize = 8;
 
-/// Höchstsumme der SVG-Bytes aller Stände im Zwischenspeicher (Runde 18a). Ein Buch von einigen hundert Seiten
-/// braucht als SVG (Glyphen als Pfade) leicht 30–60 MiB; ohne Grenze hielten acht große Stände mehrere hundert MiB.
-/// Der neueste Stand bleibt auch dann, wenn er allein größer ist.
+/// Maximum sum of the SVG bytes of all states in the cache (Round 18a). A book of a few hundred pages
+/// easily needs 30–60 MiB as SVG (glyphs as paths); without a limit eight large states would hold several hundred
+/// MiB. The newest state stays even if it alone is larger.
 pub const CACHE_BYTES: usize = 192 * 1024 * 1024;
 
-/// Meldung eines abgebrochenen Laufs (`REFUSED`).
+/// Message of a cancelled run (`REFUSED`).
 pub const CANCELLED: &str = "Satz abgebrochen.";
 
-/// Höchstens ein Typst-Lauf gleichzeitig (Rechnerlast; Typst nutzt selbst mehrere Kerne nicht). Die
-/// PDF-Erzeugung ([`crate::pdf`]) teilt sich diese Sperre.
+/// At most one Typst run at a time (machine load; Typst itself does not use several cores). The
+/// PDF generation ([`crate::pdf`]) shares this lock.
 pub(crate) static RUNS: Semaphore = Semaphore::const_new(1);
 
-/// CSP der SVG-Seiten: nichts ausführen, nichts nachladen; eingebettete Bilder (`data:`) und
-/// Inline-Stile, wie sie typst-svg schreibt, sind erlaubt.
+/// CSP of the SVG pages: execute nothing, load nothing; embedded images (`data:`) and
+/// inline styles as typst-svg writes them are allowed.
 pub const SVG_CSP: &str = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'";
 
 pub fn handles(method: &str) -> bool {
     matches!(method, "preview.typst" | "preview.cancel")
 }
 
-/// Ein gesetzter Stand.
+/// A typeset state.
 pub struct Compiled {
     pub rendered: Rendered,
-    /// Dauer des Typst-Laufs in Millisekunden.
+    /// Duration of the Typst run in milliseconds.
     pub millis: u64,
 }
 
@@ -119,7 +121,7 @@ fn cache() -> std::sync::MutexGuard<'static, VecDeque<Arc<Compiled>>> {
     CACHE.get_or_init(|| Mutex::new(VecDeque::new())).lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Eintrag zum Stand; ein Treffer rückt nach hinten (zuletzt gebraucht).
+/// Entry for the state; a hit moves to the back (most recently used).
 fn cache_get(stand: &str) -> Option<Arc<Compiled>> {
     let mut cache = cache();
     let at = cache.iter().position(|c| c.rendered.stand == stand)?;
@@ -128,8 +130,8 @@ fn cache_get(stand: &str) -> Option<Arc<Compiled>> {
     Some(hit)
 }
 
-/// Seite `n` (1-basiert) des Stands `stand` aus dem Zwischenspeicher als SVG (Runde 29, Vorschau der
-/// Satz-Einstellungen); zählt als Gebrauch. Unbekannter Stand oder Seite → `None`.
+/// Page `n` (1-based) of the state `stand` from the cache as SVG (Round 29, preview of the
+/// typeset settings); counts as a use. Unknown state or page → `None`.
 pub fn cached_page(stand: &str, n: usize) -> Option<String> {
     let compiled = cache_get(stand)?;
     compiled.rendered.pages.get(n.checked_sub(1)?).cloned()
@@ -139,13 +141,13 @@ fn cache_put(compiled: Arc<Compiled>) {
     cache_put_within(compiled, CACHE_BYTES);
 }
 
-/// SVG-Bytes eines Stands.
+/// SVG bytes of a state.
 fn compiled_bytes(compiled: &Compiled) -> usize {
     compiled.rendered.pages.iter().map(String::len).sum()
 }
 
-/// Ablegen mit Bytegrenze `max_bytes`: höchstens [`CACHE_SIZE`] Stände und zusammen höchstens `max_bytes`, der am
-/// längsten nicht gebrauchte fliegt zuerst; der neue bleibt immer.
+/// Store with the byte limit `max_bytes`: at most [`CACHE_SIZE`] states and together at most `max_bytes`, the
+/// least recently used goes first; the new one always stays.
 fn cache_put_within(compiled: Arc<Compiled>, max_bytes: usize) {
     let mut cache = cache();
     cache.retain(|c| c.rendered.stand != compiled.rendered.stand);
@@ -158,15 +160,15 @@ fn cache_put_within(compiled: Arc<Compiled>, max_bytes: usize) {
     }
 }
 
-/// Liegt der Stand im Zwischenspeicher (ohne ihn als gebraucht zu zählen)? Für Tests.
+/// Does the state lie in the cache (without counting it as used)? For tests.
 #[doc(hidden)]
 pub fn cache_contains(stand: &str) -> bool {
     cache().iter().any(|c| c.rendered.stand == stand)
 }
 
-// ---- Laufende Läufe und Abbruch (Runde 18a) ----------------------------------------------------
+// ---- Running runs and cancelling (Round 18a) ---------------------------------------------------
 
-/// Ein angemeldeter Lauf: Datenordner des Servers (in Tests laufen viele Server in einem Prozess), Werk, Abbruch.
+/// A registered run: data folder of the server (in tests many servers run in one process), work, cancel handle.
 struct Running {
     id: u64,
     owner: PathBuf,
@@ -179,7 +181,7 @@ fn running() -> std::sync::MutexGuard<'static, Vec<Running>> {
     RUNNING.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Anmeldung eines Laufs; fällt mit dem letzten Halter (Anfrage und Hintergrundlauf) aus der Liste.
+/// Registration of a run; drops out of the list with the last holder (request and background run).
 struct Registration(u64);
 
 impl Drop for Registration {
@@ -195,13 +197,14 @@ fn register(owner: &FsPath, work: WorkId, cancel: &Cancel) -> Arc<Registration> 
     Arc::new(Registration(id))
 }
 
-/// Laufenden Satz des Werks abbrechen; `true`, wenn einer lief. Bricht die Läufe dieser Werk-id aller Server im
-/// Prozess ab (im Dienst gibt es nur einen); Server-Code nimmt [`cancel_in`] mit dem eigenen Datenordner.
+/// Cancel the running typesetting of the work; `true` if one was running. Cancels the runs of this work id of all
+/// servers in the process (in the service there is only one); server code takes [`cancel_in`] with its own data
+/// folder.
 pub fn cancel(work: WorkId) -> bool {
     cancel_matching(|r| r.work == work)
 }
 
-/// Wie [`cancel`], nur für die Läufe des Servers mit Datenordner `owner`.
+/// Like [`cancel`], only for the runs of the server with the data folder `owner`.
 pub fn cancel_in(owner: &FsPath, work: WorkId) -> bool {
     cancel_matching(|r| r.work == work && r.owner == owner)
 }
@@ -216,14 +219,14 @@ fn cancel_matching(matches: impl Fn(&Running) -> bool) -> bool {
     any
 }
 
-/// Zahl der angemeldeten, nicht abgebrochenen Läufe des Werks (für Tests).
+/// Number of the registered, not cancelled runs of the work (for tests).
 #[doc(hidden)]
 pub fn running_in(owner: &FsPath, work: WorkId) -> usize {
     running().iter().filter(|r| r.work == work && r.owner == owner && !r.cancel.is_cancelled()).count()
 }
 
-/// Begonnene Typst-Läufe je Stand (für Tests: „kein Lauf von einer fremden Seite“). Höchstens 256 Stände; danach
-/// fängt die Zählung von vorn an.
+/// Typst runs begun per state (for tests: "no run from a foreign page"). At most 256 states; after that
+/// the counting starts over.
 fn run_counts() -> std::sync::MutexGuard<'static, HashMap<String, u64>> {
     static COUNTS: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
     COUNTS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -237,13 +240,13 @@ fn note_run(stand: &str) {
     *counts.entry(stand.to_owned()).or_default() += 1;
 }
 
-/// Zahl der begonnenen Typst-Läufe für diesen Stand (für Tests).
+/// Number of the Typst runs begun for this state (for tests).
 #[doc(hidden)]
 pub fn runs_of(stand: &str) -> u64 {
     run_counts().get(stand).copied().unwrap_or(0)
 }
 
-/// Kehrt zurück, sobald `cancel` abgebrochen ist (prüft alle 20 ms).
+/// Returns as soon as `cancel` is cancelled (checks every 20 ms).
 async fn until_cancelled(cancel: &Cancel) {
     while !cancel.is_cancelled() {
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -254,21 +257,21 @@ fn cancelled() -> RpcError {
     RpcError::new(REFUSED, CANCELLED)
 }
 
-/// Schriftsuche vorab (Runde 18a, Vorschlag für den Start in `main.rs`): lädt eingebettete und Systemschriften
-/// im Hintergrund, damit der erste Satz nicht darauf wartet. Kehrt sofort zurück; braucht eine Tokio-Laufzeit.
+/// Font search in advance (Round 18a, proposal for the start in `main.rs`): loads embedded and system fonts
+/// in the background, so that the first typesetting does not wait for it. Returns at once; needs a Tokio runtime.
 pub fn warm_fonts() {
     tokio::task::spawn_blocking(|| {
         let _ = baruch_render::warm_fonts();
     });
 }
 
-/// Zahl der Einträge im Zwischenspeicher (für Tests).
+/// Number of the entries in the cache (for tests).
 #[doc(hidden)]
 pub fn cache_len() -> usize {
     cache().len()
 }
 
-/// Das Werk für Typst vorbereitet: Karte, geladenes Werk (Nummern, Titel, Eltern), Quelle, Stand.
+/// The work prepared for Typst: map, loaded work (numbers, titles, parents), source, state.
 pub struct Prepared {
     pub map: ExportMap,
     pub work: Work,
@@ -280,10 +283,10 @@ pub async fn prepare(state: &AppState, work: WorkId) -> Result<Prepared, StoreEr
     prepare_with(state, work, None).await
 }
 
-/// Wie [`prepare`] mit dem dreiwertigen Entwurf-Schalter (Runde 22, [`effective_draft`]): `None` = nach der
-/// Satz-Einstellung, `Some(true)` = mit Wasserzeichen, `Some(false)` = ohne. Die Regel ([`draft_rule_for`]) steht
-/// hinter Werkvorlage und Regelblock vor dem Rahmen (Umschlagseiten und Titelei im Buch tragen sie also auch) und
-/// verschiebt die Karte wie der Rahmen; ohne Wasserzeichen bleibt alles byte-gleich.
+/// Like [`prepare`] with the three-valued draft switch (Round 22, [`effective_draft`]): `None` = according to the
+/// typeset setting, `Some(true)` = with watermark, `Some(false)` = without. The rule ([`draft_rule_for`]) stands
+/// behind work template and rule block before the frame (so cover pages and front matter in the book carry it
+/// too) and shifts the map like the frame; without a watermark everything stays byte-identical.
 pub async fn prepare_with(state: &AppState, work: WorkId, draft: Option<bool>) -> Result<Prepared, StoreError> {
     let map = state.store.export_map(work).await?;
     let files = state.store.export_assets(work).await?.into_iter().map(|f| (f.path, f.bytes)).collect();
@@ -293,22 +296,22 @@ pub async fn prepare_with(state: &AppState, work: WorkId, draft: Option<bool>) -
         Some(d) => crate::cover::insert_parts(source, map, &draft_rule_for(&d), "", Vec::new()),
         None => (source, map),
     };
-    // Rahmen (Umschlag, Titelei) vor dem Stand: Er ist Teil dessen, was gesetzt wird.
+    // Frame (cover, front matter) before the state: it is part of what is typeset.
     let (source, map) = frame_hook(state, work, source, map).await?;
     let loaded = state.store.load_work(work).await?;
-    // Runde 29: Seite und leere Rückseite der Teil-Seite aus den Satz-Einstellungen (ohne Einstellungen byte-gleich).
-    // Befund R29: Mit Regelblock, aber ohne `part_page` trägt die Teil-Regel trotzdem die Marke vor dem Umbruch
-    // (`part_page_rule_for`), sonst trüge die Leerseite vor einem Teil Seitenzahl und Kolumnentitel.
+    // Round 29: page and empty back side of the part page from the typeset settings (without settings byte-identical).
+    // Finding R29: with a rule block but without `part_page` the part rule still carries the marker before the break
+    // (`part_page_rule_for`), otherwise the blank page before a part would carry page number and running head.
     let (source, map) = part_pages(source, map, &loaded, &settings);
     let stand = baruch_render::stand(&source);
     Ok(Prepared { map, work: loaded, source, stand })
 }
 
-// ---- Entwurf (Runde 22, Vertrag §2.9) -------------------------------------------------------------
+// ---- Draft (Round 22, contract §2.9) --------------------------------------------------------------
 
-/// Wirksames Wasserzeichen für Satz-Vorschau, Buch-PDF und Stichwortzettel: `None` (Schalter fehlt) = die gespeicherte
-/// Einstellung, `Some(true)` = die gespeicherten Werte bzw. [`Draft::default`], `Some(false)` = keins. Die Einstellung
-/// selbst ändert der Schalter nie.
+/// Effective watermark for typesetting preview, book PDF and cue sheet: `None` (switch missing) = the stored
+/// setting, `Some(true)` = the stored values or [`Draft::default`], `Some(false)` = none. The switch never changes
+/// the setting itself.
 pub fn effective_draft(stored: Option<&Draft>, choice: Option<bool>) -> Option<Draft> {
     match choice {
         None => stored.cloned(),
@@ -317,7 +320,7 @@ pub fn effective_draft(stored: Option<&Draft>, choice: Option<bool>) -> Option<D
     }
 }
 
-/// Wie [`effective_draft`] für das Umschlag-PDF: nach Einstellung nur mit `draft.cover`, sonst nur ausdrücklich.
+/// Like [`effective_draft`] for the cover PDF: by setting only with `draft.cover`, otherwise only explicitly.
 pub fn cover_draft(stored: Option<&Draft>, choice: Option<bool>) -> Option<Draft> {
     match choice {
         None => stored.filter(|d| d.cover).cloned(),
@@ -325,23 +328,23 @@ pub fn cover_draft(stored: Option<&Draft>, choice: Option<bool>) -> Option<Draft
     }
 }
 
-/// Heutiges Datum in Ortszeit („10.11.2026“) – der einzige Ort, an dem das Wasserzeichen ein Datum bekommt.
+/// Today's date in local time („10.11.2026“) – the only place where the watermark gets a date.
 pub fn draft_today() -> String {
     chrono::Local::now().format("%-d.%-m.%Y").to_string()
 }
 
-/// Regel des Wasserzeichens mit dem heutigen Datum, wenn `draft.date` gesetzt ist.
+/// Rule of the watermark with today's date if `draft.date` is set.
 pub fn draft_rule_for(draft: &Draft) -> String {
     let date = draft.date.then(draft_today);
     baruch_typst::typeset::draft_rule(draft, date.as_deref())
 }
 
-/// Gespeicherter Entwurf des Werks (Satz-Einstellung `draft`).
+/// Stored draft of the work (typeset setting `draft`).
 pub async fn stored_draft(state: &AppState, work: WorkId) -> Result<Option<Draft>, StoreError> {
     Ok(state.store.work_typeset(work).await?.and_then(|t| t.settings.draft))
 }
 
-/// RPC-Parameter `draft`: fehlt/`null` → `None` (nach Einstellung), sonst `true`/`false`.
+/// RPC parameter `draft`: missing/`null` → `None` (according to the setting), otherwise `true`/`false`.
 pub fn draft_param(params: &Value) -> Result<Option<bool>, RpcError> {
     match params.get("draft") {
         None | Some(Value::Null) => Ok(None),
@@ -353,7 +356,7 @@ pub fn draft_param(params: &Value) -> Result<Option<bool>, RpcError> {
     }
 }
 
-/// Abfrage-Parameter `?entwurf=`: fehlt/leer → `None`, `1`/`ja`/`true` → mit, `0`/`nein`/`false` → ohne.
+/// Query parameter `?entwurf=`: missing/empty → `None`, `1`/`ja`/`true` → with, `0`/`nein`/`false` → without.
 pub fn draft_query(value: Option<&str>) -> Result<Option<bool>, String> {
     match value.map(str::trim) {
         None | Some("") => Ok(None),
@@ -363,7 +366,7 @@ pub fn draft_query(value: Option<&str>) -> Result<Option<bool>, String> {
     }
 }
 
-/// Anhang an eine Adresse, der den Schalter weiterreicht: „“, „entwurf=1“, „entwurf=0“.
+/// Suffix to an address that passes the switch on: "", "entwurf=1", "entwurf=0".
 pub fn draft_pair(choice: Option<bool>) -> &'static str {
     match choice {
         None => "",
@@ -372,8 +375,8 @@ pub fn draft_pair(choice: Option<bool>) -> &'static str {
     }
 }
 
-/// Rahmen des Werks um die Quelle legen (Umschlag-Vorder- und Rückseite, Titelei) und die Karte
-/// verschieben ([`crate::cover::frame`]; ohne Umschlag und Titelei byte-gleich).
+/// Lay the frame of the work around the source (cover front and back, front matter) and shift the
+/// map ([`crate::cover::frame`]; without cover and front matter byte-identical).
 async fn frame_hook(
     state: &AppState,
     work: WorkId,
@@ -383,10 +386,10 @@ async fn frame_hook(
     crate::cover::frame(state, work, source, map).await
 }
 
-/// Nummern der Teil-Markierungen in der Reihenfolge, in der sie in der Quelle stehen (Runde 14): die
-/// Nummer des Teils (`Node.number`, z. B. „II“), wenn die Markierung die erste Überschrift eines
-/// Teil-Knotens ist; leer für einen Teil ohne Nummer und für jede andere Teil-Markierung (etwa eine im
-/// Text eines Kapitels). Keine Markierung → leer.
+/// Numbers of the part markers in the order in which they stand in the source (Round 14): the
+/// number of the part (`Node.number`, e.g. "II") if the marker is the first heading of a
+/// part node; empty for a part without a number and for every other part marker (such as one in the
+/// text of a chapter). No marker → empty.
 pub fn part_labels(map: &ExportMap, work: &Work) -> Vec<String> {
     let mut labels = Vec::new();
     for section in &map.sections {
@@ -404,12 +407,13 @@ pub fn part_labels(map: &ExportMap, work: &Work) -> Vec<String> {
     labels
 }
 
-/// Teil-Seiten (Runde 14): Stehen Teil-Markierungen in der Quelle, kommt hinter Werkvorlage und
-/// Rahmen (vor den ersten Abschnitt) die Regel [`baruch_typst::part_page_rule`] mit den Nummern aus
-/// [`part_labels`]: jeder Teil allein auf einer eigenen rechten Seite. Bytebereiche und erste Zeilen
-/// der Abschnitte rücken nach (wie beim Rahmen). Ohne Teil-Markierung bleibt alles byte-gleich.
-/// Runde 29: Die Regel kommt aus [`baruch_typst::typeset::part_page_rule_for`] – mit `part_page` Seite und leere
-/// Rückseite, mit Regelblock die Marke vor dem Umbruch, ohne Satz-Einstellungen byte-gleich zu `part_page_rule`.
+/// Part pages (Round 14): if part markers stand in the source, the rule [`baruch_typst::part_page_rule`]
+/// with the numbers from [`part_labels`] comes behind work template and
+/// frame (before the first section): every part alone on a right-hand page of its own. Byte ranges and first
+/// lines of the sections move along (as for the frame). Without a part marker everything stays byte-identical.
+/// Round 29: the rule comes from [`baruch_typst::typeset::part_page_rule_for`] – with `part_page` page and empty
+/// back side, with a rule block the marker before the break, without typeset settings byte-identical to
+/// `part_page_rule`.
 fn part_pages(source: Source, map: ExportMap, work: &Work, settings: &TypesetSettings) -> (Source, ExportMap) {
     let labels = part_labels(&map, work);
     if labels.is_empty() {
@@ -417,14 +421,16 @@ fn part_pages(source: Source, map: ExportMap, work: &Work, settings: &TypesetSet
     }
     let rule = baruch_typst::typeset::part_page_rule_for(&labels, settings);
     let (source, map) = crate::cover::insert_parts(source, map, &rule, "", Vec::new());
-    // Runde 30a: Die Ankerzeile eines Teils (`#metadata("baruch-key") <kN>`) läge hinter dem Umbruch der Teil-Regel auf
-    // der Folgeseite; im Satz steht sie darum vor der Teil-Zeile (`part_anchors_for_typesetting`).
+    // Round 30a: the anchor line of a part (`#metadata("baruch-key") <kN>`) would lie behind the break of the part
+    // rule on the following page; in typesetting it therefore stands before the part line
+    // (`part_anchors_for_typesetting`).
     let (source, map) = rewrite_sections(source, map, |_, text| baruch_typst::xref::part_anchors_for_typesetting(text));
     xref_safety(source, map, work)
 }
 
-/// Runde 30a: Kaputte Querverweise (Ziel ohne aktuelle Fassung, `crate::xref::broken_in`) brächen den ganzen Satz
-/// („label does not exist“). Im Satz werden sie zum bloßen Linktext; die Druckprüfung nennt sie.
+/// Round 30a: broken cross-references (target without a current revision, `crate::xref::broken_in`) would break
+/// the whole typesetting („label does not exist“). In typesetting they become the mere link text; the print check
+/// names them.
 fn xref_safety(source: Source, map: ExportMap, work: &Work) -> (Source, ExportMap) {
     let present: std::collections::HashSet<i64> =
         work.nodes.iter().filter(|n| n.current_number().is_some()).map(|n| n.key).collect();
@@ -446,8 +452,8 @@ fn xref_safety(source: Source, map: ExportMap, work: &Work) -> (Source, ExportMa
     })
 }
 
-/// Text je Abschnitt umschreiben (nur im Satz) und Bytebereiche und erste Zeilen der Karte nachziehen. Die Quelle muss
-/// der Text der Karte sein (sonst bleibt alles, wie es ist).
+/// Rewrite the text per section (only in typesetting) and update byte ranges and first lines of the map. The
+/// source must be the text of the map (otherwise everything stays as it is).
 fn rewrite_sections(
     source: Source,
     map: ExportMap,
@@ -493,14 +499,14 @@ pub(crate) fn seconds(limit: Duration) -> String {
     }
 }
 
-/// Setzt die Quelle oder nimmt den Stand aus dem Zwischenspeicher (`true` = Treffer). Höchstens ein
-/// Lauf gleichzeitig; das Zeitlimit zählt ab dem Warten auf die Sperre. Nicht angemeldet (kein Werk, z. B. der
-/// Umschlag): über `preview.cancel` nicht abbrechbar.
+/// Typesets the source or takes the state from the cache (`true` = hit). At most one
+/// run at a time; the time limit counts from the waiting for the lock. Not registered (no work, e.g. the
+/// cover): cannot be cancelled through `preview.cancel`.
 pub async fn compile(source: Source, stand: &str, limit: Duration) -> Result<(Arc<Compiled>, bool), RpcError> {
     compile_run(source, stand, limit, Cancel::new(), None).await
 }
 
-/// Wie [`compile`], angemeldet als Lauf des Werks `work` dieses Servers (abbrechbar über [`cancel_in`]).
+/// Like [`compile`], registered as a run of the work `work` of this server (can be cancelled through [`cancel_in`]).
 pub async fn compile_for(
     state: &AppState,
     work: WorkId,
@@ -532,7 +538,7 @@ async fn compile_run(
             permit = RUNS.acquire() => permit.map_err(|e| RpcError::new(INTERNAL, format!("Typst-Sperre: {e}")))?,
             () = until_cancelled(&cancel) => return Err(cancelled()),
         };
-        // Während des Wartens kann ein anderer Lauf genau diesen Stand gesetzt haben.
+        // While waiting, another run can have typeset exactly this state.
         if let Some(hit) = cache_get(&stand) {
             return Ok((hit, true));
         }
@@ -543,8 +549,8 @@ async fn compile_run(
         let run_cancel = cancel.clone();
         let run_registration = registration.clone();
         let handle = tokio::task::spawn_blocking(move || {
-            // Sperre und Anmeldung gehören dem Lauf, nicht der Anfrage: Läuft die Zeit ab, rechnet Typst zu
-            // Ende (bleibt dabei abbrechbar) und gibt die Sperre erst dann frei.
+            // Lock and registration belong to the run, not to the request: if the time runs out, Typst computes
+            // to the end (staying cancellable) and releases the lock only then.
             let _permit = permit;
             let _registration = run_registration;
             let started = Instant::now();
@@ -554,7 +560,7 @@ async fn compile_run(
             cache_put(compiled.clone());
             Some(compiled)
         });
-        // Abgebrochen: die Anfrage kehrt sofort zurück, auch wenn Typst noch bis zur nächsten Prüfstelle rechnet.
+        // Cancelled: the request returns at once, even if Typst still computes up to the next check point.
         tokio::select! {
             joined = handle => match joined.map_err(|e| RpcError::new(INTERNAL, format!("Typst ist abgestürzt: {e}")))? {
                 Some(compiled) => Ok((compiled, false)),
@@ -564,9 +570,9 @@ async fn compile_run(
         }
     };
     let begun = Instant::now();
-    // `tokio::time::timeout` pollt zuerst den Lauf: Ist er schneller fertig, als der Zeitgeber feuert, kommt
-    // `Ok` auch nach Ablauf des Limits (bei 0 immer möglich). Darum zählt zusätzlich die gemessene Zeit; der
-    // fertige Satz liegt dann schon im Zwischenspeicher.
+    // `tokio::time::timeout` polls the run first: if it is finished faster than the timer fires, `Ok`
+    // also comes after the limit has expired (always possible with 0). Therefore the measured time counts in
+    // addition; the finished typesetting then already lies in the cache.
     match tokio::time::timeout(limit, run).await {
         Ok(_) if begun.elapsed() >= limit => {
             Err(RpcError::new(REFUSED, format!("Typst brauchte länger als {}", seconds(limit))))
@@ -576,20 +582,20 @@ async fn compile_run(
     }
 }
 
-/// Ergebnis für RPC, Seite und MCP.
+/// Result for RPC, page and MCP.
 pub struct Typeset {
     pub prepared: Prepared,
     pub compiled: Arc<Compiled>,
     pub cached: bool,
 }
 
-/// Werk vorbereiten und setzen (mit Zeitlimit `limit`). Tests rufen das mit kurzem Limit auf.
+/// Prepare the work and typeset it (with the time limit `limit`). Tests call this with a short limit.
 #[doc(hidden)]
 pub async fn typeset_with_limit(state: &AppState, work: WorkId, limit: Duration) -> Result<Typeset, RpcError> {
     typeset_draft(state, work, limit, None).await
 }
 
-/// Wie [`typeset_with_limit`] mit dem Entwurf-Schalter (Runde 22, [`prepare_with`]).
+/// Like [`typeset_with_limit`] with the draft switch (Round 22, [`prepare_with`]).
 pub async fn typeset_draft(
     state: &AppState,
     work: WorkId,
@@ -605,13 +611,13 @@ pub async fn typeset(state: &AppState, work: WorkId) -> Result<Typeset, RpcError
     typeset_with_limit(state, work, COMPILE_TIMEOUT).await
 }
 
-/// Nur aus dem Zwischenspeicher (Runde 18a, Seite nach „Satz abbrechen“): der aktuelle Stand, wenn er schon
-/// gesetzt ist, sonst `None` – ohne Typst-Lauf.
+/// Only from the cache (Round 18a, page after „Satz abbrechen“): the current state if it is already
+/// typeset, otherwise `None` – without a Typst run.
 pub async fn cached_typeset(state: &AppState, work: WorkId) -> Result<Option<Typeset>, RpcError> {
     cached_typeset_draft(state, work, None).await
 }
 
-/// Wie [`cached_typeset`] mit dem Entwurf-Schalter.
+/// Like [`cached_typeset`] with the draft switch.
 pub async fn cached_typeset_draft(
     state: &AppState,
     work: WorkId,
@@ -621,13 +627,13 @@ pub async fn cached_typeset_draft(
     Ok(cache_get(&prepared.stand).map(|compiled| Typeset { prepared, compiled, cached: true }))
 }
 
-/// Wie [`typeset`], prüft aber vor dem Lauf, ob es den Abschnitt `key` gibt (sonst
-/// `INVALID_PARAMS`, ohne Typst zu bemühen).
+/// Like [`typeset`], but checks before the run whether the section `key` exists (otherwise
+/// `INVALID_PARAMS`, without troubling Typst).
 pub async fn typeset_at(state: &AppState, work: WorkId, key: Option<i64>) -> Result<Typeset, RpcError> {
     typeset_at_draft(state, work, key, None).await
 }
 
-/// Wie [`typeset_at`] mit dem Entwurf-Schalter (`preview.typst {draft?}`).
+/// Like [`typeset_at`] with the draft switch (`preview.typst {draft?}`).
 pub async fn typeset_at_draft(
     state: &AppState,
     work: WorkId,
@@ -641,9 +647,9 @@ pub async fn typeset_at_draft(
     Ok(Typeset { prepared, compiled, cached })
 }
 
-// ---- Abschnitte, Kapitel, Meldungen ------------------------------------------------------------
+// ---- Sections, chapters, messages --------------------------------------------------------------
 
-/// Anzeigename eines Abschnitts: „2.1 Titel“ (ohne Nummer nur der Titel).
+/// Display name of a section: „2.1 Titel“ (without a number only the title).
 fn section_label(work: &Work, key: i64) -> Option<String> {
     let node = work.nodes.iter().find(|n| n.key == key)?;
     Some(format!("{} {}", node.number, node.title).trim().to_owned())
@@ -658,8 +664,8 @@ impl Typeset {
         self.rendered().pages.len()
     }
 
-    /// Seite (1-basiert), auf der der Abschnitt `index` der Karte beginnt: die seiner ersten
-    /// Überschrift; ohne eigene Überschrift die letzte davor; sonst 1.
+    /// Page (1-based) on which the section `index` of the map begins: that of its first
+    /// heading; without a heading of its own the last one before; otherwise 1.
     fn section_page(&self, index: usize) -> usize {
         let sections = &self.prepared.map.sections;
         let Some(section) = sections.get(index) else { return 1 };
@@ -672,15 +678,15 @@ impl Typeset {
             .map_or(1, |h| h.page)
     }
 
-    /// Stelle des Abschnitts mit Schlüssel `key` in der Karte.
+    /// Position of the section with the key `key` in the map.
     fn index_of(&self, key: i64) -> Option<usize> {
         self.prepared.map.sections.iter().position(|s| s.key == key)
     }
 
-    /// Kapitel des Abschnitts `key`: der oberste Gliederungspunkt über ihm (unter einem Teil das
-    /// Kapitel darin). Seiten `first..=last`: von der Seite seiner Überschrift bis vor die Seite des
-    /// nächsten Punkts außerhalb (mindestens `first`), am Ende bis zur letzten Seite. Ohne `key`:
-    /// das ganze Werk.
+    /// Chapter of the section `key`: the topmost outline item above it (under a part the
+    /// chapter in it). Pages `first..=last`: from the page of its heading up to before the page of the
+    /// next item outside (at least `first`), at the end up to the last page. Without `key`:
+    /// the whole work.
     pub fn chapter(&self, key: Option<i64>) -> (usize, usize) {
         let total = self.page_count().max(1);
         let Some(index) = key.and_then(|k| self.index_of(k)) else { return (1, total) };
@@ -692,7 +698,7 @@ impl Typeset {
         let mut chain = vec![seq];
         while let Some(parent) = parent_of(*chain.last().unwrap()) {
             if chain.contains(&parent) {
-                break; // Schleife: nicht endlos laufen
+                break; // loop: do not run endlessly
             }
             chain.push(parent);
         }
@@ -725,8 +731,8 @@ impl Typeset {
         let after = sections.iter().enumerate().skip(start + 1).find(|(_, s)| !seq_of(s.key).is_some_and(in_chapter));
         let last = match after {
             Some((next, _)) => {
-                // Die Seite, auf der das nächste Kapitel beginnt, gehört auch zu diesem, wenn Text aus seinen
-                // Zeilen auf ihr steht (geteilte Seite, siehe Modulkopf).
+                // The page on which the next chapter begins also belongs to this one if text from its
+                // lines stands on it (shared page, see the module header).
                 let page = self.section_page(next);
                 let lines = sections[start].first_line..sections[next].first_line;
                 if self.has_text_from(page, lines) { page } else { page.saturating_sub(1) }.max(first)
@@ -736,20 +742,20 @@ impl Typeset {
         (first, last.min(total).max(first))
     }
 
-    /// Steht auf Seite `page` (1-basiert) Text aus den Zeilen `lines` von `main`, außer Überschriftszeilen?
+    /// Does text from the lines `lines` of `main` stand on page `page` (1-based), except heading lines?
     fn has_text_from(&self, page: usize, lines: std::ops::Range<usize>) -> bool {
         let rendered = self.rendered();
         let Some(on_page) = page.checked_sub(1).and_then(|i| rendered.page_lines.get(i)) else { return false };
         on_page.iter().any(|line| lines.contains(line) && !rendered.headings.iter().any(|h| h.line == *line))
     }
 
-    /// Seite des Abschnitts `key` (ohne bzw. unbekannt: 1).
+    /// Page of the section `key` (without or unknown: 1).
     pub fn page_of(&self, key: Option<i64>) -> usize {
         key.and_then(|k| self.index_of(k)).map_or(1, |i| self.section_page(i))
     }
 
-    /// Meldungen mit Abschnitt: `key`, `section` („2.1 Titel“, „Werkvorlage“ bzw. – Runde 23a – [`TAIL_LABEL`] für
-    /// Zeilen des Buchendes) und `section_line` (Zeile im Abschnitt, in der Vorlage bzw. im Buchende, 1-basiert).
+    /// Messages with section: `key`, `section` („2.1 Titel“, „Werkvorlage“ or – Round 23a – [`TAIL_LABEL`] for
+    /// lines of the book end) and `section_line` (line in the section, in the template or in the book end, 1-based).
     pub fn diagnostics(&self) -> Vec<DiagnosticView> {
         let map = &self.prepared.map;
         self.rendered()
@@ -761,7 +767,7 @@ impl Typeset {
                         Some(s) => {
                             (Some(s.key), section_label(&self.prepared.work, s.key), Some(line - s.first_line + 1))
                         }
-                        // Runde 23a: Zeilen hinter dem letzten Abschnitt gehören dem Buchende, nicht ihm.
+                        // Round 23a: lines behind the last section belong to the book end, not to it.
                         None => match map.tail_first_line().filter(|first| line >= *first) {
                             Some(first) => (None, Some(TAIL_LABEL.to_owned()), Some(line - first + 1)),
                             None => (None, Some("Werkvorlage".to_owned()), Some(line)),
@@ -790,10 +796,10 @@ impl Typeset {
     }
 }
 
-/// Runde 23a: Name des Buchendes in Satzmeldungen (Register, Glossar und Verzeichnisse hinter dem letzten Abschnitt).
+/// Round 23a: name of the book end in typesetting messages (index, glossary and lists behind the last section).
 pub const TAIL_LABEL: &str = "Buchende (Register, Glossar)";
 
-/// Eine Meldung für RPC, MCP und Seite.
+/// A message for RPC, MCP and page.
 #[derive(Debug, Clone, Serialize)]
 pub struct DiagnosticView {
     pub severity: &'static str,
@@ -810,7 +816,7 @@ pub struct DiagnosticView {
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
-/// Fester Schlüssel als Zahl oder Ziffern (Formulare); leer → `None`.
+/// Fixed key as a number or digits (forms); empty → `None`.
 fn key_value(value: Option<&Value>, name: &str) -> Result<Option<i64>, RpcError> {
     let wrong = || RpcError::new(INVALID_PARAMS, format!("{name}: Zahl erwartet"));
     match value {
@@ -822,7 +828,7 @@ fn key_value(value: Option<&Value>, name: &str) -> Result<Option<i64>, RpcError>
     }
 }
 
-/// Gibt es den Abschnitt `key` im Werk? Sonst `INVALID_PARAMS`.
+/// Does the section `key` exist in the work? Otherwise `INVALID_PARAMS`.
 fn check_key(work: &Work, work_id: WorkId, key: Option<i64>) -> Result<(), RpcError> {
     match key {
         Some(key) if !work.nodes.iter().any(|n| n.key == key) => Err(RpcError::new(
@@ -834,14 +840,15 @@ fn check_key(work: &Work, work_id: WorkId, key: Option<i64>) -> Result<(), RpcEr
 }
 
 /// `preview.typst {work?, key?, page?, draft?}` → `{stand, pages, page, chapter: {first, last},
-/// diagnostics, cached, millis, draft, svg?}` (Runde 22: `draft` dreiwertig; Antwort `draft` = Wasserzeichen im Satz). `page` ist die verlangte Seite, sonst die Seite des
-/// Abschnitts `key` (ohne `key`: 1); `svg` nur mit `page`.
+/// diagnostics, cached, millis, draft, svg?}` (Round 22: `draft` three-valued; answer `draft` = watermark in the
+/// typesetting). `page` is the requested page, otherwise the page of the
+/// section `key` (without `key`: 1); `svg` only with `page`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     if !handles(method) {
         return Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     if method == "preview.cancel" {
-        // Unbekanntes Werk: dieselbe Meldung wie überall (`UnknownWork` → -32602), nicht still `false`.
+        // Unknown work: the same message as everywhere (`UnknownWork` → -32602), not silently `false`.
         state.store.work_template(work).await?;
         return Ok(json!({ "cancelled": cancel_in(&state.data, work) }));
     }
@@ -874,21 +881,21 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     Ok(answer)
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
-/// `GET /werke/{id}/satz?key=&page=` und `GET /werke/{id}/satz/{stand}/{n}.svg` (nur lesen).
+/// `GET /werke/{id}/satz?key=&page=` and `GET /werke/{id}/satz/{stand}/{n}.svg` (read only).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/satz", get(page)).route("/werke/{id}/satz/{stand}/{file}", get(svg))
 }
 
-/// `POST /werke/{id}/satz/abbrechen` (hinter guard::same_origin).
+/// `POST /werke/{id}/satz/abbrechen` (behind guard::same_origin).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/satz/abbrechen", post(cancel_act))
 }
 
-/// Formular „Satz abbrechen“ des Menübands der Satz-Seite: bricht die Läufe des Werks ab und leitet mit 303 auf
-/// `/werke/{id}/satz?abgebrochen=1` (lief keiner: `abgebrochen=0`; mit Feld `key` hängt `&key=K` an). Die Seite
-/// setzt dann nicht neu, sondern zeigt nur einen schon gesetzten Stand (siehe [`page`]).
+/// Form „Satz abbrechen“ of the ribbon of the typesetting page: cancels the runs of the work and redirects with
+/// 303 to `/werke/{id}/satz?abgebrochen=1` (none was running: `abgebrochen=0`; with the field `key` `&key=K` is
+/// appended). The page then does not typeset anew, but only shows a state already typeset (see [`page`]).
 async fn cancel_act(
     State(state): State<Arc<AppState>>,
     Path(id): Path<WorkId>,
@@ -909,8 +916,8 @@ async fn cancel_act(
     Redirect::to(&format!("/werke/{id}/satz?abgebrochen={flag}{key}")).into_response()
 }
 
-/// 403 für einen GET, den eine fremde Seite ausgelöst hat (Runde 18a): Bilder, Links und Formulare anderer
-/// Seiten sollen keinen Typst-Lauf anstoßen.
+/// 403 for a GET that a foreign page has triggered (Round 18a): images, links and forms of other
+/// pages are not to start a Typst run.
 pub(crate) fn foreign_get() -> Response {
     (StatusCode::FORBIDDEN, "Abgelehnt: Der Satz startet nicht auf Anfrage einer fremden Seite.").into_response()
 }
@@ -921,8 +928,8 @@ fn templates() -> &'static Environment<'static> {
         let mut env = Environment::new();
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
-            // Runde 33: Die Bedienung der Satz-Seite steht im Menüband (Block band_buch in typeset.html);
-            // fragments/edit_toolbar.html wird hier nicht mehr eingebunden.
+            // Round 33: the controls of the typesetting page stand in the ribbon (block band_buch in typeset.html);
+            // fragments/edit_toolbar.html is no longer included here.
             ("typeset.html", include_str!("../templates/typeset.html")),
         ] {
             env.add_template(name, source).expect("Vorlage der Satz-Seite fehlerhaft");
@@ -931,7 +938,7 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Selbst gebaute Adresse (Ziffern, Hex-Stand): nur `&` maskieren, damit `/` lesbar bleibt.
+/// Self-built address (digits, hex state): escape only `&`, so that `/` stays readable.
 pub(crate) fn href(url: String) -> JinjaValue {
     if url.chars().any(|c| matches!(c, '"' | '<' | '>' | '\'' | ' ') || c.is_control()) {
         return JinjaValue::from_safe_string("/werke".to_owned());
@@ -943,9 +950,9 @@ pub(crate) fn href(url: String) -> JinjaValue {
 struct PageQuery {
     key: Option<String>,
     page: Option<String>,
-    /// Nach dem Formular „Satz abbrechen“: `1` (abgebrochen) bzw. `0` (lief keiner) – dann kein neuer Lauf.
+    /// After the form „Satz abbrechen“: `1` (cancelled) or `0` (none was running) – then no new run.
     abgebrochen: Option<String>,
-    /// Runde 22: Wasserzeichen dreiwertig (fehlt = nach Einstellung, `1` = mit, `0` = ohne).
+    /// Round 22: watermark three-valued (missing = according to the setting, `1` = with, `0` = without).
     entwurf: Option<String>,
 }
 
@@ -964,7 +971,7 @@ pub(crate) struct DiagnosticLink {
     href: Option<JinjaValue>,
 }
 
-/// Serde-Wert für die Vorlage (minijinja 3 nimmt eigene Typen nur so).
+/// Serde value for the template (minijinja 3 takes own types only this way).
 pub(crate) fn sv<T: Serialize>(value: T) -> JinjaValue {
     JinjaValue::from(Serde(value))
 }
@@ -978,7 +985,7 @@ fn status_of(e: &RpcError) -> StatusCode {
 }
 
 pub(crate) fn render(status: StatusCode, ctx: JinjaValue) -> Response {
-    // Die Satz-Seite lädt kein main.js: Die Kopfzeile in base.html zeigt dann nur, was ohne Widget geht.
+    // The typesetting page loads no main.js: the header in base.html then shows only what works without a widget.
     let ctx = minijinja::context! { scriptless => true, ..ctx };
     match templates().get_template("typeset.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
@@ -998,7 +1005,7 @@ async fn page(
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let settings = JinjaValue::from(Serde(settings));
     let key: Option<i64> = q.key.as_deref().and_then(|k| k.trim().parse().ok());
-    // Runde 22: Unlesbares `entwurf` zählt wie „fehlt“ (die Seite bleibt bedienbar).
+    // Round 22: an unreadable `entwurf` counts like "missing" (the page stays usable).
     let draft = draft_query(q.entwurf.as_deref()).unwrap_or(None);
     let pair = draft_pair(draft);
     let title = match state.store.works().await {
@@ -1013,7 +1020,7 @@ async fn page(
         None => format!("/?work={id}"),
     });
     let work_ctx = json!({ "id": id, "title": title });
-    // Nach „Satz abbrechen“: nicht neu setzen, nur einen schon gesetzten Stand zeigen.
+    // After „Satz abbrechen“: do not typeset anew, only show a state already typeset.
     let cancelled_notice = q.abgebrochen.as_deref().map(|flag| {
         if flag == "0" { "Es lief kein Satz, der abzubrechen war." } else { "Der Satz wurde abgebrochen." }
     });
@@ -1112,16 +1119,16 @@ async fn page(
     render(StatusCode::OK, ctx)
 }
 
-/// Runde 22: Links der Satz-Seite rund um das Wasserzeichen (ohne JavaScript): „Als Entwurf herunterladen“ (Buch-PDF
-/// mit Wasserzeichen), dazu die Vorschau mit bzw. ohne Wasserzeichen (je nachdem, was gerade gezeigt wird) und das PDF
-/// ohne Wasserzeichen, wenn die Einstellung eins vorsieht. Keiner ändert die Einstellung.
+/// Round 22: links of the typesetting page around the watermark (without JavaScript): „Als Entwurf herunterladen“
+/// (book PDF with watermark), plus the preview with or without watermark (depending on what is shown right now)
+/// and the PDF without watermark if the setting provides for one. None changes the setting.
 #[derive(Serialize)]
 struct DraftLinks {
     /// `/werke/{id}/pdf?entwurf=1`.
     pdf_draft: JinjaValue,
-    /// `/werke/{id}/pdf?entwurf=0` (nur, wenn die Einstellung ein Wasserzeichen vorsieht).
+    /// `/werke/{id}/pdf?entwurf=0` (only if the setting provides for a watermark).
     pdf_plain: Option<JinjaValue>,
-    /// Vorschau umschalten: Adresse und Beschriftung.
+    /// Toggle the preview: address and label.
     toggle: JinjaValue,
     toggle_label: &'static str,
 }
@@ -1138,10 +1145,10 @@ fn draft_links(id: WorkId, key: Option<i64>, draft: Option<bool>, stored: bool) 
     }
 }
 
-/// Runde 29 (Abschnitt `#druckpruefung`): Stellen der Werkvorlage, die gesetzte Satz-Einstellungen selbst setzen
-/// ([`baruch_typst::typeset::template_conflicts`], je `{field, label, line, text, effect, message}`), und eine
-/// erkannte Kapitelanfangs-Regel der Vorlage (`{line, text, chapter_start, label}`), die sich in den Einstellungen
-/// übernehmen lässt. Ein Lesefehler zeigt nichts (die Seite bleibt bedienbar).
+/// Round 29 (section `#druckpruefung`): places of the work template that set typeset settings that are set
+/// themselves ([`baruch_typst::typeset::template_conflicts`], each `{field, label, line, text, effect, message}`),
+/// and a detected chapter start rule of the template (`{line, text, chapter_start, label}`) that can be adopted in
+/// the settings. A read error shows nothing (the page stays usable).
 pub async fn template_hints(state: &AppState, work: WorkId) -> (Vec<Value>, Option<Value>) {
     let Ok(template) = state.store.work_template(work).await else { return (Vec::new(), None) };
     let settings: TypesetSettings =
@@ -1171,8 +1178,8 @@ pub async fn template_hints(state: &AppState, work: WorkId) -> (Vec<Value>, Opti
     (conflicts, rule)
 }
 
-/// Kaputte Querverweise für die Druckprüfung (Runde 30a, [`crate::xref::broken_in`]): Abschnitt, Sprungmarke,
-/// Linktext und Link zur Stelle. Im Satz stehen sie nur als Text (siehe `xref_safety`).
+/// Broken cross-references for the print check (Round 30a, [`crate::xref::broken_in`]): section, jump mark,
+/// link text and link to the place. In typesetting they stand only as text (see `xref_safety`).
 fn broken_xrefs(id: WorkId, work: &Work) -> Vec<Value> {
     crate::xref::broken_in(work)
         .into_iter()
@@ -1188,8 +1195,8 @@ fn broken_xrefs(id: WorkId, work: &Work) -> Vec<Value> {
         .collect()
 }
 
-/// Pflichtangaben im Impressum (Runde 27, [`crate::cover_print::imprint_checks`]) für den Abschnitt
-/// `#druckpruefung`: nur bei eingeschalteter Titelei; ein Lesefehler zeigt nichts (die Seite bleibt bedienbar).
+/// Mandatory details in the imprint (Round 27, [`crate::cover_print::imprint_checks`]) for the section
+/// `#druckpruefung`: only with the front matter switched on; a read error shows nothing (the page stays usable).
 async fn imprint_warnings(state: &AppState, work: WorkId) -> Vec<crate::cover_print::CoverWarning> {
     let (Ok(meta), Ok(w)) = (state.store.book_meta(work).await, state.store.work_meta(work).await) else {
         return Vec::new();
@@ -1197,7 +1204,7 @@ async fn imprint_warnings(state: &AppState, work: WorkId) -> Vec<crate::cover_pr
     crate::cover_print::imprint_checks(&meta, &w.bible)
 }
 
-/// Meldungen mit Bezeichnung („Fehler“/„Warnung“) und Link zum Abschnitt (Satz-Seite, PDF-Fehlerseite).
+/// Messages with label („Fehler“/„Warnung“) and link to the section (typesetting page, PDF error page).
 pub(crate) fn diagnostic_links(id: WorkId, diagnostics: Vec<DiagnosticView>) -> Vec<DiagnosticLink> {
     diagnostics
         .into_iter()
@@ -1209,8 +1216,8 @@ pub(crate) fn diagnostic_links(id: WorkId, diagnostics: Vec<DiagnosticView>) -> 
         .collect()
 }
 
-/// Bildpfade, die Vorlage oder Text über `image("…")` nennen, ohne Datei im Werk (Normalform,
-/// sortiert, ohne Doppel). Pfade ohne Normalform (`..`) zählen als fehlend, wie sie im Text stehen.
+/// Image paths that template or text name through `image("…")` without a file in the work (normal form,
+/// sorted, without duplicates). Paths without a normal form (`..`) count as missing, as they stand in the text.
 pub fn missing_images(source: &Source) -> Vec<String> {
     let present: std::collections::HashSet<String> =
         source.files.iter().filter_map(|(path, _)| baruch_render::normalize_path(path)).collect();
@@ -1233,7 +1240,7 @@ struct SvgQuery {
     entwurf: Option<String>,
 }
 
-/// Eine Seite als SVG, nur für den aktuellen Stand des Werks (fremder oder alter Stand → 404).
+/// One page as SVG, only for the current state of the work (foreign or old state → 404).
 async fn svg(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1249,7 +1256,7 @@ async fn svg(
     if stand.len() != 64 || !stand.bytes().all(|b| b.is_ascii_hexdigit()) {
         return not_found();
     }
-    // Runde 22: derselbe Schalter wie die Satz-Seite, sonst passt der Stand nicht.
+    // Round 22: the same switch as the typesetting page, otherwise the state does not match.
     let draft = draft_query(q.entwurf.as_deref()).unwrap_or(None);
     let prepared = match prepare_with(&state, id, draft).await {
         Ok(prepared) => prepared,
@@ -1280,8 +1287,8 @@ async fn svg(
 mod tests {
     use super::*;
 
-    /// Nur dieser Test nutzt im Unit-Test-Lauf Sperre [`RUNS`] und Zwischenspeicher – in einem Test
-    /// nacheinander, damit das Füllen des Speichers den abgelaufenen Lauf nicht verdrängt.
+    /// Only this test uses the lock [`RUNS`] and the cache in the unit test run – in one test
+    /// one after another, so that filling the cache does not push out the expired run.
     #[tokio::test]
     async fn the_cache_holds_eight_stands_and_a_timed_out_run_still_fills_it() {
         let entry = |stand: &str| {
@@ -1312,8 +1319,8 @@ mod tests {
         assert!(cache_get("unit-0").is_some(), "zuletzt gebraucht: bleibt");
         assert!(cache_get("unit-1").is_none(), "am längsten nicht gebraucht: fliegt zuerst");
 
-        // Bytegrenze (Runde 18a): drei Stände zu je 1000 Bytes bei 2500 erlaubten – der älteste fliegt, obwohl
-        // weniger als CACHE_SIZE Stände da sind; ein einzelner zu großer Stand bleibt trotzdem.
+        // Byte limit (Round 18a): three states of 1000 bytes each with 2500 allowed – the oldest goes although
+        // fewer than CACHE_SIZE states are there; a single state that is too large stays nevertheless.
         cache_put_within(sized("groß-1", 1000), 2500);
         cache_put_within(sized("groß-2", 1000), 2500);
         cache_put_within(sized("groß-3", 1000), 2500);
@@ -1324,8 +1331,8 @@ mod tests {
         assert!(cache_contains("riesig"), "der neueste Stand bleibt, auch wenn er allein über der Grenze liegt");
         assert_eq!(cache_len(), 1, "alles Ältere ist gewichen: {}", cache_len());
 
-        // Der Lauf mit Limit 0 beginnt sicher (niemand sonst hält die Sperre), läuft ab und rechnet im
-        // Hintergrund zu Ende; der nächste Aufruf wartet auf die Sperre und findet den Stand.
+        // The run with limit 0 certainly begins (nobody else holds the lock), expires and computes to the end
+        // in the background; the next call waits for the lock and finds the state.
         let source = Source { main: "= Zeitlimit\nNur für den Unit-Test.\n".into(), files: Vec::new() };
         let stand = baruch_render::stand(&source);
         let refused = compile(source.clone(), &stand, Duration::ZERO).await.err().expect("Limit 0 läuft ab");
@@ -1336,9 +1343,9 @@ mod tests {
         assert_eq!(compiled.rendered.pages.len(), 1, "eine Seite");
     }
 
-    /// Runde 29: Konflikte und erkannte Vorlagenregel stehen im Abschnitt `#druckpruefung` (ohne JavaScript), mit
-    /// Wirkung, Zeile, maskiertem Regeltext und Link zu den Satz-Einstellungen. Gespeicherte Einstellungen (und damit
-    /// echte Konflikte auf der Seite) gibt es erst mit satz-daten; die Abnahme prüft den ganzen Weg.
+    /// Round 29: conflicts and the detected template rule stand in the section `#druckpruefung` (without JavaScript),
+    /// with effect, line, escaped rule text and link to the typeset settings. Stored settings (and with them
+    /// real conflicts on the page) exist only with satz-daten; the acceptance checks the whole path.
     #[test]
     fn the_print_check_lists_template_conflicts_and_the_detected_rule() {
         let template = "#set page(paper: \"a4\")\n#show heading.where(level: 1): it => { pagebreak(weak: true); it }\n";

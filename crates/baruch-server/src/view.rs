@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ansichtsmodelle für die Vorlagen und das Zeichnen der Seite bzw. ihrer drei Bereiche.
+//! View models for the templates and the drawing of the page and of its three areas.
 //!
-//! Revisionen werden überall über ihre **Nummer** angesprochen (Adresse `rev`, Blättern, Formulare),
-//! nicht über ihre Stelle: Nach dem Löschen einer Fassung hat die Nummernfolge Lücken. „‹ n/m ›“
-//! zeigt die Stelle n unter m Fassungen, die aktuelle Fassung ist hervorgehoben (`is-current`).
+//! Revisions are addressed everywhere through their **number** (address `rev`, paging, forms),
+//! not through their position: after a revision is deleted the sequence of numbers has gaps. "‹ n/m ›"
+//! shows the position n among m revisions, the current revision is highlighted (`is-current`).
 //!
-//! Runde 35 (Konten und Rollen, Vertrag §3.3): [`page`] und [`panes`] fragen [`crate::auth::current`]. Ist ein
-//! Lektor angemeldet, kommen die drei Bereiche aus eigenen Vorlagen (`fragments/lektor_tree.html`,
-//! `lektor_editor.html`, `lektor_assistants.html`): lesen, „Vorschlagen“ (`revision.propose`), Beitrag (`post.add`),
-//! eigene Beiträge ändern oder entfernen und Befund (`finding.add`) – alles über `POST /lektorat/act` bzw. `/rpc`.
-//! Die Knöpfe des Autors (Speichern, Übernehmen, Verwerfen, Umschalten, Löschen, Ausblenden, Personas, Literatur)
-//! stehen dann gar nicht im HTML. Für alle anderen bleibt die Seite Byte für Byte, wie sie war. Beide Funktionen
-//! laufen in der Aufgabe der Anfrage (nie abgespalten), sonst wäre die Antwort „ohne Konten“.
+//! Round 35 (accounts and roles, contract §3.3): [`page`] and [`panes`] ask [`crate::auth::current`]. If a
+//! Lektor is logged in, the three areas come from templates of their own (`fragments/lektor_tree.html`,
+//! `lektor_editor.html`, `lektor_assistants.html`): reading, „Vorschlagen“ (`revision.propose`), post (`post.add`),
+//! changing or removing own posts and finding (`finding.add`) – everything through `POST /lektorat/act` or `/rpc`.
+//! The buttons of the author (save, accept, reject, switch, delete, hide, personas, literature)
+//! are then not in the HTML at all. For everyone else the page stays byte for byte as it was. Both functions
+//! run in the task of the request (never spawned off), otherwise the answer would be "without accounts".
 
 use std::collections::HashMap;
 
@@ -24,66 +24,66 @@ use baruch_store::{FALLBACK_COLOR, NodeRevisions, PersonaColor, RevisionInfo, Wo
 
 use crate::rpc::LibraryView;
 
-/// Was gerade gezeigt wird; steht auch in der Adresse (`/?work=1&key=12&rev=3&view=preview`, Runde 8).
-/// Kanonisch ist der feste Schlüssel `key` (`Node::key`); `node` (Stelle) gilt nur noch als Rückfall
-/// beim Lesen älterer Adressen, erzeugte Links tragen es nicht mehr.
+/// What is shown right now; it also stands in the address (`/?work=1&key=12&rev=3&view=preview`, Round 8).
+/// Canonical is the fixed key `key` (`Node::key`); `node` (position) only counts as a fallback
+/// when reading older addresses, generated links no longer carry it.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Location {
-    /// Werk; fehlt es, das Vorgabewerk.
+    /// Work; if it is missing, the default work.
     pub work: Option<WorkId>,
-    /// Fester Schlüssel des Abschnitts; geht vor `node` und bleibt beim Umstellen der Gliederung gleich.
+    /// Fixed key of the section; takes precedence over `node` and stays the same when the outline is rearranged.
     pub key: Option<i64>,
-    /// Stelle (seq) des Abschnitts: nur Rückfall, wenn `key` fehlt oder unbekannt ist.
+    /// Position (seq) of the section: only a fallback if `key` is missing or unknown.
     pub node: Option<usize>,
-    /// Revisionsnummer, ab 1; fehlt sie (oder gibt es sie nicht), die aktuelle.
+    /// Revision number, from 1; if it is missing (or does not exist), the current one.
     pub rev: Option<usize>,
     pub view: Option<String>,
-    /// Probeweise gesetzte Fassungen für die Vorschau, `"<node>:<rev>[,<node>:<rev>…]"`. Ungültige
-    /// Einträge werden übergangen; die Markierung „aktuell“ ändert sich dadurch nicht.
+    /// Revisions set on trial for the preview, `"<node>:<rev>[,<node>:<rev>…]"`. Invalid
+    /// entries are skipped; the mark "current" does not change through this.
     pub pick: Option<String>,
-    /// Suche der Literatur (Popup der Kopfzeile bzw. Seite `/literatur`; Werk und Bibliothek), `?lq=…`.
+    /// Search of the literature (popup of the header or page `/literatur`; work and library), `?lq=…`.
     pub lq: Option<String>,
-    /// Runde 22: Rückmeldung nach dem Speichern ohne JavaScript (`/gliederung/act`): `amended-<k>` (fortgeschrieben,
-    /// Stand k) oder `new-<n>-<grund>` (neue Fassung n, Grund nach `NewReason::id`) bzw. `new-<n>`. Steht nicht in
-    /// erzeugten Adressen; Ungültiges wird übergangen.
+    /// Round 22: feedback after saving without JavaScript (`/gliederung/act`): `amended-<k>` (amended,
+    /// state k) or `new-<n>-<grund>` (new revision n, reason according to `NewReason::id`) or `new-<n>`. Does not
+    /// stand in generated addresses; invalid values are skipped.
     pub saved: Option<String>,
-    /// 0.9.0 (Nutzer 2026-11-24): `alle` öffnet den Schalter „ältere Fassungen“ – Blättern ‹ › zeigt dann auch die
-    /// unter der Marke ausgeblendeten Fassungen ([`baruch_core::revision_fold`]); sonst überspringt es sie.
+    /// 0.9.0 (user 2026-11-24): `alle` opens the switch „ältere Fassungen“ – paging ‹ › then also shows the
+    /// revisions hidden under the mark ([`baruch_core::revision_fold`]); otherwise it skips them.
     pub fassungen: Option<String>,
 }
 
-/// Einstellungen der Oberfläche aus Cookies (`baruch_*`, gesetzt von den Widgets). Der Server
-/// zeichnet damit gleich richtig: Thema, Spaltenbreiten, offener Abschnitt rechts, zugeklappte Kapitel,
-/// Ansicht des Editors.
+/// Settings of the user interface from cookies (`baruch_*`, set by the widgets). With them the server
+/// draws correctly right away: theme, column widths, open section on the right, collapsed chapters,
+/// view of the editor.
 #[derive(Debug, Clone, Serialize)]
 pub struct Settings {
-    /// `light` oder `dark`; fehlt es, folgt die Seite dem System.
+    /// `light` or `dark`; if it is missing, the page follows the system.
     pub theme: Option<&'static str>,
-    /// Breite der linken bzw. rechten Spalte in Prozent (12–45).
+    /// Width of the left and the right column in percent (12–45).
     pub left: Option<f32>,
     pub right: Option<f32>,
-    /// Offener Abschnitt des Akkordeons rechts: `personas`, `revisions` (Fassungen) oder `chat` (Vorgabe).
+    /// Open section of the accordion on the right: `personas`, `revisions` (Fassungen) or `chat` (default).
     pub accordion: &'static str,
-    /// Zugeklappte Teile und Kapitel.
+    /// Collapsed parts and chapters.
     pub closed: Vec<usize>,
-    /// Zuletzt geöffnetes Werk (Cookie `baruch_work`); `/` ohne `?work=` öffnet es, wenn es noch da ist.
+    /// Work opened last (cookie `baruch_work`); `/` without `?work=` opens it if it is still there.
     pub work: Option<WorkId>,
-    /// Eingeklappte Vorschläge im Lesefluss als `(key, rev)` (Cookie `baruch_folded` =
-    /// '.'-getrennte `<key>-<rev>`, höchstens [`MAX_FOLDED`] Einträge, nur `[0-9.-]`).
+    /// Collapsed proposals in the reading flow as `(key, rev)` (cookie `baruch_folded` =
+    /// '.'-separated `<key>-<rev>`, at most [`MAX_FOLDED`] entries, only `[0-9.-]`).
     pub folded: Vec<(i64, u32)>,
-    /// Ansicht des Editors (Cookie `baruch_editor`, gesetzt nur vom Umschalter): `satz` (Vorgabe) oder
-    /// `quelltext`. Der Server zeichnet den Umschalter (`aria-pressed`) und das Satzbild damit gleich
-    /// richtig, statt dass das Widget nach dem Laden erst umschaltet (Runde 8, 2d).
+    /// View of the editor (cookie `baruch_editor`, set only by the switch): `satz` (default) or
+    /// `quelltext`. With it the server draws the switch (`aria-pressed`) and the typeset view correctly right
+    /// away, instead of the widget switching only after loading (Round 8, 2d).
     pub editor: &'static str,
-    /// Vorschläge im Lesefluss anfangs (Cookie `baruch_pv`, Einstellungen „Darstellung“, Runde 9):
-    /// `open` (Vorgabe) oder `closed` – dann zeichnet der Server alle eingeklappt außer dem gezeigten.
-    /// Bei `closed` trägt [`Settings::folded`] zusätzlich den Merker [`FOLD_ALL`].
+    /// Proposals in the reading flow initially (cookie `baruch_pv`, settings „Darstellung“, Round 9):
+    /// `open` (default) or `closed` – then the server draws all collapsed except the shown one.
+    /// With `closed` [`Settings::folded`] additionally carries the marker [`FOLD_ALL`].
     pub pv: &'static str,
 }
 
-/// Merker in [`Settings::folded`] für `baruch_pv=closed`: „alle Vorschläge eingeklappt“. Schlüssel 0
-/// gibt es nicht (`parse_folded` nimmt nur Schlüssel und Nummern ab 1), der Merker trifft also nie
-/// einen echten Vorschlag; so wirkt die Einstellung über denselben Weg wie das Cookie `baruch_folded`.
+/// Marker in [`Settings::folded`] for `baruch_pv=closed`: "all proposals collapsed". Key 0
+/// does not exist (`parse_folded` takes only keys and numbers from 1), so the marker never hits
+/// a real proposal; this way the setting works through the same path as the cookie `baruch_folded`.
 pub const FOLD_ALL: (i64, u32) = (0, 0);
 
 impl Default for Settings {
@@ -102,10 +102,10 @@ impl Default for Settings {
     }
 }
 
-/// Höchstzahl der Einträge im Cookie `baruch_folded`; weitere werden übergangen.
+/// Maximum number of entries in the cookie `baruch_folded`; further ones are skipped.
 pub const MAX_FOLDED: usize = 200;
 
-/// Wert von `baruch_folded` → `(key, rev)`; enthält er etwas anderes als `[0-9.-]`, gilt er nicht.
+/// Value of `baruch_folded` → `(key, rev)`; if it contains anything other than `[0-9.-]`, it does not count.
 fn parse_folded(value: &str) -> Vec<(i64, u32)> {
     if !value.bytes().all(|b| b.is_ascii_digit() || b == b'.' || b == b'-') {
         return Vec::new();
@@ -122,7 +122,7 @@ fn parse_folded(value: &str) -> Vec<(i64, u32)> {
 }
 
 impl Settings {
-    /// Aus dem `Cookie`-Kopf lesen; Unbekanntes und Ungültiges wird übergangen.
+    /// Read from the `Cookie` header; unknown and invalid values are skipped.
     pub fn from_cookie_header(header: Option<&str>) -> Self {
         let mut settings = Settings::default();
         let width = |v: &str| v.trim_end_matches('%').parse::<f32>().ok().filter(|w| (12.0..=45.0).contains(w));
@@ -140,7 +140,7 @@ impl Settings {
                 "baruch_right" => settings.right = width(value),
                 "baruch_accordion" if value == "personas" => settings.accordion = "personas",
                 "baruch_accordion" if value == "revisions" => settings.accordion = "revisions",
-                // Runde 28: Akkordeon „Befunde“ (fragments/findings_panel.html).
+                // Round 28: accordion „Befunde“ (fragments/findings_panel.html).
                 "baruch_accordion" if value == "befunde" => settings.accordion = "befunde",
                 "baruch_closed" => settings.closed = value.split('.').filter_map(|id| id.parse().ok()).collect(),
                 "baruch_work" => settings.work = value.parse().ok().filter(|&id: &WorkId| id > 0),
@@ -156,7 +156,7 @@ impl Settings {
         settings
     }
 
-    /// Inline-Stil für `<html>` mit den Spaltenbreiten.
+    /// Inline style for `<html>` with the column widths.
     fn style(&self) -> String {
         let mut style = String::new();
         if let Some(left) = self.left {
@@ -169,30 +169,30 @@ impl Settings {
     }
 }
 
-/// Aufgelöste Stelle: gültiger Abschnitt, Stelle (`index`, ab 0) und Nummer (`rev`) der gezeigten
-/// Revision, Ansicht und die gültigen probeweise gesetzten Fassungen (`pick`).
+/// Resolved place: valid section, position (`index`, from 0) and number (`rev`) of the shown
+/// revision, view and the valid revisions set on trial (`pick`).
 #[derive(Debug, Clone)]
 pub struct Resolved {
     pub node: usize,
-    /// Fester Schlüssel des gezeigten Abschnitts (`Node::key`); steht in jeder erzeugten Adresse.
+    /// Fixed key of the shown section (`Node::key`); stands in every generated address.
     pub key: i64,
     pub index: usize,
     pub rev: u32,
     pub preview: bool,
     pub pick: Vec<(usize, u32)>,
-    /// Die Adresse nannte einen Schlüssel, den es im Werk nicht (mehr) gibt; gezeigt wird dann der
-    /// Rückfall (`node` bzw. der Vorgabe-Abschnitt), der Editor-Kopf nennt den Schlüssel.
+    /// The address named a key that does not exist in the work (any more); shown is then the
+    /// fallback (`node` or the default section), the editor header names the key.
     pub missing_key: Option<i64>,
-    /// Runde 22: Rückmeldung nach dem Speichern ([`Location::saved`], geprüft in [`saved_notice`]).
+    /// Round 22: feedback after saving ([`Location::saved`], checked in [`saved_notice`]).
     pub saved: Option<String>,
-    /// 0.9.0: Schalter „ältere Fassungen“ offen (`?fassungen=alle`).
+    /// 0.9.0: switch „ältere Fassungen“ open (`?fassungen=alle`).
     pub show_all: bool,
 }
 
 impl Location {
-    /// Abschnitt bestimmen (Vertrag Runde 8, §1): `key` gefunden → dieser Abschnitt (geht vor `node`);
-    /// `key` unbekannt → `node`, sonst der Vorgabe-Abschnitt, mit `missing_key`; ohne `key` wie bisher
-    /// `node` bzw. die Vorgabe.
+    /// Determine the section (contract Round 8, §1): `key` found → this section (takes precedence over `node`);
+    /// `key` unknown → `node`, otherwise the default section, with `missing_key`; without `key` as before
+    /// `node` or the default.
     pub fn resolve(&self, work: &Work) -> Resolved {
         let by_key = self.key.and_then(|key| work.nodes.iter().find(|n| n.key == key)).map(|n| n.id);
         let missing_key = self.key.filter(|_| by_key.is_none());
@@ -213,9 +213,9 @@ impl Location {
     }
 }
 
-/// Kanonische Adresse eines Abschnitts (Vertrag Runde 8, §1):
-/// `/?work=W&key=K[&rev=R][&view=preview][&pick=…][&lq=…]`, in dieser Reihenfolge. Nur Ziffern, feste
-/// Namen und prozentkodierte Werte; `pick` und `lq` kommen fertig als `&pick=…` bzw. `&lq=…` (oder leer).
+/// Canonical address of a section (contract Round 8, §1):
+/// `/?work=W&key=K[&rev=R][&view=preview][&pick=…][&lq=…]`, in this order. Only digits, fixed
+/// names and percent-encoded values; `pick` and `lq` come finished as `&pick=…` and `&lq=…` (or empty).
 pub fn node_url(work: WorkId, key: i64, rev: Option<u32>, preview: bool, pick_q: &str, lq_q: &str) -> String {
     let mut url = format!("/?work={work}&key={key}");
     if let Some(rev) = rev {
@@ -229,8 +229,8 @@ pub fn node_url(work: WorkId, key: i64, rev: Option<u32>, preview: bool, pick_q:
     url
 }
 
-/// `"<node>:<rev>,…"` → gültige Paare (Abschnitt und Fassung gibt es); je Abschnitt zählt der letzte
-/// Eintrag, Ungültiges wird übergangen. Ergebnis nach Abschnitt sortiert.
+/// `"<node>:<rev>,…"` → valid pairs (section and revision exist); per section the last
+/// entry counts, invalid ones are skipped. Result sorted by section.
 pub fn parse_pick(work: &Work, pick: Option<&str>) -> Vec<(usize, u32)> {
     let mut chosen: Vec<(usize, u32)> = Vec::new();
     for entry in pick.unwrap_or("").split(',') {
@@ -246,7 +246,7 @@ pub fn parse_pick(work: &Work, pick: Option<&str>) -> Vec<(usize, u32)> {
     chosen
 }
 
-/// `&pick=2:3,4:1` für eine nicht leere Auswahl, sonst leer (nur Ziffern, `:` und `,`).
+/// `&pick=2:3,4:1` for a non-empty selection, otherwise empty (only digits, `:` and `,`).
 pub fn pick_param(pick: &[(usize, u32)]) -> String {
     if pick.is_empty() {
         return String::new();
@@ -255,23 +255,23 @@ pub fn pick_param(pick: &[(usize, u32)]) -> String {
     format!("&pick={}", list.join(","))
 }
 
-/// Erster Abschnitt mit offenem Vorschlag, sonst der erste überhaupt.
+/// First section with an open proposal, otherwise the very first.
 fn default_node(work: &Work) -> usize {
     work.nodes.iter().find(|n| n.open_proposals() > 0).map_or(0, |n| n.id)
 }
 
 impl Resolved {
-    /// Adresse der Stelle: `/?work=<id>&key=…&rev=…[&view=preview][&pick=…][&lq=…]` ([`node_url`]).
+    /// Address of the place: `/?work=<id>&key=…&rev=…[&view=preview][&pick=…][&lq=…]` ([`node_url`]).
     pub fn url(&self, work: WorkId, lq: Option<&str>) -> String {
         let url = node_url(work, self.key, Some(self.rev), self.preview, &pick_param(&self.pick), &lq_param(lq));
         if self.show_all { format!("{url}{FOLD_OPEN_Q}") } else { url }
     }
 }
 
-/// 0.9.0: Zusatz der Adresse für den offenen Schalter „ältere Fassungen“ ([`Location::fassungen`]).
+/// 0.9.0: suffix of the address for the open switch „ältere Fassungen“ ([`Location::fassungen`]).
 pub const FOLD_OPEN_Q: &str = "&fassungen=alle";
 
-/// `&lq=<kodiert>` für eine nicht leere Suche, sonst leer.
+/// `&lq=<encoded>` for a non-empty search, otherwise empty.
 pub fn lq_param(lq: Option<&str>) -> String {
     match lq.map(str::trim).filter(|q| !q.is_empty()) {
         Some(q) => format!("&lq={}", query_escape(q)),
@@ -279,7 +279,7 @@ pub fn lq_param(lq: Option<&str>) -> String {
     }
 }
 
-/// Prozentkodierung für einen Wert in der Adresse: alles außer `A–Z a–z 0–9 - . _ ~` als `%XX`.
+/// Percent-encoding for a value in the address: everything except `A–Z a–z 0–9 - . _ ~` as `%XX`.
 pub fn query_escape(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for byte in value.bytes() {
@@ -292,7 +292,7 @@ pub fn query_escape(value: &str) -> String {
     out
 }
 
-/// Das gezeigte Werk (id, Ordnername) und alle Werke für die Werkwahl („Titel · Autor · n Abschnitte“).
+/// The shown work (id, folder name) and all works for the work choice („Titel · Autor · n Abschnitte“).
 #[derive(Debug, Clone)]
 pub struct Shelf {
     pub id: WorkId,
@@ -303,43 +303,43 @@ pub struct Shelf {
 #[derive(Serialize)]
 struct TreeItem {
     id: usize,
-    /// Fester Schlüssel (`Node::key`): die Formulare schicken ihn mit, die Stelle `id` kann veralten.
+    /// Fixed key (`Node::key`): the forms send it along, the position `id` can become outdated.
     key: i64,
     number: String,
     title: String,
     part: bool,
     section: bool,
     proposals: usize,
-    /// Runde 28: offene Befunde samt Unterpunkten (Zählregel §1.5, [`crate::findings::view::subtree_open`]);
-    /// gesetzt von [`attach_findings`], vorher 0.
+    /// Round 28: open findings including sub-items (counting rule §1.5, [`crate::findings::view::subtree_open`]);
+    /// set by [`attach_findings`], 0 before.
     findings: usize,
-    /// Davon am Punkt selbst.
+    /// Of them at the item itself.
     findings_own: usize,
     selected: bool,
-    /// Runde 22 (R22a): weitere nicht aktuelle Fassungen außer offenen Vorschlägen (ersetzt, verworfen).
+    /// Round 22 (R22a): further non-current revisions other than open proposals (replaced, rejected).
     alternatives: usize,
-    /// Aufgeklappt: nicht zugeklappt, oder der gewählte Abschnitt liegt darin.
+    /// Expanded: not collapsed, or the chosen section lies in it.
     open: bool,
-    /// Ebene in der Gliederung (Teil 0, Kapitel 1, Abschnitt 2, Unterabschnitt 3) und ihr Name.
+    /// Level in the outline (part 0, chapter 1, section 2, subsection 3) and its name.
     level: u8,
     level_name: &'static str,
-    /// Nachbarn auf derselben Ebene unter demselben Elternteil (Ziele für ↑ und ↓).
+    /// Neighbours on the same level under the same parent (targets for ↑ and ↓).
     up: Option<usize>,
     down: Option<usize>,
     up_key: Option<i64>,
     down_key: Option<i64>,
-    /// ← (höher stufen) bzw. → (tiefer stufen) möglich; Teile nie.
+    /// ← (promote) or → (demote) possible; parts never.
     promote: bool,
     demote: bool,
     children: Vec<TreeItem>,
-    /// Runde 16b: Sprechdauer (bei Punkten mit Unterpunkten samt Nachfahren) als „m:ss“ und Zeitmarke;
-    /// `None`, wenn das Werk keine Zeiten zeigt ([`crate::timing::WorkTiming::shown`]).
+    /// Round 16b: speaking time (for items with sub-items including descendants) as "m:ss" and time mark;
+    /// `None` if the work shows no times ([`crate::timing::WorkTiming::shown`]).
     duration: Option<String>,
     start: Option<String>,
 }
 
-/// Ebene je Knoten aus Art und Elternteil: Teil 0, Kapitel 1, Abschnitt 2, Abschnitt unter Abschnitt 3.
-/// Knoten stehen in Baumreihenfolge, das Elternteil also vorher.
+/// Level per node from kind and parent: part 0, chapter 1, section 2, section under a section 3.
+/// Nodes stand in tree order, so the parent comes before.
 pub fn levels(work: &Work) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::with_capacity(work.nodes.len());
     for node in &work.nodes {
@@ -353,7 +353,7 @@ pub fn levels(work: &Work) -> Vec<u8> {
     out
 }
 
-/// Name einer Ebene; bei Predigten heißt Ebene 1 „Predigtteil“.
+/// Name of a level; for sermons level 1 is called „Predigtteil“.
 pub fn level_name(kind: WorkKind, level: u8) -> &'static str {
     match (level, kind) {
         (0, _) => "Teil",
@@ -364,7 +364,7 @@ pub fn level_name(kind: WorkKind, level: u8) -> &'static str {
     }
 }
 
-/// Voriger und nächster Knoten derselben Ebene unter demselben Elternteil.
+/// Previous and next node of the same level under the same parent.
 pub fn neighbours(work: &Work, levels: &[u8], node: usize) -> (Option<usize>, Option<usize>) {
     let n = &work.nodes[node];
     let same: Vec<usize> = work.children(n.parent).filter(|s| levels[s.id] == levels[node]).map(|s| s.id).collect();
@@ -420,58 +420,58 @@ impl TreeItem {
     }
 }
 
-// ---- Runde 16b: Zeitwächter und Freigaben der Personas -------------------------------------------------
+// ---- Round 16b: time guard and releases of the personas ------------------------------------------------
 
-/// Freigabe einer Persona aus `persona.list` (Runde 15b): Verbindung lokal/extern und ob ein Auftrag hinaus darf.
+/// Release of a persona from `persona.list` (Round 15b): connection local/external and whether a job may go out.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct PersonaAccess {
     pub handle: String,
-    /// „lokal“ oder „extern“.
+    /// „lokal“ or „extern“.
     pub locality: String,
     pub external_allowed: bool,
-    /// Name der Verbindung (leer, wenn keine).
+    /// Name of the connection (empty if none).
     pub connection: String,
-    /// Wirksame Kontextlänge in Tokens ohne Netzabfrage (`persona.list` → `context.tokens`, Integrator Runde 17);
-    /// `None` = nicht bekannt, dann zeigt die Seite die Einstellung der Persona.
+    /// Effective context length in tokens without a network query (`persona.list` → `context.tokens`, integrator
+    /// Round 17); `None` = not known, then the page shows the setting of the persona.
     pub context_tokens: Option<u32>,
 }
 
 impl PersonaAccess {
-    /// Extern ohne Freigabe: Aufträge gingen nicht hinaus, die Persona ist auf der Arbeitsseite gesperrt.
+    /// External without a release: jobs would not go out, the persona is locked on the workspace page.
     pub fn blocked(&self) -> bool {
         self.locality == "extern" && !self.external_allowed
     }
 }
 
-/// Was die Arbeitsseite über [`LibraryView`] hinaus braucht (Runde 16b): Zeiten des Werks und Freigaben der
-/// Personas. Beides nur lesend.
+/// What the workspace page needs beyond [`LibraryView`] (Round 16b): times of the work and releases of the
+/// personas. Both read only.
 #[derive(Debug, Clone, Default)]
 pub struct ViewExtras {
     pub timing: Option<crate::timing::WorkTiming>,
     pub personas: Vec<PersonaAccess>,
-    /// Lektor nach der Einstellung mit der wirksamen Kontextlänge ohne Netzabfrage (`persona.list` → `lector`,
-    /// Integrator Runde 17); `None` = keine Liste geladen, dann gilt `Work::lector`.
+    /// Lector according to the setting with the effective context length without a network query (`persona.list` →
+    /// `lector`, integrator Round 17); `None` = no list loaded, then `Work::lector` applies.
     pub lector: Option<String>,
-    /// Knöpfe des Menübands nach der Werkvorlage (Runde 18a, [`crate::ribbon::ribbon`]).
+    /// Buttons of the ribbon according to the work template (Round 18a, [`crate::ribbon::ribbon`]).
     pub ribbon: crate::ribbon::Ribbon,
-    /// CSS des Satzbilds nach Vorlage und Einstellungen des Werks (Runde 18c, [`crate::sheet::sheet_css_for`]);
-    /// `None`, wenn es sich nicht berechnen ließ (dann holt das Widget es per RPC).
+    /// CSS of the typeset view according to template and settings of the work (Round 18c,
+    /// [`crate::sheet::sheet_css_for`]); `None` if it could not be computed (then the widget fetches it by RPC).
     pub sheet_css: Option<String>,
-    /// Runde 28: offene Befunde je Abschnitt und Befunde für das Akkordeon ([`crate::findings::view::load`]).
+    /// Round 28: open findings per section and findings for the accordion ([`crate::findings::view::load`]).
     pub findings: crate::findings::view::FindingsView,
-    /// Runde 28: bearbeitete Beiträge des Werks, `post.id` → Zeit der letzten Änderung ([`crate::posts::edited_map`]).
+    /// Round 28: edited posts of the work, `post.id` → time of the last change ([`crate::posts::edited_map`]).
     pub post_edits: HashMap<i64, String>,
-    /// Runde 30: Metadaten der Beiträge des Werks (nur nicht leere, [`baruch_store::Store::work_post_meta`]).
+    /// Round 30: metadata of the posts of the work (only non-empty ones, [`baruch_store::Store::work_post_meta`]).
     pub post_meta: HashMap<i64, baruch_store::PostMeta>,
-    /// Runde 19c: Kasten „Bibeln“ der Literatur für die Arbeitsseite ohne JavaScript
-    /// ([`crate::literature::bibles::workspace_shelf`]); `None` = nicht geladen (dann kein Kasten).
+    /// Round 19c: box „Bibeln“ of the literature for the workspace page without JavaScript
+    /// ([`crate::literature::bibles::workspace_shelf`]); `None` = not loaded (then no box).
     pub bibles: Option<crate::literature::bibles::Shelf>,
-    /// 0.9.0: Marken „ältere Fassungen ausblenden“ des Werks, `Node::key` → Nummer
+    /// 0.9.0: marks „ältere Fassungen ausblenden“ of the work, `Node::key` → number
     /// ([`baruch_store::Store::work_revision_folds`]).
     pub revision_folds: HashMap<i64, u32>,
 }
 
-/// Zeiten ([`crate::timing::work_timing`]) und Freigaben der Personas (nur über `persona.list`) laden.
+/// Load times ([`crate::timing::work_timing`]) and releases of the personas (only through `persona.list`).
 pub async fn extras(state: &crate::AppState, work: WorkId) -> Result<ViewExtras, crate::rpc::RpcError> {
     let timing = Some(crate::timing::work_timing(state, work).await?);
     let list = crate::personas::call(state, "persona.list", serde_json::json!({})).await?;
@@ -511,7 +511,7 @@ pub async fn extras(state: &crate::AppState, work: WorkId) -> Result<ViewExtras,
     })
 }
 
-/// Offene Befunde (samt Unterpunkten bzw. am Punkt selbst) an die Einträge der Gliederung hängen (Runde 28).
+/// Hang open findings (including sub-items, or at the item itself) on the entries of the outline (Round 28).
 fn attach_findings(items: &mut [TreeItem], sums: &[usize], own: &HashMap<i64, usize>) {
     for item in items {
         item.findings = sums.get(item.id).copied().unwrap_or(0);
@@ -520,8 +520,8 @@ fn attach_findings(items: &mut [TreeItem], sums: &[usize], own: &HashMap<i64, us
     }
 }
 
-/// Dauer und Zeitmarke an die Einträge der Gliederung hängen (nur, wenn das Werk Zeiten zeigt). Punkte mit
-/// Unterpunkten zeigen die Summe samt Nachfahren, Blätter ihren eigenen Text.
+/// Hang duration and time mark on the entries of the outline (only if the work shows times). Items with
+/// sub-items show the sum including descendants, leaves their own text.
 fn attach_timing(items: &mut [TreeItem], timing: &crate::timing::WorkTiming) {
     use baruch_typst::timing::clock;
     for item in items {
@@ -534,7 +534,7 @@ fn attach_timing(items: &mut [TreeItem], timing: &crate::timing::WorkTiming) {
     }
 }
 
-/// Kontext `timing` für Baum und Editorkopf: `None`, wenn das Werk keine Zeiten zeigt (Buch ohne Zielzeit).
+/// Context `timing` for tree and editor header: `None` if the work shows no times (book without a target time).
 fn timing_context(timing: Option<&crate::timing::WorkTiming>, node: &Node, shown_body: &str) -> Option<Value> {
     use baruch_typst::timing::{clock, speaking_seconds, spoken_words};
     let timing = timing.filter(|t| t.shown())?;
@@ -546,8 +546,8 @@ fn timing_context(timing: Option<&crate::timing::WorkTiming>, node: &Node, shown
         target => timing.target_seconds, target_clock => timing.target_seconds.map(clock),
         over => timing.over_seconds.is_some(), over_clock => timing.over_seconds.map(clock),
         words_per_minute => timing.words_per_minute, sermon => timing.kind == WorkKind::Sermon,
-        // Gezeigte Fassung des Abschnitts (im Editor das, was im Textfeld steht) und die Summe ohne die
-        // aktuelle Fassung dieses Abschnitts (für die Live-Rechnung des Widgets).
+        // Shown revision of the section (in the editor what stands in the text field) and the sum without the
+        // current revision of this section (for the live computation of the widget).
         section => section, section_clock => clock(section), section_words => words,
         rest => timing.seconds.saturating_sub(current),
         start_clock => timing.sections.get(node.id).map(|s| clock(s.start_seconds)),
@@ -578,19 +578,19 @@ fn status_label(status: RevisionStatus) -> &'static str {
 fn author_label(author: &Author) -> String {
     match author {
         Author::Human { name } => name.clone(),
-        // Runde 35: Ein Lektor schreibt ohne Modell – gezeigt wird nur die Herkunft, kein leeres „()“.
+        // Round 35: a Lektor writes without a model – only the origin is shown, no empty "()".
         Author::Assistant { persona, model } if model.is_empty() && is_lektorat(persona) => persona.clone(),
         Author::Assistant { persona, model } => format!("{persona} ({model})"),
     }
 }
 
-/// Herkunft eines Lektor-Kontos (`@lektorat:<slug>`, [`crate::auth::lektor_handle`]) – ein Mensch, keine Persona.
+/// Origin of a Lektor account (`@lektorat:<slug>`, [`crate::auth::lektor_handle`]) – a human, not a persona.
 fn is_lektorat(handle: &str) -> bool {
     handle.starts_with("@lektorat:")
 }
 
-/// Kapitel (bzw. Teil) eines Knotens: der Knoten selbst, wenn er kein Abschnitt ist, sonst der
-/// nächste Vorfahr, der kein Abschnitt ist (Abschnitte ohne solchen Vorfahr stehen für sich).
+/// Chapter (or part) of a node: the node itself if it is not a section, otherwise the
+/// nearest ancestor that is not a section (sections without such an ancestor stand for themselves).
 fn chapter_of(work: &Work, node: usize) -> usize {
     let mut at = node;
     let mut steps = 0;
@@ -606,12 +606,12 @@ fn chapter_of(work: &Work, node: usize) -> usize {
     at
 }
 
-/// Das Kapitel und alle Knoten darunter in Baumreihenfolge.
+/// The chapter and all nodes below it in tree order.
 fn chapter_nodes(work: &Work, node: usize) -> Vec<&Node> {
     fn walk<'a>(work: &'a Work, id: usize, out: &mut Vec<&'a Node>, depth: usize) {
         let Some(n) = work.nodes.get(id) else { return };
         if depth > work.nodes.len() || out.iter().any(|o| o.id == id) {
-            return; // Schleife in parent
+            return; // loop in parent
         }
         out.push(n);
         for child in work.children(Some(id)) {
@@ -623,17 +623,17 @@ fn chapter_nodes(work: &Work, node: usize) -> Vec<&Node> {
     out
 }
 
-/// Ein Abschnitt der Vorschau: seine Blöcke (Zeilen) mit den offenen Vorschlägen an ihrer Stelle.
+/// A section of the preview: its blocks (lines) with the open proposals at their place.
 #[derive(Serialize)]
 struct PreviewSection {
     node: usize,
     flow: InlineView,
 }
 
-/// Platzhalter für die Typst-Vorschau: Texte des Kapitels, Überschriften nach `=`. Je Abschnitt die
-/// aktuelle Fassung, oder die in `pick` probeweise gewählte (die Markierung bleibt unberührt); die
-/// offenen Vorschläge jedes Abschnitts stehen an ihrer Stelle zwischen seinen Blöcken (Runde 8, nur
-/// Zeilen-Diff), Basis ist die gezeigte Fassung des Abschnitts.
+/// Placeholder for the Typst preview: texts of the chapter, headings by `=`. Per section the
+/// current revision, or the one chosen on trial in `pick` (the mark stays untouched); the
+/// open proposals of every section stand at their place between its blocks (Round 8, only
+/// line diff), the base is the shown revision of the section.
 fn preview(work: &Work, node: &Node, pick: &[(usize, u32)], ctx: &ProposalContext<'_>) -> Vec<PreviewSection> {
     let mut sections = Vec::new();
     for n in chapter_nodes(work, node.id) {
@@ -645,11 +645,11 @@ fn preview(work: &Work, node: &Node, pick: &[(usize, u32)], ctx: &ProposalContex
     sections
 }
 
-/// Zeilen eines Texts für die Vorschau: Überschriften `=`, `==`, `===`, sonst Text; leere entfallen.
+/// Lines of a text for the preview: headings `=`, `==`, `===`, otherwise text; empty ones are dropped.
 fn preview_lines(body: &str) -> Vec<PreviewLine> {
     let mut lines = Vec::new();
     for line in body.lines() {
-        // Überschriften `=`, `==`, `===`, sonst Text (Platzhalter bis zum Typst-Satz).
+        // Headings `=`, `==`, `===`, otherwise text (placeholder until the Typst typesetting).
         let equals = line.bytes().take_while(|&b| b == b'=').count();
         let (level, text) = match line.get(equals..) {
             Some(rest) if (1..=3).contains(&equals) && rest.starts_with(' ') => (equals as u8, rest.trim().to_owned()),
@@ -662,9 +662,9 @@ fn preview_lines(body: &str) -> Vec<PreviewLine> {
     lines
 }
 
-/// Was die Vorschläge im Lesefluss brauchen: Werk (für Bildadressen), Fassungsbaum (Basis),
-/// Persona-Farben (Reihenfolge, Name), Alternativtexte der Bilder und eingeklappte Vorschläge. Ist die
-/// gezeigte Fassung ein Vorschlag, steht er offen und hervorgehoben ([`proposals_of`]).
+/// What the proposals in the reading flow need: work (for image addresses), revision tree (base),
+/// persona colours (order, name), alternative texts of the images and collapsed proposals. If the
+/// shown revision is a proposal, it stands open and highlighted ([`proposals_of`]).
 struct ProposalContext<'a> {
     work: WorkId,
     revisions: &'a [NodeRevisions],
@@ -674,18 +674,18 @@ struct ProposalContext<'a> {
 }
 
 impl ProposalContext<'_> {
-    /// Bild zu einem Pfad wie im Satzbild (`wysiwyg.parse`): Adresse der Bilderseite, Alternativtext
-    /// nach Normalform.
+    /// Image for a path as in the typeset view (`wysiwyg.parse`): address of the image page, alternative text
+    /// by normal form.
     fn image(&self, path: &str) -> Option<baruch_wysiwyg::ImageRef> {
         Some(crate::wysiwyg::image_ref_in(self.work, path, self.image_alts))
     }
 }
 
-/// Stand von `counter(heading).get().first()` im Kapitel eines Knotens: die Zahl der Knoten bis zu
-/// diesem Kapitel (Baumreihenfolge), deren Überschrift Typst zählt (`counted`, aus
-/// [`baruch_store::Store::counted_headings`]). Typst zählt nur nummerierte Überschriften: Ein Kapitel mit
-/// „Nummer aus“ (z. B. Vorwort) zählt nicht mit; in ihm gilt der Stand davor (vor dem ersten: 0).
-/// `Some(None)` = Stand nicht sicher bekannt; `None` für Teile und Abschnitte ohne Kapitel.
+/// State of `counter(heading).get().first()` in the chapter of a node: the number of nodes up to
+/// this chapter (tree order) whose heading Typst counts (`counted`, from
+/// [`baruch_store::Store::counted_headings`]). Typst counts only numbered headings: a chapter with
+/// „Nummer aus“ (e.g. a preface) does not count; in it the state before applies (before the first: 0).
+/// `Some(None)` = state not known for certain; `None` for parts and sections without a chapter.
 fn chapter_number(work: &Work, node: usize, counted: Option<&[i64]>) -> Option<Option<usize>> {
     let chapter = chapter_of(work, node);
     if work.nodes.get(chapter)?.kind != NodeKind::Chapter {
@@ -694,15 +694,15 @@ fn chapter_number(work: &Work, node: usize, counted: Option<&[i64]>) -> Option<O
     Some(counted.map(|keys| work.nodes.iter().filter(|n| n.id <= chapter && keys.contains(&n.key)).count()))
 }
 
-/// Kapitelbild für den Editorkopf (Runde 11): sicher aus der Vorlage ermittelt (Bild, Unterschrift,
-/// Alternativtext; `missing`, wenn der Pfad zu keinem Bild des Werks gehört), sonst nur der Hinweis
-/// „Bild aus der Vorlage“; ohne berechnete Bilder in der Vorlage nichts.
+/// Chapter image for the editor header (Round 11): determined for certain from the template (image, caption,
+/// alternative text; `missing` if the path belongs to no image of the work), otherwise only the note
+/// „Bild aus der Vorlage“; without computed images in the template nothing.
 fn chapter_image(work: &Work, node: usize, work_id: WorkId, images: &crate::wysiwyg::ImageView) -> Option<Value> {
     use crate::wysiwyg::ChapterImage;
     let number = chapter_number(work, node, images.counted.as_deref())?;
     Some(match images.chapter_image(number)? {
         ChapterImage::Known { path, asset } => {
-            // Bildnamen bestehen nur aus `[a-z0-9._-]` (valid_asset_name): die Adressen sind sicher.
+            // Image names consist only of `[a-z0-9._-]` (valid_asset_name): the addresses are safe.
             let url = |tail: &str| {
                 asset.as_ref().map(|a| Value::from_safe_string(format!("/werke/{work_id}/bilder/{}{tail}", a.name)))
             };
@@ -719,8 +719,8 @@ fn chapter_image(work: &Work, node: usize, work_id: WorkId, images: &crate::wysi
     })
 }
 
-/// Bildpfade der Vorschau, zu denen es im Werk kein Bild gibt (Runde 11: deutlich melden), ohne
-/// Doppelte in Reihenfolge; dazu der Pfad des Kapitelbilds, wenn er fehlt.
+/// Image paths of the preview for which there is no image in the work (Round 11: report clearly), without
+/// duplicates in order; plus the path of the chapter image if it is missing.
 fn missing_images(bodies: &[&str], images: &crate::wysiwyg::ImageView) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for body in bodies {
@@ -733,11 +733,11 @@ fn missing_images(bodies: &[&str], images: &crate::wysiwyg::ImageView) -> Vec<St
     out
 }
 
-/// Ein offener Vorschlag (Formulare „Übernehmen“/„Verwerfen“ einmal je Vorschlag) mit seinen
-/// Stücken an ihrer Stelle.
+/// An open proposal (forms „Übernehmen“/„Verwerfen“ once per proposal) with its
+/// pieces at their place.
 #[derive(Serialize)]
 struct ProposalView {
-    /// `<key>-<rev>`: Eintrag im Cookie `baruch_folded`, `data-pv` und Teil der Formular-ids.
+    /// `<key>-<rev>`: entry in the cookie `baruch_folded`, `data-pv` and part of the form ids.
     id: String,
     key: i64,
     node: usize,
@@ -746,47 +746,47 @@ struct ProposalView {
     hunks: Vec<HunkView>,
 }
 
-/// Ein Stück eines offenen Vorschlags an seiner Stelle (`fragments/proposals.html`, Runde 8): je
-/// Stück ein `<details class="pv pc">` beim Block `at` der gezeigten Fassung.
+/// A piece of an open proposal at its place (`fragments/proposals.html`, Round 8): per
+/// piece a `<details class="pv pc">` at the block `at` of the shown revision.
 #[derive(Serialize)]
 struct HunkView {
     #[serde(flatten)]
     meta: HunkMeta,
-    /// Index des ersten betroffenen Blocks der gezeigten Fassung (`data-b`), bei eingefügten der
-    /// Block, vor dem eingefügt wird.
+    /// Index of the first affected block of the shown revision (`data-b`), for inserted ones the
+    /// block before which is inserted.
     at: usize,
-    /// Lücke, in der das Stück steht: vor Block `gap` (= hinter Block `gap - 1`; am Ende die Blockzahl).
+    /// Gap in which the piece stands: before block `gap` (= behind block `gap - 1`; at the end the block count).
     gap: usize,
     kind: &'static str,
-    /// Satzbild des Stücks (`baruch_wysiwyg::hunk_html_with`, nur im Editor).
+    /// Typeset view of the piece (`baruch_wysiwyg::hunk_html_with`, only in the editor).
     satz: Option<String>,
     lines: Vec<DiffLine>,
 }
 
-/// Was alle Stücke eines Vorschlags teilen.
+/// What all pieces of a proposal share.
 #[derive(Serialize, Clone)]
 struct HunkMeta {
     id: String,
     handle: String,
-    /// Name der Persona; ohne Persona-Eintrag der Handle.
+    /// Name of the persona; without a persona entry the handle.
     name: String,
     note: String,
-    /// Gibt es zum Autor einen Persona-Eintrag? (sonst `FALLBACK_COLOR`, am Ende der Liste)
+    /// Is there a persona entry for the author? (otherwise `FALLBACK_COLOR`, at the end of the list)
     known: bool,
-    /// CSS-Variablen `--pc-light`, `--pc-dark`, `--pc-line`, `--pc-line-dark` (nur geprüfte `#rrggbb`).
+    /// CSS variables `--pc-light`, `--pc-dark`, `--pc-line`, `--pc-line-dark` (only checked `#rrggbb`).
     style: String,
-    /// Der einzige Kopf: „Name (@handle) · Fassung n[ · Modell][ · auf Fassung m][ · Teil i/k]“.
+    /// The only header: „Name (@handle) · Fassung n[ · Modell][ · auf Fassung m][ · Teil i/k]“.
     head: String,
-    /// Nur beim gezeigten Vorschlag: „Unterschied zu Fassung b[ (aktuell)] · gezeigt“ (seine Stücke
-    /// stehen dann an ihrer Stelle in ihm selbst, verglichen mit seiner Basis); oder der Hinweis,
-    /// dass er der gezeigten Fassung gleicht.
+    /// Only for the shown proposal: „Unterschied zu Fassung b[ (aktuell)] · gezeigt“ (its pieces
+    /// then stand at their place in it itself, compared with its base); or the note
+    /// that it equals the shown revision.
     base_note: Option<String>,
     open: bool,
     shown: bool,
 }
 
-/// Eintrag im Lesefluss: ein Block der gezeigten Fassung (`b`, `raw`, in der Vorschau `lines`) oder
-/// die Stücke, die an dieser Stelle stehen.
+/// Entry in the reading flow: a block of the shown revision (`b`, `raw`, in the preview `lines`) or
+/// the pieces that stand at this place.
 #[derive(Serialize)]
 struct FlowEntry {
     b: Option<usize>,
@@ -795,32 +795,32 @@ struct FlowEntry {
     hunks: Vec<HunkView>,
 }
 
-/// Lesefluss eines Abschnitts mit den offenen Vorschlägen an ihrer Stelle (Editor: `proposals`,
-/// Vorschau: je Abschnitt `flow`). `sheet`: im Editor das Satzbild der gezeigten Fassung, fertig vom
-/// Server (wie `wysiwyg.parse`), damit das Widget es ohne Warten auf RPC öffnet (Runde 8, 2d).
+/// Reading flow of a section with the open proposals at their place (editor: `proposals`,
+/// preview: `flow` per section). `sheet`: in the editor the typeset view of the shown revision, finished by the
+/// server (like `wysiwyg.parse`), so that the widget opens it without waiting for RPC (Round 8, 2d).
 #[derive(Serialize)]
 struct InlineView {
     key: i64,
     rev: u32,
     count: usize,
-    /// Runde 22 (R22a): Zahl der weiteren nicht aktuellen Fassungen außer Vorschlägen (Hinweis in der Vorschau).
+    /// Round 22 (R22a): number of the further non-current revisions other than proposals (note in the preview).
     alternatives: usize,
     proposals: Vec<ProposalView>,
     entries: Vec<FlowEntry>,
     sheet: Option<String>,
 }
 
-/// Persona-Eintrag zu einem Handle: Stelle in der Reihenfolge und Farbe.
+/// Persona entry for a handle: position in the order and colour.
 fn color_of<'a>(colors: &'a [PersonaColor], handle: &str) -> Option<(usize, &'a PersonaColor)> {
     colors.iter().enumerate().find(|(_, c)| c.handle == handle)
 }
 
-/// Stil einer Persona (Farbe aus der Liste, sonst `FALLBACK_COLOR`).
+/// Style of a persona (colour from the list, otherwise `FALLBACK_COLOR`).
 fn persona_style(colors: &[PersonaColor], handle: &str) -> String {
     crate::personas::style(color_of(colors, handle).map_or(FALLBACK_COLOR, |(_, c)| c.color.as_str()))
 }
 
-/// Zeilen-Diff für die Vorlage.
+/// Line diff for the template.
 fn diff_lines(base: &str, proposal: &str) -> Vec<DiffLine> {
     line_diff(base, proposal)
         .into_iter()
@@ -835,17 +835,17 @@ fn diff_lines(base: &str, proposal: &str) -> Vec<DiffLine> {
         .collect()
 }
 
-/// Quelltext der obersten Blöcke `range` (gekürzt auf die Blockzahl).
+/// Source text of the top-level blocks `range` (cut to the block count).
 fn raw_of(blocks: &[baruch_wysiwyg::Block], range: &std::ops::Range<usize>) -> String {
     let (start, end) = (range.start.min(blocks.len()), range.end.min(blocks.len()));
     blocks[start..end].iter().map(|b| b.raw.as_str()).collect()
 }
 
-/// Offene Vorschläge eines Abschnitts, nach Persona-Reihenfolge (`position`), darin nach Nummer;
-/// Autoren ohne Persona-Eintrag am Ende. Jeder mit seinen Stücken gegen die gezeigte Fassung
-/// `shown` (Runde 8: Basis der Einblendung ist, was „Übernehmen“ ersetzt). Ist `shown` selbst der
-/// Vorschlag, stehen seine Stücke gegen seine Basis (Elternteil, sonst die aktuelle) an ihrer Stelle
-/// in ihm. `satz`: auch das Satzbild der Stücke erzeugen.
+/// Open proposals of a section, by persona order (`position`), within it by number;
+/// authors without a persona entry at the end. Each with its pieces against the shown revision
+/// `shown` (Round 8: the base of the overlay is what „Übernehmen“ replaces). If `shown` itself is the
+/// proposal, its pieces stand against its base (parent, otherwise the current one) at their place
+/// in it. `satz`: also generate the typeset view of the pieces.
 fn proposals_of(
     node: &Node,
     shown: &baruch_core::Revision,
@@ -872,7 +872,7 @@ fn proposals_of(
                 .and_then(|i| i.based_on)
                 .filter(|&b| node.revision(b).is_some());
             let is_shown = shown.number == revision.number;
-            // Gezeigt ist der Vorschlag selbst: seine Stücke gegen seine Basis, Stellen in ihm.
+            // Shown is the proposal itself: its pieces against its base, positions in it.
             let base =
                 if is_shown { based_on.or(current).filter(|&b| b != revision.number) } else { Some(shown.number) };
             let base_body = base.and_then(|b| node.revision(b)).map_or("", |r| r.body.as_str());
@@ -887,7 +887,7 @@ fn proposals_of(
             } else {
                 None
             };
-            // Ein Lektor ist ein Konto, keine Persona: Es gibt keinen Namen neben dem Handle – nicht doppelt nennen.
+            // A Lektor is an account, not a persona: there is no name next to the handle – do not name it twice.
             let mut head = if is_lektorat(&handle) && name == handle {
                 format!("{handle} · Fassung {}", revision.number)
             } else {
@@ -896,7 +896,7 @@ fn proposals_of(
             if !model.is_empty() {
                 head.push_str(&format!(" · {model}"));
             }
-            // Runde 22 (§2.5): Stand der Basis, wenn sie fortgeschrieben war („auf Fassung n, Stand k“).
+            // Round 22 (§2.5): state of the base if it was amended („auf Fassung n, Stand k“).
             let base_amend =
                 infos.iter().find(|i| i.number == revision.number).and_then(|i| i.based_on_amend).filter(|&k| k > 0);
             match (based_on.filter(|&b| b != shown.number), base_amend) {
@@ -905,8 +905,8 @@ fn proposals_of(
                 (None, Some(k)) => head.push_str(&format!(" · beruht auf Stand {k}")),
                 (None, None) => {}
             }
-            // Gutachten R22: Basis seit dem Vorschlag weiter fortgeschrieben → Hinweis „veraltet“; Übernehmen nähme
-            // die späteren Fortschreibungen aus dem aktuellen Text.
+            // Review R22: base amended further since the proposal → note „veraltet“; accepting would take
+            // the later amendments out of the current text.
             let raw_amend = infos.iter().find(|i| i.number == revision.number).and_then(|i| i.based_on_amend);
             if let (Some(b), Some(k)) = (based_on, raw_amend)
                 && let Some(now) = infos.iter().find(|i| i.number == b).map(|i| i.amend_seq)
@@ -934,7 +934,7 @@ fn proposals_of(
                 .iter()
                 .enumerate()
                 .map(|(k, hunk)| {
-                    // Stelle in der gezeigten Fassung: beim gezeigten Vorschlag in ihm selbst.
+                    // Position in the shown revision: for the shown proposal in it itself.
                     let place = if is_shown { &hunk.proposal } else { &hunk.base };
                     let mut meta = meta.clone();
                     if parts > 1 {
@@ -952,14 +952,14 @@ fn proposals_of(
                         satz: satz.then(|| {
                             baruch_wysiwyg::hunk_html_with(base_body, &revision.body, hunk, &|p| ctx.image(p))
                         }),
-                        // Ohne Leerraum am Ende: Die Leerzeile hinter einem Block gehört zu seinem `raw` und
-                        // stand sonst als leere „−“-Zeile am Ende des Stücks (Backlog Runde 8, Runde 18c).
+                        // Without whitespace at the end: the empty line behind a block belongs to its `raw` and
+                        // otherwise stood as an empty "−" line at the end of the piece (backlog Round 8, Round 18c).
                         lines: diff_lines(raw_of(&old, &hunk.base).trim_end(), raw_of(&new, &hunk.proposal).trim_end()),
                     }
                 })
                 .collect();
             if views.is_empty() {
-                // Gleicht der gezeigten Fassung: eine Einblendung am Ende, damit Übernehmen/Verwerfen bleiben.
+                // Equals the shown revision: one overlay at the end, so that accept/reject stay.
                 let mut meta = meta;
                 if meta.base_note.is_none() {
                     meta.base_note = Some("gleicht der gezeigten Fassung".to_owned());
@@ -975,10 +975,10 @@ fn proposals_of(
     out.into_iter().map(|(_, view)| view).collect()
 }
 
-/// Lesefluss der gezeigten Fassung `shown` eines Abschnitts: ihre obersten Blöcke und dazwischen die
-/// Stücke aller offenen Vorschläge in ihrer Lücke, an derselben Stelle untereinander in
-/// Persona-Reihenfolge, darin nach Nummer (Reihenfolge von [`proposals_of`]). `lines`: Zeilen der
-/// Vorschau je Block; `sheet`: fertiges Satzbild für den Editor.
+/// Reading flow of the shown revision `shown` of a section: its top-level blocks and between them the
+/// pieces of all open proposals in their gap, at the same place one below another in
+/// persona order, within it by number (order of [`proposals_of`]). `lines`: lines of the
+/// preview per block; `sheet`: finished typeset view for the editor.
 fn inline_view(
     node: &Node,
     shown: &baruch_core::Revision,
@@ -1007,16 +1007,17 @@ fn inline_view(
     InlineView { key: node.key, rev: shown.number, count: proposals.len(), alternatives, proposals, entries, sheet }
 }
 
-/// Größter Abschnittstext (Bytes, 64 KiB), zu dem der Server das Satzbild vorab ins HTML setzt (Runde 18c).
+/// Largest section text (bytes, 64 KiB) for which the server puts the typeset view into the HTML in advance
+/// (Round 18c).
 pub const READY_SHEET_MAX: usize = 64 * 1024;
 
-/// Satzbild der gezeigten Fassung fertig vom Server (wie `wysiwyg.parse`), damit das Widget es beim
-/// Laden sofort zeigt (Runde 8, 2d). Nur, wenn das Textfeld denselben Text liefert, auf den sich die
-/// Indizes `data-b` beziehen: Der Browser streicht einen Zeilenumbruch direkt hinter `<textarea>` und
-/// macht aus `\r\n`/`\r` ein `\n`; dann holt das Widget das Satzbild wie bisher über RPC.
+/// Typeset view of the shown revision finished by the server (like `wysiwyg.parse`), so that the widget shows
+/// it at once on loading (Round 8, 2d). Only if the text field delivers the same text the
+/// indices `data-b` refer to: the browser strips a line break directly behind `<textarea>` and
+/// turns `\r\n`/`\r` into a `\n`; then the widget fetches the typeset view through RPC as before.
 ///
-/// Runde 18c: Abschnitte über [`READY_SHEET_MAX`] Bytes bekommen kein vorab gesetztes Satzbild (es verdoppelte den
-/// Text im HTML: Textfeld, Blatt, mit Vorschlägen auch Lesefluss); das Widget holt es per RPC.
+/// Round 18c: sections over [`READY_SHEET_MAX`] bytes get no typeset view set in advance (it would double the
+/// text in the HTML: text field, sheet, with proposals also the reading flow); the widget fetches it by RPC.
 fn ready_sheet(body: &str, ctx: &ProposalContext<'_>) -> Option<String> {
     if body.len() > READY_SHEET_MAX || body.starts_with('\n') || body.contains('\r') {
         return None;
@@ -1025,7 +1026,7 @@ fn ready_sheet(body: &str, ctx: &ProposalContext<'_>) -> Option<String> {
     Some(baruch_wysiwyg::render_html_with(&doc, &|p| ctx.image(p)))
 }
 
-/// Eine Fassung in der kleinen Baumansicht (eingerückt nach `based_on`).
+/// A revision in the small tree view (indented by `based_on`).
 #[derive(Serialize)]
 struct TreeRevision {
     number: u32,
@@ -1035,7 +1036,7 @@ struct TreeRevision {
     status_key: &'static str,
     author: String,
     persona: bool,
-    /// Bei Persona-Fassungen die CSS-Variablen ihrer Farbe.
+    /// For persona revisions the CSS variables of their colour.
     style: Option<String>,
     created: String,
     edited: Option<String>,
@@ -1043,26 +1044,26 @@ struct TreeRevision {
     shown: bool,
     show_url: String,
     try_url: String,
-    /// Runde 28: übernommene Befunde, die diese Fassung umsetzt ([`baruch_store::Store::findings_adopted_in`]).
+    /// Round 28: accepted findings this revision implements ([`baruch_store::Store::findings_adopted_in`]).
     findings: Vec<i64>,
-    /// Befunde mit offenem Vorschlag „übernommen in dieser Fassung“.
+    /// Findings with an open proposal „übernommen in dieser Fassung“.
     proposed_findings: Vec<i64>,
     /// `/werke/{work}/befunde`
     findings_base: String,
-    /// Runde 30b: Kennzeichen einer Variante ([`crate::assist::variants::revision_variant`]); `None` = keine.
+    /// Round 30b: marker of a variant ([`crate::assist::variants::revision_variant`]); `None` = none.
     variant: Option<serde_json::Value>,
-    /// Runde 22: Stand der Fassung (0 = nie fortgeschrieben) und Link auf ihren Verlauf (nur bei Stand > 0).
+    /// Round 22: state of the revision (0 = never amended) and link to its history (only for state > 0).
     amend_seq: u32,
     history_url: Option<String>,
-    /// Runde 22: Stand der Basis eines Vorschlags („beruht auf Fassung n, Stand k“, nur bei k > 0).
+    /// Round 22: state of the base of a proposal („beruht auf Fassung n, Stand k“, only for k > 0).
     based_on_amend: Option<u32>,
-    /// 0.9.0: unter der Marke ausgeblendet (steht hinter dem Schalter „n ältere Fassungen“).
+    /// 0.9.0: hidden under the mark (stands behind the switch „n ältere Fassungen“).
     hidden: bool,
-    /// 0.9.0: „bis hierhin ausblenden“ wird an dieser Fassung angeboten (nur im gezeigten Abschnitt).
+    /// 0.9.0: „bis hierhin ausblenden“ is offered at this revision (only in the shown section).
     fold: bool,
 }
 
-/// Zeitstempel `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in Ortszeit.
+/// Time stamp `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in local time.
 fn short_time(time: &str) -> String {
     crate::localtime::minutes(time)
 }
@@ -1076,8 +1077,8 @@ fn status_key(status: RevisionStatus) -> &'static str {
     }
 }
 
-/// Fassungen eines Abschnitts in Baumreihenfolge: Wurzeln (ohne oder mit unbekanntem Elternteil)
-/// nach Nummer, darunter je die Kinder nach Nummer, mit Tiefe.
+/// Revisions of a section in tree order: roots (without a parent or with an unknown one)
+/// by number, below them the children by number each, with depth.
 fn ordered_tree(infos: &[RevisionInfo]) -> Vec<(usize, &RevisionInfo)> {
     let known: Vec<u32> = infos.iter().map(|r| r.number).collect();
     let mut children: HashMap<Option<u32>, Vec<&RevisionInfo>> = HashMap::new();
@@ -1100,20 +1101,20 @@ fn ordered_tree(infos: &[RevisionInfo]) -> Vec<(usize, &RevisionInfo)> {
     out
 }
 
-/// Zusammenhang für die Links der Baumansicht.
+/// Context for the links of the tree view.
 struct TreeLinks<'a> {
     work: WorkId,
     at: &'a Resolved,
     lq_q: &'a str,
     colors: &'a [PersonaColor],
     findings: &'a crate::findings::view::FindingsView,
-    /// 0.9.0: Abschnitte des Werks und ihre Marken (ausgeblendete Fassungen).
+    /// 0.9.0: sections of the work and their marks (hidden revisions).
     nodes: &'a [Node],
     folds: &'a HashMap<i64, u32>,
 }
 
-/// Fassungen eines Abschnitts (`node` = Stelle, `key` = fester Schlüssel) für die Baumansicht; die
-/// Links tragen den Schlüssel (`zeigen`) bzw. den des gezeigten Abschnitts (`probieren`), `pick` bleibt
+/// Revisions of a section (`node` = position, `key` = fixed key) for the tree view; the
+/// links carry the key (`zeigen`) or that of the shown section (`probieren`), `pick` stays
 /// `<seq>:<rev>`.
 fn tree_revisions(node: usize, key: i64, infos: &[RevisionInfo], links: &TreeLinks<'_>) -> Vec<TreeRevision> {
     let mark = links.folds.get(&key).copied();
@@ -1160,29 +1161,29 @@ fn tree_revisions(node: usize, key: i64, infos: &[RevisionInfo], links: &TreeLin
         .collect()
 }
 
-/// 0.9.0 (Nutzer 2026-11-24): Marke „ältere Fassungen ausblenden“ des gezeigten Abschnitts für Kopf und Akkordeon.
+/// 0.9.0 (user 2026-11-24): mark „ältere Fassungen ausblenden“ of the shown section for header and accordion.
 #[derive(Debug, Serialize)]
 struct FoldView {
-    /// Gespeicherte Marke (Nummer) und wirksame Grenze (höchstens die aktuelle Fassung).
+    /// Stored mark (number) and effective limit (at most the current revision).
     mark: Option<u32>,
     cutoff: Option<u32>,
-    /// Zahl der ausgeblendeten Fassungen.
+    /// Number of the hidden revisions.
     hidden: usize,
-    /// Schalter offen: `?fassungen=alle` oder die gezeigte Fassung ist selbst ausgeblendet.
+    /// Switch open: `?fassungen=alle` or the shown revision is itself hidden.
     open: bool,
-    /// Zähler und Nachbarn über die sichtbaren Fassungen (bei offenem Schalter über alle).
+    /// Counter and neighbours over the visible revisions (over all with the switch open).
     position: usize,
     total: usize,
     prev: Option<u32>,
     next: Option<u32>,
-    /// Zusatz der Blätter-Links (`&fassungen=alle` bei offenem Schalter, sonst leer).
+    /// Suffix of the paging links (`&fassungen=alle` with the switch open, otherwise empty).
     q: &'static str,
-    /// „zeigen“ (Schalter auf) und „verbergen“ (Schalter zu; steht die gezeigte Fassung unter der Marke, auf die
-    /// aktuelle Fassung).
+    /// „zeigen“ (switch open) and „verbergen“ (switch closed; if the shown revision stands under the mark, to the
+    /// current revision).
     show_url: String,
     hide_url: String,
-    /// „bis hierhin ausblenden“ an der gezeigten Fassung, und alle Fassungen mit diesem Angebot (Formulare
-    /// `rev-fold-<n>` im Akkordeon, Knöpfe im Kopf und in der Baumansicht zeigen über `form` darauf).
+    /// „bis hierhin ausblenden“ at the shown revision, and all revisions with this offer (forms
+    /// `rev-fold-<n>` in the accordion, buttons in the header and in the tree view point to them through `form`).
     offered: bool,
     numbers: Vec<u32>,
 }
@@ -1229,13 +1230,13 @@ fn fold_view(
     }
 }
 
-/// Runde 22: Seite „Verlauf“ einer Fassung (`GET /werke/{id}/fassungen/verlauf?key=K&rev=R`).
+/// Round 22: page „Verlauf“ of a revision (`GET /werke/{id}/fassungen/verlauf?key=K&rev=R`).
 pub fn history_url(work: WorkId, key: i64, rev: u32) -> String {
     format!("/werke/{work}/fassungen/verlauf?key={key}&rev={rev}")
 }
 
-/// Runde 22 (R22a): nicht aktuelle Fassungen eines Abschnitts außer offenen Vorschlägen (ersetzt, verworfen), nach
-/// Nummer – der Hinweis „weitere Fassung(en)“ im Lesefluss und im Baum.
+/// Round 22 (R22a): non-current revisions of a section other than open proposals (replaced, rejected), by
+/// number – the note „weitere Fassung(en)“ in the reading flow and in the tree.
 fn alternatives_of(node: &Node) -> Vec<&baruch_core::Revision> {
     node.revisions
         .iter()
@@ -1243,8 +1244,8 @@ fn alternatives_of(node: &Node) -> Vec<&baruch_core::Revision> {
         .collect()
 }
 
-/// Runde 22: Rückmeldung nach dem Speichern ohne JavaScript aus `saved` (`amended-<k>`, `new-<n>[-<grund>]`);
-/// Ungültiges → `None`.
+/// Round 22: feedback after saving without JavaScript from `saved` (`amended-<k>`, `new-<n>[-<grund>]`);
+/// invalid → `None`.
 fn saved_notice(saved: Option<&str>) -> Option<String> {
     let saved = saved?;
     let mut parts = saved.split('-');
@@ -1259,7 +1260,7 @@ fn saved_notice(saved: Option<&str>) -> Option<String> {
     }
 }
 
-/// Alle Gründe für eine neue Fassung (für [`saved_notice`]).
+/// All reasons for a new revision (for [`saved_notice`]).
 const REASONS: [baruch_store::NewReason; 8] = [
     baruch_store::NewReason::Requested,
     baruch_store::NewReason::NoCurrent,
@@ -1271,17 +1272,17 @@ const REASONS: [baruch_store::NewReason; 8] = [
     baruch_store::NewReason::TimeElapsed,
 ];
 
-/// Fassungen eines Abschnitts aus dem Revisionsbaum des Werks (leer, wenn unbekannt).
+/// Revisions of a section from the revision tree of the work (empty if unknown).
 fn infos_of(tree: &[NodeRevisions], node: usize) -> &[RevisionInfo] {
     tree.iter().find(|n| n.node == node).map_or(&[], |n| n.revisions.as_slice())
 }
 
-/// Beiträge mit aufgelösten Verweisen (Nummer, Titel, Adresse der Stelle in Key-Form), id und
-/// Zeitpunkt (`data-post-id`, `data-post-created` für das Widget „chat“: neu seit dem letzten Besuch).
-/// Runde 28: nur die Beiträge in [`crate::posts::visible_range`], je Beitrag dazu `edited` (Zeit der letzten
-/// Änderung oder none), `edited_time` (kurz) und `own` (Beitrag des Menschen, also bearbeitbar).
-/// Runde 30 (Haken): `extra` ([`crate::chat_render::post_extra`]) und `solutions`
-/// ([`crate::assist::solutions::post_solutions`] gegen die gezeigte Fassung `shown_rev`).
+/// Posts with resolved references (number, title, address of the place in key form), id and
+/// instant (`data-post-id`, `data-post-created` for the widget "chat": new since the last visit).
+/// Round 28: only the posts in [`crate::posts::visible_range`], per post additionally `edited` (time of the last
+/// change or none), `edited_time` (short) and `own` (post of the human, that is editable).
+/// Round 30 (hook): `extra` ([`crate::chat_render::post_extra`]) and `solutions`
+/// ([`crate::assist::solutions::post_solutions`] against the shown revision `shown_rev`).
 #[allow(clippy::too_many_arguments)]
 fn posts(
     work: &Work,
@@ -1312,7 +1313,7 @@ fn posts(
                     }
                 })
                 .collect();
-            // Farbe nur für Beiträge von Personas (Handle mit Eintrag), nicht für den Menschen.
+            // Colour only for posts of personas (handle with an entry), not for the human.
             let style = color_of(colors, &post.author).map(|(_, c)| crate::personas::style(&c.color));
             let edited = edits.get(&post.id);
             context! {
@@ -1321,8 +1322,8 @@ fn posts(
                 sources => Value::from(Serde(&post.sources)), refs => refs,
                 edited => edited.map(String::as_str), edited_time => edited.map(|t| short_time(t)),
                 own => post.author == crate::mirror::HUMAN_NAME,
-                // Runde 35: eigener Beitrag eines Lektors (Autor des Beitrags = seine Herkunft) – nur den darf er
-                // ändern oder entfernen.
+                // Round 35: own post of a Lektor (author of the post = his origin) – only that one may he
+                // change or remove.
                 mine => lektor.is_some_and(|l| post.author == l.handle),
                 extra => post_extra_for(&ctx, post, lektor.is_some()),
                 solutions => Value::from(Serde(crate::assist::solutions::post_solutions(&post.body, shown_body))),
@@ -1332,10 +1333,10 @@ fn posts(
     Value::from(posts)
 }
 
-/// Zusatz eines Beitrags für die Vorlage ([`crate::chat_render::post_extra`]). Für Lektoren mit leerer Liste der
-/// Karten der Befund-Blöcke: Die Karten tragen die Formulare zum Status (nur der Autor); ohne Karte zeigt die Vorlage
-/// den Befund als gewöhnlichen Text des Beitrags. Die Liste bleibt als leere Abbildung stehen – die Vorlage schlägt
-/// darin nach, und ein Nachschlagen in einem fehlenden Wert wäre ein Fehler der Vorlage.
+/// Extra of a post for the template ([`crate::chat_render::post_extra`]). For Lektors with an empty list of the
+/// cards of the finding blocks: the cards carry the forms for the status (only the author); without a card the
+/// template shows the finding as ordinary text of the post. The list stays as an empty map – the template looks
+/// things up in it, and a lookup in a missing value would be an error of the template.
 fn post_extra_for(ctx: &crate::chat_render::PostCtx<'_>, post: &baruch_core::Post, lektor: bool) -> Value {
     let extra = crate::chat_render::post_extra(ctx, post);
     if !lektor {
@@ -1351,15 +1352,15 @@ fn post_extra_for(ctx: &crate::chat_render::PostCtx<'_>, post: &baruch_core::Pos
     }
 }
 
-/// Ziele für „Verschieben…“ im Abschnitts-Chat: alle Abschnitte des Werks außer dem gezeigten, je
-/// `{key, label}` mit „Nummer Titel“ (eingerückt nach Ebene).
+/// Targets for „Verschieben…“ in the section chat: all sections of the work except the shown one, each
+/// `{key, label}` with "number title" (indented by level).
 fn post_targets(work: &Work, shown: usize) -> Vec<Value> {
     let levels = levels(work);
     work.nodes
         .iter()
         .filter(|n| n.id != shown)
         .map(|n| {
-            // Geschützte Leerzeichen: gewöhnliche fielen in <option> zusammen.
+            // Non-breaking spaces: ordinary ones would collapse in <option>.
             let indent = "\u{a0}\u{a0}".repeat(usize::from(levels[n.id].saturating_sub(1)));
             let title = if n.title.is_empty() { "(ohne Titel)" } else { n.title.as_str() };
             let label =
@@ -1369,9 +1370,9 @@ fn post_targets(work: &Work, shown: usize) -> Vec<Value> {
         .collect()
 }
 
-/// Akkordeon „Befunde“ am gezeigten Abschnitt (Runde 28): offene Befunde (ohne Lob, angehängte unter dem Original)
-/// als Karten mit Statusformularen, entschiedene und Lob eingeklappt, offene Vorschläge, Ziele für „verschoben“ und
-/// der Rücksprung auf die Arbeitsseite.
+/// Accordion „Befunde“ at the shown section (Round 28): open findings (without praise, attached ones below the
+/// original) as cards with status forms, decided ones and praise collapsed, open proposals, targets for
+/// „verschoben“ and the return to the workspace page.
 fn findings_panel(
     work: &Work,
     node: &Node,
@@ -1383,7 +1384,7 @@ fn findings_panel(
     use crate::findings::{FindingKind, FindingStatus};
     let all = &findings.findings;
     let own: Vec<&crate::findings::Finding> = findings.of_key(node.key).collect();
-    // Angehängte Befunde stehen unter ihrem Original (in der Karte), nicht für sich.
+    // Attached findings stand below their original (in the card), not on their own.
     let top: Vec<&crate::findings::Finding> =
         own.iter().copied().filter(|f| f.similar_to.is_none_or(|o| !own.iter().any(|x| x.id == o))).collect();
     let cards = |keep: &dyn Fn(&crate::findings::Finding) -> bool| -> Vec<serde_json::Value> {
@@ -1406,8 +1407,8 @@ fn findings_panel(
     })
 }
 
-/// Muster zur Auswahl im Kopf der Gliederung (dazu „aus der Vorlage“, „keine Nummern“ und ein
-/// eigenes Muster in der Mustersprache, Runde 6: „I|1“ nur Kapitel, „…;…“ je Ebene).
+/// Patterns for selection in the header of the outline (plus „aus der Vorlage“, „keine Nummern“ and an
+/// own pattern in the pattern language, Round 6: "I|1" only chapters, "…;…" per level).
 const NUMBERING_PRESETS: &[&str] = &["1.1", "I.1", "1.a)", "A.1", "I|1", "1|1", "I.;A.;1.;a);aa)"];
 
 pub struct Panes {
@@ -1417,7 +1418,7 @@ pub struct Panes {
 }
 
 fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, library: &LibraryView) -> Value {
-    // Runde 35: Wer fragt? Ein Lektor bekommt eigene Vorlagen (siehe Modulkopf).
+    // Round 35: who asks? A Lektor gets templates of his own (see the module header).
     let who = crate::auth::current();
     let lektor = who.lektor();
     let node = &work.nodes[at.node];
@@ -1428,8 +1429,8 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
     let info = infos.iter().find(|r| r.number == revision.number);
     let current = node.current_number();
     let colors = library.persona_colors.as_slice();
-    // Offene Vorschläge an ihrer Stelle im Lesefluss: im Editor die des Abschnitts mit Satzbild- und
-    // Zeilen-Diff, in der Vorschau je Abschnitt des Kapitels.
+    // Open proposals at their place in the reading flow: in the editor those of the section with typeset view and
+    // line diff, in the preview per section of the chapter.
     let proposal_ctx = ProposalContext {
         work: shelf.id,
         revisions: &library.revisions,
@@ -1437,13 +1438,13 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         image_alts: &library.image_alts,
         folded: &settings.folded,
     };
-    // Runde 8: im Editor die Stücke an ihrer Stelle in der gezeigten Fassung, dazu ihr fertiges
-    // Satzbild (nur wenn das Satzbild die Vorgabe ist, sonst bliebe es ungenutzt).
+    // Round 8: in the editor the pieces at their place in the shown revision, plus their finished
+    // typeset view (only if the typeset view is the default, otherwise it would stay unused).
     let proposals = (!at.preview).then(|| {
         let sheet = (settings.editor == "satz").then(|| ready_sheet(&revision.body, &proposal_ctx)).flatten();
         inline_view(node, revision, proposals_of(node, revision, &proposal_ctx, true), false, sheet)
     });
-    // Runde 11: Bilder des Werks und der Vorlage (Kapitelbild im Kopf, Einfügen, fehlende Bilder).
+    // Round 11: images of the work and of the template (chapter image in the header, inserting, missing images).
     let images = &library.images;
     let chapter_picture = chapter_image(work, node.id, shelf.id, images);
     let missing = if at.preview {
@@ -1463,8 +1464,8 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         .iter()
         .map(|a| context! { name => a.name.as_str(), caption => a.caption.as_str(), alt => a.alt.as_str() })
         .collect();
-    // Runde 18c: Stellen für „Bild einfügen“ ohne JavaScript (Ende, Anfang, vor jedem obersten Block der gezeigten
-    // Fassung); mit JavaScript kommt „an der Cursorstelle“ dazu (web/src/sheet.ts).
+    // Round 18c: places for „Bild einfügen“ without JavaScript (end, beginning, before every top-level block of the
+    // shown revision); with JavaScript "at the cursor position" is added (web/src/sheet.ts).
     let image_places: Vec<Value> = if at.preview || image_choices.is_empty() {
         Vec::new()
     } else {
@@ -1473,14 +1474,14 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
             .map(|(value, label)| context! { value => value, label => label })
             .collect()
     };
-    // Integrator Runde 17 (L4): Lektor und Kontext wie in Einstellungen → Assistenten (wirksam, ohne Netzabfrage);
-    // ohne geladene Liste wie bisher nach `Work::lector` und der Einstellung.
+    // Integrator Round 17 (L4): lector and context as in Einstellungen → Assistenten (effective, without a network
+    // query); without a loaded list as before according to `Work::lector` and the setting.
     let lector = library.extras.lector.clone().or_else(|| work.lector().map(|p| p.handle.clone()));
     let personas: Vec<_> = work
         .personas
         .iter()
         .map(|p| {
-            // Runde 16b: lokal/extern aus persona.list; extern ohne Freigabe ist gesperrt (nicht wählbar).
+            // Round 16b: local/external from persona.list; external without a release is locked (not selectable).
             let access = library.extras.personas.iter().find(|a| a.handle == p.handle);
             context! {
                 handle => p.handle.as_str(), name => p.name.as_str(), role => p.role.as_str(), model => p.model.as_str(),
@@ -1495,7 +1496,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         })
         .collect();
     let mut tree_items = tree(work, None, at.node, &settings.closed);
-    // Runde 28: Abzeichen „k offen“ je Punkt, aufsummiert für Kapitel und Teile (Zählregel §1.5).
+    // Round 28: badge „k offen“ per item, summed up for chapters and parts (counting rule §1.5).
     let findings_view = &library.extras.findings;
     let open_sums = crate::findings::view::subtree_open(work, &findings_view.open_by_key);
     attach_findings(&mut tree_items, &open_sums, &findings_view.open_by_key);
@@ -1541,28 +1542,28 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         work => context! {
             id => shelf.id, slug => shelf.slug.as_str(), title => work.title.as_str(), author => work.author.as_str(),
         },
-        // Kopfzeile in base.html (Runde 9): Werkwahl (`topbar.works`), Menüs, Abzeichen (Anträge,
-        // offene Vorschläge).
+        // Header in base.html (Round 9): work choice (`topbar.works`), menus, badges (requests,
+        // open proposals).
         topbar => crate::menu::workspace_topbar(work, shelf, at, library),
         lq_q => lq_q.as_str(),
         pick_q => pick_q.as_str(),
         tree => Value::from(Serde(tree_items)),
-        // Runde 16b: Zeitwächter (nur bei Predigt oder Zielzeit, sonst none).
+        // Round 16b: time guard (only for a sermon or a target time, otherwise none).
         timing => timing,
-        // `key` (fester Schlüssel) für Editor-, Chat- und Literaturformulare: Die Stelle `id` kann
-        // veralten, wenn ein anderer Tab die Gliederung umstellt.
+        // `key` (fixed key) for editor, chat and literature forms: the position `id` can
+        // become outdated if another tab rearranges the outline.
         node => context! {
             id => node.id, key => node.key, number => node.number.as_str(), title => node.title.as_str(),
             posts => posts(work, node, shelf.id, &lq_q, colors, &library.extras.post_edits, at.rev, &library.extras, lektor),
-            // Runde 28: Stelle des ersten gezeigten Beitrags (0 = alle gezeigt; ältere über /beitraege).
+            // Round 28: position of the first shown post (0 = all shown; older ones through /beitraege).
             post_older => crate::posts::visible_range(node.posts.len()).start,
             post_count => node.posts.len(),
             post_targets => post_targets(work, node.id),
-            // Runde 28: offene Befunde samt Unterpunkten (Editorkopf) und am Abschnitt selbst.
+            // Round 28: open findings including sub-items (editor header) and at the section itself.
             open_findings => open_sums.get(node.id).copied().unwrap_or(0),
             open_findings_own => findings_view.open_by_key.get(&node.key).copied().unwrap_or(0),
             findings_url => format!("/werke/{}/befunde?key={}#zelle", shelf.id, node.key),
-            // Die Adresse nannte einen Schlüssel, den es nicht (mehr) gibt (Hinweis im Editor-Kopf).
+            // The address named a key that does not exist (any more) (note in the editor header).
             missing_key => at.missing_key,
         },
         numbering => library.numbering.as_ref().map(|n| Value::from(Serde(n))),
@@ -1570,7 +1571,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         outline_requests => library.outline_requests,
         cover => library.cover.as_ref().map(|c| Value::from(Serde(c))),
         rev => context! {
-            // 0.9.0: Zähler und Blättern über die sichtbaren Fassungen (ausgeblendete nur bei offenem Schalter).
+            // 0.9.0: counter and paging over the visible revisions (hidden ones only with the switch open).
             number => revision.number, position => fold.position, total => fold.total, all_total => total,
             status => status_label(revision.status), status_key => status_key(revision.status),
             author => author_label(&revision.author),
@@ -1582,9 +1583,9 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
             is_current => revision.status == RevisionStatus::Current, current => current,
             based_on => info.and_then(|i| i.based_on), edited => info.and_then(|i| i.edited.as_deref()).map(short_time),
             prev => fold.prev, next => fold.next,
-            // Abzeichen im Kopf des Akkordeons „Fassungen“: offene Vorschläge des Abschnitts.
+            // Badge in the header of the accordion „Fassungen“: open proposals of the section.
             open_proposals => node.open_proposals(),
-            // Fehler 0.9.0 (Kritik-Zyklus): offene Vorschläge für die Prüfgrundlage („Vorschlag n von @x“).
+            // Bug 0.9.0 (Kritik-Zyklus): open proposals for the check basis („Vorschlag n von @x“).
             open_list => node.revisions.iter().filter(|r| r.status == RevisionStatus::Proposed).map(|r| context! {
                 number => r.number,
                 label => match &r.author {
@@ -1592,12 +1593,12 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
                     Author::Human { .. } => format!("Vorschlag {}", r.number),
                 },
             }).collect::<Vec<_>>(),
-            // Runde 22: Stand der gezeigten Fassung, Verlauf, Stand der Basis eines Vorschlags.
+            // Round 22: state of the shown revision, history, state of the base of a proposal.
             amend_seq => info.map_or(0, |i| i.amend_seq),
             history_url => info.filter(|i| i.amend_seq > 0).map(|i| history_url(shown_work, node.key, i.number)),
             based_on_amend => info.and_then(|i| i.based_on_amend).filter(|&k| k > 0),
             own_current => revision.status == RevisionStatus::Current && matches!(revision.author, Author::Human { .. }),
-            // Runde 22 (R22a): weitere Fassungen außer Vorschlägen mit Link (?rev=) und „aktuell machen“.
+            // Round 22 (R22a): further revisions other than proposals with a link (?rev=) and „aktuell machen“.
             alternatives => alternatives_of(node).iter().map(|r| context! {
                 number => r.number, status => status_label(r.status), author => author_label(&r.author),
                 shown => r.number == revision.number,
@@ -1605,7 +1606,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
                 hidden => revision_fold::is_hidden(node, fold.mark, r),
                 fold => revision_fold::offered(node, fold.mark, r.number),
             }).collect::<Vec<_>>(),
-            // 0.9.0: Marke „bis hierhin ausblenden“ (fragments/revisions.html, Editor-Kopf).
+            // 0.9.0: mark „bis hierhin ausblenden“ (fragments/revisions.html, editor header).
             fold => Value::from(Serde(&fold)),
             saved_notice => saved_notice(at.saved.as_deref()),
         },
@@ -1617,10 +1618,10 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         image_choices => image_choices,
         image_places => image_places,
         revtree => context! { section => Value::from(Serde(section_tree)), chapter => chapter_tree },
-        // Runde 28: Akkordeon „Befunde“ (fragments/findings_panel.html).
+        // Round 28: accordion „Befunde“ (fragments/findings_panel.html).
         findings_panel => Value::from(Serde(findings_panel)),
         personas => personas,
-        // Runde 10: Titel des Lektor-Abzeichens („fest gewählt“ bzw. „größter Kontext“).
+        // Round 10: title of the lector badge („fest gewählt“ or „größter Kontext“).
         lector_fixed => work.lector_choice.handle().is_some_and(|h| {
             lector.as_deref().is_some_and(|l| l.trim_start_matches('@') == h.trim().trim_start_matches('@'))
         }),
@@ -1632,15 +1633,15 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         library => Value::from(Serde(&library.titles)),
         library_query => library.query.as_deref(),
         library_hits => Value::from(Serde(&library.hits)),
-        // Runde 23a: Kasten „Bilder des Werks“ zur Suche, auch ohne JavaScript im ausgelieferten HTML.
+        // Round 23a: box „Bilder des Werks“ for the search, also without JavaScript in the delivered HTML.
         library_images_html => Value::from_safe_string(library.images_html.clone()),
-        // Runde 19c: Bibel-Kontext der Literatur auf der Arbeitsseite (ohne JavaScript; mit JavaScript lädt das Popup
-        // denselben Kasten über `literature.render`).
+        // Round 19c: Bible context of the literature on the workspace page (without JavaScript; with JavaScript the
+        // popup loads the same box through `literature.render`).
         bibles => library.extras.bibles.as_ref().map(|b| b.context_at(Some(at.key), Some(at.rev))),
-        // Runde 18a/18c (Schnittstelle R18-S1): Knöpfe des Menübands und CSS des Satzbilds des Werks.
+        // Round 18a/18c (interface R18-S1): buttons of the ribbon and CSS of the typeset view of the work.
         ribbon => Value::from(Serde(&library.extras.ribbon)),
         sheet_css => library.extras.sheet_css.as_deref(),
-        // Runde 35: none außer für einen angemeldeten Lektor (dann Herkunft und Name für die Lektor-Vorlagen).
+        // Round 35: none except for a logged-in Lektor (then origin and name for the Lektor templates).
         lektor => lektor.map(|l| context! {
             handle => l.handle.as_str(),
             name => if l.display.trim().is_empty() { l.name.as_str() } else { l.display.as_str() },
@@ -1648,7 +1649,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
     }
 }
 
-/// Vorlagen der drei Bereiche: für Lektoren die eigenen (`fragments/lektor_*.html`), sonst die des Autors.
+/// Templates of the three areas: for Lektors their own (`fragments/lektor_*.html`), otherwise those of the author.
 fn pane_templates() -> [&'static str; 3] {
     if crate::auth::current().lektor().is_some() {
         ["fragments/lektor_tree.html", "fragments/lektor_editor.html", "fragments/lektor_assistants.html"]
@@ -1697,7 +1698,7 @@ pub fn environment() -> Environment<'static> {
         ("fragments/revisions.html", include_str!("../templates/fragments/revisions.html")),
         ("fragments/findings_panel.html", include_str!("../templates/fragments/findings_panel.html")),
         ("fragments/assistants.html", include_str!("../templates/fragments/assistants.html")),
-        // Runde 35: die drei Bereiche für Lektoren.
+        // Round 35: the three areas for Lektors.
         ("fragments/lektor_tree.html", include_str!("../templates/fragments/lektor_tree.html")),
         ("fragments/lektor_editor.html", include_str!("../templates/fragments/lektor_editor.html")),
         ("fragments/lektor_assistants.html", include_str!("../templates/fragments/lektor_assistants.html")),
@@ -1708,13 +1709,13 @@ pub fn environment() -> Environment<'static> {
         ("fragments/idea_capture.html", include_str!("../templates/fragments/idea_capture.html")),
         ("fragments/toast.html", include_str!("../templates/fragments/toast.html")),
         ("fragments/assist_scope.html", include_str!("../templates/fragments/assist_scope.html")),
-        // Runde 30 (Schnittstelle R30-S1): Gerüste, von keiner Vorlage eingebunden.
+        // Round 30 (interface R30-S1): scaffolds, included by no template.
         ("fragments/search_bar.html", include_str!("../templates/fragments/search_bar.html")),
         ("fragments/post_item.html", include_str!("../templates/fragments/post_item.html")),
         ("fragments/finding_block.html", include_str!("../templates/fragments/finding_block.html")),
         ("fragments/post_solutions.html", include_str!("../templates/fragments/post_solutions.html")),
         ("fragments/basis_select.html", include_str!("../templates/fragments/basis_select.html")),
-        // Runde 24 (Schnittstelle R24-S1): Über Baruch (src/about.rs).
+        // Round 24 (interface R24-S1): about Baruch (src/about.rs).
         ("about.html", include_str!("../templates/about.html")),
     ] {
         env.add_template(name, source).expect("Vorlage fehlerhaft");
@@ -1805,7 +1806,7 @@ mod tests {
         assert_eq!(node_url(3, 9, None, false, "", ""), "/?work=3&key=9", "ohne rev nur Werk und Schlüssel");
     }
 
-    /// Beispielwerk mit festen Schlüsseln (im Speicher sind sie 0): Schlüssel = 100 + Stelle.
+    /// Sample work with fixed keys (in memory they are 0): key = 100 + position.
     fn keyed_sample() -> Work {
         let mut work = baruch_core::sample::work();
         for node in &mut work.nodes {
@@ -1817,7 +1818,7 @@ mod tests {
     #[test]
     fn the_address_names_the_revision_number_not_its_position() {
         let mut work = keyed_sample();
-        work.nodes[2].revisions.remove(0); // Lücke: Fassungen 2 und 3
+        work.nodes[2].revisions.remove(0); // gap: revisions 2 and 3
         let at = Location { node: Some(2), rev: Some(3), ..Location::default() }.resolve(&work);
         assert_eq!((at.index, at.rev), (1, 3), "Nummer 3 steht an Stelle 1");
         assert_eq!(at.url(1, None), "/?work=1&key=102&rev=3", "Adresse trägt Schlüssel und Nummer");
@@ -1886,7 +1887,7 @@ mod tests {
     #[test]
     fn closed_chapter_stays_open_when_it_holds_the_selection() {
         let work = baruch_core::sample::work();
-        // Teil I (1) mit Kapitel 2 (3) und Abschnitt 2.1 (4); gewählt ist 2.1.
+        // Part I (1) with chapter 2 (3) and section 2.1 (4); chosen is 2.1.
         let items = tree(&work, None, 4, &[1, 3, 6]);
         let part1 = items.iter().find(|i| i.id == 1).unwrap();
         assert!(part1.open);

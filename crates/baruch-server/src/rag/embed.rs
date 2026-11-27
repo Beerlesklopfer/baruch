@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einbetter des Dienstes (Runde 12): [`EliezerEmbedders`] (Eliezer über `POST /v1/embeddings`, eigene
-//! Warteschlange mit **einer** Anfrage zur Zeit, Stapel ≤ [`MAX_EMBED_BATCH`]), [`NoEmbedders`] (kein
-//! Backend angebunden: ehrliche Meldung) und [`Cached`] (Zwischenspeicher je Suche: dieselbe Anfrage wird
-//! je Modell höchstens einmal eingebettet, auch wenn LanceDB und pgvector gleichzeitig fragen).
+//! Embedders of the service (Round 12): [`EliezerEmbedders`] (Eliezer through `POST /v1/embeddings`, its own
+//! queue with **one** request at a time, batch ≤ [`MAX_EMBED_BATCH`]), [`NoEmbedders`] (no
+//! backend connected: honest message) and [`Cached`] (cache per search: the same query is
+//! embedded at most once per model, even if LanceDB and pgvector ask at the same time).
 //!
-//! Adresse und Schlüssel wie [`crate::models`]: aus der Verbindung `eliezer`, der Schlüssel
-//! (`baruch/eliezer`) nur, wenn er an das jetzige Ziel gebunden ist; sonst geht nichts hinaus.
+//! Address and key as in [`crate::models`]: from the connection `eliezer`, the key
+//! (`baruch/eliezer`) only if it is bound to the current target; otherwise nothing goes out.
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -18,15 +18,15 @@ use tokio::sync::{OnceCell, Semaphore};
 
 use crate::connections::SecretStore;
 
-/// Eine Einbettungsanfrage zur Zeit bei Eliezer, für den ganzen Prozess (getrennt von der
-/// Warteschlange der Chat-Aufrufe in [`crate::models`]).
+/// One embedding request at a time at Eliezer, for the whole process (separate from the
+/// queue of the chat calls in [`crate::models`]).
 static EMBED_QUEUE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
 
-/// Satz, wenn kein Einbetter angebunden ist.
+/// Sentence shown when no embedder is connected.
 pub const NO_EMBEDDER: &str = "Kein Einbettungsmodell angebunden (Baruch läuft ohne Einbettungen, z. B. in Tests oder \
                                Hilfsbefehlen); die Wortlaut-Suche (FTS) geht weiter.";
 
-/// Prüft die Zahl der Texte einer Anfrage.
+/// Checks the number of texts of a request.
 fn check_batch(texts: &[String]) -> Result<(), RagError> {
     if texts.is_empty() || texts.len() > MAX_EMBED_BATCH {
         return Err(RagError::Invalid(format!(
@@ -37,8 +37,8 @@ fn check_batch(texts: &[String]) -> Result<(), RagError> {
     Ok(())
 }
 
-/// [`LlmError`] → [`RagError`]: Nicht eingerichtet, nicht erreichbar oder Modell unbekannt heißt „kein
-/// Einbettungsmodell“ (die Wortlaut-Suche bleibt).
+/// [`LlmError`] → [`RagError`]: not set up, not reachable or model unknown means "no
+/// embedding model" (the wording search remains).
 pub fn rag_error(e: LlmError) -> RagError {
     match e {
         LlmError::NotConfigured(_) | LlmError::Unreachable(_) | LlmError::UnknownModel(_) => RagError::NoEmbedder(
@@ -50,14 +50,14 @@ pub fn rag_error(e: LlmError) -> RagError {
     }
 }
 
-/// Satz, wenn die Verbindung Eliezer als extern markiert ist: Einbetten schickt Buchtext ohne Persona, also ohne
-/// Freigabe – deshalb gar nicht.
+/// Sentence shown when the connection Eliezer is marked as external: embedding sends book text without a persona,
+/// that is without a release – therefore not at all.
 pub const EXTERNAL_REFUSED: &str = "Die Verbindung Eliezer ist als extern markiert; zum Einbetten geht kein Buchtext \
 hinaus (Einbetten hat keine Persona und damit keine Freigabe). Nichts gesendet. Für die Bedeutungssuche Eliezer als \
 lokal führen (Einstellungen → Verbindungen) oder RAG ausschalten";
 
-/// Adresse und Schlüssel aus der Verbindung `eliezer` (Muster `models::endpoint`). Ist Eliezer als extern
-/// markiert, geht nichts hinaus ([`EXTERNAL_REFUSED`]) – dieselbe Sperre wie bei Chat und Lektor ohne Freigabe.
+/// Address and key from the connection `eliezer` (pattern `models::endpoint`). If Eliezer is marked as
+/// external, nothing goes out ([`EXTERNAL_REFUSED`]) – the same lock as for chat and lector without a release.
 async fn endpoint(store: &Store, secrets: &Arc<dyn SecretStore>) -> Result<Endpoint, LlmError> {
     let model_connection = store.model_connection_get(baruch_store::ELIEZER_CONNECTION).await.map_err(|e| {
         LlmError::NotConfigured(format!("Modell-Verbindung Eliezer nicht lesbar: {e}; nichts gesendet"))
@@ -86,7 +86,7 @@ async fn endpoint(store: &Store, secrets: &Arc<dyn SecretStore>) -> Result<Endpo
     Ok(Endpoint::new(url, secret))
 }
 
-/// Einbetter über Eliezer.
+/// Embedder through Eliezer.
 #[derive(Clone)]
 pub struct EliezerEmbedders {
     store: Store,
@@ -112,7 +112,7 @@ impl EmbedderFactory for EliezerEmbedders {
 struct EliezerEmbedder {
     store: Store,
     secrets: Arc<dyn SecretStore>,
-    /// Name bei Eliezer (Alias aufgelöst).
+    /// Name at Eliezer (alias resolved).
     model: String,
 }
 
@@ -133,7 +133,7 @@ impl Embedder for EliezerEmbedder {
     }
 }
 
-/// Kein Einbetter angebunden: jede Anfrage meldet [`NO_EMBEDDER`].
+/// No embedder connected: every request reports [`NO_EMBEDDER`].
 pub struct NoEmbedders;
 
 struct NoEmbedder(String);
@@ -155,10 +155,10 @@ impl Embedder for NoEmbedder {
 }
 
 type Cell = Arc<OnceCell<Result<Embeddings, RagError>>>;
-/// Zellen je (Modell, Texte).
+/// Cells per (model, texts).
 type Cells = Arc<Mutex<HashMap<(String, Vec<String>), Cell>>>;
 
-/// Zwischenspeicher für die Dauer einer Suche: gleiche Texte beim gleichen Modell → ein Aufruf.
+/// Cache for the duration of one search: same texts with the same model → one call.
 pub struct Cached {
     inner: Arc<dyn EmbedderFactory>,
     cells: Cells,
@@ -188,8 +188,8 @@ impl Embedder for CachedEmbedder {
 
     fn embed<'a>(&'a self, texts: &'a [String]) -> BoxFuture<'a, Result<Embeddings, RagError>> {
         Box::pin(async move {
-            // Schlüssel nach dem Alias: `nomic-embed-text` und sein voller Name sind dasselbe Modell, auch wenn
-            // ein Einbetter den Namen nicht selbst auflöst.
+            // Key by the alias: `nomic-embed-text` and its full name are the same model, even if
+            // an embedder does not resolve the name itself.
             let key = (baruch_llm::embedding_model_name(self.inner.model()), texts.to_vec());
             let cell = self.cells.lock().unwrap_or_else(|e| e.into_inner()).entry(key).or_default().clone();
             cell.get_or_init(|| self.inner.embed(texts)).await.clone()

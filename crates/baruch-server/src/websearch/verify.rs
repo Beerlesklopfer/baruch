@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Prüfung der Antwort im Code ([`check`]) – nicht das Modell entscheidet, was belegt ist:
+//! Check of the answer in the code ([`check`]) – it is not the model that decides what is evidenced:
 //!
-//! - Ein Zitat („…“, “…”, "…" oder »…«) in derselben Zeile wie ein `[Wn]` gilt nur dann als belegt, wenn es
-//!   nach der Normalisierung ([`normalize`]: Leerraum, typografische Anführungszeichen, weiches Trennzeichen)
-//!   Teilstring einer dort genannten, abgerufenen Seite ist; Auslassungen („…“, „[…]“, „...“) teilen das Zitat
-//!   in Stücke, die in dieser Reihenfolge vorkommen müssen (je an Wortgrenzen; mit Auslassung je mindestens
-//!   [`MIN_GAP_PIECE_WORDS`] Wörter und höchstens [`MAX_GAP_CHARS`] Zeichen Lücke auf der Seite). Satzzeichen am
-//!   Ende des Zitats zählen nicht.
-//!   Sonst folgt [`NOT_BELEGT`].
-//! - `[Wn]` ohne abgerufene Seite bekommt [`UNKNOWN_SOURCE`], eine genannte Adresse, die nicht abgerufen
-//!   wurde, [`NOT_FETCHED`].
-//! - Darunter setzt der Code: bei ausgefallener Websuche [`failure_line`], ohne abrufbaren Beleg (keine
-//!   genannte Seite mit belegtem Zitat oder ohne Zitat) [`CHECK_NOTE`] und immer die Zeile „Quellen: [Wn] Titel –
-//!   URL (abgerufen am TT.MM.JJJJ)“ ([`sources_line`]).
-//! - Jede genannte Seite ergibt Einträge für `web_evidence` ([`Draft`]): je Zitat `belegt` bzw.
-//!   `nicht_belegt`, eine Seite ohne Zitat `nicht_zitiert`.
+//! - A quotation („…“, “…”, "…" or »…«) in the same line as a `[Wn]` counts as evidenced only if,
+//!   after normalisation ([`normalize`]: whitespace, typographic quotation marks, soft hyphen), it is a
+//!   substring of a retrieved page named there; omissions („…“, „[…]“, „...“) split the quotation
+//!   into pieces that must occur in this order (each at word boundaries; with an omission each at least
+//!   [`MIN_GAP_PIECE_WORDS`] words and at most [`MAX_GAP_CHARS`] characters of gap on the page). Punctuation at
+//!   the end of the quotation does not count.
+//!   Otherwise [`NOT_BELEGT`] follows.
+//! - `[Wn]` without a retrieved page gets [`UNKNOWN_SOURCE`], a named address that was not
+//!   retrieved [`NOT_FETCHED`].
+//! - Below that the code sets: for a failed web search [`failure_line`], without retrievable evidence (no
+//!   named page with an evidenced quotation or without a quotation) [`CHECK_NOTE`] and always the line
+//!   „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“ ([`sources_line`]).
+//! - Every named page results in entries for `web_evidence` ([`Draft`]): per quotation `belegt` or
+//!   `nicht_belegt`, a page without a quotation `nicht_zitiert`.
 
 use serde::Serialize;
 use unicode_normalization::UnicodeNormalization;
@@ -23,16 +23,16 @@ use super::search::url_at;
 use super::{Research, WebPage};
 use crate::connections::multigpt::clean_line;
 
-/// Zusatz hinter einem Zitat, das auf der genannten Seite nicht steht.
+/// Addition behind a quotation that does not stand on the named page.
 pub const NOT_BELEGT: &str = "(nicht belegt)";
-/// Zusatz hinter einem `[Wn]` ohne abgerufene Seite.
+/// Addition behind a `[Wn]` without a retrieved page.
 pub const UNKNOWN_SOURCE: &str = "(unbekannte Quelle)";
-/// Zusatz hinter einer Adresse, die nicht abgerufen wurde.
+/// Addition behind an address that was not retrieved.
 pub const NOT_FETCHED: &str = "(nicht abgerufen)";
-/// Zeile, wenn es keinen abrufbaren Beleg gibt.
+/// Line if there is no retrievable evidence.
 pub const CHECK_NOTE: &str = "Angabe prüfen: nicht belegt";
 
-/// Ergebnis der Prüfung eines Zitats bzw. einer genannten Seite.
+/// Result of the check of a quotation or of a named page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
@@ -42,7 +42,7 @@ pub enum Verdict {
 }
 
 impl Verdict {
-    /// Wert in `web_evidence.verdict`.
+    /// Value in `web_evidence.verdict`.
     pub fn as_str(self) -> &'static str {
         match self {
             Verdict::Belegt => "belegt",
@@ -51,7 +51,7 @@ impl Verdict {
         }
     }
 
-    /// Anzeige.
+    /// Display.
     pub fn label(code: &str) -> &'static str {
         match code {
             "belegt" => "belegt (Wortlaut auf der Seite gefunden)",
@@ -61,31 +61,32 @@ impl Verdict {
     }
 }
 
-/// Ein Eintrag für `web_evidence`.
+/// An entry for `web_evidence`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Draft {
-    /// n von `[Wn]`.
+    /// n of `[Wn]`.
     pub label: usize,
-    /// Das Zitat, wie es in der Antwort steht (leer bei `nicht_zitiert`).
+    /// The quotation as it stands in the answer (empty for `nicht_zitiert`).
     pub quote: String,
     pub verdict: Verdict,
 }
 
-/// Geprüfte Antwort.
+/// Checked answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Checked {
-    /// Antwort mit Zusätzen und den Zeilen darunter.
+    /// Answer with additions and the lines below.
     pub text: String,
     pub evidence: Vec<Draft>,
 }
 
-/// Zeile, wenn die Websuche ausfiel.
+/// Line if the web search failed.
 pub fn failure_line(reason: &str) -> String {
     format!("Hinweis: Websuche ausgefallen ({})", clean_line(reason, 300))
 }
 
-/// Text für den Vergleich: Unicode-Normalform NFC (Runde 19b: zerlegte Umlaute wie „a“ + U+0308 aus PDFs gleich
-/// „ä“), typografische Anführungszeichen vereinheitlicht, weiches Trennzeichen entfernt, Leerraum zu einem Leerzeichen.
+/// Text for the comparison: Unicode normal form NFC (Round 19b: decomposed umlauts such as "a" + U+0308 from PDFs
+/// equal to the precomposed letter), typographic quotation marks unified, soft hyphen removed, whitespace to one
+/// space.
 pub fn normalize(text: &str) -> String {
     let mapped: String = text
         .nfc()
@@ -99,15 +100,15 @@ pub fn normalize(text: &str) -> String {
     mapped.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Mindestens so viele Wörter je Stück eines Zitats mit Auslassung („Gott … ist … nicht“ ist kein Beleg).
+/// At least this many words per piece of a quotation with an omission („Gott … ist … nicht“ is no evidence).
 pub const MIN_GAP_PIECE_WORDS: usize = 3;
-/// Höchstens so viele Zeichen darf eine Auslassung auf der Seite überspringen.
+/// An omission may skip at most this many characters on the page.
 pub const MAX_GAP_CHARS: usize = 400;
 
-/// Steht das Zitat (normalisiert, Auslassungen als Lücken) auf der Seite (normalisiert)? Jedes Stück muss an
-/// Wortgrenzen beginnen und enden; mit Auslassungen hat jedes Stück mindestens [`MIN_GAP_PIECE_WORDS`] Wörter,
-/// und zwischen zwei Stücken liegen auf der Seite höchstens [`MAX_GAP_CHARS`] Zeichen – sonst ließe sich aus
-/// verstreuten Wortfetzen ein sinnentstelltes „Zitat“ bauen.
+/// Does the quotation (normalised, omissions as gaps) stand on the page (normalised)? Every piece must begin
+/// and end at word boundaries; with omissions every piece has at least [`MIN_GAP_PIECE_WORDS`] words,
+/// and between two pieces lie at most [`MAX_GAP_CHARS`] characters on the page – otherwise a "quotation" with a
+/// distorted meaning could be built from scattered scraps of words.
 pub fn quote_found(quote: &str, page: &str) -> bool {
     let quote = normalize(quote);
     let quote = quote.trim().trim_end_matches(['.', ',', ';', ':', '!', '?']).trim();
@@ -125,8 +126,8 @@ pub fn quote_found(quote: &str, page: &str) -> bool {
     chain(page, &pieces, 0, None)
 }
 
-/// Kommen `pieces` ab Byte `from` in dieser Reihenfolge an Wortgrenzen vor, jedes folgende Stück höchstens
-/// [`MAX_GAP_CHARS`] Zeichen hinter dem vorigen (`window` = es gilt eine Lücke)? Probiert jede passende Stelle.
+/// Do `pieces` occur from byte `from` in this order at word boundaries, every following piece at most
+/// [`MAX_GAP_CHARS`] characters behind the previous one (`window` = a gap applies)? Tries every matching position.
 fn chain(page: &str, pieces: &[&str], from: usize, window: Option<usize>) -> bool {
     let Some((piece, rest)) = pieces.split_first() else { return true };
     let mut search = from;
@@ -143,8 +144,8 @@ fn chain(page: &str, pieces: &[&str], from: usize, window: Option<usize>) -> boo
     false
 }
 
-/// Liegt `page[start..end]` an Wortgrenzen (kein Buchstabe/keine Ziffer direkt davor bzw. dahinter, wo das
-/// Stück selbst mit einem Buchstaben/einer Ziffer beginnt bzw. endet)?
+/// Does `page[start..end]` lie at word boundaries (no letter/no digit directly before or behind where the
+/// piece itself begins or ends with a letter/a digit)?
 fn at_boundary(page: &str, start: usize, end: usize) -> bool {
     let word = |c: char| c.is_alphanumeric();
     let inner = &page[start..end];
@@ -153,7 +154,7 @@ fn at_boundary(page: &str, start: usize, end: usize) -> bool {
     before_ok && after_ok
 }
 
-/// `[Wn]` einer Zeile: (Ende in Bytes, n).
+/// `[Wn]` of a line: (end in bytes, n).
 fn labels_in(line: &str) -> Vec<(usize, usize)> {
     let mut found = Vec::new();
     let mut from = 0;
@@ -172,7 +173,7 @@ fn labels_in(line: &str) -> Vec<(usize, usize)> {
     found
 }
 
-/// Zitate einer Zeile: (Ende hinter dem schließenden Zeichen in Bytes, Inhalt).
+/// Quotations of a line: (end behind the closing character in bytes, content).
 fn quotes_in(line: &str) -> Vec<(usize, String)> {
     let closers = |c: char| -> &'static [char] {
         match c {
@@ -201,7 +202,7 @@ fn quotes_in(line: &str) -> Vec<(usize, String)> {
     found
 }
 
-/// Adressen einer Zeile: (Ende in Bytes, Adresse).
+/// Addresses of a line: (end in bytes, address).
 fn urls_in(line: &str) -> Vec<(usize, String)> {
     let mut found = Vec::new();
     let mut from = 0;
@@ -219,12 +220,12 @@ fn urls_in(line: &str) -> Vec<(usize, String)> {
     found
 }
 
-/// Adresse für den Vergleich: ohne Anker und ohne `/` am Ende.
+/// Address for the comparison: without anchor and without `/` at the end.
 fn url_key(url: &str) -> &str {
     url.split('#').next().unwrap_or(url).trim_end_matches('/')
 }
 
-/// Die Zeile „Quellen: …“ für die genannten Seiten (in der Reihenfolge der ersten Nennung).
+/// The line „Quellen: …“ for the named pages (in the order of the first mention).
 pub fn sources_line(pages: &[&WebPage]) -> String {
     if pages.is_empty() {
         return "Quellen: keine abgerufene Seite genannt".to_owned();
@@ -236,7 +237,7 @@ pub fn sources_line(pages: &[&WebPage]) -> String {
     format!("Quellen: {}", items.join("; "))
 }
 
-/// Antwort prüfen (siehe Moduldoku).
+/// Check the answer (see the module documentation).
 pub fn check(answer: &str, research: &Research) -> Checked {
     let normalized: Vec<(usize, String)> = research.pages.iter().map(|p| (p.label, normalize(&p.text))).collect();
     let page_text = |n: usize| normalized.iter().find(|(l, _)| *l == n).map(|(_, t)| t.as_str());
@@ -421,7 +422,8 @@ mod tests {
 
     #[test]
     fn decomposed_umlauts_count_as_the_same_text() {
-        // Runde 19b: Seite mit zerlegtem „ü“ (u + U+0308, typisch aus PDFs), Zitat in NFC – und umgekehrt.
+        // Round 19b: page with a decomposed u-umlaut (u + U+0308, typical from PDFs), quotation in NFC – and vice
+        // versa.
         let page = normalize("Die Bru\u{308}cke trägt.");
         assert!(quote_found("Die Brücke trägt", &page), "NFC-Zitat auf zerlegter Seite ist belegt");
         assert!(quote_found("Die Bru\u{308}cke", &normalize("Die Brücke trägt.")), "zerlegtes Zitat auf NFC-Seite");
@@ -434,19 +436,19 @@ mod tests {
             "Der Wärter sagt, dass das Feuer jede Nacht brennt. Im Hafen liegen Boote. Er glaubt nicht an Geister, \
              aber an das Licht über dem Wasser.",
         );
-        // Begründung: der gutartige Fall – zwei Stücke aus je mindestens drei Wörtern, kurze Lücke.
+        // Reason: the benign case – two pieces of at least three words each, short gap.
         assert!(quote_found("dass das Feuer … liegen Boote. Er glaubt", &page), "kurze Lücke, ganze Wörter: belegt");
-        // Begründung: Wortfetzen aus je einem Wort ergeben einen beliebigen Satz – kein Beleg.
+        // Reason: scraps of one word each result in an arbitrary sentence – no evidence.
         assert!(!quote_found("Feuer … Boote … nicht", &page), "Stücke unter drei Wörtern: nicht belegt");
-        // Begründung: Teilwörter („euer“ in „Feuer“) sind nicht der Wortlaut der Seite.
+        // Reason: partial words („euer“ in „Feuer“) are not the wording of the page.
         assert!(!quote_found("euer jede Nacht", &page), "kein Treffer mitten im Wort");
         assert!(quote_found("das Feuer jede Nacht", &page), "derselbe Wortlaut an Wortgrenzen: belegt");
-        // Begründung: Stücke weit auseinander (über MAX_GAP_CHARS) gehören nicht zu einem Satz.
+        // Reason: pieces far apart (over MAX_GAP_CHARS) do not belong to one sentence.
         let far = format!("Am Anfang war das Licht. {} Am Ende kam die Flut.", "Füllwort ".repeat(100));
         assert!(!quote_found("Am Anfang war … Am Ende kam", &normalize(&far)), "Lücke über der Grenze: nicht belegt");
         let near = "Am Anfang war das Licht. Danach Am Ende kam die Flut.";
         assert!(quote_found("Am Anfang war … Am Ende kam", near), "dieselben Stücke nah beieinander: belegt");
-        // Begründung: Die erste Stelle des ersten Stücks muss nicht die passende sein (spätere Stelle mit kurzer Lücke).
+        // Reason: the first position of the first piece need not be the matching one (later position with a short gap).
         let twice =
             format!("Am Anfang war es still. {} Am Anfang war das Wort, Am Ende kam Ruhe.", "Füll ".repeat(120));
         assert!(quote_found("Am Anfang war … Am Ende kam", &normalize(&twice)), "spätere Stelle wird auch probiert");

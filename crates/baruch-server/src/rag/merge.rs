@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Treffer mehrerer Wege zusammenführen (Vertrag Runde 12, §1): Reciprocal Rank Fusion mit
-//! [`RRF_K`] = 60, Doppelte über [`Hit::identity`] (Dokument + Stelle, beschnitten, klein) auch über
-//! Wege hinweg. Rein und deterministisch.
+//! Merging the hits of several ways (contract Round 12, §1): Reciprocal Rank Fusion with
+//! [`RRF_K`] = 60, duplicates through [`Hit::identity`] (document + place, trimmed, lower case) also across
+//! ways. Pure and deterministic.
 //!
-//! 1. Je Weg: nach `score` absteigend (Gleichstand: `document`, dann `section` aufsteigend), auf
-//!    `limit` gekürzt, Rang 1..n. Doppelte innerhalb eines Wegs zählen mit ihrem besten Rang.
-//! 2. Je Identität: `fused` = Σ 1/(k + Rang) über die findenden Wege; Vertreter = der Treffer mit dem
-//!    besten Rang, bei Gleichstand der frühere Weg in [`Way::ALL`].
-//! 3. Reihenfolge: `fused` absteigend, dann bester Rang, dann Weg-Reihenfolge, dann `document`,
-//!    `section`; die ersten `limit`, `rank` 1..n, `found_by` in [`Way::ALL`]-Reihenfolge.
+//! 1. Per way: by `score` descending (tie: `document`, then `section` ascending), cut to
+//!    `limit`, rank 1..n. Duplicates within one way count with their best rank.
+//! 2. Per identity: `fused` = Σ 1/(k + rank) over the ways that found it; representative = the hit with the
+//!    best rank, on a tie the earlier way in [`Way::ALL`].
+//! 3. Order: `fused` descending, then best rank, then order of the ways, then `document`,
+//!    `section`; the first `limit`, `rank` 1..n, `found_by` in the order of [`Way::ALL`].
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -28,17 +28,17 @@ fn by_score(a: &Hit, b: &Hit) -> Ordering {
 
 struct Group {
     representative: Hit,
-    /// Rang des Vertreters.
+    /// Rank of the representative.
     best_rank: usize,
     found_by: Vec<WayRank>,
 }
 
-/// Treffer der Wege zu einer Liste zusammenführen (siehe Modulkopf).
+/// Merge the hits of the ways into one list (see the module header).
 pub fn merge(per_way: Vec<(Way, Vec<Hit>)>, limit: usize) -> Vec<MergedHit> {
     let mut groups: Vec<Group> = Vec::new();
     let mut by_identity: HashMap<(String, String), usize> = HashMap::new();
     let mut per_way = per_way;
-    // Wege in fester Reihenfolge abarbeiten, damit „früherer Weg“ eindeutig ist.
+    // Work through the ways in a fixed order, so that "earlier way" is unambiguous.
     per_way.sort_by_key(|(way, _)| way_position(*way));
     for (way, mut hits) in per_way {
         hits.sort_by(by_score);
@@ -50,7 +50,7 @@ pub fn merge(per_way: Vec<(Way, Vec<Hit>)>, limit: usize) -> Vec<MergedHit> {
                 Some(&g) => {
                     let group = &mut groups[g];
                     if group.found_by.iter().any(|r| r.way == way) {
-                        // Doppelter Treffer im selben Weg: nur der bessere Rang zählt (er kam zuerst).
+                        // Duplicate hit in the same way: only the better rank counts (it came first).
                         continue;
                     }
                     group.found_by.push(WayRank { way, rank, score: hit.score });
@@ -77,7 +77,7 @@ pub fn merge(per_way: Vec<(Way, Vec<Hit>)>, limit: usize) -> Vec<MergedHit> {
         .map(|mut g| {
             g.found_by.sort_by_key(|r| way_position(r.way));
             let fused = g.found_by.iter().map(|r| 1.0 / (RRF_K + r.rank as f64)).sum();
-            // Bester Rang vorläufig in `rank` (für die Sortierung), danach durch den Platz ersetzt.
+            // Best rank provisionally in `rank` (for the sorting), afterwards replaced by the position.
             MergedHit { hit: g.representative, rank: g.best_rank, fused, found_by: g.found_by }
         })
         .collect();

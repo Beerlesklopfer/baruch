@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Block „Satz“ der Einstellungsseite „Werk“ (Runde 29c, Vertrag §6.3; Besitz satz-oberflaeche).
+//! Block „Satz“ of the settings page „Werk“ (Round 29c, contract §6.3; ownership satz-oberflaeche).
 //!
-//! - Block `id="satz"` (Vorlage `templates/settings/werk_satz.html`, [`block`]): alle 16 Felder aus
-//!   [`baruch_typst::typeset::FIELDS`] in fünf Gruppen, je Feld „aus der Werkvorlage“ als erste Wahl bzw. leeres Feld
-//!   mit Platzhalter, Hinweise aus den Konflikten mit der Werkvorlage beim Feld, Angebot zur erkannten
-//!   Kapitelanfangs-Regel der Vorlage (Pflicht-Häkchen), die erzeugten Typst-Regeln in `<details>`, Link zur Satz-Seite.
-//! - Formulare ohne JavaScript, beide hinter `guard::same_origin`:
+//! - Block `id="satz"` (template `templates/settings/werk_satz.html`, [`block`]): all 16 fields from
+//!   [`baruch_typst::typeset::FIELDS`] in five groups, per field „aus der Werkvorlage“ as the first choice or an
+//!   empty field with a placeholder, hints from the conflicts with the work template at the field, offer for the
+//!   detected chapter start rule of the template (mandatory checkbox), the generated Typst rules in `<details>`,
+//!   link to the typesetting page.
+//! - Forms without JavaScript, both behind `guard::same_origin`:
 //!   `POST /einstellungen/werk/satz` ([`act`]): `action=save` → [`crate::typeset_settings::save`] → 303
-//!   `…&ok=satz#satz`; `action=reset` (nur mit `confirm=1`) → [`crate::typeset_settings::reset`] → 303
-//!   `…&ok=satz_zurueck#satz`; `action=preview` → 200, ganze Einstellungsseite mit den ungespeicherten Werten und den
-//!   Vorschaubildern. `POST /einstellungen/werk/satz/vorlage` ([`adopt_act`], nur mit `confirm=1`) →
-//!   [`crate::typeset_settings::adopt_template_rule`] → 303 `…&ok=satz_vorlage#satz`. Ungültig oder abgelehnt → 422
-//!   über [`super::work_retry_page`] mit [`WorkRetry::Typeset`](super::WorkRetry::Typeset) (Eingaben bleiben, Meldung je
-//!   Feld).
-//! - Vorschau: Quelle = [`baruch_typst::typeset::preview_source`] (Werkvorlage + Regeln der ungespeicherten
-//!   Einstellungen + erfundener Mustertext) mit den Bildern des Werks, gesetzt über [`crate::typeset::compile`] (Sperre
-//!   `RUNS`, Zeitlimit); die Seiten liefert [`preview_svg`] nur aus dem Zwischenspeicher
-//!   ([`crate::typeset::cached_page`]). RPC `work.typeset_preview` ([`call`]) für das Widget `typeset-settings`
-//!   (`web/src/typeset_settings.ts`): nur lesend, kein Commit.
+//!   `…&ok=satz#satz`; `action=reset` (only with `confirm=1`) → [`crate::typeset_settings::reset`] → 303
+//!   `…&ok=satz_zurueck#satz`; `action=preview` → 200, whole settings page with the unsaved values and the
+//!   preview images. `POST /einstellungen/werk/satz/vorlage` ([`adopt_act`], only with `confirm=1`) →
+//!   [`crate::typeset_settings::adopt_template_rule`] → 303 `…&ok=satz_vorlage#satz`. Invalid or rejected → 422
+//!   through [`super::work_retry_page`] with [`WorkRetry::Typeset`](super::WorkRetry::Typeset) (inputs stay, message
+//!   per field).
+//! - Preview: source = [`baruch_typst::typeset::preview_source`] (work template + rules of the unsaved
+//!   settings + invented sample text) with the images of the work, typeset through [`crate::typeset::compile`]
+//!   (lock `RUNS`, time limit); the pages are delivered by [`preview_svg`] only from the cache
+//!   ([`crate::typeset::cached_page`]). RPC `work.typeset_preview` ([`call`]) for the widget `typeset-settings`
+//!   (`web/src/typeset_settings.ts`): read only, no commit.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -42,47 +43,47 @@ use super::WorkRetry;
 use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Ein abgelehntes oder zur Vorschau geschicktes Formular des Blocks „Satz“: Eingabe, Meldungen je Feld
-/// (`(Feld-id bzw. Unterfeld wie „margins.inside_mm“, Meldung)`; „form“ = das ganze Formular) und – nach
-/// `action=preview` – die gesetzte Vorschau.
+/// A form of the block „Satz“ that was rejected or sent for preview: input, messages per field
+/// (`(field id or subfield such as "margins.inside_mm", message)`; "form" = the whole form) and – after
+/// `action=preview` – the typeset preview.
 #[derive(Debug, Clone, Default)]
 pub struct Retry {
     pub form: Vec<(String, String)>,
     pub errors: Vec<(String, String)>,
-    /// Ergebnis von `action=preview` (sonst `None`).
+    /// Result of `action=preview` (else `None`).
     pub preview: Option<Preview>,
 }
 
-/// Eine gesetzte Vorschau ungespeicherter Einstellungen (Antwort von `work.typeset_preview`).
+/// A typeset preview of unsaved settings (answer of `work.typeset_preview`).
 #[derive(Debug, Clone, Serialize)]
 pub struct Preview {
     pub stand: String,
     pub pages: usize,
-    /// `/einstellungen/werk/satz/vorschau/<stand>/<n>.svg` je Seite.
+    /// `/einstellungen/werk/satz/vorschau/<stand>/<n>.svg` per page.
     pub urls: Vec<String>,
-    /// Zahl der Fehler bzw. Warnungen von Typst.
+    /// Number of errors and warnings of Typst.
     pub errors: usize,
     pub warnings: usize,
     pub diagnostics: Vec<PreviewDiagnostic>,
     pub conflicts: Vec<TemplateConflict>,
 }
 
-/// Eine Meldung von Typst in der Vorschau.
+/// A message of Typst in the preview.
 #[derive(Debug, Clone, Serialize)]
 pub struct PreviewDiagnostic {
     pub severity: &'static str,
     pub message: String,
 }
 
-// ---- Formularfelder --------------------------------------------------------------------------------
+// ---- Form fields -----------------------------------------------------------------------------------
 
-/// Erster Wert eines Formularfelds, getrimmt; fehlt → "".
+/// First value of a form field, trimmed; missing → "".
 fn field<'a>(fields: &'a [(String, String)], name: &str) -> &'a str {
     fields.iter().find(|(k, _)| k == name).map_or("", |(_, v)| v.trim())
 }
 
-/// Zahl aus dem Formular (Dezimalkomma erlaubt): leer → `None`, keine Zahl → `Some(NaN)` – dann meldet
-/// [`TypesetSettings::validate`] das Feld mit Bezeichnung und Grenze (dieselbe Meldung wie über RPC).
+/// Number from the form (decimal comma allowed): empty → `None`, not a number → `Some(NaN)` – then
+/// [`TypesetSettings::validate`] reports the field with label and limit (the same message as through RPC).
 fn number(raw: &str) -> Option<f64> {
     if raw.is_empty() {
         return None;
@@ -90,7 +91,7 @@ fn number(raw: &str) -> Option<f64> {
     Some(raw.replace(',', ".").parse::<f64>().unwrap_or(f64::NAN))
 }
 
-/// Wahl aus einer Liste: "" → `None`, unbekannt → Meldung.
+/// Choice from a list: "" → `None`, unknown → message.
 fn choice<T>(
     raw: &str,
     from_id: impl Fn(&str) -> Option<T>,
@@ -107,7 +108,7 @@ fn choice<T>(
     found
 }
 
-/// Schalter `""|on|off` → `None | Some(true) | Some(false)`.
+/// Switch `""|on|off` → `None | Some(true) | Some(false)`.
 fn switch(raw: &str, field: &'static str, errors: &mut Vec<FieldError>) -> Option<bool> {
     choice(
         raw,
@@ -121,25 +122,26 @@ fn switch(raw: &str, field: &'static str, errors: &mut Vec<FieldError>) -> Optio
     )
 }
 
-/// Runde 31c: Spaltenzahl der Registerseiten, wenn das Feld leer bleibt.
+/// Round 31c: number of columns of the index pages if the field stays empty.
 pub const DEFAULT_INDEX_COLUMNS: u8 = 2;
 
-/// Runde 31c: Formularfeld je gewähltem Register (Häkchen, Wert = Kennung; Reihenfolge = Satzreihenfolge).
+/// Round 31c: form field per chosen index (checkbox, value = identifier; order = typesetting order).
 pub const INDEX_REGISTER_FIELD: &str = "index_register";
 
-/// Stelle eines Felds in [`FIELDS`] (Unterfelder wie das Feld) – für die Reihenfolge der Meldungen.
+/// Position of a field in [`FIELDS`] (subfields like the field) – for the order of the messages.
 fn field_rank(field: &str) -> usize {
     let head = field.split('.').next().unwrap_or(field);
     FIELDS.iter().position(|(id, _)| *id == head).unwrap_or(FIELDS.len())
 }
 
-/// Einstellungen aus den Formularfeldern (Vertrag §6.3; "" = aus der Werkvorlage, Dezimalkomma erlaubt).
+/// Settings from the form fields (contract §6.3; "" = from the work template, decimal comma allowed).
 ///
-/// Werte werden getrimmt; Ränder nur alle vier oder keiner (Bundsteg leer = 0); `part_blank_back` gilt nur mit
-/// gewählter Seite, `page_number_start`/`footnote_restart` nur mit gewählter Lage bzw. Zählweise (leer = erste Seite
-/// bzw. fortlaufend), `paragraph_em` leer = Vorgabe der Art (Einzug 1 em, Abstand 0,5 em), Breite/Höhe nur beim
-/// eigenen Format. Ungültige Werte meldet [`TypesetSettings::validate`] mit denselben Meldungen wie über RPC; dazu
-/// kommen „unbekannte Wahl“ und unvollständige Ränder. Alle Meldungen auf einmal, in [`FIELDS`]-Reihenfolge.
+/// Values are trimmed; margins only all four or none (gutter empty = 0); `part_blank_back` applies only with a
+/// chosen page, `page_number_start`/`footnote_restart` only with a chosen position or counting mode (empty = first
+/// page or continuous), `paragraph_em` empty = default of the kind (indent 1 em, spacing 0.5 em), width/height only
+/// for the custom format. Invalid values are reported by [`TypesetSettings::validate`] with the same messages as
+/// through RPC; in addition come „unbekannte Wahl“ and incomplete margins. All messages at once, in the order of
+/// [`FIELDS`].
 pub fn settings_from_form(fields: &[(String, String)]) -> Result<TypesetSettings, Vec<FieldError>> {
     let get = |name: &str| field(fields, name);
     let mut errors = Vec::new();
@@ -195,8 +197,8 @@ pub fn settings_from_form(fields: &[(String, String)]) -> Result<TypesetSettings
     }
     s.widows_orphans = switch(get("widows_orphans"), "widows_orphans", &mut errors);
     s.xref_with_page = switch(get("xref_with_page"), "xref_with_page", &mut errors);
-    // Runde 31: Glossarseite (leer = keine), Registerseiten (keine Häkchen = keine; Spalten leer = 2, keine Zahl = 0,
-    // dann meldet validate die Grenzen), erste Erwähnung.
+    // Round 31: glossary page (empty = none), index pages (no checkboxes = none; columns empty = 2, not a number = 0,
+    // then validate reports the limits), first mention.
     s.glossary_page = choice(get("glossary_page"), GlossaryPosition::from_id, "glossary_page", &mut errors);
     let chosen: Vec<String> = fields
         .iter()
@@ -210,8 +212,8 @@ pub fn settings_from_form(fields: &[(String, String)]) -> Result<TypesetSettings
         s.index_pages = Some(IndexPages { registers: chosen, columns });
     }
     s.glossary_first_mention = switch(get("glossary_first_mention"), "glossary_first_mention", &mut errors);
-    // Runde 22: Entwurf (Häkchen `draft`); leerer Text = „ENTWURF“, leere Deckkraft = Vorgabe, keine Zahl = 0 (dann
-    // meldet validate die Grenzen), leere Lage = diagonal.
+    // Round 22: draft (checkbox `draft`); empty text = „ENTWURF“, empty opacity = default, not a number = 0 (then
+    // validate reports the limits), empty position = diagonal.
     if get("draft") == "1" {
         let defaults = Draft::default();
         let opacity = match get("draft_opacity") {
@@ -243,12 +245,12 @@ pub fn settings_from_form(fields: &[(String, String)]) -> Result<TypesetSettings
     Err(errors)
 }
 
-/// Zahl fürs Formular in deutscher Schreibweise („10,5“, „20“).
+/// Number for the form in German notation („10,5“, „20“).
 fn de(x: f64) -> String {
     format!("{x}").replace('.', ",")
 }
 
-/// Formularfelder zu Einstellungen (Umkehrung von [`settings_from_form`]; `None` erscheint nicht).
+/// Form fields for settings (inverse of [`settings_from_form`]; `None` does not appear).
 pub fn form_from_settings(s: &TypesetSettings) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     let mut put = |k: &str, v: String| out.push((k.to_owned(), v));
@@ -345,21 +347,21 @@ pub fn form_from_settings(s: &TypesetSettings) -> Vec<(String, String)> {
     out
 }
 
-// ---- Vorschau --------------------------------------------------------------------------------------
+// ---- Preview ---------------------------------------------------------------------------------------
 
-/// Alle Meldungen in einem Satz („Rand innen: 5 bis 80 mm; Schriftgröße: 6 bis 24 pt“); jede Meldung beginnt schon mit
-/// der Bezeichnung des Felds.
+/// All messages in one sentence („Rand innen: 5 bis 80 mm; Schriftgröße: 6 bis 24 pt“); every message already
+/// begins with the label of the field.
 fn joined(errors: &[FieldError]) -> String {
     errors.iter().map(|e| e.message.as_str()).collect::<Vec<_>>().join("; ")
 }
 
-/// Adresse eines Vorschaubilds.
+/// Address of a preview image.
 fn preview_url(stand: &str, n: usize) -> String {
     format!("/einstellungen/werk/satz/vorschau/{stand}/{n}.svg")
 }
 
-/// Setzt die Vorschau ungespeicherter Einstellungen (nur lesend, kein Commit). Ungültig → `INVALID_PARAMS` mit allen
-/// Meldungen; unbekanntes Werk → `INVALID_PARAMS`; Zeitlimit/Abbruch → `REFUSED`.
+/// Typesets the preview of unsaved settings (read only, no commit). Invalid → `INVALID_PARAMS` with all
+/// messages; unknown work → `INVALID_PARAMS`; time limit/abort → `REFUSED`.
 pub(crate) async fn preview(state: &AppState, work: WorkId, settings: &TypesetSettings) -> Result<Preview, RpcError> {
     let settings = settings.normalized();
     settings.validate().map_err(|e| RpcError::new(INVALID_PARAMS, joined(&e)))?;
@@ -367,8 +369,8 @@ pub(crate) async fn preview(state: &AppState, work: WorkId, settings: &TypesetSe
     let title = state.store.work_meta(work).await?.title;
     let files = state.store.export_assets(work).await?.into_iter().map(|f| (f.path, f.bytes)).collect();
     let mut main = preview_source(&settings, &template, &title);
-    // Runde 22: Mit Entwurf trägt auch die Vorschau das Wasserzeichen – hinter der Werkvorlage, vor dem Regelblock
-    // (`preview_source` = Vorlage + "\n" + Regeln + …; die Seitenregeln ergänzen sich).
+    // Round 22: with a draft the preview carries the watermark as well – behind the work template, before the rule
+    // block (`preview_source` = template + "\n" + rules + …; the page rules complement each other).
     if let Some(draft) = &settings.draft
         && main.is_char_boundary(template.len() + 1)
     {
@@ -394,7 +396,7 @@ pub(crate) async fn preview(state: &AppState, work: WorkId, settings: &TypesetSe
     })
 }
 
-/// Konflikte wie in `work.typeset_get` (mit Bezeichnung).
+/// Conflicts as in `work.typeset_get` (with label).
 fn conflicts_json(conflicts: &[TemplateConflict]) -> Vec<Value> {
     conflicts
         .iter()
@@ -405,12 +407,12 @@ fn conflicts_json(conflicts: &[TemplateConflict]) -> Vec<Value> {
         .collect()
 }
 
-/// Bedient dieses Modul die RPC-Methode? `work.typeset_preview`.
+/// Does this module serve the RPC method? `work.typeset_preview`.
 pub fn handles(method: &str) -> bool {
     method == "work.typeset_preview"
 }
 
-/// RPC `work.typeset_preview {work?, settings}` (nur lesend, kein Commit) → `{work, stand, pages, urls, errors,
+/// RPC `work.typeset_preview {work?, settings}` (read only, no commit) → `{work, stand, pages, urls, errors,
 /// warnings, diagnostics [{severity, message}], conflicts}`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
@@ -430,25 +432,25 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
 
 // ---- Block -----------------------------------------------------------------------------------------
 
-/// `[{id, label}]` einer Auswahlliste.
+/// `[{id, label}]` of a selection list.
 fn options<T: Copy>(all: &[T], id: impl Fn(T) -> &'static str, label: impl Fn(T) -> &'static str) -> Vec<JinjaValue> {
     all.iter().map(|&v| context! { id => id(v), label => label(v) }).collect()
 }
 
-/// Was der Block über das Werk weiß (aus [`crate::typeset_settings::load`]) – getrennt, damit sich das Zeichnen ohne
-/// Server prüfen lässt.
+/// What the block knows about the work (from [`crate::typeset_settings::load`]) – separate, so that the drawing
+/// can be checked without a server.
 pub(crate) struct BlockInput<'a> {
     pub work: WorkId,
     pub view: &'a crate::typeset_settings::TypesetView,
     pub template: &'a str,
     pub retry: Option<&'a Retry>,
-    /// Runde 31c: Register des Werks für die Häkchen „Registerseiten“ ([`crate::glossary::registers`]).
+    /// Round 31c: indexes of the work for the checkboxes „Registerseiten“ ([`crate::glossary::registers`]).
     pub registers: &'a [baruch_typst::index::Register],
 }
 
-/// Häkchen der Registerseiten: erst die gewählten Register in ihrer Reihenfolge (so bleibt die Satzreihenfolge beim
-/// Speichern erhalten), dann die übrigen des Werks; ein gewähltes, das es nicht mehr gibt, bleibt sichtbar, damit es sich
-/// abwählen lässt. `[{slug, title, checked}]`.
+/// Checkboxes of the index pages: first the chosen indexes in their order (this keeps the typesetting order on
+/// saving), then the others of the work; a chosen one that no longer exists stays visible, so that it can be
+/// deselected. `[{slug, title, checked}]`.
 fn index_choices(form: &[(String, String)], registers: &[baruch_typst::index::Register]) -> Vec<JinjaValue> {
     let chosen: Vec<&str> = form
         .iter()
@@ -470,15 +472,15 @@ fn index_choices(form: &[(String, String)], registers: &[baruch_typst::index::Re
     out
 }
 
-/// Kontext der Vorlage `settings/werk_satz.html`.
+/// Context of the template `settings/werk_satz.html`.
 pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
     let view = input.view;
-    // Ungespeicherte Werte gibt es nur mit Eingabe (Zurücksetzen/Übernehmen ohne Häkchen schicken keine Felder mit:
-    // dann stehen die gespeicherten Werte da).
+    // Unsaved values exist only with input (reset/adopt without the checkbox send no fields along:
+    // then the stored values stand there).
     let unsaved = input.retry.filter(|r| !r.form.is_empty());
     let (form, shown) = match unsaved {
         Some(retry) => {
-            // Für Regeln und Hinweise, soweit sich die Eingabe lesen lässt.
+            // For rules and hints, as far as the input can be read.
             let shown = settings_from_form(&retry.form).unwrap_or_else(|_| view.settings.clone());
             (retry.form.clone(), shown)
         }
@@ -489,7 +491,7 @@ pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
     let mut errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (field, message) in input.retry.map(|r| r.errors.clone()).unwrap_or_default() {
         let mut head = field.split('.').next().unwrap_or(&field).to_owned();
-        // Ohne Angebot (keine erkannte Regel) steht die Meldung zur Übernahme oben im Block.
+        // Without an offer (no detected rule) the message on the adoption stands at the top of the block.
         if head == "template_rule" && view.template_rule.is_none() {
             head = "form".to_owned();
         }
@@ -526,8 +528,8 @@ pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
         updated => view.stored.as_ref().map(|s| crate::localtime::minutes(&s.updated)),
         updated_by => view.stored.as_ref().map(|s| s.updated_by.clone()),
         rules => rules(&shown),
-        // Hinweis „Ungespeicherte Werte“ nur, wenn die Eingabe vom gespeicherten Stand abweicht (Vorschau der
-        // gespeicherten Werte zeigt ihn nicht; Integrator R29). Unlesbare Eingaben weichen immer ab.
+        // Note „Ungespeicherte Werte“ only if the input differs from the stored state (a preview of the
+        // stored values does not show it; integrator R29). Unreadable inputs always differ.
         unsaved => unsaved.is_some_and(|r| settings_from_form(&r.form).map_or(true, |s| s.normalized() != view.settings)),
         template_rule => template_rule,
         preview => preview,
@@ -556,7 +558,7 @@ pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
     }
 }
 
-/// HTML des Blocks „Satz“ (`id="satz"`); nach einem abgelehnten Formular bzw. einer Vorschau mit dessen Eingabe.
+/// HTML of the block „Satz“ (`id="satz"`); after a rejected form or a preview with its input.
 pub async fn block(
     state: &AppState,
     work: WorkId,
@@ -574,10 +576,10 @@ pub async fn block(
     )
 }
 
-// ---- Formulare -------------------------------------------------------------------------------------
+// ---- Forms -----------------------------------------------------------------------------------------
 
-/// Werk eines Formulars: Feld `work` (muss es geben), sonst das Vorgabewerk.
-// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler); ein `Box` änderte alle Aufrufer.
+/// Work of a form: field `work` (must exist), otherwise the default work.
+// `Response` as the error is intended here (finished answer for `?` in the handler); a `Box` would change all callers.
 #[allow(clippy::result_large_err)]
 async fn form_work(state: &AppState, fields: &[(String, String)]) -> Result<WorkId, Response> {
     let gone = || (StatusCode::NOT_FOUND, "Unbekanntes Werk.").into_response();
@@ -591,12 +593,12 @@ async fn form_work(state: &AppState, fields: &[(String, String)]) -> Result<Work
     }
 }
 
-/// Die Einstellungsseite „Werk“ mit dem Block „Satz“ im Zustand `retry`.
+/// The settings page „Werk“ with the block „Satz“ in the state `retry`.
 async fn retry_page(state: &AppState, headers: &HeaderMap, status: StatusCode, work: WorkId, retry: Retry) -> Response {
     super::work_retry_page(state, headers, status, work, WorkRetry::Typeset(retry)).await
 }
 
-/// Ein abgelehnter RPC-Aufruf als Meldung am Formular (422; interne Fehler 500).
+/// A rejected RPC call as a message at the form (422; internal errors 500).
 async fn refused(
     state: &AppState,
     headers: &HeaderMap,
@@ -609,17 +611,17 @@ async fn refused(
     retry_page(state, headers, status, work, retry).await
 }
 
-/// Meldungen von [`settings_from_form`] als `(Feld, Meldung)`.
+/// Messages of [`settings_from_form`] as `(field, message)`.
 fn pairs(errors: Vec<FieldError>) -> Vec<(String, String)> {
     errors.into_iter().map(|e| (e.field.to_owned(), e.message)).collect()
 }
 
-/// Ziel nach Erfolg.
+/// Target after success.
 fn done(work: WorkId, ok: &str) -> Response {
     Redirect::to(&format!("/einstellungen/werk?work={work}&ok={ok}#satz")).into_response()
 }
 
-/// `POST /einstellungen/werk/satz`: `action` = `save` (Vorgabe) | `preview` | `reset` (nur mit `confirm=1`).
+/// `POST /einstellungen/werk/satz`: `action` = `save` (default) | `preview` | `reset` (only with `confirm=1`).
 pub async fn act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -668,8 +670,8 @@ pub async fn act(
     }
 }
 
-/// `POST /einstellungen/werk/satz/vorlage`: Vorlagenregel als Einstellung übernehmen und die Zeile aus der Werkvorlage
-/// entfernen (nur mit `confirm=1`).
+/// `POST /einstellungen/werk/satz/vorlage`: adopt the template rule as a setting and remove the line from the
+/// work template (only with `confirm=1`).
 pub async fn adopt_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -699,8 +701,8 @@ pub async fn adopt_act(
     }
 }
 
-/// `GET /einstellungen/werk/satz/vorschau/{stand}/{file}`: Vorschaubild `n.svg` aus dem Zwischenspeicher (nur dort
-/// liegende Stände, sonst 404; fremde Seite → 403, ohne Typst).
+/// `GET /einstellungen/werk/satz/vorschau/{stand}/{file}`: preview image `n.svg` from the cache (only states
+/// lying there, otherwise 404; foreign page → 403, without Typst).
 pub async fn preview_svg(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -739,7 +741,7 @@ mod tests {
         pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
     }
 
-    /// Das Beispiel aus dem Vertrag (§2) mit allen 16 Feldern.
+    /// The example from the contract (§2) with all 16 fields.
     fn example() -> TypesetSettings {
         TypesetSettings::from_json(r#"{"chapter_start":"right_page","part_page":{"side":"right","blank_back":true},"page_format":{"kind":"a5"},"margins":{"inside_mm":20.0,"outside_mm":15.0,"top_mm":18.0,"bottom_mm":22.0,"binding_mm":5.0},"font":"Libertinus Serif","font_size_pt":10.5,"leading_em":0.65,"paragraph":{"kind":"indent","em":1.0},"justify":true,"hyphenate":true,"lang":"de","page_numbers":{"position":"bottom_outside","start":"first_chapter"},"running_head":"chapter","footnotes":{"numbering":"arabic","restart":"per_chapter"},"widows_orphans":true,"xref_with_page":true}"#).unwrap()
     }
@@ -748,9 +750,9 @@ mod tests {
     fn every_field_of_the_contract_example_survives_the_form() {
         let s = example();
         let back = settings_from_form(&form_from_settings(&s)).expect("das Vertragsbeispiel ist gültig");
-        // Formular und Einstellungen sind Umkehrungen: Was der Block zeigt, speichert „Speichern“ unverändert.
+        // Form and settings are inverses: what the block shows, „Speichern“ stores unchanged.
         assert_eq!(back, s, "Rundreise über die Formularfelder verliert nichts");
-        // Runde 22: auch der Entwurf mit allen Feldern (Zusatz, Datum, Lage, Umschlag).
+        // Round 22: also the draft with all fields (addition, date, position, cover).
         let draft = TypesetSettings {
             draft: Some(Draft {
                 text: "Vorabzug".into(),
@@ -785,7 +787,7 @@ mod tests {
             ("footnote_restart", "per_chapter"),
         ]))
         .expect("lauter leere Felder sind gültig");
-        // "" = aus der Werkvorlage: keine Einstellung, auch wenn Unterfelder (Rückseite leer, Beginn) etwas tragen.
+        // "" = from the work template: no setting, even if subfields (back side empty, start) carry something.
         assert!(s.is_empty(), "alles aus der Werkvorlage: {s:?}");
     }
 
@@ -830,14 +832,14 @@ mod tests {
         ]))
         .expect_err("mehrere Fehler");
         let fields: Vec<&str> = errors.iter().map(|e| e.field).collect();
-        // FIELDS-Reihenfolge: page_format vor margins vor font_size_pt vor lang vor running_head.
+        // Order of FIELDS: page_format before margins before font_size_pt before lang before running_head.
         assert_eq!(
             fields,
             ["page_format.width_mm", "page_format.height_mm", "margins", "font_size_pt", "lang", "running_head"],
             "alle Meldungen in Feldreihenfolge: {errors:?}"
         );
         assert_eq!(errors[2].message, "Ränder: alle vier Ränder angeben oder alle leer", "teilweise Ränder");
-        // Keine Zahl → dieselbe Meldung, die validate für einen Wert außerhalb der Grenzen gibt.
+        // Not a number → the same message validate gives for a value outside the limits.
         let reference = TypesetSettings { font_size_pt: Some(99.0), ..Default::default() }.validate().unwrap_err();
         assert_eq!(errors[3].message, reference[0].message, "Meldung wie TypesetSettings::validate");
         assert_eq!(errors[5].message, "Kolumnentitel: unbekannte Wahl „kopf“", "unbekannte Wahl mit Bezeichnung");
@@ -846,7 +848,7 @@ mod tests {
     #[test]
     fn binding_alone_counts_as_partial_margins() {
         let errors = settings_from_form(&form(&[("binding_mm", "5")])).expect_err("Bundsteg ohne Ränder");
-        // Sonst ginge der Bundsteg still verloren.
+        // Otherwise the gutter would be lost silently.
         assert_eq!(errors[0].field, "margins", "{errors:?}");
     }
 
@@ -895,7 +897,7 @@ mod tests {
         let field = html.find("name=\"chapter_start\"").expect("Feld Kapitelanfang");
         let hint = html.find("data-typeset-hint=\"chapter_start\"").expect("Hinweis zum Kapitelanfang");
         let next = html.find("name=\"part_side\"").expect("Feld Teil-Seite");
-        // Der Hinweis steht beim Feld (zwischen ihm und dem nächsten Feld), nicht gesammelt am Ende.
+        // The hint stands at the field (between it and the next field), not collected at the end.
         assert!(field < hint && hint < next, "Hinweis beim Feld: {html}");
         assert!(html.contains("die Einstellung wirkt nicht"), "Meldung des Konflikts: {html}");
         assert!(html.contains("Erfundene Antiqua"), "Warnung: {html}");

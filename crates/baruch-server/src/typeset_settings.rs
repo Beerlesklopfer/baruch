@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen eines Werks (Runde 29, Vertrag §6.1; Schnittstelle R29-S1, danach gehört das Modul satz-daten).
+//! Typeset settings of a work (Round 29, contract §6.1; interface R29-S1, afterwards the module belongs to satz-daten).
 //!
-//! - RPC (nur Oberfläche = Mensch; `work` fehlt → Vorgabewerk): `work.typeset_get`, `work.typeset_set`,
+//! - RPC (user interface only = human; `work` missing → default work): `work.typeset_get`, `work.typeset_set`,
 //!   `work.typeset_reset`, `work.typeset_adopt_rule` (`docs/RPC.md`, „Satz-Einstellungen“).
-//! - Lesen ([`load`], [`view_json`]) teilen RPC, MCP-Werkzeug `typeset_settings` (`mcp/typeset.rs`) und der Block
-//!   „Satz“ der Einstellungsseite (`settings/work_typeset.rs`).
-//! - Schreiben ([`save`], [`reset`], [`adopt_template_rule`]) nur als Mensch (`HUMAN_NAME`), unter der Schreibsperre,
-//!   ein Spiegel-Commit je Änderung (`mirror::describe_typeset`, Trailer `Baruch-Action: typeset-set|typeset-reset|
-//!   typeset-adopt`); keine Änderung → kein Commit.
-//! - Hinweise (`warnings`): eine Grundschrift, die Typst nicht kennt (`baruch_render::font_families`); Kolumnentitel
-//!   „Werktitel“, obwohl die Werkvorlage keinen Titel setzt ([`NO_DOCUMENT_TITLE`]).
+//! - Reading ([`load`], [`view_json`]) is shared by RPC, the MCP tool `typeset_settings` (`mcp/typeset.rs`) and the
+//!   block „Satz“ of the settings page (`settings/work_typeset.rs`).
+//! - Writing ([`save`], [`reset`], [`adopt_template_rule`]) only as the human (`HUMAN_NAME`), under the write lock,
+//!   one mirror commit per change (`mirror::describe_typeset`, trailer `Baruch-Action: typeset-set|typeset-reset|
+//!   typeset-adopt`); no change → no commit.
+//! - Notes (`warnings`): a body font Typst does not know (`baruch_render::font_families`); running head
+//!   „Werktitel“ although the work template sets no title ([`NO_DOCUMENT_TITLE`]).
 
 use baruch_store::{TypesetChange, WorkId, WorkTypeset};
 use baruch_typst::typeset::{
@@ -22,12 +22,12 @@ use crate::AppState;
 use crate::mirror::{self, HUMAN_NAME, TypesetAction, WriteGuard};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     matches!(method, "work.typeset_get" | "work.typeset_set" | "work.typeset_reset" | "work.typeset_adopt_rule")
 }
 
-/// RPC `work.typeset_*`; `work` ist schon aufgelöst (fehlt → Vorgabewerk).
+/// RPC `work.typeset_*`; `work` is already resolved (missing → default work).
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "work.typeset_get" => {
@@ -45,9 +45,9 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         }
         "work.typeset_reset" => Ok(saved_json(work, &reset(state, work).await?)),
         "work.typeset_adopt_rule" => {
-            // Runde 23a (Vertrag §5): Die Methode schreibt die Werkvorlage um (die Regel wandert in die Einstellung).
-            // Über RPC verlangt sie darum die ausdrückliche Bestätigung, wie das Formular sein Kästchen. Kein Widget
-            // ruft sie auf (`grep -rn typeset_adopt_rule crates/baruch-server/web/src` ohne Treffer).
+            // Round 23a (contract §5): the method rewrites the work template (the rule moves into the setting).
+            // Through RPC it therefore requires the explicit confirmation, as the form requires its checkbox. No
+            // widget calls it (`grep -rn typeset_adopt_rule crates/baruch-server/web/src` without a hit).
             if params.get("confirm") != Some(&Value::Bool(true)) {
                 return Err(RpcError::new(INVALID_PARAMS, "confirm: true erwartet"));
             }
@@ -62,13 +62,13 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-/// `params.settings` als [`TypesetSettings`]; fehlt oder passt nicht (unbekannte Felder) → `INVALID_PARAMS`.
+/// `params.settings` as [`TypesetSettings`]; missing or not fitting (unknown fields) → `INVALID_PARAMS`.
 fn settings_param(params: &Value) -> Result<TypesetSettings, RpcError> {
     let value = params.get("settings").ok_or_else(|| RpcError::new(INVALID_PARAMS, "settings fehlt"))?;
     serde_json::from_value(value.clone()).map_err(|e| RpcError::new(INVALID_PARAMS, format!("settings: {e}")))
 }
 
-/// `{work, changed, commit?, mirror?}` einer Änderung.
+/// `{work, changed, commit?, mirror?}` of a change.
 fn saved_json(work: WorkId, saved: &Saved) -> Value {
     let mut out = json!({ "work": work, "changed": saved.changed });
     if let Some(commit) = &saved.commit {
@@ -80,25 +80,25 @@ fn saved_json(work: WorkId, saved: &Saved) -> Value {
     out
 }
 
-/// Alles, was Lesende über die Satz-Einstellungen eines Werks wissen müssen.
+/// Everything readers need to know about the typeset settings of a work.
 #[derive(Debug, Clone)]
 pub struct TypesetView {
     pub work: WorkId,
-    /// Gespeicherte Zeile; `None` = keine Satz-Einstellungen.
+    /// Stored row; `None` = no typeset settings.
     pub stored: Option<WorkTypeset>,
-    /// Geltende Einstellungen (ohne Zeile die Vorgabe, alles aus der Werkvorlage).
+    /// Settings in force (without a row the default, everything from the work template).
     pub settings: TypesetSettings,
-    /// Erzeugter Typst-Block ("" ohne Einstellungen).
+    /// Generated Typst block ("" without settings).
     pub rules: String,
-    /// Stellen der Werkvorlage, die gesetzte Felder selbst setzen.
+    /// Places of the work template that set fields that are set themselves.
     pub conflicts: Vec<TemplateConflict>,
-    /// Erkannte Kapitelanfangs-Regel der Werkvorlage (Angebot „als Einstellung übernehmen“).
+    /// Detected chapter start rule of the work template (offer „als Einstellung übernehmen“).
     pub template_rule: Option<ChapterBreakRule>,
-    /// Hinweise, z. B. eine fehlende Schrift.
+    /// Notes, e.g. a missing font.
     pub warnings: Vec<String>,
 }
 
-/// Liest Einstellungen, Regeln, Konflikte und Vorlagenregel eines Werks. Unbekanntes Werk → `INVALID_PARAMS`.
+/// Reads settings, rules, conflicts and template rule of a work. Unknown work → `INVALID_PARAMS`.
 pub async fn load(state: &AppState, work: WorkId) -> Result<TypesetView, RpcError> {
     let stored = state.store.work_typeset(work).await?;
     let template = state.store.work_template(work).await?;
@@ -115,7 +115,7 @@ pub async fn load(state: &AppState, work: WorkId) -> Result<TypesetView, RpcErro
     })
 }
 
-/// JSON wie `work.typeset_get` ohne `fields` (auch die Antwort des MCP-Werkzeugs `typeset_settings`).
+/// JSON like `work.typeset_get` without `fields` (also the answer of the MCP tool `typeset_settings`).
 pub fn view_json(view: &TypesetView) -> Value {
     let conflicts: Vec<Value> = view
         .conflicts
@@ -143,31 +143,31 @@ pub fn view_json(view: &TypesetView) -> Value {
     })
 }
 
-/// Ergebnis einer schreibenden Funktion.
+/// Result of a writing function.
 #[derive(Debug, Clone, Default)]
 pub struct Saved {
-    /// Geänderte Feld-ids (leer = nichts geändert, kein Commit).
+    /// Changed field ids (empty = nothing changed, no commit).
     pub changed: Vec<&'static str>,
-    /// Spiegel-Commit, falls einer entstand.
+    /// Mirror commit if one was created.
     pub commit: Option<String>,
-    /// Fehler des Spiegels (die Änderung in SQLite gilt trotzdem).
+    /// Error of the mirror (the change in SQLite holds nevertheless).
     pub mirror_error: Option<String>,
-    /// Neue Fassung der Werkvorlage (nur [`adopt_template_rule`]).
+    /// New revision of the work template (only [`adopt_template_rule`]).
     pub template_rev: Option<u32>,
 }
 
-/// Notiz der neuen Vorlagenfassung bei [`adopt_template_rule`] (Vertrag §6.1).
+/// Note of the new template revision for [`adopt_template_rule`] (contract §6.1).
 pub const ADOPT_NOTE: &str = "Kapitelanfang in die Satz-Einstellungen übernommen (Runde 29)";
 
-/// Meldung, wenn die Werkvorlage keine erkennbare Kapitelanfangs-Regel hat (Vertrag §6.1).
+/// Message when the work template has no recognisable chapter start rule (contract §6.1).
 pub const NO_RULE: &str = "Die Werkvorlage hat keine erkennbare Regel für den Kapitelanfang; nichts geändert.";
 
-/// Hinweis, wenn der Kolumnentitel „Werktitel“ gewählt ist, die Werkvorlage aber keinen Titel setzt (Integrator R29).
+/// Note when the running head „Werktitel“ is chosen but the work template sets no title (integrator R29).
 pub const NO_DOCUMENT_TITLE: &str = "Kolumnentitel „Werktitel“: Die Werkvorlage setzt keinen Titel \
      (#set document(title: …)); die Kolumne bleibt leer";
 
-/// Setzt die Werkvorlage `document(… title: …)`? Kommentare (`//`, `/* */`) zählen nicht; die Argumente dürfen über
-/// mehrere Zeilen gehen (bis zur passenden schließenden Klammer).
+/// Does the work template set `document(… title: …)`? Comments (`//`, `/* */`) do not count; the arguments may
+/// span several lines (up to the matching closing bracket).
 fn template_sets_title(template: &str) -> bool {
     let clean = strip_comments(template);
     let mut rest = clean.as_str();
@@ -193,8 +193,8 @@ fn template_sets_title(template: &str) -> bool {
     false
 }
 
-/// Entfernt `// …` bis zum Zeilenende und `/* … */` (Zeilenumbrüche bleiben). Zeichenketten werden nicht
-/// gesondert behandelt – für die Suche nach `document(` genügt das.
+/// Removes `// …` up to the end of the line and `/* … */` (line breaks stay). Strings are not
+/// treated separately – for the search for `document(` that is enough.
 fn strip_comments(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
@@ -227,8 +227,8 @@ fn strip_comments(text: &str) -> String {
     out
 }
 
-/// Hinweise zu den Einstellungen: eine Grundschrift, die Typst nicht kennt (weder eingebettet noch auf dem System);
-/// Kolumnentitel „Werktitel“ ohne Titel in der Werkvorlage (der Regelblock liest `document.title`).
+/// Notes on the settings: a body font Typst does not know (neither embedded nor on the system);
+/// running head „Werktitel“ without a title in the work template (the rule block reads `document.title`).
 async fn warnings(settings: &TypesetSettings, template: &str) -> Vec<String> {
     let mut out = Vec::new();
     if settings.running_head == Some(baruch_typst::typeset::RunningHead::WorkTitle) && !template_sets_title(template) {
@@ -243,8 +243,8 @@ async fn warnings(settings: &TypesetSettings, template: &str) -> Vec<String> {
     out
 }
 
-/// Nach dem Schreiben (unter der Schreibsperre): genau ein Spiegel-Commit, wenn sich etwas geändert hat (bei der
-/// Übernahme immer, denn die Werkvorlage hat eine neue Fassung); sonst keiner.
+/// After writing (under the write lock): exactly one mirror commit if something has changed (always for the
+/// adoption, because the work template has a new revision); otherwise none.
 async fn mirrored(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -264,8 +264,8 @@ async fn mirrored(
     saved
 }
 
-/// Ersetzt die Satz-Einstellungen (Mensch). Ungültig → `INVALID_PARAMS` mit allen Meldungen, nichts geändert. Leere
-/// Einstellungen setzen zurück (Commit „Satz: Einstellungen zurückgesetzt“); gleiche Werte → kein Commit.
+/// Replaces the typeset settings (human). Invalid → `INVALID_PARAMS` with all messages, nothing changed. Empty
+/// settings reset (commit „Satz: Einstellungen zurückgesetzt“); equal values → no commit.
 pub async fn save(state: &AppState, work: WorkId, settings: &TypesetSettings) -> Result<Saved, RpcError> {
     let held = state.write_lock.lock().await;
     let change = state.store.set_work_typeset(work, settings, HUMAN_NAME).await?;
@@ -273,15 +273,15 @@ pub async fn save(state: &AppState, work: WorkId, settings: &TypesetSettings) ->
     Ok(mirrored(state, &held, work, &change, action, None).await)
 }
 
-/// Setzt die Satz-Einstellungen zurück (Mensch; Grabstein). Ohne Einstellungen → nichts, kein Commit.
+/// Resets the typeset settings (human; tombstone). Without settings → nothing, no commit.
 pub async fn reset(state: &AppState, work: WorkId) -> Result<Saved, RpcError> {
     let held = state.write_lock.lock().await;
     let change = state.store.reset_work_typeset(work, HUMAN_NAME).await?;
     Ok(mirrored(state, &held, work, &change, TypesetAction::Reset, None).await)
 }
 
-/// Übernimmt die erkannte Kapitelanfangs-Regel der Werkvorlage in die Einstellungen und entfernt sie aus der Vorlage
-/// (Mensch; eine Transaktion, ein Commit). Keine erkannte Regel → `REFUSED`. Die übrigen Felder bleiben, wie sie sind.
+/// Adopts the detected chapter start rule of the work template into the settings and removes it from the template
+/// (human; one transaction, one commit). No detected rule → `REFUSED`. The other fields stay as they are.
 pub async fn adopt_template_rule(state: &AppState, work: WorkId) -> Result<Saved, RpcError> {
     let held = state.write_lock.lock().await;
     let template = state.store.work_template(work).await?;

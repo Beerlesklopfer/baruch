@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild je Werk (Runde 18c): Darstellung des HTML-Satzbilds aus der Werkvorlage, überschrieben mit den
-//! Satzbild-Einstellungen des Werks ([`baruch_store::SheetSettings`], Migration 0044). Typst, Export und PDF
-//! bleiben davon unberührt (sie lesen nie `work_sheet`).
+//! Typeset view per work (Round 18c): appearance of the HTML typeset view from the work template, overridden with
+//! the typeset view settings of the work ([`baruch_store::SheetSettings`], migration 0044). Typst, export and PDF
+//! stay untouched by it (they never read `work_sheet`).
 //!
 //! - RPC `work.sheet {work?}` → `{settings, css}`, `work.sheet_set {work?, font?, heading_font?, size?, fill?,
-//!   heading_fill?, background?, width?, reset?}` → `{settings, css}` (`docs/RPC.md`). Ein fehlendes Feld bleibt,
-//!   `null` oder leerer Text nimmt es zurück (wieder aus der Vorlage), `reset: true` nimmt vorher alle zurück.
-//! - Dieselbe Darstellung an allen Stellen: `wysiwyg.style`, das `<style id="ws-style">` im Editor
-//!   (`view.rs` → `fragments/editor.html`) und `work.sheet` rechnen über [`sheet_style_for`].
-//! - Formular ohne JavaScript: `POST /einstellungen/werk/satzbild` (`settings/work.rs`).
+//!   heading_fill?, background?, width?, reset?}` → `{settings, css}` (`docs/RPC.md`). A missing field stays,
+//!   `null` or empty text takes it back (from the template again), `reset: true` takes all back beforehand.
+//! - The same appearance at all places: `wysiwyg.style`, the `<style id="ws-style">` in the editor
+//!   (`view.rs` → `fragments/editor.html`) and `work.sheet` compute through [`sheet_style_for`].
+//! - Form without JavaScript: `POST /einstellungen/werk/satzbild` (`settings/work.rs`).
 
 use baruch_store::{SheetSettings, WorkId};
 use serde_json::{Value, json};
@@ -16,15 +16,15 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Felder der Einstellungen, wie sie RPC und Formular nennen.
+/// Fields of the settings as RPC and form name them.
 pub const FIELDS: [&str; 7] = ["font", "heading_font", "size", "fill", "heading_fill", "background", "width"];
 
-/// Bedient dieses Modul die RPC-Methode? `work.sheet`, `work.sheet_set`.
+/// Does this module serve the RPC method? `work.sheet`, `work.sheet_set`.
 pub fn handles(method: &str) -> bool {
     matches!(method, "work.sheet" | "work.sheet_set")
 }
 
-/// RPC `work.sheet` und `work.sheet_set`; `work` ist schon aufgelöst (fehlt → Vorgabewerk).
+/// RPC `work.sheet` and `work.sheet_set`; `work` is already resolved (missing → default work).
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "work.sheet" => sheet_json(state, work).await,
@@ -33,7 +33,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-/// `{settings, css}` des Werks.
+/// `{settings, css}` of the work.
 async fn sheet_json(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let settings = state.store.sheet_settings(work).await?;
     let css = sheet_css_for(state, work).await?;
@@ -53,9 +53,9 @@ fn slot<'a>(settings: &'a mut SheetSettings, field: &str) -> Option<&'a mut Opti
     })
 }
 
-/// `work.sheet_set`: Einstellungen aus `params` über die gespeicherten legen (fehlend = bleibt, `null`/leer =
-/// zurück; `reset: true` = alle zurück) und speichern. Ungültige Werte lehnt der Store mit deutscher Meldung ab
-/// (`REFUSED`), nichts geändert.
+/// `work.sheet_set`: lay the settings from `params` over the stored ones (missing = stays, `null`/empty =
+/// back; `reset: true` = all back) and store them. Invalid values are rejected by the store with a German message
+/// (`REFUSED`), nothing changed.
 pub async fn set_sheet(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let reset = match params.get("reset") {
         None | Some(Value::Null) => false,
@@ -63,8 +63,8 @@ pub async fn set_sheet(state: &AppState, work: WorkId, params: &Value) -> Result
         Some(Value::String(s)) => matches!(s.trim(), "1" | "true" | "on" | "ja"),
         Some(_) => return Err(RpcError::new(INVALID_PARAMS, "reset: true oder false erwartet")),
     };
-    // Runde 23a (Gutachten R18): Lesen, Ändern und Schreiben unter der Schreibsperre des Servers, damit zwei
-    // gleichzeitige Teiländerungen (eine nur `font`, eine nur `fill`) einander nicht überschreiben.
+    // Round 23a (review R18): reading, changing and writing under the write lock of the server, so that two
+    // simultaneous partial changes (one only `font`, one only `fill`) do not overwrite each other.
     let held = state.write_lock.lock().await;
     let mut settings = if reset { SheetSettings::default() } else { state.store.sheet_settings(work).await? };
     for field in FIELDS {
@@ -84,7 +84,7 @@ pub async fn set_sheet(state: &AppState, work: WorkId, params: &Value) -> Result
     sheet_json(state, work).await
 }
 
-/// Einstellungen des Werks als [`baruch_wysiwyg::SheetStyle`] (nur die gesetzten Felder).
+/// Settings of the work as [`baruch_wysiwyg::SheetStyle`] (only the fields that are set).
 fn style_of(settings: SheetSettings) -> baruch_wysiwyg::SheetStyle {
     baruch_wysiwyg::SheetStyle {
         font: settings.font,
@@ -98,17 +98,17 @@ fn style_of(settings: SheetSettings) -> baruch_wysiwyg::SheetStyle {
     }
 }
 
-/// Darstellung des Satzbilds: Vorlage (`sheet_style(work_template)`) überschrieben mit den Einstellungen des
-/// Werks.
+/// Appearance of the typeset view: template (`sheet_style(work_template)`) overridden with the settings of the
+/// work.
 pub async fn sheet_style_for(state: &AppState, work: WorkId) -> Result<baruch_wysiwyg::SheetStyle, RpcError> {
     let template = state.store.work_template(work).await?;
     let settings = state.store.sheet_settings(work).await?;
     Ok(baruch_wysiwyg::sheet_style_over(baruch_wysiwyg::sheet_style(&template), &style_of(settings)))
 }
 
-/// CSS des Satzbilds für das Werk ([`sheet_style_for`] → `sheet_css`). `sheet_css` lässt nur Werte aus
-/// harmlosen Zeichen durch (nie `<`, `;`, `{`, `}`, `\`), darum darf das Ergebnis unmaskiert in ein
-/// `<style>`-Element; als zweite Wache ersetzt diese Funktion trotzdem jedes `<` (kein `</style` möglich).
+/// CSS of the typeset view for the work ([`sheet_style_for`] → `sheet_css`). `sheet_css` lets only values of
+/// harmless characters through (never `<`, `;`, `{`, `}`, `\`), therefore the result may go unescaped into a
+/// `<style>` element; as a second guard this function nevertheless replaces every `<` (no `</style` possible).
 pub async fn sheet_css_for(state: &AppState, work: WorkId) -> Result<String, RpcError> {
     Ok(baruch_wysiwyg::sheet_css(&sheet_style_for(state, work).await?).replace('<', "\\3c "))
 }

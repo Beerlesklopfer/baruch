@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Im Werk suchen und ersetzen (Runde 30a).
+//! Search and replace in the work (Round 30a).
 //!
-//! - RPC `search.find`, `search.preview`, `search.replace`, `search.undo` (alle mit `work?`, die Felder von
-//!   [`SearchQuery`] flach); `replace`/`undo` nur der Mensch (`confirm: true`), nicht über MCP und nicht über `/act`.
-//! - Seiten ohne JavaScript ([`page`]): `GET /suche` und `POST /suche/act` (303 zurück auf `/suche` mit dem Bereich).
-//! - Vorgaben (Vertrag §3.1): Textarten beim Suchen `text, heading, footnote, quote`, beim Ersetzen `text, heading,
-//!   footnote` (Bibelzitate und Zitate bleiben, Code nie); `q` höchstens 500, `replacement` höchstens 2000 Zeichen;
-//!   Regex nur mit dem Crate `regex` (Größengrenzen in [`scan::pattern`]); 2000 ms je Aufruf (danach
-//!   `timed_out: true`); höchstens 2000 Treffer (Vorgabe 500), höchstens 500 Abschnitte je Ersetzen. `range=all` nur
-//!   bei `search.find`, `rev=shown` nur bei `range=section|selection`.
-//! - Gesucht wird im Typst-Quelltext der Fassung ([`scan`]); Offsets in Bytes und UTF-16-Einheiten. Im
-//!   Wortlaut-Modus findet ein Typst-Sonderzeichen auch seine maskierte Form, und der Ersatz wird maskiert; im
-//!   Regex-Modus steht der Ersatz (mit `$1`/`${name}`) wörtlich im Quelltext.
-//! - Ersetzen ([`replace`]): je Abschnitt eine neue Fassung vom Menschen über `Store::replace_apply`, genau ein
-//!   Spiegel-Commit „Ersetzt „x“ → „y“ in n Abschnitten“; Rückgängig über `Store::replace_undo` mit einem Commit.
+//! - RPC `search.find`, `search.preview`, `search.replace`, `search.undo` (all with `work?`, the fields of
+//!   [`SearchQuery`] flat); `replace`/`undo` only the human (`confirm: true`), not through MCP and not through `/act`.
+//! - Pages without JavaScript ([`page`]): `GET /suche` and `POST /suche/act` (303 back to `/suche` with the range).
+//! - Defaults (contract §3.1): text kinds for searching `text, heading, footnote, quote`, for replacing `text,
+//!   heading, footnote` (Bible quotations and quotations stay, code never); `q` at most 500, `replacement` at most
+//!   2000 characters; regex only with the crate `regex` (size limits in [`scan::pattern`]); 2000 ms per call
+//!   (afterwards `timed_out: true`); at most 2000 hits (default 500), at most 500 sections per replace. `range=all`
+//!   only for `search.find`, `rev=shown` only for `range=section|selection`.
+//! - The search runs in the Typst source text of the revision ([`scan`]); offsets in bytes and UTF-16 units. In
+//!   the literal mode a Typst special character also finds its escaped form, and the replacement is escaped; in
+//!   the regex mode the replacement (with `$1`/`${name}`) stands literally in the source text.
+//! - Replacing ([`replace`]): per section a new revision by the human through `Store::replace_apply`, exactly one
+//!   mirror commit „Ersetzt „x“ → „y“ in n Abschnitten“; undo through `Store::replace_undo` with one commit.
 
 pub mod page;
 pub mod replace;
@@ -31,7 +31,7 @@ use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::xref::{JumpTarget, jump_url};
 use scan::{Found, PatternOptions};
 
-/// Art des Texts, in dem ein Treffer liegt.
+/// Kind of the text in which a hit lies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextKind {
@@ -43,7 +43,7 @@ pub enum TextKind {
 }
 
 impl TextKind {
-    /// Name in Adressen und JSON.
+    /// Name in addresses and JSON.
     pub fn word(self) -> &'static str {
         match self {
             TextKind::Text => "text",
@@ -54,7 +54,7 @@ impl TextKind {
         }
     }
 
-    /// Deutsche Bezeichnung.
+    /// German label.
     pub fn label(self) -> &'static str {
         match self {
             TextKind::Text => "Text",
@@ -70,15 +70,15 @@ impl TextKind {
     }
 }
 
-/// Alle Textarten in Anzeigereihenfolge.
+/// All text kinds in display order.
 pub const ALL_KINDS: [TextKind; 5] =
     [TextKind::Text, TextKind::Heading, TextKind::Footnote, TextKind::Quote, TextKind::Code];
-/// Vorgabe beim Suchen.
+/// Default for searching.
 pub const SEARCH_KINDS: [TextKind; 4] = [TextKind::Text, TextKind::Heading, TextKind::Footnote, TextKind::Quote];
-/// Vorgabe beim Ersetzen.
+/// Default for replacing.
 pub const REPLACE_KINDS: [TextKind; 3] = [TextKind::Text, TextKind::Heading, TextKind::Footnote];
 
-/// Bereich einer Suche.
+/// Range of a search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SearchRange {
@@ -122,7 +122,7 @@ impl SearchRange {
         .find(|r| r.word() == word)
     }
 
-    /// Braucht der Bereich einen Abschnitt (`key`)?
+    /// Does the range need a section (`key`)?
     fn needs_key(self) -> bool {
         matches!(
             self,
@@ -135,7 +135,7 @@ impl SearchRange {
     }
 }
 
-/// Welche Fassung durchsucht wird.
+/// Which revision is searched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RevChoice {
@@ -144,7 +144,7 @@ pub enum RevChoice {
     Shown,
 }
 
-/// Eine Suche (RPC-Parameter flach, Adress-Parameter von `/suche` mit denselben Namen).
+/// A search (RPC parameters flat, address parameters of `/suche` with the same names).
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct SearchQuery {
     pub q: String,
@@ -159,15 +159,15 @@ pub struct SearchQuery {
     pub key: Option<i64>,
     #[serde(default)]
     pub sel: Vec<i64>,
-    /// Nur `range=selection`, UTF-16-Einheiten.
+    /// Only `range=selection`, UTF-16 units.
     pub start: Option<usize>,
     pub end: Option<usize>,
     #[serde(default)]
     pub rev: RevChoice,
     pub shown_rev: Option<u32>,
-    /// `None` = Vorgabe (§3.1).
+    /// `None` = default (§3.1).
     pub kinds: Option<Vec<TextKind>>,
-    /// Ungespeicherter Editortext von `key`.
+    /// Unsaved editor text of `key`.
     pub text: Option<String>,
     pub limit: Option<usize>,
 }
@@ -178,7 +178,7 @@ impl SearchQuery {
     }
 }
 
-/// Ein Treffer: Abschnitt, Fassung, Art, Byte- und UTF-16-Stellen, Zeile, Umfeld, Sprung-Adresse.
+/// A hit: section, revision, kind, byte and UTF-16 positions, line, context, jump address.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SearchHit {
     pub work: baruch_store::WorkId,
@@ -198,7 +198,7 @@ pub struct SearchHit {
     pub url: String,
 }
 
-/// Ergebnis von [`find`].
+/// Result of [`find`].
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SearchResult {
     pub hits: Vec<SearchHit>,
@@ -208,22 +208,22 @@ pub struct SearchResult {
     pub range_label: String,
 }
 
-/// Höchstlänge des Suchtexts (Zeichen).
+/// Maximum length of the search text (characters).
 pub const MAX_QUERY_CHARS: usize = 500;
-/// Höchstlänge des Ersatzes (Zeichen).
+/// Maximum length of the replacement (characters).
 pub const MAX_REPLACEMENT_CHARS: usize = 2000;
-/// Höchstzahl der Treffer je Aufruf und die Vorgabe.
+/// Maximum number of hits per call and the default.
 pub const MAX_HITS: usize = 2000;
 pub const DEFAULT_HITS: usize = 500;
-/// Zeitgrenze je Aufruf.
+/// Time limit per call.
 pub const TIME_LIMIT: Duration = Duration::from_millis(2000);
-/// Höchstens so viele Bytes eingesetzter Ersatztexte je Vorschau bzw. Ersetzen (alle Treffer zusammen); darüber
-/// lehnt Baruch ab, statt den Speicher mit Treffern × Ersatz zu füllen.
+/// At most this many bytes of inserted replacement texts per preview or replace (all hits together); above that
+/// Baruch refuses instead of filling the memory with hits × replacement.
 pub const MAX_EXPANDED_BYTES: usize = 8 * 1024 * 1024;
-/// Zeichen Umfeld vor und hinter einem Treffer.
+/// Characters of context before and after a hit.
 const CONTEXT_CHARS: usize = 40;
 
-/// Ein Abschnitt im Bereich mit seinem durchsuchten Text.
+/// A section in the range with its searched text.
 #[derive(Debug, Clone)]
 pub(crate) struct Section {
     pub work: baruch_store::WorkId,
@@ -233,25 +233,25 @@ pub(crate) struct Section {
     pub rev: u32,
     pub current: bool,
     pub text: String,
-    /// Durchsuchter Bereich (Bytes) – bei `selection` nur die Auswahl.
+    /// Searched range (bytes) – for `selection` only the selection.
     pub window: std::ops::Range<usize>,
 }
 
-/// Ein Abschnitt mit seinen Treffern.
+/// A section with its hits.
 #[derive(Debug, Clone)]
 pub(crate) struct SectionHits {
     pub section: Section,
     pub found: Vec<Found>,
 }
 
-/// Ergebnis von [`collect`].
+/// Result of [`collect`].
 pub(crate) struct Collected {
     pub sections: Vec<SectionHits>,
     pub total: usize,
     pub truncated: bool,
     pub timed_out: bool,
     pub range_label: String,
-    /// Die Ersatztexte überschritten [`MAX_EXPANDED_BYTES`]: Sammeln abgebrochen, das Ergebnis ist unvollständig.
+    /// The replacement texts exceeded [`MAX_EXPANDED_BYTES`]: collecting aborted, the result is incomplete.
     pub over_budget: bool,
 }
 
@@ -259,7 +259,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Grenzen der Suche prüfen.
+/// Check the limits of the search.
 fn check_query(query: &SearchQuery) -> Result<(), RpcError> {
     let chars = query.q.chars().count();
     if chars == 0 {
@@ -285,7 +285,7 @@ fn label_of(number: &str, title: &str) -> String {
     format!("{number} {title}").trim().to_owned()
 }
 
-/// Stellen (seq) des Abschnitts `root` und seiner Unterpunkte, in Baumreihenfolge.
+/// Positions (seq) of the section `root` and of its sub-items, in tree order.
 fn subtree(work: &Work, root: usize) -> Vec<usize> {
     let mut out = vec![root];
     for node in work.nodes.iter().skip(root + 1) {
@@ -306,7 +306,7 @@ fn subtree(work: &Work, root: usize) -> Vec<usize> {
     out
 }
 
-/// Nächster Vorfahr (oder der Punkt selbst) der Art `kind`.
+/// Nearest ancestor (or the item itself) of the kind `kind`.
 fn ancestor_of(work: &Work, seq: usize, kind: NodeKind) -> Option<usize> {
     let mut at = Some(seq);
     while let Some(s) = at {
@@ -319,7 +319,7 @@ fn ancestor_of(work: &Work, seq: usize, kind: NodeKind) -> Option<usize> {
     None
 }
 
-/// Stelle des festen Schlüssels im Werk.
+/// Position of the fixed key in the work.
 fn seq_of(work: &Work, key: i64) -> Result<usize, RpcError> {
     work.nodes
         .iter()
@@ -327,7 +327,7 @@ fn seq_of(work: &Work, key: i64) -> Result<usize, RpcError> {
         .ok_or_else(|| invalid(format!("Den Abschnitt {key} gibt es in diesem Werk nicht.")))
 }
 
-/// Abschnitte (Stellen) eines Werks im Bereich und die Beschriftung des Bereichs.
+/// Sections (positions) of a work in the range and the label of the range.
 fn sections_in(work: &Work, query: &SearchQuery) -> Result<(Vec<usize>, String), RpcError> {
     let named = |seq: usize| {
         let n = &work.nodes[seq];
@@ -374,8 +374,8 @@ fn sections_in(work: &Work, query: &SearchQuery) -> Result<(Vec<usize>, String),
     })
 }
 
-/// Durchsuchter Text eines Abschnitts: ungespeicherter Editortext (nur `key`, Abschnitt/Auswahl), gezeigte Fassung
-/// (`rev=shown`) oder die aktuelle. Ohne Fassung → `None` (der Abschnitt zählt nicht).
+/// Searched text of a section: unsaved editor text (only `key`, section/selection), shown revision
+/// (`rev=shown`) or the current one. Without a revision → `None` (the section does not count).
 fn section_text(
     work_id: baruch_store::WorkId,
     work: &Work,
@@ -415,7 +415,7 @@ fn section_text(
     }))
 }
 
-/// Textarten der Suche bzw. des Ersetzens (Code wird beim Ersetzen nie angefasst).
+/// Text kinds of the search or of the replace (code is never touched when replacing).
 fn kinds_for(query: &SearchQuery, replace: bool) -> Vec<TextKind> {
     match (&query.kinds, replace) {
         (Some(kinds), false) if !kinds.is_empty() => kinds.clone(),
@@ -425,8 +425,8 @@ fn kinds_for(query: &SearchQuery, replace: bool) -> Vec<TextKind> {
     }
 }
 
-/// Treffer im Bereich sammeln. `replacement`: Ersatz je Treffer mitrechnen (Vorschau, Ersetzen; dann gelten die
-/// Textarten des Ersetzens). `hit_limit`: höchstens so viele Treffer behalten (gezählt wird weiter bis zur Zeit).
+/// Collect hits in the range. `replacement`: also compute the replacement per hit (preview, replace; then the
+/// text kinds of the replace apply). `hit_limit`: keep at most this many hits (counting goes on until the time).
 pub(crate) async fn collect(
     state: &AppState,
     work_id: baruch_store::WorkId,
@@ -503,7 +503,7 @@ pub(crate) async fn collect(
     Ok(out)
 }
 
-/// Umfeld: höchstens [`CONTEXT_CHARS`] Zeichen auf derselben Zeile.
+/// Context: at most [`CONTEXT_CHARS`] characters on the same line.
 fn context(text: &str, range: &std::ops::Range<usize>) -> (String, String) {
     let before_line = &text[..range.start];
     let before_line = before_line.rsplit('\n').next().unwrap_or("");
@@ -514,7 +514,7 @@ fn context(text: &str, range: &std::ops::Range<usize>) -> (String, String) {
     (before, after)
 }
 
-/// Treffer für die Antwort.
+/// Hit for the answer.
 pub(crate) fn hit(section: &Section, found: &Found) -> SearchHit {
     let text = &section.text;
     let range = found.range.clone();
@@ -546,17 +546,17 @@ pub(crate) fn hit(section: &Section, found: &Found) -> SearchHit {
     }
 }
 
-/// Grenze der Treffer aus der Anfrage (Vorgabe 500, höchstens 2000).
+/// Limit of the hits from the request (default 500, at most 2000).
 fn hit_limit(query: &SearchQuery) -> usize {
     query.limit.unwrap_or(DEFAULT_HITS).clamp(1, MAX_HITS)
 }
 
-/// Im Werk suchen.
+/// Search in the work.
 pub async fn find(state: &AppState, work: baruch_store::WorkId, query: &SearchQuery) -> Result<SearchResult, RpcError> {
     find_within(state, work, query, TIME_LIMIT).await
 }
 
-/// Wie [`find`] mit eigener Zeitgrenze (Tests der Zeitgrenze).
+/// Like [`find`] with its own time limit (tests of the time limit).
 #[doc(hidden)]
 pub async fn find_within(
     state: &AppState,
@@ -575,19 +575,19 @@ pub async fn find_within(
     })
 }
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub const METHODS: &[&str] = &["search.find", "search.preview", "search.replace", "search.undo"];
 
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Suche aus RPC-Parametern (flach).
+/// Search from RPC parameters (flat).
 pub(crate) fn query_from(params: &Value) -> Result<SearchQuery, RpcError> {
     serde_json::from_value(params.clone()).map_err(|e| invalid(format!("Suche: {e}")))
 }
 
-/// RPC `search.*` beantworten.
+/// Answer RPC `search.*`.
 pub async fn call(
     state: &AppState,
     work: baruch_store::WorkId,
@@ -606,12 +606,12 @@ pub async fn call(
     }
 }
 
-/// Seiten (`GET /suche`).
+/// Pages (`GET /suche`).
 pub fn pages() -> Router<Arc<AppState>> {
     page::pages()
 }
 
-/// Schreibende Routen (`POST /suche/act`, hinter `guard::same_origin`).
+/// Writing routes (`POST /suche/act`, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     page::writes()
 }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stellen zwischen Verszählungen umrechnen (Runde 17a): RPC `scripture.map` und `scripture.versifications`, MCP
-//! `scripture_map` ([`crate::mcp::scripture_map`]). Nur lesend, ohne Werk.
+//! Converting passages between versifications (Round 17a): RPC `scripture.map` and `scripture.versifications`, MCP
+//! `scripture_map` ([`crate::mcp::scripture_map`]). Read only, without a work.
 //!
-//! Eine Angabe („Joel 2,28–32“) wird mit [`baruch_scripture::parse`] gelesen (Buchnamen deutsch oder OSIS) und gegen
-//! die Zählung `from` geprüft (Vorgabe KJV) – nicht gegen die deutsche Zählung der Stellenprüfung. Dann bildet
-//! [`baruch_scripture::versification::mapping::map_range`] sie in die Zählung `to` ab (Vorgabe German). Was keine
-//! Regel deckt und in der Kapitellänge abweicht, ist „unmapped“ mit Grund – nie geraten.
+//! A reference („Joel 2,28–32“) is read with [`baruch_scripture::parse`] (book names German or OSIS) and checked
+//! against the versification `from` (default KJV) – not against the German versification of the passage check. Then
+//! [`baruch_scripture::versification::mapping::map_range`] maps it into the versification `to` (default German).
+//! What no rule covers and what differs in the chapter length is "unmapped" with a reason – never guessed.
 
 use baruch_scripture::versification::mapping::{MappedRange, VerseRef, map_range};
 use baruch_scripture::versification::{Versification, names, versification};
@@ -15,23 +15,23 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Längste Angabe (Zeichen).
+/// Longest reference (characters).
 pub const MAX_REF_CHARS: usize = 500;
-/// Höchstens so viele Verse je Stelle in der Antwort.
+/// At most this many verses per passage in the answer.
 pub const MAX_VERSES: usize = 1000;
-/// Vorgabe der Ausgangszählung.
+/// Default of the source versification.
 pub const DEFAULT_FROM: &str = "KJV";
-/// Vorgabe der Zielzählung.
+/// Default of the target versification.
 pub const DEFAULT_TO: &str = "German";
 
 const METHODS: &[&str] = &["scripture.map", "scripture.versifications"];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// RPC `scripture.map` bzw. `scripture.versifications` (`docs/RPC.md`, „Stellenprüfung“).
+/// RPC `scripture.map` or `scripture.versifications` (`docs/RPC.md`, „Stellenprüfung“).
 pub async fn call(_state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "scripture.map" => map_json(&params),
@@ -40,7 +40,7 @@ pub async fn call(_state: &AppState, method: &str, params: Value) -> Result<Valu
     }
 }
 
-/// Zählung zu einem Namen; unbekannt → -32602 mit der Liste.
+/// Versification for a name; unknown → -32602 with the list.
 fn named(params: &Value, field: &str, default: &str) -> Result<&'static Versification, RpcError> {
     let name = match params.get(field) {
         None | Some(Value::Null) => default,
@@ -55,7 +55,7 @@ fn named(params: &Value, field: &str, default: &str) -> Result<&'static Versific
     })
 }
 
-/// `scripture.map {ref, from?, to?}` (siehe Moduldoku).
+/// `scripture.map {ref, from?, to?}` (see the module documentation).
 pub fn map_json(params: &Value) -> Result<Value, RpcError> {
     let reference = params
         .get("ref")
@@ -72,7 +72,7 @@ pub fn map_json(params: &Value) -> Result<Value, RpcError> {
     Ok(json!({ "from": from.name, "to": to.name, "refs": refs, "versifications": names() }))
 }
 
-/// Eine Stelle umgerechnet.
+/// One passage converted.
 fn entry(from: &Versification, to: &Versification, found: &Found) -> Value {
     let invalid = |message: String| {
         json!({ "input": found.input, "normalized_from": found.normalized, "status": "invalid", "target": null,
@@ -114,7 +114,7 @@ fn entry(from: &Versification, to: &Versification, found: &Found) -> Value {
     }
 }
 
-/// Grund, warum es die Stelle in `from` nicht gibt.
+/// Reason why the passage does not exist in `from`.
 fn range_problem(from: &Versification, book: &str, start: (u16, u16), end: (u16, u16)) -> String {
     let abbr = books().iter().find(|b| b.id == book).map_or(book, |b| b.abbr);
     let Some(chapters) = from.chapters_of(book) else {
@@ -130,7 +130,7 @@ fn range_problem(from: &Versification, book: &str, start: (u16, u16), end: (u16,
     format!("{abbr}: Ende vor dem Anfang")
 }
 
-/// Sind die abgebildeten Verse genau die Verse der Stelle in `from`?
+/// Are the mapped verses exactly the verses of the passage in `from`?
 fn same_verses(from: &Versification, book: &str, start: (u16, u16), end: (u16, u16), mapped: &MappedRange) -> bool {
     let mut expected = Vec::new();
     for chapter in start.0..=end.0 {
@@ -148,8 +148,8 @@ fn same_verses(from: &Versification, book: &str, start: (u16, u16), end: (u16, u
         && expected.iter().zip(&mapped.verses).all(|(&(c, v), m)| m.book == book && m.chapter == c && m.verse == v)
 }
 
-/// Deutsche Schreibweise der Verse in `to`: zusammenhängende Läufe als Bereich („Joel 3,1–5“, über Kapitel hinweg
-/// „Joh 3,16–4,2“), mehrere Läufe mit „; “.
+/// German notation of the verses in `to`: contiguous runs as a range („Joel 3,1–5“, across chapters
+/// „Joh 3,16–4,2“), several runs with „; “.
 pub fn label(to: &Versification, verses: &[VerseRef]) -> Option<String> {
     let first = verses.first()?;
     let abbr = books().iter().find(|b| b.id == first.book).map_or(first.book, |b| b.abbr);

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ältere Fassungen ausblenden (Nutzer 2026-11-24, Release 0.9.0): Marke „bis hierhin“ je Abschnitt.
+//! Hiding older revisions (user 2026-11-24, release 0.9.0): mark „bis hierhin“ per section.
 //!
-//! - RPC (nur Mensch; MCP hat dafür kein Werkzeug): `revision.fold_get {key|node}` → `{node, key, below, cutoff,
+//! - RPC (human only; MCP has no tool for it): `revision.fold_get {key|node}` → `{node, key, below, cutoff,
 //!   hidden, updated?, updated_by?}`; `revision.fold_set {key|node, rev}` → `{node, key, rev, below, hidden}`;
-//!   `revision.fold_clear {key|node, rev?}` → `{node, key, rev, cleared}`; werkweit `revision.fold_before {work?,
-//!   date}` (Tag `JJJJ-MM-TT` in Ortszeit, Marke je Abschnitt auf die letzte Fassung vor diesem Tag, höchstens die
-//!   aktuelle) → `{work, sections}`; `revision.fold_clear_all {work?}` → `{work, cleared}`.
-//! - Formulare: `fold_set`/`fold_clear` auch über `POST /act` (zurück auf die Fassung); werkweit
-//!   `POST /einstellungen/werk/fassungen/ausblenden` (`work`, `date`, `do=fold|clear`) → 303 auf
-//!   `/einstellungen/werk?work=W&ok=ausgeblendet#fassungen` bzw. `ok=eingeblendet`, abgelehnt `ausblendenfehler=1`.
-//! - Was ausgeblendet ist, regelt `baruch_core::revision_fold` (nie die aktuelle Fassung, nie offene Vorschläge, eine
-//!   Marke über der aktuellen gilt nur bis unter die aktuelle). Nichts wird gelöscht, kein Commit im Spiegel (kein
-//!   Buchtext); protokolliert in der Datenbank (`node_revision_fold.updated`/`updated_by`) wie die Einstellung
+//!   `revision.fold_clear {key|node, rev?}` → `{node, key, rev, cleared}`; work-wide `revision.fold_before {work?,
+//!   date}` (day `JJJJ-MM-TT` in local time, mark per section on the last revision before this day, at most the
+//!   current one) → `{work, sections}`; `revision.fold_clear_all {work?}` → `{work, cleared}`.
+//! - Forms: `fold_set`/`fold_clear` also through `POST /act` (back to the revision); work-wide
+//!   `POST /einstellungen/werk/fassungen/ausblenden` (`work`, `date`, `do=fold|clear`) → 303 to
+//!   `/einstellungen/werk?work=W&ok=ausgeblendet#fassungen` or `ok=eingeblendet`, rejected `ausblendenfehler=1`.
+//! - What is hidden is governed by `baruch_core::revision_fold` (never the current revision, never open proposals, a
+//!   mark above the current one only holds up to below the current one). Nothing is deleted, no commit in the
+//!   mirror (no book text); logged in the database (`node_revision_fold.updated`/`updated_by`) like the setting
 //!   „Fassungen“.
 
 use std::sync::Arc;
@@ -28,7 +28,7 @@ use serde_json::{Value, json};
 use crate::rpc::{INVALID_PARAMS, RpcError, resolve_keys};
 use crate::{AppState, mirror};
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(
         method,
@@ -60,7 +60,7 @@ fn node_of(params: &Value) -> Result<usize, RpcError> {
     usize::try_from(value).map_err(|_| invalid("node: zu groß"))
 }
 
-/// Tag `JJJJ-MM-TT` (Ortszeit, Mitternacht) → UTC-Zeitpunkt im Format von `revision.created`.
+/// Day `JJJJ-MM-TT` (local time, midnight) → UTC instant in the format of `revision.created`.
 pub fn day_start_utc(date: &str) -> Result<String, RpcError> {
     let day =
         NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").map_err(|_| invalid("date: Tag als JJJJ-MM-TT erwartet"))?;
@@ -69,7 +69,7 @@ pub fn day_start_utc(date: &str) -> Result<String, RpcError> {
     Ok(local.with_timezone(&Utc).format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
 
-/// Zustand der Marke eines Abschnitts als JSON.
+/// State of the mark of a section as JSON.
 async fn fold_state(state: &AppState, work: WorkId, node: usize) -> Result<Value, RpcError> {
     let store = &state.store;
     let fold = store.revision_fold(work, node).await?;
@@ -90,7 +90,7 @@ async fn fold_state(state: &AppState, work: WorkId, node: usize) -> Result<Value
     Ok(answer)
 }
 
-/// Beantwortet eine Methode aus [`handles`].
+/// Answers a method from [`handles`].
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let store = &state.store;
     match method {
@@ -116,7 +116,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let cleared = store.clear_revision_fold(work, node).await?;
             let mut answer = fold_state(state, work, node).await?;
             answer["cleared"] = json!(cleared);
-            // Zurück auf die gezeigte Fassung (Formular über `/act`).
+            // Back to the shown revision (form through `/act`).
             if let Some(rev) = number(&params, "rev")? {
                 answer["rev"] = json!(rev);
             }
@@ -144,8 +144,8 @@ fn pair<'a>(pairs: &'a [(String, String)], name: &str) -> Option<&'a str> {
     pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.trim()).filter(|v| !v.is_empty())
 }
 
-/// `POST /einstellungen/werk/fassungen/ausblenden` (hinter `guard::same_origin`): `work`, `date` (JJJJ-MM-TT) und
-/// `do=fold` (Vorgabe) bzw. `do=clear` (alle Marken des Werks aufheben).
+/// `POST /einstellungen/werk/fassungen/ausblenden` (behind `guard::same_origin`): `work`, `date` (JJJJ-MM-TT) and
+/// `do=fold` (default) or `do=clear` (lift all marks of the work).
 async fn settings_act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, String)>>) -> Response {
     let work = match pair(&pairs, "work").and_then(|w| w.parse::<WorkId>().ok()).filter(|&w| w > 0) {
         Some(w) => match state.store.work_slug(w).await {
@@ -176,7 +176,7 @@ async fn settings_act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<
     }
 }
 
-/// Schreibende Formulare (POST): werkweites Ausblenden in den Einstellungen.
+/// Writing forms (POST): work-wide hiding in the settings.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/einstellungen/werk/fassungen/ausblenden", post(settings_act))
 }
@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn a_day_becomes_local_midnight_in_utc() {
-        // Format wie revision.created, damit der Textvergleich im Store stimmt.
+        // Format like revision.created, so that the text comparison in the store is right.
         let stamp = day_start_utc("2026-11-24").unwrap();
         assert_eq!(stamp.len(), "2026-11-24T00:00:00.000Z".len(), "{stamp}");
         assert!(stamp.ends_with('Z'), "{stamp}");

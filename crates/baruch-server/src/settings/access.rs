@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungsseite „MCP-Zugang“: Adresse `http://<Host>/mcp` zum Kopieren, Zugang ohne Token nur über
-//! Loopback, die seit dem Start gesehenen Clients ([`crate::mcp::session::clients`]) und die Tokens für
-//! andere Rechner (Runde 10, SQLite: nur Name, Anfang und SHA-256-Hash, [`crate::mcp::tokens`]).
+//! Settings page „MCP-Zugang“: address `http://<Host>/mcp` for copying, access without a token only through
+//! loopback, the clients seen since the start ([`crate::mcp::session::clients`]) and the tokens for
+//! other machines (Round 10, SQLite: only name, beginning and SHA-256 hash, [`crate::mcp::tokens`]).
 //!
-//! Formulare ohne JavaScript an `POST /einstellungen/mcp/act` (hinter `guard::same_origin`):
-//! - `action=create`, `name` → **200** mit der ganzen Seite, die den Klartext genau einmal zeigt
-//!   (`Cache-Control: no-store`); nie in Adresse, Weiterleitung, Cookie oder Meldung. Abgelehnt → 422 – seit Runde 23
-//!   auch, wenn der Name denselben Autor ergäbe wie ein vorhandener oder widerrufener Token oder mit `lokal-`
-//!   begänne ([`crate::mcp::tokens::create`], derselbe Weg wie RPC `mcp_token.create`).
-//! - `action=revoke`, `id`, Kästchen `confirm` (der Server prüft es) → 303 `?ok=widerrufen`.
+//! Forms without JavaScript to `POST /einstellungen/mcp/act` (behind `guard::same_origin`):
+//! - `action=create`, `name` → **200** with the whole page, which shows the plain text exactly once
+//!   (`Cache-Control: no-store`); never in address, redirect, cookie or message. Rejected → 422 – since Round 23
+//!   also if the name would result in the same author as an existing or revoked token or would begin with
+//!   `lokal-` ([`crate::mcp::tokens::create`], the same path as RPC `mcp_token.create`).
+//! - `action=revoke`, `id`, checkbox `confirm` (the server checks it) → 303 `?ok=widerrufen`.
 //!
-//! Den frisch erzeugten Klartext reicht `act` über ein eigenes `tokio::task_local` an [`render`]
-//! weiter; außerhalb dieser einen Antwort gibt es ihn nicht mehr.
+//! `act` hands the freshly created plain text through its own `tokio::task_local` on to [`render`];
+//! outside of this one answer it no longer exists.
 //!
-//! Runde 24: Wird die Seite unter einem zusätzlich erlaubten Rechnernamen aufgerufen (`--allow-host`, Betrieb hinter
-//! einem Reverse-Proxy, [`crate::guard::AllowedHosts::is_extra`]), zeigt sie die Adresse als `https://<Name>/mcp`
-//! (TLS endet im Proxy; Baruch kennt das Schema nicht und nimmt `https` an) und den Befehl mit Token – unter
-//! diesem Namen nimmt `/mcp` keine Anfrage ohne Token an.
+//! Round 24: if the page is called under an additionally allowed host name (`--allow-host`, operation behind
+//! a reverse proxy, [`crate::guard::AllowedHosts::is_extra`]), it shows the address as `https://<Name>/mcp`
+//! (TLS ends in the proxy; Baruch does not know the scheme and assumes `https`) and the command with a token – under
+//! this name `/mcp` accepts no request without a token.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -33,7 +33,7 @@ use serde_json::{Value as Json, json};
 use crate::AppState;
 use crate::mcp::session;
 
-/// Ein eben erzeugter Token: Name und Klartext, nur für die Antwort auf das Erzeugen.
+/// A token just created: name and plain text, only for the answer to the creation.
 #[derive(Clone)]
 struct Fresh {
     name: String,
@@ -44,12 +44,12 @@ tokio::task_local! {
     static FRESH: Fresh;
 }
 
-/// Unix-Sekunden → `JJJJ-MM-TT HH:MM:SS` in Ortszeit.
+/// Unix seconds → `JJJJ-MM-TT HH:MM:SS` in local time.
 pub(crate) fn local_time(secs: u64) -> String {
     crate::localtime::unix_seconds(secs)
 }
 
-/// `2026-11-06T12:05:06.123Z` (UTC) → `2026-11-06 13:05:06` in Ortszeit.
+/// `2026-11-06T12:05:06.123Z` (UTC) → `2026-11-06 13:05:06` in local time.
 fn short_time(iso: &str) -> String {
     crate::localtime::seconds(iso)
 }
@@ -60,7 +60,7 @@ pub(super) async fn render(
     query: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let info = super::request();
-    // Runde 24: unter einem zusätzlichen Rechnernamen (über den Proxy) https und nur mit Token.
+    // Round 24: under an additional host name (through the proxy) https and only with a token.
     let proxied = info.host.as_deref().is_some_and(|host| state.allowed_hosts.is_extra(host));
     let scheme = if proxied { "https" } else { "http" };
     let address = info.host.as_deref().map(|host| format!("{scheme}://{host}/mcp"));
@@ -79,10 +79,10 @@ pub(super) async fn render(
         .into_iter()
         .map(|t| {
             let handle = session::token_handle(&t.name, names.iter().map(String::as_str));
-            // Runde 23: Alt-Handle (Regel bis Runde 22), falls er abweicht – alte Beiträge tragen ihn.
+            // Round 23: legacy handle (rule up to Round 22) if it differs – old posts carry it.
             let legacy = format!("@mcp:{}", session::legacy_handle_name(&t.name));
             let legacy = (legacy != handle).then_some(legacy);
-            // Der Token behält seinen Alt-Handle, weil der neue einem anderen Token gehört (`session::keeps_legacy`).
+            // The token keeps its legacy handle because the new one belongs to another token (`session::keeps_legacy`).
             let taken = session::keeps_legacy(&t.name, names.iter().map(String::as_str))
                 .then(|| format!("@mcp:{}", session::handle_name(&t.name)));
             context! {
@@ -108,8 +108,8 @@ pub(super) async fn render(
     )
 }
 
-/// `settings.get {page: "mcp"}`: Pfad, Zugang ohne Token nur über Loopback, gesehene Clients, Tokens
-/// (ohne Hash und Klartext).
+/// `settings.get {page: "mcp"}`: path, access without a token only through loopback, clients seen, tokens
+/// (without hash and plain text).
 pub(super) async fn values(state: &AppState) -> Result<Json, crate::rpc::RpcError> {
     let tokens = state.store.mcp_token_list().await?;
     Ok(json!({
@@ -120,7 +120,7 @@ pub(super) async fn values(state: &AppState) -> Result<Json, crate::rpc::RpcErro
     }))
 }
 
-/// Formular der Seite (siehe Moduldoku).
+/// Form of the page (see the module documentation).
 #[derive(Debug, Deserialize)]
 pub(super) struct ActForm {
     action: String,

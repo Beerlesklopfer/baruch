@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Suchen und Abrufen ([`research`]): erst bis zu drei Aufrufe `web_search` mit „site:<Rechner>“ für die
-//! bevorzugten Quellen (in ihrer Reihenfolge, gleiche Rechner nur einmal), dann ein allgemeiner Aufruf
-//! (entfällt, wenn schon [`super::MAX_HITS`] Treffer da sind). Danach werden die ersten
-//! [`super::MAX_FETCHES`] Treffer über `fetch_url` abgerufen ([`super::fetch`]). Alles unter
-//! [`super::TOTAL_TIMEOUT`]; was bis dahin abgerufen ist, bleibt erhalten.
+//! Searching and retrieving ([`research`]): first up to three calls of `web_search` with "site:<host>" for the
+//! preferred sources (in their order, equal hosts only once), then one general call
+//! (dropped if [`super::MAX_HITS`] hits are already there). Afterwards the first
+//! [`super::MAX_FETCHES`] hits are retrieved through `fetch_url` ([`super::fetch`]). Everything under
+//! [`super::TOTAL_TIMEOUT`]; what is retrieved up to then is kept.
 //!
-//! Die Argumente leiten [`search_arguments`] und [`super::fetch::fetch_arguments`] aus dem `inputSchema` ab
-//! (Anfrage über [`QUERY_KEYS`], Trefferzahl über [`LIMIT_KEYS`]); verlangt das Schema einen Parameter, den
-//! Baruch nicht kennt, ist das ehrlich [`RagError::Schema`]. Treffer liest [`parse_hits`] aus
-//! `structuredContent` bzw. JSON in `content[].text`, ersatzweise aus Markdown-Links und Adressen im Text.
+//! The arguments are derived by [`search_arguments`] and [`super::fetch::fetch_arguments`] from the `inputSchema`
+//! (query through [`QUERY_KEYS`], number of hits through [`LIMIT_KEYS`]); if the schema requires a parameter
+//! Baruch does not know, that is honestly [`RagError::Schema`]. Hits are read by [`parse_hits`] from
+//! `structuredContent` or JSON in `content[].text`, as a substitute from Markdown links and addresses in the text.
 
 use baruch_rag::RagError;
 use baruch_store::PreferredSource;
@@ -23,7 +23,7 @@ use crate::connections::multigpt::{
     LIMIT_KEYS, Limits, QUERY_KEYS, Session, clean_line, content_text, tool_payload, web_url,
 };
 
-/// Rechner einer http(s)-Adresse, klein, ohne `www.`; sonst `None`.
+/// Host of an http(s) address, lower case, without `www.`; otherwise `None`.
 pub fn host_of(url: &str) -> Option<String> {
     let parsed = reqwest::Url::parse(url.trim()).ok()?;
     if !matches!(parsed.scheme(), "http" | "https") {
@@ -34,12 +34,12 @@ pub fn host_of(url: &str) -> Option<String> {
     (!host.is_empty()).then_some(host)
 }
 
-/// Passt der Rechner `host` zu einer bevorzugten Quelle `source` (gleich oder Unterrechner)?
+/// Does the host `host` match a preferred source `source` (equal or subhost)?
 pub fn host_matches(host: &str, source: &str) -> bool {
     host == source || host.strip_suffix(source).is_some_and(|rest| rest.ends_with('.'))
 }
 
-/// Rechner der bevorzugten Quellen in ihrer Reihenfolge, ohne Doppelte.
+/// Hosts of the preferred sources in their order, without duplicates.
 pub fn source_hosts(sources: &[PreferredSource]) -> Vec<String> {
     let mut hosts: Vec<String> = Vec::new();
     for source in sources {
@@ -52,12 +52,12 @@ pub fn source_hosts(sources: &[PreferredSource]) -> Vec<String> {
     hosts
 }
 
-/// Suchanfrage: einzeilig, ohne Steuerzeichen, höchstens [`QUERY_CHARS`] Zeichen.
+/// Search query: on one line, without control characters, at most [`QUERY_CHARS`] characters.
 pub fn query_line(text: &str) -> String {
     clean_line(text, QUERY_CHARS).trim_end_matches('…').trim().to_owned()
 }
 
-/// Argumente für `web_search` aus dessen `inputSchema`. Ohne `properties` nur `query`.
+/// Arguments for `web_search` from its `inputSchema`. Without `properties` only `query`.
 pub fn search_arguments(schema: &Value, query: &str, limit: usize) -> Result<Value, RagError> {
     let empty = Map::new();
     let props = schema.get("properties").and_then(Value::as_object).unwrap_or(&empty);
@@ -89,7 +89,7 @@ pub fn search_arguments(schema: &Value, query: &str, limit: usize) -> Result<Val
     Ok(Value::Object(args))
 }
 
-/// Verlangt das Schema einen Parameter außer `known`? Dann ehrlich [`RagError::Schema`].
+/// Does the schema require a parameter other than `known`? Then honestly [`RagError::Schema`].
 pub(crate) fn check_required(schema: &Value, tool: &str, known: &[Option<&str>]) -> Result<(), RagError> {
     let required = schema.get("required").and_then(Value::as_array).cloned().unwrap_or_default();
     if let Some(unknown) = required.iter().filter_map(Value::as_str).find(|r| !known.contains(&Some(*r))) {
@@ -98,7 +98,7 @@ pub(crate) fn check_required(schema: &Value, tool: &str, known: &[Option<&str>])
     Ok(())
 }
 
-/// Erster Text unter einem der Schlüssel (auch in `metadata`).
+/// First text under one of the keys (also in `metadata`).
 pub(crate) fn text_of(item: &Map<String, Value>, keys: &[&str]) -> Option<String> {
     let mut places = vec![item];
     if let Some(Value::Object(inner)) = item.get("metadata") {
@@ -112,7 +112,7 @@ pub(crate) fn text_of(item: &Map<String, Value>, keys: &[&str]) -> Option<String
     })
 }
 
-/// Liste in den Daten: die Daten selbst oder unter einem der Schlüssel (auch eine Ebene tiefer).
+/// List in the data: the data themselves or under one of the keys (also one level deeper).
 fn list_in(payload: &Value, depth: usize) -> Option<&Vec<Value>> {
     match payload {
         Value::Array(list) => Some(list),
@@ -125,8 +125,8 @@ fn list_in(payload: &Value, depth: usize) -> Option<&Vec<Value>> {
     }
 }
 
-/// Adresse am Anfang von `text` bis zu Leerraum oder einem Zeichen, das in Text sie beendet; Satzzeichen am
-/// Ende gehören nicht dazu.
+/// Address at the beginning of `text` up to whitespace or a character that ends it in text; punctuation at
+/// the end does not belong to it.
 pub(crate) fn url_at(text: &str) -> &str {
     let end = text
         .find(|c: char| {
@@ -136,7 +136,7 @@ pub(crate) fn url_at(text: &str) -> &str {
     text[..end].trim_end_matches(['.', ',', ';', ':', '!', '?'])
 }
 
-/// Treffer aus Text: Markdown-Links `[Titel](Adresse)` und sonst freie Adressen.
+/// Hits from text: Markdown links `[Titel](Adresse)` and otherwise free addresses.
 fn hits_from_text(text: &str) -> Vec<WebHit> {
     let mut hits: Vec<WebHit> = Vec::new();
     for line in text.lines() {
@@ -160,8 +160,8 @@ fn hits_from_text(text: &str) -> Vec<WebHit> {
     hits
 }
 
-/// Treffer aus einer Antwort von `web_search` (nur http(s)-Adressen, ohne Doppelte). Weder Liste noch
-/// Adresse noch Text → [`RagError::Schema`].
+/// Hits from an answer of `web_search` (only http(s) addresses, without duplicates). Neither list nor
+/// address nor text → [`RagError::Schema`].
 pub fn parse_hits(result: &Value) -> Result<Vec<WebHit>, RagError> {
     if let Some(list) = tool_payload(result).as_ref().and_then(|p| list_in(p, 1).cloned()) {
         let mut hits: Vec<WebHit> = Vec::new();
@@ -192,7 +192,7 @@ pub fn parse_hits(result: &Value) -> Result<Vec<WebHit>, RagError> {
     Ok(hits_from_text(&text))
 }
 
-/// Treffer anhängen (ohne Doppelte, höchstens [`MAX_HITS`]); gibt zurück, ob noch Platz ist.
+/// Append hits (without duplicates, at most [`MAX_HITS`]); returns whether there is still room.
 fn add_hits(research: &mut Research, found: Vec<WebHit>, hosts: &[String]) -> bool {
     for mut hit in found {
         if research.hits.len() >= MAX_HITS {
@@ -207,13 +207,13 @@ fn add_hits(research: &mut Research, found: Vec<WebHit>, hosts: &[String]) -> bo
     research.hits.len() < MAX_HITS
 }
 
-/// Kurzform eines Fehlers für einen Hinweis (eine Zeile, ohne Token – das hat die Sitzung schon entfernt).
+/// Short form of an error for a note (one line, without token – the session has already removed that).
 pub(crate) fn reason(e: &RagError) -> String {
     clean_line(e.message(), 200)
 }
 
-/// Websuche (siehe Moduldoku). Scheitert sie als Ganzes, steht der Grund in [`Research::failure`];
-/// abgerufene Seiten bleiben auch nach dem Zeitlimit erhalten.
+/// Web search (see the module documentation). If it fails as a whole, the reason is in [`Research::failure`];
+/// retrieved pages are kept even after the time limit.
 pub async fn research(state: &AppState, query: &str) -> Research {
     let mut out = Research { query: query_line(query), ..Research::default() };
     if out.query.is_empty() {
@@ -242,7 +242,7 @@ pub async fn research(state: &AppState, query: &str) -> Research {
     out
 }
 
-/// Der eigentliche Ablauf; schreibt Treffer, Seiten und Hinweise sofort nach `out`.
+/// The actual sequence; writes hits, pages and notes to `out` at once.
 async fn run(state: &AppState, hosts: &[String], out: &mut Research) -> Result<(), RagError> {
     let opened = Limits { timeout: SEARCH_LIMITS.timeout, max_body: FETCH_LIMITS.max_body };
     let mut session = Session::open(state, opened).await?;
@@ -258,7 +258,7 @@ async fn run(state: &AppState, hosts: &[String], out: &mut Research) -> Result<(
     Ok(())
 }
 
-/// `exceptions`: Rechner, die der Filter [`super::fetch::fetch_allowed`] durchlässt (nur in Tests gesetzt).
+/// `exceptions`: hosts the filter [`super::fetch::fetch_allowed`] lets through (set only in tests).
 async fn gather(
     session: &mut Session,
     hosts: &[String],
@@ -293,9 +293,9 @@ async fn gather(
             Err(e) => out.notes.push(format!("Hinweis: allgemeine Suche ausgefallen ({})", reason(&e))),
         }
     }
-    // Runde 23: Adressen, die nach ihrem Wortlaut ins eigene Netz zeigen, gehen nicht an `fetch_url`
-    // (MultiGPT riefe sie im Intranet ab). Der Treffer bleibt ein Treffer, nur ohne Abruf und mit Hinweis;
-    // er verbraucht keinen der Abrufe.
+    // Round 23: addresses that by their wording point into the own network do not go to `fetch_url`
+    // (MultiGPT would retrieve them in the intranet). The hit stays a hit, only without retrieval and with a note;
+    // it uses up none of the retrievals.
     let mut wanted: Vec<WebHit> = Vec::new();
     for hit in &out.hits {
         match super::fetch::fetch_allowed_with(&hit.url, exceptions) {
@@ -361,7 +361,7 @@ mod tests {
         );
         assert!(host_matches("lichtkunde.example", "lichtkunde.example"), "gleicher Rechner");
         assert!(host_matches("blog.lichtkunde.example", "lichtkunde.example"), "Unterrechner zählt");
-        // Begründung: Ein Rechner, der nur so endet, ist eine fremde Seite (Täuschung über den Namen).
+        // Reason: a host that merely ends like this is a foreign site (deception through the name).
         assert!(!host_matches("falschlichtkunde.example", "lichtkunde.example"), "kein bloßes Endstück");
         assert_eq!(host_of("javascript:alert(1)"), None, "nur http(s)");
     }

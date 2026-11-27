@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Baruch → MultiGPT: je Werk mit Schalter „nach MultiGPT hochladen“ ein Dokument je Kapitel in die
-//! festgehaltene Sammlung. Ein Kapitel ist ein Gliederungspunkt der Art Kapitel samt allen folgenden
-//! Abschnitten bis zum nächsten Kapitel bzw. Teil; ein Teil ist ein eigenes Dokument (nur sein Text), ebenso
-//! Abschnitte vor dem ersten Kapitel. Text = aktuelle Fassungen in Gliederungsreihenfolge, Titel
-//! „<Nummer> <Titel>“, Kennung `work:<W>/key:<K>` (fester Schlüssel des ersten Punkts), Hash über Titel und
-//! Text ([`baruch_store::sync_hash`]).
+//! Baruch → MultiGPT: per work with the switch „nach MultiGPT hochladen“ one document per chapter into the
+//! recorded collection. A chapter is an outline item of the kind chapter together with all following
+//! sections up to the next chapter or part; a part is a document of its own (only its text), as are
+//! sections before the first chapter. Text = current revisions in outline order, title
+//! „<Nummer> <Titel>“, identifier `work:<W>/key:<K>` (fixed key of the first item), hash over title and
+//! text ([`baruch_store::sync_hash`]).
 //!
-//! Geändert → erst neu hochladen, dann das alte Dokument löschen (so fehlt der Stand bei MultiGPT nie);
-//! scheitert das Löschen, bleibt die alte ID als eigener Stand und wird im nächsten Lauf erneut gelöscht.
-//! Fehlendes Kapitel → Dokument löschen. Dokumente gelöschter Werke → löschen.
+//! Changed → first upload anew, then delete the old document (this way the state at MultiGPT is never missing);
+//! if the deletion fails, the old ID stays as a state of its own and is deleted again in the next run.
+//! Missing chapter → delete the document. Documents of deleted works → delete.
 //!
-//! Härtung (Runde 19a):
-//! - Ein Rechte-, Transport- oder Schemafehler (etwa HTTP 403 bzw. `isError` mit „docs.write“) beendet das
-//!   Schreiben für diesen Lauf: Hinweis, `ok = 0`, lokal bleibt alles, der Rest kommt beim nächsten Lauf. Ein
-//!   `isError` der Gegenstelle für **ein** Dokument (etwa ein leeres Kapitel) blockiert nur dieses.
-//! - Nennt `upload_document` keine Dokument-ID, gibt es einen Hinweis und einen Sperrvermerk (Stand mit Hash,
-//!   `remote_id` leer): Derselbe Inhalt geht nicht bei jedem Lauf erneut hinaus.
-//! - Vor jedem Hochladen steht die Marke [`UPLOADING`] im Stand; bricht der Lauf zwischen Hochladen und Stand
-//!   ab (Antwort verloren), meldet der nächste Lauf, dass das Kapitel bei MultiGPT doppelt liegen kann.
+//! Hardening (Round 19a):
+//! - A rights, transport or schema error (such as HTTP 403 or `isError` with "docs.write") ends the
+//!   writing for this run: note, `ok = 0`, locally everything stays, the rest comes with the next run. An
+//!   `isError` of the remote side for **one** document (such as an empty chapter) blocks only this one.
+//! - If `upload_document` names no document ID, there is a note and a lock note (state with hash,
+//!   `remote_id` empty): the same content does not go out again with every run.
+//! - Before every upload the mark [`UPLOADING`] stands in the state; if the run aborts between upload and state
+//!   (answer lost), the next run reports that the chapter can lie twice at MultiGPT.
 
 use std::collections::HashSet;
 
@@ -29,7 +29,7 @@ use super::args::{CONTENT_KEYS, Filler, MIME_KEYS, TITLE_KEYS, uploaded_id};
 use super::{Link, Report, why};
 use crate::connections::multigpt::{DELETE_TOOL, UPLOAD_TOOL};
 
-/// Ein Kapitel als Dokument.
+/// A chapter as a document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Chapter {
     pub item: String,
@@ -39,7 +39,7 @@ pub(crate) struct Chapter {
     pub hash: String,
 }
 
-/// Kapitel eines Werks (siehe Modulkopf).
+/// Chapters of a work (see the module header).
 pub(crate) fn chapters(work: WorkId, loaded: &Work) -> Vec<Chapter> {
     let mut out: Vec<(i64, String, Vec<String>)> = Vec::new();
     for node in &loaded.nodes {
@@ -72,23 +72,23 @@ pub(crate) fn chapters(work: WorkId, loaded: &Work) -> Vec<Chapter> {
         .collect()
 }
 
-/// Kennung eines noch zu löschenden alten Dokuments eines Kapitels: beginnt wie die Kennung des Kapitels
-/// (`work:<W>/…`), gehört aber zu keinem Kapitel – der Lauf löscht es darum wie ein fehlendes Kapitel.
+/// Identifier of an old document of a chapter that is still to be deleted: begins like the identifier of the
+/// chapter (`work:<W>/…`), but belongs to no chapter – the run therefore deletes it like a missing chapter.
 fn stale_item(item: &str, old: &str) -> String {
     format!("{item}/stale:{old}")
 }
 
-/// Dateiname für Schemas, die `filename` statt `title` verlangen.
+/// File name for schemas that require `filename` instead of `title`.
 fn file_name(title: &str) -> String {
     let base: String =
         title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
     format!("{}.md", base.trim())
 }
 
-/// Marke in `sync_state.remote_stamp` (Seite `baruch`): Hochladen begonnen, Ergebnis noch nicht festgehalten.
+/// Mark in `sync_state.remote_stamp` (side `baruch`): upload begun, result not recorded yet.
 pub(crate) const UPLOADING: &str = "hochladen-begonnen";
 
-/// Ein Dokument hochladen; liefert seine neue ID (`None`, wenn die Antwort keine nennt).
+/// Upload a document; returns its new ID (`None` if the answer names none).
 async fn put(link: &mut Link, collection: &str, chapter: &Chapter) -> Result<Option<String>, RagError> {
     let session = link.session().await?;
     let schema = session.schema(UPLOAD_TOOL).ok_or_else(|| {
@@ -111,7 +111,7 @@ async fn put(link: &mut Link, collection: &str, chapter: &Chapter) -> Result<Opt
     Ok(uploaded_id(&result))
 }
 
-/// Ein Dokument löschen.
+/// Delete a document.
 async fn remove(link: &mut Link, collection: &str, remote_id: &str) -> Result<(), RagError> {
     let session = link.session().await?;
     let schema = session.schema(DELETE_TOOL).ok_or_else(|| {
@@ -121,30 +121,30 @@ async fn remove(link: &mut Link, collection: &str, remote_id: &str) -> Result<()
     if !f.document(remote_id) {
         return Err(RagError::Schema(format!("{DELETE_TOOL} nennt im inputSchema keinen Parameter für das Dokument.")));
     }
-    // Manche Schemas verlangen die Sammlung dazu; ohne `properties` genügt das Dokument.
+    // Some schemas require the collection as well; without `properties` the document is enough.
     if schema.get("properties").is_some() {
         f.collection(collection);
     }
     session.call(DELETE_TOOL, f.finish()?, None).await.map(|_| ())
 }
 
-/// Schreibender Teil eines Laufs.
+/// Writing part of a run.
 struct Writer<'a> {
     store: &'a Store,
     link: &'a mut Link,
     report: &'a mut Report,
-    /// Nach einem Rechte- oder Transportfehler: nichts mehr schreiben (Grund steht schon im Bericht).
+    /// After a rights or transport error: write nothing more (the reason is already in the report).
     blocked: bool,
 }
 
-/// Spricht ein `isError` der Gegenstelle von fehlenden Rechten? Dann gilt es für jedes Dokument (Annahme über
-/// die Texte von MultiGPT, siehe `docs/Architektur.md`, Abschnitt „Abgleich“).
+/// Does an `isError` of the remote side speak of missing rights? Then it applies to every document (assumption
+/// about the texts of MultiGPT, see `docs/Architektur.md`, section „Abgleich“).
 fn rights_text(message: &str) -> bool {
     let lower = message.to_lowercase();
     RIGHTS_WORDS.iter().any(|w| lower.contains(w))
 }
 
-/// Wörter, an denen Baruch ein Rechteproblem in einem `isError` erkennt.
+/// Words by which Baruch recognises a rights problem in an `isError`.
 const RIGHTS_WORDS: &[&str] = &[
     "berechtigung",
     "permission",
@@ -162,9 +162,9 @@ const RIGHTS_WORDS: &[&str] = &[
 ];
 
 impl Writer<'_> {
-    /// Blockiert dieser Fehler die übrigen Schreibvorgänge des Laufs? Ja bei Rechte-, Transport-, Schema- und
-    /// Protokollfehlern; nein bei einem `isError` der Gegenstelle für genau dieses Dokument (etwa ein leeres
-    /// Kapitel): Die Sitzung ist heil, die Antwort kam vollständig an, und der Text nennt keine Rechte.
+    /// Does this error block the other write operations of the run? Yes for rights, transport, schema and
+    /// protocol errors; no for an `isError` of the remote side for exactly this document (such as an empty
+    /// chapter): the session is intact, the answer arrived completely, and the text names no rights.
     fn blocks(&self, e: &RagError) -> bool {
         match e {
             RagError::Failed(m) => !self.link.answered() || rights_text(m),
@@ -190,8 +190,8 @@ impl Writer<'_> {
         self.report.problem(self.link, format!("Speicher: {e}"));
     }
 
-    /// Stand eines Kapitels zurücksetzen (nach einem Fehler, bei dem sicher nichts bei MultiGPT ankam): der
-    /// vorige Stand bzw. gar keiner.
+    /// Reset the state of a chapter (after an error where certainly nothing arrived at MultiGPT): the
+    /// previous state or none at all.
     async fn restore(&mut self, collection: &str, item: &str, known: Option<&SyncState>) {
         let restored = match known {
             Some(previous) => self.store.sync_state_put(previous).await,
@@ -202,7 +202,7 @@ impl Writer<'_> {
         }
     }
 
-    /// Ein Werk abgleichen.
+    /// Reconcile one work.
     async fn work(&mut self, work: WorkId, collection: &str) {
         let loaded = match self.store.load_work(work).await {
             Ok(loaded) => loaded,
@@ -229,7 +229,7 @@ impl Writer<'_> {
         }
     }
 
-    /// Ein Kapitel abgleichen (siehe Modulkopf).
+    /// Reconcile one chapter (see the module header).
     async fn chapter(&mut self, work: WorkId, collection: &str, chapter: &Chapter, known: Option<&SyncState>) {
         if let Some(marker) = known.filter(|s| s.remote_stamp == UPLOADING) {
             self.report.note(
@@ -241,7 +241,7 @@ impl Writer<'_> {
                 ),
             );
         }
-        // Vermerk ohne Hochladen-Marke: der Stand, wie er vor dem abgebrochenen Lauf war.
+        // Record without the upload mark: the state as it was before the aborted run.
         let known_clean = known.map(|s| SyncState { remote_stamp: String::new(), ..s.clone() });
         if known_clean.as_ref().is_some_and(|s| s.hash == chapter.hash) {
             if known.is_some_and(|s| s.remote_stamp == UPLOADING) {
@@ -253,8 +253,8 @@ impl Writer<'_> {
         if let Err(e) = self.link.session().await {
             return self.fail(&format!("Hochladen von „{}“", chapter.title), &e);
         }
-        // Marke vor dem Hochladen: Bricht der Lauf zwischen Hochladen und Stand ab (Antwort verloren, Absturz),
-        // weiß der nächste Lauf davon und sagt es (das Dokument kann bei MultiGPT dann doppelt liegen).
+        // Mark before uploading: if the run aborts between upload and state (answer lost, crash),
+        // the next run knows about it and says so (the document can then lie twice at MultiGPT).
         let mut marker = SyncState {
             side: SyncSide::Baruch,
             collection: collection.to_owned(),
@@ -273,8 +273,8 @@ impl Writer<'_> {
         let remote_id = match put(self.link, collection, chapter).await {
             Ok(id) => id,
             Err(e) => {
-                // Sicher nicht angekommen (Ablehnung, Schema, keine Verbindung): Marke zurücknehmen. Bei
-                // Zeitüberschreitung oder abgerissener Antwort bleibt sie stehen (womöglich schon hochgeladen).
+                // Certainly not arrived (rejection, schema, no connection): take the mark back. On a
+                // timeout or a torn-off answer it stays (possibly already uploaded).
                 let lost =
                     matches!(e, RagError::Timeout(_)) || (matches!(e, RagError::Failed(_)) && !self.link.answered());
                 if !lost {
@@ -304,15 +304,16 @@ impl Writer<'_> {
             );
         }
         let remote_id = remote_id.unwrap_or_default();
-        // Sperrvermerk auch ohne ID: Stand mit Hash, damit derselbe Inhalt nicht bei jedem Lauf erneut hochgeht.
+        // Lock note also without an ID: state with hash, so that the same content is not uploaded again with every
+        // run.
         marker.remote_id = remote_id.clone();
         marker.hash = chapter.hash.clone();
         marker.remote_stamp = String::new();
         let state = marker;
-        // Erst den neuen Stand festhalten, dann das alte Dokument löschen: Scheitert das Löschen, zeigt
-        // der Stand schon auf das neue Dokument, und die alte ID bleibt als eigener Stand (`stale_item`)
-        // stehen; der nächste Lauf löscht sie wie ein fehlendes Kapitel (sonst läge das Kapitel für immer
-        // doppelt in der Sammlung).
+        // First record the new state, then delete the old document: if the deletion fails, the
+        // state already points to the new document, and the old ID stays as a state of its own (`stale_item`);
+        // the next run deletes it like a missing chapter (otherwise the chapter would lie twice in the
+        // collection for ever).
         if let Err(e) = self.store.sync_state_put(&state).await {
             return self.store_fail(e).await;
         }
@@ -339,7 +340,7 @@ impl Writer<'_> {
         }
     }
 
-    /// Dokument eines fehlenden Kapitels (bzw. gelöschten Werks) löschen und den Stand entfernen.
+    /// Delete the document of a missing chapter (or of a deleted work) and remove the state.
     async fn drop_state(&mut self, gone: &SyncState) {
         if !gone.remote_id.is_empty()
             && let Err(e) = remove(self.link, &gone.collection, &gone.remote_id).await
@@ -353,7 +354,7 @@ impl Writer<'_> {
     }
 }
 
-/// Baruch → MultiGPT für alle Werke mit Schalter; danach Dokumente gelöschter Werke aufräumen.
+/// Baruch → MultiGPT for all works with the switch; afterwards clean up documents of deleted works.
 pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report) {
     let works = match store.sync_works().await {
         Ok(works) => works,

@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Textarten eines Abschnittstexts und Treffer darin (Runde 30a).
+//! Text kinds of a section text and hits in it (Round 30a).
 //!
-//! [`classify`] ordnet jedem Byte eine [`TextKind`] zu:
-//! - **heading**: Titel einer Überschriftszeile (`= Titel`, bei den Markierungen Teil/„ohne Nummer“ der Titel im
-//!   Inhaltsblock); die `=`, Labels und Kommentare der Zeile sind Code;
-//! - **footnote**: Inhalt von `#footnote[…]`;
-//! - **quote**: Zitate nach `crate::quotes::quote_spans` (Anführungszeichen, `#quote[…]`, Blockzitate) – überdeckt
-//!   Text, Überschrift und Fußnote;
-//! - **code**: Typst-Code: `#name`, Argumente `(…)`, Schlüsselwortzeilen (`#let`, `#set`, `#show` …), Raw, Formeln,
-//!   Kommentare, Labels `<…>`, Verweise `@…`, Maskierungs-Backslashes nicht (sie gehören zum Zeichen);
-//! - **text**: alles andere, auch der Inhalt von Inhaltsblöcken wie `#emph[…]`, `#szene[…]`, `#link(<k5>)[…]`.
+//! [`classify`] assigns a [`TextKind`] to every byte:
+//! - **heading**: title of a heading line (`= Titel`, for the markers part/„ohne Nummer“ the title in the
+//!   content block); the `=`, labels and comments of the line are code;
+//! - **footnote**: content of `#footnote[…]`;
+//! - **quote**: quotations according to `crate::quotes::quote_spans` (quotation marks, `#quote[…]`, block
+//!   quotations) – covers text, heading and footnote;
+//! - **code**: Typst code: `#name`, arguments `(…)`, keyword lines (`#let`, `#set`, `#show` …), raw, formulas,
+//!   comments, labels `<…>`, references `@…`, escaping backslashes not (they belong to the character);
+//! - **text**: everything else, also the content of content blocks such as `#emph[…]`, `#szene[…]`,
+//!   `#link(<k5>)[…]`.
 //!
-//! Gesucht wird im Typst-Quelltext. Im Wortlaut-Modus findet ein Typst-Sonderzeichen der Suche auch seine
-//! maskierte Form (`#` findet `\#`), und der Ersatz wird für Typst maskiert ([`escape_literal`]).
+//! The search runs in the Typst source text. In the literal mode a Typst special character of the search also
+//! finds its escaped form (`#` finds `\#`), and the replacement is escaped for Typst ([`escape_literal`]).
 
 use std::ops::Range;
 use std::time::Instant;
@@ -21,10 +22,10 @@ use regex::Regex;
 
 use super::TextKind;
 
-/// Zeichen, die im Fließtext von Typst eine Bedeutung haben und im Wortlaut-Modus maskiert werden.
+/// Characters that have a meaning in the running text of Typst and are escaped in the literal mode.
 const SPECIAL: &[char] = &['\\', '#', '*', '_', '$', '@', '<', '>', '[', ']', '`', '~'];
 
-/// Rang einer Textart für Treffer über mehrere Arten: die strengste zählt.
+/// Rank of a text kind for hits across several kinds: the strictest counts.
 fn rank(kind: TextKind) -> u8 {
     match kind {
         TextKind::Text => 0,
@@ -35,7 +36,7 @@ fn rank(kind: TextKind) -> u8 {
     }
 }
 
-/// Textart je Byte von `text`.
+/// Text kind per byte of `text`.
 pub fn classify(text: &str) -> Vec<TextKind> {
     let mut kinds = vec![TextKind::Text; text.len()];
     let mut scanner = Scanner { s: text, kinds: &mut kinds };
@@ -51,7 +52,7 @@ pub fn classify(text: &str) -> Vec<TextKind> {
     kinds
 }
 
-/// Textart eines Treffers `range`: die strengste Art seiner Bytes.
+/// Text kind of a hit `range`: the strictest kind of its bytes.
 pub fn kind_of(kinds: &[TextKind], range: &Range<usize>) -> TextKind {
     kinds[range.start..range.end.min(kinds.len())].iter().copied().max_by_key(|k| rank(*k)).unwrap_or(TextKind::Text)
 }
@@ -69,11 +70,11 @@ impl Scanner<'_> {
         }
     }
 
-    /// Zeilenweise: Überschriftszeilen und Markierungen, sonst Markup.
+    /// Line by line: heading lines and markers, otherwise markup.
     fn lines(&mut self) {
         let s = self.s;
         let mut at = 0;
-        // Raw-Blöcke über Zeilen: ``` am Zeilenanfang öffnet und schließt.
+        // Raw blocks across lines: ``` at the start of a line opens and closes.
         let mut in_raw = false;
         while at < s.len() {
             let end = s[at..].find('\n').map_or(s.len(), |n| at + n + 1);
@@ -91,7 +92,7 @@ impl Scanner<'_> {
                 self.mark(at..end, TextKind::Code);
                 self.markup(at + title.start, at + title.end, TextKind::Heading);
             } else {
-                // Ein Ausdruck (`#szene[…]`) kann über die Zeile hinaus reichen: dann geht es dahinter weiter.
+                // An expression (`#szene[…]`) can reach beyond the line: then it goes on behind it.
                 at = self.markup(at, end, TextKind::Text).max(end);
                 continue;
             }
@@ -99,8 +100,8 @@ impl Scanner<'_> {
         }
     }
 
-    /// Markup von `start` bis `end` mit Grundart `base`; gibt zurück, bis wohin gelesen wurde (ein Ausdruck kann
-    /// über `end` hinaus reichen).
+    /// Markup from `start` to `end` with the base kind `base`; returns how far was read (an expression can
+    /// reach beyond `end`).
     fn markup(&mut self, start: usize, end: usize, base: TextKind) -> usize {
         let s = self.s;
         let bytes = s.as_bytes();
@@ -154,8 +155,8 @@ impl Scanner<'_> {
         i
     }
 
-    /// Ausdruck ab `#` bei `at`: Name und Argumente sind Code, Inhaltsblöcke Markup (bei `#footnote` Fußnote).
-    /// Schlüsselwörter (`#let`, `#set`, `#show`, `#import` …) machen den Rest der Zeile zu Code.
+    /// Expression from `#` at `at`: name and arguments are code, content blocks markup (for `#footnote` footnote).
+    /// Keywords (`#let`, `#set`, `#show`, `#import` …) turn the rest of the line into code.
     fn hash(&mut self, at: usize, base: TextKind) -> usize {
         let s = self.s;
         let name_end = at
@@ -170,7 +171,7 @@ impl Scanner<'_> {
         }
         if matches!(name, "let" | "set" | "show" | "import" | "include" | "if" | "for" | "while" | "context" | "return")
         {
-            // Bis zum Zeilenende bzw. bis die Klammern schließen.
+            // Up to the end of the line or until the brackets close.
             let close = group_end(s, at);
             self.mark(at..close, TextKind::Code);
             return close;
@@ -199,12 +200,12 @@ impl Scanner<'_> {
     }
 }
 
-/// Zeichen eines Labels bzw. Verweisziels (wie Typst).
+/// Character of a label or reference target (as in Typst).
 fn is_label_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '-' | ':' | '.')
 }
 
-/// Ende (hinter `>`) eines Labels `<name>` ab `at`, sonst `None`.
+/// End (behind `>`) of a label `<name>` from `at`, else `None`.
 fn label_end(s: &str, at: usize) -> Option<usize> {
     let rest = &s[at + 1..];
     let close = rest.find('>')?;
@@ -212,7 +213,7 @@ fn label_end(s: &str, at: usize) -> Option<usize> {
     (!name.is_empty() && name.chars().all(is_label_char)).then_some(at + 1 + close + 1)
 }
 
-/// Passende schließende Klammer zu `open` bei `at` (Strings und Maskierungen übersprungen); Ende hinter ihr.
+/// Matching closing bracket for `open` at `at` (strings and escapes skipped); end behind it.
 fn matching(s: &str, at: usize, open: u8, close: u8) -> Option<usize> {
     let bytes = s.as_bytes();
     let mut depth = 0usize;
@@ -243,7 +244,7 @@ fn matching(s: &str, at: usize, open: u8, close: u8) -> Option<usize> {
     None
 }
 
-/// Ende eines Schlüsselwort-Ausdrucks: Zeilenende außerhalb von Klammern (bzw. Textende).
+/// End of a keyword expression: end of the line outside of brackets (or end of the text).
 fn group_end(s: &str, at: usize) -> usize {
     let bytes = s.as_bytes();
     let mut depth = 0i32;
@@ -271,8 +272,8 @@ fn group_end(s: &str, at: usize) -> usize {
     s.len()
 }
 
-/// Titelbereich (Bytes in der Zeile) einer Überschriftszeile: `= Titel` (ohne Label und Kommentar) bzw. der
-/// Inhaltsblock einer Markierung (Teil, „ohne Nummer“). Keine Überschrift → `None`.
+/// Title range (bytes in the line) of a heading line: `= Titel` (without label and comment) or the
+/// content block of a marker (part, „ohne Nummer“). No heading → `None`.
 pub fn heading_title(line: &str) -> Option<Range<usize>> {
     let content = line.trim_end_matches(['\n', '\r']);
     let doc = baruch_typst::parse(content).ok()?;
@@ -290,8 +291,8 @@ pub fn heading_title(line: &str) -> Option<Range<usize>> {
     Some(title_at..title_at + heading.raw_title.len())
 }
 
-/// Für Typst maskierter Wortlaut (Ersatz im Wortlaut-Modus): Sonderzeichen bekommen einen Backslash, ebenso ein
-/// `/` vor `/` oder `*` (sonst begänne ein Kommentar). Anders als `escape_title` ohne Trimmen.
+/// Literal text escaped for Typst (replacement in the literal mode): special characters get a backslash, as does
+/// a `/` before `/` or `*` (otherwise a comment would begin). Unlike `escape_title` without trimming.
 pub fn escape_literal(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len() + 4);
@@ -305,7 +306,7 @@ pub fn escape_literal(text: &str) -> String {
     out
 }
 
-/// Optionen eines Suchmusters.
+/// Options of a search pattern.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PatternOptions {
     pub case: bool,
@@ -313,12 +314,12 @@ pub struct PatternOptions {
     pub regex: bool,
 }
 
-/// Größengrenzen des Crates `regex` (Vertrag §3.1).
+/// Size limits of the crate `regex` (contract §3.1).
 const SIZE_LIMIT: usize = 1 << 20;
 const DFA_SIZE_LIMIT: usize = 1 << 22;
 
-/// Muster aus der Suche bauen. Wortlaut: jedes Typst-Sonderzeichen findet auch seine maskierte Form; ganzes Wort:
-/// `\b` an den Rändern, die mit einem Wortzeichen beginnen bzw. enden. Fehler (ungültig, zu groß) → Meldung.
+/// Build the pattern from the search. Literal: every Typst special character also finds its escaped form; whole
+/// word: `\b` at the edges that begin or end with a word character. Error (invalid, too large) → message.
 pub fn pattern(q: &str, options: PatternOptions) -> Result<Regex, String> {
     let core = if options.regex {
         format!("(?:{q})")
@@ -349,7 +350,7 @@ pub fn pattern(q: &str, options: PatternOptions) -> Result<Regex, String> {
         })
 }
 
-/// Ein Treffer in einem Text: Bytebereich, Art und (im Regex-Modus) der Ersatz mit eingesetzten Gruppen.
+/// A hit in a text: byte range, kind and (in the regex mode) the replacement with the groups inserted.
 #[derive(Debug, Clone)]
 pub struct Found {
     pub range: Range<usize>,
@@ -357,21 +358,22 @@ pub struct Found {
     pub replacement: Option<String>,
 }
 
-/// Warum [`find_in`] vor dem Ende des Texts aufhörte.
+/// Why [`find_in`] stopped before the end of the text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stop {
-    /// Durchgelaufen.
+    /// Ran through.
     Done,
-    /// Zeit abgelaufen (`deadline`).
+    /// Time expired (`deadline`).
     Late,
-    /// Die eingesetzten Ersatztexte überschritten das Budget (Bytes).
+    /// The inserted replacement texts exceeded the budget (bytes).
     Budget,
 }
 
-/// Treffer von `re` in `text` innerhalb von `window` (Bytes), nur Arten aus `kinds`; leere Treffer zählen nicht.
-/// `replacement`: Ersatz je Treffer (Regex: `$1`/`${name}` eingesetzt; Wortlaut: maskiert). Bricht nach `deadline`
-/// ab ([`Stop::Late`]) und sobald die eingesetzten Ersatztexte zusammen mehr als `budget` Bytes brauchen
-/// ([`Stop::Budget`]; `budget` wird um jeden Ersatz verringert) – sonst wüchse der Speicher mit Treffern × Ersatz.
+/// Hits of `re` in `text` within `window` (bytes), only kinds from `kinds`; empty hits do not count.
+/// `replacement`: replacement per hit (regex: `$1`/`${name}` inserted; literal: escaped). Aborts after `deadline`
+/// ([`Stop::Late`]) and as soon as the inserted replacement texts together need more than `budget` bytes
+/// ([`Stop::Budget`]; `budget` is reduced by every replacement) – otherwise the memory would grow with
+/// hits × replacement.
 pub fn find_in(
     text: &str,
     re: &Regex,
@@ -405,7 +407,7 @@ pub fn find_in(
                 escape_literal(r)
             }
         });
-        // Auch ein leerer Ersatz zählt mit (je Treffer ein Byte), damit die Zahl der Treffer begrenzt bleibt.
+        // An empty replacement counts as well (one byte per hit), so that the number of hits stays limited.
         let cost = replacement.as_ref().map_or(0, |r| r.len().max(1));
         if cost > *budget {
             return (out, Stop::Budget);
@@ -416,7 +418,7 @@ pub fn find_in(
     (out, Stop::Done)
 }
 
-/// Text mit allen Ersetzungen aus `found` (aufsteigend, ohne Überlappung), außer den Stellen in `skip`.
+/// Text with all replacements from `found` (ascending, without overlap), except the positions in `skip`.
 pub fn apply(text: &str, found: &[Found], skip: &[usize]) -> String {
     let mut out = String::with_capacity(text.len());
     let mut at = 0;
@@ -433,12 +435,12 @@ pub fn apply(text: &str, found: &[Found], skip: &[usize]) -> String {
     out
 }
 
-/// UTF-16-Stelle des Bytes `byte` in `text`.
+/// UTF-16 position of the byte `byte` in `text`.
 pub fn utf16_at(text: &str, byte: usize) -> usize {
     text[..byte.min(text.len())].encode_utf16().count()
 }
 
-/// Byte der UTF-16-Stelle `unit` in `text` (auf eine Zeichengrenze gerundet, höchstens das Ende).
+/// Byte of the UTF-16 position `unit` in `text` (rounded to a character boundary, at most the end).
 pub fn byte_at_utf16(text: &str, unit: usize) -> usize {
     let mut units = 0;
     for (i, c) in text.char_indices() {
