@@ -1,48 +1,48 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungsseite „Werk“: Metadaten und Werkvorlage (Formularteil von `work_edit.html`) und das
-//! Gliederungsschema (Formularteil von `work_numbering.html`) des gewählten Werks. Kein kopiertes
-//! Formular: Beide Blöcke kommen mit demselben Kontextaufbau wie `/werke/{id}/bearbeiten` bzw.
+//! Settings page „Werk“: metadata and work template (form part of `work_edit.html`) and the
+//! outline scheme (form part of `work_numbering.html`) of the chosen work. No copied
+//! form: both blocks come with the same context construction as `/werke/{id}/bearbeiten` and
 //! `/werke/{id}/nummerierung` ([`crate::works::edit_context`], [`crate::numbering::page_context`]);
-//! die Formulare tragen zusätzlich `back=/einstellungen/werk?work=W`, damit `POST /werke/act` und
-//! `POST /werke/nummerierung/act` nach Erfolg hierher zurückführen.
+//! the forms additionally carry `back=/einstellungen/werk?work=W`, so that `POST /werke/act` and
+//! `POST /werke/nummerierung/act` lead back here after success.
 //!
-//! Runde 11 (Aufgabe cover): dazu die Gruppen „Buchangaben“ und „Umschlag“ aus [`crate::cover`]
-//! (Formulare an `POST /werke/buchangaben/act` und `/werke/umschlag/act`, Rücksprung mit `ok=buchangaben`
-//! bzw. `ok=umschlag`).
+//! Round 11 (task cover): plus the groups „Buchangaben“ and „Umschlag“ from [`crate::cover`]
+//! (forms to `POST /werke/buchangaben/act` and `/werke/umschlag/act`, return with `ok=buchangaben`
+//! or `ok=umschlag`).
 //!
-//! Runde 13 (Aufgabe abgleich): dazu der Schalter „nach MultiGPT hochladen“ (Vorgabe aus, Einschalten nur
-//! mit Pflicht-Kontrollkästchen), Formular an `POST /abgleich/act` mit `action=upload` und
-//! `back=/einstellungen/werk?work=W` (Rücksprung mit `ok=hochladen_an` bzw. `ok=hochladen_aus`). Kein Netz.
+//! Round 13 (task abgleich): plus the switch „nach MultiGPT hochladen“ (default off, switching on only
+//! with a mandatory checkbox), form to `POST /abgleich/act` with `action=upload` and
+//! `back=/einstellungen/werk?work=W` (return with `ok=hochladen_an` or `ok=hochladen_aus`). No network.
 //!
-//! Runde 15 (Punkt 5a): dazu „Kommentare und Lexika“ – Kästchen je SWORD-Kommentar und -Lexikon der
-//! Modulordner (mehrere wählbar), Formular an `POST /einstellungen/werk/bibeln` (`method=bible.set_work_sources`,
-//! wiederholte Felder `commentary` und `lexicon`; Handler in `connections::pages`, Rücksprung `ok=kommentare`
-//! bzw. `kommentarfehler=1`).
+//! Round 15 (item 5a): plus „Kommentare und Lexika“ – a checkbox per SWORD commentary and lexicon of the
+//! module folders (several selectable), form to `POST /einstellungen/werk/bibeln`
+//! (`method=bible.set_work_sources`, repeated fields `commentary` and `lexicon`; handler in
+//! `connections::pages`, return `ok=kommentare` or `kommentarfehler=1`).
 //!
-//! Runde 16b (Zeitwächter): dazu der Block „Predigtzeit“ (`id="zeit"`): Wörter je Minute (60–250, Vorgabe 110)
-//! und Zielzeit in Minuten (1–240, leer = keine), Formular an `POST /einstellungen/werk/zeit`
-//! (`method=work.timing_set`; [`timing_act`], Rücksprung `ok=zeit#zeit` bzw. `zeitfehler=1#zeit`). Die Werte
-//! stehen nur in SQLite (`work_timing`), nicht im Spiegel.
+//! Round 16b (time guard): plus the block „Predigtzeit“ (`id="zeit"`): words per minute (60–250, default 110)
+//! and target time in minutes (1–240, empty = none), form to `POST /einstellungen/werk/zeit`
+//! (`method=work.timing_set`; [`timing_act`], return `ok=zeit#zeit` or `zeitfehler=1#zeit`). The values
+//! are only in SQLite (`work_timing`), not in the mirror.
 //!
-//! Runde 18c (Satzbild je Werk): dazu der Block „Satzbild“ (`id="satzbild"`): Schrift, Schrift der Überschriften,
-//! Schriftgröße, Satzbreite, Text-, Überschriften- und Blattfarbe; leer = aus der Werkvorlage (deren Werte stehen als
-//! Platzhalter da). Formular an `POST /einstellungen/werk/satzbild` (`method=work.sheet_set`; [`sheet_act`],
-//! Rücksprung `ok=satzbild#satzbild` bzw. `satzbildfehler=1#satzbild`). Nur SQLite (`work_sheet`), nicht im Spiegel;
-//! gilt nur für das HTML-Satzbild, nie für Typst, Export oder PDF.
+//! Round 18c (typeset view per work): plus the block „Satzbild“ (`id="satzbild"`): font, font of the headings,
+//! font size, measure, text, heading and sheet colour; empty = from the work template (its values stand there as
+//! placeholders). Form to `POST /einstellungen/werk/satzbild` (`method=work.sheet_set`; [`sheet_act`],
+//! return `ok=satzbild#satzbild` or `satzbildfehler=1#satzbild`). SQLite only (`work_sheet`), not in the mirror;
+//! applies only to the HTML typeset view, never to Typst, export or PDF.
 //!
-//! Runde 27c (Umschlag-Editor): Die Gruppe „Umschlag“ trägt den Knopf „Impressum-Vorlage in die Werkvorlage
-//! übernehmen“ (`POST /werke/umschlag/impressum`, Rücksprung `ok=impressum`, abgelehnt: Meldung bei der Gruppe), die
-//! Buchangaben die Anschriften von Verlag und Druckerei; `ok=anordnung` meldet eine gespeicherte Umschlag-Anordnung.
+//! Round 27c (cover editor): the group „Umschlag“ carries the button „Impressum-Vorlage in die Werkvorlage
+//! übernehmen“ (`POST /werke/umschlag/impressum`, return `ok=impressum`, rejected: message at the group), the
+//! book details the addresses of publisher and printer; `ok=anordnung` reports a stored cover layout.
 //!
-//! Runde 29c (Buchsatz): dazu der Block „Satz“ (`id="satz"`, [`crate::settings::work_typeset`]) direkt nach
-//! „Satzbild“; Rücksprünge `ok=satz`, `ok=satz_zurueck`, `ok=satz_vorlage` (jeweils `#satz`), abgelehnte Formulare und
-//! die Vorschau ohne JavaScript über [`WorkRetry::Typeset`].
+//! Round 29c (book typesetting): plus the block „Satz“ (`id="satz"`, [`crate::settings::work_typeset`]) directly
+//! after „Satzbild“; returns `ok=satz`, `ok=satz_zurueck`, `ok=satz_vorlage` (each `#satz`), rejected forms and
+//! the preview without JavaScript through [`WorkRetry::Typeset`].
 //!
-//! Runde 22 (fassungen): dazu der Block „Fassungen“ (`id="fassungen"`): Fortschreiben an/aus, größte Änderung in
-//! Prozent (1–100, Vorgabe 20) und neue Fassung nach Minuten (0–1440, 0 = keine Zeitgrenze, Vorgabe 30); Formular an
-//! `POST /einstellungen/werk/fassungen` (`method=revision.policy_set`, Handler in [`crate::revisions`]), Rücksprung
-//! `ok=fassungen#fassungen` bzw. `fassungenfehler=1#fassungen`. Nur SQLite (`work_revision_policy`), nicht im
-//! Austauschformat; jede Änderung ist ein Protokoll-Commit im Spiegel.
+//! Round 22 (fassungen): plus the block „Fassungen“ (`id="fassungen"`): amending on/off, largest change in
+//! percent (1–100, default 20) and new revision after minutes (0–1440, 0 = no time limit, default 30); form to
+//! `POST /einstellungen/werk/fassungen` (`method=revision.policy_set`, handler in [`crate::revisions`]), return
+//! `ok=fassungen#fassungen` or `fassungenfehler=1#fassungen`. SQLite only (`work_revision_policy`), not in the
+//! exchange format; every change is a log commit in the mirror.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -58,7 +58,7 @@ use crate::AppState;
 use crate::numbering::Shown;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
-/// Hinweise zu `ok=…` nach einem Rücksprung.
+/// Notes on `ok=…` after a return.
 fn notice(query: &BTreeMap<String, String>) -> (Option<&'static str>, Option<String>) {
     match query.get("ok").map(String::as_str) {
         Some("werk") => (Some("Das Werk ist gespeichert."), None),
@@ -76,7 +76,7 @@ fn notice(query: &BTreeMap<String, String>) -> (Option<&'static str>, Option<Str
             None,
         ),
         Some("hochladen_aus") => (Some("Hochladen nach MultiGPT ist ausgeschaltet."), None),
-        // Runde 29c: Block „Satz“.
+        // Round 29c: block „Satz“.
         Some("satz") => (Some("Die Satz-Einstellungen sind gespeichert."), None),
         Some("satz_zurueck") => {
             (Some("Die Satz-Einstellungen sind zurückgesetzt; es gilt wieder nur die Werkvorlage."), None)
@@ -102,7 +102,7 @@ pub(super) async fn render(
     };
     let back = format!("/einstellungen/werk?work={work}");
     let shown = query.get("vorlage").and_then(|v| v.trim().parse().ok());
-    // Nach einem abgelehnten Formular: dessen Eingabe und Meldung (sonst ginge sie im Popup verloren).
+    // After a rejected form: its input and message (otherwise it would be lost in the popup).
     let (edit_form, edit_error, numbering_retry, book_retry, typeset_retry) = match info.work_retry {
         Some(WorkRetry::Edit { form, error }) => (Some(form), Some(error), None, None, None),
         Some(WorkRetry::Numbering(shown)) => (None, None, Some(shown), None, None),
@@ -126,9 +126,9 @@ pub(super) async fn render(
     let numbering = crate::numbering::page_context(state, work, chosen, Some(&back)).await.map_err(|e| e.message)?;
     let edit_html = super::render_content_block("work_edit.html", edit)?;
     let numbering_html = super::render_content_block("work_numbering.html", numbering)?;
-    // Runde 11: Gruppen „Buchangaben“ und „Umschlag“ (src/cover.rs), nach einem abgelehnten Formular mit Eingabe.
+    // Round 11: groups „Buchangaben“ and „Umschlag“ (src/cover.rs), after a rejected form with the input.
     let (book_html, cover_html) = crate::cover::settings_blocks(state, work, book_retry.as_ref()).await?;
-    // Runde 13: Schalter „nach MultiGPT hochladen“ (aus dem Store, ohne Netz).
+    // Round 13: switch „nach MultiGPT hochladen“ (from the store, without network).
     let switch = state.store.sync_work(work).await.map_err(|e| e.to_string())?;
     let tally = state.store.sync_work_tally(work).await.map_err(|e| e.to_string())?;
     let sync = context! {
@@ -144,7 +144,7 @@ pub(super) async fn render(
         Some("sprache") => Some("Die Werksprache ist gespeichert."),
         Some("satzbild") => Some("Die Satzbild-Einstellungen sind gespeichert."),
         Some("fassungen") => Some("Die Einstellung „Fassungen“ ist gespeichert."),
-        // 0.9.0: ältere Fassungen werkweit ausblenden bzw. alle wieder zeigen (src/revision_fold.rs).
+        // 0.9.0: hide older revisions work-wide or show all again (src/revision_fold.rs).
         Some("ausgeblendet") => Some("Ältere Fassungen sind ausgeblendet (nichts gelöscht)."),
         Some("eingeblendet") => Some("Alle Fassungen werden wieder gezeigt."),
         _ => None,
@@ -153,7 +153,7 @@ pub(super) async fn render(
     let language = language_context(state, work, query).await?;
     let sheet = sheet_context(state, work, query).await?;
     let revisions = revisions_context(state, work, query).await?;
-    // Runde 29c: Block „Satz“ (fertiges HTML aus settings/work_typeset.rs).
+    // Round 29c: block „Satz“ (finished HTML from settings/work_typeset.rs).
     let typeset = crate::settings::work_typeset::block(state, work, query, typeset_retry.as_ref()).await?;
     super::render_template(
         "settings/werk.html",
@@ -165,8 +165,8 @@ pub(super) async fn render(
     )
 }
 
-/// Runde 15 (Punkt 5a): Kommentare und Lexika des Werks zur Auswahl (Kästchen, mehrere), aus den Modulordnern
-/// (Einstellungen → Quellen); gewählte, die fehlen, erscheinen mit Hinweis. Kein Netz.
+/// Round 15 (item 5a): commentaries and lexicons of the work for selection (checkboxes, several), from the module
+/// folders (Einstellungen → Quellen); chosen ones that are missing appear with a note. No network.
 async fn sword_context(
     state: &AppState,
     work: WorkId,
@@ -199,7 +199,7 @@ async fn sword_context(
     })
 }
 
-/// Runde 16b: Block „Predigtzeit“ – Einstellungen, Gesamtzeit und Fehler nach einem abgelehnten Formular.
+/// Round 16b: block „Predigtzeit“ – settings, total time and error after a rejected form.
 async fn timing_context(
     state: &AppState,
     work: WorkId,
@@ -222,9 +222,9 @@ async fn timing_context(
     })
 }
 
-/// `POST /einstellungen/werk/zeit` (Runde 16b, hinter `guard::same_origin`): `method=work.timing_set`, `work`,
-/// `words_per_minute`, `target_minutes` (leer = keine Zielzeit). 303 auf
-/// `/einstellungen/werk?work=W&ok=zeit#zeit` bzw. `…&zeitfehler=1#zeit` (nichts geändert).
+/// `POST /einstellungen/werk/zeit` (Round 16b, behind `guard::same_origin`): `method=work.timing_set`, `work`,
+/// `words_per_minute`, `target_minutes` (empty = no target time). 303 to
+/// `/einstellungen/werk?work=W&ok=zeit#zeit` or `…&zeitfehler=1#zeit` (nothing changed).
 pub(super) async fn timing_act(
     State(state): State<Arc<AppState>>,
     Form(pairs): Form<Vec<(String, String)>>,
@@ -293,8 +293,8 @@ pub(super) async fn language_act(
     }
 }
 
-/// Runde 22: Block „Fassungen“ – Einstellung des Werks, Vorgaben, Grenzen und der Fehler nach einem abgelehnten
-/// Formular.
+/// Round 22: block „Fassungen“ – setting of the work, defaults, limits and the error after a rejected
+/// form.
 async fn revisions_context(
     state: &AppState,
     work: WorkId,
@@ -318,14 +318,14 @@ async fn revisions_context(
         default_minutes => defaults.new_after_minutes,
         percent_min => lo, percent_max => hi, minutes_min => min_lo, minutes_max => min_hi,
         error => error,
-        // 0.9.0: Abschnitte mit Marke „ältere Fassungen ausblenden“ und der Fehler nach einem abgelehnten Formular.
+        // 0.9.0: sections with the mark „ältere Fassungen ausblenden“ and the error after a rejected form.
         folds => state.store.work_revision_folds(work).await.map_err(|e| e.to_string())?.len(),
         fold_error => query.get("ausblendenfehler").map(|_| "Ältere Fassungen ließen sich nicht ausblenden: Tag als Datum angeben; nichts geändert."),
     })
 }
 
-/// Runde 18c: Block „Satzbild“ – gespeicherte Einstellungen, die Werte der Vorlage als Platzhalter und der
-/// Fehler nach einem abgelehnten Formular.
+/// Round 18c: block „Satzbild“ – stored settings, the values of the template as placeholders and the
+/// error after a rejected form.
 async fn sheet_context(
     state: &AppState,
     work: WorkId,
@@ -347,10 +347,10 @@ async fn sheet_context(
     })
 }
 
-/// `POST /einstellungen/werk/satzbild` (Runde 18c, hinter `guard::same_origin`): `method=work.sheet_set`,
-/// `work` und die Felder der Satzbild-Einstellungen (leer = aus der Vorlage), `reset=1` nimmt alle zurück.
-/// 303 auf `/einstellungen/werk?work=W&ok=satzbild#satzbild` bzw. `…&satzbildfehler=1#satzbild` (nichts
-/// geändert).
+/// `POST /einstellungen/werk/satzbild` (Round 18c, behind `guard::same_origin`): `method=work.sheet_set`,
+/// `work` and the fields of the typeset view settings (empty = from the template), `reset=1` takes all back.
+/// 303 to `/einstellungen/werk?work=W&ok=satzbild#satzbild` or `…&satzbildfehler=1#satzbild` (nothing
+/// changed).
 pub(super) async fn sheet_act(
     State(state): State<Arc<AppState>>,
     Form(pairs): Form<Vec<(String, String)>>,
@@ -374,7 +374,7 @@ pub(super) async fn sheet_act(
     if field("reset").is_some_and(|r| !r.is_empty()) {
         params["reset"] = json!(true);
     } else {
-        // Das Formular schickt alle Felder; ein leeres heißt „aus der Vorlage“.
+        // The form sends all fields; an empty one means "from the template".
         for name in crate::sheet::FIELDS {
             params[name] = json!(field(name).unwrap_or_default());
         }
@@ -400,7 +400,7 @@ pub(super) async fn values(state: &AppState, work: Option<WorkId>) -> Result<Jso
     }))
 }
 
-/// `settings.set {page: "werk", values}`: dieselbe Funktion wie `work.update` (Werk aus `work`).
+/// `settings.set {page: "werk", values}`: the same function as `work.update` (work from `work`).
 pub(super) async fn set(state: &AppState, work: Option<WorkId>, mut values: Json) -> Result<Json, RpcError> {
     let work = work.ok_or_else(|| RpcError::new(INVALID_PARAMS, "Es gibt kein Werk."))?;
     values["work"] = json!(work);

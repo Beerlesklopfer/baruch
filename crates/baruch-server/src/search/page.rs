@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werk-Suche ohne JavaScript (Runde 30a): `GET /suche` und `POST /suche/act`.
+//! Work search without JavaScript (Round 30a): `GET /suche` and `POST /suche/act`.
 //!
-//! - Adresse mit denselben Namen wie [`SearchQuery`]: `work, q, case=1, word=1, re=1, range, key, sel=1,2,3, start,
-//!   end, rev, shown_rev, kinds=text,heading,…`; dazu `replacement` und `vorschau=1` (Vorschau des Ersetzens),
-//!   `batch=N` (Ergebnis eines Ersetzens mit „Rückgängig“), `undone=N`, `fehler=…`. Der Bereich bleibt beim Blättern
-//!   in der Adresse ([`query_string`]).
-//! - Seite: Formular (Suchtext, Ersatz, Optionen, Bereich mit eigener Häkchenliste der Gliederung, Textarten),
-//!   Trefferbaum nach Abschnitten mit Sprung-Links (`data-jump`), Vorschau als Diff je Abschnitt mit Häkchen je
-//!   Abschnitt und je Stelle, Knopf „Alle ersetzen“, nach dem Ersetzen „Rückgängig“ und der Hinweis auf die
-//!   Wortlautprüfung (Link zur Prüfanzeige je geändertem Abschnitt).
-//! - `POST /suche/act` (hinter `guard::same_origin`): `method` = `search.replace` (Felder der Suche, `replacement`,
-//!   `pick=KEY:BASE` je Abschnitt, `keep=KEY:STELLE` je Treffer, `confirm`) bzw. `search.undo` (`batch`, `confirm`);
-//!   danach 303 zurück auf `/suche` mit dem Bereich in der Adresse.
+//! - Address with the same names as [`SearchQuery`]: `work, q, case=1, word=1, re=1, range, key, sel=1,2,3, start,
+//!   end, rev, shown_rev, kinds=text,heading,…`; plus `replacement` and `vorschau=1` (preview of the replace),
+//!   `batch=N` (result of a replace with „Rückgängig“), `undone=N`, `fehler=…`. The range stays in the address when
+//!   paging ([`query_string`]).
+//! - Page: form (search text, replacement, options, range with its own checkbox list of the outline, text kinds),
+//!   hit tree by sections with jump links (`data-jump`), preview as a diff per section with a checkbox per
+//!   section and per position, button „Alle ersetzen“, after replacing „Rückgängig“ and the note on the
+//!   wording check (link to the check display per changed section).
+//! - `POST /suche/act` (behind `guard::same_origin`): `method` = `search.replace` (fields of the search,
+//!   `replacement`, `pick=KEY:BASE` per section, `keep=KEY:STELLE` per hit, `confirm`) or `search.undo` (`batch`,
+//!   `confirm`); afterwards 303 back to `/suche` with the range in the address.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -45,7 +45,7 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Werte eines Namens aus Adresse oder Formular (mehrfach oder mit Kommas getrennt).
+/// Values of a name from address or form (several times or separated by commas).
 fn values<'a>(pairs: &'a [(String, String)], name: &str) -> Vec<&'a str> {
     pairs
         .iter()
@@ -64,7 +64,7 @@ fn flag(pairs: &[(String, String)], name: &str) -> bool {
     matches!(first(pairs, name).map(str::trim), Some("1" | "true" | "on"))
 }
 
-/// Suche aus Adresse bzw. Formular; ungültige Werte fallen weg.
+/// Search from address or form; invalid values are dropped.
 pub fn query_from_pairs(pairs: &[(String, String)]) -> SearchQuery {
     let num = |name: &str| first(pairs, name).and_then(|v| v.trim().parse::<i64>().ok());
     let kinds: Vec<TextKind> = values(pairs, "kinds").into_iter().filter_map(TextKind::parse).collect();
@@ -86,7 +86,7 @@ pub fn query_from_pairs(pairs: &[(String, String)]) -> SearchQuery {
     }
 }
 
-/// Adresse der Seite mit dieser Suche (ohne Vorgabewerte), für Links und Weiterleitungen.
+/// Address of the page with this search (without default values), for links and redirects.
 pub fn query_string(work: WorkId, query: &SearchQuery, replacement: Option<&str>) -> String {
     let e = crate::view::query_escape;
     let mut url = format!("/suche?work={work}");
@@ -125,7 +125,7 @@ pub fn query_string(work: WorkId, query: &SearchQuery, replacement: Option<&str>
     url
 }
 
-/// Adresse sicher für ein `href` in der Vorlage (`&` maskiert; enthält nur selbst gebaute, kodierte Werte).
+/// Address safe for an `href` in the template (`&` escaped; contains only self-built, encoded values).
 fn href(url: &str) -> JinjaValue {
     crate::typeset::href(url.to_owned())
 }
@@ -135,7 +135,7 @@ fn error_page(status: StatusCode, message: &str) -> Response {
         .into_response()
 }
 
-/// Häkchenliste der Gliederung: je Punkt Schlüssel, Beschriftung, Tiefe, gewählt.
+/// Checkbox list of the outline: per item key, label, depth, chosen.
 fn outline_rows(work: &baruch_core::Work, query: &SearchQuery) -> Vec<Value> {
     work.nodes
         .iter()
@@ -186,14 +186,14 @@ async fn search_page(
     let mut preview = Value::Null;
     if !query.q.is_empty() {
         if flag(&pairs, "vorschau") && query.range != SearchRange::All && crate::guard::cross_site_get(&headers) {
-            // Die Vorschau rechnet jeden Ersatz durch: nicht auf Anfrage einer fremden Seite (etwa ein <img>).
+            // The preview computes every replacement: not on the request of a foreign page (such as an <img>).
             return error_page(
                 StatusCode::FORBIDDEN,
                 "Abgelehnt: Die Ersetzen-Vorschau startet nicht auf Anfrage einer fremden Seite.",
             );
         }
         if flag(&pairs, "vorschau") && query.range != SearchRange::All {
-            // Ersetzt wird immer auf der aktuellen Fassung (search.replace): die Vorschau zeigt darum auch sie.
+            // Replacing always happens on the current revision (search.replace): so the preview shows it too.
             let current = SearchQuery { rev: RevChoice::Current, ..query.clone() };
             match super::replace::preview(&state, work, &current, replacement.as_deref().unwrap_or("")).await {
                 Ok(p) => {
@@ -271,8 +271,8 @@ async fn search_page(
             json!({ "word": k.word(), "label": k.label(), "checked": on })
         })
         .collect();
-    // Runde 30 (Nachbesserung): „Markierung im Editor“ nur, wenn die Adresse eine Markierung trägt (start/end aus
-    // dem Editor); ohne sie gäbe es nichts zu wählen.
+    // Round 30 (follow-up fix): „Markierung im Editor“ only if the address carries a selection (start/end from
+    // the editor); without it there would be nothing to choose.
     let selection_label = match (query.start, query.end) {
         (Some(s), Some(e)) => Some(format!("Markierung im Editor (Zeichen {s}–{e})")),
         _ => None,
@@ -291,7 +291,7 @@ async fn search_page(
     .filter(|(r, _)| *r != SearchRange::Selection || selection_label.is_some())
     .map(|(r, label)| json!({ "word": r.word(), "label": label, "checked": query.range == r }))
     .collect();
-    // Fassung (aktuelle | gezeigte): nur mit gewähltem Abschnitt; „gezeigte“ nur, wenn die Adresse sie nennt.
+    // Revision (current | shown): only with a chosen section; "shown" only if the address names it.
     let revs: Value = match query.key {
         Some(_) => json!({
             "shown_rev": query.shown_rev,
@@ -299,7 +299,7 @@ async fn search_page(
         }),
         None => Value::Null,
     };
-    // Felder, die das Suchformular unsichtbar weiterträgt (sonst gingen sie beim Absenden verloren).
+    // Fields the search form carries along invisibly (otherwise they would be lost on submitting).
     let carried: Vec<Value> = {
         let mut list = Vec::new();
         if let (Some(s), Some(e)) = (query.start, query.end) {
@@ -369,7 +369,7 @@ async fn search_page(
     }
 }
 
-/// `POST /suche/act`: Ersetzen bzw. Rückgängig ohne JavaScript, danach 303 zurück auf `/suche`.
+/// `POST /suche/act`: replace or undo without JavaScript, afterwards 303 back to `/suche`.
 async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, String)>>) -> Response {
     let work = match first(&pairs, "work").and_then(|w| w.trim().parse::<WorkId>().ok()) {
         Some(w) => w,
@@ -387,7 +387,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
     }
     match first(&pairs, "method").unwrap_or("") {
         "search.replace" => {
-            // Je Abschnitt `pick=KEY:BASE`; je Treffer `keep=KEY:STELLE` (nicht gesetzt = auslassen).
+            // Per section `pick=KEY:BASE`; per hit `keep=KEY:STELLE` (not set = leave out).
             let mut keep: HashMap<i64, Vec<usize>> = HashMap::new();
             for v in values(&pairs, "keep") {
                 if let Some((k, i)) = v.split_once(':')
@@ -441,12 +441,12 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
     }
 }
 
-/// Seiten (lesend).
+/// Pages (reading).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/suche", get(search_page))
 }
 
-/// Formulare (hinter `guard::same_origin`).
+/// Forms (behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/suche/act", post(act))
 }

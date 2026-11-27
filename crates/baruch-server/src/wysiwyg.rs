@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! RPC des Satzbild-Editors (`wysiwyg.*`, Vertrag Runde 5): Abschnittstexte in Blöcke übersetzen und
-//! zurück ([`baruch_wysiwyg`]), Darstellung nach der Werkvorlage, Satzbild-Diff eines Vorschlags.
-//! Alle Methoden lesen nur: kein Schreiben in die Datenbank, keine Schreibsperre, nur über `/rpc`
-//! (nicht `/act`, nicht MCP). Gespeichert wird weiter über das Editor-Formular (`outline.save`).
+//! RPC of the typeset view editor (`wysiwyg.*`, contract Round 5): translating section texts into blocks and
+//! back ([`baruch_wysiwyg`]), appearance according to the work template, typeset view diff of a proposal.
+//! All methods only read: no writing into the database, no write lock, only through `/rpc`
+//! (not `/act`, not MCP). Saving still goes through the editor form (`outline.save`).
 //!
-//! - `wysiwyg.parse {work?, body}` → `{blocks, html}`; Inseln mit Bildpfad zeigen das Bild
-//!   (`<img class="ws-image" src="/werke/{work}/bilder/pfad?p=…">`, siehe [`image_ref`])
-//! - `wysiwyg.serialize {work?, body, edits}` → `{body}`; ungültige Anweisungen → `INVALID_PARAMS`; seit Runde 18b
-//!   auch `{replaces, raw}` (Insel an Ort und Stelle, wörtlich), ein neuer Teil-Block wird abgelehnt
-//! - `wysiwyg.style {work?}` → `{css, style}` aus der Werkvorlage
-//! - `wysiwyg.diff {work?, key|node, rev, base?}` → `{html, base}`: Fassung `rev` gegen `base`; fehlt
-//!   `base`, gilt ihr Elternteil (`based_on`), sonst die aktuelle Fassung
+//! - `wysiwyg.parse {work?, body}` → `{blocks, html}`; islands with an image path show the image
+//!   (`<img class="ws-image" src="/werke/{work}/bilder/pfad?p=…">`, see [`image_ref`])
+//! - `wysiwyg.serialize {work?, body, edits}` → `{body}`; invalid instructions → `INVALID_PARAMS`; since Round 18b
+//!   also `{replaces, raw}` (island in place, literally), a new part block is rejected
+//! - `wysiwyg.style {work?}` → `{css, style}` from the work template
+//! - `wysiwyg.diff {work?, key|node, rev, base?}` → `{html, base}`: revision `rev` against `base`; if
+//!   `base` is missing, its parent (`based_on`) applies, otherwise the current revision
 
 use std::collections::HashMap;
 
@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, RpcError, resolve_keys};
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(method, "wysiwyg.parse" | "wysiwyg.serialize" | "wysiwyg.style" | "wysiwyg.diff")
 }
@@ -45,13 +45,13 @@ struct DiffParams {
     base: Option<u32>,
 }
 
-/// Bild zu einem Pfad aus dem Quelltext (`image("…")`): die Seite `/werke/{work}/bilder/pfad?p=…`
-/// liefert das aktuelle Bild zum Pfad (Vertrag Runde 6, „images“; ohne Bild 404, dann zeigt der
-/// Browser nur den Alternativtext). `alt` ist der Alternativtext aus [`image_alts`] (leer, wenn
-/// zum Pfad kein Bild angelegt ist). Der Pfad geht in Normalform in die Adresse
-/// ([`baruch_store::normalize_asset_path`]: `./bilder/a.png` und `/bilder/a.png` → `bilder/a.png`, Runde 7;
-/// seit Runde 18b auch ohne führendes `/`, die Seite sucht ohnehin in Normalform). Ohne Normalform (z. B. mit
-/// `..`) bleibt der Pfad, wie er ist – die Seite liefert dann kein Bild.
+/// Image for a path from the source text (`image("…")`): the page `/werke/{work}/bilder/pfad?p=…`
+/// delivers the current image for the path (contract Round 6, "images"; without an image 404, then the
+/// browser shows only the alternative text). `alt` is the alternative text from [`image_alts`] (empty if
+/// no image is created for the path). The path goes into the address in normal form
+/// ([`baruch_store::normalize_asset_path`]: `./bilder/a.png` and `/bilder/a.png` → `bilder/a.png`, Round 7;
+/// since Round 18b also without a leading `/`, the page searches in normal form anyway). Without a normal form
+/// (e.g. with `..`) the path stays as it is – the page then delivers no image.
 pub fn image_ref(work: WorkId, path: &str, alt: &str) -> ImageRef {
     let path = baruch_store::normalize_asset_path(path).unwrap_or_else(|| path.to_owned());
     ImageRef {
@@ -61,41 +61,41 @@ pub fn image_ref(work: WorkId, path: &str, alt: &str) -> ImageRef {
     }
 }
 
-/// Wie [`image_ref`], dazu `missing`, wenn zum Pfad kein Bild im Werk angelegt ist (Runde 11: das
-/// Satzbild meldet „Bild fehlt: …“). `alts` aus [`image_alts`].
+/// Like [`image_ref`], plus `missing` if no image is created in the work for the path (Round 11: the
+/// typeset view reports „Bild fehlt: …“). `alts` from [`image_alts`].
 pub fn image_ref_in(work: WorkId, path: &str, alts: &HashMap<String, String>) -> ImageRef {
-    // Steuerzeichen hat kein gespeicherter Pfad (baruch_store::check_asset_path).
+    // No stored path has control characters (baruch_store::check_asset_path).
     let normal = baruch_store::normalize_asset_path(path).filter(|p| !p.chars().any(char::is_control));
     let known = normal.and_then(|p| alts.get(&p));
     ImageRef { missing: known.is_none(), ..image_ref(work, path, known.map_or("", String::as_str)) }
 }
 
-/// Was Editor und Vorschau über die Bilder des Werks wissen (Runde 11): alle Bilder (Name, Unterschrift,
-/// Alternativtext, Pfade in Normalform) und die berechneten Bilder der Werkvorlage
-/// ([`baruch_typst::images::computed_images`]). Seit Runde 21c ein eigenes Feld `rpc::LibraryView::images`
-/// ([`image_view`]); vorher reiste die Ansicht als JSON unter einem reservierten Schlüssel in `image_alts`.
+/// What editor and preview know about the images of the work (Round 11): all images (name, caption,
+/// alternative text, paths in normal form) and the computed images of the work template
+/// ([`baruch_typst::images::computed_images`]). Since Round 21c a field of its own `rpc::LibraryView::images`
+/// ([`image_view`]); before, the view travelled as JSON under a reserved key in `image_alts`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ImageView {
     pub assets: Vec<AssetBrief>,
     pub template: Vec<TemplateImage>,
-    /// Schlüssel der Knoten, deren Überschrift Typst als Kapitel zählt
-    /// ([`baruch_store::Store::counted_headings`]); `None` = nicht sicher bekannt. Nur gefüllt, wenn die
-    /// Vorlage berechnete Bilder hat.
+    /// Keys of the nodes whose heading Typst counts as a chapter
+    /// ([`baruch_store::Store::counted_headings`]); `None` = not known for certain. Only filled if the
+    /// template has computed images.
     #[serde(default)]
     pub counted: Option<Vec<i64>>,
 }
 
-/// Ein Bild des Werks, kurz.
+/// An image of the work, in brief.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AssetBrief {
     pub name: String,
     pub caption: String,
     pub alt: String,
-    /// Pfade in Normalform.
+    /// Paths in normal form.
     pub paths: Vec<String>,
 }
 
-/// Berechnetes Bild der Vorlage (Spiegel von [`baruch_typst::images::ComputedImage`], serialisierbar).
+/// Computed image of the template (mirror of [`baruch_typst::images::ComputedImage`], serialisable).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TemplateImage {
@@ -115,26 +115,27 @@ impl From<baruch_typst::images::ComputedImage> for TemplateImage {
     }
 }
 
-/// Kapitelbild im Editorkopf ([`ImageView::chapter_image`]).
+/// Chapter image in the editor header ([`ImageView::chapter_image`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChapterImage {
-    /// Sicher ermittelt: Pfad aus der Vorlage und, falls angelegt, das Bild dazu.
+    /// Determined for certain: path from the template and, if created, the image for it.
     Known { path: String, asset: Option<AssetBrief> },
-    /// Die Vorlage berechnet ein Bild, das sich ohne Typst nicht sicher ermitteln lässt.
+    /// The template computes an image that cannot be determined for certain without Typst.
     FromTemplate { expr: String },
 }
 
 impl ImageView {
-    /// Bild zu einem Pfad (verglichen in Normalform).
+    /// Image for a path (compared in normal form).
     pub fn asset_by_path(&self, path: &str) -> Option<&AssetBrief> {
         let normal = baruch_store::normalize_asset_path(path)?;
         self.assets.iter().find(|a| a.paths.contains(&normal))
     }
 
-    /// Bild der Vorlage für den Kapitelzähler `chapter` (`counter(heading).get().first()`, 0 vor dem
-    /// ersten nummerierten Kapitel, `None` = nicht sicher bekannt): das erste berechnete Bild, das für dieses Kapitel sicher ermittelt
-    /// ist (ein negativer Index zählt wie Typsts `array.at` vom Ende); sonst, wenn die Vorlage überhaupt berechnete Bilder hat,
-    /// [`ChapterImage::FromTemplate`]; ohne berechnete Bilder `None`.
+    /// Image of the template for the chapter counter `chapter` (`counter(heading).get().first()`, 0 before the
+    /// first numbered chapter, `None` = not known for certain): the first computed image that is determined for
+    /// certain for this chapter (a negative index counts from the end like Typst's `array.at`); otherwise, if the
+    /// template has computed images at all,
+    /// [`ChapterImage::FromTemplate`]; without computed images `None`.
     pub fn chapter_image(&self, chapter: Option<usize>) -> Option<ChapterImage> {
         for image in &self.template {
             let path = match image {
@@ -151,7 +152,7 @@ impl ImageView {
                 return Some(ChapterImage::Known { path: path.clone(), asset: self.asset_by_path(path).cloned() });
             }
         }
-        // Hier ist kein Bild sicher ermittelt: ein `Fixed` hätte oben schon gegriffen.
+        // No image is determined for certain here: a `Fixed` would already have applied above.
         let expr = match self.template.first()? {
             TemplateImage::Unknown { expr } => expr.clone(),
             TemplateImage::PerChapter { list, offset } => {
@@ -168,14 +169,14 @@ impl ImageView {
     }
 }
 
-/// Pfad in Normalform ([`baruch_store::normalize_asset_path`]) → Alternativtext der aktuellen
-/// Fassung, für alle Bilder des Werks. Der Pfad im Text darf mit `/` oder `./` beginnen, wie bei
-/// `/werke/{id}/bilder/pfad`. Seit Runde 21c nur noch Pfade (die [`ImageView`] liefert [`image_view`]).
+/// Path in normal form ([`baruch_store::normalize_asset_path`]) → alternative text of the current
+/// revision, for all images of the work. The path in the text may begin with `/` or `./`, as for
+/// `/werke/{id}/bilder/pfad`. Since Round 21c only paths (the [`ImageView`] is delivered by [`image_view`]).
 pub async fn image_alts(state: &AppState, work: WorkId) -> Result<HashMap<String, String>, StoreError> {
     Ok(alts_and_briefs(state.store.asset_list(work).await?).0)
 }
 
-/// Tabelle wie [`image_alts`] und die Bilder kurz ([`AssetBrief`]) aus der Bilderliste.
+/// Table like [`image_alts`] and the images in brief ([`AssetBrief`]) from the image list.
 fn alts_and_briefs(list: Vec<baruch_store::AssetSummary>) -> (HashMap<String, String>, Vec<AssetBrief>) {
     let mut alts = HashMap::new();
     let mut briefs = Vec::with_capacity(list.len());
@@ -192,8 +193,8 @@ fn alts_and_briefs(list: Vec<baruch_store::AssetSummary>) -> (HashMap<String, St
     (alts, briefs)
 }
 
-/// Tabelle wie [`image_alts`] und die [`ImageView`] (Bilder und berechnete Bilder der Werkvorlage) in einem Gang
-/// (Runde 21c: für `rpc::LibraryView::image_alts` und `rpc::LibraryView::images`).
+/// Table like [`image_alts`] and the [`ImageView`] (images and computed images of the work template) in one pass
+/// (Round 21c: for `rpc::LibraryView::image_alts` and `rpc::LibraryView::images`).
 pub async fn image_view(state: &AppState, work: WorkId) -> Result<(HashMap<String, String>, ImageView), StoreError> {
     let (alts, assets) = alts_and_briefs(state.store.asset_list(work).await?);
     let mut view = ImageView { assets, ..ImageView::default() };
@@ -243,7 +244,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params_value: Va
             let base = match p.base {
                 Some(base) => node.revision(base).ok_or_else(|| unknown(base))?.number,
                 None => {
-                    // Wie die Varianten im Lesefluss (view.rs): das Elternteil, sonst die aktuelle Fassung.
+                    // Like the variants in the reading flow (view.rs): the parent, otherwise the current revision.
                     let tree = state.store.revision_tree(work).await?;
                     let parent = tree
                         .iter()

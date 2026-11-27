@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zitate im Abschnittstext finden (Runde 17, Schnittstelle R17-S2): eine Stelle für alle Wege, die Zitate
-//! einer Bibelstelle zuordnen (Wortlautprüfung, Prüfanzeige). Zitate in Anführungszeichen und `#quote[…]`
-//! liefert [`baruch_scripture::wording::inline_quotes`] (seit Runde 17b auch verschachtelt und über Absätze),
-//! Blockzitate `#quote(…)[…]` auf oberster Ebene der Absatz-Parser von `baruch_wysiwyg`; Blockzitate in einer
-//! Insel wie `#szene[…]` findet seit Runde 17b eine Suche nach `#quote(block: true …)[…]` im ganzen Text.
+//! Finding quotations in the section text (Round 17, interface R17-S2): one place for all paths that assign
+//! quotations to a Bible passage (wording check, check display). Quotations in quotation marks and `#quote[…]`
+//! come from [`baruch_scripture::wording::inline_quotes`] (since Round 17b also nested and across paragraphs),
+//! block quotations `#quote(…)[…]` on the top level from the paragraph parser of `baruch_wysiwyg`; block
+//! quotations in an island such as `#szene[…]` are found since Round 17b by a search for
+//! `#quote(block: true …)[…]` in the whole text.
 
 use baruch_scripture::wording::{self, QuoteSpan};
 
-/// Alle Zitate in `text`, nach `start` sortiert, ohne Doppel.
+/// All quotations in `text`, sorted by `start`, without duplicates.
 pub fn quote_spans(text: &str) -> Vec<QuoteSpan> {
     let mut out = wording::inline_quotes(text);
     out.extend(block_quotes(text));
     out.extend(nested_block_quotes(text));
-    // Stabil sortiert: bei gleichem Inhalt bleibt das Blockzitat der obersten Ebene (sein Bereich umfasst den
-    // ganzen Absatz) vor dem der Suche.
+    // Sorted stably: with the same content the block quotation of the top level (its range covers the whole
+    // paragraph) stays before the one of the search.
     out.sort_by_key(|q| (q.start, q.end));
     out.dedup_by_key(|q| (q.start, q.end));
     out
 }
 
-/// Blockzitate `#quote(… block: true …)[…]` an beliebiger Stelle, auch in Inseln wie `#szene[…]` (Runde 17b).
-/// Zeichenketten in den Argumenten werden beachtet; maskiertes `\#quote` zählt nicht.
+/// Block quotations `#quote(… block: true …)[…]` at any place, also in islands such as `#szene[…]` (Round 17b).
+/// Strings in the arguments are respected; an escaped `\#quote` does not count.
 fn nested_block_quotes(text: &str) -> Vec<QuoteSpan> {
     let mut out = Vec::new();
     let mut from = 0;
@@ -67,8 +68,8 @@ fn nested_block_quotes(text: &str) -> Vec<QuoteSpan> {
     out
 }
 
-/// Blockzitate `#quote(…)[…]` auf oberster Ebene (Absatzarten von `baruch_wysiwyg::parse`), als Bereich des
-/// Inhalts in `text`.
+/// Block quotations `#quote(…)[…]` on the top level (paragraph kinds of `baruch_wysiwyg::parse`), as the range
+/// of the content in `text`.
 fn block_quotes(text: &str) -> Vec<QuoteSpan> {
     let doc = baruch_wysiwyg::parse(text);
     let mut out = Vec::new();

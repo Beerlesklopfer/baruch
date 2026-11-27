@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Argumente und Antworten der MultiGPT-Werkzeuge des Abgleichs (`list_documents`, `read_document`,
-//! `upload_document`, `delete_document`), abgeleitet aus dem `inputSchema` wie `search_arguments`
-//! (Vertrag Runde 13, §2.4). Die Namen sind **Annahmen** (ungeprüft gegen das echte MultiGPT, siehe
-//! `docs/Architektur.md`, Abschnitt „Abgleich“): Verlangt ein Schema einen Parameter, den Baruch nicht
-//! kennt, ist das ehrlich [`RagError::Schema`].
+//! Arguments and answers of the MultiGPT tools of the reconciliation (`list_documents`, `read_document`,
+//! `upload_document`, `delete_document`), derived from the `inputSchema` like `search_arguments`
+//! (contract Round 13, §2.4). The names are **assumptions** (unchecked against the real MultiGPT, see
+//! `docs/Architektur.md`, section „Abgleich“): if a schema requires a parameter Baruch does not
+//! know, that is honestly [`RagError::Schema`].
 
 use baruch_rag::RagError;
 use serde_json::{Map, Value, json};
 
 use crate::connections::multigpt::{COLLECTION_KEYS, DOCUMENT_KEYS, clean_line, content_text, tool_payload, web_url};
 
-/// Titel eines Dokuments (Hochladen und Listen).
+/// Title of a document (uploading and listing).
 pub(crate) const TITLE_KEYS: &[&str] = &["title", "name", "filename"];
-/// Text eines Dokuments (Hochladen und Lesen).
+/// Text of a document (uploading and reading).
 pub(crate) const CONTENT_KEYS: &[&str] = &["content", "text", "body", "markdown"];
-/// Fortsetzung einer Liste.
+/// Continuation of a list.
 pub(crate) const CURSOR_KEYS: &[&str] = &["cursor", "offset", "page"];
-/// Art des Inhalts beim Hochladen (falls das Schema danach fragt).
+/// Kind of the content when uploading (if the schema asks for it).
 pub(crate) const MIME_KEYS: &[&str] = &["mime_type", "content_type", "mimetype"];
-/// Höchstzahl je Seite von `list_documents` (falls das Schema eine kennt).
+/// Maximum number per page of `list_documents` (if the schema knows one).
 pub(crate) const PAGE_LIMIT_KEYS: &[&str] = &["limit", "page_size", "per_page", "max_results"];
-/// Dokument-ID in Antworten (`upload_document`, `list_documents`).
+/// Document ID in answers (`upload_document`, `list_documents`).
 pub(crate) const ID_KEYS: &[&str] = &["document_id", "doc_id", "documentId", "id"];
-/// Änderungszeit oder Inhalts-Hash in `list_documents` (in dieser Reihenfolge gesucht).
+/// Modification time or content hash in `list_documents` (searched in this order).
 pub(crate) const STAMP_KEYS: &[&str] = &[
     "updated_at",
     "modified_at",
@@ -37,13 +37,13 @@ pub(crate) const STAMP_KEYS: &[&str] = &[
     "etag",
     "version",
 ];
-/// Listen in Antworten von `list_documents`.
+/// Lists in answers of `list_documents`.
 const LIST_KEYS: &[&str] = &["documents", "items", "results", "data", "files"];
-/// Fortsetzung in Antworten von `list_documents`.
+/// Continuation in answers of `list_documents`.
 const NEXT_KEYS: &[&str] = &["next_cursor", "nextCursor", "next_page_token", "next"];
 const URL_KEYS: &[&str] = &["url", "link", "source_url", "uri", "href"];
 
-/// Parameter und Pflichtangaben eines `inputSchema`.
+/// Parameters and required entries of an `inputSchema`.
 pub(crate) struct Filler {
     tool: &'static str,
     props: Map<String, Value>,
@@ -51,7 +51,7 @@ pub(crate) struct Filler {
     args: Map<String, Value>,
 }
 
-/// Darf ein Parameter eine Liste sein?
+/// May a parameter be a list?
 fn allows_array(spec: &Value) -> bool {
     let typed = |s: &Value| match s.get("type") {
         Some(Value::String(t)) => t == "array",
@@ -62,7 +62,7 @@ fn allows_array(spec: &Value) -> bool {
         || ["anyOf", "oneOf"].iter().filter_map(|k| spec.get(*k).and_then(Value::as_array)).any(|a| a.iter().any(typed))
 }
 
-/// Wert passend zum Schema: Zahl, wenn es `integer` verlangt und der Text eine ist.
+/// Value matching the schema: a number if it requires `integer` and the text is one.
 fn typed(spec: &Value, text: &str) -> Value {
     let integer = match spec.get("type") {
         Some(Value::String(t)) => t == "integer",
@@ -86,7 +86,7 @@ impl Filler {
         Filler { tool, props, required, args: Map::new() }
     }
 
-    /// Erster Schlüssel aus `keys`, den das Schema kennt; ohne `properties` gilt `fallback`.
+    /// First key from `keys` the schema knows; without `properties` `fallback` applies.
     fn key(&self, keys: &[&'static str], fallback: Option<&'static str>) -> Option<&'static str> {
         if self.props.is_empty() {
             return fallback;
@@ -94,8 +94,8 @@ impl Filler {
         keys.iter().find(|k| self.props.contains_key(**k)).copied()
     }
 
-    /// Text unter dem ersten bekannten Schlüssel (Zahl, wenn das Schema `integer` verlangt). Ohne
-    /// `properties` gilt `fallback`. Liefert, ob der Wert gesetzt wurde.
+    /// Text under the first known key (a number if the schema requires `integer`). Without
+    /// `properties` `fallback` applies. Returns whether the value was set.
     pub(crate) fn text(&mut self, keys: &[&'static str], fallback: Option<&'static str>, value: &str) -> bool {
         let Some(key) = self.key(keys, fallback) else { return false };
         let spec = self.props.get(key).cloned().unwrap_or(json!({}));
@@ -103,8 +103,8 @@ impl Filler {
         true
     }
 
-    /// Zahl unter dem ersten bekannten Schlüssel (an `minimum`/`maximum` geklemmt). Liefert den gesetzten
-    /// Wert (`None` = kein Schlüssel im Schema).
+    /// Number under the first known key (clamped to `minimum`/`maximum`). Returns the value that was
+    /// set (`None` = no key in the schema).
     pub(crate) fn number(&mut self, keys: &[&'static str], value: u64) -> Option<u64> {
         let key = self.key(keys, None)?;
         let spec = self.props.get(key).cloned().unwrap_or(json!({}));
@@ -119,8 +119,8 @@ impl Filler {
         Some(n)
     }
 
-    /// Sammlung: als Liste, wenn das Schema eine erlaubt (`collections: [c]`), sonst als Text. Ohne
-    /// `properties` gilt `collection`.
+    /// Collection: as a list if the schema allows one (`collections: [c]`), otherwise as text. Without
+    /// `properties` `collection` applies.
     pub(crate) fn collection(&mut self, name: &str) -> bool {
         let Some(key) = self.key(COLLECTION_KEYS, Some("collection")) else { return false };
         let spec = self.props.get(key).cloned().unwrap_or(json!({}));
@@ -133,12 +133,12 @@ impl Filler {
         true
     }
 
-    /// Dokument-ID (Schlüssel wie `document_arguments`, ohne `properties`: `document_id`).
+    /// Document ID (keys as in `document_arguments`, without `properties`: `document_id`).
     pub(crate) fn document(&mut self, id: &str) -> bool {
         self.text(DOCUMENT_KEYS, Some("document_id"), id)
     }
 
-    /// Fertige Argumente; eine Pflichtangabe, die Baruch nicht füllt → [`RagError::Schema`].
+    /// Finished arguments; a required entry Baruch does not fill → [`RagError::Schema`].
     pub(crate) fn finish(self) -> Result<Value, RagError> {
         if let Some(unknown) = self.required.iter().find(|r| !self.args.contains_key(*r)) {
             return Err(RagError::Schema(format!(
@@ -150,7 +150,7 @@ impl Filler {
     }
 }
 
-/// Text (oder Zahl als Text) unter einem der Schlüssel.
+/// Text (or number as text) under one of the keys.
 fn text_in(map: &Map<String, Value>, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|k| match map.get(*k) {
         Some(Value::String(s)) if !s.trim().is_empty() => Some(s.trim().to_owned()),
@@ -159,7 +159,7 @@ fn text_in(map: &Map<String, Value>, keys: &[&str]) -> Option<String> {
     })
 }
 
-/// Objekte, in denen eine Angabe stehen kann: die Daten selbst und `document`, `result`, `data`, `metadata`.
+/// Objects in which an entry can stand: the data themselves and `document`, `result`, `data`, `metadata`.
 fn places(payload: &Value) -> Vec<&Map<String, Value>> {
     let Some(map) = payload.as_object() else { return Vec::new() };
     let mut out = vec![map];
@@ -171,25 +171,25 @@ fn places(payload: &Value) -> Vec<&Map<String, Value>> {
     out
 }
 
-/// Dokument-ID aus der Antwort von `upload_document`: aus den Daten (`document_id`, `id` …, auch unter
-/// `document`/`result`/`data`), sonst `None`.
+/// Document ID from the answer of `upload_document`: from the data (`document_id`, `id` …, also under
+/// `document`/`result`/`data`), else `None`.
 pub(crate) fn uploaded_id(result: &Value) -> Option<String> {
     let payload = tool_payload(result)?;
     places(&payload).into_iter().find_map(|m| text_in(m, ID_KEYS)).map(|id| clean_line(&id, 500))
 }
 
-/// Ein Dokument aus `list_documents`.
+/// A document from `list_documents`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Listed {
     pub id: String,
     pub title: String,
     pub url: String,
-    /// `<Schlüssel>=<Wert>` der ersten gemeldeten Änderungszeit bzw. des Hashes, sonst leer.
+    /// `<key>=<value>` of the first reported modification time or of the hash, else empty.
     pub stamp: String,
 }
 
-/// Eine Seite von `list_documents`: Dokumente und die Fortsetzung (`next_cursor` …), falls gemeldet,
-/// sowie `has_more`. Keine Liste → [`RagError::Schema`].
+/// One page of `list_documents`: documents and the continuation (`next_cursor` …), if reported,
+/// as well as `has_more`. No list → [`RagError::Schema`].
 pub(crate) fn listed(result: &Value) -> Result<(Vec<Listed>, Option<String>, bool), RagError> {
     let payload = tool_payload(result).ok_or_else(|| {
         RagError::Schema("list_documents: Antwort nicht lesbar (weder structuredContent noch JSON in content).".into())
@@ -241,7 +241,7 @@ pub(crate) fn listed(result: &Value) -> Result<(Vec<Listed>, Option<String>, boo
     Ok((out, next, more))
 }
 
-/// Text aus der Antwort von `read_document`: `content`/`text`/`body`/`markdown` der Daten, sonst der Text
+/// Text from the answer of `read_document`: `content`/`text`/`body`/`markdown` of the data, otherwise the text
 /// in `content[]`; `\r\n` → `\n`.
 pub(crate) fn document_text(result: &Value) -> String {
     let from_payload = tool_payload(result).and_then(|p| {

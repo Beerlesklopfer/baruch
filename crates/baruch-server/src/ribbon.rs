@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Menüband für das Bearbeiten (Runde 18a, Schnittstelle R18-S1): die Formate der Werkvorlage
-//! (`#let szene`, `#let arbeit`) und die eingebauten (Fußnote, Zitat, Liste …) als Knöpfe.
+//! Ribbon for editing (Round 18a, interface R18-S1): the formats of the work template
+//! (`#let szene`, `#let arbeit`) and the built-in ones (footnote, quotation, list …) as buttons.
 //!
 //! - RPC `ribbon.formats {work?}` → `{formats: [RibbonFormat]}` (`docs/RPC.md`).
-//! - Ein Knopf schickt im Satzbild den Befehl `cmd` über `baruch:ws-command` (`web/src/ws_command.ts`),
-//!   im Quelltext fügt `web/src/ribbon.ts` den Typst-Text `snippet` an der Cursorstelle ein.
-//! - Runde 19b: „Bibelstelle“ (`scripture`), wenn die Vorlage `#let bibelstelle(…)` bzw. `#let bibel(…)` definiert
-//!   (Erkennung über [`defined_functions`]; Snippet `#bibelstelle[]` mit dem gefundenen Namen, Annahme: die Funktion
-//!   nimmt die Stelle als Inhalt), und „Literaturverweis“ (`cite`, Snippet `@`), wenn die Vorlage `#bibliography(`
-//!   enthält. Ohne das gibt es die Knöpfe nicht (sonst wäre der Satz ein Fehler).
+//! - In the typeset view a button sends the command `cmd` through `baruch:ws-command` (`web/src/ws_command.ts`),
+//!   in the source text `web/src/ribbon.ts` inserts the Typst text `snippet` at the cursor position.
+//! - Round 19b: „Bibelstelle“ (`scripture`) if the template defines `#let bibelstelle(…)` or `#let bibel(…)`
+//!   (detection through [`defined_functions`]; snippet `#bibelstelle[]` with the name found, assumption: the function
+//!   takes the passage as content), and „Literaturverweis“ (`cite`, snippet `@`) if the template contains
+//!   `#bibliography(`. Without that the buttons do not exist (otherwise typesetting would be an error).
 
 use baruch_store::WorkId;
 use serde_json::{Value, json};
@@ -16,38 +16,40 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{METHOD_NOT_FOUND, RpcError};
 
-/// Ein Format der Werkvorlage als Knopf des Menübands.
+/// One format of the work template as a button of the ribbon.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RibbonFormat {
-    /// Befehl an das Satzbild (`baruch:ws-command`, siehe `web/src/ws_command.ts`):
+    /// Command to the typeset view (`baruch:ws-command`, see `web/src/ws_command.ts`):
     /// scene|work|scripture|cite|footnote|quote|list|enum|terms|break|link|xref
     pub cmd: String,
     pub label: String,
     pub title: String,
-    /// Typst-Text für den Quelltext (an der Cursorstelle eingefügt), z. B. "#szene[\n\n]".
+    /// Typst text for the source text (inserted at the cursor position), e.g. "#szene[\n\n]".
     pub snippet: String,
 }
 
-/// Knöpfe des Menübands für ein Werk.
+/// Buttons of the ribbon for a work.
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct Ribbon {
     pub formats: Vec<RibbonFormat>,
 }
 
-/// Typst-Text des Knopfs „Zitat“: nur der Zitatblock. Bis Runde 35 stand darunter die Zeile „– “ für die
-/// Stellenangabe (Runde 23a); blieb sie ungefüllt, stand ein einzelner Gedankenstrich im Buch. Seit Runde 36 fügt
-/// der Knopf keine Folgezeile mehr ein: Die Stellenangabe schreibt der Autor selbst in die Zeile direkt unter den
-/// Block (das Satzbild liest sie seit Runde 23 als eigenen Absatz, keine Insel) – der Hinweis des Knopfs sagt es.
+/// Typst text of the button „Zitat“: only the quotation block. Up to Round 35 the line „– “ for the
+/// attribution stood below it (Round 23a); if it stayed unfilled, a single dash stood in the book. Since Round 36
+/// the button no longer inserts a following line: the author writes the attribution himself into the line directly
+/// below the block (the typeset view reads it since Round 23 as a paragraph of its own, no island) – the hint of the
+/// button says so.
 pub const QUOTE_SNIPPET: &str = "#quote(block: true)[]\n";
 
-/// Funktionsnamen für Bibelstellen in der Werkvorlage, in dieser Vorrangfolge (Runde 19b).
+/// Function names for Bible passages in the work template, in this order of precedence (Round 19b).
 pub const SCRIPTURE_FUNCTIONS: [&str; 2] = ["bibelstelle", "bibel"];
 
-/// Formate, die die Werkvorlage hergibt (`#let szene`, `#let arbeit`, seit Runde 19b `#let bibelstelle`/`#let bibel`
-/// und `#bibliography(` für Literaturverweise) plus die eingebauten (Fußnote, Zitat, Liste …). Reihenfolge: erst die
-/// der Vorlage (Szene, Arbeit, Bibelstelle, Literaturverweis), dann Fußnote, Zitat, Liste, Aufzählung, Begriff,
-/// Umbruch, Link, Verweis (Runde 30a). Eine Vorlage, die eine Funktion nicht definiert, bekommt den Knopf nicht: Ohne
-/// die Funktion wäre `#szene[…]` im Satz ein Fehler, ohne Literaturverzeichnis ein `@schlüssel`.
+/// Formats the work template provides (`#let szene`, `#let arbeit`, since Round 19b `#let bibelstelle`/`#let bibel`
+/// and `#bibliography(` for literature references) plus the built-in ones (footnote, quotation, list …). Order:
+/// first those of the template (scene, work, Bible passage, literature reference), then footnote, quotation, list,
+/// enumeration, term, break, link, cross-reference (Round 30a). A template that does not define a function does not
+/// get the button: without the function `#szene[…]` would be an error in typesetting, without a bibliography a
+/// `@schlüssel`.
 pub fn formats(template: &str) -> Vec<RibbonFormat> {
     let defined = defined_functions(template);
     let mut out = Vec::new();
@@ -82,11 +84,11 @@ pub fn formats(template: &str) -> Vec<RibbonFormat> {
         );
     }
     push("footnote", "Fußnote", "Fußnote an der Cursorstelle (#footnote)", "#footnote[]");
-    // Runde 23a (Befund des Nutzers): Platz für die Stellenangabe unter dem Block. Runde 36: ohne vorgegebene Zeile
-    // „– “ (sie blieb ungefüllt als einzelner Gedankenstrich stehen); der Hinweis nennt die Form. Eine leere
-    // `attribution: []` kommt nicht in Frage: Typst setzt dafür eine Zeile mit dem Gedankenstrich (gemessen in
-    // `crates/baruch-render/tests/quote_attribution.rs`). Die Leerzeilen davor und danach setzt das Widget je nach
-    // Umgebung (`web/src/ribbon.ts`, `insertion`), der Cursor steht im Rumpf.
+    // Round 23a (finding of the user): room for the attribution below the block. Round 36: without a preset line
+    // „– “ (it stayed unfilled as a single dash); the hint names the form. An empty
+    // `attribution: []` is out of the question: Typst sets a line with the dash for it (measured in
+    // `crates/baruch-render/tests/quote_attribution.rs`). The empty lines before and after are set by the widget
+    // depending on the surroundings (`web/src/ribbon.ts`, `insertion`), the cursor stands in the body.
     push(
         "quote",
         "Zitat",
@@ -98,7 +100,7 @@ pub fn formats(template: &str) -> Vec<RibbonFormat> {
     push("terms", "Begriff", "Begriffsliste (/ Begriff: Erklärung)", "/ Begriff: \n");
     push("break", "Umbruch", "Zeilenumbruch im Absatz (\\)", "\\\n");
     push("link", "Link", "Verweis auf eine Adresse (#link)", "#link(\"https://\")[]");
-    // Runde 30a: Querverweis auf einen Gliederungspunkt; der Knopf öffnet den Dialog (web/src/xref.ts).
+    // Round 30a: cross-reference to an outline item; the button opens the dialog (web/src/xref.ts).
     push(
         "xref",
         "Verweis",
@@ -108,17 +110,17 @@ pub fn formats(template: &str) -> Vec<RibbonFormat> {
     out
 }
 
-/// Hat die Vorlage ein Literaturverzeichnis (`#bibliography(` außerhalb von Kommentaren)? Dann trägt ein
-/// `@schlüssel` im Text (Runde 19b).
+/// Does the template have a bibliography (`#bibliography(` outside of comments)? Then a
+/// `@schlüssel` in the text works (Round 19b).
 fn cites_literature(template: &str) -> bool {
     code_lines(template).iter().any(|(_, line)| line.contains("#bibliography("))
 }
 
-/// Zeilen der Vorlage ohne Kommentare (`// …` und – auch geschachtelte – `/* … */`), je mit der Tiefe offener
-/// Klammern `(`, `[`, `{` am Zeilenanfang (0 = oberste Ebene). Zeichenketten `"…"` bleiben ganz (ein `//` oder eine
-/// Klammer darin zählt nicht). Runde 23a: So zählt ein `#let szene` in einem Blockkommentar oder im Rumpf einer
-/// anderen Funktion nicht mehr als Definition der Vorlage. Kein Typst-Parser, aber dessen Regeln für Kommentare,
-/// Zeichenketten und Klammern.
+/// Lines of the template without comments (`// …` and – also nested – `/* … */`), each with the depth of open
+/// brackets `(`, `[`, `{` at the start of the line (0 = top level). Strings `"…"` stay whole (a `//` or a
+/// bracket inside does not count). Round 23a: this way a `#let szene` in a block comment or in the body of
+/// another function no longer counts as a definition of the template. Not a Typst parser, but its rules for
+/// comments, strings and brackets.
 fn code_lines(template: &str) -> Vec<(usize, String)> {
     let mut out = Vec::new();
     let (mut depth, mut comment, mut string) = (0usize, 0usize, false);
@@ -171,16 +173,16 @@ fn code_lines(template: &str) -> Vec<(usize, String)> {
             code.push(c);
             i += 1;
         }
-        // Eine Zeichenkette endet in Typst spätestens nicht am Zeilenende; zur Sicherheit hier trotzdem schließen.
+        // In Typst a string does not necessarily end at the end of the line; close it here anyway to be safe.
         string = false;
         out.push((start_depth, code));
     }
     out
 }
 
-/// Namen der Funktionen, die die Vorlage auf oberster Ebene bereitstellt: mit `#let name(…)` bzw. `#let name =`
-/// definiert (Zeilenanfang, auch eingerückt) oder – Runde 23a – mit `#import "datei.typ": name, anderer` eingeführt
-/// (`*` und Umbenennungen `a as b` → `b`). Kommentare und Definitionen im Rumpf anderer Funktionen zählen nicht
+/// Names of the functions the template provides on the top level: defined with `#let name(…)` or `#let name =`
+/// (start of the line, also indented) or – Round 23a – introduced with `#import "datei.typ": name, anderer`
+/// (`*` and renamings `a as b` → `b`). Comments and definitions in the body of other functions do not count
 /// ([`code_lines`]).
 fn defined_functions(template: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
@@ -200,7 +202,7 @@ fn defined_functions(template: &str) -> Vec<String> {
             if !rest.starts_with([' ', '\t']) {
                 continue;
             }
-            // Hinter dem Pfad (Zeichenkette) steht `: name, anderer as neu`; ohne Doppelpunkt kommt nur das Modul.
+            // Behind the path (string) stands `: name, anderer as neu`; without a colon only the module comes.
             let after_path = rest.trim_start().strip_prefix('"').and_then(|r| r.split_once('"')).map(|(_, r)| r);
             if let Some(items) = after_path.and_then(|r| r.trim_start().strip_prefix(':')) {
                 for item in items.trim().trim_start_matches('(').trim_end_matches(')').split(',') {
@@ -212,7 +214,7 @@ fn defined_functions(template: &str) -> Vec<String> {
         }
         let Some(rest) = trimmed.strip_prefix("#let") else { continue };
         if !rest.starts_with([' ', '\t']) {
-            continue; // „#letter…“: kein Leerraum nach #let
+            continue; // „#letter…“: no whitespace after #let
         }
         let rest = rest.trim_start();
         let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-').collect();
@@ -224,18 +226,18 @@ fn defined_functions(template: &str) -> Vec<String> {
     names
 }
 
-/// Menüband des Werks aus seiner Werkvorlage.
+/// Ribbon of the work from its work template.
 pub async fn ribbon(state: &AppState, work: WorkId) -> Result<Ribbon, RpcError> {
     let template = state.store.work_template(work).await?;
     Ok(Ribbon { formats: formats(&template) })
 }
 
-/// Bedient dieses Modul die RPC-Methode? `ribbon.formats`.
+/// Does this module serve the RPC method? `ribbon.formats`.
 pub fn handles(method: &str) -> bool {
     method == "ribbon.formats"
 }
 
-/// RPC `ribbon.formats {work?}` → `{formats}`; `work` ist schon aufgelöst (fehlt → Vorgabewerk).
+/// RPC `ribbon.formats {work?}` → `{formats}`; `work` is already resolved (missing → default work).
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let _ = params;
     match method {
@@ -267,7 +269,7 @@ mod tests {
         );
     }
 
-    /// Runde 23a (Gutachten R18): Kommentare, Funktionsrümpfe und `#import`.
+    /// Round 23a (review R18): comments, function bodies and `#import`.
     #[test]
     fn only_top_level_code_defines_a_format_and_imports_count() {
         let built_in = ["footnote", "quote", "list", "enum", "terms", "break", "link", "xref"];

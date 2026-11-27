@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Rollen (Runde 35, Vertrag §S1.4 und §2): die EINZIGE Stelle der Rechteprüfung.
+//! Roles (Round 35, contract §S1.4 and §2): the ONLY place of the rights check.
 //!
-//! Die Kontoart ist global, die Rolle gilt je Werk ([`role_in`]): Ein Autor-Konto ist Autor in jedem Werk, ein
-//! Lektor-Konto ist Lektor nur in freigegebenen Werken (`work_member`), sonst hat es keine Rolle (Werk unsichtbar).
+//! The account kind is global, the role holds per work ([`role_in`]): an author account is author in every work, a
+//! Lektor account is Lektor only in released works (`work_member`), otherwise it has no role (work invisible).
 //!
-//! Für Lektoren ist alles verboten, was nicht ausdrücklich erlaubt ist: [`check_request`] prüft jede Route gegen
-//! [`LEKTOR_ROUTES`] (aufgerufen aus [`crate::auth::gate`]), [`check_rpc`] jede RPC-Methode gegen [`LEKTOR_RPC`]
-//! (aufgerufen aus [`crate::rpc::call`], also für `/rpc`, `/act` und `/lektorat/act`). Neue Routen und Methoden
-//! künftiger Runden sind damit ohne Zutun für Lektoren gesperrt. Formular-Handler der Module (`/beitraege/act`
-//! usw.) rufen ihr Modul direkt und gehen nicht durch `rpc::call` – sie stehen darum nicht in [`LEKTOR_ROUTES`].
+//! For Lektors everything is forbidden that is not explicitly allowed: [`check_request`] checks every route against
+//! [`LEKTOR_ROUTES`] (called from [`crate::auth::gate`]), [`check_rpc`] every RPC method against [`LEKTOR_RPC`]
+//! (called from [`crate::rpc::call`], that is for `/rpc`, `/act` and `/lektorat/act`). New routes and methods
+//! of future rounds are thereby locked for Lektors without any further action. Form handlers of the modules
+//! (`/beitraege/act` etc.) call their module directly and do not go through `rpc::call` – that is why they are not
+//! in [`LEKTOR_ROUTES`].
 //!
-//! Werk-Bindung: Eine erlaubte Route bzw. Methode gilt nur für freigegebene Werke. Das Werk steht im Pfad (`{id}`),
-//! in der Adresse (`?work=`) oder im RPC-Parameter `work`; ein nicht freigegebenes Werk wird mit derselben Meldung
-//! abgelehnt wie ein unbekanntes (ein Lektor erfährt nicht, welche Werke es gibt). Fehlt das Werk, gilt nie das
-//! Vorgabewerk der Instanz, sondern das kleinste freigegebene: bei RPC eingesetzt, bei GET-Seiten als Umleitung
-//! (303) auf dieselbe Adresse mit `work=`. Ein `work` in der Adresse oder in den Parametern wird bei JEDER erlaubten
-//! Route und Methode geprüft, auch wenn sie selbst kein Werk braucht.
+//! Work binding: an allowed route or method holds only for released works. The work stands in the path (`{id}`),
+//! in the address (`?work=`) or in the RPC parameter `work`; a work that is not released is rejected with the same
+//! message as an unknown one (a Lektor does not learn which works exist). If the work is missing, never the
+//! default work of the instance applies, but the smallest released one: inserted for RPC, as a redirect
+//! (303) to the same address with `work=` for GET pages. A `work` in the address or in the parameters is checked for
+//! EVERY allowed route and method, even if it needs no work itself.
 //!
-//! Rollen werden nie über eine Anfrage hinaus gemerkt: Jede Prüfung liest die Freigaben neu
-//! (`Store::member_works`, das nur für aktive Lektor-Konten etwas liefert) – Entzug und Sperre wirken bei der
-//! nächsten Anfrage.
+//! Roles are never remembered beyond one request: every check reads the releases anew
+//! (`Store::member_works`, which delivers something only for active Lektor accounts) – withdrawal and lock take
+//! effect with the next request.
 
 pub mod lektor;
 pub mod routes;
@@ -34,7 +35,7 @@ use crate::AppState;
 use crate::auth::Who;
 use crate::rpc::{FORBIDDEN, INVALID_PARAMS, RpcError, UNAUTHENTICATED};
 
-/// Rolle in einem Werk.
+/// Role in a work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
@@ -42,7 +43,7 @@ pub enum Role {
     Lektor,
 }
 
-/// Urteil über eine Anfrage: erlaubt, Umleitung (303) oder abgelehnt (403 mit Grund).
+/// Verdict on a request: allowed, redirect (303) or rejected (403 with a reason).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Verdict {
     Allow,
@@ -50,8 +51,8 @@ pub enum Verdict {
     Deny(String),
 }
 
-/// Woher eine erlaubte Route bzw. Methode ihr Werk nimmt: gar nicht, aus dem Pfad (`{id}`), aus der Adresse
-/// (`?work=`) oder aus dem RPC-Parameter `work`.
+/// Where an allowed route or method takes its work from: not at all, from the path (`{id}`), from the address
+/// (`?work=`) or from the RPC parameter `work`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkFrom {
     None,
@@ -60,9 +61,9 @@ pub enum WorkFrom {
     Param,
 }
 
-/// Routen, die ein Lektor aufrufen darf: Methode (`GET` | `POST`), Muster wie im Router, Herkunft des Werks
-/// (Vertrag §2.1; Begründungen in `docs/Architektur.md`, „Runde 35“). Kein Upload, kein `/act`, kein Formular eines Moduls
-/// (`/beitraege/act` usw. rufen ihr Modul direkt, ohne `rpc::call`).
+/// Routes a Lektor may call: method (`GET` | `POST`), pattern as in the router, origin of the work
+/// (contract §2.1; reasons in `docs/Architektur.md`, „Runde 35“). No upload, no `/act`, no form of a module
+/// (`/beitraege/act` etc. call their module directly, without `rpc::call`).
 pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
     ("GET", "/", WorkFrom::Query),
     ("GET", "/werke", WorkFrom::None),
@@ -82,10 +83,10 @@ pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
     ("GET", "/ueber/lizenz", WorkFrom::None),
     ("GET", "/konto", WorkFrom::None),
     ("GET", "/anmelden", WorkFrom::None),
-    // Ohne Werk (Runde 36, vorher `WorkFrom::Query`): Die Seite nimmt ihr Werk aus `settings::resolve_work`, das für
-    // einen Lektor nur freigegebene Werke kennt (`AppState::default_work`, Cookie `baruch_work` nur wenn
-    // freigegeben) – so erreicht auch ein Lektor ohne Freigabe seine Darstellung. Ein `work` in der Adresse wird
-    // weiter geprüft (siehe `check_request_preferring`).
+    // Without a work (Round 36, before `WorkFrom::Query`): the page takes its work from `settings::resolve_work`,
+    // which knows only released works for a Lektor (`AppState::default_work`, cookie `baruch_work` only if
+    // released) – this way a Lektor without a release reaches his display settings as well. A `work` in the address
+    // is still checked (see `check_request_preferring`).
     ("GET", "/einstellungen/darstellung", WorkFrom::None),
     ("GET", "/static/app.css", WorkFrom::None),
     ("GET", "/static/favicon.svg", WorkFrom::None),
@@ -97,18 +98,19 @@ pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
     ("POST", "/einstellungen/darstellung/act", WorkFrom::None),
 ];
 
-/// RPC-Methoden, die ein Lektor aufrufen darf, mit der Herkunft des Werks (Vertrag §2.2; Begründungen in
-/// `docs/Architektur.md`, „Runde 35“). [`WorkFrom::Param`]: fehlt `work`, wird das kleinste freigegebene Werk eingesetzt.
+/// RPC methods a Lektor may call, with the origin of the work (contract §2.2; reasons in
+/// `docs/Architektur.md`, „Runde 35“). [`WorkFrom::Param`]: if `work` is missing, the smallest released work is
+/// inserted.
 ///
-/// Abweichungen vom Start des Vertrags, rein lesend:
-/// - `wysiwyg.*` und `ribbon.formats` stehen seit Runde 36 wieder „ohne Werk“ ([`WorkFrom::None`]; in Runde 35
-///   [`WorkFrom::Param`]): Ohne `work` nimmt `rpc::work_param` [`AppState::default_work`], das einem Lektor nur das
-///   kleinste freigegebene Werk gibt und ohne Freigabe `UnknownWork(0)` – nie das Vorgabewerk der Instanz
-///   (`round36_lektor`). Ein genanntes `work` wird wie bei jeder Methode geprüft.
-/// - ergänzt (rein lesend, je Werk): `work.sheet` (Satzbild für den Editor) und `search.find` (Suche im Werk, Seite
-///   `/suche`).
+/// Deviations from the start of the contract, purely reading:
+/// - `wysiwyg.*` and `ribbon.formats` are "without a work" again since Round 36 ([`WorkFrom::None`]; in Round 35
+///   [`WorkFrom::Param`]): without `work`, `rpc::work_param` takes [`AppState::default_work`], which gives a Lektor
+///   only the smallest released work and without a release `UnknownWork(0)` – never the default work of the instance
+///   (`round36_lektor`). A named `work` is checked as for every method.
+/// - added (purely reading, per work): `work.sheet` (typeset view for the editor) and `search.find` (search in the
+///   work, page `/suche`).
 pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
-    // lesend, je Werk
+    // reading, per work
     ("work.get", WorkFrom::Param),
     ("node.get", WorkFrom::Param),
     ("revision.tree", WorkFrom::Param),
@@ -132,18 +134,19 @@ pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
     ("index.overview", WorkFrom::Param),
     ("work.sheet", WorkFrom::Param),
     ("search.find", WorkFrom::Param),
-    // ohne Werk
+    // without a work
     ("work.list", WorkFrom::None),
     ("account.me", WorkFrom::None),
     ("account.set_password", WorkFrom::None),
     ("account.logout_all", WorkFrom::None),
-    // ohne Werk-Bindung (Runde 36): fehlt `work`, gilt `AppState::default_work` (für Lektoren nur Freigegebenes)
+    // without work binding (Round 36): if `work` is missing, `AppState::default_work` applies (for Lektors only
+    // released works)
     ("wysiwyg.parse", WorkFrom::None),
     ("wysiwyg.serialize", WorkFrom::None),
     ("wysiwyg.diff", WorkFrom::None),
     ("wysiwyg.style", WorkFrom::None),
     ("ribbon.formats", WorkFrom::None),
-    // schreibend, je Werk
+    // writing, per work
     ("revision.propose", WorkFrom::Param),
     ("post.add", WorkFrom::Param),
     ("post.edit", WorkFrom::Param),
@@ -151,25 +154,25 @@ pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
     ("finding.add", WorkFrom::Param),
 ];
 
-/// Meldung, wenn ein Lektor etwas außerhalb seiner Tabellen aufruft.
+/// Message when a Lektor calls something outside his tables.
 const AUTHOR_ONLY: &str = "Das darf nur der Autor";
 
-/// Meldung für einen Lektor ohne freigegebenes Werk.
+/// Message for a Lektor without a released work.
 pub const NO_WORK: &str = "Noch kein Werk freigegeben.";
 
-/// Meldung für ein nicht freigegebenes Werk: dieselbe wie für ein unbekanntes (`StoreError::UnknownWork`).
+/// Message for a work that is not released: the same as for an unknown one (`StoreError::UnknownWork`).
 pub fn unknown_work(work: WorkId) -> String {
     StoreError::UnknownWork(work).to_string()
 }
 
-/// Meldung und Code, wenn ein Lektor die Methode `method` nicht darf ([`FORBIDDEN`]).
+/// Message and code when a Lektor is not allowed the method `method` ([`FORBIDDEN`]).
 pub(crate) fn author_only(method: &str) -> RpcError {
     let shown: String = method.chars().take(80).collect();
     RpcError::new(FORBIDDEN, format!("Only the author may do this: {shown}"))
 }
 
-/// Die für `who` freigegebenen Werke, aufsteigend; nur ein Lektor hat welche (volle Rechte brauchen keine Freigabe).
-/// Jedes Mal neu gelesen.
+/// The works released for `who`, ascending; only a Lektor has any (full rights need no release).
+/// Read anew every time.
 pub async fn granted_works(state: &AppState, who: &Who) -> Result<Vec<WorkId>, StoreError> {
     match who.lektor() {
         Some(identity) => state.store.member_works(identity.id).await,
@@ -177,7 +180,7 @@ pub async fn granted_works(state: &AppState, who: &Who) -> Result<Vec<WorkId>, S
     }
 }
 
-/// Rolle von `who` im Werk; `None` = keine (Werk unsichtbar, 403).
+/// Role of `who` in the work; `None` = none (work invisible, 403).
 pub async fn role_in(state: &AppState, who: &Who, work: WorkId) -> Result<Option<Role>, StoreError> {
     if who.full_rights() {
         return Ok(Some(Role::Author));
@@ -185,8 +188,8 @@ pub async fn role_in(state: &AppState, who: &Who, work: WorkId) -> Result<Option
     Ok(granted_works(state, who).await?.contains(&work).then_some(Role::Lektor))
 }
 
-/// Die Werke, die `who` sehen darf (für Übersicht und Werkwahl): mit vollen Rechten alle, als Lektor die
-/// freigegebenen, sonst keines. Systemzwecke (Sicherung, Spiegel) nehmen weiter `Store::work_list`.
+/// The works `who` may see (for overview and work choice): with full rights all, as a Lektor the
+/// released ones, otherwise none. System purposes (backup, mirror) keep using `Store::work_list`.
 pub async fn visible_works(state: &AppState, who: &Who) -> Result<Vec<WorkSummary>, StoreError> {
     if who.full_rights() {
         return state.store.work_list().await;
@@ -200,9 +203,9 @@ pub async fn visible_works(state: &AppState, who: &Who) -> Result<Vec<WorkSummar
     Ok(works)
 }
 
-/// Passt `path` auf das Muster (wie im Router: `{name}` steht für genau ein nicht leeres Segment)? Liefert den Wert
-/// des Platzhalters `{id}` (Werk), falls das Muster einen hat. Verglichen wird der rohe Pfad: Ein prozentkodierter
-/// Pfad passt auf kein festes Segment, und eine kodierte Werk-id ist keine Zahl – beides wird abgelehnt.
+/// Does `path` match the pattern (as in the router: `{name}` stands for exactly one non-empty segment)? Delivers
+/// the value of the placeholder `{id}` (work) if the pattern has one. The raw path is compared: a percent-encoded
+/// path matches no fixed segment, and an encoded work id is not a number – both are rejected.
 fn match_route<'p>(pattern: &str, path: &'p str) -> Option<Option<&'p str>> {
     let mut id = None;
     let mut wanted = pattern.split('/');
@@ -224,8 +227,8 @@ fn match_route<'p>(pattern: &str, path: &'p str) -> Option<Option<&'p str>> {
     }
 }
 
-/// Alle Werte von `work` in der Adresse, so gelesen wie die Seiten sie lesen (axum `Query`, also prozentdekodiert –
-/// auch ein kodierter Name wie `wor%6B` zählt). `Err` = die Adresse lässt sich nicht lesen.
+/// All values of `work` in the address, read the way the pages read them (axum `Query`, that is percent-decoded –
+/// an encoded name such as `wor%6B` counts as well). `Err` = the address cannot be read.
 fn query_works(query: Option<&str>) -> Result<Vec<String>, ()> {
     let Some(query) = query.filter(|q| !q.is_empty()) else { return Ok(Vec::new()) };
     let uri: axum::http::Uri = format!("/?{query}").parse().map_err(|_| ())?;
@@ -233,16 +236,16 @@ fn query_works(query: Option<&str>) -> Result<Vec<String>, ()> {
     Ok(pairs.0.into_iter().filter(|(name, _)| name == "work").map(|(_, value)| value).collect())
 }
 
-/// Die einzige Prüfung einer Route. Volle Rechte → erlaubt; Lektor → nur Treffer in [`LEKTOR_ROUTES`] mit
-/// freigegebenem Werk (siehe Modulkopf „Werk-Bindung“).
+/// The only check of a route. Full rights → allowed; Lektor → only matches in [`LEKTOR_ROUTES`] with
+/// a released work (see the module header, "Work binding").
 pub async fn check_request(state: &AppState, who: &Who, method: &Method, path: &str, query: Option<&str>) -> Verdict {
     check_request_preferring(state, who, method, path, query, None).await
 }
 
-/// [`check_request`] mit dem zuletzt geöffneten Werk des Browsers (`preferred`, Cookie `baruch_work`; so ruft
-/// [`crate::auth::gate`] auf): Fehlt `work` in der Adresse einer GET-Seite, führt die Umleitung auf dieses Werk, wenn
-/// es freigegeben ist – sonst auf das kleinste freigegebene (Vertrag §2.1). Das Cookie gibt nie ein Recht: Ein nicht
-/// freigegebenes oder unlesbares `preferred` zählt schlicht nicht.
+/// [`check_request`] with the work the browser opened last (`preferred`, cookie `baruch_work`; this is how
+/// [`crate::auth::gate`] calls it): if `work` is missing in the address of a GET page, the redirect leads to this
+/// work if it is released – otherwise to the smallest released one (contract §2.1). The cookie never grants a
+/// right: a `preferred` that is not released or unreadable simply does not count.
 pub async fn check_request_preferring(
     state: &AppState,
     who: &Who,
@@ -257,7 +260,7 @@ pub async fn check_request_preferring(
     if who.lektor().is_none() {
         return Verdict::Deny("Anmeldung erforderlich.".to_owned());
     }
-    // HEAD beantwortet axum mit dem GET-Handler; alles andere als GET, HEAD und POST gibt es für Lektoren nicht.
+    // axum answers HEAD with the GET handler; anything other than GET, HEAD and POST does not exist for Lektors.
     let verb = if method == Method::GET || method == Method::HEAD {
         "GET"
     } else if method == Method::POST {
@@ -279,7 +282,7 @@ pub async fn check_request_preferring(
             return Verdict::Deny("Freigaben nicht lesbar.".to_owned());
         }
     };
-    // Jedes `work` der Adresse muss freigegeben sein – bei jeder Route, auch wenn sie selbst kein Werk braucht.
+    // Every `work` of the address must be released – for every route, even if it needs no work itself.
     let Ok(in_query) = query_works(query) else {
         return Verdict::Deny("Adresse nicht lesbar.".to_owned());
     };
@@ -300,8 +303,8 @@ pub async fn check_request_preferring(
         WorkFrom::Query if !in_query.is_empty() => Verdict::Allow,
         WorkFrom::Query if verb != "GET" => Verdict::Deny(NO_WORK.to_owned()),
         WorkFrom::Query => match preferred.filter(|work| granted.contains(work)).or(granted.first().copied()) {
-            // Nie das Vorgabewerk der Instanz: dieselbe Adresse mit dem zuletzt geöffneten Werk, wenn es freigegeben
-            // ist, sonst mit dem kleinsten freigegebenen.
+            // Never the default work of the instance: the same address with the work opened last if it is
+            // released, otherwise with the smallest released one.
             Some(work) => Verdict::Redirect(match query.filter(|q| !q.is_empty()) {
                 Some(query) => format!("{path}?{query}&work={work}"),
                 None => format!("{path}?work={work}"),
@@ -311,8 +314,8 @@ pub async fn check_request_preferring(
     }
 }
 
-/// `work` aus RPC-Parametern, gelesen wie die Module es lesen (`rpc::work_param`: Zahl; `findings::rpc`: auch
-/// Ziffern als Text): `Ok(None)` = fehlt, `Err` = weder Zahl noch Ziffern.
+/// `work` from RPC parameters, read the way the modules read it (`rpc::work_param`: number; `findings::rpc`: also
+/// digits as text): `Ok(None)` = missing, `Err` = neither a number nor digits.
 fn param_work(params: &Value) -> Result<Option<WorkId>, RpcError> {
     let wrong = || RpcError::new(INVALID_PARAMS, "work: Werk-id (Zahl) erwartet");
     match params.get("work") {
@@ -323,10 +326,10 @@ fn param_work(params: &Value) -> Result<Option<WorkId>, RpcError> {
     }
 }
 
-/// Die einzige Prüfung einer RPC-Methode, vor jedem Dispatch (auch für unbekannte Namen). Volle Rechte → Ok;
-/// ohne Anmeldung [`UNAUTHENTICATED`]; Lektor → nur Methoden aus [`LEKTOR_RPC`], sonst [`FORBIDDEN`]. Ein genanntes
-/// `work` muss freigegeben sein ([`FORBIDDEN`] mit der Meldung eines unbekannten Werks) und steht danach als Zahl
-/// in `params`; fehlt es bei [`WorkFrom::Param`], wird das kleinste freigegebene Werk eingesetzt.
+/// The only check of an RPC method, before every dispatch (also for unknown names). Full rights → Ok;
+/// without a login [`UNAUTHENTICATED`]; Lektor → only methods from [`LEKTOR_RPC`], otherwise [`FORBIDDEN`]. A named
+/// `work` must be released ([`FORBIDDEN`] with the message of an unknown work) and afterwards stands as a number
+/// in `params`; if it is missing with [`WorkFrom::Param`], the smallest released work is inserted.
 pub async fn check_rpc(state: &AppState, who: &Who, method: &str, params: &mut Value) -> Result<(), RpcError> {
     if who.full_rights() {
         return Ok(());
@@ -358,7 +361,7 @@ pub async fn check_rpc(state: &AppState, who: &Who, method: &str, params: &mut V
     Ok(())
 }
 
-/// Name, unter dem `who` schreibt: ein Lektor unter seinem Handle (`@lektorat:<slug>`), alle anderen als
+/// Name under which `who` writes: a Lektor under his handle (`@lektorat:<slug>`), all others as
 /// [`crate::mirror::HUMAN_NAME`].
 pub fn author_name(who: &Who) -> String {
     match who.lektor() {

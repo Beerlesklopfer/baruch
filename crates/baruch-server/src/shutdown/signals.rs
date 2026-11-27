@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Signale des Systems, auf die Baruch sauber herunterfährt (Runde 32, Aufgabe beenden).
+//! Signals of the system on which Baruch shuts down cleanly (Round 32, task beenden).
 //!
-//! - überall: Strg+C;
-//! - Unix: `SIGTERM` (`systemctl stop`, `kill`, Abmelden). **Nicht** `SIGHUP`: `nohup baruch-server …` stellt
-//!   `SIGHUP` auf „ignorieren“, und ein eigener Empfänger höbe das wieder auf – Baruch endete dann doch mit dem
-//!   Terminal. Der Starter `packaging/linux/baruch` übersetzt `SIGHUP` selbst in `SIGTERM` an den Server;
-//! - Windows: Strg+Pause (`ctrl_break`), Schließen des Konsolenfensters (`ctrl_close`), Herunterfahren des Systems
-//!   (`ctrl_shutdown`). Nach den letzten beiden beendet Windows den Prozess nach wenigen Sekunden von sich aus;
-//!   darum gilt dort die kürzere Frist [`WINDOWS_CLOSE_GRACE`]. Der Windows-Zweig ist nur übersetzt geprüft
-//!   (`cargo check --target x86_64-pc-windows-gnu` an genau dieser Datei), nie auf Windows gelaufen.
+//! - everywhere: Ctrl+C;
+//! - Unix: `SIGTERM` (`systemctl stop`, `kill`, logging out). **Not** `SIGHUP`: `nohup baruch-server …` sets
+//!   `SIGHUP` to "ignore", and a receiver of our own would lift that again – Baruch would then end with the
+//!   terminal after all. The launcher `packaging/linux/baruch` translates `SIGHUP` itself into `SIGTERM` to the
+//!   server;
+//! - Windows: Ctrl+Break (`ctrl_break`), closing the console window (`ctrl_close`), shutting down the system
+//!   (`ctrl_shutdown`). After the last two Windows ends the process by itself after a few seconds;
+//!   therefore the shorter grace period [`WINDOWS_CLOSE_GRACE`] applies there. The Windows branch is only checked
+//!   by compiling (`cargo check --target x86_64-pc-windows-gnu` on exactly this file), never run on Windows.
 //!
-//! Die Datei hängt nur von `tokio` ab (kein `crate::…`), damit sie sich für ein fremdes Ziel einzeln übersetzen
-//! lässt.
+//! The file depends only on `tokio` (no `crate::…`), so that it can be compiled on its own for a foreign
+//! target.
 
 use std::time::Duration;
 
-/// Frist nach `ctrl_close` und `ctrl_shutdown`: Windows wartet auf den Empfänger rund fünf Sekunden und beendet
-/// den Prozess dann hart; die Datenbank soll vorher geschlossen sein.
+/// Grace period after `ctrl_close` and `ctrl_shutdown`: Windows waits for the receiver about five seconds and
+/// then ends the process hard; the database is to be closed before that.
 pub const WINDOWS_CLOSE_GRACE: Duration = Duration::from_secs(3);
 
-/// Ein Signal des Systems: sein Name für die Meldung und – wenn das System nicht lange wartet – eine Obergrenze
-/// für die Frist.
+/// A signal of the system: its name for the message and – if the system does not wait long – an upper limit
+/// for the grace period.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SystemSignal {
     pub name: &'static str,
@@ -33,7 +34,7 @@ impl SystemSignal {
     }
 }
 
-/// Strg+C; lässt sich der Empfänger nicht einrichten, kommt dieses Signal nie (statt sofort zu beenden).
+/// Ctrl+C; if the receiver cannot be set up, this signal never comes (instead of quitting at once).
 #[cfg(not(unix))]
 async fn ctrl_c() {
     if let Err(e) = tokio::signal::ctrl_c().await {
@@ -42,19 +43,19 @@ async fn ctrl_c() {
     }
 }
 
-/// Wartet auf das erste Signal, das Baruch beenden soll.
+/// Waits for the first signal that is to end Baruch.
 ///
-/// Die Empfänger sind **mit dem Aufruf** eingerichtet, nicht erst beim ersten Warten (Integration Runde 32): `main`
-/// ruft dies auf, bevor „Baruch läuft“ auf der Standardausgabe steht. Sonst träfe ein `SIGTERM` unmittelbar nach
-/// dieser Zeile (ein Starter oder `systemctl stop` gleich nach dem Start) noch die Vorgabe des Systems und
-/// beendete den Prozess hart, ohne die Datenbank zu schließen. Braucht eine laufende Tokio-Laufzeit.
+/// The receivers are set up **with the call**, not only on the first waiting (integration Round 32): `main`
+/// calls this before „Baruch läuft“ stands on the standard output. Otherwise a `SIGTERM` immediately after
+/// this line (a launcher or `systemctl stop` right after the start) would still hit the default of the system and
+/// end the process hard, without closing the database. Needs a running Tokio runtime.
 #[cfg(unix)]
 pub fn system_signal() -> impl Future<Output = SystemSignal> + Send + 'static {
     use tokio::signal::unix::{SignalKind, signal};
     let terminate = signal(SignalKind::terminate());
     let interrupt = signal(SignalKind::interrupt());
     async move {
-        // Lässt sich ein Empfänger nicht einrichten, kommt sein Signal nie; der andere gilt weiter.
+        // If a receiver cannot be set up, its signal never comes; the other one still applies.
         async fn received(receiver: std::io::Result<tokio::signal::unix::Signal>, name: &str) {
             match receiver {
                 Ok(mut receiver) => {
@@ -73,11 +74,11 @@ pub fn system_signal() -> impl Future<Output = SystemSignal> + Send + 'static {
     }
 }
 
-/// Wartet auf das erste Signal, das Baruch beenden soll.
+/// Waits for the first signal that is to end Baruch.
 #[cfg(windows)]
 pub async fn system_signal() -> SystemSignal {
     use tokio::signal::windows::{ctrl_break, ctrl_close, ctrl_shutdown};
-    // Lässt sich ein Empfänger nicht einrichten, kommt sein Signal nie; die übrigen gelten weiter.
+    // If a receiver cannot be set up, its signal never comes; the others still apply.
     async fn or_never<T>(receiver: std::io::Result<T>, name: &str) -> T {
         match receiver {
             Ok(receiver) => receiver,
@@ -99,7 +100,7 @@ pub async fn system_signal() -> SystemSignal {
     }
 }
 
-/// Wartet auf das erste Signal, das Baruch beenden soll.
+/// Waits for the first signal that is to end Baruch.
 #[cfg(not(any(unix, windows)))]
 pub async fn system_signal() -> SystemSignal {
     ctrl_c().await;

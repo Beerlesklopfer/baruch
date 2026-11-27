@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vorschau, Ersetzen und Rückgängig (Runde 30a, RPC `search.preview`, `search.replace`, `search.undo`).
+//! Preview, replace and undo (Round 30a, RPC `search.preview`, `search.replace`, `search.undo`).
 //!
-//! Die Vorschau rechnet je Abschnitt die Treffer (Textarten des Ersetzens) und den Text danach; `search.replace`
-//! rechnet dasselbe neu (gleiche Reihenfolge der Treffer, `skip` zählt in ihr), lässt abgewählte Stellen aus und
-//! übergibt die neuen Texte an `Store::replace_apply` (eine Transaktion, je Abschnitt eine Fassung vom Menschen, nur
-//! auf `base_rev`). Danach genau ein Spiegel-Commit über `mirror::record_request`.
+//! The preview computes per section the hits (text kinds of the replace) and the text afterwards; `search.replace`
+//! computes the same anew (same order of the hits, `skip` counts in it), leaves out deselected positions and
+//! hands the new texts to `Store::replace_apply` (one transaction, per section one revision by the human, only
+//! on `base_rev`). Afterwards exactly one mirror commit through `mirror::record_request`.
 
 use baruch_gitmirror::{CommitRequest, Signature};
 use baruch_store::{ReplaceBatch, ReplaceEdit, ReplaceSkip, WorkId};
@@ -18,10 +18,10 @@ use crate::AppState;
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME};
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
-/// Höchstzahl der Abschnitte je Ersetzen (Vertrag §3.1).
+/// Maximum number of sections per replace (contract §3.1).
 pub const MAX_SECTIONS: usize = 500;
 
-/// Ein Abschnitt der Vorschau.
+/// A section of the preview.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PreviewSection {
     pub key: i64,
@@ -29,13 +29,13 @@ pub struct PreviewSection {
     pub title: String,
     pub base_rev: u32,
     pub hits: Vec<SearchHit>,
-    /// Ersatz je Treffer (gleiche Reihenfolge wie `hits`).
+    /// Replacement per hit (same order as `hits`).
     pub replacements: Vec<String>,
     pub diff_html: String,
     pub body_after: String,
 }
 
-/// Ergebnis von [`preview`].
+/// Result of [`preview`].
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Preview {
     pub sections: Vec<PreviewSection>,
@@ -45,7 +45,7 @@ pub struct Preview {
     pub range_label: String,
 }
 
-/// Auswahl eines Abschnitts beim Ersetzen: Basis und abgewählte Treffer (Stellen in der Trefferliste der Vorschau).
+/// Choice of a section when replacing: base and deselected hits (positions in the hit list of the preview).
 #[derive(Debug, Clone, Deserialize)]
 pub struct Pick {
     pub key: i64,
@@ -54,7 +54,7 @@ pub struct Pick {
     pub skip: Vec<usize>,
 }
 
-/// Ergebnis von [`replace`].
+/// Result of [`replace`].
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Replaced {
     pub batch: ReplaceBatch,
@@ -68,17 +68,17 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// HTML maskieren.
+/// Escape HTML.
 pub fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// Unterschied eines Abschnitts: je Zeile mit Treffern die Zeile, darin `<del>` alt und `<ins>` neu (alles maskiert).
+/// Difference of a section: per line with hits the line, in it `<del>` old and `<ins>` new (everything escaped).
 fn diff_html(text: &str, found: &[super::scan::Found]) -> String {
     let mut out = String::new();
     let mut index = 0;
     let mut line_start = 0;
-    // `done`: bis hierher ist der Text schon ausgegeben (ein Treffer kann über ein Zeilenende reichen).
+    // `done`: up to here the text is already written out (a hit can reach across the end of a line).
     let mut done = 0;
     for line in text.split_inclusive('\n') {
         let line_end = line_start + line.len();
@@ -113,7 +113,7 @@ fn diff_html(text: &str, found: &[super::scan::Found]) -> String {
     out
 }
 
-/// Ersatz prüfen (Länge).
+/// Check the replacement (length).
 fn check_replacement(replacement: &str) -> Result<(), RpcError> {
     let chars = replacement.chars().count();
     if chars > MAX_REPLACEMENT_CHARS {
@@ -124,7 +124,7 @@ fn check_replacement(replacement: &str) -> Result<(), RpcError> {
     Ok(())
 }
 
-/// Treffer zum Ersetzen sammeln (werkweise, nie `all`).
+/// Collect hits for replacing (per work, never `all`).
 async fn collect_for_replace(
     state: &AppState,
     work: WorkId,
@@ -149,7 +149,7 @@ async fn collect_for_replace(
     Ok(collected)
 }
 
-/// Vorschau des Ersetzens.
+/// Preview of the replace.
 pub async fn preview(
     state: &AppState,
     work: WorkId,
@@ -161,8 +161,8 @@ pub async fn preview(
     let mut shown = 0usize;
     let mut truncated = collected.truncated;
     for s in &collected.sections {
-        // Nur ganze Abschnitte (Auswahl und Diff beziehen sich auf alle Stellen eines Abschnitts), zusammen höchstens
-        // MAX_HITS Stellen – sonst wüchsen Diff, Text danach und Seite mit der Trefferzahl.
+        // Whole sections only (choice and diff refer to all positions of a section), together at most
+        // MAX_HITS positions – otherwise diff, text afterwards and page would grow with the number of hits.
         if sections.len() >= MAX_SECTIONS || shown + s.found.len() > super::MAX_HITS {
             truncated = true;
             break;
@@ -188,7 +188,7 @@ pub async fn preview(
     })
 }
 
-/// „„Leuchtturm““ gekürzt auf höchstens 60 Zeichen.
+/// „„Leuchtturm““ shortened to at most 60 characters.
 fn quoted(text: &str) -> String {
     let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let mut cut: String = flat.chars().take(60).collect();
@@ -206,8 +206,8 @@ fn human() -> Signature {
     Signature { name: HUMAN_NAME.to_owned(), email: HUMAN_EMAIL.to_owned() }
 }
 
-/// Ersetzen (nur der Mensch): neue Fassungen und ein Commit. `picks`: Abschnitte mit Basis und abgewählten Stellen;
-/// `None` = alle Abschnitte mit Treffern auf ihrer aktuellen Fassung.
+/// Replace (only the human): new revisions and one commit. `picks`: sections with base and deselected positions;
+/// `None` = all sections with hits on their current revision.
 pub async fn replace(
     state: &AppState,
     work: WorkId,
@@ -241,7 +241,7 @@ pub async fn replace(
     if bodies.len() > MAX_SECTIONS {
         return Err(invalid(format!("Höchstens {MAX_SECTIONS} Abschnitte je Ersetzen (hier {}).", bodies.len())));
     }
-    // Abschnitte aus der Auswahl ohne Treffer mehr (inzwischen geändert): mit Grund übersprungen.
+    // Sections from the choice without hits any more (changed in the meantime): skipped with a reason.
     let mut skipped_early = Vec::new();
     if let Some(picks) = picks {
         for p in picks {
@@ -303,7 +303,7 @@ pub async fn replace(
     Ok(Replaced { batch, changed, skipped, commit, mirror })
 }
 
-/// Rückgängig (nur der Mensch): zurück auf die vorigen Fassungen, ein Commit.
+/// Undo (only the human): back to the previous revisions, one commit.
 pub async fn undo(state: &AppState, work: WorkId, batch: i64) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let (batch, skipped) = state.store.replace_undo(work, batch, HUMAN_NAME).await?;
@@ -341,7 +341,7 @@ pub async fn undo(state: &AppState, work: WorkId, batch: i64) -> Result<Value, R
     Ok(answer)
 }
 
-/// Bestätigung `confirm: true` verlangen.
+/// Require the confirmation `confirm: true`.
 fn confirmed(params: &Value) -> Result<(), RpcError> {
     match params.get("confirm") {
         Some(Value::Bool(true)) => Ok(()),

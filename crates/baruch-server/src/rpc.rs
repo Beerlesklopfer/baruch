@@ -1,101 +1,102 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! JSON-RPC 2.0 unter `POST /rpc`: der Kern als Dienst. Dieselben Methoden bedient `POST /act`
-//! für Formulare ohne JavaScript.
+//! JSON-RPC 2.0 under `POST /rpc`: the core as a service. The same methods are served by `POST /act`
+//! for forms without JavaScript.
 //!
-//! Jede Methode nimmt optional `work` (Werk-id, Zahl); fehlt es, gilt das Vorgabewerk
-//! ([`AppState::default_work`]: jetzt die kleinste id), ein unbekanntes Werk ergibt `INVALID_PARAMS`.
-//! `work.*` außer `work.get`/`work.export` beantwortet [`crate::works`] vor der Wahl des Vorgabewerks
-//! (`work.update`/`work.delete` verlangen `work`), `outline.*` [`crate::outline`]. Ebenso ohne Werk
-//! laufen `persona.*` ([`crate::personas`]) und `idea.*` ([`crate::ideas`]), Runde 7.
+//! Every method optionally takes `work` (work id, number); if it is missing, the default work applies
+//! ([`AppState::default_work`]: now the smallest id), an unknown work results in `INVALID_PARAMS`.
+//! `work.*` except `work.get`/`work.export` is answered by [`crate::works`] before the default work is chosen
+//! (`work.update`/`work.delete` require `work`), `outline.*` by [`crate::outline`]. `persona.*`
+//! ([`crate::personas`]) and `idea.*` ([`crate::ideas`]) likewise run without a work, Round 7.
 //!
-//! Methoden:
-//! - `work.list/meta/create/import/update/delete`: Werke verwalten ([`crate::works`], `docs/RPC.md` „Werke“)
-//! - `work.get` → Werk mit Gliederung, Revisionen, Personas und Lektor
-//! - `work.export` → `{typst}`: Werkvorlage und aktuelle Texte als eine Typst-Datei
-//! - `node.get {node}` → ein Abschnitt mit Revisionen und Chat
-//! - `revision.accept {node, rev}` / `revision.reject {node, rev}` → `{node, rev}` (danach zu zeigen);
-//!   Übernehmen ist Umschalten auf einen Vorschlag, Verwerfen bleibt ein Status für Vorschläge
-//! - `revision.set_current {node, rev}` → `{node, rev}`: Markierung „aktuell“ auf jede andere Fassung.
-//!   Beim Umschalten und Übernehmen folgt die Gliederung der Überschriftszeile der Fassung
-//!   (`Store::switch_to`); bringt sie eine andere Ebene mit, trägt die Antwort `outline`
-//!   (Gliederungsantwort ohne Spiegel), und es entsteht genau ein Commit (`mirror::record_switch`)
-//! - `revision.save {node, body, based_on?, based_on_amend?, mode?}` → neue Revision vom Menschen, sofort aktuell, Elternteil
-//!   `based_on` (fehlt: die aktuelle Fassung); der Editor speichert über `outline.save`
-//! - `outline.*`: Gliederung umstellen ([`crate::outline`], `docs/RPC.md` „Gliederung“)
-//! - `revision.update {node, rev, body?, note?}` → `{node, rev, changed}`: Fassung ändern (nur Mensch)
-//! - `revision.delete {node, rev, confirm: true}` → `{node, rev, deleted, reparented}`: Fassung löschen
-//!   (nur Mensch, nicht die aktuelle), Kinder hängen am Elternteil; ohne `confirm: true` → `INVALID_PARAMS`
-//! - `revision.tree {node?, chapter?}` → `{revisions}` bzw. `{sections}`: Revisionsbaum ohne Texte
-//! - `post.add {node, body}` → `{node, key, id}`: Beitrag im Abschnitts-Chat
+//! Methods:
+//! - `work.list/meta/create/import/update/delete`: manage works ([`crate::works`], `docs/RPC.md` „Werke“)
+//! - `work.get` → work with outline, revisions, personas and lector
+//! - `work.export` → `{typst}`: work template and current texts as one Typst file
+//! - `node.get {node}` → one section with revisions and chat
+//! - `revision.accept {node, rev}` / `revision.reject {node, rev}` → `{node, rev}` (to be shown afterwards);
+//!   accepting is switching to a proposal, rejecting stays a status for proposals
+//! - `revision.set_current {node, rev}` → `{node, rev}`: mark "current" on any other revision.
+//!   On switching and accepting the outline follows the heading line of the revision
+//!   (`Store::switch_to`); if it brings another level, the answer carries `outline`
+//!   (outline answer without mirror), and exactly one commit is created (`mirror::record_switch`)
+//! - `revision.save {node, body, based_on?, based_on_amend?, mode?}` → new revision by the human, current at once,
+//!   parent `based_on` (missing: the current revision); the editor saves through `outline.save`
+//! - `outline.*`: rearrange the outline ([`crate::outline`], `docs/RPC.md` „Gliederung“)
+//! - `revision.update {node, rev, body?, note?}` → `{node, rev, changed}`: change a revision (human only)
+//! - `revision.delete {node, rev, confirm: true}` → `{node, rev, deleted, reparented}`: delete a revision
+//!   (human only, not the current one), children hang on the parent; without `confirm: true` → `INVALID_PARAMS`
+//! - `revision.tree {node?, chapter?}` → `{revisions}` or `{sections}`: revision tree without texts
+//! - `post.add {node, body}` → `{node, key, id}`: post in the section chat
 //! - `post.delete {id, confirm: true}`, `post.move {id, target_key | target}`, `post.to_idea {id, words}`:
-//!   Beiträge verwalten ([`crate::posts`], Runde 8; nur Mensch, je ein Spiegel-Commit)
-//! - `ui.render {key?, node?, rev?, view?, pick?, lq?}` → `{tree, editor, assistants, url, title}` (HTML der
-//!   drei Bereiche; `key` geht vor `node`, `url` ist die Adresse in Key-Form `/?work=W&key=K&rev=R…`)
-//! - `library.list` → `{titles: [TitleEntry]}` (Titel mit Zitaten)
+//!   manage posts ([`crate::posts`], Round 8; human only, one mirror commit each)
+//! - `ui.render {key?, node?, rev?, view?, pick?, lq?}` → `{tree, editor, assistants, url, title}` (HTML of the
+//!   three areas; `key` takes precedence over `node`, `url` is the address in key form `/?work=W&key=K&rev=R…`)
+//! - `library.list` → `{titles: [TitleEntry]}` (titles with quotations)
 //! - `library.search {query, kinds?, work?, all_revisions?, limit?}` → `{hits: [SearchHit]}`:
-//!   Volltextsuche über Werk und Bibliothek, das Werkzeug des Lektors; `work` ist das aktuelle Werk.
-//! - `literature.render`, `highlight.list/add/update/delete/cite`: Literatur-Popup und Hervorhebungen,
-//!   beantwortet von [`crate::literature`] (`docs/RPC.md`, „Literatur und Hervorhebungen“).
-//! - `wysiwyg.parse/serialize/style/diff`: Satzbild ([`crate::wysiwyg`], `docs/RPC.md` „Satzbild“);
-//!   Bild-Inseln tragen `<img>` mit dem Alternativtext aus `Store::asset_list`
-//! - `numbering.schemes/preview/set`: Gliederungsschemata ([`crate::numbering`], `docs/RPC.md`
-//!   „Gliederungsschemata“); `outline.set_numbering` bleibt
-//! - `asset.list/get/revisions/add/replace/set_current/update/delete`: Bilder als Base64- bzw.
-//!   SVG-Text ([`crate::assets`], `docs/RPC.md` „Bilder“); nur Mensch, nicht über `/act` und MCP
-//! - `persona.list/set_color`: Farben der Personas ([`crate::personas`], `docs/RPC.md` „Personas“);
-//!   `set_color` nur Mensch, nicht über `/act` und MCP
-//! - `idea.create/get/list/search/update/delete/restore/process/move`: Einfälle ([`crate::ideas`],
-//!   `docs/RPC.md` „Einfälle“); Herkunft immer der Mensch, `delete` verlangt `confirm: true`. Runde 34: `move`
-//!   hängt einen Einfall in der Mindmap um, ordnet ihn oder legt ihn in die Wolke
-//! - `idea.map/links/link/unlink/link_restore/map_pos_set/map_pos_reset/tree`: Mindmap (Gedankenkarte,
-//!   [`crate::idea_map`], Runde 25, `docs/RPC.md` „Gedankenkarte“); Herkunft immer der Mensch. Runde 34: `tree`
-//!   liefert die Mindmap als Baum samt der Wolke daneben, `map` bleibt die flache Sicht
-//! - `finding.list/get/set_status/decide`, `finding.matrix`: Befunde ([`crate::findings`], Runde 28, `docs/RPC.md`
-//!   „Befunde“); Status setzt nur der Mensch
-//! - `preview.typst {key?, page?}`: Typst-Satz des Werks mit Diagnosen ([`crate::typeset`], Runde 8), nur lesend
-//! - `persona.ask/review/propose/chat/prompt_get/set_prompt/lector_get/set_lector`: Personas mit
-//!   Modellaufruf und Rollen-Prompts ([`crate::assist`] über [`crate::personas`], Runde 10)
-//! - `model.list/status/probe`: Modell-Backend Eliezer ([`crate::models`], Runde 10); nur Mensch,
-//!   nicht über `/act` und MCP
-//! - `scripture.check {text, work?, module?}`: Bibelstellen prüfen; Wortlaut nur mit gewählter SWORD-Bibel,
-//!   sonst „ungeprüft“ ([`crate::scripture`], Runde 10, Wortlaut 2026-11-06), nur lesend
-//! - `scripture.map {ref, from?, to?}`, `scripture.versifications {}`: Stellen zwischen Verszählungen umrechnen
-//!   ([`crate::scripture_map`], Runde 17a), nur lesend
-//! - `bible.modules/set_dirs/set_work/lookup/check/search`: SWORD-Bibeln ([`crate::bibles`], 2026-11-06);
-//!   `set_dirs`/`set_work` nur Mensch, nicht über MCP
-//! - `bible.marks {work?, key, rev?}` (Prüfanzeige, nur lesend) und `bible.cipher_key_set/_delete` (Schlüssel
-//!   verschlüsselter SWORD-Module, nur Mensch, nicht über `/act` und MCP; [`crate::bibles`], Runde 17c)
-//! - `work.timing/timing_set`, `timing.count`: Zeitwächter ([`crate::timing`], Runde 16b, `docs/RPC.md`
-//!   „Zeitwächter“); `timing_set` nur Mensch, nicht über `/act` und MCP
-//! - `work.exchange_export/exchange_preview/exchange_import`: Austausch zwischen Instanzen ([`crate::exchange`],
-//!   Runde 26, `docs/RPC.md` „Austausch“), ohne Vorgabewerk; Einlesen nur Mensch, nicht über `/act` und MCP
-//! - `instance.get/set_name`: Kennung und Name dieser Instanz ([`crate::instance`], Runde 26); `set_name` nur
-//!   Mensch, nicht über `/act` und MCP
-//! - `search.find/preview/replace/undo`: im Werk suchen und ersetzen ([`crate::search`], Runde 30a, `docs/RPC.md`
-//!   „Suchen und Ersetzen“); `replace`/`undo` nur Mensch, nicht über `/act` und MCP
-//! - `xref.targets/resolve/candidates/convert/broken`: Querverweise ([`crate::xref`], Runde 30a, `docs/RPC.md`
-//!   „Querverweise“); `convert` nur Mensch
-//! - `solution.list/adopt/variants/reject_siblings/compare`: Lösungsvorschläge und Varianten
-//!   ([`crate::assist::solutions`], Runde 30b, `docs/RPC.md` „Lösungsvorschläge und Varianten“); Vorschläge nur als
-//!   `proposed`, `reject_siblings` nur Mensch
-//! - `mcp_token.list/create/revoke`: Tokens für den MCP-Zugang von anderen Rechnern
-//!   ([`crate::mcp::tokens`], Runde 10); nur Mensch, nicht über `/act` und MCP
+//!   full-text search over work and library, the tool of the lector; `work` is the current work.
+//! - `literature.render`, `highlight.list/add/update/delete/cite`: literature popup and highlights,
+//!   answered by [`crate::literature`] (`docs/RPC.md`, „Literatur und Hervorhebungen“).
+//! - `wysiwyg.parse/serialize/style/diff`: typeset view ([`crate::wysiwyg`], `docs/RPC.md` „Satzbild“);
+//!   image islands carry `<img>` with the alternative text from `Store::asset_list`
+//! - `numbering.schemes/preview/set`: outline schemes ([`crate::numbering`], `docs/RPC.md`
+//!   „Gliederungsschemata“); `outline.set_numbering` stays
+//! - `asset.list/get/revisions/add/replace/set_current/update/delete`: images as Base64 or
+//!   SVG text ([`crate::assets`], `docs/RPC.md` „Bilder“); human only, not through `/act` and MCP
+//! - `persona.list/set_color`: colours of the personas ([`crate::personas`], `docs/RPC.md` „Personas“);
+//!   `set_color` human only, not through `/act` and MCP
+//! - `idea.create/get/list/search/update/delete/restore/process/move`: ideas ([`crate::ideas`],
+//!   `docs/RPC.md` „Einfälle“); origin always the human, `delete` requires `confirm: true`. Round 34: `move`
+//!   re-hangs an idea in the mind map, orders it or puts it into the cloud
+//! - `idea.map/links/link/unlink/link_restore/map_pos_set/map_pos_reset/tree`: mind map (idea map,
+//!   [`crate::idea_map`], Round 25, `docs/RPC.md` „Gedankenkarte“); origin always the human. Round 34: `tree`
+//!   delivers the mind map as a tree together with the cloud next to it, `map` stays the flat view
+//! - `finding.list/get/set_status/decide`, `finding.matrix`: findings ([`crate::findings`], Round 28, `docs/RPC.md`
+//!   „Befunde“); only the human sets the status
+//! - `preview.typst {key?, page?}`: Typst typesetting of the work with diagnostics ([`crate::typeset`], Round 8),
+//!   read only
+//! - `persona.ask/review/propose/chat/prompt_get/set_prompt/lector_get/set_lector`: personas with
+//!   model call and role prompts ([`crate::assist`] through [`crate::personas`], Round 10)
+//! - `model.list/status/probe`: model backend Eliezer ([`crate::models`], Round 10); human only,
+//!   not through `/act` and MCP
+//! - `scripture.check {text, work?, module?}`: check Bible passages; wording only with a chosen SWORD Bible,
+//!   otherwise „ungeprüft“ ([`crate::scripture`], Round 10, wording 2026-11-06), read only
+//! - `scripture.map {ref, from?, to?}`, `scripture.versifications {}`: convert passages between versifications
+//!   ([`crate::scripture_map`], Round 17a), read only
+//! - `bible.modules/set_dirs/set_work/lookup/check/search`: SWORD Bibles ([`crate::bibles`], 2026-11-06);
+//!   `set_dirs`/`set_work` human only, not through MCP
+//! - `bible.marks {work?, key, rev?}` (check display, read only) and `bible.cipher_key_set/_delete` (keys
+//!   of encrypted SWORD modules, human only, not through `/act` and MCP; [`crate::bibles`], Round 17c)
+//! - `work.timing/timing_set`, `timing.count`: time guard ([`crate::timing`], Round 16b, `docs/RPC.md`
+//!   „Zeitwächter“); `timing_set` human only, not through `/act` and MCP
+//! - `work.exchange_export/exchange_preview/exchange_import`: exchange between instances ([`crate::exchange`],
+//!   Round 26, `docs/RPC.md` „Austausch“), without a default work; reading in human only, not through `/act` and MCP
+//! - `instance.get/set_name`: identifier and name of this instance ([`crate::instance`], Round 26); `set_name`
+//!   human only, not through `/act` and MCP
+//! - `search.find/preview/replace/undo`: search and replace in the work ([`crate::search`], Round 30a, `docs/RPC.md`
+//!   „Suchen und Ersetzen“); `replace`/`undo` human only, not through `/act` and MCP
+//! - `xref.targets/resolve/candidates/convert/broken`: cross-references ([`crate::xref`], Round 30a, `docs/RPC.md`
+//!   „Querverweise“); `convert` human only
+//! - `solution.list/adopt/variants/reject_siblings/compare`: solution proposals and variants
+//!   ([`crate::assist::solutions`], Round 30b, `docs/RPC.md` „Lösungsvorschläge und Varianten“); proposals only as
+//!   `proposed`, `reject_siblings` human only
+//! - `mcp_token.list/create/revoke`: tokens for the MCP access from other machines
+//!   ([`crate::mcp::tokens`], Round 10); human only, not through `/act` and MCP
 //!
-//! Titel von Gliederungspunkten prüft der Store (`baruch_store::check_title`, Runde 7): leer, mit
-//! Zeilenumbruch oder über 200 Zeichen → `INVALID_PARAMS` (`StoreError::Title`), nichts geändert.
+//! Titles of outline items are checked by the store (`baruch_store::check_title`, Round 7): empty, with a
+//! line break or over 200 characters → `INVALID_PARAMS` (`StoreError::Title`), nothing changed.
 //!
-//! Übernehmen, Umschalten, Speichern, Ändern und Löschen schreiben atomar in die Datenbank und
-//! spiegeln danach in Git; die Antwort trägt dann `commit` (Commit-Id) oder `mirror` (Fehlertext des
-//! Spiegels). Alles läuft unter [`AppState::write_lock`], damit gleichzeitige Änderungen je ihren
-//! eigenen Commit bekommen.
+//! Accepting, switching, saving, changing and deleting write atomically into the database and
+//! mirror into Git afterwards; the answer then carries `commit` (commit id) or `mirror` (error text of the
+//! mirror). Everything runs under [`AppState::write_lock`], so that simultaneous changes each get their
+//! own commit.
 //!
-//! Abschnitte: `node` ist die Stelle (`seq`), die jede Gliederungsänderung neu vergibt. Alle Methoden
-//! mit `node` nehmen zusätzlich `key` (fester Schlüssel, `Node::key`); ist er da, gilt er statt
-//! `node` ([`resolve_keys`]). Formulare und Editor schicken ihn immer mit.
+//! Sections: `node` is the position (`seq`), which every outline change assigns anew. All methods
+//! with `node` additionally take `key` (fixed key, `Node::key`); if it is there, it applies instead of
+//! `node` ([`resolve_keys`]). Forms and editor always send it along.
 //!
-//! Revisionen werden über ihre Nummer angesprochen, nie über „Stelle ± 1“ (nach dem Löschen hat die
-//! Nummernfolge Lücken). Assistenten legen nur Vorschläge an; Speichern, Umschalten, Ändern und
-//! Löschen sind dem Menschen vorbehalten und gibt es darum nicht über MCP.
+//! Revisions are addressed through their number, never through "position ± 1" (after deleting, the
+//! sequence of numbers has gaps). Assistants only create proposals; saving, switching, changing and
+//! deleting are reserved for the human and therefore do not exist through MCP.
 
 use baruch_core::{Post, Work};
 use baruch_library::{LibraryError, SearchHit, SearchOptions, TitleEntry};
@@ -111,13 +112,14 @@ pub const INVALID_REQUEST: i64 = -32600;
 pub const METHOD_NOT_FOUND: i64 = -32601;
 pub const INVALID_PARAMS: i64 = -32602;
 pub const INTERNAL: i64 = -32603;
-/// Fachlicher Fehler (z. B. „nur Vorschläge lassen sich übernehmen“).
+/// Domain error (e.g. „nur Vorschläge lassen sich übernehmen“).
 pub const REFUSED: i64 = -32000;
-/// Bedeutungssuche ausgefallen (Runde 19c, `idea.search` mit `mode: "rag"`): Einbettung/Index nicht nutzbar; die Nachricht nennt den Grund.
+/// Meaning search failed (Round 19c, `idea.search` with `mode: "rag"`): embedding/index not usable; the message
+/// names the reason.
 pub const RAG_UNAVAILABLE: i64 = -32001;
-/// Runde 35: Es gibt Konten und die Anfrage trägt keine gültige Sitzung (HTTP 401 an `/rpc`).
+/// Round 35: there are accounts and the request carries no valid session (HTTP 401 at `/rpc`).
 pub const UNAUTHENTICATED: i64 = -32002;
-/// Runde 35: Die Rolle darf die Methode bzw. das Werk nicht („Das darf nur der Autor: …“).
+/// Round 35: the role is not allowed the method or the work („Das darf nur der Autor: …“).
 pub const FORBIDDEN: i64 = -32003;
 
 #[derive(Debug)]
@@ -148,12 +150,12 @@ struct NodeParams {
 #[derive(Deserialize)]
 struct RevParams {
     node: usize,
-    /// Revisionsnummer ab 1.
+    /// Revision number from 1.
     rev: u32,
 }
 
-/// `revision.delete`; `confirm` muss `true` sein (vorher geprüft): Löschen ist endgültig (der Text
-/// bleibt nur im Spiegel-Commit).
+/// `revision.delete`; `confirm` must be `true` (checked before): deleting is final (the text
+/// stays only in the mirror commit).
 #[derive(Deserialize)]
 struct DeleteParams {
     node: usize,
@@ -166,12 +168,12 @@ struct BodyParams {
     body: String,
 }
 
-/// Übernimmt der Mensch einen Vorschlag mit Markdown-Überschriften (`# Titel`, Nutzer 2026-11-07), gilt
-/// dieselbe Regel wie beim Speichern: Der Vorschlag selbst bleibt unverändert (übernommen, im Revisionsbaum),
-/// darauf folgt eine Fassung des Menschen mit den umgewandelten Überschriften, und die Gliederung gleicht
-/// sich ab wie beim Speichern im Editor (weitere Überschriften werden neue Punkte; kein Zusammenführen).
-/// Geht das nicht (z. B. eine Ebene, die die Gliederung nicht zulässt), bleibt es beim Übernommenen und
-/// `markdown` in der Antwort sagt, warum.
+/// If the human accepts a proposal with Markdown headings (`# Titel`, user 2026-11-07), the same rule
+/// applies as on saving: the proposal itself stays unchanged (accepted, in the revision tree),
+/// a revision of the human with the converted headings follows on it, and the outline reconciles
+/// as on saving in the editor (further headings become new items; no merging).
+/// If that does not work (e.g. a level the outline does not permit), it stays with what was accepted and
+/// `markdown` in the answer says why.
 async fn accept_markdown_headings(
     state: &AppState,
     held: &mirror::WriteGuard<'_>,
@@ -217,9 +219,9 @@ async fn accept_markdown_headings(
 struct SaveParams {
     node: usize,
     body: String,
-    /// Fassung, auf der die neue beruht (die gezeigte); fehlt: die aktuelle.
+    /// Revision the new one is based on (the one shown); missing: the current one.
     based_on: Option<u32>,
-    /// Nachbesserung R22: Stand der Basis, den der Client geladen hatte; fehlt: nur die Fassungsnummer zählt.
+    /// Follow-up fix R22: state of the base the client had loaded; missing: only the revision number counts.
     based_on_amend: Option<u32>,
 }
 
@@ -229,15 +231,15 @@ struct UpdateParams {
     rev: u32,
     body: Option<String>,
     note: Option<String>,
-    /// Runde 23a (Codereview web-3): Stand der Fassung, den der Client geladen hatte. Steht sie inzwischen auf einem
-    /// anderen Stand, wird nichts geändert (-32000 „Veraltet: …“); fehlt der Wert, wird nicht geprüft.
+    /// Round 23a (code review web-3): state of the revision the client had loaded. If it stands on another
+    /// state by now, nothing is changed (-32000 „Veraltet: …“); if the value is missing, there is no check.
     based_on_amend: Option<u32>,
 }
 
 #[derive(Deserialize)]
 struct TreeParams {
     node: Option<usize>,
-    /// `true`: das ganze Kapitel des Abschnitts.
+    /// `true`: the whole chapter of the section.
     #[serde(default)]
     chapter: bool,
 }
@@ -276,17 +278,17 @@ impl From<StoreError> for RpcError {
             StoreError::UnknownIdea(_) | StoreError::Idea(_) => INVALID_PARAMS,
             StoreError::UnknownPost { .. } | StoreError::UnknownRequest { .. } => INVALID_PARAMS,
             StoreError::Exchange(_) => INVALID_PARAMS,
-            // Runde 28: Befunde und Beitragsfassungen.
+            // Round 28: findings and post revisions.
             StoreError::UnknownFinding { .. } | StoreError::Finding(_) | StoreError::PostEdit(_) => INVALID_PARAMS,
-            // Runde 30a: werkweites Ersetzen abgelehnt bzw. noch nicht umgesetzt.
+            // Round 30a: work-wide replacing rejected or not implemented yet.
             StoreError::Replace(_) => REFUSED,
-            // Runde 29: Satz-Einstellungen ungültig (alle Meldungen); `typeset_settings` bildet Ablehnungen selbst ab.
+            // Round 29: typeset settings invalid (all messages); `typeset_settings` maps rejections itself.
             StoreError::Typeset(_) => INVALID_PARAMS,
-            // Runde 31: Glossar und Register (abgelehnt, unbekannt oder noch nicht umgesetzt).
+            // Round 31: glossary and index (rejected, unknown or not implemented yet).
             StoreError::Glossary(_)
             | StoreError::UnknownGlossaryTerm { .. }
             | StoreError::UnknownIndexProposal { .. } => INVALID_PARAMS,
-            // Runde 23 (Schnittstelle S1): Umschlagblock abgelehnt (web) bzw. Antrag veraltet (mcp-namen).
+            // Round 23 (interface S1): cover block rejected (web) or request outdated (mcp-namen).
             StoreError::CoverBlock(_) => INVALID_PARAMS,
             StoreError::Stale(_) => REFUSED,
             StoreError::Db(_) | StoreError::Migrate(_) | StoreError::Io { .. } => INTERNAL,
@@ -295,8 +297,8 @@ impl From<StoreError> for RpcError {
     }
 }
 
-/// Runde 32: Fehler beim Lesen einer Word-Datei liegen an der Datei (ungültige Parameter), nur das Schreiben ist ein
-/// interner Fehler.
+/// Round 32: errors when reading a Word file are due to the file (invalid parameters), only writing is an
+/// internal error.
 impl From<baruch_docx::DocxError> for RpcError {
     fn from(e: baruch_docx::DocxError) -> Self {
         use baruch_docx::DocxError;
@@ -323,7 +325,7 @@ impl From<LibraryError> for RpcError {
     }
 }
 
-/// Werk aus dem Parameter `work` (Zahl); fehlt er, das Vorgabewerk. Unbekannt → `INVALID_PARAMS`.
+/// Work from the parameter `work` (number); if it is missing, the default work. Unknown → `INVALID_PARAMS`.
 pub async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, RpcError> {
     match params.get("work") {
         None | Some(Value::Null) => Ok(state.default_work().await?),
@@ -335,8 +337,8 @@ pub async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, RpcE
     }
 }
 
-/// Fester Schlüssel aus `params[name]` (Zahl oder Ziffern als Text, Formulare); fehlt, `null` oder
-/// leer → `None`.
+/// Fixed key from `params[name]` (number or digits as text, forms); missing, `null` or
+/// empty → `None`.
 fn key_value(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     let wrong = || RpcError::new(INVALID_PARAMS, format!("{name}: stable key (number) expected"));
     match params.get(name) {
@@ -348,14 +350,14 @@ fn key_value(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     }
 }
 
-/// Feste Schlüssel in Stellen übersetzen: `key` → `node`, `target_key` → `target`.
+/// Translate fixed keys into positions: `key` → `node`, `target_key` → `target`.
 ///
-/// Jede Gliederungsänderung vergibt die Stellen (`seq`) neu; ein veralteter Tab oder ein Assistent,
-/// der die Gliederung vorher gelesen hat, träfe mit der alten Stelle einen fremden Abschnitt. Der
-/// Schlüssel (`Node::key`, Datenbank-id) bleibt dagegen gleich. Ist er angegeben, **geht er vor**:
-/// Die Stelle wird aus ihm bestimmt, eine mitgeschickte (vielleicht veraltete) Stelle zählt nicht.
-/// Gibt es den Punkt nicht mehr → `GoneNode` (`REFUSED`). Schreibwege rufen das unter
-/// [`AppState::write_lock`] auf, damit sich die Gliederung zwischen Übersetzen und Schreiben nicht ändert.
+/// Every outline change assigns the positions (`seq`) anew; an outdated tab or an assistant
+/// that has read the outline before would hit a foreign section with the old position. The
+/// key (`Node::key`, database id) stays the same. If it is given, **it takes precedence**:
+/// the position is determined from it, a position sent along (perhaps outdated) does not count.
+/// If the item no longer exists → `GoneNode` (`REFUSED`). Write paths call this under
+/// [`AppState::write_lock`], so that the outline does not change between translating and writing.
 pub async fn resolve_keys(state: &AppState, work: WorkId, mut params: Value) -> Result<Value, RpcError> {
     for (key_name, node_name) in [("key", "node"), ("target_key", "target")] {
         if let Some(key) = key_value(&params, key_name)? {
@@ -369,26 +371,26 @@ pub async fn resolve_keys(state: &AppState, work: WorkId, mut params: Value) -> 
     Ok(params)
 }
 
-/// Stelle nach einer Änderung: die aktuelle Revision des Abschnitts (Nummer, nicht Stelle).
+/// Position after a change: the current revision of the section (number, not position).
 fn shown_current(work: &Work, node: usize) -> Value {
     let rev = work.nodes.get(node).and_then(|n| n.current_number()).unwrap_or(1);
     json!({ "node": node, "rev": rev })
 }
 
-/// Nummer der aktuellen Fassung (nach einer Änderung neu gelesen).
+/// Number of the current revision (read anew after a change).
 async fn current_of(state: &AppState, work: WorkId, node: usize) -> Result<Option<u32>, RpcError> {
     let work = state.store.load_work(work).await?;
     Ok(work.nodes.get(node).and_then(|n| n.current_number()))
 }
 
-/// Eine Fassung im Baum als JSON, mit `current: bool`.
+/// A revision in the tree as JSON, with `current: bool`.
 fn info_json(info: &baruch_store::RevisionInfo) -> Value {
     let mut value = json!(info);
     value["current"] = json!(info.status == baruch_core::RevisionStatus::Current);
     value
 }
 
-/// Kapitel (bzw. Teil) des Knotens und alle Knoten darunter, in Baumreihenfolge.
+/// Chapter (or part) of the node and all nodes below it, in tree order.
 fn chapter_members(work: &Work, node: usize) -> Vec<usize> {
     let mut top = node;
     let mut steps = 0;
@@ -414,7 +416,7 @@ fn chapter_members(work: &Work, node: usize) -> Vec<usize> {
     out
 }
 
-/// `revision.tree`: ein Abschnitt (`{revisions}`) oder ein Kapitel bzw. das ganze Werk (`{sections}`).
+/// `revision.tree`: one section (`{revisions}`) or a chapter or the whole work (`{sections}`).
 fn tree_answer(work: &Work, tree: &[NodeRevisions], node: Option<usize>, chapter: bool) -> Value {
     let infos = |id: usize| tree.iter().find(|n| n.node == id).map_or(&[][..], |n| n.revisions.as_slice());
     let section = |id: usize| {
@@ -433,7 +435,7 @@ fn tree_answer(work: &Work, tree: &[NodeRevisions], node: Option<usize>, chapter
     }
 }
 
-/// Runde 22: Parameter `mode` von `revision.save`/`outline.save` (fehlt = „new“, unbekannt → -32602).
+/// Round 22: parameter `mode` of `revision.save`/`outline.save` (missing = "new", unknown → -32602).
 pub(crate) fn save_mode(params: &Value) -> Result<baruch_store::SaveMode, RpcError> {
     let mode = match params.get("mode") {
         None | Some(Value::Null) => None,
@@ -444,8 +446,8 @@ pub(crate) fn save_mode(params: &Value) -> Result<baruch_store::SaveMode, RpcErr
     baruch_store::SaveMode::from_param(mode.as_deref()).map_err(|e| RpcError::new(INVALID_PARAMS, e))
 }
 
-/// Runde 22: Antwort beim Speichern ergänzen – `saved` („amended“ | „new“ | „unchanged“), bei „amended“ `amend_seq`,
-/// bei einer neuen Fassung im Modus „auto“ `reason` und `reason_label`.
+/// Round 22: complete the answer on saving – `saved` ("amended" | "new" | "unchanged"), with "amended" `amend_seq`,
+/// with a new revision in the mode "auto" `reason` and `reason_label`.
 pub(crate) fn add_saved(
     answer: &mut Value,
     change: Option<&baruch_store::Change>,
@@ -465,7 +467,7 @@ pub(crate) fn add_saved(
     }
 }
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the answer: `commit` for a new commit, `mirror` for an error.
 pub(crate) fn add_mirror(answer: &mut Value, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -474,10 +476,10 @@ pub(crate) fn add_mirror(answer: &mut Value, result: Result<Option<String>, Stri
     }
 }
 
-/// Inhalt des Literatur-Popups: alle Titel, dazu die Treffer, wenn gesucht wurde. Dazu der
-/// Revisionsbaum des Werks (`revisions`, ohne Texte) für Editor und Baumansicht: Elternteil, Zeit
-/// und „geändert“ stehen nicht in `baruch_core::Revision`; und die Nummerierung des Werks
-/// (`numbering`) für das Formular im Kopf der Gliederung (die Werkvorlage steht nicht in `Work`).
+/// Content of the literature popup: all titles, plus the hits if a search was made. Plus the
+/// revision tree of the work (`revisions`, without texts) for editor and tree view: parent, time
+/// and "changed" are not in `baruch_core::Revision`; and the numbering of the work
+/// (`numbering`) for the form in the header of the outline (the work template is not in `Work`).
 pub struct LibraryView {
     pub titles: Vec<TitleEntry>,
     pub query: Option<String>,
@@ -486,25 +488,25 @@ pub struct LibraryView {
     pub numbering: Option<NumberingInfo>,
     pub persona_colors: Vec<baruch_store::PersonaColor>,
     pub image_alts: std::collections::HashMap<String, String>,
-    /// Runde 21c: Bilder des Werks und der Vorlage für Editorkopf, Einfügen und fehlende Bilder (vorher unter einem
-    /// reservierten Schlüssel in `image_alts`).
+    /// Round 21c: images of the work and of the template for editor header, inserting and missing images (before under
+    /// a reserved key in `image_alts`).
     pub images: crate::wysiwyg::ImageView,
-    /// Zahl der offenen Anträge zur Gliederung (Hinweis im Kopf des Baums, Migration 0012).
+    /// Number of open requests on the outline (hint in the header of the tree, migration 0012).
     pub outline_requests: usize,
-    /// Umschlag des Werks (Runde 11, [`crate::cover::cover_info`]): `{name, caption, alt, url, thumb}`.
+    /// Cover of the work (Round 11, [`crate::cover::cover_info`]): `{name, caption, alt, url, thumb}`.
     pub cover: Option<Value>,
-    /// Runde 16b: Zeitwächter und Freigaben der Personas für die Arbeitsseite ([`crate::view::extras`]).
+    /// Round 16b: time guard and releases of the personas for the workspace page ([`crate::view::extras`]).
     pub extras: view::ViewExtras,
-    /// Runde 23a: fertiges, maskiertes HTML des Kastens „Bilder des Werks“ zur Suche `query` (leer ohne Suche oder
-    /// ohne Treffer-Kasten); die Arbeitsseite setzt es unter die Treffer (`fragments/library.html`).
+    /// Round 23a: finished, escaped HTML of the box „Bilder des Werks“ for the search `query` (empty without a search
+    /// or without a hit box); the workspace page puts it below the hits (`fragments/library.html`).
     pub images_html: String,
 }
 
-/// Titel laden und, falls `lq` Wörter enthält, das Werk `work` und die Bibliothek durchsuchen; dazu
-/// den Revisionsbaum des Werks.
+/// Load the titles and, if `lq` contains words, search the work `work` and the library; plus
+/// the revision tree of the work.
 ///
-/// Runde 35: Für Lektoren ist die Literaturliste leer – keine Titel, keine Suche, keine Treffer, kein Bilderkasten
-/// (die Literatur gehört dem Autor, Vertrag §0.7/§0.8); alles Übrige der Arbeitsseite bleibt.
+/// Round 35: for Lektors the literature list is empty – no titles, no search, no hits, no image box
+/// (the literature belongs to the author, contract §0.7/§0.8); everything else of the workspace page stays.
 pub async fn library_view(state: &AppState, work: WorkId, lq: Option<&str>) -> Result<LibraryView, RpcError> {
     let lektor = crate::auth::current().lektor().is_some();
     let titles = if lektor { Vec::new() } else { baruch_library::list_titles(state.store.pool()).await? };
@@ -544,9 +546,9 @@ pub async fn library_view(state: &AppState, work: WorkId, lq: Option<&str>) -> R
     })
 }
 
-/// Jede RPC-Methode, mit Rechteprüfung (Runde 35): [`crate::roles::check_rpc`] entscheidet vor jedem Dispatch – auch
-/// für unbekannte Namen –, ob wer die Anfrage stellt ([`crate::auth::current`]) die Methode darf, und darf `params`
-/// ergänzen (Werk eines Lektors). Das ist die EINZIGE Rechteprüfung für `/rpc`, `/act` und `/lektorat/act`.
+/// Every RPC method, with rights check (Round 35): [`crate::roles::check_rpc`] decides before every dispatch – also
+/// for unknown names – whether whoever makes the request ([`crate::auth::current`]) is allowed the method, and may
+/// complete `params` (work of a Lektor). This is the ONLY rights check for `/rpc`, `/act` and `/lektorat/act`.
 pub async fn call(state: &AppState, settings: &Settings, method: &str, mut params: Value) -> Result<Value, RpcError> {
     let who = crate::auth::current();
     crate::roles::check_rpc(state, &who, method, &mut params).await?;
@@ -554,8 +556,8 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, mut param
 }
 
 async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_value: Value) -> Result<Value, RpcError> {
-    // Runde 35 (Schnittstelle R35-S1): Konten (`account.*`) und Rollen (`member.*`, `revision.propose`,
-    // `finding.add`) vor allen Fachmodulen.
+    // Round 35 (interface R35-S1): accounts (`account.*`) and roles (`member.*`, `revision.propose`,
+    // `finding.add`) before all domain modules.
     if crate::auth::rpc::handles(method) {
         return crate::auth::rpc::call(state, method, params_value).await;
     }
@@ -565,7 +567,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
     if crate::exchange::handles(method) {
         return crate::exchange::call(state, method, params_value).await;
     }
-    // Runde 32 (Schnittstelle R32-S1): Word-Import (global, ohne Werk) und Word-Export, vor dem Vorgabewerk.
+    // Round 32 (interface R32-S1): Word import (global, without a work) and Word export, before the default work.
     if crate::docx_import::handles(method) {
         return crate::docx_import::call(state, method, params_value).await;
     }
@@ -578,7 +580,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
     if crate::works::handles(method) {
         return crate::works::call(state, method, params_value).await;
     }
-    // Runde 21 (Schnittstelle R21-S1): PDF/EPUB-Import, global ohne Werk.
+    // Round 21 (interface R21-S1): PDF/EPUB import, global without a work.
     if crate::pdf_import::handles(method) {
         return crate::pdf_import::call(state, method, params_value).await;
     }
@@ -588,7 +590,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
     if crate::ideas::handles(method) {
         return crate::ideas::call(state, method, params_value).await;
     }
-    // Runde 28: Befunde (`finding.*`) und ihre Übersicht (`finding.matrix`).
+    // Round 28: findings (`finding.*`) and their overview (`finding.matrix`).
     if crate::findings::rpc::handles(method) {
         return crate::findings::rpc::call(state, method, params_value).await;
     }
@@ -619,8 +621,8 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
     if crate::rag::handles(method) {
         return crate::rag::call(state, method, params_value).await;
     }
-    // Runde 10: Modell-Backend (`model.*`), Stellenprüfung (`scripture.check`) und MCP-Tokens
-    // (`mcp_token.*`) brauchen kein Werk.
+    // Round 10: model backend (`model.*`), passage check (`scripture.check`) and MCP tokens
+    // (`mcp_token.*`) need no work.
     if crate::models::handles(method) {
         return crate::models::call(state, method, params_value).await;
     }
@@ -636,13 +638,13 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
     if crate::mcp::tokens::handles(method) {
         return crate::mcp::tokens::call(state, method, params_value).await;
     }
-    // Runde 20 (Schnittstelle R20-S1): Einstellung für EPUBCheck, werklos.
+    // Round 20 (interface R20-S1): setting for EPUBCheck, without a work.
     if crate::epub_check::handles_global(method) {
         return crate::epub_check::call_global(state, method, params_value).await;
     }
     let store = &state.store;
-    // Runde 23a (Codereview web-2): `ui.render` ohne `work` zeichnet das Werk aus dem Cookie `baruch_work` (wie die
-    // Seite `/`), nicht das Vorgabewerk. Sonst zeigte „Zurück“ auf die Adresse `/` ohne Hinweis ein anderes Werk.
+    // Round 23a (code review web-2): `ui.render` without `work` draws the work from the cookie `baruch_work` (like
+    // the page `/`), not the default work. Otherwise „Zurück“ to the address `/` showed another work without a hint.
     let remembered = match (method, params_value.get("work"), settings.work) {
         ("ui.render", None | Some(Value::Null), Some(work)) => store.work_slug(work).await.is_ok().then_some(work),
         _ => None,
@@ -669,8 +671,8 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let Some(node) = work.nodes.get(p.node) else {
                 return Err(StoreError::UnknownNode { work: work_id, node: p.node }.into());
             };
-            // Runde 22 (Integrator): jede Fassung trägt ihren Stand (`amend_seq`) und bei Vorschlägen den Stand der
-            // Basis (`based_on_amend`) wie in revision.tree.
+            // Round 22 (integrator): every revision carries its state (`amend_seq`) and, for proposals, the state of
+            // the base (`based_on_amend`) as in revision.tree.
             let mut answer = json!(node);
             let tree = store.revision_tree(work_id).await?;
             if let (Some(infos), Some(list)) =
@@ -689,8 +691,8 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             Ok(answer)
         }
         "revision.accept" | "revision.set_current" => {
-            // Übernehmen = Umschalten auf einen Vorschlag. Die Gliederung folgt der Überschriftszeile
-            // der Fassung (andere Ebene: `outline` in der Antwort); genau ein Commit im Spiegel.
+            // Accepting = switching to a proposal. The outline follows the heading line
+            // of the revision (another level: `outline` in the answer); exactly one commit in the mirror.
             let held = state.write_lock.lock().await;
             let p: RevParams = params(resolve_keys(state, work_id, params_value).await?)?;
             let only_proposal = method == "revision.accept";
@@ -709,19 +711,20 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let held = state.write_lock.lock().await;
             let p: RevParams = params(resolve_keys(state, work_id, params_value).await?)?;
             let current = store.reject(work_id, p.node, p.rev).await?;
-            // Runde 22: Verwerfen ist kein Commit; der Seitenzweig der Fassung trägt danach den Status „verworfen“.
+            // Round 22: rejecting is no commit; the side branch of the revision carries the status „verworfen“
+            // afterwards.
             if let Err(e) = mirror::sync_side_refs(state, &held, work_id).await {
                 eprintln!("Git-Spiegel (Werk {work_id}): Seitenzweige nicht nachgeführt: {e}");
             }
             Ok(json!({ "node": p.node, "rev": current }))
         }
         "revision.save" => {
-            // Runde 22: `mode` „auto“ schreibt die eigene aktuelle Fassung fort, wenn die Regeln es erlauben;
-            // fehlt er, gilt „new“ (wie vor Runde 22, alle alten Clients).
+            // Round 22: `mode` "auto" amends the own current revision if the rules allow it;
+            // if it is missing, "new" applies (as before Round 22, all old clients).
             let mode = save_mode(&params_value)?;
             let held = state.write_lock.lock().await;
             let mut p: SaveParams = params(resolve_keys(state, work_id, params_value).await?)?;
-            // Eingabe des Menschen: Markdown-Überschriften werden Typst-Überschriften (Nutzer 2026-11-07).
+            // Input of the human: Markdown headings become Typst headings (user 2026-11-07).
             p.body = baruch_typst::markdown_headings(&p.body).into_owned();
             let (saved, reason) = store
                 .save_human_at(work_id, p.node, &p.body, mirror::HUMAN_NAME, p.based_on, p.based_on_amend, mode)
@@ -743,8 +746,8 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
         "revision.update" => {
             let held = state.write_lock.lock().await;
             let p: UpdateParams = params(resolve_keys(state, work_id, params_value).await?)?;
-            // Runde 18b: Eingabe des Menschen wie bei `revision.save` – Markdown-Überschriften werden
-            // Typst-Überschriften (`baruch_typst::markdown`, Nutzer 2026-11-07).
+            // Round 18b: input of the human as in `revision.save` – Markdown headings become
+            // Typst headings (`baruch_typst::markdown`, user 2026-11-07).
             let body = p.body.as_deref().map(baruch_typst::markdown_headings);
             let edit = RevisionEdit { body: body.as_deref(), note: p.note.as_deref() };
             let done =
@@ -752,7 +755,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             match done {
                 Some(change) => {
                     let mut answer = json!({ "node": change.node, "rev": change.rev, "changed": true });
-                    // Runde 23a: neuer Stand, wenn das Ändern einen Schritt im Verlauf angelegt hat.
+                    // Round 23a: new state if the change has created a step in the history.
                     if let Some(seq) = change.amend_seq {
                         answer["amend_seq"] = json!(seq);
                     }
@@ -791,7 +794,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let post = Post {
                 id: 0,
                 created: String::new(),
-                // Runde 35: ein Lektor schreibt unter seinem Handle, alle anderen wie bisher als „Autor“.
+                // Round 35: a Lektor writes under his handle, all others as before as „Autor“.
                 author: crate::roles::author_name(&crate::auth::current()),
                 body: p.body,
                 sources: vec![],
@@ -819,7 +822,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let panes = view::panes(&state.templates, &work, &shelf, resolved.clone(), settings, &library)
                 .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
             let n = &work.nodes[resolved.node];
-            // Runde 36: Anzeigename zur Herkunft `@lektorat:<slug>` wie auf der ganzen Seite (`consent::inject`).
+            // Round 36: display name for the origin `@lektorat:<slug>` as on the whole page (`consent::inject`).
             let names = crate::konten_ui::names::show_for;
             Ok(json!({
                 "tree": names(state, panes.tree).await,
@@ -843,34 +846,34 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
         m if crate::work_language::handles(m) => crate::work_language::call(state, work_id, m, params_value).await,
         m if crate::ribbon::handles(m) => crate::ribbon::call(state, work_id, m, params_value).await,
         m if crate::sheet::handles(m) => crate::sheet::call(state, work_id, m, params_value).await,
-        // Runde 29 (Schnittstelle R29-S1): Satz-Einstellungen und ihre Vorschau.
+        // Round 29 (interface R29-S1): typeset settings and their preview.
         m if crate::typeset_settings::handles(m) => {
             crate::typeset_settings::call(state, work_id, m, params_value).await
         }
         m if crate::settings::work_typeset::handles(m) => {
             crate::settings::work_typeset::call(state, work_id, m, params_value).await
         }
-        // Runde 30 (Schnittstelle R30-S1).
+        // Round 30 (interface R30-S1).
         m if crate::search::handles(m) => crate::search::call(state, work_id, m, params_value).await,
         m if crate::xref::handles(m) => crate::xref::call(state, work_id, m, params_value).await,
         m if crate::assist::solutions::handles(m) => {
             crate::assist::solutions::call(state, work_id, m, params_value).await
         }
-        // Runde 20 (Schnittstelle R20-S1): EPUB, Vorschau je Reader, Prüfung.
+        // Round 20 (interface R20-S1): EPUB, preview per reader, check.
         m if crate::epub::handles(m) => crate::epub::call(state, work_id, m, params_value).await,
         m if crate::epub_preview::handles(m) => crate::epub_preview::call(state, work_id, m, params_value).await,
         m if crate::epub_check::handles(m) => crate::epub_check::call(state, work_id, m, params_value).await,
-        // Runde 31 (Schnittstelle R31-S1): Glossar, Register und Registermarken.
+        // Round 31 (interface R31-S1): glossary, index and index marks.
         m if crate::glossary::handles(m) => crate::glossary::call(state, work_id, m, params_value).await,
         m if crate::index_marks::handles(m) => crate::index_marks::call(state, work_id, m, params_value).await,
-        // Runde 22 (Schnittstelle R22-S1): Verlauf der Fortschreibungen und Einstellung „Fassungen“.
+        // Round 22 (interface R22-S1): history of the amendments and setting „Fassungen“.
         m if crate::revisions::handles(m) => crate::revisions::call(state, work_id, m, params_value).await,
         m if crate::revision_fold::handles(m) => crate::revision_fold::call(state, work_id, m, params_value).await,
         _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 
-/// Eine JSON-RPC-Anfrage (einzeln) beantworten.
+/// Answer a JSON-RPC request (single).
 pub async fn handle(state: &AppState, settings: &Settings, request: Value) -> Value {
     let id = request.get("id").cloned().unwrap_or(Value::Null);
     let method = request.get("method").and_then(Value::as_str);

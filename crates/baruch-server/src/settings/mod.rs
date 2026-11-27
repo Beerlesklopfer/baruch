@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungen (Runde 9, „Menü und Einstellungen als Popup“, Aufgabe settings): Rahmen, Registrierung
-//! der sieben Seiten, Routen, RPC `settings.*`.
+//! Settings (Round 9, „Menü und Einstellungen als Popup“, task settings): frame, registration
+//! of the seven pages, routes, RPC `settings.*`.
 //!
-//! **Seiten** in fester Reihenfolge ([`registry`]): Darstellung (Cookies), Werk (SQLite + Spiegel),
-//! Assistenten (SQLite), Verbindungen und Quellen ([`crate::connections`]: SQLite, Geheimnisse im
-//! Schlüsselbund), MCP-Zugang (Laufzeit), Daten (Datenordner). Jede Seite
-//! zeichnet nur ihren Inhalt `<section class="settings-page" data-settings-page-body="<slug>">…`
-//! ([`PageRender`]); den Rahmen mit Navigation und „Gespeichert: …“ setzt [`frame`] darum.
+//! **Pages** in a fixed order ([`registry`]): Darstellung (cookies), Werk (SQLite + mirror),
+//! Assistenten (SQLite), Verbindungen and Quellen ([`crate::connections`]: SQLite, secrets in the
+//! keyring), MCP-Zugang (runtime), Daten (data folder). Every page
+//! draws only its content `<section class="settings-page" data-settings-page-body="<slug>">…`
+//! ([`PageRender`]); the frame with navigation and „Gespeichert: …“ is put around it by [`frame`].
 //!
-//! **Ohne JavaScript:** `GET /einstellungen` → 303 `/einstellungen/darstellung`;
-//! `GET /einstellungen/<seite>` → ganze Seite `settings.html`; `?fragment=1` → nur der Rahmen (das
-//! Popup lädt ihn, `web/src/settings.ts`). Formulare gehen per POST an `…/act` (hinter
-//! `guard::same_origin`) und leiten mit 303 zurück; ungültige Eingaben → 422 mit der Seite.
+//! **Without JavaScript:** `GET /einstellungen` → 303 `/einstellungen/darstellung`;
+//! `GET /einstellungen/<seite>` → whole page `settings.html`; `?fragment=1` → only the frame (the
+//! popup loads it, `web/src/settings.ts`). Forms go by POST to `…/act` (behind
+//! `guard::same_origin`) and redirect back with 303; invalid inputs → 422 with the page.
 //!
-//! **Werk der Seite:** Abfrage `work` > Cookie `baruch_work` (wenn es das Werk gibt) > Vorgabewerk >
-//! keins. Ein ausdrücklich genanntes, unbekanntes Werk → 404 (bzw. -32602), damit nie still ein
-//! anderes Werk bearbeitet wird. Alle übrigen Abfragepaare außer `fragment` gehen unverändert an die
-//! Seite (`ok`, `fehler`, `kind`, `schema`, `muster` …).
+//! **Work of the page:** query `work` > cookie `baruch_work` (if the work exists) > default work >
+//! none. An explicitly named, unknown work → 404 (or -32602), so that never silently another
+//! work is edited. All other query pairs except `fragment` go unchanged to the
+//! page (`ok`, `fehler`, `kind`, `schema`, `muster` …).
 //!
-//! **Anfrage-Angaben:** Die Vertragssignatur [`PageRender`] kennt keine Kopfzeilen. Was die eigenen
-//! Seiten davon brauchen (Cookies für „Darstellung“, `Host` für „MCP-Zugang“, eine Fehlermeldung nach
-//! einem abgelehnten Formular), liegt während des Zeichnens in einem `tokio::task_local`
-//! ([`RequestInfo`]); ohne ihn gelten Vorgaben.
+//! **Request details:** the contract signature [`PageRender`] knows no headers. What the own
+//! pages need of them (cookies for „Darstellung“, `Host` for „MCP-Zugang“, an error message after
+//! a rejected form) lies in a `tokio::task_local` during drawing
+//! ([`RequestInfo`]); without it defaults apply.
 
 mod access;
 mod assistants;
@@ -51,8 +51,8 @@ use crate::view::Settings;
 
 pub use data::{Backup, MAX_BACKUPS, RESERVE_BYTES, backup, newest_backup, open_permissions, permissions_warning};
 
-/// Zeichnet den Inhalt einer Einstellungsseite (ohne Rahmen). Argumente: Zustand, aufgelöstes Werk
-/// (`None` = es gibt keins), übrige Abfragepaare. `Err` = Meldung ohne Geheimnisse.
+/// Draws the content of a settings page (without the frame). Arguments: state, resolved work
+/// (`None` = there is none), other query pairs. `Err` = message without secrets.
 pub type PageRender =
     for<'a> fn(
         &'a crate::AppState,
@@ -60,7 +60,7 @@ pub type PageRender =
         &'a std::collections::BTreeMap<String, String>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>>;
 
-/// Eine Einstellungsseite: Adresse `/einstellungen/<slug>`, Titel in der Navigation, wo der Wert liegt.
+/// A settings page: address `/einstellungen/<slug>`, title in the navigation, where the value lies.
 pub struct SettingsPage {
     pub slug: &'static str,
     pub title: &'static str,
@@ -101,7 +101,7 @@ static PAGES: [SettingsPage; 8] = [
         render: render_access,
     },
     SettingsPage { slug: "daten", title: "Daten", storage: "Datenordner", render: render_data },
-    // Runde 35: Konten (Liste, Lektor anlegen, Sperren, Passwort zurücksetzen, „Am eigenen Rechner ohne Anmeldung“).
+    // Round 35: accounts (list, create a Lektor, lock, reset password, „Am eigenen Rechner ohne Anmeldung“).
     SettingsPage {
         slug: "konten",
         title: "Konten",
@@ -110,12 +110,12 @@ static PAGES: [SettingsPage; 8] = [
     },
 ];
 
-/// Die acht Seiten in fester Reihenfolge.
+/// The eight pages in a fixed order.
 pub fn registry() -> &'static [SettingsPage] {
     &PAGES
 }
 
-/// Seite zu einem slug.
+/// Page for a slug.
 pub fn page(slug: &str) -> Option<&'static SettingsPage> {
     registry().iter().find(|p| p.slug == slug)
 }
@@ -160,34 +160,34 @@ fn render_data<'a>(
     Box::pin(data::render(state, work, query))
 }
 
-// ---- Anfrage-Angaben ------------------------------------------------------------------------------
+// ---- Request details ------------------------------------------------------------------------------
 
-/// Was die eigenen Seiten aus der Anfrage brauchen (siehe Moduldoku).
+/// What the own pages need from the request (see the module documentation).
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RequestInfo {
-    /// Cookies der Anfrage (`baruch_*`).
+    /// Cookies of the request (`baruch_*`).
     pub settings: Settings,
-    /// `Host`-Kopfzeile (von `guard::local_host` schon auf IP-Adresse/localhost geprüft); fehlt sie
-    /// (RPC), zeigt „MCP-Zugang“ nur den Pfad.
+    /// `Host` header (already checked by `guard::local_host` for IP address/localhost); if it is missing
+    /// (RPC), „MCP-Zugang“ shows only the path.
     pub host: Option<String>,
-    /// Meldung eines abgelehnten Formulars (422).
+    /// Message of a rejected form (422).
     pub error: Option<String>,
-    /// Abgelehntes Formular der Seite „Werk“ samt Eingabe (Metadaten/Werkvorlage bzw. Schema).
+    /// Rejected form of the page „Werk“ with its input (metadata/work template or scheme).
     pub work_retry: Option<WorkRetry>,
 }
 
-/// Ein auf der Seite „Werk“ abgelehntes Formular: Die Seite zeigt es mit der Eingabe und der Meldung
-/// erneut, statt die Eingabe zu verlieren.
+/// A form rejected on the page „Werk“: the page shows it again with the input and the message
+/// instead of losing the input.
 #[derive(Debug, Clone)]
 pub(crate) enum WorkRetry {
     /// `POST /werke/act` `action=update`.
     Edit { form: crate::works::UpdateParams, error: String },
-    /// `POST /werke/nummerierung/act` (Fehler steht in `Shown::error`).
+    /// `POST /werke/nummerierung/act` (the error is in `Shown::error`).
     Numbering(crate::numbering::Shown),
-    /// `POST /werke/buchangaben/act` bzw. `/werke/umschlag/act` (Runde 11, Gruppen „Buchangaben“ und „Umschlag“).
+    /// `POST /werke/buchangaben/act` or `/werke/umschlag/act` (Round 11, groups „Buchangaben“ and „Umschlag“).
     Book(crate::cover::Retry),
-    /// `POST /einstellungen/werk/satz` bzw. `…/satz/vorlage` (Runde 29c, Block „Satz“): abgelehnte Eingabe oder
-    /// Vorschau (`action=preview`, Status 200) mit den ungespeicherten Werten.
+    /// `POST /einstellungen/werk/satz` or `…/satz/vorlage` (Round 29c, block „Satz“): rejected input or
+    /// preview (`action=preview`, status 200) with the unsaved values.
     Typeset(crate::settings::work_typeset::Retry),
 }
 
@@ -195,7 +195,7 @@ tokio::task_local! {
     static REQUEST: RequestInfo;
 }
 
-/// Angaben der laufenden Anfrage; außerhalb eines Rahmens die Vorgaben.
+/// Details of the running request; outside of a frame the defaults.
 pub(crate) fn request() -> RequestInfo {
     REQUEST.try_with(Clone::clone).unwrap_or_default()
 }
@@ -209,10 +209,10 @@ fn request_info(headers: &HeaderMap, error: Option<String>) -> RequestInfo {
     }
 }
 
-// ---- Vorlagen -------------------------------------------------------------------------------------
+// ---- Templates ------------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung (Autoescape nach `.html`). Enthält `work_edit.html` und
-/// `work_numbering.html`, um deren `{% block content %}` auf der Seite „Werk“ zu zeigen.
+/// Own template environment (autoescape by `.html`). Contains `work_edit.html` and
+/// `work_numbering.html`, to show their `{% block content %}` on the page „Werk“.
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -241,24 +241,24 @@ pub(crate) fn render_template(name: &str, ctx: Value) -> Result<String, String> 
     templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| format!("Vorlage {name}: {e}"))
 }
 
-/// Nur `{% block content %}` einer Vorlage (Formularteil von `work_edit.html`, `work_numbering.html`).
+/// Only `{% block content %}` of a template (form part of `work_edit.html`, `work_numbering.html`).
 pub(crate) fn render_content_block(name: &str, ctx: Value) -> Result<String, String> {
     let template = templates().get_template(name).map_err(|e| format!("Vorlage {name}: {e}"))?;
-    // Die Vorlage erbt von base.html; render_captured zeichnet sie einmal ganz, base.html braucht dafür
-    // `settings` (nur das Thema im <html>-Tag, das hier nicht ausgegeben wird).
+    // The template inherits from base.html; render_captured draws it once as a whole, base.html needs
+    // `settings` for that (only the theme in the <html> tag, which is not output here).
     let ctx = context! { settings => Value::from(Serde(Settings::default())), ..ctx };
     let mut captured = template.render_captured(ctx).map_err(|e| format!("Vorlage {name}: {e}"))?;
     captured.with_state_mut(|state| state.render_block("content")).map_err(|e| format!("Vorlage {name}: {e}"))
 }
 
-// ---- Rahmen ---------------------------------------------------------------------------------------
+// ---- Frame ----------------------------------------------------------------------------------------
 
-/// Fehler beim Zeichnen des Rahmens.
+/// Error while drawing the frame.
 #[derive(Debug)]
 pub(crate) enum FrameError {
-    /// Unbekannte Seite oder unbekanntes Werk (404 bzw. -32602).
+    /// Unknown page or unknown work (404 or -32602).
     NotFound(String),
-    /// Interner Fehler (500 bzw. -32603).
+    /// Internal error (500 or -32603).
     Internal(String),
 }
 
@@ -271,7 +271,7 @@ impl From<FrameError> for RpcError {
     }
 }
 
-/// Werk der Seite: `asked` (aus Abfrage bzw. Parameter) > Cookie > Vorgabewerk > keins.
+/// Work of the page: `asked` (from query or parameter) > cookie > default work > none.
 pub(crate) async fn resolve_work(
     state: &AppState,
     asked: Option<WorkId>,
@@ -285,8 +285,8 @@ pub(crate) async fn resolve_work(
         };
     }
     if let Some(work) = cookie {
-        // Runde 36: Das Cookie gibt nie ein Recht. Für einen Lektor zählt es nur, wenn das Werk freigegeben ist
-        // (`roles::role_in`); sonst zeigte der Rahmen einer Seite ohne `work` das zuletzt geöffnete, fremde Werk.
+        // Round 36: the cookie never grants a right. For a Lektor it counts only if the work is released
+        // (`roles::role_in`); otherwise the frame of a page without `work` showed the foreign work opened last.
         let who = crate::auth::current();
         let visible = match crate::roles::role_in(state, &who, work).await {
             Ok(role) => role.is_some() || who.lektor().is_none(),
@@ -307,7 +307,7 @@ pub(crate) async fn resolve_work(
     }
 }
 
-/// Ein gezeichneter Rahmen.
+/// A drawn frame.
 pub(crate) struct Framed {
     pub page: &'static SettingsPage,
     pub work: Option<WorkId>,
@@ -315,8 +315,8 @@ pub(crate) struct Framed {
     pub html: String,
 }
 
-/// Rahmen einer Seite: Navigation (je Seite ein Link mit `data-settings-page`, die gezeigte mit
-/// `aria-current="page"`), Speicherort und der Inhalt der Seite. `info` gilt während des Zeichnens.
+/// Frame of a page: navigation (one link per page with `data-settings-page`, the shown one with
+/// `aria-current="page"`), storage location and the content of the page. `info` applies during drawing.
 pub(crate) async fn frame(
     state: &AppState,
     slug: &str,
@@ -327,8 +327,8 @@ pub(crate) async fn frame(
     let page = page(slug).ok_or_else(|| FrameError::NotFound(format!("unbekannte Einstellungsseite „{slug}“")))?;
     let work = resolve_work(state, asked, info.settings.work).await?;
     let body = REQUEST.scope(info, (page.render)(state, work, &query)).await.map_err(FrameError::Internal)?;
-    // Runde 35: Ein Lektor erreicht nur „Darstellung“ (Cookies im eigenen Browser); die übrigen Seiten stehen für
-    // ihn nicht in der Navigation (die Sperre selbst liegt in `roles`).
+    // Round 35: a Lektor reaches only „Darstellung“ (cookies in the own browser); the other pages are not in
+    // the navigation for him (the lock itself lies in `roles`).
     let lektor = crate::auth::current().lektor().is_some();
     let pages: Vec<Value> = registry()
         .iter()
@@ -343,8 +343,8 @@ pub(crate) async fn frame(
     Ok(Framed { page, work, html })
 }
 
-/// Abfrage → (Werk, übrige Paare ohne `work` und `fragment`, `fragment=1`?). Ein `work`, das keine
-/// Zahl ist, zählt als nicht genannt.
+/// Query → (work, other pairs without `work` and `fragment`, `fragment=1`?). A `work` that is not a
+/// number counts as not named.
 fn split_query(pairs: Vec<(String, String)>) -> (Option<WorkId>, BTreeMap<String, String>, bool) {
     let mut work = None;
     let mut fragment = false;
@@ -361,7 +361,7 @@ fn split_query(pairs: Vec<(String, String)>) -> (Option<WorkId>, BTreeMap<String
     (work, rest, fragment)
 }
 
-/// Ganze Seite `settings.html` um einen Rahmen.
+/// Whole page `settings.html` around a frame.
 async fn full_page(state: &AppState, headers: &HeaderMap, status: StatusCode, framed: Framed) -> Response {
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let work = match framed.work {
@@ -387,7 +387,7 @@ fn frame_error(e: FrameError) -> Response {
     }
 }
 
-/// Antwort einer Seite: ganz oder als Fragment, mit Status.
+/// Answer of a page: whole or as a fragment, with status.
 #[allow(clippy::too_many_arguments)]
 async fn respond(
     state: &AppState,
@@ -410,8 +410,8 @@ async fn respond(
     }
 }
 
-/// 422 mit der ganzen Seite `slug` und der Meldung (abgelehntes Formular ohne JavaScript; das Popup
-/// übernimmt daraus den Rahmen).
+/// 422 with the whole page `slug` and the message (rejected form without JavaScript; the popup
+/// takes the frame from it).
 pub(crate) async fn error_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -423,9 +423,9 @@ pub(crate) async fn error_page(
     respond(state, headers, status, slug, work, BTreeMap::new(), false, Some(message.to_owned())).await
 }
 
-/// Abgelehntes Formular der Seite „Werk“ (aus `POST /werke/act` bzw. `/werke/nummerierung/act` mit
-/// `back=/einstellungen/werk…`): ganze Seite „Werk“ mit Status `status`, Meldung und der Eingabe. Das
-/// Popup übernimmt daraus `[data-settings-frame]`; ohne JavaScript steht die Einstellungsseite da.
+/// Rejected form of the page „Werk“ (from `POST /werke/act` or `/werke/nummerierung/act` with
+/// `back=/einstellungen/werk…`): whole page „Werk“ with the status `status`, message and the input. The
+/// popup takes `[data-settings-frame]` from it; without JavaScript the settings page stands there.
 pub(crate) async fn work_retry_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -440,12 +440,12 @@ pub(crate) async fn work_retry_page(
     }
 }
 
-/// Werk-Anhang `&work=W` für Rücksprünge.
+/// Work suffix `&work=W` for returns.
 pub(crate) fn work_suffix(work: Option<WorkId>) -> String {
     work.map_or(String::new(), |w| format!("&work={w}"))
 }
 
-// ---- Routen ---------------------------------------------------------------------------------------
+// ---- Routes ---------------------------------------------------------------------------------------
 
 /// `GET /einstellungen` → 303 `/einstellungen/darstellung[?work=W]`.
 async fn index(Query(pairs): Query<Vec<(String, String)>>) -> Response {
@@ -465,17 +465,17 @@ async fn show(
     respond(&state, &headers, StatusCode::OK, &slug, work, query, fragment, None).await
 }
 
-/// Lesende Routen: `/einstellungen`, `/einstellungen/{seite}`, Vorschaubilder des Blocks „Satz“ (Runde 29c).
+/// Reading routes: `/einstellungen`, `/einstellungen/{seite}`, preview images of the block „Satz“ (Round 29c).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/einstellungen", get(index))
         .route("/einstellungen/{seite}", get(show))
-        // Runde 29c: Vorschaubilder des Blocks „Satz“.
+        // Round 29c: preview images of the block „Satz“.
         .route("/einstellungen/werk/satz/vorschau/{stand}/{file}", get(work_typeset::preview_svg))
 }
 
-/// Schreibende Routen (hinter `guard::same_origin`): Darstellung (Cookies), Sicherung, Name der Instanz
-/// (Runde 26), MCP-Tokens, Predigtzeit des Werks (Runde 16b), Satzbild (Runde 18c), Satz (Runde 29c).
+/// Writing routes (behind `guard::same_origin`): display (cookies), backup, name of the instance
+/// (Round 26), MCP tokens, sermon time of the work (Round 16b), typeset view (Round 18c), typesetting (Round 29c).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/einstellungen/darstellung/act", post(display::act))
@@ -485,7 +485,7 @@ pub fn writes() -> Router<Arc<AppState>> {
         .route("/einstellungen/werk/zeit", post(work::timing_act))
         .route("/einstellungen/werk/sprache", post(work::language_act))
         .route("/einstellungen/werk/satzbild", post(work::sheet_act))
-        // Runde 29c: Block „Satz“ (speichern, Vorschau, zurücksetzen; Vorlagenregel übernehmen).
+        // Round 29c: block „Satz“ (save, preview, reset; take over the template rule).
         .route("/einstellungen/werk/satz", post(work_typeset::act))
         .route("/einstellungen/werk/satz/vorlage", post(work_typeset::adopt_act))
 }
@@ -494,7 +494,7 @@ pub fn writes() -> Router<Arc<AppState>> {
 
 const METHODS: &[&str] = &["settings.pages", "settings.render", "settings.get", "settings.set", "settings.backup"];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -517,7 +517,7 @@ fn work_param(params: &Json) -> Result<Option<WorkId>, RpcError> {
     }
 }
 
-/// RPC `settings.*` (`docs/RPC.md`, „Einstellungen“). `settings` sind die Cookies der Anfrage.
+/// RPC `settings.*` (`docs/RPC.md`, „Einstellungen“). `settings` are the cookies of the request.
 pub async fn call(state: &AppState, settings: &Settings, method: &str, params: Json) -> Result<Json, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     match method {

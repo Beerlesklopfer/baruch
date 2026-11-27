@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Websuche für `@belege` über MultiGPT (Vertrag Runde 13, Aufgabe „websuche“).
+//! Web search for `@belege` through MultiGPT (contract Round 13, task "websuche").
 //!
-//! **Ablauf** ([`research`], aus [`crate::assist::hooks::web_research`]): nur für `@belege`, nur wenn der Schalter
-//! an ist (`store_meta` `websearch_belege` = `'1'`, Vorgabe aus; [`enabled`]) und MultiGPT eingerichtet ist.
-//! Zuerst die bevorzugten Quellen (`sources.*`): höchstens [`MAX_PREFERRED_CALLS`] Aufrufe `web_search` mit
-//! „site:<Rechner>“ in der Reihenfolge der Liste, danach ein allgemeiner Aufruf. Höchstens [`MAX_HITS`]
-//! Treffer, davon höchstens [`MAX_FETCHES`] Abrufe über `fetch_url`; je Aufruf [`CALL_TIMEOUT`], die ganze
-//! Websuche [`TOTAL_TIMEOUT`]. Eine Seite über [`PAGE_MAX_BYTES`] oder mit Zeitüberschreitung wird
-//! übersprungen und erscheint als Hinweis. Ob ein Treffer aus einer bevorzugten Quelle stammt, entscheidet der
-//! Rechner seiner Adresse ([`search::host_matches`]).
+//! **Sequence** ([`research`], from [`crate::assist::hooks::web_research`]): only for `@belege`, only if the switch
+//! is on (`store_meta` `websearch_belege` = `'1'`, default off; [`enabled`]) and MultiGPT is set up.
+//! First the preferred sources (`sources.*`): at most [`MAX_PREFERRED_CALLS`] calls of `web_search` with
+//! "site:<host>" in the order of the list, then one general call. At most [`MAX_HITS`]
+//! hits, of them at most [`MAX_FETCHES`] retrievals through `fetch_url`; per call [`CALL_TIMEOUT`], the whole
+//! web search [`TOTAL_TIMEOUT`]. A page over [`PAGE_MAX_BYTES`] or with a timeout is
+//! skipped and appears as a note. Whether a hit comes from a preferred source is decided by the
+//! host of its address ([`search::host_matches`]).
 //!
-//! **Prüfung im Code** ([`verify`]): Zitate in derselben Zeile wie `[Wn]` müssen Teilstring der abgerufenen
-//! Seite sein, sonst „(nicht belegt)“; unbekannte `[Wn]`, nicht abgerufene Adressen und fehlende Belege werden
-//! gekennzeichnet; die Zeile „Quellen: …“ setzt der Code. Jede genannte Seite wird als Zeile in `web_evidence`
-//! gespeichert (Migration 0034, [`evidence`]) und lässt sich auf der Belegseite ([`pages`]) ohne JavaScript in
-//! die Autorenbibliothek übernehmen – nur bei „belegt“, nur durch den Menschen.
+//! **Check in the code** ([`verify`]): quotations in the same line as `[Wn]` must be a substring of the retrieved
+//! page, otherwise „(nicht belegt)“; unknown `[Wn]`, addresses not retrieved and missing evidence are
+//! marked; the line „Quellen: …“ is set by the code. Every named page is stored as a row in `web_evidence`
+//! (migration 0034, [`evidence`]) and can be adopted on the evidence page ([`pages`]) without JavaScript into
+//! the author's library – only for „belegt“, only by the human.
 //!
-//! **RPC** ([`handles`], [`call`]; nur über `POST /rpc`, nicht `/act`, kein MCP-Werkzeug):
+//! **RPC** ([`handles`], [`call`]; only through `POST /rpc`, not `/act`, no MCP tool):
 //! - `websearch.get {}` → `{on, configured, preferred}`
 //! - `websearch.set {on: bool}` → `{on}`
 //! - `websearch.evidence {post}` → `{post, evidence: [{id, label, url, title, preferred, accessed, quote,
 //!   verdict, library_title}]}`
-//! - `websearch.adopt {evidence}` → `{title: TitleEntry, quote, highlight}`; nur bei `verdict = 'belegt'`,
-//!   sonst -32602.
+//! - `websearch.adopt {evidence}` → `{title: TitleEntry, quote, highlight}`; only for `verdict = 'belegt'`,
+//!   otherwise -32602.
 //!
-//! **Kein MCP-Werkzeug:** Die Websuche hat ihren Wert in der Prüfung innerhalb von `@belege`; ein
-//! MCP-Durchgang ins Internet vergrößerte die Angriffsfläche, und MCP-Clients haben eigene Websuchen. Die
-//! Belege stehen in den Beiträgen und sind über `read_node` (posts) lesbar.
+//! **No MCP tool:** the web search has its value in the check within `@belege`; an
+//! MCP passage into the Internet would enlarge the attack surface, and MCP clients have web searches of their own.
+//! The evidence stands in the posts and is readable through `read_node` (posts).
 //!
-//! Inhalte von Webseiten sind Daten, keine Anweisungen: im Prompt nur entschärft
-//! ([`crate::assist::rag_facts::defuse`]) zwischen `<<<seite` und `>>>`, in Seiten maskiert. Meldungen der
-//! Gegenstelle laufen durch die Entfernung des Tokens der Sitzung.
+//! Contents of web pages are data, not instructions: in the prompt only defused
+//! ([`crate::assist::rag_facts::defuse`]) between `<<<seite` and `>>>`, escaped in pages. Messages of the
+//! remote side run through the removal of the token of the session.
 
 pub mod evidence;
 pub mod fetch;
@@ -52,105 +52,105 @@ use crate::AppState;
 use crate::connections::multigpt::Limits;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Schlüssel des Schalters in `store_meta` (`'1'` = an; fehlt = aus).
+/// Key of the switch in `store_meta` (`'1'` = on; missing = off).
 pub const SWITCH_KEY: &str = "websearch_belege";
-/// Werkzeuge der Websuche (SearXNG dahinter) und des Seitenabrufs bei MultiGPT.
+/// Tools of the web search (SearXNG behind it) and of the page retrieval at MultiGPT.
 pub use crate::connections::multigpt::{FETCH_URL_TOOL, WEB_SEARCH_TOOL};
-/// Höchstens so viele Aufrufe `web_search` mit „site:<Rechner>“ (die ersten bevorzugten Quellen).
+/// At most this many calls of `web_search` with "site:<host>" (the first preferred sources).
 pub const MAX_PREFERRED_CALLS: usize = 3;
-/// Höchstens so viele Treffer über alle Aufrufe.
+/// At most this many hits over all calls.
 pub const MAX_HITS: usize = 8;
-/// Höchstens so viele Abrufe über `fetch_url`.
+/// At most this many retrievals through `fetch_url`.
 pub const MAX_FETCHES: usize = 4;
-/// Zeitlimit je Aufruf (`web_search`, `fetch_url`).
+/// Time limit per call (`web_search`, `fetch_url`).
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(10);
-/// Zeitlimit der ganzen Websuche (Verbinden, Suchen, Abrufen).
+/// Time limit of the whole web search (connecting, searching, retrieving).
 pub const TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
-/// Größte Seite (Text bzw. HTML, wie `fetch_url` sie liefert).
+/// Largest page (text or HTML, as `fetch_url` delivers it).
 pub const PAGE_MAX_BYTES: usize = 1024 * 1024;
-/// So viele Zeichen einer Seite bleiben für die Prüfung der Zitate.
+/// This many characters of a page remain for the check of the quotations.
 pub const CHECK_CHARS: usize = 200_000;
-/// So viele Zeichen einer Seite gehen in den Block der Nutzer-Nachricht.
+/// This many characters of a page go into the block of the user message.
 pub const BLOCK_CHARS: usize = 1_500;
-/// Längste Suchanfrage (Zeichen, ohne „site:“).
+/// Longest search query (characters, without "site:").
 pub const QUERY_CHARS: usize = 200;
-/// Grenzen eines Suchaufrufs.
+/// Limits of a search call.
 pub const SEARCH_LIMITS: Limits = Limits { timeout: CALL_TIMEOUT, max_body: 2 * 1024 * 1024 };
-/// Grenzen eines Abrufs: die Antwort von MultiGPT darf größer sein als die Seite (JSON, Maskierung, Text
-/// doppelt in `structuredContent` und `content`); die Seite selbst prüft [`fetch::parse_page`].
+/// Limits of a retrieval: the answer of MultiGPT may be larger than the page (JSON, escaping, text
+/// twice in `structuredContent` and `content`); the page itself is checked by [`fetch::parse_page`].
 pub const FETCH_LIMITS: Limits = Limits { timeout: CALL_TIMEOUT, max_body: 4 * PAGE_MAX_BYTES };
 
-/// Namen im `inputSchema` von `fetch_url` für die Adresse (Annahme, siehe docs/Architektur.md).
+/// Names in the `inputSchema` of `fetch_url` for the address (assumption, see docs/Architektur.md).
 pub const URL_KEYS: &[&str] = &["url", "uri", "link", "href"];
-/// Namen für den Inhalt einer abgerufenen Seite.
+/// Names for the content of a retrieved page.
 pub const CONTENT_KEYS: &[&str] = &["content", "text", "body", "markdown", "html"];
-/// Namen für den Titel (Treffer und Seite).
+/// Names for the title (hit and page).
 pub const TITLE_KEYS: &[&str] = &["title", "name", "filename"];
-/// Namen für den Ausschnitt eines Treffers.
+/// Names for the snippet of a hit.
 pub const SNIPPET_KEYS: &[&str] = &["snippet", "content", "description", "summary", "text"];
-/// Namen einer Trefferliste in der Antwort von `web_search`.
+/// Names of a hit list in the answer of `web_search`.
 pub const RESULT_LIST_KEYS: &[&str] = &["results", "hits", "items", "data", "documents", "organic", "result", "web"];
 
-/// Ein Treffer von `web_search`.
+/// A hit of `web_search`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WebHit {
     pub url: String,
     pub title: String,
     pub snippet: String,
-    /// Der Rechner der Adresse passt zu einer bevorzugten Quelle.
+    /// The host of the address matches a preferred source.
     pub preferred: bool,
 }
 
-/// Eine über `fetch_url` abgerufene Seite; nur sie darf im Block stehen und genannt werden.
+/// A page retrieved through `fetch_url`; only it may stand in the block and be named.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WebPage {
-    /// Nummer n von `[Wn]` (ab 1).
+    /// Number n of `[Wn]` (from 1).
     pub label: usize,
     pub url: String,
     pub title: String,
     pub preferred: bool,
-    /// Text der Seite (höchstens [`CHECK_CHARS`] Zeichen) für die Prüfung der Zitate.
+    /// Text of the page (at most [`CHECK_CHARS`] characters) for the check of the quotations.
     pub text: String,
-    /// Zeitpunkt des Abrufs (UTC, `2026-11-07T10:00:00Z`; gespeichert).
+    /// Instant of the retrieval (UTC, `2026-11-07T10:00:00Z`; stored).
     pub accessed: String,
-    /// Tag des Abrufs als `TT.MM.JJJJ` (Ortszeit; angezeigt).
+    /// Day of the retrieval as `TT.MM.JJJJ` (local time; displayed).
     pub day: String,
 }
 
-/// Ergebnis einer Websuche.
+/// Result of a web search.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Research {
-    /// Die Suchanfrage (ohne „site:“).
+    /// The search query (without "site:").
     pub query: String,
-    /// Treffer (höchstens [`MAX_HITS`]).
+    /// Hits (at most [`MAX_HITS`]).
     pub hits: Vec<WebHit>,
-    /// Abgerufene Seiten (höchstens [`MAX_FETCHES`]).
+    /// Retrieved pages (at most [`MAX_FETCHES`]).
     pub pages: Vec<WebPage>,
-    /// Hinweise (ausgefallene Suche, übersprungene Seite), schon ohne Token und einzeilig.
+    /// Notes (failed search, skipped page), already without token and on one line.
     pub notes: Vec<String>,
-    /// Grund, wenn die Websuche als Ganzes ausfiel (nicht eingerichtet, Zeitlimit, Werkzeug fehlt …).
+    /// Reason if the web search failed as a whole (not set up, time limit, tool missing …).
     pub failure: Option<String>,
 }
 
 impl Research {
-    /// Seite `[Wn]`.
+    /// Page `[Wn]`.
     pub fn page(&self, label: usize) -> Option<&WebPage> {
         self.pages.iter().find(|p| p.label == label)
     }
 }
 
-/// Jetzt als ISO-Zeitpunkt (UTC, gespeichert) und als Tag `TT.MM.JJJJ` (Ortszeit, angezeigt).
+/// Now as an ISO instant (UTC, stored) and as a day `TT.MM.JJJJ` (local time, displayed).
 pub fn now_stamp() -> (String, String) {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     stamp(secs)
 }
 
-/// Sekunden seit 1970 → (`JJJJ-MM-TTTHH:MM:SSZ` in UTC, Tag `TT.MM.JJJJ` in Ortszeit).
+/// Seconds since 1970 → (`JJJJ-MM-TTTHH:MM:SSZ` in UTC, day `TT.MM.JJJJ` in local time).
 pub fn stamp(secs: u64) -> (String, String) {
     stamp_in(secs, &chrono::Local)
 }
 
-/// Wie [`stamp`], der Tag in `zone` (Tests ohne Umstellen von `TZ`).
+/// Like [`stamp`], the day in `zone` (tests without changing `TZ`).
 pub fn stamp_in<Tz: chrono::TimeZone>(secs: u64, zone: &Tz) -> (String, String)
 where
     Tz::Offset: std::fmt::Display,
@@ -164,12 +164,12 @@ where
     (iso, day)
 }
 
-/// Gespeicherter ISO-Zeitpunkt (UTC, `2026-11-07T…`) → Tag `07.11.2026` in Ortszeit; sonst unverändert.
+/// Stored ISO instant (UTC, `2026-11-07T…`) → day `07.11.2026` in local time; otherwise unchanged.
 pub fn day_of(iso: &str) -> String {
     crate::localtime::german_day(iso)
 }
 
-/// Ist der Schalter an?
+/// Is the switch on?
 pub async fn enabled(state: &AppState) -> Result<bool, sqlx::Error> {
     let value: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
         .bind(SWITCH_KEY)
@@ -178,7 +178,7 @@ pub async fn enabled(state: &AppState) -> Result<bool, sqlx::Error> {
     Ok(value.as_deref() == Some("1"))
 }
 
-/// Schalter setzen (aus = Zeile entfernt, wie „fehlt“).
+/// Set the switch (off = row removed, like "missing").
 pub async fn set_enabled(state: &AppState, on: bool) -> Result<(), sqlx::Error> {
     let pool = state.store.pool();
     if on {
@@ -194,7 +194,7 @@ pub async fn set_enabled(state: &AppState, on: bool) -> Result<(), sqlx::Error> 
     Ok(())
 }
 
-/// Ist für MultiGPT eine Adresse eingetragen?
+/// Is an address entered for MultiGPT?
 pub async fn configured(state: &AppState) -> bool {
     match state.store.connection_get(ConnectionKind::Multigpt).await {
         Ok(row) => row.config.get("url").and_then(Value::as_str).is_some_and(|u| !u.trim().is_empty()),
@@ -204,7 +204,7 @@ pub async fn configured(state: &AppState) -> bool {
 
 const METHODS: &[&str] = &["websearch.get", "websearch.set", "websearch.evidence", "websearch.adopt"];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -217,7 +217,7 @@ fn db(e: sqlx::Error) -> RpcError {
     RpcError::new(INTERNAL, format!("Speicher: {e}"))
 }
 
-/// Ganzzahl (Zahl oder Ziffern als Text).
+/// Integer (number or digits as text).
 pub(crate) fn int_param(params: &Value, name: &str) -> Result<i64, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match params.get(name) {
@@ -228,7 +228,7 @@ pub(crate) fn int_param(params: &Value, name: &str) -> Result<i64, RpcError> {
     }
 }
 
-/// `websearch.get` (auch für Seiten).
+/// `websearch.get` (also for pages).
 pub async fn status(state: &AppState) -> Result<Value, RpcError> {
     let on = enabled(state).await.map_err(db)?;
     let preferred = state.store.sources_list().await?.len();
@@ -266,7 +266,7 @@ mod tests {
     fn stamps_store_utc_and_show_the_local_day_in_german_order() {
         let utc = chrono::Utc;
         let berlin = chrono::FixedOffset::east_opt(3600).expect("eine Stunde Versatz ist gültig");
-        // 2026-11-07T09:30:05Z = 20_764 Tage · 86_400 s + 34_205 s seit 1970-01-01.
+        // 2026-11-07T09:30:05Z = 20_764 days · 86_400 s + 34_205 s since 1970-01-01.
         assert_eq!(
             stamp_in(20_764 * 86_400 + 34_205, &utc),
             ("2026-11-07T09:30:05Z".to_owned(), "07.11.2026".to_owned()),
@@ -274,8 +274,8 @@ mod tests {
         );
         assert_eq!(stamp_in(0, &utc).1, "01.01.1970", "Anfang der Zählung");
         assert_eq!(stamp_in(11_016 * 86_400, &utc).1, "29.02.2000", "Schalttag im Jahr 2000 (durch 400 teilbar)");
-        // 23:30 UTC am 07.11. ist in Berlin schon der 08.11.: gespeichert bleibt UTC, das Abrufdatum ist der Tag
-        // des Nutzers (Nutzer 2026-11-07: Ortszeit statt UTC).
+        // 23:30 UTC on 07.11. is already 08.11. in Berlin: UTC stays stored, the retrieval date is the day
+        // of the user (user 2026-11-07: local time instead of UTC).
         assert_eq!(
             stamp_in(20_764 * 86_400 + 84_600, &berlin),
             ("2026-11-07T23:30:00Z".to_owned(), "08.11.2026".to_owned()),

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abruf einer Seite über `fetch_url` ([`fetch_arguments`], [`parse_page`]) und HTML → Text ohne neue Crate
-//! ([`html_to_text`]): `script`, `style`, `noscript`, `template`, `svg` und `head` fallen weg, Block-Elemente
-//! werden Zeilenumbrüche, die übrigen Tags verschwinden, Entitäten werden gelesen (benannte der deutschen
-//! Typografie und numerische). Eine Seite über [`super::PAGE_MAX_BYTES`] oder ohne Text ist ein Fehler (die
-//! Websuche überspringt sie mit Hinweis); für die Prüfung bleiben [`super::CHECK_CHARS`] Zeichen.
+//! Retrieval of a page through `fetch_url` ([`fetch_arguments`], [`parse_page`]) and HTML → text without a new
+//! crate ([`html_to_text`]): `script`, `style`, `noscript`, `template`, `svg` and `head` are dropped, block
+//! elements become line breaks, the other tags disappear, entities are read (named ones of German
+//! typography and numeric ones). A page over [`super::PAGE_MAX_BYTES`] or without text is an error (the
+//! web search skips it with a note); for the check [`super::CHECK_CHARS`] characters remain.
 //!
-//! **Filter vor dem Abruf** (Runde 23, [`fetch_allowed`]): Adressen aus `web_search` gehen nur an `fetch_url`,
-//! wenn sie nach ihrem Wortlaut ins Internet zeigen – `http`/`https`, ohne Benutzerangaben, kein IP-Literal
-//! im eigenen Netz (Loopback, privat, Link-Local, CGNAT, unspezifiziert, Multicast, reserviert; IPv6 samt
-//! `::ffff:`-Abbildung, ULA `fc00::/7`, `fe80::/10`), nicht `localhost` und kein Name auf `.localhost`,
-//! `.local`, `.internal`, `.home.arpa` oder ohne Punkt. **Keine DNS-Auflösung:** Ein öffentlicher Name, der
-//! auf eine private Adresse zeigt, wird hier nicht erkannt – das kann nur MultiGPT, das die Seite abruft
-//! (ob es filtert, ist unbekannt). Für Tests gibt es [`set_fetch_exceptions`] je Datenordner; keine
-//! Einstellung, kein RPC und kein Formular führt dorthin.
+//! **Filter before the retrieval** (Round 23, [`fetch_allowed`]): addresses from `web_search` go to `fetch_url`
+//! only if by their wording they point into the Internet – `http`/`https`, without user details, no IP literal
+//! in the own network (loopback, private, link-local, CGNAT, unspecified, multicast, reserved; IPv6 including the
+//! `::ffff:` mapping, ULA `fc00::/7`, `fe80::/10`), not `localhost` and no name on `.localhost`,
+//! `.local`, `.internal`, `.home.arpa` or without a dot. **No DNS resolution:** a public name that
+//! points to a private address is not recognised here – only MultiGPT, which retrieves the page, can do that
+//! (whether it filters is unknown). For tests there is [`set_fetch_exceptions`] per data folder; no
+//! setting, no RPC and no form leads there.
 
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -26,21 +26,21 @@ use super::search::{check_required, text_of};
 use super::{CHECK_CHARS, CONTENT_KEYS, FETCH_URL_TOOL, PAGE_MAX_BYTES, TITLE_KEYS, URL_KEYS};
 use crate::connections::multigpt::{clean_line, content_text, tool_payload};
 
-/// Eine abgerufene Seite als Text.
+/// A retrieved page as text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fetched {
-    /// Titel (leer, wenn die Seite keinen nennt).
+    /// Title (empty if the page names none).
     pub title: String,
     pub text: String,
 }
 
-/// Ausnahmen des Filters je Datenordner – nur aus Tests gesetzt ([`set_fetch_exceptions`]).
+/// Exceptions of the filter per data folder – set only from tests ([`set_fetch_exceptions`]).
 static FETCH_EXCEPTIONS: LazyLock<Mutex<HashMap<PathBuf, Vec<String>>>> = LazyLock::new(Mutex::default);
 
-/// **Nur für Tests:** Rechner (wie in der Adresse, z. B. `127.0.0.1`), die [`fetch_allowed`] für diesen
-/// Datenordner trotz der Regel durchlässt – damit ein Test einen Nachbau auf 127.0.0.1 abrufen lassen kann.
-/// Schema und Benutzerangaben werden weiter geprüft. In der Auslieferung ruft das niemand: Es gibt dafür
-/// weder Einstellung noch RPC, MCP-Werkzeug oder Formular.
+/// **For tests only:** hosts (as in the address, e.g. `127.0.0.1`) that [`fetch_allowed`] lets through for this
+/// data folder despite the rule – so that a test can have a mock on 127.0.0.1 retrieved.
+/// Scheme and user details are still checked. In the delivered product nobody calls this: there is
+/// neither a setting nor RPC, MCP tool or form for it.
 pub fn set_fetch_exceptions(state: &crate::AppState, hosts: &[&str]) {
     let hosts: Vec<String> = hosts.iter().map(|h| h.trim().to_ascii_lowercase()).filter(|h| !h.is_empty()).collect();
     let mut all = FETCH_EXCEPTIONS.lock().unwrap_or_else(|e| e.into_inner());
@@ -51,7 +51,7 @@ pub fn set_fetch_exceptions(state: &crate::AppState, hosts: &[&str]) {
     }
 }
 
-/// Ausnahmen dieses Datenordners (in der Auslieferung immer leer).
+/// Exceptions of this data folder (always empty in the delivered product).
 pub(crate) fn fetch_exceptions(state: &crate::AppState) -> Vec<String> {
     FETCH_EXCEPTIONS.lock().unwrap_or_else(|e| e.into_inner()).get(&state.data).cloned().unwrap_or_default()
 }
@@ -73,9 +73,9 @@ fn private_v4(ip: Ipv4Addr) -> bool {
         || a == 0
         // CGNAT 100.64.0.0/10
         || (a == 100 && (64..128).contains(&b))
-        // 192.0.0.0/24 (Protokollzuweisungen) und 240.0.0.0/4 (reserviert)
+        // 192.0.0.0/24 (protocol assignments) and 240.0.0.0/4 (reserved)
         || (a == 192 && b == 0 && ip.octets()[2] == 0)
-        // 198.18.0.0/15 (Messnetze, RFC 2544)
+        // 198.18.0.0/15 (benchmarking networks, RFC 2544)
         || (a == 198 && (18..20).contains(&b))
         || a >= 240
 }
@@ -86,11 +86,11 @@ fn private_v6(ip: Ipv6Addr) -> bool {
     if ip.is_loopback() || ip.is_unspecified() || ip.is_multicast() {
         return true;
     }
-    // ULA fc00::/7, Link-Local fe80::/10, alt: Site-Local fec0::/10
+    // ULA fc00::/7, link-local fe80::/10, old: site-local fec0::/10
     if segments[0] & 0xfe00 == 0xfc00 || segments[0] & 0xffc0 == 0xfe80 || segments[0] & 0xffc0 == 0xfec0 {
         return true;
     }
-    // IPv4 in IPv6: `::ffff:a.b.c.d` (abgebildet), `::a.b.c.d` (alt, kompatibel), NAT64 `64:ff9b::/96`,
+    // IPv4 in IPv6: `::ffff:a.b.c.d` (mapped), `::a.b.c.d` (old, compatible), NAT64 `64:ff9b::/96`,
     // 6to4 `2002:a.b.c.d::/16`.
     if segments[..5] == [0, 0, 0, 0, 0] && (segments[5] == 0xffff || segments[5] == 0) {
         return private_v4(embedded(segments[6], segments[7]));
@@ -98,8 +98,8 @@ fn private_v6(ip: Ipv6Addr) -> bool {
     if segments[..6] == [0x64, 0xff9b, 0, 0, 0, 0] {
         return private_v4(embedded(segments[6], segments[7]));
     }
-    // NAT64 für den eigenen Gebrauch `64:ff9b:1::/48` (RFC 8215): die Lage der IPv4-Adresse hängt von der
-    // Präfixlänge ab, darum der ganze Bereich.
+    // NAT64 for local use `64:ff9b:1::/48` (RFC 8215): the position of the IPv4 address depends on the
+    // prefix length, therefore the whole range.
     if segments[..3] == [0x64, 0xff9b, 1] {
         return true;
     }
@@ -109,13 +109,13 @@ fn private_v6(ip: Ipv6Addr) -> bool {
     false
 }
 
-/// Darf diese Adresse aus `web_search` an `fetch_url` gehen? Geprüft wird nur der Wortlaut (keine
-/// DNS-Auflösung, siehe Moduldoku); die Meldung ist ein deutscher Halbsatz für den Hinweis.
+/// May this address from `web_search` go to `fetch_url`? Only the wording is checked (no
+/// DNS resolution, see the module documentation); the message is a German half sentence for the note.
 pub fn fetch_allowed(url: &str) -> Result<(), &'static str> {
     fetch_allowed_with(url, &[])
 }
 
-/// Wie [`fetch_allowed`], mit Ausnahmen für Rechner (nur Tests, [`set_fetch_exceptions`]).
+/// Like [`fetch_allowed`], with exceptions for hosts (tests only, [`set_fetch_exceptions`]).
 pub(crate) fn fetch_allowed_with(url: &str, exceptions: &[String]) -> Result<(), &'static str> {
     let parsed = reqwest::Url::parse(url.trim()).map_err(|_| REFUSED_SCHEME)?;
     if !matches!(parsed.scheme(), "http" | "https") {
@@ -133,13 +133,13 @@ pub(crate) fn fetch_allowed_with(url: &str, exceptions: &[String]) -> Result<(),
         return Ok(());
     }
     if host.starts_with('[') {
-        // IPv6-Literal; unlesbar gilt als abgelehnt (lieber kein Abruf).
+        // IPv6 literal; unreadable counts as rejected (rather no retrieval).
         return match bare.parse::<Ipv6Addr>() {
             Ok(ip) if !private_v6(ip) => Ok(()),
             _ => Err(REFUSED_ADDRESS),
         };
     }
-    // Die Adressprüfung von `Url` schreibt jede IPv4-Schreibweise (dezimal, hex, oktal, verkürzt) als a.b.c.d.
+    // The address check of `Url` writes every IPv4 notation (decimal, hex, octal, shortened) as a.b.c.d.
     if let Ok(ip) = host.parse::<Ipv4Addr>() {
         return if private_v4(ip) { Err(REFUSED_ADDRESS) } else { Ok(()) };
     }
@@ -152,7 +152,7 @@ pub(crate) fn fetch_allowed_with(url: &str, exceptions: &[String]) -> Result<(),
     Ok(())
 }
 
-/// Argumente für `fetch_url` aus dessen `inputSchema`. Ohne `properties` nur `url`.
+/// Arguments for `fetch_url` from its `inputSchema`. Without `properties` only `url`.
 pub fn fetch_arguments(schema: &Value, url: &str) -> Result<Value, RagError> {
     let empty = Map::new();
     let props = schema.get("properties").and_then(Value::as_object).unwrap_or(&empty);
@@ -171,15 +171,15 @@ pub fn fetch_arguments(schema: &Value, url: &str) -> Result<Value, RagError> {
     Ok(Value::Object(args))
 }
 
-/// Sieht der Text wie HTML aus?
+/// Does the text look like HTML?
 pub fn looks_like_html(text: &str) -> bool {
     let head: String = text.chars().take(4000).collect::<String>().to_ascii_lowercase();
     ["<!doctype html", "<html", "<body", "<head", "<p>", "<div"].iter().any(|m| head.contains(m))
         || head.matches("</").count() >= 3
 }
 
-/// Seite aus einer Antwort von `fetch_url`: Inhalt aus den Daten ([`CONTENT_KEYS`]) bzw. aus `content[].text`,
-/// HTML wird Text, Titel aus den Daten oder aus `<title>`.
+/// Page from an answer of `fetch_url`: content from the data ([`CONTENT_KEYS`]) or from `content[].text`,
+/// HTML becomes text, title from the data or from `<title>`.
 pub fn parse_page(result: &Value, url: &str) -> Result<Fetched, RagError> {
     let payload = tool_payload(result).and_then(|p| p.as_object().cloned());
     let (raw, title) = match &payload {
@@ -206,13 +206,13 @@ pub fn parse_page(result: &Value, url: &str) -> Result<Fetched, RagError> {
     Ok(Fetched { title, text: text.chars().take(CHECK_CHARS).collect() })
 }
 
-/// Position von `needle` (ASCII, klein) in `haystack` ohne Rücksicht auf Groß-/Kleinschreibung.
+/// Position of `needle` (ASCII, lower case) in `haystack` regardless of case.
 fn find_ci(haystack: &str, needle: &str) -> Option<usize> {
-    // `to_ascii_lowercase` ändert nur ASCII-Buchstaben: die Byte-Stellen bleiben gleich.
+    // `to_ascii_lowercase` changes only ASCII letters: the byte positions stay the same.
     haystack.to_ascii_lowercase().find(needle)
 }
 
-/// Titel aus `<title>`.
+/// Title from `<title>`.
 pub fn html_title(html: &str) -> Option<String> {
     let open = find_ci(html, "<title")?;
     let after = &html[open..];
@@ -256,15 +256,15 @@ const BLOCKS: &[&str] = &[
     "title",
 ];
 
-/// HTML → Text (siehe Moduldoku); Leerraum je Zeile zusammengezogen, leere Zeilen entfernt.
+/// HTML → text (see the module documentation); whitespace per line collapsed, empty lines removed.
 pub fn html_to_text(html: &str) -> String {
     let mut out = String::with_capacity(html.len() / 2);
     let mut rest = html;
     while let Some(lt) = rest.find('<') {
-        // Zeilenumbrüche im Quelltext sind Leerraum; Zeilen entstehen nur an Block-Elementen.
+        // Line breaks in the source text are whitespace; lines arise only at block elements.
         out.push_str(&decode_entities(&rest[..lt]).replace(['\n', '\r'], " "));
         rest = &rest[lt..];
-        // Ein Tag beginnt mit `<` und einem Buchstaben, `/` oder `!`; sonst ist `<` Text (z. B. „a < b“).
+        // A tag begins with `<` and a letter, `/` or `!`; otherwise `<` is text (e.g. "a < b").
         if !rest[1..].starts_with(|c: char| c.is_ascii_alphabetic() || c == '/' || c == '!') {
             out.push('<');
             rest = &rest[1..];
@@ -288,7 +288,7 @@ pub fn html_to_text(html: &str) -> String {
             .unwrap_or("")
             .to_ascii_lowercase();
         if !closing && SKIPPED.contains(&name.as_str()) && !tag.ends_with('/') {
-            // Bis zum schließenden Tag überspringen; fehlt es, bleibt der Inhalt (lieber zu viel Text als keiner).
+            // Skip up to the closing tag; if it is missing, the content stays (rather too much text than none).
             match find_ci(rest, &format!("</{name}")) {
                 Some(close) => {
                     let after = &rest[close..];
@@ -310,8 +310,8 @@ pub fn html_to_text(html: &str) -> String {
         .join("\n")
 }
 
-/// Entitäten lesen: `&amp;` `&lt;` `&gt;` `&quot;` `&apos;` `&nbsp;`, deutsche Umlaute, typografische Zeichen
-/// und numerische (`&#8222;`, `&#x201E;`); Unbekanntes bleibt stehen.
+/// Read entities: `&amp;` `&lt;` `&gt;` `&quot;` `&apos;` `&nbsp;`, German umlauts, typographic characters
+/// and numeric ones (`&#8222;`, `&#x201E;`); unknown ones stay as they are.
 pub fn decode_entities(text: &str) -> String {
     if !text.contains('&') {
         return text.to_owned();
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn fetch_allowed_refuses_addresses_of_the_own_network_and_lets_public_ones_through() {
-        // (Adresse, erlaubt?, Begründung der Erwartung)
+        // (address, allowed?, reason for the expectation)
         let table: &[(&str, bool, &str)] = &[
             ("https://lichtkunde.example/feuer", true, "öffentlicher Name über https"),
             ("http://archiv.example:8080/chronik?x=1", true, "öffentlicher Name über http mit Port"),

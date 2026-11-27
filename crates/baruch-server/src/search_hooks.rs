@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bedeutungssuche für Literatur, Einfälle und die Einstellungsseite „Verbindungen“ (Vertrag Runde 12,
-//! §2.2). Die Oberfläche (Umschalter Wortlaut/Bedeutung, Status der Wege, „Index neu aufbauen“) ruft nur
-//! diese Funktionen; sie leiten an `crate::rag` weiter (in Runde 12 vom Integrator verdrahtet).
+//! Meaning search for literature, ideas and the settings page „Verbindungen“ (contract Round 12,
+//! §2.2). The user interface (switch wording/meaning, status of the ways, „Index neu aufbauen“) calls only
+//! these functions; they forward to `crate::rag` (wired up by the integrator in Round 12).
 
 use baruch_rag::{Answer, RagError, SearchRequest, Status};
 use baruch_store::WorkId;
 
 use crate::AppState;
 
-/// Bedeutungssuche über die Wege des Werks (Antwort mit allen drei Wegen).
+/// Meaning search over the ways of the work (answer with all three ways).
 pub async fn rag_search(state: &AppState, request: &SearchRequest) -> Result<Answer, RagError> {
     crate::rag::search(state, request).await
 }
 
-/// Zustand der Wege und des lokalen Index eines Werks (ohne Netz).
+/// State of the ways and of the local index of a work (without network).
 pub async fn rag_status(state: &AppState, work: WorkId) -> Result<Status, RagError> {
     crate::rag::status(state, work).await
 }
 
-/// Index des Werks verwerfen und neu aufbauen; Rückgabe: ausstehende Aufträge.
+/// Discard the index of the work and rebuild it; returned: outstanding jobs.
 pub async fn rag_reindex(state: &AppState, work: WorkId) -> Result<usize, RagError> {
     crate::rag::reindex(state, work).await
 }
 
-/// Eine Hervorhebung der Literatur hat sich geändert; nie blockierend. Hervorhebungen und Bibliothek liegen
-/// im gemeinsamen Bereich des Index (ohne Werk), darum zieht `notify(None)` sie nach; das Werk wird
-/// zusätzlich eingereiht, weil ein Zitat dort einen Abschnitt ändern kann.
+/// A highlight of the literature has changed; never blocking. Highlights and library lie
+/// in the shared scope of the index (without a work), therefore `notify(None)` brings them up to date; the work
+/// is enqueued in addition, because a quotation can change a section there.
 pub fn changed(state: &AppState, work: WorkId) {
     crate::rag::notify(state, None);
     crate::rag::notify(state, Some(work));

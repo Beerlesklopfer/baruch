@@ -1,47 +1,48 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werke verwalten (Vertrag Runde 4, Abschnitte 4–6): Übersicht, Anlegen, Hochladen, Ändern,
-//! Löschen und Export, alles durch den Menschen und ohne JavaScript bedienbar. Über MCP gibt es
-//! davon nichts (ein Werk anzulegen, zu ändern oder zu löschen ist dem Menschen vorbehalten).
+//! Managing works (contract Round 4, sections 4–6): overview, creating, uploading, changing,
+//! deleting and export, everything by the human and usable without JavaScript. Through MCP none of
+//! this exists (creating, changing or deleting a work is reserved for the human).
 //!
-//! RPC ([`handles`], [`call`]; aus `rpc::call` heraus, vor der Wahl des Vorgabewerks, geht also auch
-//! ohne Werke):
+//! RPC ([`handles`], [`call`]; out of `rpc::call`, before the default work is chosen, so it also works
+//! without works):
 //! - `work.list` → `{works: [WorkSummary]}`
-//! - `work.meta {work?}` → `{work: WorkMeta, template_revisions}` (seit Runde 26 mit `work.uuid`, nur lesend)
+//! - `work.meta {work?}` → `{work: WorkMeta, template_revisions}` (since Round 26 with `work.uuid`, read only)
 //! - `work.create {title, author?, kind?, preset?, subtitle?, audience?, bible?, text_ref?, module?, from_work?}` →
-//!   `{work, slug, title, nodes, sermon_text?, commit?, mirror?}` (Runde 16a: Predigt mit Predigttext aus SWORD)
-//! - `work.import {file_name, source, title?}` → `ImportReport` (`.typ` oder seit Runde 21b `.md`/`.markdown`, nur
-//!   Text, höchstens 16 MiB, sonst -32602; die ganze Anfrage an `/rpc` höchstens [`RPC_BODY_LIMIT`], sonst 413)
-//! - `work.import_archive {file_name, content, title?}` → `ImportReport` (Runde 21b: ZIP als Base64 mit Haupt-Datei
-//!   `.typ`/`.md` und Bildern, [`crate::markdown_import`]; andere Endung oder kaputtes Archiv → -32602)
+//!   `{work, slug, title, nodes, sermon_text?, commit?, mirror?}` (Round 16a: sermon with sermon text from SWORD)
+//! - `work.import {file_name, source, title?}` → `ImportReport` (`.typ` or since Round 21b `.md`/`.markdown`, only
+//!   text, at most 16 MiB, otherwise -32602; the whole request to `/rpc` at most [`RPC_BODY_LIMIT`], otherwise 413)
+//! - `work.import_archive {file_name, content, title?}` → `ImportReport` (Round 21b: ZIP as Base64 with a main file
+//!   `.typ`/`.md` and images, [`crate::markdown_import`]; another extension or a broken archive → -32602)
 //! - `work.update {work, title?, subtitle?, author?, kind?, audience?, bible?, template?, note?}` →
 //!   `{work, changed, template_rev?, commit?, mirror?}`
 //! - `work.delete {work, confirm_title}` → `{deleted, title, slug, archive, next, commit?, mirror?, ideas_commit?}`
-//! - `work.archives {}` → `{archives: [{slug, title, deleted, folder?, restorable, reason?}]}` (Runde 22, nur lesend)
-//! - `work.restore {slug}` → `{work, slug, title, nodes, folder, skipped_images, commit?|mirror?}` (Runde 22, nur der
-//!   Mensch; nicht über `/act` und MCP)
+//! - `work.archives {}` → `{archives: [{slug, title, deleted, folder?, restorable, reason?}]}` (Round 22, read only)
+//! - `work.restore {slug}` → `{work, slug, title, nodes, folder, skipped_images, commit?|mirror?}` (Round 22, only
+//!   the human; not through `/act` and MCP)
 //!
-//! Seiten ([`pages`]): `GET /werke` (Runde 11: je Werk Umschlag-Vorschaubild und Link „PDF“), `/werke/neu`, `/werke/{id}/bearbeiten[?vorlage=n]`,
-//! `/werke/{id}/loeschen`, `/werke/{id}/export`. Formulare ([`writes`], hinter `guard::same_origin`):
-//! `POST /werke/import` (multipart, Felder `file` (`.typ`, `.md`, `.markdown`, `.zip`), `files` (mehrere Dateien mit
-//! relativen Pfaden = Ordner, Runde 21b) und `title`; höchstens [`IMPORT_UPLOAD_LIMIT`]) und `POST /werke/act` (`action` =
-//! `create`, `update`, `delete`). Ein Import mit Hinweisen oder übersprungenen Bildern zeigt den Bericht
-//! (`import_report.html`, 200) statt weiterzuleiten.
+//! Pages ([`pages`]): `GET /werke` (Round 11: per work a cover thumbnail and the link „PDF“), `/werke/neu`,
+//! `/werke/{id}/bearbeiten[?vorlage=n]`,
+//! `/werke/{id}/loeschen`, `/werke/{id}/export`. Forms ([`writes`], behind `guard::same_origin`):
+//! `POST /werke/import` (multipart, fields `file` (`.typ`, `.md`, `.markdown`, `.zip`), `files` (several files with
+//! relative paths = folder, Round 21b) and `title`; at most [`IMPORT_UPLOAD_LIMIT`]) and `POST /werke/act`
+//! (`action` = `create`, `update`, `delete`). An import with notes or skipped images shows the report
+//! (`import_report.html`, 200) instead of redirecting.
 //!
-//! Spiegel: Anlegen → Commit „Werk angelegt: <Titel>“, Ändern → „Werk geändert: <Felder>“ (nur bei
-//! geänderten Dateien), Löschen → leerer Protokoll-Commit „Werk gelöscht: <Titel>“ (Trailer
-//! `Baruch-Action: work-deleted`), danach wandert der Ordner nach `<data>/works/.geloescht/<slug>-<JJJJ-MM-TT>/`.
-//! Ein Fehler im Spiegel hält die Änderung in der Datenbank nicht auf; die Antwort trägt dann `mirror`.
-//! Seit Runde 22 führt das Löschen danach den Spiegel der Einfälle ohne Werk nach ([`crate::mirror_ideas`]): Die
-//! Einfälle des Werks sind dort sofort sichtbar.
+//! Mirror: creating → commit „Werk angelegt: <Titel>“, changing → „Werk geändert: <Felder>“ (only for
+//! changed files), deleting → empty log commit „Werk gelöscht: <Titel>“ (trailer
+//! `Baruch-Action: work-deleted`), afterwards the folder moves to `<data>/works/.geloescht/<slug>-<JJJJ-MM-TT>/`.
+//! An error in the mirror does not hold up the change in the database; the answer then carries `mirror`.
+//! Since Round 22 deleting afterwards updates the mirror of the ideas without a work ([`crate::mirror_ideas`]): the
+//! ideas of the work are visible there at once.
 //!
-//! Archiv (Runde 22, Vertrag §2.16): `GET /werke/archiv` listet die gelöschten Werke (`work_retired`) mit ihrem
-//! Archivordner `works/.geloescht/<slug>-<JJJJ-MM-TT>[-n]`; `POST /werke/archiv/wiederherstellen` (Felder `slug`,
-//! `confirm`) stellt eins wieder her ([`restore`]): Archivordner lesen ([`read_archive`]: keine Symlinks, nur
-//! `main.typ`, `vorlage.typ` und die eingebundenen `abschnitte/*.typ`, zusammen höchstens [`MAX_SOURCE_BYTES`]), daraus
-//! den Typst-Text wie einen Export zusammensetzen (Buchende und Projektion wie beim Import entfernt), im Store mit dem
-//! reservierten slug anlegen (`Store::restore_retired`), Ordner zurück nach `works/<slug>`, ein Commit „Werk
-//! wiederhergestellt: <Titel>“ (`Baruch-Action: work-restored`). Bilder des Archivs kommen nicht mit (Liste
-//! `skipped_images`); Einfälle ohne Werk bleiben ohne Werk.
+//! Archive (Round 22, contract §2.16): `GET /werke/archiv` lists the deleted works (`work_retired`) with their
+//! archive folder `works/.geloescht/<slug>-<JJJJ-MM-TT>[-n]`; `POST /werke/archiv/wiederherstellen` (fields `slug`,
+//! `confirm`) restores one ([`restore`]): read the archive folder ([`read_archive`]: no symlinks, only
+//! `main.typ`, `vorlage.typ` and the included `abschnitte/*.typ`, together at most [`MAX_SOURCE_BYTES`]), assemble
+//! the Typst text from it like an export (book end and projection removed as on import), create it in the store
+//! with the reserved slug (`Store::restore_retired`), folder back to `works/<slug>`, one commit „Werk
+//! wiederhergestellt: <Titel>“ (`Baruch-Action: work-restored`). Images of the archive do not come along (list
+//! `skipped_images`); ideas without a work stay without a work.
 
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -67,32 +68,32 @@ use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 use crate::{AppState, mirror_dir};
 
-/// Ordner unter `<data>/works/`, in den gelöschte Werke wandern.
+/// Folder under `<data>/works/` into which deleted works move.
 pub const TRASH_DIR: &str = ".geloescht";
 
-/// Größte Anfrage an `POST /werke/import`: 16 MiB Datei und 64 KiB für Titel und Rahmen.
+/// Largest request to `POST /werke/import`: 16 MiB file and 64 KiB for title and envelope.
 pub const UPLOAD_LIMIT: usize = MAX_SOURCE_BYTES as usize + 64 * 1024;
 
-/// Größte Anfrage an `POST /werke/import` seit Runde 21b: ZIP oder Ordner bis 80 MiB ([`crate::archive::IMPORT_LIMITS`])
-/// und 64 KiB für Titel und Rahmen. Gilt nur an dieser Route; [`UPLOAD_LIMIT`] (eine Typst-/Markdown-Datei) und
-/// [`RPC_BODY_LIMIT`] bleiben, wie sie sind.
+/// Largest request to `POST /werke/import` since Round 21b: ZIP or folder up to 80 MiB
+/// ([`crate::archive::IMPORT_LIMITS`]) and 64 KiB for title and envelope. Applies only at this route;
+/// [`UPLOAD_LIMIT`] (one Typst/Markdown file) and [`RPC_BODY_LIMIT`] stay as they are.
 pub const IMPORT_UPLOAD_LIMIT: usize = 80 * 1024 * 1024 + 64 * 1024;
 
-/// Größte Anfrage an `POST /rpc` (verdrahtet in `lib.rs` über `DefaultBodyLimit`): `work.import`
-/// trägt den Typst-Text als JSON-String, und die Maskierung (`\n`, `\"`, `\\`) kann ihn bis aufs
-/// Doppelte wachsen lassen. Darum 2 × 16 MiB und 64 KiB für den Rahmen. Bis 16 MiB Text nimmt
-/// `work.import` an, darüber → -32602 „größer als 16 MiB“; eine Anfrage über dieser Grenze lehnt
-/// axum schon vorher mit 413 ab.
+/// Largest request to `POST /rpc` (wired up in `lib.rs` through `DefaultBodyLimit`): `work.import`
+/// carries the Typst text as a JSON string, and the escaping (`\n`, `\"`, `\\`) can let it grow up to
+/// double the size. Therefore 2 × 16 MiB and 64 KiB for the envelope. Up to 16 MiB of text
+/// `work.import` accepts, above that → -32602 „größer als 16 MiB“; a request over this limit is rejected by
+/// axum already before with 413.
 pub const RPC_BODY_LIMIT: usize = 2 * MAX_SOURCE_BYTES as usize + 64 * 1024;
 
-/// Runde 32: Antwort von `POST /werke/import` (422) und `work.import` (-32602) auf eine Word-Datei – sie verweist auf
-/// den eigenen Import mit Vorschau ([`crate::docx_import`]).
+/// Round 32: answer of `POST /werke/import` (422) and `work.import` (-32602) to a Word file – it points to
+/// the dedicated import with preview ([`crate::docx_import`]).
 pub const USE_WORD_IMPORT: &str = "Word-Dateien liest der eigene Import mit Vorschau: Baruch ▾ → Word (.docx) \
      importieren… (/werke/import/word) bzw. RPC docx_import.preview.";
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(
         method,
@@ -118,11 +119,11 @@ struct CreateParams {
     subtitle: Option<String>,
     audience: Option<String>,
     bible: Option<String>,
-    /// Predigttext als Stellenangabe (nur bei einer Predigt, Runde 16a).
+    /// Sermon text as a reference (only for a sermon, Round 16a).
     text_ref: Option<String>,
-    /// SWORD-Bibel für den Predigttext (leer: Bibel von `from_work`, sonst des Vorgabewerks).
+    /// SWORD Bible for the sermon text (empty: Bible of `from_work`, otherwise of the default work).
     module: Option<String>,
-    /// Werk, aus dem heraus angelegt wird (Dialog „Importieren…“): dessen Bibel gilt bei leerem `module`.
+    /// Work out of which the new one is created (dialog „Importieren…“): its Bible applies with an empty `module`.
     from_work: Option<WorkId>,
 }
 
@@ -136,7 +137,7 @@ struct ImportParams {
 #[derive(Deserialize)]
 struct ArchiveParams {
     file_name: String,
-    /// ZIP-Archiv als Base64.
+    /// ZIP archive as Base64.
     content: String,
     title: Option<String>,
 }
@@ -179,7 +180,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Werkart aus `book`/`sermon`; leer → `None`.
+/// Work kind from `book`/`sermon`; empty → `None`.
 fn kind_param(value: Option<&str>) -> Result<Option<WorkKind>, RpcError> {
     match value.map(str::trim).filter(|v| !v.is_empty()) {
         None => Ok(None),
@@ -202,7 +203,7 @@ fn required_work(work: Option<WorkId>) -> Result<WorkId, RpcError> {
     work.ok_or_else(|| invalid("work fehlt: Welches Werk? (Werk-id, Zahl)"))
 }
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the answer: `commit` for a new commit, `mirror` for an error.
 fn add_mirror(answer: &mut serde_json::Value, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -217,7 +218,7 @@ pub async fn call(
     params_value: serde_json::Value,
 ) -> Result<serde_json::Value, RpcError> {
     match method {
-        // Runde 35: gefiltert nach Rolle (ein Lektor sieht nur freigegebene Werke).
+        // Round 35: filtered by role (a Lektor sees only released works).
         "work.list" => Ok(json!({ "works": crate::roles::visible_works(state, &crate::auth::current()).await? })),
         "work.meta" => {
             let p: MetaParams = params(params_value)?;
@@ -233,7 +234,7 @@ pub async fn call(
         "work.import" => {
             let p: ImportParams = params(params_value)?;
             let base = p.file_name.rsplit(['/', '\\']).next().unwrap_or("").trim();
-            // Runde 32: Word-Dateien liest nur der eigene Import mit Vorschau.
+            // Round 32: Word files are read only by the dedicated import with preview.
             if crate::docx_import::is_docx_name(base) {
                 return Err(invalid(USE_WORD_IMPORT));
             }
@@ -277,29 +278,30 @@ pub async fn call(
     }
 }
 
-/// Längste Stellenangabe für den Predigttext (wie `bible.lookup`).
+/// Longest reference for the sermon text (as in `bible.lookup`).
 pub const MAX_TEXT_REF_CHARS: usize = 500;
-/// Längster Name eines Bibelmoduls beim Anlegen einer Predigt (Regel der Tabelle `work_bible`).
+/// Longest name of a Bible module when creating a sermon (rule of the table `work_bible`).
 pub const MAX_MODULE_CHARS: usize = 100;
 
-/// Der Predigttext eines neuen Werks (Runde 16a): der Typst-Text unter der Überschrift „Predigttext“, die
-/// Angaben für die Antwort (`sermon_text`) und die SWORD-Bibel, die das neue Werk bekommt.
+/// The sermon text of a new work (Round 16a): the Typst text under the heading „Predigttext“, the
+/// details for the answer (`sermon_text`) and the SWORD Bible the new work gets.
 struct SermonText {
     body: String,
     info: serde_json::Value,
     bible: Option<String>,
 }
 
-/// Wortlaut eines Verses als Typst-Text: Markup-Zeichen maskiert (wie ein Titel), Zeilenenden als
-/// Leerzeichen. Die Wortlautprüfung entfernt die Maskierung wieder (`wording::strip_markup`).
+/// Wording of a verse as Typst text: markup characters escaped (like a title), line ends as
+/// spaces. The wording check removes the escaping again (`wording::strip_markup`).
 fn typst_text(text: &str) -> String {
     baruch_typst::escape_title(text)
 }
 
-/// Predigttext aus der Stellenangabe `text_ref` lesen: genau eine gültige Stelle (sonst -32602 mit der
-/// Meldung der Stellenprüfung, nichts angelegt). Bibel: `module`, sonst die von `from_work`, sonst die des
-/// Vorgabewerks. Mit lesbarer Bibel steht der Wortlaut als Blockzitat mit Quelle (Stelle und Modul) da,
-/// fehlende Verse zählt `missing`; ohne Bibel nur die Stellenangabe und ein deutscher Hinweis (`notice`).
+/// Read the sermon text from the reference `text_ref`: exactly one valid passage (otherwise -32602 with the
+/// message of the passage check, nothing created). Bible: `module`, otherwise that of `from_work`, otherwise that
+/// of the default work. With a readable Bible the wording stands there as a block quotation with source (passage
+/// and module), missing verses are counted by `missing`; without a Bible only the reference and a German note
+/// (`notice`).
 async fn sermon_text(
     state: &AppState,
     text_ref: &str,
@@ -310,8 +312,8 @@ async fn sermon_text(
     if text_ref.chars().count() > MAX_TEXT_REF_CHARS {
         return Err(invalid(format!("text_ref: höchstens {MAX_TEXT_REF_CHARS} Zeichen")));
     }
-    // Runde 23: Der Modulname wird die Bibel des Werks (`work_bible`: 1–100 Zeichen, eine Zeile). Unzulässiges
-    // lehnt schon die Eingabe ab, statt erst das Schreiben scheitern zu lassen.
+    // Round 23: the module name becomes the Bible of the work (`work_bible`: 1–100 characters, one line). Invalid
+    // values are rejected already at the input instead of letting the writing fail first.
     if module.is_some_and(|m| m.chars().count() > MAX_MODULE_CHARS || m.chars().any(char::is_control)) {
         return Err(invalid(format!(
             "module: Modulname mit höchstens {MAX_MODULE_CHARS} Zeichen in einer Zeile erwartet"
@@ -377,9 +379,9 @@ async fn sermon_text(
     };
     let name = bible.info.name.clone();
     let (book, start, end) = (passage.book.id, passage.start, passage.end);
-    // Runde 17b: über `bibles::read_passage` (deutsche Zählung → Zählung des Moduls); „gekürzt“ sagt die Stelle
-    // selbst (`truncated`: mehr als MAX_PASSAGE_VERSES Verse), nicht die Zahl der gelesenen Verse – genau 400 Verse
-    // sind vollständig.
+    // Round 17b: through `bibles::read_passage` (German versification → versification of the module); "shortened"
+    // is said by the passage itself (`truncated`: more than MAX_PASSAGE_VERSES verses), not by the number of verses
+    // read – exactly 400 verses are complete.
     let read = {
         let bible = Arc::clone(&bible);
         tokio::task::spawn_blocking(move || crate::bibles::read_passage(&bible, book, start, end))
@@ -422,17 +424,17 @@ async fn sermon_text(
     })
 }
 
-/// Leere Angaben (nur Leerraum) zählen als nicht angegeben.
+/// Empty entries (only whitespace) count as not given.
 fn given(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|v| !v.is_empty())
 }
 
-/// Neues Werk anlegen und spiegeln. Art und Grundgerüst ergänzen sich: fehlt eins, gilt das andere
-/// (Predigt ↔ Predigtteile), sonst Buch. Runde 16a: Bei einer Predigt mit `text_ref` steht der Predigttext
-/// (Zitat mit Quelle bzw. die Stellenangabe) im ersten Punkt, und die gewählte Bibel wird die SWORD-Bibel des
-/// Werks; die Antwort trägt dann `sermon_text`. Runde 23: Werk und Bibel entstehen in **einer** Transaktion
-/// (`Store::create_work_with_bible`) – scheitert die Bibel, gibt es kein halbes Werk, und ein zweiter Versuch
-/// endet nicht mit `DuplicateTitle`.
+/// Create a new work and mirror it. Kind and skeleton complement each other: if one is missing, the other applies
+/// (sermon ↔ sermon parts), otherwise book. Round 16a: for a sermon with `text_ref` the sermon text
+/// (quotation with source or the reference) stands in the first item, and the chosen Bible becomes the SWORD
+/// Bible of the work; the answer then carries `sermon_text`. Round 23: work and Bible are created in **one**
+/// transaction (`Store::create_work_with_bible`) – if the Bible fails, there is no half work, and a second attempt
+/// does not end with `DuplicateTitle`.
 async fn create(state: &AppState, p: &CreateParams) -> Result<serde_json::Value, RpcError> {
     let kind = kind_param(p.kind.as_deref())?;
     let preset = preset_param(p.preset.as_deref())?;
@@ -479,7 +481,7 @@ async fn create(state: &AppState, p: &CreateParams) -> Result<serde_json::Value,
     Ok(answer)
 }
 
-/// Deutsche Namen der Felder für den Commit-Betreff.
+/// German names of the fields for the commit subject.
 fn field_label(field: &str) -> &'static str {
     match field {
         "title" => "Titel",
@@ -492,7 +494,7 @@ fn field_label(field: &str) -> &'static str {
     }
 }
 
-/// Betreff „Werk geändert: Titel, Autor, Werkvorlage Fassung 3“.
+/// Subject „Werk geändert: Titel, Autor, Werkvorlage Fassung 3“.
 fn update_summary(changed: &[&str], template_rev: Option<u32>) -> String {
     let labels: Vec<String> = changed
         .iter()
@@ -529,8 +531,8 @@ async fn update(state: &AppState, p: &UpdateParams) -> Result<serde_json::Value,
     Ok(answer)
 }
 
-/// Werk löschen: Titel prüfen, Spiegel und Schnappschuss vorher holen (danach gibt es das Werk in
-/// der Datenbank nicht mehr), in der Datenbank löschen, Protokoll-Commit, Ordner ins Archiv.
+/// Delete a work: check the title, fetch mirror and snapshot beforehand (afterwards the work no longer
+/// exists in the database), delete in the database, log commit, folder into the archive.
 async fn delete(state: &AppState, work: WorkId, confirm_title: &str) -> Result<serde_json::Value, RpcError> {
     let held = state.write_lock.lock().await;
     let meta = state.store.work_meta(work).await?;
@@ -539,10 +541,10 @@ async fn delete(state: &AppState, work: WorkId, confirm_title: &str) -> Result<s
     }
     let prepared = prepare_mirror(state, work).await;
     let deleted = state.store.delete_work(work, confirm_title).await?;
-    // Bedeutungssuche: die Zeilen des Werks verlassen den Index sofort (nie blockierend).
+    // Meaning search: the rows of the work leave the index at once (never blocking).
     crate::rag::notify(state, Some(work));
     let (commit, archive, error) = archive_mirror(state, &held, &deleted, prepared).await;
-    // Runde 22: Die Einfälle des Werks sind jetzt Einfälle ohne Werk; ihr Spiegel holt sofort auf.
+    // Round 22: the ideas of the work are now ideas without a work; their mirror catches up at once.
     let reason = format!("Einfälle ohne Werk nach dem Löschen von „{}“ gespiegelt", deleted.title);
     let ideas = crate::mirror_ideas::sync_ideas_without_work(state, &held, &reason).await;
     let next = match state.default_work().await {
@@ -570,7 +572,7 @@ async fn delete(state: &AppState, work: WorkId, confirm_title: &str) -> Result<s
 
 type Prepared = Result<(Arc<baruch_gitmirror::Mirror>, Vec<MirrorFile>), String>;
 
-/// Spiegel öffnen und den letzten Stand des Werks holen (für den Protokoll-Commit).
+/// Open the mirror and fetch the last state of the work (for the log commit).
 async fn prepare_mirror(state: &AppState, work: WorkId) -> Prepared {
     let mirror = state.mirror(work).await?;
     let files = state.store.mirror_snapshot(work).await.map_err(|e| e.to_string())?;
@@ -581,8 +583,8 @@ fn human() -> Signature {
     Signature { name: HUMAN_NAME.to_owned(), email: HUMAN_EMAIL.to_owned() }
 }
 
-/// Protokoll-Commit „Werk gelöscht: …“ und Ordner nach `works/.geloescht/<slug>-<datum>/`.
-/// Ergebnis: Commit-Id, Archivordner (relativ zum Datenordner), Fehlertext.
+/// Log commit „Werk gelöscht: …“ and folder to `works/.geloescht/<slug>-<datum>/`.
+/// Result: commit id, archive folder (relative to the data folder), error text.
 async fn archive_mirror(
     state: &AppState,
     _held: &WriteGuard<'_>,
@@ -613,7 +615,7 @@ async fn archive_mirror(
         }
         Err(e) => errors.push(e),
     }
-    // Der Spiegel wird nicht mehr gebraucht; nicht offen halten, während der Ordner wandert.
+    // The mirror is no longer needed; do not keep it open while the folder moves.
     state.forget_mirror(deleted.work);
     let today = today();
     let data = state.data.clone();
@@ -634,9 +636,9 @@ async fn archive_mirror(
     (commit, archive, error)
 }
 
-/// Spiegelordner `<data>/works/<slug>` nach `<data>/works/.geloescht/<slug>-<date>` (Kollision `-2`,
-/// `-3` …) verschieben. Kein Ordner → `Ok(None)`. Symbolische Verknüpfungen (Spiegel, `works/`,
-/// `.geloescht`) → Fehler, nichts verschoben. Ergebnis relativ zum Datenordner, mit `/`.
+/// Move the mirror folder `<data>/works/<slug>` to `<data>/works/.geloescht/<slug>-<date>` (collision `-2`,
+/// `-3` …). No folder → `Ok(None)`. Symbolic links (mirror, `works/`,
+/// `.geloescht`) → error, nothing moved. Result relative to the data folder, with `/`.
 pub fn move_to_trash(data: &FsPath, slug: &str, date: &str) -> Result<Option<String>, String> {
     let dir = mirror_dir(data, slug)?;
     if std::fs::symlink_metadata(&dir).is_err() {
@@ -663,42 +665,42 @@ pub fn move_to_trash(data: &FsPath, slug: &str, date: &str) -> Result<Option<Str
     Ok(Some(format!("works/{TRASH_DIR}/{name}")))
 }
 
-/// Heutiges Datum in Ortszeit als `JJJJ-MM-TT` (Name des Ordners im Papierkorb, den der Nutzer sieht).
+/// Today's date in local time as `JJJJ-MM-TT` (name of the folder in the trash that the user sees).
 fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
-// ---- Archiv (Runde 22) -------------------------------------------------------------------------
+// ---- Archive (Round 22) ------------------------------------------------------------------------
 
-/// Erste Zeile jeder Abschnittsdatei eines Spiegels mit Werkvorlage (`snapshot::TEMPLATE_IMPORT` im Store); beim
-/// Zusammensetzen aus dem Archiv fällt sie weg.
+/// First line of every section file of a mirror with a work template (`snapshot::TEMPLATE_IMPORT` in the store);
+/// when assembling from the archive it is dropped.
 const ARCHIVE_TEMPLATE_IMPORT: &str = "#import \"../vorlage.typ\": *\n";
 
-/// Höchstens so viele eingebundene Abschnittsdateien liest [`read_archive`].
+/// [`read_archive`] reads at most this many included section files.
 pub const MAX_ARCHIVE_SECTIONS: usize = 10_000;
 
-/// Ein gelöschtes Werk in der Archivliste (`work.archives`, Seite `/werke/archiv`).
+/// A deleted work in the archive list (`work.archives`, page `/werke/archiv`).
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ArchiveEntry {
     pub slug: String,
     pub title: String,
-    /// Zeitpunkt des Löschens (UTC, aus `work_retired`).
+    /// Instant of the deletion (UTC, from `work_retired`).
     pub deleted: String,
-    /// Archivordner relativ zum Datenordner (`works/.geloescht/<slug>-<JJJJ-MM-TT>`); `None` = nicht gefunden.
+    /// Archive folder relative to the data folder (`works/.geloescht/<slug>-<JJJJ-MM-TT>`); `None` = not found.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
     pub restorable: bool,
-    /// Warum nicht wiederherstellbar (deutsch).
+    /// Why not restorable (German).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
 
-/// Aus dem Archivordner zusammengesetzter Typst-Text ([`read_archive`]).
+/// Typst text assembled from the archive folder ([`read_archive`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Archived {
-    /// Werkvorlage und Abschnitte wie ein Export (ohne Buchende und Projektion).
+    /// Work template and sections like an export (without book end and projection).
     pub source: String,
-    /// Bilder im Ordner `bilder/` des Archivs (werden nicht wiederhergestellt, nur genannt).
+    /// Images in the folder `bilder/` of the archive (they are not restored, only named).
     pub images: Vec<String>,
 }
 
@@ -710,10 +712,10 @@ fn is_date(text: &str) -> bool {
         && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
 }
 
-/// Archivordner des Werks `slug`: `works/.geloescht/<slug>-<JJJJ-MM-TT>` bzw. bei einer Kollision `…-<n>`
-/// ([`move_to_trash`]); bei mehreren der jüngste. Ein anderes Werk, dessen slug mit `slug-` beginnt, passt nicht (nach
-/// `slug-` muss gleich das Datum folgen). `works/` bzw. `.geloescht` als symbolische Verknüpfung → Fehler; kein
-/// Papierkorb → `Ok(None)`. Ergebnis relativ zum Datenordner, mit `/`.
+/// Archive folder of the work `slug`: `works/.geloescht/<slug>-<JJJJ-MM-TT>` or, on a collision, `…-<n>`
+/// ([`move_to_trash`]); with several the most recent. Another work whose slug begins with `slug-` does not match
+/// (after `slug-` the date must follow at once). `works/` or `.geloescht` as a symbolic link → error; no
+/// trash → `Ok(None)`. Result relative to the data folder, with `/`.
 pub fn archive_folder(data: &FsPath, slug: &str) -> Result<Option<String>, String> {
     let works = data.join("works");
     let trash = works.join(TRASH_DIR);
@@ -759,12 +761,12 @@ pub fn archive_folder(data: &FsPath, slug: &str) -> Result<Option<String>, Strin
     Ok(best.map(|(_, _, name)| format!("works/{TRASH_DIR}/{name}")))
 }
 
-/// `#include "abschnitte/…"`-Zeile → Pfad.
+/// `#include "abschnitte/…"` line → path.
 fn include_path(line: &str) -> Option<&str> {
     line.trim_end().strip_prefix("#include \"")?.strip_suffix('"')
 }
 
-/// Nur `abschnitte/<name>.typ` ohne weitere Ordner, ohne `..`, ohne Steuerzeichen.
+/// Only `abschnitte/<name>.typ` without further folders, without `..`, without control characters.
 fn section_path_ok(path: &str) -> bool {
     let Some(name) = path.strip_prefix("abschnitte/") else { return false };
     !name.is_empty()
@@ -775,7 +777,7 @@ fn section_path_ok(path: &str) -> bool {
         && !name.chars().any(char::is_control)
 }
 
-/// Reguläre Datei (keine Verknüpfung) `rel` unter `dir` als UTF-8 lesen; `budget` = noch erlaubte Bytes.
+/// Read the regular file (no link) `rel` under `dir` as UTF-8; `budget` = bytes still allowed.
 fn read_plain(dir: &FsPath, rel: &str, budget: &mut u64) -> Result<String, String> {
     let path = dir.join(rel);
     if let Some(parent) = path.parent().filter(|p| *p != dir)
@@ -798,12 +800,13 @@ fn read_plain(dir: &FsPath, rel: &str, budget: &mut u64) -> Result<String, Strin
     String::from_utf8(bytes).map_err(|_| format!("{rel} ist kein UTF-8-Text"))
 }
 
-/// Typst-Text eines Archivordners (`folder` relativ zum Datenordner, aus [`archive_folder`]) wie ein Export
-/// zusammensetzen: `main.typ` Zeile für Zeile, jede Zeile `#include "abschnitte/…"` durch den Text der Datei ersetzt
-/// (ohne die Import-Zeile der Werkvorlage), ohne Werkvorlage die Kopfzeile `// Baruch: <Titel>` weggelassen; danach
-/// Buchende und Projektion wie beim Import entfernt. Pfadschutz: nur Ordner direkt unter `works/.geloescht/`, keine
-/// symbolischen Verknüpfungen (Ordner, `abschnitte/`, Dateien), nur `abschnitte/<name>.typ`, zusammen höchstens
-/// [`MAX_SOURCE_BYTES`], höchstens [`MAX_ARCHIVE_SECTIONS`] Abschnitte. Blockiert (nur in `spawn_blocking`).
+/// Assemble the Typst text of an archive folder (`folder` relative to the data folder, from [`archive_folder`])
+/// like an export: `main.typ` line by line, every line `#include "abschnitte/…"` replaced by the text of the file
+/// (without the import line of the work template), without a work template the header line `// Baruch: <Titel>`
+/// left out; afterwards book end and projection removed as on import. Path protection: only folders directly
+/// under `works/.geloescht/`, no symbolic links (folder, `abschnitte/`, files), only `abschnitte/<name>.typ`,
+/// together at most [`MAX_SOURCE_BYTES`], at most [`MAX_ARCHIVE_SECTIONS`] sections. Blocks (only in
+/// `spawn_blocking`).
 pub fn read_archive(data: &FsPath, folder: &str) -> Result<Archived, String> {
     let prefix = format!("works/{TRASH_DIR}/");
     let name = folder.strip_prefix(&prefix).unwrap_or("");
@@ -838,7 +841,7 @@ pub fn read_archive(data: &FsPath, folder: &str) -> Result<Archived, String> {
             dropped_head = true;
             continue;
         }
-        // Ohne Werkvorlage folgt der Kopfzeile eine Leerzeile (leere Vorlage); sie gehört zu keinem Abschnitt.
+        // Without a work template an empty line follows the header line (empty template); it belongs to no section.
         if index == 1 && dropped_head && bare.is_empty() {
             continue;
         }
@@ -877,7 +880,7 @@ pub fn read_archive(data: &FsPath, folder: &str) -> Result<Archived, String> {
     Ok(Archived { source, images })
 }
 
-/// Archivliste: alle gelöschten Werke (neueste zuerst) mit Archivordner und ob sie sich wiederherstellen lassen.
+/// Archive list: all deleted works (newest first) with archive folder and whether they can be restored.
 pub async fn archives(state: &AppState) -> Result<Vec<ArchiveEntry>, RpcError> {
     let retired = state.store.retired_works().await?;
     let live: Vec<String> = state.store.work_list().await?.iter().map(|w| title_key(&w.title)).collect();
@@ -926,10 +929,10 @@ fn refused(message: impl Into<String>) -> RpcError {
     RpcError::new(REFUSED, message)
 }
 
-/// Archiviertes Werk wiederherstellen (nur der Mensch, siehe Moduldoku): unter der Schreibsperre Archivordner lesen,
-/// im Store anlegen, Ordner zurück nach `works/<slug>`, ein Commit „Werk wiederhergestellt: <Titel>“. Gibt es
-/// `works/<slug>` schon, bleibt alles, wie es ist (`REFUSED`). Ein Fehler beim Verschieben oder im Spiegel hält das
-/// Werk in der Datenbank nicht auf (`mirror`).
+/// Restore an archived work (only the human, see the module documentation): under the write lock read the
+/// archive folder, create it in the store, folder back to `works/<slug>`, one commit „Werk wiederhergestellt:
+/// <Titel>“. If `works/<slug>` already exists, everything stays as it is (`REFUSED`). An error while moving or in
+/// the mirror does not hold up the work in the database (`mirror`).
 pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, RpcError> {
     let held = state.write_lock.lock().await;
     if !state.store.retired_works().await?.iter().any(|r| r.slug == slug) {
@@ -1012,9 +1015,9 @@ pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, 
     Ok(answer)
 }
 
-// ---- Vorlagen ----------------------------------------------------------------------------------
+// ---- Templates ---------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung der Werkverwaltung (die der Arbeitsseite bleibt unberührt).
+/// Own template environment of the work management (that of the workspace page stays untouched).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -1047,7 +1050,7 @@ fn render(status: StatusCode, name: &str, ctx: Value) -> Response {
     }
 }
 
-/// HTTP-Status zu einem RPC-Fehler: ungültig 422, abgelehnt 409, sonst 500.
+/// HTTP status for an RPC error: invalid 422, rejected 409, otherwise 500.
 fn status_of(e: &RpcError) -> StatusCode {
     match e.code {
         INVALID_PARAMS => StatusCode::UNPROCESSABLE_ENTITY,
@@ -1070,19 +1073,19 @@ pub(crate) fn kind_word(kind: WorkKind) -> &'static str {
     }
 }
 
-/// Zeitstempel `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in Ortszeit.
+/// Time stamp `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in local time.
 fn short_time(time: &str) -> String {
     crate::localtime::minutes(time)
 }
 
-/// Gibt es ein Werk, zu dem „Zurück“ führen kann?
+/// Is there a work to which „Zurück“ can lead?
 async fn back_url(state: &AppState) -> Option<String> {
     state.default_work().await.ok().map(|work| format!("/?work={work}"))
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
-/// Seiten der Werkverwaltung (nur lesen).
+/// Pages of the work management (read only).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke", get(list_page))
@@ -1093,8 +1096,8 @@ pub fn pages() -> Router<Arc<AppState>> {
         .route("/werke/archiv", get(archive_page))
 }
 
-/// Formulare (schreibend, im Router hinter `guard::same_origin`). Nur `POST /werke/import` nimmt
-/// große Anfragen an (seit Runde 21b [`IMPORT_UPLOAD_LIMIT`] = 80 MiB + 64 KiB für ZIP und Ordner).
+/// Forms (writing, in the router behind `guard::same_origin`). Only `POST /werke/import` accepts
+/// large requests (since Round 21b [`IMPORT_UPLOAD_LIMIT`] = 80 MiB + 64 KiB for ZIP and folder).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/import", post(upload).layer(DefaultBodyLimit::max(IMPORT_UPLOAD_LIMIT)))
@@ -1108,14 +1111,14 @@ struct ListQuery {
 }
 
 async fn list_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
-    // Runde 35: gefiltert nach Rolle (ein Lektor sieht nur freigegebene Werke).
+    // Round 35: filtered by role (a Lektor sees only released works).
     let works = match crate::roles::visible_works(&state, &crate::auth::current()).await {
         Ok(works) => works,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
     };
     let mut rows: Vec<Value> = Vec::with_capacity(works.len());
     for w in &works {
-        // Runde 11: Umschlag je Werk (Bildname; das Vorschaubild kommt über /vorschau?b=320).
+        // Round 11: cover per work (image name; the thumbnail comes through /vorschau?b=320).
         let cover = match crate::cover::cover_info(&state, w.id).await {
             Ok(cover) => cover.map(|c| Value::from(Serde(c))),
             Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
@@ -1132,14 +1135,14 @@ async fn list_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query
     });
     let ctx = context! {
         settings => page_settings(&headers), works => rows, notice => notice, back_url => back_url(&state).await,
-        // Runde 36: Für Lektoren ist die Seite des Umschlags gesperrt – das kleine Bild bleibt, der Link entfällt
-        // (nur Bequemlichkeit; die Sperre selbst liegt in `roles`).
+        // Round 36: for Lektors the page of the cover is locked – the small image stays, the link is dropped
+        // (convenience only; the lock itself lies in `roles`).
         lektor => crate::auth::current().lektor().is_some(),
     };
     render(StatusCode::OK, "works.html", ctx)
 }
 
-/// Werte eines Anlege- oder Upload-Formulars (zum erneuten Zeigen nach einem Fehler).
+/// Values of a create or upload form (for showing again after an error).
 #[derive(Debug, Default, Clone, serde::Serialize)]
 struct NewForm {
     title: String,
@@ -1155,11 +1158,11 @@ struct NewForm {
     from_work: Option<WorkId>,
 }
 
-/// SWORD-Bibeln für die Auswahl auf `/werke/neu` (nur lesend, `bibles::scan`): Name, Beschreibung, nutzbar.
-/// Ein Fehler beim Lesen der Modulordner lässt die Liste leer (die Seite bleibt bedienbar, das Textfeld
-/// fällt dann auf die Bibel des Vorgabewerks zurück). Gelesen wird wie in der Literatur nur bei eingestellten
-/// Modulordnern oder gewählter Bibel des Vorgabewerks (`literature::bibles::scan_allowed`), damit die Seite ohne
-/// Einstellung – und kein Test – die Vorgabeordner des Rechners liest.
+/// SWORD Bibles for the selection on `/werke/neu` (read only, `bibles::scan`): name, description, usable.
+/// An error while reading the module folders leaves the list empty (the page stays usable, the text field
+/// then falls back to the Bible of the default work). As in the literature, reading happens only with configured
+/// module folders or a chosen Bible of the default work (`literature::bibles::scan_allowed`), so that the page
+/// without a setting – and no test – reads the default folders of the machine.
 async fn sword_bibles(state: &AppState) -> Vec<Value> {
     let allowed = match state.default_work().await {
         Ok(work) => crate::literature::bibles::scan_allowed(state, work).await,
@@ -1199,13 +1202,13 @@ async fn new_page(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Res
 
 #[derive(Deserialize)]
 struct EditQuery {
-    /// Fassung der Werkvorlage, die gezeigt werden soll.
+    /// Revision of the work template that is to be shown.
     vorlage: Option<String>,
 }
 
-/// Rücksprung eines Formulars in die Einstellungen (Runde 9, Feld `back`): nur
-/// `/einstellungen/werk`, höchstens mit einer Abfrage aus `[A-Za-z0-9=&_%.-]`; alles andere → `None`
-/// (dann gilt die bisherige Weiterleitung). So führt `back` nie auf eine fremde Seite.
+/// Return of a form into the settings (Round 9, field `back`): only
+/// `/einstellungen/werk`, at most with a query of `[A-Za-z0-9=&_%.-]`; everything else → `None`
+/// (then the previous redirect applies). This way `back` never leads to a foreign page.
 pub(crate) fn settings_back(back: Option<&str>) -> Option<String> {
     let back = back?.trim();
     let rest = back.strip_prefix("/einstellungen/werk")?;
@@ -1217,15 +1220,15 @@ pub(crate) fn settings_back(back: Option<&str>) -> Option<String> {
     }
 }
 
-/// `back` mit angehängtem `ok=<code>` (Hinweis auf der Einstellungsseite).
+/// `back` with `ok=<code>` appended (note on the settings page).
 pub(crate) fn with_ok(back: &str, code: &str) -> String {
     format!("{back}{}ok={code}", if back.contains('?') { '&' } else { '?' })
 }
 
-/// Kontext des Formularteils von `work_edit.html` (`{% block content %}`): Werk, Formularwerte (nach
-/// einem Fehler die eingegebenen), Fassungen der Werkvorlage, ältere Fassung zum Lesen, Fehler und
-/// `back` (Rücksprung in die Einstellungen, Runde 9). Dieselbe Funktion baut die Seite
-/// `/werke/{id}/bearbeiten` und die Einstellungsseite „Werk“ (`crate::settings`).
+/// Context of the form part of `work_edit.html` (`{% block content %}`): work, form values (after
+/// an error the entered ones), revisions of the work template, older revision for reading, error and
+/// `back` (return into the settings, Round 9). The same function builds the page
+/// `/werke/{id}/bearbeiten` and the settings page „Werk“ (`crate::settings`).
 pub(crate) async fn edit_context(
     state: &AppState,
     work: WorkId,
@@ -1242,7 +1245,7 @@ pub(crate) async fn edit_context(
         }
         None => None,
     };
-    // Nach einem Fehler die eingegebenen Werte zeigen, sonst die gespeicherten.
+    // After an error show the entered values, otherwise the stored ones.
     let form = form.unwrap_or_default();
     let pick = |typed: &Option<String>, saved: &str| typed.clone().unwrap_or_else(|| saved.to_owned());
     let values = context! {
@@ -1322,7 +1325,7 @@ async fn delete_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Pat
     delete_response(&state, &headers, id, StatusCode::OK, None).await
 }
 
-/// `GET /werke/{id}/export`: das Werk als eine Typst-Datei zum Herunterladen (`<slug>.typ`).
+/// `GET /werke/{id}/export`: the work as one Typst file for download (`<slug>.typ`).
 async fn export(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>) -> Response {
     let (slug, typst) = match (state.store.work_slug(id).await, state.store.export_typst(id).await) {
         (Ok(slug), Ok(typst)) => (slug, typst),
@@ -1333,7 +1336,7 @@ async fn export(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>) -> R
             return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response();
         }
     };
-    // Der slug besteht nur aus [a-z0-9-] und darf darum ohne Maskierung in die Kopfzeile.
+    // The slug consists only of [a-z0-9-] and may therefore go into the header without escaping.
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{slug}.typ\""))
         .unwrap_or_else(|_| HeaderValue::from_static("attachment"));
     (
@@ -1346,7 +1349,7 @@ async fn export(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>) -> R
         .into_response()
 }
 
-// ---- Archiv: Seite und Formular (Runde 22) -----------------------------------------------------
+// ---- Archive: page and form (Round 22) ---------------------------------------------------------
 
 async fn archive_response(
     state: &AppState,
@@ -1374,7 +1377,7 @@ async fn archive_response(
     render(status, "works_archive.html", ctx)
 }
 
-/// `GET /werke/archiv`: gelöschte Werke mit Archivordner und Formular „Wiederherstellen“ (ohne JavaScript).
+/// `GET /werke/archiv`: deleted works with archive folder and the form „Wiederherstellen“ (without JavaScript).
 async fn archive_page(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
     archive_response(&state, &headers, StatusCode::OK, None).await
 }
@@ -1385,8 +1388,8 @@ struct RestoreForm {
     confirm: Option<String>,
 }
 
-/// `POST /werke/archiv/wiederherstellen` (Felder `slug`, `confirm`): ohne Bestätigung 422, Fehler 409/422 mit der
-/// Archivseite und Meldung; Erfolg → 303 auf das wiederhergestellte Werk.
+/// `POST /werke/archiv/wiederherstellen` (fields `slug`, `confirm`): without confirmation 422, errors 409/422 with
+/// the archive page and a message; success → 303 to the restored work.
 async fn restore_form(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1407,13 +1410,13 @@ async fn restore_form(
     }
 }
 
-// ---- Formulare ---------------------------------------------------------------------------------
+// ---- Forms -------------------------------------------------------------------------------------
 
-/// `POST /werke/import` (multipart): Felder `file` (eine Datei: `.typ`, `.md`, `.markdown` oder `.zip`), `files`
-/// (mehrere Dateien mit relativen Pfaden, Ordner-Upload, Runde 21b) und `title` (leer = aus der Datei).
-/// Erfolg ohne Hinweise → 303 auf `/?work=<id>`; mit Hinweisen oder übersprungenen Bildern → 200 mit Bericht
-/// (`import_report.html`). Falsche Endung, kein UTF-8, unsicheres oder kaputtes Archiv → 422, zu groß → 413, schon
-/// importiert oder Titel vergeben → 409; die Fehlerseite zeigt das Formular wieder, angelegt ist dann nichts.
+/// `POST /werke/import` (multipart): fields `file` (one file: `.typ`, `.md`, `.markdown` or `.zip`), `files`
+/// (several files with relative paths, folder upload, Round 21b) and `title` (empty = from the file).
+/// Success without notes → 303 to `/?work=<id>`; with notes or skipped images → 200 with the report
+/// (`import_report.html`). Wrong extension, no UTF-8, unsafe or broken archive → 422, too large → 413, already
+/// imported or title taken → 409; the error page shows the form again, nothing is created then.
 async fn upload(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1471,7 +1474,7 @@ async fn upload(
                         return failed(status, form, message).await;
                     }
                 };
-                // Ein Browser schickt für ein leeres Dateifeld einen Teil ohne Namen: kein Upload.
+                // A browser sends a part without a name for an empty file field: no upload.
                 if file_name.trim().is_empty() {
                     continue;
                 }
@@ -1497,8 +1500,8 @@ async fn upload(
             return failed(StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
         }
         (None, false) => {
-            // Ordner: Browser schicken den relativen Pfad als Dateinamen („buch/kapitel.md“); der Ordnername ist der
-            // erste Teil, sonst gibt es keinen.
+            // Folder: browsers send the relative path as the file name („buch/kapitel.md“); the folder name is the
+            // first part, otherwise there is none.
             let origin = folder[0].0.split('/').next().filter(|_| folder[0].0.contains('/')).unwrap_or("").to_owned();
             match Bundle::from_files(folder) {
                 Ok(bundle) => markdown_import::import_bundle(&state, bundle, &origin, title).await,
@@ -1519,7 +1522,7 @@ async fn upload(
                     }
                 }
             } else {
-                // Runde 32: Word-Dateien liest nur der eigene Import mit Vorschau.
+                // Round 32: Word files are read only by the dedicated import with preview.
                 if crate::docx_import::is_docx_name(&base) {
                     return failed(StatusCode::UNPROCESSABLE_ENTITY, form, USE_WORD_IMPORT.into()).await;
                 }
@@ -1562,7 +1565,7 @@ async fn upload(
     }
 }
 
-/// HTTP-Status zu einem Fehler beim Lesen eines Archivs bzw. Ordners: Grenze überschritten → 413, sonst 422.
+/// HTTP status for an error while reading an archive or folder: limit exceeded → 413, otherwise 422.
 fn archive_status(e: &crate::archive::ArchiveError) -> StatusCode {
     match e {
         crate::archive::ArchiveError::TooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
@@ -1570,7 +1573,7 @@ fn archive_status(e: &crate::archive::ArchiveError) -> StatusCode {
     }
 }
 
-/// Bericht eines Imports mit Hinweisen (200): Werk, angelegte Bilder, übersprungene Bilder mit Grund, Hinweise mit Zeile.
+/// Report of an import with notes (200): work, created images, skipped images with reason, notes with line.
 fn report_page(headers: &HeaderMap, report: &ImportReport) -> Response {
     let ctx = context! {
         settings => page_settings(headers), report => Value::from(Serde(report)),
@@ -1579,7 +1582,7 @@ fn report_page(headers: &HeaderMap, report: &ImportReport) -> Response {
     render(StatusCode::OK, "import_report.html", ctx)
 }
 
-/// Formular ohne JavaScript: `action` = `create`, `update` oder `delete`, Felder wie RPC.
+/// Form without JavaScript: `action` = `create`, `update` or `delete`, fields as in RPC.
 #[derive(Debug, Default, Deserialize)]
 struct ActForm {
     action: String,
@@ -1594,9 +1597,9 @@ struct ActForm {
     template: Option<String>,
     note: Option<String>,
     confirm_title: Option<String>,
-    /// Rücksprung nach Erfolg (nur `/einstellungen/werk…`, sonst übergangen; Runde 9).
+    /// Return after success (only `/einstellungen/werk…`, otherwise skipped; Round 9).
     back: Option<String>,
-    /// Predigttext, SWORD-Bibel und Ausgangswerk (Runde 16a, nur `create`).
+    /// Sermon text, SWORD Bible and source work (Round 16a, only `create`).
     text_ref: Option<String>,
     module: Option<String>,
     from_work: Option<String>,
@@ -1663,8 +1666,8 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
                 Err(e) => {
                     let status = status_of(&e);
                     if back.is_some() {
-                        // Aus den Einstellungen: dieselbe Einstellungsseite mit Fehler und Eingabe (das
-                        // Popup übernimmt daraus den Rahmen, ohne JavaScript steht die ganze Seite da).
+                        // From the settings: the same settings page with error and input (the
+                        // popup takes the frame from it, without JavaScript the whole page stands there).
                         let retry = crate::settings::WorkRetry::Edit { form: p, error: e.message };
                         return crate::settings::work_retry_page(&state, &headers, status, work, retry).await;
                     }

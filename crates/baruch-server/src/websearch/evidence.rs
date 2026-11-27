@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Belege der Websuche in `web_evidence` (Migration 0034): [`record`] nach dem Speichern des Beitrags (eine
-//! Zeile je Zitat bzw. genannter Seite, mit `post_id`), [`for_post`] und [`get`] zum Lesen und [`adopt`] für
-//! die Übernahme in die Autorenbibliothek – nur bei `belegt`, nur durch den Menschen (RPC bzw. Formular, kein
-//! MCP). Übernommen werden über die vorhandene API von `baruch-library` ein Titel der Art `web` (mit URL und
-//! der Notiz „Abgerufen am <Datum> (Websuche @belege)“; eine schon übernommene Seite mit derselben Adresse
-//! bekommt keinen zweiten Titel), das Zitat als `library_quote` und eine Hervorhebung der Art `quote` vom
-//! Menschen. Danach meldet sich die Bibliothek beim gemeinsamen Index ([`crate::rag::notify`]).
+//! Evidence of the web search in `web_evidence` (migration 0034): [`record`] after the post is stored (one
+//! row per quotation or named page, with `post_id`), [`for_post`] and [`get`] for reading and [`adopt`] for
+//! the adoption into the author's library – only for `belegt`, only by the human (RPC or form, no
+//! MCP). Adopted through the existing API of `baruch-library` are a title of the kind `web` (with URL and
+//! the note „Abgerufen am <Datum> (Websuche @belege)“; a page already adopted with the same address
+//! gets no second title), the quotation as `library_quote` and a highlight of the kind `quote` by the
+//! human. Afterwards the library reports to the shared index ([`crate::rag::notify`]).
 
 use baruch_library::{HighlightAuthor, HighlightKind, NewHighlight, NewTitle};
 use baruch_store::WorkId;
@@ -19,7 +19,7 @@ use super::{Research, day_of};
 use crate::rpc::{INVALID_PARAMS, RpcError};
 use crate::{AppState, mirror};
 
-/// Eine Zeile aus `web_evidence`.
+/// A row from `web_evidence`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Evidence {
     pub id: i64,
@@ -32,12 +32,12 @@ pub struct Evidence {
     pub url: String,
     pub title: String,
     pub preferred: bool,
-    /// Zeitpunkt des Abrufs (UTC, ISO).
+    /// Instant of the retrieval (UTC, ISO).
     pub accessed: String,
     pub quote: String,
     /// `belegt` | `nicht_belegt` | `nicht_zitiert`.
     pub verdict: String,
-    /// Titel in der Autorenbibliothek nach der Übernahme.
+    /// Title in the author's library after the adoption.
     pub library_title: Option<i64>,
     pub created: String,
 }
@@ -45,7 +45,7 @@ pub struct Evidence {
 const COLUMNS: &str = "id, post_id AS post, work_id AS work, node_key AS key, persona, label, url, title, \
     preferred, accessed, quote, verdict, library_title_id AS library_title, created";
 
-/// Belege eines gespeicherten Beitrags anlegen; gibt die Zahl der Zeilen zurück.
+/// Create the evidence of a stored post; returns the number of rows.
 pub async fn record(
     pool: &SqlitePool,
     post: i64,
@@ -74,8 +74,8 @@ pub async fn record(
         .bind(&page.accessed)
         .bind(&draft.quote)
         .bind(draft.verdict.as_str())
-        // Fingerabdruck der geprüften Seite (SHA-256 aus baruch-store), damit eine spätere Prüfung erkennt,
-        // ob sich die Seite seit dem Abruf geändert hat.
+        // Fingerprint of the checked page (SHA-256 from baruch-store), so that a later check recognises
+        // whether the page has changed since the retrieval.
         .bind(baruch_store::sync_hash(&page.text))
         .execute(&mut *tx)
         .await?;
@@ -85,7 +85,7 @@ pub async fn record(
     Ok(count)
 }
 
-/// Belege eines Beitrags in der Reihenfolge des Anlegens.
+/// Evidence of a post in the order of creation.
 pub async fn for_post(pool: &SqlitePool, post: i64) -> Result<Vec<Evidence>, sqlx::Error> {
     sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM web_evidence WHERE post_id = ? ORDER BY id")))
         .bind(post)
@@ -93,7 +93,7 @@ pub async fn for_post(pool: &SqlitePool, post: i64) -> Result<Vec<Evidence>, sql
         .await
 }
 
-/// Ein Beleg.
+/// One piece of evidence.
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Evidence>, sqlx::Error> {
     sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM web_evidence WHERE id = ?")))
         .bind(id)
@@ -105,7 +105,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Freier Zitierschlüssel `web-<rechner>-<JJJJMMTT>[-n]` (nur `a-z0-9-`).
+/// Free citation key `web-<host>-<JJJJMMTT>[-n]` (only `a-z0-9-`).
 async fn free_key(pool: &SqlitePool, url: &str, accessed: &str) -> Result<String, sqlx::Error> {
     let host: String = host_of(url)
         .unwrap_or_else(|| "seite".into())
@@ -127,8 +127,9 @@ async fn free_key(pool: &SqlitePool, url: &str, accessed: &str) -> Result<String
     }
 }
 
-/// Beleg in die Autorenbibliothek übernehmen (siehe Moduldoku): `{title: TitleEntry, quote, highlight}`.
-/// Unbekannt, nicht `belegt` oder schon übernommen → -32602, dann ist nichts angelegt.
+/// Adopt a piece of evidence into the author's library (see the module documentation):
+/// `{title: TitleEntry, quote, highlight}`.
+/// Unknown, not `belegt` or already adopted → -32602, then nothing is created.
 pub async fn adopt(state: &AppState, id: i64) -> Result<Value, RpcError> {
     let pool = state.store.pool();
     let db = |e: sqlx::Error| RpcError::new(crate::rpc::INTERNAL, format!("Speicher: {e}"));

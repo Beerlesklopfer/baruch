@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachbarn im lokalen Index (Runde 25, Gedankenkarte): die **gespeicherten** Vektoren der Einfälle eines
-//! Werks (Zeilen `idea:<id>` im Bereich des Werks) und ihre Kosinus-Ähnlichkeit.
+//! Neighbours in the local index (Round 25, idea map): the **stored** vectors of the ideas of a
+//! work (rows `idea:<id>` in the scope of the work) and their cosine similarity.
 //!
-//! Beim Zeichnen der Karte wird nie eingebettet: [`idea_vectors`] liest nur, was die Hintergrund-Aufgabe
-//! ([`super::index`]) schon in LanceDB abgelegt hat. Ohne angebundenen Einbetter oder ohne Index antwortet es
-//! ehrlich [`IdeaVectors::NoEmbedder`] (ohne den Index-Ordner anzulegen), bei einem Fehler des Index oder
-//! einem anderen eingestellten Modell [`IdeaVectors::Unavailable`] – die Karte zeigt dann nur die Nähe über
-//! gleiche Schlagwörter.
+//! Drawing the map never embeds: [`idea_vectors`] only reads what the background task
+//! ([`super::index`]) has already put into LanceDB. Without a connected embedder or without an index it answers
+//! honestly [`IdeaVectors::NoEmbedder`] (without creating the index folder), on an error of the index or
+//! another configured model [`IdeaVectors::Unavailable`] – the map then shows only the nearness through
+//! shared keywords.
 
 use std::collections::HashMap;
 
@@ -16,25 +16,25 @@ use baruch_store::{IdeaId, WorkId};
 use super::index::{config, mismatch};
 use crate::AppState;
 
-/// Satz: kein Einbetter angebunden.
+/// Sentence: no embedder connected.
 pub const NO_EMBEDDER: &str = "Keine Einbettung angebunden (Einstellungen → Verbindungen); Nähe nur über gleiche \
                                Schlagwörter.";
-/// Satz: Index ohne Vektoren der Einfälle dieses Werks.
+/// Sentence: index without vectors of the ideas of this work.
 pub const NOT_INDEXED: &str = "Im Index liegen noch keine Einbettungen der Einfälle dieses Werks; Nähe nur über \
                                gleiche Schlagwörter.";
 
-/// Vektoren der Einfälle eines Werks aus dem Index.
+/// Vectors of the ideas of a work from the index.
 #[derive(Debug, Clone, PartialEq)]
 pub enum IdeaVectors {
-    /// Kein Einbetter oder (noch) kein Index bzw. keine Zeile eines Einfalls; Satz für die Anzeige.
+    /// No embedder or no index (yet) or no row of an idea; sentence for the display.
     NoEmbedder(String),
-    /// Index nicht lesbar oder mit einem anderen Modell aufgebaut; Satz für die Anzeige.
+    /// Index not readable or built with another model; sentence for the display.
     Unavailable(String),
-    /// Einfall → gespeicherter Vektor (nur Einfälle, die schon eingebettet sind).
+    /// Idea → stored vector (only ideas that are already embedded).
     Ready(HashMap<IdeaId, Vec<f32>>),
 }
 
-/// Gespeicherte Vektoren der Einfälle des Werks lesen (keine Einbettungsanfrage).
+/// Read the stored vectors of the ideas of the work (no embedding request).
 pub async fn idea_vectors(state: &AppState, work: WorkId) -> IdeaVectors {
     let rt = super::runtime(state);
     if rt.embedders().is_none() {
@@ -77,7 +77,7 @@ pub async fn idea_vectors(state: &AppState, work: WorkId) -> IdeaVectors {
     IdeaVectors::Ready(vectors)
 }
 
-/// Kosinus-Ähnlichkeit zweier gespeicherter Vektoren (0 bei Nullvektor oder ungleicher Länge).
+/// Cosine similarity of two stored vectors (0 for a zero vector or unequal length).
 pub fn similarity(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() {
         return 0.0;
@@ -91,10 +91,10 @@ mod tests {
 
     #[test]
     fn similarity_is_the_cosine_and_refuses_mixed_dimensions() {
-        // Gleiche Richtung = 1, senkrecht = 0: die Schwelle near_threshold misst genau das.
+        // Same direction = 1, perpendicular = 0: the threshold near_threshold measures exactly that.
         assert!((similarity(&[1.0, 0.0], &[2.0, 0.0]) - 1.0).abs() < 1e-6, "gleiche Richtung");
         assert!(similarity(&[1.0, 0.0], &[0.0, 3.0]).abs() < 1e-6, "senkrecht");
-        // Verschiedene Dimensionen stammen von verschiedenen Modellen: keine Nähe statt eines Zufallswerts.
+        // Different dimensions come from different models: no nearness instead of a random value.
         assert_eq!(similarity(&[1.0, 0.0], &[1.0, 0.0, 0.0]), 0.0, "ungleiche Länge");
         assert_eq!(similarity(&[0.0, 0.0], &[1.0, 0.0]), 0.0, "Nullvektor");
     }

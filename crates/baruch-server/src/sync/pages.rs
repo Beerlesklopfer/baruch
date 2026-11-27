@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Seite `/abgleich` (ohne JavaScript bedienbar) und ihre Formulare an `POST /abgleich/act` (hinter
-//! `guard::same_origin`): Knopf „Abgleichen“, „zuletzt abgeglichen …“ mit den Zahlen aus `sync_run` und
-//! den Hinweisen, je Werk der Schalter „nach MultiGPT hochladen“ mit Pflicht-Kontrollkästchen, die Auswahl
-//! der Sammlungen zum Holen. Die Seite selbst fragt MultiGPT nie; nur die Knöpfe „Abgleichen“ und
-//! „Sammlungen von MultiGPT laden“ tun das.
+//! Page `/abgleich` (usable without JavaScript) and its forms to `POST /abgleich/act` (behind
+//! `guard::same_origin`): button „Abgleichen“, „zuletzt abgeglichen …“ with the numbers from `sync_run` and
+//! the notes, per work the switch „nach MultiGPT hochladen“ with a mandatory checkbox, the selection
+//! of the collections to fetch. The page itself never asks MultiGPT; only the buttons „Abgleichen“ and
+//! „Sammlungen von MultiGPT laden“ do that.
 
 use std::sync::{Arc, OnceLock};
 
@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::view::Settings;
 
-/// Eigene Template-Umgebung (die der Arbeitsseite bleibt unberührt).
+/// Own template environment (that of the workspace page stays untouched).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -79,7 +79,7 @@ fn internal(e: impl std::fmt::Display) -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()
 }
 
-/// `GET /abgleich?work=W` – ohne Netz.
+/// `GET /abgleich?work=W` – without network.
 async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(query): Query<PageQuery>) -> Response {
     let work = work_of(query.work.as_deref());
     let status = match super::status(&state, None).await {
@@ -132,15 +132,15 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(quer
     }
 }
 
-/// Rücksprung: `back` nur auf `/abgleich…` oder `/einstellungen/werk…`, sonst `/abgleich[?work=W]`; dazu
-/// ein fester Code.
+/// Return: `back` only to `/abgleich…` or `/einstellungen/werk…`, otherwise `/abgleich[?work=W]`; plus
+/// a fixed code.
 fn back(back: Option<&str>, work: Option<WorkId>, code: (&str, &str)) -> Response {
     let safe = back.map(str::trim).filter(|b| {
         (b.starts_with("/abgleich") || b.starts_with("/einstellungen/werk"))
             && !b.chars().any(|c| c.is_control() || matches!(c, ' ' | '"' | '<' | '>' | '\\' | '#'))
     });
     let base = match (safe, code.0) {
-        // Fehler zeigt immer die Seite des Abgleichs (dort steht, was zu tun ist).
+        // An error always shows the page of the reconciliation (it says there what is to be done).
         (Some(b), "ok") => b.to_owned(),
         _ => match work {
             Some(w) => format!("/abgleich?work={w}"),
@@ -159,8 +159,8 @@ fn checked(pairs: &[(String, String)], name: &str) -> bool {
     matches!(field(pairs, name), Some("1" | "on" | "true"))
 }
 
-/// `POST /abgleich/act`: `action` ∈ `run`, `upload` (`work`, `on=1` bzw. fehlt = aus, `confirm=1`),
-/// `collections` (wiederholtes `collection`, dazu `collection_new`), `load_collections`. Immer 303.
+/// `POST /abgleich/act`: `action` ∈ `run`, `upload` (`work`, `on=1` or missing = off, `confirm=1`),
+/// `collections` (repeated `collection`, plus `collection_new`), `load_collections`. Always 303.
 async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, String)>>) -> Response {
     let work = work_of(field(&pairs, "work"));
     let target = field(&pairs, "back");
@@ -213,7 +213,7 @@ pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/abgleich", get(page))
 }
 
-/// `POST /abgleich/act` (im Router der schreibenden Routen, also hinter `guard::same_origin`).
+/// `POST /abgleich/act` (in the router of the writing routes, that is behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/abgleich/act", post(act))
 }

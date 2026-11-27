@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! „Verbindung prüfen“ für LanceDB (Runde 12, ersetzt den STUB in `connections::run_check`): Ordner
-//! (vorhanden, beschreibbar), Index (Tabellen, Einträge, Modell, Dimension), eingestelltes Modell und eine
-//! Probe-Einbettung eines festen Satzes. `ok` = Ordner nutzbar ∧ Probe gelingt ∧ Modell und Dimension
-//! passen zum Index (falls schon einer da ist). Das Ergebnis speichert `Store::connection_record_check`;
-//! die JSON-Form ist dieselbe wie bei den anderen Verbindungen (`{kind, ok, message, details, at}`).
+//! „Verbindung prüfen“ for LanceDB (Round 12, replaces the STUB in `connections::run_check`): folder
+//! (present, writable), index (tables, entries, model, dimension), configured model and a
+//! probe embedding of a fixed sentence. `ok` = folder usable ∧ probe succeeds ∧ model and dimension
+//! match the index (if there already is one). The result is stored by `Store::connection_record_check`;
+//! the JSON form is the same as for the other connections (`{kind, ok, message, details, at}`).
 
 use baruch_rag::RagError;
 use baruch_store::ConnectionKind;
@@ -12,10 +12,10 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::connections::Fault;
 
-/// Fester Text der Probe-Einbettung (kein Buchtext).
+/// Fixed text of the probe embedding (no book text).
 pub const PROBE_TEXT: &str = "Baruch prüft die Einbettung.";
 
-/// Ist der Ordner beschreibbar? (Probedatei anlegen und löschen.)
+/// Is the folder writable? (Create and delete a probe file.)
 fn writable(dir: &std::path::Path) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("Ordner nicht anlegbar: {e}"))?;
     let probe = dir.join(".baruch-schreibprobe");
@@ -23,7 +23,7 @@ fn writable(dir: &std::path::Path) -> Result<(), String> {
     std::fs::remove_file(&probe).map_err(|e| format!("Probedatei nicht löschbar: {e}"))
 }
 
-/// Prüfung durchführen und speichern.
+/// Run the check and store it.
 pub async fn check_lancedb(state: &AppState) -> Result<Value, Fault> {
     let rt = super::runtime(state);
     let mut details = json!({

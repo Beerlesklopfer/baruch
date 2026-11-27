@@ -1,30 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungsseite „Daten“: Datenordner, Größe (rekursiv, symbolische Verknüpfungen nicht verfolgt),
-//! je Werk der Git-Spiegel mit letztem Commit, Version des Programms (nur Anzeige, seit Runde 24 mit Link auf `/ueber`) und „Sicherung
-//! jetzt“ (nur der Mensch: Formular `POST /einstellungen/daten/sicherung` mit `confirm=1` bzw. RPC
-//! `settings.backup {confirm: true}`, kein MCP).
+//! Settings page „Daten“: data folder, size (recursive, symbolic links not followed),
+//! per work the Git mirror with its last commit, version of the program (display only, since Round 24 with a link
+//! to `/ueber`) and „Sicherung jetzt“ (only the human: form `POST /einstellungen/daten/sicherung` with `confirm=1`
+//! or RPC `settings.backup {confirm: true}`, no MCP).
 //!
-//! Instanz (Runde 26): Kennung (`store_meta.instance_uuid`, nur Anzeige) und Name dieser Baruch-Instanz, der
-//! im Austauschformat als Herkunft mitgeht. Formular `POST /einstellungen/daten/instanz` mit `name` (getrimmt,
-//! höchstens 80 Zeichen, keine Steuerzeichen, leer = zurücksetzen; [`instance_act`]), RPC `instance.get` und
-//! `instance.set_name` ([`crate::instance`]), kein MCP.
+//! Instance (Round 26): identifier (`store_meta.instance_uuid`, display only) and name of this Baruch instance,
+//! which travels along in the exchange format as the origin. Form `POST /einstellungen/daten/instanz` with `name`
+//! (trimmed, at most 80 characters, no control characters, empty = reset; [`instance_act`]), RPC `instance.get` and
+//! `instance.set_name` ([`crate::instance`]), no MCP.
 //!
-//! EPUBCheck (Runde 20c): Block mit dem Pfad zu einem epubcheck.jar (`store_meta.epubcheck_jar`), dem gefundenen
-//! Werkzeug (`epubcheck` im PATH geht vor) und ob `java` im PATH liegt. Formular `POST /einstellungen/daten/epubcheck`
-//! (Feld `jar`, leer = entfernen) und RPC `epub.checker_get`/`epub.checker_set` in [`crate::epub_check`], kein MCP.
+//! EPUBCheck (Round 20c): block with the path to an epubcheck.jar (`store_meta.epubcheck_jar`), the tool found
+//! (`epubcheck` in the PATH takes precedence) and whether `java` is in the PATH. Form
+//! `POST /einstellungen/daten/epubcheck` (field `jar`, empty = remove) and RPC
+//! `epub.checker_get`/`epub.checker_set` in [`crate::epub_check`], no MCP.
 //!
-//! Sicherung ([`backup`]): unter [`AppState::write_lock`] (kein Commit dazwischen) entsteht neben dem
-//! Datenordner `<Elternordner>/<Name>.sicherung-<JJJJ-MM-TT-HHMMSS>` (Ortszeit aus SQLite
-//! `strftime(…, 'localtime')`). Gibt es den Ordner schon (zweite Sicherung in derselben Sekunde), ist
-//! das ein Fehler und nichts wird überschrieben. `baruch.sqlite` kommt per `VACUUM INTO` (ein in sich
-//! stimmiger Stand, auch während der Server läuft), alles andere wird rekursiv kopiert außer
-//! `baruch.sqlite`, `-wal` und `-shm`; symbolische Verknüpfungen werden übersprungen und gemeldet.
+//! Backup ([`backup`]): under [`AppState::write_lock`] (no commit in between) the folder
+//! `<parent folder>/<name>.sicherung-<JJJJ-MM-TT-HHMMSS>` is created next to the data folder (local time from
+//! SQLite `strftime(…, 'localtime')`). If the folder already exists (second backup in the same second), that
+//! is an error and nothing is overwritten. `baruch.sqlite` comes through `VACUUM INTO` (a state consistent
+//! in itself, also while the server runs), everything else is copied recursively except
+//! `baruch.sqlite`, `-wal` and `-shm`; symbolic links are skipped and reported.
 //!
-//! Grenzen, damit wiederholte Sicherungen das Dateisystem nicht füllen (es trägt auch die laufende
-//! Datenbank und die Spiegel): Liegen neben dem Datenordner schon [`MAX_BACKUPS`] Sicherungen
-//! (`<Name>.sicherung-*`), lehnt „Sicherung jetzt“ ab, bis alte entfernt sind (Baruch löscht keine
-//! Sicherung selbst). Vorher wird der freie Platz geprüft (Unix: `statvfs`): Nach der Sicherung (so groß
-//! wie der Datenordner) müssen noch [`RESERVE_BYTES`] frei bleiben, sonst wird nichts angelegt.
+//! Limits, so that repeated backups do not fill the file system (it also carries the running
+//! database and the mirrors): if [`MAX_BACKUPS`] backups (`<name>.sicherung-*`) already lie next to the data
+//! folder, „Sicherung jetzt“ refuses until old ones are removed (Baruch deletes no
+//! backup itself). Before that the free space is checked (Unix: `statvfs`): after the backup (as large
+//! as the data folder) [`RESERVE_BYTES`] must still stay free, otherwise nothing is created.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -41,42 +42,42 @@ use serde_json::{Value as Json, json};
 use crate::AppState;
 use crate::rpc::{INTERNAL, RpcError};
 
-/// Höchstzahl der Sicherungen neben dem Datenordner; danach lehnt „Sicherung jetzt“ ab.
+/// Maximum number of backups next to the data folder; after that „Sicherung jetzt“ refuses.
 pub const MAX_BACKUPS: usize = 10;
 
-/// So viel muss nach einer Sicherung auf dem Dateisystem noch frei bleiben (512 MiB).
+/// This much must still stay free on the file system after a backup (512 MiB).
 pub const RESERVE_BYTES: u64 = 512 * 1024 * 1024;
 
-/// Dateien der Datenbank, die nicht kopiert werden (`baruch.sqlite` kommt per `VACUUM INTO`).
+/// Files of the database that are not copied (`baruch.sqlite` comes through `VACUUM INTO`).
 const DB_FILES: [&str; 3] = ["baruch.sqlite", "baruch.sqlite-wal", "baruch.sqlite-shm"];
 
-/// Einmaliger Vermerk „Sicherung angelegt“ je Datenordner (Runde 36): Das Formular „Sicherung jetzt“ legt nach einer
-/// wirklich angelegten Sicherung ihren Ordnernamen ab, die Seite `?ok=sicherung` holt ihn genau einmal ab. Ein
-/// bloßer Link mit `?ok=sicherung` (oder ein Neuladen) zeigt darum keine Erfolgsmeldung mehr. Der Vermerk lebt nur
-/// im Prozess (kein Feld in `AppState`, nichts in der Datenbank); nach einem Neustart ist er weg – die Sicherung
-/// selbst steht weiter neben dem Datenordner. Je Datenordner, weil in einem Prozess mehrere Instanzen laufen können
-/// (Tests).
+/// One-time note „Sicherung angelegt“ per data folder (Round 36): the form „Sicherung jetzt“ deposits the folder
+/// name of a backup that was really created, the page `?ok=sicherung` fetches it exactly once. A
+/// mere link with `?ok=sicherung` (or a reload) therefore no longer shows a success message. The note lives only
+/// in the process (no field in `AppState`, nothing in the database); after a restart it is gone – the backup
+/// itself still stands next to the data folder. Per data folder, because several instances can run in one process
+/// (tests).
 static BACKUP_NOTES: std::sync::Mutex<BTreeMap<PathBuf, String>> = std::sync::Mutex::new(BTreeMap::new());
 
 fn backup_notes() -> std::sync::MutexGuard<'static, BTreeMap<PathBuf, String>> {
     BACKUP_NOTES.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Vermerkt die eben angelegte Sicherung `made` für die nächste Anzeige der Seite.
+/// Notes the backup `made` just created for the next display of the page.
 fn note_backup(data: &Path, made: &Backup) {
     let name = made.dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     backup_notes().insert(data.to_owned(), name);
 }
 
-/// Holt den Vermerk ab (danach ist er weg): Ordnername der eben angelegten Sicherung.
+/// Fetches the note (afterwards it is gone): folder name of the backup just created.
 fn take_backup_note(data: &Path) -> Option<String> {
     backup_notes().remove(data)
 }
 
-/// Zu offene Rechte eines Datenordners (Runde 36): `Some(Rechte)` (die unteren neun Bits), wenn Gruppe oder andere
-/// irgendetwas dürfen; `None`, wenn nur der Besitzer Zugriff hat, der Ordner nicht lesbar ist oder das System keine
-/// Unix-Rechte kennt. Nur lesend – Baruch ändert die Rechte eines vorhandenen Ordners nie (der Mensch kann Gründe
-/// haben: Gruppenzugriff für die Sicherung, ein eingehängtes Laufwerk); neue Datenordner bekommen 0700.
+/// Too open permissions of a data folder (Round 36): `Some(permissions)` (the lower nine bits) if group or others
+/// may do anything; `None` if only the owner has access, the folder is not readable or the system knows no
+/// Unix permissions. Read only – Baruch never changes the permissions of an existing folder (the human can have
+/// reasons: group access for the backup, a mounted drive); new data folders get 0700.
 #[cfg(unix)]
 pub fn open_permissions(path: &Path) -> Option<u32> {
     use std::os::unix::fs::PermissionsExt;
@@ -84,13 +85,13 @@ pub fn open_permissions(path: &Path) -> Option<u32> {
     (mode & 0o077 != 0).then_some(mode)
 }
 
-/// Ohne Unix-Rechte gibt es nichts zu melden.
+/// Without Unix permissions there is nothing to report.
 #[cfg(not(unix))]
 pub fn open_permissions(_path: &Path) -> Option<u32> {
     None
 }
 
-/// Hinweis für die Seite „Daten“ zu [`open_permissions`]; `None`, wenn nichts zu melden ist.
+/// Note for the page „Daten“ on [`open_permissions`]; `None` if there is nothing to report.
 pub fn permissions_warning(path: &Path) -> Option<String> {
     let mode = open_permissions(path)?;
     Some(format!(
@@ -99,8 +100,8 @@ pub fn permissions_warning(path: &Path) -> Option<String> {
     ))
 }
 
-/// Größe eines Ordners in Bytes, rekursiv; symbolische Verknüpfungen zählen nicht und werden nicht
-/// verfolgt. Unlesbares wird übergangen.
+/// Size of a folder in bytes, recursive; symbolic links do not count and are not
+/// followed. Unreadable entries are skipped.
 pub(crate) fn dir_size(path: &Path) -> u64 {
     let Ok(meta) = std::fs::symlink_metadata(path) else { return 0 };
     if meta.file_type().is_symlink() {
@@ -129,7 +130,7 @@ fn human_size(bytes: u64) -> String {
     format!("{value:.1} {}", UNITS[unit]).replace('.', ",")
 }
 
-/// Ein Werk mit seinem Spiegel.
+/// A work with its mirror.
 struct MirrorRow {
     work: WorkId,
     title: String,
@@ -179,17 +180,17 @@ pub(super) async fn render(
             }
         })
         .collect();
-    // Runde 23a: fester Meldecode `?ok=sicherung`; ein mitgeschicktes `ziel` aus der Adresse wird nie angezeigt.
-    // Runde 36: Die Meldung erscheint nur, wenn das Formular eben wirklich eine Sicherung angelegt hat – genau
-    // einmal ([`take_backup_note`]). Ein Link mit `?ok=sicherung` allein zeigt nichts.
+    // Round 23a: fixed message code `?ok=sicherung`; a `ziel` sent along in the address is never displayed.
+    // Round 36: the message appears only if the form has really just created a backup – exactly
+    // once ([`take_backup_note`]). A link with `?ok=sicherung` alone shows nothing.
     let saved =
         if query.get("ok").map(String::as_str) == Some("sicherung") { take_backup_note(&state.data) } else { None };
-    // Runde 36: zu offene Rechte des Datenordners nur melden, nie ändern.
+    // Round 36: only report too open permissions of the data folder, never change them.
     let data = state.data.clone();
     let permissions = tokio::task::spawn_blocking(move || permissions_warning(&data)).await.ok().flatten();
     let instance = state.store.instance().await.map_err(|e| e.to_string())?;
     let instance_saved = query.get("ok").map(String::as_str) == Some("instanz");
-    // Runde 20c: Block „EPUBCheck“ (Pfad zum epubcheck.jar, Formular in crate::epub_check).
+    // Round 20c: block „EPUBCheck“ (path to the epubcheck.jar, form in crate::epub_check).
     let epubcheck =
         crate::epub_check::settings_context(state, query.get("ok").map(String::as_str) == Some("epubcheck")).await;
     super::render_template(
@@ -221,18 +222,18 @@ pub(super) async fn values(state: &AppState) -> Result<Json, RpcError> {
     }))
 }
 
-/// Ergebnis einer Sicherung.
+/// Result of a backup.
 #[derive(Debug, Clone)]
 pub struct Backup {
-    /// Ordner der Sicherung (neben dem Datenordner).
+    /// Folder of the backup (next to the data folder).
     pub dir: PathBuf,
     pub size_bytes: u64,
-    /// Übersprungene symbolische Verknüpfungen (relativ zum Datenordner, mit `/`).
+    /// Skipped symbolic links (relative to the data folder, with `/`).
     pub skipped: Vec<String>,
 }
 
-/// Kopiert `from` nach `to` (das es noch nicht gibt), rekursiv; auf oberster Ebene ohne [`DB_FILES`].
-/// Symbolische Verknüpfungen werden nicht kopiert, sondern in `skipped` gemeldet.
+/// Copies `from` to `to` (which does not exist yet), recursively; on the top level without [`DB_FILES`].
+/// Symbolic links are not copied but reported in `skipped`.
 fn copy_tree(from: &Path, to: &Path, rel: &str, top: bool, skipped: &mut Vec<String>) -> Result<(), String> {
     let entries = std::fs::read_dir(from).map_err(|e| format!("{} lässt sich nicht lesen: {e}", from.display()))?;
     for entry in entries {
@@ -254,30 +255,30 @@ fn copy_tree(from: &Path, to: &Path, rel: &str, top: bool, skipped: &mut Vec<Str
         } else if kind.is_file() {
             std::fs::copy(&path, &target).map_err(|e| format!("{} lässt sich nicht kopieren: {e}", path.display()))?;
         } else {
-            // Gerätedateien, FIFOs, Sockets: nicht kopieren, aber melden.
+            // Device files, FIFOs, sockets: do not copy, but report.
             skipped.push(relative);
         }
     }
     Ok(())
 }
 
-/// Freier Platz (für Nicht-Root nutzbar) des Dateisystems unter `path`; `None`, wenn unbekannt.
+/// Free space (usable for non-root) of the file system under `path`; `None` if unknown.
 #[cfg(unix)]
 fn free_space(path: &Path) -> Option<u64> {
     rustix::fs::statvfs(path).ok().map(|s| s.f_bavail.saturating_mul(s.f_frsize))
 }
 
-/// Außerhalb von Unix (Windows) bleibt der freie Platz unbekannt: `statvfs` gibt es dort nicht, und die
-/// Windows-Abfrage (`GetDiskFreeSpaceExW`) bräuchte `unsafe` oder eine weitere Crate. [`room_for`] hält bei
-/// `None` nicht auf; reicht der Platz nicht, scheitert das Kopieren mit der Meldung des Systems, und die
-/// angefangene Sicherung wird wie bei jedem Fehler wieder entfernt.
+/// Outside of Unix (Windows) the free space stays unknown: `statvfs` does not exist there, and the
+/// Windows query (`GetDiskFreeSpaceExW`) would need `unsafe` or a further crate. [`room_for`] does not stop
+/// on `None`; if the space is not enough, copying fails with the message of the system, and the
+/// backup that was begun is removed again as on every error.
 #[cfg(not(unix))]
 fn free_space(_path: &Path) -> Option<u64> {
     None
 }
 
-/// Reicht der Platz für eine Sicherung von `needed` Bytes bei `available` freien Bytes? Danach müssen
-/// noch [`RESERVE_BYTES`] frei bleiben. Unbekannter Platz (`None`) hält nicht auf.
+/// Is the space enough for a backup of `needed` bytes with `available` free bytes? Afterwards
+/// [`RESERVE_BYTES`] must still stay free. Unknown space (`None`) does not stop.
 pub(crate) fn room_for(needed: u64, available: Option<u64>) -> Result<(), String> {
     let Some(available) = available else { return Ok(()) };
     if available >= needed.saturating_add(RESERVE_BYTES) {
@@ -292,8 +293,8 @@ pub(crate) fn room_for(needed: u64, available: Option<u64>) -> Result<(), String
     ))
 }
 
-/// Name der neuesten Sicherung `<name>.sicherung-<JJJJ-MM-TT-HHMMSS>` neben dem Datenordner `data` (der Zeitstempel
-/// sortiert wie die Zeit); `None`, wenn es keine gibt oder der Ordner nicht lesbar ist. Nur Ordner zählen.
+/// Name of the newest backup `<name>.sicherung-<JJJJ-MM-TT-HHMMSS>` next to the data folder `data` (the time stamp
+/// sorts like the time); `None` if there is none or the folder is not readable. Only folders count.
 pub fn newest_backup(data: &Path) -> Option<String> {
     let data = std::fs::canonicalize(data).ok()?;
     let (parent, name) = (data.parent()?, data.file_name()?.to_string_lossy().into_owned());
@@ -307,7 +308,7 @@ pub fn newest_backup(data: &Path) -> Option<String> {
         .max()
 }
 
-/// Sicherungen `<name>.sicherung-*` in `parent`.
+/// Backups `<name>.sicherung-*` in `parent`.
 fn existing_backups(parent: &Path, name: &str) -> usize {
     let prefix = format!("{name}.sicherung-");
     std::fs::read_dir(parent)
@@ -317,7 +318,7 @@ fn existing_backups(parent: &Path, name: &str) -> usize {
         .unwrap_or(0)
 }
 
-/// Sicherung des Datenordners jetzt (siehe Moduldoku). `Err` = deutsche Meldung.
+/// Backup of the data folder now (see the module documentation). `Err` = German message.
 pub async fn backup(state: &AppState) -> Result<Backup, String> {
     let _held = state.write_lock.lock().await;
     let data = std::fs::canonicalize(&state.data)
@@ -356,7 +357,7 @@ pub async fn backup(state: &AppState) -> Result<Backup, String> {
     }
     let result = fill(state, &data, &target).await;
     if result.is_err() {
-        // Nur den eben angelegten Ordner wieder entfernen, damit keine halbe Sicherung bleibt.
+        // Remove only the folder just created again, so that no half backup stays.
         let _ = std::fs::remove_dir_all(&target);
     }
     result
@@ -388,9 +389,9 @@ pub(super) struct ActForm {
     confirm: Option<String>,
 }
 
-/// `POST /einstellungen/daten/sicherung` (`confirm=1` Pflicht, sonst 422) → 303
-/// `/einstellungen/daten?ok=sicherung[&work=W]` (Runde 23a: fester Meldecode ohne `ziel`; den Ordnernamen zeigt die
-/// Seite aus dem Dateisystem, siehe [`newest_backup`]); Fehler → 422 mit der Seite.
+/// `POST /einstellungen/daten/sicherung` (`confirm=1` mandatory, otherwise 422) → 303
+/// `/einstellungen/daten?ok=sicherung[&work=W]` (Round 23a: fixed message code without `ziel`; the page shows the
+/// folder name from the file system, see [`newest_backup`]); error → 422 with the page.
 pub(super) async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work = form.work.as_deref().and_then(|w| w.trim().parse::<WorkId>().ok()).filter(|&w| w > 0);
     if !form.confirm.as_deref().is_some_and(|c| matches!(c, "1" | "on")) {
@@ -412,9 +413,9 @@ pub(super) struct InstanceForm {
     name: Option<String>,
 }
 
-/// `POST /einstellungen/daten/instanz` (`name`; fehlt er, gilt er als leer = zurücksetzen) → 303
-/// `/einstellungen/daten?ok=instanz[&work=W]`; ungültiger Name → 422 mit der Seite und der Meldung, nichts
-/// gespeichert.
+/// `POST /einstellungen/daten/instanz` (`name`; if it is missing, it counts as empty = reset) → 303
+/// `/einstellungen/daten?ok=instanz[&work=W]`; invalid name → 422 with the page and the message, nothing
+/// stored.
 pub(super) async fn instance_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

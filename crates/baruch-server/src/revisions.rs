@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fortschreiben der aktuellen Fassung: Verlauf, Rückgängig über den Verlauf und Einstellung „Fassungen“ je Werk
-//! (Runde 22, Vertrag §2.1–2.4 und §4; Besitz fassungen).
+//! Amending the current revision: history, undo through the history and the setting „Fassungen“ per work
+//! (Round 22, contract §2.1–2.4 and §4; ownership fassungen).
 //!
-//! - RPC: `revision.amends {node|key, rev}` (nur lesend) → `{node, key, rev, amend_seq, steps}`;
-//!   `revision.amend_undo {node|key, rev, seq}` (nur Mensch; nicht über MCP) → `{node, key, rev, amend_seq,
+//! - RPC: `revision.amends {node|key, rev}` (read only) → `{node, key, rev, amend_seq, steps}`;
+//!   `revision.amend_undo {node|key, rev, seq}` (human only; not through MCP) → `{node, key, rev, amend_seq,
 //!   commit?|mirror?}`; `revision.policy_get {work?}` → `{work, amend, max_change_percent, new_after_minutes,
-//!   defaults}`; `revision.policy_set {work?, amend, max_change_percent, new_after_minutes}` (nur Mensch, nicht über
-//!   `/act` und MCP) → `{work, changed, commit?|mirror?}`.
-//! - Routen: `GET /werke/{id}/fassungen/verlauf?key=K&rev=R` (Verlauf mit Wort-Unterschied je Schritt und Knopf
-//!   „Bis hier zurück“), `POST /werke/fassungen/act` (`method=revision.amend_undo`, `work`, `key`, `rev`, `seq` →
-//!   303 auf den Verlauf), `POST /einstellungen/werk/fassungen` (Formular Einstellungen → Werk → Fassungen → 303 auf
-//!   `/einstellungen/werk?work=W&ok=fassungen#fassungen`, abgelehnt `…&fassungenfehler=1#fassungen`).
+//!   defaults}`; `revision.policy_set {work?, amend, max_change_percent, new_after_minutes}` (human only, not
+//!   through `/act` and MCP) → `{work, changed, commit?|mirror?}`.
+//! - Routes: `GET /werke/{id}/fassungen/verlauf?key=K&rev=R` (history with the word difference per step and the
+//!   button „Bis hier zurück“), `POST /werke/fassungen/act` (`method=revision.amend_undo`, `work`, `key`, `rev`,
+//!   `seq` → 303 to the history), `POST /einstellungen/werk/fassungen` (form Einstellungen → Werk → Fassungen →
+//!   303 to `/einstellungen/werk?work=W&ok=fassungen#fassungen`, rejected `…&fassungenfehler=1#fassungen`).
 //!
-//! Jeder Schritt (Fortschreibung, Rücknahme) und jede Änderung der Einstellung ist genau ein Commit im Spiegel
-//! (`mirror::record` bzw. `mirror::record_revision_policy`). MCP liest nur (`mcp::revisions`, `revision_amends`).
+//! Every step (amendment, undo) and every change of the setting is exactly one commit in the mirror
+//! (`mirror::record` or `mirror::record_revision_policy`). MCP only reads (`mcp::revisions`, `revision_amends`).
 
 use std::sync::{Arc, OnceLock};
 
@@ -32,7 +32,7 @@ use serde_json::{Value, json};
 use crate::rpc::{INVALID_PARAMS, RpcError, add_mirror, resolve_keys};
 use crate::{AppState, mirror};
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(method, "revision.amends" | "revision.amend_undo" | "revision.policy_get" | "revision.policy_set")
 }
@@ -41,7 +41,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Zahl ab 0 aus `params[key]`, auch als Text (Formulare); fehlt, `null` oder leer → `None`.
+/// Number from 0 from `params[key]`, also as text (forms); missing, `null` or empty → `None`.
 fn number(params: &Value, key: &str) -> Result<Option<u64>, RpcError> {
     let wrong = || invalid(format!("{key}: Zahl ab 0 erwartet"));
     match params.get(key) {
@@ -63,7 +63,7 @@ fn node_of(params: &Value) -> Result<usize, RpcError> {
     usize::try_from(value).map_err(|_| invalid("node: zu groß"))
 }
 
-/// Wahrheitswert: `true`, `1`, `"1"`, `"on"`, `"true"` → wahr; `false`, `0`, `"0"`, `"off"`, `"false"`, `""` → falsch.
+/// Truth value: `true`, `1`, `"1"`, `"on"`, `"true"` → true; `false`, `0`, `"0"`, `"off"`, `"false"`, `""` → false.
 fn boolean(params: &Value, key: &str) -> Result<Option<bool>, RpcError> {
     match params.get(key) {
         None | Some(Value::Null) => Ok(None),
@@ -98,8 +98,8 @@ fn policy_json(work: WorkId, policy: &RevisionPolicy) -> Value {
     })
 }
 
-/// Neue Einstellung aus den Parametern: fehlende Felder bleiben wie gespeichert; Grenzen nach
-/// [`RevisionPolicy::validate`] (deutsche Meldung, -32602).
+/// New setting from the parameters: missing fields stay as stored; limits according to
+/// [`RevisionPolicy::validate`] (German message, -32602).
 fn policy_from(params: &Value, stored: RevisionPolicy) -> Result<RevisionPolicy, RpcError> {
     let percent = match number(params, "max_change_percent")? {
         Some(p) => u8::try_from(p).map_err(|_| invalid("Größte Änderung: 1 bis 100 Prozent."))?,
@@ -118,7 +118,7 @@ fn policy_from(params: &Value, stored: RevisionPolicy) -> Result<RevisionPolicy,
     Ok(policy)
 }
 
-/// Beantwortet eine Methode aus [`handles`].
+/// Answers a method from [`handles`].
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let store = &state.store;
     match method {
@@ -160,7 +160,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -180,7 +180,7 @@ fn plain(status: StatusCode, text: impl Into<String>) -> Response {
     (status, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text.into()).into_response()
 }
 
-/// Wort-Unterschied als sicheres HTML (alles maskiert): Gleiches schlicht, Neues in `<ins>`, Entferntes in `<del>`.
+/// Word difference as safe HTML (everything escaped): equal text plain, new in `<ins>`, removed in `<del>`.
 pub(crate) fn diff_html(old: &str, new: &str) -> String {
     let mut out = String::from("<div class=\"amend-diff\">");
     for (kind, text) in word_diff(old, new) {
@@ -199,7 +199,7 @@ fn pair<'a>(pairs: &'a [(String, String)], name: &str) -> Option<&'a str> {
     pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.trim()).filter(|v| !v.is_empty())
 }
 
-/// Daten der Seite „Verlauf“ einer Fassung.
+/// Data of the page „Verlauf“ of a revision.
 async fn history_context(
     state: &AppState,
     work: WorkId,
@@ -231,7 +231,7 @@ async fn history_context(
                 author => s.author.as_str(),
                 created => crate::localtime::minutes(&s.created),
                 diff => diff_html(&s.body_before, &s.body_after),
-                // Zurück auf den Stand vor diesem Schritt geht nur, wenn er sich vom jetzigen Text unterscheidet.
+                // Going back to the state before this step is only possible if it differs from the present text.
                 can_undo => own_current && s.body_before != revision.body,
             }
         })
@@ -274,8 +274,8 @@ fn status_of(e: &RpcError) -> StatusCode {
     }
 }
 
-/// `GET /werke/{id}/fassungen/verlauf?key=K&rev=R[&ok=1]`: Verlauf der Fortschreibungen einer Fassung, neueste zuerst,
-/// je Schritt der Wort-Unterschied und (nur auf der aktuellen Fassung des Menschen) „Bis hier zurück“.
+/// `GET /werke/{id}/fassungen/verlauf?key=K&rev=R[&ok=1]`: history of the amendments of a revision, newest first,
+/// per step the word difference and (only on the current revision of the human) „Bis hier zurück“.
 async fn history_page(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -295,8 +295,8 @@ async fn history_page(
     }
 }
 
-/// `POST /werke/fassungen/act` (hinter `guard::same_origin`): `method=revision.amend_undo`, `work`, `key`, `rev`,
-/// `seq`. Erfolg → 303 auf den Verlauf mit `ok=1`; abgelehnt → der Verlauf mit Meldung (409/422).
+/// `POST /werke/fassungen/act` (behind `guard::same_origin`): `method=revision.amend_undo`, `work`, `key`, `rev`,
+/// `seq`. Success → 303 to the history with `ok=1`; rejected → the history with a message (409/422).
 async fn act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -328,9 +328,9 @@ async fn act(
     }
 }
 
-/// `POST /einstellungen/werk/fassungen` (hinter `guard::same_origin`): `work`, `amend` (Kästchen; fehlt = aus),
-/// `max_change_percent`, `new_after_minutes`. 303 auf `/einstellungen/werk?work=W&ok=fassungen#fassungen` bzw.
-/// `…&fassungenfehler=1#fassungen` (nichts geändert).
+/// `POST /einstellungen/werk/fassungen` (behind `guard::same_origin`): `work`, `amend` (checkbox; missing = off),
+/// `max_change_percent`, `new_after_minutes`. 303 to `/einstellungen/werk?work=W&ok=fassungen#fassungen` or
+/// `…&fassungenfehler=1#fassungen` (nothing changed).
 async fn policy_act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, String)>>) -> Response {
     let work = match pair(&pairs, "work").and_then(|w| w.parse::<WorkId>().ok()).filter(|&w| w > 0) {
         Some(w) => match state.store.work_slug(w).await {
@@ -358,12 +358,12 @@ async fn policy_act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(S
     }
 }
 
-/// Seiten (GET): Verlauf der Fortschreibungen.
+/// Pages (GET): history of the amendments.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/fassungen/verlauf", get(history_page))
 }
 
-/// Schreibende Formulare (POST): Rückgängig über den Verlauf, Einstellung „Fassungen“.
+/// Writing forms (POST): undo through the history, setting „Fassungen“.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/fassungen/act", post(act)).route("/einstellungen/werk/fassungen", post(policy_act))
 }

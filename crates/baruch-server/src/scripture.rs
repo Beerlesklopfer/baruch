@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stellenprüfung (Runde 10, Aufgabe „scripture“; Wortlaut seit 2026-11-06): RPC `scripture.check`, MCP
-//! `scripture_check` ([`crate::mcp::scripture`]) und die Haken für die Personas @schrift und @belege.
+//! Passage check (Round 10, task "scripture"; wording since 2026-11-06): RPC `scripture.check`, MCP
+//! `scripture_check` ([`crate::mcp::scripture`]) and the hooks for the personas @schrift and @belege.
 //!
-//! Geprüft werden Buch, Kapitel und Vers gegen die Verszählung der Schlachter 1951
-//! ([`baruch_scripture::SOURCE`]). Den **Wortlaut** prüft Baruch nur mit einer gewählten SWORD-Bibel des
-//! Werks ([`crate::bibles`]): je Stelle Text der Bibel und Vergleich mit dem Zitat beim Verweis. Ohne Bibel ist
-//! jedes Zitat „ungeprüft“, und so steht es in jeder Antwort. Ein Modell bestätigt nie selbst einen Wortlaut.
+//! Book, chapter and verse are checked against the versification of the Schlachter 1951
+//! ([`baruch_scripture::SOURCE`]). The **wording** is checked by Baruch only with a chosen SWORD Bible of the
+//! work ([`crate::bibles`]): per passage the text of the Bible and the comparison with the quotation at the
+//! reference. Without a Bible every quotation is „ungeprüft“, and that is what every answer says. A model never
+//! confirms a wording itself.
 //!
-//! - [`refs`]: Ist der ganze Text eine Stellenangabe („Joh 3,16; Hesek 3,1“), wird sie streng gelesen
-//!   (auch unbekannte Bücher und Fehler werden gemeldet); sonst wird der Text als Fließtext nach Stellen
-//!   bekannter Bücher durchsucht.
-//! - [`facts_for`] / [`facts_for_work`]: Faktenblock für den System-Prompt von @schrift und @belege.
-//! - [`mark_answer`] / [`mark_answer_for_work`]: Hinweis zum Wortlaut an Antworten mit Stellen; dazu werden
-//!   Stellen, deren Ziffern das Modell auseinandergerissen hat („Mk 1 0,42–45“), wieder zusammengesetzt.
+//! - [`refs`]: if the whole text is a reference („Joh 3,16; Hesek 3,1“), it is read strictly
+//!   (unknown books and errors are reported as well); otherwise the text is searched as running text for passages
+//!   of known books.
+//! - [`facts_for`] / [`facts_for_work`]: facts block for the system prompt of @schrift and @belege.
+//! - [`mark_answer`] / [`mark_answer_for_work`]: note on the wording at answers with passages; in addition,
+//!   passages whose digits the model has torn apart („Mk 1 0,42–45“) are put together again.
 //!
-//! Alles ist nur lesend: kein Schreiben, keine Sperre, kein Commit.
+//! Everything is read only: no writing, no lock, no commit.
 
 use baruch_scripture::{Found, RefStatus};
 use baruch_store::WorkId;
@@ -24,59 +25,59 @@ use crate::AppState;
 use crate::bibles::{Choice, WordingResult, check_wording};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Höchstlänge des geprüften Texts (Zeichen).
+/// Maximum length of the checked text (characters).
 pub const MAX_TEXT_CHARS: usize = 200_000;
 
-/// Höchstzahl gemeldeter Stellen je Prüfung.
+/// Maximum number of reported passages per check.
 pub const MAX_REFS: usize = 200;
 
-/// Höchstzahl der Stellen im Faktenblock.
+/// Maximum number of passages in the facts block.
 const MAX_FACTS: usize = 40;
 
-/// Höchstlänge des Bibeltexts einer abweichenden Stelle im Faktenblock (Zeichen).
+/// Maximum length of the Bible text of a deviating passage in the facts block (characters).
 const MAX_FACT_TEXT: usize = 400;
 
-/// Wortlaut einer Stelle ohne Bibel.
+/// Wording of a passage without a Bible.
 pub const UNCHECKED: &str = "ungeprüft";
 
-/// Schlusssatz des Faktenblocks ohne Bibel.
+/// Closing sentence of the facts block without a Bible.
 pub const FACTS_END: &str =
     "Wortlaut: Baruch hat keine lokale Bibel; jedes Zitat bleibt ungeprüft. Bestätige keinen Wortlaut.";
 
-/// Schlusssatz des Faktenblocks mit Bibel.
+/// Closing sentence of the facts block with a Bible.
 pub const FACTS_END_BIBLE: &str = "Wortlaut: Die Ergebnisse oben hat Baruch mit dem genannten SWORD-Modul geprüft, \
 nicht du. Gib sie nur wieder; bestätige nie selbst einen Wortlaut, und schreibe keinen Bibeltext ab außer dem \
 geprüften Vers einer Abweichung.";
 
-/// Zeile, die [`mark_answer`] an Antworten von @schrift und @belege hängt (ohne Bibel).
+/// Line that [`mark_answer`] appends to answers of @schrift and @belege (without a Bible).
 pub const MARK_SCRIPTURE: &str = "Wortlaut: ungeprüft – keine lokale Bibel in Baruch (geprüft nur Buch/Kapitel/Vers).";
 
-/// Zeile, die [`mark_answer`] an Antworten anderer Personas mit Stellen hängt (Werk ohne lesbare Bibel).
+/// Line that [`mark_answer`] appends to answers of other personas with passages (work without a readable Bible).
 pub const MARK_OTHERS: &str = "Hinweis: Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft.";
 
-/// Runde 19c: Schluss der Zeile für andere Personas, wenn das Werk eine lesbare Bibel hat; davor steht
-/// „[`MARK_BIBLE`] mit dem Modul X“ (beginnt mit [`MARK_BIBLE`], gilt also auch als Schlusshinweis von Baruch).
+/// Round 19c: end of the line for other personas if the work has a readable Bible; before it stands
+/// „[`MARK_BIBLE`] mit dem Modul X“ (begins with [`MARK_BIBLE`], so it also counts as a closing note of Baruch).
 pub const MARK_OTHERS_BIBLE_END: &str =
     "die Persona hat ihn nicht selbst bestätigt (Ergebnis je Stelle: Zitate prüfen oder @belege).";
 
-/// Zeile für andere Personas mit Bibel: „Wortlaut geprüft von Baruch (nicht vom Modell) mit dem Modul X; die Persona
+/// Line for other personas with a Bible: „Wortlaut geprüft von Baruch (nicht vom Modell) mit dem Modul X; die Persona
 /// hat ihn nicht selbst bestätigt (…).“
 pub fn mark_others_bible(module: &str) -> String {
     format!("{MARK_BIBLE} mit dem Modul {module}; {MARK_OTHERS_BIBLE_END}")
 }
 
-/// Anfang der Zeile mit Bibel (danach Modul, Versifikation, Lizenz und die Ergebnisse je Stelle).
+/// Beginning of the line with a Bible (then module, versification, licence and the results per passage).
 pub const MARK_BIBLE: &str = "Wortlaut geprüft von Baruch (nicht vom Modell)";
 
 const METHODS: &[&str] = &["scripture.check"];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
 /// RPC `scripture.check {text, work?, module?}` → `{refs, truncated, source, bible}` (`docs/RPC.md`,
-/// „Bibelstellen“). Nur lesend.
+/// „Bibelstellen“). Read only.
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "scripture.check" => {
@@ -96,12 +97,12 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
     }
 }
 
-/// Prüfung eines Texts als JSON ohne Bibel (Wortlaut „ungeprüft“); `Err` bei zu langem Text.
+/// Check of a text as JSON without a Bible (wording „ungeprüft“); `Err` if the text is too long.
 pub fn check(text: &str) -> Result<Value, String> {
     check_with(&Choice::None, text)
 }
 
-/// Prüfung mit der Bibel des Werks `work` (ohne Werk: keine Bibel).
+/// Check with the Bible of the work `work` (without a work: no Bible).
 pub async fn check_for_work(state: &AppState, work: Option<WorkId>, text: &str) -> Result<Value, RpcError> {
     let choice = match work {
         Some(w) => crate::bibles::of_work(state, w).await?,
@@ -110,7 +111,7 @@ pub async fn check_for_work(state: &AppState, work: Option<WorkId>, text: &str) 
     check_with(&choice, text).map_err(|message| RpcError::new(INVALID_PARAMS, message))
 }
 
-/// Prüfung eines Texts mit `choice` als JSON.
+/// Check of a text with `choice` as JSON.
 pub fn check_with(choice: &Choice, text: &str) -> Result<Value, String> {
     if text.chars().count() > MAX_TEXT_CHARS {
         return Err(format!("text: höchstens {MAX_TEXT_CHARS} Zeichen"));
@@ -119,7 +120,7 @@ pub fn check_with(choice: &Choice, text: &str) -> Result<Value, String> {
     let truncated = found.len() > MAX_REFS;
     let found: Vec<Found> = found.into_iter().take(MAX_REFS).collect();
     let wording = check_wording(choice.bible(), text, &found);
-    // Runde 19c: Hinweis auf auffällig viele Wortfragmente im Modul (je Antwort und je Stelle, sonst null).
+    // Round 19c: note on strikingly many word fragments in the module (per answer and per passage, else null).
     let note = crate::bibles::choice_note(choice);
     let list: Vec<Value> = found.iter().zip(&wording).map(|(f, w)| entry(f, w, note.as_deref())).collect();
     Ok(json!({ "refs": list, "truncated": truncated, "source": baruch_scripture::SOURCE, "bible": choice.json(),
@@ -147,17 +148,17 @@ fn entry(found: &Found, wording: &WordingResult, module_note: Option<&str>) -> V
         "partial": wording.partial,
         "diff": wording.diff,
         "diff_line": (!wording.diff.is_empty()).then(|| baruch_scripture::wording::diff_line(&wording.diff)),
-        // R17c (additiv): Byte-Bereich des Zitatinhalts im geprüften Text und die gelesene Stelle in der Zählung
-        // des Moduls, wenn sie von der deutschen abweicht.
+        // R17c (additive): byte range of the quotation content in the checked text and the passage read in the
+        // versification of the module if it differs from the German one.
         "quote_span": wording.quote_span.map(|(s, e)| [s, e]),
         "module_ref": wording.module_ref,
-        // Runde 19c: Wortlaut stimmt nur ohne Leerraum (Code bleibt "match"), Hinweis zum Modul.
+        // Round 19c: the wording matches only without whitespace (code stays "match"), note on the module.
         "module_spacing": wording.module_spacing,
         "module_note": module_note,
     })
 }
 
-/// Stellen in `text`: streng gelesen, wenn der ganze Text eine Stellenangabe ist, sonst im Fließtext gesucht.
+/// Passages in `text`: read strictly if the whole text is a reference, otherwise searched in the running text.
 pub fn refs(text: &str) -> Vec<Found> {
     let strict = baruch_scripture::parse(text);
     let is_reference = !strict.is_empty()
@@ -166,7 +167,7 @@ pub fn refs(text: &str) -> Vec<Found> {
     if is_reference { strict } else { baruch_scripture::scan(text) }
 }
 
-/// @schrift oder @belege (mit oder ohne @, Groß-/Kleinschreibung egal)?
+/// @schrift or @belege (with or without @, case does not matter)?
 fn checks_scripture(handle: &str) -> bool {
     let name = handle.trim().trim_start_matches('@');
     name.eq_ignore_ascii_case("schrift") || name.eq_ignore_ascii_case("belege")
@@ -176,12 +177,12 @@ fn shorten(text: &str, max: usize) -> String {
     if text.chars().count() <= max { text.to_owned() } else { text.chars().take(max).collect::<String>() + " …" }
 }
 
-/// Faktenblock der Stellenprüfung für den System-Prompt von @schrift und @belege (ohne Bibel); sonst `None`.
+/// Facts block of the passage check for the system prompt of @schrift and @belege (without a Bible); else `None`.
 pub fn facts_for(handle: &str, section: &str) -> Option<String> {
     facts_with(&Choice::None, handle, section)
 }
 
-/// Faktenblock mit der Bibel des Werks (Wortlaut je Stelle geprüft, wenn eine gewählt ist).
+/// Facts block with the Bible of the work (wording checked per passage if one is chosen).
 pub async fn facts_for_work(state: &AppState, work: WorkId, handle: &str, section: &str) -> Option<String> {
     if !checks_scripture(handle) {
         return None;
@@ -190,7 +191,7 @@ pub async fn facts_for_work(state: &AppState, work: WorkId, handle: &str, sectio
     facts_with(&choice, handle, section)
 }
 
-/// Faktenblock mit `choice` (öffentlich für Tests mit einer Test-Bibel).
+/// Facts block with `choice` (public for tests with a test Bible).
 pub fn facts_with(choice: &Choice, handle: &str, section: &str) -> Option<String> {
     if !checks_scripture(handle) {
         return None;
@@ -212,14 +213,15 @@ pub fn facts_with(choice: &Choice, handle: &str, section: &str) -> Option<String
     let found = baruch_scripture::scan(section);
     let wording = check_wording(bible, section, &found);
     let mut lines = vec![head];
-    // Runde 19c: Modul mit auffällig vielen Wortfragmenten (Trennreste) – der Hinweis steht vor den Stellen.
+    // Round 19c: module with strikingly many word fragments (hyphenation remnants) – the note stands before
+    // the passages.
     if let Some(note) = choice.bible().and_then(crate::bibles::module_note) {
         lines.push(format!("Hinweis: {note}"));
     }
     if found.is_empty() {
         lines.push("- keine Stellenangabe gefunden".to_owned());
     }
-    // Dieselbe Stelle mit demselben Ergebnis nur einmal; mit anderem Zitat (anderes Ergebnis) noch einmal.
+    // The same passage with the same result only once; with another quotation (another result) once more.
     let mut seen: Vec<(String, String, Option<String>)> = Vec::new();
     for (f, w) in found.iter().zip(&wording) {
         let label = f.normalized.clone().unwrap_or_else(|| f.input.clone());
@@ -250,20 +252,21 @@ pub fn facts_with(choice: &Choice, handle: &str, section: &str) -> Option<String
     Some(lines.join("\n"))
 }
 
-/// Hängt an eine Antwort den Hinweis zum Wortlaut (ohne Bibel): bei @schrift/@belege, wenn Abschnitt oder
-/// Antwort eine Stelle nennen, [`MARK_SCRIPTURE`]; bei anderen Personas, wenn die Antwort eine Stelle nennt,
-/// [`MARK_OTHERS`] (mit Bibel [`mark_others_bible`], siehe [`mark_with`]); sonst bleibt die Antwort unverändert. Steht die Zeile schon da, kommt sie nicht noch
-/// einmal dazu. Auseinandergerissene Ziffern einer Stelle des Abschnitts werden zusammengesetzt.
+/// Appends the note on the wording to an answer (without a Bible): for @schrift/@belege, if section or
+/// answer name a passage, [`MARK_SCRIPTURE`]; for other personas, if the answer names a passage,
+/// [`MARK_OTHERS`] (with a Bible [`mark_others_bible`], see [`mark_with`]); otherwise the answer stays unchanged.
+/// If the line is already there, it is not added once more. Torn-apart digits of a passage of the section are
+/// put together.
 pub fn mark_answer(handle: &str, section: &str, body: String) -> String {
     mark_with(&Choice::None, handle, section, body)
 }
 
-/// Wie [`mark_answer`], mit der Bibel des Werks: Bei @schrift/@belege steht dann statt „ungeprüft“ die
-/// Zeile [`MARK_BIBLE`] mit Modul, Versifikation, Lizenz und dem Ergebnis je Stelle (von Baruch, nicht vom
-/// Modell). Runde 19c: Bei anderen Personas (etwa dem Lektor) steht mit Bibel statt [`MARK_OTHERS`] die Zeile
-/// [`mark_others_bible`]; ohne Bibel bleibt es bei [`MARK_OTHERS`].
+/// Like [`mark_answer`], with the Bible of the work: for @schrift/@belege the line [`MARK_BIBLE`] with
+/// module, versification, licence and the result per passage (by Baruch, not by the model) then stands instead of
+/// „ungeprüft“. Round 19c: for other personas (such as the lector) the line [`mark_others_bible`] stands with a
+/// Bible instead of [`MARK_OTHERS`]; without a Bible it stays with [`MARK_OTHERS`].
 pub async fn mark_answer_for_work(state: &AppState, work: WorkId, handle: &str, section: &str, body: String) -> String {
-    // Die Bibel nur öffnen, wenn eine Zeile überhaupt in Frage kommt (Stelle in Abschnitt oder Antwort).
+    // Open the Bible only if a line comes into question at all (passage in section or answer).
     let wanted = if checks_scripture(handle) {
         !baruch_scripture::scan(section).is_empty() || !baruch_scripture::scan(&body).is_empty()
     } else {
@@ -273,7 +276,7 @@ pub async fn mark_answer_for_work(state: &AppState, work: WorkId, handle: &str, 
     mark_with(&choice, handle, section, body)
 }
 
-/// Wie [`mark_answer`] mit `choice` (öffentlich für Tests mit einer Test-Bibel).
+/// Like [`mark_answer`] with `choice` (public for tests with a test Bible).
 pub fn mark_with(choice: &Choice, handle: &str, section: &str, body: String) -> String {
     let in_section = baruch_scripture::scan(section);
     let mut labels: Vec<String> = Vec::new();
@@ -322,7 +325,7 @@ fn bible_line(bible: &baruch_sword::Bible, section: &str, found: &[Found]) -> St
         "{MARK_BIBLE}, Modul {}, Versifikation {}, Lizenz laut conf: {}: {list}.",
         bible.info.name, bible.v11n.name, bible.info.notice
     );
-    // Runde 19c: Hinweis auf Wortfragmente im Modul in derselben Zeile (bleibt so ein Schlusshinweis).
+    // Round 19c: note on word fragments in the module in the same line (this way it stays a closing note).
     match crate::bibles::module_note(bible) {
         Some(note) => format!("{line} {note}"),
         None => line,
@@ -355,8 +358,8 @@ mod tests {
 
     #[test]
     fn split_digits_of_a_reference_in_the_answer_are_rejoined() {
-        // Befund des Nutzers (2026-11-06): In der Prüfliste von @schrift stand „Mk 1 0,42–45“. Der Parser
-        // liest „Mk 10,42–45“ richtig; die Ziffern hatte das Modell getrennt.
+        // Finding of the user (2026-11-06): the check list of @schrift said „Mk 1 0,42–45“. The parser
+        // reads „Mk 10,42–45“ correctly; the model had separated the digits.
         let section = "Wer groß sein will (Mk 10,42–45), dient.";
         let answer = "- Mk 1 0,42–45: Stelle gibt es; Wortlaut ungeprüft.".to_owned();
         let marked = mark_answer("@schrift", section, answer);

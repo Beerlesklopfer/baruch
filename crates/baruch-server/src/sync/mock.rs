@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachgebautes MultiGPT **für Tests** des Abgleichs (auch die des Integrators): ein kleiner MCP-Server
-//! über Streamable HTTP auf `127.0.0.1:<zufällig>/mcp` mit `initialize`, `notifications/initialized`,
-//! `tools/list` und `tools/call` für `list_collections`, `list_documents`, `read_document`,
-//! `document_info`, `upload_document` und `delete_document`; HTTP `DELETE /mcp` (Ende der Sitzung) → 200.
-//! Jede Anfrage landet in [`MockDocs::requests`]. Mit [`MockDocs::deny_write`] fehlt dem Schlüssel das Recht
-//! `docs.write`: Hochladen und Löschen antworten mit HTTP 403 bzw. `isError`. Seit Runde 19a auch: Hochladen
-//! ohne Dokument-ID, `isError` bei leerem Inhalt, still gekappte Listen und verlorene Antworten. Kein Netz außer Loopback,
-//! frei erfundene Testdaten. Namen und Formen der Werkzeuge sind die Annahmen aus `docs/Architektur.md`.
+//! Rebuilt MultiGPT **for tests** of the reconciliation (also those of the integrator): a small MCP server
+//! over Streamable HTTP on `127.0.0.1:<random>/mcp` with `initialize`, `notifications/initialized`,
+//! `tools/list` and `tools/call` for `list_collections`, `list_documents`, `read_document`,
+//! `document_info`, `upload_document` and `delete_document`; HTTP `DELETE /mcp` (end of the session) → 200.
+//! Every request lands in [`MockDocs::requests`]. With [`MockDocs::deny_write`] the key lacks the right
+//! `docs.write`: uploading and deleting answer with HTTP 403 or `isError`. Since Round 19a also: uploading
+//! without a document ID, `isError` for empty content, silently capped lists and lost answers. No network except
+//! loopback, freely invented test data. Names and shapes of the tools are the assumptions from
+//! `docs/Architektur.md`.
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -19,57 +20,57 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::any;
 use serde_json::{Value, json};
 
-/// Sitzung, die der Nachbau vergibt.
+/// Session the mock assigns.
 pub const SESSION: &str = "abgleich-sitzung-1";
 
-/// Wie der Nachbau ein fehlendes `docs.write` meldet.
+/// How the mock reports a missing `docs.write`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Deny {
-    /// HTTP 403 auf den Aufruf.
+    /// HTTP 403 on the call.
     Forbidden,
-    /// `isError: true` mit Text.
+    /// `isError: true` with text.
     ToolError,
 }
 
-/// Ein Dokument im Nachbau.
+/// A document in the mock.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MockDocument {
     pub id: String,
     pub title: String,
     pub text: String,
     pub url: Option<String>,
-    /// Änderungszeit (steigt bei jeder Änderung).
+    /// Modification time (rises with every change).
     pub version: u64,
 }
 
-/// Verhalten des Nachbaus.
+/// Behaviour of the mock.
 #[derive(Debug, Clone)]
 pub struct Behavior {
-    /// Dokumente je Sammlung (Sammlungen entstehen beim Hochladen von selbst).
+    /// Documents per collection (collections come into being by themselves on uploading).
     pub collections: BTreeMap<String, Vec<MockDocument>>,
-    /// `list_documents` meldet `updated_at` (sonst nur ID und Titel).
+    /// `list_documents` reports `updated_at` (otherwise only ID and title).
     pub stamps: bool,
-    /// Einträge je Seite von `list_documents` (0 = alle).
+    /// Entries per page of `list_documents` (0 = all).
     pub page_size: usize,
     pub deny: Option<Deny>,
-    /// Werkzeuge für `tools/list`.
+    /// Tools for `tools/list`.
     pub tools: Vec<Value>,
-    /// Wartezeit vor jeder Antwort auf `tools/call`.
+    /// Waiting time before every answer to `tools/call`.
     pub delay: std::time::Duration,
-    /// `delete_document` scheitert (`isError`), Hochladen gelingt weiter.
+    /// `delete_document` fails (`isError`), uploading still succeeds.
     pub fail_delete: bool,
-    /// Größer als 0: `read_document` mit `page` liefert Seiten zu so vielen Zeichen als `{text, page, pages, has_more}`
-    /// (das Schema muss dazu `page` nennen, siehe [`paged_tools`]).
+    /// Greater than 0: `read_document` with `page` delivers pages of this many characters as
+    /// `{text, page, pages, has_more}` (the schema must name `page` for that, see [`paged_tools`]).
     pub page_chars: usize,
-    /// `upload_document` legt das Dokument an, nennt aber keine Dokument-ID (Runde 19a).
+    /// `upload_document` creates the document but names no document ID (Round 19a).
     pub upload_without_id: bool,
-    /// `upload_document` mit leerem Inhalt (nur Überschriften bzw. Leerzeilen) → `isError` „Leerer Inhalt …“ (nur
-    /// dieses Dokument, Runde 19a).
+    /// `upload_document` with empty content (only headings or empty lines) → `isError` „Leerer Inhalt …“ (only
+    /// this document, Round 19a).
     pub reject_empty: bool,
-    /// Größer als 0: `list_documents` liefert höchstens so viele Einträge und meldet nie eine Fortsetzung
-    /// (ein Server, der `limit` still kappt; Runde 19a).
+    /// Greater than 0: `list_documents` delivers at most this many entries and never reports a continuation
+    /// (a server that silently caps `limit`; Round 19a).
     pub silent_cap: usize,
-    /// `upload_document` legt das Dokument an, die Antwort geht aber verloren (HTTP 502; Runde 19a).
+    /// `upload_document` creates the document, but the answer is lost (HTTP 502; Round 19a).
     pub lose_upload_answer: bool,
     next_id: u64,
     clock: u64,
@@ -96,7 +97,7 @@ impl Default for Behavior {
     }
 }
 
-/// Die sechs Werkzeuge mit den angenommenen Schemas.
+/// The six tools with the assumed schemas.
 pub fn default_tools() -> Vec<Value> {
     let id = json!({ "type": "object", "required": ["document_id"],
         "properties": { "document_id": { "type": "string" } } });
@@ -115,7 +116,7 @@ pub fn default_tools() -> Vec<Value> {
     ]
 }
 
-/// Wie [`default_tools`], `read_document` mit dem Seitenparameter `page` (ganze Zahl ab 1).
+/// Like [`default_tools`], `read_document` with the page parameter `page` (integer from 1).
 pub fn paged_tools() -> Vec<Value> {
     let mut tools = default_tools();
     for tool in tools.iter_mut().filter(|t| t["name"] == "read_document") {
@@ -130,7 +131,7 @@ struct Shared {
     requests: Mutex<Vec<Value>>,
 }
 
-/// Laufender Nachbau; endet mit dem Fallenlassen.
+/// Running mock; ends when dropped.
 pub struct MockDocs {
     addr: SocketAddr,
     shared: Arc<Shared>,
@@ -144,7 +145,7 @@ impl Drop for MockDocs {
 }
 
 impl MockDocs {
-    /// Auf `127.0.0.1:0` starten.
+    /// Start on `127.0.0.1:0`.
     pub async fn start() -> MockDocs {
         let shared = Arc::new(Shared::default());
         let app = Router::new().route("/mcp", any(handle)).with_state(shared.clone());
@@ -165,7 +166,7 @@ impl MockDocs {
         change(&mut self.shared.behavior.lock().expect("Nachbau"));
     }
 
-    /// Dokument anlegen bzw. ersetzen (neue Änderungszeit).
+    /// Create or replace a document (new modification time).
     pub fn put_document(&self, collection: &str, id: &str, title: &str, text: &str) {
         self.configure(|b| {
             b.clock += 1;
@@ -179,7 +180,7 @@ impl MockDocs {
         });
     }
 
-    /// Adresse eines Dokuments setzen.
+    /// Set the address of a document.
     pub fn set_url(&self, id: &str, url: &str) {
         self.configure(|b| {
             for doc in b.collections.values_mut().flatten().filter(|d| d.id == id) {
@@ -188,27 +189,27 @@ impl MockDocs {
         });
     }
 
-    /// Dokument entfernen (wie in MultiGPT gelöscht).
+    /// Remove a document (as if deleted in MultiGPT).
     pub fn remove_document(&self, id: &str) {
         self.configure(|b| b.collections.values_mut().for_each(|list| list.retain(|d| d.id != id)));
     }
 
-    /// Dokumente einer Sammlung.
+    /// Documents of a collection.
     pub fn documents(&self, collection: &str) -> Vec<MockDocument> {
         self.shared.behavior.lock().expect("Nachbau").collections.get(collection).cloned().unwrap_or_default()
     }
 
-    /// `docs.write` fehlt (`Some`) bzw. ist da (`None`).
+    /// `docs.write` is missing (`Some`) or is there (`None`).
     pub fn deny_write(&self, deny: Option<Deny>) {
         self.configure(|b| b.deny = deny);
     }
 
-    /// Alle Anfragen: `{http, method, params, session}` (`http` = HTTP-Methode, `method` = JSON-RPC-Methode).
+    /// All requests: `{http, method, params, session}` (`http` = HTTP method, `method` = JSON-RPC method).
     pub fn requests(&self) -> Vec<Value> {
         self.shared.requests.lock().expect("Nachbau").clone()
     }
 
-    /// Argumente aller Aufrufe eines Werkzeugs.
+    /// Arguments of all calls of a tool.
     pub fn tool_calls(&self, name: &str) -> Vec<Value> {
         self.requests()
             .into_iter()
@@ -217,7 +218,7 @@ impl MockDocs {
             .collect()
     }
 
-    /// Anfragen vergessen (für Zählungen je Lauf).
+    /// Forget the requests (for counts per run).
     pub fn clear_requests(&self) {
         self.shared.requests.lock().expect("Nachbau").clear();
     }
@@ -243,7 +244,7 @@ fn find<'a>(behavior: &'a Behavior, id: &str) -> Option<(&'a String, &'a MockDoc
     behavior.collections.iter().find_map(|(c, list)| list.iter().find(|d| d.id == id).map(|d| (c, d)))
 }
 
-/// Ein Werkzeugaufruf; `Err(())` = HTTP 403.
+/// A tool call; `Err(())` = HTTP 403.
 fn call(behavior: &mut Behavior, name: &str, args: &Value) -> Result<Value, ()> {
     let writes = matches!(name, "upload_document" | "delete_document");
     match (writes, behavior.deny) {
@@ -304,7 +305,7 @@ fn call(behavior: &mut Behavior, name: &str, args: &Value) -> Result<Value, ()> 
                 let text: String = chars[start..chars.len().min(start + behavior.page_chars)].iter().collect();
                 tool_text(&json!({ "text": text, "page": page, "pages": pages, "has_more": page < pages }))
             }
-            // Volltext als Klartext (wie das echte read_document vermutlich): kein JSON.
+            // Full text as plain text (as the real read_document presumably does): no JSON.
             Some((_, doc)) => json!({ "content": [{ "type": "text", "text": doc.text }], "isError": false }),
             None => tool_error("Dokument unbekannt"),
         },

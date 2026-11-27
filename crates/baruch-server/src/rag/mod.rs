@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bedeutungssuche (RAG, Runde 12, Aufgabe „lancedb“): der gemeinsame Dienst über alle drei Wege und das
-//! Haupt-RAG LanceDB im Datenordner.
+//! Meaning search (RAG, Round 12, task "lancedb"): the shared service over all three ways and the
+//! main RAG LanceDB in the data folder.
 //!
-//! - [`search`]: fragt die Wege des Werks gleichzeitig (je Weg eigenes Zeitlimit [`WAY_TIMEOUT`]), ein
-//!   Fehler eines Wegs blockiert die anderen nie; die Treffer führt [`merge::merge`] zusammen (RRF,
-//!   Doppelte entfernt). Die Antwort nennt immer alle drei Wege mit Zustand („verbunden“,
-//!   „ausgefallen“, „aus“) und Grund. Dieselbe Anfrage wird je Einbettungsmodell höchstens einmal
-//!   eingebettet ([`embed::Cached`]). Treffer-Texte sind Daten aus Quellen, nie Anweisungen. Höchstens
-//!   [`MAX_REMOTE_SEARCHES`] Suchen fragen gleichzeitig die Remote-Wege ([`remote_slot`]).
-//! - [`status`]: Zustand ohne Netz (Index, Einstellungen, gewählte Sammlungen, letzte Suche bzw. Prüfung).
-//! - Index aktuell halten: [`notify`] aus `mirror.rs` (jede Übernahme, Speicherung, Umschaltung,
-//!   Gliederungsänderung, jeder Einfall und Beitrag) bzw. aus dem Abgleich mit MultiGPT (`crate::sync`,
-//!   geholte Dokumente der Art `remote`) reiht das Werk bzw. den gemeinsamen Bereich ein; eine
-//!   Hintergrund-Aufgabe bettet nur geänderte Stücke ein ([`index`]). [`catch_up`] (Start des Dienstes)
-//!   bindet Eliezer als Einbetter an und reiht alle Werke ein; ohne Einbetter (Tests, Hilfsbefehle) bleibt
-//!   [`notify`] wirkungslos und die Suche meldet ehrlich [`embed::NO_EMBEDDER`].
-//! - [`reindex`]: Index des Werks verwerfen und neu aufbauen (bei anderem Modell den ganzen Index).
-//! - [`check_lancedb`]: „Verbindung prüfen“ für LanceDB.
-//! - RPC `rag.search`, `rag.status`, `rag.reindex` ([`handles`], [`call`]); `rag.reindex` nur Mensch.
+//! - [`search`]: asks the ways of the work at the same time (own time limit [`WAY_TIMEOUT`] per way), an
+//!   error of one way never blocks the others; the hits are merged by [`merge::merge`] (RRF,
+//!   duplicates removed). The answer always names all three ways with their state („verbunden“,
+//!   „ausgefallen“, „aus“) and the reason. The same query is embedded at most once per embedding model
+//!   ([`embed::Cached`]). Hit texts are data from sources, never instructions. At most
+//!   [`MAX_REMOTE_SEARCHES`] searches ask the remote ways at the same time ([`remote_slot`]).
+//! - [`status`]: state without network (index, settings, chosen collections, last search or check).
+//! - Keeping the index current: [`notify`] from `mirror.rs` (every acceptance, save, switch,
+//!   outline change, every idea and post) or from the reconciliation with MultiGPT (`crate::sync`,
+//!   fetched documents of the kind `remote`) enqueues the work or the shared scope; a
+//!   background task embeds only changed chunks ([`index`]). [`catch_up`] (start of the service)
+//!   connects Eliezer as the embedder and enqueues all works; without an embedder (tests, helper commands)
+//!   [`notify`] has no effect and the search reports honestly [`embed::NO_EMBEDDER`].
+//! - [`reindex`]: discard the index of the work and rebuild it (with another model the whole index).
+//! - [`check_lancedb`]: „Verbindung prüfen“ for LanceDB.
+//! - RPC `rag.search`, `rag.status`, `rag.reindex` ([`handles`], [`call`]); `rag.reindex` human only.
 //!
-//! Laufzeit ohne Änderung an `AppState`: prozessweit je Datenordner ([`index::Runtime`]), die
-//! Hintergrund-Aufgabe läuft auf der eigenen Laufzeit von `baruch-lancedb` mit Klonen von Store und
-//! Geheimnissen.
+//! Runtime without a change to `AppState`: process-wide per data folder ([`index::Runtime`]), the
+//! background task runs on the own runtime of `baruch-lancedb` with clones of store and
+//! secrets.
 
 mod check;
 pub mod embed;
@@ -50,31 +50,31 @@ use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use index::{Job, LanceWay, Runtime};
 
-/// Schutz je Weg im Dienst.
+/// Guard per way in the service.
 pub const WAY_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// Höchstens so viele Suchen fragen gleichzeitig die Remote-Wege (pgvector öffnet je Suche eine Verbindung,
-/// MultiGPT eine Sitzung); weitere warten bis [`WAY_TIMEOUT`] und melden dann [`BUSY`].
+/// At most this many searches ask the remote ways at the same time (pgvector opens one connection per search,
+/// MultiGPT one session); further ones wait up to [`WAY_TIMEOUT`] and then report [`BUSY`].
 pub const MAX_REMOTE_SEARCHES: usize = 4;
 static REMOTE_SEARCHES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(MAX_REMOTE_SEARCHES);
-/// Satz: zu viele gleichzeitige Suchen auf den Remote-Wegen.
+/// Sentence: too many simultaneous searches on the remote ways.
 pub const BUSY: &str = "Zu viele gleichzeitige Suchen; bitte gleich noch einmal versuchen.";
 
-/// Satz: Weg für das Werk nicht gewählt.
+/// Sentence: way not chosen for the work.
 pub const NOT_CHOSEN: &str = "Für dieses Werk nicht gewählt (Einstellungen → Verbindungen).";
-/// Satz: Weg in der Anfrage weggelassen.
+/// Sentence: way left out in the request.
 pub const NOT_ASKED: &str = "In dieser Anfrage nicht gefragt.";
-/// Satz: keine Sammlung gewählt.
+/// Sentence: no collection chosen.
 pub const NO_COLLECTION: &str = "Keine Sammlung gewählt (Einstellungen → Verbindungen).";
-/// Satz: Remote-Weg nie geprüft.
+/// Sentence: remote way never checked.
 pub const NEVER_CHECKED: &str = "noch nicht geprüft (Verbindung prüfen)";
 
 const METHODS: &[&str] = &["rag.search", "rag.status", "rag.reindex"];
 
-/// Laufzeiten je Datenordner.
+/// Runtimes per data folder.
 static RUNTIMES: LazyLock<Mutex<HashMap<PathBuf, Arc<Runtime>>>> = LazyLock::new(Default::default);
 
-/// Laufzeit des Datenordners (beim ersten Gebrauch angelegt).
+/// Runtime of the data folder (created on first use).
 pub(crate) fn runtime(state: &AppState) -> Arc<Runtime> {
     let mut all = RUNTIMES.lock().unwrap_or_else(|e| e.into_inner());
     let rt = all
@@ -85,7 +85,7 @@ pub(crate) fn runtime(state: &AppState) -> Arc<Runtime> {
     rt
 }
 
-/// `RagWay` des Stores → `Way` der Schnittstelle (gleiche Namen).
+/// `RagWay` of the store → `Way` of the interface (same names).
 pub fn way_of(w: RagWay) -> Way {
     match w {
         RagWay::Lancedb => Way::Lancedb,
@@ -103,16 +103,16 @@ pub fn rag_way(w: Way) -> RagWay {
     }
 }
 
-/// Werk geändert (bzw. `None`: Einfälle ohne Werk, Bibliothek): Index nachziehen. Blockiert nie; ohne
-/// angebundenen Einbetter geschieht nichts.
+/// Work changed (or `None`: ideas without a work, library): bring the index up to date. Never blocks; without
+/// a connected embedder nothing happens.
 pub fn notify(state: &AppState, work: Option<WorkId>) {
     notify_data(&state.data, work);
 }
 
-/// Wie [`notify`], nur über den Datenordner (für Hintergrund-Aufgaben ohne `AppState`, etwa den Abgleich
-/// mit MultiGPT in `crate::sync`).
+/// Like [`notify`], only through the data folder (for background tasks without `AppState`, such as the
+/// reconciliation with MultiGPT in `crate::sync`).
 pub(crate) fn notify_data(data: &std::path::Path, work: Option<WorkId>) {
-    // Ohne Laufzeit gibt es auch keinen Einbetter: nichts anlegen (jeder Test öffnet eigene Datenordner).
+    // Without a runtime there is no embedder either: create nothing (every test opens its own data folders).
     let Some(rt) = RUNTIMES.lock().unwrap_or_else(|e| e.into_inner()).get(data).cloned() else { return };
     match work {
         Some(work) => rt.enqueue(&[Job::Work(work)]),
@@ -120,23 +120,23 @@ pub(crate) fn notify_data(data: &std::path::Path, work: Option<WorkId>) {
     }
 }
 
-/// Einbetter für diesen Datenordner ersetzen (Tests; gilt auch für pgvector im Dienst).
+/// Replace the embedders for this data folder (tests; also applies to pgvector in the service).
 pub fn set_embedders(state: &AppState, factory: Arc<dyn EmbedderFactory>) {
     runtime(state).set_embedders(factory);
 }
 
-/// Eliezer als Einbetter dieses Datenordners (Adresse und Schlüssel aus der Verbindung `eliezer`).
+/// Eliezer as the embedder of this data folder (address and key from the connection `eliezer`).
 pub fn eliezer_embedders(state: &AppState) -> Arc<dyn EmbedderFactory> {
     Arc::new(EliezerEmbedders::new(state.store.clone(), state.secrets.clone()))
 }
 
-/// Satz, wenn beim Start kein Einbetter angebunden wurde, weil der Datenordner ein eigener ist und die Verbindung
-/// Eliezer dort nie gespeichert wurde (Runde 19a). Beginnt wie [`NO_EMBEDDER`].
+/// Sentence shown when no embedder was connected at start because the data folder is an own one and the
+/// connection Eliezer was never stored there (Round 19a). Begins like [`NO_EMBEDDER`].
 pub const NO_EMBEDDER_OWN_DATA: &str = "Kein Einbettungsmodell angebunden: eigener Datenordner ohne gespeicherte \
 Verbindung Eliezer – Baruch bettet beim Start nicht ein (sonst ginge eine Anfrage an die Vorgabe-Adresse). Eliezer \
 unter Einstellungen → Verbindungen speichern, dann „Index neu aufbauen“; die Wortlaut-Suche (FTS) geht weiter.";
 
-/// Liegt `data` woanders als der Vorgabe-Datenordner (`--data` bzw. `BARUCH_DATA` mit eigenem Ordner)?
+/// Does `data` lie elsewhere than the default data folder (`--data` or `BARUCH_DATA` with an own folder)?
 fn own_data(data: &std::path::Path) -> bool {
     let canonical = |p: &std::path::Path| {
         std::fs::canonicalize(p).unwrap_or_else(|_| std::path::absolute(p).unwrap_or_else(|_| p.to_owned()))
@@ -144,15 +144,15 @@ fn own_data(data: &std::path::Path) -> bool {
     canonical(data) != canonical(&baruch_store::default_data_dir())
 }
 
-/// Ist die Verbindung Eliezer gespeichert (nicht nur die Vorgabe)?
+/// Is the connection Eliezer stored (not only the default)?
 async fn eliezer_saved(state: &AppState) -> bool {
     state.store.connection_get(ConnectionKind::Eliezer).await.is_ok_and(|row| row.updated.is_some())
 }
 
-/// Start des Dienstes: Eliezer als Einbetter (falls nicht schon einer gesetzt ist) und alle Werke,
-/// der gemeinsame Bereich und das Aufräumen gelöschter Werke einreihen. Mit eigenem Datenordner und ohne
-/// gespeicherte Verbindung Eliezer wird **kein** Einbetter gesetzt (keine Anfrage an die Vorgabe-Adresse beim
-/// Start); der Status nennt dann [`NO_EMBEDDER_OWN_DATA`].
+/// Start of the service: Eliezer as the embedder (if none is set already) and enqueue all works,
+/// the shared scope and the pruning of deleted works. With an own data folder and without a
+/// stored connection Eliezer **no** embedder is set (no request to the default address at
+/// start); the status then names [`NO_EMBEDDER_OWN_DATA`].
 pub async fn catch_up(state: &AppState) {
     let rt = runtime(state);
     if rt.embedders().is_none() {
@@ -170,7 +170,7 @@ pub async fn catch_up(state: &AppState) {
     rt.enqueue(&jobs);
 }
 
-/// Für Tests: wartet, bis die Warteschlange leer ist und die Hintergrund-Aufgabe ruht.
+/// For tests: waits until the queue is empty and the background task is idle.
 pub async fn wait_idle(state: &AppState) {
     let rt = runtime(state);
     while !rt.idle() {
@@ -185,13 +185,13 @@ fn store_rag(e: StoreError) -> RagError {
     }
 }
 
-/// Wege des Werks (Wahl des Menschen).
+/// Ways of the work (choice of the human).
 async fn work_ways(state: &AppState, work: WorkId) -> Result<Vec<Way>, RagError> {
     let (ways, _) = state.store.work_rag(work).await.map_err(store_rag)?;
     Ok(ways.into_iter().map(way_of).collect())
 }
 
-/// Anfrage prüfen: beschnitten 1..=1000 Zeichen, limit 1..=50.
+/// Check the query: trimmed 1..=1000 characters, limit 1..=50.
 fn checked_query(request: &SearchRequest) -> Result<String, RagError> {
     let query = request.query.trim();
     let count = query.chars().count();
@@ -204,7 +204,7 @@ fn checked_query(request: &SearchRequest) -> Result<String, RagError> {
     Ok(query.to_owned())
 }
 
-/// Ist der Remote-Weg eingerichtet (Rechner bzw. Adresse eingetragen)?
+/// Is the remote way set up (host or address entered)?
 async fn remote_configured(state: &AppState, way: Way) -> bool {
     let kind = match way {
         Way::Pgvector => ConnectionKind::Pgvector,
@@ -218,16 +218,16 @@ async fn remote_configured(state: &AppState, way: Way) -> bool {
     }
 }
 
-/// Ein geplanter Weg: offen mit Anfrage oder „aus“ mit Grund.
+/// A planned way: open with a query, or "off" with a reason.
 enum Planned {
     Ask(Box<dyn SearchWay>, Query),
     Off(String),
 }
 
-/// Ein Weg mit Anfrage bzw. der Grund, warum er nicht gefragt wird.
+/// A way with its query, or the reason why it is not asked.
 pub(crate) type Plan = Result<(Box<dyn SearchWay>, Query), String>;
 
-/// Wege gleichzeitig fragen, jeder mit eigenem Zeitlimit; Ergebnis in der Reihenfolge der Eingabe.
+/// Ask the ways at the same time, each with its own time limit; result in the order of the input.
 pub(crate) async fn run_ways(planned: Vec<(Way, Plan)>, timeout: Duration) -> Vec<(WayReport, Vec<Hit>)> {
     let runs = planned.into_iter().map(|(way, plan)| async move {
         match plan {
@@ -247,7 +247,7 @@ pub(crate) async fn run_ways(planned: Vec<(Way, Plan)>, timeout: Duration) -> Ve
                     Ok(Err(e)) => (WayReport::new(way, WayState::Failed, e.message(), 0, millis), Vec::new()),
                     Ok(Ok(mut hits)) => {
                         hits.truncate(query.limit);
-                        // Treffer gehören zum Weg, der sie liefert.
+                        // Hits belong to the way that delivers them.
                         hits.iter_mut().for_each(|h| h.way = way);
                         let message = format!("{} Treffer.", hits.len());
                         (WayReport::new(way, WayState::Connected, message, hits.len(), millis), hits)
@@ -259,10 +259,10 @@ pub(crate) async fn run_ways(planned: Vec<(Way, Plan)>, timeout: Duration) -> Ve
     futures_join_all(runs).await
 }
 
-/// Platz für die Remote-Wege aus `slots` holen (höchstens `wait` lang), falls einer gefragt würde. Ohne Platz
-/// werden die Remote-Pläne gestrichen; Rückgabe: Erlaubnis (solange sie lebt, gilt der Platz) und die
-/// gestrichenen Wege (die [`search`] als „ausgefallen“ mit [`BUSY`] meldet). LanceDB ist lokal und nie
-/// betroffen.
+/// Get a slot for the remote ways from `slots` (for at most `wait`) if one of them would be asked. Without a slot
+/// the remote plans are dropped; returned: the permit (the slot holds as long as it lives) and the
+/// dropped ways (which [`search`] reports as „ausgefallen“ with [`BUSY`]). LanceDB is local and never
+/// affected.
 pub(crate) async fn remote_slot<'a>(
     planned: &mut [(Way, Plan)],
     slots: &'a tokio::sync::Semaphore,
@@ -285,7 +285,7 @@ pub(crate) async fn remote_slot<'a>(
     (None, busy)
 }
 
-/// Alle Futures gleichzeitig, Ergebnisse in Eingabereihenfolge (ohne eigene Abhängigkeit).
+/// All futures at the same time, results in input order (without a dependency of its own).
 async fn futures_join_all<F: std::future::Future>(futures: impl IntoIterator<Item = F>) -> Vec<F::Output> {
     let mut set = Vec::new();
     for f in futures {
@@ -308,8 +308,8 @@ async fn futures_join_all<F: std::future::Future>(futures: impl IntoIterator<Ite
     out.into_iter().map(|v| v.expect("alle fertig")).collect()
 }
 
-/// Bedeutungssuche über die Wege des Werks (siehe Modulkopf). `Err` nur bei ungültiger Anfrage bzw.
-/// unbekanntem Werk.
+/// Meaning search over the ways of the work (see the module header). `Err` only for an invalid request or
+/// an unknown work.
 pub async fn search(state: &AppState, request: &SearchRequest) -> Result<Answer, RagError> {
     let query = checked_query(request)?;
     let work = request.work;
@@ -337,7 +337,7 @@ pub async fn search(state: &AppState, request: &SearchRequest) -> Result<Answer,
     let mut per_way = Vec::new();
     let mut reports = Vec::new();
     for (report, hits) in results {
-        // Ein abgewiesener Weg (BUSY) wurde nicht gefragt: sein letzter Zustand bleibt stehen.
+        // A rejected way (BUSY) was not asked: its last state stays.
         if report.way != Way::Lancedb && report.state != WayState::Off && !busy.contains(&report.way) {
             rt.reports.lock().unwrap_or_else(|e| e.into_inner()).insert(report.way, (now.clone(), report.clone()));
         }
@@ -401,7 +401,7 @@ async fn plan_way(
     }
 }
 
-/// Zustand des lokalen Index für ein Werk (ohne Netz).
+/// State of the local index for a work (without network).
 async fn index_info(state: &AppState, rt: &Runtime, work: WorkId) -> IndexInfo {
     let mut info = IndexInfo {
         dir: String::new(),
@@ -443,13 +443,13 @@ async fn index_info(state: &AppState, rt: &Runtime, work: WorkId) -> IndexInfo {
     }
     info.problem = problem.or_else(|| rt.problem().map(|e| e.message().to_owned()));
     if info.problem.is_none() && info.stale > 0 {
-        // Ehrlich: Liegengebliebenes ist ein Problem, auch wenn der letzte (billige) Auftrag gelang.
+        // Honest: stale jobs are a problem, even if the last (cheap) job succeeded.
         info.problem = Some(stale_text(info.stale));
     }
     info
 }
 
-/// Satz zu liegengebliebenen Aufträgen.
+/// Sentence about stale jobs.
 pub fn stale_text(stale: usize) -> String {
     let word = if stale == 1 { "Auftrag" } else { "Aufträge" };
     format!(
@@ -458,7 +458,7 @@ pub fn stale_text(stale: usize) -> String {
     )
 }
 
-/// Zustand aller Wege eines Werks, ohne Netz.
+/// State of all ways of a work, without network.
 pub async fn status(state: &AppState, work: WorkId) -> Result<Status, RagError> {
     let chosen = work_ways(state, work).await?;
     let rt = runtime(state);
@@ -492,7 +492,7 @@ pub async fn status(state: &AppState, work: WorkId) -> Result<Status, RagError> 
     Ok(Status { work, ways, index, fts: true })
 }
 
-/// Zustand eines Remote-Wegs aus Einstellung, Sammlungen und letzter Suche bzw. Prüfung.
+/// State of a remote way from setting, collections and last search or check.
 async fn remote_status(state: &AppState, rt: &Runtime, work: WorkId, way: Way) -> WayReport {
     if !remote_configured(state, way).await {
         return WayReport::new(way, WayState::Off, "Nicht eingerichtet (Einstellungen → Verbindungen).", 0, 0);
@@ -517,20 +517,20 @@ async fn remote_status(state: &AppState, rt: &Runtime, work: WorkId, way: Way) -
     }
 }
 
-/// Ergebnis von [`reindex`].
+/// Result of [`reindex`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reindexed {
-    /// Ausstehende Aufträge.
+    /// Outstanding jobs.
     pub pending: usize,
-    /// Der Worker hielt gerade die Schreibsperre: vermerkt, er setzt nach dem laufenden Stapel zurück.
+    /// The worker held the write lock right then: recorded, it resets after the running batch.
     pub deferred: bool,
 }
 
-/// Index des Werks verwerfen und neu aufbauen (im Hintergrund); passt das Modell bzw. Präfix nicht oder ist
-/// die Indexdatei beschädigt, den ganzen Index. Wartet nie auf die Schreibsperre: Hält der Worker sie, wird
-/// ein Rücksetzwunsch vermerkt (`deferred`), und der Worker bricht den laufenden Auftrag ab. Wurde beim
-/// Start kein Einbetter angebunden ([`NO_EMBEDDER_OWN_DATA`]) und ist Eliezer inzwischen gespeichert, wird
-/// er jetzt angebunden.
+/// Discard the index of the work and rebuild it (in the background); if model or prefix do not match or
+/// the index file is damaged, the whole index. Never waits for the write lock: if the worker holds it,
+/// a reset wish is recorded (`deferred`), and the worker aborts the running job. If no embedder was
+/// connected at start ([`NO_EMBEDDER_OWN_DATA`]) and Eliezer has been stored in the meantime, it is
+/// connected now.
 pub async fn reindex_report(state: &AppState, work: WorkId) -> Result<Reindexed, RagError> {
     state.store.work_slug(work).await.map_err(store_rag)?;
     let rt = runtime(state);
@@ -554,14 +554,14 @@ pub async fn reindex_report(state: &AppState, work: WorkId) -> Result<Reindexed,
     Ok(Reindexed { pending: rt.pending(), deferred: false })
 }
 
-/// Wie [`reindex_report`], Rückgabe nur die ausstehenden Aufträge (Haken `search_hooks::rag_reindex`, Seite
+/// Like [`reindex_report`], returning only the outstanding jobs (hook `search_hooks::rag_reindex`, page
 /// Verbindungen).
 pub async fn reindex(state: &AppState, work: WorkId) -> Result<usize, RagError> {
     reindex_report(state, work).await.map(|done| done.pending)
 }
 
-/// Antwort einer Suche als JSON, jeder Treffer mit `weak` ([`baruch_rag::is_weak`] seiner Ähnlichkeit,
-/// Runde 19a; Treffer bleiben in ihrer Reihenfolge, nichts wird ausgeblendet).
+/// Answer of a search as JSON, every hit with `weak` ([`baruch_rag::is_weak`] of its similarity,
+/// Round 19a; hits stay in their order, nothing is hidden).
 pub fn answer_json(answer: &Answer) -> Result<Value, serde_json::Error> {
     let mut value = serde_json::to_value(answer)?;
     if let Some(hits) = value.get_mut("hits").and_then(Value::as_array_mut) {
@@ -572,7 +572,7 @@ pub fn answer_json(answer: &Answer) -> Result<Value, serde_json::Error> {
     Ok(value)
 }
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -584,12 +584,12 @@ fn rpc_error(e: RagError) -> RpcError {
     }
 }
 
-/// Werk aus `work`; fehlt es, das Vorgabewerk. Unbekannt → -32602.
+/// Work from `work`; if it is missing, the default work. Unknown → -32602.
 async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, RpcError> {
     crate::rpc::work_param(state, params).await
 }
 
-/// Anfrage aus den RPC-Parametern (`rag.search`).
+/// Request from the RPC parameters (`rag.search`).
 pub(crate) fn request_from(params: &Value, work: WorkId, origin: &str) -> Result<SearchRequest, RpcError> {
     let invalid = |m: &str| RpcError::new(INVALID_PARAMS, m.to_owned());
     let query = params.get("query").and_then(Value::as_str).ok_or_else(|| invalid("query: Text erwartet."))?;
@@ -634,7 +634,7 @@ pub(crate) fn request_from(params: &Value, work: WorkId, origin: &str) -> Result
     Ok(request)
 }
 
-/// RPC `rag.search`, `rag.status`, `rag.reindex` (aus `rpc::call` vor der Wahl des Werks).
+/// RPC `rag.search`, `rag.status`, `rag.reindex` (from `rpc::call` before the work is chosen).
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
@@ -718,8 +718,8 @@ mod tests {
         let (permit, busy) = remote_slot(&mut first, &slots, Duration::from_millis(10)).await;
         assert!(permit.is_some() && busy.is_empty(), "freier Platz: die Suche darf die Remote-Wege fragen");
 
-        // Begründung: Der einzige Platz ist belegt; eine weitere Suche (etwa von einer fremden Seite ausgelöst)
-        // öffnet keine weitere pgvector-Verbindung, sondern meldet ehrlich BUSY.
+        // Reason: the only slot is taken; a further search (triggered for instance by a foreign page)
+        // opens no further pgvector connection, but reports BUSY honestly.
         let mut second = plans();
         let (none, busy) = remote_slot(&mut second, &slots, Duration::from_millis(10)).await;
         assert!(none.is_none(), "kein zweiter Platz");

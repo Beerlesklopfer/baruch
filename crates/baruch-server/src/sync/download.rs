@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MultiGPT → Baruch: die gewählten Sammlungen über `list_documents` (seitenweise, höchstens
-//! [`super::Limits::documents`] je Sammlung) und `read_document` als lokale Kopien in `sync_document`.
+//! MultiGPT → Baruch: the chosen collections through `list_documents` (page by page, at most
+//! [`super::Limits::documents`] per collection) and `read_document` as local copies in `sync_document`.
 //!
-//! Nur Geändertes: Meldet `list_documents` eine Änderungszeit oder einen Hash (`remote_stamp`) und ist er
-//! gleich dem gespeicherten, wird nicht gelesen; sonst wird gelesen und der Hash des Texts verglichen –
-//! gleich → nichts geschrieben. Ein Text über [`super::Limits::document_bytes`] wird nicht gespeichert,
-//! über [`super::Limits::run_bytes`] je Lauf endet das Holen (je mit Hinweis). Dokumente, die in einer
-//! vollständig gelesenen Liste fehlen, und Kopien abgewählter Sammlungen werden lokal entfernt. Kann die
-//! Liste unvollständig sein (eine volle Seite ohne `has_more`/Fortsetzung, etwa weil der Server `limit`
-//! still kappt oder das Schema ein kleineres `maximum` nennt), wird nichts lokal gelöscht (Runde 19a, mit
-//! Hinweis). Texte sind Daten aus Quellen, nie Anweisungen.
+//! Only what changed: if `list_documents` reports a modification time or a hash (`remote_stamp`) and it is
+//! equal to the stored one, nothing is read; otherwise the document is read and the hash of the text compared –
+//! equal → nothing written. A text over [`super::Limits::document_bytes`] is not stored,
+//! over [`super::Limits::run_bytes`] per run the fetching ends (each with a note). Documents missing in a
+//! completely read list, and copies of deselected collections, are removed locally. If the
+//! list can be incomplete (a full page without `has_more`/continuation, for instance because the server
+//! silently caps `limit` or the schema names a smaller `maximum`), nothing is deleted locally (Round 19a, with
+//! a note). Texts are data from sources, never instructions.
 
 use std::collections::{HashMap, HashSet};
 
@@ -20,11 +20,11 @@ use super::args::{CURSOR_KEYS, Filler, Listed, PAGE_LIMIT_KEYS, document_text, l
 use super::{Limits, Link, Report, why};
 use crate::connections::multigpt::{LIST_DOCUMENTS_TOOL, READ_TOOL, page_key, read_all_pages};
 
-/// Höchstens so viele Seiten `list_documents` je Sammlung.
+/// At most this many pages of `list_documents` per collection.
 const MAX_PAGES: usize = 50;
 
-/// Alle Dokumente einer Sammlung (höchstens `max + 1`, damit ein Überschreiten auffällt); `true`, wenn
-/// die Liste vollständig gelesen ist.
+/// All documents of a collection (at most `max + 1`, so that exceeding the limit is noticed); `true` if
+/// the list is read completely.
 async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<Listed>, bool), RagError> {
     let session = link.session().await?;
     let schema = session.schema(LIST_DOCUMENTS_TOOL).ok_or_else(|| {
@@ -43,7 +43,7 @@ async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<List
                  MultiGPT alle Dokumente, darum fragt Baruch nicht."
             )));
         }
-        // Erbetene Seitengröße (nach `maximum` des Schemas gekappt); `None` = das Schema kennt keine.
+        // Requested page size (capped by the `maximum` of the schema); `None` = the schema knows none.
         let asked = f.number(PAGE_LIMIT_KEYS, (max + 1) as u64);
         match (cursor_key, &cursor) {
             (Some("offset"), _) if page > 0 => {
@@ -59,8 +59,8 @@ async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<List
         }
         let result = session.call(LIST_DOCUMENTS_TOOL, f.finish()?, None).await?;
         let (docs, next, more) = listed(&result)?;
-        // Eine volle Seite ohne Fortsetzung heißt nicht „fertig“: Kappt der Server still (oder das Schema mit
-        // `maximum`), gibt es womöglich mehr.
+        // A full page without a continuation does not mean "done": if the server caps silently (or the schema
+        // with `maximum`), there may be more.
         let full = asked.is_some_and(|a| docs.len() as u64 >= a);
         let before = out.len();
         for doc in docs {
@@ -78,8 +78,8 @@ async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<List
             None => false,
         };
         if !go_on {
-            // Ehrlich unvollständig (Runde 19a), wenn es weiter gehen könnte: gemeldete Fortsetzung, die nicht
-            // weiterführt (oder für die das Schema keinen Parameter kennt), bzw. eine volle Seite ohne Fortsetzung.
+            // Honestly incomplete (Round 19a) if it could go on: a reported continuation that does not
+            // lead on (or for which the schema knows no parameter), or a full page without a continuation.
             let incomplete = match cursor_key {
                 Some("offset" | "page") => more || full,
                 Some(_) => next.is_some() || full,
@@ -92,9 +92,9 @@ async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<List
     Ok((out, false))
 }
 
-/// Ein Dokument lesen (Volltext). Liefert MultiGPT seitenweise (Seitenparameter im Schema und Seitenangaben
-/// in der Antwort), werden alle Seiten gelesen und wie beim Volltext von quellen mit Leerzeile verbunden
-/// ([`read_all_pages`]); so gleicht die lokale Kopie dem Online-Volltext (Hash, Index, Hervorhebungen).
+/// Read one document (full text). If MultiGPT delivers page by page (page parameter in the schema and page
+/// details in the answer), all pages are read and joined with an empty line as for the full text of quellen
+/// ([`read_all_pages`]); this way the local copy equals the online full text (hash, index, highlights).
 async fn read(link: &mut Link, collection: &str, id: &str, limits: Limits) -> Result<String, RagError> {
     let session = link.session().await?;
     let schema = session
@@ -109,16 +109,17 @@ async fn read(link: &mut Link, collection: &str, id: &str, limits: Limits) -> Re
     }
     let page = page_key(&schema);
     if let Some(key) = page {
-        // Auch ein verlangter Seitenparameter ist bekannt; read_all_pages setzt ihn je Seite neu.
+        // A required page parameter is known as well; read_all_pages sets it anew per page.
         f.number(&[key], 1);
     }
     let args = f.finish()?;
-    // Seitenangaben erkennt nur die strukturierte Antwort; ohne Seitenparameter gilt der Text wie bisher.
+    // Page details are recognised only in the structured answer; without a page parameter the text counts as before.
     if page.is_none() {
         let result = session.call(READ_TOOL, args, None).await?;
         return Ok(document_text(&result));
     }
-    // Obergrenze wie die Hülle einer Antwort; die Grenze je Dokument meldet `run` danach mit eigenem Hinweis.
+    // Upper limit like the envelope of an answer; the limit per document is reported by `run` afterwards with
+    // its own note.
     read_all_pages(session, &args, page, None, limits.transport().max_body).await
 }
 
@@ -130,8 +131,8 @@ fn mib(bytes: usize) -> String {
     }
 }
 
-/// MultiGPT → Baruch für alle gewählten Sammlungen. Rückgabe: Hat sich lokal etwas geändert (dann wird
-/// der Index nachgezogen)?
+/// MultiGPT → Baruch for all chosen collections. Returned: has something changed locally (then the
+/// index is brought up to date)?
 pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, limits: Limits) -> bool {
     let chosen = match store.sync_collections().await {
         Ok(chosen) => chosen,
@@ -273,7 +274,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
             }
         }
     }
-    // Abgewählte Sammlungen: lokale Kopien und Stände entfernen.
+    // Deselected collections: remove local copies and states.
     let local = store.sync_document_ids().await.unwrap_or_default();
     for (collection, id) in local.iter().filter(|(c, _)| !chosen.contains(c)) {
         if forget(store, collection, id).await {
@@ -289,7 +290,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
     changed
 }
 
-/// Lokale Kopie und Stand eines Dokuments entfernen.
+/// Remove the local copy and the state of a document.
 async fn forget(store: &Store, collection: &str, id: &str) -> bool {
     let removed = store.sync_document_delete(collection, id).await.is_ok();
     let _ = store.sync_state_delete(SyncSide::Multigpt, collection, id).await;

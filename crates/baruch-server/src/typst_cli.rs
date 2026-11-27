@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Kommandozeile von Baruch (Runde 36, Besitz `typst_alias`): `baruch-server typst …` oder das Programm unter
-//! einem der Namen aus [`ALIAS_NAMES`] gerufen (Symlink `baruch-typst`). Die Engine steht in `baruch_render::cli`,
-//! hier stehen die Argumente.
+//! Typst command line of Baruch (Round 36, ownership `typst_alias`): `baruch-server typst …` or the program called
+//! under one of the names from [`ALIAS_NAMES`] (symlink `baruch-typst`). The engine is in `baruch_render::cli`,
+//! the arguments are here.
 //!
-//! Umfang: `compile EINGABE [AUSGABE]` (Kurzform `c`) mit `--root`, `--font-path` (mehrfach, auch
-//! `TYPST_FONT_PATHS`), `--format pdf|png|svg` (`-f`) und `--ppi`; `fonts`; `--version`; `--help`. Alles andere von
-//! Typst (watch, query, init, update, eval, completions, info, weitere Schalter, Eingabe von der Standardeingabe)
-//! wird ehrlich abgelehnt, bevor irgendetwas gelesen oder geschrieben wird. Pakete und Netz gibt es nicht
-//! ([`baruch_render::OFFLINE`]). Wie Typst – und anders als der Export von Baruch – überschreibt `compile` eine
-//! vorhandene Ausgabedatei; geschrieben wird aber erst, wenn der ganze Satz gelungen ist.
+//! Scope: `compile EINGABE [AUSGABE]` (short form `c`) with `--root`, `--font-path` (several times, also
+//! `TYPST_FONT_PATHS`), `--format pdf|png|svg` (`-f`) and `--ppi`; `fonts`; `--version`; `--help`. Everything else
+//! of Typst (watch, query, init, update, eval, completions, info, further switches, input from the standard input)
+//! is honestly rejected before anything is read or written. Packages and network do not exist
+//! ([`baruch_render::OFFLINE`]). Like Typst – and unlike the export of Baruch – `compile` overwrites an
+//! existing output file; but writing happens only when the whole typesetting has succeeded.
 //!
-//! Exit-Codes (fest): 0 Erfolg; 1 Satz- oder Dateifehler; 2 falscher Aufruf oder Nicht-Unterstütztes.
+//! Exit codes (fixed): 0 success; 1 typesetting or file error; 2 wrong call or something unsupported.
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
@@ -18,10 +18,10 @@ use std::path::{Path, PathBuf};
 
 use baruch_render::cli::{CompileJob, OutputFormat, TYPST_VERSION, compile_file, font_names};
 
-/// Namen, unter denen das Programm als Typst-Kommandozeile läuft.
+/// Names under which the program runs as the Typst command line.
 pub const ALIAS_NAMES: &[&str] = &["typst", "baruch-typst"];
 
-/// Dateiname von `argv[0]` ohne Ordner und ohne „.exe“ (Groß/Klein egal) ist einer aus [`ALIAS_NAMES`].
+/// File name of `argv[0]` without folder and without ".exe" (case does not matter) is one from [`ALIAS_NAMES`].
 pub fn is_alias(argv0: &OsStr) -> bool {
     let Some(name) = Path::new(argv0).file_name().and_then(OsStr::to_str) else {
         return false;
@@ -31,8 +31,8 @@ pub fn is_alias(argv0: &OsStr) -> bool {
     ALIAS_NAMES.contains(&name)
 }
 
-/// `args` samt `argv[0]`. `Some(Exit-Code)`, wenn als Alias gerufen (dann gelten `args[1..]`) oder
-/// `args[1] == "typst"` (dann `args[2..]`); sonst `None`.
+/// `args` including `argv[0]`. `Some(exit code)` if called as an alias (then `args[1..]` apply) or
+/// `args[1] == "typst"` (then `args[2..]`); otherwise `None`.
 pub fn dispatch(args: Vec<OsString>) -> Option<i32> {
     let skip = if args.first().is_some_and(|argv0| is_alias(argv0)) {
         1
@@ -45,7 +45,7 @@ pub fn dispatch(args: Vec<OsString>) -> Option<i32> {
     Some(run(&rest, &mut std::io::stdout().lock(), &mut std::io::stderr().lock()))
 }
 
-/// Hilfe der Typst-Kommandozeile (`--help`).
+/// Help of the Typst command line (`--help`).
 pub const HELP: &str = "Typst-Kommandozeile von Baruch (eingebaute Engine, ohne Netz)
 
 typst compile EINGABE.typ [AUSGABE] [--root ORDNER] [--font-path ORDNER]… [--format pdf|png|svg] [--ppi ZAHL]
@@ -70,10 +70,10 @@ Nicht unterstützt: watch, query, init, update, eval, completions, info, Eingabe
 Pakete (@preview/…) und alles aus dem Netz, weitere Schalter von Typst.
 Exit: 0 Erfolg, 1 Satz- oder Dateifehler, 2 falscher Aufruf oder Nicht-Unterstütztes.";
 
-/// Unterbefehle von Typst, die es hier nicht gibt.
+/// Subcommands of Typst that do not exist here.
 const UNSUPPORTED_COMMANDS: &[&str] = &["watch", "w", "query", "init", "update", "eval", "completions", "info"];
 
-/// Ein falscher Aufruf oder etwas Nicht-Unterstütztes: Meldung für `err`, Exit 2.
+/// A wrong call or something unsupported: message for `err`, exit 2.
 #[derive(Debug, PartialEq, Eq)]
 struct Usage(String);
 
@@ -81,7 +81,7 @@ fn unsupported(what: &str) -> Usage {
     Usage(format!("{what} unterstützt Baruch als Typst-Alias nicht"))
 }
 
-/// Die gelesenen Angaben eines Aufrufs von `compile` oder `fonts`.
+/// The details read from a call of `compile` or `fonts`.
 #[derive(Default)]
 struct Options {
     positional: Vec<String>,
@@ -91,8 +91,8 @@ struct Options {
     ppi: Option<String>,
 }
 
-/// Liest Schalter und freie Angaben; `allowed` nennt die Schalter mit Wert, die der Unterbefehl kennt. `--name WERT`
-/// und `--name=WERT` gelten beide; nach `--` ist alles eine freie Angabe.
+/// Reads switches and free arguments; `allowed` names the switches with a value that the subcommand knows.
+/// `--name WERT` and `--name=WERT` both work; after `--` everything is a free argument.
 fn parse(args: &[String], allowed: &[&str]) -> Result<Options, Usage> {
     let mut options = Options::default();
     let mut rest = args.iter();
@@ -125,7 +125,7 @@ fn parse(args: &[String], allowed: &[&str]) -> Result<Options, Usage> {
             _ => options.ppi = Some(value),
         }
     }
-    // Wie bei Typst: die Ordner aus der Umgebung zusätzlich, nach denen der Befehlszeile.
+    // As in Typst: the folders from the environment in addition, after those of the command line.
     if allowed.contains(&"--font-path")
         && let Some(paths) = std::env::var_os("TYPST_FONT_PATHS")
     {
@@ -151,7 +151,7 @@ fn extension(format: OutputFormat) -> &'static str {
     }
 }
 
-/// Ein fertig geprüfter Auftrag von `compile`: was gesetzt wird und wohin.
+/// A fully checked job of `compile`: what is typeset and where to.
 #[derive(Debug)]
 struct Compile {
     job: CompileJob,
@@ -196,7 +196,7 @@ fn compile_args(args: &[String]) -> Result<Compile, Usage> {
     Ok(Compile { job: CompileJob { input, root: options.root, font_paths: options.font_paths, format, ppi }, output })
 }
 
-/// Der Ausgabename einer Seite: `{p}` Seitennummer, `{0p}` mit führenden Nullen, `{t}` Seitenzahl.
+/// The output name of a page: `{p}` page number, `{0p}` with leading zeros, `{t}` number of pages.
 fn page_path(template: &Path, page: usize, total: usize) -> PathBuf {
     let width = total.to_string().len();
     let name = template
@@ -230,7 +230,7 @@ fn compile(args: &[String], err: &mut dyn Write) -> i32 {
         let _ = writeln!(err, "{warning}");
     }
     let total = result.pages.len();
-    // Erst alles prüfen, dann schreiben: Bei einem Fehler entsteht keine Datei.
+    // First check everything, then write: on an error no file is created.
     let targets: Vec<PathBuf> = if job.format == OutputFormat::Pdf || (total == 1 && !has_page_template(&output)) {
         vec![output]
     } else if has_page_template(&output) {
@@ -272,7 +272,7 @@ fn usage(err: &mut dyn Write, message: &str) -> i32 {
     2
 }
 
-/// Die Typst-Kommandozeile ohne Programmnamen; schreibt nur in `out`/`err`, beendet den Prozess nie.
+/// The Typst command line without the program name; writes only into `out`/`err`, never ends the process.
 pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let Some((command, rest)) = args.split_first() else {
         let _ = writeln!(err, "{HELP}");

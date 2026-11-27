@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungsseite „Assistenten“: Wahl des Lektors (fest eine Persona oder automatisch nach Kontext;
-//! Vorgabe des Versuchs seit 2026-11-06: fest `@lektor`), je Persona Farbe, Rolle, Modell (Auswahl aus
-//! der Liste des Modell-Backends über `<datalist>`, Freitext bleibt), Kontextlänge, aktiv und der
-//! Rollen-Prompt (Vorgabe aus dem Code oder eigener Text, zurücksetzbar). Warnungen: Modell beim Backend
-//! unbekannt, alter Name mit Alias, aktive Personas auf verschiedenen Modellen (VRAM). Formulare an
-//! `POST /einstellungen/personas/act` ([`crate::personas`]), ohne JavaScript bedienbar.
+//! Settings page „Assistenten“: choice of the lector (fixed one persona or automatically by context;
+//! default of the trial since 2026-11-06: fixed `@lektor`), per persona colour, role, model (selection from
+//! the list of the model backend through `<datalist>`, free text stays), context length, active and the
+//! role prompt (default from the code or own text, resettable). Warnings: model unknown at the backend,
+//! old name with an alias, active personas on different models (VRAM). Forms to
+//! `POST /einstellungen/personas/act` ([`crate::personas`]), usable without JavaScript.
 //!
-//! Runde 11: je Persona ein Tab (`?persona=<handle ohne @>`, unbekannt → der erste mit Hinweis; mit
-//! JavaScript `web/src/persona_tabs.ts`), im Tab **ein** Formular `action=save` mit allen Feldern (Name,
-//! Farbe, Rolle als Textfeld, Modell, Kontext, aktiv, Rollen-Prompt groß) und „Vorgabe wiederherstellen“
-//! (`action=reset_prompt`, Rückfrage über `?rueckfrage=vorgabe`). Nach einem abgelehnten „Speichern“
-//! zeigt die Seite den Tab mit der Eingabe ([`crate::personas::retry`]).
+//! Round 11: one tab per persona (`?persona=<handle without @>`, unknown → the first with a hint; with
+//! JavaScript `web/src/persona_tabs.ts`), in the tab **one** form `action=save` with all fields (name,
+//! colour, role as a text field, model, context, active, role prompt large) and „Vorgabe wiederherstellen“
+//! (`action=reset_prompt`, confirmation question through `?rueckfrage=vorgabe`). After a rejected „Speichern“
+//! the page shows the tab with the input ([`crate::personas::retry`]).
 //!
-//! Runde 12: im Tab von `@belege` und des Lektors ein eigenes Formular (`action=rag`, Kästchen `on`)
+//! Round 12: in the tab of `@belege` and of the lector a form of its own (`action=rag`, checkbox `on`)
 //! „Treffer der Bedeutungssuche als Belege mitgeben“ ([`crate::assist::rag_facts`]).
 //!
-//! Runde 13: im Tab von `@belege` der Schalter der Websuche (Formular an `POST /websuche/act`, `action=switch`,
-//! Kästchen `on`, Vorgabe aus; [`crate::websearch`]); `settings.get` nennt ihn als `websearch: {on}`.
+//! Round 13: in the tab of `@belege` the switch of the web search (form to `POST /websuche/act`, `action=switch`,
+//! checkbox `on`, default off; [`crate::websearch`]); `settings.get` names it as `websearch: {on}`.
 //!
-//! Runde 15b: im Tab je Persona das Formular `action=backend` (Auswahl der Modell-Verbindung, Kästchen
-//! `external_allowed` „Buchtext an externe Verbindung schicken“, Vorgabe aus) mit Anzeige „lokal“/„extern“,
-//! Warnung, wenn eine externe Verbindung ohne Freigabe gewählt ist, und der wirksamen Kontextlänge
-//! (Abgleich mit der Gegenstelle, nur für den gezeigten Tab live, sonst aus dem Zwischenspeicher); im Tab von
-//! `@belege` und des Lektors der Schalter `action=bible` „Bibel-Belege aus SWORD mitgeben“ (Vorgabe: @belege
-//! an, Lektor aus). Die Modellliste gehört zur Verbindung des gezeigten Tabs.
+//! Round 15b: in the tab per persona the form `action=backend` (selection of the model connection, checkbox
+//! `external_allowed` „Buchtext an externe Verbindung schicken“, default off) with the display „lokal“/„extern“,
+//! a warning if an external connection is chosen without a release, and the effective context length
+//! (reconciliation with the remote side, live only for the shown tab, otherwise from the cache); in the tab of
+//! `@belege` and of the lector the switch `action=bible` „Bibel-Belege aus SWORD mitgeben“ (default: @belege
+//! on, lector off). The model list belongs to the connection of the shown tab.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -53,8 +53,8 @@ fn notice(query: &BTreeMap<String, String>) -> Option<&'static str> {
     }
 }
 
-/// Stand eines Modellnamens gegenüber der Liste des Backends: `bekannt`, `alias` (mit Ziel) oder
-/// `unbekannt`; ohne Liste `None`.
+/// State of a model name compared with the list of the backend: `bekannt`, `alias` (with target) or
+/// `unbekannt`; without a list `None`.
 pub fn model_state(
     model: &str,
     list: Option<&[String]>,
@@ -76,9 +76,9 @@ pub(super) async fn render(
     query: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let info = super::request();
-    // Runde 16a: der Lektor mit der wirksamen Kontextlänge (wie bei den Aufträgen); Runde 17a (L4): beim Seitenladen
-    // ohne Netzabfrage – Kontext und Modellliste aus dem Zwischenspeicher. Die Gegenstelle fragt die Seite nur auf
-    // ausdrücklichen Wunsch (`?modelle=abfragen`, Link „Modellliste abfragen“).
+    // Round 16a: the lector with the effective context length (as for the jobs); Round 17a (L4): on page load
+    // without a network query – context and model list from the cache. The page asks the remote side only on
+    // explicit wish (`?modelle=abfragen`, link „Modellliste abfragen“).
     let (rows, choice, lector_handle) = rows_and_lector_cached(state).await.map_err(|e| e.message)?;
     let lector = lector_handle.and_then(|h| rows.iter().find(|p| p.handle == h)).cloned();
     let lector_budget = match &lector {
@@ -87,8 +87,8 @@ pub(super) async fn render(
     };
     let chat_scope = state.store.chat_scope().await.map_err(|e| e.to_string())?.word();
     let fetch = query.get("modelle").is_some_and(|m| m == "abfragen");
-    // Runde 11: je Persona ein Tab; gewählt über `?persona=<handle ohne @>` (unbekannt → der erste mit
-    // Hinweis). Nach einem abgelehnten „Speichern“ gilt der Tab der Eingabe, mit der Eingabe.
+    // Round 11: one tab per persona; chosen through `?persona=<handle without @>` (unknown → the first with a
+    // hint). After a rejected „Speichern“ the tab of the input applies, with the input.
     let retry = crate::personas::retry();
     let asked = retry
         .as_ref()
@@ -103,14 +103,14 @@ pub(super) async fn render(
     for p in &rows {
         rag_on.push(state.store.persona_rag(&p.handle).await.map_err(|e| e.to_string())?);
     }
-    // Runde 15b: Verbindung je Persona, lokal/extern, Freigabe, Kontext und Bibel-Belege.
+    // Round 15b: connection per persona, local/external, release, context and Bible evidence.
     let connections = state.store.model_connection_list().await.map_err(|e| e.to_string())?;
     let backends = state.store.persona_backends().await.map_err(|e| e.to_string())?;
     let mut extra: Vec<Value> = Vec::with_capacity(rows.len());
     for (index, p) in rows.iter().enumerate() {
         let backend = backends.iter().find(|(h, _)| *h == p.handle).map(|(_, b)| *b).unwrap_or_default();
         let connection = connections.iter().find(|c| c.id == backend.connection).or(connections.first());
-        // Ohne Netz (Runde 17a); nur „Modellliste abfragen“ fragt für den gezeigten Tab die Gegenstelle.
+        // Without network (Round 17a); only „Modellliste abfragen“ asks the remote side for the shown tab.
         let budget = if fetch && index == selected {
             state.model.context(state, p).await
         } else {
@@ -139,7 +139,7 @@ pub(super) async fn render(
             bible_default => crate::personas::bible_default(&p.handle),
         });
     }
-    // Modellliste der Verbindung des gezeigten Tabs (Eliezer über den Port, andere direkt).
+    // Model list of the connection of the shown tab (Eliezer through the port, others directly).
     let shown_connection = rows
         .get(selected)
         .and_then(|p| backends.iter().find(|(h, _)| *h == p.handle).map(|(_, b)| b.connection))
@@ -175,7 +175,7 @@ pub(super) async fn render(
             let field = |typed: Option<&String>, stored: String| typed.cloned().unwrap_or(stored);
             context! {
                 handle => p.handle.as_str(), anchor => p.handle.trim_start_matches('@'),
-                // Gespeicherter Name für Tab und Überschrift; `name_value` für das Feld (ggf. die Eingabe).
+                // Stored name for tab and heading; `name_value` for the field (the input, if any).
                 name => p.name.as_str(), name_value => field(mine.map(|r| &r.name), p.name.clone()),
                 role => field(mine.map(|r| &r.role), p.role.clone()),
                 model => field(mine.map(|r| &r.model), p.model.clone()),
@@ -187,14 +187,14 @@ pub(super) async fn render(
                 model_state => known.as_ref().map(|k| k.0), model_target => known.and_then(|k| k.1),
                 prompt => field(mine.map(|r| &r.prompt), prompt), prompt_custom => p.prompt.is_some(),
                 selected => index == selected, tab_q => crate::view::query_escape(p.handle.trim_start_matches('@')),
-                // Kurzbeschreibung für den Tab-Titel.
+                // Short description for the tab title.
                 summary => format!("{} · {}", p.role, p.model),
-                // Runde 12: Treffer der Bedeutungssuche (nur @belege und der Lektor).
+                // Round 12: hits of the meaning search (only @belege and the lector).
                 rag_allowed => crate::assist::rag_facts::allowed(&p.handle, lector_handle.as_deref()),
                 rag_context => rag_on[index],
-                // Runde 13: Websuche (nur @belege).
+                // Round 13: web search (only @belege).
                 web_allowed => crate::assist::web_facts::allowed(&p.handle, crate::assist::Mode::Ask),
-                // Runde 15b: Verbindung, lokal/extern, Freigabe, Kontext, Bibel-Belege.
+                // Round 15b: connection, local/external, release, context, Bible evidence.
                 backend => extra[index].clone(),
             }
         })
@@ -237,8 +237,8 @@ pub(super) async fn values(state: &AppState) -> Result<Json, RpcError> {
 }
 
 /// `settings.set {page: "assistenten", values: {handle, role?, model?, context_length?, active?, color?}}`
-/// über `persona.update` und `persona.set_color` → `{persona: PersonaRow, lector}`. Erst wird alles
-/// geprüft, dann geschrieben: Ein ungültiger Wert ändert nichts.
+/// through `persona.update` and `persona.set_color` → `{persona: PersonaRow, lector}`. First everything is
+/// checked, then written: an invalid value changes nothing.
 pub(super) async fn set(state: &AppState, values: Json) -> Result<Json, RpcError> {
     let update = crate::personas::update_params(&values)?;
     let handle = update.handle.clone();

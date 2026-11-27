@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abgleich Baruch ↔ MultiGPT (Runde 13, Aufgabe „abgleich“; Plan „RAG-Abgleich mit MultiGPT“).
+//! Reconciliation Baruch ↔ MultiGPT (Round 13, task "abgleich"; plan „RAG-Abgleich mit MultiGPT“).
 //!
-//! - **Nur der Mensch löst aus:** Knopf „Abgleichen“ auf der Seite `/abgleich` (Menü Werkzeuge) bzw. RPC
-//!   `sync.run`. Kein Start beim Hochfahren, keiner beim Speichern, kein MCP-Werkzeug. Ein Lauf zur Zeit je
-//!   Datenordner, im Hintergrund ([`wait_idle`] für Tests); das Ergebnis steht in `sync_run`.
-//! - **Baruch → MultiGPT** ([`upload`]): nur Werke mit dem Schalter „nach MultiGPT hochladen“ (Vorgabe aus,
-//!   Einschalten nur mit Bestätigung, `sync.set_upload`). Ein Dokument je Kapitel (aktuelle Fassungen von
-//!   Kapitel und Unterabschnitten, Titel „<Nummer> <Titel>“) in die beim Einschalten festgehaltene Sammlung
-//!   „Baruch: <Werktitel>“. Geänderter Hash → erst neu hochladen, dann das alte Dokument löschen; fehlendes
-//!   Kapitel → Dokument löschen; Unverändertes bleibt unberührt. Dokumente gelöschter Werke räumt der
-//!   nächste Lauf auf.
-//! - **MultiGPT → Baruch** ([`download`]): gewählte Sammlungen über `list_documents` und `read_document` in
-//!   `sync_document` (lokale Kopie, offline lesbar über [`local_document`] und im lokalen Index als Art
-//!   `remote` suchbar). Nur Geändertes: gemeldete Änderungszeit bzw. Hash (`remote_stamp`), sonst der Hash
-//!   des Texts. Grenzen [`Limits::DEFAULT`]: 500 Dokumente je Sammlung, 2 MiB je Dokument, 64 MiB je Lauf,
-//!   30 s je Aufruf.
-//! - **Fehler sind Hinweise:** offline, ohne Schreibrecht (`docs.write`), Grenzen – der Lauf endet mit
-//!   `ok = 0` und einem verständlichen Satz; lokal bleibt alles unverändert, die Arbeit geht weiter.
-//! - Inhalte von MultiGPT sind Daten, keine Anweisungen; jede Meldung läuft durch `scrub` (ohne Token).
+//! - **Only the human triggers it:** button „Abgleichen“ on the page `/abgleich` (menu Werkzeuge) or RPC
+//!   `sync.run`. No start on boot, none on saving, no MCP tool. One run at a time per
+//!   data folder, in the background ([`wait_idle`] for tests); the result is in `sync_run`.
+//! - **Baruch → MultiGPT** ([`upload`]): only works with the switch „nach MultiGPT hochladen“ (default off,
+//!   switching on only with confirmation, `sync.set_upload`). One document per chapter (current revisions of
+//!   chapter and subsections, title „<Nummer> <Titel>“) into the collection „Baruch: <Werktitel>“ recorded
+//!   when switching on. Changed hash → first upload anew, then delete the old document; missing
+//!   chapter → delete the document; unchanged ones stay untouched. Documents of deleted works are cleaned up by
+//!   the next run.
+//! - **MultiGPT → Baruch** ([`download`]): chosen collections through `list_documents` and `read_document` into
+//!   `sync_document` (local copy, readable offline through [`local_document`] and searchable in the local index
+//!   as the kind `remote`). Only what changed: reported modification time or hash (`remote_stamp`), otherwise the
+//!   hash of the text. Limits [`Limits::DEFAULT`]: 500 documents per collection, 2 MiB per document, 64 MiB per
+//!   run, 30 s per call.
+//! - **Errors are notes:** offline, without the write right (`docs.write`), limits – the run ends with
+//!   `ok = 0` and an understandable sentence; locally everything stays unchanged, the work goes on.
+//! - Contents of MultiGPT are data, not instructions; every message runs through `scrub` (without token).
 //!
-//! Die Sitzung zu MultiGPT ist die gemeinsame [`multigpt::Session`] (Vorrat, Vertrag §2.2).
+//! The session to MultiGPT is the shared [`multigpt::Session`] (pool, contract §2.2).
 
 mod args;
 mod download;
@@ -45,21 +45,21 @@ use multigpt::Session;
 
 const METHODS: &[&str] = &["sync.status", "sync.run", "sync.set_upload", "sync.set_collections", "sync.collections"];
 
-/// Grenzen eines Laufs.
+/// Limits of a run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
-    /// Höchstens so viele Dokumente je Sammlung.
+    /// At most this many documents per collection.
     pub documents: usize,
-    /// Höchstens so viele Bytes (UTF-8) je Dokument.
+    /// At most this many bytes (UTF-8) per document.
     pub document_bytes: usize,
-    /// Höchstens so viele Bytes aller geholten Texte je Lauf.
+    /// At most this many bytes of all fetched texts per run.
     pub run_bytes: usize,
-    /// Zeitlimit je Aufruf.
+    /// Time limit per call.
     pub call_timeout: Duration,
 }
 
 impl Limits {
-    /// Vorgabe (Vertrag Runde 13, §4): 500 Dokumente, 2 MiB je Dokument, 64 MiB je Lauf, 30 s je Aufruf.
+    /// Default (contract Round 13, §4): 500 documents, 2 MiB per document, 64 MiB per run, 30 s per call.
     pub const DEFAULT: Limits = Limits {
         documents: 500,
         document_bytes: 2 * 1024 * 1024,
@@ -67,8 +67,8 @@ impl Limits {
         call_timeout: Duration::from_secs(30),
     };
 
-    /// Grenzen der MCP-Verbindung: Zeitlimit je Aufruf; Antwort höchstens das Vierfache eines Dokuments
-    /// (JSON-Hülle und Maskierung), mindestens 1 MiB. Ein größerer Text scheitert also schon beim Lesen.
+    /// Limits of the MCP connection: time limit per call; answer at most four times a document
+    /// (JSON envelope and escaping), at least 1 MiB. So a larger text already fails on reading.
     fn transport(self) -> multigpt::Limits {
         multigpt::Limits {
             timeout: self.call_timeout,
@@ -77,15 +77,15 @@ impl Limits {
     }
 }
 
-/// Laufzustand je Datenordner (prozessweit).
+/// Run state per data folder (process-wide).
 #[derive(Default)]
 struct Shared {
     running: bool,
     limits: Option<Limits>,
-    /// Zuletzt über `sync.collections` von MultiGPT geholte Sammlungen (`{name, count}`), zur Auswahl auf
-    /// der Seite – die Seite selbst fragt MultiGPT nie.
+    /// Collections last fetched from MultiGPT through `sync.collections` (`{name, count}`), for selection on
+    /// the page – the page itself never asks MultiGPT.
     offered: Vec<Value>,
-    /// Grund, warum das letzte Laden der Sammlungen scheiterte (für die Seite).
+    /// Reason why the last loading of the collections failed (for the page).
     load_error: Option<String>,
 }
 
@@ -96,7 +96,7 @@ fn with_shared<T>(data: &Path, f: impl FnOnce(&mut Shared) -> T) -> T {
     f(all.entry(data.to_owned()).or_default())
 }
 
-/// Für Tests: andere Grenzen für diesen Datenordner (sonst [`Limits::DEFAULT`]).
+/// For tests: other limits for this data folder (otherwise [`Limits::DEFAULT`]).
 pub fn set_limits(state: &AppState, limits: Limits) {
     with_shared(&state.data, |s| s.limits = Some(limits));
 }
@@ -105,21 +105,21 @@ fn limits_of(data: &Path) -> Limits {
     with_shared(data, |s| s.limits).unwrap_or(Limits::DEFAULT)
 }
 
-/// Läuft gerade ein Abgleich für diesen Datenordner?
+/// Is a reconciliation running for this data folder right now?
 pub fn running(state: &AppState) -> bool {
     with_shared(&state.data, |s| s.running)
 }
 
-/// Für Tests: wartet, bis kein Abgleich mehr läuft.
+/// For tests: waits until no reconciliation is running any more.
 pub async fn wait_idle(state: &AppState) {
     while running(state) {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
 
-/// Adresse und Token der Verbindung MultiGPT nach den Regeln von `open_way`: ohne Adresse
-/// `NotConfigured`; das Token nur, wenn es für die jetzige Adresse hinterlegt ist, sonst `NotConfigured`
-/// mit Hinweis (es geht dann nirgendwohin). Liest nur Einstellungen und Schlüsselbund, kein Netz.
+/// Address and token of the connection MultiGPT according to the rules of `open_way`: without an address
+/// `NotConfigured`; the token only if it is stored for the present address, otherwise `NotConfigured`
+/// with a note (it then goes nowhere). Reads only settings and keyring, no network.
 pub(crate) async fn credentials(
     store: &Store,
     secrets: &Arc<dyn crate::connections::SecretStore>,
@@ -147,7 +147,7 @@ pub(crate) async fn credentials(
     Ok((url, secret))
 }
 
-/// Ist eine Adresse für MultiGPT eingetragen (ohne Netz)?
+/// Is an address for MultiGPT entered (without network)?
 pub(crate) async fn configured(state: &AppState) -> bool {
     state
         .store
@@ -156,18 +156,18 @@ pub(crate) async fn configured(state: &AppState) -> bool {
         .is_ok_and(|row| row.config.get("url").and_then(Value::as_str).is_some_and(|u| !u.trim().is_empty()))
 }
 
-/// Zeitpunkt für die Anzeige: `2026-11-07T17:53:42.451Z` (UTC) → `07.11.2026 18:53` in Ortszeit (andere Formen
-/// unverändert).
+/// Instant for the display: `2026-11-07T17:53:42.451Z` (UTC) → `07.11.2026 18:53` in local time (other forms
+/// unchanged).
 pub fn display_time(stamp: &str) -> String {
     crate::localtime::german_minutes(stamp)
 }
 
-/// Sammlung eines Werks: „Baruch: <Werktitel>“ in einer Zeile, höchstens 200 Zeichen.
+/// Collection of a work: „Baruch: <Werktitel>“ in one line, at most 200 characters.
 pub fn collection_for(title: &str) -> String {
     clean_line(&format!("Baruch: {}", title.trim()), 200)
 }
 
-/// Verbindung eines Laufs: erst beim ersten Bedarf geöffnet; scheitert das, bleibt der Grund.
+/// Connection of a run: opened only on first need; if that fails, the reason stays.
 pub(crate) struct Link {
     credentials: Option<Result<(String, Option<String>), RagError>>,
     store: Store,
@@ -182,7 +182,7 @@ impl Link {
         Link { credentials: None, store, secrets, limits, session: None, failed: None }
     }
 
-    /// Die Sitzung (beim ersten Bedarf verbunden); `Err` mit dem Grund, auch bei jedem weiteren Versuch.
+    /// The session (connected on first need); `Err` with the reason, also on every further attempt.
     pub(crate) async fn session(&mut self) -> Result<&mut Session, RagError> {
         if let Some(e) = &self.failed {
             return Err(e.clone());
@@ -206,13 +206,13 @@ impl Link {
         Ok(self.session.as_mut().expect("eben verbunden"))
     }
 
-    /// Steht die Sitzung und kam die letzte Antwort vollständig an (auch ein `isError`)? `false` nach einem
-    /// Transport- oder Protokollfehler bzw. ohne Verbindung.
+    /// Does the session stand and did the last answer arrive completely (also an `isError`)? `false` after a
+    /// transport or protocol error or without a connection.
     pub(crate) fn answered(&self) -> bool {
         self.failed.is_none() && self.session.as_ref().is_some_and(|s| !s.broken())
     }
 
-    /// Text ohne Token (auch vor dem Verbinden).
+    /// Text without the token (also before connecting).
     pub(crate) fn scrub(&self, text: &str) -> String {
         match (&self.session, &self.credentials) {
             (Some(session), _) => session.scrub(text),
@@ -221,7 +221,8 @@ impl Link {
         }
     }
 
-    /// Sitzung zurückgeben; nach Fehlern beenden statt in den Vorrat (eine gestörte Sitzung nicht weitergeben).
+    /// Give the session back; after errors end it instead of putting it into the pool (do not pass on a disturbed
+    /// session).
     async fn finish(self, clean: bool) {
         match self.session {
             Some(session) if clean => session.release().await,
@@ -231,7 +232,7 @@ impl Link {
     }
 }
 
-/// Ergebnis eines Laufs, während er läuft.
+/// Result of a run while it is running.
 pub(crate) struct Report {
     pub counts: SyncCounts,
     pub notes: Vec<String>,
@@ -239,13 +240,13 @@ pub(crate) struct Report {
 }
 
 impl Report {
-    /// Hinweis (ohne Token) und `ok = 0`.
+    /// Note (without token) and `ok = 0`.
     pub(crate) fn problem(&mut self, link: &Link, note: impl AsRef<str>) {
         self.ok = false;
         self.note(link, note);
     }
 
-    /// Hinweis (ohne Token), `ok` bleibt.
+    /// Note (without token), `ok` stays.
     pub(crate) fn note(&mut self, link: &Link, note: impl AsRef<str>) {
         let line = clean_line(&link.scrub(note.as_ref()), 500);
         if !self.notes.contains(&line) {
@@ -254,7 +255,7 @@ impl Report {
     }
 }
 
-/// Satz zu einem Fehler der Gegenstelle.
+/// Sentence about an error of the remote side.
 pub(crate) fn why(e: &RagError) -> String {
     match e {
         RagError::Denied(m) => format!(
@@ -269,7 +270,7 @@ pub(crate) fn why(e: &RagError) -> String {
     }
 }
 
-/// Ein ganzer Lauf (im Hintergrund).
+/// A whole run (in the background).
 async fn work(store: Store, secrets: Arc<dyn crate::connections::SecretStore>, data: PathBuf) -> Report {
     let limits = limits_of(&data);
     let mut link = Link::new(store.clone(), secrets, limits);
@@ -283,7 +284,7 @@ async fn work(store: Store, secrets: Arc<dyn crate::connections::SecretStore>, d
     report
 }
 
-/// Kurzer Satz zum Ergebnis (über den Hinweisen).
+/// Short sentence about the result (above the notes).
 fn summary(report: &Report) -> String {
     let c = &report.counts;
     let total = c.uploaded + c.replaced + c.removed + c.downloaded + c.unchanged + c.failed;
@@ -293,7 +294,7 @@ fn summary(report: &Report) -> String {
     if report.ok { "Abgleich fertig.".into() } else { "Abgleich mit Hinweisen beendet.".into() }
 }
 
-/// Löscht die Markierung „läuft“ auch, wenn der Lauf abbricht.
+/// Clears the mark "running" also if the run aborts.
 struct RunningGuard(PathBuf);
 
 impl Drop for RunningGuard {
@@ -302,7 +303,7 @@ impl Drop for RunningGuard {
     }
 }
 
-/// `sync.run`: einen Lauf im Hintergrund starten; läuft schon einer, `started: false`.
+/// `sync.run`: start a run in the background; if one is already running, `started: false`.
 pub async fn start(state: &AppState) -> Result<Value, RpcError> {
     let claimed = with_shared(&state.data, |s| {
         if s.running {
@@ -323,7 +324,7 @@ pub async fn start(state: &AppState) -> Result<Value, RpcError> {
     let (store, secrets, data) = (state.store.clone(), state.secrets.clone(), state.data.clone());
     tokio::spawn(async move {
         let _guard = guard;
-        // Eigene Aufgabe: Ein Panic im Lauf wird zum Hinweis und lässt die Markierung nicht hängen.
+        // Own task: a panic in the run becomes a note and does not leave the mark hanging.
         let report = tokio::spawn(work(store.clone(), secrets, data)).await.unwrap_or_else(|e| Report {
             counts: SyncCounts::default(),
             notes: vec![format!("Abgleich abgebrochen: {e}")],
@@ -341,7 +342,7 @@ pub async fn start(state: &AppState) -> Result<Value, RpcError> {
     Ok(json!({ "started": true, "running": true, "run": id }))
 }
 
-/// Lokale Kopie eines geholten Dokuments (für den Integrator: Dokumentansicht offline).
+/// Local copy of a fetched document (for the integrator: document view offline).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct LocalDocument {
     pub title: String,
@@ -350,7 +351,7 @@ pub struct LocalDocument {
     pub fetched: String,
 }
 
-/// Lokale Kopie eines Dokuments einer gewählten Sammlung; `None`, wenn es keine gibt.
+/// Local copy of a document of a chosen collection; `None` if there is none.
 pub async fn local_document(
     state: &AppState,
     collection: &str,
@@ -406,8 +407,8 @@ pub async fn status(state: &AppState, work: Option<WorkId>) -> Result<Value, Rpc
     }))
 }
 
-/// `sync.set_upload {work, on, confirm?}`: Einschalten nur mit `confirm: true` (Bestätigung vor dem ersten
-/// Hochladen); hält die Sammlung „Baruch: <Werktitel>“ fest. Kein Netz.
+/// `sync.set_upload {work, on, confirm?}`: switching on only with `confirm: true` (confirmation before the first
+/// upload); records the collection „Baruch: <Werktitel>“. No network.
 pub async fn set_upload(state: &AppState, work: WorkId, on: bool, confirm: bool) -> Result<Value, RpcError> {
     if on && !confirm {
         return Err(RpcError::new(
@@ -421,7 +422,7 @@ pub async fn set_upload(state: &AppState, work: WorkId, on: bool, confirm: bool)
     Ok(json!({ "work": work, "upload": saved.upload, "collection": saved.collection }))
 }
 
-/// `sync.set_collections {collections}`. Kein Netz.
+/// `sync.set_collections {collections}`. No network.
 pub async fn set_collections(state: &AppState, collections: &[String]) -> Result<Value, RpcError> {
     let saved = state.store.sync_set_collections(collections).await.map_err(|e| match e {
         baruch_store::StoreError::Refused(m) => RpcError::new(INVALID_PARAMS, m),
@@ -430,8 +431,8 @@ pub async fn set_collections(state: &AppState, collections: &[String]) -> Result
     Ok(json!({ "collections": saved }))
 }
 
-/// `sync.collections`: Sammlungen von MultiGPT (`list_collections`, online, nur auf Knopfdruck), markiert
-/// mit den gewählten; die Seite zeigt danach diese Liste zur Auswahl.
+/// `sync.collections`: collections of MultiGPT (`list_collections`, online, only at the press of a button), marked
+/// with the chosen ones; the page afterwards shows this list for selection.
 pub async fn offered_collections(state: &AppState) -> Result<Value, RpcError> {
     let limits = limits_of(&state.data);
     let refused = |e: RagError| RpcError::new(REFUSED, why(&e));
@@ -451,7 +452,7 @@ pub async fn offered_collections(state: &AppState) -> Result<Value, RpcError> {
     Ok(json!({ "collections": decorate(state, found).await? }))
 }
 
-/// Sammlungen mit `selected` (gewählt) für Seite und RPC.
+/// Collections with `selected` (chosen) for page and RPC.
 async fn decorate(state: &AppState, found: Vec<Value>) -> Result<Vec<Value>, RpcError> {
     let chosen = state.store.sync_collections().await?;
     Ok(found
@@ -464,12 +465,12 @@ async fn decorate(state: &AppState, found: Vec<Value>) -> Result<Vec<Value>, Rpc
         .collect())
 }
 
-/// Zuletzt geholte Sammlungen (ohne Netz).
+/// Collections fetched last (without network).
 pub(crate) fn offered(state: &AppState) -> Vec<Value> {
     with_shared(&state.data, |s| s.offered.clone())
 }
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -484,7 +485,7 @@ fn work_of(params: &Value) -> Result<Option<WorkId>, RpcError> {
     .ok_or_else(|| RpcError::new(INVALID_PARAMS, "work: Werk-id (Zahl) erwartet."))
 }
 
-/// RPC `sync.*` (aus `rpc::call`, vor der Wahl des Werks).
+/// RPC `sync.*` (from `rpc::call`, before the work is chosen).
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {

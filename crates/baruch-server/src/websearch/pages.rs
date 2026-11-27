@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Seiten der Websuche, ohne JavaScript bedienbar:
+//! Pages of the web search, usable without JavaScript:
 //!
-//! - `GET /websuche/belege?work&key&post[&ok|fehler]` – die Belege eines Beitrags (Titel, Adresse als Link,
-//!   abgerufen am, Zitat, Urteil, „bevorzugte Quelle“) mit dem Knopf „In die Bibliothek“ bei `belegt`.
-//! - `POST /websuche/act` (hinter `guard::same_origin`): `action=switch` (`on=1`, fehlt = aus) → 303 auf
-//!   Einstellungen → Assistenten (Tab `@belege`); `action=adopt` (`evidence`) → 303 zurück auf die Belegseite
-//!   mit `ok=uebernommen` bzw. `fehler=<code>` (Meldungen nur aus festen Codes, nie aus der Eingabe).
+//! - `GET /websuche/belege?work&key&post[&ok|fehler]` – the evidence of a post (title, address as a link,
+//!   retrieved on, quotation, verdict, „bevorzugte Quelle“) with the button „In die Bibliothek“ for `belegt`.
+//! - `POST /websuche/act` (behind `guard::same_origin`): `action=switch` (`on=1`, missing = off) → 303 to
+//!   Einstellungen → Assistenten (tab `@belege`); `action=adopt` (`evidence`) → 303 back to the evidence page
+//!   with `ok=uebernommen` or `fehler=<code>` (messages only from fixed codes, never from the input).
 
 use std::sync::{Arc, OnceLock};
 
@@ -208,7 +208,7 @@ pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/websuche/belege", get(evidence_page))
 }
 
-/// `POST /websuche/act` (im Router der schreibenden Routen, also hinter `guard::same_origin`).
+/// `POST /websuche/act` (in the router of the writing routes, that is behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/websuche/act", post(act))
 }
