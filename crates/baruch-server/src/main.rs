@@ -88,7 +88,7 @@ baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]
 baruch-server passwort NAME [--data ORDNER]
 baruch-server typst compile EINGABE.typ [AUSGABE] [--root ORDNER] [--font-path ORDNER]… [--format pdf|png|svg]
 baruch-server typst fonts | --version | --help
-  serve   Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
+  serve    Server starten (Vorgabe); beenden mit Strg+C oder über die Seite /beenden (Baruch ▾ → Baruch beenden…,
             nur vom eigenen Rechner)
   import    Typst-Datei als neues Werk anlegen (Präambel = Werkvorlage, =/==/=== = Gliederung)
             Markdown (.md, .markdown) wird nach Typst umgewandelt; ein ZIP bringt eine Haupt-Datei
