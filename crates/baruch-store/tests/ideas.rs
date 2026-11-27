@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einfälle im Store (Vertrag Runde 7, Abschnitt 6b) auf einer echten SQLite-Datei im Temp-Ordner:
-//! Anlegen mit Grenzen, Lesen, Liste mit Filtern, Schlagwort-Wolke, Volltextsuche, Ändern, Löschen
-//! und Wiederherstellen, Verarbeiten, `einfaelle.md` im Spiegel, Werk löschen. Testtexte frei erfunden.
+//! Ideas in the store (contract Round 7, section 6b) on a real SQLite file in the temp folder: creating with
+//! limits, reading, list with filters, keyword cloud, full-text search, changing, deleting and restoring,
+//! processing, `einfaelle.md` in the mirror, deleting a work. Test texts freely invented.
 
 use baruch_store::{
     IdeaEdit, IdeaFilter, IdeaOrigin, IdeaScope, IdeaStatus, IdeaUse, MAX_IDEA_WORDS, MAX_WORD_CHARS, NewIdea, Store,
@@ -28,7 +28,7 @@ fn idea<'a>(work: Option<WorkId>, key: Option<i64>, words: &'a [String], note: &
     NewIdea { work, key, words, note, quote: "", source: "", bible: "", origin: human() }
 }
 
-/// Fester Schlüssel des Abschnitts an Stelle `seq`.
+/// Fixed key of the section at position `seq`.
 async fn key(store: &Store, work: WorkId, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

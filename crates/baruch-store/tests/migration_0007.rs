@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0007 (Vertrag Runde 5, Abschnitt 2) auf einer nachgebauten Datenbank im Stand von
-//! `development` vor Runde 5: Store-Migrationen 0001–0006 und Bibliotheks-Migrationen 0101–0105,
-//! Werk 1 = gesätes Beispielwerk (alte Saat mit „= Teil …“), Werk 2 = importiertes, frei erfundenes
-//! Buch mit 87 Gliederungspunkten, dazu Personas, Beiträge mit Verweisen, Vorschläge, Titel, Zitate
-//! und Hervorhebungen der Bibliothek.
+//! Migration 0007 (contract Round 5, section 2) on a rebuilt database in the state of `development` before Round 5:
+//! store migrations 0001–0006 and library migrations 0101–0105, work 1 = seeded sample work (old seed with „= Teil
+//! …“), work 2 = imported, freely invented book with 87 outline points, plus personas, posts with references,
+//! proposals, titles, quotes and highlights of the library.
 //!
-//! Verglichen wird nach einem Migrator bis 0007 (Runde 6); danach öffnet `Store::open` die Datenbank
-//! mit allen weiteren Migrationen für die übrigen Prüfungen.
+//! The comparison happens after a migrator up to 0007 (Round 6); afterwards `Store::open` opens the database with
+//! all further migrations for the remaining checks.
 //!
-//! Die Bibliotheks-Migrationen liest der Test zur Laufzeit aus `crates/baruch-library/migrations`
-//! (baruch-store hängt nicht von baruch-library ab); den Volltextindex prüft er über SQL.
+//! The test reads the library migrations at run time from `crates/baruch-library/migrations` (baruch-store does not
+//! depend on baruch-library); it checks the full-text index through SQL.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -22,13 +21,13 @@ use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-/// Titel des erfundenen Buchs (Werk 2).
+/// Title of the invented book (work 2).
 const BOOK_TITLE: &str = "Das Uhrmacherbuch";
 
-/// Neue Objekte aus 0007, die es vorher nicht gab.
+/// New objects from 0007 that did not exist before.
 const NEW_TABLES: &[&str] = &["store_meta", "work_retired", "sqlite_sequence"];
 
-// ---- Datenbank im Stand von development ------------------------------------------------------
+// ---- Database in the state of development ----------------------------------------------------
 
 async fn raw_pool(dir: &Path) -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite:")
@@ -39,7 +38,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen vor 0007 und die Bibliotheks-Migrationen 0101–0105 (aus dem Ordner gelesen).
+/// Store migrations before 0007 and the library migrations 0101–0105 (read from the folder).
 async fn migrate_like_development(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version < 7).cloned().collect();
     assert!(
@@ -57,8 +56,8 @@ async fn migrate_like_development(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Das Beispielwerk so, wie die Saat vor Runde 5 es anlegte: Teile mit „= Teil …“ als Text,
-/// Titelschlüssel, Vorlage als Fassung 1, Beiträge mit Verweisen, Personas.
+/// The sample work the way the seed created it before Round 5: parts with „= Teil …“ as text, title key, template
+/// as revision 1, posts with references, personas.
 async fn insert_old_sample(pool: &SqlitePool) -> WorkId {
     let work = sample::work();
     let work_id: WorkId = sqlx::query_scalar(
@@ -104,7 +103,7 @@ async fn insert_old_sample(pool: &SqlitePool) -> WorkId {
         *position += 1;
         let mut shown: Option<u32> = None;
         for r in &node.revisions {
-            // Die alte Saat schrieb auch Teilen eine Überschriftszeile.
+            // The old seed also wrote a heading line for parts.
             let body =
                 if node.kind == baruch_core::NodeKind::Part { format!("= {}\n", node.title) } else { r.body.clone() };
             let (author_kind, name, model) = match &r.author {
@@ -182,8 +181,8 @@ async fn insert_old_sample(pool: &SqlitePool) -> WorkId {
     work_id
 }
 
-/// Frei erfundenes Buch mit 87 Gliederungspunkten: sechs Kapitel mit je elf Abschnitten und zwei
-/// Unterabschnitten, ein siebtes mit zwei Abschnitten. Mit Maskierung, Label und Kommentar.
+/// Freely invented book with 87 outline points: six chapters with eleven sections and two subsections each, a
+/// seventh with two sections. With escaping, label and comment.
 fn invented_book() -> String {
     let mut out = String::from(
         "#set document(title: \"Das Uhrmacherbuch\", author: \"Ida Feder\")\n#set heading(numbering: \"I.1\")\n\
@@ -209,8 +208,8 @@ fn invented_book() -> String {
     out
 }
 
-/// Import wie in development: Präambel → Werkvorlage (Fassung 1), Überschriften → Knoten mit
-/// Revision 1 vom Menschen, Nummern „1“, „1.1“ (Anzeige nach der Vorlage kommt beim Laden).
+/// Import as in development: preamble → work template (revision 1), headings → nodes with revision 1 by the human,
+/// numbers „1“, „1.1“ (display after the template comes when loading).
 async fn insert_old_import(pool: &SqlitePool, source: &str) -> (WorkId, usize) {
     let doc = baruch_typst::parse(source).unwrap();
     let title = doc.title.clone().unwrap();
@@ -277,7 +276,7 @@ async fn insert_old_import(pool: &SqlitePool, source: &str) -> (WorkId, usize) {
     (work, doc.headings.len())
 }
 
-/// Vorschlag, Beitrag mit Verweis, Bibliothekstitel, Zitat und Hervorhebung in Werk 2.
+/// Proposal, post with reference, library title, quote and highlight in work 2.
 async fn insert_extras(pool: &SqlitePool, work: WorkId) {
     let node: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 2")
         .bind(work)
@@ -356,16 +355,16 @@ async fn development_database() -> Development {
     Development { dir, sample, book, nodes, source }
 }
 
-/// Store-Migrationen bis einschließlich 0007 (Stand nach Runde 5).
+/// Store migrations up to and including 0007 (state after Round 5).
 fn up_to_0007() -> Migrator {
     let migrations: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 7).cloned().collect();
     assert!(migrations.iter().any(|m| m.version == 7), "0007 gehört dazu");
     Migrator { migrations: Cow::Owned(migrations), ignore_missing: true, ..Migrator::DEFAULT }
 }
 
-// ---- Abzüge -----------------------------------------------------------------------------------
+// ---- Dumps ------------------------------------------------------------------------------------
 
-/// Schema aus `sqlite_master`: Name → SQL (ohne `sqlite_stat*`).
+/// Schema from `sqlite_master`: name → SQL (without `sqlite_stat*`).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows: Vec<(String, Option<String>)> =
         sqlx::query_as("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_stat%'")
@@ -375,8 +374,8 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Alle Zeilen aller Tabellen (auch Volltextindex und seine Schattentabellen) als `quote()`-Text,
-/// je Tabelle sortiert. Spaltennamen in ihrer Reihenfolge stehen als erste Zeile.
+/// All rows of all tables (also the full-text index and its shadow tables) as `quote()` text, sorted per table.
+/// Column names in their order stand as the first line.
 async fn contents(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .fetch_all(pool)
@@ -423,8 +422,8 @@ async fn migration_0007_keeps_every_row_and_column_and_makes_ids_autoincrement()
         schema_before["work"]
     );
 
-    // Erst nur bis 0007 (Runde 6): Spätere Migrationen dürfen Spalten und Tabellen hinzufügen, ohne
-    // dass dieser Vergleich bricht; sie haben eigene Tests (migration_0008.rs …).
+    // First only up to 0007 (Round 6): later migrations may add columns and tables without this comparison
+    // breaking; they have tests of their own (migration_0008.rs …).
     let pool = raw_pool(dev.dir.path()).await;
     up_to_0007().run(&pool).await.expect("Migrator bis 0007 läuft");
     let after = contents(&pool).await;
@@ -512,7 +511,7 @@ async fn migration_0007_keeps_every_row_and_column_and_makes_ids_autoincrement()
     let template_revisions = count(pool, "SELECT count(*) FROM work_template_revision").await;
     assert_eq!(template_revisions, 2, "Vorlagenfassungen beider Werke bleiben");
 
-    // Ein zweites Öffnen ändert nichts mehr, auch nicht an den neuen Tabellen.
+    // A second opening changes nothing more, not on the new tables either.
     let schema_once = schema(pool).await;
     let once = contents(pool).await;
     drop(store);
@@ -520,7 +519,7 @@ async fn migration_0007_keeps_every_row_and_column_and_makes_ids_autoincrement()
     assert_eq!(schema(store.pool()).await, schema_once, "zweites Öffnen: Schema gleich");
     assert_eq!(contents(store.pool()).await, once, "zweites Öffnen: alle Zeilen gleich, auch _sqlx_migrations");
 
-    // Werk 2 löschen und neu anlegen: neue id 3, der alte slug bleibt reserviert.
+    // Delete work 2 and create it anew: new id 3, the old slug stays reserved.
     let deleted = store.delete_work(dev.book, BOOK_TITLE).await.unwrap();
     assert_eq!(deleted.slug, "das-uhrmacherbuch", "das gelöschte Werk trug diesen slug");
     let retired: Vec<(i64, String, String)> =
@@ -555,8 +554,8 @@ async fn migration_0007_keeps_every_row_and_column_and_makes_ids_autoincrement()
 async fn a_foreign_key_violation_stops_migration_0007_and_nothing_is_applied() {
     let dev = development_database().await;
     let pool = raw_pool(dev.dir.path()).await;
-    // Verwaiste Vorlagenfassung eines Werks, das es nicht gibt (nur mit abgeschalteten Fremdschlüsseln
-    // möglich, z. B. aus einer von Hand reparierten Datenbank).
+    // Orphaned template revision of a work that does not exist (only possible with foreign keys switched off, e.g.
+    // from a database repaired by hand).
     sqlx::query("PRAGMA foreign_keys = OFF").execute(&pool).await.unwrap();
     sqlx::query("INSERT INTO work_template_revision (work_id, number, body, author_name) VALUES (99, 1, '', 'Autor')")
         .execute(&pool)
@@ -610,13 +609,13 @@ async fn an_empty_database_from_before_0007_is_seeded_but_one_with_only_personas
     );
 }
 
-/// Beleg für den gewählten Weg, nachgeführt in Runde 36: sqlx-sqlite 0.8.6 erkannte `-- no-transaction` (`no_tx`),
-/// führte die Migration aber trotzdem in einer Transaktion aus – ein eigenes `BEGIN IMMEDIATE` scheiterte, und
-/// `PRAGMA foreign_keys=OFF` war dort wirkungslos. 0007 läuft deshalb mit `PRAGMA defer_foreign_keys=ON` in der
-/// Transaktion von sqlx. **sqlx-sqlite 0.9 beachtet die Markierung** (`sqlx-sqlite-0.9.1/src/migrate.rs`, `apply`):
-/// Eine so markierte Migration läuft ohne Transaktion. Für Baruch ändert das nichts, weil keine Store-Migration die
-/// Markierung trägt – jede läuft weiter in der Transaktion von sqlx, und 0040 braucht weiter
-/// `baruch_store::migrate` mit `FOREIGN_KEYS_OFF`.
+/// Evidence for the chosen way, updated in Round 36: sqlx-sqlite 0.8.6 recognised `-- no-transaction` (`no_tx`),
+/// but ran the migration in a transaction nevertheless – an own `BEGIN IMMEDIATE` failed, and `PRAGMA
+/// foreign_keys=OFF` had no effect there. 0007 therefore runs with `PRAGMA defer_foreign_keys=ON` in the
+/// transaction of sqlx. **sqlx-sqlite 0.9 respects the marker** (`sqlx-sqlite-0.9.1/src/migrate.rs`, `apply`): a
+/// migration marked this way runs without a transaction. For Baruch that changes nothing, because no store
+/// migration carries the marker – each still runs in the transaction of sqlx, and 0040 still needs
+/// `baruch_store::migrate` with `FOREIGN_KEYS_OFF`.
 #[tokio::test]
 async fn sqlx_09_honours_no_transaction_but_no_store_migration_carries_the_mark() {
     let dir = tempfile::tempdir().unwrap();

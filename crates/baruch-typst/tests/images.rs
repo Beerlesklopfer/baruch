@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bildpfade in Typst-Text (`baruch_typst::images::image_paths`, Vertrag Runde 6, Abschnitt 4b), mit
-//! frei erfundenen Texten.
+//! Image paths in Typst text (`baruch_typst::images::image_paths`, contract Round 6, section 4b), with freely
+//! invented texts.
 
 use baruch_typst::images::{ComputedImage, computed_images, image_paths};
 
-/// Erfundene Werkvorlage mit Kapitelbildern über eine literale Liste (Runde 11).
+/// Invented work template with chapter images through a literal list (Round 11).
 const CHAPTER_TEMPLATE: &str = "#let kapitelbilder = (\n  \"bilder/morgen.png\",\n  \"bilder/mittag.png\", // zweites\n  \"bilder/abend.png\",\n)\n\
      #show heading.where(level: 1): it => context {\n  pagebreak(weak: true)\n  \
      image(kapitelbilder.at(counter(heading).get().first() - 1), width: 100%)\n  it\n}\n";

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „export“: `Store::exchange_dump` bildet ein Werk vollständig auf das Austauschmodell ab.
+//! Round 26 „export“: `Store::exchange_dump` maps a work completely onto the exchange model.
 //!
-//! Das Werk entsteht über die echten Wege des Stores (Typst-Import, Vorschläge, Übernehmen, Verwerfen, Löschen,
-//! Einfälle, Beiträge, Faden, Bilder, Buchangaben, Sprechdauer, Bibelmodul, SWORD-Quellen); alle Texte sind frei
-//! erfunden. Daneben liegt das gesäte Beispielwerk, aus dem nichts in die Ausgabe gelangen darf.
+//! The work is created through the real ways of the store (Typst import, proposals, accepting, rejecting, deleting,
+//! ideas, posts, thread, images, book details, speaking time, Bible module, SWORD sources); all texts are freely
+//! invented. Next to it lies the seeded sample work, from which nothing may get into the output.
 
 use std::collections::{HashMap, HashSet};
 
@@ -26,7 +26,7 @@ const SVG_ONE: &str =
 const SVG_TWO: &str =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"><circle r=\"2\" cx=\"2\" cy=\"2\"/></svg>\n";
 
-/// Alle UUIDs der Ausgabe je Art (Art wie in `uuid_tombstone.kind`).
+/// All UUIDs of the output per kind (kind as in `uuid_tombstone.kind`).
 fn collect(work: &ExchangeWork) -> HashMap<&'static str, Vec<String>> {
     fn nodes(list: &[ExchangeNode], out: &mut HashMap<&'static str, Vec<String>>) {
         for node in list {
@@ -52,7 +52,7 @@ fn collect(work: &ExchangeWork) -> HashMap<&'static str, Vec<String>> {
     out
 }
 
-/// UUIDs einer Tabelle für ein Werk direkt aus SQLite (die Quelle).
+/// UUIDs of a table for a work directly from SQLite (the source).
 async fn table_uuids(store: &Store, kind: &str, work: i64) -> Vec<String> {
     let sql = match kind {
         "work" => "SELECT uuid FROM work WHERE id = ?",
@@ -107,8 +107,8 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     let imported = store.import_typst(SOURCE, "krug.typ", "Hanna Probe").await.unwrap();
     let work = imported.work;
 
-    // Gliederung: 0 Erster Teil, 1 Der Krug, 2 Zwischenstück (ohne Nummer), 3 Henkel, 4 Zweiter Teil, 5 Die Schale.
-    // „Der Krug“ bekommt vier Fassungen je Status und eine fünfte, die gelöscht wird (Grabstein).
+    // Outline: 0 Erster Teil, 1 Der Krug, 2 Zwischenstück (without a number), 3 Henkel, 4 Zweiter Teil, 5 Die
+    // Schale. „Der Krug“ gets four revisions, one per status, and a fifth that is deleted (tombstone).
     let jug = 1usize;
     let p2 = store
         .add_proposal(work, jug, "= Der Krug\nEin Krug aus Ton.\n", "@lektor", "probe/modell-x", "Ton")
@@ -123,7 +123,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     store.delete_revision(work, jug, p5, "Hanna Probe").await.unwrap();
     assert_eq!((p2, p3, p4), (2, 3, 4), "Nummern der Fassungen");
 
-    // Werkvorlage mit zwei Fassungen.
+    // Work template with two revisions.
     let edit = WorkEdit {
         title: None,
         subtitle: Some("Ein erfundenes Werk"),
@@ -136,8 +136,8 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     };
     store.update_work(work, &edit, "Hanna Probe").await.unwrap();
 
-    // Einfälle: einer mit Bezug, einer erledigt (als Gliederungspunkt „key N“), einer gelöscht; dazu einer im
-    // anderen Werk, der nicht erscheinen darf.
+    // Ideas: one with a reference, one done (as outline point „key N“), one deleted; plus one in the other work
+    // that must not appear.
     let (jug_key, jug_uuid) = node_uuid_at(&store, work, 1).await;
     let words = vec!["Krug".to_owned(), "Ton".to_owned()];
     let new_idea = |key: Option<i64>, note: &'static str, w: Option<i64>| NewIdea {
@@ -157,8 +157,8 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     store.idea_delete(deleted.id).await.unwrap();
     store.idea_create(&new_idea(None, "Fremder Einfall.", Some(other))).await.unwrap();
 
-    // Beiträge im Abschnitts-Chat von „Der Krug“ mit Quellen und Bezügen (auf „Die Schale“ Fassung 1 und auf
-    // „Der Krug“ Fassung 2).
+    // Posts in the section chat of „Der Krug“ with sources and references (to „Die Schale“ revision 1 and to „Der
+    // Krug“ revision 2).
     let post = |body: &str, refs: Vec<TextRef>| Post {
         id: 0,
         created: String::new(),
@@ -176,14 +176,14 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
         .await
         .unwrap();
 
-    // Faden mit zwei Beiträgen.
+    // Thread with two posts.
     let (thread, _) = store.thread_create(work, "@lektor", "Wie alt ist der Krug?").await.unwrap();
     store
         .thread_add_post(work, thread.id, "Hanna Probe", "Hundert Jahre, erfunden.", &["Notizbuch".into()])
         .await
         .unwrap();
 
-    // Zwei Bilder mit je zwei Fassungen und Pfaden; Umschlag und Autorenfoto.
+    // Two images with two revisions and paths each; cover and author photo.
     let asset = |file: &'static str, bytes: &'static [u8], path: &'static str| NewAsset {
         file_name: file,
         name: None,
@@ -213,7 +213,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
 
     let dump = store.exchange_dump(work).await.unwrap();
 
-    // ---- Jede Zeile genau einmal mit ihrer uuid, nichts aus dem anderen Werk ----
+    // ---- Every row exactly once with its uuid, nothing from the other work ------
     let seen = collect(&dump);
     for kind in [
         "work",
@@ -241,7 +241,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     assert_eq!(seen["asset_revision"].len(), 4, "zwei Bilder mit je zwei Fassungen");
     assert_eq!(seen["idea"].len(), 3, "drei Einfälle, auch der gelöschte, nicht der fremde");
 
-    // ---- Werk und Angaben ----
+    // ---- Work and details ----
     assert_eq!(dump.uuid, store.work_uuid(work).await.unwrap(), "Werk-UUID");
     assert_eq!(dump.kind, ExchangeWorkKind::Book, "Buch");
     assert_eq!(dump.subtitle, "Ein erfundenes Werk", "Untertitel");
@@ -256,7 +256,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     );
     assert_eq!(dump.timing, Some(ExchangeTiming { words_per_minute: 140, target_seconds: Some(900) }), "Sprechdauer");
 
-    // ---- Vorlage: aktueller Text und alle Fassungen nach Nummer ----
+    // ---- Template: current text and all revisions by number --------
     let meta = store.work_meta(work).await.unwrap();
     assert_eq!(dump.template.current, meta.template, "aktueller Vorlagentext = work.template");
     let numbers: Vec<u32> = dump.template.revisions.iter().map(|r| r.number).collect();
@@ -265,7 +265,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     assert!(numbers.len() >= 2, "mindestens zwei Vorlagenfassungen: {numbers:?}");
     assert_eq!(dump.template.revisions.last().unwrap().body, meta.template, "letzte Fassung = aktueller Text");
 
-    // ---- Gliederung als Baum in der Reihenfolge der Oberfläche ----
+    // ---- Outline as a tree in the order of the user interface -----
     let tree: Vec<(&str, ExchangeNodeKind, bool, Vec<&str>)> = dump
         .outline
         .iter()
@@ -286,7 +286,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     assert_eq!(between.children.len(), 1, "Henkel unter Zwischenstück");
     assert_eq!(between.children[0].kind, ExchangeNodeKind::Section, "Henkel ist ein Abschnitt");
 
-    // ---- Fassungen von „Der Krug“: Nummer, Status, Autor, basis über UUIDs ----
+    // ---- Revisions of „Der Krug“: number, status, author, base through UUIDs ----
     let jug_node = &dump.outline[0].children[0];
     assert_eq!(jug_node.uuid, jug_uuid, "Punkt-UUID");
     let r: Vec<(u32, ExchangeRevisionStatus)> = jug_node.revisions.iter().map(|r| (r.number, r.status)).collect();
@@ -317,7 +317,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
         dump.deleted
     );
 
-    // ---- Beiträge: Reihenfolge ab 1, Quellen, Bezüge über UUIDs ----
+    // ---- Posts: order from 1, sources, references through UUIDs ----
     let positions: Vec<u32> = jug_node.posts.iter().map(|p| p.position).collect();
     assert_eq!(positions, vec![1, 2], "Beiträge in Reihenfolge ab 1");
     assert_eq!(jug_node.posts[0].sources, vec!["Probequelle, S. 7".to_owned()], "Quellen");
@@ -333,7 +333,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     );
     assert_eq!(jug_node.posts[1].refs[0].revision, Some(uuid_of(2)), "Bezug auf „Der Krug“ Fassung 2");
 
-    // ---- Einfälle ----
+    // ---- Ideas -------
     let idea = |uuid: &str| dump.ideas.iter().find(|i| i.uuid == uuid).unwrap();
     let referenced = idea(&idea_uuid(&store, with_ref.id).await);
     assert_eq!(referenced.node.as_deref(), Some(jug_uuid.as_str()), "bezug über die Punkt-UUID");
@@ -345,13 +345,13 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     let removed = idea(&idea_uuid(&store, deleted.id).await);
     assert!(removed.deleted.is_some(), "gelöschter Einfall mit Zeitpunkt");
 
-    // ---- Faden ----
+    // ---- Thread ----
     assert_eq!(dump.threads.len(), 1, "ein Faden");
     let posts: Vec<(u32, &str)> = dump.threads[0].posts.iter().map(|p| (p.position, p.author.as_str())).collect();
     assert_eq!(posts, vec![(1, "@lektor"), (2, "Hanna Probe")], "Fadenbeiträge in Reihenfolge ab 1");
     assert_eq!(dump.threads[0].posts[1].sources, vec!["Notizbuch".to_owned()], "Quellen im Faden");
 
-    // ---- Bilder: Fassungen, Bytes, Pfade, basis, Umschlag und Autorenfoto ----
+    // ---- Images: revisions, bytes, paths, base, cover and author photo -------
     let names: Vec<&str> = dump.assets.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(names, vec!["krug.png", "henkel.svg"], "Bilder nach Anlage");
     let png = &dump.assets[0];
@@ -368,7 +368,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     assert_eq!(book.author_photo.as_deref(), Some(svg.uuid.as_str()), "Autorenfoto = UUID des Bilds");
     assert_eq!((book.publisher.as_str(), book.dedication.as_str()), ("Probeverlag", "Für die Töpfer."), "Buchangaben");
 
-    // ---- Die Ausgabe lässt sich schreiben (Inline und ZIP) ----
+    // ---- The output can be written (inline and ZIP) -----------
     let document = ExchangeDocument {
         version: FORMAT_VERSION,
         exported: "2026-11-08T12:00:00.000Z".into(),
@@ -380,7 +380,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
     baruch_exchange::write::write_xml(&document, baruch_exchange::write::ImageMode::Inline).unwrap();
     baruch_exchange::write::write_baruch(&document).unwrap();
 
-    // ---- Lesend: Der Dump ändert nichts und ist wiederholbar ----
+    // ---- Read-only: the dump changes nothing and is repeatable ----
     assert_eq!(store.exchange_dump(work).await.unwrap(), dump, "zweimal derselbe Stand");
     let uniq: HashSet<&String> = seen.values().flatten().collect();
     assert_eq!(uniq.len(), seen.values().map(Vec::len).sum::<usize>(), "keine UUID über Arten hinweg doppelt");
@@ -390,7 +390,7 @@ async fn dump_covers_every_row_once_with_uuids_and_nothing_else() {
 async fn unknown_work_is_refused_honestly() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
-    // Unbekanntes Werk → UnknownWork (RPC macht daraus einen Parameterfehler), kein leerer Dump.
+    // Unknown work → UnknownWork (RPC turns it into a parameter error), no empty dump.
     assert!(matches!(store.exchange_dump(9999).await, Err(StoreError::UnknownWork(9999))), "UnknownWork");
 }
 
@@ -400,8 +400,8 @@ async fn plain_work_dumps_without_optional_parts() {
     let store = Store::open(dir.path()).await.unwrap();
     let imported = store.import_typst("= Nur ein Kapitel\nText.\n", "kurz.typ", "Hanna Probe").await.unwrap();
     let dump = store.exchange_dump(imported.work).await.unwrap();
-    // Ohne Zeilen in work_book, work_timing, work_bible, work_sword_source bleiben die Teile leer – so weiß das
-    // Einlesen, dass hier „nichts“ steht (F6 g: fehlende Zeile wird angelegt).
+    // Without rows in work_book, work_timing, work_bible, work_sword_source the parts stay empty – this way reading
+    // knows that "nothing" stands here (F6 g: a missing row is created).
     assert_eq!(dump.book, None, "keine Buchangaben");
     assert_eq!(dump.timing, None, "keine Sprechdauer");
     assert_eq!(dump.bible_module, None, "kein Bibelmodul");
@@ -412,8 +412,8 @@ async fn plain_work_dumps_without_optional_parts() {
     assert_eq!(dump.sheet, None, "ohne work_sheet kein Satzbild (Runde 27)");
 }
 
-/// Runde 27 (Unterversion 3): Blöcke, Anschriften und Satzbild in der Ausgabe; Blöcke ohne Zeile in `work_book`
-/// bekommen die Vorgaben der Buchangaben, damit `<umschlag>` ein `<buch>` hat.
+/// Round 27 (sub-version 3): blocks, addresses and typeset view in the output; blocks without a row in `work_book`
+/// get the defaults of the book details, so that `<umschlag>` has a `<buch>`.
 #[tokio::test]
 async fn cover_blocks_addresses_and_sheet_are_dumped_with_their_uuids() {
     use baruch_typst::cover_layout::{Backdrop, CoverAlign, FontStyle, SpineDirection};
@@ -461,7 +461,7 @@ async fn cover_blocks_addresses_and_sheet_are_dumped_with_their_uuids() {
         (block.x_mm, block.align, block.font.as_deref()),
         (1.5, ExchangeCoverAlign::Right, Some("Libertinus Sans"))
     );
-    // Anschriften und Satzbild.
+    // Addresses and typeset view.
     let edit = BookEdit { publisher_address: Some("Verlag Probe\nWeg 1".into()), ..BookEdit::default() };
     store.set_book_meta(work, &edit).await.unwrap();
     let sheet = baruch_store::SheetSettings { width: Some("16cm".into()), ..Default::default() };
@@ -469,7 +469,7 @@ async fn cover_blocks_addresses_and_sheet_are_dumped_with_their_uuids() {
     let dump = store.exchange_dump(work).await.unwrap();
     assert_eq!(dump.book.unwrap().publisher_address, "Verlag Probe\nWeg 1", "Anschrift in der Ausgabe");
     assert_eq!(dump.sheet.and_then(|s| s.width).as_deref(), Some("16cm"), "Satzbild in der Ausgabe");
-    // Grabstein nach dem Zurücksetzen.
+    // Tombstone after resetting.
     store.reset_cover_blocks(work, &[], None).await.unwrap();
     let dump = store.exchange_dump(work).await.unwrap();
     assert!(

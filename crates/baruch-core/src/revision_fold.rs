@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ältere Fassungen ausblenden (Nutzer 2026-11-24, Release 0.9.0): je Abschnitt eine Marke „bis hierhin“.
+//! Hiding older revisions (user 2026-11-24, release 0.9.0): per section one mark "up to here".
 //!
-//! Die Marke ist die Nummer einer Fassung. Ausgeblendet werden **ersetzte und verworfene** Fassungen mit kleinerer
-//! Nummer. Nie ausgeblendet werden
-//! - die aktuelle Fassung (sie ist die Grundlage des Buchs),
-//! - offene Vorschläge (sie warten auf eine Entscheidung des Menschen, egal ob älter oder neuer als die Marke).
+//! The mark is the number of a revision. Hidden are **superseded and rejected** revisions with a smaller number.
+//! Never hidden are
+//! - the current revision (it is the basis of the book),
+//! - open proposals (they wait for a decision of the human, no matter whether older or newer than the mark).
 //!
-//! Liegt die Marke über der aktuellen Fassung (etwa weil später auf eine ältere Fassung umgeschaltet wurde), gilt sie
-//! nur bis unter die aktuelle ([`cutoff`]); neu setzen lässt sie sich dort nicht ([`offered`], im Store abgelehnt).
-//! Nichts wird gelöscht: die Marke ist eine Ansichtsmarke.
+//! If the mark lies above the current revision (for example because a switch to an older revision happened later),
+//! it only applies up to below the current one ([`cutoff`]); it cannot be set anew there ([`offered`], refused in
+//! the store). Nothing is deleted: the mark is a view mark.
 
 use crate::{Node, Revision, RevisionStatus};
 
-/// Wirksame Grenze: die Marke, höchstens aber die Nummer der aktuellen Fassung.
+/// Effective limit: the mark, but at most the number of the current revision.
 pub fn cutoff(node: &Node, mark: Option<u32>) -> Option<u32> {
     let mark = mark?;
     Some(match node.current_number() {
@@ -21,23 +21,23 @@ pub fn cutoff(node: &Node, mark: Option<u32>) -> Option<u32> {
     })
 }
 
-/// Lässt sich diese Fassung überhaupt ausblenden (ersetzt oder verworfen)?
+/// Can this revision be hidden at all (superseded or rejected)?
 pub fn hideable(revision: &Revision) -> bool {
     matches!(revision.status, RevisionStatus::Superseded | RevisionStatus::Rejected)
 }
 
-/// Ist die Fassung unter der Marke ausgeblendet?
+/// Is the revision hidden under the mark?
 pub fn is_hidden(node: &Node, mark: Option<u32>, revision: &Revision) -> bool {
     cutoff(node, mark).is_some_and(|limit| revision.number < limit && hideable(revision))
 }
 
-/// Zahl der ausgeblendeten Fassungen des Abschnitts.
+/// Number of hidden revisions of the section.
 pub fn hidden_count(node: &Node, mark: Option<u32>) -> usize {
     node.revisions.iter().filter(|r| is_hidden(node, mark, r)).count()
 }
 
-/// Wird „bis hierhin ausblenden“ an Fassung `number` angeboten? Nur, wenn sie nicht über der aktuellen liegt, die
-/// Marke nicht schon dort steht und darunter etwas auszublenden wäre.
+/// Is "hide up to here" offered at revision `number`? Only if it does not lie above the current one, the mark does
+/// not already stand there and there would be something to hide below it.
 pub fn offered(node: &Node, mark: Option<u32>, number: u32) -> bool {
     if node.current_number().is_some_and(|current| number > current) {
         return false;
@@ -81,10 +81,10 @@ mod tests {
 
     #[test]
     fn hides_only_superseded_and_rejected_below_the_mark() {
-        // 1 ersetzt, 2 verworfen, 3 offener Vorschlag, 4 ersetzt, 5 aktuell, 6 Vorschlag.
+        // 1 superseded, 2 rejected, 3 open proposal, 4 superseded, 5 current, 6 proposal.
         let n = node(&[Superseded, Rejected, Proposed, Superseded, Current, Proposed]);
         let hidden: Vec<u32> = n.revisions.iter().filter(|r| is_hidden(&n, Some(5), r)).map(|r| r.number).collect();
-        // Der offene Vorschlag 3 bleibt (wartet auf Entscheidung), 5 ist die Marke selbst, 6 liegt darüber.
+        // The open proposal 3 stays (waits for a decision), 5 is the mark itself, 6 lies above it.
         assert_eq!(hidden, vec![1, 2, 4]);
         assert_eq!(hidden_count(&n, Some(5)), 3);
         assert_eq!(hidden_count(&n, None), 0, "ohne Marke nichts ausgeblendet");
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn a_mark_above_the_current_revision_stops_below_it() {
-        // Aktuell ist 2; 3 und 4 sind ersetzt (später zurückgeschaltet). Marke 5 gilt nur bis unter 2.
+        // Current is 2; 3 and 4 are superseded (switched back later). Mark 5 only applies up to below 2.
         let n = node(&[Superseded, Current, Superseded, Superseded, Superseded]);
         assert_eq!(cutoff(&n, Some(5)), Some(2));
         let hidden: Vec<u32> = n.revisions.iter().filter(|r| is_hidden(&n, Some(5), r)).map(|r| r.number).collect();

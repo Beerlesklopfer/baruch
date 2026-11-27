@@ -1,37 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Git-Spiegel eines Werks.
+//! Git mirror of a work.
 //!
-//! Die Datenbank ist die Quelle. Dieser Crate spiegelt nach jeder Übernahme den vollständigen
-//! Typst-Stand eines Werks als Commit in einen Ordner mit eigenem Git-Repo. Er weiß nichts über
-//! Datenbank, Store oder Kern: Er bekommt einen Schnappschuss aus Dateien, Autor, Committer und
-//! Nachricht und macht daraus genau einen Commit, oder keinen, wenn sich nichts geändert hat.
-//! Mit [`CommitRequest::allow_empty`] entsteht auch bei unverändertem Baum ein Commit: So
-//! protokolliert der Server Änderungen und Löschungen von Fassungen, die nicht im Spiegel stehen.
+//! The database is the source. After every acceptance this crate mirrors the complete Typst state of a work as a
+//! commit into a folder with its own Git repo. It knows nothing about database, store or core: it receives a
+//! snapshot of files, author, committer and message and turns it into exactly one commit, or none if nothing has
+//! changed. With [`CommitRequest::allow_empty`] a commit is created even for an unchanged tree: this is how the
+//! server logs changes and deletions of revisions that are not in the mirror.
 //!
-//! # Warum gix
+//! # Why gix
 //!
-//! - **Reines Rust:** gix (gitoxide) braucht weder libgit2 noch eine C-Werkzeugkette, noch
-//!   OpenSSL. Das hält den Bau schlank und reproduzierbar; `git2` würde `libgit2-sys` (C) und
-//!   je nach Features `openssl-sys` mitbringen.
-//! - **Genau die nötigen Bausteine:** `Repository::write_blob`, `edit_tree` (Baum aus dem
-//!   Schnappschuss), `commit_as` (getrennte Autor- und Committer-Signatur, ohne Abhängigkeit
-//!   von einer Git-Konfiguration des Nutzers) und `index_from_tree` (Index passend zum Baum,
-//!   damit `git status` im Spiegel sauber ist).
-//! - **Schlanke Features:** nur `tree-editor` und `index`, ohne Standard-Features. Damit
-//!   fehlen Netzwerk-Clients (`blocking-network-client`, `async-network-client`, HTTP),
-//!   Zugangsdaten, Status/Dirwalk und Diff. `gix-transport` kommt zwar als feste Abhängigkeit
-//!   von `gix-protocol` mit, aber ohne jedes Client-Feature (`default = []`). Der Spiegel legt
-//!   keine Remotes an und pusht nie.
+//! - **Pure Rust:** gix (gitoxide) needs neither libgit2 nor a C toolchain, nor OpenSSL. That keeps the build lean
+//!   and reproducible; `git2` would bring `libgit2-sys` (C) and, depending on features, `openssl-sys`.
+//! - **Exactly the building blocks needed:** `Repository::write_blob`, `edit_tree` (tree from the snapshot),
+//!   `commit_as` (separate author and committer signature, without depending on a Git configuration of the user)
+//!   and `index_from_tree` (index matching the tree, so that `git status` in the mirror is clean).
+//! - **Lean features:** only `tree-editor` and `index`, without default features. So network clients
+//!   (`blocking-network-client`, `async-network-client`, HTTP), credentials, status/dirwalk and diff are missing.
+//!   `gix-transport` does come along as a fixed dependency of `gix-protocol`, but without any client feature
+//!   (`default = []`). The mirror creates no remotes and never pushes.
 //!
-//! Die API ist synchron; der Server ruft sie in `tokio::task::spawn_blocking` auf.
+//! The API is synchronous; the server calls it in `tokio::task::spawn_blocking`.
 //!
-//! # Seitenzweige (Runde 22)
+//! # Side refs (Round 22)
 //!
-//! [`Mirror::sync_side_refs`] hält Referenzen unter einem Präfix (der Server nimmt `refs/revisions/<key>/<n>`) auf
-//! Commits mit dem Schnappschuss, in dem eine Datei einen anderen Inhalt trägt (eine nicht aktuelle Fassung eines
-//! Abschnitts); Elternteil ist HEAD. Arbeitsordner, Index und HEAD bleiben unberührt, Pfade prüft dieselbe Regel wie
-//! beim Commit. Unveränderte Seitenzweige werden nicht neu geschrieben. [`Mirror::side_refs`], [`Mirror::read_file`]
-//! und [`Mirror::parents`] lesen nur.
+//! [`Mirror::sync_side_refs`] keeps references under a prefix (the server takes `refs/revisions/<key>/<n>`) on
+//! commits with the snapshot in which one file carries a different content (a revision of a section that is not the
+//! current one); the parent is HEAD. Working folder, index and HEAD stay untouched, paths are checked by the same
+//! rule as for the commit. Unchanged side refs are not written again. [`Mirror::side_refs`], [`Mirror::read_file`]
+//! and [`Mirror::parents`] only read.
 
 mod message;
 
@@ -44,42 +40,42 @@ use std::sync::Mutex;
 use gix::bstr::BStr;
 use gix::objs::tree::EntryKind;
 
-/// Eine Datei des Schnappschusses. `path` ist relativ und `/`-getrennt.
+/// A file of the snapshot. `path` is relative and `/`-separated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MirrorFile {
     pub path: String,
     pub contents: String,
 }
 
-/// Name und E-Mail für Autor oder Committer.
+/// Name and e-mail for author or committer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Signature {
     pub name: String,
     pub email: String,
 }
 
-/// Auftrag für einen Spiegel-Commit.
+/// Order for a mirror commit.
 #[derive(Debug, Clone)]
 pub struct CommitRequest {
-    /// Vollständiger Stand des Ordners (Schnappschuss).
+    /// Complete state of the folder (snapshot).
     pub files: Vec<MirrorFile>,
     pub author: Signature,
     pub committer: Signature,
-    /// Erste Zeile der Nachricht.
+    /// First line of the message.
     pub summary: String,
-    /// Rumpf, darf leer sein.
+    /// Body, may be empty.
     pub body: String,
-    /// Trailer, z. B. `("Persona", "@lektor")`, `("Model", "qwen3:4b")`.
+    /// Trailers, e.g. `("Persona", "@lektor")`, `("Model", "qwen3:4b")`.
     pub trailers: Vec<(String, String)>,
-    /// `true`: auch bei unverändertem Baum ein Commit (Protokoll, z. B. „Fassung 2 gelöscht“).
+    /// `true`: a commit even for an unchanged tree (log, e.g. „Fassung 2 gelöscht“).
     pub allow_empty: bool,
 }
 
-/// Ein Seitenzweig (Runde 22): Referenz `name` auf einen Commit mit dem Schnappschuss, in dem `path` den Inhalt
-/// `contents` trägt (z. B. eine nicht aktuelle Fassung eines Abschnitts), Elternteil HEAD.
+/// A side ref (Round 22): reference `name` to a commit with the snapshot in which `path` carries the content
+/// `contents` (e.g. a revision of a section that is not the current one), parent HEAD.
 #[derive(Debug, Clone)]
 pub struct SideRef {
-    /// Voller Referenzname, z. B. `refs/revisions/12/3`.
+    /// Full reference name, e.g. `refs/revisions/12/3`.
     pub name: String,
     pub path: String,
     pub contents: String,
@@ -90,7 +86,7 @@ pub struct SideRef {
     pub trailers: Vec<(String, String)>,
 }
 
-/// Ergebnis von [`Mirror::sync_side_refs`]: neu geschriebene, unveränderte und entfernte Referenzen.
+/// Result of [`Mirror::sync_side_refs`]: newly written, unchanged and removed references.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SideSync {
     pub written: usize,
@@ -118,11 +114,11 @@ fn io(path: &Path) -> impl FnOnce(std::io::Error) -> MirrorError + '_ {
 
 const BRANCH: &str = "refs/heads/main";
 
-/// Ein Spiegelordner mit eigenem Git-Repo.
+/// A mirror folder with its own Git repo.
 pub struct Mirror {
     dir: PathBuf,
     repo: gix::ThreadSafeRepository,
-    /// Serialisiert Commits desselben Spiegels (Arbeitsordner, Index und HEAD).
+    /// Serialises commits of the same mirror (working folder, index and HEAD).
     lock: Mutex<()>,
 }
 
@@ -133,8 +129,7 @@ impl std::fmt::Debug for Mirror {
 }
 
 impl Mirror {
-    /// Legt den Ordner an; ohne `.git` wird ein Repo angelegt (HEAD → `refs/heads/main`).
-    /// Ein vorhandenes Repo wird geöffnet.
+    /// Creates the folder; without `.git` a repo is created (HEAD → `refs/heads/main`). An existing repo is opened.
     pub fn open_or_init(dir: &Path) -> Result<Mirror, MirrorError> {
         std::fs::create_dir_all(dir).map_err(io(dir))?;
         let dir = std::fs::canonicalize(dir).map_err(io(dir))?;
@@ -148,30 +143,29 @@ impl Mirror {
         Ok(Mirror { dir, repo: repo.into_sync(), lock: Mutex::new(()) })
     }
 
-    /// Arbeitsordner des Spiegels.
+    /// Working folder of the mirror.
     pub fn dir(&self) -> &Path {
         &self.dir
     }
 
-    /// Hex-Id des Commits, auf den HEAD zeigt; `None`, solange es keinen Commit gibt.
+    /// Hex id of the commit HEAD points to; `None` as long as there is no commit.
     pub fn head(&self) -> Result<Option<String>, MirrorError> {
         let repo = self.repo.to_thread_local();
         let head = repo.head().map_err(git)?;
         Ok(head.id().map(|id| id.to_string()))
     }
 
-    /// Schreibt die Dateien in den Arbeitsordner, entfernt früher verwaltete Dateien, die im
-    /// Schnappschuss fehlen, baut den Baum, schreibt den Index (damit `git status` sauber ist)
-    /// und committet auf HEAD. Baum unverändert → `Ok(None)`, kein leerer Commit, außer mit
-    /// `allow_empty` (dann ein Commit mit demselben Baum wie sein Vorgänger). Sonst
-    /// `Ok(Some(hex_commit_id))`. Ungültige Pfade → [`MirrorError::InvalidPath`], bevor
-    /// irgendetwas geschrieben wird.
+    /// Writes the files into the working folder, removes formerly managed files that are missing in the snapshot,
+    /// builds the tree, writes the index (so that `git status` is clean) and commits on HEAD. Tree unchanged →
+    /// `Ok(None)`, no empty commit, except with `allow_empty` (then a commit with the same tree as its
+    /// predecessor). Otherwise `Ok(Some(hex_commit_id))`. Invalid paths → [`MirrorError::InvalidPath`], before
+    /// anything is written.
     pub fn commit(&self, request: &CommitRequest) -> Result<Option<String>, MirrorError> {
         validate(&request.files)?;
         let _guard = self.lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let repo = self.repo.to_thread_local();
 
-        // Vorheriger Stand: HEAD-Commit und die damals verwalteten Pfade.
+        // Previous state: HEAD commit and the paths managed at that time.
         let parent = repo.head().map_err(git)?.id().map(|id| id.detach());
         let old_tree = match parent {
             Some(id) => Some(repo.find_commit(id).map_err(git)?.tree_id().map_err(git)?.detach()),
@@ -179,7 +173,7 @@ impl Mirror {
         };
         let old_paths = managed_paths(&repo, old_tree)?;
 
-        // Neuer Baum aus dem Schnappschuss.
+        // New tree from the snapshot.
         let empty = gix::ObjectId::empty_tree(repo.object_hash());
         let mut editor = repo.edit_tree(empty).map_err(git)?;
         for file in &request.files {
@@ -188,8 +182,8 @@ impl Mirror {
         }
         let tree = editor.write().map_err(git)?.detach();
 
-        // Arbeitsordner: erst alle Zwischenordner prüfen (kein Symlink), dann Veraltetes
-        // entfernen, dann schreiben. So bricht ein Symlink ab, bevor irgendetwas geändert ist.
+        // Working folder: first check all intermediate folders (no symlink), then remove what is outdated, then
+        // write. This way a symlink aborts before anything is changed.
         let new_paths: BTreeSet<&str> = request.files.iter().map(|f| f.path.as_str()).collect();
         for path in old_paths.iter().map(String::as_str).chain(new_paths.iter().copied()) {
             self.check_parents(path)?;
@@ -201,7 +195,7 @@ impl Mirror {
             self.write_file(file)?;
         }
 
-        // Index passend zum Baum, mit Dateistatus aus dem Arbeitsordner.
+        // Index matching the tree, with file status from the working folder.
         let mut index = repo.index_from_tree(&tree).map_err(git)?;
         let paths: Vec<(usize, String)> =
             index.entries().iter().enumerate().map(|(i, entry)| (i, entry.path(&index).to_string())).collect();
@@ -236,14 +230,14 @@ impl Mirror {
         Ok(Some(id.to_string()))
     }
 
-    /// Seitenzweige nachführen (Runde 22): Je Eintrag aus `refs` soll die Referenz `name` (unter `prefix`, z. B.
-    /// `refs/revisions/`) auf einen Commit zeigen, dessen Baum der Schnappschuss `base` ist, nur mit `path` =
-    /// `contents`; Elternteil ist HEAD. Eine vorhandene Referenz, deren Baum an `path` schon genau diesen Inhalt
-    /// trägt und deren Nachricht gleich ist, bleibt (kein neuer Commit, kein Objekt-Zuwachs bei jedem Speichern; die
-    /// übrigen Dateien zeigen dann den Stand bei ihrer Anlage); sonst entsteht ein neuer Commit.
-    /// Referenzen unter `prefix`, die in `refs` fehlen, werden entfernt. Arbeitsordner, Index und HEAD bleiben
-    /// unberührt. Pfade prüft dieselbe Regel wie [`Mirror::commit`], Namen müssen unter `prefix` liegen und gültige
-    /// Git-Referenznamen sein – sonst [`MirrorError::InvalidPath`], bevor irgendetwas geschrieben wird.
+    /// Update side refs (Round 22): for each entry of `refs` the reference `name` (under `prefix`, e.g.
+    /// `refs/revisions/`) shall point to a commit whose tree is the snapshot `base`, only with `path` = `contents`;
+    /// the parent is HEAD. An existing reference whose tree already carries exactly this content at `path` and
+    /// whose message is the same stays (no new commit, no growth of objects on every save; the remaining files then
+    /// show the state at their creation); otherwise a new commit is created. References under `prefix` that are
+    /// missing in `refs` are removed. Working folder, index and HEAD stay untouched. Paths are checked by the same
+    /// rule as [`Mirror::commit`], names must lie under `prefix` and be valid Git reference names – otherwise
+    /// [`MirrorError::InvalidPath`], before anything is written.
     pub fn sync_side_refs(&self, prefix: &str, base: &[MirrorFile], refs: &[SideRef]) -> Result<SideSync, MirrorError> {
         use gix::refs::transaction::{Change, LogChange, PreviousValue, RefEdit, RefLog};
         if !prefix.starts_with("refs/") || !prefix.ends_with('/') || prefix.contains("..") {
@@ -282,7 +276,7 @@ impl Mirror {
                 let same_message = found.message_raw().map_err(git)? == message.as_str();
                 let tree = found.tree().map_err(git)?;
                 let entry = tree.lookup_entry_by_path(&side.path).map_err(git)?;
-                // Gleicher Inhalt an derselben Stelle und gleiche Nachricht (Status, Titel): Referenz bleibt.
+                // Same content at the same place and same message (status, title): the reference stays.
                 if same_message && entry.is_some_and(|e| e.object_id() == blob) {
                     sync.kept += 1;
                     continue;
@@ -348,14 +342,14 @@ impl Mirror {
         Ok(sync)
     }
 
-    /// Referenzen unter `prefix` (z. B. `refs/revisions/`): voller Name → Hex-Id des Commits.
+    /// References under `prefix` (e.g. `refs/revisions/`): full name → hex id of the commit.
     pub fn side_refs(&self, prefix: &str) -> Result<std::collections::BTreeMap<String, String>, MirrorError> {
         let repo = self.repo.to_thread_local();
         side_refs_in(&repo, prefix)
     }
 
-    /// Inhalt der Datei `path` im Commit, auf den `reference` zeigt (`HEAD` oder voller Name); `None`, wenn es die
-    /// Referenz oder die Datei dort nicht gibt. Nur lesend (für Tests und Anzeigen).
+    /// Content of the file `path` in the commit `reference` points to (`HEAD` or full name); `None` if the
+    /// reference or the file does not exist there. Read-only (for tests and displays).
     pub fn read_file(&self, reference: &str, path: &str) -> Result<Option<String>, MirrorError> {
         let repo = self.repo.to_thread_local();
         let Some(id) = resolve(&repo, reference)? else { return Ok(None) };
@@ -365,7 +359,7 @@ impl Mirror {
         Ok(Some(String::from_utf8_lossy(&blob.data).into_owned()))
     }
 
-    /// Elternteile (Hex-Ids) des Commits, auf den `reference` zeigt; `None` ohne diese Referenz.
+    /// Parents (hex ids) of the commit `reference` points to; `None` without this reference.
     pub fn parents(&self, reference: &str) -> Result<Option<Vec<String>>, MirrorError> {
         let repo = self.repo.to_thread_local();
         let Some(id) = resolve(&repo, reference)? else { return Ok(None) };
@@ -373,11 +367,10 @@ impl Mirror {
         Ok(Some(commit.parent_ids().map(|p| p.to_string()).collect()))
     }
 
-    /// Prüft jeden Zwischenordner zwischen Spiegelordner und Datei `rel` mit
-    /// `symlink_metadata`: Ein Symlink (auch auf einen Ordner) → [`MirrorError::InvalidPath`],
-    /// denn über ihn würde außerhalb des Spiegels geschrieben oder gelöscht. Mit `create` werden
-    /// fehlende Ordner einzeln angelegt (nie über einen Symlink hinweg). Ergebnis: ob alle
-    /// Zwischenordner jetzt bestehen.
+    /// Checks every intermediate folder between mirror folder and file `rel` with `symlink_metadata`: a symlink
+    /// (also to a folder) → [`MirrorError::InvalidPath`], because through it something would be written or deleted
+    /// outside the mirror. With `create` missing folders are created one by one (never across a symlink). Result:
+    /// whether all intermediate folders exist now.
     fn walk_parents(&self, rel: &str, create: bool) -> Result<bool, MirrorError> {
         let invalid = || MirrorError::InvalidPath(rel.to_string());
         let components: Vec<&str> = rel.split('/').collect();
@@ -393,8 +386,8 @@ impl Mirror {
             match std::fs::symlink_metadata(&dir) {
                 Ok(meta) if meta.file_type().is_symlink() => return Err(invalid()),
                 Ok(meta) if meta.is_dir() => {}
-                // Eine Datei, wo ein Ordner sein müsste: Darüber führt kein Weg nach außen; das
-                // Schreiben scheitert dann mit einem Ein-/Ausgabefehler, Löschen findet nichts.
+                // A file where a folder would have to be: no way leads outside through it; writing then fails with
+                // an input/output error, deleting finds nothing.
                 Ok(_) if create => return Err(io(&dir)(std::io::Error::from(std::io::ErrorKind::NotADirectory))),
                 Ok(_) => return Ok(false),
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
@@ -409,14 +402,14 @@ impl Mirror {
         Ok(true)
     }
 
-    /// Prüfen ohne anzulegen (siehe [`Mirror::walk_parents`]).
+    /// Check without creating (see [`Mirror::walk_parents`]).
     fn check_parents(&self, rel: &str) -> Result<(), MirrorError> {
         self.walk_parents(rel, false).map(|_| ())
     }
 
     fn remove_file(&self, rel: &str) -> Result<(), MirrorError> {
         if !self.walk_parents(rel, false)? {
-            return Ok(()); // Ordner fehlt, also auch die Datei
+            return Ok(()); // folder is missing, so the file is too
         }
         let full = self.dir.join(rel);
         match std::fs::symlink_metadata(&full) {
@@ -425,14 +418,14 @@ impl Mirror {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
             Err(err) => return Err(io(&full)(err)),
         }
-        // Leere Elternordner bis zum Spiegelordner aufräumen.
+        // Clean up empty parent folders up to the mirror folder.
         let mut parent = full.parent();
         while let Some(dir) = parent {
             if dir == self.dir || !dir.starts_with(&self.dir) {
                 break;
             }
             if std::fs::remove_dir(dir).is_err() {
-                break; // nicht leer oder nicht vorhanden
+                break; // not empty or not present
             }
             parent = dir.parent();
         }
@@ -444,7 +437,7 @@ impl Mirror {
         let full = self.dir.join(&file.path);
         match std::fs::symlink_metadata(&full) {
             Ok(meta) if meta.file_type().is_symlink() => std::fs::remove_file(&full).map_err(io(&full))?,
-            // Unveränderte Dateien nicht anfassen (Zeitstempel bleiben).
+            // Do not touch unchanged files (timestamps stay).
             Ok(meta) if meta.is_file() && std::fs::read(&full).map_err(io(&full))? == file.contents.as_bytes() => {
                 return Ok(());
             }
@@ -454,7 +447,7 @@ impl Mirror {
     }
 }
 
-/// Referenzen unter `prefix`: voller Name → Hex-Id (symbolische und unlesbare werden übergangen).
+/// References under `prefix`: full name → hex id (symbolic and unreadable ones are skipped).
 fn side_refs_in(
     repo: &gix::Repository,
     prefix: &str,
@@ -470,7 +463,7 @@ fn side_refs_in(
     Ok(out)
 }
 
-/// Commit einer Referenz (`HEAD` oder voller Name), `None` ohne sie.
+/// Commit of a reference (`HEAD` or full name), `None` without it.
 fn resolve(repo: &gix::Repository, reference: &str) -> Result<Option<gix::ObjectId>, MirrorError> {
     if reference == "HEAD" {
         return Ok(repo.head().map_err(git)?.id().map(|id| id.detach()));
@@ -481,7 +474,7 @@ fn resolve(repo: &gix::Repository, reference: &str) -> Result<Option<gix::Object
     }
 }
 
-/// Alle Blob-Pfade des Baums `tree` (leer ohne Baum).
+/// All blob paths of the tree `tree` (empty without a tree).
 fn managed_paths(repo: &gix::Repository, tree: Option<gix::ObjectId>) -> Result<BTreeSet<String>, MirrorError> {
     let Some(tree) = tree else {
         return Ok(BTreeSet::new());
@@ -494,7 +487,7 @@ fn signature(sig: &Signature, time: gix::date::Time) -> gix::actor::Signature {
     gix::actor::Signature { name: sig.name.as_str().into(), email: sig.email.as_str().into(), time }
 }
 
-/// Sorgt dafür, dass HEAD auf `refs/heads/main` zeigt, egal was `init.defaultBranch` sagt.
+/// Makes sure that HEAD points to `refs/heads/main`, whatever `init.defaultBranch` says.
 fn ensure_main(repo: &gix::Repository) -> Result<(), MirrorError> {
     use gix::refs::transaction::{Change, LogChange, PreviousValue, RefEdit};
     let current = repo.head_name().map_err(git)?;
@@ -514,7 +507,7 @@ fn ensure_main(repo: &gix::Repository) -> Result<(), MirrorError> {
     Ok(())
 }
 
-/// Prüft alle Pfade, bevor etwas geschrieben wird.
+/// Checks all paths before anything is written.
 fn validate(files: &[MirrorFile]) -> Result<(), MirrorError> {
     let invalid = |path: &str| MirrorError::InvalidPath(path.to_string());
     let mut seen = BTreeSet::new();
@@ -540,10 +533,10 @@ fn validate(files: &[MirrorFile]) -> Result<(), MirrorError> {
             }
         }
         if !seen.insert(path) {
-            return Err(invalid(path)); // doppelt
+            return Err(invalid(path)); // duplicate
         }
     }
-    // Datei und Ordner mit demselben Namen („a“ und „a/b“) gehen nicht zusammen.
+    // A file and a folder with the same name ("a" and "a/b") do not go together.
     for path in &seen {
         let mut prefix = String::new();
         for component in path.split('/').collect::<Vec<_>>().split_last().unwrap().1 {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `join_with_offsets` und `line_at` (Runde 8, Typst-Vorschau): Bytebereiche der Abschnitte im
-//! Export und Zeilen wie in Typst.
+//! `join_with_offsets` and `line_at` (Round 8, Typst preview): byte ranges of the sections in the export and lines
+//! as in Typst.
 
 use baruch_typst::{join, join_with_offsets, line_at};
 

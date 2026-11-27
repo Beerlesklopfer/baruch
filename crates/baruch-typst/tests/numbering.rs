@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Maskierungen in Überschriften, Nummerierungsmuster und neue Überschriftszeilen (Vertrag Runde 4,
-//! Abschnitte 2 und 3a). Eigene Testdatei `tests/data/maskiert.typ`.
+//! Escapes in headings, numbering patterns and new heading lines (contract Round 4, sections 2 and 3a). Own test
+//! file `tests/data/maskiert.typ`.
 
 use baruch_typst::{
     escape_title, format_number, heading_line, heading_numbering, is_numbering_pattern, join, parse, unescape_title,
@@ -32,7 +32,7 @@ fn escaping_and_unescaping_are_inverse_for_markup_characters() {
     ] {
         let escaped = escape_title(title);
         assert_eq!(unescape_title(&escaped), title, "Rundreise über escape/unescape: {escaped:?}");
-        // Die neue Überschriftszeile ergibt beim Zerlegen wieder genau diesen Titel.
+        // The new heading line yields exactly this title again when parsed.
         let line = heading_line(2, title, None);
         let doc = parse(&line).unwrap();
         assert_eq!(doc.headings.len(), 1, "eine Überschrift aus {line:?}");
@@ -40,7 +40,7 @@ fn escaping_and_unescaping_are_inverse_for_markup_characters() {
         assert_eq!(doc.headings[0].level, 2, "Ebene aus der Zahl der =");
     }
     assert_eq!(escape_title("  zwei\nZeilen "), "zwei Zeilen", "Zeilenende wird Leerzeichen, Ränder getrimmt");
-    // Typst bricht auch bei diesen Zeichen um; ein Titel aus dem Baum darf keine zweite Zeile beginnen.
+    // Typst breaks at these characters too; a title from the tree must not start a second line.
     for brk in ['\x0B', '\x0C', '\u{85}', '\u{2028}', '\u{2029}'] {
         assert!(baruch_typst::is_newline(brk), "{brk:?} ist ein Zeilenende im Sinn von Typst");
         let line = heading_line(2, &format!("Titel{brk}= Neu"), None);
@@ -87,7 +87,7 @@ fn heading_numbering_reads_the_last_top_level_rule_outside_comments() {
 
 #[test]
 fn heading_numbering_finds_the_pattern_inside_a_numbering_function() {
-    // Frei erfundene Vorlagen: eine Funktion direkt in der Regel, die Kapitel römisch zählt.
+    // Freely invented templates: a function directly in the rule that counts chapters in Roman numerals.
     let inline = "#set heading(numbering: (..n) => numbering(\"I\", ..n))\n";
     assert_eq!(
         heading_numbering(inline).as_deref(),
@@ -137,7 +137,7 @@ fn heading_numbering_follows_the_name_of_a_let_function() {
 
 #[test]
 fn rules_inside_show_rules_content_blocks_and_functions_do_not_count() {
-    // Frei erfundene Vorlage: nur die Regel ganz oben gilt, die anderen stehen in Rümpfen.
+    // Freely invented template: only the rule at the very top applies, the others stand in bodies.
     let template = "#set heading(numbering: \"I.1\")\n\
                     #show heading.where(level: 3): it => [#set heading(numbering: \"a\"); #it]\n\
                     #show: rest => [\n  #set heading(numbering: \"A\")\n  #rest\n]\n\

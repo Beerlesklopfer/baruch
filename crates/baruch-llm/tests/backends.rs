@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Client je Endpunkt (Runde 15b, Vertrag §3) gegen den eigenen Nachbau auf 127.0.0.1:0 in den Arten Eliezer,
-//! Ollama und OpenAI-kompatibel: ein HTTP-Client für alle Aufrufe derselben Verbindung (gezählt an den
-//! TCP-Verbindungen des Nachbaus mit keep-alive), gemeldete Kontextlänge je Art, nur lesend (nie
-//! load/unload/estimate), Chat über den gemeinsamen Client, Schlüssel nur im Kopf. Kein echter Modell-Server.
+//! Client per endpoint (Round 15b, contract §3) against the own mock on 127.0.0.1:0 in the kinds Eliezer, Ollama
+//! and OpenAI-compatible: one HTTP client for all calls of the same connection (counted by the TCP connections of
+//! the mock with keep-alive), reported context length per kind, read-only (never load/unload/estimate), chat
+//! through the shared client, key only in the header. No real model server.
 
 use std::time::Duration;
 
@@ -38,7 +38,7 @@ async fn several_calls_of_one_connection_share_one_http_client() {
         1,
         "vier Abfragen über einen Client (auch geklont) gehen über eine offene Verbindung – derselbe HTTP-Client"
     );
-    // Zum Vergleich: die alte freie Funktion baut je Aufruf einen eigenen HTTP-Client (neue Verbindung).
+    // For comparison: the old free function builds an HTTP client of its own per call (new connection).
     models_with(&Endpoint::new(mock.url(), None), &limits()).await.unwrap();
     models_with(&Endpoint::new(mock.url(), None), &limits()).await.unwrap();
     assert_eq!(mock.connections(), 3, "jede freie Abfrage öffnet eine eigene Verbindung (Hülle bleibt erhalten)");

@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Haupt-RAG von Baruch (Runde 12): ein lokaler Vektorindex über [LanceDB](https://lancedb.com)
-//! (Apache-2.0) in einem Ordner des Datenordners, dazu das Zerlegen der Texte in Stücke ([`chunk`]).
+//! Main RAG of Baruch (Round 12): a local vector index on [LanceDB](https://lancedb.com) (Apache-2.0) in a folder
+//! of the data folder, plus the splitting of the texts into chunks ([`chunk`]).
 //!
-//! Rein: keine SQLite, kein Netz, kein Schlüsselbund. Was in den Index gehört und die Vektoren dazu
-//! bringt der Aufrufer (der Server, `crate::rag`); hier liegt nur das Speichern, Vergleichen und Suchen.
+//! Pure: no SQLite, no network, no keyring. What belongs into the index and the vectors for it are brought by the
+//! caller (the server, `crate::rag`); here is only storing, comparing and searching.
 //!
-//! Aufbau:
-//! - Eine Tabelle `chunks` mit den Spalten `id` (eindeutig, z. B. `section:<key>:<n>`, `idea:<id>`),
-//!   `work` (Werk bzw. `NULL` für Einfälle ohne Werk und die Bibliothek), `kind` (`section`, `idea`,
-//!   `highlight`, `library`), `document`, `section`, `title`, `text` (der eingebettete Text), `meta`
-//!   (JSON), `content_hash` (Hash des eingebetteten Textes: gleiche Hashes teilen den Vektor),
-//!   `row_hash` (Hash der ganzen Zeile ohne Vektor: unverändert = nichts zu tun) und `vector`
-//!   (`FixedSizeList<Float32, dimension>`).
-//! - `baruch-index.json` im selben Ordner: Modell (angefragt und antwortend), Dimension, Zeitpunkte des
-//!   letzten Aufbaus. Ein Index hat genau **ein** Modell; passt das eingestellte nicht, mischt der
-//!   Aufrufer nichts hinein, bis er den Index verwirft ([`Index::reset`]).
-//! - Gesucht wird mit Kosinus-Abstand ohne ANN-Index (flache Suche, für die Größe eines Buchs schnell
-//!   genug); `score` = 1 − Abstand, geklemmt auf 0..=1.
+//! Structure:
+//! - One table `chunks` with the columns `id` (unique, e.g. `section:<key>:<n>`, `idea:<id>`), `work` (work or
+//!   `NULL` for ideas without a work and the library), `kind` (`section`, `idea`, `highlight`, `library`),
+//!   `document`, `section`, `title`, `text` (the embedded text), `meta` (JSON), `content_hash` (hash of the
+//!   embedded text: equal hashes share the vector), `row_hash` (hash of the whole row without vector: unchanged =
+//!   nothing to do) and `vector` (`FixedSizeList<Float32, dimension>`).
+//! - `baruch-index.json` in the same folder: model (requested and answering), dimension, times of the last build.
+//!   An index has exactly **one** model; if the configured one does not match, the caller mixes nothing into it
+//!   until it discards the index ([`Index::reset`]).
+//! - The search uses cosine distance without an ANN index (flat search, fast enough for the size of a book);
+//!   `score` = 1 − distance, clamped to 0..=1.
 //!
-//! Alle Zugriffe auf LanceDB laufen auf einer eigenen kleinen Tokio-Laufzeit ([`runtime`]): So hängen
-//! sie weder an der Laufzeit eines Tests noch blockieren sie die des Servers.
+//! All accesses to LanceDB run on a small runtime of their own ([`runtime`]): this way they neither hang on the
+//! runtime of a test nor block that of the server.
 
 pub mod chunk;
 
@@ -39,16 +38,16 @@ use lancedb::{Connection, DistanceType, Table};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Name der Tabelle.
+/// Name of the table.
 pub const TABLE: &str = "chunks";
-/// Datei mit Modell und Dimension des Index.
+/// File with model and dimension of the index.
 pub const META_FILE: &str = "baruch-index.json";
-/// Fassung des Aufbaus (ändert sich das Schema, wird neu aufgebaut).
+/// Version of the layout (if the schema changes, the index is rebuilt).
 pub const LAYOUT: u32 = 1;
-/// Höchstens so viele Kennungen je Löschanweisung.
+/// At most this many identifiers per delete statement.
 const DELETE_BATCH: usize = 500;
 
-/// Eigene Laufzeit für LanceDB (zwei Arbeitsfäden).
+/// Own runtime for LanceDB (two worker threads).
 pub fn runtime() -> &'static tokio::runtime::Runtime {
     static RT: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         tokio::runtime::Builder::new_multi_thread()
@@ -61,7 +60,7 @@ pub fn runtime() -> &'static tokio::runtime::Runtime {
     &RT
 }
 
-/// Auf [`runtime`] ausführen und auf das Ergebnis warten (aus jeder Laufzeit heraus).
+/// Run on [`runtime`] and wait for the result (from within any runtime).
 pub async fn on_runtime<T: Send + 'static>(
     future: impl std::future::Future<Output = Result<T, RagError>> + Send + 'static,
 ) -> Result<T, RagError> {
@@ -72,35 +71,34 @@ fn failed(what: &str) -> impl Fn(lancedb::Error) -> RagError + '_ {
     move |e| RagError::Failed(format!("LanceDB ({what}): {e}"))
 }
 
-/// Modell und Dimension des Index (`baruch-index.json`).
+/// Model and dimension of the index (`baruch-index.json`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexMeta {
     pub layout: u32,
-    /// Angefragtes Modell (nach Alias), mit dem der Index aufgebaut ist.
+    /// Requested model (after alias) the index is built with.
     pub requested: Option<String>,
-    /// Laut Antwort des Backends.
+    /// According to the answer of the backend.
     pub model: Option<String>,
     pub dimension: Option<usize>,
-    /// Letzter vollständiger Abgleich je Bereich (`work:<id>`, `shared`), ISO 8601.
+    /// Last complete sync per scope (`work:<id>`, `shared`), ISO 8601.
     #[serde(default)]
     pub built: BTreeMap<String, String>,
-    /// Aufgaben-Präfix, mit dem die Dokumente eingebettet sind (Runde 19b, z. B. „search_document: “);
-    /// `None` (ältere Indexe) gilt wie „kein Präfix“. Ein anderes eingestelltes Präfix mischt der Aufrufer
-    /// so wenig wie ein anderes Modell.
+    /// Task prefix the documents are embedded with (Round 19b, e.g. "search_document: "); `None` (older indexes)
+    /// counts like "no prefix". The caller mixes a different configured prefix as little as a different model.
     #[serde(default)]
     pub document_prefix: Option<String>,
 }
 
-/// Welche Zeilen gemeint sind.
+/// Which rows are meant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Scope {
-    /// Zeilen eines Werks (`work = W`).
+    /// Rows of a work (`work = W`).
     Work(i64),
-    /// Zeilen ohne Werk (Einfälle ohne Werk, Bibliothek).
+    /// Rows without a work (ideas without a work, library).
     Shared,
-    /// Was eine Suche im Werk sieht: das Werk und alles ohne Werk.
+    /// What a search in the work sees: the work and everything without a work.
     Visible(i64),
-    /// Alle Zeilen von Werken außer diesen (gelöschte Werke).
+    /// All rows of works except these (deleted works).
     OtherWorks(Vec<i64>),
 }
 
@@ -118,7 +116,7 @@ impl Scope {
         }
     }
 
-    /// Gehört eine Zeile mit diesem Werk (`None` = ohne Werk) in den Bereich?
+    /// Does a row with this work (`None` = without a work) belong to the scope?
     pub fn contains(&self, work: Option<i64>) -> bool {
         match (self, work) {
             (Scope::Work(w), Some(x)) => *w == x,
@@ -131,7 +129,7 @@ impl Scope {
     }
 }
 
-/// Eine Zeile ohne Vektor.
+/// A row without vector.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Entry {
     pub id: String,
@@ -140,18 +138,18 @@ pub struct Entry {
     pub document: String,
     pub section: Option<String>,
     pub title: String,
-    /// Eingebetteter Text.
+    /// Embedded text.
     pub text: String,
     pub meta: Value,
 }
 
 impl Entry {
-    /// Hash des eingebetteten Textes.
+    /// Hash of the embedded text.
     pub fn content_hash(&self) -> String {
         chunk::hash(&self.text)
     }
 
-    /// Hash der ganzen Zeile ohne Vektor (ändert sich Text, Ort oder Zusatzangabe, ändert er sich).
+    /// Hash of the whole row without vector (if text, place or extra data changes, it changes).
     pub fn row_hash(&self) -> String {
         let parts = serde_json::json!([
             self.id,
@@ -167,7 +165,7 @@ impl Entry {
     }
 }
 
-/// Eine gespeicherte Zeile.
+/// A stored row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stored {
     pub id: String,
@@ -176,23 +174,23 @@ pub struct Stored {
     pub vector: Vec<f32>,
 }
 
-/// Ein Treffer der Suche.
+/// A hit of the search.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Found {
     pub entry: Entry,
-    /// Kosinus-Abstand (0 = gleiche Richtung).
+    /// Cosine distance (0 = same direction).
     pub distance: f32,
 }
 
 impl Found {
-    /// Ähnlichkeit 0..=1 (1 − Kosinus-Abstand, geklemmt).
+    /// Similarity 0..=1 (1 − cosine distance, clamped).
     pub fn score(&self) -> f32 {
         let s = 1.0 - self.distance;
         if s.is_nan() { 0.0 } else { s.clamp(0.0, 1.0) }
     }
 }
 
-/// Der Index in einem Ordner.
+/// The index in a folder.
 #[derive(Clone)]
 pub struct Index {
     dir: PathBuf,
@@ -310,7 +308,7 @@ fn batch_of(rows: &[(Entry, Vec<f32>)], dimension: usize) -> Result<RecordBatch,
 }
 
 impl Index {
-    /// Ordner anlegen (falls nötig) und den Index öffnen.
+    /// Create the folder (if needed) and open the index.
     pub async fn open(dir: &Path) -> Result<Index, RagError> {
         let dir = dir.to_owned();
         on_runtime(async move {
@@ -327,7 +325,7 @@ impl Index {
         &self.dir
     }
 
-    /// Modell und Dimension aus `baruch-index.json` (fehlt die Datei: leer).
+    /// Model and dimension from `baruch-index.json` (if the file is missing: empty).
     pub fn meta(&self) -> Result<IndexMeta, RagError> {
         let path = self.dir.join(META_FILE);
         match std::fs::read_to_string(&path) {
@@ -341,7 +339,7 @@ impl Index {
         }
     }
 
-    /// `baruch-index.json` schreiben (über eine Zwischendatei, damit nie eine halbe Datei liegt).
+    /// Write `baruch-index.json` (through an intermediate file, so that never half a file is left).
     pub fn set_meta(&self, meta: &IndexMeta) -> Result<(), RagError> {
         let path = self.dir.join(META_FILE);
         let tmp = self.dir.join(format!("{META_FILE}.tmp"));
@@ -374,18 +372,18 @@ impl Index {
         .await
     }
 
-    /// Namen der Tabellen im Ordner.
+    /// Names of the tables in the folder.
     pub async fn tables(&self) -> Result<Vec<String>, RagError> {
         let db = self.db.clone();
         on_runtime(async move { db.table_names().execute().await.map_err(failed("Tabellen")) }).await
     }
 
-    /// Gibt es schon eine Tabelle?
+    /// Is there a table already?
     pub async fn exists(&self) -> Result<bool, RagError> {
         Ok(self.table().await?.is_some())
     }
 
-    /// Zahl der Zeilen im Bereich (`None` = alle).
+    /// Number of rows in the scope (`None` = all).
     pub async fn count(&self, scope: Option<Scope>) -> Result<u64, RagError> {
         let Some(table) = self.table().await? else { return Ok(0) };
         on_runtime(async move {
@@ -395,7 +393,7 @@ impl Index {
         .await
     }
 
-    /// Gespeicherte Zeilen des Bereichs mit Hashes und Vektoren.
+    /// Stored rows of the scope with hashes and vectors.
     pub async fn stored(&self, scope: Scope) -> Result<Vec<Stored>, RagError> {
         let Some(table) = self.table().await? else { return Ok(Vec::new()) };
         on_runtime(async move {
@@ -428,9 +426,9 @@ impl Index {
         .await
     }
 
-    /// Im Bereich `scope` Zeilen entfernen (nach Kennung, **nur** innerhalb des Bereichs: eine gleiche
-    /// Kennung in einem anderen Werk bleibt stehen) und neue einfügen. Eine neue Zeile außerhalb des Bereichs
-    /// → [`RagError::Invalid`], nichts geändert. `dimension` ist die des Index.
+    /// Remove rows in the scope `scope` (by identifier, **only** within the scope: an equal identifier in another
+    /// work stays) and insert new ones. A new row outside the scope → [`RagError::Invalid`], nothing changed.
+    /// `dimension` is that of the index.
     pub async fn replace(
         &self,
         scope: Scope,
@@ -466,7 +464,7 @@ impl Index {
         .await
     }
 
-    /// Alle Zeilen des Bereichs löschen.
+    /// Delete all rows of the scope.
     pub async fn delete_scope(&self, scope: Scope) -> Result<(), RagError> {
         let Some(table) = self.table().await? else { return Ok(()) };
         on_runtime(async move {
@@ -476,7 +474,7 @@ impl Index {
         .await
     }
 
-    /// Ganzen Index verwerfen: Tabelle und `baruch-index.json`.
+    /// Discard the whole index: table and `baruch-index.json`.
     pub async fn reset(&self) -> Result<(), RagError> {
         let db = self.db.clone();
         let exists = self.exists().await?;
@@ -494,7 +492,7 @@ impl Index {
         }
     }
 
-    /// Die `limit` nächsten Zeilen im Bereich (Kosinus-Abstand), wahlweise nur bestimmter Arten.
+    /// The `limit` nearest rows in the scope (cosine distance), optionally only of certain kinds.
     pub async fn search(
         &self,
         vector: Vec<f32>,
@@ -542,7 +540,7 @@ impl Index {
     }
 }
 
-/// Kosinus-Ähnlichkeit zweier Vektoren (für Tests und Prüfungen).
+/// Cosine similarity of two vectors (for tests and checks).
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
     let na = a.iter().map(|x| x * x).sum::<f32>().sqrt();

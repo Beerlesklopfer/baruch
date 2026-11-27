@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellung für EPUBCheck im Store (Runde 20c, Besitz „epub-pruefung“): Pfad zum epubcheck.jar in `store_meta`
-//! (Schlüssel `epubcheck_jar`), ohne Migration; setzen, ersetzen, entfernen, nach dem Neuöffnen noch da.
+//! Setting for EPUBCheck in the store (Round 20c, ownership „epub-pruefung“): path to the epubcheck.jar in
+//! `store_meta` (key `epubcheck_jar`), without a migration; set, replace, remove, still there after reopening.
 
 use baruch_store::Store;
 

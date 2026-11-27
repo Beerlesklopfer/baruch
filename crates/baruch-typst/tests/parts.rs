@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 (Vertrag Abschnitt 1): Teil und „ohne Nummer“ als kanonische Markierung im Typst-Text.
-//! `tests/data/teile.typ` ist frei erfunden (Werkvorlage, zwei Teile, Kapitel ohne Nummer,
-//! Abschnitte, Kommentar hinter einer Markierung, Maskierungen mit führendem `-`, `=` und `Ziffern.`).
+//! Round 14 (contract section 1): part and „ohne Nummer“ as canonical markers in the Typst text.
+//! `tests/data/teile.typ` is freely invented (work template, two parts, chapters without number, sections, comment
+//! behind a marker, escapes with leading `-`, `=` and `digits.`).
 
 use baruch_typst::{
     PART_LABEL, UNNUMBERED_LABEL, heading_line, join, parse, part_line, part_page_rule, relevel_line,
@@ -10,7 +10,7 @@ use baruch_typst::{
 
 const PARTS: &str = include_str!("data/teile.typ");
 
-/// (Ebene, Titel, numbered) je Überschrift.
+/// (level, title, numbered) per heading.
 fn outline(source: &str) -> Vec<(u8, String, bool)> {
     parse(source).unwrap().headings.into_iter().map(|h| (h.level, h.title, h.numbered)).collect()
 }
@@ -19,8 +19,8 @@ fn owned(rows: &[(u8, &str, bool)]) -> Vec<(u8, String, bool)> {
     rows.iter().map(|&(l, t, n)| (l, t.to_owned(), n)).collect()
 }
 
-/// Titel der einzigen Überschrift von `line` nach dem Zerlegen (mit einer Schlusszeile davor,
-/// damit die Zeile nicht zur Werkvorlage wird, falls sie keine Überschrift ist).
+/// Title of the only heading of `line` after parsing (with a final line before it, so that the line does not become
+/// work template if it is not a heading).
 fn single(line: &str) -> Option<(u8, String, bool)> {
     let doc = parse(&format!("= Anfang\n{line}")).ok()?;
     let found: Vec<_> = doc.headings.into_iter().skip(1).map(|h| (h.level, h.title, h.numbered)).collect();
@@ -94,7 +94,7 @@ fn raw_titles_are_kept_literally_and_bodies_run_to_the_next_marker() {
 
 #[test]
 fn only_the_canonical_form_is_a_marker() {
-    // (Zeile, Grund) – keine davon darf eine Überschrift ergeben.
+    // (line, reason) – none of them may yield a heading.
     let deviations = [
         ("#heading(level: 1, numbering: none)[T]  <baruch-part>\n", "zwei Leerzeichen vor dem Label"),
         ("#heading(level: 1, numbering: none)[T]<baruch-part>\n", "kein Leerzeichen vor dem Label"),
@@ -120,8 +120,8 @@ fn only_the_canonical_form_is_a_marker() {
         assert_eq!(doc.headings.len(), 1, "{why}: {line:?} darf keine Markierung sein");
     }
     for (line, why) in deviations {
-        // Vor der ersten `=` bleibt die Zeile Werkvorlage; manche Abweichungen lassen den Rest sogar
-        // offen (Klammer, Raw) – dann gibt es gar keine Überschrift, aber nie eine Markierung.
+        // Before the first `=` the line stays work template; some deviations even leave the rest open (bracket,
+        // raw) – then there is no heading at all, but never a marker.
         let only_plain = parse(&format!("{line}= Anfang\n"))
             .map_or(true, |doc| doc.template == line && doc.headings.iter().all(|h| h.level == 1 && h.numbered));
         assert!(only_plain, "{why}: {line:?} vor der ersten = bleibt Werkvorlage");
@@ -166,7 +166,7 @@ fn a_comment_after_a_marker_is_allowed_and_not_part_of_the_title() {
     );
 }
 
-/// Titel, die beim Bauen maskiert werden müssen.
+/// Titles that have to be escaped when building.
 const HARD_TITLES: &[&str] = &[
     "Einfach",
     "Klammern ] und [ gemischt",
@@ -340,9 +340,9 @@ fn set_numbered_line_keeps_raw_titles_and_guards_structure() {
 
 #[test]
 fn titles_with_code_are_not_projected_to_a_marker() {
-    // Befund Gutachten Runde 14: Aus `= Das #emph[Jahr]` wurde `…[Das #emph\[Jahr\]]`; Typst setzte
-    // dann den Funktionswert als Raw-Text „emph“ und „[Jahr]“ wörtlich. Mit Code im Titel bleibt die
-    // =-Zeile (None), der Export nimmt den Rückfall über die Show-Regel.
+    // Finding of the review of Round 14: `= Das #emph[Jahr]` became `…[Das #emph\[Jahr\]]`; Typst then set the
+    // function value as raw text "emph" and "[Jahr]" literally. With code in the title the = line stays (None), the
+    // export takes the fallback through the show rule.
     for line in [
         "= Das #emph[Jahr]\n",
         "= Ein Wort#footnote[Erfunden.]\n",

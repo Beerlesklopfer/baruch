@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Tests der Bibliothek auf einer Datei-DB mit dem Kernschema aus `tests/fixtures/core_schema.sql`
-//! (wörtlich Vertrag Abschnitt 3). Später ersetzt `baruch_store::Store::open` das Fixture.
+//! Tests of the library on a file DB with the core schema from `tests/fixtures/core_schema.sql` (verbatim contract
+//! section 3). Later `baruch_store::Store::open` replaces the fixture.
 
 use std::str::FromStr;
 use std::time::Duration;
@@ -31,12 +31,12 @@ async fn open(dir: &std::path::Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(4).connect_with(options).await.unwrap()
 }
 
-/// Versionen des Bibliotheks-Migrators (0101 ff.); neue Migrationen (0106 …) brechen die Tests nicht.
+/// Versions of the library migrator (0101 ff.); new migrations (0106 …) do not break the tests.
 fn library_versions() -> Vec<i64> {
     baruch_library::MIGRATOR.iter().map(|m| m.version).collect()
 }
 
-/// Leere DB nur mit dem Kernschema (ohne Migrationstabelle).
+/// Empty DB with the core schema only (without migration table).
 async fn core_only() -> Db {
     let dir = tempfile::tempdir().unwrap();
     let pool = open(dir.path()).await;
@@ -48,8 +48,8 @@ const SIGNS_V1: &str = "== Erste Anzeichen\n\nAbhängigkeit beginnt selten laut.
 const SIGNS_V2: &str = "== Erste Anzeichen\n\nSie beginnt mit kleinen Zugeständnissen, die sich wie Liebe anfühlen.\n\n#quote[Die Liebe ist langmütig und freundlich.] (1. Kor 13,4)\n";
 const SIGNS_V3: &str = "== Erste Anzeichen\n\nVorschlag: langmütig heißt nicht gleichgültig.\n";
 
-/// Zwei Werke; in Werk 1 Abschnitt seq 1 „2.1 Erste Anzeichen“ mit Revisionen 1 (superseded),
-/// 2 (current), 3 (proposed), alle mit „langmütig“; in Werk 2 ein Abschnitt mit „langmütig“.
+/// Two works; in work 1 section seq 1 „2.1 Erste Anzeichen“ with revisions 1 (superseded), 2 (current), 3
+/// (proposed), all with „langmütig“; in work 2 a section with „langmütig“.
 async fn insert_work_data(pool: &SqlitePool) {
     sqlx::raw_sql(
         "INSERT INTO work (id, slug, kind, title, author) VALUES
@@ -93,7 +93,7 @@ async fn insert_revision(pool: &SqlitePool, node_id: i64, number: i64, body: &st
     .unwrap();
 }
 
-/// Kernschema, Bibliothek migriert, Beispieltitel, Werkdaten (nach der Migration eingefügt).
+/// Core schema, library migrated, sample titles, work data (inserted after the migration).
 async fn full() -> Db {
     let db = core_only().await;
     migrate(&db.pool).await.unwrap();
@@ -112,7 +112,7 @@ async fn count(pool: &SqlitePool, sql: &str) -> i64 {
 
 #[test]
 fn fixture_is_contract_section_3() {
-    // Stichproben aus dem Vertrag; die Datei ist eine wörtliche Kopie von Abschnitt 3.
+    // Samples from the contract; the file is a verbatim copy of section 3.
     assert!(CORE_SCHEMA.starts_with("CREATE TABLE work ("), "das Fixture beginnt mit der Tabelle work wie Abschnitt 3");
     assert!(
         CORE_SCHEMA.contains("CREATE UNIQUE INDEX revision_one_current ON revision(node_id) WHERE status = 'current';"),
@@ -128,8 +128,8 @@ fn fixture_is_contract_section_3() {
 
 #[test]
 fn fixture_matches_the_core_migration_of_the_store() {
-    // Die Bibliothek bleibt ohne Abhängigkeit von baruch-store; dafür darf das Fixture nicht vom
-    // echten Kernschema abweichen. Das Zusammenspiel prüfen die Server-Tests mit Store::open.
+    // The library stays without a dependency on baruch-store; in return the fixture must not deviate from the real
+    // core schema. The interplay is checked by the server tests with Store::open.
     let store = include_str!("../../baruch-store/migrations/0001_core.sql");
     assert_eq!(CORE_SCHEMA, store, "tests/fixtures/core_schema.sql weicht von 0001_core.sql ab");
 }
@@ -148,8 +148,8 @@ async fn migrate_twice_without_error() {
     );
 }
 
-/// Wie später mit baruch-store: ein zweiter Migrator mit Version 0001 (Kernschema) in derselben
-/// `_sqlx_migrations`; beide laufen abwechselnd mehrfach, keiner meldet den anderen als fehlend.
+/// As later with baruch-store: a second migrator with version 0001 (core schema) in the same `_sqlx_migrations`;
+/// both run alternately several times, neither reports the other as missing.
 #[tokio::test]
 async fn foreign_migrator_0001_does_not_interfere() {
     let dir = tempfile::tempdir().unwrap();
@@ -170,7 +170,7 @@ async fn foreign_migrator_0001_does_not_interfere() {
     let expected: Vec<i64> = std::iter::once(1).chain(library_versions()).collect();
     assert_eq!(versions, expected, "fremde 0001 bleibt, die Bibliothek ist vollständig");
     assert!(versions.starts_with(&[1, 101, 102, 103, 104, 105]), "0101–0105 sind eingetragen: {versions:?}");
-    // Werkdaten vor der Bibliotheksmigration sind durchsuchbar.
+    // Work data from before the library migration is searchable.
     let hits = search(&pool, "langmütig", &SearchOptions::default()).await.unwrap();
     assert!(
         hits.iter().any(|h| h.kind == HitKind::Revision),
@@ -207,7 +207,7 @@ async fn seed_once_without_duplicates() {
         titles.iter().map(|t| t.quotes.len() as i64).sum::<i64>(),
         "list_titles nennt jedes Zitat der Tabelle"
     );
-    // Index: je Titel und je Zitat genau eine Zeile.
+    // Index: exactly one row per title and per quote.
     assert_eq!(
         count(&db.pool, "SELECT count(*) FROM search_fts WHERE kind = 'title'").await,
         titles.len() as i64,
@@ -218,7 +218,7 @@ async fn seed_once_without_duplicates() {
         quotes,
         "je Zitat genau eine Zeile im Volltextindex"
     );
-    // Mindestens ein Zitat trifft das Wort aus den Beispieldaten.
+    // At least one quote hits the word from the sample data.
     assert!(
         titles.iter().flat_map(|t| &t.quotes).any(|q| q.text.contains("langmütig")),
         "ein Beispielzitat enthält das Wort der Beispieldaten"
@@ -254,9 +254,9 @@ async fn search_finds_work_and_library() {
     assert!(quote.snippet.contains("<mark>langmütig</mark>"), "Ausschnitt mit markiertem Treffer: {}", quote.snippet);
     assert!(quote.label.contains("1. Kor 13,4"), "Bezeichnung nennt die Stelle des Zitats: {}", quote.label);
 
-    // Ränge aufsteigend (bm25: kleiner = besser).
+    // Ranks ascending (bm25: smaller = better).
     assert!(hits.windows(2).all(|w| w[0].rank <= w[1].rank), "Treffer nach Rang sortiert, bester zuerst");
-    // Ohne Nummer nur der Titel.
+    // Without a number only the title.
     let foreign = hits.iter().find(|h| h.work == Some(2)).expect("Treffer aus Werk 2");
     assert_eq!(foreign.label, "Fremdes Werk", "ohne Nummer zeigt die Bezeichnung nur den Titel");
 }
@@ -269,7 +269,7 @@ async fn search_folds_case_and_diacritics() {
         assert!(hits.iter().any(|h| h.kind == HitKind::Revision), "{query}: Revision");
         assert!(hits.iter().any(|h| h.kind == HitKind::Quote), "{query}: Zitat");
     }
-    // „Abhangigkeit“ ohne Umlaut findet „Abhängigkeit“.
+    // „Abhangigkeit“ without umlaut finds „Abhängigkeit“.
     let hits = search(&db.pool, "abhangigkeit", &SearchOptions::default()).await.unwrap();
     assert!(hits.iter().any(|h| h.node == Some(0)), "ohne Umlaut gesucht trifft die Einleitung");
 }
@@ -306,7 +306,7 @@ async fn search_revision_status_kinds_work_limit() {
         "der Beitrag liegt in Werk 1, Abschnitt 1, ohne Revision"
     );
 
-    // work: fremdes Werk fällt weg, Bibliothek bleibt.
+    // work: a foreign work is dropped, the library stays.
     let work1 = SearchOptions { work: Some(1), ..Default::default() };
     let hits = search(&db.pool, "langmütig", &work1).await.unwrap();
     assert!(hits.iter().all(|h| h.work.is_none() || h.work == Some(1)), "mit work nur dieses Werk und die Bibliothek");
@@ -321,7 +321,7 @@ async fn search_revision_status_kinds_work_limit() {
         "mit work 2 nur der Abschnitt aus Werk 2"
     );
 
-    // limit: Vorgabe 20, höchstens 100.
+    // limit: default 20, at most 100.
     let title = add_title(&db.pool, &new_title("viele", "Viele Zitate")).await.unwrap();
     for i in 0..120 {
         add_quote(&db.pool, title, &format!("Zählwort Nummer {i}"), "", "").await.unwrap();
@@ -353,7 +353,7 @@ async fn data_before_migrate_is_indexed() {
     );
     let hits = search(&db.pool, "Geduld", &SearchOptions::default()).await.unwrap();
     assert_eq!(kinds(&hits), vec![HitKind::Post], "der Beitrag aus der Zeit vor der Migration ist im Index");
-    // Danach eingefügte Revisionen kommen über den Trigger hinzu, ohne Dubletten.
+    // Revisions inserted afterwards are added through the trigger, without duplicates.
     insert_revision(&db.pool, 10, 2, "= Einleitung\n\nNeu: Sanftmut.\n", "proposed", Some("qwen3:4b")).await;
     let hits = search(&db.pool, "sanftmut", &all).await.unwrap();
     assert_eq!(
@@ -440,14 +440,14 @@ async fn titles_and_quotes_crud() {
         "doppelter Zitierschlüssel scheitert an UNIQUE"
     );
 
-    // list_titles: nach Autoren, dann Titel (leere Autoren zuerst).
+    // list_titles: by authors, then title (empty authors first).
     let list = list_titles(&db.pool).await.unwrap();
     let keys: Vec<&str> = list.iter().map(|t| t.title.key.as_str()).collect();
     assert_eq!(keys.last(), Some(&"muster1900"), "„Muster“ steht in der Sortierung nach Autoren hinten");
     let json = serde_json::to_value(&list[0]).unwrap();
     assert!(json.get("key").is_some() && json.get("quotes").is_some(), "flach serialisiert: {json}");
 
-    // Label eines Titeltreffers: „Autor: Titel (Jahr)“.
+    // Label of a title hit: „Autor: Titel (Jahr)“.
     let hits =
         search(&db.pool, "Musterbuch", &SearchOptions { kinds: Some(vec![HitKind::Title]), ..Default::default() })
             .await
@@ -472,7 +472,7 @@ async fn index_follows_updates_and_deletes() {
     };
     assert_eq!(found("Altertitel").await.len(), 2, "Titel und Zitat (Titelspalte)");
 
-    // Titel umbenennen: Titel- und Zitatzeile tragen den neuen Titel.
+    // Rename the title: title row and quote row carry the new title.
     sqlx::query("UPDATE library_title SET title = 'Neutitel' WHERE id = ?1").bind(id).execute(&db.pool).await.unwrap();
     assert!(found("Altertitel").await.is_empty(), "der alte Titel ist aus dem Index verschwunden");
     let hits = found("Neutitel").await;
@@ -482,7 +482,7 @@ async fn index_follows_updates_and_deletes() {
         "die Zitatzeile trägt den neuen Titel"
     );
 
-    // Zitat ändern.
+    // Change the quote.
     sqlx::query("UPDATE library_quote SET text = 'Jetzt: Perle.' WHERE id = ?1")
         .bind(q)
         .execute(&db.pool)
@@ -491,11 +491,11 @@ async fn index_follows_updates_and_deletes() {
     assert!(found("Kleinod").await.is_empty(), "der alte Zitattext ist aus dem Index verschwunden");
     assert_eq!(found("Perle").await.len(), 1, "der neue Zitattext ist im Index");
 
-    // Zitat löschen.
+    // Delete the quote.
     sqlx::query("DELETE FROM library_quote WHERE id = ?1").bind(q).execute(&db.pool).await.unwrap();
     assert!(found("Perle").await.is_empty(), "das gelöschte Zitat ist aus dem Index verschwunden");
 
-    // Titel löschen: Zitate verschwinden per CASCADE, auch aus dem Index.
+    // Delete the title: quotes disappear by CASCADE, also from the index.
     add_quote(&db.pool, id, "Noch ein Juwel.", "", "").await.unwrap();
     assert_eq!(found("Juwel").await.len(), 1, "das neue Zitat ist im Index");
     sqlx::query("DELETE FROM library_title WHERE id = ?1").bind(id).execute(&db.pool).await.unwrap();
@@ -507,7 +507,7 @@ async fn index_follows_updates_and_deletes() {
         count(&db.pool, "SELECT (SELECT count(*) FROM library_title) + (SELECT count(*) FROM library_quote)").await;
     assert_eq!(indexed, rows, "Index und Tabellen der Bibliothek stimmen überein");
 
-    // Abschnittstitel ändern: Werk-Treffer tragen den neuen Titel.
+    // Change the section title: work hits carry the new title.
     sqlx::query("UPDATE node SET title = 'Frühe Zeichen' WHERE id = 11").execute(&db.pool).await.unwrap();
     let hits = found("frühe zeichen").await;
     assert!(
@@ -592,7 +592,7 @@ async fn fragment_renders_titles_and_hits() {
          (Runde 8: kein node= in Links): {html}"
     );
     assert!(html.contains("<mark>langmütig</mark>"), "Treffer im Ausschnitt markiert");
-    // Maskierung
+    // Escaping
     assert!(!html.contains("<script>") && html.contains("&lt;script&gt;"), "Titel maskiert, kein <script>");
     assert!(!html.contains("<b>Tags</b>"), "Zitattext maskiert");
     assert!(html.contains("&lt;b&gt;Tags&lt;&#x2f;b&gt;"), "Zitattext maskiert: {html}");
@@ -604,7 +604,7 @@ async fn fragment_renders_titles_and_hits() {
 async fn the_fragment_keeps_work_and_encodes_the_query_in_links() {
     let db = full().await;
     let library = list_titles(&db.pool).await.unwrap();
-    // Treffer aus einer einfachen Suche, angezeigt unter einer Eingabe mit Sonderzeichen.
+    // Hits from a simple search, shown under an input with special characters.
     let query = "langmütig & 100%+#x";
     let hits = search(&db.pool, "langmütig", &SearchOptions::default()).await.unwrap();
     assert!(hits.iter().any(|h| h.kind == HitKind::Revision), "Testsuche braucht einen Werk-Treffer: {hits:?}");
@@ -619,8 +619,8 @@ async fn the_fragment_keeps_work_and_encodes_the_query_in_links() {
         })
         .unwrap();
     assert!(html.contains(r#"<input type="hidden" name="work" value="7">"#), "Suchformular behält das Werk: {html}");
-    // Filter `urlencode`: % & # + und Leerzeichen sind kodiert, damit der Wert nicht in weitere
-    // Parameter, den Anker oder ein Leerzeichen zerfällt; der Umlaut steht als UTF-8 in %-Form.
+    // Filter `urlencode`: % & # + and space are encoded, so that the value does not fall apart into further
+    // parameters, the anchor or a space; the umlaut stands as UTF-8 in % form.
     assert!(
         html.contains("&amp;lq=langm%C3%BCtig%20%26%20100%25%2B%23x#fundstelle\""),
         "lq im Treffer-Link nicht richtig kodiert: {html}"

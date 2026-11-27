@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Buchangaben-Reste und Druckerei-Umschlag (Runde 20c, Besitz „epub-pruefung“): ISBN-Präfix 978/979 und Vorsatz in
-//! jeder Schreibung, Text- und Absatzregeln der Werkvorlage für den Umschlag für die Druckerei und das Messen der
-//! Blöcke – ohne solche Regeln byte-gleich zu `wrap_source`/`block_measure_source` (Goldstände R26/R27 in
-//! `cover_layout.rs` prüfen diese weiter).
+//! Remaining book details and print-shop cover (Round 20c, ownership „epub-pruefung“): ISBN prefix 978/979 and
+//! label prefix in any spelling, text and paragraph rules of the work template for the cover for the print shop and
+//! the measuring of the blocks – without such rules byte-identical to `wrap_source`/`block_measure_source` (golden
+//! files R26/R27 in `cover_layout.rs` keep checking these).
 
 use baruch_typst::cover::{
     BlockRefs, BookInfo, IsbnError, TitleArea, WrapOptions, block_measure_source, block_measure_source_with_rules,
@@ -54,7 +54,7 @@ fn opts() -> WrapOptions {
 
 #[test]
 fn an_isbn_must_start_with_978_or_979() {
-    // 400… ist eine gültige EAN-13 (Prüfziffer stimmt), aber keine ISBN.
+    // 400… is a valid EAN-13 (check digit is right), but not an ISBN.
     assert_eq!(isbn13_check("4006381333931"), Err(IsbnError::Prefix(400)), "Präfix 400 hat eine eigene Fehlerart");
     let message = isbn13("4006381333931").unwrap_err();
     assert!(message.contains("978 oder 979") && message.contains("400"), "Meldung nennt beides: {message}");

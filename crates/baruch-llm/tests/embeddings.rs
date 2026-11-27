@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einbettungen gegen den Nachbau (Runde 12): `POST /v1/embeddings` mit Liste, Ordnung nach `index`,
-//! deterministische Vektoren, unbekanntes Modell, Schlüssel, Grenzen.
+//! Embeddings against the mock (Round 12): `POST /v1/embeddings` with a list, order by `index`, deterministic
+//! vectors, unknown model, key, limits.
 
 use std::time::Duration;
 
@@ -20,7 +20,7 @@ async fn embeddings_come_back_in_input_order_with_model_and_dimension() {
     assert_eq!(reply.model, MOCK_EMBEDDING_MODEL, "Modell laut Antwort");
     assert_eq!(reply.dimension, MOCK_DIMENSION, "Dimension des Nachbaus");
     assert_eq!(reply.vectors.len(), 3, "je Text ein Vektor");
-    // Der Nachbau antwortet rückwärts; der Client ordnet nach `index`.
+    // The mock answers backwards; the client orders by `index`.
     for (text, vector) in input.iter().zip(&reply.vectors) {
         assert_eq!(vector, &mock_vector(text, MOCK_DIMENSION), "Vektor gehört zu „{text}“");
     }

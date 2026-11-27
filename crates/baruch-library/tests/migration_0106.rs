@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0106 (Runde 13, „quellen“: Verknüpfung eines Titels mit MultiGPT, Prüfung von Hervorhebungen
-//! gegen den Volltext) auf einer nachgebauten Datenbank im Stand davor: Kernschema aus
-//! `tests/fixtures/core_schema.sql` und die Bibliothek bis 0105, mit frei erfundenen Titeln, Zitaten,
-//! Hervorhebungen (Mensch und Persona, mit und ohne Bereich) und dem Volltextindex.
+//! Migration 0106 (Round 13, „quellen“: link of a title with MultiGPT, check of highlights against the full text)
+//! on a rebuilt database in the state before it: core schema from `tests/fixtures/core_schema.sql` and the library
+//! up to 0105, with freely invented titles, quotes, highlights (human and persona, with and without range) and the
+//! full-text index.
 //!
-//! Danach: jede Zeile jeder alten Tabelle unverändert (auch der FTS-Index), das Schema der alten Tabellen
-//! gleich, neu sind genau `library_title_remote` und `library_highlight_check`, beide leer. Die neuen
-//! Tabellen lassen sich danach füllen, und ihre Zeilen verschwinden mit Titel bzw. Hervorhebung.
+//! Afterwards: every row of every old table unchanged (also the FTS index), the schema of the old tables the same,
+//! new are exactly `library_title_remote` and `library_highlight_check`, both empty. The new tables can be filled
+//! afterwards, and their rows disappear with title or highlight respectively.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ async fn open(dir: &std::path::Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Bibliothek bis einschließlich 0105 (Stand von development vor Runde 13).
+/// Library up to and including 0105 (state of development before Round 13).
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_library::MIGRATOR.iter().any(|m| m.version == 106), "die neue Migration ist 0106");
     assert!(baruch_library::MIGRATOR.iter().any(|m| m.version == 105), "der Stand davor hat 0105");
@@ -43,8 +43,8 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Frei erfundene Daten: ein Werk mit Abschnitt und Revision (für den Index), drei Titel, Zitate,
-/// Hervorhebungen aller Arten.
+/// Freely invented data: a work with section and revision (for the index), three titles, quotes, highlights of all
+/// kinds.
 async fn insert_rows(pool: &SqlitePool) {
     exec(pool, "INSERT INTO work (id, slug, kind, title, author) VALUES (1, 'leuchtturm', 'book', 'Das Jahr am Leuchtturm', 'Mara Lind')").await;
     exec(pool, "INSERT INTO node (id, work_id, seq, parent_seq, position, number, title, kind) VALUES (1, 1, 0, NULL, 0, '1', 'Frühling', 'chapter')").await;
@@ -76,7 +76,7 @@ async fn insert_rows(pool: &SqlitePool) {
     .await;
 }
 
-/// Alle Tabellen außer `_sqlx_migrations` mit ihren Zeilen (jede Spalte über `quote()`), sortiert.
+/// All tables except `_sqlx_migrations` with their rows (every column through `quote()`), sorted.
 async fn snapshot(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' \
@@ -131,8 +131,8 @@ async fn migration_0106_keeps_every_row_and_adds_two_empty_tables() {
     );
     assert!(!before.contains_key("library_title_remote"), "vor 0106 gibt es die Tabelle noch nicht");
 
-    // Genau bis 0106: Spätere Migrationen (0108 seit Runde 21a) legen eigene Tabellen an und würden die Liste
-    // „genau die zwei neuen Tabellen“ verfälschen; danach läuft unten der volle Migrator.
+    // Exactly up to 0106: later migrations (0108 since Round 21a) create tables of their own and would falsify the
+    // list "exactly the two new tables"; afterwards the full migrator runs below.
     let upto: Vec<_> = baruch_library::MIGRATOR.iter().filter(|m| m.version <= 106).cloned().collect();
     Migrator { migrations: Cow::Owned(upto), ignore_missing: true, ..Migrator::DEFAULT }
         .run(&pool)
@@ -151,7 +151,7 @@ async fn migration_0106_keeps_every_row_and_adds_two_empty_tables() {
     assert!(after["library_title_remote"].is_empty(), "Verknüpfungen anfangs leer: kein Titel gilt als verknüpft");
     assert!(after["library_highlight_check"].is_empty(), "Prüfungen anfangs leer: nichts wird als geprüft erfunden");
 
-    // Danach benutzbar: Verknüpfung setzen und lesen, Prüfung speichern; beides verschwindet mit dem Besitzer.
+    // Usable afterwards: set and read the link, store the check; both disappear with the owner.
     let remote = RemoteRef { way: "multigpt".into(), collection: "Leuchtturm".into(), document: "lt-1".into() };
     set_title_remote(&pool, 1, &remote).await.expect("Verknüpfung setzen");
     assert_eq!(title_remote(&pool, 1).await.unwrap(), Some(remote), "Verknüpfung gelesen");

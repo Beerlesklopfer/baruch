@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Anträge zu Bildern (Migration 0018, Vertrag Runde 11) auf einer echten SQLite-Datei im Temp-Ordner:
-//! Prüfen beim Antrag, erwarteter Stand, keine Doppel, Entscheidung genau einmal, Werk löschen löscht
-//! Anträge mit. Alle Bilder sind im Test erzeugt.
+//! Requests about images (migration 0018, contract Round 11) on a real SQLite file in the temp folder: checking at
+//! the request, expected state, no duplicates, decision exactly once, deleting a work deletes its requests too. All
+//! images are generated in the test.
 
 use baruch_store::{AssetEncoding, AssetOp, Decision, IdeaOrigin, NewAsset, Store, StoreError, WorkId};
 

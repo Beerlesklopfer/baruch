@@ -1,60 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Datenmodell der Satz-Einstellungen (Runde 29, Vertrag §2; Schnittstelle R29-S1, **eingefroren** – Änderungen nur
-//! über Integrator/PM).
+//! Data model of the typesetting settings (Round 29, contract §2; interface R29-S1, **frozen** – changes only
+//! through integrator/PM).
 //!
-//! - [`TypesetSettings`]: jedes Feld `None` = „aus der Werkvorlage“ (keine Regel). Leere Einstellungen
-//!   ([`TypesetSettings::is_empty`]) erzeugen keine Typst-Regel; ein Werk ohne Einstellungen setzt byte-gleich wie vor
-//!   Runde 29.
-//! - JSON (RPC, MCP, Spalte `work_typeset.settings`): nur gesetzte Felder, Reihenfolge wie die Struktur
-//!   ([`TypesetSettings::to_json`]); unbekannte Felder lehnt [`TypesetSettings::from_json`] ab.
-//! - Prüfung ([`TypesetSettings::validate`]) mit deutschen Meldungen je Feld ([`FieldError`]); vor dem Speichern
-//!   vereinheitlicht [`TypesetSettings::normalized`] (Leerraum, Rundung).
-//! - `xref_with_page` ist keine Satz-Regel, sondern die Vorgabe „mit Seitenzahl“ im Dialog „Verweis“ (R29c).
-//! - R31 (Schnittstelle R31-S1, eingefroren): `glossary_page`, `index_pages` und `glossary_first_mention` erzeugen keine
-//!   Zeile im Regelblock, sondern steuern [`crate::index`] (Projektion und Buchende).
-//! - R22 (Schnittstelle R22-S1, eingefroren): `draft` (Entwurf/Wasserzeichen, [`Draft`]) erzeugt keine Zeile im
-//!   Regelblock; die Regel kommt nur in die Satzquelle der Ausgaben (Satz-Vorschau, PDF, Stichwortzettel, Umschlag,
-//!   EPUB-Hinweis), nicht in Export und Spiegel.
+//! - [`TypesetSettings`]: every field `None` = "from the work template" (no rule). Empty settings
+//!   ([`TypesetSettings::is_empty`]) produce no Typst rule; a work without settings typesets byte-identically as
+//!   before Round 29.
+//! - JSON (RPC, MCP, column `work_typeset.settings`): only set fields, order like the struct
+//!   ([`TypesetSettings::to_json`]); unknown fields are refused by [`TypesetSettings::from_json`].
+//! - Check ([`TypesetSettings::validate`]) with German messages per field ([`FieldError`]); before saving,
+//!   [`TypesetSettings::normalized`] unifies (whitespace, rounding).
+//! - `xref_with_page` is not a typesetting rule but the default „mit Seitenzahl“ in the dialog „Verweis“ (R29c).
+//! - R31 (interface R31-S1, frozen): `glossary_page`, `index_pages` and `glossary_first_mention` produce no line in
+//!   the rule block but control [`crate::index`] (projection and back matter).
+//! - R22 (interface R22-S1, frozen): `draft` (draft/watermark, [`Draft`]) produces no line in the rule block; the
+//!   rule only goes into the typesetting source of the outputs (typesetting preview, PDF, cue sheet, cover, EPUB
+//!   note), not into export and mirror.
 
 use serde::{Deserialize, Serialize};
 
-/// Erste Zeile des Regelblocks, den [`crate::typeset::rules`] hinter die Werkvorlage setzt.
+/// First line of the rule block that [`crate::typeset::rules`] puts behind the work template.
 pub const RULES_MARK: &str = "// Baruch: Satz";
 
-/// Grenzen der Seitenbreite (mm) bei eigenem Format.
+/// Limits of the page width (mm) for an own format.
 pub const PAGE_WIDTH_MM: (f64, f64) = (80.0, 420.0);
-/// Grenzen der Seitenhöhe (mm) bei eigenem Format.
+/// Limits of the page height (mm) for an own format.
 pub const PAGE_HEIGHT_MM: (f64, f64) = (100.0, 600.0);
-/// Grenzen jedes Rands (mm).
+/// Limits of every margin (mm).
 pub const MARGIN_MM: (f64, f64) = (5.0, 80.0);
-/// Grenzen des Bundstegs (mm); er kommt zum Innenrand hinzu.
+/// Limits of the binding margin (mm); it is added to the inner margin.
 pub const BINDING_MM: (f64, f64) = (0.0, 30.0);
-/// Kleinste Textbreite (mm), geprüft nur mit Seitenformat und Rändern.
+/// Smallest text width (mm), checked only with page format and margins.
 pub const MIN_TEXT_WIDTH_MM: f64 = 40.0;
-/// Kleinste Texthöhe (mm), geprüft nur mit Seitenformat und Rändern.
+/// Smallest text height (mm), checked only with page format and margins.
 pub const MIN_TEXT_HEIGHT_MM: f64 = 60.0;
-/// Längster Familienname der Grundschrift (Zeichen).
+/// Longest family name of the base font (characters).
 pub const MAX_FONT_CHARS: usize = 200;
-/// Grenzen der Schriftgröße (pt).
+/// Limits of the font size (pt).
 pub const FONT_SIZE_PT: (f64, f64) = (6.0, 24.0);
-/// Grenzen des Zeilenabstands (Typst `par.leading`, em).
+/// Limits of the line spacing (Typst `par.leading`, em).
 pub const LEADING_EM: (f64, f64) = (0.2, 2.0);
-/// Grenzen von Absatzeinzug bzw. Absatzabstand (em).
+/// Limits of paragraph indent or paragraph spacing (em).
 pub const PARAGRAPH_EM: (f64, f64) = (0.1, 4.0);
-/// R31: Grenzen der Spaltenzahl der Registerseiten.
+/// R31: limits of the number of columns of the index pages.
 pub const INDEX_COLUMNS: (u8, u8) = (1, 3);
-/// R31: höchstens so viele Register auf den Registerseiten (3 eingebaute + 13 eigene).
+/// R31: at most this many indexes on the index pages (3 built-in + 13 own).
 pub const MAX_INDEX_PAGE_REGISTERS: usize = 16;
-/// R22: Vorgabetext des Wasserzeichens.
+/// R22: default text of the watermark.
 pub const DEFAULT_DRAFT_TEXT: &str = "ENTWURF";
-/// R22: längster Text des Wasserzeichens (Zeichen, getrimmt).
+/// R22: longest text of the watermark (characters, trimmed).
 pub const MAX_DRAFT_TEXT_CHARS: usize = 40;
-/// R22: längste Notiz zum Wasserzeichen (Zeichen).
+/// R22: longest note on the watermark (characters).
 pub const MAX_DRAFT_NOTE_CHARS: usize = 120;
-/// R22: Grenzen der Deckkraft des Wasserzeichens (Prozent).
+/// R22: limits of the opacity of the watermark (percent).
 pub const DRAFT_OPACITY_PERCENT: (u8, u8) = (5, 50);
 
-/// Feld-ids und Bezeichnungen in Strukturreihenfolge.
+/// Field ids and labels in struct order.
 pub const FIELDS: [(&str, &str); 20] = [
     ("chapter_start", "Kapitelanfang"),
     ("part_page", "Teil-Seite"),
@@ -78,13 +78,13 @@ pub const FIELDS: [(&str, &str); 20] = [
     ("draft", "Entwurf"),
 ];
 
-/// Bezeichnung eines Felds (auch für Unterfelder wie `margins.inside_mm` die des Felds); unbekannt → "".
+/// Label of a field (for subfields like `margins.inside_mm` that of the field); unknown → "".
 pub fn field_label(field: &str) -> &'static str {
     let head = field.split('.').next().unwrap_or(field);
     FIELDS.iter().find(|(id, _)| *id == head).map_or("", |(_, label)| label)
 }
 
-/// Satz-Einstellungen eines Werks (Runde 29). Jedes Feld `None` = aus der Werkvorlage (keine Regel).
+/// Typesetting settings of a work (Round 29). Every field `None` = from the work template (no rule).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TypesetSettings {
@@ -100,7 +100,7 @@ pub struct TypesetSettings {
     pub font: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_size_pt: Option<f64>,
-    /// Typst `par.leading` in em (Durchschuss).
+    /// Typst `par.leading` in em (leading).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub leading_em: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,7 +109,7 @@ pub struct TypesetSettings {
     pub justify: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hyphenate: Option<bool>,
-    /// Silbentrennung/Sprache: "de", "en", "de-CH".
+    /// Hyphenation/language: "de", "en", "de-CH".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lang: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,27 +118,27 @@ pub struct TypesetSettings {
     pub running_head: Option<RunningHead>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub footnotes: Option<Footnotes>,
-    /// Schusterjungen/Hurenkinder vermeiden.
+    /// Avoid orphans/widows.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub widows_orphans: Option<bool>,
-    /// R29c: Vorgabe „mit Seitenzahl“ im Dialog „Verweis“; keine Typst-Regel.
+    /// R29c: default „mit Seitenzahl“ in the dialog „Verweis“; no Typst rule.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub xref_with_page: Option<bool>,
-    /// R31: Glossarseite am Buchende (None = keine).
+    /// R31: glossary page in the back matter (None = none).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub glossary_page: Option<GlossaryPosition>,
-    /// R31: Registerseiten am Buchende (None = keine).
+    /// R31: index pages in the back matter (None = none).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub index_pages: Option<IndexPages>,
-    /// R31: erste Erwähnung eines Glossarbegriffs je Kapitel auszeichnen.
+    /// R31: mark up the first mention of a glossary term per chapter.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub glossary_first_mention: Option<bool>,
-    /// R22: Entwurf (Wasserzeichen in den Ausgaben); keine Zeile im Regelblock.
+    /// R22: draft (watermark in the outputs); no line in the rule block.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<Draft>,
 }
 
-/// Einfache Aufzählung mit `ALL`, `id` (= serde-Wert), `from_id` und deutscher `label`.
+/// Simple enumeration with `ALL`, `id` (= serde value), `from_id` and German `label`.
 macro_rules! simple_enum {
     ($(#[$meta:meta])* $name:ident { $($(#[$vmeta:meta])* $variant:ident = $id:literal, $label:literal;)+ }) => {
         $(#[$meta])*
@@ -149,20 +149,20 @@ macro_rules! simple_enum {
         }
 
         impl $name {
-            /// Alle Werte in Anzeigereihenfolge.
+            /// All values in display order.
             pub const ALL: &'static [$name] = &[$($name::$variant,)+];
 
-            /// Kennung (= serde-Wert).
+            /// Identifier (= serde value).
             pub fn id(self) -> &'static str {
                 match self { $($name::$variant => $id,)+ }
             }
 
-            /// Wert zur Kennung; unbekannt → `None`.
+            /// Value for the identifier; unknown → `None`.
             pub fn from_id(id: &str) -> Option<Self> {
                 match id { $($id => Some($name::$variant),)+ _ => None }
             }
 
-            /// Deutsche Bezeichnung für die Oberfläche.
+            /// German label for the user interface.
             pub fn label(self) -> &'static str {
                 match self { $($name::$variant => $label,)+ }
             }
@@ -171,7 +171,7 @@ macro_rules! simple_enum {
 }
 
 simple_enum! {
-    /// Wo ein Kapitel (Überschrift Ebene 1 ohne `<baruch-part>`) beginnt.
+    /// Where a chapter (heading level 1 without `<baruch-part>`) starts.
     ChapterStart {
         Continuous = "continuous", "fortlaufend";
         NewPage = "new_page", "neue Seite";
@@ -180,7 +180,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Seite der Teil-Seite.
+    /// Side of the part page.
     PartSide {
         Right = "right", "rechte Seite";
         Any = "any", "beliebige Seite";
@@ -188,7 +188,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Lage der Seitenzahl.
+    /// Position of the page number.
     PageNumberPosition {
         BottomCenter = "bottom_center", "unten mittig";
         BottomOutside = "bottom_outside", "unten außen";
@@ -198,7 +198,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Beginn der Seitenzählung. `FirstChapter`: die erste Kapitelseite trägt „1“, davor keine Zahl.
+    /// Start of the page counting. `FirstChapter`: the first chapter page carries "1", no number before it.
     PageNumberStart {
         FirstPage = "first_page", "ab der ersten Seite";
         FirstChapter = "first_chapter", "ab dem ersten Kapitel";
@@ -206,7 +206,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Kolumnentitel (nie auf Kapitelanfangs-, Teil- und leeren Seiten).
+    /// Running head (never on chapter-start, part and empty pages).
     RunningHead {
         Off = "off", "aus";
         WorkTitle = "work_title", "Werktitel";
@@ -215,7 +215,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Fußnotenzeichen: "1" | "*" | "a".
+    /// Footnote marks: "1" | "*" | "a".
     FootnoteNumbering {
         Arabic = "arabic", "1, 2, 3";
         Symbols = "symbols", "*, †, ‡";
@@ -224,7 +224,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Zählung der Fußnoten.
+    /// Counting of the footnotes.
     FootnoteRestart {
         Continuous = "continuous", "fortlaufend";
         PerChapter = "per_chapter", "je Kapitel neu";
@@ -232,7 +232,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// R31: Lage der Glossarseite am Buchende.
+    /// R31: position of the glossary page in the back matter.
     GlossaryPosition {
         BeforeIndexes = "before_indexes", "vor den Registern";
         AfterIndexes = "after_indexes", "nach den Registern";
@@ -240,7 +240,7 @@ simple_enum! {
 }
 
 simple_enum! {
-    /// Lage des Wasserzeichens.
+    /// Position of the watermark.
     DraftPlacement {
         Diagonal = "diagonal", "diagonal über die Seite";
         Header = "header", "Kopfzeile";
@@ -248,7 +248,7 @@ simple_enum! {
     }
 }
 
-/// R22: Entwurf – Wasserzeichen in den Ausgaben.
+/// R22: draft – watermark in the outputs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Draft {
@@ -276,7 +276,7 @@ impl Default for Draft {
     }
 }
 
-/// R31: Registerseiten am Buchende – welche Register (Kennungen, Reihenfolge = Satzreihenfolge) in wie vielen Spalten.
+/// R31: index pages in the back matter – which indexes (identifiers, order = typesetting order) in how many columns.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexPages {
@@ -284,7 +284,7 @@ pub struct IndexPages {
     pub columns: u8,
 }
 
-/// Teil-Seite: Seite und ob ihre Rückseite leer bleibt.
+/// Part page: side and whether its back stays empty.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartPage {
@@ -292,7 +292,7 @@ pub struct PartPage {
     pub blank_back: bool,
 }
 
-/// Seitenformat. `Custom` mit Breite und Höhe in mm.
+/// Page format. `Custom` with width and height in mm.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum PageFormat {
@@ -309,11 +309,11 @@ pub enum PageFormat {
 }
 
 impl PageFormat {
-    /// Die festen Formate in Anzeigereihenfolge (das eigene Format braucht Maße und steht nicht darin).
+    /// The fixed formats in display order (the own format needs dimensions and is not in it).
     pub const ALL: &'static [PageFormat] =
         &[PageFormat::A5, PageFormat::Mm120x190, PageFormat::Mm135x215, PageFormat::A4];
 
-    /// Kennung (= serde-Wert von `kind`).
+    /// Identifier (= serde value of `kind`).
     pub fn id(self) -> &'static str {
         match self {
             PageFormat::A5 => "a5",
@@ -324,12 +324,12 @@ impl PageFormat {
         }
     }
 
-    /// Festes Format zur Kennung; `"custom"` (braucht Maße) und Unbekanntes → `None`.
+    /// Fixed format for the identifier; `"custom"` (needs dimensions) and unknown → `None`.
     pub fn from_id(id: &str) -> Option<Self> {
         PageFormat::ALL.iter().copied().find(|f| f.id() == id)
     }
 
-    /// Deutsche Bezeichnung.
+    /// German label.
     pub fn label(self) -> &'static str {
         match self {
             PageFormat::A5 => "A5 (148 × 210 mm)",
@@ -340,7 +340,7 @@ impl PageFormat {
         }
     }
 
-    /// (Breite, Höhe) in mm.
+    /// (width, height) in mm.
     pub fn size_mm(&self) -> (f64, f64) {
         match *self {
             PageFormat::A5 => (148.0, 210.0),
@@ -352,7 +352,7 @@ impl PageFormat {
     }
 }
 
-/// Ränder in mm; `binding_mm` (Bundsteg) kommt zum Innenrand hinzu. Gerade/ungerade Seiten gespiegelt.
+/// Margins in mm; `binding_mm` (binding margin) is added to the inner margin. Even/odd pages mirrored.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Margins {
@@ -363,7 +363,7 @@ pub struct Margins {
     pub binding_mm: f64,
 }
 
-/// Absatz: Erstzeileneinzug oder Abstand zwischen Absätzen (em).
+/// Paragraph: first-line indent or spacing between paragraphs (em).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Paragraph {
@@ -372,10 +372,10 @@ pub enum Paragraph {
 }
 
 impl Paragraph {
-    /// Beide Arten mit ihrem Vorgabewert (Einzug 1 em, Abstand 0,5 em).
+    /// Both kinds with their default value (indent 1 em, spacing 0.5 em).
     pub const ALL: &'static [Paragraph] = &[Paragraph::Indent { em: 1.0 }, Paragraph::Spacing { em: 0.5 }];
 
-    /// Kennung (= serde-Wert von `kind`).
+    /// Identifier (= serde value of `kind`).
     pub fn id(self) -> &'static str {
         match self {
             Paragraph::Indent { .. } => "indent",
@@ -383,12 +383,12 @@ impl Paragraph {
         }
     }
 
-    /// Art zur Kennung mit Vorgabewert aus [`Paragraph::ALL`]; unbekannt → `None`.
+    /// Kind for the identifier with the default value from [`Paragraph::ALL`]; unknown → `None`.
     pub fn from_id(id: &str) -> Option<Self> {
         Paragraph::ALL.iter().copied().find(|p| p.id() == id)
     }
 
-    /// Deutsche Bezeichnung.
+    /// German label.
     pub fn label(self) -> &'static str {
         match self {
             Paragraph::Indent { .. } => "Einzug",
@@ -396,7 +396,7 @@ impl Paragraph {
         }
     }
 
-    /// Maß in em.
+    /// Measure in em.
     pub fn em(self) -> f64 {
         match self {
             Paragraph::Indent { em } | Paragraph::Spacing { em } => em,
@@ -404,7 +404,7 @@ impl Paragraph {
     }
 }
 
-/// Seitenzahlen: Lage und Beginn der Zählung.
+/// Page numbers: position and start of the counting.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PageNumbers {
@@ -412,7 +412,7 @@ pub struct PageNumbers {
     pub start: PageNumberStart,
 }
 
-/// Fußnoten: Zeichen und Zählung.
+/// Footnotes: marks and counting.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Footnotes {
@@ -420,15 +420,15 @@ pub struct Footnotes {
     pub restart: FootnoteRestart,
 }
 
-/// Abgelehnter Wert: `field` = Feld-id bzw. Unterfeld (`margins.inside_mm`), `message` Deutsch mit Bezeichnung und
-/// Grenze (z. B. „Rand innen: 5 bis 80 mm“).
+/// Refused value: `field` = field id or subfield (`margins.inside_mm`), `message` German with label and limit (e.g.
+/// „Rand innen: 5 bis 80 mm“).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct FieldError {
     pub field: &'static str,
     pub message: String,
 }
 
-/// Zahl in deutscher Schreibweise („0,2“, „80“).
+/// Number in German notation („0,2“, „80“).
 fn de(x: f64) -> String {
     format!("{x}").replace('.', ",")
 }
@@ -437,8 +437,8 @@ fn in_range(x: f64, (lo, hi): (f64, f64)) -> bool {
     x.is_finite() && x >= lo && x <= hi
 }
 
-/// Rundet auf `step` (0,1 oder 0,01). Teilt durch den Kehrwert statt mit `step` zu multiplizieren, damit kein
-/// Gleitkomma-Rest bleibt (5,3 → 5.3, nicht 5.300000000000001; Gutachten R29).
+/// Rounds to `step` (0.1 or 0.01). Divides by the reciprocal instead of multiplying with `step`, so that no
+/// floating-point remainder stays (5.3 → 5.3, not 5.300000000000001; review R29).
 fn round_to(x: f64, step: f64) -> f64 {
     if x.is_finite() { (x / step).round() / (1.0 / step).round() } else { x }
 }
@@ -455,12 +455,12 @@ fn valid_lang(lang: &str) -> bool {
 }
 
 impl TypesetSettings {
-    /// Alle Felder `None`.
+    /// All fields `None`.
     pub fn is_empty(&self) -> bool {
         *self == TypesetSettings::default()
     }
 
-    /// Prüft alle Werte gegen die Grenzen (§2). Alle Meldungen auf einmal, Reihenfolge wie [`FIELDS`].
+    /// Checks all values against the limits (§2). All messages at once, order like [`FIELDS`].
     pub fn validate(&self) -> Result<(), Vec<FieldError>> {
         let mut errors = Vec::new();
         let range =
@@ -582,7 +582,7 @@ impl TypesetSettings {
                 });
             }
         }
-        // Satzspiegel nur mit Format und Rändern, und nur, wenn die Einzelwerte endlich sind.
+        // Type area only with format and margins, and only if the individual values are finite.
         if let (Some(format), Some(m)) = (&self.page_format, &self.margins) {
             let (w, h) = format.size_mm();
             let width = w - m.inside_mm - m.binding_mm - m.outside_mm;
@@ -611,7 +611,7 @@ impl TypesetSettings {
         if errors.is_empty() { Ok(()) } else { Err(errors) }
     }
 
-    /// Vereinheitlicht: `font`/`lang` getrimmt (leer → `None`), mm und pt auf 0,1, em auf 0,01 gerundet.
+    /// Unifies: `font`/`lang` trimmed (empty → `None`), mm and pt rounded to 0.1, em to 0.01.
     pub fn normalized(&self) -> TypesetSettings {
         let text = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_owned);
         let mm = |x: f64| round_to(x, 0.1);
@@ -642,7 +642,7 @@ impl TypesetSettings {
                 registers: p.registers.iter().map(|r| r.trim().to_owned()).collect(),
                 columns: p.columns,
             }),
-            // R22: Text und Zusatz getrimmt (ein leerer Text bleibt leer und fällt in `validate` auf).
+            // R22: text and addition trimmed (an empty text stays empty and is noticed in `validate`).
             draft: self.draft.as_ref().map(|d| Draft {
                 text: d.text.trim().to_owned(),
                 note: d.note.trim().to_owned(),
@@ -652,7 +652,7 @@ impl TypesetSettings {
         }
     }
 
-    /// Feld-ids, deren Wert sich gegenüber `other` unterscheidet, in [`FIELDS`]-Reihenfolge.
+    /// Field ids whose value differs from `other`, in [`FIELDS`] order.
     pub fn changed_fields(&self, other: &TypesetSettings) -> Vec<&'static str> {
         let differs = [
             self.chapter_start != other.chapter_start,
@@ -679,12 +679,12 @@ impl TypesetSettings {
         FIELDS.iter().zip(differs).filter(|(_, d)| *d).map(|((id, _), _)| *id).collect()
     }
 
-    /// Kanonisches JSON: nur gesetzte Felder, Reihenfolge wie die Struktur.
+    /// Canonical JSON: only set fields, order like the struct.
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| "{}".to_owned())
     }
 
-    /// Liest JSON; unbekannte Felder und falsche Typen → Fehlermeldung von serde.
+    /// Reads JSON; unknown fields and wrong types → error message of serde.
     pub fn from_json(json: &str) -> Result<TypesetSettings, String> {
         serde_json::from_str(json).map_err(|e| e.to_string())
     }
@@ -699,7 +699,7 @@ mod tests {
     #[test]
     fn contract_example_round_trips_byte_for_byte() {
         let s = TypesetSettings::from_json(EXAMPLE).expect("Beispiel aus dem Vertrag (§2) muss lesbar sein");
-        // Kanonisches JSON = Reihenfolge der Struktur; das Vertragsbeispiel ist so geschrieben.
+        // Canonical JSON = order of the struct; the contract example is written this way.
         assert_eq!(s.to_json(), EXAMPLE, "to_json gibt das Vertragsbeispiel unverändert zurück");
         assert_eq!(s.validate(), Ok(()), "das Vertragsbeispiel liegt in allen Grenzen");
         assert_eq!(s.changed_fields(&TypesetSettings::default()).len(), 16, "alle 16 Felder sind gesetzt");
@@ -707,8 +707,9 @@ mod tests {
 
     #[test]
     fn normalized_values_carry_no_floating_point_residue() {
-        // Jeder mm-Wert in 0,1-Schritten und jeder em-Wert in 0,01-Schritten muss nach dem Runden genau die kürzeste
-        // Dezimalform haben – sonst stünde z. B. „5,300000000000001“ im Formular, im JSON und im Austausch-XML.
+        // Every mm value in steps of 0.1 and every em value in steps of 0.01 must have exactly the shortest decimal
+        // form after rounding – otherwise e.g. „5,300000000000001“ would stand in the form, in the JSON and in the
+        // exchange XML.
         for tenths in 50..=800 {
             let x = f64::from(tenths) / 10.0;
             assert_eq!(round_to(x, 0.1).to_string(), x.to_string(), "{x} mm bleibt nach dem Runden {x}");

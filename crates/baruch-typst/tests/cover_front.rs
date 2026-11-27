@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21c (bilder): `front_source_with_rules` – nur die Umschlag-Vorderseite im Endformat als Vorlage des
-//! EPUB-Covers. Rein als Text geprüft; gesetzt und gerastert wird im Server-Test `round21_bilder.rs`. Buchangaben frei
-//! erfunden.
+//! Round 21c (bilder): `front_source_with_rules` – only the cover front in the final format as the template of the
+//! EPUB cover. Checked purely as text; typesetting and rasterising happen in the server test `round21_bilder.rs`.
+//! Book details freely invented.
 
 use baruch_typst::cover::{BookInfo, CoverRef, TitleArea, WrapOptions, front_source_with_rules, wrap_source};
 use baruch_typst::cover_layout::{CoverGeometry, CoverLayout, default_blocks};

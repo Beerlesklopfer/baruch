@@ -1,41 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fassungsmodell (Runde 22, Vertrag §2.1–2.3): Fortschreiben der aktuellen Fassung oder neue Fassung.
+//! Revision model (Round 22, contract §2.1–2.3): amending the current revision or a new revision.
 //!
-//! Speichert der Mensch im Editor (Modus [`SaveMode::Auto`]) auf der aktuellen Fassung und gilt keine Regel für
-//! eine neue Fassung, wird die aktuelle Fassung fortgeschrieben. [`decide`] prüft die Regeln in der festen
-//! Reihenfolge aus §2.2; der erste Treffer liefert den Grund ([`NewReason`]). Die Einstellung je Werk ist
-//! [`RevisionPolicy`] (Tabelle `work_revision_policy`, fehlt die Zeile → [`RevisionPolicy::default`]).
+//! If the human saves in the editor (mode [`SaveMode::Auto`]) on the current revision and no rule for a new
+//! revision applies, the current revision is amended. [`decide`] checks the rules in the fixed order of §2.2; the
+//! first hit yields the reason ([`NewReason`]). The setting per work is [`RevisionPolicy`] (table
+//! `work_revision_policy`, if the row is missing → [`RevisionPolicy::default`]).
 
 use similar::TextDiff;
 
-/// Einstellung „Fassungen“ je Werk.
+/// Setting „Fassungen“ per work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RevisionPolicy {
-    /// Fortschreiben eingeschaltet.
+    /// Amending switched on.
     pub amend: bool,
-    /// Ab dieser Änderung (Prozent, 1–100) entsteht eine neue Fassung.
+    /// From this change on (percent, 1–100) a new revision is created.
     pub max_change_percent: u8,
-    /// Nach so vielen Minuten seit dem letzten Schreiben entsteht eine neue Fassung (0 = keine Zeitgrenze).
+    /// After this many minutes since the last write a new revision is created (0 = no time limit).
     pub new_after_minutes: u32,
 }
 
-/// Vorgabe seit 2026-11-27 (Nutzer: „Strg+S als normales Speichern“): Speichern schreibt die eigene aktuelle Fassung
-/// immer fort, wie in einer Textverarbeitung – keine Größen- und keine Zeitgrenze (100 %, 0 min). Jeder Stand bleibt im
-/// Verlauf der Fortschreibungen; eine neue Fassung gibt es auf Wunsch oder nach den festen Regeln (fremde Fassung,
-/// andere Basis, Überschrift/Gliederung). Die Grenzen lassen sich je Werk wieder einschalten.
+/// Default since 2026-11-27 (user: „Strg+S als normales Speichern“): saving always amends the own current revision,
+/// as in a word processor – no size limit and no time limit (100 %, 0 min). Every state stays in the history of the
+/// amendments; a new revision exists on request or by the fixed rules (foreign revision, other base,
+/// heading/outline). The limits can be switched on again per work.
 impl Default for RevisionPolicy {
     fn default() -> Self {
         RevisionPolicy { amend: true, max_change_percent: 100, new_after_minutes: 0 }
     }
 }
 
-/// Grenzen von [`RevisionPolicy::max_change_percent`] (einschließlich).
+/// Limits of [`RevisionPolicy::max_change_percent`] (inclusive).
 pub const MAX_CHANGE_PERCENT: (u8, u8) = (1, 100);
-/// Grenzen von [`RevisionPolicy::new_after_minutes`] (einschließlich).
+/// Limits of [`RevisionPolicy::new_after_minutes`] (inclusive).
 pub const NEW_AFTER_MINUTES: (u32, u32) = (0, 1440);
 
 impl RevisionPolicy {
-    /// Prüft die Grenzen beider Zahlen (deutsche Meldung).
+    /// Checks the limits of both numbers (German message).
     pub fn validate(&self) -> Result<(), String> {
         let (lo, hi) = MAX_CHANGE_PERCENT;
         if !(lo..=hi).contains(&self.max_change_percent) {
@@ -52,7 +52,7 @@ impl RevisionPolicy {
     }
 }
 
-/// Speichermodus des Editors: `Auto` = fortschreiben, wenn die Regeln es erlauben; `New` = immer neue Fassung.
+/// Save mode of the editor: `Auto` = amend if the rules allow it; `New` = always a new revision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SaveMode {
@@ -61,7 +61,7 @@ pub enum SaveMode {
 }
 
 impl SaveMode {
-    /// Parameter `mode` aus RPC/Formular: fehlt er, gilt `New` (Verhalten wie vor Runde 22).
+    /// Parameter `mode` from RPC/form: if it is missing, `New` applies (behaviour as before Round 22).
     pub fn from_param(s: Option<&str>) -> Result<SaveMode, String> {
         match s {
             None | Some("new") => Ok(SaveMode::New),
@@ -71,7 +71,7 @@ impl SaveMode {
     }
 }
 
-/// Grund für eine neue Fassung (Reihenfolge der Prüfung wie die Varianten).
+/// Reason for a new revision (order of the check like the variants).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NewReason {
@@ -86,7 +86,7 @@ pub enum NewReason {
 }
 
 impl NewReason {
-    /// Kennung (= serde-Wert).
+    /// Identifier (= serde value).
     pub fn id(self) -> &'static str {
         match self {
             NewReason::Requested => "requested",
@@ -100,7 +100,7 @@ impl NewReason {
         }
     }
 
-    /// Deutsche Bezeichnung für die Oberfläche.
+    /// German label for the user interface.
     pub fn label(self) -> &'static str {
         match self {
             NewReason::Requested => "als neue Fassung gewünscht",
@@ -115,7 +115,7 @@ impl NewReason {
     }
 }
 
-/// Tatsachen eines Speicherns, die [`decide`] braucht.
+/// Facts of a save that [`decide`] needs.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SaveFacts {
     pub has_current: bool,
@@ -126,13 +126,12 @@ pub struct SaveFacts {
     pub minutes_since_last_write: u64,
 }
 
-/// None = fortschreiben, Some(Grund) = neue Fassung (Reihenfolge §2.2).
+/// None = amend, Some(reason) = new revision (order §2.2).
 ///
-/// Reihenfolge: ausdrücklich gewünscht (`SaveMode::New`) → keine aktuelle Fassung → Fortschreiben ausgeschaltet →
-/// aktuelle Fassung nicht vom Menschen (Persona, MCP, übernommener Vorschlag) → nicht auf der aktuellen Fassung
-/// bearbeitet → Überschrift/Ebene/Teilen/Zusammenführen → Änderung über `max_change_percent` → Zeitgrenze
-/// (`new_after_minutes > 0` und seit dem letzten Schreiben mindestens so viele Minuten). Keine Regel greift →
-/// `None` (fortschreiben).
+/// Order: explicitly requested (`SaveMode::New`) → no current revision → amending switched off → current revision
+/// not by the human (persona, MCP, accepted proposal) → not edited on the current revision →
+/// heading/level/split/merge → change above `max_change_percent` → time limit (`new_after_minutes > 0` and at least
+/// that many minutes since the last write). No rule applies → `None` (amend).
 pub fn decide(policy: &RevisionPolicy, mode: SaveMode, facts: &SaveFacts) -> Option<NewReason> {
     if mode == SaveMode::New {
         return Some(NewReason::Requested);
@@ -161,14 +160,14 @@ pub fn decide(policy: &RevisionPolicy, mode: SaveMode, facts: &SaveFacts) -> Opt
     None
 }
 
-/// Änderung in Prozent: (1 − Wortähnlichkeit) · 100 (`similar::TextDiff::from_words`).
+/// Change in percent: (1 − word similarity) · 100 (`similar::TextDiff::from_words`).
 pub fn change_percent(old: &str, new: &str) -> f64 {
     let ratio = TextDiff::from_words(old, new).ratio();
     (1.0 - f64::from(ratio)) * 100.0
 }
 
-/// Wort-Unterschied zweier Texte (für den Verlauf der Fortschreibungen): Stücke in Reihenfolge, je gleich, neu oder
-/// entfernt; aufeinanderfolgende Stücke derselben Art sind zusammengefasst, Leerraum bleibt erhalten.
+/// Word difference of two texts (for the history of the amendments): pieces in order, each equal, new or removed;
+/// consecutive pieces of the same kind are merged, whitespace is kept.
 pub fn word_diff(old: &str, new: &str) -> Vec<(crate::DiffKind, String)> {
     let mut out: Vec<(crate::DiffKind, String)> = Vec::new();
     for change in TextDiff::from_words(old, new).iter_all_changes() {
@@ -189,12 +188,12 @@ pub fn word_diff(old: &str, new: &str) -> Vec<(crate::DiffKind, String)> {
 mod tests {
     use super::*;
 
-    /// Die frühere Vorgabe (20 %, 30 min): an ihr prüfen die Tests die Grenzregeln.
+    /// The former default (20 %, 30 min): the tests check the limit rules against it.
     fn limited() -> RevisionPolicy {
         RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 }
     }
 
-    /// Tatsachen, unter denen fortgeschrieben wird (eigene aktuelle Fassung, kleine Änderung, eben geschrieben).
+    /// Facts under which amending happens (own current revision, small change, just written).
     fn amendable() -> SaveFacts {
         SaveFacts {
             has_current: true,
@@ -287,11 +286,11 @@ mod tests {
     fn change_percent_is_zero_for_equal_texts_and_about_hundred_for_different_ones() {
         let text = "Der Leuchtturm am Kap stand schief, doch er leuchtete jede Nacht.";
         assert!(change_percent(text, text).abs() < f64::EPSILON, "gleicher Text: 0 %");
-        // Ganz anderer Text ohne gemeinsame Teile (auch ohne Leerraum): 100 %.
+        // Entirely different text without common parts (also without whitespace): 100 %.
         let p = change_percent("Leuchtturmwärter", "Möwenschwarm");
         assert!(p > 99.0, "alles anders: nahe 100 % (war {p})");
-        // Vertragsformel zählt die Leerräume zwischen den Wörtern als gleiche Teile: Ein ganz neuer Satz mit gleich
-        // vielen Wörtern liegt darum bei etwa der Hälfte – immer noch weit über der Vorgabe von 20 %.
+        // The contract formula counts the whitespace between the words as equal parts: an entirely new sentence
+        // with the same number of words therefore lies at about half – still far above the default of 20 %.
         let other = "Elf Möwen zählten Muscheln unter grünem Himmel bei Ebbe, ganz still und froh.";
         let p = change_percent(text, other);
         assert!(p > 40.0, "neuer Satz: deutlich über 20 % (war {p})");

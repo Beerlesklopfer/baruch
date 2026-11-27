@@ -1,15 +1,14 @@
-//! Kern von Baruch: Werke, Kapitelbaum, Revisionen je Abschnitt, Personas.
+//! Core of Baruch: works, chapter tree, revisions per section, personas.
 //!
-//! Regeln (siehe docs/Plan.md, Revisionsbaum): Je Abschnitt trägt genau eine Revision die Markierung
-//! `Current` (die aktuelle Fassung); sie lässt sich jederzeit auf jede andere Fassung umschalten
-//! ([`Node::set_current`]), dabei ändert sich kein Text und nichts wird verworfen. Übernehmen eines
-//! Vorschlags ([`Node::accept`]) ist ein solches Umschalten, Verwerfen bleibt ein Status für Vorschläge.
-//! Revisionen werden über ihre **Nummer** angesprochen, nicht über ihre Stelle in der Liste: Nummern
-//! steigen, sind eindeutig und haben nach einem Löschen Lücken (eine Nummer wird nie neu vergeben).
-//! Assistenten legen nur `Proposed` an; Ändern, Löschen und Umschalten sind dem Menschen vorbehalten.
-//! Lektor nach Einstellung ([`LectorChoice`]): fest eine Persona oder automatisch die aktive Persona mit
-//! dem größten Kontext. Versuch seit 2026-11-06: fest `@lektor` (alle Personas auf einem Modell); ist die
-//! feste Persona nicht (mehr) da oder inaktiv, gilt die automatische Regel.
+//! Rules (see docs/Plan.md, revision tree): per section exactly one revision carries the mark `Current` (the
+//! current revision); it can be switched to any other revision at any time ([`Node::set_current`]), no text changes
+//! and nothing is discarded. Accepting a proposal ([`Node::accept`]) is such a switch, rejecting stays a status for
+//! proposals. Revisions are addressed by their **number**, not by their position in the list: numbers rise, are
+//! unique and have gaps after a deletion (a number is never assigned again). Assistants only create `Proposed`;
+//! changing, deleting and switching are reserved for the human. Lector by setting ([`LectorChoice`]): a fixed
+//! persona or automatically the active persona with the largest context. Trial since 2026-11-06: fixed `@lektor`
+//! (all personas on one model); if the fixed persona is not there (any more) or inactive, the automatic rule
+//! applies.
 
 pub mod language;
 pub mod revision_fold;
@@ -63,18 +62,18 @@ pub struct Revision {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Post {
-    /// Datenbank-id des Beitrags (`post.id`); 0 = noch nicht gespeichert (Beispieldaten, neue Beiträge).
+    /// Database id of the post (`post.id`); 0 = not stored yet (sample data, new posts).
     pub id: i64,
-    /// Zeitpunkt des Anlegens (ISO 8601, `2026-11-06T10:11:12.123Z`); leer, solange nicht gespeichert.
+    /// Time of creation (ISO 8601, `2026-11-06T10:11:12.123Z`); empty as long as it is not stored.
     pub created: String,
     pub author: String,
     pub body: String,
     pub sources: Vec<String>,
-    /// Verweise auf Stellen im eigenen Werk („du hast in 2.1 schon geschrieben …“).
+    /// References to places in the own work („du hast in 2.1 schon geschrieben …“).
     pub refs: Vec<TextRef>,
 }
 
-/// Stelle im Werk: Abschnitt und Revisionsnummer (ab 1), dazu der zitierte Wortlaut.
+/// Place in the work: section and revision number (from 1), plus the quoted wording.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextRef {
     pub node: usize,
@@ -84,11 +83,11 @@ pub struct TextRef {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Node {
-    /// Stelle in Baumreihenfolge (`seq`, ab 0). Jede Gliederungsänderung vergibt sie neu.
+    /// Position in tree order (`seq`, from 0). Every change of the outline assigns it anew.
     pub id: usize,
-    /// Fester Schlüssel (Datenbank-id des Knotens): bleibt über Verschieben, Umstufen, Anlegen und
-    /// Löschen anderer Punkte gleich; Schreibwege nehmen ihn als `key`, damit ein veralteter Stand
-    /// nicht in einen fremden Abschnitt schreibt. 0 = nicht aus der Datenbank (Beispieldaten).
+    /// Fixed key (database id of the node): stays the same when other points are moved, changed in level, created
+    /// or deleted; write paths take it as `key`, so that a stale state does not write into a foreign section. 0 =
+    /// not from the database (sample data).
     pub key: i64,
     pub parent: Option<usize>,
     pub number: String,
@@ -100,29 +99,29 @@ pub struct Node {
 }
 
 impl Node {
-    /// Stelle der aktuellen Fassung in `revisions` (ab 0).
+    /// Position of the current revision in `revisions` (from 0).
     pub fn current_index(&self) -> Option<usize> {
         self.revisions.iter().position(|r| r.status == RevisionStatus::Current)
     }
 
-    /// Revision mit der Nummer `number` (nicht der Stelle).
+    /// Revision with the number `number` (not the position).
     pub fn revision(&self, number: u32) -> Option<&Revision> {
         self.revisions.iter().find(|r| r.number == number)
     }
 
-    /// Stelle der Revision mit der Nummer `number` in `revisions` (ab 0).
+    /// Position of the revision with the number `number` in `revisions` (from 0).
     pub fn position_of(&self, number: u32) -> Option<usize> {
         self.revisions.iter().position(|r| r.number == number)
     }
 
-    /// Nummer der aktuellen Fassung.
+    /// Number of the current revision.
     pub fn current_number(&self) -> Option<u32> {
         self.current_index().map(|i| self.revisions[i].number)
     }
 
-    /// Markierung „aktuell“ auf die Revision `number` umschalten: die bisherige `Current` wird
-    /// `Superseded`, das Ziel `Current`. Jeder Status außer `Current` ist als Ziel erlaubt; kein Text
-    /// ändert sich. Unbekannte Nummer oder schon aktuell → `false`, nichts geändert.
+    /// Switch the mark "current" to the revision `number`: the previous `Current` becomes `Superseded`, the target
+    /// `Current`. Every status except `Current` is allowed as target; no text changes. Unknown number or already
+    /// current → `false`, nothing changed.
     pub fn set_current(&mut self, number: u32) -> bool {
         let Some(target) = self.position_of(number) else { return false };
         if self.revisions[target].status == RevisionStatus::Current {
@@ -141,8 +140,8 @@ impl Node {
         self.revisions.iter().filter(|r| r.status == RevisionStatus::Proposed).count()
     }
 
-    /// Vorschlag an der Stelle `index` übernehmen (nur `Proposed`): Umschalten mit
-    /// [`Node::set_current`], die bisherige `Current` wird `Superseded`.
+    /// Accept the proposal at position `index` (only `Proposed`): a switch with [`Node::set_current`], the previous
+    /// `Current` becomes `Superseded`.
     pub fn accept(&mut self, index: usize) -> bool {
         match self.revisions.get(index) {
             Some(rev) if rev.status == RevisionStatus::Proposed => {
@@ -163,8 +162,7 @@ impl Node {
         }
     }
 
-    /// Eigene Bearbeitung speichern: neue Revision vom Menschen, sofort `Current`, mit der Nummer
-    /// höchste + 1 (auch bei Lücken).
+    /// Save an own edit: new revision by the human, `Current` at once, with the number highest + 1 (also with gaps).
     pub fn save_human(&mut self, body: String, author: &str) {
         for rev in &mut self.revisions {
             if rev.status == RevisionStatus::Current {
@@ -192,11 +190,11 @@ pub struct Persona {
     pub active: bool,
 }
 
-/// Wahl des Lektors (Runde 10, `store_meta` Schlüssel `lector`: `auto` oder ein Handle).
+/// Choice of the lector (Round 10, `store_meta` key `lector`: `auto` or a handle).
 ///
-/// `Fixed(handle)`: diese Persona, solange es sie gibt und sie aktiv ist, sonst die Regel von `Auto`.
-/// `Auto`: die aktive Persona mit dem größten Kontext, bei Gleichstand die erste (Reihenfolge der Personas).
-/// Vorgabe des Versuchs seit 2026-11-06: fest `@lektor`.
+/// `Fixed(handle)`: this persona, as long as it exists and is active, otherwise the rule of `Auto`.
+/// `Auto`: the active persona with the largest context, on a tie the first one (order of the personas).
+/// Default of the trial since 2026-11-06: fixed `@lektor`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "mode", content = "handle", rename_all = "snake_case")]
 pub enum LectorChoice {
@@ -210,11 +208,11 @@ impl Default for LectorChoice {
     }
 }
 
-/// Vorgabe der Lektor-Wahl im Versuch seit 2026-11-06.
+/// Default of the lector choice in the trial since 2026-11-06.
 pub const DEFAULT_LECTOR: &str = "@lektor";
 
 impl LectorChoice {
-    /// `"fixed"` oder `"auto"`.
+    /// `"fixed"` or `"auto"`.
     pub fn mode(&self) -> &'static str {
         match self {
             LectorChoice::Auto => "auto",
@@ -222,7 +220,7 @@ impl LectorChoice {
         }
     }
 
-    /// Fester Handle, falls gewählt.
+    /// Fixed handle, if chosen.
     pub fn handle(&self) -> Option<&str> {
         match self {
             LectorChoice::Auto => None,
@@ -230,8 +228,8 @@ impl LectorChoice {
         }
     }
 
-    /// Lektor unter Personas mit Handle, Kontextlänge und aktiv (in ihrer Reihenfolge `position`, `id`):
-    /// Index in `personas`. Gemeinsame Regel für [`Work::lector`] und die Tabelle `persona` im Server.
+    /// Lector among personas with handle, context length and active (in their order `position`, `id`): index in
+    /// `personas`. Shared rule for [`Work::lector`] and the table `persona` in the server.
     pub fn pick<T>(
         &self,
         personas: &[T],
@@ -270,7 +268,7 @@ pub struct Work {
     pub author: String,
     pub nodes: Vec<Node>,
     pub personas: Vec<Persona>,
-    /// Wahl des Lektors (Runde 10); Vorgabe fest `@lektor`.
+    /// Choice of the lector (Round 10); default fixed `@lektor`.
     pub lector_choice: LectorChoice,
 }
 
@@ -279,8 +277,8 @@ impl Work {
         self.nodes.iter().filter(move |n| n.parent == parent)
     }
 
-    /// Lektor nach [`Work::lector_choice`]: fest gewählt (wenn vorhanden und aktiv), sonst die aktive
-    /// Persona mit dem größten Kontext (bei Gleichstand die erste).
+    /// Lector by [`Work::lector_choice`]: the fixed choice (if present and active), otherwise the active persona
+    /// with the largest context (on a tie the first one).
     pub fn lector(&self) -> Option<&Persona> {
         let index =
             self.lector_choice.pick(&self.personas, |p| p.handle.as_str(), |p| p.context_length, |p| p.active)?;
@@ -296,7 +294,7 @@ pub enum DiffKind {
     Removed,
 }
 
-/// Zeilenweiser Vergleich (Zeilen-Diff der Vorschläge im Lesefluss).
+/// Line-wise comparison (line diff of the proposals in the reading flow).
 pub fn line_diff(old: &str, new: &str) -> Vec<(DiffKind, String)> {
     TextDiff::from_lines(old, new)
         .iter_all_changes()
@@ -359,7 +357,7 @@ mod tests {
     fn numbers_not_positions_address_revisions_after_a_gap() {
         let mut work = sample::work();
         let node = &mut work.nodes[2];
-        node.revisions.remove(1); // Lücke: 1, 3
+        node.revisions.remove(1); // gap: 1, 3
         node.revisions[0].status = RevisionStatus::Current;
         assert_eq!(node.position_of(3), Some(1), "Nummer 3 steht jetzt an Stelle 1");
         assert_eq!(node.revision(2).map(|r| r.number), None, "gelöschte Nummer gibt es nicht mehr");

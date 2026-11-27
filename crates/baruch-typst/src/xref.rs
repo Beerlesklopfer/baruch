@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Querverweise auf Gliederungspunkte (Runde 30a).
+//! Cross-references to outline points (Round 30a).
 //!
-//! - Jeder Gliederungspunkt hat eine feste Sprungmarke `<k{key}>` ([`key_label`]); projiziert wird sie nur beim
-//!   Export, Spiegel und Satz ([`label_heading`], [`label_section`]), die Texte in der Datenbank bleiben unverändert.
-//!   - Eine `=`-Überschriftszeile ohne eigenes Label bekommt ` <kN>` angehängt (vor einem Kommentar):
-//!     `= Titel <k5> // Notiz`.
-//!   - Eine Überschrift mit eigenem Label (Teil `<baruch-part>`, „ohne Nummer“ `<baruch-unnumbered>`, ein Label des
-//!     Menschen am Zeilenende oder allein auf der Zeile darunter) behält es; darunter (hinter einer Label-Zeile)
-//!     steht die Ankerzeile [`anchor_line`] `#metadata("baruch-key") <kN>`. Typst kennt nur ein Label je Element.
-//! - Ein Verweis im Text hat die Form `#link(<k103>)[die Einleitung]`, mit Seitenzahl
+//! - Every outline point has a fixed jump label `<k{key}>` ([`key_label`]); it is only projected on export, mirror
+//!   and typesetting ([`label_heading`], [`label_section`]), the texts in the database stay unchanged.
+//!   - A `=` heading line without a label of its own gets ` <kN>` appended (before a comment): `= Titel <k5> // Notiz`.
+//!   - A heading with a label of its own (part `<baruch-part>`, „ohne Nummer“ `<baruch-unnumbered>`, a label of the
+//!     human at the line end or alone on the line below) keeps it; below it (behind a label line) stands the anchor
+//!     line [`anchor_line`] `#metadata("baruch-key") <kN>`. Typst knows only one label per element.
+//! - A reference in the text has the form `#link(<k103>)[die Einleitung]`, with page number
 //!   `#link(<k103>)[die Einleitung, S.~#context counter(page).at(<k103>).first()]` ([`xref_snippet`]);
-//!   [`find_xrefs`] findet beide Formen.
-//! - Beim Einlesen entfernt [`strip_key_label`] (je Zeile), [`strip_section`] (je Abschnitt) bzw.
-//!   [`strip_key_labels`] (ganze Datei) die Sprungmarken wieder; [`remap_keys`] setzt Verweise auf neue Schlüssel um.
+//!   [`find_xrefs`] finds both forms.
+//! - On reading, [`strip_key_label`] (per line), [`strip_section`] (per section) or [`strip_key_labels`] (whole
+//!   file) remove the jump labels again; [`remap_keys`] converts references to new keys.
 //!
-//! Erkannt werden nur die kanonischen Formen, die diese Funktionen selbst schreiben; Raw-Blöcke und Kommentare
-//! verfolgen die Funktionen nicht (eine Zeile `#metadata("baruch-key") <k5>` im Raw-Block gälte als Ankerzeile).
+//! Only the canonical forms that these functions write themselves are recognised; the functions do not track raw
+//! blocks and comments (a line `#metadata("baruch-key") <k5>` in a raw block would count as an anchor line).
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -23,18 +22,18 @@ use std::collections::HashMap;
 use crate::marker::read_marker;
 use crate::{comment_start, label_start, read_heading};
 
-/// Anfang des Namens einer Sprungmarke: `k` + Schlüssel.
+/// Start of the name of a jump label: `k` + key.
 pub const KEY_LABEL_PREFIX: &str = "k";
 
-/// Wert der Ankerzeile ([`anchor_line`]).
+/// Value of the anchor line ([`anchor_line`]).
 pub const ANCHOR_VALUE: &str = "baruch-key";
 
-/// Name der Sprungmarke des Gliederungspunkts `key` (ohne spitze Klammern): `k103`.
+/// Name of the jump label of the outline point `key` (without angle brackets): `k103`.
 pub fn key_label(key: i64) -> String {
     format!("{KEY_LABEL_PREFIX}{key}")
 }
 
-/// Schlüssel aus dem Namen einer Sprungmarke: `k103` → 103; alles andere (auch `<k103>`, `k`, `k-1`, `k01`) → `None`.
+/// Key from the name of a jump label: `k103` → 103; everything else (also `<k103>`, `k`, `k-1`, `k01`) → `None`.
 pub fn parse_key_label(label: &str) -> Option<i64> {
     let digits = label.strip_prefix(KEY_LABEL_PREFIX)?;
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) || (digits.len() > 1 && digits.starts_with('0'))
@@ -44,19 +43,19 @@ pub fn parse_key_label(label: &str) -> Option<i64> {
     digits.parse().ok()
 }
 
-/// Unsichtbare Ankerzeile (ohne Zeilenende) für Überschriften mit eigenem Label: `#metadata("baruch-key") <k5>`.
+/// Invisible anchor line (without line end) for headings with a label of their own: `#metadata("baruch-key") <k5>`.
 pub fn anchor_line(key: i64) -> String {
     format!("#metadata(\"{ANCHOR_VALUE}\") <{}>", key_label(key))
 }
 
-/// Schlüssel einer Ankerzeile ([`anchor_line`], Zeilenende erlaubt), sonst `None`.
+/// Key of an anchor line ([`anchor_line`], line end allowed), otherwise `None`.
 pub fn parse_anchor_line(line: &str) -> Option<i64> {
     let (content, _) = split_ending(line);
     let rest = content.strip_prefix(&format!("#metadata(\"{ANCHOR_VALUE}\") <"))?;
     parse_key_label(rest.strip_suffix('>')?)
 }
 
-/// Zeilenende abtrennen: (Inhalt, Zeilenende).
+/// Split off the line end: (content, line end).
 fn split_ending(line: &str) -> (&str, &str) {
     if let Some(content) = line.strip_suffix("\r\n") {
         (content, "\r\n")
@@ -67,15 +66,16 @@ fn split_ending(line: &str) -> (&str, &str) {
     }
 }
 
-/// Art einer Überschriftszeile für die Projektion.
+/// Kind of a heading line for the projection.
 enum HeadingForm {
-    /// `=`-Zeile ohne eigenes Label: Stelle, an der ` <kN>` eingefügt wird (Ende des Titels vor Leerraum und Kommentar).
+    /// `=` line without a label of its own: position at which ` <kN>` is inserted (end of the title before
+    /// whitespace and comment).
     Plain { insert_at: usize },
-    /// Teil, „ohne Nummer“ oder `=`-Zeile mit eigenem Label: Ankerzeile darunter.
+    /// Part, „ohne Nummer“ or `=` line with a label of its own: anchor line below it.
     Labelled,
 }
 
-/// Form der Überschriftszeile `content` (ohne Zeilenende); `None` = keine Überschrift.
+/// Form of the heading line `content` (without line end); `None` = no heading.
 fn heading_form(content: &str) -> Option<HeadingForm> {
     if read_marker(content).is_some() {
         return Some(HeadingForm::Labelled);
@@ -91,10 +91,10 @@ fn heading_form(content: &str) -> Option<HeadingForm> {
     Some(HeadingForm::Plain { insert_at: level + head.trim_end().len() })
 }
 
-/// Überschriftszeile mit Sprungmarke des Gliederungspunkts `key` (für Export, Spiegel, Satz). `=`-Zeile ohne eigenes
-/// Label: ` <kN>` hinter dem Titel (vor Leerraum, Kommentar und Zeilenende). Mit eigenem Label (auch Teil und „ohne
-/// Nummer“): die Zeile, ein Zeilenende und die Ankerzeile ([`anchor_line`]) mit dem Zeilenende der Zeile. Keine
-/// Überschrift: unverändert. Ein Label allein auf der Zeile darunter kennt nur [`label_section`].
+/// Heading line with the jump label of the outline point `key` (for export, mirror, typesetting). `=` line without
+/// a label of its own: ` <kN>` behind the title (before whitespace, comment and line end). With a label of its own
+/// (also part and „ohne Nummer“): the line, a line end and the anchor line ([`anchor_line`]) with the line end of
+/// the line. No heading: unchanged. A label alone on the line below is only known to [`label_section`].
 pub fn label_heading(line: &str, key: i64) -> String {
     let (content, ending) = split_ending(line);
     match heading_form(content) {
@@ -109,15 +109,15 @@ pub fn label_heading(line: &str, key: i64) -> String {
     }
 }
 
-/// Ist `line` (ohne Zeilenende) ein Label allein auf der Zeile (`<name>`, Einzug erlaubt)?
+/// Is `line` (without line end) a label alone on the line (`<name>`, indentation allowed)?
 fn is_label_line(line: &str) -> bool {
     let trimmed = split_ending(line).0.trim();
     trimmed.starts_with('<') && label_start(trimmed) == Some(0)
 }
 
-/// Text eines Abschnitts mit Sprungmarke `key` an seiner ersten Zeile (die Überschrift, [`label_heading`]). Steht
-/// direkt unter einer Überschrift ein Label allein auf der Zeile (`= Titel⏎<name>`), gehört es zur Überschrift; die
-/// Ankerzeile kommt dann hinter das Label. Ohne Überschrift in der ersten Zeile: unverändert.
+/// Text of a section with the jump label `key` at its first line (the heading, [`label_heading`]). If a label
+/// stands alone on the line directly below a heading (`= Titel⏎<name>`), it belongs to the heading; the anchor line
+/// then goes behind the label. Without a heading in the first line: unchanged.
 pub fn label_section(body: &str, key: i64) -> Cow<'_, str> {
     let mut lines = body.split_inclusive('\n');
     let Some(first) = lines.next() else { return Cow::Borrowed(body) };
@@ -128,7 +128,7 @@ pub fn label_section(body: &str, key: i64) -> Cow<'_, str> {
             Cow::Owned(format!("{}{}", label_heading(first, key), &body[first.len()..]))
         }
         Some(_) => {
-            // Ankerzeile hinter der Überschrift bzw. hinter der Label-Zeile darunter.
+            // Anchor line behind the heading or behind the label line below it.
             let mut end = first.len();
             let mut last_ending = ending;
             if let Some(next) = lines.next().filter(|l| is_label_line(l)) {
@@ -143,9 +143,9 @@ pub fn label_section(body: &str, key: i64) -> Cow<'_, str> {
     }
 }
 
-/// Überschriftszeile ohne Sprungmarke und der Schlüssel, der darin stand (beim Einlesen). Eine `=`-Zeile verliert
-/// ` <kN>` hinter dem Titel; eine Ankerzeile ([`anchor_line`]) wird ganz entfernt (leere Zeichenkette samt
-/// Zeilenende). Alles andere bleibt geliehen und ohne Schlüssel.
+/// Heading line without the jump label and the key that stood in it (on reading). A `=` line loses ` <kN>` behind
+/// the title; an anchor line ([`anchor_line`]) is removed entirely (empty string including line end). Everything
+/// else stays borrowed and without key.
 pub fn strip_key_label(line: &str) -> (Cow<'_, str>, Option<i64>) {
     if let Some(key) = parse_anchor_line(line) {
         return (Cow::Borrowed(""), Some(key));
@@ -167,8 +167,8 @@ pub fn strip_key_label(line: &str) -> (Cow<'_, str>, Option<i64>) {
     (Cow::Owned(format!("{}{}", &line[..start], &line[end..])), Some(key))
 }
 
-/// Text eines Abschnitts ohne Sprungmarke (Umkehrung von [`label_section`]) und der Schlüssel daraus: die erste Zeile
-/// über [`strip_key_label`], eine Ankerzeile direkt darunter oder hinter einer Label-Zeile wird entfernt.
+/// Text of a section without the jump label (inverse of [`label_section`]) and the key from it: the first line
+/// through [`strip_key_label`], an anchor line directly below it or behind a label line is removed.
 pub fn strip_section(body: &str) -> (Cow<'_, str>, Option<i64>) {
     let mut lines = body.split_inclusive('\n');
     let Some(first) = lines.next() else { return (Cow::Borrowed(body), None) };
@@ -180,7 +180,7 @@ pub fn strip_section(body: &str) -> (Cow<'_, str>, Option<i64>) {
     if heading_form(content).is_none() {
         return (Cow::Borrowed(body), None);
     }
-    // Ankerzeile direkt unter der Überschrift oder unter deren Label-Zeile.
+    // Anchor line directly below the heading or below its label line.
     let mut at = first.len();
     let mut next = lines.next();
     if let Some(label) = next.filter(|l| is_label_line(l)) {
@@ -193,7 +193,7 @@ pub fn strip_section(body: &str) -> (Cow<'_, str>, Option<i64>) {
     out.push_str(&body[..at]);
     let rest = &body[at + anchor.len()..];
     if rest.is_empty() && split_ending(anchor).1.is_empty() {
-        // Die Ankerzeile war die letzte Zeile ohne Zeilenende: das davor ergänzte Zeilenende fällt mit ihr weg.
+        // The anchor line was the last line without a line end: the line end added before it is dropped with it.
         if let Some(stripped) = out.strip_suffix('\n') {
             out.truncate(stripped.len());
         }
@@ -202,15 +202,15 @@ pub fn strip_section(body: &str) -> (Cow<'_, str>, Option<i64>) {
     (Cow::Owned(out), Some(key))
 }
 
-/// Anfang der Satz-Form einer Ankerzeile vor einem Teil ([`part_anchors_for_typesetting`]).
+/// Start of the typesetting form of an anchor line before a part ([`part_anchors_for_typesetting`]).
 const PART_ANCHOR_BREAK: &str = "#pagebreak(weak: true, to: \"odd\")";
 
-/// Nur für den Satz mit Teil-Seiten (`baruch_typst::part_page_rule`): Die Regel setzt den Teil allein auf eine rechte
-/// Seite und bricht danach um – eine Ankerzeile hinter der Teil-Zeile läge so auf der Seite danach. Hier wandert sie
-/// vor die Teil-Zeile, mit demselben weichen Umbruch auf eine rechte Seite davor:
-/// `#pagebreak(weak: true, to: "odd")#metadata("baruch-key") <kN>` – der Umbruch der Regel entfällt dann, weil die
-/// Seite nur den Anker trägt (belegt in `baruch-render/tests/xref.rs`). Zeilenzahl und Zeilen der übrigen Abschnitte
-/// bleiben; Überschrift und Anker tauschen nur die Zeile. Ohne Teil mit Ankerzeile: geliehen.
+/// Only for the typesetting with part pages (`baruch_typst::part_page_rule`): the rule sets the part alone on a
+/// right-hand page and breaks afterwards – an anchor line behind the part line would thus lie on the page after it.
+/// Here it moves before the part line, with the same weak break to a right-hand page before it: `#pagebreak(weak:
+/// true, to: "odd")#metadata("baruch-key") <kN>` – the break of the rule is then omitted, because the page only
+/// carries the anchor (proven in `baruch-render/tests/xref.rs`). Number of lines and lines of the remaining
+/// sections stay; heading and anchor only swap the line. Without a part with an anchor line: borrowed.
 pub fn part_anchors_for_typesetting(text: &str) -> Cow<'_, str> {
     let lines: Vec<&str> = text.split_inclusive('\n').collect();
     let mut out = String::with_capacity(text.len() + 40);
@@ -236,8 +236,8 @@ pub fn part_anchors_for_typesetting(text: &str) -> Cow<'_, str> {
     if changed { Cow::Owned(out) } else { Cow::Borrowed(text) }
 }
 
-/// Ganzer Text ohne Sprungmarken: in jeder Überschriftszeile ` <kN>` entfernt, Ankerzeilen entfernt (für Tests und
-/// zum Vergleich eines Exports mit seiner Quelle). Ohne Sprungmarken bleibt der Text geliehen.
+/// Whole text without jump labels: ` <kN>` removed in every heading line, anchor lines removed (for tests and for
+/// comparing an export with its source). Without jump labels the text stays borrowed.
 pub fn strip_key_labels(text: &str) -> Cow<'_, str> {
     if !text.contains(&format!("<{KEY_LABEL_PREFIX}")) {
         return Cow::Borrowed(text);
@@ -246,7 +246,8 @@ pub fn strip_key_labels(text: &str) -> Cow<'_, str> {
     let mut out = String::with_capacity(text.len());
     let mut changed = false;
     for (i, line) in lines.iter().enumerate() {
-        // Ein Byte-Order-Mark am Dateianfang gehört zur Werkvorlage; die Überschrift dahinter zählt trotzdem.
+        // A byte order mark at the start of the file belongs to the work template; the heading behind it counts
+        // nevertheless.
         let line = match line.strip_prefix(crate::BOM).filter(|_| i == 0) {
             Some(rest) => {
                 out.push(crate::BOM);
@@ -258,7 +259,7 @@ pub fn strip_key_labels(text: &str) -> Cow<'_, str> {
         if key.is_some() {
             changed = true;
             if stripped.is_empty() && i + 1 == lines.len() && split_ending(line).1.is_empty() {
-                // Letzte Ankerzeile ohne Zeilenende: das vorher ergänzte Zeilenende fällt mit ihr weg.
+                // Last anchor line without a line end: the line end added before is dropped with it.
                 if out.ends_with('\n') {
                     out.pop();
                 }
@@ -269,8 +270,8 @@ pub fn strip_key_labels(text: &str) -> Cow<'_, str> {
     if changed { Cow::Owned(out) } else { Cow::Borrowed(text) }
 }
 
-/// Verweis im Text auf den Gliederungspunkt `key` mit dem Linktext `text` (Typst-Markup, wörtlich eingesetzt):
-/// `#link(<k103>)[die Einleitung]`; mit Seitenzahl `#link(<k103>)[die Einleitung, S.~#context
+/// Reference in the text to the outline point `key` with the link text `text` (Typst markup, inserted verbatim):
+/// `#link(<k103>)[die Einleitung]`; with page number `#link(<k103>)[die Einleitung, S.~#context
 /// counter(page).at(<k103>).first()]`.
 pub fn xref_snippet(key: i64, text: &str, with_page: bool) -> String {
     let label = key_label(key);
@@ -281,12 +282,12 @@ pub fn xref_snippet(key: i64, text: &str, with_page: bool) -> String {
     }
 }
 
-/// Seitenzahl-Zusatz im Linktext: `, S.~#context counter(page).at(<k103>).first()`.
+/// Page number addition in the link text: `, S.~#context counter(page).at(<k103>).first()`.
 fn page_suffix(key: i64) -> String {
     format!(", S.~#context counter(page).at(<{}>).first()", key_label(key))
 }
 
-/// Ein Verweis im Text: Bytes `start..end` der ganzen Form, Schlüssel, Linktext, mit Seitenzahl?
+/// A reference in the text: bytes `start..end` of the whole form, key, link text, with page number?
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct XrefUse {
     pub start: usize,
@@ -296,8 +297,8 @@ pub struct XrefUse {
     pub page: bool,
 }
 
-/// Ende (exklusiv, hinter `]`) des Inhaltsblocks, der bei `open` (Byte von `[`) beginnt: Maskierungen `\X` und
-/// geschachtelte Klammern zählen mit. Kein Schluss → `None`.
+/// End (exclusive, behind `]`) of the content block that starts at `open` (byte of `[`): escapes `\X` and nested
+/// brackets count. No end → `None`.
 fn block_end(text: &str, open: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut depth = 0usize;
@@ -323,8 +324,8 @@ fn block_end(text: &str, open: usize) -> Option<usize> {
     None
 }
 
-/// Alle Verweise (`#link(<kN>)[…]`, auch mit Seitenzahl-Zusatz) in einem Text, in Textreihenfolge. Ein maskiertes
-/// `\#link` zählt nicht.
+/// All references (`#link(<kN>)[…]`, also with page number addition) in a text, in text order. An escaped `\#link`
+/// does not count.
 pub fn find_xrefs(text: &str) -> Vec<XrefUse> {
     const OPEN: &str = "#link(<";
     let mut out = Vec::new();
@@ -352,8 +353,8 @@ pub fn find_xrefs(text: &str) -> Vec<XrefUse> {
     out
 }
 
-/// Verweise auf alte Schlüssel durch neue ersetzen (`map`: alt → neu), auch im Seitenzahl-Zusatz; Schlüssel ohne
-/// Eintrag bleiben. Unveränderter Text bleibt geliehen.
+/// Replace references to old keys by new ones (`map`: old → new), also in the page number addition; keys without an
+/// entry stay. Unchanged text stays borrowed.
 pub fn remap_keys<'a>(text: &'a str, map: &HashMap<i64, i64>) -> Cow<'a, str> {
     let uses: Vec<XrefUse> =
         find_xrefs(text).into_iter().filter(|u| map.get(&u.key).is_some_and(|n| *n != u.key)).collect();

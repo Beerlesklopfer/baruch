@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0015 (eigener Rollen-Prompt je Persona, Runde 10 „personas“) auf einer nachgebauten
-//! Datenbank im Stand von development davor: Store-Migrationen 0001–0014 und Bibliothek 0101–0105, ein
-//! frei erfundenes Werk mit Kapiteln, Vorschlag und Beiträgen, Personas (eine mit eigener Farbe),
-//! Einfälle, gespeicherte Verbindungen.
+//! Migration 0015 (own role prompt per persona, Round 10 „personas“) on a rebuilt database in the state of
+//! development before it: store migrations 0001–0014 and library 0101–0105, a freely invented work with chapters,
+//! proposal and posts, personas (one with its own colour), ideas, stored connections.
 //!
-//! Nach einem Migrator bis 0015: Das Schema jeder Tabelle außer `persona` bleibt, `persona` hat genau die
-//! neue Spalte `prompt` am Ende, überall NULL (= Vorgabe aus dem Code). Danach `Store::open` mit allen
-//! Migrationen: jede Zeile jeder Tabelle in allen alten Spalten unverändert, keine Zeile `lector` in
-//! `store_meta` (die Wahl ohne Zeile ist fest `@lektor`), ein zweites Öffnen ändert nichts.
+//! After a migrator up to 0015: the schema of every table except `persona` stays, `persona` has exactly the new
+//! column `prompt` at the end, NULL everywhere (= default from the code). Afterwards `Store::open` with all
+//! migrations: every row of every table unchanged in all old columns, no row `lector` in `store_meta` (the choice
+//! without a row is fixed `@lektor`), a second opening changes nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -32,7 +31,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store bis 0014 (Stand development) und Bibliothek 0101–0105.
+/// Store up to 0014 (state of development) and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 14).cloned().collect();
     assert!(old.iter().any(|m| m.version == 14), "Stand development hat 0014");
@@ -48,7 +47,7 @@ async fn migrate_before(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Store-Migrationen bis einschließlich `version`.
+/// Store migrations up to and including `version`.
 async fn migrate_upto(pool: &SqlitePool, version: i64) {
     let upto: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= version).cloned().collect();
     let migrator = Migrator { migrations: Cow::Owned(upto), ignore_missing: true, ..Migrator::DEFAULT };
@@ -59,7 +58,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Werk mit zwei Kapiteln, Vorschlag, Beiträgen, Einfällen, Personas und Verbindungen.
+/// Work with two chapters, proposal, posts, ideas, personas and connections.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -180,7 +179,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Alle Zeilen über die Spalten von `layout`, sortiert.
+/// All rows through the columns of `layout`, sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -267,7 +266,7 @@ async fn migration_0015_keeps_every_row_and_only_adds_the_persona_prompt() {
         "Export byte-gleich wie vor der Migration"
     );
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(pool).await;
     let schema_once = schema(pool).await;
     let once = contents(pool, &layout_now).await;
@@ -277,8 +276,8 @@ async fn migration_0015_keeps_every_row_and_only_adds_the_persona_prompt() {
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row into `store_meta` at start; that adds one
+/// row and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag-Anordnung im Store (Migration 0045, Vertrag Runde 27, Aufgabe umschlag-daten): Lesen, Setzen je Art,
-//! Prüfen nach den Grenzen, Zurücksetzen mit Grabsteinen und Titelbereich in einer Transaktion, uuid je Block,
-//! Anschriften in den Buchangaben und Anträge mit Fingerabdruck. Echte SQLite-Datei im Temp-Ordner; alle Texte frei
-//! erfunden; jede Zusicherung mit Begründung.
+//! Cover layout in the store (migration 0045, contract Round 27, task umschlag-daten): reading, setting per kind,
+//! checking against the limits, resetting with tombstones and title area in one transaction, uuid per block,
+//! addresses in the book details and requests with fingerprint. Real SQLite file in the temp folder; all texts
+//! freely invented; every assertion with a reason.
 
 use baruch_store::{
     AssetOp, BookEdit, CoverBlock, CoverBlockKind, CoverFace, CoverLayout, IdeaOrigin, Store, StoreError, TitleArea,
@@ -78,7 +78,7 @@ async fn setting_replaces_each_named_kind_wholly_and_keeps_the_others_and_their_
     let first = rows(&store, work).await;
     assert!(first.iter().all(|(_, u)| u.len() == 36), "Fülltrigger vergibt je Block eine uuid: {first:?}");
 
-    // Ganze Art ersetzt: neue Werte für den Titel, Rücken ungenannt → bleibt.
+    // Whole kind replaced: new values for the title, spine not named → stays.
     let mut moved = title.clone();
     moved.x_mm = 15.0;
     moved.font = Some("Libertinus Serif".into());
@@ -91,7 +91,7 @@ async fn setting_replaces_each_named_kind_wholly_and_keeps_the_others_and_their_
     assert_eq!(rows(&store, work).await, first, "geänderter Block behält seine uuid (kein Löschen, kein Grabstein)");
     assert!(tombstones(&store).await.is_empty(), "Ändern hinterlässt keinen Grabstein");
 
-    // Gleiche Werte noch einmal: keine Änderung.
+    // Same values once more: no change.
     let again = store.set_cover_blocks(work, &[moved]).await.unwrap();
     assert!(again.changed.is_empty(), "unverändert → changed leer (kein Commit im Server)");
 }
@@ -119,7 +119,7 @@ async fn invalid_blocks_are_refused_with_kind_and_field_and_change_nothing() {
     ];
     for (bad, field) in cases {
         let kind = bad.kind;
-        // Der gültige zweite Block zeigt: die ganze Liste wird abgelehnt (atomar), nicht nur der ungültige Block.
+        // The valid second block shows: the whole list is refused (atomic), not only the invalid block.
         let result = store.set_cover_blocks(work, &[block(CoverBlockKind::BackBio), bad]).await;
         let message = match result {
             Err(StoreError::CoverBlock(message)) => message,
@@ -135,7 +135,7 @@ async fn invalid_blocks_are_refused_with_kind_and_field_and_change_nothing() {
         matches!(twice, Err(StoreError::CoverBlock(ref m)) if m.contains("zweimal")),
         "dieselbe Art zweimal ist ein ungültiger Block (eigene Fehlerart seit Runde 23a): {twice:?}"
     );
-    // Grenzwerte selbst sind erlaubt (BETWEEN in den CHECKs ist einschließlich).
+    // Limit values themselves are allowed (BETWEEN in the CHECKs is inclusive).
     let edge = CoverBlock {
         x_mm: -50.0,
         y_mm: 1000.0,
@@ -178,15 +178,15 @@ async fn a_quick_choice_sets_the_title_area_and_deletes_only_the_front_in_one_tr
     let layout = store.cover_layout(work).await.unwrap();
     assert_eq!(layout.blocks, vec![blocks[2].clone()], "Rücken bleibt stehen");
     assert_eq!(store.book_meta(work).await.unwrap().title_area, TitleArea::Bottom, "Titelbereich gesetzt");
-    // Ohne Zeilen der Fläche und mit gleichem Bereich: nichts zu tun.
+    // Without rows of the face and with the same area: nothing to do.
     let none = store.reset_cover_blocks(work, &[CoverFace::Front], Some(TitleArea::Bottom)).await.unwrap();
     assert!(none.changed.is_empty(), "zweite Schnellwahl löscht nichts");
 }
 
 #[tokio::test]
 async fn a_failing_reset_changes_neither_rows_nor_title_area() {
-    // Atomar: Zeigt die Transaktion einen Fehler (hier: unbekanntes Werk), bleibt alles. Das unbekannte Werk wird
-    // geprüft, bevor gelöscht wird; das bekannte bleibt unberührt.
+    // Atomic: if the transaction shows an error (here: unknown work), everything stays. The unknown work is checked
+    // before anything is deleted; the known one stays untouched.
     let (_dir, store, work) = fresh().await;
     store.set_cover_blocks(work, &[block(CoverBlockKind::FrontTitle)]).await.unwrap();
     assert!(matches!(
@@ -234,7 +234,7 @@ async fn addresses_are_multiline_up_to_500_characters() {
     let exact = BookEdit { printer_address: Some("ä".repeat(500)), ..BookEdit::default() };
     store.set_book_meta(work, &exact).await.unwrap();
     assert_eq!(store.book_meta(work).await.unwrap().printer_address.chars().count(), 500, "genau 500 Zeichen gehen");
-    // Andere Felder ändern lässt die Anschriften stehen (ganze Zeile wird geschrieben).
+    // Changing other fields leaves the addresses in place (the whole row is written).
     store.set_book_meta(work, &BookEdit { year: Some("2026".into()), ..BookEdit::default() }).await.unwrap();
     assert_eq!(store.book_meta(work).await.unwrap().publisher_address.lines().count(), 3, "Anschrift bleibt");
 }
@@ -262,7 +262,7 @@ async fn a_layout_request_remembers_the_fingerprint_changes_nothing_and_is_not_d
     assert!(request.is_open(), "offen");
     let twin = store.asset_request(work, &op, &mcp(), "noch einmal").await;
     assert!(matches!(twin, Err(StoreError::Refused(m)) if m.contains("schon")), "kein doppelter offener Antrag");
-    // Ein Antrag, der nichts ändern würde, und ein ungültiger Block ergeben keinen Antrag.
+    // A request that would change nothing and an invalid block yield no request.
     let same = AssetOp::CoverLayout { blocks: before.blocks.clone(), expected_layout: String::new() };
     assert!(matches!(store.asset_request(work, &same, &mcp(), "").await, Err(StoreError::Refused(_))), "unverändert");
     let bad = AssetOp::CoverLayout {
@@ -278,7 +278,7 @@ async fn a_layout_request_remembers_the_fingerprint_changes_nothing_and_is_not_d
         matches!(store.asset_request(work, &stale, &mcp(), "").await, Err(StoreError::Asset(m)) if m.contains("expected_layout")),
         "ein falscher Fingerabdruck beim Antrag wird abgelehnt"
     );
-    // Der Mensch ändert direkt: kein Antrag mit Herkunft Mensch.
+    // The human changes directly: no request with origin human.
     let human = IdeaOrigin::Human { name: "Autor".into() };
     assert!(matches!(store.asset_request(work, &op, &human, "").await, Err(StoreError::Refused(_))), "Mensch direkt");
     let listed = store.asset_requests(work, true).await.unwrap();
@@ -288,7 +288,7 @@ async fn a_layout_request_remembers_the_fingerprint_changes_nothing_and_is_not_d
 
 #[test]
 fn the_fingerprint_of_an_empty_layout_is_stable() {
-    // Leere Anordnung → fester Wert (SHA-256 über „[]“): ein Antrag auf ein Werk ohne Anordnung trägt ihn.
+    // Empty layout → fixed value (SHA-256 over "[]"): a request for a work without a layout carries it.
     assert_eq!(
         Store::cover_layout_fingerprint(&CoverLayout::default()),
         "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",

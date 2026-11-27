@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0014 (Bindung des Geheimnisses an das Ziel einer Verbindung) auf einer nachgebauten
-//! Datenbank im Stand von development davor: Store-Migrationen 0001–0013 und Bibliothek, ein frei
-//! erfundenes Werk mit Kapiteln, gespeicherte Verbindungen (eine mit Prüfung), RAG-Wege und eine
-//! bevorzugte Quelle.
+//! Migration 0014 (binding of the secret to the target of a connection) on a rebuilt database in the state of
+//! development before it: store migrations 0001–0013 and library, a freely invented work with chapters, stored
+//! connections (one with a check), RAG ways and one preferred source.
 //!
-//! Danach `Store::open`: Jede Zeile jeder Tabelle bleibt in allen alten Spalten unverändert, das Schema
-//! aller Tabellen außer `connection` ebenso; `connection` hat nur die neue Spalte `secret_target`, die in
-//! allen alten Zeilen NULL ist („gilt für das jetzige Ziel“ – also wie bisher). Schema und Spalten werden
-//! nach einem Migrator bis 0014 verglichen (Runde 10), `Store::open` prüft danach den Datenerhalt.
+//! Afterwards `Store::open`: every row of every table stays unchanged in all old columns, the schema of all tables
+//! except `connection` as well; `connection` only has the new column `secret_target`, which is NULL in all old rows
+//! ("applies to the present target" – so as before). Schema and columns are compared after a migrator up to 0014
+//! (Round 10), `Store::open` afterwards checks the preservation of data.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -31,9 +30,9 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen bis einschließlich `version` auf der nachgebauten Datenbank (Runde 10): Das Schema
-/// wird nach diesem Migrator verglichen, damit spätere Migrationen (z. B. 0015 an `persona`) den Vergleich
-/// nicht brechen; `Store::open` danach prüft nur noch den Datenerhalt.
+/// Store migrations up to and including `version` on the rebuilt database (Round 10): the schema is compared after
+/// this migrator, so that later migrations (e.g. 0015 on `persona`) do not break the comparison; `Store::open`
+/// afterwards only checks the preservation of data.
 async fn migrate_upto(pool: &SqlitePool, version: i64) {
     let upto: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= version).cloned().collect();
     assert!(upto.iter().any(|m| m.version == version), "MIGRATOR enthält {version}");
@@ -143,7 +142,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Alle Zeilen über die Spalten von `layout` (vorher), sortiert.
+/// All rows through the columns of `layout` (before), sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -214,8 +213,8 @@ async fn migration_0014_keeps_every_row_and_only_adds_secret_target() {
     );
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row into `store_meta` at start; that adds one
+/// row and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

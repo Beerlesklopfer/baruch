@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0016 (Tokens für den MCP-Zugang) auf einer nachgebauten Datenbank im Stand von development
-//! davor: Store-Migrationen 0001–0014 und Bibliothek 0101 ff., ein frei erfundenes Werk mit Kapiteln,
-//! Personas (eine mit Farbe), Beiträgen, Einfällen, Verbindungen und einer bevorzugten Quelle.
+//! Migration 0016 (tokens for the MCP access) on a rebuilt database in the state of development before it: store
+//! migrations 0001–0014 and library 0101 ff., a freely invented work with chapters, personas (one with a colour),
+//! posts, ideas, connections and one preferred source.
 //!
-//! Danach `Store::open`: Jede Zeile jeder Tabelle bleibt unverändert, das Schema jeder alten Tabelle
-//! ebenso; dazu kommt nur die leere Tabelle `mcp_token` mit ihrem Teilindex. Ein zweites Öffnen ändert
-//! nichts mehr. Spätere Migrationen anderer Aufgaben (z. B. 0015) laufen beim Öffnen mit; verglichen
-//! wird darum nur, was 0016 betrifft.
+//! Afterwards `Store::open`: every row of every table stays unchanged, the schema of every old table as well; added
+//! is only the empty table `mcp_token` with its partial index. A second opening changes nothing more. Later
+//! migrations of other tasks (e.g. 0015) run along when opening; therefore only what concerns 0016 is compared.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -30,7 +29,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store bis 0014 (Stand development vor Runde 10) und die Bibliothek.
+/// Store up to 0014 (state of development before Round 10) and the library.
 async fn migrate_before(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 14).cloned().collect();
     assert!(old.iter().any(|m| m.version == 14), "Stand vorher hat 0014");
@@ -147,7 +146,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Alle Zeilen über die Spalten von `layout` (vorher), sortiert.
+/// All rows through the columns of `layout` (before), sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -189,10 +188,10 @@ async fn migration_0016_keeps_every_row_and_only_adds_the_token_table() {
         assert_eq!(after.get(table), Some(rows), "Tabelle {table}: alle Zeilen in den alten Spalten unverändert");
     }
     let schema_after = schema(pool).await;
-    // 0015 (Personas, andere Aufgabe derselben Runde) darf `persona` erweitern; 0016 fasst sie nicht an.
-    // Ebenso legt die spätere 0035 (Nutzerfrage 12) `outline_request` mit der Antragsart `add` neu an
-    // (geprüft in migration_0035.rs), und 0040 baut `work` mit dem Schema `book` neu (migration_0040.rs);
-    // `Store::open` führt hier alle Migrationen aus.
+    // 0015 (personas, another task of the same round) may extend `persona`; 0016 does not touch it. Likewise the
+    // later 0035 (user question 12) recreates `outline_request` with the request kind `add` (checked in
+    // migration_0035.rs), and 0040 rebuilds `work` with the scheme `book` (migration_0040.rs); `Store::open` runs
+    // all migrations here.
     for (name, sql) in &schema_before {
         if name == "persona" || name == "outline_request" || name == "work" {
             continue;
@@ -236,8 +235,8 @@ async fn migration_0016_keeps_every_row_and_only_adds_the_token_table() {
     assert_eq!(contents(again.pool(), &full_layout).await, full, "zweites Öffnen ändert keine Zeile");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row into `store_meta` at start; that adds one
+/// row and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();
@@ -247,10 +246,10 @@ fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap
     contents
 }
 
-/// Migration 0041 (Runde 26) hängt an Tabellen mit Werkinhalt die Spalte `uuid` an (`ALTER TABLE … ADD COLUMN`
-/// erweitert den gespeicherten CREATE-Text um genau diesen Zusatz); der Vergleich des alten Schemas nimmt ihn heraus.
-/// Runde 28 (0046) hängt `edited` an `post` und `chat_thread_post` an (geprüft in migration_0046.rs); sonst
-/// bleibt das Schema wörtlich.
+/// Migration 0041 (Round 26) appends the column `uuid` to tables with work content (`ALTER TABLE … ADD COLUMN`
+/// extends the stored CREATE text by exactly this addition); the comparison of the old schema takes it out. Round
+/// 28 (0046) appends `edited` to `post` and `chat_thread_post` (checked in migration_0046.rs); otherwise the schema
+/// stays verbatim.
 fn without_r28_edited(name: &str, sql: &str) -> String {
     if name == "post" || name == "chat_thread_post" { sql.replace(", edited TEXT", "") } else { sql.to_owned() }
 }
@@ -259,16 +258,16 @@ fn without_uuid_column(sql: &str) -> String {
     sql.replace(R34_IDEA_COLUMNS, "").replace(UUID_COLUMN, "")
 }
 
-/// Runde 34 (0052) hängt Titel, Elternknoten, Reihenfolge und Hauptthema an `idea` an (`ALTER TABLE … ADD COLUMN`
-/// erweitert den gespeicherten CREATE-Text um genau diesen Zusatz, direkt hinter der Spalte uuid; geprüft in
-/// migration_0052.rs); der Vergleich des alten Schemas nimmt ihn heraus.
+/// Round 34 (0052) appends title, parent node, order and main topic to `idea` (`ALTER TABLE … ADD COLUMN` extends
+/// the stored CREATE text by exactly this addition, directly behind the column uuid; checked in migration_0052.rs);
+/// the comparison of the old schema takes it out.
 const R34_IDEA_COLUMNS: &str = ", title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200), parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL, position INTEGER NOT NULL DEFAULT 0, main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_topic IN (0, 1))";
 
 const UUID_COLUMN: &str = ", uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))";
 
-/// Runde 30 (0047) hängt Spalten an `post`, `chat_thread_post`, `finding` und `revision` an (`ALTER TABLE … ADD
-/// COLUMN` erweitert den gespeicherten CREATE-Text um genau diese Zusätze; geprüft in migration_0047.rs); der
-/// Vergleich des alten Schemas nimmt sie heraus.
+/// Round 30 (0047) appends columns to `post`, `chat_thread_post`, `finding` and `revision` (`ALTER TABLE … ADD
+/// COLUMN` extends the stored CREATE text by exactly these additions; checked in migration_0047.rs); the comparison
+/// of the old schema takes them out.
 fn without_r30(name: &str, sql: &str) -> String {
     let sql: &str = &without_r22(name, sql);
     const POST: &str = ", basis_rev INTEGER CHECK (basis_rev IS NULL OR basis_rev >= 1), basis_label TEXT NOT NULL \
@@ -292,13 +291,13 @@ fn without_r30(name: &str, sql: &str) -> String {
     sql.replace(&added, "")
 }
 
-/// Objekte, die 0047 (Runde 30) neu anlegt.
+/// Objects that 0047 (Round 30) newly creates.
 #[allow(dead_code)]
 const R30_OBJECTS: [&str; 3] = ["replace_batch", "replace_batch_work", "revision_variant_group"];
 
-/// Runde 22 (0050) hängt `amend_seq`/`based_on_amend` an `revision` und `adopted_amend` an `finding` und
-/// `finding_status` an (`ALTER TABLE … ADD COLUMN`, geprüft in migration_0050.rs); der Vergleich des alten Schemas
-/// nimmt sie heraus.
+/// Round 22 (0050) appends `amend_seq`/`based_on_amend` to `revision` and `adopted_amend` to `finding` and
+/// `finding_status` (`ALTER TABLE … ADD COLUMN`, checked in migration_0050.rs); the comparison of the old schema
+/// takes them out.
 fn without_r22(name: &str, sql: &str) -> String {
     const REVISION: &str = ", amend_seq INTEGER NOT NULL DEFAULT 0 CHECK (amend_seq >= 0), based_on_amend INTEGER \
         CHECK (based_on_amend IS NULL OR based_on_amend >= 0)";

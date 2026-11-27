@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Client gegen den eigenen Nachbau (`baruch_llm::mock`, 127.0.0.1:0): Modellliste, Streaming in
-//! Stücken über Paketgrenzen, `[DONE]`, usage, übergangene Denkspur, Fehlercodes, Zeitgrenzen,
-//! Abbruch durch Fallenlassen, keine Weiterleitung, nie ein Schlüssel in einer Meldung. Kein Test
-//! spricht einen echten Modell-Server an.
+//! Client against the own mock (`baruch_llm::mock`, 127.0.0.1:0): model list, streaming in pieces across packet
+//! boundaries, `[DONE]`, usage, skipped reasoning trace, error codes, time limits, cancelling by dropping, no
+//! redirect, never a key in a message. No test talks to a real model server.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -11,7 +10,7 @@ use baruch_llm::mock::{MockEliezer, Reply, Step, delta, finish, sse};
 use baruch_llm::{ChatMessage, ChatRequest, Endpoint, Limits, LlmError, Role, chat_stream, chat_stream_with, models};
 use serde_json::json;
 
-/// Eindeutiger Test-Schlüssel; er darf in keiner Meldung stehen.
+/// Unique test key; it must not stand in any message.
 const SECRET: &str = "Kk7-test-schluessel-91ab";
 
 fn request(model: &str, max_tokens: u32) -> ChatRequest {
@@ -37,7 +36,7 @@ fn short_limits() -> Limits {
     }
 }
 
-/// Chat mit gesammelten Stücken.
+/// Chat with collected pieces.
 async fn chat(endpoint: &Endpoint, limits: &Limits) -> (Result<baruch_llm::ChatReply, LlmError>, Vec<String>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let sink = seen.clone();
@@ -73,7 +72,7 @@ async fn the_model_list_comes_from_v1_models_with_the_bearer() {
 #[tokio::test]
 async fn pieces_split_across_packets_arrive_in_order_and_reasoning_is_skipped() {
     let mock = MockEliezer::start().await;
-    // Ein Ereignis über drei Pakete, mitten im „ü“ (UTF-8) getrennt, mit \r\n, Kommentar und Denkspur.
+    // One event across three packets, split in the middle of the „ü“ (UTF-8), with \r\n, comment and reasoning trace.
     let first = delta("echt-modell", "Grü");
     let (a, b) = first.split_at(first.len() - 10);
     let umlaut =

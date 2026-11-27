@@ -1,33 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachbau von Eliezer für Tests (nur Tests; nie im Betrieb): ein kleiner HTTP/1.1-Server auf
-//! `127.0.0.1:0` mit `GET /v1/models` und gestreamtem `POST /v1/chat/completions`.
+//! Mock of Eliezer for tests (tests only; never in production): a small HTTP/1.1 server on `127.0.0.1:0` with `GET
+//! /v1/models` and streamed `POST /v1/chat/completions`.
 //!
-//! - Antworten je Chat-Aufruf der Reihe nach aus [`MockEliezer::push`] (danach [`Reply::text`] mit „OK“):
-//!   SSE-Stücke mit Pausen ([`Reply::Stream`]), Fehlercode ([`Reply::Status`]), Weiterleitung
-//!   ([`Reply::Redirect`]), ganze JSON-Antwort ([`Reply::Json`]) oder „hängt bis Abbruch“ ([`Reply::Hang`]).
-//! - Prüft den Bearer ([`MockEliezer::require_bearer`]); bei falschem Schlüssel antwortet er 401 und
-//!   **spiegelt den vorgelegten Schlüssel** in der Meldung – Baruch darf ihn nicht weitergeben.
-//! - Zeichnet jede Anfrage auf ([`MockEliezer::requests`]), zählt gleichzeitige Chat-Aufrufe
-//!   ([`MockEliezer::max_active`]) und Abbrüche durch den Client ([`MockEliezer::cancelled`]).
+//! - Answers per chat call in order from [`MockEliezer::push`] (afterwards [`Reply::text`] with "OK"): SSE pieces
+//!   with pauses ([`Reply::Stream`]), error code ([`Reply::Status`]), redirect ([`Reply::Redirect`]), whole JSON
+//!   answer ([`Reply::Json`]) or "hangs until cancelled" ([`Reply::Hang`]).
+//! - Checks the bearer ([`MockEliezer::require_bearer`]); with a wrong key it answers 401 and **mirrors the
+//!   presented key** in the message – Baruch must not pass it on.
+//! - Records every request ([`MockEliezer::requests`]), counts simultaneous chat calls
+//!   ([`MockEliezer::max_active`]) and cancellations by the client ([`MockEliezer::cancelled`]).
 //!
-//! - Runde 12: `POST /v1/embeddings` antwortet deterministisch ([`mock_vector`]: Wörter in Fächer
-//!   gestreut, normiert – Texte mit gemeinsamen Wörtern sind sich ähnlich) für die Modelle aus
-//!   [`MockEliezer::set_embedding_models`] (Vorgabe `text-embedding-nomic-embed-text-v1.5`, 512
-//!   Dimensionen), sonst 404 „model not found“. Die Antwort kommt absichtlich in umgekehrter Reihenfolge
-//!   (mit `index`). Gezählt werden gleichzeitige Einbettungsanfragen ([`MockEliezer::embed_max_active`],
-//!   getrennt von den Chat-Aufrufen) und alle eingebetteten Texte ([`MockEliezer::embedding_inputs`]).
+//! - Round 12: `POST /v1/embeddings` answers deterministically ([`mock_vector`]: words scattered into buckets,
+//!   normalised – texts with common words are similar to each other) for the models from
+//!   [`MockEliezer::set_embedding_models`] (default `text-embedding-nomic-embed-text-v1.5`, 512 dimensions),
+//!   otherwise 404 "model not found". The answer deliberately comes in reverse order (with `index`). Counted are
+//!   simultaneous embedding requests ([`MockEliezer::embed_max_active`], separate from the chat calls) and all
+//!   embedded texts ([`MockEliezer::embedding_inputs`]).
 //!
-//! - Runde 15b: Art der Gegenstelle ([`MockEliezer::set_flavor`], [`Flavor`]): Eliezer meldet die
-//!   Kontextlänge über `GET /api/v1/models` (Verwaltungsliste wie in Eliezers `docs/wiki/API.md`), Ollama über
-//!   `POST /api/show` (`parameters` mit `num_ctx`, ohne gesetzte Länge keins; `GET /api/ps` meldet kein geladenes
-//!   Modell), OpenAI-kompatibel gar nicht (404). Die Längen setzt
-//!   [`MockEliezer::set_context_length`]. Mit [`MockEliezer::set_keep_alive`] bleiben Verbindungen nach
-//!   JSON-Antworten offen (HTTP/1.1 keep-alive); [`MockEliezer::connections`] zählt angenommene
-//!   TCP-Verbindungen – so lässt sich prüfen, ob ein Client seinen HTTP-Client wiederverwendet.
-//!   [`MockEliezer::fail_models`] lässt `GET /v1/models` scheitern.
+//! - Round 15b: kind of the remote side ([`MockEliezer::set_flavor`], [`Flavor`]): Eliezer reports the context
+//!   length through `GET /api/v1/models` (management list as in Eliezer's `docs/wiki/API.md`), Ollama through `POST
+//!   /api/show` (`parameters` with `num_ctx`, none without a set length; `GET /api/ps` reports no loaded model),
+//!   OpenAI-compatible not at all (404). The lengths are set by [`MockEliezer::set_context_length`]. With
+//!   [`MockEliezer::set_keep_alive`] connections stay open after JSON answers (HTTP/1.1 keep-alive);
+//!   [`MockEliezer::connections`] counts accepted TCP connections – this way it can be checked whether a client
+//!   reuses its HTTP client. [`MockEliezer::fail_models`] makes `GET /v1/models` fail.
 //!
-//! Ein Chat-Aufruf gilt als „aktiv“ vom Eingang der Anfrage bis **vor** dem letzten geschriebenen
-//! Stück: Wer das letzte Stück (`[DONE]`) gelesen hat, ist beim Nachbau schon nicht mehr aktiv.
+//! A chat call counts as "active" from the arrival of the request until **before** the last written piece: whoever
+//! has read the last piece (`[DONE]`) is already no longer active at the mock.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -40,42 +39,42 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
-/// Ein Schritt einer gestreamten Antwort.
+/// One step of a streamed answer.
 #[derive(Debug, Clone)]
 pub enum Step {
-    /// Rohe Bytes schreiben (ein TCP-Paket, `nodelay`).
+    /// Write raw bytes (one TCP packet, `nodelay`).
     Send(Vec<u8>),
-    /// Warten (bricht der Client dabei ab, zählt das als Abbruch).
+    /// Wait (if the client cancels meanwhile, that counts as a cancellation).
     Pause(Duration),
 }
 
-/// Antwort auf einen Chat-Aufruf.
+/// Answer to a chat call.
 #[derive(Debug, Clone)]
 pub enum Reply {
-    /// `200 text/event-stream` und die Schritte.
+    /// `200 text/event-stream` and the steps.
     Stream(Vec<Step>),
-    /// Fehlercode mit Rumpf (JSON oder Text).
+    /// Error code with body (JSON or text).
     Status(u16, String),
-    /// `302` mit `Location`.
+    /// `302` with `Location`.
     Redirect(String),
-    /// `200 application/json` mit ganzem Rumpf (Gegenstelle ohne Strom).
+    /// `200 application/json` with the whole body (remote side without a stream).
     Json(Value),
-    /// Keine Antwort, bis der Client die Verbindung schließt.
+    /// No answer until the client closes the connection.
     Hang,
 }
 
-/// Ein SSE-Ereignis `data: <json>\n\n`.
+/// One SSE event `data: <json>\n\n`.
 pub fn sse(value: &Value) -> Vec<u8> {
     format!("data: {value}\n\n").into_bytes()
 }
 
-/// Ein Textstück als Ereignis.
+/// A piece of text as an event.
 pub fn delta(model: &str, text: &str) -> Vec<u8> {
     sse(&json!({ "id": "c1", "object": "chat.completion.chunk", "model": model,
                  "choices": [{ "index": 0, "delta": { "content": text }, "finish_reason": null }] }))
 }
 
-/// Schluss: `finish_reason`, `usage`, `[DONE]`.
+/// End: `finish_reason`, `usage`, `[DONE]`.
 pub fn finish(model: &str, reason: &str, prompt: u32, completion: u32) -> Vec<Vec<u8>> {
     vec![
         sse(&json!({ "id": "c1", "model": model, "choices": [{ "index": 0, "delta": {}, "finish_reason": reason }] })),
@@ -86,13 +85,13 @@ pub fn finish(model: &str, reason: &str, prompt: u32, completion: u32) -> Vec<Ve
 }
 
 impl Reply {
-    /// Text in Stücken (Modell `mock-modell`), dann `stop`, usage (11/Zahl der Stücke) und `[DONE]`;
-    /// zwischen den Stücken 15 ms Pause, damit sie als eigene Pakete ankommen.
+    /// Text in pieces (model `mock-modell`), then `stop`, usage (11/number of pieces) and `[DONE]`; 15 ms pause
+    /// between the pieces, so that they arrive as packets of their own.
     pub fn text(pieces: &[&str]) -> Reply {
         Reply::text_from("mock-modell", pieces, Duration::from_millis(15))
     }
 
-    /// Wie [`Reply::text`] mit Modell und Pause.
+    /// Like [`Reply::text`] with model and pause.
     pub fn text_from(model: &str, pieces: &[&str], pause: Duration) -> Reply {
         let mut steps = Vec::new();
         for piece in pieces {
@@ -108,36 +107,36 @@ impl Reply {
     }
 }
 
-/// Eine aufgezeichnete Anfrage.
+/// A recorded request.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Seen {
     pub method: String,
     pub path: String,
-    /// Kopfzeile `Authorization` (in Tests nur mit Test-Schlüsseln).
+    /// Header `Authorization` (in tests only with test keys).
     pub authorization: Option<String>,
-    /// Rumpf als JSON (falls einer kam).
+    /// Body as JSON (if one came).
     pub body: Option<Value>,
 }
 
-/// Art der nachgebauten Gegenstelle (Runde 15b).
+/// Kind of the mocked remote side (Round 15b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Flavor {
-    /// Eliezer: `GET /api/v1/models` mit Kontextlängen.
+    /// Eliezer: `GET /api/v1/models` with context lengths.
     #[default]
     Eliezer,
-    /// Ollama: `POST /api/show` mit `num_ctx`.
+    /// Ollama: `POST /api/show` with `num_ctx`.
     Ollama,
-    /// OpenAI-kompatibel: keine Verwaltungs-Schnittstelle.
+    /// OpenAI-compatible: no management interface.
     Openai,
 }
 
-/// Vorgabe der Dimension der Einbettungen des Nachbaus.
+/// Default dimension of the embeddings of the mock.
 pub const MOCK_DIMENSION: usize = 512;
-/// Vorgabe-Einbettungsmodell des Nachbaus (wie bei Eliezer).
+/// Default embedding model of the mock (as with Eliezer).
 pub const MOCK_EMBEDDING_MODEL: &str = "text-embedding-nomic-embed-text-v1.5";
 
-/// Deterministischer Vektor eines Textes: jedes Wort (klein, nur Buchstaben und Ziffern) erhöht ein Fach
-/// (FNV-1a), danach auf Länge 1 normiert; ein Text ohne Wörter zeigt auf das erste Fach.
+/// Deterministic vector of a text: every word (lower case, only letters and digits) raises one bucket (FNV-1a),
+/// afterwards normalised to length 1; a text without words points to the first bucket.
 pub fn mock_vector(text: &str, dimension: usize) -> Vec<f32> {
     let dimension = dimension.max(1);
     let mut v = vec![0f32; dimension];
@@ -196,7 +195,7 @@ struct Shared {
     models_failure: Mutex<Option<(u16, String)>>,
 }
 
-/// Der Nachbau; beim Fallenlassen endet er.
+/// The mock; it ends when dropped.
 pub struct MockEliezer {
     address: std::net::SocketAddr,
     shared: Arc<Shared>,
@@ -214,8 +213,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl MockEliezer {
-    /// Startet auf `127.0.0.1:0` mit den Modellen `mock-modell` und `google/gemma-4-26b-a4b`, ohne
-    /// Bearer-Pflicht.
+    /// Starts on `127.0.0.1:0` with the models `mock-modell` and `google/gemma-4-26b-a4b`, without a required bearer.
     pub async fn start() -> MockEliezer {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("Nachbau: Port");
         let address = listener.local_addr().expect("Nachbau: Adresse");
@@ -243,44 +241,44 @@ impl MockEliezer {
         *lock(&self.shared.models) = models.iter().map(|m| (*m).to_owned()).collect();
     }
 
-    /// Art der Gegenstelle (Vorgabe Eliezer).
+    /// Kind of the remote side (default Eliezer).
     pub fn set_flavor(&self, flavor: Flavor) {
         *lock(&self.shared.flavor) = flavor;
     }
 
-    /// Gemeldete Kontextlänge eines Modells (Eliezer: `max_context_length`, Ollama: `num_ctx`).
+    /// Reported context length of a model (Eliezer: `max_context_length`, Ollama: `num_ctx`).
     pub fn set_context_length(&self, model: &str, tokens: u32) {
         let mut contexts = lock(&self.shared.contexts);
         contexts.retain(|(m, _)| m != model);
         contexts.push((model.to_owned(), tokens));
     }
 
-    /// Verbindungen nach JSON-Antworten offen halten (keep-alive) statt sie zu schließen.
+    /// Keep connections open after JSON answers (keep-alive) instead of closing them.
     pub fn set_keep_alive(&self, on: bool) {
         self.shared.keep_alive.store(on, Ordering::SeqCst);
     }
 
-    /// Zahl der angenommenen TCP-Verbindungen seit dem Start.
+    /// Number of accepted TCP connections since the start.
     pub fn connections(&self) -> usize {
         self.shared.connections.load(Ordering::SeqCst)
     }
 
-    /// `GET /v1/models` mit diesem Status und Rumpf beantworten (`None` = normal).
+    /// Answer `GET /v1/models` with this status and body (`None` = normal).
     pub fn fail_models(&self, failure: Option<(u16, &str)>) {
         *lock(&self.shared.models_failure) = failure.map(|(code, body)| (code, body.to_owned()));
     }
 
-    /// Pfade aller Anfragen in ihrer Reihenfolge.
+    /// Paths of all requests in their order.
     pub fn paths(&self) -> Vec<String> {
         self.requests().into_iter().map(|s| s.path).collect()
     }
 
-    /// Nur mit `Authorization: Bearer <secret>` antworten (`None` = jeder).
+    /// Only answer with `Authorization: Bearer <secret>` (`None` = anyone).
     pub fn require_bearer(&self, secret: Option<&str>) {
         *lock(&self.shared.bearer) = secret.map(str::to_owned);
     }
 
-    /// Antwort für den nächsten Chat-Aufruf anhängen.
+    /// Append an answer for the next chat call.
     pub fn push(&self, reply: Reply) {
         lock(&self.shared.replies).push_back(reply);
     }
@@ -289,12 +287,12 @@ impl MockEliezer {
         lock(&self.shared.requests).clone()
     }
 
-    /// Rümpfe aller Chat-Aufrufe.
+    /// Bodies of all chat calls.
     pub fn chat_bodies(&self) -> Vec<Value> {
         self.requests().into_iter().filter(|s| s.path.ends_with("/chat/completions")).filter_map(|s| s.body).collect()
     }
 
-    /// Aufgerufene Pfade, die Baruch nie aufrufen darf (`/api/v1/models/load|unload|estimate`).
+    /// Called paths that Baruch must never call (`/api/v1/models/load|unload|estimate`).
     pub fn forbidden_paths(&self) -> Vec<String> {
         self.requests()
             .into_iter()
@@ -303,7 +301,7 @@ impl MockEliezer {
             .collect()
     }
 
-    /// Rümpfe, die eine Kontextlänge nennen (`context_length`, `num_ctx`, `n_ctx`, `contextLength` …).
+    /// Bodies that name a context length (`context_length`, `num_ctx`, `n_ctx`, `contextLength` …).
     pub fn context_fields(&self) -> Vec<Value> {
         self.chat_bodies()
             .into_iter()
@@ -314,47 +312,47 @@ impl MockEliezer {
             .collect()
     }
 
-    /// Laufende Chat-Aufrufe.
+    /// Running chat calls.
     pub fn active(&self) -> usize {
         self.shared.active.load(Ordering::SeqCst)
     }
 
-    /// Höchstzahl gleichzeitiger Chat-Aufrufe seit dem Start.
+    /// Maximum number of simultaneous chat calls since the start.
     pub fn max_active(&self) -> usize {
         self.shared.max_active.load(Ordering::SeqCst)
     }
 
-    /// Vom Client abgebrochene Antworten.
+    /// Answers cancelled by the client.
     pub fn cancelled(&self) -> usize {
         self.shared.cancelled.load(Ordering::SeqCst)
     }
 
-    /// Einbettungsmodelle, die der Nachbau kennt (andere → 404 „model not found“).
+    /// Embedding models the mock knows (others → 404 "model not found").
     pub fn set_embedding_models(&self, models: &[&str]) {
         lock(&self.shared.embedding).models = models.iter().map(|m| (*m).to_owned()).collect();
     }
 
-    /// Dimension der Vektoren.
+    /// Dimension of the vectors.
     pub fn set_embedding_dimension(&self, dimension: usize) {
         lock(&self.shared.embedding).dimension = dimension.max(1);
     }
 
-    /// Pause vor jeder Einbettungsantwort (macht Überschneidungen sichtbar).
+    /// Pause before every embedding answer (makes overlaps visible).
     pub fn set_embedding_delay(&self, delay: Duration) {
         lock(&self.shared.embedding).delay = delay;
     }
 
-    /// Jede Einbettungsanfrage mit diesem Status und Rumpf beantworten (`None` = normal).
+    /// Answer every embedding request with this status and body (`None` = normal).
     pub fn fail_embeddings(&self, failure: Option<(u16, &str)>) {
         lock(&self.shared.embedding).failure = failure.map(|(code, body)| (code, body.to_owned()));
     }
 
-    /// Rümpfe aller Einbettungsanfragen.
+    /// Bodies of all embedding requests.
     pub fn embedding_bodies(&self) -> Vec<Value> {
         self.requests().into_iter().filter(|s| s.path.ends_with("/embeddings")).filter_map(|s| s.body).collect()
     }
 
-    /// Alle eingebetteten Texte in der Reihenfolge der Anfragen.
+    /// All embedded texts in the order of the requests.
     pub fn embedding_inputs(&self) -> Vec<String> {
         self.embedding_bodies()
             .iter()
@@ -363,12 +361,12 @@ impl MockEliezer {
             .collect()
     }
 
-    /// Höchstzahl gleichzeitiger Einbettungsanfragen seit dem Start (getrennt von [`MockEliezer::max_active`]).
+    /// Maximum number of simultaneous embedding requests since the start (separate from [`MockEliezer::max_active`]).
     pub fn embed_max_active(&self) -> usize {
         self.shared.embed_max_active.load(Ordering::SeqCst)
     }
 
-    /// Wartet höchstens `limit`, bis `test` gilt.
+    /// Waits at most `limit` until `test` holds.
     pub async fn wait_for(&self, limit: Duration, test: impl Fn(&MockEliezer) -> bool) -> bool {
         let deadline = tokio::time::Instant::now() + limit;
         loop {
@@ -383,7 +381,7 @@ impl MockEliezer {
     }
 }
 
-/// Kopf lesen (bis `\r\n\r\n`, höchstens 64 KiB), Rumpf nach `Content-Length`.
+/// Read the head (up to `\r\n\r\n`, at most 64 KiB), body by `Content-Length`.
 async fn read_request(
     stream: &mut TcpStream,
 ) -> std::io::Result<Option<(String, String, Vec<(String, String)>, Vec<u8>)>> {
@@ -423,7 +421,7 @@ async fn read_request(
     Ok(Some((method, path, headers, body)))
 }
 
-/// Antwort, die die Verbindung offen lässt (keep-alive).
+/// Answer that leaves the connection open (keep-alive).
 async fn respond_kept(stream: &mut TcpStream, status: u16, content_type: &str, body: &str) -> std::io::Result<()> {
     let text = format!(
         "HTTP/1.1 {status} X\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{body}",
@@ -441,7 +439,7 @@ async fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: 
     stream.shutdown().await
 }
 
-/// Wartet `pause`; `true`, wenn der Client in der Zeit die Verbindung geschlossen hat.
+/// Waits `pause`; `true` if the client has closed the connection in that time.
 async fn closed_during(stream: &mut TcpStream, pause: Option<Duration>) -> bool {
     let mut probe = [0u8; 64];
     let read = async {
@@ -496,7 +494,7 @@ async fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<(
     Ok(())
 }
 
-/// JSON-Antwort: bei keep-alive offen lassen (`Ok(true)`), sonst schließen.
+/// JSON answer: leave open with keep-alive (`Ok(true)`), otherwise close.
 async fn json_reply(stream: &mut TcpStream, shared: &Arc<Shared>, status: u16, body: &str) -> std::io::Result<bool> {
     if shared.keep_alive.load(Ordering::SeqCst) {
         respond_kept(stream, status, "application/json", body).await?;
@@ -507,7 +505,7 @@ async fn json_reply(stream: &mut TcpStream, shared: &Arc<Shared>, status: u16, b
     }
 }
 
-/// Eine Anfrage; `Ok(true)`, wenn die Verbindung für die nächste offen bleibt.
+/// One request; `Ok(true)` if the connection stays open for the next one.
 async fn handle_one(stream: &mut TcpStream, shared: &Arc<Shared>) -> std::io::Result<bool> {
     let Some((method, path, headers, body)) = read_request(stream).await? else { return Ok(false) };
     let authorization = headers.iter().find(|(k, _)| k == "authorization").map(|(_, v)| v.clone());
@@ -573,7 +571,7 @@ async fn handle_one(stream: &mut TcpStream, shared: &Arc<Shared>) -> std::io::Re
             json_reply(stream, shared, 200, &answer.to_string()).await
         }
         ("GET", "/api/ps") if flavor == Flavor::Ollama => {
-            // Kein Modell geladen: Baruch muss dann die Vorgabe von Ollama annehmen (nie den Höchstwert).
+            // No model loaded: Baruch then has to assume the default of Ollama (never the maximum).
             json_reply(stream, shared, 200, &json!({ "models": [] }).to_string()).await
         }
         ("POST", "/v1/embeddings") => {
@@ -593,7 +591,7 @@ async fn handle_one(stream: &mut TcpStream, shared: &Arc<Shared>) -> std::io::Re
 
 const NOT_FOUND: &str = "{\"error\":{\"message\":\"not found\"}}";
 
-/// Antwort auf einen Chat-Aufruf (schließt die Verbindung).
+/// Answer to a chat call (closes the connection).
 async fn chat(stream: &mut TcpStream, shared: &Arc<Shared>) -> std::io::Result<()> {
     let reply = lock(&shared.replies).pop_front().unwrap_or_else(|| Reply::text(&["OK"]));
     let mut active = Active::start(shared);
@@ -653,7 +651,7 @@ async fn chat(stream: &mut TcpStream, shared: &Arc<Shared>) -> std::io::Result<(
     }
 }
 
-/// Zählt eine laufende Einbettungsanfrage.
+/// Counts a running embedding request.
 struct EmbedActive(Arc<Shared>);
 
 impl EmbedActive {
@@ -697,7 +695,7 @@ async fn embed(stream: &mut TcpStream, shared: &Arc<Shared>, body: Option<Value>
         Some(Value::String(one)) => vec![one.clone()],
         _ => Vec::new(),
     };
-    // Absichtlich rückwärts: Der Client muss nach `index` ordnen.
+    // Deliberately backwards: the client has to order by `index`.
     let data: Vec<Value> = inputs
         .iter()
         .enumerate()

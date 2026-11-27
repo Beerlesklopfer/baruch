@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zeitwächter (Runde 16b, Schnittstelle R16-S1): Pflicht-Beispiele des Vertrags und die Zählregeln.
-//! Alle Texte sind frei erfunden.
+//! „Zeitwächter“ (Round 16b, interface R16-S1): mandatory examples of the contract and the counting rules. All
+//! texts are freely invented.
 
 use baruch_typst::timing::{
     DEFAULT_WORDS_PER_MINUTE, MAX_TARGET_MINUTES, MAX_WORDS_PER_MINUTE, MIN_WORDS_PER_MINUTE, clock, speaking_seconds,

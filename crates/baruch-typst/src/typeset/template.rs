@@ -1,70 +1,70 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werkvorlage und Satz-Einstellungen (Runde 29, Vertrag §5.3/§5.4): Konflikte melden, wo die Vorlage dieselbe
-//! Sache selbst setzt ([`template_conflicts`]), eine Kapitelanfangs-Regel der Vorlage erkennen
-//! ([`detect_chapter_break`]) und entfernen ([`remove_rule`]). Kommentare in der Vorlage zählen nicht.
+//! Work template and typesetting settings (Round 29, contract §5.3/§5.4): report conflicts where the template sets
+//! the same thing itself ([`template_conflicts`]), detect a chapter-start rule of the template
+//! ([`detect_chapter_break`]) and remove it ([`remove_rule`]). Comments in the template do not count.
 //!
-//! Gelesen wird eine Kopie der Vorlage, in der Zeilen- und Blockkommentare durch Leerzeichen ersetzt sind
-//! (Zeichenketten bleiben, `"http://…"` beginnt keinen Kommentar); Bytestellen und Zeilen bleiben dabei gleich.
-//! - **Set-Regeln:** `set page|text|par|footnote(…)` mit `#` davor oder im Code (nach `{`, `;`, Zeilenanfang); gezählt
-//!   werden die benannten Argumente der obersten Ebene. Gemeldet wird die Zeile des Arguments.
-//! - **Kapitelanfang:** eine Show-Regel für Überschriften (`heading` oder `heading.where(level: 1 …)`), deren Rumpf
-//!   `pagebreak` enthält. Sie wirkt hinter der Baruch-Regel weiter (Typst wendet die zuerst definierte Show-Regel
-//!   zuletzt an); darum ist sie nur dann unschädlich, wenn sie nichts anderes will als die Einstellung (gleicher Wert,
-//!   oder die Vorlage bricht auf eine neue Seite und die Einstellung verlangt die rechte Seite).
-//! - **Erkennen** ([`detect_chapter_break`]) nur, wenn die Regel ausschließlich aus dem Umbruch und der Überschrift
-//!   besteht (`it => { pagebreak(…); it }` bzw. `it => [#pagebreak(…) #it]`, beliebiger Leerraum und Zeilenumbrüche,
-//!   mit oder ohne `weak`, `to: "odd"` → rechte Seite, ohne `to` → neue Seite, `to: "even"` → nicht übernehmbar):
-//!   Nur dann geht beim Entfernen nichts verloren.
+//! What is read is a copy of the template in which line and block comments are replaced by spaces (strings stay,
+//! `"http://…"` starts no comment); byte positions and lines stay the same.
+//! - **Set rules:** `set page|text|par|footnote(…)` with `#` before it or in code (after `{`, `;`, start of line);
+//!   counted are the named arguments of the top level. Reported is the line of the argument.
+//! - **Chapter start:** a show rule for headings (`heading` or `heading.where(level: 1 …)`) whose body contains
+//!   `pagebreak`. It keeps taking effect behind the Baruch rule (Typst applies the show rule defined first last);
+//!   therefore it is only harmless if it wants nothing other than the setting (same value, or the template breaks
+//!   to a new page and the setting demands the right-hand page).
+//! - **Detection** ([`detect_chapter_break`]) only if the rule consists exclusively of the break and the heading
+//!   (`it => { pagebreak(…); it }` or `it => [#pagebreak(…) #it]`, any whitespace and line breaks, with or without
+//!   `weak`, `to: "odd"` → right-hand page, without `to` → new page, `to: "even"` → cannot be taken over): only
+//!   then nothing is lost when removing.
 
 use serde::Serialize;
 
 use super::model::{ChapterStart, PageNumberPosition, PageNumberStart, TypesetSettings, field_label};
 
-/// Wirkung einer Einstellung, die die Werkvorlage ebenfalls setzt.
+/// Effect of a setting that the work template sets as well.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictEffect {
-    /// Die Baruch-Regel steht hinter der Vorlage und gilt.
+    /// The Baruch rule stands behind the template and applies.
     Overrides,
-    /// Eine Show-Regel der Vorlage wirkt trotzdem (z. B. Seitenumbruch bei „fortlaufend“).
+    /// A show rule of the template takes effect nevertheless (e.g. page break with „fortlaufend“).
     Ineffective,
 }
 
-/// Eine Stelle der Werkvorlage, die ein gesetztes Feld selbst setzt.
+/// A place of the work template that sets a set field itself.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TemplateConflict {
-    /// Feld-id aus [`super::FIELDS`].
+    /// Field id from [`super::FIELDS`].
     pub field: &'static str,
-    /// Zeile in der Werkvorlage (1-basiert).
+    /// Line in the work template (1-based).
     pub line: usize,
-    /// Text der Zeile ohne Zeilenende.
+    /// Text of the line without line end.
     pub text: String,
     pub effect: ConflictEffect,
-    /// Deutsche Meldung.
+    /// German message.
     pub message: String,
 }
 
-/// Erkannte Kapitelanfangs-Regel der Werkvorlage.
+/// Detected chapter-start rule of the work template.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ChapterBreakRule {
-    /// Bytebereich `start..end` der ganzen Zeile(n) der Regel inklusive abschließendem '\n'.
+    /// Byte range `start..end` of the whole line(s) of the rule including the final '\n'.
     pub start: usize,
     pub end: usize,
-    /// Erste Zeile der Regel (1-basiert).
+    /// First line of the rule (1-based).
     pub line: usize,
-    /// Regeltext ohne Zeilenende.
+    /// Rule text without line end.
     pub text: String,
-    /// Wert, den die Regel bewirkt.
+    /// Value the rule brings about.
     pub chapter_start: ChapterStart,
 }
 
-/// Die kanonische Kapitelanfangs-Regel (neue rechte Seite).
+/// The canonical chapter-start rule (new right-hand page).
 pub const CANONICAL_CHAPTER_BREAK: &str =
     "#show heading.where(level: 1): it => { pagebreak(weak: true, to: \"odd\"); it }";
 
-// ---- Lesen der Vorlage -------------------------------------------------------------------------
+// ---- Reading the template ----------------------------------------------------------------------
 
-/// Kopie von `template` ohne Kommentare (durch Leerzeichen ersetzt, Zeilenenden bleiben), gleiche Bytelänge.
+/// Copy of `template` without comments (replaced by spaces, line ends stay), same byte length.
 fn strip_comments(template: &str) -> String {
     let bytes = template.as_bytes();
     let mut out = bytes.to_vec();
@@ -80,7 +80,7 @@ fn strip_comments(template: &str) -> String {
                     i += 1;
                 }
                 b'\n' => {
-                    in_string = false; // Zeichenkette über das Zeilenende hinaus gibt es nicht; nicht weiterziehen.
+                    in_string = false; // a string beyond the line end does not exist; do not carry it on.
                     i += 1;
                 }
                 _ => i += 1,
@@ -125,21 +125,21 @@ fn strip_comments(template: &str) -> String {
             _ => i += 1,
         }
     }
-    // Nur ASCII-Bytes wurden ersetzt bzw. ganze Zeichen in Kommentaren byteweise durch Leerzeichen: gültiges UTF-8.
+    // Only ASCII bytes were replaced, or whole characters in comments byte by byte by spaces: valid UTF-8.
     String::from_utf8(out).unwrap_or_else(|_| template.to_owned())
 }
 
-/// Zeile (1-basiert) der Bytestelle `at`.
+/// Line (1-based) of the byte position `at`.
 fn line_of(text: &str, at: usize) -> usize {
     text.as_bytes()[..at.min(text.len())].iter().filter(|&&b| b == b'\n').count() + 1
 }
 
-/// Text der Zeile `line` (1-basiert) ohne Zeilenende, getrimmt.
+/// Text of the line `line` (1-based) without line end, trimmed.
 fn line_text(text: &str, line: usize) -> String {
     text.lines().nth(line.saturating_sub(1)).unwrap_or("").trim().to_owned()
 }
 
-/// Ende (exklusiv) des geklammerten Ausdrucks, der bei `open` (`(`, `[` oder `{`) beginnt; Zeichenketten zählen nicht.
+/// End (exclusive) of the bracketed expression that starts at `open` (`(`, `[` or `{`); strings do not count.
 fn balanced_end(clean: &str, open: usize) -> Option<usize> {
     let bytes = clean.as_bytes();
     let mut depth = 0usize;
@@ -171,7 +171,7 @@ fn balanced_end(clean: &str, open: usize) -> Option<usize> {
     None
 }
 
-/// Benannte Argumente der obersten Ebene in `args` (ohne die äußeren Klammern), je (Name, Bytestelle in `args`).
+/// Named arguments of the top level in `args` (without the outer parentheses), each (name, byte position in `args`).
 fn named_args(args: &str) -> Vec<(String, usize)> {
     let bytes = args.as_bytes();
     let mut out = Vec::new();
@@ -214,7 +214,7 @@ fn named_args(args: &str) -> Vec<(String, usize)> {
     out
 }
 
-/// Ist `at` der Anfang eines Schlüsselworts im Code (mit `#` davor oder nach `{`, `;`, `(`, `[`, Zeilenanfang)?
+/// Is `at` the start of a keyword in code (with `#` before it or after `{`, `;`, `(`, `[`, start of line)?
 fn keyword_at(clean: &str, at: usize, word: &str) -> bool {
     if !clean[at..].starts_with(word) {
         return false;
@@ -227,7 +227,7 @@ fn keyword_at(clean: &str, at: usize, word: &str) -> bool {
     matches!(before.as_bytes().last(), None | Some(b'#' | b'{' | b';' | b'(' | b'[' | b'\n'))
 }
 
-/// Eine `set`-Regel der Vorlage: Element (`page`, `text` …) und benannte Argumente mit Bytestelle in der Vorlage.
+/// A `set` rule of the template: element (`page`, `text` …) and named arguments with byte position in the template.
 struct SetRule {
     element: String,
     args: Vec<(String, usize)>,
@@ -260,12 +260,12 @@ fn set_rules(clean: &str) -> Vec<SetRule> {
     out
 }
 
-/// Eine Show-Regel der Vorlage: Bytebereich ab `show` bis zum Ende des Ausdrucks (Zeilenende auf Klammertiefe 0),
-/// Selektor (ohne Leerraum) und Rumpf (Text nach dem `:`).
+/// A show rule of the template: byte range from `show` to the end of the expression (line end at bracket depth 0),
+/// selector (without whitespace) and body (text after the `:`).
 struct ShowRule {
-    /// Bytestelle von `#` (bzw. `show` ohne `#`).
+    /// Byte position of `#` (or `show` without `#`).
     start: usize,
-    /// Ende des Ausdrucks (exklusiv, vor dem Zeilenende).
+    /// End of the expression (exclusive, before the line end).
     end: usize,
     selector: String,
     body_start: usize,
@@ -282,7 +282,7 @@ fn show_rules(clean: &str) -> Vec<ShowRule> {
             continue;
         }
         let start = if at > 0 && bytes[at - 1] == b'#' { at - 1 } else { at };
-        // Selektor bis zum ':' auf Klammertiefe 0.
+        // Selector up to the ':' at bracket depth 0.
         let mut i = at + 4;
         let mut depth = 0usize;
         let mut in_string = false;
@@ -311,7 +311,7 @@ fn show_rules(clean: &str) -> Vec<ShowRule> {
             i += 1;
         }
         let Some(colon) = colon else { continue };
-        // Rumpf bis zum Zeilenende auf Klammertiefe 0.
+        // Body up to the line end at bracket depth 0.
         let mut j = colon + 1;
         let mut depth = 0usize;
         let mut in_string = false;
@@ -342,7 +342,7 @@ fn show_rules(clean: &str) -> Vec<ShowRule> {
     out
 }
 
-/// Gilt der (leerraumfreie) Selektor für Überschriften der Ebene 1?
+/// Does the (whitespace-free) selector apply to headings of level 1?
 fn heading_level_one(selector: &str) -> bool {
     if selector == "heading" {
         return true;
@@ -351,8 +351,8 @@ fn heading_level_one(selector: &str) -> bool {
     !args.contains("level:") || args.split(',').any(|a| a == "level:1")
 }
 
-/// Umbruch-Art aus den Argumenten eines `pagebreak(…)` (leerraumfrei): `Some(Some(start))` erkannt, `Some(None)` =
-/// `to: "even"`, `None` = unbekannte Argumente.
+/// Kind of break from the arguments of a `pagebreak(…)` (whitespace-free): `Some(Some(start))` recognised,
+/// `Some(None)` = `to: "even"`, `None` = unknown arguments.
 fn pagebreak_kind(args: &str) -> Option<Option<ChapterStart>> {
     let mut start = Some(ChapterStart::NewPage);
     for arg in args.split(',').filter(|a| !a.is_empty()) {
@@ -366,7 +366,7 @@ fn pagebreak_kind(args: &str) -> Option<Option<ChapterStart>> {
     Some(start)
 }
 
-/// Erste `pagebreak(…)`-Art im Rumpf (für Konflikte); unbekannte Argumente → neue Seite.
+/// First `pagebreak(…)` kind in the body (for conflicts); unknown arguments → new page.
 fn break_in(body: &str) -> Option<Option<ChapterStart>> {
     let compact: String = body.chars().filter(|c| !c.is_whitespace()).collect();
     let at = compact.find("pagebreak(")?;
@@ -375,7 +375,7 @@ fn break_in(body: &str) -> Option<Option<ChapterStart>> {
     Some(pagebreak_kind(&compact[open + 1..end - 1]).unwrap_or(Some(ChapterStart::NewPage)))
 }
 
-/// Rumpf genau aus Umbruch und Überschrift? Liefert die Art (`None` bei `to: "even"` oder anderem Inhalt).
+/// Body exactly of break and heading? Yields the kind (`None` for `to: "even"` or other content).
 fn exact_break(body: &str) -> Option<Option<ChapterStart>> {
     let compact: String = body.chars().filter(|c| !c.is_whitespace()).collect();
     let arrow = compact.find("=>")?;
@@ -405,19 +405,19 @@ fn exact_break(body: &str) -> Option<Option<ChapterStart>> {
     ok.then_some(kind)
 }
 
-/// Erkennt eine Show-Regel für Überschriften Ebene 1 mit Seitenumbruch.
+/// Detects a show rule for headings of level 1 with a page break.
 pub fn detect_chapter_break(template: &str) -> Option<ChapterBreakRule> {
     let clean = strip_comments(template);
     for rule in show_rules(&clean) {
         if !rule.selector.starts_with("heading.where(") || !heading_level_one(&rule.selector) {
             continue;
         }
-        // Nur genau `heading.where(level: 1)`, damit beim Entfernen keine andere Bedingung verloren geht.
+        // Only exactly `heading.where(level: 1)`, so that no other condition is lost when removing.
         if rule.selector != "heading.where(level:1)" {
             continue;
         }
         let Some(Some(chapter_start)) = exact_break(&clean[rule.body_start..rule.end]) else { continue };
-        // Die Regel beginnt ihre Zeile (nur Leerraum davor) und nichts außer Leerraum folgt ihr auf der letzten Zeile.
+        // The rule starts its line (only whitespace before it) and nothing but whitespace follows it on the last line.
         let line_start = clean[..rule.start].rfind('\n').map_or(0, |n| n + 1);
         if !clean[line_start..rule.start].trim().is_empty() {
             continue;
@@ -438,7 +438,7 @@ pub fn detect_chapter_break(template: &str) -> Option<ChapterBreakRule> {
     None
 }
 
-/// `template` ohne den Bereich `rule.start..rule.end`; ungültige Grenzen → `template` unverändert.
+/// `template` without the range `rule.start..rule.end`; invalid bounds → `template` unchanged.
 pub fn remove_rule(template: &str, rule: &ChapterBreakRule) -> String {
     let valid = rule.start <= rule.end
         && rule.end <= template.len()
@@ -453,9 +453,9 @@ pub fn remove_rule(template: &str, rule: &ChapterBreakRule) -> String {
     out
 }
 
-// ---- Konflikte ---------------------------------------------------------------------------------
+// ---- Conflicts ---------------------------------------------------------------------------------
 
-/// Felder, die ein Argument einer `set`-Regel betrifft (nur gesetzte Felder).
+/// Fields that an argument of a `set` rule concerns (only set fields).
 fn fields_of(element: &str, arg: &str, s: &TypesetSettings) -> Vec<&'static str> {
     let first_chapter = s
         .page_numbers
@@ -495,8 +495,8 @@ fn message(field: &str, line: usize, effect: ConflictEffect) -> String {
     }
 }
 
-/// Stellen der Vorlage, die gesetzte Felder selbst setzen (je Feld und Zeile einmal, nach Zeile sortiert, bei
-/// gleicher Zeile in [`super::FIELDS`]-Reihenfolge).
+/// Places of the template that set set fields themselves (once per field and line, sorted by line, for the same
+/// line in [`super::FIELDS`] order).
 pub fn template_conflicts(template: &str, settings: &TypesetSettings) -> Vec<TemplateConflict> {
     let clean = strip_comments(template);
     let mut out: Vec<TemplateConflict> = Vec::new();
@@ -526,7 +526,7 @@ pub fn template_conflicts(template: &str, settings: &TypesetSettings) -> Vec<Tem
                 continue;
             }
             let Some(kind) = break_in(&clean[rule.body_start..rule.end]) else { continue };
-            // Die Vorlage bricht nach der Baruch-Regel noch einmal um; unschädlich nur, wenn sie nichts anderes will.
+            // The template breaks once more after the Baruch rule; harmless only if it wants nothing else.
             let harmless = matches!(
                 (kind, wanted),
                 (Some(ChapterStart::NewPage), ChapterStart::NewPage | ChapterStart::RightPage)

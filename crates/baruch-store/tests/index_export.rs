@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31b (register-satz): Register und Glossar in Export, Export-Karte und Spiegel (Haken in `snapshot.rs` und
-//! `export_map.rs`, Vertrag §2.6). Ohne R31-Einstellungen bleibt alles byte-gleich (Golden aus R29-S1); mit
-//! Registerseiten ist der Export = alter Export mit projizierten Abschnitten + Buchende, die Karte byte-gleich zum
-//! Export, `main.typ` trägt das Buchende hinter den `#include`-Zeilen, und die Texte in SQLite bleiben unverändert.
-//! Echte SQLite-Datei im Temp-Ordner; alle Texte frei erfunden; jede Zusicherung mit Begründung.
+//! Round 31b (register-satz): index and glossary in export, export map and mirror (hooks in `snapshot.rs` and
+//! `export_map.rs`, contract §2.6). Without R31 settings everything stays byte-identical (golden from R29-S1); with
+//! index pages the export = old export with projected sections + back matter, the map byte-identical to the export,
+//! `main.typ` carries the back matter behind the `#include` lines, and the texts in SQLite stay unchanged. Real
+//! SQLite file in the temp folder; all texts freely invented; every assertion with a reason.
 
 use baruch_store::{Store, TypesetSettings, WorkId};
 use baruch_typst::index::{BACK_MATTER_MARK, BackMatter, IndexMark, Projector, back_matter, find_marks, mark_source};
 use baruch_typst::typeset::{GlossaryPosition, IndexPages};
 
-/// Golden-Quelle und -Export aus Runde 29 (ohne Marken und Stellen).
+/// Golden source and export from Round 29 (without marks and scripture references).
 const SATZ_SOURCE: &str = include_str!("data/satz_quelle.typ");
 const GOLDEN_EXPORT: &str = include_str!("data/satz_golden_export.typ");
 const GOLDEN_MAIN: &str = include_str!("data/satz_golden_main.typ");
@@ -61,12 +61,12 @@ async fn without_r31_settings_export_map_and_mirror_stay_byte_identical() {
     assert_eq!(main_typ(&store, work).await, GOLDEN_MAIN, "main.typ byte-gleich zum Golden aus R29-S1");
     assert_eq!(store.export_map(work).await.unwrap().typst, GOLDEN_EXPORT, "Export-Karte byte-gleich zum Export");
 
-    // Werk mit Marken und Bibelstellen: ohne R31-Einstellungen keine Projektion und kein Buchende.
+    // Work with marks and scripture references: without R31 settings no projection and no back matter.
     let (_dir, store, work) = fresh(&source()).await;
     let before = store.export_typst(work).await.unwrap();
     assert!(!before.contains(BACK_MATTER_MARK), "kein Buchende ohne Einstellungen");
     assert_eq!(find_marks(&before).len(), 3, "nur die drei Marken des Texts, keine automatischen Bibelstellen");
-    // Mit R31-Einstellungen ändert sich der Export; nach dem Zurücksetzen ist alles wie vorher.
+    // With R31 settings the export changes; after resetting everything is as before.
     store.set_work_typeset(work, &index_settings(), "Mara").await.unwrap();
     assert_ne!(store.export_typst(work).await.unwrap(), before, "mit Einstellungen ändert sich der Export");
     store.reset_work_typeset(work, "Mara").await.unwrap();
@@ -80,8 +80,8 @@ async fn with_index_pages_the_export_is_the_projected_old_export_plus_the_back_m
     let old_main = main_typ(&store, work).await;
     store.set_work_typeset(work, &index_settings(), "Mara").await.unwrap();
 
-    // Erwartung aus dem alten Export: Kopf wie vorher (die R31-Felder erzeugen keine Regelzeile), jeder Abschnitt
-    // durch die Projektion, dahinter das Buchende aus Store::back_matter.
+    // Expectation from the old export: head as before (the R31 fields produce no rule line), every section through
+    // the projection, behind it the back matter from Store::back_matter.
     let back: BackMatter = store.back_matter(work).await.unwrap();
     assert_eq!(back.settings.index_pages, index_settings().index_pages, "back_matter trägt die Satz-Einstellungen");
     let first = old.sections[0].start;
@@ -113,7 +113,7 @@ async fn with_index_pages_the_export_is_the_projected_old_export_plus_the_back_m
         assert_eq!(&map.typst[section.start..section.end], body.as_str(), "Abschnitt {} projiziert", section.key);
     }
 
-    // Spiegel: main.typ mit Buchende hinter den #include-Zeilen, Abschnittsdateien projiziert.
+    // Mirror: main.typ with back matter behind the #include lines, section files projected.
     let files = store.mirror_snapshot(work).await.unwrap();
     let main = &files.iter().find(|f| f.path == "main.typ").unwrap().contents;
     assert_eq!(main, &format!("{old_main}{tail}"), "main.typ = vorher + Buchende");
@@ -124,7 +124,7 @@ async fn with_index_pages_the_export_is_the_projected_old_export_plus_the_back_m
         "Abschnittsdatei im Spiegel trägt dieselbe Projektion"
     );
 
-    // SQLite bleibt unverändert: die aktuelle Fassung hat keine automatische Marke.
+    // SQLite stays unchanged: the current revision has no automatic mark.
     let loaded = store.load_work(work).await.unwrap();
     for node in &loaded.nodes {
         let body = node.current_number().and_then(|n| node.revision(n)).map(|r| r.body.as_str()).unwrap_or("");

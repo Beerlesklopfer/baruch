@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Buchangaben und Umschlag im Store (Migration 0017, Runde 11, Aufgabe cover): Vorgaben ohne Zeile,
-//! Grenzen der Felder, ISBN mit Prüfziffer, Umschlag nur aus demselben Werk, Löschen von Bild und Werk.
+//! Book details and cover in the store (migration 0017, Round 11, task cover): defaults without a row, limits of
+//! the fields, ISBN with check digit, cover only from the same work, deleting image and work.
 
 use baruch_core::WorkKind;
 use baruch_store::{BookEdit, NewAsset, NewWork, Preset, Store, StoreError, TitleArea, WorkId};
@@ -82,7 +82,7 @@ async fn book_meta_is_checked_and_only_changes_report_fields() {
     assert_eq!(change.before.publisher, "", "vorher leer (für den Commit-Rumpf)");
     let same = store.set_book_meta(w, &edit).await.unwrap();
     assert!(same.changed.is_empty(), "gleiche Werte: keine Änderung");
-    // Runde 20c: Eine nur anders geschriebene ISBN (Bindestriche) ist eine Änderung und wird gespeichert.
+    // Round 20c: an ISBN that is only written differently (hyphens) is a change and is stored.
     let again =
         store.set_book_meta(w, &BookEdit { isbn: Some("978-3-16-148410-0".into()), ..edit.clone() }).await.unwrap();
     assert_eq!(again.changed, ["isbn"], "ISBN nur anders geschrieben: die Schreibweise wird gespeichert");
@@ -129,7 +129,7 @@ async fn the_cover_comes_from_the_same_work_and_disappears_with_its_image() {
         matches!(store.set_work_cover(w, Some(&foreign)).await, Err(StoreError::UnknownAsset { .. })),
         "ein Bild eines anderen Werks gibt es in diesem Werk nicht"
     );
-    // Auch an Rust vorbei verhindert der Trigger einen fremden Umschlag.
+    // Even bypassing Rust the trigger prevents a foreign cover.
     let foreign_id: i64 =
         sqlx::query_scalar("SELECT id FROM asset WHERE work_id = ?").bind(other).fetch_one(store.pool()).await.unwrap();
     let raw = sqlx::query("UPDATE work_book SET cover_asset_id = ? WHERE work_id = ?")

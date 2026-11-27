@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 27, Aufgabe umschlag-satz (R27b): Umschlag-Anordnung, Titelei aus der Werkvorlage und Goldstände.
+//! Round 27, task umschlag-satz (R27b): cover layout, front matter from the work template and golden files.
 //!
-//! - **Goldstände** (`tests/data/cover_r26/`): `frame_parts` und `wrap_source` ohne Anordnung und ohne
-//!   Titelei-Funktionen, gesichert aus dem Stand der Schnittstelle S1 (= af07921 für diese Ausgaben) vor der ersten
-//!   Änderung von R27b; der Test vergleicht byte-genau.
-//! - Gesetzt (Typst) wird in `baruch-render/tests/cover_layout.rs` und in den Server-Tests (`round27_satz.rs`).
+//! - **Golden files** (`tests/data/cover_r26/`): `frame_parts` and `wrap_source` without layout and without
+//!   front-matter functions, saved from the state of the interface S1 (= af07921 for these outputs) before the
+//!   first change of R27b; the test compares byte for byte.
+//! - Typesetting (Typst) happens in `baruch-render/tests/cover_layout.rs` and in the server tests (`round27_satz.rs`).
 
 use std::path::PathBuf;
 
 use baruch_typst::cover::{BookInfo, CoverRef, FrameOptions, TitleArea, WrapOptions, frame_parts, wrap_source};
 
-/// Ordner der Goldstände.
+/// Folder of the golden files.
 fn golden_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/cover_r26")
 }
 
-/// Erfundene, voll ausgefüllte Buchangaben (ohne die Anschriften, die es in af07921 noch nicht gab).
+/// Invented, fully filled book details (without the addresses, which did not exist yet in af07921).
 fn full_info() -> BookInfo {
     BookInfo {
         title: "Das Wolkenhaus".into(),
@@ -39,12 +39,12 @@ fn full_info() -> BookInfo {
     }
 }
 
-/// Nur ein Titel.
+/// Only a title.
 fn bare_info() -> BookInfo {
     BookInfo { title: "Nur ein Titel".into(), ..BookInfo::default() }
 }
 
-/// Angaben voller Zeichen, die in Typst etwas bedeuten.
+/// Details full of characters that mean something in Typst.
 fn tricky_info() -> BookInfo {
     let nasty = "Zitat \" Rückstrich \\ #raute ] klammer ) $mathe$ // kommentar /* block */ *fett* _x_\nzweite Zeile";
     BookInfo {
@@ -73,7 +73,7 @@ fn cover() -> Option<CoverRef> {
     Some(CoverRef { path: ".baruch/wolke.png".into(), alt: "Eine \"Wolke\" ]".into() })
 }
 
-/// Die Fälle für `frame_parts`: (Name, Angaben, Optionen).
+/// The cases for `frame_parts`: (name, details, options).
 pub fn frame_cases() -> Vec<(&'static str, BookInfo, FrameOptions)> {
     let with_cover = |area| FrameOptions {
         cover: cover(),
@@ -101,7 +101,7 @@ pub fn frame_cases() -> Vec<(&'static str, BookInfo, FrameOptions)> {
     ]
 }
 
-/// Die Fälle für `wrap_source`: Rücken unter und über 6 mm, mit und ohne Bild.
+/// The cases for `wrap_source`: spine below and above 6 mm, with and without image.
 pub fn wrap_cases() -> Vec<(&'static str, BookInfo, WrapOptions)> {
     let base = |spine_mm, area| WrapOptions {
         page_width_mm: 148.0,
@@ -133,9 +133,9 @@ fn read_golden(name: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Goldstand {} fehlt: {e}", path.display()))
 }
 
-/// Schreibt die Goldstände neu. Nur einmal aus dem Stand S1 vor der ersten Änderung ausgeführt
-/// (`cargo test -p baruch-typst --test cover_layout -- --ignored`); danach nie wieder, sonst verlöre der
-/// Vergleich seinen Sinn.
+/// Writes the golden files anew. Run only once from the state S1 before the first change (`cargo test -p
+/// baruch-typst --test cover_layout -- --ignored`); never again afterwards, otherwise the comparison would lose its
+/// meaning.
 #[test]
 #[ignore = "schreibt die Goldstände; nur einmal aus dem Stand S1"]
 fn write_goldens_from_the_interface_state() {
@@ -185,7 +185,7 @@ fn without_layout_wrap_source_matches_the_goldens_byte_for_byte() {
     }
 }
 
-// ---- Anordnung -------------------------------------------------------------------------------------
+// ---- Layout ----------------------------------------------------------------------------------------
 
 use baruch_typst::cover::{
     BOOK_DICT, FRAME_MARK, IMPRINT_COMPLETE, TemplateFunctions, book_dict, imprint_lines, imprint_template,
@@ -239,7 +239,7 @@ fn wrap_source_with_layout_places_blocks_relative_to_the_trim_edge_of_their_face
     let (_, info, base) = wrap_cases().into_iter().next().unwrap();
     let opts = WrapOptions { spine_mm: 12.0, layout: Some(layout.clone()), ..base.clone() };
     let source = wrap_source(&info, &opts);
-    // Vorderseite ab b + W + S = 3 + 148 + 12 = 163 mm, Block bei x = −2 mm (in den Beschnitt) → 161 mm.
+    // Front from b + W + S = 3 + 148 + 12 = 163 mm on, block at x = −2 mm (into the bleed) → 161 mm.
     assert!(
         source.contains("#place(top + left, dx: 161.000mm, dy: 18.500mm, block(width: "),
         "Titel bei Schnittkante + (x, y), negatives x ragt in den Beschnitt:\n{source}"
@@ -279,7 +279,7 @@ fn frame_parts_with_layout_set_only_the_given_blocks_on_cover_pages() {
     assert_eq!(parts.added_cover_pages, 3, "weiter drei Umschlagseiten");
 }
 
-// ---- Titelei aus der Werkvorlage -----------------------------------------------------------------------
+// ---- Front matter from the work template ---------------------------------------------------------------
 
 #[test]
 fn template_functions_are_recognised_only_as_functions_at_line_start() {
@@ -316,7 +316,7 @@ fn template_functions_get_their_own_pages_at_fixed_places_and_fall_back_one_by_o
         "die eingebaute Impressumsseite entfällt (der Text steht nur noch im Wörterbuch)"
     );
     assert!(golden.contains("Bibliografische Information"), "der Goldstand hat sie (Rückfall ohne Funktion)");
-    // Der Rest (Schmutztitel, Seite 2, Haupttitel, Widmung) bleibt wörtlich wie im Goldstand.
+    // The rest (half title, page 2, main title, dedication) stays verbatim as in the golden file.
     let golden_pages: Vec<&str> = golden.split("#page(").skip(1).collect();
     for i in [0usize, 1, 2, 4, 5] {
         assert_eq!(pages[i], golden_pages[i], "Seite {}: Rückfall byte-gleich zur eingebauten Seite", i + 1);
@@ -338,7 +338,7 @@ fn template_functions_get_their_own_pages_at_fixed_places_and_fall_back_one_by_o
         "sechs Seiten: vier Funktionen, Seite 2, Leerseite nach der Widmung"
     );
 
-    // Ohne Titelei wirken die Funktionen nicht, ohne Widmung keine Widmungsseite.
+    // Without front matter the functions have no effect, without a dedication no dedication page.
     let off = frame_parts(&info, &FrameOptions { template_functions: all, front_matter: false, ..opts.clone() });
     assert!(off.front.is_empty(), "ohne Titelei (und ohne Umschlag) bleibt alles leer");
     let mut no_dedication = info.clone();
@@ -350,8 +350,8 @@ fn template_functions_get_their_own_pages_at_fixed_places_and_fall_back_one_by_o
     );
 }
 
-/// Liest `#let baruch_buch = (…)` zeilenweise: jede Zeile `  schlüssel: "…",` mit einem einzigen String-Literal
-/// (nur `\\`, `\"`, `\n`, `\t` als Maskierung) bzw. die Zeile `impressum_zeilen` mit einem Array solcher Literale.
+/// Reads `#let baruch_buch = (…)` line by line: every line `  key: "…",` with a single string literal (only `\\`,
+/// `\"`, `\n`, `\t` as escapes) or the line `impressum_zeilen` with an array of such literals.
 fn dict_only_strings(dict: &str) -> Result<Vec<(String, Vec<String>)>, String> {
     fn literals(mut rest: &str) -> Result<(Vec<String>, &str), String> {
         let mut out = Vec::new();
@@ -391,8 +391,8 @@ fn dict_only_strings(dict: &str) -> Result<Vec<(String, Vec<String>)>, String> {
         if !key.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
             return Err(format!("Schlüssel {key:?}"));
         }
-        // `literals` schluckt die Kommas zwischen und nach den Literalen; danach darf nichts mehr kommen (bzw. beim
-        // Array nur `),`).
+        // `literals` swallows the commas between and after the literals; afterwards nothing more may come (or, for
+        // the array, only `),`).
         let (values, rest) = if let Some(array) = value.strip_prefix('(') {
             let (values, rest) = literals(array)?;
             (values, rest.strip_prefix("),").ok_or(format!("Array ohne Ende: {rest}"))?)

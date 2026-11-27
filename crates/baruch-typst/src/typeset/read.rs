@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Regelblock „// Baruch: Satz“ zurück in Satz-Einstellungen (Runde 21b, Import eines Exports).
+//! Rule block „// Baruch: Satz“ back into typesetting settings (Round 21b, import of an export).
 //!
-//! [`settings_from_rules`] liest die Zeilen, die [`rules`](super::rules) schreibt, Feld für Feld zurück und nimmt das
-//! Ergebnis **nur**, wenn [`rules`](super::rules) daraus wieder genau denselben Block macht – nie raten. Seitenzahlen
-//! und Kolumnentitel teilen sich Hilfsfunktionen und eine Kopfzeile; für sie werden alle Kombinationen probiert (9 × 4).
+//! [`settings_from_rules`] reads the lines that [`rules`](super::rules) writes back field by field and takes the
+//! result **only** if [`rules`](super::rules) turns it into exactly the same block again – never guess. Page
+//! numbers and running heads share helper functions and one header; for them all combinations are tried (9 × 4).
 //!
-//! Grenzen (dokumentiert in `docs/Architektur.md`, „Typst-Import“): Der Block trägt die R31-Felder (Register, Glossar,
-//! erste Erwähnung) und `xref_with_page` nicht; sie kommen nicht zurück. Der Bundsteg ist im Block schon zum Innenrand
-//! gezählt: zurück kommt der Innenrand als Summe (Bundsteg 0, über 80 mm der Rest als Bundsteg) – der Satz ist gleich.
+//! Limits (documented in `docs/Architektur.md`, „Typst-Import“): the block does not carry the R31 fields (indexes,
+//! glossary, first mention) and `xref_with_page`; they do not come back. The binding margin is already added to the
+//! inner margin in the block: what comes back is the inner margin as the sum (binding margin 0, above 80 mm the
+//! rest as binding margin) – the typesetting is the same.
 
 use super::model::{
     ChapterStart, FootnoteNumbering, FootnoteRestart, Footnotes, MARGIN_MM, Margins, PageFormat, PageNumberPosition,
@@ -15,8 +16,8 @@ use super::model::{
 };
 use super::rules::rules;
 
-/// Satz-Einstellungen aus einem Regelblock (beginnt mit der Zeile [`RULES_MARK`], wie [`rules`] ihn schreibt). `None`,
-/// wenn der Block nicht genau so aus Einstellungen entstanden sein kann.
+/// Typesetting settings from a rule block (starts with the line [`RULES_MARK`], as [`rules`] writes it). `None` if
+/// the block cannot have been created from settings exactly this way.
 pub fn settings_from_rules(block: &str) -> Option<TypesetSettings> {
     let mut lines = block.lines();
     if lines.next()? != RULES_MARK {
@@ -44,7 +45,7 @@ pub fn settings_from_rules(block: &str) -> Option<TypesetSettings> {
     None
 }
 
-/// Inhalt zwischen `prefix` und `suffix`.
+/// Content between `prefix` and `suffix`.
 fn between<'a>(line: &'a str, prefix: &str, suffix: &str) -> Option<&'a str> {
     line.strip_prefix(prefix)?.strip_suffix(suffix)
 }
@@ -53,7 +54,7 @@ fn number(text: &str, unit: &str) -> Option<f64> {
     text.trim().strip_suffix(unit)?.parse().ok().filter(|x: &f64| x.is_finite())
 }
 
-/// Typst-String-Literal (Gegenstück zu `literal` in `rules.rs`).
+/// Typst string literal (counterpart to `literal` in `rules.rs`).
 fn unquote(text: &str) -> Option<String> {
     let inner = text.trim().strip_prefix('"')?.strip_suffix('"')?;
     let mut out = String::with_capacity(inner.len());

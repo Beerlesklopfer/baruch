@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einlesen einer Austauschdatei (Runde 26, Vertrag F6): neu und abgleichen über `Store::exchange_preview` und
-//! `Store::exchange_apply`, mit dem erfundenen Beispielwerk aus `baruch_exchange::sample`. Echte SQLite-Datei im
-//! Temp-Ordner; jede Zusicherung mit Begründung.
+//! Reading an exchange file (Round 26, contract F6): new and merge through `Store::exchange_preview` and
+//! `Store::exchange_apply`, with the invented sample work from `baruch_exchange::sample`. Real SQLite file in the
+//! temp folder; every assertion with a reason.
 
 use std::collections::BTreeMap;
 
@@ -16,7 +16,7 @@ use baruch_store::{IdeaOrigin, OutlineOp, Store, StoreError, WorkId};
 
 const SHA: &str = "0000000000000000000000000000000000000000000000000000000000000026";
 
-/// Alle Tabellen mit Werkinhalt und die Anträge (Zeilenzahlen vorher = nachher bei jeder Ablehnung).
+/// All tables with work content and the requests (row counts before = after on every refusal).
 const TABLES: &[&str] = &[
     "work",
     "node",
@@ -37,19 +37,19 @@ const TABLES: &[&str] = &[
     "work_sword_source",
     "outline_request",
     "uuid_tombstone",
-    // Gedankenkarte (Runde 25)
+    // Idea map (Round 25)
     "idea_link",
     "idea_map_pos",
-    // Umschlag-Anordnung und Satzbild (Runde 27, Unterversion 3)
+    // Cover layout and typeset view (Round 27, sub-version 3)
     "cover_block",
     "work_sheet",
-    // Befunde und alte Beitragsfassungen (Runde 28, Unterversion 4)
+    // Findings and old post revisions (Round 28, sub-version 4)
     "finding",
     "finding_status",
     "post_version",
-    // Satz-Einstellungen (Runde 29, Unterversion 6)
+    // Typesetting settings (Round 29, sub-version 6)
     "work_typeset",
-    // Glossar und eigene Register (Runde 31, Unterversion 7)
+    // Glossary and own indexes (Round 31, sub-version 7)
     "glossary_term",
     "glossary_variant",
     "index_register",
@@ -73,7 +73,7 @@ async fn counts(store: &Store) -> BTreeMap<&'static str, i64> {
     out
 }
 
-/// Vollständiger Abzug aller Zeilen (alle Spalten außer den genannten) je Tabelle, Schlüssel rowid.
+/// Complete dump of all rows (all columns except the named ones) per table, key rowid.
 async fn dump(store: &Store, skip: &[(&str, &str)]) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for table in TABLES {
@@ -131,7 +131,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
     assert_eq!(store.work_uuid(work).await.unwrap(), sample_uuid(1), "das Werk behält seine Kennung");
     assert_eq!(applied.title, "Der Brunnen im Hof", "Titel aus der Datei");
 
-    // Fassungen von „Der Eimer“: Nummern, Status, Basis, Zeiten und Text exakt.
+    // Revisions of „Der Eimer“: numbers, status, base, times and text exactly.
     type RevisionRow = (i64, String, Option<i64>, String, String, Option<String>, String, Option<String>);
     let rows: Vec<RevisionRow> = sqlx::query_as(
         "SELECT r.number, r.status, r.based_on, r.created, r.body, r.edited, r.uuid, r.model FROM revision r \
@@ -154,7 +154,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
     assert_eq!(rows[2].6, sample_uuid(113), "Fassung behält ihre Kennung");
     assert_eq!(rows[2].7.as_deref(), Some("probe/modell-7b"), "Modell des Assistenten als Herkunft");
 
-    // Gliederung: Teile, Kapitel, Abschnitt, „Das Seil“ ohne Nummer.
+    // Outline: parts, chapters, section, „Das Seil“ without a number.
     let nodes: Vec<(String, String, i64, String)> =
         sqlx::query_as("SELECT uuid, kind, numbered, title FROM node WHERE work_id = ? ORDER BY seq")
             .bind(work)
@@ -167,7 +167,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
     assert_eq!(nodes[2].2, 0, "„Das Seil“ zählt ohne Nummer");
     assert_eq!(nodes[0].1, "part", "erster Punkt ist ein Teil");
 
-    // Vorlagenfassungen und aktueller Vorlagentext.
+    // Template revisions and current template text.
     let templates: Vec<(i64, String)> =
         sqlx::query_as("SELECT number, uuid FROM work_template_revision WHERE work_id = ? ORDER BY number")
             .bind(work)
@@ -177,7 +177,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
     assert_eq!(templates, vec![(1, sample_uuid(80)), (2, sample_uuid(81))], "beide Vorlagenfassungen");
     assert_eq!(store.work_template(work).await.unwrap(), doc.work.template.current, "aktueller Vorlagentext");
 
-    // Einfälle: gelöscht bleibt gelöscht, Bezug über die UUID, erledigt mit Art.
+    // Ideas: deleted stays deleted, reference through the UUID, done with kind.
     type IdeaRow = (String, Option<String>, String, Option<String>, Option<i64>);
     let ideas: Vec<IdeaRow> =
         sqlx::query_as("SELECT uuid, deleted, status, done_as, node_id FROM idea WHERE work_id = ? ORDER BY uuid")
@@ -189,7 +189,8 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
     assert_eq!(ideas[2].1.as_deref(), Some("2026-01-07T09:00:00.000Z"), "gelöschter Einfall bleibt gelöscht");
     assert_eq!((ideas[1].2.as_str(), ideas[1].3.as_deref()), ("done", Some("post")), "erledigt als Beitrag");
     assert_eq!(ideas[0].4, Some(key_of(&store, &sample_uuid(12)).await), "Bezug auf „Das Seil“");
-    // done_ref mit der Kennung eines Punkts wird wieder „key <Schlüssel>“ (Gegenstück zur Ausgabe), sonst wörtlich.
+    // done_ref with the identifier of a point becomes `key <key>` again (counterpart to the output), otherwise
+    // verbatim.
     let done_ref: Option<String> = sqlx::query_scalar("SELECT done_ref FROM idea WHERE uuid = ?")
         .bind(sample_uuid(41))
         .fetch_one(store.pool())
@@ -197,7 +198,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
         .unwrap();
     assert_eq!(done_ref.as_deref(), Some(sample_uuid(31).as_str()), "Kennung eines Beitrags bleibt wörtlich");
 
-    // Beiträge samt Bezug (Stelle und Fassungsnummer).
+    // Posts including reference (position and revision number).
     let loaded = store.load_work(work).await.unwrap();
     let bucket = loaded.nodes.iter().find(|n| n.title == "Der Eimer").unwrap();
     assert_eq!(bucket.posts.len(), 2, "zwei Beiträge");
@@ -205,7 +206,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
     let lamp = loaded.nodes.iter().find(|n| n.title == "Die Lampe").unwrap();
     assert_eq!((bucket.posts[1].refs[0].node, bucket.posts[1].refs[0].rev), (lamp.id, 0), "Bezug ohne Fassung → 0");
 
-    // Faden, Bilder samt Umschlag, Grabsteine.
+    // Thread, images including cover, tombstones.
     let thread_posts: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM chat_thread_post p JOIN chat_thread t ON t.id = p.thread_id WHERE t.uuid = ?",
     )
@@ -275,7 +276,7 @@ async fn a_new_import_keeps_uuids_numbers_status_times_and_marks() {
 #[tokio::test]
 async fn a_taken_title_is_refused_and_a_title_of_ones_own_works() {
     let (_dir, store) = open().await;
-    // Ein Werk hier trägt schon den Titel des Beispiels (Titelregeln wie beim Import, `title_key`).
+    // A work here already carries the title of the sample (title rules as for the import, `title_key`).
     let new = baruch_store::NewWork {
         title: "Der Brunnen im Hof",
         author: "Anna",
@@ -396,12 +397,12 @@ async fn outline_changes_become_requests_and_new_points_keep_exactly_their_revis
     let work = import_new(&store, &doc).await;
     let outline_before = store.load_work(work).await.unwrap();
 
-    // Umbenennen nur im Titel (keine Fassung trägt ihn), Nummer an/aus, Reihenfolge getauscht.
+    // Renaming only in the title (no revision carries it), number on/off, order swapped.
     node(&mut doc, 12).title = "Das starke Seil".into();
     node(&mut doc, 11).numbered = false;
     let water = node(&mut doc, 10);
     water.children.swap(0, 1);
-    // Neuer Abschnitt „Schlinge“ vor „Knoten“, „Knoten“ darunter (Ebene 3).
+    // New section „Schlinge“ before „Knoten“, „Knoten“ below it (level 3).
     let rope = node(&mut doc, 12);
     let mut knot = rope.children.remove(0);
     knot.children.clear();
@@ -435,7 +436,7 @@ async fn outline_changes_become_requests_and_new_points_keep_exactly_their_revis
     };
     noose.children.push(knot);
     rope.children.push(noose);
-    // „Die Lampe“ fehlt in der Datei (samt dem Bezug des Beitrags darauf).
+    // „Die Lampe“ is missing in the file (together with the reference of the post to it).
     node(&mut doc, 20).children.clear();
     node(&mut doc, 11).posts[1].refs.clear();
 
@@ -444,7 +445,7 @@ async fn outline_changes_become_requests_and_new_points_keep_exactly_their_revis
     assert_eq!(preview.add, applied.report.add, "Vorschau und Übernehmen zählen gleich");
     assert_eq!(preview.requests.len(), applied.report.requests.len(), "gleich viele Anträge");
 
-    // Neuer Punkt mit genau seinen Fassungen (keine zusätzliche Fassung 1 vom Anlegen).
+    // New point with exactly its revisions (no additional revision 1 from creating).
     let noose_key = key_of(&store, &sample_uuid(500)).await;
     let revisions: Vec<(i64, String, String)> =
         sqlx::query_as("SELECT number, status, uuid FROM revision WHERE node_id = ? ORDER BY number")
@@ -466,7 +467,7 @@ async fn outline_changes_become_requests_and_new_points_keep_exactly_their_revis
     .unwrap();
     assert_eq!(parent, key_of(&store, &sample_uuid(12)).await, "an seiner Stelle unter „Das Seil“");
 
-    // Anträge mit Herkunft „Austausch: Probeinstanz“, nichts direkt geändert.
+    // Requests with origin „Austausch: Probeinstanz“, nothing changed directly.
     let requests = store.outline_requests(work, true).await.unwrap();
     let ops: Vec<&OutlineOp> = requests.iter().map(|r| &r.op).collect();
     let seil = key_of(&store, &sample_uuid(12)).await;
@@ -515,7 +516,7 @@ async fn outline_changes_become_requests_and_new_points_keep_exactly_their_revis
     );
     assert!(!ops.iter().any(|op| matches!(op, OutlineOp::Delete { .. })), "kein Antrag zum Löschen");
 
-    // Zweiter Durchgang: dieselben Anträge sind offen → keine neuen, nichts doppelt.
+    // Second pass: the same requests are open → no new ones, nothing twice.
     let before = counts(&store).await;
     let again = store.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap();
     assert_eq!(again.report.add.total(), 0, "nichts kommt doppelt");
@@ -528,7 +529,7 @@ async fn a_renamed_point_whose_revision_carries_the_title_only_gets_a_hint() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     import_new(&store, &doc).await;
-    // Auf der anderen Seite umbenannt: neuer Titel und eine neue aktuelle Fassung mit dieser Überschrift.
+    // Renamed on the other side: new title and a new current revision with this heading.
     let lamp = node(&mut doc, 21);
     lamp.title = "Die helle Lampe".into();
     lamp.revisions[0].status = ExchangeRevisionStatus::Superseded;
@@ -556,7 +557,7 @@ async fn a_renamed_point_whose_revision_carries_the_title_only_gets_a_hint() {
 async fn a_new_part_that_would_adopt_chapters_becomes_an_add_request() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
-    // Werk ohne Teile: zwei Kapitel oben.
+    // Work without parts: two chapters at the top.
     let bucket = node(&mut doc, 11).clone();
     let rope = node(&mut doc, 12).clone();
     doc.work.outline = vec![bucket, rope];
@@ -567,7 +568,7 @@ async fn a_new_part_that_would_adopt_chapters_becomes_an_add_request() {
         .fetch_one(store.pool())
         .await
         .unwrap();
-    // Die andere Seite hat einen Teil um beide Kapitel gelegt.
+    // The other side has put a part around both chapters.
     let chapters = std::mem::take(&mut doc.work.outline);
     doc.work.outline = vec![ExchangeNode {
         uuid: sample_uuid(700),
@@ -603,8 +604,8 @@ async fn a_new_part_that_would_adopt_chapters_becomes_an_add_request() {
     assert_eq!(requests[0].expected.adopted.len(), 2, "beide Kapitel würden wandern");
     let deviation = applied.report.deviations.iter().find(|d| d.uuid == sample_uuid(700)).expect("gemeldet");
     assert_eq!(deviation.action, DeviationAction::Antrag, "als Antrag gemeldet");
-    // Runde 22 (§2.10): Kennung und Fassungen reisen im Antrag mit (Zustimmen und erneuter Abgleich in
-    // tests/exchange_u8.rs); das sagt die Vorschau.
+    // Round 22 (§2.10): identifier and revisions travel along in the request (agreeing and merging again in
+    // tests/exchange_u8.rs); the preview says so.
     assert!(
         deviation.there.contains("Antrag mit Kennung und 1 Fassung(en)"),
         "Kennung und Fassungen reisen im Antrag mit, und das wird gesagt: {}",
@@ -621,7 +622,7 @@ async fn tombstones_block_recreation_and_new_things_arrive_while_differences_onl
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier gelöscht: die verworfene Fassung 4 von „Der Eimer“ und der zweite Beitrag (Grabsteine per Trigger).
+    // Deleted here: the rejected revision 4 of „Der Eimer“ and the second post (tombstones by trigger).
     let seq = store.node_seq(work, key_of(&store, &sample_uuid(11)).await).await.unwrap();
     store.delete_revision(work, seq, 4, "Autor").await.unwrap();
     let post_id: i64 = sqlx::query_scalar("SELECT id FROM post WHERE uuid = ?")
@@ -630,11 +631,11 @@ async fn tombstones_block_recreation_and_new_things_arrive_while_differences_onl
         .await
         .unwrap();
     store.post_delete(work, post_id).await.unwrap();
-    // Buchangaben und Sprechdauer fehlen hier.
+    // Book details and speaking time are missing here.
     sqlx::query("DELETE FROM work_book WHERE work_id = ?").bind(work).execute(store.pool()).await.unwrap();
     sqlx::query("DELETE FROM work_timing WHERE work_id = ?").bind(work).execute(store.pool()).await.unwrap();
 
-    // Die andere Seite: neuer Einfall, neuer Beitrag, neuer Fadenbeitrag, neue Bildfassung; Abweichungen.
+    // The other side: new idea, new post, new thread post, new image revision; deviations.
     doc.work.ideas.push(ExchangeIdea {
         uuid: sample_uuid(800),
         words: vec!["Eimer".into()],
@@ -677,7 +678,7 @@ async fn tombstones_block_recreation_and_new_things_arrive_while_differences_onl
         created: "2026-02-05T12:00:00.000Z".into(),
         ..ExchangeAssetRevision::default()
     });
-    // Ein Bild, dessen Bytes kein Bild sind, besteht die Prüfung wie beim Hochladen nicht.
+    // An image whose bytes are not an image does not pass the check, as when uploading.
     doc.work.assets.push(baruch_exchange::ExchangeAsset {
         uuid: sample_uuid(804),
         name: "falsch.png".into(),
@@ -757,7 +758,7 @@ async fn merging_never_overwrites_an_existing_row() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     import_new(&store, &doc).await;
-    // Viele Abweichungen auf einmal: Text, Titel, Nummer, neuer Abschnitt, neue Einfälle, Unterschrift.
+    // Many deviations at once: text, title, number, new section, new ideas, signature.
     node(&mut doc, 11).revisions[1].body = "== Der Eimer\n\nDer Eimer war halb voll.\n".into();
     node(&mut doc, 11).revisions[0].note = "Andere Notiz.".into();
     node(&mut doc, 12).title = "Das lange Seil".into();
@@ -781,10 +782,10 @@ async fn merging_never_overwrites_an_existing_row() {
     doc.work.ideas[1].quote = "Eine andere Lampe".into();
     doc.work.assets[1].revisions[0].alt = "Anders beschrieben".into();
     doc.work.template.current = "#set text(lang: \"en\")\n".into();
-    // Vor dem Abgleich alles abziehen. Ausgenommen sind nur die Spalten, die das zulässige Anlegen eines Punkts
-    // bzw. einer Fassung neu rechnet: seq, parent_seq, position und number der Punkte (Stelle in der Gliederung,
-    // hier nach dem neuen Abschnitt verschoben), last_rev (höchste vergebene Nummer) und node_seq der Bezüge
-    // (folgt der Stelle). Alle anderen Spalten aller vorhandenen Zeilen müssen gleich bleiben.
+    // Dump everything before the merge. Excluded are only the columns that the permitted creation of a point or of
+    // a revision recalculates: seq, parent_seq, position and number of the points (position in the outline, here
+    // shifted behind the new section), last_rev (highest assigned number) and node_seq of the references (follows
+    // the position). All other columns of all existing rows must stay the same.
     let skip = [
         ("node", "seq"),
         ("node", "parent_seq"),
@@ -808,7 +809,7 @@ async fn merging_never_overwrites_an_existing_row() {
 async fn an_invalid_document_writes_nothing() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
-    // Zwei aktuelle Fassungen in einem Punkt verletzen die Regel „genau eine aktuelle Fassung“.
+    // Two current revisions in one point violate the rule "exactly one current revision".
     node(&mut doc, 11).revisions[1].status = ExchangeRevisionStatus::Current;
     let before = counts(&store).await;
     let refused = store.exchange_apply(&doc, SHA, ApplyMode::New, None).await;
@@ -820,7 +821,7 @@ async fn an_invalid_document_writes_nothing() {
 async fn a_done_ref_naming_a_point_becomes_its_local_key_again() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
-    // Die Ausgabe schreibt „key N, Rest“ als „<UUID des Punkts>, Rest“; das Einlesen macht daraus den Schlüssel hier.
+    // The output writes „key N, Rest“ as „<UUID des Punkts>, Rest“; reading turns that into the key here.
     doc.work.ideas[0].status = ExchangeIdeaStatus::Done;
     doc.work.ideas[0].done_as = Some(baruch_exchange::ExchangeIdeaUse::Outline);
     doc.work.ideas[0].done_ref = Some(format!("{}, als Abschnitt", sample_uuid(13)));
@@ -838,7 +839,7 @@ async fn a_done_ref_naming_a_point_becomes_its_local_key_again() {
     );
 }
 
-// ---- Unterversion 3 (Runde 27): Umschlag-Anordnung, Anschriften, Satzbild ----------------------------
+// ---- Sub-version 3 (Round 27): cover layout, addresses, typeset view ---------------------------------
 
 #[tokio::test]
 async fn a_new_import_carries_cover_blocks_addresses_and_sheet_and_dumps_them_back() {
@@ -847,7 +848,7 @@ async fn a_new_import_carries_cover_blocks_addresses_and_sheet_and_dumps_them_ba
     let applied = store.exchange_apply(&doc, SHA, ApplyMode::New, None).await.unwrap();
     let work = applied.work;
     assert_eq!(applied.report.add.cover_blocks, 3, "drei Umschlag-Blöcke gezählt");
-    // Blöcke mit ihren Kennungen und Werten (Farbe in der gespeicherten Form, Laufrichtung, eigener Text).
+    // Blocks with their identifiers and values (colour in the stored form, text direction, own text).
     type BlockRow = (String, String, f64, String, Option<String>, Option<String>, String);
     let rows: Vec<BlockRow> = sqlx::query_as(
         "SELECT uuid, kind, x_mm, color, direction, text, updated FROM cover_block WHERE work_id = ? ORDER BY id",
@@ -883,7 +884,7 @@ async fn a_new_import_carries_cover_blocks_addresses_and_sheet_and_dumps_them_ba
         .await
         .unwrap();
     assert_eq!(stone, ("cover_block".into(), Some(sample_uuid(1))), "Grabstein umschlag-block mitgenommen");
-    // Rundreise im Store: die Ausgabe trägt genau, was die Datei brachte.
+    // Round trip in the store: the output carries exactly what the file brought.
     let dumped = store.exchange_dump(work).await.unwrap();
     assert_eq!(dumped.book, doc.work.book, "Buchangaben samt Anschriften und Blöcken zurück");
     assert_eq!(dumped.sheet, doc.work.sheet, "Satzbild zurück");
@@ -895,7 +896,7 @@ async fn merging_cover_blocks_adds_missing_kinds_keeps_local_ones_and_respects_t
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier: Rücken zurückgesetzt (Grabstein für 161), Untertitel lokal angelegt, Satzbild lokal anders.
+    // Here: spine reset (tombstone for 161), subtitle created locally, typeset view locally different.
     store.reset_cover_blocks(work, &[baruch_store::CoverFace::Spine], None).await.unwrap();
     let local_subtitle = baruch_store::CoverBlock {
         kind: baruch_store::CoverBlockKind::FrontSubtitle,
@@ -916,7 +917,7 @@ async fn merging_cover_blocks_adds_missing_kinds_keeps_local_ones_and_respects_t
     store.set_cover_blocks(work, std::slice::from_ref(&local_subtitle)).await.unwrap();
     let sheet = baruch_store::SheetSettings { size: Some("12pt".into()), ..Default::default() };
     store.set_sheet_settings(work, &sheet).await.unwrap();
-    // Dort: Titel verschoben (bekannte Kennung), neuer Autor-Block, eigener Untertitel-Block, Anschrift anders.
+    // There: title moved (known identifier), new author block, own subtitle block, address different.
     let book = doc.work.book.as_mut().unwrap();
     book.cover_blocks[0].x_mm = 40.0;
     book.publisher_address = "Anderer Verlag\nAnderswo 3".into();
@@ -959,7 +960,7 @@ async fn merging_cover_blocks_adds_missing_kinds_keeps_local_ones_and_respects_t
     assert!(hint(sample_uuid(1), "Satzbild"), "Satzbild weicht ab: Hinweis: {:?}", report.deviations);
     assert_eq!(store.sheet_settings(work).await.unwrap(), sheet, "lokales Satzbild bleibt");
     assert_eq!(store.book_meta(work).await.unwrap().publisher_address.lines().count(), 3, "lokale Anschrift bleibt");
-    // Ein zweiter Durchgang fügt nichts mehr hinzu.
+    // A second pass adds nothing more.
     let again = store.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap();
     assert_eq!(again.report.add.total(), 0, "nichts doppelt: {:?}", again.report.items);
 }
@@ -969,7 +970,8 @@ async fn merging_brings_a_missing_sheet_and_missing_book_with_blocks() {
     let (_dir, store) = open().await;
     let doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier gibt es (noch) kein Satzbild und keine Buchangaben samt Blöcken: beides fehlt ganz und kommt aus der Datei.
+    // Here there is no typeset view (yet) and no book details including blocks: both are missing entirely and come
+    // from the file.
     store.set_sheet_settings(work, &baruch_store::SheetSettings::default()).await.unwrap();
     store.reset_cover_blocks(work, &[], None).await.unwrap();
     sqlx::query("DELETE FROM work_book WHERE work_id = ?").bind(work).execute(store.pool()).await.unwrap();
@@ -986,8 +988,8 @@ async fn merging_brings_a_missing_sheet_and_missing_book_with_blocks() {
 
 #[tokio::test]
 async fn an_invalid_sheet_in_the_file_is_not_taken_but_reported() {
-    // Die Datei kommt von außen: Ein Satzbild, das lokal nicht durchginge, wird nicht übernommen (wie ein Bild, das
-    // die Prüfung nicht besteht), das Werk aber schon.
+    // The file comes from outside: a typeset view that would not pass locally is not taken over (like an image that
+    // does not pass the check), but the work is.
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     doc.work.sheet = Some(baruch_exchange::ExchangeSheet { font: Some("A;} body {".into()), ..Default::default() });
@@ -1000,7 +1002,7 @@ async fn an_invalid_sheet_in_the_file_is_not_taken_but_reported() {
     );
 }
 
-// ---- Unterversion 4 (Runde 28): Befunde und alte Beitragsfassungen ----------------------------------------
+// ---- Sub-version 4 (Round 28): findings and old post revisions --------------------------------------------
 
 #[tokio::test]
 async fn a_new_import_carries_findings_history_and_post_versions_and_dumps_them_back() {
@@ -1010,7 +1012,8 @@ async fn a_new_import_carries_findings_history_and_post_versions_and_dumps_them_
     let work = applied.work;
     let add = &applied.report.add;
     assert_eq!((add.findings, add.finding_entries, add.post_versions), (5, 4, 2), "Befunde, Verlauf, alte Fassungen");
-    // Befunde mit Kennung, Status, Begründung; „gleicht“ über die Kennung (das Original steht davor in der Datei).
+    // Findings with identifier, status, reason; „gleicht“ through the identifier (the original stands before it in
+    // the file).
     let rows: Vec<(String, String, String, Option<i64>, String)> = sqlx::query_as(
         "SELECT f.uuid, f.status, f.reason, f.similar_to, f.summary_of FROM finding f WHERE f.work_id = ? ORDER BY f.id",
     )
@@ -1030,25 +1033,25 @@ async fn a_new_import_carries_findings_history_and_post_versions_and_dumps_them_
         .unwrap();
     assert_eq!(rows[3].3, Some(original), "angehängter Befund zeigt auf das Original hier");
     assert!(rows[3].4.contains(&sample_uuid(310)), "Sammlung über Kennungen: {}", rows[3].4);
-    // Der übernommene Befund findet seine Fassung (Nummer 1 von „Der Eimer“) hier wieder.
+    // The adopted finding finds its revision (number 1 of „Der Eimer“) again here.
     let key = key_of(&store, &sample_uuid(11)).await;
     assert_eq!(
         store.findings_adopted_in(work, key).await.unwrap(),
         vec![(1, vec![original])],
         "Fassung 1 setzt ihn um"
     );
-    // Beitrag mit alter Fassung und Zeit der Bearbeitung.
+    // Post with old revision and time of the edit.
     let edited: Option<String> = sqlx::query_scalar("SELECT edited FROM post WHERE uuid = ?")
         .bind(sample_uuid(31))
         .fetch_one(store.pool())
         .await
         .unwrap();
     assert_eq!(edited.as_deref(), Some("2026-01-07T13:00:00.000Z"), "post.edited aus der Datei");
-    // Rundreise im Store: die Ausgabe trägt genau, was die Datei brachte.
+    // Round trip in the store: the output carries exactly what the file brought.
     let dumped = store.exchange_dump(work).await.unwrap();
     assert_eq!(dumped.findings, doc.work.findings, "Befunde samt Verlauf zurück");
-    // Runde 30: Der Schlüssel eines Punkts gilt nur in seiner Instanz (`schluessel` der Datei bleibt dort); alles
-    // andere – Varianten, Lösungen, Grundlage und Antwort der Beiträge – kommt genau zurück.
+    // Round 30: the key of a point only holds in its instance (`schluessel` of the file stays there); everything
+    // else – variants, solutions, basis and answer of the posts – comes back exactly.
     fn without_keys(nodes: &[baruch_exchange::ExchangeNode]) -> Vec<baruch_exchange::ExchangeNode> {
         nodes
             .iter()
@@ -1068,7 +1071,7 @@ async fn merging_findings_adds_unknown_ones_never_overwrites_and_respects_tombst
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier: den Hinweis aus dem Faden löschen (Grabstein), den verschobenen Befund wieder öffnen (abweichender Status).
+    // Here: delete the hint from the thread (tombstone), reopen the moved finding (deviating status).
     sqlx::query("DELETE FROM finding WHERE uuid = ?").bind(sample_uuid(313)).execute(store.pool()).await.unwrap();
     let deferred: i64 = sqlx::query_scalar("SELECT id FROM finding WHERE uuid = ?")
         .bind(sample_uuid(312))
@@ -1077,9 +1080,9 @@ async fn merging_findings_adds_unknown_ones_never_overwrites_and_respects_tombst
         .unwrap();
     store.finding_set_status(work, deferred, &baruch_store::StatusChange::Open, "Autor").await.unwrap();
     let before = counts(&store).await;
-    // Drüben: ein neuer Befund an freier Stelle (mit Verlauf), einer an einer hier schon belegten Stelle (andere
-    // Kennung – etwa weil beide Instanzen denselben Beitrag zerlegt haben), eine neue alte Fassung eines bekannten
-    // Beitrags.
+    // Over there: a new finding at a free place (with history), one at a place already taken here (different
+    // identifier – for example because both instances have split the same post), a new old revision of a known
+    // post.
     let mut fresh = doc.work.findings[1].clone();
     fresh.uuid = sample_uuid(700);
     fresh.position = 7;
@@ -1130,12 +1133,12 @@ async fn merging_findings_adds_unknown_ones_never_overwrites_and_respects_tombst
         .await
         .unwrap();
     assert_eq!(status, "open", "der bekannte Befund wird nie überschrieben (den Status setzt hier der Mensch)");
-    // Ein zweites Abgleichen bringt nichts mehr.
+    // A second merge brings nothing more.
     let again = store.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap();
     assert_eq!(again.report.add.total(), 0, "nichts doppelt: {:?}", again.report.items);
 }
 
-// ---- Unterversion 7 (Runde 31): eigene Register und Glossar ---------------------------------------------------
+// ---- Sub-version 7 (Round 31): own indexes and glossary -------------------------------------------------------
 
 #[tokio::test]
 async fn a_new_import_carries_registers_and_glossary_and_dumps_them_back() {
@@ -1171,7 +1174,7 @@ async fn a_new_import_carries_registers_and_glossary_and_dumps_them_back() {
             .unwrap();
         assert_eq!(stone, kind, "Grabstein {kind} mitgenommen");
     }
-    // Rundreise im Store: die Ausgabe trägt genau, was die Datei brachte.
+    // Round trip in the store: the output carries exactly what the file brought.
     let dumped = store.exchange_dump(work).await.unwrap();
     assert_eq!(dumped.registers, doc.work.registers, "eigene Register zurück");
     assert_eq!(dumped.glossary, doc.work.glossary, "Glossar zurück (Varianten, Status, Zeiten)");
@@ -1183,14 +1186,14 @@ async fn merging_the_glossary_matches_instead_of_doubling_and_never_overwrites()
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier gelöscht: „Schöpfeimer“ (Grabstein) – er darf nicht wiederkommen.
+    // Deleted here: „Schöpfeimer“ (tombstone) – it must not come back.
     let schoepfeimer = store.glossary(work, None).await.unwrap().into_iter().find(|t| t.term == "Schöpfeimer").unwrap();
     store.glossary_delete(work, schoepfeimer.id, "Hanna").await.unwrap();
     let before = counts(&store).await;
 
-    // Die Datei der anderen Instanz: derselbe Begriff „Brunnenstube“ unter eigener Kennung (beide Instanzen haben ihn
-    // angelegt), der bekannte Vorschlag „Zisterne“ mit anderer Erklärung, der hier gelöschte „Schöpfeimer“, ein neuer
-    // Begriff; das Register „orte“ unter eigener Kennung, ein neues Register.
+    // The file of the other instance: the same term „Brunnenstube“ under an identifier of its own (both instances
+    // have created it), the known proposal „Zisterne“ with a different explanation, the „Schöpfeimer“ deleted here,
+    // a new term; the index „orte“ under an identifier of its own, a new index.
     doc.work.glossary[0].uuid = sample_uuid(1120);
     doc.work.glossary[0].term = "BRUNNENSTUBE".into();
     doc.work.glossary[2].short = "Andere Erklärung dort.".into();
@@ -1230,7 +1233,7 @@ async fn merging_the_glossary_matches_instead_of_doubling_and_never_overwrites()
     assert!(store.glossary_lookup(work, "Schöpfeimer").await.unwrap().is_empty(), "Grabstein respektiert");
     assert!(store.index_registers(work).await.unwrap().iter().any(|r| r.slug == "pflanzen"), "neues Register da");
 
-    // Ein zweites Mal: nichts kommt mehr dazu.
+    // A second time: nothing is added any more.
     let again = store.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap();
     assert_eq!((again.report.add.glossary_terms, again.report.add.registers), (0, 0), "zweiter Abgleich bringt nichts");
 }

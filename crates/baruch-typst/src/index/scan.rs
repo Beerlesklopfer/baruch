@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lesen eines Abschnittstexts für Registermarken (Runde 31b): Welche Bytes sind Fließtext, in dem Marken stehen und
-//! Wörter gezählt werden dürfen, und wo stehen schon Marken?
+//! Reading a section text for index marks (Round 31b): which bytes are running text in which marks may stand and
+//! words may be counted, and where do marks already stand?
 //!
-//! Gesperrt (nie Fließtext) sind Überschriftszeilen (`=`-Zeilen, Teil- und „ohne Nummer“-Markierungen), Maskierungen
-//! (`\x`), Raw (`` `…` ``, Zäune), Kommentare (`//`, `/* */`), Formeln (`$…$`), Labels (`<name>`), Verweise (`@name`),
-//! Adressen (`https://…`), Code hinter `#` samt Argumenten und Strings, Anweisungen (`#let`, `#set`, `#show`, `#if` …
-//! bis zum Zeilenende samt allen Klammern) und Marken. Inhaltsblöcke eines Aufrufs (`#emph[…]`, `#footnote[…]`,
-//! `caption: […]`) sind wieder Fließtext – dort stehen Wörter des Buchs.
+//! Blocked (never running text) are heading lines (`=` lines, part and „ohne Nummer“ markers), escapes (`\x`), raw
+//! (`` `…` ``, fences), comments (`//`, `/* */`), formulas (`$…$`), labels (`<name>`), references (`@name`),
+//! addresses (`https://…`), code behind `#` including arguments and strings, statements (`#let`, `#set`, `#show`,
+//! `#if` … up to the end of the line including all parentheses) and marks. Content blocks of a call (`#emph[…]`,
+//! `#footnote[…]`, `caption: […]`) are running text again – words of the book stand there.
 //!
-//! Jede gesperrte Stelle hat eine eigene Nummer (`region`); eine Einfügestelle zwischen zwei Bytes derselben Nummer
-//! liegt mitten in ihr ([`Scan::insertable`]).
+//! Every blocked region has a number of its own (`region`); an insertion point between two bytes of the same number
+//! lies in the middle of it ([`Scan::insertable`]).
 
 use super::{FoundMark, parse_mark};
 
-/// Art einer gesperrten Stelle.
+/// Kind of a blocked region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Kind {
     Escape,
@@ -29,24 +29,24 @@ pub(super) enum Kind {
     Mark,
 }
 
-/// Eine Überschriftszeile auf oberster Ebene: Bytebereich ohne Zeilenende, Ebene (0 = Teil, 1–6 = Anzahl `=` bzw.
-/// Ebene der Markierung „ohne Nummer“).
+/// A heading line at the top level: byte range without line end, level (0 = part, 1–6 = number of `=` or level of
+/// the marker „ohne Nummer“).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct HeadingLine {
     pub start: usize,
     pub level: u8,
 }
 
-/// Ergebnis des Lesens.
+/// Result of the reading.
 pub(super) struct Scan {
-    /// Je Byte: 0 = Fließtext, sonst Nummer der gesperrten Stelle (1-basiert in `kinds`).
+    /// Per byte: 0 = running text, otherwise number of the blocked region (1-based in `kinds`).
     region: Vec<u32>,
     kinds: Vec<Kind>,
-    /// Endet der Text in einer offenen Stelle (Raw, Kommentar, Formel, Klammer ohne Ende)?
+    /// Does the text end in an open region (raw, comment, formula, parenthesis without end)?
     open_end: bool,
-    /// Alle kanonischen Marken in Textreihenfolge (auch solche in gesperrten Anweisungen: Typst setzt sie).
+    /// All canonical marks in text order (also those in blocked statements: Typst sets them).
     pub marks: Vec<FoundMark>,
-    /// Überschriftszeilen auf oberster Ebene in Textreihenfolge.
+    /// Heading lines at the top level in text order.
     pub headings: Vec<HeadingLine>,
 }
 
@@ -58,17 +58,17 @@ impl Scan {
         }
     }
 
-    /// Ist Byte `i` Fließtext?
+    /// Is byte `i` running text?
     pub fn prose(&self, i: usize) -> bool {
         self.region.get(i) == Some(&0)
     }
 
-    /// Sind alle Bytes in `a..b` Fließtext?
+    /// Are all bytes in `a..b` running text?
     pub fn prose_range(&self, a: usize, b: usize) -> bool {
         self.region.get(a..b).is_some_and(|r| r.iter().all(|&x| x == 0))
     }
 
-    /// Ist Byte `i` der Anfang eines Labels (`<name>`)?
+    /// Is byte `i` the start of a label (`<name>`)?
     pub fn label_at(&self, i: usize) -> Option<usize> {
         if self.kind_at(i) != Some(Kind::Label) || (i > 0 && self.region[i - 1] == self.region[i]) {
             return None;
@@ -81,10 +81,10 @@ impl Scan {
         Some(end)
     }
 
-    /// Darf an der Byte-Stelle `p` (Zeichengrenze) eine Marke stehen? Nicht mitten in einer gesperrten Stelle, nicht am
-    /// Ende einer Kommentar- oder Überschriftszeile (dort gehörte sie noch zur Zeile), nicht am Anfang einer
-    /// Überschriftszeile, nicht vor einem Label (es hinge sonst an der Marke) und nicht am Ende eines offenen Raw,
-    /// Kommentars oder einer offenen Klammer.
+    /// May a mark stand at the byte position `p` (character boundary)? Not in the middle of a blocked region, not
+    /// at the end of a comment or heading line (there it would still belong to the line), not at the start of a
+    /// heading line, not before a label (it would otherwise hang on the mark) and not at the end of an open raw,
+    /// comment or open parenthesis.
     pub fn insertable(&self, text: &str, p: usize) -> bool {
         if p > text.len() || !text.is_char_boundary(p) {
             return false;
@@ -103,15 +103,15 @@ impl Scan {
         !(p == text.len() && left != 0 && self.open_end)
     }
 
-    /// Der Text mit Leerzeichen statt aller gesperrten Bytes (Zeilenenden bleiben); Bytepositionen bleiben gleich und
-    /// das Ergebnis ist gültiges UTF-8, weil jede gesperrte Stelle ganze Zeichen umfasst.
+    /// The text with spaces instead of all blocked bytes (line ends stay); byte positions stay the same and the
+    /// result is valid UTF-8, because every blocked region comprises whole characters.
     pub fn masked(&self, text: &str) -> String {
         let bytes: Vec<u8> =
             text.bytes().zip(&self.region).map(|(b, &r)| if r == 0 || b == b'\n' { b } else { b' ' }).collect();
         String::from_utf8(bytes).unwrap_or_else(|_| " ".repeat(text.len()))
     }
 
-    /// Wörter im Fließtext: größte Folgen von Buchstaben und Ziffern, deren Bytes alle Fließtext sind.
+    /// Words in the running text: longest runs of letters and digits whose bytes are all running text.
     pub fn words(&self, text: &str) -> Vec<(usize, usize)> {
         let mut out = Vec::new();
         let mut start: Option<usize> = None;
@@ -133,11 +133,11 @@ impl Scan {
     }
 }
 
-/// Schlüsselwörter, nach denen der Rest der Zeile (samt aller Klammern) Anweisung ist.
+/// Keywords after which the rest of the line (including all parentheses) is a statement.
 const STATEMENTS: &[&str] =
     &["let", "set", "show", "import", "include", "if", "else", "for", "while", "return", "break", "continue"];
 
-/// Liest `text`.
+/// Reads `text`.
 pub(super) fn scan(text: &str) -> Scan {
     let mut scanner = Scanner {
         s: text,
@@ -200,13 +200,13 @@ impl Scanner<'_> {
         self.b[i..].iter().position(|&b| b == b'\n').map_or(self.b.len(), |n| i + n)
     }
 
-    /// `//` ist kein Kommentar direkt hinter `http:` bzw. `https:`.
+    /// `//` is not a comment directly behind `http:` or `https:`.
     fn after_scheme(&self, i: usize) -> bool {
         let before = &self.s[..i];
         before.ends_with("http:") || before.ends_with("https:")
     }
 
-    /// Überschriftszeile ab dem Zeilenanfang `i`: Ende (ohne Zeilenende) und Ebene.
+    /// Heading line from the line start `i` on: end (without line end) and level.
     fn heading_line(&self, i: usize) -> Option<(usize, u8)> {
         let end = self.line_end(i);
         let line = &self.s[i..end];
@@ -221,8 +221,8 @@ impl Scanner<'_> {
         None
     }
 
-    /// Markup ab `i` bis zum Ende bzw. (mit `close`) bis zur passenden `]`. Rückgabe: Stelle dahinter und ob die
-    /// Klammer geschlossen wurde.
+    /// Markup from `i` to the end or (with `close`) to the matching `]`. Returns: position behind it and whether
+    /// the bracket was closed.
     fn markup(&mut self, mut i: usize, depth: usize, close: bool) -> (usize, bool) {
         let len = self.b.len();
         while i < len {
@@ -319,7 +319,7 @@ impl Scanner<'_> {
         (len, false)
     }
 
-    /// Raw ab `i` (Folge von Backticks); bis zur nächsten gleich langen Folge, `` `` `` ist leer.
+    /// Raw from `i` on (run of backticks); up to the next run of the same length, `` `` `` is empty.
     fn raw(&mut self, i: usize, kind: Kind) -> usize {
         let run = self.b[i..].iter().take_while(|&&b| b == b'`').count();
         let end = if run == 2 {
@@ -339,7 +339,7 @@ impl Scanner<'_> {
         end
     }
 
-    /// `/* … */` ab `i`, geschachtelt. Mit `into` in eine bestehende Stelle (Code), sonst eigene Stelle.
+    /// `/* … */` from `i` on, nested. With `into` into an existing region (code), otherwise a region of its own.
     fn block_comment(&mut self, i: usize, into: Option<u32>) -> usize {
         let len = self.b.len();
         let mut depth = 0u32;
@@ -369,7 +369,7 @@ impl Scanner<'_> {
         end
     }
 
-    /// String-Literal ab dem `"` bei `i` (mit `\`-Maskierungen) → Stelle hinter dem schließenden `"`.
+    /// String literal from the `"` at `i` on (with `\` escapes) → position behind the closing `"`.
     fn string_end(&mut self, i: usize) -> usize {
         let len = self.b.len();
         let mut k = i + 1;
@@ -384,7 +384,7 @@ impl Scanner<'_> {
         len
     }
 
-    /// Eingebetteter Ausdruck ab `#` bei `i`; eine kanonische Marke wird als Marke gemerkt.
+    /// Embedded expression from `#` at `i` on; a canonical mark is remembered as a mark.
     fn hash(&mut self, i: usize, depth: usize) -> usize {
         if let Some((mark, used)) = parse_mark(&self.s[i..]) {
             let id = self.new_region(Kind::Mark);
@@ -397,8 +397,8 @@ impl Scanner<'_> {
         self.expr(i + 1, id, depth)
     }
 
-    /// Ein Ausdruck ab `j` (nach `#` bzw. nach `context`), gesperrt mit `id`; Inhaltsblöcke von Aufrufen bleiben
-    /// Fließtext, Anweisungen sind bis zum Zeilenende ganz gesperrt.
+    /// An expression from `j` on (after `#` or after `context`), blocked with `id`; content blocks of calls stay
+    /// running text, statements are blocked entirely up to the end of the line.
     fn expr(&mut self, j: usize, id: u32, depth: usize) -> usize {
         match self.char_at(j) {
             Some('(' | '{') => self.group(j, id, depth),
@@ -426,7 +426,7 @@ impl Scanner<'_> {
                 if STATEMENTS.contains(&name) {
                     let start = j;
                     let end = self.statement(k, id, depth);
-                    // Anweisungen ganz sperren (auch ihre Inhaltsblöcke); Marken darin bleiben gemerkt.
+                    // Block statements entirely (also their content blocks); marks in them stay remembered.
                     self.fill(start, end, id);
                     return end;
                 }
@@ -448,12 +448,12 @@ impl Scanner<'_> {
                 }
                 end
             }
-            // `#` ohne Ausdruck: nur das Zeichen selbst.
+            // `#` without an expression: only the character itself.
             _ => j,
         }
     }
 
-    /// Inhaltsblock `[…]` eines Ausdrucks ab `j`: Klammern gesperrt, Inhalt Fließtext.
+    /// Content block `[…]` of an expression from `j` on: brackets blocked, content running text.
     fn content(&mut self, j: usize, id: u32, depth: usize) -> usize {
         self.fill(j, j + 1, id);
         let (end, closed) = self.markup(j + 1, depth + 1, true);
@@ -465,7 +465,7 @@ impl Scanner<'_> {
         end
     }
 
-    /// Klammer `(…)` bzw. `{…}` im Code ab `open`, gesperrt; Inhaltsblöcke darin sind Fließtext.
+    /// Parenthesis `(…)` or brace `{…}` in the code from `open` on, blocked; content blocks in it are running text.
     fn group(&mut self, open: usize, id: u32, depth: usize) -> usize {
         let close = if self.b[open] == b'(' { b')' } else { b'}' };
         self.fill(open, open + 1, id);
@@ -476,12 +476,12 @@ impl Scanner<'_> {
         end
     }
 
-    /// Anweisung ab `k` bis zum Zeilenende bzw. `;` auf oberster Ebene.
+    /// Statement from `k` on up to the end of the line or `;` at the top level.
     fn statement(&mut self, k: usize, id: u32, depth: usize) -> usize {
         self.code(k, id, depth, None)
     }
 
-    /// Code ab `j` bis hinter `close` (bzw. ohne `close` bis vor das Zeilenende oder hinter `;`).
+    /// Code from `j` on to behind `close` (or without `close` to before the line end or behind `;`).
     fn code(&mut self, mut j: usize, id: u32, depth: usize, close: Option<u8>) -> usize {
         let len = self.b.len();
         while j < len {
@@ -514,7 +514,7 @@ impl Scanner<'_> {
                     self.fill(j, end, id);
                     j = end;
                 }
-                // Fremde schließende Klammer: hier endet der Code (vorsichtig).
+                // Foreign closing bracket: the code ends here (cautious).
                 b')' | b'}' | b']' => {
                     self.fill(j, j + 1, id);
                     return j + 1;

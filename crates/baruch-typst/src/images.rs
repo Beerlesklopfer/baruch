@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bildpfade in Typst-Text (Vertrag Runde 6, Abschnitt 4b): Welche Dateien nennen Vorlage und Text?
+//! Image paths in Typst text (contract Round 6, section 4b): which files do template and text name?
 //!
-//! [`image_paths`] sucht `image(`-Aufrufe: im Markup als `#image(`, in Code und Argumenten als
-//! `image(` (z. B. `#figure(image("…"), …)`, `#let bild = image("…")`). Kommentare und Raw-Text
-//! zählen nicht ([`super::blank_comments`]). Erkannt wird nur ein String-Literal als erstes
-//! Argument; berechnete Pfade (`"bilder/" + name`, eine Variable) bleiben unerkannt.
+//! [`image_paths`] looks for `image(` calls: in markup as `#image(`, in code and arguments as `image(` (e.g.
+//! `#figure(image("…"), …)`, `#let bild = image("…")`). Comments and raw text do not count
+//! ([`super::blank_comments`]). Only a string literal as first argument is recognised; computed paths (`"bilder/" +
+//! name`, a variable) stay unrecognised.
 //!
-//! Runde 11 („images“): [`computed_images`] findet die `image(`-Aufrufe mit **berechnetem** Pfad (z. B.
-//! Kapitelbilder in der Werkvorlage) und ermittelt sie, wo das ohne Typst-Auswertung sicher geht:
-//! `image(liste.at(i))` mit genau einer Definition `let liste = ("a.png", "b.png", …)` aus lauter
-//! String-Literalen und einem Index, der eine Zahl ist ([`ComputedImage::Fixed`]) oder die Nummer des
-//! Kapitels ± k (`counter(heading).get().first()`, `….at(0)`, mit `at(here())`, auch über genau eine
-//! `let n = …`; [`ComputedImage::PerChapter`]). Alles andere ist [`ComputedImage::Unknown`]: Die
-//! Oberfläche sagt dann ehrlich „Bild aus der Vorlage“, statt zu raten.
+//! Round 11 („images“): [`computed_images`] finds the `image(` calls with a **computed** path (e.g. chapter images
+//! in the work template) and determines them where that is safely possible without evaluating Typst:
+//! `image(liste.at(i))` with exactly one definition `let liste = ("a.png", "b.png", …)` of nothing but string
+//! literals and an index that is a number ([`ComputedImage::Fixed`]) or the number of the chapter ± k
+//! (`counter(heading).get().first()`, `….at(0)`, with `at(here())`, also through exactly one `let n = …`;
+//! [`ComputedImage::PerChapter`]). Everything else is [`ComputedImage::Unknown`]: the user interface then honestly
+//! says „Bild aus der Vorlage“ instead of guessing.
 
 use super::{Arg, Cursor, blank_comments, ident_char, ident_start};
 
-/// String-Literale des ersten Arguments aller `image(`-Aufrufe außerhalb von Kommentaren und Raw, in
-/// Reihenfolge, ohne Doppelte.
+/// String literals of the first argument of all `image(` calls outside of comments and raw, in order, without
+/// duplicates.
 pub fn image_paths(source: &str) -> Vec<String> {
     let text = blank_comments(source);
     let bytes = text.as_bytes();
@@ -38,10 +38,9 @@ pub fn image_paths(source: &str) -> Vec<String> {
     out
 }
 
-/// Steht an `at` ein Aufruf von `image` (und kein Wortteil wie `myimage(` oder Fließtext wie
-/// „ein image(…)“)? Direkt davor `#` (Markup), oder davor – über Leerraum hinweg – ein Zeichen, nach
-/// dem ein Code-Ausdruck beginnt: `(`, `,`, `:`, `=`, `{` oder `;`. Ein `.` davor (Methode,
-/// `x.image(`) zählt nicht.
+/// Does a call of `image` stand at `at` (and not part of a word like `myimage(` or running text like „ein
+/// image(…)“)? Directly before it `#` (markup), or before it – across whitespace – a character after which a code
+/// expression starts: `(`, `,`, `:`, `=`, `{` or `;`. A `.` before it (method, `x.image(`) does not count.
 fn is_call(bytes: &[u8], at: usize) -> bool {
     let Some(&before) = at.checked_sub(1).and_then(|i| bytes.get(i)) else {
         return false;
@@ -59,8 +58,8 @@ fn is_call(bytes: &[u8], at: usize) -> bool {
     i > 0 && matches!(bytes[i - 1], b'(' | b',' | b':' | b'=' | b'{' | b';')
 }
 
-/// Erstes Argument nach der öffnenden Klammer, wenn es ein String-Literal ist, dem `,` oder `)`
-/// folgt (sonst ein berechneter Ausdruck).
+/// First argument after the opening parenthesis if it is a string literal followed by `,` or `)` (otherwise a
+/// computed expression).
 fn first_string_argument(rest: &str) -> Option<String> {
     let mut cursor = Cursor { s: rest, i: 0 };
     while cursor.peek().is_some_and(char::is_whitespace) {
@@ -73,7 +72,7 @@ fn first_string_argument(rest: &str) -> Option<String> {
     let start = cursor.i;
     let value = cursor.string();
     if !rest[start..cursor.i].ends_with('"') {
-        return None; // String schließt nicht
+        return None; // string does not close
     }
     while cursor.peek().is_some_and(char::is_whitespace) {
         cursor.bump();
@@ -81,20 +80,20 @@ fn first_string_argument(rest: &str) -> Option<String> {
     matches!(cursor.peek(), Some(',' | ')')).then_some(value).filter(|v| !v.is_empty())
 }
 
-/// Ein `image(`-Aufruf mit berechnetem Pfad ([`computed_images`]).
+/// An `image(` call with a computed path ([`computed_images`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComputedImage {
-    /// `liste.at(Kapitelnummer + offset)`: im Kapitel `n` (ab 1) das Element `n + offset` (ab 0).
+    /// `liste.at(chapter number + offset)`: in chapter `n` (from 1) the element `n + offset` (from 0).
     PerChapter { list: Vec<String>, offset: i64 },
-    /// `liste.at(k)` mit fester Zahl: immer dasselbe Bild.
+    /// `liste.at(k)` with a fixed number: always the same image.
     Fixed { path: String },
-    /// Nicht sicher ermittelbar; `expr` ist das erste Argument, wie es im Text steht (getrimmt).
+    /// Cannot be determined safely; `expr` is the first argument as it stands in the text (trimmed).
     Unknown { expr: String },
 }
 
 impl ComputedImage {
-    /// Bild im Kapitel `chapter` (ab 1): `Some(Pfad)`, wenn sicher ermittelt; `None` bei
-    /// [`ComputedImage::Unknown`] oder einem Index außerhalb der Liste (Typst meldete dort einen Fehler).
+    /// Image in the chapter `chapter` (from 1): `Some(path)` if safely determined; `None` for
+    /// [`ComputedImage::Unknown`] or an index outside the list (Typst would report an error there).
     pub fn for_chapter(&self, chapter: usize) -> Option<&str> {
         match self {
             ComputedImage::PerChapter { list, offset } => {
@@ -107,8 +106,8 @@ impl ComputedImage {
     }
 }
 
-/// Alle `image(`-Aufrufe, deren erstes Argument kein String-Literal ist, in Reihenfolge (Kommentare
-/// und Raw zählen nicht), je mit dem, was sich sicher ermitteln lässt (siehe Moduldoku).
+/// All `image(` calls whose first argument is not a string literal, in order (comments and raw do not count), each
+/// with what can be determined safely (see module documentation).
 pub fn computed_images(source: &str) -> Vec<ComputedImage> {
     let text = blank_comments(source);
     let bytes = text.as_bytes();
@@ -122,20 +121,20 @@ pub fn computed_images(source: &str) -> Vec<ComputedImage> {
         }
         let rest = &text[from..];
         if first_string_argument(rest).is_some() {
-            continue; // Literal: das kennt image_paths
+            continue; // literal: image_paths knows that
         }
         let expr = raw_argument(rest);
         if expr.is_empty() || expr.starts_with('[') {
-            continue; // nichts oder Inhalt: kein Pfad
+            continue; // nothing or content: no path
         }
         out.push(resolve(&text, expr));
     }
     out
 }
 
-/// Steht `image(` als eigene Anweisung in einem Code-Block (`{ … }` bzw. `context { … }`): am
-/// Zeilenanfang (nur Leerraum davor) innerhalb einer offenen `{`? So schreiben Vorlagen Kapitelbilder
-/// in `show`-Regeln; im Markup wäre dieselbe Zeile Fließtext.
+/// Does `image(` stand as a statement of its own in a code block (`{ … }` or `context { … }`): at the start of a
+/// line (only whitespace before it) within an open `{`? This is how templates write chapter images in `show` rules;
+/// in markup the same line would be running text.
 fn is_statement(bytes: &[u8], at: usize) -> bool {
     let mut i = at;
     while i > 0 && matches!(bytes[i - 1], b' ' | b'\t') {
@@ -155,7 +154,7 @@ fn is_statement(bytes: &[u8], at: usize) -> bool {
     depth > 0
 }
 
-/// Erstes Argument roh (getrimmt): bis zum `,` bzw. `)` auf Ebene 0, Strings übersprungen.
+/// First argument raw (trimmed): up to the `,` or `)` at level 0, strings skipped.
 fn raw_argument(rest: &str) -> &str {
     let mut depth = 0usize;
     let mut in_string = false;
@@ -182,7 +181,7 @@ fn raw_argument(rest: &str) -> &str {
     rest.trim()
 }
 
-/// `liste.at(index)` auflösen, sonst `Unknown`.
+/// Resolve `liste.at(index)`, otherwise `Unknown`.
 fn resolve(text: &str, expr: &str) -> ComputedImage {
     let unknown = || ComputedImage::Unknown { expr: expr.to_owned() };
     let Some((name, index)) = split_at_call(expr) else { return unknown() };
@@ -192,7 +191,7 @@ fn resolve(text: &str, expr: &str) -> ComputedImage {
         return list.get(k).map_or_else(unknown, |path| ComputedImage::Fixed { path: path.clone() });
     }
     let offset = chapter_offset(index).or_else(|| {
-        // Index über genau eine Variable: `let n = counter(heading).get().first() - 1`.
+        // Index through exactly one variable: `let n = counter(heading).get().first() - 1`.
         let variable = ident_only(index)?;
         let value = single_let(text, variable)?;
         chapter_offset(&value)
@@ -203,7 +202,7 @@ fn resolve(text: &str, expr: &str) -> ComputedImage {
     }
 }
 
-/// `name.at(index)` → (`name`, `index`); sonst `None` (auch bei Resten dahinter).
+/// `name.at(index)` → (`name`, `index`); otherwise `None` (also with leftovers behind it).
 fn split_at_call(expr: &str) -> Option<(&str, &str)> {
     let bytes = expr.as_bytes();
     if !bytes.first().is_some_and(|&b| ident_start(b)) {
@@ -216,7 +215,7 @@ fn split_at_call(expr: &str) -> Option<(&str, &str)> {
     rest[close + 1..].trim().is_empty().then_some((name, &rest[..close]))
 }
 
-/// Stelle der `)`, die die schon geöffnete Klammer schließt (Strings übersprungen).
+/// Position of the `)` that closes the already opened parenthesis (strings skipped).
 fn matching_paren(rest: &str) -> Option<usize> {
     let mut depth = 0usize;
     let mut in_string = false;
@@ -242,13 +241,13 @@ fn matching_paren(rest: &str) -> Option<usize> {
     None
 }
 
-/// Nur ein Bezeichner?
+/// Only an identifier?
 fn ident_only(text: &str) -> Option<&str> {
     let bytes = text.as_bytes();
     (bytes.first().is_some_and(|&b| ident_start(b)) && bytes.iter().all(|&b| ident_char(b))).then_some(text)
 }
 
-/// Stellen von `let <name> =` (Wortgrenzen; `==` zählt nicht) mit der Stelle nach dem `=`.
+/// Places of `let <name> =` (word boundaries; `==` does not count) with the position after the `=`.
 fn let_values<'t>(text: &'t str, name: &str) -> Vec<&'t str> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
@@ -264,7 +263,7 @@ fn let_values<'t>(text: &'t str, name: &str) -> Vec<&'t str> {
         let rest = rest.trim_start();
         let Some(after) = rest.strip_prefix(name) else { continue };
         if after.as_bytes().first().is_some_and(|&b| ident_char(b)) {
-            continue; // längerer Name
+            continue; // longer name
         }
         let after = after.trim_start();
         if let Some(value) = after.strip_prefix('=')
@@ -276,8 +275,8 @@ fn let_values<'t>(text: &'t str, name: &str) -> Vec<&'t str> {
     out
 }
 
-/// Wert von genau einer Definition `let <name> = …` bis zum Zeilenende bzw. `;` (getrimmt); mehrere
-/// oder keine → `None` (welche gilt, wüsste nur Typst).
+/// Value of exactly one definition `let <name> = …` up to the end of the line or `;` (trimmed); several or none →
+/// `None` (which one applies only Typst would know).
 fn single_let(text: &str, name: &str) -> Option<String> {
     let values = let_values(text, name);
     let [value] = values.as_slice() else { return None };
@@ -285,8 +284,8 @@ fn single_let(text: &str, name: &str) -> Option<String> {
     Some(value[..end].trim().to_owned())
 }
 
-/// Liste aus genau einer Definition `let <name> = ("…", "…", …)` aus lauter String-Literalen (ein
-/// einzelnes Element nur mit Komma, sonst wäre es ein geklammerter String).
+/// List from exactly one definition `let <name> = ("…", "…", …)` of nothing but string literals (a single element
+/// only with a comma, otherwise it would be a parenthesised string).
 fn literal_list(text: &str, name: &str) -> Option<Vec<String>> {
     let values = let_values(text, name);
     let [value] = values.as_slice() else { return None };
@@ -304,8 +303,7 @@ fn literal_list(text: &str, name: &str) -> Option<Vec<String>> {
     (!list.is_empty() && !single_without_comma).then_some(list)
 }
 
-/// Index „Nummer des Kapitels ± k“ → `k`; sonst `None`. Leerraum und eine Klammer außen herum zählen
-/// nicht.
+/// Index "number of the chapter ± k" → `k`; otherwise `None`. Whitespace and one parenthesis around it do not count.
 fn chapter_offset(index: &str) -> Option<i64> {
     let compact: String = index.chars().filter(|c| !c.is_whitespace()).collect();
     let compact = compact.strip_prefix('(').and_then(|c| c.strip_suffix(')')).unwrap_or(&compact);

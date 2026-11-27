@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 29b: Werkvorlage gegen Satz-Einstellungen (Vertrag §5.3/§5.4) – Konflikte je gesetztem Feld mit Zeile, Text
-//! und Wirkung, Kommentare zählen nicht; Kapitelanfangs-Regel der Vorlage erkennen (kanonisch und abgewandelt) und
-//! genau ihre Zeilen entfernen. Alle Vorlagen frei erfunden.
+//! Round 29b: work template against typesetting settings (contract §5.3/§5.4) – conflicts per set field with line,
+//! text and effect, comments do not count; detecting the chapter-start rule of the template (canonical and
+//! modified) and removing exactly its lines. All templates freely invented.
 
 use baruch_typst::typeset::*;
 
@@ -28,7 +28,7 @@ fn all_set() -> TypesetSettings {
     }
 }
 
-/// Erfundene Vorlage, die fast alles selbst setzt (Zeilen 1–9 und 13), dazu Auskommentiertes (Zeilen 10–12).
+/// Invented template that sets almost everything itself (lines 1–9 and 13), plus commented-out material (lines 10–12).
 const BUSY: &str = "#set page(paper: \"a4\", margin: (x: 2cm, y: 3cm), numbering: \"1\")\n\
 #set page(header: [Kopf])\n\
 #set text(font: \"New Computer Modern\", size: 11pt, lang: \"en\", hyphenate: false)\n\
@@ -71,8 +71,8 @@ fn every_set_field_reports_its_template_line() {
         "Die Werkvorlage setzt Seitenformat selbst (Zeile 1); die Einstellung gilt, weil Baruch sie dahinter setzt.",
         "Meldung nach Vertrag §5.3"
     );
-    // Vorlage bricht auf neue Seite, Einstellung verlangt die rechte Seite: beide Umbrüche fallen zusammen, die
-    // Einstellung gilt.
+    // The template breaks to a new page, the setting demands the right-hand page: both breaks coincide, the setting
+    // applies.
     assert_eq!(
         conflicts.last().map(|c| c.effect),
         Some(ConflictEffect::Overrides),
@@ -157,7 +157,7 @@ fn set_rules_inside_template_functions_count() {
     assert_eq!(template_conflicts(prose, &s).len(), 0, "„set“ als Wortteil oder im Fließtext zählt nicht");
 }
 
-// ---- Kapitelanfangs-Regel erkennen -----------------------------------------------------------------
+// ---- Detecting the chapter-start rule --------------------------------------------------------------
 
 #[test]
 fn variants_of_the_chapter_rule_are_detected() {
@@ -203,7 +203,7 @@ fn rules_that_do_more_or_other_things_are_not_detected() {
     }
     let commented = format!("// {CANONICAL_CHAPTER_BREAK}\n/* {CANONICAL_CHAPTER_BREAK}\n*/\n");
     assert_eq!(detect_chapter_break(&commented), None, "Kommentare zählen nicht");
-    // Auch ohne erkennbare Regel meldet template_conflicts die Zeile (hier to: "even").
+    // Even without a detectable rule template_conflicts reports the line (here to: "even").
     let right = TypesetSettings { chapter_start: Some(ChapterStart::RightPage), ..Default::default() };
     assert_eq!(template_conflicts(&format!("{}\n", not[0]), &right).len(), 1, "Konflikt trotzdem gemeldet");
 }

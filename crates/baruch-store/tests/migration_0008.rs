@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0008 (Vertrag Runde 6, Abschnitt 1) auf einer nachgebauten Datenbank im Stand von
-//! `development` vor Runde 6: Store-Migrationen 0001–0007 und Bibliotheks-Migrationen 0101–0105, vier
-//! importierte, frei erfundene Bücher mit den Nummerierungen NULL (aus der Vorlage), '' (keine),
-//! „I.a“ (eigenes Muster) und „Ohne“ (altes Muster ohne Zählzeichen), dazu Vorschlag, Beitrag mit
-//! Verweis, Persona, Titel, Zitat und Hervorhebung der Bibliothek.
+//! Migration 0008 (contract Round 6, section 1) on a rebuilt database in the state of `development` before Round 6:
+//! store migrations 0001–0007 and library migrations 0101–0105, four imported, freely invented books with the
+//! numberings NULL (from the template), '' (none), „I.a“ (own pattern) and „Ohne“ (old pattern without counting
+//! symbols), plus proposal, post with reference, persona, title, quote and highlight of the library.
 //!
-//! Die Bibliotheks-Migrationen liest der Test zur Laufzeit aus `crates/baruch-library/migrations`.
+//! The test reads the library migrations at run time from `crates/baruch-library/migrations`.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -17,7 +16,7 @@ use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-// ---- Datenbank im Stand von development ------------------------------------------------------
+// ---- Database in the state of development ----------------------------------------------------
 
 async fn raw_pool(dir: &Path) -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite:")
@@ -28,7 +27,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen bis 0007 und die Bibliotheks-Migrationen 0101–0105 (aus dem Ordner gelesen).
+/// Store migrations up to 0007 and the library migrations 0101–0105 (read from the folder).
 async fn migrate_like_development(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 7).cloned().collect();
     assert!(
@@ -46,8 +45,8 @@ async fn migrate_like_development(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Frei erfundenes Buch: Vorlage mit römischer Nummerierung, drei Kapitel, Abschnitte, ein
-/// Unterabschnitt, mit Maskierung, Label und Kommentar.
+/// Freely invented book: template with Roman numbering, three chapters, sections, one subsection, with escaping,
+/// label and comment.
 fn invented_book(title: &str) -> String {
     let mut out = format!(
         "#set document(title: \"{title}\", author: \"Lore Laterne\")\n#set heading(numbering: \"I.1\")\n\
@@ -69,7 +68,7 @@ fn invented_book(title: &str) -> String {
     out
 }
 
-/// Import wie in development (Runde 5): Vorlage als Fassung 1, Knoten mit Revision 1 vom Menschen.
+/// Import as in development (Round 5): template as revision 1, nodes with revision 1 by the human.
 async fn insert_import(pool: &SqlitePool, slug: &str, title: &str, numbering: Option<&str>) -> (WorkId, String) {
     let source = invented_book(title);
     let doc = baruch_typst::parse(&source).unwrap();
@@ -138,7 +137,7 @@ async fn insert_import(pool: &SqlitePool, slug: &str, title: &str, numbering: Op
     (work, source)
 }
 
-/// Vorschlag, Beitrag mit Verweis, Persona und Bibliothek (Titel, Zitat, Hervorhebung).
+/// Proposal, post with reference, persona and library (title, quote, highlight).
 async fn insert_extras(pool: &SqlitePool, work: WorkId) {
     let node: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 1")
         .bind(work)
@@ -196,7 +195,7 @@ async fn insert_extras(pool: &SqlitePool, work: WorkId) {
     .unwrap();
 }
 
-/// Die vier Werke: (id, Quelle, gespeicherte Nummerierung, erwartetes Schema).
+/// The four works: (id, source, stored numbering, expected scheme).
 struct Development {
     dir: tempfile::TempDir,
     works: Vec<(WorkId, String, Option<&'static str>, &'static str)>,
@@ -217,13 +216,13 @@ async fn development_database() -> Development {
         works.push((work, source, numbering, scheme));
     }
     insert_extras(&pool, works[0].0).await;
-    // Die Datenbank von development ist längst gesät (Beispielwerk gelöscht).
+    // The database of development has long been seeded (sample work deleted).
     sqlx::query("INSERT OR REPLACE INTO store_meta (key, value) VALUES ('seeded', '1')").execute(&pool).await.unwrap();
     pool.close().await;
     Development { dir, works }
 }
 
-// ---- Abzüge -----------------------------------------------------------------------------------
+// ---- Dumps ------------------------------------------------------------------------------------
 
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows: Vec<(String, Option<String>)> =
@@ -238,8 +237,8 @@ async fn columns(pool: &SqlitePool, table: &str) -> Vec<String> {
     sqlx::query_scalar("SELECT name FROM pragma_table_info(?) ORDER BY cid").bind(table).fetch_all(pool).await.unwrap()
 }
 
-/// Alle Zeilen aller Tabellen als `quote()`-Text, je Tabelle sortiert; nur die Spalten aus
-/// `only` (Tabelle → Spalten), sonst alle. Die Spaltennamen stehen als erste Zeile.
+/// All rows of all tables as `quote()` text, sorted per table; only the columns from `only` (table → columns),
+/// otherwise all. The column names stand as the first line.
 async fn contents(pool: &SqlitePool, only: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .fetch_all(pool)
@@ -280,8 +279,8 @@ async fn migration_0008_keeps_every_row_and_column_and_maps_the_old_numbering_to
     let old_columns = BTreeMap::from([("work".to_owned(), work_columns.clone())]);
     let before = contents(&pool, &old_columns).await;
 
-    // Verglichen wird nach einem Migrator bis 0008, damit spätere Migrationen (0009 Bilder) mit
-    // ihren neuen Tabellen diesen Vergleich nicht stören; danach öffnet `Store::open` mit allen.
+    // The comparison happens after a migrator up to 0008, so that later migrations (0009 images) with their new
+    // tables do not disturb this comparison; afterwards `Store::open` opens with all of them.
     let upto_0008: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 8).cloned().collect();
     let migrator = Migrator { migrations: Cow::Owned(upto_0008), ignore_missing: true, ..Migrator::DEFAULT };
     migrator.run(&pool).await.expect("Migrator bis 0008 führt 0008 aus");
@@ -363,7 +362,7 @@ async fn migration_0008_keeps_every_row_and_column_and_maps_the_old_numbering_to
         .await;
     assert!(constraint.is_err(), "der CHECK lässt nur die bekannten Schemata zu");
 
-    // Export: aus der Werkvorlage byte-gleich; die anderen Schemata hängen ihre Regel an die Vorlage.
+    // Export: byte-identical from the work template; the other schemes append their rule to the template.
     let (template_work, source, ..) = &dev.works[0];
     assert_eq!(
         &baruch_typst::xref::strip_key_labels(&store.export_typst(*template_work).await.unwrap()).into_owned(),
@@ -396,7 +395,7 @@ async fn migration_0008_keeps_every_row_and_column_and_maps_the_old_numbering_to
         "eigenes Muster als Schema custom"
     );
 
-    // Ein zweiter Start ändert nichts mehr.
+    // A second start changes nothing more.
     let all = BTreeMap::new();
     let schema_once = schema(pool).await;
     let once = contents(pool, &all).await;

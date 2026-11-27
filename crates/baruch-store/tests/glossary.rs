@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Glossar, eigene Register und Registervorschläge im Store (Runde 31a, Vertrag §2.5, Migration 0049; Aufgabe
-//! glossar-daten): Anlegen mit Doppelprüfung über `term_key`, Nachschlagen über Begriff und Varianten, Sortierung mit
-//! `sort_key` in Rust, Vorschläge mit Herkunft, Entscheiden (Verwerfen hinterlässt einen Grabstein), Ändern und
-//! Löschen, eigene Register (eingebaute Kennungen gesperrt, höchstens 13), Registervorschläge über den festen Schlüssel
-//! und ihre Übernahme als neue Fassung des Menschen in einer Transaktion bzw. „veraltet“ ohne Textänderung; Daten für
-//! `Store::back_matter` und die Spiegeldatei `glossar.md`. Echte SQLite-Datei im Temp-Ordner; alle Texte frei erfunden.
+//! Glossary, own indexes and index proposals in the store (Round 31a, contract §2.5, migration 0049; task
+//! glossar-daten): creating with duplicate check through `term_key`, lookup through term and variants, sorting with
+//! `sort_key` in Rust, proposals with origin, deciding (rejecting leaves a tombstone), changing and deleting, own
+//! indexes (built-in identifiers locked, at most 13), index proposals through the fixed key and their acceptance as
+//! a new revision of the human in one transaction or „veraltet“ without a text change; data for
+//! `Store::back_matter` and the mirror file `glossar.md`. Real SQLite file in the temp folder; all texts freely
+//! invented.
 
 use baruch_store::{
     GlossaryAction, GlossaryEdit, GlossaryStatus, IndexProposalStatus, NewIndexProposal, Store, StoreError, WorkId,
@@ -38,7 +39,7 @@ async fn work_uuid(store: &Store, work: WorkId) -> String {
     sqlx::query_scalar("SELECT uuid FROM work WHERE id = ?").bind(work).fetch_one(store.pool()).await.unwrap()
 }
 
-/// Fester Schlüssel des ersten Abschnitts.
+/// Fixed key of the first section.
 async fn first_key(store: &Store, work: WorkId) -> i64 {
     store.load_work(work).await.unwrap().nodes[0].key
 }
@@ -72,7 +73,7 @@ async fn terms_are_unique_by_key_found_by_variants_and_sorted_in_rust() {
     store.glossary_add(work, &edit("Brot"), "Tilde").await.unwrap();
     store.glossary_add(work, &edit("Altar"), "Tilde").await.unwrap();
 
-    // Doppel über term_key (Groß/klein, Leerraum) abgelehnt, nichts angelegt.
+    // Duplicate through term_key (upper/lower case, whitespace) refused, nothing created.
     let message = glossary_message(store.glossary_add(work, &edit("  SALZ "), "Tilde").await);
     assert!(message.contains("gibt es schon") && message.contains("Salz"), "Meldung nennt den Begriff: {message}");
     let all = store.glossary(work, None).await.unwrap();
@@ -82,7 +83,7 @@ async fn terms_are_unique_by_key_found_by_variants_and_sorted_in_rust() {
         "sortiert nach sort_key, keine Doppel"
     );
 
-    // Nachschlagen: Begriff und Varianten, unabhängig von Groß/klein; nichts für Unbekanntes.
+    // Lookup: term and variants, independent of upper/lower case; nothing for unknown words.
     for word in ["salz", "SALZES", " salzig "] {
         let found = store.glossary_lookup(work, word).await.unwrap();
         assert_eq!(found.len(), 1, "„{word}“ findet Salz über Begriff oder Variante: {found:?}");
@@ -91,7 +92,7 @@ async fn terms_are_unique_by_key_found_by_variants_and_sorted_in_rust() {
     assert!(store.glossary_lookup(work, "Pfeffer").await.unwrap().is_empty(), "Unbekanntes findet nichts");
     assert!(store.glossary_lookup(work, "   ").await.unwrap().is_empty(), "leeres Wort findet nichts");
 
-    // Ändern: neuer Schlüssel geht, ein Schlüssel eines anderen angenommenen Begriffs nicht.
+    // Changing: a new key works, a key of another accepted term does not.
     let changed = store
         .glossary_update(work, term.id, &GlossaryEdit { term: "Meersalz".into(), ..salz.clone() }, "Tilde")
         .await
@@ -106,7 +107,7 @@ async fn terms_are_unique_by_key_found_by_variants_and_sorted_in_rust() {
     let message = glossary_message(store.glossary_update(work, term.id, &edit("brot"), "Tilde").await);
     assert!(message.contains("Brot"), "Doppel beim Ändern abgelehnt: {message}");
 
-    // Löschen hinterlässt einen Grabstein mit Werk-uuid.
+    // Deleting leaves a tombstone with work uuid.
     let deleted = store.glossary_delete(work, term.id, "Tilde").await.expect("löschen");
     assert_eq!(deleted.action, GlossaryAction::Deleted, "Aktion");
     assert_eq!(
@@ -271,8 +272,8 @@ async fn accepting_an_index_proposal_is_a_new_human_revision_or_stale_without_ch
     assert_eq!(current.number, accepted.change.rev, "neue Fassung ist aktuell");
     assert!(current.body.contains("<baruch-idx>"), "Marke steht im Text: {}", current.body);
 
-    // Derselbe Vorschlag noch einmal: Die Marken stehen schon da – keine zweite, gleiche Marke, keine neue Fassung,
-    // der Vorschlag wird veraltet (Befund nach R31: doppelte Marken bei Übernahme für ein markiertes Wort).
+    // The same proposal once more: the marks already stand there – no second, equal mark, no new revision, the
+    // proposal becomes outdated (finding after R31: duplicate marks on acceptance for a marked word).
     let again = store.index_propose(work, &new("Brot")).await.unwrap();
     let revisions = store.load_work(work).await.unwrap().nodes[0].revisions.len();
     let message = glossary_message(store.index_proposal_accept(work, again.id, "Tilde").await);
@@ -287,7 +288,7 @@ async fn accepting_an_index_proposal_is_a_new_human_revision_or_stale_without_ch
     let stale = store.index_proposals(work, Some(IndexProposalStatus::Stale)).await.unwrap();
     assert_eq!(stale.iter().map(|p| p.id).collect::<Vec<_>>(), [again.id], "Status stale gespeichert");
 
-    // „Salz“ entfernt der Mensch; die Übernahme wird veraltet, der Text bleibt.
+    // The human removes „Salz“; the acceptance becomes outdated, the text stays.
     let without = current.body.replace("Salz", "Öl");
     let seq = store.node_seq(work, key).await.unwrap();
     store.save_human(work, seq, &without, "Tilde").await.unwrap().expect("gespeichert");
@@ -349,7 +350,7 @@ async fn back_matter_and_mirror_carry_the_accepted_glossary() {
     }
     assert!(md.find("## Brot").unwrap() < md.find("## Salz").unwrap(), "alphabetisch");
 
-    // Löschen des Werks: Begriffe und Register gehen mit, Grabsteine mit Werk-uuid.
+    // Deleting the work: terms and indexes go along, tombstones with work uuid.
     let uuid = work_uuid(&store, work).await;
     let title = store.load_work(work).await.unwrap().title;
     store.delete_work(work, &title).await.unwrap();

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Volltextsuche über Werk (Revisionen, Beiträge) und Bibliothek (Titel, Zitate, Hervorhebungen).
+//! Full-text search over work (revisions, posts) and library (titles, quotes, highlights).
 
 use sqlx::SqlitePool;
 
@@ -40,14 +40,14 @@ impl HitKind {
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct SearchOptions {
-    /// `None` = alle Arten.
+    /// `None` = all kinds.
     pub kinds: Option<Vec<HitKind>>,
-    /// Werk-Treffer nur aus diesem Werk; Bibliothekstreffer immer.
+    /// Work hits only from this work; library hits always.
     pub work: Option<i64>,
-    /// `false` = nur Revisionen mit Status `current`.
+    /// `false` = only revisions with status `current`.
     #[serde(default)]
     pub all_revisions: bool,
-    /// Vorgabe 20, höchstens 100.
+    /// Default 20, at most 100.
     pub limit: Option<u32>,
 }
 
@@ -55,43 +55,42 @@ pub struct SearchOptions {
 pub struct SearchHit {
     pub kind: HitKind,
     pub work: Option<i64>,
-    /// seq des Abschnitts (revision, post); vergibt jede Gliederungsänderung neu
+    /// seq of the section (revision, post); every change of the outline assigns it anew
     pub node: Option<usize>,
-    /// Fester Schlüssel des Abschnitts (`node.id` = `Node::key`; revision, post): bleibt beim
-    /// Umstellen der Gliederung gleich, darum tragen Links ihn (`/?work=W&key=K`, Runde 8)
+    /// Fixed key of the section (`node.id` = `Node::key`; revision, post): stays the same when the outline is
+    /// rearranged, therefore links carry it (`/?work=W&key=K`, Round 8)
     pub node_key: Option<i64>,
     /// revision.number (revision)
     pub rev: Option<u32>,
     /// title, quote, highlight
     pub title_id: Option<i64>,
-    /// quote (das Zitat selbst), highlight (das Zitat, in dem sie liegt, falls eines)
+    /// quote (the quote itself), highlight (the quote it lies in, if any)
     pub quote_id: Option<i64>,
     /// highlight
     pub highlight_id: Option<i64>,
-    /// Zitierschlüssel (title, quote, highlight)
+    /// Citation key (title, quote, highlight)
     pub key: Option<String>,
-    /// „2.1 Erste Anzeichen“ bzw. „Autor: Titel (Jahr)“
+    /// „2.1 Erste Anzeichen“ or „Autor: Titel (Jahr)“
     pub label: String,
-    /// Ausschnitt als HTML: Text maskiert (`&` `<` `>` `"` `'`), Treffer in `<mark>…</mark>`.
-    /// Typst-Klammern `[` `]` bleiben, wie sie im Text stehen.
+    /// Snippet as HTML: text escaped (`&` `<` `>` `"` `'`), hits in `<mark>…</mark>`. Typst brackets `[` `]` stay
+    /// as they are in the text.
     pub snippet: String,
-    /// bm25, kleiner = besser
+    /// bm25, smaller = better
     pub rank: f64,
 }
 
-/// Marken für Trefferanfang und -ende im SQL-`snippet()` (Zeichen aus dem privaten Bereich,
-/// U+E000 und U+E001), die [`snippet_html`] in `<mark>` und `</mark>` übersetzt.
+/// Marks for start and end of a hit in the SQL `snippet()` (characters from the private use area, U+E000 and
+/// U+E001), which [`snippet_html`] translates into `<mark>` and `</mark>`.
 const MARK_OPEN: char = '\u{E000}';
 const MARK_CLOSE: char = '\u{E001}';
 
 pub const DEFAULT_LIMIT: u32 = 20;
 pub const MAX_LIMIT: u32 = 100;
 
-/// Nutzertext → sichere FTS5-Abfrage: jedes Wort in `"…"` (innere `"` verdoppelt), durch
-/// Leerzeichen verbunden (UND). Operatoren wie `OR`, `NOT`, `(`, `*`, `:` verlieren so ihre
-/// Bedeutung. NUL und andere Steuerzeichen trennen Wörter wie ein Leerzeichen (FTS5 bricht an
-/// NUL sonst die Abfrage ab). Wörter ohne Buchstaben oder Ziffern fallen weg; bleibt nichts
-/// übrig → `None`.
+/// User text → safe FTS5 query: every word in `"…"` (inner `"` doubled), joined by spaces (AND). Operators like
+/// `OR`, `NOT`, `(`, `*`, `:` lose their meaning this way. NUL and other control characters separate words like a
+/// space (otherwise FTS5 aborts the query at NUL). Words without letters or digits are dropped; if nothing remains
+/// → `None`.
 pub fn fts_query(input: &str) -> Option<String> {
     let cleaned: String = input.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let words: Vec<String> = cleaned
@@ -124,7 +123,7 @@ struct Row {
     score: f64,
 }
 
-/// Werktreffer ohne lebenden Abschnitt (verwaiste Indexzeilen, wie vor Migration 0105 möglich) fallen weg.
+/// Work hits without a living section (orphaned index rows, as possible before migration 0105) are dropped.
 const SEARCH_SQL: &str = "
 SELECT search_fts.kind AS kind,
        node.work_id AS work,
@@ -163,7 +162,7 @@ SELECT search_fts.kind AS kind,
  ORDER BY score, search_fts.kind, search_fts.row_id
  LIMIT ?5";
 
-/// Sucht im Werk und in der Bibliothek. Leere Eingabe → [`LibraryError::EmptyQuery`].
+/// Searches in the work and in the library. Empty input → [`LibraryError::EmptyQuery`].
 pub async fn search(pool: &SqlitePool, query: &str, options: &SearchOptions) -> Result<Vec<SearchHit>, LibraryError> {
     let fts = fts_query(query).ok_or(LibraryError::EmptyQuery)?;
     let kinds = match &options.kinds {
@@ -209,7 +208,7 @@ fn hit(row: Row) -> Option<SearchHit> {
             if let Some(year) = row.year {
                 label.push_str(&format!(" ({year})"));
             }
-            // Fundstelle: bei Hervorhebungen ihre eigene, sonst die Seite des Zitats.
+            // Locator: for highlights their own, otherwise the page of the quote.
             let page = row.locator.filter(|l| !l.is_empty()).or(row.page);
             if let Some(page) = page.filter(|p| !p.is_empty()) {
                 label.push_str(", ");
@@ -234,9 +233,9 @@ fn hit(row: Row) -> Option<SearchHit> {
     })
 }
 
-/// Roh-Ausschnitt mit den Marken U+E000/U+E001 → HTML. Text wird maskiert, Marken werden zu
-/// `<mark>`/`</mark>`. Die Ausgabe ist immer ausgeglichen: Eine Marke, die im Text selbst steht
-/// (falsche Reihenfolge, doppelt), fällt weg, ein offenes `<mark>` wird am Ende geschlossen.
+/// Raw snippet with the marks U+E000/U+E001 → HTML. Text is escaped, marks become `<mark>`/`</mark>`. The output is
+/// always balanced: a mark that stands in the text itself (wrong order, twice) is dropped, an open `<mark>` is
+/// closed at the end.
 fn snippet_html(raw: &str) -> String {
     let mut html = String::with_capacity(raw.len() + 16);
     let mut open = false;

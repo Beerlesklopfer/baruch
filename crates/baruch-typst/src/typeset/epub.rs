@@ -1,41 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB-Abbildung der Satz-Einstellungen (Runde 29, Vertrag §5.6; seit Runde 20a vom EPUB-Export in `baruch-epub`
-//! verwendet).
+//! EPUB mapping of the typesetting settings (Round 29, contract §5.6; used by the EPUB export in `baruch-epub`
+//! since Round 20a).
 //!
-//! Ein EPUB fließt: Seitenformat, Ränder, Seitenzahlen und Kolumnentitel bestimmt der Leser, sie erscheinen nur als
-//! Kommentar. Abgebildet werden Umbrüche vor Kapitel- und Teil-Dateien, Absatz (Einzug bzw. Abstand), Blocksatz,
-//! Silbentrennung, Schrift, Schriftgröße relativ zur Typst-Vorgabe 11 pt, Zeilenabstand, Schusterjungen/Hurenkinder und
-//! die Fußnotenzeichen. Klassen des Exports: `section.baruch-chapter` (eine Datei je Kapitel), `section.baruch-part`
-//! (Teil-Seite), `ol.baruch-footnotes` (Fußnoten am Kapitelende).
+//! An EPUB flows: page format, margins, page numbers and running heads are determined by the reader, they only
+//! appear as a comment. Mapped are breaks before chapter and part files, paragraph (indent or spacing),
+//! justification, hyphenation, font, font size relative to the Typst default 11 pt, line spacing, widows/orphans
+//! and the footnote marks. Classes of the export: `section.baruch-chapter` (one file per chapter),
+//! `section.baruch-part` (part page), `ol.baruch-footnotes` (footnotes at the end of the chapter).
 //!
-//! Runde 20a: Kapitel und Teile stehen **immer** in eigenen Dateien (`split_chapters`), darum gibt es die Umbruchregel
-//! für `section.baruch-chapter` und `section.baruch-part` auch ohne Einstellung (Vorgabe: neue Seite). „Fortlaufend“
-//! (`chapter_start = continuous`) setzt `break-before: auto`; die Dateiaufteilung bleibt, Leser beginnen eine neue Datei
-//! trotzdem meist auf einer neuen Seite. Die Sprache gehört ins Paket (`xml:lang`, `dc:language`), siehe `lang`.
+//! Round 20a: chapters and parts **always** stand in files of their own (`split_chapters`), therefore the break
+//! rule for `section.baruch-chapter` and `section.baruch-part` exists also without a setting (default: new page).
+//! „Fortlaufend“ (`chapter_start = continuous`) sets `break-before: auto`; the file split stays, readers mostly
+//! start a new file on a new page nevertheless. The language belongs into the package (`xml:lang`, `dc:language`),
+//! see `lang`.
 
 use serde::Serialize;
 
 use super::model::{ChapterStart, FootnoteNumbering, FootnoteRestart, Paragraph, PartSide, TypesetSettings};
 
-/// CSS und Aufteilung für ein EPUB aus den Satz-Einstellungen.
+/// CSS and split for an EPUB from the typesetting settings.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct EpubStyle {
-    /// Stilregeln (Seitenumbrüche vor Kapitel- und Teil-Dateien, Absatz, Blocksatz, Silbentrennung, Schriftgröße
-    /// relativ, Fußnotenzählung).
+    /// Style rules (page breaks before chapter and part files, paragraph, justification, hyphenation, relative font
+    /// size, footnote counting).
     pub css: String,
-    /// Je Kapitel eine Datei (immer `true`).
+    /// One file per chapter (always `true`).
     pub split_chapters: bool,
-    /// Sprache aus `settings.lang`.
+    /// Language from `settings.lang`.
     pub lang: Option<String>,
 }
 
-/// Umbruch auf eine neue Seite (CSS 3 und der ältere Name für EPUB-2-Leser).
+/// Break to a new page (CSS 3 and the older name for EPUB 2 readers).
 const PAGE_BREAK: &str = "break-before: page; page-break-before: always;";
 
-/// Typst-Vorgabe der Schriftgröße (pt), auf die sich die relative Größe bezieht.
+/// Typst default of the font size (pt) to which the relative size refers.
 const TYPST_DEFAULT_PT: f64 = 11.0;
-/// Versalhöhe (em) der eingebetteten Grundschrift; Typst misst den Zeilenabstand von der Grundlinie zur Versalhöhe der
-/// nächsten Zeile, CSS von Zeile zu Zeile.
+/// Cap height (em) of the embedded base font; Typst measures the line spacing from the baseline to the cap height
+/// of the next line, CSS from line to line.
 const CAP_HEIGHT_EM: f64 = 0.65;
 
 fn fmt(x: f64) -> String {
@@ -52,7 +53,7 @@ fn css_string(text: &str) -> String {
     format!("\"{escaped}\"")
 }
 
-/// EPUB-Stil zu `settings`.
+/// EPUB style for `settings`.
 pub fn epub_style(settings: &TypesetSettings) -> EpubStyle {
     let s = settings;
     let mut css = String::from("/* Baruch: Satz (EPUB) */\n");
@@ -67,7 +68,8 @@ pub fn epub_style(settings: &TypesetSettings) -> EpubStyle {
         body.push(format!("line-height: {};", fmt(CAP_HEIGHT_EM + leading)));
     }
     if let Some(lang) = s.lang.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
-        // Die Sprache gehört ins Paket (xml:lang); hier nur als Kommentar, damit die Silbentrennung erklärt ist.
+        // The language belongs into the package (xml:lang); here only as a comment, so that the hyphenation is
+        // explained.
         css.push_str(&format!("/* Sprache: {lang} (xml:lang im Paket) */\n"));
     }
     if !body.is_empty() {
@@ -77,11 +79,11 @@ pub fn epub_style(settings: &TypesetSettings) -> EpubStyle {
     let chapter_break = match s.chapter_start {
         Some(ChapterStart::Continuous) => Some("break-before: auto; page-break-before: auto;"),
         Some(ChapterStart::NewPage) => Some(PAGE_BREAK),
-        // Rechte Seiten kennt ein fließendes EPUB nicht; `right` wirkt nur in Lesern mit Doppelseiten.
+        // A flowing EPUB does not know right-hand pages; `right` only takes effect in readers with double pages.
         Some(ChapterStart::RightPage) => Some("break-before: right; page-break-before: always;"),
         None => None,
     };
-    // Kapitel stehen immer in eigenen Dateien: ohne Einstellung ein Umbruch auf eine neue Seite.
+    // Chapters always stand in files of their own: without a setting a break to a new page.
     let chapter_break = chapter_break.unwrap_or(PAGE_BREAK);
     css.push_str(&format!("section.baruch-chapter {{ {chapter_break} }}\n"));
     match &s.part_page {
@@ -125,7 +127,7 @@ pub fn epub_style(settings: &TypesetSettings) -> EpubStyle {
         css.push_str(&format!("p {{ {} }}\n", p.join(" ")));
     }
     if matches!(s.paragraph, Some(Paragraph::Indent { .. })) {
-        // Kein Einzug nach Überschriften (wie Typst: nur Folgeabsätze werden eingezogen).
+        // No indent after headings (like Typst: only following paragraphs are indented).
         css.push_str("h1 + p, h2 + p, h3 + p { text-indent: 0; }\n");
     }
 

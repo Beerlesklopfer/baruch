@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsschemata, Mustersprache und die Regel im Export (Vertrag Runde 6, Abschnitt 2a–c).
-//! Alle Vorlagen frei erfunden. Die Nummern an einer ganzen Gliederung (Teile, Knoten ohne Nummer)
-//! prüft `baruch-store/tests/numbering_scheme.rs`.
+//! Outline schemes, pattern language and the rule in the export (contract Round 6, section 2a–c). All templates
+//! freely invented. The numbers on a whole outline (parts, nodes without number) are checked by
+//! `baruch-store/tests/numbering_scheme.rs`.
 
 use baruch_typst::scheme::{Numbering, Scheme, export_template};
 use baruch_typst::{format_number, heading_numbering};
 
-/// Zählerstände bis Ebene 4 in mehreren Kombinationen.
+/// Counter values down to level 4 in several combinations.
 const PATHS: &[&[usize]] = &[
     &[1],
     &[2],
@@ -43,7 +43,7 @@ fn every_scheme_has_an_id_a_german_label_and_an_example() {
 
 #[test]
 fn existing_patterns_give_the_same_numbers_as_before() {
-    // Muster, die vor Runde 6 gespeichert sein konnten: hierarchisch für alle Ebenen.
+    // Patterns that could be stored before Round 6: hierarchical for all levels.
     for pattern in ["1.1", "I.1", "1.a)", "A.1", "1.", "(1)", "§ A:", "i.1", "1-1"] {
         let numbering = Numbering::parse_spec(pattern).unwrap();
         for path in PATHS {
@@ -219,7 +219,7 @@ fn word_schemes_give_their_numbers_and_a_typst_function() {
 
 #[test]
 fn matching_names_the_scheme_whose_pattern_equals_the_given_one() {
-    // Runde 7: Der Gliederungskopf zeigt „Nur Kapitel römisch“ statt des rohen „I|1“.
+    // Round 7: the outline header shows „Nur Kapitel römisch“ instead of the raw „I|1“.
     for (pattern, expected) in [
         ("I|1", Scheme::ChapterRoman),
         (" I | 1 ", Scheme::ChapterRoman),
@@ -244,10 +244,10 @@ fn matching_names_the_scheme_whose_pattern_equals_the_given_one() {
     }
 }
 
-// ---- Runde 14: Numbering::from_template ----------------------------------------------------------
+// ---- Round 14: Numbering::from_template ----------------------------------------------------------
 
-/// Alle Pfade bis Tiefe 3 mit 13 Kapiteln (≥ 12, damit römische und Wort-Zahlen über X hinaus laufen)
-/// und je drei Abschnitten und Unterabschnitten.
+/// All paths down to depth 3 with 13 chapters (≥ 12, so that Roman and word numbers run beyond X) and three
+/// sections and subsections each.
 fn all_paths() -> Vec<Vec<usize>> {
     let mut paths = Vec::new();
     for c in 1..=13 {
@@ -262,7 +262,7 @@ fn all_paths() -> Vec<Vec<usize>> {
     paths
 }
 
-/// Nummern einer Nummerierung: Teile 1–4 und alle Pfade für mehrere Kapitelzahlen (Predigt: „Schluss“).
+/// Numbers of a numbering: parts 1–4 and all paths for several chapter counts (sermon: „Schluss“).
 fn fingerprint(numbering: &Numbering) -> Vec<String> {
     let mut out: Vec<String> = (1..=4).map(|n| numbering.part(n)).collect();
     for chapters in [1, 4, 13] {
@@ -273,9 +273,9 @@ fn fingerprint(numbering: &Numbering) -> Vec<String> {
 
 #[test]
 fn every_scheme_read_back_from_its_export_gives_the_same_numbers() {
-    // Vertrag Runde 14, Abschnitt 3: eine Quelle für Baum, Satz und Re-Import. Was Baruch exportiert,
-    // muss beim Re-Import (Schema „aus der Werkvorlage“) dieselben Nummern ergeben – auch für die
-    // Schemata mit Wörtern, die bis Runde 13 als „1.1“ bzw. „I.“ zurückkamen.
+    // Contract Round 14, section 3: one source for tree, typesetting and re-import. What Baruch exports must yield
+    // the same numbers on re-import (scheme „aus der Werkvorlage“) – also for the schemes with words, which came
+    // back as „1.1“ or „I.“ until Round 13.
     let mut cases: Vec<(Scheme, Option<&str>)> = Scheme::ALL
         .into_iter()
         .filter(|s| !matches!(s, Scheme::Template | Scheme::Custom))
@@ -315,8 +315,8 @@ fn word_schemes_come_back_as_themselves_not_as_an_approximation() {
         assert_eq!(back.heading(&[3, 2], 5), section, "{scheme:?}: Abschnitt wie im Schema");
         assert_eq!(back.spec(), None, "{scheme:?}: ein Schema mit Wörtern hat keine Mustersprache (wie bisher)");
     }
-    // Eine nur ähnliche Regel (ein Leerzeichen anders) ist nicht Baruchs eigene: sie wird als Funktion je
-    // Ebene ausgewertet, mit dem Ergebnis, das Typst setzt.
+    // A rule that is only similar (one space different) is not Baruch's own: it is evaluated as a function per
+    // level, with the result that Typst sets.
     let legal = Numbering::of_scheme(Scheme::Legal, None, "").unwrap().heading_rule().replacen("§ ", "§", 1);
     let near = Numbering::from_template(&legal).unwrap();
     assert_eq!(near.heading(&[3], 5), "§3", "abgewandelt: je Ebene ausgewertet: {legal}");
@@ -325,8 +325,8 @@ fn word_schemes_come_back_as_themselves_not_as_an_approximation() {
 
 #[test]
 fn template_patterns_with_semicolon_or_bar_are_literal_typst_patterns() {
-    // In Typst sind `;` und `|` gewöhnlicher Text eines Musters, `aa` sind zwei Zählzeichen; die
-    // Mustersprache von Baruch gilt nur für eigene Muster, nie für die Werkvorlage.
+    // In Typst `;` and `|` are ordinary text of a pattern, `aa` are two counting symbols; the pattern language of
+    // Baruch only applies to own patterns, never to the work template.
     for (pattern, path, expected) in [
         ("1;", vec![2], "2;"),
         ("1;", vec![2, 3], "2;3;"),
@@ -350,7 +350,7 @@ fn template_patterns_with_semicolon_or_bar_are_literal_typst_patterns() {
     assert!(Numbering::from_template("#set heading(numbering: none)\n").unwrap().is_off(), "none: keine Nummern");
 }
 
-/// Nummern je Ebene 1–4 einer Vorlage für den Pfad `[3, 2, 4, 1]` (gekürzt).
+/// Numbers per level 1–4 of a template for the path `[3, 2, 4, 1]` (shortened).
 fn levels_of(template: &str) -> Vec<String> {
     let numbering = Numbering::from_template(template).unwrap_or_else(|| panic!("lesbar: {template}"));
     (1..=4).map(|level| numbering.heading(&[3, 2, 4, 1][..level], 9)).collect()
@@ -358,8 +358,8 @@ fn levels_of(template: &str) -> Vec<String> {
 
 #[test]
 fn numbering_functions_are_evaluated_exactly_per_level() {
-    // Frei erfundene Vorlagen. Pfad [3, 2, 4, 1]: Kapitel 3, Abschnitt 2, Unterabschnitt 4, Ebene 4.
-    // Die erwarteten Werte sind von Hand nach den Regeln von Typst gerechnet (numbering = format_number).
+    // Freely invented templates. Path [3, 2, 4, 1]: chapter 3, section 2, subsection 4, level 4. The expected
+    // values are calculated by hand by the rules of Typst (numbering = format_number).
     let table: Vec<(&str, [&str; 4], &str)> = vec![
         (
             "#set heading(numbering: (..n) => if n.pos().len() == 1 { \"Kapitel \" + str(n.pos().at(0)) } else { numbering(\"1.1\", ..n) })\n",
@@ -404,8 +404,8 @@ fn numbering_functions_are_evaluated_exactly_per_level() {
 
 #[test]
 fn an_evaluated_function_keeps_the_old_approximation_for_the_display() {
-    // spec() bleibt die Näherung von heading_numbering: Gliederungskopf und Anzeige (store/outline.rs)
-    // zeigen dasselbe wie bisher, die Nummern selbst sind exakt.
+    // spec() stays the approximation of heading_numbering: outline header and display (store/outline.rs) show the
+    // same as before, the numbers themselves are exact.
     let template = "#set heading(numbering: (..n) => if n.pos().len() == 1 { \"Kapitel \" + str(n.pos().at(0)) } else { numbering(\"1.1\", ..n) })\n";
     let numbering = Numbering::from_template(template).unwrap();
     assert_eq!(numbering.spec(), heading_numbering(template), "spec() = bisherige Näherung");
@@ -450,8 +450,8 @@ fn functions_that_cannot_be_evaluated_fall_back_to_the_old_approximation() {
 
 #[test]
 fn huge_repetitions_in_a_template_function_are_not_evaluated() {
-    // Befund Gutachten Runde 14: `* k` aus einer fremden Vorlage wurde ohne Obergrenze wiederholt;
-    // `* 40000000000` brach den Prozess bei der Speicheranforderung ab (beim Import und bei jedem Laden).
+    // Finding of the review of Round 14: `* k` from a foreign template was repeated without an upper limit; `*
+    // 40000000000` aborted the process at the memory allocation (on import and on every load).
     let huge = "#set heading(numbering: (..n) => str(n.pos().at(0)) * 40000000000)\n";
     let numbering = Numbering::from_template(huge);
     assert_eq!(
@@ -483,7 +483,7 @@ fn huge_repetitions_in_a_template_function_are_not_evaluated() {
     }
 }
 
-// ---- Schema „Buch“ ---------------------------------------------------------------------------------
+// ---- Scheme „Buch“ ---------------------------------------------------------------------------------
 
 #[test]
 fn the_book_scheme_numbers_chapters_like_the_sermon_and_parts_as_words() {
@@ -525,7 +525,7 @@ fn the_book_rule_differs_from_the_sermon_rule_and_comes_back_as_book() {
     assert_eq!(Numbering::from_template(&exported), Some(book.clone()), "Buch-Stand wird wieder Buch");
     let exported = export_template("", Scheme::Sermon, &sermon);
     assert_eq!(Numbering::from_template(&exported), Some(sermon), "Predigt-Stand bleibt Predigt");
-    // Auch ohne den Kommentar (wie in einer Vorlage, deren Kommentare entfernt wurden) zählt die Regel.
+    // Even without the comment (as in a template whose comments were removed) the rule counts.
     let bare = book.heading_rule();
     assert_eq!(Numbering::from_template(&bare).map(|n| n.part(3)), Some("Dritter Teil".to_owned()), "{bare}");
 }

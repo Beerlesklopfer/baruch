@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Tokens für den MCP-Zugang im Store (Migration 0016, Runde 10): Klartext genau einmal, in SQLite nur
-//! der SHA-256-Hash, Prüfen, Widerrufen (idempotent), Namen eindeutig unter gültigen Tokens.
+//! Tokens for the MCP access in the store (migration 0016, Round 10): plain text exactly once, in SQLite only the
+//! SHA-256 hash, checking, revoking (idempotent), names unique among valid tokens.
 
 use baruch_store::{MCP_TOKEN_PREFIX, Store, StoreError};
 
@@ -10,7 +10,7 @@ async fn open() -> (tempfile::TempDir, Store) {
     (dir, store)
 }
 
-/// Alle Bytes der Datenbankdateien (Hauptdatei und WAL) als Text (verlustbehaftet).
+/// All bytes of the database files (main file and WAL) as text (lossy).
 fn database_bytes(dir: &std::path::Path) -> String {
     let mut all = Vec::new();
     for name in ["baruch.sqlite", "baruch.sqlite-wal"] {

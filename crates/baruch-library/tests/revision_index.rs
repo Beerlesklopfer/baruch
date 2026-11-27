@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migrationen 0104 (Vertrag Runde 3, Abschnitt 2) und 0105 (Vertrag Runde 4, Abschnitt 1): Der
-//! Volltextindex folgt geänderten und gelöschten Revisionen sowie gelöschten und verschobenen Beiträgen. Echte SQLite-Datei im Temp-Ordner mit dem Kernschema aus dem Fixture; die Trigger,
-//! die Migration 0004 von baruch-store entfernt („nur anhängen“), werden hier ebenso entfernt, damit
-//! der Test ohne Abhängigkeit von baruch-store auskommt. Das Zusammenspiel mit `Store::open` prüfen
-//! die Server-Tests (`tests/revisions.rs`).
+//! Migrations 0104 (contract Round 3, section 2) and 0105 (contract Round 4, section 1): the full-text index
+//! follows changed and deleted revisions as well as deleted and moved posts. Real SQLite file in the temp folder
+//! with the core schema from the fixture; the triggers that migration 0004 of baruch-store removes ("append only")
+//! are removed here as well, so that the test gets by without a dependency on baruch-store. The interplay with
+//! `Store::open` is checked by the server tests (`tests/revisions.rs`).
 
 use std::str::FromStr;
 
@@ -22,7 +22,7 @@ async fn open() -> (tempfile::TempDir, SqlitePool) {
         .foreign_keys(true);
     let pool = SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap();
     sqlx::raw_sql(CORE_SCHEMA).execute(&pool).await.unwrap();
-    // Wie Migration 0004 des Stores: Ändern und Löschen sind für den Menschen erlaubt.
+    // Like migration 0004 of the store: changing and deleting are allowed for the human.
     sqlx::raw_sql("DROP TRIGGER revision_no_delete; DROP TRIGGER revision_immutable;").execute(&pool).await.unwrap();
     migrate(&pool).await.unwrap();
     sqlx::raw_sql(
@@ -84,7 +84,7 @@ async fn a_deleted_revision_disappears_from_the_index() {
     assert_eq!(search(&pool, "Birne", &all_revisions()).await.unwrap().len(), 1, "andere Fassungen bleiben");
 }
 
-// ---- Beiträge (Migration 0105) ------------------------------------------------------------------------
+// ---- Posts (migration 0105) ---------------------------------------------------------------------------
 
 const LIBRARY_0101: &str = include_str!("../migrations/0101_library.sql");
 const SEARCH_0102: &str = include_str!("../migrations/0102_search.sql");
@@ -95,7 +95,7 @@ fn posts() -> SearchOptions {
     SearchOptions { kinds: Some(vec![HitKind::Post]), work: None, all_revisions: false, limit: None }
 }
 
-/// Zweites Werk mit einem Abschnitt und zwei Beiträge im ersten Abschnitt von Werk 1.
+/// Second work with one section and two posts in the first section of work 1.
 async fn insert_posts(pool: &SqlitePool) {
     sqlx::raw_sql(
         "INSERT INTO work (id, slug, kind, title, author) VALUES (2, 'predigt', 'sermon', 'Predigt', 'Autor');
@@ -153,7 +153,7 @@ async fn a_moved_post_carries_title_and_work_of_its_new_section() {
 
 #[tokio::test]
 async fn migration_0105_runs_on_a_database_from_0101_to_0104_and_removes_orphans() {
-    // Bestehende Datenbank im Stand 0101–0104 (wörtliche Kopien, gleiche Prüfsumme).
+    // Existing database in the state 0101–0104 (verbatim copies, same checksum).
     let dir = tempfile::tempdir().unwrap();
     let old = dir.path().join("old-migrations");
     std::fs::create_dir(&old).unwrap();
@@ -187,7 +187,7 @@ async fn migration_0105_runs_on_a_database_from_0101_to_0104_and_removes_orphans
     .await
     .unwrap();
     insert_posts(&pool).await;
-    // Im alten Stand bleibt beim Löschen eines Beitrags die Indexzeile stehen (verwaist).
+    // In the old state the index row stays behind (orphaned) when a post is deleted.
     sqlx::query("DELETE FROM post WHERE id = 500").execute(&pool).await.unwrap();
     assert_eq!(post_rows(&pool, 500).await, 1, "vor 0105 bleibt die Indexzeile des gelöschten Beitrags");
     let index_before: i64 = sqlx::query_scalar("SELECT count(*) FROM search_fts").fetch_one(&pool).await.unwrap();
@@ -202,7 +202,7 @@ async fn migration_0105_runs_on_a_database_from_0101_to_0104_and_removes_orphans
     assert!(search(&pool, "Kastanie", &posts()).await.unwrap().is_empty(), "der gelöschte Beitrag wird nicht gefunden");
     assert_eq!(search(&pool, "Holunder", &posts()).await.unwrap().len(), 1, "der lebende Beitrag bleibt auffindbar");
     assert_eq!(search(&pool, "Birne", &all_revisions()).await.unwrap().len(), 1, "Revisionen bleiben im Index");
-    // Danach greifen die neuen Trigger.
+    // Afterwards the new triggers take effect.
     sqlx::query("DELETE FROM post WHERE id = 501").execute(&pool).await.unwrap();
     assert_eq!(post_rows(&pool, 501).await, 0, "nach 0105 entfernt der Trigger die Indexzeile sofort");
     migrate(&pool).await.unwrap();

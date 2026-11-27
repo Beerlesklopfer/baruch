@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Befunde im Store (Runde 28, Migration 0046). S1 prüft die voll umgesetzten Abfragen (`finding_insert`,
+//! Findings in the store (Round 28, migration 0046). S1 checks the fully implemented queries (`finding_insert`,
 //! `finding_get`, `finding_list`, `finding_history`, `finding_open_counts`, `findings_adopted_in`); befunde (R28a)
-//! prüft hier Statuswechsel, Vorschläge, Entscheidungen, `befunde.md` und Grabsteine. Echte
-//! SQLite-Datei im Temp-Ordner, Testtexte frei erfunden.
+//! checks status changes, proposals, decisions, `befunde.md` and tombstones here. Real SQLite file in the temp
+//! folder, test texts freely invented.
 
 use baruch_core::Post;
 use baruch_store::{
@@ -106,9 +106,9 @@ async fn inserted_findings_are_read_back_and_counted_as_open_by_the_contract_rul
 
 #[tokio::test]
 async fn a_capped_list_keeps_the_newest_findings_and_the_count_shows_the_cut() {
-    // Über der Grenze fielen früher still die jüngsten Befunde weg (ORDER BY created LIMIT n); Matrix, Prompt
-    // (Entscheidungen) und Ähnlichkeitsabgleich sahen dann gerade die neuesten nicht. Jetzt: die neuesten n,
-    // weiter älteste zuerst geliefert, und `finding_count` zählt ohne Grenze.
+    // Above the limit the youngest findings used to be dropped silently (ORDER BY created LIMIT n); matrix, prompt
+    // (decisions) and similarity comparison then did not see precisely the newest ones. Now: the newest n, still
+    // delivered oldest first, and `finding_count` counts without a limit.
     let (_dir, store, work, keys) = harbour().await;
     let answer = store.add_post(work, 0, &post("@lektor", "Hinweise.")).await.unwrap();
     let bodies = ["eins", "zwei", "drei", "vier", "fünf"];
@@ -124,7 +124,7 @@ async fn a_capped_list_keeps_the_newest_findings_and_the_count_shows_the_cut() {
     let elsewhere = FindingFilter { keys: vec![keys[1]], ..FindingFilter::default() };
     assert_eq!(store.finding_count(work, &elsewhere).await.unwrap(), 0, "derselbe Filter wie die Liste");
 
-    // finding.get lädt Angehängte und Ursprünge gezielt statt aus einer gekappten Werkliste.
+    // finding.get loads attached ones and origins specifically instead of from a capped work list.
     let attached = store
         .finding_insert(&NewFinding {
             similar_to: Some(ids[0]),
@@ -180,13 +180,13 @@ async fn findings_belong_to_their_work_and_limits_are_finding_errors() {
     );
 }
 
-/// Ein Befund im ersten Abschnitt aus einem eigenen Beitrag des Lektors.
+/// A finding in the first section from an own post of the lector.
 async fn one(store: &Store, work: WorkId, key: i64, body: &str) -> baruch_store::Finding {
     let answer = store.add_post(work, 0, &post("@lektor", body)).await.unwrap();
     store.finding_insert(&new(work, key, answer, 0, FindingKind::Hint, body)).await.unwrap()
 }
 
-/// Zeilen der Befundtabellen (für „nichts geändert“).
+/// Rows of the finding tables (for "nothing changed").
 async fn rows(store: &Store) -> (i64, i64, String) {
     let findings: i64 = sqlx::query_scalar("SELECT count(*) FROM finding").fetch_one(store.pool()).await.unwrap();
     let entries: i64 = sqlx::query_scalar("SELECT count(*) FROM finding_status").fetch_one(store.pool()).await.unwrap();
@@ -237,7 +237,7 @@ async fn only_valid_status_changes_are_written_with_one_human_history_entry() {
         assert!(matches!(err, StoreError::Finding(_)), "{why}: StoreError::Finding (RPC -32602), war {err:?}");
         assert_eq!(rows(&store).await, unchanged, "{why}: nichts geändert");
     }
-    // Gültig: verworfen mit Begründung → Befund und genau ein Verlaufseintrag des Menschen.
+    // Valid: rejected with a reason → finding and exactly one history entry of the human.
     let (before, after) = store
         .finding_set_status(work, finding.id, &StatusChange::Rejected { reason: " Absicht. ".into() }, "Ida")
         .await
@@ -248,7 +248,7 @@ async fn only_valid_status_changes_are_written_with_one_human_history_entry() {
     assert_eq!(history.len(), 1, "genau ein Eintrag");
     assert!(!history[0].proposed && history[0].decision.is_none(), "eine Änderung des Menschen, kein Vorschlag");
     assert_eq!(history[0].actor, baruch_store::IdeaOrigin::Human { name: "Ida".into() }, "Herkunft Mensch");
-    // Übernommen in Fassung 1 (gibt es) und verschoben in einen Einfall desselben Werks.
+    // Adopted in revision 1 (exists) and moved into an idea of the same work.
     let (_, adopted) =
         store.finding_set_status(work, finding.id, &StatusChange::Adopted { rev: 1 }, "Ida").await.unwrap();
     assert_eq!(adopted.adopted_rev, Some(1), "Fassung über ihre uuid aufgelöst");
@@ -308,14 +308,14 @@ async fn assistants_only_propose_and_the_human_confirms_rejects_or_finds_it_stal
     assert!(confirmed.pending.is_none(), "kein offener Vorschlag mehr");
     assert!(store.finding_decide(work, entry.id, true, "Ida").await.is_err(), "zweimal entscheiden geht nicht");
 
-    // Abgelehnt: der Status bleibt.
+    // Refused: the status stays.
     let second = one(&store, work, keys[1], "Hinweis: Werft größer.").await;
     let proposal =
         store.finding_propose_status(work, second.id, &StatusChange::Adopted { rev: 1 }, &lektor, "").await.unwrap();
     let (kept, entry) = store.finding_decide(work, proposal.id, false, "Ida").await.unwrap();
     assert_eq!((kept.status, entry.decision.as_deref()), (FindingStatus::Open, Some("rejected")), "abgelehnt");
 
-    // Veraltet: Der Mensch hat inzwischen selbst entschieden.
+    // Outdated: the human has meanwhile decided himself.
     let mcp = baruch_store::IdeaOrigin::Mcp { handle: "@mcp:probe".into() };
     let third =
         store.finding_propose_status(work, second.id, &StatusChange::Adopted { rev: 1 }, &mcp, "").await.unwrap();
@@ -383,7 +383,7 @@ async fn deleting_a_finding_or_its_work_leaves_tombstones_with_the_work_uuid() {
     }
 }
 
-/// Runde 22: `revision.amend_seq` per SQL setzen (unabhängig von der Aufgabe fassungen, die das Fortschreiben baut).
+/// Round 22: set `revision.amend_seq` by SQL (independent of the task fassungen, which builds the amending).
 async fn set_amend(store: &Store, key: i64, rev: u32, amend: i64) {
     sqlx::query("UPDATE revision SET amend_seq = ? WHERE node_id = ? AND number = ?")
         .bind(amend)
@@ -413,14 +413,14 @@ async fn adopting_a_finding_remembers_the_stand_of_the_amended_version() {
     );
     let history = store.finding_history(work, finding.id).await.unwrap();
     assert_eq!(history.last().unwrap().adopted_amend, Some(2), "der Eintrag im Verlauf trägt denselben Stand");
-    // Ein späteres Fortschreiben ändert den gemerkten Stand nicht.
+    // A later amending does not change the remembered state.
     set_amend(&store, keys[0], 1, 5).await;
     assert_eq!(
         store.finding_get(work, finding.id).await.unwrap().adopted_amend,
         Some(2),
         "der Stand bleibt der beim Übernehmen, nicht der jetzige"
     );
-    // Ein anderer Status löscht den Stand am Befund (der Verlauf behält ihn).
+    // A different status deletes the state on the finding (the history keeps it).
     let (_, done) =
         store.finding_set_status(work, finding.id, &StatusChange::Done { reason: String::new() }, "Ida").await.unwrap();
     assert_eq!(done.adopted_amend, None, "erledigt hat keinen Stand einer Fassung");
