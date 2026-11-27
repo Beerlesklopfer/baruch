@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB lesen (Runde 21a), immer lokal: Archiv über [`crate::archive::read_zip`] mit [`crate::archive::IMPORT_LIMITS`]
-//! (keine Pfadflucht, keine Symlinks, Grenzen für Größe, Anzahl und Packverhältnis), `META-INF/container.xml` →
-//! OPF (Titel, Autor, Sprache, Manifest, Lesereihenfolge), Navigation aus `nav.xhtml` (EPUB 3) bzw. `toc.ncx`
-//! (EPUB 2), Text aus den XHTML-Dateien der Lesereihenfolge.
+//! Read EPUB (Round 21a), always locally: archive through [`crate::archive::read_zip`] with
+//! [`crate::archive::IMPORT_LIMITS`] (no path escape, no symlinks, limits for size, number and compression ratio),
+//! `META-INF/container.xml` → OPF (title, author, language, manifest, reading order), navigation from `nav.xhtml`
+//! (EPUB 3) or `toc.ncx` (EPUB 2), text from the XHTML files of the reading order.
 //!
-//! Umwandlung nach Typst: Absätze, Hervorhebungen (`_…_`/`*…*`), Fußnoten (`epub:type="noteref"` bzw.
-//! `role="doc-noteref"` auf ein Element mit `footnote`/`endnote`) als `#footnote[…]`, Listen, Zitate, Code, Bilder
-//! als Bild des Werks (`#image("pfad")` bzw. `#figure` mit Unterschrift) – Pfad wie im EPUB relativ zur OPF-Datei.
-//! Was sich nicht abbilden lässt (Tabellen als Zeilen, SVG/MathML/Video im Text, Überschriften außerhalb der
-//! Navigation), steht als [`ImportWarning`] im Bericht; Text geht dabei nicht verloren.
+//! Conversion to Typst: paragraphs, emphasis (`_…_`/`*…*`), footnotes (`epub:type="noteref"` or
+//! `role="doc-noteref"` to an element with `footnote`/`endnote`) as `#footnote[…]`, lists, quotes, code, images
+//! as an image of the work (`#image("pfad")` or `#figure` with caption) – path as in the EPUB relative to the OPF
+//! file. What cannot be mapped (tables as rows, SVG/MathML/video in the text, headings outside of the
+//! navigation) is in the report as an [`ImportWarning`]; no text is lost in the process.
 
 use std::collections::{HashMap, HashSet};
 
@@ -22,7 +22,7 @@ fn warn(code: &str, message: impl Into<String>) -> ImportWarning {
     ImportWarning { code: code.into(), message: message.into(), line: None }
 }
 
-/// `%xx` in einem Verweis entschlüsseln (ungültige Folgen bleiben stehen).
+/// Decode `%xx` in a reference (invalid sequences are left as they are).
 fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -42,8 +42,8 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Verweis `href` relativ zum Ordner `dir` (ohne `/` am Ende, leer = Wurzel) auflösen: (Pfad im Archiv, Anker).
-/// Adressen (`http:` …), absolute Pfade und Flucht über die Wurzel → `None`.
+/// Resolve the reference `href` relative to the folder `dir` (without a trailing `/`, empty = root): (path in the
+/// archive, anchor). Addresses (`http:` …), absolute paths and escape above the root → `None`.
 pub(crate) fn resolve(dir: &str, href: &str) -> Option<(String, String)> {
     let href = href.trim();
     if href.contains("://") || href.starts_with("mailto:") || href.starts_with("data:") || href.starts_with('/') {
@@ -76,13 +76,13 @@ fn has_token(value: Option<&str>, tokens: &[&str]) -> bool {
     value.is_some_and(|v| v.split_whitespace().any(|t| tokens.contains(&t.to_ascii_lowercase().as_str())))
 }
 
-/// Ist das Element eine Fußnote bzw. Endnote (Ziel eines Verweises)?
+/// Is the element a footnote or endnote (target of a reference)?
 fn is_note(e: &Element) -> bool {
     has_token(e.prefixed_attr("type"), &["footnote", "endnote", "rearnote", "note"])
         || has_token(e.attr("role"), &["doc-footnote", "doc-endnote"])
 }
 
-/// Ist der Verweis ein Fußnotenzeichen?
+/// Is the reference a footnote mark?
 fn is_noteref(e: &Element) -> bool {
     has_token(e.prefixed_attr("type"), &["noteref"]) || has_token(e.attr("role"), &["doc-noteref"])
 }
@@ -138,10 +138,10 @@ const BLOCKS: &[&str] = &[
 
 const UNSUPPORTED: &[&str] = &["svg", "math", "video", "audio", "iframe", "object", "embed", "canvas"];
 
-/// Ein Stück des Textflusses.
+/// A piece of the text flow.
 #[derive(Debug, Clone)]
 enum Flow {
-    /// Sprungziel (`pfad` bzw. `pfad#id`).
+    /// Jump target (`pfad` or `pfad#id`).
     Anchor(String),
     Heading {
         level: u8,
@@ -153,7 +153,7 @@ enum Flow {
     },
 }
 
-/// Bild des EPUB, als Bild des Werks.
+/// Image of the EPUB, as an image of the work.
 #[derive(Debug, Clone)]
 pub(crate) struct EpubAsset {
     pub path: String,
@@ -163,27 +163,27 @@ pub(crate) struct EpubAsset {
 
 struct Reader<'a> {
     files: HashMap<String, &'a [u8]>,
-    /// Ordner der OPF-Datei (Bildpfade im Werk relativ dazu).
+    /// Folder of the OPF file (image paths in the work relative to it).
     root: String,
-    /// Fußnoten aller Dateien: `pfad#id` → Element.
+    /// Footnotes of all files: `pfad#id` → element.
     notes: HashMap<String, Element>,
-    /// Ziele von Fußnotenzeichen (diese Elemente fehlen im Textfluss).
+    /// Targets of footnote marks (these elements are missing in the text flow).
     referenced: HashSet<String>,
     warnings: Vec<ImportWarning>,
     warned: HashSet<String>,
     skipped: Vec<SkippedAsset>,
     assets: Vec<EpubAsset>,
-    /// Archivpfad → Pfad im Werk.
+    /// Archive path → path in the work.
     asset_paths: HashMap<String, String>,
     asset_bytes: u64,
     flow: Vec<Flow>,
-    /// Laufender Absatz.
+    /// Running paragraph.
     inline: Vec<Inline>,
-    /// Sprungziele im laufenden Absatz (folgen nach ihm).
+    /// Jump targets in the running paragraph (follow after it).
     deferred: Vec<String>,
-    /// Bilder im laufenden Absatz (als eigene Blöcke nach ihm).
+    /// Images in the running paragraph (as blocks of their own after it).
     images: Vec<String>,
-    /// Datei, die gerade gelesen wird.
+    /// File that is being read right now.
     path: String,
 }
 
@@ -227,7 +227,7 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// Bild aus dem EPUB übernehmen; Typst-Aufruf oder `None` (übersprungen, mit Grund).
+    /// Take over an image from the EPUB; Typst call or `None` (skipped, with a reason).
     fn image(&mut self, e: &Element, caption: Option<&str>) -> Option<String> {
         let src = e.attr("src").or_else(|| e.attr("href")).or_else(|| e.attr("xlink:href"))?.to_owned();
         let Some((archive_path, _)) = resolve(dir_of(&self.path), &src) else {
@@ -292,7 +292,7 @@ impl<'a> Reader<'a> {
         })
     }
 
-    /// Inhalt eines Elements als Inline-Stücke.
+    /// Content of an element as inline pieces.
     fn inline_children(&mut self, e: &Element) -> Vec<Inline> {
         let mut out = Vec::new();
         for node in &e.children {
@@ -363,7 +363,7 @@ impl<'a> Reader<'a> {
         if is_noteref(e) || points_at_note {
             match target.as_ref().and_then(|t| self.notes.get(t)).cloned() {
                 Some(note) => {
-                    // Bilder in der Fußnote bleiben in der Fußnote (nicht hinter dem Absatz, nicht verloren).
+                    // Images in the footnote stay in the footnote (not after the paragraph, not lost).
                     let saved = std::mem::take(&mut self.images);
                     let mut content = self.note_content(&note, &e.text());
                     for call in std::mem::replace(&mut self.images, saved) {
@@ -392,9 +392,9 @@ impl<'a> Reader<'a> {
         self.inline_children(e)
     }
 
-    /// Inhalt einer Fußnote (Absätze mit Leerzeichen verbunden, Rücksprünge weg). Eine führende Zahl fällt nur weg,
-    /// wenn sie die Nummer des Fußnotenzeichens `label` ist und kein Rücksprung-Link die Nummer schon trug – sonst
-    /// gehört sie zum Text („1 Kor 13,4“, „1984 erschien …“). Wegfallen meldet einmal je Import eine Warnung.
+    /// Content of a footnote (paragraphs joined with spaces, back links removed). A leading number is dropped only
+    /// if it is the number of the footnote mark `label` and no back link already carried the number – otherwise
+    /// it belongs to the text („1 Kor 13,4“, „1984 erschien …“). Dropping reports a warning once per import.
     fn note_content(&mut self, note: &Element, label: &str) -> Vec<Inline> {
         let mut out = trim_inline(self.note_pieces(note));
         let number: String = label.trim().trim_matches(['[', ']', '(', ')']).trim().to_owned();
@@ -429,7 +429,7 @@ impl<'a> Reader<'a> {
         trim_inline(out)
     }
 
-    /// Stücke einer Fußnote (rekursiv über Blöcke).
+    /// Pieces of a footnote (recursively over blocks).
     fn note_pieces(&mut self, note: &Element) -> Vec<Inline> {
         let mut out = Vec::new();
         for node in &note.children {
@@ -447,7 +447,7 @@ impl<'a> Reader<'a> {
         out
     }
 
-    /// Ein Element im Blockkontext.
+    /// An element in block context.
     fn block(&mut self, e: &Element) {
         let key = e.attr("id").map(|id| format!("{}#{id}", self.path));
         if is_note(e) && key.as_ref().is_some_and(|k| self.referenced.contains(k)) {
@@ -462,7 +462,7 @@ impl<'a> Reader<'a> {
                 if !text.is_empty() {
                     self.flow.push(Flow::Heading { level, text });
                 }
-                // Bilder in einer Überschrift kommen danach.
+                // Images in a heading come after it.
                 let mut found = Vec::new();
                 e.find_all("img", &mut found);
                 for img in found {
@@ -536,7 +536,7 @@ impl<'a> Reader<'a> {
                         .last()
                         .is_none_or(|f| !matches!(f, Flow::Block { typst, .. } if typst.starts_with("#figure")))
                 {
-                    // Unterschrift ohne übernommenes Bild: als Text behalten.
+                    // Caption without an image taken over: keep as text.
                     self.flow.push(Flow::Block {
                         typst: super::typst_out::escape_text(&caption_plain, true),
                         plain: caption_plain,
@@ -592,7 +592,7 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// Kinder eines Block-Containers: Text und Inline-Elemente bilden Absätze, Block-Elemente eigene Blöcke.
+    /// Children of a block container: text and inline elements form paragraphs, block elements blocks of their own.
     fn container(&mut self, e: &Element) {
         for node in &e.children {
             match node {
@@ -642,7 +642,7 @@ impl<'a> Reader<'a> {
                 self.list(list, depth + 1, lines, plain);
             }
         }
-        // Bilder in Listenpunkten folgen nach der Liste (flush in block()).
+        // Images in list items follow after the list (flush in block()).
     }
 }
 
@@ -656,7 +656,7 @@ fn raw_text(e: &Element, out: &mut String) {
     }
 }
 
-/// Zeichenkette für `#raw(…)` mit erhaltenen Zeilenumbrüchen.
+/// String for `#raw(…)` with line breaks kept.
 fn raw_literal(text: &str) -> String {
     let mut out = String::from("\"");
     for c in text.chars() {
@@ -674,7 +674,7 @@ fn raw_literal(text: &str) -> String {
     out
 }
 
-/// Leerraum wie in HTML zusammenfassen (geschütztes Leerzeichen bleibt).
+/// Collapse whitespace as in HTML (non-breaking space stays).
 fn collapse(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut space = false;
@@ -692,12 +692,12 @@ fn collapse(text: &str) -> String {
     out
 }
 
-/// Eintrag der Navigation.
+/// Entry of the navigation.
 #[derive(Debug, Clone)]
 struct NavEntry {
     depth: usize,
     title: String,
-    /// `pfad` bzw. `pfad#anker` (ohne Ziel: `None`).
+    /// `pfad` or `pfad#anker` (without a target: `None`).
     target: Option<String>,
 }
 
@@ -745,7 +745,7 @@ fn looks_like_part(title: &str) -> bool {
     ["teil ", "part ", "buch "].iter().any(|p| lower.starts_with(p))
 }
 
-/// Ein EPUB lesen. Fehler (kein Archiv, unsichere Pfade, Grenzen, kein OPF) → Meldung, nichts gelesen.
+/// Read an EPUB. Errors (not an archive, unsafe paths, limits, no OPF) → message, nothing read.
 pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
     let entries = read_zip(bytes, &IMPORT_LIMITS).map_err(|e| format!("EPUB abgelehnt: {e}"))?;
     let mut warnings = Vec::new();
@@ -784,7 +784,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
         .filter(|a| !a.is_empty());
     let lang = meta_text("language").map(|l| l.split(['-', '_']).next().unwrap_or("").to_lowercase());
 
-    // Manifest und Lesereihenfolge.
+    // Manifest and reading order.
     struct Item {
         path: String,
         media: String,
@@ -823,7 +823,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
         return Err("EPUB: Die Lesereihenfolge (spine) nennt keine XHTML-Datei.".into());
     }
 
-    // Navigation: EPUB 3 nav, sonst NCX.
+    // Navigation: EPUB 3 nav, otherwise NCX.
     let mut nav: Vec<NavEntry> = Vec::new();
     let mut nav_path: Option<String> = None;
     if let Some(item) = manifest.values().find(|i| i.properties.split_whitespace().any(|p| p == "nav")) {
@@ -853,7 +853,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
         }
     }
 
-    // Erster Durchgang: Fußnoten und ihre Zeichen.
+    // First pass: footnotes and their marks.
     let mut reader = Reader {
         files: files.clone(),
         root: root.clone(),
@@ -874,7 +874,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
     let mut docs: Vec<(String, Element)> = Vec::new();
     for path in &spine {
         if Some(path) == nav_path.as_ref() && !nav.is_empty() {
-            // Das Inhaltsverzeichnis selbst ist Navigation, kein Text.
+            // The table of contents itself is navigation, not text.
             continue;
         }
         let source = match text(path) {
@@ -923,7 +923,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
         }
     }
 
-    // Zweiter Durchgang: Textfluss.
+    // Second pass: text flow.
     for (path, doc) in &docs {
         reader.path = path.clone();
         reader.flow.push(Flow::Anchor(path.clone()));
@@ -954,7 +954,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Extracted, String> {
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    // Abschnitte: aus der Navigation, sonst aus den Überschriften.
+    // Sections: from the navigation, otherwise from the headings.
     let mut cuts: Vec<(usize, u8, String, bool)> = Vec::new();
     if !nav.is_empty() {
         let deepest = nav.iter().map(|n| n.depth).max().unwrap_or(1);

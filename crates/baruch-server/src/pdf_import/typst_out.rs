@@ -1,71 +1,71 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst aus gelesenem Text (Runde 21a): Maskierung von Fließtext ([`escape_text`]), Inline-Stücke mit
-//! Hervorhebungen und Fußnoten ([`Inline`], [`render_inline`]) und das ganze Werk aus der vom Menschen bestätigten
-//! Gliederung ([`build_typst`]).
+//! Typst from text that was read (Round 21a): escaping of running text ([`escape_text`]), inline pieces with
+//! emphasis and footnotes ([`Inline`], [`render_inline`]) and the whole work from the outline confirmed by the
+//! human ([`build_typst`]).
 //!
-//! Text aus PDF und EPUB ist Text, nie Typst: Jedes Zeichen, das in Typst-Markup etwas bedeutet, bekommt einen
-//! Backslash (Typst lässt jedes Zeichen nach `\` wörtlich stehen). Hervorhebungen werden `_…_` bzw. `*…*`, wo Typst
-//! die Zeichen als Auszeichnung liest (nicht mitten im Wort), sonst `#emph[…]` bzw. `#strong[…]`; Fußnoten
+//! Text from PDF and EPUB is text, never Typst: every character that means something in Typst markup gets a
+//! backslash (Typst leaves every character after `\` verbatim). Emphasis becomes `_…_` or `*…*` where Typst
+//! reads the characters as markup (not in the middle of a word), otherwise `#emph[…]` or `#strong[…]`; footnotes
 //! `#footnote[…]`.
 
 use serde::{Deserialize, Serialize};
 
 use crate::import::ImportWarning;
 
-/// Ein Abschnitt des gelesenen Dokuments (Vorschlag der Gliederung samt Text).
+/// A section of the document read (suggestion of the outline including text).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Section {
-    /// Ebene 1–3 (Kapitel, Abschnitt, Unterabschnitt).
+    /// Level 1–3 (chapter, section, subsection).
     pub level: u8,
     pub title: String,
-    /// Vermutlich ein Teil (nur Hinweis in der Vorschau; angelegt wird ein Teil nur, wenn der Mensch ihn so bestätigt).
+    /// Presumably a part (only a hint in the preview; a part is created only if the human confirms it as such).
     #[serde(default)]
     pub part: bool,
-    /// Text als Typst-Markup (Absätze durch Leerzeilen getrennt).
+    /// Text as Typst markup (paragraphs separated by empty lines).
     pub body: String,
-    /// Derselbe Text ohne Auszeichnung (Zeichenzahl, Textprobe, Volltext der Bibliothek).
+    /// The same text without markup (character count, text sample, full text of the library).
     pub plain: String,
 }
 
-/// Ein Punkt der vom Menschen bestätigten Gliederung.
+/// An item of the outline confirmed by the human.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Confirmed {
     pub level: u8,
     pub title: String,
     pub part: bool,
-    /// Index des vorgeschlagenen Abschnitts, dessen Text hierher gehört; `None` = neuer, leerer Punkt bzw.
-    /// Zuordnung nach der Stelle (alle ohne `source`, gleich viele wie vorgeschlagen).
+    /// Index of the suggested section whose text belongs here; `None` = new, empty item or
+    /// assignment by position (all without `source`, as many as suggested).
     pub source: Option<usize>,
 }
 
-/// Inline-Stück eines Absatzes.
+/// Inline piece of a paragraph.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Inline {
-    /// Klartext (wird maskiert).
+    /// Plain text (is escaped).
     Text(String),
     Emph(Vec<Inline>),
     Strong(Vec<Inline>),
-    /// Fußnote mit ihrem Inhalt.
+    /// Footnote with its content.
     Footnote(Vec<Inline>),
     Super(Vec<Inline>),
     Sub(Vec<Inline>),
-    /// Verweis auf eine http(s)-Adresse.
+    /// Reference to an http(s) address.
     Link(String, Vec<Inline>),
-    /// Code (wörtlich).
+    /// Code (verbatim).
     Code(String),
-    /// Zeilenumbruch im Absatz.
+    /// Line break in the paragraph.
     Break,
-    /// Fertiger eingebetteter Typst-Ausdruck (etwa `#image("…")` aus einer Fußnote); bleibt unverändert.
+    /// Finished embedded Typst expression (for instance `#image("…")` from a footnote); stays unchanged.
     Typst(String),
 }
 
-/// Typst-Zeichen, die überall einen Backslash bekommen.
+/// Typst characters that get a backslash everywhere.
 const ESCAPED: &[char] = &['\\', '#', '*', '_', '`', '$', '@', '<', '>', '[', ']', '~'];
 
-/// Klartext für Typst-Markup maskieren. `line_start` = der Text beginnt eine Zeile (Absatzanfang): dann bekommen
-/// auch `=`, `-`, `+`, `/` und der Punkt eines führenden `12.` einen Backslash (sonst Überschrift oder Liste). Ein
-/// `/` vor `/` oder `*` (Kommentar), ein `-` vor `-` oder `?` (Strich, weiches Trennzeichen) werden ebenfalls
-/// maskiert. Zeilenumbrüche im Text werden zu Leerzeichen.
+/// Escape plain text for Typst markup. `line_start` = the text begins a line (beginning of a paragraph): then
+/// `=`, `-`, `+`, `/` and the full stop of a leading `12.` also get a backslash (otherwise heading or list). A
+/// `/` before `/` or `*` (comment), a `-` before `-` or `?` (dash, soft hyphen) are escaped as
+/// well. Line breaks in the text become spaces.
 pub fn escape_text(text: &str, line_start: bool) -> String {
     let chars: Vec<char> = text.chars().map(|c| if baruch_typst::is_newline(c) { ' ' } else { c }).collect();
     let mut out = String::with_capacity(text.len() + 8);
@@ -95,7 +95,7 @@ pub fn escape_text(text: &str, line_start: bool) -> String {
     out
 }
 
-/// Text in einer Typst-Zeichenkette (`"…"`).
+/// Text in a Typst string (`"…"`).
 pub fn string_literal(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -116,7 +116,7 @@ fn wordy(c: Option<char>) -> bool {
     c.is_some_and(char::is_alphanumeric)
 }
 
-/// Klartext der Stücke (für Zeichenzahl, Textprobe und Volltext).
+/// Plain text of the pieces (for character count, text sample and full text).
 pub fn plain_inline(pieces: &[Inline]) -> String {
     let mut out = String::new();
     for piece in pieces {
@@ -137,7 +137,7 @@ pub fn plain_inline(pieces: &[Inline]) -> String {
     out
 }
 
-/// Stücke ohne führenden und abschließenden Leerraum (in Text-Stücken), leere Text-Stücke fallen weg.
+/// Pieces without leading and trailing whitespace (in text pieces), empty text pieces are dropped.
 pub fn trim_inline(mut pieces: Vec<Inline>) -> Vec<Inline> {
     while let Some(Inline::Text(t)) = pieces.first_mut() {
         let trimmed = t.trim_start().to_owned();
@@ -160,14 +160,14 @@ pub fn trim_inline(mut pieces: Vec<Inline>) -> Vec<Inline> {
     pieces
 }
 
-/// Ist der Inhalt leer (nur Leerraum)?
+/// Is the content empty (whitespace only)?
 pub fn inline_is_blank(pieces: &[Inline]) -> bool {
     plain_inline(pieces).trim().is_empty()
         && !pieces.iter().any(|p| matches!(p, Inline::Footnote(_) | Inline::Code(_) | Inline::Typst(_)))
 }
 
-/// Würde Typst `after` an einen eingebetteten Ausdruck direkt davor hängen (Aufruf mit `(`, Inhaltsblock `[`,
-/// Feldzugriff `.Name`, verschlucktes `;`)? Gegenstück zu `needs_guard` im Markdown-Import.
+/// Would Typst attach `after` to an embedded expression directly before it (call with `(`, content block `[`,
+/// field access `.Name`, swallowed `;`)? Counterpart of `needs_guard` in the Markdown import.
 fn needs_guard(after: &str) -> bool {
     let mut chars = after.chars();
     match chars.next() {
@@ -177,9 +177,9 @@ fn needs_guard(after: &str) -> bool {
     }
 }
 
-/// Stücke als Typst-Markup. `line_start` = sie beginnen einen Absatz. Hinter einem eingebetteten Ausdruck
-/// (`#emph[…]`, `#linebreak()`, `#raw("…")` …) steht ein Schutz-`;`, wenn der folgende Text sonst als Aufruf,
-/// Inhaltsblock oder Feldzugriff gelesen würde ([`needs_guard`]).
+/// Pieces as Typst markup. `line_start` = they begin a paragraph. After an embedded expression
+/// (`#emph[…]`, `#linebreak()`, `#raw("…")` …) a guard `;` stands if the following text would otherwise be read
+/// as a call, content block or field access ([`needs_guard`]).
 pub fn render_inline(pieces: &[Inline], line_start: bool) -> String {
     let mut out = String::new();
     let mut guard = false;
@@ -241,14 +241,14 @@ fn render_piece(piece: &Inline, line_start: bool) -> String {
     }
 }
 
-/// Ergebnis von [`assign`]: je bestätigtem Punkt (Index) die Abschnitte (Indizes), deren Text er bekommt.
+/// Result of [`assign`]: per confirmed item (index) the sections (indices) whose text it gets.
 pub type Assignment = Vec<(usize, Vec<usize>)>;
 
-/// Vom Menschen bestätigte Gliederung auf die vorgeschlagenen Abschnitte abbilden: Liste der (Punkt, Abschnitte,
-/// deren Text er bekommt). Regeln: Tragen Punkte `source`, gehören alle Punkte mit `source` zu genau diesem
-/// Abschnitt (aufsteigend, jeder höchstens einmal; Punkte ohne `source` sind neue, leere Punkte); ohne jedes `source`
-/// müssen es gleich viele Punkte wie Abschnitte sein (Zuordnung nach der Stelle). Der Text eines gelöschten
-/// Abschnitts geht an den vorigen behaltenen (am Anfang an den nächsten), nie verloren; dafür gibt es eine Warnung.
+/// Map the outline confirmed by the human onto the suggested sections: list of (item, sections
+/// whose text it gets). Rules: if items carry `source`, all items with `source` belong to exactly this
+/// section (ascending, each at most once; items without `source` are new, empty items); without any `source`
+/// there must be as many items as sections (assignment by position). The text of a deleted
+/// section goes to the previous kept one (at the beginning to the next), never lost; there is a warning for it.
 pub fn assign(sections: &[Section], confirmed: &[Confirmed]) -> Result<(Assignment, Vec<ImportWarning>), String> {
     if confirmed.is_empty() {
         return Err("Die Gliederung ist leer: mindestens ein Punkt (Kapitel) ist nötig.".into());
@@ -325,15 +325,15 @@ pub fn assign(sections: &[Section], confirmed: &[Confirmed]) -> Result<(Assignme
         }
     }
     if !pending.is_empty() {
-        // Kein Punkt mit Text-Zuordnung: alles an den ersten Punkt.
+        // No item with a text assignment: everything to the first item.
         merged[0].1.append(&mut pending);
     }
     Ok((merged, warnings))
 }
 
-/// Das Werk als Typst: Werkvorlage (`#set document(title, author)`, ggf. Sprache), dann je bestätigtem Punkt die
-/// Überschrift (Teil über die Teil-Markierung von baruch-typst) und der Text der zugeordneten Abschnitte. Bilder
-/// stehen schon als `#image("…")` im Text.
+/// The work as Typst: work template (`#set document(title, author)`, possibly language), then per confirmed item
+/// the heading (part through the part marker of baruch-typst) and the text of the assigned sections. Images
+/// are already in the text as `#image("…")`.
 pub fn build_typst(
     title: &str,
     author: Option<&str>,
@@ -380,7 +380,7 @@ pub fn build_typst(
     Ok((out, warnings))
 }
 
-/// Erste Zeichen des Texts (höchstens `max`, an einer Wortgrenze, mit „…“).
+/// First characters of the text (at most `max`, at a word boundary, with „…“).
 pub fn sample(plain: &str, max: usize) -> String {
     let flat = plain.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max {
@@ -445,8 +445,8 @@ mod tests {
 
     #[test]
     fn embedded_expressions_get_a_guard_before_parentheses_and_fields() {
-        // Typst hängt an einen eingebetteten Ausdruck direkt folgendes `(`/`[` (Aufruf) bzw. `.Name` (Feld) an:
-        // `#linebreak()(Fortsetzung)` wäre ein Aufruf des Ergebnisses und scheitert beim Satz.
+        // Typst attaches a directly following `(`/`[` (call) or `.Name` (field) to an embedded expression:
+        // `#linebreak()(Fortsetzung)` would be a call of the result and fails in typesetting.
         let pieces = vec![text("Erste Zeile"), Inline::Break, text("(Fortsetzung) hier.")];
         assert_eq!(render_inline(&pieces, true), "Erste Zeile#linebreak();(Fortsetzung) hier.", "Schutz vor (");
         let pieces = vec![

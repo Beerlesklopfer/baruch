@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Seiten der Konten (Runde 35, Vertrag §3.1): `GET /anmelden`, `GET /einrichten`, `GET /konto`,
-//! `GET /werke/{id}/mitwirkende` und der Inhalt der Einstellungsseite „Konten“ (`settings::PAGES`).
+//! Pages of the accounts (Round 35, contract §3.1): `GET /anmelden`, `GET /einrichten`, `GET /konto`,
+//! `GET /werke/{id}/mitwirkende` and the content of the settings page „Konten“ (`settings::PAGES`).
 //!
-//! Jede Seite trennt das Holen der Daten (dünn, hier) von der Darstellung: [`accounts_html`], [`members_html`] und
-//! [`account_html`] sind reine Funktionen über Ansichtsdaten und lassen sich mit erfundenen Daten prüfen. Die
-//! schreibenden Wege gehören nicht hierher: Formulare gehen an `auth::routes` (`/anmelden`, `/abmelden`,
-//! `/einrichten`, `/konto/passwort`, `/einstellungen/konten/act`) und `roles::routes`
+//! Every page separates fetching the data (thin, here) from the presentation: [`accounts_html`], [`members_html`]
+//! and [`account_html`] are pure functions over view data and can be checked with invented data. The
+//! writing paths do not belong here: forms go to `auth::routes` (`/anmelden`, `/abmelden`,
+//! `/einrichten`, `/konto/passwort`, `/einstellungen/konten/act`) and `roles::routes`
 //! (`/werke/{id}/mitwirkende/act`).
 //!
-//! Annahmen über die Nachbarn (Schnittstelle R35-S1): Die Liste der Konten kommt aus `Store::account_list`, der
-//! Schalter „Am eigenen Rechner ohne Anmeldung“ aus `account.me` (`local_open`), die Freigaben aus `member.list`.
-//! Scheitert eine dieser Quellen, zeigt die Seite die Meldung statt der Liste.
+//! Assumptions about the neighbours (interface R35-S1): the list of accounts comes from `Store::account_list`, the
+//! switch „Am eigenen Rechner ohne Anmeldung“ from `account.me` (`local_open`), the shares from `member.list`.
+//! If one of these sources fails, the page shows the message instead of the list.
 
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
@@ -35,15 +35,15 @@ use crate::auth::password::{MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
 use crate::auth::{AccountKind, Identity, Who};
 use crate::view::Settings;
 
-/// Kommt die Anfrage unmittelbar vom eigenen Rechner (Vertrag §0.2)? Loopback ohne Proxy-Namen
-/// (`shutdown::own_machine`) und ohne eine der Kopfzeilen eines vorgeschalteten Servers (`guard::forwarded` –
-/// dieselbe Regel wie `auth::gate::own_machine`; `guard::via_proxy` kennt nur den Rechnernamen, ein Proxy, der `Host`
-/// umschreibt, verrät sich allein an diesen Kopfzeilen). Ohne bekannte Gegenstelle nein.
+/// Does the request come directly from the own machine (contract §0.2)? Loopback without a proxy name
+/// (`shutdown::own_machine`) and without one of the headers of an upstream server (`guard::forwarded` –
+/// the same rule as `auth::gate::own_machine`; `guard::via_proxy` knows only the host name, a proxy that rewrites
+/// `Host` gives itself away through these headers alone). Without a known peer: no.
 pub fn direct_from_own_machine(state: &AppState, peer: Option<SocketAddr>, headers: &HeaderMap) -> bool {
     crate::shutdown::own_machine(&state.allowed_hosts, peer, headers) && !crate::guard::forwarded(headers)
 }
 
-/// Die Seiten der Konten.
+/// The pages of the accounts.
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/anmelden", get(login))
@@ -56,17 +56,17 @@ fn cookie_settings(headers: &HeaderMap) -> Settings {
     Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()))
 }
 
-/// Anzeigename eines Kontos, sonst sein Name.
+/// Display name of an account, otherwise its name.
 fn shown_name(identity: &Identity) -> &str {
     if identity.display.trim().is_empty() { &identity.name } else { &identity.display }
 }
 
-/// Meldungen aus der Adresse: nur der Satz aus der Tabelle, nie der Text der Adresse.
+/// Messages from the address: only the sentence from the table, never the text of the address.
 fn notices<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> (Option<&'static str>, Option<&'static str>) {
     (get("ok").and_then(ok_message), get("fehler").and_then(error_message))
 }
 
-/// Zeitpunkt (ISO 8601, UTC) kurz: `2026-11-26 09:15 UTC`.
+/// Point in time (ISO 8601, UTC) in short: `2026-11-26 09:15 UTC`.
 fn short_time(time: &str) -> String {
     match time.get(..16) {
         Some(head) if time.is_char_boundary(16) => format!("{} UTC", head.replace('T', " ")),
@@ -76,8 +76,8 @@ fn short_time(time: &str) -> String {
 
 // ---- /anmelden ------------------------------------------------------------------------------------------------
 
-/// `GET /anmelden[?next=…][&ok=abgemeldet]`: ohne Konten 303 `/`; sonst das Formular. Trägt die Anfrage schon eine
-/// gültige Sitzung, nennt die Seite das Konto und bietet „Weiter“ an.
+/// `GET /anmelden[?next=…][&ok=abgemeldet]`: without accounts 303 `/`; otherwise the form. If the request already
+/// carries a valid session, the page names the account and offers „Weiter“.
 async fn login(State(state): State<Arc<AppState>>, Query(query): Query<HashMap<String, String>>) -> Response {
     if !crate::auth::accounts_exist(&state).await {
         return Redirect::to("/").into_response();
@@ -95,8 +95,8 @@ async fn login(State(state): State<Arc<AppState>>, Query(query): Query<HashMap<S
 
 // ---- /einrichten ----------------------------------------------------------------------------------------------
 
-/// `GET /einrichten`: mit Konten 303 `/einstellungen/konten`; sonst das Formular – nicht vom eigenen Rechner 403 mit
-/// Erklärung.
+/// `GET /einrichten`: with accounts 303 `/einstellungen/konten`; otherwise the form – not from the own machine 403
+/// with an explanation.
 async fn setup(State(state): State<Arc<AppState>>, request: Request) -> Response {
     if crate::auth::accounts_exist(&state).await {
         return Redirect::to("/einstellungen/konten").into_response();
@@ -109,23 +109,23 @@ async fn setup(State(state): State<Arc<AppState>>, request: Request) -> Response
 
 // ---- /konto ---------------------------------------------------------------------------------------------------
 
-/// Ein Werk in „Mein Konto“.
+/// A work in „Mein Konto“.
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountWork {
     pub id: WorkId,
     pub title: String,
 }
 
-/// Ansicht „Mein Konto“. `state`: `open` (es gibt keine Konten), `local` (Autor am eigenen Rechner ohne Anmeldung)
-/// oder `account` (angemeldet).
+/// View „Mein Konto“. `state`: `open` (there are no accounts), `local` (author on the own machine without signing
+/// in) or `account` (signed in).
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct AccountView {
     pub state: &'static str,
     pub name: String,
     pub display: String,
-    /// „Autor“ oder „Lektor“.
+    /// „Autor“ or „Lektor“.
     pub role: &'static str,
-    /// Herkunft eines Lektors (`@lektorat:<slug>`); der Autor schreibt als „Autor“.
+    /// Origin of a Lektor (`@lektorat:<slug>`); the author writes as „Autor“.
     pub handle: Option<String>,
     pub works: Vec<AccountWork>,
     pub notice: Option<String>,
@@ -133,7 +133,7 @@ pub struct AccountView {
 }
 
 impl AccountView {
-    /// Ansicht eines angemeldeten Kontos (ohne Werke und Meldungen).
+    /// View of a signed-in account (without works and messages).
     pub fn of(identity: &Identity) -> Self {
         let lektor = identity.kind == AccountKind::Lektor;
         AccountView {
@@ -147,7 +147,7 @@ impl AccountView {
     }
 }
 
-/// „Mein Konto“ als HTML (`konto.html`).
+/// „Mein Konto“ as HTML (`konto.html`).
 pub fn account_html(view: &AccountView, settings: &Settings) -> Result<String, String> {
     render_template(
         "konto.html",
@@ -182,8 +182,8 @@ async fn account(
                 }
                 view
             }
-            // Ohne Anmeldung leitet schon auth::gate um; `Open` mit Konten gibt es nur in der Anfrage, die das
-            // erste Konto anlegt.
+            // Without signing in auth::gate already redirects; `Open` with accounts exists only in the request that
+            // creates the first account.
             Who::Anonymous | Who::Open => return Redirect::to("/anmelden?next=/konto").into_response(),
         }
     };
@@ -197,7 +197,7 @@ async fn account(
 
 // ---- /werke/{id}/mitwirkende ------------------------------------------------------------------------------------
 
-/// Eine Freigabe (Antwort von `member.list`, Feld `members`).
+/// A share (answer of `member.list`, field `members`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Member {
@@ -210,7 +210,7 @@ pub struct Member {
     pub active: bool,
 }
 
-/// Ein Lektor-Konto ohne Freigabe (Antwort von `member.list`, Feld `candidates`).
+/// A Lektor account without a share (answer of `member.list`, field `candidates`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Candidate {
@@ -220,7 +220,7 @@ pub struct Candidate {
     pub handle: String,
 }
 
-/// Ansicht „Mitwirkende“ eines Werks.
+/// View „Mitwirkende“ of a work.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct MembersView {
     pub work: WorkId,
@@ -230,13 +230,13 @@ pub struct MembersView {
     pub candidates: Vec<Candidate>,
     pub notice: Option<String>,
     pub error: Option<String>,
-    /// Meldung, wenn `member.list` scheitert (dann ohne Listen).
+    /// Message when `member.list` fails (then without lists).
     pub load_error: Option<String>,
 }
 
 impl MembersView {
-    /// Übernimmt `members` und `candidates` aus der Antwort von `member.list`; Unlesbares zählt als Ladefehler,
-    /// statt eine leere Liste vorzutäuschen.
+    /// Takes `members` and `candidates` from the answer of `member.list`; anything unreadable counts as a load error
+    /// instead of pretending an empty list.
     pub fn fill(&mut self, answer: &Json) {
         let members = serde_json::from_value::<Vec<Member>>(answer["members"].clone());
         let candidates = serde_json::from_value::<Vec<Candidate>>(answer["candidates"].clone());
@@ -250,7 +250,7 @@ impl MembersView {
     }
 }
 
-/// „Mitwirkende“ als HTML (`mitwirkende.html`).
+/// „Mitwirkende“ as HTML (`mitwirkende.html`).
 pub fn members_html(view: &MembersView, settings: &Settings) -> Result<String, String> {
     render_template(
         "mitwirkende.html",
@@ -267,8 +267,8 @@ pub fn members_html(view: &MembersView, settings: &Settings) -> Result<String, S
     )
 }
 
-/// `GET /werke/{id}/mitwirkende[?ok=…|?fehler=…]`: nur mit vollen Rechten (für Lektoren sperrt schon `roles` die
-/// Route; die Prüfung hier hält die Seite auch dann zu, wenn die Tabelle der Routen sich ändert).
+/// `GET /werke/{id}/mitwirkende[?ok=…|?fehler=…]`: only with full rights (for Lektors `roles` already locks the
+/// route; the check here keeps the page closed even if the table of routes changes).
 async fn members(
     State(state): State<Arc<AppState>>,
     Path(work): Path<WorkId>,
@@ -306,27 +306,27 @@ async fn members(
 
 // ---- Einstellungen → Konten -------------------------------------------------------------------------------------
 
-/// Ein Konto in der Liste der Einstellungsseite.
+/// An account in the list of the settings page.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct AccountRow {
     pub id: i64,
     pub name: String,
     pub display: String,
-    /// `author` oder `lektor`.
+    /// `author` or `lektor`.
     pub kind: String,
-    /// „Autor“ oder „Lektor“.
+    /// „Autor“ or „Lektor“.
     pub kind_label: &'static str,
-    /// Herkunft eines Lektors (`@lektorat:<slug>`); der Autor schreibt als „Autor“.
+    /// Origin of a Lektor (`@lektorat:<slug>`); the author writes as „Autor“.
     pub handle: Option<String>,
     pub active: bool,
     pub created: String,
     pub last_login: Option<String>,
-    /// Das Konto, mit dem die Anfrage angemeldet ist.
+    /// The account with which the request is signed in.
     pub own: bool,
 }
 
 impl AccountRow {
-    /// Zeile aus einem Konto des Stores; `own_id` ist das angemeldete Konto.
+    /// Row from an account of the store; `own_id` is the signed-in account.
     pub fn of(account: &baruch_store::Account, own_id: Option<i64>) -> Self {
         let lektor = account.kind == "lektor";
         AccountRow {
@@ -344,22 +344,22 @@ impl AccountRow {
     }
 }
 
-/// Ansicht der Einstellungsseite „Konten“.
+/// View of the settings page „Konten“.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct AccountsView {
     pub work: Option<WorkId>,
     pub accounts_exist: bool,
-    /// Volle Rechte (nur dann die Liste und die Formulare).
+    /// Full rights (only then the list and the forms).
     pub allowed: bool,
     pub accounts: Vec<AccountRow>,
-    /// „Am eigenen Rechner ohne Anmeldung“ ist eingeschaltet.
+    /// „Am eigenen Rechner ohne Anmeldung“ is switched on.
     pub local_open: bool,
     pub notice: Option<String>,
     pub error: Option<String>,
     pub load_error: Option<String>,
 }
 
-/// Inhalt der Einstellungsseite „Konten“ als HTML (`settings/konten.html`, ohne Rahmen).
+/// Content of the settings page „Konten“ as HTML (`settings/konten.html`, without frame).
 pub fn accounts_html(view: &AccountsView) -> Result<String, String> {
     crate::settings::render_template(
         "settings/konten.html",
@@ -367,8 +367,8 @@ pub fn accounts_html(view: &AccountsView) -> Result<String, String> {
     )
 }
 
-/// Steht der Schalter „Am eigenen Rechner ohne Anmeldung“ auf an? Aus `account.me` (`local_open`); lässt sich das
-/// nicht lesen, gilt die Vorgabe „aus“.
+/// Is the switch „Am eigenen Rechner ohne Anmeldung“ on? From `account.me` (`local_open`); if that cannot be
+/// read, the default „aus“ applies.
 async fn local_open(state: &AppState) -> bool {
     match crate::auth::rpc::call(state, "account.me", json!({})).await {
         Ok(answer) => answer["local_open"].as_bool().unwrap_or(false),
@@ -403,7 +403,7 @@ async fn settings_page(
     accounts_html(&view)
 }
 
-/// Zeichnet die Einstellungsseite „Konten“ (Eintrag in `settings::PAGES`).
+/// Draws the settings page „Konten“ (entry in `settings::PAGES`).
 pub fn render_settings<'a>(
     state: &'a AppState,
     work: Option<WorkId>,

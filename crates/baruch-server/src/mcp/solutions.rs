@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `solution_variants` (Runde 30b, chat-loesungen): der Lektor (nach Einstellung) schreibt zwei oder drei
-//! Varianten eines Abschnitts als Geschwister-Vorschläge mit gleicher Basis (Etiketten A/B/C, je eine Zeile und die
-//! umgesetzten Befunde), über [`crate::assist::variants::run`]. Legt nur Vorschläge an – übernehmen und die übrigen
-//! verwerfen kann nur der Mensch – und zählt zur MCP-Quote (zwei Aufträge je Client; die Quote nimmt `mcp/tools.rs`
-//! vor dem Aufruf).
+//! MCP tool `solution_variants` (Round 30b, chat-loesungen): the lector (by setting) writes two or three
+//! variants of a section as sibling proposals with the same base (labels A/B/C, one line each and the
+//! findings implemented), through [`crate::assist::variants::run`]. Creates only proposals – only the human can
+//! accept one and discard the others – and counts towards the MCP quota (two jobs per client; `mcp/tools.rs` takes
+//! the quota before the call).
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -50,7 +50,7 @@ pub async fn call_tool(state: &AppState, client: &Client, arguments: Value) -> R
     if a.rev == Some(0) {
         return Err(Failure::Args("arguments: rev from 1".into()));
     }
-    // Unbekannter Abschnitt → isError statt eines Modellaufrufs.
+    // Unknown section → isError instead of a model call.
     state.store.node_seq(work, a.key).await?;
     let order = crate::assist::variants::VariantOrder {
         work,

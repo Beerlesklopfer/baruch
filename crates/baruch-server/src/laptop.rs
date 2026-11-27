@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Laptop-Modus (Runde 33, Schnittstelle R33-S1; Besitz: Aufgabe „laptop“).
+//! Laptop mode (Round 33, interface R33-S1; owned by task „laptop“).
 //!
-//! Zustand aus Adresse (`?laptop=auto|on|off`, `?lrail=0|1`, `?rrail=0|1`) und Cookies (`baruch_laptop`,
-//! `baruch_lrail`, `baruch_rrail`, `baruch_vw`). Ein gültiger Schlüssel der Adresse gilt vor dem Cookie und wird
-//! als `Set-Cookie` gemerkt. Die Schicht `consent::inject` schreibt den wirksamen Zustand als Attribute an
-//! `<html>` (einzige Quelle für CSS und Widgets); `web/src/laptop.ts` hält sie aktuell.
+//! State from the address (`?laptop=auto|on|off`, `?lrail=0|1`, `?rrail=0|1`) and cookies (`baruch_laptop`,
+//! `baruch_lrail`, `baruch_rrail`, `baruch_vw`). A valid key of the address takes precedence over the cookie and is
+//! remembered as `Set-Cookie`. The layer `consent::inject` writes the effective state as attributes onto
+//! `<html>` (single source for CSS and widgets); `web/src/laptop.ts` keeps them up to date.
 //!
-//! Ungültige Werte (unbekannter Modus, fremde Zeichen) werden übergangen, als stünden sie nicht da; steht ein
-//! Schlüssel mehrfach in der Adresse, gilt der letzte gültige. In die Seite gelangen nur feste Zeichenketten
-//! ([`LaptopState::html_attrs`]), nie ein Wert aus Adresse oder Cookie.
+//! Invalid values (unknown mode, foreign characters) are skipped as if they were not there; if a
+//! key appears several times in the address, the last valid one applies. Only fixed strings reach the page
+//! ([`LaptopState::html_attrs`]), never a value from address or cookie.
 //!
-//! Ohne JavaScript fehlt `baruch_vw`: Der Server kennt die Fensterbreite dann nicht, „automatisch“ zeichnet breit,
-//! und der Mensch stellt den Laptop-Modus von Hand „an“.
+//! Without JavaScript `baruch_vw` is missing: the server then does not know the window width, „automatisch“ draws
+//! wide, and the human sets the laptop mode to „an“ by hand.
 
-/// Unterhalb dieser Fensterbreite (`window.innerWidth`) ist das Band kompakt.
+/// Below this window width (`window.innerWidth`) the ribbon is compact.
 pub const COMPACT_BELOW_PX: u32 = 1600;
-/// Unterhalb dieser Fensterbreite sind die Seitenleisten eingeklappt.
+/// Below this window width the side rails are collapsed.
 pub const NARROW_BELOW_PX: u32 = 1280;
-/// Schlüssel der Adresse, die diesem Modul gehören.
+/// Keys of the address that belong to this module.
 pub const QUERY_KEYS: [&str; 3] = ["laptop", "lrail", "rrail"];
 
-/// Einstellung des Menschen (`?laptop=`, Cookie `baruch_laptop`; fehlt = automatisch).
+/// Setting of the human (`?laptop=`, cookie `baruch_laptop`; missing = automatic).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
     #[default]
@@ -29,7 +29,7 @@ pub enum Mode {
     Off,
 }
 
-/// Breitenklasse des Fensters (Cookie `baruch_vw`, nur von laptop.ts gesetzt; fehlt = breit).
+/// Width class of the window (cookie `baruch_vw`, set only by laptop.ts; missing = wide).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Width {
     #[default]
@@ -42,14 +42,14 @@ pub enum Width {
 pub struct LaptopState {
     pub mode: Mode,
     pub width: Width,
-    /// Gliederung (linke Spalte) vom Menschen eingeklappt.
+    /// Outline (left column) collapsed by the human.
     pub lrail: bool,
-    /// Rechte Spalte vom Menschen eingeklappt.
+    /// Right column collapsed by the human.
     pub rrail: bool,
 }
 
 impl Mode {
-    /// `"auto"` | `"on"` | `"off"` – Wert in Adresse, Cookie und `data-laptop`.
+    /// `"auto"` | `"on"` | `"off"` – value in address, cookie and `data-laptop`.
     pub fn name(self) -> &'static str {
         match self {
             Mode::Auto => "auto",
@@ -60,7 +60,7 @@ impl Mode {
 }
 
 impl Width {
-    /// Breitenklasse nach den Schwellen [`COMPACT_BELOW_PX`] und [`NARROW_BELOW_PX`].
+    /// Width class by the thresholds [`COMPACT_BELOW_PX`] and [`NARROW_BELOW_PX`].
     pub fn from_px(px: u32) -> Width {
         if px < NARROW_BELOW_PX {
             Width::Small
@@ -71,7 +71,7 @@ impl Width {
         }
     }
 
-    /// `"w"` | `"m"` | `"s"` – Wert des Cookies `baruch_vw`.
+    /// `"w"` | `"m"` | `"s"` – value of the cookie `baruch_vw`.
     pub fn cookie(self) -> &'static str {
         match self {
             Width::Wide => "w",
@@ -82,7 +82,7 @@ impl Width {
 }
 
 impl Mode {
-    /// Wert aus `?laptop=` (`auto` | `on` | `off`); alles andere ist ungültig.
+    /// Value from `?laptop=` (`auto` | `on` | `off`); everything else is invalid.
     fn from_query(value: &str) -> Option<Mode> {
         match value {
             "auto" => Some(Mode::Auto),
@@ -94,7 +94,7 @@ impl Mode {
 }
 
 impl Width {
-    /// Wert des Cookies `baruch_vw`; alles andere ist ungültig.
+    /// Value of the cookie `baruch_vw`; everything else is invalid.
     fn from_cookie(value: &str) -> Option<Width> {
         match value {
             "w" => Some(Width::Wide),
@@ -105,7 +105,7 @@ impl Width {
     }
 }
 
-/// `0` | `1` aus `?lrail=` bzw. `?rrail=`; alles andere ist ungültig.
+/// `0` | `1` from `?lrail=` or `?rrail=`; everything else is invalid.
 fn rail_from_query(value: &str) -> Option<bool> {
     match value {
         "0" => Some(false),
@@ -114,8 +114,8 @@ fn rail_from_query(value: &str) -> Option<bool> {
     }
 }
 
-/// Wert des Cookies `name` im Kopf `Cookie:` (`a=1; b=2`); steht es mehrfach da, gilt das erste. Kein Dekodieren:
-/// gültige Werte bestehen nur aus Buchstaben und Ziffern.
+/// Value of the cookie `name` in the header `Cookie:` (`a=1; b=2`); if it appears several times, the first applies.
+/// No decoding: valid values consist only of letters and digits.
 fn cookie<'a>(header: Option<&'a str>, name: &str) -> Option<&'a str> {
     header?.split(';').find_map(|pair| {
         let (key, value) = pair.trim().split_once('=')?;
@@ -123,8 +123,8 @@ fn cookie<'a>(header: Option<&'a str>, name: &str) -> Option<&'a str> {
     })
 }
 
-/// Letzter gültiger Wert des Schlüssels `key` in der rohen Abfrage (`a=1&b=2`, nicht dekodiert – gültige Werte
-/// enthalten nichts, was kodiert würde).
+/// Last valid value of the key `key` in the raw query (`a=1&b=2`, not decoded – valid values
+/// contain nothing that would be encoded).
 fn query_value<T>(query: Option<&str>, key: &str, parse: impl Fn(&str) -> Option<T>) -> Option<T> {
     query?
         .split('&')
@@ -136,8 +136,8 @@ fn query_value<T>(query: Option<&str>, key: &str, parse: impl Fn(&str) -> Option
 }
 
 impl LaptopState {
-    /// Zustand aus Cookie-Kopf und roher Abfrage der Anfrage: Ein gültiger Schlüssel der Adresse gilt vor dem
-    /// Cookie; Ungültiges wird übergangen. Die Breite kommt nur aus dem Cookie `baruch_vw` (laptop.ts).
+    /// State from the cookie header and the raw query of the request: a valid key of the address takes precedence
+    /// over the cookie; invalid values are skipped. The width comes only from the cookie `baruch_vw` (laptop.ts).
     pub fn from_request(cookie_header: Option<&str>, query: Option<&str>) -> LaptopState {
         let mode = query_value(query, "laptop", Mode::from_query).unwrap_or_else(|| {
             match cookie(cookie_header, "baruch_laptop") {
@@ -153,29 +153,29 @@ impl LaptopState {
         LaptopState { mode, width, lrail: rail("lrail", "baruch_lrail"), rrail: rail("rrail", "baruch_rrail") }
     }
 
-    /// Band kompakt: „an“ oder automatisch bei mittlerer bzw. schmaler Breite.
+    /// Ribbon compact: „an“ or automatic at medium or narrow width.
     pub fn compact(&self) -> bool {
         self.mode == Mode::On || (self.mode == Mode::Auto && matches!(self.width, Width::Medium | Width::Small))
     }
 
-    /// Seitenleisten eingeklappt: „an“ oder automatisch bei schmaler Breite.
+    /// Side rails collapsed: „an“ or automatic at narrow width.
     pub fn narrow(&self) -> bool {
         self.mode == Mode::On || (self.mode == Mode::Auto && self.width == Width::Small)
     }
 
-    /// Gliederung eingeklappt.
+    /// Outline collapsed.
     pub fn rail_left(&self) -> bool {
         self.narrow() || self.lrail
     }
 
-    /// Rechte Spalte eingeklappt.
+    /// Right column collapsed.
     pub fn rail_right(&self) -> bool {
         self.narrow() || self.rrail
     }
 
-    /// z. B. `data-laptop="auto" data-compact data-rail-left` (ohne führendes Leerzeichen, feste Reihenfolge:
+    /// e.g. `data-laptop="auto" data-compact data-rail-left` (without a leading space, fixed order:
     /// data-laptop, data-compact, data-narrow, data-rail-left, data-rail-right)
-    /// Nur feste Zeichenketten – kein Wert aus Adresse oder Cookie gelangt in die Seite.
+    /// Only fixed strings – no value from address or cookie reaches the page.
     pub fn html_attrs(&self) -> String {
         let mut attrs = format!("data-laptop=\"{}\"", self.mode.name());
         for (on, attr) in [
@@ -192,7 +192,7 @@ impl LaptopState {
     }
 }
 
-/// Ein Jahr, wie die Cookies der Oberfläche (`store` in web/src/widgets.ts).
+/// One year, like the cookies of the user interface (`store` in web/src/widgets.ts).
 const COOKIE_MAX_AGE: u32 = 31_536_000;
 
 fn keep(name: &str, value: &str) -> String {
@@ -203,11 +203,11 @@ fn forget(name: &str) -> String {
     format!("{name}=; Path=/; Max-Age=0; SameSite=Lax")
 }
 
-/// Fertige Set-Cookie-Werte für gültige Schlüssel laptop/lrail/rrail in der Adresse.
+/// Finished Set-Cookie values for valid keys laptop/lrail/rrail in the address.
 ///
-/// `laptop=on|off` und `lrail=1`/`rrail=1` werden gemerkt; die Vorgaben (`laptop=auto`, `lrail=0`, `rrail=0`)
-/// löschen das Cookie (`Max-Age=0`), denn „fehlt“ heißt automatisch bzw. sichtbar. Ungültiges liefert nichts.
-/// Die Werte sind feste Zeichenketten, nie Text aus der Adresse.
+/// `laptop=on|off` and `lrail=1`/`rrail=1` are remembered; the defaults (`laptop=auto`, `lrail=0`, `rrail=0`)
+/// delete the cookie (`Max-Age=0`), because „fehlt“ means automatic or visible. Invalid values yield nothing.
+/// The values are fixed strings, never text from the address.
 pub fn set_cookies(query: Option<&str>) -> Vec<String> {
     let mut cookies = Vec::new();
     match query_value(query, "laptop", Mode::from_query) {
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn width_classes_follow_the_thresholds() {
-        // Vertrag §2: w ab 1600 px, m von 1280 bis 1599, s darunter – die Grenzen selbst gehören zur breiteren Klasse.
+        // Contract §2: w from 1600 px, m from 1280 to 1599, s below – the limits themselves belong to the wider class.
         assert_eq!(Width::from_px(1600), Width::Wide, "1600 px ist nicht mehr „unter 1600“");
         assert_eq!(Width::from_px(1599), Width::Medium, "knapp unter der Schwelle wird das Band kompakt");
         assert_eq!(Width::from_px(1280), Width::Medium, "1280 px ist nicht mehr „unter 1280“");
@@ -246,12 +246,12 @@ mod tests {
     #[test]
     fn effective_state_follows_mode_and_width() {
         let state = |mode, width| LaptopState { mode, width, lrail: false, rrail: false };
-        // Automatisch: die Breite entscheidet.
+        // Automatic: the width decides.
         assert!(!state(Mode::Auto, Width::Wide).compact(), "breit und automatisch: volles Band");
         assert!(state(Mode::Auto, Width::Medium).compact(), "mittel und automatisch: Band kompakt");
         assert!(!state(Mode::Auto, Width::Medium).narrow(), "mittel: die Seitenleisten bleiben offen");
         assert!(state(Mode::Auto, Width::Small).narrow(), "schmal und automatisch: Seitenleisten eingeklappt");
-        // „An“ und „Aus“ gelten unabhängig von der Breite (ohne JavaScript kennt der Server sie nicht).
+        // „An“ and „Aus“ apply regardless of the width (without JavaScript the server does not know it).
         assert!(
             state(Mode::On, Width::Wide).compact() && state(Mode::On, Width::Wide).narrow(),
             "„an“ wirkt auch breit"
@@ -260,7 +260,7 @@ mod tests {
             !state(Mode::Off, Width::Small).compact() && !state(Mode::Off, Width::Small).narrow(),
             "„aus“ hält auch ein schmales Fenster im vollen Zustand"
         );
-        // Einzeln eingeklappte Leisten gelten zusätzlich.
+        // Individually collapsed rails apply in addition.
         let left = LaptopState { lrail: true, ..LaptopState::default() };
         assert!(left.rail_left() && !left.rail_right(), "nur die Gliederung ist eingeklappt");
         let narrow = state(Mode::On, Width::Wide);
@@ -293,8 +293,8 @@ mod tests {
 
     #[test]
     fn invalid_values_are_skipped() {
-        // Werte aus Cookie und Adresse kommen vom Browser bzw. aus einem Link: Unbekanntes darf weder wirken noch
-        // in die Seite gelangen.
+        // Values from cookie and address come from the browser or from a link: unknown values must neither take effect
+        // nor reach the page.
         let state = LaptopState::from_request(
             Some("baruch_laptop=\"><b>; baruch_vw=x; baruch_lrail=ja; baruch_rrail=2"),
             Some("laptop=%22%3E%3Cscript%3E&lrail=2&rrail=on&laptop"),
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn the_formula_holds_for_every_combination_of_mode_and_width() {
-        // Vertrag §2, „Wirksamer Zustand“ – alle neun Kombinationen, je mit allen Stellungen der Leisten-Schalter.
+        // Contract §2, „Wirksamer Zustand“ – all nine combinations, each with all positions of the rail switches.
         for mode in [Mode::Auto, Mode::On, Mode::Off] {
             for width in [Width::Wide, Width::Medium, Width::Small] {
                 let compact = mode == Mode::On || (mode == Mode::Auto && width != Width::Wide);
@@ -383,7 +383,7 @@ mod tests {
             "data-laptop=\"off\" data-rail-left",
             "„aus“ hält das Band voll; eine einzeln eingeklappte Leiste gilt trotzdem"
         );
-        // Nur feste Zeichenketten: Jede Ausgabe besteht aus dem Modus und einer Teilmenge der vier Attribute.
+        // Only fixed strings: every output consists of the mode and a subset of the four attributes.
         let allowed = ["data-compact", "data-narrow", "data-rail-left", "data-rail-right"];
         for mode in [Mode::Auto, Mode::On, Mode::Off] {
             for width in [Width::Wide, Width::Medium, Width::Small] {

@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Das Buch als PDF (Vertrag Runde 11, Abschnitt 4): dieselbe Quelle wie die Satz-Ansicht
-//! ([`crate::typeset::prepare`]: Werkvorlage, aktuelle Fassungen, Bilder, Rahmen mit Umschlag und
-//! Titelei), gesetzt mit [`baruch_render::compile_pdf`] – darum dieselbe Seitenzahl.
+//! The book as PDF (contract Round 11, section 4): the same source as the typeset view
+//! ([`crate::typeset::prepare`]: work template, current revisions, images, frame with cover and
+//! front matter), typeset with [`baruch_render::compile_pdf`] – hence the same number of pages.
 //!
-//! - **Lauf:** in `spawn_blocking`, unter derselben Sperre wie die Vorschau ([`crate::typeset`],
-//!   ein Typst-Lauf zur Zeit), mit Zeitlimit [`PDF_TIMEOUT`]. Je Werk höchstens **eine** PDF-Erzeugung
-//!   (Buch oder Umschlag); eine zweite gleichzeitige → `REFUSED` „Für dieses Werk entsteht gerade ein
-//!   PDF …“. Läuft die Zeit ab, rechnet Typst im Hintergrund zu Ende (hält Sperre und Werk so lange),
-//!   das Ergebnis wird verworfen.
-//! - **Fehler:** Scheitert der Satz, gibt es **kein** PDF (nie eine halbe Datei), sondern `REFUSED` mit
-//!   der ersten Meldung und der Zahl der Fehler; die Seite antwortet 422 mit allen Meldungen und Links zu
-//!   den Abschnitten.
+//! - **Run:** in `spawn_blocking`, under the same lock as the preview ([`crate::typeset`],
+//!   one Typst run at a time), with the time limit [`PDF_TIMEOUT`]. Per work at most **one** PDF generation
+//!   (book or cover); a second simultaneous one → `REFUSED` „Für dieses Werk entsteht gerade ein
+//!   PDF …“. If the time runs out, Typst finishes computing in the background (holds lock and work that long),
+//!   the result is discarded.
+//! - **Errors:** if the typesetting fails, there is **no** PDF (never half a file) but `REFUSED` with
+//!   the first message and the number of errors; the page answers 422 with all messages and links to
+//!   the sections.
 //! - **RPC** `work.pdf {work, inline?}` → `{file_name, pages, bytes, sha256, url, print, pdf_base64?}`
-//!   ([`call`]); **Seite** `GET /werke/{id}/pdf[?entwurf=1|0]` → `application/pdf` als Anhang `<slug>.pdf` (409 läuft
-//!   schon, 422 Satzfehler, 503 Zeit abgelaufen; [`pages`]); **CLI** `baruch-server export <werk> --pdf
-//!   DATEI` ([`write_pdf_file`]). Nur lesend: kein Commit.
-//! - **Fremde Seiten (Runde 18a):** `GET /werke/{id}/pdf` mit `Sec-Fetch-Site: cross-site|same-site` → 403 ohne
-//!   Typst-Lauf ([`crate::guard::cross_site_get`]); [`pdf_runs`] zählt die begonnenen Erzeugungen (für Tests).
-//! - **Stichwortzettel (Runde 16c):** Untermodul [`notes`] – RPC `notes.get`/`notes.pdf`, Seiten
-//!   `/werke/{id}/stichwortzettel` und `/werke/{id}/stichwortzettel.pdf`, CLI `export … --stichwort DATEI`;
-//!   dieselbe Erzeugung (eine je Werk, Sperre, Zeitlimit) wie Buch und Umschlag.
-//! - **Entwurf (Runde 22):** `work.pdf {draft?}`, `notes.pdf {draft?}` und `?entwurf=1|0` an beiden Downloads – fehlt
-//!   der Schalter, gilt die Satz-Einstellung `draft`; `true`/`1` setzt das Wasserzeichen (gespeicherte Werte, sonst
-//!   Vorgabe), `false`/`0` lässt es weg. Die Einstellung ändert sich nie ([`crate::typeset::effective_draft`]).
+//!   ([`call`]); **page** `GET /werke/{id}/pdf[?entwurf=1|0]` → `application/pdf` as attachment `<slug>.pdf` (409
+//!   already running, 422 typesetting error, 503 time ran out; [`pages`]); **CLI** `baruch-server export <werk> --pdf
+//!   DATEI` ([`write_pdf_file`]). Read-only: no commit.
+//! - **Foreign pages (Round 18a):** `GET /werke/{id}/pdf` with `Sec-Fetch-Site: cross-site|same-site` → 403 without
+//!   a Typst run ([`crate::guard::cross_site_get`]); [`pdf_runs`] counts the generations begun (for tests).
+//! - **Cue notes (Round 16c):** submodule [`notes`] – RPC `notes.get`/`notes.pdf`, pages
+//!   `/werke/{id}/stichwortzettel` and `/werke/{id}/stichwortzettel.pdf`, CLI `export … --stichwort DATEI`;
+//!   the same generation (one per work, lock, time limit) as book and cover.
+//! - **Draft (Round 22):** `work.pdf {draft?}`, `notes.pdf {draft?}` and `?entwurf=1|0` on both downloads – if the
+//!   switch is missing, the typeset setting `draft` applies; `true`/`1` sets the watermark (stored values, otherwise
+//!   the default), `false`/`0` leaves it out. The setting never changes ([`crate::typeset::effective_draft`]).
 
 pub mod notes;
 
@@ -46,26 +46,26 @@ use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::typeset::{self, Compiled, Typeset};
 use crate::view::Settings;
 
-/// Begonnene PDF-Erzeugungen im Prozess (Runde 18a).
+/// PDF generations begun in the process (Round 18a).
 static PDF_RUNS: AtomicU64 = AtomicU64::new(0);
 
-/// Zahl der begonnenen PDF-Erzeugungen im Prozess (für Tests unter `common::PDF_SERIAL`).
+/// Number of PDF generations begun in the process (for tests under `common::PDF_SERIAL`).
 #[doc(hidden)]
 pub fn pdf_runs() -> u64 {
     PDF_RUNS.load(Ordering::SeqCst)
 }
 
-/// Zeitlimit einer PDF-Erzeugung.
+/// Time limit of a PDF generation.
 pub const PDF_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Welches PDF: das Buch oder der Umschlag für die Druckerei (beide über [`source_to_pdf`]).
+/// Which PDF: the book or the cover for the print shop (both through [`source_to_pdf`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PdfKind {
     Book,
     Cover,
-    /// Stichwortzettel (Runde 16c, [`notes`]).
+    /// Cue notes (Round 16c, [`notes`]).
     Notes,
-    /// Mindmap (Runde 25/34, `crate::idea_map::files`): die Mindmap der Einfälle als eine Seite.
+    /// Mind map (Round 25/34, `crate::idea_map::files`): the mind map of the ideas as one page.
     Map,
 }
 
@@ -80,18 +80,18 @@ impl PdfKind {
     }
 }
 
-/// Ein fertiges PDF.
+/// A finished PDF.
 #[derive(Debug, Clone)]
 pub struct PdfOut {
     pub bytes: Vec<u8>,
     pub pages: usize,
     pub stand: String,
     pub print: Vec<PrintWarning>,
-    /// Dauer des Typst-Laufs in Millisekunden.
+    /// Duration of the Typst run in milliseconds.
     pub millis: u64,
 }
 
-/// Meldung, wenn für das Werk schon ein PDF entsteht.
+/// Message when a PDF is already being generated for the work.
 pub const BUSY: &str = "Für dieses Werk entsteht gerade ein PDF; bitte warten und dann noch einmal versuchen.";
 
 fn busy_works() -> std::sync::MutexGuard<'static, BTreeSet<WorkId>> {
@@ -99,7 +99,7 @@ fn busy_works() -> std::sync::MutexGuard<'static, BTreeSet<WorkId>> {
     BUSY_WORKS.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Markierung „für dieses Werk entsteht ein PDF“; fällt beim Verwerfen weg.
+/// Marker „für dieses Werk entsteht ein PDF“; goes away when dropped.
 #[derive(Debug)]
 pub struct PdfBusy(WorkId);
 
@@ -109,26 +109,26 @@ impl Drop for PdfBusy {
     }
 }
 
-/// Werk als „PDF entsteht“ markieren; `None`, wenn es das schon ist. Für Tests öffentlich (zweite
-/// gleichzeitige Erzeugung nachstellen).
+/// Mark the work as „PDF entsteht“; `None` if it already is. Public for tests (to reproduce a second
+/// simultaneous generation).
 #[doc(hidden)]
 pub fn claim(work: WorkId) -> Option<PdfBusy> {
-    // Erst eintragen, die Sperre der Menge freigeben, dann die Markierung bauen: `then_some(PdfBusy(…))`
-    // würde die Markierung auch bei „schon belegt“ bauen und verwerfen – ihr Drop nähme die Sperre ein
-    // zweites Mal (Verklemmung) und striche das Werk der laufenden Erzeugung aus der Menge.
+    // First insert, release the lock of the set, then build the marker: `then_some(PdfBusy(…))`
+    // would build and drop the marker also for „schon belegt“ – its Drop would take the lock a
+    // second time (deadlock) and strike the work of the running generation from the set.
     let inserted = busy_works().insert(work);
     inserted.then(|| PdfBusy(work))
 }
 
-/// Warum keine PDF-Datei entstand (für Status und Fehlerseite).
+/// Why no PDF file was created (for status and error page).
 enum Failed {
-    /// Für das Werk läuft schon eine Erzeugung (409).
+    /// A generation is already running for the work (409).
     Busy(RpcError),
-    /// Zeitlimit abgelaufen (503).
+    /// Time limit ran out (503).
     Timeout(RpcError),
-    /// Typst meldete Fehler (422); das Ergebnis trägt die Meldungen.
+    /// Typst reported errors (422); the result carries the messages.
     Typst(Box<Pdf>, RpcError),
-    /// Sonst (Sperre, Absturz).
+    /// Otherwise (lock, crash).
     Other(RpcError),
 }
 
@@ -140,7 +140,7 @@ impl Failed {
     }
 }
 
-/// `REFUSED` mit der ersten Fehlermeldung (mit Zeile bzw. Datei) und der Zahl der Fehler.
+/// `REFUSED` with the first error message (with line or file) and the number of errors.
 fn typst_refusal(kind: PdfKind, pdf: &Pdf) -> RpcError {
     let errors: Vec<_> = pdf.diagnostics.iter().filter(|d| d.severity == baruch_render::Severity::Error).collect();
     let first = errors.first().map_or_else(
@@ -170,8 +170,8 @@ async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) 
             .await
             .map_err(|e| Failed::Other(RpcError::new(INTERNAL, format!("Typst-Sperre: {e}"))))?;
         let handle = tokio::task::spawn_blocking(move || {
-            // Sperre und Werk gehören dem Lauf: Läuft die Zeit ab, rechnet Typst zu Ende und gibt
-            // beides erst dann frei.
+            // Lock and work belong to the run: if the time runs out, Typst finishes computing and releases
+            // both only then.
             let _permit = permit;
             let _busy = busy;
             PDF_RUNS.fetch_add(1, Ordering::SeqCst);
@@ -186,8 +186,8 @@ async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) 
         let message = format!("Typst brauchte länger als {}", typeset::seconds(limit));
         Failed::Timeout(RpcError::new(REFUSED, message))
     };
-    // `tokio::time::timeout` pollt zuerst den Lauf: Ist er schneller fertig, als der Zeitgeber feuert, kommt
-    // `Ok` auch nach Ablauf des Limits (bei 0 immer möglich). Darum zählt zusätzlich die gemessene Zeit.
+    // `tokio::time::timeout` polls the run first: if it finishes faster than the timer fires, `Ok` comes
+    // even after the limit has passed (always possible at 0). Therefore the measured time counts in addition.
     let (pdf, millis) = match tokio::time::timeout(limit, run).await {
         Ok(_) if begun.elapsed() >= limit => return Err(timeout()),
         Ok(result) => result?,
@@ -204,26 +204,26 @@ async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) 
     }
 }
 
-/// Quelle als PDF setzen (Buch oder Umschlag): höchstens eine Erzeugung je Werk, dieselbe Sperre wie
-/// die Vorschau, Zeitlimit `limit`. Fehler: `REFUSED` (läuft schon, Satzfehler mit erster Meldung und
-/// Zahl, „Typst brauchte länger als …“); nie halbe Bytes.
+/// Typeset the source as PDF (book or cover): at most one generation per work, the same lock as
+/// the preview, time limit `limit`. Errors: `REFUSED` (already running, typesetting error with first message and
+/// number, „Typst brauchte länger als …“); never half the bytes.
 pub async fn source_to_pdf(work: WorkId, kind: PdfKind, source: Source, limit: Duration) -> Result<PdfOut, RpcError> {
     generate(work, kind, source, limit).await.map_err(Failed::into_rpc)
 }
 
-/// Das Buch als PDF: [`typeset::prepare`] (mit Rahmen) und [`source_to_pdf`].
+/// The book as PDF: [`typeset::prepare`] (with frame) and [`source_to_pdf`].
 pub async fn book_pdf(state: &AppState, work: WorkId) -> Result<PdfOut, RpcError> {
     book_pdf_with_limit(state, work, PDF_TIMEOUT).await
 }
 
-/// Wie [`book_pdf`] mit eigenem Zeitlimit (Tests mit kurzem Limit).
+/// Like [`book_pdf`] with its own time limit (tests with a short limit).
 #[doc(hidden)]
 pub async fn book_pdf_with_limit(state: &AppState, work: WorkId, limit: Duration) -> Result<PdfOut, RpcError> {
     book_pdf_draft(state, work, limit, None).await
 }
 
-/// Das Buch als PDF mit dem dreiwertigen Entwurf-Schalter (Runde 22, [`typeset::prepare_with`]); die Einstellung
-/// bleibt unverändert.
+/// The book as PDF with the three-valued draft switch (Round 22, [`typeset::prepare_with`]); the setting
+/// stays unchanged.
 pub async fn book_pdf_draft(
     state: &AppState,
     work: WorkId,
@@ -248,7 +248,7 @@ fn flag(params: &Value, name: &str) -> Result<bool, RpcError> {
     }
 }
 
-/// Antwort auf `work.pdf` (ohne die Bytes selbst, außer mit `inline`).
+/// Answer to `work.pdf` (without the bytes themselves, except with `inline`).
 pub fn answer(slug: &str, work: WorkId, pdf: &PdfOut, inline: bool) -> Value {
     let mut answer = json!({
         "file_name": format!("{slug}.pdf"),
@@ -267,8 +267,8 @@ pub fn answer(slug: &str, work: WorkId, pdf: &PdfOut, inline: bool) -> Value {
 }
 
 /// `work.pdf {work, inline?: bool = false, draft?: bool}` → `{file_name, pages, bytes, sha256, url, print, stand,
-/// millis, pdf_base64?}`. Herunterladen geht über `url`; `inline: true` liefert das PDF als Base64 mit. Runde 22:
-/// `draft` fehlt = Wasserzeichen nach Satz-Einstellung, `true` = mit, `false` = ohne (die Einstellung bleibt).
+/// millis, pdf_base64?}`. Downloading goes through `url`; `inline: true` also delivers the PDF as Base64. Round 22:
+/// `draft` missing = watermark by typeset setting, `true` = with, `false` = without (the setting stays).
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     if notes::handles(method) {
         return notes::call(state, work, method, params).await;
@@ -287,10 +287,10 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     Ok(answer)
 }
 
-// ---- Seite -------------------------------------------------------------------------------------
+// ---- Page --------------------------------------------------------------------------------------
 
-/// `GET /werke/{id}/pdf`, `GET /werke/{id}/stichwortzettel` und `GET /werke/{id}/stichwortzettel.pdf` (nur
-/// lesen).
+/// `GET /werke/{id}/pdf`, `GET /werke/{id}/stichwortzettel` and `GET /werke/{id}/stichwortzettel.pdf` (read
+/// only).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/pdf", get(download))
@@ -298,8 +298,8 @@ pub fn pages() -> Router<Arc<AppState>> {
         .route("/werke/{id}/stichwortzettel.pdf", get(notes::notes_download))
 }
 
-/// PDF als Anhang: `Content-Disposition: attachment; filename="<name>"`. Der Name besteht aus dem slug
-/// (`[a-z0-9-]`) und darf darum ohne Maskierung in die Kopfzeile.
+/// PDF as an attachment: `Content-Disposition: attachment; filename="<name>"`. The name consists of the slug
+/// (`[a-z0-9-]`) and may therefore go into the header without escaping.
 pub fn attachment(file_name: &str, bytes: Vec<u8>) -> Response {
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{file_name}\""))
         .unwrap_or_else(|_| HeaderValue::from_static("attachment"));
@@ -317,7 +317,7 @@ pub fn attachment(file_name: &str, bytes: Vec<u8>) -> Response {
 
 #[derive(serde::Deserialize)]
 struct DownloadQuery {
-    /// Runde 22: Wasserzeichen dreiwertig (`1` mit, `0` ohne, fehlt = nach Einstellung).
+    /// Round 22: watermark three-valued (`1` with, `0` without, missing = by setting).
     entwurf: Option<String>,
 }
 
@@ -357,7 +357,7 @@ async fn download(
         Failed::Timeout(e) => (StatusCode::SERVICE_UNAVAILABLE, e.message, Vec::new()),
         Failed::Other(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.message, Vec::new()),
         Failed::Typst(pdf, e) => {
-            // Meldungen über die Karte auf die Abschnitte zurückführen (wie in der Satz-Ansicht).
+            // Trace messages back to the sections through the map (as in the typeset view).
             let rendered = baruch_render::Rendered {
                 stand: pdf.stand.clone(),
                 pages: Vec::new(),
@@ -381,11 +381,11 @@ async fn download(
     typeset::render(status, ctx)
 }
 
-// ---- Kommandozeile -----------------------------------------------------------------------------
+// ---- Command line ------------------------------------------------------------------------------
 
-/// `baruch-server export <werk> --pdf DATEI`: das Buch als PDF nach `target`. Gibt es die Datei schon,
-/// wird nichts geschrieben; scheitert der Satz, entsteht keine Datei. Ergebnis: das PDF (für die
-/// Ausgabe der CLI).
+/// `baruch-server export <werk> --pdf DATEI`: the book as PDF to `target`. If the file already exists,
+/// nothing is written; if the typesetting fails, no file is created. Result: the PDF (for the
+/// output of the CLI).
 pub async fn write_pdf_file(state: &AppState, work: WorkId, target: &std::path::Path) -> Result<PdfOut, String> {
     if std::fs::symlink_metadata(target).is_ok() {
         return Err(format!("{} gibt es schon; nichts überschrieben", target.display()));
@@ -395,8 +395,8 @@ pub async fn write_pdf_file(state: &AppState, work: WorkId, target: &std::path::
     Ok(pdf)
 }
 
-/// `bytes` in eine neue Datei schreiben (`create_new`: eine vorhandene bleibt unberührt); scheitert das
-/// Schreiben, wird die halbe Datei entfernt.
+/// Write `bytes` into a new file (`create_new`: an existing one stays untouched); if the writing
+/// fails, the half file is removed.
 async fn write_new_file(target: &std::path::Path, bytes: Vec<u8>) -> Result<(), String> {
     let path = target.to_owned();
     tokio::task::spawn_blocking(move || -> Result<(), String> {
@@ -408,7 +408,7 @@ async fn write_new_file(target: &std::path::Path, bytes: Vec<u8>) -> Result<(), 
             .open(&path)
             .map_err(|e| format!("{shown} lässt sich nicht schreiben: {e}"))?;
         if let Err(e) = file.write_all(&bytes).and_then(|()| file.sync_all()) {
-            // Keine halbe Datei liegen lassen.
+            // Leave no half file lying around.
             drop(file);
             let _ = std::fs::remove_file(&path);
             return Err(format!("{shown} lässt sich nicht schreiben: {e}"));

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge für Einfälle (Vertrag Runde 7, Abschnitt 6f): `idea_create` (auch als `add_idea`), `idea_read`,
-//! `idea_list`, `idea_search`, `idea_update`, `idea_delete`; seit Runde 34 (Mindmap) `idea_move` (umhängen, ordnen,
-//! in die Wolke) und an `idea_create`/`idea_update` `title`, `parent`, `before`, `cloud`.
+//! MCP tools for ideas (contract Round 7, section 6f): `idea_create` (also as `add_idea`), `idea_read`,
+//! `idea_list`, `idea_search`, `idea_update`, `idea_delete`; since Round 34 (mind map) `idea_move` (re-parent,
+//! order, into the cloud) and on `idea_create`/`idea_update` `title`, `parent`, `before`, `cloud`.
 //!
-//! Ausnahme von der Assistenten-Regel (Entscheidung IDEA_CRUD): Einfälle ändern keinen Buchtext,
-//! darum dürfen Assistenten und MCP-Clients sie anlegen, ändern und löschen (wiederherstellbar über
-//! `idea.restore` und den Git-Spiegel). Herkunft ist `persona` (muss es geben, sonst `isError`) oder
-//! der Client als `@mcp:<name>`; jede Aktion ist ein Commit mit dieser Herkunft
-//! ([`crate::mirror::record_idea`]). Ergebnisse wie die RPC-Methoden ([`crate::ideas`]).
+//! Exception from the assistant rule (decision IDEA_CRUD): ideas change no book text,
+//! therefore assistants and MCP clients may create, change and delete them (restorable through
+//! `idea.restore` and the Git mirror). The origin is `persona` (must exist, otherwise `isError`) or
+//! the client as `@mcp:<name>`; every action is a commit with this origin
+//! ([`crate::mirror::record_idea`]). Results like the RPC methods ([`crate::ideas`]).
 //!
-//! Verarbeiten (Gliederungspunkt, Beitrag, Notiz) bleibt dem Menschen in der Oberfläche bzw. über RPC.
-// Der Lektor kennt die Einfälle als Gedächtnis (Runde 10, `crate::assist::context`); ein eigenes Werkzeug
-// dafür gibt es nicht (ask_persona/chat genügen).
+//! Processing (outline item, post, note) stays with the human in the user interface or through RPC.
+// The lector knows the ideas as memory (Round 10, `crate::assist::context`); there is no tool of its
+// own for that (ask_persona/chat are enough).
 
 use baruch_store::{IdeaEdit, IdeaFilter, IdeaMove, IdeaOrigin, IdeaScope, IdeaSpot, IdeaStatus, NewIdea, WorkId};
 use serde::Deserialize;
@@ -22,8 +22,8 @@ use super::tools::{Failure, WorkRef, args, resolve, tool_error, work_schema};
 use crate::AppState;
 use crate::rpc::RpcError;
 
-/// Namen der Werkzeuge dieses Moduls (in der Reihenfolge von `tools/list`).
-/// `add_idea` ist ein zweiter Name für `idea_create` (Wunsch des Nutzers 2026-11-06, Name aus dem Backlog).
+/// Names of the tools of this module (in the order of `tools/list`).
+/// `add_idea` is a second name for `idea_create` (wish of the user 2026-11-06, name from the backlog).
 pub const NAMES: &[&str] =
     &["idea_create", "add_idea", "idea_read", "idea_list", "idea_search", "idea_update", "idea_delete", "idea_move"];
 
@@ -104,12 +104,12 @@ pub fn move_schema() -> Value {
         "persona": persona_schema() } })
 }
 
-/// Herkunft: `persona` (muss es geben) oder der Client als `@mcp:<name>`.
+/// Origin: `persona` (must exist) or the client as `@mcp:<name>`.
 async fn origin(state: &AppState, client: &Client, persona: Option<&str>) -> Result<IdeaOrigin, Failure> {
     super::tools::origin_of(&state.store, client, persona).await
 }
 
-/// Werkfilter: fehlt → alle, `"none"` → ohne Werk, sonst id oder slug.
+/// Work filter: missing → all, `"none"` → without a work, otherwise id or slug.
 async fn scope(state: &AppState, work: Option<&WorkRef>) -> Result<IdeaScope, Failure> {
     match work {
         None => Ok(IdeaScope::All),
@@ -119,7 +119,7 @@ async fn scope(state: &AppState, work: Option<&WorkRef>) -> Result<IdeaScope, Fa
     }
 }
 
-/// Schlagwörter aus Liste oder Text.
+/// Keywords from a list or text.
 fn words(value: &Value) -> Result<Vec<String>, Failure> {
     crate::ideas::split_words(value, "words").map_err(|e| Failure::Args(format!("arguments: {}", e.message)))
 }
@@ -184,8 +184,8 @@ fn status(open: Option<bool>) -> Option<IdeaStatus> {
     open.map(|open| if open { IdeaStatus::Open } else { IdeaStatus::Done })
 }
 
-/// `url` eines Einfalls (als JSON) ergänzen (Vertrag Runde 8, §1): mit Bezug `/?work=W&key=K`, nur mit
-/// Werk `/?work=W`, sonst `null`.
+/// Add the `url` of an idea (as JSON) (contract Round 8, §1): with a reference `/?work=W&key=K`, with only
+/// a work `/?work=W`, otherwise `null`.
 pub(crate) fn add_url(idea: &mut Value) {
     if !idea.is_object() {
         return;
@@ -197,7 +197,7 @@ pub(crate) fn add_url(idea: &mut Value) {
     };
 }
 
-/// In einer Antwort jeden Einfall (`idea` bzw. jeden in `ideas`) mit `url` versehen.
+/// Give every idea in an answer (`idea` or each one in `ideas`) a `url`.
 fn with_urls(mut answer: Value) -> Value {
     if let Some(idea) = answer.get_mut("idea") {
         add_url(idea);
@@ -208,7 +208,7 @@ fn with_urls(mut answer: Value) -> Value {
     answer
 }
 
-/// Werkzeug ausführen; `None`: kein Werkzeug dieses Moduls. Jeder Einfall der Antwort trägt `url`.
+/// Run the tool; `None`: not a tool of this module. Every idea of the answer carries `url`.
 pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Value) -> Option<Result<Value, Failure>> {
     let answer = run(state, client, name, arguments).await?;
     Some(answer.map(with_urls))
@@ -233,7 +233,7 @@ fn from_rpc(e: RpcError) -> Failure {
 
 async fn idea_create(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     let a: CreateArgs = args(arguments)?;
-    // Runde 34: mit Titel dürfen die Schlagwörter fehlen.
+    // Round 34: with a title the keywords may be missing.
     let words = if a.words.is_null() {
         if a.title.trim().is_empty() {
             return Err(Failure::Args("arguments: words is missing (at least one keyword or a title)".into()));
@@ -247,7 +247,7 @@ async fn idea_create(state: &AppState, client: &Client, arguments: Value) -> Res
         None => None,
     };
     if let (None, Some(parent)) = (work, a.parent) {
-        // Ein Unterknoten gehört zum Werk seines Elternknotens.
+        // A child node belongs to the work of its parent node.
         work = state.store.idea_get(parent).await?.work;
     }
     if a.cloud == Some(true) && (a.parent.is_some() || a.key.is_some()) {
@@ -288,8 +288,8 @@ async fn idea_list(state: &AppState, arguments: Value) -> Result<Value, Failure>
 
 async fn idea_search(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     let a: SearchArgs = args(arguments)?;
-    // Runde 19c: Bedeutungssuche wie RPC `idea.search` mit `mode: "rag"` (nur lesend); ein Ausfall (-32001) wird
-    // isError mit dem Grund, schwache Treffer tragen `weak`.
+    // Round 19c: semantic search like RPC `idea.search` with `mode: "rag"` (read-only); a failure (-32001) becomes
+    // isError with the reason, weak hits carry `weak`.
     match a.mode.as_deref().map(str::trim) {
         None | Some("") | Some("fts") => {}
         Some("rag") => {
@@ -315,7 +315,7 @@ async fn idea_search(state: &AppState, arguments: Value) -> Result<Value, Failur
 async fn idea_update(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     let a: UpdateArgs = args(arguments.clone())?;
     let words = a.words.as_ref().filter(|w| !w.is_null()).map(words).transpose()?;
-    // `work`/`key`: fehlt = bleibt, null = ohne.
+    // `work`/`key`: missing = stays, null = without.
     let work = match arguments.get("work") {
         None => None,
         Some(Value::Null) => Some(None),
@@ -353,7 +353,7 @@ async fn idea_delete(state: &AppState, client: &Client, arguments: Value) -> Res
     crate::ideas::delete(state, a.id, &origin).await.map_err(from_rpc)
 }
 
-/// `parent`/`key`/`before` von `idea_move`: fehlt = bleibt, `null` = ohne, Zahl = setzen.
+/// `parent`/`key`/`before` of `idea_move`: missing = stays, `null` = without, number = set.
 fn optional_id(arguments: &Value, name: &str) -> Result<Option<Option<i64>>, Failure> {
     match arguments.get(name) {
         None => Ok(None),
@@ -365,8 +365,8 @@ fn optional_id(arguments: &Value, name: &str) -> Result<Option<Option<i64>>, Fai
     }
 }
 
-/// Runde 34: Einfall umhängen und ordnen wie RPC `idea.move`, mit Herkunft Persona bzw. `@mcp:<client>`. Eine
-/// verletzte Regel (anderes Werk, Kreis, Tiefe, gelöscht) ist ein fachlicher Fehler (isError), nichts geändert.
+/// Round 34: re-parent and order an idea like RPC `idea.move`, with origin persona or `@mcp:<client>`. A
+/// violated rule (other work, cycle, depth, deleted) is a domain error (isError), nothing changed.
 async fn idea_move(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     #[derive(Deserialize)]
     struct MoveArgs {

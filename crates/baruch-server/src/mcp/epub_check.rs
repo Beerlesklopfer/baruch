@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `epub_check` (Runde 20c, Besitz „epub-pruefung“): eigene Strukturprüfung des EPUB und Warnungen je
-//! Reader, nur lesend. Startet NIE EPUBCheck (das darf nur der Mensch über RPC/Formular): `run_check` bekommt hier
-//! fest `epubcheck = false`, die Antwort trägt `epubcheck: {status: "not_requested"}`. Eintrag in der Werkzeugliste
-//! und Aufruf setzt `tools.rs`.
+//! MCP tool `epub_check` (Round 20c, owned by „epub-pruefung“): own structure check of the EPUB and warnings per
+//! reader, read-only. NEVER starts EPUBCheck (only the human may do that through RPC/form): `run_check` here gets
+//! a fixed `epubcheck = false`, the answer carries `epubcheck: {status: "not_requested"}`. The entry in the tool
+//! list and the call are set by `tools.rs`.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -40,7 +40,7 @@ pub async fn call(state: &AppState, arguments: Value) -> Result<Value, Failure> 
     let work = work_or_default(state, a.work.as_ref()).await?;
     let readers = crate::epub_check::readers_of(&a.readers)?;
     let path = std::env::var_os("PATH");
-    // Nie EPUBCheck: fest `false`.
+    // Never EPUBCheck: fixed `false`.
     let checked = crate::epub_check::run_check(state, work, &readers, a.footnotes, false, path.as_deref()).await?;
     let mut answer = checked.to_json();
     answer["work"] = json!(work);

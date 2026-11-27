@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gemeinsamer MCP-Server unter `POST /mcp` (Plan: „Eigener Endpunkt je Persona“, eingehend).
+//! Common MCP server under `POST /mcp` (plan: „Eigener Endpunkt je Persona“, incoming).
 //!
-//! Model Context Protocol 2025-06-18 über Streamable HTTP, nur JSON-Antworten (kein SSE):
-//! `initialize`, `ping`, `tools/list`, `tools/call`; Benachrichtigungen → 202. Werkzeuge in
-//! [`tools`], Sitzungen (`Mcp-Session-Id` → `clientInfo`) in [`session`]. Beschreibung in
+//! Model Context Protocol 2025-06-18 over Streamable HTTP, JSON responses only (no SSE):
+//! `initialize`, `ping`, `tools/list`, `tools/call`; notifications → 202. Tools in
+//! [`tools`], sessions (`Mcp-Session-Id` → `clientInfo`) in [`session`]. Description in
 //! `docs/MCP.md`.
 //!
-//! Zugang (Runde 10): Die Route liegt hinter [`guard::same_origin`] (fremde Webseiten → 403).
-//! - Mit `Authorization: Bearer <Token>` prüft der Endpunkt den Token
-//!   ([`baruch_store::Store::mcp_token_verify`], nur der SHA-256-Hash liegt in SQLite). Gültig → Zugang von
-//!   jedem Rechner; der Client heißt wie der Token (Autor `@mcp:<tokenname>`, aus `clientInfo` gilt nur
-//!   die Version). Ungültig oder widerrufen → 401, auch über Loopback.
-//! - Ohne die Kopfzeile nimmt er wie bisher nur Anfragen über Loopback an (`127.0.0.1`, `::1`); alles
-//!   andere, auch eine Anfrage ohne bekannte Gegenstelle, bekommt 401.
+//! Access (Round 10): the route is behind [`guard::same_origin`] (foreign web pages → 403).
+//! - With `Authorization: Bearer <Token>` the endpoint checks the token
+//!   ([`baruch_store::Store::mcp_token_verify`], only the SHA-256 hash is in SQLite). Valid → access from
+//!   any machine; the client is named like the token (author `@mcp:<tokenname>`, from `clientInfo` only
+//!   the version applies). Invalid or revoked → 401, also over loopback.
+//! - Without the header it accepts, as before, only requests over loopback (`127.0.0.1`, `::1`); everything
+//!   else, also a request without a known peer, gets 401.
 //!
-//! Runde 23 (Handles): Der Autor ist `@mcp:` + [`session::handle_name`] (Umlaute umschrieben). Ein Client **ohne**
-//! Token, dessen Handle einem Token gehört (auch einem widerrufenen, Handle oder Alt-Handle), heißt
-//! `lokal-<name>` (Autor `@mcp:lokal-<handle>`, [`localize`]) – bei `initialize` und bei jeder Anfrage neu bestimmt,
-//! damit auch ein später angelegter Token gilt. So erlangt er weder Beiträge noch Kontingente des Token-Clients.
-//! „Persona ohne Token vom eigenen Rechner“ ([`tools::acting_persona`]) bleibt erlaubt: Loopback ist der Mensch
-//! selbst bzw. ein Programm, das er auf seinem Rechner gestartet hat (bewusste Entscheidung, docs/MCP.md).
+//! Round 23 (handles): the author is `@mcp:` + [`session::handle_name`] (umlauts transliterated). A client
+//! **without** a token whose handle belongs to a token (also a revoked one, handle or legacy handle) is named
+//! `lokal-<name>` (author `@mcp:lokal-<handle>`, [`localize`]) – determined anew at `initialize` and at every
+//! request, so that a token created later applies as well. This way it gains neither posts nor quotas of the token
+//! client. „Persona ohne Token vom eigenen Rechner“ ([`tools::acting_persona`]) stays allowed: loopback is the human
+//! himself or a program he started on his machine (deliberate decision, docs/MCP.md).
 //!
-//! Tokens verwaltet der Mensch auf der Einstellungsseite „MCP-Zugang“ bzw. über RPC `mcp_token.*`
-//! ([`tokens`]). Andere Pfade als `/mcp` sperrt [`guard::remote_only_mcp`] für fremde Rechner.
+//! The human manages tokens on the settings page „MCP-Zugang“ or through RPC `mcp_token.*`
+//! ([`tokens`]). Paths other than `/mcp` are locked for foreign machines by [`guard::remote_only_mcp`].
 
 pub mod assets;
 pub mod bibles;
@@ -62,20 +62,20 @@ use crate::{AppState, guard, rpc};
 use session::Client;
 use tools::Failure;
 
-/// Protokollversion, wenn der Client keine nennt.
+/// Protocol version if the client names none.
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
 
-/// Höchstens so viele JSON-RPC-Nachrichten in einem Stapel (Runde 23).
+/// At most this many JSON-RPC messages in one batch (Round 23).
 pub const MAX_BATCH: usize = 50;
 
-/// Kopfzeile der Sitzung (Anfrage und Antwort auf `initialize`).
+/// Header of the session (request and response to `initialize`).
 pub const SESSION_HEADER: &str = "mcp-session-id";
 
-/// Zustand einer HTTP-Anfrage: der Client (aus der Sitzung) und ggf. eine neu angelegte Sitzung.
+/// State of an HTTP request: the client (from the session) and possibly a newly created session.
 struct Exchange {
     client: Client,
     new_session: Option<String>,
-    /// Name des Tokens der Anfrage: Er ersetzt den Namen aus `clientInfo` (Autor `@mcp:<tokenname>`).
+    /// Name of the token of the request: it replaces the name from `clientInfo` (author `@mcp:<tokenname>`).
     token_name: Option<String>,
 }
 
@@ -86,7 +86,7 @@ fn answer(id: Value, result: Result<Value, (i64, String)>) -> Value {
     }
 }
 
-/// Ergebnis eines Werkzeugs in MCP-Form: Text (JSON) und `structuredContent`.
+/// Result of a tool in MCP form: text (JSON) and `structuredContent`.
 fn tool_result(value: Value) -> Value {
     json!({ "content": [{ "type": "text", "text": value.to_string() }], "structuredContent": value, "isError": false })
 }
@@ -101,9 +101,9 @@ fn client_info(params: &Value) -> Client {
     Client { name: text("name"), version: text("version"), ..Default::default() }
 }
 
-/// Runde 23: Namen eines Clients **ohne** Token gegen die Tokens abgrenzen ([`session::local_name`]); mit Token
-/// bleibt der Name der des Tokens, und es wird geprüft, ob der Token seinen Alt-Handle behält, weil erst die Regel
-/// seit Runde 23 ihn mit einem anderen Token zusammenlegte ([`session::keeps_legacy`]).
+/// Round 23: set the name of a client **without** a token apart from the tokens ([`session::local_name`]); with a
+/// token the name stays that of the token, and it is checked whether the token keeps its legacy handle because only
+/// the rule since Round 23 merged it with another token ([`session::keeps_legacy`]).
 async fn localize(state: &AppState, client: &mut Client) -> Result<(), baruch_store::StoreError> {
     let tokens = state.store.mcp_token_list().await?;
     let names = tokens.iter().map(|t| t.name.as_str());
@@ -116,7 +116,7 @@ async fn localize(state: &AppState, client: &mut Client) -> Result<(), baruch_st
     Ok(())
 }
 
-/// Eine MCP-Nachricht beantworten; `None` bei Benachrichtigungen (ohne `id`).
+/// Answer one MCP message; `None` for notifications (without `id`).
 async fn handle(state: &AppState, exchange: &mut Exchange, request: &Value) -> Option<Value> {
     let id = request.get("id").cloned()?;
     let method = request.get("method").and_then(Value::as_str);
@@ -227,7 +227,7 @@ async fn handle(state: &AppState, exchange: &mut Exchange, request: &Value) -> O
     Some(answer(id, result))
 }
 
-/// Darf die Gegenstelle ohne Token zugreifen? Nur Loopback (auch `::ffff:127.0.0.1`).
+/// May the peer access without a token? Only loopback (also `::ffff:127.0.0.1`).
 pub fn loopback(peer: Option<SocketAddr>) -> bool {
     peer.is_some_and(|p| p.ip().to_canonical().is_loopback())
 }
@@ -251,7 +251,7 @@ fn invalid_token() -> Response {
         .into_response()
 }
 
-/// Token aus `Authorization`: `None` ohne die Kopfzeile, `Some(None)` bei unlesbarer oder fremder Art.
+/// Token from `Authorization`: `None` without the header, `Some(None)` for an unreadable or foreign scheme.
 fn bearer(headers: &HeaderMap) -> Option<Option<&str>> {
     let value = headers.get(header::AUTHORIZATION)?;
     let token = value.to_str().ok().and_then(|v| {
@@ -261,7 +261,7 @@ fn bearer(headers: &HeaderMap) -> Option<Option<&str>> {
     Some(token)
 }
 
-/// `POST /mcp`: einzelne JSON-RPC-Nachricht oder Liste; nur Benachrichtigungen → 202 ohne Rumpf.
+/// `POST /mcp`: a single JSON-RPC message or a list; only notifications → 202 without a body.
 pub async fn endpoint(
     State(state): State<Arc<AppState>>,
     peer: Option<Extension<ConnectInfo<SocketAddr>>>,
@@ -275,8 +275,8 @@ pub async fn endpoint(
             Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {e}")).into_response(),
         },
         Some(None) => return invalid_token(),
-        // Runde 24: Unter einem zusätzlichen Rechnernamen kam die Anfrage über einen Proxy (Gegenstelle dann
-        // Loopback) und gilt nie als lokal.
+        // Round 24: under an additional host name the request came through a proxy (the peer is then
+        // loopback) and never counts as local.
         None if loopback(peer.map(|Extension(ConnectInfo(addr))| addr))
             && !guard::via_proxy(&state.allowed_hosts, &headers) =>
         {
@@ -293,7 +293,7 @@ pub async fn endpoint(
     };
     let known = headers.get(SESSION_HEADER).and_then(|v| v.to_str().ok()).and_then(session::client);
     let mut client = known.unwrap_or_else(|| Client { name: "unbekannt".to_owned(), ..Default::default() });
-    // Ohne Token gilt `token` nie, auch wenn die Sitzung mit einem Token angelegt wurde (Loopback).
+    // Without a token `token` never applies, even if the session was created with a token (loopback).
     client.token = false;
     if let Some(name) = &token_name {
         client.name.clone_from(name);
@@ -304,8 +304,8 @@ pub async fn endpoint(
     }
     let mut exchange = Exchange { client, new_session: None, token_name };
     let answers: Option<Value> = match &parsed {
-        // Runde 23 (Codereview ki-2): Ein Stapel trägt höchstens MAX_BATCH Nachrichten; sonst vervielfachte eine
-        // einzige Anfrage jedes Kontingent je Aufruf.
+        // Round 23 (code review ki-2): a batch carries at most MAX_BATCH messages; otherwise a
+        // single request would multiply every quota per call.
         Value::Array(batch) if batch.len() > MAX_BATCH => Some(answer(
             Value::Null,
             Err((

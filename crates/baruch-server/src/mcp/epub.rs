@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `epub_export` (Runde 20a, Besitz „epub“): das Werk als EPUB, nur lesend – Metadaten, Dateiliste,
-//! Warnungen und Adresse; die Bytes (Base64) nur mit `include_bytes` und höchstens [`MCP_EPUB_LIMIT`]. Eintrag in der
-//! Werkzeugliste und Aufruf setzt `tools.rs`.
+//! MCP tool `epub_export` (Round 20a, owned by „epub“): the work as EPUB, read-only – metadata, file list,
+//! warnings and address; the bytes (Base64) only with `include_bytes` and at most [`MCP_EPUB_LIMIT`]. The entry in
+//! the tool list and the call are set by `tools.rs`.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -12,7 +12,7 @@ use baruch_epub::FootnoteMode;
 
 pub const NAME: &str = "epub_export";
 
-/// Größte EPUB-Datei, die `epub_export` mit `include_bytes` als Base64 mitliefert (8 MiB).
+/// Largest EPUB file that `epub_export` delivers as Base64 with `include_bytes` (8 MiB).
 pub const MCP_EPUB_LIMIT: usize = 8 * 1024 * 1024;
 
 pub const DESCRIPTION: &str = "The work as EPUB 3 (with EPUB 2 fallback), read-only: metadata (title, author, \

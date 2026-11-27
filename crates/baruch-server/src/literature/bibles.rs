@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bibeln in der Literatur (Nutzerwunsch 2026-11-07, Runde 15 „auftraege“): die SWORD-Bibeln stehen neben den
-//! Titeln der Bibliothek – zum Lesen, Suchen, Zitieren und „an Persona geben“.
+//! Bibles in the literature (user request 2026-11-07, Round 15 „auftraege“): the SWORD Bibles stand next to the
+//! titles of the library – for reading, searching, quoting and „an Persona geben“.
 //!
-//! - Kasten „Bibeln“ (Popup und `/literatur`, Vorlage `fragments/literature_bibles.html`): die Bibelmodule aus
-//!   `bible.modules` (Einträge ohne `kind` gelten als Bibel, Kommentare und Lexika nicht), die Bibel des Werks
-//!   markiert und zuerst; je Bibel ein Link auf `/literatur/bibel`.
-//! - Treffergruppen im gemeinsamen Suchfeld (nur Wortlaut-Modus): „Bibel“ je Modul (Modulname, höchstens
-//!   [`HITS_PER_MODULE`] Treffer, höchstens [`SEARCH_MODULES`] Module, Zeitgrenze [`SEARCH_TIME`]) über
-//!   [`crate::bibles::search`] und „Kommentar“ als fertiger Baustein [`crate::bibles::commentary_hits_html`].
-//! - `GET /literatur/bibel?work&key&rev&lq&lmode&module&ref&book&chapter&q&kom` (ohne JavaScript): Bibel öffnen
-//!   (Bücherliste), Buch/Kapitel blättern ([`crate::bibles::lookup`] mit „Buch Kapitel“), Stelle aufschlagen
-//!   (`ref`, z. B. „Ps 139,23-24“), Wortlautsuche (`q`). Neben einer aufgeschlagenen Stelle der Baustein
-//!   [`crate::bibles::commentary_panel_html`] (`kom=1` klappt ihn auf). Ohne Bibel ein ehrlicher Hinweis mit Link zu
+//! - Box „Bibeln“ (popup and `/literatur`, template `fragments/literature_bibles.html`): the Bible modules from
+//!   `bible.modules` (entries without `kind` count as a Bible, commentaries and lexicons do not), the Bible of the
+//!   work marked and first; per Bible a link to `/literatur/bibel`.
+//! - Hit groups in the common search field (wording mode only): „Bibel“ per module (module name, at most
+//!   [`HITS_PER_MODULE`] hits, at most [`SEARCH_MODULES`] modules, time limit [`SEARCH_TIME`]) through
+//!   [`crate::bibles::search`] and „Kommentar“ as the ready-made building block
+//!   [`crate::bibles::commentary_hits_html`].
+//! - `GET /literatur/bibel?work&key&rev&lq&lmode&module&ref&book&chapter&q&kom` (without JavaScript): open a Bible
+//!   (list of books), browse book/chapter ([`crate::bibles::lookup`] with „Buch Kapitel“), look up a reference
+//!   (`ref`, e.g. „Ps 139,23-24“), wording search (`q`). Next to a reference that was looked up the building block
+//!   [`crate::bibles::commentary_panel_html`] (`kom=1` opens it). Without a Bible an honest notice with a link to
 //!   Einstellungen → Quellen.
-//! - `POST /literatur/bibel/act` (hinter `guard::same_origin`): `action=cite` legt ein Bibelzitat mit
-//!   Stellenangabe als Vorschlag-Revision an (Autor `@literatur`, Modell `baruch-zitat`, wie `highlight.cite`;
-//!   übernehmen kann nur der Mensch), `action=persona` gibt die Verse an eine Persona
-//!   ([`super::to_persona`], Quelle „Bibel MODUL, Stelle“). Der Text kommt immer aus dem Modul (Feld `ref`), nie
-//!   aus dem Formular. `action=highlight` gibt es nicht: Hervorhebungen gehören zu Titeln der Bibliothek (mit
-//!   Zitat und Zeichenbereich), eine Bibelstelle ist kein solcher Titel – die Seite sagt das ehrlich.
+//! - `POST /literatur/bibel/act` (behind `guard::same_origin`): `action=cite` creates a Bible quote with its
+//!   reference as a proposal revision (author `@literatur`, model `baruch-zitat`, like `highlight.cite`;
+//!   only the human can accept it), `action=persona` gives the verses to a persona
+//!   ([`super::to_persona`], source „Bibel MODUL, Stelle“). The text always comes from the module (field `ref`),
+//!   never from the form. `action=highlight` does not exist: highlights belong to titles of the library (with
+//!   quote and character range), a Bible reference is no such title – the page says so honestly.
 //!
-//! Modulordner: Gelesen wird nur, wenn Modulordner ausdrücklich eingestellt sind oder das Werk eine Bibel hat
-//! ([`scan_allowed`]). So liest eine Seite ohne Einstellung nie die Vorgabeordner des Rechners (Tests setzen ihre
-//! Ordner selbst); stattdessen der Hinweis auf Einstellungen → Quellen.
+//! Module folders: reading happens only if module folders are set explicitly or the work has a Bible
+//! ([`scan_allowed`]). This way a page without the setting never reads the default folders of the machine (tests
+//! set their folders themselves); instead the notice pointing to Einstellungen → Quellen.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,43 +45,43 @@ use crate::bibles::Choice;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 use crate::view::query_escape;
 
-/// Höchstens so viele Treffer je Bibel in der Gruppe „Bibel“.
+/// At most this many hits per Bible in the group „Bibel“.
 pub const HITS_PER_MODULE: usize = 10;
-/// Höchstens so viele Bibeln durchsucht das gemeinsame Suchfeld.
+/// The common search field searches at most this many Bibles.
 pub const SEARCH_MODULES: usize = 3;
-/// Zeitgrenze der Gruppe „Bibel“ im gemeinsamen Suchfeld (alle Module zusammen).
+/// Time limit of the group „Bibel“ in the common search field (all modules together).
 pub const SEARCH_TIME: Duration = Duration::from_secs(3);
-/// Treffer der Wortlautsuche auf der Bibelseite.
+/// Hits of the wording search on the Bible page.
 pub const PAGE_HITS: usize = 50;
-/// Hinweis ohne Bibel.
+/// Notice without a Bible.
 pub const NO_BIBLE: &str = "Keine SWORD-Bibel verfügbar: Modulordner und Bibel des Werks stellst du unter \
      Einstellungen → Quellen → Bibeln (SWORD) ein.";
-/// Hinweis zu „Hervorheben“ auf der Bibelseite.
+/// Notice about „Hervorheben“ on the Bible page.
 pub const NO_HIGHLIGHT: &str = "Hervorheben geht nur bei Titeln der Bibliothek (Zitat mit Zeichenbereich); eine \
      Bibelstelle ist kein solcher Titel. Zitieren und „an Persona geben“ gehen.";
-/// Ziel des Links „Einstellungen → Quellen“.
+/// Target of the link „Einstellungen → Quellen“.
 pub const SOURCES_URL: &str = "/einstellungen/quellen";
 
-/// Eine Bibel im Kasten.
+/// A Bible in the box.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BibleEntry {
     pub module: String,
     pub description: String,
     pub notice: String,
-    /// Bibel des Werks.
+    /// Bible of the work.
     pub work_bible: bool,
     pub supported: bool,
     pub problem: Option<String>,
     pub url: String,
 }
 
-/// Treffer einer Bibel im gemeinsamen Suchfeld.
+/// Hits of one Bible in the common search field.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct HitGroup {
     pub module: String,
     pub hits: Vec<BibleHit>,
     pub truncated: bool,
-    /// Ehrlicher Hinweis (Zeitgrenze, Modulfehler).
+    /// Honest notice (time limit, module error).
     pub problem: Option<String>,
 }
 
@@ -91,21 +92,21 @@ pub struct BibleHit {
     pub url: String,
 }
 
-/// Kasten und Treffergruppen für `fragments/library.html`.
+/// Box and hit groups for `fragments/library.html`.
 #[derive(Debug, Clone, Default)]
 pub struct Shelf {
     pub bibles: Vec<BibleEntry>,
-    /// Hinweis statt der Liste (keine Bibel, Ordner nicht eingestellt, Fehler beim Lesen).
+    /// Notice instead of the list (no Bible, folders not set, error while reading).
     pub hint: Option<String>,
     pub groups: Vec<HitGroup>,
-    /// Fertiges HTML der Gruppe „Kommentar“ ([`crate::bibles::commentary_hits_html`]).
+    /// Finished HTML of the group „Kommentar“ ([`crate::bibles::commentary_hits_html`]).
     pub commentary_hits: String,
-    /// Bibelseite ohne gewähltes Modul.
+    /// Bible page without a chosen module.
     pub page_url: String,
 }
 
 impl Shelf {
-    /// Kontext `bibles` für die Vorlagen (Adressen als sichere Werte, Texte maskiert die Vorlage).
+    /// Context `bibles` for the templates (addresses as safe values, the template escapes texts).
     pub fn context(&self) -> Value {
         let list: Vec<Value> = self.bibles.iter().map(entry_value).collect();
         let groups: Vec<Value> = self
@@ -128,9 +129,9 @@ impl Shelf {
 }
 
 impl Shelf {
-    /// Runde 19c: Kontext für die Arbeitsseite ohne JavaScript ([`workspace_shelf`]): wie [`Shelf::context`], die
-    /// Links der Bibeln tragen aber zusätzlich den festen Schlüssel und die Fassung des gezeigten Abschnitts (so
-    /// gehen „Zitieren“ und „an Persona geben“ auf der Bibelseite).
+    /// Round 19c: context for the work page without JavaScript ([`workspace_shelf`]): like [`Shelf::context`], but
+    /// the links of the Bibles additionally carry the fixed key and the revision of the section shown (this is
+    /// how „Zitieren“ and „an Persona geben“ work on the Bible page).
     pub fn context_at(&self, key: Option<i64>, rev: Option<u32>) -> Value {
         let mut place = String::new();
         if let Some(key) = key {
@@ -148,9 +149,9 @@ impl Shelf {
     }
 }
 
-/// Runde 19c: Kasten „Bibeln“ für die Arbeitsseite (`fragments/library.html` über `view.rs`), serverseitig und ohne
-/// JavaScript – dieselben Bibeln wie im Popup (`literature.render`) und auf `/literatur`, ohne Treffergruppen (die
-/// Suche der Arbeitsseite führt auf `/literatur`). Ohne erlaubte Modulordner der ehrliche Hinweis.
+/// Round 19c: box „Bibeln“ for the work page (`fragments/library.html` through `view.rs`), on the server side and
+/// without JavaScript – the same Bibles as in the popup (`literature.render`) and on `/literatur`, without hit
+/// groups (the search of the work page leads to `/literatur`). Without allowed module folders the honest notice.
 pub async fn workspace_shelf(state: &AppState, work: WorkId) -> Option<Shelf> {
     let at = At::resolve(state, Some(work), (None, None), None, None, (None, None)).await.ok()?;
     Some(shelf(state, &at, None).await)
@@ -167,13 +168,13 @@ fn hit_value(h: &BibleHit) -> Value {
     context! { reference => h.reference.as_str(), text => h.text.as_str(), url => href(h.url.clone()) }
 }
 
-/// Darf Baruch die Modulordner lesen? Nur bei ausdrücklich eingestellten Ordnern oder einer Bibel des Werks.
+/// May Baruch read the module folders? Only with explicitly set folders or a Bible of the work.
 pub async fn scan_allowed(state: &AppState, work: WorkId) -> bool {
     let explicit = matches!(state.store.bible_dirs().await, Ok(Some(_)));
     explicit || matches!(state.store.work_bible(work).await, Ok(Some(_)))
 }
 
-/// Anfragerest der Bibelseite: `&key=…&rev=…&lq=…&lmode=rag` (nur vorhandene Werte, prozentkodiert).
+/// Query tail of the Bible page: `&key=…&rev=…&lq=…&lmode=rag` (only values present, percent-encoded).
 fn tail(at: &At) -> String {
     let mut out = String::new();
     if let Some(key) = at.key {
@@ -186,7 +187,7 @@ fn tail(at: &At) -> String {
     out
 }
 
-/// Adresse der Bibelseite mit Modul und weiteren Feldern (`extra` beginnt mit `&` oder ist leer).
+/// Address of the Bible page with module and further fields (`extra` begins with `&` or is empty).
 fn page_url(at: &At, module: Option<&str>, extra: &str) -> String {
     let mut url = format!("/literatur/bibel?work={}", at.work);
     if let Some(module) = module {
@@ -197,7 +198,7 @@ fn page_url(at: &At, module: Option<&str>, extra: &str) -> String {
     url
 }
 
-/// Bibelmodule (ohne Kommentare und Lexika), die Bibel des Werks zuerst.
+/// Bible modules (without commentaries and lexicons), the Bible of the work first.
 async fn bible_list(state: &AppState, at: &At) -> Result<Vec<BibleEntry>, RpcError> {
     let modules = crate::bibles::modules_value(state, at.work).await?;
     let chosen = modules["work_bible"].as_str().map(str::to_owned);
@@ -224,8 +225,8 @@ async fn bible_list(state: &AppState, at: &At) -> Result<Vec<BibleEntry>, RpcErr
     Ok(list)
 }
 
-/// Kasten „Bibeln“ und – mit Suchwörtern im Wortlaut-Modus – die Gruppen „Bibel“ und „Kommentar“. Scheitert
-/// etwas, steht der Grund im Hinweis; die übrige Literatur bleibt.
+/// Box „Bibeln“ and – with search words in wording mode – the groups „Bibel“ and „Kommentar“. If something
+/// fails, the reason is in the notice; the rest of the literature stays.
 pub(super) async fn shelf(state: &AppState, at: &At, query: Option<&str>) -> Shelf {
     let mut shelf = Shelf { page_url: page_url(at, None, ""), ..Shelf::default() };
     if !scan_allowed(state, at.work).await {
@@ -274,7 +275,7 @@ async fn hit_group(state: &AppState, at: &At, module: &str, query: &str) -> HitG
             group.truncated = found["truncated"].as_bool().unwrap_or(false);
             group.hits = hits_of(&found, |reference| page_url(at, Some(module), &ref_param(reference)));
         }
-        // Zu lange oder leere Suche: keine Gruppe (die Literatur meldet das schon).
+        // Search too long or empty: no group (the literature already reports that).
         Err(e) if e.code == INVALID_PARAMS => {}
         Err(e) => group.problem = Some(e.message),
     }
@@ -298,7 +299,7 @@ fn hits_of(found: &serde_json::Value, url: impl Fn(&str) -> String) -> Vec<Bible
         .collect()
 }
 
-// ---- Seite ---------------------------------------------------------------------------------------------
+// ---- Page ----------------------------------------------------------------------------------------------
 
 #[derive(Debug, Default, Deserialize)]
 pub struct BibleQuery {
@@ -319,7 +320,7 @@ pub struct BibleQuery {
     notice: Option<String>,
 }
 
-/// Gewähltes Modul: aus der Adresse, sonst die Bibel des Werks, sonst die erste unterstützte.
+/// Chosen module: from the address, otherwise the Bible of the work, otherwise the first supported one.
 fn pick_module(list: &[BibleEntry], wanted: Option<&str>) -> Option<String> {
     match wanted {
         Some(w) => list.iter().find(|b| b.module.eq_ignore_ascii_case(w)).map(|b| b.module.clone()),
@@ -331,10 +332,10 @@ fn pick_module(list: &[BibleEntry], wanted: Option<&str>) -> Option<String> {
     }
 }
 
-/// Verse einer Stelle für die Vorlage (aus der Antwort von [`crate::bibles::lookup`]). Runde 19c: `ref` ist die
-/// **deutsche** Stelle des Verses (Rückabbildung aus der Zählung des Moduls, `german_ref`), `module_label` die
-/// Nummer im Modul, `url` setzt die deutsche Stelle ohne JavaScript ins Feld (`ref_url(Stelle)`); lässt sich ein
-/// Vers nicht abbilden, fehlen `ref`/`url` und `unmapped` nennt den Grund.
+/// Verses of a reference for the template (from the answer of [`crate::bibles::lookup`]). Round 19c: `ref` is the
+/// **German** reference of the verse (mapped back from the numbering of the module, `german_ref`), `module_label`
+/// the number in the module, `url` puts the German reference into the field without JavaScript
+/// (`ref_url(Stelle)`); if a verse cannot be mapped, `ref`/`url` are missing and `unmapped` names the reason.
 fn passages(found: &serde_json::Value, ref_url: impl Fn(&str) -> String) -> Vec<serde_json::Value> {
     found["refs"]
         .as_array()
@@ -370,7 +371,7 @@ fn passages(found: &serde_json::Value, ref_url: impl Fn(&str) -> String) -> Vec<
         .collect()
 }
 
-/// Buch und Kapitel einer gelesenen Stelle (für „voriges/nächstes Kapitel“).
+/// Book and chapter of a reference that was read (for „voriges/nächstes Kapitel“).
 fn book_chapter(found: &serde_json::Value) -> Option<(&'static baruch_scripture::Book, u16)> {
     let first = found["refs"].as_array()?.first()?;
     let book = baruch_scripture::find_book(first["book_id"].as_str()?)?;
@@ -378,7 +379,7 @@ fn book_chapter(found: &serde_json::Value) -> Option<(&'static baruch_scripture:
     Some((book, u16::try_from(chapter).ok()?))
 }
 
-/// Selbst gebaute Adresse für `passages` (als Text; die Vorlage gibt sie über `|safe` weiter): `&` maskiert.
+/// Self-built address for `passages` (as text; the template passes it on through `|safe`): `&` escaped.
 fn href_string(url: String) -> String {
     url.replace('&', "&amp;")
 }
@@ -446,7 +447,7 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): 
     ctx = context! { module => module.as_str(), entry => entry.as_ref().map(entry_value), books => books,
     problem => choice.bible().is_none().then(|| choice.json()["problem"].as_str().map(str::to_owned)).flatten(),
     ..ctx };
-    // Stelle aus `ref` bzw. `book`+`chapter`.
+    // Reference from `ref` or `book`+`chapter`.
     let reference = match (text(&q.reference), text(&q.book), number::<u16>(&q.chapter)) {
         (Some(r), _, _) => Some(r.chars().take(500).collect::<String>()),
         (None, Some(book), chapter) => {
@@ -504,7 +505,7 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): 
     }
 }
 
-/// Aktive Personas für „an Persona geben“ (der Lektor zuerst gewählt).
+/// Active personas for „an Persona geben“ (the lector selected first).
 async fn persona_options(state: &AppState, work: WorkId) -> Vec<Value> {
     let lector = state.store.load_work(work).await.ok().and_then(|w| w.lector().map(|p| p.handle.clone()));
     state
@@ -521,7 +522,7 @@ async fn persona_options(state: &AppState, work: WorkId) -> Vec<Value> {
         .collect()
 }
 
-// ---- Formular ------------------------------------------------------------------------------------------
+// ---- Form ----------------------------------------------------------------------------------------------
 
 #[derive(Debug, Default, Deserialize)]
 pub struct BibleAct {
@@ -540,7 +541,7 @@ pub struct BibleAct {
     question: Option<String>,
 }
 
-/// Verse einer Stelle als Text mit Stellenangabe aus dem Modul (`Joh 3,16–17`); nie aus dem Formular.
+/// Verses of a reference as text with the reference from the module (`Joh 3,16–17`); never from the form.
 async fn verses(state: &AppState, module: &str, reference: &str) -> Result<(String, String, String), RpcError> {
     let choice = crate::bibles::by_name(state, module).await?;
     let Some(bible) = choice.bible() else {
@@ -572,8 +573,8 @@ async fn verses(state: &AppState, module: &str, reference: &str) -> Result<(Stri
     Ok((body, labels.join("; "), module))
 }
 
-/// Bibelzitat als Vorschlag-Revision: aktueller Text + Leerzeile + `#quote(block: true, attribution: […])[…]`
-/// (Autor `@literatur`, Modell `baruch-zitat`). Unter der Schreibsperre, Abschnitt über `key`.
+/// Bible quote as a proposal revision: current text + empty line + `#quote(block: true, attribution: […])[…]`
+/// (author `@literatur`, model `baruch-zitat`). Under the write lock, section through `key`.
 pub async fn cite_verses(
     state: &AppState,
     work: WorkId,
@@ -678,12 +679,12 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<BibleAct>) -> 
     }
 }
 
-/// Seite (lesend): `GET /literatur/bibel`.
+/// Page (reading): `GET /literatur/bibel`.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/literatur/bibel", get(page))
 }
 
-/// Formular (schreibend, im Router hinter `guard::same_origin`): `POST /literatur/bibel/act`.
+/// Form (writing, in the router behind `guard::same_origin`): `POST /literatur/bibel/act`.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/literatur/bibel/act", post(act))
 }

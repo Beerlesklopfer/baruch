@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge für Bilder (Vertrag Runde 11, Abschnitt 7).
+//! MCP tools for images (contract Round 11, section 7).
 //!
-//! - `asset_add` legt ein Bild **sofort** an (Fassung 1, Autor die Persona bzw. der Client als
-//!   `@mcp:<name>`, ein Spiegel-Commit mit Herkunft, [`mirror::AssetBy::Direct`]); höchstens 8 MiB
-//!   entschlüsselt wie über RPC. Mit `role: "cover"` legt es zusätzlich einen **Antrag** an, das Bild
-//!   als Umschlag zu setzen.
-//! - `asset_replace`, `asset_set_cover`, `asset_delete` ändern **nichts**: Sie legen einen Antrag an
-//!   ([`baruch_store::Store::asset_request`], Migration 0018), über den der Mensch auf der Seite
-//!   „Bilder“ (`#antraege`) entscheidet ([`crate::asset_requests`]).
-//! - `asset_requests` liest die Anträge (offen bzw. alle, wahlweise nur eigene).
+//! - `asset_add` creates an image **immediately** (revision 1, author the persona or the client as
+//!   `@mcp:<name>`, one mirror commit with origin, [`mirror::AssetBy::Direct`]); at most 8 MiB
+//!   decoded as through RPC. With `role: "cover"` it additionally creates a **request** to set the image
+//!   as the cover.
+//! - `asset_replace`, `asset_set_cover`, `asset_delete` change **nothing**: they create a request
+//!   ([`baruch_store::Store::asset_request`], migration 0018) on which the human decides on the page
+//!   „Bilder“ (`#antraege`) ([`crate::asset_requests`]).
+//! - `asset_requests` reads the requests (open or all, optionally only one's own).
 //!
-//! `persona` nur ohne Token vom eigenen Rechner (wie bei `outline_*`). Alles Schreibende unter
+//! `persona` only without a token from the own machine (as with `outline_*`). Everything that writes runs under
 //! [`AppState::write_lock`].
 //!
-//! **Kontingent (Runde 21c)** je Antragsteller (Persona bzw. Client `@mcp:<name>`) und Werk in rollenden 24 Stunden,
-//! gezählt aus den vorhandenen Zeilen ([`baruch_store::Store::asset_mcp_usage`]: Bildfassungen mit diesem Autor und
-//! Anträge zum Ersetzen): höchstens [`MAX_MCP_ASSET_WRITES_PER_DAY`] schreibende Aufrufe (`asset_add` und
-//! `asset_replace`), höchstens [`MAX_MCP_ASSET_BYTES_PER_DAY`] entschlüsselt, höchstens
-//! [`MAX_MCP_OPEN_REPLACE_REQUESTS`] offene Anträge zum Ersetzen. Darüber antwortet das Werkzeug mit `isError` und
-//! einer ehrlichen Meldung, gespeichert wird nichts. Geprüft wird unter der Schreibsperre, direkt vor dem Schreiben.
-//! **Runde 23:** Mit Token gilt das Kontingent je Token; **alle Clients ohne Token** – gleich welcher
-//! `clientInfo.name`, auch mit `persona` – teilen sich je Werk **ein** Kontingent
-//! ([`baruch_store::Store::asset_mcp_usage_without_token`]). Vorher öffnete jeder neue Name ein neues.
-//! `asset_replace` nimmt `rename` (Typwechsel, das Bild bekommt beim Bestätigen die neue Endung).
-//! `asset_requests` entfernt vor dem Lesen den Inhalt entschiedener Anträge, die älter als
-//! [`baruch_store::ASSET_REQUEST_PURGE_DAYS`] Tage sind.
+//! **Quota (Round 21c)** per requester (persona or client `@mcp:<name>`) and work in rolling 24 hours,
+//! counted from the existing rows ([`baruch_store::Store::asset_mcp_usage`]: image revisions with this author and
+//! requests to replace): at most [`MAX_MCP_ASSET_WRITES_PER_DAY`] writing calls (`asset_add` and
+//! `asset_replace`), at most [`MAX_MCP_ASSET_BYTES_PER_DAY`] decoded, at most
+//! [`MAX_MCP_OPEN_REPLACE_REQUESTS`] open requests to replace. Above that the tool answers with `isError` and
+//! an honest message, nothing is stored. The check runs under the write lock, directly before writing.
+//! **Round 23:** with a token the quota applies per token; **all clients without a token** – whatever the
+//! `clientInfo.name`, also with `persona` – share **one** quota per work
+//! ([`baruch_store::Store::asset_mcp_usage_without_token`]). Before, every new name opened a new one.
+//! `asset_replace` takes `rename` (change of type, the image gets the new extension on confirmation).
+//! `asset_requests` removes, before reading, the content of decided requests that are older than
+//! [`baruch_store::ASSET_REQUEST_PURGE_DAYS`] days.
 
 use baruch_store::{AssetEncoding, AssetOp, IdeaOrigin, MAX_ASSET_BYTES, NewAsset, WorkId};
 use serde::Deserialize;
@@ -34,14 +34,14 @@ use super::session::Client;
 use super::tools::{Failure, WorkRef, args, origin_of, tool_error, work_or_default, work_schema};
 use crate::{AppState, asset_requests, mirror};
 
-/// Höchstens so viele schreibende Aufrufe (`asset_add` + `asset_replace`) je Antragsteller und Werk in 24 Stunden.
+/// At most this many writing calls (`asset_add` + `asset_replace`) per requester and work in 24 hours.
 pub const MAX_MCP_ASSET_WRITES_PER_DAY: usize = 30;
-/// Höchstens so viele Bytes (entschlüsselt) je Antragsteller und Werk in 24 Stunden: 64 MiB.
+/// At most this many bytes (decoded) per requester and work in 24 hours: 64 MiB.
 pub const MAX_MCP_ASSET_BYTES_PER_DAY: u64 = 64 * 1024 * 1024;
-/// Höchstens so viele offene Anträge zum Ersetzen je Antragsteller und Werk.
+/// At most this many open requests to replace per requester and work.
 pub const MAX_MCP_OPEN_REPLACE_REQUESTS: usize = 10;
 
-/// Namen der Werkzeuge dieses Moduls (in der Reihenfolge von `tools/list`).
+/// Names of the tools of this module (in the order of `tools/list`).
 pub const NAMES: &[&str] = &["asset_add", "asset_replace", "asset_set_cover", "asset_delete", "asset_requests"];
 
 pub const ADD_DESCRIPTION: &str = "Add an image immediately (revision 1): content as Base64 (encoding \"base64\", PNG, \
@@ -207,7 +207,7 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
     })
 }
 
-/// Adresse der Anträge auf der Seite „Bilder“.
+/// Address of the requests on the page „Bilder“.
 fn requests_url(work: WorkId) -> String {
     format!("/werke/{work}/bilder#antraege")
 }
@@ -217,7 +217,7 @@ fn encoding(text: &str) -> Result<AssetEncoding, Failure> {
         .ok_or_else(|| Failure::Args(format!("arguments: encoding \"{text}\" – base64 or svg expected")))
 }
 
-/// Bytes aus `content` (Base64 entschlüsselt bzw. SVG-Text); über 8 MiB → Werkzeugfehler.
+/// Bytes from `content` (Base64 decoded or SVG text); above 8 MiB → tool error.
 fn decoded(content: &str, encoding: AssetEncoding) -> Result<Vec<u8>, Failure> {
     let bytes = match encoding {
         AssetEncoding::Base64 => baruch_store::decode_base64(content)?,
@@ -232,8 +232,8 @@ fn decoded(content: &str, encoding: AssetEncoding) -> Result<Vec<u8>, Failure> {
     Ok(bytes)
 }
 
-/// Kontingent prüfen (siehe Moduldoku): `bytes` will der Aufruf schreiben, `replace` = ein Antrag zum Ersetzen.
-/// Darüber → Werkzeugfehler mit ehrlicher Meldung. Der Aufrufer hält die Schreibsperre.
+/// Check the quota (see the module doc): the call wants to write `bytes`, `replace` = a request to replace.
+/// Above that → tool error with an honest message. The caller holds the write lock.
 async fn check_quota(
     state: &AppState,
     client: &Client,
@@ -242,9 +242,9 @@ async fn check_quota(
     bytes: u64,
     replace: bool,
 ) -> Result<(), Failure> {
-    // Runde 23: je Token ein Kontingent; alle Clients ohne Token zusammen eines (sonst öffnete ein neuer Name oder
-    // ein anderes `persona` ein neues). Die Autoren der Tokens – Handle und Alt-Handle, auch widerrufener – zählen
-    // nicht zur Gruppe ohne Token.
+    // Round 23: one quota per token; all clients without a token together one (otherwise a new name or
+    // another `persona` would open a new one). The authors of the tokens – handle and legacy handle, revoked ones
+    // included – do not count towards the group without a token.
     let (usage, who) = if client.token {
         (state.store.asset_mcp_usage(work, origin.name()).await?, origin.name().to_owned())
     } else {
@@ -280,7 +280,7 @@ async fn check_quota(
     Ok(())
 }
 
-/// Antrag anlegen und die Antwort `{work, request, status: "open", message, url}` bauen.
+/// Create a request and build the answer `{work, request, status: "open", message, url}`.
 async fn open_request(
     state: &AppState,
     work: WorkId,
@@ -295,7 +295,7 @@ async fn open_request(
     request_answer(state, work, id).await
 }
 
-/// Antwort `{work, request, status: "open", message, url}` zum Antrag `id`.
+/// Answer `{work, request, status: "open", message, url}` for the request `id`.
 async fn request_answer(state: &AppState, work: WorkId, id: i64) -> Result<Value, Failure> {
     let request = state.store.asset_request_get(work, id).await?;
     Ok(json!({
@@ -366,7 +366,7 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
                     request["message"].as_str().unwrap_or("Request for the cover filed.")
                 ));
             }
-            // Das Bild ist angelegt; der Antrag scheiterte (z. B. schon offen) – ehrlich melden, nicht verschweigen.
+            // The image is created; the request failed (e.g. already open) – report honestly, do not conceal.
             Err(Failure::Tool(message)) => answer["request_error"] = json!(message),
             Err(other) => return Err(other),
         }

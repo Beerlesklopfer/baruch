@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `revision_amends` (Runde 22, Besitz fassungen): Verlauf der Fortschreibungen einer Fassung, nur lesend
-//! (Daten, keine Anweisungen). Rückgängig und die Einstellung „Fassungen“ gibt es über MCP nicht. Eintrag in der
-//! Werkzeugliste und Aufruf setzt `tools.rs` (Beschreibung aus [`DESCRIPTION`]).
+//! MCP tool `revision_amends` (Round 22, owned by fassungen): history of the amendments of a revision, read-only
+//! (data, not instructions). Undo and the setting „Fassungen“ do not exist through MCP. The entry in the
+//! tool list and the call are set by `tools.rs` (description from [`DESCRIPTION`]).
 
 use serde::Deserialize;
 use serde_json::{Value, json};

@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsschemata in den Werk-Einstellungen (Vertrag Runde 6, Abschnitt 2e): RPC
-//! `numbering.*`, die Seite `/werke/{id}/nummerierung` und ihr Formular an
-//! `POST /werke/nummerierung/act`, alles ohne JavaScript bedienbar.
+//! Outline schemes in the work settings (contract Round 6, section 2e): RPC
+//! `numbering.*`, the page `/werke/{id}/nummerierung` and its form to
+//! `POST /werke/nummerierung/act`, all usable without JavaScript.
 //!
-//! RPC ([`handles`], [`call`]; aus `rpc::call` heraus, alle nehmen `work?`):
-//! - `numbering.schemes` → `{schemes: [{id, label, example, preview: [NumberPreview] (die ersten
-//!   12 Punkte), error?}], current: NumberingInfo}`
+//! RPC ([`handles`], [`call`]; called from `rpc::call`, all take `work?`):
+//! - `numbering.schemes` → `{schemes: [{id, label, example, preview: [NumberPreview] (the first
+//!   12 items), error?}], current: NumberingInfo}`
 //! - `numbering.preview {scheme, custom?}` → `{numbers: [NumberPreview], rule: string|null}` (`rule`
-//!   = die Regel, die der Export hinter die Werkvorlage setzt; `null` bei „aus der Werkvorlage“)
-//! - `numbering.set {scheme, custom?}` → Gliederungsantwort wie `outline.set_numbering`
+//!   = the rule that the export puts after the work template; `null` for „aus der Werkvorlage“)
+//! - `numbering.set {scheme, custom?}` → outline answer like `outline.set_numbering`
 //!   (`{node, action: "numbering", title, detail, revisions, renumbered, commit?, mirror?}`)
 //!
-//! `scheme` ist eine id aus `baruch_store::NumberingScheme::ALL`, `custom` das eigene Muster in der
-//! Mustersprache (nur bei `custom`; fehlt es, gilt das gespeicherte). Unbekanntes Schema oder
-//! ungültiges Muster → -32602, unverändert → -32000. `numbering.set` läuft unter
-//! [`AppState::write_lock`] und ergibt genau einen Commit im Spiegel (Trailer
-//! `Baruch-Action: outline-numbering`, [`mirror::record_outline`]). MCP und Assistenten erreichen
-//! nichts davon; das Schema wählt nur der Mensch.
+//! `scheme` is an id from `baruch_store::NumberingScheme::ALL`, `custom` the own pattern in the
+//! pattern language (only for `custom`; if it is missing, the stored one applies). Unknown scheme or
+//! invalid pattern → -32602, unchanged → -32000. `numbering.set` runs under
+//! [`AppState::write_lock`] and yields exactly one commit in the mirror (trailer
+//! `Baruch-Action: outline-numbering`, [`mirror::record_outline`]). MCP and assistants reach
+//! none of it; only the human chooses the scheme.
 
 use std::sync::{Arc, OnceLock};
 
@@ -37,10 +37,10 @@ use crate::{AppState, mirror};
 
 const METHODS: &[&str] = &["numbering.schemes", "numbering.preview", "numbering.set"];
 
-/// Wie viele Punkte die Vorschau je Schema zeigt.
+/// How many items the preview shows per scheme.
 pub const PREVIEW_POINTS: usize = 12;
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -49,7 +49,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// `scheme` (Pflicht) und `custom` (Text oder fehlend/null) aus den Parametern.
+/// `scheme` (mandatory) and `custom` (text or missing/null) from the parameters.
 fn scheme_params(params: &Json) -> Result<(String, Option<String>), RpcError> {
     let scheme = match params.get("scheme") {
         Some(Json::String(s)) if !s.trim().is_empty() => s.trim().to_owned(),
@@ -63,22 +63,22 @@ fn scheme_params(params: &Json) -> Result<(String, Option<String>), RpcError> {
     Ok((scheme, custom))
 }
 
-/// Ein Schema mit Beispiel und Vorschau an der eigenen Gliederung.
+/// A scheme with an example and a preview on the own outline.
 #[derive(Debug, Clone, Serialize)]
 pub struct SchemeRow {
     pub id: &'static str,
     pub label: &'static str,
     pub example: &'static str,
-    /// Die ersten [`PREVIEW_POINTS`] Punkte der Gliederung.
+    /// The first [`PREVIEW_POINTS`] items of the outline.
     pub preview: Vec<NumberPreview>,
-    /// Weitere Punkte hinter der Vorschau.
+    /// Further items after the preview.
     pub more: usize,
-    /// Warum es keine Vorschau gibt (z. B. eigenes Muster fehlt oder ist ungültig).
+    /// Why there is no preview (e.g. own pattern is missing or invalid).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
-/// Alle Schemata mit Vorschau; `custom` ersetzt für „Eigenes Muster“ das gespeicherte Muster.
+/// All schemes with a preview; for „Eigenes Muster“ `custom` replaces the stored pattern.
 pub async fn scheme_rows(state: &AppState, work: WorkId, custom: Option<&str>) -> Result<Vec<SchemeRow>, RpcError> {
     let mut rows = Vec::with_capacity(NumberingScheme::ALL.len());
     for scheme in NumberingScheme::ALL {
@@ -104,7 +104,7 @@ pub async fn scheme_rows(state: &AppState, work: WorkId, custom: Option<&str>) -
     Ok(rows)
 }
 
-/// Schema setzen (unter der Schreibsperre) und im Spiegel protokollieren; Antwort wie
+/// Set the scheme (under the write lock) and log it in the mirror; answer like
 /// `outline.set_numbering`.
 async fn set(state: &AppState, work: WorkId, scheme: &str, custom: Option<&str>) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
@@ -139,9 +139,9 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
     }
 }
 
-// ---- Seite ---------------------------------------------------------------------------------------
+// ---- Page ----------------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung der Seite (die der Arbeitsseite bleibt unberührt).
+/// Own template environment of the page (that of the work page stays untouched).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -180,8 +180,8 @@ fn error_response(e: RpcError) -> Response {
     (status_of(&e), format!("Fehler: {}", e.message)).into_response()
 }
 
-/// Adresse und Werte der Seite: `schema`/`scheme` wählt das Schema vor, `muster`/`custom` das eigene
-/// Muster (so gehen auch die Felder des Formulars über „Vorschau“), `ok` meldet die Übernahme.
+/// Address and values of the page: `schema`/`scheme` preselects the scheme, `muster`/`custom` the own
+/// pattern (this is how the fields of the form also go through „Vorschau“), `ok` reports the accept.
 #[derive(Deserialize, Default)]
 struct PageQuery {
     schema: Option<String>,
@@ -195,7 +195,7 @@ fn clean(value: Option<&str>) -> Option<String> {
     value.map(str::trim).filter(|v| !v.is_empty()).map(str::to_owned)
 }
 
-/// Was die Seite zeigt: gewähltes Schema, eigenes Muster, Hinweis oder Fehler.
+/// What the page shows: chosen scheme, own pattern, notice or error.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Shown {
     pub(crate) scheme: Option<String>,
@@ -205,7 +205,7 @@ pub(crate) struct Shown {
 }
 
 impl Shown {
-    /// Vorwahl aus der Adresse (`schema`/`scheme`, `muster`/`custom`), ohne Hinweis und Fehler.
+    /// Preselection from the address (`schema`/`scheme`, `muster`/`custom`), without notice and error.
     pub(crate) fn from_query(
         schema: Option<&str>,
         scheme: Option<&str>,
@@ -221,10 +221,10 @@ impl Shown {
     }
 }
 
-/// Kontext des Formularteils von `work_numbering.html` (`{% block content %}`): Werk, geltendes Schema,
-/// alle Schemata mit Vorschau, eigenes Muster, Regel, Hinweis, Fehler und `back` (Rücksprung in die
-/// Einstellungen, Runde 9). Dieselbe Funktion baut `/werke/{id}/nummerierung` und die
-/// Einstellungsseite „Werk“ (`crate::settings`).
+/// Context of the form part of `work_numbering.html` (`{% block content %}`): work, scheme in force,
+/// all schemes with a preview, own pattern, rule, notice, error and `back` (return into the
+/// settings, Round 9). The same function builds `/werke/{id}/nummerierung` and the
+/// settings page „Werk“ (`crate::settings`).
 pub(crate) async fn page_context(
     state: &AppState,
     work: WorkId,
@@ -285,7 +285,7 @@ async fn page(
     render(status, context! { settings => Value::from(Serde(settings)), ..ctx })
 }
 
-/// `GET /werke/{id}/nummerierung[?schema=ID&muster=SPEC]`: alle Schemata mit Beispiel und Vorschau.
+/// `GET /werke/{id}/nummerierung[?schema=ID&muster=SPEC]`: all schemes with an example and a preview.
 async fn numbering_page(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -303,12 +303,12 @@ struct ActForm {
     work: Option<String>,
     scheme: Option<String>,
     custom: Option<String>,
-    /// Rücksprung nach Erfolg (nur `/einstellungen/werk…`, sonst übergangen; Runde 9).
+    /// Return after success (only `/einstellungen/werk…`, otherwise skipped; Round 9).
     back: Option<String>,
 }
 
-/// `POST /werke/nummerierung/act` (Felder `work`, `scheme`, `custom`): Schema übernehmen, danach 303
-/// zurück zur Seite mit Hinweis; Fehler 422 (ungültig) bzw. 409 (unverändert) mit der Seite.
+/// `POST /werke/nummerierung/act` (fields `work`, `scheme`, `custom`): accept the scheme, then 303
+/// back to the page with a notice; error 422 (invalid) or 409 (unchanged) with the page.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work: WorkId = match form.work.as_deref().map(str::trim).and_then(|w| w.parse().ok()) {
         Some(work) => work,
@@ -334,8 +334,8 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
             let status = status_of(&e);
             let shown = Shown { scheme, custom, notice: None, error: Some(e.message) };
             if back.is_some() {
-                // Aus den Einstellungen: dieselbe Einstellungsseite mit Fehler und Eingabe (das Popup
-                // übernimmt daraus den Rahmen).
+                // From the settings: the same settings page with error and input (the popup
+                // takes the frame from it).
                 let retry = crate::settings::WorkRetry::Numbering(shown);
                 return crate::settings::work_retry_page(&state, &headers, status, work, retry).await;
             }
@@ -349,7 +349,7 @@ pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/nummerierung", get(numbering_page))
 }
 
-/// `POST /werke/nummerierung/act` (im Router der schreibenden Routen, also hinter `guard::same_origin`).
+/// `POST /werke/nummerierung/act` (in the router of the writing routes, so behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/nummerierung/act", post(act))
 }

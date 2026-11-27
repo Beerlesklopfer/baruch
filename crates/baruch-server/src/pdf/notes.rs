@@ -1,35 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stichwortzettel (Vertrag Runde 16c): je Gliederungspunkt Überschrift, Zeitmarke aus dem Zeitwächter,
-//! Stichpunkte und Bibelstellen – als Vorschau, als PDF (A5 hoch oder Karten A6 quer) und über die
-//! Kommandozeile. Gilt für jedes Werk, gedacht vor allem für Predigten.
+//! Cue notes („Stichwortzettel“, contract Round 16c): per outline item heading, time mark from the time guard,
+//! cue points and scripture references – as a preview, as PDF (A5 portrait or cards A6 landscape) and through
+//! the command line. Applies to every work, meant above all for sermons.
 //!
-//! - **Stichpunkte** ([`points_of`], feste Regel, so auch in `docs/Bedienung.md` „Stichwortzettel“), je
-//!   Abschnitt die erste Regel, die etwas findet:
-//!   1. `marker` – eigene Markierung: Kommentarzeilen `// Stichwort: …` (Groß-/Kleinschreibung egal), je
-//!      Zeile ein Punkt. Kommentare erscheinen in keinem Satz, darum stören sie den Text nicht.
-//!   2. `strong` – hervorgehobene Stellen `*…*` und `#strong[…]`, in der Reihenfolge des Texts.
-//!   3. `first_sentence` – der erste Satz jedes Absatzes (Satzende: `.`, `!`, `?` vor Leerraum oder am
-//!      Absatzende; ein Punkt direkt nach einer Ziffer wie in „1. Kor“ beendet keinen Satz, ebenso wenig der
-//!      Punkt einer Abkürzung wie „z. B.“, „d. h.“, „u. a.“, „bzw.“, „vgl.“, „usw.“, „ca.“, „Nr.“, „S.“, „Kap.“,
-//!      „V.“, „etc.“ – seit Runde 17b).
+//! - **Cue points** ([`points_of`], fixed rule, also in `docs/Bedienung.md` „Stichwortzettel“), per
+//!   section the first rule that finds something:
+//!   1. `marker` – own marker: comment lines `// Stichwort: …` (case does not matter), one point per
+//!      line. Comments appear in no typesetting, so they do not disturb the text.
+//!   2. `strong` – emphasised passages `*…*` and `#strong[…]`, in the order of the text.
+//!   3. `first_sentence` – the first sentence of every paragraph (sentence end: `.`, `!`, `?` before whitespace or
+//!      at the end of the paragraph; a full stop directly after a digit as in „1. Kor“ ends no sentence, nor does
+//!      the full stop of an abbreviation such as „z. B.“, „d. h.“, „u. a.“, „bzw.“, „vgl.“, „usw.“, „ca.“, „Nr.“,
+//!      „S.“, „Kap.“, „V.“, „etc.“ – since Round 17b).
 //!
-//!   Dabei zählen Überschriften, Kommentare, Zeilen mit `#set`/`#show`/`#let`/`#import`/`#include`,
-//!   Raw-Text, Mathe, `#footnote[…]` und `#arbeit[…]` nicht mit; Markup-Zeichen fallen weg. Jeder Punkt hat
-//!   höchstens [`MAX_POINT_CHARS`] Zeichen (länger: an der letzten Wortgrenze gekürzt, mit „…“), je
-//!   Abschnitt höchstens [`MAX_POINTS`] Punkte (die ersten).
-//! - **Bibelstellen:** [`crate::scripture::refs`] über den Abschnittstext ohne Überschrift und Kommentare;
-//!   nur gültige Stellen in einheitlicher Schreibweise (`normalized`), jede nur einmal (erste Fundstelle).
-//! - **Zeiten:** aus dem Zeitwächter ([`crate::timing::timing_of`] mit den Einstellungen des Werks, dieselbe
-//!   Rechnung wie `work.timing`), nie eine eigene Zählung: `start_clock` = Zeitmarke, `clock` = Dauer des
-//!   eigenen Texts.
-//! - **Satz:** [`baruch_render::notes`] (alle Texte als Typst-Zeichenketten, wörtlich), über
-//!   [`super::source_to_pdf`]-Wege: höchstens eine PDF-Erzeugung je Werk (`pdf::claim`, 409), Satzfehler
-//!   422, Zeitablauf 503. Nur lesend: kein Commit, keine Schreibsperre.
-//! - **RPC** `notes.get {work}` und `notes.pdf {work, format?, font_pt?, inline?}`; **Seiten**
-//!   `GET /werke/{id}/stichwortzettel` und `GET /werke/{id}/stichwortzettel.pdf?format=&schrift=`;
+//!   Headings, comments, lines with `#set`/`#show`/`#let`/`#import`/`#include`,
+//!   raw text, maths, `#footnote[…]` and `#arbeit[…]` do not count here; markup characters are dropped. Every
+//!   point has at most [`MAX_POINT_CHARS`] characters (longer: shortened at the last word boundary, with „…“), per
+//!   section at most [`MAX_POINTS`] points (the first ones).
+//! - **Scripture references:** [`crate::scripture::refs`] over the section text without heading and comments;
+//!   only valid references in uniform notation (`normalized`), each only once (first occurrence).
+//! - **Times:** from the time guard ([`crate::timing::timing_of`] with the settings of the work, the same
+//!   calculation as `work.timing`), never a count of its own: `start_clock` = time mark, `clock` = duration of
+//!   the own text.
+//! - **Typesetting:** [`baruch_render::notes`] (all texts as Typst strings, verbatim), through the paths of
+//!   [`super::source_to_pdf`]: at most one PDF generation per work (`pdf::claim`, 409), typesetting error
+//!   422, timeout 503. Read-only: no commit, no write lock.
+//! - **RPC** `notes.get {work}` and `notes.pdf {work, format?, font_pt?, inline?}`; **pages**
+//!   `GET /werke/{id}/stichwortzettel` and `GET /werke/{id}/stichwortzettel.pdf?format=&schrift=`;
 //!   **CLI** `export ID|SLUG --stichwort DATEI [--format a5|karten] [--schrift PT]` ([`write_notes_file`]).
-//! - **Entwurf (Runde 22):** `notes.pdf {draft?}` und `?entwurf=1|0` (dreiwertig wie `work.pdf`); das Wasserzeichen
-//!   ([`crate::typeset::draft_rule_for`]) steht vor der ersten Zeile des Zettels. Link „Als Entwurf herunterladen“.
+//! - **Draft (Round 22):** `notes.pdf {draft?}` and `?entwurf=1|0` (three-valued like `work.pdf`); the watermark
+//!   ([`crate::typeset::draft_rule_for`]) stands before the first line of the notes. Link „Als Entwurf
+//!   herunterladen“.
 
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -50,28 +51,28 @@ use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::view::Settings;
 
-/// Höchstens so viele Stichpunkte je Abschnitt.
+/// At most this many cue points per section.
 pub const MAX_POINTS: usize = 6;
-/// Höchstens so viele Zeichen je Stichpunkt (mit „…“).
+/// At most this many characters per cue point (with „…“).
 pub const MAX_POINT_CHARS: usize = 160;
-/// Höchstens so tief werden Inhaltsblöcke `#name[…]` für den Lesetext geöffnet; tiefer Verschachteltes fällt weg.
-/// Schützt den Stack (die Rekursion in `plain_into`) und hält die Rechenzeit linear im Text.
+/// Content blocks `#name[…]` are opened at most this deep for the reading text; anything nested deeper is dropped.
+/// Protects the stack (the recursion in `plain_into`) and keeps the computing time linear in the text.
 pub const MAX_NESTING: usize = 32;
 
-/// Welche Regel die Stichpunkte eines Abschnitts lieferte.
+/// Which rule supplied the cue points of a section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Rule {
-    /// Eigene Markierung `// Stichwort: …`.
+    /// Own marker `// Stichwort: …`.
     Marker,
-    /// Hervorhebungen `*…*` bzw. `#strong[…]`.
+    /// Emphasis `*…*` or `#strong[…]`.
     Strong,
-    /// Erster Satz je Absatz.
+    /// First sentence per paragraph.
     FirstSentence,
 }
 
 impl Rule {
-    /// Anzeige: „eigene Markierung“, „Hervorhebung“, „erster Satz je Absatz“.
+    /// Display: „eigene Markierung“, „Hervorhebung“, „erster Satz je Absatz“.
     pub fn label(self) -> &'static str {
         match self {
             Rule::Marker => "eigene Markierung",
@@ -81,7 +82,7 @@ impl Rule {
     }
 }
 
-/// Eine Karte (ein Gliederungspunkt) wie in `notes.get`.
+/// A card (one outline item) as in `notes.get`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Card {
     pub key: i64,
@@ -95,7 +96,7 @@ pub struct Card {
     pub rule: Rule,
 }
 
-/// Der Stichwortzettel eines Werks (Antwort von `notes.get` ohne `format_choices`).
+/// The cue notes of a work (answer of `notes.get` without `format_choices`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Notes {
     pub work: WorkId,
@@ -108,7 +109,7 @@ pub struct Notes {
 }
 
 impl Notes {
-    /// Eingabe für [`baruch_render::notes::notes_source`].
+    /// Input for [`baruch_render::notes::notes_source`].
     pub fn doc(&self) -> NotesDoc {
         NotesDoc {
             title: self.title.clone(),
@@ -131,10 +132,10 @@ impl Notes {
     }
 }
 
-// ---- Regel für Stichpunkte ---------------------------------------------------------------------
+// ---- Rule for cue points -----------------------------------------------------------------------
 
-/// Text ohne Kommentare (`/* … */`, `//` am Zeilenanfang oder nach Leerraum) und ohne Raw-Blöcke
-/// (```` ``` ````); Zeilenumbrüche bleiben, damit Absätze erhalten bleiben. CRLF wird LF.
+/// Text without comments (`/* … */`, `//` at the beginning of a line or after whitespace) and without raw blocks
+/// (```` ``` ````); line breaks stay, so that paragraphs are kept. CRLF becomes LF.
 fn strip_comments(text: &str) -> String {
     let text = text.replace("\r\n", "\n");
     let chars: Vec<char> = text.chars().collect();
@@ -144,7 +145,7 @@ fn strip_comments(text: &str) -> String {
         let c = chars[i];
         let next = chars.get(i + 1).copied();
         if c == '/' && next == Some('*') {
-            // Blockkommentar bis */ (Zeilenumbrüche bleiben als Absatzgrenzen).
+            // Block comment up to */ (line breaks stay as paragraph boundaries).
             i += 2;
             while i < chars.len() && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
                 if chars[i] == '\n' {
@@ -177,7 +178,7 @@ fn strip_comments(text: &str) -> String {
         if c == '\\'
             && let Some(n) = next
         {
-            // Maskiertes Zeichen bleibt mit Rückstrich (für `plain`), damit \/\/ kein Kommentar wird.
+            // An escaped character stays with its backslash (for `plain`), so that \/\/ does not become a comment.
             out.push(c);
             out.push(n);
             i += 2;
@@ -189,7 +190,7 @@ fn strip_comments(text: &str) -> String {
     out
 }
 
-/// Zeile, die nicht gesprochen wird: Überschrift (`=`… + Leerzeichen, Teil-Markierung `#heading(`) oder
+/// Line that is not spoken: heading (`=`… + space, part marker `#heading(`) or
 /// `#set`/`#show`/`#let`/`#import`/`#include`.
 fn silent_line(line: &str) -> bool {
     let trimmed = line.trim_start();
@@ -200,12 +201,12 @@ fn silent_line(line: &str) -> bool {
     ["#heading(", "#set ", "#show ", "#show:", "#let ", "#import ", "#include "].iter().any(|p| trimmed.starts_with(p))
 }
 
-/// Text ohne Kommentare und ohne stumme Zeilen.
+/// Text without comments and without silent lines.
 fn body_text(typst: &str) -> String {
     strip_comments(typst).lines().map(|line| if silent_line(line) { "" } else { line }).collect::<Vec<_>>().join("\n")
 }
 
-/// Ende der Klammergruppe ab `open` (Zeichen `(`/`[`), Zeichenketten in `"…"` beachtet; `None` ohne Ende.
+/// End of the bracket group from `open` (character `(`/`[`), strings in `"…"` respected; `None` without an end.
 fn group_end(chars: &[char], open: usize) -> Option<usize> {
     let (start, stop) = match chars[open] {
         '(' => ('(', ')'),
@@ -240,9 +241,9 @@ fn group_end(chars: &[char], open: usize) -> Option<usize> {
     None
 }
 
-/// Reiner Lesetext eines Stücks Typst-Markup (ohne Kommentare): Code-Aufrufe ohne Argumente, Inhalt
-/// in `[…]` bleibt (außer `#footnote`/`#arbeit`; tiefer als [`MAX_NESTING`] Ebenen fällt er weg), Labels,
-/// Verweise, Mathe, Raw und Markup-Zeichen fallen weg, Leerraum zusammengefasst.
+/// Pure reading text of a piece of Typst markup (without comments): code calls without arguments, content
+/// in `[…]` stays (except `#footnote`/`#arbeit`; deeper than [`MAX_NESTING`] levels it is dropped), labels,
+/// references, maths, raw and markup characters are dropped, whitespace collapsed.
 fn plain(markup: &str) -> String {
     let chars: Vec<char> = markup.chars().collect();
     let mut out = String::new();
@@ -250,13 +251,13 @@ fn plain(markup: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Ist `name` ein Aufruf, dessen Inhalt nicht gesprochen wird (`#footnote`, `#arbeit`)?
+/// Is `name` a call whose content is not spoken (`#footnote`, `#arbeit`)?
 fn silent_call(name: &str) -> bool {
     matches!(name, "footnote" | "arbeit")
 }
 
-/// Ende eines Namens `#name` ab `start` (Zeichen nach `#`): Buchstaben, Ziffern, `_`, `-` und `.` vor einem
-/// Buchstaben (`#name.feld`).
+/// End of a name `#name` from `start` (character after `#`): letters, digits, `_`, `-` and `.` before a
+/// letter (`#name.feld`).
 fn name_end(chars: &[char], start: usize) -> usize {
     let mut j = start;
     while j < chars.len() && (chars[j].is_alphanumeric() || matches!(chars[j], '_' | '-' | '.')) {
@@ -270,7 +271,7 @@ fn name_end(chars: &[char], start: usize) -> usize {
 
 fn plain_into(chars: &[char], out: &mut String, depth: usize) {
     let mut i = 0;
-    // Nur bis zum letzten Nicht-Leerraum zurück, nicht über die ganze Zeile (sonst quadratisch).
+    // Only back to the last non-whitespace, not over the whole line (otherwise quadratic).
     let at_line_start = |out: &String| out.chars().rev().take_while(|&c| c != '\n').all(char::is_whitespace);
     while i < chars.len() {
         let c = chars[i];
@@ -338,8 +339,8 @@ fn plain_into(chars: &[char], out: &mut String, depth: usize) {
                     i += 1;
                 }
             }
-            // Verweis `@name` nach Leerraum, Klammer, Anführungszeichen oder Satzzeichen (Runde 17b, L7);
-            // mitten im Wort („a@b.example“) bleibt das @ Text.
+            // Reference `@name` after whitespace, bracket, quotation mark or punctuation (Round 17b, L7);
+            // in the middle of a word („a@b.example“) the @ stays text.
             '@' if next.is_some_and(|n| n.is_alphanumeric() || n == '_')
                 && (i == 0 || !(chars[i - 1].is_alphanumeric() || chars[i - 1] == '_')) =>
             {
@@ -363,8 +364,8 @@ fn plain_into(chars: &[char], out: &mut String, depth: usize) {
     }
 }
 
-/// Ende (Index nach dem letzten Zeichen) eines stummen Aufrufs `#footnote…`/`#arbeit…` ab `#` an `at`, samt
-/// direkt folgenden Argumenten `(…)` und Inhaltsblöcken `[…]`; `None`, wenn dort kein stummer Aufruf steht.
+/// End (index after the last character) of a silent call `#footnote…`/`#arbeit…` from `#` at `at`, including
+/// directly following arguments `(…)` and content blocks `[…]`; `None` if there is no silent call there.
 fn silent_call_end(chars: &[char], at: usize) -> Option<usize> {
     let mut j = name_end(chars, at + 1);
     if !silent_call(&chars[at + 1..j].iter().collect::<String>()) {
@@ -376,8 +377,8 @@ fn silent_call_end(chars: &[char], at: usize) -> Option<usize> {
     Some(j)
 }
 
-/// Hervorhebungen `*…*` und `#strong[…]` als Lesetext, in der Reihenfolge des Texts. Fußnoten und
-/// Arbeitsaufträge (`#footnote`, `#arbeit`) zählen nicht, auch nicht mit Hervorhebungen darin.
+/// Emphasis `*…*` and `#strong[…]` as reading text, in the order of the text. Footnotes and
+/// work orders (`#footnote`, `#arbeit`) do not count, not even with emphasis inside.
 fn strong_spans(text: &str) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     let mut found = Vec::new();
@@ -408,7 +409,7 @@ fn strong_spans(text: &str) -> Vec<String> {
                 }
             }
             '*' => {
-                // Bis zum nächsten unmaskierten * im selben Absatz.
+                // Up to the next unescaped * in the same paragraph.
                 let mut j = i + 1;
                 let mut end = None;
                 while j < chars.len() {
@@ -440,17 +441,18 @@ fn strong_spans(text: &str) -> Vec<String> {
     found
 }
 
-/// Abkürzungen, deren Punkt keinen Satz beendet (Runde 17b, L7), ohne Punkt. Groß-/Kleinschreibung zählt nur
-/// bei Ein-Buchstaben-Formen („S.“ Seite, „V.“ Vers); die übrigen gelten auch am Satzanfang („Vgl.“, „Ca.“).
+/// Abbreviations whose full stop ends no sentence (Round 17b, L7), without the full stop. Case counts only
+/// for one-letter forms („S.“ Seite, „V.“ Vers); the others also apply at the beginning of a sentence („Vgl.“,
+/// „Ca.“).
 const ABBREVIATIONS: [&str; 14] =
     ["bzw", "vgl", "usw", "ca", "nr", "kap", "etc", "ggf", "evtl", "inkl", "hrsg", "jh", "bd", "abs"];
-/// Abkürzungen aus einem Buchstaben, groß geschrieben („S. 3“, „V. 23“).
+/// Abbreviations of one letter, written in upper case („S. 3“, „V. 23“).
 const LETTER_ABBREVIATIONS: [&str; 2] = ["S", "V"];
-/// Zweiteilige Abkürzungen („z. B.“, „d. h.“, „u. a.“ …): je Teil ein Buchstabe mit Punkt.
+/// Two-part abbreviations („z. B.“, „d. h.“, „u. a.“ …): per part one letter with a full stop.
 const PAIR_ABBREVIATIONS: [(&str, &str); 8] =
     [("z", "B"), ("d", "h"), ("u", "a"), ("z", "T"), ("o", "ä"), ("u", "U"), ("s", "o"), ("v", "a")];
 
-/// Wort (nur Buchstaben) direkt vor `end` und sein Anfang.
+/// Word (letters only) directly before `end` and its beginning.
 fn word_before(chars: &[char], end: usize) -> (String, usize) {
     let mut start = end;
     while start > 0 && chars[start - 1].is_alphabetic() {
@@ -459,7 +461,7 @@ fn word_before(chars: &[char], end: usize) -> (String, usize) {
     (chars[start..end].iter().collect(), start)
 }
 
-/// Beendet der Punkt an `i` eine Abkürzung (statt eines Satzes)?
+/// Does the full stop at `i` end an abbreviation (instead of a sentence)?
 fn abbreviation_dot(chars: &[char], i: usize) -> bool {
     let (word, start) = word_before(chars, i);
     if word.is_empty() || start > 0 && chars[start - 1].is_alphanumeric() {
@@ -468,7 +470,7 @@ fn abbreviation_dot(chars: &[char], i: usize) -> bool {
     if ABBREVIATIONS.contains(&word.to_lowercase().as_str()) || LETTER_ABBREVIATIONS.contains(&word.as_str()) {
         return true;
     }
-    // Erster Teil eines Paars: „z.“ vor „B.“ (mit oder ohne Leerraum dazwischen).
+    // First part of a pair: „z.“ before „B.“ (with or without whitespace in between).
     let mut j = i + 1;
     while chars.get(j).is_some_and(|c| c.is_whitespace()) {
         j += 1;
@@ -483,7 +485,7 @@ fn abbreviation_dot(chars: &[char], i: usize) -> bool {
     if chars.get(next_end) == Some(&'.') && PAIR_ABBREVIATIONS.iter().any(|(a, b)| *a == word && *b == next) {
         return true;
     }
-    // Zweiter Teil: „B.“ nach „z.“.
+    // Second part: „B.“ after „z.“.
     let mut k = start;
     while k > 0 && chars[k - 1].is_whitespace() {
         k -= 1;
@@ -495,8 +497,8 @@ fn abbreviation_dot(chars: &[char], i: usize) -> bool {
     false
 }
 
-/// Erster Satz eines Absatzes (Lesetext). Ein Punkt nach einer Ziffer („1. Kor“) oder hinter einer Abkürzung
-/// ([`ABBREVIATIONS`], „z. B.“, „S. 3“) beendet keinen Satz.
+/// First sentence of a paragraph (reading text). A full stop after a digit („1. Kor“) or after an abbreviation
+/// ([`ABBREVIATIONS`], „z. B.“, „S. 3“) ends no sentence.
 fn first_sentence(paragraph: &str) -> String {
     let chars: Vec<char> = paragraph.chars().collect();
     for (i, &c) in chars.iter().enumerate() {
@@ -513,7 +515,7 @@ fn first_sentence(paragraph: &str) -> String {
     paragraph.to_owned()
 }
 
-/// Auf [`MAX_POINT_CHARS`] kürzen: an der letzten Wortgrenze, mit „…“.
+/// Shorten to [`MAX_POINT_CHARS`]: at the last word boundary, with „…“.
 fn shorten(point: &str) -> String {
     let point = point.trim();
     if point.chars().count() <= MAX_POINT_CHARS {
@@ -527,7 +529,7 @@ fn shorten(point: &str) -> String {
     format!("{cut}…")
 }
 
-/// Stichpunkte eines Abschnittstexts (Typst) nach der Regel oben, mit der Regel, die sie lieferte.
+/// Cue points of a section text (Typst) by the rule above, with the rule that supplied them.
 pub fn points_of(typst: &str) -> (Vec<String>, Rule) {
     let text = typst.replace("\r\n", "\n");
     let finish = |points: Vec<String>| -> Vec<String> {
@@ -563,7 +565,7 @@ pub fn points_of(typst: &str) -> (Vec<String>, Rule) {
     (finish(sentences), Rule::FirstSentence)
 }
 
-/// Gültige Bibelstellen eines Abschnitts in einheitlicher Schreibweise, ohne Doppel (erste Fundstelle).
+/// Valid scripture references of a section in uniform notation, without duplicates (first occurrence).
 pub fn refs_of(typst: &str) -> Vec<String> {
     let body = body_text(typst);
     let mut out: Vec<String> = Vec::new();
@@ -580,9 +582,9 @@ pub fn refs_of(typst: &str) -> Vec<String> {
     out
 }
 
-// ---- Zettel eines Werks ------------------------------------------------------------------------
+// ---- Notes of a work ---------------------------------------------------------------------------
 
-/// Stichwortzettel des Werks: Karten in Gliederungsreihenfolge mit Zeiten aus dem Zeitwächter.
+/// Cue notes of the work: cards in outline order with times from the time guard.
 pub async fn notes_of(state: &AppState, work_id: WorkId) -> Result<Notes, RpcError> {
     let work = state.store.load_work(work_id).await?;
     let slug = state.store.work_slug(work_id).await?;
@@ -620,7 +622,7 @@ pub async fn notes_of(state: &AppState, work_id: WorkId) -> Result<Notes, RpcErr
     })
 }
 
-/// Antwort von `notes.get`.
+/// Answer of `notes.get`.
 pub fn notes_json(notes: &Notes) -> Value {
     json!({
         "work": notes.work,
@@ -635,19 +637,19 @@ pub fn notes_json(notes: &Notes) -> Value {
 
 // ---- PDF ---------------------------------------------------------------------------------------
 
-/// Format, Schriftgröße und (nur für Tests) Zeitlimit und ein Zusatz an der Quelle.
+/// Format, font size and (for tests only) time limit and an addition to the source.
 #[derive(Debug, Clone)]
 pub struct NotesOptions {
     pub format: NotesFormat,
     pub font_pt: u32,
-    /// Zeitlimit des Satzes (Vorgabe [`PDF_TIMEOUT`]); Tests stellen den Zeitablauf damit nach.
+    /// Time limit of the typesetting (default [`PDF_TIMEOUT`]); tests reproduce the timeout with it.
     #[doc(hidden)]
     pub limit: Duration,
-    /// Typst, das an die erzeugte Quelle angehängt wird. Nur für Tests: Die Karten selbst können keinen
-    /// Satzfehler auslösen (alles ist maskiert), so lässt sich der Weg „Satzfehler“ trotzdem prüfen.
+    /// Typst that is appended to the generated source. For tests only: the cards themselves cannot trigger a
+    /// typesetting error (everything is escaped), this way the path „Satzfehler“ can be checked nevertheless.
     #[doc(hidden)]
     pub append: String,
-    /// Runde 22: Wasserzeichen dreiwertig (`None` = nach Satz-Einstellung).
+    /// Round 22: watermark three-valued (`None` = by typeset setting).
     pub draft: Option<bool>,
 }
 
@@ -658,7 +660,7 @@ impl Default for NotesOptions {
 }
 
 impl NotesOptions {
-    /// Format und Schriftgröße (`None` = Vorgabe des Formats). Die Größe prüft [`NotesOptions::parse`].
+    /// Format and font size (`None` = default of the format). [`NotesOptions::parse`] checks the size.
     pub fn new(format: NotesFormat, font_pt: Option<u32>) -> NotesOptions {
         NotesOptions {
             format,
@@ -669,8 +671,8 @@ impl NotesOptions {
         }
     }
 
-    /// Aus Texten (Formular, Kommandozeile): `format` `a5`|`karten` (leer = a5), `schrift` 14–28 (leer =
-    /// Vorgabe des Formats). Fehler auf Deutsch.
+    /// From texts (form, command line): `format` `a5`|`karten` (empty = a5), `schrift` 14–28 (empty =
+    /// default of the format). Errors in German.
     pub fn parse(format: Option<&str>, font_pt: Option<&str>) -> Result<NotesOptions, String> {
         let format = match format.map(str::trim).filter(|f| !f.is_empty()) {
             None => NotesFormat::A5,
@@ -688,7 +690,7 @@ impl NotesOptions {
         Ok(NotesOptions::new(format, size))
     }
 
-    /// Adresse des PDF mit diesen Einstellungen (Runde 22: mit `&entwurf=1|0`, wenn der Schalter gesetzt ist).
+    /// Address of the PDF with these settings (Round 22: with `&entwurf=1|0` if the switch is set).
     pub fn pdf_url(&self, work: WorkId) -> String {
         let pair = crate::typeset::draft_pair(self.draft);
         let pair = if pair.is_empty() { String::new() } else { format!("&{pair}") };
@@ -696,7 +698,7 @@ impl NotesOptions {
     }
 }
 
-/// Dateiname: `<slug>-stichwortzettel.pdf`.
+/// File name: `<slug>-stichwortzettel.pdf`.
 pub fn file_name(slug: &str) -> String {
     format!("{slug}-stichwortzettel.pdf")
 }
@@ -705,7 +707,7 @@ async fn generate(state: &AppState, work: WorkId, options: &NotesOptions) -> Res
     let notes = notes_of(state, work).await.map_err(Failed::Other)?;
     let mut main = notes_source(&notes.doc(), options.format, options.font_pt);
     main.push_str(&options.append);
-    // Runde 22: Wasserzeichen vor die erste Zeile (vor jedem Inhalt, die Seitenregel des Zettels ergänzt es nur).
+    // Round 22: watermark before the first line (before any content, the page rule of the notes only adds to it).
     let stored = crate::typeset::stored_draft(state, work).await.map_err(|e| Failed::Other(e.into()))?;
     if let Some(draft) = crate::typeset::effective_draft(stored.as_ref(), options.draft) {
         main.insert_str(0, &crate::typeset::draft_rule_for(&draft));
@@ -714,19 +716,19 @@ async fn generate(state: &AppState, work: WorkId, options: &NotesOptions) -> Res
     Ok((notes, pdf))
 }
 
-/// Stichwortzettel als PDF (höchstens eine Erzeugung je Werk, Zeitlimit, Satzfehler als `REFUSED`).
+/// Cue notes as PDF (at most one generation per work, time limit, typesetting error as `REFUSED`).
 pub async fn notes_pdf(state: &AppState, work: WorkId, options: &NotesOptions) -> Result<(Notes, PdfOut), RpcError> {
     generate(state, work, options).await.map_err(Failed::into_rpc)
 }
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
-/// Bedient dieses Modul die Methode (`notes.get`, `notes.pdf`)?
+/// Does this module serve the method (`notes.get`, `notes.pdf`)?
 pub fn handles(method: &str) -> bool {
     matches!(method, "notes.get" | "notes.pdf")
 }
 
-/// `notes.get {work}` → Karten; `notes.pdf {work, format? = "a5", font_pt?, inline?}` → wie `work.pdf`.
+/// `notes.get {work}` → cards; `notes.pdf {work, format? = "a5", font_pt?, inline?}` → like `work.pdf`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "notes.get" => Ok(notes_json(&notes_of(state, work).await?)),
@@ -766,7 +768,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -782,12 +784,12 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Formularwerte der Seiten (`format`, `schrift`).
+/// Form values of the pages (`format`, `schrift`).
 #[derive(Debug, Default, Deserialize)]
 pub struct NotesQuery {
     pub format: Option<String>,
     pub schrift: Option<String>,
-    /// Runde 22: Wasserzeichen dreiwertig (`1`, `0`, fehlt = nach Einstellung).
+    /// Round 22: watermark three-valued (`1`, `0`, missing = by setting).
     pub entwurf: Option<String>,
 }
 
@@ -798,7 +800,7 @@ struct FormatChoice {
     selected: bool,
 }
 
-/// Seite rendern; `notes` fehlt nur, wenn schon das Laden scheiterte.
+/// Render the page; `notes` is missing only if the loading already failed.
 fn page(
     status: StatusCode,
     headers: &HeaderMap,
@@ -851,8 +853,8 @@ async fn work_title(state: &AppState, id: WorkId) -> Result<Option<String>, Stor
     Ok(state.store.works().await?.into_iter().find(|(w, _, _)| *w == id).map(|(_, _, title)| title))
 }
 
-/// `GET /werke/{id}/stichwortzettel?format=&schrift=`: Formatwahl (Formular `method=get`), Vorschau der
-/// Karten und Link zum PDF. Ohne JavaScript bedienbar.
+/// `GET /werke/{id}/stichwortzettel?format=&schrift=`: choice of format (form `method=get`), preview of the
+/// cards and link to the PDF. Usable without JavaScript.
 pub async fn notes_page(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -878,8 +880,8 @@ pub async fn notes_page(
     page(status, &headers, id, &title, Some(&notes), &options, error)
 }
 
-/// `GET /werke/{id}/stichwortzettel.pdf?format=&schrift=`: das PDF als Anhang `<slug>-stichwortzettel.pdf`;
-/// 409 (läuft schon), 422 (Angaben oder Satzfehler), 503 (Zeit abgelaufen) als Seite.
+/// `GET /werke/{id}/stichwortzettel.pdf?format=&schrift=`: the PDF as attachment `<slug>-stichwortzettel.pdf`;
+/// 409 (already running), 422 (input or typesetting error), 503 (time ran out) as a page.
 pub async fn notes_download(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -914,7 +916,7 @@ pub async fn notes_download(
     }
 }
 
-/// Antwort des Downloads für feste Einstellungen (für Tests öffentlich: Zeitlimit und Satzfehler).
+/// Answer of the download for fixed settings (public for tests: time limit and typesetting error).
 #[doc(hidden)]
 pub async fn notes_response(state: &AppState, headers: &HeaderMap, id: WorkId, options: &NotesOptions) -> Response {
     let title = match work_title(state, id).await {
@@ -937,11 +939,11 @@ pub async fn notes_response(state: &AppState, headers: &HeaderMap, id: WorkId, o
     page(status, headers, id, &title, notes.as_ref(), options, Some(message))
 }
 
-// ---- Kommandozeile -----------------------------------------------------------------------------
+// ---- Command line ------------------------------------------------------------------------------
 
-/// `baruch-server export <werk> --stichwort DATEI [--format a5|karten] [--schrift PT]`: Stichwortzettel als
-/// PDF nach `target`. Gibt es die Datei schon, wird nichts geschrieben; scheitert der Satz, entsteht keine
-/// Datei.
+/// `baruch-server export <werk> --stichwort DATEI [--format a5|karten] [--schrift PT]`: cue notes as
+/// PDF to `target`. If the file already exists, nothing is written; if the typesetting fails, no file is
+/// created.
 pub async fn write_notes_file(
     state: &AppState,
     work: WorkId,
@@ -1079,8 +1081,8 @@ mod tests {
 
     #[test]
     fn deeply_nested_markup_neither_overflows_the_stack_nor_takes_quadratic_time() {
-        // 60 000 Ebenen #a[…] liefen vorher in eine Rekursion ohne Grenze: Stacküberlauf, der ganze Server brach
-        // ab. Ein eigener Thread mit kleinem Stack (256 KiB) zeigt, dass die Tiefe jetzt begrenzt ist.
+        // 60 000 levels #a[…] used to run into a recursion without a limit: stack overflow, the whole server
+        // aborted. A thread of its own with a small stack (256 KiB) shows that the depth is limited now.
         let deep = format!("= Tiefe\n\nEin Satz zum Anfang.\n\n{}x{}\n", "#a[".repeat(60_000), "]".repeat(60_000));
         let started = std::time::Instant::now();
         let (points, rule) = std::thread::Builder::new()

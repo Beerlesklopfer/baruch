@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Seiten des PDF/EPUB-Imports ohne JavaScript (Runde 21a, Vorlage `templates/source_import.html`):
+//! Pages of the PDF/EPUB import without JavaScript (Round 21a, template `templates/source_import.html`):
 //!
-//! - `GET /werke/import/quelle` (`?verworfen=1` = Hinweis): Formular – Datei (.pdf/.epub), Weg (auto/lokal/MultiGPT),
-//!   Sammlung, Häkchen „in MultiGPT hochladen (Sammlung …)“ (ausdrücklich), Titel.
-//! - `POST /werke/import/quelle/vorschau` (multipart: `file`, `way`, `collection`, `upload`, `title`; nach einem
-//!   Fehler von MultiGPT statt `file` der Entwurf `draft` mit `way=local` = „Lokal lesen“ ohne erneutes Wählen) → 200
-//!   Vorschau: Weg und Grund, Warnungen, Gliederung als bearbeitbare Liste (je Zeile ein Textfeld `= Titel`,
-//!   `== Titel`, `=== Titel`; `= Teil: Titel` macht einen Teil, leer = streichen), Textprobe je Punkt, Ziel
-//!   Werk/Bibliothek/beides, „Übernehmen“ und „Verwerfen“. Fehler → 422 (zu groß 413) mit dem Formular und Meldung.
-//! - `POST /werke/import/quelle/uebernehmen` (Formular: `draft`, `target`, `title`, `author`, je Zeile `line` und
-//!   `src`) → 303 `/?work=<id>` bzw. bei nur Bibliothek 303 `/quelle?title=<id>`; Fehler 422 mit der Vorschau und den
-//!   Eingaben.
+//! - `GET /werke/import/quelle` (`?verworfen=1` = notice): form – file (.pdf/.epub), way (auto/lokal/MultiGPT),
+//!   collection, tick „in MultiGPT hochladen (Sammlung …)“ (explicit), title.
+//! - `POST /werke/import/quelle/vorschau` (multipart: `file`, `way`, `collection`, `upload`, `title`; after an
+//!   error of MultiGPT, instead of `file` the draft `draft` with `way=local` = „Lokal lesen“ without choosing
+//!   again) → 200 preview: way and reason, warnings, outline as an editable list (per row a text field `= Titel`,
+//!   `== Titel`, `=== Titel`; `= Teil: Titel` makes a part, empty = strike), text sample per item, target
+//!   Werk/Bibliothek/beides, „Übernehmen“ and „Verwerfen“. Errors → 422 (too large 413) with the form and a message.
+//! - `POST /werke/import/quelle/uebernehmen` (form: `draft`, `target`, `title`, `author`, per row `line` and
+//!   `src`) → 303 `/?work=<id>` or, for library only, 303 `/quelle?title=<id>`; error 422 with the preview and the
+//!   inputs.
 //! - `POST /werke/import/quelle/verwerfen` (`draft`) → 303 `/werke/import/quelle?verworfen=1`.
 
 use std::sync::{Arc, OnceLock};
@@ -59,7 +59,7 @@ fn settings(headers: &HeaderMap) -> JinjaValue {
     JinjaValue::from(Serde(Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()))))
 }
 
-/// Eingaben des Formulars (zum erneuten Zeigen).
+/// Inputs of the form (for showing again).
 #[derive(Debug, Clone, Default, serde::Serialize)]
 struct FormValues {
     way: String,
@@ -68,7 +68,7 @@ struct FormValues {
     title: String,
 }
 
-/// Eine Zeile der bearbeitbaren Gliederung.
+/// A row of the editable outline.
 #[derive(Debug, Clone, serde::Serialize)]
 struct Row {
     src: String,
@@ -97,7 +97,7 @@ fn rows_of(draft: &Draft) -> Vec<Row> {
         .collect()
 }
 
-/// Eingaben der Übernahme (zum erneuten Zeigen).
+/// Inputs of the accept (for showing again).
 #[derive(Debug, Clone, Default, serde::Serialize)]
 struct ApplyValues {
     target: String,
@@ -109,7 +109,7 @@ async fn back_url(state: &AppState) -> Option<String> {
     state.default_work().await.ok().map(|work| format!("/?work={work}"))
 }
 
-/// Formularseite (auch nach Fehlern der Vorschau).
+/// Form page (also after errors of the preview).
 async fn form_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -133,7 +133,7 @@ async fn form_page(
     render(status, ctx)
 }
 
-/// Vorschauseite (auch nach Fehlern der Übernahme, dann mit den Eingaben).
+/// Preview page (also after errors of the accept, then with the inputs).
 async fn preview_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -247,7 +247,7 @@ async fn preview_form(
             _ => {}
         }
     }
-    // „Lokal lesen“ nach einem Fehler von MultiGPT: die abgelegte Datei, kein erneutes Wählen.
+    // „Lokal lesen“ after an error of MultiGPT: the stored file, no choosing again.
     let (file_name, bytes) = match (
         file.filter(|(n, b)| !n.trim().is_empty() || !b.is_empty()),
         pending.filter(|d| !d.is_empty()),
@@ -324,12 +324,12 @@ async fn preview_form(
     }
 }
 
-/// Wert eines Formularfelds (erster), sonst leer.
+/// Value of a form field (the first), otherwise empty.
 fn field<'a>(fields: &'a [(String, String)], name: &str) -> &'a str {
     fields.iter().find(|(k, _)| k == name).map_or("", |(_, v)| v.as_str())
 }
 
-/// Gliederung aus den Zeilen des Formulars: `line` und `src` je Zeile; leere Zeile = gestrichen.
+/// Outline from the rows of the form: `line` and `src` per row; empty row = struck.
 fn parse_lines(fields: &[(String, String)]) -> Result<Vec<Confirmed>, String> {
     let lines: Vec<&str> = fields.iter().filter(|(k, _)| k == "line").map(|(_, v)| v.as_str()).collect();
     let srcs: Vec<&str> = fields.iter().filter(|(k, _)| k == "src").map(|(_, v)| v.as_str()).collect();
@@ -366,7 +366,7 @@ fn parse_lines(fields: &[(String, String)]) -> Result<Vec<Confirmed>, String> {
     Ok(out)
 }
 
-/// Zeilen so, wie der Mensch sie abgeschickt hat (für die Seite nach einem Fehler).
+/// Rows as the human submitted them (for the page after an error).
 fn rows_from_fields(draft: &Draft, fields: &[(String, String)]) -> Vec<Row> {
     let lines: Vec<&str> = fields.iter().filter(|(k, _)| k == "line").map(|(_, v)| v.as_str()).collect();
     let srcs: Vec<&str> = fields.iter().filter(|(k, _)| k == "src").map(|(_, v)| v.as_str()).collect();

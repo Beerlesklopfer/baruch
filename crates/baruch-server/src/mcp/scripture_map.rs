@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `scripture_map` (Runde 17a): eine Stellenangabe von einer Verszählung in eine andere umrechnen,
-//! nur lesend. Dieselbe Antwort wie RPC `scripture.map` ([`crate::scripture_map`]). Eintrag in der Werkzeugliste
-//! und Aufruf setzt `tools.rs`.
+//! MCP tool `scripture_map` (Round 17a): convert a reference from one verse numbering into another,
+//! read-only. The same answer as RPC `scripture.map` ([`crate::scripture_map`]). The entry in the tool list
+//! and the call are set by `tools.rs`.
 
 use serde_json::{Value, json};
 

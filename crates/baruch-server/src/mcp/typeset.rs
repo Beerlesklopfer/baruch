@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `typeset_settings` (Runde 29a, Aufgabe satz-daten): die
-//! Satz-Einstellungen des Werks lesen, wie RPC `work.typeset_get` ohne `fields` ([`crate::typeset_settings`]). Nur
-//! lesend – ein schreibendes MCP-Werkzeug gibt es nicht; ändern kann nur der Mensch (Einstellungen → Werk → Satz).
-//! Eintrag in der Werkzeugliste und Aufruf setzt `tools.rs`.
+//! MCP tool `typeset_settings` (Round 29a, task satz-daten): read the
+//! typeset settings of the work, like RPC `work.typeset_get` without `fields` ([`crate::typeset_settings`]).
+//! Read-only – there is no writing MCP tool; only the human can change them (Einstellungen → Werk → Satz).
+//! The entry in the tool list and the call are set by `tools.rs`.
 
 use serde::Deserialize;
 use serde_json::{Value, json};

@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Oberfläche der Konten (Runde 35, Vertrag §S1.4 und §3): Anmeldeseite, Einrichten des ersten Kontos, „Mein
-//! Konto“, Mitwirkende je Werk, Einstellungsseite „Konten“ und der Konto-Eintrag im Menü „Baruch ▾“.
+//! User interface of the accounts (Round 35, contract §S1.4 and §3): sign-in page, setting up the first account,
+//! „Mein Konto“, contributors per work, settings page „Konten“ and the account entry in the menu „Baruch ▾“.
 //!
-//! [`apply`] läuft in `consent::inject` nach `band::apply` über jede Seite, die `base.html` erweitert: Es setzt an
-//! der Marke [`KONTO_MARK`] den Eintrag zum Konto ein, kennzeichnet `<body>` mit der Rolle (`data-rolle`) und räumt
-//! die Kennzeichen der Rollen auf (siehe dort). Meldungen aus der Adresse (`?ok=`, `?fehler=`) zeigen die Seiten
-//! nur über [`MESSAGES`] – nie Text aus der Adresse.
+//! [`apply`] runs in `consent::inject` after `band::apply` over every page that extends `base.html`: at the
+//! marker [`KONTO_MARK`] it inserts the entry for the account, labels `<body>` with the role (`data-rolle`) and
+//! tidies up the role markers (see there). Messages from the address (`?ok=`, `?fehler=`) are shown by the pages
+//! only through [`MESSAGES`] – never text from the address.
 //!
-//! **Was ein Lektor sieht** (Vertrag §0.8): Die Sicherheit liegt allein in der Sperre (`crate::roles`). Die
-//! Arbeitsseite lässt Autor-Knöpfe serverseitig weg (`crate::view`, Vorlagen `fragments/lektor_*.html`); alle
-//! übrigen Seiten blenden sie über `static/konten.css` aus – ohne JavaScript: `.nur-autor` und `[data-nur-autor]`
-//! (Gruppen des Menübands, deren Tag wörtlich bleiben muss) verschwinden für `body[data-rolle="lektor"]`, dazu jedes
-//! POST-Formular, das nicht an eine für Lektoren erlaubte Adresse geht; `.nur-lektor` ist nur dort sichtbar.
+//! **What a Lektor sees** (contract §0.8): security lies in the lock alone (`crate::roles`). The
+//! work page leaves out author buttons on the server side (`crate::view`, templates `fragments/lektor_*.html`); all
+//! other pages hide them through `static/konten.css` – without JavaScript: `.nur-autor` and `[data-nur-autor]`
+//! (groups of the ribbon whose tag must stay verbatim) disappear for `body[data-rolle="lektor"]`, and so does every
+//! POST form that does not go to an address allowed for Lektors; `.nur-lektor` is visible only there.
 //!
-//! Die Anmeldeseite und „Einrichten“ sind eigenständige Seiten ohne Menüband (wer nicht angemeldet ist, sieht kein
-//! Menü); „Mein Konto“ und „Mitwirkende“ erweitern `base.html`. Seiten und reine Darstellungsfunktionen stehen in
+//! The sign-in page and „Einrichten“ are standalone pages without a ribbon (whoever is not signed in sees no
+//! menu); „Mein Konto“ and „Mitwirkende“ extend `base.html`. Pages and pure presentation functions are in
 //! [`pages`].
 
 pub mod names;
@@ -30,8 +30,8 @@ use minijinja::{Environment, Value, context};
 use crate::AppState;
 use crate::auth::{AccountKind, Who};
 
-/// Anmeldeseite: vorbelegter Name (nie das Passwort), Ziel nach der Anmeldung, Fehlermeldung und – während der
-/// Sperre gegen Durchprobieren – die Wartezeit in Sekunden.
+/// Sign-in page: prefilled name (never the password), target after signing in, error message and – during the
+/// lock against brute forcing – the waiting time in seconds.
 pub struct LoginView {
     pub name: String,
     pub next: String,
@@ -39,8 +39,8 @@ pub struct LoginView {
     pub retry_after: Option<u64>,
 }
 
-/// Seite „Einrichten“ (erstes Konto, der Autor). `allowed` = die Anfrage kommt vom eigenen Rechner; sonst zeigt die
-/// Seite nur die Erklärung.
+/// Page „Einrichten“ (first account, the author). `allowed` = the request comes from the own machine; otherwise the
+/// page shows only the explanation.
 pub struct SetupView {
     pub name: String,
     pub display: String,
@@ -48,24 +48,24 @@ pub struct SetupView {
     pub allowed: bool,
 }
 
-/// Marke in `base.html` (Menü „Baruch ▾“ nach „Baruch beenden…“), an der [`apply`] den Konto-Eintrag einsetzt.
+/// Marker in `base.html` (menu „Baruch ▾“ after „Baruch beenden…“) at which [`apply`] inserts the account entry.
 pub const KONTO_MARK: &str = "<!--BARUCH-KONTO-->";
 
-/// Klammern um Stücke einer Seite, die nur ein Lektor braucht (Formulare an `/lektorat/act`): [`apply`] schneidet
-/// sie für alle anderen heraus und entfernt für Lektoren nur die Klammern. Der Inhalt trägt zusätzlich die Klasse
+/// Brackets around pieces of a page that only a Lektor needs (forms to `/lektorat/act`): [`apply`] cuts
+/// them out for everyone else and removes only the brackets for Lektors. The content additionally carries the class
 /// `nur-lektor`.
 pub const LEKTOR_OPEN: &str = "<!--NUR-LEKTOR-->";
-/// Ende eines Lektor-Stücks, siehe [`LEKTOR_OPEN`].
+/// End of a Lektor piece, see [`LEKTOR_OPEN`].
 pub const LEKTOR_CLOSE: &str = "<!--/NUR-LEKTOR-->";
 
-/// Klammern um Stücke, die es nur mit Konten gibt (der Knopf „Mitwirkende“ im Reiter Buch): ohne Konten schneidet
-/// [`apply`] sie heraus, mit Konten entfernt es nur die Klammern.
+/// Brackets around pieces that exist only with accounts (the button „Mitwirkende“ in the tab Buch): without accounts
+/// [`apply`] cuts them out, with accounts it removes only the brackets.
 pub const KONTEN_OPEN: &str = "<!--NUR-KONTEN-->";
-/// Ende eines Stücks nur mit Konten, siehe [`KONTEN_OPEN`].
+/// End of a piece only with accounts, see [`KONTEN_OPEN`].
 pub const KONTEN_CLOSE: &str = "<!--/NUR-KONTEN-->";
 
-/// Meldungscodes der Adressen `?ok=<code>` und `?fehler=<code>` mit ihrem deutschen Satz (Vertrag §3.4): erst die
-/// neun Erfolgsmeldungen, dann die zehn Fehler.
+/// Message codes of the addresses `?ok=<code>` and `?fehler=<code>` with their German sentence (contract §3.4): first
+/// the nine success messages, then the ten errors.
 pub const MESSAGES: &[(&str, &str)] = &[
     ("konto_angelegt", "Das Konto ist angelegt."),
     ("passwort_geaendert", "Das Passwort ist geändert. Andere Sitzungen dieses Kontos sind abgemeldet."),
@@ -91,15 +91,15 @@ pub const MESSAGES: &[(&str, &str)] = &[
     ),
 ];
 
-/// Zahl der Erfolgsmeldungen am Anfang von [`MESSAGES`]; der Rest sind Fehler.
+/// Number of success messages at the beginning of [`MESSAGES`]; the rest are errors.
 const OK_MESSAGES: usize = 9;
 
-/// Satz zu einem Code aus `?ok=`; ein unbekannter Code (oder ein Fehlercode) ergibt nichts.
+/// Sentence for a code from `?ok=`; an unknown code (or an error code) yields nothing.
 pub fn ok_message(code: &str) -> Option<&'static str> {
     MESSAGES[..OK_MESSAGES].iter().find(|(known, _)| *known == code).map(|(_, text)| *text)
 }
 
-/// Satz zu einem Code aus `?fehler=`; ein unbekannter Code (oder ein Erfolgscode) ergibt nichts.
+/// Sentence for a code from `?fehler=`; an unknown code (or a success code) yields nothing.
 pub fn error_message(code: &str) -> Option<&'static str> {
     MESSAGES[OK_MESSAGES..].iter().find(|(known, _)| *known == code).map(|(_, text)| *text)
 }
@@ -119,8 +119,8 @@ fn escape(text: &str) -> String {
     out
 }
 
-/// Eigene Template-Umgebung (Autoescape nach `.html`): die eigenständigen Seiten `anmelden.html` und
-/// `einrichten.html`, dazu `konto.html` und `mitwirkende.html`, die `base.html` erweitern.
+/// Own template environment (autoescape by `.html`): the standalone pages `anmelden.html` and
+/// `einrichten.html`, plus `konto.html` and `mitwirkende.html`, which extend `base.html`.
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -142,7 +142,7 @@ pub(crate) fn render_template(name: &str, ctx: Value) -> Result<String, String> 
     templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| format!("Vorlage {name}: {e}"))
 }
 
-/// HTML-Antwort einer Konto-Seite; nie im Zwischenspeicher eines Browsers oder Proxys (`no-store`).
+/// HTML response of an account page; never in the cache of a browser or proxy (`no-store`).
 pub(crate) fn html_response(status: StatusCode, html: Result<String, String>) -> Response {
     match html {
         Ok(html) => {
@@ -153,14 +153,14 @@ pub(crate) fn html_response(status: StatusCode, html: Result<String, String>) ->
     }
 }
 
-/// Anmeldeseite mit dem Formular `POST /anmelden` (Felder `name`, `password`, `next`). Das Passwortfeld ist nie
-/// vorbelegt; `next` geht nur als [`safe_next`] in die Seite.
+/// Sign-in page with the form `POST /anmelden` (fields `name`, `password`, `next`). The password field is never
+/// prefilled; `next` enters the page only as [`safe_next`].
 pub fn login_page(status: StatusCode, view: &LoginView) -> Response {
     html_response(status, login_html(view, None, None))
 }
 
-/// Die Anmeldeseite als HTML. `notice` ist ein fertiger Satz aus [`MESSAGES`] (z. B. nach dem Abmelden),
-/// `signed_in` der Anzeigename, wenn die Anfrage schon eine gültige Sitzung trägt.
+/// The sign-in page as HTML. `notice` is a finished sentence from [`MESSAGES`] (e.g. after signing out),
+/// `signed_in` the display name if the request already carries a valid session.
 pub fn login_html(view: &LoginView, notice: Option<&str>, signed_in: Option<&str>) -> Result<String, String> {
     render_template(
         "anmelden.html",
@@ -175,13 +175,13 @@ pub fn login_html(view: &LoginView, notice: Option<&str>, signed_in: Option<&str
     )
 }
 
-/// Seite „Einrichten“ mit dem Formular `POST /einrichten` (Felder `name`, `display`, `password`, `password2`); ohne
-/// [`SetupView::allowed`] nur die Erklärung. Passwortfelder sind nie vorbelegt.
+/// Page „Einrichten“ with the form `POST /einrichten` (fields `name`, `display`, `password`, `password2`); without
+/// [`SetupView::allowed`] only the explanation. Password fields are never prefilled.
 pub fn setup_page(status: StatusCode, view: &SetupView) -> Response {
     html_response(status, setup_html(view))
 }
 
-/// Die Seite „Einrichten“ als HTML.
+/// The page „Einrichten“ as HTML.
 pub fn setup_html(view: &SetupView) -> Result<String, String> {
     render_template(
         "einrichten.html",
@@ -196,16 +196,16 @@ pub fn setup_html(view: &SetupView) -> Result<String, String> {
     )
 }
 
-/// Sicheres Ziel nach der Anmeldung: nur ein Pfad auf diesem Server (`/…`), nie `//…` oder `/\…` (beides läse ein
-/// Browser als fremden Rechner) und nichts mit Steuerzeichen (Browser streichen Tab und Zeilenumbruch aus Adressen,
-/// aus `/\t/x` würde `//x`); sonst `/`.
+/// Safe target after signing in: only a path on this server (`/…`), never `//…` or `/\…` (a browser would read
+/// both as a foreign host) and nothing with control characters (browsers strip tab and line break from addresses,
+/// `/\t/x` would become `//x`); otherwise `/`.
 pub fn safe_next(next: &str) -> &str {
     let mut chars = next.chars();
     let local = chars.next() == Some('/') && !matches!(chars.next(), Some('/' | '\\'));
     if local && !next.chars().any(char::is_control) { next } else { "/" }
 }
 
-/// Der Eintrag zum Konto im Menü „Baruch ▾“ (fertiges HTML, alles Fremde maskiert).
+/// The entry for the account in the menu „Baruch ▾“ (finished HTML, everything foreign escaped).
 fn menu_entry(who: &Who, accounts_exist: bool) -> String {
     const ITEM: &str = "<a class=\"menu-item\" role=\"menuitem\"";
     const NOTE: &str = "<span class=\"menu-konto\" role=\"presentation\">";
@@ -233,14 +233,14 @@ fn menu_entry(who: &Who, accounts_exist: bool) -> String {
         Who::LocalAuthor => {
             format!("{NOTE}Autor (eigener Rechner, ohne Anmeldung)</span>{ITEM} href=\"/anmelden\">Anmelden</a>")
         }
-        // Ohne Anmeldung kommt keine Seite mit Menü an (auth::gate leitet um); zur Sicherheit nur der Weg zur
-        // Anmeldung. `Open` mit Konten gibt es nur in der Anfrage, die das erste Konto anlegt.
+        // Without signing in no page with a menu arrives (auth::gate redirects); to be safe only the way to the
+        // sign-in. `Open` with accounts exists only in the request that creates the first account.
         Who::Anonymous | Who::Open => format!("{ITEM} href=\"/anmelden\">Anmelden</a>"),
     }
 }
 
-/// Schneidet jedes Stück zwischen `open` und `close` samt Klammern heraus; eine offene Klammer ohne Ende schneidet
-/// bis zum Schluss (lieber zu wenig zeigen als ein Lektor-Formular beim Autor).
+/// Cuts out every piece between `open` and `close` including the brackets; an open bracket without an end cuts
+/// up to the end (better to show too little than a Lektor form to the author).
 fn cut_blocks(page: &str, open: &str, close: &str) -> String {
     let mut out = String::with_capacity(page.len());
     let mut rest = page;
@@ -259,9 +259,9 @@ fn cut_lektor_blocks(page: &str) -> String {
     cut_blocks(page, LEKTOR_OPEN, LEKTOR_CLOSE)
 }
 
-/// Nimmt die Kennzeichen ` nur-autor` (letzte Klasse) und ` data-nur-autor` aus den **Tags** der Seite. Text zwischen
-/// den Tags bleibt unberührt – auch wenn im Buchtext (Textfeld, Satzbild) zufällig dieselben Zeichen stehen: Dort ist
-/// `<` immer maskiert, ein Tag beginnt also nie im Text.
+/// Takes the markers ` nur-autor` (last class) and ` data-nur-autor` out of the **tags** of the page. Text between
+/// the tags stays untouched – even if the book text (text field, typeset view) happens to contain the same
+/// characters: there `<` is always escaped, so a tag never begins in the text.
 fn strip_author_marks(page: &str) -> String {
     let mut out = String::with_capacity(page.len());
     let mut rest = page;
@@ -281,17 +281,17 @@ fn strip_author_marks(page: &str) -> String {
     out
 }
 
-/// Setzt an [`KONTO_MARK`] den Konto-Eintrag des Menüs ein und richtet die Seite nach der Rolle:
+/// Inserts the account entry of the menu at [`KONTO_MARK`] and arranges the page by role:
 ///
-/// - **Ohne Konten** ([`Who::Open`]): nur der Eintrag „Konten einrichten…“; die Kennzeichen ` nur-autor` (immer die
-///   letzte Klasse eines Elements) und ` data-nur-autor`, die Lektor-Stücke und die Stücke nur mit Konten
-///   ([`KONTEN_OPEN`]) verschwinden – die Seite ist bis auf den einen Menüeintrag dieselbe wie vor Runde 35.
-/// - **Mit Konten:** „Angemeldet: <Anzeigename> (Autor|Lektor)“, „Mein Konto“ und das Formular „Abmelden“ bzw. am
-///   eigenen Rechner ohne Anmeldung der Hinweis mit „Anmelden“; `<body>` trägt `data-rolle="autor|lektor"`. Für
-///   Lektoren bleiben die Lektor-Stücke (ohne Klammern), für alle anderen werden sie herausgeschnitten; was nur der
-///   Autor nutzen kann, blendet `static/konten.css` für Lektoren aus.
+/// - **Without accounts** ([`Who::Open`]): only the entry „Konten einrichten…“; the markers ` nur-autor` (always the
+///   last class of an element) and ` data-nur-autor`, the Lektor pieces and the pieces only with accounts
+///   ([`KONTEN_OPEN`]) disappear – the page is, apart from the one menu entry, the same as before Round 35.
+/// - **With accounts:** „Angemeldet: <Anzeigename> (Autor|Lektor)“, „Mein Konto“ and the form „Abmelden“ or, on
+///   the own machine without signing in, the notice with „Anmelden“; `<body>` carries `data-rolle="autor|lektor"`.
+///   For Lektors the Lektor pieces stay (without brackets), for everyone else they are cut out; what only the
+///   author can use, `static/konten.css` hides for Lektors.
 ///
-/// Eine Seite ohne Marke (sie erweitert `base.html` nicht) bleibt Byte für Byte gleich.
+/// A page without the marker (it does not extend `base.html`) stays the same byte for byte.
 pub fn apply(page: &str, who: &Who, accounts_exist: bool) -> String {
     if !page.contains(KONTO_MARK) {
         return page.to_owned();
@@ -314,13 +314,13 @@ pub fn apply(page: &str, who: &Who, accounts_exist: bool) -> String {
     }
 }
 
-/// Kopf der eigenständigen Seiten der Konten (`anmelden.html`, `einrichten.html`), wörtlich wie in den Vorlagen.
+/// Head of the standalone pages of the accounts (`anmelden.html`, `einrichten.html`), verbatim as in the templates.
 const STANDALONE_HEAD: &str = "<!doctype html>\n<html lang=\"de\">";
 
-/// Runde 36: Die eigenständigen Seiten `/anmelden` und `/einrichten` (ohne Menüband) folgen dem Cookie
-/// `baruch_theme`: `theme` (`light` | `dark`, schon geprüft von [`crate::view::Settings`]) kommt als `data-theme`
-/// an `<html>`, wie bei `base.html`. `None` = die Seite bleibt, wie sie ist (keine eigenständige Seite der Konten
-/// oder kein Cookie: dann gilt weiter das Farbschema des Systems).
+/// Round 36: the standalone pages `/anmelden` and `/einrichten` (without a ribbon) follow the cookie
+/// `baruch_theme`: `theme` (`light` | `dark`, already checked by [`crate::view::Settings`]) goes as `data-theme`
+/// onto `<html>`, as with `base.html`. `None` = the page stays as it is (not a standalone page of the accounts
+/// or no cookie: then the colour scheme of the system keeps applying).
 pub fn themed(page: &str, theme: Option<&str>) -> Option<String> {
     let theme = theme.filter(|theme| matches!(*theme, "light" | "dark"))?;
     if !(page.starts_with(STANDALONE_HEAD) && page.contains("<body class=\"konto-seite\">")) {
@@ -329,7 +329,7 @@ pub fn themed(page: &str, theme: Option<&str>) -> Option<String> {
     Some(format!("<!doctype html>\n<html lang=\"de\" data-theme=\"{theme}\">{}", &page[STANDALONE_HEAD.len()..]))
 }
 
-/// Seiten der Konten: `/anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`.
+/// Pages of the accounts: `/anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`.
 pub fn pages() -> Router<Arc<AppState>> {
     pages::router()
 }
@@ -349,8 +349,8 @@ mod tests {
         })
     }
 
-    /// Ein Stück Seite in den wörtlichen Formen von `base.html`: Marke im Menü, ein Autor-Eintrag, eine Autor-Gruppe
-    /// und ein Lektor-Stück.
+    /// A piece of a page in the verbatim forms of `base.html`: marker in the menu, an author entry, an author group
+    /// and a Lektor piece.
     fn sample() -> String {
         format!(
             "<html><body>\n<nav><a class=\"menu-item nur-autor\" href=\"/beenden\">Baruch beenden…</a>\n{KONTO_MARK}\n\

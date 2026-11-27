@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Entwürfe eines PDF/EPUB-Imports (Runde 21a) als Dateien unter `<data>/import-drafts/<draft>/` (keine Migration):
-//! `draft.json` (Vorschau samt Text der Abschnitte) und `asset-<n>.bin` (Bilder) bzw. – wenn MultiGPT scheiterte und
-//! der Mensch lokal lesen kann, ohne die Datei erneut zu wählen – `pending.json` und `source.bin`.
+//! Drafts of a PDF/EPUB import (Round 21a) as files under `<data>/import-drafts/<draft>/` (no migration):
+//! `draft.json` (preview including the text of the sections) and `asset-<n>.bin` (images) or – if MultiGPT failed
+//! and the human can read locally without choosing the file again – `pending.json` and `source.bin`.
 //!
-//! `draft` = 32 Kleinbuchstaben-Hex (zufällig, [`baruch_store::new_uuid`] ohne Bindestriche); jeder andere Name wird
-//! abgelehnt (kein Pfad aus Eingaben). Höchstens [`MAX_DRAFTS`] Entwürfe und [`MAX_AGE`]: Beim nächsten `preview`
-//! fallen ältere Entwürfe weg, danach die ältesten, bis Platz für einen neuen ist.
+//! `draft` = 32 lower-case hex characters (random, [`baruch_store::new_uuid`] without hyphens); every other name is
+//! refused (no path from inputs). At most [`MAX_DRAFTS`] drafts and [`MAX_AGE`]: at the next `preview`
+//! older drafts are dropped, then the oldest ones, until there is room for a new one.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -16,14 +16,14 @@ use super::remote::RemoteDoc;
 use super::typst_out::Section;
 use crate::import::{ImportWarning, SkippedAsset};
 
-/// Höchstens so viele Entwürfe liegen gleichzeitig vor.
+/// At most this many drafts exist at the same time.
 pub const MAX_DRAFTS: usize = 20;
-/// So lange bleibt ein Entwurf.
+/// A draft stays this long.
 pub const MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
-/// Ordner der Entwürfe im Datenordner.
+/// Folder of the drafts in the data folder.
 pub const DIR: &str = "import-drafts";
 
-/// Hinweis (wie [`ImportWarning`], speicherbar).
+/// Note (like [`ImportWarning`], storable).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredWarning {
     pub code: String,
@@ -43,30 +43,30 @@ impl From<&StoredWarning> for ImportWarning {
     }
 }
 
-/// Übersprungenes Bild (wie [`SkippedAsset`], speicherbar).
+/// Skipped image (like [`SkippedAsset`], storable).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredSkipped {
     pub path: String,
     pub reason: String,
 }
 
-/// Bild eines Entwurfs (Bytes in `asset-<n>.bin`).
+/// Image of a draft (bytes in `asset-<n>.bin`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredAsset {
     pub path: String,
     pub file_name: String,
 }
 
-/// Ein fertig gelesener Entwurf.
+/// A completely read draft.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Draft {
     pub id: String,
-    /// Sekunden seit 1970 (UTC).
+    /// Seconds since 1970 (UTC).
     pub created: u64,
     pub file_name: String,
-    /// `pdf` oder `epub`.
+    /// `pdf` or `epub`.
     pub kind: String,
-    /// `multigpt` oder `local`.
+    /// `multigpt` or `local`.
     pub way: String,
     pub way_reason: String,
     pub title: Option<String>,
@@ -80,9 +80,9 @@ pub struct Draft {
     pub document: Option<RemoteDoc>,
     pub sha256: String,
     pub mime: String,
-    /// Volltext für die Bibliothek (nur lokaler Weg; über MultiGPT gilt die Verknüpfung).
+    /// Full text for the library (local way only; through MultiGPT the link applies).
     pub plain_text: String,
-    /// Vorgeschlagener Titel aus dem Formular bzw. RPC (`title`), falls angegeben.
+    /// Suggested title from the form or RPC (`title`), if given.
     pub wanted_title: Option<String>,
 }
 
@@ -96,7 +96,7 @@ impl Draft {
     }
 }
 
-/// Datei, deren Lesen über MultiGPT scheiterte; bereit für „lokal lesen“.
+/// File whose reading through MultiGPT failed; ready for „lokal lesen“.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pending {
     pub id: String,
@@ -110,7 +110,7 @@ pub fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
-/// Ist `id` ein gültiger Name eines Entwurfs (32 Kleinbuchstaben-Hex)?
+/// Is `id` a valid name of a draft (32 lower-case hex characters)?
 pub fn valid_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
@@ -143,8 +143,8 @@ fn created_of(dir: &Path) -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// Aufräumen vor einem neuen Entwurf: älter als [`MAX_AGE`] weg, dann die ältesten, bis höchstens
-/// `MAX_DRAFTS - 1` bleiben. Blockiert. Ergebnis: Zahl der entfernten Entwürfe.
+/// Tidying up before a new draft: older than [`MAX_AGE`] gone, then the oldest ones, until at most
+/// `MAX_DRAFTS - 1` remain. Blocks. Result: number of drafts removed.
 pub fn clean(data: &Path) -> usize {
     let Ok(entries) = std::fs::read_dir(root(data)) else { return 0 };
     let mut drafts: Vec<(u64, PathBuf)> = entries
@@ -180,7 +180,7 @@ fn write_json(dir: &Path, name: &str, value: &impl Serialize) -> Result<(), Stri
     std::fs::write(dir.join(name), text).map_err(|e| format!("Entwurf lässt sich nicht schreiben: {e}"))
 }
 
-/// Neuen Entwurf schreiben (Bilder als Dateien). Blockiert.
+/// Write a new draft (images as files). Blocks.
 pub fn save(data: &Path, draft: &Draft, assets: &[(String, String, Vec<u8>)]) -> Result<(), String> {
     let dir = folder(data, &draft.id).ok_or("ungültiger Entwurf")?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Entwurf lässt sich nicht anlegen: {e}"))?;
@@ -191,7 +191,7 @@ pub fn save(data: &Path, draft: &Draft, assets: &[(String, String, Vec<u8>)]) ->
     write_json(&dir, "draft.json", draft)
 }
 
-/// Datei für „lokal lesen“ nach einem Fehler von MultiGPT ablegen. Blockiert.
+/// Store the file for „lokal lesen“ after an error of MultiGPT. Blocks.
 pub fn save_pending(data: &Path, pending: &Pending, bytes: &[u8]) -> Result<(), String> {
     let dir = folder(data, &pending.id).ok_or("ungültiger Entwurf")?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Entwurf lässt sich nicht anlegen: {e}"))?;
@@ -199,17 +199,17 @@ pub fn save_pending(data: &Path, pending: &Pending, bytes: &[u8]) -> Result<(), 
     write_json(&dir, "pending.json", pending)
 }
 
-/// Fehler beim Laden eines Entwurfs.
+/// Error while loading a draft.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoadError {
-    /// Ungültiger Name oder kein solcher (bzw. abgelaufener) Entwurf.
+    /// Invalid name or no such (or an expired) draft.
     Unknown,
-    /// Der Entwurf wartet auf „lokal lesen“ (keine Vorschau).
+    /// The draft waits for „lokal lesen“ (no preview).
     Pending,
     Broken(String),
 }
 
-/// Entwurf laden (ohne Bilder). Abgelaufene gelten als unbekannt. Blockiert.
+/// Load a draft (without images). Expired ones count as unknown. Blocks.
 pub fn load(data: &Path, id: &str) -> Result<Draft, LoadError> {
     let dir = folder(data, id).ok_or(LoadError::Unknown)?;
     let text = match std::fs::read_to_string(dir.join("draft.json")) {
@@ -224,7 +224,7 @@ pub fn load(data: &Path, id: &str) -> Result<Draft, LoadError> {
     Ok(draft)
 }
 
-/// Bilder eines Entwurfs. Blockiert.
+/// Images of a draft. Blocks.
 pub fn load_assets(data: &Path, draft: &Draft) -> Result<Vec<(String, String, Vec<u8>)>, String> {
     let dir = folder(data, &draft.id).ok_or("ungültiger Entwurf")?;
     draft
@@ -239,7 +239,7 @@ pub fn load_assets(data: &Path, draft: &Draft) -> Result<Vec<(String, String, Ve
         .collect()
 }
 
-/// Wartende Datei laden. Blockiert.
+/// Load a waiting file. Blocks.
 pub fn load_pending(data: &Path, id: &str) -> Result<(Pending, Vec<u8>), LoadError> {
     let dir = folder(data, id).ok_or(LoadError::Unknown)?;
     let text = std::fs::read_to_string(dir.join("pending.json")).map_err(|_| LoadError::Unknown)?;
@@ -253,7 +253,7 @@ pub fn load_pending(data: &Path, id: &str) -> Result<(Pending, Vec<u8>), LoadErr
     Ok((pending, bytes))
 }
 
-/// Entwurf löschen; `true`, wenn es ihn gab. Blockiert.
+/// Delete a draft; `true` if it existed. Blocks.
 pub fn remove(data: &Path, id: &str) -> bool {
     match folder(data, id) {
         Some(dir) if dir.is_dir() => std::fs::remove_dir_all(dir).is_ok(),
@@ -261,7 +261,7 @@ pub fn remove(data: &Path, id: &str) -> bool {
     }
 }
 
-/// Zahl der vorhandenen Entwürfe (für Tests und Anzeige). Blockiert.
+/// Number of existing drafts (for tests and display). Blocks.
 pub fn count(data: &Path) -> usize {
     std::fs::read_dir(root(data))
         .map(|entries| {

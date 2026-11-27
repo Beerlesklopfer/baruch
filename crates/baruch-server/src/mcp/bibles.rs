@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge der SWORD-Bibeln (2026-11-06): `bible_modules`, `bible_lookup`, `bible_search`. Nur lesend;
-//! Modulordner und Bibel je Werk wählt nur der Mensch (Einstellungen → Quellen, RPC `bible.set_*`). Jede
-//! Antwort nennt Modul, Versifikation und den Lizenzvermerk der conf. Dieselben Wege wie RPC `bible.*`
+//! MCP tools of the SWORD Bibles (2026-11-06): `bible_modules`, `bible_lookup`, `bible_search`. Read-only;
+//! only the human chooses module folders and the Bible per work (Einstellungen → Quellen, RPC `bible.set_*`). Every
+//! answer names module, versification and the licence notice of the conf. The same paths as RPC `bible.*`
 //! ([`crate::bibles`]).
 //!
-//! Runde 15 (Punkt 5a): `commentary_lookup`, `lexicon_lookup`, `lexicon_search` – Kommentare und Lexika (nur
-//! lesend, lokale SWORD-Module; Auswahl je Werk trifft der Mensch unter Einstellungen → Werk). Jede Antwort
-//! nennt den Lizenzvermerk der conf (`notice`).
+//! Round 15 (item 5a): `commentary_lookup`, `lexicon_lookup`, `lexicon_search` – commentaries and lexicons
+//! (read-only, local SWORD modules; the human makes the selection per work under Einstellungen → Werk). Every
+//! answer names the licence notice of the conf (`notice`).
 
 use serde::Deserialize;
 use serde_json::{Value, json};

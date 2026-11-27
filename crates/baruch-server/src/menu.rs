@@ -1,30 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Daten und Abzeichen des Menübands (Runde 33; bis dahin Kopfzeile mit den Menüs Werk ▾, Ansicht ▾, Werkzeuge ▾
-//! der Runde 9).
+//! Data and badges of the ribbon (Round 33; until then a header with the menus Werk ▾, Ansicht ▾, Werkzeuge ▾
+//! of Round 9).
 //!
-//! Das Band wohnt in `templates/base.html` (`{% block topbar %}`): Menü **Baruch ▾**, Reiter Start · Einfügen ·
-//! Prüfen · Buch · Ansicht mit Gruppen; jede Seite liefert `{% block page_title %}`, den Vorgabe-Reiter
-//! (`{% block band_tab %}`) und ihre Gruppen (`page_actions`, `band_*`). Alles sind gewöhnliche Links und
-//! `<details>`, also ohne JavaScript bedienbar; den aktiven Reiter und die Adressen setzt `crate::band::apply` im
-//! fertigen HTML ein. `web/src/menu.ts` (Widget `menubar`) ergänzt am Menü „Baruch ▾“ die Tastatur nach dem
-//! ARIA-Menü-Muster, `web/src/band.ts` die Reiter.
+//! The ribbon lives in `templates/base.html` (`{% block topbar %}`): menu **Baruch ▾**, tabs Start · Einfügen ·
+//! Prüfen · Buch · Ansicht with groups; every page supplies `{% block page_title %}`, the default tab
+//! (`{% block band_tab %}`) and its groups (`page_actions`, `band_*`). All of them are ordinary links and
+//! `<details>`, so usable without JavaScript; the active tab and the addresses are inserted into the finished HTML
+//! by `crate::band::apply`. `web/src/menu.ts` (widget `menubar`) adds the keyboard to the menu „Baruch ▾“ following
+//! the ARIA menu pattern, `web/src/band.ts` the tabs.
 //!
-//! Daten des Bands, in dieser Rangfolge: (1) die Variable `topbar` (nur die Arbeitsseite, gebaut
-//! von [`workspace_topbar`]), (2) `work.id`/`work.title`, wenn `work` eine Abbildung ist, (3) das
-//! Werk aus dem Cookie `baruch_work` (`settings.work`). Fehlt alles, gibt es nur die Reiter Start und Ansicht.
+//! Data of the ribbon, in this order of precedence: (1) the variable `topbar` (only the work page, built
+//! by [`workspace_topbar`]), (2) `work.id`/`work.title` if `work` is a mapping, (3) the
+//! work from the cookie `baruch_work` (`settings.work`). If everything is missing, there are only the tabs Start and
+//! Ansicht.
 //!
-//! Abzeichen: offene Vorschläge im Werk (Reiter Start), offene Befunde (Reiter Prüfen „N offen“ und Eintrag
-//! „Befunde“; Zählregel Vertrag R28 §1.5, Summe von `Store::finding_open_counts`) und offene Anträge zur Gliederung
-//! (Reiter Buch und Eintrag „Anträge zur Gliederung“). Die Arbeitsseite zeichnet sie im Server; `menu.ts` frischt
-//! sie über die RPC-Methode `menu.badges {work?}` → `{work, outline_requests, open_proposals, open_findings}` auf.
+//! Badges: open proposals in the work (tab Start), open findings (tab Prüfen „N offen“ and entry
+//! „Befunde“; counting rule contract R28 §1.5, sum of `Store::finding_open_counts`) and open requests for the
+//! outline (tab Buch and entry „Anträge zur Gliederung“). The work page draws them in the server; `menu.ts`
+//! refreshes them through the RPC method `menu.badges {work?}` → `{work, outline_requests, open_proposals,
+//! open_findings}`.
 //!
-//! Runde 23a: Auch ohne JavaScript stehen die Zahlen und der Eintrag „Anträge zur Gliederung“ auf **jeder** Seite im
-//! ausgelieferten HTML. `base.html` kennzeichnet außerhalb der Arbeitsseite die Abzeichen mit `data-badge-fill` und
-//! die Menüleiste mit `data-badges-work="<Werk>"`; die Schicht `consent::inject` (über allen Routen) ruft
-//! [`fill_page`], das die Zahlen aus [`badges`] einsetzt ([`fill_badges`]). `menu.ts` frischt sie nur noch auf.
+//! Round 23a: also without JavaScript the numbers and the entry „Anträge zur Gliederung“ are in the served HTML on
+//! **every** page. Outside of the work page `base.html` labels the badges with `data-badge-fill` and
+//! the menu bar with `data-badges-work="<Werk>"`; the layer `consent::inject` (above all routes) calls
+//! [`fill_page`], which inserts the numbers from [`badges`] ([`fill_badges`]). `menu.ts` only refreshes them.
 //!
-//! Runde 24: „Über Baruch“ (`/ueber`, `crate::about`) steht im Menü **Baruch ▾** – ein gewöhnlicher Link
-//! ohne Werk in der Adresse (die Seite zeigt Version, Lizenz und Quellcode und braucht kein Werk).
+//! Round 24: „Über Baruch“ (`/ueber`, `crate::about`) is in the menu **Baruch ▾** – an ordinary link
+//! without a work in the address (the page shows version, licence and source code and needs no work).
 
 use baruch_core::Work;
 use baruch_store::WorkId;
@@ -35,30 +37,31 @@ use crate::AppState;
 use crate::rpc::{self, INVALID_PARAMS, LibraryView, METHOD_NOT_FOUND, RpcError};
 use crate::view::{self, Resolved, Shelf};
 
-/// RPC-Methoden dieses Moduls; `rpc::call` fragt [`handles`] vor der Wahl des Vorgabewerks.
+/// RPC methods of this module; `rpc::call` asks [`handles`] before choosing the default work.
 pub const METHODS: &[&str] = &["menu.badges"];
 
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Zahlen der Abzeichen an den Menüs.
+/// Numbers of the badges at the menus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Badges {
-    /// Offene (noch nicht entschiedene) Anträge zur Gliederung, Abzeichen am Reiter „Buch“.
+    /// Open (not yet decided) requests for the outline, badge at the tab „Buch“.
     pub outline_requests: usize,
-    /// Offene Vorschläge im ganzen Werk, Abzeichen am Reiter „Start“.
+    /// Open proposals in the whole work, badge at the tab „Start“.
     pub open_proposals: usize,
-    /// Runde 28: offene Befunde im ganzen Werk (Zählregel §1.5), Abzeichen am Reiter „Prüfen“ und am Eintrag „Befunde“.
+    /// Round 28: open findings in the whole work (counting rule §1.5), badge at the tab „Prüfen“ and at the entry
+    /// „Befunde“.
     pub open_findings: usize,
 }
 
-/// Offene Vorschläge über alle Abschnitte des Werks.
+/// Open proposals across all sections of the work.
 pub fn open_proposals(work: &Work) -> usize {
     work.nodes.iter().map(|n| n.open_proposals()).sum()
 }
 
-/// Abzeichen eines Werks aus dem Speicher (dieselben Zahlen wie auf der Arbeitsseite).
+/// Badges of a work from the store (the same numbers as on the work page).
 pub async fn badges(state: &AppState, work: WorkId) -> Result<Badges, RpcError> {
     let outline_requests = state.store.open_outline_requests(work).await?;
     let loaded = state.store.load_work(work).await?;
@@ -66,27 +69,27 @@ pub async fn badges(state: &AppState, work: WorkId) -> Result<Badges, RpcError> 
     Ok(Badges { outline_requests, open_proposals: open_proposals(&loaded), open_findings })
 }
 
-/// Kennzeichen eines Abzeichens, das der Server im fertigen HTML füllt (`base.html`, außerhalb der Arbeitsseite).
+/// Marker of a badge that the server fills in the finished HTML (`base.html`, outside of the work page).
 const FILL: &str = " data-badge-fill";
 
-/// Werk des Bands aus `data-badges-work="<Zahl>"` (`base.html`); `None` auf der Arbeitsseite (dort zeichnet die
-/// Vorlage die Zahlen selbst) und auf Seiten ohne Werk.
+/// Work of the ribbon from `data-badges-work="<Zahl>"` (`base.html`); `None` on the work page (there the
+/// template draws the numbers itself) and on pages without a work.
 pub fn page_work(page: &str) -> Option<WorkId> {
     let rest = &page[page.find("data-badges-work=\"")? + "data-badges-work=\"".len()..];
     rest[..rest.find('"')?].parse().ok().filter(|&work: &WorkId| work > 0)
 }
 
-/// Setzt die Zahlen in die mit `data-badge-fill` gekennzeichneten Abzeichen (`data-badge="<name>"`) und Einträge
-/// (`data-badge-item="<name>"`) ein: Bei einer Zahl über null fällt `hidden` weg und die Null im Abzeichen wird die
-/// Zahl („3“ bzw. „3 offen“ – der Text dahinter bleibt). Bei null bleibt das Element verborgen. Das Kennzeichen
-/// selbst wird immer entfernt. Unbekannte Namen bleiben verborgen.
+/// Inserts the numbers into the badges (`data-badge="<name>"`) and entries (`data-badge-item="<name>"`) labelled
+/// with `data-badge-fill`: for a number above zero `hidden` is dropped and the zero in the badge becomes the
+/// number („3“ or „3 offen“ – the text after it stays). At zero the element stays hidden. The marker
+/// itself is always removed. Unknown names stay hidden.
 pub fn fill_badges(page: &str, badges: Badges) -> String {
     let mut out = String::with_capacity(page.len() + 16);
     let mut rest = page;
     while let Some(at) = rest.find(FILL) {
         let (before, after) = rest.split_at(at);
         let after = &after[FILL.len()..];
-        // Das Kennzeichen steht im öffnenden Tag: Name aus `data-badge="…"` bzw. `data-badge-item="…"` davor.
+        // The marker is in the opening tag: name from `data-badge="…"` or `data-badge-item="…"` before it.
         let tag = &before[before.rfind('<').unwrap_or(0)..];
         let name = ["data-badge=\"", "data-badge-item=\""].iter().find_map(|attr| {
             let value = &tag[tag.find(attr)? + attr.len()..];
@@ -103,7 +106,7 @@ pub fn fill_badges(page: &str, badges: Badges) -> String {
         if count == 0 {
             continue;
         }
-        // Mit `hidden` dahinter: sichtbar machen; die Null direkt hinter dem Tag wird die Zahl.
+        // With `hidden` after it: make visible; the zero directly after the tag becomes the number.
         let visible = rest.strip_prefix(" hidden").unwrap_or(rest);
         match visible.strip_prefix(">0") {
             Some(tail) if tag.contains("data-badge=\"") => {
@@ -118,8 +121,8 @@ pub fn fill_badges(page: &str, badges: Badges) -> String {
     out
 }
 
-/// Fertige Seite mit den Abzeichen ihres Werks ([`page_work`], [`badges`], [`fill_badges`]). Ohne Kennzeichen bleibt
-/// die Seite unverändert; lässt sich das Werk nicht lesen (gelöscht), bleiben die Abzeichen verborgen.
+/// Finished page with the badges of its work ([`page_work`], [`badges`], [`fill_badges`]). Without a marker the
+/// page stays unchanged; if the work cannot be read (deleted), the badges stay hidden.
 pub async fn fill_page(state: &AppState, page: String) -> String {
     if !page.contains(FILL) {
         return page;
@@ -131,8 +134,8 @@ pub async fn fill_page(state: &AppState, page: String) -> String {
     fill_badges(&page, found.unwrap_or(Badges { outline_requests: 0, open_proposals: 0, open_findings: 0 }))
 }
 
-/// `menu.badges {work?}` → `{work, outline_requests, open_proposals, open_findings}`; fehlt `work`, das Vorgabewerk.
-/// Parameter, die kein Objekt sind, oder ein unbekanntes Werk → `INVALID_PARAMS`.
+/// `menu.badges {work?}` → `{work, outline_requests, open_proposals, open_findings}`; if `work` is missing, the
+/// default work. Parameters that are not an object, or an unknown work → `INVALID_PARAMS`.
 pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> Result<serde_json::Value, RpcError> {
     match method {
         "menu.badges" => {
@@ -152,7 +155,7 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
     }
 }
 
-/// Einträge der Werkwahl („Titel · Autor · n Abschnitte“), das gezeigte Werk gewählt.
+/// Entries of the work selection („Titel · Autor · n Abschnitte“), the work shown selected.
 fn work_options(shelf: &Shelf) -> Vec<Value> {
     shelf
         .works
@@ -168,9 +171,9 @@ fn work_options(shelf: &Shelf) -> Vec<Value> {
         .collect()
 }
 
-/// Daten des Menübands auf der Arbeitsseite: Werk, gezeigter Abschnitt (`key`, `rev`), Ansicht,
-/// Suche der Literatur (`lq_q`, fertig als `&lq=…`), Werkwahl und die Abzeichen aus dem Server.
-/// `base.html` baut daraus die Adressen (Key-Form `/?work=W&key=K&rev=R…`, nie `node=`).
+/// Data of the ribbon on the work page: work, section shown (`key`, `rev`), view,
+/// search of the literature (`lq_q`, finished as `&lq=…`), work selection and the badges from the server.
+/// `base.html` builds the addresses from it (key form `/?work=W&key=K&rev=R…`, never `node=`).
 pub fn workspace_topbar(work: &Work, shelf: &Shelf, at: &Resolved, library: &LibraryView) -> Value {
     context! {
         work => context! { id => shelf.id, title => work.title.as_str(), author => work.author.as_str() },

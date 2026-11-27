@@ -1,55 +1,55 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Sitzungen: `initialize` merkt sich `clientInfo` unter einer neuen `Mcp-Session-Id`.
+//! MCP sessions: `initialize` remembers `clientInfo` under a new `Mcp-Session-Id`.
 //!
-//! Prozessweite Tabelle mit höchstens [`MAX_SESSIONS`] Einträgen; ist sie voll, fällt die älteste
-//! Sitzung heraus. Die Id ist kein Geheimnis (Zugang über Loopback oder mit Token, Runde 10), sie
-//! ordnet nur spätere Anfragen dem Client zu, damit Vorschläge und Beiträge ihm zugeschrieben werden.
-//! Mit Token heißt der Client wie der Token, auch wenn die Sitzung anders angelegt wurde ([`crate::mcp`]).
+//! Process-wide table with at most [`MAX_SESSIONS`] entries; if it is full, the oldest
+//! session drops out. The id is no secret (access over loopback or with a token, Round 10), it
+//! only assigns later requests to the client, so that proposals and posts are attributed to it.
+//! With a token the client is named like the token, even if the session was created differently ([`crate::mcp`]).
 //!
-//! Runde 23: Der Handle folgt [`handle_name`] (Umlaute umschrieben); ein Client ohne Token, dessen Handle einem
-//! Token gehört, heißt `lokal-<name>` ([`local_name`]); ein Token besitzt für alte Beiträge auch seinen Alt-Handle
-//! ([`Client::owned_handles`]). Fielen zwei Tokens aus der Zeit vor Runde 23 erst durch die neue Regel zusammen
-//! („Büro“ und „buero“), behält der Token mit Umlaut seinen Alt-Handle ([`keeps_legacy`]).
+//! Round 23: the handle follows [`handle_name`] (umlauts transliterated); a client without a token whose handle
+//! belongs to a token is named `lokal-<name>` ([`local_name`]); for old posts a token also owns its legacy handle
+//! ([`Client::owned_handles`]). If two tokens from the time before Round 23 coincided only through the new rule
+//! („Büro“ and „buero“), the token with the umlaut keeps its legacy handle ([`keeps_legacy`]).
 
 use std::collections::{HashMap, VecDeque};
 use std::hash::{BuildHasher, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
-/// Höchstzahl gemerkter Sitzungen.
+/// Maximum number of remembered sessions.
 pub const MAX_SESSIONS: usize = 256;
 
-/// Name und Version aus `clientInfo` von `initialize`.
+/// Name and version from `clientInfo` of `initialize`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Client {
     pub name: String,
     pub version: String,
-    /// Mit Token angemeldet (anderer Rechner möglich): handelt nur im eigenen Namen, nie als Persona
+    /// Signed in with a token (another machine possible): acts only in its own name, never as a persona
     /// ([`super::tools::acting_persona`]).
     pub token: bool,
-    /// Nur mit Token: Der Token schreibt weiter unter seinem Alt-Handle, weil sein Handle nach der Regel seit
-    /// Runde 23 erst durch diese Regel mit dem eines anderen Tokens zusammenfiele ([`keeps_legacy`]).
+    /// Only with a token: the token keeps writing under its legacy handle, because its handle under the rule since
+    /// Round 23 would coincide with that of another token only through this rule ([`keeps_legacy`]).
     pub keeps_legacy: bool,
 }
 
-/// Vorsilbe im Namen eines Clients **ohne** Token, dessen Handle einem Token gehört (Runde 23): Autor
-/// `@mcp:lokal-<handle>`. Kein Token darf einen Handle mit dieser Vorsilbe bekommen
+/// Prefix in the name of a client **without** a token whose handle belongs to a token (Round 23): author
+/// `@mcp:lokal-<handle>`. No token may get a handle with this prefix
 /// ([`baruch_store::Store::mcp_token_create_unique`]).
 pub const LOCAL_PREFIX: &str = "lokal-";
 
-/// Zeichen eines Handles nach dem Umschreiben: `[a-z0-9._-]` bleibt, alles andere wird '-'.
+/// Character of a handle after transliteration: `[a-z0-9._-]` stays, everything else becomes '-'.
 fn safe(c: char) -> char {
     if c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-') { c } else { '-' }
 }
 
-/// Namensteil eines Handles (ohne `@mcp:`), Regel seit Runde 23: getrimmt, NFC, klein, Umlaute umschrieben (ä → ae,
-/// ö → oe, ü → ue, ß → ss), sonst nach NFKD ohne Akzente (é → e, ﬁ → fi), jedes übrige Zeichen außerhalb
-/// `[a-z0-9._-]` → '-', höchstens 32 Zeichen, leer → `unbekannt`. Dieselbe Regel prüft `mcp_token.create`.
+/// Name part of a handle (without `@mcp:`), rule since Round 23: trimmed, NFC, lower case, umlauts transliterated
+/// (ä → ae, ö → oe, ü → ue, ß → ss), otherwise after NFKD without accents (é → e, ﬁ → fi), every remaining character
+/// outside `[a-z0-9._-]` → '-', at most 32 characters, empty → `unbekannt`. `mcp_token.create` checks the same rule.
 pub fn handle_name(name: &str) -> String {
     use unicode_normalization::UnicodeNormalization as _;
     use unicode_normalization::char::is_combining_mark;
     let mut spelled = String::with_capacity(name.len());
-    // Erst NFC: ein zerlegt getipptes „ü“ (u + Trema, z. B. von macOS) ist derselbe Umlaut wie das eine Zeichen.
+    // NFC first: a „ü“ typed decomposed (u + diaeresis, e.g. from macOS) is the same umlaut as the single character.
     for c in name.trim().nfc().flat_map(char::to_lowercase) {
         match c {
             'ä' => spelled.push_str("ae"),
@@ -59,26 +59,26 @@ pub fn handle_name(name: &str) -> String {
             c => spelled.push(c),
         }
     }
-    // NFKD kann Großbuchstaben freilegen (z. B. aus Kompatibilitätszeichen), darum danach noch einmal klein.
+    // NFKD can expose upper-case letters (e.g. from compatibility characters), so lower-case once more afterwards.
     let out: String =
         spelled.nfkd().filter(|c| !is_combining_mark(*c)).flat_map(char::to_lowercase).map(safe).take(32).collect();
     if out.is_empty() { "unbekannt".to_owned() } else { out }
 }
 
-/// Namensteil eines Handles nach der Regel **bis Runde 22** (klein, alles außerhalb `[a-z0-9._-]` → '-', also auch
-/// Umlaute; nicht getrimmt; höchstens 32 Zeichen, leer → `unbekannt`). Nur noch, um das Eigentum eines Tokens an
-/// seinen alten Beiträgen zu erkennen ([`Client::owned_handles`]) und beim Anlegen eines Tokens Kollisionen mit
-/// solchen Autoren auszuschließen.
+/// Name part of a handle under the rule **up to Round 22** (lower case, everything outside `[a-z0-9._-]` → '-', so
+/// umlauts too; not trimmed; at most 32 characters, empty → `unbekannt`). Only used any more to recognise the
+/// ownership of a token of its old posts ([`Client::owned_handles`]) and to rule out collisions with
+/// such authors when a token is created.
 pub fn legacy_handle_name(name: &str) -> String {
     let out: String = name.chars().flat_map(char::to_lowercase).map(safe).take(32).collect();
     if out.is_empty() { "unbekannt".to_owned() } else { out }
 }
 
-/// Name eines Clients **ohne** Token (Runde 23): Gehört sein Handle einem Token (auch einem widerrufenen; Handle
-/// oder Alt-Handle), bekommt der Name die Vorsilbe [`LOCAL_PREFIX`] – sonst bleibt er. So schreibt ein Client vom
-/// eigenen Rechner nie unter dem Autor eines Tokens und erlangt kein Eigentum an dessen Beiträgen. `token_names` sind
-/// die Namen aller Tokens. Die Schleife deckt nur Tokens aus der Zeit vor Runde 23, deren Handle selbst mit `lokal-`
-/// beginnt (neue lehnt `mcp_token.create` ab).
+/// Name of a client **without** a token (Round 23): if its handle belongs to a token (also a revoked one; handle
+/// or legacy handle), the name gets the prefix [`LOCAL_PREFIX`] – otherwise it stays. This way a client from the
+/// own machine never writes under the author of a token and gains no ownership of its posts. `token_names` are
+/// the names of all tokens. The loop only covers tokens from the time before Round 23 whose handle itself begins
+/// with `lokal-` (`mcp_token.create` refuses new ones).
 pub fn local_name<'a>(name: &str, token_names: impl IntoIterator<Item = &'a str>) -> String {
     let taken: std::collections::HashSet<String> =
         token_names.into_iter().flat_map(|t| [handle_name(t), legacy_handle_name(t)]).collect();
@@ -92,14 +92,14 @@ pub fn local_name<'a>(name: &str, token_names: impl IntoIterator<Item = &'a str>
     name
 }
 
-/// Behält der Token `name` seinen Alt-Handle ([`legacy_handle_name`])? Ja, wenn die Regel seit Runde 23 seinen Handle
-/// geändert hat (Umlaute) **und** der neue Handle dem Handle oder Alt-Handle eines Tokens gleicht, der bis Runde 22
-/// unter einem **anderen** Autor schrieb. Beispiel: „Büro“ (bis Runde 22 `b-ro`) und „buero“ (`buero`) waren getrennt
-/// und ergäben beide `buero` – „Büro“ bleibt darum bei `b-ro`, „buero“ bei `buero`; keiner schreibt unter dem Autor
-/// des anderen oder besitzt dessen Beiträge. Tokens mit demselben Alt-Handle („Büro“ und „BÜRO“, auch ein
-/// widerrufener gleichen Namens) teilten ihn schon vorher und wechseln gemeinsam. `token_names` sind die Namen aller
-/// Tokens (auch widerrufener: ihre Beiträge tragen den Autor weiter); der Token selbst darf darunter sein. Die Regel
-/// hängt nicht von der Reihenfolge ab. Neue Tokens trifft sie nie: `mcp_token.create` lehnt solche Namen ab.
+/// Does the token `name` keep its legacy handle ([`legacy_handle_name`])? Yes, if the rule since Round 23 changed
+/// its handle (umlauts) **and** the new handle equals the handle or legacy handle of a token that wrote under a
+/// **different** author up to Round 22. Example: „Büro“ (up to Round 22 `b-ro`) and „buero“ (`buero`) were separate
+/// and would both yield `buero` – so „Büro“ stays with `b-ro`, „buero“ with `buero`; neither writes under the author
+/// of the other or owns its posts. Tokens with the same legacy handle („Büro“ and „BÜRO“, also a
+/// revoked one of the same name) already shared it before and change together. `token_names` are the names of all
+/// tokens (revoked ones too: their posts keep carrying the author); the token itself may be among them. The rule
+/// does not depend on the order. It never hits new tokens: `mcp_token.create` refuses such names.
 pub fn keeps_legacy<'a>(name: &str, token_names: impl IntoIterator<Item = &'a str>) -> bool {
     let (new, legacy) = (handle_name(name), legacy_handle_name(name));
     new != legacy
@@ -109,16 +109,16 @@ pub fn keeps_legacy<'a>(name: &str, token_names: impl IntoIterator<Item = &'a st
         })
 }
 
-/// Autor (`@mcp:<handle>`), unter dem der Token `name` schreibt: nach [`handle_name`], bei [`keeps_legacy`] nach
-/// [`legacy_handle_name`]. `token_names` wie dort.
+/// Author (`@mcp:<handle>`) under which the token `name` writes: by [`handle_name`], with [`keeps_legacy`] by
+/// [`legacy_handle_name`]. `token_names` as there.
 pub fn token_handle<'a>(name: &str, token_names: impl IntoIterator<Item = &'a str>) -> String {
     Client { name: name.to_owned(), token: true, keeps_legacy: keeps_legacy(name, token_names), ..Default::default() }
         .handle()
 }
 
 impl Client {
-    /// Handle für Autorenangaben: `@mcp:` + [`handle_name`] des Namens; ein Token mit [`Client::keeps_legacy`]
-    /// behält `@mcp:` + [`legacy_handle_name`].
+    /// Handle for author attributions: `@mcp:` + [`handle_name`] of the name; a token with [`Client::keeps_legacy`]
+    /// keeps `@mcp:` + [`legacy_handle_name`].
     pub fn handle(&self) -> String {
         if self.token && self.keeps_legacy {
             return format!("@mcp:{}", legacy_handle_name(&self.name));
@@ -126,10 +126,10 @@ impl Client {
         format!("@mcp:{}", handle_name(&self.name))
     }
 
-    /// Autoren, deren Beiträge diesem Client gehören (Runde 23): sein Handle; mit Token zusätzlich der Alt-Handle
-    /// desselben Tokens ([`legacy_handle_name`]), falls die neue Regel ihn geändert hat (Umlaute). Ein Client ohne
-    /// Token besitzt nur seinen Handle – der Alt-Handle eines Tokens ist ihm über [`local_name`] verwehrt. Ein Token
-    /// mit [`Client::keeps_legacy`] besitzt nur den Alt-Handle (der neue gehört einem anderen Token).
+    /// Authors whose posts belong to this client (Round 23): its handle; with a token additionally the legacy handle
+    /// of the same token ([`legacy_handle_name`]) if the new rule changed it (umlauts). A client without a
+    /// token owns only its handle – the legacy handle of a token is denied to it through [`local_name`]. A token
+    /// with [`Client::keeps_legacy`] owns only the legacy handle (the new one belongs to another token).
     pub fn owned_handles(&self) -> Vec<String> {
         let mut owned = vec![self.handle()];
         if self.token && !self.keeps_legacy {
@@ -141,7 +141,7 @@ impl Client {
         owned
     }
 
-    /// Modellangabe, wenn der Aufrufer keine nennt: „<Name> <Version>“, sonst „unbekannt“.
+    /// Model name if the caller names none: „<Name> <Version>“, otherwise „unbekannt“.
     pub fn model(&self) -> String {
         match (self.name.trim(), self.version.trim()) {
             ("", _) => "unbekannt".to_owned(),
@@ -164,8 +164,8 @@ fn table() -> std::sync::MutexGuard<'static, Table> {
     SESSIONS.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Neue, schwer zu ratende Id (32 Hex-Zeichen) aus den Zufallsschlüsseln von `RandomState`,
-/// einem Zähler und der Uhrzeit.
+/// New id that is hard to guess (32 hex characters) from the random keys of `RandomState`,
+/// a counter and the time.
 fn new_id() -> String {
     let count = COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
@@ -179,9 +179,9 @@ fn new_id() -> String {
     format!("{:016x}{:016x}", part(1), part(2))
 }
 
-/// Ein Client, wie ihn die Einstellungsseite „MCP-Zugang“ zeigt (Runde 9): je Handle ein Eintrag,
-/// Zeiten in Unix-Sekunden. Nur im Speicher des Servers (nach einem Neustart leer), höchstens
-/// [`MAX_SESSIONS`] Einträge (der am längsten nicht gesehene fällt heraus).
+/// A client as the settings page „MCP-Zugang“ shows it (Round 9): one entry per handle,
+/// times in Unix seconds. Only in the memory of the server (empty after a restart), at most
+/// [`MAX_SESSIONS`] entries (the one not seen for the longest time drops out).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SeenClient {
     pub name: String,
@@ -201,8 +201,8 @@ fn now_secs() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
-/// `initialize`: Name und Version übernehmen, zuletzt gesehen = jetzt; zuerst gesehen = jetzt, wenn
-/// der Handle neu ist (sonst bleibt der frühere Zeitpunkt).
+/// `initialize`: take over name and version, last seen = now; first seen = now if
+/// the handle is new (otherwise the earlier point in time stays).
 fn saw_start(client: &Client) {
     let now = now_secs();
     let handle = client.handle();
@@ -225,14 +225,14 @@ fn saw_start(client: &Client) {
     entry.last_seen = now;
 }
 
-/// Gesehene Clients, zuletzt gesehen zuerst (bei Gleichstand nach Handle).
+/// Clients seen, last seen first (ties by handle).
 pub fn clients() -> Vec<SeenClient> {
     let mut list: Vec<SeenClient> = seen().values().cloned().collect();
     list.sort_by(|a, b| b.last_seen.cmp(&a.last_seen).then_with(|| a.handle.cmp(&b.handle)));
     list
 }
 
-/// Legt eine Sitzung für `client` an und gibt ihre Id zurück.
+/// Creates a session for `client` and returns its id.
 pub fn start(client: Client) -> String {
     saw_start(&client);
     let id = new_id();
@@ -247,7 +247,7 @@ pub fn start(client: Client) -> String {
     id
 }
 
-/// Client der Sitzung `id`; unbekannte oder fehlende Id → `None`. Setzt „zuletzt gesehen“ des Clients.
+/// Client of the session `id`; unknown or missing id → `None`. Sets „zuletzt gesehen“ of the client.
 pub fn client(id: &str) -> Option<Client> {
     let found = table().clients.get(id).cloned();
     if let Some(client) = &found
@@ -262,7 +262,7 @@ pub fn client(id: &str) -> Option<Client> {
 mod tests {
     use super::*;
 
-    /// Die Tests teilen die prozessweiten Tabellen.
+    /// The tests share the process-wide tables.
     static SERIAL: Mutex<()> = Mutex::new(());
 
     fn client(name: &str, version: &str) -> Client {
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn tokens_that_only_the_new_rule_would_merge_keep_their_old_handles() {
-        // Befund zu Runde 23: „Büro“ (bis R22 b-ro) und „buero“ waren getrennt und ergäben beide buero.
+        // Finding on Round 23: „Büro“ (up to R22 b-ro) and „buero“ were separate and would both yield buero.
         let pair = ["Büro", "buero"];
         assert!(keeps_legacy("Büro", pair), "der neue Handle buero gehört schon dem Token „buero“");
         assert!(!keeps_legacy("buero", pair), "ohne Umlaut ändert die Regel nichts – der Token bleibt, wo er war");
@@ -336,13 +336,13 @@ mod tests {
         let other = Client { name: "buero".into(), token: true, ..Default::default() };
         assert_eq!(other.owned_handles(), ["@mcp:buero"], "und der andere besitzt b-ro nicht");
 
-        // Zwei Umlaut-Tokens mit verschiedenem Alt-Handle, aber gleichem neuen Handle: beide bleiben beim alten.
+        // Two umlaut tokens with different legacy handles but the same new handle: both stay with the old one.
         let both = ["Büro", "Bueró"];
         assert_eq!(handle_name("Bueró"), handle_name("Büro"), "Voraussetzung: die neue Regel legt beide zusammen");
         assert_eq!(token_handle("Büro", both), "@mcp:b-ro", "unabhängig von der Reihenfolge");
         assert_eq!(token_handle("Bueró", both), "@mcp:buer-", "auch der zweite behält seinen Alt-Handle");
 
-        // Kein neuer Zusammenfall: allein, oder schon vor Runde 23 derselbe Autor.
+        // No new coincidence: alone, or already the same author before Round 23.
         assert!(!keeps_legacy("Büro", ["Büro"]), "der Token selbst zählt nicht als anderer");
         assert!(!keeps_legacy("Büro", ["Büro", "BÜRO"]), "teilten b-ro schon vor Runde 23: wechseln gemeinsam");
         assert_eq!(token_handle("Büro", ["Büro", "Laptop Küche"]), "@mcp:buero", "ohne Zusammenfall die neue Regel");
@@ -402,7 +402,7 @@ mod tests {
 
     #[test]
     fn seen_clients_have_one_entry_per_handle_and_keep_their_first_time() {
-        // Der andere Test füllt beide Tabellen bis zur Grenze; parallel könnte er diesen Eintrag verdrängen.
+        // The other test fills both tables up to the limit; in parallel it could displace this entry.
         let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let id = start(client("Sitzungsprobe Eins", "1.0"));
         let first = clients().into_iter().find(|c| c.handle == "@mcp:sitzungsprobe-eins").expect("gesehen");

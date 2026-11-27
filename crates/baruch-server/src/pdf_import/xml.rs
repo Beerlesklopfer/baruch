@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kleiner XML-Baum über quick-xml (Runde 21a) für EPUB (OPF, NCX, nav, XHTML) und die Ausgabe von
-//! `pdftotext -bbox-layout`. Nachsichtig wie ein Leser: nicht passende End-Tags schließen bis zum passenden offenen
-//! Element (oder werden übergangen), HTML-Entitäten wie `&nbsp;` werden aufgelöst, unbekannte bleiben als Text
-//! stehen. Grenzen: höchstens [`MAX_DEPTH`] Ebenen und [`MAX_NODES`] Knoten (sonst Fehler statt Stapelüberlauf).
+//! Small XML tree on top of quick-xml (Round 21a) for EPUB (OPF, NCX, nav, XHTML) and the output of
+//! `pdftotext -bbox-layout`. Lenient like a reader: end tags that do not match close up to the matching open
+//! element (or are skipped), HTML entities such as `&nbsp;` are resolved, unknown ones stay as text.
+//! Limits: at most [`MAX_DEPTH`] levels and [`MAX_NODES`] nodes (otherwise an error instead of a stack overflow).
 
 use quick_xml::Reader;
 use quick_xml::escape::unescape_with;
 use quick_xml::events::{BytesStart, Event};
 
-/// Größte Schachtelungstiefe.
+/// Largest nesting depth.
 pub const MAX_DEPTH: usize = 256;
-/// Höchstens so viele Knoten je Dokument.
+/// At most this many nodes per document.
 pub const MAX_NODES: usize = 2_000_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,25 +21,25 @@ pub enum Node {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Element {
-    /// Lokaler Name, klein (ohne Präfix).
+    /// Local name, lower case (without prefix).
     pub name: String,
-    /// Attribute: voller Name klein (mit Präfix, z. B. `epub:type`), Wert entschlüsselt.
+    /// Attributes: full name in lower case (with prefix, e.g. `epub:type`), value decoded.
     pub attrs: Vec<(String, String)>,
     pub children: Vec<Node>,
 }
 
 impl Element {
-    /// Wert eines Attributs (voller Name, klein).
+    /// Value of an attribute (full name, lower case).
     pub fn attr(&self, name: &str) -> Option<&str> {
         self.attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
     }
 
-    /// Wert eines Attributs nach lokalem Namen (ohne Präfix), z. B. `type` für `epub:type`, nur mit Präfix.
+    /// Value of an attribute by local name (without prefix), e.g. `type` for `epub:type`, only with a prefix.
     pub fn prefixed_attr(&self, local: &str) -> Option<&str> {
         self.attrs.iter().find(|(k, _)| k.rsplit_once(':').is_some_and(|(_, l)| l == local)).map(|(_, v)| v.as_str())
     }
 
-    /// Kind-Elemente.
+    /// Child elements.
     pub fn elements(&self) -> impl Iterator<Item = &Element> {
         self.children.iter().filter_map(|n| match n {
             Node::Element(e) => Some(e),
@@ -47,12 +47,12 @@ impl Element {
         })
     }
 
-    /// Erstes Kind-Element mit diesem Namen.
+    /// First child element with this name.
     pub fn child(&self, name: &str) -> Option<&Element> {
         self.elements().find(|e| e.name == name)
     }
 
-    /// Erstes Element dieses Namens in der Tiefe (das Element selbst eingeschlossen).
+    /// First element of this name in the depth (the element itself included).
     pub fn find(&self, name: &str) -> Option<&Element> {
         if self.name == name {
             return Some(self);
@@ -60,7 +60,7 @@ impl Element {
         self.elements().find_map(|e| e.find(name))
     }
 
-    /// Alle Elemente dieses Namens in der Tiefe, in Dokumentreihenfolge.
+    /// All elements of this name in the depth, in document order.
     pub fn find_all<'a>(&'a self, name: &str, out: &mut Vec<&'a Element>) {
         if self.name == name {
             out.push(self);
@@ -70,11 +70,11 @@ impl Element {
         }
     }
 
-    /// Ganzer Text (ohne Auszeichnung), Leerraum zusammengefasst.
+    /// Whole text (without markup), whitespace collapsed.
     pub fn text(&self) -> String {
         let mut out = String::new();
         collect_text(self, &mut out);
-        // Nur ASCII-Leerraum zusammenfassen: ein geschütztes Leerzeichen (&nbsp;) bleibt, was es ist.
+        // Collapse only ASCII whitespace: a non-breaking space (&nbsp;) stays what it is.
         out.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
     }
 }
@@ -93,7 +93,7 @@ fn collect_text(e: &Element, out: &mut String) {
     }
 }
 
-/// HTML-Entitäten, die in XHTML ohne DTD vorkommen (XML kennt nur fünf).
+/// HTML entities that occur in XHTML without a DTD (XML knows only five).
 fn html_entity(name: &str) -> Option<&'static str> {
     Some(match name {
         "amp" => "&",
@@ -153,7 +153,7 @@ fn element(start: &BytesStart<'_>) -> Element {
     Element { name, attrs, children: Vec::new() }
 }
 
-/// Ein Dokument lesen; die Wurzel ist ein künstliches Element `#document` mit allen Knoten der obersten Ebene.
+/// Read a document; the root is an artificial element `#document` with all nodes of the top level.
 pub fn parse(text: &str) -> Result<Element, String> {
     let mut reader = Reader::from_str(text);
     reader.config_mut().check_end_names = false;
