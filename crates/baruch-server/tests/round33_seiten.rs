@@ -945,18 +945,44 @@ fn the_typeset_page_no_longer_includes_the_edit_toolbar_fragment() {
 #[test]
 fn the_user_guide_describes_the_band_and_names_no_old_menu_path() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let guide = read(&root.join("docs/Bedienung.md"));
-    assert!(guide.contains("\n## Menüband\n"), "docs/Bedienung.md hat den Abschnitt „Menüband“");
+    // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite (`site/content/hilfe/`); der Abschnitt
+    // „Menüband“ wird darum in der zuständigen Hilfeseite gesucht. Jede Überschrift der Hilfe trägt einen festen
+    // Anker, deshalb endet die Zeile nicht mehr hinter dem Wort.
+    let help = read(&root.join("site/content/hilfe/menueband.md"));
     assert!(
-        !guide.contains("## Kopfzeile und Menüs") && !guide.contains("### Menüband (Runde 18a)"),
-        "„Kopfzeile und Menüs“ ist zum Abschnitt „Menüband“ geworden, „Menüband (Runde 18a)“ ist darin aufgegangen"
+        help.contains("\n## Menüband {#menueband}\n"),
+        "site/content/hilfe/menueband.md hat den Abschnitt „Menüband“ mit dem festen Anker #menueband"
     );
+    let guide = read(&root.join("docs/Bedienung.md"));
+    for (file, text) in [("site/content/hilfe/menueband.md", &help), ("docs/Bedienung.md", &guide)] {
+        assert!(
+            !text.contains("## Kopfzeile und Menüs") && !text.contains("### Menüband (Runde 18a)"),
+            "{file}: „Kopfzeile und Menüs“ ist zum Abschnitt „Menüband“ geworden, „Menüband (Runde 18a)“ ist darin \
+             aufgegangen"
+        );
+    }
     for words in
         ["**Baruch ▾**", "| **Start** |", "| **Einfügen** |", "| **Prüfen** |", "| **Buch** |", "| **Ansicht** |"]
     {
-        assert!(guide.contains(words), "der Abschnitt „Menüband“ nennt {words}");
+        assert!(help.contains(words), "der Abschnitt „Menüband“ der Hilfe nennt {words}");
     }
-    for file in ["docs/Bedienung.md", "docs/Betrieb.md", "docs/Verteilung.md", "docs/Austauschformat.md"] {
+    let mut files: Vec<String> =
+        ["docs/Bedienung.md", "docs/Betrieb.md", "docs/Verteilung.md", "docs/Austauschformat.md"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    // Alle Hilfeseiten, im Verzeichnis gelesen (nicht aufgezählt): Auch eine neue Seite darf keinen alten Menüpfad
+    // nennen.
+    let mut pages: Vec<String> = std::fs::read_dir(root.join("site/content/hilfe"))
+        .expect("site/content/hilfe lesen")
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".md"))
+        .map(|name| format!("site/content/hilfe/{name}"))
+        .collect();
+    pages.sort();
+    assert!(pages.len() >= 15, "die Hilfe hat den Einstieg und ihre 14 Seiten: {pages:?}");
+    files.extend(pages);
+    for file in &files {
         let text = read(&root.join(file));
         for (number, line) in text.lines().enumerate() {
             for old in ["Werk ▾", "Ansicht ▾", "Werkzeuge ▾"] {
