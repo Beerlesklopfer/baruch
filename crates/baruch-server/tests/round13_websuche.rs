@@ -459,7 +459,10 @@ impl EmbedderFactory for Seen {
 async fn library_count(h: &House) -> (i64, i64, i64) {
     let pool = h.server.state.store.pool();
     let count = |table: &'static str| async move {
-        sqlx::query_scalar::<_, i64>(&format!("SELECT count(*) FROM {table}")).fetch_one(pool).await.unwrap()
+        sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+            .fetch_one(pool)
+            .await
+            .unwrap()
     };
     (count("library_title").await, count("library_quote").await, count("library_highlight").await)
 }

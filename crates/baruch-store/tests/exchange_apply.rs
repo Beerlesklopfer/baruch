@@ -64,8 +64,10 @@ async fn open() -> (tempfile::TempDir, Store) {
 async fn counts(store: &Store) -> BTreeMap<&'static str, i64> {
     let mut out = BTreeMap::new();
     for table in TABLES {
-        let n: i64 =
-            sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(store.pool()).await.unwrap();
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+            .fetch_one(store.pool())
+            .await
+            .unwrap();
         out.insert(*table, n);
     }
     out
@@ -75,17 +77,19 @@ async fn counts(store: &Store) -> BTreeMap<&'static str, i64> {
 async fn dump(store: &Store, skip: &[(&str, &str)]) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for table in TABLES {
-        let columns: Vec<String> = sqlx::query_scalar(&format!("SELECT name FROM pragma_table_info('{table}')"))
-            .fetch_all(store.pool())
-            .await
-            .unwrap();
+        let columns: Vec<String> =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT name FROM pragma_table_info('{table}')")))
+                .fetch_all(store.pool())
+                .await
+                .unwrap();
         let kept: Vec<String> = columns
             .into_iter()
             .filter(|c| !skip.contains(&(*table, c.as_str())))
             .map(|c| format!("quote(\"{c}\")"))
             .collect();
         let query = format!("SELECT rowid, {} FROM {table}", kept.join(" || '|' || "));
-        let rows: Vec<(i64, String)> = sqlx::query_as(&query).fetch_all(store.pool()).await.unwrap();
+        let rows: Vec<(i64, String)> =
+            sqlx::query_as(sqlx::AssertSqlSafe(query.as_str())).fetch_all(store.pool()).await.unwrap();
         for (rowid, row) in rows {
             out.insert(format!("{table}#{rowid}"), row);
         }

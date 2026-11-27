@@ -471,12 +471,13 @@ fn from_row(row: RequestRow) -> Result<OutlineRequest, StoreError> {
 }
 
 async fn fetch(conn: &mut SqliteConnection, work: WorkId, id: i64) -> Result<OutlineRequest, StoreError> {
-    let row: Option<RequestRow> =
-        sqlx::query_as(&format!("SELECT {COLUMNS} FROM outline_request WHERE id = ? AND work_id = ?"))
-            .bind(id)
-            .bind(work)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let row: Option<RequestRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {COLUMNS} FROM outline_request WHERE id = ? AND work_id = ?"
+    )))
+    .bind(id)
+    .bind(work)
+    .fetch_optional(&mut *conn)
+    .await?;
     from_row(row.ok_or(StoreError::UnknownRequest { work, id })?)
 }
 
@@ -843,20 +844,21 @@ impl Store {
     pub async fn outline_requests(&self, work: WorkId, open_only: bool) -> Result<Vec<OutlineRequest>, StoreError> {
         self.work_slug(work).await?;
         let filter = if open_only { " AND decided IS NULL" } else { "" };
-        let rows: Vec<RequestRow> =
-            sqlx::query_as(&format!("SELECT {COLUMNS} FROM outline_request WHERE work_id = ?{filter} ORDER BY id"))
-                .bind(work)
-                .fetch_all(&self.pool)
-                .await?;
+        let rows: Vec<RequestRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT {COLUMNS} FROM outline_request WHERE work_id = ?{filter} ORDER BY id"
+        )))
+        .bind(work)
+        .fetch_all(&self.pool)
+        .await?;
         rows.into_iter().map(from_row).collect()
     }
 
     /// Offene Anträge aller Werke, die die aktive Zustimmung des Menschen brauchen (Nutzerfrage 12:
     /// Art `add`), nach id – Hinweisleiste und Dialog auf jeder Seite.
     pub async fn outline_requests_needing_consent(&self) -> Result<Vec<OutlineRequest>, StoreError> {
-        let rows: Vec<RequestRow> = sqlx::query_as(&format!(
+        let rows: Vec<RequestRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT {COLUMNS} FROM outline_request WHERE decided IS NULL AND op = 'add' ORDER BY id"
-        ))
+        )))
         .fetch_all(&self.pool)
         .await?;
         rows.into_iter().map(from_row).collect()

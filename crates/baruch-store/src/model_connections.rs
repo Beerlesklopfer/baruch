@@ -109,10 +109,11 @@ fn of(row: Tuple) -> Result<ModelConnection, StoreError> {
 }
 
 async fn one(conn: &mut SqliteConnection, id: i64) -> Result<ModelConnection, StoreError> {
-    let row: Option<Tuple> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM model_connection WHERE id = ?"))
-        .bind(id)
-        .fetch_optional(&mut *conn)
-        .await?;
+    let row: Option<Tuple> =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM model_connection WHERE id = ?")))
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await?;
     of(row.ok_or(StoreError::Refused("Diese Modell-Verbindung gibt es nicht (mehr)."))?)
 }
 
@@ -167,9 +168,11 @@ impl Store {
     /// Alle Modell-Verbindungen in ihrer Reihenfolge (Eliezer zuerst, solange nicht verschoben).
     pub async fn model_connection_list(&self) -> Result<Vec<ModelConnection>, StoreError> {
         let mut conn = self.pool.acquire().await?;
-        let rows: Vec<Tuple> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM model_connection ORDER BY position, id"))
-            .fetch_all(&mut *conn)
-            .await?;
+        let rows: Vec<Tuple> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT {COLUMNS} FROM model_connection ORDER BY position, id"
+        )))
+        .fetch_all(&mut *conn)
+        .await?;
         rows.into_iter().map(of).collect()
     }
 

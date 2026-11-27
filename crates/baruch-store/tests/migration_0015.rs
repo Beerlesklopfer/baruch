@@ -56,7 +56,7 @@ async fn migrate_upto(pool: &SqlitePool, version: i64) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 /// Werk mit zwei Kapiteln, Vorschlag, Beiträgen, Einfällen, Personas und Verbindungen.
@@ -186,7 +186,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -229,7 +232,9 @@ async fn migration_0015_keeps_every_row_and_only_adds_the_persona_prompt() {
     assert_eq!(filled, 0, "alte Personas: NULL = Vorgabe aus dem Code");
     for bad in ["''".to_owned(), format!("'{}'", "x".repeat(8001))] {
         let refused =
-            sqlx::query(&format!("UPDATE persona SET prompt = {bad} WHERE handle = '@lektor'")).execute(&pool).await;
+            sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE persona SET prompt = {bad} WHERE handle = '@lektor'")))
+                .execute(&pool)
+                .await;
         assert!(refused.is_err(), "CHECK lehnt einen leeren bzw. zu langen Prompt ab");
     }
     pool.close().await;

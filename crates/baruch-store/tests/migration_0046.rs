@@ -88,15 +88,15 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 async fn text(pool: &SqlitePool, sql: &str) -> String {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 /// Store bis 0045 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
@@ -318,7 +318,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -482,11 +485,15 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
         ),
     ] {
         let result =
-            sqlx::query(&format!("INSERT INTO finding ({FINDING_COLUMNS}) VALUES ({bad})")).execute(&pool).await;
+            sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO finding ({FINDING_COLUMNS}) VALUES ({bad})")))
+                .execute(&pool)
+                .await;
         assert!(result.is_err(), "finding lehnt ab: {why}");
     }
     let duplicate_thread =
-        sqlx::query(&format!("INSERT INTO finding ({FINDING_COLUMNS}) VALUES ({thread_finding})")).execute(&pool).await;
+        sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO finding ({FINDING_COLUMNS}) VALUES ({thread_finding})")))
+            .execute(&pool)
+            .await;
     assert!(duplicate_thread.is_err(), "finding lehnt ab: derselbe Fadenbeitrag mit derselben Stelle zweimal");
     let uuids: Vec<Option<String>> = sqlx::query_scalar("SELECT uuid FROM finding").fetch_all(&pool).await.unwrap();
     assert_eq!(uuids.len(), 7, "sieben gültige Befunde");
@@ -537,7 +544,9 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
         (human.replace(&format!("{first}, "), "99999, "), "Befund muss es geben"),
     ] {
         let result =
-            sqlx::query(&format!("INSERT INTO finding_status ({STATUS_COLUMNS}) VALUES ({bad})")).execute(&pool).await;
+            sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO finding_status ({STATUS_COLUMNS}) VALUES ({bad})")))
+                .execute(&pool)
+                .await;
         assert!(result.is_err(), "finding_status lehnt ab: {why}");
     }
 
@@ -559,10 +568,10 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
         (rows.posts[0].to_string(), rows.thread_posts[0].to_string(), "zugleich Beitrag und Fadenbeitrag"),
         ("99999".to_owned(), "NULL".to_owned(), "Beitrag muss es geben"),
     ] {
-        let result = sqlx::query(&format!(
+        let result = sqlx::query(sqlx::AssertSqlSafe(format!(
             "INSERT INTO post_version (post_id, thread_post_id, body, valid_from, edited_by) \
              VALUES ({post}, {thread_post}, 'x', '2026-11-08T09:00:00.000Z', 'Autor')"
-        ))
+        )))
         .execute(&pool)
         .await;
         assert!(result.is_err(), "post_version lehnt ab: {why}");

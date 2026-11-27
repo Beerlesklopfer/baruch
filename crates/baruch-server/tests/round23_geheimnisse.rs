@@ -554,7 +554,10 @@ async fn a_file_with_too_many_glossary_terms_is_refused_before_anything_is_writt
     let count = |table: &'static str| {
         let pool = server.state.store.pool().clone();
         async move {
-            let n: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(&pool).await.unwrap();
+            let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+                .fetch_one(&pool)
+                .await
+                .unwrap();
             n
         }
     };

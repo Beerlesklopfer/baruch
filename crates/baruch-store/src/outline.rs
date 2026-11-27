@@ -604,7 +604,7 @@ async fn apply_with(
 
     // Verweise in Beiträgen: gelöschte entfallen, die übrigen bekommen die neue seq (zweistufig).
     for &seq in removed {
-        sqlx::query(&format!("DELETE FROM post_ref WHERE node_seq = ? AND {WORK_POSTS}"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM post_ref WHERE node_seq = ? AND {WORK_POSTS}")))
             .bind(seq as i64)
             .bind(work)
             .execute(&mut *conn)
@@ -617,17 +617,21 @@ async fn apply_with(
         .filter(|(old, new)| old != new)
         .collect();
     for &(old, new) in &renumbered {
-        sqlx::query(&format!("UPDATE post_ref SET node_seq = ? WHERE node_seq = ? AND {WORK_POSTS}"))
-            .bind(-(new as i64) - 1)
-            .bind(old as i64)
-            .bind(work)
-            .execute(&mut *conn)
-            .await?;
-    }
-    sqlx::query(&format!("UPDATE post_ref SET node_seq = -node_seq - 1 WHERE node_seq < 0 AND {WORK_POSTS}"))
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE post_ref SET node_seq = ? WHERE node_seq = ? AND {WORK_POSTS}"
+        )))
+        .bind(-(new as i64) - 1)
+        .bind(old as i64)
         .bind(work)
         .execute(&mut *conn)
         .await?;
+    }
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE post_ref SET node_seq = -node_seq - 1 WHERE node_seq < 0 AND {WORK_POSTS}"
+    )))
+    .bind(work)
+    .execute(&mut *conn)
+    .await?;
 
     // Neue Fassungen: nur die Überschriftszeile ändert sich.
     let mut revisions = Vec::new();

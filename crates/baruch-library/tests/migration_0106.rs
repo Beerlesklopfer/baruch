@@ -40,7 +40,7 @@ async fn migrate_before(pool: &SqlitePool) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 /// Frei erfundene Daten: ein Werk mit Abschnitt und Revision (für den Index), drei Titel, Zitate,
@@ -96,8 +96,10 @@ async fn snapshot(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
             continue;
         }
         let row = columns.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || '|' || ");
-        let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {row} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+        let mut rows: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {row} FROM \"{table}\"")))
+            .fetch_all(pool)
+            .await
+            .unwrap();
         rows.sort();
         out.insert(table, rows);
     }

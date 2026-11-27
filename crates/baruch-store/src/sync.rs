@@ -202,7 +202,7 @@ const DOCUMENT_COLUMNS: &str = "id, collection, document_id, title, url, text, h
 impl Store {
     /// Schalter eines Werks; unbekanntes Werk → `UnknownWork`.
     pub async fn sync_work(&self, work: WorkId) -> Result<SyncWork, StoreError> {
-        let row = sqlx::query(&format!("{WORK_SELECT} WHERE w.id = ?"))
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!("{WORK_SELECT} WHERE w.id = ?")))
             .bind(work)
             .fetch_optional(&self.pool)
             .await?
@@ -212,7 +212,8 @@ impl Store {
 
     /// Schalter aller Werke (nach id).
     pub async fn sync_works(&self) -> Result<Vec<SyncWork>, StoreError> {
-        let rows = sqlx::query(&format!("{WORK_SELECT} ORDER BY w.id")).fetch_all(&self.pool).await?;
+        let rows =
+            sqlx::query(sqlx::AssertSqlSafe(format!("{WORK_SELECT} ORDER BY w.id"))).fetch_all(&self.pool).await?;
         rows.iter().map(work_of).collect()
     }
 
@@ -301,19 +302,21 @@ impl Store {
     pub async fn sync_states(&self, side: SyncSide, collection: Option<&str>) -> Result<Vec<SyncState>, StoreError> {
         let rows = match collection {
             Some(collection) => {
-                sqlx::query(&format!(
+                sqlx::query(sqlx::AssertSqlSafe(format!(
                     "SELECT {STATE_COLUMNS} FROM sync_state WHERE side = ? AND collection = ? ORDER BY item"
-                ))
+                )))
                 .bind(side.as_str())
                 .bind(collection)
                 .fetch_all(&self.pool)
                 .await?
             }
             None => {
-                sqlx::query(&format!("SELECT {STATE_COLUMNS} FROM sync_state WHERE side = ? ORDER BY collection, item"))
-                    .bind(side.as_str())
-                    .fetch_all(&self.pool)
-                    .await?
+                sqlx::query(sqlx::AssertSqlSafe(format!(
+                    "SELECT {STATE_COLUMNS} FROM sync_state WHERE side = ? ORDER BY collection, item"
+                )))
+                .bind(side.as_str())
+                .fetch_all(&self.pool)
+                .await?
             }
         };
         rows.iter().map(state_of).collect()
@@ -355,9 +358,9 @@ impl Store {
 
     /// Lokale Kopie eines Dokuments.
     pub async fn sync_document(&self, collection: &str, document_id: &str) -> Result<Option<SyncDocument>, StoreError> {
-        let row = sqlx::query(&format!(
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {DOCUMENT_COLUMNS} FROM sync_document WHERE collection = ? AND document_id = ?"
-        ))
+        )))
         .bind(collection)
         .bind(document_id)
         .fetch_optional(&self.pool)
@@ -367,9 +370,10 @@ impl Store {
 
     /// Alle lokalen Kopien (nach id), für den lokalen Index.
     pub async fn sync_documents(&self) -> Result<Vec<SyncDocument>, StoreError> {
-        let rows = sqlx::query(&format!("SELECT {DOCUMENT_COLUMNS} FROM sync_document ORDER BY id"))
-            .fetch_all(&self.pool)
-            .await?;
+        let rows =
+            sqlx::query(sqlx::AssertSqlSafe(format!("SELECT {DOCUMENT_COLUMNS} FROM sync_document ORDER BY id")))
+                .fetch_all(&self.pool)
+                .await?;
         rows.iter().map(document_of).collect()
     }
 

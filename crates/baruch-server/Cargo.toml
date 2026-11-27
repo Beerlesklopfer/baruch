@@ -85,7 +85,7 @@ tokio-stream = "0.1"
 # Gleiche Features wie in store und library, damit nur eine sqlx-Ausprägung gebaut wird.
 # postgres + TLS (Runde 9, connections): nur „Verbindung prüfen“ für pgvector (Laufzeit-API); die
 # Systemzertifikate gelten, damit auch eine Hauszertifizierungsstelle im Intranet geht.
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "postgres", "tls-rustls-ring-native-roots"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "postgres", "tls-rustls-ring-native-roots"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
 # Geheimnisse der Verbindungen (Runde 9) im Schlüsselbund des Systems, Dienst „baruch“. Den Zugang je
 # Zielsystem schalten die Abschnitte `[target.'cfg(target_os = …)'.dependencies]` weiter unten frei (Runde 24);

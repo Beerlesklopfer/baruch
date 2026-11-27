@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 # Unicode-Normalform NFC (Runde 19, Vergleich von Wortlaut und Zitaten). Lizenz MIT OR Apache-2.0; liegt schon im Lock.
@@ -18,3 +18,5 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tempfile = "3"
 minijinja = { version = "3", features = ["serde", "urlencode"] }
 serde_json = "1"
+# Runde 36 (sqlx09): SHA-384 der Migrationsdateien gegen die Prüfsummen von sqlx 0.8 (nur Tests; liegt schon im Lock).
+sha2 = "0.10"

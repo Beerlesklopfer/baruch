@@ -454,7 +454,7 @@ async fn without_0042_threads_deleted_by_cascade_would_forget_their_work() {
         .await
         .unwrap();
     for trigger in ["work_cascade_uuid_tombstone", "chat_thread_cascade_uuid_tombstone"] {
-        sqlx::query(&format!("DROP TRIGGER {trigger}")).execute(store.pool()).await.unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP TRIGGER {trigger}"))).execute(store.pool()).await.unwrap();
     }
     store.delete_work(work, "Der Zaun").await.unwrap();
     let graves = tombstones(&store).await;

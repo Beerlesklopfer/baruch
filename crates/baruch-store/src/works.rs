@@ -829,18 +829,26 @@ async fn delete_work_rows(conn: &mut SqliteConnection, work: WorkId) -> Result<(
     // Bilder zuerst (Migration 0009): Pfade, Fassungen (die aktuelle vorher auf superseded), Bilder.
     crate::assets::delete_work_assets(conn, work).await?;
     const NODES: &str = "SELECT id FROM node WHERE work_id = ?";
-    sqlx::query(&format!(
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE revision SET status = 'superseded' WHERE status = 'current' AND node_id IN ({NODES})"
-    ))
+    )))
     .bind(work)
     .execute(&mut *conn)
     .await?;
-    sqlx::query(&format!("DELETE FROM revision WHERE node_id IN ({NODES})")).bind(work).execute(&mut *conn).await?;
-    sqlx::query(&format!("DELETE FROM post_ref WHERE post_id IN (SELECT id FROM post WHERE node_id IN ({NODES}))"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM revision WHERE node_id IN ({NODES})")))
         .bind(work)
         .execute(&mut *conn)
         .await?;
-    sqlx::query(&format!("DELETE FROM post WHERE node_id IN ({NODES})")).bind(work).execute(&mut *conn).await?;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DELETE FROM post_ref WHERE post_id IN (SELECT id FROM post WHERE node_id IN ({NODES}))"
+    )))
+    .bind(work)
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM post WHERE node_id IN ({NODES})")))
+        .bind(work)
+        .execute(&mut *conn)
+        .await?;
     sqlx::query("DELETE FROM node WHERE work_id = ?").bind(work).execute(&mut *conn).await?;
     sqlx::query("DELETE FROM work_template_revision WHERE work_id = ?").bind(work).execute(&mut *conn).await?;
     // id, slug und Titel merken (Migration 0007): Der slug bleibt reserviert ([`import::free_slug`]),

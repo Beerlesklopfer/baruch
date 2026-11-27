@@ -20,7 +20,7 @@ fn new_work(title: &str, preset: Preset) -> NewWork<'_> {
 }
 
 async fn count(store: &Store, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(store.pool()).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(store.pool()).await.unwrap()
 }
 
 #[tokio::test]

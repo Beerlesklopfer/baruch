@@ -410,7 +410,7 @@ async fn migrate_like_development(pool: &SqlitePool) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str, binds: &[&str]) -> i64 {
-    let mut query = sqlx::query_scalar::<_, i64>(sql);
+    let mut query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql));
     for b in binds {
         query = query.bind(*b);
     }
@@ -540,8 +540,10 @@ async fn rows(pool: &SqlitePool, columns: &BTreeMap<String, Vec<String>>) -> BTr
     let mut out = BTreeMap::new();
     for (table, cols) in columns {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
-        let mut all: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+        let mut all: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+            .fetch_all(pool)
+            .await
+            .unwrap();
         all.sort();
         out.insert(table.clone(), all);
     }
@@ -549,7 +551,7 @@ async fn rows(pool: &SqlitePool, columns: &BTreeMap<String, Vec<String>>) -> BTr
 }
 
 async fn count(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap()
 }
 
 #[tokio::test]

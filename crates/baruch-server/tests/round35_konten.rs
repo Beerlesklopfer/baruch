@@ -145,11 +145,17 @@ async fn who(server: &Server, request: Request<Body>) -> Who {
 }
 
 async fn scalar(server: &Server, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(server.state.store.pool()).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .fetch_one(server.state.store.pool())
+        .await
+        .unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 async fn exec(server: &Server, sql: &str) {
-    sqlx::query(sql).execute(server.state.store.pool()).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+        .execute(server.state.store.pool())
+        .await
+        .unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 /// Lässt jede Sperre gegen Durchprobieren ablaufen (die Zählung bleibt).

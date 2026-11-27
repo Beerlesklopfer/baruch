@@ -164,10 +164,11 @@ mod tests {
         assert_eq!(store.work_by_uuid(&uuid).await.unwrap(), Some(work), "Werk über seine UUID");
         // Jede Zeile jeder Tabelle mit Werkinhalt hat eine UUID (Fülltrigger).
         for table in ["work", "node", "revision", "work_template_revision", "post"] {
-            let missing: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table} WHERE uuid IS NULL"))
-                .fetch_one(&store.pool)
-                .await
-                .unwrap();
+            let missing: i64 =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table} WHERE uuid IS NULL")))
+                    .fetch_one(&store.pool)
+                    .await
+                    .unwrap();
             assert_eq!(missing, 0, "{table}: keine Zeile ohne UUID");
         }
         let key: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? ORDER BY seq LIMIT 1")

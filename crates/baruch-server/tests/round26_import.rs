@@ -49,7 +49,7 @@ const TABLES: &[&str] = &[
 async fn counts(server: &common::Server) -> BTreeMap<&'static str, i64> {
     let mut out = BTreeMap::new();
     for table in TABLES {
-        let n: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table}"))
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
             .fetch_one(server.state.store.pool())
             .await
             .unwrap();

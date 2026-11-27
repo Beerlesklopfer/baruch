@@ -75,11 +75,11 @@ async fn migrate_before(pool: &SqlitePool) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 /// Werk mit zwei Kapiteln (aktuelle Fassung), Vorlagenfassung, Beitrag, Faden, Bild und Einfällen direkt in SQLite;
@@ -217,7 +217,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -358,20 +361,30 @@ async fn the_new_tables_fill_uuids_and_leave_tombstones_of_the_new_kinds() {
     exec(pool, &format!("INSERT INTO idea_link (from_id, to_id, kind, origin_kind, origin_name) VALUES ({a}, {b}, 'leads_to', 'human', 'Autor')")).await;
     exec(pool, &format!("INSERT INTO idea_map_pos (work_id, idea_id, x, y) VALUES ({work}, {a}, 1.5, -2)")).await;
     for table in ["idea_link", "idea_map_pos"] {
-        let uuid: String = sqlx::query_scalar(&format!("SELECT uuid FROM {table}")).fetch_one(pool).await.unwrap();
+        let uuid: String =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT uuid FROM {table}"))).fetch_one(pool).await.unwrap();
         assert!(baruch_exchange::is_uuid(&uuid) && &uuid[14..15] == "4", "{table}: Fülltrigger vergibt v4: {uuid}");
     }
     // CHECKs der neuen Tabellen: Selbstbezug, „widerspricht“ nur normalisiert, Koordinaten begrenzt.
     let self_link = format!(
         "INSERT INTO idea_link (from_id, to_id, kind, origin_kind, origin_name) VALUES ({a}, {a}, 'leads_to', 'human', 'X')"
     );
-    assert!(sqlx::query(&self_link).execute(pool).await.is_err(), "CHECK from_id <> to_id");
+    assert!(
+        sqlx::query(sqlx::AssertSqlSafe(self_link.as_str())).execute(pool).await.is_err(),
+        "CHECK from_id <> to_id"
+    );
     let reversed = format!(
         "INSERT INTO idea_link (from_id, to_id, kind, origin_kind, origin_name) VALUES ({b}, {a}, 'contradicts', 'human', 'X')"
     );
-    assert!(sqlx::query(&reversed).execute(pool).await.is_err(), "CHECK contradicts nur mit from_id < to_id");
+    assert!(
+        sqlx::query(sqlx::AssertSqlSafe(reversed.as_str())).execute(pool).await.is_err(),
+        "CHECK contradicts nur mit from_id < to_id"
+    );
     let far = format!("INSERT INTO idea_map_pos (work_id, idea_id, x, y) VALUES ({work}, {b}, 1000001, 0)");
-    assert!(sqlx::query(&far).execute(pool).await.is_err(), "CHECK x BETWEEN -1e6 AND 1e6");
+    assert!(
+        sqlx::query(sqlx::AssertSqlSafe(far.as_str())).execute(pool).await.is_err(),
+        "CHECK x BETWEEN -1e6 AND 1e6"
+    );
 
     let work_uuid: String =
         sqlx::query_scalar("SELECT uuid FROM work WHERE id = ?").bind(work).fetch_one(pool).await.unwrap();

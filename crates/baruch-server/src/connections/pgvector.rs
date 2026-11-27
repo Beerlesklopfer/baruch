@@ -392,7 +392,8 @@ pub async fn resolve(conn: &mut PgConnection, mapping: &Mapping) -> Result<Resul
             "SELECT vector_dims({vector}) FROM {regclass} WHERE {vector} IS NOT NULL LIMIT 1",
             vector = quoted(&mapping.vector)
         );
-        let first: Option<i32> = sqlx::query_scalar(&sql).fetch_optional(&mut *conn).await?;
+        let first: Option<i32> =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).fetch_optional(&mut *conn).await?;
         dimension = first.filter(|&d| d > 0).map(|d| d as usize);
     }
     Ok(Ok(Resolved { dimension, ..resolved }))
@@ -414,22 +415,23 @@ async fn table_info(conn: &mut PgConnection, mapping: &Mapping) -> Result<Result
     let from = resolved.table_sql(mapping);
     let collection = quoted(&mapping.collection);
     // Runde 19b: Die Namen kommen schon gekürzt aus der Datenbank (gezählt wird je vollem Namen).
-    let collections: Vec<(String, i64)> = sqlx::query_as(&format!(
+    let collections: Vec<(String, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT left(name, {MAX_COLLECTION_CHARS}), n FROM \
            (SELECT coalesce({collection}::text, '') AS name, count(*) AS n FROM {from} \
             GROUP BY 1 ORDER BY 1 LIMIT {MAX_LISTED_COLLECTIONS}) AS listed \
          ORDER BY name"
-    ))
+    )))
     .fetch_all(&mut *conn)
     .await?;
-    let chunks: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {from}")).fetch_one(&mut *conn).await?;
+    let chunks: i64 =
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {from}"))).fetch_one(&mut *conn).await?;
     let models: Vec<String> = match &mapping.model {
         Some(model) => {
             let model = quoted(model);
-            sqlx::query_scalar(&format!(
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
                 "SELECT DISTINCT left({model}::text, {MAX_MODEL_CHARS}) FROM {from} WHERE {model} IS NOT NULL \
                  ORDER BY 1 LIMIT {MAX_LISTED_MODELS}"
-            ))
+            )))
             .fetch_all(&mut *conn)
             .await?
         }
@@ -606,11 +608,11 @@ impl PgvectorWay {
         };
         if let Some(model) = &mapping.model {
             let model = quoted(model);
-            let found: Vec<String> = sqlx::query_scalar(&format!(
+            let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
                 "SELECT DISTINCT left({model}::text, {MAX_MODEL_CHARS}) FROM {from} WHERE {} AND {model} IS NOT NULL \
                  ORDER BY 1 LIMIT {MAX_LISTED_MODELS}",
                 chosen(1)
-            ))
+            )))
             .bind(&query.collections)
             .fetch_all(&mut *tx)
             .await
@@ -675,7 +677,7 @@ impl PgvectorWay {
             vector = quoted(&mapping.vector),
         );
         type Row = (String, Option<String>, Option<String>, Option<String>, String, String, f64);
-        let rows: Vec<Row> = sqlx::query_as(&sql)
+        let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&literal)
             .bind(&query.collections)
             .bind(query.limit.clamp(1, baruch_rag::MAX_LIMIT) as i64)

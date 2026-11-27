@@ -72,6 +72,20 @@
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
+//!
+//! Zusammengesetztes SQL (seit sqlx 0.9, Runde 36): `query`, `query_as`, `query_scalar`, `raw_sql` und `begin_with`
+//! nehmen nur noch `&'static str` oder einen ausdrücklich bestätigten Text (`sqlx::AssertSqlSafe`, Trait
+//! `SqlSafeStr`). Die Regel für Baruch – Store, Bibliothek und Server:
+//! - Wo es geht, steht das SQL als Literal da.
+//! - `AssertSqlSafe(…)` bekommt nur Text aus **festen Bausteinen** des Quelltexts: Spaltenlisten und `SELECT`-Köpfe
+//!   aus Konstanten (`COLUMNS`, `SELECT`, `NOW` …), Ketten von Platzhaltern (`?, ?, ?`) nach der Zahl der Werte, feste
+//!   Bedingungen und Tabellennamen aus `&'static str` (Literale, `as_db()` eines Enums), Zahlen aus dem Programm
+//!   (geklemmte Grenzen). Bei pgvector kommen Namen aus den Einstellungen dazu: nur als geprüfte Bezeichner
+//!   (`config::is_identifier`) und stets über `quoted()`.
+//! - **Werte** – alles, was vom Menschen, aus einer Datei, einem Modell oder einem Client stammt – werden immer
+//!   gebunden (`.bind(…)`), nie in den Text gesetzt.
+//! - Wer einen neuen Aufruf mit `AssertSqlSafe` schreibt, prüft genau das an der Stelle; Tests dürfen ihr eigenes,
+//!   erfundenes SQL so übergeben.
 
 mod accounts;
 mod amend;
@@ -224,6 +238,8 @@ pub async fn migrate(pool: &Db) -> Result<(), StoreError> {
         ignore_missing: true,
         locking: MIGRATOR.locking,
         no_tx: MIGRATOR.no_tx,
+        table_name: MIGRATOR.table_name.clone(),
+        create_schemas: MIGRATOR.create_schemas.clone(),
     };
     for &version in FOREIGN_KEYS_OFF {
         subset(&|v| v < version).run(pool).await?;

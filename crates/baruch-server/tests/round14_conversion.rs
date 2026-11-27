@@ -40,7 +40,7 @@ fn result(answer: &Value) -> &Value {
 }
 
 async fn exec(store: &Store, sql: &str, binds: &[&str]) {
-    let mut query = sqlx::query(sql);
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql));
     for b in binds {
         query = query.bind(*b);
     }

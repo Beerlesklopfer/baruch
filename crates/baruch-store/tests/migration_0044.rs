@@ -37,11 +37,11 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 /// Store bis 0043 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
@@ -184,7 +184,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -240,11 +243,12 @@ async fn migration_0044_keeps_every_row_and_only_adds_the_sheet_table() {
         ("width", "12345678901234567cm", "eine Länge hat höchstens 16 Zeichen"),
         ("font", "", "eine leere Schriftliste ist NULL, kein leerer Text"),
     ] {
-        let refused = sqlx::query(&format!("INSERT INTO work_sheet (work_id, {column}) VALUES (?, ?)"))
-            .bind(work)
-            .bind(value)
-            .execute(&pool)
-            .await;
+        let refused =
+            sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO work_sheet (work_id, {column}) VALUES (?, ?)")))
+                .bind(work)
+                .bind(value)
+                .execute(&pool)
+                .await;
         assert!(refused.is_err(), "CHECK auf {column} = {value:?}: {why}");
     }
     let long_font = "a".repeat(201);

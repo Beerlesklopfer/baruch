@@ -508,8 +508,10 @@ async fn to_idea(conn: &mut SqliteConnection, row: Row) -> Result<Idea, StoreErr
 }
 
 pub(crate) async fn get(conn: &mut SqliteConnection, id: IdeaId) -> Result<Idea, StoreError> {
-    let row: Option<Row> =
-        sqlx::query_as(&format!("{SELECT} WHERE i.id = ?")).bind(id).fetch_optional(&mut *conn).await?;
+    let row: Option<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!("{SELECT} WHERE i.id = ?")))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await?;
     let row = row.ok_or(StoreError::UnknownIdea(id))?;
     to_idea(conn, row).await
 }
@@ -613,12 +615,14 @@ pub(crate) async fn mark_done_in(
     let before = get(conn, id).await?;
     not_deleted(&before)?;
     let done_ref = done_ref.trim();
-    sqlx::query(&format!("UPDATE idea SET status = 'done', done_as = ?, done_ref = ?, updated = {NOW} WHERE id = ?"))
-        .bind(used.as_str())
-        .bind((!done_ref.is_empty()).then_some(done_ref))
-        .bind(id)
-        .execute(&mut *conn)
-        .await?;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE idea SET status = 'done', done_as = ?, done_ref = ?, updated = {NOW} WHERE id = ?"
+    )))
+    .bind(used.as_str())
+    .bind((!done_ref.is_empty()).then_some(done_ref))
+    .bind(id)
+    .execute(&mut *conn)
+    .await?;
     get(conn, id).await
 }
 
@@ -762,7 +766,8 @@ async fn mirror_file(conn: &mut SqliteConnection, work: Option<WorkId>) -> Resul
     };
     let (condition, binds) = conditions(&IdeaFilter { scope, ..IdeaFilter::default() }, false);
     let sql = format!("{SELECT} WHERE {condition} ORDER BY i.created DESC, i.id DESC");
-    let rows: Vec<Row> = bind_all!(sqlx::query_as(&sql), &binds).fetch_all(&mut *conn).await?;
+    let rows: Vec<Row> =
+        bind_all!(sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_all(&mut *conn).await?;
     if rows.is_empty() {
         return Ok(None);
     }
@@ -1101,7 +1106,7 @@ impl Store {
         let mut conn = self.pool.acquire().await?;
         let (condition, binds) = conditions(filter, true);
         let sql = format!("{SELECT} WHERE {condition} ORDER BY i.created DESC, i.id DESC LIMIT ? OFFSET ?");
-        let rows: Vec<Row> = bind_all!(sqlx::query_as(&sql), &binds)
+        let rows: Vec<Row> = bind_all!(sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str())), &binds)
             .bind(filter.limit())
             .bind(i64::from(filter.offset))
             .fetch_all(&mut *conn)
@@ -1122,8 +1127,10 @@ impl Store {
             "SELECT min(w.word), count(*) FROM idea_word w JOIN idea i ON i.id = w.idea_id WHERE {condition} \
              GROUP BY w.word_key ORDER BY count(*) DESC, w.word_key LIMIT ?"
         );
-        let rows: Vec<(String, i64)> =
-            bind_all!(sqlx::query_as(&sql), &binds).bind(filter.limit()).fetch_all(&mut *conn).await?;
+        let rows: Vec<(String, i64)> = bind_all!(sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str())), &binds)
+            .bind(filter.limit())
+            .fetch_all(&mut *conn)
+            .await?;
         Ok(rows
             .into_iter()
             .map(|(word, count)| WordCount { word, count: u32::try_from(count).unwrap_or(u32::MAX) })
@@ -1142,7 +1149,7 @@ impl Store {
              JOIN idea i ON i.id = idea_fts.rowid WHERE idea_fts MATCH ? AND {condition} \
              ORDER BY rank LIMIT ? OFFSET ?"
         );
-        let query = sqlx::query_as(&sql).bind(fts.to_owned());
+        let query = sqlx::query_as(sqlx::AssertSqlSafe(sql.as_str())).bind(fts.to_owned());
         let rows: Vec<(i64, String)> = match bind_all!(query, &binds)
             .bind(filter.limit())
             .bind(i64::from(filter.offset))
@@ -1216,10 +1223,10 @@ impl Store {
         if !changed {
             return Ok(None);
         }
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE idea SET work_id = ?, node_id = ?, title = ?, parent_id = ?, main_topic = ?, note = ?, quote = ?, \
              source = ?, bible = ?, status = ?, done_as = ?, done_ref = ?, updated = {NOW} WHERE id = ?"
-        ))
+        )))
         .bind(work)
         .bind(key)
         .bind(title.as_deref().unwrap_or(&before.title))
@@ -1240,10 +1247,10 @@ impl Store {
             // aktiven Verbindungen des Einfalls weich gelöst (wiederherstellbar, sobald beide wieder in einem
             // Werk sind) und seine Lagen auf Karten hart entfernt (Grabstein im alten Werk); sonst verbände eine
             // Verbindung zwei Werke und eine alte Lage tauchte beim Zurückziehen wieder auf.
-            sqlx::query(&format!(
+            sqlx::query(sqlx::AssertSqlSafe(format!(
                 "UPDATE idea_link SET deleted = {NOW}, updated = {NOW} \
                  WHERE deleted IS NULL AND (from_id = ? OR to_id = ?)"
-            ))
+            )))
             .bind(id)
             .bind(id)
             .execute(&mut *tx)
@@ -1277,7 +1284,8 @@ impl Store {
         if before.deleted.is_some() {
             return Err(refuse(format!("Einfall {id} ist schon gelöscht.")));
         }
-        let stamp: String = sqlx::query_scalar(&format!("SELECT {NOW}")).fetch_one(&mut *tx).await?;
+        let stamp: String =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {NOW}"))).fetch_one(&mut *tx).await?;
         let ids: Vec<IdeaId> = subtree(&mut tx, id)
             .await?
             .into_iter()
@@ -1336,7 +1344,7 @@ impl Store {
             }
         }
         for node in &ids {
-            sqlx::query(&format!("UPDATE idea SET deleted = NULL, updated = {NOW} WHERE id = ?"))
+            sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE idea SET deleted = NULL, updated = {NOW} WHERE id = ?")))
                 .bind(node)
                 .execute(&mut *tx)
                 .await?;
@@ -1389,9 +1397,9 @@ impl Store {
         let place_changed = parent != before.parent || key != before.key || main_topic != before.main_topic;
         let order_before = siblings(&mut tx, before.work, before.parent, -1).await?;
         if place_changed {
-            sqlx::query(&format!(
+            sqlx::query(sqlx::AssertSqlSafe(format!(
                 "UPDATE idea SET parent_id = ?, node_id = ?, main_topic = ?, updated = {NOW} WHERE id = ?"
-            ))
+            )))
             .bind(parent)
             .bind(key)
             .bind(i64::from(main_topic))
@@ -1418,7 +1426,10 @@ impl Store {
                 // Nichts geändert: die Transaktion (höchstens eine neue Nummer am selben Platz) verfällt.
                 return Ok(None);
             }
-            sqlx::query(&format!("UPDATE idea SET updated = {NOW} WHERE id = ?")).bind(id).execute(&mut *tx).await?;
+            sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE idea SET updated = {NOW} WHERE id = ?")))
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
         }
         let idea = get(&mut tx, id).await?;
         tx.commit().await?;
@@ -1429,11 +1440,12 @@ impl Store {
     pub async fn idea_tree_rows(&self, work: WorkId) -> Result<Vec<Idea>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
-        let rows: Vec<Row> =
-            sqlx::query_as(&format!("{SELECT} WHERE i.work_id = ? AND i.deleted IS NULL ORDER BY i.id"))
-                .bind(work)
-                .fetch_all(&mut *conn)
-                .await?;
+        let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "{SELECT} WHERE i.work_id = ? AND i.deleted IS NULL ORDER BY i.id"
+        )))
+        .bind(work)
+        .fetch_all(&mut *conn)
+        .await?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             out.push(to_idea(&mut conn, row).await?);

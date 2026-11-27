@@ -56,16 +56,17 @@ const QUOTE_COLUMNS: &str = "id, title_id, position, text, page, note";
 /// Alle Titel mit ihren Zitaten, sortiert nach Autoren, dann Titel.
 pub async fn list_titles(pool: &SqlitePool) -> Result<Vec<TitleEntry>, LibraryError> {
     let mut conn = pool.acquire().await?;
-    let titles: Vec<Title> = sqlx::query_as(&format!(
+    let titles: Vec<Title> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {TITLE_COLUMNS} FROM library_title \
          ORDER BY authors COLLATE NOCASE, title COLLATE NOCASE, id"
-    ))
+    )))
     .fetch_all(&mut *conn)
     .await?;
-    let quotes: Vec<Quote> =
-        sqlx::query_as(&format!("SELECT {QUOTE_COLUMNS} FROM library_quote ORDER BY title_id, position"))
-            .fetch_all(&mut *conn)
-            .await?;
+    let quotes: Vec<Quote> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {QUOTE_COLUMNS} FROM library_quote ORDER BY title_id, position"
+    )))
+    .fetch_all(&mut *conn)
+    .await?;
     let mut by_title: std::collections::HashMap<i64, Vec<Quote>> = std::collections::HashMap::new();
     for quote in quotes {
         by_title.entry(quote.title_id).or_default().push(quote);
@@ -82,16 +83,18 @@ pub async fn list_titles(pool: &SqlitePool) -> Result<Vec<TitleEntry>, LibraryEr
 /// Ein Titel mit Zitaten; unbekannte id → [`LibraryError::UnknownTitle`].
 pub async fn get_title(pool: &SqlitePool, id: i64) -> Result<TitleEntry, LibraryError> {
     let mut conn = pool.acquire().await?;
-    let title: Option<Title> = sqlx::query_as(&format!("SELECT {TITLE_COLUMNS} FROM library_title WHERE id = ?1"))
-        .bind(id)
-        .fetch_optional(&mut *conn)
-        .await?;
-    let title = title.ok_or(LibraryError::UnknownTitle(id))?;
-    let quotes: Vec<Quote> =
-        sqlx::query_as(&format!("SELECT {QUOTE_COLUMNS} FROM library_quote WHERE title_id = ?1 ORDER BY position"))
+    let title: Option<Title> =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {TITLE_COLUMNS} FROM library_title WHERE id = ?1")))
             .bind(id)
-            .fetch_all(&mut *conn)
+            .fetch_optional(&mut *conn)
             .await?;
+    let title = title.ok_or(LibraryError::UnknownTitle(id))?;
+    let quotes: Vec<Quote> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {QUOTE_COLUMNS} FROM library_quote WHERE title_id = ?1 ORDER BY position"
+    )))
+    .bind(id)
+    .fetch_all(&mut *conn)
+    .await?;
     Ok(TitleEntry { title, quotes })
 }
 

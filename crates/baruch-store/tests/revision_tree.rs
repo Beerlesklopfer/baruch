@@ -163,13 +163,13 @@ async fn migration_0004_on_a_0003_database_fills_parents_by_rule_r() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    sqlx::raw_sql(&format!(
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "INSERT INTO revision (node_id, number, body, author_kind, author_name, model, status, based_on) VALUES
            ({node_id}, 1, 'a', 'human', 'Autor', NULL, 'superseded', NULL),
            ({node_id}, 2, 'b', 'assistant', '@lektor', 'm', 'rejected', NULL),
            ({node_id}, 3, 'c', 'human', 'Autor', NULL, 'current', NULL),
            ({node_id}, 4, 'd', 'assistant', '@lektor', 'm', 'proposed', 1);"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -210,7 +210,10 @@ async fn migration_0004_on_a_0003_database_fills_parents_by_rule_r() {
 // ---- Regeln in der Datenbank ----------------------------------------------------------------------
 
 async fn refused(pool: &SqlitePool, sql: &str, reason: &str) {
-    let err = sqlx::query(sql).execute(pool).await.expect_err(&format!("hätte abgelehnt werden müssen: {sql}"));
+    let err = sqlx::query(sqlx::AssertSqlSafe(sql))
+        .execute(pool)
+        .await
+        .expect_err(&format!("hätte abgelehnt werden müssen: {sql}"));
     assert!(err.to_string().contains(reason), "{sql}: falscher Grund der Ablehnung: {err}");
 }
 

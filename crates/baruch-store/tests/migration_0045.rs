@@ -61,11 +61,11 @@ fn store_migrator(keep: impl Fn(i64) -> bool) -> Migrator {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 /// Store bis 0044 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
@@ -283,7 +283,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -408,7 +411,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
     exec(&pool, &request.replace("{op}", "cover_layout")).await;
     let new_id = scalar(&pool, "SELECT max(id) FROM asset_request").await;
     assert_eq!(new_id, seq_before + 1, "neuer Antrag bekommt eine nie vergebene id");
-    let bad_op = sqlx::query(&request.replace("{op}", "move")).execute(&pool).await;
+    let bad_op = sqlx::query(sqlx::AssertSqlSafe(request.replace("{op}", "move"))).execute(&pool).await;
     assert!(bad_op.is_err(), "CHECK von asset_request lehnt eine erfundene Art weiter ab");
     exec(&pool, &format!("DELETE FROM asset_request WHERE id = {new_id}")).await;
 
@@ -439,7 +442,9 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
         (block_values(99_999, "front_author"), "Werk muss es geben (Fremdschlüssel)"),
     ] {
         let result =
-            sqlx::query(&format!("INSERT INTO cover_block ({BLOCK_COLUMNS}) VALUES ({bad})")).execute(&pool).await;
+            sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO cover_block ({BLOCK_COLUMNS}) VALUES ({bad})")))
+                .execute(&pool)
+                .await;
         assert!(result.is_err(), "cover_block lehnt ab: {why}");
     }
     exec(

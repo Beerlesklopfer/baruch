@@ -28,7 +28,10 @@ async fn merge(store: &Store, doc: &ExchangeDocument) -> ExchangeReport {
 }
 
 async fn count(store: &Store, table: &str) -> i64 {
-    sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(store.pool()).await.unwrap()
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+        .fetch_one(store.pool())
+        .await
+        .unwrap()
 }
 
 async fn idea_id(store: &Store, n: u32) -> i64 {

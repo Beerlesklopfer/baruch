@@ -232,7 +232,7 @@ async fn a_revision_that_is_assistant_here_is_not_fast_forwarded_even_if_the_fil
     .execute(&mut *conn)
     .await
     .unwrap();
-    sqlx::query(&trigger).execute(&mut *conn).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(trigger.as_str())).execute(&mut *conn).await.unwrap();
     drop(conn);
     let applied = store.exchange_apply(&sample_document_u8(), SHA, ApplyMode::Merge, None).await.unwrap();
     assert_not_fast_forwarded(&store, &applied, "MCP-Fassung hier").await;

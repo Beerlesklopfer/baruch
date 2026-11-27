@@ -640,11 +640,13 @@ impl Marks {
     async fn capture(conn: &mut SqliteConnection) -> Result<Marks, StoreError> {
         let max = |table: &'static str| format!("SELECT COALESCE(MAX(id), 0) FROM {table}");
         Ok(Marks {
-            revision: sqlx::query_scalar(&max("revision")).fetch_one(&mut *conn).await?,
-            post: sqlx::query_scalar(&max("post")).fetch_one(&mut *conn).await?,
-            thread_post: sqlx::query_scalar(&max("chat_thread_post")).fetch_one(&mut *conn).await?,
-            finding: sqlx::query_scalar(&max("finding")).fetch_one(&mut *conn).await?,
-            finding_status: sqlx::query_scalar(&max("finding_status")).fetch_one(&mut *conn).await?,
+            revision: sqlx::query_scalar(sqlx::AssertSqlSafe(max("revision"))).fetch_one(&mut *conn).await?,
+            post: sqlx::query_scalar(sqlx::AssertSqlSafe(max("post"))).fetch_one(&mut *conn).await?,
+            thread_post: sqlx::query_scalar(sqlx::AssertSqlSafe(max("chat_thread_post"))).fetch_one(&mut *conn).await?,
+            finding: sqlx::query_scalar(sqlx::AssertSqlSafe(max("finding"))).fetch_one(&mut *conn).await?,
+            finding_status: sqlx::query_scalar(sqlx::AssertSqlSafe(max("finding_status")))
+                .fetch_one(&mut *conn)
+                .await?,
         })
     }
 }
@@ -1330,10 +1332,11 @@ fn is_refusal(e: &StoreError) -> bool {
 
 /// Gibt es die Kennung in dieser Tabelle (in irgendeinem Werk)?
 async fn uuid_exists(conn: &mut SqliteConnection, table: &str, uuid: &str) -> Result<bool, StoreError> {
-    let found: Option<i64> = sqlx::query_scalar(&format!("SELECT 1 FROM {table} WHERE uuid = ? LIMIT 1"))
-        .bind(uuid)
-        .fetch_optional(&mut *conn)
-        .await?;
+    let found: Option<i64> =
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT 1 FROM {table} WHERE uuid = ? LIMIT 1")))
+            .bind(uuid)
+            .fetch_optional(&mut *conn)
+            .await?;
     Ok(found.is_some())
 }
 

@@ -48,7 +48,7 @@ async fn migrate_before(pool: &SqlitePool) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 /// Werk mit zwei Kapiteln, Personas und gewählter Bibel.
@@ -139,7 +139,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -166,7 +169,10 @@ async fn migration_0037_adds_empty_tables_for_work_sources_and_the_bible_switch(
         schema_after.keys().filter(|n| !schema_before.contains_key(*n)).map(String::as_str).collect();
     assert_eq!(added, vec!["persona_bible", "work_sword_source"], "genau die zwei neuen Tabellen");
     for table in ["persona_bible", "work_sword_source"] {
-        let n: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(&pool).await.unwrap();
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(n, 0, "{table} ist leer: es gelten die Vorgaben (keine Auswahl, Schalter nach Persona)");
     }
     let bad =

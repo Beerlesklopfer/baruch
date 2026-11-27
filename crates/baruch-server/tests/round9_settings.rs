@@ -730,11 +730,12 @@ async fn a_backup_needs_confirmation_and_copies_the_data_folder_next_to_it() {
     let pool = server.state.store.pool();
     let mut blocked = Vec::new();
     for offset in 0..4 {
-        let stamp: String =
-            sqlx::query_scalar(&format!("SELECT strftime('%Y-%m-%d-%H%M%S', 'now', '+{offset} seconds', 'localtime')"))
-                .fetch_one(pool)
-                .await
-                .unwrap();
+        let stamp: String = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT strftime('%Y-%m-%d-%H%M%S', 'now', '+{offset} seconds', 'localtime')"
+        )))
+        .fetch_one(pool)
+        .await
+        .unwrap();
         let dir = root.join(format!("daten.sicherung-{stamp}"));
         if std::fs::create_dir(&dir).is_ok() {
             std::fs::write(dir.join("merker"), "unberührt").unwrap();

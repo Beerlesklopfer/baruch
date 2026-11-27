@@ -52,7 +52,7 @@ async fn migrate_before(pool: &SqlitePool) {
 }
 
 async fn exec(pool: &SqlitePool, sql: &str) {
-    sqlx::query(sql).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
 /// Werk mit zwei Kapiteln, zwei Beiträgen (einer mit Quelle), Personas, Einstellungen.
@@ -155,7 +155,10 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     for (table, cols) in layout {
         let select = cols.iter().map(|c| format!("quote(\"{c}\")")).collect::<Vec<_>>().join(" || char(31) || ");
         let mut rows: Vec<String> =
-            sqlx::query_scalar(&format!("SELECT {select} FROM \"{table}\"")).fetch_all(pool).await.unwrap();
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {select} FROM \"{table}\"")))
+                .fetch_all(pool)
+                .await
+                .unwrap();
         rows.sort();
         out.insert(table.clone(), rows);
     }
@@ -186,7 +189,10 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
         "genau die zwei neuen Tabellen und der Index je Werk (die Übersicht liest je Werk nach Zeit)"
     );
     for table in ["chat_thread", "chat_thread_post"] {
-        let rows: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(&pool).await.unwrap();
+        let rows: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(rows, 0, "keine Datenänderung: {table} ist leer");
     }
     let orphan =

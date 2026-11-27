@@ -120,7 +120,10 @@ async fn current_body(server: &Server, work: i64) -> String {
 }
 
 async fn count(server: &Server, sql: &str) -> i64 {
-    sqlx::query_scalar(sql).fetch_one(server.state.store.pool()).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .fetch_one(server.state.store.pool())
+        .await
+        .unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
 /// Zeilenzahl jeder Tabelle: der Stand der Datenbank in Zahlen.
@@ -132,7 +135,10 @@ async fn row_counts(server: &Server) -> std::collections::BTreeMap<String, i64> 
         .unwrap();
     let mut counts = std::collections::BTreeMap::new();
     for table in tables {
-        let n: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM \"{table}\"")).fetch_one(pool).await.unwrap();
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM \"{table}\"")))
+            .fetch_one(pool)
+            .await
+            .unwrap();
         counts.insert(table, n);
     }
     counts
