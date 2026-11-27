@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ein- und Ausgabe der Mindmap und ihre Bedienung ohne JavaScript (Vertrag Runde 34 §5/§8, Besitz
+//! Import and export of the mind map and its use without JavaScript (contract Round 34 §5/§8, owner
 //! mindmap_austausch).
 //!
-//! - [`pages`] (GET): die Ausgaben `/werke/{id}/karte.svg` und `.pdf` (über
-//!   [`crate::idea_map::bild::mindmap::render`], eigenständig), `.md` ([`export::markdown`]), `.mm`
-//!   ([`freemind::write`]) und `.xmind` ([`xmind::write`]); die Gliederungsansicht `/werke/{id}/karte/gliederung`
-//!   ([`outline`]) und das Formular `/werke/{id}/karte/einlesen` ([`upload`]). Alle nehmen die Filter der Seite.
-//! - [`writes`] (POST, hinter `guard::same_origin`): `/werke/{id}/karte/act` (Formulare der Mindmap, [`ACT_METHODS`]),
-//!   `/werke/{id}/karte/einlesen` (Vorschau, legt nichts an) und `/werke/{id}/karte/einlesen/anlegen` (Bestätigung,
-//!   legt über [`crate::idea_map::tree::import`] an).
+//! - [`pages`] (GET): the exports `/werke/{id}/karte.svg` and `.pdf` (through
+//!   [`crate::idea_map::bild::mindmap::render`], standalone), `.md` ([`export::markdown`]), `.mm`
+//!   ([`freemind::write`]) and `.xmind` ([`xmind::write`]); the outline view `/werke/{id}/karte/gliederung`
+//!   ([`outline`]) and the form `/werke/{id}/karte/einlesen` ([`upload`]). All take the filters of the page.
+//! - [`writes`] (POST, behind `guard::same_origin`): `/werke/{id}/karte/act` (forms of the mind map,
+//!   [`ACT_METHODS`]), `/werke/{id}/karte/einlesen` (preview, creates nothing) and
+//!   `/werke/{id}/karte/einlesen/anlegen` (confirmation, creates through [`crate::idea_map::tree::import`]).
 //!
-//! **Wolke** (Nachtrag des Nutzers 2026-11-25): Einfälle ohne Platz liegen in der Wolke neben der Mindmap
-//! ([`export::cloud`]). Das Formular kennt dafür beim Umhängen das Feld `ziel` (`wolke`, `w`, `i:<id>`, `n:<key>`): „in
-//! die Wolke“ löst Elternknoten und Bezug, „in die Mindmap unter …“ hängt unter einen Einfall bzw. an ein Kapitel.
-//! Ein Knoten wandert **mit** seinen Unterknoten in die Wolke (sie bleiben seine Unterknoten).
+//! **Cloud** (addendum of the user 2026-11-25): ideas without a place lie in the cloud next to the mind map
+//! ([`export::cloud`]). For it the form knows the field `ziel` when re-hanging (`wolke`, `w`, `i:<id>`, `n:<key>`):
+//! “into the cloud” removes parent node and relation, “into the mind map under …” hangs under an idea or on a
+//! chapter. A node moves into the cloud **with** its sub-nodes (they stay its sub-nodes).
 //!
-//! Filter, Fehlerseite der Mindmap und Werkangaben kommen aus [`crate::idea_map::bild`] (dort `pub(crate)`).
+//! Filter, error page of the mind map and work details come from [`crate::idea_map::bild`] (`pub(crate)` there).
 
 pub mod export;
 pub mod freemind;
@@ -45,7 +45,7 @@ use crate::idea_map::tree::{self, MindMap, Scene};
 use crate::pdf::{PDF_TIMEOUT, PdfKind};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
-/// Ausgaben, Gliederungsansicht und Formular „Einlesen“ (GET), gemischt in `lib.rs` bei den Seiten.
+/// Exports, outline view and form „Einlesen“ (GET), merged in `lib.rs` with the pages.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/karte.svg", get(svg_file))
@@ -57,7 +57,7 @@ pub fn pages() -> Router<Arc<AppState>> {
         .route("/werke/{id}/karte/einlesen", get(upload::form))
 }
 
-/// Formulare (POST), gemischt in `lib.rs` im writes-Router hinter `guard::same_origin`.
+/// Forms (POST), merged in `lib.rs` in the writes router behind `guard::same_origin`.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/karte/act", post(act))
@@ -68,10 +68,10 @@ pub fn writes() -> Router<Arc<AppState>> {
         )
 }
 
-// ---- Laden ---------------------------------------------------------------------------------------
+// ---- Loading -------------------------------------------------------------------------------------
 
-/// Ordnername des Werks und seine Mindmap samt Wolke ([`Scene`]); unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
-// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler), wie in `bild::load`.
+/// Folder name of the work and its mind map with cloud ([`Scene`]); unknown work → 404, else error per RpcError.
+// `Response` as the error is intended here (finished response for `?` in the handler), as in `bild::load`.
 #[allow(clippy::result_large_err)]
 pub(crate) async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<(String, Scene), Response> {
     let slug = match work_info(state, work).await? {
@@ -83,7 +83,7 @@ pub(crate) async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter
     Ok((slug, map))
 }
 
-/// Ist das eine Kennung eines Knotens (`w`, `n:<key>`, `i:<id>`)?
+/// Is this an id of a node (`w`, `n:<key>`, `i:<id>`)?
 pub(crate) fn is_node_id(id: &str) -> bool {
     id == "w"
         || id
@@ -92,7 +92,7 @@ pub(crate) fn is_node_id(id: &str) -> bool {
             .is_some_and(|n| !n.is_empty() && n.len() <= 18 && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
-/// Eingeklappte Knoten aus `zu=<Kennungen, Komma>` (nur gültige Kennungen, höchstens 500).
+/// Collapsed nodes from `zu=<ids, comma>` (only valid ids, at most 500).
 pub(crate) fn closed_of(pairs: &[(String, String)]) -> Vec<String> {
     let mut closed: Vec<String> = pairs
         .iter()
@@ -110,7 +110,7 @@ pub(crate) fn closed_of(pairs: &[(String, String)]) -> Vec<String> {
 
 // ---- Handler (GET) -------------------------------------------------------------------------------
 
-/// Kopfzeilen einer Ausgabe: Art, ggf. Anhang mit Dateinamen aus dem slug (`[a-z0-9-]`, ohne Maskierung).
+/// Headers of an export: type, if any an attachment with file name from the slug (`[a-z0-9-]`, no escaping).
 fn file(content_type: &'static str, disposition: Option<String>, body: impl Into<axum::body::Body>) -> Response {
     let mut response = (
         [
@@ -127,7 +127,7 @@ fn file(content_type: &'static str, disposition: Option<String>, body: impl Into
     response
 }
 
-/// Die eigenständige SVG-Datei der Mindmap (dieselbe Zeichnung wie auf der Seite).
+/// The standalone SVG file of the mind map (the same drawing as on the page).
 fn standalone_svg(scene: &Scene, closed: Vec<String>) -> String {
     mindmap::render(&scene.map, &RenderOptions::of(scene, true, closed)).svg
 }
@@ -199,7 +199,7 @@ async fn xmind_file(
     }
 }
 
-/// Typst-Zeichenkette (`"…"`): `\` und `"` maskiert, Zeilenumbrüche als `\n`, andere Steuerzeichen entfernt.
+/// Typst string (`"…"`): `\` and `"` escaped, line breaks as `\n`, other control characters removed.
 fn typst_string(text: &str) -> String {
     let mut out = String::from("\"");
     for c in text.chars() {
@@ -215,8 +215,8 @@ fn typst_string(text: &str) -> String {
     out
 }
 
-/// Typst-Quelle der Mindmap als PDF: A4 quer, Titel und Filter (Nutzertexte nur als Zeichenketten), darunter die
-/// eigenständige SVG-Datei (`svg`, aus [`mindmap::render`]) auf die Seite eingepasst.
+/// Typst source of the mind map as PDF: A4 landscape, title and filter (user texts only as strings), below it the
+/// standalone SVG file (`svg`, from [`mindmap::render`]) fitted to the page.
 pub fn pdf_source(map: &MindMap, svg: String) -> Source {
     let filter = export::filter_words(&map.filter);
     let mut main =
@@ -264,9 +264,9 @@ async fn pdf_file(
     }
 }
 
-// ---- Formulare (POST) ----------------------------------------------------------------------------
+// ---- Forms (POST) --------------------------------------------------------------------------------
 
-/// Methoden des Formulars der Mindmap (Vertrag §5).
+/// Methods of the form of the mind map (contract §5).
 pub const ACT_METHODS: &[&str] = &[
     "idea.create",
     "idea.update",
@@ -286,7 +286,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Zahl aus einem Formularfeld; „Einfall 12“ oder „12 – Laube“ (Auswahlliste) zählen als 12.
+/// Number from a form field; „Einfall 12“ or „12 – Laube“ (selection list) count as 12.
 fn number(value: Option<&str>, name: &str) -> Result<i64, RpcError> {
     let value = value.unwrap_or("").trim();
     let value = value.strip_prefix("Einfall").unwrap_or(value).trim_start();
@@ -294,7 +294,7 @@ fn number(value: Option<&str>, name: &str) -> Result<i64, RpcError> {
     digits.parse().map_err(|_| invalid(format!("{name}: Zahl erwartet")))
 }
 
-/// Wahlfreier Verweis aus einem vorhandenen Formularfeld: leer, `null`, `none` oder `keiner` → `null`, sonst Zahl.
+/// Optional reference from an existing form field: empty, `null`, `none` or `keiner` → `null`, otherwise a number.
 fn reference(value: &str, name: &str) -> Result<Option<i64>, RpcError> {
     match value.trim() {
         "" | "null" | "none" | "keiner" => Ok(None),
@@ -302,7 +302,7 @@ fn reference(value: &str, name: &str) -> Result<Option<i64>, RpcError> {
     }
 }
 
-/// Gehört der Einfall zu diesem Werk? Sonst „abgelehnt“ (409): Die Mindmap ändert nur Einfälle ihres Werks.
+/// Does the idea belong to this work? Otherwise “refused” (409): the mind map changes only ideas of its work.
 pub(crate) async fn ensure_in_work(state: &AppState, idea: IdeaId, work: WorkId) -> Result<(), RpcError> {
     let found = state.store.idea_get(idea).await?;
     if found.work != Some(work) {
@@ -311,12 +311,12 @@ pub(crate) async fn ensure_in_work(state: &AppState, idea: IdeaId, work: WorkId)
     Ok(())
 }
 
-/// Letzter Wert eines Formularfelds.
+/// Last value of a form field.
 fn form_field(pairs: &[(String, String)], name: &str) -> Option<String> {
     pairs.iter().rev().find(|(n, _)| n == name).map(|(_, v)| v.clone())
 }
 
-/// Ergebnis einer Aktion: Wort für `ok`, ggf. die gelöste Verbindung (`undo`) bzw. der gelöschte Einfall (`wieder`).
+/// Result of an action: word for `ok`, if any the removed link (`undo`) or the deleted idea (`wieder`).
 #[derive(Debug, Default, PartialEq)]
 struct Done {
     ok: &'static str,
@@ -330,7 +330,7 @@ impl Done {
     }
 }
 
-/// Eine Aktion der Mindmap ausführen. Jeder genannte Einfall muss zum Werk der Adresse gehören.
+/// Carry out an action of the mind map. Every named idea must belong to the work of the address.
 async fn run_act(
     state: &AppState,
     work: WorkId,
@@ -341,8 +341,8 @@ async fn run_act(
     let field = |name: &str| form_field(pairs, name);
     let filled = |name: &str| form_field(pairs, name).filter(|v| !v.trim().is_empty());
     match method {
-        // Neuer Einfall: unter einem Einfall (`parent`), an einem Kapitel (`key`), mit `ort=werk` als Hauptthema am
-        // Werk oder – ohne alles – in der Wolke.
+        // New idea: under an idea (`parent`), on a chapter (`key`), with `ort=werk` as a main topic on the
+        // work or – without anything – in the cloud.
         "idea.create" => {
             let mut params = json!({ "work": work });
             for name in ["title", "words", "note"] {
@@ -360,14 +360,14 @@ async fn run_act(
             if let Some(key) = filled("key") {
                 params["key"] = json!(number(Some(&key), "key")?);
             }
-            // `ort=werk`: ohne Elternknoten und Bezug als freies Hauptthema ans Werk (Vorgabe: in die Wolke).
+            // `ort=werk`: without parent node and relation as a free main topic on the work (default: into the cloud).
             if filled("ort").as_deref().map(str::trim) == Some("werk") {
                 params["cloud"] = Json::Bool(false);
             }
             crate::ideas::call(state, "idea.create", params).await?;
             Ok(Done::word("angelegt"))
         }
-        // Umbenennen (`title`) und/oder Bezug setzen (`key`); Felder, die das Formular nicht schickt, bleiben.
+        // Rename (`title`) and/or set the relation (`key`); fields the form does not send stay.
         "idea.update" => {
             let id = number(field("id").as_deref(), "id")?;
             ensure_in_work(state, id, work).await?;
@@ -392,8 +392,8 @@ async fn run_act(
                 _ => "gespeichert",
             }))
         }
-        // Umhängen und Ordnen. `ziel` (`wolke`, `i:<id>`, `n:<key>`) ist die Kurzform für Formulare; daneben die
-        // Felder der RPC (`parent`, `key`, `before`; vorhanden und leer = `null`).
+        // Re-hanging and ordering. `ziel` (`wolke`, `i:<id>`, `n:<key>`) is the short form for forms; besides it the
+        // fields of the RPC (`parent`, `key`, `before`; present and empty = `null`).
         "idea.move" => {
             let id = number(field("id").as_deref(), "id")?;
             ensure_in_work(state, id, work).await?;
@@ -402,11 +402,11 @@ async fn run_act(
             if let Some(target) = filled("ziel") {
                 let target = target.trim();
                 if target == "wolke" {
-                    // In die Wolke: löst Elternknoten und Bezug, die Unterknoten bleiben am Einfall.
+                    // Into the cloud: removes parent node and relation, the sub-nodes stay with the idea.
                     params["cloud"] = Json::Bool(true);
                     to_cloud = true;
                 } else if target == "w" {
-                    // Ans Werk: freies Hauptthema (eigener Hauptast).
+                    // Onto the work: free main topic (own main branch).
                     params["parent"] = Json::Null;
                     params["key"] = Json::Null;
                     params["cloud"] = Json::Bool(false);
@@ -474,7 +474,7 @@ async fn run_act(
                 Done::word("wiederhergestellt")
             })
         }
-        // Lagen bleiben gespeichert, wirken in der Mindmap aber nicht mehr (Vertrag §0).
+        // Positions stay stored but no longer have an effect in the mind map (contract §0).
         "idea.map_pos_reset" => {
             let mut params = json!({ "work": work });
             if let Some(idea) = filled("idea") {
@@ -483,7 +483,7 @@ async fn run_act(
             crate::idea_map::call(state, "idea.map_pos_reset", params).await?;
             Ok(Done::word("zurueckgesetzt"))
         }
-        // Runde 19b: Gruppen benennen (Vorschlag eines Assistenten), Übernehmen nur hier und über RPC (Mensch).
+        // Round 19b: name groups (suggestion of an assistant), adopting only here and through RPC (human).
         "idea.map_groups_name" => {
             let persona = filled("persona");
             let answer = crate::idea_map::groups::name_groups(state, work, filter, persona.as_deref()).await?;
@@ -514,12 +514,12 @@ fn unknown_action(method: &str) -> RpcError {
     RpcError::new(METHOD_NOT_FOUND, format!("Unbekannte Aktion „{shown}“ auf der Mindmap."))
 }
 
-/// `POST /werke/{id}/karte/act` (urlencoded): Feld `method` ∈ [`ACT_METHODS`], dazu die Felder der Aktion (`id`,
+/// `POST /werke/{id}/karte/act` (urlencoded): field `method` ∈ [`ACT_METHODS`], plus the fields of the action (`id`,
 /// `title`, `words`, `note`, `parent`, `key`, `before`, `ziel`, `ort`, `from`, `to`, `kind`, `idea`, `group`, `name`,
-/// `persona`), `back` (nur der Abfrageteil; sein Filter gilt auch für die Gruppen), `seite` ∈ `karte` | `gliederung`
-/// (Ziel der Weiterleitung, Vorgabe `karte`) und `wahl` (gewählter Knoten der Gliederungsansicht). Danach 303 auf
-/// `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>`; Fehler als Seite mit der Meldung (422 ungültig, 409 abgelehnt,
-/// 400 unbekannte Aktion).
+/// `persona`), `back` (only the query part; its filter also applies to the groups), `seite` ∈ `karte` | `gliederung`
+/// (target of the redirect, default `karte`) and `wahl` (chosen node of the outline view). Then 303 to
+/// `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>`; errors as a page with the message (422 invalid, 409 refused,
+/// 400 unknown action).
 async fn act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -555,7 +555,7 @@ async fn act(
                 if let Some(restore) = done.restore {
                     query.push_str(&format!("&wieder={restore}"));
                 }
-                // Der gelöschte Knoten kann nicht gewählt bleiben.
+                // The deleted node cannot stay chosen.
                 if let Some(chosen) = chosen.filter(|c| done.restore.is_none_or(|gone| *c != format!("i:{gone}"))) {
                     query.push_str(&format!("&wahl={chosen}"));
                 }

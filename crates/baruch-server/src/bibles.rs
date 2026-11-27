@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! SWORD-Bibeln (Wunsch 2026-11-06): Modulordner, Bibel je Werk und Wortlautprüfung. RPC `bible.*`
+//! SWORD Bibles (request 2026-11-06): module folders, Bible per work and wording check. RPC `bible.*`
 //! (`docs/RPC.md`, „Bibeln“), MCP `bible_modules`/`bible_lookup`/`bible_search` ([`crate::mcp::bibles`]),
-//! Formular auf der Seite Einstellungen → Quellen ([`crate::connections`]).
+//! form on the page Einstellungen → Quellen ([`crate::connections`]).
 //!
-//! - Modulordner: Liste im Store (Migration 0030), ohne Eintrag die Vorgaben von [`baruch_sword::default_dirs`].
-//! - Bibel je Werk: Modulname im Store; gelesen über [`baruch_sword`] (Format-Leser `sword-modules`, CC0).
-//! - [`check_wording`]: je Stelle Text der Bibel und Vergleich mit einem Zitat beim Verweis
-//!   ([`baruch_scripture::wording`]). Ohne Bibel bleibt der Wortlaut „ungeprüft“.
+//! - Module folders: list in the store (migration 0030), else the defaults of [`baruch_sword::default_dirs`].
+//! - Bible per work: module name in the store; read through [`baruch_sword`] (format reader `sword-modules`, CC0).
+//! - [`check_wording`]: per reference the text of the Bible and comparison with a quotation next to the reference
+//!   ([`baruch_scripture::wording`]). Without a Bible the wording stays „ungeprüft“.
 //!
-//! Antworten nennen immer Modul, Versifikation und den Lizenzvermerk der conf. Nur lesend außer
-//! `bible.set_dirs`/`bible.set_work`/`bible.set_work_sources` (nur Mensch: nicht über MCP, nicht über `/act`).
+//! Answers always name module, versification and the licence notice of the conf. Read-only except
+//! `bible.set_dirs`/`bible.set_work`/`bible.set_work_sources` (human only: not through MCP, not through `/act`).
 //!
-//! Runde 15 (Punkt 5a/5b): **Kommentare und Lexika** als Recherchewerkzeug. `bible.modules` meldet je Modul
+//! Round 15 (item 5a/5b): **commentaries and lexicons** as a research tool. `bible.modules` reports per module
 //! `kind` (`bible`, `commentary`, `lexicon`); `commentary.lookup/search`, `lexicon.lookup/keys/search`,
-//! `bible.work_sources`/`bible.set_work_sources` (Auswahl je Werk, mehrere, Migration 0037); MCP
-//! `commentary_lookup`, `lexicon_lookup`, `lexicon_search` (nur lesend). Für die Literatur fertige, maskierte
-//! HTML-Bausteine: [`commentary_panel_html`] (`<details>`, ohne JavaScript) und [`commentary_hits_html`]
-//! (Treffergruppen „Kommentar“ im Suchfeld, Zeitgrenze 3 s).
+//! `bible.work_sources`/`bible.set_work_sources` (selection per work, several, migration 0037); MCP
+//! `commentary_lookup`, `lexicon_lookup`, `lexicon_search` (read-only). For the literature finished, escaped
+//! HTML fragments: [`commentary_panel_html`] (`<details>`, without JavaScript) and [`commentary_hits_html`]
+//! (hit groups „Kommentar“ in the search field, time limit 3 s).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -35,16 +35,16 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError, work_param};
 
-/// Höchstzahl der Modulordner.
+/// Maximum number of module folders.
 pub const MAX_DIRS: usize = 20;
-/// Höchstlänge eines Ordners (Zeichen).
+/// Maximum length of a folder (characters).
 pub const MAX_DIR_CHARS: usize = 1000;
-/// Vorgabe und Höchstwert der Treffer von `bible.search`.
+/// Default and maximum of the hits of `bible.search`.
 pub const SEARCH_LIMIT: usize = 50;
 pub const SEARCH_MAX: usize = 200;
-/// Zeitgrenze der linearen Suche.
+/// Time limit of the linear search.
 pub const SEARCH_TIME: Duration = Duration::from_secs(5);
-/// Höchstlänge des Bibeltexts einer Stelle in Antworten (Zeichen); längere Stellen werden gekürzt.
+/// Maximum length of the Bible text of a reference in answers (characters); longer references are shortened.
 pub const MAX_TEXT_CHARS: usize = 4000;
 
 const METHODS: &[&str] = &[
@@ -66,24 +66,24 @@ const METHODS: &[&str] = &[
     "bible.cipher_key_delete",
 ];
 
-/// Methoden, die etwas ändern (nur Mensch: nicht über `/act`, nicht über MCP).
+/// Methods that change something (human only: not through `/act`, not through MCP).
 pub const WRITES: &[&str] =
     &["bible.set_dirs", "bible.set_work", "bible.set_work_sources", "bible.cipher_key_set", "bible.cipher_key_delete"];
 
-/// Höchstlänge eines Modulschlüssels (Zeichen).
+/// Maximum length of a module key (characters).
 pub const MAX_CIPHER_KEY_CHARS: usize = 255;
 
-/// Antwort auf einen Schlüssel, der das Modul nicht entschlüsselt.
+/// Answer to a key that does not decrypt the module.
 pub const CIPHER_KEY_WRONG: &str = "Schlüssel passt nicht zum Modul; nichts gespeichert.";
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-// ---- Ordner, Module, Wahl --------------------------------------------------------------------------
+// ---- Folders, modules, choice ----------------------------------------------------------------------
 
-/// Modulordner und ob es die Vorgaben sind.
+/// Module folders and whether they are the defaults.
 pub async fn dirs(state: &AppState) -> Result<(Vec<PathBuf>, bool), RpcError> {
     Ok(match state.store.bible_dirs().await? {
         Some(dirs) => (dirs.into_iter().map(PathBuf::from).collect(), false),
@@ -91,7 +91,7 @@ pub async fn dirs(state: &AppState) -> Result<(Vec<PathBuf>, bool), RpcError> {
     })
 }
 
-/// Alle Bibelmodule der Modulordner (liest nur `mods.d`).
+/// All Bible modules of the module folders (reads only `mods.d`).
 pub async fn scan(state: &AppState) -> Result<(Scan, Vec<PathBuf>, bool), RpcError> {
     let (dirs, default) = dirs(state).await?;
     let list = dirs.clone();
@@ -101,14 +101,14 @@ pub async fn scan(state: &AppState) -> Result<(Scan, Vec<PathBuf>, bool), RpcErr
     Ok((found, dirs, default))
 }
 
-/// Konto im Schlüsselbund (Dienst „baruch“) für den Schlüssel eines verschlüsselten Moduls (R17c).
+/// Account in the keyring (service “baruch”) for the key of an encrypted module (R17c).
 pub fn cipher_account(module: &str) -> String {
     format!("sword-cipher:{}", module.to_lowercase())
 }
 
-/// Hinterlegter Schlüssel eines verschlüsselten Moduls (nur über `AppState::secrets`); `None` bei einem
-/// unverschlüsselten Modul (dann fragt Baruch den Schlüsselbund gar nicht), ohne Eintrag oder wenn der
-/// Schlüsselbund nicht antwortet. Der Schlüssel verlässt diese Funktion nur Richtung SWORD-Leser.
+/// Stored key of an encrypted module (only through `AppState::secrets`); `None` for an
+/// unencrypted module (then Baruch does not ask the keyring at all), without an entry or if the
+/// keyring does not answer. The key leaves this function only towards the SWORD reader.
 pub async fn stored_cipher_key(state: &AppState, info: &BibleInfo) -> Option<String> {
     if !info.enciphered {
         return None;
@@ -120,8 +120,8 @@ pub async fn stored_cipher_key(state: &AppState, info: &BibleInfo) -> Option<Str
         .filter(|k| !k.trim().is_empty())
 }
 
-/// `none` (nicht verschlüsselt), `locked` (verschlüsselt, Schlüssel fehlt), `unlocked` (Schlüssel im
-/// Schlüsselbund oder schon in der conf).
+/// `none` (not encrypted), `locked` (encrypted, key missing), `unlocked` (key in the
+/// keyring or already in the conf).
 pub fn cipher_state(info: &BibleInfo, key_stored: bool) -> &'static str {
     if !info.enciphered {
         "none"
@@ -132,13 +132,13 @@ pub fn cipher_state(info: &BibleInfo, key_stored: bool) -> &'static str {
     }
 }
 
-/// Kurzangaben eines Moduls für Antworten: Modul, Beschreibung, Versifikation, Lizenzvermerk; seit R17c auch
-/// `cipher` (ohne Blick in den Schlüsselbund: `locked`, wenn die conf keinen Schlüssel trägt) und `notice`.
+/// Short details of a module for answers: module, description, versification, licence notice; since R17c also
+/// `cipher` (without looking into the keyring: `locked` if the conf carries no key) and `notice`.
 pub fn info_json(info: &BibleInfo) -> Value {
     info_json_with(info, cipher_state(info, false))
 }
 
-/// Wie [`info_json`] mit dem Stand der Verschlüsselung `cipher` (`none`, `locked`, `unlocked`).
+/// Like [`info_json`] with the encryption state `cipher` (`none`, `locked`, `unlocked`).
 pub fn info_json_with(info: &BibleInfo, cipher: &str) -> Value {
     json!({
         "module": info.name,
@@ -159,11 +159,11 @@ pub fn info_json_with(info: &BibleInfo, cipher: &str) -> Value {
     })
 }
 
-/// Geöffnete Module, je conf-Datei, Name, Änderungszeit (eine geänderte conf wird neu geöffnet) und Prüfsumme
-/// des Schlüssels (0 ohne Schlüssel; nie der Schlüssel selbst).
+/// Opened modules, per conf file, name, modification time (a changed conf is opened anew) and checksum
+/// of the key (0 without a key; never the key itself).
 type CacheKey = (PathBuf, String, Option<SystemTime>, u64);
 
-/// Prüfsumme eines Schlüssels für den Zwischenspeicher (der Schlüssel steht nie im Klartext darin).
+/// Checksum of a key for the cache (the key never stands in it in plain text).
 fn key_hash(key: Option<&str>) -> u64 {
     use std::hash::{Hash, Hasher};
     let Some(key) = key.map(str::trim).filter(|k| !k.is_empty()) else { return 0 };
@@ -182,13 +182,13 @@ fn cache() -> &'static Mutex<HashMap<CacheKey, Arc<Bible>>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Öffnet ein Modul (mit Zwischenspeicher, höchstens 8 offene Module) ohne Schlüssel.
+/// Opens a module (with cache, at most 8 open modules) without a key.
 pub fn open_cached(info: &BibleInfo) -> Result<Arc<Bible>, BibleError> {
     open_cached_with_key(info, None)
 }
 
-/// Öffnet ein Modul mit dem Schlüssel eines verschlüsselten Moduls (R17c; Zwischenspeicher wie
-/// [`open_cached`], der Schlüssel zählt nur als Prüfsumme).
+/// Opens a module with the key of an encrypted module (R17c; cache like
+/// [`open_cached`], the key counts only as a checksum).
 pub fn open_cached_with_key(info: &BibleInfo, key: Option<&str>) -> Result<Arc<Bible>, BibleError> {
     let cache_key = cache_key(info, key);
     if let Some(bible) = cache().lock().expect("Zwischenspeicher der Bibeln").get(&cache_key) {
@@ -203,13 +203,13 @@ pub fn open_cached_with_key(info: &BibleInfo, key: Option<&str>) -> Result<Arc<B
     Ok(bible)
 }
 
-/// Die Bibel eines Werks.
+/// The Bible of a work.
 pub enum Choice {
-    /// Keine gewählt.
+    /// None chosen.
     None,
-    /// Gewählt, aber in keinem Modulordner gefunden.
+    /// Chosen, but not found in any module folder.
     Missing(String),
-    /// Gefunden, aber nicht lesbar oder nicht unterstützt.
+    /// Found, but not readable or not supported.
     Unusable(Box<BibleInfo>, String),
     Ready(Arc<Bible>),
 }
@@ -222,7 +222,7 @@ impl Choice {
         }
     }
 
-    /// Angaben für Antworten (`null` ohne Wahl).
+    /// Details for answers (`null` without a choice).
     pub fn json(&self) -> Value {
         match self {
             Choice::None => Value::Null,
@@ -239,14 +239,14 @@ impl Choice {
     }
 }
 
-/// Bibel nach Modulname (aus den Modulordnern).
+/// Bible by module name (from the module folders).
 pub async fn by_name(state: &AppState, name: &str) -> Result<Choice, RpcError> {
     let (found, ..) = scan(state).await?;
     let Some(info) = found.find(name).cloned() else { return Ok(Choice::Missing(name.to_owned())) };
     if let Some(why) = info.problem.clone() {
         return Ok(Choice::Unusable(Box::new(info), why));
     }
-    // R17c: Schlüssel eines verschlüsselten Moduls holt Baruch selbst aus dem Schlüsselbund.
+    // R17c: Baruch fetches the key of an encrypted module from the keyring itself.
     let key = stored_cipher_key(state, &info).await;
     let opened = {
         let info = info.clone();
@@ -260,7 +260,7 @@ pub async fn by_name(state: &AppState, name: &str) -> Result<Choice, RpcError> {
     })
 }
 
-/// Die Bibel des Werks `work`.
+/// The Bible of the work `work`.
 pub async fn of_work(state: &AppState, work: WorkId) -> Result<Choice, RpcError> {
     match state.store.work_bible(work).await? {
         None => Ok(Choice::None),
@@ -268,27 +268,27 @@ pub async fn of_work(state: &AppState, work: WorkId) -> Result<Choice, RpcError>
     }
 }
 
-// ---- Wortlaut --------------------------------------------------------------------------------------
+// ---- Wording ---------------------------------------------------------------------------------------
 
-/// Ergebnis der Wortlautprüfung einer Stelle.
+/// Result of the wording check of a reference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WordingResult {
     /// `unchecked`, `invalid_ref`, `versification_mismatch`, `missing_verse`, `module_error`, `no_quote`,
     /// `match`, `differs`.
     pub code: &'static str,
-    /// Deutsch, z. B. „Wortlaut stimmt“, „weicht ab“, „kein Zitat gefunden“.
+    /// German, e.g. „Wortlaut stimmt“, „weicht ab“, „kein Zitat gefunden“.
     pub label: String,
-    /// Text der Bibel zur Stelle (nur mit Bibel und lesbarer Stelle).
+    /// Text of the Bible for the reference (only with a Bible and a readable reference).
     pub bible_text: Option<String>,
-    /// Das Zitat im Text bei der Stelle.
+    /// The quotation in the text next to the reference.
     pub quote: Option<String>,
     pub partial: bool,
     pub diff: Vec<DiffPart>,
-    /// R17c: Byte-Bereich des Zitatinhalts (ohne Anführungszeichen) im geprüften Text, wenn ein Zitat zugeordnet ist.
+    /// R17c: byte range of the quotation content (without quotation marks) in the checked text if one is assigned.
     pub quote_span: Option<(usize, usize)>,
-    /// R17c: gelesene Stelle in der Zählung des Moduls („Joel 2,28–32 (KJV)“), nur wenn sie von der deutschen abweicht.
+    /// R17c: reference read in the module's versification („Joel 2,28–32 (KJV)“), only if it differs from the German.
     pub module_ref: Option<String>,
-    /// Runde 19c: Der Wortlaut stimmt nur ohne Leerraum (Trennreste im Modul wie „die ses“); `code` bleibt `match`.
+    /// Round 19c: the wording matches only without whitespace (remnants like „die ses“); `code` stays `match`.
     pub module_spacing: bool,
 }
 
@@ -312,24 +312,24 @@ impl WordingResult {
     }
 }
 
-/// R17c: Text einer Stelle, gelesen in der Zählung des Moduls.
+/// R17c: text of a reference, read in the versification of the module.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PassageText {
-    /// Verse in der Zählung des Moduls (Kapitel, Vers wie in `module_refs`); `text: None` = Vers fehlt im Modul.
+    /// Verses in the versification of the module (chapter, verse as in `module_refs`); `text: None` = verse missing.
     pub verses: Vec<baruch_sword::Verse>,
-    /// Die gelesenen Verse in der Zählung des Moduls (gleiche Reihenfolge wie `verses`).
+    /// The verses read in the versification of the module (same order as `verses`).
     pub module_refs: Vec<VerseRef>,
-    /// Die Stelle hat in deutscher Zählung mehr als [`baruch_sword::MAX_PASSAGE_VERSES`] Verse.
+    /// The reference has more than [`baruch_sword::MAX_PASSAGE_VERSES`] verses in German versification.
     pub truncated: bool,
-    /// Angewandte Regeln der Abbildung (deutscher Kurztext, z. B. „Psalmüberschrift als Vers 1“).
+    /// Applied rules of the mapping (German short text, e.g. „Psalmüberschrift als Vers 1“).
     pub rules: Vec<&'static str>,
 }
 
-/// Anfang des Grunds, wenn sich eine Stelle nicht in die Zählung des Moduls abbilden lässt.
+/// Start of the reason if a reference cannot be mapped into the versification of the module.
 pub const MISMATCH_PREFIX: &str = "Versifikation passt nicht";
 
-/// Stelle in deutscher Zählung aus `bible` lesen: Abbildung german() → bible.v11n (map_range, limit
-/// baruch_sword::MAX_PASSAGE_VERSES), dann je Vers bible.verse(…). Err(Grund, Deutsch).
+/// Read a reference in German versification from `bible`: mapping german() → bible.v11n (map_range, limit
+/// baruch_sword::MAX_PASSAGE_VERSES), then bible.verse(…) per verse. Err(reason, German).
 pub fn read_passage(bible: &Bible, book: &str, start: (u16, u16), end: (u16, u16)) -> Result<PassageText, String> {
     let mapped = mapping::map_range(german(), bible.v11n, book, start, end, baruch_sword::MAX_PASSAGE_VERSES)?;
     let mut verses = Vec::with_capacity(mapped.verses.len());
@@ -340,19 +340,19 @@ pub fn read_passage(bible: &Bible, book: &str, start: (u16, u16), end: (u16, u16
     Ok(PassageText { verses, module_refs: mapped.verses, truncated: mapped.truncated, rules: mapped.rules })
 }
 
-/// Einträge eines Kommentars zu einer Stelle in **deutscher** Zählung (Runde 23a, Codereview quellen-2).
+/// Entries of a commentary on a reference in **German** versification (Round 23a, code review quellen-2).
 pub struct CommentaryRead {
-    /// Einträge, Kapitel und Vers in der Zählung des Kommentars.
+    /// Entries, chapter and verse in the versification of the commentary.
     pub entries: Vec<baruch_sword::CommentaryEntry>,
-    /// Buch (OSIS) in der Zählung des Kommentars.
+    /// Book (OSIS) in the versification of the commentary.
     pub book: &'static str,
-    /// Name der Zählung des Kommentars, wenn sie von der deutschen abweicht (für die Beschriftung „… (KJV)“).
+    /// Name of the commentary's versification if it differs from the German one (for the label „… (KJV)“).
     pub v11n: Option<&'static str>,
 }
 
 impl CommentaryRead {
-    /// Beschriftung eines Eintrags: Stelle in der Zählung des Kommentars, bei abweichender Zählung mit ihrem Namen
-    /// („Joel 2,28–32 (KJV)“), damit niemand sie für die deutsche Stelle hält.
+    /// Label of an entry: reference in the versification of the commentary, with its name if the versification differs
+    /// („Joel 2,28–32 (KJV)“) so that nobody takes it for the German reference.
     pub fn label(&self, entry: &baruch_sword::CommentaryEntry) -> String {
         let range = range_label(self.book, entry.start, entry.end);
         match self.v11n {
@@ -362,11 +362,11 @@ impl CommentaryRead {
     }
 }
 
-/// Kommentar zu einer Stelle in deutscher Zählung lesen: wie bei Bibeln ([`read_passage`]) erst german() →
-/// Zählung des Kommentars abbilden, dann den abgebildeten Bereich nachschlagen. Vorher wurden die deutschen Nummern
-/// unverändert als Nummern des Kommentars benutzt; bei einem Kommentar in KJV-Zählung kam so zu „Joel 3,1“ der
-/// Kommentar zu KJV Joel 3,1 (deutsch 4,1) zurück, beschriftet mit der deutschen Stelle. `Err` = Grund (Deutsch).
-/// Blockierend.
+/// Read a commentary on a reference in German versification: as for Bibles ([`read_passage`]) first map german() →
+/// versification of the commentary, then look up the mapped range. Before, the German numbers were used
+/// unchanged as numbers of the commentary; for a commentary in KJV versification „Joel 3,1“ thus returned the
+/// commentary on KJV Joel 3,1 (German 4,1), labelled with the German reference. `Err` = reason (German).
+/// Blocking.
 pub fn read_commentary(
     commentary: &baruch_sword::Commentary,
     book: &'static str,
@@ -387,8 +387,8 @@ pub fn read_commentary(
     Ok(CommentaryRead { entries, book: first.book, v11n: Some(commentary.v11n.name) })
 }
 
-/// „Mal 4,1–6 (KJV)“: die gelesene Stelle in der Zählung des Moduls, nur wenn sie von der deutschen Angabe
-/// abweicht (andere Zählung und andere Verse oder eine angewandte Regel); sonst `None`.
+/// „Mal 4,1–6 (KJV)“: the reference read in the versification of the module, only if it differs from the German
+/// one (other versification and other verses or an applied rule); otherwise `None`.
 pub fn module_ref(bible: &Bible, book: &str, start: (u16, u16), end: (u16, u16), read: &PassageText) -> Option<String> {
     if bible.v11n.name == german().name {
         return None;
@@ -410,8 +410,8 @@ pub fn module_ref(bible: &Bible, book: &str, start: (u16, u16), end: (u16, u16),
     ))
 }
 
-/// Wortlaut je Stelle in `refs` (aus `text`) gegen `bible`. Ohne Bibel: alle „ungeprüft“. Zitate kommen nur aus
-/// [`crate::quotes::quote_spans`] (R17).
+/// Wording per reference in `refs` (from `text`) against `bible`. Without a Bible: all „ungeprüft“. Quotations come
+/// only from [`crate::quotes::quote_spans`] (R17).
 pub fn check_wording(bible: Option<&Bible>, text: &str, refs: &[Found]) -> Vec<WordingResult> {
     let Some(bible) = bible else { return refs.iter().map(|_| WordingResult::unchecked()).collect() };
     let quotes = crate::quotes::quote_spans(text);
@@ -423,8 +423,8 @@ fn one(bible: &Bible, text: &str, quotes: &[QuoteSpan], refs: &[Found], index: u
         return WordingResult::plain("invalid_ref", "Stelle ungültig – Wortlaut nicht geprüft");
     };
     let book = passage.book;
-    // Andere Zählung im Modul: über die Abbildung lesen (R17); was sich nicht abbilden lässt, bleibt
-    // „Versifikation passt nicht“ mit Grund.
+    // Other versification in the module: read through the mapping (R17); what cannot be mapped stays
+    // „Versifikation passt nicht“ with reason.
     let read = match read_passage(bible, book.id, passage.start, passage.end) {
         Ok(read) => read,
         Err(why) if why.starts_with(MISMATCH_PREFIX) => {
@@ -433,9 +433,9 @@ fn one(bible: &Bible, text: &str, quotes: &[QuoteSpan], refs: &[Found], index: u
         Err(why) => return WordingResult::plain("module_error", why),
     };
     let module_ref = module_ref(bible, book.id, passage.start, passage.end, &read);
-    // Runde 23a (Codereview quellen-6): `read.verses` trägt Kapitel und Vers in der Zählung des Moduls. Die Meldung
-    // nennt den fehlenden Vers darum in deutscher Zählung (zurück abgebildet); lässt er sich nicht abbilden, steht
-    // die Modulstelle mit dem Namen ihrer Zählung da – nie eine Modulnummer unter deutscher Flagge.
+    // Round 23a (code review quellen-6): `read.verses` carries chapter and verse in the module's versification. So
+    // the message names the missing verse in German versification (mapped back); if it cannot be mapped, the
+    // module reference stands there with the name of its versification – never a module number under German flag.
     let same_counting = bible.v11n.name == german().name;
     let missing: Vec<String> = read
         .verses
@@ -496,13 +496,13 @@ fn one(bible: &Bible, text: &str, quotes: &[QuoteSpan], refs: &[Found], index: u
     }
 }
 
-// ---- Wortfragmente im Modul (Runde 19c) ---------------------------------------------------------------
+// ---- Word fragments in the module (Round 19c) ---------------------------------------------------------
 
-/// Bezeichnung einer Stelle, deren Zitat nur ohne Leerraum stimmt (Trennreste im Modul).
+/// Label of a reference whose quotation matches only without whitespace (hyphenation remnants in the module).
 pub const SPACING_LABEL: &str = "Wortlaut stimmt (Leerraum im Modul)";
-/// Höchstens so viele Verse liest die Stichprobe für die Schätzung der Wortfragmente.
+/// At most this many verses the sample reads for the estimate of the word fragments.
 pub const FRAGMENT_SAMPLE_VERSES: usize = 4000;
-/// Zeitgrenze der Stichprobe.
+/// Time limit of the sample.
 pub const FRAGMENT_SAMPLE_TIME: Duration = Duration::from_secs(2);
 
 type NoteKey = (PathBuf, String, Option<SystemTime>);
@@ -512,18 +512,18 @@ fn note_cache() -> &'static Mutex<HashMap<NoteKey, Option<String>>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Hinweis zu einem Modul mit auffällig vielen Wortfragmenten (vermutlich Trennreste aus einem PDF), sonst `None`.
-/// Geschätzt über [`baruch_scripture::wording::fragment_survey`] auf einer Stichprobe der ersten
-/// [`FRAGMENT_SAMPLE_VERSES`] Verse (höchstens [`FRAGMENT_SAMPLE_TIME`]); das Ergebnis bleibt je conf-Datei und
-/// Änderungszeit im Speicher. Blockierend (liest das Modul); ein Lesefehler ergibt keinen Hinweis.
+/// Note on a module with strikingly many word fragments (probably hyphenation remnants from a PDF), else `None`.
+/// Estimated through [`baruch_scripture::wording::fragment_survey`] on a sample of the first
+/// [`FRAGMENT_SAMPLE_VERSES`] verses (at most [`FRAGMENT_SAMPLE_TIME`]); the result stays in memory per conf file
+/// and modification time. Blocking (reads the module); a read error yields no note.
 pub fn module_note(bible: &Bible) -> Option<String> {
     let modified = std::fs::metadata(&bible.info.conf_file).and_then(|m| m.modified()).ok();
     let key = (bible.info.conf_file.clone(), bible.info.name.clone(), modified);
     if let Some(note) = note_cache().lock().expect("Zwischenspeicher der Modulhinweise").get(&key) {
         return note.clone();
     }
-    // Runde 23a (Gutachten R19): ein Lauf je Modul. Wer zugleich nach demselben Modul fragt, wartet auf den ersten
-    // Lauf und nimmt dann dessen Ergebnis aus dem Zwischenspeicher, statt die Stichprobe (bis 2 s) selbst zu lesen.
+    // Round 23a (review R19): one run per module. Whoever asks for the same module at the same time waits for the
+    // first run and then takes its result from the cache instead of reading the sample (up to 2 s) itself.
     static RUNNING: OnceLock<Mutex<HashMap<NoteKey, std::sync::Arc<Mutex<()>>>>> = OnceLock::new();
     let turn = {
         let mut running = RUNNING.get_or_init(Default::default).lock().expect("Läufe der Modulhinweise");
@@ -549,14 +549,14 @@ pub fn module_note(bible: &Bible) -> Option<String> {
     note
 }
 
-/// Zahl der Stichproben-Läufe von [`module_note`] in diesem Prozess (für Tests des „ein Lauf je Modul“).
+/// Number of sample runs of [`module_note`] in this process (for tests of “one run per module”).
 pub fn module_note_runs() -> usize {
     MODULE_NOTE_RUNS.load(std::sync::atomic::Ordering::SeqCst)
 }
 
 static MODULE_NOTE_RUNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// Hinweistext aus einer Stichprobe (öffentlich für Tests): `None`, wenn das Modul unauffällig ist.
+/// Note text from a sample (public for tests): `None` if the module is inconspicuous.
 pub fn fragment_note(module: &str, sample: &[String]) -> Option<String> {
     let survey = wording::fragment_survey(sample.iter().map(String::as_str));
     if !survey.fragmented() {
@@ -570,18 +570,18 @@ pub fn fragment_note(module: &str, sample: &[String]) -> Option<String> {
     ))
 }
 
-/// Hinweis zur Bibel einer Wahl (nur bei einer lesbaren Bibel).
+/// Note on the Bible of a choice (only for a readable Bible).
 pub fn choice_note(choice: &Choice) -> Option<String> {
     choice.bible().and_then(module_note)
 }
 
-// ---- Kommentare und Lexika (R15, Punkt 5a) ----------------------------------------------------------
+// ---- Commentaries and lexicons (R15, item 5a) -------------------------------------------------------
 
-/// Zeitgrenze der Kommentar- und Lexikonsuche über RPC/MCP.
+/// Time limit of the commentary and lexicon search through RPC/MCP.
 pub const REFERENCE_SEARCH_TIME: Duration = Duration::from_secs(5);
-/// Zeitgrenze aller Treffergruppen „Kommentar“ im Suchfeld der Literatur zusammen.
+/// Time limit of all hit groups „Kommentar“ in the search field of the literature together.
 pub const HITS_TIME: Duration = Duration::from_secs(3);
-/// Höchstzahl der Treffer je Gruppe im Suchfeld.
+/// Maximum number of hits per group in the search field.
 pub const HITS_PER_GROUP: usize = 10;
 
 type ReferenceCache<T> = Mutex<HashMap<CacheKey, Arc<T>>>;
@@ -615,7 +615,7 @@ fn cached<T>(
     Ok(opened)
 }
 
-/// Ein Kommentar bzw. Lexikon nach Name: bereit oder mit ehrlichem Grund, warum nicht.
+/// A commentary or lexicon by name: ready or with an honest reason why not.
 pub enum Source<T> {
     Ready(Arc<T>),
     Problem { module: String, info: Option<Box<BibleInfo>>, problem: String },
@@ -655,22 +655,22 @@ async fn open_source<T: Send + Sync + 'static>(
     })
 }
 
-/// Kommentar nach Modulname.
+/// Commentary by module name.
 pub async fn commentary_by_name(state: &AppState, name: &str) -> Result<Source<Commentary>, RpcError> {
     open_source(state, SourceKind::Commentary, name, commentary_cache(), baruch_sword::open_commentary_with_key).await
 }
 
-/// Lexikon nach Modulname.
+/// Lexicon by module name.
 pub async fn lexicon_by_name(state: &AppState, name: &str) -> Result<Source<Lexicon>, RpcError> {
     open_source(state, SourceKind::Lexicon, name, lexicon_cache(), baruch_sword::open_lexicon_with_key).await
 }
 
-/// Gewählte Kommentare und Lexika des Werks.
+/// Chosen commentaries and lexicons of the work.
 pub async fn work_sources(state: &AppState, work: WorkId) -> Result<baruch_store::WorkSources, RpcError> {
     Ok(state.store.work_sword_sources(work).await?)
 }
 
-/// Module für eine Anfrage: `module` ausdrücklich, sonst die Auswahl des Werks.
+/// Modules for a request: `module` explicitly, otherwise the selection of the work.
 async fn chosen(
     state: &AppState,
     work: WorkId,
@@ -684,7 +684,7 @@ async fn chosen(
     Ok(if kind == SourceKind::Commentary { sources.commentaries } else { sources.lexicons })
 }
 
-/// Deutsche Stellenangabe eines Bereichs (`Ps 139,23–24`, `Ps 139,23–140,2`).
+/// German reference of a range (`Ps 139,23–24`, `Ps 139,23–140,2`).
 pub fn range_label(book: &str, start: (u16, u16), end: (u16, u16)) -> String {
     let abbr = baruch_scripture::find_book(book).map_or_else(|| book.to_owned(), |b| b.abbr.to_owned());
     if start == end {
@@ -696,7 +696,7 @@ pub fn range_label(book: &str, start: (u16, u16), end: (u16, u16)) -> String {
     }
 }
 
-/// Text auf `max` Zeichen kürzen (mit „…“); `true`, wenn gekürzt.
+/// Shorten text to `max` characters (with „…“); `true` if shortened.
 pub fn clipped(text: &str, max: usize) -> (String, bool) {
     baruch_sword::reference::clip(text, max)
 }
@@ -707,9 +707,9 @@ fn source_json(info: &BibleInfo) -> Value {
 }
 
 /// `commentary.lookup {ref, module?, work?}` → `{ref, commentaries: [{module, description, versification,
-/// notice, entries: [{ref, text, truncated}], problem?}]}`. Jede Angabe in `ref` wird mit der Stellenprüfung
-/// (deutsche Zählung) gelesen, in die Verszählung des Kommentars **abgebildet** ([`read_commentary`], Runde 23a) und
-/// dort nachgeschlagen; `entries[].ref` nennt die Stelle des Kommentars, bei abweichender Zählung mit deren Namen.
+/// notice, entries: [{ref, text, truncated}], problem?}]}`. Every item in `ref` is read with the reference check
+/// (German versification), **mapped** into the versification of the commentary ([`read_commentary`], Round 23a) and
+/// looked up there; `entries[].ref` names the commentary's reference, with the versification's name if it differs.
 pub async fn commentary_lookup(
     state: &AppState,
     work: WorkId,
@@ -736,7 +736,7 @@ pub async fn commentary_lookup(
                     };
                     let source = Arc::clone(&commentary);
                     let (book, start, end) = (p.book.id, p.start, p.end);
-                    // Runde 23a (Codereview quellen-2): deutsche Stelle erst in die Zählung des Kommentars abbilden.
+                    // Round 23a (code review quellen-2): map the German reference into the commentary's numbering.
                     let read = tokio::task::spawn_blocking(move || read_commentary(&source, book, start, end))
                         .await
                         .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
@@ -770,7 +770,7 @@ pub async fn commentary_lookup(
 }
 
 /// `commentary.search {query, module?, work?, limit?}` → `{query, commentaries: [{module, …, hits: [{ref,
-/// text}], truncated, problem?}]}`; Zeitgrenze [`REFERENCE_SEARCH_TIME`] gesamt.
+/// text}], truncated, problem?}]}`; time limit [`REFERENCE_SEARCH_TIME`] in total.
 pub async fn commentary_search(
     state: &AppState,
     work: WorkId,
@@ -824,7 +824,7 @@ pub async fn commentary_search(
     Ok(json!({ "query": query, "work": work, "commentaries": out }))
 }
 
-/// Erstes gewähltes bzw. genanntes Lexikon, das bereit ist (sonst Fehler mit Grund).
+/// First chosen or named lexicon that is ready (otherwise error with reason).
 async fn one_lexicon(state: &AppState, work: WorkId, module: Option<&str>) -> Result<Arc<Lexicon>, RpcError> {
     let names = chosen(state, work, module, SourceKind::Lexicon).await?;
     if names.is_empty() {
@@ -856,7 +856,7 @@ pub async fn lexicon_lookup(
     let lexicon = one_lexicon(state, work, module).await?;
     let source = Arc::clone(&lexicon);
     let wanted = key.to_owned();
-    // Runde 19c: mit Lemma-Probe (Strong-Schreibweisen, Endungen, Umlaut, Kompositum), `probe` = probierte Form.
+    // Round 19c: with lemma probe (Strong spellings, endings, umlaut, compound), `probe` = tried form.
     let article = tokio::task::spawn_blocking(move || source.lookup_lemma(&wanted))
         .await
         .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
@@ -923,7 +923,7 @@ pub async fn work_sources_value(state: &AppState, work: WorkId) -> Result<Value,
     Ok(json!({ "work": work, "bible": bible, "commentaries": sources.commentaries, "lexicons": sources.lexicons }))
 }
 
-/// Namen aus einer Liste von Texten (`null`/fehlt = leer).
+/// Names from a list of texts (`null`/missing = empty).
 fn names_param(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(Vec::new()),
@@ -936,8 +936,8 @@ fn names_param(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     }
 }
 
-/// `bible.set_work_sources {work, commentaries, lexicons}`: nur gefundene, lesbare Module der richtigen Art
-/// (Schreibweise wie in der conf); sonst -32602 mit Grund. Nur der Mensch.
+/// `bible.set_work_sources {work, commentaries, lexicons}`: only found, readable modules of the right kind
+/// (spelling as in the conf); otherwise -32602 with reason. The human only.
 pub async fn set_work_sources(
     state: &AppState,
     work: WorkId,
@@ -968,7 +968,7 @@ pub async fn set_work_sources(
     work_sources_value(state, work).await
 }
 
-/// HTML maskieren (`&`, `<`, `>`, `"`, `'`).
+/// Escape HTML (`&`, `<`, `>`, `"`, `'`).
 pub fn html_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -984,8 +984,9 @@ pub fn html_escape(text: &str) -> String {
     out
 }
 
-/// Kommentare der Werk-Auswahl zur Stelle `reference` als fertiges, maskiertes HTML: `<details class="commentaries" data-widget="commentaries">…</details>`
-/// (ein-/ausklappbar ohne JS, je Modul Name, Text, Lizenzvermerk). Leer = keine Kommentare gewählt bzw. keine Einträge (dann zeigt der Aufrufer nichts).
+/// Commentaries of the work's selection on `reference` as finished, escaped HTML:
+/// `<details class="commentaries" data-widget="commentaries">…</details>` (opens/closes without JS, per module
+/// name, text, licence notice). Empty = no commentaries chosen or no entries (then the caller shows nothing).
 pub async fn commentary_panel_html(state: &AppState, work: WorkId, reference: &str) -> String {
     let Ok(value) = commentary_lookup(state, work, reference, None).await else { return String::new() };
     let groups: Vec<&Value> = value["commentaries"]
@@ -1005,8 +1006,8 @@ pub async fn commentary_panel_html(state: &AppState, work: WorkId, reference: &s
     for group in groups {
         let module = group["module"].as_str().unwrap_or("");
         let description = group["description"].as_str().unwrap_or("");
-        // R17c: je Modul ein eigenes <details> (ohne JavaScript auf-/zuklappbar); das Widget „commentaries“
-        // (web/src/commentaries.ts) klappt alle auf bzw. zu und merkt sich den Zustand.
+        // R17c: one <details> per module (opens/closes without JavaScript); the widget “commentaries”
+        // (web/src/commentaries.ts) opens or closes all and remembers the state.
         html.push_str(&format!(
             "<details class=\"commentary\" data-commentary=\"{}\" open><summary class=\"hit-group-title\">Kommentar · {}{}</summary>",
             html_escape(module),
@@ -1034,8 +1035,10 @@ pub async fn commentary_panel_html(state: &AppState, work: WorkId, reference: &s
     html
 }
 
-/// Treffergruppen „Kommentar“ (je Modul eine Gruppe mit Modulname) für das gemeinsame Suchfeld der Literatur als maskiertes HTML.
-/// Links zeigen auf `/literatur/bibel?work=<work>&ref=<Stelle>&kom=1<tail>`; `tail` ist ein fertiger, schon maskierter Anfragerest, der mit „&“ beginnt (key, rev, lq, lmode) oder leer ist. Zeitgrenze gesamt 3 s, höchstens 10 Treffer je Gruppe.
+/// Hit groups „Kommentar“ (one group per module, with module name) for the shared literature search field as
+/// escaped HTML. Links go to `/literatur/bibel?work=<work>&ref=<ref>&kom=1<tail>`; `tail` is a finished, already
+/// escaped query rest that starts with „&“ (key, rev, lq, lmode) or is empty. Time limit 3 s in total, at most
+/// 10 hits per group.
 pub async fn commentary_hits_html(state: &AppState, work: WorkId, query: &str, tail: &str) -> String {
     if query.trim().is_empty() || query.chars().count() > 200 {
         return String::new();
@@ -1096,7 +1099,7 @@ fn key_param(params: &Value) -> Result<i64, RpcError> {
     }
 }
 
-/// Modulordner prüfen: je Zeile ein Ordner, getrimmt, leere Zeilen fallen weg; absolute Pfade (oder `~/…`).
+/// Check module folders: one folder per line, trimmed, empty lines dropped; absolute paths (or `~/…`).
 pub fn parse_dirs(lines: &[String]) -> Result<Vec<String>, RpcError> {
     let mut out: Vec<String> = Vec::new();
     for line in lines {
@@ -1130,14 +1133,14 @@ pub fn parse_dirs(lines: &[String]) -> Result<Vec<String>, RpcError> {
     Ok(out)
 }
 
-/// `bible.modules {work?}`: Ordner, Module (Bibeln, seit R15 auch Kommentare und Lexika, je mit `kind`),
-/// Hinweise und die Wahl des Werks (Bibel, dazu `work_sources` mit Kommentaren und Lexika).
+/// `bible.modules {work?}`: folders, modules (Bibles, since R15 also commentaries and lexicons, each with `kind`),
+/// notes and the choice of the work (Bible, plus `work_sources` with commentaries and lexicons).
 pub async fn modules_value(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let (found, dirs, default) = scan(state).await?;
     let chosen = state.store.work_bible(work).await?;
     let mut modules: Vec<Value> = Vec::new();
     for info in found.all() {
-        // R17c: Stand der Verschlüsselung mit dem Schlüsselbund; der Schlüssel selbst steht nie in der Antwort.
+        // R17c: encryption state with the keyring; the key itself never stands in the answer.
         let stored = stored_cipher_key(state, info).await.is_some();
         let mut entry = info_json_with(info, cipher_state(info, stored));
         entry["key_stored"] = json!(stored);
@@ -1155,8 +1158,8 @@ pub async fn modules_value(state: &AppState, work: WorkId) -> Result<Value, RpcE
     }))
 }
 
-/// Stelle lesen (`bible.lookup`): die Angabe wird mit der Stellenprüfung gelesen, der Text in der Zählung des
-/// Moduls nachgeschlagen.
+/// Read a reference (`bible.lookup`): the input is read with the reference check, the text looked up in the
+/// versification of the module.
 pub async fn lookup(state: &AppState, choice: &Choice, reference: &str) -> Result<Value, RpcError> {
     let _ = state;
     let Some(bible) = choice.bible() else {
@@ -1174,7 +1177,7 @@ pub async fn lookup(state: &AppState, choice: &Choice, reference: &str) -> Resul
                              "message": f.message(), "verses": [] }));
             continue;
         }
-        // R17c: über die Abbildung deutsch → Zählung des Moduls (read_passage); truncated aus PassageText.
+        // R17c: through the mapping German → versification of the module (read_passage); truncated from PassageText.
         let read = match read_passage(bible, p.book.id, p.start, p.end) {
             Ok(read) => read,
             Err(why) => {
@@ -1184,8 +1187,8 @@ pub async fn lookup(state: &AppState, choice: &Choice, reference: &str) -> Resul
                 continue;
             }
         };
-        // Runde 19c: je Vers die deutsche Stelle (Rückabbildung aus der Zählung des Moduls) oder der Grund, warum
-        // sie sich nicht abbilden lässt.
+        // Round 19c: per verse the German reference (mapped back from the module's versification) or the reason why
+        // it cannot be mapped.
         let list: Vec<Value> = read
             .verses
             .iter()
@@ -1208,8 +1211,8 @@ pub async fn lookup(state: &AppState, choice: &Choice, reference: &str) -> Resul
     Ok(json!({ "bible": choice.json(), "refs": out }))
 }
 
-/// Runde 19c: Rückabbildung eines Verses aus der Zählung von `bible` ins Deutsche (Schlachter 1951):
-/// `(Some("Mal 3,20"), None)` oder `(None, Some(Grund))`, wenn er sich nicht abbilden lässt.
+/// Round 19c: mapping a verse back from the versification of `bible` into German (Schlachter 1951):
+/// `(Some("Mal 3,20"), None)` or `(None, Some(reason))` if it cannot be mapped.
 pub fn german_of(bible: &Bible, at: VerseRef) -> (Option<String>, Option<String>) {
     match mapping::map_verse(bible.v11n, german(), at) {
         mapping::Mapped::Same { to } | mapping::Mapped::Moved { to, .. } => (Some(to.label()), None),
@@ -1226,7 +1229,7 @@ fn no_bible(choice: &Choice) -> String {
     }
 }
 
-/// Lineare Suche (`bible.search`).
+/// Linear search (`bible.search`).
 pub async fn search(choice: &Choice, query: &str, limit: usize) -> Result<Value, RpcError> {
     let Choice::Ready(bible) = choice else { return Err(RpcError::new(REFUSED, no_bible(choice))) };
     if query.trim().is_empty() || query.chars().count() > 200 {
@@ -1252,7 +1255,7 @@ pub async fn search(choice: &Choice, query: &str, limit: usize) -> Result<Value,
                "searched_verses": result.searched_verses, "ms": started.elapsed().as_millis() as u64 }))
 }
 
-/// Wortlautprüfung eines Abschnitts (`bible.check {work, key}`): aktuelle Fassung des Abschnitts.
+/// Wording check of a section (`bible.check {work, key}`): current revision of the section.
 pub async fn check_section(state: &AppState, work: WorkId, key: i64) -> Result<Value, RpcError> {
     let seq = state.store.node_seq(work, key).await?;
     let loaded = state.store.load_work(work).await?;
@@ -1265,9 +1268,9 @@ pub async fn check_section(state: &AppState, work: WorkId, key: i64) -> Result<V
     Ok(result)
 }
 
-// ---- Prüfanzeige (R17c) ---------------------------------------------------------------------------
+// ---- Check display (R17c) -------------------------------------------------------------------------
 
-/// Zustand einer Stelle für die Anzeige: `stimmt`, `weicht_ab`, `ohne_zitat`, `ungeprueft`, `fehler`.
+/// State of a reference for the display: `stimmt`, `weicht_ab`, `ohne_zitat`, `ungeprueft`, `fehler`.
 pub fn mark_state(code: &str) -> &'static str {
     match code {
         "match" => "stimmt",
@@ -1278,7 +1281,7 @@ pub fn mark_state(code: &str) -> &'static str {
     }
 }
 
-/// Deutsche Bezeichnung eines Zustands (für Seite und Widget).
+/// German label of a state (for page and widget).
 pub fn state_label(state: &str) -> &'static str {
     match state {
         "stimmt" => "stimmt",
@@ -1289,8 +1292,8 @@ pub fn state_label(state: &str) -> &'static str {
     }
 }
 
-/// Text der gezeigten Fassung eines Abschnitts: `rev` (Nummer der Fassung) oder die aktuelle. Antwort: (Titel,
-/// Nummer der Fassung, Text).
+/// Text of the shown revision of a section: `rev` (number of the revision) or the current one. Answer: (title,
+/// number of the revision, text).
 pub async fn shown_text(
     state: &AppState,
     work: WorkId,
@@ -1313,8 +1316,8 @@ pub async fn shown_text(
     Ok((node.title.clone(), revision.number, revision.body.clone()))
 }
 
-/// `bible.marks {work?, key, rev?}` (nur lesend): Ergebnis der Wortlautprüfung der gezeigten Fassung als
-/// Markierungen; Spans sind Byte-Bereiche im Text dieser Fassung. Lizenzvermerk unter `bible.license` und
+/// `bible.marks {work?, key, rev?}` (read-only): result of the wording check of the shown revision as
+/// marks; spans are byte ranges in the text of this revision. Licence notice under `bible.license` and
 /// `notice`.
 pub async fn marks(state: &AppState, work: WorkId, key: i64, rev: Option<u32>) -> Result<Value, RpcError> {
     let (title, number, body) = shown_text(state, work, key, rev).await?;
@@ -1322,7 +1325,7 @@ pub async fn marks(state: &AppState, work: WorkId, key: i64, rev: Option<u32>) -
     marks_with(&choice, work, key, number, &title, &body).map_err(|m| RpcError::new(INVALID_PARAMS, m))
 }
 
-/// Wie [`marks`] mit gegebener Bibel und gegebenem Text (für Seite und Tests).
+/// Like [`marks`] with a given Bible and a given text (for page and tests).
 pub fn marks_with(choice: &Choice, work: WorkId, key: i64, rev: u32, title: &str, body: &str) -> Result<Value, String> {
     if body.chars().count() > crate::scripture::MAX_TEXT_CHARS {
         return Err(format!("text: höchstens {} Zeichen", crate::scripture::MAX_TEXT_CHARS));
@@ -1363,14 +1366,14 @@ pub fn marks_with(choice: &Choice, work: WorkId, key: i64, rev: u32, title: &str
     Ok(json!({
         "work": work, "key": key, "rev": rev, "title": title, "bible": choice.json(), "notice": notice,
         "marks": list, "counts": { "stimmt": good, "weicht_ab": bad, "andere": other },
-        // Runde 19c: Hinweis auf auffällig viele Wortfragmente im Modul (sonst null).
+        // Round 19c: note on strikingly many word fragments in the module (otherwise null).
         "module_note": choice_note(choice),
     }))
 }
 
-// ---- Schlüssel verschlüsselter Module (R17c) --------------------------------------------------------
+// ---- Keys of encrypted modules (R17c) ---------------------------------------------------------------
 
-/// Schlüssel prüfen: 1 bis [`MAX_CIPHER_KEY_CHARS`] Zeichen, eine Zeile, ohne Steuerzeichen.
+/// Check a key: 1 to [`MAX_CIPHER_KEY_CHARS`] characters, one line, no control characters.
 fn checked_cipher_key(key: &str) -> Result<&str, RpcError> {
     let key = key.trim();
     if key.is_empty() || key.chars().count() > MAX_CIPHER_KEY_CHARS || key.chars().any(char::is_control) {
@@ -1382,7 +1385,7 @@ fn checked_cipher_key(key: &str) -> Result<&str, RpcError> {
     Ok(key)
 }
 
-/// Verschlüsseltes Modul nach Name (Bibel, Kommentar oder Lexikon).
+/// Encrypted module by name (Bible, commentary or lexicon).
 async fn enciphered_module(state: &AppState, module: &str) -> Result<BibleInfo, RpcError> {
     let (found, ..) = scan(state).await?;
     let name = module.trim();
@@ -1401,7 +1404,7 @@ async fn enciphered_module(state: &AppState, module: &str) -> Result<BibleInfo, 
     Ok(info)
 }
 
-/// Probelesen mit `key`: erster vorhandener Eintrag entschlüsselt, entpackt, gültiges UTF-8.
+/// Trial read with `key`: first existing entry decrypted, unpacked, valid UTF-8.
 fn probe_with(info: &BibleInfo, key: &str) -> Result<(), BibleError> {
     match info.kind {
         SourceKind::Bible => baruch_sword::open_with_key(info, Some(key))?.probe(),
@@ -1410,9 +1413,9 @@ fn probe_with(info: &BibleInfo, key: &str) -> Result<(), BibleError> {
     }
 }
 
-/// `bible.cipher_key_set {module, key}` → `{module, cipher: "unlocked"}`. Der Schlüssel wird vorher probegelesen;
-/// passt er nicht: -32000 [`CIPHER_KEY_WRONG`]. Gespeichert nur im Schlüsselbund (Konto [`cipher_account`]), nie
-/// in Antworten, Meldungen oder Protokollen. Nur Mensch.
+/// `bible.cipher_key_set {module, key}` → `{module, cipher: "unlocked"}`. The key is trial-read first;
+/// if it does not fit: -32000 [`CIPHER_KEY_WRONG`]. Stored only in the keyring (account [`cipher_account`]), never
+/// in answers, messages or logs. Human only.
 pub async fn cipher_key_set(state: &AppState, module: &str, key: &str) -> Result<Value, RpcError> {
     let key = checked_cipher_key(key)?.to_owned();
     let info = enciphered_module(state, module).await?;
@@ -1423,7 +1426,7 @@ pub async fn cipher_key_set(state: &AppState, module: &str, key: &str) -> Result
             .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
     };
     if probe.is_err() {
-        // Kein Grund im Wortlaut: Er könnte Bruchstücke des falsch entschlüsselten Inhalts tragen.
+        // No reason in its wording: it could carry fragments of the wrongly decrypted content.
         return Err(RpcError::new(REFUSED, CIPHER_KEY_WRONG));
     }
     crate::connections::secrets::set(&state.secrets, &cipher_account(&info.name), &key)
@@ -1432,8 +1435,8 @@ pub async fn cipher_key_set(state: &AppState, module: &str, key: &str) -> Result
     Ok(json!({ "module": info.name, "cipher": "unlocked" }))
 }
 
-/// `bible.cipher_key_delete {module, confirm: true}` → `{module, cipher: "locked"}` (bzw. `unlocked`, wenn die
-/// conf selbst einen Schlüssel trägt). Nur Mensch.
+/// `bible.cipher_key_delete {module, confirm: true}` → `{module, cipher: "locked"}` (or `unlocked` if the
+/// conf itself carries a key). Human only.
 pub async fn cipher_key_delete(state: &AppState, module: &str, confirm: bool) -> Result<Value, RpcError> {
     if !confirm {
         return Err(RpcError::new(INVALID_PARAMS, "Löschen bitte bestätigen (confirm: true); nichts geändert."));

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsansicht der Mindmap (Vertrag Runde 34 §5, Besitz mindmap_austausch): `/werke/{id}/karte/gliederung`
-//! bedient die Mindmap ganz ohne JavaScript.
+//! Outline view of the mind map (contract Round 34 §5, owner mindmap_austausch): `/werke/{id}/karte/gliederung`
+//! operates the mind map entirely without JavaScript.
 //!
-//! Die Seite zeigt den Baum als verschachtelte Liste (`<details>` je Knoten mit Unterknoten; `zu=` klappt vorab zu),
-//! daneben die **Wolke** – Einfälle ohne Platz ([`super::export::cloud`]) – mit Zähler „n in der Wolke“ und, wo die
-//! Nähe einen Partner im Baum kennt, dem Vorschlag „passt zu Ast …“. `wahl=<Kennung>` wählt einen Knoten; für ihn
-//! stehen oben die Formulare: Umbenennen, Unterknoten, Geschwister, „In die Mindmap unter …“/Umhängen, „In die
-//! Wolke“, Reihenfolge, Bezug, Verbinden/Lösen, Löschen – alle an `POST /werke/{id}/karte/act` mit
-//! `seite=gliederung`. Teile und Kapitel gehören zur Gliederung des Werks: Für sie gibt es nur „Unterknoten“.
-//! Unter dem Baum: Beziehungen, Widersprüche und gelöschte Einfälle (Wiederherstellen).
+//! The page shows the tree as a nested list (`<details>` per node with sub-nodes; `zu=` collapses in advance),
+//! next to it the **cloud** – ideas without a place ([`super::export::cloud`]) – with counter „n in der Wolke“ and,
+//! where the nearness knows a partner in the tree, the suggestion „passt zu Ast …“. `wahl=<id>` chooses a node; for
+//! it the forms stand at the top: rename, sub-node, sibling, „In die Mindmap unter …“/re-hang, „In die
+//! Wolke“, order, relation, link/unlink, delete – all to `POST /werke/{id}/karte/act` with
+//! `seite=gliederung`. Parts and chapters belong to the outline of the work: for them there is only “sub-node”.
+//! Below the tree: relations, contradictions and deleted ideas (restore).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -28,22 +28,22 @@ use crate::idea_map::bild::{filter_query, parse_filter, plain, with_query};
 use crate::idea_map::tree::{Scene, TreeKind, TreeNode};
 use crate::view::Settings;
 
-/// Was die Adresse der Gliederungsansicht außer dem Filter trägt.
+/// What the address of the outline view carries besides the filter.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct View {
-    /// `wahl=<Kennung>`: gewählter Knoten (seine Formulare stehen oben).
+    /// `wahl=<id>`: chosen node (its forms stand at the top).
     pub chosen: Option<String>,
-    /// `ok=<wort>` nach einer gelungenen Aktion.
+    /// `ok=<wort>` after a successful action.
     pub ok: Option<String>,
-    /// `undo=<id>`: eben gelöste Verbindung (Formular „Wiederherstellen“).
+    /// `undo=<id>`: link just removed (form „Wiederherstellen“).
     pub undo: Option<i64>,
-    /// `wieder=<id>`: eben gelöschter Einfall (Formular „Wiederherstellen“).
+    /// `wieder=<id>`: idea just deleted (form „Wiederherstellen“).
     pub restore: Option<IdeaId>,
-    /// `zu=<Kennungen>`: vorab zugeklappte Knoten.
+    /// `zu=<ids>`: nodes collapsed in advance.
     pub closed: Vec<String>,
 }
 
-/// Vorlagen der eigenen Seiten (base.html, Gliederungsansicht, Einlesen).
+/// Templates of the own pages (base.html, outline view, import).
 pub(crate) fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -59,8 +59,8 @@ pub(crate) fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Selbst gebaute Adresse als sicherer Wert für `href`: `&` maskiert; enthielte sie ein unsicheres Zeichen, steht
-/// `#` da.
+/// Self-built address as a safe value for `href`: `&` escaped; should it contain an unsafe character, `#`
+/// stands there.
 pub(crate) fn href(url: String) -> Value {
     if url.chars().any(|c| matches!(c, '"' | '<' | '>' | '\'' | ' ') || c.is_control()) {
         return Value::from_safe_string("#".to_owned());
@@ -68,7 +68,7 @@ pub(crate) fn href(url: String) -> Value {
     Value::from_safe_string(url.replace('&', "&amp;"))
 }
 
-/// Rückmeldung zu `ok=<wort>`.
+/// Feedback for `ok=<wort>`.
 fn notice_of(ok: &str) -> &'static str {
     match ok {
         "angelegt" => "Einfall angelegt.",
@@ -112,7 +112,7 @@ fn kind_word(kind: TreeKind) -> &'static str {
 }
 
 struct Page<'a> {
-    /// Läuft eine Suche (`q`)? Nur dann sind Treffer hervorgehoben (ohne Suche gilt jeder Einfall als Treffer).
+    /// Is a search running (`q`)? Only then are hits highlighted (without a search every idea counts as a hit).
     searching: bool,
     work: WorkId,
     base: String,
@@ -121,7 +121,7 @@ struct Page<'a> {
 }
 
 impl Page<'_> {
-    /// Adresse der Gliederungsansicht mit Filter und gewähltem Knoten.
+    /// Address of the outline view with filter and chosen node.
     fn select(&self, id: &str) -> Value {
         let mut query = self.query.clone();
         if !query.is_empty() {
@@ -141,7 +141,7 @@ impl Page<'_> {
             title => export::node_title(node),
             note => cut(&node.note, 300),
             has_note => node.has_note,
-            // Ohne eigenen Titel sind die Schlagwörter schon der angezeigte Titel.
+            // Without a title of their own the tags already are the displayed title.
             words => if node.kind == TreeKind::Idea && node.own_title.is_empty() { String::new() } else { node.words.join(", ") },
             status => node.status.map(export::status_label),
             done => node.status == Some(IdeaStatus::Done),
@@ -162,7 +162,7 @@ impl Page<'_> {
     }
 }
 
-/// Elternknoten und Platz unter den Geschwistern eines Knotens.
+/// Parent node and place among the siblings of a node.
 fn locate<'a>(node: &'a TreeNode, id: &str) -> Option<(&'a TreeNode, usize)> {
     for (index, child) in node.children.iter().enumerate() {
         if child.id == id {
@@ -182,18 +182,18 @@ fn ids_below(node: &TreeNode, out: &mut HashSet<String>) {
     }
 }
 
-/// Bezeichnung in einer Auswahlliste: eingerückt nach Tiefe.
+/// Label in a selection list: indented by depth.
 fn option_label(node: &TreeNode, depth: usize) -> String {
     format!("{}{}", "– ".repeat(depth.saturating_sub(1).min(12)), cut(&export::node_title(node), 80))
 }
 
-/// Die Formulare zum gewählten Knoten (`None`, wenn er nicht im gezeigten Baum steht oder die Wurzel ist).
+/// The forms for the chosen node (`None` if it is not in the tree shown or is the root).
 fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
     let map = &scene.map;
     let node = map.find(chosen)?;
     let (parent, _) = locate(&map.root, chosen)?;
     let in_cloud = scene.in_cloud(&node.id);
-    // Freies Hauptthema: Einfall direkt am Werk, eigener Hauptast.
+    // Free main topic: idea directly on the work, own main branch.
     let main_topic = parent.kind == TreeKind::Work && node.kind == TreeKind::Idea && !in_cloud;
     if node.kind != TreeKind::Idea {
         return Some(context! {
@@ -204,7 +204,7 @@ fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
     let mut below = HashSet::new();
     ids_below(node, &mut below);
     let walk = map.walk();
-    // Ziele zum Umhängen: Kapitel/Teile und Einfälle, nicht der Knoten selbst oder seine Nachfahren (Kreis).
+    // Targets for re-hanging: chapters/parts and ideas, not the node itself or its descendants (cycle).
     let targets: Vec<Value> = walk
         .iter()
         .filter(|(n, _)| n.kind != TreeKind::Work && !below.contains(&n.id))
@@ -229,13 +229,13 @@ fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
         .filter(|(n, _)| n.kind == TreeKind::Idea && n.id != node.id)
         .filter_map(|(n, _)| Some(context! { id => n.idea?, label => format!("{} – {}", n.idea?, cut(&n.title, 70)) }))
         .collect();
-    // Geschwister: Einfälle am selben Platz – in der Wolke nur die der Wolke, am Werk nur die Hauptthemen.
+    // Siblings: ideas in the same place – in the cloud only those of the cloud, on the work only the main topics.
     let siblings: Vec<&TreeNode> =
         parent.children.iter().filter(|c| c.kind == TreeKind::Idea && scene.in_cloud(&c.id) == in_cloud).collect();
     let place = siblings.iter().position(|s| s.id == node.id).unwrap_or(0);
     let id_of = |n: Option<&&TreeNode>| n.and_then(|n| n.idea);
     let up = place.checked_sub(1).and_then(|p| id_of(siblings.get(p)));
-    // „Nach unten“ = vor das übernächste Geschwister; gibt es keines, ans Ende (`before` leer).
+    // “Down” = before the sibling after next; if there is none, to the end (`before` empty).
     let down =
         siblings.get(place + 1).map(|_| id_of(siblings.get(place + 2)).map(|id| id.to_string()).unwrap_or_default());
     let titles: HashMap<IdeaId, &str> =
@@ -256,7 +256,7 @@ fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
         own_title => node.own_title.as_str(), editable => node.editable, in_cloud => in_cloud,
         main_topic => main_topic,
         children => node.children.len(), descendants => node.descendants,
-        // Geschwister entsteht am selben Elternknoten, direkt hinter diesem Knoten.
+        // A sibling is created on the same parent node, directly behind this node.
         sibling_parent => parent.idea.filter(|_| parent.kind == TreeKind::Idea),
         sibling_key => parent.key.filter(|_| matches!(parent.kind, TreeKind::Part | TreeKind::Chapter)),
         sibling_before => id_of(siblings.get(place + 1)),
@@ -267,12 +267,12 @@ fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
     })
 }
 
-/// Vorschlag der Nähe für einen Einfall der Wolke ([`Scene::hints`]): der nächste Einfall, der schon in der Mindmap
-/// hängt, und sein Hauptast.
+/// Suggestion of the nearness for an idea of the cloud ([`Scene::hints`]): the nearest idea that already hangs in
+/// the mind map, and its main branch.
 fn hint(scene: &Scene, idea: IdeaId) -> Option<Value> {
     let hint = scene.hints.iter().find(|h| h.idea == idea)?;
     let partner: IdeaId = hint.node.strip_prefix("i:")?.parse().ok()?;
-    // Titel des Hauptasts wie in der Liste (Kapitel mit Nummer).
+    // Title of the main branch as in the list (chapter with number).
     let branch = scene.map.find(&hint.branch).map(export::node_title).unwrap_or_else(|| hint.branch_title.clone());
     Some(context! { branch => cut(&branch, 80), partner => partner, partner_title => cut(&hint.node_title, 80) })
 }
@@ -289,7 +289,7 @@ fn deleted_label(idea: &Idea) -> String {
     }
 }
 
-/// Die Gliederungsansicht (auch als Fehlerseite eines Formulars: `status` und `error`).
+/// The outline view (also as the error page of a form: `status` and `error`).
 pub(crate) async fn render(
     state: &AppState,
     headers: &HeaderMap,

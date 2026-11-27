@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stückeln und Zusammenführen (Runde 15, „lektor“): reine Hilfen ohne Modell und Speicher.
+//! Chunking and merging (Round 15, “lektor”): pure helpers without model and storage.
 //!
-//! Passt ein Auftrag mit dem ganzen Kapitel nicht in die Kontextlänge der Persona, teilt [`super::run`] den
-//! Prüfgegenstand in Stücke, die je im Wortlaut geprüft werden; was nicht im Kern des Stücks liegt, sieht die
-//! Persona als Zusammenfassung (vom Modell, nacheinander) oder – wenn auch das nicht passt – gar nicht, und
-//! genau das steht im Vermerk „Komprimiert: …“. Hier liegen nur die Bausteine dafür:
+//! If an order with the whole chapter does not fit into the persona's context length, [`super::run`] splits the
+//! review subject into pieces that are each reviewed verbatim; what is not in the core of the piece the
+//! persona sees as a summary (by the model, one after another) or – if that does not fit either – not at all, and
+//! exactly that is stated in the note „Komprimiert: …“. Only the building blocks for this live here:
 //!
-//! - [`split`]: Text in Stücke von höchstens `max` Zeichen, Grenzen bevorzugt an Absätzen, dann am Satzende,
-//!   dann an Leerraum; aufeinanderfolgende Stücke überlappen um etwa `overlap` Zeichen (ein Befund an der
-//!   Grenze fällt so nicht durch).
-//! - [`pack`]: aufeinanderfolgende Teile (Abschnitte) zu Stücken bündeln.
-//! - [`span_label`]: Bezeichnung eines Teilstücks („Zeichen 1–4000 von Abschnitt 1.2 Pollen“).
-//! - [`findings`], [`merge_pieces`]: Befunde aus den Antworten je Stück lesen und ohne Doppelte zusammenführen
-//!   (gleiche Befunde aus der Überlappung benachbarter Stücke erscheinen nur einmal; der ausführlichere bleibt;
-//!   seit Runde 16a bleiben gleich formulierte Befunde zu verschiedenen Abschnitten beide stehen).
+//! - [`split`]: text into pieces of at most `max` characters, boundaries preferably at paragraphs, then at the end
+//!   of a sentence, then at whitespace; consecutive pieces overlap by about `overlap` characters (so a finding at
+//!   the boundary does not fall through).
+//! - [`pack`]: bundle consecutive parts (sections) into pieces.
+//! - [`span_label`]: label of a partial piece („Zeichen 1–4000 von Abschnitt 1.2 Pollen“).
+//! - [`findings`], [`merge_pieces`]: read findings from the answers per piece and merge them without duplicates
+//!   (equal findings from the overlap of neighbouring pieces appear only once; the more detailed one stays;
+//!   since Round 16a equally worded findings on different sections both stay).
 
-/// Bereich eines Texts in Zeichen (nicht Bytes): `start` einschließlich, `end` ausschließlich.
+/// Range of a text in characters (not bytes): `start` inclusive, `end` exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: usize,
@@ -31,14 +31,14 @@ impl Span {
         self.end <= self.start
     }
 
-    /// Der Text dieses Bereichs.
+    /// The text of this range.
     pub fn of(&self, text: &str) -> String {
         text.chars().skip(self.start).take(self.len()).collect()
     }
 }
 
-/// Beste Schnittstelle in `chars[from..to]` (Index nach der Grenze): Absatz, sonst Satzende, sonst Leerraum,
-/// sonst `to`.
+/// Best cut in `chars[from..to]` (index after the boundary): paragraph, else end of sentence, else whitespace,
+/// else `to`.
 fn cut_point(chars: &[char], from: usize, to: usize) -> usize {
     let paragraph = (from + 1..to).rev().find(|&i| chars[i] == '\n' && chars[i - 1] == '\n').map(|i| i + 1);
     if let Some(cut) = paragraph {
@@ -54,9 +54,9 @@ fn cut_point(chars: &[char], from: usize, to: usize) -> usize {
     (from..to).rev().find(|&i| chars[i].is_whitespace()).map_or(to, |i| i + 1)
 }
 
-/// Text in Stücke von höchstens `max` Zeichen teilen (siehe Moduldoku); das nächste Stück beginnt etwa
-/// `overlap` Zeichen vor dem Ende des vorigen, an einer Wortgrenze. Leerer Text → keine Stücke; passt der
-/// Text ganz, genau ein Stück. Die Stücke decken den ganzen Text ab, jedes ist nicht leer.
+/// Split text into pieces of at most `max` characters (see module doc); the next piece starts about
+/// `overlap` characters before the end of the previous one, at a word boundary. Empty text → no pieces; if the
+/// text fits as a whole, exactly one piece. The pieces cover the whole text, each is non-empty.
 pub fn split(text: &str, max: usize, overlap: usize) -> Vec<Span> {
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
@@ -73,11 +73,11 @@ pub fn split(text: &str, max: usize, overlap: usize) -> Vec<Span> {
             spans.push(Span { start, end: len });
             return spans;
         }
-        // Nicht vor der Mitte des Stücks schneiden, sonst würden die Stücke unnötig klein.
+        // Do not cut before the middle of the piece, otherwise the pieces would be needlessly small.
         let end = cut_point(&chars, start + max / 2, hard_end).max(start + 1);
         spans.push(Span { start, end });
         let mut next = end.saturating_sub(overlap).max(start + 1);
-        // An einer Wortgrenze beginnen (nach Leerraum), aber nie hinter dem Ende des vorigen Stücks.
+        // Start at a word boundary (after whitespace), but never behind the end of the previous piece.
         if next < end
             && let Some(space) = (next..end).find(|&i| chars[i].is_whitespace())
         {
@@ -87,8 +87,8 @@ pub fn split(text: &str, max: usize, overlap: usize) -> Vec<Span> {
     }
 }
 
-/// Aufeinanderfolgende Teile mit den Größen `sizes` zu Stücken von höchstens `max` bündeln (ein Teil, der
-/// allein größer ist, bildet ein eigenes Stück). Liefert je Stück die Indizes seiner Teile.
+/// Bundle consecutive parts with the sizes `sizes` into pieces of at most `max` (a part that is larger
+/// on its own forms its own piece). Returns per piece the indices of its parts.
 pub fn pack(sizes: &[usize], max: usize) -> Vec<Vec<usize>> {
     let mut groups: Vec<Vec<usize>> = Vec::new();
     let mut current: Vec<usize> = Vec::new();
@@ -107,12 +107,12 @@ pub fn pack(sizes: &[usize], max: usize) -> Vec<Vec<usize>> {
     groups
 }
 
-/// Bezeichnung eines Teilstücks eines Abschnitts (Zeichen ab 1, wie ein Mensch zählt).
+/// Label of a partial piece of a section (characters from 1, as a human counts).
 pub fn span_label(span: Span, label: &str) -> String {
     format!("Zeichen {}–{} von Abschnitt {label}", span.start + 1, span.end)
 }
 
-/// Beginnt die Zeile einen neuen Befund? Listenzeichen, Aufzählung oder „Kritisch:“.
+/// Does the line start a new finding? List marker, enumeration or „Kritisch:“.
 fn starts_item(line: &str) -> bool {
     let t = line.trim_start();
     if t.starts_with(['-', '*', '•', '–']) {
@@ -125,8 +125,8 @@ fn starts_item(line: &str) -> bool {
     digits > 0 && t[digits..].starts_with(['.', ')'])
 }
 
-/// Befunde einer Antwort: je Listenpunkt (bzw. „Kritisch:“-Zeile oder Absatz) ein Eintrag samt
-/// Folgezeilen; Leerzeilen trennen.
+/// Findings of an answer: per list item (or „Kritisch:“ line or paragraph) one entry including
+/// continuation lines; empty lines separate.
 pub fn findings(answer: &str) -> Vec<String> {
     let mut items: Vec<String> = Vec::new();
     let mut current = String::new();
@@ -153,8 +153,8 @@ pub fn findings(answer: &str) -> Vec<String> {
     items
 }
 
-/// Vergleichsform eines Befunds: klein, nur Buchstaben und Ziffern, Leerraum zusammengezogen, ohne
-/// Listenzeichen und Nummer am Anfang.
+/// Comparison form of a finding: lower case, letters and digits only, whitespace collapsed, without
+/// list marker and number at the start.
 fn normal(item: &str) -> String {
     let t = item.trim_start().trim_start_matches(['-', '*', '•', '–', ' ']);
     let digits = t.chars().take_while(char::is_ascii_digit).count();
@@ -168,8 +168,8 @@ fn normal(item: &str) -> String {
         .join(" ")
 }
 
-/// Kürzeste Länge (Vergleichsform), ab der „steckt im anderen“ als doppelt gilt; kürzere zählen nur bei
-/// Gleichheit.
+/// Shortest length (comparison form) from which “contained in the other” counts as duplicate; shorter ones count
+/// only when equal.
 const CONTAINED_MIN: usize = 24;
 
 fn duplicate(a: &str, b: &str) -> bool {
@@ -180,19 +180,19 @@ fn duplicate(a: &str, b: &str) -> bool {
     short.len() >= CONTAINED_MIN && long.contains(short)
 }
 
-/// Antworten je Stück zu einer zusammenführen, wenn **jedes** Stück mit seinem Vorgänger überlappt (Teilstücke eines
-/// Abschnitts): wie [`merge_pieces`] mit `overlaps_previous` überall wahr.
+/// Merge answers per piece into one if **every** piece overlaps its predecessor (partial pieces of a
+/// section): like [`merge_pieces`] with `overlaps_previous` true everywhere.
 pub fn merge(answers: &[String]) -> String {
     merge_pieces(answers, &vec![true; answers.len()])
 }
 
-/// Antworten je Stück zu einer zusammenführen (Runde 16a): Befunde in der Reihenfolge der Stücke. Doppelt (gleich
-/// oder einer steckt ganz im anderen) ist ein Befund nur gegenüber einem Befund des **direkt vorigen** Stücks, und
-/// nur wenn dieses Stück mit ihm überlappt (`overlaps_previous[k]` für Stück `k`) – dann bleibt der ausführlichere an
-/// der Stelle des ersten. So erscheint ein Befund aus der Überlappung einmal, während gleich formulierte Befunde zu
-/// verschiedenen Abschnitten (oder innerhalb einer Antwort) beide stehen bleiben.
+/// Merge answers per piece into one (Round 16a): findings in the order of the pieces. A finding is a duplicate
+/// (equal, or one fully contained in the other) only against a finding of the **directly preceding** piece, and
+/// only if this piece overlaps it (`overlaps_previous[k]` for piece `k`) – then the more detailed one stays in
+/// the place of the first. So a finding from the overlap appears once, while equally worded findings on
+/// different sections (or within one answer) both stay.
 pub fn merge_pieces(answers: &[String], overlaps_previous: &[bool]) -> String {
-    // (Vergleichsform, Befund, Stück, aus dem er zuletzt kam)
+    // (comparison form, finding, piece it last came from)
     let mut kept: Vec<(String, String, usize)> = Vec::new();
     for (k, answer) in answers.iter().enumerate() {
         let joins = k > 0 && overlaps_previous.get(k).copied().unwrap_or(false);
@@ -213,7 +213,7 @@ pub fn merge_pieces(answers: &[String], overlaps_previous: &[bool]) -> String {
     kept.into_iter().map(|(_, item, _)| item).collect::<Vec<_>>().join("\n")
 }
 
-/// Wie ein Teil des Umfelds in einem Stück erscheint.
+/// How a part of the surroundings appears in a piece.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Repr {
     Wording,
@@ -221,27 +221,27 @@ pub enum Repr {
     Omitted,
 }
 
-/// Plan eines Stücks: die Teile im Kern (im Wortlaut geprüft) und je übrigem Teil seine Darstellung, in der
-/// Reihenfolge des Werks.
+/// Plan of a piece: the parts in the core (reviewed verbatim) and per remaining part its representation, in the
+/// order of the work.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PiecePlan {
     pub focus: Vec<usize>,
     pub context: Vec<(usize, Repr)>,
 }
 
-/// Platz, den eine Zeile ausgelassener Teile trotzdem braucht (Kopf mit Hinweis und Marken); seit Runde 18b
-/// einmal je Folge aufeinanderfolgender ausgelassener Teile, die in einer Zeile stehen
+/// Room that a line of omitted parts needs anyway (head with note and markers); since Round 18b
+/// once per run of consecutive omitted parts that stand in one line
 /// (`context::OMITTED_HEAD`).
 pub const OMITTED_OVERHEAD: usize = 100;
-/// Platz je ausgelassenem Teil in dieser Zeile neben seinem Titel (Trenner `; `).
+/// Room per omitted part in this line next to its title (separator `; `).
 pub const OMITTED_ITEM: usize = 2;
 
-/// Plan für ein Stück mit dem Kern `focus` unter `count` Teilen: zunächst alles im Wortlaut; solange es nicht in
-/// `room` passt, wird der vom Kern am weitesten entfernte Teil durch seine Zusammenfassung ersetzt, danach – wenn
-/// es immer noch nicht passt – ausgelassen (wieder der fernste zuerst). `wording(i)`, `summary(i)`, `title(i)`
-/// geben den Platz eines Teils im Wortlaut, als Zusammenfassung und als bloßer Titel. Ein ausgelassener Teil
-/// kostet seinen Titel und [`OMITTED_OVERHEAD`] (neue Zeile); neben einem schon ausgelassenen Nachbarn steht er
-/// in dessen Zeile und kostet nur Titel und [`OMITTED_ITEM`] (Runde 18b).
+/// Plan for a piece with the core `focus` among `count` parts: first everything verbatim; as long as it does not
+/// fit into `room`, the part farthest from the core is replaced by its summary, then – if it still does not
+/// fit – omitted (again the farthest first). `wording(i)`, `summary(i)`, `title(i)`
+/// give the room of a part verbatim, as a summary and as a bare title. An omitted part
+/// costs its title and [`OMITTED_OVERHEAD`] (new line); next to an already omitted neighbour it stands
+/// in that neighbour's line and costs only title and [`OMITTED_ITEM`] (Round 18b).
 pub fn plan_piece(
     count: usize,
     focus: &[usize],
@@ -256,7 +256,7 @@ pub fn plan_piece(
         focus.iter().map(|&i| wording(i)).sum::<usize>() + others.iter().map(|&i| wording(i)).sum::<usize>();
     let center = if focus.is_empty() { 0.0 } else { focus.iter().sum::<usize>() as f64 / focus.len() as f64 };
     let mut far = others.clone();
-    // Fernste zuerst; bei gleichem Abstand der spätere (der frühere Text ist für das Verständnis wichtiger).
+    // Farthest first; at equal distance the later one (the earlier text matters more for understanding).
     far.sort_by(|&a, &b| {
         let (da, db) = ((a as f64 - center).abs(), (b as f64 - center).abs());
         db.partial_cmp(&da).unwrap_or(std::cmp::Ordering::Equal).then(b.cmp(&a))
@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     fn the_farthest_parts_become_summaries_first_and_are_omitted_only_when_even_that_fails() {
-        // Fünf Teile zu je 400 Zeichen, Kern ist Teil 2; Zusammenfassung 150, Titel 10 (+100 Hinweis).
+        // Five parts of 400 characters each, core is part 2; summary 150, title 10 (+100 note).
         let wording = |_: usize| 400;
         let summary = |_: usize| 150;
         let title = |_: usize| 10;
@@ -366,7 +366,7 @@ mod tests {
             vec![(0, Repr::Summary), (1, Repr::Wording), (3, Repr::Wording), (4, Repr::Summary)],
             "2000 → 1750 → 1500: die beiden fernsten werden zusammengefasst, die Nachbarn bleiben im Wortlaut"
         );
-        // Alle zusammengefasst: 400 + 4·150 = 1000; ohne Teil 4: 1000 − 150 + 110 = 960.
+        // All summarised: 400 + 4·150 = 1000; without part 4: 1000 − 150 + 110 = 960.
         let tiny = plan_piece(5, &[2], 970, &wording, &summary, &title);
         assert_eq!(
             tiny.context.iter().filter(|(_, r)| *r == Repr::Omitted).map(|(i, _)| *i).collect::<Vec<_>>(),
@@ -384,8 +384,8 @@ mod tests {
 
     #[test]
     fn neighbouring_omitted_parts_share_one_line_and_cost_only_their_titles() {
-        // Runde 18b: Zwanzig Teile zu je 400 Zeichen, Kern Teil 0, Zusammenfassungen zu lang (500), Titel 10.
-        // Der erste ausgelassene Teil kostet 10 + 100, jeder Nachbar danach nur 10 + 2 (dieselbe Zeile).
+        // Round 18b: twenty parts of 400 characters each, core part 0, summaries too long (500), title 10.
+        // The first omitted part costs 10 + 100, every neighbour after it only 10 + 2 (the same line).
         let plan = plan_piece(20, &[0], 400 + 110 + 18 * 12, &|_| 400, &|_| 500, &|_| 10);
         assert!(
             plan.context.iter().all(|(_, r)| *r == Repr::Omitted),

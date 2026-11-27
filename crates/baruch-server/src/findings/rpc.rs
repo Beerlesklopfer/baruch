@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! RPC der Befunde (Runde 28, Aufgabe befunde). Alle Methoden nehmen `work` (Zahl oder Ziffern; fehlt → Vorgabewerk).
+//! RPC of the findings (Round 28, task befunde). All methods take `work` (number or digits; missing → default work).
 //!
 //! - `finding.list {work, key?, keys?, subtree?, post?, status?, kind?, persona?, since?, until?, include_praise?,
-//!   include_attached?, limit?}` → `{findings, total}`; `keys`, `status`, `kind` als Liste oder Text „a,b“;
-//!   `subtree: true` nimmt zu `key` bzw. `keys` alle Unterpunkte dazu.
+//!   include_attached?, limit?}` → `{findings, total}`; `keys`, `status`, `kind` as a list or text „a,b“;
+//!   `subtree: true` adds all sub-items to `key` or `keys`.
 //! - `finding.get {work, id}` → `{finding, history, attached, summary_of}`
-//! - `finding.set_status {work, id, status, reason?, rev?, target_key?, target_idea?}` (nur Mensch) →
+//! - `finding.set_status {work, id, status, reason?, rev?, target_key?, target_idea?}` (human only) →
 //!   `{finding, before, commit?|mirror?}`
-//! - `finding.decide {work, entry, confirm}` (nur Mensch) → `{finding, entry, commit?|mirror?}`
+//! - `finding.decide {work, entry, confirm}` (human only) → `{finding, entry, commit?|mirror?}`
 //!
-//! Schreibwege ([`set_status`], [`propose`], [`decide`]) halten [`AppState::write_lock`] vom Schreiben bis zum Commit
-//! und ergeben genau einen Commit im Spiegel ([`mirror::record_finding`], Trailer `Baruch-Finding`, `Baruch-Action`
-//! `finding-status|finding-propose|finding-decide`, `Baruch-Node`, bei Vorschlägen `Persona`). Status setzt über RPC
-//! immer der Mensch; Assistenten (Persona, MCP) erreichen nur [`propose`].
+//! Write paths ([`set_status`], [`propose`], [`decide`]) hold [`AppState::write_lock`] from writing to the commit
+//! and yield exactly one commit in the mirror ([`mirror::record_finding`], trailer `Baruch-Finding`, `Baruch-Action`
+//! `finding-status|finding-propose|finding-decide`, `Baruch-Node`, for proposals `Persona`). Through RPC the status
+//! is always set by the human; assistants (persona, MCP) reach only [`propose`].
 
 use std::collections::HashSet;
 
@@ -25,7 +25,7 @@ use crate::{AppState, mirror};
 
 pub const METHODS: &[&str] = &["finding.list", "finding.get", "finding.set_status", "finding.decide"];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -34,7 +34,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Ganzzahl aus `params[name]` (Zahl oder Ziffern als Text aus Formularen); fehlt, `null` oder leer → `None`.
+/// Integer from `params[name]` (number or digits as text from forms); missing, `null` or empty → `None`.
 fn int(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match params.get(name) {
@@ -50,7 +50,7 @@ fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
     int(params, name)?.ok_or_else(|| invalid(format!("{name} fehlt ({what})")))
 }
 
-/// Wahrheitswert (true/false oder aus Formularen „1“, „true“, „on“, „0“, „false“); fehlt → `None`.
+/// Boolean (true/false or from forms „1“, „true“, „on“, „0“, „false“); missing → `None`.
 fn flag(params: &Value, name: &str) -> Result<Option<bool>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
@@ -72,7 +72,7 @@ fn text(params: &Value, name: &str) -> Result<Option<String>, RpcError> {
     }
 }
 
-/// Liste aus `params[name]`: JSON-Liste von Texten bzw. Zahlen oder Text „a,b“.
+/// List from `params[name]`: JSON list of texts or numbers, or text „a,b“.
 fn words(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(Vec::new()),
@@ -92,7 +92,7 @@ fn words(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     }
 }
 
-/// Werk aus `work` (Zahl oder Ziffern); fehlt → Vorgabewerk; unbekannt → -32602.
+/// Work from `work` (number or digits); missing → default work; unknown → -32602.
 pub(crate) async fn work_of(state: &AppState, params: &Value) -> Result<WorkId, RpcError> {
     match int(params, "work")? {
         None => Ok(state.default_work().await?),
@@ -103,7 +103,7 @@ pub(crate) async fn work_of(state: &AppState, params: &Value) -> Result<WorkId, 
     }
 }
 
-/// RPC `finding.*` (der Mensch).
+/// RPC `finding.*` (the human).
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     let work = work_of(state, &params).await?;
@@ -125,7 +125,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
     }
 }
 
-/// Auswahl aus den Parametern von `finding.list`.
+/// Selection from the parameters of `finding.list`.
 async fn filter_of(state: &AppState, work: WorkId, params: &Value) -> Result<FindingFilter, RpcError> {
     let mut keys: Vec<i64> = Vec::new();
     if let Some(key) = int(params, "key")? {
@@ -137,7 +137,7 @@ async fn filter_of(state: &AppState, work: WorkId, params: &Value) -> Result<Fin
     if flag(params, "subtree")?.unwrap_or(false) && !keys.is_empty() {
         let loaded = state.store.load_work(work).await?;
         let mut wanted: HashSet<i64> = keys.iter().copied().collect();
-        // Baumreihenfolge: Eltern stehen vor ihren Kindern, ein Durchgang genügt.
+        // Tree order: parents stand before their children, one pass is enough.
         let mut seqs: HashSet<usize> = loaded.nodes.iter().filter(|n| wanted.contains(&n.key)).map(|n| n.id).collect();
         for node in &loaded.nodes {
             if node.parent.is_some_and(|p| seqs.contains(&p)) {
@@ -177,7 +177,7 @@ async fn filter_of(state: &AppState, work: WorkId, params: &Value) -> Result<Fin
 async fn list(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let filter = filter_of(state, work, params).await?;
     let findings = state.store.finding_list(work, &filter).await?;
-    // `total` = alle passenden (ohne Grenze); `truncated`, wenn `findings` nur die neuesten davon sind.
+    // `total` = all matching (without limit); `truncated` if `findings` are only the newest of them.
     let total = state.store.finding_count(work, &filter).await?;
     Ok(json!({ "findings": findings.iter().map(|f| finding_json(work, f)).collect::<Vec<_>>(), "total": total,
                "truncated": total > findings.len() }))
@@ -186,7 +186,7 @@ async fn list(state: &AppState, work: WorkId, params: &Value) -> Result<Value, R
 async fn get(state: &AppState, work: WorkId, id: i64) -> Result<Value, RpcError> {
     let finding = state.store.finding_get(work, id).await?;
     let history = state.store.finding_history(work, id).await?;
-    // Gezielt geladen (ohne Grenze): eine Werkliste würde ab 2000 Befunden Angehängte und Ursprünge verlieren.
+    // Loaded specifically (without limit): a work list would lose attached ones and origins from 2000 findings on.
     let attached: Vec<Value> =
         state.store.finding_attached_to(work, id).await?.iter().map(|f| finding_json(work, f)).collect();
     let summary_of: Vec<Value> =
@@ -199,9 +199,9 @@ async fn get(state: &AppState, work: WorkId, id: i64) -> Result<Value, RpcError>
     }))
 }
 
-/// Gewünschten Status aus den Parametern lesen: `status` = open|adopted|rejected|deferred|done; adopted braucht
-/// `rev` (Fassungsnummer, ab 1), rejected `reason` (nicht leer), deferred genau eins von `target_key` (Abschnitt)
-/// bzw. `target_idea` (Einfall). `reason` ist sonst wahlweise. Ob Fassung und Ziel existieren, prüft der Store.
+/// Read the wanted status from the parameters: `status` = open|adopted|rejected|deferred|done; adopted needs
+/// `rev` (revision number, from 1), rejected `reason` (not empty), deferred exactly one of `target_key` (section)
+/// or `target_idea` (idea). `reason` is otherwise optional. Whether revision and target exist the store checks.
 pub fn parse_change(params: &Value) -> Result<StatusChange, RpcError> {
     let status =
         text(params, "status")?.ok_or_else(|| invalid("status fehlt (open, adopted, rejected, deferred, done)"))?;
@@ -236,7 +236,7 @@ pub fn parse_change(params: &Value) -> Result<StatusChange, RpcError> {
     }
 }
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the answer: `commit` for a new commit, `mirror` on error.
 fn add_mirror(answer: &mut Value, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -245,7 +245,7 @@ fn add_mirror(answer: &mut Value, result: Result<Option<String>, String>) {
     }
 }
 
-/// Commit zu einer Aktion an einem Befund (unter der gehaltenen Sperre).
+/// Commit for an action on a finding (under the held lock).
 async fn record(
     state: &AppState,
     held: &mirror::WriteGuard<'_>,
@@ -263,7 +263,7 @@ async fn record(
     }
 }
 
-/// Status setzen (der Mensch): unter der Schreibsperre, genau ein Commit (`Baruch-Action: finding-status`).
+/// Set the status (the human): under the write lock, exactly one commit (`Baruch-Action: finding-status`).
 pub async fn set_status(state: &AppState, work: WorkId, id: i64, change: &StatusChange) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let (before, after) = state.store.finding_set_status(work, id, change, mirror::HUMAN_NAME).await?;
@@ -277,8 +277,8 @@ pub async fn set_status(state: &AppState, work: WorkId, id: i64, change: &Status
     Ok(answer)
 }
 
-/// Statusvorschlag eines Assistenten (Persona bzw. MCP-Client): unter der Schreibsperre, genau ein Commit
-/// (`Baruch-Action: finding-propose`, Autor und Trailer `Persona` = Herkunft). Verworfen und offen lehnt der Store ab.
+/// Status proposal of an assistant (persona or MCP client): under the write lock, exactly one commit
+/// (`Baruch-Action: finding-propose`, author and trailer `Persona` = origin). The store refuses rejected and open.
 pub async fn propose(
     state: &AppState,
     work: WorkId,
@@ -291,8 +291,8 @@ pub async fn propose(
     propose_held(state, &held, work, id, change, by, note).await
 }
 
-/// Wie [`propose`], der Aufrufer hält die Schreibsperre schon (Runde 22: Rückmeldungen „Erledigt: Befund n“ beim
-/// Speichern eines Persona-Beitrags in `assist::save`).
+/// Like [`propose`], the caller already holds the write lock (Round 22: feedback „Erledigt: Befund n“ when
+/// storing a persona post in `assist::save`).
 pub async fn propose_held(
     state: &AppState,
     held: &mirror::WriteGuard<'_>,
@@ -310,8 +310,8 @@ pub async fn propose_held(
     Ok(answer)
 }
 
-/// Über einen Vorschlag entscheiden (der Mensch): unter der Schreibsperre, genau ein Commit
-/// (`Baruch-Action: finding-decide`). Ein veralteter Vorschlag wird `stale`, der Befund bleibt.
+/// Decide a proposal (the human): under the write lock, exactly one commit
+/// (`Baruch-Action: finding-decide`). A stale proposal becomes `stale`, the finding stays.
 pub async fn decide(state: &AppState, work: WorkId, entry: i64, confirm: bool) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let (finding, entry) = state.store.finding_decide(work, entry, confirm, mirror::HUMAN_NAME).await?;

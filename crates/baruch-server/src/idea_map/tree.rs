@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Die Mindmap eines Werks als Baum (Vertrag Runde 34, Schnittstelle R34-S1 §S1.2; danach Besitz mindmap_daten).
+//! The mind map of a work as a tree (contract Round 34, interface R34-S1 §S1.2; afterwards owner mindmap_daten).
 //!
-//! [`tree`] liefert das Werk als Wurzel (`w`), darunter Teile und Kapitel (`n:<key>`) und die Einfälle (`i:<id>`).
-//! Signaturen und Feldnamen dieser Datei sind die Schnittstelle der Runde: `bild::mindmap` (mindmap_widget) und
-//! `files` (mindmap_austausch) programmieren dagegen; sie ändern sich nicht (zusätzliche Felder nur am Ende).
+//! [`tree`] returns the work as the root (`w`), below it parts and chapters (`n:<key>`) and the ideas (`i:<id>`).
+//! Signatures and field names of this file are the interface of the round: `bild::mindmap` (mindmap_widget) and
+//! `files` (mindmap_austausch) program against them; they do not change (additional fields only at the end).
 //!
-//! Seit mindmap_daten (Migration 0052): Einfälle tragen Titel, Elternknoten und Reihenfolge; [`tree`] hängt sie nach
-//! einer Regel ein (siehe dort), Filter lassen Vorfahren sichtbarer Einfälle als Geister stehen, [`import`] legt einen
-//! eingelesenen Baum in einer Transaktion mit einem Spiegel-Commit an.
+//! Since mindmap_daten (migration 0052): ideas carry title, parent node and order; [`tree`] places them by
+//! one rule (see there), filters leave ancestors of visible ideas standing as ghosts, [`import`] creates an
+//! imported tree in one transaction with one mirror commit.
 //!
-//! Nachtrag des Nutzers vom 2026-11-25 („eine Verbindung zwischen der Wolke und der Mindmap“): Einfälle ohne Platz –
-//! ohne Elternknoten, ohne (gültigen) Bezug und nicht als Hauptthema ans Werk gehängt – stehen **nicht** im Baum,
-//! sondern in der Wolke daneben ([`Cloud`], [`cloud`], [`tree_and_cloud`]; RPC `idea.tree` liefert beide). Die
-//! Signaturen aus S1.2 sind dafür unverändert geblieben; die Wolke ist eine zusätzliche Funktion.
+//! Addendum of the user of 2026-11-25 („eine Verbindung zwischen der Wolke und der Mindmap“): ideas without a place
+//! – without parent node, without (valid) relation and not hung on the work as a main topic – stand **not** in the
+//! tree but in the cloud next to it ([`Cloud`], [`cloud`], [`tree_and_cloud`]; RPC `idea.tree` returns both). The
+//! signatures from S1.2 stayed unchanged for it; the cloud is an additional function.
 
 use std::collections::{HashMap, HashSet};
 
@@ -35,34 +35,34 @@ pub enum TreeKind {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TreeNode {
-    /// "w", "n:<key>" oder "i:<id>".
+    /// "w", "n:<key>" or "i:<id>".
     pub id: String,
     pub kind: TreeKind,
     pub idea: Option<IdeaId>,
-    /// Gliederungspunkt: eigener key; Einfall: Bezug (Abschnitt), sonst None.
+    /// Outline item: own key; idea: relation (section), otherwise None.
     pub key: Option<i64>,
     pub number: String,
-    /// Angezeigter Titel, nie leer.
+    /// Displayed title, never empty.
     pub title: String,
-    /// Gespeicherter Titel des Einfalls (darf leer sein); bei Gliederungspunkten leer.
+    /// Stored title of the idea (may be empty); empty for outline items.
     pub own_title: String,
     pub note: String,
-    /// true, wenn note, quote, source oder bible Text tragen.
+    /// true if note, quote, source or bible carry text.
     pub has_note: bool,
     pub words: Vec<String>,
     pub status: Option<IdeaStatus>,
     pub origin: Option<IdeaOrigin>,
-    /// Titel des Abschnitts, auf den ein Einfall mit key verweist.
+    /// Title of the section an idea with key refers to.
     pub section_title: Option<String>,
-    /// Nur Einfälle: umbenennbar, umhängbar, löschbar.
+    /// Ideas only: can be renamed, re-hung, deleted.
     pub editable: bool,
-    /// Treffer der Suche q.
+    /// Hit of the search q.
     pub hit: bool,
-    /// Passt nicht zum Filter, bleibt aber wegen sichtbarer Nachfahren stehen.
+    /// Does not match the filter but stays because of visible descendants.
     pub ghost: bool,
-    /// Offene Befunde (nur Teil/Kapitel, nur mit filter.findings).
+    /// Open findings (only part/chapter, only with filter.findings).
     pub open_findings: u32,
-    /// Nachfahren der Art Einfall (für „± n“).
+    /// Descendants of kind idea (for „± n“).
     pub descendants: u32,
     pub children: Vec<TreeNode>,
 }
@@ -72,7 +72,7 @@ pub struct MindMap {
     pub work: WorkId,
     pub title: String,
     pub root: TreeNode,
-    /// Verbindungen zwischen gezeigten Einfällen (nicht gelöscht).
+    /// Links between ideas shown (not deleted).
     pub links: Vec<IdeaLink>,
     pub near: super::Near,
     pub filter: super::MapFilter,
@@ -94,7 +94,7 @@ fn find_in<'a>(node: &'a TreeNode, id: &str) -> Option<&'a TreeNode> {
 }
 
 impl MindMap {
-    /// Tiefensuche in Anzeigereihenfolge: (Knoten, Tiefe; Wurzel = 0).
+    /// Depth-first search in display order: (node, depth; root = 0).
     pub fn walk(&self) -> Vec<(&TreeNode, usize)> {
         let mut out = Vec::new();
         walk_into(&self.root, 0, &mut out);
@@ -106,64 +106,64 @@ impl MindMap {
     }
 }
 
-/// „Nummer Titel“ eines Abschnitts (ohne Nummer nur der Titel).
+/// “Number title” of a section (without a number only the title).
 fn numbered(number: &str, title: &str) -> String {
     if number.is_empty() { title.to_owned() } else { format!("{number} {title}") }
 }
 
-/// Vorschlag der Wolke: Der Einfall `idea` (in der Wolke) ist dem Knoten `node` der Mindmap nah – „passt zu Ast
-/// <branch_title>“. Nur Anzeige, nie gespeichert (Nähe wie auf der Karte: gespeicherte Vektoren und gleiche
-/// Schlagwörter, [`super::near`]).
+/// Suggestion of the cloud: the idea `idea` (in the cloud) is near the node `node` of the mind map – „passt zu Ast
+/// <branch_title>“. Display only, never stored (nearness as on the map: stored vectors and equal
+/// tags, [`super::near`]).
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CloudHint {
-    /// Einfall der Wolke (oberste Ebene), für den der Vorschlag gilt.
+    /// Idea of the cloud (top level) the suggestion is for.
     pub idea: IdeaId,
-    /// Naher Einfall in der Mindmap (`i:<id>`), unter den sich der Einfall hängen ließe.
+    /// Near idea in the mind map (`i:<id>`) under which the idea could be hung.
     pub node: String,
     pub node_title: String,
-    /// Hauptast (Kind der Wurzel), in dem `node` hängt.
+    /// Main branch (child of the root) in which `node` hangs.
     pub branch: String,
     pub branch_title: String,
     pub score: f32,
     pub shared_words: Vec<String>,
 }
 
-/// Die Wolke: Ablage neben der Mindmap für Einfälle ohne Platz (Nachtrag des Nutzers vom 2026-11-25) – ohne
-/// Elternknoten, ohne (gültigen) Bezug und nicht als Hauptthema ans Werk gehängt. Ein Einfall der Wolke behält seine
-/// Unterknoten (`children`).
+/// The cloud: storage next to the mind map for ideas without a place (addendum of the user of 2026-11-25) – without
+/// parent node, without (valid) relation and not hung on the work as a main topic. An idea of the cloud keeps its
+/// sub-nodes (`children`).
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Cloud {
     pub work: WorkId,
-    /// Einfälle der Wolke nach `position`, dann `id`; mit Filter nur passende (und Geister über passenden
-    /// Unterknoten).
+    /// Ideas of the cloud by `position`, then `id`; with a filter only matching ones (and ghosts above matching
+    /// sub-nodes).
     pub ideas: Vec<TreeNode>,
-    /// „n in der Wolke“: Einfälle der obersten Ebene der Wolke, ohne Filter.
+    /// „n in der Wolke“: ideas of the top level of the cloud, without filter.
     pub count: u32,
-    /// Dieselben samt ihren Unterknoten, ohne Filter.
+    /// The same with their sub-nodes, without filter.
     pub count_with_children: u32,
-    /// Je Einfall der Wolke höchstens ein Vorschlag (der nächste Einfall in der Mindmap), nach Einfall.
+    /// Per idea of the cloud at most one suggestion (the nearest idea in the mind map), by idea.
     pub hints: Vec<CloudHint>,
-    /// Verbindungen (nicht gelöscht) gezeigter Einfälle, von denen mindestens einer in der Wolke liegt.
+    /// Links (not deleted) of ideas shown of which at least one lies in the cloud.
     pub links: Vec<IdeaLink>,
 }
 
-/// Mindmap und Wolke als **eine Sicht** für Seite, Bild, Gliederungsansicht und Ausgaben (Integration Runde 34):
-/// Die Einfälle der Wolke hängen hier hinter den Hauptästen an der Wurzel von `map`, damit `walk`/`find` sie
-/// kennen; welche Kinder der Wurzel in der Wolke liegen, sagt `cloud` (Kennungen `i:<id>`). Alle anderen Kinder der
-/// Wurzel – Teile, Kapitel und freie Hauptthemen – sind Hauptäste. `map.links` trägt zusätzlich die Verbindungen
-/// mit einem Ende in der Wolke. Nur für die Anzeige; RPC `idea.tree` liefert weiter `{map, cloud}` getrennt.
+/// Mind map and cloud as **one view** for page, picture, outline view and exports (integration Round 34):
+/// the ideas of the cloud hang here behind the main branches on the root of `map` so that `walk`/`find` know
+/// them; which children of the root lie in the cloud is told by `cloud` (ids `i:<id>`). All other children of the
+/// root – parts, chapters and free main topics – are main branches. `map.links` additionally carries the links
+/// with one end in the cloud. For display only; RPC `idea.tree` still returns `{map, cloud}` separately.
 #[derive(Debug, Clone)]
 pub struct Scene {
     pub map: MindMap,
-    /// Kennungen der Kinder der Wurzel, die in der Wolke liegen (in Anzeigereihenfolge).
+    /// Ids of the children of the root that lie in the cloud (in display order).
     pub cloud: Vec<String>,
-    /// „n in der Wolke“ ohne Filter ([`Cloud::count`]).
+    /// „n in der Wolke“ without filter ([`Cloud::count`]).
     pub cloud_count: u32,
     pub hints: Vec<CloudHint>,
 }
 
 impl Scene {
-    /// Hängt die Wolke an die Wurzel der Mindmap (siehe [`Scene`]).
+    /// Hangs the cloud on the root of the mind map (see [`Scene`]).
     pub fn join(mut map: MindMap, cloud: Cloud) -> Scene {
         let ids: Vec<String> = cloud.ideas.iter().map(|n| n.id.clone()).collect();
         map.root.children.extend(cloud.ideas);
@@ -176,7 +176,7 @@ impl Scene {
         Scene { map, cloud: ids, cloud_count: cloud.count, hints: cloud.hints }
     }
 
-    /// Eine Mindmap ohne Wolke (von Hand gebaute Bäume in Tests).
+    /// A mind map without cloud (hand-built trees in tests).
     pub fn without_cloud(map: MindMap) -> Scene {
         Scene { map, cloud: Vec::new(), cloud_count: 0, hints: Vec::new() }
     }
@@ -185,18 +185,18 @@ impl Scene {
         self.cloud.iter().any(|c| c == id)
     }
 
-    /// Die Hauptäste: Teile, Kapitel und freie Hauptthemen – ohne die Wolke.
+    /// The main branches: parts, chapters and free main topics – without the cloud.
     pub fn branches(&self) -> Vec<&TreeNode> {
         self.map.root.children.iter().filter(|n| !self.in_cloud(&n.id)).collect()
     }
 
-    /// Die Einfälle der Wolke (oberste Ebene), samt ihren Unterknoten.
+    /// The ideas of the cloud (top level), with their sub-nodes.
     pub fn cloud_nodes(&self) -> Vec<&TreeNode> {
         self.map.root.children.iter().filter(|n| self.in_cloud(&n.id)).collect()
     }
 }
 
-/// Mindmap und Wolke als eine Sicht ([`Scene`]).
+/// Mind map and cloud as one view ([`Scene`]).
 pub async fn scene(state: &AppState, work: WorkId, filter: &super::MapFilter) -> Result<Scene, RpcError> {
     let (map, cloud) = tree_and_cloud(state, work, filter).await?;
     Ok(Scene::join(map, cloud))
@@ -226,22 +226,22 @@ fn blank(id: String, kind: TreeKind, title: String) -> TreeNode {
     }
 }
 
-/// Was [`assemble`] über die Einfälle weiß.
+/// What [`assemble`] knows about the ideas.
 struct Ideas<'a> {
     by_id: HashMap<IdeaId, &'a Idea>,
-    /// Unterknoten je Einfall, nach `position`, dann `id`.
+    /// Sub-nodes per idea, by `position`, then `id`.
     below: HashMap<IdeaId, Vec<IdeaId>>,
-    /// Passt zum Filter (Wert = Treffer der Suche `q`).
+    /// Matches the filter (value = hit of the search `q`).
     shown: HashMap<IdeaId, bool>,
     section_titles: &'a HashMap<i64, String>,
 }
 
 impl Ideas<'_> {
-    /// Der Einfall als Knoten samt Unterknoten; `None`, wenn weder er noch ein Nachfahre zum Filter passt.
+    /// The idea as a node with sub-nodes; `None` if neither it nor a descendant matches the filter.
     fn node(&self, id: IdeaId, depth: usize) -> Option<TreeNode> {
         let idea = self.by_id.get(&id)?;
         let mut children = Vec::new();
-        // Der Store hält die Kette bei höchstens MAX_TREE_DEPTH; die Grenze hier schützt nur vor kaputten Daten.
+        // The store keeps the chain at most MAX_TREE_DEPTH deep; the limit here only protects against broken data.
         if depth < 2 * MAX_TREE_DEPTH {
             for child in self.below.get(&id).map(Vec::as_slice).unwrap_or_default() {
                 children.extend(self.node(*child, depth + 1));
@@ -270,7 +270,7 @@ impl Ideas<'_> {
     }
 }
 
-/// Zählt die gezeigten Einfälle (ohne Geister) in einem Teilbaum.
+/// Counts the ideas shown (without ghosts) in a subtree.
 fn shown_ideas(node: &TreeNode) -> u32 {
     u32::from(node.kind == TreeKind::Idea && !node.ghost) + node.children.iter().map(shown_ideas).sum::<u32>()
 }
@@ -282,8 +282,8 @@ fn collect_ideas(node: &TreeNode, out: &mut HashSet<IdeaId>) {
     }
 }
 
-/// Hängt die Kinder an einen Gliederungspunkt (erst Gliederungspunkte in Gliederungsreihenfolge, dann seine
-/// Einfälle nach `position`, dann `id`) und zählt die Nachfahren der Art Einfall.
+/// Hangs the children on an outline item (first outline items in outline order, then its
+/// ideas by `position`, then `id`) and counts the descendants of kind idea.
 fn attach(
     mut node: TreeNode,
     outline: &mut HashMap<String, Vec<TreeNode>>,
@@ -302,8 +302,8 @@ fn attach(
     node
 }
 
-/// Baut Mindmap und Wolke in einem Zug. `near_for_hints`: die Nähe auch dann berechnen, wenn der Filter sie für das
-/// Bild ausschaltet (die Vorschläge der Wolke brauchen sie); die Mindmap meldet dann trotzdem „aus“.
+/// Builds mind map and cloud in one go. `near_for_hints`: compute the nearness even if the filter switches it off
+/// for the picture (the suggestions of the cloud need it); the mind map then still reports “off”.
 async fn assemble(
     state: &AppState,
     work: WorkId,
@@ -315,8 +315,8 @@ async fn assemble(
     let map = super::build(state, work, &filter).await?;
     let all = state.store.idea_tree_rows(work).await?;
 
-    // Gliederungspunkte je Elternknoten (Reihenfolge von `build` = Gliederungsreihenfolge); dazu je key der Knoten,
-    // an dem ein Einfall mit diesem Bezug hängt (Anker), und der Titel des Abschnitts.
+    // Outline items per parent node (order of `build` = outline order); plus per key the node
+    // on which an idea with this relation hangs (anchor), and the title of the section.
     let mut outline: HashMap<String, Vec<TreeNode>> = HashMap::new();
     let mut anchor_of_key: HashMap<i64, String> = HashMap::new();
     let mut section_titles: HashMap<i64, String> = HashMap::new();
@@ -327,7 +327,7 @@ async fn assemble(
                 root.open_findings = node.open_findings;
                 continue;
             }
-            // Die Wolke „Ohne Kapitel“ der flachen Karte ist im Baum die Ablage neben der Mindmap ([`Cloud`]).
+            // The cloud „Ohne Kapitel“ of the flat map is the storage next to the mind map in the tree ([`Cloud`]).
             super::MapNodeKind::NoChapter => continue,
             super::MapNodeKind::Part => TreeKind::Part,
             super::MapNodeKind::Chapter | super::MapNodeKind::Section => TreeKind::Chapter,
@@ -348,8 +348,8 @@ async fn assemble(
         outline.entry(node.parent.clone().unwrap_or_else(|| "w".to_owned())).or_default().push(item);
     }
 
-    // Einfälle: Unterknoten je Elternknoten; ein Elternknoten, den es (nicht gelöscht, im Werk) nicht gibt, zählt
-    // wie keiner.
+    // Ideas: sub-nodes per parent node; a parent node that does not exist (not deleted, in the work) counts
+    // like none.
     let by_id: HashMap<IdeaId, &Idea> = all.iter().map(|i| (i.id, i)).collect();
     let mut below: HashMap<IdeaId, Vec<IdeaId>> = HashMap::new();
     let mut top: Vec<&Idea> = Vec::new();
@@ -371,7 +371,7 @@ async fn assemble(
         section_titles: &section_titles,
     };
 
-    // Platz der obersten Einfälle: am Anker ihres Bezugs, als Hauptthema am Werk oder in der Wolke.
+    // Place of the top-level ideas: on the anchor of their relation, as a main topic on the work or in the cloud.
     let mut at_anchor: HashMap<String, Vec<TreeNode>> = HashMap::new();
     let mut cloud_ideas: Vec<TreeNode> = Vec::new();
     let (mut cloud_count, mut cloud_all) = (0u32, 0u32);
@@ -379,7 +379,7 @@ async fn assemble(
         let anchor = idea.key.and_then(|key| anchor_of_key.get(&key).cloned());
         let in_cloud = anchor.is_none() && !idea.main_topic;
         if in_cloud {
-            // Zähler ohne Filter: der Einfall und alles darunter.
+            // Counter without filter: the idea and everything below it.
             cloud_count += 1;
             let mut stack = vec![idea.id];
             while let Some(at) = stack.pop() {
@@ -409,8 +409,8 @@ async fn assemble(
     let cloud_links: Vec<IdeaLink> =
         other_links.into_iter().filter(|l| in_cloud.contains(&l.from) || in_cloud.contains(&l.to)).collect();
 
-    // Vorschläge der Wolke: je Einfall der obersten Ebene das nächste Paar (höchster Wert, dann kleinste id) mit
-    // einem Einfall der Mindmap; der Hauptast ist das Kind der Wurzel, in dem dieser hängt.
+    // Suggestions of the cloud: per idea of the top level the nearest pair (highest value, then smallest id) with
+    // an idea of the mind map; the main branch is the child of the root in which that one hangs.
     let mut branch_of: HashMap<IdeaId, (String, String, String)> = HashMap::new();
     for branch in &root.children {
         let mut stack = vec![branch];
@@ -458,7 +458,7 @@ async fn assemble(
         }
     }
 
-    // Nähe im Bild: nur Paare, deren beide Einfälle in der Mindmap stehen; ausgeschaltet bleibt ausgeschaltet.
+    // Nearness in the picture: only pairs whose two ideas both stand in the mind map; switched off stays switched off.
     let near = if wanted_near {
         super::Near {
             state: map.near.state,
@@ -495,31 +495,31 @@ async fn assemble(
     Ok((mind_map, cloud))
 }
 
-/// Die Mindmap des Werks als Baum (Filter wie [`super::build`]; `open` gilt im Baum nicht – Abschnitte unter einem
-/// Kapitel sind nie eigene Knoten, ihr Titel steht als `section_title` am Einfall).
+/// The mind map of the work as a tree (filter like [`super::build`]; `open` does not apply in the tree – sections
+/// under a chapter are never nodes of their own, their title stands as `section_title` on the idea).
 ///
-/// Ort eines Einfalls (eine Regel, überall gleich):
-/// 1. mit Elternknoten (`parent`, nicht gelöscht, gleiches Werk) Unterknoten dieses Einfalls, Geschwister nach
-///    `position`, dann `id`; der Bezug (`key`) bleibt daneben erlaubt und ist dann nur der Link zum Abschnitt;
-/// 2. ohne Elternknoten, mit Bezug: Kind des Ankers (nächster Vorfahre der Art Kapitel, sonst der Punkt selbst);
-/// 3. ohne beides, als Hauptthema (`main_topic`): direkt am Werk, hinter Teilen und Kapiteln;
-/// 4. sonst in der Wolke – nicht im Baum, sondern in [`cloud`].
+/// Place of an idea (one rule, the same everywhere):
+/// 1. with a parent node (`parent`, not deleted, same work) sub-node of that idea, siblings by
+///    `position`, then `id`; the relation (`key`) stays allowed besides and is then only the link to the section;
+/// 2. without parent node, with relation: child of the anchor (nearest ancestor of kind chapter, else the item);
+/// 3. without both, as a main topic (`main_topic`): directly on the work, behind parts and chapters;
+/// 4. otherwise in the cloud – not in the tree but in [`cloud`].
 ///
-/// Filter (`status`, `word`, `origin`): Ein Einfall, der nicht passt, bleibt als Geist (`ghost`) stehen, solange ein
-/// Nachfahre passt; `q` blendet nichts aus, sondern setzt `hit`. `links` und `near.pairs` nennen nur Einfälle, die im
-/// Baum stehen. `total_ideas` zählt die gezeigten Einfälle im Baum (ohne Geister, ohne Wolke).
+/// Filter (`status`, `word`, `origin`): an idea that does not match stays as a ghost (`ghost`) as long as a
+/// descendant matches; `q` hides nothing but sets `hit`. `links` and `near.pairs` name only ideas that stand in
+/// the tree. `total_ideas` counts the ideas shown in the tree (without ghosts, without cloud).
 pub async fn tree(state: &AppState, work: WorkId, filter: &super::MapFilter) -> Result<MindMap, RpcError> {
     Ok(assemble(state, work, filter, false).await?.0)
 }
 
-/// Die Wolke des Werks ([`Cloud`]): Einfälle ohne Platz in der Mindmap, mit Zähler und Vorschlägen „passt zu Ast …“
-/// (die Nähe wird dafür immer berechnet, auch wenn der Filter sie für das Bild ausschaltet; nie eine
-/// Einbettungsanfrage).
+/// The cloud of the work ([`Cloud`]): ideas without a place in the mind map, with counter and suggestions „passt
+/// zu Ast …“ (the nearness is always computed for it, even if the filter switches it off for the picture; never an
+/// embedding request).
 pub async fn cloud(state: &AppState, work: WorkId, filter: &super::MapFilter) -> Result<Cloud, RpcError> {
     Ok(assemble(state, work, filter, true).await?.1)
 }
 
-/// Mindmap und Wolke in einem Abruf (für Seiten, die beide zeigen).
+/// Mind map and cloud in one call (for pages that show both).
 pub async fn tree_and_cloud(
     state: &AppState,
     work: WorkId,
@@ -534,14 +534,14 @@ pub struct ImportNode {
     pub note: String,
     pub words: Vec<String>,
     pub children: Vec<ImportNode>,
-    /// Runde 36: Der Knoten lag in der Wolke der eigenen Ausgabe (Ast mit der Kennung `export::CLOUD_ID`) und kommt
-    /// wieder in die Wolke. Gilt nur auf der obersten Ebene und nur beim Einlesen ohne Zielknoten; fehlt das Feld
-    /// (ältere Vorschau im Formular), ist es `false`.
+    /// Round 36: the node lay in the cloud of the own export (branch with the id `export::CLOUD_ID`) and goes
+    /// back into the cloud. Applies only on the top level and only when importing without a target node; if the field
+    /// is missing (older preview in the form), it is `false`.
     #[serde(default)]
     pub cloud: bool,
 }
 
-/// Pfad = Indizes von `ImportTree::nodes` abwärts.
+/// Path = indices from `ImportTree::nodes` downwards.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportLink {
     pub from: Vec<usize>,
@@ -563,8 +563,8 @@ pub struct ImportReport {
     pub links: u32,
 }
 
-/// Knoten und größte Tiefe eines eingelesenen Baums, ohne Rekursion (eine sehr tiefe Eingabe darf den Stapel nicht
-/// sprengen, bevor sie abgelehnt ist).
+/// Nodes and greatest depth of an imported tree, without recursion (a very deep input must not burst the stack
+/// before it is rejected).
 fn import_size(tree: &ImportTree) -> (usize, usize) {
     let (mut count, mut deepest) = (0usize, 0usize);
     let mut stack: Vec<(&ImportNode, usize)> = tree.nodes.iter().map(|n| (n, 1)).collect();
@@ -576,7 +576,7 @@ fn import_size(tree: &ImportTree) -> (usize, usize) {
     (count, deepest)
 }
 
-/// Erst nach [`import_size`] aufrufen: die Tiefe ist dann höchstens [`MAX_TREE_DEPTH`].
+/// Call only after [`import_size`]: the depth is then at most [`MAX_TREE_DEPTH`].
 fn seed(node: &ImportNode) -> IdeaSeed {
     IdeaSeed {
         title: node.title.clone(),
@@ -586,7 +586,7 @@ fn seed(node: &ImportNode) -> IdeaSeed {
     }
 }
 
-/// Zahl der Knoten eines Teilbaums, ohne Rekursion.
+/// Number of nodes of a subtree, without recursion.
 fn subtree_size(node: &ImportNode) -> usize {
     let (mut count, mut stack) = (0usize, vec![node]);
     while let Some(node) = stack.pop() {
@@ -596,23 +596,23 @@ fn subtree_size(node: &ImportNode) -> usize {
     count
 }
 
-/// Legt den Baum als Einfälle des Werks an (unter `parent` oder als freie Hauptthemen): eine Transaktion,
-/// ein Spiegel-Commit mit Herkunft. Verbindungen als `leads_to` mit der Beschriftung als Notiz.
+/// Creates the tree as ideas of the work (under `parent` or as free main topics): one transaction,
+/// one mirror commit with origin. Links as `leads_to` with the label as note.
 ///
-/// Die obersten Knoten (`tree.nodes`) werden Unterknoten von `parent` bzw. – ohne – freie Hauptthemen am Werk
-/// (nicht Einfälle der Wolke: Wer einen Baum einliest, will ihn in der Mindmap sehen), in der Reihenfolge der
-/// Eingabe hinter den vorhandenen Geschwistern. `tree.title` und `tree.warnings` werden nicht gespeichert.
+/// The top-level nodes (`tree.nodes`) become sub-nodes of `parent` or – without it – free main topics on the work
+/// (not ideas of the cloud: whoever imports a tree wants to see it in the mind map), in the order of the
+/// input behind the existing siblings. `tree.title` and `tree.warnings` are not stored.
 ///
-/// Runde 36: Oberste Knoten mit [`ImportNode::cloud`] (der Ast „Wolke“ einer eigenen Ausgabe) kommen ohne `parent`
-/// wieder in die Wolke, samt ihren Unterknoten – die Rundreise der eigenen Datei erhält die Wolke. Mit `parent`
-/// zählt das Kennzeichen nicht (unter einem Zielknoten gibt es keine Wolke).
+/// Round 36: top-level nodes with [`ImportNode::cloud`] (the branch „Wolke“ of an own export) go back into the
+/// cloud without `parent`, with their sub-nodes – the round trip of the own file keeps the cloud. With `parent`
+/// the flag does not count (there is no cloud under a target node).
 ///
-/// Abgelehnt mit [`REFUSED`], ohne etwas anzulegen: kein Knoten, mehr als [`MAX_IMPORT_NODES`] Knoten, tiefer als
-/// [`MAX_TREE_DEPTH`] (auch zusammen mit der Tiefe von `parent`), `parent` gelöscht oder in einem anderen Werk, ein
-/// Titel über [`MAX_TITLE_CHARS`] bzw. eine Notiz über 4000 Zeichen, Schlagwörter über den Grenzen der Einfälle, eine
-/// Verbindung mit einem Pfad ohne Knoten. Ein Knoten ohne Titel und Schlagwort heißt „(ohne Titel)“; eine Verbindung
-/// eines Knotens mit sich selbst oder eine doppelte wird übergangen (nicht gezählt). Unbekanntes Werk → Fehler wie
-/// bei den übrigen Methoden.
+/// Refused with [`REFUSED`] without creating anything: no node, more than [`MAX_IMPORT_NODES`] nodes, deeper than
+/// [`MAX_TREE_DEPTH`] (also together with the depth of `parent`), `parent` deleted or in another work, a
+/// title above [`MAX_TITLE_CHARS`] or a note above 4000 characters, tags above the limits of the ideas, a
+/// link with a path without a node. A node without title and tag is called „(ohne Titel)“; a link
+/// of a node with itself or a duplicate one is skipped (not counted). Unknown work → error as
+/// for the other methods.
 pub async fn import(
     state: &AppState,
     work: WorkId,
@@ -647,10 +647,10 @@ pub async fn import(
         Err(StoreError::Idea(message)) => return Err(refused(format!("{message} Nichts angelegt."))),
         Err(e) => return Err(e.into()),
     };
-    // Runde 36: Die Einfälle der Wolke zurück in die Wolke. `ideas` steht in Tiefensuche in der Reihenfolge der
-    // Eingabe; der i-te oberste Knoten beginnt also hinter den Teilbäumen seiner Vorgänger. Der Store legt oberste
-    // Knoten immer als Hauptthemen an (`idea_import_tree`, Datei von sqlx09 in dieser Runde) – darum hier ein
-    // zweiter Schritt unter derselben Schreibsperre und vor dem einen Spiegel-Commit.
+    // Round 36: the ideas of the cloud back into the cloud. `ideas` is in depth-first order of the
+    // input; so the i-th top-level node starts behind the subtrees of its predecessors. The store always creates
+    // top-level nodes as main topics (`idea_import_tree`, file of sqlx09 in this round) – hence a
+    // second step here under the same write lock and before the one mirror commit.
     let mut in_cloud = 0usize;
     if parent.is_none() {
         let mut offset = 0usize;
@@ -665,8 +665,8 @@ pub async fn import(
             offset += subtree_size(node);
         }
     }
-    // Ein Commit für den ganzen Baum: Autor und Trailer wie bei jeder Aktion an einem Einfall (der erste neue
-    // Einfall steht im Trailer `Baruch-Idea`), Betreff und Rumpf nennen den Umfang.
+    // One commit for the whole tree: author and trailers as for every action on an idea (the first new
+    // idea stands in the trailer `Baruch-Idea`), subject and body name the extent.
     if let Some(first) = ideas.first() {
         let first = state.store.idea_get(*first).await?;
         let mut request = mirror::describe_idea(&Idea { origin: origin.clone(), ..first }, "idea-import", "");
@@ -687,7 +687,7 @@ pub async fn import(
             numbers.join(", ")
         );
         if let Err(e) = mirror::record_idea(state, &held, Some(work), request).await {
-            // Die Einfälle stehen in der Datenbank; der Spiegel holt beim nächsten Commit auf.
+            // The ideas are in the database; the mirror catches up with the next commit.
             eprintln!("Git-Spiegel (Mindmap eingelesen): {e}");
         }
     }

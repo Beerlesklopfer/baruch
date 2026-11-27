@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! ZIP-Archive beim Import lesen (Runde 21, Schnittstelle R21-S1; danach Besitz markdown-import, Signaturen fest).
+//! Reading ZIP archives on import (Round 21, interface R21-S1; then owned by markdown-import, signatures fixed).
 //!
-//! Gebraucht von pdf-import (EPUB ist ein ZIP) und markdown-import (ZIP-Upload mit Haupt-Datei und Bildern).
-//! Vorbild ist der Leser des Austauschformats (`baruch_exchange`, `src/read/archive.rs`, Grenzen wie R26), nur ohne
-//! dessen feste Belegung der Namen: Hier zählt allein, dass jeder Eintrag eine reguläre Datei mit sicherem Pfad ist.
+//! Used by pdf-import (EPUB is a ZIP) and markdown-import (ZIP upload with main file and images).
+//! Modelled on the reader of the exchange format (`baruch_exchange`, `src/read/archive.rs`, limits as in R26), but
+//! without its fixed set of names: here all that counts is that every entry is a regular file with a safe path.
 //!
-//! Regeln von [`read_zip`], jede Verletzung bricht ab (dann liefert der Leser nichts):
-//! - Nur reguläre Dateien: Ordner werden übersprungen, Verknüpfungen und Sonderdateien (Gerät, FIFO, Socket) →
-//!   [`ArchiveError::Unsafe`]; verschlüsselte Einträge ebenso.
-//! - Pfade mit `/`; abgelehnt werden absolute Pfade, `..`, `\`, Laufwerksangaben (`C:`), NUL und Steuerzeichen,
-//!   leere Namen, Namen, die kein UTF-8 sind, und doppelte Namen – auch solche, die sich nur in Groß-/Kleinschreibung
-//!   unterscheiden (sonst überschriebe auf einem Dateisystem ohne Unterscheidung eine Datei die andere). Das
-//!   Zentralverzeichnis wird dafür selbst durchgezählt, weil die ZIP-Bibliothek gleiche Namen still zusammenfasst.
-//! - Größen werden beim Entpacken gezählt (`take(Grenze + 1)`), nicht aus dem Kopf des Eintrags übernommen: je
-//!   Eintrag höchstens [`ArchiveLimits::max_entry_bytes`], zusammen höchstens [`ArchiveLimits::max_total_bytes`],
-//!   höchstens [`ArchiveLimits::max_entries`] Einträge → sonst [`ArchiveError::TooLarge`].
-//! - Verhältnis entpackt/gepackt eines Eintrags über [`ArchiveLimits::max_ratio`] → [`ArchiveError::TooLarge`]
-//!   (Zip-Bombe). Einträge bis [`RATIO_FREE_BYTES`] entpackt sind davon frei: Bei so kleinen Dateien erreicht schon
-//!   eine Zeile aus gleichen Zeichen hohe Verhältnisse, und die Summengrenze deckt sie ohnehin ab.
-//! - Nur STORED und DEFLATE (wie die Abhängigkeit gebaut ist); andere Verfahren und fehlerhafte Daten (auch eine
-//!   falsche Prüfsumme) → [`ArchiveError::Corrupt`]. Was nicht mit `PK` beginnt → [`ArchiveError::NotZip`].
-//! - Reihenfolge der Einträge wie im Archiv.
+//! Rules of [`read_zip`], every violation aborts (the reader then returns nothing):
+//! - Regular files only: folders are skipped, links and special files (device, FIFO, socket) →
+//!   [`ArchiveError::Unsafe`]; encrypted entries likewise.
+//! - Paths with `/`; rejected are absolute paths, `..`, `\`, drive letters (`C:`), NUL and control characters,
+//!   empty names, names that are not UTF-8, and duplicate names – also those that differ only in upper/lower case
+//!   (otherwise one file would overwrite the other on a case-insensitive file system). For this the
+//!   central directory is counted by hand, because the ZIP library silently merges equal names.
+//! - Sizes are counted while unpacking (`take(limit + 1)`), not taken from the header of the entry: per
+//!   entry at most [`ArchiveLimits::max_entry_bytes`], in total at most [`ArchiveLimits::max_total_bytes`],
+//!   at most [`ArchiveLimits::max_entries`] entries → otherwise [`ArchiveError::TooLarge`].
+//! - Ratio unpacked/packed of an entry above [`ArchiveLimits::max_ratio`] → [`ArchiveError::TooLarge`]
+//!   (zip bomb). Entries up to [`RATIO_FREE_BYTES`] unpacked are exempt: with files that small, a single
+//!   line of equal characters already reaches high ratios, and the total limit covers them anyway.
+//! - Only STORED and DEFLATE (as the dependency is built); other methods and faulty data (also a
+//!   wrong checksum) → [`ArchiveError::Corrupt`]. What does not start with `PK` → [`ArchiveError::NotZip`].
+//! - Order of the entries as in the archive.
 
 use std::collections::HashSet;
 use std::io::{Cursor, Read};
 
 use zip::{CompressionMethod, ZipArchive};
 
-/// Grenzen beim Lesen eines Archivs.
+/// Limits when reading an archive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArchiveLimits {
     pub max_entries: usize,
@@ -36,7 +36,7 @@ pub struct ArchiveLimits {
     pub max_ratio: u64,
 }
 
-/// Grenzen für Importe (EPUB, Markdown-ZIP): 2000 Einträge, je 16 MiB, zusammen 80 MiB, Verhältnis höchstens 200.
+/// Limits for imports (EPUB, Markdown ZIP): 2000 entries, 16 MiB each, 80 MiB in total, ratio at most 200.
 pub const IMPORT_LIMITS: ArchiveLimits = ArchiveLimits {
     max_entries: 2000,
     max_entry_bytes: 16 * 1024 * 1024,
@@ -44,26 +44,26 @@ pub const IMPORT_LIMITS: ArchiveLimits = ArchiveLimits {
     max_ratio: 200,
 };
 
-/// Bis zu dieser entpackten Größe gilt für einen Eintrag kein Verhältnis (siehe Moduldoc).
+/// Up to this unpacked size no ratio applies to an entry (see module doc).
 pub const RATIO_FREE_BYTES: u64 = 64 * 1024;
 
-/// Ein gelesener Eintrag: Pfad im Archiv (mit `/`) und Inhalt.
+/// An entry that was read: path in the archive (with `/`) and content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArchiveEntry {
     pub path: String,
     pub bytes: Vec<u8>,
 }
 
-/// Warum ein Archiv nicht gelesen wurde.
+/// Why an archive was not read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArchiveError {
-    /// Kein ZIP-Archiv (mit Grund).
+    /// Not a ZIP archive (with reason).
     NotZip(String),
-    /// Ein Eintrag ist unsicher (Pfad, Verknüpfung, Sonderdatei, Doppel, verschlüsselt).
+    /// An entry is unsafe (path, link, special file, duplicate, encrypted).
     Unsafe { path: String, reason: String },
-    /// Eine Grenze ist überschritten (Zahl, Größe, Verhältnis).
+    /// A limit is exceeded (count, size, ratio).
     TooLarge(String),
-    /// Das Archiv ist beschädigt oder nutzt ein nicht unterstütztes Verfahren.
+    /// The archive is damaged or uses an unsupported method.
     Corrupt(String),
 }
 
@@ -89,8 +89,8 @@ fn unsafe_entry(path: &str, reason: impl Into<String>) -> ArchiveError {
     ArchiveError::Unsafe { path: path.to_owned(), reason: reason.into() }
 }
 
-/// Namen aller Einträge des Zentralverzeichnisses in dessen Reihenfolge, selbst gezählt (mit Doppeln). Bricht nach
-/// `max + 1` Namen ab, damit ein riesiges Verzeichnis nicht ganz gelesen wird.
+/// Names of all entries of the central directory in its order, counted by hand (with duplicates). Stops after
+/// `max + 1` names so that a huge directory is not read completely.
 fn central_names(bytes: &[u8], start: u64, max: usize) -> Result<Vec<Vec<u8>>, ArchiveError> {
     let mut names = Vec::new();
     let mut at =
@@ -111,8 +111,8 @@ fn central_names(bytes: &[u8], start: u64, max: usize) -> Result<Vec<Vec<u8>>, A
     Ok(names)
 }
 
-/// Anfang des Zentralverzeichnisses laut Endsatz (EOCD, Signatur `PK\x05\x06`, höchstens 64 KiB Kommentar dahinter);
-/// `None` ohne Endsatz oder bei ZIP64 (`0xFFFFFFFF`), dann gilt der kleinste Anfang, den die Bibliothek kennt.
+/// Start of the central directory according to the end record (EOCD, signature `PK\x05\x06`, at most 64 KiB of
+/// comment after it); `None` without end record or with ZIP64 (`0xFFFFFFFF`), then the smallest known start applies.
 fn central_start(bytes: &[u8]) -> Option<u64> {
     let floor = bytes.len().saturating_sub(22 + 65_535);
     let at = (floor..bytes.len().saturating_sub(21)).rev().find(|&i| bytes[i..i + 4] == [0x50, 0x4b, 0x05, 0x06])?;
@@ -120,7 +120,7 @@ fn central_start(bytes: &[u8]) -> Option<u64> {
     (offset != u32::MAX && (offset as usize) < at).then_some(u64::from(offset))
 }
 
-/// Pfad eines Eintrags prüfen (ohne Ordner-Schrägstrich am Ende).
+/// Check the path of an entry (without the folder slash at the end).
 fn check_path(path: &str) -> Result<(), ArchiveError> {
     if path.is_empty() {
         return Err(unsafe_entry(path, "leerer Name"));
@@ -143,7 +143,7 @@ fn check_path(path: &str) -> Result<(), ArchiveError> {
     Ok(())
 }
 
-/// ZIP-Archiv lesen und prüfen (Regeln im Moduldoc). Liefert die regulären Dateien in der Reihenfolge des Archivs.
+/// Read and check a ZIP archive (rules in the module doc). Returns the regular files in the order of the archive.
 pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry>, ArchiveError> {
     if !bytes.starts_with(b"PK\x03\x04") && !bytes.starts_with(b"PK\x05\x06") {
         return Err(ArchiveError::NotZip("der Anfang „PK“ eines ZIP-Archivs fehlt".into()));
@@ -157,8 +157,8 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
         return Ok(Vec::new());
     }
 
-    // Zentralverzeichnis selbst zählen: Die Bibliothek fasst gleiche Namen zusammen. Der Anfang kommt aus dem
-    // Endsatz (EOCD), nicht aus den Einträgen der Bibliothek: Deren erster Eintrag kann schon das zweite Doppel sein.
+    // Count the central directory by hand: the library merges equal names. The start comes from the
+    // end record (EOCD), not from the library's entries: their first entry may already be the second duplicate.
     let listed_start = (0..zip.len())
         .filter_map(|i| zip.by_index_raw(i).ok().map(|f| f.central_header_start()))
         .min()
@@ -182,7 +182,7 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
         )));
     }
 
-    // Namen und Art jedes Eintrags, ohne zu entpacken.
+    // Name and kind of every entry, without unpacking.
     let mut files: Vec<(usize, String, u64)> = Vec::new();
     let mut folded = HashSet::new();
     for index in 0..zip.len() {
@@ -219,7 +219,7 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
         files.push((index, path.to_owned(), file.compressed_size()));
     }
 
-    // Entpacken mit Grenzen, gezählt an den gelesenen Bytes.
+    // Unpack with limits, counted on the bytes read.
     let mut entries = Vec::with_capacity(files.len());
     let mut total: u64 = 0;
     for (index, path, packed) in files {
@@ -264,7 +264,7 @@ mod tests {
 
     use super::*;
 
-    /// Archiv aus (Name, Inhalt, Unix-Modus) bauen; DEFLATE.
+    /// Build an archive from (name, content, Unix mode); DEFLATE.
     fn zip_of(entries: &[(&str, &[u8], u32)]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         for (name, bytes, mode) in entries {
@@ -351,8 +351,8 @@ mod tests {
             matches!(&error, ArchiveError::Unsafe { path, reason } if path == "bild.png" && reason.contains("Verknüpfung")),
             "eine Verknüpfung zeigte beim Auspacken auf fremde Dateien: {error:?}"
         );
-        // FIFO (0o010000): Der Schreiber nimmt nur Rechte-Bits an, darum den Modus in den äußeren Attributen des
-        // Zentralverzeichnisses (obere 16 Bit, Offset 38) von Hand setzen.
+        // FIFO (0o010000): the writer accepts permission bits only, so set the mode in the external attributes of the
+        // central directory (upper 16 bits, offset 38) by hand.
         let mut bytes = zip_of(&[("rohr", b"", 0o644)]);
         let central = bytes.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
         bytes[central + 38..central + 42].copy_from_slice(&(0o010644u32 << 16).to_le_bytes());
@@ -371,8 +371,8 @@ mod tests {
             matches!(&error, ArchiveError::Unsafe { path, reason } if path == "kapitel.md" && reason.contains("doppelt")),
             "auf einem Dateisystem ohne Groß/klein überschriebe die zweite Datei die erste: {error:?}"
         );
-        // Genau gleiche Namen: Der Schreiber lässt das nicht zu, darum den zweiten Namen in den Bytes umschreiben
-        // (Kopf und Zentralverzeichnis, gleiche Länge). Die Bibliothek fasst solche Doppel sonst still zusammen.
+        // Exactly equal names: the writer does not allow that, so rewrite the second name in the bytes
+        // (header and central directory, same length). The library otherwise merges such duplicates silently.
         let mut bytes = zip_of(&[("eins.md", b"a", 0o644), ("zwei.md", b"b", 0o644)]);
         let mut at = 0;
         while let Some(found) = bytes[at..].windows(7).position(|w| w == b"zwei.md") {
@@ -410,8 +410,8 @@ mod tests {
 
     #[test]
     fn the_size_in_the_header_is_not_trusted() {
-        // Größenangabe im Zentralverzeichnis auf 1 Byte fälschen: Gelesen wird trotzdem nur bis zur Grenze, und der
-        // Fehler kommt aus dem Zählen (Grenze) oder aus der Prüfsumme – nie ein stilles Abschneiden.
+        // Forge the size in the central directory to 1 byte: reading still stops only at the limit, and the
+        // error comes from counting (limit) or from the checksum – never a silent truncation.
         let small = ArchiveLimits { max_entries: 10, max_entry_bytes: 100, max_total_bytes: 1000, max_ratio: 200 };
         let mut bytes = zip_of(&[("a", &[b'x'; 500], 0o644)]);
         let central = bytes.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn a_broken_archive_is_corrupt() {
         let mut bytes = zip_of(&[("a.md", b"Ein erfundener Satz, lang genug zum Packen.", 0o644)]);
-        // Prüfsumme (CRC-32) im Zentralverzeichnis verfälschen.
+        // Corrupt the checksum (CRC-32) in the central directory.
         let central = bytes.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
         bytes[central + 16] ^= 0xff;
         let error = read_zip(&bytes, &IMPORT_LIMITS).unwrap_err();

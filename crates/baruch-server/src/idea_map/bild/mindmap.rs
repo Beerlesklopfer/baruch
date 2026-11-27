@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zeichnung der Mindmap als SVG (Vertrag Runde 34, §S1.3 und DOM-Vertrag §6; Besitz mindmap_widget).
+//! Drawing of the mind map as SVG (contract Round 34, §S1.3 and DOM contract §6; owner mindmap_widget).
 //!
-//! Eine Anordnung, in Rust: Bildschirm (`standalone: false`, Fragment für die Seite und für
-//! `GET /werke/{id}/karte/bild`) und Ausgabe (`standalone: true`, eigenständige Datei für `.svg`/`.pdf`) entstehen
-//! aus derselben Funktion [`render`]; die Lagen rechnet [`super::tree_layout`].
+//! One layout, in Rust: screen (`standalone: false`, fragment for the page and for
+//! `GET /werke/{id}/karte/bild`) and export (`standalone: true`, standalone file for `.svg`/`.pdf`) come
+//! from the same function [`render`]; the positions are computed by [`super::tree_layout`].
 //!
-//! DOM-Vertrag (Kurzfassung, vollständig in `docs/Architektur.md`, „Runde 34 – Mindmap“):
-//! - `<svg class="mm-svg">` mit `<g class="mm-viewport">`; darin in dieser Reihenfolge Äste (`path.mm-edge`), Nähe
-//!   (`path.mm-near`), Beziehungen (`g.mm-rel` mit `path.mm-link`), die Wolke (`g.mm-cloud` mit
-//!   `rect.mm-cloud-area`), die Knoten (`g.mm-node`) und zuletzt die Beschriftungen der Beziehungen
-//!   (`g.mm-link-labels` mit `rect.mm-link-label-bg[data-link]` und `text.mm-link-label[data-link]` – zuletzt
-//!   gezeichnet; seit Runde 36 sucht jede Beschriftung einen Platz, an dem sie keinen Knoten und keine andere
-//!   Beschriftung überschneidet, und trägt einen deckenden Grund).
-//! - Knoten: `g.mm-node.mm-<kind>` mit `data-node`, `data-parent`, `data-depth`, `data-side` (nicht an Wurzel und
-//!   Wolke), `data-branch`, `data-editable`, `data-title`, `data-own` (gespeicherter Titel), Einfälle `data-idea`
-//!   und mit Bezug `data-key`; Kärtchen der Wolke `mm-cloud-item` und `data-cloud="1"`.
-//! - Fragment: Farben nur über Klassen (`mm-b0`…`mm-b7`, CSS-Variablen in `karte.css`, hell und dunkel), Links
-//!   (`a.mm-toggle`, `a.mm-section`, `a.mm-label-link`, `a.mm-findings`). Eigenständig: Farben als Attribute und
-//!   ein eigener `<style>` (kein Programm kennt die CSS-Variablen der Seite), keine Links (in einer Datei führten
-//!   relative Adressen ins Leere) – an ihrer Stelle `<g>` mit derselben Klasse.
-//! - Alle Texte und Attribute aus Nutzerdaten laufen durch [`esc`].
+//! DOM contract (short version, complete in `docs/Architektur.md`, „Runde 34 – Mindmap“):
+//! - `<svg class="mm-svg">` with `<g class="mm-viewport">`; in it in this order branches (`path.mm-edge`), nearness
+//!   (`path.mm-near`), relations (`g.mm-rel` with `path.mm-link`), the cloud (`g.mm-cloud` with
+//!   `rect.mm-cloud-area`), the nodes (`g.mm-node`) and last the labels of the relations
+//!   (`g.mm-link-labels` with `rect.mm-link-label-bg[data-link]` and `text.mm-link-label[data-link]` – drawn
+//!   last; since Round 36 every label looks for a place where it overlaps no node and no other
+//!   label, and carries an opaque background).
+//! - Nodes: `g.mm-node.mm-<kind>` with `data-node`, `data-parent`, `data-depth`, `data-side` (not on root and
+//!   cloud), `data-branch`, `data-editable`, `data-title`, `data-own` (stored title), ideas `data-idea`
+//!   and with a relation `data-key`; cards of the cloud `mm-cloud-item` and `data-cloud="1"`.
+//! - Fragment: colours only through classes (`mm-b0`…`mm-b7`, CSS variables in `karte.css`, light and dark), links
+//!   (`a.mm-toggle`, `a.mm-section`, `a.mm-label-link`, `a.mm-findings`). Standalone: colours as attributes and
+//!   an own `<style>` (no program knows the CSS variables of the page), no links (in a file relative
+//!   addresses would lead nowhere) – in their place `<g>` with the same class.
+//! - All texts and attributes from user data pass through [`esc`].
 
 use std::fmt::Write as _;
 
@@ -30,22 +30,22 @@ use crate::idea_map::tree::{CloudHint, MindMap, Scene, TreeKind};
 
 #[derive(Debug, Clone, Default)]
 pub struct RenderOptions {
-    /// true = eigenständige Datei (eigener Stil, xmlns), false = Fragment für die Seite.
+    /// true = standalone file (own style, xmlns), false = fragment for the page.
     pub standalone: bool,
-    /// Kennungen eingeklappter Knoten ("n:<key>", "i:<id>").
+    /// Ids of collapsed nodes ("n:<key>", "i:<id>").
     pub closed: Vec<String>,
-    /// Abfrageteil des Filters für Links im Bild (ohne führendes "?").
+    /// Query part of the filter for links in the picture (without leading "?").
     pub back: String,
-    /// Kennungen der Kinder der Wurzel, die in der Wolke liegen ([`Scene::cloud`]); alle anderen sind Hauptäste.
+    /// Ids of the children of the root that lie in the cloud ([`Scene::cloud`]); all others are main branches.
     pub cloud: Vec<String>,
-    /// „n in der Wolke“ ohne Filter; `None` = Zahl der gezeigten Kärtchen.
+    /// „n in der Wolke“ without filter; `None` = number of the cards shown.
     pub cloud_count: Option<u32>,
-    /// Vorschläge „passt zu Ast …“ für Kärtchen der Wolke.
+    /// Suggestions „passt zu Ast …“ for cards of the cloud.
     pub hints: Vec<CloudHint>,
 }
 
 impl RenderOptions {
-    /// Optionen für die Sicht `scene`: Wolke, Zähler und Vorschläge kommen aus ihr, der Filter für die Links auch.
+    /// Options for the view `scene`: cloud, counter and suggestions come from it, the filter for the links too.
     pub fn of(scene: &Scene, standalone: bool, closed: Vec<String>) -> Self {
         RenderOptions {
             standalone,
@@ -65,10 +65,11 @@ pub struct Rendered {
     pub height: f64,
 }
 
-/// Feste Astfarben der eigenständigen Datei (heller Grund); die Seite nimmt `--mm-b0`…`--mm-b7` aus `karte.css`.
+/// Fixed branch colours of the standalone file (light background); the page takes `--mm-b0`…`--mm-b7` from
+/// `karte.css`.
 pub const BRANCH_COLORS: [&str; 8] =
     ["#2f6fd0", "#d9622b", "#2e9a5b", "#a244b8", "#b8900a", "#1d9aa6", "#d24a6a", "#6b7a8c"];
-/// Helle Füllung der Hauptäste in der eigenständigen Datei (gleiche Reihenfolge).
+/// Light fill of the main branches in the standalone file (same order).
 const BRANCH_TINTS: [&str; 8] =
     ["#e3edfb", "#fbe9df", "#e0f3e8", "#f3e4f7", "#f7f0d6", "#ddf2f4", "#fae3e9", "#e9ecf0"];
 const STANDALONE_STYLE: &str = "text{font-family:'Noto Sans','DejaVu Sans',Arial,sans-serif;fill:#1c2330}\
@@ -77,7 +78,7 @@ const STANDALONE_STYLE: &str = "text{font-family:'Noto Sans','DejaVu Sans',Arial
 .mm-link-label.mm-contradiction{fill:#b3261e}\
 .mm-done .mm-label{text-decoration:line-through;fill:#6b7280}.mm-ghost,.mm-dim{opacity:.45}";
 
-/// Text für XML-Inhalt und -Attribute maskiert; Steuerzeichen (in XML 1.0 unzulässig) fallen weg.
+/// Text escaped for XML content and attributes; control characters (not allowed in XML 1.0) are dropped.
 fn esc(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -95,7 +96,7 @@ fn esc(text: &str) -> String {
     out
 }
 
-/// Zahl für Koordinaten: eine Nachkommastelle, ohne „.0“ (kurz und in jedem Lauf gleich).
+/// Number for coordinates: one decimal, without „.0“ (short and the same in every run).
 fn n(value: f64) -> String {
     let text = format!("{value:.1}");
     text.strip_suffix(".0").map(str::to_owned).unwrap_or(text)
@@ -123,7 +124,7 @@ fn pad(p: &Placed) -> f64 {
     }
 }
 
-/// Punkt auf dem Rand des Kastens von `p` in Richtung (tx, ty).
+/// Point on the edge of the box of `p` in direction (tx, ty).
 fn border(p: &Placed, tx: f64, ty: f64) -> (f64, f64) {
     let (cx, cy) = (p.cx(), p.cy());
     let (dx, dy) = (tx - cx, ty - cy);
@@ -136,13 +137,13 @@ fn border(p: &Placed, tx: f64, ty: f64) -> (f64, f64) {
     (cx + dx * s, cy + dy * s)
 }
 
-/// Höhe des Rechtecks einer Beschriftung (Schrift 11) und Luft um den Text.
+/// Height of the rectangle of a label (font 11) and air around the text.
 const LINK_LABEL_H: f64 = 16.0;
 const LINK_LABEL_PAD: f64 = 5.0;
-/// Abstand, den eine Beschriftung zu Knoten und anderen Beschriftungen hält.
+/// Distance a label keeps to nodes and other labels.
 const LINK_LABEL_GAP: f64 = 3.0;
 
-/// Rechteck (links oben, Breite, Höhe).
+/// Rectangle (top left, width, height).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LabelBox {
     pub x: f64,
@@ -156,7 +157,7 @@ impl LabelBox {
         LabelBox { x: cx - w / 2.0, y: cy - LINK_LABEL_H / 2.0, w, h: LINK_LABEL_H }
     }
 
-    /// Überschneidet das Rechteck `other`, wenn `other` ringsum um `gap` wächst?
+    /// Does the rectangle overlap `other` if `other` grows by `gap` all around?
     pub fn hits(&self, other: &LabelBox, gap: f64) -> bool {
         self.x < other.x + other.w + gap
             && other.x - gap < self.x + self.w
@@ -165,10 +166,10 @@ impl LabelBox {
     }
 }
 
-/// Platz für die Beschriftung einer Beziehung (Runde 36): ein Rechteck der Breite `w`, das keinen Knoten und keine
-/// schon gesetzte Beschriftung überschneidet und im Bild bleibt. Gesucht wird zuerst entlang der Linie (`curve`:
-/// Anfang, Stützpunkt, Ende der quadratischen Kurve) mit wachsendem Abstand über und unter ihr, danach in Ringen um
-/// die Mitte der Linie. `None`, wenn das Bild keinen freien Platz dieser Größe hat.
+/// Place for the label of a relation (Round 36): a rectangle of width `w` that overlaps no node and no
+/// label already placed and stays in the picture. The search goes first along the line (`curve`:
+/// start, control point, end of the quadratic curve) with growing distance above and below it, then in rings around
+/// the middle of the line. `None` if the picture has no free place of this size.
 fn free_label_spot(
     curve: [(f64, f64); 3],
     w: f64,
@@ -215,7 +216,7 @@ fn free_label_spot(
     None
 }
 
-/// Adresse „eingeklappt umschalten“ (ohne JavaScript): gleicher Filter, `zu=` mit bzw. ohne `id`.
+/// Address “toggle collapsed” (without JavaScript): same filter, `zu=` with or without `id`.
 fn toggle_href(layout: &Layout, back: &str, id: &str) -> String {
     let mut closed: Vec<&str> = layout.closed.iter().copied().filter(|c| *c != id).collect();
     if closed.len() == layout.closed.len() {
@@ -231,7 +232,7 @@ fn toggle_href(layout: &Layout, back: &str, id: &str) -> String {
     format!("?{}", parts.join("&"))
 }
 
-/// Öffnendes und schließendes Tag eines Links: im Fragment `<a>`, eigenständig `<g>` mit derselben Klasse.
+/// Opening and closing tag of a link: in the fragment `<a>`, standalone `<g>` with the same class.
 fn link_tag(standalone: bool, class: &str, href: &str, extra: &str) -> (String, &'static str) {
     if standalone {
         (format!("<g class=\"{class}\"{extra}>"), "</g>")
@@ -318,14 +319,14 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
     }
     out.push_str(" tabindex=\"0\">");
 
-    // Tooltip: voller Titel, Schlagwörter.
+    // Tooltip: full title, tags.
     let mut tip = node.title.clone();
     if !node.words.is_empty() {
         let _ = write!(tip, " · {}", node.words.join(", "));
     }
     let _ = write!(out, "<title>{}</title>", esc(&cut(&tip, 300)));
 
-    // Kasten.
+    // Box.
     let rx = if p.depth == 0 { p.h / 2.0 } else { 7.0 };
     let paint = match (alone, p.branch, p.depth) {
         (false, ..) => " fill=\"none\"".to_owned(),
@@ -348,7 +349,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
         n(rx)
     );
 
-    // Titel (ohne JavaScript ein Link: Einfall → Seite des Einfalls, Teil/Kapitel → Abschnitt im Werk).
+    // Title (without JavaScript a link: idea → page of the idea, part/chapter → section in the work).
     let tx = p.x + pad(p);
     let with_hint = p.cloud && p.fits.is_some();
     let ty = if with_hint { p.y + 17.0 } else { p.cy() + p.font * 0.36 };
@@ -373,7 +374,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
     let mut cursor = tx + tree_layout::label_width(p.node, &p.label, p.font) + 4.0;
     let mid = if with_hint { p.y + 13.0 } else { p.cy() };
 
-    // Notiz-Symbol (Blatt mit Zeilen).
+    // Note symbol (sheet with lines).
     if node.has_note {
         let stroke = if alone { " stroke=\"#4a5568\"" } else { "" };
         let tip = if node.note.trim().is_empty() {
@@ -392,7 +393,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
         cursor += 18.0;
     }
 
-    // Bezug: Link zum Abschnitt.
+    // Relation: link to the section.
     if let (TreeKind::Idea, Some(key)) = (node.kind, node.key) {
         let (open, close) =
             link_tag(alone, "mm-section", &format!("/?work={}&key={key}", map.work), &format!(" data-key=\"{key}\""));
@@ -408,7 +409,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
         cursor += 16.0;
     }
 
-    // Ebene Befunde: Zahl am Teil/Kapitel.
+    // Layer findings: number on the part/chapter.
     if node.open_findings > 0 {
         let href = node.key.map_or_else(
             || format!("/werke/{}/befunde", map.work),
@@ -433,7 +434,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
     }
 
     if p.cloud {
-        // Wolke: Zahl der Unterknoten und der Vorschlag aus der Nähe.
+        // Cloud: number of sub-nodes and the suggestion from the nearness.
         if p.below > 0 {
             let _ = write!(
                 out,
@@ -455,7 +456,7 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
             );
         }
     } else if p.depth > 0 && p.below > 0 {
-        // Einklapper an der Außenkante: „−“ (offen) bzw. „+ n“ (zu).
+        // Collapser at the outer edge: „−“ (open) or „+ n“ (closed).
         let label = if p.closed { format!("+ {}", p.below) } else { "−".to_owned() };
         let w = if p.closed { text_width(&label, 11.0) + 10.0 } else { 16.0 };
         let x = if p.side == Side::Left { p.x - 4.0 - w } else { p.x + p.w + 4.0 };
@@ -513,7 +514,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     }
     svg.push_str("<g class=\"mm-viewport\">");
 
-    // Äste.
+    // Branches.
     for p in layout.items.iter().filter(|p| !p.cloud) {
         let Some(parent) = p.parent.and_then(|id| layout.visible_of.get(id)).map(|at| &layout.items[*at]) else {
             continue;
@@ -548,8 +549,8 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
 
     let shown = |idea: IdeaId| layout.visible_of.get(format!("i:{idea}").as_str()).map(|at| &layout.items[*at]);
 
-    // Nähe (nur zugeschaltet): gepunktete Linien zwischen Knoten des Baums. Für Kärtchen der Wolke steht statt
-    // einer Linie quer durchs Bild der Vorschlag „passt zu Ast …“ am Kärtchen.
+    // Nearness (only when switched on): dotted lines between nodes of the tree. For cards of the cloud, instead of
+    // a line across the picture, the suggestion „passt zu Ast …“ stands at the card.
     if map.filter.near {
         for pair in &map.near.pairs {
             let (Some(a), Some(b)) = (shown(pair.a), shown(pair.b)) else { continue };
@@ -574,11 +575,11 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     }
 
     let mut labels = String::new();
-    // Runde 36: Rechtecke aller gezeichneten Knoten und der schon gesetzten Beschriftungen – eine Beschriftung
-    // liegt nie auf einem Knoten und nie auf einer anderen Beschriftung.
+    // Round 36: rectangles of all drawn nodes and of the labels already placed – a label
+    // never lies on a node and never on another label.
     let node_boxes: Vec<LabelBox> = layout.items.iter().map(|p| LabelBox { x: p.x, y: p.y, w: p.w, h: p.h }).collect();
     let mut label_boxes: Vec<LabelBox> = Vec::new();
-    // Beziehungen: gebogene Linien mit Beschriftung (Art, dazu die Notiz); verborgene Enden am sichtbaren Vorfahren.
+    // Relations: curved lines with label (kind, plus the note); hidden ends at the visible ancestor.
     for (index, link) in map.links.iter().filter(|l| l.deleted.is_none()).enumerate() {
         let (Some(a), Some(b)) = (shown(link.from), shown(link.to)) else { continue };
         if std::ptr::eq(a, b) {
@@ -586,7 +587,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
         }
         let contradiction = link.kind == LinkKind::Contradicts;
         let (dx, dy) = (b.cx() - a.cx(), b.cy() - a.cy());
-        // Biegung: wechselt mit der Stelle in der Liste die Seite, damit mehrere Linien nicht aufeinanderliegen.
+        // Bend: changes side with the position in the list so that several lines do not lie on each other.
         let bend = (0.16 + 0.06 * (index % 3) as f64) * if index % 2 == 0 { 1.0 } else { -1.0 };
         let (cx, cy) = ((a.cx() + b.cx()) / 2.0 - dy * bend, (a.cy() + b.cy()) / 2.0 + dx * bend);
         let (x1, y1) = border(a, cx, cy);
@@ -625,10 +626,10 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
             ef = esc(&a.node.id),
             et = esc(&b.node.id),
         );
-        // Die Beschriftung steht in einer eigenen Gruppe am Ende (über Linien und Knoten gezeichnet). Runde 36: Sie
-        // sucht sich einen Platz, an dem sie keinen Knoten und keine andere Beschriftung überschneidet, und trägt
-        // einen deckenden Grund (`rect.mm-link-label-bg`), damit kreuzende Linien sie nicht durchstreichen. Findet
-        // sich im ganzen Bild kein freier Platz, bleibt sie an der Mitte der Linie (`data-crowded`).
+        // The label stands in its own group at the end (drawn above lines and nodes). Round 36: it
+        // looks for a place where it overlaps no node and no other label, and carries
+        // an opaque background (`rect.mm-link-label-bg`) so that crossing lines do not strike through it. If
+        // no free place is found in the whole picture, it stays at the middle of the line (`data-crowded`).
         let label_w = text_width(&label, if contradiction { 12.0 } else { 11.0 }) + 2.0 * LINK_LABEL_PAD;
         let spot = free_label_spot([(x1, y1), (cx, cy), (x2, y2)], label_w, &node_boxes, &label_boxes, (width, height));
         let crowded = if spot.is_none() { " data-crowded=\"1\"" } else { "" };
@@ -652,7 +653,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
         );
     }
 
-    // Wolke: Ablage der Einfälle ohne Platz (unter dem Baum), zugleich Ablagefläche beim Ziehen.
+    // Cloud: storage of the ideas without a place (below the tree), also the drop area when dragging.
     let c = layout.cloud;
     let paint = if alone { " fill=\"#f6f7f9\" stroke=\"#8a94a3\"" } else { " fill=\"none\"" };
     let head = match c.count {

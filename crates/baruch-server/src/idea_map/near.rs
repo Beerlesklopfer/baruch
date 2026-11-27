@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nähe der Einfälle auf der Gedankenkarte (Vertrag Runde 25 §2; nur Anzeige, nie gespeichert).
+//! Nearness of the ideas on the idea map (contract Round 25 §2; display only, never stored).
 //!
-//! Zwei gezeigte Einfälle sind einander nah, wenn
-//! - ihre **gespeicherten** Vektoren im LanceDB-Index (Zeilen `idea:<id>`, [`crate::rag::neighbors`]) eine
-//!   Kosinus-Ähnlichkeit ab `near_threshold` (Vorgabe [`DEFAULT_THRESHOLD`]) haben (`via: vector`), oder
-//! - sie ein gleiches Schlagwort tragen (gleicher `word_key`: klein, Leerraum zusammengefasst; `via: words`),
-//!   auch ganz ohne Einbettung; beides zusammen ist `via: both`.
+//! Two ideas shown are near each other if
+//! - their **stored** vectors in the LanceDB index (rows `idea:<id>`, [`crate::rag::neighbors`]) have a
+//!   cosine similarity from `near_threshold` on (default [`DEFAULT_THRESHOLD`]) (`via: vector`), or
+//! - they carry an equal tag (same `word_key`: lower case, whitespace collapsed; `via: words`),
+//!   also entirely without embedding; both together is `via: both`.
 //!
-//! Wert (`score`): bei `vector` die Kosinus-Ähnlichkeit, bei `words` der Anteil gemeinsamer Schlagwörter an allen
-//! Schlagwörtern beider (Jaccard), bei `both` der größere der beiden. Je Einfall höchstens `near_limit` (Vorgabe
-//! [`DEFAULT_LIMIT`]) Partner: Die Paare werden nach Wert absteigend (gleiche Werte nach `a`, dann `b`) genommen,
-//! solange keiner der beiden schon `near_limit` Partner hat. Ausgegeben nach `(a, b)` mit `a < b`.
+//! Value (`score`): for `vector` the cosine similarity, for `words` the share of shared tags among all
+//! tags of both (Jaccard), for `both` the larger of the two. Per idea at most `near_limit` (default
+//! [`DEFAULT_LIMIT`]) partners: the pairs are taken by value descending (equal values by `a`, then `b`)
+//! as long as neither of the two already has `near_limit` partners. Output by `(a, b)` with `a < b`.
 //!
-//! Beim Zeichnen wird nie eingebettet; ohne Einbetter oder Index meldet die Karte ehrlich `no_embedder`, bei einem
-//! Fehler des Index `unavailable` – die Schlagwort-Nähe bleibt in beiden Fällen.
+//! Drawing never embeds; without embedder or index the map honestly reports `no_embedder`, on an
+//! error of the index `unavailable` – the tag nearness stays in both cases.
 
 use std::collections::{HashMap, HashSet};
 
@@ -23,31 +23,31 @@ use super::{MapIdea, Near, NearPair, NearState, NearVia};
 use crate::AppState;
 use crate::rag::neighbors::{IdeaVectors, idea_vectors};
 
-/// Vorgabe für `near_limit` (Partner je Einfall).
+/// Default for `near_limit` (partners per idea).
 pub const DEFAULT_LIMIT: u32 = 3;
-/// Vorgabe für `near_threshold` (Kosinus-Ähnlichkeit).
+/// Default for `near_threshold` (cosine similarity).
 pub const DEFAULT_THRESHOLD: f32 = 0.75;
-/// Runde 23a: Obergrenze der Einfälle, deren Nähe berechnet wird. Der Vergleich aller Paare kostet O(n²·d)
-/// (n Einfälle, d Dimensionen des Vektors); 1500 Einfälle sind rund 1,1 Millionen Paare. Hat die Karte mehr, zählen
-/// nur die ersten [`MAX_NEAR_IDEAS`] nach aufsteigender id, und die Meldung der Karte sagt das. Die Rechnung läuft
-/// außerdem in `spawn_blocking`, damit sie keinen Arbeitsfaden der Laufzeit belegt ([`compute`]).
+/// Round 23a: upper limit of the ideas whose nearness is computed. Comparing all pairs costs O(n²·d)
+/// (n ideas, d dimensions of the vector); 1500 ideas are about 1.1 million pairs. If the map has more, only
+/// the first [`MAX_NEAR_IDEAS`] by ascending id count, and the message of the map says so. The computation also
+/// runs in `spawn_blocking` so that it occupies no worker thread of the runtime ([`compute`]).
 pub const MAX_NEAR_IDEAS: usize = 1500;
-/// Satz bei `near = false`.
+/// Sentence for `near = false`.
 pub const OFF: &str = "Nähe ausgeschaltet.";
 
-/// Vergleichsschlüssel eines Schlagworts wie im Store (`word_key`): klein, Leerraum zu einem Leerzeichen.
+/// Comparison key of a tag as in the store (`word_key`): lower case, whitespace to one space.
 pub fn word_key(word: &str) -> String {
     word.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
-/// Vektor auf Länge 1 bringen (Nullvektor → `None`): danach ist die Kosinus-Ähnlichkeit ein Skalarprodukt.
+/// Bring a vector to length 1 (zero vector → `None`): then the cosine similarity is a dot product.
 fn unit(vector: &[f32]) -> Option<Vec<f32>> {
     let norm = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
     (norm > 0.0 && norm.is_finite()).then(|| vector.iter().map(|x| x / norm).collect())
 }
 
-/// Nahe Paare der Einfälle `ideas` (id, Schlagwörter) nach den Regeln im Modulkopf. `vectors` = gespeicherte
-/// Vektoren (fehlt einer, zählt für dieses Paar nur die Schlagwort-Nähe).
+/// Near pairs of the ideas `ideas` (id, tags) by the rules in the module head. `vectors` = stored
+/// vectors (if one is missing, only the tag nearness counts for this pair).
 pub fn pairs(
     ideas: &[(IdeaId, Vec<String>)],
     vectors: Option<&HashMap<IdeaId, Vec<f32>>>,
@@ -110,7 +110,7 @@ pub fn pairs(
     chosen
 }
 
-/// Nähe der gezeigten Einfälle des Werks (siehe Modulkopf). `near = false` → `off` ohne Paare.
+/// Nearness of the ideas shown of the work (see module head). `near = false` → `off` without pairs.
 pub async fn compute(
     state: &AppState,
     work: WorkId,
@@ -147,8 +147,8 @@ pub async fn compute(
         IdeaVectors::NoEmbedder(message) => (NearState::NoEmbedder, message, None),
         IdeaVectors::Unavailable(message) => (NearState::Unavailable, message, None),
     };
-    // Runde 23a: O(n²·d) nicht auf dem async-Faden. Bricht die Aufgabe ab (Panik), bleibt die Karte ohne Nähe und
-    // sagt es, statt die ganze Seite scheitern zu lassen.
+    // Round 23a: O(n²·d) not on the async thread. If the task aborts (panic), the map stays without nearness and
+    // says so instead of letting the whole page fail.
     let found = tokio::task::spawn_blocking(move || pairs(&list, vectors.as_ref(), limit, threshold)).await;
     match found {
         Ok(pairs) => Near { state: state_word, message: format!("{message}{cap_note}"), pairs },
@@ -172,7 +172,7 @@ mod tests {
     fn shared_words_are_near_without_any_embedding() {
         let ideas = [idea(3, &["Rose", "Laube"]), idea(1, &["rose"]), idea(2, &["Kiesel"])];
         let found = pairs(&ideas, None, 3, 0.75);
-        // Vertrag §2: gleiche Schlagwörter (word_key, also ohne Groß/klein) zählen auch ohne Einbettung.
+        // Contract §2: equal tags (word_key, i.e. ignoring case) count even without embedding.
         assert_eq!(found.len(), 1, "nur 1 und 3 teilen ein Wort: {found:?}");
         let pair = &found[0];
         assert_eq!((pair.a, pair.b), (1, 3), "a < b");
@@ -191,14 +191,14 @@ mod tests {
         assert_eq!(by(1, 2).map(|p| p.via), Some(NearVia::Vector), "ähnliche Vektoren ohne gleiches Wort: {found:?}");
         assert_eq!(by(1, 3).map(|p| p.via), Some(NearVia::Both), "ähnlich und gleiches Wort: {found:?}");
         assert!(by(1, 4).is_none() && by(2, 4).is_none(), "senkrechte Vektoren liegen unter der Schwelle: {found:?}");
-        // Die Schwelle zählt: bei 0.999 bleibt nur, was auch ein Wort teilt (1 und 3 über Wörter).
+        // The threshold counts: at 0.999 only what also shares a word remains (1 and 3 through words).
         let strict = pairs(&ideas, Some(&vectors), 3, 0.999_9);
         assert!(strict.iter().all(|p| p.via == NearVia::Words), "nur noch Wort-Nähe: {strict:?}");
     }
 
     #[test]
     fn no_idea_gets_more_partners_than_the_limit() {
-        // Alle zehn teilen ein Wort: ohne Grenze hätte jeder neun Partner.
+        // All ten share a word: without a limit each would have nine partners.
         let ideas: Vec<(IdeaId, Vec<String>)> = (1..=10).map(|i| idea(i, &["Garten"])).collect();
         for limit in 1..=5 {
             let found = pairs(&ideas, None, limit, 0.75);

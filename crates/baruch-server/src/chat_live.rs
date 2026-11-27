@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Live-Anzeige im Chat (Runde 30c, chat-bedienung): „@lektor schreibt …“, solange ein Modellauftrag läuft, und
-//! Fehler gescheiterter Modellaufrufe – beides für `post.since` bzw. `thread.since` (Abfrage aus `web/src/chat.ts`).
+//! Live view in the chat (Round 30c, chat-bedienung): „@lektor schreibt …“ while a model order runs, and
+//! errors of failed model calls – both for `post.since` and `thread.since` (polled from `web/src/chat.ts`).
 //!
-//! - [`typing`] (Abschnitts-Chat) bzw. [`typing_thread`] (Faden) tragen eine Persona ein und geben eine Wache
-//!   ([`TypingGuard`]) zurück; fällt die Wache (Ende, Fehler oder Abbruch des Auftrags), ist die Persona wieder
-//!   ausgetragen. Läuft dieselbe Persona zweimal am selben Ort, zählt jede Wache für sich (die Anzeige bleibt, bis
-//!   die letzte fällt).
-//! - [`record_failure`] bzw. [`record_thread_failure`] merken einen gescheiterten Aufruf (Persona, Meldung, Zeit);
-//!   [`failures_now`] bzw. [`failures_thread`] liefern die der letzten [`FAILURE_WINDOW_SECS`] Sekunden, höchstens
-//!   [`MAX_FAILURES`] je Ort (die neuesten). Der Browser zeigt jede nur einmal (er merkt sich `at`).
+//! - [`typing`] (section chat) and [`typing_thread`] (thread) register a persona and return a guard
+//!   ([`TypingGuard`]); when the guard drops (end, error or cancellation of the order), the persona is
+//!   deregistered again. If the same persona runs twice in the same place, every guard counts for itself (the
+//!   display stays until the last one drops).
+//! - [`record_failure`] and [`record_thread_failure`] note a failed call (persona, message, time);
+//!   [`failures_now`] and [`failures_thread`] return those of the last [`FAILURE_WINDOW_SECS`] seconds, at most
+//!   [`MAX_FAILURES`] per place (the newest). The browser shows each only once (it remembers `at`).
 //!
-//! Beides lebt nur im Arbeitsspeicher des Prozesses (keine Migration, kein Spiegel): Nach einem Neustart läuft auch
-//! kein Auftrag mehr. Schlüssel ist das Werk und der feste Schlüssel des Abschnitts bzw. die id des Fadens.
+//! Both live only in the memory of the process (no migration, no mirror): after a restart no order
+//! runs any more either. The key is the work and the fixed key of the section or the id of the thread.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -20,19 +20,19 @@ use std::time::{Duration, Instant};
 use baruch_store::WorkId;
 use serde::Serialize;
 
-/// Fehler so lange zeigen (Sekunden).
+/// Show errors this long (seconds).
 pub const FAILURE_WINDOW_SECS: u64 = 600;
-/// Höchstens so viele Fehler je Ort.
+/// At most this many errors per place.
 pub const MAX_FAILURES: usize = 5;
 
-/// Ort einer Anzeige: Abschnitt (fester Schlüssel) oder Faden (id).
+/// Place of a display: section (fixed key) or thread (id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Place {
     Section(i64),
     Thread(i64),
 }
 
-/// Eine laufende Wache.
+/// A running guard.
 #[derive(Debug, Clone)]
 struct Entry {
     id: u64,
@@ -40,7 +40,7 @@ struct Entry {
     since: String,
 }
 
-/// Ein gescheiterter Aufruf.
+/// A failed call.
 #[derive(Debug, Clone)]
 struct Fail {
     persona: String,
@@ -61,18 +61,18 @@ fn live() -> std::sync::MutexGuard<'static, Live> {
     LIVE.get_or_init(|| Mutex::new(Live::default())).lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Jetzt als ISO-Zeit (UTC, Millisekunden) – wie die Zeiten der Datenbank, als Text vergleichbar.
+/// Now as ISO time (UTC, milliseconds) – like the times of the database, comparable as text.
 fn now_iso() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
-/// Handle mit „@“ (Aufträge nennen die Persona mal mit, mal ohne).
+/// Handle with „@“ (orders name the persona sometimes with, sometimes without).
 fn handle(persona: &str) -> String {
     let p = persona.trim();
     if p.starts_with('@') { p.to_owned() } else { format!("@{p}") }
 }
 
-/// Wache eines laufenden Auftrags; beim Fallenlassen wird die Persona ausgetragen.
+/// Guard of a running order; on drop the persona is deregistered.
 pub struct TypingGuard {
     key: Option<(WorkId, Place)>,
     id: u64,
@@ -102,17 +102,17 @@ fn enter(work: WorkId, place: Place, persona: &str) -> TypingGuard {
     TypingGuard { key: Some((work, place)), id }
 }
 
-/// Persona `persona` schreibt gerade im Abschnitt `key` des Werks `work` (bis die Wache fällt).
+/// Persona `persona` is writing in the section `key` of the work `work` (until the guard drops).
 pub fn typing(work: WorkId, key: i64, persona: &str) -> TypingGuard {
     enter(work, Place::Section(key), persona)
 }
 
-/// Persona `persona` schreibt gerade im Faden `thread` des Werks `work` (bis die Wache fällt).
+/// Persona `persona` is writing in the thread `thread` of the work `work` (until the guard drops).
 pub fn typing_thread(work: WorkId, thread: i64, persona: &str) -> TypingGuard {
     enter(work, Place::Thread(thread), persona)
 }
 
-/// Eine Persona, die gerade schreibt, und seit wann.
+/// A persona that is writing right now, and since when.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Typing {
     pub persona: String,
@@ -123,7 +123,7 @@ fn typing_at(work: WorkId, place: Place) -> Vec<Typing> {
     let live = live();
     let mut out: Vec<Typing> = Vec::new();
     for e in live.typing.get(&(work, place)).map(Vec::as_slice).unwrap_or_default() {
-        // Dieselbe Persona zweimal (zwei Aufträge) nur einmal zeigen, mit dem früheren Beginn.
+        // Show the same persona twice (two orders) only once, with the earlier start.
         if !out.iter().any(|t| t.persona == e.persona) {
             out.push(Typing { persona: e.persona.clone(), since: e.since.clone() });
         }
@@ -131,17 +131,17 @@ fn typing_at(work: WorkId, place: Place) -> Vec<Typing> {
     out
 }
 
-/// Wer schreibt gerade im Abschnitt `key`?
+/// Who is writing in the section `key` right now?
 pub fn typing_now(work: WorkId, key: i64) -> Vec<Typing> {
     typing_at(work, Place::Section(key))
 }
 
-/// Wer schreibt gerade im Faden `thread`?
+/// Who is writing in the thread `thread` right now?
 pub fn typing_in_thread(work: WorkId, thread: i64) -> Vec<Typing> {
     typing_at(work, Place::Thread(thread))
 }
 
-/// Ein gescheiterter Modellaufruf für die Anzeige.
+/// A failed model call for the display.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Failure {
     pub persona: String,
@@ -160,12 +160,12 @@ fn record(work: WorkId, place: Place, persona: &str, message: &str) {
     list.drain(..excess);
 }
 
-/// Gescheiterten Aufruf im Abschnitt `key` merken.
+/// Note a failed call in the section `key`.
 pub fn record_failure(work: WorkId, key: i64, persona: &str, message: &str) {
     record(work, Place::Section(key), persona, message);
 }
 
-/// Gescheiterten Aufruf im Faden `thread` merken.
+/// Note a failed call in the thread `thread`.
 pub fn record_thread_failure(work: WorkId, thread: i64, persona: &str, message: &str) {
     record(work, Place::Thread(thread), persona, message);
 }
@@ -183,12 +183,12 @@ fn failures_at(work: WorkId, place: Place) -> Vec<Failure> {
         .collect()
 }
 
-/// Gescheiterte Aufrufe der letzten Minuten im Abschnitt `key` (älteste zuerst).
+/// Failed calls of the last minutes in the section `key` (oldest first).
 pub fn failures_now(work: WorkId, key: i64) -> Vec<Failure> {
     failures_at(work, Place::Section(key))
 }
 
-/// Gescheiterte Aufrufe der letzten Minuten im Faden `thread` (älteste zuerst).
+/// Failed calls of the last minutes in the thread `thread` (oldest first).
 pub fn failures_thread(work: WorkId, thread: i64) -> Vec<Failure> {
     failures_at(work, Place::Thread(thread))
 }
@@ -197,7 +197,7 @@ pub fn failures_thread(work: WorkId, thread: i64) -> Vec<Failure> {
 mod tests {
     use super::*;
 
-    // Eigene Werk-ids, die kein Integrationstest nutzt: die Anzeige ist prozessweit.
+    // Own work ids that no integration test uses: the display is process-wide.
     const WORK: WorkId = 9_000_001;
 
     #[test]

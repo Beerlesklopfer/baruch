@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Befunde (Runde 28): Antworten von Personas werden in Befunde zerlegt ([`ingest`]), die der Mensch übernimmt,
-//! verwirft, verschiebt oder erledigt. `mod.rs`, [`parse`] und [`rpc`] gehören der Aufgabe befunde, [`page`] und
-//! [`view`] befund-uebersicht.
+//! Findings (Round 28): answers of personas are parsed into findings ([`ingest`]) that the human adopts,
+//! rejects, postpones or resolves. `mod.rs`, [`parse`] and [`rpc`] belong to the task befunde, [`page`] and
+//! [`view`] to befund-uebersicht.
 //!
-//! - Zerlegen ändert keinen Beitrag; zerlegt werden Antworten von Personas aus ask, review, chat (Abschnitt), Faden
-//!   und MCP `ask_persona`/`chat`, nie Vorschläge. Vermerke von Baruch sind keine Befunde (Vertrag R28 §1.3).
-//! - Status setzt nur der Mensch; Assistenten stellen Vorschläge ([`rpc::propose`]). Jede Statusänderung, jeder
-//!   Vorschlag und jede Entscheidung ist genau ein Commit im Spiegel; das Anlegen beim Zerlegen nicht.
-//! - Verweis auf einen Befund im Text: „[B<id>]“.
-//! - Vorhandene Beiträge zerlegt [`backfill`] einmal je Datenbank (beim Start von `serve`).
+//! - Parsing changes no post; parsed are answers of personas from ask, review, chat (section), thread
+//!   and MCP `ask_persona`/`chat`, never proposals. Notes by Baruch are not findings (contract R28 §1.3).
+//! - Only the human sets the status; assistants place proposals ([`rpc::propose`]). Every status change, every
+//!   proposal and every decision is exactly one commit in the mirror; the creation when parsing is not.
+//! - Reference to a finding in the text: „[B<id>]“.
+//! - Existing posts are parsed by [`backfill`] once per database (at the start of `serve`).
 
 pub mod page;
 pub mod parse;
@@ -25,52 +25,52 @@ use serde_json::json;
 
 use crate::AppState;
 
-/// Woher die zerlegte Antwort stammt.
+/// Where the parsed answer comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IngestOrigin {
-    /// Beitrag im Abschnitts-Chat (`post.id`) des Abschnitts `key`.
+    /// Post in the section chat (`post.id`) of the section `key`.
     Post { id: i64, key: i64 },
-    /// Fadenbeitrag (`chat_thread_post.id`) im Faden `thread`.
+    /// Thread post (`chat_thread_post.id`) in the thread `thread`.
     ThreadPost { id: i64, thread: i64 },
 }
 
-/// Eine Antwort, die in Befunde zerlegt werden soll.
+/// An answer that is to be parsed into findings.
 #[derive(Debug, Clone)]
 pub struct IngestSource<'a> {
     pub work: WorkId,
     pub origin: IngestOrigin,
-    /// Autor der Antwort (`@handle`; beim manuellen Umwandeln der Autor des Beitrags).
+    /// Author of the answer (`@handle`; for manual conversion the author of the post).
     pub persona: &'a str,
-    /// Antworttext ohne Baruch-Vermerke.
+    /// Answer text without Baruch notes.
     pub text: &'a str,
-    /// Sammlung des Lektors beim RFC: „[B<id>]“ im Text werden `summary_of`.
+    /// Collection of the lector in an RFC: „[B<id>]“ in the text become `summary_of`.
     pub summary: bool,
-    /// Der Mensch wandelt um: ohne Marken ein Hinweis mit dem ganzen Text.
+    /// The human converts: without markers a note with the whole text.
     pub manual: bool,
 }
 
-/// Ergebnis von [`ingest`]: neu angelegte und an ähnliche angehängte Befunde.
+/// Result of [`ingest`]: newly created findings and those attached to similar ones.
 #[derive(Debug, Clone, Default)]
 pub struct IngestReport {
     pub created: Vec<Finding>,
     pub attached: Vec<Finding>,
 }
 
-/// Zerlegt und speichert; nimmt NIE `state.write_lock` (der Aufrufer kann sie halten), nur Store-Transaktionen;
-/// wiederholbar (eindeutig je Beitrag und Stelle: schon vorhandene Stellen werden übergangen); kein Commit
-/// (`befunde.md` steht im nächsten Schnappschuss).
+/// Parses and stores; NEVER takes `state.write_lock` (the caller may hold it), only store transactions;
+/// repeatable (unique per post and position: already existing positions are skipped); no commit
+/// (`befunde.md` is in the next snapshot).
 ///
-/// - Zerlegt wird mit [`parse::split_answer`]; ergibt die Antwort keinen Befund und wandelt der Mensch um
-///   (`manual`), wird der ganze Text ein Hinweis ([`parse::whole_answer`]).
-/// - Ähnlichkeit (Vertrag R28 §1.4, nur im Abschnitt): Gleicht ein neuer Befund ([`parse::similar`]) einem
-///   entschiedenen, nicht angehängten Befund desselben Abschnitts (übernommen, verworfen, verschoben, erledigt) oder
-///   einem offenen derselben Persona dort (aus einem anderen Beitrag), wird er angehängt (`similar_to`, zählt nicht
-///   als offen); entschiedene gehen vor offenen. Fadenbeiträge ohne Abschnitt werden nicht verglichen.
-/// - `summary`: „[B<id>]“ im Text werden `summary_of` (UUIDs der genannten Befunde dieses Werks; unbekannte fallen
-///   weg).
-/// - Runde 30b: Lösungen unter einem Befund (`statt:`/`besser:` bzw. `Schritt:`, [`crate::assist::solutions`])
-///   speichert `Store::finding_set_solutions` je Befund; der Schlussblock „Mein Vorschlag:“ des Lektors ergibt keine
-///   Befunde.
+/// - Parsing uses [`parse::split_answer`]; if the answer yields no finding and the human converts
+///   (`manual`), the whole text becomes a note ([`parse::whole_answer`]).
+/// - Similarity (contract R28 §1.4, only in the section): if a new finding resembles ([`parse::similar`]) a
+///   decided, not attached finding of the same section (adopted, rejected, postponed, resolved) or
+///   an open one of the same persona there (from another post), it is attached (`similar_to`, does not count
+///   as open); decided ones take precedence over open ones. Thread posts without a section are not compared.
+/// - `summary`: „[B<id>]“ in the text become `summary_of` (UUIDs of the named findings of this work; unknown ones
+///   are dropped).
+/// - Round 30b: solutions below a finding (`statt:`/`besser:` or `Schritt:`, [`crate::assist::solutions`])
+///   are stored by `Store::finding_set_solutions` per finding; the closing block „Mein Vorschlag:“ of the lector
+///   yields no findings.
 pub async fn ingest(state: &AppState, source: &IngestSource<'_>) -> Result<IngestReport, String> {
     let store = &state.store;
     let (post, thread_post, key, sql, origin_id) = match source.origin {
@@ -145,7 +145,7 @@ pub async fn ingest(state: &AppState, source: &IngestSource<'_>) -> Result<Inges
             summary_of: &summary_of,
         };
         let mut finding = store.finding_insert(&new).await.map_err(|e| e.to_string())?;
-        // Runde 30b: Lösungen je Befund (`statt`/`besser` bzw. `Schritt`); scheitert das, bleibt der Befund.
+        // Round 30b: solutions per finding (`statt`/`besser` or `Schritt`); if that fails, the finding stays.
         if !found.solutions.is_empty() {
             match store.finding_set_solutions(source.work, finding.id, &found.solutions).await {
                 Ok(()) => finding.solutions = found.solutions.clone(),
@@ -161,14 +161,14 @@ pub async fn ingest(state: &AppState, source: &IngestSource<'_>) -> Result<Inges
     Ok(report)
 }
 
-/// Merker in `store_meta`: Der Nachtrag ist gelaufen.
+/// Flag in `store_meta`: the backfill has run.
 pub const BACKFILL_KEY: &str = "findings_backfill";
 
-/// Einmal je Datenbank (`store_meta` [`BACKFILL_KEY`]): alle Beiträge und Fadenbeiträge von Personas (Autor ist ein
-/// Handle aus `persona`; nicht der Mensch, nicht `@mcp:…`) zerlegen, ohne sie zu ändern, älteste zuerst. Gibt die
-/// Zahl der angelegten Befunde zurück (auch angehängte). Wie [`ingest`] ohne Schreibsperre und ohne Commit. Scheitert
-/// ein Beitrag, bricht der Nachtrag ab und der Merker bleibt ungesetzt: Der nächste Start versucht es wieder, schon
-/// angelegte Stellen werden übergangen.
+/// Once per database (`store_meta` [`BACKFILL_KEY`]): parse all posts and thread posts of personas (author is a
+/// handle from `persona`; not the human, not `@mcp:…`) without changing them, oldest first. Returns the
+/// number of created findings (also attached ones). Like [`ingest`] without write lock and without commit. If
+/// a post fails, the backfill aborts and the flag stays unset: the next start tries again, positions already
+/// created are skipped.
 pub async fn backfill(state: &AppState) -> Result<usize, String> {
     let pool = state.store.pool();
     let done: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
@@ -240,12 +240,12 @@ pub async fn backfill(state: &AppState) -> Result<usize, String> {
     Ok(count)
 }
 
-/// Adresse eines Befunds: `/werke/{work}/befunde?befund={id}`.
+/// Address of a finding: `/werke/{work}/befunde?befund={id}`.
 pub fn finding_url(work: WorkId, finding: &Finding) -> String {
     format!("/werke/{work}/befunde?befund={}", finding.id)
 }
 
-/// Befund als JSON: die Felder von [`Finding`] und dazu `kind_label`, `status_label`, `url`.
+/// Finding as JSON: the fields of [`Finding`] plus `kind_label`, `status_label`, `url`.
 pub fn finding_json(work: WorkId, finding: &Finding) -> serde_json::Value {
     let mut value = json!(finding);
     value["kind_label"] = json!(finding.kind.label());

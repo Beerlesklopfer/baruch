@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Word-Export (Runde 32; Schnittstelle R32-S1, Besitz docx_export).
+//! Word export (Round 32; interface R32-S1, owner docx_export).
 //!
-//! Das Werk mit den aktuellen Fassungen als .docx für den Verlag ([`baruch_docx::write`]); auf Wunsch liegen die
-//! offenen Vorschläge als Änderungsverfolgung darüber ([`DocxExportOptions::proposals`]). Der Export ändert nichts
-//! am Werk: Er liest nur (kein Commit, kein Eintrag im Spiegel). Kein MCP-Werkzeug in dieser Runde.
+//! The work with the current revisions as .docx for the publisher ([`baruch_docx::write`]); on request the
+//! open proposals lie on top as tracked changes ([`DocxExportOptions::proposals`]). The export changes nothing
+//! in the work: it only reads (no commit, no entry in the mirror). No MCP tool in this round.
 //!
-//! - RPC: [`METHODS`] – `work.docx_export {work?, proposals? = false}`, siehe docs/RPC.md „Runde 32 – Word“.
-//! - Seiten: `GET /werke/{id}/word` (Erklärung und Wahl), `GET /werke/{id}/word.docx[?vorschlaege=1]` (Datei).
+//! - RPC: [`METHODS`] – `work.docx_export {work?, proposals? = false}`, see docs/RPC.md „Runde 32 – Word“.
+//! - Pages: `GET /werke/{id}/word` (explanation and choice), `GET /werke/{id}/word.docx[?vorschlaege=1]` (file).
 //! - CLI: `baruch-server export ID|SLUG --docx DATEI [--vorschlaege]` ([`cli_export`]).
 //!
-//! Aufbau der Datei ([`build`]): Titelei aus den Werkangaben (Impressum nur mit eingeschalteter Titelei, wie im
-//! EPUB), dann je Gliederungspunkt in Lesereihenfolge die aktuelle Fassung über [`baruch_docx::from_typst`]. Bilder:
-//! PNG, JPEG und GIF werden eingebettet; andere Formate (SVG, WebP) bettet Word nicht verlässlich ein – die Abbildung
-//! bleibt dann als Typst-Insel mit Warnung `docx_bild_fehlt` stehen. Mit Vorschlägen: je Abschnitt der jüngste offene
-//! Vorschlag über [`baruch_docx::diff::track_changes`], Bearbeiter ist das Handle der Persona; weitere offene
-//! Vorschläge desselben Abschnitts meldet die Warnung `docx_weitere_vorschlaege`. Ausgeblendete Fassungen (Marke „bis
-//! hierhin“, `baruch_core::revision_fold`) zählen nicht.
+//! Structure of the file ([`build`]): front matter from the work details (imprint only with front matter switched
+//! on, as in the EPUB), then per outline item in reading order the current revision through
+//! [`baruch_docx::from_typst`]. Images: PNG, JPEG and GIF are embedded; Word does not embed other formats (SVG,
+//! WebP) reliably – the figure then stays as a Typst island with warning `docx_bild_fehlt`. With proposals: per
+//! section the newest open proposal through [`baruch_docx::diff::track_changes`], editor is the handle of the
+//! persona; further open proposals of the same section are reported by the warning `docx_weitere_vorschlaege`.
+//! Hidden revisions (marker „bis hierhin“, `baruch_core::revision_fold`) do not count.
 
 mod build;
 
@@ -36,35 +36,35 @@ use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::view::Settings;
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub const METHODS: &[&str] = &["work.docx_export"];
 
-/// Warnung: Ein Abschnitt hat mehr als einen offenen Vorschlag; in der Datei steht nur der jüngste.
+/// Warning: a section has more than one open proposal; the file contains only the newest.
 pub const WARN_MORE_PROPOSALS: &str = "docx_weitere_vorschlaege";
 
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Wahl des Menschen beim Export.
+/// Choice of the human on export.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DocxExportOptions {
-    /// Offene Vorschläge als Änderungsverfolgung mitgeben (je Abschnitt der jüngste).
+    /// Include open proposals as tracked changes (per section the newest).
     pub proposals: bool,
 }
 
-/// Fertige Datei.
+/// Finished file.
 #[derive(Debug, Clone, Default)]
 pub struct DocxFile {
     /// `<slug>.docx`.
     pub file_name: String,
     pub bytes: Vec<u8>,
-    /// Zahl der Vorschläge, die als Änderungsverfolgung in der Datei stehen.
+    /// Number of proposals that stand in the file as tracked changes.
     pub proposals: usize,
     pub warnings: Vec<baruch_docx::DocxWarning>,
 }
 
-/// Baut die Datei aus dem Werk; unbekanntes Werk → -32602.
+/// Builds the file from the work; unknown work → -32602.
 pub async fn export_file(state: &AppState, work: WorkId, options: &DocxExportOptions) -> Result<DocxFile, RpcError> {
     let slug = state.store.work_slug(work).await?;
     let built = build::document(state, work, options).await?;
@@ -72,7 +72,7 @@ pub async fn export_file(state: &AppState, work: WorkId, options: &DocxExportOpt
         created: built.modified,
         generator: format!("Baruch {}", env!("CARGO_PKG_VERSION")),
     };
-    // Das Packen ist reine Rechenarbeit: nicht auf dem Laufzeit-Faden der Anfragen.
+    // Packing is pure computation: not on the runtime thread of the requests.
     let document = built.document;
     let bytes = tokio::task::spawn_blocking(move || baruch_docx::write::write(&document, &write_options))
         .await
@@ -84,7 +84,7 @@ fn warnings_json(warnings: &[baruch_docx::DocxWarning]) -> Value {
     warnings.iter().map(|w| json!({ "code": w.code, "message": w.message })).collect()
 }
 
-/// Werk aus `work`: Zahl (id), Text (Ordnername oder id als Ziffern) oder – ohne Angabe – das Vorgabewerk.
+/// Work from `work`: number (id), text (folder name or id as digits) or – without a value – the default work.
 async fn work_of(state: &AppState, params: &Value) -> Result<WorkId, RpcError> {
     let unknown = |e: StoreError| match e {
         StoreError::UnknownWork(_) => RpcError::new(INVALID_PARAMS, "work: unbekanntes Werk"),
@@ -106,7 +106,7 @@ struct ExportParams {
     proposals: bool,
 }
 
-/// RPC-Aufruf einer Methode aus [`METHODS`].
+/// RPC call of a method from [`METHODS`].
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     if method != "work.docx_export" {
         return Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
@@ -127,21 +127,21 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
     }))
 }
 
-/// `baruch-server export ID|SLUG --docx DATEI [--vorschlaege]`: `Ok(text)` → Standardausgabe, Exit 0; `Err(text)` →
-/// Fehlerausgabe, Exit 1. Eine vorhandene Datei wird nie überschrieben.
+/// `baruch-server export ID|SLUG --docx DATEI [--vorschlaege]`: `Ok(text)` → standard output, exit 0; `Err(text)` →
+/// error output, exit 1. An existing file is never overwritten.
 pub async fn cli_export(
     state: &AppState,
     work: WorkId,
     path: &std::path::Path,
     options: &DocxExportOptions,
 ) -> Result<String, String> {
-    // Auch ein toter Verweis zählt als vorhanden: nichts überschreiben, nichts hinter einem Verweis anlegen.
+    // A dead link counts as existing too: overwrite nothing, create nothing behind a link.
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(format!("Export: {} gibt es schon; nichts überschrieben", path.display()));
     }
     let file = export_file(state, work, options).await.map_err(|e| format!("Export: {}", e.message))?;
     let failed = |e: std::io::Error| format!("Export: {}: {e}", path.display());
-    // `create_new` schließt die Lücke zwischen Prüfung und Anlegen.
+    // `create_new` closes the gap between check and creation.
     let mut target = std::fs::OpenOptions::new().write(true).create_new(true).open(path).map_err(failed)?;
     std::io::Write::write_all(&mut target, &file.bytes).map_err(failed)?;
     let mut text = format!("Word-Datei geschrieben: {} ({} Bytes)", path.display(), file.bytes.len());
@@ -168,7 +168,7 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Antwort für ein Werk, das es nicht gibt (404), oder einen anderen Fehler des Speichers (500).
+/// Answer for a work that does not exist (404), or another error of the store (500).
 fn store_failure(e: StoreError) -> Response {
     match e {
         StoreError::UnknownWork(_) => (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
@@ -176,7 +176,7 @@ fn store_failure(e: StoreError) -> Response {
     }
 }
 
-/// Seite mit Erklärung und Wahl; das Formular schickt per GET an die Datei (geht ohne JavaScript).
+/// Page with explanation and choice; the form sends by GET to the file (works without JavaScript).
 async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Path(id): Path<WorkId>) -> Response {
     let work = match state.store.work_meta(id).await {
         Ok(work) => work,
@@ -201,18 +201,18 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Path(id): 
 
 #[derive(Deserialize)]
 struct DownloadQuery {
-    /// `1` = offene Vorschläge als Änderungsverfolgung; fehlt oder `0` = ohne.
+    /// `1` = open proposals as tracked changes; missing or `0` = without.
     vorschlaege: Option<String>,
 }
 
-/// Die Datei selbst.
+/// The file itself.
 async fn download(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<WorkId>,
     Query(query): Query<DownloadQuery>,
 ) -> Response {
-    // Wie PDF und EPUB: Die Datei entsteht nicht auf Anfrage einer fremden Seite (zusätzlich zu `guard::own_reads`).
+    // Like PDF and EPUB: the file is not created on request of a foreign page (in addition to `guard::own_reads`).
     if crate::guard::cross_site_get(&headers) {
         return (StatusCode::FORBIDDEN, "Abgelehnt: Die Word-Datei entsteht nicht auf Anfrage einer fremden Seite.")
             .into_response();
@@ -245,7 +245,7 @@ async fn download(
     }
 }
 
-/// Seiten (GET), gemischt in `lib.rs` bei den Seiten: `GET /werke/{id}/word` und `GET /werke/{id}/word.docx`.
+/// Pages (GET), merged in `lib.rs` with the pages: `GET /werke/{id}/word` and `GET /werke/{id}/word.docx`.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/word", get(page)).route("/werke/{id}/word.docx", get(download))
 }

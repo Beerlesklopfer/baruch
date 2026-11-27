@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder und Grafiken eines Werks (Vertrag Runde 6, Abschnitt 4f): RPC `asset.*`, die Seiten
-//! „Bilder“ ohne JavaScript und die Formulare zum Hochladen und Pflegen. Gespeichert wird im Store
-//! ([`baruch_store::Store::add_asset`] usw., Inhalt als Base64- bzw. SVG-Text); jede Änderung ist
-//! genau ein Spiegel-Commit ([`mirror::record_asset`]). Alles ist dem Menschen vorbehalten: über MCP
-//! gibt es nur die lesenden Werkzeuge `list_assets` und `read_asset`, über `/act` nichts.
+//! Images and graphics of a work (contract Round 6, section 4f): RPC `asset.*`, the pages
+//! „Bilder“ without JavaScript and the forms for uploading and maintaining. Storage is in the store
+//! ([`baruch_store::Store::add_asset`] etc., content as Base64 or SVG text); every change is
+//! exactly one mirror commit ([`mirror::record_asset`]). Everything is reserved for the human: through MCP
+//! there are only the reading tools `list_assets` and `read_asset`, through `/act` nothing.
 //!
-//! RPC ([`handles`], [`call`]; alle nehmen `work?`):
+//! RPC ([`handles`], [`call`]; all take `work?`):
 //! - `asset.list` → `{assets: [AssetSummary]}`
 //! - `asset.get {name, rev?, content?: bool = true}` → `{asset, revision, content?, encoding}`
 //! - `asset.revisions {name}` → `{revisions: [AssetRevisionInfo]}`
 //! - `asset.add {file_name, content, encoding: "base64"|"svg", name?, path?, caption?, alt?, note?}` → `{name, rev}`
 //! - `asset.replace {name, file_name, content, encoding, note?, rename?: bool = false}` → `{name, rev, renamed_from?}`
-//!   (neue Fassung; ein anderes Format nur mit `rename`, dann heißt das Bild mit der neuen Endung, Runde 21c)
+//!   (new revision; a different format only with `rename`, then the image is named with the new extension, Round 21c)
 //! - `asset.set_current {name, rev}` → `{name, rev}`
 //! - `asset.update {name, rev, caption?, alt?, note?, paths?}` → `{name, rev, changed}`
-//! - `asset.delete {name, rev?, confirm: true}` → `{name, rev?, deleted}` (ohne `rev` das ganze Bild)
-//! - `asset.path_conflicts` → `{conflicts: [{normal, paths: [{path, asset}]}]}` (Altbestand, Runde 21c)
-//! - `asset.path_resolve {normal, asset}` → `{name, rev, commit?}`: alle Schreibweisen von `normal` gehören danach
-//!   dem Bild `asset` (ein Spiegel-Commit)
+//! - `asset.delete {name, rev?, confirm: true}` → `{name, rev?, deleted}` (without `rev` the whole image)
+//! - `asset.path_conflicts` → `{conflicts: [{normal, paths: [{path, asset}]}]}` (legacy data, Round 21c)
+//! - `asset.path_resolve {normal, asset}` → `{name, rev, commit?}`: all spellings of `normal` then belong
+//!   to the image `asset` (one mirror commit)
 //!
-//! Schreibende Methoden laufen unter [`AppState::write_lock`] und tragen `commit` bzw. `mirror`.
+//! Writing methods run under [`AppState::write_lock`] and carry `commit` or `mirror`.
 //!
-//! Seiten ([`pages`]): `GET /werke/{id}/bilder`, `/werke/{id}/bilder/{name}[?fassung=n]`,
-//! `/werke/{id}/bilder/{name}/datei[?fassung=n]` (Bytes mit MIME, `nosniff`, CSP mit `sandbox`) und
-//! `/werke/{id}/bilder/pfad?p=<Pfad>` (aktuelles Bild zum Pfad, sonst 404). Formulare ([`writes`],
-//! hinter `guard::same_origin`): `POST /werke/bilder/hochladen` (multipart, höchstens
-//! [`UPLOAD_LIMIT`], sonst 413; Feld `rename` = „Endung anpassen“) und `POST /werke/bilder/act` (`action` =
-//! `set_current`, `update`, `delete`, `remove`, seit Runde 21c `resolve_path` mit `normal` und `name`).
+//! Pages ([`pages`]): `GET /werke/{id}/bilder`, `/werke/{id}/bilder/{name}[?fassung=n]`,
+//! `/werke/{id}/bilder/{name}/datei[?fassung=n]` (bytes with MIME, `nosniff`, CSP with `sandbox`) and
+//! `/werke/{id}/bilder/pfad?p=<path>` (current image for the path, otherwise 404). Forms ([`writes`],
+//! behind `guard::same_origin`): `POST /werke/bilder/hochladen` (multipart, at most
+//! [`UPLOAD_LIMIT`], otherwise 413; field `rename` = „Endung anpassen“) and `POST /werke/bilder/act` (`action` =
+//! `set_current`, `update`, `delete`, `remove`, since Round 21c `resolve_path` with `normal` and `name`).
 
 use std::sync::{Arc, OnceLock};
 
@@ -50,16 +50,16 @@ use crate::mirror::{self, HUMAN_NAME};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
-/// Größte Anfrage an `POST /werke/bilder/hochladen`: 8 MiB Bild und 64 KiB für Felder und Rahmen.
+/// Largest request to `POST /werke/bilder/hochladen`: 8 MiB image and 64 KiB for fields and framing.
 pub const UPLOAD_LIMIT: usize = MAX_ASSET_BYTES + 64 * 1024;
 
-/// Sicherheitskopf für ausgelieferte Bilder: kein Skript, keine Einbettung fremder Inhalte, Sandbox
-/// (auch ein SVG, das direkt geöffnet wird, führt so nichts aus).
+/// Security header for served images: no script, no embedding of foreign content, sandbox
+/// (so even an SVG that is opened directly executes nothing).
 const IMAGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(
         method,
@@ -150,7 +150,7 @@ fn params<T: for<'de> Deserialize<'de>>(value: serde_json::Value) -> Result<T, R
     serde_json::from_value(value).map_err(|e| RpcError::new(INVALID_PARAMS, e.to_string()))
 }
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the response: `commit` for a new commit, `mirror` on error.
 fn add_mirror(answer: &mut serde_json::Value, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -159,8 +159,8 @@ fn add_mirror(answer: &mut serde_json::Value, result: Result<Option<String>, Str
     }
 }
 
-/// Inhalt aus RPC: `encoding` = `base64` (Standard-Base64) oder `svg` (SVG-Text). Ergebnis: Bytes und
-/// ob als Base64 gespeichert werden soll.
+/// Content from RPC: `encoding` = `base64` (standard Base64) or `svg` (SVG text). Result: bytes and
+/// whether to store as Base64.
 fn content_bytes(content: &str, encoding: &str) -> Result<(Vec<u8>, bool), RpcError> {
     match AssetEncoding::parse(encoding) {
         Some(AssetEncoding::Base64) => Ok((baruch_store::decode_base64(content)?, true)),
@@ -171,7 +171,7 @@ fn content_bytes(content: &str, encoding: &str) -> Result<(Vec<u8>, bool), RpcEr
     }
 }
 
-/// Änderung spiegeln und `{name, rev}` mit `commit`/`mirror` antworten.
+/// Mirror the change and answer `{name, rev}` with `commit`/`mirror`.
 async fn recorded(state: &AppState, held: &mirror::WriteGuard<'_>, change: &AssetChange) -> serde_json::Value {
     let mut answer = json!({ "name": change.name, "rev": change.rev });
     add_mirror(&mut answer, mirror::record_asset(state, held, change).await);
@@ -263,7 +263,7 @@ pub async fn call(
     }
 }
 
-/// Übersicht des Bilds und die Fassung `rev` (fehlt: die aktuelle).
+/// Summary of the image and the revision `rev` (missing: the current one).
 async fn summary_and_revision(
     state: &AppState,
     work: WorkId,
@@ -292,7 +292,7 @@ async fn summary_and_revision(
     Ok((summary, revision))
 }
 
-/// Pfade aus einem Textfeld bzw. einer Liste: eine je Zeile, leer weg, ohne Doppelte, sortiert.
+/// Paths from a text field or a list: one per line, empty ones dropped, no duplicates, sorted.
 fn normalized_paths(paths: &[String]) -> Vec<String> {
     let mut out: Vec<String> =
         paths.iter().flat_map(|p| p.lines()).map(str::trim).filter(|p| !p.is_empty()).map(str::to_owned).collect();
@@ -301,8 +301,8 @@ fn normalized_paths(paths: &[String]) -> Vec<String> {
     out
 }
 
-/// `asset.update`: Felder der Fassung und/oder Pfade des Bilds; was sich nicht ändert, bleibt
-/// unberührt. Beides zusammen ist **ein** Spiegel-Commit. Nichts geändert → `changed: false`.
+/// `asset.update`: fields of the revision and/or paths of the image; what does not change stays
+/// untouched. Both together are **one** mirror commit. Nothing changed → `changed: false`.
 async fn update(state: &AppState, work: WorkId, p: &UpdateParams) -> Result<serde_json::Value, RpcError> {
     let store = &state.store;
     let held = state.write_lock.lock().await;
@@ -345,7 +345,7 @@ async fn update(state: &AppState, work: WorkId, p: &UpdateParams) -> Result<serd
         let moved = store.set_asset_paths(work, &p.name, paths).await;
         let moved = match (moved, &change) {
             (Ok(moved), _) => moved,
-            // Die Felder sind schon gespeichert: dann wenigstens die protokollieren.
+            // The fields are already stored: then at least log those.
             (Err(e), Some(done)) => {
                 let _ = mirror::record_asset(state, &held, done).await;
                 return Err(e.into());
@@ -367,10 +367,10 @@ async fn update(state: &AppState, work: WorkId, p: &UpdateParams) -> Result<serd
     Ok(answer)
 }
 
-/// `asset.delete`: eine Fassung (`rev`) oder das ganze Bild.
+/// `asset.delete`: one revision (`rev`) or the whole image.
 async fn delete(state: &AppState, work: WorkId, name: &str, rev: Option<u32>) -> Result<serde_json::Value, RpcError> {
     let held = state.write_lock.lock().await;
-    // Runde 20c: Ist das ganze Bild der Umschlag, zuerst „Umschlag entfernt“ (eigener Commit) vor dem Löschen.
+    // Round 20c: if the whole image is the cover, first „Umschlag entfernt“ (own commit) before deleting.
     let cover = match rev {
         None => crate::cover::release_cover_before_delete(state, &held, work, name).await?,
         Some(_) => None,
@@ -395,9 +395,9 @@ async fn delete(state: &AppState, work: WorkId, name: &str, rev: Option<u32>) ->
     Ok(answer)
 }
 
-// ---- Vorlagen ----------------------------------------------------------------------------------
+// ---- Templates ---------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung der Bilder-Seiten.
+/// Own template environment of the image pages.
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -425,7 +425,7 @@ fn render(status: StatusCode, name: &str, ctx: Value) -> Response {
     }
 }
 
-/// HTTP-Status zu einem RPC-Fehler: ungültig 422, abgelehnt 409, sonst 500.
+/// HTTP status for an RPC error: invalid 422, refused 409, otherwise 500.
 fn status_of(e: &RpcError) -> StatusCode {
     match e.code {
         INVALID_PARAMS => StatusCode::UNPROCESSABLE_ENTITY,
@@ -434,15 +434,15 @@ fn status_of(e: &RpcError) -> StatusCode {
     }
 }
 
-/// Selbst gebaute Adresse (Ziffern, Bildnamen aus `[a-z0-9._-]`, prozentkodierte Werte): nur `&`
-/// maskieren, damit `/` lesbar bleibt (minijinja maskiert es sonst als `&#x2f;`).
+/// Self-built address (digits, image names from `[a-z0-9._-]`, percent-encoded values): escape only
+/// `&` so that `/` stays readable (minijinja otherwise escapes it as `&#x2f;`).
 fn href(url: String) -> Value {
     debug_assert!(!url.contains(['"', '<', '>', '\'', ' ']), "unsichere Adresse {url:?}");
     Value::from_safe_string(url.replace('&', "&amp;"))
 }
 
-/// Text für die Vorlage, HTML-maskiert, aber mit lesbarem `/` (Pfade wie `/bilder/haus.svg`;
-/// minijinja maskiert `/` sonst als `&#x2f;`).
+/// Text for the template, HTML-escaped but with readable `/` (paths like `/bilder/haus.svg`;
+/// minijinja otherwise escapes `/` as `&#x2f;`).
 pub(crate) fn path_text(text: &str) -> Value {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -458,7 +458,7 @@ pub(crate) fn path_text(text: &str) -> Value {
     Value::from_safe_string(out)
 }
 
-/// Größe lesbar: „512 Bytes“, „3,2 KiB“, „1,5 MiB“.
+/// Readable size: „512 Bytes“, „3,2 KiB“, „1,5 MiB“.
 fn size_text(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{bytes} Bytes")
@@ -469,7 +469,7 @@ fn size_text(bytes: u64) -> String {
     }
 }
 
-/// Zeitstempel `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in Ortszeit.
+/// Timestamp `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in local time.
 fn short_time(time: &str) -> String {
     crate::localtime::minutes(time)
 }
@@ -485,7 +485,7 @@ fn type_label(mime: &str) -> &'static str {
     }
 }
 
-/// Hinweis nach einer Weiterleitung (`?hinweis=…`).
+/// Notice after a redirect (`?hinweis=…`).
 fn notice(code: Option<&str>) -> Option<&'static str> {
     Some(match code? {
         "hinzugefuegt" => "Das Bild ist hinzugefügt.",
@@ -495,7 +495,7 @@ fn notice(code: Option<&str>) -> Option<&'static str> {
         "unveraendert" => "Nichts geändert.",
         "fassung-geloescht" => "Die Fassung ist gelöscht; ihr Inhalt steht im Git-Spiegel.",
         "geloescht" => "Das Bild ist gelöscht; sein Inhalt steht im Git-Spiegel.",
-        // Runde 11: Umschlag (Formulare von „cover“) und Anträge (von „mcp-assets“) kehren hierher zurück.
+        // Round 11: cover (forms of “cover”) and requests (of “mcp-assets”) return here.
         "umschlag_gesetzt" => "Das Bild ist jetzt der Umschlag des Werks.",
         "umschlag_entfernt" => "Das Werk hat keinen Umschlag mehr.",
         "antrag_bestaetigt" => "Der Antrag ist bestätigt und ausgeführt.",
@@ -509,30 +509,30 @@ fn notice(code: Option<&str>) -> Option<&'static str> {
     })
 }
 
-// ---- Haken zu anderen Aufgaben (Vertrag Runde 11) -----------------------------------------------
+// ---- Hooks to other tasks (contract Round 11) ---------------------------------------------------
 
-/// Name des Umschlagbilds des Werks (`None` = kein Umschlag).
+/// Name of the cover image of the work (`None` = no cover).
 async fn hook_cover_name(state: &AppState, work: WorkId) -> Option<String> {
     crate::cover::cover_name(state, work).await.ok().flatten()
 }
 
-/// HTML-Block id="umschlag" für die Seite „Bilder“ (oben).
+/// HTML block id="umschlag" for the page „Bilder“ (top).
 async fn hook_cover_panel(state: &AppState, work: WorkId) -> String {
     crate::cover::assets_panel(state, work).await.unwrap_or_else(|e| panel_error("Umschlag", &e.message))
 }
 
-/// HTML-Block id="antraege" (Anträge zu Bildern) für die Seite „Bilder“ (unten).
+/// HTML block id="antraege" (requests about images) for the page „Bilder“ (bottom).
 async fn hook_requests_panel(state: &AppState, work: WorkId) -> String {
     crate::asset_requests::panel(state, work).await.unwrap_or_else(|e| panel_error("Anträge", &e.message))
 }
 
-/// Ehrlicher Ersatz, wenn ein Block der Bilder-Seite nicht entstehen konnte (Text maskiert).
+/// Honest replacement if a block of the images page could not be built (text escaped).
 fn panel_error(what: &str, message: &str) -> String {
     let escape = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
     format!("<p class=\"notice error\">{}: {}</p>", escape(what), escape(message))
 }
 
-/// Kleinste, größte und vorgegebene längste Seite eines Vorschaubilds in Pixeln (`?b=`).
+/// Smallest, largest and default longest side of a thumbnail in pixels (`?b=`).
 pub const THUMB_MIN: u32 = 64;
 pub const THUMB_MAX: u32 = 1024;
 pub const THUMB_DEFAULT: u32 = 320;
@@ -550,7 +550,7 @@ fn summary_row(work: WorkId, a: &AssetSummary, cover: Option<&str>) -> Value {
     }
 }
 
-/// Werte des Formulars „Bild hinzufügen“ (zum erneuten Zeigen nach einem Fehler).
+/// Values of the form „Bild hinzufügen“ (to show again after an error).
 #[derive(Debug, Default, Clone, serde::Serialize)]
 struct AddForm {
     name: String,
@@ -588,7 +588,7 @@ async fn list_response(
     };
     let cover = hook_cover_name(state, work).await;
     let rows: Vec<Value> = assets.iter().map(|a| summary_row(work, a, cover.as_deref())).collect();
-    // Runde 21c: Altbestand mit zwei Bildern zu einem Pfad (Hinweis und Formular oben auf der Seite).
+    // Round 21c: legacy data with two images for one path (notice and form at the top of the page).
     let found = state.store.asset_path_conflicts(work).await.unwrap_or_default();
     let conflicts: Vec<Value> = found
         .iter()
@@ -671,9 +671,9 @@ async fn detail_response(
     render(status, "asset.html", ctx)
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
-/// Seiten der Bilder (nur lesen).
+/// Pages of the images (read only).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/bilder", get(list_page))
@@ -683,8 +683,8 @@ pub fn pages() -> Router<Arc<AppState>> {
         .route("/werke/{id}/bilder/{name}/vorschau", get(thumbnail))
 }
 
-/// Formulare (schreibend, im Router hinter `guard::same_origin`). Nur das Hochladen nimmt große
-/// Anfragen an ([`UPLOAD_LIMIT`]).
+/// Forms (writing, in the router behind `guard::same_origin`). Only the upload accepts large
+/// requests ([`UPLOAD_LIMIT`]).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/bilder/hochladen", post(upload).layer(DefaultBodyLimit::max(UPLOAD_LIMIT)))
@@ -696,7 +696,7 @@ pub fn writes() -> Router<Arc<AppState>> {
 struct PageQuery {
     fassung: Option<String>,
     hinweis: Option<String>,
-    /// Suche (Runde 11): Name, Bildunterschrift, Alternativtext.
+    /// Search (Round 11): name, caption, alternative text.
     q: Option<String>,
 }
 
@@ -720,8 +720,8 @@ async fn detail_page(
     detail_response(&state, &headers, id, &name, shown, StatusCode::OK, None, q.hinweis.as_deref()).await
 }
 
-/// Bytes einer Fassung mit ihrem MIME-Typ; `nosniff` und eine CSP mit `sandbox`, damit ein SVG nie
-/// Skripte ausführt oder Fremdes lädt.
+/// Bytes of a revision with its MIME type; `nosniff` and a CSP with `sandbox` so that an SVG never
+/// runs scripts or loads foreign content.
 fn image_response(data: &AssetData) -> Response {
     let bytes = match data.bytes() {
         Ok(bytes) => bytes,
@@ -768,15 +768,15 @@ struct ThumbQuery {
     fassung: Option<String>,
 }
 
-/// Raster verkleinern (Runde 11): längste Seite höchstens `bound`, Seitenverhältnis bleibt, ein
-/// kleineres Bild bleibt so groß. JPEG bleibt JPEG (ohne Alpha), alles andere wird PNG (bei GIF das
-/// erste Bild). Ergebnis: Bytes und MIME-Typ; ein unlesbares Bild → `Err` mit Meldung.
+/// Shrink a raster image (Round 11): longest side at most `bound`, aspect ratio stays, a
+/// smaller image keeps its size. JPEG stays JPEG (no alpha), everything else becomes PNG (for GIF the
+/// first frame). Result: bytes and MIME type; an unreadable image → `Err` with message.
 pub fn thumbnail_bytes(bytes: &[u8], mime: &str, bound: u32) -> Result<(Vec<u8>, &'static str), String> {
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|e| format!("Bild nicht lesbar: {e}"))?;
     let mut limits = image::Limits::default();
-    // Höchstens 20 000 Pixel je Seite und 512 MiB beim Entpacken (Schutz vor „Pixelbomben“).
+    // At most 20 000 pixels per side and 512 MiB when unpacking (protection against “pixel bombs”).
     limits.max_image_width = Some(20_000);
     limits.max_image_height = Some(20_000);
     limits.max_alloc = Some(512 * 1024 * 1024);
@@ -798,9 +798,9 @@ pub fn thumbnail_bytes(bytes: &[u8], mime: &str, bound: u32) -> Result<(Vec<u8>,
     Ok((out.into_inner(), mime))
 }
 
-/// `GET /werke/{id}/bilder/{name}/vorschau?b=<px>[&fassung=n]` (Runde 11): Vorschaubild für Listen.
-/// `b` 64–1024 (Vorgabe 320, sonst 400); Raster verkleinert ([`thumbnail_bytes`]), SVG unverändert
-/// wie `/datei` (CSP `sandbox`). `ETag` aus SHA-256 der Fassung und `b`; `If-None-Match` → 304.
+/// `GET /werke/{id}/bilder/{name}/vorschau?b=<px>[&fassung=n]` (Round 11): thumbnail for lists.
+/// `b` 64–1024 (default 320, otherwise 400); raster shrunk ([`thumbnail_bytes`]), SVG unchanged
+/// like `/datei` (CSP `sandbox`). `ETag` from SHA-256 of the revision and `b`; `If-None-Match` → 304.
 async fn thumbnail(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -843,8 +843,8 @@ async fn thumbnail(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
     };
     let mime = data.mime.clone();
-    // Höchstens zwei Vorschaubilder zugleich: Jedes entpackt das ganze Rasterbild (Speicher), eine Liste mit
-    // vielen Bildern darf den Rechner nicht fluten (Gutachten Runde 11).
+    // At most two thumbnails at once: each unpacks the whole raster image (memory), a list with
+    // many images must not flood the machine (review Round 11).
     static THUMB_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
     let Ok(_slot) = THUMB_SLOTS.acquire().await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "Fehler: Vorschaubilder nicht verfügbar").into_response();
@@ -872,7 +872,7 @@ struct PathQuery {
     p: Option<String>,
 }
 
-/// `GET /werke/{id}/bilder/pfad?p=…`: das aktuelle Bild zum Pfad aus Vorlage/Text (für das Satzbild).
+/// `GET /werke/{id}/bilder/pfad?p=…`: the current image for the path from template/text (for the typeset view).
 async fn by_path(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>, Query(q): Query<PathQuery>) -> Response {
     let Some(path) = q.p.filter(|p| !p.trim().is_empty()) else {
         return (StatusCode::NOT_FOUND, "Fehler: kein Pfad").into_response();
@@ -884,15 +884,15 @@ async fn by_path(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>, Que
     }
 }
 
-// ---- Formulare ---------------------------------------------------------------------------------
+// ---- Forms -------------------------------------------------------------------------------------
 
 fn checked(value: Option<&str>) -> bool {
     matches!(value.map(str::trim), Some("1" | "on" | "true"))
 }
 
-/// `POST /werke/bilder/hochladen` (multipart): `work`, `file`, `name` (vorhanden = neue Fassung
-/// dieses Bilds), `path` (eine je Zeile), `caption`, `alt`, `note`, `as_base64`. Erfolg → 303 zur
-/// Detailseite; Fehler → Seite mit Meldung (422, 409, zu groß 413).
+/// `POST /werke/bilder/hochladen` (multipart): `work`, `file`, `name` (existing = new revision
+/// of this image), `path` (one per line), `caption`, `alt`, `note`, `as_base64`. Success → 303 to the
+/// detail page; error → page with message (422, 409, too large 413).
 async fn upload(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -980,7 +980,7 @@ async fn upload(
     if bytes.len() > MAX_ASSET_BYTES {
         return failed(Some(work), StatusCode::PAYLOAD_TOO_LARGE, form, too_large()).await;
     }
-    // Vorhandener Name → neue Fassung dieses Bilds.
+    // Existing name → new revision of this image.
     let existing = !form.name.is_empty()
         && state.store.asset_list(work).await.is_ok_and(|list| list.iter().any(|a| a.name == form.name));
     let result = {
@@ -1029,7 +1029,7 @@ async fn upload(
     }
 }
 
-/// Typst-String-Literal (`"…"`, `\` und `"` maskiert, Zeilenumbrüche als `\n`).
+/// Typst string literal (`"…"`, `\` and `"` escaped, line breaks as `\n`).
 fn typst_string(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -1046,8 +1046,8 @@ fn typst_string(text: &str) -> String {
     out
 }
 
-/// Text als Typst-Markup in `[...]`: jedes Zeichen mit Sonderbedeutung bekommt `\`, Zeilenumbrüche
-/// werden Leerzeichen (eine Bildunterschrift ist eine Zeile).
+/// Text as Typst markup in `[...]`: every character with special meaning gets `\`, line breaks
+/// become spaces (a caption is one line).
 fn typst_markup(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.split(['\r', '\n']).collect::<Vec<_>>().join(" ").trim().chars() {
@@ -1062,7 +1062,7 @@ fn typst_markup(text: &str) -> String {
     out
 }
 
-/// Abbildung für den Abschnittstext: `#figure(image("<Pfad>"[, alt: "…"])[, caption: [...]])`.
+/// Figure for the section text: `#figure(image("<path>"[, alt: "…"])[, caption: [...]])`.
 pub fn figure_source(path: &str, caption: &str, alt: &str) -> String {
     let mut image = format!("image({}", typst_string(path));
     if !alt.trim().is_empty() {
@@ -1077,36 +1077,36 @@ pub fn figure_source(path: &str, caption: &str, alt: &str) -> String {
     }
 }
 
-/// Formular „Bild einfügen“ aus dem Editor (Runde 11; Stelle und ungespeicherter Text seit Runde 18c).
+/// Form „Bild einfügen“ from the editor (Round 11; place and unsaved text since Round 18c).
 #[derive(Debug, Default, Deserialize)]
 struct InsertForm {
     work: Option<String>,
     key: Option<String>,
-    /// Fassung, auf der die neue aufbaut (die gezeigte).
+    /// Revision the new one builds on (the one shown).
     rev: Option<String>,
     name: Option<String>,
     caption: Option<String>,
-    /// Stelle: `end` (Vorgabe), `start`, `block:<n>`, `offset:<n>` ([`Place`]).
+    /// Place: `end` (default), `start`, `block:<n>`, `offset:<n>` ([`Place`]).
     place: Option<String>,
-    /// Vollständiger, noch nicht gespeicherter Text des Editors (Runde 18c); dann gilt die Stelle darin.
+    /// Complete, not yet saved text of the editor (Round 18c); then the place applies within it.
     body: Option<String>,
 }
 
-/// Stelle, an der „Bild einfügen“ die Abbildung als eigenen Block einsetzt (Runde 18c).
+/// Place where „Bild einfügen“ inserts the figure as its own block (Round 18c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Place {
-    /// Am Ende des Abschnitts (wie seit Runde 11).
+    /// At the end of the section (as since Round 11).
     End,
-    /// Am Anfang, direkt unter der Überschrift des Abschnitts.
+    /// At the start, directly below the heading of the section.
     Start,
-    /// Vor dem obersten Block `n` (Zählung von `baruch_wysiwyg::parse`); `n` ≥ Blockzahl = Ende.
+    /// Before the top-level block `n` (counted by `baruch_wysiwyg::parse`); `n` ≥ block count = end.
     Block(usize),
-    /// UTF-16-Stelle im Text (wie `selectionStart` im Browser); eingefügt an der nächsten Zeilengrenze ≥ `n`.
+    /// UTF-16 position in the text (like `selectionStart` in the browser); inserted at the next line boundary ≥ `n`.
     Offset(usize),
 }
 
 impl Place {
-    /// `end` | `start` | `block:<n>` | `offset:<n>`; leer = `end`.
+    /// `end` | `start` | `block:<n>` | `offset:<n>`; empty = `end`.
     pub fn parse(value: Option<&str>) -> Option<Place> {
         let value = value.map(str::trim).unwrap_or("");
         match value {
@@ -1125,7 +1125,7 @@ impl Place {
     }
 }
 
-/// Ist der Block der Kopf eines Abschnitts (Überschrift, Teil, Punkt ohne Nummer)?
+/// Is the block the head of a section (heading, part, unnumbered item)?
 fn is_title(block: &baruch_wysiwyg::Block) -> bool {
     matches!(
         block.kind,
@@ -1135,7 +1135,7 @@ fn is_title(block: &baruch_wysiwyg::Block) -> bool {
     )
 }
 
-/// Byte-Stelle zu einer UTF-16-Stelle (gekürzt auf das Textende; mitten in einem Zeichen → dahinter).
+/// Byte position for a UTF-16 position (clamped to the end of the text; inside a character → after it).
 fn byte_of_utf16(text: &str, units: usize) -> usize {
     let mut seen = 0;
     for (at, c) in text.char_indices() {
@@ -1147,9 +1147,9 @@ fn byte_of_utf16(text: &str, units: usize) -> usize {
     text.len()
 }
 
-/// Offene Klammern (`[`, `(`, `{`) am Ende von `text` (Runde 21c): mit `\` maskierte Zeichen, Rohtext in
-/// Backticks und Zeichenketten in Code-Klammern (`(`/`{`) zählen nicht. Grob wie Typst, genug, um zu erkennen, ob
-/// eine Zeilengrenze mitten in einem mehrzeiligen Inline-Konstrukt (`#footnote[eins⏎zwei]`, `#link(…)[…]`) liegt.
+/// Open brackets (`[`, `(`, `{`) at the end of `text` (Round 21c): characters escaped with `\`, raw text in
+/// backticks and strings in code brackets (`(`/`{`) do not count. Roughly like Typst, enough to tell whether
+/// a line boundary lies inside a multi-line inline construct (`#footnote[eins⏎zwei]`, `#link(…)[…]`).
 fn open_brackets(text: &str) -> usize {
     let mut stack: Vec<char> = Vec::new();
     let mut chars = text.chars();
@@ -1187,17 +1187,17 @@ fn open_brackets(text: &str) -> usize {
     stack.len()
 }
 
-/// Text mit der Abbildung `figure` als eigenem Block an der Stelle `place` (rein, scheitert nie).
+/// Text with the figure `figure` as its own block at the place `place` (pure, never fails).
 ///
-/// - Nie vor oder in die Überschrift des Abschnitts (der erste Block, wenn er Überschrift, Teil oder Punkt ohne
-///   Nummer ist): Stellen davor rücken direkt dahinter.
-/// - `Offset`: an der nächsten Zeilengrenze ≥ der Stelle; liegt sie mitten in einem Block, der kein Absatz ist
-///   (Insel, Szene, Zitat, Liste …), hinter diesen Block – so bleibt Typst-Code ganz. Seit Runde 21c auch in einem
-///   Absatz: liegt die Zeilengrenze in einem offenen mehrzeiligen Inline-Konstrukt (`#footnote[eins⏎zwei]`,
-///   `#link(…)[…]`, [`open_brackets`]), rückt die Abbildung an die nächste Zeilengrenze, an der alle Klammern
-///   geschlossen sind, sonst hinter den Absatz.
-/// - Davor eine Leerzeile (sonst gehörte die Abbildung zum Absatz davor), dahinter eine; am Ende wie seit Runde 11
-///   `Text ohne Leerraum am Ende + "\n\n" + Abbildung + "\n"`.
+/// - Never before or inside the heading of the section (the first block if it is a heading, part or unnumbered
+///   item): places before it move directly behind it.
+/// - `Offset`: at the next line boundary ≥ the position; if it lies inside a block that is not a paragraph
+///   (island, scene, quote, list …), behind that block – so Typst code stays whole. Since Round 21c also in a
+///   paragraph: if the line boundary lies in an open multi-line inline construct (`#footnote[eins⏎zwei]`,
+///   `#link(…)[…]`, [`open_brackets`]), the figure moves to the next line boundary at which all brackets are
+///   closed, otherwise behind the paragraph.
+/// - An empty line before it (otherwise the figure would belong to the paragraph before), one after it; at the end
+///   as since Round 11 `text without trailing whitespace + "\n\n" + figure + "\n"`.
 pub fn insert_figure_at(text: &str, place: Place, figure: &str) -> String {
     let blocks = baruch_wysiwyg::parse(text).blocks;
     let mut starts = Vec::with_capacity(blocks.len() + 1);
@@ -1224,8 +1224,8 @@ pub fn insert_figure_at(text: &str, place: Place, figure: &str) -> String {
                 if !matches!(blocks[k].kind, baruch_wysiwyg::BlockKind::Paragraph { .. }) {
                     line = starts[k + 1];
                 } else if open_brackets(&text[starts[k]..line]) > 0 {
-                    // Mitten in einem mehrzeiligen Inline-Konstrukt: die nächste Zeilengrenze im Absatz, an der
-                    // alle Klammern zu sind, sonst das Ende des Absatzes.
+                    // Inside a multi-line inline construct: the next line boundary in the paragraph at which
+                    // all brackets are closed, otherwise the end of the paragraph.
                     let end = starts[k + 1].min(text.len());
                     let mut next = end;
                     let mut at = line;
@@ -1240,7 +1240,7 @@ pub fn insert_figure_at(text: &str, place: Place, figure: &str) -> String {
                     line = next;
                 }
             }
-            // Leerzeilen hinter einem Block gehören zu ihm: über sie hinweg an den Anfang des nächsten Blocks.
+            // Empty lines after a block belong to it: across them to the start of the next block.
             while line < text.len() {
                 let end = text[line..].find('\n').map_or(text.len(), |k| line + k + 1);
                 if !text[line..end].trim().is_empty() {
@@ -1266,7 +1266,7 @@ pub fn insert_figure_at(text: &str, place: Place, figure: &str) -> String {
     format!("{before}{gap}{figure}\n\n{after}")
 }
 
-/// Kurzer Auszug eines Blocks für die Auswahl der Stelle (erste nicht leere Zeile, höchstens 40 Zeichen).
+/// Short excerpt of a block for choosing the place (first non-empty line, at most 40 characters).
 fn excerpt(raw: &str) -> String {
     let line = raw.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
     let mut out: String = line.chars().take(40).collect();
@@ -1276,8 +1276,8 @@ fn excerpt(raw: &str) -> String {
     out
 }
 
-/// Stellen für das Formular „Bild einfügen“ ohne JavaScript (Runde 18c): `(Wert von place, Beschriftung)` –
-/// Ende, Anfang und „vor“ jedem obersten Block der Fassung nach der Überschrift.
+/// Places for the form „Bild einfügen“ without JavaScript (Round 18c): `(value of place, label)` –
+/// end, start and “before” every top-level block of the revision after the heading.
 pub fn image_places(body: &str) -> Vec<(String, String)> {
     let blocks = baruch_wysiwyg::parse(body).blocks;
     let mut out = vec![
@@ -1294,21 +1294,21 @@ pub fn image_places(body: &str) -> Vec<(String, String)> {
     out
 }
 
-/// Erste Zeile (Überschriftszeile) eines Abschnittstexts, ohne `\r`.
+/// First line (heading line) of a section text, without `\r`.
 fn heading_line(text: &str) -> &str {
     text.split('\n').next().unwrap_or("").trim_end_matches('\r')
 }
 
-/// `POST /werke/bilder/einfuegen` (Runde 11, hinter `guard::same_origin`; Stelle seit Runde 18c): `work`, `key`,
+/// `POST /werke/bilder/einfuegen` (Round 11, behind `guard::same_origin`; place since Round 18c): `work`, `key`,
 /// `rev`, `name`, `caption?`, `place` (`end` | `start` | `block:<n>` | `offset:<n>`, [`Place`]), `body?`
-/// (vollständiger ungespeicherter Text des Editors; dann gilt die Stelle darin, und seine Überschriftszeile muss die
-/// der Fassung `rev` sein, sonst 422 „erst speichern“). Legt **als Mensch** eine neue Fassung auf `rev` an, die an
-/// der Stelle `#figure(image("<Pfad>"), caption: [...])` als eigenen Block trägt ([`insert_figure_at`];
-/// Unterschrift leer → die des Bilds, Alternativtext des Bilds als `alt:`). Hat das Bild keinen Pfad, bekommt es
-/// `bilder/<name>` – in **derselben Transaktion** wie die Fassung
-/// ([`baruch_store::Store::save_human_with_asset_path`]): scheitert das Speichern, bleibt kein Pfad. **Ein**
-/// Spiegel-Commit (der Schnappschuss enthält auch den Pfad). Erfolg → 303 zum Abschnitt; Fehler → 422 (Eingabe)
-/// bzw. 409 (abgelehnt) als Text.
+/// (complete unsaved text of the editor; then the place applies within it, and its heading line must be that
+/// of the revision `rev`, otherwise 422 „erst speichern“). Creates **as the human** a new revision on `rev` that
+/// carries `#figure(image("<path>"), caption: [...])` as its own block at the place ([`insert_figure_at`];
+/// empty caption → that of the image, alternative text of the image as `alt:`). If the image has no path, it gets
+/// `bilder/<name>` – in the **same transaction** as the revision
+/// ([`baruch_store::Store::save_human_with_asset_path`]): if saving fails, no path remains. **One**
+/// mirror commit (the snapshot also contains the path). Success → 303 to the section; error → 422 (input)
+/// or 409 (refused) as text.
 async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>) -> Response {
     let number = |v: &Option<String>| v.as_deref().and_then(|v| v.trim().parse::<i64>().ok());
     let (Some(work), Some(key), Some(rev)) = (number(&form.work), number(&form.key), number(&form.rev)) else {
@@ -1329,7 +1329,7 @@ async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>
     if name.is_empty() {
         return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Bild wählen.").into_response();
     }
-    // Formulare schicken Zeilenumbrüche als CRLF; die Stelle (UTF-16) zählt im Text des Browsers mit LF.
+    // Forms send line breaks as CRLF; the position (UTF-16) counts in the browser's text with LF.
     let unsaved = form.body.as_deref().map(|b| b.replace("\r\n", "\n"));
     let result: Result<i64, RpcError> = async {
         let held = state.write_lock.lock().await;
@@ -1358,7 +1358,7 @@ async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>
             Some(body) => body.as_str(),
             None => base.body.as_str(),
         };
-        // Der Pfad, den das Bild hat oder bekommt; vergeben wird er erst zusammen mit der Fassung.
+        // The path the image has or gets; it is assigned only together with the revision.
         let path = asset.paths.first().cloned().unwrap_or_else(|| format!("bilder/{}", asset.name));
         let caption = form.caption.as_deref().map(str::trim).filter(|c| !c.is_empty()).unwrap_or(&asset.caption);
         let figure = figure_source(&path, caption, &asset.alt);
@@ -1377,8 +1377,8 @@ async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>
     }
 }
 
-/// Formular ohne JavaScript: `action` = `set_current`, `update`, `delete` (eine Fassung) oder
-/// `remove` (das ganze Bild); Löschen nur mit dem Kästchen `confirm`.
+/// Form without JavaScript: `action` = `set_current`, `update`, `delete` (one revision) or
+/// `remove` (the whole image); deleting only with the checkbox `confirm`.
 #[derive(Debug, Default, Deserialize)]
 struct ActForm {
     action: String,
@@ -1390,7 +1390,7 @@ struct ActForm {
     paths: Option<String>,
     note: Option<String>,
     confirm: Option<String>,
-    /// Runde 21c (`resolve_path`): der Pfad in Normalform, dessen Kollision aufgelöst wird.
+    /// Round 21c (`resolve_path`): the path in normal form whose collision is resolved.
     normal: Option<String>,
 }
 
@@ -1401,7 +1401,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     };
     let name = form.name.as_deref().map(str::trim).unwrap_or("").to_owned();
     if form.action == "resolve_path" {
-        // Runde 21c: Altbestand – der Mensch wählt das Bild, das den Pfad behält (ein Spiegel-Commit).
+        // Round 21c: legacy data – the human picks the image that keeps the path (one mirror commit).
         let normal = form.normal.as_deref().map(str::trim).unwrap_or("");
         let result = if normal.is_empty() || name.is_empty() {
             Err(RpcError::new(INVALID_PARAMS, "Pfad und Bild wählen."))
@@ -1536,8 +1536,8 @@ mod tests {
             "eine Stelle hinter dem Text: am Ende"
         );
         assert_eq!(Place::parse(Some("block:3")), Some(Place::Block(3)), "block:<n>");
-        // Runde 21c: Eine Stelle in einer mehrzeiligen Fußnote eines Absatzes setzt die Abbildung hinter das
-        // Konstrukt, nicht hinein (sonst stünde #figure in der Fußnote).
+        // Round 21c: a position in a multi-line footnote of a paragraph puts the figure behind the
+        // construct, not into it (otherwise #figure would sit in the footnote).
         let note = "= Hof\n\nAnna fegt#footnote[eins\nzwei] den Hof.\nDer Hund schläft.\n\nDer Abend kommt.\n";
         let in_note = "= Hof\n\nAnna fegt#footnote[ei".encode_utf16().count();
         assert_eq!(

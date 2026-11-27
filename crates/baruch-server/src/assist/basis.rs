@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Prüfgrundlage eines Auftrags (Runde 30b, chat-loesungen): welche Fassung alle Personas eines Aufrufs bzw. RFC
-//! prüfen (`basis` = `shown` | `current` | `<n>`) und die Kopfzeile des Beitrags („geprüft: aktuelle Fassung n“ bzw.
-//! „geprüft: Fassung n (Vorschlag von @x)“). Die Kopfzeile stammt aus dem Aufruf, nie vom Modell; sie landet in
-//! `PostMeta::basis_label`.
+//! Review basis of a request (Round 30b, chat-loesungen): which revision all personas of a call or RFC
+//! review (`basis` = `shown` | `current` | `<n>`) and the header line of the post („geprüft: aktuelle Fassung n“ or
+//! „geprüft: Fassung n (Vorschlag von @x)“). The header line comes from the call, never from the model; it ends up
+//! in `PostMeta::basis_label`.
 //!
-//! Regel „nur Überschrift“ (Nutzer 2026-11-09, Befund key 126): Ist die Fassung, die „gezeigt“ meint, die aktuelle und
-//! enthält sie nur die Überschrift, während ein Vorschlag mit Text vorliegt, prüfen alle Personas den neuesten solchen
-//! Vorschlag – sonst meldete der Lektor „Abschnitt leer“, während die anderen den Vorschlag prüften. Wählt der Mensch
-//! ausdrücklich die aktuelle Fassung (`current` bzw. ihre Nummer), bleibt es bei ihr; die Kopfzeile trägt dann den
-//! Hinweis „aktuelle Fassung enthält nur die Überschrift – Vorschlag n prüfen?“.
+//! Rule “heading only” (user 2026-11-09, finding key 126): if the revision that “shown” means is the current one and
+//! contains only the heading while a proposal with text exists, all personas review the newest such
+//! proposal – otherwise the Lektor would report “section empty” while the others reviewed the proposal. If the human
+//! explicitly picks the current revision (`current` or its number), it stays; the header line then carries the
+//! note „aktuelle Fassung enthält nur die Überschrift – Vorschlag n prüfen?“.
 
 use baruch_core::{Author, Node, RevisionStatus};
 use baruch_store::{StoreError, WorkId};
@@ -16,20 +16,20 @@ use baruch_store::{StoreError, WorkId};
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
-/// Gewünschte Prüfgrundlage.
+/// Requested review basis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BasisChoice {
-    /// Die gezeigte Fassung (ohne Angabe die aktuelle).
+    /// The revision shown (without a value the current one).
     #[default]
     Shown,
-    /// Die aktuelle Fassung.
+    /// The current revision.
     Current,
-    /// Fassung n.
+    /// Revision n.
     Rev(u32),
 }
 
 impl BasisChoice {
-    /// `shown` | `current` | Ziffern (ab 1); sonst `None`.
+    /// `shown` | `current` | digits (from 1); otherwise `None`.
     pub fn parse(s: &str) -> Option<BasisChoice> {
         match s.trim() {
             "shown" => Some(BasisChoice::Shown),
@@ -41,8 +41,8 @@ impl BasisChoice {
         }
     }
 
-    /// Parameter `basis` aus RPC bzw. Formular: fehlt oder leer → `Shown`, Text nach [`BasisChoice::parse`], Zahl ab 1
-    /// → `Rev`; sonst -32602.
+    /// Parameter `basis` from RPC or form: missing or empty → `Shown`, text per [`BasisChoice::parse`], number from 1
+    /// → `Rev`; otherwise -32602.
     pub fn from_param(params: &serde_json::Value) -> Result<BasisChoice, RpcError> {
         let wrong = |shown: &str| {
             RpcError::new(
@@ -65,7 +65,7 @@ impl BasisChoice {
     }
 }
 
-/// Gewählte Prüfgrundlage: Fassung, Kopfzeile, ist sie ein Vorschlag?
+/// Chosen review basis: revision, header line, is it a proposal?
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Basis {
     pub rev: u32,
@@ -73,7 +73,7 @@ pub struct Basis {
     pub proposal: bool,
 }
 
-/// Enthält der Text nur eine Überschrift (oder gar nichts)?
+/// Does the text contain only a heading (or nothing at all)?
 pub fn heading_only(body: &str) -> bool {
     let mut lines = body.lines().filter(|l| !l.trim().is_empty());
     match lines.next() {
@@ -82,7 +82,7 @@ pub fn heading_only(body: &str) -> bool {
     }
 }
 
-/// Neuester offener Vorschlag des Abschnitts mit Text über die Überschrift hinaus.
+/// Newest open proposal of the section with text beyond the heading.
 fn proposal_with_text(node: &Node) -> Option<u32> {
     node.revisions
         .iter()
@@ -91,7 +91,7 @@ fn proposal_with_text(node: &Node) -> Option<u32> {
         .max()
 }
 
-/// Kopfzeile zu Fassung `rev` des Abschnitts.
+/// Header line for revision `rev` of the section.
 fn label_of(node: &Node, rev: u32) -> (String, bool) {
     let Some(revision) = node.revision(rev) else { return (format!("geprüft: Fassung {rev}"), false) };
     let proposal = revision.status == RevisionStatus::Proposed;
@@ -104,9 +104,9 @@ fn label_of(node: &Node, rev: u32) -> (String, bool) {
     (label, proposal)
 }
 
-/// Prüfgrundlage wählen: `Shown` → gezeigte (`shown`) bzw. aktuelle Fassung, `Current` → aktuelle, `Rev(n)` → n;
-/// dazu die Regel „nur Überschrift“ (Moduldoku). Unbekannte Fassung → `UnknownRevision` (INVALID_PARAMS); ein
-/// Abschnitt ohne Fassung → REFUSED.
+/// Choose the review basis: `Shown` → shown (`shown`) or current revision, `Current` → current, `Rev(n)` → n;
+/// plus the rule “heading only” (module doc). Unknown revision → `UnknownRevision` (INVALID_PARAMS); a
+/// section without a revision → REFUSED.
 pub async fn choose(
     state: &AppState,
     work: WorkId,
@@ -120,9 +120,9 @@ pub async fn choose(
     choose_in(node, seq, shown, choice)
 }
 
-/// Grundlage eines **Vorschlags** (Runde 36): die Fassung `rev`, auf der er beruht – ohne die Wahlregeln von
-/// [`choose`] (ein Vorschlag beruht genau auf der Fassung, die die Persona gesehen hat). Die Kopfzeile beginnt mit
-/// „Grundlage:“ statt „geprüft:“, sonst wie [`choose`] sie schreibt („Grundlage: aktuelle Fassung 2“, „Grundlage:
+/// Basis of a **proposal** (Round 36): the revision `rev` it is based on – without the choice rules of
+/// [`choose`] (a proposal is based exactly on the revision the persona saw). The header line starts with
+/// „Grundlage:“ instead of „geprüft:“, otherwise as [`choose`] writes it („Grundlage: aktuelle Fassung 2“, „Grundlage:
 /// Fassung 3 (Vorschlag von @lektor)“).
 pub async fn of_proposal(state: &AppState, work: WorkId, key: i64, rev: u32) -> Result<Basis, RpcError> {
     let seq = state.store.node_seq(work, key).await?;
@@ -132,7 +132,7 @@ pub async fn of_proposal(state: &AppState, work: WorkId, key: i64, rev: u32) -> 
     Ok(Basis { rev, label: label.replacen("geprüft:", "Grundlage:", 1), proposal })
 }
 
-/// [`choose`] auf einem schon geladenen Abschnitt (`seq` nur für die Fehlermeldung).
+/// [`choose`] on an already loaded section (`seq` only for the error message).
 pub fn choose_in(node: &Node, seq: usize, shown: Option<u32>, choice: BasisChoice) -> Result<Basis, RpcError> {
     let current = node.current_number().or_else(|| node.revisions.iter().map(|r| r.number).max());
     let wanted = match choice {
@@ -151,7 +151,7 @@ pub fn choose_in(node: &Node, seq: usize, shown: Option<u32>, choice: BasisChoic
     let hint = if is_current && heading_only(&revision.body) { proposal_with_text(node) } else { None };
     let mut note = String::new();
     match (choice, hint) {
-        // „gezeigt“ meint die aktuelle Fassung, die nur die Überschrift hat: den Vorschlag mit Text prüfen.
+        // “shown” means the current revision, which has only the heading: review the proposal with text.
         (BasisChoice::Shown, Some(proposal)) => wanted = proposal,
         (_, Some(proposal)) => {
             note = format!(" (aktuelle Fassung enthält nur die Überschrift – Vorschlag {proposal} prüfen?)");

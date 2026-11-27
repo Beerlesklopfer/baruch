@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Befunde für die Arbeitsseite (Runde 28, befund-uebersicht): offene Befunde je Abschnitt (Abzeichen in Gliederung
-//! und Editorkopf, aufsummiert für Kapitel und Teile), die Befunde für das Akkordeon „Befunde“ und den Fassungsbaum
+//! Findings for the work page (Round 28, befund-uebersicht): open findings per section (badges in outline
+//! and editor head, summed up for chapters and parts), the findings for the accordion „Befunde“ and the revision tree
 //! („setzt Befund x, y um“).
 //!
-//! Zählregel (Vertrag R28 §1.5): offen = `status 'open'`, nicht angehängt, kein Lob, mit Abschnitt – genau
-//! [`baruch_store::Store::finding_open_counts`]. Summen über Unterpunkte bildet [`subtree_open`] aus diesen Zahlen,
-//! damit Gliederung, Editorkopf, Seite `/werke/<id>/befunde` und `finding.matrix` dieselben Zahlen zeigen.
+//! Counting rule (contract R28 §1.5): open = `status 'open'`, not attached, no praise, with section – exactly
+//! [`baruch_store::Store::finding_open_counts`]. Sums over sub-items are built by [`subtree_open`] from these
+//! numbers so that outline, editor head, page `/werke/<id>/befunde` and `finding.matrix` show the same numbers.
 //!
-//! Die Karten ([`card`]) sind das gemeinsame Bild eines Befunds für Seite und Akkordeon: die Felder von
-//! [`super::finding_json`] und dazu Zeichen, Abschnitt, Zeit, angehängte Befunde, Ursprünge eines Sammelvorschlags
-//! und der offene Vorschlag in Worten.
+//! The cards ([`card`]) are the shared picture of a finding for page and accordion: the fields of
+//! [`super::finding_json`] plus signs, section, time, attached findings, origins of a collective proposal
+//! and the open proposal in words.
 
 use std::collections::HashMap;
 
@@ -21,27 +21,27 @@ use super::{DeferTarget, Finding, FindingKind, FindingStatus, FindingStatusEntry
 use crate::AppState;
 use crate::rpc::RpcError;
 
-/// Höchstens so viele Befunde lädt die Arbeitsseite (Obergrenze von [`baruch_store::FindingFilter::limit`]).
+/// At most this many findings the work page loads (upper limit of [`baruch_store::FindingFilter::limit`]).
 pub const VIEW_LIMIT: u32 = 2000;
 
-/// Was die Arbeitsseite über Befunde zeigt.
+/// What the work page shows about findings.
 #[derive(Debug, Clone, Default)]
 pub struct FindingsView {
-    /// `node.id` → offene Befunde nach Vertrag §1.5 (nur der Abschnitt selbst).
+    /// `node.id` → open findings per contract §1.5 (only the section itself).
     pub open_by_key: HashMap<i64, usize>,
-    /// Alle Befunde des Werks samt Lob und angehängten (höchstens [`VIEW_LIMIT`]), älteste zuerst.
+    /// All findings of the work with praise and attached ones (at most [`VIEW_LIMIT`]), oldest first.
     pub findings: Vec<Finding>,
-    /// `node.id` → je Fassungsnummer die übernommenen Befunde ([`baruch_store::Store::findings_adopted_in`]).
+    /// `node.id` → per revision number the adopted findings ([`baruch_store::Store::findings_adopted_in`]).
     pub adopted: HashMap<i64, Vec<(u32, Vec<i64>)>>,
 }
 
 impl FindingsView {
-    /// Befunde eines Abschnitts (alle, auch Lob und angehängte), älteste zuerst.
+    /// Findings of a section (all, also praise and attached ones), oldest first.
     pub fn of_key(&self, key: i64) -> impl Iterator<Item = &Finding> {
         self.findings.iter().filter(move |f| f.key == Some(key))
     }
 
-    /// Übernommene Befunde der Fassung `rev` im Abschnitt `key` (ids aufsteigend).
+    /// Adopted findings of the revision `rev` in the section `key` (ids ascending).
     pub fn adopted_in(&self, key: i64, rev: u32) -> Vec<i64> {
         self.adopted
             .get(&key)
@@ -50,7 +50,7 @@ impl FindingsView {
             .unwrap_or_default()
     }
 
-    /// Befunde mit offenem Vorschlag „übernommen in Fassung `rev`“ im Abschnitt `key`.
+    /// Findings with an open proposal „übernommen in Fassung `rev`“ in the section `key`.
     pub fn proposed_for(&self, key: i64, rev: u32) -> Vec<i64> {
         self.of_key(key)
             .filter(|f| {
@@ -61,8 +61,8 @@ impl FindingsView {
     }
 }
 
-/// Befunde des Werks für die Arbeitsseite laden: offene je Abschnitt, alle Befunde (für Akkordeon und
-/// Fassungsbaum) und die Fassungen, in die Befunde eingeflossen sind.
+/// Load the findings of the work for the work page: open ones per section, all findings (for accordion and
+/// revision tree) and the revisions that findings flowed into.
 pub async fn load(state: &AppState, work: WorkId) -> Result<FindingsView, RpcError> {
     let open_by_key = state.store.finding_open_counts(work).await?;
     let filter =
@@ -82,11 +82,11 @@ pub async fn load(state: &AppState, work: WorkId) -> Result<FindingsView, RpcErr
     Ok(FindingsView { open_by_key, findings, adopted })
 }
 
-/// Offene Befunde je Stelle (`Node::id`, Baumreihenfolge) samt aller Unterpunkte: ein Kapitel zählt seine
-/// Abschnitte mit, ein Teil seine Kapitel. Grundlage ist allein `open_by_key` (Zählregel §1.5).
+/// Open findings per position (`Node::id`, tree order) including all sub-items: a chapter counts its
+/// sections too, a part its chapters. The only basis is `open_by_key` (counting rule §1.5).
 pub fn subtree_open(work: &Work, open_by_key: &HashMap<i64, usize>) -> Vec<usize> {
     let mut sums: Vec<usize> = work.nodes.iter().map(|n| open_by_key.get(&n.key).copied().unwrap_or(0)).collect();
-    // Knoten stehen in Baumreihenfolge (das Elternteil vor dem Kind): rückwärts aufsummieren.
+    // Nodes are in tree order (the parent before the child): sum up backwards.
     for node in work.nodes.iter().rev() {
         if let Some(parent) = node.parent.filter(|&p| p < node.id && p < sums.len()) {
             sums[parent] += sums[node.id];
@@ -95,7 +95,7 @@ pub fn subtree_open(work: &Work, open_by_key: &HashMap<i64, usize>) -> Vec<usize
     sums
 }
 
-/// Zeichen je Status (Anzeige nicht nur über Farbe): offen ○, übernommen ✓, verworfen ✗, verschoben →, erledigt =.
+/// Sign per status (display not only by colour): open ○, adopted ✓, rejected ✗, postponed →, resolved =.
 pub fn status_sign(status: FindingStatus) -> &'static str {
     match status {
         FindingStatus::Open => "○",
@@ -106,7 +106,7 @@ pub fn status_sign(status: FindingStatus) -> &'static str {
     }
 }
 
-/// Zeichen je Art: Lob +, Hinweis i, kritisch !.
+/// Sign per kind: praise +, note i, critical !.
 pub fn kind_sign(kind: FindingKind) -> &'static str {
     match kind {
         FindingKind::Praise => "+",
@@ -115,19 +115,19 @@ pub fn kind_sign(kind: FindingKind) -> &'static str {
     }
 }
 
-/// Verweis im Text: „[B<id>]“ (Vertrag §1.7).
+/// Reference in the text: „[B<id>]“ (contract §1.7).
 pub fn reference(id: i64) -> String {
     format!("[B{id}]")
 }
 
-/// „Nummer Titel“ eines Abschnitts (ohne Titel „(ohne Titel)“).
+/// “Number title” of a section (without a title „(ohne Titel)“).
 pub fn node_label(work: &Work, key: i64) -> Option<String> {
     let node = work.nodes.iter().find(|n| n.key == key)?;
     let title = if node.title.is_empty() { "(ohne Titel)" } else { node.title.as_str() };
     Some(if node.number.is_empty() { title.to_owned() } else { format!("{} {title}", node.number) })
 }
 
-/// Wer etwas getan hat, lesbar: „Autor“, „@lektor“, „@mcp:probe (MCP)“.
+/// Who did something, readable: „Autor“, „@lektor“, „@mcp:probe (MCP)“.
 pub fn actor_label(actor: &IdeaOrigin) -> String {
     match actor {
         IdeaOrigin::Human { name } => name.clone(),
@@ -136,7 +136,7 @@ pub fn actor_label(actor: &IdeaOrigin) -> String {
     }
 }
 
-/// Ein Status in Worten samt Ziel: „übernommen in Fassung 3“, „verschoben nach 2.1 Weg“, „verschoben in Einfall 7“.
+/// A status in words with target: „übernommen in Fassung 3“, „verschoben nach 2.1 Weg“, „verschoben in Einfall 7“.
 pub fn status_words(
     work: &Work,
     status: FindingStatus,
@@ -147,7 +147,7 @@ pub fn status_words(
     status_words_amend(work, status, rev, None, deferred, deferred_uuid)
 }
 
-/// Wie [`status_words`], mit dem Stand der Fortschreibung (Runde 22): „übernommen in Fassung 3 · Stand 2“ (nur k > 0,
+/// Like [`status_words`], with the continuation state (Round 22): „übernommen in Fassung 3 · Stand 2“ (only k > 0,
 /// [`baruch_store::findings::adopted_words`]).
 pub fn status_words_amend(
     work: &Work,
@@ -175,7 +175,7 @@ pub fn status_words_amend(
     }
 }
 
-/// Ein Eintrag im Verlauf bzw. ein offener Vorschlag in Worten.
+/// An entry in the history or an open proposal in words.
 pub fn entry_json(work: &Work, entry: &FindingStatusEntry) -> Value {
     let words = status_words_amend(
         work,
@@ -191,7 +191,7 @@ pub fn entry_json(work: &Work, entry: &FindingStatusEntry) -> Value {
     value["status_sign"] = json!(status_sign(entry.status));
     value["actor_label"] = json!(actor_label(&entry.actor));
     value["time"] = json!(crate::localtime::minutes(&entry.created));
-    // Runde 22: Rückfrage einer Persona „Befund n scheint erledigt?“ (offener Vorschlag „erledigt“ eines Assistenten).
+    // Round 22: query of a persona „Befund n scheint erledigt?“ (open proposal „erledigt“ of an assistant).
     value["question"] = json!(entry.proposed && entry.decision.is_none() && entry.status == FindingStatus::Done);
     value["decision_label"] = json!(match entry.decision.as_deref() {
         Some("confirmed") => "bestätigt",
@@ -202,7 +202,7 @@ pub fn entry_json(work: &Work, entry: &FindingStatusEntry) -> Value {
     value
 }
 
-/// Fassungen eines Abschnitts zur Auswahl „übernommen in Fassung …“: `{number, label, current}`, neueste zuerst.
+/// Revisions of a section for the selection „übernommen in Fassung …“: `{number, label, current}`, newest first.
 pub fn revision_choices(work: &Work, key: i64) -> Vec<Value> {
     let Some(node) = work.nodes.iter().find(|n| n.key == key) else { return Vec::new() };
     let mut out: Vec<Value> = node
@@ -223,13 +223,13 @@ pub fn revision_choices(work: &Work, key: i64) -> Vec<Value> {
     out
 }
 
-/// Zusatz am Status eines offenen Sammelbefunds, dessen Ursprünge alle entschieden sind (Runde 23a).
+/// Addition to the status of an open collective finding whose origins are all decided (Round 23a).
 pub const STALE_SUMMARY_WORDS: &str = "veraltet (alle Ursprünge entschieden)";
 
-/// Bild eines Befunds für Seite und Akkordeon: [`finding_json`] und dazu `ref` („[B<id>]“), `status_sign`,
-/// `kind_sign`, `status_words`, `node_label`, `node_url`, `post_url`, `time`, `attached` (angehängte Befunde, eine
-/// Ebene), `summary` (Ursprünge eines Sammelvorschlags: `{id, ref, url, persona, label}` bzw. `{uuid, missing}`),
-/// `pending_json` (offener Vorschlag in Worten) und `revisions` (Auswahl für „übernommen“).
+/// Picture of a finding for page and accordion: [`finding_json`] plus `ref` („[B<id>]“), `status_sign`,
+/// `kind_sign`, `status_words`, `node_label`, `node_url`, `post_url`, `time`, `attached` (attached findings, one
+/// level), `summary` (origins of a collective proposal: `{id, ref, url, persona, label}` or `{uuid, missing}`),
+/// `pending_json` (open proposal in words) and `revisions` (selection for “adopted”).
 pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) -> Value {
     let mut value = finding_json(work_id, finding);
     value["ref"] = json!(reference(finding.id));
@@ -243,15 +243,15 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
         finding.deferred.as_ref(),
         finding.deferred_uuid.as_deref()
     ));
-    // Runde 23a (PM-Entscheidung): Ein offener Sammelbefund, dessen Ursprünge alle entschieden sind, ist „veraltet“.
+    // Round 23a (PM decision): an open collective finding whose origins are all decided is “stale”.
     if finding.stale_summary {
         value["status_words"] = json!(format!("{} · {STALE_SUMMARY_WORDS}", finding.status.label()));
     }
     value["time"] = json!(crate::localtime::minutes(&finding.created));
     value["node_label"] = json!(finding.key.and_then(|k| node_label(work, k)));
     value["node_url"] = json!(finding.key.map(|k| crate::view::node_url(work_id, k, None, false, "", "")));
-    // Anspringen (Nachbesserung 0.9.0): Das Zitat führt an die Stelle im Abschnitt (Sprung-Adresse mit `find`,
-    // markiert im Satzbild bzw. Quelltext, siehe `xref::jump_url`); ohne Zitat führt „zur Stelle“ zum Abschnitt.
+    // Jumping (rework 0.9.0): the quotation leads to the position in the section (jump address with `find`, marked
+    // in the typeset view or source, see `xref::jump_url`); without a quotation „zur Stelle“ leads to the section.
     value["place_url"] = json!(finding.key.map(|key| {
         let find = Some(finding.quote.trim()).filter(|q| !q.is_empty()).map(str::to_string);
         crate::xref::jump_url(&crate::xref::JumpTarget { work: work_id, key, rev: None, find, at: None })
@@ -288,8 +288,8 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
     value["summary"] = json!(summary);
     value["pending_json"] = finding.pending.as_ref().map_or(Value::Null, |p| entry_json(work, p));
     value["revisions"] = json!(finding.key.map(|k| revision_choices(work, k)).unwrap_or_default());
-    // Runde 30b: Text als sicheres Markdown (chat_render), Lösungen mit „übernehmbar“ gegen die aktuelle Fassung des
-    // Abschnitts, Werk und Rücksprung für die Formulare im Befund-Block (finding_block).
+    // Round 30b: text as safe Markdown (chat_render), solutions with “adoptable” against the current revision of the
+    // section, work and way back for the forms in the finding block (finding_block).
     value["work"] = json!(work_id);
     value["body_html"] = json!(crate::chat_render::markdown_html(&finding.body));
     let current = finding
@@ -314,7 +314,7 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
     value
 }
 
-/// Text auf `max` Zeichen gekürzt (mit „…“).
+/// Text shortened to `max` characters (with „…“).
 pub fn short(text: &str, max: usize) -> String {
     let text = text.trim();
     if text.chars().count() <= max {
@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn subtree_sums_carry_every_section_up_to_its_chapter_and_part() {
         let work = keyed_sample();
-        // Ein Blatt mit Elternteil und dessen Elternteil suchen (Teil → Kapitel → Abschnitt).
+        // Look for a leaf with a parent and that one's parent (part → chapter → section).
         let leaf = work
             .nodes
             .iter()

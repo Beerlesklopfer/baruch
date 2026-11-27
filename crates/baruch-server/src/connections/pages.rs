@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellungsseiten „Verbindungen“ und „Quellen“: Inhalt für den Rahmen der Einstellungen
-//! ([`render_connections`], [`render_sources`], Vertrag Runde 9 §3) und ihre Formulare.
+//! Settings pages „Verbindungen“ and „Quellen“: content for the frame of the settings
+//! ([`render_connections`], [`render_sources`], contract Round 9 §3) and their forms.
 //!
-//! Die Formulare antworten immer mit 303 auf `/einstellungen/<seite>?ok=<code>` bzw.
-//! `?fehler=<code>[&kind=…]` (mit `&work=W`, Anker `#<kind>` bzw. `#quelle-<id>`). In der Adresse
-//! stehen nur feste Codes, nie Eingaben oder Geheimnisse; die Seite übersetzt sie in deutschen Text
-//! ([`notice_text`], [`error_text`]). So zeichnet der Rahmen der Einstellungen die Seite, mit und
-//! ohne JavaScript (im Dialog übernimmt `settings.ts` den Rahmen aus der Antwort).
+//! The forms always answer with 303 to `/einstellungen/<seite>?ok=<code>` or
+//! `?fehler=<code>[&kind=…]` (with `&work=W`, anchor `#<kind>` or `#quelle-<id>`). The address
+//! carries only fixed codes, never inputs or secrets; the page translates them into German text
+//! ([`notice_text`], [`error_text`]). This way the frame of the settings draws the page, with and
+//! without JavaScript (in the dialog `settings.ts` takes the frame from the response).
 //!
-//! Runde 12 (Aufgabe „pgvector“): Abschnitt `#rag` mit den Wegen des Werks, den Sammlungen je Remote-Weg
-//! (Kästchen aus der letzten Prüfung, wiederholtes Feld `collection`, dazu `collection_new`), dem
-//! „Status der Wege“ (`search_hooks::rag_status`) und „Index neu aufbauen“ (`rag.reindex` mit
-//! `confirm=1`, `search_hooks::rag_reindex`). Das Formular kommt als Liste von Paaren an
-//! (`Form<Vec<(String, String)>>`), weil `collection` mehrfach vorkommt.
+//! Round 12 (task “pgvector”): section `#rag` with the ways of the work, the collections per remote way
+//! (checkboxes from the last check, repeated field `collection`, plus `collection_new`), the
+//! „Status der Wege“ (`search_hooks::rag_status`) and „Index neu aufbauen“ (`rag.reindex` with
+//! `confirm=1`, `search_hooks::rag_reindex`). The form arrives as a list of pairs
+//! (`Form<Vec<(String, String)>>`) because `collection` occurs several times.
 
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -30,7 +30,7 @@ use serde_json::{Value, json};
 use super::{Fault, account, collections, config, describe, open_part, parse_kind, sources, usage_is_stub, usage_stub};
 use crate::AppState;
 
-/// Eigene Template-Umgebung (Autoescape für `.html`).
+/// Own template environment (autoescape for `.html`).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -52,7 +52,7 @@ fn render(name: &str, ctx: Value) -> Result<String, String> {
         .map_err(|e| format!("Vorlage {name}: {e}"))
 }
 
-/// Erfolgsmeldung zu `?ok=`; unbekannte Codes zeigen nichts.
+/// Success message for `?ok=`; unknown codes show nothing.
 pub fn notice_text(code: &str) -> Option<&'static str> {
     Some(match code {
         "gespeichert" => "Die Einstellungen sind gespeichert.",
@@ -78,7 +78,7 @@ pub fn notice_text(code: &str) -> Option<&'static str> {
     })
 }
 
-/// Fehlermeldung zu `?fehler=`; ein unbekannter Code ergibt eine allgemeine Meldung.
+/// Error message for `?fehler=`; an unknown code yields a general message.
 pub fn error_text(code: &str) -> &'static str {
     match code {
         "kind" => "Unbekannte Verbindung; nichts geändert.",
@@ -146,20 +146,20 @@ pub fn error_text(code: &str) -> &'static str {
     }
 }
 
-/// Meldungen aus der Abfrage für die Vorlage.
+/// Messages from the query for the template.
 fn messages(query: &BTreeMap<String, String>) -> (Option<&'static str>, Option<&'static str>) {
     let notice = query.get("ok").and_then(|code| notice_text(code).or_else(|| model_notice_text(code)));
     let error = query.get("fehler").map(|code| error_text(code));
     (notice, error)
 }
 
-/// Zeitpunkt `2026-11-06T09:30:12.345Z` (UTC) → `2026-11-06 10:30:12` in Ortszeit.
+/// Time `2026-11-06T09:30:12.345Z` (UTC) → `2026-11-06 10:30:12` in local time.
 fn shown_time(at: &str) -> String {
     crate::localtime::seconds(at)
 }
 
-/// Angaben einer Prüfung als Zeilen (Modelle, Werkzeuge, Versionen, Sammlungen, Index), gekürzt. Formen
-/// der Angaben nach Vertrag Runde 12 §5 (pgvector, MultiGPT, LanceDB).
+/// Details of a check as lines (models, tools, versions, collections, index), shortened. Forms
+/// of the details per contract Round 12 §5 (pgvector, MultiGPT, LanceDB).
 pub fn detail_lines(kind: ConnectionKind, details: &Value) -> Vec<String> {
     let list = |name: &str| -> Vec<String> {
         details
@@ -178,7 +178,7 @@ pub fn detail_lines(kind: ConnectionKind, details: &Value) -> Vec<String> {
     };
     let number = |name: &str| details.get(name).and_then(Value::as_u64);
     let text = |name: &str| details.get(name).and_then(Value::as_str).filter(|t| !t.is_empty());
-    // Gemeinsames Format der Sammlungen (pgvector, MultiGPT): [{name, count}].
+    // Shared format of the collections (pgvector, MultiGPT): [{name, count}].
     let collections = |unit: &str| -> Option<String> {
         let items: Vec<String> = collections::available_of(details)
             .iter()
@@ -284,9 +284,9 @@ pub fn detail_lines(kind: ConnectionKind, details: &Value) -> Vec<String> {
     lines
 }
 
-/// Eingabefelder je Art für die Vorlage: `{name, label, value, type, options?, hint?}`.
+/// Input fields per kind for the template: `{name, label, value, type, options?, hint?}`.
 fn form_fields(kind: ConnectionKind, config: &Value) -> Vec<Value> {
-    // Noch nicht gespeicherte Felder (Zuordnung von pgvector, Runde 12) zeigen ihre Vorgabe.
+    // Fields not yet stored (mapping of pgvector, Round 12) show their default.
     let config = &config::effective(kind, config);
     let value = |name: &str| match config.get(name) {
         Some(Value::String(s)) => s.clone(),
@@ -319,7 +319,7 @@ fn form_fields(kind: ConnectionKind, config: &Value) -> Vec<Value> {
                 "model_column" => {
                     ("Spalte Modell", "text", "leer = gibt es nicht; sonst prüft Baruch das Modell je Sammlung")
                 }
-                // Runde 19b: Aufgaben-Präfixe (Vorschlag für nomic-embed-text im Platzhalter und im Hinweis).
+                // Round 19b: task prefixes (suggestion for nomic-embed-text in the placeholder and in the hint).
                 "query_prefix" if kind == ConnectionKind::Pgvector => (
                     "Präfix der Anfrage",
                     "text",
@@ -364,11 +364,11 @@ fn form_fields(kind: ConnectionKind, config: &Value) -> Vec<Value> {
         .collect()
 }
 
-/// Modell, das der Kurztest vorschlägt, wenn Eliezer es kennt (Versuch 2026-11-06: alle Personas auf Gemma).
+/// Model the quick test suggests if Eliezer knows it (trial 2026-11-06: all personas on Gemma).
 const PROBE_DEFAULT: &str = "google/gemma-4-26b-a4b";
 
-/// Kurztest für Eliezer: Auswahl aus der Modellliste der letzten Prüfung und den Modellen der aktiven
-/// Personas (ohne Abfrage bei Eliezer – die Seite fragt nie selbst), dazu das letzte Ergebnis.
+/// Quick test for Eliezer: selection from the model list of the last check and the models of the active
+/// personas (without asking Eliezer – the page never asks itself), plus the last result.
 async fn probe_context(state: &AppState, row: &baruch_store::ConnectionRow) -> Result<Value, String> {
     let mut options: Vec<String> = row
         .check
@@ -398,8 +398,8 @@ async fn probe_context(state: &AppState, row: &baruch_store::ConnectionRow) -> R
     Ok(json!({ "options": options, "selected": selected, "listed": listed, "last": last }))
 }
 
-/// Seite „Verbindungen“ als Inhalt für den Rahmen der Einstellungen: je Verbindung Einstellungen,
-/// Zustand des Geheimnisses, letzte Prüfung und STUB-Hinweis; dazu die RAG-Wege des Werks.
+/// Page „Verbindungen“ as content for the frame of the settings: per connection settings,
+/// state of the secret, last check and STUB note; plus the RAG ways of the work.
 pub fn render_connections<'a>(
     state: &'a AppState,
     work: Option<WorkId>,
@@ -420,7 +420,7 @@ pub fn render_connections<'a>(
                 })
             });
             let probe = if row.kind == ConnectionKind::Eliezer { Some(probe_context(state, row).await?) } else { None };
-            // Runde 19b: Hinweis bei hinterlegtem Passwort und TLS prefer/disable (nur pgvector).
+            // Round 19b: note for a stored password and TLS prefer/disable (pgvector only).
             let tls_warning = (row.kind == ConnectionKind::Pgvector)
                 .then(|| super::pgvector::tls_warning(&row.config, described["secret"] == json!("hinterlegt")))
                 .flatten();
@@ -475,8 +475,8 @@ pub fn render_connections<'a>(
     })
 }
 
-/// Modell-Verbindungen für die Vorlage (Runde 15b): je Verbindung Angaben aus `models::describe`, letzte
-/// Prüfung und letzter Kurztest in Ortszeit, Modelle der letzten Prüfung als Auswahl des Kurztests.
+/// Model connections for the template (Round 15b): per connection details from `models::describe`, last
+/// check and last quick test in local time, models of the last check as the selection of the quick test.
 async fn models_context(state: &AppState, query: &BTreeMap<String, String>) -> Result<Value, String> {
     let mut list = Vec::new();
     for connection in state.store.model_connection_list().await.map_err(|e| e.to_string())? {
@@ -533,7 +533,7 @@ async fn models_context(state: &AppState, query: &BTreeMap<String, String>) -> R
     Ok(json!({ "connections": list, "kinds": kinds, "error": error }))
 }
 
-/// Erfolgsmeldung der Modell-Verbindungen zu `?ok=`.
+/// Success message of the model connections for `?ok=`.
 pub fn model_notice_text(code: &str) -> Option<&'static str> {
     Some(match code {
         "modell_gespeichert" => "Die Modell-Verbindung ist gespeichert.",
@@ -547,7 +547,7 @@ pub fn model_notice_text(code: &str) -> Option<&'static str> {
     })
 }
 
-/// Fehlermeldung der Modell-Verbindungen zu `?modellfehler=`.
+/// Error message of the model connections for `?modellfehler=`.
 pub fn model_error_text(code: &str) -> &'static str {
     match code {
         "name" => "Der Name fehlt, ist zu lang oder gibt es schon; nichts geändert.",
@@ -564,9 +564,9 @@ pub fn model_error_text(code: &str) -> &'static str {
     }
 }
 
-/// `POST /einstellungen/werk/bibeln` (Runde 15, hinter `guard::same_origin`): `method=bible.set_work_sources`,
-/// `work`, wiederholte Felder `commentary` und `lexicon` (Kästchen der Seite Einstellungen → Werk). 303 auf
-/// `/einstellungen/werk?work=W&ok=kommentare#kommentare` bzw. `…&kommentarfehler=1#kommentare`.
+/// `POST /einstellungen/werk/bibeln` (Round 15, behind `guard::same_origin`): `method=bible.set_work_sources`,
+/// `work`, repeated fields `commentary` and `lexicon` (checkboxes of the page Einstellungen → Werk). 303 to
+/// `/einstellungen/werk?work=W&ok=kommentare#kommentare` or `…&kommentarfehler=1#kommentare`.
 pub(crate) async fn work_bibles_act(
     State(state): State<Arc<AppState>>,
     Form(pairs): Form<Vec<(String, String)>>,
@@ -593,7 +593,7 @@ pub(crate) async fn work_bibles_act(
     Redirect::to(&to).into_response()
 }
 
-/// Felder von `POST /einstellungen/modelle/act`.
+/// Fields of `POST /einstellungen/modelle/act`.
 #[derive(Deserialize, Default)]
 pub(crate) struct ModelForm {
     action: Option<String>,
@@ -608,7 +608,7 @@ pub(crate) struct ModelForm {
     work: Option<String>,
 }
 
-/// Fehlercode aus einer RPC-Antwort der Modell-Verbindungen (feste Codes, nie Eingaben in der Adresse).
+/// Error code from an RPC response of the model connections (fixed codes, never inputs in the address).
 fn model_fault(e: &crate::rpc::RpcError) -> &'static str {
     let m = e.message.as_str();
     if m.contains("Schlüsselbund") {
@@ -630,10 +630,11 @@ fn model_fault(e: &crate::rpc::RpcError) -> &'static str {
     }
 }
 
-/// `POST /einstellungen/modelle/act` (hinter `guard::same_origin`): `action` ∈ `save` (ohne `id` anlegen;
-/// `name`, `kind`, `url`, `external=1|0|auto` – `auto` nach der Adresse), `secret` (`id`, `secret`), `delete_secret` (`id`, `confirm=1`),
-/// `delete` (`id`, `confirm=1`), `check` (`id`), `probe` (`id`, `model`). Immer 303 auf
-/// `/einstellungen/verbindungen?ok=…#modell-<id>` bzw. `?modellfehler=<code>#modelle`.
+/// `POST /einstellungen/modelle/act` (behind `guard::same_origin`): `action` ∈ `save` (without `id` create;
+/// `name`, `kind`, `url`, `external=1|0|auto` – `auto` by the address), `secret` (`id`, `secret`), `delete_secret`
+/// (`id`, `confirm=1`),
+/// `delete` (`id`, `confirm=1`), `check` (`id`), `probe` (`id`, `model`). Always 303 to
+/// `/einstellungen/verbindungen?ok=…#modell-<id>` or `?modellfehler=<code>#modelle`.
 pub(crate) async fn models_act(State(state): State<Arc<AppState>>, Form(form): Form<ModelForm>) -> Response {
     let work = work_of(form.work.as_deref());
     let id = form.id.as_deref().map(str::trim).filter(|i| !i.is_empty()).and_then(|i| i.parse::<i64>().ok());
@@ -644,8 +645,8 @@ pub(crate) async fn models_act(State(state): State<Arc<AppState>>, Form(form): F
                 let mut params = json!({
                     "name": form.name.as_deref().unwrap_or(""), "kind": form.kind.as_deref().unwrap_or(""),
                 });
-                // `auto` (Anlegen, Vorgabe): Lage nach der Adresse (`models::looks_local`); sonst ausdrücklich
-                // (Kästchen beim Ändern: ohne Haken lokal).
+                // `auto` (creating, default): location by the address (`models::looks_local`); otherwise explicit
+                // (checkbox when changing: unchecked = local).
                 if form.external.as_deref().map(str::trim) != Some("auto") {
                     params["external"] = json!(checked(&form.external));
                 }
@@ -710,9 +711,9 @@ pub(crate) async fn models_act(State(state): State<Arc<AppState>>, Form(form): F
     Redirect::to(&url).into_response()
 }
 
-/// Sammlungen eines Remote-Wegs für die Vorlage (aus `collections::get`): Kästchen aus der letzten
-/// Prüfung (`available`) und die gewählten, die sie nicht (mehr) meldet (`gone`, nur wenn es eine Prüfung
-/// gab), dazu der Zeitpunkt der Prüfung.
+/// Collections of a remote way for the template (from `collections::get`): checkboxes from the last
+/// check (`available`) and the chosen ones it does not report (any more) (`gone`, only if there was a
+/// check), plus the time of the check.
 pub fn collection_context(way: RagWay, way_on: bool, found: &Value) -> Value {
     let chosen: Vec<String> = found["collections"]
         .as_array()
@@ -747,8 +748,8 @@ pub fn collection_context(way: RagWay, way_on: bool, found: &Value) -> Value {
     })
 }
 
-/// „Status der Wege“ für die Vorlage: je Weg Zustand und Meldung, der lokale Index – oder der Grund,
-/// warum es keinen Status gibt.
+/// „Status der Wege“ for the template: per way state and message, the local index – or the reason
+/// why there is no status.
 pub fn status_context(status: Result<baruch_rag::Status, baruch_rag::RagError>) -> Value {
     match status {
         Err(e) => json!({ "ok": false, "message": e.message() }),
@@ -774,7 +775,7 @@ pub fn status_context(status: Result<baruch_rag::Status, baruch_rag::RagError>) 
     }
 }
 
-/// Seite „Quellen“ als Inhalt für den Rahmen: Liste mit Bearbeiten, Verschieben, Löschen und Anlegen.
+/// Page „Quellen“ as content for the frame: list with edit, move, delete and create.
 pub fn render_sources<'a>(
     state: &'a AppState,
     work: Option<WorkId>,
@@ -793,7 +794,7 @@ pub fn render_sources<'a>(
     })
 }
 
-/// Abschnitt „Bibeln (SWORD)“: Modulordner, gefundene Bibeln und die Wahl des Werks (`work` oder Vorgabewerk).
+/// Section „Bibeln (SWORD)“: module folders, Bibles found and the choice of the work (`work` or default work).
 async fn bible_context(state: &AppState, work: Option<WorkId>) -> Result<Value, crate::rpc::RpcError> {
     let work = match work {
         Some(w) => w,
@@ -810,16 +811,16 @@ async fn bible_context(state: &AppState, work: Option<WorkId>) -> Result<Value, 
         value["modules"].as_array().into_iter().flatten().any(|m| m["module"].as_str() == Some(c.as_str()))
     });
     value["chosen_missing"] = json!(chosen.is_some() && !known);
-    // R17c: Gibt es verschlüsselte Module? Dann steht der Abschnitt „Schlüssel verschlüsselter Module“ da.
+    // R17c: are there encrypted modules? Then the section „Schlüssel verschlüsselter Module“ is shown.
     let sealed =
         value["modules"].as_array().into_iter().flatten().any(|m| m["cipher"].as_str().is_some_and(|c| c != "none"));
     value["sealed"] = json!(sealed);
     Ok(value)
 }
 
-// ---- Formulare -----------------------------------------------------------------------------------
+// ---- Forms ---------------------------------------------------------------------------------------
 
-/// Felder von `POST /einstellungen/verbindungen/act` (ohne `collection`, das mehrfach vorkommt).
+/// Fields of `POST /einstellungen/verbindungen/act` (without `collection`, which occurs several times).
 #[derive(Deserialize, Default)]
 pub(crate) struct ConnectionForm {
     method: Option<String>,
@@ -842,25 +843,25 @@ pub(crate) struct ConnectionForm {
     title_column: Option<String>,
     url_column: Option<String>,
     model_column: Option<String>,
-    /// Aufgaben-Präfixe (Runde 19b; nicht beschnitten).
+    /// Task prefixes (Round 19b; not trimmed).
     query_prefix: Option<String>,
     document_prefix: Option<String>,
     secret: Option<String>,
     confirm: Option<String>,
-    /// Modell für den Kurztest (`model.probe`, nur Eliezer).
+    /// Model for the quick test (`model.probe`, Eliezer only).
     model: Option<String>,
     way_lancedb: Option<String>,
     way_pgvector: Option<String>,
     way_multigpt: Option<String>,
-    /// Weg der Sammlungen (`connection.collections_set`).
+    /// Way of the collections (`connection.collections_set`).
     way: Option<String>,
-    /// Neue Sammlung zum Hinzufügen (eine Zeile).
+    /// New collection to add (one line).
     collection_new: Option<String>,
 }
 
 impl ConnectionForm {
-    /// Aus den Paaren des Formulars; bei doppelten Feldern gilt das letzte (außer `collection`, das
-    /// [`collections_of`] sammelt).
+    /// From the pairs of the form; for duplicate fields the last one counts (except `collection`, which
+    /// [`collections_of`] collects).
     fn from_pairs(pairs: &[(String, String)]) -> ConnectionForm {
         let map: serde_json::Map<String, Value> = pairs
             .iter()
@@ -871,8 +872,8 @@ impl ConnectionForm {
     }
 }
 
-/// Gewählte Sammlungen: jedes Feld `collection` in der Reihenfolge des Formulars, dazu `collection_new`,
-/// wenn es nicht leer ist (beschnitten und geprüft wird im Store).
+/// Chosen collections: every field `collection` in the order of the form, plus `collection_new`
+/// if it is not empty (trimming and checking happen in the store).
 fn collections_of(pairs: &[(String, String)], new: Option<&str>) -> Vec<String> {
     let mut out: Vec<String> =
         pairs.iter().filter(|(name, _)| name == "collection").map(|(_, value)| value.clone()).collect();
@@ -890,7 +891,7 @@ fn work_of(form: Option<&str>) -> Option<WorkId> {
     form.and_then(|w| w.trim().parse::<WorkId>().ok()).filter(|&w| w > 0)
 }
 
-/// Rücksprung: nur feste Codes, Werk-id als Zahl und ein fester Anker.
+/// Way back: only fixed codes, work id as a number and a fixed anchor.
 fn back(
     page: &str,
     result: Result<(&str, String), (&'static str, Option<ConnectionKind>)>,
@@ -907,11 +908,11 @@ fn back(
     Redirect::to(&url).into_response()
 }
 
-/// `POST /einstellungen/verbindungen/act`: `method` ∈ `connection.set` (Felder der Art, dazu wahlweise
+/// `POST /einstellungen/verbindungen/act`: `method` ∈ `connection.set` (fields of the kind, optionally with
 /// `secret`), `connection.set_secret`, `connection.delete_secret` (`confirm=1`), `connection.check`,
-/// `connection.rag_set` (`work`, `way_*=1`), `model.probe` (nur `kind=eliezer`, Feld `model`: Kurztest,
-/// Ergebnis auf der Seite); seit Runde 12 `connection.collections_set` (`work`, `way`, wiederholtes Feld
-/// `collection`, dazu `collection_new`) und `rag.reindex` (`work`, `confirm=1`). Immer 303.
+/// `connection.rag_set` (`work`, `way_*=1`), `model.probe` (only `kind=eliezer`, field `model`: quick test,
+/// result on the page); since Round 12 `connection.collections_set` (`work`, `way`, repeated field
+/// `collection`, plus `collection_new`) and `rag.reindex` (`work`, `confirm=1`). Always 303.
 pub(crate) async fn connections_act(
     State(state): State<Arc<AppState>>,
     Form(pairs): Form<Vec<(String, String)>>,
@@ -936,7 +937,7 @@ pub(crate) async fn connections_act(
         if !checked(&form.confirm) {
             return back("verbindungen", Err(("bestaetigen", None)), work);
         }
-        // Nur der Mensch über dieses Formular (kein MCP-Werkzeug, nicht über POST /act).
+        // Only the human through this form (no MCP tool, not through POST /act).
         return match crate::search_hooks::rag_reindex(&state, target).await {
             Ok(_) => back("verbindungen", Ok(("reindex", "rag".into())), work),
             Err(_) => back("verbindungen", Err(("reindex", None)), work),
@@ -990,9 +991,9 @@ pub(crate) async fn connections_act(
             .filter(|(name, _)| config::fields(kind).contains(name))
             .filter_map(|(name, value)| value.as_ref().map(|v| (name.to_owned(), Value::from(v.as_str()))))
             .collect();
-            // Erst alles prüfen (Geheimnis wie Einstellungen), dann schreiben: Ein ungültiges Geheimnis
-            // darf nicht erst auffallen, wenn die Einstellungen schon gespeichert sind („nichts geändert“
-            // muss stimmen). Das Geheimnis kommt nach den Einstellungen, damit es für das neue Ziel gilt.
+            // First check everything (secret like settings), then write: an invalid secret
+            // must not show up only when the settings are already stored (“nothing changed”
+            // must be true). The secret comes after the settings so that it is valid for the new target.
             match secret.map(|s| super::valid_secret(kind, s)).transpose() {
                 Err(fault) => Err(fault),
                 Ok(secret) => match super::set_config(&state, kind, &Value::Object(given)).await {
@@ -1000,7 +1001,7 @@ pub(crate) async fn connections_act(
                     Ok(_) => match secret {
                         Some(secret) => match super::set_secret(&state, kind, secret).await {
                             Ok(()) => Ok("gespeichert_geheimnis"),
-                            // Die Einstellungen stehen schon; das sagt die Meldung ehrlich.
+                            // The settings are already stored; the message says so honestly.
                             Err(Fault::Keyring(_)) => Err(Fault::Invalid("gespeichert_ohne_geheimnis", String::new())),
                             Err(fault) => Err(fault),
                         },
@@ -1021,7 +1022,7 @@ pub(crate) async fn connections_act(
             if model.is_empty() || model.chars().count() > 200 || model.chars().any(char::is_control) {
                 Err(Fault::Invalid("kurztest_modell", String::new()))
             } else {
-                // Ein Fehlschlag (nicht erreichbar, unbekanntes Modell …) ist ein Ergebnis auf der Seite.
+                // A failure (not reachable, unknown model …) is a result on the page.
                 crate::models::probe(&state, model).await;
                 Ok("kurztest")
             }
@@ -1034,7 +1035,7 @@ pub(crate) async fn connections_act(
     }
 }
 
-/// Felder von `POST /einstellungen/quellen/act`.
+/// Fields of `POST /einstellungen/quellen/act`.
 #[derive(Deserialize, Default)]
 pub(crate) struct SourceForm {
     method: Option<String>,
@@ -1046,21 +1047,21 @@ pub(crate) struct SourceForm {
     direction: Option<String>,
     confirm: Option<String>,
     work: Option<String>,
-    /// Modulordner der Bibeln, je Zeile einer (`bible.set_dirs`).
+    /// Module folders of the Bibles, one per line (`bible.set_dirs`).
     dirs: Option<String>,
-    /// `reset=1`: Modulordner zurück auf die Vorgabe.
+    /// `reset=1`: module folders back to the default.
     reset: Option<String>,
-    /// Gewählte Bibel (`bible.set_work`; leer = keine), bzw. Modul für `bible.cipher_key_*`.
+    /// Chosen Bible (`bible.set_work`; empty = none), or module for `bible.cipher_key_*`.
     module: Option<String>,
-    /// Schlüssel eines verschlüsselten Moduls (`bible.cipher_key_set`, R17c); geht nur in den Schlüsselbund.
+    /// Key of an encrypted module (`bible.cipher_key_set`, R17c); goes only into the keyring.
     key: Option<String>,
 }
 
 /// `POST /einstellungen/quellen/act`: `method` ∈ `sources.create` (title, url, note),
-/// `sources.update` (id, title, url, note), `sources.move` (id, `direction=up|down` oder `position`),
-/// `sources.delete` (id, `confirm=1`), `bible.set_dirs` (`dirs` je Zeile ein Ordner, `reset=1` = Vorgabe),
-/// `bible.set_work` (`work`, `module`, leer = keine Bibel), `bible.cipher_key_set` (`module`, `key`; R17c) und
-/// `bible.cipher_key_delete` (`module`, `confirm=1`). Immer 303.
+/// `sources.update` (id, title, url, note), `sources.move` (id, `direction=up|down` or `position`),
+/// `sources.delete` (id, `confirm=1`), `bible.set_dirs` (`dirs` one folder per line, `reset=1` = default),
+/// `bible.set_work` (`work`, `module`, empty = no Bible), `bible.cipher_key_set` (`module`, `key`; R17c) and
+/// `bible.cipher_key_delete` (`module`, `confirm=1`). Always 303.
 pub(crate) async fn sources_act(State(state): State<Arc<AppState>>, Form(form): Form<SourceForm>) -> Response {
     let work = work_of(form.work.as_deref());
     let id = form.id.as_deref().and_then(|id| id.trim().parse::<i64>().ok());
@@ -1215,8 +1216,8 @@ mod tests {
         );
     }
 
-    /// Seite „Verbindungen“ nur mit dem Abschnitt der RAG-Wege und einem Status mit `stale` liegengebliebenen
-    /// Aufträgen (Runde 19b: die Zahl füllt der Index-Worker, angezeigt wird sie hier).
+    /// Page „Verbindungen“ with only the section of the RAG ways and a status with `stale` leftover
+    /// jobs (Round 19b: the index worker fills in the number, it is displayed here).
     fn page_with_stale(stale: usize) -> String {
         let status = baruch_rag::Status {
             work: 1,

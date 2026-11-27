@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stellenangaben in „Kritisch:“-Befunden prüfen (Runde 17a, L2).
+//! Check references in „Kritisch:“ findings (Round 17a, L2).
 //!
-//! Die Zitatprüfung ([`super::prompts::mark_unbacked_criticals`]) prüft nur Zitate in „…“. Ein Befund kann aber
-//! auch über eine **Stelle** etwas Falsches behaupten: In der Handprüfung von Runde 16 schrieb das Modell
-//! „Kritisch: Lk 15,5 ist im Predigttext nicht belegt“, obwohl der Predigttext Lk 15,4–6 ist. [`mark_ref_claims`]
-//! macht das kenntlich, ohne den Befund zu ändern:
+//! The quotation check ([`super::prompts::mark_unbacked_criticals`]) checks only quotations in „…“. But a finding
+//! can also claim something wrong about a **reference**: in the manual check of Round 16 the model wrote
+//! „Kritisch: Lk 15,5 ist im Predigttext nicht belegt“ although the sermon text is Lk 15,4–6. [`mark_ref_claims`]
+//! marks that without changing the finding:
 //!
-//! - Behauptet eine „Kritisch:“-Zeile ([`super::prompts::critical_finding`]), eine Stelle sei nicht belegt, fehle
-//!   oder stehe nicht im Text ([`claims_missing`]), und liegt die Stelle in einer Stelle, die im gezeigten Text
-//!   genannt ist (Korpus wie bei der Zitatprüfung, [`super::context::shown_corpus`]), bekommt die Zeile
+//! - If a „Kritisch:“ line ([`super::prompts::critical_finding`]) claims a reference is not backed, is missing
+//!   or does not stand in the text ([`claims_missing`]), and the reference lies within a reference that is named
+//!   in the shown text (corpus as for the quotation check, [`super::context::shown_corpus`]), the line gets
 //!   „ (Stelle steht im Text: Lk 15,4–6)“.
-//! - Nennt eine „Kritisch:“-Zeile eine Stelle, die es nicht gibt (Kapitel oder Vers jenseits der Verszählung),
-//!   bekommt sie „ (Stelle ungültig: <Grund>)“.
+//! - If a „Kritisch:“ line names a reference that does not exist (chapter or verse beyond the versification),
+//!   it gets „ (Stelle ungültig: <Grund>)“.
 //!
-//! Gelesen wird mit [`baruch_scripture::scan`] (deutsche Zählung). Die Vermerke setzt nur Baruch: Steht einer schon
-//! in der Zeile (vom Modell geschrieben, etwa nach einer Prompt-Injection, oder von einem früheren Durchlauf), wird er
-//! entfernt und die Zeile neu geprüft ([`strip_notes`], Nachbesserung Runde 17) – ein gefälschter Vermerk schaltet die
-//! Prüfung also nicht ab, und zweimal angewandt ändert weiterhin nichts (idempotent). Angewandt nach der Zitatprüfung im Lektor (Prüfen,
-//! Fragen), im Abschnitts-Chat ([`super::run_inputs`]) und in Fäden ohne Abschnitt ([`crate::threads`]).
+//! Reading uses [`baruch_scripture::scan`] (German versification). Only Baruch sets the notes: if one already
+//! stands in the line (written by the model, e.g. after a prompt injection, or from an earlier pass), it is
+//! removed and the line checked anew ([`strip_notes`], rework Round 17) – so a forged note does not switch the
+//! check off, and applying twice still changes nothing (idempotent). Applied after the quotation check in the lector
+//! (review, ask), in the section chat ([`super::run_inputs`]) and in threads without a section ([`crate::threads`]).
 
 use baruch_scripture::{Found, Passage, RefStatus, scan};
 
 use super::prompts::critical_finding;
 
-/// Anfang des Vermerks „Stelle steht im Text“.
+/// Start of the note „Stelle steht im Text“.
 pub const IN_TEXT: &str = "(Stelle steht im Text:";
-/// Anfang des Vermerks „Stelle ungültig“.
+/// Start of the note „Stelle ungültig“.
 pub const INVALID: &str = "(Stelle ungültig:";
 
-/// Wörter, mit denen ein Befund behauptet, eine Stelle fehle im Text (klein geschrieben, als ganze Wörter).
+/// Words with which a finding claims a reference is missing in the text (lower case, as whole words).
 const MISSING_WORDS: &[&str] = &[
     "nicht belegt",
     "unbelegt",
@@ -49,11 +49,11 @@ const MISSING_WORDS: &[&str] = &[
     "außerhalb des",
 ];
 
-/// Wörter, die erst zusammen mit einem Ort ([`PLACE_WORDS`]) behaupten, eine Stelle fehle: „Lk 15,7 fehlt im
-/// Predigttext“ ja, „Zu Lk 15,5 fehlt eine Anwendung“ nein (Kritik am Inhalt, Nachbesserung Runde 17).
+/// Words that claim a reference is missing only together with a place ([`PLACE_WORDS`]): „Lk 15,7 fehlt im
+/// Predigttext“ yes, „Zu Lk 15,5 fehlt eine Anwendung“ no (criticism of the content, rework Round 17).
 const WEAK_MISSING_WORDS: &[&str] = &["steht nicht", "fehlt", "fehlen", "findet sich nicht"];
 
-/// Orte, an denen eine Stelle fehlen kann.
+/// Places where a reference can be missing.
 const PLACE_WORDS: &[&str] = &[
     "im text",
     "im predigttext",
@@ -65,8 +65,8 @@ const PLACE_WORDS: &[&str] = &[
     "im wortlaut",
 ];
 
-/// Kommt `phrase` in `lower` als ganze Wörter vor (kein Buchstabe und keine Ziffer direkt davor oder danach)?
-/// So zählt „verfehlt“ nicht als „fehlt“ und „versteht nicht“ nicht als „steht nicht“.
+/// Does `phrase` occur in `lower` as whole words (no letter and no digit directly before or after)?
+/// So „verfehlt“ does not count as „fehlt“ and „versteht nicht“ not as „steht nicht“.
 fn has_words(lower: &str, phrase: &str) -> bool {
     lower.match_indices(phrase).any(|(at, _)| {
         let before = lower[..at].chars().next_back();
@@ -75,18 +75,18 @@ fn has_words(lower: &str, phrase: &str) -> bool {
     })
 }
 
-/// Behauptet die Zeile, etwas sei nicht belegt, fehle oder stehe nicht im Text? Baruchs eigener Vermerk der
-/// Zitatprüfung ([`super::prompts::UNBACKED_NOTE`], „(nicht im Text belegt)“) zählt nicht als Behauptung über eine
-/// Stelle – weder wenn Baruch ihn angehängt hat noch wenn das Modell ihn nachahmt (Handprüfung Integrator Runde 17:
-/// „… zu Joh 3,16 ist faktisch falsch (nicht im Text belegt) …“ bekam sonst „(Stelle steht im Text: Joh 3,16)“).
+/// Does the line claim something is not backed, is missing or does not stand in the text? Baruch's own note of the
+/// quotation check ([`super::prompts::UNBACKED_NOTE`], „(nicht im Text belegt)“) does not count as a claim about a
+/// reference – neither if Baruch appended it nor if the model imitates it (manual check integrator Round 17:
+/// „… zu Joh 3,16 ist faktisch falsch (nicht im Text belegt) …“ otherwise got „(Stelle steht im Text: Joh 3,16)“).
 pub fn claims_missing(line: &str) -> bool {
     let lower = strip_notes(&line.replace(super::prompts::UNBACKED_NOTE, "")).to_lowercase();
     MISSING_WORDS.iter().any(|w| has_words(&lower, w))
         || (WEAK_MISSING_WORDS.iter().any(|w| has_words(&lower, w)) && PLACE_WORDS.iter().any(|w| has_words(&lower, w)))
 }
 
-/// Alle Vermerke „(Stelle steht im Text: …)“ und „(Stelle ungültig: …)“ aus einer Zeile entfernen (bis zur
-/// passenden Klammer, samt Leerzeichen davor); Zeilenende ohne Leerraum. Die Vermerke setzt nur [`mark_ref_claims`].
+/// Remove all notes „(Stelle steht im Text: …)“ and „(Stelle ungültig: …)“ from a line (up to the
+/// matching bracket, including the space before it); end of line without whitespace. Set only by [`mark_ref_claims`].
 pub fn strip_notes(line: &str) -> String {
     if !line.contains(IN_TEXT) && !line.contains(INVALID) {
         return line.to_owned();
@@ -120,14 +120,14 @@ pub fn strip_notes(line: &str) -> String {
     out.trim_end().to_owned()
 }
 
-/// Anfang und Ende einer Stelle als (Kapitel, Vers) mit ausgeschriebenem Vers 0 (ganzes Kapitel).
+/// Start and end of a reference as (chapter, verse) with verse 0 written out (whole chapter).
 fn bounds(p: &Passage) -> ((u16, u16), (u16, u16)) {
     let start = (p.start.0, p.start.1.max(1));
     let end = if p.end.1 == 0 { (p.end.0, p.book.verses_in(p.end.0).unwrap_or(u16::MAX)) } else { p.end };
     (start, end)
 }
 
-/// Liegt `inner` ganz in `outer`?
+/// Does `inner` lie entirely within `outer`?
 fn within(inner: &Passage, outer: &Passage) -> bool {
     if inner.book.id != outer.book.id {
         return false;
@@ -137,7 +137,7 @@ fn within(inner: &Passage, outer: &Passage) -> bool {
     c <= a && b <= d
 }
 
-/// Gültige Stellen im Korpus (mit Schreibweise).
+/// Valid references in the corpus (with spelling).
 fn shown_passages(corpus: &str) -> Vec<(Passage, String)> {
     scan(corpus)
         .into_iter()
@@ -146,7 +146,7 @@ fn shown_passages(corpus: &str) -> Vec<(Passage, String)> {
         .collect()
 }
 
-/// Vermerke zu einer „Kritisch:“-Zeile (ohne Doppel).
+/// Notes on a „Kritisch:“ line (no duplicates).
 fn notes_for(line: &str, shown: &[(Passage, String)]) -> Vec<String> {
     let missing = claims_missing(line);
     let mut notes: Vec<String> = Vec::new();
@@ -171,8 +171,8 @@ fn invalid_message(found: &Found) -> String {
     found.message()
 }
 
-/// „Kritisch:“-Befunde mit falschen Stellenaussagen kenntlich machen (siehe Moduldoku). `corpus` ist der Text, den
-/// die Persona gezeigt bekam (ohne fremde Befunde, Beiträge und Einfälle).
+/// Mark „Kritisch:“ findings with wrong reference claims (see module doc). `corpus` is the text the
+/// persona was shown (without foreign findings, posts and ideas).
 pub fn mark_ref_claims(text: &str, corpus: &str) -> String {
     let shown = shown_passages(corpus);
     let lines: Vec<String> = text

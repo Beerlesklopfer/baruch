@@ -1,53 +1,54 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schutz der schreibenden Endpunkte (`POST /rpc`, `/act`, `/mcp`) gegen fremde Webseiten (CSRF).
+//! Protection of the writing endpoints (`POST /rpc`, `/act`, `/mcp`) against foreign web pages (CSRF).
 //!
-//! Ein Browser schickt bei jedem POST `Origin` und (heutige Browser) `Sec-Fetch-Site` mit. Abgelehnt
-//! wird mit 403, wenn
-//! - `Sec-Fetch-Site` weder `same-origin` noch `none` ist (`none`: vom Nutzer selbst ausgelöst), oder
-//! - `Origin` da ist und nicht zu `Host` passt (auch `Origin: null`).
+//! A browser sends `Origin` and (today's browsers) `Sec-Fetch-Site` with every POST. The request is
+//! rejected with 403 if
+//! - `Sec-Fetch-Site` is neither `same-origin` nor `none` (`none`: triggered by the user himself), or
+//! - `Origin` is there and does not match `Host` (also `Origin: null`).
 //!
-//! Ohne beide Kopfzeilen (curl, Skripte, MCP-Werkzeuge) geht die Anfrage durch: Das sind keine
-//! Browser, und ein Browser lässt `Origin` bei POST nicht weg. `/rpc` verlangt zusätzlich
-//! `Content-Type: application/json` (415 sonst); so braucht ein fremder `fetch` einen Preflight,
-//! den der Server nicht beantwortet.
+//! Without both headers (curl, scripts, MCP tools) the request passes: those are not
+//! browsers, and a browser does not omit `Origin` on POST. `/rpc` additionally demands
+//! `Content-Type: application/json` (415 otherwise); so a foreign `fetch` needs a preflight
+//! that the server does not answer.
 //!
-//! **DNS-Rebinding** (ein fremder Name zeigt plötzlich auf 127.0.0.1, `Origin` und `Host` passen dann
-//! zusammen) fängt [`local_host`] ab: Für **alle** Routen, auch lesende, muss `Host` eine IP-Adresse
-//! (`127.0.0.1`, `[::1]`, die Adresse im LAN …) oder `localhost` sein, sonst 421. Eine IP-Adresse lässt
-//! sich nicht umbinden. Ohne `Host` (nur ohne Browser möglich) geht die Anfrage durch.
+//! **DNS rebinding** (a foreign name suddenly points to 127.0.0.1, `Origin` and `Host` then
+//! match) is caught by [`local_host`]: for **all** routes, also reading ones, `Host` must be an IP address
+//! (`127.0.0.1`, `[::1]`, the address in the LAN …) or `localhost`, otherwise 421. An IP address cannot
+//! be rebound. Without `Host` (possible only without a browser) the request passes.
 //!
-//! **Hinter einem Reverse-Proxy** (Runde 24): [`AllowedHosts`] nennt zusätzlich erlaubte Rechnernamen
-//! (`--allow-host`, `BARUCH_ALLOWED_HOSTS`); nur genau diese Namen (mit beliebigem Port) passieren [`local_host`],
-//! jeder andere Name bleibt 421. Der Proxy muss `Host` unverändert durchreichen – [`check`] vergleicht `Origin` mit
-//! `Host`. Eine Anfrage unter einem zusätzlichen Namen gilt nie als lokal ([`via_proxy`]): `/mcp` verlangt dann
-//! immer einen Token, auch wenn die Gegenstelle (der Proxy) Loopback ist. `X-Forwarded-*` wertet Baruch nicht aus
-//! – mit einer Ausnahme: Schon das Vorhandensein einer solchen Kopfzeile ([`forwarded`]) nimmt einer Anfrage die
-//! Ausnahme „Am eigenen Rechner ohne Anmeldung“ und das Einrichten des ersten Kontos (ein Proxy auf demselben
-//! Rechner, der `Host` umschreibt, sähe sonst wie der eigene Rechner aus).
+//! **Behind a reverse proxy** (Round 24): [`AllowedHosts`] names additionally allowed host names
+//! (`--allow-host`, `BARUCH_ALLOWED_HOSTS`); only exactly these names (with any port) pass [`local_host`],
+//! every other name stays 421. The proxy must pass `Host` through unchanged – [`check`] compares `Origin` with
+//! `Host`. A request under an additional name never counts as local ([`via_proxy`]): `/mcp` then always
+//! demands a token, even if the remote side (the proxy) is loopback. Baruch does not evaluate `X-Forwarded-*`
+//! – with one exception: the mere presence of such a header ([`forwarded`]) takes away from a request the
+//! exception „Am eigenen Rechner ohne Anmeldung“ and the setup of the first account (a proxy on the same
+//! machine that rewrites `Host` would otherwise look like the own machine).
 //!
-//! **Anmeldung** (Runde 35): Ohne Konten hat Baruch keine Anmeldung, und den Zugangsschutz stellt der Proxy
-//! (`docs/Betrieb.md`). Mit Konten verlangt [`crate::auth::gate`] für Seiten, Formulare und `/rpc` eine Sitzung;
-//! was eine Rolle darf, entscheidet [`crate::roles`]. Die Schichten dieses Moduls bleiben davon unberührt und
-//! liegen außerhalb der Anmeldung: Eine fremde Seite, ein fremder Rechnername oder ein fremder Rechner kommt gar
-//! nicht bis zur Anmeldung.
+//! **Login** (Round 35): without accounts Baruch has no login, and the access protection is provided by the proxy
+//! (`docs/Betrieb.md`). With accounts [`crate::auth::gate`] demands a session for pages, forms and `/rpc`;
+//! what a role may do is decided by [`crate::roles`]. The layers of this module are unaffected by that and
+//! lie outside the login: a foreign page, a foreign host name or a foreign machine does not even
+//! get as far as the login.
 //!
-//! **Lesende Anfragen fremder Seiten** (Runde 23): [`own_reads`] lehnt für **alle** Routen ein GET/HEAD ab, das eine
-//! fremde Seite als Unterressource auslöst ([`cross_site_subresource`]: Bild, Skript, `fetch`, Rahmen) – 403. Eine
-//! Navigation des obersten Fensters (Link von außen) geht weiter durch.
+//! **Reading requests of foreign pages** (Round 23): [`own_reads`] rejects for **all** routes a GET/HEAD that a
+//! foreign page triggers as a sub-resource ([`cross_site_subresource`]: image, script, `fetch`, frame) – 403. A
+//! navigation of the top-level window (link from outside) still passes.
 //!
-//! **Andere Rechner** (Runde 10): [`remote_only_mcp`] lässt von einer Gegenstelle außerhalb von Loopback
-//! nur `/mcp` durch (dort entscheidet der Token); Oberfläche, `/rpc` und Formulare bleiben dem eigenen
-//! Rechner vorbehalten (403).
+//! **Other machines** (Round 10): [`remote_only_mcp`] lets only `/mcp` through from a remote side outside of
+//! loopback (there the token decides); UI, `/rpc` and forms stay reserved for the own
+//! machine (403).
 //!
-//! **Clickjacking:** [`no_framing`] setzt auf **jede** Antwort `X-Frame-Options: DENY` und `frame-ancestors
-//! 'none'` in der `Content-Security-Policy` (an eine vorhandene CSP angehängt). Sonst könnte eine fremde Seite
-//! etwa den Zustimmungsdialog der Gliederung oder die Freigabe „extern“ unsichtbar einrahmen und den Nutzer
-//! klicken lassen – das Formular ginge dann aus dem eingerahmten Dokument selbst ab (same-origin), und
-//! [`same_origin`] griffe nicht. Einzige Ausnahme (Runde 20b, Vertrag §0.9): Die EPUB-Vorschau rahmt die Dateien
-//! des Buchs selbst ein (`/werke/{id}/epub/leser/…`). Diese Antworten setzen ihre CSP selbst
-//! (`sandbox allow-same-origin; frame-ancestors 'self'`); trägt eine Antwort schon `frame-ancestors`, bleibt ihre CSP unverändert und
-//! `X-Frame-Options` wird `SAMEORIGIN` statt `DENY` (bei `frame-ancestors 'self'`) bzw. entfällt (jede andere eigene
-//! Angabe, dann gilt allein die CSP). Alle übrigen Antworten behalten `DENY` und `frame-ancestors 'none'`.
+//! **Clickjacking:** [`no_framing`] sets `X-Frame-Options: DENY` and `frame-ancestors
+//! 'none'` in the `Content-Security-Policy` (appended to an existing CSP) on **every** response. Otherwise a
+//! foreign page could e.g. frame the consent dialog of the outline or the release „extern“ invisibly and make the
+//! user click – the form would then be sent from the framed document itself (same-origin), and
+//! [`same_origin`] would not catch it. Only exception (Round 20b, contract §0.9): the EPUB preview frames the files
+//! of the book itself (`/werke/{id}/epub/leser/…`). These responses set their CSP themselves
+//! (`sandbox allow-same-origin; frame-ancestors 'self'`); if a response already carries `frame-ancestors`, its CSP
+//! stays unchanged and
+//! `X-Frame-Options` becomes `SAMEORIGIN` instead of `DENY` (with `frame-ancestors 'self'`) or is dropped (any other
+//! own directive, then the CSP alone applies). All other responses keep `DENY` and `frame-ancestors 'none'`.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -59,10 +60,10 @@ use axum::response::{IntoResponse, Response};
 
 use crate::AppState;
 
-/// Anweisung gegen das Einrahmen in der CSP.
+/// Directive against framing in the CSP.
 pub const FRAME_ANCESTORS: &str = "frame-ancestors 'none'";
 
-/// Middleware für alle Antworten: nie in einem Rahmen anzeigen (siehe Modulkopf).
+/// Middleware for all responses: never display in a frame (see module head).
 pub async fn no_framing(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
@@ -93,8 +94,8 @@ pub async fn no_framing(request: Request, next: Next) -> Response {
     response
 }
 
-/// GET einer fremden Seite (Runde 18a): `Sec-Fetch-Site` ist `cross-site` oder `same-site`. Fehlt der Kopf
-/// (alte Browser, curl, Tests) oder ist er `same-origin`/`none`, gilt die Anfrage als eigene.
+/// GET of a foreign page (Round 18a): `Sec-Fetch-Site` is `cross-site` or `same-site`. If the header is missing
+/// (old browsers, curl, tests) or it is `same-origin`/`none`, the request counts as own.
 pub fn cross_site_get(headers: &HeaderMap) -> bool {
     headers
         .get("sec-fetch-site")
@@ -102,22 +103,22 @@ pub fn cross_site_get(headers: &HeaderMap) -> bool {
         .is_some_and(|site| site.eq_ignore_ascii_case("cross-site") || site.eq_ignore_ascii_case("same-site"))
 }
 
-/// Lesende Anfrage (GET/HEAD) einer fremden Seite als Unterressource (Bild, Skript, fetch, Rahmen). Runde 23.
+/// Reading request (GET/HEAD) of a foreign page as a sub-resource (image, script, fetch, frame). Round 23.
 ///
-/// Regel (Vertrag R23 §4): Methode GET oder HEAD, `Sec-Fetch-Site` ist `cross-site` oder `same-site`, und die Anfrage
-/// ist **keine** Navigation des obersten Fensters (`Sec-Fetch-Mode: navigate` zusammen mit `Sec-Fetch-Dest: document`).
-/// Ein Link von einer fremden Seite oder aus einem Mailprogramm öffnet Baruch also weiter; ein `<img src=…>`, `<script>`,
-/// `fetch` oder ein Rahmen (`Sec-Fetch-Dest: iframe`) einer fremden Seite bekommt 403. Damit löst eine fremde Seite keine
-/// lesende Route mit Nebenwirkung mehr aus (etwa `GET /einstellungen/assistenten?modelle=abfragen`, das die Gegenstelle
-/// abfragt) und kann keine Antwort vermessen. Ohne `Sec-Fetch-Site` (curl, Tests, MCP-Clients, alte Browser) und bei
-/// `same-origin`/`none` gilt die Anfrage als eigene.
+/// Rule (contract R23 §4): method GET or HEAD, `Sec-Fetch-Site` is `cross-site` or `same-site`, and the request
+/// is **not** a navigation of the top-level window (`Sec-Fetch-Mode: navigate` together with `Sec-Fetch-Dest:
+/// document`). So a link from a foreign page or from a mail program still opens Baruch; an `<img src=…>`, `<script>`,
+/// `fetch` or a frame (`Sec-Fetch-Dest: iframe`) of a foreign page gets 403. Thus a foreign page no longer triggers
+/// a reading route with a side effect (e.g. `GET /einstellungen/assistenten?modelle=abfragen`, which queries the
+/// remote side) and cannot measure any response. Without `Sec-Fetch-Site` (curl, tests, MCP clients, old browsers)
+/// and with `same-origin`/`none` the request counts as own.
 ///
-/// Abgrenzung (Entscheidung web, im Bericht an den Integrator gemeldet): Fehlen **beide** Kopfzeilen `Sec-Fetch-Mode`
-/// und `Sec-Fetch-Dest`, ist die Art der Anfrage nicht belegt; sie gilt dann nicht als Unterressource. Jeder Browser,
-/// der `Sec-Fetch-Site` schickt, schickt auch `Sec-Fetch-Mode` (Fetch Metadata) – eine echte Unterressource fällt also
-/// nie in diese Lücke. Die Routen mit eigener Prüfung ([`cross_site_get`]: PDF, Satz, Umschlag, EPUB, Suche mit
-/// Vorschau, Volltext) lehnen eine solche Anfrage weiter selbst ab; ältere Tests bilden so den „Link von einer fremden
-/// Seite“ nach.
+/// Delimitation (decision web, reported to the integrator): if **both** headers `Sec-Fetch-Mode`
+/// and `Sec-Fetch-Dest` are missing, the kind of the request is not proven; it then does not count as a
+/// sub-resource. Every browser that sends `Sec-Fetch-Site` also sends `Sec-Fetch-Mode` (Fetch Metadata) – so a real
+/// sub-resource never falls into this gap. The routes with their own check ([`cross_site_get`]: PDF, typeset view,
+/// cover, EPUB, search with preview, full text) still reject such a request themselves; older tests model the
+/// “link from a foreign page” this way.
 pub fn cross_site_subresource(method: &axum::http::Method, headers: &HeaderMap) -> bool {
     if method != axum::http::Method::GET && method != axum::http::Method::HEAD {
         return false;
@@ -133,11 +134,11 @@ pub fn cross_site_subresource(method: &axum::http::Method, headers: &HeaderMap) 
     }
 }
 
-/// Middleware für alle Routen: lehnt `cross_site_subresource` mit 403 ab.
+/// Middleware for all routes: rejects `cross_site_subresource` with 403.
 ///
-/// Einzige Ausnahme: die Dateien der EPUB-Vorschau (`/werke/{id}/epub/leser/…`). Sie stehen in einem Rahmen mit
-/// `sandbox` (Runde 20b); der Browser meldet Bilder, Stil und Sprünge aus diesem Rahmen als `cross-site`, obwohl sie
-/// vom eigenen Buch kommen. Dort entscheidet weiter die Route selbst (`epub_preview::from_own_frame` über `Referer`).
+/// Only exception: the files of the EPUB preview (`/werke/{id}/epub/leser/…`). They stand in a frame with
+/// `sandbox` (Round 20b); the browser reports images, style and jumps from this frame as `cross-site` although they
+/// come from the own book. There the route itself still decides (`epub_preview::from_own_frame` through `Referer`).
 pub async fn own_reads(request: Request, next: Next) -> Response {
     if cross_site_subresource(request.method(), request.headers()) && !epub_reader_path(request.uri().path()) {
         return (StatusCode::FORBIDDEN, "Abgelehnt: Anfrage von einer fremden Seite (lesend)").into_response();
@@ -145,14 +146,14 @@ pub async fn own_reads(request: Request, next: Next) -> Response {
     next.run(request).await
 }
 
-/// Pfad einer Datei der EPUB-Vorschau: `/werke/<Zahl>/epub/leser/<…>`.
+/// Path of a file of the EPUB preview: `/werke/<number>/epub/leser/<…>`.
 fn epub_reader_path(path: &str) -> bool {
     path.strip_prefix("/werke/").and_then(|rest| rest.split_once('/')).is_some_and(|(id, rest)| {
         id.bytes().all(|b| b.is_ascii_digit()) && !id.is_empty() && rest.starts_with("epub/leser/")
     })
 }
 
-/// Middleware für die schreibenden Routen.
+/// Middleware for the writing routes.
 pub async fn same_origin(request: Request, next: Next) -> Response {
     match check(request.headers()) {
         Ok(()) => next.run(request).await,
@@ -160,8 +161,8 @@ pub async fn same_origin(request: Request, next: Next) -> Response {
     }
 }
 
-/// Middleware für alle Routen: Von einer Gegenstelle außerhalb von Loopback (`ConnectInfo`) nur `/mcp`,
-/// sonst 403. Ohne `ConnectInfo` (Tests, Unix-Socket) geht die Anfrage durch.
+/// Middleware for all routes: from a remote side outside of loopback (`ConnectInfo`) only `/mcp`,
+/// otherwise 403. Without `ConnectInfo` (tests, Unix socket) the request passes.
 pub async fn remote_only_mcp(request: Request, next: Next) -> Response {
     let peer = request.extensions().get::<ConnectInfo<SocketAddr>>().map(|ConnectInfo(addr)| *addr);
     match peer {
@@ -172,17 +173,17 @@ pub async fn remote_only_mcp(request: Request, next: Next) -> Response {
     }
 }
 
-/// Zusätzlich erlaubte Rechnernamen (Betrieb hinter einem Reverse-Proxy): klein geschrieben, ohne Port.
+/// Additionally allowed host names (operation behind a reverse proxy): lower case, without port.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AllowedHosts(Vec<String>);
 
 impl AllowedHosts {
-    /// Liste, getrennt durch Komma oder Leerraum. `Err` nennt den ungültigen Namen.
+    /// List, separated by comma or whitespace. `Err` names the invalid name.
     ///
-    /// Gültig (Vertrag R24 §4): 1–253 Zeichen, Labels zu 1–63 Zeichen aus `a–z0–9-` (nicht am Rand `-`), kein Port,
-    /// kein Platzhalter (`*`), keine IP-Adresse und nicht `localhost` (beide gelten ohnehin, [`allowed_host`]). Auch
-    /// ein Name, dessen letztes Label eine Zahl ist (`127.1`, `0x7f.1`), ist abgelehnt: Browser lesen ihn als
-    /// IPv4-Adresse. Großbuchstaben werden klein gespeichert, doppelte Namen nur einmal.
+    /// Valid (contract R24 §4): 1–253 characters, labels of 1–63 characters from `a–z0–9-` (no `-` at the edge), no
+    /// port, no wildcard (`*`), no IP address and not `localhost` (both apply anyway, [`allowed_host`]). A name
+    /// whose last label is a number (`127.1`, `0x7f.1`) is rejected too: browsers read it as an
+    /// IPv4 address. Upper-case letters are stored lower case, duplicate names only once.
     pub fn parse(list: &str) -> Result<Self, String> {
         let mut names: Vec<String> = Vec::new();
         for raw in list.split(|c: char| c == ',' || c.is_whitespace()).filter(|part| !part.is_empty()) {
@@ -199,12 +200,12 @@ impl AllowedHosts {
         &self.0
     }
 
-    /// `allowed_host(host)` oder einer der zusätzlichen Namen (Port wie bei `allowed_host`).
+    /// `allowed_host(host)` or one of the additional names (port as in `allowed_host`).
     pub fn allows(&self, host: &str) -> bool {
         allowed_host(host) || self.is_extra(host)
     }
 
-    /// Nur die zusätzlichen Namen (nicht IP-Adresse, nicht `localhost`).
+    /// Only the additional names (not IP address, not `localhost`).
     pub fn is_extra(&self, host: &str) -> bool {
         let name = match host.rsplit_once(':') {
             Some((name, port)) if is_port(port) => name,
@@ -215,7 +216,7 @@ impl AllowedHosts {
     }
 }
 
-/// Prüft einen (schon klein geschriebenen) Rechnernamen; `Err` nennt den Grund.
+/// Checks a (already lower-case) host name; `Err` names the reason.
 fn valid_name(name: &str) -> Result<(), &'static str> {
     if name.contains('*') {
         return Err("Platzhalter (*) sind nicht erlaubt; jeden Namen einzeln nennen.");
@@ -249,11 +250,11 @@ fn valid_name(name: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// `Host` der Anfrage ist ein zusätzlicher Name: Die Anfrage kam über einen Proxy und gilt nie als lokal.
+/// `Host` of the request is an additional name: the request came through a proxy and never counts as local.
 ///
-/// Sind zusätzliche Namen erlaubt, gilt auch eine Anfrage **ohne lesbare `Host`-Kopfzeile** nicht als lokal: Dann
-/// steht ein Proxy vor Baruch, und eine Anfrage ohne `Host` (etwa über HTTP/2 weitergereicht) ließe sich sonst nicht
-/// von einer des eigenen Rechners unterscheiden. Ohne zusätzliche Namen bleibt es bei `false` (wie vor Runde 24).
+/// If additional names are allowed, a request **without a readable `Host` header** does not count as local either:
+/// then a proxy stands in front of Baruch, and a request without `Host` (e.g. forwarded over HTTP/2) could otherwise
+/// not be told from one of the own machine. Without additional names it stays `false` (as before Round 24).
 pub fn via_proxy(hosts: &AllowedHosts, headers: &HeaderMap) -> bool {
     if hosts.names().is_empty() {
         return false;
@@ -264,18 +265,18 @@ pub fn via_proxy(hosts: &AllowedHosts, headers: &HeaderMap) -> bool {
     }
 }
 
-/// Kopfzeilen, die ein Reverse-Proxy an eine weitergereichte Anfrage hängt.
+/// Headers that a reverse proxy appends to a forwarded request.
 pub const FORWARDED_HEADERS: [&str; 6] =
     ["forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "via"];
 
-/// Trägt die Anfrage eine der Kopfzeilen eines Proxys ([`FORWARDED_HEADERS`])? Der Inhalt wird nicht gelesen: Schon
-/// eine leere oder unlesbare Kopfzeile zählt. Eine solche Anfrage gilt für die Anmeldung nie als „eigener Rechner“
-/// (Runde 35, Entscheidung 0.2) – auch dann nicht, wenn Gegenstelle und `Host` nach dem eigenen Rechner aussehen.
+/// Does the request carry one of the headers of a proxy ([`FORWARDED_HEADERS`])? The content is not read: even
+/// an empty or unreadable header counts. Such a request never counts as “own machine” for the login
+/// (Round 35, decision 0.2) – not even if remote side and `Host` look like the own machine.
 pub fn forwarded(headers: &HeaderMap) -> bool {
     FORWARDED_HEADERS.iter().any(|name| headers.contains_key(*name))
 }
 
-/// Middleware für alle Routen: `Host` muss [`AllowedHosts::allows`] erfüllen (Schutz vor DNS-Rebinding).
+/// Middleware for all routes: `Host` must satisfy [`AllowedHosts::allows`] (protection against DNS rebinding).
 pub async fn local_host(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
     let host = request.headers().get(header::HOST).map(|h| h.to_str().map_err(|_| ()));
     match host {
@@ -291,8 +292,8 @@ pub async fn local_host(State(state): State<Arc<AppState>>, request: Request, ne
     }
 }
 
-/// `Host` (mit oder ohne Port) ist `localhost`, eine IPv4-Adresse oder eine IPv6-Adresse in `[…]`.
-/// Hostnamen sind abgelehnt, weil ein fremder Name per DNS auf diesen Rechner zeigen kann.
+/// `Host` (with or without port) is `localhost`, an IPv4 address or an IPv6 address in `[…]`.
+/// Host names are rejected because a foreign name can point to this machine through DNS.
 pub fn allowed_host(host: &str) -> bool {
     let name = if let Some(rest) = host.strip_prefix('[') {
         let Some((inner, after)) = rest.split_once(']') else { return false };
@@ -314,7 +315,7 @@ fn is_port(port: &str) -> bool {
     !port.is_empty() && port.len() <= 5 && port.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// Prüft `Sec-Fetch-Site` und `Origin` gegen `Host`. `Err` nennt den Grund.
+/// Checks `Sec-Fetch-Site` and `Origin` against `Host`. `Err` names the reason.
 pub fn check(headers: &HeaderMap) -> Result<(), &'static str> {
     if let Some(site) = headers.get("sec-fetch-site") {
         match site.to_str() {
@@ -333,7 +334,7 @@ pub fn check(headers: &HeaderMap) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// `Content-Type` ist `application/json` (Parameter wie `charset` erlaubt).
+/// `Content-Type` is `application/json` (parameters like `charset` allowed).
 pub fn is_json(headers: &HeaderMap) -> bool {
     headers
         .get(header::CONTENT_TYPE)
@@ -342,7 +343,7 @@ pub fn is_json(headers: &HeaderMap) -> bool {
         .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"))
 }
 
-/// Antwort, wenn `is_json` fehlschlägt.
+/// Response if `is_json` fails.
 pub fn need_json() -> Response {
     (StatusCode::UNSUPPORTED_MEDIA_TYPE, "Content-Type: application/json erwartet").into_response()
 }

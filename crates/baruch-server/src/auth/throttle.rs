@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sperre gegen Durchprobieren (Runde 35, Vertrag §1.3, Tabelle `login_attempt`): ab dem vierten Fehlversuch
-//! wachsende Wartezeit je Konto und je Adresse.
+//! Brute-force lock (Round 35, contract §1.3, table `login_attempt`): from the fourth failed attempt on a
+//! growing waiting time per account and per address.
 //!
-//! Bereiche: `konto:<Namensschlüssel>` – immer, auch für Namen, die es nicht gibt (sonst verriete die Sperre, welche
-//! Konten bestehen) – und `adresse:<IP>`, wenn die Gegenstelle bekannt ist und die Anfrage nicht über den Proxy kam
-//! (hinter dem Proxy trügen alle dieselbe Adresse). Während der Sperre wird kein Passwort geprüft. Jeder Versuch wird
-//! vor der Prüfung gezählt ([`reserve`], eine Transaktion mit der Prüfung der Sperre) und bei Erfolg zurückgenommen:
-//! Gleichzeitige Versuche kommen so nicht weiter als Versuche nacheinander. Die Tabelle
-//! wächst nicht über 1000 Zeilen: Ist sie voll, bekommt ein neuer Bereich keine Zeile, stattdessen wartet der Bereich
-//! `alle` zwei Sekunden (`baruch_store::Store::login_failure`). Einträge, die älter als 24 Stunden sind, fallen
-//! beim nächsten Fehlversuch weg.
+//! Scopes: `konto:<name key>` – always, also for names that do not exist (otherwise the lock would reveal which
+//! accounts exist) – and `adresse:<IP>` if the remote side is known and the request did not come through the proxy
+//! (behind the proxy all would carry the same address). During the lock no password is checked. Every attempt is
+//! counted before the check ([`reserve`], one transaction with the check of the lock) and taken back on success:
+//! simultaneous attempts thus get no further than attempts one after another. The table
+//! does not grow beyond 1000 rows: if it is full, a new scope gets no row, instead the scope
+//! `alle` waits two seconds (`baruch_store::Store::login_failure`). Entries older than 24 hours are dropped
+//! at the next failed attempt.
 
 use std::net::SocketAddr;
 
@@ -18,32 +18,32 @@ use baruch_store::{LoginAttempt, Store, StoreError};
 
 use crate::AppState;
 
-/// So viele Fehlversuche bleiben ohne Wartezeit.
+/// This many failed attempts stay without waiting time.
 pub const FREE_FAILURES: i64 = 3;
-/// Längste Wartezeit in Sekunden (15 Minuten).
+/// Longest waiting time in seconds (15 minutes).
 pub const MAX_WAIT_SECONDS: u64 = 900;
-/// Ein Kontoname hat höchstens 40 Zeichen; längere Eingaben teilen sich den Bereich ihres Anfangs.
+/// An account name has at most 40 characters; longer inputs share the scope of their beginning.
 const NAME_KEY_CHARS: usize = 40;
 
-/// Wartezeit nach dem `failures`-ten Fehlversuch in Folge: bis zum dritten keine, ab dem vierten 2^(n−3) Sekunden
-/// (2, 4, 8 …), höchstens [`MAX_WAIT_SECONDS`].
+/// Waiting time after the `failures`-th failed attempt in a row: none up to the third, from the fourth 2^(n−3)
+/// seconds (2, 4, 8 …), at most [`MAX_WAIT_SECONDS`].
 pub fn wait_seconds(failures: i64) -> u64 {
     if failures <= FREE_FAILURES {
         return 0;
     }
-    // 2^10 liegt schon über der Obergrenze; so läuft die Verschiebung nie über.
+    // 2^10 is already above the upper limit; so the shift never overflows.
     let exponent = (failures - FREE_FAILURES).min(10) as u32;
     (1u64 << exponent).min(MAX_WAIT_SECONDS)
 }
 
-/// Bereich des Kontos zu einem eingegebenen Namen.
+/// Scope of the account for an entered name.
 pub fn account_scope(name: &str) -> String {
     let key: String = Store::account_name_key(name).chars().take(NAME_KEY_CHARS).collect();
     format!("konto:{key}")
 }
 
-/// Die Bereiche eines Anmeldeversuchs: immer das Konto, dazu die Adresse der Gegenstelle, wenn sie bekannt ist und
-/// die Anfrage nicht über den Proxy kam.
+/// The scopes of a login attempt: always the account, plus the address of the remote side if it is known and
+/// the request did not come through the proxy.
 pub fn scopes(state: &AppState, name: &str, peer: Option<SocketAddr>, headers: &HeaderMap) -> Vec<String> {
     let mut scopes = vec![account_scope(name)];
     if let Some(peer) = peer
@@ -58,16 +58,16 @@ fn borrowed(scopes: &[String]) -> Vec<&str> {
     scopes.iter().map(String::as_str).collect()
 }
 
-/// Reserviert den Versuch **vor** der Prüfung des Passworts, in einer Transaktion: Ist einer der Bereiche (oder
-/// `alle`) gesperrt, kommt [`LoginAttempt::Blocked`] mit der verbleibenden Wartezeit und nichts wird gezählt; sonst
-/// zählt der Versuch sofort als Fehlversuch ([`LoginAttempt::Reserved`] mit der Wartezeit, die bei einem Fehlschlag
-/// gilt; 0 = keine). Nach einem Erfolg nimmt [`succeeded`] die Zählung zurück. Erst zählen, dann prüfen: Sonst ginge
-/// eine Salve gleichzeitiger Versuche an der Sperre vorbei, solange die erste Prüfung (Argon2id) noch läuft.
+/// Reserves the attempt **before** the password check, in one transaction: if one of the scopes (or
+/// `alle`) is locked, [`LoginAttempt::Blocked`] comes with the remaining waiting time and nothing is counted; else
+/// the attempt immediately counts as failed ([`LoginAttempt::Reserved`] with the waiting time that applies on a
+/// failure; 0 = none). After a success [`succeeded`] takes the count back. Count first, then check: otherwise
+/// a salvo of simultaneous attempts would get past the lock while the first check (Argon2id) is still running.
 pub async fn reserve(state: &AppState, scopes: &[String]) -> Result<LoginAttempt, StoreError> {
     state.store.login_reserve(&borrowed(scopes), wait_seconds).await
 }
 
-/// Erfolg setzt die Bereiche zurück.
+/// Success resets the scopes.
 pub async fn succeeded(state: &AppState, scopes: &[String]) -> Result<(), StoreError> {
     for scope in scopes {
         state.store.login_reset(scope).await?;

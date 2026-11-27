@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Passwörter (Runde 35, Vertrag §1.1): Argon2id als PHC-Text. Nie Klartext in Datenbank, Logs, Fehlermeldungen
-//! oder Debug-Ausgaben.
+//! Passwords (Round 35, contract §1.1): Argon2id as PHC text. Never plain text in database, logs, error messages
+//! or debug output.
 //!
-//! [`hash`] und [`verify`] rechnen (≈ 19 MiB Speicher, zwei Durchläufe) und gehören darum nicht auf einen Faden
-//! der Laufzeit: Anfragen nehmen [`hash_blocking`] und [`verify_blocking`] (`spawn_blocking`). Die Parameter einer
-//! Prüfung stehen im PHC-Text; ältere Hashes mit anderen Werten bleiben damit prüfbar, wenn die Vorgabe wächst.
-//! Kein Typ dieses Moduls hält ein Passwort, keine Meldung nennt eines.
+//! [`hash`] and [`verify`] compute (≈ 19 MiB memory, two passes) and therefore do not belong on a thread
+//! of the runtime: requests take [`hash_blocking`] and [`verify_blocking`] (`spawn_blocking`). The parameters of a
+//! check stand in the PHC text; older hashes with other values thus stay checkable when the default grows.
+//! No type of this module holds a password, no message names one.
 
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::{Algorithm, Argon2, Params, Version};
 
-/// Speicher in KiB (19 MiB), Durchläufe und Parallelität für Argon2id.
+/// Memory in KiB (19 MiB), passes and parallelism for Argon2id.
 pub const ARGON2_M_KIB: u32 = 19456;
 pub const ARGON2_T: u32 = 2;
 pub const ARGON2_P: u32 = 1;
-/// Länge eines Passworts in Zeichen; sonst gibt es keine Regel.
+/// Length of a password in characters; there is no other rule.
 pub const MIN_PASSWORD_CHARS: usize = 10;
 pub const MAX_PASSWORD_CHARS: usize = 200;
 
-/// Länge von Salz und Ausgabe in Byte.
+/// Length of salt and output in bytes.
 const SALT_BYTES: usize = 16;
 const OUTPUT_BYTES: usize = 32;
 
-/// Fester Schein-Hash mit den Parametern von [`hash`]: Gegen ihn wird geprüft, wenn es das Konto nicht gibt, damit
-/// die Antwort gleich lange dauert wie bei einem vorhandenen Konto. Er gehört zu keinem Passwort, das jemand kennt.
+/// Fixed dummy hash with the parameters of [`hash`]: it is checked against when the account does not exist, so that
+/// the answer takes as long as for an existing account. It belongs to no password anybody knows.
 pub const DUMMY_PHC: &str =
     "$argon2id$v=19$m=19456,t=2,p=1$YmFydWNoLXNjaGVpbi1oYQ$BwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSY";
 
-/// Verstoß gegen die Regel der Länge, als Meldungscode der Oberfläche (`passwort_kurz`, `passwort_lang`).
+/// Violation of the length rule, as a message code of the UI (`passwort_kurz`, `passwort_lang`).
 pub fn policy(password: &str) -> Result<(), &'static str> {
     match password.chars().count() {
         n if n < MIN_PASSWORD_CHARS => Err("passwort_kurz"),
@@ -36,13 +36,13 @@ pub fn policy(password: &str) -> Result<(), &'static str> {
     }
 }
 
-/// Argon2id-PHC-Text des Passworts mit [`ARGON2_M_KIB`], [`ARGON2_T`], [`ARGON2_P`] und 16 Byte Zufallssalz.
-/// Rechenintensiv: in `spawn_blocking` aufrufen ([`hash_blocking`]).
+/// Argon2id PHC text of the password with [`ARGON2_M_KIB`], [`ARGON2_T`], [`ARGON2_P`] and 16 bytes of random salt.
+/// Compute-intensive: call in `spawn_blocking` ([`hash_blocking`]).
 pub fn hash(password: &str) -> Result<String, String> {
     hash_with(password, ARGON2_M_KIB, ARGON2_T, ARGON2_P)
 }
 
-/// Wie [`hash`] mit eigenen Parametern (Tests nehmen kleine Werte). Fehlermeldungen nennen nie das Passwort.
+/// Like [`hash`] with own parameters (tests take small values). Error messages never name the password.
 pub fn hash_with(password: &str, m_kib: u32, t: u32, p: u32) -> Result<String, String> {
     let params = Params::new(m_kib, t, p, Some(OUTPUT_BYTES)).map_err(|e| format!("Argon2-Parameter: {e}"))?;
     let mut salt = [0u8; SALT_BYTES];
@@ -54,8 +54,8 @@ pub fn hash_with(password: &str, m_kib: u32, t: u32, p: u32) -> Result<String, S
     Ok(hash.to_string())
 }
 
-/// Passt das Passwort zum PHC-Text? Die Parameter stehen im PHC-Text. Ein unlesbarer PHC-Text oder ein anderes
-/// Verfahren als Argon2id ergibt `false`.
+/// Does the password match the PHC text? The parameters stand in the PHC text. An unreadable PHC text or a
+/// method other than Argon2id yields `false`.
 pub fn verify(password: &str, phc: &str) -> bool {
     let Ok(parsed) = PasswordHash::new(phc) else { return false };
     if parsed.algorithm.as_str() != "argon2id" {
@@ -64,15 +64,15 @@ pub fn verify(password: &str, phc: &str) -> bool {
     Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
-/// [`hash`] abseits der Laufzeit.
+/// [`hash`] off the runtime.
 pub async fn hash_blocking(password: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || hash(&password))
         .await
         .unwrap_or_else(|_| Err("Passwort-Hash abgebrochen".to_owned()))
 }
 
-/// [`verify`] abseits der Laufzeit; ohne PHC-Text (unbekanntes Konto) gegen [`DUMMY_PHC`] – das dauert gleich lang
-/// und ergibt immer `false`.
+/// [`verify`] off the runtime; without PHC text (unknown account) against [`DUMMY_PHC`] – that takes equally long
+/// and always yields `false`.
 pub async fn verify_blocking(password: String, phc: Option<String>) -> bool {
     tokio::task::spawn_blocking(move || match phc {
         Some(phc) => verify(&password, &phc),

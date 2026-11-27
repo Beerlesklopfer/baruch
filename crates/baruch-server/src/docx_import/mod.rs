@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Word-Import mit Vorschau (Runde 32; Schnittstelle R32-S1, Besitz docx_import).
+//! Word import with preview (Round 32; interface R32-S1, owner docx_import).
 //!
-//! Eine .docx-Datei wird gelesen ([`baruch_docx::read`]), ihre Gliederung samt Bearbeitern und Warnungen gezeigt und
-//! erst nach ausdrücklicher Bestätigung des Menschen als Werk übernommen ([`crate::import::import_generated`]):
-//! Fassung 1 ist der Stand **vor** allen verfolgten Änderungen; die Änderungen je Bearbeiter werden offene
-//! Vorschläge, Kommentare werden Beiträge – beides unter `@word:<name>` ([`word_author`]) mit Modell
-//! [`WORD_MODEL`], nie als aktuelle Fassung. Kein Import über MCP.
+//! A .docx file is read ([`baruch_docx::read`]), its outline with editors and warnings shown and
+//! adopted as a work only after explicit confirmation by the human ([`crate::import::import_generated`]):
+//! revision 1 is the state **before** all tracked changes; the changes per editor become open
+//! proposals, comments become posts – both under `@word:<name>` ([`word_author`]) with model
+//! [`WORD_MODEL`], never as the current revision. No import through MCP.
 //!
-//! - RPC (global, ohne Werk): [`METHODS`] – siehe docs/RPC.md „Runde 32 – Word“.
-//! - Seiten: `GET /werke/import/word`, Formulare `POST /werke/import/word/vorschau|uebernehmen|verwerfen`
-//!   ([`pages`], [`writes`], hinter `guard::same_origin`).
-//! - CLI: `baruch-server import DATEI.docx [--uebernehmen] [--title …]` ([`cli_import`]); ohne `--uebernehmen` nur
-//!   Vorschau (nichts geschrieben, auch kein Entwurf).
+//! - RPC (global, without work): [`METHODS`] – see docs/RPC.md „Runde 32 – Word“.
+//! - Pages: `GET /werke/import/word`, forms `POST /werke/import/word/vorschau|uebernehmen|verwerfen`
+//!   ([`pages`], [`writes`], behind `guard::same_origin`).
+//! - CLI: `baruch-server import DATEI.docx [--uebernehmen] [--title …]` ([`cli_import`]); without `--uebernehmen`
+//!   preview only (nothing written, no draft either).
 //!
-//! Ablauf des Übernehmens ([`apply_prepared`]):
-//! 1. Werk aus dem Original ([`baruch_docx::resolve::View::Original`]) über `import_generated` – ein Commit im
-//!    Spiegel („Import aus <datei>“), jede Fassung 1 ist aktuell.
-//! 2. Je Bearbeiter und geändertem Abschnitt ein offener Vorschlag (`Store::add_proposal`, gegen Fassung 1), Notiz
-//!    „Änderungen aus Word von <Name>, <Datum>“; danach die Seitenzweige des Spiegels
-//!    (`mirror::side_refs_after_proposal`, wie bei jedem Vorschlag eines Assistenten).
-//! 3. Geänderte Überschriften und Kommentare als Beiträge (`Store::add_post`, wie `post.add` ohne eigenen Commit).
+//! Flow of applying ([`apply_prepared`]):
+//! 1. Work from the original ([`baruch_docx::resolve::View::Original`]) through `import_generated` – one commit in
+//!    the mirror („Import aus <datei>“), every revision 1 is current.
+//! 2. Per editor and changed section one open proposal (`Store::add_proposal`, against revision 1), note
+//!    „Änderungen aus Word von <Name>, <Datum>“; then the side branches of the mirror
+//!    (`mirror::side_refs_after_proposal`, as for every proposal of an assistant).
+//! 3. Changed headings and comments as posts (`Store::add_post`, like `post.add` without a commit of its own).
 //!
-//! Scheitert Schritt 2 oder 3 an einer Stelle, bleibt das Werk bestehen und die Antwort nennt, was fehlt (Warnung
-//! `docx_vorschlag_abgelehnt` bzw. `docx_beitrag_abgelehnt`) – kein halbes Werk ohne Meldung.
+//! If step 2 or 3 fails at some point, the work remains and the answer names what is missing (warning
+//! `docx_vorschlag_abgelehnt` or `docx_beitrag_abgelehnt`) – no half work without a message.
 
 mod draft;
 mod pages;
@@ -43,45 +43,45 @@ use crate::AppState;
 use crate::import::{ImportReport, ImportWarning, SkippedAsset};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub const METHODS: &[&str] = &["docx_import.preview", "docx_import.get", "docx_import.apply", "docx_import.discard"];
 
-/// Größte Word-Datei, die der Import annimmt (wie `baruch_docx::Limits::DEFAULT.max_file_bytes`).
+/// Largest Word file the import accepts (like `baruch_docx::Limits::DEFAULT.max_file_bytes`).
 pub const MAX_DOCX_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Grenze der Anfrage an `POST /werke/import/word/vorschau` (Datei samt Formularfeldern).
+/// Limit of the request to `POST /werke/import/word/vorschau` (file with form fields).
 pub const UPLOAD_LIMIT: usize = MAX_DOCX_BYTES as usize + 64 * 1024;
 
-/// Modell-Feld der Vorschläge aus Word (`Store::add_proposal` verlangt ein Modell).
+/// Model field of the proposals from Word (`Store::add_proposal` demands a model).
 pub const WORD_MODEL: &str = "word";
 
-/// Ordner der Entwürfe unter dem Datenordner (`<data>/docx-drafts/<id>/`).
+/// Folder of the drafts under the data folder (`<data>/docx-drafts/<id>/`).
 pub const DRAFT_DIR: &str = "docx-drafts";
 
-/// Länge der Textprobe je Abschnitt in der Vorschau (Zeichen).
+/// Length of the text sample per section in the preview (characters).
 pub const SAMPLE_CHARS: usize = 160;
 
-/// Größte Länge der zitierten Stelle eines Kommentars im Beitrag (Zeichen, Vertrag §2.3).
+/// Maximum length of the quoted passage of a comment in the post (characters, contract §2.3).
 pub const MAX_QUOTE_CHARS: usize = 200;
 
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Endet der Dateiname (ohne Rücksicht auf Groß-/Kleinschreibung) auf `.docx` und hat davor einen Namen?
+/// Does the file name end (ignoring case) in `.docx` and have a name before it?
 pub fn is_docx_name(file_name: &str) -> bool {
     const SUFFIX: &str = ".docx";
     let lower = file_name.to_lowercase();
     lower.len() > SUFFIX.len() && lower.ends_with(SUFFIX)
 }
 
-/// Größte Länge des Namensteils eines Handles `@word:<name>`.
+/// Maximum length of the name part of a handle `@word:<name>`.
 const MAX_WORD_NAME_CHARS: usize = 40;
 
-/// Persona-Handle eines Bearbeiters aus Word (Vertrag Runde 32 §0.5): `@word:<name>` mit dem Namen klein, ä→ae,
-/// ö→oe, ü→ue, ß→ss, jede Folge anderer Zeichen außer a–z und 0–9 als ein `-`, ohne `-` am Rand, höchstens 40
-/// Zeichen; bleibt nichts übrig, `@word:unbekannt`. Der Originalname steht in der Notiz der Fassung bzw. am Anfang
-/// des Beitrags.
+/// Persona handle of an editor from Word (contract Round 32 §0.5): `@word:<name>` with the name lower case, ä→ae,
+/// ö→oe, ü→ue, ß→ss, every run of other characters except a–z and 0–9 as one `-`, no `-` at the edge, at most 40
+/// characters; if nothing remains, `@word:unbekannt`. The original name stands in the note of the revision or at the
+/// start of the post.
 pub fn word_author(name: &str) -> String {
     let mut slug = String::new();
     for c in name.to_lowercase().chars() {
@@ -95,7 +95,7 @@ pub fn word_author(name: &str) -> String {
             _ => slug.push('-'),
         }
     }
-    // Nur ASCII: Zeichen und Bytes sind dasselbe.
+    // ASCII only: characters and bytes are the same.
     slug.truncate(MAX_WORD_NAME_CHARS);
     let slug = slug.trim_matches('-');
     if slug.is_empty() { "@word:unbekannt".to_owned() } else { format!("@word:{slug}") }
@@ -105,12 +105,12 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Wörtlicher Name für Menschen (leer → „unbekannt“).
+/// Literal name for humans (empty → „unbekannt“).
 fn shown_name(name: &str) -> &str {
     if name.trim().is_empty() { "unbekannt" } else { name.trim() }
 }
 
-/// Datum (`JJJJ-MM-TT`) aus einem ISO-Zeitpunkt, sonst leer.
+/// Date (`JJJJ-MM-TT`) from an ISO time, otherwise empty.
 fn day(date: &str) -> &str {
     date.get(..10).unwrap_or("")
 }
@@ -120,38 +120,38 @@ fn short(text: &str, max: usize) -> String {
     if text.chars().count() > max { format!("{}…", text.chars().take(max).collect::<String>()) } else { text }
 }
 
-/// Dateiname ohne Ordner und ohne Endung.
+/// File name without folder and without extension.
 fn stem(file_name: &str) -> String {
     let base = file_name.rsplit(['/', '\\']).next().unwrap_or(file_name);
     base.rsplit_once('.').map_or(base, |(stem, _)| stem).trim().to_owned()
 }
 
-// ---- Lesen und Planen (rein, ohne Datenbank) ---------------------------------------------------------------------
+// ---- Reading and planning (pure, without database) ---------------------------------------------------------------
 
-/// Was ein Bearbeiter beiträgt.
+/// What an editor contributes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditorPlan {
-    /// Wörtlicher Name aus Word (kann leer sein).
+    /// Literal name from Word (may be empty).
     pub name: String,
     pub handle: String,
     pub insertions: usize,
     pub deletions: usize,
-    /// Jüngster Zeitpunkt seiner Änderungen (ISO 8601) oder leer.
+    /// Latest time of his changes (ISO 8601) or empty.
     pub date: String,
-    /// Geänderte Abschnitte: Stelle (ab 0) und neuer Text ohne Überschriftszeile.
+    /// Changed sections: position (from 0) and new text without heading line.
     pub bodies: Vec<(usize, String)>,
-    /// Überschriften mit geändertem Wortlaut (weder eingefügt noch gelöscht).
+    /// Headings with changed wording (neither inserted nor deleted).
     pub headings: Vec<HeadingChange>,
 }
 
-/// Eine gelesene Word-Datei, fertig geplant für Vorschau und Übernahme.
+/// A Word file that was read, fully planned for preview and applying.
 #[derive(Debug, Clone)]
 pub struct Prepared {
     pub document: DocxDocument,
-    /// Abschnitte des Originals (Stand vor allen Änderungen); ein Vorspann ohne Überschrift hat einen leeren Titel.
+    /// Sections of the original (state before all changes); a preamble without heading has an empty title.
     pub sections: Vec<TypstSection>,
     pub editors: Vec<EditorPlan>,
-    /// Stelle je Kommentar: Abschnitt und kommentierter Wortlaut (leer = ohne auffindbare Stelle).
+    /// Position per comment: section and commented wording (empty = without a locatable position).
     pub places: HashMap<u32, (usize, String)>,
     pub warnings: Vec<DocxWarning>,
     pub footnotes: usize,
@@ -201,8 +201,8 @@ fn warn(warnings: &mut Vec<DocxWarning>, code: &str, message: String) {
     warnings.push(DocxWarning { code: code.to_owned(), message });
 }
 
-/// Datei lesen und alles planen: Abschnitte des Originals, je Bearbeiter die geänderten Abschnitte, Stellen der
-/// Kommentare, Warnungen. Rein rechnend (blockiert; in `spawn_blocking` aufrufen).
+/// Read the file and plan everything: sections of the original, per editor the changed sections, positions of the
+/// comments, warnings. Pure computation (blocks; call in `spawn_blocking`).
 pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
     let read = baruch_docx::read::read(bytes, &Limits::DEFAULT)?;
     let document = read.document;
@@ -219,7 +219,7 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
     }
     let has_preamble = sections[0].title.is_empty();
 
-    // Zahlen je Bearbeiter und Fußnoten.
+    // Counts per editor and footnotes.
     let mut stats: HashMap<String, (usize, usize, String)> = HashMap::new();
     let mut footnotes = 0;
     {
@@ -271,7 +271,7 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
             bodies: Vec::new(),
             headings: Vec::new(),
         };
-        // Abschnitte des Vorschlagsstands auf die des Originals legen (Vorspann beachten).
+        // Lay the sections of the proposal state onto those of the original (mind the preamble).
         let mut proposed: Vec<(usize, &TypstSection)> = Vec::new();
         let own_preamble = out.sections.first().is_some_and(|s| s.title.is_empty());
         let empty = TypstSection::default();
@@ -349,7 +349,7 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
 }
 
 impl Prepared {
-    /// Titel des Werks: Wunsch, sonst Titel der Datei, sonst Dateiname ohne Endung.
+    /// Title of the work: wish, otherwise title of the file, otherwise file name without extension.
     pub fn title(&self, wanted: Option<&str>, file_name: &str) -> String {
         let wanted = wanted.map(str::trim).filter(|t| !t.is_empty());
         let own = Some(self.document.meta.title.trim()).filter(|t| !t.is_empty());
@@ -361,7 +361,7 @@ impl Prepared {
         if title.is_empty() { work_title } else { title }
     }
 
-    /// Antwort von `docx_import.preview` (ohne `draft`).
+    /// Answer of `docx_import.preview` (without `draft`).
     pub fn preview_json(&self, file_name: &str, title: &str) -> Value {
         let sections: Vec<Value> = (0..self.sections.len())
             .map(|i| {
@@ -402,7 +402,7 @@ impl Prepared {
         })
     }
 
-    /// Typst-Quelltext des Werks aus dem Original.
+    /// Typst source of the work from the original.
     fn source(&self, title: &str) -> String {
         let literal = |text: &str| format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""));
         let meta = &self.document.meta;
@@ -435,18 +435,18 @@ impl Prepared {
     }
 }
 
-// ---- Übernehmen --------------------------------------------------------------------------------------------------
+// ---- Applying ----------------------------------------------------------------------------------------------------
 
-/// Ergebnis einer Übernahme.
+/// Result of applying.
 #[derive(Debug, Clone)]
 pub struct Applied {
     pub report: ImportReport,
     pub sections: usize,
     pub proposals: usize,
     pub posts: usize,
-    /// Alle Hinweise: aus der Datei, vom Import und vom Anlegen der Vorschläge und Beiträge.
+    /// All notes: from the file, from the import and from creating the proposals and posts.
     pub warnings: Vec<DocxWarning>,
-    /// Zahl der Hinweise, die erst beim Übernehmen entstanden (die übrigen zeigte schon die Vorschau).
+    /// Number of notes that arose only when applying (the others were already shown by the preview).
     pub new_warnings: usize,
 }
 
@@ -454,20 +454,20 @@ fn post_of(author: &str, body: String, refs: Vec<TextRef>) -> Post {
     Post { id: 0, created: String::new(), author: author.to_owned(), body, sources: Vec::new(), refs }
 }
 
-/// Text des Vorschlags: die aktuelle Fassung, in der der Text des Abschnitts ersetzt ist (Überschriftszeile bleibt).
+/// Text of the proposal: the current revision in which the text of the section is replaced (heading line stays).
 fn proposal_body(current: &str, old: &str, new: &str) -> String {
     if !old.is_empty() && current.contains(old) {
         let replaced = current.replacen(old, new, 1);
         return format!("{}\n", replaced.trim_end());
     }
-    // Der Text steht nicht wörtlich in der Fassung (leer, oder der Import hat ihn angepasst): Überschriftszeile der
-    // aktuellen Fassung, dahinter der neue Text.
+    // The text is not literally in the revision (empty, or the import adapted it): heading line of the
+    // current revision, the new text after it.
     let head = current.lines().next().unwrap_or("").trim_end();
     if new.is_empty() { format!("{head}\n") } else { format!("{head}\n\n{new}\n") }
 }
 
-/// Werk anlegen, dann Vorschläge und Beiträge (siehe Modulkopf). `changes`/`comments` schalten Schritt 2 bzw. die
-/// Kommentare ab.
+/// Create the work, then proposals and posts (see module head). `changes`/`comments` switch off step 2 or the
+/// comments.
 pub async fn apply_prepared(
     state: &AppState,
     prepared: &Prepared,
@@ -578,7 +578,7 @@ pub async fn apply_prepared(
     if aligned && comments {
         let all = &prepared.document.comments;
         let ids: HashSet<u32> = all.iter().map(|c| c.id).collect();
-        // Oberste Kommentare in der Reihenfolge der Datei, Antworten direkt dahinter.
+        // Top-level comments in the order of the file, replies directly after them.
         let mut order: Vec<(&baruch_docx::Comment, Option<&baruch_docx::Comment>)> = Vec::new();
         for comment in all.iter().filter(|c| c.reply_to.is_none_or(|parent| !ids.contains(&parent) || parent == c.id)) {
             order.push((comment, None));
@@ -597,7 +597,7 @@ pub async fn apply_prepared(
         }
         for (comment, parent) in order {
             let root = parent.map_or(comment.id, |_| {
-                // Stelle der Antwort = Stelle des Kommentars, auf den sie (mittelbar) antwortet.
+                // Position of the reply = position of the comment it (indirectly) replies to.
                 let mut id = comment.id;
                 let mut steps = 0;
                 while let Some(up) =
@@ -646,7 +646,7 @@ pub async fn apply_prepared(
     Ok(Applied { report, sections: prepared.sections.len(), proposals, posts, warnings, new_warnings })
 }
 
-/// Antwort von `docx_import.apply`.
+/// Answer of `docx_import.apply`.
 pub fn applied_json(applied: &Applied) -> Value {
     let warnings: Vec<Value> =
         applied.warnings.iter().map(|w| json!({ "code": w.code, "message": w.message })).collect();
@@ -671,7 +671,7 @@ fn too_large() -> String {
     format!("Die Datei ist größer als {} MiB.", MAX_DOCX_BYTES / (1024 * 1024))
 }
 
-/// Vorschau: Datei lesen und als Entwurf ablegen; sonst entsteht nichts.
+/// Preview: read the file and store it as a draft; nothing else is created.
 pub async fn preview(
     state: &AppState,
     file_name: &str,
@@ -706,7 +706,7 @@ pub async fn preview(
     Ok(draft)
 }
 
-/// Entwurf laden; unbekannt → `INVALID_PARAMS`.
+/// Load a draft; unknown → `INVALID_PARAMS`.
 pub async fn load_draft(state: &AppState, id: &str) -> Result<draft::Draft, RpcError> {
     let data = state.data.clone();
     let owned = id.to_owned();
@@ -722,7 +722,7 @@ pub async fn load_draft(state: &AppState, id: &str) -> Result<draft::Draft, RpcE
     })
 }
 
-/// Entwürfe, die gerade übernommen werden (zweimal zugleich → abgelehnt).
+/// Drafts that are being applied right now (twice at once → rejected).
 static APPLYING: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
 
 struct ApplyingGuard(String);
@@ -733,7 +733,7 @@ impl Drop for ApplyingGuard {
     }
 }
 
-/// Übernehmen eines gespeicherten Entwurfs; danach ist der Entwurf weg.
+/// Apply a stored draft; afterwards the draft is gone.
 pub async fn apply(
     state: &AppState,
     id: &str,
@@ -764,7 +764,7 @@ pub async fn apply(
     Ok(applied)
 }
 
-/// Entwurf verwerfen; `true`, wenn es ihn gab.
+/// Discard a draft; `true` if it existed.
 pub async fn discard(state: &AppState, id: &str) -> Result<bool, RpcError> {
     if !draft::valid_id(id) {
         return Err(invalid("draft: 32 Kleinbuchstaben-Hex (aus docx_import.preview)."));
@@ -776,7 +776,7 @@ pub async fn discard(state: &AppState, id: &str) -> Result<bool, RpcError> {
         .map_err(|e| RpcError::new(INTERNAL, format!("Löschen abgebrochen: {e}")))
 }
 
-/// Zahl der Entwürfe im Datenordner (Tests, Anzeige).
+/// Number of drafts in the data folder (tests, display).
 pub fn draft_count(state: &AppState) -> usize {
     draft::count(&state.data)
 }
@@ -814,7 +814,7 @@ struct ApplyParams {
     comments: bool,
 }
 
-/// RPC-Aufruf einer Methode aus [`METHODS`].
+/// RPC call of a method from [`METHODS`].
 pub async fn call(state: &AppState, method: &str, params_value: Value) -> Result<Value, RpcError> {
     match method {
         "docx_import.preview" => {
@@ -847,11 +847,11 @@ pub async fn call(state: &AppState, method: &str, params_value: Value) -> Result
 
 // ---- CLI ---------------------------------------------------------------------------------------------------------
 
-/// Angaben der Kommandozeile.
+/// Details of the command line.
 #[derive(Debug, Clone, Default)]
 pub struct CliDocxImport {
     pub title: Option<String>,
-    /// `--uebernehmen`: Werk samt Vorschlägen und Beiträgen anlegen; sonst nur Vorschau.
+    /// `--uebernehmen`: create the work with proposals and posts; otherwise preview only.
     pub apply: bool,
 }
 
@@ -862,8 +862,8 @@ fn level_mark(level: u8, numbered: bool) -> String {
     }
 }
 
-/// `baruch-server import DATEI.docx [--uebernehmen] [--title T]`: `Ok(text)` → Standardausgabe, Exit 0;
-/// `Err(text)` → Fehlerausgabe, Exit 1.
+/// `baruch-server import DATEI.docx [--uebernehmen] [--title T]`: `Ok(text)` → standard output, exit 0;
+/// `Err(text)` → error output, exit 1.
 pub async fn cli_import(state: &AppState, file: &std::path::Path, options: &CliDocxImport) -> Result<String, String> {
     let shown = file.display().to_string();
     let meta = tokio::fs::metadata(file).await.map_err(|e| format!("{shown} lässt sich nicht lesen: {e}"))?;
@@ -939,12 +939,12 @@ pub async fn cli_import(state: &AppState, file: &std::path::Path, options: &CliD
     Ok(out)
 }
 
-/// Seiten (GET), gemischt in `lib.rs` bei den Seiten: `GET /werke/import/word`.
+/// Pages (GET), merged in `lib.rs` with the pages: `GET /werke/import/word`.
 pub fn pages() -> Router<Arc<AppState>> {
     pages::pages()
 }
 
-/// Formulare (POST), gemischt in `lib.rs` im writes-Router hinter `guard::same_origin`.
+/// Forms (POST), merged in `lib.rs` in the writes router behind `guard::same_origin`.
 pub fn writes() -> Router<Arc<AppState>> {
     pages::writes()
 }

@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Druckprüfung des Umschlags und der Pflichtangaben im Impressum (Vertrag Runde 27, Abschnitte 1.7 und 1.8; S1
-//! schreibt die Signaturen, danach gehört die Datei umschlag-satz).
+//! Print check of the cover and of the mandatory details in the imprint (contract Round 27, sections 1.7 and 1.8; S1
+//! writes the signatures, afterwards the file belongs to umschlag-satz).
 //!
-//! - [`cover_checks`]: je sichtbarem Block mit Inhalt der Anordnung (gespeichert bzw. Vorschau; ohne eigene
-//!   Anordnung keine Blockprüfung, denn dann gilt das bisherige Bild):
-//!   - `bleed`: der Block ragt über die Schnittkante seiner Fläche (bei Vorder- und Rückseite auch über den Falz).
-//!   - `safety`: der Block liegt näher als der Sicherheitsabstand (5 mm) an der Kante; beim Rücken nur oben und unten.
-//!   - `barcode`: ein Block der Rückseite überdeckt den Strichcode-Block.
-//!   - `spine`: ein Rückenblock ist dicker als der Rücken bzw. fällt seitlich aus ihm heraus.
-//!   - `contrast`: das WCAG-Kontrastverhältnis zwischen Textfarbe und dem mittleren Hintergrund unter dem Block liegt
-//!     unter 3,0. Gemessen wird im Rasterbild des Umschlags (image-Crate, Abbildung wie im Satz mit `fit: "cover"`
-//!     auf die Vorderseite samt Beschnitt), sonst auf der dunklen Fläche; Schatten (50 % Schwarz) und Verlauf
-//!     (im Mittel 30 % Schwarz) dunkeln den Hintergrund ab. SVG-Umschläge werden nicht gemessen.
-//!   - `font`: die gewählte Schrift fehlt; gesetzt wird mit der Schrift der Werkvorlage bzw. der eingebetteten
-//!     Vorgabe.
-//! - [`imprint_checks`] (nur bei eingeschalteter Titelei): `imprint_publisher` (Verlag bzw. Herausgeber oder dessen
-//!   Anschrift fehlt), `imprint_printer` (Druckerei oder Anschrift fehlt), `imprint_year` (Jahr fehlt),
-//!   `imprint_bible_notice` (Bibelübersetzung gesetzt, Rechtehinweis leer). Üblich nach den Landespressegesetzen,
-//!   keine Rechtsberatung.
-//! - Runde 22: `draft` – das Umschlag-PDF entsteht mit Wasserzeichen „Entwurf“ (Einstellung `draft.cover` oder
-//!   ausdrücklich `?entwurf=1`/`draft: true`); [`cover_checks_with`].
-//! - Die Bildauflösungsprüfung (`baruch_render::PrintWarning`) bleibt davon unberührt.
+//! - [`cover_checks`]: per visible block with content of the layout (stored or preview; without an own
+//!   layout no block check, because then the previous picture applies):
+//!   - `bleed`: the block extends beyond the trim edge of its face (for front and back also beyond the fold).
+//!   - `safety`: the block lies closer to the edge than the safety margin (5 mm); on the spine only top and bottom.
+//!   - `barcode`: a block of the back covers the barcode block.
+//!   - `spine`: a spine block is thicker than the spine or falls out of it sideways.
+//!   - `contrast`: the WCAG contrast ratio between text colour and the mean background below the block is
+//!     below 3.0. Measured in the raster image of the cover (image crate, mapping as in typesetting with `fit: "cover"`
+//!     onto the front including bleed), otherwise on the dark area; shadow (50 % black) and gradient
+//!     (on average 30 % black) darken the background. SVG covers are not measured.
+//!   - `font`: the chosen font is missing; typeset with the font of the work template or the embedded
+//!     default.
+//! - [`imprint_checks`] (only with front matter switched on): `imprint_publisher` (publisher or editor or its
+//!   address missing), `imprint_printer` (print shop or address missing), `imprint_year` (year missing),
+//!   `imprint_bible_notice` (Bible translation set, rights notice empty). Customary under the German state press
+//!   laws, no legal advice.
+//! - Round 22: `draft` – the cover PDF is created with the watermark „Entwurf“ (setting `draft.cover` or
+//!   explicitly `?entwurf=1`/`draft: true`); [`cover_checks_with`].
+//! - The image resolution check (`baruch_render::PrintWarning`) is unaffected by this.
 
 use baruch_store::{BookMeta, CoverBlock, CoverBlockKind, CoverFace, CoverGeometry, CoverLayout, WorkId};
 use baruch_typst::cover_layout::{Backdrop, effective_blocks};
@@ -28,8 +28,8 @@ use baruch_typst::cover_layout::{Backdrop, effective_blocks};
 use crate::AppState;
 use crate::rpc::RpcError;
 
-/// Eine Warnung der Druckprüfung: `code` aus [`CODES`], betroffener Block (bei den Pflichtangaben keiner) und
-/// deutsche Meldung.
+/// A warning of the print check: `code` from [`CODES`], affected block (none for the mandatory details) and
+/// German message.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CoverWarning {
     pub code: &'static str,
@@ -37,7 +37,7 @@ pub struct CoverWarning {
     pub message: String,
 }
 
-/// Alle Codes der Druckprüfung (Vertrag 1.7, 1.8; Runde 22: `draft`).
+/// All codes of the print check (contract 1.7, 1.8; Round 22: `draft`).
 pub const CODES: [&str; 11] = [
     "bleed",
     "safety",
@@ -52,29 +52,29 @@ pub const CODES: [&str; 11] = [
     "draft",
 ];
 
-/// Runde 22: Meldung, wenn das Umschlag-PDF ein Wasserzeichen trägt.
+/// Round 22: message if the cover PDF carries a watermark.
 pub const DRAFT_WARNING: &str = "Das Umschlag-PDF trägt das Wasserzeichen „Entwurf“ – so nicht an die Druckerei geben \
      (ohne Wasserzeichen: Umschlag-PDF mit ?entwurf=0 oder „Entwurf auch auf dem Umschlag“ ausschalten).";
 
-/// Mindestkontrast (WCAG-Verhältnis) zwischen Text und Hintergrund.
+/// Minimum contrast (WCAG ratio) between text and background.
 pub const MIN_CONTRAST: f64 = 3.0;
 
-/// Dunkle Fläche von Rückseite und Rücken (`rgb("#1f2a33")`).
+/// Dark area of back and spine (`rgb("#1f2a33")`).
 const DARK_RGB: [f64; 3] = [31.0, 42.0, 51.0];
 
-/// Abdunklung durch den Hintergrund des Blocks (Anteil Schwarz).
+/// Darkening by the background of the block (share of black).
 fn backdrop_alpha(backdrop: Backdrop) -> f64 {
     match backdrop {
         Backdrop::None => 0.0,
         Backdrop::Shadow => 0.5,
-        // Verlauf 0 % → 35 % → 0 %: im Mittel gut 17 % über dem Block samt Rand; mit dem Rand des Verlaufs knapp
-        // über dem Text gerechnet 30 %.
+        // Gradient 0 % → 35 % → 0 %: on average a good 17 % over the block with margin; counted with the edge of the
+        // gradient just above the text 30 %.
         Backdrop::Gradient => 0.3,
     }
 }
 
-/// Druckprüfung des Umschlags mit `layout` (Vorschau) bzw. der gespeicherten Anordnung (`None`), dazu die
-/// Pflichtangaben aus [`imprint_checks`]. Das Wasserzeichen gilt nach Einstellung (siehe [`cover_checks_with`]).
+/// Print check of the cover with `layout` (preview) or the stored layout (`None`), plus the
+/// mandatory details from [`imprint_checks`]. The watermark applies by setting (see [`cover_checks_with`]).
 pub async fn cover_checks(
     state: &AppState,
     work: WorkId,
@@ -83,8 +83,8 @@ pub async fn cover_checks(
     cover_checks_with(state, work, layout, None).await
 }
 
-/// Wie [`cover_checks`] mit dem Entwurf-Schalter des Umschlag-PDFs (Runde 22): Entsteht das PDF mit Wasserzeichen
-/// ([`crate::typeset::cover_draft`]), steht vorn die Warnung `draft` ([`DRAFT_WARNING`]).
+/// Like [`cover_checks`] with the draft switch of the cover PDF (Round 22): if the PDF is created with a watermark
+/// ([`crate::typeset::cover_draft`]), the warning `draft` stands in front ([`DRAFT_WARNING`]).
 pub async fn cover_checks_with(
     state: &AppState,
     work: WorkId,
@@ -161,8 +161,8 @@ fn mm(value: f64) -> String {
     format!("{value:.1} mm").replace('.', ",")
 }
 
-/// Rahmen eines Blocks auf seiner Fläche (x, y, Breite, Höhe in mm, ungedreht): beim Rücken ist die Breite in
-/// Leserichtung die senkrechte Ausdehnung und die gemessene Höhe die waagrechte.
+/// Frame of a block on its face (x, y, width, height in mm, unrotated): on the spine the width in
+/// reading direction is the vertical extent and the measured height the horizontal one.
 fn rect(block: &CoverBlock, height: f64) -> (f64, f64, f64, f64) {
     if block.kind.face() == CoverFace::Spine {
         (block.x_mm, block.y_mm, height, block.width_mm)
@@ -171,32 +171,32 @@ fn rect(block: &CoverBlock, height: f64) -> (f64, f64, f64, f64) {
     }
 }
 
-/// Hintergrund der Vorderseite für die Kontrastprüfung.
+/// Background of the front for the contrast check.
 pub enum Background {
-    /// Umschlagbild als Rasterbild (PNG, JPEG …).
+    /// Cover image as a raster image (PNG, JPEG …).
     Raster(std::sync::Arc<image::RgbImage>),
-    /// Kein Umschlagbild: die dunkle Fläche wie Rückseite und Rücken.
+    /// No cover image: the dark area like back and spine.
     Dark,
-    /// SVG (keine Pixel), unlesbar oder größer als [`MAX_CONTRAST_SIDE_PX`]: nicht gemessen.
+    /// SVG (no pixels), unreadable or larger than [`MAX_CONTRAST_SIDE_PX`]: not measured.
     NotMeasured,
 }
 
-/// Runde 23a: Höchste Seitenlänge (Pixel) eines Umschlagbilds, das für die Kontrastprüfung entpackt wird – wie bei
-/// den Vorschaubildern (`assets::thumbnail_bytes`). Ein größeres Bild wird nicht entpackt und nicht gemessen.
+/// Round 23a: maximum side length (pixels) of a cover image that is unpacked for the contrast check – as for
+/// the thumbnails (`assets::thumbnail_bytes`). A larger image is not unpacked and not measured.
 pub const MAX_CONTRAST_SIDE_PX: u32 = 20_000;
 
-/// Höchster Speicher beim Entpacken (512 MiB, wie bei den Vorschaubildern).
+/// Maximum memory when unpacking (512 MiB, as for the thumbnails).
 const MAX_CONTRAST_ALLOC: u64 = 512 * 1024 * 1024;
 
-/// Zwischenspeicher der entpackten Umschlagbilder: zusammen höchstens so viele Bytes (als RGB); ein einzelnes Bild,
-/// das größer ist, wird jedes Mal entpackt.
+/// Cache of the unpacked cover images: together at most this many bytes (as RGB); a single image
+/// that is larger is unpacked every time.
 const MAX_CACHED_RGB_BYTES: usize = 96 * 1024 * 1024;
 
-/// Höchstzahl der Bilder im Zwischenspeicher (zuletzt benutzte zuerst).
+/// Maximum number of images in the cache (most recently used first).
 const MAX_CACHED_IMAGES: usize = 8;
 
-/// Wie oft die Kontrastprüfung das Bild mit dieser Prüfsumme (SHA-256 der Bytes, hex) in diesem Prozess entpackt hat
-/// (für Tests des Zwischenspeichers; höchstens 64 Bilder werden gezählt, danach beginnt die Zählung neu).
+/// How often the contrast check unpacked the image with this checksum (SHA-256 of the bytes, hex) in this process
+/// (for tests of the cache; at most 64 images are counted, then the counting starts anew).
 pub fn contrast_decodes(sha256: &str) -> usize {
     CONTRAST_DECODES.lock().ok().and_then(|counts| counts.get(sha256).copied()).unwrap_or(0)
 }
@@ -204,13 +204,13 @@ pub fn contrast_decodes(sha256: &str) -> usize {
 static CONTRAST_DECODES: std::sync::Mutex<std::collections::BTreeMap<String, usize>> =
     std::sync::Mutex::new(std::collections::BTreeMap::new());
 
-/// Zuletzt entpackte Umschlagbilder (Prüfsumme der Bytes, Pixel), das zuletzt benutzte vorn. Die Druckprüfung läuft bei
-/// jedem Zeichnen der Umschlagseite und bei jedem Ziehen eines Blocks für dasselbe Bild; mehrere Einträge, damit
-/// zwei Werke (oder gleichzeitige Tests) einander nicht verdrängen.
+/// Most recently unpacked cover images (checksum of the bytes, pixels), the most recently used in front. The print
+/// check runs on every drawing of the cover page and on every drag of a block for the same image; several entries
+/// so that two works (or simultaneous tests) do not displace each other.
 static CONTRAST_CACHE: std::sync::Mutex<Vec<(String, std::sync::Arc<image::RgbImage>)>> =
     std::sync::Mutex::new(Vec::new());
 
-/// Bild aus dem Zwischenspeicher (und nach vorn gerückt).
+/// Image from the cache (and moved to the front).
 fn cached_contrast_image(sum: &str) -> Option<std::sync::Arc<image::RgbImage>> {
     let mut cache = CONTRAST_CACHE.lock().ok()?;
     let at = cache.iter().position(|(known, _)| known == sum)?;
@@ -220,7 +220,7 @@ fn cached_contrast_image(sum: &str) -> Option<std::sync::Arc<image::RgbImage>> {
     Some(image)
 }
 
-/// Bild merken; ältere fallen heraus, bis Zahl und Gesamtgröße passen.
+/// Remember an image; older ones are dropped until number and total size fit.
 fn remember_contrast_image(sum: String, image: &std::sync::Arc<image::RgbImage>) {
     if image.as_raw().len() > MAX_CACHED_RGB_BYTES {
         return;
@@ -240,11 +240,11 @@ fn remember_contrast_image(sum: String, image: &std::sync::Arc<image::RgbImage>)
     cache.truncate(keep.max(1));
 }
 
-/// Rasterbild für die Kontrastprüfung entpacken: `None` bei SVG, unlesbaren Bytes oder mehr als
-/// [`MAX_CONTRAST_SIDE_PX`] je Seite (Schutz vor „Pixelbomben“). Blockierend.
+/// Unpack a raster image for the contrast check: `None` for SVG, unreadable bytes or more than
+/// [`MAX_CONTRAST_SIDE_PX`] per side (protection against “pixel bombs”). Blocking.
 pub fn decode_for_contrast(bytes: &[u8]) -> Option<image::RgbImage> {
     if bytes.trim_ascii_start().starts_with(b"<") {
-        return None; // SVG: keine Pixel
+        return None; // SVG: no pixels
     }
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
     let mut limits = image::Limits::default();
@@ -255,7 +255,7 @@ pub fn decode_for_contrast(bytes: &[u8]) -> Option<image::RgbImage> {
     reader.decode().ok().map(|picture| picture.to_rgb8())
 }
 
-/// Hintergrund der Vorderseite: Rasterbild, dunkle Fläche (ohne Umschlag) oder nicht messbar (SVG, zu groß).
+/// Background of the front: raster image, dark area (without cover) or not measurable (SVG, too large).
 async fn front_background(state: &AppState, work: WorkId, meta: &BookMeta) -> Result<Background, RpcError> {
     let Some(name) = &meta.cover else { return Ok(Background::Dark) };
     let data = state.store.asset_data(work, name, None).await?;
@@ -281,13 +281,13 @@ async fn front_background(state: &AppState, work: WorkId, meta: &BookMeta) -> Re
     Ok(decoded.map_or(Background::NotMeasured, Background::Raster))
 }
 
-/// Bild eines Rasterumschlags.
+/// Image of a raster cover.
 struct Raster<'a>(&'a image::RgbImage);
 
 impl Raster<'_> {
-    /// Mittlere Farbe unter dem Rechteck (mm, relativ zur Schnittkante der Vorderseite). Abbildung wie im Umschlag
-    /// für die Druckerei: Das Bild füllt die Vorderseite samt Beschnitt oben, unten und außen (`fit: "cover"`,
-    /// mittig beschnitten).
+    /// Mean colour below the rectangle (mm, relative to the trim edge of the front). Mapping as in the cover
+    /// for the print shop: the image fills the front including bleed at top, bottom and outside (`fit: "cover"`,
+    /// cropped centred).
     fn mean_rgb(&self, geometry: &CoverGeometry, area: (f64, f64, f64, f64)) -> Option<[f64; 3]> {
         let (iw, ih) = (f64::from(self.0.width()), f64::from(self.0.height()));
         if iw < 1.0 || ih < 1.0 {
@@ -295,7 +295,7 @@ impl Raster<'_> {
         }
         let b = geometry.bleed_mm.max(0.0);
         let (fx, fy, fw, fh) = (0.0, -b, geometry.page_width_mm + b, geometry.page_height_mm + 2.0 * b);
-        let scale = (fw / iw).max(fh / ih); // mm je Pixel
+        let scale = (fw / iw).max(fh / ih); // mm per pixel
         let (ox, oy) = (fx + (fw - iw * scale) / 2.0, fy + (fh - ih * scale) / 2.0);
         let (x, y, w, h) = area;
         let steps = 40usize;
@@ -321,7 +321,7 @@ impl Raster<'_> {
     }
 }
 
-/// Relative Leuchtdichte nach WCAG 2 aus sRGB (0–255).
+/// Relative luminance per WCAG 2 from sRGB (0–255).
 pub fn luminance(rgb: [f64; 3]) -> f64 {
     let channel = |c: f64| {
         let c = (c / 255.0).clamp(0.0, 1.0);
@@ -330,13 +330,13 @@ pub fn luminance(rgb: [f64; 3]) -> f64 {
     0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2])
 }
 
-/// WCAG-Kontrastverhältnis zweier Farben (1 bis 21).
+/// WCAG contrast ratio of two colours (1 to 21).
 pub fn contrast_ratio(a: [f64; 3], b: [f64; 3]) -> f64 {
     let (la, lb) = (luminance(a), luminance(b));
     (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
 }
 
-/// Textfarbe eines Blocks als sRGB.
+/// Text colour of a block as sRGB.
 fn text_rgb(color: &str) -> [f64; 3] {
     match color.trim() {
         "dark" => DARK_RGB,
@@ -348,7 +348,7 @@ fn text_rgb(color: &str) -> [f64; 3] {
     }
 }
 
-/// Lageprüfungen und Kontrast je Block (ohne Schriften; die prüft [`cover_checks`] blockierend gesondert).
+/// Position checks and contrast per block (without fonts; [`cover_checks`] checks those separately, blocking).
 pub fn block_checks(
     blocks: &[CoverBlock],
     heights: &[f64],
@@ -417,8 +417,8 @@ pub fn block_checks(
         {
             warn("barcode", format!("{who} überdeckt den Strichcode."));
         }
-        // Kontrast: Hintergrund unter dem Block (Rasterbild der Vorderseite bzw. dunkle Fläche), abgedunkelt
-        // durch Schatten oder Verlauf.
+        // Contrast: background below the block (raster image of the front or dark area), darkened
+        // by shadow or gradient.
         let base = match (face, background) {
             (CoverFace::Front, Background::Raster(image)) => Raster(image).mean_rgb(geometry, (x, y, w, h)),
             (CoverFace::Front, Background::NotMeasured) => None,
@@ -444,8 +444,8 @@ pub fn block_checks(
     out
 }
 
-/// Pflichtangaben im Impressum (Vertrag 1.7), nur bei eingeschalteter Titelei; `bible` ist die Bibelübersetzung
-/// des Werks. Üblich nach den Landespressegesetzen – keine Rechtsberatung.
+/// Mandatory details in the imprint (contract 1.7), only with front matter switched on; `bible` is the Bible
+/// translation of the work. Customary under the German state press laws – no legal advice.
 pub fn imprint_checks(meta: &BookMeta, bible: &str) -> Vec<CoverWarning> {
     if !meta.front_matter {
         return Vec::new();

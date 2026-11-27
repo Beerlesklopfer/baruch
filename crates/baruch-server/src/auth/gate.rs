@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schicht der Anmeldung (Runde 35, Vertrag §S1.4 und §1.4): bestimmt, wer die Anfrage stellt, weist Unangemeldete
-//! ab und fragt [`crate::roles::check_request`], ob die Rolle die Route darf. Liegt im Router direkt außerhalb von
-//! `consent::inject` und innerhalb von `guard::remote_only_mcp`.
+//! Login layer (Round 35, contract §S1.4 and §1.4): determines who makes the request, turns away the
+//! unauthenticated and asks [`crate::roles::check_request`] whether the role may use the route. Sits in the router
+//! directly outside of `consent::inject` and inside of `guard::remote_only_mcp`.
 //!
-//! Ohne Konten ändert die Schicht nichts an der Antwort (keine Kopfzeile, kein Cookie). Mit Konten bekommt jede
-//! Antwort `Cache-Control: no-store`, wenn sie selbst keine Angabe trägt – weder eine Seite eines Angemeldeten noch
-//! eine Abweisung soll in einem Zwischenspeicher liegen bleiben.
+//! Without accounts the layer changes nothing in the response (no header, no cookie). With accounts every
+//! response gets `Cache-Control: no-store` if it carries no directive itself – neither a page of a logged-in user
+//! nor a rejection should remain in a cache.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -23,32 +23,32 @@ use super::{PUBLIC_PATHS, PUBLIC_PREFIX, SESSION_COOKIE, Who, scope, session};
 use crate::AppState;
 use crate::roles::{self, Verdict};
 
-/// Was [`identify`] über eine Anfrage herausfindet.
+/// What [`identify`] finds out about a request.
 struct Seen {
     who: Who,
-    /// Token-Hash der Sitzung, unter der die Anfrage läuft.
+    /// Token hash of the session the request runs under.
     session: Option<String>,
-    /// `Set-Cookie`, das die Lebensdauer des Cookies im Browser erneuert (erste Benutzung nach längerer Pause).
+    /// `Set-Cookie` that renews the lifetime of the cookie in the browser (first use after a longer pause).
     renew: Option<String>,
 }
 
-/// Ablauf: (1) `/mcp` bleibt bei Tokens und läuft als [`Who::Open`] durch. (2) [`Who`] aus den Extensions der
-/// Anfrage, falls vorhanden (nur im Prozess setzbar: Tests), sonst [`resolve`]. (3) [`Who::Anonymous`]: öffentliche
-/// Pfade laufen durch; GET/HEAD → 303 auf `/anmelden?next=…`; `POST /rpc` → 401 mit JSON-RPC-Fehler
-/// [`crate::rpc::UNAUTHENTICATED`]; sonst 401 Text. (4) [`roles::check_request`]: erlaubt, Umleitung oder 403
-/// „Abgelehnt: …“ mit Kopfzeile `x-baruch-abgelehnt: rolle`. (5) Die Anfrage läuft in [`scope`].
+/// Flow: (1) `/mcp` stays with tokens and passes as [`Who::Open`]. (2) [`Who`] from the extensions of the
+/// request if present (settable only in-process: tests), otherwise [`resolve`]. (3) [`Who::Anonymous`]: public
+/// paths pass; GET/HEAD → 303 to `/anmelden?next=…`; `POST /rpc` → 401 with JSON-RPC error
+/// [`crate::rpc::UNAUTHENTICATED`]; otherwise 401 text. (4) [`roles::check_request`]: allowed, redirect or 403
+/// „Abgelehnt: …“ with header `x-baruch-abgelehnt: rolle`. (5) The request runs in [`scope`].
 pub async fn gate(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
     if request.uri().path() == "/mcp" {
         return scope(Who::Open, next.run(request)).await;
     }
-    // Der Rumpf einer Anfrage ist nicht `Sync`: Über ein `await` hinweg wird darum nur der Kopf (`Parts`) verliehen.
+    // The body of a request is not `Sync`: so across an `await` only the head (`Parts`) is borrowed.
     let (parts, body) = request.into_parts();
     let seen = match parts.extensions.get::<Who>() {
         Some(who) => Seen { who: who.clone(), session: None, renew: None },
         None => identify(&state, &parts).await,
     };
     let Seen { who, session, renew } = seen;
-    // Ohne Konten bleibt die Antwort Byte für Byte, wie sie vor Runde 35 war.
+    // Without accounts the response stays byte for byte as it was before Round 35.
     let private = who != Who::Open;
     let mut response = answer(&state, who, session, parts, body, next).await;
     if private && !response.headers().contains_key(header::CACHE_CONTROL) {
@@ -62,7 +62,7 @@ pub async fn gate(State(state): State<Arc<AppState>>, request: Request, next: Ne
     response
 }
 
-/// Schritte (3) bis (5) von [`gate`].
+/// Steps (3) to (5) of [`gate`].
 async fn answer(
     state: &AppState,
     who: Who,
@@ -102,12 +102,12 @@ async fn answer(
     scope(who, session::scope(session, next.run(Request::from_parts(parts, body)))).await
 }
 
-/// Für einen Lektor zeigt das Cookie `baruch_work`, das die Seiten sehen, immer auf ein freigegebenes Werk: das
-/// zuletzt geöffnete, wenn es freigegeben ist, sonst das kleinste freigegebene; ohne Freigabe fehlt es. Seiten ohne
-/// eigenes Werk (`/werke`, `/konto`, `/ueber`) nehmen ihr Werk für „Zurück zum Werk“ und das Menüband aus diesem
-/// Cookie bzw. – ohne Cookie – das Vorgabewerk der Instanz; beides könnte für einen Lektor ein fremdes Werk sein
-/// (Sichtprüfung Runde 35: die Links endeten mit 403). Geändert wird nur die Kopfzeile dieser einen Anfrage, nie
-/// das Cookie im Browser. Ein Datenbankfehler nimmt das Cookie weg (nie ein fremdes Werk).
+/// For a Lektor the cookie `baruch_work` that the pages see always points to a shared work: the
+/// last opened one if it is shared, otherwise the smallest shared one; without a share it is missing. Pages without
+/// a work of their own (`/werke`, `/konto`, `/ueber`) take their work for „Zurück zum Werk“ and the ribbon from this
+/// cookie or – without a cookie – the default work of the instance; both could be a foreign work for a Lektor
+/// (visual check Round 35: the links ended with 403). Only the header of this one request is changed, never
+/// the cookie in the browser. A database error takes the cookie away (never a foreign work).
 async fn pin_last_work(state: &AppState, who: &Who, preferred: Option<baruch_store::WorkId>, headers: &mut HeaderMap) {
     let granted = roles::granted_works(state, who).await.unwrap_or_else(|e| {
         eprintln!("Rollen: Freigaben nicht lesbar: {e}");
@@ -133,14 +133,14 @@ async fn pin_last_work(state: &AppState, who: &Who, preferred: Option<baruch_sto
     }
 }
 
-/// Zuletzt geöffnetes Werk des Browsers (Cookie `baruch_work`, gelesen wie überall über
-/// [`crate::view::Settings`]); nur ein Wunsch für die Umleitung eines Lektors, nie ein Recht.
+/// Last opened work of the browser (cookie `baruch_work`, read as everywhere through
+/// [`crate::view::Settings`]); only a wish for the redirect of a Lektor, never a right.
 fn last_work(headers: &HeaderMap) -> Option<baruch_store::WorkId> {
     let cookies = headers.get(header::COOKIE).and_then(|value| value.to_str().ok());
     crate::view::Settings::from_cookie_header(cookies).work
 }
 
-/// Setzt die Antwort das Cookie der Sitzung schon selbst (Anmelden, Abmelden)? Dann wird es nicht erneuert.
+/// Does the response already set the session cookie itself (login, logout)? Then it is not renewed.
 fn sets_session_cookie(headers: &HeaderMap) -> bool {
     headers
         .get_all(header::SET_COOKIE)
@@ -149,30 +149,30 @@ fn sets_session_cookie(headers: &HeaderMap) -> bool {
         .any(|cookie| cookie.strip_prefix(SESSION_COOKIE).is_some_and(|rest| rest.starts_with('=')))
 }
 
-/// Gegenstelle der Verbindung (`ConnectInfo`); ohne sie (Tests ohne Angabe, Unix-Socket) `None`.
+/// Remote side of the connection (`ConnectInfo`); without it (tests without a value, Unix socket) `None`.
 pub fn peer(parts: &Parts) -> Option<SocketAddr> {
     parts.extensions.get::<ConnectInfo<SocketAddr>>().map(|info| info.0)
 }
 
-/// Kommt die Anfrage vom eigenen Rechner im Sinn der Entscheidung 0.2? Loopback, nicht über einen Proxy-Namen
-/// ([`crate::shutdown::own_machine`]) und ohne jede Kopfzeile, die ein Proxy anhängt ([`crate::guard::forwarded`]).
-/// Ohne bekannte Gegenstelle: nein.
+/// Does the request come from the own machine in the sense of decision 0.2? Loopback, not through a proxy name
+/// ([`crate::shutdown::own_machine`]) and without any header a proxy appends ([`crate::guard::forwarded`]).
+/// Without a known remote side: no.
 pub fn own_machine(state: &AppState, parts: &Parts) -> bool {
     crate::shutdown::own_machine(&state.allowed_hosts, peer(parts), &parts.headers)
         && !crate::guard::forwarded(&parts.headers)
 }
 
-/// Wer stellt die Anfrage? Ohne Konten [`Who::Open`]; sonst Sitzung, Ausnahme am eigenen Rechner oder
-/// [`Who::Anonymous`] (Vertrag §1.4).
+/// Who makes the request? Without accounts [`Who::Open`]; otherwise session, exception on the own machine or
+/// [`Who::Anonymous`] (contract §1.4).
 ///
-/// Nimmt den Kopf der Anfrage (Methode, Adresse, Kopfzeilen, Extensions mit `ConnectInfo`), nicht die ganze Anfrage:
-/// `&Request` ließe sich nicht über ein `await` halten (der Rumpf ist nicht `Sync`, die Schicht wäre nicht `Send`).
+/// Takes the head of the request (method, address, headers, extensions with `ConnectInfo`), not the whole request:
+/// `&Request` could not be held across an `await` (the body is not `Sync`, the layer would not be `Send`).
 pub async fn resolve(state: &AppState, request: &Parts) -> Who {
     identify(state, request).await.who
 }
 
-/// [`resolve`] samt Sitzung und fälligem Erneuern des Cookies. Ein Datenbankfehler führt nie zu mehr Rechten: Er
-/// steht auf stderr, und die Anfrage gilt als nicht angemeldet.
+/// [`resolve`] including session and due renewal of the cookie. A database error never leads to more rights: it
+/// goes to stderr, and the request counts as not logged in.
 async fn identify(state: &AppState, request: &Parts) -> Seen {
     if !super::accounts_exist(state).await {
         return Seen { who: Who::Open, session: None, renew: None };
@@ -199,7 +199,7 @@ async fn identify(state: &AppState, request: &Parts) -> Seen {
     Seen { who: Who::Anonymous, session: None, renew: None }
 }
 
-/// Prozentkodierung für den Wert von `next`: alles außer Buchstaben, Ziffern und `-._~/` wird `%XX`.
+/// Percent-encoding for the value of `next`: everything except letters, digits and `-._~/` becomes `%XX`.
 fn percent_encode(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for byte in text.bytes() {

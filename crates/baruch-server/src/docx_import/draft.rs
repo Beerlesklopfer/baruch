@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Entwürfe eines Word-Imports (Runde 32) als Dateien unter `<data>/docx-drafts/<draft>/` (keine Migration):
-//! `draft.json` (Kennung, Zeitpunkt, Dateiname, gewünschter Titel, Vorschau) und `source.docx` (die Datei selbst;
-//! beim Übernehmen wird sie neu gelesen). Gehalten wie `pdf_import/draft.rs` (Vertrag Runde 32 §2.1):
+//! Drafts of a Word import (Round 32) as files under `<data>/docx-drafts/<draft>/` (no migration):
+//! `draft.json` (id, time, file name, wanted title, preview) and `source.docx` (the file itself;
+//! it is read anew when applying). Kept like `pdf_import/draft.rs` (contract Round 32 §2.1):
 //!
-//! `draft` = 32 Kleinbuchstaben-Hex (zufällig, [`baruch_store::new_uuid`] ohne Bindestriche); jeder andere Name wird
-//! abgelehnt (kein Pfad aus Eingaben). Höchstens [`MAX_DRAFTS`] Entwürfe und [`MAX_AGE`]: Beim nächsten `preview`
-//! fallen ältere Entwürfe weg, danach die ältesten, bis Platz für einen neuen ist.
+//! `draft` = 32 lower-case hex (random, [`baruch_store::new_uuid`] without hyphens); every other name is
+//! rejected (no path from inputs). At most [`MAX_DRAFTS`] drafts and [`MAX_AGE`]: on the next `preview`
+//! older drafts are dropped, then the oldest until there is room for a new one.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -14,24 +14,24 @@ use serde::{Deserialize, Serialize};
 
 use super::DRAFT_DIR;
 
-/// Höchstens so viele Entwürfe liegen gleichzeitig vor.
+/// At most this many drafts exist at the same time.
 pub const MAX_DRAFTS: usize = 20;
-/// So lange bleibt ein Entwurf.
+/// A draft stays this long.
 pub const MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 const DRAFT_FILE: &str = "draft.json";
 const SOURCE_FILE: &str = "source.docx";
 
-/// Ein Entwurf: die Angaben und die Vorschau, wie `docx_import.preview` sie geliefert hat.
+/// A draft: the details and the preview as `docx_import.preview` returned it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Draft {
     pub id: String,
-    /// Sekunden seit 1970 (UTC).
+    /// Seconds since 1970 (UTC).
     pub created: u64,
     pub file_name: String,
-    /// Titel aus Formular bzw. RPC (`title`), falls angegeben.
+    /// Title from form or RPC (`title`), if given.
     pub wanted_title: Option<String>,
-    /// Antwort von `docx_import.preview` (auch für `docx_import.get`).
+    /// Answer of `docx_import.preview` (also for `docx_import.get`).
     pub preview: serde_json::Value,
 }
 
@@ -39,7 +39,7 @@ pub fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
-/// Ist `id` ein gültiger Name eines Entwurfs (32 Kleinbuchstaben-Hex)?
+/// Is `id` a valid name of a draft (32 lower-case hex)?
 pub fn valid_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
@@ -70,8 +70,8 @@ fn created_of(dir: &Path) -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// Aufräumen vor einem neuen Entwurf: älter als [`MAX_AGE`] weg, dann die ältesten, bis höchstens
-/// `MAX_DRAFTS - 1` bleiben. Blockiert. Ergebnis: Zahl der entfernten Entwürfe.
+/// Clean up before a new draft: older than [`MAX_AGE`] removed, then the oldest until at most
+/// `MAX_DRAFTS - 1` remain. Blocks. Result: number of removed drafts.
 pub fn clean(data: &Path) -> usize {
     let Ok(entries) = std::fs::read_dir(root(data)) else { return 0 };
     let mut drafts: Vec<(u64, PathBuf)> = entries
@@ -102,7 +102,7 @@ pub fn clean(data: &Path) -> usize {
     removed
 }
 
-/// Neuen Entwurf samt Datei schreiben. Blockiert.
+/// Write a new draft with its file. Blocks.
 pub fn save(data: &Path, draft: &Draft, bytes: &[u8]) -> Result<(), String> {
     let dir = folder(data, &draft.id).ok_or("ungültiger Entwurf")?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Entwurf lässt sich nicht anlegen: {e}"))?;
@@ -111,15 +111,15 @@ pub fn save(data: &Path, draft: &Draft, bytes: &[u8]) -> Result<(), String> {
     std::fs::write(dir.join(DRAFT_FILE), text).map_err(|e| format!("Entwurf lässt sich nicht schreiben: {e}"))
 }
 
-/// Fehler beim Laden eines Entwurfs.
+/// Error when loading a draft.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoadError {
-    /// Ungültiger Name oder kein solcher (bzw. abgelaufener) Entwurf.
+    /// Invalid name or no such (or expired) draft.
     Unknown,
     Broken(String),
 }
 
-/// Entwurf laden (ohne die Datei). Abgelaufene gelten als unbekannt. Blockiert.
+/// Load a draft (without the file). Expired ones count as unknown. Blocks.
 pub fn load(data: &Path, id: &str) -> Result<Draft, LoadError> {
     let dir = folder(data, id).ok_or(LoadError::Unknown)?;
     let text = std::fs::read_to_string(dir.join(DRAFT_FILE)).map_err(|_| LoadError::Unknown)?;
@@ -130,13 +130,13 @@ pub fn load(data: &Path, id: &str) -> Result<Draft, LoadError> {
     Ok(draft)
 }
 
-/// Die Word-Datei eines Entwurfs. Blockiert.
+/// The Word file of a draft. Blocks.
 pub fn load_source(data: &Path, id: &str) -> Result<Vec<u8>, String> {
     let dir = folder(data, id).ok_or("ungültiger Entwurf")?;
     std::fs::read(dir.join(SOURCE_FILE)).map_err(|e| format!("Datei des Entwurfs fehlt: {e}"))
 }
 
-/// Entwurf löschen; `true`, wenn es ihn gab. Blockiert.
+/// Delete a draft; `true` if it existed. Blocks.
 pub fn remove(data: &Path, id: &str) -> bool {
     match folder(data, id) {
         Some(dir) if dir.is_dir() => std::fs::remove_dir_all(dir).is_ok(),
@@ -144,7 +144,7 @@ pub fn remove(data: &Path, id: &str) -> bool {
     }
 }
 
-/// Zahl der vorhandenen Entwürfe (für Tests und Anzeige). Blockiert.
+/// Number of existing drafts (for tests and display). Blocks.
 pub fn count(data: &Path) -> usize {
     std::fs::read_dir(root(data))
         .map(|entries| {

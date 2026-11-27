@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Glossar und Register: RPC `glossary.*` und `index.registers/register_*/proposals/decide` (Runde 31, Vertrag §3.1;
-//! Schnittstelle R31-S1, Signaturen eingefroren, Körper der Aufgabe glossar-daten).
+//! Glossary and index: RPC `glossary.*` and `index.registers/register_*/proposals/decide` (Round 31, contract §3.1;
+//! interface R31-S1, signatures frozen, bodies by the task glossar-daten).
 //!
-//! - Assistenten und MCP schlagen Begriffe und Registereinträge nur vor ([`propose`], [`index_propose`]); übernehmen,
-//!   ändern und löschen nur der Mensch (RPC aus der Oberfläche, Formulare).
-//! - Schreibende Funktionen nehmen die Schreibsperre vor dem DB-Schreiben, genau ein Spiegel-Commit je Änderung
-//!   (`mirror::describe_glossary` u. a., Trailer `Baruch-Action: glossary-add|glossary-update|glossary-delete|
+//! - Assistants and MCP only propose terms and index entries ([`propose`], [`index_propose`]); adopting,
+//!   changing and deleting only by the human (RPC from the UI, forms).
+//! - Writing functions take the write lock before the DB write, exactly one mirror commit per change
+//!   (`mirror::describe_glossary` etc., trailer `Baruch-Action: glossary-add|glossary-update|glossary-delete|
 //!   glossary-propose|glossary-accept|glossary-reject|register-add|register-rename|register-delete|index-propose|
-//!   index-accept|index-reject`); Autor ist der Mensch, bei Vorschlägen die Persona bzw. der MCP-Client. Rückgabe =
-//!   dieselbe JSON-Antwort wie die RPC-Methode (`commit` bzw. `mirror` bei einem Fehler des Spiegels).
-//! - Bibelstellen eines Begriffs prüft und normalisiert [`normalize_bible_refs`] mit `baruch_scripture::parse`
-//!   („Röm 3,24“); Unlesbares → `INVALID_PARAMS` mit Meldung, nichts gespeichert.
-//! - `glossary.suggest` fragt die Persona nach der Lektor-Regel ([`crate::assist::glossary`]); das Ergebnis wird nur als
-//!   Vorschläge angelegt.
+//!   index-accept|index-reject`); the author is the human, for proposals the persona or the MCP client. Return value =
+//!   the same JSON answer as the RPC method (`commit` or `mirror` on an error of the mirror).
+//! - Bible references of a term are checked and normalised by [`normalize_bible_refs`] with
+//!   `baruch_scripture::parse` („Röm 3,24“); unreadable ones → `INVALID_PARAMS` with message, nothing stored.
+//! - `glossary.suggest` asks the persona by the lector rule ([`crate::assist::glossary`]); the result is created only
+//!   as proposals.
 
 use baruch_store::{
     GlossaryEdit, GlossaryStatus, GlossaryTermId, IndexProposalId, IndexProposalStatus, NewIndexProposal, WorkId,
@@ -24,7 +24,7 @@ use crate::AppState;
 use crate::mirror::{self, HUMAN_NAME};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub const METHODS: &[&str] = &[
     "glossary.list",
     "glossary.get",
@@ -50,12 +50,12 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Ganzzahl `name` aus den Parametern; fehlt bzw. keine Zahl → `INVALID_PARAMS`.
+/// Integer `name` from the parameters; missing or not a number → `INVALID_PARAMS`.
 fn int_param(params: &Value, name: &str) -> Result<i64, RpcError> {
     params.get(name).and_then(Value::as_i64).ok_or_else(|| invalid(format!("{name}: Zahl erwartet")))
 }
 
-/// Text `name`; fehlt → `None`, kein Text → `INVALID_PARAMS`.
+/// Text `name`; missing → `None`, not a text → `INVALID_PARAMS`.
 fn str_param<'a>(params: &'a Value, name: &str) -> Result<Option<&'a str>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
@@ -72,7 +72,7 @@ fn bool_param(params: &Value, name: &str) -> Result<bool, RpcError> {
     params.get(name).and_then(Value::as_bool).ok_or_else(|| invalid(format!("{name}: true oder false erwartet")))
 }
 
-/// Liste von Texten `name`; fehlt → leer. Ein einzelner Text gilt als Liste mit Zeilen (je Zeile ein Eintrag).
+/// List of texts `name`; missing → empty. A single text counts as a list of lines (one entry per line).
 fn list_param(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(Vec::new()),
@@ -85,7 +85,7 @@ fn list_param(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     }
 }
 
-/// Bestätigung `confirm: true` für Löschen; sonst `INVALID_PARAMS`.
+/// Confirmation `confirm: true` for deleting; otherwise `INVALID_PARAMS`.
 fn confirmed(params: &Value) -> Result<(), RpcError> {
     if params.get("confirm") == Some(&Value::Bool(true)) {
         Ok(())
@@ -94,7 +94,7 @@ fn confirmed(params: &Value) -> Result<(), RpcError> {
     }
 }
 
-/// Eingabe eines Begriffs aus den Parametern (`term` Pflicht; `short`, `long`, `source`, `variants`, `bible_refs`).
+/// Input of a term from the parameters (`term` mandatory; `short`, `long`, `source`, `variants`, `bible_refs`).
 pub fn edit_from_params(params: &Value) -> Result<GlossaryEdit, RpcError> {
     Ok(GlossaryEdit {
         term: required_str(params, "term")?.to_owned(),
@@ -106,9 +106,9 @@ pub fn edit_from_params(params: &Value) -> Result<GlossaryEdit, RpcError> {
     })
 }
 
-/// Prüft und normalisiert Bibelstellen mit `baruch_scripture::parse` („röm 3, 24“ → „Röm 3,24“; mehrere mit `;` werden
-/// einzelne Einträge). Unbekanntes Buch, nicht vorhandene Kapitel/Verse oder Unlesbares → `INVALID_PARAMS` mit der
-/// Meldung von baruch_scripture.
+/// Checks and normalises Bible references with `baruch_scripture::parse` („röm 3, 24“ → „Röm 3,24“; several with `;`
+/// become single entries). Unknown book, non-existent chapters/verses or unreadable input → `INVALID_PARAMS` with
+/// the message of baruch_scripture.
 pub fn normalize_bible_refs(refs: &[String]) -> Result<Vec<String>, RpcError> {
     let mut out: Vec<String> = Vec::new();
     for reference in refs {
@@ -134,7 +134,7 @@ pub fn normalize_bible_refs(refs: &[String]) -> Result<Vec<String>, RpcError> {
     Ok(out)
 }
 
-/// RPC `glossary.*` und die Register-Methoden beantworten.
+/// Answer RPC `glossary.*` and the index methods.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     match method {
@@ -206,7 +206,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-/// JSON eines Begriffs: `{id, uuid, term, short, long, variants, source, bible_refs, status, origin, created, updated,
+/// JSON of a term: `{id, uuid, term, short, long, variants, source, bible_refs, status, origin, created, updated,
 /// updated_by, anchor}`.
 pub fn term_json(term: &baruch_store::GlossaryTerm) -> Value {
     json!({
@@ -217,7 +217,7 @@ pub fn term_json(term: &baruch_store::GlossaryTerm) -> Value {
     })
 }
 
-/// JSON eines Registervorschlags: `{id, key, based_on, word, occurrence, mark, reason, origin, status, created, decided,
+/// JSON of an index proposal: `{id, key, based_on, word, occurrence, mark, reason, origin, status, created, decided,
 /// decided_by, url}`.
 pub fn proposal_json(proposal: &baruch_store::IndexProposal) -> Value {
     json!({
@@ -229,7 +229,7 @@ pub fn proposal_json(proposal: &baruch_store::IndexProposal) -> Value {
     })
 }
 
-/// `commit` bzw. `mirror` an die Antwort hängen.
+/// Append `commit` or `mirror` to the answer.
 fn with_mirror(mut answer: Value, result: Result<Option<String>, String>) -> Value {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -239,7 +239,7 @@ fn with_mirror(mut answer: Value, result: Result<Option<String>, String>) -> Val
     answer
 }
 
-/// Eingebaute und eigene Register des Werks (eingebaute zuerst, eigene in ihrer Reihenfolge).
+/// Built-in and own indexes of the work (built-in first, own ones in their order).
 pub async fn registers(state: &AppState, work: WorkId) -> Result<Vec<Register>, RpcError> {
     let mut list = builtin_registers();
     list.extend(state.store.index_registers(work).await?.into_iter().map(|r| Register {
@@ -250,13 +250,13 @@ pub async fn registers(state: &AppState, work: WorkId) -> Result<Vec<Register>, 
     Ok(list)
 }
 
-/// Bibelstellen der Eingabe normalisieren (siehe [`normalize_bible_refs`]).
+/// Normalise the Bible references of the input (see [`normalize_bible_refs`]).
 fn normalized(mut edit: GlossaryEdit) -> Result<GlossaryEdit, RpcError> {
     edit.bible_refs = normalize_bible_refs(&edit.bible_refs)?;
     Ok(edit)
 }
 
-/// Änderung am Glossar spiegeln und `{work, term|deleted, commit?|mirror?}` bauen.
+/// Mirror a change to the glossary and build `{work, term|deleted, commit?|mirror?}`.
 async fn glossary_answer(
     state: &AppState,
     held: &mirror::WriteGuard<'_>,
@@ -272,7 +272,7 @@ async fn glossary_answer(
     with_mirror(answer, result)
 }
 
-/// Begriff anlegen (Mensch).
+/// Create a term (human).
 pub async fn add(state: &AppState, work: WorkId, edit: GlossaryEdit) -> Result<Value, RpcError> {
     let edit = normalized(edit)?;
     let held = state.write_lock.lock().await;
@@ -280,7 +280,7 @@ pub async fn add(state: &AppState, work: WorkId, edit: GlossaryEdit) -> Result<V
     Ok(glossary_answer(state, &held, &change).await)
 }
 
-/// Begriff ändern (Mensch).
+/// Change a term (human).
 pub async fn update(state: &AppState, work: WorkId, id: GlossaryTermId, edit: GlossaryEdit) -> Result<Value, RpcError> {
     let edit = normalized(edit)?;
     let held = state.write_lock.lock().await;
@@ -288,21 +288,21 @@ pub async fn update(state: &AppState, work: WorkId, id: GlossaryTermId, edit: Gl
     Ok(glossary_answer(state, &held, &change).await)
 }
 
-/// Begriff löschen (Mensch).
+/// Delete a term (human).
 pub async fn delete(state: &AppState, work: WorkId, id: GlossaryTermId) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let change = state.store.glossary_delete(work, id, HUMAN_NAME).await?;
     Ok(glossary_answer(state, &held, &change).await)
 }
 
-/// Über einen Vorschlag entscheiden (Mensch).
+/// Decide a proposal (human).
 pub async fn decide(state: &AppState, work: WorkId, id: GlossaryTermId, accept: bool) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let change = state.store.glossary_decide(work, id, accept, HUMAN_NAME).await?;
     Ok(glossary_answer(state, &held, &change).await)
 }
 
-/// Begriff vorschlagen (Persona bzw. Client als `origin`).
+/// Propose a term (persona or client as `origin`).
 pub async fn propose(state: &AppState, work: WorkId, edit: GlossaryEdit, origin: &str) -> Result<Value, RpcError> {
     let edit = normalized(edit)?;
     let held = state.write_lock.lock().await;
@@ -310,7 +310,7 @@ pub async fn propose(state: &AppState, work: WorkId, edit: GlossaryEdit, origin:
     Ok(glossary_answer(state, &held, &change).await)
 }
 
-/// Änderung an einem eigenen Register spiegeln: `{work, register, commit?|mirror?}`.
+/// Mirror a change to an own index: `{work, register, commit?|mirror?}`.
 async fn register_answer(
     state: &AppState,
     held: &mirror::WriteGuard<'_>,
@@ -326,14 +326,14 @@ async fn register_answer(
     with_mirror(answer, result)
 }
 
-/// Eigenes Register anlegen (Mensch).
+/// Create an own index (human).
 pub async fn register_add(state: &AppState, work: WorkId, slug: &str, title: &str) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let row = state.store.index_register_add(work, slug, title).await?;
     Ok(register_answer(state, &held, work, &row, mirror::RegisterAction::Added).await)
 }
 
-/// Eigenes Register umbenennen (Mensch).
+/// Rename an own index (human).
 pub async fn register_rename(state: &AppState, work: WorkId, slug: &str, title: &str) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let before = state.store.index_registers(work).await?.into_iter().find(|r| r.slug == slug.trim());
@@ -342,7 +342,7 @@ pub async fn register_rename(state: &AppState, work: WorkId, slug: &str, title: 
     Ok(register_answer(state, &held, work, &row, mirror::RegisterAction::Renamed { old: &old }).await)
 }
 
-/// Eigenes Register löschen (Mensch).
+/// Delete an own index (human).
 pub async fn register_delete(state: &AppState, work: WorkId, slug: &str) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let row = state.store.index_register_delete(work, slug).await?;
@@ -351,8 +351,8 @@ pub async fn register_delete(state: &AppState, work: WorkId, slug: &str) -> Resu
     Ok(answer)
 }
 
-/// Registervorschlag anlegen (Persona bzw. Client, `proposal.origin`): `{work, proposal, commit?|mirror?}`. Nie eine
-/// Textänderung.
+/// Create an index proposal (persona or client, `proposal.origin`): `{work, proposal, commit?|mirror?}`. Never a
+/// text change.
 pub async fn index_propose(state: &AppState, work: WorkId, proposal: NewIndexProposal) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let created = state.store.index_propose(work, &proposal).await?;
@@ -362,7 +362,7 @@ pub async fn index_propose(state: &AppState, work: WorkId, proposal: NewIndexPro
     Ok(with_mirror(json!({ "work": work, "proposal": proposal_json(&created) }), result))
 }
 
-/// Über einen Registervorschlag entscheiden (Mensch); annehmen = neue Fassung des Menschen mit der Marke.
+/// Decide an index proposal (human); accepting = new revision of the human with the mark.
 pub async fn index_decide(
     state: &AppState,
     work: WorkId,
@@ -398,8 +398,8 @@ mod tests {
 
     #[test]
     fn bible_references_are_checked_and_normalized() {
-        // Vertrag §3.1: bible_refs mit baruch_scripture geprüft und normalisiert; mehrere Stellen mit „;“ werden einzelne
-        // Einträge, Doppel fallen weg.
+        // Contract §3.1: bible_refs checked and normalised with baruch_scripture; several references with „;“ become
+        // single entries, duplicates are dropped.
         let refs = vec!["röm 3,24".to_owned(), "Röm 3,24".to_owned(), "Joh 3,16; 4,1".to_owned(), " ".to_owned()];
         let normalized = normalize_bible_refs(&refs).expect("lesbar");
         assert_eq!(normalized, ["Röm 3,24", "Joh 3,16", "Joh 4,1"], "einheitliche Schreibweise: {normalized:?}");

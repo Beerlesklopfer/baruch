@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Formulare der Anmeldung (Runde 35, Vertrag §1.5): `POST /anmelden`, `/abmelden`, `/einrichten`,
-//! `/konto/passwort`, `/einstellungen/konten/act` – alle hinter `guard::same_origin`.
+//! Forms of the login (Round 35, contract §1.5): `POST /anmelden`, `/abmelden`, `/einrichten`,
+//! `/konto/passwort`, `/einstellungen/konten/act` – all behind `guard::same_origin`.
 //!
-//! Anmelden, Abmelden und Einrichten gibt es nur hier (sie setzen bzw. löschen das Cookie); die übrigen Aktionen
-//! gibt es auch als RPC (`super::rpc`), beide Wege rufen dieselben Bausteine ([`create_account`],
-//! [`change_password`], [`set_active`]). Kein Typ dieses Moduls leitet `Debug` ab: Die Formulare tragen Passwörter.
-//! Meldungen gehen als Code (`?ok=…`, `?fehler=…`, Vertrag §3.4) zurück an die Seite; die Sätze dazu stehen in
+//! Login, logout and setup exist only here (they set or delete the cookie); the other actions
+//! also exist as RPC (`super::rpc`), both paths call the same building blocks ([`create_account`],
+//! [`change_password`], [`set_active`]). No type of this module derives `Debug`: the forms carry passwords.
+//! Messages go back to the page as a code (`?ok=…`, `?fehler=…`, contract §3.4); the sentences for them are in
 //! `konten_ui::MESSAGES`.
 
 use std::sync::Arc;
@@ -23,17 +23,17 @@ use super::{gate, password, session, throttle};
 use crate::AppState;
 use crate::konten_ui::{self, LoginView, SetupView};
 
-/// Meldung für einen gescheiterten Anmeldeversuch – dieselbe für ein falsches Passwort, einen unbekannten Namen und
-/// ein gesperrtes Konto (Vertrag §1.1): Die Antwort verrät nicht, welche Konten es gibt.
+/// Message for a failed login attempt – the same for a wrong password, an unknown name and
+/// a locked account (contract §1.1): the answer does not reveal which accounts exist.
 pub const LOGIN_FAILED: &str = "Name oder Passwort stimmt nicht.";
-/// Meldung während der Sperre gegen Durchprobieren.
+/// Message during the brute-force lock.
 pub const LOGIN_BLOCKED: &str = "Zu viele Fehlversuche. Bitte warten und dann erneut versuchen.";
 
-/// Seite der Konten in den Einstellungen und „Mein Konto“ (Ziele der Umleitungen).
+/// Accounts page in the settings and „Mein Konto“ (targets of the redirects).
 const ACCOUNTS_PAGE: &str = "/einstellungen/konten";
 const OWN_PAGE: &str = "/konto";
 
-/// Warum eine Aktion nicht ging: ein Meldungscode der Oberfläche (Vertrag §3.4) oder ein innerer Fehler.
+/// Why an action did not work: a message code of the UI (contract §3.4) or an internal error.
 pub(super) enum Problem {
     Code(&'static str),
     Internal(String),
@@ -51,11 +51,11 @@ impl From<StoreError> for Problem {
     }
 }
 
-/// Innere Codes ohne Satz in der Tabelle der Oberfläche: Es gibt schon ein Konto bzw. noch keines.
+/// Internal codes without a sentence in the table of the UI: there already is an account, or none yet.
 pub(super) const NOT_FIRST: &str = "schon_eingerichtet";
 pub(super) const NEEDS_AUTHOR: &str = "nicht_eingerichtet";
 
-/// Prüft das neue Passwort (Länge, Wiederholung, wenn eine mitkommt) und liefert seinen Argon2id-PHC-Text.
+/// Checks the new password (length, repetition if one comes along) and returns its Argon2id PHC text.
 async fn new_phc(password: String, repeat: Option<&str>) -> Result<String, Problem> {
     password::policy(&password).map_err(Problem::Code)?;
     if repeat.is_some_and(|repeat| repeat != password) {
@@ -64,7 +64,7 @@ async fn new_phc(password: String, repeat: Option<&str>) -> Result<String, Probl
     password::hash_blocking(password).await.map_err(Problem::Internal)
 }
 
-/// Legt ein Konto an: das erste (`first`) als Autor und nur, wenn es noch keines gibt; jedes weitere als Lektor.
+/// Creates an account: the first (`first`) as author and only if there is none yet; every further one as Lektor.
 pub(super) async fn create_account(
     state: &AppState,
     name: &str,
@@ -83,8 +83,8 @@ pub(super) async fn create_account(
     Ok(account)
 }
 
-/// Setzt das Passwort eines Kontos und löscht dessen Sitzungen – außer `keep` (Token-Hash der Sitzung, die es
-/// gerade ändert).
+/// Sets the password of an account and deletes its sessions – except `keep` (token hash of the session that
+/// is changing it).
 pub(super) async fn change_password(
     state: &AppState,
     id: i64,
@@ -99,11 +99,11 @@ pub(super) async fn change_password(
     }
 }
 
-/// Prüft das bisherige Passwort des Kontos, mit der Sperre gegen Durchprobieren des Kontos: Auch wer eine Sitzung
-/// in der Hand hat, kann das Passwort nicht beliebig oft raten.
+/// Checks the current password of the account, with the brute-force lock of the account: even whoever holds a
+/// session cannot guess the password arbitrarily often.
 pub(super) async fn check_current(state: &AppState, account: &super::Identity, current: String) -> Result<(), Problem> {
     let scopes = vec![throttle::account_scope(&account.name)];
-    // Erst zählen, dann prüfen (eine Transaktion): Gleichzeitige Versuche kommen nicht an der Sperre vorbei.
+    // Count first, then check (one transaction): simultaneous attempts do not get past the lock.
     if let LoginAttempt::Blocked(_) = throttle::reserve(state, &scopes).await? {
         return Err(Problem::Code("passwort_falsch"));
     }
@@ -116,7 +116,7 @@ pub(super) async fn check_current(state: &AppState, account: &super::Identity, c
     }
 }
 
-/// Sperrt oder entsperrt ein Konto (Sperren löscht seine Sitzungen; das letzte aktive Autor-Konto bleibt).
+/// Locks or unlocks an account (locking deletes its sessions; the last active author account stays).
 pub(super) async fn set_active(state: &AppState, id: i64, active: bool) -> Result<(), Problem> {
     match state.store.account_set_active(id, active).await? {
         true => Ok(()),
@@ -132,7 +132,7 @@ fn back(page: &str, kind: &str, code: &str) -> Response {
     Redirect::to(&format!("{page}?{kind}={code}")).into_response()
 }
 
-/// Umleitung nach einer Aktion: Erfolg `?ok=<ok>`, sonst `?fehler=<code>`; innere Fehler 500.
+/// Redirect after an action: success `?ok=<ok>`, otherwise `?fehler=<code>`; internal errors 500.
 fn outcome(page: &str, ok: &str, result: Result<(), Problem>) -> Response {
     match result {
         Ok(()) => back(page, "ok", ok),
@@ -156,8 +156,8 @@ struct LoginForm {
     next: String,
 }
 
-/// `POST /anmelden`: richtiges Passwort → Sitzung, Cookie und 303 auf das sichere Ziel; sonst die Anmeldeseite mit
-/// 401, während der Sperre (und mit dem Fehlversuch, der sie auslöst) 429 mit `Retry-After`.
+/// `POST /anmelden`: correct password → session, cookie and 303 to the safe target; otherwise the login page with
+/// 401, during the lock (and with the failed attempt that triggers it) 429 with `Retry-After`.
 async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): Form<LoginForm>) -> Response {
     if !super::accounts_exist(&state).await {
         return Redirect::to("/").into_response();
@@ -173,8 +173,8 @@ async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
         response
     };
     let scopes = throttle::scopes(&state, &name, gate::peer(&parts), &parts.headers);
-    // Der Versuch zählt schon jetzt, in einer Transaktion mit der Prüfung der Sperre; ein Erfolg nimmt ihn zurück.
-    // Zählte er erst nach der Prüfung, ginge eine Salve gleichzeitiger Versuche an der Sperre vorbei.
+    // The attempt counts right now, in one transaction with the check of the lock; a success takes it back.
+    // If it counted only after the check, a salvo of simultaneous attempts would get past the lock.
     let wait = match throttle::reserve(&state, &scopes).await {
         Ok(LoginAttempt::Blocked(wait)) => return page(StatusCode::TOO_MANY_REQUESTS, LOGIN_BLOCKED, Some(wait)),
         Ok(LoginAttempt::Reserved(wait)) => wait,
@@ -188,7 +188,7 @@ async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
         Some((account, phc)) => (Some(account), Some(phc)),
         None => (None, None),
     };
-    // Ein überlanges Passwort kann zu keinem Konto gehören; geprüft wird trotzdem (gleiche Dauer), nur gegen nichts.
+    // An over-long password can belong to no account; it is checked anyway (same duration), just against nothing.
     let fits = password.chars().count() <= password::MAX_PASSWORD_CHARS;
     let matches = password::verify_blocking(if fits { password } else { String::new() }, phc).await && fits;
     let Some(account) = account.filter(|account| matches && account.active) else {
@@ -209,7 +209,7 @@ async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
     response
 }
 
-/// `POST /abmelden`: löscht die Sitzung und das Cookie.
+/// `POST /abmelden`: deletes the session and the cookie.
 async fn logout(State(state): State<Arc<AppState>>, parts: Parts) -> Response {
     if !super::accounts_exist(&state).await {
         return Redirect::to("/").into_response();
@@ -236,8 +236,8 @@ struct SetupForm {
     password2: String,
 }
 
-/// `POST /einrichten`: das erste Konto (Autor) – nur wenn es noch keines gibt und die Anfrage vom eigenen Rechner
-/// kommt ([`gate::own_machine`]; ohne bekannte Gegenstelle: nein). Danach ist der Autor angemeldet.
+/// `POST /einrichten`: the first account (author) – only if there is none yet and the request comes from the own
+/// machine ([`gate::own_machine`]; without a known remote side: no). Afterwards the author is logged in.
 async fn setup(State(state): State<Arc<AppState>>, parts: Parts, Form(form): Form<SetupForm>) -> Response {
     let SetupForm { name, display, password, password2 } = form;
     let page = |status: StatusCode, error: String, allowed: bool| {
@@ -277,11 +277,11 @@ struct OwnPasswordForm {
     password2: String,
 }
 
-/// `POST /konto/passwort`: eigenes Passwort ändern (mit dem bisherigen); alle anderen Sitzungen des Kontos enden.
+/// `POST /konto/passwort`: change the own password (with the current one); all other sessions of the account end.
 async fn own_password(State(state): State<Arc<AppState>>, Form(form): Form<OwnPasswordForm>) -> Response {
     let who = super::current();
     let Some(identity) = who.identity() else {
-        // Ohne Konten und mit der Ausnahme am eigenen Rechner gibt es kein eigenes Konto.
+        // Without accounts and with the exception on the own machine there is no own account.
         return back(OWN_PAGE, "fehler", "unbekanntes_konto");
     };
     let result = async {
@@ -310,8 +310,8 @@ struct AccountsForm {
     open: String,
 }
 
-/// `POST /einstellungen/konten/act`: Konten verwalten – nur mit vollen Rechten (für Lektoren sperrt schon
-/// `roles` die Route; hier steht die Prüfung ein zweites Mal).
+/// `POST /einstellungen/konten/act`: manage accounts – only with full rights (for Lektors `roles` already
+/// blocks the route; here the check stands a second time).
 async fn accounts(State(state): State<Arc<AppState>>, Form(form): Form<AccountsForm>) -> Response {
     let who = super::current();
     if !who.full_rights() {
@@ -321,7 +321,7 @@ async fn accounts(State(state): State<Arc<AppState>>, Form(form): Form<AccountsF
     let AccountsForm { action, id, name, display, password, password2, open } = form;
     let unknown = || Err(Problem::Code("unbekanntes_konto"));
     match action.as_str() {
-        // Weitere Konten sind immer Lektoren (Vertrag 0.4).
+        // Further accounts are always Lektors (contract 0.4).
         "create" => {
             let result = create_account(&state, &name, &display, password, Some(&password2), false).await.map(|_| ());
             outcome(ACCOUNTS_PAGE, "konto_angelegt", result)
@@ -337,7 +337,7 @@ async fn accounts(State(state): State<Arc<AppState>>, Form(form): Form<AccountsF
         "reset_password" => {
             let result = match id {
                 Some(id) => {
-                    // Setzt der Autor sein eigenes Passwort zurück, bleibt die Sitzung, in der er es tut.
+                    // If the author resets his own password, the session in which he does it stays.
                     let own = who.identity().is_some_and(|identity| identity.id == id);
                     let keep = if own { session::current_hash() } else { None };
                     change_password(&state, id, password, Some(&password2), keep.as_deref()).await
@@ -355,7 +355,7 @@ async fn accounts(State(state): State<Arc<AppState>>, Form(form): Form<AccountsF
     }
 }
 
-/// Schreibende Routen der Anmeldung.
+/// Writing routes of the login.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/anmelden", post(login))

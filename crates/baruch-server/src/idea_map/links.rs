@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verbindungen zwischen Einfällen schreiben (Vertrag Runde 25 §4.1/§4.2), gemeinsam für RPC und MCP: Anlegen
-//! bzw. Wiederherstellen ([`link`]), Lösen ([`unlink`]) und Wiederherstellen ([`restore`]).
+//! Writing links between ideas (contract Round 25 §4.1/§4.2), shared by RPC and MCP: creating
+//! or restoring ([`link`]), removing ([`unlink`]) and restoring ([`restore`]).
 //!
-//! Jede Änderung läuft unter [`AppState::write_lock`] und ist genau ein Commit im Spiegel des Werks der beiden
-//! Einfälle (ohne Werk im Ordner `<data>/einfaelle/`) über [`mirror::record_idea`]: Betreff „Verbindung <id>:
-//! Einfall <a> <Art> Einfall <b> (angelegt|gelöscht|wiederhergestellt)“, Trailer `Baruch-Action:
-//! idea-link|idea-unlink|idea-link-restore`, `Baruch-Idea-Link`, `Baruch-Origin` und bei Persona/MCP `Persona`
-//! (dann ist sie Autor, Committer immer der Mensch). Ein `idea.link` auf ein schon aktives Paar ändert nichts
-//! und committet nicht; auf ein gelöschtes stellt es wieder her (`idea-link-restore`). Kein Buchtext ändert sich.
+//! Every change runs under [`AppState::write_lock`] and is exactly one commit in the mirror of the work of the two
+//! ideas (without a work in the folder `<data>/einfaelle/`) through [`mirror::record_idea`]: subject „Verbindung <id>:
+//! Einfall <a> <Art> Einfall <b> (angelegt|gelöscht|wiederhergestellt)“, trailer `Baruch-Action:
+//! idea-link|idea-unlink|idea-link-restore`, `Baruch-Idea-Link`, `Baruch-Origin` and for persona/MCP `Persona`
+//! (then it is the author, the committer is always the human). An `idea.link` on an already active pair changes
+//! nothing and does not commit; on a deleted one it restores (`idea-link-restore`). No book text changes.
 
 use baruch_gitmirror::{CommitRequest, Signature};
 use baruch_store::{IdeaLink, IdeaLinkId, IdeaOrigin, NewIdeaLink, WorkId};
@@ -16,7 +16,7 @@ use serde_json::{Value as Json, json};
 use crate::rpc::RpcError;
 use crate::{AppState, mirror};
 
-/// Was mit einer Verbindung geschah.
+/// What happened to a link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkAction {
     Create,
@@ -25,7 +25,7 @@ pub enum LinkAction {
 }
 
 impl LinkAction {
-    /// Wert des Trailers `Baruch-Action`.
+    /// Value of the trailer `Baruch-Action`.
     pub fn trailer(self) -> &'static str {
         match self {
             LinkAction::Create => "idea-link",
@@ -43,7 +43,7 @@ impl LinkAction {
     }
 }
 
-/// Lokaler Teil einer Adresse aus einem Handle (wie im Spiegel bei Einfällen).
+/// Local part of an address from a handle (as in the mirror for ideas).
 fn email_local_part(handle: &str) -> String {
     let local: String = handle
         .trim_start_matches('@')
@@ -53,8 +53,8 @@ fn email_local_part(handle: &str) -> String {
     if local.is_empty() { "persona".to_owned() } else { local }
 }
 
-/// Commit-Auftrag ohne Dateien für eine Aktion von `actor` an `link` (siehe Modulkopf). `labels` = Schlagwörter
-/// der beiden Einfälle für den Rumpf.
+/// Commit job without files for an action of `actor` on `link` (see module head). `labels` = tags
+/// of the two ideas for the body.
 pub fn describe(link: &IdeaLink, action: LinkAction, actor: &IdeaOrigin, labels: (&str, &str)) -> CommitRequest {
     let mut trailers = vec![
         ("Baruch-Action".to_owned(), action.trailer().to_owned()),
@@ -94,7 +94,7 @@ pub fn describe(link: &IdeaLink, action: LinkAction, actor: &IdeaOrigin, labels:
     }
 }
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the answer: `commit` for a new commit, `mirror` on error.
 fn add_mirror(answer: &mut Json, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -103,7 +103,7 @@ fn add_mirror(answer: &mut Json, result: Result<Option<String>, String>) {
     }
 }
 
-/// Werk der Verbindung (das der beiden Einfälle) und die Schlagwörter beider für den Rumpf.
+/// Work of the link (that of the two ideas) and the tags of both for the body.
 async fn context(state: &AppState, link: &IdeaLink) -> Result<(Option<WorkId>, String, String), RpcError> {
     let from = state.store.idea_get(link.from).await?;
     let to = state.store.idea_get(link.to).await?;
@@ -124,10 +124,10 @@ async fn record(
     Ok(())
 }
 
-/// Verbinden (bzw. eine gelöschte gleiche Verbindung wiederherstellen). Antwort `{link, changed, commit?|mirror?}`.
+/// Link (or restore a deleted equal link). Answer `{link, changed, commit?|mirror?}`.
 pub(crate) async fn link(state: &AppState, new: &NewIdeaLink<'_>) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
-    // Unter der Sperre nachsehen, ob es Paar und Art schon gelöscht gibt: dann ist es ein Wiederherstellen.
+    // Check under the lock whether pair and kind already exist as deleted: then it is a restore.
     let (from, to) = if new.kind.symmetric() && new.from > new.to { (new.to, new.from) } else { (new.from, new.to) };
     let was_deleted = match state.store.idea_links_of_idea(from, true).await {
         Ok(links) => links.iter().any(|l| l.to == to && l.from == from && l.kind == new.kind && l.deleted.is_some()),
@@ -142,7 +142,7 @@ pub(crate) async fn link(state: &AppState, new: &NewIdeaLink<'_>) -> Result<Json
     Ok(answer)
 }
 
-/// Verbindung lösen (weich). Antwort `{link, commit?|mirror?}`.
+/// Remove a link (soft). Answer `{link, commit?|mirror?}`.
 pub(crate) async fn unlink(state: &AppState, id: IdeaLinkId, actor: &IdeaOrigin) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
     let link = state.store.idea_link_delete(id).await?;
@@ -151,7 +151,7 @@ pub(crate) async fn unlink(state: &AppState, id: IdeaLinkId, actor: &IdeaOrigin)
     Ok(answer)
 }
 
-/// Gelöste Verbindung wiederherstellen. Antwort `{link, commit?|mirror?}`.
+/// Restore a removed link. Answer `{link, commit?|mirror?}`.
 pub(crate) async fn restore(state: &AppState, id: IdeaLinkId, actor: &IdeaOrigin) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
     let link = state.store.idea_link_restore(id).await?;
@@ -185,7 +185,7 @@ mod tests {
         let actor = IdeaOrigin::Mcp { handle: "@mcp:probe".into() };
         let request =
             describe(&sample(LinkKind::Contradicts, "a\nb"), LinkAction::Create, &actor, ("Laube", "Rose, Dorn"));
-        // Vertrag §4.1: Zusammenfassung „Verbindung <id>: Einfall <a> <Art> Einfall <b> (angelegt)“.
+        // Contract §4.1: summary „Verbindung <id>: Einfall <a> <Art> Einfall <b> (angelegt)“.
         assert_eq!(
             request.summary, "Verbindung 7: Einfall 48 widerspricht Einfall 79 (angelegt)",
             "Betreff nach Vertrag"

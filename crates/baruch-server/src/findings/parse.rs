@@ -1,35 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Antworten in Befunde zerlegen und Befunde vergleichen (Runde 28, Aufgabe befunde).
+//! Parsing answers into findings and comparing findings (Round 28, task befunde).
 //!
-//! [`split_answer`] liest eine Antwort Zeile für Zeile (Vertrag R28 §1.3):
-//! - **Gliederung** „Was trägt“ (Lob), „Was fehlt“ (Hinweis), „Was stört“ (Hinweis) als Überschrift (auch „### …“,
-//!   „**…**“, „…:“) setzt die Art der folgenden Punkte; steht hinter „Was trägt:“ gleich Text, ist das ein Befund.
-//!   Darunter zählt jeder Absatz und jeder Aufzählungspunkt als ein Befund.
-//! - **Marken** am Zeilenanfang (nach Aufzählungszeichen, auch fett): „Kritisch:“ (kritisch), „Vorschlag:“ und
-//!   „Hinweis:“ (Hinweis), „Lob:“ (Lob); „Kritisch:“ zählt auch hinter einer kurzen Teil-Angabe wie in der Prüfung
-//!   ([`crate::assist::prompts::critical_finding`]). Eine Marke allein auf der Zeile wirkt wie eine Überschrift. Die
-//!   Marke geht vor der Gliederung.
-//! - **Aufzählungen** („-“, „*“, „•“, „–“, „+“, „1.“, „1)“): jeder Punkt ein Befund (ohne Marke und Gliederung ein
-//!   Hinweis); eingerückte Unterpunkte und Folgezeilen gehören zum Punkt darüber, eine Leerzeile schließt ihn.
-//! - **Zitat** „…“ (bzw. "…", »…«, “…”): das erste wird `quote`. **Prüfvermerke** der Zitat- und Stellenprüfung
-//!   (R17: „(nicht im Text belegt)“, „(Stelle steht im Text: …)“, „(Stelle ungültig: …)“) wandern aus dem Text in
-//!   `quote_check`. **Verweise** „[B<id>]“ werden `refs`.
-//! - **Vermerke von Baruch** (Antwort abgeschnitten, Kontext gekürzt, „Komprimiert: …“, fehlender Pflichtbefund) sind
-//!   keine Befunde und werden übergangen.
-//! - Eine Antwort ohne Aufzählung, Marke und Gliederung (Small Talk) ergibt keinen Befund.
-//! - Runde 30b: **Lösungszeilen** (`statt: „…“`, `besser: „…“`, `Schritt: …`, auch als Aufzählungspunkt) gehören zum
-//!   Befund darüber und stehen nicht in seinem Text, sondern in `solutions`; ohne Befund darüber fallen sie weg. Der
-//!   Schlussblock „Mein Vorschlag:“ des Lektors ergibt keine Befunde. [`finding_spans`] liefert je Befund seine Bytes
-//!   (erste bis letzte Zeile samt Lösungszeilen) für die Blöcke im Chat.
+//! [`split_answer`] reads an answer line by line (contract R28 §1.3):
+//! - **Structure** „Was trägt“ (praise), „Was fehlt“ (note), „Was stört“ (note) as a heading (also „### …“,
+//!   „**…**“, „…:“) sets the kind of the following items; if text follows „Was trägt:“ directly, that is a finding.
+//!   Below it every paragraph and every list item counts as one finding.
+//! - **Markers** at the start of a line (after list markers, also bold): „Kritisch:“ (critical), „Vorschlag:“ and
+//!   „Hinweis:“ (note), „Lob:“ (praise); „Kritisch:“ also counts behind a short part label as in the review
+//!   ([`crate::assist::prompts::critical_finding`]). A marker alone on the line acts like a heading. The
+//!   marker takes precedence over the structure.
+//! - **Lists** („-“, „*“, „•“, „–“, „+“, „1.“, „1)“): every item a finding (without marker and structure a
+//!   note); indented sub-items and continuation lines belong to the item above, an empty line closes it.
+//! - **Quotation** „…“ (or "…", »…«, “…”): the first becomes `quote`. **Check notes** of the quotation and reference
+//!   check (R17: „(nicht im Text belegt)“, „(Stelle steht im Text: …)“, „(Stelle ungültig: …)“) move from the text
+//!   into `quote_check`. **References** „[B<id>]“ become `refs`.
+//! - **Notes by Baruch** (answer cut off, context trimmed, „Komprimiert: …“, missing mandatory finding) are
+//!   not findings and are skipped.
+//! - An answer without list, marker and structure (small talk) yields no finding.
+//! - Round 30b: **solution lines** (`statt: „…“`, `besser: „…“`, `Schritt: …`, also as a list item) belong to the
+//!   finding above and stand not in its text but in `solutions`; without a finding above they are dropped. The
+//!   closing block „Mein Vorschlag:“ of the lector yields no findings. [`finding_spans`] returns per finding its
+//!   bytes (first to last line including solution lines) for the blocks in the chat.
 //!
-//! - Runde 22 (befund-rueckfrage): **Rückmeldungen** „Erledigt: Befund n (Stelle „…“)“ (auch fett, als Aufzählungspunkt,
-//!   mit „[Bn]“) und der Satz „Alle meine Befunde zu diesem Abschnitt scheinen erledigt.“ sind keine Befunde; die
-//!   Rückmeldungen liest [`done_claims`] (daraus macht `assist` Statusvorschläge „erledigt“).
+//! - Round 22 (befund-rueckfrage): **feedback** „Erledigt: Befund n (Stelle „…“)“ (also bold, as a list item,
+//!   with „[Bn]“) and the sentence „Alle meine Befunde zu diesem Abschnitt scheinen erledigt.“ are not findings; the
+//!   feedback is read by [`done_claims`] (`assist` makes status proposals „erledigt“ from it).
 //!
-//! [`similar`]: nur Text (keine Einbettung in Runde 28): Inhaltswörter (klein, ohne Satzzeichen, ab drei Buchstaben
-//! ohne Füllwörter, dazu jede Zahl) als Mengen, Dice-Maß 2·|A∩B| / (|A|+|B|) ab [`SIMILARITY_THRESHOLD`]. Die Schwelle
-//! liegt so, dass schon ein anderes Inhaltswort in einem kurzen Befund (bis vier Inhaltswörter) ihn zu einem anderen
-//! macht.
+//! [`similar`]: nur Text (text only, no embedding in Round 28): content words (lower case, no punctuation, from three
+//! letters on without filler words, plus every number) as sets, Dice measure 2·|A∩B| / (|A|+|B|) from
+//! [`SIMILARITY_THRESHOLD`] on. The threshold is set so that even one other content word in a short finding (up to
+//! four content words) makes it a different one.
 
 use std::collections::HashSet;
 
@@ -38,37 +38,37 @@ use crate::assist::prompts::{CRITICAL_MISSING_NOTE, NO_SOLUTION_NOTE, UNBACKED_N
 use crate::assist::ref_claims::{IN_TEXT, INVALID};
 use crate::assist::{CUT_NOTE, TRUNCATED_NOTE};
 
-/// Höchstlängen wie die CHECKs der Migration 0046 (Text, Zitat, Prüfvermerk).
+/// Maximum lengths like the CHECKs of migration 0046 (text, quotation, check note).
 const MAX_BODY: usize = baruch_store::MAX_FINDING_CHARS;
 const MAX_QUOTE: usize = baruch_store::MAX_QUOTE_CHARS;
 const MAX_CHECK: usize = 200;
 
-/// Ein Befund, wie er aus einer Antwort gelesen wurde.
+/// A finding as it was read from an answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedFinding {
-    /// Stelle in der Antwort (ab 0).
+    /// Position in the answer (from 0).
     pub position: u32,
     pub kind: FindingKind,
     pub body: String,
     pub quote: String,
     pub quote_check: String,
-    /// Verweise „[B<id>]“ im Text.
+    /// References „[B<id>]“ in the text.
     pub refs: Vec<i64>,
-    /// Runde 30b: Lösungen unter dem Befund (`statt:`/`besser:` bzw. `Schritt:`, [`crate::assist::solutions`]).
+    /// Round 30b: solutions below the finding (`statt:`/`besser:` or `Schritt:`, [`crate::assist::solutions`]).
     pub solutions: Vec<baruch_store::Solution>,
 }
 
-/// Ein Punkt, der gerade gesammelt wird.
+/// An item that is being collected.
 struct Item {
-    /// Art aus Marke bzw. Gliederung (Vorgabe Hinweis).
+    /// Kind from marker or structure (default note).
     kind: FindingKind,
-    /// Erste Zeile ohne Aufzählungszeichen und Marke, Folgezeilen getrimmt dahinter.
+    /// First line without list marker and marker, continuation lines trimmed after it.
     lines: Vec<String>,
-    /// Einrückung der ersten Zeile (Unterpunkte sind tiefer eingerückt).
+    /// Indentation of the first line (sub-items are indented deeper).
     indent: usize,
-    /// Runde 30b: Lösungszeilen (`statt:`, `besser:`, `Schritt:`) unter dem Befund; nicht Teil des Texts.
+    /// Round 30b: solution lines (`statt:`, `besser:`, `Schritt:`) below the finding; not part of the text.
     solution_lines: Vec<String>,
-    /// Bytes des Punkts in der Antwort (erste bis letzte Zeile samt Lösungszeilen), für [`finding_spans`].
+    /// Bytes of the item in the answer (first to last line including solution lines), for [`finding_spans`].
     range: std::ops::Range<usize>,
 }
 
@@ -78,10 +78,10 @@ impl Item {
     }
 }
 
-/// Ist die Zeile ein Vermerk von Baruch (kein Befund)?
+/// Is the line a note by Baruch (not a finding)?
 fn baruch_note(line: &str) -> bool {
     if done_line(line).is_some() || crate::assist::prompts::all_done_line(line) {
-        // Runde 22: Rückmeldungen der Persona zu ihren eigenen Befunden sind keine neuen Befunde.
+        // Round 22: feedback of the persona on its own findings is not a new finding.
         return true;
     }
     let t = line.trim();
@@ -93,8 +93,8 @@ fn baruch_note(line: &str) -> bool {
         || t.starts_with("(Hinweis von Baruch:")
 }
 
-/// `s` beginnt (Groß-/Kleinschreibung egal, `*`/`_` dazwischen übergangen) mit `word`? Dann der Rest dahinter ohne
-/// führende `*`, `_` und Leerraum.
+/// Does `s` start (case-insensitive, `*`/`_` in between skipped) with `word`? Then the rest after it without
+/// leading `*`, `_` and whitespace.
 fn strip_word<'a>(s: &'a str, word: &str) -> Option<&'a str> {
     let mut wanted = word.chars().flat_map(char::to_lowercase).peekable();
     let mut end = 0;
@@ -120,9 +120,9 @@ fn strip_word<'a>(s: &'a str, word: &str) -> Option<&'a str> {
     Some(s[end..].trim_start_matches(|c: char| matches!(c, '*' | '_') || c.is_whitespace()))
 }
 
-/// Rückmeldung „Erledigt: …“ (Runde 22): nach Aufzählungszeichen, Markdown-Zeichen (`*`, `_`, `>`, `#`) und Leerraum
-/// beginnt die Zeile mit „Erledigt:“ (Groß-/Kleinschreibung egal, auch „**Erledigt:**“ bzw. „**Erledigt**:“). Gibt den
-/// Rest dahinter zurück.
+/// Feedback „Erledigt: …“ (Round 22): after list markers, Markdown characters (`*`, `_`, `>`, `#`) and whitespace
+/// the line starts with „Erledigt:“ (case-insensitive, also „**Erledigt:**“ or „**Erledigt**:“). Returns the
+/// rest after it.
 pub fn done_line(line: &str) -> Option<&str> {
     let content = list_item(line).unwrap_or(line.trim_start());
     let content = content.trim_start_matches(|c: char| matches!(c, '*' | '_' | '>' | '#') || c.is_whitespace());
@@ -130,16 +130,16 @@ pub fn done_line(line: &str) -> Option<&str> {
     Some(rest.trim_end_matches(|c: char| matches!(c, '*' | '_') || c.is_whitespace()))
 }
 
-/// Eine Rückmeldung „Erledigt: Befund n (Stelle „…“)“ einer Persona (Runde 22).
+/// A feedback „Erledigt: Befund n (Stelle „…“)“ of a persona (Round 22).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DoneClaim {
-    /// Nummer des Befunds (`finding.id`, wie in „[B<id>]“).
+    /// Number of the finding (`finding.id`, as in „[B<id>]“).
     pub id: i64,
-    /// Stelle im Text (erstes Zitat der Zeile, ohne Anführungszeichen); leer, wenn keine genannt.
+    /// Position in the text (first quotation of the line, without quotation marks); empty if none is named.
     pub place: String,
 }
 
-/// Nummer hinter „Befund“ (auch „Befund Nr. 12“, „Befund #12“) bzw. „B12“ am Wortanfang.
+/// Number behind „Befund“ (also „Befund Nr. 12“, „Befund #12“) or „B12“ at the start of a word.
 fn claimed_number(rest: &str) -> Option<i64> {
     if let Some(&id) = refs_in(rest).first() {
         return Some(id);
@@ -159,8 +159,8 @@ fn claimed_number(rest: &str) -> Option<i64> {
     digits.parse().ok()
 }
 
-/// Alle Rückmeldungen „Erledigt: Befund n …“ einer Antwort in Reihenfolge, je Nummer nur die erste. Zeilen ohne
-/// erkennbare Nummer fallen weg.
+/// All feedback „Erledigt: Befund n …“ of an answer in order, per number only the first. Lines without a
+/// recognisable number are dropped.
 pub fn done_claims(text: &str) -> Vec<DoneClaim> {
     let mut out: Vec<DoneClaim> = Vec::new();
     for line in text.lines() {
@@ -174,7 +174,7 @@ pub fn done_claims(text: &str) -> Vec<DoneClaim> {
     out
 }
 
-/// Marken am Anfang (nach Aufzählungszeichen) und ihre Art.
+/// Markers at the start (after list markers) and their kind.
 const MARKERS: [(&str, FindingKind); 4] = [
     ("kritisch:", FindingKind::Critical),
     ("vorschlag:", FindingKind::Hint),
@@ -182,16 +182,16 @@ const MARKERS: [(&str, FindingKind); 4] = [
     ("lob:", FindingKind::Praise),
 ];
 
-/// Marke am Anfang von `s`: Art und Rest.
+/// Marker at the start of `s`: kind and rest.
 fn marker(s: &str) -> Option<(FindingKind, &str)> {
     MARKERS.iter().find_map(|(word, kind)| strip_word(s, word).map(|rest| (*kind, rest)))
 }
 
-/// Gliederung der Antwort: Überschrift und Art.
+/// Structure of the answer: heading and kind.
 const OUTLINE: [(&str, FindingKind); 3] =
     [("was trägt", FindingKind::Praise), ("was fehlt", FindingKind::Hint), ("was stört", FindingKind::Hint)];
 
-/// Aufzählungszeichen am Zeilenanfang: Inhalt dahinter.
+/// List marker at the start of a line: content after it.
 fn list_item(line: &str) -> Option<&str> {
     let t = line.trim_start();
     let mut chars = t.chars();
@@ -210,24 +210,24 @@ fn list_item(line: &str) -> Option<&str> {
     None
 }
 
-/// Kopf ohne Markdown-Zeichen („#“, „*“, „_“, „>“), Nummer und Leerraum.
+/// Head without Markdown characters („#“, „*“, „_“, „>“), number and whitespace.
 fn heading_probe(line: &str) -> &str {
     let probe = list_item(line).unwrap_or(line);
     probe.trim_start_matches(|c: char| c.is_whitespace() || matches!(c, '#' | '*' | '_' | '>'))
 }
 
-/// Ergebnis für eine Zeile der Gliederung „Was trägt / Was fehlt / Was stört“.
+/// Result for a line of the structure „Was trägt / Was fehlt / Was stört“.
 enum Outline<'a> {
-    /// Nur die Überschrift.
+    /// Only the heading.
     Heading(FindingKind),
-    /// Überschrift mit Text dahinter („Was trägt: …“).
+    /// Heading with text after it („Was trägt: …“).
     Inline(FindingKind, &'a str),
 }
 
 fn outline_line(line: &str) -> Option<Outline<'_>> {
     let probe = heading_probe(line);
     let (kind, rest) = OUTLINE.iter().find_map(|(word, kind)| strip_word(probe, word).map(|rest| (*kind, rest)))?;
-    // Direkt hinter der Überschrift: nichts, „:“, „–“ oder „-“; sonst ist es ein Satz („Was trägt den Text? …“).
+    // Directly behind the heading: nothing, „:“, „–“ or „-“; otherwise it is a sentence („Was trägt den Text? …“).
     let rest = rest.trim_start_matches(['*', '_']);
     let rest = match rest.chars().next() {
         None => "",
@@ -239,7 +239,7 @@ fn outline_line(line: &str) -> Option<Outline<'_>> {
     Some(if rest.is_empty() { Outline::Heading(kind) } else { Outline::Inline(kind, rest) })
 }
 
-/// Eine andere Überschrift („## …“, ganz fett, kurzer Satzteil mit „:“ am Ende): Die Gliederung endet.
+/// Another heading („## …“, all bold, short phrase with „:“ at the end): the structure ends.
 fn other_heading(line: &str) -> bool {
     let t = line.trim();
     if t.starts_with('#') {
@@ -249,7 +249,7 @@ fn other_heading(line: &str) -> bool {
     bold || (t.ends_with(':') && t.chars().count() <= 60)
 }
 
-/// „Kritisch:“ hinter einer Teil-Angabe: Angabe und Rest ohne die Marke.
+/// „Kritisch:“ behind a part label: label and rest without the marker.
 fn strip_inner_critical(s: &str) -> Option<String> {
     let mut previous: Option<char> = None;
     for (at, c) in s.char_indices() {
@@ -265,7 +265,7 @@ fn strip_inner_critical(s: &str) -> Option<String> {
     None
 }
 
-/// Prüfvermerke (R17) aus dem Text holen: Text ohne Vermerke und die Vermerke (mit Leerzeichen verbunden).
+/// Take check notes (R17) out of the text: text without notes and the notes (joined with spaces).
 fn take_checks(text: &str) -> (String, String) {
     let mut checks: Vec<String> = Vec::new();
     let mut rest = text.to_owned();
@@ -299,7 +299,7 @@ fn take_checks(text: &str) -> (String, String) {
     (cleaned.join("\n"), checks.join(" "))
 }
 
-/// Erstes Zitat in „…“ (bzw. "…", »…«, “…”), getrimmt; ohne Zitat leer.
+/// First quotation in „…“ (or "…", »…«, “…”), trimmed; without a quotation empty.
 fn first_quote(text: &str) -> String {
     const PAIRS: [(char, char); 4] = [('„', '“'), ('"', '"'), ('»', '«'), ('“', '”')];
     let chars: Vec<char> = text.chars().collect();
@@ -317,7 +317,7 @@ fn first_quote(text: &str) -> String {
     String::new()
 }
 
-/// Verweise „[B<id>]“ in Reihenfolge, ohne Doppel.
+/// References „[B<id>]“ in order, no duplicates.
 pub fn refs_in(text: &str) -> Vec<i64> {
     let mut out = Vec::new();
     let mut rest = text;
@@ -345,10 +345,10 @@ fn clip(text: &str, max: usize) -> String {
     out
 }
 
-/// Fertiger Befund aus einem gesammelten Punkt; ohne Text nach dem Entfernen der Vermerke `None`.
+/// Finished finding from a collected item; without text after removing the notes `None`.
 fn finish(item: Item, position: u32) -> Option<ParsedFinding> {
     let joined = item.lines.join("\n");
-    // Lösungen: eigene Zeilen unter dem Befund und die Kurzform „statt „…“ besser „…““ im Text selbst.
+    // Solutions: own lines below the finding and the short form „statt „…“ besser „…““ in the text itself.
     let mut solutions = crate::assist::solutions::parse_solutions(&joined);
     solutions.extend(crate::assist::solutions::parse_solutions(&item.solution_lines.join("\n")));
     let refs = refs_in(&joined);
@@ -368,12 +368,12 @@ fn finish(item: Item, position: u32) -> Option<ParsedFinding> {
     })
 }
 
-/// Antwort in Befunde zerlegen (Reihenfolge der Antwort, Stellen ab 0 ohne Lücken).
+/// Parse an answer into findings (order of the answer, positions from 0 without gaps).
 pub fn split_answer(text: &str) -> Vec<ParsedFinding> {
     split_spans(text).into_iter().map(|(found, _)| found).collect()
 }
 
-/// Beginnt hier der Schlussblock „Mein Vorschlag:“ des Lektors (Runde 30b)? Seine Zeilen sind Lösungen, keine Befunde.
+/// Does the closing block „Mein Vorschlag:“ of the lector start here (Round 30b)? Its lines are solutions.
 pub fn proposal_heading(line: &str) -> bool {
     let probe = heading_probe(line);
     strip_word(probe, "mein vorschlag").is_some_and(|rest| {
@@ -382,7 +382,7 @@ pub fn proposal_heading(line: &str) -> bool {
     })
 }
 
-/// Zeilen samt Bytes (ohne Zeilenende, auch ohne „\r“).
+/// Lines with bytes (without line end, also without „\r“).
 fn lines_with_offsets(text: &str) -> Vec<(usize, &str)> {
     let mut out = Vec::new();
     let mut at = 0;
@@ -397,12 +397,12 @@ fn lines_with_offsets(text: &str) -> Vec<(usize, &str)> {
 
 type Spanned = (ParsedFinding, std::ops::Range<usize>);
 
-/// Wie [`split_answer`], je Befund dazu seine Bytes in der Antwort (erste bis letzte Zeile samt Lösungszeilen).
+/// Like [`split_answer`], plus per finding its bytes in the answer (first to last line including solution lines).
 fn split_spans(text: &str) -> Vec<Spanned> {
     let mut out: Vec<Spanned> = Vec::new();
     let mut current: Option<Item> = None;
     let mut section: Option<FindingKind> = None;
-    // Runde 30b: im Schlussblock „Mein Vorschlag:“ stehen Lösungen des Lektors, keine Befunde.
+    // Round 30b: the closing block „Mein Vorschlag:“ holds solutions of the lector, not findings.
     let mut in_proposal = false;
     let flush = |current: &mut Option<Item>, out: &mut Vec<Spanned>| {
         if let Some(item) = current.take() {
@@ -413,9 +413,9 @@ fn split_spans(text: &str) -> Vec<Spanned> {
             }
         }
     };
-    // Eine Leerzeile schließt den Punkt erst, wenn danach etwas anderes als eine Lösungszeile kommt: „Kritisch: …⏎⏎
-    // - statt: …“ trägt seine Lösung (sonst forderte Baruch nach und vermerkte „ohne Lösungsvorschlag“, während der
-    // Beitrag dieselbe Lösung als übernehmbar zeigt).
+    // An empty line closes the item only if something other than a solution line follows: „Kritisch: …⏎⏎
+    // - statt: …“ carries its solution (otherwise Baruch would retry and note „ohne Lösungsvorschlag“ while the
+    // post shows the same solution as adoptable).
     let mut gap = false;
     for (at, line) in lines_with_offsets(text) {
         let span = at..at + line.len();
@@ -429,8 +429,8 @@ fn split_spans(text: &str) -> Vec<Spanned> {
             continue;
         }
         let indent = line.chars().take_while(|c| c.is_whitespace()).count();
-        // Lösungszeilen gehören zum Befund darüber, gleich wie eingerückt (auch als eigener Aufzählungspunkt, auch
-        // nach einer Leerzeile); ohne Befund darüber (etwa im Block „Mein Vorschlag:“) sind sie kein Befund.
+        // Solution lines belong to the finding above, however indented (also as their own list item, also
+        // after an empty line); without a finding above (e.g. in the block „Mein Vorschlag:“) they are no finding.
         if crate::assist::solutions::is_solution_line(line) {
             if let Some(item) = current.as_mut() {
                 item.solution_lines.push(line.trim().to_owned());
@@ -463,13 +463,13 @@ fn split_spans(text: &str) -> Vec<Spanned> {
         let content = listed.unwrap_or(line.trim_start());
         let marked = marker(content);
         if in_proposal {
-            // Der Block endet erst an einer Marke oder Gliederung; Aufzählung und Text darin sind keine Befunde.
+            // The block ends only at a marker or structure heading; list and text in it are not findings.
             if marked.is_none() && !critical_finding(line) {
                 continue;
             }
             in_proposal = false;
         }
-        // Unterpunkt (tiefer eingerückt) gehört zum Punkt darüber.
+        // A sub-item (indented deeper) belongs to the item above.
         if listed.is_some()
             && let Some(item) = current.as_mut()
             && indent > item.indent
@@ -482,7 +482,7 @@ fn split_spans(text: &str) -> Vec<Spanned> {
             && listed.is_none()
             && rest.trim_matches(|c: char| matches!(c, '*' | '_') || c.is_whitespace()).is_empty()
         {
-            // „Kritisch:“ allein auf der Zeile wirkt wie eine Überschrift.
+            // „Kritisch:“ alone on the line acts like a heading.
             flush(&mut current, &mut out);
             section = Some(kind);
             continue;
@@ -517,14 +517,14 @@ fn split_spans(text: &str) -> Vec<Spanned> {
         if let Some(kind) = section {
             current = Some(Item::new(kind, line.trim().to_owned(), indent, span));
         }
-        // sonst: Fließtext ohne Aufzählung und Marke – kein Befund
+        // otherwise: running text without list and marker – no finding
     }
     flush(&mut current, &mut out);
     out
 }
 
-/// Die ganze Antwort als ein Hinweis (manuelles Umwandeln durch den Mensch, Vertrag §1.3): Vermerke von Baruch
-/// fallen weg, Zitat, Prüfvermerk und Verweise wie bei [`split_answer`]; ohne Text `None`.
+/// The whole answer as one note (manual conversion by the human, contract §1.3): notes by Baruch
+/// are dropped, quotation, check note and references as in [`split_answer`]; without text `None`.
 pub fn whole_answer(text: &str) -> Option<ParsedFinding> {
     let lines: Vec<String> =
         text.lines().filter(|l| !baruch_note(l)).map(|l| l.trim_end().to_owned()).collect::<Vec<_>>();
@@ -532,12 +532,12 @@ pub fn whole_answer(text: &str) -> Option<ParsedFinding> {
     finish(Item { kind: FindingKind::Hint, lines, indent: 0, solution_lines: Vec::new(), range }, 0)
 }
 
-/// Ab diesem Maß gelten zwei Befundtexte als ähnlich. 0,8: Bei drei oder vier Inhaltswörtern trennt schon ein
-/// abweichendes Wort (2/3 ≈ 0,67 bzw. 3/4 = 0,75), erst ab fünf Inhaltswörtern darf eines abweichen.
+/// From this measure on two finding texts count as similar. 0.8: with three or four content words one
+/// differing word already separates (2/3 ≈ 0.67 or 3/4 = 0.75), only from five content words on may one differ.
 pub const SIMILARITY_THRESHOLD: f64 = 0.8;
 
-/// Füllwörter (klein), die zwei Befunde nicht gleich machen: Artikel, Präpositionen samt Verschmelzungen,
-/// Pronomen, Konjunktionen, Hilfsverben und Partikeln.
+/// Filler words (lower case) that do not make two findings equal: articles, prepositions with contractions,
+/// pronouns, conjunctions, auxiliary verbs and particles.
 const STOPWORDS: &[&str] = &[
     "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "eines", "und", "oder", "aber",
     "doch", "sondern", "denn", "weil", "dass", "wenn", "als", "wie", "auch", "noch", "nur", "schon", "sehr", "hier",
@@ -549,8 +549,8 @@ const STOPWORDS: &[&str] = &[
     "wer", "wo", "dann", "also", "etwa", "bitte",
 ];
 
-/// Inhaltswörter eines Befundtexts in Vergleichsform: klein, nur Buchstaben und Ziffern; Wörter ab drei Zeichen ohne
-/// [`STOPWORDS`], Zahlen in jeder Länge („Satz 3“ und „Satz 5“ sind verschiedene Stellen).
+/// Content words of a finding text in comparison form: lower case, letters and digits only; words from three
+/// characters on without [`STOPWORDS`], numbers of any length („Satz 3“ and „Satz 5“ are different positions).
 fn words(text: &str) -> HashSet<String> {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|w| !w.is_empty())
@@ -559,7 +559,7 @@ fn words(text: &str) -> HashSet<String> {
         .collect()
 }
 
-/// Ähnlichkeit zweier Befundtexte (Dice über die Wortmengen, 0 bis 1).
+/// Similarity of two finding texts (Dice over the word sets, 0 to 1).
 pub fn similarity(a: &str, b: &str) -> f64 {
     let (a, b) = (words(a), words(b));
     if a.is_empty() || b.is_empty() {
@@ -569,22 +569,22 @@ pub fn similarity(a: &str, b: &str) -> f64 {
     (2 * common) as f64 / (a.len() + b.len()) as f64
 }
 
-/// Gleichen sich zwei Befundtexte (nur Text)? Gleicher Text (getrimmt) immer; sonst [`similarity`] ab
-/// [`SIMILARITY_THRESHOLD`].
+/// Are two finding texts alike (text only)? Equal text (trimmed) always; otherwise [`similarity`] from
+/// [`SIMILARITY_THRESHOLD`] on.
 pub fn similar(a: &str, b: &str) -> bool {
     a.trim() == b.trim() || similarity(a, b) >= SIMILARITY_THRESHOLD
 }
 
-/// Ein Befund als Spanne in einer Persona-Antwort (Runde 30, Schnittstelle R30-S1): Stelle `position` wie bei
-/// [`split_answer`] und Bytes `range` im Text, für die Blöcke im Chat ([`crate::chat_render::Segment::Finding`]).
+/// A finding as a span in a persona answer (Round 30, interface R30-S1): position `position` as in [`split_answer`]
+/// and bytes `range` in the text, for the blocks in the chat ([`crate::chat_render::Segment::Finding`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FindingSpan {
     pub position: u32,
     pub range: std::ops::Range<usize>,
 }
 
-/// Spannen der Befunde in einer Antwort, in Textreihenfolge: genau die Befunde von [`split_answer`] (gleiche
-/// `position`), je von der ersten bis zur letzten Zeile samt Lösungszeilen (ohne Zeilenende).
+/// Spans of the findings in an answer, in text order: exactly the findings of [`split_answer`] (same
+/// `position`), each from the first to the last line including solution lines (without line end).
 pub fn finding_spans(text: &str) -> Vec<FindingSpan> {
     split_spans(text).into_iter().map(|(found, range)| FindingSpan { position: found.position, range }).collect()
 }
@@ -682,15 +682,15 @@ Kritisch: „Laterne“ fehlt im zweiten Absatz.
     fn similarity_uses_words_not_order() {
         assert!(similar("Der Übergang zur Werft fehlt.", "Es fehlt der Übergang zur Werft"), "gleiche Wörter");
         assert!(!similar("Der Übergang zur Werft fehlt.", "Die Möwen sind zu laut."), "andere Wörter");
-        // Sachlich verschiedene Befunde mit vielen gemeinsamen Wörtern: ein anderes Inhaltswort bzw. eine andere
-        // Stelle trennt sie (Füllwörter „der“, „zur“, „zum“ zählen nicht; Zahlen zählen).
+        // Factually different findings with many shared words: another content word or another
+        // position separates them (filler words „der“, „zur“, „zum“ do not count; numbers count).
         assert!(!similar("Der Übergang zur Werft fehlt.", "Der Übergang zum Hafen fehlt."), "anderes Ziel");
         assert!(!similar("„immer“ in Satz 3 verallgemeinert.", "„alle“ in Satz 5 verallgemeinert."), "andere Stelle");
         assert!(
             !similar("„immer“ in Satz 3 verallgemeinert.", "„immer“ in Satz 5 verallgemeinert."),
             "nur Zahl anders"
         );
-        // Eine Wiederholung mit anderen Füllwörtern bleibt ähnlich.
+        // A repetition with other filler words stays similar.
         assert!(
             similar("Der Übergang zur Werft fehlt.", "Ein Übergang zur Werft fehlt noch."),
             "nur Füllwörter anders"

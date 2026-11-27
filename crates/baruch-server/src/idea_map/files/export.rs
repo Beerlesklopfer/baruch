@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ausgaben der Mindmap als Text (Vertrag Runde 34 §8, Besitz mindmap_austausch): das Blatt ([`Sheet`]) als
-//! gemeinsame Vorstufe von FreeMind ([`super::freemind`]) und XMind ([`super::xmind`]) und die Markdown-Ausgabe
-//! ([`markdown`]). Alles aus derselben Sicht ([`Scene`]) wie Seite und Bild – die Filter gelten also auch hier.
+//! Exports of the mind map as text (contract Round 34 §8, owner mindmap_austausch): the sheet ([`Sheet`]) as the
+//! shared preliminary stage of FreeMind ([`super::freemind`]) and XMind ([`super::xmind`]) and the Markdown export
+//! ([`markdown`]). All from the same view ([`Scene`]) as page and picture – so the filters apply here too.
 //!
-//! **Wolke** (Nachtrag des Nutzers 2026-11-25): Einfälle ohne Platz – weder Elternknoten noch Bezug – liegen in der
-//! Wolke neben der Mindmap. Die Sicht [`Scene`] hängt sie hinter den Hauptästen an die Wurzel und nennt ihre
-//! Kennungen ([`cloud`]); alle Ausgaben führen sie als eigenen Ast „Wolke“ ([`CLOUD_ID`]) bzw. in Markdown als
-//! eigenen Abschnitt. Freie Hauptthemen (Einfälle direkt am Werk) sind dagegen gewöhnliche Hauptäste.
+//! **Cloud** (addendum of the user 2026-11-25): ideas without a place – neither parent node nor relation – lie in
+//! the cloud next to the mind map. The view [`Scene`] hangs them behind the main branches on the root and names
+//! their ids ([`cloud`]); all exports carry them as their own branch „Wolke“ ([`CLOUD_ID`]) or in Markdown as
+//! their own section. Free main topics (ideas directly on the work), by contrast, are ordinary main branches.
 //!
-//! [`filter_words`], [`origin_word`] und [`links_of`] nutzen auch die Seite (`idea_map/bild/mod.rs`) und die
-//! Gliederungsansicht.
+//! [`filter_words`], [`origin_word`] and [`links_of`] are also used by the page (`idea_map/bild/mod.rs`) and the
+//! outline view.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
@@ -19,7 +19,7 @@ use baruch_store::{IdeaId, IdeaLink, IdeaStatus, LinkKind};
 use crate::idea_map::tree::{Scene, TreeKind, TreeNode};
 use crate::idea_map::{MapFilter, NearVia};
 
-/// „offen“ bzw. „verarbeitet“.
+/// „offen“ or „verarbeitet“.
 pub fn status_label(status: IdeaStatus) -> &'static str {
     match status {
         IdeaStatus::Open => "offen",
@@ -27,7 +27,7 @@ pub fn status_label(status: IdeaStatus) -> &'static str {
     }
 }
 
-/// Ein Zeichen, das in Markdown etwas bedeutet, mit `\` davor; Zeilenumbrüche als Leerzeichen.
+/// A character that means something in Markdown, with `\` before it; line breaks as spaces.
 fn md(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.split_whitespace().collect::<Vec<_>>().join(" ").chars() {
@@ -41,7 +41,7 @@ fn md(text: &str) -> String {
     out
 }
 
-/// Angewandter Filter in Worten (leer ohne Filter).
+/// Applied filter in words (empty without filter).
 pub fn filter_words(filter: &MapFilter) -> String {
     let mut parts = Vec::new();
     if let Some(status) = filter.status {
@@ -72,8 +72,8 @@ pub fn origin_word(origin: &str) -> &'static str {
     }
 }
 
-/// Verbindungen eines Einfalls in der Schreibweise des Spiegels: `→ 79 führt weiter`, `← 12 Beispiel für`,
-/// `↔ 48 widerspricht` (Pfeil, anderer Einfall, Art, Notiz), nach Verbindungs-id.
+/// Links of an idea in the notation of the mirror: `→ 79 führt weiter`, `← 12 Beispiel für`,
+/// `↔ 48 widerspricht` (arrow, other idea, kind, note), by link id.
 pub fn links_of(idea: IdeaId, links: &[IdeaLink]) -> Vec<(&IdeaLink, &'static str, IdeaId)> {
     let mut out: Vec<(&IdeaLink, &'static str, IdeaId)> = links
         .iter()
@@ -94,39 +94,39 @@ pub fn links_of(idea: IdeaId, links: &[IdeaLink]) -> Vec<(&IdeaLink, &'static st
     out
 }
 
-// ---- Wolke und Blatt -----------------------------------------------------------------------------
+// ---- Cloud and sheet -----------------------------------------------------------------------------
 
-/// Kennung des Astes „Wolke“ in den Ausgaben (XMind: Themen-id, FreeMind: `ID_baruchwolke`). Der eigene Leser
-/// erkennt den Ast daran und löst ihn wieder auf (seine Kinder werden Knoten der obersten Ebene).
+/// Id of the branch „Wolke“ in the exports (XMind: topic id, FreeMind: `ID_baruchwolke`). The own reader
+/// recognises the branch by it and dissolves it again (its children become nodes of the top level).
 pub const CLOUD_ID: &str = "baruch-wolke";
-/// Titel des Astes „Wolke“.
+/// Title of the branch „Wolke“.
 pub const CLOUD_TITLE: &str = "Wolke";
 
-/// Die Wolke: Einfälle ohne Platz ([`Scene::cloud`]), samt ihren Unterknoten.
+/// The cloud: ideas without a place ([`Scene::cloud`]), with their sub-nodes.
 pub fn cloud(scene: &Scene) -> Vec<&TreeNode> {
     scene.cloud_nodes()
 }
 
-/// Die Hauptäste der Mindmap ohne die Wolke (Teile, Kapitel und freie Hauptthemen).
+/// The main branches of the mind map without the cloud (parts, chapters and free main topics).
 pub fn placed(scene: &Scene) -> Vec<&TreeNode> {
     scene.branches()
 }
 
-/// „1.2 Titel“ bzw. „Titel“ (Einfälle tragen keine Nummer).
+/// „1.2 Titel“ or „Titel“ (ideas carry no number).
 pub fn node_title(node: &TreeNode) -> String {
     if node.number.trim().is_empty() { node.title.clone() } else { format!("{} {}", node.number, node.title) }
 }
 
-/// Beschriftung einer Beziehung: Art, dahinter die Notiz („führt weiter: über den Deich“).
+/// Label of a relation: kind, after it the note („führt weiter: über den Deich“).
 pub fn link_label(link: &IdeaLink) -> String {
     let note = link.note.split_whitespace().collect::<Vec<_>>().join(" ");
     if note.is_empty() { link.kind.label().to_owned() } else { format!("{}: {note}", link.kind.label()) }
 }
 
-/// Ein Knoten des Blatts (Werk, Teil, Kapitel, Einfall oder der Ast „Wolke“).
+/// A node of the sheet (work, part, chapter, idea or the branch „Wolke“).
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutNode {
-    /// Kennung wie im Baum (`w`, `n:<key>`, `i:<id>`) bzw. [`CLOUD_ID`].
+    /// Id as in the tree (`w`, `n:<key>`, `i:<id>`) or [`CLOUD_ID`].
     pub id: String,
     pub title: String,
     pub note: String,
@@ -134,7 +134,7 @@ pub struct OutNode {
     pub children: Vec<OutNode>,
 }
 
-/// Eine Beziehung zwischen zwei Knoten des Blatts.
+/// A relation between two nodes of the sheet.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutLink {
     pub id: i64,
@@ -144,7 +144,7 @@ pub struct OutLink {
     pub kind: LinkKind,
 }
 
-/// Was FreeMind und XMind von der Mindmap bekommen: Titel, Baum, Beziehungen.
+/// What FreeMind and XMind get of the mind map: title, tree, relations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sheet {
     pub title: String,
@@ -162,8 +162,8 @@ fn out_node(node: &TreeNode) -> OutNode {
     }
 }
 
-/// Das Blatt der Mindmap: die Hauptäste in ihrer Reihenfolge, danach – falls es Einfälle ohne Platz gibt – der Ast
-/// „Wolke“. Beziehungen nur zwischen Einfällen, die im Baum stehen (nicht gelöscht).
+/// The sheet of the mind map: the main branches in their order, then – if there are ideas without a place – the
+/// branch „Wolke“. Relations only between ideas that stand in the tree (not deleted).
 pub fn sheet(scene: &Scene) -> Sheet {
     let map = &scene.map;
     let mut root = OutNode {
@@ -240,8 +240,8 @@ fn md_node(out: &mut String, node: &TreeNode, depth: usize) {
     }
 }
 
-/// Markdown: Titel, Filter, der Baum als verschachtelte Liste (Notizen eingerückt unter ihrem Knoten), der Abschnitt
-/// „Wolke“ (Einfälle ohne Platz), danach „Beziehungen“, „Widersprüche“ und (falls gezeigt) „Nähe“.
+/// Markdown: title, filter, the tree as a nested list (notes indented below their node), the section
+/// „Wolke“ (ideas without a place), then „Beziehungen“, „Widersprüche“ and (if shown) „Nähe“.
 pub fn markdown(scene: &Scene) -> String {
     let map = &scene.map;
     let mut out = String::new();

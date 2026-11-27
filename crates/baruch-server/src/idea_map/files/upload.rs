@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einlesen einer fremden Mindmap über die Seite (Vertrag Runde 34 §5/§8, Besitz mindmap_austausch), ganz ohne
+//! Importing a foreign mind map through the page (contract Round 34 §5/§8, owner mindmap_austausch), entirely without
 //! JavaScript:
 //!
-//! 1. `GET /werke/{id}/karte/einlesen` – Formular (Datei `.mm` oder `.xmind`, wahlweise „unter Knoten …“).
-//! 2. `POST /werke/{id}/karte/einlesen` (multipart) – liest die Datei ([`super::import::read`]) und zeigt die
-//!    **Vorschau**; angelegt wird nichts. Der gelesene Baum steht als JSON in einem verborgenen Formularfeld – keine
-//!    Datei im Datenordner.
-//! 3. `POST /werke/{id}/karte/einlesen/anlegen` – Bestätigung: Der Baum aus dem Formularfeld ist wieder fremde
-//!    Eingabe und wird erneut geprüft ([`super::import::check`]); dann legt [`crate::idea_map::tree::import`] an
-//!    (Herkunft Mensch) und es geht mit 303 zur Mindmap.
+//! 1. `GET /werke/{id}/karte/einlesen` – form (file `.mm` or `.xmind`, optionally „unter Knoten …“).
+//! 2. `POST /werke/{id}/karte/einlesen` (multipart) – reads the file ([`super::import::read`]) and shows the
+//!    **preview**; nothing is created. The tree read stands as JSON in a hidden form field – no
+//!    file in the data folder.
+//! 3. `POST /werke/{id}/karte/einlesen/anlegen` – confirmation: the tree from the form field is foreign
+//!    input again and is checked anew ([`super::import::check`]); then [`crate::idea_map::tree::import`] creates
+//!    (origin human) and a 303 leads to the mind map.
 //!
-//! Ohne Zielknoten werden die eingelesenen Knoten **freie Hauptthemen am Werk** (`tree::import`); mit Zielknoten werden sie
-//! dessen Unterknoten. Die Wurzel der fremden Datei wird nie selbst Einfall.
+//! Without a target node the imported nodes become **free main topics on the work** (`tree::import`); with a target
+//! node they become its sub-nodes. The root of the foreign file never becomes an idea itself.
 
 use std::sync::Arc;
 
@@ -35,13 +35,13 @@ use crate::idea_map::tree::{self, ImportTree, MAX_IMPORT_NODES, MAX_TREE_DEPTH, 
 use crate::rpc::INTERNAL;
 use crate::view::Settings;
 
-/// Größte Anfrage der Vorschau: die Datei und etwas Luft für den Formularrahmen.
+/// Largest request of the preview: the file and some air for the form framing.
 pub const UPLOAD_LIMIT: usize = MAX_UPLOAD_BYTES + 64 * 1024;
-/// Größte Anfrage der Bestätigung: der Baum als JSON, formularkodiert (höchstens [`import::MAX_TEXT_BYTES`] Text,
-/// kodiert ein Mehrfaches).
+/// Largest request of the confirmation: the tree as JSON, form-encoded (at most [`import::MAX_TEXT_BYTES`] text,
+/// encoded a multiple of that).
 pub const APPLY_LIMIT: usize = 32 * 1024 * 1024;
 
-/// Was die Seite zeigt.
+/// What the page shows.
 enum Mode<'a> {
     Form,
     Preview(&'a ImportTree),
@@ -57,7 +57,7 @@ fn cut(text: &str, max: usize) -> String {
     short
 }
 
-/// Die Seite „Mindmap einlesen“ (Formular oder Vorschau; auch als Fehlerseite).
+/// The page „Mindmap einlesen“ (form or preview; also as error page).
 async fn show(
     state: &AppState,
     headers: &HeaderMap,
@@ -67,7 +67,7 @@ async fn show(
     parent: Option<IdeaId>,
     error: Option<String>,
 ) -> Response {
-    // Ohne Nähe: Für die Auswahl „unter Knoten“ zählt nur der Baum.
+    // Without nearness: for the selection „unter Knoten“ only the tree counts.
     let (_, scene) = match load_tree(state, work, &MapFilter::default()).await {
         Ok(loaded) => loaded,
         Err(response) => return response,
@@ -122,7 +122,7 @@ async fn show(
     }
 }
 
-/// „unter Knoten“ aus einem Formularfeld: leer → keiner (Hauptthemen am Werk), `12` oder `i:12` → Einfall 12.
+/// „unter Knoten“ from a form field: empty → none (main topics on the work), `12` or `i:12` → idea 12.
 fn parent_of(value: &str) -> Result<Option<IdeaId>, String> {
     let value = value.trim();
     let value = value.strip_prefix("i:").unwrap_or(value);
@@ -132,7 +132,7 @@ fn parent_of(value: &str) -> Result<Option<IdeaId>, String> {
     value.parse().map(Some).map_err(|_| "Der gewählte Knoten ist kein Einfall.".to_owned())
 }
 
-/// `GET /werke/{id}/karte/einlesen` (wahlweise `?unter=i:<id>` als Vorauswahl).
+/// `GET /werke/{id}/karte/einlesen` (optionally `?unter=i:<id>` as preselection).
 pub async fn form(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -143,7 +143,7 @@ pub async fn form(
     show(&state, &headers, work, StatusCode::OK, Mode::Form, parent, None).await
 }
 
-/// `POST /werke/{id}/karte/einlesen` (multipart: `file`, wahlweise `parent`): Vorschau, legt nichts an.
+/// `POST /werke/{id}/karte/einlesen` (multipart: `file`, optionally `parent`): preview, creates nothing.
 pub async fn preview(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -202,7 +202,7 @@ pub async fn preview(
     {
         return fail(status_of(&e), e.message).await;
     }
-    // Lesen und Entpacken rechnen; nicht auf dem Laufzeit-Thread.
+    // Reading and unpacking compute; not on the runtime thread.
     let read = tokio::task::spawn_blocking(move || import::read(&bytes)).await;
     match read {
         Ok(Ok(tree)) => show(&state, &headers, work, StatusCode::OK, Mode::Preview(&tree), parent, None).await,
@@ -219,7 +219,7 @@ pub struct ApplyForm {
     parent: String,
 }
 
-/// `POST /werke/{id}/karte/einlesen/anlegen` (urlencoded: `tree` = JSON aus der Vorschau, `parent`): legt an.
+/// `POST /werke/{id}/karte/einlesen/anlegen` (urlencoded: `tree` = JSON from the preview, `parent`): creates.
 pub async fn apply(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -261,7 +261,7 @@ pub async fn apply(
     match tree::import(&state, work, parent, &tree, &origin).await {
         Ok(_) => Redirect::to(&format!("/werke/{work}/karte?ok=eingelesen")).into_response(),
         Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
-        // Abgelehnt (im S1-Stand: „noch nicht umgesetzt“): die Vorschau bleibt stehen, mit der Meldung.
+        // Refused (in the S1 state: “not implemented yet”): the preview stays, with the message.
         Err(e) => show(&state, &headers, work, status_of(&e), Mode::Preview(&tree), parent, Some(e.message)).await,
     }
 }

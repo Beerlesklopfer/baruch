@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Aktive Zustimmung zu Anträgen (Nutzerfrage 12, Entscheidung des Nutzers 2026-11-07: „es braucht eine
+//! Active consent to requests (user question 12, decision of the user 2026-11-07: „es braucht eine
 //! aktive Zustimmung (Popup)“).
 //!
-//! Legt ein Assistent einen Teil so an, dass vorhandene Kapitel unter ihn wandern, entsteht statt des
-//! Teils ein Antrag ([`baruch_store::Store::outline_add_by_assistant`]). Solange ein solcher Antrag offen
-//! ist, zeigt jede Seite, die `base.html` erweitert, eine Hinweisleiste mit Link zum Antrag (ohne
-//! JavaScript bedienbar: dort Formular mit „Zustimmen“/„Ablehnen“) und einen Dialog mit Vorschau und
-//! denselben Knöpfen, den das Widget `consent` (`web/src/consent.ts`) modal öffnet. Nichts geschieht ohne
-//! Klick: Kein Zeitablauf und kein Schließen des Dialogs gilt als Zustimmung.
+//! If an assistant creates a part in such a way that existing chapters would move under it, a request arises
+//! instead of the part ([`baruch_store::Store::outline_add_by_assistant`]). As long as such a request is open,
+//! every page that extends `base.html` shows a notice bar with a link to the request (usable without
+//! JavaScript: a form there with „Zustimmen“/„Ablehnen“) and a dialog with preview and
+//! the same buttons, which the widget `consent` (`web/src/consent.ts`) opens modally. Nothing happens without
+//! a click: no timeout and no closing of the dialog counts as consent.
 //!
-//! Umsetzung: `base.html` trägt die Marke [`MARKER`]; die Schicht [`inject`] ersetzt sie in jeder
-//! HTML-Antwort durch [`banner`] (leer, wenn nichts offen ist; seit Runde 35 auch leer für Lektoren – zustimmen
-//! kann nur, wer volle Rechte hat). So braucht keine der vielen
-//! Template-Umgebungen eigene Daten dafür. Die Abfrage läuft nur, wenn die Marke in der Antwort steht.
+//! Implementation: `base.html` carries the marker [`MARKER`]; the layer [`inject`] replaces it in every
+//! HTML response with [`banner`] (empty if nothing is open; since Round 35 also empty for Lektors – only
+//! someone with full rights can consent). So none of the many
+//! template environments needs own data for it. The query runs only if the marker stands in the response.
 
 use std::sync::{Arc, OnceLock};
 
@@ -27,10 +27,10 @@ use serde_json::{Value as Json, json};
 
 use crate::AppState;
 
-/// Platzhalter in `base.html` (direkt unter der Kopfzeile).
+/// Placeholder in `base.html` (directly below the header).
 pub const MARKER: &str = "<!--baruch-consent-->";
 
-/// Größte HTML-Antwort, in die die Hinweisleiste eingesetzt wird (größere bleiben unverändert).
+/// Largest HTML response into which the notice bar is inserted (larger ones stay unchanged).
 const MAX_PAGE: usize = 32 * 1024 * 1024;
 
 fn templates() -> &'static Environment<'static> {
@@ -43,9 +43,9 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Hinweisleiste und Dialog für alle offenen Anträge, die Zustimmung brauchen; leer, wenn keiner offen
-/// ist. Fehler (Datenbank, Vorlage) stehen auf stderr; die Seite kommt dann ohne Leiste – die Anträge
-/// bleiben auf `/gliederung` sichtbar.
+/// Notice bar and dialog for all open requests that need consent; empty if none is open.
+/// Errors (database, template) go to stderr; the page then comes without the bar – the requests
+/// stay visible on `/gliederung`.
 pub async fn banner(state: &AppState) -> String {
     match build(state).await {
         Ok(html) => html,
@@ -73,7 +73,7 @@ async fn build(state: &AppState) -> Result<String, String> {
     let first = &requests[0];
     let ctx = context! {
         requests => minijinja::Value::from(Serde(&shown)),
-        // Nur Ziffern und feste Zeichen: als sicherer Wert, damit `/` nicht maskiert wird.
+        // Only digits and fixed characters: as a safe value so that `/` is not escaped.
         first_url => minijinja::Value::from_safe_string(format!("/gliederung?work={}#antrag-{}", first.work, first.id)),
     };
     templates()
@@ -82,12 +82,13 @@ async fn build(state: &AppState) -> Result<String, String> {
         .map_err(|e| format!("Vorlage consent.html: {e}"))
 }
 
-/// Schicht über allen Routen: setzt in HTML-Antworten mit [`MARKER`] die Hinweisleiste ein (bzw. entfernt
-/// die Marke) und füllt die Abzeichen der Kopfzeile (Runde 23a, `menu::fill_page`); seit Runde 33 setzt sie
-/// dort auch den Zustand von Menüband und Laptop-Modus ein (`band::apply`) und merkt ihn als Cookie. Andere Antworten (JSON, PDF, Bilder, Fragmente ohne Marke) laufen unverändert durch.
+/// Layer above all routes: inserts the notice bar into HTML responses with [`MARKER`] (or removes
+/// the marker) and fills the badges of the header (Round 23a, `menu::fill_page`); since Round 33 it also puts
+/// the state of ribbon and laptop mode in there (`band::apply`) and remembers it as a cookie. Other responses
+/// (JSON, PDF, images, fragments without marker) pass through unchanged.
 pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
-    // Runde 33 (Schnittstelle R33-S1): Zustand von Menüband und Laptop-Modus aus Cookie und Adresse, festgehalten,
-    // bevor die Anfrage weitergereicht wird.
+    // Round 33 (interface R33-S1): state of ribbon and laptop mode from cookie and address, captured
+    // before the request is passed on.
     let cookies = request.headers().get(header::COOKIE).and_then(|v| v.to_str().ok()).map(str::to_owned);
     let query = request.uri().query().map(str::to_owned);
     let band = crate::band::BandState::from_request(cookies.as_deref(), query.as_deref());
@@ -111,8 +112,8 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
         }
     };
     let Some(text) = std::str::from_utf8(&bytes).ok().filter(|t| t.contains(MARKER)) else {
-        // Runde 36: Die eigenständigen Seiten der Konten (`/anmelden`, `/einrichten`, ohne Menüband und ohne Marke)
-        // folgen dem Cookie `baruch_theme` – ohne JavaScript, ohne Cookie unverändert.
+        // Round 36: the standalone account pages (`/anmelden`, `/einrichten`, without ribbon and without marker)
+        // follow the cookie `baruch_theme` – without JavaScript, without a cookie unchanged.
         let theme = crate::view::Settings::from_cookie_header(cookies.as_deref()).theme;
         if let Some(page) = std::str::from_utf8(&bytes).ok().and_then(|t| crate::konten_ui::themed(t, theme)) {
             parts.headers.remove(header::CONTENT_LENGTH);
@@ -120,25 +121,25 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
         }
         return Response::from_parts(parts, Body::from(bytes));
     };
-    // Runde 35: Zustimmen kann nur der Autor – Hinweisleiste und Dialog bekommt darum nur, wer volle Rechte hat
-    // (ohne Konten jeder, wie bisher). Für Lektoren verschwindet nur die Marke.
+    // Round 35: only the author can consent – so notice bar and dialog go only to someone with full rights
+    // (without accounts everybody, as before). For Lektors only the marker disappears.
     let who = crate::auth::current();
     let consent = if who.full_rights() { banner(&state).await } else { String::new() };
     let page = text.replacen(MARKER, &consent, 1);
-    // Runde 23a: Abzeichen der Kopfzeile außerhalb der Arbeitsseite serverseitig füllen (auch ohne JavaScript).
+    // Round 23a: fill the badges of the header outside the work page on the server (also without JavaScript).
     let page = crate::menu::fill_page(&state, page).await;
-    // Runde 33: aktiver Reiter, Adressen der Reiter und Laptop-Zustand im fertigen HTML; gültige Schlüssel der
-    // Adresse als Cookie merken – anhängen, nicht ersetzen (`/` setzt schon `baruch_work`).
+    // Round 33: active tab, addresses of the tabs and laptop state in the finished HTML; remember valid keys of the
+    // address as a cookie – append, not replace (`/` already sets `baruch_work`).
     let page = crate::band::apply(&page, &band, &laptop);
-    // Runde 35 (Schnittstelle R35-S1): Konto-Eintrag im Menü „Baruch ▾“ und Rolle an <body>; die Abfrage läuft nur,
-    // wenn die Marke in der Seite steht.
+    // Round 35 (interface R35-S1): account entry in the menu „Baruch ▾“ and role on <body>; the query runs only
+    // if the marker stands in the page.
     let page = if page.contains(crate::konten_ui::KONTO_MARK) {
         let accounts_exist = crate::auth::accounts_exist(&state).await;
         crate::konten_ui::apply(&page, &who, accounts_exist)
     } else {
         page
     };
-    // Runde 36: Anzeigename zur Herkunft `@lektorat:<slug>` (nur mit Konten, nur im Text der Herkunfts-Elemente).
+    // Round 36: display name for the origin `@lektorat:<slug>` (only with accounts, only in origin elements).
     let page = crate::konten_ui::names::show_for(&state, page).await;
     for cookie in
         crate::band::set_cookies(query.as_deref()).into_iter().chain(crate::laptop::set_cookies(query.as_deref()))

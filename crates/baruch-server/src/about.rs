@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Über Baruch (Runde 24): Version, Lizenz und Quellcode-Angebot (AGPL-3.0, §13) – `GET /ueber` und der
-//! Lizenztext unter `GET /ueber/lizenz`. Beide Seiten lesen nichts aus der Datenbank und fragen nie im Netz
-//! nach: Baruch prüft nicht von sich aus auf neue Versionen. Die Seite nennt nur die Adresse der Release-Seite
-//! als gewöhnlichen Link; erst der Klick des Menschen öffnet sie im Browser.
+//! About Baruch (Round 24): version, licence and source code offer (AGPL-3.0, §13) – `GET /ueber` and the
+//! licence text under `GET /ueber/lizenz`. Both pages read nothing from the database and never ask the
+//! network: Baruch does not check for new versions on its own. The page only names the address of the release page
+//! as an ordinary link; only the human's click opens it in the browser.
 //!
-//! Drittlizenzen: `THIRD-PARTY-LICENSES.txt` entsteht beim Paketbau (`scripts/third-party-licenses.py`) und liegt
-//! in jedem Paket an einem festen Ort ([`THIRD_PARTY_PLACES`]). Die Seite nennt alle Orte und – wenn die Datei
-//! neben dem laufenden Programm liegt ([`find_third_party`]) – den Pfad auf diesem Rechner. Ein aus dem Quelltext
-//! gebautes Programm hat die Datei nicht; das sagt die Seite. Läuft Baruch aus einem AppImage (die Laufzeit setzt
-//! `APPIMAGE`), liegt der Pfad im eingehängten Abbild und gilt nur, solange Baruch läuft; auch das sagt die Seite.
+//! Third-party licences: `THIRD-PARTY-LICENSES.txt` is created by the package build (`scripts/third-party-licenses.py`)
+//! and sits at a fixed place in every package ([`THIRD_PARTY_PLACES`]). The page names all places and – if the file
+//! lies next to the running program ([`find_third_party`]) – the path on this machine. A program built from
+//! source does not have the file; the page says so. If Baruch runs from an AppImage (the runtime sets
+//! `APPIMAGE`), the path lies in the mounted image and is valid only while Baruch runs; the page says that too.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -27,14 +27,14 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const LICENSE_ID: &str = "AGPL-3.0-or-later";
 pub const REPOSITORY: &str = "https://github.com/Beerlesklopfer/baruch";
 pub const HOMEPAGE: &str = "https://baruch.bernau.family/";
-/// Hilfe auf der Webseite (Runde 37): Ziel des Eintrags „Hilfe“ im Menü Baruch ▾ und auf der Seite „Über Baruch“.
+/// Help on the website (Round 37): target of the entry „Hilfe“ in the menu Baruch ▾ and on the page „Über Baruch“.
 pub const HELP_URL: &str = "https://baruch.bernau.family/hilfe/";
 pub const LICENSE_TEXT: &str = include_str!("../../../LICENSE");
 
-/// Dateiname der Drittlizenzen in jedem Paket.
+/// File name of the third-party licences in every package.
 pub const THIRD_PARTY_FILE: &str = "THIRD-PARTY-LICENSES.txt";
 
-/// Wo die Drittlizenzen je Paket liegen: (Paket, Ort) – dieselben Orte wie in `packaging/` und
+/// Where the third-party licences lie per package: (package, place) – the same places as in `packaging/` and
 /// `docs/Verteilung.md`.
 pub const THIRD_PARTY_PLACES: &[(&str, &str)] = &[
     ("Debian/Ubuntu (.deb)", "/usr/share/doc/baruch/THIRD-PARTY-LICENSES.txt"),
@@ -43,14 +43,14 @@ pub const THIRD_PARTY_PLACES: &[(&str, &str)] = &[
     ("Windows (.msi)", "THIRD-PARTY-LICENSES.txt im Installationsordner (Vorgabe C:\\Program Files\\Baruch)"),
 ];
 
-/// Adresse der Release-Seite dieser Version (`…/releases/tag/v<Version>`). Baruch ruft sie nie selbst ab.
+/// Address of the release page of this version (`…/releases/tag/v<version>`). Baruch never fetches it itself.
 pub fn release_url() -> String {
     format!("{REPOSITORY}/releases/tag/v{VERSION}")
 }
 
-/// Orte relativ zum Programm `exe`, an denen ein Paket die Drittlizenzen ablegt: `../share/doc/baruch/` (.deb
-/// unter `/usr/bin`, AppImage unter `usr/bin`), `../Resources/` (macOS, `Contents/MacOS`) und der Ordner des
-/// Programms selbst (Windows).
+/// Places relative to the program `exe` where a package puts the third-party licences: `../share/doc/baruch/` (.deb
+/// under `/usr/bin`, AppImage under `usr/bin`), `../Resources/` (macOS, `Contents/MacOS`) and the folder of the
+/// program itself (Windows).
 pub fn third_party_candidates(exe: &Path) -> Vec<PathBuf> {
     let Some(dir) = exe.parent() else { return Vec::new() };
     let mut out = Vec::new();
@@ -62,8 +62,8 @@ pub fn third_party_candidates(exe: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// Die Drittlizenzen neben dem Programm `exe`, wenn sie dort als gewöhnliche Datei liegen (kein Ordner; einer
-/// symbolischen Verknüpfung wird nicht gefolgt – angezeigt wird nur der Pfad, gelesen wird die Datei nie).
+/// The third-party licences next to the program `exe` if they lie there as a regular file (not a folder; a
+/// symbolic link is not followed – only the path is shown, the file is never read).
 pub fn find_third_party(exe: &Path) -> Option<PathBuf> {
     third_party_candidates(exe)
         .into_iter()
@@ -77,7 +77,7 @@ pub fn pages() -> Router<Arc<AppState>> {
 
 async fn page(axum::extract::State(state): axum::extract::State<Arc<AppState>>, headers: HeaderMap) -> Response {
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
-    // Pfad des laufenden Programms; hinter einer Verknüpfung (z. B. ~/.local/bin/baruch-server) zählt ihr Ziel.
+    // Path of the running program; behind a link (e.g. ~/.local/bin/baruch-server) its target counts.
     let third_party = std::env::current_exe()
         .ok()
         .map(|exe| std::fs::canonicalize(&exe).unwrap_or(exe))
@@ -96,8 +96,8 @@ async fn page(axum::extract::State(state): axum::extract::State<Arc<AppState>>, 
         data_dir => state.data.display().to_string(),
         default_data_dir => baruch_store::default_data_dir().display().to_string(),
         third_party => third_party,
-        // Die Laufzeit eines AppImage setzt APPIMAGE (Pfad der Abbild-Datei): Der Pfad oben liegt dann im
-        // eingehängten Abbild und gilt nur, solange Baruch läuft.
+        // The runtime of an AppImage sets APPIMAGE (path of the image file): the path above then lies in the
+        // mounted image and is valid only while Baruch runs.
         appimage => std::env::var_os("APPIMAGE").map(|path| path.to_string_lossy().into_owned()),
         third_party_file => THIRD_PARTY_FILE,
         third_party_places => places,
@@ -129,7 +129,7 @@ mod tests {
     fn third_party_licenses_are_found_where_each_package_puts_them() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
-        // .deb und AppImage: <Wurzel>/usr/bin/baruch-server und <Wurzel>/usr/share/doc/baruch/…
+        // .deb and AppImage: <root>/usr/bin/baruch-server and <root>/usr/share/doc/baruch/…
         let deb = root.join("deb").join("usr");
         std::fs::create_dir_all(deb.join("bin")).unwrap();
         std::fs::create_dir_all(deb.join("share").join("doc").join("baruch")).unwrap();
@@ -142,7 +142,7 @@ mod tests {
             Some(file),
             "im .deb und im AppImage liegt die Datei unter share/doc/baruch"
         );
-        // macOS: Baruch.app/Contents/MacOS/baruch-server und Contents/Resources/…
+        // macOS: Baruch.app/Contents/MacOS/baruch-server and Contents/Resources/…
         let app = root.join("Baruch.app").join("Contents");
         std::fs::create_dir_all(app.join("MacOS")).unwrap();
         std::fs::create_dir_all(app.join("Resources")).unwrap();
@@ -153,7 +153,7 @@ mod tests {
             Some(file),
             "im macOS-Programm liegt die Datei unter Contents/Resources"
         );
-        // Windows: neben baruch-server.exe im Installationsordner.
+        // Windows: next to baruch-server.exe in the installation folder.
         let win = root.join("Baruch");
         std::fs::create_dir_all(&win).unwrap();
         let file = win.join(THIRD_PARTY_FILE);
@@ -163,7 +163,7 @@ mod tests {
             Some(file.clone()),
             "unter Windows liegt die Datei neben dem Programm"
         );
-        // Ein Ordner dieses Namens ist keine Lizenzdatei.
+        // A folder of this name is not a licence file.
         std::fs::remove_file(&file).unwrap();
         std::fs::create_dir(&file).unwrap();
         assert_eq!(find_third_party(&win.join("baruch-server.exe")), None, "ein Ordner gleichen Namens zählt nicht");

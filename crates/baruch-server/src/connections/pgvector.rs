@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! pgvector direkt (Vertrag Runde 12, §3.2 und §5; Aufgabe „pgvector“): „Verbindung prüfen“ ([`check`]) und
-//! der Suchweg für die Bedeutungssuche ([`open_way`]), beide nur lesend.
+//! pgvector directly (contract Round 12, §3.2 and §5; task “pgvector”): „Verbindung prüfen“ ([`check`]) and
+//! the search way for the semantic search ([`open_way`]), both read-only.
 //!
-//! - **Zuordnung** ([`Mapping`]): Tabelle (`tabelle` oder `schema.tabelle`) und Spalten kommen aus den
-//!   Einstellungen (`table`, `text_column`, `vector_column`, `collection_column`, `document_column`,
-//!   wahlweise `section_column`, `title_column`, `url_column`, `model_column`), dazu `embedding_model`.
-//!   Die Namen sind vorher geprüft (`config::is_identifier`), werden vor jeder Abfrage gegen
-//!   `information_schema.columns` bestätigt ([`resolve`]) und stehen in SQL nur in doppelten
-//!   Anführungszeichen. Alles, was von außen kommt (Anfrage, Vektor, Sammlungen, Grenze), ist ein
-//!   gebundener Parameter.
-//! - **Nur lesend:** jede Sitzung läuft in `BEGIN TRANSACTION READ ONLY` mit `statement_timeout` 10 s
-//!   ([`begin_read_only`]); die Verbindung selbst hat ebenfalls 10 s ([`TIMEOUT`]).
-//! - **Suche:** die Anfrage wird mit dem Einbetter für `embedding_model` eingebettet (`EmbedderFactory`);
-//!   passen Dimension (Spalte bzw. erste Zeile) oder Modell (Antwort des Einbetters, `model_column` der
-//!   gewählten Sammlungen) nicht, lehnt der Weg mit [`RagError::ModelMismatch`] ab, ohne die Ähnlichkeit
-//!   abzufragen. Sonst Kosinus-Abstand `<=>` gegen `'[…]'::vector`, nur in den gewählten Sammlungen
-//!   (`= ANY($n)`), Ähnlichkeit = 1 − Abstand (auf 0..=1 geklemmt).
-//! - **Passwort** aus dem Schlüsselbund (`baruch/pgvector`) nur, wenn es für das jetzige Ziel gilt
-//!   (`secret_bound`); `PgConnectOptions::new_without_pgpass`, damit nichts aus `PGPASSWORD` oder
-//!   `~/.pgpass` des Servers mitgeht. Kein Text enthält das Passwort.
+//! - **Mapping** ([`Mapping`]): table (`tabelle` or `schema.tabelle`) and columns come from the
+//!   settings (`table`, `text_column`, `vector_column`, `collection_column`, `document_column`,
+//!   optionally `section_column`, `title_column`, `url_column`, `model_column`), plus `embedding_model`.
+//!   The names are checked beforehand (`config::is_identifier`), confirmed against
+//!   `information_schema.columns` before every query ([`resolve`]) and stand in SQL only in double
+//!   quotes. Everything that comes from outside (query, vector, collections, limit) is a
+//!   bound parameter.
+//! - **Read-only:** every session runs in `BEGIN TRANSACTION READ ONLY` with `statement_timeout` 10 s
+//!   ([`begin_read_only`]); the connection itself also has 10 s ([`TIMEOUT`]).
+//! - **Search:** the query is embedded with the embedder for `embedding_model` (`EmbedderFactory`);
+//!   if dimension (column or first row) or model (answer of the embedder, `model_column` of the
+//!   chosen collections) do not match, the way refuses with [`RagError::ModelMismatch`] without querying the
+//!   similarity. Otherwise cosine distance `<=>` against `'[…]'::vector`, only in the chosen collections
+//!   (`= ANY($n)`), similarity = 1 − distance (clamped to 0..=1).
+//! - **Password** from the keyring (`baruch/pgvector`) only if it is valid for the present target
+//!   (`secret_bound`); `PgConnectOptions::new_without_pgpass` so that nothing from `PGPASSWORD` or
+//!   `~/.pgpass` of the server goes along. No text contains the password.
 //!
-//! Runde 19b (Härtung):
-//! - **Gekürzt in SQL:** jedes Feld, das aus der fremden Tabelle kommt, ist schon in der Abfrage per `left(…, n)`
-//!   gekürzt – Text ([`SNIPPET_SOURCE_CHARS`]), Dokument ([`MAX_DOCUMENT_CHARS`]), Stelle ([`MAX_SECTION_CHARS`]),
-//!   Titel ([`MAX_TITLE_CHARS`]), Adresse ([`MAX_URL_CHARS`]), Sammlung ([`MAX_COLLECTION_CHARS`]) und Modell
-//!   ([`MAX_MODEL_CHARS`]), auch die bis zu 1000 Sammlungsnamen der Prüfung. Eine Sammlung mit längerem Namen
-//!   bleibt über ihren gekürzten Namen wählbar (die Suche vergleicht beides).
-//! - **Bezeichner sicher gequotet** ([`quoted`]): doppelte Anführungszeichen, ein Anführungszeichen im Namen wird
-//!   verdoppelt (Regel von PostgreSQL). Das gilt besonders für das Schema, das aus `information_schema` kommt und
-//!   nicht vorher geprüft ist; eingestellte Namen bleiben auf [`config::is_identifier`] beschränkt.
-//! - **TLS-Hinweis** ([`tls_warning`]): Mit hinterlegtem Passwort und TLS `prefer`, `disable` oder `require`
-//!   (verschlüsselt, aber ohne Zertifikatsprüfung) nennen die Prüfung und die Seite „Verbindungen“ das Risiko;
-//!   ohne Hinweis bleibt nur `verify-full`.
-//! - **Aufgaben-Präfix:** Die Anfrage wird mit `config::embed_prefixes(Pgvector, …).query_text(…)` eingebettet
-//!   (Feld `query_prefix`, leer = wie bisher); die Daten in der Tabelle sind schon eingebettet.
+//! Round 19b (hardening):
+//! - **Shortened in SQL:** every field that comes from the foreign table is already shortened in the query with
+//!   `left(…, n)` – text ([`SNIPPET_SOURCE_CHARS`]), document ([`MAX_DOCUMENT_CHARS`]), position
+//!   ([`MAX_SECTION_CHARS`]), title ([`MAX_TITLE_CHARS`]), address ([`MAX_URL_CHARS`]), collection
+//!   ([`MAX_COLLECTION_CHARS`]) and model ([`MAX_MODEL_CHARS`]), also the up to 1000 collection names of the check.
+//!   A collection with a longer name stays selectable through its shortened name (the search compares both).
+//! - **Identifiers safely quoted** ([`quoted`]): double quotes, a quote in the name is
+//!   doubled (rule of PostgreSQL). This matters especially for the schema, which comes from `information_schema` and
+//!   is not checked beforehand; configured names stay restricted to [`config::is_identifier`].
+//! - **TLS note** ([`tls_warning`]): with a stored password and TLS `prefer`, `disable` or `require`
+//!   (encrypted, but without certificate check) the check and the page „Verbindungen“ name the risk;
+//!   only `verify-full` stays without a note.
+//! - **Task prefix:** the query is embedded with `config::embed_prefixes(Pgvector, …).query_text(…)`
+//!   (field `query_prefix`, empty = as before); the data in the table is already embedded.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -50,31 +50,31 @@ use super::check::Outcome;
 use super::config;
 use crate::AppState;
 
-/// Zeitlimit für die Verbindung und für jede Anweisung (`statement_timeout`).
+/// Time limit for the connection and for every statement (`statement_timeout`).
 pub const TIMEOUT: Duration = Duration::from_secs(10);
-/// Höchstens so viele Sammlungen zeigt die Prüfung.
+/// At most this many collections the check shows.
 const MAX_LISTED_COLLECTIONS: i64 = 1000;
-/// Höchstens so viele verschiedene Modelle zeigt die Prüfung.
+/// At most this many different models the check shows.
 const MAX_LISTED_MODELS: i64 = 20;
-/// So viele Zeichen des Texts holt die Suche je Treffer (der Ausschnitt kürzt weiter).
+/// This many characters of the text the search fetches per hit (the snippet shortens further).
 pub const SNIPPET_SOURCE_CHARS: i64 = 2000;
-/// Höchstlänge des Dokuments (Kennung) je Treffer, in SQL gekürzt (Runde 19b).
+/// Maximum length of the document (id) per hit, shortened in SQL (Round 19b).
 pub const MAX_DOCUMENT_CHARS: i64 = 500;
-/// Höchstlänge der Stelle je Treffer.
+/// Maximum length of the position per hit.
 pub const MAX_SECTION_CHARS: i64 = 200;
-/// Höchstlänge des Titels je Treffer.
+/// Maximum length of the title per hit.
 pub const MAX_TITLE_CHARS: i64 = 300;
-/// Höchstlänge der Adresse je Treffer (wie `check_url`).
+/// Maximum length of the address per hit (like `check_url`).
 pub const MAX_URL_CHARS: i64 = 2000;
-/// Höchstlänge eines Sammlungsnamens (Treffer und Prüfung; wie die Sammlungen im Store, 1 bis 200 Zeichen).
+/// Maximum length of a collection name (hits and check; like the collections in the store, 1 to 200 characters).
 pub const MAX_COLLECTION_CHARS: i64 = 200;
-/// Höchstlänge eines Modellnamens aus `model_column` (wie `embedding_model`).
+/// Maximum length of a model name from `model_column` (like `embedding_model`).
 pub const MAX_MODEL_CHARS: i64 = 200;
 
-/// Zuordnung von Tabelle und Spalten (geprüft, aber noch nicht gegen die Datenbank bestätigt).
+/// Mapping of table and columns (checked, but not yet confirmed against the database).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mapping {
-    /// Schema aus `schema.tabelle`; `None` = der Suchpfad des Benutzers (`current_schemas`).
+    /// Schema from `schema.tabelle`; `None` = the search path of the user (`current_schemas`).
     pub schema: Option<String>,
     pub table: String,
     pub text: String,
@@ -85,12 +85,12 @@ pub struct Mapping {
     pub title: Option<String>,
     pub url: Option<String>,
     pub model: Option<String>,
-    /// Modell, mit dem die Daten eingebettet sind (und die Anfrage eingebettet wird).
+    /// Model the data is embedded with (and the query gets embedded with).
     pub embedding_model: String,
 }
 
 impl Mapping {
-    /// Aus den Einstellungen (fehlende Felder mit ihrer Vorgabe, `config::effective`).
+    /// From the settings (missing fields with their default, `config::effective`).
     pub fn from_config(config: &Value) -> Result<Mapping, String> {
         let config = config::effective(ConnectionKind::Pgvector, config);
         let field = |name: &str| config.get(name).and_then(Value::as_str).unwrap_or("").trim().to_owned();
@@ -132,7 +132,7 @@ impl Mapping {
         })
     }
 
-    /// Rollen und Spalten (nur die vorhandenen), in fester Reihenfolge.
+    /// Roles and columns (only the existing ones), in fixed order.
     pub fn columns(&self) -> Vec<(&'static str, &str)> {
         let mut out = vec![
             ("text", self.text.as_str()),
@@ -150,12 +150,12 @@ impl Mapping {
         out
     }
 
-    /// `{rolle: spalte}` für die Angaben der Prüfung.
+    /// `{rolle: spalte}` for the details of the check.
     fn columns_json(&self) -> Value {
         Value::Object(self.columns().into_iter().map(|(role, column)| (role.to_owned(), json!(column))).collect())
     }
 
-    /// Tabelle wie eingestellt (`schema.tabelle` bzw. `tabelle`).
+    /// Table as configured (`schema.tabelle` or `tabelle`).
     pub fn table_label(&self) -> String {
         match &self.schema {
             Some(schema) => format!("{schema}.{}", self.table),
@@ -164,7 +164,7 @@ impl Mapping {
     }
 }
 
-/// Deutsche Bezeichnung einer Rolle für Meldungen.
+/// German label of a role for messages.
 fn role_label(role: &str) -> &'static str {
     match role {
         "text" => "Text",
@@ -178,19 +178,19 @@ fn role_label(role: &str) -> &'static str {
     }
 }
 
-/// Ein Bezeichner in doppelten Anführungszeichen für SQL (Runde 19b): Ein Anführungszeichen im Namen wird
-/// verdoppelt (`we"ird` → `"we""ird"`), so bleibt jeder Name genau ein Bezeichner – auch ein Schema aus
-/// `information_schema`, das Baruch nicht vorher prüfen kann. Eingestellte Namen sind ohnehin auf
-/// [`config::is_identifier`] beschränkt.
+/// An identifier in double quotes for SQL (Round 19b): a quote in the name is
+/// doubled (`we"ird` → `"we""ird"`), so every name stays exactly one identifier – also a schema from
+/// `information_schema` that Baruch cannot check beforehand. Configured names are restricted to
+/// [`config::is_identifier`] anyway.
 pub fn quoted(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
-/// Hinweis bei hinterlegtem Passwort und schwachem TLS (`prefer` oder `disable`, auch `prefer` als Vorgabe) sowie
-/// – milder – bei `require`: sqlx prüft dort das Zertifikat nicht (`accept_invalid_certs` außer bei
-/// `VerifyCa`/`VerifyFull`, Baruch setzt keine Stamm-CA), ein Angreifer im Netz könnte sich also als Server
-/// ausgeben. `None` nur bei `verify-full` oder ohne Passwort. Für die Prüfung und die Seite „Verbindungen“
-/// (Runde 19b, `require` seit der Nachbesserung zu Runde 19).
+/// Note for a stored password and weak TLS (`prefer` or `disable`, also `prefer` as the default) and
+/// – milder – for `require`: sqlx does not check the certificate there (`accept_invalid_certs` except with
+/// `VerifyCa`/`VerifyFull`, Baruch sets no root CA), so an attacker in the network could pose as the
+/// server. `None` only with `verify-full` or without a password. For the check and the page „Verbindungen“
+/// (Round 19b, `require` since the rework of Round 19).
 pub fn tls_warning(config: &Value, has_secret: bool) -> Option<String> {
     if !has_secret {
         return None;
@@ -218,23 +218,23 @@ pub fn tls_warning(config: &Value, has_secret: bool) -> Option<String> {
     }
 }
 
-/// Tabelle nach [`resolve`]: Schema, in dem sie gefunden wurde, und die Dimension der Vektorspalte.
+/// Table after [`resolve`]: schema in which it was found, and the dimension of the vector column.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Resolved {
     pub schema: String,
-    /// Feste Dimension der Spalte (`vector(n)`) bzw. die der ersten Zeile; `None` = keine bekannt.
+    /// Fixed dimension of the column (`vector(n)`) or that of the first row; `None` = none known.
     pub dimension: Option<usize>,
 }
 
 impl Resolved {
-    /// `"schema"."tabelle"` für SQL.
+    /// `"schema"."tabelle"` for SQL.
     fn table_sql(&self, mapping: &Mapping) -> String {
         format!("{}.{}", quoted(&self.schema), quoted(&mapping.table))
     }
 }
 
-/// Gleiches Modell? Vergleicht nur Buchstaben und Ziffern ohne Groß-/Kleinschreibung; ein Name darf im
-/// anderen enthalten sein (Eliezer antwortet z. B. auf „nomic-embed-text“ mit
+/// Same model? Compares only letters and digits ignoring case; one name may be contained in
+/// the other (Eliezer e.g. answers „nomic-embed-text“ with
 /// „text-embedding-nomic-embed-text-v1.5“).
 pub fn same_model(a: &str, b: &str) -> bool {
     let norm = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
@@ -242,7 +242,7 @@ pub fn same_model(a: &str, b: &str) -> bool {
     !a.is_empty() && !b.is_empty() && (a == b || a.contains(&b) || b.contains(&a))
 }
 
-/// Vektor als Text für `$n::vector`, z. B. `[0.1,-0.25]`; nicht endliche Zahlen → `None`.
+/// Vector as text for `$n::vector`, e.g. `[0.1,-0.25]`; non-finite numbers → `None`.
 pub fn vector_literal(vector: &[f32]) -> Option<String> {
     if vector.is_empty() || vector.iter().any(|x| !x.is_finite()) {
         return None;
@@ -250,13 +250,13 @@ pub fn vector_literal(vector: &[f32]) -> Option<String> {
     Some(format!("[{}]", vector.iter().map(f32::to_string).collect::<Vec<_>>().join(",")))
 }
 
-/// Ähnlichkeit aus dem Kosinus-Abstand (0..2): 1 − Abstand, auf 0..=1 geklemmt.
+/// Similarity from the cosine distance (0..2): 1 − distance, clamped to 0..=1.
 pub fn score_of(distance: f64) -> f32 {
     if distance.is_nan() { 0.0 } else { (1.0 - distance).clamp(0.0, 1.0) as f32 }
 }
 
-/// Transaktion `READ ONLY` mit `statement_timeout` (nur für diese Transaktion, `set_config(…, true)`).
-/// Jede Abfrage dieses Moduls läuft darin; eine Schreibanweisung scheitert mit SQLSTATE 25006.
+/// Transaction `READ ONLY` with `statement_timeout` (only for this transaction, `set_config(…, true)`).
+/// Every query of this module runs in it; a writing statement fails with SQLSTATE 25006.
 pub async fn begin_read_only(
     conn: &mut PgConnection,
     timeout: Duration,
@@ -269,8 +269,8 @@ pub async fn begin_read_only(
     Ok(tx)
 }
 
-/// Anmeldedaten aus den Einstellungen (Rechner, Port, TLS, Datenbank, Benutzer) und dem Passwort.
-/// `None` ohne Rechner.
+/// Login data from the settings (host, port, TLS, database, user) and the password.
+/// `None` without host.
 pub fn connect_options(config: &Value, secret: Option<&str>) -> Option<(PgConnectOptions, String)> {
     let field = |name: &str| config.get(name).and_then(Value::as_str).unwrap_or("").trim().to_owned();
     let host = field("host");
@@ -284,8 +284,8 @@ pub fn connect_options(config: &Value, secret: Option<&str>) -> Option<(PgConnec
         "verify-full" => PgSslMode::VerifyFull,
         _ => PgSslMode::Prefer,
     };
-    // Ohne pgpass und mit ausdrücklichem (ggf. leerem) Passwort: nichts aus der Umgebung des Servers
-    // (PGPASSWORD, ~/.pgpass) gelangt in die Anmeldung.
+    // Without pgpass and with an explicit (possibly empty) password: nothing from the server's environment
+    // (PGPASSWORD, ~/.pgpass) gets into the login.
     let mut options = PgConnectOptions::new_without_pgpass()
         .host(&host)
         .port(port)
@@ -303,7 +303,7 @@ pub fn connect_options(config: &Value, secret: Option<&str>) -> Option<(PgConnec
     Some((options, format!("{host}:{port}")))
 }
 
-/// Fehler der Anmeldung als deutscher Satz (ohne Passwort).
+/// Error of the login as a German sentence (without password).
 fn connect_message(e: &sqlx::Error, address: &str, has_secret: bool) -> String {
     match e {
         sqlx::Error::Database(db) if matches!(db.code().as_deref(), Some("28P01" | "28000")) => {
@@ -321,7 +321,7 @@ fn connect_message(e: &sqlx::Error, address: &str, has_secret: bool) -> String {
     }
 }
 
-/// sqlx-Fehler → [`RagError`] (Anmeldung, Rechte, Zeitlimit, Netz, sonst „gescheitert“).
+/// sqlx error → [`RagError`] (login, permissions, time limit, network, otherwise “failed”).
 fn rag_error(e: &sqlx::Error, address: &str, has_secret: bool) -> RagError {
     let message = connect_message(e, address, has_secret);
     match e {
@@ -339,10 +339,10 @@ fn rag_error(e: &sqlx::Error, address: &str, has_secret: bool) -> RagError {
     }
 }
 
-/// Tabelle und Spalten gegen `information_schema.columns` bestätigen (Rechte des Benutzers zählen: was er
-/// nicht sehen darf, gibt es für Baruch nicht), Vektorspalte vom Typ `vector`, Dimension aus
-/// `pg_attribute.atttypmod` bzw. – ohne feste Dimension – `vector_dims` der ersten Zeile. Eine fehlende
-/// Tabelle bzw. Spalte ist `Ok(Err(Meldung))` (mit ihrem Namen), ein Datenbankfehler `Err`.
+/// Confirm table and columns against `information_schema.columns` (the permissions of the user count: what he
+/// may not see does not exist for Baruch), vector column of type `vector`, dimension from
+/// `pg_attribute.atttypmod` or – without a fixed dimension – `vector_dims` of the first row. A missing
+/// table or column is `Ok(Err(message))` (with its name), a database error `Err`.
 pub async fn resolve(conn: &mut PgConnection, mapping: &Mapping) -> Result<Result<Resolved, String>, sqlx::Error> {
     let rows: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT c.table_schema::text, c.column_name::text, c.udt_name::text \
@@ -399,7 +399,7 @@ pub async fn resolve(conn: &mut PgConnection, mapping: &Mapping) -> Result<Resul
     Ok(Ok(Resolved { dimension, ..resolved }))
 }
 
-/// Ergebnis der Prüfung einer Tabelle.
+/// Result of the check of a table.
 struct TableInfo {
     resolved: Resolved,
     collections: Vec<(String, i64)>,
@@ -414,7 +414,7 @@ async fn table_info(conn: &mut PgConnection, mapping: &Mapping) -> Result<Result
     };
     let from = resolved.table_sql(mapping);
     let collection = quoted(&mapping.collection);
-    // Runde 19b: Die Namen kommen schon gekürzt aus der Datenbank (gezählt wird je vollem Namen).
+    // Round 19b: the names already come shortened from the database (counted per full name).
     let collections: Vec<(String, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT left(name, {MAX_COLLECTION_CHARS}), n FROM \
            (SELECT coalesce({collection}::text, '') AS name, count(*) AS n FROM {from} \
@@ -444,11 +444,11 @@ fn failed(message: impl Into<String>, details: Value) -> Outcome {
     Outcome { ok: false, message: message.into(), details }
 }
 
-/// „Verbindung prüfen“ für pgvector: anmelden, Serverversion und Erweiterung `vector`, dann Tabelle und
-/// Spalten der Zuordnung, Sammlungen mit Zahl der Abschnitte, Dimension und (mit `model_column`) die
-/// vermerkten Modelle – alles in einer Transaktion `READ ONLY`. Angaben:
+/// „Verbindung prüfen“ for pgvector: log in, server version and extension `vector`, then table and
+/// columns of the mapping, collections with number of chunks, dimension and (with `model_column`) the
+/// recorded models – all in one transaction `READ ONLY`. Details:
 /// `{server_version, vector, table, columns: {rolle: spalte}, collections: [{name, count}], chunks,
-/// dimension, models}`. `ok` = verbunden ∧ `vector` da ∧ Tabelle/Spalten passen ∧ Dimension bekannt.
+/// dimension, models}`. `ok` = connected ∧ `vector` present ∧ table/columns fit ∧ dimension known.
 pub async fn check(config: &Value, secret: Option<&str>) -> Outcome {
     let Some((options, address)) = connect_options(config, secret) else {
         return failed("Kein Rechner (Host) eingetragen.", json!({}));
@@ -550,21 +550,21 @@ pub async fn check(config: &Value, secret: Option<&str>) -> Outcome {
     Outcome { ok: true, message, details: Value::Object(details) }
 }
 
-/// Der Suchweg pgvector (eine Verbindung je Suche, nur lesend).
+/// The search way pgvector (one connection per search, read-only).
 struct PgvectorWay {
     options: PgConnectOptions,
     address: String,
-    /// Nur zum Schwärzen von Meldungen (`***`), nie ausgegeben.
+    /// Only for redacting messages (`***`), never output.
     secret: Option<String>,
     mapping: Mapping,
     embedder: Arc<dyn Embedder>,
-    /// Aufgaben-Präfix der Anfrage (Runde 19b; `document` ist bei pgvector immer leer).
+    /// Task prefix of the query (Round 19b; `document` is always empty for pgvector).
     prefixes: EmbedPrefixes,
 }
 
 impl PgvectorWay {
-    /// Meldung ohne Passwort (Runde 23: über `multigpt::scrub_error`, also [`baruch_llm::scrub`] – auch
-    /// Base64- und Prozent-kodiert; die Fehlerart bleibt).
+    /// Message without password (Round 23: through `multigpt::scrub_error`, i.e. [`baruch_llm::scrub`] – also
+    /// Base64- and percent-encoded; the error kind stays).
     fn scrub(&self, error: RagError) -> RagError {
         super::multigpt::scrub_error(error, self.secret.as_deref())
     }
@@ -602,7 +602,7 @@ impl PgvectorWay {
         };
         let from = resolved.table_sql(mapping);
         let collection = quoted(&mapping.collection);
-        // Runde 19b: gewählt ist der volle Name oder (bei überlangen Namen) der gekürzte aus der Prüfung.
+        // Round 19b: chosen is the full name or (for over-long names) the shortened one from the check.
         let chosen = |n: u8| {
             format!("({collection}::text = ANY(${n}) OR left({collection}::text, {MAX_COLLECTION_CHARS}) = ANY(${n}))")
         };
@@ -654,8 +654,8 @@ impl PgvectorWay {
         }
         let literal = vector_literal(vector)
             .ok_or_else(|| RagError::Failed("pgvector: Der Einbetter lieferte keine endlichen Zahlen.".into()))?;
-        // Runde 19b: jedes Feld schon in SQL gekürzt (wie der Text), damit eine fremde Tabelle mit riesigen Werten
-        // weder Speicher noch Antwort sprengt.
+        // Round 19b: every field already shortened in SQL (like the text) so that a foreign table with huge values
+        // bursts neither memory nor response.
         let optional = |column: &Option<String>, max: i64| {
             column.as_deref().map_or("NULL::text".to_owned(), |c| format!("left({}::text, {max})", quoted(c)))
         };
@@ -721,7 +721,7 @@ impl SearchWay for PgvectorWay {
     }
 }
 
-/// Suchweg aus Einstellungen und Passwort (für [`open_way`] und Tests). Ohne Rechner → `NotConfigured`.
+/// Search way from settings and password (for [`open_way`] and tests). Without host → `NotConfigured`.
 pub fn way_from_config(
     config: &Value,
     secret: Option<&str>,
@@ -739,9 +739,9 @@ pub fn way_from_config(
     Ok(Box::new(PgvectorWay { options, address, secret: secret.map(str::to_owned), mapping, embedder, prefixes }))
 }
 
-/// Suchweg pgvector nach den gespeicherten Einstellungen (Vertrag §3.2). Kein Rechner → `NotConfigured`;
-/// das Passwort `baruch/pgvector` nur, wenn es für das jetzige Ziel gilt, sonst `NotConfigured` mit
-/// Hinweis (es geht dann nirgendwohin).
+/// Search way pgvector per the stored settings (contract §3.2). No host → `NotConfigured`;
+/// the password `baruch/pgvector` only if it is valid for the present target, otherwise `NotConfigured` with
+/// a note (it then goes nowhere).
 pub async fn open_way(state: &AppState, embedders: Arc<dyn EmbedderFactory>) -> Result<Box<dyn SearchWay>, RagError> {
     let row = state
         .store
@@ -813,8 +813,8 @@ mod tests {
 
     #[test]
     fn identifiers_with_quotes_stay_one_identifier() {
-        // Runde 19b: Ein Schema aus information_schema kann ein Anführungszeichen enthalten; verdoppelt bleibt es
-        // Teil des Namens, statt den Bezeichner zu beenden (sonst ließe sich SQL anhängen).
+        // Round 19b: a schema from information_schema may contain a quote; doubled it stays
+        // part of the name instead of ending the identifier (otherwise SQL could be appended).
         assert_eq!(quoted("we\"ird"), "\"we\"\"ird\"", "Anführungszeichen verdoppelt");
         assert_eq!(quoted("x\"; DROP TABLE y; --"), "\"x\"\"; DROP TABLE y; --\"", "kein Ausbruch aus dem Namen");
         let inner = quoted("a\"\"b");
@@ -823,12 +823,12 @@ mod tests {
 
     #[test]
     fn the_tls_warning_needs_a_password_and_a_weak_mode() {
-        // Vertrag R19b: Hinweis nur mit Passwort und prefer/disable (auch prefer als Vorgabe ohne Feld).
+        // Contract R19b: note only with password and prefer/disable (also prefer as the default without the field).
         assert!(tls_warning(&json!({ "tls": "prefer" }), true).is_some_and(|w| w.contains("„prefer“")), "prefer");
         assert!(tls_warning(&json!({ "tls": "disable" }), true).is_some_and(|w| w.contains("„disable“")), "disable");
         assert!(tls_warning(&json!({}), true).is_some(), "Vorgabe ist prefer, also mit Hinweis");
-        // Begründung: sqlx prüft bei PgSslMode::Require das Zertifikat nicht (accept_invalid_certs außer bei
-        // VerifyCa/VerifyFull) – verschlüsselt, aber nicht gegen einen falschen Server geschützt.
+        // Reason: with PgSslMode::Require sqlx does not check the certificate (accept_invalid_certs except with
+        // VerifyCa/VerifyFull) – encrypted, but not protected against a wrong server.
         let require =
             tls_warning(&json!({ "tls": "require" }), true).expect("require ohne Zertifikatsprüfung: Hinweis");
         assert!(require.contains("„require“") && require.contains("Zertifikat"), "nennt Modus und Grund: {require}");

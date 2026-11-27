@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Belege aus SWORD für die Personas (R15, Punkt 5c „Daten“): Bibelwortlaut, Kommentare und
-//! Lexikon-Artikel zu den Stellen eines Texts. Die Darstellung im Kontext (Faktenblock, `[Sn]`) gehört
-//! dem Lektor (`assist/bible_facts.rs`); hier entstehen nur die Daten, Schalter und Grenzen.
+//! Evidence from SWORD for the personas (R15, item 5c “Daten”): Bible wording, commentaries and
+//! lexicon articles on the references of a text. The presentation in the context (fact block, `[Sn]`) belongs
+//! to the lector (`assist/bible_facts.rs`); here only the data, switches and limits arise.
 //!
-//! - **Schalter und Erlaubnis** ([`research`] entscheidet allein): nur `@belege` (Vorgabe an) und die Persona,
-//!   die nach der Wahl Lektor ist (Vorgabe aus), mit eingeschaltetem Schalter `persona.bible_set`
-//!   ([`crate::personas::bible_state`]). Ein MCP-Auftrag an eine dieser Personas bekommt die Belege ebenso
-//!   (lokale Daten, nichts geht hinaus).
-//! - **Stellen:** nur, was [`baruch_scripture::scan`] im Text erkennt; ungültige Stellen liefern keinen Text,
-//!   nur einen Hinweis in `problems`. Je Stelle (ohne Doppel) erst der Wortlaut der Werk-Bibel, dann je
-//!   gewähltem Kommentar dessen Einträge (in der Zählung des Kommentars).
-//! - **Lexika** (zuletzt, seit Runde 17b): zuerst die Strong-Nummern der Verse aller Stellen, wenn die Bibel des
-//!   Werks Strong-Auszeichnung hat (`Bible::has_strongs`, `Bible::verse_strongs`), dann Strong-Nummern im Text
-//!   (`G25`, `H430`), zuletzt großgeschriebene Wörter ab vier Buchstaben mit einer **Lemma-Probe** (das Wort, dann
-//!   der Stamm ohne einfache Endung -ern/-en/-es/-er/-e/-n/-s gegen die Stichwörter des Lexikons, seit Runde 19c mit
-//!   Umlaut-Rückführung „Bäume“ → „Baum“ und zuletzt dem letzten Bestandteil eines Kompositums; keine Grammatik). Strong-Nummern werden als „G25“, „G0025“, „G00025“ gesucht, die bloße Zahl nur in einem
-//!   Lexikon derselben Sprache (conf `Feature=GreekDef`/`HebrewDef`). Je gewähltem Lexikon höchstens
-//!   [`MAX_LEXICON_NOTES`] Artikel.
-//! - **Grenzen:** Gesamtlänge aller `text` höchstens `max_chars` (je Beleg höchstens [`MAX_NOTE_CHARS`]),
-//!   höchstens [`MAX_REFERENCES`] Stellen; was nicht mehr passt, nennt ein Hinweis. Klartext ohne Auszeichnung.
+//! - **Switch and permission** ([`research`] decides alone): only `@belege` (default on) and the persona
+//!   that is lector by the choice (default off), with the switch `persona.bible_set` on
+//!   ([`crate::personas::bible_state`]). An MCP order to one of these personas gets the evidence as well
+//!   (local data, nothing goes out).
+//! - **References:** only what [`baruch_scripture::scan`] recognises in the text; invalid references yield no text,
+//!   only a note in `problems`. Per reference (no duplicates) first the wording of the work's Bible, then per
+//!   chosen commentary its entries (in the versification of the commentary).
+//! - **Lexicons** (last, since Round 17b): first the Strong numbers of the verses of all references if the Bible of
+//!   the work has Strong markup (`Bible::has_strongs`, `Bible::verse_strongs`), then Strong numbers in the text
+//!   (`G25`, `H430`), last capitalised words from four letters on with a **lemma probe** (the word, then
+//!   the stem without a simple ending -ern/-en/-es/-er/-e/-n/-s against the keywords of the lexicon, since Round 19c
+//!   with umlaut reversal „Bäume“ → „Baum“ and last the last component of a compound; no grammar). Strong numbers are
+//!   looked up as „G25“, „G0025“, „G00025“, the bare number only in a lexicon of the same language (conf
+//!   `Feature=GreekDef`/`HebrewDef`). Per chosen lexicon at most [`MAX_LEXICON_NOTES`] articles.
+//! - **Limits:** total length of all `text` at most `max_chars` (per piece of evidence at most [`MAX_NOTE_CHARS`]),
+//!   at most [`MAX_REFERENCES`] references; what no longer fits is named by a note. Plain text without markup.
 
 use std::sync::Arc;
 
@@ -27,16 +27,16 @@ use baruch_sword::{Bible, Commentary, Lexicon};
 
 use crate::bibles::{Choice, Source};
 
-/// Höchstlänge eines Belegs (Zeichen).
+/// Maximum length of a piece of evidence (characters).
 pub const MAX_NOTE_CHARS: usize = 1500;
-/// Höchstzahl der Stellen, die Belege bekommen.
+/// Maximum number of references that get evidence.
 pub const MAX_REFERENCES: usize = 12;
-/// Höchstzahl der Lexikon-Artikel je Lexikon.
+/// Maximum number of lexicon articles per lexicon.
 pub const MAX_LEXICON_NOTES: usize = 5;
-/// Höchstzahl der Stichwörter, die nachgeschlagen werden.
+/// Maximum number of keywords that are looked up.
 pub const MAX_KEYWORDS: usize = 200;
 
-/// Art eines Belegs.
+/// Kind of a piece of evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NoteKind {
@@ -45,31 +45,31 @@ pub enum NoteKind {
     Lexicon,
 }
 
-/// Ein Beleg aus einem SWORD-Modul.
+/// A piece of evidence from a SWORD module.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ScriptureNote {
     pub kind: NoteKind,
-    /// Modulname (conf-Abschnitt).
+    /// Module name (conf section).
     pub module: String,
-    /// Stelle in deutscher Schreibweise („Ps 139,23–24“) bzw. Stichwort des Lexikons.
+    /// Reference in German spelling („Ps 139,23–24“) or keyword of the lexicon.
     pub reference: String,
-    /// Klartext ohne Markup, gekürzt (dann truncated = true).
+    /// Plain text without markup, shortened (then truncated = true).
     pub text: String,
-    /// Lizenzvermerk der conf.
+    /// Licence notice of the conf.
     pub notice: String,
     pub truncated: bool,
 }
 
-/// Ergebnis von [`research`].
+/// Result of [`research`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct Research {
-    /// Belege in der Reihenfolge der Stellen im Text; je Stelle erst die Bibel, dann die Kommentare; Lexika zuletzt.
+    /// Evidence in the order of the references in the text; per reference Bible, then commentaries; lexicons last.
     pub notes: Vec<ScriptureNote>,
-    /// Ehrliche Hinweise (Modul fehlt, Stelle gibt es nicht, Grenze erreicht …), je ein Satz.
+    /// Honest notes (module missing, reference does not exist, limit reached …), one sentence each.
     pub problems: Vec<String>,
 }
 
-/// Belege sammeln, ohne `max_chars` zu überschreiten.
+/// Collect evidence without exceeding `max_chars`.
 struct Collector {
     out: Research,
     room: usize,
@@ -77,7 +77,7 @@ struct Collector {
 }
 
 impl Collector {
-    /// Beleg anhängen (gekürzt auf den Platz); `false`, wenn kein Platz mehr ist.
+    /// Append evidence (shortened to the room); `false` if no room is left.
     fn push(&mut self, kind: NoteKind, module: &str, reference: &str, text: &str, notice: &str) -> bool {
         let text = text.trim();
         if text.is_empty() {
@@ -111,8 +111,8 @@ impl Collector {
     }
 }
 
-/// Stichwörter für Lexika: Strong-Nummern und großgeschriebene Wörter ab vier Buchstaben, ohne Doppel, in der
-/// Reihenfolge im Text.
+/// Keywords for lexicons: Strong numbers and capitalised words from four letters on, no duplicates, in the
+/// order in the text.
 pub fn keywords(text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for word in text.split(|c: char| !c.is_alphanumeric()) {
@@ -129,7 +129,7 @@ pub fn keywords(text: &str) -> Vec<String> {
     out
 }
 
-/// Strong-Nummer in Normalform („G25“, „H430“; ohne führende Nullen), wenn `word` eine ist („G0025“ auch).
+/// Strong number in normal form („G25“, „H430“; without leading zeros) if `word` is one („G0025“ too).
 pub fn strong_number(word: &str) -> Option<String> {
     let prefix = word.chars().next().filter(|c| matches!(c, 'G' | 'H'))?;
     let digits = &word[1..];
@@ -140,9 +140,9 @@ pub fn strong_number(word: &str) -> Option<String> {
     (number > 0).then(|| format!("{prefix}{number}"))
 }
 
-/// Schreibweisen, unter denen ein Lexikon eine Strong-Nummer führen kann: „G25“, „G0025“, „G00025“ und –
-/// nur bei einem Lexikon derselben Sprache (conf `Feature=GreekDef` bzw. `HebrewDef`) – die bloße Zahl
-/// „00025“/„25“. So bekommt ein hebräisches Lexikon nie den Artikel zu einer griechischen Nummer.
+/// Spellings under which a lexicon may list a Strong number: „G25“, „G0025“, „G00025“ and –
+/// only for a lexicon of the same language (conf `Feature=GreekDef` or `HebrewDef`) – the bare number
+/// „00025“/„25“. So a Hebrew lexicon never gets the article for a Greek number.
 pub fn strong_key_forms(strong: &str, features: &[String]) -> Vec<String> {
     let Some(normal) = strong_number(strong) else { return Vec::new() };
     let (prefix, number) = normal.split_at(1);
@@ -156,16 +156,16 @@ pub fn strong_key_forms(strong: &str, features: &[String]) -> Vec<String> {
     forms
 }
 
-/// Kandidaten der Lemma-Probe: das Wort selbst, dann die Stämme ohne einfache Endung (-ern/-en/-es/-er/-e/-n/-s,
-/// mindestens drei Buchstaben, längere zuerst) und seit Runde 19c dieselben Formen mit zurückgeführtem Umlaut
-/// („Bäume“ → „Baum“); Komposita probiert [`baruch_sword::Lexicon::lookup_lemma`] zuletzt über den letzten
-/// Bestandteil. Eine ehrliche Probe, keine Lemmatisierung ([`baruch_sword::reference::lemma_candidates`]).
+/// Candidates of the lemma probe: the word itself, then the stems without a simple ending (-ern/-en/-es/-er/-e/-n/-s,
+/// at least three letters, longer ones first) and since Round 19c the same forms with reversed umlaut
+/// („Bäume“ → „Baum“); compounds are tried last by [`baruch_sword::Lexicon::lookup_lemma`] through the last
+/// component. An honest probe, no lemmatisation ([`baruch_sword::reference::lemma_candidates`]).
 pub fn lemma_candidates(word: &str) -> Vec<String> {
     baruch_sword::reference::lemma_candidates(word)
 }
 
-/// `Feature=`-Einträge der conf eines Moduls (für die Sprache eines Strong-Lexikons); leer, wenn die conf
-/// nicht lesbar ist.
+/// `Feature=` entries of the conf of a module (for the language of a Strong lexicon); empty if the conf
+/// is not readable.
 fn conf_features(info: &baruch_sword::BibleInfo) -> Vec<String> {
     let Ok(conf) = std::fs::read_to_string(&info.conf_file) else { return Vec::new() };
     conf.lines()
@@ -175,17 +175,17 @@ fn conf_features(info: &baruch_sword::BibleInfo) -> Vec<String> {
         .collect()
 }
 
-/// Ein Stichwort für die Lexika.
+/// A keyword for the lexicons.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Keyword {
-    /// Strong-Nummer (Normalform „G26“), aus der Auszeichnung der Bibel oder aus dem Text.
+    /// Strong number (normal form „G26“), from the markup of the Bible or from the text.
     Strong(String),
-    /// Großgeschriebenes Wort aus dem Text (Lemma-Probe).
+    /// Capitalised word from the text (lemma probe).
     Word(String),
 }
 
-/// Stichwörter in der Reihenfolge der Nachfrage: zuerst die Strong-Nummern der Verse (`verse_strongs`),
-/// dann die aus dem Text, zuletzt die Wörter; ohne Doppel, höchstens [`MAX_KEYWORDS`].
+/// Keywords in the order of the lookup: first the Strong numbers of the verses (`verse_strongs`),
+/// then those from the text, last the words; no duplicates, at most [`MAX_KEYWORDS`].
 fn lexicon_keywords(verse_strongs: &[String], text: &str) -> Vec<Keyword> {
     let mut out: Vec<Keyword> = Vec::new();
     let push = |k: Keyword, out: &mut Vec<Keyword>| {
@@ -205,7 +205,7 @@ fn lexicon_keywords(verse_strongs: &[String], text: &str) -> Vec<Keyword> {
     out
 }
 
-/// Artikel zu einem Stichwort: Strong-Nummer in ihren Schreibweisen, Wort über die Lemma-Probe.
+/// Articles for a keyword: Strong number in its spellings, word through the lemma probe.
 fn lookup_keyword(
     lexicon: &Lexicon,
     features: &[String],
@@ -213,8 +213,8 @@ fn lookup_keyword(
 ) -> Result<Option<baruch_sword::reference::LexiconArticle>, baruch_sword::BibleError> {
     match keyword {
         Keyword::Strong(strong) => {
-            // `Lexicon::lookup` (sword-modules) streicht bei „G…“/„H…“ selbst das Präfix und sucht die bloße Zahl –
-            // in jedem Lexikon. Darum hier nur Stichwörter, die es genau so gibt (über die Stichwortliste).
+            // `Lexicon::lookup` (sword-modules) itself strips the prefix of „G…“/„H…“ and looks up the bare number –
+            // in every lexicon. So here only keywords that exist exactly like that (through the keyword list).
             for form in strong_key_forms(strong, features) {
                 let listed = lexicon.keys(&form, 1)?;
                 let Some(stored) = listed.keys.first().filter(|k| k.eq_ignore_ascii_case(&form)) else { continue };
@@ -225,22 +225,22 @@ fn lookup_keyword(
             }
             Ok(None)
         }
-        // Runde 19c: Lemma-Probe aus baruch-sword (Endungen, Umlaut, zuletzt der letzte Bestandteil eines Kompositums).
+        // Round 19c: lemma probe from baruch-sword (endings, umlaut, last the last component of a compound).
         Keyword::Word(word) => Ok(lexicon.lookup_lemma(word)?.map(|(article, _)| article)),
     }
 }
 
-/// Geöffnete Quellen für die Sammlung (ohne Wartezeit beim Lesen).
+/// Opened sources for the collection (no waiting time when reading).
 struct Opened {
     bible: Option<Arc<Bible>>,
     commentaries: Vec<Arc<Commentary>>,
     lexicons: Vec<Arc<Lexicon>>,
 }
 
-/// Belege lesen (blockierend; im Server über `spawn_blocking`).
+/// Read evidence (blocking; in the server through `spawn_blocking`).
 fn collect(opened: &Opened, text: &str, mut c: Collector) -> Research {
     let mut seen: Vec<String> = Vec::new();
-    // Strong-Nummern der Verse aller Stellen (nur bei einer Bibel mit Strong-Auszeichnung), für die Lexika.
+    // Strong numbers of the verses of all references (only for a Bible with Strong markup), for the lexicons.
     let mut verse_strongs: Vec<String> = Vec::new();
     for found in baruch_scripture::scan(text) {
         let Some(passage) = found.passage.as_ref().filter(|_| matches!(found.status, RefStatus::Valid)) else {
@@ -258,12 +258,12 @@ fn collect(opened: &Opened, text: &str, mut c: Collector) -> Research {
         seen.push(label.clone());
         let book = passage.book.id;
         if let Some(bible) = &opened.bible {
-            // Runde 23a (Codereview quellen-1): Die Stelle kommt in deutscher Zählung aus der Stellenprüfung; gelesen
-            // wird wie überall sonst über `bibles::read_passage` (Abbildung in die Zählung des Moduls). Vorher las
-            // dieser Weg die deutschen Nummern unverändert im Modul und lieferte bei KJV-Zählung den falschen Vers.
+            // Round 23a (code review quellen-1): the reference comes in German versification from the reference
+            // check; it is read as everywhere else through `bibles::read_passage` (mapping into the module's
+            // versification). Before, this path read the German numbers unchanged and returned the wrong KJV verse.
             match crate::bibles::read_passage(bible, book, passage.start, passage.end) {
                 Ok(read) => {
-                    // Strong-Nummern der gelesenen Verse (Zählung des Moduls), nur bei Strong-Auszeichnung.
+                    // Strong numbers of the verses read (versification of the module), only with Strong markup.
                     if bible.has_strongs() {
                         for (v, at) in read.verses.iter().zip(&read.module_refs).filter(|(v, _)| v.text.is_some()) {
                             if verse_strongs.len() >= MAX_KEYWORDS {
@@ -293,7 +293,7 @@ fn collect(opened: &Opened, text: &str, mut c: Collector) -> Research {
             }
         }
         for commentary in &opened.commentaries {
-            // Runde 23a (Codereview quellen-2): auch der Kommentar in seiner Zählung, über die Abbildung.
+            // Round 23a (code review quellen-2): the commentary too in its versification, through the mapping.
             match crate::bibles::read_commentary(commentary, book, passage.start, passage.end) {
                 Ok(read) if read.entries.is_empty() => {}
                 Ok(read) => {
@@ -339,9 +339,9 @@ fn collect(opened: &Opened, text: &str, mut c: Collector) -> Research {
     c.out
 }
 
-/// Belege aus SWORD zu den Bibelstellen (und, mit gewähltem Lexikon, Stichwörtern) in `text` für `persona` im Werk `work`.
-/// None = die Persona bekommt keinen Block (Schalter aus, nicht erlaubt oder weder Bibel noch Kommentar noch Lexikon gewählt).
-/// Gesamtlänge aller `text` höchstens `max_chars`; nie erfundene Stellen (nur, was baruch_scripture erkennt und das Modul liefert).
+/// Evidence from SWORD on the Bible references (and, with a chosen lexicon, keywords) in `text` for `persona` in
+/// `work`. None = no block (switch off, not allowed, or no Bible, commentary or lexicon chosen). Total of all `text`
+/// at most `max_chars`; never invented references (only what baruch_scripture recognises and the module returns).
 pub async fn research(
     state: &crate::AppState,
     work: baruch_store::WorkId,

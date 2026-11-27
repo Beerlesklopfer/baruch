@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Prüfung der Einstellungen einer Verbindung (`connection.set`, Formular „Speichern“).
+//! Validation of the settings of a connection (`connection.set`, form „Speichern“).
 //!
-//! Erlaubte Felder je Art (alles andere → -32602):
-//! - `eliezer`, `multigpt`: `url` (http/https, ohne Benutzerinfo, ohne Geheimnis in der Abfrage)
-//! - `pgvector`: `host` (leer = nicht eingerichtet), `port` (1–65535), `database`, `user`,
-//!   `tls` ∈ `disable` | `prefer` | `require` | `verify-full`; seit Runde 12 die Zuordnung der Tabelle
-//!   mit den Einbettungen ([`PG_MAPPING`]): `table` (`tabelle` oder `schema.tabelle`), `text_column`,
-//!   `vector_column`, `collection_column`, `document_column` (Pflicht), `section_column`, `title_column`,
-//!   `url_column`, `model_column` (leer = Spalte gibt es nicht) und `embedding_model` (Modell, mit dem die
-//!   Daten eingebettet sind). Bezeichner nur `^[A-Za-z_][A-Za-z0-9_]{0,62}$`; in SQL kommen sie erst
-//!   nach Abgleich mit `information_schema` und in doppelten Anführungszeichen
-//!   (`connections::pgvector`). Fehlen diese Felder in einer gespeicherten Einstellung, gilt ihre
-//!   Vorgabe ([`effective`]); sie werden erst gespeichert, wenn der Mensch sie einträgt.
-//! - `lancedb`: `dir` (relativ zum Datenordner oder absolut), `embedding_model`
-//! - Runde 19b, Aufgaben-Präfixe der Einbettung ([`PREFIX_FIELDS`]): `lancedb` `query_prefix` und
-//!   `document_prefix`, `pgvector` nur `query_prefix` (seine Daten sind schon eingebettet). Geprüft mit
-//!   [`baruch_rag::check_prefix`] (höchstens 64 Zeichen, keine Steuerzeichen), **nicht** beschnitten: Das
-//!   Leerzeichen am Ende („search_query: “) gehört zum Präfix. Fehlt das Feld, gilt „kein Präfix“.
+//! Allowed fields per kind (everything else → -32602):
+//! - `eliezer`, `multigpt`: `url` (http/https, no user info, no secret in the query)
+//! - `pgvector`: `host` (empty = not set up), `port` (1–65535), `database`, `user`,
+//!   `tls` ∈ `disable` | `prefer` | `require` | `verify-full`; since Round 12 the mapping of the table
+//!   with the embeddings ([`PG_MAPPING`]): `table` (`tabelle` or `schema.tabelle`), `text_column`,
+//!   `vector_column`, `collection_column`, `document_column` (mandatory), `section_column`, `title_column`,
+//!   `url_column`, `model_column` (empty = column does not exist) and `embedding_model` (model the
+//!   data was embedded with). Identifiers only `^[A-Za-z_][A-Za-z0-9_]{0,62}$`; they get into SQL only
+//!   after a comparison with `information_schema` and in double quotes
+//!   (`connections::pgvector`). If these fields are missing in a stored setting, their
+//!   default applies ([`effective`]); they are stored only when the human enters them.
+//! - `lancedb`: `dir` (relative to the data folder or absolute), `embedding_model`
+//! - Round 19b, task prefixes of the embedding ([`PREFIX_FIELDS`]): `lancedb` `query_prefix` and
+//!   `document_prefix`, `pgvector` only `query_prefix` (its data is already embedded). Checked with
+//!   [`baruch_rag::check_prefix`] (at most 64 characters, no control characters), **not** trimmed: the
+//!   space at the end („search_query: “) belongs to the prefix. If the field is missing, “no prefix” applies.
 //!
-//! Felder, deren Name nach einem Geheimnis klingt (`password`, `token`, `key`, `secret` …), lehnt die
-//! Prüfung immer ab: Geheimnisse gehören in den Schlüsselbund (`connection.set_secret`). Gegebene
-//! Felder ersetzen die gespeicherten, fehlende bleiben (bzw. kommen aus der Vorgabe).
+//! Fields whose name sounds like a secret (`password`, `token`, `key`, `secret` …) are always rejected by
+//! the validation: secrets belong in the keyring (`connection.set_secret`). Given
+//! fields replace the stored ones, missing ones stay (or come from the default).
 
 use baruch_store::ConnectionKind;
 use serde_json::{Map, Value};
 
 use super::Fault;
 
-/// Erlaubte Felder je Art, in der Reihenfolge der Seite.
+/// Allowed fields per kind, in the order of the page.
 pub fn fields(kind: ConnectionKind) -> &'static [&'static str] {
     match kind {
         ConnectionKind::Eliezer | ConnectionKind::Multigpt => &["url"],
@@ -53,12 +53,12 @@ pub fn fields(kind: ConnectionKind) -> &'static [&'static str] {
     }
 }
 
-/// Vorschlag für die Aufgaben-Präfixe von nomic-embed-text (Runde 19b; nur als Hinweis auf der Seite, keine Vorgabe:
-/// ohne Präfix bleibt ein bestehender Index gültig).
+/// Suggestion for the task prefixes of nomic-embed-text (Round 19b; only as a hint on the page, not a default:
+/// without a prefix an existing index stays valid).
 pub const NOMIC_PREFIXES: (&str, &str) = ("search_query: ", "search_document: ");
 
-/// Zuordnung von Tabelle und Spalten bei pgvector (Runde 12): fehlen sie in der gespeicherten Einstellung,
-/// gilt ihre Vorgabe aus [`ConnectionKind::default_config`] ([`effective`]), ohne sie mitzuspeichern.
+/// Mapping of table and columns for pgvector (Round 12): if they are missing in the stored setting,
+/// their default from [`ConnectionKind::default_config`] applies ([`effective`]), without storing them.
 pub const PG_MAPPING: [&str; 10] = [
     "table",
     "text_column",
@@ -72,11 +72,11 @@ pub const PG_MAPPING: [&str; 10] = [
     "embedding_model",
 ];
 
-/// Spalten, die es geben muss (die übrigen dürfen leer sein = nicht vorhanden).
+/// Columns that must exist (the others may be empty = not present).
 pub const PG_REQUIRED_COLUMNS: [&str; 4] = ["text_column", "vector_column", "collection_column", "document_column"];
 
-/// Ein Bezeichner für PostgreSQL: `^[A-Za-z_][A-Za-z0-9_]{0,62}$` (ohne Anführungszeichen, ohne
-/// Punkt; höchstens 63 Zeichen wie `NAMEDATALEN - 1`).
+/// An identifier for PostgreSQL: `^[A-Za-z_][A-Za-z0-9_]{0,62}$` (no quotes, no
+/// dot; at most 63 characters like `NAMEDATALEN - 1`).
 pub fn is_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     let Some(first) = chars.next() else { return false };
@@ -85,7 +85,7 @@ pub fn is_identifier(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// Tabelle `tabelle` oder `schema.tabelle` → (Schema, Tabelle); sonst `None`.
+/// Table `tabelle` or `schema.tabelle` → (schema, table); otherwise `None`.
 pub fn split_table(table: &str) -> Option<(Option<&str>, &str)> {
     match table.split_once('.') {
         None => is_identifier(table).then_some((None, table)),
@@ -93,8 +93,8 @@ pub fn split_table(table: &str) -> Option<(Option<&str>, &str)> {
     }
 }
 
-/// Gespeicherte Einstellung über der Vorgabe: Felder, die (noch) nicht gespeichert sind, kommen aus
-/// [`ConnectionKind::default_config`] (für die Zuordnung von pgvector aus Runde 12 und für die Seite).
+/// Stored setting over the default: fields that are not (yet) stored come from
+/// [`ConnectionKind::default_config`] (for the mapping of pgvector from Round 12 and for the page).
 pub fn effective(kind: ConnectionKind, config: &Value) -> Value {
     let mut out = kind.default_config();
     if let (Some(out), Some(given)) = (out.as_object_mut(), config.as_object()) {
@@ -105,10 +105,10 @@ pub fn effective(kind: ConnectionKind, config: &Value) -> Value {
     out
 }
 
-/// TLS-Modi für pgvector.
+/// TLS modes for pgvector.
 pub const TLS_MODES: [&str; 4] = ["disable", "prefer", "require", "verify-full"];
 
-/// Klingt der Name nach einem Geheimnis?
+/// Does the name sound like a secret?
 pub fn secret_like(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     ["pass", "token", "secret", "geheim", "key", "credential", "auth", "bearer"].iter().any(|word| name.contains(word))
@@ -118,8 +118,8 @@ fn invalid(code: &'static str, message: impl Into<String>) -> Fault {
     Fault::Invalid(code, message.into())
 }
 
-/// Adresse prüfen: http/https, Rechnername, keine Benutzerinfo, kein Geheimnis in der Abfrage, eine
-/// Zeile, höchstens 2000 Zeichen. Liefert die beschnittene Eingabe.
+/// Check an address: http/https, host name, no user info, no secret in the query, one
+/// line, at most 2000 characters. Returns the trimmed input.
 pub fn check_url(input: &str) -> Result<String, Fault> {
     let text = input.trim();
     if text.is_empty() || text.chars().count() > 2000 || text.chars().any(char::is_whitespace) {
@@ -155,7 +155,7 @@ fn one_line(value: &str, max: usize) -> bool {
     value.chars().count() <= max && !value.chars().any(char::is_control)
 }
 
-/// Ein Feld prüfen und in Normalform bringen.
+/// Check a field and bring it into normal form.
 fn check_field(name: &str, value: &Value) -> Result<Value, Fault> {
     Ok(match name {
         "url" => Value::from(check_url(text(name, value)?)?),
@@ -231,7 +231,7 @@ fn check_field(name: &str, value: &Value) -> Result<Value, Fault> {
             }
             Value::from(model)
         }
-        // Runde 19b: nicht beschnitten – das Leerzeichen am Ende gehört zum Präfix.
+        // Round 19b: not trimmed – the space at the end belongs to the prefix.
         "query_prefix" | "document_prefix" => {
             let prefix = text(name, value)?;
             let checked = baruch_rag::check_prefix(name, prefix).map_err(|e| invalid("praefix", e.message()))?;
@@ -241,10 +241,10 @@ fn check_field(name: &str, value: &Value) -> Result<Value, Fault> {
     })
 }
 
-/// Ziel einer Verbindung, an das ihr Geheimnis gebunden ist: bei Eliezer und MultiGPT der Ursprung der
-/// Adresse (Schema, Rechner, Port – ein anderer Pfad beim selben Server ist dasselbe Ziel), bei pgvector
-/// Rechner, Port und TLS-Modus (ein schwächeres TLS schickte das Passwort anders über das Netz);
-/// LanceDB hat kein Geheimnis (`None`). Enthält nie ein Geheimnis.
+/// Target of a connection to which its secret is bound: for Eliezer and MultiGPT the origin of the
+/// address (scheme, host, port – another path on the same server is the same target), for pgvector
+/// host, port and TLS mode (a weaker TLS would send the password differently over the network);
+/// LanceDB has no secret (`None`). Never contains a secret.
 pub fn target(kind: ConnectionKind, config: &Value) -> Option<String> {
     let field = |name: &str| match config.get(name) {
         Some(Value::String(s)) => s.trim().to_owned(),
@@ -263,10 +263,11 @@ pub fn target(kind: ConnectionKind, config: &Value) -> Option<String> {
     }
 }
 
-/// Feldnamen der Aufgaben-Präfixe (Runde 19b): LanceDB beide, pgvector nur `query_prefix` (seine Daten sind schon eingebettet).
+/// Field names of the task prefixes (Round 19b): LanceDB both, pgvector only `query_prefix` (data already embedded).
 pub const PREFIX_FIELDS: [&str; 2] = ["query_prefix", "document_prefix"];
 
-/// Aufgaben-Präfixe aus einer gespeicherten Einstellung: Lancedb → query_prefix/document_prefix, Pgvector → nur query_prefix (document = ""), Eliezer/Multigpt → leer; fehlend oder kein Text = "".
+/// Task prefixes from a stored setting: Lancedb → query_prefix/document_prefix, Pgvector → only query_prefix
+/// (document = ""), Eliezer/Multigpt → empty; missing or not a text = "".
 pub fn embed_prefixes(kind: ConnectionKind, config: &Value) -> baruch_rag::EmbedPrefixes {
     let text = |name: &str| match config.get(name) {
         Some(Value::String(s)) => s.clone(),
@@ -283,7 +284,7 @@ pub fn embed_prefixes(kind: ConnectionKind, config: &Value) -> baruch_rag::Embed
     }
 }
 
-/// Gegebene Felder über die gespeicherten (bzw. die Vorgabe) legen und alles prüfen.
+/// Lay given fields over the stored ones (or the default) and check everything.
 pub fn merged(kind: ConnectionKind, current: &Value, given: &Value) -> Result<Value, Fault> {
     let Some(given) = given.as_object() else {
         return Err(invalid("feld", "config: JSON-Objekt erwartet."));
@@ -303,8 +304,8 @@ pub fn merged(kind: ConnectionKind, current: &Value, given: &Value) -> Result<Va
     let default = kind.default_config();
     let mut out = Map::new();
     for name in allowed {
-        // Die Zuordnung von pgvector (Runde 12) bleibt ungespeichert, bis der Mensch sie einträgt; bis
-        // dahin gilt ihre Vorgabe über [`effective`]. So ändert ein Speichern der alten Felder nichts daran.
+        // The mapping of pgvector (Round 12) stays unstored until the human enters it; until
+        // then its default applies through [`effective`]. So saving the old fields changes nothing about it.
         let from_default = !(kind == ConnectionKind::Pgvector && PG_MAPPING.contains(name));
         let value = given
             .get(*name)
@@ -387,8 +388,8 @@ mod tests {
 
     #[test]
     fn no_new_pgvector_field_sounds_like_a_secret() {
-        // Sonst lehnte `merged` die Zuordnung als „Geheimnis in den Einstellungen“ ab; besonders
-        // `model_column` und `text_column` enthalten keins der Geheimwörter (pass, token, key, auth …).
+        // Otherwise `merged` would reject the mapping as “secret in the settings”; in particular
+        // `model_column` and `text_column` contain none of the secret words (pass, token, key, auth …).
         for name in fields(ConnectionKind::Pgvector) {
             assert!(!secret_like(name), "{name} ist ein gewöhnliches Feld, kein Geheimnis");
         }
@@ -467,7 +468,7 @@ mod tests {
 
     #[test]
     fn prefixes_are_allowed_per_way_kept_with_their_trailing_space_and_checked() {
-        // Runde 19b: LanceDB beide, pgvector nur das Anfrage-Präfix (seine Daten sind schon eingebettet).
+        // Round 19b: LanceDB both, pgvector only the query prefix (its data is already embedded).
         let lance = merged(
             ConnectionKind::Lancedb,
             &json!({}),

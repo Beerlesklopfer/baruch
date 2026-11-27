@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Anträge zu Bildern (Vertrag Runde 11, Migration 0018): Assistenten beantragen über MCP
-//! (`asset_replace`, `asset_set_cover`, `asset_delete`, `asset_add` mit `role: "cover"`), der Mensch
-//! entscheidet hier – auf der Seite „Bilder“ (Abschnitt `#antraege`, [`panel`]), über das Formular
-//! `POST /werke/bilder/antraege/act` oder über RPC.
+//! Requests about images (contract Round 11, migration 0018): assistants request through MCP
+//! (`asset_replace`, `asset_set_cover`, `asset_delete`, `asset_add` with `role: "cover"`), the human
+//! decides here – on the page „Bilder“ (section `#antraege`, [`panel`]), through the form
+//! `POST /werke/bilder/antraege/act` or through RPC.
 //!
 //! - **RPC** ([`handles`], [`call`]): `asset.request_list {work, open?: bool = true}` → `{requests}`;
 //!   `asset.request_decide {work, id, decision: "confirm"|"reject"}` → `{request, commit?, mirror?}`.
-//! - **Bestätigen** prüft zuerst, ob der Antrag veraltet ist (`expected_sha256` passt nicht mehr zur
-//!   aktuellen bzw. genannten Fassung, das Bild ist weg, der Umschlag ist inzwischen ein anderer); dann
-//!   `stale` mit Grund, nichts geändert. Sonst führt Baruch ihn unter dem Namen des Menschen aus:
-//!   Ersetzen und Löschen über den Store und **einen** Spiegel-Commit mit Antragsteller und Bestätiger
-//!   ([`mirror::AssetBy::Confirmed`]). Den Umschlag setzt Baruch seit Runde 20c unter derselben Schreibsperre
-//!   über `Store::set_work_cover` und schreibt **genau einen** Commit „Bildantrag n bestätigt: …“
-//!   ([`mirror::describe_asset_request`], im Rumpf Umschlag vorher/nachher). Ist ein Bild, das gelöscht werden
-//!   soll, der Umschlag, kommt vor dem Löschen der Commit „Umschlag entfernt“
-//!   ([`crate::cover::release_cover_before_delete`]). Lehnt die Ausführung fachlich ab, ebenfalls `stale` mit ihrer
-//!   Meldung.
-//! - **Ablehnen** ändert nur den Antrag (kein Commit).
-//! - Anträge zur Umschlag-Anordnung (Runde 27, op `cover_layout`) prüft und führt
-//!   [`crate::cover_layout::decide_request`] aus; die Liste zeigt je Block eine Zeile (`block_lines`).
-//! - Der vorgeschlagene Inhalt eines Antrags zum Ersetzen lässt sich ansehen:
-//!   `GET /werke/{id}/bilder/antraege/{nr}/datei` (MIME, `nosniff`, CSP mit `sandbox`).
-//! - **Runde 21c:** Ein Antrag mit `rename` (Typwechsel) wird mit [`baruch_store::Store::replace_asset_renaming`]
-//!   ausgeführt: das Bild bekommt die neue Endung, die Pfade bleiben. Vor jedem Listen und Entscheiden (und vor dem
-//!   Ausliefern der Antragsdatei) entfernt [`purge`] den Inhalt entschiedener Anträge zum Ersetzen, die länger als
-//!   [`baruch_store::ASSET_REQUEST_PURGE_DAYS`] Tage entschieden sind; die Antragsdatei antwortet dann 410 Gone.
+//! - **Confirming** first checks whether the request is stale (`expected_sha256` no longer matches the
+//!   current or the named revision, the image is gone, the cover is a different one by now); then
+//!   `stale` with reason, nothing changed. Otherwise Baruch carries it out under the name of the human:
+//!   replacing and deleting through the store and **one** mirror commit with requester and confirmer
+//!   ([`mirror::AssetBy::Confirmed`]). Since Round 20c Baruch sets the cover under the same write lock
+//!   through `Store::set_work_cover` and writes **exactly one** commit „Bildantrag n bestätigt: …“
+//!   ([`mirror::describe_asset_request`], cover before/after in the body). If an image that is to be
+//!   deleted is the cover, the commit „Umschlag entfernt“ comes before the deletion
+//!   ([`crate::cover::release_cover_before_delete`]). If the execution refuses on content grounds, also `stale` with
+//!   its message.
+//! - **Rejecting** changes only the request (no commit).
+//! - Requests about the cover layout (Round 27, op `cover_layout`) are checked and carried out by
+//!   [`crate::cover_layout::decide_request`]; the list shows one line per block (`block_lines`).
+//! - The proposed content of a replace request can be viewed:
+//!   `GET /werke/{id}/bilder/antraege/{nr}/datei` (MIME, `nosniff`, CSP with `sandbox`).
+//! - **Round 21c:** A request with `rename` (type change) is carried out with the function
+//!   [`baruch_store::Store::replace_asset_renaming`] – the image gets the new extension, the paths stay. Before every
+//!   listing and deciding (and before serving the request file) [`purge`] removes the content of decided replace
+//!   requests decided more than [`baruch_store::ASSET_REQUEST_PURGE_DAYS`] days ago; the file then answers 410 Gone.
 
 use std::sync::{Arc, OnceLock};
 
@@ -43,25 +43,25 @@ use crate::AppState;
 use crate::mirror::{self, HUMAN_NAME};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
-/// Sicherheitskopf für den vorgeschlagenen Inhalt (wie bei den Bildern selbst).
+/// Security header for the proposed content (as for the images themselves).
 const IMAGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
 pub fn handles(method: &str) -> bool {
     matches!(method, "asset.request_list" | "asset.request_decide")
 }
 
-/// Umschlag des Werks (Bildname, [`crate::cover::cover_name`]).
+/// Cover of the work (image name, [`crate::cover::cover_name`]).
 async fn hook_cover_name(state: &AppState, work: WorkId) -> Result<Option<String>, StoreError> {
     crate::cover::cover_name(state, work).await
 }
 
-/// Umschlag des Werks für Antrag und Prüfung auf Veralten (MCP `asset_set_cover`, `asset_add` mit Rolle).
+/// Cover of the work for request and staleness check (MCP `asset_set_cover`, `asset_add` with role).
 pub(crate) async fn cover_name(state: &AppState, work: WorkId) -> Result<Option<String>, StoreError> {
     hook_cover_name(state, work).await
 }
 
-/// Ein Antrag als JSON: Felder des Stores (ohne Inhalt), dazu `origin_label`, `decision_label` und
-/// `url` des Bilds bzw. `content_url` des vorgeschlagenen Inhalts.
+/// A request as JSON: fields of the store (without content), plus `origin_label`, `decision_label` and
+/// `url` of the image or `content_url` of the proposed content.
 pub fn request_json(request: &AssetRequest) -> Value {
     let mut value = json!(request);
     value["origin_label"] = json!(request.origin.label());
@@ -74,29 +74,29 @@ pub fn request_json(request: &AssetRequest) -> Value {
         value["content_url"] = json!(format!("/werke/{}/bilder/antraege/{}/datei", request.work, request.id));
     }
     if let AssetOp::CoverLayout { blocks, .. } = &request.op {
-        // Umschlag-Anordnung (Runde 27): Verweis auf die Umschlagseite und je Block eine Zeile für die Liste.
+        // Cover layout (Round 27): reference to the cover page and one line per block for the list.
         value["url"] = json!(format!("/werke/{}/umschlag", request.work));
         value["block_lines"] = json!(blocks.iter().map(crate::cover_layout::block_line).collect::<Vec<_>>());
     }
     value
 }
 
-/// Ausgang einer Entscheidung (für Weiterleitung und Antwort).
+/// Outcome of a decision (for redirect and response).
 pub struct Decided {
     pub request: AssetRequest,
     pub commit: Option<String>,
     pub mirror: Option<String>,
-    /// Bei bestätigtem Umschlag: Antwort von `work.set_cover`.
+    /// For a confirmed cover: response of `work.set_cover`.
     pub cover: Option<Value>,
 }
 
-/// Fachliche Ablehnung bei der Ausführung (dann ist der Antrag nicht mehr ausführbar)?
+/// Refusal on content grounds during execution (then the request can no longer be carried out)?
 fn refusal(e: &StoreError) -> bool {
     matches!(
         e,
         StoreError::Refused(_)
             | StoreError::Asset(_)
-            // Runde 23a: ungültige Umschlag-Blöcke haben eine eigene Fehlerart.
+            // Round 23a: invalid cover blocks have their own error kind.
             | StoreError::CoverBlock(_)
             | StoreError::UnknownAsset { .. }
             | StoreError::UnknownRevision { .. }
@@ -116,7 +116,7 @@ fn split(result: Result<Option<String>, String>) -> (Option<String>, Option<Stri
     }
 }
 
-/// Inhalt eines Antrags zum Ersetzen als Bytes.
+/// Content of a replace request as bytes.
 fn replace_bytes(content: &str, encoding: AssetEncoding) -> Result<Vec<u8>, StoreError> {
     match encoding {
         AssetEncoding::Base64 => baruch_store::decode_base64(content),
@@ -124,13 +124,13 @@ fn replace_bytes(content: &str, encoding: AssetEncoding) -> Result<Vec<u8>, Stor
     }
 }
 
-/// Inhalt entschiedener Anträge zum Ersetzen entfernen, die älter als
-/// [`baruch_store::ASSET_REQUEST_PURGE_DAYS`] Tage entschieden sind (Runde 21c). Ergebnis: Zahl der bereinigten.
+/// Remove the content of decided replace requests that were decided more than
+/// [`baruch_store::ASSET_REQUEST_PURGE_DAYS`] days ago (Round 21c). Result: number of purged requests.
 pub async fn purge(state: &AppState, work: WorkId) -> Result<usize, StoreError> {
     state.store.purge_decided_asset_requests(work, baruch_store::ASSET_REQUEST_PURGE_DAYS).await
 }
 
-/// Über einen offenen Antrag entscheiden (nur der Mensch). Siehe Moduldoku.
+/// Decide an open request (the human only). See module doc.
 pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> Result<Decided, RpcError> {
     let store = &state.store;
     purge(state, work).await?;
@@ -157,8 +157,8 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
             {
                 return stale(state, work, id, &format!("Das Bild „{name}“ gibt es nicht mehr.")).await;
             }
-            // Runde 20c: Umschlag setzen und Antrag entscheiden unter einer Schreibsperre, dann **ein** Commit
-            // „Bildantrag n bestätigt: …“ mit dem Umschlag vorher/nachher im Rumpf (früher zwei Commits).
+            // Round 20c: set the cover and decide the request under one write lock, then **one** commit
+            // „Bildantrag n bestätigt: …“ with the cover before/after in the body (formerly two commits).
             let held = state.write_lock.lock().await;
             let change = match store.set_work_cover(work, name.as_deref()).await {
                 Ok(change) => change,
@@ -218,12 +218,12 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 }
                 Err(e) => return Err(e.into()),
             };
-            // Bildunterschrift und Alternativtext des Antrags gehören zur neuen Fassung (ein Commit).
+            // Caption and alternative text of the request belong to the new revision (one commit).
             let before = change.before.clone();
             let caption = caption.as_deref().filter(|c| before.as_ref().is_none_or(|b| b.caption != *c));
             let alt = alt.as_deref().filter(|a| before.as_ref().is_none_or(|b| b.alt != *a));
             if caption.is_some() || alt.is_some() {
-                // Nach einem Typwechsel heißt das Bild schon neu (change.name).
+                // After a type change the image already has its new name (change.name).
                 store.update_asset_revision(work, &change.name, change.rev, caption, alt, None, HUMAN_NAME).await?;
                 for (label, value) in [("Bildunterschrift", caption), ("Alternativtext", alt)] {
                     if let Some(value) = value {
@@ -269,7 +269,7 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 drop(held);
                 return stale(state, work, id, &message).await;
             }
-            // Runde 20c: Ist das Bild der Umschlag, zuerst „Umschlag entfernt“ (eigener Commit), dann löschen.
+            // Round 20c: if the image is the cover, first „Umschlag entfernt“ (own commit), then delete.
             if rev.is_none() {
                 crate::cover::release_cover_before_delete(state, &held, work, name).await?;
             }
@@ -290,7 +290,7 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
             let (commit, mirror) = split(mirror::record_asset_by(state, &held, &change, by).await);
             Ok(Decided { request, commit, mirror, cover: None })
         }
-        // Umschlag-Anordnung (Runde 27): Prüfung auf Veralten und Ausführung in `cover_layout`.
+        // Cover layout (Round 27): staleness check and execution in `cover_layout`.
         AssetOp::CoverLayout { .. } => crate::cover_layout::decide_request(state, work, &request).await,
     }
 }
@@ -345,7 +345,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-// ---- Abschnitt der Seite „Bilder“ --------------------------------------------------------------
+// ---- Section of the page „Bilder“ --------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -357,8 +357,8 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// HTML des Abschnitts `#antraege` für die Seite „Bilder“: offene Anträge mit „Bestätigen“ und
-/// „Ablehnen“ (Formulare, ohne JavaScript), die zuletzt entschiedenen mit Ergebnis und Grund.
+/// HTML of the section `#antraege` for the page „Bilder“: open requests with „Bestätigen“ and
+/// „Ablehnen“ (forms, without JavaScript), the most recently decided ones with result and reason.
 pub async fn panel(state: &AppState, work: WorkId) -> Result<String, RpcError> {
     purge(state, work).await?;
     let requests = state.store.asset_requests(work, false).await?;
@@ -375,11 +375,11 @@ pub async fn panel(state: &AppState, work: WorkId) -> Result<String, RpcError> {
         .map_err(|e| RpcError::new(INTERNAL, format!("Vorlage asset_requests.html: {e}")))
 }
 
-// ---- Formular und vorgeschlagener Inhalt -------------------------------------------------------
+// ---- Form and proposed content -----------------------------------------------------------------
 
-/// `POST /werke/bilder/antraege/act` (hinter `guard::same_origin`) und
-/// `GET /werke/{id}/bilder/antraege/{nr}/datei` (nur lesen; liegt hier, weil der Router dieses Moduls
-/// nur über `writes` eingebunden ist – `same_origin` lässt GET aus der eigenen Seite und direkte Aufrufe durch).
+/// `POST /werke/bilder/antraege/act` (behind `guard::same_origin`) and
+/// `GET /werke/{id}/bilder/antraege/{nr}/datei` (read only; lives here because the router of this module
+/// is mounted only through `writes` – `same_origin` lets GET from the own page and direct requests through).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/bilder/antraege/act", post(act))

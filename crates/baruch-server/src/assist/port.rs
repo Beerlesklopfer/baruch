@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schnittstelle zwischen den Personas und einem Modell-Backend (Vertrag Runde 10, §3).
+//! Interface between the personas and a model backend (contract Round 10, §3).
 //!
-//! Die Personas ([`super`]) kennen nur diesen Port; im Dienst steckt dahinter Eliezer (Adapter des
-//! Integrators), in Tests [`super::mock::ScriptedModel`], ohne Anbindung [`NoModel`].
+//! The personas ([`super`]) know only this port; in the service Eliezer is behind it (adapter of the
+//! integrator), in tests [`super::mock::ScriptedModel`], without a connection [`NoModel`].
 //!
-//! Abbruch = Fallenlassen des Futures: Trennt der Client den Strom, fällt der Strom, damit das Future
-//! von [`ModelPort::chat`] und mit ihm die HTTP-Anfrage an das Backend.
+//! Cancellation = dropping the future: if the client disconnects the stream, the stream drops, with it the future
+//! of [`ModelPort::chat`] and with that the HTTP request to the backend.
 
-/// Future, das ein Port zurückgibt (ohne `async fn` im Trait, damit `dyn ModelPort` geht).
+/// Future that a port returns (without `async fn` in the trait so that `dyn ModelPort` works).
 pub type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
-/// Rolle einer Nachricht im Gespräch mit dem Modell.
+/// Role of a message in the conversation with the model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     System,
@@ -18,15 +18,15 @@ pub enum Role {
     Assistant,
 }
 
-/// Eine Nachricht an das Modell.
+/// A message to the model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
     pub role: Role,
     pub content: String,
 }
 
-/// Ein Modellaufruf. `label` beschreibt ihn ohne Text (z. B. „@lektor ask key 17“) für Warteschlange
-/// und Protokoll.
+/// A model call. `label` describes it without text (e.g. „@lektor ask key 17“) for queue
+/// and log.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelCall {
     pub model: String,
@@ -34,22 +34,22 @@ pub struct ModelCall {
     pub max_tokens: u32,
     pub temperature: Option<f32>,
     pub label: String,
-    /// Handle der Persona mit „@“ (wählt Verbindung, Freigabe „extern“, Kontext); leer = keine Persona.
+    /// Handle of the persona with „@“ (selects connection, release „extern“, context); empty = no persona.
     pub persona: String,
 }
 
-/// Kontext einer Persona für Aufträge (R15b): Einstellung abgeglichen mit der Gegenstelle.
+/// Context of a persona for orders (R15b): setting reconciled with the remote side.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ContextBudget {
-    /// Wirksame Kontextlänge in Tokens: min(Einstellung der Persona, von der Gegenstelle gemeldete Länge), ohne Meldung die Einstellung.
+    /// Effective context length in tokens: min(persona setting, length reported by the remote side), else the setting.
     pub tokens: u32,
-    /// Von der Gegenstelle gemeldete Länge; None = meldet keine bzw. nicht erreichbar.
+    /// Length reported by the remote side; None = reports none or not reachable.
     pub reported: Option<u32>,
-    /// Deutscher Satz bei Abweichung (z. B. „Einstellung 65536, Eliezer meldet 32768“), sonst None.
+    /// German sentence on deviation (e.g. „Einstellung 65536, Eliezer meldet 32768“), otherwise None.
     pub warning: Option<String>,
 }
 
-/// Fertige Antwort des Modells; `model` ist das tatsächlich verwendete Modell (nach Alias).
+/// Finished answer of the model; `model` is the model actually used (after alias).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelAnswer {
     pub text: String,
@@ -59,8 +59,8 @@ pub struct ModelAnswer {
     pub completion_tokens: Option<u32>,
 }
 
-/// Warum ein Modellaufruf scheitert. Die Texte sind deutsche Sätze für die Oberfläche und enthalten
-/// nie ein Geheimnis.
+/// Why a model call fails. The texts are German sentences for the UI and never contain
+/// a secret.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModelFailure {
     NotConfigured(String),
@@ -90,7 +90,7 @@ impl std::fmt::Display for ModelFailure {
 
 impl std::error::Error for ModelFailure {}
 
-/// Modelle, die das Backend kennt; `live = false`: aus dem Zwischenspeicher, `message` ein Hinweis.
+/// Models the backend knows; `live = false`: from the cache, `message` a note.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ModelList {
     pub models: Vec<String>,
@@ -98,10 +98,10 @@ pub struct ModelList {
     pub message: Option<String>,
 }
 
-/// Ein Modell-Backend.
+/// A model backend.
 pub trait ModelPort: Send + Sync {
-    /// Gespräch an das Modell; jedes Stück der Antwort geht sofort an `deltas` (Wort für Wort). Das
-    /// Fallenlassen des Futures bricht den Aufruf ab.
+    /// Conversation to the model; every piece of the answer goes to `deltas` immediately (word by word).
+    /// Dropping the future cancels the call.
     fn chat<'a>(
         &'a self,
         state: &'a crate::AppState,
@@ -109,13 +109,13 @@ pub trait ModelPort: Send + Sync {
         deltas: tokio::sync::mpsc::UnboundedSender<String>,
     ) -> BoxFuture<'a, Result<ModelAnswer, ModelFailure>>;
 
-    /// Modelle, die das Backend anbietet.
+    /// Models the backend offers.
     fn models<'a>(&'a self, state: &'a crate::AppState) -> BoxFuture<'a, Result<ModelList, ModelFailure>>;
 
-    /// Neuer Name eines alten Modellnamens (z. B. aus Ollama-Zeiten), falls bekannt.
+    /// New name of an old model name (e.g. from Ollama times), if known.
     fn alias(&self, name: &str) -> Option<String>;
 
-    /// Kontext für Aufträge an `persona` (R15b). Wartet höchstens so lange wie die Modellliste (Zwischenspeicher); scheitert nie.
+    /// Context for orders to `persona` (R15b). Waits at most as long as the model list (cache); never fails.
     fn context<'a>(
         &'a self,
         state: &'a crate::AppState,
@@ -125,9 +125,9 @@ pub trait ModelPort: Send + Sync {
         Box::pin(async move { ContextBudget { tokens: persona.context_length, reported: None, warning: None } })
     }
 
-    /// Kontext ohne Netzabfrage (Runde 17a, L4): was der Port schon weiß, sonst die Einstellung. Für Seiten und
-    /// Listen (Einstellungen, `persona.list`, Arbeitsseite) – „Lektor automatisch nach Kontext“ fragt dort nie die
-    /// Gegenstelle; das Netz bleibt dem Modellaufruf ([`ModelPort::context`]).
+    /// Context without a network request (Round 17a, L4): what the port already knows, otherwise the setting. For pages
+    /// and lists (settings, `persona.list`, work page) – „Lektor automatisch nach Kontext“ never asks the
+    /// remote side there; the network is left to the model call ([`ModelPort::context`]).
     fn context_cached<'a>(
         &'a self,
         state: &'a crate::AppState,
@@ -138,10 +138,10 @@ pub trait ModelPort: Send + Sync {
     }
 }
 
-/// Ehrliche Meldung ohne Backend.
+/// Honest message without a backend.
 const NO_MODEL: &str = "Kein Modell-Backend angebunden – Baruch läuft ohne Modellaufrufe (Tests, Hilfsbefehle).";
 
-/// Kein Backend: Jeder Aufruf meldet ehrlich, dass keins angebunden ist.
+/// No backend: every call honestly reports that none is connected.
 pub struct NoModel;
 
 impl ModelPort for NoModel {

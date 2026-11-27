@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Konten und Anmeldung (Runde 35, Vertrag §S1.4 und §1).
+//! Accounts and login (Round 35, contract §S1.4 and §1).
 //!
-//! Ohne Konten (Tabelle `account` leer) bleibt Baruch offen wie vor Runde 35: [`Who::Open`], keine Cookies, keine
-//! Umleitung. Mit Konten verlangen Seiten, Formulare und `/rpc` eine Anmeldung – auch am eigenen Rechner (Vorgabe;
-//! die Ausnahme „Am eigenen Rechner ohne Anmeldung“ schaltet der Autor ein, sie ergibt [`Who::LocalAuthor`]).
-//! `/mcp` bleibt bei Tokens; die Schicht [`gate`] lässt `/mcp` unberührt.
+//! Without accounts (table `account` empty) Baruch stays open as before Round 35: [`Who::Open`], no cookies, no
+//! redirect. With accounts pages, forms and `/rpc` demand a login – also on the own machine (default;
+//! the exception „Am eigenen Rechner ohne Anmeldung“ is switched on by the author, it yields [`Who::LocalAuthor`]).
+//! `/mcp` stays with tokens; the layer [`gate`] leaves `/mcp` untouched.
 //!
-//! Wer eine Anfrage stellt, steht für ihre Dauer in einer task-lokalen Ablage: [`gate`] bestimmt [`Who`] und führt
-//! die Anfrage in [`scope`] aus, jede Stelle darunter fragt [`current`]. Außerhalb einer Anfrage (Start, Hilfsbefehle,
-//! Tests ohne Router) ist das [`Who::Open`].
+//! Who makes a request is kept for its duration in a task-local slot: [`gate`] determines [`Who`] and runs
+//! the request in [`scope`], every place below asks [`current`]. Outside of a request (start, helper commands,
+//! tests without router) that is [`Who::Open`].
 //!
-//! Regel: [`current`] nie in abgespaltenen Aufgaben (`tokio::spawn`, `spawn_blocking`) auswerten – dort ist die
-//! Ablage leer und die Antwort wäre [`Who::Open`]. Vorher holen und mitgeben.
+//! Rule: never evaluate [`current`] in spawned tasks (`tokio::spawn`, `spawn_blocking`) – there the
+//! slot is empty and the answer would be [`Who::Open`]. Fetch it before and pass it along.
 //!
-//! Was eine Rolle darf, entscheidet allein [`crate::roles`].
+//! What a role may do is decided solely by [`crate::roles`].
 
 pub mod cli;
 pub mod gate;
@@ -31,7 +31,7 @@ pub use gate::gate;
 
 use crate::AppState;
 
-/// Art eines Kontos (global; die Rolle gilt je Werk, siehe [`crate::roles::role_in`]).
+/// Kind of an account (global; the role applies per work, see [`crate::roles::role_in`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AccountKind {
@@ -39,7 +39,7 @@ pub enum AccountKind {
     Lektor,
 }
 
-/// Ein angemeldetes Konto. `handle` ist die Herkunft, unter der ein Lektor schreibt (`@lektorat:<slug>`).
+/// A logged-in account. `handle` is the origin under which a Lektor writes (`@lektorat:<slug>`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Identity {
     pub id: i64,
@@ -49,22 +49,22 @@ pub struct Identity {
     pub handle: String,
 }
 
-/// Wer eine Anfrage stellt.
+/// Who makes a request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Who {
-    /// Es gibt keine Konten: alles offen wie vor Runde 35.
+    /// There are no accounts: everything open as before Round 35.
     Open,
-    /// Es gibt Konten, der Autor hat „Am eigenen Rechner ohne Anmeldung“ eingeschaltet und die Anfrage kommt vom
-    /// eigenen Rechner ohne Proxy-Kopfzeilen: Autorrechte ohne Sitzung.
+    /// There are accounts, the author has switched on „Am eigenen Rechner ohne Anmeldung“ and the request comes from
+    /// the own machine without proxy headers: author rights without a session.
     LocalAuthor,
-    /// Gültige Sitzung eines aktiven Kontos.
+    /// Valid session of an active account.
     Account(Identity),
-    /// Es gibt Konten, aber keine gültige Sitzung.
+    /// There are accounts, but no valid session.
     Anonymous,
 }
 
 impl Who {
-    /// Volle Rechte: ohne Konten, Autor am eigenen Rechner oder ein Autor-Konto.
+    /// Full rights: without accounts, author on the own machine or an author account.
     pub fn full_rights(&self) -> bool {
         match self {
             Who::Open | Who::LocalAuthor => true,
@@ -73,7 +73,7 @@ impl Who {
         }
     }
 
-    /// Das Konto, wenn ein Lektor angemeldet ist.
+    /// The account if a Lektor is logged in.
     pub fn lektor(&self) -> Option<&Identity> {
         match self {
             Who::Account(identity) if identity.kind == AccountKind::Lektor => Some(identity),
@@ -81,7 +81,7 @@ impl Who {
         }
     }
 
-    /// Das angemeldete Konto (Autor oder Lektor).
+    /// The logged-in account (author or Lektor).
     pub fn identity(&self) -> Option<&Identity> {
         match self {
             Who::Account(identity) => Some(identity),
@@ -94,54 +94,54 @@ tokio::task_local! {
     static WHO: Who;
 }
 
-/// Wer die laufende Anfrage stellt; außerhalb einer Anfrage [`Who::Open`]. Nie in abgespaltenen Aufgaben auswerten
-/// (siehe Modulkopf).
+/// Who makes the running request; outside of a request [`Who::Open`]. Never evaluate in spawned tasks
+/// (see module head).
 pub fn current() -> Who {
     WHO.try_with(Who::clone).unwrap_or(Who::Open)
 }
 
-/// Führt `f` aus, als stellte `who` die Anfrage ([`current`] liefert darin `who`).
+/// Runs `f` as if `who` made the request ([`current`] returns `who` inside).
 pub async fn scope<F: std::future::Future>(who: Who, f: F) -> F::Output {
     WHO.scope(who, f).await
 }
 
-/// Herkunft eines Lektors: `@lektorat:<slug>`, der Slug nach derselben Regel wie
-/// [`crate::docx_import::word_author`] (klein, Umlaute umschrieben, höchstens 40 Zeichen; bleibt nichts übrig,
-/// `unbekannt` – diesen Kontonamen lehnt „konten“ darum ab).
+/// Origin of a Lektor: `@lektorat:<slug>`, the slug by the same rule as
+/// [`crate::docx_import::word_author`] (lower case, umlauts transliterated, at most 40 characters; if nothing
+/// remains, `unbekannt` – which is why “konten” rejects this account name).
 pub fn lektor_handle(name: &str) -> String {
     let word = crate::docx_import::word_author(name);
     format!("@lektorat:{}", word.strip_prefix("@word:").unwrap_or(&word))
 }
 
-/// Cookie der Sitzung.
+/// Session cookie.
 pub const SESSION_COOKIE: &str = "baruch_session";
 
-/// Pfade, die auch ohne Anmeldung erreichbar bleiben; dazu alles unter [`PUBLIC_PREFIX`].
+/// Paths that stay reachable without login; plus everything under [`PUBLIC_PREFIX`].
 pub const PUBLIC_PATHS: &[&str] = &["/anmelden", "/static/app.css", "/static/favicon.svg"];
 
-/// Präfix der Widgets, die die Anmeldeseite lädt.
+/// Prefix of the widgets the login page loads.
 pub const PUBLIC_PREFIX: &str = "/static/js/";
 
-/// Zustand der Anmeldung je [`AppState`] (nie prozessweit): das gemerkte „es gibt Konten“.
+/// Login state per [`AppState`] (never process-wide): the remembered “there are accounts”.
 ///
-/// Gemerkt wird nur das Ja: Konten werden nie gelöscht, ein Ja bleibt also für die Lebensdauer des Datenordners
-/// wahr. Das Nein wird jedes Mal nachgesehen (ein `SELECT count(*)` auf einer leeren Tabelle) – so kann kein
-/// veraltetes „keine Konten“ eine Anfrage ohne Anmeldung durchlassen, auch wenn ein Konto an dieser Ablage vorbei
-/// entsteht (anderer Prozess, Test per SQL).
+/// Only the yes is remembered: accounts are never deleted, so a yes stays true for the lifetime of the data
+/// folder. The no is looked up every time (a `SELECT count(*)` on an empty table) – so no
+/// stale “no accounts” can let a request through without login, even if an account is created past this
+/// slot (other process, test through SQL).
 #[derive(Default)]
 pub struct AuthState {
     accounts: AtomicBool,
 }
 
 impl AuthState {
-    /// Nach dem Einrichten: Ab jetzt gibt es Konten.
+    /// After the setup: from now on there are accounts.
     pub fn mark_accounts(&self) {
         self.accounts.store(true, Ordering::Relaxed);
     }
 }
 
-/// Gibt es Konten? Ohne Konten bleibt jede Seite unverändert. Ein Datenbankfehler zählt als „ja“ (sichere Seite:
-/// lieber eine Anmeldung zu viel verlangen als keine); er steht auf stderr.
+/// Are there accounts? Without accounts every page stays unchanged. A database error counts as “yes” (safe side:
+/// rather demand one login too many than none); it goes to stderr.
 pub async fn accounts_exist(state: &AppState) -> bool {
     if state.auth.accounts.load(Ordering::Relaxed) {
         return true;
@@ -159,8 +159,8 @@ pub async fn accounts_exist(state: &AppState) -> bool {
     }
 }
 
-/// Die Identität zu einem Konto aus dem Store (`kind` aus der Datenbank: `author`, sonst Lektor – die sichere
-/// Seite, falls dort je etwas anderes stünde).
+/// The identity for an account from the store (`kind` from the database: `author`, otherwise Lektor – the safe
+/// side, should anything else ever stand there).
 pub fn identity_of(account: &baruch_store::Account) -> Identity {
     Identity {
         id: account.id,
@@ -171,9 +171,9 @@ pub fn identity_of(account: &baruch_store::Account) -> Identity {
     }
 }
 
-/// Prüft Kontonamen und Anzeigenamen; liefert den Slug des Handles oder den Meldungscode `name_ungueltig`
-/// (Vertrag §3.4). Ein Name hat 1 bis 40 Zeichen ohne Steuerzeichen, und sein Slug darf nicht `unbekannt` sein (so
-/// heißt, wovon nach der Regel nichts übrig bleibt); der Anzeigename hat höchstens 80 Zeichen.
+/// Checks account name and display name; returns the slug of the handle or the message code `name_ungueltig`
+/// (contract §3.4). A name has 1 to 40 characters without control characters, and its slug must not be `unbekannt`
+/// (the name of what the rule leaves nothing of); the display name has at most 80 characters.
 pub fn check_name(name: &str, display: &str) -> Result<String, &'static str> {
     let name = name.trim();
     let length = name.chars().count();
@@ -191,7 +191,7 @@ pub fn check_name(name: &str, display: &str) -> Result<String, &'static str> {
     Ok(slug.to_owned())
 }
 
-/// Deutscher Satz zu einem Meldungscode aus `konten_ui::MESSAGES`; ein unbekannter Code bleibt, wie er ist.
+/// German sentence for a message code from `konten_ui::MESSAGES`; an unknown code stays as it is.
 pub fn message(code: &str) -> String {
     crate::konten_ui::MESSAGES
         .iter()

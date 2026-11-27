@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Anordnung der Mindmap (Runde 34, mindmap_widget): Werk in der Mitte, Hauptäste rechts und links, Unteräste nach
-//! außen, darunter die Wolke als Ablage.
+//! Layout of the mind map (Round 34, mindmap_widget): work in the middle, main branches right and left, sub-branches
+//! outwards, below it the cloud as storage.
 //!
-//! Rein rechnerisch und deterministisch (keine Zufallszahlen, keine Uhr, keine Hash-Reihenfolge in der Ausgabe):
-//! gleiche Eingabe, gleiche Lagen. Die Zeichnung ([`super::mindmap`]) liest nur das Ergebnis [`Layout`].
+//! Purely computed and deterministic (no random numbers, no clock, no hash order in the output):
+//! same input, same positions. The drawing ([`super::mindmap`]) reads only the result [`Layout`].
 //!
-//! Regeln:
-//! - **Hauptäste** sind die Kinder der Wurzel außer der Wolke: Teile, Kapitel und freie Hauptthemen; die erste Hälfte
-//!   (aufgerundet) steht rechts, die zweite links. Jeder Hauptast bekommt eine der acht Astfarben (`branch`), die
-//!   alle Nachfahren erben.
-//! - **Wolke**: Die Kinder der Wurzel, die [`crate::idea_map::tree::Scene::cloud`] nennt (Einfälle ohne Platz),
-//!   sind keine Hauptäste, sondern liegen als Kärtchen in der Wolke unter dem Baum (Nachtrag des Nutzers vom
-//!   2026-11-25). Ihre Unterknoten bleiben an ihnen und werden in der Wolke nicht einzeln gezeichnet („+ n“).
-//! - **Kein Überlappen**: Jeder Teilbaum belegt ein eigenes senkrechtes Band (Höhe = größere von Knotenhöhe und Summe
-//!   der Kinderbänder); Kinder stehen waagrecht jenseits der Außenkante ihres Elternknotens.
-//! - **Eingeklappt** (`closed`): Der Knoten wird gezeichnet, seine Nachfahren nicht; [`Layout::visible_of`] nennt
-//!   für jeden verborgenen Knoten den sichtbaren Vorfahren (dort enden Beziehungen).
+//! Rules:
+//! - **Main branches** are the children of the root except the cloud: parts, chapters and free main topics; the
+//!   first half (rounded up) stands right, the second left. Every main branch gets one of the eight branch colours
+//!   (`branch`), which all descendants inherit.
+//! - **Cloud**: the children of the root that [`crate::idea_map::tree::Scene::cloud`] names (ideas without a place)
+//!   are not main branches but lie as cards in the cloud below the tree (addendum of the user of
+//!   2026-11-25). Their sub-nodes stay with them and are not drawn individually in the cloud („+ n“).
+//! - **No overlap**: every subtree occupies its own vertical band (height = larger of node height and sum
+//!   of the children's bands); children stand horizontally beyond the outer edge of their parent node.
+//! - **Collapsed** (`closed`): the node is drawn, its descendants are not; [`Layout::visible_of`] names
+//!   for every hidden node the visible ancestor (relations end there).
 
 use std::collections::{HashMap, HashSet};
 
 use crate::idea_map::tree::{CloudHint, MindMap, TreeKind, TreeNode};
 
-/// Längster gezeichneter Titel (Zeichen); der volle Titel steht in `data-title` und im Tooltip.
+/// Longest drawn title (characters); the full title stands in `data-title` and in the tooltip.
 pub const MAX_LABEL_CHARS: usize = 48;
 const MARGIN: f64 = 28.0;
-/// Waagrechter Abstand Elternkante → Kinderkante (Platz für Kurve und Einklapper).
+/// Horizontal distance parent edge → child edge (room for curve and collapser).
 const H_GAP: f64 = 52.0;
 const H_GAP_ROOT: f64 = 70.0;
-/// Platz neben dem äußersten Knoten für den Einklapper „+ n“.
+/// Room next to the outermost node for the collapser „+ n“.
 const TOGGLE_ROOM: f64 = 46.0;
 const CLOUD_GAP: f64 = 44.0;
 const CLOUD_PAD: f64 = 14.0;
@@ -42,30 +42,30 @@ pub enum Side {
     Left,
 }
 
-/// Ein gezeichneter Knoten mit seinem Rechteck (linke obere Ecke, Breite, Höhe).
+/// A drawn node with its rectangle (top left corner, width, height).
 #[derive(Debug, Clone)]
 pub struct Placed<'a> {
     pub node: &'a TreeNode,
-    /// Kennung des Elternknotens (Wurzel: `None`).
+    /// Id of the parent node (root: `None`).
     pub parent: Option<&'a str>,
     pub depth: usize,
     pub side: Side,
-    /// Nummer der Astfarbe 0..=7 (Wurzel und Wolke: `None`).
+    /// Number of the branch colour 0..=7 (root and cloud: `None`).
     pub branch: Option<usize>,
     pub x: f64,
     pub y: f64,
     pub w: f64,
     pub h: f64,
-    /// Gekürzter Titel, wie er im Bild steht.
+    /// Shortened title as it stands in the picture.
     pub label: String,
     pub font: f64,
-    /// Hat Kinder und ist eingeklappt.
+    /// Has children and is collapsed.
     pub closed: bool,
-    /// Zahl aller Nachfahren (Knoten jeder Art) – die Zahl am Einklapper.
+    /// Number of all descendants (nodes of every kind) – the number at the collapser.
     pub below: u32,
-    /// Liegt in der Wolke.
+    /// Lies in the cloud.
     pub cloud: bool,
-    /// Wolke: Kennung und Titel des Hauptasts, zu dem der Einfall nach der Nähe am besten passt.
+    /// Cloud: id and title of the main branch the idea fits best by nearness.
     pub fits: Option<(&'a str, String, usize)>,
 }
 
@@ -78,7 +78,7 @@ impl Placed<'_> {
     }
 }
 
-/// Rahmen der Wolke.
+/// Frame of the cloud.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CloudBox {
     pub x: f64,
@@ -90,19 +90,19 @@ pub struct CloudBox {
 
 #[derive(Debug, Clone)]
 pub struct Layout<'a> {
-    /// Wurzel zuerst, dann der Baum in Anzeigereihenfolge, zuletzt die Kärtchen der Wolke.
+    /// Root first, then the tree in display order, last the cards of the cloud.
     pub items: Vec<Placed<'a>>,
     pub width: f64,
     pub height: f64,
     pub cloud: CloudBox,
-    /// Kennung jedes Knotens des Baums → Stelle (in `items`) des Knotens, der für ihn sichtbar ist.
+    /// Id of every node of the tree → position (in `items`) of the node that is visible for it.
     pub visible_of: HashMap<&'a str, usize>,
-    /// Eingeklappte Knoten in Anzeigereihenfolge (nur vorhandene mit Kindern) – kanonisch für `zu=`.
+    /// Collapsed nodes in display order (only existing ones with children) – canonical for `zu=`.
     pub closed: Vec<&'a str>,
 }
 
-/// Geschätzte Breite eines Textes in der Schrift der Oberfläche (serifenlos). Bewusst etwas großzügig: lieber ein
-/// zu breiter Kasten als ein überstehender Text (der Server kennt die Schrift des Browsers nicht).
+/// Estimated width of a text in the font of the UI (sans-serif). Deliberately a bit generous: rather a
+/// box too wide than text sticking out (the server does not know the browser's font).
 pub fn text_width(text: &str, font: f64) -> f64 {
     let units: f64 = text
         .chars()
@@ -118,7 +118,7 @@ pub fn text_width(text: &str, font: f64) -> f64 {
     units * font
 }
 
-/// Titel für das Bild: Nummer davor (Teile/Kapitel), auf [`MAX_LABEL_CHARS`] gekürzt, nie leer.
+/// Title for the picture: number in front (parts/chapters), shortened to [`MAX_LABEL_CHARS`], never empty.
 pub fn label_of(node: &TreeNode) -> String {
     let title = node.title.split_whitespace().collect::<Vec<_>>().join(" ");
     let full = if node.number.trim().is_empty() || node.kind == TreeKind::Idea {
@@ -136,17 +136,17 @@ pub fn label_of(node: &TreeNode) -> String {
     }
 }
 
-/// Breite des Titels im Kasten: Werk, Teile und Kapitel stehen fett da und brauchen mehr Platz als Einfälle.
+/// Width of the title in the box: work, parts and chapters are bold and need more room than ideas.
 pub fn label_width(node: &TreeNode, label: &str, font: f64) -> f64 {
     text_width(label, font) * if node.kind == TreeKind::Idea { 1.04 } else { 1.2 }
 }
 
-/// Breite des Zusatzes „k offen“ (Ebene Befunde).
+/// Width of the addition „k offen“ (layer findings).
 pub fn findings_width(open: u32) -> f64 {
     text_width(&format!("{open} offen"), 11.0) + 12.0
 }
 
-/// Schrift, Höhe und Innenabstand je Tiefe.
+/// Font, height and padding per depth.
 fn style(depth: usize) -> (f64, f64, f64) {
     match depth {
         0 => (18.0, 46.0, 20.0),
@@ -191,7 +191,7 @@ impl<'a> Builder<'a> {
         !node.children.is_empty() && self.closed.contains(node.id.as_str())
     }
 
-    /// Höhe des senkrechten Bands eines Teilbaums.
+    /// Height of the vertical band of a subtree.
     fn extent(&self, node: &TreeNode, depth: usize) -> f64 {
         let (_, h, _) = style(depth);
         if node.children.is_empty() || self.is_closed(node) {
@@ -210,7 +210,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Setzt `node` in sein Band ab `top`; `edge` ist die innere Kante (rechts: linke Kante des Knotens).
+    /// Puts `node` into its band from `top`; `edge` is the inner edge (right: left edge of the node).
     #[allow(clippy::too_many_arguments)]
     fn place(
         &mut self,
@@ -267,13 +267,13 @@ impl<'a> Builder<'a> {
     }
 }
 
-/// Anordnung ohne Wolke: Alle Kinder der Wurzel sind Hauptäste.
+/// Layout without cloud: all children of the root are main branches.
 pub fn layout<'a>(map: &'a MindMap, closed: &[String]) -> Layout<'a> {
     layout_with(map, closed, &[], &[], None)
 }
 
-/// Anordnung mit Wolke: `cloud` nennt die Kinder der Wurzel, die in der Wolke liegen ([`Scene::cloud`]), `hints` die
-/// Vorschläge „passt zu Ast …“, `count` den Zähler ohne Filter (sonst die Zahl der Kärtchen).
+/// Layout with cloud: `cloud` names the children of the root that lie in the cloud ([`Scene::cloud`]), `hints` the
+/// suggestions „passt zu Ast …“, `count` the counter without filter (otherwise the number of cards).
 pub fn layout_with<'a>(
     map: &'a MindMap,
     closed: &[String],
@@ -327,7 +327,7 @@ pub fn layout_with<'a>(
         }
     }
 
-    // In den sichtbaren Bereich schieben (Rand, Platz für Einklapper außen).
+    // Shift into the visible area (margin, room for collapsers outside).
     let (mut min_x, mut max_x, mut min_y, mut max_y) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
     for p in &b.items {
         min_x = min_x.min(p.x - TOGGLE_ROOM);
@@ -336,7 +336,7 @@ pub fn layout_with<'a>(
         max_y = max_y.max(p.y + p.h);
     }
     let tree_width = (max_x - min_x).max(CLOUD_MIN_WIDTH);
-    // Schmale Bäume stehen mittig über der Wolke.
+    // Narrow trees stand centred above the cloud.
     let dx = MARGIN - min_x + (tree_width - (max_x - min_x)) / 2.0;
     let dy = MARGIN - min_y;
     for p in &mut b.items {
@@ -345,7 +345,7 @@ pub fn layout_with<'a>(
     }
     let tree_bottom = max_y + dy;
 
-    // Wolke: Kärtchen zeilenweise unter dem Baum.
+    // Cloud: cards row by row below the tree.
     let cloud: Vec<&TreeNode> = root.children.iter().filter(|c| in_cloud.contains(c.id.as_str())).collect();
     let cloud_x = MARGIN;
     let cloud_y = tree_bottom + CLOUD_GAP;
@@ -353,7 +353,7 @@ pub fn layout_with<'a>(
     let (mut x, mut y, mut row_h) = (0.0_f64, CLOUD_HEAD, 0.0_f64);
     for node in &cloud {
         let (label, font, mut w, mut h) = size(node, 2);
-        // Vorschlag der Nähe: der Hauptast, in dem der nächste Einfall der Mindmap hängt.
+        // Suggestion of the nearness: the main branch in which the nearest idea of the mind map hangs.
         let fits = node.idea.and_then(|id| hints.iter().find(|hint| hint.idea == id)).and_then(|hint| {
             let at = mains.iter().position(|main| main.id == hint.branch)?;
             Some((mains[at].id.as_str(), label_of(mains[at]), at % 8))
@@ -395,7 +395,7 @@ pub fn layout_with<'a>(
         x += w + CHIP_GAP;
         row_h = row_h.max(h);
     }
-    // Leere Wolke: eine Zeile Platz für den Hinweis und als Ablagefläche.
+    // Empty cloud: one row of room for the note and as a drop area.
     let cloud_h = y + row_h.max(26.0) + CLOUD_PAD;
     let cloud_box = CloudBox {
         x: cloud_x,

@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Seite der Gedankenkarte bzw. Mindmap (Vertrag Runde 25, §4.3/§4.4; seit Runde 34, Schnittstelle R34-S1, Besitz
+//! Page of the idea map or mind map (contract Round 25, §4.3/§4.4; since Round 34, interface R34-S1, owner
 //! mindmap_widget).
 //!
-//! - [`pages`]: GET `/werke/{id}/karte` (HTML nach dem DOM-Vertrag, ohne JavaScript bedienbar: Filter per GET,
-//!   Gliederungsliste mit den Formularen „Bezug setzen“, „Verbinden mit …“, „Lösen“, Liste „Widersprüche“).
-//! - Runde 19b: Abschnitt „Gruppen“ unter der Karte (Komponenten der Nähe, [`crate::idea_map::groups`]) mit dem Knopf
-//!   „Gruppen benennen (Assistent)“ und je Vorschlag „Übernehmen“ und „Verwerfen“ – Formulare an
-//!   `POST /werke/{id}/karte/act`, ohne JavaScript; der Filter kommt aus `back`.
-//! - Runde 34 (R34-S1): Die Ausgaben (`.svg`, `.pdf`, `.md`, `.mm`) und das Formular `POST /werke/{id}/karte/act`
-//!   liegen in [`crate::idea_map::files`]; hier bleiben die Seite und die Helfer, die beide brauchen (Filter in der
-//!   Adresse, [`load`], [`work_info`], [`status_of`], [`plain`], [`with_query`], [`page_response`] als Fehlerseite
-//!   eines Formulars). [`mindmap`] zeichnet die Mindmap aus [`crate::idea_map::tree::MindMap`] (in S1 ein Stub).
-//!   [`layout`] und [`svg`] sind ab S1 eingefroren (alte Karte; `files` und diese Seite benutzen sie im S1-Stand
-//!   noch, der Integrator löscht, was nach der Runde unbenutzt ist).
+//! - [`pages`]: GET `/werke/{id}/karte` (HTML per the DOM contract, usable without JavaScript: filter through GET,
+//!   outline list with the forms „Bezug setzen“, „Verbinden mit …“, „Lösen“, list „Widersprüche“).
+//! - Round 19b: section „Gruppen“ below the map (components of the nearness, [`crate::idea_map::groups`]) with the
+//!   button „Gruppen benennen (Assistent)“ and per suggestion „Übernehmen“ and „Verwerfen“ – forms to
+//!   `POST /werke/{id}/karte/act`, without JavaScript; the filter comes from `back`.
+//! - Round 34 (R34-S1): the exports (`.svg`, `.pdf`, `.md`, `.mm`) and the form `POST /werke/{id}/karte/act`
+//!   live in [`crate::idea_map::files`]; here remain the page and the helpers both need (filter in the
+//!   address, [`load`], [`work_info`], [`status_of`], [`plain`], [`with_query`], [`page_response`] as the error page
+//!   of a form). [`mindmap`] draws the mind map from [`crate::idea_map::tree::MindMap`] (a stub in S1).
+//!   [`layout`] and [`svg`] are frozen from S1 on (old map; `files` and this page still use them in the S1 state,
+//!   the integrator deletes what is unused after the round).
 //!
-//! - Runde 34 (mindmap_widget): Die Seite heißt „Mindmap“. Das Bild zeichnet [`mindmap::render`] aus
-//!   [`crate::idea_map::tree::tree`] (Anordnung in [`tree_layout`]); `GET /werke/{id}/karte/bild` liefert nur das
-//!   SVG (für das Widget `mindmap`, das nach jeder Aktion neu holt). Die Adresse trägt außer dem Filter `zu=`
-//!   (eingeklappte Knoten, Komma) und `wahl=` (gewählter Knoten). Unter dem Baum liegt die **Wolke** (Einfälle ohne
-//!   Platz, Nachtrag vom 2026-11-25). Die Formulare der alten Gliederungsliste stehen jetzt in der
-//!   Gliederungsansicht (`/werke/{id}/karte/gliederung`, [`crate::idea_map::files`]); hier bleiben Filter,
-//!   „Gruppen“ (R19b), „Widersprüche“ und die Ebene „Befunde“ (R28).
+//! - Round 34 (mindmap_widget): the page is called „Mindmap“. The picture is drawn by [`mindmap::render`] from
+//!   [`crate::idea_map::tree::tree`] (layout in [`tree_layout`]); `GET /werke/{id}/karte/bild` returns only the
+//!   SVG (for the widget `mindmap`, which fetches anew after every action). Besides the filter the address carries
+//!   `zu=` (collapsed nodes, comma) and `wahl=` (chosen node). Below the tree lies the **cloud** (ideas without a
+//!   place, addendum of 2026-11-25). The forms of the old outline list now stand in the
+//!   outline view (`/werke/{id}/karte/gliederung`, [`crate::idea_map::files`]); here remain the filter,
+//!   „Gruppen“ (R19b), „Widersprüche“ and the layer „Befunde“ (R28).
 //!
-//! Die Daten liefern [`crate::idea_map::tree::tree`] (Baum) und [`crate::idea_map::build`] (Gruppen der Nähe); hier
-//! entstehen Zeichnung und Seite. Kein Buchtext ändert sich.
+//! The data comes from [`crate::idea_map::tree::tree`] (tree) and [`crate::idea_map::build`] (groups of the
+//! nearness); here drawing and page arise. No book text changes.
 
 pub mod mindmap;
 pub mod tree_layout;
@@ -47,30 +47,30 @@ use crate::idea_map::{IdeaMap, MapFilter, NearState};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{Settings, query_escape};
 
-/// Seite (GET), gemischt in `lib.rs` bei den Seiten. Die Ausgaben stehen in [`crate::idea_map::files::pages`].
+/// Page (GET), merged in `lib.rs` with the pages. The exports are in [`crate::idea_map::files::pages`].
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/karte", get(page)).route("/werke/{id}/karte/bild", get(image))
 }
 
-// ---- Filter in der Adresse ---------------------------------------------------------------------
+// ---- Filter in the address ---------------------------------------------------------------------
 
-/// Was die Adresse der Karte außer dem Filter trägt (Rückmeldung nach einem Formular).
+/// What the address of the map carries besides the filter (feedback after a form).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Extra {
-    /// `ok=<wort>` nach einer gelungenen Aktion.
+    /// `ok=<wort>` after a successful action.
     pub ok: Option<String>,
-    /// `undo=<id>`: eben gelöste Verbindung (Formular „Wiederherstellen“).
+    /// `undo=<id>`: link just removed (form „Wiederherstellen“).
     pub undo: Option<i64>,
-    /// Runde 34: `zu=<Kennungen, Komma>` – eingeklappte Knoten der Mindmap (reine Anzeige, nie gespeichert).
+    /// Round 34: `zu=<ids, comma>` – collapsed nodes of the mind map (display only, never stored).
     pub closed: Vec<String>,
-    /// Runde 34: `wahl=<Kennung>` – gewählter Knoten.
+    /// Round 34: `wahl=<id>` – chosen node.
     pub wahl: Option<String>,
 }
 
-/// Höchstzahl der Kennungen in `zu=` (fremde Eingabe; mehr fällt weg).
+/// Maximum number of ids in `zu=` (foreign input; more is dropped).
 pub const MAX_CLOSED: usize = 2000;
 
-/// Kennung eines Knotens der Mindmap: `w`, `n:<key>` oder `i:<id>` (nur Ziffern) – sonst `None`.
+/// Id of a node of the mind map: `w`, `n:<key>` or `i:<id>` (digits only) – otherwise `None`.
 pub fn node_id(text: &str) -> Option<&str> {
     let text = text.trim();
     let digits = |d: &str| !d.is_empty() && d.len() <= 18 && d.bytes().all(|b| b.is_ascii_digit());
@@ -78,9 +78,9 @@ pub fn node_id(text: &str) -> Option<&str> {
     known.then_some(text)
 }
 
-/// Filter aus den Paaren der Adresse (GET und `back` gleich): `status=open|done|all`, `word`, `origin=human|persona|mcp`,
-/// `q`, `near=0|1` (letzter Wert gilt; das Formular schickt `near=0` vor dem Kästchen `near=1`), `near_limit`,
-/// `near_threshold`, `open` (mehrfach). Unbekannte oder ungültige Werte fallen weg (wie bei `/einfaelle`).
+/// Filter from the pairs of the address (GET and `back` alike): `status=open|done|all`, `word`,
+/// `origin=human|persona|mcp`, `q`, `near=0|1` (last value counts; the form sends `near=0` before the checkbox
+/// `near=1`), `near_limit`, `near_threshold`, `open` (multiple). Unknown or invalid values are dropped.
 pub fn parse_filter(pairs: &[(String, String)]) -> (MapFilter, Extra) {
     let mut filter = MapFilter { near: true, ..MapFilter::default() };
     let mut extra = Extra::default();
@@ -109,7 +109,7 @@ pub fn parse_filter(pairs: &[(String, String)]) -> (MapFilter, Extra) {
                 extra.ok = Some(value.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(30).collect())
             }
             "undo" => extra.undo = value.trim().parse().ok(),
-            // Runde 34: letzter Wert gilt; nur gültige Kennungen, ohne Doppel.
+            // Round 34: last value counts; only valid ids, no duplicates.
             "zu" => {
                 let mut closed: Vec<String> = Vec::new();
                 for id in value.split(',').filter_map(node_id).take(MAX_CLOSED) {
@@ -120,7 +120,7 @@ pub fn parse_filter(pairs: &[(String, String)]) -> (MapFilter, Extra) {
                 extra.closed = closed;
             }
             "wahl" => extra.wahl = node_id(value).map(str::to_owned),
-            // Runde 28: Ebene „Befunde“ (letzter Wert gilt, wie bei `near`).
+            // Round 28: layer „Befunde“ (last value counts, as for `near`).
             "befunde" => filter.findings = matches!(value.trim(), "1" | "true" | "on" | "ja"),
             _ => {}
         }
@@ -129,8 +129,8 @@ pub fn parse_filter(pairs: &[(String, String)]) -> (MapFilter, Extra) {
     (filter, extra)
 }
 
-/// Kanonischer Abfrageteil zum Filter (ohne `?`, prozentkodiert, leer ohne Filter): Grundlage aller Links und
-/// des Rücksprungs nach einem Formular.
+/// Canonical query part for the filter (without `?`, percent-encoded, empty without filter): basis of all links and
+/// of the way back after a form.
 pub fn filter_query(filter: &MapFilter) -> String {
     let mut parts = Vec::new();
     if let Some(status) = filter.status {
@@ -148,7 +148,7 @@ pub fn filter_query(filter: &MapFilter) -> String {
     if !filter.near {
         parts.push("near=0".to_owned());
     }
-    // `build` setzt die Vorgaben in den angewandten Filter ein; sie gehören nicht in die Adresse (kanonisch kurz).
+    // `build` puts the defaults into the applied filter; they do not belong in the address (canonically short).
     if let Some(limit) = filter.near_limit.filter(|l| *l != crate::idea_map::near::DEFAULT_LIMIT) {
         parts.push(format!("near_limit={limit}"));
     }
@@ -164,13 +164,13 @@ pub fn filter_query(filter: &MapFilter) -> String {
     parts.join("&")
 }
 
-/// Adresse mit Abfrageteil (`?` nur, wenn es einen gibt).
+/// Address with query part (`?` only if there is one).
 pub(crate) fn with_query(path: &str, query: &str) -> String {
     if query.is_empty() { path.to_owned() } else { format!("{path}?{query}") }
 }
 
-/// Abfrageteil eines Rücksprungs (`back`): nur der Abfrageteil der Karte, neu aufgebaut aus dem Filter – nichts
-/// aus dem Formular landet ungeprüft in der Weiterleitung.
+/// Query part of a way back (`back`): only the query part of the map, rebuilt from the filter – nothing
+/// from the form ends up unchecked in the redirect.
 pub(crate) fn back_filter(back: Option<&str>) -> MapFilter {
     let back = back.unwrap_or("").trim().trim_start_matches('?');
     let pairs = Uri::try_from(format!("/?{back}"))
@@ -181,9 +181,9 @@ pub(crate) fn back_filter(back: Option<&str>) -> MapFilter {
     parse_filter(&pairs).0
 }
 
-// ---- Vorlagen ------------------------------------------------------------------------------------
+// ---- Templates -----------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung (base.html + karte.html).
+/// Own template environment (base.html + karte.html).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -198,8 +198,8 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Selbst gebaute Adresse (Ziffern, feste Namen, prozentkodierte Werte) als sicherer Wert für `href`: `&` maskiert,
-/// `/` lesbar. Enthielte sie doch ein unsicheres Zeichen, steht `#` da.
+/// Self-built address (digits, fixed names, percent-encoded values) as a safe value for `href`: `&` escaped,
+/// `/` readable. Should it contain an unsafe character after all, `#` stands there.
 fn href(url: String) -> Value {
     if url.chars().any(|c| matches!(c, '"' | '<' | '>' | '\'' | ' ') || c.is_control()) {
         return Value::from_safe_string("#".to_owned());
@@ -207,7 +207,7 @@ fn href(url: String) -> Value {
     Value::from_safe_string(url.replace('&', "&amp;"))
 }
 
-/// Status der Fehlerseite nach dem RPC-Fehler.
+/// Status of the error page after the RPC error.
 pub(crate) fn status_of(e: &RpcError) -> StatusCode {
     match e.code {
         INVALID_PARAMS => StatusCode::UNPROCESSABLE_ENTITY,
@@ -221,8 +221,9 @@ pub(crate) fn plain(status: StatusCode, text: impl Into<String>) -> Response {
     (status, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text.into()).into_response()
 }
 
-/// Ordnername und Titel des Werks; `None`, wenn es das Werk nicht gibt.
-// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler); ein `Box` änderte alle Aufrufer.
+/// Folder name and title of the work; `None` if the work does not exist.
+// `Response` as the error is intended here (finished response for `?` in the handler); a `Box` would change all
+// callers.
 #[allow(clippy::result_large_err)]
 pub(crate) async fn work_info(state: &AppState, work: WorkId) -> Result<Option<(String, String)>, Response> {
     match state.store.works().await {
@@ -231,7 +232,7 @@ pub(crate) async fn work_info(state: &AppState, work: WorkId) -> Result<Option<(
     }
 }
 
-/// Rückmeldung zu `ok=<wort>`.
+/// Feedback for `ok=<wort>`.
 fn notice_of(ok: &str) -> &'static str {
     match ok {
         "bezug" => "Bezug gesetzt.",
@@ -259,7 +260,7 @@ fn notice_of(ok: &str) -> &'static str {
     }
 }
 
-/// Abfrageteil der Ansicht: Filter, dazu `zu=` (eingeklappte Knoten) – Grundlage der Links auf der Seite.
+/// Query part of the view: filter, plus `zu=` (collapsed nodes) – basis of the links on the page.
 fn view_query(filter: &MapFilter, closed: &[String]) -> String {
     let mut query = filter_query(filter);
     if !closed.is_empty() {
@@ -272,13 +273,13 @@ fn view_query(filter: &MapFilter, closed: &[String]) -> String {
     query
 }
 
-/// Das Bild als Fragment für die Seite (`standalone: false`); der gewählte Knoten (`wahl`) trägt `aria-current`.
+/// The picture as a fragment for the page (`standalone: false`); the chosen node (`wahl`) carries `aria-current`.
 fn draw(scene: &Scene, extra: &Extra) -> String {
     let options = mindmap::RenderOptions::of(scene, false, extra.closed.clone());
     let svg = mindmap::render(&scene.map, &options).svg;
     match &extra.wahl {
-        // Kennungen bestehen nur aus Buchstabe, Doppelpunkt und Ziffern ([`node_id`]); Titel sind maskiert und
-        // können das Muster (mit Anführungszeichen) nicht enthalten.
+        // Ids consist only of letter, colon and digits ([`node_id`]); titles are escaped and
+        // cannot contain the pattern (with quotation marks).
         Some(wahl) => {
             svg.replacen(&format!(" data-node=\"{wahl}\""), &format!(" data-node=\"{wahl}\" aria-current=\"true\""), 1)
         }
@@ -286,8 +287,8 @@ fn draw(scene: &Scene, extra: &Extra) -> String {
     }
 }
 
-/// Baum der Mindmap; unbekanntes Werk → 404, sonst Fehler mit Status nach RpcError.
-// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler).
+/// Tree of the mind map; unknown work → 404, otherwise error with status per RpcError.
+// `Response` as the error is intended here (finished response for `?` in the handler).
 #[allow(clippy::result_large_err)]
 async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<Scene, Response> {
     if work_info(state, work).await?.is_none() {
@@ -298,7 +299,7 @@ async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
         .map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))
 }
 
-/// Die Seite der Mindmap (auch als Fehlerseite eines Formulars: `status` und `error`).
+/// The page of the mind map (also as the error page of a form: `status` and `error`).
 pub(crate) async fn page_response(
     state: &AppState,
     headers: &HeaderMap,
@@ -313,7 +314,7 @@ pub(crate) async fn page_response(
         Err(response) => return response,
     };
     let map = &scene.map;
-    // Gruppen der Nähe (R19b) rechnen auf der flachen Karte; sie wird dafür ein zweites Mal gebaut (gleicher Filter).
+    // Groups of the nearness (R19b) compute on the flat map; it is built a second time for that (same filter).
     let flat: Option<IdeaMap> = crate::idea_map::build(state, work, filter).await.ok();
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let query = filter_query(&map.filter);
@@ -331,7 +332,7 @@ pub(crate) async fn page_response(
     let titles: HashMap<IdeaId, &str> =
         rows.iter().filter_map(|(node, _)| node.idea.map(|id| (id, node.title.as_str()))).collect();
     let label_of = |id: IdeaId| titles.get(&id).map(|t| (*t).to_owned());
-    // Eingeklappt: nur Knoten, die es gibt und die Kinder haben (kanonisch, nichts Fremdes in den Links).
+    // Collapsed: only nodes that exist and have children (canonical, nothing foreign in the links).
     let closed: Vec<String> = extra
         .closed
         .iter()
@@ -339,7 +340,7 @@ pub(crate) async fn page_response(
         .cloned()
         .collect();
     let view = Extra { closed: closed.clone(), ..extra.clone() };
-    // „Alles zuklappen“: jeder Hauptast mit Kindern (die Wolke klappt nicht).
+    // „Alles zuklappen“: every main branch with children (the cloud does not collapse).
     let mains: Vec<String> = map
         .root
         .children
@@ -366,7 +367,7 @@ pub(crate) async fn page_response(
         NearState::Ok | NearState::Off => None,
         _ => Some(map.near.message.clone()).filter(|m| !m.is_empty()),
     };
-    // Runde 19b: Gruppen der Nähe mit den Vorschlägen eines Assistenten (nur im Speicher).
+    // Round 19b: groups of the nearness with the suggestions of an assistant (only in memory).
     let clusters: Vec<Value> = flat
         .as_ref()
         .map(|flat| crate::idea_map::groups::of_map(state, flat))
@@ -416,7 +417,7 @@ pub(crate) async fn page_response(
         ideas_href => href(format!("/einfaelle?work={work}")),
         workspace => href(format!("/?work={work}")),
         near_toggle => toggled(&|f| f.near = !f.near),
-        // Runde 28: Ebene „Befunde“ ein- bzw. ausblenden (Link, ohne JavaScript).
+        // Round 28: show or hide the layer „Befunde“ (link, without JavaScript).
         findings_toggle => toggled(&|f| f.findings = !f.findings),
         findings_href => href(format!("/werke/{work}/befunde")),
         many_findings => crate::findings::page::MANY_OPEN,
@@ -461,8 +462,8 @@ async fn page(
     page_response(&state, &headers, work, &filter, &extra, StatusCode::OK, None).await
 }
 
-/// Nur das Bild (`image/svg+xml`), gleiche Abfrage wie die Seite – das Widget holt es nach jeder Aktion neu.
-/// Das Fragment aus [`mindmap::render`] bekommt hier `xmlns`, damit die Antwort für sich gültiges SVG ist.
+/// Only the picture (`image/svg+xml`), same query as the page – the widget fetches it anew after every action.
+/// The fragment from [`mindmap::render`] gets `xmlns` here so that the response is valid SVG on its own.
 async fn image(
     State(state): State<Arc<AppState>>,
     Path(work): Path<WorkId>,

@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lösungsvorschläge in Persona-Antworten (Runde 30b, chat-loesungen; Nutzer 2026-11-09: „Was aus dem Chat nicht
+//! Solution proposals in persona answers (Round 30b, chat-loesungen; user 2026-11-09: „Was aus dem Chat nicht
 //! hervorgeht, sind Lösungsvorschläge. Das sollte das Ziel sein.“).
 //!
-//! - **Form** unter einer Befundzeile (`Kritisch:` bzw. Aufzählungspunkt), wahlweise mit „- “ eingerückt:
-//!   `statt: „<wörtliches Zitat>“` und `besser: „<neue Formulierung>“` oder `Schritt: <klarer nächster Schritt>`;
-//!   Groß/klein egal; die Kurzform `statt „…“ besser „…“` in einer Zeile gilt auch. Zerlegt von [`parse_solutions`]
-//!   (eine Zeile erkennt [`is_solution_line`]); die Befunde ([`crate::findings::parse`]) hängen die Lösungszeilen an den
-//!   Befund darüber, `ingest` speichert sie je Befund (`Store::finding_set_solutions`).
-//! - **Übernehmbar** ist eine Lösung mit Zitat und neuer Formulierung, deren Zitat in der Fassung steht ([`locate`]:
-//!   wörtlich, Leerraum darf abweichen). [`post_solutions`] liefert die Lösungen eines Beitrags gegen die gezeigte
-//!   Fassung (Haken in `view.rs`).
-//! - **RFC** ([`rfc_proposal`], Haken in `chat.rs`): Der Lektor schließt mit „Mein Vorschlag:“ und zwei oder drei
-//!   Lösungen; Baruch setzt die übernehmbaren in die Prüfgrundlage ein und legt **einen** Sammel-Vorschlag an (Notiz
+//! - **Form** below a finding line (`Kritisch:` or list item), optionally indented with „- “:
+//!   `statt: „<wörtliches Zitat>“` and `besser: „<neue Formulierung>“` or `Schritt: <klarer nächster Schritt>`;
+//!   case-insensitive; the short form `statt „…“ besser „…“` in one line counts too. Parsed by [`parse_solutions`]
+//!   (one line is recognised by [`is_solution_line`]); the findings ([`crate::findings::parse`]) attach the solution
+//!   lines to the finding above, `ingest` stores them per finding (`Store::finding_set_solutions`).
+//! - **Adoptable** is a solution with quotation and new wording whose quotation stands in the revision ([`locate`]:
+//!   literal, whitespace may differ). [`post_solutions`] returns the solutions of a post against the shown
+//!   revision (hook in `view.rs`).
+//! - **RFC** ([`rfc_proposal`], hook in `chat.rs`): the lector closes with „Mein Vorschlag:“ and two or three
+//!   solutions; Baruch inserts the adoptable ones into the review basis and creates **one** collective proposal (note
 //!   „Mein Vorschlag von @lektor (Beitrag n)“).
 //! - **RPC** `solution.list`, `solution.adopt`, `solution.variants`, `solution.reject_siblings`, `solution.compare`;
-//!   Seite `GET /varianten` (Vergleich nebeneinander) und Formular `POST /loesungen/act` (ohne JavaScript, 303).
+//!   page `GET /varianten` (comparison side by side) and form `POST /loesungen/act` (without JavaScript, 303).
 //!
-//! Übernehmen einer Fassung bleibt beim Menschen: `solution.adopt` legt nur einen Vorschlag an (Herkunft die Persona
-//! des Beitrags) und schlägt die Befunde „übernommen in Fassung n“ vor; der Mensch bestätigt beides.
+//! Adopting a revision stays with the human: `solution.adopt` only creates a proposal (origin the persona
+//! of the post) and proposes the findings as „übernommen in Fassung n“; the human confirms both.
 
 use std::sync::{Arc, OnceLock};
 
@@ -36,29 +36,29 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
-/// Eine Lösung, wie die Oberfläche sie zeigt (Stelle im Beitrag, übernehmbar, Befund).
+/// A solution as the UI shows it (position in the post, adoptable, finding).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SolutionView {
     pub index: usize,
     pub quote: String,
     pub replacement: String,
     pub step: String,
-    /// Das Zitat steht wörtlich in der gezeigten Fassung.
+    /// The quotation stands literally in the shown revision.
     pub adoptable: bool,
     pub finding: Option<i64>,
 }
 
-/// Höchstlängen wie `Store::finding_set_solutions` (Zitat wie `finding.quote`, Formulierung und Schritt wie der Text).
+/// Maximum lengths like `Store::finding_set_solutions` (quotation like `finding.quote`, wording and step like text).
 const MAX_QUOTE: usize = baruch_store::MAX_QUOTE_CHARS;
 const MAX_TEXT: usize = baruch_store::MAX_FINDING_CHARS;
-/// Höchstens so viele Lösungen setzt [`rfc_proposal`] ein (der Lektor nennt zwei oder drei).
+/// At most this many solutions [`rfc_proposal`] inserts (the lector names two or three).
 pub const RFC_MAX_SOLUTIONS: usize = 3;
 
-/// Anführungszeichen: öffnend → mögliche schließende („…“ auch „…”, wie Modelle es oft schreiben).
+/// Quotation marks: opening → possible closing ones („…“ also „…”, as models often write it).
 const QUOTES: [(char, &[char]); 5] =
     [('„', &['“', '”']), ('"', &['"']), ('»', &['«']), ('“', &['”', '“']), ('‚', &['‘', '’'])];
 
-/// Aufzählungs- und Markdown-Zeichen, eine Nummer („1.“, „2)“) sowie Leerraum am Zeilenanfang überspringen.
+/// Skip list and Markdown characters, a number („1.“, „2)“) and whitespace at the start of the line.
 fn strip_marks(line: &str) -> &str {
     let marks = |c: char| c.is_whitespace() || matches!(c, '-' | '*' | '•' | '–' | '+' | '>' | '_');
     let probe = line.trim_start_matches(marks);
@@ -69,7 +69,7 @@ fn strip_marks(line: &str) -> &str {
     probe
 }
 
-/// `s` beginnt (ASCII, Groß/klein egal) mit `word` als ganzem Wort? Dann der Rest dahinter (ohne `*`/`_`).
+/// Does `s` start (ASCII, case-insensitive) with `word` as a whole word? Then the rest after it (without `*`/`_`).
 fn keyword<'a>(s: &'a str, word: &str) -> Option<&'a str> {
     let head = s.get(..word.len())?;
     if !head.eq_ignore_ascii_case(word) {
@@ -82,8 +82,8 @@ fn keyword<'a>(s: &'a str, word: &str) -> Option<&'a str> {
     Some(rest.trim_start_matches(['*', '_']))
 }
 
-/// Nach einem Schlüsselwort: optionaler Doppelpunkt (auch fett), dann Leerraum. Liefert den Rest und ob ein
-/// Doppelpunkt stand.
+/// After a keyword: optional colon (also bold), then whitespace. Returns the rest and whether a
+/// colon stood there.
 fn after_colon(rest: &str) -> (&str, bool) {
     let trimmed = rest.trim_start();
     match trimmed.strip_prefix(':') {
@@ -92,7 +92,7 @@ fn after_colon(rest: &str) -> (&str, bool) {
     }
 }
 
-/// Zitat am Anfang von `s` (nach Leerraum): Inhalt (getrimmt) und der Rest hinter dem schließenden Zeichen.
+/// Quotation at the start of `s` (after whitespace): content (trimmed) and the rest behind the closing mark.
 fn take_quote(s: &str) -> Option<(String, &str)> {
     let s = s.trim_start();
     let open = s.chars().next()?;
@@ -113,8 +113,8 @@ fn clip(text: &str, max: usize) -> String {
     out
 }
 
-/// Text hinter `besser:` ohne Zitatzeichen: das Zitat, sonst der Rest der Zeile (getrimmt, ohne Satzende-Zeichen
-/// außen).
+/// Text behind `besser:` without quotation marks: the quotation, otherwise the rest of the line (trimmed, without
+/// sentence-ending marks outside).
 fn better_text(rest: &str) -> Option<String> {
     if let Some((quote, _)) = take_quote(rest) {
         return Some(quote);
@@ -123,9 +123,9 @@ fn better_text(rest: &str) -> Option<String> {
     (!plain.is_empty()).then(|| plain.to_owned())
 }
 
-/// Eine Zeile der Lösungsform.
+/// One line of the solution form.
 enum Piece {
-    /// `statt: „…“`, wahlweise mit `besser „…“` in derselben Zeile.
+    /// `statt: „…“`, optionally with `besser „…“` in the same line.
     Instead(String, Option<String>),
     /// `besser: …`
     Better(String),
@@ -133,7 +133,7 @@ enum Piece {
     Step(String),
 }
 
-/// Zeile nach der Lösungsform lesen (am Zeilenanfang nach Aufzählungs- und Markdown-Zeichen).
+/// Read a line by the solution form (at the start of the line after list and Markdown characters).
 fn piece(line: &str) -> Option<Piece> {
     let probe = strip_marks(line);
     if let Some(rest) = keyword(probe, "statt") {
@@ -144,7 +144,7 @@ fn piece(line: &str) -> Option<Piece> {
     }
     if let Some(rest) = keyword(probe, "besser") {
         let (rest, colon) = after_colon(rest);
-        // „besser“ ohne Doppelpunkt nur mit Zitat („besser „…““), sonst ist es ein Satz („Besser wäre …“).
+        // „besser“ without colon only with a quotation („besser „…““), otherwise it is a sentence („Besser wäre …“).
         if !colon && take_quote(rest).is_none() {
             return None;
         }
@@ -152,14 +152,14 @@ fn piece(line: &str) -> Option<Piece> {
     }
     if let Some(rest) = keyword(probe, "schritt") {
         let (rest, colon) = after_colon(rest);
-        // Nur mit Doppelpunkt: „Schritt für Schritt …“ ist kein Lösungsschritt.
+        // Only with colon: „Schritt für Schritt …“ is not a solution step.
         let step = rest.trim().trim_matches(|c: char| matches!(c, '*' | '_')).trim();
         return (colon && !step.is_empty()).then(|| Piece::Step(step.to_owned()));
     }
     None
 }
 
-/// Hinter einem Zitat: `besser „…“` bzw. `, besser: „…“` bzw. `→ „…“`?
+/// Behind a quotation: `besser „…“` or `, besser: „…“` or `→ „…“`?
 fn short_better(rest: &str) -> Option<String> {
     let rest = rest.trim_start_matches(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | '–' | '-' | '*' | '_'));
     if let Some(after) = rest.strip_prefix('→') {
@@ -170,8 +170,8 @@ fn short_better(rest: &str) -> Option<String> {
     take_quote(after).map(|(q, _)| q)
 }
 
-/// Zeile ohne die neuen Formulierungen der Kurzform („besser „…““, „→ „…““): Was nach „besser“ steht, ist kein Zitat
-/// aus dem Text und darf die Belegprüfung eines „Kritisch:“-Befunds nicht auslösen.
+/// Line without the new wordings of the short form („besser „…““, „→ „…““): what stands after „besser“ is not a
+/// quotation from the text and must not trigger the evidence check of a „Kritisch:“ finding.
 pub fn strip_replacements(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     let mut rest = line;
@@ -196,12 +196,12 @@ pub fn strip_replacements(line: &str) -> String {
     out
 }
 
-/// Ist die Zeile eine Lösungszeile (`statt:` mit Zitat, `besser:`, `Schritt:`)?
+/// Is the line a solution line (`statt:` with quotation, `besser:`, `Schritt:`)?
 pub fn is_solution_line(line: &str) -> bool {
     piece(line).is_some()
 }
 
-/// Kurzform mitten in einer Zeile: „… statt „x“ besser „y“ …“ (jedes Vorkommen).
+/// Short form in the middle of a line: „… statt „x“ besser „y“ …“ (every occurrence).
 fn inline_pairs(line: &str) -> Vec<Solution> {
     let mut out = Vec::new();
     let lower = line.to_ascii_lowercase();
@@ -226,8 +226,8 @@ fn solution(quote: &str, replacement: &str, step: &str) -> Solution {
     Solution { quote: clip(quote, MAX_QUOTE), replacement: clip(replacement, MAX_TEXT), step: clip(step, MAX_TEXT) }
 }
 
-/// Lösungen aus dem Text einer Persona-Antwort (bzw. eines Befunds), in Textreihenfolge. `statt` ohne `besser` gilt
-/// nur zusammen mit einem folgenden `Schritt:` (dann Zitat und Schritt); ein `besser` ohne `statt` davor fällt weg.
+/// Solutions from the text of a persona answer (or of a finding), in text order. `statt` without `besser` counts
+/// only together with a following `Schritt:` (then quotation and step); a `besser` without `statt` before is dropped.
 pub fn parse_solutions(text: &str) -> Vec<Solution> {
     let mut out: Vec<Solution> = Vec::new();
     let mut pending: Option<String> = None;
@@ -256,8 +256,8 @@ pub fn parse_solutions(text: &str) -> Vec<Solution> {
     out
 }
 
-/// Stelle eines Zitats in `text`: wörtlich, sonst mit beliebigem Leerraum zwischen den Wörtern (Zeilenumbrüche im
-/// Typst-Quelltext); das erste Vorkommen. Leeres Zitat → `None`.
+/// Position of a quotation in `text`: literal, otherwise with arbitrary whitespace between the words (line breaks in
+/// the Typst source); the first occurrence. Empty quotation → `None`.
 pub fn locate(text: &str, quote: &str) -> Option<std::ops::Range<usize>> {
     let quote = quote.trim();
     if quote.is_empty() {
@@ -271,13 +271,13 @@ pub fn locate(text: &str, quote: &str) -> Option<std::ops::Range<usize>> {
     re.find(text).map(|m| m.range())
 }
 
-/// Lässt sich die Lösung in `text` einsetzen (Zitat und Formulierung, Zitat steht im Text)?
+/// Can the solution be inserted into `text` (quotation and wording, quotation stands in the text)?
 pub fn adoptable(solution: &Solution, text: &str) -> bool {
     !solution.replacement.trim().is_empty() && locate(text, &solution.quote).is_some()
 }
 
-/// Lösungen der Reihe nach in `text` einsetzen (je das erste Vorkommen des Zitats im schon geänderten Text). Fehlt
-/// ein Zitat (auch weil eine frühere Lösung es ersetzt hat) → Fehler mit der Stelle in `labels`.
+/// Insert solutions in order into `text` (each the first occurrence of the quotation in the already changed text).
+/// If a quotation is missing (also because an earlier solution replaced it) → error with the position in `labels`.
 pub fn apply_solutions(text: &str, solutions: &[(&str, &Solution)]) -> Result<String, String> {
     let mut out = text.to_owned();
     for (label, s) in solutions {
@@ -294,11 +294,11 @@ pub fn apply_solutions(text: &str, solutions: &[(&str, &Solution)]) -> Result<St
     Ok(out)
 }
 
-/// Lösungen eines Beitrags gegen die gezeigte Fassung `shown` (Stelle ab 0 in der Reihenfolge von
+/// Solutions of a post against the shown revision `shown` (position from 0 in the order of
 /// [`parse_solutions`]).
 pub fn post_solutions(body: &str, shown: &str) -> Vec<SolutionView> {
-    // Integrator Runde 30: Dieselbe Lösung (etwa unter dem Befund und noch einmal unter „Mein Vorschlag:“) erscheint nur
-    // einmal; `index` bleibt die Stelle in `parse_solutions`, damit `picks` von `solution.adopt` dieselbe Lösung meinen.
+    // Integrator Round 30: the same solution (e.g. below the finding and again below „Mein Vorschlag:“) appears only
+    // once; `index` stays the position in `parse_solutions` so that `picks` of `solution.adopt` mean the same solution.
     let mut seen = std::collections::HashSet::new();
     parse_solutions(body)
         .into_iter()
@@ -315,14 +315,14 @@ pub fn post_solutions(body: &str, shown: &str) -> Vec<SolutionView> {
         .collect()
 }
 
-/// Lösungen im Schlussblock „Mein Vorschlag:“ (Zeilen nach der Überschrift bis zum Ende bzw. bis zu einer Marke).
+/// Solutions in the closing block „Mein Vorschlag:“ (lines after the heading up to the end or up to a marker).
 pub fn proposal_block(text: &str) -> Vec<Solution> {
     let mut block: Vec<&str> = Vec::new();
     let mut inside = false;
     for line in text.lines() {
         if crate::findings::parse::proposal_heading(line) {
             inside = true;
-            // „Mein Vorschlag: statt „x“ besser „y““ – die Kurzform darf in derselben Zeile stehen.
+            // „Mein Vorschlag: statt „x“ besser „y““ – the short form may stand in the same line.
             block.push(line);
             continue;
         }
@@ -333,14 +333,14 @@ pub fn proposal_block(text: &str) -> Vec<Solution> {
     parse_solutions(&block.join("\n"))
 }
 
-// ---- Fassungen ---------------------------------------------------------------------------------
+// ---- Revisions ---------------------------------------------------------------------------------
 
-/// Abschnitt `key` mit Stelle (seq).
+/// Section `key` with position (seq).
 fn node_of(work: &Work, key: i64) -> Option<&Node> {
     work.nodes.iter().find(|n| n.key == key)
 }
 
-/// Text der Fassung `rev` (ohne Angabe die aktuelle) samt Nummer.
+/// Text of the revision `rev` (without a value the current one) with its number.
 fn revision_text(node: &Node, rev: Option<u32>) -> Result<(u32, String), RpcError> {
     let number = rev.or_else(|| node.current_number()).ok_or_else(|| refused("Der Abschnitt hat keine Fassung."))?;
     let revision = node
@@ -357,8 +357,8 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message.into())
 }
 
-/// Statusvorschläge „übernommen in Fassung `rev`“ für Befunde dieses Abschnitts (Herkunft die Persona); Befunde aus
-/// anderen Abschnitten bekommen keinen (die Nummer gälte dort nicht). Liefert die vorgeschlagenen ids und Hinweise.
+/// Status proposals „übernommen in Fassung `rev`“ for findings of this section (origin the persona); findings from
+/// other sections get none (the number would not be valid there). Returns the proposed ids and notes.
 async fn propose_adopted(
     state: &AppState,
     work: WorkId,
@@ -392,10 +392,10 @@ async fn propose_adopted(
     (done, notes)
 }
 
-/// „Mein Vorschlag:“ des Lektors beim RFC als **ein** Sammel-Vorschlag: die übernehmbaren Lösungen des Schlussblocks
-/// (höchstens [`RFC_MAX_SOLUTIONS`]) in die Prüfgrundlage (`base.basis` bzw. `base.rev`) eingesetzt, Herkunft der
-/// Lektor, Notiz „Mein Vorschlag von @lektor (Beitrag n)“. Befunde, die der Block mit `[B<id>]` nennt, werden
-/// „übernommen in Fassung n“ vorgeschlagen. `None` = kein Block, keine übernehmbare Lösung oder der Text bliebe gleich.
+/// „Mein Vorschlag:“ of the lector in an RFC as **one** collective proposal: the adoptable solutions of the closing
+/// block (at most [`RFC_MAX_SOLUTIONS`]) inserted into the review basis (`base.basis` or `base.rev`), origin the
+/// lector, note „Mein Vorschlag von @lektor (Beitrag n)“. Findings the block names with `[B<id>]` are proposed as
+/// „übernommen in Fassung n“. `None` = no block, no adoptable solution, or the text would stay the same.
 pub async fn rfc_proposal(
     state: &AppState,
     base: &super::Order,
@@ -417,7 +417,7 @@ pub async fn rfc_proposal(
         if used == RFC_MAX_SOLUTIONS {
             break;
         }
-        // Eine Lösung, deren Zitat eine frühere schon ersetzt hat, fällt weg (kein Fehler beim Sammel-Vorschlag).
+        // A solution whose quotation an earlier one already replaced is dropped (no error for the collective proposal).
         if let Ok(next) = apply_solutions(&changed, &[("Lösung", s)]) {
             changed = next;
             used += 1;
@@ -456,7 +456,7 @@ pub async fn rfc_proposal(
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub const METHODS: &[&str] =
     &["solution.list", "solution.adopt", "solution.variants", "solution.reject_siblings", "solution.compare"];
 
@@ -483,7 +483,7 @@ fn rev_param(params: &Value, name: &str) -> Result<Option<u32>, RpcError> {
     }
 }
 
-/// Liste von Zahlen (`[1, 2]`, eine Zahl, Ziffern als Text oder „1,2“ aus Formularen).
+/// List of numbers (`[1, 2]`, one number, digits as text or „1,2“ from forms).
 fn numbers(params: &Value, name: &str) -> Result<Vec<i64>, RpcError> {
     let wrong = || invalid(format!("{name}: Liste von Zahlen erwartet"));
     let one = |v: &Value| -> Result<Vec<i64>, RpcError> {
@@ -520,7 +520,7 @@ fn confirmed(params: &Value) -> bool {
     }
 }
 
-/// RPC `solution.*` beantworten.
+/// Answer RPC `solution.*`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     match method {
@@ -533,7 +533,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-/// Ein Beitrag des Abschnitts (`post.id`), sonst -32602.
+/// A post of the section (`post.id`), otherwise -32602.
 fn post_in(node: &Node, id: i64) -> Result<&baruch_core::Post, RpcError> {
     node.posts
         .iter()
@@ -541,7 +541,7 @@ fn post_in(node: &Node, id: i64) -> Result<&baruch_core::Post, RpcError> {
         .ok_or_else(|| invalid(format!("Beitrag {id} gehört nicht zu diesem Abschnitt.")))
 }
 
-/// Gezeigte Fassung für Lösungen eines Beitrags: `rev`, sonst die Prüfgrundlage des Beitrags, sonst die aktuelle.
+/// Shown revision for solutions of a post: `rev`, else the review basis of the post, else the current one.
 async fn shown_for(state: &AppState, work: WorkId, post: Option<i64>, rev: Option<u32>) -> Option<u32> {
     if rev.is_some() {
         return rev;
@@ -550,8 +550,8 @@ async fn shown_for(state: &AppState, work: WorkId, post: Option<i64>, rev: Optio
     state.store.post_meta(work, &[post]).await.ok()?.get(&post).and_then(|m| m.basis_rev)
 }
 
-/// `solution.list {key, post?, rev?}` → `{solutions: [SolutionView]}`: mit `post` die Lösungen des Beitrags (Stelle
-/// wie `picks` von `solution.adopt`), sonst die Lösungen aller Befunde des Abschnitts (Stelle je Befund, `finding`).
+/// `solution.list {key, post?, rev?}` → `{solutions: [SolutionView]}`: with `post` the solutions of the post (position
+/// like `picks` of `solution.adopt`), else the solutions of all findings of the section (position per finding).
 async fn list(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
     let loaded = state.store.load_work(work).await?;
@@ -583,9 +583,9 @@ async fn list(state: &AppState, work: WorkId, params: &Value) -> Result<Value, R
     Ok(json!({ "solutions": solutions, "rev": shown_rev }))
 }
 
-/// `solution.adopt {key, post | finding, rev?, picks}` → `{rev, url, proposed_findings, notes}` (siehe Moduldoku):
-/// `picks` sind Stellen in den Lösungen des Beitrags ([`parse_solutions`]) bzw. – mit `finding` – des Befunds. Basis
-/// ist `rev`, sonst die Prüfgrundlage des Beitrags (`PostMeta::basis_rev`) bzw. beim Befund die aktuelle Fassung.
+/// `solution.adopt {key, post | finding, rev?, picks}` → `{rev, url, proposed_findings, notes}` (see module doc):
+/// `picks` are positions in the solutions of the post ([`parse_solutions`]) or – with `finding` – of the finding. Base
+/// is `rev`, else the review basis of the post (`PostMeta::basis_rev`) or for a finding the current revision.
 async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
     let picks = numbers(params, "picks")?;
@@ -614,14 +614,14 @@ async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
         Some(f) => f.solutions.clone(),
         None => parse_solutions(&post.body),
     };
-    // Basis: `rev`; sonst beim Beitrag seine Prüfgrundlage, beim Befund (Befundliste) die aktuelle Fassung.
+    // Base: `rev`; else for a post its review basis, for a finding (findings list) the current revision.
     let rev = match &finding {
         Some(_) => rev_param(params, "rev")?,
         None => shown_for(state, work, Some(post_id), rev_param(params, "rev")?).await,
     };
     let (basis_rev, text) = revision_text(node, rev)?;
     let mut chosen: Vec<(String, &Solution)> = Vec::new();
-    // Doppelte Nummern zählen einmal: dieselbe Lösung zweimal einzusetzen ersetzte die eigene Ersetzung erneut.
+    // Duplicate numbers count once: inserting the same solution twice would replace its own replacement again.
     let mut seen = std::collections::HashSet::new();
     for &pick in picks.iter().filter(|p| seen.insert(**p)) {
         let s = usize::try_from(pick)
@@ -650,7 +650,7 @@ async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
         Some(f) => format!("Lösung aus Beitrag {post_id} (Befund [B{}])", f.id),
         None => format!("Lösung aus Beitrag {post_id}"),
     };
-    // Modell als Herkunft: das eingestellte der Persona (der Beitrag selbst nennt keins); sonst leer.
+    // Model as origin: the one configured for the persona (the post itself names none); otherwise empty.
     let model = state
         .store
         .persona_list()
@@ -666,7 +666,7 @@ async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
         crate::mirror::side_refs_after_proposal(state, &_held, work).await;
         rev
     };
-    // Befunde, die eine der gewählten Lösungen tragen: der genannte bzw. die Befunde des Beitrags mit dieser Lösung.
+    // Findings that carry one of the chosen solutions: the named one or the findings of the post with this solution.
     let ids: Vec<i64> = match &finding {
         Some(f) => vec![f.id],
         None => {
@@ -690,7 +690,7 @@ async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
     }))
 }
 
-/// Zahl der Varianten aus `count` (Vorgabe [`super::variants::DEFAULT_VARIANTS`], nur 2 oder 3).
+/// Number of variants from `count` (default [`super::variants::DEFAULT_VARIANTS`], only 2 or 3).
 pub fn variant_count(params: &Value) -> Result<Option<u8>, RpcError> {
     match number(params, "count")? {
         None => Ok(None),
@@ -701,12 +701,12 @@ pub fn variant_count(params: &Value) -> Result<Option<u8>, RpcError> {
     }
 }
 
-/// `solution.variants {key, rev?, findings?, count?}` → `VariantOutcome` (Lektor nach Einstellung, nur Vorschläge).
+/// `solution.variants {key, rev?, findings?, count?}` → `VariantOutcome` (lector by setting, proposals only).
 pub async fn variants(state: &AppState, work: WorkId, params: &Value, asker: &str) -> Result<Value, RpcError> {
     let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
     let post = number(params, "post")?;
     let mut findings = numbers(params, "findings")?;
-    // Aus einem Beitrag („Lösungen umsetzen“ unter seinen Lösungen): ohne Angabe dessen Befunde (ohne Lob).
+    // From a post („Lösungen umsetzen“ below its solutions): without a value its findings (without praise).
     if findings.is_empty()
         && let Some(post) = post
     {
@@ -733,8 +733,8 @@ pub async fn variants(state: &AppState, work: WorkId, params: &Value, asker: &st
     serde_json::to_value(outcome).map_err(|e| RpcError::new(INTERNAL, e.to_string()))
 }
 
-/// `solution.reject_siblings {key, rev, confirm: true}` → `{rejected: [rev], group}`: verwirft die übrigen offenen
-/// Vorschläge der Variantengruppe von `rev` (nur der Mensch; `rev` selbst bleibt).
+/// `solution.reject_siblings {key, rev, confirm: true}` → `{rejected: [rev], group}`: rejects the other open
+/// proposals of the variant group of `rev` (the human only; `rev` itself stays).
 async fn reject_siblings(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
     let rev = rev_param(params, "rev")?.ok_or_else(|| invalid("rev fehlt (die Variante, die bleibt)"))?;
@@ -763,7 +763,7 @@ async fn reject_siblings(state: &AppState, work: WorkId, params: &Value) -> Resu
     Ok(json!({ "rejected": rejected, "group": group, "kept": rev }))
 }
 
-/// Zeilen-Diff als sicheres HTML (alles maskiert): gleiche Zeilen schlicht, neue in `<ins>`, entfernte in `<del>`.
+/// Line diff as safe HTML (everything escaped): equal lines plain, new ones in `<ins>`, removed ones in `<del>`.
 pub fn diff_html(old: &str, new: &str) -> String {
     let mut out = String::from("<div class=\"sol-diff\">");
     for (kind, line) in baruch_core::line_diff(old.trim_end(), new.trim_end()) {
@@ -779,7 +779,7 @@ pub fn diff_html(old: &str, new: &str) -> String {
     out
 }
 
-/// Vergleich einer Gruppe: Basis, je Variante Unterschied zur Basis und untereinander.
+/// Comparison of a group: base, per variant the difference to the base and among each other.
 async fn comparison(state: &AppState, work: WorkId, key: i64, group: &str) -> Result<Value, RpcError> {
     let seq = state.store.node_seq(work, key).await?;
     let members = state.store.variant_group(work, seq, group).await?;
@@ -834,7 +834,7 @@ async fn compare(state: &AppState, work: WorkId, params: &Value) -> Result<Value
     comparison(state, work, key, group.trim()).await
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -854,7 +854,7 @@ fn plain(status: StatusCode, text: impl Into<String>) -> Response {
     (status, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text.into()).into_response()
 }
 
-/// Seite `variants.html` mit Vergleich bzw. Fehler.
+/// Page `variants.html` with comparison or error.
 fn page(
     headers: &HeaderMap,
     work: WorkId,
@@ -886,8 +886,8 @@ fn pair_number(pairs: &[(String, String)], name: &str) -> Option<i64> {
     pair(pairs, name).and_then(|v| v.trim().parse().ok())
 }
 
-/// `GET /varianten?work=W&key=K&group=G`: Varianten nebeneinander (Unterschied zur Basis und untereinander), je mit
-/// „übrige verwerfen“ (Formular an `/loesungen/act`) und Link in den Fassungsbaum; ohne JavaScript vollständig.
+/// `GET /varianten?work=W&key=K&group=G`: variants side by side (difference to the base and among each other), each
+/// with „übrige verwerfen“ (form to `/loesungen/act`) and link into the revision tree; complete without JavaScript.
 async fn variants_page(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -907,7 +907,7 @@ async fn variants_page(
     let Some(group) = pair(&pairs, "group") else {
         return plain(StatusCode::BAD_REQUEST, "group fehlt (Variantengruppe)");
     };
-    // Ohne `key` (Link aus dem Fassungsbaum des Kapitels) bestimmt die Gruppe den Abschnitt.
+    // Without `key` (link from the revision tree of the chapter) the group determines the section.
     let key = match pair_number(&pairs, "key") {
         Some(key) => key,
         None => match state.store.variant_group_key(work, group.trim()).await {
@@ -926,9 +926,9 @@ async fn variants_page(
     }
 }
 
-/// `POST /loesungen/act`: Felder `method` (solution.adopt | solution.variants | solution.reject_siblings), `work`,
-/// `key`, `rev`, `post`, `finding`, `picks` (mehrfach), `findings` (mehrfach), `count`, `confirm`, `back`; danach 303
-/// auf `back` (eigene Adresse) bzw. die neue Fassung; Fehler → 200 mit Hinweis (`role="alert"`) und Rücksprung.
+/// `POST /loesungen/act`: fields `method` (solution.adopt | solution.variants | solution.reject_siblings), `work`,
+/// `key`, `rev`, `post`, `finding`, `picks` (multiple), `findings` (multiple), `count`, `confirm`, `back`; then 303
+/// to `back` (own address) or the new revision; error → 200 with notice (`role="alert"`) and way back.
 async fn act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -980,12 +980,12 @@ async fn act(
     }
 }
 
-/// Seiten (`GET /varianten`).
+/// Pages (`GET /varianten`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/varianten", get(variants_page))
 }
 
-/// Schreibende Routen (`POST /loesungen/act`, hinter `guard::same_origin`).
+/// Writing routes (`POST /loesungen/act`, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/loesungen/act", post(act))
 }
