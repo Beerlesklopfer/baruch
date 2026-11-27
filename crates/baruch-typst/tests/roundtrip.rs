@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zerlegen und Zusammensetzen kleiner, eigener Typst-Dateien (`tests/data/kleines-buch.typ`,
-//! `tests/data/grenzen.typ`) und einzelner Grenzfälle. Jeder Fall prüft auch, dass `join` die Eingabe
-//! Byte für Byte zurückgibt.
+//! Splitting and joining small Typst files of our own (`tests/data/kleines-buch.typ`, `tests/data/grenzen.typ`) and
+//! individual edge cases. Every case also checks that `join` returns the input byte for byte.
 
 use baruch_typst::{Document, ParseError, join, parse};
 
@@ -12,7 +11,7 @@ fn levels_and_titles(source: &str) -> Vec<(u8, String)> {
     parse(source).unwrap().headings.into_iter().map(|h| (h.level, h.title)).collect()
 }
 
-/// Zerlegen und prüfen, dass `join` Byte für Byte die Eingabe ergibt.
+/// Split and check that `join` yields the input byte for byte.
 fn round_trip(source: &str) -> Document {
     let doc = parse(source).unwrap_or_else(|e| panic!("{e}: {source:?}"));
     let joined = join(&doc.template, doc.headings.iter().map(|h| h.body.as_str()));
@@ -103,8 +102,8 @@ fn crlf_is_left_alone_and_still_round_trips() {
 
 #[test]
 fn a_byte_order_mark_does_not_swallow_the_first_heading() {
-    // Windows-Editoren schreiben gern U+FEFF an den Anfang; die erste Überschrift darf deshalb
-    // nicht in der Werkvorlage verschwinden.
+    // Windows editors like to write U+FEFF at the start; the first heading must therefore not disappear in the work
+    // template.
     let doc = round_trip("\u{feff}= Erstes\nText\n= Zweites\nMehr\n");
     assert_eq!(titles(&doc), ["Erstes", "Zweites"], "beide Kapitel erkannt, auch direkt hinter dem BOM");
     assert_eq!(doc.template, "\u{feff}", "der BOM bleibt Werkvorlage, damit die Rundreise byte-gleich bleibt");

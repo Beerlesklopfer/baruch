@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verbindungen und Lagen der Gedankenkarte im Store (Vertrag Runde 25 §2, §3.1) auf einer echten SQLite-Datei:
-//! Ablehnungen ohne Schreiben, „widerspricht“ normalisiert, gleiches Paar bleibt bzw. kehrt zurück, weiches
-//! Löschen und Wiederherstellen, gelöschte Einfälle fallen aus Listen und Lagen und kommen zurück, Lagen mit
-//! Grenzen und Grabsteinen, Zeile „Verbindungen“ in `einfaelle.md`, uuid nur über den Fülltrigger.
-//! Testtexte frei erfunden.
+//! Links and positions of the idea map in the store (contract Round 25 §2, §3.1) on a real SQLite file: refusals
+//! without writing, „widerspricht“ normalised, the same pair stays or returns, soft deleting and restoring, deleted
+//! ideas drop out of lists and positions and come back, positions with limits and tombstones, line „Verbindungen“
+//! in `einfaelle.md`, uuid only through the fill trigger. Test texts freely invented.
 
 use baruch_store::{
     IdeaEdit, IdeaId, IdeaOrigin, LinkKind, MAP_COORD_LIMIT, MAX_LINK_NOTE_CHARS, NewIdea, NewIdeaLink, Store,
@@ -43,7 +42,7 @@ fn is_v4(uuid: &str) -> bool {
     baruch_exchange::is_uuid(uuid) && &uuid[14..15] == "4"
 }
 
-/// Ein Werk mit drei Einfällen und ein zweites mit einem.
+/// One work with three ideas and a second one with one.
 async fn two_works(store: &Store) -> (WorkId, WorkId, [IdeaId; 3], IdeaId) {
     let orchard = store.import_typst(ORCHARD, "obstgarten.typ", "Autor").await.unwrap().work;
     let meadow = store.import_typst(MEADOW, "hecke.typ", "Autor").await.unwrap().work;
@@ -70,7 +69,7 @@ async fn forbidden_links_are_refused_and_nothing_is_written() {
     ];
     for (new, why) in &cases {
         let result = store.idea_link_create(new).await;
-        // Vertrag §2: fachliche Ablehnung über StoreError::Idea (→ -32602), wie bei Einfällen.
+        // Contract §2: domain refusal through StoreError::Idea (→ -32602), as for ideas.
         assert!(matches!(result, Err(StoreError::Idea(_))), "{why}: abgelehnt mit Idea, war {result:?}");
     }
     let unknown = store.idea_link_create(&link(a, 99_999, LinkKind::LeadsTo, "")).await;
@@ -78,9 +77,9 @@ async fn forbidden_links_are_refused_and_nothing_is_written() {
     let nameless =
         NewIdeaLink { origin: IdeaOrigin::Persona { handle: " ".into() }, ..link(a, b, LinkKind::LeadsTo, "") };
     assert!(store.idea_link_create(&nameless).await.is_err(), "Herkunft ohne Namen abgelehnt");
-    // Nichts geschrieben: keine Zeile, auch kein halber Zustand aus einer abgebrochenen Transaktion.
+    // Nothing written: no row, also no half state from an aborted transaction.
     assert_eq!(count(&store, "SELECT count(*) FROM idea_link").await, 0, "keine Verbindung angelegt");
-    // Exakt 500 Zeichen gehen (Grenze in Zeichen, nicht Bytes).
+    // Exactly 500 characters work (limit in characters, not bytes).
     let max = "ä".repeat(MAX_LINK_NOTE_CHARS);
     assert!(store.idea_link_create(&link(a, b, LinkKind::LeadsTo, &max)).await.is_ok(), "500 Zeichen erlaubt");
 }
@@ -91,16 +90,16 @@ async fn contradicts_is_stored_from_the_smaller_id_and_counts_once() {
     let (_, _, [a, b, _], _) = two_works(&store).await;
     assert!(a < b, "Testannahme: a wurde zuerst angelegt");
     let (first, changed) = store.idea_link_create(&link(b, a, LinkKind::Contradicts, "beißt sich")).await.unwrap();
-    // „widerspricht“ ist ungerichtet: gespeichert immer from < to (CHECK in 0043), egal in welcher Richtung gefragt.
+    // „widerspricht“ is undirected: always stored from < to (CHECK in 0043), no matter in which direction it was asked.
     assert_eq!((first.from, first.to), (a, b), "getauscht auf from < to: {first:?}");
     assert!(changed, "neu angelegt");
     assert_eq!(first.origin, human(), "Herkunft gespeichert");
     assert!(is_v4(&first.uuid), "uuid vom Fülltrigger, kanonisch v4: {}", first.uuid);
     let (again, changed) = store.idea_link_create(&link(a, b, LinkKind::Contradicts, "anders")).await.unwrap();
-    // Dieselbe Verbindung in der anderen Richtung ist kein Doppel und ändert nichts (auch nicht die Notiz).
+    // The same link in the other direction is no duplicate and changes nothing (not the note either).
     assert_eq!((again.id, changed), (first.id, false), "gleiche Verbindung, unverändert");
     assert_eq!(again.note, "beißt sich", "Notiz bleibt bei unverändert");
-    // Gerichtete Arten sind dagegen zwei verschiedene Verbindungen je Richtung.
+    // Directed kinds, by contrast, are two different links per direction.
     let (there, _) = store.idea_link_create(&link(a, b, LinkKind::LeadsTo, "")).await.unwrap();
     let (back, _) = store.idea_link_create(&link(b, a, LinkKind::LeadsTo, "")).await.unwrap();
     assert_ne!(there.id, back.id, "führt weiter a→b und b→a sind verschieden");
@@ -123,7 +122,7 @@ async fn an_active_pair_stays_unchanged_and_a_deleted_one_comes_back() {
     let twice = store.idea_link_delete(made.id).await;
     assert!(matches!(twice, Err(StoreError::Idea(ref m)) if m.contains("schon gelöscht")), "zweimal: {twice:?}");
 
-    // Ohne neue Notiz bleibt die alte; die Verbindung ist dieselbe Zeile (uuid bleibt, kein Doppel).
+    // Without a new note the old one stays; the link is the same row (uuid stays, no duplicate).
     let (back, changed) = store.idea_link_create(&link(a, b, LinkKind::ExampleOf, "")).await.unwrap();
     assert!(changed && back.deleted.is_none(), "gelöscht → wiederhergestellt, changed true: {back:?}");
     assert_eq!(
@@ -131,7 +130,7 @@ async fn an_active_pair_stays_unchanged_and_a_deleted_one_comes_back() {
         (made.id, made.uuid.as_str(), "erste Notiz"),
         "dieselbe Zeile mit derselben uuid, die alte Notiz bleibt ohne neue"
     );
-    // Mit neuer Notiz wird sie ersetzt.
+    // With a new note it is replaced.
     store.idea_link_delete(made.id).await.unwrap();
     let (renoted, _) = store.idea_link_create(&link(a, b, LinkKind::ExampleOf, "neue Notiz")).await.unwrap();
     assert_eq!(renoted.note, "neue Notiz", "Notiz ersetzt, wenn eine neue mitkommt");
@@ -161,7 +160,7 @@ async fn a_deleted_idea_drops_out_of_links_and_positions_and_returns_with_its_re
     assert_eq!(ids(store.idea_links_of_work(orchard, false).await.unwrap()), vec![ab.id, bc.id], "beide nach id");
 
     store.idea_delete(b).await.unwrap();
-    // Vertrag §2: gelöschter Einfall – Verbindungen und Lage fallen heraus (Filter, kein Schreiben).
+    // Contract §2: deleted idea – links and position drop out (filter, no writing).
     assert!(store.idea_links_of_work(orchard, false).await.unwrap().is_empty(), "keine aktive Verbindung mehr");
     assert!(store.idea_links_of_idea(a, false).await.unwrap().is_empty(), "auch nicht beim Partner");
     assert_eq!(ids(store.idea_links_of_idea(a, true).await.unwrap()), vec![ab.id], "mit deleted=true noch da");
@@ -225,7 +224,7 @@ async fn positions_are_checked_replaced_and_reset_with_tombstones() {
     assert_eq!(store.idea_map_positions(meadow).await.unwrap().len(), 1, "das andere Werk bleibt unberührt");
     let work_uuid: String =
         sqlx::query_scalar("SELECT uuid FROM work WHERE id = ?").bind(orchard).fetch_one(store.pool()).await.unwrap();
-    // Hartes Löschen hinterlässt Grabsteine der neuen Art mit Werk-uuid (Austausch: „hier gelöscht“).
+    // Hard deleting leaves tombstones of the new kind with work uuid (exchange: "deleted here").
     let graves: i64 =
         sqlx::query_scalar("SELECT count(*) FROM uuid_tombstone WHERE kind = 'idea_map_pos' AND work_uuid = ?")
             .bind(&work_uuid)
@@ -250,9 +249,9 @@ async fn deleting_a_work_removes_its_positions_with_tombstones_and_keeps_the_lin
         .fetch_one(store.pool())
         .await
         .unwrap();
-    // work_map_pos_cascade_uuid_tombstone löscht die Lagen, solange die Werkzeile noch steht.
+    // work_map_pos_cascade_uuid_tombstone deletes the positions as long as the work row still stands.
     assert_eq!(grave.as_deref(), Some(work_uuid.as_str()), "Grabstein kennt die Werk-uuid");
-    // Einfälle werden beim Werklöschen zu Einfällen ohne Werk (0011), ihre Verbindung bleibt bestehen.
+    // Ideas become ideas without a work when the work is deleted (0011), their link stays.
     let links = store.idea_links_of_idea(a, false).await.unwrap();
     assert_eq!(links.iter().map(|l| l.id).collect::<Vec<_>>(), vec![ab.id], "Verbindung bleibt");
 }
@@ -286,7 +285,7 @@ async fn the_mirror_file_lists_links_after_the_other_fields() {
         let rest = &file.contents[start + head.len()..];
         rest[..rest.find("\n## ").unwrap_or(rest.len())].to_owned()
     };
-    // Vertrag §4.1: nach Verbindungs-id; → ausgehend, ← eingehend, ↔ ungerichtet; nur aktive; Notiz in „…“.
+    // Contract §4.1: by link id; → outgoing, ← incoming, ↔ undirected; only active ones; note in „…“.
     let expected =
         format!("- Verbindungen: ← {b} führt weiter; ↔ {c} widerspricht („süß oder sauer“); → {e} Beispiel für\n");
     let entry = entry_of(a);
@@ -294,7 +293,7 @@ async fn the_mirror_file_lists_links_after_the_other_fields() {
     assert!(entry.find("- Herkunft:").unwrap() < entry.find("- Verbindungen:").unwrap(), "nach den übrigen Feldern");
     assert!(entry_of(b).contains(&format!("- Verbindungen: → {a} führt weiter\n")), "Gegenrichtung bei b");
     assert!(entry_of(c).contains(&format!("- Verbindungen: ↔ {a} widerspricht („süß oder sauer“)\n")), "↔ bei c");
-    // Gelöschter Partner: Zeile fällt weg (nur zu nicht gelöschten Einfällen), ohne Verbindung keine Zeile.
+    // Deleted partner: the line is dropped (only to ideas that are not deleted), without a link no line.
     store.idea_delete(e).await.unwrap();
     store.idea_delete(c).await.unwrap();
     let file = store.idea_mirror_file(Some(orchard)).await.unwrap().unwrap();
@@ -311,7 +310,7 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_and_drops_its_positions
     let (_dir, store) = fresh().await;
     let (orchard, meadow, [a, b, c], _) = two_works(&store).await;
     let (ab, _) = store.idea_link_create(&link(a, b, LinkKind::LeadsTo, "")).await.unwrap();
-    // a ist das Ziel: das Lösen von der Seite eines verschobenen Ziels scheiterte vorher (Befund Runde 25).
+    // a is the target: detaching from the side of a moved target failed before (finding Round 25).
     let (ca, _) = store.idea_link_create(&link(c, a, LinkKind::ExampleOf, "")).await.unwrap();
     let (bc, _) = store.idea_link_create(&link(b, c, LinkKind::BelongsTo, "")).await.unwrap();
     store.idea_map_pos_set(orchard, a, 10.0, 20.0).await.unwrap();
@@ -322,8 +321,8 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_and_drops_its_positions
     let edit = IdeaEdit { work: Some(Some(meadow)), ..IdeaEdit::default() };
     store.idea_update(a, &edit).await.unwrap().expect("umgezogen");
 
-    // Verbindungen gibt es nur innerhalb eines Werks: beide Verbindungen von a sind weich gelöst, die
-    // Verbindung b → c, die a nicht berührt, bleibt.
+    // Links only exist within one work: both links of a are softly detached, the link b → c, which does not touch
+    // a, stays.
     assert!(store.idea_links_of_idea(a, false).await.unwrap().is_empty(), "a hat keine aktive Verbindung mehr");
     for id in [ab.id, ca.id] {
         assert!(store.idea_link_get(id).await.unwrap().deleted.is_some(), "Verbindung {id} weich gelöst");
@@ -334,7 +333,7 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_and_drops_its_positions
         vec![bc.id],
         "im alten Werk nur noch b → c"
     );
-    // einfaelle.md beider Werke ohne die Verbindung über die Werkgrenze (vorher stand sie in beiden).
+    // einfaelle.md of both works without the link across the work boundary (before it stood in both).
     let old_file = store.idea_mirror_file(Some(orchard)).await.unwrap().unwrap().contents;
     let partners: Vec<String> = old_file
         .lines()
@@ -348,11 +347,11 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_and_drops_its_positions
     );
     let new_file = store.idea_mirror_file(Some(meadow)).await.unwrap().unwrap().contents;
     assert!(!new_file.contains("- Verbindungen:"), "neues Werk ohne Verbindungszeile:\n{new_file}");
-    // Wiederherstellen über die Werkgrenze bleibt abgelehnt (check_pair).
+    // Restoring across the work boundary stays refused (check_pair).
     let refused = store.idea_link_restore(ab.id).await;
     assert!(matches!(refused, Err(StoreError::Idea(_))), "Wiederherstellen über Werke abgelehnt: {refused:?}");
 
-    // Die Lage von a im alten Werk ist hart entfernt (Grabstein mit der uuid des alten Werks), die von b bleibt.
+    // The position of a in the old work is hard-removed (tombstone with the uuid of the old work), that of b stays.
     let left: Vec<IdeaId> =
         sqlx::query_scalar("SELECT idea_id FROM idea_map_pos ORDER BY idea_id").fetch_all(store.pool()).await.unwrap();
     assert_eq!(left, vec![b], "nur die Lage von b bleibt");
@@ -362,7 +361,7 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_and_drops_its_positions
         .unwrap();
     assert_eq!(grave.as_deref(), Some(orchard_uuid.as_str()), "Grabstein der Lage im alten Werk");
 
-    // Zurück ins alte Werk: keine alte Lage taucht wieder auf, die Verbindung lässt sich wiederherstellen.
+    // Back into the old work: no old position reappears, the link can be restored.
     let back = IdeaEdit { work: Some(Some(orchard)), ..IdeaEdit::default() };
     store.idea_update(a, &back).await.unwrap().expect("zurück");
     assert!(
@@ -372,7 +371,7 @@ async fn moving_a_linked_idea_to_another_work_unlinks_it_and_drops_its_positions
     assert!(store.idea_link_get(ab.id).await.unwrap().deleted.is_some(), "Rückzug stellt nichts von selbst her");
     store.idea_link_restore(ab.id).await.expect("wieder im selben Werk: wiederherstellbar");
 
-    // Ändern ohne Werkwechsel lässt Verbindungen und Lagen in Ruhe.
+    // Changing without a change of work leaves links and positions alone.
     store.idea_map_pos_set(orchard, a, 1.0, 2.0).await.unwrap();
     let note = IdeaEdit { note: Some("Nur ein Gedanke"), ..IdeaEdit::default() };
     store.idea_update(a, &note).await.unwrap().expect("geändert");

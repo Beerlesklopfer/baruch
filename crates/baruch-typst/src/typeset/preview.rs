@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Quelle der Vorschau in den Einstellungen (Runde 29, Vertrag §6.1 `work.typeset_preview`): Werkvorlage, Regelblock
-//! der (ungespeicherten) Einstellungen und ein frei erfundener Mustertext – ein Teil, drei Kapitel mit Abschnitten,
-//! eine Fußnote je Kapitel, genug Text für mindestens sechs Seiten A5. So zeigt die Vorschau Kapitelanfang,
-//! Teil-Seite, Seitenzahlen, Kolumnentitel und Fußnoten, ohne den Buchtext zu setzen.
+//! Source of the preview in the settings (Round 29, contract §6.1 `work.typeset_preview`): work template, rule
+//! block of the (unsaved) settings and a freely invented sample text – one part, three chapters with sections, one
+//! footnote per chapter, enough text for at least six pages A5. This way the preview shows chapter start, part
+//! page, page numbers, running heads and footnotes without typesetting the book text.
 //!
-//! Wie im Buchsatz (`typeset::prepare` im Server) steht hinter dem Regelblock die Regel der Teil-Seiten
-//! ([`part_page_rule_for`]) – die Teil-Seite sieht in der Vorschau also aus wie im Buch.
+//! As in the book typesetting (`typeset::prepare` in the server) the rule of the part pages stands behind the rule
+//! block ([`part_page_rule_for`]) – so the part page looks in the preview as in the book.
 
 use super::model::TypesetSettings;
 use super::rules::{part_page_rule_for, rules};
 
-/// Frei erfundene Sätze des Mustertexts (kein Werktext).
+/// Freely invented sentences of the sample text (no work text).
 const SENTENCES: [&str; 12] = [
     "Am Rand der kleinen Stadt stand ein Leuchtturm, der seit Jahren kein Schiff mehr gesehen hatte.",
     "Die Wärterin stieg trotzdem jeden Abend die einhundertzwölf Stufen hinauf und putzte das Glas.",
@@ -26,17 +26,17 @@ const SENTENCES: [&str; 12] = [
     "So verging ein Jahr nach dem anderen, und der Leuchtturm wartete geduldig auf sein Schiff.",
 ];
 
-/// Absätze je Abschnitt, Sätze je Absatz, Abschnitte je Kapitel: 3 Kapitel × 2 Abschnitte × 4 Absätze × 8 Sätze
-/// = 192 Sätze ≈ 3000 Wörter; auf A5 mit Vorgabeschrift (≈ 400 Wörter je Seite) gut sieben Seiten Text, dazu die
-/// Teil-Seite.
+/// Paragraphs per section, sentences per paragraph, sections per chapter: 3 chapters × 2 sections × 4 paragraphs ×
+/// 8 sentences = 192 sentences ≈ 3000 words; on A5 with the default font (≈ 400 words per page) a good seven pages
+/// of text, plus the part page.
 const PARAGRAPHS: usize = 4;
 const SENTENCES_PER_PARAGRAPH: usize = 8;
 const SECTIONS: usize = 2;
 
 const CHAPTERS: [&str; 3] = ["Der Leuchtturm", "Die Dünen", "Der Sonntag"];
 
-/// Quelle der Vorschau: `template` + "\n" + `rules(settings)` + Regel der Teil-Seiten + Mustertext; `title` erscheint
-/// auf der Teil-Seite.
+/// Source of the preview: `template` + "\n" + `rules(settings)` + rule of the part pages + sample text; `title`
+/// appears on the part page.
 pub fn preview_source(settings: &TypesetSettings, template: &str, title: &str) -> String {
     let mut out = String::with_capacity(template.len() + 26_000);
     out.push_str(template);
@@ -87,7 +87,7 @@ mod tests {
         assert_eq!(source.lines().filter(|l| l.starts_with("= ")).count(), 3, "drei Kapitel");
         assert_eq!(source.matches("#footnote[").count(), 3, "eine Fußnote je Kapitel");
         let words = source.split_whitespace().count();
-        // Grob ≈ 400 Wörter je A5-Seite mit Vorgabeschrift; 2500 Wörter reichen sicher für sechs Seiten.
+        // Roughly ≈ 400 words per A5 page with the default font; 2500 words are certainly enough for six pages.
         assert!(words > 2500, "genug Text für mindestens sechs Seiten A5: {words}");
     }
 }

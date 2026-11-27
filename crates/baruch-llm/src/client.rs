@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ein Client je Endpunkt (Runde 15b, Vertrag §3): [`Client`] hält Art ([`BackendKind`]), Adresse und
-//! Schlüssel ([`crate::Endpoint`]), Grenzen ([`crate::Limits`]) und **einen** `reqwest::Client`, den alle
-//! Aufrufe dieses Endpunkts teilen (Verbindungen bleiben im Vorrat von reqwest offen). Klonen teilt ihn.
+//! One client per endpoint (Round 15b, contract §3): [`Client`] holds kind ([`BackendKind`]), address and key
+//! ([`crate::Endpoint`]), limits ([`crate::Limits`]) and **one** `reqwest::Client` that all calls of this endpoint
+//! share (connections stay open in the pool of reqwest). Cloning shares it.
 //!
-//! Alle drei Arten sprechen für Modellliste und Chat dieselbe OpenAI-artige Schnittstelle
-//! (`GET /v1/models`, gestreamtes `POST /v1/chat/completions`). Unterschiedlich ist nur, ob und wie die
-//! Gegenstelle eine **Kontextlänge meldet** ([`Client::context_length`]):
+//! All three kinds speak the same OpenAI-like interface for model list and chat (`GET /v1/models`, streamed `POST
+//! /v1/chat/completions`). The only difference is whether and how the remote side **reports a context length**
+//! ([`Client::context_length`]):
 //!
-//! - **Eliezer:** `GET /api/v1/models` (Verwaltungsliste in der Form von LM Studio 0.4, laut
-//!   `docs/wiki/API.md` von Eliezer): je Modell `key`, `max_context_length` und bei geladenem Modell
-//!   `loaded_instances[].config.context_length`. Gemeldet wird die Länge der geladenen Instanz, sonst
-//!   `max_context_length`. Nur lesend: Baruch ruft nie `/api/v1/models/load|unload|estimate` auf.
-//! - **Ollama:** gemeldet wird die Länge, mit der Ollama das Modell **tatsächlich** betreibt, nicht der
-//!   Höchstwert des Modells: Der Chat läuft über `/v1/chat/completions`, und dort setzt Baruch kein
-//!   `num_ctx` – Ollama nimmt dann `num_ctx` aus dem Modelfile, sonst seine eigene Vorgabe, und schneidet
-//!   längere Eingaben **still vorn ab**. Deshalb der Reihe nach: `num_ctx` aus `parameters` von
-//!   `POST /api/show {"model": …}`; sonst `context_length` des geladenen Modells aus `GET /api/ps` (Annahme:
-//!   neuere Ollama-Fassungen melden es dort; ältere nicht oder gar kein `/api/ps`); sonst die Vorgabe von
-//!   Ollama [`OLLAMA_DEFAULT_CONTEXT`] (Annahme nach der Ollama-Doku; eine größere Vorgabe über
-//!   `OLLAMA_CONTEXT_LENGTH` sieht Baruch erst, wenn das Modell geladen ist), höchstens aber
-//!   `<arch>.context_length` aus `model_info` (Höchstwert des Modells). Lieber zu klein als still gekürzt.
-//! - **OpenAI-kompatibel:** keine Meldung (`None`); es gilt die Einstellung der Persona.
+//! - **Eliezer:** `GET /api/v1/models` (management list in the form of LM Studio 0.4, according to
+//!   `docs/wiki/API.md` of Eliezer): per model `key`, `max_context_length` and for a loaded model
+//!   `loaded_instances[].config.context_length`. Reported is the length of the loaded instance, otherwise
+//!   `max_context_length`. Read-only: Baruch never calls `/api/v1/models/load|unload|estimate`.
+//! - **Ollama:** reported is the length with which Ollama **actually** runs the model, not the maximum of the
+//!   model: the chat runs through `/v1/chat/completions`, and there Baruch sets no `num_ctx` – Ollama then takes
+//!   `num_ctx` from the Modelfile, otherwise its own default, and **silently cuts off** longer inputs **at the
+//!   front**. Therefore in this order: `num_ctx` from `parameters` of `POST /api/show {"model": …}`; otherwise
+//!   `context_length` of the loaded model from `GET /api/ps` (assumption: newer Ollama versions report it there;
+//!   older ones do not, or have no `/api/ps` at all); otherwise the default of Ollama [`OLLAMA_DEFAULT_CONTEXT`]
+//!   (assumption after the Ollama documentation; Baruch sees a larger default through `OLLAMA_CONTEXT_LENGTH` only
+//!   once the model is loaded), but at most `<arch>.context_length` from `model_info` (maximum of the model).
+//!   Rather too small than silently truncated.
+//! - **OpenAI-compatible:** no report (`None`); the setting of the persona applies.
 //!
-//! Baruch fordert nie eine Kontextlänge an. Weiterleitungen folgt der Client nicht, der Schlüssel steht nur
-//! in `Authorization`, jede Meldung läuft durch [`crate::scrub`]. `Debug` zeigt den Schlüssel nie.
+//! Baruch never requests a context length. The client follows no redirects, the key stands only in `Authorization`,
+//! every message runs through [`crate::scrub`]. `Debug` never shows the key.
 
 use std::fmt;
 
@@ -32,7 +32,7 @@ use serde_json::{Value, json};
 
 use crate::{ChatReply, ChatRequest, Endpoint, Limits, LlmError};
 
-/// Art der Gegenstelle.
+/// Kind of the remote side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BackendKind {
@@ -42,7 +42,7 @@ pub enum BackendKind {
 }
 
 impl BackendKind {
-    /// Alle Arten in der Reihenfolge der Einstellungsseite.
+    /// All kinds in the order of the settings page.
     pub const ALL: [BackendKind; 3] = [BackendKind::Eliezer, BackendKind::Openai, BackendKind::Ollama];
 
     /// `eliezer`, `openai`, `ollama`.
@@ -54,22 +54,22 @@ impl BackendKind {
         }
     }
 
-    /// Aus `eliezer`, `openai`, `ollama` (Groß-/Kleinschreibung und Rand egal); sonst `None`.
+    /// From `eliezer`, `openai`, `ollama` (case and surrounding whitespace do not matter); otherwise `None`.
     pub fn parse(s: &str) -> Option<BackendKind> {
         let s = s.trim().to_ascii_lowercase();
         BackendKind::ALL.into_iter().find(|k| k.as_str() == s)
     }
 }
 
-/// Ein Modell der Gegenstelle.
+/// A model of the remote side.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ModelInfo {
     pub id: String,
-    /// gemeldete Kontextlänge in Tokens, None = meldet keine
+    /// reported context length in tokens, None = reports none
     pub context_length: Option<u32>,
 }
 
-/// Client eines Endpunkts (siehe Modulkopf).
+/// Client of an endpoint (see module header).
 #[derive(Clone)]
 pub struct Client {
     kind: BackendKind,
@@ -96,7 +96,7 @@ fn number(v: &Value) -> Option<u32> {
     }
 }
 
-/// Kontextlänge eines Modells aus der Verwaltungsliste von Eliezer (`GET /api/v1/models`).
+/// Context length of a model from the management list of Eliezer (`GET /api/v1/models`).
 pub fn eliezer_context(list: &Value, model: &str) -> Option<u32> {
     let entry = list.get("models")?.as_array()?.iter().find(|m| m.get("key").and_then(Value::as_str) == Some(model))?;
     let loaded = entry
@@ -106,12 +106,12 @@ pub fn eliezer_context(list: &Value, model: &str) -> Option<u32> {
     loaded.or_else(|| entry.get("max_context_length").and_then(number))
 }
 
-/// Vorgabe-Kontextlänge von Ollama, wenn weder Modelfile (`num_ctx`) noch das geladene Modell etwas anderes
-/// sagen (Annahme nach der Ollama-Doku, „default context window 4096 tokens“).
+/// Default context length of Ollama if neither the Modelfile (`num_ctx`) nor the loaded model say anything else
+/// (assumption after the Ollama documentation, "default context window 4096 tokens").
 pub const OLLAMA_DEFAULT_CONTEXT: u32 = 4096;
 
-/// `num_ctx` aus `parameters` der Antwort von Ollama `POST /api/show` (vom Modelfile festgelegt, wirksam auch
-/// über `/v1/chat/completions`).
+/// `num_ctx` from `parameters` of the answer of Ollama `POST /api/show` (fixed by the Modelfile, effective also
+/// through `/v1/chat/completions`).
 pub fn ollama_num_ctx(show: &Value) -> Option<u32> {
     show.get("parameters")
         .and_then(Value::as_str)
@@ -124,8 +124,8 @@ pub fn ollama_num_ctx(show: &Value) -> Option<u32> {
         .filter(|&n| n > 0)
 }
 
-/// Höchstwert des Modells: `<arch>.context_length` aus `model_info` von `POST /api/show` (nur obere Grenze, nie
-/// die wirksame Länge).
+/// Maximum of the model: `<arch>.context_length` from `model_info` of `POST /api/show` (upper limit only, never the
+/// effective length).
 pub fn ollama_model_max(show: &Value) -> Option<u32> {
     show.get("model_info")?
         .as_object()?
@@ -134,8 +134,8 @@ pub fn ollama_model_max(show: &Value) -> Option<u32> {
         .and_then(|(_, v)| number(v))
 }
 
-/// Länge, mit der ein geladenes Modell läuft: `context_length` seines Eintrags in `GET /api/ps` (Feld `name` oder
-/// `model` gleich `model`; Annahme, siehe Modulkopf).
+/// Length with which a loaded model runs: `context_length` of its entry in `GET /api/ps` (field `name` or `model`
+/// equal to `model`; assumption, see module header).
 pub fn ollama_loaded_context(ps: &Value, model: &str) -> Option<u32> {
     ps.get("models")?
         .as_array()?
@@ -144,8 +144,8 @@ pub fn ollama_loaded_context(ps: &Value, model: &str) -> Option<u32> {
         .find_map(|m| m.get("context_length").and_then(number))
 }
 
-/// Wirksame Kontextlänge bei Ollama (siehe Modulkopf): `num_ctx`, sonst die des geladenen Modells, sonst
-/// [`OLLAMA_DEFAULT_CONTEXT`] – nie mehr als der Höchstwert des Modells.
+/// Effective context length with Ollama (see module header): `num_ctx`, otherwise that of the loaded model,
+/// otherwise [`OLLAMA_DEFAULT_CONTEXT`] – never more than the maximum of the model.
 pub fn ollama_context(show: &Value, ps: Option<&Value>, model: &str) -> u32 {
     let effective = ollama_num_ctx(show)
         .or_else(|| ps.and_then(|ps| ollama_loaded_context(ps, model)))
@@ -154,7 +154,7 @@ pub fn ollama_context(show: &Value, ps: Option<&Value>, model: &str) -> u32 {
 }
 
 impl Client {
-    /// Neuer Client mit eigenem `reqwest::Client` (ohne Weiterleitungen, Verbindungsaufbau nach `limits`).
+    /// New client with its own `reqwest::Client` (without redirects, connect timeout from `limits`).
     pub fn new(kind: BackendKind, endpoint: Endpoint, limits: Limits) -> Result<Client, LlmError> {
         let http = crate::client(&limits)?;
         Ok(Client { kind, endpoint, limits, http })
@@ -168,20 +168,20 @@ impl Client {
         &self.endpoint
     }
 
-    /// Grenzen dieses Clients.
+    /// Limits of this client.
     pub fn limits(&self) -> &Limits {
         &self.limits
     }
 
-    /// Adresse außerhalb von `/v1` (z. B. `/api/show`): Basis ohne abschließendes `/v1`.
+    /// Address outside of `/v1` (e.g. `/api/show`): base without a trailing `/v1`.
     pub fn root_url(&self, path: &str) -> String {
         let base = self.endpoint.base_url.trim().trim_end_matches('/');
         let base = base.strip_suffix("/v1").unwrap_or(base);
         format!("{base}{path}")
     }
 
-    /// `GET /v1/models` und, wo die Gegenstelle sie in einer Liste meldet (Eliezer), die Kontextlänge je Modell.
-    /// Scheitert nur die Verwaltungsliste, bleibt die Kontextlänge leer.
+    /// `GET /v1/models` and, where the remote side reports it in a list (Eliezer), the context length per model. If
+    /// only the management list fails, the context length stays empty.
     pub async fn models(&self) -> Result<Vec<ModelInfo>, LlmError> {
         let ids = crate::models_using(&self.http, &self.endpoint, &self.limits).await?;
         let contexts = match self.kind {
@@ -197,14 +197,15 @@ impl Client {
             .collect())
     }
 
-    /// Gemeldete Kontextlänge eines Modells (siehe Modulkopf); OpenAI-kompatibel immer `None`.
+    /// Reported context length of a model (see module header); OpenAI-compatible always `None`.
     pub async fn context_length(&self, model: &str) -> Result<Option<u32>, LlmError> {
         match self.kind {
             BackendKind::Openai => Ok(None),
             BackendKind::Eliezer => Ok(eliezer_context(&self.eliezer_list().await?, model)),
             BackendKind::Ollama => {
                 let show = self.json_call("/api/show", Some(json!({ "model": model }))).await?;
-                // `/api/ps` nur fragen, wenn das Modelfile nichts festlegt; fehlt es (ältere Fassung), gilt die Vorgabe.
+                // Only ask `/api/ps` if the Modelfile fixes nothing; if it is missing (older version), the default
+                // applies.
                 let ps =
                     if ollama_num_ctx(&show).is_none() { self.json_call("/api/ps", None).await.ok() } else { None };
                 Ok(Some(ollama_context(&show, ps.as_ref(), model)))
@@ -212,7 +213,7 @@ impl Client {
         }
     }
 
-    /// Gestreamter Chat über den gemeinsamen HTTP-Client.
+    /// Streamed chat through the shared HTTP client.
     pub async fn chat_stream(
         &self,
         request: &ChatRequest,
@@ -225,8 +226,8 @@ impl Client {
         self.json_call("/api/v1/models", None).await
     }
 
-    /// `GET` (ohne Rumpf) bzw. `POST` (mit Rumpf) an `path` außerhalb von `/v1`, Antwort als JSON, gesamt
-    /// höchstens `limits.models_total`.
+    /// `GET` (without body) or `POST` (with body) to `path` outside of `/v1`, answer as JSON, in total at most
+    /// `limits.models_total`.
     async fn json_call(&self, path: &str, body: Option<Value>) -> Result<Value, LlmError> {
         let url = self.root_url(path);
         let endpoint = &self.endpoint;

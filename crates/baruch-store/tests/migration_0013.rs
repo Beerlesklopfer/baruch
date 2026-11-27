@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0013 (Verbindungen und Quellen, Runde 9) auf einer nachgebauten Datenbank im Stand von
-//! development vor dieser Runde: Store-Migrationen 0001–0012 und Bibliothek 0101–0105, ein frei
-//! erfundenes Werk mit Vorlage, Kapiteln, Vorschlag, Beitrag mit Verweis, Einfall mit Schlagwort,
-//! Bild, Antrag, Persona, gelöschtem Werk und Literatur mit Zitat und Hervorhebung – Zeilen in allen
-//! Tabellen.
+//! Migration 0013 (connections and sources, Round 9) on a rebuilt database in the state of development before this
+//! round: store migrations 0001–0012 and library 0101–0105, a freely invented work with template, chapters,
+//! proposal, post with reference, idea with keyword, image, request, persona, deleted work and literature with
+//! quote and highlight – rows in all tables.
 //!
-//! Danach `Store::open`: Jede Zeile bleibt unverändert (über die Spalten von vorher), das Schema jeder
-//! vorhandenen Tabelle ebenso, neu sind nur `connection`, `work_rag`, `preferred_source` und der Index
-//! `preferred_source_order`; `MIGRATOR` kennt Version 13. Ein gelöschtes Werk nimmt seine
-//! `work_rag`-Zeile mit. Das Schema wird nach einem Migrator bis 0013 verglichen (Runde 10), `Store::open`
-//! prüft danach den Datenerhalt mit allen späteren Migrationen.
+//! Afterwards `Store::open`: every row stays unchanged (through the columns from before), the schema of every
+//! existing table as well, new are only `connection`, `work_rag`, `preferred_source` and the index
+//! `preferred_source_order`; `MIGRATOR` knows version 13. A deleted work takes its `work_rag` row along. The schema
+//! is compared after a migrator up to 0013 (Round 10), `Store::open` afterwards checks the preservation of data
+//! with all later migrations.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -35,10 +34,10 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store bis 0012, Bibliothek vollständig (0101–0105, eigene Nummern).
-/// Store-Migrationen bis einschließlich `version` auf der nachgebauten Datenbank (Runde 10): Das Schema
-/// wird nach diesem Migrator verglichen, damit spätere Migrationen (z. B. 0015 an `persona`) den Vergleich
-/// nicht brechen; `Store::open` danach prüft nur noch den Datenerhalt.
+/// Store up to 0012, library complete (0101–0105, numbers of its own).
+/// Store migrations up to and including `version` on the rebuilt database (Round 10): the schema is compared after
+/// this migrator, so that later migrations (e.g. 0015 on `persona`) do not break the comparison; `Store::open`
+/// afterwards only checks the preservation of data.
 async fn migrate_upto(pool: &SqlitePool, version: i64) {
     let upto: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= version).cloned().collect();
     assert!(upto.iter().any(|m| m.version == version), "MIGRATOR enthält {version}");
@@ -53,8 +52,8 @@ async fn migrate_before(pool: &SqlitePool) {
     store.run(pool).await.unwrap();
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../baruch-library/migrations");
     let mut library = Migrator::new(dir).await.unwrap();
-    // Stand vor 0013 (wie die übrigen Migrationstests): spätere Bibliotheksmigrationen (Runde 13: 0106 mit
-    // anfangs leeren Tabellen) gehören nicht dazu.
+    // State before 0013 (like the other migration tests): later library migrations (Round 13: 0106 with initially
+    // empty tables) do not belong to it.
     library.migrations = Cow::Owned(library.iter().filter(|m| m.version <= 105).cloned().collect());
     library.ignore_missing = true;
     library.run(pool).await.unwrap();
@@ -64,7 +63,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Ein Werk mit allem, was es im Stand 0012 gibt; dazu ein gelöschtes Werk und die Bibliothek.
+/// A work with everything that exists in the state 0012; plus a deleted work and the library.
 async fn insert_everything(pool: &SqlitePool) -> WorkId {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: WorkId = sqlx::query_scalar(
@@ -229,7 +228,7 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// `CREATE`-Text aller Tabellen, Indizes und Trigger.
+/// `CREATE` text of all tables, indexes and triggers.
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows: Vec<(String, Option<String>)> =
         sqlx::query_as("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name")
@@ -268,7 +267,7 @@ async fn migration_0013_keeps_every_row_and_adds_only_the_three_tables_and_the_i
         assert!(!layout.contains_key(table), "vorher gibt es {table} nicht");
     }
     for (table, rows) in &before {
-        // FTS-Schattentabellen füllt SQLite selbst; sqlite_sequence führt AUTOINCREMENT.
+        // SQLite fills FTS shadow tables itself; sqlite_sequence keeps AUTOINCREMENT.
         let shadow = table.starts_with("search_fts_") || table.starts_with("idea_fts_");
         assert!(shadow || !rows.is_empty(), "Zeilen in jeder Tabelle vor der Migration, auch in {table}");
     }
@@ -294,7 +293,7 @@ async fn migration_0013_keeps_every_row_and_adds_only_the_three_tables_and_the_i
     }
     let added: Vec<&str> =
         schema_after.keys().map(String::as_str).filter(|name| !schema_before.contains_key(*name)).collect();
-    // Spätere Migrationen dürfen weitere Tabellen bringen; 0013 selbst bringt genau diese vier Einträge.
+    // Later migrations may bring further tables; 0013 itself brings exactly these four entries.
     for name in ["connection", "preferred_source", "preferred_source_order", "work_rag"] {
         assert!(added.contains(&name), "0013 legt {name} an: {added:?}");
     }
@@ -329,7 +328,7 @@ async fn migration_0013_keeps_every_row_and_adds_only_the_three_tables_and_the_i
         "Export byte-gleich wie vor der Migration"
     );
 
-    // Danach: RAG-Wege setzen; ein gelöschtes Werk nimmt seine Zeile mit (foreign_keys ist an).
+    // Afterwards: set RAG ways; a deleted work takes its row along (foreign_keys is on).
     assert_eq!(store.work_rag(work).await.unwrap(), (vec![RagWay::Lancedb], true), "ohne Zeile die Vorgabe");
     store.set_work_rag(work, &[RagWay::Pgvector]).await.unwrap();
     let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM work_rag").fetch_one(pool).await.unwrap();
@@ -339,8 +338,8 @@ async fn migration_0013_keeps_every_row_and_adds_only_the_three_tables_and_the_i
     assert_eq!(left, 0, "ein gelöschtes Werk nimmt seine RAG-Wege mit (ON DELETE CASCADE)");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row into `store_meta` at start; that adds one
+/// row and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

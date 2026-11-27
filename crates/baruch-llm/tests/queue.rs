@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Warteschlange: genau eine laufende Anfrage (der Nachbau zählt gleichzeitige Verbindungen),
-//! höchstens acht Wartende, fallen gelassene Wartende geben ihren Platz frei, `status()` nennt den
-//! laufenden Auftrag. Jeder Test hat seine eigene `Queue` (keine geteilte statische).
+//! Queue: exactly one running request (the mock counts simultaneous connections), at most eight waiting, dropped
+//! waiting jobs free their place, `status()` names the running job. Every test has its own `Queue` (no shared
+//! static one).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +18,7 @@ fn request() -> ChatRequest {
     }
 }
 
-/// Wartet, bis `test` gilt (höchstens 3 s).
+/// Waits until `test` holds (at most 3 s).
 async fn until(test: impl Fn() -> bool) -> bool {
     for _ in 0..300 {
         if test() {

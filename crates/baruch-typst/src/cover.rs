@@ -1,55 +1,54 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag, Titelei und Buchrücken als Typst-Quelltext (Vertrag Runde 11, Abschnitt 3, Aufgabe cover).
+//! Cover, front matter and spine as Typst source (contract Round 11, section 3, task cover).
 //!
-//! Rein, ohne Datenbank: Der Server liefert die Buchangaben ([`BookInfo`]) und die virtuellen Pfade der
-//! Bilder ([`VIRTUAL_DIR`]), diese Crate schreibt daraus Typst.
+//! Pure, without database: the server delivers the book details ([`BookInfo`]) and the virtual paths of the images
+//! ([`VIRTUAL_DIR`]), this crate writes Typst from them.
 //!
-//! - [`frame_parts`]: was vor dem ersten Abschnitt (`front`) und nach dem letzten (`back`) in den
-//!   Buchsatz kommt. `front`: Umschlag-Vorderseite (vollflächiges Bild, `margin: 0pt`, Titel und
-//!   Untertitel im gewählten Bereich, heller Text auf einem dunklen Verlauf), danach die Titelei
-//!   (Schmutztitel, Seite 2 leer bzw. Reihentitel, Haupttitel, Impressum, Widmung auf Wunsch). `back`:
-//!   Umschlag-Rückseite (Klappentext, Kurzbiografie mit Foto, ISBN mit Strichcode bzw. Platzhalter,
-//!   Verlag und Preis). Beide enthalten keine Überschrift und kein Inhaltsverzeichnis, damit
-//!   Seitenzuordnung und Gliederung des Buchs unberührt bleiben; keine dieser Seiten zeigt eine Seitenzahl.
-//! - [`wrap_source`]: der ganze Umschlag als **eine** Seite für die Druckerei: Rückseite | Rücken
-//!   (Text gedreht) | Vorderseite, rundum mit Beschnitt.
-//! - Nutzertexte stehen **nur** als Typst-String-Literale im Quelltext ([`typst_string`]: `\\`, `\"`,
-//!   Zeilenumbruch maskiert), nie als Markup: `#`, `*`, `]`, `$` in einem Titel werden wörtlich gesetzt.
-//! - [`isbn13`] prüft eine ISBN-13 samt Prüfziffer, [`ean13_svg`] zeichnet ihren Strichcode (EAN-13,
-//!   95 Module und Ruhezonen), [`spine_mm`] rechnet die Rückenbreite.
-//! - **Runde 27, Anordnung:** Mit `layout` setzen [`frame_parts`] und [`wrap_source`] den Text des Umschlags aus
-//!   Blöcken ([`crate::cover_layout`]): `place(top + left, dx, dy, block(width, …))` relativ zur Schnittkante der
-//!   Fläche, mit Größe, Zeilenabstand, Farbe, Schrift, Schnitt, Ausrichtung, Schatten bzw. Verlauf; auf dem Rücken
-//!   gedreht (`down` 90°, `up` −90°). [`block_measure_source`] setzt jeden Block auf eine eigene Seite mit
-//!   `height: auto` – so misst der Server die Höhe mit Typst.
-//! - **Runde 27, Titelei aus der Werkvorlage:** [`template_functions`] erkennt `schmutztitel`, `haupttitel`,
-//!   `impressum`, `widmung`; [`frame_parts`] schreibt dann einmal [`book_dict`] (`#let baruch_buch = (…)`, nur
-//!   String-Literale) und ruft die Funktionen auf eigenen Seiten an fester Stelle auf. [`imprint_template`] ist die
-//!   Vorlage für neue Bücher, [`imprint_template_missing`] hängt nur Fehlendes an. Die Grundschrift der
-//!   Vorlage liest `baruch_wysiwyg::template_font` (oberste Ebene, letzte Regel gewinnt).
-//! - **Runde 20c, Textregeln der Werkvorlage:** [`template_text_rules`] liest die `#set text(…)`- und
-//!   `#set par(…)`-Regeln der obersten Ebene (nur Sprache, Silbentrennung, Laufweite, Abstände, Kosten, Blocksatz,
-//!   Zeilenabstand, Einzüge – keine Schrift, Größe oder Farbe, die bestimmen die Blöcke bzw. der dunkle Grund) mit
-//!   einfachen Werten (Zahlen mit Einheit, Zeichenketten, `true`/`false`/`auto`/`none`, Wörterbücher daraus; Werte
-//!   mit Variablen der Vorlage fallen weg, weil der Umschlag die Vorlage nicht einbindet). [`wrap_source_with_rules`]
-//!   und [`block_measure_source_with_rules`] setzen sie nach `#set text(lang: "de")`; ohne Regeln sind sie
-//!   byte-gleich zu [`wrap_source`] bzw. [`block_measure_source`] (Goldstände R26/R27).
+//! - [`frame_parts`]: what goes into the typeset book before the first section (`front`) and after the last
+//!   (`back`). `front`: cover front (full-bleed image, `margin: 0pt`, title and subtitle in the chosen area, light
+//!   text on a dark gradient), then the front matter (half title, page 2 empty or series title, main title,
+//!   imprint, dedication on request). `back`: cover back (blurb, short biography with photo, ISBN with barcode or
+//!   placeholder, publisher and price). Both contain no heading and no table of contents, so that page mapping and
+//!   outline of the book stay untouched; none of these pages shows a page number.
+//! - [`wrap_source`]: the whole cover as **one** page for the print shop: back | spine (text rotated) | front, with
+//!   bleed all around.
+//! - User texts stand **only** as Typst string literals in the source ([`typst_string`]: `\\`, `\"`, line break
+//!   escaped), never as markup: `#`, `*`, `]`, `$` in a title are set literally.
+//! - [`isbn13`] checks an ISBN-13 including check digit, [`ean13_svg`] draws its barcode (EAN-13, 95 modules and
+//!   quiet zones), [`spine_mm`] calculates the spine width.
+//! - **Round 27, layout:** with `layout`, [`frame_parts`] and [`wrap_source`] set the text of the cover from blocks
+//!   ([`crate::cover_layout`]): `place(top + left, dx, dy, block(width, …))` relative to the trim edge of the face,
+//!   with size, leading, colour, font, weight, alignment, shadow or gradient; rotated on the spine (`down` 90°,
+//!   `up` −90°). [`block_measure_source`] sets every block on a page of its own with `height: auto` – this is how
+//!   the server measures the height with Typst.
+//! - **Round 27, front matter from the work template:** [`template_functions`] recognises `schmutztitel`,
+//!   `haupttitel`, `impressum`, `widmung`; [`frame_parts`] then writes [`book_dict`] once (`#let baruch_buch =
+//!   (…)`, only string literals) and calls the functions on pages of their own at a fixed place.
+//!   [`imprint_template`] is the template for new books, [`imprint_template_missing`] appends only what is missing.
+//!   The base font of the template is read by `baruch_wysiwyg::template_font` (top level, last rule wins).
+//! - **Round 20c, text rules of the work template:** [`template_text_rules`] reads the `#set text(…)` and `#set
+//!   par(…)` rules of the top level (only language, hyphenation, tracking, spacings, costs, justification, leading,
+//!   indents – no font, size or colour, those are determined by the blocks or the dark ground) with simple values
+//!   (numbers with unit, strings, `true`/`false`/`auto`/`none`, dictionaries of those; values with variables of the
+//!   template are dropped, because the cover does not include the template). [`wrap_source_with_rules`] and
+//!   [`block_measure_source_with_rules`] set them after `#set text(lang: "de")`; without rules they are
+//!   byte-identical to [`wrap_source`] and [`block_measure_source`] (golden files R26/R27).
 
-/// Ordner der virtuellen Dateien, die der Server dem Satz beilegt (Umschlag, Foto, Strichcode):
-/// `.baruch/<Bildname>`, Strichcode `.baruch/isbn.svg`.
+/// Folder of the virtual files the server adds to the typesetting (cover, photo, barcode): `.baruch/<image name>`,
+/// barcode `.baruch/isbn.svg`.
 pub const VIRTUAL_DIR: &str = ".baruch";
 
-/// Virtueller Pfad des Strichcodes.
+/// Virtual path of the barcode.
 pub const BARCODE_PATH: &str = ".baruch/isbn.svg";
 
-/// Erste Zeile von [`FrameParts::front`]; daran erkennt der Server, dass der Rahmen schon im Satz steht.
+/// First line of [`FrameParts::front`]; by it the server recognises that the frame already stands in the typesetting.
 pub const FRAME_MARK: &str = "// Baruch: Umschlag und Titelei (Runde 11)";
 
-/// Ruhezone links und rechts des Strichcodes in Modulen (EAN-13: 11 links, 7 rechts).
+/// Quiet zone left and right of the barcode in modules (EAN-13: 11 left, 7 right).
 pub const EAN_QUIET_LEFT: usize = 11;
 pub const EAN_QUIET_RIGHT: usize = 7;
 
-/// Wo Titel und Untertitel auf der Vorderseite stehen.
+/// Where title and subtitle stand on the front.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TitleArea {
     #[default]
@@ -58,7 +57,7 @@ pub enum TitleArea {
     Bottom,
 }
 
-/// Angaben des Buchs für Umschlag und Titelei; leere Felder fallen weg.
+/// Details of the book for cover and front matter; empty fields are dropped.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BookInfo {
     pub title: String,
@@ -72,25 +71,25 @@ pub struct BookInfo {
     pub price: String,
     pub series: String,
     pub printer: String,
-    /// Bibelübersetzung (z. B. „Lutherbibel 2017“).
+    /// Bible translation (e.g. „Lutherbibel 2017“).
     pub bible: String,
-    /// Rechtehinweis der Bibelübersetzung.
+    /// Rights notice of the Bible translation.
     pub bible_notice: String,
-    /// Bildnachweis bzw. Umschlaggestaltung (der Server setzt ohne Angabe die Bildunterschrift des Umschlags ein).
+    /// Image credit or cover design (without a value the server inserts the caption of the cover image).
     pub image_credit: String,
     pub dedication: String,
-    /// Klappentext der Rückseite.
+    /// Blurb of the back.
     pub blurb: String,
-    /// Kurzbiografie.
+    /// Short biography.
     pub bio: String,
-    /// Anschrift des Verlags bzw. bei Selbstverlag des Verfassers oder Herausgebers (Runde 27, mehrzeilig).
+    /// Address of the publisher or, with self-publishing, of the author or editor (Round 27, multi-line).
     pub publisher_address: String,
-    /// Anschrift der Druckerei (Runde 27, mehrzeilig).
+    /// Address of the print shop (Round 27, multi-line).
     pub printer_address: String,
 }
 
-/// Welche Titelei-Funktionen die Werkvorlage definiert (Runde 27, Vertrag 1.6; Typst: `schmutztitel`,
-/// `haupttitel`, `impressum`, `widmung`, je `#let name(buch)`).
+/// Which front-matter functions the work template defines (Round 27, contract 1.6; Typst: `schmutztitel`,
+/// `haupttitel`, `impressum`, `widmung`, each `#let name(buch)`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TemplateFunctions {
     pub half_title: bool,
@@ -99,47 +98,47 @@ pub struct TemplateFunctions {
     pub dedication: bool,
 }
 
-/// Umschlagbild: virtueller Pfad (`.baruch/<name>`) und Alternativtext.
+/// Cover image: virtual path (`.baruch/<name>`) and alternative text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoverRef {
     pub path: String,
     pub alt: String,
 }
 
-/// Was [`frame_parts`] einfügt.
+/// What [`frame_parts`] inserts.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FrameOptions {
     pub cover: Option<CoverRef>,
-    /// Vorder- und Rückseite in den Satz (nur wirksam mit Umschlag).
+    /// Front and back into the typesetting (only effective with a cover).
     pub cover_pages: bool,
-    /// Titelei (Schmutztitel, Seite 2, Haupttitel, Impressum, Widmung).
+    /// Front matter (half title, page 2, main title, imprint, dedication).
     pub front_matter: bool,
     pub title_area: TitleArea,
-    /// Virtueller Pfad der Strichcode-SVG (nur mit gültiger ISBN).
+    /// Virtual path of the barcode SVG (only with a valid ISBN).
     pub barcode: Option<String>,
-    /// Virtueller Pfad des Autorenfotos.
+    /// Virtual path of the author photo.
     pub author_photo: Option<String>,
-    /// Eigene Anordnung des Umschlags (Runde 27); `None` bzw. leer = bisheriges Bild.
+    /// Own layout of the cover (Round 27); `None` or empty = previous appearance.
     pub layout: Option<crate::cover_layout::CoverLayout>,
-    /// Titelei-Funktionen der Werkvorlage (Runde 27); keine = feste Seiten wie bisher.
+    /// Front-matter functions of the work template (Round 27); none = fixed pages as before.
     pub template_functions: TemplateFunctions,
 }
 
-/// Typst vor dem ersten und nach dem letzten Abschnitt.
+/// Typst before the first and after the last section.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FrameParts {
     pub front: String,
     pub back: String,
-    /// Seiten des Umschlags im Satz ([`COVER_PAGES`] oder 0); die Titelei zählt nicht dazu.
+    /// Pages of the cover in the typesetting ([`COVER_PAGES`] or 0); the front matter does not count.
     pub added_cover_pages: usize,
 }
 
-/// Seiten, die der Umschlag in den Buchsatz bringt: Vorderseite, leere Innenseite, Rückseite. Die Innenseite
-/// hält die Seitenparität (das erste Kapitel beginnt rechts wie ohne Umschlag), und auf ihr beginnt der
-/// Seitenzähler neu, damit die Seitenzahlen des Buchblocks nicht vom Umschlag abhängen.
+/// Pages the cover brings into the typeset book: front, empty inside page, back. The inside page keeps the page
+/// parity (the first chapter starts on the right as without a cover), and on it the page counter starts anew, so
+/// that the page numbers of the book block do not depend on the cover.
 pub const COVER_PAGES: usize = 3;
 
-/// Maße des ganzen Umschlags für [`wrap_source`].
+/// Dimensions of the whole cover for [`wrap_source`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct WrapOptions {
     pub page_width_mm: f64,
@@ -150,12 +149,12 @@ pub struct WrapOptions {
     pub cover: Option<CoverRef>,
     pub barcode: Option<String>,
     pub author_photo: Option<String>,
-    /// Eigene Anordnung des Umschlags (Runde 27); `None` bzw. leer = bisheriges Bild.
+    /// Own layout of the cover (Round 27); `None` or empty = previous appearance.
     pub layout: Option<crate::cover_layout::CoverLayout>,
 }
 
-/// Name des Wörterbuchs, das Baruch nach [`FRAME_MARK`] schreibt, wenn die Werkvorlage Titelei-Funktionen
-/// definiert (Runde 27, Vertrag 1.6): `#let baruch_buch = (…)`.
+/// Name of the dictionary Baruch writes after [`FRAME_MARK`] if the work template defines front-matter functions
+/// (Round 27, contract 1.6): `#let baruch_buch = (…)`.
 pub const BOOK_DICT: &str = "baruch_buch";
 
 use crate::cover_layout::{
@@ -163,15 +162,15 @@ use crate::cover_layout::{
     SIZE_PT, SpineDirection, WIDTH_MM, effective_blocks,
 };
 
-/// Farbe von Rückseite und Rücken.
+/// Colour of back and spine.
 const DARK: &str = "rgb(\"#1f2a33\")";
-/// Ränder einer Umschlagseite (ohne Beschnitt) in mm.
+/// Margins of a cover page (without bleed) in mm.
 const PANEL_MARGIN_MM: f64 = 14.0;
 
-// ---- Typst-Literale ------------------------------------------------------------------------------
+// ---- Typst literals ------------------------------------------------------------------------------
 
-/// Typst-String-Literal: `"…"` mit `\\`, `\"`, `\n`, `\t` maskiert; `\r` und andere Steuerzeichen
-/// fallen weg. So wird ein Nutzertext nie als Markup oder Code gelesen.
+/// Typst string literal: `"…"` with `\\`, `\"`, `\n`, `\t` escaped; `\r` and other control characters are dropped.
+/// This way a user text is never read as markup or code.
 pub fn typst_string(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -189,14 +188,14 @@ pub fn typst_string(text: &str) -> String {
     out
 }
 
-/// Länge in mm als Typst-Wert (`12.500mm`), nie in Exponentenschreibweise.
+/// Length in mm as a Typst value (`12.500mm`), never in exponent notation.
 fn mm(value: f64) -> String {
     let value = if value.is_finite() { value.max(0.0) } else { 0.0 };
     format!("{value:.3}mm")
 }
 
-/// Mehrzeiliger Text als Absätze (Leerzeile trennt), je Absatz ein String-Literal; einfache
-/// Zeilenumbrüche bleiben Zeilenumbrüche.
+/// Multi-line text as paragraphs (an empty line separates), one string literal per paragraph; single line breaks
+/// stay line breaks.
 fn paragraphs(text: &str, indent: &str) -> String {
     let normalized = text.replace("\r\n", "\n");
     let mut out = String::new();
@@ -211,14 +210,14 @@ fn filled(value: &str) -> Option<&str> {
     (!value.is_empty()).then_some(value)
 }
 
-/// Seite ohne Kopf, Fuß und Seitenzahl, Inhalt als Codeblock.
+/// Page without header, footer and page number, content as a code block.
 fn plain_page(args: &str, body: &str) -> String {
     format!("#page(header: none, footer: none, numbering: none{args}, {{\n{body}}})\n")
 }
 
-// ---- Umschlag-Seiten -------------------------------------------------------------------------------
+// ---- Cover pages -----------------------------------------------------------------------------------
 
-/// Titel und Untertitel der Vorderseite im gewählten Bereich, heller Text auf dunklem Verlauf.
+/// Title and subtitle of the front in the chosen area, light text on a dark gradient.
 fn title_block(info: &BookInfo, area: TitleArea, indent: &str) -> String {
     let (align, fill) = match area {
         TitleArea::Top => {
@@ -250,7 +249,7 @@ fn title_block(info: &BookInfo, area: TitleArea, indent: &str) -> String {
     )
 }
 
-/// Inhalt der Vorderseite (Bild oder dunkle Fläche, darauf der Titel) in einem Block der Größe 100 %.
+/// Content of the front (image or dark area, on it the title) in a block of size 100 %.
 fn front_body(info: &BookInfo, cover: Option<&CoverRef>, area: TitleArea, indent: &str) -> String {
     let mut out = String::new();
     match cover {
@@ -265,7 +264,7 @@ fn front_body(info: &BookInfo, cover: Option<&CoverRef>, area: TitleArea, indent
     out
 }
 
-/// Strichcode mit ISBN darunter bzw. ein Platzhalter (ohne gültige ISBN).
+/// Barcode with the ISBN below it, or a placeholder (without a valid ISBN).
 fn barcode_block(info: &BookInfo, barcode: Option<&str>) -> String {
     match (barcode, filled(&info.isbn)) {
         (Some(path), Some(isbn)) => format!(
@@ -277,7 +276,7 @@ fn barcode_block(info: &BookInfo, barcode: Option<&str>) -> String {
     }
 }
 
-/// Inhalt der Rückseite: Klappentext, Kurzbiografie (mit Foto), unten Verlag/Preis und Strichcode.
+/// Content of the back: blurb, short biography (with photo), at the bottom publisher/price and barcode.
 fn back_body(info: &BookInfo, photo: Option<&str>, barcode: Option<&str>, indent: &str) -> String {
     let mut out = format!("{indent}set text(fill: white, size: 10.5pt)\n{indent}set par(justify: true)\n");
     out.push_str(&paragraphs(&info.blurb, indent));
@@ -309,7 +308,7 @@ fn back_body(info: &BookInfo, photo: Option<&str>, barcode: Option<&str>, indent
     out
 }
 
-// ---- Titelei -----------------------------------------------------------------------------------
+// ---- Front matter ------------------------------------------------------------------------------
 
 fn half_title(info: &BookInfo) -> String {
     plain_page("", &format!("  set align(center)\n  v(22%)\n  text(size: 16pt, {})\n", typst_string(info.title.trim())))
@@ -324,7 +323,7 @@ fn second_page(info: &BookInfo) -> String {
                 typst_string(series)
             ),
         ),
-        // Leere Seite: ein unsichtbarer Inhalt, damit Typst die Seite sicher ausgibt.
+        // Empty page: an invisible content, so that Typst reliably emits the page.
         None => plain_page("", "  hide[ ]\n"),
     }
 }
@@ -348,15 +347,15 @@ fn main_title(info: &BookInfo) -> String {
     plain_page("", &body)
 }
 
-/// Überschrift des DNB-Hinweises im Impressum.
+/// Heading of the DNB notice in the imprint.
 pub const DNB_TITLE: &str = "Bibliografische Information der Deutschen Nationalbibliothek";
-/// Text des DNB-Hinweises im Impressum.
+/// Text of the DNB notice in the imprint.
 pub const DNB_TEXT: &str = "Die Deutsche Nationalbibliothek verzeichnet diese Publikation in der Deutschen \
      Nationalbibliografie; detaillierte bibliografische Daten sind im Internet über https://dnb.de abrufbar.";
-/// Satzvermerk im Impressum.
+/// Typesetting note in the imprint.
 pub const TYPESET_WITH: &str = "Gesetzt mit Baruch";
 
-/// Die ©-Zeile des Impressums: Jahr, Verfasser (sonst Verlag), Verlag, Ort.
+/// The © line of the imprint: year, author (otherwise publisher), publisher, place.
 pub fn copyright_line(info: &BookInfo) -> String {
     let holder = filled(&info.author).or(filled(&info.publisher)).unwrap_or("");
     let mut copyright = match (filled(&info.year), holder) {
@@ -374,15 +373,15 @@ pub fn copyright_line(info: &BookInfo) -> String {
     copyright
 }
 
-/// Mehrzeilige Anschrift in einer Zeile („Weg 1, 12345 Ort“).
+/// Multi-line address in one line („Weg 1, 12345 Ort“).
 fn one_line(address: &str) -> Option<String> {
     let parts: Vec<&str> = address.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
     (!parts.is_empty()).then(|| parts.join(", "))
 }
 
-/// Zeilen des Impressums (Text, schon ohne Markup). Die Anschriften (Runde 27) kommen nur dazu, wenn sie gesetzt
-/// sind: die des Verlags als eigene Zeile nach der ©-Zeile, die der Druckerei hinter „Druck:“ – ohne Anschriften
-/// bleiben die Zeilen wie vor Runde 27.
+/// Lines of the imprint (text, already without markup). The addresses (Round 27) are only added if they are set:
+/// that of the publisher as a line of its own after the © line, that of the print shop behind „Druck:“ – without
+/// addresses the lines stay as before Round 27.
 pub fn imprint_lines(info: &BookInfo) -> Vec<String> {
     let mut lines = vec![DNB_TITLE.to_owned(), DNB_TEXT.to_owned()];
     lines.push(copyright_line(info));
@@ -427,20 +426,20 @@ fn dedication(info: &BookInfo) -> Option<String> {
     let text = filled(&info.dedication)?;
     let mut body = String::from("  set align(center)\n  v(25%)\n  set text(style: \"italic\")\n");
     body.push_str(&paragraphs(text, "  "));
-    // Danach eine leere Seite, damit das erste Kapitel wieder auf einer rechten Seite beginnt.
+    // Afterwards an empty page, so that the first chapter starts on a right-hand page again.
     Some(format!("{}{}", plain_page("", &body), plain_page("", "  hide[ ]\n")))
 }
 
-/// Typst vor dem ersten und nach dem letzten Abschnitt. Beides leer (und `added_cover_pages` 0),
-/// wenn weder ein Umschlag mit `cover_pages` noch die Titelei gewünscht ist.
+/// Typst before the first and after the last section. Both empty (and `added_cover_pages` 0) if neither a cover
+/// with `cover_pages` nor the front matter is wanted.
 ///
-/// Runde 27: Mit einer nicht leeren `opts.layout` setzen Vorder- und Rückseite **nur** die Blöcke dieser
-/// Anordnung (sichtbar und mit Inhalt), jeweils relativ zur Schnittkante der Seite (im Buch W × H mit Rand 0).
-/// Fehlende Arten ergänzt der Server vorher mit [`crate::cover_layout::effective_blocks`], denn nur er kennt die
-/// Seitengröße. Definiert die Werkvorlage Titelei-Funktionen (`opts.template_functions`, nur mit Titelei
-/// wirksam), schreibt Baruch nach [`FRAME_MARK`] einmal das Wörterbuch [`BOOK_DICT`] und setzt jede Funktion auf
-/// eine eigene Seite an der festen Stelle; fehlt eine Funktion, steht dort die bisherige Seite. Ohne Anordnung und
-/// ohne Funktionen ist die Ausgabe byte-gleich zu Runde 26.
+/// Round 27: with a non-empty `opts.layout` front and back set **only** the blocks of this layout (visible and with
+/// content), each relative to the trim edge of the page (in the book W × H with margin 0). The server adds missing
+/// kinds beforehand with [`crate::cover_layout::effective_blocks`], because only it knows the page size. If the
+/// work template defines front-matter functions (`opts.template_functions`, only effective with front matter),
+/// Baruch writes the dictionary [`BOOK_DICT`] once after [`FRAME_MARK`] and sets every function on a page of its
+/// own at the fixed place; if a function is missing, the previous page stands there. Without a layout and without
+/// functions the output is byte-identical to Round 26.
 pub fn frame_parts(info: &BookInfo, opts: &FrameOptions) -> FrameParts {
     let cover = opts.cover.as_ref().filter(|_| opts.cover_pages);
     if cover.is_none() && !opts.front_matter {
@@ -465,8 +464,8 @@ pub fn frame_parts(info: &BookInfo, opts: &FrameOptions) -> FrameParts {
             }
         };
         front.push_str(&plain_page(", margin: 0pt", &body));
-        // Innenseite: leer; hier Seite 0, damit die erste Seite danach Seite 1 ist (Typst zählt jede Seite,
-        // auch ohne Nummer). Physisch Seite 2 – die erste Seite danach liegt rechts wie ohne Umschlag.
+        // Inside page: empty; page 0 here, so that the first page after it is page 1 (Typst counts every page, also
+        // without a number). Physically page 2 – the first page after it lies on the right as without a cover.
         front.push_str("// Umschlag, Innenseite (leer)\n");
         front.push_str(&plain_page("", "  counter(page).update(0)\n  hide[ ]\n"));
         back.push_str("// Baruch: Umschlag, Rückseite (Runde 11)\n");
@@ -497,7 +496,7 @@ pub fn frame_parts(info: &BookInfo, opts: &FrameOptions) -> FrameParts {
         front.push_str(&if functions.main_title { function_page("haupttitel") } else { main_title(info) });
         front.push_str(&if functions.imprint { function_page("impressum") } else { imprint(info) });
         if functions.dedication {
-            // Wie der Rückfall nur mit einer Widmung; danach die leere Seite für die Parität.
+            // Like the fallback only with a dedication; afterwards the empty page for the parity.
             if filled(&info.dedication).is_some() {
                 front.push_str(&function_page("widmung"));
                 front.push_str(&plain_page("", "  hide[ ]\n"));
@@ -509,24 +508,24 @@ pub fn frame_parts(info: &BookInfo, opts: &FrameOptions) -> FrameParts {
     FrameParts { front, back, added_cover_pages: if cover.is_some() { COVER_PAGES } else { 0 } }
 }
 
-/// Eine Seite der Titelei aus einer Funktion der Werkvorlage: `name(baruch_buch)` als Inhalt.
+/// One page of the front matter from a function of the work template: `name(baruch_buch)` as content.
 fn function_page(name: &str) -> String {
     plain_page("", &format!("  {name}({BOOK_DICT})\n"))
 }
 
-/// Der ganze Umschlag auf einer Seite: Rückseite | Rücken | Vorderseite, mit Beschnitt rundum.
-/// Breite = 2 × Seitenbreite + Rücken + 2 × Beschnitt, Höhe = Seitenhöhe + 2 × Beschnitt.
+/// The whole cover on one page: back | spine | front, with bleed all around. Width = 2 × page width + spine + 2 ×
+/// bleed, height = page height + 2 × bleed.
 ///
-/// Runde 27: Mit einer nicht leeren `opts.layout` bleiben die Flächen (Bild bzw. dunkle Fläche) wie bisher, Text
-/// kommt aber nur aus den Blöcken; fehlende Arten ergänzt [`crate::cover_layout::effective_blocks`]. Jeder Block
-/// steht relativ zur Schnittkante seiner Fläche ([`CoverGeometry::face_origin`]) und darf in den Beschnitt ragen.
+/// Round 27: with a non-empty `opts.layout` the faces (image or dark area) stay as before, but text only comes from
+/// the blocks; missing kinds are added by [`crate::cover_layout::effective_blocks`]. Every block stands relative to
+/// the trim edge of its face ([`CoverGeometry::face_origin`]) and may reach into the bleed.
 pub fn wrap_source(info: &BookInfo, opts: &WrapOptions) -> String {
     wrap_source_with_rules(info, opts, "")
 }
 
-/// Wie [`wrap_source`], mit den Textregeln der Werkvorlage (`rules` aus [`template_text_rules`], leer = keine)
-/// direkt nach `#set text(lang: "de")` (Runde 20c): So bricht ein Klappentext auf dem Umschlag für die Druckerei wie
-/// auf der Umschlagseite im Buch um.
+/// Like [`wrap_source`], with the text rules of the work template (`rules` from [`template_text_rules`], empty =
+/// none) directly after `#set text(lang: "de")` (Round 20c): this way a blurb on the cover for the print shop
+/// breaks like on the cover page in the book.
 pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) -> String {
     let bleed = opts.bleed_mm.max(0.0);
     let panel = opts.page_width_mm.max(1.0) + bleed;
@@ -572,7 +571,7 @@ pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) 
         }
         return out;
     }
-    // Rückseite
+    // Back
     let back = back_body(info, opts.author_photo.as_deref(), opts.barcode.as_deref(), "  ");
     out.push_str(&format!(
         "#place(top + left, block(width: {}, height: {}, fill: {DARK}, clip: true, \
@@ -584,7 +583,7 @@ pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) 
         mm(inner),
         mm(inner)
     ));
-    // Rücken: ab 6 mm mit Titel und Autor, gedreht (von oben nach unten zu lesen).
+    // Spine: from 6 mm on with title and author, rotated (to be read from top to bottom).
     let spine_text = if spine >= 6.0 {
         let label = match filled(&info.author) {
             Some(author) => format!("{} · {}", author, info.title.trim()),
@@ -604,7 +603,7 @@ pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) 
         mm(spine),
         mm(height)
     ));
-    // Vorderseite
+    // Front
     let front = front_body(info, opts.cover.as_ref(), opts.title_area, "  ");
     out.push_str(&format!(
         "#place(top + left, dx: {}, block(width: {}, height: {}, clip: true, {{\n{front}}}))\n",
@@ -615,13 +614,13 @@ pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) 
     out
 }
 
-/// Nur die **Vorderseite** des Umschlags auf einer Seite im Endformat (`page_width_mm` × `page_height_mm`, ohne
-/// Beschnitt) – die Vorlage des EPUB-Covers (Runde 21c, der Server rastert sie mit `baruch_render::render_png`).
-/// Inhalt wie die Vorderseite in [`wrap_source_with_rules`]: das Umschlagbild füllend (`fit: "cover"`) bzw. ohne
-/// Bild die dunkle Fläche, darauf mit einer nicht leeren `opts.layout` die sichtbaren Blöcke der Vorderseite
-/// (Titel, Untertitel, Autor, Verlag, Freitext; fehlende Arten als Vorgabeblöcke), sonst Titel, Untertitel und Autor
-/// im Titelbereich wie bisher. `spine_mm`, `barcode` und `author_photo` spielen keine Rolle; `bleed_mm` nur für die
-/// Vorgabeblöcke (wie im Buchsatz). Nutzertexte nur als String-Literale.
+/// Only the **front** of the cover on one page in the final format (`page_width_mm` × `page_height_mm`, without
+/// bleed) – the template of the EPUB cover (Round 21c, the server rasterises it with `baruch_render::render_png`).
+/// Content like the front in [`wrap_source_with_rules`]: the cover image filling (`fit: "cover"`) or, without an
+/// image, the dark area, on it with a non-empty `opts.layout` the visible blocks of the front (title, subtitle,
+/// author, publisher, free text; missing kinds as default blocks), otherwise title, subtitle and author in the
+/// title area as before. `spine_mm`, `barcode` and `author_photo` play no role; `bleed_mm` only for the default
+/// blocks (as in the typeset book). User texts only as string literals.
 pub fn front_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) -> String {
     let width = opts.page_width_mm.max(1.0);
     let height = opts.page_height_mm.max(1.0);
@@ -650,17 +649,17 @@ pub fn front_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str)
     out
 }
 
-// ---- Textregeln der Werkvorlage (Runde 20c) ---------------------------------------------------------
+// ---- Text rules of the work template (Round 20c) ----------------------------------------------------
 
-/// Argumente von `#set text(…)`, die der Umschlag übernimmt (keine Schrift, Größe, Farbe).
+/// Arguments of `#set text(…)` the cover takes over (no font, size, colour).
 const TEXT_RULE_ARGS: [&str; 10] =
     ["lang", "region", "script", "dir", "hyphenate", "tracking", "spacing", "costs", "kerning", "ligatures"];
-/// Argumente von `#set par(…)`, die der Umschlag übernimmt.
+/// Arguments of `#set par(…)` the cover takes over.
 const PAR_RULE_ARGS: [&str; 6] = ["justify", "leading", "spacing", "first-line-indent", "hanging-indent", "linebreaks"];
-/// Wörter, die in einem übernommenen Wert stehen dürfen (sonst wäre es eine Variable der Vorlage).
+/// Words that may stand in a taken-over value (otherwise it would be a variable of the template).
 const RULE_WORDS: [&str; 4] = ["true", "false", "auto", "none"];
 
-/// Kommentare (`// …`, `/* … */`) durch Leerzeichen ersetzen, Zeichenketten bleiben (Bytestellen gleich).
+/// Replace comments (`// …`, `/* … */`) by spaces, strings stay (byte positions the same).
 fn blank_comments(template: &str) -> String {
     let bytes = template.as_bytes();
     let mut out = bytes.to_vec();
@@ -717,11 +716,11 @@ fn blank_comments(template: &str) -> String {
         }
         i += 1;
     }
-    // Mehrbyte-Zeichen in Kommentaren werden byteweise zu Leerzeichen; der Rest bleibt gültiges UTF-8.
+    // Multi-byte characters in comments become spaces byte by byte; the rest stays valid UTF-8.
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Ende (exklusiv) der Klammer, die bei `open` beginnt; Zeichenketten zählen nicht.
+/// End (exclusive) of the parenthesis that starts at `open`; strings do not count.
 fn closing_paren(text: &str, open: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut depth = 0usize;
@@ -753,7 +752,7 @@ fn closing_paren(text: &str, open: usize) -> Option<usize> {
     None
 }
 
-/// Argumente auf Klammertiefe 0 trennen.
+/// Split arguments at parenthesis depth 0.
 fn split_args(inner: &str) -> Vec<&str> {
     let bytes = inner.as_bytes();
     let (mut depth, mut in_string, mut start) = (0usize, false, 0usize);
@@ -785,8 +784,8 @@ fn split_args(inner: &str) -> Vec<&str> {
     out.into_iter().map(str::trim).filter(|a| !a.is_empty()).collect()
 }
 
-/// Ein Wert aus Zahlen (mit Einheit), Zeichenketten, `true`/`false`/`auto`/`none` und Wörterbüchern bzw. Feldern
-/// daraus – ohne Variablen, Funktionsaufrufe oder Inhaltsblöcke.
+/// A value of numbers (with unit), strings, `true`/`false`/`auto`/`none` and dictionaries or arrays of those –
+/// without variables, function calls or content blocks.
 fn simple_value(value: &str) -> bool {
     let bytes = value.as_bytes();
     if value.trim().is_empty() || value.contains(['[', ']', '{', '}', '#', '\n']) {
@@ -831,10 +830,10 @@ fn simple_value(value: &str) -> bool {
     true
 }
 
-/// Die Text- und Absatzregeln der obersten Ebene der Werkvorlage als Typst-Zeilen (`#set text(…)`,
-/// `#set par(…)`), nur mit den übernommenen Argumenten und einfachen Werten (siehe Moduldoku); keine Regel → "".
-/// Die Reihenfolge der Vorlage bleibt (die letzte Regel gewinnt wie im Buch). Bedingte Regeln (`… if …`) und
-/// eingerückte Regeln (in Funktionen, Blöcken) zählen nicht.
+/// The text and paragraph rules of the top level of the work template as Typst lines (`#set text(…)`, `#set
+/// par(…)`), only with the taken-over arguments and simple values (see module documentation); no rule → "". The
+/// order of the template stays (the last rule wins as in the book). Conditional rules (`… if …`) and indented rules
+/// (in functions, blocks) do not count.
 pub fn template_text_rules(template: &str) -> String {
     let clean = blank_comments(template);
     let mut out = String::new();
@@ -862,8 +861,8 @@ pub fn template_text_rules(template: &str) -> String {
             if !allowed.contains(&name) || !simple_value(value) {
                 continue;
             }
-            // Die Sprache, die ohnehin gilt (anfangs „de“), nicht noch einmal setzen: So bleiben Werke mit
-            // `#set text(lang: "de")` byte-gleich zu den Goldständen.
+            // Do not set the language that applies anyway (initially "de") once more: this way works with `#set
+            // text(lang: "de")` stay byte-identical to the golden files.
             if element == "text" && name == "lang" {
                 if value == lang {
                     continue;
@@ -879,29 +878,28 @@ pub fn template_text_rules(template: &str) -> String {
     out
 }
 
-// ---- Blöcke der Anordnung (Runde 27) ---------------------------------------------------------------
+// ---- Blocks of the layout (Round 27) ---------------------------------------------------------------
 
-/// Virtuelle Pfade für die Blöcke mit Bild (Kurzbiografie mit Foto, Strichcode).
+/// Virtual paths for the blocks with an image (short biography with photo, barcode).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BlockRefs<'a> {
     pub photo: Option<&'a str>,
     pub barcode: Option<&'a str>,
 }
 
-/// Länge in mm mit Vorzeichen (Blöcke dürfen in den Beschnitt ragen), nie in Exponentenschreibweise.
+/// Length in mm with sign (blocks may reach into the bleed), never in exponent notation.
 fn signed_mm(value: f64) -> String {
     let value = if value.is_finite() { value } else { 0.0 };
     let text = format!("{value:.3}mm");
     if text == "-0.000mm" { "0.000mm".to_owned() } else { text }
 }
 
-/// `#rrggbb` mit sechs Hex-Ziffern?
+/// `#rrggbb` with six hex digits?
 pub fn is_hex_color(color: &str) -> bool {
     color.len() == 7 && color.starts_with('#') && color[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// Typst-Farbe eines Blocks: `light` weiß, `dark` wie Rückseite und Rücken, `#rrggbb` als `rgb("…")`; alles
-/// andere weiß.
+/// Typst colour of a block: `light` white, `dark` like back and spine, `#rrggbb` as `rgb("…")`; everything else white.
 pub fn block_color(color: &str) -> String {
     match color.trim() {
         "dark" => DARK.to_owned(),
@@ -910,7 +908,7 @@ pub fn block_color(color: &str) -> String {
     }
 }
 
-/// Hintergrund der Vorderseite: Bild (füllend, `fit: "cover"`) oder dunkle Fläche.
+/// Background of the front: image (filling, `fit: "cover"`) or dark area.
 fn cover_background(cover: Option<&CoverRef>, indent: &str) -> String {
     match cover {
         Some(cover) => format!(
@@ -922,8 +920,8 @@ fn cover_background(cover: Option<&CoverRef>, indent: &str) -> String {
     }
 }
 
-/// Inhalt eines Blocks (Typst-Code ohne Rahmen) oder `None`, wenn er nichts zu zeigen hat (leerer Text). Der
-/// Strichcode zeigt ohne gültige ISBN den Platzhalter. Nutzertexte nur als String-Literale.
+/// Content of a block (Typst code without frame) or `None` if it has nothing to show (empty text). The barcode
+/// shows the placeholder without a valid ISBN. User texts only as string literals.
 fn block_content(info: &BookInfo, block: &CoverBlock, refs: &BlockRefs<'_>) -> Option<String> {
     let single = |text: &str| filled(text).map(|t| format!("text({})", typst_string(t)));
     let paras = |text: &str| {
@@ -964,8 +962,8 @@ fn block_content(info: &BookInfo, block: &CoverBlock, refs: &BlockRefs<'_>) -> O
     }
 }
 
-/// Der Block ohne Lage: `block(width: …, {…})` mit Schrift, Absatz, Ausrichtung und auf Wunsch Hintergrund.
-/// `None` wie [`block_content`].
+/// The block without position: `block(width: …, {…})` with font, paragraph, alignment and on request background.
+/// `None` like [`block_content`].
 fn block_body(info: &BookInfo, block: &CoverBlock, refs: &BlockRefs<'_>, with_backdrop: bool) -> Option<String> {
     let content = block_content(info, block, refs)?;
     let mut text =
@@ -1000,9 +998,9 @@ fn block_body(info: &BookInfo, block: &CoverBlock, refs: &BlockRefs<'_>, with_ba
     ))
 }
 
-/// Die sichtbaren Blöcke der Fläche `face` als `place(…)`-Zeilen; `origin` ist die Schnittkante der Fläche auf der
-/// Seite (mm). Rücken: gedreht (`down` 90°, `up` −90°, `reflow`), die linke obere Ecke des gedrehten Rahmens steht
-/// bei (x, y). `indent` steht vor jeder Zeile (im Umschlag für die Druckerei `#`).
+/// The visible blocks of the face `face` as `place(…)` lines; `origin` is the trim edge of the face on the page
+/// (mm). Spine: rotated (`down` 90°, `up` −90°, `reflow`), the top left corner of the rotated frame stands at (x,
+/// y). `indent` stands before every line (in the cover for the print shop `#`).
 fn placed_blocks(
     info: &BookInfo,
     layout: &CoverLayout,
@@ -1034,16 +1032,16 @@ fn placed_blocks(
     out
 }
 
-/// Quelle zum Messen der Blockhöhen: je Block eine Seite (`width` = Blockbreite, `height: auto`, Rand 0) mit dem
-/// Block ohne Hintergrund (der Hintergrund ragt nur über `outset` hinaus und ändert die Höhe nicht). Ein Block ohne
-/// Inhalt bekommt eine leere Seite. Die Höhe der Seite `i` ist die Höhe des Blocks `i` in Leserichtung (beim
-/// Rücken die waagrechte Ausdehnung auf der Seite).
+/// Source for measuring the block heights: one page per block (`width` = block width, `height: auto`, margin 0)
+/// with the block without background (the background only reaches out through `outset` and does not change the
+/// height). A block without content gets an empty page. The height of page `i` is the height of block `i` in
+/// reading direction (on the spine the horizontal extent on the page).
 pub fn block_measure_source(info: &BookInfo, blocks: &[CoverBlock], refs: &BlockRefs<'_>) -> String {
     block_measure_source_with_rules(info, blocks, refs, "")
 }
 
-/// Wie [`block_measure_source`], mit den Textregeln der Werkvorlage (Runde 20c, siehe [`wrap_source_with_rules`]):
-/// Die gemessene Höhe gehört zum Umbruch, den der Umschlag später auch hat.
+/// Like [`block_measure_source`], with the text rules of the work template (Round 20c, see
+/// [`wrap_source_with_rules`]): the measured height belongs to the line breaking the cover will also have later.
 pub fn block_measure_source_with_rules(
     info: &BookInfo,
     blocks: &[CoverBlock],
@@ -1060,15 +1058,15 @@ pub fn block_measure_source_with_rules(
     out
 }
 
-/// Hat der Block etwas zu zeigen (Text bzw. Foto/Strichcode)?
+/// Does the block have something to show (text or photo/barcode)?
 pub fn block_has_content(info: &BookInfo, block: &CoverBlock, refs: &BlockRefs<'_>) -> bool {
     block_content(info, block, refs).is_some()
 }
 
-// ---- Wörterbuch für die Titelei-Funktionen (Runde 27) ----------------------------------------------
+// ---- Dictionary for the front-matter functions (Round 27) ------------------------------------------
 
-/// `#let baruch_buch = (…)`: alle Angaben als Typst-Zeichenketten (nie Markup oder Code), leer = `""`, dazu
-/// `impressum_zeilen` als Array der Zeilen von [`imprint_lines`].
+/// `#let baruch_buch = (…)`: all details as Typst strings (never markup or code), empty = `""`, plus
+/// `impressum_zeilen` as an array of the lines of [`imprint_lines`].
 pub fn book_dict(info: &BookInfo) -> String {
     let value = |text: &str| typst_string(text.trim());
     let entries: [(&str, String); 23] = [
@@ -1109,20 +1107,20 @@ pub fn book_dict(info: &BookInfo) -> String {
     out
 }
 
-// ---- Titelei aus der Werkvorlage (Runde 27) --------------------------------------------------------
+// ---- Front matter from the work template (Round 27) ------------------------------------------------
 
-/// Namen der Titelei-Funktionen in der Werkvorlage, in der Reihenfolge der Seiten.
+/// Names of the front-matter functions in the work template, in the order of the pages.
 pub const TEMPLATE_FUNCTION_NAMES: [&str; 4] = ["schmutztitel", "haupttitel", "impressum", "widmung"];
 
-/// Namen der Funktionen, die `#let name(` bzw. `#let name =` am Zeilenanfang definiert (Erkennung wie
-/// `ribbon::defined_functions` im Server, eigene Kopie).
+/// Names of the functions that `#let name(` or `#let name =` defines at the start of a line (detection like
+/// `ribbon::defined_functions` in the server, own copy).
 fn defined_functions(template: &str) -> Vec<String> {
     let mut names = Vec::new();
     for line in template.lines() {
         let Some(rest) = line.trim_start().strip_prefix("#let") else { continue };
         let rest = rest.trim_start();
         if rest.len() == line.trim_start().len() - 4 {
-            continue; // „#letter…“: kein Leerraum nach #let
+            continue; // „#letter…“: no whitespace after #let
         }
         let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-').collect();
         let after = rest[name.len()..].trim_start();
@@ -1133,9 +1131,9 @@ fn defined_functions(template: &str) -> Vec<String> {
     names
 }
 
-/// Welche der Funktionen `schmutztitel`, `haupttitel`, `impressum`, `widmung` die Werkvorlage definiert
-/// (Erkennung wie `ribbon::defined_functions`, eigene Kopie). Gezählt wird nur eine Funktion mit Parameter
-/// (`#let impressum(buch) = …`), nicht eine gleichnamige Variable.
+/// Which of the functions `schmutztitel`, `haupttitel`, `impressum`, `widmung` the work template defines (detection
+/// like `ribbon::defined_functions`, own copy). Only a function with a parameter counts (`#let impressum(buch) =
+/// …`), not a variable of the same name.
 pub fn template_functions(template: &str) -> TemplateFunctions {
     let defined = defined_functions(template);
     let has = |name: &str| {
@@ -1156,7 +1154,7 @@ pub fn template_functions(template: &str) -> TemplateFunctions {
     }
 }
 
-/// Kopf der Impressum-Vorlage.
+/// Head of the imprint template.
 const IMPRINT_HEAD: &str = "// Baruch: Titelei aus der Werkvorlage (Runde 27). Jede Funktion liefert den Inhalt einer Seite; Baruch\n\
 // setzt sie an die feste Stelle (Schmutztitel, Haupttitel, Impressum auf dessen Rückseite, Widmung). `buch` ist\n\
 // ein Wörterbuch aus Zeichenketten: titel, untertitel, autor, verlag, verlag_anschrift, ort, jahr, auflage, isbn,\n\
@@ -1164,7 +1162,7 @@ const IMPRINT_HEAD: &str = "// Baruch: Titelei aus der Werkvorlage (Runde 27). J
 // dnb_titel, dnb_text, gesetzt und impressum_zeilen (Array). Frei änderbar; fehlt eine Funktion, setzt Baruch\n\
 // die eingebaute Seite.\n";
 
-/// Die vier Funktionen der Impressum-Vorlage (Name, Typst). Sie setzen dasselbe wie die eingebauten Seiten.
+/// The four functions of the imprint template (name, Typst). They set the same as the built-in pages.
 const IMPRINT_FUNCTIONS: [(&str, &str); 4] = [
     ("schmutztitel", "#let schmutztitel(buch) = {\n  set align(center)\n  v(22%)\n  text(size: 16pt, buch.titel)\n}\n"),
     (
@@ -1181,7 +1179,7 @@ const IMPRINT_FUNCTIONS: [(&str, &str); 4] = [
     ),
 ];
 
-/// Impressum-Vorlage (die vier Titelei-Funktionen), die neue Bücher an ihre Werkvorlage gehängt bekommen.
+/// Imprint template (the four front-matter functions) that new books get appended to their work template.
 pub fn imprint_template() -> &'static str {
     static TEMPLATE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     TEMPLATE.get_or_init(|| {
@@ -1193,12 +1191,12 @@ pub fn imprint_template() -> &'static str {
     })
 }
 
-/// Meldung, wenn die Werkvorlage schon alle vier Titelei-Funktionen hat.
+/// Message if the work template already has all four front-matter functions.
 pub const IMPRINT_COMPLETE: &str =
     "Die Werkvorlage definiert schmutztitel, haupttitel, impressum und widmung schon – es fehlt nichts.";
 
-/// Die Teile der Impressum-Vorlage, die `template` noch fehlen, an `template` gehängt; sind alle vier Funktionen
-/// schon da, eine ehrliche Ablehnung ([`IMPRINT_COMPLETE`]).
+/// The parts of the imprint template that `template` still lacks, appended to `template`; if all four functions are
+/// already there, an honest refusal ([`IMPRINT_COMPLETE`]).
 pub fn imprint_template_missing(template: &str) -> Result<String, &'static str> {
     let present = template_functions(template);
     let missing: Vec<&str> = IMPRINT_FUNCTIONS
@@ -1226,23 +1224,23 @@ pub fn imprint_template_missing(template: &str) -> Result<String, &'static str> 
     Ok(out)
 }
 
-// ---- ISBN und Strichcode ---------------------------------------------------------------------------
+// ---- ISBN and barcode ------------------------------------------------------------------------------
 
-/// Warum eine ISBN-13 nicht gilt ([`isbn13_check`]).
+/// Why an ISBN-13 is not valid ([`isbn13_check`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsbnError {
-    /// Ein Zeichen außer Ziffern, Bindestrichen und Leerzeichen.
+    /// A character other than digits, hyphens and spaces.
     Character(char),
-    /// Nicht 13 Ziffern (gefunden: so viele).
+    /// Not 13 digits (found: this many).
     Length(usize),
-    /// Prüfziffer falsch (erwartet, angegeben).
+    /// Check digit wrong (expected, given).
     CheckDigit(u8, u8),
-    /// Präfix (die ersten drei Ziffern) weder 978 noch 979 (Runde 20c).
+    /// Prefix (the first three digits) neither 978 nor 979 (Round 20c).
     Prefix(u16),
 }
 
 impl IsbnError {
-    /// Kurze feste Meldung (für Fehlerarten mit `&'static str`).
+    /// Short fixed message (for error kinds with `&'static str`).
     pub fn message(self) -> &'static str {
         match self {
             IsbnError::Character(_) => "ISBN: nur Ziffern, Bindestriche und Leerzeichen sind erlaubt.",
@@ -1271,8 +1269,7 @@ impl std::fmt::Display for IsbnError {
     }
 }
 
-/// Vorsatz „ISBN-13“, „ISBN 13“, „ISBN13“ bzw. „ISBN“ in beliebiger Schreibung (auch „isbn-13“) abschneiden, dazu
-/// einen Doppelpunkt danach.
+/// Cut off the prefix „ISBN-13“, „ISBN 13“, „ISBN13“ or „ISBN“ in any spelling (also „isbn-13“), plus a colon after it.
 fn strip_isbn_label(text: &str) -> &str {
     let has_label = text.get(..4).is_some_and(|head| head.eq_ignore_ascii_case("isbn"));
     if !has_label {
@@ -1281,8 +1278,8 @@ fn strip_isbn_label(text: &str) -> &str {
     let mut rest = &text[4..];
     for thirteen in ["-13", " 13", "13", "\u{2010}13", "\u{2011}13"] {
         if let Some(after) = rest.strip_prefix(thirteen) {
-            // „ISBN 13…“ nur als Vorsatz, wenn danach keine Ziffer folgt (sonst gehört die 13 nicht zum Vorsatz,
-            // eine ISBN beginnt aber ohnehin mit 978/979).
+            // „ISBN 13…“ only as a prefix if no digit follows after it (otherwise the 13 does not belong to the
+            // prefix, but an ISBN starts with 978/979 anyway).
             if !after.starts_with(|c: char| c.is_ascii_digit()) {
                 rest = after;
             }
@@ -1292,7 +1289,7 @@ fn strip_isbn_label(text: &str) -> &str {
     rest.trim_start().trim_start_matches(':').trim()
 }
 
-/// Wie [`isbn13`], mit der Fehlerart. Runde 20c: Vorsatz in jeder Schreibung („isbn-13 …“), Präfix 978/979.
+/// Like [`isbn13`], with the kind of error. Round 20c: prefix in any spelling („isbn-13 …“), prefix 978/979.
 pub fn isbn13_check(input: &str) -> Result<String, IsbnError> {
     let rest = strip_isbn_label(input.trim());
     let mut digits = String::new();
@@ -1318,13 +1315,13 @@ pub fn isbn13_check(input: &str) -> Result<String, IsbnError> {
     Ok(digits)
 }
 
-/// Prüft eine ISBN-13 (mit oder ohne Bindestriche/Leerzeichen, wahlweise mit „ISBN“ davor) und gibt
-/// die 13 Ziffern zurück; falsche Zeichen, Länge oder Prüfziffer → deutsche Meldung.
+/// Checks an ISBN-13 (with or without hyphens/spaces, optionally with „ISBN“ in front) and returns the 13 digits;
+/// wrong characters, length or check digit → German message.
 pub fn isbn13(input: &str) -> Result<String, String> {
     isbn13_check(input).map_err(|e| e.to_string())
 }
 
-/// Prüfziffer einer EAN-13 aus den ersten 12 Ziffern (Gewichte 1, 3, 1, 3 …).
+/// Check digit of an EAN-13 from the first 12 digits (weights 1, 3, 1, 3 …).
 fn ean_check_digit(first12: &str) -> u8 {
     let sum: u32 = first12.bytes().enumerate().map(|(i, b)| u32::from(b - b'0') * if i % 2 == 0 { 1 } else { 3 }).sum();
     ((10 - sum % 10) % 10) as u8
@@ -1335,7 +1332,7 @@ const EAN_L: [&str; 10] =
 const EAN_PARITY: [&str; 10] =
     ["LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG", "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"];
 
-/// Module einer EAN-13 als `0`/`1` (95 Zeichen, ohne Ruhezonen); keine 13 Ziffern → `None`.
+/// Modules of an EAN-13 as `0`/`1` (95 characters, without quiet zones); not 13 digits → `None`.
 pub fn ean13_modules(digits: &str) -> Option<String> {
     if digits.len() != 13 || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
@@ -1348,7 +1345,7 @@ pub fn ean13_modules(digits: &str) -> Option<String> {
         if EAN_PARITY[d[0]].as_bytes()[i] == b'L' {
             out.push_str(l);
         } else {
-            // G-Code: das Spiegelbild des R-Codes (= Komplement des L-Codes).
+            // G code: the mirror image of the R code (= complement of the L code).
             out.extend(complement(l).chars().rev());
         }
     }
@@ -1360,8 +1357,8 @@ pub fn ean13_modules(digits: &str) -> Option<String> {
     Some(out)
 }
 
-/// Strichcode als SVG: ein Modul = eine Einheit, Ruhezonen [`EAN_QUIET_LEFT`]/[`EAN_QUIET_RIGHT`],
-/// Randbalken länger; ein `<rect>` je Balken. Keine gültigen 13 Ziffern → leerer Text.
+/// Barcode as SVG: one module = one unit, quiet zones [`EAN_QUIET_LEFT`]/[`EAN_QUIET_RIGHT`], guard bars longer;
+/// one `<rect>` per bar. No valid 13 digits → empty text.
 pub fn ean13_svg(digits: &str) -> String {
     let Some(modules) = ean13_modules(digits) else { return String::new() };
     let total = EAN_QUIET_LEFT + modules.len() + EAN_QUIET_RIGHT;
@@ -1393,7 +1390,7 @@ pub fn ean13_svg(digits: &str) -> String {
     out
 }
 
-/// Rückenbreite in mm: Seiten × Papierdicke je Seite.
+/// Spine width in mm: pages × paper thickness per page.
 pub fn spine_mm(pages: usize, paper_mm: f64) -> f64 {
     pages as f64 * paper_mm
 }

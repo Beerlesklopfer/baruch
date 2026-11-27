@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `Store::export_map` (Vertrag Runde 8, Abschnitt 4b): byte-gleich mit `export_typst` – mit
-//! Werkvorlage, Gliederungsschema und Bild – und je Abschnitt Schlüssel, Bereich und erste Zeile.
-//! Echte SQLite-Datei im Temp-Ordner, frei erfundenes Werk.
+//! `Store::export_map` (contract Round 8, section 4b): byte-identical with `export_typst` – with work template,
+//! outline scheme and image – and per section key, range and first line. Real SQLite file in the temp folder,
+//! freely invented work.
 
 use baruch_store::{ImportAsset, Store, WorkEdit};
 
-/// Erfundenes Werk mit Vorlage, Bild und einem Abschnitt ohne Zeilenende am Schluss (der Export
-/// ergänzt dort keins, mittendrin schon).
+/// Invented work with template, image and a section without a line end at the end (the export adds none there, but
+/// does in the middle).
 const WORK: &str = "#set text(lang: \"de\")\n#let szene(body) = emph(body)\n\
 = Die Laube\nAnna zählt Äpfel.\n#figure(image(\"./bilder/laube.svg\"))\n\
 == Abends\n#szene[Wind.]\n\
@@ -61,7 +61,7 @@ async fn sections_carry_key_seq_range_and_first_line() {
         assert_eq!(section.seq, node.id, "Stelle des Abschnitts {}", node.title);
         let body = &node.revisions[node.current_index().unwrap()].body;
         let text = &map.typst[section.start..section.end];
-        // Runde 30a: die erste Zeile trägt die Sprungmarke `<kN>`, der Rest ist der Text.
+        // Round 30a: the first line carries the jump label `<kN>`, the rest is the text.
         assert!(
             baruch_typst::xref::strip_key_labels(text).starts_with(body.as_str()),
             "Bereich von {} muss mit seinem Text beginnen: {text:?}",
@@ -93,7 +93,7 @@ async fn an_unknown_work_is_an_error() {
 #[tokio::test]
 async fn a_template_without_final_line_end_keeps_the_first_heading_and_its_own_lines() {
     let (_dir, store, work) = imported().await;
-    // Vom Menschen ohne Zeilenende am Schluss gespeichert (so kommt sie über work.update an).
+    // Saved by the human without a line end at the end (this is how it arrives through work.update).
     let template = "#set text(lang: \"de\")\n#unbekannt()";
     let edit = WorkEdit { template: Some(template), ..WorkEdit::default() };
     store.update_work(work, &edit, "Autorin").await.expect("Vorlage ohne Zeilenende speichern");
@@ -101,8 +101,8 @@ async fn a_template_without_final_line_end_keeps_the_first_heading_and_its_own_l
 
     let map = store.export_map(work).await.unwrap();
     assert_eq!(map.typst, store.export_typst(work).await.unwrap(), "Karte und Export bleiben byte-gleich");
-    // Sonst stünde „#unbekannt()= Die Laube“ in einer Zeile: keine Überschrift mehr, und der Fehler
-    // der Vorlage fiele auf den ersten Abschnitt.
+    // Otherwise „#unbekannt()= Die Laube“ would stand in one line: no heading any more, and the error of the
+    // template would fall on the first section.
     assert!(
         map.typst.starts_with("#set text(lang: \"de\")\n#unbekannt()\n= Die Laube <k"),
         "zwischen Vorlage und erster Überschrift steht ein Zeilenende: {:?}",

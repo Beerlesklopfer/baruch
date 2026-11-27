@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0010 (Farbe je Persona, Vertrag Runde 7, „proposals“) auf einer nachgebauten Datenbank im
-//! Stand von `development` vor Runde 7: Store-Migrationen 0001–0009 und Bibliotheks-Migrationen
-//! 0101–0105, Werk 1 = Beispielwerk mit Personas, Werk 2 = importiertes, frei erfundenes Buch mit
-//! Vorschlag, Beitrag mit Verweis, Bild (Fassung, Pfad) und Bibliothek (Titel, Zitat, Hervorhebung).
+//! Migration 0010 (colour per persona, contract Round 7, „proposals“) on a rebuilt database in the state of
+//! `development` before Round 7: store migrations 0001–0009 and library migrations 0101–0105, work 1 = sample work
+//! with personas, work 2 = imported, freely invented book with proposal, post with reference, image (revision,
+//! path) and library (title, quote, highlight).
 //!
-//! Verglichen wird nach einem Migrator bis 0010 (spätere Migrationen wie 0011 Einfälle stören so den
-//! Schemavergleich nicht): Alle Zeilen aller vorhandenen Tabellen bleiben gleich (über die Spalten von
-//! vorher), nur `persona` bekommt die Spalte `color` (überall NULL = Vorgabe), keine Verstöße gegen
-//! Fremdschlüssel, je Abschnitt genau eine aktuelle Fassung. Danach `Store::open` mit allen
-//! Migrationen: Export byte-gleich, Vorgabefarben nach Reihenfolge, ein zweiter Start ändert nichts.
+//! The comparison happens after a migrator up to 0010 (later migrations like 0011 ideas do not disturb the schema
+//! comparison this way): all rows of all existing tables stay the same (through the columns from before), only
+//! `persona` gets the column `color` (NULL everywhere = default), no violations of foreign keys, exactly one
+//! current revision per section. Afterwards `Store::open` with all migrations: export byte-identical, default
+//! colours by order, a second start changes nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen bis 0009 (Stand development) und die Bibliotheks-Migrationen 0101–0105.
+/// Store migrations up to 0009 (state of development) and the library migrations 0101–0105.
 async fn migrate_like_development(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 9).cloned().collect();
     assert!(old.iter().any(|m| m.version == 9), "Stand development hat 0009");
@@ -46,7 +46,7 @@ async fn migrate_like_development(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Ein Werk mit Gliederung, je Abschnitt Revisionen wie in `sample::work()` bzw. Revision 1.
+/// A work with outline, per section revisions as in `sample::work()` or revision 1.
 async fn insert_work(pool: &SqlitePool, slug: &str, title: &str, template: &str, source_name: Option<&str>) -> WorkId {
     let work: WorkId = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, template, source_name, source_sha256, title_key) \
@@ -163,7 +163,7 @@ async fn insert_sample(pool: &SqlitePool) -> WorkId {
     work_id
 }
 
-/// Frei erfundenes Buch mit Vorlage, Bildaufruf, Kapiteln und Abschnitten.
+/// Freely invented book with template, image call, chapters and sections.
 fn invented_book() -> String {
     let mut out = String::from(
         "#set document(title: \"Das Mühlenbuch\", author: \"Ida Feder\")\n#set heading(numbering: \"1.1\")\n\
@@ -223,7 +223,7 @@ async fn insert_import(pool: &SqlitePool, source: &str) -> WorkId {
         .unwrap();
         stack.push((heading.level, seq, number, 0));
     }
-    // Vorschlag, Beitrag mit Verweis, Bibliothek.
+    // Proposal, post with reference, library.
     let node: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 1")
         .bind(work)
         .fetch_one(pool)
@@ -275,7 +275,7 @@ async fn insert_import(pool: &SqlitePool, source: &str) -> WorkId {
     work
 }
 
-/// Schema aus `sqlite_master`: Name → SQL.
+/// Schema from `sqlite_master`: name → SQL.
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows: Vec<(String, Option<String>)> =
         sqlx::query_as("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_stat%'")
@@ -285,7 +285,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Spalten jeder Tabelle in ihrer Reihenfolge.
+/// Columns of every table in their order.
 async fn columns(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .fetch_all(pool)
@@ -303,7 +303,7 @@ async fn columns(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Zeilen der Tabellen in `layout` über genau diese Spalten, als `quote()`-Text, sortiert.
+/// All rows of the tables in `layout` through exactly these columns, as `quote()` text, sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -323,7 +323,7 @@ async fn count(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap()
 }
 
-/// Ein Bild (SVG, eine Fassung) mit Pfad `/bilder/rad-1.svg` im Werk, wie es 0009 speichert.
+/// An image (SVG, one revision) with path `/bilder/rad-1.svg` in the work, as 0009 stores it.
 async fn insert_asset(pool: &SqlitePool, work: WorkId) {
     let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle r=\"2\"/></svg>";
     let asset: i64 = sqlx::query_scalar("INSERT INTO asset (work_id, name) VALUES (?, 'rad-1') RETURNING id")
@@ -434,7 +434,7 @@ async fn migration_0010_keeps_every_row_and_adds_only_the_persona_color() {
         assert!(!c.chosen, "{}: nach der Migration keine eigene Farbe", c.handle);
     }
 
-    // Zweiter Start ändert nichts.
+    // A second start changes nothing.
     let layout_now = columns(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;

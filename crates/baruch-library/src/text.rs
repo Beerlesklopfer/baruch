@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lokaler Volltext eines Titels (Runde 21a, Migration `0108_title_text.sql`, Tabelle `library_title_text`): der
-//! Text einer als Quelle importierten PDF- oder EPUB-Datei, gelesen ohne MultiGPT. Ein Titel hat höchstens einen
-//! Volltext; er verschwindet mit dem Titel. Die Dokumentansicht zeigt ihn in Teilen, und Hervorhebungen ohne Zitat
-//! lassen sich gegen ihn prüfen ([`crate::check_range`]) – wie bei einer Verknüpfung mit MultiGPT ([`crate::RemoteRef`]).
+//! Local full text of a title (Round 21a, migration `0108_title_text.sql`, table `library_title_text`): the text of
+//! a PDF or EPUB file imported as a source, read without MultiGPT. A title has at most one full text; it disappears
+//! with the title. The document view shows it in parts, and highlights without a quote can be checked against it
+//! ([`crate::check_range`]) – as with a link with MultiGPT ([`crate::RemoteRef`]).
 
 use sqlx::SqlitePool;
 
 use crate::LibraryError;
 
-/// Lokaler Volltext eines Titels.
+/// Local full text of a title.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct TitleText {
-    /// Dateiname der importierten Datei (ohne Ordner).
+    /// File name of the imported file (without folder).
     pub source_name: String,
-    /// `application/pdf` oder `application/epub+zip`.
+    /// `application/pdf` or `application/epub+zip`.
     pub mime: String,
-    /// SHA-256 der Datei (Kleinbuchstaben-Hex).
+    /// SHA-256 of the file (lower-case hex).
     pub sha256: String,
-    /// Seitenzahl, falls bekannt (PDF).
+    /// Number of pages, if known (PDF).
     pub pages: Option<i64>,
     pub text: String,
 }
 
-/// Volltext setzen bzw. ersetzen. Unbekannter Titel → [`LibraryError::UnknownTitle`].
+/// Set or replace the full text. Unknown title → [`LibraryError::UnknownTitle`].
 pub async fn set_title_text(pool: &SqlitePool, title_id: i64, text: &TitleText) -> Result<(), LibraryError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM library_title WHERE id = ?1")
@@ -51,7 +51,7 @@ pub async fn set_title_text(pool: &SqlitePool, title_id: i64, text: &TitleText) 
     Ok(())
 }
 
-/// Volltext eines Titels; `None` ohne (auch bei unbekanntem Titel).
+/// Full text of a title; `None` without one (also for an unknown title).
 pub async fn title_text(pool: &SqlitePool, title_id: i64) -> Result<Option<TitleText>, LibraryError> {
     let row: Option<(String, String, String, Option<i64>, String)> =
         sqlx::query_as("SELECT source_name, mime, sha256, pages, text FROM library_title_text WHERE title_id = ?1")
@@ -61,7 +61,7 @@ pub async fn title_text(pool: &SqlitePool, title_id: i64) -> Result<Option<Title
     Ok(row.map(|(source_name, mime, sha256, pages, text)| TitleText { source_name, mime, sha256, pages, text }))
 }
 
-/// Zeitpunkt (UTC, `2026-11-09T10:11:12.123Z`), an dem der Volltext gespeichert wurde; `None` ohne.
+/// Time (UTC, `2026-11-09T10:11:12.123Z`) at which the full text was stored; `None` without one.
 pub async fn title_text_created(pool: &SqlitePool, title_id: i64) -> Result<Option<String>, LibraryError> {
     Ok(sqlx::query_scalar("SELECT created FROM library_title_text WHERE title_id = ?1")
         .bind(title_id)
@@ -69,7 +69,7 @@ pub async fn title_text_created(pool: &SqlitePool, title_id: i64) -> Result<Opti
         .await?)
 }
 
-/// Titel, dessen Volltext aus einer Datei mit diesem SHA-256 stammt (kleinste id); `None`, wenn keiner.
+/// Title whose full text comes from a file with this SHA-256 (smallest id); `None` if there is none.
 pub async fn title_for_text_sha256(pool: &SqlitePool, sha256: &str) -> Result<Option<i64>, LibraryError> {
     Ok(sqlx::query_scalar("SELECT title_id FROM library_title_text WHERE sha256 = ?1 ORDER BY title_id LIMIT 1")
         .bind(sha256)

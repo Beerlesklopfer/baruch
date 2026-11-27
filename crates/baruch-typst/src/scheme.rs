@@ -1,55 +1,52 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsschemata und Mustersprache der Nummerierung (Vertrag Runde 6, Abschnitt 2).
+//! Outline schemes and pattern language of the numbering (contract Round 6, section 2).
 //!
-//! **Mustersprache** (gespeichert in `work.numbering` beim Schema „Eigenes Muster“, auch die Eingabe
-//! im Gliederungskopf):
-//! - `P` – ein Typst-Muster hierarchisch für alle Ebenen (`1.1`, `I.1`, `1.a)`), wie bisher;
-//! - `P|k` (k = 1 bis 6) – hierarchisch, aber nur die Ebenen 1 bis k tragen eine Nummer (`I|1` = nur
-//!   Kapitel römisch);
-//! - `P1;P2;…;Pn` (n ≥ 2) – ein Muster je Ebene: Hat `Pi` genau ein Zählzeichen, zeigt Ebene i nur ihre
-//!   eigene Zahl, sonst hierarchisch; ein leeres `Pi` und Ebenen hinter n haben keine Nummer
-//!   (`I.;A.;1.;a);aa)`).
-//! - Zwei gleiche Buchstaben-Zählzeichen direkt hintereinander (`aa`, `AA`) zählen als verdoppelter
-//!   Buchstabe: aa, bb, cc … (Erweiterung von Baruch; in Typst als `numbering("a", x) * 2`).
-//! - `;` und `|` sind reserviert; jedes nichtleere Muster braucht ein Zählzeichen (`1 a A i I *`).
+//! **Pattern language** (stored in `work.numbering` for the scheme „Eigenes Muster“, also the input in the outline
+//! header):
+//! - `P` – one Typst pattern hierarchically for all levels (`1.1`, `I.1`, `1.a)`), as before;
+//! - `P|k` (k = 1 to 6) – hierarchical, but only the levels 1 to k carry a number (`I|1` = only chapters in Roman
+//!   numerals);
+//! - `P1;P2;…;Pn` (n ≥ 2) – one pattern per level: if `Pi` has exactly one counting symbol, level i shows only its
+//!   own number, otherwise hierarchically; an empty `Pi` and levels behind n have no number (`I.;A.;1.;a);aa)`).
+//! - Two equal letter counting symbols directly after each other (`aa`, `AA`) count as a doubled letter: aa, bb, cc
+//!   … (extension of Baruch; in Typst as `numbering("a", x) * 2`).
+//! - `;` and `|` are reserved; every non-empty pattern needs a counting symbol (`1 a A i I *`).
 //!
-//! **Ebenen**: Kapitel = 1, Abschnitt = 2, Unterabschnitt = 3. Teile (Ebene 0, ohne Überschriftszeile)
-//! zählen eigen ([`Numbering::part`]), Kapitel laufen über Teile hinweg fort.
+//! **Levels**: chapter = 1, section = 2, subsection = 3. Parts (level 0, without heading line) count on their own
+//! ([`Numbering::part`]), chapters continue across parts.
 //!
-//! **Export** ([`export_template`]): Bei „Aus der Werkvorlage“ bleibt die Vorlage byte-gleich, sonst
-//! folgt ihr eine Kommentarzeile und eine `#set heading(numbering: …)`-Regel ([`Numbering::heading_rule`]),
-//! die [`crate::heading_numbering`] für die musterbasierten Schemata wieder zu denselben Nummern liest.
-//! Die Regeln der Schemata mit Wörtern (Teile und Kapitel, ausgeschrieben, juristisch, Predigt, Buch) sind
-//! Typst-Funktionen.
+//! **Export** ([`export_template`]): with „Aus der Werkvorlage“ the template stays byte-identical, otherwise a
+//! comment line and a `#set heading(numbering: …)` rule follow it ([`Numbering::heading_rule`]), which
+//! [`crate::heading_numbering`] reads back to the same numbers for the pattern-based schemes. The rules of the
+//! schemes with words (parts and chapters, spelled out, legal, sermon, book) are Typst functions.
 //!
-//! **Werkvorlage lesen** ([`Numbering::from_template`], Runde 14): Eine Nummerierung aus der Vorlage
-//! (Schema „Aus der Werkvorlage“ und jedes re-importierte Werk) folgt Typst, nicht der Mustersprache:
-//! Ein String ist ein wörtliches Typst-Muster (`;`, `|` sind Text, `aa` sind zwei Zählzeichen); die von
-//! Baruch erzeugten Regeln der Schemata mit Wörtern werden wieder genau dieses Schema; eine Funktion
-//! `(..n) => …` (direkt oder über den Namen einer `#let`-Funktion) wird je Ebene exakt ausgewertet, wenn
-//! sie nur aus Tiefenbedingungen (`==`, `!=`, `<`, `<=`, `>`, `>=` auf `n.pos().len()`, auch über
-//! `let p = n.pos()`), verschachtelten `if`/`else`, Text, `numbering("P", ..n)`,
-//! `numbering("P", p.at(i))`, `str(p.at(i))` (auch `.first()`, `.last()`, `* k`) und Verkettung mit `+`
-//! besteht. Sonst gilt die Näherung von [`crate::heading_numbering`].
+//! **Reading the work template** ([`Numbering::from_template`], Round 14): a numbering from the template (scheme
+//! „Aus der Werkvorlage“ and every re-imported work) follows Typst, not the pattern language: a string is a literal
+//! Typst pattern (`;`, `|` are text, `aa` are two counting symbols); the rules of the schemes with words generated
+//! by Baruch become exactly this scheme again; a function `(..n) => …` (directly or through the name of a `#let`
+//! function) is evaluated exactly per level if it only consists of depth conditions (`==`, `!=`, `<`, `<=`, `>`,
+//! `>=` on `n.pos().len()`, also through `let p = n.pos()`), nested `if`/`else`, text, `numbering("P", ..n)`,
+//! `numbering("P", p.at(i))`, `str(p.at(i))` (also `.first()`, `.last()`, `* k`) and concatenation with `+`.
+//! Otherwise the approximation of [`crate::heading_numbering`] applies.
 
 use super::{
     Arg, Counter, Cursor, blank_comments, expression_end, format_number, ident_char, ident_start, is_numbering_pattern,
     pattern_pieces, top_level_hashes,
 };
 
-/// Vorgabe, wenn weder das Werk noch seine Vorlage ein Muster nennen.
+/// Default if neither the work nor its template name a pattern.
 pub const DEFAULT_PATTERN: &str = "1.1";
 
-/// Tiefste Ebene, die eine erzeugte Regel einzeln behandelt (Typst kennt beliebig tiefe Ebenen;
-/// Baruch gliedert bis 3, `====` im Text ist in Typst Ebene 4).
+/// Deepest level that a generated rule treats individually (Typst knows levels of any depth; Baruch outlines down
+/// to 3, `====` in the text is level 4 in Typst).
 const MAX_LEVEL: usize = 6;
 
-/// Höchste Wiederholung `… * k` in einer Nummerierungsfunktion der Werkvorlage. Größere (auch als
-/// Produkt) gelten als nicht lesbar: `render` wiederholt Text und Zahlen wirklich, und eine unbegrenzte
-/// Zahl aus einer fremden Vorlage legte sonst den Prozess bei der Speicheranforderung lahm.
+/// Highest repetition `… * k` in a numbering function of the work template. Larger ones (also as a product) count
+/// as unreadable: `render` really repeats text and numbers, and an unbounded number from a foreign template would
+/// otherwise paralyse the process at the memory allocation.
 const MAX_REPEAT: usize = 16;
 
-/// Gliederungsschema eines Werks (Spalte `work.numbering_scheme`, Migration 0008).
+/// Outline scheme of a work (column `work.numbering_scheme`, migration 0008).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Scheme {
     Template,
@@ -68,7 +65,7 @@ pub enum Scheme {
 }
 
 impl Scheme {
-    /// Alle Schemata in der Reihenfolge der Auswahl.
+    /// All schemes in the order of the selection.
     pub const ALL: [Scheme; 13] = [
         Scheme::Template,
         Scheme::Decimal,
@@ -85,7 +82,7 @@ impl Scheme {
         Scheme::Custom,
     ];
 
-    /// Wert in der Datenbank (wie im CHECK von Migration 0008, `book` seit 0040).
+    /// Value in the database (as in the CHECK of migration 0008, `book` since 0040).
     pub fn id(self) -> &'static str {
         match self {
             Scheme::Template => "template",
@@ -108,7 +105,7 @@ impl Scheme {
         Scheme::ALL.into_iter().find(|s| s.id() == id.trim())
     }
 
-    /// Name in der Oberfläche.
+    /// Name in the user interface.
     pub fn label(self) -> &'static str {
         match self {
             Scheme::Template => "Aus der Werkvorlage",
@@ -127,7 +124,7 @@ impl Scheme {
         }
     }
 
-    /// Kurzes Beispiel der Nummern.
+    /// Short example of the numbers.
     pub fn example(self) -> &'static str {
         match self {
             Scheme::Template => "wie #set heading(numbering: …) der Werkvorlage, sonst 1 · 1.1",
@@ -146,11 +143,10 @@ impl Scheme {
         }
     }
 
-    /// Das Schema mit fester Mustersprache, dessen Nummerierung `pattern` entspricht (Runde 7, für den
-    /// Gliederungskopf: „I|1“ → [`Scheme::ChapterRoman`]). Verglichen wird die gelesene Mustersprache
-    /// ([`Numbering::spec`]), Leerraum zählt also nicht. „Aus der Werkvorlage“, „Eigenes Muster“ und
-    /// „Ohne Nummern“ kommen nie heraus, ebenso wenig die Schemata mit Wörtern (sie haben kein Muster);
-    /// ein leeres oder ungültiges Muster ergibt `None`.
+    /// The scheme with a fixed pattern language whose numbering corresponds to `pattern` (Round 7, for the outline
+    /// header: „I|1“ → [`Scheme::ChapterRoman`]). Compared is the pattern language as read ([`Numbering::spec`]),
+    /// so whitespace does not count. „Aus der Werkvorlage“, „Eigenes Muster“ and „Ohne Nummern“ never come out, nor
+    /// do the schemes with words (they have no pattern); an empty or invalid pattern yields `None`.
     pub fn matching(pattern: &str) -> Option<Scheme> {
         let wanted = Numbering::parse_spec(pattern).ok()?.spec().filter(|s| !s.is_empty())?;
         Scheme::ALL.into_iter().filter(|s| s.is_pattern() && !matches!(s, Scheme::Template | Scheme::Custom)).find(
@@ -158,8 +154,8 @@ impl Scheme {
         )
     }
 
-    /// Beruht das Schema auf der Mustersprache (dann liest [`crate::heading_numbering`] die Regel des
-    /// Exports wieder zu denselben Nummern)?
+    /// Is the scheme based on the pattern language (then [`crate::heading_numbering`] reads the rule of the export
+    /// back to the same numbers)?
     pub fn is_pattern(self) -> bool {
         matches!(
             self,
@@ -174,9 +170,9 @@ impl Scheme {
     }
 }
 
-// ---- Muster mit verdoppelten Buchstaben -----------------------------------------------------
+// ---- Patterns with doubled letters ----------------------------------------------------------
 
-/// Zählzeichen eines Musters: einfach oder verdoppelt (`aa`, `AA`).
+/// Counting symbol of a pattern: single or doubled (`aa`, `AA`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
     One(Counter),
@@ -203,14 +199,14 @@ fn counter_char(counter: Counter) -> char {
     }
 }
 
-/// Ein Stück der fertigen Nummer: Text oder die Zahl an Stelle `index` der Zählerliste.
+/// A piece of the finished number: text or the number at position `index` of the counter list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Out {
     Text(String),
     Num(Mark, usize),
 }
 
-/// Ein Typst-Muster wie `I.1` oder `aa)`, zerlegt in Zählzeichen mit Präfix und das Suffix.
+/// A Typst pattern like `I.1` or `aa)`, split into counting symbols with prefix and the suffix.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Pattern {
     source: String,
@@ -219,13 +215,13 @@ struct Pattern {
 }
 
 impl Pattern {
-    /// Zerlegt `source`; ohne Zählzeichen → `None`.
+    /// Splits `source`; without a counting symbol → `None`.
     fn parse(source: &str) -> Option<Pattern> {
         let pattern = Pattern::raw(source);
         (!pattern.pieces.is_empty()).then_some(pattern)
     }
 
-    /// Wie [`Pattern::parse`], aber auch ohne Zählzeichen (dann ergibt es nie eine Nummer, wie
+    /// Like [`Pattern::parse`], but also without a counting symbol (then it never yields a number, like
     /// [`crate::format_number`]).
     fn raw(source: &str) -> Pattern {
         let chars: Vec<char> = source.chars().collect();
@@ -250,8 +246,8 @@ impl Pattern {
         Pattern { source: source.to_owned(), pieces, suffix: text }
     }
 
-    /// Ein wörtliches Typst-Muster (aus der Werkvorlage): jedes Zählzeichen einzeln, auch `aa` (zwei
-    /// Zählzeichen wie in Typst); `;` und `|` sind Text. Ohne Zählzeichen ergibt es nie eine Nummer.
+    /// A literal Typst pattern (from the work template): every counting symbol individually, also `aa` (two
+    /// counting symbols as in Typst); `;` and `|` are text. Without a counting symbol it never yields a number.
     fn literal(source: &str) -> Pattern {
         let mut pieces = Vec::new();
         let mut text = String::new();
@@ -272,9 +268,9 @@ impl Pattern {
         self.pieces.iter().any(|(_, m)| matches!(m, Mark::Double(_)))
     }
 
-    /// Aufbau der Nummer für `len` Zahlen nach den Regeln von [`crate::format_number`]: je Zahl das
-    /// nächste Zählzeichen mit Präfix, danach wiederholt sich das letzte (mit seinem Präfix, bei leerem
-    /// Präfix mit dem Suffix als Trenner); am Ende das Suffix.
+    /// Structure of the number for `len` numbers by the rules of [`crate::format_number`]: per number the next
+    /// counting symbol with prefix, afterwards the last one repeats (with its prefix, with an empty prefix with the
+    /// suffix as separator); at the end the suffix.
     fn layout(&self, len: usize) -> Vec<Out> {
         let mut out = Vec::new();
         if self.pieces.is_empty() || len == 0 {
@@ -306,7 +302,7 @@ impl Pattern {
             .collect()
     }
 
-    /// Typst-Ausdruck für die Nummer auf Ebene `level` (Zählerliste `p`): `own` = nur die eigene Zahl.
+    /// Typst expression for the number at level `level` (counter list `p`): `own` = only the own number.
     fn typst(&self, level: usize, own: bool) -> String {
         if !self.has_double() {
             return if own {
@@ -331,47 +327,47 @@ impl Pattern {
     }
 }
 
-/// String-Literal für Typst (`\` und `"` maskiert).
+/// String literal for Typst (`\` and `"` escaped).
 fn typst_str(text: &str) -> String {
     format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-// ---- Nummerierung -----------------------------------------------------------------------------
+// ---- Numbering --------------------------------------------------------------------------------
 
-/// Muster der Mustersprache.
+/// Pattern of the pattern language.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Spec {
-    /// Keine Nummern.
+    /// No numbers.
     Off,
-    /// Ein Muster hierarchisch für alle Ebenen, wahlweise nur bis Ebene `depth`.
+    /// One pattern hierarchically for all levels, optionally only down to level `depth`.
     Hier { pattern: Pattern, depth: Option<u8> },
-    /// Ein Muster je Ebene (`None` = Ebene ohne Nummer).
+    /// One pattern per level (`None` = level without number).
     Levels(Vec<Option<Pattern>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Kind {
     Spec(Spec),
-    /// Kapitel „Kapitel 1“, darunter 1.1 und 1.1.1.
+    /// Chapters „Kapitel 1“, below them 1.1 and 1.1.1.
     PartsChapters,
-    /// „Erstes Kapitel“, Abschnitte ohne Nummer.
+    /// „Erstes Kapitel“, sections without number.
     ChapterWords,
     /// § 1 · Abs. 1 · Nr. 1.
     Legal,
-    /// Einleitung · I. · II. · Schluss, Abschnitte ohne Nummer.
+    /// Einleitung · I. · II. · Schluss, sections without number.
     Sermon,
-    /// Wie [`Kind::Sermon`] (Kapitel Einleitung · I. · II. · Schluss, Abschnitte ohne Nummer), Teile als
-    /// Wörter; eigene Typst-Regel, damit [`Numbering::from_template`] die beiden unterscheidet.
+    /// Like [`Kind::Sermon`] (chapters Einleitung · I. · II. · Schluss, sections without number), parts as words; a
+    /// Typst rule of its own, so that [`Numbering::from_template`] tells the two apart.
     Book,
-    /// Funktion der Werkvorlage, je Ebene exakt ausgewertet ([`Numbering::from_template`]); `approx`
-    /// ist die bisherige Näherung in der Mustersprache ([`crate::heading_numbering`]) für die Anzeige.
+    /// Function of the work template, evaluated exactly per level ([`Numbering::from_template`]); `approx` is the
+    /// previous approximation in the pattern language ([`crate::heading_numbering`]) for the display.
     Function {
         node: Node,
         approx: Option<String>,
     },
 }
 
-/// Wie Teile (Ebene 0) gezählt werden.
+/// How parts (level 0) are counted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Parts {
     Roman,
@@ -380,7 +376,7 @@ enum Parts {
     Hidden,
 }
 
-/// Fertig ausgewertete Nummerierung eines Werks (aus Schema, eigenem Muster und Werkvorlage).
+/// Fully evaluated numbering of a work (from scheme, own pattern and work template).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Numbering {
     kind: Kind,
@@ -390,12 +386,12 @@ pub struct Numbering {
 const NEEDS_COUNTER: &str = "braucht ein Zählzeichen (1, a, A, i, I oder *), z. B. „1.1“ oder „I.“";
 
 impl Numbering {
-    /// Keine Nummern, auch nicht für Teile.
+    /// No numbers, not for parts either.
     pub fn off() -> Numbering {
         Numbering { kind: Kind::Spec(Spec::Off), parts: Parts::Hidden }
     }
 
-    /// Liest die Mustersprache (siehe Modulbeschreibung). Leer = keine Nummern. Fehler auf Deutsch.
+    /// Reads the pattern language (see module description). Empty = no numbers. Errors in German.
     pub fn parse_spec(spec: &str) -> Result<Numbering, String> {
         let spec = spec.trim();
         if spec.is_empty() {
@@ -435,8 +431,8 @@ impl Numbering {
         Ok(Numbering { kind: Kind::Spec(parsed), parts: Parts::Roman })
     }
 
-    /// Wie [`Numbering::parse_spec`], aber nie ein Fehler: Ein unlesbares Muster (alte Daten, eine
-    /// Vorlage mit `numbering: "Kapitel"`) gilt wie bisher als Typst-Muster für alle Ebenen.
+    /// Like [`Numbering::parse_spec`], but never an error: an unreadable pattern (old data, a template with
+    /// `numbering: "Kapitel"`) counts as before as a Typst pattern for all levels.
     pub fn lenient(spec: &str) -> Numbering {
         Numbering::parse_spec(spec).unwrap_or_else(|_| Numbering {
             kind: Kind::Spec(Spec::Hier { pattern: Pattern::raw(spec.trim()), depth: None }),
@@ -444,9 +440,8 @@ impl Numbering {
         })
     }
 
-    /// Nummerierung eines Schemas. `custom` ist das eigene Muster (nur für [`Scheme::Custom`]),
-    /// `template` die Werkvorlage (nur für [`Scheme::Template`]: ihr `#set heading(numbering: …)`,
-    /// sonst „1.1“).
+    /// Numbering of a scheme. `custom` is the own pattern (only for [`Scheme::Custom`]), `template` the work
+    /// template (only for [`Scheme::Template`]: its `#set heading(numbering: …)`, otherwise „1.1“).
     pub fn of_scheme(scheme: Scheme, custom: Option<&str>, template: &str) -> Result<Numbering, String> {
         let named = |kind, parts| Ok(Numbering { kind, parts });
         match scheme {
@@ -471,17 +466,17 @@ impl Numbering {
         }
     }
 
-    /// Nummerierung aus der Werkvorlage (Vertrag Runde 14, Abschnitt 3): die letzte
-    /// `#set heading(numbering: …)` der obersten Ebene (wie [`crate::heading_numbering`]). Ein String
-    /// ist ein wörtliches Typst-Muster, `none` heißt keine Nummern, die von Baruch erzeugte Regel eines
-    /// Schemas mit Wörtern ergibt genau dieses Schema (samt Zählung der Teile), eine auswertbare
-    /// Funktion wird je Ebene exakt ausgewertet (siehe Modulbeschreibung), sonst gilt die Näherung
-    /// (erstes `numbering`-Muster, wie bisher). Ohne Regel oder mit unlesbarem Wert `None`.
+    /// Numbering from the work template (contract Round 14, section 3): the last `#set heading(numbering: …)` of
+    /// the top level (like [`crate::heading_numbering`]). A string is a literal Typst pattern, `none` means no
+    /// numbers, the rule of a scheme with words generated by Baruch yields exactly this scheme (including the
+    /// counting of the parts), a function that can be evaluated is evaluated exactly per level (see module
+    /// description), otherwise the approximation applies (first `numbering` pattern, as before). Without a rule or
+    /// with an unreadable value `None`.
     pub fn from_template(template: &str) -> Option<Numbering> {
         const NEEDLE: &str = "#set heading(";
         let blanked = blank_comments(template);
         let tops = top_level_hashes(template);
-        // Wie `heading_numbering` (und Typst): die letzte Regel mit `numbering` gilt.
+        // Like `heading_numbering` (and Typst): the last rule with `numbering` applies.
         let mut found: Option<(Arg, usize, usize)> = None;
         for &rule in &tops {
             if !blanked[rule..].starts_with(NEEDLE) {
@@ -519,10 +514,9 @@ impl Numbering {
         approx.map(|spec| Numbering::lenient(&spec))
     }
 
-    /// Die Nummerierung in der Mustersprache, falls sie eine hat (`""` = keine Nummern); die
-    /// Schemata mit Wörtern haben keine. Für eine je Ebene ausgewertete Funktion der Werkvorlage die
-    /// bisherige Näherung ([`crate::heading_numbering`]), damit Anzeige und Gliederungskopf gleich
-    /// bleiben.
+    /// The numbering in the pattern language, if it has one (`""` = no numbers); the schemes with words have none.
+    /// For a function of the work template evaluated per level the previous approximation
+    /// ([`crate::heading_numbering`]), so that display and outline header stay the same.
     pub fn spec(&self) -> Option<String> {
         if let Kind::Function { approx, .. } = &self.kind {
             return approx.clone();
@@ -538,12 +532,12 @@ impl Numbering {
         })
     }
 
-    /// Gibt es überhaupt Nummern?
+    /// Are there numbers at all?
     pub fn is_off(&self) -> bool {
         self.kind == Kind::Spec(Spec::Off)
     }
 
-    /// Nummer des n-ten Teils (ab 1): „I“, „Teil I“, „Erster Teil“ oder leer.
+    /// Number of the n-th part (from 1): „I“, „Teil I“, „Erster Teil“ or empty.
     pub fn part(&self, n: usize) -> String {
         match self.parts {
             Parts::Roman => crate::roman(n),
@@ -553,9 +547,9 @@ impl Numbering {
         }
     }
 
-    /// Nummer einer Überschrift: `path` = Zählerstände von Ebene 1 bis zur eigenen (Kapitel
-    /// fortlaufend, darunter je Elternteil), `chapters` = Zahl der nummerierten Kapitel des Werks
-    /// (für „Schluss“ der Predigt und des Buchs).
+    /// Number of a heading: `path` = counter values from level 1 to the own one (chapters consecutive, below them
+    /// per parent), `chapters` = number of the numbered chapters of the work (for „Schluss“ of the sermon and of
+    /// the book).
     pub fn heading(&self, path: &[usize], chapters: usize) -> String {
         let level = path.len();
         let Some(&own) = path.last() else { return String::new() };
@@ -597,7 +591,7 @@ impl Numbering {
         }
     }
 
-    /// Regel für Typst als eine Zeile `#set heading(numbering: …)` mit Zeilenende.
+    /// Rule for Typst as one line `#set heading(numbering: …)` with line end.
     pub fn heading_rule(&self) -> String {
         format!("#set heading(numbering: {})\n", self.rule_value())
     }
@@ -648,8 +642,8 @@ impl Numbering {
                              if p.len() == 1 { if p.at(0) == 1 { \"Einleitung\" } else if p.at(0) == last { \"Schluss\" } \
                              else { numbering(\"I.\", p.at(0) - 1) } } else { \"\" } }"
                 .to_owned(),
-            // Dieselben Nummern wie Sermon, aber mit Absicht anderer Text (auch ohne Kommentare): Nur so
-            // erkennt `from_template` einen exportierten Buch-Stand wieder als Buch samt Wort-Teilen.
+            // The same numbers as Sermon, but deliberately different text (also without comments): only this way
+            // `from_template` recognises an exported book state again as a book including word parts.
             Kind::Book => "(..n) => context { let p = n.pos(); let chapters = counter(heading).final().first(); \
                            if p.len() != 1 { \"\" } else if p.first() == 1 { \"Einleitung\" } \
                            else if p.first() == chapters { \"Schluss\" } else { numbering(\"I.\", p.first() - 1) } }"
@@ -675,9 +669,9 @@ fn chain(levels: &[String]) -> String {
     out
 }
 
-/// Vorlage für Export und Spiegel: bei [`Scheme::Template`] unverändert, sonst mit Kommentar
-/// `// Baruch: Gliederungsschema „…“` und [`Numbering::heading_rule`] am Ende (davor ein
-/// Zeilenende, falls die Vorlage ohne endet).
+/// Template for export and mirror: unchanged for [`Scheme::Template`], otherwise with the comment `// Baruch:
+/// Gliederungsschema „…“` and [`Numbering::heading_rule`] at the end (before it a line end if the template ends
+/// without one).
 pub fn export_template(template: &str, scheme: Scheme, numbering: &Numbering) -> String {
     if scheme == Scheme::Template {
         return template.to_owned();
@@ -691,9 +685,9 @@ pub fn export_template(template: &str, scheme: Scheme, numbering: &Numbering) ->
     out
 }
 
-// ---- Ordnungszahlwörter -------------------------------------------------------------------------
+// ---- Ordinal number words -----------------------------------------------------------------------
 
-/// Stamm der deutschen Ordnungszahl (1 → „erst“, 21 → „einundzwanzigst“) bis 99.
+/// Stem of the German ordinal number (1 → „erst“, 21 → „einundzwanzigst“) up to 99.
 fn ordinal_stem(n: usize) -> Option<String> {
     const SMALL: [&str; 19] = [
         "erst",
@@ -731,8 +725,8 @@ fn ordinal_stem(n: usize) -> Option<String> {
     }
 }
 
-/// „Erstes Kapitel“, „Zweiter Teil“; ab 100 (und für 0) mit Ziffern: „100. Kapitel“. Ohne `noun`
-/// nur das Wort („Erstes“).
+/// „Erstes Kapitel“, „Zweiter Teil“; from 100 on (and for 0) with digits: „100. Kapitel“. Without `noun` only the
+/// word („Erstes“).
 pub fn ordinal_word(n: usize, ending: &str, noun: &str) -> String {
     let word = match ordinal_stem(n) {
         Some(stem) => {
@@ -745,22 +739,22 @@ pub fn ordinal_word(n: usize, ending: &str, noun: &str) -> String {
     if noun.is_empty() { word } else { format!("{word} {noun}") }
 }
 
-// ---- Funktionen der Werkvorlage lesen ---------------------------------------------------------
+// ---- Reading functions of the work template ---------------------------------------------------
 
-/// Ergebnis eines Ausdrucks auf einer Ebene: Stücke einer Verkettung.
+/// Result of an expression at one level: pieces of a concatenation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Term {
-    /// Text (`"…"`; `none` und `[]` sind leerer Text).
+    /// Text (`"…"`; `none` and `[]` are empty text).
     Text(String),
-    /// `numbering("P", ..n)`: hierarchisch.
+    /// `numbering("P", ..n)`: hierarchical.
     Hier(String),
-    /// `numbering("P", p.at(i))`, mal `times`.
+    /// `numbering("P", p.at(i))`, times `times`.
     Num { pattern: String, index: Index, times: usize },
-    /// `str(p.at(i))` (arabische Ziffern), mal `times`.
+    /// `str(p.at(i))` (Arabic digits), times `times`.
     Str { index: Index, times: usize },
 }
 
-/// Stelle in der Zählerliste: `p.at(i)` bzw. `p.first()` oder `p.last()` (die eigene Zahl).
+/// Position in the counter list: `p.at(i)` or `p.first()` or `p.last()` (the own number).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Index {
     At(usize),
@@ -783,8 +777,8 @@ impl Index {
     }
 }
 
-/// Stücke einer Ebene zur Nummer für die Zählerstände `path` (wie Typst: Muster wörtlich, ohne
-/// verdoppelte Buchstaben). `None`, wenn eine Stelle fehlt (Typst bräche mit einem Fehler ab).
+/// Pieces of a level to the number for the counter values `path` (like Typst: pattern literal, without doubled
+/// letters). `None` if a position is missing (Typst would abort with an error).
 fn render(terms: &[Term], path: &[usize]) -> Option<String> {
     let mut out = String::new();
     for term in terms {
@@ -800,7 +794,7 @@ fn render(terms: &[Term], path: &[usize]) -> Option<String> {
     Some(out)
 }
 
-/// Typst-Ausdruck für die Stücke einer Ebene (Zählerliste `p`); leer → `""`.
+/// Typst expression for the pieces of a level (counter list `p`); empty → `""`.
 fn terms_typst(terms: &[Term]) -> String {
     let times = |expression: String, times: usize| {
         if times == 1 { expression } else { format!("{expression} * {times}") }
@@ -819,7 +813,7 @@ fn terms_typst(terms: &[Term]) -> String {
     if parts.is_empty() { "\"\"".to_owned() } else { parts.join(" + ") }
 }
 
-/// Alle Muster in einem Ausdruck (für die Prüfung, ob Typst sie annimmt).
+/// All patterns in an expression (for the check whether Typst accepts them).
 fn patterns(node: &Node, out: &mut Vec<String>) {
     match node {
         Node::If { then, other, .. } => {
@@ -835,8 +829,8 @@ fn patterns(node: &Node, out: &mut Vec<String>) {
     }
 }
 
-/// Lässt sich der Ausdruck auf jeder Ebene 1 bis 6 auswerten (jedes Muster mit Zählzeichen, jede
-/// Stelle vorhanden)? Sonst ist er nicht exakt lesbar.
+/// Can the expression be evaluated at every level 1 to 6 (every pattern with a counting symbol, every position
+/// present)? Otherwise it cannot be read exactly.
 fn evaluable(node: &Node) -> bool {
     let mut found = Vec::new();
     patterns(node, &mut found);
@@ -844,9 +838,9 @@ fn evaluable(node: &Node) -> bool {
         && (1..=MAX_LEVEL).all(|level| render(&node.eval(level), &vec![1; level]).is_some())
 }
 
-/// Eine je Ebene auswertbare Nummerierungsfunktion: direkt in der Regel (`(..n) => …`) oder als Name
-/// einer `#let`-Funktion, die vor der Regel (`rule`) auf der obersten Ebene steht (die letzte gilt).
-/// Der ganze Ausdruck muss gelesen werden (danach nur Leerraum oder `;`).
+/// A numbering function that can be evaluated per level: directly in the rule (`(..n) => …`) or as the name of a
+/// `#let` function that stands at the top level before the rule (`rule`) (the last one applies). The whole
+/// expression must be read (afterwards only whitespace or `;`).
 fn evaluable_function(blanked: &str, tops: &[usize], rule: usize, expression: &str) -> Option<Node> {
     let whole = |reader: &Reader, node: Node| {
         (reader.rest().trim_start_matches(|c: char| c.is_whitespace() || c == ';').is_empty() && evaluable(&node))
@@ -923,11 +917,11 @@ impl Node {
     }
 }
 
-/// Kleiner Leser für Nummerierungsfunktionen (Text ohne Kommentare).
+/// Small reader for numbering functions (text without comments).
 struct Reader<'a> {
     s: &'a str,
     i: usize,
-    /// Namen, die die Zählerliste bezeichnen: der Parameter (als `n.pos()`) und `let p = n.pos()`.
+    /// Names that denote the counter list: the parameter (as `n.pos()`) and `let p = n.pos()`.
     param: String,
     aliases: Vec<String>,
 }
@@ -997,7 +991,7 @@ impl<'a> Reader<'a> {
         Some(text)
     }
 
-    /// `(..n)` → Name des Parameters.
+    /// `(..n)` → name of the parameter.
     fn params(&mut self) -> Option<()> {
         if !(self.eat("(") && self.eat("..")) {
             return None;
@@ -1007,7 +1001,7 @@ impl<'a> Reader<'a> {
         self.eat(")").then_some(())
     }
 
-    /// Die Zählerliste: `n.pos()` oder ein Name aus `let p = n.pos()`.
+    /// The counter list: `n.pos()` or a name from `let p = n.pos()`.
     fn positions(&mut self) -> Option<()> {
         let name = self.ident()?;
         if name == self.param {
@@ -1052,7 +1046,7 @@ impl<'a> Reader<'a> {
         self.concat().map(Node::Value)
     }
 
-    /// Zweig eines `if`: `{ … }` oder ein leerer Inhaltsblock `[]`.
+    /// Branch of an `if`: `{ … }` or an empty content block `[]`.
     fn branch(&mut self) -> Option<Node> {
         self.ws();
         if self.rest().starts_with('{') {
@@ -1061,7 +1055,7 @@ impl<'a> Reader<'a> {
         (self.eat("[") && self.eat("]")).then(|| Node::Value(Vec::new()))
     }
 
-    /// `{ let p = n.pos(); WERT }` – genau ein Wert, davor beliebig viele Namen für die Zählerliste.
+    /// `{ let p = n.pos(); VALUE }` – exactly one value, before it any number of names for the counter list.
     fn block(&mut self) -> Option<Node> {
         if !self.eat("{") {
             return None;
@@ -1087,7 +1081,7 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// Verkettung `a + b * 2 + …` aus Text, `none`, `[]` und `numbering(…)`-Aufrufen.
+    /// Concatenation `a + b * 2 + …` of text, `none`, `[]` and `numbering(…)` calls.
     fn concat(&mut self) -> Option<Vec<Term>> {
         let mut terms = Vec::new();
         loop {
@@ -1123,7 +1117,7 @@ impl<'a> Reader<'a> {
             return (self.eat("[") && self.eat("]")).then(|| Term::Text(String::new()));
         }
         if self.keyword("str") {
-            // `str(p.at(i))`: die Zahl in arabischen Ziffern.
+            // `str(p.at(i))`: the number in Arabic digits.
             if !self.eat("(") {
                 return None;
             }
@@ -1140,7 +1134,7 @@ impl<'a> Reader<'a> {
             return None;
         }
         let term = if self.eat("..") {
-            // `..n` (die Argumente selbst), `..n.pos()` oder `..p` mit `let p = n.pos()`.
+            // `..n` (the arguments themselves), `..n.pos()` or `..p` with `let p = n.pos()`.
             let before = self.i;
             if self.ident() != Some(self.param.as_str()) || self.rest().trim_start().starts_with(".pos") {
                 self.i = before;
@@ -1155,7 +1149,7 @@ impl<'a> Reader<'a> {
         self.eat(")").then_some(term)
     }
 
-    /// `.at(i)`, `.first()` oder `.last()` hinter der Zählerliste.
+    /// `.at(i)`, `.first()` or `.last()` behind the counter list.
     fn index(&mut self) -> Option<Index> {
         if self.eat(".at") && self.eat("(") {
             let index = self.int()?;
@@ -1170,17 +1164,17 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// Was eine Ebene zeigt.
+/// What a level shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Shown {
     Empty,
     Hier(String),
-    /// Aus Text und Zahlen zusammengesetztes Muster der Mustersprache.
+    /// Pattern of the pattern language assembled from text and numbers.
     Built(String),
 }
 
-/// Stücke einer Ebene `level` zu einem Muster: Text darf keine Zählzeichen enthalten, Zahlen sind
-/// entweder nur die eigene (`p.at(level - 1)`) oder alle von 0 bis `level - 1` in Reihenfolge.
+/// Pieces of a level `level` to a pattern: text must not contain counting symbols, numbers are either only the own
+/// one (`p.at(level - 1)`) or all from 0 to `level - 1` in order.
 fn shown(terms: Vec<Term>, level: usize) -> Option<Shown> {
     let terms: Vec<Term> = terms.into_iter().filter(|t| !matches!(t, Term::Text(s) if s.is_empty())).collect();
     match terms.as_slice() {
@@ -1199,7 +1193,7 @@ fn shown(terms: Vec<Term>, level: usize) -> Option<Shown> {
                 out.push_str(&text);
             }
             Term::Num { pattern, index, times } => {
-                // Die Näherung kennt nur `p.at(i)`/`p.first()` (wie vor Runde 14).
+                // The approximation only knows `p.at(i)`/`p.first()` (as before Round 14).
                 let Index::At(index) = index else { return None };
                 let (pieces, _) = pattern_pieces(&pattern)?;
                 if pieces.len() != 1 || pattern.contains([';', '|']) {
@@ -1228,16 +1222,16 @@ fn shown(terms: Vec<Term>, level: usize) -> Option<Shown> {
     (own || all).then_some(Shown::Built(out))
 }
 
-/// Mustersprache aus einer Nummerierungsfunktion `(..n) => …` (bzw. dem Rumpf einer `#let`-Funktion
-/// mit Parameter `param`): je Ebene 1 bis 6 ausgewertet. `None`, wenn die Funktion mehr tut als
-/// Tiefenbedingungen (`n.pos().len() == k`, `<= k`, `< k` …), Text und `numbering(…)`.
+/// Pattern language from a numbering function `(..n) => …` (or the body of a `#let` function with parameter
+/// `param`): evaluated per level 1 to 6. `None` if the function does more than depth conditions (`n.pos().len() ==
+/// k`, `<= k`, `< k` …), text and `numbering(…)`.
 pub(crate) fn read_function(expression: &str) -> Option<String> {
     let mut reader = Reader::new(expression);
     let node = reader.function()?;
     spec_of(&node)
 }
 
-/// Wie [`read_function`] für `#let name(..n) = RUMPF`: `definition` beginnt mit `(..n)`.
+/// Like [`read_function`] for `#let name(..n) = BODY`: `definition` starts with `(..n)`.
 pub(crate) fn read_let_function(definition: &str) -> Option<String> {
     let mut reader = Reader::new(definition);
     reader.params()?;
@@ -1250,7 +1244,7 @@ pub(crate) fn read_let_function(definition: &str) -> Option<String> {
 
 fn spec_of(node: &Node) -> Option<String> {
     let levels: Vec<Shown> = (1..=MAX_LEVEL).map(|level| shown(node.eval(level), level)).collect::<Option<_>>()?;
-    // Wie viele Ebenen von oben zeigen dasselbe hierarchische Muster, und sind alle danach leer?
+    // How many levels from the top show the same hierarchical pattern, and are all after them empty?
     let depth = levels.iter().take_while(|l| *l == &levels[0]).count();
     let leading = match &levels[0] {
         Shown::Hier(pattern) if levels[depth..].iter().all(|l| *l == Shown::Empty) => Some(pattern),
@@ -1289,8 +1283,8 @@ mod tests {
 
     #[test]
     fn every_word_scheme_has_its_own_rule_even_without_comments() {
-        // `from_template` vergleicht die Regel nach `blank_comments` wörtlich: Zwei gleiche Regeln
-        // machten aus einem exportierten Buch eine Predigt (ohne Teile-Zählung).
+        // `from_template` compares the rule literally after `blank_comments`: two equal rules would turn an
+        // exported book into a sermon (without counting of parts).
         let schemes = [Scheme::PartsChapters, Scheme::ChapterWords, Scheme::Legal, Scheme::Sermon, Scheme::Book];
         let rules: Vec<String> = schemes
             .iter()

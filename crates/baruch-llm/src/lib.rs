@@ -1,34 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Modell-Backend für Baruch (Runde 10, Stufe B2): ein OpenAI-kompatibler Client für Eliezer.
+//! Model backend for Baruch (Round 10, stage B2): an OpenAI-compatible client for Eliezer.
 //!
-//! - [`models`]: `GET <basis>/v1/models` → Namen aus `data[].id`.
-//! - [`chat_stream`]: `POST <basis>/v1/chat/completions` mit `stream: true` und
-//!   `stream_options.include_usage: true`; die Antwort kommt als Server-Sent Events ([`sse`]). Nur
-//!   `choices[0].delta.content` zählt (jedes Stück geht sofort an `on_delta`), `reasoning_content`
-//!   wird übergangen; `finish_reason` und `usage` kommen aus den letzten Stücken.
-//! - [`Queue`]: höchstens **eine** laufende Anfrage (Eliezer lädt sonst ein Modell zweimal) und
-//!   höchstens [`MAX_WAITING`] Wartende, sonst [`LlmError::Busy`].
-//! - [`alias`]: alte Ollama-Namen der Personas → Namen bei Eliezer.
-//! - [`embeddings`] (Runde 12, [`embed`]): `POST <basis>/v1/embeddings` → je Text ein Vektor;
-//!   [`embedding_alias`] löst `nomic-embed-text` zu `text-embedding-nomic-embed-text-v1.5` auf.
-//! - [`mock`]: kleiner HTTP-Nachbau von Eliezer auf `127.0.0.1:0` für Tests (auch mit Einbettungen; seit
-//!   Runde 15b auch als Ollama- bzw. OpenAI-Gegenstelle mit gemeldeter Kontextlänge).
-//! - [`Client`] (Runde 15b, [`client`]): ein Client je Endpunkt mit Art ([`BackendKind`]: Eliezer,
-//!   OpenAI-kompatibel, Ollama) und einem gemeinsamen `reqwest::Client`; Modellliste mit Kontextlänge
-//!   ([`ModelInfo`]) und gemeldete Kontextlänge je Modell. Die freien Funktionen bleiben als Hüllen.
+//! - [`models`]: `GET <base>/v1/models` → names from `data[].id`.
+//! - [`chat_stream`]: `POST <base>/v1/chat/completions` with `stream: true` and `stream_options.include_usage:
+//!   true`; the answer comes as Server-Sent Events ([`sse`]). Only `choices[0].delta.content` counts (every piece
+//!   goes to `on_delta` at once), `reasoning_content` is skipped; `finish_reason` and `usage` come from the last
+//!   pieces.
+//! - [`Queue`]: at most **one** running request (otherwise Eliezer loads a model twice) and at most [`MAX_WAITING`]
+//!   waiting, otherwise [`LlmError::Busy`].
+//! - [`alias`]: old Ollama names of the personas → names at Eliezer.
+//! - [`embeddings`] (Round 12, [`embed`]): `POST <base>/v1/embeddings` → one vector per text; [`embedding_alias`]
+//!   resolves `nomic-embed-text` to `text-embedding-nomic-embed-text-v1.5`.
+//! - [`mock`]: small HTTP mock of Eliezer on `127.0.0.1:0` for tests (also with embeddings; since Round 15b also as
+//!   Ollama or OpenAI remote side with a reported context length).
+//! - [`Client`] (Round 15b, [`client`]): one client per endpoint with kind ([`BackendKind`]: Eliezer,
+//!   OpenAI-compatible, Ollama) and one shared `reqwest::Client`; model list with context length ([`ModelInfo`])
+//!   and reported context length per model. The free functions stay as wrappers.
 //!
-//! Grenzen ([`Limits`]): Verbindungsaufbau 10 s, erstes Stück 180 s (Eliezer lädt dabei ggf. das
-//! Modell), Pause zwischen zwei Stücken 60 s, gesamt 600 s, Modellliste gesamt 10 s; Antworttext
-//! höchstens 1 MiB; `max_tokens` wird auf `1..=4096` geklemmt. Weiterleitungen folgt der Client nicht
-//! (der Schlüssel ginge sonst an eine andere Adresse).
+//! Limits ([`Limits`]): connect 10 s, first piece 180 s (Eliezer may load the model during that), pause between two
+//! pieces 60 s, in total 600 s, model list in total 10 s; answer text at most 1 MiB; `max_tokens` is clamped to
+//! `1..=4096`. The client follows no redirects (otherwise the key would go to another address).
 //!
-//! Baruch fordert **nie** eine Kontextlänge an und ruft nie `/api/v1/models/load|unload|estimate` auf:
-//! Eine andere Kontextlänge ließe Eliezer das Modell neu laden (VRAM-Grenze des Nutzers). Abbruch =
-//! Fallenlassen des Futures; die HTTP-Verbindung schließt dann sofort.
+//! Baruch **never** requests a context length and never calls `/api/v1/models/load|unload|estimate`: a different
+//! context length would make Eliezer reload the model (VRAM limit of the user). Cancelling = dropping the future;
+//! the HTTP connection then closes at once.
 //!
-//! Der Schlüssel steht nur in der Kopfzeile `Authorization`; jede Meldung läuft durch [`scrub`], bevor
-//! sie einen Fehler bildet (seit Runde 23 auch gegen Base64- und Prozent-kodierte Formen; dieselbe
-//! Funktion nutzen „Verbindung prüfen“, MultiGPT, pgvector und der Abgleich im Server). `Debug` von [`Endpoint`] zeigt ihn nie.
+//! The key stands only in the header `Authorization`; every message runs through [`scrub`] before it forms an error
+//! (since Round 23 also against Base64 and percent-encoded forms; the same function is used by „Verbindung prüfen“,
+//! MultiGPT, pgvector and the sync in the server). `Debug` of [`Endpoint`] never shows it.
 
 pub mod client;
 pub mod embed;
@@ -49,7 +48,7 @@ pub use embed::{EmbeddingReply, embedding_alias, embedding_model_name, embedding
 pub use queue::{MAX_WAITING, Queue, QueueStatus};
 pub use secret::{ENCODED_MIN as SCRUB_ENCODED_MIN, scrub};
 
-/// Rolle einer Nachricht.
+/// Role of a message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
@@ -58,37 +57,37 @@ pub enum Role {
     Assistant,
 }
 
-/// Eine Nachricht im Gespräch.
+/// A message in the conversation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChatMessage {
     pub role: Role,
     pub content: String,
 }
 
-/// Anfrage an das Modell. Bewusst ohne Kontextlänge (siehe Kopf).
+/// Request to the model. Deliberately without context length (see header).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChatRequest {
     pub model: String,
     pub messages: Vec<ChatMessage>,
-    /// Wird auf `1..=`[`MAX_TOKENS`] geklemmt.
+    /// Is clamped to `1..=`[`MAX_TOKENS`].
     pub max_tokens: u32,
     pub temperature: Option<f32>,
 }
 
-/// Fertige Antwort.
+/// Finished answer.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ChatReply {
-    /// Zusammengesetzter Text aller `delta.content`-Stücke.
+    /// Assembled text of all `delta.content` pieces.
     pub text: String,
-    /// Modell laut Antwort der Gegenstelle (sonst das angefragte).
+    /// Model according to the answer of the remote side (otherwise the requested one).
     pub model: String,
     pub finish_reason: Option<String>,
     pub prompt_tokens: Option<u32>,
     pub completion_tokens: Option<u32>,
 }
 
-/// Warum ein Modellaufruf scheitert; dieselben acht Fälle wie `ModelFailure` im Server.
-/// [`fmt::Display`] ist ein deutscher Satz und enthält nie ein Geheimnis.
+/// Why a model call fails; the same eight cases as `ModelFailure` in the server. [`fmt::Display`] is a German
+/// sentence and never contains a secret.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LlmError {
     NotConfigured(String),
@@ -118,28 +117,27 @@ impl fmt::Display for LlmError {
 
 impl std::error::Error for LlmError {}
 
-/// Größtes `max_tokens`, das Baruch schickt.
+/// Largest `max_tokens` Baruch sends.
 pub const MAX_TOKENS: u32 = 4096;
-/// Größter Antworttext.
+/// Largest answer text.
 pub const MAX_TEXT: usize = 1024 * 1024;
-/// Länge, auf die eine Fehlermeldung der Gegenstelle gekürzt wird (Zeichen).
+/// Length to which an error message of the remote side is shortened (characters).
 pub const MAX_SERVER_MESSAGE: usize = 300;
 
-/// Zeitgrenzen und Größen eines Aufrufs; [`Limits::default`] sind die Werte des Betriebs, Tests
-/// nehmen kürzere.
+/// Time limits and sizes of a call; [`Limits::default`] are the values of production, tests take shorter ones.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
-    /// Verbindungsaufbau.
+    /// Connect.
     pub connect: Duration,
-    /// Bis zum ersten Stück der Antwort (Kopfzeilen und erstes SSE-Ereignis; Laden des Modells).
+    /// Up to the first piece of the answer (headers and first SSE event; loading of the model).
     pub first_token: Duration,
-    /// Größte Pause zwischen zwei Stücken.
+    /// Largest pause between two pieces.
     pub idle: Duration,
-    /// Gesamtdauer eines Chat-Aufrufs.
+    /// Total duration of a chat call.
     pub total: Duration,
-    /// Gesamtdauer für die Modellliste.
+    /// Total duration for the model list.
     pub models_total: Duration,
-    /// Größter Antworttext in Bytes.
+    /// Largest answer text in bytes.
     pub max_text: usize,
 }
 
@@ -156,12 +154,12 @@ impl Default for Limits {
     }
 }
 
-/// Adresse und Schlüssel des Backends. `Debug` zeigt den Schlüssel nie.
+/// Address and key of the backend. `Debug` never shows the key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Endpoint {
-    /// Grundadresse, z. B. `http://127.0.0.1:1234` oder `…/v1`.
+    /// Base address, e.g. `http://127.0.0.1:1234` or `…/v1`.
     pub base_url: String,
-    /// Bearer-Schlüssel; nur in der Kopfzeile `Authorization`.
+    /// Bearer key; only in the header `Authorization`.
     pub secret: Option<String>,
 }
 
@@ -184,28 +182,28 @@ impl Endpoint {
         if base.ends_with("/v1") { format!("{base}/{path}") } else { format!("{base}/v1/{path}") }
     }
 
-    /// `<basis>/v1/models` (endet die Basis schon auf `/v1`, nur `/models`).
+    /// `<base>/v1/models` (if the base already ends in `/v1`, only `/models`).
     pub fn models_url(&self) -> String {
         self.api("models")
     }
 
-    /// `<basis>/v1/chat/completions`.
+    /// `<base>/v1/chat/completions`.
     pub fn chat_url(&self) -> String {
         self.api("chat/completions")
     }
 
-    /// `<basis>/v1/embeddings` (Runde 12).
+    /// `<base>/v1/embeddings` (Round 12).
     pub fn embeddings_url(&self) -> String {
         self.api("embeddings")
     }
 
-    /// Jedes Vorkommen des Schlüssels durch `***` ersetzen (auch Base64- und Prozent-kodiert, siehe [`scrub`]).
+    /// Replace every occurrence of the key by `***` (also Base64 and percent-encoded, see [`scrub`]).
     pub fn scrub(&self, text: &str) -> String {
         scrub(text, self.secret.as_deref())
     }
 }
 
-/// Alter Ollama-Name → Name bei Eliezer (Backlog „Modelle der Personas über Eliezer“).
+/// Old Ollama name → name at Eliezer (backlog „Modelle der Personas über Eliezer“).
 pub fn alias(name: &str) -> Option<&'static str> {
     match name.trim() {
         "llama3.2:3b" => Some("llama-3.2-3b-instruct-q4-k-m"),
@@ -214,7 +212,7 @@ pub fn alias(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Alle Aliasse `(alt, neu)`.
+/// All aliases `(old, new)`.
 pub const ALIASES: &[(&str, &str)] =
     &[("llama3.2:3b", "llama-3.2-3b-instruct-q4-k-m"), ("qwen3:4b", "qwen3-4b-q4-k-m")];
 
@@ -231,7 +229,7 @@ pub(crate) fn whole_secs(d: Duration) -> String {
     if d.as_millis().is_multiple_of(1000) { format!("{} s", d.as_secs()) } else { format!("{} ms", d.as_millis()) }
 }
 
-/// Fehler von reqwest als Satz mit Ursachenkette (ohne Kopfzeilen, also ohne Schlüssel).
+/// Error of reqwest as a sentence with chain of causes (without headers, so without key).
 pub(crate) fn transport_error(e: &reqwest::Error, url: &str, endpoint: &Endpoint, limits: &Limits) -> LlmError {
     if e.is_timeout() {
         return LlmError::Timeout(format!("Keine Verbindung zu {url} innerhalb von {}.", whole_secs(limits.connect)));
@@ -251,8 +249,8 @@ pub(crate) fn transport_error(e: &reqwest::Error, url: &str, endpoint: &Endpoint
     }
 }
 
-/// Meldung aus einer Fehlerantwort: `error.message`, `error` (Text), `message` oder der Text selbst;
-/// Geheimnis entfernt, eine Zeile, höchstens [`MAX_SERVER_MESSAGE`] Zeichen.
+/// Message from an error answer: `error.message`, `error` (text), `message` or the text itself; secret removed, one
+/// line, at most [`MAX_SERVER_MESSAGE`] characters.
 pub fn server_message(body: &[u8], endpoint: &Endpoint) -> String {
     let text = String::from_utf8_lossy(body);
     let message = match serde_json::from_str::<Value>(&text) {
@@ -283,7 +281,7 @@ fn mentions_unknown_model(message: &str) -> bool {
     lower.contains("model not found") || lower.contains("model_not_found") || lower.contains("no such model")
 }
 
-/// HTTP-Status ≠ 2xx → Fehlerart. `chat`: 404 heißt dort „Modell unbekannt“.
+/// HTTP status ≠ 2xx → kind of error. `chat`: 404 means "model unknown" there.
 pub(crate) fn status_error(status: u16, body: &[u8], url: &str, endpoint: &Endpoint, chat: bool) -> LlmError {
     let message = server_message(body, endpoint);
     let shown = if message.is_empty() { String::new() } else { format!(": {message}") };
@@ -296,8 +294,8 @@ pub(crate) fn status_error(status: u16, body: &[u8], url: &str, endpoint: &Endpo
             };
             LlmError::Denied(format!("HTTP {status} von {url}; {hint}."))
         }
-        // Runde 23: Der Client folgt keiner Weiterleitung (`redirect::Policy::none()`); das Ziel (`Location`)
-        // wird nicht genannt, es käme ungeprüft von der Gegenstelle.
+        // Round 23: the client follows no redirect (`redirect::Policy::none()`); the target (`Location`) is not
+        // named, it would come unchecked from the remote side.
         300..=399 => LlmError::Failed(format!(
             "HTTP {status} von {url}: Weiterleitung. Baruch folgt ihr nicht (der Schlüssel ginge sonst an eine \
              andere Adresse); bitte die endgültige Adresse eintragen."
@@ -309,7 +307,7 @@ pub(crate) fn status_error(status: u16, body: &[u8], url: &str, endpoint: &Endpo
     }
 }
 
-/// Text einer Antwort, höchstens `max` Bytes (mehr wird abgeschnitten, nicht gelesen).
+/// Text of an answer, at most `max` bytes (more is cut off, not read).
 pub(crate) async fn read_limited(response: reqwest::Response, max: usize) -> Vec<u8> {
     let mut out = Vec::new();
     let mut stream = response.bytes_stream();
@@ -323,19 +321,19 @@ pub(crate) async fn read_limited(response: reqwest::Response, max: usize) -> Vec
     out
 }
 
-/// Modellliste mit den Grenzen des Betriebs.
+/// Model list with the limits of production.
 pub async fn models(endpoint: &Endpoint) -> Result<Vec<String>, LlmError> {
     models_with(endpoint, &Limits::default()).await
 }
 
-/// Modellliste: `GET <basis>/v1/models` → `data[].id`, gesamt höchstens `limits.models_total` (eigener
-/// HTTP-Client für diesen Aufruf; [`Client::models`] teilt einen).
+/// Model list: `GET <base>/v1/models` → `data[].id`, in total at most `limits.models_total` (own HTTP client for
+/// this call; [`Client::models`] shares one).
 pub async fn models_with(endpoint: &Endpoint, limits: &Limits) -> Result<Vec<String>, LlmError> {
     let http = client(limits)?;
     models_using(&http, endpoint, limits).await
 }
 
-/// Wie [`models_with`] über einen vorhandenen HTTP-Client.
+/// Like [`models_with`] through an existing HTTP client.
 pub(crate) async fn models_using(
     client: &reqwest::Client,
     endpoint: &Endpoint,
@@ -373,9 +371,8 @@ pub(crate) async fn models_using(
     })
 }
 
-/// Rumpf von `POST /v1/chat/completions` (öffentlich für Tests): Modell, Nachrichten, geklemmtes
-/// `max_tokens`, wahlweise `temperature`, `stream: true`, `stream_options.include_usage: true`.
-/// Bewusst ohne Kontextlänge.
+/// Body of `POST /v1/chat/completions` (public for tests): model, messages, clamped `max_tokens`, optionally
+/// `temperature`, `stream: true`, `stream_options.include_usage: true`. Deliberately without context length.
 pub fn chat_body(request: &ChatRequest) -> Value {
     let mut body = json!({
         "model": request.model,
@@ -390,7 +387,7 @@ pub fn chat_body(request: &ChatRequest) -> Value {
     body
 }
 
-/// Gestreamter Chat mit den Grenzen des Betriebs.
+/// Streamed chat with the limits of production.
 pub async fn chat_stream(
     endpoint: &Endpoint,
     request: &ChatRequest,
@@ -399,7 +396,7 @@ pub async fn chat_stream(
     chat_stream_with(endpoint, request, &Limits::default(), on_delta).await
 }
 
-/// Zwischenstand beim Lesen der Ereignisse.
+/// Intermediate state while reading the events.
 struct Collect<'a> {
     endpoint: &'a Endpoint,
     limits: &'a Limits,
@@ -411,7 +408,7 @@ struct Collect<'a> {
 }
 
 impl Collect<'_> {
-    /// Ein `data:`-Ereignis (JSON) verarbeiten; liefert das neue Textstück.
+    /// Process one `data:` event (JSON); yields the new piece of text.
     fn event(&mut self, data: &str) -> Result<Option<String>, LlmError> {
         let Ok(value) = serde_json::from_str::<Value>(data) else {
             return Err(LlmError::Failed("Ereignis im Antwortstrom ist kein JSON.".into()));
@@ -442,8 +439,8 @@ impl Collect<'_> {
         if let Some(reason) = choice.get("finish_reason").and_then(Value::as_str) {
             self.finish_reason = Some(reason.to_owned());
         }
-        // Nur der eigentliche Inhalt; `delta.reasoning_content` (Denkspur) wird übergangen. Ohne
-        // Strom (Gegenstelle ignoriert `stream`) steht der Text in `message.content`.
+        // Only the actual content; `delta.reasoning_content` (reasoning trace) is skipped. Without a stream (remote
+        // side ignores `stream`) the text stands in `message.content`.
         let piece = choice
             .pointer("/delta/content")
             .or_else(|| choice.pointer("/message/content"))
@@ -458,11 +455,11 @@ impl Collect<'_> {
     }
 }
 
-/// Gestreamter Chat: jedes Textstück geht sofort an `on_delta`; Ergebnis ist der ganze Text.
+/// Streamed chat: every piece of text goes to `on_delta` at once; the result is the whole text.
 ///
-/// Zeitgrenzen: bis zum ersten SSE-Ereignis `limits.first_token` (ab dem Absenden), danach je Stück
-/// höchstens `limits.idle`, insgesamt `limits.total`. `[DONE]` beendet das Lesen, auch wenn die
-/// Gegenstelle die Verbindung offen hält.
+/// Time limits: up to the first SSE event `limits.first_token` (from sending), afterwards per piece at most
+/// `limits.idle`, in total `limits.total`. `[DONE]` ends the reading, even if the remote side keeps the connection
+/// open.
 pub async fn chat_stream_with(
     endpoint: &Endpoint,
     request: &ChatRequest,
@@ -473,7 +470,7 @@ pub async fn chat_stream_with(
     chat_stream_using(&http, endpoint, request, limits, on_delta).await
 }
 
-/// Wie [`chat_stream_with`] über einen vorhandenen HTTP-Client ([`Client::chat_stream`]).
+/// Like [`chat_stream_with`] through an existing HTTP client ([`Client::chat_stream`]).
 pub(crate) async fn chat_stream_using(
     client: &reqwest::Client,
     endpoint: &Endpoint,
@@ -546,7 +543,7 @@ pub(crate) async fn chat_stream_using(
                 Some(Ok(chunk)) => chunk,
             };
             if !event_stream {
-                // Gegenstelle ohne Strom: ganze JSON-Antwort sammeln.
+                // Remote side without a stream: collect the whole JSON answer.
                 if whole.len() + chunk.len() > limits.max_text {
                     return Err(LlmError::Failed("Die Antwort ist größer als 1 MiB; abgebrochen.".into()));
                 }

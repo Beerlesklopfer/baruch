@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Der LanceDB-Index im Temp-Ordner: schreiben, ersetzen, Bereiche, Suche mit Kosinus-Abstand und
-//! `baruch-index.json`. Vektoren sind von Hand gewählt (keine Einbettung nötig).
+//! The LanceDB index in the temp folder: writing, replacing, scopes, search with cosine distance and
+//! `baruch-index.json`. Vectors are chosen by hand (no embedding needed).
 
 use baruch_lancedb::{Entry, Index, IndexMeta, Scope};
 use serde_json::json;
@@ -56,7 +56,7 @@ async fn rows_are_written_replaced_counted_and_found_by_cosine_distance() {
     let ideas = index.search(vec![1.0, 0.0, 0.0], Scope::Visible(1), vec!["idea".into()], 10).await.unwrap();
     assert_eq!(ideas.len(), 1, "nur die Art idea: {ideas:?}");
 
-    // Wechselt eine Zeile das Werk, räumt jeder Bereich seinen Teil (Runde 19a: Löschen nur im Bereich).
+    // If a row changes the work, every scope clears its part (Round 19a: deleting only within the scope).
     index.replace(Scope::Work(1), vec!["b".into()], vec![], 3).await.unwrap();
     index
         .replace(
@@ -114,7 +114,7 @@ async fn the_meta_file_holds_model_and_dimension_and_reset_drops_everything() {
 async fn replace_deletes_only_inside_its_scope_and_refuses_rows_outside_it() {
     let dir = tempfile::tempdir().unwrap();
     let index = Index::open(dir.path()).await.unwrap();
-    // Gleiche Kennung in zwei Werken: `node.key` bzw. `node.id` kann nach einem Löschen neu vergeben werden.
+    // Same identifier in two works: `node.key` or `node.id` can be assigned again after a deletion.
     index
         .replace(
             Scope::Work(1),

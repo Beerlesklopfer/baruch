@@ -1,43 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag-Anordnung (Vertrag Runde 27, Abschnitte 1.1–1.3 und 2.1): frei gesetzte Blöcke auf Vorderseite,
-//! Rücken und Rückseite.
+//! Cover layout (contract Round 27, sections 1.1–1.3 and 2.1): freely placed blocks on front, spine and back.
 //!
-//! - **Blöcke** ([`CoverBlockKind`], 15 Arten): je Werk und Art höchstens einer. Eigenen Text
-//!   ([`CoverBlock::text`], höchstens [`MAX_TEXT_CHARS`] Zeichen) haben nur die Freitexte und das Motto
-//!   ([`CoverBlockKind::own_text`]); alle anderen nehmen ihren Text aus Werk und Buchangaben.
-//! - **Koordinaten** in Millimetern, relativ zur Schnittkante (oben links) der eigenen Fläche, ohne Beschnitt;
-//!   negative Werte ragen in den Beschnitt. `(x_mm, y_mm)` ist die linke obere Ecke des Blockrahmens im
-//!   ungedrehten Seitenkoordinatensystem, `width_mm` die Breite in Leserichtung (beim Rücken die senkrechte
-//!   Ausdehnung auf der Seite). [`CoverGeometry`] rechnet die Flächen im Gesamtumschlag
-//!   (Rückseite | Rücken | Vorderseite) aus.
-//! - **Grenzen** ([`POS_MM`], [`WIDTH_MM`], [`SIZE_PT`], [`LEADING_EM`], [`MAX_TEXT_CHARS`], [`MAX_FONT_CHARS`])
-//!   sind dieselben wie die CHECKs der Migration 0045 (`cover_block`).
-//! - Ohne gespeicherte Zeile gilt der Vorgabeblock ([`default_blocks`]); [`effective_blocks`] mischt beides.
+//! - **Blocks** ([`CoverBlockKind`], 15 kinds): at most one per work and kind. Only the free texts and the motto
+//!   have text of their own ([`CoverBlock::text`], at most [`MAX_TEXT_CHARS`] characters)
+//!   ([`CoverBlockKind::own_text`]); all others take their text from work and book details.
+//! - **Coordinates** in millimetres, relative to the trim edge (top left) of the own face, without bleed; negative
+//!   values reach into the bleed. `(x_mm, y_mm)` is the top left corner of the block frame in the unrotated page
+//!   coordinate system, `width_mm` the width in reading direction (on the spine the vertical extent on the page).
+//!   [`CoverGeometry`] calculates the faces in the whole cover (back | spine | front).
+//! - **Limits** ([`POS_MM`], [`WIDTH_MM`], [`SIZE_PT`], [`LEADING_EM`], [`MAX_TEXT_CHARS`], [`MAX_FONT_CHARS`]) are
+//!   the same as the CHECKs of migration 0045 (`cover_block`).
+//! - Without a stored row the default block applies ([`default_blocks`]); [`effective_blocks`] mixes both.
 //!
-//! Die Typen und Signaturen sind nach der Schnittstelle (S1) eingefroren; die Körper von [`default_blocks`] und
-//! [`effective_blocks`] gehören der Aufgabe umschlag-satz (R27b). Gesetzt werden die Blöcke in
-//! [`crate::cover::frame_parts`] und [`crate::cover::wrap_source`].
+//! The types and signatures are frozen after the interface (S1); the bodies of [`default_blocks`] and
+//! [`effective_blocks`] belong to the task umschlag-satz (R27b). The blocks are set in
+//! [`crate::cover::frame_parts`] and [`crate::cover::wrap_source`].
 
 use serde::{Deserialize, Serialize};
 
 use crate::cover::TitleArea;
 
-/// Sicherheitsabstand zur Schnittkante in mm (Vorgabe).
+/// Safety distance to the trim edge in mm (default).
 pub const SAFETY_MM: f64 = 5.0;
-/// Grenzen von `x_mm` und `y_mm` (mm, einschließlich).
+/// Limits of `x_mm` and `y_mm` (mm, inclusive).
 pub const POS_MM: (f64, f64) = (-50.0, 1000.0);
-/// Grenzen von `width_mm` (mm, einschließlich).
+/// Limits of `width_mm` (mm, inclusive).
 pub const WIDTH_MM: (f64, f64) = (1.0, 1000.0);
-/// Grenzen von `size_pt` (pt, einschließlich).
+/// Limits of `size_pt` (pt, inclusive).
 pub const SIZE_PT: (f64, f64) = (4.0, 200.0);
-/// Grenzen von `leading_em` (em, einschließlich).
+/// Limits of `leading_em` (em, inclusive).
 pub const LEADING_EM: (f64, f64) = (0.0, 3.0);
-/// Höchstlänge des eigenen Texts in Zeichen.
+/// Maximum length of the own text in characters.
 pub const MAX_TEXT_CHARS: usize = 1000;
-/// Höchstlänge eines Schriftnamens in Zeichen.
+/// Maximum length of a font name in characters.
 pub const MAX_FONT_CHARS: usize = 200;
 
-/// Fläche des Umschlags.
+/// Face of the cover.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoverFace {
@@ -49,7 +47,7 @@ pub enum CoverFace {
 impl CoverFace {
     pub const ALL: [CoverFace; 3] = [CoverFace::Front, CoverFace::Spine, CoverFace::Back];
 
-    /// `front`, `spine`, `back` (RPC, Formulare).
+    /// `front`, `spine`, `back` (RPC, forms).
     pub fn as_str(self) -> &'static str {
         match self {
             CoverFace::Front => "front",
@@ -62,7 +60,7 @@ impl CoverFace {
         CoverFace::ALL.into_iter().find(|f| f.as_str() == s.trim())
     }
 
-    /// Deutscher Name: Vorderseite, Rücken, Rückseite.
+    /// German name: Vorderseite, Rücken, Rückseite.
     pub fn label(self) -> &'static str {
         match self {
             CoverFace::Front => "Vorderseite",
@@ -72,7 +70,7 @@ impl CoverFace {
     }
 }
 
-/// Art eines Blocks (Datenbank, RPC und serde mit demselben Namen, z. B. `front_title`).
+/// Kind of a block (database, RPC and serde with the same name, e.g. `front_title`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoverBlockKind {
@@ -112,7 +110,7 @@ impl CoverBlockKind {
         CoverBlockKind::BackFree,
     ];
 
-    /// Name in Datenbank, RPC und Formularen (`front_title` …).
+    /// Name in database, RPC and forms (`front_title` …).
     pub fn as_str(self) -> &'static str {
         match self {
             CoverBlockKind::FrontTitle => "front_title",
@@ -137,7 +135,7 @@ impl CoverBlockKind {
         CoverBlockKind::ALL.into_iter().find(|k| k.as_str() == s.trim())
     }
 
-    /// Fläche, auf der der Block steht.
+    /// Face on which the block stands.
     pub fn face(self) -> CoverFace {
         match self {
             CoverBlockKind::FrontTitle
@@ -158,7 +156,7 @@ impl CoverBlockKind {
         }
     }
 
-    /// Deutscher Name ohne Fläche (z. B. „Titel“; mit Fläche: „Titel (Vorderseite)“).
+    /// German name without face (e.g. „Titel“; with face: „Titel (Vorderseite)“).
     pub fn label(self) -> &'static str {
         match self {
             CoverBlockKind::FrontTitle | CoverBlockKind::SpineTitle => "Titel",
@@ -174,7 +172,7 @@ impl CoverBlockKind {
         }
     }
 
-    /// Hat der Block eigenen Text (`text`)? Nur die drei Freitexte und das Motto.
+    /// Does the block have text of its own (`text`)? Only the three free texts and the motto.
     pub fn own_text(self) -> bool {
         matches!(
             self,
@@ -186,11 +184,11 @@ impl CoverBlockKind {
     }
 }
 
-/// Wörter für die kleinen Aufzählungen (Datenbank, RPC, Formulare).
+/// Words for the small enumerations (database, RPC, forms).
 macro_rules! words {
     ($name:ident { $($variant:ident => $word:literal),+ $(,)? }) => {
         impl $name {
-            /// Name in Datenbank, RPC und Formularen.
+            /// Name in database, RPC and forms.
             pub fn as_str(self) -> &'static str {
                 match self { $($name::$variant => $word),+ }
             }
@@ -202,7 +200,7 @@ macro_rules! words {
     };
 }
 
-/// Ausrichtung des Texts im Blockrahmen.
+/// Alignment of the text in the block frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoverAlign {
@@ -213,7 +211,7 @@ pub enum CoverAlign {
 }
 words!(CoverAlign { Left => "left", Center => "center", Right => "right", Justify => "justify" });
 
-/// Schriftschnitt.
+/// Font weight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FontStyle {
@@ -223,7 +221,7 @@ pub enum FontStyle {
 }
 words!(FontStyle { Normal => "normal", Bold => "bold", Italic => "italic" });
 
-/// Fläche hinter dem Block: keine, halbtransparenter Schatten oder Verlauf (wie bisher hinter dem Titel).
+/// Area behind the block: none, semi-transparent shadow or gradient (as before behind the title).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Backdrop {
@@ -233,8 +231,8 @@ pub enum Backdrop {
 }
 words!(Backdrop { None => "none", Shadow => "shadow", Gradient => "gradient" });
 
-/// Laufrichtung des Texts auf dem Rücken: `down` = von oben nach unten lesbar (`rotate(90deg)`), `up` = von
-/// unten nach oben (`rotate(-90deg)`).
+/// Direction of the text on the spine: `down` = readable from top to bottom (`rotate(90deg)`), `up` = from bottom
+/// to top (`rotate(-90deg)`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpineDirection {
@@ -243,7 +241,7 @@ pub enum SpineDirection {
 }
 words!(SpineDirection { Down => "down", Up => "up" });
 
-/// Ein Block der Anordnung (Werte und Grenzen: Moduldoku, Vertrag 1.3).
+/// One block of the layout (values and limits: module documentation, contract 1.3).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CoverBlock {
     pub kind: CoverBlockKind,
@@ -252,25 +250,25 @@ pub struct CoverBlock {
     pub width_mm: f64,
     pub align: CoverAlign,
     pub size_pt: f64,
-    /// Zeilenabstand als Typst-`leading` in em (Vorgabe 0.65).
+    /// Line spacing as Typst `leading` in em (default 0.65).
     pub leading_em: f64,
-    /// `light` (weiß), `dark` (`rgb("#1f2a33")`) oder `#rrggbb`.
+    /// `light` (white), `dark` (`rgb("#1f2a33")`) or `#rrggbb`.
     pub color: String,
-    /// `None` = Schrift der Werkvorlage.
+    /// `None` = font of the work template.
     #[serde(default)]
     pub font: Option<String>,
     pub style: FontStyle,
     pub backdrop: Backdrop,
     pub visible: bool,
-    /// Nur beim Rücken gesetzt, sonst `None`.
+    /// Only set on the spine, otherwise `None`.
     #[serde(default)]
     pub direction: Option<SpineDirection>,
-    /// Nur bei Arten mit eigenem Text ([`CoverBlockKind::own_text`]).
+    /// Only for kinds with text of their own ([`CoverBlockKind::own_text`]).
     #[serde(default)]
     pub text: Option<String>,
 }
 
-/// Gespeicherte Anordnung eines Werks (leer = keine eigene Anordnung).
+/// Stored layout of a work (empty = no layout of its own).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CoverLayout {
     pub blocks: Vec<CoverBlock>,
@@ -281,13 +279,13 @@ impl CoverLayout {
         self.blocks.is_empty()
     }
 
-    /// Block der Art `kind`, falls gespeichert.
+    /// Block of the kind `kind`, if stored.
     pub fn get(&self, kind: CoverBlockKind) -> Option<&CoverBlock> {
         self.blocks.iter().find(|b| b.kind == kind)
     }
 }
 
-/// Maße des Umschlags (mm): Seitenbreite W, Seitenhöhe H, Rücken S, Beschnitt b, Sicherheitsabstand.
+/// Dimensions of the cover (mm): page width W, page height H, spine S, bleed b, safety distance.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct CoverGeometry {
     pub page_width_mm: f64,
@@ -298,18 +296,17 @@ pub struct CoverGeometry {
 }
 
 impl CoverGeometry {
-    /// Maße mit dem Vorgabe-Sicherheitsabstand [`SAFETY_MM`].
+    /// Dimensions with the default safety distance [`SAFETY_MM`].
     pub fn new(page_width_mm: f64, page_height_mm: f64, spine_mm: f64, bleed_mm: f64) -> CoverGeometry {
         CoverGeometry { page_width_mm, page_height_mm, spine_mm, bleed_mm, safety_mm: SAFETY_MM }
     }
 
-    /// Gesamtumschlag (Breite, Höhe): (2W + S + 2b) × (H + 2b).
+    /// Whole cover (width, height): (2W + S + 2b) × (H + 2b).
     pub fn wrap_size(&self) -> (f64, f64) {
         (2.0 * self.page_width_mm + self.spine_mm + 2.0 * self.bleed_mm, self.page_height_mm + 2.0 * self.bleed_mm)
     }
 
-    /// Schnittkante (oben links) der Fläche im Gesamtumschlag: Rückseite (b, b), Rücken (b + W, b),
-    /// Vorderseite (b + W + S, b).
+    /// Trim edge (top left) of the face in the whole cover: back (b, b), spine (b + W, b), front (b + W + S, b).
     pub fn face_origin(&self, face: CoverFace) -> (f64, f64) {
         let b = self.bleed_mm;
         match face {
@@ -319,7 +316,7 @@ impl CoverGeometry {
         }
     }
 
-    /// Größe der Fläche ohne Beschnitt: Rückseite und Vorderseite W × H, Rücken S × H.
+    /// Size of the face without bleed: back and front W × H, spine S × H.
     pub fn face_size(&self, face: CoverFace) -> (f64, f64) {
         match face {
             CoverFace::Back | CoverFace::Front => (self.page_width_mm, self.page_height_mm),
@@ -328,7 +325,7 @@ impl CoverGeometry {
     }
 }
 
-/// Ungefähre Höhe einer Textzeile in mm (Typst setzt von der Versalhöhe bis zur Grundlinie, ≈ 0,7 em).
+/// Approximate height of a text line in mm (Typst sets from the cap height to the baseline, ≈ 0.7 em).
 fn line_mm(size_pt: f64) -> f64 {
     size_pt * 0.7 * 25.4 / 72.0
 }
@@ -341,23 +338,23 @@ fn clamp_width(value: f64) -> f64 {
     if value.is_finite() { value.clamp(WIDTH_MM.0, WIDTH_MM.1) } else { WIDTH_MM.0 }
 }
 
-/// Rand der bisherigen Rückseite (mm), wie `PANEL_MARGIN_MM` in [`crate::cover`].
+/// Margin of the previous back (mm), like `PANEL_MARGIN_MM` in [`crate::cover`].
 const BACK_MARGIN_MM: f64 = 14.0;
-/// Breite des Strichcode-Kastens: 36 mm Bild und 2 × 3 pt Innenabstand.
+/// Width of the barcode box: 36 mm image and 2 × 3 pt padding.
 const BARCODE_BOX_MM: f64 = 36.0 + 6.0 * 25.4 / 72.0;
-/// Höhe des Strichcode-Kastens (Bild 36 mm × 60/113, ISBN-Zeile, Innenabstand), gerundet.
+/// Height of the barcode box (image 36 mm × 60/113, ISBN line, padding), rounded.
 const BARCODE_BOX_HEIGHT_MM: f64 = 25.0;
 
-/// Vorgabeblöcke aller 15 Arten in [`CoverBlockKind::ALL`]-Reihenfolge; sie ahmen das Bild ohne eigene Anordnung
-/// nach (nicht byte-gleich):
+/// Default blocks of all 15 kinds in [`CoverBlockKind::ALL`] order; they imitate the appearance without a layout of
+/// its own (not byte-identical):
 ///
-/// - Vorderseite: Autor, Titel (fett, 30 pt) und Untertitel untereinander, 10 % Rand links und rechts, im
-///   Titelbereich `area` oben, in der Mitte oder unten; hinter dem Titel ein Verlauf (oben/unten) bzw. ein Schatten
-///   (Mitte). Verlag und Freitext sind ausgeblendet.
-/// - Rücken: Autor und Titel von oben nach unten lesbar, Schriftgröße wie bisher (0,45 × Rückenbreite, höchstens
-///   11 pt), unter 6 mm Rückenbreite ausgeblendet wie bisher; Verlag und Freitext ausgeblendet.
-/// - Rückseite: Klappentext oben (Blocksatz), Kurzbiografie darunter, unten links Verlag und Preis, unten rechts
-///   der Strichcode, 14 mm Rand wie bisher; Motto und Freitext ausgeblendet.
+/// - Front: author, title (bold, 30 pt) and subtitle below each other, 10 % margin left and right, in the title
+///   area `area` at the top, in the middle or at the bottom; behind the title a gradient (top/bottom) or a shadow
+///   (middle). Publisher and free text are hidden.
+/// - Spine: author and title readable from top to bottom, font size as before (0.45 × spine width, at most 11 pt),
+///   hidden below 6 mm spine width as before; publisher and free text hidden.
+/// - Back: blurb at the top (justified), short biography below it, bottom left publisher and price, bottom right
+///   the barcode, 14 mm margin as before; motto and free text hidden.
 pub fn default_blocks(area: TitleArea, geometry: &CoverGeometry) -> Vec<CoverBlock> {
     let (w, h) = geometry.face_size(CoverFace::Front);
     let spine = geometry.spine_mm.max(0.0);
@@ -379,7 +376,7 @@ pub fn default_blocks(area: TitleArea, geometry: &CoverGeometry) -> Vec<CoverBlo
         text: kind.own_text().then(String::new),
     };
 
-    // Vorderseite: Autor (13 pt), Abstand, Titel (30 pt), Abstand, Untertitel (15 pt).
+    // Front: author (13 pt), gap, title (30 pt), gap, subtitle (15 pt).
     let (author_h, gap1, title_h, gap2, subtitle_h) = (line_mm(13.0), 4.0, line_mm(30.0), 3.5, line_mm(15.0));
     let stack = author_h + gap1 + title_h + gap2 + subtitle_h;
     let edge = (0.12 * w).max(safety);
@@ -398,7 +395,7 @@ pub fn default_blocks(area: TitleArea, geometry: &CoverGeometry) -> Vec<CoverBlo
     let publisher = block(CoverBlockKind::FrontPublisher, front_x, publisher_y, front_w, 11.0);
     let front_free = block(CoverBlockKind::FrontFree, front_x, h * 0.5, front_w, 12.0);
 
-    // Rücken: Text gedreht, Breite in Leserichtung = senkrechte Ausdehnung.
+    // Spine: text rotated, width in reading direction = vertical extent.
     let spine_size = (spine * 0.45 * 72.0 / 25.4).min(11.0);
     let spine_x = (spine - line_mm(spine_size.max(SIZE_PT.0))) / 2.0;
     let spine_block = |kind, y: f64, width: f64| {
@@ -415,7 +412,7 @@ pub fn default_blocks(area: TitleArea, geometry: &CoverGeometry) -> Vec<CoverBlo
     let mut spine_free = spine_block(CoverBlockKind::SpineFree, 0.42 * h, 0.5 * h);
     spine_free.visible = false;
 
-    // Rückseite.
+    // Back.
     let m = BACK_MARGIN_MM;
     let inner = w - 2.0 * m;
     let mut blurb = block(CoverBlockKind::BackBlurb, m, m, inner, 10.5);
@@ -456,8 +453,9 @@ pub fn default_blocks(area: TitleArea, geometry: &CoverGeometry) -> Vec<CoverBlo
     ];
     let mut out: Vec<CoverBlock> = all.into_iter().collect();
     out.sort_by_key(|b| CoverBlockKind::ALL.iter().position(|k| *k == b.kind));
-    // Runde 23a (vom PM entschieden): Lage und Breite auf 0,01 mm. Die Vorgaben rechnen aus dem Seitenmaß in pt;
-    // ohne Runden stünden Werte wie 20,999999 mm in `cover.layout` und nach dem ersten Speichern in der Datenbank.
+    // Round 23a (decided by the PM): position and width to 0.01 mm. The defaults calculate from the page dimension
+    // in pt; without rounding, values like 20.999999 mm would stand in `cover.layout` and after the first save in
+    // the database.
     for block in &mut out {
         block.x_mm = round_hundredth(block.x_mm);
         block.y_mm = round_hundredth(block.y_mm);
@@ -466,13 +464,13 @@ pub fn default_blocks(area: TitleArea, geometry: &CoverGeometry) -> Vec<CoverBlo
     out
 }
 
-/// Auf 0,01 mm gerundet (kaufmännisch); `-0.0` wird `0.0`.
+/// Rounded to 0.01 mm (half away from zero); `-0.0` becomes `0.0`.
 fn round_hundredth(mm: f64) -> f64 {
     let rounded = (mm * 100.0).round() / 100.0;
     if rounded == 0.0 { 0.0 } else { rounded }
 }
 
-/// Je Art in [`CoverBlockKind::ALL`]-Reihenfolge der gespeicherte Block (`true`) oder der Vorgabeblock (`false`).
+/// Per kind in [`CoverBlockKind::ALL`] order the stored block (`true`) or the default block (`false`).
 pub fn effective_blocks(stored: &CoverLayout, area: TitleArea, geometry: &CoverGeometry) -> Vec<(CoverBlock, bool)> {
     default_blocks(area, geometry)
         .into_iter()

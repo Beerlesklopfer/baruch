@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Entwurf als Wasserzeichen (Runde 22, Vertrag §2.9, Aufgabe spiegel-entwurf).
+//! Draft as a watermark (Round 22, contract §2.9, task spiegel-entwurf).
 //!
-//! [`draft_rule`] liefert eine Typst-Regel `#set page(foreground: …)`, die der Server **nur in die Satzquelle der
-//! Ausgaben** legt (Satz-Vorschau, Buch-PDF, Stichwortzettel, auf Wunsch das Umschlag-PDF) – nie in Export, Spiegel
-//! (`main.typ`), Export-Karte oder den Regelblock „// Baruch: Satz“ ([`super::rules`] kennt das Feld nicht,
-//! [`super::settings_from_rules`] bleibt unberührt).
+//! [`draft_rule`] delivers a Typst rule `#set page(foreground: …)` that the server puts **only into the typesetting
+//! source of the outputs** (typesetting preview, book PDF, cue sheet, on request the cover PDF) – never into
+//! export, mirror (`main.typ`), export map or the rule block „// Baruch: Satz“ ([`super::rules`] does not know the
+//! field, [`super::settings_from_rules`] stays untouched).
 //!
-//! - **Warum `foreground`:** Hintergrund, Kopf- und Fußzeile gehören schon der Werkvorlage bzw. den Satz-Regeln (die
-//!   Seitenzählung ab dem ersten Kapitel steht im Seitenhintergrund, siehe [`super::rules`]); ein zweites
-//!   `#set page(background: …)` würde sie ersetzen. Der Vordergrund ist frei; das Wasserzeichen liegt mit geringer
-//!   Deckkraft über dem Text und ändert den Umbruch nicht (gleiche Seitenzahl wie ohne Entwurf). Setzt eine
-//!   Werkvorlage selbst `foreground`, gilt in den Ausgaben mit Entwurf das Wasserzeichen (es steht dahinter).
-//! - **Lage:** diagonal über die Seite (Mitte, −45°), in der Kopfzeile (oben mittig, 7 mm vom Rand) oder in der
-//!   Fußzeile (unten mittig).
-//! - **Text nur als Zeichenkette:** Text, Zusatz und Datum stehen als maskierte Typst-Zeichenketten in der Regel
-//!   (kein Markup, keine Ausführung). Leerzeichen werden zu geschützten Leerzeichen, damit Typst den Text nicht
-//!   umbricht. Steuerzeichen fallen weg (die Prüfung in `validate` lehnt sie ohnehin ab).
-//! - **Datum nur übergeben:** Die Regel ermittelt kein Datum (kein `datetime.today()`); der Server reicht die
-//!   Ortszeit als fertigen Text herein, sonst wären Quelle und Stand nicht reproduzierbar.
-//! - **Größe:** aus der Zeichenzahl gerechnet (höchstens 80 pt), damit auch 40 Zeichen auf eine A6-Seite passen.
+//! - **Why `foreground`:** background, header and footer already belong to the work template or the typesetting
+//!   rules (the page counting from the first chapter on stands in the page background, see [`super::rules`]); a
+//!   second `#set page(background: …)` would replace them. The foreground is free; the watermark lies with low
+//!   opacity above the text and does not change the page breaks (same number of pages as without draft). If a work
+//!   template sets `foreground` itself, the watermark applies in the outputs with draft (it stands behind it).
+//! - **Position:** diagonally across the page (centre, −45°), in the header (top centre, 7 mm from the edge) or in
+//!   the footer (bottom centre).
+//! - **Text only as a string:** text, addition and date stand as escaped Typst strings in the rule (no markup, no
+//!   execution). Spaces become no-break spaces, so that Typst does not break the text. Control characters are
+//!   dropped (the check in `validate` refuses them anyway).
+//! - **Date only passed in:** the rule determines no date (no `datetime.today()`); the server hands in the local
+//!   time as a finished text, otherwise source and state would not be reproducible.
+//! - **Size:** calculated from the number of characters (at most 80 pt), so that even 40 characters fit on an A6 page.
 
 use super::model::Draft;
 use super::model::DraftPlacement;
 use super::rules::literal;
 
-/// Erste Zeile der Regel (Kennung in der Satzquelle der Ausgaben).
+/// First line of the rule (marker in the typesetting source of the outputs).
 pub const DRAFT_MARK: &str = "// Baruch: Entwurf (nur in den Ausgaben)";
 
-/// Zweite Zeile des Wasserzeichens: „Stand <Datum>“ (nur mit `draft.date` und übergebenem Datum) und der Zusatz,
-/// verbunden mit „ · “; leer, wenn beides fehlt. Auch der EPUB-Hinweis nutzt diese Zeile.
+/// Second line of the watermark: „Stand <Datum>“ (only with `draft.date` and a date passed in) and the addition,
+/// joined with „ · “; empty if both are missing. The EPUB note uses this line too.
 pub fn draft_line(draft: &Draft, date: Option<&str>) -> String {
     let mut parts: Vec<String> = Vec::new();
     if draft.date
@@ -43,19 +43,19 @@ pub fn draft_line(draft: &Draft, date: Option<&str>) -> String {
     parts.join(" · ")
 }
 
-/// Typst-Zahl mit höchstens einer Nachkommastelle.
+/// Typst number with at most one decimal place.
 fn pt(x: f64) -> String {
     let rounded = (x * 10.0).round() / 10.0;
     format!("{rounded}pt")
 }
 
-/// Zeichenkette ohne Umbruch: Leerzeichen → geschütztes Leerzeichen, dann maskiert.
+/// String without a break: space → no-break space, then escaped.
 fn unbreakable(text: &str) -> String {
     literal(&text.replace(' ', "\u{a0}"))
 }
 
-/// Die Regel des Wasserzeichens (endet mit `'\n'`); `date` ist das heutige Datum in Ortszeit als Text (z. B.
-/// „10.11.2026“) und wird nur mit `draft.date` gesetzt.
+/// The rule of the watermark (ends with `'\n'`); `date` is today's date in local time as text (e.g. „10.11.2026“)
+/// and is only set with `draft.date`.
 pub fn draft_rule(draft: &Draft, date: Option<&str>) -> String {
     let text = draft.text.trim();
     let line = draft_line(draft, date);

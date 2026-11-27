@@ -1,46 +1,46 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sprechdauer eines Abschnittstexts (Runde 16b „Zeitwächter“, Schnittstelle R16-S1).
+//! Speaking time of a section text (Round 16b „Zeitwächter“, interface R16-S1).
 //!
-//! [`spoken_words`] zählt die gesprochenen Wörter eines Typst-Texts, [`speaking_seconds`] rechnet sie
-//! mit Wörtern je Minute in Sekunden um, [`clock`] schreibt Sekunden als Uhrzeit. Zählregeln (so auch in
-//! `docs/Bedienung.md`, Abschnitt „Zeitwächter“):
+//! [`spoken_words`] counts the spoken words of a Typst text, [`speaking_seconds`] converts them into seconds with
+//! words per minute, [`clock`] writes seconds as a clock time. Counting rules (also in `docs/Bedienung.md`, section
+//! „Zeitwächter“):
 //!
 //! 1. CRLF → LF.
-//! 2. Kommentare zählen nicht: `/* … */` (auch mehrzeilig, verschachtelt) und `//` bis Zeilenende, wenn
-//!    `//` am Zeilenanfang oder nach Leerraum steht (`https://` bleibt Text).
-//! 3. Überschriftszeilen (nach Leerraum `=`…`=` + Leerzeichen, auch die Teil-Markierungen
-//!    `#heading(…)[…] <baruch-part>`) zählen nicht.
-//! 4. Raw `` `…` `` und ```` ```…``` ```` zählen nicht; Mathe `$…$` zählt nicht.
-//! 5. Code: `#name`, `#name.feld` samt direkt folgenden Argumentgruppen `(…)` (geklammert, Zeichenketten
-//!    beachtet) fällt weg; direkt folgende Inhaltsblöcke `[…]` zählen – außer bei `#footnote` und
-//!    `#arbeit` (nicht gesprochen). Zeilen mit `#set`, `#show`, `#let`, `#import`, `#include` fallen ganz
-//!    weg (samt Klammern, die über die Zeile hinausreichen).
-//! 6. Labels `<…>` und Verweise `@name` fallen weg.
-//! 7. Markup-Zeichen `*` `_` fallen weg, `~` wird Leerzeichen, Listenzeichen `- `, `+ `, `/ ` am
-//!    Zeilenanfang fallen weg, Maskierung `\x` → `x`, `\` als Zeilenumbruch → Leerzeichen.
-//! 8. Wort = Folge von Nicht-Leerraum mit mindestens einem Buchstaben oder einer Ziffer
-//!    (`char::is_alphanumeric`); „Joh 3,16“ = 2 Wörter, ein Bindestrichwort = 1.
+//! 2. Comments do not count: `/* … */` (also multi-line, nested) and `//` to the line end if `//` stands at the
+//!    start of a line or after whitespace (`https://` stays text).
+//! 3. Heading lines (after whitespace `=`…`=` + space, also the part markers `#heading(…)[…] <baruch-part>`) do not
+//!    count.
+//! 4. Raw `` `…` `` and ```` ```…``` ```` do not count; math `$…$` does not count.
+//! 5. Code: `#name`, `#name.feld` including directly following argument groups `(…)` (bracketed, strings respected)
+//!    is dropped; directly following content blocks `[…]` count – except for `#footnote` and `#arbeit` (not
+//!    spoken). Lines with `#set`, `#show`, `#let`, `#import`, `#include` are dropped entirely (including brackets
+//!    that reach beyond the line).
+//! 6. Labels `<…>` and references `@name` are dropped.
+//! 7. Markup characters `*` `_` are dropped, `~` becomes a space, list characters `- `, `+ `, `/ ` at the start of
+//!    a line are dropped, escape `\x` → `x`, `\` as a line break → space.
+//! 8. Word = run of non-whitespace with at least one letter or digit (`char::is_alphanumeric`); „Joh 3,16“ = 2
+//!    words, a hyphenated word = 1.
 //!
-//! Die Crate rechnet nur; Einstellungen (Wörter je Minute, Zielzeit) hält der Store.
+//! The crate only calculates; settings (words per minute, target time) are kept by the store.
 
-/// Vorgabe: Wörter je Minute beim freien Vortrag.
+/// Default: words per minute in free speech.
 pub const DEFAULT_WORDS_PER_MINUTE: u32 = 110;
-/// Kleinste erlaubte Sprechgeschwindigkeit.
+/// Smallest permitted speaking rate.
 pub const MIN_WORDS_PER_MINUTE: u32 = 60;
-/// Größte erlaubte Sprechgeschwindigkeit.
+/// Largest permitted speaking rate.
 pub const MAX_WORDS_PER_MINUTE: u32 = 250;
-/// Längste Zielzeit in Minuten.
+/// Longest target time in minutes.
 pub const MAX_TARGET_MINUTES: u32 = 240;
 
-/// Gesprochene Wörter eines Abschnittstexts (Typst) nach den Zählregeln unten.
+/// Spoken words of a section text (Typst) by the counting rules below.
 ///
-/// Zählregeln: siehe Moduldokumentation (1)–(8).
+/// Counting rules: see module documentation (1)–(8).
 pub fn spoken_words(typst: &str) -> usize {
     let text = typst.replace("\r\n", "\n");
     spoken_text(&text).split_whitespace().filter(|w| w.chars().any(char::is_alphanumeric)).count()
 }
 
-/// Sekunden für `words` Wörter: aufgerundet ceil(words*60/wpm); wpm auf [MIN, MAX] geklemmt; 0 Wörter → 0.
+/// Seconds for `words` words: rounded up ceil(words*60/wpm); wpm clamped to [MIN, MAX]; 0 words → 0.
 pub fn speaking_seconds(words: usize, words_per_minute: u32) -> u32 {
     if words == 0 {
         return 0;
@@ -50,7 +50,7 @@ pub fn speaking_seconds(words: usize, words_per_minute: u32) -> u32 {
     u32::try_from(seconds).unwrap_or(u32::MAX)
 }
 
-/// Uhr-Schreibweise: unter einer Stunde „m:ss“ („0:45“, „12:05“), sonst „h:mm:ss“ („1:02:03“).
+/// Clock notation: below one hour „m:ss“ („0:45“, „12:05“), otherwise „h:mm:ss“ („1:02:03“).
 pub fn clock(seconds: u32) -> String {
     let hours = seconds / 3600;
     let minutes = (seconds % 3600) / 60;
@@ -66,7 +66,7 @@ fn ident_char(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_' || ch == '-'
 }
 
-/// Zeichenkette `"…"` ab `i` (auf dem `"`) überspringen; Index hinter dem schließenden `"`.
+/// Skip the string `"…"` from `i` on (on the `"`); index behind the closing `"`.
 fn skip_string(c: &[char], mut i: usize) -> usize {
     i += 1;
     while i < c.len() {
@@ -79,7 +79,7 @@ fn skip_string(c: &[char], mut i: usize) -> usize {
     c.len()
 }
 
-/// Bis zum nächsten `close` überspringen, ab `i` (hinter dem Öffner); mit `escapes` beendet `\x` nicht.
+/// Skip to the next `close`, from `i` on (behind the opener); with `escapes`, `\x` does not end it.
 fn skip_until(c: &[char], mut i: usize, close: &[char], escapes: bool) -> usize {
     while i < c.len() {
         if escapes && c[i] == '\\' {
@@ -94,7 +94,7 @@ fn skip_until(c: &[char], mut i: usize, close: &[char], escapes: bool) -> usize 
     c.len()
 }
 
-/// Verschachtelten Blockkommentar ab `i` (auf `/*`) überspringen; Index dahinter.
+/// Skip a nested block comment from `i` on (on `/*`); index behind it.
 fn skip_block_comment(c: &[char], mut i: usize) -> usize {
     let mut depth = 0usize;
     while i < c.len() {
@@ -114,8 +114,8 @@ fn skip_block_comment(c: &[char], mut i: usize) -> usize {
     c.len()
 }
 
-/// Geklammerte Gruppe ab `i` (auf `(`, `[` oder `{`) überspringen; Index hinter der schließenden Klammer.
-/// In `(…)` und `{…}` gilt Code (Zeichenketten zählen als Ganzes), in `[…]` Markup (Maskierungen, Raw).
+/// Skip a bracketed group from `i` on (on `(`, `[` or `{`); index behind the closing bracket. In `(…)` and `{…}`
+/// code applies (strings count as a whole), in `[…]` markup (escapes, raw).
 fn skip_group(c: &[char], mut i: usize) -> usize {
     let open = c[i];
     let close = match open {
@@ -160,8 +160,8 @@ fn skip_group(c: &[char], mut i: usize) -> usize {
     c.len()
 }
 
-/// Rest einer Code-Zeile ab `i` überspringen (bis zum Zeilenende außerhalb von Klammern und
-/// Zeichenketten); Index auf dem `\n` bzw. am Ende.
+/// Skip the rest of a code line from `i` on (to the line end outside of brackets and strings); index on the `\n` or
+/// at the end.
 fn skip_code_line(c: &[char], mut i: usize) -> usize {
     while i < c.len() && c[i] != '\n' {
         match c[i] {
@@ -176,7 +176,7 @@ fn skip_code_line(c: &[char], mut i: usize) -> usize {
 
 const LINE_KEYWORDS: [&str; 6] = ["set", "show", "let", "import", "include", "heading"];
 
-/// Beginnt bei `j` ein `#`-Schlüsselwort, dessen Zeile ganz wegfällt?
+/// Does a `#` keyword start at `j` whose line is dropped entirely?
 fn line_keyword_at(c: &[char], j: usize) -> bool {
     if c.get(j) != Some(&'#') {
         return false;
@@ -189,7 +189,7 @@ fn line_keyword_at(c: &[char], j: usize) -> bool {
     LINE_KEYWORDS.contains(&word.as_str())
 }
 
-/// Überschriftszeile ab `j` (erstes Nicht-Leerraumzeichen): `=`…`=` + Leerzeichen/Tab/Zeilenende.
+/// Heading line from `j` on (first non-whitespace character): `=`…`=` + space/tab/line end.
 fn heading_at(c: &[char], j: usize) -> bool {
     let mut k = j;
     while k < c.len() && c[k] == '=' {
@@ -198,11 +198,11 @@ fn heading_at(c: &[char], j: usize) -> bool {
     k > j && (k == c.len() || matches!(c[k], ' ' | '\t' | '\n'))
 }
 
-/// Offener Block im Fließtext: `true` = Inhaltsblock eines Code-Aufrufs (seine `]` fällt weg).
+/// Open block in the running text: `true` = content block of a code call (its `]` is dropped).
 type OpenBlocks = Vec<bool>;
 
-/// Nach `#` bei `i` (auf dem `#`): Code-Ausdruck verarbeiten; gibt den neuen Index zurück und legt einen
-/// gesprochenen Inhaltsblock auf `blocks`, wenn einer folgt.
+/// After `#` at `i` (on the `#`): process the code expression; returns the new index and puts a spoken content
+/// block on `blocks` if one follows.
 fn code_at(c: &[char], mut i: usize, blocks: &mut OpenBlocks) -> Option<usize> {
     let next = *c.get(i + 1)?;
     if next == '(' || next == '{' {
@@ -227,7 +227,7 @@ fn code_at(c: &[char], mut i: usize, blocks: &mut OpenBlocks) -> Option<usize> {
     Some(arguments(c, i, silent, blocks))
 }
 
-/// Argumentgruppen ab `i` verarbeiten: `(…)` fällt weg, `[…]` ist stumm oder wird gesprochen geöffnet.
+/// Process argument groups from `i` on: `(…)` is dropped, `[…]` is silent or is opened as spoken.
 fn arguments(c: &[char], mut i: usize, silent: bool, blocks: &mut OpenBlocks) -> usize {
     loop {
         match c.get(i) {
@@ -242,7 +242,7 @@ fn arguments(c: &[char], mut i: usize, silent: bool, blocks: &mut OpenBlocks) ->
     }
 }
 
-/// Gesprochener Text: alles, was nach den Zählregeln wegfällt, ist entfernt.
+/// Spoken text: everything that is dropped by the counting rules is removed.
 fn spoken_text(src: &str) -> String {
     let c: Vec<char> = src.chars().collect();
     let mut out = String::with_capacity(src.len());
@@ -341,7 +341,7 @@ fn spoken_text(src: &str) -> String {
             }
             ']' => match blocks.pop() {
                 Some(true) => {
-                    // Ein weiterer Inhaltsblock desselben Aufrufs (`#grid[a][b]`) ist ein eigenes Stück Text.
+                    // Another content block of the same call (`#grid[a][b]`) is a piece of text of its own.
                     if c.get(i + 1) == Some(&'[') {
                         out.push(' ');
                     }

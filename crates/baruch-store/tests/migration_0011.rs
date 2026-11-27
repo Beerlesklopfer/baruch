@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0011 (Einfälle, Vertrag Runde 7, Abschnitt 6a) auf einer nachgebauten Datenbank im Stand
-//! von `development` vor Runde 7: Store-Migrationen 0001–0009 und Bibliotheks-Migrationen 0101–0105,
-//! Werk 1 = Beispielwerk, Werk 2 = importiertes, frei erfundenes Buch, dazu Personas, Fassungen,
-//! Vorschlag, Beitrag mit Verweis, Bild (mit Fassung und Pfad), Titel, Zitat und Hervorhebung.
+//! Migration 0011 (ideas, contract Round 7, section 6a) on a rebuilt database in the state of `development` before
+//! Round 7: store migrations 0001–0009 and library migrations 0101–0105, work 1 = sample work, work 2 = imported,
+//! freely invented book, plus personas, revisions, proposal, post with reference, image (with revision and path),
+//! title, quote and highlight.
 //!
-//! Danach `Store::open`: Alle Zeilen und Spalten aller vorhandenen Tabellen bleiben, wie sie waren
-//! (verglichen über die Spalten von vorher, damit eine weitere Migration mit neuen Spalten, z. B.
-//! 0010 an `persona`, den Vergleich nicht bricht), keine Verstöße gegen Fremdschlüssel, je Abschnitt
-//! genau eine aktuelle Fassung, Export byte-gleich, Spiegel ohne `einfaelle.md`, ein zweiter Start
-//! ändert nichts. Danach lassen sich Einfälle anlegen, und ein gelöschtes Werk lässt sie stehen.
-//! Das Schema wird nach einem Migrator bis 0011 verglichen (Runde 10), `Store::open` prüft danach den
-//! Datenerhalt mit allen späteren Migrationen.
+//! Afterwards `Store::open`: all rows and columns of all existing tables stay as they were (compared through the
+//! columns from before, so that a further migration with new columns, e.g. 0010 on `persona`, does not break the
+//! comparison), no violations of foreign keys, exactly one current revision per section, export byte-identical,
+//! mirror without `einfaelle.md`, a second start changes nothing. Afterwards ideas can be created, and a deleted
+//! work leaves them in place. The schema is compared after a migrator up to 0011 (Round 10), `Store::open`
+//! afterwards checks the preservation of data with all later migrations.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -23,7 +22,7 @@ use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-/// Tabellen aus 0011 (dazu die Schattentabellen von FTS5, `idea_fts_*`).
+/// Tables from 0011 (plus the shadow tables of FTS5, `idea_fts_*`).
 const NEW_TABLES: &[&str] = &["idea", "idea_word", "idea_fts"];
 
 async fn raw_pool(dir: &Path) -> SqlitePool {
@@ -35,7 +34,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen bis 0009 (Stand development) und die Bibliotheks-Migrationen 0101–0105.
+/// Store migrations up to 0009 (state of development) and the library migrations 0101–0105.
 async fn migrate_like_development(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 9).cloned().collect();
     assert!(old.iter().any(|m| m.version == 9), "Stand development hat 0009");
@@ -51,7 +50,7 @@ async fn migrate_like_development(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Ein Werk mit Gliederung, je Abschnitt Revisionen wie in `sample::work()` bzw. Revision 1.
+/// A work with outline, per section revisions as in `sample::work()` or revision 1.
 async fn insert_work(pool: &SqlitePool, slug: &str, title: &str, template: &str, source_name: Option<&str>) -> WorkId {
     let work: WorkId = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, template, source_name, source_sha256, title_key) \
@@ -168,7 +167,7 @@ async fn insert_sample(pool: &SqlitePool) -> WorkId {
     work_id
 }
 
-/// Frei erfundenes Buch mit Vorlage, Bildaufruf (noch ohne Bildzeilen), Kapiteln und Abschnitten.
+/// Freely invented book with template, image call (still without image rows), chapters and sections.
 fn invented_book() -> String {
     let mut out = String::from(
         "#set document(title: \"Das Mühlenbuch\", author: \"Ida Feder\")\n#set heading(numbering: \"1.1\")\n\
@@ -228,7 +227,7 @@ async fn insert_import(pool: &SqlitePool, source: &str) -> WorkId {
         .unwrap();
         stack.push((heading.level, seq, number, 0));
     }
-    // Vorschlag, Beitrag mit Verweis, Bibliothek.
+    // Proposal, post with reference, library.
     let node: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 1")
         .bind(work)
         .fetch_one(pool)
@@ -280,9 +279,9 @@ async fn insert_import(pool: &SqlitePool, source: &str) -> WorkId {
     work
 }
 
-/// Store-Migrationen bis einschließlich `version` auf der nachgebauten Datenbank (Runde 10): Das Schema
-/// wird nach diesem Migrator verglichen, damit spätere Migrationen (z. B. 0015 an `persona`) den Vergleich
-/// nicht brechen; `Store::open` danach prüft nur noch den Datenerhalt.
+/// Store migrations up to and including `version` on the rebuilt database (Round 10): the schema is compared after
+/// this migrator, so that later migrations (e.g. 0015 on `persona`) do not break the comparison; `Store::open`
+/// afterwards only checks the preservation of data.
 async fn migrate_upto(pool: &SqlitePool, version: i64) {
     let upto: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= version).cloned().collect();
     assert!(upto.iter().any(|m| m.version == version), "MIGRATOR enthält {version}");
@@ -290,7 +289,7 @@ async fn migrate_upto(pool: &SqlitePool, version: i64) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Schema aus `sqlite_master`: Name → SQL.
+/// Schema from `sqlite_master`: name → SQL.
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows: Vec<(String, Option<String>)> =
         sqlx::query_as("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_stat%'")
@@ -300,7 +299,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Spalten jeder Tabelle in ihrer Reihenfolge.
+/// Columns of every table in their order.
 async fn columns(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .fetch_all(pool)
@@ -318,7 +317,7 @@ async fn columns(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Zeilen der Tabellen in `layout` über genau diese Spalten, als `quote()`-Text, sortiert.
+/// All rows of the tables in `layout` through exactly these columns, as `quote()` text, sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -338,7 +337,7 @@ async fn count(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap()
 }
 
-/// Ein Bild wie nach 0009: Bild, aktuelle Fassung (SVG-Text) und der Pfad aus dem Text.
+/// An image as after 0009: image, current revision (SVG text) and the path from the text.
 async fn insert_asset(pool: &SqlitePool, work: WorkId) {
     let asset: i64 = sqlx::query_scalar("INSERT INTO asset (work_id, name) VALUES (?, 'rad-1.svg') RETURNING id")
         .bind(work)
@@ -418,7 +417,7 @@ async fn migration_0011_keeps_every_row_and_adds_only_the_idea_tables() {
     );
     for (name, sql) in &schema_before {
         if name == "persona" {
-            // 0010 (Aufgabe „proposals“) ergänzt dort eine Spalte; 0011 lässt persona, wie es ist.
+            // 0010 (task „proposals“) adds a column there; 0011 leaves persona as it is.
             continue;
         }
         assert_eq!(schema_after.get(name), Some(sql), "Schema von {name} unverändert");
@@ -450,7 +449,7 @@ async fn migration_0011_keeps_every_row_and_adds_only_the_idea_tables() {
     }
     assert_eq!(count(pool, "SELECT count(*) FROM idea").await, 0, "0011 legt keine Einfälle an");
 
-    // Zweiter Start ändert nichts.
+    // A second start changes nothing.
     let layout_now = columns(pool).await;
     let schema_once = schema(pool).await;
     let once = contents(pool, &layout_now).await;
@@ -463,7 +462,7 @@ async fn migration_0011_keeps_every_row_and_adds_only_the_idea_tables() {
         "zweites Öffnen: alle Zeilen gleich, auch _sqlx_migrations"
     );
 
-    // Danach: Einfälle am alten Werk, Export unverändert; Werk löschen lässt sie ohne Werk stehen.
+    // Afterwards: ideas on the old work, export unchanged; deleting the work leaves them without a work.
     let key: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 1")
         .bind(book)
         .fetch_one(store.pool())
@@ -498,8 +497,8 @@ async fn migration_0011_keeps_every_row_and_adds_only_the_idea_tables() {
     );
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row into `store_meta` at start; that adds one
+/// row and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

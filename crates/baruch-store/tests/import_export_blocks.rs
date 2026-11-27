@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21b: Blöcke, die nur ein Export hinter die Werkvorlage schreibt, kommen beim Import zurück an ihren Platz –
-//! „// Baruch: Satz“ in die Satz-Einstellungen, „// Baruch: Überschriften ohne Nummer“ in `node.numbered`. Echte
-//! SQLite-Datei im Temp-Ordner, frei erfundene Texte.
+//! Round 21b: blocks that only an export writes behind the work template come back to their place on import:
+//! „// Baruch: Satz“ into the typesetting settings, „// Baruch: Überschriften ohne Nummer“ into `node.numbered`.
+//! Real SQLite file in the temp folder, freely invented texts.
 
 use baruch_store::Store;
 use baruch_typst::typeset::{ChapterStart, Paragraph, TypesetSettings, rules};
@@ -77,7 +77,7 @@ async fn fallback_rules_become_the_number_off_flag_and_leave_the_template() {
     let exported = baruch_typst::xref::strip_key_labels(&store.export_typst(imported.work).await.unwrap()).into_owned();
     assert_eq!(exported, source, "der Export schreibt dieselbe Regel wieder (Rundreise textgleich)");
 
-    // Eine fremde Zeile im Block: nicht raten.
+    // A foreign line in the block: do not guess.
     let odd = format!("{rule}#show heading: set text(red)\n");
     let other = format!("{TEMPLATE}{odd}= Vorwort <vorwort>\n\nAnders.\n");
     let kept = store.import_typst_titled(&other, "wiese2.typ", "Autor", "Import", Some("Zweites Heft")).await.unwrap();

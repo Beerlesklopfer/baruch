@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23: „Der Client folgt keiner Weiterleitung“ – je Weg (Modellliste, Chat, Einbettungen,
-//! Kontextlänge bei Eliezer und Ollama). Zwei eigene Nachbauten auf 127.0.0.1:0: Der erste antwortet auf
-//! alles mit 302 auf den zweiten; der zweite schreibt jede Anfrage mit. Erwartet: Der zweite sieht keine
-//! Anfrage (also auch keinen Schlüssel), und der Fehler nennt die Weiterleitung. Kein echter Modell-Server.
+//! Round 23: "the client follows no redirect" – per way (model list, chat, embeddings, context length with Eliezer
+//! and Ollama). Two mocks of our own on 127.0.0.1:0: the first answers everything with 302 to the second; the
+//! second records every request. Expected: the second sees no request (so no key either), and the error names the
+//! redirect. No real model server.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -14,10 +14,10 @@ use baruch_llm::{
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-/// Erfundener Schlüssel; er darf beim zweiten Nachbau nie ankommen und in keiner Meldung stehen.
+/// Invented key; it must never arrive at the second mock and must not stand in any message.
 const SECRET: &str = "Rr5-weiterleitung-schluessel-33cd";
 
-/// Kleiner HTTP-Nachbau: beantwortet jede Anfrage mit `answer(pfad)` und merkt sich die rohe Anfrage.
+/// Small HTTP mock: answers every request with `answer(path)` and remembers the raw request.
 struct Recorder {
     url: String,
     seen: Arc<Mutex<Vec<String>>>,
@@ -45,7 +45,7 @@ impl Recorder {
                 tokio::spawn(async move {
                     let mut raw = Vec::new();
                     let mut buffer = [0u8; 4096];
-                    // Kopf lesen (bis zur Leerzeile); der Rumpf ist für die Prüfung unwichtig.
+                    // Read the head (up to the empty line); the body is unimportant for the check.
                     while !raw.windows(4).any(|w| w == b"\r\n\r\n") {
                         match socket.read(&mut buffer).await {
                             Ok(0) | Err(_) => break,
@@ -68,7 +68,7 @@ impl Recorder {
     }
 }
 
-/// Erster Nachbau (302 auf denselben Pfad beim zweiten) und zweiter Nachbau (antwortet 200 mit JSON).
+/// First mock (302 to the same path at the second) and second mock (answers 200 with JSON).
 async fn pair(status: &'static str) -> (Recorder, Recorder) {
     let target = Recorder::start(|_| {
         let body = r#"{"data":[{"id":"fremdes-modell"}],"models":[]}"#;
@@ -97,7 +97,7 @@ fn limits() -> Limits {
     }
 }
 
-/// Gemeinsame Zusicherungen: Fehler nennt die Weiterleitung, der zweite Nachbau blieb unberührt.
+/// Shared assertions: the error names the redirect, the second mock stayed untouched.
 fn refused(what: &str, error: &LlmError, first: &Recorder, target: &Recorder) {
     let text = error.to_string();
     assert!(
@@ -141,7 +141,7 @@ async fn the_model_list_does_not_follow_a_redirect() {
 
 #[tokio::test]
 async fn chat_does_not_follow_a_redirect() {
-    // 307/308 behalten Methode und Rumpf: Gerade hier ginge der Buchtext samt Schlüssel an die fremde Adresse.
+    // 307/308 keep method and body: precisely here the book text together with the key would go to the foreign address.
     for status in ["302 Found", "307 Temporary Redirect", "308 Permanent Redirect"] {
         let (first, target) = pair(status).await;
         let endpoint = Endpoint::new(first.url.clone(), Some(SECRET.into()));

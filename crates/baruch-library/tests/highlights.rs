@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Hervorhebungen (Migration 0103, `library_highlight`): Prüfungen der Datenbank, Mensch und Persona,
-//! Index, Löschen mit dem Titel, Typst-Zitat. Echte SQLite-Datei im Temp-Ordner mit dem Kernschema
-//! aus `tests/fixtures/core_schema.sql`.
+//! Highlights (migration 0103, `library_highlight`): checks of the database, human and persona, index, deleting
+//! with the title, Typst quote. Real SQLite file in the temp folder with the core schema from
+//! `tests/fixtures/core_schema.sql`.
 
 use std::str::FromStr;
 use std::time::Duration;
@@ -34,7 +34,7 @@ async fn open(dir: &std::path::Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(4).connect_with(options).await.unwrap()
 }
 
-/// Kernschema, Bibliothek migriert, Beispieltitel.
+/// Core schema, library migrated, sample titles.
 async fn library() -> Db {
     let dir = tempfile::tempdir().unwrap();
     let pool = open(dir.path()).await;
@@ -44,7 +44,7 @@ async fn library() -> Db {
     Db { _dir: dir, pool }
 }
 
-/// id des Beispieltitels `luther1912` und seines Zitats 1. Kor 13,4.
+/// id of the sample title `luther1912` and of its quote 1. Kor 13,4.
 async fn luther(pool: &SqlitePool) -> (i64, i64) {
     let titles = list_titles(pool).await.unwrap();
     let t = titles.iter().find(|t| t.title.key == "luther1912").expect("Lutherbibel fehlt");
@@ -84,7 +84,7 @@ async fn count(pool: &SqlitePool, sql: &str) -> i64 {
 
 #[tokio::test]
 async fn migration_0103_runs_on_a_database_from_0101_and_0102() {
-    // Bestehende Datenbank: nur 0101 und 0102 (wörtliche Kopien, gleiche Prüfsumme), Beispieltitel.
+    // Existing database: only 0101 and 0102 (verbatim copies, same checksum), sample titles.
     let dir = tempfile::tempdir().unwrap();
     let old = dir.path().join("old-migrations");
     std::fs::create_dir(&old).unwrap();
@@ -194,7 +194,7 @@ async fn a_human_highlight_is_active_and_a_persona_highlight_only_a_proposal() {
     assert_eq!(json["status"], "proposed", "eine Persona-Hervorhebung bleibt Vorschlag: {json}");
     assert_eq!(json["kind"], "core", "Art als Text serialisiert: {json}");
 
-    // Aktiv setzen scheitert an der Datenbank, abgelehnt geht.
+    // Setting it active fails at the database, rejected works.
     let active = update_highlight(&db.pool, id, None, None, Some(HighlightStatus::Active)).await;
     assert!(
         matches!(active, Err(HighlightError::Library(LibraryError::Db(_)))),
@@ -215,7 +215,7 @@ async fn invalid_input_gives_its_own_highlight_errors() {
     assert!(matches!(range, Err(HighlightError::InvalidRange)), "Bereich rückwärts: {range:?}");
     let half = add_highlight(&db.pool, &NewHighlight { start: Some(3), ..human(title, None, "x") }).await;
     assert!(matches!(half, Err(HighlightError::InvalidRange)), "halber Bereich: {half:?}");
-    // Bereich im Zitat: Ende nicht hinter dem Zitat, Text genau der Ausschnitt.
+    // Range in the quote: end not behind the quote, text exactly the excerpt.
     let quote_text: String = sqlx::query_scalar("SELECT text FROM library_quote WHERE id = ?1")
         .bind(quote)
         .fetch_one(&db.pool)
@@ -322,7 +322,7 @@ async fn the_index_follows_highlights_and_skips_rejected_ones() {
     assert_eq!(json["highlight_id"], id, "der Treffer nennt die Hervorhebung: {json}");
     assert_eq!(json["quote_id"], quote, "und ihr Zitat: {json}");
 
-    // Ein Zitat-Treffer trägt seine eigene id als quote_id, keine highlight_id.
+    // A quote hit carries its own id as quote_id, no highlight_id.
     let quotes =
         search(&db.pool, "langmütig", &SearchOptions { kinds: Some(vec![HitKind::Quote]), ..Default::default() })
             .await
@@ -330,21 +330,21 @@ async fn the_index_follows_highlights_and_skips_rejected_ones() {
     let q = quotes.iter().find(|h| h.quote_id == Some(quote)).expect("Zitat-Treffer mit quote_id");
     assert!(q.highlight_id.is_none(), "Zitat ist keine Hervorhebung");
 
-    // Ändern: der Index folgt.
+    // Change: the index follows.
     update_highlight(&db.pool, id, None, Some("Perle"), None).await.unwrap();
     assert!(found(&db.pool, "Kleinod").await.is_empty(), "alte Notiz aus dem Index");
     assert_eq!(found(&db.pool, "Perle").await.len(), 1, "neue Notiz im Index");
 
-    // Abgelehnt: nicht in der Suche, aber noch da.
+    // Rejected: not in the search, but still there.
     update_highlight(&db.pool, id, None, None, Some(HighlightStatus::Rejected)).await.unwrap();
     assert!(found(&db.pool, "Perle").await.is_empty(), "abgelehnte Hervorhebung fehlt in der Suche");
     assert_eq!(count(&db.pool, "SELECT count(*) FROM library_highlight").await, 1, "Zeile bleibt");
 
-    // Ein Persona-Vorschlag ist auffindbar.
+    // A persona proposal can be found.
     add_highlight(&db.pool, &persona(title, "Juwel im Vorschlag")).await.unwrap();
     assert_eq!(found(&db.pool, "Juwel").await.len(), 1, "Vorschläge stehen in der Suche");
 
-    // Löschen: aus dem Index.
+    // Delete: out of the index.
     delete_highlight(&db.pool, id).await.unwrap();
     assert_eq!(
         count(&db.pool, "SELECT count(*) FROM search_fts WHERE kind = 'highlight'").await,
@@ -361,7 +361,7 @@ async fn deleting_the_title_deletes_its_highlights_and_their_index_rows() {
     add_highlight(&db.pool, &persona(title, "Zuckerguss als Vorschlag")).await.unwrap();
     assert_eq!(found(&db.pool, "Zuckerguss").await.len(), 2, "beide im Index");
 
-    // Titel umbenennen: Treffer tragen den neuen Titel.
+    // Rename the title: hits carry the new title.
     sqlx::query("UPDATE library_title SET title = 'Neue Lutherbibel' WHERE id = ?1")
         .bind(title)
         .execute(&db.pool)
@@ -370,7 +370,7 @@ async fn deleting_the_title_deletes_its_highlights_and_their_index_rows() {
     assert!(found(&db.pool, "Zuckerguss").await.iter().all(|h| h.label.contains("Neue Lutherbibel")), "Titel folgt");
     assert_eq!(found(&db.pool, "Neue Lutherbibel").await.len(), 2, "Titelspalte des Index folgt");
 
-    // Zitat löschen: Hervorhebung bleibt, ohne Zitat.
+    // Delete the quote: the highlight stays, without a quote.
     sqlx::query("DELETE FROM library_quote WHERE id = ?1").bind(quote).execute(&db.pool).await.unwrap();
     let left = list_highlights(&db.pool, Some(title)).await.unwrap();
     assert!(left.iter().all(|h| h.quote_id.is_none()), "ON DELETE SET NULL für das Zitat: {left:?}");
@@ -404,7 +404,7 @@ async fn a_citation_is_valid_typst_with_masked_special_characters() {
         "Liebe \\#set \\[x\\] \\*fett\\* \\_schräg\\_ \\$a\\$ \\<l\\> \\@k \\~ \\/\\/ nicht\n\\= Überschrift\n\\- Liste\n1\\. Punkt \\\\ Ende",
         "jedes Zeichen mit Bedeutung ist maskiert, Zeilen bleiben"
     );
-    // Ohne Maskierung keine offene Klammer: jede [ und ] im Inhalt steht hinter einem Backslash.
+    // Without escaping no open bracket: every [ and ] in the content stands behind a backslash.
     let unmasked = inner.char_indices().filter(|(i, c)| matches!(c, '[' | ']') && !inner[..*i].ends_with('\\')).count();
     assert_eq!(unmasked, 0, "keine unmaskierte Klammer im Inhalt: {inner}");
 }
@@ -413,11 +413,11 @@ async fn a_citation_is_valid_typst_with_masked_special_characters() {
 async fn a_selection_that_differs_only_in_whitespace_is_stored_as_the_exact_quote_text() {
     let db = library().await;
     let (title, _) = luther(&db.pool).await;
-    // Zitat mit Umbruch, Doppel-Leerzeichen und geschütztem Leerzeichen; die Auswahl im Browser fasst
-    // all das zu einfachen Leerzeichen zusammen.
+    // Quote with line break, double space and no-break space; the selection in the browser collapses all of that
+    // into single spaces.
     let quote_text = "Die Liebe ist\nlangmütig  und\u{a0}freundlich.";
     let quote = add_quote(&db.pool, title, quote_text, "1. Kor 13,4", "").await.unwrap();
-    let end = quote_text.chars().count() as i64 - 1; // ohne den Punkt
+    let end = quote_text.chars().count() as i64 - 1; // without the full stop
     let id = add_highlight(
         &db.pool,
         &NewHighlight {
@@ -452,8 +452,9 @@ async fn a_selection_that_differs_only_in_whitespace_is_stored_as_the_exact_quot
 #[test]
 fn check_range_compares_in_nfc_so_decomposed_umlauts_from_a_pdf_are_found() {
     use baruch_library::{FulltextCheck, check_range};
-    // Runde 19b: Volltext in NFC („ä“ als ein Zeichen), Zitat mit zerlegtem Umlaut („a“ + U+0308, wie ihn PDFs
-    // liefern). Ohne Normalform waren das verschiedene Zeichenfolgen und die Stelle galt als „nicht gefunden“.
+    // Round 19b: full text in NFC („ä“ as one character), quote with a decomposed umlaut („a“ + U+0308, as PDFs
+    // deliver it). Without the normal form these were different character sequences and the place counted as „nicht
+    // gefunden“.
     let fulltext = "Die Fähre legt am Kai an.";
     let quote = "Fa\u{308}hre";
     assert_ne!(quote, "Fähre", "Voraussetzung: das Zitat ist wirklich zerlegt");
@@ -462,10 +463,10 @@ fn check_range_compares_in_nfc_so_decomposed_umlauts_from_a_pdf_are_found() {
         FulltextCheck::Found,
         "zerlegter Umlaut im Zitat gegen NFC im Volltext (Bereich in Zeichen des Volltexts)"
     );
-    // Umgekehrt: Volltext zerlegt, Bereich in seinen Zeichen (das „ä“ zählt dort zwei), Zitat in NFC.
+    // The other way round: full text decomposed, range in its characters (the „ä“ counts two there), quote in NFC.
     let decomposed = "Die Fa\u{308}hre legt am Kai an.";
     assert_eq!(check_range(decomposed, 4, 10, "Fähre"), FulltextCheck::Found, "NFC-Zitat gegen zerlegten Volltext");
-    // Derselbe zerlegte Volltext, Bereich so gezählt, wie ihn ein normalisierender Browser zählt.
+    // The same decomposed full text, range counted the way a normalising browser counts it.
     assert_eq!(
         check_range(decomposed, 4, 9, "Fähre"),
         FulltextCheck::Found,

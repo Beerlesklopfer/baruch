@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Commit-Nachrichten: Betreff, Rumpf und Trailer.
+//! Commit messages: subject, body and trailers.
 
-/// Baut die Commit-Nachricht.
+/// Builds the commit message.
 ///
-/// Aufbau: `summary`, Leerzeile, `body` (falls nicht leer), Leerzeile, je Trailer eine Zeile
-/// `Key: Value`. Fehlen Rumpf und Trailer, bleibt nur der Betreff ohne Leerzeilen übrig.
-/// Zeilenumbrüche im Betreff und in den Trailern werden zu Leerzeichen, damit die Struktur
-/// erhalten bleibt; der Rumpf behält seine Zeilen (CRLF → LF), Leerzeilen an den Rändern
-/// fallen weg. Die Nachricht endet ohne Zeilenumbruch.
+/// Structure: `summary`, empty line, `body` (if not empty), empty line, one line `Key: Value` per trailer. If body
+/// and trailers are missing, only the subject without empty lines remains. Line breaks in the subject and in the
+/// trailers become spaces, so that the structure is kept; the body keeps its lines (CRLF → LF), empty lines at the
+/// edges are dropped. The message ends without a line break.
 pub fn format_message(summary: &str, body: &str, trailers: &[(String, String)]) -> String {
     let mut message = one_line(summary);
     let body = body.replace("\r\n", "\n");

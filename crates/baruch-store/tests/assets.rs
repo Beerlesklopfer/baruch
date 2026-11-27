@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder und Grafiken als Text (Migration 0009, Vertrag Runde 6, Abschnitt 4) auf einer echten
-//! SQLite-Datei im Temp-Ordner: Fassungen wie bei Abschnitten (genau eine aktuelle), Trigger,
-//! Grenzen, Spiegel und Export. Alle Bilder sind im Test erzeugt (kein Binärfile im Repo).
+//! Images and graphics as text (migration 0009, contract Round 6, section 4) on a real SQLite file in the temp
+//! folder: revisions as for sections (exactly one current), triggers, limits, mirror and export. All images are
+//! generated in the test (no binary file in the repo).
 
 use baruch_store::{AssetChangeKind, AssetEncoding, ImportAsset, MAX_ASSET_BYTES, NewAsset, Store, StoreError, WorkId};
 
@@ -9,7 +9,7 @@ const HOUSE: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- erfundenes
                      <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect width=\"10\" height=\"8\"/></svg>\n";
 const HOUSE_RED: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect fill=\"red\" width=\"10\" height=\"8\"/></svg>\n";
 
-/// CRC-32 (PNG), bitweise.
+/// CRC-32 (PNG), bitwise.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for &byte in data {
@@ -21,7 +21,7 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-/// Gültiges PNG mit einem Pixel in der Farbe `gray` (zlib-Block ohne Kompression).
+/// Valid PNG with one pixel in the colour `gray` (zlib block without compression).
 fn tiny_png(gray: u8) -> Vec<u8> {
     fn chunk(out: &mut Vec<u8>, kind: &[u8], data: &[u8]) {
         out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -30,7 +30,7 @@ fn tiny_png(gray: u8) -> Vec<u8> {
         out.extend_from_slice(&body);
         out.extend_from_slice(&crc32(&body).to_be_bytes());
     }
-    let raw = [0u8, gray]; // Filter 0, ein Grauwert
+    let raw = [0u8, gray]; // filter 0, one grey value
     let adler = {
         let (mut a, mut b) = (1u32, 0u32);
         for &x in &raw {
@@ -192,7 +192,7 @@ async fn replacing_switching_updating_and_deleting_keep_exactly_one_current() {
         "schon aktuell → abgelehnt"
     );
 
-    // Fassung 3 auf 2 aufbauen: erst 2 aktuell, dann ersetzen.
+    // Build revision 3 on 2: first make 2 current, then replace.
     store.set_current_asset(work, "haus.svg", 2).await.unwrap();
     let blue = HOUSE_RED.replace("red", "blue");
     let third = store.replace_asset(work, "haus.svg", "haus3.svg", blue.as_bytes(), false, "", "Autor").await.unwrap();
@@ -373,7 +373,7 @@ async fn the_mirror_has_svg_text_and_base64_in_lines_of_76() {
     let (_dir, store, work) = fresh().await;
     store.add_asset(work, &svg("haus.svg", HOUSE), "Autor").await.unwrap();
     let mut png = tiny_png(4);
-    png.extend(std::iter::repeat_n(7u8, 300)); // länger als eine Zeile
+    png.extend(std::iter::repeat_n(7u8, 300)); // longer than one line
     let new = NewAsset { file_name: "punkt.png", bytes: &png, path: None, ..svg("x.svg", HOUSE) };
     store.add_asset(work, &new, "Autor").await.unwrap();
     let files = store.mirror_snapshot(work).await.unwrap();
@@ -425,7 +425,7 @@ async fn deleting_a_work_removes_all_its_image_rows() {
 
 #[tokio::test]
 async fn image_paths_with_dot_parts_are_found_and_exported_in_normal_form() {
-    // Runde 7: `./bilder/a.png` wurde vorher beim Speichern abgelehnt und beim Import übersprungen.
+    // Round 7: `./bilder/a.png` was refused before when saving and skipped on import.
     let (_dir, store, work) = fresh().await;
     assert_eq!(
         baruch_store::normalize_asset_path("./bilder/laube.svg").as_deref(),
@@ -505,9 +505,9 @@ async fn searching_images_matches_name_caption_and_alt_without_case_and_takes_pe
     );
 }
 
-/// Runde 18c (Backlog Runde 11, „Bild einfügen“): Pfad und Fassung in einer Transaktion. Scheitert das Speichern
-/// der Fassung (hier: eine zweite Überschrift derselben Ebene), bleibt auch kein Pfad zurück; gelingt es, hat das
-/// Bild danach den Pfad, und die Fassung ist aktuell.
+/// Round 18c (backlog Round 11, „Bild einfügen“): path and revision in one transaction. If saving the revision
+/// fails (here: a second heading of the same level), no path is left behind either; if it succeeds, the image has
+/// the path afterwards, and the revision is current.
 #[tokio::test]
 async fn an_image_path_is_only_given_together_with_the_saved_revision() {
     let dir = tempfile::tempdir().unwrap();

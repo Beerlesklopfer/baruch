@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 34 (mindmap_daten, Vertrag §1): Austauschformat Unterversion 9 im Store – Titel, Elternknoten, Reihenfolge
-//! und Hauptthema der Einfälle neu einlesen und zurück ausgeben; Einlesen in zwei Schritten (der Elternknoten darf in
-//! der Datei hinter dem Kind stehen); unbekannte bzw. gelöschte Elternknoten und Kreise lösen den Einfall mit
-//! Hinweis im Bericht; eine Datei der Unterversion 8 lässt sich weiter einlesen; Abgleichen übernimmt den Baum neuer
-//! Einfälle und meldet einen abweichenden Titel. Erfundenes Beispielwerk aus `baruch_exchange::sample`; echte
-//! SQLite-Datei im Temp-Ordner; jede Zusicherung mit Begründung.
+//! Round 34 (mindmap_daten, contract §1): exchange format sub-version 9 in the store – read title, parent node,
+//! order and main topic of the ideas anew and write them back; reading in two steps (the parent node may stand
+//! behind the child in the file); unknown or deleted parent nodes and cycles detach the idea with a hint in the
+//! report; a file of sub-version 8 can still be read; merging takes over the tree of new ideas and reports a
+//! deviating title. Invented sample work from `baruch_exchange::sample`; real SQLite file in the temp folder; every
+//! assertion with a reason.
 
 use baruch_exchange::read::read_xml;
 use baruch_exchange::sample::{sample_document_u8, sample_document_u9, sample_uuid};
@@ -21,7 +21,7 @@ async fn open() -> (tempfile::TempDir, Store) {
     (dir, store)
 }
 
-/// (Titel, uuid des Elternknotens, position, main_topic) je Einfall des Werks, nach uuid.
+/// (title, uuid of the parent node, position, main_topic) per idea of the work, by uuid.
 async fn tree_rows(store: &Store, work: WorkId) -> Vec<(String, String, Option<String>, i64, i64)> {
     sqlx::query_as(
         "SELECT i.uuid, i.title, (SELECT p.uuid FROM idea p WHERE p.id = i.parent_id), i.position, i.main_topic \
@@ -64,14 +64,14 @@ async fn a_new_import_carries_title_parent_place_and_main_topic_and_dumps_them_b
         ],
         "Titel, Elternknoten (über die Kennung aufgelöst), Platz und Hauptthema stehen in der Datenbank"
     );
-    // Der Titel steht im Volltextindex (wie beim Anlegen über den Store).
+    // The title is in the full-text index (as when creating through the store).
     let found = store
         .idea_search("Lampe", &IdeaFilter { scope: IdeaScope::Work(work), ..IdeaFilter::default() })
         .await
         .unwrap();
     assert!(found.iter().any(|(idea, _)| idea.title == "Lampe am Seil"), "über den Titel auffindbar: {found:?}");
 
-    // Zurück ausgeben: derselbe Baum, und über XML gelesen wieder derselbe.
+    // Write back: the same tree, and read through XML again the same.
     let dumped = store.exchange_dump(work).await.unwrap();
     assert_eq!(dumped.ideas.len(), 3, "auch der gelöschte Einfall wird ausgegeben");
     for (there, here) in doc.work.ideas.iter().zip(&dumped.ideas) {
@@ -95,9 +95,9 @@ async fn a_new_import_carries_title_parent_place_and_main_topic_and_dumps_them_b
 async fn a_parent_later_in_the_file_is_linked_and_unknown_deleted_or_circular_parents_are_loosened_with_a_hint() {
     let (_dir, store) = open().await;
     let mut doc = sample_document_u9();
-    // 900 steht vor seinem Elternknoten 901 (zwei Schritte: erst Einfälle, dann Eltern); 902 nennt einen
-    // Elternknoten, den es nicht gibt; 903 hängt unter dem gelöschten 42, ist selbst aber nicht gelöscht;
-    // 904 und 905 nennen einander (Kreis).
+    // 900 stands before its parent node 901 (two steps: first ideas, then parents); 902 names a parent node that
+    // does not exist; 903 hangs under the deleted 42, but is not deleted itself; 904 and 905 name each other
+    // (cycle).
     doc.work.ideas.push(extra(900, "Kind zuerst", Some(901)));
     doc.work.ideas.push(extra(901, "Elternknoten danach", None));
     doc.work.ideas.push(extra(902, "Waise", Some(4711)));
@@ -137,7 +137,7 @@ async fn a_parent_later_in_the_file_is_linked_and_unknown_deleted_or_circular_pa
 #[tokio::test]
 async fn a_file_of_version_eight_is_still_read_and_its_ideas_get_the_defaults() {
     let (_dir, store) = open().await;
-    // Eine Datei, wie Runde 22 sie schrieb: Unterversion 8, ohne die Attribute des Baums.
+    // A file as Round 22 wrote it: sub-version 8, without the attributes of the tree.
     let xml = write_xml(&sample_document_u8(), ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"8\"", 1)

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Querverweise (Runde 30a): Sprungmarken `<kN>` an Überschriften (mit und ohne eigenes Label), Verweise
-//! `#link(<kN>)[…]`, Einlesen (Sprungmarken entfernen) und Umsetzen der Schlüssel. Alle Texte frei erfunden.
+//! Cross-references (Round 30a): jump labels `<kN>` on headings (with and without a label of their own), references
+//! `#link(<kN>)[…]`, reading (removing jump labels) and converting the keys. All texts freely invented.
 
 use std::borrow::Cow;
 use std::collections::HashMap;

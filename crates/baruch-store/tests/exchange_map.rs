@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gedankenkarte im Austauschformat (Runde 25, Vertrag §4.6): Verbindungen und Lagen mit ihren Kennungen beim
-//! Ausgeben (`Store::exchange_dump`), beim Einlesen als neues Werk und beim Abgleichen (`Store::exchange_preview`,
-//! `Store::exchange_apply`). Ausgangspunkt ist das erfundene Beispielwerk aus `baruch_exchange::sample` (zwei
-//! Verbindungen, zwei Lagen, je ein Grabstein `verbindung` und `lage`). Verbindungen und Lagen, die es „hier“ schon
-//! gibt, entstehen über SQL, weil die Schreibwege der Karte (karte-daten) in diesem Zweig noch Stubs sind; die
-//! Fülltrigger aus Migration 0043 vergeben ihre Kennungen wie auf jedem anderen Weg. Jede Zusicherung mit Begründung.
+//! Idea map in the exchange format (Round 25, contract §4.6): links and positions with their identifiers when
+//! writing (`Store::exchange_dump`), when reading as a new work and when merging (`Store::exchange_preview`,
+//! `Store::exchange_apply`). Starting point is the invented sample work from `baruch_exchange::sample` (two links,
+//! two positions, one tombstone each `verbindung` and `lage`). Links and positions that already exist "here" are
+//! created through SQL, because the write paths of the map (karte-daten) are still stubs in this branch; the fill
+//! triggers from migration 0043 assign their identifiers as on any other way. Every assertion with a reason.
 
 use baruch_exchange::sample::{sample_document, sample_uuid};
 use baruch_exchange::{ExchangeDocument, ExchangeLink, ExchangeLinkKind, ExchangePosition, ExchangeTombstoneKind};
@@ -38,7 +38,7 @@ async fn idea_id(store: &Store, n: u32) -> i64 {
     sqlx::query_scalar("SELECT id FROM idea WHERE uuid = ?").bind(sample_uuid(n)).fetch_one(store.pool()).await.unwrap()
 }
 
-/// Verbindung (from, to, kind, note, deleted) zur Kennung.
+/// Link (from, to, kind, note, deleted) for the identifier.
 async fn link_row(store: &Store, uuid: &str) -> Option<(i64, i64, String, String, Option<String>)> {
     sqlx::query_as("SELECT from_id, to_id, kind, note, deleted FROM idea_link WHERE uuid = ?")
         .bind(uuid)
@@ -133,12 +133,12 @@ async fn dumping_after_a_new_import_gives_back_the_same_map_and_tombstones() {
     let doc = sample_document();
     let work = import_new(&store, &doc).await;
     let dumped = store.exchange_dump(work).await.unwrap();
-    // Ohne Verlust: dieselben Verbindungen (auch die gelöschte) und Lagen in derselben Reihenfolge.
+    // Without loss: the same links (also the deleted one) and positions in the same order.
     assert_eq!(dumped.map, doc.work.map, "Karte unverändert zurück");
     for kind in [ExchangeTombstoneKind::Link, ExchangeTombstoneKind::Position] {
         assert!(dumped.deleted.iter().any(|t| t.kind == kind), "Grabstein der Art {kind:?} in der Ausgabe");
     }
-    // Eine Verbindung zu einem Einfall eines anderen Werks gehört nicht zur Ausgabe (beide Einfälle im Werk).
+    // A link to an idea of another work does not belong to the output (both ideas in the work).
     let other: i64 = sqlx::query_scalar("SELECT id FROM work WHERE id <> ? ORDER BY id LIMIT 1")
         .bind(work)
         .fetch_one(store.pool())
@@ -187,8 +187,8 @@ async fn merging_adds_a_new_link_but_never_doubles_a_pair_and_never_overwrites()
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Auf der anderen Seite: eine neue Verbindung, eine geänderte Notiz an 150 und „widerspricht“ zwischen 40 und 41
-    // andersherum aufgeschrieben (neu, denn 151 verbindet 41 und 42).
+    // On the other side: a new link, a changed note on 150 and „widerspricht“ between 40 and 41 written down the
+    // other way round (new, because 151 links 41 and 42).
     doc.work.map.links.push(link(97, 42, 40, ExchangeLinkKind::BelongsTo));
     doc.work.map.links.push(link(99, 41, 40, ExchangeLinkKind::Contradicts));
     doc.work.map.links[0].note = "Dort geändert.".into();
@@ -209,8 +209,8 @@ async fn merging_adds_a_new_link_but_never_doubles_a_pair_and_never_overwrites()
         "die abweichende Notiz ist nur ein Hinweis: {:?}",
         report.deviations
     );
-    // Eine dritte Instanz hat dieselbe Verbindung wie 150 (40 führt weiter 41) selbst angelegt, unter Kennung 98, und
-    // „widerspricht“ 40/41 unter Kennung 92 andersherum: beides gibt es hier schon – kein Doppel.
+    // A third instance has created the same link as 150 (40 leads on to 41) itself, under identifier 98, and
+    // „widerspricht“ 40/41 under identifier 92 the other way round: both already exist here – no duplicate.
     let mut third = sample_document();
     third.work.map.links[0].uuid = sample_uuid(98);
     third.work.map.links.push(link(92, 40, 41, ExchangeLinkKind::Contradicts));
@@ -240,7 +240,7 @@ async fn tombstones_here_keep_links_and_positions_from_coming_back() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier hart gelöscht: Lage 152 („Anordnung zurücksetzen“) und Verbindung 150 (wie über die Kaskade).
+    // Hard-deleted here: position 152 („Anordnung zurücksetzen“) and link 150 (as through the cascade).
     sqlx::query("DELETE FROM idea_map_pos WHERE uuid = ?").bind(sample_uuid(152)).execute(store.pool()).await.unwrap();
     sqlx::query("DELETE FROM idea_link WHERE uuid = ?").bind(sample_uuid(150)).execute(store.pool()).await.unwrap();
     let kinds: Vec<(String, Option<String>)> =
@@ -255,7 +255,7 @@ async fn tombstones_here_keep_links_and_positions_from_coming_back() {
         vec![("idea_link".into(), Some(sample_uuid(1))), ("idea_map_pos".into(), Some(sample_uuid(1)))],
         "Vorbedingung: die Trigger aus 0043 hinterlassen Grabsteine mit der Werk-UUID"
     );
-    // Dazu eine neue Verbindung zu einem Einfall, den es hier nicht im Werk gibt.
+    // Plus a new link to an idea that does not exist in the work here.
     doc.work.ideas.push(baruch_exchange::ExchangeIdea {
         uuid: sample_uuid(43),
         words: vec!["Brunnen".into()],
@@ -278,7 +278,7 @@ async fn tombstones_here_keep_links_and_positions_from_coming_back() {
         .await
         .unwrap();
     assert_eq!(back, 0, "die Lage kommt nicht wieder");
-    // Einfall 43 kommt neu dazu, die Verbindung 96 also auch (beide Einfälle sind dann hier im Werk).
+    // Idea 43 is added as new, so link 96 is too (both ideas are then in the work here).
     assert!(link_row(&store, &sample_uuid(96)).await.is_some(), "Verbindung zum eben eingelesenen Einfall");
     let _ = work;
 }
@@ -288,8 +288,8 @@ async fn a_link_to_an_idea_outside_the_work_here_is_only_a_hint() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Einfall 41 gehört hier inzwischen zu einem anderen Werk (umgezogen); eine neue Verbindung 40 → 41 geht dann
-    // nicht, denn Verbindungen gibt es nur innerhalb eines Werks.
+    // Idea 41 meanwhile belongs to another work here (moved); a new link 40 → 41 is then not possible, because
+    // links only exist within one work.
     let other: i64 = sqlx::query_scalar("SELECT id FROM work WHERE id <> ? ORDER BY id LIMIT 1")
         .bind(work)
         .fetch_one(store.pool())
@@ -318,7 +318,7 @@ async fn the_local_position_wins_when_merging() {
     let (_dir, store) = open().await;
     let mut doc = sample_document();
     let work = import_new(&store, &doc).await;
-    // Hier verschoben (gleiche Kennung) und dort unter neuer Kennung für denselben Einfall gesetzt.
+    // Moved here (same identifier) and set there under a new identifier for the same idea.
     sqlx::query("UPDATE idea_map_pos SET x = 7.0, y = 8.0 WHERE uuid = ?")
         .bind(sample_uuid(152))
         .execute(store.pool())
@@ -332,7 +332,7 @@ async fn the_local_position_wins_when_merging() {
         y: 2.0,
         updated: "2026-01-09T12:00:00.000Z".into(),
     };
-    // Und eine Lage für den gelöschten Einfall 42, der hier noch keine hat: die kommt.
+    // And a position for the deleted idea 42, which has none here yet: that one comes.
     doc.work.map.positions.push(ExchangePosition {
         uuid: sample_uuid(93),
         idea: sample_uuid(42),

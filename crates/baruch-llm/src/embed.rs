@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einbettungen (Runde 12): `POST <basis>/v1/embeddings`, OpenAI-kompatibel wie Eliezer.
+//! Embeddings (Round 12): `POST <base>/v1/embeddings`, OpenAI-compatible like Eliezer.
 //!
-//! Rumpf `{model, input: [Text, …]}` (immer eine Liste), Antwort `data[].embedding` mit `data[].index`
-//! (die Reihenfolge der Antwort zählt nicht, nur `index`). Geprüft wird: je Eingabe genau ein Vektor,
-//! alle gleich lang (≥ 1), nur endliche Zahlen. Alte Namen der Einbettungsmodelle löst
-//! [`embedding_alias`] auf (der Aufrufer, damit er den Namen im Index vermerken kann).
+//! Body `{model, input: [text, …]}` (always a list), answer `data[].embedding` with `data[].index` (the order of
+//! the answer does not count, only `index`). Checked: exactly one vector per input, all of the same length (≥ 1),
+//! only finite numbers. Old names of the embedding models are resolved by [`embedding_alias`] (by the caller, so
+//! that it can note the name in the index).
 //!
-//! Grenzen: 1..=[`MAX_INPUTS`] Texte je Anfrage, Verbindungsaufbau wie [`crate::Limits::connect`],
-//! gesamt [`EMBED_TIMEOUT`] (Eliezer lädt dabei ggf. das Modell), Antwort höchstens 64 MiB.
-//! Weiterleitungen folgt der Client nicht; der Schlüssel steht nur in `Authorization`.
+//! Limits: 1..=[`MAX_INPUTS`] texts per request, connect timeout like [`crate::Limits::connect`], in total
+//! [`EMBED_TIMEOUT`] (Eliezer may load the model during that), answer at most 64 MiB. The client follows no
+//! redirects; the key stands only in `Authorization`.
 
 use std::time::Duration;
 
@@ -16,50 +16,50 @@ use serde_json::{Value, json};
 
 use crate::{Endpoint, Limits, LlmError, client, read_limited, status_error, transport_error, whole_secs};
 
-/// Höchstens so viele Texte je Anfrage (wie `baruch_rag::MAX_EMBED_BATCH`).
+/// At most this many texts per request (like `baruch_rag::MAX_EMBED_BATCH`).
 pub const MAX_INPUTS: usize = 32;
-/// Gesamtdauer einer Einbettungsanfrage.
+/// Total duration of an embedding request.
 pub const EMBED_TIMEOUT: Duration = Duration::from_secs(120);
-/// Größte Antwort (32 Texte × 4096 Dimensionen als JSON passen gut hinein).
+/// Largest answer (32 texts × 4096 dimensions as JSON fit in well).
 pub const MAX_EMBED_RESPONSE: usize = 64 * 1024 * 1024;
 
-/// Alte bzw. kurze Namen von Einbettungsmodellen → Name bei Eliezer.
+/// Old or short names of embedding models → name at Eliezer.
 pub const EMBEDDING_ALIASES: &[(&str, &str)] = &[("nomic-embed-text", "text-embedding-nomic-embed-text-v1.5")];
 
-/// Kurzer Name eines Einbettungsmodells (`nomic-embed-text`, wie bei Ollama und MultiGPT) → Name bei
-/// Eliezer; sonst `None`. Bewusst getrennt von [`crate::alias`] (Chat-Modelle der Personas).
+/// Short name of an embedding model (`nomic-embed-text`, as with Ollama and MultiGPT) → name at Eliezer; otherwise
+/// `None`. Deliberately separate from [`crate::alias`] (chat models of the personas).
 pub fn embedding_alias(name: &str) -> Option<&'static str> {
     let name = name.trim();
     EMBEDDING_ALIASES.iter().find(|(old, _)| *old == name).map(|(_, new)| *new)
 }
 
-/// Name, wie er an das Backend geht: Alias aufgelöst, sonst beschnitten.
+/// Name as it goes to the backend: alias resolved, otherwise trimmed.
 pub fn embedding_model_name(name: &str) -> String {
     embedding_alias(name).map_or_else(|| name.trim().to_owned(), str::to_owned)
 }
 
-/// Antwort einer Einbettungsanfrage.
+/// Answer of an embedding request.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EmbeddingReply {
-    /// Modell laut Antwort (sonst das angefragte).
+    /// Model according to the answer (otherwise the requested one).
     pub model: String,
     pub dimension: usize,
-    /// Je Eingabe ein Vektor, in der Reihenfolge der Eingaben.
+    /// One vector per input, in the order of the inputs.
     pub vectors: Vec<Vec<f32>>,
     pub prompt_tokens: Option<u32>,
 }
 
-/// Rumpf von `POST /v1/embeddings` (öffentlich für Tests).
+/// Body of `POST /v1/embeddings` (public for tests).
 pub fn embeddings_body(model: &str, inputs: &[String]) -> Value {
     json!({ "model": model, "input": inputs })
 }
 
-/// Einbettungen mit den Grenzen des Betriebs.
+/// Embeddings with the limits of production.
 pub async fn embeddings(endpoint: &Endpoint, model: &str, inputs: &[String]) -> Result<EmbeddingReply, LlmError> {
     embeddings_with(endpoint, model, inputs, &Limits::default(), EMBED_TIMEOUT).await
 }
 
-/// Antwort lesen: `data[]` nach `index` ordnen und prüfen.
+/// Read the answer: order `data[]` by `index` and check.
 pub fn parse_embeddings(body: &Value, requested: &str, count: usize, url: &str) -> Result<EmbeddingReply, LlmError> {
     let data = body
         .get("data")
@@ -109,8 +109,8 @@ pub fn parse_embeddings(body: &Value, requested: &str, count: usize, url: &str) 
     Ok(EmbeddingReply { model, dimension, vectors, prompt_tokens })
 }
 
-/// Einbettungen: `POST <basis>/v1/embeddings` mit 1..=[`MAX_INPUTS`] Texten, gesamt höchstens `total`.
-/// Ein Modell, das die Gegenstelle nicht kennt, ist [`LlmError::UnknownModel`].
+/// Embeddings: `POST <base>/v1/embeddings` with 1..=[`MAX_INPUTS`] texts, in total at most `total`. A model the
+/// remote side does not know is [`LlmError::UnknownModel`].
 pub async fn embeddings_with(
     endpoint: &Endpoint,
     model: &str,
@@ -144,7 +144,7 @@ pub async fn embeddings_with(
         let status = response.status().as_u16();
         if !(200..300).contains(&status) {
             let body = read_limited(response, 64 * 1024).await;
-            // 404 heißt hier wie beim Chat meist „Modell unbekannt“ (Eliezer kennt den Pfad).
+            // 404 here mostly means "model unknown", as with the chat (Eliezer knows the path).
             return Err(status_error(status, &body, &url, endpoint, true));
         }
         let raw = read_limited(response, MAX_EMBED_RESPONSE + 1).await;

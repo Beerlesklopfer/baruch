@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Titel und Zitate der Bibliothek.
+//! Titles and quotes of the library.
 
 use sqlx::SqlitePool;
 
@@ -36,7 +36,7 @@ pub struct TitleEntry {
     pub quotes: Vec<Quote>,
 }
 
-/// Neuer Titel; `kind` ist eines von book, article, chapter, bible, web, other (prüft die DB).
+/// New title; `kind` is one of book, article, chapter, bible, web, other (checked by the DB).
 #[derive(Debug, Clone)]
 pub struct NewTitle {
     pub key: String,
@@ -53,7 +53,7 @@ pub struct NewTitle {
 const TITLE_COLUMNS: &str = "id, key, kind, title, authors, year, publisher, place, url, note";
 const QUOTE_COLUMNS: &str = "id, title_id, position, text, page, note";
 
-/// Alle Titel mit ihren Zitaten, sortiert nach Autoren, dann Titel.
+/// All titles with their quotes, sorted by authors, then title.
 pub async fn list_titles(pool: &SqlitePool) -> Result<Vec<TitleEntry>, LibraryError> {
     let mut conn = pool.acquire().await?;
     let titles: Vec<Title> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
@@ -80,7 +80,7 @@ pub async fn list_titles(pool: &SqlitePool) -> Result<Vec<TitleEntry>, LibraryEr
         .collect())
 }
 
-/// Ein Titel mit Zitaten; unbekannte id → [`LibraryError::UnknownTitle`].
+/// A title with quotes; unknown id → [`LibraryError::UnknownTitle`].
 pub async fn get_title(pool: &SqlitePool, id: i64) -> Result<TitleEntry, LibraryError> {
     let mut conn = pool.acquire().await?;
     let title: Option<Title> =
@@ -98,7 +98,7 @@ pub async fn get_title(pool: &SqlitePool, id: i64) -> Result<TitleEntry, Library
     Ok(TitleEntry { title, quotes })
 }
 
-/// Legt einen Titel an und gibt seine id zurück (doppelter Schlüssel → Datenbankfehler).
+/// Creates a title and returns its id (duplicate key → database error).
 pub async fn add_title(pool: &SqlitePool, title: &NewTitle) -> Result<i64, LibraryError> {
     let mut conn = pool.acquire().await?;
     insert_title(&mut conn, title).await
@@ -123,7 +123,7 @@ pub(crate) async fn insert_title(conn: &mut sqlx::SqliteConnection, title: &NewT
     Ok(id)
 }
 
-/// Hängt ein Zitat an den Titel an (Position = bisher höchste + 1) und gibt seine id zurück.
+/// Appends a quote to the title (position = highest so far + 1) and returns its id.
 pub async fn add_quote(
     pool: &SqlitePool,
     title_id: i64,

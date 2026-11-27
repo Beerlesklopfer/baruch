@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahmetests für den Git-Spiegel.
+//! Acceptance tests for the Git mirror.
 
 use std::path::Path;
 use std::process::Command;
@@ -39,7 +39,7 @@ fn snapshot() -> Vec<MirrorFile> {
     ]
 }
 
-/// Pfade aller Blobs im HEAD-Baum (über gix gelesen).
+/// Paths of all blobs in the HEAD tree (read through gix).
 fn head_paths(dir: &Path) -> Vec<String> {
     let repo = gix::open(dir).unwrap();
     let tree = repo.head_tree_id().unwrap().detach();
@@ -49,7 +49,7 @@ fn head_paths(dir: &Path) -> Vec<String> {
     paths
 }
 
-/// `git status --porcelain`; `None`, wenn kein git-Programm vorhanden ist.
+/// `git status --porcelain`; `None` if no git program is present.
 fn git_status(dir: &Path) -> Option<String> {
     let output = Command::new("git")
         .arg("-C")
@@ -67,7 +67,7 @@ fn git_status(dir: &Path) -> Option<String> {
     }
 }
 
-/// Index-Prüfung per gix: Der Index auf der Platte enthält genau die Pfade und Blobs des HEAD-Baums.
+/// Index check through gix: the index on disk contains exactly the paths and blobs of the HEAD tree.
 fn assert_index_matches_head(dir: &Path) {
     let repo = gix::open(dir).unwrap();
     let tree = repo.head_tree_id().unwrap().detach();
@@ -81,7 +81,7 @@ fn assert_index_matches_head(dir: &Path) {
         pairs(&expected),
         "der Index auf der Platte enthält genau die Pfade und Blobs des HEAD-Baums"
     );
-    // Dateistatus ist gesetzt (sonst müsste git jede Datei neu einlesen).
+    // File status is set (otherwise git would have to read every file again).
     assert!(
         actual.entries().iter().all(|e| e.stat.size > 0),
         "Dateistatus gesetzt, sonst liest git jede Datei neu ein"
@@ -119,7 +119,7 @@ fn first_commit_initialises_repo_on_main() {
     assert_index_matches_head(&dir);
     if let Some(status) = git_status(&dir) {
         assert_eq!(status, "", "git status nicht sauber");
-        // Ein echtes git hält die Objekte für gültig und liest die Trailer.
+        // A real git considers the objects valid and reads the trailers.
         let fsck =
             Command::new("git").arg("-C").arg(&dir).args(["fsck", "--strict", "--no-progress"]).output().unwrap();
         assert!(
@@ -175,7 +175,7 @@ fn unchanged_snapshot_makes_no_commit() {
     let tmp = tempfile::tempdir().unwrap();
     let mirror = Mirror::open_or_init(tmp.path()).unwrap();
     let first = mirror.commit(&request(snapshot())).unwrap().unwrap();
-    // Reihenfolge egal, Inhalt gleich → kein Commit.
+    // Order does not matter, content is the same → no commit.
     let mut shuffled = snapshot();
     shuffled.reverse();
     assert_eq!(
@@ -185,7 +185,7 @@ fn unchanged_snapshot_makes_no_commit() {
     );
     assert_eq!(mirror.head().unwrap().as_deref(), Some(first.as_str()), "HEAD bleibt der erste Commit");
 
-    // Wieder öffnen (vorhandenes Repo) und erneut: weiterhin kein Commit.
+    // Open again (existing repo) and once more: still no commit.
     let reopened = Mirror::open_or_init(tmp.path()).unwrap();
     assert_eq!(
         reopened.commit(&request(snapshot())).unwrap(),
@@ -228,7 +228,7 @@ fn missing_file_is_removed_and_history_continues() {
     let mirror = Mirror::open_or_init(dir).unwrap();
     let first = mirror.commit(&request(snapshot())).unwrap().unwrap();
 
-    // Eine fremde, nie verwaltete Datei bleibt unangetastet.
+    // A foreign file that was never managed stays untouched.
     std::fs::write(dir.join("notiz.txt"), "eigene Notiz").unwrap();
 
     let mut files = snapshot();
@@ -261,7 +261,7 @@ fn missing_file_is_removed_and_history_continues() {
     let parents: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
     assert_eq!(parents, [first], "die Historie geht weiter: Vorgänger ist der erste Commit");
 
-    // Leerer Unterordner verschwindet, wenn seine letzte Datei geht.
+    // An empty subfolder disappears when its last file goes.
     let only_main = vec![file("main.typ", "// leer\n")];
     mirror.commit(&request(only_main)).unwrap().unwrap();
     assert!(!dir.join("abschnitte").exists(), "leerer Unterordner abschnitte verschwindet");
@@ -321,12 +321,12 @@ fn format_message_variants() {
 
 #[test]
 fn mirror_can_move_between_threads() {
-    // Der Server hält den Spiegel in einem Arc und committet in `spawn_blocking`.
+    // The server keeps the mirror in an Arc and commits in `spawn_blocking`.
     fn send_sync<T: Send + Sync + 'static>() {}
     send_sync::<baruch_gitmirror::Mirror>();
 }
 
-/// Ordnerinhalt (Dateinamen, sortiert) für Vorher/Nachher-Vergleiche.
+/// Folder content (file names, sorted) for before/after comparisons.
 #[cfg(unix)]
 fn listing(dir: &Path) -> Vec<String> {
     let mut names: Vec<String> =
@@ -370,8 +370,8 @@ fn removing_a_stale_file_does_not_follow_a_symlinked_folder() {
     std::fs::create_dir(&outside).unwrap();
     let mirror = Mirror::open_or_init(&dir).unwrap();
     mirror.commit(&request(snapshot())).unwrap().expect("erster Commit");
-    // Ordner abschnitte durch einen Symlink auf einen fremden Ordner ersetzen, in dem eine Datei
-    // mit dem Namen einer jetzt veralteten Spiegeldatei liegt.
+    // Replace the folder abschnitte by a symlink to a foreign folder in which a file with the name of a now
+    // outdated mirror file lies.
     std::fs::remove_dir_all(dir.join("abschnitte")).unwrap();
     std::fs::write(outside.join("001-b.typ"), "fremd\n").unwrap();
     std::os::unix::fs::symlink(&outside, dir.join("abschnitte")).unwrap();
@@ -412,7 +412,7 @@ fn a_symlinked_file_is_replaced_without_touching_its_target() {
     );
 }
 
-// ---- Seitenzweige (Runde 22, Vertrag §2.12) ------------------------------------------------------------------
+// ---- Side refs (Round 22, contract §2.12) --------------------------------------------------------------------
 
 fn side(name: &str, path: &str, contents: &str) -> baruch_gitmirror::SideRef {
     baruch_gitmirror::SideRef {
@@ -472,7 +472,7 @@ fn unchanged_side_refs_are_kept_changed_ones_rewritten_and_missing_ones_removed(
     mirror.sync_side_refs("refs/revisions/", &snapshot(), &[a1.clone(), b2.clone()]).unwrap();
     let first = mirror.side_refs("refs/revisions/").unwrap();
 
-    // Neuer HEAD, gleiche Seitenzweige: nichts neu geschrieben (kein Objekt-Zuwachs bei jedem Speichern).
+    // New HEAD, same side refs: nothing written again (no growth of objects on every save).
     let mut next = snapshot();
     next[2].contents = "= B\n\nZweiter Abschnitt, neu.\n".into();
     mirror.commit(&request(next.clone())).unwrap();
@@ -480,7 +480,7 @@ fn unchanged_side_refs_are_kept_changed_ones_rewritten_and_missing_ones_removed(
     assert_eq!(sync, baruch_gitmirror::SideSync { written: 0, kept: 2, removed: 0 }, "beide unverändert behalten");
     assert_eq!(mirror.side_refs("refs/revisions/").unwrap(), first, "gleiche Commits");
 
-    // Text einer Fassung geändert, eine Fassung fort: neu geschrieben bzw. entfernt.
+    // Text of one revision changed, one revision gone: written again or removed respectively.
     let a1_changed = side("refs/revisions/7/1", "abschnitte/000-a.typ", "= A\n\nEins, geändert.\n");
     let sync = mirror.sync_side_refs("refs/revisions/", &next, &[a1_changed]).unwrap();
     assert_eq!(sync, baruch_gitmirror::SideSync { written: 1, kept: 0, removed: 1 }, "einer neu, einer entfernt");

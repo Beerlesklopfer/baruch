@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Projektion eines Abschnittstexts (Runde 31b): automatische Bibelstellen-Marken und Auszeichnung der ersten Erwähnung
-//! eines Glossarbegriffs je Kapitel. Nur Export, Karte, Spiegel, Satz, PDF und EPUB – die Texte in SQLite bleiben.
+//! Projection of a section text (Round 31b): automatic scripture reference marks and markup of the first mention of
+//! a glossary term per chapter. Only export, map, mirror, typesetting, PDF and EPUB – the texts in SQLite stay.
 //!
-//! **Bibelstellen:** Ist das Register `bibel` in `index_pages.registers`, bekommt jede gültige Stelle, die
-//! [`baruch_scripture::scan`] im Fließtext findet (nicht in Code, Kommentar, Raw, Überschriftszeile oder Marke), direkt
-//! dahinter eine Marke `register: "bibel"`, `term` = Buch („Johannes“), `sub` = Kapitel und Verse („3,16“), `sort` =
-//! [`baruch_scripture::Passage::sort_key`] (biblische Reihenfolge).
+//! **Scripture references:** if the index `bibel` is in `index_pages.registers`, every valid reference that
+//! [`baruch_scripture::scan`] finds in the running text (not in code, comment, raw, heading line or mark) gets a
+//! mark directly behind it: `register: "bibel"`, `term` = book („Johannes“), `sub` = chapter and verses („3,16“),
+//! `sort` = [`baruch_scripture::Passage::sort_key`] (biblical order).
 //!
-//! **Erste Erwähnung** (nur mit `glossary_first_mention == Some(true)` und Glossar): je Kapitel (Überschrift der Ebene 1,
-//! Teil oder „ohne Nummer“ Ebene 1 setzt zurück) die erste Fundstelle eines Begriffs oder einer Variante als ganze Wörter
-//! (Groß-/Kleinschreibung egal). Form, nur Standard-Typst:
-//! - mit Glossarseite: `#link(<baruch-gl-UUID>)[#emph[Wort]]` – ein Link auf den Eintrag der Glossarseite (das Label
-//!   steht im Buchende; ohne Glossarseite gäbe es keinen Verweis auf ein fehlendes Label);
-//! - ohne Glossarseite: `/*baruch-erste-erwaehnung*/#emph[Wort]` – der Kommentar davor ist unsichtbar und macht die
-//!   Auszeichnung beim Import eines Exports wieder erkennbar (Runde 21b, [`super::strip_first_mentions`]); von Hand
-//!   geschriebene Hervorhebung bleibt so unberührt.
+//! **First mention** (only with `glossary_first_mention == Some(true)` and glossary): per chapter (a heading of
+//! level 1, a part or „ohne Nummer“ level 1 resets) the first occurrence of a term or of a variant as whole words
+//! (case does not matter). Form, standard Typst only:
+//! - with glossary page: `#link(<baruch-gl-UUID>)[#emph[Wort]]` – a link to the entry of the glossary page (the
+//!   label stands in the back matter; without glossary page there would be no reference to a missing label);
+//! - without glossary page: `/*baruch-erste-erwaehnung*/#emph[Wort]` – the comment before it is invisible and makes
+//!   the markup recognisable again when importing an export (Round 21b, [`super::strip_first_mentions`]); emphasis
+//!   written by hand stays untouched this way.
 //!
-//! Folgt dem Wort ein Zeichen, das Typst an den Ausdruck hängen würde (`(`, `[`, `.` vor einem Buchstaben, `;`), steht
-//! dazwischen ein `;` (beendet den eingebetteten Ausdruck und verschwindet im Satz).
+//! If the word is followed by a character that Typst would attach to the expression (`(`, `[`, `.` before a letter,
+//! `;`), a `;` stands in between (ends the embedded expression and disappears in the typesetting).
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -27,40 +27,40 @@ use super::{
     BackMatter, FIRST_MENTION_MARK, GLOSSARY_ANCHOR_PREFIX, IndexMark, SCRIPTURE_REGISTER, mark_source, term_key,
 };
 
-/// Muster eines Glossarbegriffs: Wörter (Vergleichsform) und die Trennzeichen dazwischen.
+/// Pattern of a glossary term: words (comparison form) and the separators between them.
 struct Pattern {
     entry: usize,
     words: Vec<String>,
     seps: Vec<String>,
 }
 
-/// Vorbereitete Projektion (privat, gehört zu [`super::Projector`]).
+/// Prepared projection (private, belongs to [`super::Projector`]).
 pub(super) struct Plan {
     pub active: bool,
     scripture: bool,
-    /// Muster nach dem ersten Wort.
+    /// Patterns by the first word.
     patterns: HashMap<String, Vec<Pattern>>,
-    /// Label je Eintrag, wenn verlinkt wird (Glossarseite an und gültiges Label).
+    /// Label per entry if it is linked (glossary page on and valid label).
     anchors: Vec<Option<String>>,
-    /// Einträge, die im laufenden Kapitel schon ausgezeichnet sind.
+    /// Entries that are already marked up in the running chapter.
     seen: HashSet<usize>,
 }
 
-/// Darf eine UUID Teil eines Typst-Labels sein?
+/// May a UUID be part of a Typst label?
 pub(super) fn label_safe(uuid: &str) -> bool {
     !uuid.is_empty() && uuid.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
 }
 
-/// Ist das Bibelstellenregister eingeschaltet (Registerseiten mit `bibel`)?
+/// Is the index of scripture references switched on (index pages with `bibel`)?
 pub(super) fn scripture_enabled(back: &BackMatter) -> bool {
     back.settings.index_pages.as_ref().is_some_and(|p| p.registers.iter().any(|r| r == SCRIPTURE_REGISTER))
 }
 
-/// Zerlegt einen Begriff in Wörter (Buchstaben und Ziffern) und die Trennzeichen dazwischen (Leerraum zu einem
-/// Leerzeichen). Andere Zeichen als Leerraum, `-`, `'`, `’` und `.` zwischen den Wörtern oder am Rand → `None`
-/// (der Begriff wird nicht gesucht).
+/// Splits a term into words (letters and digits) and the separators between them (whitespace to one space).
+/// Characters other than whitespace, `-`, `'`, `’` and `.` between the words or at the edge → `None` (the term is
+/// not searched).
 pub(super) fn split_term(term: &str) -> Option<(Vec<String>, Vec<String>)> {
-    // Läufe aus Wortzeichen bzw. Nicht-Wortzeichen, abwechselnd.
+    // Runs of word characters and non-word characters, alternating.
     let mut runs: Vec<(bool, String)> = Vec::new();
     for c in term.trim().chars() {
         let word = c.is_alphanumeric();
@@ -84,8 +84,7 @@ pub(super) fn split_term(term: &str) -> Option<(Vec<String>, Vec<String>)> {
     Some((words, seps))
 }
 
-/// Trennzeichen in Vergleichsform: Leerraum zu einem Leerzeichen; nur Leerraum, `-`, `'`, `’`, `.` erlaubt, keine
-/// Leerzeile.
+/// Separator in comparison form: whitespace to one space; only whitespace, `-`, `'`, `’`, `.` allowed, no empty line.
 fn normalize_sep(sep: &str) -> Option<String> {
     if sep.matches('\n').count() > 1 {
         return None;
@@ -131,7 +130,7 @@ impl Plan {
                 }
             }
         }
-        // Längere Muster zuerst („Neuer Bund“ vor „Neuer“).
+        // Longer patterns first („Neuer Bund“ before „Neuer“).
         for list in patterns.values_mut() {
             list.sort_by_key(|p| std::cmp::Reverse(p.words.len()));
         }
@@ -143,12 +142,12 @@ impl Plan {
             return Cow::Borrowed(body);
         }
         let scanned = scan(body);
-        // (Anfang, Ende, Ersatz); Einfügungen haben Anfang == Ende.
+        // (start, end, replacement); insertions have start == end.
         let mut edits: Vec<(usize, usize, String)> = Vec::new();
         if !self.patterns.is_empty() {
             self.mentions(body, &scanned, &mut edits);
         } else {
-            // Kapitelwechsel trotzdem mitzählen (spielt ohne Muster keine Rolle).
+            // Count the change of chapter nevertheless (plays no role without patterns).
             self.seen.clear();
         }
         if self.scripture {
@@ -177,7 +176,7 @@ impl Plan {
         Cow::Owned(out)
     }
 
-    /// Erste Erwähnungen in `body` → Ersetzungen.
+    /// First mentions in `body` → replacements.
     fn mentions(&mut self, body: &str, scanned: &Scan, edits: &mut Vec<(usize, usize, String)>) {
         let words = scanned.words(body);
         let keys: Vec<String> = words.iter().map(|&(a, b)| term_key(&body[a..b])).collect();
@@ -210,7 +209,7 @@ impl Plan {
         }
     }
 
-    /// Längstes Muster ab Wort `t`: (Eintrag, Zahl der Wörter).
+    /// Longest pattern from word `t` on: (entry, number of words).
     fn match_at(
         &self,
         body: &str,
@@ -240,7 +239,7 @@ impl Plan {
     }
 }
 
-/// Hängt Typst ein direkt folgendes Zeichen an einen eingebetteten Ausdruck (`#emph[…]`)?
+/// Does Typst attach a directly following character to an embedded expression (`#emph[…]`)?
 fn needs_guard(after: &str) -> bool {
     let mut chars = after.chars();
     match chars.next() {
@@ -250,7 +249,8 @@ fn needs_guard(after: &str) -> bool {
     }
 }
 
-/// Automatische Marken des Bibelstellenregisters: (Einfügestelle, Marke) für jede gültige Stelle im Fließtext.
+/// Automatic marks of the index of scripture references: (insertion point, mark) for every valid reference in the
+/// running text.
 pub(super) fn scripture_marks(body: &str, scanned: &Scan) -> Vec<(usize, IndexMark)> {
     let masked = scanned.masked(body);
     let mut out = Vec::new();

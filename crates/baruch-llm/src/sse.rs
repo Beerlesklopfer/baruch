@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Server-Sent Events, Stück für Stück: Bytes kommen in beliebigen Paketen (eine Zeile, ja ein
-//! UTF-8-Zeichen kann über zwei Pakete gehen), Zeilen enden mit `\n` oder `\r\n`. Ein Ereignis endet
-//! an einer Leerzeile; nur `data:`-Zeilen zählen (mehrere werden mit `\n` verbunden), `event:`, `id:`,
-//! `retry:` und Kommentare (`:`) werden übergangen. `data: [DONE]` ist das Ende des Stroms.
+//! Server-Sent Events, piece by piece: bytes come in arbitrary packets (a line, even a UTF-8 character can span two
+//! packets), lines end with `\n` or `\r\n`. An event ends at an empty line; only `data:` lines count (several are
+//! joined with `\n`), `event:`, `id:`, `retry:` and comments (`:`) are skipped. `data: [DONE]` is the end of the
+//! stream.
 
 use crate::LlmError;
 
-/// Ein Ereignis.
+/// An event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
-    /// Inhalt der `data:`-Zeilen.
+    /// Content of the `data:` lines.
     Data(String),
     /// `data: [DONE]`.
     Done,
 }
 
-/// Zerlegt einen Byte-Strom in Ereignisse.
+/// Splits a byte stream into events.
 #[derive(Debug)]
 pub struct Parser {
     pending: Vec<u8>,
     data: Vec<String>,
-    /// Bytes der gesammelten `data:`-Zeilen des offenen Ereignisses (Runde 23).
+    /// Bytes of the collected `data:` lines of the open event (Round 23).
     data_bytes: usize,
     max_line: usize,
 }
 
 impl Parser {
-    /// `max_line`: längste Zeile in Bytes (Schutz vor einem Strom ohne Zeilenende). Dieselbe Grenze gilt seit
-    /// Runde 23 für die Summe der `data:`-Zeilen eines Ereignisses (Schutz vor einem Strom ohne Leerzeile:
-    /// Viele kurze Zeilen ließen den Speicher sonst bis zum Zeitlimit wachsen).
+    /// `max_line`: longest line in bytes (protection against a stream without a line end). Since Round 23 the same
+    /// limit applies to the sum of the `data:` lines of an event (protection against a stream without an empty
+    /// line: many short lines would otherwise let the memory grow until the timeout).
     pub fn new(max_line: usize) -> Parser {
         Parser { pending: Vec::new(), data: Vec::new(), data_bytes: 0, max_line }
     }
 
-    /// Bytes anhängen; liefert die damit fertigen Ereignisse.
+    /// Append bytes; yields the events finished by that.
     pub fn push(&mut self, bytes: &[u8]) -> Result<Vec<Event>, LlmError> {
         self.pending.extend_from_slice(bytes);
         let mut events = Vec::new();
@@ -56,7 +56,7 @@ impl Parser {
         Ok(events)
     }
 
-    /// Ende des Stroms: eine letzte Zeile ohne Zeilenende und ein Ereignis ohne Leerzeile gelten noch.
+    /// End of the stream: a last line without a line end and an event without an empty line still count.
     pub fn finish(&mut self) -> Result<Vec<Event>, LlmError> {
         let mut events = Vec::new();
         if !self.pending.is_empty() {
@@ -81,7 +81,7 @@ impl Parser {
             }
         } else if let Some(rest) = line.strip_prefix("data:") {
             let rest = rest.strip_prefix(' ').unwrap_or(rest);
-            // +1 für das `\n`, mit dem die Zeilen verbunden werden.
+            // +1 for the `\n` the lines are joined with.
             self.data_bytes += rest.len() + 1;
             self.data.push(rest.to_owned());
         }
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn many_short_data_lines_without_a_blank_line_stop_at_the_limit() {
-        // Codereview 2026-11-24 (ki-3): Jede Zeile ist kurz, aber ohne Leerzeile endet das Ereignis nie.
+        // Code review 2026-11-24 (ki-3): every line is short, but without an empty line the event never ends.
         let mut parser = Parser::new(64);
         let mut outcome = Ok(Vec::new());
         let mut pushed = 0;
@@ -139,7 +139,7 @@ mod tests {
             pushed <= 8,
             "abgebrochen, sobald die Summe die Grenze von 64 Byte überschreitet (nach {pushed} Zeilen)"
         );
-        // Gegenprobe: Mit Leerzeilen dazwischen ist derselbe Umfang in Ordnung (die Grenze gilt je Ereignis).
+        // Counter-check: with empty lines in between the same volume is fine (the limit applies per event).
         let mut parser = Parser::new(64);
         let mut events = 0;
         for _ in 0..100 {

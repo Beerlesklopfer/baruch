@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (spiegel-entwurf, Vertrag §2.10/§2.11): Austauschformat Unterversion 8 im Store – Fortschreibungen samt
-//! Stand und Stand der Basis, Entwurf in den Satz-Einstellungen, Stand an Befunden (neu einlesen und zurück
-//! ausgeben), Vorspulen bekannter Fassungen beim Abgleich und der neue Teil als Antrag mit Kennung und Fassungen
-//! (zustimmen, ablehnen, erneut abgleichen). Erfundenes Beispielwerk aus `baruch_exchange::sample`; echte SQLite-Datei
-//! im Temp-Ordner; jede Zusicherung mit Begründung.
+//! Round 22 (spiegel-entwurf, contract §2.10/§2.11): exchange format sub-version 8 in the store – amendments
+//! including state and state of the base, draft in the typesetting settings, state on findings (read anew and write
+//! back), fast-forwarding known revisions when merging and the new part as a request with identifier and revisions
+//! (agree, refuse, merge again). Invented sample work from `baruch_exchange::sample`; real SQLite file in the temp
+//! folder; every assertion with a reason.
 
 use baruch_exchange::sample::{SAMPLE_TRICKY_BODY, sample_document, sample_document_u8, sample_uuid};
 use baruch_exchange::{
@@ -37,13 +37,13 @@ fn find<'a>(nodes: &'a mut [ExchangeNode], uuid: &str) -> Option<&'a mut Exchang
     None
 }
 
-/// Die fortgeschriebene Fassung „Der Eimer“, Fassung 1 (Kennung 111) des Beispiels.
+/// The amended revision „Der Eimer“, revision 1 (identifier 111) of the sample.
 fn amended(doc: &mut ExchangeDocument) -> &mut ExchangeRevision {
     let bucket = find(&mut doc.work.outline, &sample_uuid(11)).expect("„Der Eimer“");
     bucket.revisions.iter_mut().find(|r| r.uuid == sample_uuid(111)).expect("Fassung 1")
 }
 
-/// Ohne Schlüssel (sie gelten nur in ihrer Instanz).
+/// Without keys (they only hold in their instance).
 fn without_keys(nodes: &[ExchangeNode]) -> Vec<ExchangeNode> {
     nodes.iter().map(|n| ExchangeNode { key: None, children: without_keys(&n.children), ..n.clone() }).collect()
 }
@@ -98,7 +98,7 @@ async fn a_new_import_carries_amends_stands_draft_and_adopted_amend_and_dumps_th
         "Grabstein `fortschreibung` zurück: {:?}",
         dumped.deleted
     );
-    // Byte-gleich im XML: dieselben Schlüssel eingesetzt, dann dasselbe Werk wie in der Datei.
+    // Byte-identical in the XML: the same keys inserted, then the same work as in the file.
     let mut again = doc.clone();
     again.work.outline = dumped.outline.clone();
     fn keys_from(target: &mut [ExchangeNode], source: &[ExchangeNode]) {
@@ -115,7 +115,7 @@ async fn a_new_import_carries_amends_stands_draft_and_adopted_amend_and_dumps_th
     assert_eq!(xml(&again), xml(&doc), "Fortschreibungen, Stände und Entwurf byte-gleich im XML");
 }
 
-/// Datei, in der „Der Eimer“ Fassung 1 erst einen Schritt hat (Text = nach Schritt 1).
+/// File in which „Der Eimer“ revision 1 has only one step so far (text = after step 1).
 fn after_first_step() -> ExchangeDocument {
     let mut doc = sample_document_u8();
     let revision = amended(&mut doc);
@@ -158,7 +158,7 @@ async fn a_known_revision_whose_amends_are_a_prefix_is_fast_forwarded_and_a_seco
 async fn amends_that_are_no_prefix_give_a_divergent_revision_as_before() {
     let (_dir, store) = open().await;
     let mut local = after_first_step();
-    // Hier wurde anders fortgeschrieben: derselbe Text, aber ein Schritt mit anderer Kennung.
+    // Here the amending went differently: the same text, but a step with a different identifier.
     amended(&mut local).amends[0].uuid = sample_uuid(2299);
     import_new(&store, &local).await;
     let applied = store.exchange_apply(&sample_document_u8(), SHA, ApplyMode::Merge, None).await.unwrap();
@@ -176,8 +176,8 @@ async fn amends_that_are_no_prefix_give_a_divergent_revision_as_before() {
     assert_eq!(seq, 1, "die Fassung hier bleibt, wie sie war");
 }
 
-/// Nach einem Abgleich, der nicht vorspulen darf: Fassung 111 hier unverändert (Text nach Schritt 1, Stand 1, ein
-/// Schritt im Verlauf), keine Fortschreibung dazu, der Text der Datei kommt als abweichende Fassung.
+/// After a merge that must not fast-forward: revision 111 unchanged here (text after step 1, state 1, one step in
+/// the history), no amendment added, the text of the file comes as a deviating revision.
 async fn assert_not_fast_forwarded(store: &Store, applied: &baruch_store::exchange_apply::ExchangeApplied, why: &str) {
     let first_after = amended(&mut after_first_step()).amends[0].after.clone();
     assert_eq!(applied.report.add.amends, 0, "{why}: keine Fortschreibung übernommen: {:?}", applied.report.items);
@@ -197,8 +197,8 @@ async fn assert_not_fast_forwarded(store: &Store, applied: &baruch_store::exchan
 
 #[tokio::test]
 async fn a_persona_revision_is_never_fast_forwarded_in_place() {
-    // Befund (Nachbesserung R22): Vorspulen schrieb jede bekannte Fassung um. Eine Fassung einer Persona (hier eine
-    // übernommene, aktuelle) darf wie lokal (`NotOwn`) nie an Ort und Stelle fortgeschrieben werden.
+    // Finding (follow-up fix R22): fast-forwarding rewrote every known revision. A revision of a persona (here an
+    // accepted, current one) must, as locally (`NotOwn`), never be amended in place.
     let persona = ExchangeAuthor::Assistant { persona: "@lektor".into(), model: "probe/modell-7b".into() };
     let (_dir, store) = open().await;
     let mut local = after_first_step();
@@ -212,11 +212,11 @@ async fn a_persona_revision_is_never_fast_forwarded_in_place() {
 
 #[tokio::test]
 async fn a_revision_that_is_assistant_here_is_not_fast_forwarded_even_if_the_file_says_human() {
-    // Die Datei behauptet „Mensch“, hier stammt die Fassung von einem MCP-Client: maßgeblich ist die Herkunft hier.
+    // The file claims "human", here the revision comes from an MCP client: decisive is the origin here.
     let (_dir, store) = open().await;
     import_new(&store, &after_first_step()).await;
-    // Die Herkunft ist per Trigger unveränderlich; der Test nimmt ihn kurz heraus und setzt ihn wörtlich wieder ein
-    // (wie `age_revision` in revision_amend.rs), um „hier von einem MCP-Client“ nachzustellen.
+    // The origin is immutable by trigger; the test takes it out briefly and puts it back verbatim (like
+    // `age_revision` in revision_amend.rs), to recreate "here by an MCP client".
     let trigger: String = sqlx::query_scalar(
         "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'revision_origin_immutable'",
     )
@@ -246,8 +246,8 @@ async fn a_revision_that_is_assistant_here_is_not_fast_forwarded_even_if_the_fil
 
 #[tokio::test]
 async fn a_revision_that_is_superseded_here_is_not_fast_forwarded() {
-    // Hier ist Fassung 2 inzwischen aktuell, Fassung 1 ersetzt (Statustausch direkt in der Datenbank, wie ihn das
-    // Umschalten hinterlässt). Eine ersetzte Fassung schreibt auch lokal niemand fort.
+    // Here revision 2 is meanwhile current, revision 1 superseded (status swap directly in the database, as
+    // switching leaves it). Nobody amends a superseded revision locally either.
     let (_dir, store) = open().await;
     import_new(&store, &after_first_step()).await;
     for (uuid, status) in [(sample_uuid(111), "superseded"), (sample_uuid(112), "current")] {
@@ -264,11 +264,11 @@ async fn a_revision_that_is_superseded_here_is_not_fast_forwarded() {
 
 #[tokio::test]
 async fn amends_that_do_not_reproduce_the_text_of_the_file_are_not_fast_forwarded() {
-    // Befund (Nachbesserung R22): Die Schritte der Datei müssen die Änderung lückenlos wiedergeben. Zwei Fälle:
-    // (a) der Text der Fassung ist ein ganz anderer als „nachher“ des letzten Schritts – vorgespult zeigte der
-    //     Verlauf harmlose Schritte, während der Text ganz ersetzt würde;
-    // (b) ein Schritt beginnt nicht dort, wo der vorige endet – eine Rücknahme könnte sonst auf einen Text
-    //     zurücksetzen, den es hier nie gab.
+    // Finding (follow-up fix R22): the steps of the file must reproduce the change without gaps. Two cases:
+    // (a) the text of the revision is an entirely different one than the "after" of the last step – fast-forwarded,
+    //     the history would show harmless steps while the text would be replaced entirely;
+    // (b) a step does not start where the previous one ends – an undo could otherwise reset to a text that never
+    //     existed here.
     let (_dir, store) = open().await;
     import_new(&store, &after_first_step()).await;
     let mut replaced = sample_document_u8();
@@ -284,8 +284,7 @@ async fn amends_that_do_not_reproduce_the_text_of_the_file_are_not_fast_forwarde
     assert_not_fast_forwarded(&store, &applied, "Lücke im Verlauf").await;
 }
 
-/// Werk mit zwei Kapiteln; die andere Seite legt einen Teil (700) mit zwei Fassungen (701 fortgeschrieben, 702
-/// Vorschlag) um beide.
+/// Work with two chapters; the other side puts a part (700) with two revisions (701 amended, 702 proposal) around both.
 fn part_documents() -> (ExchangeDocument, ExchangeDocument) {
     let mut doc = sample_document();
     let bucket = find(&mut doc.work.outline, &sample_uuid(11)).unwrap().clone();
@@ -435,8 +434,8 @@ async fn rejecting_the_new_part_creates_nothing_and_leaves_no_tombstone() {
 
 #[tokio::test]
 async fn the_revision_policy_is_not_in_the_exchange_format() {
-    // Vertrag §2.3: Die Einstellung „Fassungen“ ist Arbeitsweise der Instanz. Eine Zeile in work_revision_policy
-    // ändert die Ausgabe nicht.
+    // Contract §2.3: the setting „Fassungen“ is the working method of the instance. A row in work_revision_policy
+    // does not change the output.
     let (_dir, store) = open().await;
     let work = import_new(&store, &sample_document_u8()).await;
     let before = store.exchange_dump(work).await.unwrap();

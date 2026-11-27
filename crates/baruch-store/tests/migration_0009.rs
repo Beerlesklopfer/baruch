@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0009 (Bilder, Vertrag Runde 6, Abschnitte 1 und 4) auf einer nachgebauten Datenbank im
-//! Stand von `development` vor Runde 6: Store-Migrationen bis 0007 und Bibliotheks-Migrationen
-//! 0101–0105, Werk 1 = Beispielwerk, Werk 2 = importiertes, frei erfundenes Buch, dazu Personas,
-//! Beitrag mit Verweis, Vorschlag, Titel, Zitat und Hervorhebung der Bibliothek.
+//! Migration 0009 (images, contract Round 6, sections 1 and 4) on a rebuilt database in the state of `development`
+//! before Round 6: store migrations up to 0007 and library migrations 0101–0105, work 1 = sample work, work 2 =
+//! imported, freely invented book, plus personas, post with reference, proposal, title, quote and highlight of the
+//! library.
 //!
-//! Danach `Store::open`: Alle Zeilen und Spalten aller vorhandenen Tabellen bleiben, wie sie waren
-//! (verglichen über die Spalten von vorher, damit eine spätere Migration mit neuen Spalten, z. B.
-//! 0008, den Vergleich nicht bricht), keine Verstöße gegen Fremdschlüssel, je Abschnitt genau eine
-//! aktuelle Fassung, Export byte-gleich, ein zweiter Start ändert nichts. Bilder danach haben
-//! Inhalt vom Typ TEXT.
+//! Afterwards `Store::open`: all rows and columns of all existing tables stay as they were (compared through the
+//! columns from before, so that a later migration with new columns, e.g. 0008, does not break the comparison), no
+//! violations of foreign keys, exactly one current revision per section, export byte-identical, a second start
+//! changes nothing. Images afterwards have content of type TEXT.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -21,7 +20,7 @@ use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-/// Tabellen aus 0009.
+/// Tables from 0009.
 const NEW_TABLES: &[&str] = &["asset", "asset_path", "asset_revision"];
 
 async fn raw_pool(dir: &Path) -> SqlitePool {
@@ -33,7 +32,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen bis 0007 (Stand development) und die Bibliotheks-Migrationen 0101–0105.
+/// Store migrations up to 0007 (state of development) and the library migrations 0101–0105.
 async fn migrate_like_development(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 7).cloned().collect();
     assert!(old.iter().any(|m| m.version == 7), "Stand development hat 0007");
@@ -49,7 +48,7 @@ async fn migrate_like_development(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Ein Werk mit Gliederung, je Abschnitt Revisionen wie in `sample::work()` bzw. Revision 1.
+/// A work with outline, per section revisions as in `sample::work()` or revision 1.
 async fn insert_work(pool: &SqlitePool, slug: &str, title: &str, template: &str, source_name: Option<&str>) -> WorkId {
     let work: WorkId = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, template, source_name, source_sha256, title_key) \
@@ -166,7 +165,7 @@ async fn insert_sample(pool: &SqlitePool) -> WorkId {
     work_id
 }
 
-/// Frei erfundenes Buch mit Vorlage, Bildaufruf (noch ohne Bildzeilen), Kapiteln und Abschnitten.
+/// Freely invented book with template, image call (still without image rows), chapters and sections.
 fn invented_book() -> String {
     let mut out = String::from(
         "#set document(title: \"Das Mühlenbuch\", author: \"Ida Feder\")\n#set heading(numbering: \"1.1\")\n\
@@ -226,7 +225,7 @@ async fn insert_import(pool: &SqlitePool, source: &str) -> WorkId {
         .unwrap();
         stack.push((heading.level, seq, number, 0));
     }
-    // Vorschlag, Beitrag mit Verweis, Bibliothek.
+    // Proposal, post with reference, library.
     let node: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 1")
         .bind(work)
         .fetch_one(pool)
@@ -278,7 +277,7 @@ async fn insert_import(pool: &SqlitePool, source: &str) -> WorkId {
     work
 }
 
-/// Schema aus `sqlite_master`: Name → SQL.
+/// Schema from `sqlite_master`: name → SQL.
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     let rows: Vec<(String, Option<String>)> =
         sqlx::query_as("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_stat%'")
@@ -288,7 +287,7 @@ async fn schema(pool: &SqlitePool) -> BTreeMap<String, Option<String>> {
     rows.into_iter().collect()
 }
 
-/// Spalten jeder Tabelle in ihrer Reihenfolge.
+/// Columns of every table in their order.
 async fn columns(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .fetch_all(pool)
@@ -306,7 +305,7 @@ async fn columns(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Zeilen der Tabellen in `layout` über genau diese Spalten, als `quote()`-Text, sortiert.
+/// All rows of the tables in `layout` through exactly these columns, as `quote()` text, sorted.
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -342,8 +341,8 @@ async fn migration_0009_keeps_every_row_and_adds_only_the_image_tables() {
         assert!(!schema_before.contains_key(*table), "vorher gibt es {table} nicht");
     }
 
-    // Verglichen wird nach einem Migrator bis 0009, damit spätere Migrationen (0010 Persona-Farbe,
-    // 0011 Einfälle) den Schemavergleich nicht stören; danach öffnet `Store::open` mit allen.
+    // The comparison happens after a migrator up to 0009, so that later migrations (0010 persona colour, 0011
+    // ideas) do not disturb the schema comparison; afterwards `Store::open` opens with all of them.
     let upto_0009: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 9).cloned().collect();
     let migrator = Migrator { migrations: Cow::Owned(upto_0009), ignore_missing: true, ..Migrator::DEFAULT };
     migrator.run(&pool).await.expect("Migrator bis 0009 führt 0008 und 0009 aus");
@@ -374,7 +373,7 @@ async fn migration_0009_keeps_every_row_and_adds_only_the_image_tables() {
     );
     for (name, sql) in &schema_before {
         if name == "work" {
-            // 0008 (numbering) ergänzt eine Spalte; 0009 lässt work, wie es ist.
+            // 0008 (numbering) adds a column; 0009 leaves work as it is.
             continue;
         }
         assert_eq!(schema_after.get(name), Some(sql), "Schema von {name} unverändert");
@@ -402,7 +401,7 @@ async fn migration_0009_keeps_every_row_and_adds_only_the_image_tables() {
     assert_eq!(store.works().await.unwrap().len(), 2, "kein Beispielwerk zusätzlich gesät");
     assert!(store.asset_list(book).await.unwrap().is_empty(), "ein altes Werk hat noch keine Bilder");
 
-    // Zweiter Start ändert nichts.
+    // A second start changes nothing.
     let layout_now = columns(pool).await;
     let schema_once = schema(pool).await;
     let once = contents(pool, &layout_now).await;
@@ -415,7 +414,7 @@ async fn migration_0009_keeps_every_row_and_adds_only_the_image_tables() {
         "zweites Öffnen: alle Zeilen gleich, auch _sqlx_migrations"
     );
 
-    // Bilder danach: Inhalt immer TEXT, auch bei Base64.
+    // Images afterwards: content always TEXT, also with Base64.
     let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle r=\"2\"/></svg>";
     let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR erfunden";
     for (file_name, bytes, as_base64) in

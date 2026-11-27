@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31b: Registermarken finden, setzen und entfernen (`baruch_typst::index`). Texte frei erfunden.
+//! Round 31b: finding, setting and removing index marks (`baruch_typst::index`). Texts freely invented.
 
 use baruch_typst::index::*;
 
@@ -43,8 +43,8 @@ fn headings_code_comments_raw_math_and_other_marks_are_skipped() {
         "nur in Überschrift, Kommentar und Raw: nicht gefunden"
     );
 
-    // Eine Marke im Text ist keine Fundstelle (ihr Stichwort „Gnade“ steht in einem String); eine andere Marke hinter
-    // dem Wort verhindert die neue nicht.
+    // A mark in the text is not an occurrence (its keyword „Gnade“ stands in a string); another mark behind the
+    // word does not prevent the new one.
     let marked = format!("Gnade{MARK} und Huld.\n");
     let huld = IndexMark::new("stichwort", "Huld");
     let (again, n) = mark_word(&marked, "Gnade", Occurrence::All, &huld).expect("das Wort selbst");
@@ -57,8 +57,8 @@ fn headings_code_comments_raw_math_and_other_marks_are_skipped() {
 
 #[test]
 fn the_same_mark_is_never_set_twice() {
-    // Befund nach R31: Zweimal „In Register aufnehmen“ bzw. ein Registervorschlag für ein schon markiertes Wort setzte
-    // eine zweite, gleiche Marke (doppelt in Übersicht und index.entries, jede Doppelung eine neue Fassung).
+    // Finding after R31: twice „In Register aufnehmen“ or an index proposal for an already marked word set a
+    // second, equal mark (duplicated in overview and index.entries, every duplication a new revision).
     let text = "Die Gnade trägt. Gnade bleibt.\n";
     let (once, n) = mark_word(text, "Gnade", Occurrence::First, &gnade()).expect("erste Fundstelle");
     assert_eq!(n, 1, "eine Marke");
@@ -68,7 +68,7 @@ fn the_same_mark_is_never_set_twice() {
         "„erste“ ist schon markiert: ehrlicher Fehler statt zweiter Marke (der Aufrufer legt keine Fassung an)"
     );
     assert_eq!(find_marks(&once).len(), 1, "weiter genau eine Marke");
-    // Die zweite Fundstelle lässt sich gezielt markieren; „alle“ setzt danach nur, was fehlt.
+    // The second occurrence can be marked specifically; "all" afterwards only sets what is missing.
     let (both, n) = mark_word(&once, "Gnade", Occurrence::All, &gnade()).expect("die zweite fehlt noch");
     assert_eq!(n, 1, "„alle“ setzt nur die fehlende Marke");
     assert_eq!(both, format!("Die Gnade{MARK} trägt. Gnade{MARK} bleibt.\n"), "je Fundstelle genau eine Marke");
@@ -82,7 +82,7 @@ fn the_same_mark_is_never_set_twice() {
         Err(IndexError::AlreadyMarked("Gnade".into())),
         "„2.“ ebenso"
     );
-    // Auch wenn die gleiche Marke erst hinter einer anderen Marke bzw. hinter einem Label steht, gilt sie als gesetzt.
+    // Even if the same mark only stands behind another mark or behind a label, it counts as set.
     let chain = format!("Gnade#metadata((register: \"personen\", term: \"Gnade\"))<baruch-idx>{MARK} hier.\n");
     assert_eq!(
         mark_word(&chain, "Gnade", Occurrence::First, &gnade()),
@@ -95,7 +95,7 @@ fn the_same_mark_is_never_set_twice() {
         Err(IndexError::AlreadyMarked("Gnade".into())),
         "Marke hinter dem Label"
     );
-    // Ein anderes Unterstichwort ist eine andere Marke.
+    // A different sub-keyword is a different mark.
     let mut sub = gnade();
     sub.sub = "Rechtfertigung".into();
     let (more, n) = mark_word(&once, "Gnade", Occurrence::First, &sub).expect("andere Marke");

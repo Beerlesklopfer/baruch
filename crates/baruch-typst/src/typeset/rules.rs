@@ -1,38 +1,40 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Regeln aus den Satz-Einstellungen (Runde 29b, Vertrag §5.1/§5.2).
+//! Typst rules from the typesetting settings (Round 29b, contract §5.1/§5.2).
 //!
-//! [`rules`] liefert für leere Einstellungen "" und sonst einen Block, der mit der Zeile
-//! [`RULES_MARK`](super::RULES_MARK) beginnt und mit '\n' endet. Der Store setzt ihn in `snapshot::head` hinter
-//! Werkvorlage, Schema- und Rückfall-Regeln – damit gilt er gleich in Export, Spiegel, Satz-Vorschau, Buch-PDF und
-//! Umschlag.
+//! [`rules`] delivers "" for empty settings and otherwise a block that starts with the line
+//! [`RULES_MARK`](super::RULES_MARK) and ends with '\n'. The store puts it in `snapshot::head` behind work
+//! template, scheme rules and fallback rules – so it applies equally in export, mirror, typesetting preview, book
+//! PDF and cover.
 //!
-//! **Form:** je Feld eine Zeile in [`FIELDS`](super::FIELDS)-Reihenfolge; mehrere Zeilen nur dort, wo Typst es braucht
-//! (Hilfsfunktionen für Seitenzahlen und Kolumnentitel, Neubeginn der Fußnoten). `xref_with_page` ist keine Satz-Regel:
-//! Einstellungen, die nur dieses Feld setzen, ergeben "" (der Schalter ändert keine Datei, Vertrag §6.5).
+//! **Form:** one line per field in [`FIELDS`](super::FIELDS) order; several lines only where Typst needs it (helper
+//! functions for page numbers and running heads, restart of the footnotes). `xref_with_page` is not a typesetting
+//! rule: settings that only set this field yield "" (the switch changes no file, contract §6.5).
 //!
-//! **Warum die Regeln so aussehen** (gemessen in `baruch-render/tests/typeset_measure.rs`):
-//! - **Kapitel** = Überschrift Ebene 1 ohne Label `<baruch-part>` (Fußnoten, Kolumnentitel, Kapitelanfangsseiten).
-//!   Der Umbruch des Kapitelanfangs gilt aber für jede Überschrift der Ebene 1, auch für Teile: Im Export (ohne
-//!   Teil-Regel des Satzes) sind Teile Überschriften der Ebene 1 und beginnen so mindestens wie ein Kapitel. Damit ist
-//!   die Regel genau die übernehmbare Vorlagenregel (`it => { pagebreak(…); it }`), und „Vorlagenregel übernehmen“
-//!   verliert im Export nichts (Befund R29; vorher ließ die Regel Teile durch, nach der Übernahme begannen Teile im
-//!   Export nicht mehr auf einer neuen Seite). Im Satz greift vor ihr die Teil-Regel, die `it` nicht zurückgibt.
-//!   `pagebreak(to: "odd")` zählt in Typst die physischen Seiten – Leerseiten entstehen also richtig, auch wenn die
-//!   Seitenzählung erst beim ersten Kapitel beginnt.
-//! - **Seitenzählung ab dem ersten Kapitel:** Der Querverweis „S. n“ liest `counter(page).at(<kN>)` an der Überschrift.
-//!   Ein `counter(page).update(1)` in der Show-Regel der Überschrift stünde hinter deren Startmarke (Typst legt alles,
-//!   was eine Show-Regel liefert, zwischen Start- und Endmarke des Elements) und gälte für den Verweis zu spät. Darum
-//!   steht die Rücksetzung im Seitenhintergrund (`page.background`) der ersten Kapitelseite: Typst legt den Hintergrund
-//!   vor Kopfzeile und Inhalt in den Seitenrahmen, die Rücksetzung gilt so für alles auf dieser Seite – Fußzeile,
-//!   Kopfzeile und Verweise zeigen dieselbe Zahl.
-//! - **Leerseiten** (Kolumnentitel und Seitenzahl entfallen): Vor jeder Kapitel- und (mit eigener Teil-Regel)
-//!   Teil-Überschrift steht eine unsichtbare Marke `<baruch-satz-end>` *vor* dem Seitenumbruch der Vorlage bzw. der
-//!   Einstellung. Typst lässt abgeschlossene Marken vor dem Umbruch stehen (nur unabgeschlossene Startmarken wandern auf
-//!   die neue Seite); die Marke zeigt so, wo der Text davor endet. Seiten zwischen Marke und Überschrift sind leer. Steht
-//!   vor dem Umbruch nur noch die Marke (etwa direkt nach einer Teil-Seite), legt Typst sie an den Anfang der nächsten
-//!   Seite (Lage 0 pt) – auch das zählt als leer. Die leere Rückseite einer Teil-Seite trägt `<baruch-satz-blank>`.
-//! - Kopf- und Fußzeile sind `context`-Ausdrücke, die die Seite über `here().page()` mit den Seiten der Überschriften
-//!   vergleichen; die Seitenlage „außen“ folgt der physischen Seite (ungerade = rechts), wie die Ränder `inside`/`outside`.
+//! **Why the rules look like this** (measured in `baruch-render/tests/typeset_measure.rs`):
+//! - **Chapter** = heading level 1 without the label `<baruch-part>` (footnotes, running heads, chapter-start
+//!   pages). The break of the chapter start, however, applies to every heading of level 1, also to parts: in the
+//!   export (without the part rule of the typesetting) parts are headings of level 1 and so start at least like a
+//!   chapter. So the rule is exactly the template rule that can be taken over (`it => { pagebreak(…); it }`), and
+//!   „Vorlagenregel übernehmen“ loses nothing in the export (finding R29; before, the rule let parts through, after
+//!   taking it over parts no longer started on a new page in the export). In the typesetting the part rule, which
+//!   does not return `it`, applies before it. `pagebreak(to: "odd")` counts the physical pages in Typst – so empty
+//!   pages are created correctly, even if the page counting only starts at the first chapter.
+//! - **Page counting from the first chapter on:** the cross-reference „S. n“ reads `counter(page).at(<kN>)` at the
+//!   heading. A `counter(page).update(1)` in the show rule of the heading would stand behind its start marker
+//!   (Typst puts everything a show rule delivers between start and end marker of the element) and would apply too
+//!   late for the reference. Therefore the reset stands in the page background (`page.background`) of the first
+//!   chapter page: Typst puts the background into the page frame before header and content, so the reset applies to
+//!   everything on this page – footer, header and references show the same number.
+//! - **Empty pages** (running head and page number are omitted): before every chapter heading and (with an own part
+//!   rule) part heading an invisible marker `<baruch-satz-end>` stands *before* the page break of the template or
+//!   of the setting. Typst leaves completed markers before the break (only uncompleted start markers move to the
+//!   new page); the marker thus shows where the text before it ends. Pages between marker and heading are empty. If
+//!   only the marker stands before the break (for example directly after a part page), Typst puts it at the start
+//!   of the next page (position 0 pt) – that counts as empty too. The empty back of a part page carries
+//!   `<baruch-satz-blank>`.
+//! - Header and footer are `context` expressions that compare the page through `here().page()` with the pages of
+//!   the headings; the page position "outside" follows the physical page (odd = right), like the margins
+//!   `inside`/`outside`.
 
 use super::model::RULES_MARK;
 use super::model::{
@@ -40,12 +42,12 @@ use super::model::{
     PartSide, RunningHead, TypesetSettings,
 };
 
-/// Label der Marke vor dem Seitenumbruch einer Kapitel- bzw. Teil-Überschrift (siehe Modulkopf).
+/// Label of the marker before the page break of a chapter or part heading (see module header).
 pub(crate) const END_LABEL: &str = "baruch-satz-end";
-/// Label der leeren Rückseite einer Teil-Seite.
+/// Label of the empty back of a part page.
 pub(crate) const BLANK_LABEL: &str = "baruch-satz-blank";
 
-/// Typst-Zahl (Dezimalpunkt, ohne unnötige Nullen); nicht endlich → `None` (keine Regel).
+/// Typst number (decimal point, without unnecessary zeros); not finite → `None` (no rule).
 fn num(x: f64) -> Option<String> {
     if !x.is_finite() {
         return None;
@@ -54,7 +56,7 @@ fn num(x: f64) -> Option<String> {
     Some(format!("{rounded}"))
 }
 
-/// Typst-Zeichenkette mit Maskierung.
+/// Typst string with escaping.
 pub(super) fn literal(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -73,18 +75,18 @@ pub(super) fn literal(text: &str) -> String {
     out
 }
 
-/// Bedingung „ist eine Teil-Überschrift“ für die Variable `it` einer Show-Regel.
+/// Condition "is a part heading" for the variable `it` of a show rule.
 fn is_part(var: &str) -> String {
     format!("{var}.at(\"label\", default: none) == <{}>", crate::marker::PART_LABEL)
 }
 
-/// Hilfsfunktionen für Kopf- und Fußzeilen (Seitenzahlen, Kolumnentitel) und die Marke vor dem Umbruch.
+/// Helper functions for headers and footers (page numbers, running heads) and the marker before the break.
 ///
-/// `baruch-satz-quiet(p)`: Teil-Seite, leere Rückseite oder Leerseite vor einer Kapitelüberschrift. Eine Leerseite liegt
-/// zwischen der Marke `<baruch-satz-end>` (vor dem Umbruch der Kapitelregel) und der Überschrift dahinter. Ohne
-/// Kapitelregel steht die Marke an derselben Stelle wie ihre Überschrift und folgt ihr in der Abfrage (Integrator R29):
-/// Eine solche Marke zählt nicht, sonst wären alle Seiten bis zur nächsten Überschrift „leer“ (ohne Seitenzahl und
-/// Kolumnentitel).
+/// `baruch-satz-quiet(p)`: part page, empty back or empty page before a chapter heading. An empty page lies between
+/// the marker `<baruch-satz-end>` (before the break of the chapter rule) and the heading behind it. Without a
+/// chapter rule the marker stands at the same place as its heading and follows it in the query (integrator R29):
+/// such a marker does not count, otherwise all pages up to the next heading would be "empty" (without page number
+/// and running head).
 fn helpers() -> String {
     let part = crate::marker::PART_LABEL;
     format!(
@@ -105,7 +107,7 @@ false }}\n\
     )
 }
 
-/// Ausdruck der Seitenzahl in einem `context` mit Seite `p` (Zeichenkette oder `none`).
+/// Expression of the page number in a `context` with page `p` (string or `none`).
 fn folio(start: PageNumberStart) -> String {
     let number = "str(counter(page).get().first())";
     match start {
@@ -117,7 +119,7 @@ if c.len() > 0 and p < c.first().location().page() {{ none }} else {{ {number} }
     }
 }
 
-/// Kopfzeile: Kolumnentitel (`title` = Typst-Ausdruck mit `p`, oder `None`) und Seitenzahl oben außen (`folio`).
+/// Header: running head (`title` = Typst expression with `p`, or `None`) and page number top outside (`folio`).
 fn header(title: Option<&str>, folio: Option<&str>) -> String {
     let title = title.unwrap_or("none");
     let folio = folio.unwrap_or("none");
@@ -131,16 +133,18 @@ align(right, if calc.odd(p) and n != none {{ n }})) }}"
     )
 }
 
-/// Typst-Regelblock zu `settings`; leere Einstellungen (und solche, die nur `xref_with_page` oder die R31-Felder
-/// `glossary_page`, `index_pages`, `glossary_first_mention` setzen) → "".
+/// Typst rule block for `settings`; empty settings (and those that only set `xref_with_page` or the R31 fields
+/// `glossary_page`, `index_pages`, `glossary_first_mention`) → "".
 pub fn rules(settings: &TypesetSettings) -> String {
-    // R31-S1: die drei Register/Glossar-Felder steuern crate::index (Projektion, Buchende), keine Zeile im Regelblock.
+    // R31-S1: the three index/glossary fields control crate::index (projection, back matter), no line in the rule
+    // block.
     let typeset = TypesetSettings {
         xref_with_page: None,
         glossary_page: None,
         index_pages: None,
         glossary_first_mention: None,
-        // R22: der Entwurf kommt nur in die Satzquelle der Ausgaben (typeset::draft_rule), nie in den Regelblock.
+        // R22: the draft only goes into the typesetting source of the outputs (typeset::draft_rule), never into the
+        // rule block.
         draft: None,
         ..settings.clone()
     };
@@ -156,7 +160,7 @@ pub fn rules(settings: &TypesetSettings) -> String {
         }
     };
 
-    // Kapitelanfang (Überschrift Ebene 1; Teile brechen im Export ebenso um, siehe Modulkopf).
+    // Chapter start (heading level 1; parts break likewise in the export, see module header).
     if let Some(start) = s.chapter_start {
         line(match start {
             ChapterStart::Continuous => "// Kapitelanfang: fortlaufend (kein Seitenumbruch vor Kapiteln)".to_owned(),
@@ -166,7 +170,7 @@ pub fn rules(settings: &TypesetSettings) -> String {
             }
         });
     }
-    // Teil-Seite: wirkt über die Teil-Regel des Satzes (`part_page_rule_with`), hier nur vermerkt.
+    // Part page: takes effect through the part rule of the typesetting (`part_page_rule_with`), only noted here.
     if let Some(part) = &s.part_page {
         line(format!(
             "// Teil-Seite: {}{} (Regel der Teil-Seiten im Satz)",
@@ -198,7 +202,7 @@ pub fn rules(settings: &TypesetSettings) -> String {
     if let Some(paragraph) = s.paragraph {
         match paragraph {
             Paragraph::Indent { em } => {
-                // Kein Zwischenraum außer dem Zeilenabstand: Absatzabstand = Zeilenabstand (Typst-Vorgabe 0,65 em).
+                // No space except the line spacing: paragraph spacing = line spacing (Typst default 0.65 em).
                 let gap = num(s.leading_em.unwrap_or(0.65)).unwrap_or_else(|| "0.65".into());
                 if let Some(em) = num(em) {
                     line(format!("#set par(first-line-indent: {em}em, spacing: {gap}em)"));
@@ -225,7 +229,7 @@ pub fn rules(settings: &TypesetSettings) -> String {
         });
     }
 
-    // Seitenzahlen und Kolumnentitel teilen sich Hilfsfunktionen und die Kopfzeile.
+    // Page numbers and running heads share helper functions and the header.
     let numbers = s.page_numbers.as_ref().filter(|n| n.position != PageNumberPosition::Hidden);
     let head = s.running_head.filter(|h| *h != RunningHead::Off);
     if numbers.is_some() || head.is_some() {
@@ -291,12 +295,13 @@ if c.len() > 0 {{ c.last().body }} }}"
     out
 }
 
-/// Regel der Teil-Seiten (wie [`crate::marker::part_page_rule`]) mit Seite und leerer Rückseite aus `part`.
-/// `part_page_rule_with(labels, None)` ist byte-gleich zu `marker::part_page_rule(labels)`.
+/// Rule of the part pages (like [`crate::marker::part_page_rule`]) with side and empty back from `part`.
+/// `part_page_rule_with(labels, None)` is byte-identical to `marker::part_page_rule(labels)`.
 ///
-/// Mit `part`: `side` Right = eigene rechte Seite (`to: "odd"`), Any = nächste Seite; `blank_back` = die Seite nach der
-/// Teil-Seite bleibt leer (zwei harte Umbrüche, dazwischen die Marke `<baruch-satz-blank>`, damit Kopf- und Fußzeile
-/// dort entfallen). Vor dem ersten Umbruch steht die Marke `<baruch-satz-end>` (Leerseiten davor erkennen).
+/// With `part`: `side` Right = a right-hand page of its own (`to: "odd"`), Any = next page; `blank_back` = the page
+/// after the part page stays empty (two hard breaks, between them the marker `<baruch-satz-blank>`, so that header
+/// and footer are omitted there). Before the first break stands the marker `<baruch-satz-end>` (to recognise empty
+/// pages before it).
 pub fn part_page_rule_with(labels: &[String], part: Option<&PartPage>) -> String {
     let Some(part) = part else { return crate::marker::part_page_rule(labels) };
     let default = crate::marker::part_page_rule(labels);
@@ -309,8 +314,8 @@ pub fn part_page_rule_with(labels: &[String], part: Option<&PartPage>) -> String
     } else {
         "pagebreak(weak: true) }\n".to_owned()
     };
-    // Die Standardregel beginnt mit `{ pagebreak(weak: true, to: "odd"); ` und endet mit `pagebreak(weak: true) }`;
-    // dazwischen (Zähler, Nummer, Titel) bleibt sie wörtlich.
+    // The standard rule starts with `{ pagebreak(weak: true, to: "odd"); ` and ends with `pagebreak(weak: true) }`;
+    // in between (counter, number, title) it stays verbatim.
     let head = "it => { pagebreak(weak: true, to: \"odd\"); ";
     let tail = "pagebreak(weak: true) }\n";
     match (default.find(head), default.strip_suffix(tail)) {
@@ -323,15 +328,17 @@ pub fn part_page_rule_with(labels: &[String], part: Option<&PartPage>) -> String
     }
 }
 
-/// Regel der Teil-Seiten für ein Werk mit den Satz-Einstellungen `settings` – so, wie Satz (`typeset::prepare`),
-/// Vorschau und Messtests sie hinter den Regelblock [`rules`] setzen.
+/// Rule of the part pages for a work with the typesetting settings `settings` – the way typesetting
+/// (`typeset::prepare`), preview and measuring tests put it behind the rule block [`rules`].
 ///
-/// - Mit `part_page`: [`part_page_rule_with`] mit dieser Einstellung.
-/// - Ohne `part_page`, aber mit Regelblock (etwa nur Seitenzahlen oder Kolumnentitel): dieselbe Seite wie die Regel
-///   aus Runde 14 (eigene rechte Seite, keine leere Rückseite), aber mit der Marke `<baruch-satz-end>` vor dem Umbruch.
-///   Die Teil-Regel greift vor der Show-Regel des Regelblocks und gibt `it` nicht zurück; ohne eigene Marke erkennte
-///   `baruch-satz-quiet` die Leerseite vor dem Teil nicht, und sie trüge Seitenzahl und Kolumnentitel (Befund R29).
-/// - Ohne Regelblock: byte-gleich zu `marker::part_page_rule` (ein Werk ohne Satz-Einstellungen setzt wie vor Runde 29).
+/// - With `part_page`: [`part_page_rule_with`] with this setting.
+/// - Without `part_page`, but with a rule block (for example only page numbers or running heads): the same page as
+///   the rule from Round 14 (a right-hand page of its own, no empty back), but with the marker `<baruch-satz-end>`
+///   before the break. The part rule applies before the show rule of the rule block and does not return `it`;
+///   without a marker of its own `baruch-satz-quiet` would not recognise the empty page before the part, and it
+///   would carry page number and running head (finding R29).
+/// - Without a rule block: byte-identical to `marker::part_page_rule` (a work without typesetting settings typesets
+///   as before Round 29).
 pub fn part_page_rule_for(labels: &[String], settings: &TypesetSettings) -> String {
     if let Some(part) = settings.part_page.as_ref() {
         return part_page_rule_with(labels, Some(part));

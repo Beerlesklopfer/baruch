@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 29b: Form des Regelblocks `rules` (Vertrag §5.1): leer ohne Einstellungen, sonst erste Zeile `RULES_MARK`,
-//! Regeln in FIELDS-Reihenfolge, Ende mit Zeilenumbruch, je Einstellung eine erkennbare Regel. Die Wirkung im Satz
-//! misst `baruch-render/tests/typeset_measure.rs`.
+//! Round 29b: form of the rule block `rules` (contract §5.1): empty without settings, otherwise first line
+//! `RULES_MARK`, rules in FIELDS order, end with a line break, one recognisable rule per setting. The effect in the
+//! typesetting is measured by `baruch-render/tests/typeset_measure.rs`.
 
 use baruch_typst::typeset::*;
 
-/// Das Vertragsbeispiel (§2): alle 16 Felder gesetzt.
+/// The contract example (§2): all 16 fields set.
 const EXAMPLE: &str = r#"{"chapter_start":"right_page","part_page":{"side":"right","blank_back":true},"page_format":{"kind":"a5"},"margins":{"inside_mm":20.0,"outside_mm":15.0,"top_mm":18.0,"bottom_mm":22.0,"binding_mm":5.0},"font":"Libertinus Serif","font_size_pt":10.5,"leading_em":0.65,"paragraph":{"kind":"indent","em":1.0},"justify":true,"hyphenate":true,"lang":"de","page_numbers":{"position":"bottom_outside","start":"first_chapter"},"running_head":"chapter","footnotes":{"numbering":"arabic","restart":"per_chapter"},"widows_orphans":true,"xref_with_page":true}"#;
 
 fn example() -> TypesetSettings {
     TypesetSettings::from_json(EXAMPLE).expect("Vertragsbeispiel lesbar")
 }
 
-/// Erkennungszeichen je Feld (Teil der Zeile, die das Feld erzeugt); `xref_with_page` erzeugt keine Regel.
+/// Distinguishing mark per field (part of the line the field produces); `xref_with_page` produces no rule.
 fn marker(field: &str) -> Option<&'static str> {
     Some(match field {
         "chapter_start" => "pagebreak(weak: true, to: \"odd\")",
@@ -55,8 +55,8 @@ fn every_field_has_a_recognisable_rule_in_fields_order() {
     let mut last = 0usize;
     for (field, label) in FIELDS {
         let Some(marker) = marker(field) else {
-            // R31 (§2.2): Glossarseite, Registerseiten und erste Erwähnung steuern das Buchende, keine Regel.
-            // R22 (§2.9): Entwurf kommt nur in die Satzquelle der Ausgaben, nie in den Regelblock.
+            // R31 (§2.2): glossary page, index pages and first mention control the back matter, no rule.
+            // R22 (§2.9): the draft only goes into the typesetting source of the outputs, never into the rule block.
             assert!(
                 matches!(
                     field,
@@ -104,9 +104,9 @@ fn each_setting_alone_gives_exactly_its_rule() {
 
 #[test]
 fn chapter_rules_are_exactly_the_adoptable_template_rules() {
-    // Befund R29: Die Kapitelregel gilt wie die übernehmbare Vorlagenregel für jede Überschrift der Ebene 1 (auch
-    // Teile) – sonst verlöre „Vorlagenregel übernehmen“ im Export den Umbruch vor Teilen. Darum erkennt
-    // `detect_chapter_break` die eigene Zeile wieder, mit demselben Wert.
+    // Finding R29: the chapter rule applies, like the template rule that can be taken over, to every heading of
+    // level 1 (also parts) – otherwise „Vorlagenregel übernehmen“ would lose the break before parts in the export.
+    // Therefore `detect_chapter_break` recognises the own line again, with the same value.
     for start in [ChapterStart::NewPage, ChapterStart::RightPage] {
         let block = rules(&TypesetSettings { chapter_start: Some(start), ..Default::default() });
         let line = block.lines().find(|l| l.contains("pagebreak")).expect("Kapitelregel");
@@ -151,7 +151,7 @@ fn page_numbers_and_running_head_variants() {
 
 #[test]
 fn font_names_are_typst_string_literals() {
-    // validate lehnt " und \ ab; rules maskiert trotzdem, damit nie Typst-Code aus einem Namen entsteht.
+    // validate refuses " and \; rules escapes nevertheless, so that Typst code never arises from a name.
     let block = rules(&TypesetSettings { font: Some("A\"B\\C".into()), ..Default::default() });
     assert!(block.contains("#set text(font: \"A\\\"B\\\\C\")"), "maskiert: {block}");
 }
@@ -182,7 +182,7 @@ fn part_page_rule_with_none_is_byte_identical_and_some_changes_side_and_back() {
         right.contains("pagebreak(); [#metadata(\"baruch-satz\") <baruch-satz-blank>]; pagebreak() }"),
         "leere Rückseite: {right}"
     );
-    // Zähler, Nummer und Titel der Teil-Seite bleiben wörtlich wie in der Standardregel.
+    // Counter, number and title of the part page stay verbatim as in the standard rule.
     let middle_start = default.find("counter(\"baruch-part\").step()").expect("Zähler");
     let middle_end = default.rfind("v(1fr); ").expect("unterer Leerraum") + "v(1fr); ".len();
     assert!(right.contains(&default[middle_start..middle_end]), "Mitte der Regel unverändert:\n{right}\n{default}");

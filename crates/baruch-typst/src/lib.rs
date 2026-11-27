@@ -1,38 +1,37 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zerlegen einer Typst-Datei in Werkvorlage und Gliederung (Vertrag B1.5, Abschnitt 2).
+//! Splitting a Typst file into work template and outline (contract B1.5, section 2).
 //!
-//! - **Werkvorlage** ist alles vor der ersten Überschrift (Präambel mit `#set`, `#show`, `#let` …).
-//! - **Überschrift** ist eine Zeile, die in Spalte 0 mit 1–3 `=` und danach Leerzeichen oder Tab
-//!   beginnt. `====` und tiefer bleibt Text. Ein Kommentar dahinter (`== Titel // Notiz`) gehört
-//!   nicht zum Titel.
-//! - **Nicht als Gliederung** zählen Zeilen in Raw-Blöcken (```` ``` ```` am Zeilenanfang öffnet und
-//!   schließt), in mehrzeiligem Inline-Raw (`` `…` `` über Zeilen), in Blockkommentaren `/* … */`, in
-//!   mehrzeiligen Strings im Code (`#let x = "…"`) und in mehrzeiligen Inhaltsblöcken aus Code
-//!   (`#block[…]`, `#f(x)[…]`, `#let x = [ … ]`, `#show …: it => [ … ]`). Dafür verfolgt der Scanner
-//!   Klammern (`(`, `[`, `{`) ab einem `#`-Ausdruck; ein `[` im Fließtext der obersten Ebene bleibt Text.
-//! - **Teile und „ohne Nummer“** (Runde 14, [`marker`]): die kanonischen Zeilen
-//!   `#heading(level: 1, numbering: none)[T] <baruch-part>` (Teil, [`Heading::level`] 0) und
-//!   `#heading(level: N, numbering: none)[T] <baruch-unnumbered>` (Ebene N, [`Heading::numbered`]
-//!   `false`) zählen wie Überschriften; eine davon vor der ersten `=` beendet die Werkvorlage.
-//! - **Bekannte Grenze:** eingerückte Überschriften und jedes andere `#heading(...)` werden nicht
-//!   erkannt; sie bleiben Text (vor der ersten Überschrift also Teil der Werkvorlage). Ein `else [`
-//!   am Anfang einer Folgezeile (`] else [`) gilt als Fließtext.
-//! - Der **Text** einer Überschrift reicht von ihrer Zeile bis vor die nächste Überschrift, mit allen
-//!   Zeilenenden. Darum gilt immer `join(&d.template, bodies) == source`, Byte für Byte.
-//! - Titel und Autor stammen aus dem ersten `#set document(title: …, author: …)` außerhalb von
-//!   Kommentaren (`//`, `/* … */`) und Raw-Text.
-//! - **Maskierungen** (Vertrag Runde 4, Abschnitt 2): [`Heading::title`] ist der aufgelöste Titel
-//!   (`\'` → `'`, `\#` → `#` …, [`unescape_title`]), [`Heading::raw_title`] der wörtliche aus der
-//!   Zeile. Neue Überschriftszeilen baut [`heading_line`] und maskiert dabei mit [`escape_title`].
-//! - **Nummerierung:** [`heading_numbering`] liest die letzte `#set heading(numbering: …)`-Regel der
-//!   obersten Ebene der Werkvorlage (wie Typst) und gibt sie in der Mustersprache von [`scheme`]
-//!   zurück (`I|1`, `I.;A.;1.`); [`format_number`] wendet ein Muster nach den Regeln von Typst an
-//!   (`"I.1"` mit `[2, 3]` → `II.3`). Gliederungsschemata und der Export ihrer Regel: [`scheme`].
-//! - Ein **UTF-8-BOM** (U+FEFF) am Dateianfang gehört zur Werkvorlage; eine Überschrift direkt danach
-//!   zählt trotzdem (Windows-Editoren schreiben ihn oft). So bleibt die Rundreise byte-gleich.
+//! - **Work template** is everything before the first heading (preamble with `#set`, `#show`, `#let` …).
+//! - **Heading** is a line that starts in column 0 with 1–3 `=` followed by a space or tab. `====` and deeper stays
+//!   text. A comment behind it (`== Titel // Notiz`) does not belong to the title.
+//! - **Not counted as outline** are lines in raw blocks (```` ``` ```` at the start of a line opens and closes), in
+//!   multi-line inline raw (`` `…` `` across lines), in block comments `/* … */`, in multi-line strings in code
+//!   (`#let x = "…"`) and in multi-line content blocks from code (`#block[…]`, `#f(x)[…]`, `#let x = [ … ]`, `#show
+//!   …: it => [ … ]`). For this the scanner tracks brackets (`(`, `[`, `{`) from a `#` expression on; a `[` in the
+//!   running text of the top level stays text.
+//! - **Parts and „ohne Nummer“** (Round 14, [`marker`]): the canonical lines `#heading(level: 1, numbering:
+//!   none)[T] <baruch-part>` (part, [`Heading::level`] 0) and `#heading(level: N, numbering: none)[T]
+//!   <baruch-unnumbered>` (level N, [`Heading::numbered`] `false`) count like headings; one of them before the
+//!   first `=` ends the work template.
+//! - **Known limit:** indented headings and every other `#heading(...)` are not recognised; they stay text (before
+//!   the first heading therefore part of the work template). An `else [` at the start of a continuation line (`]
+//!   else [`) counts as running text.
+//! - The **text** of a heading reaches from its line to before the next heading, with all line ends. Therefore
+//!   `join(&d.template, bodies) == source` always holds, byte for byte.
+//! - Title and author come from the first `#set document(title: …, author: …)` outside of comments (`//`, `/* …
+//!   */`) and raw text.
+//! - **Escapes** (contract Round 4, section 2): [`Heading::title`] is the resolved title (`\'` → `'`, `\#` → `#` …,
+//!   [`unescape_title`]), [`Heading::raw_title`] the literal one from the line. New heading lines are built by
+//!   [`heading_line`], which escapes with [`escape_title`].
+//! - **Numbering:** [`heading_numbering`] reads the last `#set heading(numbering: …)` rule of the top level of the
+//!   work template (like Typst) and returns it in the pattern language of [`scheme`] (`I|1`, `I.;A.;1.`);
+//!   [`format_number`] applies a pattern by the rules of Typst (`"I.1"` with `[2, 3]` → `II.3`). Outline schemes
+//!   and the export of their rule: [`scheme`].
+//! - A **UTF-8 BOM** (U+FEFF) at the start of the file belongs to the work template; a heading directly after it
+//!   counts nevertheless (Windows editors often write it). This way the round trip stays byte-identical.
 //!
-//! Zeilenenden werden nicht umgeschrieben; CRLF → LF macht der Aufrufer (der Store) vorher.
-//! Die Crate kennt weder Datenbank noch Dateisystem.
+//! Line ends are not rewritten; CRLF → LF is done by the caller (the store) beforehand. The crate knows neither
+//! database nor file system.
 
 pub mod cover;
 pub mod cover_layout;
@@ -50,30 +49,29 @@ pub use marker::{
     PART_LABEL, UNNUMBERED_LABEL, part_line, part_page_rule, relevel_line, set_numbered_line, unnumbered_line,
 };
 
-/// Ergebnis von [`parse`].
+/// Result of [`parse`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Document {
-    /// Alles vor der ersten Überschrift (leer, wenn die Datei mit einer Überschrift beginnt).
+    /// Everything before the first heading (empty if the file starts with a heading).
     pub template: String,
-    /// `title` aus `#set document(...)`: String-Literal oder Rohtext eines Inhaltsblocks `[…]`.
+    /// `title` from `#set document(...)`: string literal or raw text of a content block `[…]`.
     pub title: Option<String>,
-    /// `author` aus `#set document(...)`: String-Literal oder Tupel von Strings (mit ", " verbunden).
+    /// `author` from `#set document(...)`: string literal or tuple of strings (joined with ", ").
     pub author: Option<String>,
     pub headings: Vec<Heading>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
-    /// 0 = Teil (Markierung `<baruch-part>`, [`marker`]), 1 (`=`) bis 3 (`===`).
+    /// 0 = part (marker `<baruch-part>`, [`marker`]), 1 (`=`) to 3 (`===`).
     pub level: u8,
-    /// Titel mit aufgelösten Typst-Maskierungen ([`unescape_title`] von `raw_title`).
+    /// Title with resolved Typst escapes ([`unescape_title`] of `raw_title`).
     pub title: String,
-    /// Text nach den `=`, getrimmt, ohne angehängtes `<label>` und ohne Kommentar, wörtlich.
+    /// Text after the `=`, trimmed, without an attached `<label>` and without comment, literal.
     pub raw_title: String,
-    /// Von der Überschriftszeile bis vor die nächste Überschrift, inklusive aller Zeilenenden.
+    /// From the heading line to before the next heading, including all line ends.
     pub body: String,
-    /// `false` nur für die Markierung „ohne Nummer“ (`<baruch-unnumbered>`, [`marker`]); `=`-Zeilen
-    /// und Teile sind `true`.
+    /// `false` only for the marker „ohne Nummer“ (`<baruch-unnumbered>`, [`marker`]); `=` lines and parts are `true`.
     pub numbered: bool,
 }
 
@@ -83,7 +81,7 @@ pub enum ParseError {
     NoHeadings,
 }
 
-/// Zerlegt `source` in Werkvorlage und Überschriften (Regeln siehe Modulbeschreibung).
+/// Splits `source` into work template and headings (rules see module description).
 pub fn parse(source: &str) -> Result<Document, ParseError> {
     let mut scanner = Scanner::default();
     let mut starts: Vec<(usize, u8, String, bool)> = Vec::new();
@@ -118,10 +116,10 @@ pub fn parse(source: &str) -> Result<Document, ParseError> {
     Ok(Document { template: source[..first].to_owned(), title, author, headings })
 }
 
-/// Byte-Order-Mark, den manche Editoren an den Dateianfang schreiben.
+/// Byte order mark that some editors write at the start of the file.
 const BOM: char = '\u{feff}';
 
-/// Werkvorlage und Texte hintereinander; Umkehrung von [`parse`].
+/// Work template and texts one after the other; inverse of [`parse`].
 pub fn join<'a>(template: &str, bodies: impl IntoIterator<Item = &'a str>) -> String {
     let mut out = template.to_owned();
     for body in bodies {
@@ -130,8 +128,8 @@ pub fn join<'a>(template: &str, bodies: impl IntoIterator<Item = &'a str>) -> St
     out
 }
 
-/// Wie [`join`], dazu je Text sein Bytebereich im Ergebnis (Runde 8, Typst-Vorschau: Meldungen
-/// eines Typst-Laufs auf den Abschnitt zurückführen). Das Ergebnis ist byte-gleich mit [`join`].
+/// Like [`join`], plus per text its byte range in the result (Round 8, Typst preview: trace messages of a Typst run
+/// back to the section). The result is byte-identical with [`join`].
 pub fn join_with_offsets<'a>(
     template: &str,
     bodies: impl IntoIterator<Item = &'a str>,
@@ -146,9 +144,8 @@ pub fn join_with_offsets<'a>(
     (out, ranges)
 }
 
-/// Zeile (1-basiert) der Bytestelle `byte` in `text`, gezählt wie Typst (`Lines` in typst-syntax):
-/// jedes [`is_newline`]-Zeichen beendet eine Zeile, `\r\n` zählt einmal. Stellen hinter dem Ende
-/// zählen wie das Ende.
+/// Line (1-based) of the byte position `byte` in `text`, counted like Typst (`Lines` in typst-syntax): every
+/// [`is_newline`] character ends a line, `\r\n` counts once. Positions behind the end count like the end.
 pub fn line_at(text: &str, byte: usize) -> usize {
     let mut line = 1;
     let mut chars = text.char_indices().peekable();
@@ -159,7 +156,7 @@ pub fn line_at(text: &str, byte: usize) -> usize {
         if is_newline(c) {
             if let Some(&(j, '\n')) = chars.peek().filter(|_| c == '\r') {
                 if j >= byte {
-                    break; // zwischen \r und \n: noch dieselbe Zeile
+                    break; // between \r and \n: still the same line
                 }
                 chars.next();
             }
@@ -169,8 +166,8 @@ pub fn line_at(text: &str, byte: usize) -> usize {
     line
 }
 
-/// Ebene und wörtlicher Titel, wenn `line` eine Überschrift ist (ohne Rücksicht auf Raw/Kommentar
-/// davor). Ein Kommentar (`//`, `/*`) hinter der Überschrift gehört nicht zum Titel.
+/// Level and literal title if `line` is a heading (regardless of raw/comment before it). A comment (`//`, `/*`)
+/// behind the heading does not belong to the title.
 fn read_heading(line: &str) -> Option<(u8, String)> {
     let level = line.bytes().take_while(|&b| b == b'=').count();
     if !(1..=3).contains(&level) {
@@ -184,14 +181,14 @@ fn read_heading(line: &str) -> Option<(u8, String)> {
     Some((level as u8, strip_label(rest.trim()).to_owned()))
 }
 
-/// Steht vor Stelle `i` von `text` ein Linkanfang (`http:` bzw. `https:`)? Dann ist `//` kein Kommentar.
+/// Does the start of a link (`http:` or `https:`) stand before position `i` of `text`? Then `//` is not a comment.
 fn after_scheme(text: &str, i: usize) -> bool {
     let before = &text[..i];
     before.ends_with("http:") || before.ends_with("https:")
 }
 
-/// Anfang eines Kommentars (`//` oder `/*`) in einer Markup-Zeile. Escapes (`\/`), Inline-Raw
-/// (`` `//` ``) und Links (`https://…`) zählen nicht.
+/// Start of a comment (`//` or `/*`) in a markup line. Escapes (`\/`), inline raw (`` `//` ``) and links
+/// (`https://…`) do not count.
 fn comment_start(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -211,7 +208,7 @@ fn comment_start(text: &str) -> Option<usize> {
     None
 }
 
-/// Entfernt ein angehängtes `<label>` am Ende des Titels.
+/// Removes an attached `<label>` at the end of the title.
 fn strip_label(title: &str) -> &str {
     match label_start(title) {
         Some(open) => title[..open].trim_end(),
@@ -219,26 +216,26 @@ fn strip_label(title: &str) -> &str {
     }
 }
 
-/// Stelle des angehängten `<label>` am Ende von `title` (Zeichen wie in Typst), falls vorhanden.
+/// Position of the attached `<label>` at the end of `title` (characters as in Typst), if present.
 fn label_start(title: &str) -> Option<usize> {
     let inner = title.strip_suffix('>')?;
     let open = inner.rfind('<')?;
     let label = &inner[open + 1..];
     let valid = !label.is_empty() && label.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | ':' | '.'));
-    // Ein maskiertes `\<` öffnet kein Label.
+    // An escaped `\<` opens no label.
     (valid && !inner[..open].ends_with('\\')).then_some(open)
 }
 
-/// Zeichen, deren Maskierung `\X` [`unescape_title`] auflöst (dieselbe Liste wie Migration 0006 von
-/// baruch-store; `\\` wird zu `\`).
+/// Characters whose escape `\X` [`unescape_title`] resolves (the same list as migration 0006 of baruch-store; `\\`
+/// becomes `\`).
 const UNESCAPED: &[char] = &['\'', '"', '#', '*', '_', '$', '@', '<', '>', '[', ']', '`', '~', '=', '-', '/', '+', '.'];
 
-/// Zeichen, die [`escape_title`] maskiert: Markup-Zeichen von Typst und der Backslash selbst.
+/// Characters that [`escape_title`] escapes: markup characters of Typst and the backslash itself.
 const ESCAPED: &[char] = &['\\', '#', '*', '_', '$', '@', '<', '>', '[', ']', '`', '~'];
 
-/// Typst-Maskierungen eines Überschriftstitels auflösen: `\\` → `\`, `\X` → `X` für die Zeichen
-/// `' " # * _ $ @ < > [ ] ` ~ = - / + .`; jeder andere Backslash bleibt stehen (`\n`, `\u{…}`).
-/// Beispiel: `Anna\'s Laube` → `Anna's Laube`.
+/// Resolve Typst escapes of a heading title: `\\` → `\`, `\X` → `X` for the characters
+/// `' " # * _ $ @ < > [ ] ` ~ = - / + .`; every other backslash stays (`\n`, `\u{…}`).
+/// Example: `Anna\'s Laube` → `Anna's Laube`.
 pub fn unescape_title(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
@@ -256,16 +253,16 @@ pub fn unescape_title(raw: &str) -> String {
     out
 }
 
-/// Zeilenende im Sinn von Typst (`is_newline` in typst-syntax): außer `\n` und `\r` auch `\x0B`,
-/// `\x0C`, U+0085, U+2028 und U+2029. Dahinter beginnt eine neue Zeile, an deren Anfang `= `, `- `,
-/// `+ `, `1. ` und `/ ` Struktur wären.
+/// Line end in the sense of Typst (`is_newline` in typst-syntax): besides `\n` and `\r` also `\x0B`, `\x0C`,
+/// U+0085, U+2028 and U+2029. Behind it a new line starts, at whose start `= `, `- `, `+ `, `1. ` and `/ ` would be
+/// structure.
 pub fn is_newline(c: char) -> bool {
     matches!(c, '\n' | '\r' | '\x0B' | '\x0C' | '\u{85}' | '\u{2028}' | '\u{2029}')
 }
 
-/// Titel für eine neue Überschriftszeile maskieren (Umkehrung von [`unescape_title`]): Backslash und
-/// `# * _ $ @ < > [ ] ` ~` bekommen einen Backslash, ebenso ein `/` vor `/` oder `*` (sonst begänne
-/// ein Kommentar). Zeilenenden ([`is_newline`]) werden zu Leerzeichen, die Ränder getrimmt.
+/// Escape a title for a new heading line (inverse of [`unescape_title`]): backslash and
+/// `# * _ $ @ < > [ ] ` ~` get a backslash, likewise a `/` before `/` or `*` (otherwise a comment would
+/// start). Line ends ([`is_newline`]) become spaces, the edges are trimmed.
 pub fn escape_title(title: &str) -> String {
     let flat: String = title.chars().map(|c| if is_newline(c) { ' ' } else { c }).collect();
     let chars: Vec<char> = flat.trim().chars().collect();
@@ -280,12 +277,11 @@ pub fn escape_title(title: &str) -> String {
     out
 }
 
-/// Überschriftszeile `"=" × level + " " + escape_title(title)` mit Zeilenende. Hatte die vorige Zeile
-/// (`previous`) ein Label `<…>` oder einen Kommentar `// …`, bleiben beide erhalten.
+/// Heading line `"=" × level + " " + escape_title(title)` with line end. If the previous line (`previous`) had a
+/// label `<…>` or a comment `// …`, both are kept.
 ///
-/// Runde 14: `level` 0 ergibt die Teil-Markierung ([`part_line`]); ist `previous` eine Markierung
-/// „ohne Nummer“ und `level` 1–3, bleibt es eine ([`unnumbered_line`]). In beiden Fällen bleibt ein
-/// Kommentar der vorigen Zeile erhalten.
+/// Round 14: `level` 0 yields the part marker ([`part_line`]); if `previous` is a marker „ohne Nummer“ and `level`
+/// 1–3, it stays one ([`unnumbered_line`]). In both cases a comment of the previous line is kept.
 pub fn heading_line(level: u8, title: &str, previous: Option<&str>) -> String {
     if let Some(line) = marker::marker_heading_line(level, title, previous) {
         return line;
@@ -313,18 +309,17 @@ pub fn heading_line(level: u8, title: &str, previous: Option<&str>) -> String {
     line
 }
 
-/// Nummerierung der Werkvorlage in der Mustersprache von [`scheme`] (Vertrag Runde 6, Abschnitt 2b).
+/// Numbering of the work template in the pattern language of [`scheme`] (contract Round 6, section 2b).
 ///
-/// Es zählt nur `#set heading(numbering: …)` auf der **obersten Ebene** (nicht in `#show …`-Regeln,
-/// Inhaltsblöcken oder Funktionsrümpfen), außerhalb von Kommentaren und Raw-Text, und davon die
-/// **letzte** Regel mit `numbering` (wie in Typst). Ein String → `Some(muster)`, `none` → `Some("")`
-/// (keine Nummern). Eine Funktion (`(..n) => …`, direkt oder über den Namen einer `#let`-Funktion)
-/// wird je Ebene ausgewertet, wenn sie nur Tiefenbedingungen (`n.pos().len() == k`, `<= k`, `< k`,
-/// auch über `let p = n.pos()`), Text und `numbering(…)` enthält; ein leerer Sonst-Zweig (`""`,
-/// `none`, `[]` oder kein `else`) heißt „ohne Nummer“: `len() == 1` mit `numbering("I", ..n)` → `I|1`,
-/// `<= k` → `P|k`, `< k` → `P|k-1`, `== k` (k > 1) → Liste nur mit Position k (`;1.1`). Sonst zählt
-/// wie bisher das erste `numbering("MUSTER", …)` der Funktion für alle Ebenen. Ohne Regel oder bei
-/// einem nicht auswertbaren Wert `None`.
+/// Only `#set heading(numbering: …)` at the **top level** counts (not in `#show …` rules, content blocks or
+/// function bodies), outside of comments and raw text, and of those the **last** rule with `numbering` (as in
+/// Typst). A string → `Some(pattern)`, `none` → `Some("")` (no numbers). A function (`(..n) => …`, directly or
+/// through the name of a `#let` function) is evaluated per level if it only contains depth conditions
+/// (`n.pos().len() == k`, `<= k`, `< k`, also through `let p = n.pos()`), text and `numbering(…)`; an empty else
+/// branch (`""`, `none`, `[]` or no `else`) means "without number": `len() == 1` with `numbering("I", ..n)` →
+/// `I|1`, `<= k` → `P|k`, `< k` → `P|k-1`, `== k` (k > 1) → list only with position k (`;1.1`). Otherwise, as
+/// before, the first `numbering("PATTERN", …)` of the function counts for all levels. Without a rule or with a
+/// value that cannot be evaluated `None`.
 pub fn heading_numbering(template: &str) -> Option<String> {
     const NEEDLE: &str = "#set heading(";
     let blanked = blank_comments(template);
@@ -354,8 +349,8 @@ pub fn heading_numbering(template: &str) -> Option<String> {
     found.flatten()
 }
 
-/// Nummerierung aus einer Funktion in der Regel oder dem Namen einer `#let`-Funktion, die vor der
-/// Regel (`rule`) auf der obersten Ebene definiert ist (die letzte solche Definition gilt).
+/// Numbering from a function in the rule or from the name of a `#let` function that is defined at the top level
+/// before the rule (`rule`) (the last such definition applies).
 fn function_numbering(blanked: &str, tops: &[usize], rule: usize, expression: &str) -> Option<String> {
     if let Some(spec) = scheme::read_function(expression) {
         return Some(spec);
@@ -385,8 +380,8 @@ fn function_numbering(blanked: &str, tops: &[usize], rule: usize, expression: &s
     numbering_call(expression).or_else(|| let_numbering(blanked, expression))
 }
 
-/// Stellen aller `#`, die auf der obersten Ebene im Markup stehen (nicht in Kommentaren, Raw-Text,
-/// Strings, Inhaltsblöcken, Argumenten oder Codeblöcken), in Reihenfolge.
+/// Positions of all `#` that stand at the top level in the markup (not in comments, raw text, strings, content
+/// blocks, arguments or code blocks), in order.
 fn top_level_hashes(source: &str) -> Vec<usize> {
     let mut scanner = Scanner { record: true, ..Scanner::default() };
     let mut offset = 0;
@@ -398,7 +393,7 @@ fn top_level_hashes(source: &str) -> Vec<usize> {
     scanner.tops
 }
 
-/// Länge eines Ausdrucks bis zum Komma oder zur schließenden Klammer auf Ebene 0 (Strings übersprungen).
+/// Length of an expression up to the comma or the closing parenthesis at level 0 (strings skipped).
 fn expression_end(s: &str) -> usize {
     let bytes = s.as_bytes();
     let mut depth = 0usize;
@@ -410,7 +405,7 @@ fn expression_end(s: &str) -> usize {
             b')' | b']' | b'}' => depth -= 1,
             b',' if depth == 0 => return i,
             b'"' => {
-                // Ein String, der in der Zeile nicht schließt, zählt als gewöhnliches Zeichen.
+                // A string that does not close in the line counts as an ordinary character.
                 i += 1 + closing_quote(&bytes[i + 1..]).map_or(0, |len| len + 1);
                 continue;
             }
@@ -422,13 +417,13 @@ fn expression_end(s: &str) -> usize {
     bytes.len()
 }
 
-/// Erstes `numbering("MUSTER"` im Text (z. B. dem Rumpf einer Funktion), sonst `None`.
+/// First `numbering("PATTERN"` in the text (e.g. the body of a function), otherwise `None`.
 fn numbering_call(text: &str) -> Option<String> {
     const CALL: &str = "numbering(";
     let mut from = 0;
     while let Some(found) = text[from..].find(CALL) {
         let at = from + found;
-        // Nur der Aufruf selbst, nicht `heading-numbering(` oder `my_numbering(`.
+        // Only the call itself, not `heading-numbering(` or `my_numbering(`.
         let whole = text[..at].bytes().next_back().is_none_or(|b| !ident_char(b));
         let mut cursor = Cursor { s: &text[at + CALL.len()..], i: 0 };
         while cursor.peek().is_some_and(char::is_whitespace) {
@@ -443,8 +438,8 @@ fn numbering_call(text: &str) -> Option<String> {
     None
 }
 
-/// `numbering("MUSTER"` im Rumpf von `#let name(…) = …` bzw. `#let name = …`; der Rumpf reicht bis zur
-/// nächsten Zeile, die mit `#` beginnt (nächste Regel oder Definition), oder bis zum Ende.
+/// `numbering("PATTERN"` in the body of `#let name(…) = …` or `#let name = …`; the body reaches to the next line
+/// that starts with `#` (next rule or definition), or to the end.
 fn let_numbering(blanked: &str, name: &str) -> Option<String> {
     if name.is_empty() || !name.bytes().all(ident_char) || !name.bytes().next().is_some_and(ident_start) {
         return None;
@@ -464,7 +459,7 @@ fn let_numbering(blanked: &str, name: &str) -> Option<String> {
     None
 }
 
-/// Zählzeichen eines Nummerierungsmusters (wie in Typst).
+/// Counting symbol of a numbering pattern (as in Typst).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Counter {
     Arabic,
@@ -506,7 +501,7 @@ impl Counter {
     }
 }
 
-/// a, b, …, z, aa, ab … (bijektiv zur Basis 26); 0 → "-".
+/// a, b, …, z, aa, ab … (bijective to base 26); 0 → "-".
 fn latin(mut n: usize) -> String {
     if n == 0 {
         return "-".to_owned();
@@ -520,7 +515,7 @@ fn latin(mut n: usize) -> String {
     letters.iter().rev().collect()
 }
 
-/// Römische Zahl in Großbuchstaben; 0 → "N" (wie Typst).
+/// Roman numeral in upper case; 0 → "N" (like Typst).
 fn roman(mut n: usize) -> String {
     const TABLE: [(usize, &str); 13] = [
         (1000, "M"),
@@ -550,7 +545,7 @@ fn roman(mut n: usize) -> String {
     out
 }
 
-/// Zählzeichen mit ihrem Präfix und der Rest des Musters (Suffix); `None` ohne Zählzeichen.
+/// Counting symbols with their prefix and the rest of the pattern (suffix); `None` without a counting symbol.
 type Pieces = (Vec<(String, Counter)>, String);
 
 fn pattern_pieces(pattern: &str) -> Option<Pieces> {
@@ -565,16 +560,16 @@ fn pattern_pieces(pattern: &str) -> Option<Pieces> {
     (!pieces.is_empty()).then_some((pieces, text))
 }
 
-/// Hat `pattern` mindestens ein Zählzeichen (`1 a A i I *`)? Sonst ist es kein Nummerierungsmuster.
+/// Does `pattern` have at least one counting symbol (`1 a A i I *`)? Otherwise it is not a numbering pattern.
 pub fn is_numbering_pattern(pattern: &str) -> bool {
     pattern_pieces(pattern).is_some()
 }
 
-/// Nummer nach einem Typst-Muster: Je Zahl in `counts` das nächste Zählzeichen mit seinem Präfix; gibt
-/// es mehr Zahlen als Zählzeichen, wiederholt sich das letzte (mit seinem Präfix, bei leerem Präfix
-/// mit dem Suffix als Trenner); am Ende steht das Suffix. `format_number("I.1", &[2, 3])` = `II.3`,
-/// `format_number("1.", &[2])` = `2.`, `format_number("1.1", &[1, 2, 3])` = `1.2.3`. Ein Muster
-/// ohne Zählzeichen oder leere `counts` → leer.
+/// Number by a Typst pattern: per number in `counts` the next counting symbol with its prefix; if there are more
+/// numbers than counting symbols, the last one repeats (with its prefix, with an empty prefix with the suffix as
+/// separator); at the end stands the suffix. `format_number("I.1", &[2, 3])` = `II.3`, `format_number("1.", &[2])`
+/// = `2.`, `format_number("1.1", &[1, 2, 3])` = `1.2.3`. A pattern without a counting symbol or empty `counts` →
+/// empty.
 pub fn format_number(pattern: &str, counts: &[usize]) -> String {
     let Some((pieces, suffix)) = pattern_pieces(pattern) else { return String::new() };
     if counts.is_empty() {
@@ -596,46 +591,46 @@ pub fn format_number(pattern: &str, counts: &[usize]) -> String {
     out
 }
 
-/// Offene Klammer, die über Zeilen reichen kann.
+/// Open bracket that can reach across lines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Open {
-    /// Inhaltsblock `[…]` aus Code (`#block[`, `#f(x)[`, `[` in Argumenten): drinnen ist Markup, aber
-    /// keine Gliederung. `call`: direkt danach darf ein weiterer `[…]` folgen (`#grid[a][b]`).
+    /// Content block `[…]` from code (`#block[`, `#f(x)[`, `[` in arguments): inside is markup, but no outline.
+    /// `call`: directly after it another `[…]` may follow (`#grid[a][b]`).
     Content { call: bool },
-    /// Eckige Klammer im Markup eines Inhaltsblocks (Typst zählt sie mit, damit `]` richtig schließt).
+    /// Square bracket in the markup of a content block (Typst counts it, so that `]` closes correctly).
     Bracket,
-    /// Argumentliste bzw. Klammerausdruck im Code; `call` wie oben (`#f(x)[…]`).
+    /// Argument list or parenthesised expression in code; `call` as above (`#f(x)[…]`).
     Paren { call: bool },
-    /// Codeblock `{…}`.
+    /// Code block `{…}`.
     Brace,
 }
 
-/// Zustand über Zeilen hinweg. Eine Zeile kann nur dann eine Überschrift sein, wenn sie im Markup
-/// der obersten Ebene beginnt, also nichts davon offen ist.
+/// State across lines. A line can only be a heading if it starts in the markup of the top level, that is, none of
+/// this is open.
 #[derive(Default)]
 struct Scanner {
-    /// Raw-Block mit ```` ``` ```` am Zeilenanfang: Länge des Zauns, geschlossen am Zeilenanfang.
+    /// Raw block with ```` ``` ```` at the start of a line: length of the fence, closed at the start of a line.
     raw_fence: Option<usize>,
-    /// Inline-Raw, das über das Zeilenende reicht: Länge der Backtick-Folge.
+    /// Inline raw that reaches beyond the line end: length of the run of backticks.
     raw_inline: Option<usize>,
-    /// Tiefe der Blockkommentare (Typst schachtelt sie).
+    /// Depth of the block comments (Typst nests them).
     comment_depth: u32,
-    /// String im Code, der über das Zeilenende reicht.
+    /// String in code that reaches beyond the line end.
     in_string: bool,
-    /// Offene Klammern, innerste zuletzt.
+    /// Open brackets, innermost last.
     stack: Vec<Open>,
-    /// Stellen der `#` auf oberster Ebene merken ([`top_level_hashes`]); `base` = Anfang der Zeile.
+    /// Remember positions of the `#` at the top level ([`top_level_hashes`]); `base` = start of the line.
     record: bool,
     base: usize,
     tops: Vec<usize>,
 }
 
-/// Länge der Backtick-Folge am Anfang von `s`.
+/// Length of the run of backticks at the start of `s`.
 fn backticks(s: &str) -> usize {
     s.bytes().take_while(|&b| b == b'`').count()
 }
 
-/// Schlüsselwörter, nach denen der Rest der Zeile Code ist (`#let x = "…"`, `#show …: it => [`).
+/// Keywords after which the rest of the line is code (`#let x = "…"`, `#show …: it => [`).
 const LINE_CODE: &[&str] = &["let", "set", "show", "import", "include", "if", "else", "for", "while", "return"];
 
 fn ident_start(b: u8) -> bool {
@@ -647,7 +642,7 @@ fn ident_char(b: u8) -> bool {
 }
 
 impl Scanner {
-    /// Steht der Anfang der nächsten Zeile im Markup der obersten Ebene?
+    /// Does the start of the next line stand in the markup of the top level?
     fn in_markup(&self) -> bool {
         self.raw_fence.is_none()
             && self.raw_inline.is_none()
@@ -656,7 +651,7 @@ impl Scanner {
             && self.stack.is_empty()
     }
 
-    /// Ist an der aktuellen Stelle Code (nicht Markup)?
+    /// Is there code (not markup) at the current position?
     fn in_code(&self, line_code: bool) -> bool {
         match self.stack.last() {
             Some(Open::Paren { .. } | Open::Brace) => true,
@@ -672,10 +667,10 @@ impl Scanner {
             }
             return;
         }
-        // Byteweise: Alle Zeichen, auf die es ankommt, sind ASCII; UTF-8-Folgebytes passen auf keines.
+        // Bytewise: all characters that matter are ASCII; UTF-8 continuation bytes match none of them.
         let bytes = line.as_bytes();
         let indent = line.len() - line.trim_start().len();
-        // Rest der Zeile ist Code nach `#let`, `#set`, `#show` … (endet mit der Zeile).
+        // Rest of the line is code after `#let`, `#set`, `#show` … (ends with the line).
         let mut line_code = false;
         let mut i = 0;
         while i < bytes.len() {
@@ -717,14 +712,14 @@ impl Scanner {
                     let run = backticks(&line[i..]);
                     let close = rest[run..].windows(run).position(|w| w.iter().all(|&b| b == b'`'));
                     match close {
-                        // Inline-Raw oder Raw-Block in einer Zeile: überspringen.
+                        // Inline raw or raw block in one line: skip.
                         Some(close) => i += run + close + run,
-                        // Offener Zaun am Zeilenanfang: Raw-Block bis zur schließenden Zeile.
+                        // Open fence at the start of a line: raw block up to the closing line.
                         None if run >= 3 && i == indent => {
                             self.raw_fence = Some(run);
                             return;
                         }
-                        // Sonst Inline-Raw über das Zeilenende hinaus.
+                        // Otherwise inline raw beyond the line end.
                         None => {
                             self.raw_inline = Some(run);
                             i += run;
@@ -742,8 +737,8 @@ impl Scanner {
                     i += 1;
                 }
                 b'"' => {
-                    // Im Markup gilt nur ein in derselben Zeile geschlossener String als String; ein
-                    // einzelnes Anführungszeichen im Text bleibt Text. So öffnet "src/*.typ" keinen Kommentar.
+                    // In markup only a string closed in the same line counts as a string; a single quotation mark
+                    // in the text stays text. This way "src/*.typ" opens no comment.
                     match closing_quote(&rest[1..]) {
                         Some(len) => i += 1 + len + 1,
                         None => i += 1,
@@ -762,7 +757,7 @@ impl Scanner {
                     self.stack.push(Open::Content { call: false });
                     i += 1;
                 }
-                // `[` im Markup der obersten Ebene ist Text; in einem Inhaltsblock wird es mitgezählt.
+                // `[` in the markup of the top level is text; in a content block it is counted.
                 b'[' if !self.stack.is_empty() => {
                     self.stack.push(Open::Bracket);
                     i += 1;
@@ -792,8 +787,8 @@ impl Scanner {
         }
     }
 
-    /// Nach `#` im Markup (`i` steht dahinter): Ausdruck lesen und offene Klammern merken.
-    /// `true`, wenn ein Schlüsselwort den Rest der Zeile zu Code macht.
+    /// After `#` in markup (`i` stands behind it): read the expression and remember open brackets. `true` if a
+    /// keyword turns the rest of the line into code.
     fn hash_expression(&mut self, line: &str, i: &mut usize) -> bool {
         let bytes = line.as_bytes();
         match bytes.get(*i) {
@@ -845,7 +840,7 @@ impl Scanner {
         }
     }
 
-    /// Nach `)` oder `]` eines Aufrufs: ein direkt folgendes `[` öffnet einen weiteren Inhaltsblock.
+    /// After `)` or `]` of a call: a directly following `[` opens another content block.
     fn trailing_content(&mut self, bytes: &[u8], i: &mut usize) {
         if bytes.get(*i) == Some(&b'[') {
             self.stack.push(Open::Content { call: true });
@@ -854,7 +849,7 @@ impl Scanner {
     }
 }
 
-/// Länge des String-Inhalts bis zum schließenden `"` (mit `\`-Escapes), falls in `bytes` vorhanden.
+/// Length of the string content up to the closing `"` (with `\` escapes), if present in `bytes`.
 fn closing_quote(bytes: &[u8]) -> Option<usize> {
     let mut i = 0;
     while i < bytes.len() {
@@ -868,18 +863,18 @@ fn closing_quote(bytes: &[u8]) -> Option<usize> {
     None
 }
 
-/// Wert eines Arguments in `#set document(...)`.
+/// Value of an argument in `#set document(...)`.
 enum Arg {
     Str(String),
     Content(String),
     Tuple(Vec<Arg>),
-    /// Anderer Ausdruck, roh (z. B. `none`, eine Variable, ein Aufruf).
+    /// Other expression, raw (e.g. `none`, a variable, a call).
     Other(String),
 }
 
-/// `source` mit Leerzeichen statt Kommentaren (`//` bis Zeilenende, `/* … */` geschachtelt) und
-/// Raw-Text (`` `…` ``, ```` ```…``` ````); Zeilenenden und alle Positionen bleiben. Strings, die in
-/// derselben Zeile schließen, bleiben unberührt (`"src/*.typ"`, `"https://…"`).
+/// `source` with spaces instead of comments (`//` to the line end, `/* … */` nested) and raw
+/// text (`` `…` ``, ```` ```…``` ````); line ends and all positions stay. Strings that close in the same line stay
+/// untouched (`"src/*.typ"`, `"https://…"`).
 fn blank_comments(source: &str) -> String {
     let bytes = source.as_bytes();
     let mut out = bytes.to_vec();
@@ -937,11 +932,11 @@ fn blank_comments(source: &str) -> String {
             _ => i += 1,
         }
     }
-    // Ersetzt wurden nur ganze Bereiche zwischen ASCII-Zeichen, das Ergebnis ist also UTF-8.
+    // Only whole ranges between ASCII characters were replaced, so the result is UTF-8.
     String::from_utf8(out).unwrap_or_else(|_| source.to_owned())
 }
 
-/// `title` und `author` aus dem ersten `#set document(...)` außerhalb von Kommentaren und Raw-Text.
+/// `title` and `author` from the first `#set document(...)` outside of comments and raw text.
 fn document_meta(source: &str) -> (Option<String>, Option<String>) {
     const NEEDLE: &str = "#set document(";
     let source = blank_comments(source);
@@ -971,7 +966,7 @@ fn document_meta(source: &str) -> (Option<String>, Option<String>) {
     (None, None)
 }
 
-/// Kleiner Leser für die Argumentliste von `#set document(` (nach der öffnenden Klammer).
+/// Small reader for the argument list of `#set document(` (after the opening parenthesis).
 struct Cursor<'a> {
     s: &'a str,
     i: usize,
@@ -994,12 +989,12 @@ impl Cursor<'_> {
         }
     }
 
-    /// `name: wert, …` bis zur schließenden `)`.
+    /// `name: value, …` up to the closing `)`.
     fn arguments(&mut self) -> Vec<(String, Arg)> {
         self.arguments_at().into_iter().map(|(name, value, _)| (name, value)).collect()
     }
 
-    /// Wie [`Cursor::arguments`], dazu je Wert die Stelle seines Anfangs in `s`.
+    /// Like [`Cursor::arguments`], plus per value the position of its start in `s`.
     fn arguments_at(&mut self) -> Vec<(String, Arg, usize)> {
         let mut args = Vec::new();
         loop {
@@ -1017,7 +1012,7 @@ impl Cursor<'_> {
                 self.bump();
             }
             if name.is_empty() || self.peek() != Some(':') {
-                // Positionsargument oder Unlesbares: bis zum nächsten Komma überspringen.
+                // Positional argument or something unreadable: skip to the next comma.
                 self.value();
                 if self.i == start {
                     self.bump();
@@ -1067,7 +1062,7 @@ impl Cursor<'_> {
                 Arg::Tuple(items)
             }
             _ => {
-                // Ausdruck (Variable, Aufruf …): bis zum Komma oder zur Klammer auf Ebene 0.
+                // Expression (variable, call …): up to the comma or the parenthesis at level 0.
                 let start = self.i;
                 let mut depth = 0usize;
                 while let Some(c) = self.peek() {
@@ -1090,7 +1085,7 @@ impl Cursor<'_> {
         }
     }
 
-    /// Rest eines String-Literals nach dem öffnenden `"`, Escapes aufgelöst.
+    /// Rest of a string literal after the opening `"`, escapes resolved.
     fn string(&mut self) -> String {
         let mut out = String::new();
         while let Some(c) = self.bump() {
@@ -1121,7 +1116,7 @@ impl Cursor<'_> {
         out
     }
 
-    /// Rohtext eines Inhaltsblocks nach dem öffnenden `[` bis zur passenden `]`.
+    /// Raw text of a content block after the opening `[` up to the matching `]`.
     fn content(&mut self) -> String {
         let start = self.i;
         let mut depth = 0usize;

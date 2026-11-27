@@ -1,30 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Autorenbibliothek und Volltextsuche für Baruch.
+//! Author's library and full-text search for Baruch.
 //!
-//! - **Bibliothek:** Titel (mit Zitierschlüssel für Typst-`@cite`) und Zitate daraus
-//!   (Tabellen `library_title`, `library_quote`, Migration `0101_library.sql`).
-//! - **Suche:** ein gemeinsamer FTS5-Index `search_fts` über Revisionen und Beiträge des Werks
-//!   sowie Titel und Zitate der Bibliothek (`unicode61 remove_diacritics 2`, also findet
-//!   „langmutig“ auch „langmütig“). Trigger halten ihn aktuell; `0102_search.sql` füllt ihn beim
-//!   ersten Lauf aus vorhandenen Daten nach, `0104_revision_index.sql` folgt geänderten und gelöschten
-//!   Revisionen, `0105_post_index.sql` gelöschten und verschobenen Beiträgen, `0107_post_edit_index.sql`
-//!   bearbeiteten Beiträgen (Runde 28).
-//! - **Hervorhebungen:** markierte Stellen in Quellen mit Art und Notiz, vom Menschen oder als
-//!   Vorschlag einer Persona (Tabelle `library_highlight`, Migration `0103_highlights.sql`), im
-//!   Index als `highlight`; [`cite_typst`] macht daraus ein Typst-Zitat. Fehler über den eigenen
-//!   [`HighlightError`].
-//! - **Quellen außerhalb (Runde 13):** Verknüpfung eines Titels mit einem Dokument in MultiGPT
-//!   ([`RemoteRef`], Tabelle `library_title_remote`) und das Ergebnis der Prüfung einer Hervorhebung ohne
-//!   Zitat gegen dessen Volltext ([`FulltextCheck`], [`check_range`], Tabelle `library_highlight_check`,
-//!   Migration `0106_source_remote.sql`).
-//! - **Lokaler Volltext (Runde 21a):** Text einer als Quelle importierten PDF- oder EPUB-Datei, gelesen ohne
-//!   MultiGPT ([`TitleText`], Tabelle `library_title_text`, Migration `0108_title_text.sql`); Dokumentansicht und
-//!   Prüfung von Hervorhebungen nutzen ihn wie den Volltext einer Verknüpfung.
+//! - **Library:** titles (with citation key for Typst `@cite`) and quotes from them (tables `library_title`,
+//!   `library_quote`, migration `0101_library.sql`).
+//! - **Search:** one shared FTS5 index `search_fts` over revisions and posts of the work as well as titles and
+//!   quotes of the library (`unicode61 remove_diacritics 2`, so „langmutig“ also finds „langmütig“). Triggers keep
+//!   it up to date; `0102_search.sql` fills it on the first run from existing data, `0104_revision_index.sql`
+//!   follows changed and deleted revisions, `0105_post_index.sql` deleted and moved posts,
+//!   `0107_post_edit_index.sql` edited posts (Round 28).
+//! - **Highlights:** marked places in sources with kind and note, by the human or as a proposal of a persona (table
+//!   `library_highlight`, migration `0103_highlights.sql`), in the index as `highlight`; [`cite_typst`] turns one
+//!   into a Typst quote. Errors through the separate [`HighlightError`].
+//! - **Sources outside (Round 13):** link of a title with a document in MultiGPT ([`RemoteRef`], table
+//!   `library_title_remote`) and the result of checking a highlight without a quote against its full text
+//!   ([`FulltextCheck`], [`check_range`], table `library_highlight_check`, migration `0106_source_remote.sql`).
+//! - **Local full text (Round 21a):** text of a PDF or EPUB file imported as a source, read without MultiGPT
+//!   ([`TitleText`], table `library_title_text`, migration `0108_title_text.sql`); document view and check of
+//!   highlights use it like the full text of a link.
 //!
-//! Die Crate kennt nur `sqlx::SqlitePool` und das Kernschema (`work`, `node`, `revision`, `post`)
-//! aus `baruch-store`. Reihenfolge beim Start: erst die Kernmigration, dann [`migrate`], dann
-//! [`seed_if_empty`]. Beide Migratoren teilen `_sqlx_migrations` und laufen mit
-//! `ignore_missing`, damit keiner die Versionen des anderen als fehlend meldet.
+//! The crate only knows `sqlx::SqlitePool` and the core schema (`work`, `node`, `revision`, `post`) from
+//! `baruch-store`. Order at start: first the core migration, then [`migrate`], then [`seed_if_empty`]. Both
+//! migrators share `_sqlx_migrations` and run with `ignore_missing`, so that neither reports the versions of the
+//! other as missing.
 
 mod highlights;
 mod remote;
@@ -46,7 +43,7 @@ pub use titles::{NewTitle, Quote, Title, TitleEntry, add_quote, add_title, get_t
 
 use sqlx::migrate::Migrator;
 
-/// Migrationen der Bibliothek (Versionen 0101–0199), `ignore_missing` ist gesetzt.
+/// Migrations of the library (versions 0101–0199), `ignore_missing` is set.
 pub static MIGRATOR: Migrator = Migrator { ignore_missing: true, ..sqlx::migrate!("./migrations") };
 
 #[derive(Debug, thiserror::Error)]
@@ -61,7 +58,7 @@ pub enum LibraryError {
     UnknownTitle(i64),
 }
 
-/// Führt die Migrationen der Bibliothek aus (nach der Kernmigration; mehrfach aufrufbar).
+/// Runs the migrations of the library (after the core migration; can be called several times).
 pub async fn migrate(pool: &sqlx::SqlitePool) -> Result<(), LibraryError> {
     debug_assert!(MIGRATOR.ignore_missing);
     MIGRATOR.run(pool).await?;

@@ -1,4 +1,4 @@
-//! Beispieldaten für die Oberfläche (bis Datenbank und Import stehen).
+//! Sample data for the user interface (until database and import are in place).
 
 use crate::{Author, LectorChoice, Node, NodeKind, Persona, Post, Revision, RevisionStatus, TextRef, Work, WorkKind};
 
@@ -57,7 +57,7 @@ const SIGNS_V2: &str = "== Erste Anzeichen\n\nAbhängigkeit beginnt selten laut.
 
 const ROMANS: &str = "== Der Text\n\nRömer 12,1–2: Stellt euch nicht dieser Welt gleich,\nsondern lasst euch verwandeln durch die Erneuerung eures Sinnes.\n";
 
-/// Ein Buch mit Teilen, Kapiteln und Abschnitten, Revisionen, einem Vorschlag und Personas.
+/// A book with parts, chapters and sections, revisions, a proposal and personas.
 pub fn work() -> Work {
     let mut nodes = vec![
         node(0, None, "", "Vorwort", NodeKind::Chapter),
@@ -171,8 +171,8 @@ pub fn work() -> Work {
         ),
     ];
 
-    // Übrige Kapitel bekommen nur ihre Überschrift. Teile haben keine Überschriftszeile (wie
-    // `outline.add` bei Teilen): ihr Text ist leer, sonst erschienen sie im Export als Kapitel.
+    // Remaining chapters only get their heading. Parts have no heading line (like `outline.add` for parts): their
+    // text is empty, otherwise they would appear in the export as chapters.
     for n in nodes.iter_mut().filter(|n| n.revisions.is_empty()) {
         let body = if n.kind == NodeKind::Part { String::new() } else { format!("= {}\n", n.title) };
         n.revisions = vec![human(1, &body, RevisionStatus::Current)];
@@ -180,8 +180,8 @@ pub fn work() -> Work {
 
     Work {
         kind: WorkKind::Book,
-        // Eigener Titel, damit es sich vom echten Buch unterscheidet. Wirkt nur bei der Saat in eine
-        // leere Datenbank (baruch-store `seed.rs`); vorhandene Werke behalten Titel und slug.
+        // Own title, so that it differs from the real book. Only takes effect when seeding into an empty database
+        // (baruch-store `seed.rs`); existing works keep title and slug.
         title: "Beispielwerk: Leise Abhängigkeit (Auszug)".into(),
         author: "Erika Mustermann".into(),
         nodes,
@@ -191,8 +191,8 @@ pub fn work() -> Work {
                 "Lektor",
                 "Aufbau, Klarheit, Stil; kennt Kapitelumfeld und Einfälle; schreibt Vorschläge",
                 "google/gemma-4-26b-a4b",
-                // Eliezer lädt Gemma mit 32768 Kontext (Backlog „ein gemeinsames Modell“); Baruch rechnet
-                // das Kürzungsbudget mit dieser Zahl, darum darf sie nicht größer sein als die geladene.
+                // Eliezer loads Gemma with 32768 context (backlog „ein gemeinsames Modell“); Baruch calculates the
+                // truncation budget with this number, therefore it must not be larger than the loaded one.
                 32_768,
             ),
             persona("@exeget", "Exeget", "Text, Zusammenhang, Hauptaussage", "llama3.2:3b", 8_192),
@@ -209,8 +209,8 @@ pub fn work() -> Work {
 mod tests {
     use super::*;
 
-    /// Das Beispielwerk steckt in jedem Paket (Saat in eine leere Datenbank). Es darf darum weder den Namen
-    /// eines echten Menschen noch den Titel eines echten Buchs tragen (Gutachten R24).
+    /// The sample work is part of every package (seed into an empty database). It must therefore carry neither the
+    /// name of a real human nor the title of a real book (review R24).
     #[test]
     fn the_sample_work_names_no_real_author_and_no_real_book() {
         let work = work();

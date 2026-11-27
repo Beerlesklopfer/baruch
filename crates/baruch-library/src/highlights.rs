@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Hervorhebungen in Quellen der Bibliothek (Tabelle `library_highlight`, Migration
-//! `0103_highlights.sql`): eine markierte Stelle eines Titels, optional in einem Zitat mit
-//! Zeichenbereich, dazu Art (Zitat, Kernaussage, Widerspruch, zu prüfen), Notiz und Urheber.
+//! Highlights in sources of the library (table `library_highlight`, migration `0103_highlights.sql`): a marked
+//! place of a title, optionally in a quote with a character range, plus kind (quote, key statement, contradiction,
+//! to be checked), note and originator.
 //!
-//! Der Mensch legt aktive Hervorhebungen an, Personas nur Vorschläge (auch die Datenbank prüft das).
-//! Hervorhebungen stehen im Volltextindex (`kind = 'highlight'`); abgelehnte findet die Suche nicht.
-//! [`cite_typst`] macht daraus ein Typst-Zitat für einen Abschnitt.
+//! The human creates active highlights, personas only proposals (the database checks that as well). Highlights are
+//! in the full-text index (`kind = 'highlight'`); the search does not find rejected ones. [`cite_typst`] turns one
+//! into a Typst quote for a section.
 
 use sqlx::SqlitePool;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::LibraryError;
 
-/// Art der Hervorhebung.
+/// Kind of the highlight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HighlightKind {
@@ -39,7 +39,7 @@ impl HighlightKind {
         HighlightKind::ALL.into_iter().find(|k| k.as_str() == s)
     }
 
-    /// Anzeige: Zitat, Kernaussage, Widerspruch, zu prüfen.
+    /// Display: Zitat, Kernaussage, Widerspruch, zu prüfen.
     pub fn label(self) -> &'static str {
         match self {
             HighlightKind::Quote => "Zitat",
@@ -50,7 +50,7 @@ impl HighlightKind {
     }
 }
 
-/// Stand der Hervorhebung: `active` (vom Menschen), `proposed` (Vorschlag einer Persona), `rejected`.
+/// State of the highlight: `active` (by the human), `proposed` (proposal of a persona), `rejected`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HighlightStatus {
@@ -74,7 +74,7 @@ impl HighlightStatus {
             .find(|k| k.as_str() == s)
     }
 
-    /// Anzeige: aktiv, Vorschlag, abgelehnt.
+    /// Display: aktiv, Vorschlag, abgelehnt.
     pub fn label(self) -> &'static str {
         match self {
             HighlightStatus::Active => "aktiv",
@@ -84,7 +84,7 @@ impl HighlightStatus {
     }
 }
 
-/// Urheber: der Mensch oder eine Persona (Handle und Modell).
+/// Originator: the human or a persona (handle and model).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HighlightAuthor {
@@ -92,13 +92,13 @@ pub enum HighlightAuthor {
     Persona { handle: String, model: String },
 }
 
-/// Neue Hervorhebung für [`add_highlight`]. Der Status folgt aus dem Urheber.
+/// New highlight for [`add_highlight`]. The status follows from the originator.
 #[derive(Debug, Clone)]
 pub struct NewHighlight {
     pub title_id: i64,
     pub quote_id: Option<i64>,
     pub locator: String,
-    /// Zeichenbereich ab 0 (Unicode-Zeichen), beide `None` oder `start <= end`.
+    /// Character range from 0 (Unicode characters), both `None` or `start <= end`.
     pub start: Option<i64>,
     pub end: Option<i64>,
     pub text: String,
@@ -123,12 +123,12 @@ pub struct Highlight {
     pub created: String,
 }
 
-/// Fehler der Hervorhebungen. Bewusst eigener Typ: [`LibraryError`] bleibt, wie er ist.
+/// Errors of the highlights. Deliberately a type of its own: [`LibraryError`] stays as it is.
 #[derive(Debug, thiserror::Error)]
 pub enum HighlightError {
     #[error(transparent)]
     Library(#[from] LibraryError),
-    /// Unbekannte Hervorhebung bzw. ein Zitat, das es beim Titel nicht gibt.
+    /// Unknown highlight or a quote that does not exist for the title.
     #[error("Hervorhebung bzw. Zitat {0} gibt es nicht.")]
     Unknown(i64),
     #[error("Eine Hervorhebung braucht Text.")]
@@ -138,7 +138,7 @@ pub enum HighlightError {
          dem Ende des Zitats."
     )]
     InvalidRange,
-    /// Der Text entspricht nicht dem Ausschnitt `start..end` des Zitats.
+    /// The text does not match the excerpt `start..end` of the quote.
     #[error("Der Text entspricht nicht dem markierten Ausschnitt des Zitats ({0:?}).")]
     TextMismatch(String),
 }
@@ -195,7 +195,7 @@ fn highlight(row: Row) -> Result<Highlight, HighlightError> {
     })
 }
 
-/// Zeichenbereich prüfen: beide fehlen oder `0 <= start <= end`.
+/// Check the character range: both missing or `0 <= start <= end`.
 fn valid_range(start: Option<i64>, end: Option<i64>) -> Result<(), HighlightError> {
     match (start, end) {
         (None, None) => Ok(()),
@@ -204,16 +204,15 @@ fn valid_range(start: Option<i64>, end: Option<i64>) -> Result<(), HighlightErro
     }
 }
 
-/// Leerraum vereinheitlichen: jede Folge von Unicode-Leerraum (Umbruch, Tab, geschütztes Leerzeichen
-/// U+00A0, …) wird ein Leerzeichen, Anfang und Ende ohne Leerraum.
+/// Unify whitespace: every run of Unicode whitespace (line break, tab, no-break space U+00A0, …) becomes one space,
+/// beginning and end without whitespace.
 pub(crate) fn normalize_space(text: &str) -> String {
     text.split(char::is_whitespace).filter(|w| !w.is_empty()).collect::<Vec<_>>().join(" ")
 }
 
-/// Prüft einen Bereich in einem Zitat: `end` höchstens so lang wie das Zitat (in Unicode-Zeichen),
-/// und `text` ist der Ausschnitt `quote[start..end]` (Zeilenenden vereinheitlicht). Unterscheiden sich
-/// beide nur im Leerraum (eine Auswahl im Browser fasst Umbrüche und Doppel-Leerzeichen zusammen),
-/// gilt der Text als gleich. Gibt den genauen Ausschnitt des Zitats zurück, der gespeichert wird.
+/// Checks a range in a quote: `end` at most as long as the quote (in Unicode characters), and `text` is the excerpt
+/// `quote[start..end]` (line ends unified). If both differ only in whitespace (a selection in the browser collapses
+/// line breaks and double spaces), the text counts as equal. Returns the exact excerpt of the quote that is stored.
 fn check_excerpt(quote: &str, start: i64, end: i64, text: &str) -> Result<String, HighlightError> {
     let quote = quote.replace("\r\n", "\n");
     let (start, end) = (usize::try_from(start), usize::try_from(end));
@@ -228,12 +227,12 @@ fn check_excerpt(quote: &str, start: i64, end: i64, text: &str) -> Result<String
     Ok(excerpt)
 }
 
-/// Legt eine Hervorhebung an und gibt ihre id zurück. Mensch → `active`, Persona → immer
-/// `proposed`. Ohne Fundstelle (`locator` leer) gilt die Stelle des Zitats. Leerer Text → [`HighlightError::Empty`], ungültiger Bereich
-/// (auch: Ende hinter dem Zitat) → [`HighlightError::InvalidRange`]. Mit Zitat und Bereich wird der
-/// genaue Ausschnitt `quote[start..end]` gespeichert, wenn `text` ihm bis auf Leerraum gleicht
-/// ([`normalize_space`]); sonst → [`HighlightError::TextMismatch`], unbekannter Titel → `LibraryError::UnknownTitle`, ein Zitat,
-/// das nicht zum Titel gehört → [`HighlightError::Unknown`].
+/// Creates a highlight and returns its id. Human → `active`, persona → always `proposed`. Without a locator
+/// (`locator` empty) the place of the quote applies. Empty text → [`HighlightError::Empty`], invalid range (also:
+/// end behind the quote) → [`HighlightError::InvalidRange`]. With quote and range the exact excerpt
+/// `quote[start..end]` is stored if `text` equals it except for whitespace ([`normalize_space`]); otherwise →
+/// [`HighlightError::TextMismatch`], unknown title → `LibraryError::UnknownTitle`, a quote that does not belong to
+/// the title → [`HighlightError::Unknown`].
 pub async fn add_highlight(pool: &SqlitePool, new: &NewHighlight) -> Result<i64, HighlightError> {
     if new.text.trim().is_empty() {
         return Err(HighlightError::Empty);
@@ -260,9 +259,9 @@ pub async fn add_highlight(pool: &SqlitePool, new: &NewHighlight) -> Result<i64,
             text = check_excerpt(&quote_text, start, end, &text)?;
         }
     }
-    // Ohne Zitat gilt hier nur 0 <= start <= end: Den Bereich gegen den Volltext einer verknüpften Quelle
-    // prüft der Server danach ([`check_range`], [`set_highlight_check`]); die Hervorhebung des Menschen
-    // wird in jedem Fall gespeichert.
+    // Without a quote only 0 <= start <= end applies here: the server checks the range against the full text of a
+    // linked source afterwards ([`check_range`], [`set_highlight_check`]); the highlight of the human is stored in
+    // any case.
     let (author_kind, author_name, model, status) = match &new.author {
         HighlightAuthor::Human { name } => ("human", name.as_str(), None, HighlightStatus::Active),
         HighlightAuthor::Persona { handle, model } => {
@@ -293,7 +292,7 @@ pub async fn add_highlight(pool: &SqlitePool, new: &NewHighlight) -> Result<i64,
     Ok(id)
 }
 
-/// Alle Hervorhebungen (oder die eines Titels), nach Titel, Zitat, Anfang und id.
+/// All highlights (or those of one title), by title, quote, start and id.
 pub async fn list_highlights(pool: &SqlitePool, title_id: Option<i64>) -> Result<Vec<Highlight>, HighlightError> {
     let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {COLUMNS} FROM library_highlight WHERE ?1 IS NULL OR title_id = ?1 \
@@ -305,7 +304,7 @@ pub async fn list_highlights(pool: &SqlitePool, title_id: Option<i64>) -> Result
     rows.into_iter().map(highlight).collect()
 }
 
-/// Eine Hervorhebung; unbekannt → [`HighlightError::Unknown`].
+/// One highlight; unknown → [`HighlightError::Unknown`].
 pub async fn get_highlight(pool: &SqlitePool, id: i64) -> Result<Highlight, HighlightError> {
     let row: Option<Row> =
         sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM library_highlight WHERE id = ?1")))
@@ -315,8 +314,8 @@ pub async fn get_highlight(pool: &SqlitePool, id: i64) -> Result<Highlight, High
     highlight(row.ok_or(HighlightError::Unknown(id))?)
 }
 
-/// Art, Notiz und/oder Status ändern (`None` = bleibt) und den neuen Stand zurückgeben. Eine
-/// Persona-Hervorhebung lässt sich nicht auf `active` setzen (Datenbankprüfung, `Library(Db)`).
+/// Change kind, note and/or status (`None` = stays) and return the new state. A persona highlight cannot be set to
+/// `active` (database check, `Library(Db)`).
 pub async fn update_highlight(
     pool: &SqlitePool,
     id: i64,
@@ -341,7 +340,7 @@ pub async fn update_highlight(
     get_highlight(pool, id).await
 }
 
-/// Hervorhebung löschen; unbekannt → [`HighlightError::Unknown`].
+/// Delete a highlight; unknown → [`HighlightError::Unknown`].
 pub async fn delete_highlight(pool: &SqlitePool, id: i64) -> Result<(), HighlightError> {
     let changed =
         sqlx::query("DELETE FROM library_highlight WHERE id = ?1").bind(id).execute(pool).await?.rows_affected();
@@ -351,17 +350,17 @@ pub async fn delete_highlight(pool: &SqlitePool, id: i64) -> Result<(), Highligh
     Ok(())
 }
 
-// ---- Prüfung gegen den Volltext (Runde 13, Migration 0106) ---------------------------------------------
+// ---- Check against the full text (Round 13, migration 0106) --------------------------------------------
 
-/// Ergebnis der Prüfung einer Hervorhebung ohne Zitat gegen den Volltext ihrer Quelle.
+/// Result of checking a highlight without a quote against the full text of its source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FulltextCheck {
-    /// Der Text steht genau im Bereich `start..end` des Volltexts.
+    /// The text stands exactly in the range `start..end` of the full text.
     Found,
-    /// Im Bereich steht etwas anderes (oder der Bereich liegt hinter dem Ende).
+    /// Something else stands in the range (or the range lies behind the end).
     NotFound,
-    /// Nicht prüfbar: keine Verknüpfung, Gegenstelle nicht erreichbar, kein Bereich.
+    /// Cannot be checked: no link, remote side not reachable, no range.
     Unverifiable,
 }
 
@@ -380,7 +379,7 @@ impl FulltextCheck {
         FulltextCheck::ALL.into_iter().find(|c| c.as_str() == s)
     }
 
-    /// Anzeige: „im Volltext gefunden“, „im Volltext nicht gefunden“, „nicht prüfbar“.
+    /// Display: „im Volltext gefunden“, „im Volltext nicht gefunden“, „nicht prüfbar“.
     pub fn label(self) -> &'static str {
         match self {
             FulltextCheck::Found => "im Volltext gefunden",
@@ -390,27 +389,26 @@ impl FulltextCheck {
     }
 }
 
-/// Gespeicherte Prüfung einer Hervorhebung (`library_highlight_check`).
+/// Stored check of a highlight (`library_highlight_check`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct HighlightCheck {
     pub result: FulltextCheck,
     pub label: &'static str,
-    /// Grund bzw. Hinweis (bei „nicht prüfbar“ der Grund, bei „nicht gefunden“ der Text im Bereich).
+    /// Reason or hint (for "cannot be checked" the reason, for "not found" the text in the range).
     pub message: String,
-    /// Zeitpunkt der Prüfung (UTC, ISO 8601).
+    /// Time of the check (UTC, ISO 8601).
     pub checked: String,
 }
 
-/// Steht `text` genau im Bereich `start..end` (Unicode-Zeichen ab 0) des Volltexts? Zeilenenden werden
-/// vereinheitlicht (`\r\n` → `\n`), Leerraum zählt wie bei der Prüfung im Zitat nicht ([`normalize_space`]).
-/// Ein Bereich außerhalb des Volltexts (negativ, Anfang hinter dem Ende, Ende hinter dem Text) ist
-/// [`FulltextCheck::NotFound`]. Gibt nie [`FulltextCheck::Unverifiable`] zurück: Diese Funktion hat den
-/// Volltext ja.
+/// Does `text` stand exactly in the range `start..end` (Unicode characters from 0) of the full text? Line ends are
+/// unified (`\r\n` → `\n`), whitespace does not count, as in the check in the quote ([`normalize_space`]). A range
+/// outside the full text (negative, start behind the end, end behind the text) is [`FulltextCheck::NotFound`].
+/// Never returns [`FulltextCheck::Unverifiable`]: this function does have the full text.
 ///
-/// Runde 19b: Verglichen wird in Unicode-Normalform NFC – ein Zitat mit zerlegten Umlauten (`a` + U+0308, etwa aus
-/// einem PDF) stimmt mit „ä“ im Volltext überein und umgekehrt. Der Bereich zählt in den Zeichen des Volltexts, wie er
-/// gespeichert ist; passt er dort nicht, wird er noch in den Zeichen der NFC-Form des Volltexts versucht (so zählt
-/// ein Browser, der den Text normalisiert anzeigt).
+/// Round 19b: the comparison uses Unicode normal form NFC – a quote with decomposed umlauts (`a` + U+0308, for
+/// example from a PDF) matches „ä“ in the full text and vice versa. The range counts in the characters of the full
+/// text as it is stored; if it does not fit there, it is tried once more in the characters of the NFC form of the
+/// full text (this is how a browser counts that shows the text normalised).
 pub fn check_range(fulltext: &str, start: i64, end: i64, text: &str) -> FulltextCheck {
     let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end)) else {
         return FulltextCheck::NotFound;
@@ -435,8 +433,8 @@ pub fn check_range(fulltext: &str, start: i64, end: i64, text: &str) -> Fulltext
     }
 }
 
-/// Ergebnis der Prüfung speichern (ersetzt eine frühere Prüfung; Zeitpunkt = jetzt). Unbekannte
-/// Hervorhebung → [`HighlightError::Unknown`].
+/// Store the result of the check (replaces an earlier check; time = now). Unknown highlight →
+/// [`HighlightError::Unknown`].
 pub async fn set_highlight_check(
     pool: &SqlitePool,
     highlight_id: i64,
@@ -465,7 +463,7 @@ pub async fn set_highlight_check(
     Ok(())
 }
 
-/// Gespeicherte Prüfungen (aller Hervorhebungen bzw. der eines Titels) mit Zeitpunkt, je Hervorhebung.
+/// Stored checks (of all highlights or of those of one title) with time, per highlight.
 pub async fn highlight_check_entries(
     pool: &SqlitePool,
     title_id: Option<i64>,
@@ -487,7 +485,7 @@ pub async fn highlight_check_entries(
     Ok(out)
 }
 
-/// Gespeicherte Prüfungen (aller Hervorhebungen bzw. der eines Titels): Ergebnis und Meldung.
+/// Stored checks (of all highlights or of those of one title): result and message.
 pub async fn highlight_checks(
     pool: &SqlitePool,
     title_id: Option<i64>,
@@ -499,7 +497,7 @@ pub async fn highlight_checks(
         .collect())
 }
 
-/// Gespeicherte Prüfung einer Hervorhebung; `None`, wenn sie nie geprüft wurde.
+/// Stored check of a highlight; `None` if it was never checked.
 pub async fn highlight_check(pool: &SqlitePool, highlight_id: i64) -> Result<Option<HighlightCheck>, HighlightError> {
     let row: Option<(String, String, String)> =
         sqlx::query_as("SELECT result, message, checked FROM library_highlight_check WHERE highlight_id = ?1")
@@ -517,13 +515,13 @@ pub async fn highlight_check(pool: &SqlitePool, highlight_id: i64) -> Result<Opt
     .transpose()
 }
 
-/// Typst-Zitat aus einer Hervorhebung:
-/// `#quote(block: true, attribution: [@key])[Text]`, mit Fundstelle `[@key[S. 12]]`.
+/// Typst quote from a highlight:
+/// `#quote(block: true, attribution: [@key])[Text]`, with locator `[@key[S. 12]]`.
 ///
-/// Text und Fundstelle sind für Typst-Markup maskiert: Zeichen mit Bedeutung (`\ # [ ] * _ `` ` ``
-/// `$ < > @ ~ = - + /`) bekommen einen Backslash, eine Aufzählung wie „1.“ am Zeilenanfang ebenso.
-/// Eine Fundstelle aus Ziffern (auch „12–14“) bekommt „S. “ davor; sonst bleibt sie, wie sie ist.
-/// CRLF wird LF, Leerzeilen bleiben Absätze.
+/// Text and locator are escaped for Typst markup: characters with a meaning (`\ # [ ] * _ `` ` ``
+/// `$ < > @ ~ = - + /`) get a backslash, an enumeration like „1.“ at the start of a line as well.
+/// A locator of digits (also „12–14“) gets „S. “ in front; otherwise it stays as it is.
+/// CRLF becomes LF, empty lines stay paragraphs.
 pub fn cite_typst(highlight: &Highlight, key: &str) -> String {
     let locator = highlight.locator.trim();
     let attribution = if locator.is_empty() {
@@ -541,7 +539,7 @@ pub fn cite_typst(highlight: &Highlight, key: &str) -> String {
     format!("#quote(block: true, attribution: [{attribution}])[{text}]")
 }
 
-/// Maskiert Text für Typst-Markup (siehe [`cite_typst`]).
+/// Escapes text for Typst markup (see [`cite_typst`]).
 pub fn escape_markup(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 8);
     for (n, line) in text.split('\n').enumerate() {
@@ -551,7 +549,7 @@ pub fn escape_markup(text: &str) -> String {
         let indent = line.len() - line.trim_start().len();
         let rest = &line[indent..];
         out.push_str(&line[..indent]);
-        // „1.“ am Zeilenanfang wäre eine nummerierte Liste.
+        // „1.“ at the start of a line would be a numbered list.
         let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
         let numbered = digits > 0 && rest[digits..].starts_with('.');
         for (i, c) in rest.char_indices() {
@@ -641,8 +639,8 @@ mod tests {
     #[test]
     fn a_range_in_the_fulltext_is_found_only_with_the_same_words() {
         let full = "Der Leuchtturm steht am Kai.\r\nÜber dem Wasser kreist das Licht.";
-        // Begründung: „Ü“ zählt als ein Zeichen, `\r\n` als eines (vereinheitlicht) – sonst verschöben sich
-        // alle Bereiche hinter der ersten Zeile.
+        // Reason: „Ü“ counts as one character, `\r\n` as one (unified) – otherwise all ranges behind the first line
+        // would shift.
         let start = "Der Leuchtturm steht am Kai.\n".chars().count() as i64;
         let end = start + "Über dem Wasser".chars().count() as i64;
         assert_eq!(check_range(full, start, end, "Über dem Wasser"), FulltextCheck::Found, "genauer Bereich");

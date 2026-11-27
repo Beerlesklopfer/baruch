@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Warteschlange: höchstens **eine** laufende Anfrage (`Semaphore(1)`), höchstens [`MAX_WAITING`]
-//! Wartende; wer darüber hinaus kommt, bekommt sofort [`LlmError::Busy`]. Ein fallen gelassener
-//! Auftrag (wartend oder laufend) gibt seinen Platz sofort frei.
+//! Queue: at most **one** running request (`Semaphore(1)`), at most [`MAX_WAITING`] waiting; whoever comes beyond
+//! that gets [`LlmError::Busy`] at once. A dropped job (waiting or running) frees its place at once.
 
 use std::future::Future;
 use std::sync::Mutex;
@@ -12,19 +11,19 @@ use tokio::sync::Semaphore;
 
 use crate::LlmError;
 
-/// Größte Zahl Wartender (ohne den laufenden Auftrag).
+/// Largest number of waiting jobs (without the running job).
 pub const MAX_WAITING: usize = 8;
 
-/// Zustand der Warteschlange.
+/// State of the queue.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct QueueStatus {
-    /// Bezeichnung des laufenden Auftrags (z. B. `"@lektor ask key 17"`, nie Text).
+    /// Label of the running job (e.g. `"@lektor ask key 17"`, never text).
     pub running: Option<String>,
-    /// Zahl der Wartenden.
+    /// Number of waiting jobs.
     pub waiting: usize,
 }
 
-/// Siehe Modulkopf.
+/// See module header.
 #[derive(Debug)]
 pub struct Queue {
     permits: Semaphore,
@@ -39,7 +38,7 @@ impl Default for Queue {
     }
 }
 
-/// Zählt einen Wartenden, solange er lebt.
+/// Counts a waiting job as long as it lives.
 struct Waiting<'a>(&'a AtomicUsize);
 
 impl Drop for Waiting<'_> {
@@ -48,7 +47,7 @@ impl Drop for Waiting<'_> {
     }
 }
 
-/// Hält die Bezeichnung des laufenden Auftrags, solange er läuft.
+/// Holds the label of the running job as long as it runs.
 struct Running<'a>(&'a Mutex<Option<String>>);
 
 impl Drop for Running<'_> {
@@ -62,7 +61,7 @@ impl Queue {
         Queue { permits: Semaphore::new(1), max_waiting, waiting: AtomicUsize::new(0), running: Mutex::new(None) }
     }
 
-    /// `work` ausführen, sobald nichts anderes läuft. `label` erscheint in [`Queue::status`].
+    /// Run `work` as soon as nothing else is running. `label` appears in [`Queue::status`].
     pub async fn run<T>(&self, label: &str, work: impl Future<Output = Result<T, LlmError>>) -> Result<T, LlmError> {
         let permit = match self.permits.try_acquire() {
             Ok(permit) => permit,
@@ -84,13 +83,13 @@ impl Queue {
         *self.running.lock().unwrap_or_else(|e| e.into_inner()) = Some(label.to_owned());
         let running = Running(&self.running);
         let result = work.await;
-        // Erst die Bezeichnung löschen, dann den Platz freigeben (sonst löschte sie den Nächsten).
+        // First clear the label, then free the place (otherwise it would clear the next one).
         drop(running);
         drop(permit);
         result
     }
 
-    /// Laufender Auftrag und Zahl der Wartenden.
+    /// Running job and number of waiting jobs.
     pub fn status(&self) -> QueueStatus {
         QueueStatus {
             running: self.running.lock().unwrap_or_else(|e| e.into_inner()).clone(),

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 29b: EPUB-Abbildung der Satz-Einstellungen (`epub_style`, Vertrag §5.6); seit Runde 20a verwendet sie der
-//! EPUB-Export (`baruch-epub`). Geprüft wird, dass jede abbildbare Einstellung eine erkennbare CSS-Regel ergibt und
-//! dass Kapitel- und Teil-Dateien immer eine Umbruchregel haben.
+//! Round 29b: EPUB mapping of the typesetting settings (`epub_style`, contract §5.6); since Round 20a the EPUB
+//! export (`baruch-epub`) uses it. Checked is that every setting that can be mapped yields a recognisable CSS rule
+//! and that chapter and part files always have a break rule.
 
 use baruch_typst::typeset::*;
 
-/// Runde 20a: Vorher ergab „keine Einstellung“ nur den Kopfkommentar. Seit Kapitel und Teile immer eigene Dateien
-/// sind (Vertrag R20 §0.2), steht die Umbruchregel auch ohne Einstellung da – sonst hinge der Seitenanfang allein
-/// vom Leser ab.
+/// Round 20a: before, "no setting" only yielded the head comment. Since chapters and parts are always files of
+/// their own (contract R20 §0.2), the break rule stands there also without a setting – otherwise the start of the
+/// page would depend on the reader alone.
 #[test]
 fn empty_settings_give_only_the_break_rules_for_chapter_and_part_files() {
     let style = epub_style(&TypesetSettings::default());

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 (sqlx09): Der Sprung von sqlx 0.8 auf 0.9 ändert nichts an den Migrationen der Bibliothek.
+//! Round 36 (sqlx09): the jump from sqlx 0.8 to 0.9 changes nothing about the migrations of the library.
 //!
-//! Grundlage ist `tests/fixtures/sqlx08_migrations.tsv`: Version, Beschreibung, `success` und Prüfsumme (Hex) der
-//! Migrationen 0101–0108, wie **sqlx 0.8.6** sie auf dem Stand von `development` eingebettet und in
-//! `_sqlx_migrations` geschrieben hat – erzeugt vor dem Umbau mit dem alten Stand.
+//! Basis is `tests/fixtures/sqlx08_migrations.tsv`: version, description, `success` and checksum (hex) of the
+//! migrations 0101–0108, as **sqlx 0.8.6** embedded them on the state of `development` and wrote them into
+//! `_sqlx_migrations` – generated before the conversion with the old state.
 //!
-//! Belegt: Jede Migrationsdatei ist unverändert (SHA-384 der Datei = alte Prüfsumme) und unter 0.9 mit derselben
-//! Prüfsumme eingebettet; eine nachgebaute Datenbank im Stand von `development` (Kernschema aus
-//! `fixtures/core_schema.sql`, Bibliothek 0101–0108 als rohes SQL, Buchführung von 0.8, frei erfundene Daten samt
-//! Volltextindex) läuft durch [`baruch_library::migrate`] ohne `VersionMismatch` und ohne eine geänderte Zeile; die
-//! Versionen des Stores in derselben Tabelle stören nicht (`ignore_missing`); eine geänderte Prüfsumme wird abgelehnt.
+//! Proven: every migration file is unchanged (SHA-384 of the file = old checksum) and embedded under 0.9 with the
+//! same checksum; a rebuilt database in the state of `development` (core schema from `fixtures/core_schema.sql`,
+//! library 0101–0108 as raw SQL, bookkeeping of 0.8, freely invented data including the full-text index) runs
+//! through [`baruch_library::migrate`] without `VersionMismatch` and without a changed row; the versions of the
+//! store in the same table do not interfere (`ignore_missing`); a changed checksum is refused.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -23,7 +23,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 const SQLX08: &str = include_str!("fixtures/sqlx08_migrations.tsv");
 const CORE_SCHEMA: &str = include_str!("fixtures/core_schema.sql");
 
-/// Die Tabelle, wie sqlx-sqlite 0.8.6 sie angelegt hat (aus einer Datenbank des alten Stands gelesen).
+/// The table as sqlx-sqlite 0.8.6 created it (read from a database of the old state).
 const SQLX08_TABLE: &str = "CREATE TABLE _sqlx_migrations (
     version BIGINT PRIMARY KEY,
     description TEXT NOT NULL,
@@ -33,7 +33,7 @@ const SQLX08_TABLE: &str = "CREATE TABLE _sqlx_migrations (
     execution_time BIGINT NOT NULL
 )";
 
-/// (Version, Beschreibung, Prüfsumme als Hex) aus der Buchführung von sqlx 0.8.
+/// (version, description, checksum as hex) from the bookkeeping of sqlx 0.8.
 fn old_rows() -> Vec<(i64, String, String)> {
     SQLX08
         .lines()
@@ -67,9 +67,9 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Stand von `development` ohne den Migrator von sqlx 0.9: Kernschema, Tabelle der Buchführung wie von 0.8, jede
-/// Migration der Bibliothek als rohes SQL in einer Transaktion mit ihrer Zeile aus der Vorlage; dazu zwei Zeilen des
-/// Stores (erfunden), wie sie in jeder wirklichen Datenbank in derselben Tabelle stehen.
+/// State of `development` without the migrator of sqlx 0.9: core schema, bookkeeping table as from 0.8, every
+/// migration of the library as raw SQL in a transaction with its row from the template; plus two rows of the store
+/// (invented), as they stand in the same table in every real database.
 async fn build_development(pool: &SqlitePool) {
     sqlx::raw_sql(CORE_SCHEMA).execute(pool).await.unwrap();
     exec(pool, SQLX08_TABLE).await;
@@ -104,7 +104,7 @@ async fn build_development(pool: &SqlitePool) {
     }
 }
 
-/// Frei erfundene Daten im Stand 0108.
+/// Freely invented data in the state 0108.
 async fn insert_rows(pool: &SqlitePool) {
     exec(
         pool,
@@ -147,7 +147,7 @@ async fn insert_rows(pool: &SqlitePool) {
     .await;
 }
 
-/// Jede Zeile jeder Tabelle (auch `_sqlx_migrations` und die Schattentabellen des Volltextindex) als Text.
+/// Every row of every table (also `_sqlx_migrations` and the shadow tables of the full-text index) as text.
 async fn snapshot(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let tables: Vec<String> = sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",

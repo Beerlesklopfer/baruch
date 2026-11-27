@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Register und Glossar (Runde 31, Vertrag §2.1; Schnittstelle R31-S1, Typen und Signaturen **eingefroren** –
-//! Änderungen nur über Integrator/PM; Körper gehören der Aufgabe register-satz).
+//! Indexes and glossary (Round 31, contract §2.1; interface R31-S1, types and signatures **frozen** – changes only
+//! through integrator/PM; bodies belong to the task register-satz).
 //!
-//! - **Registermarke** im Typst-Text, nur Standard-Typst (kein Paket, kein Netz, in jeder Spiegeldatei setzbar):
-//!   `#metadata((register: "stichwort", term: "Gnade"))<baruch-idx>` – Schlüssel nur in der Reihenfolge register,
-//!   term, sub, see, also, sort; leere weglassen; Typst-String-Literale mit `\"`, `\\`, `\n`, `\t`; kein Leerzeichen vor
-//!   dem Label; die Marke steht direkt hinter dem markierten Wort ([`mark_source`], [`parse_mark`]).
-//! - **Register:** eingebaut `stichwort` (Stichwortregister), `personen` (Personenregister), `bibel`
-//!   (Bibelstellenregister, automatisch aus erkannten Stellen); eigene Kennungen `^[a-z][a-z0-9-]{0,31}$`, höchstens
+//! - **Index mark** in the Typst text, standard Typst only (no package, no network, can be typeset in every mirror
+//!   file): `#metadata((register: "stichwort", term: "Gnade"))<baruch-idx>` – keys only in the order register,
+//!   term, sub, see, also, sort; leave out empty ones; Typst string literals with `\"`, `\\`, `\n`, `\t`; no space
+//!   before the label; the mark stands directly behind the marked word ([`mark_source`], [`parse_mark`]).
+//! - **Indexes:** built in `stichwort` (keyword index), `personen` (index of persons), `bibel` (index of scripture
+//!   references, automatically from recognised references); own identifiers `^[a-z][a-z0-9-]{0,31}$`, at most
 //!   [`MAX_CUSTOM_REGISTERS`].
-//! - **Schlüssel:** [`term_key`] steht in der Datenbank und ist darum ab S1 unveränderlich (NFC, Leerraum zu einem
-//!   Leerzeichen, getrimmt, klein); [`sort_key`] wird nie gespeichert.
-//! - **Projektion** ([`Projector`], [`back_matter`]): nur Export, Export-Karte, Spiegel, Satz, PDF und EPUB; die Texte
-//!   in SQLite bleiben unverändert. Ohne aktive Einstellungen ([`BackMatter::is_active`]) ist die Projektion die
-//!   Identität und das Buchende leer – der Export bleibt byte-gleich zum Stand vor Runde 31.
+//! - **Keys:** [`term_key`] is stored in the database and is therefore immutable from S1 on (NFC, whitespace to one
+//!   space, trimmed, lower case); [`sort_key`] is never stored.
+//! - **Projection** ([`Projector`], [`back_matter`]): only export, export map, mirror, typesetting, PDF and EPUB;
+//!   the texts in SQLite stay unchanged. Without active settings ([`BackMatter::is_active`]) the projection is the
+//!   identity and the back matter empty – the export stays byte-identical to the state before Round 31.
 
 mod back;
 mod project;
@@ -26,55 +26,55 @@ use unicode_normalization::UnicodeNormalization;
 
 use crate::typeset::TypesetSettings;
 
-/// Label jeder Registermarke.
+/// Label of every index mark.
 pub const INDEX_LABEL: &str = "baruch-idx";
-/// Vorsilbe der Labels der Glossareinträge (`<baruch-gl-UUID>`).
+/// Prefix of the labels of the glossary entries (`<baruch-gl-UUID>`).
 pub const GLOSSARY_ANCHOR_PREFIX: &str = "baruch-gl-";
-/// Erste Zeile des Buchendes (Registerseiten und Glossarseite), das [`back_matter`] liefert.
+/// First line of the back matter (index pages and glossary page) that [`back_matter`] delivers.
 pub const BACK_MATTER_MARK: &str = "// Baruch: Register und Glossar";
-/// Kennung des eingebauten Stichwortregisters.
+/// Identifier of the built-in keyword index.
 pub const KEYWORD_REGISTER: &str = "stichwort";
-/// Kennung des eingebauten Personenregisters.
+/// Identifier of the built-in index of persons.
 pub const PERSON_REGISTER: &str = "personen";
-/// Kennung des eingebauten Bibelstellenregisters (automatisch aus erkannten Stellen).
+/// Identifier of the built-in index of scripture references (automatically from recognised references).
 pub const SCRIPTURE_REGISTER: &str = "bibel";
-/// Längstes Feld einer Marke (Zeichen).
+/// Longest field of a mark (characters).
 pub const MAX_MARK_FIELD_CHARS: usize = 200;
-/// Längster Titel eines eigenen Registers (Zeichen).
+/// Longest title of an own index (characters).
 pub const MAX_REGISTER_TITLE_CHARS: usize = 80;
-/// Höchstzahl eigener Register je Werk.
+/// Maximum number of own indexes per work.
 pub const MAX_CUSTOM_REGISTERS: usize = 13;
 
-/// Eine Registermarke: Register, Stichwort und Zusätze. Leere Zusätze erscheinen weder in JSON noch in Typst.
+/// An index mark: index, keyword and extras. Empty extras appear neither in JSON nor in Typst.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexMark {
-    /// Kennung des Registers ([`KEYWORD_REGISTER`], [`PERSON_REGISTER`], [`SCRIPTURE_REGISTER`] oder eigene).
+    /// Identifier of the index ([`KEYWORD_REGISTER`], [`PERSON_REGISTER`], [`SCRIPTURE_REGISTER`] or an own one).
     pub register: String,
-    /// Stichwort.
+    /// Keyword.
     pub term: String,
-    /// Unterstichwort (eingerückt unter `term`).
+    /// Sub-keyword (indented under `term`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub sub: String,
-    /// „siehe“: Eintrag ohne Seitenzahl, verweist auf dieses Stichwort.
+    /// „siehe“: entry without a page number, refers to this keyword.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub see: String,
     /// „siehe auch“.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub also: String,
-    /// Sortierschlüssel, nur für automatische Einträge (Bibel: biblische Buchreihenfolge).
+    /// Sort key, only for automatic entries (Bible: biblical order of the books).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub sort: String,
 }
 
 impl IndexMark {
-    /// Marke mit Register und Stichwort, ohne Zusätze.
+    /// Mark with index and keyword, without extras.
     pub fn new(register: &str, term: &str) -> Self {
         IndexMark { register: register.to_owned(), term: term.to_owned(), ..IndexMark::default() }
     }
 
-    /// Prüft die Marke: gültige Register-Kennung ([`valid_register_slug`]), Stichwort nicht leer, jedes Feld höchstens
-    /// [`MAX_MARK_FIELD_CHARS`] Zeichen und ohne Steuerzeichen (Zeilenumbruch, Tabulator …).
+    /// Checks the mark: valid index identifier ([`valid_register_slug`]), keyword not empty, every field at most
+    /// [`MAX_MARK_FIELD_CHARS`] characters and without control characters (line break, tab …).
     pub fn validate(&self) -> Result<(), IndexError> {
         if !valid_register_slug(&self.register) {
             return Err(IndexError::Invalid(format!(
@@ -104,7 +104,7 @@ impl IndexMark {
         Ok(())
     }
 
-    /// Die Felder in Typst-Reihenfolge mit ihren Schlüsseln.
+    /// The fields in Typst order with their keys.
     fn fields(&self) -> [(&'static str, &String); 6] {
         [
             ("register", &self.register),
@@ -117,7 +117,7 @@ impl IndexMark {
     }
 }
 
-/// Typst-String-Literal: `\"`, `\\`, `\n`, `\t`, `\r`; übrige Steuerzeichen als `\u{…}`.
+/// Typst string literal: `\"`, `\\`, `\n`, `\t`, `\r`; remaining control characters as `\u{…}`.
 fn typst_string(text: &str, out: &mut String) {
     out.push('"');
     for c in text.chars() {
@@ -134,12 +134,12 @@ fn typst_string(text: &str, out: &mut String) {
     out.push('"');
 }
 
-/// Kanonische Typst-Form der Marke: `#metadata((register: "…", term: "…"[, sub: "…"]…))<baruch-idx>`.
+/// Canonical Typst form of the mark: `#metadata((register: "…", term: "…"[, sub: "…"]…))<baruch-idx>`.
 pub fn mark_source(mark: &IndexMark) -> String {
     let mut out = String::from("#metadata((");
     let mut first = true;
     for (key, value) in mark.fields() {
-        // register und term stehen immer da (auch leer), damit die Marke ein Wörterbuch bleibt.
+        // register and term always stand there (also empty), so that the mark stays a dictionary.
         if value.is_empty() && key != "register" && key != "term" {
             continue;
         }
@@ -157,7 +157,7 @@ pub fn mark_source(mark: &IndexMark) -> String {
     out
 }
 
-/// Kleiner Leser für [`parse_mark`] über Bytes (die Marke selbst ist ASCII bis auf die Inhalte der Strings).
+/// Small reader for [`parse_mark`] over bytes (the mark itself is ASCII except for the contents of the strings).
 struct Cursor<'s> {
     src: &'s str,
     pos: usize,
@@ -173,7 +173,7 @@ impl Cursor<'_> {
         }
     }
 
-    /// Leerraum innerhalb der Zeile (Leerzeichen und Tabulator).
+    /// Whitespace within the line (space and tab).
     fn space(&mut self) {
         while matches!(self.src.as_bytes().get(self.pos), Some(b' ' | b'\t')) {
             self.pos += 1;
@@ -188,7 +188,7 @@ impl Cursor<'_> {
         (self.pos > start).then(|| &self.src[start..self.pos])
     }
 
-    /// Typst-String-Literal ohne rohen Zeilenumbruch; Escapes `\"`, `\\`, `\n`, `\t`, `\r`, `\u{…}`.
+    /// Typst string literal without a raw line break; escapes `\"`, `\\`, `\n`, `\t`, `\r`, `\u{…}`.
     fn string(&mut self) -> Option<String> {
         if !self.eat("\"") {
             return None;
@@ -234,10 +234,10 @@ impl Cursor<'_> {
     }
 }
 
-/// Liest eine kanonische Marke am Anfang von `source` (Leerraum um `:` und `,` sowie innen an den Klammern erlaubt,
-/// Schlüssel nur in der Reihenfolge register, term, sub, see, also, sort, register und term Pflicht, kein Leerzeichen
-/// vor dem Label). Gibt die Marke und die verbrauchten Bytes zurück; alles andere (auch eine Marke, die
-/// [`IndexMark::validate`] nicht besteht) → `None` und bleibt Insel.
+/// Reads a canonical mark at the start of `source` (whitespace around `:` and `,` as well as inside at the
+/// parentheses allowed, keys only in the order register, term, sub, see, also, sort, register and term mandatory,
+/// no space before the label). Returns the mark and the consumed bytes; everything else (also a mark that does not
+/// pass [`IndexMark::validate`]) → `None` and stays an island.
 pub fn parse_mark(source: &str) -> Option<(IndexMark, usize)> {
     const KEYS: [&str; 6] = ["register", "term", "sub", "see", "also", "sort"];
     let mut cur = Cursor { src: source, pos: 0 };
@@ -293,7 +293,7 @@ pub fn parse_mark(source: &str) -> Option<(IndexMark, usize)> {
     Some((mark, cur.pos))
 }
 
-/// Welche Fundstelle eines Worts markiert wird: die erste, alle oder die n-te (ab 1).
+/// Which occurrence of a word is marked: the first, all or the n-th (from 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(into = "String", try_from = "String")]
 pub enum Occurrence {
@@ -303,7 +303,7 @@ pub enum Occurrence {
 }
 
 impl Occurrence {
-    /// `"first"`, `"all"` oder die Zahl als Text.
+    /// `"first"`, `"all"` or the number as text.
     pub fn as_param(self) -> String {
         match self {
             Occurrence::First => "first".to_owned(),
@@ -312,7 +312,7 @@ impl Occurrence {
         }
     }
 
-    /// Kehrt [`Occurrence::as_param`] um; die Zahl muss mindestens 1 sein. Unbekanntes → `None`.
+    /// Reverses [`Occurrence::as_param`]; the number must be at least 1. Unknown → `None`.
     pub fn from_param(s: &str) -> Option<Self> {
         match s.trim() {
             "first" => Some(Occurrence::First),
@@ -340,14 +340,14 @@ impl TryFrom<String> for Occurrence {
     }
 }
 
-/// Eine Marke im Text mit ihrem Bytebereich (`span.0..span.1` = die ganze Marke).
+/// A mark in the text with its byte range (`span.0..span.1` = the whole mark).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FoundMark {
     pub span: (usize, usize),
     pub mark: IndexMark,
 }
 
-/// Fehler beim Setzen, Entfernen und Prüfen von Marken.
+/// Errors when setting, removing and checking marks.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum IndexError {
     #[error("{0}")]
@@ -361,16 +361,16 @@ pub enum IndexError {
     AlreadyMarked(String),
 }
 
-/// Alle kanonischen Marken in `text` (außerhalb von Code, Kommentaren und Raw), in Textreihenfolge. Eine Marke in
-/// einem Inhaltsblock (`#emph[Wort#metadata(…)<baruch-idx>]`) zählt mit; eine Marke in einem Kommentar, in Raw oder in
-/// einem String nicht (Typst setzt sie dort nicht).
+/// All canonical marks in `text` (outside of code, comments and raw), in text order. A mark in a content block
+/// (`#emph[Wort#metadata(…)<baruch-idx>]`) counts; a mark in a comment, in raw or in a string does not (Typst does
+/// not set it there).
 pub fn find_marks(text: &str) -> Vec<FoundMark> {
     scan::scan(text).marks
 }
 
-/// Fundstellen von `word` im Fließtext: Anfang und Ende. Das Wort wird wörtlich gesucht (Groß-/Kleinschreibung zählt);
-/// Leerraum im Wort passt auf beliebigen Leerraum ohne Leerzeile. Ganze Wörter: Vor und hinter der Fundstelle steht kein
-/// Buchstabe und keine Ziffer, wenn das Wort dort mit einem solchen beginnt bzw. endet.
+/// Occurrences of `word` in the running text: start and end. The word is searched literally (case matters);
+/// whitespace in the word matches any whitespace without an empty line. Whole words: before and behind the
+/// occurrence there is no letter and no digit if the word starts or ends with one there.
 fn find_word(text: &str, scanned: &scan::Scan, word: &str) -> Vec<(usize, usize)> {
     let pieces: Vec<&str> = word.split_whitespace().collect();
     let Some(first) = pieces.first() else { return Vec::new() };
@@ -406,16 +406,16 @@ fn find_word(text: &str, scanned: &scan::Scan, word: &str) -> Vec<(usize, usize)
     out
 }
 
-/// Setzt `mark` direkt hinter die gewählte(n) Fundstelle(n) von `word` (ganze Wörter, nicht in Überschriftszeilen,
-/// Code, Kommentaren, Raw oder anderen Marken). Ergebnis: neuer Text und Zahl der gesetzten Marken.
+/// Sets `mark` directly behind the chosen occurrence(s) of `word` (whole words, not in heading lines, code,
+/// comments, raw or other marks). Result: new text and number of marks set.
 ///
-/// Steht direkt hinter dem Wort ein Label (`Wort<name>`), kommt die Marke hinter das Label (sonst hinge das Label an
-/// der Marke). Ungültige Marke oder leeres Wort → `Invalid`; keine (bzw. keine n-te) Fundstelle → `WordNotFound`.
+/// If a label stands directly behind the word (`Wort<name>`), the mark goes behind the label (otherwise the label
+/// would hang on the mark). Invalid mark or empty word → `Invalid`; no (or no n-th) occurrence → `WordNotFound`.
 ///
-/// Doppelt wird nie markiert: Trägt eine Fundstelle dieselbe Marke schon (in der Kette der Marken direkt hinter dem
-/// Wort bzw. Label), bleibt sie, wie sie ist. „erste“ und „n-te“ meinen weiter die erste bzw. n-te Fundstelle im Text;
-/// ist gerade sie schon markiert, kommt `AlreadyMarked` (nichts geändert, keine neue Fassung). „alle“ setzt nur die
-/// fehlenden Marken; fehlt keine mehr → ebenfalls `AlreadyMarked`.
+/// Nothing is marked twice: if an occurrence already carries the same mark (in the chain of marks directly behind
+/// the word or label), it stays as it is. "first" and "n-th" still mean the first or n-th occurrence in the text;
+/// if precisely that one is already marked, `AlreadyMarked` comes (nothing changed, no new revision). "all" only
+/// sets the missing marks; if none is missing any more → `AlreadyMarked` as well.
 pub fn mark_word(
     text: &str,
     word: &str,
@@ -459,7 +459,7 @@ pub fn mark_word(
     Ok((out, chosen.len()))
 }
 
-/// Steht `mark` schon in der Kette der Marken, die an `spot` beginnt (`Wort#metadata(…)<baruch-idx>#metadata(…)…`)?
+/// Does `mark` already stand in the chain of marks that starts at `spot` (`Wort#metadata(…)<baruch-idx>#metadata(…)…`)?
 fn carries_mark(marks: &[FoundMark], spot: usize, mark: &IndexMark) -> bool {
     let mut at = spot;
     while let Some(found) = marks.iter().find(|m| m.span.0 == at) {
@@ -471,7 +471,7 @@ fn carries_mark(marks: &[FoundMark], spot: usize, mark: &IndexMark) -> bool {
     false
 }
 
-/// Setzt `mark` an der Byte-Stelle `byte`; in Überschriftszeilen, Code, Kommentaren, Raw oder einer Marke → `Invalid`.
+/// Sets `mark` at the byte position `byte`; in heading lines, code, comments, raw or a mark → `Invalid`.
 pub fn insert_mark_at(text: &str, byte: usize, mark: &IndexMark) -> Result<String, IndexError> {
     mark.validate()?;
     if byte > text.len() || !text.is_char_boundary(byte) {
@@ -492,7 +492,7 @@ pub fn insert_mark_at(text: &str, byte: usize, mark: &IndexMark) -> Result<Strin
     Ok(out)
 }
 
-/// Entfernt die Marke genau im Bereich `span` (wie [`FoundMark::span`]); kein Marken-Bereich → `Invalid`.
+/// Removes the mark exactly in the range `span` (like [`FoundMark::span`]); not a mark range → `Invalid`.
 pub fn remove_mark(text: &str, span: (usize, usize)) -> Result<String, IndexError> {
     if !find_marks(text).iter().any(|m| m.span == span) {
         return Err(IndexError::Invalid(format!(
@@ -506,7 +506,7 @@ pub fn remove_mark(text: &str, span: (usize, usize)) -> Result<String, IndexErro
     Ok(out)
 }
 
-/// Art eines Registers.
+/// Kind of an index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RegisterKind {
@@ -516,7 +516,7 @@ pub enum RegisterKind {
     Custom,
 }
 
-/// Ein Register: Kennung, Titel und Art.
+/// An index: identifier, title and kind.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Register {
     pub slug: String,
@@ -524,7 +524,7 @@ pub struct Register {
     pub kind: RegisterKind,
 }
 
-/// Die drei eingebauten Register in fester Reihenfolge.
+/// The three built-in indexes in fixed order.
 pub fn builtin_registers() -> Vec<Register> {
     [
         (KEYWORD_REGISTER, "Stichwortregister", RegisterKind::Keyword),
@@ -536,7 +536,7 @@ pub fn builtin_registers() -> Vec<Register> {
     .collect()
 }
 
-/// `^[a-z][a-z0-9-]{0,31}$` (die eingebauten Kennungen erfüllen das auch).
+/// `^[a-z][a-z0-9-]{0,31}$` (the built-in identifiers fulfil that too).
 pub fn valid_register_slug(slug: &str) -> bool {
     let bytes = slug.as_bytes();
     !bytes.is_empty()
@@ -545,16 +545,16 @@ pub fn valid_register_slug(slug: &str) -> bool {
         && bytes.iter().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
 }
 
-/// Vergleichsschlüssel eines Begriffs (in der Datenbank gespeichert, darum **unveränderlich**): NFC, jeder Leerraum
-/// zu einem Leerzeichen zusammengefasst, getrimmt, `to_lowercase`.
+/// Comparison key of a term (stored in the database, therefore **immutable**): NFC, every whitespace collapsed to
+/// one space, trimmed, `to_lowercase`.
 pub fn term_key(term: &str) -> String {
     let nfc: String = term.nfc().collect();
     nfc.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
-/// Sortierschlüssel eines Begriffs (nie gespeichert): DIN 5007-1 – Umlaute wie ihre Grundbuchstaben (ä = a, ö = o,
-/// ü = u), ß = ss, andere diakritische Zeichen fallen weg (é = e); klein, Leerraum zusammengefasst, Satzzeichen am
-/// Anfang (Anführungszeichen, Klammern) übergangen.
+/// Sort key of a term (never stored): DIN 5007-1 – umlauts like their base letters (ä = a, ö = o, ü = u), ß = ss,
+/// other diacritics are dropped (é = e); lower case, whitespace collapsed, punctuation at the start (quotation
+/// marks, parentheses) skipped.
 pub fn sort_key(term: &str) -> String {
     let base: String = term
         .nfd()
@@ -567,12 +567,12 @@ pub fn sort_key(term: &str) -> String {
     if trimmed.is_empty() { words } else { trimmed.to_owned() }
 }
 
-/// Label eines Glossareintrags: `baruch-gl-` + uuid.
+/// Label of a glossary entry: `baruch-gl-` + uuid.
 pub fn glossary_anchor(uuid: &str) -> String {
     format!("{GLOSSARY_ANCHOR_PREFIX}{uuid}")
 }
 
-/// Ein angenommener Glossarbegriff, wie ihn Satz und EPUB brauchen.
+/// An accepted glossary term as typesetting and EPUB need it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GlossaryEntry {
     pub uuid: String,
@@ -583,8 +583,8 @@ pub struct GlossaryEntry {
     pub bible_refs: Vec<String>,
 }
 
-/// Alles, was Projektion und Buchende eines Werks brauchen: Satz-Einstellungen, Register (eingebaute + eigene) und die
-/// angenommenen Glossarbegriffe.
+/// Everything projection and back matter of a work need: typesetting settings, indexes (built-in + own) and the
+/// accepted glossary terms.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct BackMatter {
     pub settings: TypesetSettings,
@@ -593,7 +593,7 @@ pub struct BackMatter {
 }
 
 impl BackMatter {
-    /// Aktiv, sobald Registerseiten, Glossarseite oder die Auszeichnung der ersten Erwähnung eingestellt sind.
+    /// Active as soon as index pages, glossary page or the markup of the first mention are configured.
     pub fn is_active(&self) -> bool {
         self.settings.index_pages.is_some()
             || self.settings.glossary_page.is_some()
@@ -601,35 +601,35 @@ impl BackMatter {
     }
 }
 
-/// Projektion der Abschnittstexte eines Exports (je Export eine Instanz, Abschnitte in Baumreihenfolge).
+/// Projection of the section texts of an export (one instance per export, sections in tree order).
 ///
-/// Setzt (a) bei Register `bibel` in `index_pages.registers` automatische Marken hinter erkannte Bibelstellen und (b)
-/// bei `glossary_first_mention == Some(true)` die Auszeichnung der ersten Erwähnung je Kapitel (Form und Regeln in
-/// `index/project.rs`: mit Glossarseite `#link(<baruch-gl-UUID>)[#emph[Wort]]`, sonst `#emph[Wort]`).
+/// Sets (a) with index `bibel` in `index_pages.registers` automatic marks behind recognised scripture references
+/// and (b) with `glossary_first_mention == Some(true)` the markup of the first mention per chapter (form and rules
+/// in `index/project.rs`: with glossary page `#link(<baruch-gl-UUID>)[#emph[Wort]]`, otherwise `#emph[Wort]`).
 pub struct Projector<'a> {
     plan: project::Plan,
     _back: std::marker::PhantomData<&'a BackMatter>,
 }
 
 impl<'a> Projector<'a> {
-    /// Neue Projektion für ein Werk.
+    /// New projection for a work.
     pub fn new(back: &'a BackMatter) -> Self {
         Projector { plan: project::Plan::new(back), _back: std::marker::PhantomData }
     }
 
-    /// Projiziert einen Abschnittstext: automatische Bibelstellen-Marken, Auszeichnung der ersten Erwähnung je Kapitel.
-    /// Inaktiv ([`BackMatter::is_active`]) → `Cow::Borrowed`.
+    /// Projects a section text: automatic scripture reference marks, markup of the first mention per chapter.
+    /// Inactive ([`BackMatter::is_active`]) → `Cow::Borrowed`.
     pub fn project<'b>(&mut self, body: &'b str) -> Cow<'b, str> {
         self.plan.project(body)
     }
 }
 
-/// Gegenstück zu [`back_matter`] für den Import (Integration R31, Runde 21b): Steht in `source` eine Zeile, die genau
-/// [`BACK_MATTER_MARK`] lautet, **und** folgen ihr unmittelbar die Hilfsfunktionen, die nur [`back_matter`] schreibt
-/// (`#let baruch-idx-ranges(ns) = …`), ist alles ab dieser Zeile das erzeugte Buchende eines Exports; es gehört zu
-/// keinem Abschnitt und entsteht beim nächsten Export aus den Einstellungen neu. Eine Kennzeile ohne diesen Block (etwa
-/// ein Kommentar von Hand im Buchtext) schneidet nichts ab – das meldet der Aufrufer ([`has_back_matter_mark`]). Zurück:
-/// der Text bis vor die Kennzeile und ob etwas abgeschnitten wurde.
+/// Counterpart to [`back_matter`] for the import (integration R31, Round 21b): if `source` has a line that reads
+/// exactly [`BACK_MATTER_MARK`], **and** the helper functions that only [`back_matter`] writes follow it
+/// immediately (`#let baruch-idx-ranges(ns) = …`), everything from this line on is the generated back matter of an
+/// export; it belongs to no section and is created anew from the settings on the next export. A marker line without
+/// this block (for example a comment by hand in the book text) cuts off nothing – the caller reports that
+/// ([`has_back_matter_mark`]). Returned: the text up to before the marker line and whether something was cut off.
 pub fn strip_back_matter(source: &str) -> (&str, bool) {
     let mut start = 0;
     for line in source.split_inclusive('\n') {
@@ -642,19 +642,19 @@ pub fn strip_back_matter(source: &str) -> (&str, bool) {
     (source, false)
 }
 
-/// Hat `source` eine Zeile, die genau [`BACK_MATTER_MARK`] lautet (erzeugt oder von Hand)?
+/// Does `source` have a line that reads exactly [`BACK_MATTER_MARK`] (generated or by hand)?
 pub fn has_back_matter_mark(source: &str) -> bool {
     source.lines().any(|line| line.trim_end_matches('\r') == BACK_MATTER_MARK)
 }
 
-/// Unsichtbarer Vermerk der Projektion vor einer ersten Erwähnung ohne Glossarseite (Runde 21b): `/*…*/#emph[Wort]`.
-/// So erkennt der Import die Auszeichnung wieder ([`strip_first_mentions`]), ohne von Hand geschriebene Hervorhebung
-/// anzufassen.
+/// Invisible note of the projection before a first mention without glossary page (Round 21b): `/*…*/#emph[Wort]`.
+/// This way the import recognises the markup again ([`strip_first_mentions`]) without touching emphasis written by
+/// hand.
 pub const FIRST_MENTION_MARK: &str = "/*baruch-erste-erwaehnung*/";
 
-/// Nimmt die vermerkte erste Erwähnung ohne Glossarseite (`/*baruch-erste-erwaehnung*/#emph[Wort]`, samt Schutz-`;`)
-/// wieder heraus: übrig bleibt `Wort`. Unabhängig vom Buchende (ohne Glossarseite und Register gibt es keins); alles
-/// andere bleibt, auch eine Hervorhebung ohne Vermerk.
+/// Takes the noted first mention without glossary page (`/*baruch-erste-erwaehnung*/#emph[Wort]`, including the
+/// guard `;`) out again: what remains is `Wort`. Independent of the back matter (without glossary page and indexes
+/// there is none); everything else stays, also an emphasis without the note.
 pub fn strip_first_mentions(source: &str) -> Cow<'_, str> {
     let open = format!("{FIRST_MENTION_MARK}#emph[");
     if !source.contains(&open) {
@@ -666,10 +666,10 @@ pub fn strip_first_mentions(source: &str) -> Cow<'_, str> {
         let word_start = found + open.len();
         let Some(word_len) = source[word_start..].find(']') else { break };
         let word = &source[word_start..word_start + word_len];
-        // Runde 23a (Codereview satz-1): Die Projektion lässt zwischen zwei Wörtern eines Begriffs **einen**
-        // Zeilenumbruch zu (hart umbrochener Quelltext) und schreibt ihn in die Auszeichnung. Der gehört darum zum
-        // Wort und kommt mit ihm zurück; vorher blieb die Auszeichnung nach dem Re-Import als Text im Abschnitt. Eine
-        // Leerzeile oder eine `[` im Wort schreibt die Projektion nie – das ist dann keine ihrer Auszeichnungen.
+        // Round 23a (code review satz-1): the projection allows **one** line break between two words of a term
+        // (hard-wrapped source) and writes it into the markup. It therefore belongs to the word and comes back with
+        // it; before, the markup stayed as text in the section after the re-import. The projection never writes an
+        // empty line or a `[` in the word – that is then none of its markups.
         if word.contains('[') || (word.contains('\n') && word.split('\n').any(|line| line.trim().is_empty())) {
             out.push_str(&source[at..word_start]);
             at = word_start;
@@ -687,12 +687,12 @@ pub fn strip_first_mentions(source: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// Nimmt aus einem Export mit Buchende die Zusätze des [`Projector`] wieder heraus (Integration R31, Import): die
-/// automatischen Marken des Bibelstellenregisters (Register `bibel` mit `sort`, das nur die Projektion setzt) und die
-/// verlinkte erste Erwähnung `#link(<baruch-gl-UUID>)[#emph[Wort]]` (samt dem Schutz-`;` der Projektion). Sonst entstünden
-/// beim nächsten Export doppelte Bibelstellen und Verweise auf Glossar-Labels, die es im neuen Werk nicht gibt. Die
-/// Auszeichnung ohne Glossarseite trägt seit Runde 21b den Vermerk [`FIRST_MENTION_MARK`] und fällt ebenso weg
-/// ([`strip_first_mentions`]); eine Hervorhebung ohne Vermerk bleibt stehen.
+/// Takes the additions of the [`Projector`] out of an export with back matter again (integration R31, import): the
+/// automatic marks of the index of scripture references (index `bibel` with `sort`, which only the projection sets)
+/// and the linked first mention `#link(<baruch-gl-UUID>)[#emph[Wort]]` (including the guard `;` of the projection).
+/// Otherwise the next export would produce duplicate scripture references and references to glossary labels that do
+/// not exist in the new work. The markup without glossary page has carried the note [`FIRST_MENTION_MARK`] since
+/// Round 21b and is dropped as well ([`strip_first_mentions`]); an emphasis without the note stays.
 pub fn strip_projection(source: &str) -> Cow<'_, str> {
     match strip_first_mentions(source) {
         Cow::Borrowed(_) => strip_linked_projection(source),
@@ -700,7 +700,7 @@ pub fn strip_projection(source: &str) -> Cow<'_, str> {
     }
 }
 
-/// Automatische Bibelstellen-Marken und verlinkte erste Erwähnungen herausnehmen (Teil von [`strip_projection`]).
+/// Take out automatic scripture reference marks and linked first mentions (part of [`strip_projection`]).
 fn strip_linked_projection(source: &str) -> Cow<'_, str> {
     let mut cuts: Vec<(usize, usize, String)> = find_marks(source)
         .into_iter()
@@ -748,7 +748,7 @@ fn strip_linked_projection(source: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// Hätte die Projektion vor `after` ein Schutz-`;` gesetzt? (Gegenstück zu `needs_guard` in `index/project.rs`.)
+/// Would the projection have set a guard `;` before `after`? (Counterpart to `needs_guard` in `index/project.rs`.)
 fn guarded(after: &str) -> bool {
     let mut chars = after.chars();
     match chars.next() {
@@ -758,10 +758,10 @@ fn guarded(after: &str) -> bool {
     }
 }
 
-/// Buchende (Registerseiten und Glossarseite) zu den projizierten Abschnittstexten `bodies`; inaktiv oder ohne
-/// Registerseiten und Glossarseite → "". Sonst ein Block ab der Zeile [`BACK_MATTER_MARK`]: Hilfsfunktionen, dann je
-/// eingestelltem Register eine Seite (Reihenfolge von `index_pages.registers`, unbekannte Kennungen fallen weg) und die
-/// Glossarseite vor oder nach den Registern (Einzelheiten in `index/back.rs`).
+/// Back matter (index pages and glossary page) for the projected section texts `bodies`; inactive or without index
+/// pages and glossary page → "". Otherwise a block from the line [`BACK_MATTER_MARK`] on: helper functions, then
+/// one page per configured index (order of `index_pages.registers`, unknown identifiers are dropped) and the
+/// glossary page before or after the indexes (details in `index/back.rs`).
 pub fn back_matter(back: &BackMatter, bodies: &[&str]) -> String {
     if !back.is_active() {
         return String::new();
@@ -775,7 +775,7 @@ pub fn back_matter(back: &BackMatter, bodies: &[&str]) -> String {
     back::render(back, &collected)
 }
 
-/// Ein Stichwort der Übersicht mit den Abschnitten (`keys`), in denen es vorkommt.
+/// A keyword of the overview with the sections (`keys`) in which it occurs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct IndexTerm {
     pub term: String,
@@ -786,17 +786,17 @@ pub struct IndexTerm {
     pub auto: bool,
 }
 
-/// Übersicht eines Registers.
+/// Overview of an index.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RegisterView {
     pub register: Register,
     pub terms: Vec<IndexTerm>,
 }
 
-/// Übersicht je Register über die Abschnitte `(key, Text)` (gespeicherte, nicht projizierte Texte): alle Register aus
-/// `back.registers` in ihrer Reihenfolge, Stichwörter sortiert wie im Buchende, `keys` = Abschnitte mit Marken, die eine
-/// Seite tragen. Ist das Bibelstellenregister eingeschaltet, kommen die automatischen Bibelstellen der Projektion dazu
-/// (`auto`). Marken mit unbekanntem Register erscheinen nicht.
+/// Overview per index over the sections `(key, text)` (stored, not projected texts): all indexes from
+/// `back.registers` in their order, keywords sorted as in the back matter, `keys` = sections with marks that carry
+/// a page. If the index of scripture references is switched on, the automatic scripture references of the
+/// projection are added (`auto`). Marks with an unknown index do not appear.
 pub fn overview(back: &BackMatter, bodies: &[(i64, &str)]) -> Vec<RegisterView> {
     let scripture = project::scripture_enabled(back);
     let mut collected = back::Collected::new();

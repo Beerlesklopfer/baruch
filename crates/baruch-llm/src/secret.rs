@@ -1,32 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Geheimnisse aus Meldungen schwärzen (Runde 23): die **eine** Stelle für alle Wege (Modell-Backends,
-//! „Verbindung prüfen“, MultiGPT, pgvector, Abgleich).
+//! Scrubbing secrets from messages (Round 23): the **one** place for all ways (model backends, „Verbindung prüfen“,
+//! MultiGPT, pgvector, sync).
 //!
-//! [`scrub`] ersetzt durch [`MASK`]:
-//! - jedes wörtliche Vorkommen des Geheimnisses;
-//! - ab [`ENCODED_MIN`] Byte Länge zusätzlich
-//!   - die Prozent-Kodierung: jedes Byte des Geheimnisses darf wörtlich oder als `%XX` (große oder kleine
-//!     Hex-Ziffern) stehen, ein Leerzeichen auch als `+` (Formular-Schreibweise) – so deckt eine Regel alle
-//!     Kodierer ab, gleich welche Zeichen sie stehen lassen;
-//!   - Base64 im Standard- und im URL-sicheren Alphabet, mit oder ohne `=`, auch als Teil eines längeren
-//!     Base64 (`Basic base64(user:geheim)`): gesucht werden die Zeichen, die allein vom Geheimnis abhängen,
-//!     in allen drei Versätzen; die Randzeichen, in die Bits des Geheimnisses und des Nachbarn gemischt
-//!     sind, und die Füllzeichen gehen mit.
+//! [`scrub`] replaces by [`MASK`]:
+//! - every literal occurrence of the secret;
+//! - from a length of [`ENCODED_MIN`] bytes on additionally
+//!   - the percent encoding: every byte of the secret may stand literally or as `%XX` (upper or lower case hex
+//!     digits), a space also as `+` (form notation) – this way one rule covers all encoders, no matter which
+//!     characters they leave as they are;
+//!   - Base64 in the standard and in the URL-safe alphabet, with or without `=`, also as part of a longer Base64
+//!     (`Basic base64(user:geheim)`): searched are the characters that depend on the secret alone, in all three
+//!     offsets; the edge characters, into which bits of the secret and of the neighbour are mixed, and the padding
+//!     characters go along.
 //!
-//! Kürzere Geheimnisse werden nur wörtlich ersetzt: Ihre kodierten Formen sind so kurz, dass sie in
-//! gewöhnlichem Text zufällig vorkämen. Nicht erkannt werden andere Kodierungen (Hex, JSON-Escapes,
-//! doppelte Kodierung, umbrochenes Base64).
+//! Shorter secrets are only replaced literally: their encoded forms are so short that they would occur by chance in
+//! ordinary text. Not recognised are other encodings (hex, JSON escapes, double encoding, wrapped Base64).
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 
-/// Ersatz für ein Geheimnis.
+/// Replacement for a secret.
 pub const MASK: &str = "***";
-/// Ab dieser Länge (Bytes) werden auch kodierte Formen geschwärzt.
+/// From this length (bytes) on encoded forms are scrubbed as well.
 pub const ENCODED_MIN: usize = 6;
 
-/// Jedes Vorkommen von `secret` durch `***` ersetzen – wörtlich und, ab [`ENCODED_MIN`] Byte, auch
-/// Prozent-kodiert und als Base64 (siehe Modulbeschreibung).
+/// Replace every occurrence of `secret` by `***` – literally and, from [`ENCODED_MIN`] bytes on, also
+/// percent-encoded and as Base64 (see module description).
 pub fn scrub(text: &str, secret: Option<&str>) -> String {
     let Some(secret) = secret.filter(|s| !s.is_empty()) else { return text.to_owned() };
     let literal = text.replace(secret, MASK);
@@ -46,8 +45,8 @@ fn hex(b: u8) -> Option<u8> {
     }
 }
 
-/// Ende des Geheimnisses, wenn es bei `at` steht: je Byte `%XX`, wörtlich oder (Leerzeichen) `+`.
-/// Nur Treffer mit mindestens einem kodierten Byte (der wörtliche Fall ist vorher ersetzt).
+/// End of the secret if it stands at `at`: per byte `%XX`, literally or (space) `+`. Only hits with at least one
+/// encoded byte (the literal case has been replaced before).
 fn percent_match(text: &[u8], at: usize, secret: &[u8]) -> Option<usize> {
     let mut j = at;
     let mut encoded = false;
@@ -78,7 +77,7 @@ fn percent_match(text: &[u8], at: usize, secret: &[u8]) -> Option<usize> {
 
 fn scrub_percent(text: &str, secret: &[u8]) -> String {
     let bytes = text.as_bytes();
-    // Ohne `%` und ohne `+` gibt es nichts Kodiertes.
+    // Without `%` and without `+` there is nothing encoded.
     if !bytes.iter().any(|&b| b == b'%' || b == b'+') {
         return text.to_owned();
     }
@@ -96,8 +95,8 @@ fn scrub_percent(text: &str, secret: &[u8]) -> String {
             }
         }
     }
-    // Ein Treffer beginnt und endet an Zeichengrenzen: `%XX` und `+` sind ASCII, und ein wörtlich
-    // getroffenes Mehrbyte-Zeichen steht in gültigem UTF-8 immer ganz da. Sicherheitshalber ohne Panik.
+    // A hit starts and ends at character boundaries: `%XX` and `+` are ASCII, and a literally hit multi-byte
+    // character always stands there completely in valid UTF-8. Without a panic, to be safe.
     String::from_utf8(out).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
@@ -105,15 +104,15 @@ fn is_base64(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'-' | b'_')
 }
 
-/// Kern (nur vom Geheimnis bestimmte Zeichen) je Versatz, dazu: gemischtes Zeichen davor? dahinter?
+/// Core (characters determined by the secret alone) per offset, plus: mixed character before it? behind it?
 fn base64_cores(secret: &[u8]) -> Vec<(String, bool, bool)> {
     let mut cores = Vec::new();
     for shift in 0..3usize {
         let mut padded = vec![0u8; shift];
         padded.extend_from_slice(secret);
         let encoded = STANDARD_NO_PAD.encode(&padded);
-        // Versatz 1: Zeichen 0 gehört dem Vorgänger, Zeichen 1 ist gemischt; Versatz 2: Zeichen 0 und 1
-        // gehören dem Vorgänger, Zeichen 2 ist gemischt.
+        // Offset 1: character 0 belongs to the predecessor, character 1 is mixed; offset 2: characters 0 and 1
+        // belong to the predecessor, character 2 is mixed.
         let skip = [0, 2, 3][shift];
         let bits = padded.len() * 8;
         let full = bits / 6;
@@ -168,7 +167,7 @@ fn scrub_base64(text: &str, secret: &[u8]) -> String {
 mod tests {
     use super::*;
 
-    // Erfundenes Geheimnis; die Base64-Formen stammen aus `printf … | base64`, nicht aus dem geprüften Code.
+    // Invented secret; the Base64 forms come from `printf … | base64`, not from the code under test.
     const SECRET: &str = "Zinnober-4711";
 
     fn clean(text: &str) -> String {
@@ -190,20 +189,20 @@ mod tests {
 
     #[test]
     fn url_safe_base64_is_masked_too() {
-        // „k?>~ü ß/+9“ ergibt im Standard-Alphabet „az8+fsO8IMOfLys5“ (mit „+“), URL-sicher mit „-“.
+        // „k?>~ü ß/+9“ yields „az8+fsO8IMOfLys5“ in the standard alphabet (with „+“), URL-safe with „-“.
         let secret = "k?>~ü ß/+9";
         assert_eq!(scrub("t=az8+fsO8IMOfLys5;", Some(secret)), "t=***;", "Standard-Alphabet mit +");
         assert_eq!(scrub("t=az8-fsO8IMOfLys5;", Some(secret)), "t=***;", "URL-sicheres Alphabet mit -");
-        // base64("x:k?>~ü ß/+9") = „eDprPz5+w7wgw58vKzk=“, hier URL-sicher und ohne Füllzeichen.
+        // base64("x:k?>~ü ß/+9") = „eDprPz5+w7wgw58vKzk=“, here URL-safe and without padding characters.
         let out = scrub("Basic eDprPz5-w7wgw58vKzk", Some(secret));
         assert_eq!(out, "Basic eD***", "URL-sicher, versetzt und ohne =: nur der Anteil des Benutzers bleibt");
     }
 
     #[test]
     fn base64_inside_a_longer_base64_is_masked_at_every_offset() {
-        // Basic-Anmeldung: base64("<benutzer>:<geheimnis><rest>") – der Benutzername verschiebt das
-        // Geheimnis um 0, 1 oder 2 Byte im Dreierraster. Erwartet: Vorspann des Benutzers, dann ***,
-        // danach höchstens Zeichen, die allein dem Rest gehören.
+        // Basic login: base64("<user>:<secret><rest>") – the user name shifts the secret by 0, 1 or 2 bytes in the
+        // grid of three. Expected: prefix of the user, then ***, afterwards at most characters that belong to the
+        // rest alone.
         for (before, encoded, expected) in [
             ("leser:", "bGVzZXI6Wmlubm9iZXItNDcxMQ==", "bGVzZXI6***"),
             ("ab:", "YWI6Wmlubm9iZXItNDcxMQ==", "YWI6***"),
@@ -239,14 +238,14 @@ mod tests {
 
     #[test]
     fn short_secrets_are_only_masked_literally() {
-        // „abcde“ (5 Byte) → Base64 „YWJjZGU=“, Prozentform „%61bcde“.
+        // „abcde“ (5 bytes) → Base64 „YWJjZGU=“, percent form „%61bcde“.
         let out = scrub("abcde YWJjZGU= %61bcde", Some("abcde"));
         assert_eq!(
             out, "*** YWJjZGU= %61bcde",
             "unter 6 Byte nur wörtlich – kodierte Formen wären zu kurz für eine sichere Suche"
         );
         assert_eq!(ENCODED_MIN, 6, "die Grenze steht im Vertrag der Runde 23");
-        // Genau 6 Byte: „abcdef“ → „YWJjZGVm“.
+        // Exactly 6 bytes: „abcdef“ → „YWJjZGVm“.
         assert_eq!(scrub("YWJjZGVm %61bcdef", Some("abcdef")), "*** ***", "ab 6 Byte auch kodiert");
     }
 

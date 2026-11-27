@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gleichzeitige Änderungen am selben Abschnitt (Befund aus dem Gutachten Runde 3): Umschalten,
-//! Ändern und Löschen laufen je in einer eigenen `BEGIN IMMEDIATE`-Transaktion. Viele parallele
-//! Aufrufe dürfen danach nie zwei oder keine aktuelle Fassung hinterlassen, keine Änderung verlieren
-//! und die aktuelle Fassung nie löschen. Echte SQLite-Datei (WAL, mehrere Verbindungen) im Temp-Ordner.
+//! Simultaneous changes to the same section (finding from the review of Round 3): switching, changing and deleting
+//! each run in a `BEGIN IMMEDIATE` transaction of their own. Many parallel calls must afterwards never leave two or
+//! no current revision, lose no change and never delete the current revision. Real SQLite file (WAL, several
+//! connections) in the temp folder.
 
 use std::collections::BTreeSet;
 
 use baruch_core::RevisionStatus;
 use baruch_store::{RevisionEdit, Store, StoreError};
 
-const SEQ: usize = 2; // Einleitung im Beispielwerk: 1 ersetzt, 2 aktuell, 3 Vorschlag
+const SEQ: usize = 2; // Einleitung in the sample work: 1 superseded, 2 current, 3 proposal
 
-/// Was ein Aufruf getan hat.
+/// What a call has done.
 #[derive(Debug)]
 enum Outcome {
     Switched(u32),
@@ -25,12 +25,12 @@ async fn parallel_switching_editing_and_deleting_keeps_exactly_one_current_and_l
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
     let work = store.default_work().await.unwrap();
-    // Fassungen 4–12 dazu; danach ist 12 aktuell.
+    // Revisions 4–12 in addition; afterwards 12 is current.
     for n in 4..=12 {
         store.save_human(work, SEQ, &format!("= Einleitung\n\nFassung {n}.\n"), "Autor").await.unwrap().unwrap();
     }
-    // Ändern nur an 1–6 (je genau einmal, damit jede Änderung überprüfbar bleibt), Löschen an 7–11,
-    // Umschalten auf alle Nummern 1–12 (auch auf solche, die gerade gelöscht werden).
+    // Changing only on 1–6 (each exactly once, so that every change stays verifiable), deleting on 7–11, switching
+    // to all numbers 1–12 (also to those that are being deleted right now).
     let mut tasks = Vec::new();
     for round in 0..3u32 {
         for rev in 1..=12u32 {
@@ -61,7 +61,7 @@ async fn parallel_switching_editing_and_deleting_keeps_exactly_one_current_and_l
         tasks.push(tokio::spawn(async move {
             match store.delete_revision(work, SEQ, rev, "Autor").await {
                 Ok(change) => Outcome::Deleted(change.rev),
-                // Gerade aktuell → abgelehnt; das ist die geschützte Regel.
+                // Current right now → refused; that is the protected rule.
                 Err(StoreError::Refused(_)) => Outcome::Refused,
                 Err(e) => panic!("Löschen von {rev}: unerwarteter Fehler {e}"),
             }
@@ -103,7 +103,7 @@ async fn parallel_switching_editing_and_deleting_keeps_exactly_one_current_and_l
     assert!(switched.iter().all(|n| (1..=12).contains(n)), "umgeschaltet nur auf gewünschte Nummern: {switched:?}");
     let refused = outcomes.iter().filter(|o| matches!(o, Outcome::Refused)).count();
     assert_eq!(switched.len() + refused + updated + deleted.len(), outcomes.len(), "jeder Aufruf hat ein Ergebnis");
-    // Die Nummern bleiben eindeutig und werden nicht neu vergeben.
+    // The numbers stay unique and are not assigned again.
     let saved = store.save_human(work, SEQ, "= Einleitung\n\nDanach.\n", "Autor").await.unwrap().unwrap();
     assert_eq!(saved.rev, 13, "nach parallelem Löschen bekommt die nächste Fassung eine neue Nummer");
 }

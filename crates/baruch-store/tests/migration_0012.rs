@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0012 (Anträge zur Gliederung, Wunsch 2026-11-06) auf einer nachgebauten Datenbank im
-//! Stand vor dieser Runde: Store-Migrationen 0001–0011 und alle Bibliotheks-Migrationen, ein frei
-//! erfundenes Werk mit Vorlage, Kapiteln, Abschnitt, Vorschlag, Beitrag und Einfall.
+//! Migration 0012 (requests about the outline, wish 2026-11-06) on a rebuilt database in the state before this
+//! round: store migrations 0001–0011 and all library migrations, a freely invented work with template, chapters,
+//! section, proposal, post and idea.
 //!
-//! Danach `Store::open`: Alle Zeilen und Spalten aller vorhandenen Tabellen bleiben (verglichen über
-//! die Spalten von vorher), neu ist nur `outline_request`, keine Verstöße gegen Fremdschlüssel, Export
-//! byte-gleich. Danach lässt sich ein Antrag stellen und bestätigen; ein gelöschtes Werk nimmt seine
-//! Anträge mit. Die neuen Tabellen werden nach einem Migrator bis 0012 bestimmt (Runde 10), nicht nach
-//! `Store::open` mit allen späteren Migrationen.
+//! Afterwards `Store::open`: all rows and columns of all existing tables stay (compared through the columns from
+//! before), new is only `outline_request`, no violations of foreign keys, export byte-identical. Afterwards a
+//! request can be made and confirmed; a deleted work takes its requests along. The new tables are determined after
+//! a migrator up to 0012 (Round 10), not after `Store::open` with all later migrations.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -31,9 +30,9 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store-Migrationen bis einschließlich `version` auf der nachgebauten Datenbank (Runde 10): Das Schema
-/// wird nach diesem Migrator verglichen, damit spätere Migrationen (z. B. 0015 an `persona`) den Vergleich
-/// nicht brechen; `Store::open` danach prüft nur noch den Datenerhalt.
+/// Store migrations up to and including `version` on the rebuilt database (Round 10): the schema is compared after
+/// this migrator, so that later migrations (e.g. 0015 on `persona`) do not break the comparison; `Store::open`
+/// afterwards only checks the preservation of data.
 async fn migrate_upto(pool: &SqlitePool, version: i64) {
     let upto: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= version).cloned().collect();
     assert!(upto.iter().any(|m| m.version == version), "MIGRATOR enthält {version}");
@@ -41,7 +40,7 @@ async fn migrate_upto(pool: &SqlitePool, version: i64) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store bis 0011, Bibliothek vollständig (sie hat eigene Nummern ab 0101).
+/// Store up to 0011, library complete (it has numbers of its own from 0101).
 async fn migrate_before(pool: &SqlitePool) {
     let old: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 11).cloned().collect();
     assert!(old.iter().any(|m| m.version == 11), "Stand vorher hat 0011");
@@ -75,7 +74,7 @@ async fn insert_book(pool: &SqlitePool) -> WorkId {
         .execute(pool)
         .await
         .unwrap();
-    // Quelle (0), Eimer (1, unter 0), Rinne (2).
+    // Quelle (0), Eimer (1, under 0), Rinne (2).
     let layout = [(None, 0, "1", "chapter"), (Some(0), 0, "1.1", "section"), (None, 1, "2", "chapter")];
     let mut ids = Vec::new();
     for (seq, (heading, (parent, position, number, kind))) in doc.headings.iter().zip(layout).enumerate() {
@@ -193,7 +192,7 @@ async fn migration_0012_keeps_every_row_and_adds_only_the_request_table() {
         "Export byte-gleich wie vor der Migration"
     );
 
-    // Danach: Antrag stellen, bestätigen; Werk löschen nimmt die Anträge mit.
+    // Afterwards: make a request, confirm it; deleting the work takes the requests along.
     let key: i64 = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = 2")
         .bind(work)
         .fetch_one(pool)
@@ -213,8 +212,8 @@ async fn migration_0012_keeps_every_row_and_adds_only_the_request_table() {
     assert_eq!(left, 0, "ein gelöschtes Werk nimmt seine Anträge mit (ON DELETE CASCADE)");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row into `store_meta` at start; that adds one
+/// row and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

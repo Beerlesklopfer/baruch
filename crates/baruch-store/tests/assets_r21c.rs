@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21c (bilder) im Store auf einer echten SQLite-Datei im Temp-Ordner: Typwechsel beim Ersetzen
-//! (`replace_asset_renaming`), Pfad-Kollisionen im Altbestand (`asset_path_conflicts`, `resolve_asset_path`), Anträge
-//! mit Typwechsel (`asset_request_with`), Aufräumen entschiedener Anträge (`purge_decided_asset_requests`) und das
-//! Zählen für das MCP-Kontingent (`asset_mcp_usage`). Keine Migration; alle Bilder im Test erzeugt.
+//! Round 21c (bilder) in the store on a real SQLite file in the temp folder: change of type when replacing
+//! (`replace_asset_renaming`), path collisions in legacy data (`asset_path_conflicts`, `resolve_asset_path`),
+//! requests with a change of type (`asset_request_with`), cleaning up decided requests
+//! (`purge_decided_asset_requests`) and the counting for the MCP quota (`asset_mcp_usage`). No migration; all
+//! images generated in the test.
 
 use baruch_store::{
     AssetChangeKind, AssetEncoding, AssetOp, Decision, IdeaOrigin, NewAsset, Store, StoreError, WorkId,
@@ -11,7 +12,7 @@ use baruch_store::{
 const HOUSE: &str =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect width=\"10\" height=\"8\"/></svg>\n";
 
-/// Kleines „PNG“: Kennung und erfundene Bytes (der Store erkennt den Typ an den ersten Bytes).
+/// Small "PNG": signature and invented bytes (the store recognises the type by the first bytes).
 fn png(fill: u8, len: usize) -> Vec<u8> {
     let mut bytes = vec![fill; len.max(8)];
     bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
@@ -116,7 +117,7 @@ async fn path_collisions_of_the_old_kind_are_listed_and_resolved_for_the_chosen_
     let (_dir, store, work) = fresh().await;
     add(&store, work, "blau.png", &png(4, 16), None, "Autor").await;
     assert!(store.asset_path_conflicts(work).await.unwrap().is_empty(), "ohne Altbestand keine Kollision");
-    // Altbestand nachbauen (der Store lehnt das seit Runde 7 beim Anlegen ab).
+    // Rebuild legacy data (the store has refused that on creation since Round 7).
     sqlx::query(
         "INSERT INTO asset_path (work_id, path, asset_id) SELECT ?, './bilder/haus.svg', id FROM asset \
          WHERE work_id = ? AND name = 'blau.png'",

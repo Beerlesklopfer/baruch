@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0108 (Runde 21a, „pdf-import“: lokaler Volltext einer importierten Quelle) auf einer nachgebauten
-//! Datenbank im Stand davor: Kernschema aus `tests/fixtures/core_schema.sql` und die Bibliothek bis 0107, mit frei
-//! erfundenen Titeln, Zitaten, Hervorhebungen, einer Verknüpfung mit MultiGPT, einer Prüfung und dem Volltextindex.
+//! Migration 0108 (Round 21a, „pdf-import“: local full text of an imported source) on a rebuilt database in the
+//! state before it: core schema from `tests/fixtures/core_schema.sql` and the library up to 0107, with freely
+//! invented titles, quotes, highlights, a link with MultiGPT, a check and the full-text index.
 //!
-//! Danach: jede Zeile jeder alten Tabelle unverändert (auch der FTS-Index), das Schema der alten Tabellen und Trigger
-//! gleich, neu ist genau `library_title_text`, leer. Die Tabelle lässt sich danach füllen (nur Text, CHECK), und ihre
-//! Zeile verschwindet mit dem Titel. (Gegen das echte Kernschema von development prüft
-//! `baruch-server/tests/round21_pdf_import.rs` dieselbe Migration noch einmal.)
+//! Afterwards: every row of every old table unchanged (also the FTS index), the schema of the old tables and
+//! triggers the same, new is exactly `library_title_text`, empty. The table can be filled afterwards (text only,
+//! CHECK), and its row disappears with the title. (Against the real core schema of development
+//! `baruch-server/tests/round21_pdf_import.rs` checks the same migration once more.)
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -37,7 +37,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Frei erfundene Daten im Stand 0107.
+/// Freely invented data in the state 0107.
 async fn insert_rows(pool: &SqlitePool) {
     exec(pool, "INSERT INTO work (id, slug, kind, title, author) VALUES (1, 'deich', 'book', 'Am Deich', 'Ina Moor')")
         .await;
@@ -138,7 +138,7 @@ async fn migration_0108_keeps_every_row_and_adds_one_empty_table() {
     assert_eq!(new, ["library_title_text"], "genau die eine neue Tabelle, nichts umgebaut");
     assert!(after["library_title_text"].is_empty(), "anfangs leer: kein Titel bekommt einen erfundenen Volltext");
 
-    // Danach benutzbar: setzen, lesen, über den Hash finden; nur Text (CHECK); verschwindet mit dem Titel.
+    // Usable afterwards: set, read, find through the hash; text only (CHECK); disappears with the title.
     let text = TitleText {
         source_name: "watt.pdf".into(),
         mime: "application/pdf".into(),

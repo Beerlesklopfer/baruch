@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Buchende (Registerseiten und Glossarseite) und Übersicht je Register (Runde 31b).
+//! Back matter (index pages and glossary page) and overview per index (Round 31b).
 //!
-//! **Sortierung und Gruppierung in Rust:** Stichwörter nach [`super::sort_key`] (DIN 5007-1), gruppiert nach dem ersten
-//! Buchstaben; im Bibelstellenregister nach dem Sortierschlüssel der Marken (biblische Buchreihenfolge, dann Kapitel
-//! und Vers). Gleiche Einträge = gleiches Register, gleiches Stichwort und gleiches Unterstichwort (wörtlich).
+//! **Sorting and grouping in Rust:** keywords by [`super::sort_key`] (DIN 5007-1), grouped by the first letter; in
+//! the index of scripture references by the sort key of the marks (biblical order of the books, then chapter and
+//! verse). Equal entries = same index, same keyword and same sub-keyword (literally).
 //!
-//! **Seitenzahlen in Typst:** `query(<baruch-idx>)` liefert alle Marken; je Marke `counter(page).at(m.location())` –
-//! dieselbe Zählung wie Fußzeile und Querverweis „S. n“, auch mit der Seitenzählung ab dem ersten Kapitel (die
-//! Rücksetzung steht im Seitenhintergrund der ersten Kapitelseite, `typeset::rules`). Marken mit „siehe“ tragen keine
-//! Seite. Folgeseiten werden zu „12–14“ zusammengefasst, doppelte Seiten fallen weg.
+//! **Page numbers in Typst:** `query(<baruch-idx>)` delivers all marks; per mark `counter(page).at(m.location())` –
+//! the same counting as footer and cross-reference „S. n“, also with the page counting from the first chapter on
+//! (the reset stands in the page background of the first chapter page, `typeset::rules`). Marks with „siehe“ carry
+//! no page. Consecutive pages are merged to „12–14“, duplicate pages are dropped.
 //!
-//! **Nur Standard-Typst:** Hilfsfunktionen mit der Vorsilbe `baruch-idx-` bzw. `baruch-gl-` im Buchende selbst, kein
-//! Paket, kein Netz; alle Daten (Stichwörter, Begriffe, Erklärungen) als maskierte String-Literale.
+//! **Standard Typst only:** helper functions with the prefix `baruch-idx-` or `baruch-gl-` in the back matter
+//! itself, no package, no network; all data (keywords, terms, explanations) as escaped string literals.
 
 use std::collections::BTreeMap;
 
@@ -22,25 +22,25 @@ use super::{
 };
 use crate::typeset::GlossaryPosition;
 
-/// Ein gesammelter Eintrag eines Registers.
+/// A collected entry of an index.
 #[derive(Debug, Clone, Default)]
 pub(super) struct Entry {
     pub term: String,
     pub sub: String,
-    /// Kleinster Sortierschlüssel automatischer Marken (Bibel), sonst leer.
+    /// Smallest sort key of automatic marks (Bible), otherwise empty.
     pub sort: String,
-    /// Abschnitte mit Marken, die eine Seite tragen (ohne „siehe“).
+    /// Sections with marks that carry a page (without „siehe“).
     pub keys: Vec<i64>,
     pub see: Vec<String>,
     pub also: Vec<String>,
-    /// Alle Marken des Eintrags sind automatisch.
+    /// All marks of the entry are automatic.
     pub auto: bool,
 }
 
-/// Einträge je Register: (Register, Stichwort, Unterstichwort) → Eintrag.
+/// Entries per index: (index, keyword, sub-keyword) → entry.
 pub(super) type Collected = BTreeMap<(String, String, String), Entry>;
 
-/// Eine Marke in die Sammlung aufnehmen.
+/// Add a mark to the collection.
 pub(super) fn collect(into: &mut Collected, key: i64, mark: &IndexMark, auto: bool) {
     let entry = into.entry((mark.register.clone(), mark.term.clone(), mark.sub.clone())).or_insert_with(|| Entry {
         term: mark.term.clone(),
@@ -64,20 +64,20 @@ pub(super) fn collect(into: &mut Collected, key: i64, mark: &IndexMark, auto: bo
     }
 }
 
-/// Vergleichsschlüssel eines Texts für die Sortierung: DIN 5007-1, dann wörtlich (eindeutige Reihenfolge).
+/// Comparison key of a text for the sorting: DIN 5007-1, then literally (unambiguous order).
 fn text_order(text: &str) -> (String, String, String) {
     (sort_key(text), term_key(text), text.to_owned())
 }
 
-/// Eine Gruppe von Einträgen mit demselben Stichwort: Stichwort, sein eigener Eintrag (ohne Unterstichwort, falls
-/// vorhanden) und die Unterstichwörter in Reihenfolge.
+/// A group of entries with the same keyword: keyword, its own entry (without sub-keyword, if present) and the
+/// sub-keywords in order.
 pub(super) struct TermGroup<'a> {
     pub term: &'a str,
     pub main: Option<&'a Entry>,
     pub subs: Vec<&'a Entry>,
 }
 
-/// Die Einträge eines Registers sortiert und nach Stichwort gruppiert.
+/// The entries of an index sorted and grouped by keyword.
 pub(super) fn ordered<'a>(collected: &'a Collected, register: &Register) -> Vec<TermGroup<'a>> {
     let mut by_term: BTreeMap<&str, Vec<&Entry>> = BTreeMap::new();
     for ((slug, term, _), entry) in collected {
@@ -106,7 +106,7 @@ pub(super) fn ordered<'a>(collected: &'a Collected, register: &Register) -> Vec<
         })
         .collect();
     if scripture {
-        // Buch nach dem kleinsten Sortierschlüssel (die ersten zwei Ziffern sind die Stelle des Buchs).
+        // Book by the smallest sort key (the first two digits are the position of the book).
         let book = |g: &TermGroup| -> String {
             g.main
                 .iter()
@@ -130,7 +130,7 @@ pub(super) fn ordered<'a>(collected: &'a Collected, register: &Register) -> Vec<
     groups
 }
 
-/// Buchstabe der Gruppe eines Stichworts („A“ für „Ägypten“, „0–9“ für Ziffern, sonst „#“).
+/// Letter of the group of a keyword („A“ for „Ägypten“, „0–9“ for digits, otherwise „#“).
 pub(super) fn group_letter(term: &str) -> String {
     match sort_key(term).chars().next() {
         Some(c) if c.is_alphabetic() => c.to_uppercase().collect(),
@@ -139,7 +139,7 @@ pub(super) fn group_letter(term: &str) -> String {
     }
 }
 
-/// Übersicht je Register.
+/// Overview per index.
 pub(super) fn views(back: &BackMatter, collected: &Collected) -> Vec<RegisterView> {
     back.registers
         .iter()
@@ -170,7 +170,7 @@ fn lit(text: &str) -> String {
     out
 }
 
-/// Typst-Array aus String-Literalen (`()`, `("a",)`, `("a", "b")`).
+/// Typst array of string literals (`()`, `("a",)`, `("a", "b")`).
 fn array(items: &[String]) -> String {
     match items {
         [] => "()".to_owned(),
@@ -179,12 +179,12 @@ fn array(items: &[String]) -> String {
     }
 }
 
-/// Schlüssel einer Marke für die Seitenzahlen im Typst-Code (Register, Stichwort, Unterstichwort mit U+001F).
+/// Key of a mark for the page numbers in the Typst code (index, keyword, sub-keyword with U+001F).
 fn entry_key(register: &str, term: &str, sub: &str) -> String {
     format!("{register}\u{1f}{term}\u{1f}{sub}")
 }
 
-/// Hilfsfunktionen des Buchendes.
+/// Helper functions of the back matter.
 pub(super) const HELPERS: &str = r#"#let baruch-idx-ranges(ns) = {
   let ns = ns.sorted().dedup()
   let out = ()
@@ -231,7 +231,7 @@ pub(super) const HELPERS: &str = r#"#let baruch-idx-ranges(ns) = {
 })
 "#;
 
-/// Eine Registerseite.
+/// An index page.
 fn register_page(out: &mut String, register: &Register, collected: &Collected, columns: u8) {
     out.push_str("#pagebreak(weak: true)\n");
     out.push_str(&format!("#heading(level: 1, numbering: none)[#{}]\n", lit(&register.title)));
@@ -275,7 +275,7 @@ fn register_page(out: &mut String, register: &Register, collected: &Collected, c
     out.push_str("}\n\n");
 }
 
-/// Glossarseite.
+/// Glossary page.
 fn glossary_page(out: &mut String, glossary: &[GlossaryEntry]) {
     out.push_str("#pagebreak(weak: true)\n");
     out.push_str("#heading(level: 1, numbering: none)[#\"Glossar\"]\n");
@@ -314,7 +314,7 @@ fn glossary_page(out: &mut String, glossary: &[GlossaryEntry]) {
     out.push('\n');
 }
 
-/// Das Buchende zu den Marken in `collected`.
+/// The back matter for the marks in `collected`.
 pub(super) fn render(back: &BackMatter, collected: &Collected) -> String {
     let pages = back.settings.index_pages.as_ref();
     let glossary = back.settings.glossary_page;
@@ -348,7 +348,7 @@ pub(super) fn render(back: &BackMatter, collected: &Collected) -> String {
     out
 }
 
-/// Kennung des Bibelstellenregisters (für Aufrufer, die automatische Marken erkennen).
+/// Identifier of the index of scripture references (for callers that recognise automatic marks).
 pub(super) fn is_auto(mark: &IndexMark) -> bool {
     mark.register == SCRIPTURE_REGISTER && !mark.sort.is_empty()
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Import und -Export (Vertrag B1.5, Abschnitte 1 und 3) auf einer echten SQLite-Datei im
-//! Temp-Ordner, mit der eigenen kleinen Datei `tests/data/probebuch.typ`.
+//! Typst import and export (contract B1.5, sections 1 and 3) on a real SQLite file in the temp folder, with the own
+//! small file `tests/data/probebuch.typ`.
 
 use baruch_core::{Author, NodeKind, RevisionStatus};
 use baruch_store::{Store, StoreError};
@@ -71,7 +71,7 @@ async fn importing_the_same_file_twice_is_refused_and_creates_nothing() {
     let (_dir, store) = fresh().await;
     let first = store.import_typst(BOOK, "probebuch.typ", "Autor").await.unwrap();
     let before = store.works().await.unwrap().len();
-    // Dieselbe Quelle mit CRLF und anderem Namen ist dieselbe Datei (Prüfsumme nach CRLF → LF).
+    // The same source with CRLF and another name is the same file (checksum after CRLF → LF).
     let crlf = BOOK.replace('\n', "\r\n");
     let err = store.import_typst(&crlf, "kopie.typ", "Autor").await.unwrap_err();
     match &err {
@@ -97,7 +97,7 @@ async fn a_slug_collision_gets_a_numbered_slug() {
     let (_dir, store) = fresh().await;
     let first = store.import_typst(BOOK, "probebuch.typ", "Autor").await.unwrap();
     let other = BOOK.replace("Ende.", "Ein anderes Ende.");
-    // Anderer Titel, aber derselbe Ordnername („!“ fällt im slug weg).
+    // Different title, but the same folder name ("!" is dropped in the slug).
     let second =
         store.import_typst_titled(&other, "probebuch-2.typ", "Autor", "Import", Some("Das Probebuch!")).await.unwrap();
     assert_eq!(first.slug, "das-probebuch", "erstes Werk bekommt den slug ohne Zusatz");
@@ -163,7 +163,7 @@ async fn the_mirror_of_an_imported_work_starts_with_its_template() {
         "Abschnittsdatei = Import der Vorlage + aktuelle Revision"
     );
 
-    // Das Beispielwerk hat keine Vorlage: main.typ bleibt wie bisher.
+    // The sample work has no template: main.typ stays as before.
     let sample = store.default_work().await.unwrap();
     let files = store.mirror_snapshot(sample).await.unwrap();
     assert!(files[0].contents.starts_with("// Baruch: "), "Werke ohne Vorlage unverändert: {}", files[0].contents);
@@ -226,7 +226,7 @@ async fn a_second_book_with_the_same_title_is_refused_and_creates_nothing() {
     let (_dir, store) = fresh().await;
     let first = store.import_typst(BOOK, "probebuch.typ", "Autor").await.unwrap();
     let before = store.works().await.unwrap().len();
-    // Andere Datei (andere Prüfsumme), Titel nur in Groß-/Kleinschreibung und Leerraum anders.
+    // Different file (different checksum), title different only in upper/lower case and whitespace.
     let other = BOOK.replace("title: \"Das Probebuch\"", "title: \" das  PROBEBUCH \"").replace("Ende.", "Anders.");
     assert_ne!(other, BOOK, "Testaufbau: die zweite Datei unterscheidet sich");
     let err = store.import_typst(&other, "zweites.typ", "Autor").await.unwrap_err();
@@ -286,7 +286,7 @@ async fn an_import_stores_its_template_as_first_template_revision() {
     );
 }
 
-// ---- Import mit Bildern (Vertrag Runde 6, Abschnitt 4) -------------------------------------------
+// ---- Import with images (contract Round 6, section 4) --------------------------------------------
 
 const POND: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle r=\"3\"/></svg>\n";
 const POND_SOURCE: &str = "// Teichbuch\n#set document(title: \"Das Teichbuch\")\n\n= Der Teich\n\n\

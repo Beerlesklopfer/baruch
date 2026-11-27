@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verbindungen, RAG-Wege und bevorzugte Quellen im Store (Migration 0013, Runde 9): Vorgaben ohne
-//! Zeile, Speichern und Prüfergebnis, Wege je Werk, lückenlose Reihenfolge der Quellen nach Anlegen,
-//! Verschieben und Löschen, Ablehnungen ohne Änderung, Wachen der Tabelle.
+//! Connections, RAG ways and preferred sources in the store (migration 0013, Round 9): defaults without a row,
+//! saving and check result, ways per work, gapless order of the sources after creating, moving and deleting,
+//! refusals without a change, guards of the table.
 
 use baruch_store::{ConnectionKind, NewSource, RagWay, SourceEdit, Store, StoreError};
 use serde_json::json;
@@ -16,7 +16,7 @@ fn source(title: &str, url: &str) -> NewSource {
     NewSource { title: title.into(), url: url.into(), note: String::new() }
 }
 
-/// Reihenfolge als (Titel, Stelle).
+/// Order as (title, position).
 async fn order(store: &Store) -> Vec<(String, i64)> {
     store.sources_list().await.unwrap().into_iter().map(|s| (s.title, s.position)).collect()
 }
@@ -52,8 +52,8 @@ async fn without_rows_every_connection_shows_its_default() {
 
 #[tokio::test]
 async fn a_saved_multigpt_address_stays_when_the_default_is_empty() {
-    // Runde 24: Die Vorgabe für MultiGPT ist leer. Eine Instanz, die ihre Adresse gespeichert hat, behält sie –
-    // ohne Migration, weil die Vorgabe nur gilt, solange keine Zeile da ist.
+    // Round 24: the default for MultiGPT is empty. An instance that has stored its address keeps it – without a
+    // migration, because the default only applies as long as no row is there.
     let dir = tempfile::tempdir().unwrap();
     let saved = json!({ "url": "http://127.0.0.1:9/mcp/" });
     let updated = {
@@ -112,7 +112,7 @@ async fn the_secret_binding_survives_config_changes_and_is_cleared_explicitly() 
     let row = store.connection_get(kind).await.unwrap();
     assert_eq!(row.secret_target.as_deref(), Some("http://127.0.0.1:1234"), "Ziel gemerkt");
     assert_eq!(row.config, kind.default_config(), "ohne Zeile mit der Vorgabe angelegt");
-    // Neue Einstellungen ändern die Bindung nicht: Sie hält fest, wohin das Geheimnis gehört.
+    // New settings do not change the binding: it records where the secret belongs.
     let moved = store.connection_set(kind, &json!({ "url": "http://127.0.0.1:9" })).await.unwrap();
     assert_eq!(moved.secret_target.as_deref(), Some("http://127.0.0.1:1234"), "Bindung bleibt beim Speichern");
     store.connection_bind_secret(kind, None).await.unwrap();

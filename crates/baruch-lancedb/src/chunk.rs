@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Texte in Stücke zerlegen (Runde 12) und Inhalts-Hashes bilden.
+//! Splitting texts into chunks (Round 12) and building content hashes.
 //!
-//! Regel: Absätze (getrennt durch Leerzeilen) sind die Stücke. Kurze Absätze (unter [`MIN_CHARS`],
-//! z. B. die Überschriftszeile) gehen mit dem folgenden zusammen, solange das Stück [`TARGET_CHARS`] nicht
-//! überschreitet; ein Absatz über [`MAX_CHARS`] wird an Satzenden (sonst an Leerraum, notfalls hart)
-//! geteilt. So wirkt eine Änderung nur auf ihr eigenes Stück und die Nachbarn kurzer Absätze; der Rest
-//! behält Text und Hash und wird nicht neu eingebettet.
+//! Rule: paragraphs (separated by empty lines) are the chunks. Short paragraphs (below [`MIN_CHARS`], e.g. the
+//! heading line) go together with the following one, as long as the chunk does not exceed [`TARGET_CHARS`]; a
+//! paragraph above [`MAX_CHARS`] is split at sentence ends (otherwise at whitespace, hard if need be). This way a
+//! change only affects its own chunk and the neighbours of short paragraphs; the rest keeps text and hash and is
+//! not embedded again.
 
 use sha2::{Digest, Sha256};
 
-/// Kürzere Absätze werden mit dem folgenden zusammengelegt.
+/// Shorter paragraphs are merged with the following one.
 pub const MIN_CHARS: usize = 200;
-/// Zusammenlegen nur bis zu dieser Länge.
+/// Merging only up to this length.
 pub const TARGET_CHARS: usize = 900;
-/// Längere Absätze werden geteilt.
+/// Longer paragraphs are split.
 pub const MAX_CHARS: usize = 1500;
 
-/// Ein Stück eines Textes.
+/// A chunk of a text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chunk {
-    /// Stücknummer ab 1.
+    /// Chunk number from 1.
     pub number: usize,
     pub text: String,
-    /// [`hash`] des Textes.
+    /// [`hash`] of the text.
     pub hash: String,
 }
 
-/// SHA-256 als Hex (32 Zeichen, also 128 Bit – genug für Inhaltsvergleiche).
+/// SHA-256 as hex (32 characters, that is 128 bits – enough for content comparisons).
 pub fn hash(text: &str) -> String {
     let digest = Sha256::digest(text.as_bytes());
     digest.iter().take(16).map(|b| format!("{b:02x}")).collect()
@@ -36,7 +36,7 @@ fn chars(s: &str) -> usize {
     s.chars().count()
 }
 
-/// Absätze: durch Leerzeilen (nur Leerraum) getrennt, beschnitten, leere fallen weg.
+/// Paragraphs: separated by empty lines (whitespace only), trimmed, empty ones are dropped.
 pub fn paragraphs(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current: Vec<&str> = Vec::new();
@@ -57,9 +57,8 @@ pub fn paragraphs(text: &str) -> Vec<String> {
     out
 }
 
-/// Einen langen Absatz in Teile von höchstens [`MAX_CHARS`] Zeichen teilen: am letzten Satzende
-/// (`.`, `!`, `?`, `…` mit folgendem Leerraum) bzw. Zeilenumbruch vor der Grenze, sonst am letzten
-/// Leerraum, sonst hart.
+/// Split a long paragraph into parts of at most [`MAX_CHARS`] characters: at the last sentence end (`.`, `!`, `?`,
+/// `…` followed by whitespace) or line break before the limit, otherwise at the last whitespace, otherwise hard.
 fn split_long(paragraph: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest: Vec<char> = paragraph.chars().collect();
@@ -88,7 +87,7 @@ fn split_long(paragraph: &str) -> Vec<String> {
     out
 }
 
-/// Text → Stücke (siehe Modulkopf). Ein leerer Text hat keine Stücke.
+/// Text → chunks (see module header). An empty text has no chunks.
 pub fn chunks(text: &str) -> Vec<Chunk> {
     let mut pieces: Vec<String> = Vec::new();
     let mut pending: Option<String> = None;

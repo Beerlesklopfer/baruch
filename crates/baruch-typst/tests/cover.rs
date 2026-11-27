@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag und Titelei als Typst (Runde 11, Aufgabe cover): ISBN-13 mit Prüfziffer, Strichcode EAN-13,
-//! Rückenbreite, Rahmen ohne Überschrift, Nutzertexte nur als String-Literale. Gesetzt wird in den
-//! Server-Tests (`round11_cover.rs`), hier nur der erzeugte Quelltext.
+//! Cover and front matter as Typst (Round 11, task cover): ISBN-13 with check digit, barcode EAN-13, spine width,
+//! frame without heading, user texts only as string literals. Typesetting happens in the server tests
+//! (`round11_cover.rs`), here only the generated source.
 
 use baruch_typst::cover::{
     BookInfo, CoverRef, EAN_QUIET_LEFT, EAN_QUIET_RIGHT, FrameOptions, TitleArea, WrapOptions, ean13_modules,
     ean13_svg, frame_parts, isbn13, spine_mm, typst_string, wrap_source,
 };
 
-/// 978-3-16-148410-0, unabhängig nach den EAN-Tabellen (L/G/R, Parität „LGGLGL“ für die 9) berechnet.
+/// 978-3-16-148410-0, calculated independently by the EAN tables (L/G/R, parity "LGGLGL" for the 9).
 const BARS_9783161484100: &str =
     "10101110110001001010000100110010000101001100101010101110010010001011100110011011100101110010101";
 
@@ -42,7 +42,7 @@ fn the_barcode_has_95_modules_and_quiet_zones() {
     assert_eq!(modules, BARS_9783161484100, "Balkenfolge der bekannten Nummer");
     assert_eq!(ean13_modules("123"), None, "keine 13 Ziffern → kein Strichcode");
 
-    // Aus den <rect>-Balken der SVG wieder die Module lesen.
+    // Read the modules back from the <rect> bars of the SVG.
     let svg = ean13_svg("9783161484100");
     let total = EAN_QUIET_LEFT + 95 + EAN_QUIET_RIGHT;
     assert!(svg.contains(&format!("viewBox=\"0 0 {total} ")), "Breite = Ruhezonen + 95 Module");

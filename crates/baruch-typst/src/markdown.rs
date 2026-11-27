@@ -1,32 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Markdown-Überschriften beim Tippen werden Typst-Überschriften (Nutzerentscheidung 2026-11-07).
+//! Markdown headings while typing become Typst headings (user decision 2026-11-07).
 //!
-//! Eine Zeile, die in Spalte 0 mit 1–6 `#` und einem Leerzeichen beginnt (`# Titel`, `## Titel` …), wird
-//! zur Typst-Überschrift `=` × Ebene + Leerzeichen + Titel; die Gliederung gleicht sich danach ab wie bei
-//! einer getippten `=`-Zeile (beim Speichern im Store). Diese Regel ist maßgeblich; die Widgets des
-//! Editors wenden sie live beim Tippen an (`web/src/markdown.ts`, gleiche Fälle).
+//! A line that starts in column 0 with 1–6 `#` and a space (`# Titel`, `## Titel` …) becomes the Typst heading `=`
+//! × level + space + title; the outline is then reconciled as with a typed `=` line (when saving in the store).
+//! This rule is authoritative; the widgets of the editor apply it live while typing (`web/src/markdown.ts`, same
+//! cases).
 //!
-//! - **Ebene:** Baruch kennt drei Überschriftsebenen (Kapitel, Abschnitt, Unterabschnitt). `####` bis
-//!   `######` werden auf Ebene 3 (`===`) begrenzt; ob die Ebene dort passt, prüft wie immer die Gliederung
-//!   beim Speichern (sonst eine Meldung, nichts gespeichert).
-//! - **Titel:** wörtlich wie in einer getippten `=`-Zeile; eine schließende Markdown-Folge (` ##`) und
-//!   Leerraum am Ende entfallen. Ohne Titel (`# ` allein) bleibt die Zeile.
-//! - **Ausnahmen** (bleiben, wie sie sind): `\#` am Anfang, die Raute in Anführungszeichen (`'# …'`,
-//!   `"# …"`, „…“), Typst-Code (`#heading(…)`, `#set`, `#let` – nach der Raute kein Leerzeichen),
-//!   eingerückte Zeilen, Zeilen in Raw-Blöcken (```` ``` ````), in Kommentaren (`//`, `/* */`), in Strings
-//!   und Klammern von Code oder Inhaltsblöcken – also überall dort, wo auch eine `=`-Zeile keine
-//!   Überschrift wäre ([`crate::parse`]). Die Werkvorlage wird nie umgewandelt (sie läuft nicht durch
-//!   diese Funktion).
+//! - **Level:** Baruch knows three heading levels (chapter, section, subsection). `####` to `######` are limited to
+//!   level 3 (`===`); whether the level fits there is checked as always by the outline when saving (otherwise a
+//!   message, nothing saved).
+//! - **Title:** literal as in a typed `=` line; a closing Markdown sequence (` ##`) and whitespace at the end are
+//!   dropped. Without a title (`# ` alone) the line stays.
+//! - **Exceptions** (stay as they are): `\#` at the start, the hash in quotation marks (`'# …'`, `"# …"`, „…“),
+//!   Typst code (`#heading(…)`, `#set`, `#let` – no space after the hash), indented lines, lines in raw blocks
+//!   (```` ``` ````), in comments (`//`, `/* */`), in strings and brackets of code or content blocks – that is,
+//!   everywhere a `=` line would not be a heading either ([`crate::parse`]). The work template is never converted
+//!   (it does not run through this function).
 
 use std::borrow::Cow;
 
 use crate::Scanner;
 
-/// Tiefste Überschriftsebene der Gliederung.
+/// Deepest heading level of the outline.
 pub const MAX_LEVEL: usize = 3;
 
-/// Eine Zeile (mit oder ohne Zeilenende) als Typst-Überschrift, wenn sie eine Markdown-Überschrift ist –
-/// ohne Rücksicht auf Raw/Kommentar davor (das prüft [`markdown_headings`]).
+/// A line (with or without line end) as a Typst heading if it is a Markdown heading – regardless of raw/comment
+/// before it (that is checked by [`markdown_headings`]).
 pub fn markdown_heading_line(line: &str) -> Option<String> {
     let (content, ending) = match line.strip_suffix("\r\n") {
         Some(content) => (content, "\r\n"),
@@ -47,7 +46,7 @@ pub fn markdown_heading_line(line: &str) -> Option<String> {
     Some(format!("{} {title}{ending}", "=".repeat(hashes.min(MAX_LEVEL))))
 }
 
-/// Schließende Folge ` ###` einer ATX-Überschrift entfernen (nur nach Leerraum, wie in Markdown).
+/// Remove the closing sequence ` ###` of an ATX heading (only after whitespace, as in Markdown).
 fn closing_stripped(title: &str) -> &str {
     let without = title.trim_end_matches('#');
     if without.len() < title.len() && (without.is_empty() || without.ends_with([' ', '\t'])) {
@@ -57,8 +56,8 @@ fn closing_stripped(title: &str) -> &str {
     }
 }
 
-/// Alle Markdown-Überschriften eines Abschnittstexts umwandeln (Regeln oben). Ohne Treffer kommt der
-/// Text unverändert (geliehen) zurück.
+/// Convert all Markdown headings of a section text (rules above). Without a hit the text comes back unchanged
+/// (borrowed).
 pub fn markdown_headings(source: &str) -> Cow<'_, str> {
     let mut scanner = Scanner::default();
     let mut out: Option<String> = None;

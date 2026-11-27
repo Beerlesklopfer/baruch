@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verknüpfung eines Titels der Bibliothek mit einem Dokument außerhalb (Runde 13, Migration
-//! `0106_source_remote.sql`, Tabelle `library_title_remote`): heute nur MultiGPT (`way = 'multigpt'`).
-//! Über die Verknüpfung zeigt die Dokumentansicht den Volltext, und Hervorhebungen ohne Zitat lassen sich
-//! gegen ihn prüfen. Ein Titel hat höchstens eine Verknüpfung; sie verschwindet mit dem Titel.
+//! Link of a title of the library with a document outside (Round 13, migration `0106_source_remote.sql`, table
+//! `library_title_remote`): today only MultiGPT (`way = 'multigpt'`). Through the link the document view shows the
+//! full text, and highlights without a quote can be checked against it. A title has at most one link; it disappears
+//! with the title.
 
 use sqlx::SqlitePool;
 
 use crate::LibraryError;
 
-/// Ort eines Dokuments außerhalb der Bibliothek.
+/// Place of a document outside the library.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RemoteRef {
-    /// Heute nur `"multigpt"` (prüft die Datenbank).
+    /// Today only `"multigpt"` (checked by the database).
     pub way: String,
-    /// Sammlung in MultiGPT (leer = unbekannt).
+    /// Collection in MultiGPT (empty = unknown).
     pub collection: String,
-    /// Dokument-ID der Gegenstelle (1–500 Zeichen).
+    /// Document ID of the remote side (1–500 characters).
     pub document: String,
 }
 
-/// Verknüpfung setzen bzw. ersetzen. Unbekannter Titel → [`LibraryError::UnknownTitle`]; ungültiger Weg
-/// oder leeres/zu langes Dokument → Datenbankfehler (CHECK).
+/// Set or replace the link. Unknown title → [`LibraryError::UnknownTitle`]; invalid way or empty/too long document
+/// → database error (CHECK).
 pub async fn set_title_remote(pool: &SqlitePool, title_id: i64, remote: &RemoteRef) -> Result<(), LibraryError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM library_title WHERE id = ?1")
@@ -45,7 +45,7 @@ pub async fn set_title_remote(pool: &SqlitePool, title_id: i64, remote: &RemoteR
     Ok(())
 }
 
-/// Verknüpfung eines Titels; `None` ohne Verknüpfung (auch bei unbekanntem Titel).
+/// Link of a title; `None` without a link (also for an unknown title).
 pub async fn title_remote(pool: &SqlitePool, title_id: i64) -> Result<Option<RemoteRef>, LibraryError> {
     let row: Option<(String, String, String)> =
         sqlx::query_as("SELECT way, collection, document FROM library_title_remote WHERE title_id = ?1")
@@ -55,8 +55,8 @@ pub async fn title_remote(pool: &SqlitePool, title_id: i64) -> Result<Option<Rem
     Ok(row.map(|(way, collection, document)| RemoteRef { way, collection, document }))
 }
 
-/// Titel, der mit diesem Dokument verknüpft ist (Weg, Sammlung, Dokument gleich); `None`, wenn keiner.
-/// Eine leere Sammlung passt zu jeder (ältere Verknüpfungen ohne Sammlung).
+/// Title that is linked with this document (way, collection, document equal); `None` if there is none. An empty
+/// collection matches any (older links without a collection).
 pub async fn title_for_remote(pool: &SqlitePool, remote: &RemoteRef) -> Result<Option<i64>, LibraryError> {
     let id: Option<i64> = sqlx::query_scalar(
         "SELECT title_id FROM library_title_remote WHERE way = ?1 AND document = ?3 \

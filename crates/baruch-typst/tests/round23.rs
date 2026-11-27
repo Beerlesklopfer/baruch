@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a (Härtung): erste Erwähnung über einen Zeilenumbruch kommt beim Import wieder heraus (Codereview satz-1),
-//! Vorgabeblöcke des Umschlags auf 0,01 mm gerundet. Begriffe und Texte frei erfunden.
+//! Round 23a (hardening): a first mention across a line break comes out again on import (code review satz-1),
+//! default blocks of the cover rounded to 0.01 mm. Terms and texts freely invented.
 
 use baruch_typst::cover::TitleArea;
 use baruch_typst::cover_layout::{CoverGeometry, default_blocks};
@@ -24,7 +24,7 @@ fn glossary(terms: &[&str]) -> BackMatter {
 #[test]
 fn a_first_mention_across_a_line_break_round_trips_through_the_projection() {
     let back = glossary(&["Stiller Winkel", "Alter Krummer Steg"]);
-    // Hart umbrochener Quelltext: der Begriff steht über ein Zeilenende, einmal sogar über zwei.
+    // Hard-wrapped source: the term stands across a line end, once even across two.
     for body in [
         "= Eins\nSie fanden den Stiller\nWinkel hinter der Mühle.\n",
         "= Zwei\nÜber den Alter\nKrummer\nSteg ging niemand mehr.\n",
@@ -58,7 +58,7 @@ fn a_marked_emphasis_with_a_blank_line_or_bracket_is_not_ours_and_stays() {
 #[test]
 fn default_blocks_are_rounded_to_a_hundredth_of_a_millimetre() {
     let hundredths = |mm: f64| ((mm * 100.0).round() - mm * 100.0).abs() < 1e-6;
-    // Seitenmaße, wie sie aus pt gemessen ankommen (nicht rund), und ein krummer Rücken.
+    // Page dimensions as they arrive measured from pt (not round), and an odd spine.
     for (width, height, spine) in [(148.001_27, 209.999_93, 11.333_3), (125.0, 190.0, 4.2), (155.575, 234.95, 27.777)] {
         let geometry = CoverGeometry::new(width, height, spine, 3.0);
         for area in [TitleArea::Top, TitleArea::Middle, TitleArea::Bottom] {

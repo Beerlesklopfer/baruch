@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31b: Projektion (Bibelstellen, erste Erwähnung) und Buchende (`baruch_typst::index`) als Text. Ob Typst das
-//! Buchende setzt und welche Seiten es nennt, misst `baruch-render/tests/index_measure.rs`. Texte frei erfunden.
+//! Round 31b: projection (scripture references, first mention) and back matter (`baruch_typst::index`) as text.
+//! Whether Typst sets the back matter and which pages it names is measured by
+//! `baruch-render/tests/index_measure.rs`. Texts freely invented.
 
 use std::borrow::Cow;
 
@@ -66,7 +67,8 @@ fn first_mentions_are_marked_once_per_chapter_with_and_without_glossary_page() {
         sections.iter().map(|s| projector.project(s).into_owned()).collect::<Vec<_>>()
     };
     let plain = run(TypesetSettings { glossary_first_mention: Some(true), ..TypesetSettings::default() });
-    // Runde 21b: ohne Glossarseite steht der unsichtbare Vermerk der Projektion davor (Import erkennt ihn wieder).
+    // Round 21b: without glossary page the invisible note of the projection stands before it (the import recognises
+    // it again).
     assert_eq!(
         plain[0], "= Eins\nDie /*baruch-erste-erwaehnung*/#emph[Huld] und die Gnade.\n",
         "Variante zählt als Begriff, danach nicht mehr"
@@ -164,8 +166,8 @@ fn back_matter_is_the_same_for_the_same_input() {
     assert_eq!(back_matter(&back, &[&a]), back_matter(&back, &[&b]), "Buchende deterministisch");
 }
 
-/// Integration R31, Runde 21b: der Import nimmt ein **erzeugtes** Buchende und die Zusätze der Projektion eines Exports
-/// wieder heraus; eine Kennzeile von Hand schneidet nichts ab.
+/// Integration R31, Round 21b: the import takes a **generated** back matter and the additions of the projection of
+/// an export out again; a marker line by hand cuts off nothing.
 #[test]
 fn an_exported_back_matter_and_the_projection_can_be_stripped_for_the_import() {
     use baruch_typst::index::{has_back_matter_mark, strip_back_matter, strip_first_mentions, strip_projection};
@@ -200,7 +202,7 @@ fn an_exported_back_matter_and_the_projection_can_be_stripped_for_the_import() {
     assert_eq!(strip_projection(plain), strip_first_mentions(plain), "strip_projection nimmt den Vermerk ebenso");
 }
 
-/// Runde 21b: Projektion ohne Glossarseite → Import → gleicher Text wie vor der Projektion.
+/// Round 21b: projection without glossary page → import → same text as before the projection.
 #[test]
 fn a_first_mention_without_glossary_page_round_trips_through_the_projection() {
     let back = with(

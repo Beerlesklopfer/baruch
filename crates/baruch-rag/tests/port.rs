@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gemeinsame Schnittstelle der RAG-Wege (Vertrag Runde 12, Anhang A): Namen, Berichte, Ausschnitte und
-//! Fehlercodes. Zusätzlich prüft der Test die Datei selbst gegen den Vertrag (SHA-256 von `src/lib.rs` und
-//! `Cargo.toml`), damit niemand sie unbemerkt ändert.
+//! Shared interface of the RAG ways (contract Round 12, appendix A): names, reports, snippets and error codes. In
+//! addition the test checks the file itself against the contract (SHA-256 of `src/lib.rs` and `Cargo.toml`), so
+//! that nobody changes it unnoticed.
 
 use baruch_rag::{
     EmbedPrefixes, Hit, MAX_PREFIX_CHARS, MAX_SNIPPET_CHARS, RagError, WEAK_LABEL, WEAK_SCORE, Way, WayReport,
@@ -87,14 +87,14 @@ fn the_identity_of_a_hit_ignores_case_and_margins() {
     assert_ne!(hit("d", Some("1")).identity(), hit("d", Some("2")).identity(), "andere Stelle, anderer Treffer");
 }
 
-/// SHA-256 der wörtlich festgelegten Dateien (Vertrag Runde 12, Anhang A; `src/lib.rs` ergänzt durch Runde 19, S1;
-/// `Cargo.toml` ergänzt durch Runde 24, S1: `publish = false`; `src/lib.rs` in Runde 24 um ein `#[allow]` mit
-/// Begründung vor `is_weak` ergänzt, Code unverändert), in allen Zweigen gleich.
+/// SHA-256 of the files fixed verbatim (contract Round 12, appendix A; `src/lib.rs` extended by Round 19, S1;
+/// `Cargo.toml` extended by Round 24, S1: `publish = false`; `src/lib.rs` extended in Round 24 by an `#[allow]`
+/// with a reason before `is_weak`, code unchanged), the same in all branches.
 const LIB_SHA256: &str = "9131bf01b9453cc078ac1aad6c926ddad400ace68a38bd191e729fa1d5d65228";
 const CARGO_SHA256: &str = "a034c2f423452dbf2f8caca79317c13921620cec85c6262fac622ca7ddd5eafe";
 
 fn sha256_hex(bytes: &[u8]) -> String {
-    // Kleine eigene SHA-256 (die Crate hat absichtlich nur serde und serde_json).
+    // Small SHA-256 of its own (the crate deliberately has only serde and serde_json).
     const K: [u32; 64] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
         0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,

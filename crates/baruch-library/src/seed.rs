@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Beispieltitel für eine leere Bibliothek: nur gemeinfreie Bibeltexte, wörtlich nach eBible.org
-//! (Lutherbibel 1912: <https://ebible.org/deu1912/>, Unrevidierte Elberfelder 1905:
-//! <https://ebible.org/deuelo/>, beide als „Public Domain“ ausgewiesen; abgeglichen 2026-11-05).
-//! Der Vers 1. Kor 13,4 enthält „langmütig“ wie das Beispielwerk, damit die Suche Werk und
-//! Bibliothek zugleich trifft.
+//! Sample titles for an empty library: only public-domain Bible texts, verbatim after eBible.org (Lutherbibel 1912:
+//! <https://ebible.org/deu1912/>, Unrevidierte Elberfelder 1905: <https://ebible.org/deuelo/>, both marked as
+//! "Public Domain"; compared 2026-11-05). The verse 1. Kor 13,4 contains „langmütig“ like the sample work, so that
+//! the search hits work and library at once.
 
 use sqlx::SqlitePool;
 
@@ -16,7 +15,7 @@ struct SeedTitle {
     year: i64,
     url: &'static str,
     note: &'static str,
-    quotes: &'static [(&'static str, &'static str)], // (Stelle, Text)
+    quotes: &'static [(&'static str, &'static str)], // (reference, text)
 }
 
 const SEED: &[SeedTitle] = &[
@@ -60,8 +59,8 @@ const SEED: &[SeedTitle] = &[
     },
 ];
 
-/// Legt die Beispieltitel mit Zitaten an, wenn `library_title` leer ist (eine Transaktion).
-/// Gibt `true` zurück, wenn etwas angelegt wurde.
+/// Creates the sample titles with quotes if `library_title` is empty (one transaction). Returns `true` if something
+/// was created.
 pub async fn seed_if_empty(pool: &SqlitePool) -> Result<bool, LibraryError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM library_title").fetch_one(&mut *tx).await?;
