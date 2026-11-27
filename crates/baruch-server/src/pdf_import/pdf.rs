@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! PDF lokal lesen (Runde 21a) über Poppler: `pdfinfo` (Titel, Autor, Seiten) und `pdftotext -bbox-layout` (Wörter
-//! mit Rahmen, nach Blöcken und Zeilen). Beide laufen mit Zeitlimit ([`TOOL_TIMEOUT`]), `kill_on_drop`, ohne
-//! Standardeingabe und mit begrenzter Ausgabe; sie öffnen keine Netzverbindung. Fehlt ein Programm, ist das eine
-//! ehrliche Meldung (kein stiller Wechsel zu MultiGPT).
+//! Read PDF locally (Round 21a) through Poppler: `pdfinfo` (title, author, pages) and `pdftotext -bbox-layout`
+//! (words with boxes, by blocks and lines). Both run with a time limit ([`TOOL_TIMEOUT`]), `kill_on_drop`, without
+//! standard input and with limited output; they open no network connection. If a program is missing, that is an
+//! honest message (no silent change to MultiGPT).
 //!
-//! **Gliederung (Heuristik):** Die Höhe der Wörter einer Zeile steht für ihre Schriftgröße. Die häufigste Höhe
-//! (nach Zeichen gewichtet) ist der Fließtext; ein Block aus höchstens drei kurzen Zeilen, deren Höhe mindestens
-//! [`HEADING_RATIO`] × Fließtext beträgt, ist eine Überschrift – die größte Höhe Ebene 1, die nächste Ebene 2 usw.
-//! (höchstens 3). Eine kurze Zeile in Fließtextgröße mit Nummer `1.2.3 Titel` (ohne Satzzeichen am Ende) gilt als
-//! Überschrift der Ebene nach der Zahl der Nummernteile; die Nummer fällt weg (Baruch nummeriert selbst, Warnung).
-//! Kommt die größte Höhe genau einmal vor, auf Seite 1 vor jeder anderen Überschrift, ist sie der Titel des
-//! Dokuments, kein Kapitel. Reine Seitenzahlen am Seitenanfang bzw. -ende fallen weg (Warnung mit Anzahl).
-//! Hervorhebungen, Fußnoten und Bilder erkennt dieser Weg nicht (Warnung).
+//! **Outline (heuristic):** the height of the words of a line stands for its font size. The most frequent height
+//! (weighted by characters) is the running text; a block of at most three short lines whose height is at least
+//! [`HEADING_RATIO`] × running text is a heading – the largest height level 1, the next level 2 and so on
+//! (at most 3). A short line in running-text size with a number `1.2.3 Titel` (without punctuation at the end)
+//! counts as a heading of the level given by the number of number parts; the number is dropped (Baruch numbers
+//! itself, warning). If the largest height occurs exactly once, on page 1 before every other heading, it is the
+//! title of the document, not a chapter. Pure page numbers at the beginning or end of a page are dropped (warning
+//! with the count). This way does not recognise emphasis, footnotes and images (warning).
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -24,23 +24,24 @@ use super::typst_out::{Section, escape_text};
 use super::xml::{self, Element};
 use crate::import::ImportWarning;
 
-/// Zeitlimit je Aufruf von `pdfinfo` bzw. `pdftotext`.
+/// Time limit per call of `pdfinfo` or `pdftotext`.
 pub const TOOL_TIMEOUT: Duration = Duration::from_secs(120);
-/// Größte Ausgabe von `pdftotext -bbox-layout` (Wörter mit Koordinaten sind gut zehnmal so lang wie der Text; eine
-/// dichte Seite ergibt etwa 40 KiB, [`MAX_PAGES`] Seiten also um 80 MiB).
+/// Largest output of `pdftotext -bbox-layout` (words with coordinates are a good ten times as long as the text; a
+/// dense page yields about 40 KiB, [`MAX_PAGES`] pages therefore around 80 MiB).
 pub const MAX_TOOL_OUTPUT: usize = 128 * 1024 * 1024;
-/// Höchstens so viele Seiten liest der lokale Weg (wie der Weg über MultiGPT); den Rest meldet eine Warnung.
+/// The local way reads at most this many pages (like the way through MultiGPT); a warning reports the rest.
 pub const MAX_PAGES: usize = 2000;
-/// Höchstens so viele PDF-Dateien werden zugleich lokal gelesen; weitere warten (Speicher und Rechenzeit begrenzt).
+/// At most this many PDF files are read locally at the same time; further ones wait (memory and computing time
+/// limited).
 pub const MAX_PARALLEL_READS: usize = 2;
 static READS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(MAX_PARALLEL_READS);
-/// Mindestverhältnis der Zeilenhöhe einer Überschrift zum Fließtext.
+/// Minimum ratio of the line height of a heading to the running text.
 pub const HEADING_RATIO: f64 = 1.12;
-/// Höchstens so viele Zeichen hat eine Überschrift.
+/// A heading has at most this many characters.
 const MAX_HEADING_CHARS: usize = 160;
 
-/// Programme für den lokalen Weg (Vorgabe: `pdftotext` und `pdfinfo` aus dem Suchpfad). Tests geben einen nicht
-/// vorhandenen Pfad an, um „nicht installiert“ zu prüfen, ohne Umgebungsvariablen zu ändern.
+/// Programs for the local way (default: `pdftotext` and `pdfinfo` from the search path). Tests give a
+/// non-existent path to check „nicht installiert“ without changing environment variables.
 #[derive(Debug, Clone)]
 pub struct PdfTools {
     pub pdftotext: PathBuf,
@@ -57,7 +58,7 @@ fn warn(code: &str, message: impl Into<String>) -> ImportWarning {
     ImportWarning { code: code.into(), message: message.into(), line: None }
 }
 
-/// Programm mit Zeitlimit ausführen; Standardausgabe (höchstens `limit` Bytes) oder ehrliche Meldung.
+/// Run a program with a time limit; standard output (at most `limit` bytes) or an honest message.
 async fn run(program: &Path, args: &[&std::ffi::OsStr], limit: usize) -> Result<Vec<u8>, String> {
     let name = program.display().to_string();
     let mut child = tokio::process::Command::new(program)
@@ -83,8 +84,8 @@ async fn run(program: &Path, args: &[&std::ffi::OsStr], limit: usize) -> Result<
         let mut out = Vec::new();
         let mut err = Vec::new();
         let mut out_reader = (&mut stdout).take(limit as u64 + 1);
-        // Fehlerausgabe ganz leeren, aber nur die ersten 64 KiB behalten: Bliebe der Rest in der Pipe, blockierte
-        // Poppler bei vielen „Syntax Error“-Zeilen, und der Aufruf hinge bis zur Zeitgrenze (Gutachten R21).
+        // Drain standard error completely, but keep only the first 64 KiB: if the rest stayed in the pipe, Poppler
+        // would block on many „Syntax Error“ lines, and the call would hang until the time limit (review R21).
         let drain_err = async {
             let mut err_reader = (&mut stderr).take(64 * 1024);
             let first = err_reader.read_to_end(&mut err).await;
@@ -115,7 +116,7 @@ async fn run(program: &Path, args: &[&std::ffi::OsStr], limit: usize) -> Result<
     }
 }
 
-/// Angaben aus `pdfinfo`.
+/// Details from `pdfinfo`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PdfInfo {
     pub title: Option<String>,
@@ -141,7 +142,7 @@ fn parse_info(text: &str) -> PdfInfo {
     info
 }
 
-/// Eine Zeile aus `pdftotext -bbox-layout`.
+/// A line from `pdftotext -bbox-layout`.
 #[derive(Debug, Clone)]
 struct Line {
     page: usize,
@@ -154,7 +155,7 @@ fn number(e: &Element, name: &str) -> f64 {
     e.attr(name).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0)
 }
 
-/// Zeilen aller Seiten (Block-Nummer fortlaufend über das Dokument).
+/// Lines of all pages (block number running across the document).
 fn lines_of(doc: &Element) -> Vec<Line> {
     let mut out = Vec::new();
     let mut pages = Vec::new();
@@ -185,12 +186,12 @@ fn lines_of(doc: &Element) -> Vec<Line> {
     out
 }
 
-/// Höhe auf halbe Punkte gerundet (Schlüssel für Größenklassen).
+/// Height rounded to half points (key for size classes).
 fn class(height: f64) -> i64 {
     (height * 2.0).round() as i64
 }
 
-/// `1.2.3 Titel` → (3, „Titel“); auch `1. Titel`, `2 Titel`. Höchstens vier Nummernteile.
+/// `1.2.3 Titel` → (3, „Titel“); also `1. Titel`, `2 Titel`. At most four number parts.
 pub(crate) fn numbered(text: &str) -> Option<(usize, String)> {
     let mut parts = 0;
     let mut rest = text.trim();
@@ -219,7 +220,7 @@ pub(crate) fn numbered(text: &str) -> Option<(usize, String)> {
     Some((parts, title.to_owned()))
 }
 
-/// Zeilen eines Absatzes verbinden: Silbentrennung am Zeilenende (`Wort-` + Kleinbuchstabe) fällt weg.
+/// Join the lines of a paragraph: hyphenation at the line end (`Wort-` + lower-case letter) is dropped.
 pub(crate) fn join_lines<'a>(lines: impl IntoIterator<Item = &'a str>) -> String {
     let mut out = String::new();
     for line in lines {
@@ -243,7 +244,7 @@ pub(crate) fn join_lines<'a>(lines: impl IntoIterator<Item = &'a str>) -> String
     out
 }
 
-/// Ausgabe von `pdftotext -bbox-layout` in Abschnitte gliedern (siehe Moduldoku).
+/// Structure the output of `pdftotext -bbox-layout` into sections (see the module doc).
 pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String> {
     let doc = xml::parse(bbox).map_err(|e| format!("Ausgabe von pdftotext nicht lesbar: {e}"))?;
     let mut lines = lines_of(&doc);
@@ -259,7 +260,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
                 .into(),
         );
     }
-    // Seitenzahlen: eine Zeile nur aus Ziffern als erste oder letzte Zeile einer Seite.
+    // Page numbers: a line of digits only as the first or last line of a page.
     let mut page_numbers = 0;
     let mut keep = vec![true; lines.len()];
     for (i, line) in lines.iter().enumerate() {
@@ -278,7 +279,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
     if page_numbers > 0 {
         warnings.push(warn("import-pdf-page-numbers", format!("{page_numbers} Seitenzahl(en) aus dem Text entfernt.")));
     }
-    // Fließtext-Größe: häufigste Größenklasse nach Zeichen.
+    // Running-text size: most frequent size class by characters.
     let mut weight: std::collections::BTreeMap<i64, usize> = Default::default();
     for line in &lines {
         *weight.entry(class(line.height)).or_default() += line.text.chars().count();
@@ -286,7 +287,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
     let body_class = weight.iter().max_by_key(|(_, n)| **n).map(|(c, _)| *c).unwrap_or(0);
     let body = body_class as f64 / 2.0;
 
-    // Blöcke: Zeilen mit gleicher Block-Nummer.
+    // Blocks: lines with the same block number.
     struct Block {
         page: usize,
         lines: Vec<Line>,
@@ -298,7 +299,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
             _ => blocks.push(Block { page: line.page, lines: vec![line] }),
         }
     }
-    // Überschriften nach Größe.
+    // Headings by size.
     let big = |b: &Block| {
         let chars: usize = b.lines.iter().map(|l| l.text.chars().count()).sum();
         b.lines.len() <= 3
@@ -308,7 +309,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
     let mut classes: Vec<i64> = blocks.iter().filter(|b| big(b)).map(|b| class(b.lines[0].height)).collect();
     classes.sort_unstable_by(|a, b| b.cmp(a));
     classes.dedup();
-    // Der Titel des Dokuments: größte Klasse genau einmal, auf Seite 1, vor jeder anderen Überschrift.
+    // The title of the document: largest class exactly once, on page 1, before every other heading.
     let mut doc_title: Option<(usize, String)> = None;
     if let Some(&top) = classes.first() {
         let tops: Vec<usize> = blocks
@@ -336,7 +337,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
         let text = join_lines(block.lines.iter().map(|l| l.text.as_str()));
         let heading = if big(block) {
             level_of(class(block.lines[0].height)).map(|level| match numbered(&text) {
-                // Mit Nummer entscheidet die Zahl der Nummernteile über die Ebene.
+                // With a number the count of number parts decides on the level.
                 Some((parts, title)) => {
                     stripped += 1;
                     (parts.min(3) as u8, title)
@@ -443,7 +444,7 @@ pub(crate) fn structure(bbox: &str, info: &PdfInfo) -> Result<Extracted, String>
     })
 }
 
-/// PDF-Datei `path` lokal lesen.
+/// Read the PDF file `path` locally.
 pub(crate) async fn read(path: &Path, tools: &PdfTools) -> Result<Extracted, String> {
     let _permit = READS.acquire().await.map_err(|e| format!("Lesen der PDF abgebrochen: {e}"))?;
     let info_out = run(&tools.pdfinfo, &["-enc".as_ref(), "UTF-8".as_ref(), path.as_os_str()], 1024 * 1024).await?;
@@ -466,7 +467,7 @@ pub(crate) async fn read(path: &Path, tools: &PdfTools) -> Result<Extracted, Str
         MAX_TOOL_OUTPUT,
     )
     .await?;
-    // Ohne Kopie, wenn die Ausgabe gültiges UTF-8 ist (der Normalfall bei `-enc UTF-8`).
+    // Without a copy if the output is valid UTF-8 (the normal case with `-enc UTF-8`).
     let bbox = String::from_utf8(bbox).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned());
     let mut read = tokio::task::spawn_blocking(move || structure(&bbox, &info))
         .await
@@ -477,7 +478,7 @@ pub(crate) async fn read(path: &Path, tools: &PdfTools) -> Result<Extracted, Str
     Ok(read)
 }
 
-/// Warnung, wenn die PDF mehr Seiten hat, als der lokale Weg liest.
+/// Warning when the PDF has more pages than the local way reads.
 fn page_limit_warning(pages: Option<usize>) -> Option<ImportWarning> {
     let pages = pages.filter(|p| *p > MAX_PAGES)?;
     Some(warn(

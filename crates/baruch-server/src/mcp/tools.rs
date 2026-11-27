@@ -1,76 +1,76 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werkzeuge des MCP-Servers (Reihenfolge = `tools/list`). Beschreibung in `docs/MCP.md`.
+//! Tools of the MCP server (order = `tools/list`). Description in `docs/MCP.md`.
 //!
-//! Beiträge (Runde 8): `post_move`, `post_delete`, `post_to_idea` nur für eigene Beiträge (Autor = Persona
-//! aus `persona` bzw. `@mcp:<name>`), sonst `isError` ohne Änderung ([`crate::posts::act`]). Ein Client mit
-//! Token heißt wie der Token und darf `persona` nie nennen ([`acting_persona`]). Antworten mit
-//! Abschnitt tragen `url` = `/?work=W&key=K` (relative Adresse in der Oberfläche).
+//! Posts (Round 8): `post_move`, `post_delete`, `post_to_idea` only for one's own posts (author = persona
+//! from `persona` or `@mcp:<name>`), otherwise `isError` without a change ([`crate::posts::act`]). A client with
+//! a token is named like the token and may never name `persona` ([`acting_persona`]). Answers with a
+//! section carry `url` = `/?work=W&key=K` (relative address in the user interface).
 //!
-//! Eigentum (Runde 23): nur über den Handle des Clients ([`Client::handle`], Regel [`super::session::handle_name`]).
-//! Mit Token ist das der Tokenname; kein zweiter Token kann denselben Handle bekommen (auch nicht den eines
-//! widerrufenen), und für alte Beiträge gilt zusätzlich der Alt-Handle desselben Tokens
-//! ([`Client::owned_handles`]). Ohne Token (nur Loopback) gilt der angegebene `clientInfo.name` – gehört sein Handle
-//! einem Token, heißt der Client `lokal-<name>` und besitzt dessen Beiträge nicht. Untereinander bleiben Clients
-//! ohne Token ununterscheidbar, und `persona` dürfen sie nennen (bewusste Entscheidung: Loopback ist der Mensch
-//! selbst bzw. ein Programm, das er auf seinem Rechner gestartet hat; nur die Beiträge des Menschen „Autor“ trifft
-//! keine Angabe).
+//! Ownership (Round 23): only through the handle of the client ([`Client::handle`], rule
+//! [`super::session::handle_name`]). With a token that is the token name; no second token can get the same handle
+//! (not even that of a revoked one), and for old posts the legacy handle of the same token applies in addition
+//! ([`Client::owned_handles`]). Without a token (loopback only) the given `clientInfo.name` applies – if its handle
+//! belongs to a token, the client is named `lokal-<name>` and does not own its posts. Among each other clients
+//! without a token stay indistinguishable, and they may name `persona` (deliberate decision: loopback is the human
+//! himself or a program he started on his machine; only the posts of the human „Autor“ are hit by
+//! no value).
 //!
-//! Grenzen (Runde 23, Codereview ki-2): `add_post` und `propose_revision` prüfen Länge und Zahl
+//! Limits (Round 23, code review ki-2): `add_post` and `propose_revision` check length and number
 //! ([`MAX_MCP_POST_CHARS`], [`MAX_MCP_PROPOSAL_BYTES`], [`MAX_MCP_POSTS_PER_DAY`], [`MAX_MCP_OPEN_PROPOSALS`]).
 //!
-//! Lesend: `list_works`, `outline`, `work_timing` (Zeitwächter, Runde 16b), `read_node`, `search`, `list_personas`, `list_assets`, `read_asset`
-//! (Bilder, Runde 6), `sources_list` (bevorzugte Quellen, Runde 9;
-//! Verbindungen und Geheimnisse gibt es über MCP nicht). Schreibend nur als
-//! Vorschlag bzw. Beitrag: `propose_revision` (immer `proposed`, über [`Store::add_proposal`]) und
-//! `add_post`. Schreibende Werkzeuge adressieren Abschnitte nur über den festen Schlüssel `key`
-//! (auch jeder Verweis in `refs`); die Stelle `node` lehnen sie ab (Vertrag Runde 5): Ein Assistent
-//! mit einer älteren `outline` träfe mit ihr nach einer Umstellung einen fremden Abschnitt. Kein
-//! MCP-Aufrufer kann eine Revision aktuell machen, ändern, löschen oder umschalten, und es gibt keinen
-//! Import über MCP (nur `baruch-server import`, Entscheidung 2026-11-05).
+//! Reading: `list_works`, `outline`, `work_timing` (time guard, Round 16b), `read_node`, `search`, `list_personas`,
+//! `list_assets`, `read_asset` (images, Round 6), `sources_list` (preferred sources, Round 9;
+//! connections and secrets do not exist through MCP). Writing only as a
+//! proposal or post: `propose_revision` (always `proposed`, through [`Store::add_proposal`]) and
+//! `add_post`. Writing tools address sections only through the fixed key `key`
+//! (also every reference in `refs`); they refuse the position `node` (contract Round 5): an assistant
+//! with an older `outline` would hit a foreign section with it after a rearrangement. No
+//! MCP caller can make a revision current, change, delete or switch it, and there is no
+//! import through MCP (only `baruch-server import`, decision 2026-11-05).
 //!
-//! Bilder ([`super::assets`], Runde 11): `asset_add` legt ein Bild sofort an (Autor die Persona bzw. der
-//! Client, Commit mit Herkunft; `role: "cover"` beantragt zusätzlich den Umschlag); `asset_replace`,
-//! `asset_set_cover`, `asset_delete` legen nur Anträge an, über die der Mensch entscheidet;
-//! `asset_requests` liest sie. Runde 21c: `asset_replace` nimmt `rename` (Typwechsel); Kontingent je Client und
-//! Werk in 24 Stunden (30 schreibende Aufrufe, 64 MiB, 10 offene Anträge zum Ersetzen, `super::assets`).
+//! Images ([`super::assets`], Round 11): `asset_add` creates an image immediately (author the persona or the
+//! client, commit with origin; `role: "cover"` additionally requests the cover); `asset_replace`,
+//! `asset_set_cover`, `asset_delete` only create requests on which the human decides;
+//! `asset_requests` reads them. Round 21c: `asset_replace` takes `rename` (change of type); quota per client and
+//! work in 24 hours (30 writing calls, 64 MiB, 10 open requests to replace, `super::assets`).
 //!
-//! Umschlag-Anordnung ([`super::cover`], Runde 27): `cover_layout` liest, `cover_layout_set` stellt nur einen
-//! Antrag (Bildanträge, op `cover_layout`), den der Mensch bestätigt.
+//! Cover layout ([`super::cover`], Round 27): `cover_layout` reads, `cover_layout_set` only files a
+//! request (image requests, op `cover_layout`) that the human confirms.
 //!
-//! Gliederung ([`super::outline`], Wunsch 2026-11-06): `outline_add` legt Punkte sofort an (Autor die
-//! Persona bzw. der Client; seit Runde 14 auch Teile) – außer ein neuer Teil übernähme vorhandene
-//! Kapitel: dann ein Antrag, dem der Mensch im Dialog zustimmt (Nutzerfrage 12, 2026-11-07);
-//! `outline_rename`, `outline_move`, `outline_set_level`, `outline_delete` legen nur Anträge an, über die
-//! der Mensch entscheidet; `outline_requests` liest sie.
+//! Outline ([`super::outline`], wish 2026-11-06): `outline_add` creates items immediately (author the
+//! persona or the client; since Round 14 also parts) – unless a new part would take over existing
+//! chapters: then a request to which the human consents in the dialog (user question 12, 2026-11-07);
+//! `outline_rename`, `outline_move`, `outline_set_level`, `outline_delete` only create requests on which
+//! the human decides; `outline_requests` reads them.
 //!
-//! Einfälle (Runde 7, [`super::ideas`]): `idea_create`, `idea_read`, `idea_list`, `idea_search`,
-//! `idea_update`, `idea_delete`, seit Runde 34 `idea_move` – vollständiges CRUD auch für Assistenten, weil Einfälle keinen
-//! Buchtext ändern (Entscheidung IDEA_CRUD); jede Aktion ist ein Commit mit Herkunft.
+//! Ideas (Round 7, [`super::ideas`]): `idea_create`, `idea_read`, `idea_list`, `idea_search`,
+//! `idea_update`, `idea_delete`, since Round 34 `idea_move` – complete CRUD for assistants as well, because ideas
+//! change no book text (decision IDEA_CRUD); every action is a commit with origin.
 //!
-//! Mindmap (Gedankenkarte, Runde 25, [`super::idea_map`]; Runde 34: `idea_tree` liest sie als Baum samt Wolke):
-//! `idea_map` liest die flache Karte eines Werks, `idea_links` die
-//! Verbindungen; `idea_link` und `idea_unlink` verbinden bzw. lösen Einfälle (kein Buchtext, ein Commit mit
-//! Herkunft).
+//! Mind map (Round 25, [`super::idea_map`]; Round 34: `idea_tree` reads it as a tree together with the cloud):
+//! `idea_map` reads the flat map of a work, `idea_links` the
+//! links; `idea_link` and `idea_unlink` link or unlink ideas (no book text, one commit with
+//! origin).
 //!
-//! Personas (Runde 10, [`crate::assist`]): `ask_persona` fragt eine Persona (`mode` ask: Frage als Beitrag
-//! des Clients, Antwort als Beitrag der Persona; review: Befunde als Beitrag; propose: nur ein Vorschlag),
-//! `chat` schreibt in den Abschnitts-Chat (Autor = Client) und ruft erwähnte Personas (`@handle`, höchstens
-//! drei) auf. Runde 15: Ohne `key` schreibt `chat` in einen Faden ohne Abschnitt ([`crate::threads`]; neu oder
-//! `thread`); Antworten, die weitere aktive Personas erwähnen, rufen diese einmal auf (eine Relay-Stufe, je
-//! Nachricht höchstens drei Antworten, keine Schleifen). Je Client laufen bzw. warten höchstens zwei
-//! Modellaufträge ([`quota`]); der dritte bekommt sofort `isError`.
+//! Personas (Round 10, [`crate::assist`]): `ask_persona` asks a persona (`mode` ask: question as a post
+//! of the client, answer as a post of the persona; review: findings as a post; propose: only a proposal),
+//! `chat` writes into the section chat (author = client) and calls mentioned personas (`@handle`, at most
+//! three). Round 15: without `key` `chat` writes into a thread without a section ([`crate::threads`]; new or
+//! `thread`); answers that mention further active personas call these once (one relay stage, per
+//! message at most three answers, no loops). Per client at most two model jobs run or wait
+//! ([`quota`]); the third immediately gets `isError`.
 //!
-//! Austausch (Runde 26, [`super::exchange`]): `exchange_export` gibt das ganze Werk als Austauschdatei aus, nur
-//! lesend (XML als Text oder ZIP als Base64, höchstens 4 MiB); ein Einlesen gibt es über MCP nicht.
+//! Exchange (Round 26, [`super::exchange`]): `exchange_export` outputs the whole work as an exchange file,
+//! read-only (XML as text or ZIP as Base64, at most 4 MiB); there is no reading in through MCP.
 //!
-//! Bedeutungssuche (Runde 12, [`super::rag`]): `rag_search` und `rag_status`, nur lesend, Herkunft der Client;
-//! einen Neuaufbau des Index gibt es über MCP nicht.
+//! Semantic search (Round 12, [`super::rag`]): `rag_search` and `rag_status`, read-only, origin the client;
+//! there is no rebuild of the index through MCP.
 //!
-//! Quellen (Runde 13, [`super::sources`]): `source_read` liest einen Teil des Volltexts über MultiGPT, nur
-//! lesend; Inhalte sind Daten. Übernehmen in die Bibliothek (`source.adopt`) gibt es über MCP nicht.
+//! Sources (Round 13, [`super::sources`]): `source_read` reads one part of the full text through MultiGPT,
+//! read-only; contents are data. Adopting into the library (`source.adopt`) does not exist through MCP.
 //!
-//! Revisionen werden immer über ihre **Nummer** gesucht ([`revision_by_number`], [`current_number`]),
-//! nie über die Stelle in `Node::revisions`: Nach dem Löschen einer Revision hat die Folge Lücken.
+//! Revisions are always looked up by their **number** ([`revision_by_number`], [`current_number`]),
+//! never by the position in `Node::revisions`: after deleting a revision the sequence has gaps.
 
 use baruch_core::{Author, Node, Persona, Post, Revision, RevisionStatus, TextRef, Work, WorkKind};
 use baruch_library::{HitKind, SearchOptions};
@@ -82,18 +82,18 @@ use super::session::Client;
 use crate::AppState;
 use crate::rpc::{self, RpcError};
 
-/// Warteschlange je MCP-Client (Runde 15); liegt neben diesem Modul in `src/mcp/quota.rs`.
+/// Queue per MCP client (Round 15); lies next to this module in `src/mcp/quota.rs`.
 #[path = "quota.rs"]
 pub mod quota;
 
-/// Warum ein Werkzeugaufruf scheitert.
+/// Why a tool call fails.
 #[derive(Debug)]
 pub enum Failure {
-    /// Unlesbare `arguments` → JSON-RPC-Fehler -32602.
+    /// Unreadable `arguments` → JSON-RPC error -32602.
     Args(String),
-    /// Fachlicher Fehler → Ergebnis mit `isError: true` und diesem Text.
+    /// Domain error → result with `isError: true` and this text.
     Tool(String),
-    /// Interner Fehler (Datenbank) → JSON-RPC-Fehler -32603.
+    /// Internal error (database) → JSON-RPC error -32603.
     Internal(String),
 }
 
@@ -119,7 +119,7 @@ pub(crate) fn tool_error(message: impl Into<String>) -> Failure {
     Failure::Tool(message.into())
 }
 
-/// Ein Werkzeug: Name, Beschreibung, Eingabeschema.
+/// A tool: name, description, input schema.
 pub struct Tool {
     pub name: &'static str,
     pub description: &'static str,
@@ -141,17 +141,17 @@ fn key_schema() -> Value {
                                               takes precedence over node and survives rearranging the outline" })
 }
 
-/// id eines Beitrags (`id` aus read_node bzw. add_post).
+/// id of a post (`id` from read_node or add_post).
 fn post_id_schema() -> Value {
     json!({ "type": "integer", "description": "id of the post (from add_post or posts in read_node)" })
 }
 
-/// Relative Adresse eines Abschnitts in der Oberfläche (Vertrag Runde 8, §1): `/?work=W&key=K`.
+/// Relative address of a section in the user interface (contract Round 8, §1): `/?work=W&key=K`.
 pub(crate) fn node_url(work: WorkId, key: i64) -> String {
     crate::view::node_url(work, key, None, false, "", "")
 }
 
-/// `key` der schreibenden Werkzeuge: Pflicht, die Stelle `node` gibt es dort nicht.
+/// `key` of the writing tools: mandatory, the position `node` does not exist there.
 fn write_key_schema() -> Value {
     json!({ "type": "integer", "description": "stable key of the section (key from outline/read_node); \
                                               required, survives rearranging the outline" })
@@ -170,7 +170,7 @@ pub const TOOLS: &[Tool] = &[
                       human reassigns positions when rearranging; pass key for writing.",
         schema: || json!({ "type": "object", "required": ["work"], "properties": { "work": work_schema() } }),
     },
-    // Zeitwächter (Runde 16b), nur lesend; Einstellen nur der Mensch.
+    // Time guard (Round 16b), read-only; only the human sets it.
     Tool {
         name: "work_timing",
         description: "Speaking time of a work (time keeper), read-only: words per minute, target time, total words \
@@ -207,16 +207,16 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool { name: "typst_check", description: super::typst::DESCRIPTION, schema: super::typst::check_schema },
     Tool { name: super::exchange::NAME, description: super::exchange::DESCRIPTION, schema: super::exchange::schema },
-    // Runde 29: Satz-Einstellungen, nur lesend (ändern nur der Mensch), bei den lesenden Satz-Werkzeugen.
+    // Round 29: typeset settings, read-only (only the human changes them), with the reading typesetting tools.
     Tool { name: super::typeset::NAME, description: super::typeset::DESCRIPTION, schema: super::typeset::schema },
-    // Runde 20 (Schnittstelle R20-S1): EPUB ausgeben und prüfen, beide nur lesend.
+    // Round 20 (interface R20-S1): output and check EPUB, both read-only.
     Tool { name: super::epub::NAME, description: super::epub::DESCRIPTION, schema: super::epub::schema },
     Tool {
         name: super::epub_check::NAME,
         description: super::epub_check::DESCRIPTION,
         schema: super::epub_check::schema,
     },
-    // Runde 31 (Schnittstelle R31-S1): Glossar lesen, Begriffe und Registereinträge nur vorschlagen.
+    // Round 31 (interface R31-S1): read the glossary, only propose terms and index entries.
     Tool {
         name: super::glossary::GLOSSARY_LIST,
         description: super::glossary::LIST_DESCRIPTION,
@@ -232,7 +232,7 @@ pub const TOOLS: &[Tool] = &[
         description: super::glossary::INDEX_DESCRIPTION,
         schema: super::glossary::index_schema,
     },
-    // Runde 22 (Schnittstelle R22-S1): Verlauf der Fortschreibungen, nur lesend.
+    // Round 22 (interface R22-S1): history of the amendments, read-only.
     Tool { name: super::revisions::NAME, description: super::revisions::DESCRIPTION, schema: super::revisions::schema },
     Tool {
         name: "propose_revision",
@@ -397,7 +397,7 @@ pub const TOOLS: &[Tool] = &[
         description: super::cover::LAYOUT_SET_DESCRIPTION,
         schema: super::cover::layout_set_schema,
     },
-    // Runde 28: Befunde (lesen, Statusvorschlag) und eigene Beiträge bearbeiten.
+    // Round 28: findings (read, status proposal) and editing one's own posts.
     Tool {
         name: "findings",
         description: super::findings::FINDINGS_DESCRIPTION,
@@ -409,7 +409,7 @@ pub const TOOLS: &[Tool] = &[
         schema: super::findings::propose_schema,
     },
     Tool { name: "post_edit", description: super::posts::EDIT_DESCRIPTION, schema: super::posts::edit_schema },
-    // Runde 30 (Schnittstelle R30-S1): Suchen im Werk (nur lesend) und Varianten als Vorschläge.
+    // Round 30 (interface R30-S1): searching in the work (read-only) and variants as proposals.
     Tool { name: super::search::NAME, description: super::search::DESCRIPTION, schema: super::search::schema },
     Tool { name: super::solutions::NAME, description: super::solutions::DESCRIPTION, schema: super::solutions::schema },
     Tool {
@@ -556,7 +556,7 @@ pub const TOOLS: &[Tool] = &[
         description: super::scripture_map::DESCRIPTION,
         schema: super::scripture_map::schema,
     },
-    // SWORD-Bibeln (2026-11-06), nur lesend.
+    // SWORD Bibles (2026-11-06), read-only.
     Tool {
         name: "bible_modules",
         description: super::bibles::MODULES_DESCRIPTION,
@@ -579,10 +579,10 @@ pub const TOOLS: &[Tool] = &[
         description: super::bibles::LEXICON_SEARCH_DESCRIPTION,
         schema: super::bibles::lexicon_search_schema,
     },
-    // Bedeutungssuche (Runde 12), nur lesend; kein rag_reindex über MCP.
+    // Semantic search (Round 12), read-only; no rag_reindex through MCP.
     Tool { name: "rag_search", description: super::rag::SEARCH_DESCRIPTION, schema: super::rag::search_schema },
     Tool { name: "rag_status", description: super::rag::STATUS_DESCRIPTION, schema: super::rag::status_schema },
-    // Volltext einer Quelle über MultiGPT (Runde 13), nur lesend; Übernehmen in die Bibliothek nur der Mensch.
+    // Full text of a source through MultiGPT (Round 13), read-only; only the human adopts into the library.
     Tool { name: "source_read", description: super::sources::DESCRIPTION, schema: super::sources::schema },
 ];
 
@@ -594,7 +594,7 @@ pub fn list() -> Value {
     json!({ "tools": tools })
 }
 
-/// Werk als id oder slug.
+/// Work as id or slug.
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub(crate) enum WorkRef {
@@ -607,7 +607,7 @@ pub(crate) fn args<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, Fail
     serde_json::from_value(value).map_err(|e| Failure::Args(format!("arguments: {e}")))
 }
 
-/// Werk über `Store::works()` finden: `(id, slug, title)`.
+/// Find the work through `Store::works()`: `(id, slug, title)`.
 pub(crate) async fn resolve(store: &Store, work: &WorkRef) -> Result<(WorkId, String, String), Failure> {
     let works = store.works().await?;
     let found = works.into_iter().find(|(id, slug, _)| match work {
@@ -620,9 +620,9 @@ pub(crate) async fn resolve(store: &Store, work: &WorkRef) -> Result<(WorkId, St
     })
 }
 
-/// Abschnitt eines Werks: der feste Schlüssel `key` geht vor der Stelle `node` (die vergibt der
-/// Mensch beim Umstellen der Gliederung neu; ein Assistent mit älterer `outline` träfe sonst einen
-/// fremden Abschnitt). Keins von beiden → Argumentfehler.
+/// Section of a work: the fixed key `key` takes precedence over the position `node` (the human
+/// reassigns that when rearranging the outline; an assistant with an older `outline` would otherwise hit a
+/// foreign section). Neither of the two → argument error.
 async fn node_of(store: &Store, work: WorkId, node: Option<usize>, key: Option<i64>) -> Result<usize, Failure> {
     match (key, node) {
         (Some(key), _) => Ok(store.node_seq(work, key).await?),
@@ -631,7 +631,7 @@ async fn node_of(store: &Store, work: WorkId, node: Option<usize>, key: Option<i
     }
 }
 
-/// Hinweis, wenn ein schreibendes Werkzeug `node` bekommt (`what` = `arguments` bzw. `refs[i]`).
+/// Notice when a writing tool gets `node` (`what` = `arguments` or `refs[i]`).
 fn node_refused(what: &str) -> Failure {
     Failure::Args(format!(
         "{what}: node (position) is not accepted; pass key (stable key from outline or read_node). \
@@ -639,8 +639,8 @@ fn node_refused(what: &str) -> Failure {
     ))
 }
 
-/// Fester Schlüssel eines schreibenden Werkzeugs: `node` vorhanden → Argumentfehler (die Stelle wäre
-/// nach einer Umstellung ein fremder Abschnitt), `key` fehlt → Argumentfehler. Beides -32602.
+/// Fixed key of a writing tool: `node` present → argument error (the position would be a foreign section
+/// after a rearrangement), `key` missing → argument error. Both -32602.
 pub(crate) fn write_key(arguments: &Value, key: Option<i64>, what: &str) -> Result<i64, Failure> {
     if arguments.get("node").is_some() {
         return Err(node_refused(what));
@@ -650,7 +650,7 @@ pub(crate) fn write_key(arguments: &Value, key: Option<i64>, what: &str) -> Resu
     })
 }
 
-/// Werk laden; Abschnitt (über `key` oder `node`) bestimmen und prüfen.
+/// Load the work; determine and check the section (through `key` or `node`).
 async fn work_with_node(
     store: &Store,
     work: &WorkRef,
@@ -666,20 +666,20 @@ async fn work_with_node(
     Ok((id, loaded, node))
 }
 
-/// Revision mit der Nummer `number`. Bewusst über `number` statt über die Stelle in der Liste: Nach
-/// dem Löschen einer Revision gibt es Lücken, Nummer und Stelle passen dann nicht mehr zusammen.
+/// Revision with the number `number`. Deliberately by `number` instead of by the position in the list: after
+/// deleting a revision there are gaps, number and position then no longer match.
 fn revision_by_number(node: &Node, number: u32) -> Option<&Revision> {
     node.revisions.iter().find(|r| r.number == number)
 }
 
-/// Nummer der aktuellen Fassung, falls der Abschnitt eine hat.
+/// Number of the current revision if the section has one.
 fn current_number(node: &Node) -> Option<u32> {
     node.revisions.iter().find(|r| r.status == RevisionStatus::Current).map(|r| r.number)
 }
 
-/// Gezeigte Revision für `read_node`: `rev` nach Nummer; ohne `rev` die aktuelle Fassung, in einem
-/// Abschnitt ohne aktuelle die mit der höchsten Nummer; ohne Revisionen `(0, "")`.
-/// Unbekannte Nummer → `UnknownRevision` mit allen vorhandenen Nummern (nach dem Löschen mit Lücken).
+/// Revision shown for `read_node`: `rev` by number; without `rev` the current revision, in a
+/// section without a current one the one with the highest number; without revisions `(0, "")`.
+/// Unknown number → `UnknownRevision` with all existing numbers (with gaps after deleting).
 fn shown_revision(node: &Node, rev: Option<u32>) -> Result<(u32, &str), StoreError> {
     let highest = node.revisions.iter().map(|r| r.number).max();
     let wanted = match rev {
@@ -703,7 +703,7 @@ fn author_json(author: &Author) -> Value {
     }
 }
 
-/// Persona-Handle aus der Tabelle `persona`; ohne führendes '@' wird es ergänzt.
+/// Persona handle from the table `persona`; without a leading '@' it is added.
 async fn persona_handle(store: &Store, wanted: &str) -> Result<String, Failure> {
     let wanted = wanted.trim();
     let handle = if wanted.starts_with('@') { wanted.to_owned() } else { format!("@{wanted}") };
@@ -715,15 +715,15 @@ async fn persona_handle(store: &Store, wanted: &str) -> Result<String, Failure> 
     found.ok_or_else(|| tool_error(format!("Unknown persona \"{wanted}\". list_personas names the personas.")))
 }
 
-/// Meldung, wenn ein Client mit Token `persona` nennt.
+/// Message when a client with a token names `persona`.
 pub const TOKEN_NO_PERSONA: &str = "With a token a client acts only in its own name (@mcp:<token name>); \
 `persona` as author or origin works only without a token from the own machine. To let a persona answer herself: \
 ask_persona or chat.";
 
-/// Persona, in deren Namen der Client handeln will (`persona`, leer = keine). Ein Client mit Token
-/// (anderer Rechner möglich) darf das nicht: Er könnte sonst Beiträge und Vorschläge als Werk einer Persona
-/// ausgeben und ihre echten, vom Modell erzeugten Beiträge löschen oder verschieben → `isError`
-/// [`TOKEN_NO_PERSONA`]. Über Loopback ohne Token bleibt es bei „Eigentum nach Angabe des Clients“.
+/// Persona in whose name the client wants to act (`persona`, empty = none). A client with a token
+/// (another machine possible) may not do that: it could otherwise pass off posts and proposals as the work of a
+/// persona and delete or move its real posts generated by the model → `isError`
+/// [`TOKEN_NO_PERSONA`]. Over loopback without a token it stays with „Eigentum nach Angabe des Clients“.
 pub(crate) async fn acting_persona(
     store: &Store,
     client: &Client,
@@ -736,8 +736,8 @@ pub(crate) async fn acting_persona(
     }
 }
 
-/// Herkunft für Einfälle, Gliederung und Beiträge: die Persona aus `persona` ([`acting_persona`]) oder
-/// der Client als `@mcp:<name>`.
+/// Origin for ideas, outline and posts: the persona from `persona` ([`acting_persona`]) or
+/// the client as `@mcp:<name>`.
 pub(crate) async fn origin_of(store: &Store, client: &Client, persona: Option<&str>) -> Result<IdeaOrigin, Failure> {
     Ok(match acting_persona(store, client, persona).await? {
         Some(handle) => IdeaOrigin::Persona { handle },
@@ -749,7 +749,7 @@ async fn author_handle(store: &Store, persona: Option<&str>, client: &Client) ->
     Ok(acting_persona(store, client, persona).await?.unwrap_or_else(|| client.handle()))
 }
 
-/// Personas aus SQLite in der Reihenfolge `position`.
+/// Personas from SQLite in the order `position`.
 async fn personas(store: &Store) -> Result<Vec<Persona>, Failure> {
     let rows: Vec<(String, String, String, String, i64, i64)> =
         sqlx::query_as("SELECT handle, name, role, model, context_length, active FROM persona ORDER BY position, id")
@@ -821,8 +821,8 @@ struct PostArgs {
     persona: Option<String>,
 }
 
-/// Werkzeug `name` mit `arguments` ausführen. Ergebnis ist das JSON für `structuredContent`.
-/// `None`: kein solches Werkzeug.
+/// Run the tool `name` with `arguments`. The result is the JSON for `structuredContent`.
+/// `None`: no such tool.
 pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Value) -> Option<Result<Value, Failure>> {
     let store = &state.store;
     Some(match name {
@@ -832,23 +832,23 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
         "read_node" => read_node(store, arguments).await,
         "search" => search(store, arguments).await,
         "typst_check" => super::typst::call(state, arguments).await,
-        // Runde 29: Satz-Einstellungen, nur lesend.
+        // Round 29: typeset settings, read-only.
         "typeset_settings" => super::typeset::call(state, arguments).await,
         super::exchange::NAME => super::exchange::call(state, arguments).await,
-        // Runde 20: EPUB, nur lesend (epub_check startet nie EPUBCheck).
+        // Round 20: EPUB, read-only (epub_check never starts EPUBCheck).
         n if n == super::epub::NAME => super::epub::call(state, arguments).await,
         n if n == super::epub_check::NAME => super::epub_check::call(state, arguments).await,
-        // Runde 31: Glossar lesen; Begriffe und Registereinträge nur als Vorschlag.
+        // Round 31: read the glossary; terms and index entries only as a proposal.
         n if n == super::glossary::GLOSSARY_LIST => super::glossary::call_list(state, arguments).await,
         n if n == super::glossary::GLOSSARY_PROPOSE => super::glossary::call_propose(state, client, arguments).await,
         n if n == super::glossary::INDEX_PROPOSE => super::glossary::call_index(state, client, arguments).await,
-        // Runde 22: Verlauf der Fortschreibungen, nur lesend.
+        // Round 22: history of the amendments, read-only.
         n if n == super::revisions::NAME => super::revisions::call(state, arguments).await,
-        // Unter der Schreibsperre: zwischen Übersetzen von `key` und Schreiben stellt niemand um.
+        // Under the write lock: between translating `key` and writing nobody rearranges.
         "propose_revision" => {
             let held = state.write_lock.lock().await;
             let answer = propose_revision(store, client, arguments).await;
-            // Runde 22: Seitenzweig des neuen Vorschlags gleich anlegen (refs/revisions/<key>/<n>).
+            // Round 22: create the side branch of the new proposal right away (refs/revisions/<key>/<n>).
             if let Some(work) = answer.as_ref().ok().and_then(|a| a["work"].as_i64()) {
                 crate::mirror::side_refs_after_proposal(state, &held, work).await;
             }
@@ -858,7 +858,7 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
             let _held = state.write_lock.lock().await;
             add_post(store, client, arguments).await
         }
-        // Eigene Beiträge verwalten (Runde 8); die Schreibsperre nimmt `posts::act` selbst.
+        // Manage one's own posts (Round 8); `posts::act` takes the write lock itself.
         "post_move" | "post_delete" | "post_to_idea" => manage_post(state, client, name, arguments).await,
         "list_personas" => list_personas(store).await,
         "list_assets" => list_assets(state, arguments).await,
@@ -868,29 +868,29 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
         name if super::idea_map::NAMES.contains(&name) => {
             return super::idea_map::call(state, client, name, arguments).await;
         }
-        // Bilder (Runde 11): anlegen sofort, alles andere als Antrag; die Sperre nimmt das Modul.
+        // Images (Round 11): create immediately, everything else as a request; the module takes the lock.
         name if super::assets::NAMES.contains(&name) => {
             return super::assets::call(state, client, name, arguments).await;
         }
-        // Umschlag-Anordnung (Runde 27): lesen sofort, ändern nur als Antrag.
+        // Cover layout (Round 27): read immediately, change only as a request.
         name if super::cover::NAMES.contains(&name) => {
             return super::cover::call(state, client, name, arguments).await;
         }
-        // Befunde (Runde 28): lesen sofort, Status nur als Vorschlag; die Sperre nimmt das Modul.
+        // Findings (Round 28): read immediately, status only as a proposal; the module takes the lock.
         name if super::findings::NAMES.contains(&name) => {
             return super::findings::call(state, client, name, arguments).await;
         }
-        // Eigene Beiträge bearbeiten (Runde 28); die Sperre nimmt das Modul.
+        // Edit one's own posts (Round 28); the module takes the lock.
         name if super::posts::NAMES.contains(&name) => {
             return super::posts::call(state, client, name, arguments).await;
         }
-        // Gliederung (Wunsch 2026-11-06): anlegen sofort, alles andere als Antrag; die Sperre nimmt das Modul.
+        // Outline (wish 2026-11-06): create immediately, everything else as a request; the module takes the lock.
         name if super::outline::NAMES.contains(&name) => {
             return super::outline::call(state, client, name, arguments).await;
         }
-        // Modellaufruf ohne Schreibsperre; die nimmt `crate::assist` erst zum Speichern.
+        // Model call without the write lock; `crate::assist` takes it only for saving.
         "ask_persona" | "chat" => {
-            // Höchstens zwei laufende bzw. wartende Modellaufträge je Client (Runde 15).
+            // At most two running or waiting model jobs per client (Round 15).
             let _slot = match quota::acquire(state, client) {
                 Ok(slot) => slot,
                 Err(message) => return Some(Err(tool_error(message))),
@@ -901,9 +901,9 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
                 ask_persona(state, client, arguments).await
             }
         }
-        // Runde 30a: Suchen im Werk, nur lesend (Ersetzen gibt es über MCP nicht).
+        // Round 30a: searching in the work, read-only (there is no replacing through MCP).
         super::search::NAME => super::search::call_tool(state, client, arguments).await,
-        // Runde 30b: Varianten als Vorschläge; ein Modellauftrag, zählt zur Quote wie chat/ask_persona.
+        // Round 30b: variants as proposals; one model job, counts towards the quota like chat/ask_persona.
         super::solutions::NAME => {
             let _slot = match quota::acquire(state, client) {
                 Ok(slot) => slot,
@@ -947,7 +947,7 @@ async fn outline(store: &Store, arguments: Value) -> Result<Value, Failure> {
     Ok(json!({ "work": { "id": id, "slug": slug, "title": title }, "language": language, "nodes": nodes }))
 }
 
-/// `work_timing` (Runde 16b): dasselbe wie RPC `work.timing`, nur lesend.
+/// `work_timing` (Round 16b): the same as RPC `work.timing`, read-only.
 async fn work_timing(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     let a: WorkArgs = args(arguments)?;
     let (id, _, _) = resolve(&state.store, &a.work).await?;
@@ -964,7 +964,7 @@ async fn read_node(store: &Store, arguments: Value) -> Result<Value, Failure> {
         .iter()
         .map(|r| json!({ "number": r.number, "status": r.status, "author": author_json(&r.author), "note": r.note }))
         .collect();
-    // Beiträge mit id: eigene lassen sich über post_move/post_delete/post_to_idea verwalten (Runde 8).
+    // Posts with id: one's own can be managed through post_move/post_delete/post_to_idea (Round 8).
     let posts: Vec<Value> = node
         .posts
         .iter()
@@ -984,7 +984,7 @@ async fn search(store: &Store, arguments: Value) -> Result<Value, Failure> {
     };
     let options = SearchOptions { kinds: a.kinds, work, all_revisions: a.all_revisions, limit: a.limit };
     let hits = baruch_library::search(store.pool(), &a.query, &options).await?;
-    // Je Treffer mit Abschnitt die Adresse in der Oberfläche (mit `&rev=R` bei Revisionen), sonst null.
+    // Per hit with a section the address in the user interface (with `&rev=R` for revisions), otherwise null.
     let hits: Vec<Value> = hits
         .iter()
         .map(|hit| {
@@ -999,34 +999,35 @@ async fn search(store: &Store, arguments: Value) -> Result<Value, Failure> {
     Ok(json!({ "hits": hits }))
 }
 
-/// Grenzen der schreibenden Werkzeuge `add_post` und `propose_revision` (Runde 23, Codereview ki-2): Vorher nahm
-/// MCP beliebig lange Texte bis zur Größe der Anfrage und beliebig viele an; SQLite und der Git-Spiegel wüchsen ohne
-/// Bremse. Darüber antwortet das Werkzeug mit `isError` und einer ehrlichen Meldung, gespeichert wird nichts.
-/// Längster Beitrag über `add_post` (Zeichen).
+/// Limits of the writing tools `add_post` and `propose_revision` (Round 23, code review ki-2): before, MCP
+/// accepted texts of any length up to the size of the request and any number of them; SQLite and the Git mirror
+/// would grow without a brake. Above that the tool answers with `isError` and an honest message, nothing is stored.
+/// Longest post through `add_post` (characters).
 pub const MAX_MCP_POST_CHARS: usize = 20_000;
-/// Höchstens so viele Quellen bzw. Verweise je Beitrag.
+/// At most this many sources or references per post.
 pub const MAX_MCP_POST_SOURCES: usize = 20;
-/// Längste Quelle eines Beitrags (Zeichen).
+/// Longest source of a post (characters).
 pub const MAX_MCP_SOURCE_CHARS: usize = 500;
-/// Längstes Zitat eines Verweises (Zeichen).
+/// Longest quote of a reference (characters).
 pub const MAX_MCP_REF_QUOTE_CHARS: usize = 2000;
-/// Größter Vorschlag über `propose_revision` (Bytes; ein Abschnitt mit rund 500 Seiten Text).
+/// Largest proposal through `propose_revision` (bytes; a section with roughly 500 pages of text).
 pub const MAX_MCP_PROPOSAL_BYTES: usize = 1024 * 1024;
-/// Längste Notiz eines Vorschlags (Zeichen) und längste Modellangabe.
+/// Longest note of a proposal (characters) and longest model name.
 pub const MAX_MCP_NOTE_CHARS: usize = 2000;
 pub const MAX_MCP_MODEL_CHARS: usize = 200;
-/// Höchstens so viele Beiträge je Autor und Werk in 24 Stunden über `add_post`; alle Clients ohne Token zählen
-/// zusammen als ein Autor ([`Counted`]).
+/// At most this many posts per author and work in 24 hours through `add_post`; all clients without a token count
+/// together as one author ([`Counted`]).
 pub const MAX_MCP_POSTS_PER_DAY: usize = 300;
-/// Höchstens so viele **offene** Vorschläge je Autor und Werk; alle Clients ohne Token zählen zusammen ([`Counted`]).
+/// At most this many **open** proposals per author and work; all clients without a token count together
+/// ([`Counted`]).
 pub const MAX_MCP_OPEN_PROPOSALS: usize = 100;
 
 fn too_long(what: &str, limit: usize, unit: &str, now: usize) -> Failure {
     tool_error(format!("{what}: at most {limit} {unit} (now {now}). Nothing stored."))
 }
 
-/// Autoren aller Tokens (auch widerrufener), je Handle und Alt-Handle: Sie zählen nie zur Gruppe der Clients ohne
-/// Token ([`Counted::WithoutToken`], Bildkontingent in [`super::assets`]).
+/// Authors of all tokens (revoked ones too), per handle and legacy handle: they never count towards the group of
+/// clients without a token ([`Counted::WithoutToken`], image quota in [`super::assets`]).
 pub(crate) async fn token_handles(store: &Store) -> Result<Vec<String>, Failure> {
     use super::session::{handle_name, legacy_handle_name};
     Ok(store
@@ -1037,13 +1038,13 @@ pub(crate) async fn token_handles(store: &Store) -> Result<Vec<String>, Failure>
         .collect())
 }
 
-/// Wessen Bestand für [`MAX_MCP_POSTS_PER_DAY`] und [`MAX_MCP_OPEN_PROPOSALS`] zählt (Nachbesserung Runde 23).
+/// Whose stock counts for [`MAX_MCP_POSTS_PER_DAY`] and [`MAX_MCP_OPEN_PROPOSALS`] (follow-up fix Round 23).
 enum Counted {
-    /// Genau dieser Autor: ein Token (sein Name steht fest) oder eine Persona, in deren Namen ein Client handelt.
+    /// Exactly this author: a token (its name is fixed) or a persona in whose name a client acts.
     Author(String),
-    /// Alle Clients ohne Token zusammen: jeder Autor `@mcp:…`, der keinem Token gehört (Liste der Token-Autoren als
-    /// JSON). Ohne Token wählt der Client seinen Namen bei jedem `initialize` frei – je Name ein eigenes Kontingent
-    /// wäre keines.
+    /// All clients without a token together: every author `@mcp:…` that belongs to no token (list of the token
+    /// authors as JSON). Without a token the client chooses its name freely at every `initialize` – a quota of its
+    /// own per name would be none.
     WithoutToken(String),
 }
 
@@ -1056,7 +1057,7 @@ impl Counted {
         Ok(Counted::WithoutToken(serde_json::to_string(&handles).map_err(|e| Failure::Internal(e.to_string()))?))
     }
 
-    /// SQL-Bedingung an die Autorenspalte `column` (genau ein Parameter: [`Counted::bound`]).
+    /// SQL condition on the author column `column` (exactly one parameter: [`Counted::bound`]).
     fn condition(&self, column: &str) -> String {
         match self {
             Counted::Author(_) => format!("{column} = ?"),
@@ -1073,7 +1074,7 @@ impl Counted {
         }
     }
 
-    /// Satzanfang der Meldung: „<Autor> hat“ bzw. „Die Clients ohne Token (gemeinsames Kontingent) haben“.
+    /// Beginning of the message sentence: „<Autor> hat“ or „Die Clients ohne Token (gemeinsames Kontingent) haben“.
     fn who_has(&self) -> String {
         match self {
             Counted::Author(author) => format!("{author} has"),
@@ -1082,7 +1083,7 @@ impl Counted {
     }
 }
 
-/// Offene Vorschläge im Werk, die für `counted` zählen (für [`MAX_MCP_OPEN_PROPOSALS`]).
+/// Open proposals in the work that count for `counted` (for [`MAX_MCP_OPEN_PROPOSALS`]).
 async fn open_proposals_by(store: &Store, work: WorkId, counted: &Counted) -> Result<usize, Failure> {
     let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT count(*) FROM revision r JOIN node n ON n.id = r.node_id \
@@ -1097,7 +1098,7 @@ async fn open_proposals_by(store: &Store, work: WorkId, counted: &Counted) -> Re
     Ok(usize::try_from(count).unwrap_or(usize::MAX))
 }
 
-/// Beiträge im Werk in den letzten 24 Stunden, die für `counted` zählen (für [`MAX_MCP_POSTS_PER_DAY`]).
+/// Posts in the work in the last 24 hours that count for `counted` (for [`MAX_MCP_POSTS_PER_DAY`]).
 async fn posts_today_by(store: &Store, work: WorkId, counted: &Counted) -> Result<usize, Failure> {
     let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT count(*) FROM post p JOIN node n ON n.id = p.node_id WHERE n.work_id = ? AND {} \
@@ -1156,7 +1157,7 @@ async fn propose_revision(store: &Store, client: &Client, arguments: Value) -> R
 async fn add_post(store: &Store, client: &Client, arguments: Value) -> Result<Value, Failure> {
     let a: PostArgs = args(arguments.clone())?;
     let key = write_key(&arguments, a.key, "arguments")?;
-    // Runde 23 (Codereview ki-2): Größen prüfen, bevor irgendetwas gelesen oder geschrieben wird.
+    // Round 23 (code review ki-2): check sizes before anything is read or written.
     let body_chars = a.body.chars().count();
     if body_chars > MAX_MCP_POST_CHARS {
         return Err(too_long("The post", MAX_MCP_POST_CHARS, "characters", body_chars));
@@ -1173,7 +1174,7 @@ async fn add_post(store: &Store, client: &Client, arguments: Value) -> Result<Va
     if let Some(n) = a.refs.iter().map(|r| r.quote.chars().count()).find(|n| *n > MAX_MCP_REF_QUOTE_CHARS) {
         return Err(too_long("refs: every quote", MAX_MCP_REF_QUOTE_CHARS, "characters", n));
     }
-    // Jeden Verweis vorher prüfen: Auch dort gilt nur der Schlüssel.
+    // Check every reference beforehand: there too only the key applies.
     let raw_refs = arguments.get("refs").and_then(Value::as_array).cloned().unwrap_or_default();
     let mut ref_keys = Vec::with_capacity(a.refs.len());
     for (i, (r, raw)) in a.refs.iter().zip(&raw_refs).enumerate() {
@@ -1232,18 +1233,18 @@ struct ManagePostArgs {
     work: WorkRef,
     id: i64,
     key: Option<i64>,
-    /// Runde 30c: Fadenbeitrag statt Abschnittsbeitrag (nur `post_delete`).
+    /// Round 30c: thread post instead of section post (`post_delete` only).
     thread: Option<i64>,
     words: Option<Value>,
     persona: Option<String>,
 }
 
-/// `post_move`, `post_delete`, `post_to_idea` (Vertrag Runde 8, 3e): nur eigene Beiträge (Autor =
-/// Persona-Handle aus `persona` bzw. sonst der Client als `@mcp:<name>`); ein fremder ergibt `isError`
-/// „Nur eigene Beiträge …“, ohne Änderung und ohne Commit. Antwort wie die RPC-Methode, dazu `url`.
-/// Eigentum über den Handle des Clients (Runde 23, siehe Moduldoku): mit Token der Tokenname samt Alt-Handle,
-/// ohne Token der angegebene Name – mit `lokal-`, wenn er einem Token gehört. `persona` muss es nur geben und geht
-/// nur ohne Token ([`acting_persona`]).
+/// `post_move`, `post_delete`, `post_to_idea` (contract Round 8, 3e): only one's own posts (author =
+/// persona handle from `persona` or otherwise the client as `@mcp:<name>`); a foreign one yields `isError`
+/// „Nur eigene Beiträge …“, without a change and without a commit. Answer like the RPC method, plus `url`.
+/// Ownership through the handle of the client (Round 23, see the module doc): with a token the token name
+/// including the legacy handle, without a token the given name – with `lokal-` if it belongs to a token. `persona`
+/// only has to exist and works only without a token ([`acting_persona`]).
 async fn manage_post(state: &AppState, client: &Client, name: &str, arguments: Value) -> Result<Value, Failure> {
     let a: ManagePostArgs = args(arguments.clone())?;
     let (work, _, _) = resolve(&state.store, &a.work).await?;
@@ -1263,14 +1264,14 @@ async fn manage_post(state: &AppState, client: &Client, name: &str, arguments: V
         }
     };
     let origin = origin_of(&state.store, client, a.persona.as_deref()).await?;
-    // Runde 23: Eigentum nur über den Handle des Clients; mit Token zählt für alte Beiträge auch sein Alt-Handle.
-    // Handelt der Client als Persona (nur ohne Token), gilt allein deren Handle.
+    // Round 23: ownership only through the handle of the client; with a token its legacy handle also counts for old
+    // posts. If the client acts as a persona (only without a token), its handle alone applies.
     let also: Vec<String> = match &origin {
         IdeaOrigin::Mcp { handle } => client.owned_handles().into_iter().filter(|h| h != handle).collect(),
         _ => Vec::new(),
     };
     let actor = crate::posts::Actor::own(origin, also);
-    // Runde 30c: `post_delete` mit `thread` löscht einen eigenen Fadenbeitrag (ein Commit, nur eigene).
+    // Round 30c: `post_delete` with `thread` deletes one's own thread post (one commit, own ones only).
     if let Some(thread) = a.thread {
         if name != "post_delete" {
             return Err(Failure::Args("arguments: thread works only with post_delete".into()));
@@ -1303,7 +1304,7 @@ struct AssetReadArgs {
     content: bool,
 }
 
-/// Werk aus `work` (id oder slug); fehlt es, das Vorgabewerk.
+/// Work from `work` (id or slug); if missing, the default work.
 pub(crate) async fn work_or_default(state: &AppState, work: Option<&WorkRef>) -> Result<WorkId, Failure> {
     match work {
         Some(work) => Ok(resolve(&state.store, work).await?.0),
@@ -1311,14 +1312,14 @@ pub(crate) async fn work_or_default(state: &AppState, work: Option<&WorkRef>) ->
     }
 }
 
-/// `list_assets`: Bilder des Werks wie `asset.list` (nur lesend).
+/// `list_assets`: images of the work like `asset.list` (read-only).
 async fn list_assets(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     let a: AssetListArgs = args(arguments)?;
     let work = work_or_default(state, a.work.as_ref()).await?;
     Ok(json!({ "work": work, "assets": state.store.asset_list(work).await? }))
 }
 
-/// `read_asset`: Angaben einer Fassung und aller Fassungen, mit `content: true` auch der Inhalt.
+/// `read_asset`: details of one revision and of all revisions, with `content: true` also the content.
 async fn read_asset(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     let a: AssetReadArgs = args(arguments)?;
     let work = work_or_default(state, a.work.as_ref()).await?;
@@ -1345,7 +1346,7 @@ async fn read_asset(state: &AppState, arguments: Value) -> Result<Value, Failure
 
 async fn list_personas(store: &Store) -> Result<Value, Failure> {
     let personas = personas(store).await?;
-    // Lektor nach der Regel aus baruch-core (fest gewählt, sonst die aktive Persona mit dem größten Kontext).
+    // Lector by the rule from baruch-core (fixed choice, otherwise the active persona with the largest context).
     let lector_choice = store.lector_choice().await?;
     let lector_mode = lector_choice.mode();
     let probe = Work {
@@ -1382,7 +1383,7 @@ struct AskArgs {
     scope: Option<String>,
 }
 
-/// `ask_persona` (Runde 10): ask/review/propose über [`crate::assist::run`].
+/// `ask_persona` (Round 10): ask/review/propose through [`crate::assist::run`].
 async fn ask_persona(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     let a: AskArgs = args(arguments.clone())?;
     let key = write_key(&arguments, a.key, "arguments")?;
@@ -1411,7 +1412,7 @@ async fn ask_persona(state: &AppState, client: &Client, arguments: Value) -> Res
         asker: Some(client.handle()),
         post_question: mode == crate::assist::Mode::Ask,
         sources: vec![],
-        // Keine Websuche über MCP (docs/MCP.md, docs/Bedienung.md „Websuche für @belege“).
+        // No web search through MCP (docs/MCP.md, docs/Bedienung.md „Websuche für @belege“).
         web: false,
         scope,
         frame: Default::default(),
@@ -1424,7 +1425,7 @@ async fn ask_persona(state: &AppState, client: &Client, arguments: Value) -> Res
         "text": outcome.text, "truncated": outcome.truncated, "cut": outcome.cut, "url": outcome.url,
         "scope": scope, "compressed": outcome.compressed,
     });
-    // Runde 30b: geprüfte Fassung (Prüfgrundlage) wie bei der RPC-Methode.
+    // Round 30b: checked revision (basis of the check) as with the RPC method.
     if let Some(basis) = &outcome.basis {
         answer["basis"] = json!(basis);
     }
@@ -1438,7 +1439,7 @@ async fn ask_persona(state: &AppState, client: &Client, arguments: Value) -> Res
         answer["rev"] = json!(rev);
         answer["status"] = json!("proposed");
     }
-    // Runde 23: Rückmeldungen „Erledigt: Befund n“ wie bei RPC `persona.ask` (nur gesetzt, wenn es welche gibt).
+    // Round 23: feedback „Erledigt: Befund n“ as with RPC `persona.ask` (only set if there is any).
     crate::assist::chat::add_done(&mut answer, std::slice::from_ref(&outcome));
     Ok(answer)
 }
@@ -1452,8 +1453,8 @@ struct ChatArgs {
     persona: Option<String>,
 }
 
-/// `chat`: mit `key` Beitrag des Clients im Abschnitts-Chat, ohne `key` im Faden ohne Abschnitt (Runde 15); dann
-/// die Antworten der erwähnten Personas mit einer Relay-Stufe.
+/// `chat`: with `key` a post of the client in the section chat, without `key` in the thread without a section
+/// (Round 15); then the answers of the mentioned personas with one relay stage.
 async fn chat(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     if arguments.get("node").is_some() {
         return Err(node_refused("arguments"));
@@ -1483,16 +1484,16 @@ async fn chat(state: &AppState, client: &Client, arguments: Value) -> Result<Val
         rev: None,
         author: &author,
         extra: a.persona.as_deref(),
-        // Keine Websuche über MCP (docs/MCP.md, docs/Bedienung.md „Websuche für @belege“).
+        // No web search through MCP (docs/MCP.md, docs/Bedienung.md „Websuche für @belege“).
         web: false,
         as_order: false,
         basis: crate::assist::basis::BasisChoice::Shown,
-        // Über MCP ruft auch eine bloße Erwähnung in einer Antwort die Persona (Runde 15), eine Stufe.
+        // Through MCP a mere mention in an answer also calls the persona (Round 15), one stage.
         relay: true,
     };
     let outcome = crate::assist::chat(state, &order, None).await?;
-    // Runde 23: Das Relay läuft ganz in `assist::chat` (ein Weg, `ChatOrder::relay`); hier nur noch die Namen derer,
-    // die über das Relay geantwortet haben.
+    // Round 23: the relay runs entirely in `assist::chat` (one path, `ChatOrder::relay`); here only the names of those
+    // that answered through the relay.
     let answered: Vec<&str> = outcome.answers.iter().map(|a| a.persona.as_str()).collect();
     let relayed: Vec<&String> = outcome.relayed.iter().filter(|h| answered.contains(&h.as_str())).collect();
     let mut answer = crate::assist::rpc::chat_json(&outcome);
@@ -1518,9 +1519,9 @@ mod tests {
         }
     }
 
-    /// Abschnitt mit den Nummern 1, 2, 4 (Revision 3 gelöscht): Stelle und Nummer passen ab 4 nicht
-    /// mehr zusammen. Bis revtree läuft, lässt `load_work` keine Lücken zu, daher ein Abschnitt im
-    /// Speicher statt einer Lücke in SQLite.
+    /// Section with the numbers 1, 2, 4 (revision 3 deleted): position and number no longer match from 4
+    /// on. Until revtree runs, `load_work` allows no gaps, hence a section in
+    /// memory instead of a gap in SQLite.
     fn node_with_gap(current: u32) -> Node {
         let status = |n| if n == current { RevisionStatus::Current } else { RevisionStatus::Superseded };
         Node {

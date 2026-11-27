@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Git-Spiegel nach einer Änderung (Vertrag B1, Abschnitt 6): Schnappschuss der aktuellen
-//! Revisionen aus der Datenbank, Autor und Trailer aus der jetzt aktuellen Revision, Commit im
-//! Ordner `<data>/works/<slug>/`. Die Datenbank ist die Quelle; scheitert der Spiegel, bleibt die
-//! Änderung gültig, der Fehler wird protokolliert und gemeldet, der nächste Commit holt nach.
-//! Jedes Werk hat seinen eigenen Spiegel ([`AppState::mirror`]); `record` nutzt das Werk der Änderung.
+//! Git mirror after a change (contract B1, section 6): snapshot of the current
+//! revisions from the database, author and trailers from the revision that is current now, commit in the
+//! folder `<data>/works/<slug>/`. The database is the source; if the mirror fails, the
+//! change stays valid, the error is logged and reported, the next commit catches up.
+//! Every work has its own mirror ([`AppState::mirror`]); `record` uses the work of the change.
 //!
-//! Protokoll des Revisionsbaums: Umschalten, Ändern und Löschen einer Fassung ergeben je einen Commit
-//! mit Betreff „<Nummer> <Titel>: auf Fassung n umgeschaltet“ bzw. „…: Fassung n geändert“ / „…:
-//! Fassung n gelöscht“ und dem Trailer `Baruch-Action`. Ändern und Löschen committen auch ohne
-//! Änderung an den Dateien (`allow_empty`); der Rumpf trägt dann vorher/nachher bzw. den gelöschten
-//! Text, damit Gelöschtes aus der Git-Historie wiederherstellbar bleibt.
+//! Log of the revision tree: switching, changing and deleting a revision each yield one commit
+//! with the subject „<Nummer> <Titel>: auf Fassung n umgeschaltet“ or „…: Fassung n geändert“ / „…:
+//! Fassung n gelöscht“ and the trailer `Baruch-Action`. Changing and deleting commit even without
+//! a change to the files (`allow_empty`); the body then carries before/after or the deleted
+//! text, so that deleted content stays restorable from the Git history.
 //!
-//! Umschalten und Übernehmen ([`record_switch`], Vertrag Runde 5): genau ein Commit, auch wenn die
-//! Fassung eine andere Ebene mitbringt und Unterpunkte mitgestuft werden (Betreff „… auf Fassung n
-//! umgeschaltet · Ebene a → b“, Rumpf mit den mitgestuften Punkten, `Baruch-Action: switched`).
+//! Switching and accepting ([`record_switch`], contract Round 5): exactly one commit, even if the
+//! revision brings another level along and sub-items are re-levelled with it (subject „… auf Fassung n
+//! umgeschaltet · Ebene a → b“, body with the re-levelled items, `Baruch-Action: switched`).
 //!
-//! Gliederung (Vertrag Runde 4, Abschnitt 6): Jede Gliederungsänderung ist genau ein Commit
-//! ([`record_outline`]) mit Betreff „Gliederung: …“, Autor und Committer der Mensch, Trailer
-//! `Baruch-Action: outline-*` und `Baruch-Node`; der Rumpf trägt den Text gelöschter Knoten. Legt eine
-//! Persona bzw. ein MCP-Client Punkte an, ist sie der Autor (`Baruch-Origin`, `Persona`); bestätigt der
-//! Mensch einen Antrag, nennt der Commit ihn als Bestätiger und den Antragsteller als Herkunft
-//! ([`OutlineBy`], Wunsch 2026-11-06).
+//! Outline (contract Round 4, section 6): every outline change is exactly one commit
+//! ([`record_outline`]) with the subject „Gliederung: …“, author and committer the human, trailers
+//! `Baruch-Action: outline-*` and `Baruch-Node`; the body carries the text of deleted nodes. If a
+//! persona or an MCP client creates items, it is the author (`Baruch-Origin`, `Persona`); if the
+//! human confirms a request, the commit names him as the confirmer and the requester as the origin
+//! ([`OutlineBy`], wish 2026-11-06).
 //!
-//! Bilder (Runde 11): Legt eine Persona bzw. ein MCP-Client ein Bild an (`asset_add`), ist sie Autor des
-//! Commits ([`AssetBy::Direct`]); bestätigt der Mensch einen Bildantrag, nennt der Commit ihn als
-//! Bestätiger und den Antragsteller als Herkunft ([`AssetBy::Confirmed`]). Ein bestätigter Umschlag-Antrag
-//! bekommt zusätzlich einen Protokoll-Commit ([`record_asset_request`]); den Umschlag selbst spiegelt
+//! Images (Round 11): if a persona or an MCP client creates an image (`asset_add`), it is the author of the
+//! commit ([`AssetBy::Direct`]); if the human confirms an image request, the commit names him as the
+//! confirmer and the requester as the origin ([`AssetBy::Confirmed`]). A confirmed cover request
+//! additionally gets a log commit ([`record_asset_request`]); the cover itself is mirrored by
 //! `work.set_cover`.
 
 use baruch_core::{Author, DiffKind, RevisionStatus, Work, line_diff};
@@ -34,7 +34,7 @@ use baruch_store::{Change, ChangeKind, OutlineChange, RevisionRecord, Switch, Wo
 
 use crate::AppState;
 
-/// Name und Adresse des Menschen, der übernimmt oder speichert.
+/// Name and address of the human who accepts or saves.
 pub const HUMAN_NAME: &str = "Autor";
 pub const HUMAN_EMAIL: &str = "autor@baruch.invalid";
 
@@ -42,8 +42,8 @@ fn human(name: &str) -> Signature {
     Signature { name: name.to_owned(), email: HUMAN_EMAIL.to_owned() }
 }
 
-/// Commit-Auftrag ohne Dateien für eine Änderung: Betreff, Rumpf, Autor, Committer und Trailer.
-/// `work` ist der Stand *nach* der Änderung.
+/// Commit request without files for a change: subject, body, author, committer and trailers.
+/// `work` is the state *after* the change.
 pub fn describe(work: &Work, change: &Change) -> CommitRequest {
     let node = work.nodes.get(change.node);
     let title = node.map_or_else(|| format!("Abschnitt {}", change.node), |n| n.title.clone());
@@ -98,10 +98,10 @@ pub fn describe(work: &Work, change: &Change) -> CommitRequest {
     if matches!(change.kind, ChangeKind::Amended | ChangeKind::AmendUndone) {
         trailers.push(("Baruch-Amend".to_owned(), change.amend_seq.unwrap_or(0).to_string()));
     }
-    // Protokoll-Commits: auch ohne Änderung an den Dateien (z. B. eine nicht aktuelle Fassung).
-    // Umschalten ebenfalls, damit jede Umschaltung genau einen Commit ergibt, auch zwischen Fassungen
-    // mit gleichem Text.
-    // Runde 22: jede Fortschreibung und Rücknahme ist genau ein Commit (auch bei gleichem Text).
+    // Log commits: also without a change to the files (e.g. a revision that is not current).
+    // Switching as well, so that every switch yields exactly one commit, also between revisions
+    // with the same text.
+    // Round 22: every amendment and undo is exactly one commit (also with the same text).
     let allow_empty = matches!(
         change.kind,
         ChangeKind::Switched
@@ -122,7 +122,7 @@ fn status_word(status: RevisionStatus) -> &'static str {
     }
 }
 
-/// Status einer Fassung als deutsches Wort (aktuell, Vorschlag, verworfen, ersetzt) – auch für die Seite „Verlauf“.
+/// Status of a revision as a German word (aktuell, Vorschlag, verworfen, ersetzt) – also for the page „Verlauf“.
 pub(crate) fn revision_status_word(status: RevisionStatus) -> &'static str {
     status_word(status)
 }
@@ -134,7 +134,7 @@ fn author_text(author: &Author) -> String {
     }
 }
 
-/// Rumpf für „Fassung n geändert“: Zeilen-Diff vorher/nachher und die Notiz vorher/nachher.
+/// Body for „Fassung n geändert“: line diff before/after and the note before/after.
 fn updated_body(before: &RevisionRecord, after_body: &str, after_note: &str) -> String {
     let mut out = String::from("Text (− vorher, + nachher):\n");
     if before.body == after_body {
@@ -155,8 +155,8 @@ fn updated_body(before: &RevisionRecord, after_body: &str, after_note: &str) -> 
     out
 }
 
-/// Rumpf für „Fassung n gelöscht“: der vollständige Text, dann Autor, Status, Elternteil, Notiz und
-/// die umgehängten Kinder.
+/// Body for „Fassung n gelöscht“: the complete text, then author, status, parent, note and
+/// the re-parented children.
 fn deleted_body(before: &RevisionRecord, reparented: &[u32]) -> String {
     let parent = before.based_on.map_or_else(|| "keins (Wurzel)".to_owned(), |b| format!("Fassung {b}"));
     let moved = if reparented.is_empty() {
@@ -178,18 +178,18 @@ fn deleted_body(before: &RevisionRecord, reparented: &[u32]) -> String {
     )
 }
 
-/// Notiz in einer Zeile (leer → „–“).
+/// Note in one line (empty → „–“).
 fn one_line(s: &str) -> String {
     let joined = s.split(['\r', '\n']).map(str::trim).filter(|p| !p.is_empty()).collect::<Vec<_>>().join(" ");
     if joined.is_empty() { "–".to_owned() } else { joined }
 }
 
-/// Nachweis, dass der Aufrufer [`AppState::write_lock`] hält.
+/// Proof that the caller holds [`AppState::write_lock`].
 pub type WriteGuard<'a> = tokio::sync::MutexGuard<'a, ()>;
 
-/// Schnappschuss holen und committen. `Ok(None)`: Spiegel war schon auf dem Stand.
-/// Der Aufrufer hält die Schreibsperre seit *vor* dem DB-Schreibvorgang, sonst könnte der
-/// Schnappschuss fremde Änderungen enthalten.
+/// Fetch the snapshot and commit. `Ok(None)`: the mirror was already up to date.
+/// The caller holds the write lock since *before* the database write, otherwise the
+/// snapshot could contain foreign changes.
 async fn commit(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -199,9 +199,9 @@ async fn commit(
     commit_with(state, held, work, request, None).await
 }
 
-/// Wie [`commit`], danach die Seitenzweige des Werks nachführen ([`side_refs`], Runde 22, Vertrag §2.12): nach jedem
-/// Revisions-Commit (`record`, `record_switch`, `record_outline_by`, Austausch) und beim Start (`sync_work`). Ein
-/// Fehler der Seitenzweige steht nur auf stderr; der Commit gilt.
+/// Like [`commit`], then bring the side branches of the work up to date ([`side_refs`], Round 22, contract §2.12):
+/// after every revision commit (`record`, `record_switch`, `record_outline_by`, exchange) and at start
+/// (`sync_work`). An error of the side branches is only on stderr; the commit counts.
 async fn commit_revisions(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -241,14 +241,14 @@ async fn commit_with(
     .map_err(|e| format!("Git: {e}"))?
     .map_err(|e| e.to_string());
     if result.is_err() {
-        // Beim nächsten Mal neu öffnen: Vielleicht ist der Ordner bis dahin repariert.
+        // Reopen next time: perhaps the folder is repaired by then.
         state.forget_mirror(work);
     }
     result
 }
 
-/// Seitenzweige des Werks ohne neuen Commit nachführen (z. B. nach einem neuen Vorschlag, der selbst keinen Commit
-/// bekommt). Der Aufrufer hält die Schreibsperre. Ergebnis: geschrieben/behalten/entfernt; Fehler als Text.
+/// Bring the side branches of the work up to date without a new commit (e.g. after a new proposal that itself gets
+/// no commit). The caller holds the write lock. Result: written/kept/removed; errors as text.
 pub(crate) async fn sync_side_refs(
     state: &AppState,
     _held: &WriteGuard<'_>,
@@ -264,19 +264,19 @@ pub(crate) async fn sync_side_refs(
         .map_err(|e| e.to_string())
 }
 
-/// Nach einem neuen Vorschlag (Runde 22, Integrator): Seitenzweige gleich nachführen, damit der Vorschlag nicht erst
-/// beim nächsten Revisions-Commit oder Start als `refs/revisions/<key>/<n>` erscheint. Der Aufrufer hält die
-/// Schreibsperre; ein Fehler steht nur auf stderr (der Vorschlag gilt).
+/// After a new proposal (Round 22, integrator): bring the side branches up to date right away, so that the proposal
+/// does not appear as `refs/revisions/<key>/<n>` only at the next revision commit or start. The caller holds the
+/// write lock; an error is only on stderr (the proposal counts).
 pub(crate) async fn side_refs_after_proposal(state: &AppState, held: &WriteGuard<'_>, work: WorkId) {
     if let Err(e) = sync_side_refs(state, held, work).await {
         eprintln!("Git-Spiegel: Seitenzweige nach neuem Vorschlag nicht nachgeführt: {e}");
     }
 }
 
-/// Präfix der Seitenzweige: `refs/revisions/<key>/<n>` (key = fester Schlüssel `node.id`, n = Fassungsnummer).
+/// Prefix of the side branches: `refs/revisions/<key>/<n>` (key = fixed key `node.id`, n = revision number).
 pub const SIDE_PREFIX: &str = "refs/revisions/";
 
-/// Status einer nicht aktuellen Fassung als Wort für den Trailer `Baruch-Side`.
+/// Status of a revision that is not current as a word for the trailer `Baruch-Side`.
 fn side_word(status: RevisionStatus) -> &'static str {
     match status {
         RevisionStatus::Current => "current",
@@ -286,10 +286,11 @@ fn side_word(status: RevisionStatus) -> &'static str {
     }
 }
 
-/// Seitenzweige des Werks aus der Datenbank (Runde 22, Vertrag §2.12): je nicht aktueller Fassung (ersetzt,
-/// verworfen, offener Vorschlag samt Varianten) eine Referenz `refs/revisions/<key>/<n>` auf einen Commit mit dem
-/// Schnappschuss des Werks, in dem der Abschnitt diese Fassung trägt. Autor wie bei den Revisions-Commits (Mensch bzw.
-/// „Name (@handle)“), Committer der Mensch; Trailer `Baruch-Node`, `Baruch-Key`, `Baruch-Revision`, `Baruch-Side`.
+/// Side branches of the work from the database (Round 22, contract §2.12): per revision that is not current
+/// (replaced, discarded, open proposal including variants) one reference `refs/revisions/<key>/<n>` to a commit with
+/// the snapshot of the work in which the section carries this revision. Author as for the revision commits (human
+/// or „Name (@handle)“), committer the human; trailers `Baruch-Node`, `Baruch-Key`, `Baruch-Revision`,
+/// `Baruch-Side`.
 pub(crate) async fn side_refs(state: &AppState, work: WorkId) -> Result<Vec<SideRef>, String> {
     let loaded = state.store.load_work(work).await.map_err(|e| e.to_string())?;
     let sides = state.store.side_revisions(work).await.map_err(|e| e.to_string())?;
@@ -346,7 +347,7 @@ pub(crate) async fn side_refs(state: &AppState, work: WorkId) -> Result<Vec<Side
         .collect())
 }
 
-/// Wörter der Felder der Einstellung „Fassungen“ (Commit und Oberfläche).
+/// Words of the fields of the setting „Fassungen“ (commit and user interface).
 pub fn revision_policy_field(field: &str) -> &'static str {
     match field {
         "amend" => "Fortschreiben",
@@ -366,9 +367,9 @@ fn revision_policy_value(policy: &baruch_store::RevisionPolicy, field: &str) -> 
     }
 }
 
-/// Commit-Auftrag ohne Dateien für die Einstellung „Fassungen“ (Runde 22): Betreff „Fassungen: <Felder> geändert“,
-/// Rumpf je Feld vorher → nachher, Autor und Committer der Mensch, Trailer `Baruch-Action: revision-policy-set`.
-/// Die Einstellung steht nicht im Spiegel, darum ein leerer Protokoll-Commit (`allow_empty`).
+/// Commit request without files for the setting „Fassungen“ (Round 22): subject „Fassungen: <Felder> geändert“,
+/// body per field before → after, author and committer the human, trailer `Baruch-Action: revision-policy-set`.
+/// The setting is not in the mirror, hence an empty log commit (`allow_empty`).
 pub fn describe_revision_policy(change: &baruch_store::RevisionPolicyChange, human_name: &str) -> CommitRequest {
     let words: Vec<&str> = change.changed.iter().map(|f| revision_policy_field(f)).collect();
     let body = change
@@ -394,8 +395,8 @@ pub fn describe_revision_policy(change: &baruch_store::RevisionPolicyChange, hum
     }
 }
 
-/// Einstellung „Fassungen“ spiegeln (ein Commit, siehe [`describe_revision_policy`]); der Aufrufer hält die
-/// Schreibsperre seit vor dem Schreiben. Fehler stehen auch auf stderr.
+/// Mirror the setting „Fassungen“ (one commit, see [`describe_revision_policy`]); the caller holds the
+/// write lock since before the writing. Errors are also on stderr.
 pub async fn record_revision_policy(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -408,8 +409,8 @@ pub async fn record_revision_policy(
     result
 }
 
-/// Lokaler Teil der E-Mail aus einem Persona-Handle: ohne führendes `@`, Zeichen außerhalb
-/// `[A-Za-z0-9._-]` werden zu `-` (`@mcp:claude-code` → `mcp-claude-code`).
+/// Local part of the e-mail from a persona handle: without the leading `@`, characters outside
+/// `[A-Za-z0-9._-]` become `-` (`@mcp:claude-code` → `mcp-claude-code`).
 fn email_local_part(handle: &str) -> String {
     let local: String = handle
         .trim_start_matches('@')
@@ -419,11 +420,11 @@ fn email_local_part(handle: &str) -> String {
     if local.is_empty() { "persona".to_owned() } else { local }
 }
 
-/// Änderung spiegeln. Fehler werden auf stderr protokolliert und als Text zurückgegeben.
+/// Mirror a change. Errors are logged on stderr and returned as text.
 ///
-/// `held` ist die Schreibsperre, die der Aufrufer vor dem DB-Schreibvorgang genommen hat und bis
-/// hierher hält: So liegt zwischen Änderung und Schnappschuss keine andere Änderung, jede bekommt
-/// ihren eigenen Commit mit ihrem Autor und ihren Trailern.
+/// `held` is the write lock that the caller took before the database write and holds up to
+/// here: this way no other change lies between change and snapshot, each gets
+/// its own commit with its author and its trailers.
 pub async fn record(state: &AppState, held: &WriteGuard<'_>, change: &Change) -> Result<Option<String>, String> {
     crate::rag::notify(state, Some(change.work));
     let result = match state.store.load_work(change.work).await {
@@ -436,15 +437,15 @@ pub async fn record(state: &AppState, held: &WriteGuard<'_>, change: &Change) ->
     result
 }
 
-/// Commit-Auftrag für eine Umschaltung ([`Store::switch_to`](baruch_store::Store::switch_to)): wie
-/// [`describe`]; bringt die Fassung eine andere Ebene mit, hängt der Betreff „· Ebene a → b“ an, der
-/// Rumpf nennt die mitgestuften Punkte mit ihren neuen Fassungen und die Umnummerierung, und der
-/// Trailer `Baruch-Action: switched` steht immer da (auch beim Übernehmen). `work` ist der Stand
-/// *nach* der Änderung.
+/// Commit request for a switch ([`Store::switch_to`](baruch_store::Store::switch_to)): like
+/// [`describe`]; if the revision brings another level along, the subject appends „· Ebene a → b“, the
+/// body names the re-levelled items with their new revisions and the renumbering, and the
+/// trailer `Baruch-Action: switched` is always there (also when accepting). `work` is the state
+/// *after* the change.
 pub fn describe_switch(work: &Work, switch: &Switch) -> CommitRequest {
     let mut request = describe(work, &switch.change);
     let Some(outline) = &switch.outline else { return request };
-    // `detail` endet mit „Ebene a → b“ (Store, `follow_switched`).
+    // `detail` ends with „Ebene a → b“ (store, `follow_switched`).
     if let Some(at) = outline.detail.rfind("Ebene ") {
         request.summary.push_str(&format!(" · {}", &outline.detail[at..]));
     }
@@ -476,9 +477,9 @@ pub fn describe_switch(work: &Work, switch: &Switch) -> CommitRequest {
     request
 }
 
-/// Umschaltung spiegeln: genau ein Commit (siehe [`describe_switch`]), auch wenn die Gliederung
-/// mitgestuft wurde. Wie bei [`record`] hält der Aufrufer die Schreibsperre seit vor dem
-/// DB-Schreibvorgang; Fehler stehen auch auf stderr.
+/// Mirror a switch: exactly one commit (see [`describe_switch`]), even if the outline
+/// was re-levelled with it. As with [`record`] the caller holds the write lock since before the
+/// database write; errors are also on stderr.
 pub async fn record_switch(state: &AppState, held: &WriteGuard<'_>, switch: &Switch) -> Result<Option<String>, String> {
     let work = switch.change.work;
     crate::rag::notify(state, Some(work));
@@ -492,30 +493,30 @@ pub async fn record_switch(state: &AppState, held: &WriteGuard<'_>, switch: &Swi
     result
 }
 
-/// Wer eine Gliederungsänderung veranlasst hat (Wunsch 2026-11-06).
+/// Who caused an outline change (wish 2026-11-06).
 #[derive(Debug, Clone, Copy)]
 pub enum OutlineBy<'a> {
-    /// Der Mensch selbst (Oberfläche, RPC).
+    /// The human himself (user interface, RPC).
     Human,
-    /// Eine Persona bzw. ein MCP-Client direkt (nur Anlegen, MCP `outline_add`): Autor des Commits ist
-    /// sie, Committer der Mensch; Trailer `Baruch-Origin` und `Persona`.
+    /// A persona or an MCP client directly (creating only, MCP `outline_add`): it is the author of the commit,
+    /// the human the committer; trailers `Baruch-Origin` and `Persona`.
     Direct(&'a baruch_store::IdeaOrigin),
-    /// Ein Antrag, den der Mensch bestätigt hat: Autor und Committer der Mensch (Bestätiger), Trailer
-    /// `Baruch-Origin` (Herkunft des Antrags), `Baruch-Request`, `Baruch-Requested-By`,
+    /// A request that the human confirmed: author and committer the human (confirmer), trailers
+    /// `Baruch-Origin` (origin of the request), `Baruch-Request`, `Baruch-Requested-By`,
     /// `Baruch-Confirmed-By`.
     Confirmed(&'a baruch_store::OutlineRequest),
 }
 
-/// Commit-Auftrag ohne Dateien für eine Gliederungsänderung des Menschen (siehe [`describe_outline_by`]).
+/// Commit request without files for an outline change of the human (see [`describe_outline_by`]).
 pub fn describe_outline(work: &Work, change: &OutlineChange) -> CommitRequest {
     describe_outline_by(work, change, OutlineBy::Human)
 }
 
-/// Commit-Auftrag ohne Dateien für eine Gliederungsänderung: Betreff „Gliederung: <detail>“, Rumpf mit
-/// neuen Fassungen, Umnummerierung und dem vollständigen Text gelöschter Knoten, Trailer
-/// `Baruch-Action: outline-*` und `Baruch-Node`; Autor und Herkunft nach `by` ([`OutlineBy`]). Immer
-/// ein Commit (`allow_empty`), auch wenn sich keine Datei ändert (z. B. bei der Nummerierung). `work`
-/// ist der Stand *nach* der Änderung.
+/// Commit request without files for an outline change: subject „Gliederung: <detail>“, body with
+/// new revisions, renumbering and the complete text of deleted nodes, trailers
+/// `Baruch-Action: outline-*` and `Baruch-Node`; author and origin by `by` ([`OutlineBy`]). Always
+/// one commit (`allow_empty`), even if no file changes (e.g. with the numbering). `work`
+/// is the state *after* the change.
 pub fn describe_outline_by(work: &Work, change: &OutlineChange, by: OutlineBy<'_>) -> CommitRequest {
     use baruch_store::IdeaOrigin;
     let mut body = String::new();
@@ -597,11 +598,11 @@ pub fn describe_outline_by(work: &Work, change: &OutlineChange, by: OutlineBy<'_
     }
 }
 
-/// Rumpf-Absatz „was außer der aktuellen Fassung mitgelöscht wurde“ (Runde 36, store-5): jede übrige Fassung und
-/// jeder Beitrag des gelöschten Gliederungspunkts im Wortlaut, damit der Spiegel nichts verschweigt. Leer, wenn es
-/// nichts gab.
+/// Body paragraph „was außer der aktuellen Fassung mitgelöscht wurde“ (Round 36, store-5): every other revision
+/// and every post of the deleted outline item verbatim, so that the mirror conceals nothing. Empty if there was
+/// nothing.
 pub fn describe_losses(losses: &baruch_store::OutlineLosses) -> String {
-    /// Kopfzeile und Wortlaut, immer mit Zeilenende.
+    /// Head line and wording, always with a line end.
     fn block(body: &mut String, head: &str, text: &str) {
         body.push_str(head);
         body.push_str(text);
@@ -633,9 +634,10 @@ pub fn describe_losses(losses: &baruch_store::OutlineLosses) -> String {
     body
 }
 
-/// Wie [`record_outline_by`] für das Löschen eines Gliederungspunkts (Runde 36, store-5): derselbe eine Commit,
-/// im Rumpf zusätzlich die mitgelöschten Fassungen und Beiträge ([`describe_losses`]; der Aufrufer liest sie vor dem
-/// Löschen mit `Store::outline_delete_losses`). Dazu die Trailer `Baruch-Lost-Revisions` und `Baruch-Lost-Posts`.
+/// Like [`record_outline_by`] for deleting an outline item (Round 36, store-5): the same single commit,
+/// in the body additionally the revisions and posts deleted with it ([`describe_losses`]; the caller reads them
+/// before deleting with `Store::outline_delete_losses`). Plus the trailers `Baruch-Lost-Revisions` and
+/// `Baruch-Lost-Posts`.
 pub async fn record_outline_losses(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -667,7 +669,7 @@ pub async fn record_outline_losses(
     result
 }
 
-/// Gliederungsänderung des Menschen spiegeln (siehe [`record_outline_by`]).
+/// Mirror an outline change of the human (see [`record_outline_by`]).
 pub async fn record_outline(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -676,10 +678,10 @@ pub async fn record_outline(
     record_outline_by(state, held, change, OutlineBy::Human).await
 }
 
-/// Gliederungsänderung spiegeln: genau ein Commit (siehe [`describe_outline_by`]); bei einer Persona
-/// heißt der Autor wie bei Vorschlägen „<Name> (<handle>)“, bei einem MCP-Client „MCP-Client
-/// (<handle>)“. Wie bei [`record`] hält der Aufrufer die Schreibsperre seit vor dem DB-Schreibvorgang;
-/// Fehler stehen auch auf stderr.
+/// Mirror an outline change: exactly one commit (see [`describe_outline_by`]); for a persona
+/// the author is named as with proposals „<Name> (<handle>)“, for an MCP client „MCP-Client
+/// (<handle>)“. As with [`record`] the caller holds the write lock since before the database write;
+/// errors are also on stderr.
 pub async fn record_outline_by(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -701,11 +703,11 @@ pub async fn record_outline_by(
     result
 }
 
-/// Commit-Auftrag ohne Dateien für die Entscheidung über einen Antrag, die die Gliederung nicht ändert
-/// (Nutzerfrage 12: abgelehnt oder beim Zustimmen veraltet). Betreff „Gliederung: Antrag n abgelehnt“
-/// bzw. „… veraltet“, Rumpf mit Antragsteller, Entscheider, Zusammenfassung, Begründung und Grund;
-/// Autor der Entscheider, Trailer `Baruch-Action: outline-request`, `Baruch-Decision`, `Baruch-Origin`,
-/// `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Decided-By`. Leerer Commit (`allow_empty`).
+/// Commit request without files for the decision on a request that does not change the outline
+/// (user question 12: rejected or outdated on consenting). Subject „Gliederung: Antrag n abgelehnt“
+/// or „… veraltet“, body with requester, decider, summary, justification and reason;
+/// author the decider, trailers `Baruch-Action: outline-request`, `Baruch-Decision`, `Baruch-Origin`,
+/// `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Decided-By`. Empty commit (`allow_empty`).
 pub fn describe_request_decision(request: &baruch_store::OutlineRequest) -> CommitRequest {
     let decider = request.decided_by.clone().unwrap_or_else(|| HUMAN_NAME.to_owned());
     let label = request.decision.map_or("offen", |d| d.label());
@@ -741,8 +743,8 @@ pub fn describe_request_decision(request: &baruch_store::OutlineRequest) -> Comm
     }
 }
 
-/// Entscheidung ohne Gliederungsänderung spiegeln (siehe [`describe_request_decision`]); der Aufrufer
-/// hält die Schreibsperre seit vor der Entscheidung. Fehler stehen auch auf stderr.
+/// Mirror a decision without an outline change (see [`describe_request_decision`]); the caller
+/// holds the write lock since before the decision. Errors are also on stderr.
 pub async fn record_request_decision(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -755,9 +757,9 @@ pub async fn record_request_decision(
     result
 }
 
-/// Spiegel eines Werks auf den Stand der Datenbank bringen, als Commit des Menschen mit Betreff
-/// `summary` (Start: „Stand der Datenbank gespiegelt“, Import: „Import aus <datei>“). Ohne Änderung
-/// kein Commit (`Ok(None)`). Fehler stehen zusätzlich auf stderr.
+/// Bring the mirror of a work up to the state of the database, as a commit of the human with the subject
+/// `summary` (start: „Stand der Datenbank gespiegelt“, import: „Import aus <datei>“). Without a change
+/// no commit (`Ok(None)`). Errors are additionally on stderr.
 pub async fn sync_work(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -781,7 +783,7 @@ pub async fn sync_work(
     result
 }
 
-/// Spiegel aller Werke nachführen (beim Start). Fehler nur auf stderr.
+/// Bring the mirrors of all works up to date (at start). Errors only on stderr.
 pub async fn sync_all(state: &AppState) {
     let works = match state.store.works().await {
         Ok(works) => works,
@@ -797,12 +799,12 @@ pub async fn sync_all(state: &AppState) {
     let _ = crate::mirror_ideas::sync_ideas_without_work(state, &held, "Stand der Datenbank gespiegelt").await;
 }
 
-/// Alte Teiltexte beim Start einmalig auf die Teil-Markierung umstellen (Nutzerfrage 8, entschieden
-/// 2026-11-07; Regeln in `baruch_store::legacy_parts`). Läuft nach [`sync_all`], damit der Commit je Werk
-/// genau die Umwandlung zeigt: Betreff „Umwandlung Runde 14 (Nutzerentscheidung): n Teile …“, Rumpf mit
-/// Teil und Fassungen, Trailer `Baruch-Action: parts-converted` und `Baruch-Origin`. Teile mit eigenem
-/// Text bleiben und erscheinen auf stderr nur mit Anzahl und Knoten-id (kein Wortlaut). Fehler nur auf
-/// stderr; der Start geht weiter.
+/// Convert old part texts once at start to the part marker (user question 8, decided
+/// 2026-11-07; rules in `baruch_store::legacy_parts`). Runs after [`sync_all`], so that the commit per work
+/// shows exactly the conversion: subject „Umwandlung Runde 14 (Nutzerentscheidung): n Teile …“, body with
+/// part and revisions, trailers `Baruch-Action: parts-converted` and `Baruch-Origin`. Parts with their own
+/// text stay and appear on stderr only with count and node id (no wording). Errors only on
+/// stderr; the start goes on.
 pub async fn convert_legacy_parts(state: &AppState) -> Option<baruch_store::PartConversion> {
     let held = state.write_lock.lock().await;
     let result = match state.store.convert_legacy_parts(HUMAN_NAME).await {
@@ -839,7 +841,7 @@ pub async fn convert_legacy_parts(state: &AppState) -> Option<baruch_store::Part
     Some(result)
 }
 
-/// Commit-Auftrag ohne Dateien für die Umwandlung der Teile eines Werks.
+/// Commit request without files for the conversion of the parts of a work.
 pub fn describe_part_conversion(parts: &[&baruch_store::ConvertedPart]) -> CommitRequest {
     let count = parts.len();
     let noun = if count == 1 { "Teil" } else { "Teile" };
@@ -864,7 +866,7 @@ pub fn describe_part_conversion(parts: &[&baruch_store::ConvertedPart]) -> Commi
         summary,
         body,
         trailers,
-        // Auch wenn der Spiegel keine Datei ändert (Protokoll der Entscheidung).
+        // Even if the mirror changes no file (log of the decision).
         allow_empty: true,
     }
 }
@@ -882,20 +884,20 @@ async fn commit_part_conversion(
     result
 }
 
-/// Spiegel des Vorgabewerks nachführen (wie beim Start; ohne Änderung kein Commit).
+/// Bring the mirror of the default work up to date (as at start; without a change no commit).
 pub async fn sync(state: &AppState) -> Result<Option<String>, String> {
     let held = state.write_lock.lock().await;
     let work = state.default_work().await.map_err(|e| e.to_string())?;
     sync_work(state, &held, work, "Stand der Datenbank gespiegelt").await
 }
 
-/// Commit-Auftrag ohne Dateien für eine Bildänderung (Vertrag Runde 6, Abschnitt 4f): Betreff
+/// Commit request without files for an image change (contract Round 6, section 4f): subject
 /// „Bild <name>: hinzugefügt / Fassung n ersetzt / auf Fassung n umgeschaltet / Fassung n geändert /
-/// Fassung n gelöscht / gelöscht“, Autor und Committer der Mensch, Trailer `Baruch-Asset`,
-/// `Baruch-Revision` und `Baruch-Action: asset-*`. Ändern trägt vorher/nachher von Bildunterschrift,
-/// Alternativtext und Notiz (`after` = die Fassung nach der Änderung), Löschen die Metadaten und den
-/// gelöschten Inhalt (Base64 bzw. SVG in Zeilen zu 76 Zeichen), damit er aus Git wiederherstellbar
-/// bleibt. Umschalten, Ändern und Löschen committen auch ohne Dateiänderung (`allow_empty`).
+/// Fassung n gelöscht / gelöscht“, author and committer the human, trailers `Baruch-Asset`,
+/// `Baruch-Revision` and `Baruch-Action: asset-*`. Changing carries before/after of caption,
+/// alternative text and note (`after` = the revision after the change), deleting the metadata and the
+/// deleted content (Base64 or SVG in lines of 76 characters), so that it stays restorable from
+/// Git. Switching, changing and deleting commit even without a file change (`allow_empty`).
 pub fn describe_asset(
     change: &baruch_store::AssetChange,
     after: Option<&baruch_store::AssetRevisionInfo>,
@@ -921,7 +923,7 @@ pub fn describe_asset(
         body.push_str(text);
     };
     if let (Kind::Updated, Some(before), Some(after)) = (change.kind, &change.before, after) {
-        // Steht vorher/nachher nicht schon im Detail (Pfade allein), hier ergänzen.
+        // If before/after is not already in the detail (paths alone), add it here.
         if !body.contains("Bildunterschrift vorher") {
             let mut text = String::new();
             for (label, old, new) in [
@@ -950,7 +952,7 @@ pub fn describe_asset(
         push(&mut body, &meta);
     }
     if let Some(removed) = &change.removed {
-        // Base64 in Zeilen zu 76 Zeichen (ASCII); SVG wörtlich, damit es sich unverändert wiederherstellen lässt.
+        // Base64 in lines of 76 characters (ASCII); SVG verbatim, so that it can be restored unchanged.
         let (label, text) = match removed.encoding {
             baruch_store::AssetEncoding::Base64 => {
                 let mut wrapped = String::new();
@@ -986,22 +988,22 @@ pub fn describe_asset(
     }
 }
 
-/// Wer eine Bildänderung veranlasst hat (Runde 11).
+/// Who caused an image change (Round 11).
 #[derive(Debug, Clone, Copy)]
 pub enum AssetBy<'a> {
-    /// Der Mensch selbst (Oberfläche, RPC).
+    /// The human himself (user interface, RPC).
     Human,
-    /// Eine Persona bzw. ein MCP-Client direkt (nur Anlegen, MCP `asset_add`): Autor des Commits ist sie,
-    /// Committer der Mensch; Trailer `Baruch-Origin` und `Persona`.
+    /// A persona or an MCP client directly (creating only, MCP `asset_add`): it is the author of the commit,
+    /// the human the committer; trailers `Baruch-Origin` and `Persona`.
     Direct(&'a baruch_store::IdeaOrigin),
-    /// Ein Bildantrag, den der Mensch bestätigt hat: Autor und Committer der Mensch (Bestätiger), Trailer
-    /// `Baruch-Origin` (Herkunft des Antrags), `Baruch-Request`, `Baruch-Requested-By`,
-    /// `Baruch-Confirmed-By`; der Rumpf nennt Antrag, Antragsteller, Bestätiger und Begründung.
+    /// An image request that the human confirmed: author and committer the human (confirmer), trailers
+    /// `Baruch-Origin` (origin of the request), `Baruch-Request`, `Baruch-Requested-By`,
+    /// `Baruch-Confirmed-By`; the body names request, requester, confirmer and justification.
     Confirmed(&'a baruch_store::AssetRequest),
 }
 
-/// Commit-Auftrag einer Bildänderung nach Herkunft: [`describe_asset`], dazu Autor und Trailer wie bei
-/// der Gliederung ([`describe_outline_by`]).
+/// Commit request of an image change by origin: [`describe_asset`], plus author and trailers as for
+/// the outline ([`describe_outline_by`]).
 pub fn describe_asset_by(
     change: &baruch_store::AssetChange,
     after: Option<&baruch_store::AssetRevisionInfo>,
@@ -1047,7 +1049,7 @@ pub fn describe_asset_by(
     request
 }
 
-/// Bildänderung des Menschen spiegeln (siehe [`record_asset_by`]).
+/// Mirror an image change of the human (see [`record_asset_by`]).
 pub async fn record_asset(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1056,9 +1058,9 @@ pub async fn record_asset(
     record_asset_by(state, held, change, AssetBy::Human).await
 }
 
-/// Bildänderung spiegeln: genau ein Commit (siehe [`describe_asset_by`]); bei einer Persona heißt der
-/// Autor „<Name> (<handle>)“, bei einem MCP-Client „MCP-Client (<handle>)“. Wie bei [`record`] hält der
-/// Aufrufer die Schreibsperre seit vor dem DB-Schreibvorgang; Fehler stehen auch auf stderr.
+/// Mirror an image change: exactly one commit (see [`describe_asset_by`]); for a persona the
+/// author is named „<Name> (<handle>)“, for an MCP client „MCP-Client (<handle>)“. As with [`record`] the
+/// caller holds the write lock since before the database write; errors are also on stderr.
 pub async fn record_asset_by(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1083,10 +1085,10 @@ pub async fn record_asset_by(
     result
 }
 
-/// Protokoll-Commit zu einem entschiedenen Bildantrag ohne eigene Bildänderung (bestätigter Umschlag:
-/// den Umschlag selbst spiegelt `work.set_cover`). Betreff „Bildantrag <id> bestätigt: <Zusammenfassung>“,
-/// Autor der Bestätiger, Trailer wie bei [`AssetBy::Confirmed`] und `Baruch-Action:
-/// asset-request-confirmed`; immer ein Commit (`allow_empty`).
+/// Log commit for a decided image request without an image change of its own (confirmed cover:
+/// the cover itself is mirrored by `work.set_cover`). Subject „Bildantrag <id> bestätigt: <Zusammenfassung>“,
+/// author the confirmer, trailers as for [`AssetBy::Confirmed`] and `Baruch-Action:
+/// asset-request-confirmed`; always one commit (`allow_empty`).
 pub fn describe_asset_request(request: &baruch_store::AssetRequest) -> CommitRequest {
     let confirmer = request.decided_by.clone().unwrap_or_else(|| HUMAN_NAME.to_owned());
     let mut body = format!(
@@ -1117,7 +1119,7 @@ pub fn describe_asset_request(request: &baruch_store::AssetRequest) -> CommitReq
     }
 }
 
-/// Protokoll-Commit zu einem bestätigten Bildantrag spiegeln (siehe [`describe_asset_request`]).
+/// Mirror the log commit for a confirmed image request (see [`describe_asset_request`]).
 pub async fn record_asset_request(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1130,18 +1132,19 @@ pub async fn record_asset_request(
     result
 }
 
-// ---- Austausch (Runde 26) --------------------------------------------------------------------------
+// ---- Exchange (Round 26) ---------------------------------------------------------------------------
 
-/// Commit-Auftrag für das Einlesen einer Austauschdatei (Runde 26, Vertrag F6): genau ein Commit mit Herkunft
-/// „Austausch aus <Instanz>“ (Instanzname, sonst die ersten 8 Zeichen der Kennung). Betreff „Austausch aus <Instanz>:
-/// Werk neu eingelesen“ bzw. „…: abgeglichen“, Rumpf mit den Zahlen, Anträgen, Abweichungen und der Prüfsumme der
-/// Datei; Autor „Austausch aus <Instanz>“, Committer der Mensch; Trailer `Baruch-Action: exchange-import`,
-/// `Baruch-Origin: exchange`, `Baruch-Exchange-Mode`, `Baruch-Exchange-Instance`, `Baruch-Exchange-File`. Immer ein
-/// Commit (`allow_empty`), auch wenn sich keine Datei des Spiegels ändert (z. B. nur Anträge).
+/// Commit request for reading in an exchange file (Round 26, contract F6): exactly one commit with the origin
+/// „Austausch aus <Instanz>“ (instance name, otherwise the first 8 characters of the identifier). Subject
+/// „Austausch aus <Instanz>: Werk neu eingelesen“ or „…: abgeglichen“, body with the numbers, requests,
+/// deviations and the checksum of the file; author „Austausch aus <Instanz>“, committer the human; trailers
+/// `Baruch-Action: exchange-import`, `Baruch-Origin: exchange`, `Baruch-Exchange-Mode`,
+/// `Baruch-Exchange-Instance`, `Baruch-Exchange-File`. Always one commit (`allow_empty`), even if no file of the
+/// mirror changes (e.g. only requests).
 pub fn describe_exchange(applied: &baruch_store::exchange_apply::ExchangeApplied) -> CommitRequest {
     use baruch_store::exchange_apply::{ApplyMode, DeviationAction};
     let report = &applied.report;
-    // Der Leser säubert den Namen schon; hier noch einmal, weil Git `<`, `>` und Zeilenumbrüche im Autor ablehnt.
+    // The reader already cleans the name; here once more, because Git refuses `<`, `>` and line breaks in the author.
     let name = baruch_exchange::clean_instance_name(&report.instance.name);
     let instance = if name.is_empty() { report.instance.uuid.chars().take(8).collect() } else { name };
     let origin = format!("Austausch aus {instance}");
@@ -1205,9 +1208,9 @@ pub fn describe_exchange(applied: &baruch_store::exchange_apply::ExchangeApplied
     }
 }
 
-/// Eingelesene Austauschdatei spiegeln (siehe [`describe_exchange`]); der Aufrufer hält die Schreibsperre seit vor
-/// dem Einlesen. Meldet die Änderung wie der Typst-Import der Bedeutungssuche ([`crate::rag::notify`]). Fehler stehen
-/// auch auf stderr.
+/// Mirror an exchange file that was read in (see [`describe_exchange`]); the caller holds the write lock since
+/// before the reading in. Reports the change to the semantic search like the Typst import
+/// ([`crate::rag::notify`]). Errors are also on stderr.
 pub async fn record_exchange(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1221,19 +1224,19 @@ pub async fn record_exchange(
     result
 }
 
-// ---- Einfälle (Vertrag Runde 7, Abschnitt 6c) ----------------------------------------------------
+// ---- Ideas (contract Round 7, section 6c) --------------------------------------------------------
 
-/// Ordner des Git-Spiegels der Einfälle ohne Werk: `<data>/einfaelle`.
+/// Folder of the Git mirror of the ideas without a work: `<data>/einfaelle`.
 pub const IDEAS_DIR: &str = "einfaelle";
 
-/// Commit-Auftrag ohne Dateien für eine Aktion an einem Einfall. `action` ist der Wert des Trailers
+/// Commit request without files for an action on an idea. `action` is the value of the trailer
 /// `Baruch-Action` (`idea-create`, `idea-update`, `idea-delete`, `idea-restore`, `idea-process`),
-/// `detail` ein Zusatz für den Rumpf (z. B. die geänderten Felder oder das Ergebnis der Verarbeitung).
-/// Betreff „Einfall <id>: angelegt|geändert|gelöscht|wiederhergestellt|verarbeitet als <…>“, Trailer
-/// `Baruch-Idea`, `Baruch-Action`, `Baruch-Origin` und bei Persona/MCP `Persona: <handle>`; dann ist
-/// der Autor die Persona bzw. der Client (`<handle>@persona.baruch.invalid`), Committer immer der
-/// Mensch. Der Lösch-Commit trägt den ganzen Eintrag im Rumpf (wiederherstellbar). Immer ein Commit
-/// (`allow_empty`), auch wenn sich keine Datei ändert.
+/// `detail` an addition for the body (e.g. the changed fields or the result of the processing).
+/// Subject „Einfall <id>: angelegt|geändert|gelöscht|wiederhergestellt|verarbeitet als <…>“, trailers
+/// `Baruch-Idea`, `Baruch-Action`, `Baruch-Origin` and for persona/MCP `Persona: <handle>`; then
+/// the author is the persona or the client (`<handle>@persona.baruch.invalid`), the committer always the
+/// human. The delete commit carries the whole entry in the body (restorable). Always one commit
+/// (`allow_empty`), even if no file changes.
 pub fn describe_idea(idea: &baruch_store::Idea, action: &str, detail: &str) -> CommitRequest {
     use baruch_store::IdeaOrigin;
     let what = match action {
@@ -1278,8 +1281,8 @@ pub fn describe_idea(idea: &baruch_store::Idea, action: &str, detail: &str) -> C
     }
 }
 
-/// Git-Spiegel der Einfälle ohne Werk, `<data>/einfaelle/`; `<data>/einfaelle` darf keine
-/// symbolische Verknüpfung sein.
+/// Git mirror of the ideas without a work, `<data>/einfaelle/`; `<data>/einfaelle` must not be a
+/// symbolic link.
 fn ideas_dir(data: &std::path::Path) -> Result<std::path::PathBuf, String> {
     let dir = data.join(IDEAS_DIR);
     if std::fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
@@ -1288,11 +1291,11 @@ fn ideas_dir(data: &std::path::Path) -> Result<std::path::PathBuf, String> {
     Ok(dir)
 }
 
-/// Aktion an einem Einfall spiegeln: genau ein Commit (siehe [`describe_idea`]) im Spiegel des Werks
-/// `work` (Schnappschuss mit `einfaelle.md`) bzw. ohne Werk im Ordner `<data>/einfaelle/` (nur
-/// `einfaelle.md` der Einfälle ohne Werk). Bei einer Persona heißt der Autor wie bei Vorschlägen
-/// „<Name> (<handle>)“. Wie bei [`record`] hält der Aufrufer die Schreibsperre seit vor dem
-/// DB-Schreibvorgang; Fehler stehen auch auf stderr.
+/// Mirror an action on an idea: exactly one commit (see [`describe_idea`]) in the mirror of the work
+/// `work` (snapshot with `einfaelle.md`) or, without a work, in the folder `<data>/einfaelle/` (only
+/// `einfaelle.md` of the ideas without a work). For a persona the author is named as with proposals
+/// „<Name> (<handle>)“. As with [`record`] the caller holds the write lock since before the
+/// database write; errors are also on stderr.
 pub async fn record_idea(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1311,8 +1314,8 @@ pub async fn record_idea(
     result
 }
 
-/// Steht ein Trailer `Persona` im Auftrag, heißt der Autor „<Name> (<handle>)“ bzw. bei einem
-/// MCP-Client ohne Persona-Eintrag „MCP-Client (<handle>)“ (wie bei Vorschlägen).
+/// If there is a trailer `Persona` in the request, the author is named „<Name> (<handle>)“ or, for an
+/// MCP client without a persona entry, „MCP-Client (<handle>)“ (as with proposals).
 async fn name_persona_author(state: &AppState, request: &mut CommitRequest) {
     if let Some(handle) = request.trailers.iter().find(|(k, _)| k == "Persona").map(|(_, v)| v.clone()) {
         let name: Option<String> = sqlx::query_scalar("SELECT name FROM persona WHERE handle = ?")
@@ -1328,21 +1331,21 @@ async fn name_persona_author(state: &AppState, request: &mut CommitRequest) {
     }
 }
 
-/// Aktion an einem Beitrag (Vertrag Runde 8, 3d).
+/// Action on a post (contract Round 8, 3d).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAction {
-    /// Gelöscht (`post-delete`).
+    /// Deleted (`post-delete`).
     Delete,
-    /// In einen anderen Abschnitt verschoben (`post-move`).
+    /// Moved into another section (`post-move`).
     Move,
-    /// In einen Einfall umgewandelt (`post-to-idea`).
+    /// Converted into an idea (`post-to-idea`).
     ToIdea,
-    /// Bearbeitet (`post-edit`, Runde 28): Rumpf mit Text vorher und nachher.
+    /// Edited (`post-edit`, Round 28): body with the text before and after.
     Edit,
 }
 
 impl PostAction {
-    /// Wert des Trailers `Baruch-Action`.
+    /// Value of the trailer `Baruch-Action`.
     pub fn trailer(self) -> &'static str {
         match self {
             PostAction::Delete => "post-delete",
@@ -1353,7 +1356,7 @@ impl PostAction {
     }
 }
 
-/// „<Nummer> <Titel>“ eines Abschnitts (ohne Nummer nur der Titel).
+/// „<Nummer> <Titel>“ of a section (without a number only the title).
 fn node_label(work: &Work, node: usize) -> String {
     match work.nodes.get(node) {
         Some(n) if n.number.is_empty() => n.title.clone(),
@@ -1362,17 +1365,17 @@ fn node_label(work: &Work, node: usize) -> String {
     }
 }
 
-/// Commit-Auftrag ohne Dateien für eine Aktion an einem Beitrag (Vertrag Runde 8, 3d):
-/// Betreff „Beitrag <id>: gelöscht“, „…: verschoben nach <Nummer Titel>“ bzw. „…: in Einfall <n>
-/// umgewandelt“; Trailer `Baruch-Post`, `Baruch-Action` (post-delete|post-move|post-to-idea),
-/// `Baruch-Node` (fester Schlüssel des Abschnitts, in dem der Beitrag jetzt steht bzw. stand), bei der
-/// Umwandlung `Baruch-Idea`. Löschen und Umwandeln tragen den ganzen Beitrag
-/// ([`baruch_store::PostInfo::entry_markdown`]) im Rumpf, damit er aus der Historie wiederherstellbar
-/// bleibt; Verschieben nennt Herkunft und Ziel. Immer ein Commit (`allow_empty`). Autor ist, wer
-/// handelt: der Mensch, eine Persona oder ein MCP-Client (`actor`, wie bei Einfällen). `post` ist der
-/// Beitrag *nach* der Aktion (beim Verschieben am Ziel), `from` beim Verschieben und Bearbeiten (Runde 28:
-/// Betreff „Beitrag <id>: bearbeitet“, Rumpf „Vorher:“/„Nachher:“) der Stand vorher;
-/// `work` ist der Stand nach der Aktion.
+/// Commit request without files for an action on a post (contract Round 8, 3d):
+/// subject „Beitrag <id>: gelöscht“, „…: verschoben nach <Nummer Titel>“ or „…: in Einfall <n>
+/// umgewandelt“; trailers `Baruch-Post`, `Baruch-Action` (post-delete|post-move|post-to-idea),
+/// `Baruch-Node` (fixed key of the section in which the post now stands or stood), for the
+/// conversion `Baruch-Idea`. Deleting and converting carry the whole post
+/// ([`baruch_store::PostInfo::entry_markdown`]) in the body, so that it stays restorable from the
+/// history; moving names origin and target. Always one commit (`allow_empty`). The author is whoever
+/// acts: the human, a persona or an MCP client (`actor`, as with ideas). `post` is the
+/// post *after* the action (when moving, at the target), `from` when moving and editing (Round 28:
+/// subject „Beitrag <id>: bearbeitet“, body „Vorher:“/„Nachher:“) the state before;
+/// `work` is the state after the action.
 pub fn describe_post(
     work: &Work,
     post: &baruch_store::PostInfo,
@@ -1436,9 +1439,9 @@ pub fn describe_post(
     }
 }
 
-/// Aktion an einem Beitrag spiegeln: genau ein Commit im Spiegel des Werks (Schnappschuss, bei der
-/// Umwandlung also schon mit dem neuen Eintrag in `einfaelle.md`). Wie bei [`record`] hält der
-/// Aufrufer die Schreibsperre seit vor dem DB-Schreibvorgang; Fehler stehen auch auf stderr.
+/// Mirror an action on a post: exactly one commit in the mirror of the work (snapshot, so for the
+/// conversion already with the new entry in `einfaelle.md`). As with [`record`] the
+/// caller holds the write lock since before the database write; errors are also on stderr.
 pub async fn record_post(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1454,10 +1457,10 @@ pub async fn record_post(
     result
 }
 
-/// Eine fertige Commit-Nachricht eines Moduls spiegeln (Runde 30, Schnittstelle R30-S1): genau ein Commit im Spiegel
-/// des Werks, wie [`record_post`] (Persona-Autor benennen, Fehler auch auf stderr). So baut jedes Modul (Ersetzen,
-/// Querverweise, Lösungen, Chat) seine Nachricht selbst, ohne `mirror.rs` zu ändern. Der Aufrufer hält die
-/// Schreibsperre seit vor dem DB-Schreibvorgang.
+/// Mirror a finished commit message of a module (Round 30, interface R30-S1): exactly one commit in the mirror
+/// of the work, like [`record_post`] (name the persona author, errors also on stderr). This way every module
+/// (replace, cross references, solutions, chat) builds its message itself without changing `mirror.rs`. The
+/// caller holds the write lock since before the database write.
 pub async fn record_request(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1473,19 +1476,19 @@ pub async fn record_request(
     result
 }
 
-/// Aktion an einem Befund (Runde 28).
+/// Action on a finding (Round 28).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FindingAction {
-    /// Der Mensch hat den Status gesetzt (`finding-status`).
+    /// The human set the status (`finding-status`).
     Status,
-    /// Ein Assistent hat einen Status vorgeschlagen (`finding-propose`).
+    /// An assistant proposed a status (`finding-propose`).
     Proposed,
-    /// Der Mensch hat über einen Vorschlag entschieden (`finding-decide`).
+    /// The human decided on a proposal (`finding-decide`).
     Decided,
 }
 
 impl FindingAction {
-    /// Wert des Trailers `Baruch-Action`.
+    /// Value of the trailer `Baruch-Action`.
     pub fn trailer(self) -> &'static str {
         match self {
             FindingAction::Status => "finding-status",
@@ -1495,7 +1498,7 @@ impl FindingAction {
     }
 }
 
-/// „bestätigt“, „abgelehnt“, „veraltet“ zu `finding_status.decision`.
+/// „bestätigt“, „abgelehnt“, „veraltet“ for `finding_status.decision`.
 fn decision_word(decision: Option<&str>) -> &'static str {
     match decision {
         Some("confirmed") => "bestätigt",
@@ -1505,7 +1508,7 @@ fn decision_word(decision: Option<&str>) -> &'static str {
     }
 }
 
-/// Status samt Fassung bzw. Ziel in Worten: „übernommen in Fassung 3“, „verschoben nach 1.2 Titel“.
+/// Status with revision or target in words: „übernommen in Fassung 3“, „verschoben nach 1.2 Titel“.
 fn finding_status_text(work: &Work, entry: &baruch_store::FindingStatusEntry) -> String {
     use baruch_store::{DeferTarget, FindingStatus};
     match entry.status {
@@ -1525,14 +1528,14 @@ fn finding_status_text(work: &Work, entry: &baruch_store::FindingStatusEntry) ->
     }
 }
 
-/// Commit-Auftrag ohne Dateien für eine Aktion an einem Befund (Runde 28, Vertrag §1.2): Betreff „Befund <id>: …“
-/// (gesetzt: der Status, z. B. „verworfen“ bzw. „übernommen in Fassung 3“; Vorschlag: „Vorschlag „…“ von @x“;
-/// Entscheidung: „Vorschlag „…“ bestätigt|abgelehnt|veraltet“); Rumpf mit Art, Persona, Ort, Text des Befunds,
-/// Begründung und Notiz; Trailer `Baruch-Finding`, `Baruch-Action` (finding-status|finding-propose|finding-decide),
-/// `Baruch-Node` (fester Schlüssel, falls der Befund einen Abschnitt hat), bei einem Vorschlag `Persona` (Autor ist
-/// dann die Persona bzw. der MCP-Client), bei einer Entscheidung `Baruch-Proposer` (Autor ist der Mensch, der
-/// entschieden hat). Immer ein Commit (`allow_empty`). `work` ist der Stand nach der Aktion, `entry` der betroffene
-/// Eintrag im Verlauf.
+/// Commit request without files for an action on a finding (Round 28, contract §1.2): subject „Befund <id>: …“
+/// (set: the status, e.g. „verworfen“ or „übernommen in Fassung 3“; proposal: „Vorschlag „…“ von @x“;
+/// decision: „Vorschlag „…“ bestätigt|abgelehnt|veraltet“); body with kind, persona, place, text of the finding,
+/// justification and note; trailers `Baruch-Finding`, `Baruch-Action` (finding-status|finding-propose|finding-decide),
+/// `Baruch-Node` (fixed key if the finding has a section), for a proposal `Persona` (the author is
+/// then the persona or the MCP client), for a decision `Baruch-Proposer` (the author is the human who
+/// decided). Always one commit (`allow_empty`). `work` is the state after the action, `entry` the affected
+/// entry in the history.
 pub fn describe_finding(
     work: &Work,
     finding: &baruch_store::Finding,
@@ -1603,8 +1606,8 @@ pub fn describe_finding(
     }
 }
 
-/// Aktion an einem Befund spiegeln: genau ein Commit im Spiegel des Werks (wie [`record_post`]). Der Aufrufer hält
-/// die Schreibsperre seit vor dem DB-Schreibvorgang; Fehler stehen auch auf stderr.
+/// Mirror an action on a finding: exactly one commit in the mirror of the work (like [`record_post`]). The caller
+/// holds the write lock since before the database write; errors are also on stderr.
 pub async fn record_finding(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1619,13 +1622,13 @@ pub async fn record_finding(
     result
 }
 
-/// Commit-Auftrag ohne Dateien für einen Befund, den ein Lektor selbst schreibt (Runde 35, `finding.add`): Betreff
-/// „Befund <id>: angelegt von @lektorat:<slug>“, Rumpf mit Art, Ort und Text (wie [`describe_finding`]), Trailer
-/// `Baruch-Finding`, `Baruch-Action: finding-add`, `Baruch-Node` (falls der Befund einen Abschnitt hat),
-/// `Baruch-Origin: lektor` und `Baruch-Lektor` (Handle). Autor des Commits ist der Lektor („<Anzeigename>
-/// (<Handle>)“, `<slug>@lektorat.baruch.invalid`), Committer der Autor des Buchs wie bei allen Commits. Bewusst
-/// ohne Trailer `Persona`: [`record_finding`] hielte den Lektor sonst für einen MCP-Client. Immer ein Commit
-/// (`allow_empty`); `work` ist der Stand nach dem Anlegen.
+/// Commit request without files for a finding that a Lektor writes himself (Round 35, `finding.add`): subject
+/// „Befund <id>: angelegt von @lektorat:<slug>“, body with kind, place and text (like [`describe_finding`]), trailers
+/// `Baruch-Finding`, `Baruch-Action: finding-add`, `Baruch-Node` (if the finding has a section),
+/// `Baruch-Origin: lektor` and `Baruch-Lektor` (handle). The author of the commit is the Lektor („<Anzeigename>
+/// (<Handle>)“, `<slug>@lektorat.baruch.invalid`), the committer the author of the book as with all commits.
+/// Deliberately without the trailer `Persona`: [`record_finding`] would otherwise take the Lektor for an MCP client.
+/// Always one commit (`allow_empty`); `work` is the state after creating.
 pub fn describe_finding_added(
     work: &Work,
     finding: &baruch_store::Finding,
@@ -1680,21 +1683,21 @@ pub(crate) async fn commit_ideas_without_work(
     .map_err(|e| format!("Git: {e}"))?
 }
 
-// ---- Satz-Einstellungen (Runde 29a) ------------------------------------------------------------
+// ---- Typeset settings (Round 29a) --------------------------------------------------------------
 
-/// Art einer Änderung der Satz-Einstellungen (Trailer `Baruch-Action`).
+/// Kind of a change of the typeset settings (trailer `Baruch-Action`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypesetAction {
-    /// Einstellungen gespeichert (`typeset-set`).
+    /// Settings saved (`typeset-set`).
     Set,
-    /// Einstellungen zurückgesetzt (`typeset-reset`).
+    /// Settings reset (`typeset-reset`).
     Reset,
-    /// Kapitelanfangs-Regel der Werkvorlage übernommen; neue Vorlagenfassung `template_rev` (`typeset-adopt`).
+    /// Chapter start rule of the work template taken over; new template revision `template_rev` (`typeset-adopt`).
     Adopt { template_rev: u32 },
 }
 
 impl TypesetAction {
-    /// Wert des Trailers `Baruch-Action`.
+    /// Value of the trailer `Baruch-Action`.
     pub fn trailer(self) -> &'static str {
         match self {
             TypesetAction::Set => "typeset-set",
@@ -1704,7 +1707,7 @@ impl TypesetAction {
     }
 }
 
-/// Zahl in deutscher Schreibweise („10,5“).
+/// Number in German notation („10,5“).
 fn de_number(x: f64) -> String {
     format!("{x}").replace('.', ",")
 }
@@ -1713,7 +1716,7 @@ fn on_off(value: bool) -> &'static str {
     if value { "an" } else { "aus" }
 }
 
-/// Wert eines Felds der Satz-Einstellungen in Worten; ungesetzt „aus der Werkvorlage“ (R31-Felder: „keine“ bzw. „aus“).
+/// Value of a field of the typeset settings in words; unset „aus der Werkvorlage“ (R31 fields: „keine“ or „aus“).
 pub fn typeset_value(settings: &baruch_store::TypesetSettings, field: &str) -> String {
     use baruch_typst::typeset::PageFormat;
     let s = settings;
@@ -1751,7 +1754,7 @@ pub fn typeset_value(settings: &baruch_store::TypesetSettings, field: &str) -> S
         "footnotes" => s.footnotes.as_ref().map(|f| format!("{}, {}", f.numbering.label(), f.restart.label())),
         "widows_orphans" => s.widows_orphans.map(|v| (if v { "vermeiden" } else { "zulassen" }).to_owned()),
         "xref_with_page" => s.xref_with_page.map(|v| (if v { "mit Seitenzahl" } else { "ohne Seitenzahl" }).to_owned()),
-        // Runde 31: keine Regel der Werkvorlage, darum „keine“ bzw. „aus“ statt „aus der Werkvorlage“.
+        // Round 31: not a rule of the work template, hence „keine“ or „aus“ instead of „aus der Werkvorlage“.
         "glossary_page" => Some(s.glossary_page.map_or_else(|| "keine".to_owned(), |g| g.label().to_owned())),
         "index_pages" => Some(s.index_pages.as_ref().map_or_else(
             || "keine".to_owned(),
@@ -1761,7 +1764,7 @@ pub fn typeset_value(settings: &baruch_store::TypesetSettings, field: &str) -> S
             },
         )),
         "glossary_first_mention" => Some(on_off(s.glossary_first_mention == Some(true)).to_owned()),
-        // Runde 22: Entwurf ist keine Regel der Werkvorlage, darum „an: …“ bzw. „aus“.
+        // Round 22: draft is not a rule of the work template, hence „an: …“ or „aus“.
         "draft" => Some(
             s.draft.as_ref().map_or_else(|| "aus".to_owned(), |d| format!("an: „{}“, {}", d.text, d.placement.label())),
         ),
@@ -1770,12 +1773,12 @@ pub fn typeset_value(settings: &baruch_store::TypesetSettings, field: &str) -> S
     text.unwrap_or_else(|| "aus der Werkvorlage".to_owned())
 }
 
-/// Commit-Auftrag ohne Dateien für eine Änderung der Satz-Einstellungen (Runde 29, Vertrag §6.5): Betreff „Satz:
-/// <Bezeichnungen> geändert“, „Satz: Einstellungen zurückgesetzt“ bzw. „Satz: Kapitelanfang aus der Werkvorlage
-/// übernommen (Vorlagenfassung n)“; Rumpf je geändertem Feld „Bezeichnung: vorher → nachher“; Autor und Committer der
-/// Mensch; Trailer `Baruch-Action` (typeset-set|typeset-reset|typeset-adopt). Immer ein Commit (`allow_empty`): Das
-/// Feld „Verweis mit Seitenzahl“ ändert keine Datei, und `main.typ` trägt den Regelblock über `snapshot::head` von
-/// selbst.
+/// Commit request without files for a change of the typeset settings (Round 29, contract §6.5): subject „Satz:
+/// <Bezeichnungen> geändert“, „Satz: Einstellungen zurückgesetzt“ or „Satz: Kapitelanfang aus der Werkvorlage
+/// übernommen (Vorlagenfassung n)“; body per changed field „Bezeichnung: vorher → nachher“; author and committer
+/// the human; trailer `Baruch-Action` (typeset-set|typeset-reset|typeset-adopt). Always one commit (`allow_empty`):
+/// the field „Verweis mit Seitenzahl“ changes no file, and `main.typ` carries the rule block through
+/// `snapshot::head` by itself.
 pub fn describe_typeset(change: &baruch_store::TypesetChange, action: TypesetAction) -> CommitRequest {
     let labels: Vec<&str> = change.changed.iter().map(|f| baruch_typst::typeset::field_label(f)).collect();
     let summary = match action {
@@ -1809,8 +1812,8 @@ pub fn describe_typeset(change: &baruch_store::TypesetChange, action: TypesetAct
     }
 }
 
-/// Änderung der Satz-Einstellungen spiegeln: genau ein Commit im Spiegel des Werks. Der Aufrufer hält die
-/// Schreibsperre seit vor dem DB-Schreibvorgang; Fehler stehen auch auf stderr.
+/// Mirror a change of the typeset settings: exactly one commit in the mirror of the work. The caller holds the
+/// write lock since before the database write; errors are also on stderr.
 pub async fn record_typeset(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -1824,15 +1827,15 @@ pub async fn record_typeset(
     result
 }
 
-// ---- Glossar und Register (Runde 31a) ----------------------------------------------------------
+// ---- Glossary and index (Round 31a) ------------------------------------------------------------
 
-/// Autor eines Vorschlags: die Persona bzw. der MCP-Client (Trailer `Persona`; [`name_persona_author`] setzt den Namen).
+/// Author of a proposal: the persona or the MCP client (trailer `Persona`; [`name_persona_author`] sets the name).
 fn proposer(handle: &str, trailers: &mut Vec<(String, String)>) -> Signature {
     trailers.push(("Persona".to_owned(), handle.to_owned()));
     Signature { name: handle.to_owned(), email: format!("{}@persona.baruch.invalid", email_local_part(handle)) }
 }
 
-/// Ein Begriff als Rumpf: Begriff, Varianten, Erklärungen, Bibelstellen, Quelle, Status und Herkunft.
+/// A term as a body: term, variants, explanations, scripture references, source, status and origin.
 fn term_body(term: &baruch_store::GlossaryTerm) -> String {
     let mut out = format!("Begriff: {}\n", term.term);
     if !term.variants.is_empty() {
@@ -1861,12 +1864,12 @@ fn term_body(term: &baruch_store::GlossaryTerm) -> String {
     out
 }
 
-/// Commit-Auftrag ohne Dateien für eine Änderung am Glossar (Runde 31, Vertrag §3.1): Betreff „Glossar: „<Begriff>“
-/// angelegt|geändert|gelöscht|vorgeschlagen von <handle>|übernommen|verworfen“; Rumpf mit dem Begriff (beim Ändern
-/// vorher und nachher, beim Löschen und Verwerfen der ganze Begriff, damit er aus der Historie wiederherstellbar
-/// bleibt); Trailer `Baruch-Action` (glossary-add|glossary-update|glossary-delete|glossary-propose|glossary-accept|
-/// glossary-reject) und `Baruch-Glossary` (uuid des Begriffs); beim Vorschlag ist die Persona bzw. der Client Autor
-/// (Trailer `Persona`), beim Entscheiden der Mensch mit `Baruch-Proposer`. Immer ein Commit (`allow_empty`).
+/// Commit request without files for a change to the glossary (Round 31, contract §3.1): subject „Glossar: „<Begriff>“
+/// angelegt|geändert|gelöscht|vorgeschlagen von <handle>|übernommen|verworfen“; body with the term (when changing
+/// before and after, when deleting and discarding the whole term, so that it stays restorable from the
+/// history); trailers `Baruch-Action` (glossary-add|glossary-update|glossary-delete|glossary-propose|glossary-accept|
+/// glossary-reject) and `Baruch-Glossary` (uuid of the term); for the proposal the persona or the client is the
+/// author (trailer `Persona`), for the decision the human with `Baruch-Proposer`. Always one commit (`allow_empty`).
 pub fn describe_glossary(change: &baruch_store::GlossaryChange) -> CommitRequest {
     use baruch_store::GlossaryAction;
     let term = change.after.as_ref().or(change.before.as_ref());
@@ -1919,19 +1922,19 @@ pub fn describe_glossary(change: &baruch_store::GlossaryChange) -> CommitRequest
     }
 }
 
-/// Was mit einem eigenen Register geschah.
+/// What happened to an own index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegisterAction<'a> {
-    /// Angelegt (`register-add`).
+    /// Created (`register-add`).
     Added,
-    /// Umbenannt; `old` ist der Titel vorher (`register-rename`).
+    /// Renamed; `old` is the title before (`register-rename`).
     Renamed { old: &'a str },
-    /// Gelöscht (`register-delete`).
+    /// Deleted (`register-delete`).
     Deleted,
 }
 
-/// Commit-Auftrag für ein eigenes Register: Betreff „Register: „<Titel>“ (<Kennung>) angelegt|umbenannt (vorher
-/// „…“)|gelöscht“, Autor der Mensch, Trailer `Baruch-Action` und `Baruch-Register` (Kennung). Immer ein Commit.
+/// Commit request for an own index: subject „Register: „<Titel>“ (<Kennung>) angelegt|umbenannt (vorher
+/// „…“)|gelöscht“, author the human, trailers `Baruch-Action` and `Baruch-Register` (identifier). Always one commit.
 pub fn describe_register(row: &baruch_store::IndexRegisterRow, action: RegisterAction<'_>) -> CommitRequest {
     let (summary, trailer) = match action {
         RegisterAction::Added => (format!("Register: „{}“ ({}) angelegt", row.title, row.slug), "register-add"),
@@ -1954,16 +1957,16 @@ pub fn describe_register(row: &baruch_store::IndexRegisterRow, action: RegisterA
     }
 }
 
-/// Was mit einem Registervorschlag geschah (ohne Übernahme, die [`describe_index_accept`] beschreibt).
+/// What happened to an index proposal (without the accept, which [`describe_index_accept`] describes).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexProposalAction {
-    /// Angelegt von einer Persona bzw. einem Client (`index-propose`).
+    /// Created by a persona or a client (`index-propose`).
     Proposed,
-    /// Vom Menschen verworfen (`index-reject`).
+    /// Discarded by the human (`index-reject`).
     Rejected,
 }
 
-/// Abschnitt eines Vorschlags über seinen festen Schlüssel als „<Nummer> <Titel>“.
+/// Section of a proposal through its fixed key as „<Nummer> <Titel>“.
 fn label_of_key(work: &Work, key: i64) -> String {
     work.nodes
         .iter()
@@ -1971,7 +1974,7 @@ fn label_of_key(work: &Work, key: i64) -> String {
         .map_or_else(|| format!("Abschnitt (key {key})"), |n| node_label(work, n.id))
 }
 
-/// Ein Registervorschlag als Rumpf: Wort, Fundstelle, Marke, Begründung.
+/// An index proposal as a body: word, location, mark, justification.
 fn index_body(work: &Work, proposal: &baruch_store::IndexProposal) -> String {
     let mark = &proposal.mark;
     let mut out = format!(
@@ -1996,10 +1999,10 @@ fn index_body(work: &Work, proposal: &baruch_store::IndexProposal) -> String {
     out
 }
 
-/// Commit-Auftrag für einen Registervorschlag: Betreff „Register: Vorschlag <id> „<Stichwort>“ in <Abschnitt> von
-/// <handle>“ (Autor die Persona bzw. der Client) bzw. „… verworfen“ (Autor der Mensch, `Baruch-Proposer`); Trailer
-/// `Baruch-Action` (index-propose|index-reject), `Baruch-Index-Proposal`, `Baruch-Node` (fester Schlüssel). Ändert keine
-/// Datei, darum immer `allow_empty`.
+/// Commit request for an index proposal: subject „Register: Vorschlag <id> „<Stichwort>“ in <Abschnitt> von
+/// <handle>“ (author the persona or the client) or „… verworfen“ (author the human, `Baruch-Proposer`); trailers
+/// `Baruch-Action` (index-propose|index-reject), `Baruch-Index-Proposal`, `Baruch-Node` (fixed key). Changes no
+/// file, hence always `allow_empty`.
 pub fn describe_index_proposal(
     work: &Work,
     proposal: &baruch_store::IndexProposal,
@@ -2042,9 +2045,10 @@ pub fn describe_index_proposal(
     }
 }
 
-/// Commit-Auftrag für die Übernahme eines Registervorschlags: wie [`describe`] für die neue Fassung des Menschen
-/// (Trailer `Baruch-Node`, `Baruch-Revision`), Betreff „<Abschnitt>: Registereintrag „<Stichwort>“ übernommen (Fassung
-/// n)“, dazu `Baruch-Action: index-accept`, `Baruch-Index-Proposal` und `Baruch-Proposer`. `work` ist der Stand danach.
+/// Commit request for accepting an index proposal: like [`describe`] for the new revision of the human
+/// (trailers `Baruch-Node`, `Baruch-Revision`), subject „<Abschnitt>: Registereintrag „<Stichwort>“ übernommen
+/// (Fassung n)“, plus `Baruch-Action: index-accept`, `Baruch-Index-Proposal` and `Baruch-Proposer`. `work` is the
+/// state afterwards.
 pub fn describe_index_accept(work: &Work, accepted: &baruch_store::IndexAccepted) -> CommitRequest {
     let mut request = describe(work, &accepted.change);
     let proposal = &accepted.proposal;
@@ -2061,9 +2065,9 @@ pub fn describe_index_accept(work: &Work, accepted: &baruch_store::IndexAccepted
     request
 }
 
-/// Glossar- bzw. Registeränderung spiegeln: genau ein Commit im Spiegel des Werks (`glossar.md` und, bei einer
-/// Übernahme, der Abschnitt). Der Aufrufer hält die Schreibsperre seit vor dem DB-Schreibvorgang; Fehler stehen auch
-/// auf stderr.
+/// Mirror a glossary or index change: exactly one commit in the mirror of the work (`glossar.md` and, for an
+/// accept, the section). The caller holds the write lock since before the database write; errors are also
+/// on stderr.
 pub async fn record_glossary(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -2299,7 +2303,7 @@ mod tests {
     #[test]
     fn typeset_commits_name_fields_both_values_and_the_action() {
         use baruch_typst::typeset::{ChapterStart, TypesetSettings};
-        // Vertrag §6.5: Betreff mit Bezeichnungen, Rumpf vorher → nachher je Feld, Trailer, Mensch als Autor.
+        // Contract §6.5: subject with labels, body before → after per field, trailers, human as author.
         let before = TypesetSettings { font_size_pt: Some(10.5), ..Default::default() };
         let after = TypesetSettings {
             chapter_start: Some(ChapterStart::RightPage),
@@ -2335,7 +2339,7 @@ mod tests {
 
     #[test]
     fn every_typeset_field_has_words() {
-        // Jedes Feld aus FIELDS bekommt im Rumpf einen Wert; ein vergessenes Feld hieße still „aus der Werkvorlage“.
+        // Every field from FIELDS gets a value in the body; a forgotten field would silently say „aus der Werkvorlage“.
         let full = baruch_exchange::typeset::full_sample();
         for (field, label) in baruch_typst::typeset::FIELDS {
             assert_ne!(typeset_value(&full, field), "aus der Werkvorlage", "{label} ({field}) hat Worte");

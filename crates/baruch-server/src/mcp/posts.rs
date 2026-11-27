@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug zum Bearbeiten eigener Beiträge (Runde 28, chat-auftrag).
+//! MCP tool for editing one's own posts (Round 28, chat-auftrag).
 //!
-//! - `post_edit {work, id, body, thread?}`: nur eigene Beiträge des Clients (Autor `@mcp:<name>`), im Abschnitts-Chat
-//!   bzw. mit `thread` im Faden; die alte Fassung bleibt als Verlauf erhalten. Beiträge von Personas und des
-//!   Menschen sind über MCP nicht bearbeitbar (auch nicht mit `persona`: Personas bearbeiten nie). Im Abschnitts-Chat
-//!   genau ein Commit „Beitrag <id>: bearbeitet“ (Autor der Client), im Faden keiner (Fäden stehen nicht im Spiegel).
-//!   Eigentum wie bei `post_delete`: über den Handle des Clients (Runde 23: mit Token der Tokenname samt
-//!   Alt-Handle; ohne Token der angegebene Name, mit `lokal-`, wenn er einem Token gehört – docs/MCP.md).
+//! - `post_edit {work, id, body, thread?}`: only the client's own posts (author `@mcp:<name>`), in the section chat
+//!   or with `thread` in the thread; the old revision is kept as history. Posts of personas and of the
+//!   human cannot be edited through MCP (not with `persona` either: personas never edit). In the section chat
+//!   exactly one commit „Beitrag <id>: bearbeitet“ (author the client), in the thread none (threads are not in the
+//!   mirror). Ownership as with `post_delete`: through the handle of the client (Round 23: with a token the token
+//!   name including the legacy handle; without a token the given name, with `lokal-` if it belongs to a token –
+//!   docs/MCP.md).
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -50,8 +51,8 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
 async fn edit(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     let a: EditArgs = args(arguments)?;
     let (work, _, _) = resolve(&state.store, &a.work).await?;
-    // Runde 23: Eigentum über den Handle des Clients (mit Token zusätzlich dessen Alt-Handle); ein Client ohne Token
-    // mit dem Namen eines Tokens ist hier schon `@mcp:lokal-…` und besitzt dessen Beiträge nicht.
+    // Round 23: ownership through the handle of the client (with a token additionally its legacy handle); a client
+    // without a token with the name of a token is already `@mcp:lokal-…` here and does not own its posts.
     let handle = client.handle();
     let also: Vec<String> = client.owned_handles().into_iter().filter(|h| h != &handle).collect();
     let mut answer = match a.thread {

@@ -1,71 +1,72 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Literatur als Popup und eigene Seiten: Suche über Werk und Bibliothek, Dokumentansicht einer
-//! Quelle mit Hervorhebungen, Hervorhebungen anlegen, ändern, löschen und als Zitat übernehmen.
+//! Literature as a popup and as pages of its own: search across work and library, document view of a
+//! source with highlights, creating, changing and deleting highlights and taking them over as a quote.
 //!
-//! Seiten (ohne JavaScript bedienbar, [`pages`]):
-//! - `GET /literatur?work&key&rev&lq&lmode` (`node` nur Rückfall) – Suchformular, Treffer, Titel mit Zitaten und
-//!   Hervorhebungen, Link zurück zum Werk. Mit JavaScript zeigt die Kopfzeile denselben Inhalt als `<dialog>`.
-//!   `lmode` (Runde 12) wählt die Suche: `fts` (Vorgabe, Wortlaut über FTS5) oder `rag` (Bedeutung über
-//!   [`crate::search_hooks::rag_search`], alle Wege des Werks). Antwortet kein Weg, sagt die Seite warum und
-//!   verlinkt dieselbe Suche im Wortlaut – sie schaltet nie still um. `lmode` reist wie `lq` in allen Links
-//!   und Formularen mit. Die Arbeitsseite bleibt bei FTS.
-//! - `GET /quelle?work&key&title&quote?&highlight?&lq&teil?` – Dokumentansicht: Angaben, Zitate (Anker
-//!   `#zitat-<id>`), alle Hervorhebungen (Anker `#hervorhebung-<id>`, mit Prüfung gegen den Volltext), Ziel
-//!   mit Klasse `target` bzw. `<mark>`; bei einem mit MultiGPT verknüpften Titel der Volltext (Teil `teil`,
-//!   Runde 13); darunter das Formular für markierten Text.
-//! - `GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q` (Runde 13) – Volltext eines
-//!   Dokuments aus MultiGPT, teilweise mit Links „vorheriger/nächster Teil“, Fundstelle `q` als `<mark>`, Knopf
-//!   „In die Bibliothek übernehmen“; ohne JavaScript. Fällt MultiGPT aus, nennt die Seite den Grund (oder
-//!   zeigt die lokale Kopie des Abgleichs). Siehe [`fulltext`]. Runde 18b: mit Abschnitt (`key`) das Formular
-//!   „An Persona geben“ (`action=persona`, Text des gezeigten Teils vorbelegt, Quelle „MultiGPT: Titel (Dokument
-//!   …)“, ohne übernommenen Titel).
+//! Pages (usable without JavaScript, [`pages`]):
+//! - `GET /literatur?work&key&rev&lq&lmode` (`node` only as a fallback) – search form, hits, titles with quotes and
+//!   highlights, link back to the work. With JavaScript the header shows the same content as a `<dialog>`.
+//!   `lmode` (Round 12) selects the search: `fts` (default, wording through FTS5) or `rag` (meaning through
+//!   [`crate::search_hooks::rag_search`], all ways of the work). If no way answers, the page says why and
+//!   links to the same search by wording – it never switches silently. `lmode` travels along like `lq` in all
+//!   links and forms. The work page stays with FTS.
+//! - `GET /quelle?work&key&title&quote?&highlight?&lq&teil?` – document view: details, quotes (anchor
+//!   `#zitat-<id>`), all highlights (anchor `#hervorhebung-<id>`, with a check against the full text), target
+//!   with class `target` or `<mark>`; for a title linked with MultiGPT the full text (part `teil`,
+//!   Round 13); below it the form for selected text.
+//! - `GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q` (Round 13) – full text of a
+//!   document from MultiGPT, in parts with links „vorheriger/nächster Teil“, passage `q` as `<mark>`, button
+//!   „In die Bibliothek übernehmen“; without JavaScript. If MultiGPT is down, the page names the reason (or
+//!   shows the local copy of the sync). See [`fulltext`]. Round 18b: with a section (`key`) the form
+//!   „An Persona geben“ (`action=persona`, text of the part shown prefilled, source „MultiGPT: Titel (Dokument
+//!   …)“, without an adopted title).
 //!
-//! Formulare ([`writes`], hinter `guard::same_origin`): `POST /literatur/act` mit `action` =
-//! `highlight`, `cite`, `persona`, `own`, `similar`, `update`, `delete`, `adopt`, `check`, danach Weiterleitung.
-//! `persona` (Runde 15, „an Persona geben“): markierter Text (`text`, höchstens 4000 Zeichen) mit Quellenangabe
-//! (`source`, eine Zeile) und Frage (`question`) an die gewählte Persona (`persona`, Vorgabe der Lektor); sie
-//! antwortet als Beitrag im Abschnitt `key` (Pflicht, sonst Hinweisseite „Abschnitt wählen“) mit der Quelle
-//! `source`. Nichts am Buchtext. Scheitert die Persona, zeigt eine Hinweisseite (Status 200) den Grund.
-//! `own` (Runde 15): eine Persona-Hervorhebung als eigene übernehmen – neue Hervorhebung des Menschen (aktiv),
-//! das Original bleibt Vorschlag.
+//! Forms ([`writes`], behind `guard::same_origin`): `POST /literatur/act` with `action` =
+//! `highlight`, `cite`, `persona`, `own`, `similar`, `update`, `delete`, `adopt`, `check`, then a redirect.
+//! `persona` (Round 15, „an Persona geben“): selected text (`text`, at most 4000 characters) with a source
+//! reference (`source`, one line) and a question (`question`) to the chosen persona (`persona`, default the
+//! lector); it answers as a post in the section `key` (mandatory, otherwise the notice page „Abschnitt wählen“)
+//! with the source `source`. Nothing in the book text. If the persona fails, a notice page (status 200) shows the
+//! reason.
+//! `own` (Round 15): take over a persona highlight as one's own – a new highlight of the human (active),
+//! the original stays a proposal.
 //!
-//! Bibeln in der Literatur (Runde 15, [`bibles`]): Kasten „Bibeln“ im Popup und auf `/literatur`, Treffergruppen
-//! „Bibel“ und „Kommentar“ im Wortlaut-Modus, eigene Seite `/literatur/bibel`.
+//! Bibles in the literature (Round 15, [`bibles`]): box „Bibeln“ in the popup and on `/literatur`, hit groups
+//! „Bibel“ and „Kommentar“ in wording mode, own page `/literatur/bibel`.
 //!
-//! Bilder in der Literatur (Runde 21c, [`image_hits`]): Mit einer Suche zeigen `/literatur` (ohne JavaScript) und das
-//! Popup (`literature.render`) unter den Treffern den Kasten „Bilder des Werks“: jedes Bild, in dessen Name,
-//! Bildunterschrift oder Alternativtext (aktuelle Fassung) alle Wörter der Suche vorkommen (ohne Groß/Klein), mit
-//! Vorschaubild (`/werke/{id}/bilder/{name}/vorschau?b=160`) und Link auf die Seite des Bilds; höchstens
-//! [`MAX_IMAGE_HITS`]. Texte maskiert (eigene kleine Vorlage [`IMAGE_HITS_TEMPLATE`], `fragments/library.html` bleibt
-//! unberührt).
+//! Images in the literature (Round 21c, [`image_hits`]): with a search, `/literatur` (without JavaScript) and the
+//! popup (`literature.render`) show the box „Bilder des Werks“ below the hits: every image in whose name,
+//! caption or alternative text (current revision) all words of the search occur (ignoring case), with a
+//! preview image (`/werke/{id}/bilder/{name}/vorschau?b=160`) and a link to the page of the image; at most
+//! [`MAX_IMAGE_HITS`]. Texts escaped (own small template [`IMAGE_HITS_TEMPLATE`], `fragments/library.html` stays
+//! untouched).
 //!
-//! Abschnitt: Beide Seiten tragen den **festen Schlüssel** `key` des Abschnitts selbst (aus `?key=`,
-//! sonst aus der Stelle `?node=` beim Laden bestimmt) in ihren Links und Formularen. Zitieren
-//! (`cite`, `highlight.cite`) nimmt nur `key` an und löst ihn unter der Schreibsperre auf; die
-//! Stelle `node` aus der Adresse ist reine Anzeige (Vertrag Runde 5): Nach einer Umstellung in einem
-//! anderen Tab landete das Zitat sonst in einem fremden Abschnitt.
+//! Section: both pages carry the **fixed key** `key` of the section itself (from `?key=`,
+//! otherwise determined from the position `?node=` on loading) in their links and forms. Quoting
+//! (`cite`, `highlight.cite`) accepts only `key` and resolves it under the write lock; the
+//! position `node` from the address is pure display (contract Round 5): after a rearrangement in
+//! another tab the quote would otherwise land in a foreign section.
 //!
-//! RPC ([`handles`], [`call`]; aus `rpc::call` heraus):
-//! - `literature.render {work?, node?, key?, rev?, lq?, lmode?}` → `{html, lq, lmode, url}` (Inhalt des Popups)
-//! - `highlight.list {title?}` → `{highlights}` (je Hervorhebung `check` oder `null`)
-//! - `highlight.add {title, quote?, locator?, start?, end?, text, kind, note?}` → `{highlight, check}`: ohne
-//!   Zitat mit Bereich an einem verknüpften Titel gegen den Volltext geprüft (Runde 13)
-//! - `highlight.check {highlight}` → `{highlight, check}` (erneut prüfen)
-//! - `source.read {title? | document, collection?, part?, q?}` → Teil des Volltexts (Runde 13)
-//! - `source.adopt {document, collection?}` → `{title, remote}` (nur der Mensch; nicht über MCP)
+//! RPC ([`handles`], [`call`]; called from `rpc::call`):
+//! - `literature.render {work?, node?, key?, rev?, lq?, lmode?}` → `{html, lq, lmode, url}` (content of the popup)
+//! - `highlight.list {title?}` → `{highlights}` (per highlight `check` or `null`)
+//! - `highlight.add {title, quote?, locator?, start?, end?, text, kind, note?}` → `{highlight, check}`: without
+//!   a quote, with a range on a linked title, checked against the full text (Round 13)
+//! - `highlight.check {highlight}` → `{highlight, check}` (check again)
+//! - `source.read {title? | document, collection?, part?, q?}` → part of the full text (Round 13)
+//! - `source.adopt {document, collection?}` → `{title, remote}` (only the human; not through MCP)
 //! - `highlight.update {highlight, kind?, note?, status?}` → `{highlight}`
 //! - `highlight.delete {highlight}` → `{deleted}`
-//! - `highlight.cite {highlight, key}` → `{node, key, rev}`: Vorschlag-Revision mit `#quote(...)[...]`
-//!   über die unveränderte `Store::add_proposal` (Autor `@literatur`, Modell `baruch-zitat`); `key`
-//!   ist Pflicht, `node` → -32602.
-//! - `highlight.own {highlight}` → `{highlight, original}` (Runde 15): eigene Kopie einer Persona-Hervorhebung
-//!   (aktiv, Autor der Mensch), das Original bleibt Vorschlag; nicht über MCP.
-//! - `literature.to_persona {work, key, persona, text, source, title?, highlight?, question?}` (Runde 15) → wie
-//!   `persona.ask` (Beitrag der Persona mit Quelle `source`, die Frage als Beitrag des Menschen).
+//! - `highlight.cite {highlight, key}` → `{node, key, rev}`: proposal revision with `#quote(...)[...]`
+//!   through the unchanged `Store::add_proposal` (author `@literatur`, model `baruch-zitat`); `key`
+//!   is mandatory, `node` → -32602.
+//! - `highlight.own {highlight}` → `{highlight, original}` (Round 15): own copy of a persona highlight
+//!   (active, author the human), the original stays a proposal; not through MCP.
+//! - `literature.to_persona {work, key, persona, text, source, title?, highlight?, question?}` (Round 15) → like
+//!   `persona.ask` (post of the persona with the source `source`, the question as a post of the human).
 //!
-//! Hervorhebungen über RPC und Formular stammen immer vom Menschen (`active`); Personas legen sie
-//! später nur als Vorschlag an (`HighlightAuthor::Persona`). Nach jedem Anlegen, Ändern und Löschen
-//! einer Hervorhebung meldet die Literatur das der Bedeutungssuche ([`crate::search_hooks::changed`]).
+//! Highlights through RPC and form always come from the human (`active`); personas create them
+//! later only as a proposal (`HighlightAuthor::Persona`). After every creating, changing and deleting
+//! of a highlight the literature reports that to the semantic search ([`crate::search_hooks::changed`]).
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -98,28 +99,28 @@ pub use fulltext::{
     adopt as adopt_source, check_highlight, local_copy, marks, read as read_source,
 };
 
-/// Urheber und Modell der Zitat-Vorschläge aus der Literatur.
+/// Originator and model of the quote proposals from the literature.
 pub const CITE_PERSONA: &str = "@literatur";
 pub const CITE_MODEL: &str = "baruch-zitat";
 
-/// Längster markierter Text für „an Persona geben“ (Zeichen).
+/// Longest selected text for „an Persona geben“ (characters).
 pub const MAX_PERSONA_TEXT: usize = 4000;
-/// Längste Quellenangabe für „an Persona geben“ (Zeichen, eine Zeile).
+/// Longest source reference for „an Persona geben“ (characters, one line).
 pub const MAX_SOURCE_CHARS: usize = 300;
-/// Hinweis, wenn „an Persona geben“ ohne Abschnitt kommt.
+/// Notice when „an Persona geben“ comes without a section.
 pub const PICK_SECTION: &str = "Abschnitt wählen: Die Persona antwortet im Abschnitts-Chat. Die Literatur aus einem \
      Abschnitt heraus öffnen (Arbeitsseite → Literatur) und den Text dann an die Persona geben.";
 
-/// Hinweis bei einer Quelle ohne Verknüpfung zu MultiGPT (kein Stub: einen Volltext gibt es nur für
-/// übernommene Dokumente).
+/// Notice for a source without a link to MultiGPT (not a stub: a full text exists only for
+/// adopted documents).
 pub const NOT_LINKED: &str = "Diese Quelle ist nicht mit MultiGPT verknüpft; einen Volltext gibt es nur für \
      Dokumente aus MultiGPT (Bedeutungssuche → „Volltext“ → „In die Bibliothek übernehmen“).";
 
-/// Grund, wenn eine fremde Seite den Volltext per GET laden will (`Sec-Fetch-Site`/`Origin`).
+/// Reason when a foreign page wants to load the full text by GET (`Sec-Fetch-Site`/`Origin`).
 pub const FOREIGN_FULLTEXT: &str = "Aufruf von einer fremden Seite; Baruch lädt den Volltext über MultiGPT nur, \
      wenn die Seite hier in Baruch geöffnet wird.";
 
-/// Wortlaut-Suche (FTS5, Vorgabe) oder Bedeutungssuche (RAG) – `lmode` in Adresse und Formularen.
+/// Wording search (FTS5, default) or semantic search (RAG) – `lmode` in address and forms.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SearchMode {
     #[default]
@@ -128,7 +129,7 @@ pub enum SearchMode {
 }
 
 impl SearchMode {
-    /// `rag` → Bedeutung; alles andere (auch leer oder unbekannt) → Wortlaut.
+    /// `rag` → meaning; everything else (also empty or unknown) → wording.
     pub fn parse(value: Option<&str>) -> SearchMode {
         match value.map(str::trim) {
             Some("rag") => SearchMode::Rag,
@@ -144,12 +145,12 @@ impl SearchMode {
     }
 }
 
-// ---- Bilder des Werks (Runde 21c) ----------------------------------------------------------------
+// ---- Images of the work (Round 21c) --------------------------------------------------------------
 
-/// Höchstens so viele Bilder zeigt der Kasten „Bilder des Werks“.
+/// The box „Bilder des Werks“ shows at most this many images.
 pub const MAX_IMAGE_HITS: usize = 24;
 
-/// Kasten „Bilder des Werks“ (Text automatisch maskiert, Adressen von [`href`]).
+/// Box „Bilder des Werks“ (text escaped automatically, addresses from [`href`]).
 const IMAGE_HITS_TEMPLATE: &str = r#"{#- Bilder des Werks zur Suche (Runde 21c): images [{name, caption, alt, href, thumb}], query. -#}
 <section class="library-images" data-library-images aria-labelledby="library-images-title">
   <div class="muted tiny" id="library-images-title">Bilder des Werks für „{{ query }}“</div>
@@ -171,9 +172,9 @@ const IMAGE_HITS_TEMPLATE: &str = r#"{#- Bilder des Werks zur Suche (Runde 21c):
 </section>
 "#;
 
-/// Bilder des Werks, in deren Name, Bildunterschrift oder Alternativtext alle Wörter von `query` vorkommen (ohne
-/// Groß/Klein, auch Umlaute); Reihenfolge nach Namen. Leere Suche → keine. Ergebnis: höchstens `limit` Bilder und
-/// ob es mehr gab.
+/// Images of the work in whose name, caption or alternative text all words of `query` occur (ignoring
+/// case, umlauts included); ordered by name. Empty search → none. Result: at most `limit` images and
+/// whether there were more.
 pub async fn image_hits(
     state: &AppState,
     work: WorkId,
@@ -199,14 +200,14 @@ pub async fn image_hits(
     Ok((found, more))
 }
 
-/// HTML des Kastens „Bilder des Werks“ zur Suche von `at` (leer ohne Suche). Ein Fehler beim Lesen der Bilder
-/// erscheint als Hinweis im Kasten, nie als stiller Wegfall.
+/// HTML of the box „Bilder des Werks“ for the search of `at` (empty without a search). An error while reading the
+/// images appears as a notice in the box, never as a silent omission.
 async fn image_hits_html(state: &AppState, at: &At) -> String {
     image_hits_box(state, at.work, at.lq.as_deref()).await
 }
 
-/// Der Kasten „Bilder des Werks“ für die Suche `lq` im Werk `work` (leer ohne Suche). Runde 23a: auch für die
-/// Arbeitsseite mit `?lq=` (`rpc::library_view`), damit der Kasten ohne JavaScript im ausgelieferten HTML steht.
+/// The box „Bilder des Werks“ for the search `lq` in the work `work` (empty without a search). Round 23a: also for
+/// the work page with `?lq=` (`rpc::library_view`), so that the box is in the served HTML without JavaScript.
 pub(crate) async fn image_hits_box(state: &AppState, work: WorkId, lq: Option<&str>) -> String {
     let Some(query) = lq.map(str::trim).filter(|q| !q.is_empty()) else { return String::new() };
     let mut env = Environment::new();
@@ -238,14 +239,14 @@ pub(crate) async fn image_hits_box(state: &AppState, work: WorkId, lq: Option<&s
         .unwrap_or_else(|e| format!("<p class=\"notice error\">Bilder: {}</p>", escape_text(&e.to_string())))
 }
 
-/// Text für HTML maskieren (`&`, `<`, `>`, `"`, `'`).
+/// Escape text for HTML (`&`, `<`, `>`, `"`, `'`).
 fn escape_text(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#x27;")
 }
 
-// ---- Vorlagen ----------------------------------------------------------------------------------
+// ---- Templates ---------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung der Literatur (die der Arbeitsseite bleibt unberührt).
+/// Own template environment of the literature (that of the work page stays untouched).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -266,15 +267,15 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Thema aus den Cookies (`base.html` braucht `settings`); Spaltenbreiten gelten hier nicht.
+/// Theme from the cookies (`base.html` needs `settings`); column widths do not apply here.
 fn page_settings(headers: &HeaderMap) -> Value {
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     Value::from(Serde(settings))
 }
 
-/// Eine selbst gebaute Adresse für ein `href`: Sie besteht nur aus Ziffern, festen Namen und
-/// prozentkodierten Werten ([`query_escape`]), darum genügt es, `&` zu maskieren. So bleibt `/`
-/// lesbar (die Vorlagen maskieren es sonst als `&#x2f;`).
+/// A self-built address for an `href`: it consists only of digits, fixed names and
+/// percent-encoded values ([`query_escape`]), so it is enough to escape `&`. This keeps `/`
+/// readable (the templates otherwise escape it as `&#x2f;`).
 fn href(url: String) -> Value {
     debug_assert!(!url.contains(['"', '<', '>', '\'', ' ']), "unsichere Adresse {url:?}");
     Value::from_safe_string(url.replace('&', "&amp;"))
@@ -287,7 +288,7 @@ fn render(name: &str, ctx: Value) -> Result<String, RpcError> {
         .map_err(|e| RpcError::new(INTERNAL, format!("Vorlage {name}: {e}")))
 }
 
-// ---- Fehler ------------------------------------------------------------------------------------
+// ---- Errors ------------------------------------------------------------------------------------
 
 impl From<HighlightError> for RpcError {
     fn from(e: HighlightError) -> Self {
@@ -317,31 +318,31 @@ fn error_response(e: RpcError) -> Response {
     (status_of(&e), format!("Fehler: {}", e.message)).into_response()
 }
 
-// ---- Stelle im Werk ----------------------------------------------------------------------------
+// ---- Position in the work ----------------------------------------------------------------------
 
-/// Werk, Abschnitt, Revision und Suche, wie sie die Literatur-Seiten weitertragen.
+/// Work, section, revision and search as the literature pages pass them on.
 #[derive(Debug, Clone, Default)]
 struct At {
     work: WorkId,
     work_title: String,
     node: Option<usize>,
-    /// Fester Schlüssel des Abschnitts (`Node::key`), gehört zu `node`.
+    /// Fixed key of the section (`Node::key`), belongs to `node`.
     key: Option<i64>,
     rev: Option<u32>,
     preview: bool,
     lq: Option<String>,
-    /// Art der Suche (`lmode`); reist mit `lq` mit.
+    /// Kind of search (`lmode`); travels along with `lq`.
     mode: SearchMode,
 }
 
-/// Zahl aus einem Formular- oder Adressfeld; leer oder ungültig → `None`.
+/// Number from a form or address field; empty or invalid → `None`.
 fn number<T: std::str::FromStr>(value: &Option<String>) -> Option<T> {
     value.as_deref().map(str::trim).filter(|v| !v.is_empty()).and_then(|v| v.parse().ok())
 }
 
-/// Abschnitt aus Schlüssel und Stelle: Der Schlüssel geht vor (die Stelle kann veraltet sein); gibt
-/// es ihn nicht (mehr), gilt kein Abschnitt. Ohne Schlüssel die Stelle, wenn es sie gibt, samt ihrem
-/// Schlüssel.
+/// Section from key and position: the key takes precedence (the position can be outdated); if it
+/// does not exist (any more), no section applies. Without a key the position, if it exists, together with
+/// its key.
 fn place_of(work: &baruch_core::Work, node: Option<usize>, key: Option<i64>) -> (Option<usize>, Option<i64>) {
     let found = match key {
         Some(key) => work.nodes.iter().find(|n| n.key == key),
@@ -350,12 +351,12 @@ fn place_of(work: &baruch_core::Work, node: Option<usize>, key: Option<i64>) -> 
     found.map_or((None, None), |n| (Some(n.id), Some(n.key)))
 }
 
-/// Steht das Feld (nicht `null`) in den Parametern? Für `node` in `highlight.cite`, das abgelehnt wird.
+/// Is the field (not `null`) in the parameters? For `node` in `highlight.cite`, which is refused.
 fn given(params: &serde_json::Value, name: &str) -> bool {
     params.get(name).is_some_and(|v| !v.is_null())
 }
 
-/// Fester Schlüssel aus RPC-Parametern: Zahl oder Ziffern als Text; fehlt → `None`.
+/// Fixed key from RPC parameters: a number or digits as text; missing → `None`.
 fn key_param(params: &serde_json::Value) -> Result<Option<i64>, RpcError> {
     let wrong = || invalid("key: fester Schlüssel des Abschnitts (Zahl) erwartet");
     match params.get("key") {
@@ -368,8 +369,8 @@ fn key_param(params: &serde_json::Value) -> Result<Option<i64>, RpcError> {
 }
 
 impl At {
-    /// Werk prüfen (unbekannt → `UnknownWork`), Abschnitt nur übernehmen, wenn es ihn gibt
-    /// ([`place_of`]: Schlüssel vor Stelle).
+    /// Check the work (unknown → `UnknownWork`), take over the section only if it exists
+    /// ([`place_of`]: key before position).
     async fn resolve(
         state: &AppState,
         work: Option<WorkId>,
@@ -396,7 +397,7 @@ impl At {
         })
     }
 
-    /// `&lq=<kodiert>[&lmode=rag]` oder leer (die Vorgabe `fts` steht nicht in der Adresse).
+    /// `&lq=<encoded>[&lmode=rag]` or empty (the default `fts` is not in the address).
     fn lq_tail(&self) -> String {
         let mut tail = self.lq.as_deref().map_or(String::new(), |q| format!("&lq={}", query_escape(q)));
         if self.mode == SearchMode::Rag {
@@ -405,8 +406,8 @@ impl At {
         tail
     }
 
-    /// `work=…[&key=…]`: Werk und fester Schlüssel des Abschnitts (Vertrag Runde 8, §1: erzeugte
-    /// Adressen tragen kein `node=` mehr; `node` und `key` gehören immer zusammen, siehe [`place_of`]).
+    /// `work=…[&key=…]`: work and fixed key of the section (contract Round 8, §1: generated
+    /// addresses no longer carry `node=`; `node` and `key` always belong together, see [`place_of`]).
     fn place(&self) -> String {
         let mut q = format!("work={}", self.work);
         if let Some(key) = self.key {
@@ -415,7 +416,7 @@ impl At {
         q
     }
 
-    /// Zurück zum Werk: `/?work&key&rev[&view=preview][&lq]`.
+    /// Back to the work: `/?work&key&rev[&view=preview][&lq]`.
     fn work_url(&self) -> String {
         let mut url = format!("/?{}", self.place());
         if let Some(rev) = self.rev {
@@ -457,12 +458,12 @@ impl At {
         url
     }
 
-    /// Dokumentansicht eines Titels an Teil `teil` des Volltexts (Anker `#volltext`).
+    /// Document view of a title at part `teil` of the full text (anchor `#volltext`).
     fn source_part_url(&self, title: i64, teil: usize) -> String {
         format!("/quelle?title={title}&{}&teil={teil}{}#volltext", self.place(), self.lq_tail())
     }
 
-    /// Volltext eines Dokuments aus MultiGPT: `/quelle/multigpt?work&key[&rev]&collection&document[&section]
+    /// Full text of a document from MultiGPT: `/quelle/multigpt?work&key[&rev]&collection&document[&section]
     /// &teil[&q][&lq][&lmode]`.
     fn multigpt_url(
         &self,
@@ -492,8 +493,8 @@ impl At {
         url
     }
 
-    /// Versteckte Felder für Formulare: work, node, key, rev, lq (nur die vorhandenen). Über `key`
-    /// findet `cite` den Abschnitt.
+    /// Hidden fields for forms: work, node, key, rev, lq (only those present). Through `key`
+    /// `cite` finds the section.
     fn fields(&self) -> Vec<Value> {
         let mut fields = vec![context! { name => "work", value => self.work.to_string() }];
         if let Some(node) = self.node {
@@ -514,7 +515,7 @@ impl At {
         fields
     }
 
-    /// Kontext `work`, `node`, `rev`, `view` wie in der Arbeitsseite (für `fragments/library.html`).
+    /// Context `work`, `node`, `rev`, `view` as in the work page (for `fragments/library.html`).
     fn context(&self) -> (Value, Value, Value) {
         let work = context! { id => self.work, title => self.work_title.as_str() };
         let node = match (self.node, self.key) {
@@ -527,9 +528,9 @@ impl At {
     }
 }
 
-// ---- Inhalt der Literatur ----------------------------------------------------------------------
+// ---- Content of the literature -----------------------------------------------------------------
 
-/// Titel mit Zitaten und Hervorhebungen (flach serialisiert wie `TitleEntry`).
+/// Title with quotes and highlights (serialised flat like `TitleEntry`).
 #[derive(Serialize)]
 struct TitleView {
     #[serde(flatten)]
@@ -540,18 +541,18 @@ struct TitleView {
 struct Literature {
     titles: Vec<TitleView>,
     hits: Vec<SearchHit>,
-    /// Bedeutungssuche (`lmode=rag` mit Suche): [`rag_view`] bzw. [`rag_unavailable`].
+    /// Semantic search (`lmode=rag` with a search): [`rag_view`] or [`rag_unavailable`].
     rag: Option<serde_json::Value>,
-    /// Kasten „Bibeln“ und Treffergruppen „Bibel“/„Kommentar“ (Runde 15, [`bibles::Shelf`]).
+    /// Box „Bibeln“ and hit groups „Bibel“/„Kommentar“ (Round 15, [`bibles::Shelf`]).
     bibles: bibles::Shelf,
 }
 
-/// Alle Titel mit Hervorhebungen und, falls gesucht wurde, die Treffer im Werk und in der
-/// Bibliothek. Eine Suche ohne Wörter (auch nur NUL oder Steuerzeichen) ergibt keine Treffer.
+/// All titles with highlights and, if a search was made, the hits in the work and in the
+/// library. A search without words (also only NUL or control characters) yields no hits.
 ///
-/// `own_page`: Die Anfrage kam aus Baruch selbst (RPC bzw. [`crate::guard::check`] bei GET). Sonst läuft die
-/// Bedeutungssuche nicht – eine fremde Seite könnte sie sonst mit den Zugangsdaten der Wege auslösen
-/// (Einbettung, pgvector, MultiGPT); die Seite sagt dann [`FOREIGN_PAGE`].
+/// `own_page`: the request came from Baruch itself (RPC or [`crate::guard::check`] for GET). Otherwise the
+/// semantic search does not run – a foreign page could otherwise trigger it with the credentials of the ways
+/// (embedding, pgvector, MultiGPT); the page then says [`FOREIGN_PAGE`].
 async fn literature(state: &AppState, at: &At, own_page: bool) -> Result<Literature, RpcError> {
     let pool = state.store.pool();
     let entries = baruch_library::list_titles(pool).await?;
@@ -601,9 +602,9 @@ async fn literature(state: &AppState, at: &At, own_page: bool) -> Result<Literat
     Ok(Literature { titles, hits, rag: None, bibles })
 }
 
-// ---- Bedeutungssuche (RAG) ---------------------------------------------------------------------
+// ---- Semantic search (RAG) ---------------------------------------------------------------------
 
-/// Kurzer Name eines Wegs in der Zustandszeile.
+/// Short name of a way in the status line.
 fn short_title(way: Way) -> &'static str {
     match way {
         Way::Lancedb => "LanceDB",
@@ -612,8 +613,8 @@ fn short_title(way: Way) -> &'static str {
     }
 }
 
-/// Zustandszeile der Wege, z. B. „LanceDB: verbunden · pgvector: aus · MultiGPT: ausgefallen (…)“; nur
-/// ausgefallene Wege nennen ihren Grund (der Grund für „aus“ steht in [`rag_unavailable`]).
+/// Status line of the ways, e.g. „LanceDB: verbunden · pgvector: aus · MultiGPT: ausgefallen (…)“; only
+/// failed ways name their reason (the reason for „aus“ is in [`rag_unavailable`]).
 pub fn ways_line(answer: &Answer) -> String {
     answer
         .ways
@@ -628,9 +629,9 @@ pub fn ways_line(answer: &Answer) -> String {
         .join(" · ")
 }
 
-/// Ist die Adresse ungefährlich für ein `href`? Nur eigene Adressen (`/…`, nicht `//…`) und http(s); kein
-/// Leerraum, keine Steuerzeichen, keine Anführungszeichen oder spitzen Klammern, kein Backslash. Alles
-/// andere (`javascript:`, `data:`, `//fremd`) wird verworfen.
+/// Is the address harmless for an `href`? Only own addresses (`/…`, not `//…`) and http(s); no
+/// whitespace, no control characters, no quotation marks or angle brackets, no backslash. Everything
+/// else (`javascript:`, `data:`, `//fremd`) is discarded.
 pub fn safe_link(url: &str) -> Option<String> {
     let url = url.trim();
     let bad = url.is_empty()
@@ -645,8 +646,8 @@ pub fn safe_link(url: &str) -> Option<String> {
     (own || web).then(|| url.to_owned())
 }
 
-/// Link eines Treffers: seine Adresse ([`safe_link`]) oder – bei LanceDB ohne Adresse – der Ort aus
-/// `meta.work`/`meta.key` (`/?work=W&key=K`). Sonst kein Link.
+/// Link of a hit: its address ([`safe_link`]) or – for LanceDB without an address – the place from
+/// `meta.work`/`meta.key` (`/?work=W&key=K`). Otherwise no link.
 pub fn hit_link(hit: &MergedHit) -> Option<String> {
     if let Some(url) = hit.hit.url.as_deref() {
         return safe_link(url);
@@ -662,8 +663,8 @@ pub fn hit_link(hit: &MergedHit) -> Option<String> {
     None
 }
 
-/// Dokumentansicht eines MultiGPT-Treffers (Runde 13): `/quelle/multigpt?collection=…&document=…[&section=…]&q=…`
-/// (alle Werte prozentkodiert); andere Wege → `None`.
+/// Document view of a MultiGPT hit (Round 13): `/quelle/multigpt?collection=…&document=…[&section=…]&q=…`
+/// (all values percent-encoded); other ways → `None`.
 pub fn fulltext_link(hit: &MergedHit, query: &str) -> Option<String> {
     if hit.hit.way != Way::Multigpt || hit.hit.document.trim().is_empty() {
         return None;
@@ -682,11 +683,11 @@ pub fn fulltext_link(hit: &MergedHit, query: &str) -> Option<String> {
     Some(url)
 }
 
-/// Antwort der Bedeutungssuche für die Vorlage: Treffer (Titel, Weg-Abzeichen, Sammlung, Ausschnitt,
-/// Ähnlichkeit in %, sicherer Link, bei MultiGPT seit Runde 13 `fulltext_link`), die Zustandszeile der Wege
-/// und – wenn kein Weg geantwortet hat – der Grund. Treffer-Texte sind Daten; die Vorlage maskiert sie.
-/// Runde 19c: je Treffer `weak` ([`baruch_rag::is_weak`]); schwache Treffer stehen hinter den übrigen (sonst in der
-/// Reihenfolge des Rangs), `weak_count` zählt sie – die Vorlage zeigt sie zugeklappt in `<details>`.
+/// Answer of the semantic search for the template: hits (title, way badge, collection, snippet,
+/// similarity in %, safe link, for MultiGPT since Round 13 `fulltext_link`), the status line of the ways
+/// and – if no way answered – the reason. Hit texts are data; the template escapes them.
+/// Round 19c: per hit `weak` ([`baruch_rag::is_weak`]); weak hits come after the others (otherwise in the
+/// order of the rank), `weak_count` counts them – the template shows them collapsed in `<details>`.
 pub fn rag_view(answer: &Answer) -> serde_json::Value {
     let connected = answer.ways.iter().any(|w| w.state == WayState::Connected);
     if !connected {
@@ -727,15 +728,15 @@ pub fn rag_view(answer: &Answer) -> serde_json::Value {
             "ways_line": ways_line(answer) })
 }
 
-/// Ausschnitt für die Anzeige: Typst-Überschriftszeilen am Anfang (`= Titel`, steht schon als Titel da) und
-/// Leerzeilen fallen weg; der Text bleibt sonst unverändert (die Vorlage maskiert ihn).
+/// Snippet for display: Typst heading lines at the beginning (`= Titel`, already shown as the title) and
+/// empty lines are dropped; otherwise the text stays unchanged (the template escapes it).
 fn display_snippet(snippet: &str) -> String {
     let lines: Vec<&str> = snippet.lines().map(str::trim_end).filter(|l| !l.trim().is_empty()).collect();
     let body: Vec<&str> = lines.iter().copied().skip_while(|l| l.trim_start().starts_with("= ")).collect();
     if body.is_empty() { lines.join("\n") } else { body.join("\n") }
 }
 
-/// Meldung eines Wegs ohne den Satz zur Wortlaut-Suche (den hängt [`rag_unavailable`] einmal an).
+/// Message of a way without the sentence about the wording search ([`rag_unavailable`] appends it once).
 fn without_fts_note(message: &str) -> String {
     let mut text = message.trim().to_owned();
     for note in [
@@ -751,12 +752,12 @@ fn without_fts_note(message: &str) -> String {
     text.trim_end_matches('.').to_owned()
 }
 
-/// Grund, wenn eine fremde Seite die Bedeutungssuche per GET auslösen will (`Sec-Fetch-Site`/`Origin`).
+/// Reason when a foreign page wants to trigger the semantic search by GET (`Sec-Fetch-Site`/`Origin`).
 pub const FOREIGN_PAGE: &str = "Aufruf von einer fremden Seite; Baruch sucht nach Bedeutung nur, wenn die Suche hier \
 in Baruch abgeschickt wird";
 
-/// Bedeutungssuche nicht verfügbar: „Bedeutungssuche nicht verfügbar: <Grund>. Die Wortlaut-Suche (FTS)
-/// geht weiter.“ (mit Zustandszeile, wenn es eine Antwort gab).
+/// Semantic search not available: „Bedeutungssuche nicht verfügbar: <Grund>. Die Wortlaut-Suche (FTS)
+/// geht weiter.“ (with the status line if there was an answer).
 pub fn rag_unavailable(reason: &str, ways_line: Option<String>) -> serde_json::Value {
     let reason = reason.trim().trim_end_matches('.');
     json!({
@@ -783,9 +784,9 @@ fn literature_context(at: &At, lit: &Literature) -> Value {
     }
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
-/// Adressfelder der Seiten; alles als Text, damit ein leeres oder falsches Feld keinen 400 ergibt.
+/// Address fields of the pages; everything as text, so that an empty or wrong field does not yield a 400.
 #[derive(Debug, Default, Deserialize)]
 struct PageQuery {
     work: Option<String>,
@@ -799,8 +800,8 @@ struct PageQuery {
     quote: Option<String>,
     highlight: Option<String>,
     notice: Option<String>,
-    /// Runde 13: Teil des Volltexts (ab 1), Dokument und Sammlung in MultiGPT, Fundstelle laut MultiGPT und
-    /// die zu markierende Fundstelle `q`.
+    /// Round 13: part of the full text (from 1), document and collection in MultiGPT, passage according to MultiGPT
+    /// and the passage `q` to be marked.
     teil: Option<String>,
     document: Option<String>,
     collection: Option<String>,
@@ -828,7 +829,7 @@ impl PageQuery {
     }
 }
 
-/// Hinweis aus `?notice=…`; nur feste Texte, nichts aus der Adresse wird gezeigt.
+/// Notice from `?notice=…`; only fixed texts, nothing from the address is shown.
 fn notice_text(notice: Option<&str>) -> Option<&'static str> {
     match notice? {
         "owned" => Some("Als eigene Hervorhebung übernommen; der Vorschlag der Persona bleibt, wie er war."),
@@ -840,7 +841,7 @@ fn notice_text(notice: Option<&str>) -> Option<&'static str> {
     }
 }
 
-/// Routen der Seiten (lesend): `GET /literatur`, `GET /quelle`, `GET /quelle/multigpt`.
+/// Routes of the pages (reading): `GET /literatur`, `GET /quelle`, `GET /quelle/multigpt`.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/literatur", get(literature_page))
@@ -848,7 +849,7 @@ pub fn pages() -> Router<Arc<AppState>> {
         .route("/quelle/multigpt", get(multigpt_page))
 }
 
-/// Routen der Formulare (schreibend, im Router hinter `guard::same_origin`): `POST /literatur/act`.
+/// Routes of the forms (writing, in the router behind `guard::same_origin`): `POST /literatur/act`.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/literatur/act", post(act))
 }
@@ -877,7 +878,7 @@ async fn literature_page(
     }
 }
 
-/// Ein Stück Zitattext, ggf. hervorgehoben (Zeichenbereich einer Hervorhebung).
+/// A piece of quote text, possibly highlighted (character range of a highlight).
 #[derive(Debug, PartialEq, Serialize)]
 struct Segment {
     text: String,
@@ -886,8 +887,8 @@ struct Segment {
     target: bool,
 }
 
-/// Zerlegt `text` an den Zeichenbereichen der Hervorhebungen (Unicode-Zeichen ab 0). Bereiche,
-/// die über das Ende hinausgehen, leer sind oder einen früheren überlappen, werden übergangen.
+/// Splits `text` at the character ranges of the highlights (Unicode characters from 0). Ranges
+/// that reach beyond the end, are empty or overlap an earlier one are skipped.
 fn segments(text: &str, marks: &[&Highlight], target: Option<i64>) -> Vec<Segment> {
     let chars: Vec<char> = text.chars().collect();
     let mut ranges: Vec<(usize, usize, &Highlight)> = marks
@@ -956,7 +957,7 @@ async fn source_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Que
         Ok(checks) => checks,
         Err(e) => return error_response(e.into()),
     };
-    // Verknüpfung mit MultiGPT oder lokaler Volltext aus einem PDF/EPUB-Import (Runde 21a).
+    // Link with MultiGPT or local full text from a PDF/EPUB import (Round 21a).
     let linked = match fulltext::has_fulltext(&state, title_id).await {
         Ok(found) => found,
         Err(e) => return error_response(e),
@@ -985,8 +986,8 @@ async fn source_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Que
     }
 }
 
-/// Volltext-Teil für die Vorlagen: Stücke mit Fundstellen, Teil/Teile, Links auf den vorherigen und nächsten
-/// Teil (`part_url`), Herkunft und Hinweis. Inhalte bleiben Text (die Vorlage maskiert).
+/// Full-text part for the templates: pieces with passages, part/parts, links to the previous and next
+/// part (`part_url`), origin and notice. Contents stay text (the template escapes).
 fn fulltext_context(reading: &Reading, part_url: impl Fn(usize) -> String) -> Value {
     let pieces = fulltext::pieces(&reading.text, &reading.marks);
     let url = reading.source.url.as_deref().and_then(safe_link);
@@ -1012,20 +1013,20 @@ fn fulltext_context(reading: &Reading, part_url: impl Fn(usize) -> String) -> Va
     }
 }
 
-/// Daten der Dokumentansicht eines Titels.
+/// Data of the document view of a title.
 struct SourcePage<'a> {
     entry: &'a TitleEntry,
     highlights: &'a [Highlight],
     checks: &'a HashMap<i64, HighlightCheck>,
-    /// Volltext-Bereich ([`fulltext_context`] bzw. Hinweis).
+    /// Full-text area ([`fulltext_context`] or a notice).
     fulltext: Value,
-    /// Mit MultiGPT verknüpft: Das Formular bietet Anfang und Ende im Volltext an.
+    /// Linked with MultiGPT: the form offers start and end in the full text.
     linked: bool,
-    /// Aktive Personas für „an Persona geben“ (Runde 15).
+    /// Active personas for „an Persona geben“ (Round 15).
     personas: Vec<Value>,
 }
 
-/// Aktive Personas für „an Persona geben“; gewählt ist der Lektor des Werks.
+/// Active personas for „an Persona geben“; the lector of the work is selected.
 async fn persona_choices(state: &AppState, work: WorkId) -> Vec<Value> {
     let lector = state.store.load_work(work).await.ok().and_then(|w| w.lector().map(|p| p.handle.clone()));
     state
@@ -1084,7 +1085,7 @@ fn source_html(
                 target => target_highlight == Some(h.id),
                 url => href(at.source_url(title.id, h.quote_id, Some(h.id), None)),
                 checkable => fulltext::checkable(h),
-                // Prüfzeit in Ortszeit (gespeichert UTC); RPC `highlight.*` liefert weiter den UTC-Stempel.
+                // Check time in local time (stored as UTC); RPC `highlight.*` keeps delivering the UTC stamp.
                 check => page.checks.get(&h.id).map(|c| context! {
                     result => Value::from(Serde(&c.result)), label => c.label, message => c.message.as_str(),
                     checked => crate::localtime::minutes(&c.checked),
@@ -1116,7 +1117,7 @@ fn source_html(
     )
 }
 
-/// `GET /quelle/multigpt`: Volltext eines Dokuments aus MultiGPT (Runde 13).
+/// `GET /quelle/multigpt`: full text of a document from MultiGPT (Round 13).
 async fn multigpt_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PageQuery>) -> Response {
     let at = match q.at(&state).await {
         Ok(at) => at,
@@ -1148,8 +1149,8 @@ async fn multigpt_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Q
         Err(e) => return error_response(e.into()),
     };
     let part_url = |n: usize| at.multigpt_url(&collection, &document, section.as_deref(), n, search.as_deref());
-    // Runde 18b: „an Persona geben“ auch hier – ohne übernommenen Titel, mit dem Text des gezeigten Teils (vorbelegt,
-    // höchstens MAX_PERSONA_TEXT Zeichen) und der Quellenangabe „MultiGPT: Titel (Dokument …)“.
+    // Round 18b: „an Persona geben“ here as well – without an adopted title, with the text of the part shown
+    // (prefilled, at most MAX_PERSONA_TEXT characters) and the source reference „MultiGPT: Titel (Dokument …)“.
     let mut give_text = String::new();
     let mut give_title = document.clone();
     let view = if crate::guard::check(&headers).is_err() {
@@ -1198,15 +1199,15 @@ async fn multigpt_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Q
     }
 }
 
-// ---- Formulare ---------------------------------------------------------------------------------
+// ---- Forms -------------------------------------------------------------------------------------
 
-/// `POST /literatur/act`: alle Felder als Text (leere Felder sind „nicht angegeben“).
+/// `POST /literatur/act`: all fields as text (empty fields are „nicht angegeben“).
 #[derive(Debug, Default, Deserialize)]
 struct ActForm {
     action: String,
     work: Option<String>,
     node: Option<String>,
-    /// Fester Schlüssel des Abschnitts; Pflicht bei `cite`.
+    /// Fixed key of the section; mandatory for `cite`.
     key: Option<String>,
     rev: Option<String>,
     view: Option<String>,
@@ -1222,12 +1223,12 @@ struct ActForm {
     kind: Option<String>,
     note: Option<String>,
     status: Option<String>,
-    /// Pflicht-Kontrollkästchen beim Löschen.
+    /// Mandatory checkbox when deleting.
     confirm: Option<String>,
-    /// Runde 13 (`adopt`): Dokument und Sammlung in MultiGPT.
+    /// Round 13 (`adopt`): document and collection in MultiGPT.
     document: Option<String>,
     collection: Option<String>,
-    /// Runde 15 (`persona`): Persona, Quellenangabe und Frage.
+    /// Round 15 (`persona`): persona, source reference and question.
     persona: Option<String>,
     source: Option<String>,
     question: Option<String>,
@@ -1255,10 +1256,10 @@ fn status_param(value: Option<&str>) -> Result<Option<HighlightStatus>, RpcError
         .transpose()
 }
 
-/// Zeichenbereich `start..end` einer Hervorhebung (beide oder keiner).
+/// Character range `start..end` of a highlight (both or neither).
 type Span = (Option<i64>, Option<i64>);
 
-/// Neue Hervorhebung des Menschen aus den Formular- bzw. RPC-Feldern.
+/// New highlight of the human from the form or RPC fields.
 fn new_highlight(
     title: i64,
     quote: Option<i64>,
@@ -1304,7 +1305,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
     }
 }
 
-/// Quellenangabe aus dem Formular bzw. aus dem Titel: eine Zeile, höchstens [`MAX_SOURCE_CHARS`] Zeichen.
+/// Source reference from the form or from the title: one line, at most [`MAX_SOURCE_CHARS`] characters.
 async fn source_line(state: &AppState, form_source: Option<&str>, title: Option<i64>, locator: Option<&str>) -> String {
     let given = form_source.map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned);
     let line = match (given, title) {
@@ -1324,8 +1325,8 @@ async fn source_line(state: &AppState, form_source: Option<&str>, title: Option<
     line.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_SOURCE_CHARS).collect()
 }
 
-/// `action=persona` (ohne JavaScript): an die Persona geben, dann zurück zum Abschnitt; ohne Abschnitt oder bei
-/// einem Fehler eine Hinweisseite (Status 200) statt eines nackten Fehlers.
+/// `action=persona` (without JavaScript): give to the persona, then back to the section; without a section or on
+/// an error a notice page (status 200) instead of a bare error.
 async fn persona_act(state: &AppState, at: &At, form: &ActForm) -> Response {
     let back = at.work_url();
     let Some(key) = number::<i64>(&form.key) else {
@@ -1358,24 +1359,24 @@ async fn persona_act(state: &AppState, at: &At, form: &ActForm) -> Response {
     }
 }
 
-/// Auftrag „an Persona geben“ (Formular `action=persona`, RPC `literature.to_persona`, Bibelseite).
+/// Order „an Persona geben“ (form `action=persona`, RPC `literature.to_persona`, Bible page).
 #[derive(Debug, Clone, Default)]
 pub struct ToPersona {
     pub work: WorkId,
     pub key: i64,
-    /// Handle; leer bzw. `None` = der Lektor des Werks.
+    /// Handle; empty or `None` = the lector of the work.
     pub persona: Option<String>,
-    /// Markierter Text (höchstens [`MAX_PERSONA_TEXT`] Zeichen).
+    /// Selected text (at most [`MAX_PERSONA_TEXT`] characters).
     pub text: String,
-    /// Quellenangabe (eine Zeile), steht als Quelle am Beitrag der Persona.
+    /// Source reference (one line), stands as the source on the post of the persona.
     pub source: String,
     pub title: Option<i64>,
     pub highlight: Option<i64>,
     pub question: Option<String>,
 }
 
-/// Markierten Text an eine Persona geben: Die Frage (mit Text und Quelle) steht als Beitrag des Menschen im
-/// Abschnitt, die Antwort als Beitrag der Persona mit der Quelle. Nichts am Buchtext.
+/// Give selected text to a persona: the question (with text and source) stands as a post of the human in the
+/// section, the answer as a post of the persona with the source. Nothing in the book text.
 pub async fn to_persona(state: &AppState, order: &ToPersona) -> Result<serde_json::Value, RpcError> {
     let text = order.text.trim();
     if text.is_empty() {
@@ -1437,9 +1438,9 @@ pub async fn to_persona(state: &AppState, order: &ToPersona) -> Result<serde_jso
     Ok(crate::assist::rpc::outcome_json(&outcome))
 }
 
-/// Persona-Hervorhebung als eigene übernehmen: neue Hervorhebung des Menschen (aktiv) mit Text, Bereich, Art und
-/// Fundstelle des Originals; das Original bleibt Vorschlag. Eigene Hervorhebungen lassen sich nicht noch einmal
-/// übernehmen, ein schon übernommener Vorschlag auch nicht.
+/// Take over a persona highlight as one's own: a new highlight of the human (active) with text, range, kind and
+/// locator of the original; the original stays a proposal. Own highlights cannot be taken over once more,
+/// nor can a proposal that was already taken over.
 pub async fn own_highlight(state: &AppState, id: i64) -> Result<(Highlight, Highlight), RpcError> {
     let pool = state.store.pool();
     let original = baruch_library::get_highlight(pool, id).await?;
@@ -1473,7 +1474,7 @@ pub async fn own_highlight(state: &AppState, id: i64) -> Result<(Highlight, High
     Ok((saved, original))
 }
 
-/// Führt die Formular-Aktion aus und gibt die Adresse für die Weiterleitung zurück.
+/// Carries out the form action and returns the address for the redirect.
 async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, RpcError> {
     let pool = state.store.pool();
     let title = number::<i64>(&form.title);
@@ -1497,8 +1498,8 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             let new = add(kind)?;
             let id = baruch_library::add_highlight(pool, &new).await?;
             crate::search_hooks::changed(state, at.work);
-            // Ohne Zitat mit Bereich an einem verknüpften Titel: gegen den Volltext prüfen. Die Hervorhebung des
-            // Menschen ist schon gespeichert; scheitert die Prüfung selbst, bleibt sie ungeprüft.
+            // Without a quote, with a range on a linked title: check against the full text. The highlight of the
+            // human is already stored; if the check itself fails, it stays unchecked.
             let saved = baruch_library::get_highlight(pool, id).await?;
             let _ = check_highlight(state, &saved).await;
             Ok(at.source_url(new.title_id, new.quote_id, Some(id), None))
@@ -1518,9 +1519,9 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             Ok(at.source_url(h.title_id, h.quote_id, Some(id), Some("checked")))
         }
         "cite" => {
-            // Ohne Abschnitt kein Zitat (früher landete es still in Abschnitt 0). Der Abschnitt kommt
-            // nur aus dem festen Schlüssel (`key`), nicht aus der Stelle. Vor dem Anlegen einer
-            // Hervorhebung prüfen, dass es ihn gibt, damit nichts halb entsteht.
+            // Without a section no quote (formerly it landed silently in section 0). The section comes
+            // only from the fixed key (`key`), not from the position. Before creating a
+            // highlight check that it exists, so that nothing is created halfway.
             let key = number::<i64>(&form.key).ok_or_else(|| invalid("Abschnitt fehlt."))?;
             state.store.node_seq(at.work, key).await?;
             let id = match highlight {
@@ -1567,7 +1568,7 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
     }
 }
 
-/// „Ähnliches suchen“: die drei längsten Wörter des markierten Texts (die Suche verlangt alle).
+/// „Ähnliches suchen“: the three longest words of the selected text (the search requires all of them).
 fn similar_query(text: &str) -> String {
     let mut words: Vec<&str> = text.split(|c: char| !c.is_alphanumeric()).filter(|w| w.chars().count() >= 3).collect();
     words.sort_by_key(|w| std::cmp::Reverse(w.chars().count()));
@@ -1580,15 +1581,15 @@ fn similar_query(text: &str) -> String {
             chosen.push(word);
         }
     }
-    // In der Reihenfolge des Texts.
+    // In the order of the text.
     chosen.sort_by_key(|w| text.find(w).unwrap_or(usize::MAX));
     chosen.join(" ")
 }
 
-// ---- Gemeinsame Abläufe von RPC und Formular ---------------------------------------------------
+// ---- Common procedures of RPC and form ---------------------------------------------------------
 
-/// Status ändern: Eine Persona-Hervorhebung bleibt Vorschlag (oder wird abgelehnt), `active` gibt
-/// es nur für Hervorhebungen des Menschen.
+/// Change the status: a persona highlight stays a proposal (or is rejected), `active` exists
+/// only for highlights of the human.
 async fn update(
     state: &AppState,
     id: i64,
@@ -1604,10 +1605,10 @@ async fn update(
     Ok(baruch_library::update_highlight(pool, id, kind, note, status).await?)
 }
 
-/// Zitat als Vorschlag-Revision: aktueller Text des Abschnitts + Leerzeile + `#quote(...)[...]`.
-/// Läuft unter der Schreibsperre: Der feste Schlüssel `node_key` wird erst darunter in die Stelle
-/// übersetzt (niemand stellt dazwischen um), und der Text wechselt nicht zwischen Lesen und Anhängen.
-/// Die aktuelle Fassung bleibt, wie sie ist. Ergebnis: Stelle und Nummer des Vorschlags.
+/// Quote as a proposal revision: current text of the section + empty line + `#quote(...)[...]`.
+/// Runs under the write lock: the fixed key `node_key` is translated into the position only under it
+/// (nobody rearranges in between), and the text does not change between reading and appending.
+/// The current revision stays as it is. Result: position and number of the proposal.
 async fn cite(state: &AppState, work: WorkId, highlight: i64, node_key: i64) -> Result<(usize, u32), RpcError> {
     let pool = state.store.pool();
     let h = baruch_library::get_highlight(pool, highlight).await?;
@@ -1638,7 +1639,7 @@ async fn cite(state: &AppState, work: WorkId, highlight: i64, node_key: i64) -> 
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
-/// Gehört die Methode zur Literatur? (`literature.render`, `highlight.*`, seit Runde 13 `source.read` und
+/// Does the method belong to the literature? (`literature.render`, `highlight.*`, since Round 13 `source.read` and
 /// `source.adopt`)
 pub fn handles(method: &str) -> bool {
     method == "literature.render"
@@ -1648,11 +1649,11 @@ pub fn handles(method: &str) -> bool {
         || method == "source.adopt"
 }
 
-/// Meldung, wenn eine Hervorhebung nicht gegen den Volltext prüfbar ist.
+/// Message when a highlight cannot be checked against the full text.
 pub const NOT_CHECKABLE: &str =
     "Gegen den Volltext prüfen lassen sich nur Hervorhebungen ohne Zitat mit Zeichenbereich (start, end).";
 
-/// Hervorhebung als JSON mit ihrer Prüfung (`check`, sonst `null`).
+/// Highlight as JSON with its check (`check`, otherwise `null`).
 fn with_check(h: &Highlight, check: Option<&HighlightCheck>) -> serde_json::Value {
     let mut value = json!(h);
     value["check"] = json!(check);
@@ -1674,7 +1675,7 @@ struct AdoptParams {
     collection: Option<String>,
 }
 
-/// `source.read` (RPC) und `source_read` (MCP): Teil des Volltexts eines verknüpften Titels oder Dokuments.
+/// `source.read` (RPC) and `source_read` (MCP): part of the full text of a linked title or document.
 pub async fn source_read(state: &AppState, params_value: serde_json::Value) -> Result<serde_json::Value, RpcError> {
     let p: SourceReadParams = params(params_value)?;
     let target = match (p.title, p.document) {
@@ -1683,8 +1684,8 @@ pub async fn source_read(state: &AppState, params_value: serde_json::Value) -> R
         (None, None) => return Err(invalid("title (verknüpfter Titel) oder document (Dokument in MultiGPT) angeben")),
     };
     let q = p.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
-    // Runde 23a (Codereview ki-1): `q` dient nur dem Markieren; eine überlange Anfrage wird abgelehnt, statt den
-    // Teiltext für jedes ihrer Wörter zu durchsuchen (`/mcp` nimmt bis 32 MiB an).
+    // Round 23a (code review ki-1): `q` only serves the marking; an overlong request is refused instead of searching
+    // the part text for each of its words (`/mcp` accepts up to 32 MiB).
     if q.is_some_and(|q| q.chars().count() > fulltext::MAX_MARK_QUERY_CHARS) {
         return Err(invalid(format!(
             "q: höchstens {} Zeichen (die Anfrage dient nur dem Markieren der Fundstellen).",
@@ -1758,7 +1759,7 @@ fn params<T: for<'de> Deserialize<'de>>(value: serde_json::Value) -> Result<T, R
     serde_json::from_value(value).map_err(|e| invalid(e.to_string()))
 }
 
-/// RPC-Methoden der Literatur; `work` ist schon aufgelöst (`rpc::work_param`).
+/// RPC methods of the literature; `work` is already resolved (`rpc::work_param`).
 pub async fn call(
     state: &AppState,
     work: WorkId,
@@ -1771,10 +1772,10 @@ pub async fn call(
             let p: RenderParams = params(params_value)?;
             let search = (p.lq.as_deref(), p.lmode.as_deref());
             let at = At::resolve(state, Some(work), (p.node, p.key), p.rev, p.view.as_deref(), search).await?;
-            // `POST /rpc` liegt hinter `guard::same_origin`.
+            // `POST /rpc` is behind `guard::same_origin`.
             let lit = literature(state, &at, true).await?;
             let mut html = render("fragments/library.html", literature_context(&at, &lit))?;
-            // Runde 21c: Bilder des Werks zur Suche unter den Treffern (auch im Popup).
+            // Round 21c: images of the work for the search below the hits (in the popup as well).
             html.push_str(&image_hits_html(state, &at).await);
             Ok(json!({ "html": html, "lq": at.lq, "lmode": at.mode.as_str(), "url": at.literature_url() }))
         }

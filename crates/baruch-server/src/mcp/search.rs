@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `text_search` (Runde 30a): im Werk suchen wie `search.find` (Wortlaut, ganzes Wort, regulärer
-//! Ausdruck, Bereich), nur lesend. Ersetzen gibt es über MCP nicht; Vorschläge je Abschnitt laufen weiter über
-//! `propose_revision`. Das Werkzeug `search` (Volltext, FTS) bleibt unverändert. Grenzen wie `search.find`: Suchtext
-//! höchstens 500 Zeichen, höchstens 2000 Treffer (Vorgabe 100 über MCP), 2 s je Aufruf, Regex nur mit dem Crate
-//! `regex` und seinen Größengrenzen.
+//! MCP tool `text_search` (Round 30a): search in the work like `search.find` (wording, whole word, regular
+//! expression, range), read-only. There is no replacing through MCP; proposals per section keep going through
+//! `propose_revision`. The tool `search` (full text, FTS) stays unchanged. Limits as for `search.find`: search text
+//! at most 500 characters, at most 2000 hits (default 100 through MCP), 2 s per call, regex only with the crate
+//! `regex` and its size limits.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -52,7 +52,7 @@ struct SearchArgs {
     limit: Option<usize>,
 }
 
-/// Vorgabe der Trefferzahl über MCP (kleiner als in der Oberfläche: Antworten gehen an ein Modell).
+/// Default number of hits through MCP (smaller than in the user interface: answers go to a model).
 const MCP_DEFAULT_LIMIT: usize = 100;
 
 pub async fn call_tool(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {

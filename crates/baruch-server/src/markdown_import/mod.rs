@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Markdown- und Archiv-Import (Runde 21b; Schnittstelle R21-S1, danach Besitz markdown-import).
+//! Markdown and archive import (Round 21b; interface R21-S1, afterwards owned by markdown-import).
 //!
-//! Markdown (`.md`, `.markdown`) wird nach Typst umgewandelt ([`convert::to_typst`]; jede nicht abgebildete Form wird
-//! eine Warnung, [`crate::import::ImportWarning`]) und wie eine Typst-Datei importiert
-//! ([`crate::import::import_generated`]). Ein ZIP-Archiv ([`crate::archive::read_zip`] mit
-//! [`crate::archive::IMPORT_LIMITS`]) oder ein hochgeladener Ordner (mehrere Dateien mit relativen Pfaden) bringt genau
-//! eine Haupt-Datei (`.typ` oder `.md`) und Bilder relativ dazu mit ([`Bundle`]). Formulare und RPC stehen in
-//! [`crate::works`] (`POST /werke/import`, `work.import`, `work.import_archive`), die CLI ruft [`cli_import`].
+//! Markdown (`.md`, `.markdown`) is converted to Typst ([`convert::to_typst`]; every form that is not mapped becomes
+//! a warning, [`crate::import::ImportWarning`]) and imported like a Typst file
+//! ([`crate::import::import_generated`]). A ZIP archive ([`crate::archive::read_zip`] with
+//! [`crate::archive::IMPORT_LIMITS`]) or an uploaded folder (several files with relative paths) brings exactly
+//! one main file (`.typ` or `.md`) and images relative to it ([`Bundle`]). Forms and RPC are in
+//! [`crate::works`] (`POST /werke/import`, `work.import`, `work.import_archive`), the CLI calls [`cli_import`].
 //!
-//! **Haupt-Datei:** Gibt es genau eine `.typ`/`.md`/`.markdown`-Datei, ist sie es; sonst die eine `index.md`,
-//! `main.typ` oder `README.md` (ohne Rücksicht auf Groß-/Kleinschreibung) auf der flachsten Ebene; sonst ein Fehler, der
-//! die Kandidaten nennt. **Bilder** (`image("…")` im Typst-Text bzw. `![…](…)` im Markdown) gelten relativ zum Ordner
-//! der Haupt-Datei, ein führendes `/` ebenfalls (Projektwurzel wie beim Typst-Import). Was fehlt, zu groß oder kein Bild
-//! ist, steht mit Grund in `skipped`; Dateien, die nichts nennt, stehen als Hinweis `archive-unused` im Bericht.
+//! **Main file:** if there is exactly one `.typ`/`.md`/`.markdown` file, that is it; otherwise the one `index.md`,
+//! `main.typ` or `README.md` (regardless of case) on the flattest level; otherwise an error that
+//! names the candidates. **Images** (`image("…")` in the Typst text or `![…](…)` in the Markdown) count as relative
+//! to the folder of the main file, a leading `/` as well (project root as in the Typst import). What is missing, too
+//! large or not an image is in `skipped` with a reason; files that nothing names are in the report as the note
+//! `archive-unused`.
 //!
-//! Über MCP gibt es keinen Import (Entscheidung 2026-11-05, auch nicht für Markdown).
+//! There is no import through MCP (decision 2026-11-05, not for Markdown either).
 
 pub mod convert;
 
@@ -28,12 +29,12 @@ use crate::archive::{self, ArchiveError};
 use crate::import::{self, ImportReport, ImportWarning, MAX_SOURCE_BYTES, SkippedAsset};
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
-/// Endet der Dateiname (ohne Rücksicht auf Groß-/Kleinschreibung) auf `.md` oder `.markdown` und hat davor einen Namen?
+/// Does the file name end (regardless of case) in `.md` or `.markdown` and have a name before it?
 pub fn is_markdown_name(file_name: &str) -> bool {
     has_suffix(file_name, &[".md", ".markdown"])
 }
 
-/// Endet der Dateiname (ohne Rücksicht auf Groß-/Kleinschreibung) auf `.zip` und hat davor einen Namen?
+/// Does the file name end (regardless of case) in `.zip` and have a name before it?
 pub fn is_archive_name(file_name: &str) -> bool {
     has_suffix(file_name, &[".zip"])
 }
@@ -43,7 +44,7 @@ fn has_suffix(file_name: &str, suffixes: &[&str]) -> bool {
     suffixes.iter().any(|suffix| lower.len() > suffix.len() && lower.ends_with(suffix))
 }
 
-/// Dateiname ohne Ordner und Endung (Titel des Kapitels für Text vor der ersten Überschrift).
+/// File name without folder and extension (title of the chapter for text before the first heading).
 fn stem(file_name: &str) -> String {
     let base = file_name.rsplit(['/', '\\']).next().unwrap_or(file_name);
     Path::new(base).file_stem().and_then(|s| s.to_str()).unwrap_or(base).trim().to_owned()
@@ -53,8 +54,8 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Markdown-Text als neues Werk (Hochladen einer einzelnen Datei, RPC `work.import`): ohne Bilder – jedes Bild, das der
-/// Text nennt, steht mit Grund in `skipped` (es kam nur der Text an). Größer als 16 MiB → `INVALID_PARAMS`.
+/// Markdown text as a new work (upload of a single file, RPC `work.import`): without images – every image the
+/// text names is in `skipped` with a reason (only the text arrived). Larger than 16 MiB → `INVALID_PARAMS`.
 pub async fn import_text(
     state: &AppState,
     source: &str,
@@ -81,22 +82,22 @@ pub async fn import_text(
     import::import_generated(state, &converted.typst, file_name, title, Vec::new(), skipped, converted.warnings).await
 }
 
-/// Dateien eines Archivs oder Ordner-Uploads: Pfad (mit `/`, geprüft) → Inhalt, Reihenfolge wie geliefert.
+/// Files of an archive or folder upload: path (with `/`, checked) → content, order as delivered.
 #[derive(Debug, Clone, Default)]
 pub struct Bundle {
     files: Vec<(String, Vec<u8>)>,
 }
 
 impl Bundle {
-    /// Aus den Einträgen eines ZIP-Archivs ([`archive::read_zip`] hat Pfade, Doppel und Grenzen schon geprüft).
+    /// From the entries of a ZIP archive ([`archive::read_zip`] has already checked paths, duplicates and limits).
     pub fn from_archive(bytes: &[u8]) -> Result<Bundle, ArchiveError> {
         let entries = archive::read_zip(bytes, &archive::IMPORT_LIMITS)?;
         Ok(Bundle { files: entries.into_iter().map(|e| (e.path, e.bytes)).collect() })
     }
 
-    /// Aus hochgeladenen Dateien mit relativen Pfaden (Ordner-Upload, `webkitdirectory`). Dieselben Regeln wie im
-    /// Archiv: Pfade mit `/`, nicht absolut, ohne `..`, `\`, Laufwerk und Steuerzeichen, keine Doppel (auch nicht nur in
-    /// Groß-/Kleinschreibung verschieden), höchstens [`archive::IMPORT_LIMITS`] Einträge und Bytes.
+    /// From uploaded files with relative paths (folder upload, `webkitdirectory`). The same rules as in the
+    /// archive: paths with `/`, not absolute, without `..`, `\`, drive and control characters, no duplicates (not even
+    /// ones differing only in case), at most [`archive::IMPORT_LIMITS`] entries and bytes.
     pub fn from_files(files: Vec<(String, Vec<u8>)>) -> Result<Bundle, ArchiveError> {
         let limits = archive::IMPORT_LIMITS;
         if files.len() > limits.max_entries {
@@ -123,7 +124,7 @@ impl Bundle {
         Ok(Bundle { files })
     }
 
-    /// Die Haupt-Datei (siehe Moduldoc); Fehler nennen die Kandidaten.
+    /// The main file (see the module doc); errors name the candidates.
     fn main_file(&self) -> Result<&str, String> {
         let sources: Vec<&str> = self
             .files
@@ -159,12 +160,12 @@ impl Bundle {
     }
 }
 
-/// Dateiname ohne Ordner.
+/// File name without folder.
 fn base(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-/// Pfad einer hochgeladenen Datei prüfen (Regeln wie [`archive::read_zip`]).
+/// Check the path of an uploaded file (rules as in [`archive::read_zip`]).
 fn check_upload_path(path: &str) -> Result<(), ArchiveError> {
     let bad = |reason: &str| ArchiveError::Unsafe { path: path.escape_debug().to_string(), reason: reason.into() };
     if path.is_empty() || path.ends_with('/') {
@@ -188,8 +189,8 @@ fn check_upload_path(path: &str) -> Result<(), ArchiveError> {
     Ok(())
 }
 
-/// Ein Archiv bzw. Ordner als neues Werk: Haupt-Datei wählen, Markdown umwandeln, Bilder relativ zur Haupt-Datei aus dem
-/// Bündel lesen, Unbenutztes melden. `origin` ist der Name des Archivs bzw. Ordners (für Titel und Notiz).
+/// An archive or folder as a new work: choose the main file, convert Markdown, read images relative to the main
+/// file from the bundle, report what is unused. `origin` is the name of the archive or folder (for title and note).
 pub async fn import_bundle(
     state: &AppState,
     bundle: Bundle,
@@ -203,7 +204,7 @@ pub async fn import_bundle(
     }
     let text = String::from_utf8(bytes).map_err(|_| invalid(format!("{main} ist kein UTF-8-Text")))?;
     let main_base = base(&main).to_owned();
-    // index.md/main.typ/README.md sagen nichts über das Werk: Titel und Name kommen dann vom Archiv bzw. Ordner.
+    // index.md/main.typ/README.md say nothing about the work: title and name then come from the archive or folder.
     let generic = matches!(main_base.to_lowercase().as_str(), "index.md" | "main.typ" | "readme.md");
     let origin_stem = stem(origin);
     let extension = main_base.rsplit('.').next().unwrap_or("typ").to_owned();
@@ -252,8 +253,8 @@ pub async fn import_bundle(
     import::import_generated(state, &typst, &file_name, title, assets, skipped, warnings).await
 }
 
-/// Ein Bild aus dem Bündel: Pfad aus dem Text relativ zum Ordner der Haupt-Datei (führendes `/` = dieser Ordner).
-/// Ergebnis: Schlüssel im Bündel, Dateiname, Bytes; Fehler mit Schlüssel (falls gefunden) und Grund.
+/// An image from the bundle: path from the text relative to the folder of the main file (leading `/` = this folder).
+/// Result: key in the bundle, file name, bytes; error with the key (if found) and the reason.
 type Found = (String, String, Vec<u8>);
 fn bundle_asset(
     files: &BTreeMap<String, &Vec<u8>>,
@@ -275,7 +276,8 @@ fn bundle_asset(
     Ok((key, file_name, (*bytes).clone()))
 }
 
-/// Archiv lesen (ZIP-Bytes) und als neues Werk anlegen; Fehler des Archivs → `INVALID_PARAMS` mit deutschem Grund.
+/// Read the archive (ZIP bytes) and create it as a new work; errors of the archive → `INVALID_PARAMS` with a German
+/// reason.
 pub async fn import_archive(
     state: &AppState,
     bytes: &[u8],
@@ -286,9 +288,9 @@ pub async fn import_archive(
     import_bundle(state, bundle, file_name, title).await
 }
 
-/// `import DATEI.md|DATEI.markdown|DATEI.zip [--title …]`: `Ok(text)` → Standardausgabe (Exit 0), `Err(text)` →
-/// Fehlerausgabe (Exit 1). Markdown liest die Bilder relativ zum Ordner der Datei (wie der Typst-Import: nicht hinaus,
-/// keine Verknüpfung nach draußen), ein ZIP aus dem Archiv. Die Hinweise stehen im Bericht (`Hinweis (<code>): …`).
+/// `import DATEI.md|DATEI.markdown|DATEI.zip [--title …]`: `Ok(text)` → standard output (exit 0), `Err(text)` →
+/// standard error (exit 1). Markdown reads the images relative to the folder of the file (like the Typst import: not
+/// out of it, no link to the outside), a ZIP from the archive. The notes are in the report (`Hinweis (<code>): …`).
 pub async fn cli_import(state: &AppState, file: &Path, title: Option<&str>) -> Result<String, String> {
     let shown = file.display().to_string();
     let name =
@@ -322,7 +324,7 @@ pub async fn cli_import(state: &AppState, file: &Path, title: Option<&str>) -> R
     Ok(report_text(&report))
 }
 
-/// Bericht für die Kommandozeile (Deutsch, eine Angabe je Zeile).
+/// Report for the command line (German, one item per line).
 pub fn report_text(report: &ImportReport) -> String {
     let mut lines = vec![
         format!("Werk: {} (id {})", report.title, report.work),

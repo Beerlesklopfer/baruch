@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! PDF über MultiGPT lesen (Runde 21a): `upload_document` (genau einmal), warten auf die Indexierung (`run_status`,
-//! sonst `read_document` mit Wiederholung, höchstens [`INDEX_WAIT`]), `document_info` (Titel, Autor, Seiten,
-//! erkanntes Inhaltsverzeichnis), Text über `read_document` seitenweise mit `page_from`/`page_to` (höchstens
-//! [`RANGE_PAGES`] Seiten je Aufruf; kürzt MultiGPT einen Bereich, liest Baruch ihn Seite für Seite nach).
+//! Read PDF through MultiGPT (Round 21a): `upload_document` (exactly once), wait for the indexing (`run_status`,
+//! otherwise `read_document` with retries, at most [`INDEX_WAIT`]), `document_info` (title, author, pages,
+//! recognised table of contents), text through `read_document` page by page with `page_from`/`page_to` (at most
+//! [`RANGE_PAGES`] pages per call; if MultiGPT truncates a range, Baruch re-reads it page by page).
 //!
-//! Namen und Formen sind **Annahmen** nach der Werkzeugbeschreibung (Stand 2026-11-09, docs/Architektur.md
-//! „MultiGPT“): `upload_document {collection, content_base64, filename}` → `document_id` (Zahl oder Text), `run_id`;
-//! `run_status {run_id}` → `status` (`done`/`completed`/`finished`/`success`/`ready`/`indexed` = fertig,
-//! `failed`/`error`/`cancelled` = gescheitert); `document_info {document_id}` → `title`, `author`, `pages`, `toc`
-//! (auch `table_of_contents`, `outline`, `sections`) mit `title`, `level` bzw. `section` („1.2“) und `page`;
-//! `read_document {document_id, page_from, page_to}` → `text` (höchstens 12000 Zeichen), `truncated`.
+//! Names and shapes are **assumptions** following the tool description (as of 2026-11-09, docs/Architektur.md
+//! „MultiGPT“): `upload_document {collection, content_base64, filename}` → `document_id` (number or text), `run_id`;
+//! `run_status {run_id}` → `status` (`done`/`completed`/`finished`/`success`/`ready`/`indexed` = finished,
+//! `failed`/`error`/`cancelled` = failed); `document_info {document_id}` → `title`, `author`, `pages`, `toc`
+//! (also `table_of_contents`, `outline`, `sections`) with `title`, `level` or `section` („1.2“) and `page`;
+//! `read_document {document_id, page_from, page_to}` → `text` (at most 12000 characters), `truncated`.
 //!
-//! Scheitert ein Schritt, gibt es einen Fehler mit Grund – nie einen stillen Wechsel auf den lokalen Weg.
+//! If a step fails, there is an error with the reason – never a silent change to the local way.
 
 use std::time::{Duration, Instant};
 
@@ -27,18 +27,18 @@ use crate::connections::multigpt::{
 };
 use crate::import::ImportWarning;
 
-/// Längste Wartezeit auf die Indexierung nach dem Hochladen.
+/// Longest waiting time for the indexing after the upload.
 pub const INDEX_WAIT: Duration = Duration::from_secs(120);
-/// Höchstens so viele Seiten je `read_document` (Annahme laut Werkzeugbeschreibung).
+/// At most this many pages per `read_document` (assumption according to the tool description).
 pub const RANGE_PAGES: usize = 10;
-/// Höchstens so viele Zeichen liefert `read_document` je Aufruf (Annahme); so lang = vermutlich gekürzt.
+/// `read_document` delivers at most this many characters per call (assumption); this long = presumably truncated.
 pub const READ_CHARS: usize = 12_000;
-/// Grenzen der Aufrufe beim Import (30 s je Aufruf – die Obergrenze einer Sitzung –, Antworten bis 4 MiB).
+/// Limits of the calls during the import (30 s per call – the upper limit of a session –, answers up to 4 MiB).
 pub const IMPORT_LIMITS: Limits = Limits { timeout: Duration::from_secs(30), max_body: 4 * 1024 * 1024 };
-/// Höchstens so viele Seiten liest der Import über MultiGPT.
+/// The import through MultiGPT reads at most this many pages.
 const MAX_PAGES: usize = 2000;
 
-/// Dokument in MultiGPT.
+/// Document in MultiGPT.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RemoteDoc {
     pub collection: String,
@@ -49,7 +49,7 @@ fn warn(code: &str, message: impl Into<String>) -> ImportWarning {
     ImportWarning { code: code.into(), message: message.into(), line: None }
 }
 
-/// Text (oder Zahl als Text) unter einem der Schlüssel, in den Daten oder unter `document`/`result`/`data`.
+/// Text (or number as text) under one of the keys, in the data or under `document`/`result`/`data`.
 fn field(payload: &Value, keys: &[&str]) -> Option<String> {
     let map = payload.as_object()?;
     let mut places = vec![map];
@@ -67,7 +67,7 @@ fn field(payload: &Value, keys: &[&str]) -> Option<String> {
     })
 }
 
-/// Wert passend zum Schema des Parameters `key` von `tool` (Zahl, wenn nur `integer` erlaubt ist).
+/// Value matching the schema of the parameter `key` of `tool` (a number if only `integer` is allowed).
 fn typed(schema: &Value, key: &str, text: &str) -> Value {
     let spec = schema.get("properties").and_then(|p| p.get(key)).cloned().unwrap_or(json!({}));
     let integer_only = match spec.get("type") {
@@ -85,7 +85,7 @@ fn props(schema: &Value) -> Map<String, Value> {
     schema.get("properties").and_then(Value::as_object).cloned().unwrap_or_default()
 }
 
-/// Argumente mit dem Dokument (Name des Parameters aus [`DOCUMENT_KEYS`]).
+/// Arguments with the document (name of the parameter from [`DOCUMENT_KEYS`]).
 fn document_args(schema: &Value, tool: &str, document: &str) -> Result<Map<String, Value>, String> {
     let p = props(schema);
     let key = DOCUMENT_KEYS
@@ -98,7 +98,7 @@ fn document_args(schema: &Value, tool: &str, document: &str) -> Result<Map<Strin
     Ok(args)
 }
 
-/// Einträge des Inhaltsverzeichnisses aus `document_info`.
+/// Entries of the table of contents from `document_info`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TocEntry {
     pub level: u8,
@@ -147,7 +147,7 @@ pub(crate) fn toc_of(payload: &Value) -> Vec<TocEntry> {
     out
 }
 
-/// Text in Absätze (Leerzeilen), je Absatz Zeilen verbunden.
+/// Text into paragraphs (empty lines), lines joined per paragraph.
 fn paragraphs(text: &str) -> Vec<String> {
     text.replace("\r\n", "\n").split("\n\n").map(|p| join_lines(p.lines())).filter(|p| !p.trim().is_empty()).collect()
 }
@@ -163,14 +163,14 @@ fn section_of(level: u8, title: String, text: &str) -> Section {
     }
 }
 
-/// Stelle von `needle` in `hay` ab Byte `from`, ohne Groß-/Kleinschreibung und mit beliebigem Leerraum; Ergebnis =
-/// Byte-Stelle des Anfangs.
+/// Position of `needle` in `hay` from byte `from`, case-insensitive and with arbitrary whitespace; result =
+/// byte position of the beginning.
 fn find_loose(hay: &str, needle: &str, from: usize) -> Option<usize> {
     let words: Vec<String> = needle.split_whitespace().map(str::to_lowercase).collect();
     let first = words.first()?;
     let lower = hay.to_lowercase();
     if lower.len() != hay.len() {
-        // Kleinschreibung ändert Längen (selten): einfacher Vergleich auf dem Original.
+        // Lower-casing changes lengths (rare): simple comparison on the original.
         return hay[from..].find(needle).map(|i| i + from);
     }
     let mut start = from;
@@ -195,11 +195,11 @@ fn find_loose(hay: &str, needle: &str, from: usize) -> Option<usize> {
     None
 }
 
-/// Text nach dem Inhaltsverzeichnis teilen: je Eintrag die erste Fundstelle seines Titels nach dem vorigen Schnitt;
-/// die Zeile mit dem Titel ist die Überschrift (fällt aus dem Text). Nicht gefunden → Punkt ohne eigenen Text
-/// (Warnung).
+/// Split the text by the table of contents: per entry the first occurrence of its title after the previous cut;
+/// the line with the title is the heading (drops out of the text). Not found → item without text of its own
+/// (warning).
 pub(crate) fn split_by_toc(text: &str, toc: &[TocEntry], warnings: &mut Vec<ImportWarning>) -> Vec<Section> {
-    // (Anfang der Titelzeile, Ende der Titelzeile); nicht gefunden = None (der Punkt nimmt keinem anderen Text weg).
+    // (beginning of the title line, end of the title line); not found = None (the item takes no text from another).
     let mut found: Vec<Option<(usize, usize)>> = Vec::new();
     let mut cursor = 0;
     for entry in toc {
@@ -222,7 +222,7 @@ pub(crate) fn split_by_toc(text: &str, toc: &[TocEntry], warnings: &mut Vec<Impo
             }
         }
     }
-    // Ein nicht gefundener Punkt steht ohne Text an der Stelle hinter dem vorigen Text.
+    // An item that was not found stands without text at the position after the previous text.
     let next_start = |i: usize| found[i + 1..].iter().flatten().next().map_or(text.len(), |c| c.0);
     let mut cuts: Vec<(usize, usize)> = Vec::with_capacity(found.len());
     for (i, cut) in found.iter().enumerate() {
@@ -252,7 +252,7 @@ pub(crate) fn split_by_toc(text: &str, toc: &[TocEntry], warnings: &mut Vec<Impo
     sections
 }
 
-/// Ohne Inhaltsverzeichnis: kurze Zeilen mit Nummer (`1`, `1.2 …`) als Überschriften, sonst ein Kapitel.
+/// Without a table of contents: short lines with a number (`1`, `1.2 …`) as headings, otherwise one chapter.
 pub(crate) fn split_by_heuristic(text: &str, title: &str, warnings: &mut Vec<ImportWarning>) -> Vec<Section> {
     let mut toc = Vec::new();
     for paragraph in text.split("\n\n") {
@@ -278,7 +278,7 @@ pub(crate) fn split_by_heuristic(text: &str, title: &str, warnings: &mut Vec<Imp
     split_by_toc(text, &toc, warnings)
 }
 
-/// Ist ein Lauf fertig (`Some(true)`), gescheitert (`Some(false)`) oder läuft er noch (`None`)?
+/// Is a run finished (`Some(true)`), failed (`Some(false)`) or still running (`None`)?
 fn run_state(payload: &Value) -> Option<bool> {
     let status = field(payload, &["status", "state"])?.to_lowercase();
     match status.as_str() {
@@ -293,7 +293,7 @@ async fn pause(round: u32) {
     tokio::time::sleep(Duration::from_millis(ms)).await;
 }
 
-/// Eine Antwort von `read_document`: Text, gemeldete Seitenzahl, gekürzt?
+/// An answer of `read_document`: text, reported page count, truncated?
 struct Read {
     text: String,
     pages: Option<usize>,
@@ -313,7 +313,7 @@ fn read_answer(result: &Value) -> Read {
     Read { text: text.replace("\r\n", "\n"), pages, truncated }
 }
 
-/// PDF hochladen und lesen. Ergebnis: gelesener Text samt Gliederung und das Dokument in MultiGPT.
+/// Upload and read a PDF. Result: the text read including outline and the document in MultiGPT.
 pub(crate) async fn read(
     state: &AppState,
     bytes: &[u8],
@@ -360,7 +360,7 @@ async fn read_in(
     let run = field(&payload, &["run_id", "runId", "job_id"]);
     let remote = RemoteDoc { collection: collection.to_owned(), id: document.clone() };
 
-    // Auf die Indexierung warten.
+    // Wait for the indexing.
     let started = Instant::now();
     let read_schema = session
         .schema(READ_TOOL)
@@ -404,7 +404,7 @@ async fn read_in(
             }
         }
         _ => {
-            // Ohne run_status: lesen, bis read_document antwortet.
+            // Without run_status: read until read_document answers.
             let mut round = 0;
             loop {
                 match session.call(READ_TOOL, first_args(&base), None).await {
@@ -426,7 +426,7 @@ async fn read_in(
         }
     }
 
-    // Angaben und Inhaltsverzeichnis.
+    // Details and table of contents.
     let mut info = json!({});
     if let Some(schema) = session.schema(INFO_TOOL) {
         let args = document_args(&schema, INFO_TOOL, &document)?;
@@ -443,7 +443,7 @@ async fn read_in(
     let mut pages: Option<usize> = field(&info, &["pages", "total_pages", "page_count"]).and_then(|p| p.parse().ok());
     let toc = toc_of(&info);
 
-    // Text lesen.
+    // Read the text.
     let mut text = String::new();
     if ranged {
         let mut from = 1usize;
@@ -463,7 +463,7 @@ async fn read_in(
                 pages = answer.pages;
             }
             let chunk = if answer.truncated && to > from {
-                // Gekürzt: Seite für Seite nachlesen.
+                // Truncated: re-read page by page.
                 let mut pieces = Vec::new();
                 for page in from..=to {
                     let mut args = base.clone();

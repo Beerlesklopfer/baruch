@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `scripture_check` (Runde 10, Aufgabe „scripture“; Wortlaut seit 2026-11-06): Bibelstellen in
-//! einem Text oder Abschnitt finden und Buch, Kapitel und Vers gegen die Verszählung der Schlachter 1951 prüfen,
-//! mit gewählter SWORD-Bibel des Werks auch den Wortlaut. Nur lesend. Dieselbe Prüfung wie RPC
-//! `scripture.check` bzw. `bible.check` ([`crate::scripture`], [`crate::bibles`]). Eintrag in der
-//! Werkzeugliste und Aufruf setzt `tools.rs`.
+//! MCP tool `scripture_check` (Round 10, task „scripture“; wording since 2026-11-06): find scripture references in
+//! a text or section and check book, chapter and verse against the verse numbering of the Schlachter 1951,
+//! with a chosen SWORD Bible of the work also the wording. Read-only. The same check as RPC
+//! `scripture.check` or `bible.check` ([`crate::scripture`], [`crate::bibles`]). The entry in the
+//! tool list and the call are set by `tools.rs`.
 
 use serde::Deserialize;
 use serde_json::{Value, json};

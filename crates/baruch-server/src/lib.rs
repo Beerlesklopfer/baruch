@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Baruch-Server: liefert Gerüst, Vorlagen und Widgets der Oberfläche aus und bedient den Kern
-//! über JSON-RPC (`POST /rpc`). Geöffnet wird die Oberfläche im Browser.
+//! Baruch server: serves the frame, templates and widgets of the user interface and serves the core
+//! through JSON-RPC (`POST /rpc`). The user interface is opened in the browser.
 //!
-//! Daten: SQLite unter `<data>/baruch.sqlite` ist die Quelle ([`baruch_store`]), dazu die
-//! Autorenbibliothek mit Volltextsuche ([`baruch_library`]) in derselben Datei. Jede Übernahme und
-//! jedes Speichern wird danach als Commit in den Typst-Ordner `<data>/works/<slug>/` gespiegelt
-//! ([`baruch_gitmirror`]); ein Fehler im Spiegel hält die Arbeit nicht auf, er wird gemeldet.
+//! Data: SQLite under `<data>/baruch.sqlite` is the source ([`baruch_store`]), plus the
+//! author's library with full-text search ([`baruch_library`]) in the same file. Every accept and
+//! every save is afterwards mirrored as a commit into the Typst folder `<data>/works/<slug>/`
+//! ([`baruch_gitmirror`]); an error in the mirror does not hold up the work, it is reported.
 //!
-//! Mehrere Werke: Jede Seite und jede RPC-Methode nimmt ein Werk (`?work=<id>` bzw. Parameter
-//! `work`); ohne Angabe gilt das Vorgabewerk [`AppState::default_work`] (das mit der kleinsten id,
-//! nach dem Löschen also das nächste), die Seite `/` nimmt vorher das zuletzt geöffnete Werk aus dem
-//! Cookie `baruch_work`. Ohne Werke leitet `/` auf `/werke`. Jedes Werk hat seinen eigenen Spiegel,
-//! geöffnet beim ersten Gebrauch ([`AppState::mirror`]). Werke verwaltet der Mensch über [`works`]
-//! (Anlegen, Hochladen, Ändern, Löschen, Export); Typst-Dateien kommen über [`import`] hinzu.
+//! Several works: every page and every RPC method takes a work (`?work=<id>` or parameter
+//! `work`); without it the default work [`AppState::default_work`] applies (the one with the smallest id,
+//! after deleting therefore the next one), the page `/` first takes the work opened last from the
+//! cookie `baruch_work`. Without works `/` redirects to `/werke`. Every work has its own mirror,
+//! opened on first use ([`AppState::mirror`]). The human manages works through [`works`]
+//! (create, upload, change, delete, export); Typst files are added through [`import`].
 
 pub mod about;
 pub mod archive;
@@ -112,7 +112,7 @@ fn settings(headers: &HeaderMap) -> Settings {
     Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()))
 }
 
-/// Übersetzte TypeScript-Widgets aus `build.rs`: `(Dateiname, Inhalt)`.
+/// Compiled TypeScript widgets from `build.rs`: `(file name, content)`.
 pub const SCRIPTS: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/scripts.rs"));
 const STYLE: &str = concat!(
     include_str!("../static/app.css"),
@@ -147,58 +147,58 @@ const STYLE: &str = concat!(
     include_str!("../static/search.css"),
     include_str!("../static/solutions.css"),
     include_str!("../static/typeset_settings.css"),
-    // Runde 20: EPUB-Vorschau (reader) und Prüfung (epub-pruefung).
+    // Round 20: EPUB preview (reader) and check (epub-pruefung).
     include_str!("../static/epub.css"),
     include_str!("../static/epub_check.css"),
-    // Runde 31: Glossar/Register-Seiten und Kontextmenü (kontextmenue).
+    // Round 31: glossary/index pages and context menu (kontextmenue).
     include_str!("../static/glossary.css"),
     include_str!("../static/context_menu.css"),
-    // Runde 21 (Schnittstelle R21-S1): PDF/EPUB-Import mit Vorschau der Gliederung (pdf-import).
+    // Round 21 (interface R21-S1): PDF/EPUB import with a preview of the outline (pdf-import).
     include_str!("../static/source_import.css"),
-    // Runde 22 (Schnittstelle R22-S1): Fortschreiben, Verlauf und Einstellung „Fassungen“ (fassungen).
+    // Round 22 (interface R22-S1): amending, history and setting „Fassungen“ (fassungen).
     include_str!("../static/revisions.css"),
-    // Runde 32 (Schnittstelle R32-S1): Word-Import, Word-Export und die Seite „Baruch beenden“.
+    // Round 32 (interface R32-S1): Word import, Word export and the page „Baruch beenden“.
     include_str!("../static/docx_import.css"),
     include_str!("../static/docx_export.css"),
     include_str!("../static/shutdown.css"),
-    // Runde 33 (Schnittstelle R33-S1): Menüband (menueband) und Laptop-Modus (laptop); laptop.css zuletzt.
+    // Round 33 (interface R33-S1): ribbon (menueband) and laptop mode (laptop); laptop.css last.
     include_str!("../static/band.css"),
     include_str!("../static/laptop.css"),
-    // Runde 35 (Schnittstelle R35-S1): Anmeldung, Konten, Mitwirkende und die Regeln `nur-autor`/`nur-lektor`.
+    // Round 35 (interface R35-S1): sign-in, accounts, contributors and the rules `nur-autor`/`nur-lektor`.
     include_str!("../static/konten.css")
 );
 const ICON: &str = include_str!("../static/favicon.svg");
 
 pub struct AppState {
     pub store: Store,
-    /// Datenordner (`baruch.sqlite`, `works/`).
+    /// Data folder (`baruch.sqlite`, `works/`).
     pub data: PathBuf,
-    /// Vorgabe beim Start: das Werk mit der kleinsten id (0, wenn es keins gibt). Seit Werke gelöscht
-    /// werden können, gilt zur Laufzeit [`AppState::default_work`].
+    /// Default at start: the work with the smallest id (0 if there is none). Since works can be
+    /// deleted, [`AppState::default_work`] applies at run time.
     pub work: WorkId,
-    /// Git-Spiegel je Werk unter `<data>/works/<slug>/`, geöffnet beim ersten Gebrauch.
+    /// Git mirror per work under `<data>/works/<slug>/`, opened on first use.
     mirrors: std::sync::Mutex<HashMap<WorkId, Arc<Mirror>>>,
-    /// Reiht Änderungen, die einen Spiegel berühren, hintereinander: DB-Schreibvorgang, Schnappschuss
-    /// und Commit laufen unter dieser Sperre, damit jeder Commit genau seine Änderung enthält und
-    /// ihr zugeschrieben ist (siehe [`mirror::record`]).
+    /// Queues changes that touch a mirror one after another: database write, snapshot
+    /// and commit run under this lock, so that every commit contains exactly its change and is
+    /// attributed to it (see [`mirror::record`]).
     pub write_lock: tokio::sync::Mutex<()>,
     pub templates: Environment<'static>,
-    /// Geheimnisse der Verbindungen (Runde 9): im Betrieb der Schlüsselbund des Systems
-    /// ([`connections::system_secrets`]), sonst [`connections::MemorySecrets`].
+    /// Secrets of the connections (Round 9): in operation the keyring of the system
+    /// ([`connections::system_secrets`]), otherwise [`connections::MemorySecrets`].
     pub secrets: Arc<dyn connections::SecretStore>,
-    /// Modell-Backend der Personas (Runde 10): im Dienst Eliezer, in Tests `assist::mock::ScriptedModel`,
-    /// sonst [`assist::NoModel`] (ehrliche Meldung statt Modellaufruf).
+    /// Model backend of the personas (Round 10): in the service Eliezer, in tests `assist::mock::ScriptedModel`,
+    /// otherwise [`assist::NoModel`] (honest message instead of a model call).
     pub model: Arc<dyn assist::ModelPort>,
-    /// Zusätzlich erlaubte Rechnernamen (Runde 24, `--allow-host`): Betrieb hinter einem Reverse-Proxy. Nach
-    /// dem Öffnen leer; `serve` setzt sie vor [`app`].
+    /// Additionally allowed host names (Round 24, `--allow-host`): operation behind a reverse proxy. Empty
+    /// after opening; `serve` sets them before [`app`].
     pub allowed_hosts: guard::AllowedHosts,
-    /// Auslöser für das Herunterfahren (Runde 32): `POST /beenden` verlangt es, [`shutdown::serve`] wartet darauf.
+    /// Trigger for shutting down (Round 32): `POST /beenden` requests it, [`shutdown::serve`] waits for it.
     pub shutdown: shutdown::Shutdown,
-    /// Zustand der Anmeldung (Runde 35): je `AppState`, nie prozessweit; die Felder legt [`auth`] fest.
+    /// State of the sign-in (Round 35): per `AppState`, never process-wide; the fields are defined by [`auth`].
     pub auth: auth::AuthState,
 }
 
-/// Fehler beim Start (Datenordner, Datenbank).
+/// Error at start (data folder, database).
 #[derive(Debug)]
 pub struct StartError(pub String);
 
@@ -215,21 +215,21 @@ fn start_error<E: std::fmt::Display>(what: &'static str) -> impl FnOnce(E) -> St
 }
 
 impl AppState {
-    /// Öffnet den Datenordner in der festen Reihenfolge: `Store::open` (Kernschema, Beispielwerk),
-    /// `baruch_library::migrate` (Literatur, FTS5), `baruch_library::seed_if_empty`; danach werden
-    /// die Git-Spiegel aller Werke geöffnet und auf den Stand der Datenbank nachgeführt. Ein Fehler
-    /// im Spiegel verhindert den Start nicht, er steht auf stderr.
+    /// Opens the data folder in the fixed order: `Store::open` (core schema, sample work),
+    /// `baruch_library::migrate` (literature, FTS5), `baruch_library::seed_if_empty`; afterwards
+    /// the Git mirrors of all works are opened and brought up to the state of the database. An error
+    /// in the mirror does not prevent the start, it is written to stderr.
     ///
-    /// Geheimnisse der Verbindungen liegen dabei nur im Speicher ([`connections::MemorySecrets`]):
-    /// Tests und Hilfsbefehle berühren so nie den echten Schlüsselbund; `serve` nimmt
-    /// [`AppState::open_with_secrets`] mit dem Schlüsselbund des Systems. Ein Modell-Backend gibt es dabei
-    /// nicht ([`assist::NoModel`]); Tests mit Personas nehmen [`AppState::open_with`].
+    /// Secrets of the connections live only in memory here ([`connections::MemorySecrets`]):
+    /// tests and helper commands thus never touch the real keyring; `serve` takes
+    /// [`AppState::open_with_secrets`] with the keyring of the system. There is no model backend here
+    /// ([`assist::NoModel`]); tests with personas take [`AppState::open_with`].
     pub async fn open(data: &FsPath) -> Result<AppState, StartError> {
         Self::open_with_secrets(data, Arc::new(connections::MemorySecrets::default())).await
     }
 
-    /// Wie [`AppState::open`], mit eigener Ablage für die Geheimnisse der Verbindungen (ohne
-    /// Modell-Backend, [`assist::NoModel`]).
+    /// Like [`AppState::open`], with its own storage for the secrets of the connections (without a
+    /// model backend, [`assist::NoModel`]).
     pub async fn open_with_secrets(
         data: &FsPath,
         secrets: Arc<dyn connections::SecretStore>,
@@ -237,7 +237,7 @@ impl AppState {
         Self::open_with(data, secrets, Arc::new(assist::NoModel)).await
     }
 
-    /// Wie [`AppState::open_with_secrets`], mit einem Modell-Backend für die Personas (Runde 10).
+    /// Like [`AppState::open_with_secrets`], with a model backend for the personas (Round 10).
     pub async fn open_with(
         data: &FsPath,
         secrets: Arc<dyn connections::SecretStore>,
@@ -269,12 +269,12 @@ impl AppState {
         Ok(state)
     }
 
-    /// Vorgabewerk, wenn Seite oder RPC-Aufruf kein Werk nennen: das mit der kleinsten id, jetzt
-    /// (nach dem Löschen eines Werks also das nächste). Ohne Werke → `UnknownWork(0)`.
+    /// Default work when page or RPC call name no work: the one with the smallest id, now
+    /// (after deleting a work therefore the next one). Without works → `UnknownWork(0)`.
     ///
-    /// Runde 35: Für einen Lektor ([`auth::current`]) ist es das kleinste **freigegebene** Werk, ohne Freigabe
-    /// `UnknownWork(0)` – eine Seite ohne `work` zeigt ihm so nie ein fremdes Werk und verlinkt keines
-    /// („Zurück zum Werk“). Außerhalb einer Anfrage (abgespaltene Aufgaben, Start) gilt die kleinste id.
+    /// Round 35: for a Lektor ([`auth::current`]) it is the smallest **shared** work, without a share
+    /// `UnknownWork(0)` – a page without `work` thus never shows him a foreign work and links to none
+    /// („Zurück zum Werk“). Outside of a request (spawned tasks, start) the smallest id applies.
     pub async fn default_work(&self) -> Result<WorkId, StoreError> {
         let who = auth::current();
         if who.lektor().is_some() {
@@ -284,7 +284,7 @@ impl AppState {
         self.store.default_work().await
     }
 
-    /// Git-Spiegel des Werks; beim ersten Gebrauch geöffnet bzw. angelegt (`<data>/works/<slug>/`).
+    /// Git mirror of the work; opened or created on first use (`<data>/works/<slug>/`).
     pub async fn mirror(&self, work: WorkId) -> Result<Arc<Mirror>, String> {
         if let Some(mirror) = self.mirror_cache().get(&work) {
             return Ok(mirror.clone());
@@ -299,8 +299,8 @@ impl AppState {
         Ok(self.mirror_cache().entry(work).or_insert_with(|| Arc::new(mirror)).clone())
     }
 
-    /// Spiegel vergessen, damit der nächste Gebrauch ihn neu öffnet (nach einem Fehler, nach dem
-    /// Löschen eines Werks).
+    /// Forget the mirror so that the next use reopens it (after an error, after
+    /// deleting a work).
     pub(crate) fn forget_mirror(&self, work: WorkId) {
         self.mirror_cache().remove(&work);
     }
@@ -310,9 +310,9 @@ impl AppState {
     }
 }
 
-/// Ordner des Typst-Spiegels eines Werks: `<data>/works/<slug>`. Der Ordnername muss
-/// `^[a-z0-9]+(-[a-z0-9]+)*$` sein und höchstens 48 Zeichen haben; `<data>/works` und
-/// `<data>/works/<slug>` dürfen keine symbolischen Verknüpfungen sein.
+/// Folder of the Typst mirror of a work: `<data>/works/<slug>`. The folder name must be
+/// `^[a-z0-9]+(-[a-z0-9]+)*$` and have at most 48 characters; `<data>/works` and
+/// `<data>/works/<slug>` must not be symbolic links.
 pub fn mirror_dir(data: &FsPath, slug: &str) -> Result<PathBuf, String> {
     let valid = !slug.is_empty()
         && slug.len() <= 48
@@ -339,17 +339,18 @@ pub fn app(state: AppState) -> Router {
     router(Arc::new(state))
 }
 
-/// Größte Anfrage an `/mcp` (Runde 23, Codereview ki-2): ein Bild mit 8 MiB (`baruch_store::MAX_ASSET_BYTES`) als
-/// Base64 (≈ 10,7 MiB) samt Rahmen; alles andere über MCP ist durch eigene Längengrenzen viel kleiner. Darüber 413.
+/// Largest request to `/mcp` (Round 23, code review ki-2): an image of 8 MiB (`baruch_store::MAX_ASSET_BYTES`) as
+/// Base64 (≈ 10.7 MiB) with its frame; everything else through MCP is much smaller by its own length limits. Above
+/// that 413.
 pub const MCP_BODY_LIMIT: usize = 12 * 1024 * 1024;
 
-/// Wie [`app`], mit geteiltem Zustand (Tests greifen so auf [`AppState::write_lock`] zu).
+/// Like [`app`], with shared state (this way tests reach [`AppState::write_lock`]).
 pub fn router(state: Arc<AppState>) -> Router {
     let writes = Router::new()
         .route("/rpc", post(rpc_endpoint).layer(axum::extract::DefaultBodyLimit::max(works::RPC_BODY_LIMIT)))
         .route("/act", post(act))
-        // Runde 11: `asset_add` nimmt Bilder bis 8 MiB (Base64 größer). Runde 23 (Codereview ki-2): eigene,
-        // kleinere Grenze [`MCP_BODY_LIMIT`] statt der von `/rpc`.
+        // Round 11: `asset_add` takes images up to 8 MiB (Base64 larger). Round 23 (code review ki-2): own,
+        // smaller limit [`MCP_BODY_LIMIT`] instead of that of `/rpc`.
         .route("/mcp", post(mcp::endpoint).layer(axum::extract::DefaultBodyLimit::max(MCP_BODY_LIMIT)))
         .merge(literature::writes())
         .merge(works::writes())
@@ -371,25 +372,25 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(idea_map::files::writes())
         .merge(typeset::writes())
         .merge(findings::page::writes())
-        // Runde 30 (Schnittstelle R30-S1): Suchen/Ersetzen, Querverweise, Lösungen und Varianten.
+        // Round 30 (interface R30-S1): search/replace, cross references, solutions and variants.
         .merge(search::writes())
         .merge(xref::writes())
         .merge(assist::solutions::writes())
-        // Runde 20 (Schnittstelle R20-S1): EPUB prüfen und Einstellung für EPUBCheck.
+        // Round 20 (interface R20-S1): check EPUB and setting for EPUBCheck.
         .merge(epub_check::writes())
-        // Runde 31 (Schnittstelle R31-S1): Glossar und Register.
+        // Round 31 (interface R31-S1): glossary and index.
         .merge(glossary_page::writes())
         .merge(index_page::writes())
-        // Runde 21 (Schnittstelle R21-S1): PDF/EPUB-Import (Vorschau, Übernehmen, Verwerfen).
+        // Round 21 (interface R21-S1): PDF/EPUB import (preview, accept, discard).
         .merge(pdf_import::writes())
-        // Runde 22 (Schnittstelle R22-S1): Verlauf der Fortschreibungen und Einstellung „Fassungen“.
+        // Round 22 (interface R22-S1): history of the amendments and setting „Fassungen“.
         .merge(revisions::writes())
-        // 0.9.0 (Nutzer 2026-11-24): ältere Fassungen werkweit ausblenden.
+        // 0.9.0 (user 2026-11-24): hide older revisions work-wide.
         .merge(revision_fold::writes())
-        // Runde 32 (Schnittstelle R32-S1): Word-Import (Vorschau, Übernehmen, Verwerfen) und „Baruch beenden“.
+        // Round 32 (interface R32-S1): Word import (preview, accept, discard) and „Baruch beenden“.
         .merge(docx_import::writes())
         .merge(shutdown::writes())
-        // Runde 35 (Schnittstelle R35-S1): Anmelden/Abmelden/Einrichten/Konten und die Formulare der Rollen.
+        // Round 35 (interface R35-S1): sign in/sign out/set up/accounts and the forms of the roles.
         .merge(auth::routes::writes())
         .merge(roles::routes::writes())
         .route_layer(middleware::from_fn(guard::same_origin));
@@ -419,7 +420,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(search::pages())
         .merge(xref::pages())
         .merge(assist::solutions::pages())
-        // Runde 20 (Schnittstelle R20-S1): EPUB herunterladen, Vorschau je Reader, Prüfung.
+        // Round 20 (interface R20-S1): download EPUB, preview per reader, check.
         .merge(epub::pages())
         .merge(epub_preview::pages())
         .merge(epub_check::pages())
@@ -427,28 +428,28 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(index_page::pages())
         .merge(pdf_import::pages())
         .merge(revisions::pages())
-        // Runde 24 (Schnittstelle R24-S1): Über Baruch.
+        // Round 24 (interface R24-S1): about Baruch.
         .merge(about::pages())
-        // Runde 32 (Schnittstelle R32-S1): Word-Import, Word-Export, Bestätigungsseite „Baruch beenden“.
+        // Round 32 (interface R32-S1): Word import, Word export, confirmation page „Baruch beenden“.
         .merge(docx_import::pages())
         .merge(docx_export::pages())
         .merge(shutdown::pages())
-        // Runde 35 (Schnittstelle R35-S1): Anmeldeseite, Einrichten, Mein Konto, Mitwirkende.
+        // Round 35 (interface R35-S1): sign-in page, set up, Mein Konto, Mitwirkende.
         .merge(konten_ui::pages())
         .merge(writes)
         .route("/static/app.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
         .route("/static/favicon.svg", get(|| async { asset("image/svg+xml", ICON) }))
         .route("/static/js/{name}", get(script))
-        // Runde 10: Von anderen Rechnern nur `/mcp` (mit Token, geprüft in `mcp::endpoint`).
-        // Nutzerfrage 12: Hinweisleiste und Dialog für Anträge, die Zustimmung brauchen, auf jeder Seite.
+        // Round 10: from other machines only `/mcp` (with a token, checked in `mcp::endpoint`).
+        // User question 12: notice bar and dialog for requests that need consent, on every page.
         .layer(middleware::from_fn_with_state(state.clone(), consent::inject))
-        // Runde 35: Anmeldung und Rollen – außerhalb von `inject` (Seite und Leiste entstehen schon unter der
-        // festgestellten Identität), innerhalb von `remote_only_mcp` (fremde Rechner kommen gar nicht bis hierher).
+        // Round 35: sign-in and roles – outside of `inject` (page and bar are already created under the
+        // established identity), inside of `remote_only_mcp` (foreign machines do not get this far at all).
         .layer(middleware::from_fn_with_state(state.clone(), auth::gate))
         .layer(middleware::from_fn(guard::remote_only_mcp))
         .layer(middleware::from_fn(guard::own_reads))
         .layer(middleware::from_fn_with_state(state.clone(), guard::local_host))
-        // Clickjacking: keine Seite und keine Antwort in einem fremden Rahmen (auch nicht 403/421).
+        // Clickjacking: no page and no response in a foreign frame (not even 403/421).
         .layer(middleware::from_fn(guard::no_framing))
         .with_state(state)
 }
@@ -468,21 +469,21 @@ fn internal(e: impl std::fmt::Display) -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()
 }
 
-/// Werk und Werkwahl für Seite und `ui.render`. Unbekanntes Werk → `UnknownWork`; ein Werk ohne
-/// Abschnitte lässt sich nicht zeigen (`Refused`).
+/// Work and work selection for page and `ui.render`. Unknown work → `UnknownWork`; a work without
+/// sections cannot be shown (`Refused`).
 pub(crate) async fn shelf(state: &AppState, work: WorkId) -> Result<(baruch_core::Work, Shelf), StoreError> {
     let loaded = state.store.load_work(work).await?;
     if loaded.nodes.is_empty() {
         return Err(StoreError::Refused("Das Werk hat keine Abschnitte."));
     }
     let slug = state.store.work_slug(work).await?;
-    // Runde 35: die Werkwahl zeigt nur, was die Rolle sehen darf.
+    // Round 35: the work selection shows only what the role may see.
     let works = roles::visible_works(state, &auth::current()).await?;
     Ok((loaded, Shelf { id: work, slug, works }))
 }
 
-/// Werk der Seite `/` ohne `?work=`: das aus dem Cookie `baruch_work`, wenn es das Werk noch gibt,
-/// sonst das Vorgabewerk; `None`, wenn es gar kein Werk gibt.
+/// Work of the page `/` without `?work=`: the one from the cookie `baruch_work` if the work still exists,
+/// otherwise the default work; `None` if there is no work at all.
 async fn chosen_work(state: &AppState, remembered: Option<WorkId>) -> Result<Option<WorkId>, StoreError> {
     if let Some(work) = remembered {
         match state.store.work_slug(work).await {
@@ -498,7 +499,7 @@ async fn chosen_work(state: &AppState, remembered: Option<WorkId>) -> Result<Opt
     }
 }
 
-/// Cookie, das sich das gezeigte Werk merkt (ein Jahr, nur dieser Server).
+/// Cookie that remembers the work shown (one year, this server only).
 fn work_cookie(work: WorkId) -> header::HeaderValue {
     header::HeaderValue::from_str(&format!("baruch_work={work}; Path=/; Max-Age=31536000; SameSite=Lax"))
         .expect("Ziffern sind ein gültiger Kopfzeilenwert")
@@ -556,28 +557,28 @@ async fn rpc_endpoint(State(state): State<Arc<AppState>>, headers: HeaderMap, bo
     Json(response).into_response()
 }
 
-/// Formular ohne JavaScript: dieselbe RPC-Methode, danach zurück zur Seite.
+/// Form without JavaScript: the same RPC method, then back to the page.
 #[derive(Deserialize)]
 struct ActForm {
     method: String,
-    /// Werk; fehlt es, das Vorgabewerk.
+    /// Work; if missing, the default work.
     work: Option<WorkId>,
-    /// Stelle (Anzeige, Rückfall); fehlt sie, zählt nur `key`.
+    /// Position (display, fallback); if missing, only `key` counts.
     node: Option<usize>,
-    /// Fester Schlüssel des Abschnitts (`Node::key`); geht vor `node` (siehe `rpc::resolve_keys`).
+    /// Fixed key of the section (`Node::key`); takes precedence over `node` (see `rpc::resolve_keys`).
     key: Option<String>,
     rev: Option<usize>,
     body: Option<String>,
     note: Option<String>,
     based_on: Option<u32>,
-    /// Runde 23: Stand der Fortschreibungen, auf dem das Formular „Fassung ändern“ beruht (`revision.update`).
+    /// Round 23: state of the amendments on which the form „Fassung ändern“ is based (`revision.update`).
     based_on_amend: Option<u32>,
     view: Option<String>,
-    /// Suche im Literatur-Popup; bleibt nach der Weiterleitung erhalten.
+    /// Search in the literature popup; is kept after the redirect.
     lq: Option<String>,
-    /// Kästchen „wirklich löschen“ (`1` oder `on`); Pflicht bei `revision.delete`.
+    /// Checkbox „wirklich löschen“ (`1` or `on`); mandatory for `revision.delete`.
     confirm: Option<String>,
-    /// Runde 22: Speichermodus von `revision.save` („auto“ | „new“); fehlt er, gilt „new“.
+    /// Round 22: save mode of `revision.save` („auto“ | „new“); if missing, „new“ applies.
     mode: Option<String>,
 }
 
@@ -615,7 +616,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
         params["mode"] = json!(mode);
     }
     if form.method == "revision.delete" {
-        // Der Server prüft das Kästchen selbst; `required` im HTML allein hält niemanden auf.
+        // The server checks the checkbox itself; `required` in the HTML alone stops nobody.
         if !matches!(form.confirm.as_deref(), Some("1" | "on")) {
             return (StatusCode::UNPROCESSABLE_ENTITY, "Löschen bitte bestätigen.").into_response();
         }
@@ -629,7 +630,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
         "revision.set_current",
         "revision.update",
         "revision.delete",
-        // 0.9.0: ältere Fassungen „bis hierhin“ ausblenden bzw. wieder alle zeigen (nur Mensch, ohne JavaScript).
+        // 0.9.0: hide older revisions „bis hierhin“ or show all again (human only, without JavaScript).
         "revision.fold_set",
         "revision.fold_clear",
     ];
@@ -643,8 +644,8 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
         ),
         Err(e) => return (StatusCode::UNPROCESSABLE_ENTITY, e.message).into_response(),
     };
-    // Zurück in Key-Form (Vertrag Runde 8, §1): der Schlüssel des Abschnitts, den die Antwort nennt
-    // (nach Umschalten mit anderer Ebene bleibt er derselbe, die Stelle kann sich ändern).
+    // Back in key form (contract Round 8, §1): the key of the section that the answer names
+    // (after switching with a different level it stays the same, the position can change).
     let key = match node {
         Some(node) => state.store.node_key(work, node).await.ok(),
         None => None,

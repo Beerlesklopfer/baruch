@@ -1,57 +1,57 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Personas (Vertrag Runde 7, „proposals“; Runde 9, Einstellungen „Assistenten“): RPC `persona.*`,
-//! das Formular an `POST /einstellungen/personas/act` (ohne JavaScript bedienbar) und die Tönungen für
-//! helles und dunkles Thema. Die Seite selbst ist seit Runde 9 die Einstellungsseite
-//! `/einstellungen/assistenten` ([`crate::settings`]); `/einstellungen/personas` leitet dorthin.
+//! Personas (contract Round 7, „proposals“; Round 9, settings „Assistenten“): RPC `persona.*`,
+//! the form to `POST /einstellungen/personas/act` (usable without JavaScript) and the tints for the
+//! light and the dark theme. Since Round 9 the page itself is the settings page
+//! `/einstellungen/assistenten` ([`crate::settings`]); `/einstellungen/personas` redirects there.
 //!
-//! RPC ([`handles`], [`call`]; aus `rpc::call` vor der Wahl des Werks, Personas sind global):
+//! RPC ([`handles`], [`call`]; called from `rpc::call` before the work is chosen, personas are global):
 //! - `persona.list {}` → `{personas: [{handle, name, role, model, context_length, active, lector,
-//!   color, chosen, tints: {light, dark, line, line_dark}}], palette: [..]}`; alles aus der Tabelle
-//!   `persona` (Runde 9, auch ohne Werk vollständig)
-//! - `persona.set_color {handle, color: "#rrggbb" | null}` → `{handle, color, chosen}`; `null` = zurück
-//!   zur Vorgabe. Unbekannte Persona oder ungültige Farbe → -32602. Nur der Mensch: nicht über `/act`
-//!   (dort nicht erlaubt) und nicht über MCP (kein Werkzeug). Kein Commit im Spiegel (kein Buchtext).
-//! - `persona.update {handle, name?, role?, model?, context_length?, active?}` → `PersonaRow` (Runde 9;
-//!   Runde 11: `name` getrimmt 1–80 Zeichen, alles in einer Transaktion):
-//!   Rolle und Modell getrimmt 1–200 Zeichen, Kontextlänge 1–10000000 Tokens; sonst bzw. bei
-//!   unbekannter Persona -32602. Nur der Mensch, kein Commit. Modell und Kontextlänge nutzen die
-//!   Persona-Aufträge (Runde 10, [`crate::assist`]).
-//! - `persona.prompt_get {handle}` → `{handle, prompt, default, custom}` (Runde 10): wirksamer
-//!   Rollen-Prompt, die Vorgabe aus dem Code und ob ein eigener gespeichert ist.
-//! - `persona.set_prompt {handle, prompt: Text | null}` → dito; `null` = zurück zur Vorgabe, eigener
-//!   Prompt getrimmt 1–8000 Zeichen (sonst -32000). Nur der Mensch.
+//!   color, chosen, tints: {light, dark, line, line_dark}}], palette: [..]}`; everything from the table
+//!   `persona` (Round 9, complete even without a work)
+//! - `persona.set_color {handle, color: "#rrggbb" | null}` → `{handle, color, chosen}`; `null` = back
+//!   to the default. Unknown persona or invalid colour → -32602. Only the human: not through `/act`
+//!   (not allowed there) and not through MCP (no tool). No commit in the mirror (no book text).
+//! - `persona.update {handle, name?, role?, model?, context_length?, active?}` → `PersonaRow` (Round 9;
+//!   Round 11: `name` trimmed 1–80 characters, everything in one transaction):
+//!   role and model trimmed 1–200 characters, context length 1–10000000 tokens; otherwise, or for an
+//!   unknown persona, -32602. Only the human, no commit. Model and context length are used by the
+//!   persona jobs (Round 10, [`crate::assist`]).
+//! - `persona.prompt_get {handle}` → `{handle, prompt, default, custom}` (Round 10): effective
+//!   role prompt, the default from the code and whether an own one is stored.
+//! - `persona.set_prompt {handle, prompt: Text | null}` → ditto; `null` = back to the default, own
+//!   prompt trimmed 1–8000 characters (otherwise -32000). Only the human.
 //! - `persona.lector_get {}` → `{mode: "fixed"|"auto", handle?, lector}`; `persona.set_lector {mode,
-//!   handle?}` → dito (Runde 10): fest eine Persona (muss es geben) oder automatisch nach Kontext.
-//!   Vorgabe des Versuchs seit 2026-11-06: fest `@lektor`. Nur der Mensch.
-//! - `persona.ask/review/propose/chat`: Aufträge an Personas ([`crate::assist::rpc`]).
+//!   handle?}` → ditto (Round 10): fixed one persona (must exist) or automatic by context.
+//!   Default of the trial since 2026-11-06: fixed `@lektor`. Only the human.
+//! - `persona.ask/review/propose/chat`: jobs for personas ([`crate::assist::rpc`]).
 //! - `persona.rag_get {persona}` → `{persona, rag_context, allowed}`; `persona.rag_set {persona, on}` →
-//!   `{persona, rag_context}` (Runde 12, Migration 0032): Treffer der Bedeutungssuche als Belege mitgeben.
-//!   Erlaubt nur für `@belege` und die Persona, die nach der Wahl Lektor ist (fest bzw. automatisch), sonst
-//!   -32602 [`RAG_REFUSED`]; unbekannte Persona -32602. Nur der Mensch (nicht über `/act`, kein MCP).
-//! - Runde 15b: `persona.list` nennt je Persona zusätzlich `connection {id, name, kind}`, `locality`
-//!   („lokal“/„extern“), `external_allowed` und `context {tokens, reported, warning}` (ohne Netzabfrage, aus
-//!   den Zwischenspeichern der Modelle). `persona.backend_get {persona}` → `{persona, connection, locality,
+//!   `{persona, rag_context}` (Round 12, migration 0032): pass hits of the semantic search along as evidence.
+//!   Allowed only for `@belege` and the persona that is the lector by the choice (fixed or automatic), otherwise
+//!   -32602 [`RAG_REFUSED`]; unknown persona -32602. Only the human (not through `/act`, no MCP).
+//! - Round 15b: `persona.list` additionally names per persona `connection {id, name, kind}`, `locality`
+//!   („lokal“/„extern“), `external_allowed` and `context {tokens, reported, warning}` (without a network query, from
+//!   the caches of the models). `persona.backend_get {persona}` → `{persona, connection, locality,
 //!   external_allowed, explicit, usable, warning?}`, `persona.backend_set {persona, connection,
-//!   external_allowed}` → dito (Store `persona_backend`, Migration 0036). `persona.bible_get {persona}` →
+//!   external_allowed}` → ditto (store `persona_backend`, migration 0036). `persona.bible_get {persona}` →
 //!   `{persona, bible_context, allowed, default}`, `persona.bible_set {persona, on}` → `{persona,
-//!   bible_context}` (Migration 0037): Bibel-Belege aus SWORD ([`crate::bible_research`]) nur für `@belege`
-//!   (Vorgabe an) und den Lektor (Vorgabe aus), sonst -32602 [`BIBLE_REFUSED`]. Nur der Mensch.
-//! - Runde 16a: `persona.chat_scope_get {}` → `{scope: "chapter"|"section"}`, `persona.chat_scope_set {scope}` →
-//!   dito (Einstellung „Chat nur Abschnitt“, `store_meta.chat_scope`, nur SQLite, kein Spiegel). Nur der Mensch:
-//!   nicht über `/act`, nicht über MCP; Formular `method=persona.chat_scope_set` an
-//!   `POST /einstellungen/personas/act` → 303 `…?ok=chat#chat`. `persona.list` nennt zusätzlich `chat_scope`;
-//!   „Lektor automatisch nach Kontext“ vergleicht die wirksame Kontextlänge ([`effective_lector_of`]).
-//! - Runde 17a (L4): Seiten und Listen (`persona.list`, `persona.lector_get`, Bibel- und RAG-Schalter, Einstellungen →
-//!   Assistenten, Arbeitsseite) bestimmen den Lektor ohne Netzabfrage ([`rows_and_lector_cached`],
-//!   `ModelPort::context_cached`: Zwischenspeicher, sonst die Einstellung); nur der Modellaufruf fragt die
-//!   Gegenstelle ([`rows_and_lector`]). `persona.list` nennt zusätzlich `lector_context` (wirksame Kontextlänge des
-//!   Lektors: `{tokens, reported, warning}` oder `null`).
+//!   bible_context}` (migration 0037): Bible evidence from SWORD ([`crate::bible_research`]) only for `@belege`
+//!   (default on) and the lector (default off), otherwise -32602 [`BIBLE_REFUSED`]. Only the human.
+//! - Round 16a: `persona.chat_scope_get {}` → `{scope: "chapter"|"section"}`, `persona.chat_scope_set {scope}` →
+//!   ditto (setting „Chat nur Abschnitt“, `store_meta.chat_scope`, SQLite only, no mirror). Only the human:
+//!   not through `/act`, not through MCP; form `method=persona.chat_scope_set` to
+//!   `POST /einstellungen/personas/act` → 303 `…?ok=chat#chat`. `persona.list` additionally names `chat_scope`;
+//!   „Lektor automatisch nach Kontext“ compares the effective context length ([`effective_lector_of`]).
+//! - Round 17a (L4): pages and lists (`persona.list`, `persona.lector_get`, Bible and RAG switches, Einstellungen →
+//!   Assistenten, work page) determine the lector without a network query ([`rows_and_lector_cached`],
+//!   `ModelPort::context_cached`: cache, otherwise the setting); only the model call asks the
+//!   remote side ([`rows_and_lector`]). `persona.list` additionally names `lector_context` (effective context length
+//!   of the lector: `{tokens, reported, warning}` or `null`).
 //!
-//! Farben gelangen nur als geprüfte `#rrggbb` (`baruch_store::valid_color`) in die Seiten, als
-//! CSS-Variablen `--pc-light`, `--pc-dark`, `--pc-line`, `--pc-line-dark` im `style`-Attribut
-//! ([`style`]). Die Linien erreichen seit Runde 8 mindestens 3:1 gegen die Fläche ihres Themas
-//! (WCAG 1.4.11, Nicht-Text-Kontrast), damit eine eingeklappte Linie auch bei Gelb oder Ocker sichtbar
-//! bleibt.
+//! Colours reach the pages only as checked `#rrggbb` (`baruch_store::valid_color`), as
+//! CSS variables `--pc-light`, `--pc-dark`, `--pc-line`, `--pc-line-dark` in the `style` attribute
+//! ([`style`]). Since Round 8 the lines reach at least 3:1 against the surface of their theme
+//! (WCAG 1.4.11, non-text contrast), so that a collapsed line stays visible even with yellow or
+//! ochre.
 
 use std::sync::Arc;
 
@@ -86,57 +86,57 @@ const METHODS: &[&str] = &[
     "persona.chat_scope_set",
 ];
 
-/// Meldung, wenn eine andere Persona Bibel-Belege aus SWORD bekommen soll.
+/// Message when another persona is to get Bible evidence from SWORD.
 pub const BIBLE_REFUSED: &str = "Bibel-Belege aus SWORD gibt es nur für @belege und den Lektor.";
 
-/// Meldung, wenn eine andere Persona Treffer der Bedeutungssuche bekommen soll.
+/// Message when another persona is to get hits of the semantic search.
 pub const RAG_REFUSED: &str = "Bedeutungs-Treffer gibt es nur für @belege und den Lektor.";
 
-/// Text im hellen Thema (`--text` in app.css) und Fläche, mit der gemischt wird.
+/// Text in the light theme (`--text` in app.css) and the surface it is mixed with.
 pub const LIGHT_TEXT: &str = "#1d2125";
 pub const LIGHT_PANEL: &str = "#ffffff";
-/// Blatt (Satzbild, Vorschau) im dunklen Thema (`--sheet` in app.css): bleibt hell, ist aber dunkler
-/// als [`LIGHT_PANEL`]. Auf dem Blatt gilt immer `--pc-line`, darum muss die Linie auch hier 3:1 halten.
+/// Sheet (typeset view, preview) in the dark theme (`--sheet` in app.css): stays light, but is darker
+/// than [`LIGHT_PANEL`]. On the sheet `--pc-line` always applies, so the line must hold 3:1 here too.
 pub const DARK_SHEET: &str = "#f4f1ea";
-/// Alle hellen Flächen, auf denen `--pc-line` steht: das helle Thema und das Blatt in beiden Themen
-/// (im hellen Thema ist `--sheet` = [`LIGHT_PANEL`]).
+/// All light surfaces on which `--pc-line` stands: the light theme and the sheet in both themes
+/// (in the light theme `--sheet` = [`LIGHT_PANEL`]).
 pub const LIGHT_SURFACES: [&str; 2] = [LIGHT_PANEL, DARK_SHEET];
-/// Gedämpfter Text (`--muted`) und Linktext (`--primary`) im hellen Thema; beide stehen ebenfalls auf
-/// den Tönungen (Handle und „Vorgabe #…“ auf /einstellungen/personas, „Quelle: …“ und Verweise im
-/// Chat).
+/// Muted text (`--muted`) and link text (`--primary`) in the light theme; both also stand on
+/// the tints (handle and „Vorgabe #…“ on /einstellungen/personas, „Quelle: …“ and references in the
+/// chat).
 pub const LIGHT_MUTED: &str = "#5f6b76";
 pub const LIGHT_PRIMARY: &str = "#3b5bdb";
-/// Text im dunklen Thema und Fläche (`--panel`), mit der gemischt wird.
+/// Text in the dark theme and the surface (`--panel`) it is mixed with.
 pub const DARK_TEXT: &str = "#e3e6ea";
 pub const DARK_PANEL: &str = "#1f2328";
-/// Gedämpfter Text und Linktext im dunklen Thema.
+/// Muted text and link text in the dark theme.
 pub const DARK_MUTED: &str = "#9aa5b1";
 pub const DARK_PRIMARY: &str = "#7d97ff";
-/// Alle Schriftfarben, die auf einer hellen bzw. dunklen Tönung stehen; jede muss
-/// [`MIN_CONTRAST`] erreichen.
+/// All font colours that stand on a light or dark tint; each must reach
+/// [`MIN_CONTRAST`].
 pub const LIGHT_FOREGROUNDS: [&str; 3] = [LIGHT_TEXT, LIGHT_MUTED, LIGHT_PRIMARY];
 pub const DARK_FOREGROUNDS: [&str; 3] = [DARK_TEXT, DARK_MUTED, DARK_PRIMARY];
-/// Mindestkontrast für Text (WCAG 2.x, AA).
+/// Minimum contrast for text (WCAG 2.x, AA).
 pub const MIN_CONTRAST: f64 = 4.5;
-/// Mindestkontrast für Linien und Bedienelemente gegen ihre Fläche (WCAG 2.1, 1.4.11).
+/// Minimum contrast for lines and controls against their surface (WCAG 2.1, 1.4.11).
 pub const MIN_LINE_CONTRAST: f64 = 3.0;
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method) || crate::assist::rpc::METHODS.contains(&method)
 }
 
-/// Tönungen einer Persona-Farbe: Hintergrund hell bzw. dunkel (Text `--text`, gedämpfter Text
-/// `--muted` und Linktext `--primary` darauf mindestens 4,5:1) und die Linie je Thema: die Farbe
-/// selbst, falls sie gegen die Fläche mindestens [`MIN_LINE_CONTRAST`] erreicht, sonst so weit
-/// abgedunkelt (hell) bzw. aufgehellt (dunkel), bis sie es tut.
+/// Tints of a persona colour: background light or dark (text `--text`, muted text
+/// `--muted` and link text `--primary` on it at least 4.5:1) and the line per theme: the colour
+/// itself if it reaches at least [`MIN_LINE_CONTRAST`] against the surface, otherwise darkened (light)
+/// or lightened (dark) until it does.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Tints {
     pub light: String,
     pub dark: String,
-    /// Linie im hellen Thema und auf dem Blatt (gegen jede Fläche in [`LIGHT_SURFACES`]).
+    /// Line in the light theme and on the sheet (against every surface in [`LIGHT_SURFACES`]).
     pub line: String,
-    /// Linie im dunklen Thema (gegen [`DARK_PANEL`]).
+    /// Line in the dark theme (against [`DARK_PANEL`]).
     pub line_dark: String,
 }
 
@@ -150,14 +150,14 @@ fn hex([r, g, b]: [u8; 3]) -> String {
     format!("#{r:02x}{g:02x}{b:02x}")
 }
 
-/// `color` zu `amount` (0–1) mit `with` gemischt.
+/// `color` mixed with `with` by `amount` (0–1).
 fn mix(color: [u8; 3], with: [u8; 3], amount: f64) -> [u8; 3] {
     let channel =
         |a: u8, b: u8| (f64::from(a) * (1.0 - amount) + f64::from(b) * amount).round().clamp(0.0, 255.0) as u8;
     [channel(color[0], with[0]), channel(color[1], with[1]), channel(color[2], with[2])]
 }
 
-/// Relative Leuchtdichte nach WCAG 2.x.
+/// Relative luminance according to WCAG 2.x.
 fn luminance(color: [u8; 3]) -> f64 {
     let linear = |c: u8| {
         let c = f64::from(c) / 255.0;
@@ -166,7 +166,7 @@ fn luminance(color: [u8; 3]) -> f64 {
     0.2126 * linear(color[0]) + 0.7152 * linear(color[1]) + 0.0722 * linear(color[2])
 }
 
-/// Kontrastverhältnis zweier Farben nach WCAG 2.x (1 bis 21). Ungültige Farben zählen als
+/// Contrast ratio of two colours according to WCAG 2.x (1 to 21). Invalid colours count as
 /// `FALLBACK_COLOR`.
 pub fn contrast_ratio(a: &str, b: &str) -> f64 {
     let (la, lb) = (luminance(rgb(a)), luminance(rgb(b)));
@@ -174,9 +174,9 @@ pub fn contrast_ratio(a: &str, b: &str) -> f64 {
     (hi + 0.05) / (lo + 0.05)
 }
 
-/// Mischt `color` mit `panel`, beginnend bei `start`, in Schritten von 5 % weiter zur Fläche, bis
-/// jede Schriftfarbe in `foregrounds` darauf mindestens [`MIN_CONTRAST`] erreicht (spätestens die
-/// Fläche selbst).
+/// Mixes `color` with `panel`, beginning at `start`, in steps of 5 % further towards the surface until
+/// every font colour in `foregrounds` reaches at least [`MIN_CONTRAST`] on it (at the latest the
+/// surface itself).
 fn tint(color: [u8; 3], panel: [u8; 3], foregrounds: &[&str], start: f64) -> String {
     let mut amount = start;
     loop {
@@ -188,8 +188,8 @@ fn tint(color: [u8; 3], panel: [u8; 3], foregrounds: &[&str], start: f64) -> Str
     }
 }
 
-/// Linie: `color` in Schritten von 5 % zu `towards` (Schwarz bzw. Weiß) gemischt, bis sie gegen
-/// jede Fläche in `panels` mindestens [`MIN_LINE_CONTRAST`] erreicht; unverändert, wenn sie es schon tut.
+/// Line: `color` mixed in steps of 5 % towards `towards` (black or white) until it reaches at least
+/// [`MIN_LINE_CONTRAST`] against every surface in `panels`; unchanged if it already does.
 fn line(color: [u8; 3], panels: &[&str], towards: [u8; 3]) -> String {
     let mut amount: f64 = 0.0;
     loop {
@@ -201,7 +201,7 @@ fn line(color: [u8; 3], panels: &[&str], towards: [u8; 3]) -> String {
     }
 }
 
-/// Tönungen für helles (Mischung mit `#ffffff`) und dunkles Thema (Mischung mit `#1f2328`).
+/// Tints for the light theme (mixture with `#ffffff`) and the dark theme (mixture with `#1f2328`).
 pub fn tints(color: &str) -> Tints {
     let base = rgb(color);
     Tints {
@@ -212,31 +212,31 @@ pub fn tints(color: &str) -> Tints {
     }
 }
 
-/// `style`-Wert mit den CSS-Variablen einer Farbe (nur `#rrggbb`, darum ohne Maskierung sicher):
-/// `--pc-light`, `--pc-dark` (Hintergründe), `--pc-line` (Linie im hellen Thema und auf dem stets
-/// hellen Blatt) und `--pc-line-dark` (Linie im dunklen Thema).
+/// `style` value with the CSS variables of a colour (only `#rrggbb`, therefore safe without escaping):
+/// `--pc-light`, `--pc-dark` (backgrounds), `--pc-line` (line in the light theme and on the always
+/// light sheet) and `--pc-line-dark` (line in the dark theme).
 pub fn style(color: &str) -> String {
     let t = tints(color);
     format!("--pc-light:{};--pc-dark:{};--pc-line:{};--pc-line-dark:{}", t.light, t.dark, t.line, t.line_dark)
 }
 
-/// Lektor nach der Wahl (Runde 10): fest gewählt, wenn es die Persona gibt und sie aktiv ist, sonst die
-/// aktive Persona mit dem größten Kontext, bei Gleichstand die frühere in der Reihenfolge `position`,
-/// `id` – dieselbe Regel wie `baruch_core::Work::lector` ([`LectorChoice::pick`]).
+/// Lector by the choice (Round 10): the fixed choice if the persona exists and is active, otherwise the
+/// active persona with the largest context, on a tie the earlier one in the order `position`,
+/// `id` – the same rule as `baruch_core::Work::lector` ([`LectorChoice::pick`]).
 pub fn lector_of<'a>(rows: &'a [PersonaRow], choice: &LectorChoice) -> Option<&'a PersonaRow> {
     choice.pick(rows, |p| p.handle.as_str(), |p| p.context_length, |p| p.active).map(|i| &rows[i])
 }
 
-/// Lektor nach der Wahl mit der **wirksamen** Kontextlänge (Runde 16a): wie [`lector_of`], aber „automatisch nach
-/// Kontext“ (und eine feste, inaktive Persona, die darauf zurückfällt) vergleicht `state.model.context` – die
-/// Einstellung der Persona, abgeglichen mit dem, was die Gegenstelle meldet. Eine feste, aktive Wahl braucht keine
-/// Abfrage.
+/// Lector by the choice with the **effective** context length (Round 16a): like [`lector_of`], but „automatisch
+/// nach Kontext“ (and a fixed, inactive persona that falls back to it) compares `state.model.context` – the
+/// setting of the persona, reconciled with what the remote side reports. A fixed, active choice needs no
+/// query.
 pub async fn effective_lector_of(state: &AppState, rows: &[PersonaRow], choice: &LectorChoice) -> Option<String> {
     lector_by(state, rows, choice, false).await
 }
 
-/// Wie [`effective_lector_of`], aber ohne Netzabfrage (Runde 17a, L4): `ModelPort::context_cached` – was der Port
-/// schon weiß, sonst die Einstellung. Für Seiten und Listen.
+/// Like [`effective_lector_of`], but without a network query (Round 17a, L4): `ModelPort::context_cached` – what
+/// the port already knows, otherwise the setting. For pages and lists.
 pub async fn cached_lector_of(state: &AppState, rows: &[PersonaRow], choice: &LectorChoice) -> Option<String> {
     lector_by(state, rows, choice, true).await
 }
@@ -261,13 +261,13 @@ async fn lector_by(state: &AppState, rows: &[PersonaRow], choice: &LectorChoice,
         .map(|i| sized[i].0.handle.clone())
 }
 
-/// Ist `handle` (mit oder ohne `@`) der Handle von `row`?
+/// Is `handle` (with or without `@`) the handle of `row`?
 fn same_handle(handle: &str, row: &PersonaRow) -> bool {
     let wanted = handle.trim();
     row.handle == wanted || row.handle.trim_start_matches('@') == wanted.trim_start_matches('@')
 }
 
-/// Personas samt Wahl und Lektor nach der gespeicherten Wahl (seit Runde 16a mit der wirksamen Kontextlänge,
+/// Personas with the choice and the lector by the stored choice (since Round 16a with the effective context length,
 /// [`effective_lector_of`]).
 pub async fn rows_and_lector(state: &AppState) -> Result<(Vec<PersonaRow>, LectorChoice, Option<String>), RpcError> {
     let rows = state.store.persona_list().await?;
@@ -276,7 +276,7 @@ pub async fn rows_and_lector(state: &AppState) -> Result<(Vec<PersonaRow>, Lecto
     Ok((rows, choice, lector))
 }
 
-/// Wie [`rows_and_lector`], ohne Netzabfrage ([`cached_lector_of`]): für Seiten, Listen und Schalter.
+/// Like [`rows_and_lector`], without a network query ([`cached_lector_of`]): for pages, lists and switches.
 pub async fn rows_and_lector_cached(
     state: &AppState,
 ) -> Result<(Vec<PersonaRow>, LectorChoice, Option<String>), RpcError> {
@@ -286,20 +286,20 @@ pub async fn rows_and_lector_cached(
     Ok((rows, choice, lector))
 }
 
-/// `persona.chat_scope_get` bzw. Antwort von `persona.chat_scope_set` (Runde 16a).
+/// `persona.chat_scope_get` or the answer of `persona.chat_scope_set` (Round 16a).
 pub(crate) async fn chat_scope_json(state: &AppState) -> Result<Json, RpcError> {
     Ok(json!({ "scope": state.store.chat_scope().await?.word() }))
 }
 
-/// `scope` aus `chapter` | `section`; sonst -32602.
+/// `scope` from `chapter` | `section`; otherwise -32602.
 pub(crate) fn chat_scope_from(value: Option<&str>) -> Result<baruch_store::ChatScope, RpcError> {
     value.and_then(baruch_store::ChatScope::parse).ok_or_else(|| {
         RpcError::new(INVALID_PARAMS, "scope: „chapter“ (ganzes Kapitel) oder „section“ (nur Abschnitt)")
     })
 }
 
-/// Personas mit Rolle, Modell, Kontext, aktiv, Lektor und Farbe, alles aus der Tabelle `persona`
-/// (Runde 9: nicht mehr aus dem Vorgabewerk, darum auch ohne Werke vollständig).
+/// Personas with role, model, context, active, lector and colour, everything from the table `persona`
+/// (Round 9: no longer from the default work, therefore complete even without works).
 async fn list(state: &AppState) -> Result<Json, RpcError> {
     let (rows, choice, lector) = rows_and_lector_cached(state).await?;
     let backends = state.store.persona_backends().await?;
@@ -309,7 +309,7 @@ async fn list(state: &AppState) -> Result<Json, RpcError> {
     for p in &rows {
         let backend = backends.iter().find(|(h, _)| *h == p.handle).map(|(_, b)| *b).unwrap_or_default();
         let connection = connections.iter().find(|c| c.id == backend.connection).or(connections.first());
-        // Kontext ohne Netzabfrage: was der Port schon weiß (Zwischenspeicher), sonst die Einstellung.
+        // Context without a network query: what the port already knows (cache), otherwise the setting.
         let budget = state.model.context_cached(state, p).await;
         if lector.as_deref() == Some(p.handle.as_str()) {
             lector_context = Some(budget.clone());
@@ -334,8 +334,8 @@ async fn list(state: &AppState) -> Result<Json, RpcError> {
     }))
 }
 
-/// Verbindung einer Persona als JSON (`persona.backend_get`): Verbindung, lokal/extern, Freigabe und ob ein
-/// Auftrag so hinausgehen darf (`usable`, sonst `warning`).
+/// Connection of a persona as JSON (`persona.backend_get`): connection, local/external, release and whether a
+/// job may go out this way (`usable`, otherwise `warning`).
 pub(crate) async fn backend_json(state: &AppState, handle: &str) -> Result<Json, RpcError> {
     let row = row_of(state, handle).await?;
     let backend = state.store.persona_backend(&row.handle).await?;
@@ -351,7 +351,7 @@ pub(crate) async fn backend_json(state: &AppState, handle: &str) -> Result<Json,
     }))
 }
 
-/// `persona.backend_set`: Verbindung (id) und Freigabe „extern“ setzen. Nur der Mensch.
+/// `persona.backend_set`: set the connection (id) and the release „extern“. Only the human.
 pub(crate) async fn set_backend(
     state: &AppState,
     handle: &str,
@@ -363,13 +363,13 @@ pub(crate) async fn set_backend(
     backend_json(state, &row.handle).await
 }
 
-/// Vorgabe des Schalters „Bibel-Belege“: `@belege` an, sonst (der Lektor) aus.
+/// Default of the switch „Bibel-Belege“: `@belege` on, otherwise (the lector) off.
 pub fn bible_default(handle: &str) -> bool {
     handle.trim().trim_start_matches('@').eq_ignore_ascii_case(crate::assist::rag_facts::BELEGE.trim_start_matches('@'))
 }
 
-/// Persona, ob sie Bibel-Belege bekommen darf (`@belege` oder Lektor nach der Wahl), ob ihr Schalter an ist
-/// (ohne Zeile die Vorgabe [`bible_default`]) und die Vorgabe.
+/// Persona, whether it may get Bible evidence (`@belege` or the lector by the choice), whether its switch is on
+/// (without a row the default [`bible_default`]) and the default.
 pub(crate) async fn bible_state(state: &AppState, handle: &str) -> Result<(PersonaRow, bool, bool, bool), RpcError> {
     let row = row_of(state, handle).await?;
     let (_, _, lector) = rows_and_lector_cached(state).await?;
@@ -379,7 +379,7 @@ pub(crate) async fn bible_state(state: &AppState, handle: &str) -> Result<(Perso
     Ok((row, allowed, on, default))
 }
 
-/// `persona.bible_set`: nur für erlaubte Personas, sonst -32602 [`BIBLE_REFUSED`].
+/// `persona.bible_set`: only for allowed personas, otherwise -32602 [`BIBLE_REFUSED`].
 pub(crate) async fn set_bible(state: &AppState, handle: &str, on: bool) -> Result<(PersonaRow, bool), RpcError> {
     let (row, allowed, ..) = bible_state(state, handle).await?;
     if !allowed {
@@ -396,14 +396,14 @@ fn bool_param(params: &Json, name: &str) -> Result<bool, RpcError> {
     }
 }
 
-/// `persona.prompt_get` bzw. Antwort von `persona.set_prompt`.
+/// `persona.prompt_get` or the answer of `persona.set_prompt`.
 pub(crate) fn prompt_json(row: &PersonaRow) -> Json {
     let default = crate::assist::prompts::default_prompt(&row.handle, &row.role);
     let prompt = crate::assist::prompts::effective_prompt(&row.handle, &row.role, row.prompt.as_deref());
     json!({ "handle": row.handle, "prompt": prompt, "default": default, "custom": row.prompt.is_some() })
 }
 
-/// Persona nach Handle (mit oder ohne `@`) aus der Tabelle; unbekannt → -32602.
+/// Persona by handle (with or without `@`) from the table; unknown → -32602.
 async fn row_of(state: &AppState, handle: &str) -> Result<PersonaRow, RpcError> {
     let want = handle.trim().trim_start_matches('@');
     state
@@ -415,8 +415,8 @@ async fn row_of(state: &AppState, handle: &str) -> Result<PersonaRow, RpcError> 
         .ok_or_else(|| baruch_store::StoreError::UnknownPersona(handle.trim().to_owned()).into())
 }
 
-/// Persona, ob sie Treffer der Bedeutungssuche bekommen darf (`@belege` oder Lektor nach der Wahl) und ob
-/// ihr Schalter an ist. Unbekannt → -32602.
+/// Persona, whether it may get hits of the semantic search (`@belege` or the lector by the choice) and whether
+/// its switch is on. Unknown → -32602.
 pub(crate) async fn rag_state(state: &AppState, handle: &str) -> Result<(PersonaRow, bool, bool), RpcError> {
     let row = row_of(state, handle).await?;
     let (_, _, lector) = rows_and_lector_cached(state).await?;
@@ -425,7 +425,7 @@ pub(crate) async fn rag_state(state: &AppState, handle: &str) -> Result<(Persona
     Ok((row, allowed, on))
 }
 
-/// `persona.rag_set`: nur für erlaubte Personas, sonst -32602 [`RAG_REFUSED`].
+/// `persona.rag_set`: only for allowed personas, otherwise -32602 [`RAG_REFUSED`].
 pub(crate) async fn set_rag(state: &AppState, handle: &str, on: bool) -> Result<(PersonaRow, bool), RpcError> {
     let (row, allowed, _) = rag_state(state, handle).await?;
     if !allowed {
@@ -442,18 +442,18 @@ fn persona_param(params: &Json) -> Result<String, RpcError> {
     }
 }
 
-/// `persona.set_prompt`: `None` = Vorgabe.
+/// `persona.set_prompt`: `None` = default.
 pub(crate) async fn set_prompt(state: &AppState, handle: &str, prompt: Option<&str>) -> Result<PersonaRow, RpcError> {
     Ok(state.store.set_persona_prompt(handle, prompt).await?)
 }
 
-/// Lektor-Wahl als JSON (`persona.lector_get`).
+/// Lector choice as JSON (`persona.lector_get`).
 pub(crate) async fn lector_json(state: &AppState) -> Result<Json, RpcError> {
     let (_, choice, lector) = rows_and_lector_cached(state).await?;
     Ok(json!({ "mode": choice.mode(), "handle": choice.handle(), "lector": lector }))
 }
 
-/// Wahl aus `mode` (`fixed`/`auto`) und `handle`; ungültig → -32602.
+/// Choice from `mode` (`fixed`/`auto`) and `handle`; invalid → -32602.
 pub(crate) fn lector_choice_from(mode: Option<&str>, handle: Option<&str>) -> Result<LectorChoice, RpcError> {
     match mode.map(str::trim) {
         Some("auto") => Ok(LectorChoice::Auto),
@@ -465,8 +465,8 @@ pub(crate) fn lector_choice_from(mode: Option<&str>, handle: Option<&str>) -> Re
     }
 }
 
-/// Parameter von `persona.update`: `handle` Pflicht, sonst nur genannte Felder; Grenzen nach
-/// [`PersonaEdit::check`] (-32602 mit deutscher Meldung).
+/// Parameters of `persona.update`: `handle` mandatory, otherwise only named fields; limits by
+/// [`PersonaEdit::check`] (-32602 with a German message).
 pub(crate) fn update_params(params: &Json) -> Result<Update, RpcError> {
     let handle = match params.get("handle") {
         Some(Json::String(h)) if !h.trim().is_empty() => h.trim().to_owned(),
@@ -504,16 +504,16 @@ pub(crate) fn update_params(params: &Json) -> Result<Update, RpcError> {
     Ok(Update { handle, name, edit })
 }
 
-/// Geprüfte Parameter von `persona.update`: Handle, neuer Name (Runde 11, 1–80 Zeichen) und die
-/// übrigen Felder.
+/// Checked parameters of `persona.update`: handle, new name (Round 11, 1–80 characters) and the
+/// other fields.
 pub(crate) struct Update {
     pub handle: String,
     pub name: Option<String>,
     pub edit: PersonaEdit,
 }
 
-/// `persona.update` (geprüft) → die gespeicherte Persona; mit `name` (Runde 11) in derselben
-/// Transaktion ([`baruch_store::Store::save_persona`]).
+/// `persona.update` (checked) → the stored persona; with `name` (Round 11) in the same
+/// transaction ([`baruch_store::Store::save_persona`]).
 pub(crate) async fn update(state: &AppState, update: &Update) -> Result<PersonaRow, RpcError> {
     update.edit.check().map_err(|why| RpcError::new(INVALID_PARAMS, why))?;
     if let Some(name) = &update.name {
@@ -522,8 +522,8 @@ pub(crate) async fn update(state: &AppState, update: &Update) -> Result<PersonaR
     Ok(state.store.save_persona(&update.handle, update.name.as_deref(), &update.edit, None, None).await?)
 }
 
-/// `color` aus den Parametern: Text oder `null` (fehlt → Fehler, damit nicht versehentlich
-/// zurückgesetzt wird).
+/// `color` from the parameters: text or `null` (missing → error, so that it is not reset
+/// by accident).
 fn color_param(params: &Json) -> Result<Option<String>, RpcError> {
     match params.get("color") {
         Some(Json::Null) => Ok(None),
@@ -536,8 +536,8 @@ pub(crate) async fn set_color(state: &AppState, handle: &str, color: Option<&str
     Ok(state.store.set_persona_color(handle, color).await?)
 }
 
-/// `color` für `settings.set` (Seite „assistenten“): fehlt → `None` (nichts ändern), sonst wie
-/// `persona.set_color` (`null` = Vorgabe).
+/// `color` for `settings.set` (page „assistenten“): missing → `None` (change nothing), otherwise like
+/// `persona.set_color` (`null` = default).
 pub(crate) fn optional_color(params: &Json) -> Result<Option<Option<String>>, RpcError> {
     if params.get("color").is_none() { Ok(None) } else { color_param(params).map(Some) }
 }
@@ -636,16 +636,16 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
     }
 }
 
-// ---- Seite ---------------------------------------------------------------------------------------
+// ---- Page ----------------------------------------------------------------------------------------
 
 #[derive(Deserialize, Default)]
 struct PageQuery {
-    /// Werk, mit dem die Einstellungen geöffnet werden.
+    /// Work with which the settings are opened.
     work: Option<i64>,
 }
 
-/// `GET /einstellungen/personas[?work=<id>]` → 303 `/einstellungen/assistenten[?work=<id>]` (Runde 9:
-/// Farben, Rolle, Modell, Kontext und aktiv stehen jetzt auf der Einstellungsseite „Assistenten“).
+/// `GET /einstellungen/personas[?work=<id>]` → 303 `/einstellungen/assistenten[?work=<id>]` (Round 9:
+/// colours, role, model, context and active are now on the settings page „Assistenten“).
 async fn personas_page(Query(q): Query<PageQuery>) -> Response {
     let work = q.work.filter(|&w| w > 0).map_or(String::new(), |w| format!("?work={w}"));
     Redirect::to(&format!("/einstellungen/assistenten{work}")).into_response()
@@ -655,42 +655,42 @@ async fn personas_page(Query(q): Query<PageQuery>) -> Response {
 struct ActForm {
     method: Option<String>,
     handle: Option<String>,
-    /// Farbwahl (`<input type="color">`).
+    /// Colour picker (`<input type="color">`).
     color: Option<String>,
-    /// Textfeld; nicht leer → geht vor der Farbwahl.
+    /// Text field; not empty → takes precedence over the colour picker.
     color_text: Option<String>,
-    /// `1`: zurück zur Vorgabe.
+    /// `1`: back to the default.
     reset: Option<String>,
     work: Option<String>,
-    /// `persona.update` (Runde 9): Rolle, Modell, Kontextlänge (Tokens), Kästchen aktiv (`1`/`on`;
-    /// fehlt es, ist die Persona inaktiv).
+    /// `persona.update` (Round 9): role, model, context length (tokens), checkbox active (`1`/`on`;
+    /// if it is missing, the persona is inactive).
     role: Option<String>,
     model: Option<String>,
     context_length: Option<String>,
     active: Option<String>,
-    /// `persona.set_prompt` (Runde 10): eigener Rollen-Prompt; `reset=1` = Vorgabe.
+    /// `persona.set_prompt` (Round 10): own role prompt; `reset=1` = default.
     prompt: Option<String>,
-    /// `persona.set_lector` (Runde 10): `fixed` oder `auto`, dazu `handle`.
+    /// `persona.set_lector` (Round 10): `fixed` or `auto`, plus `handle`.
     mode: Option<String>,
-    /// Runde 11 (Tabs je Persona): `save` (alle Felder auf einmal) oder `reset_prompt` (mit
-    /// `confirm=1`, sonst Rückfrage). Geht vor `method`.
+    /// Round 11 (tabs per persona): `save` (all fields at once) or `reset_prompt` (with
+    /// `confirm=1`, otherwise a confirmation question). Takes precedence over `method`.
     action: Option<String>,
-    /// Name der Persona (`action=save`).
+    /// Name of the persona (`action=save`).
     name: Option<String>,
-    /// `1`: Zurücksetzen bestätigt (`action=reset_prompt`).
+    /// `1`: reset confirmed (`action=reset_prompt`).
     confirm: Option<String>,
-    /// Runde 12 (`action=rag`): Kästchen „Treffer der Bedeutungssuche als Belege mitgeben“ (`1`/`on`; fehlt
-    /// es, ist der Schalter aus).
+    /// Round 12 (`action=rag`): checkbox „Treffer der Bedeutungssuche als Belege mitgeben“ (`1`/`on`; if it is
+    /// missing, the switch is off).
     on: Option<String>,
-    /// Runde 15b (`action=backend`): id der Modell-Verbindung und Kästchen „extern freigeben“.
+    /// Round 15b (`action=backend`): id of the model connection and checkbox „extern freigeben“.
     connection: Option<String>,
     external_allowed: Option<String>,
-    /// Runde 16a (`method=persona.chat_scope_set`): `chapter` oder `section`.
+    /// Round 16a (`method=persona.chat_scope_set`): `chapter` or `section`.
     scope: Option<String>,
 }
 
-/// Eingabe eines abgelehnten Formulars „Speichern“ (Runde 11): Die Seite zeigt den Tab der Persona mit
-/// der Eingabe und der Meldung erneut, statt sie zu verlieren.
+/// Input of a refused form „Speichern“ (Round 11): the page shows the tab of the persona with
+/// the input and the message again instead of losing them.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PersonaRetry {
     pub handle: String,
@@ -707,26 +707,26 @@ tokio::task_local! {
     static RETRY: PersonaRetry;
 }
 
-/// Abgelehnte Eingabe der laufenden Anfrage (nur während der 422-Seite gesetzt).
+/// Refused input of the running request (set only during the 422 page).
 pub(crate) fn retry() -> Option<PersonaRetry> {
     RETRY.try_with(Clone::clone).ok()
 }
 
-/// Ein Kästchen ist angehakt (`1`/`on`).
+/// A checkbox is ticked (`1`/`on`).
 fn ticked(value: Option<&str>) -> bool {
     value.is_some_and(|v| matches!(v.trim(), "1" | "on"))
 }
 
-/// Adresse der Seite „Assistenten“ mit dem Tab der Persona: `?persona=<handle ohne @>[&ok=…][&work=W]`.
+/// Address of the page „Assistenten“ with the tab of the persona: `?persona=<handle ohne @>[&ok=…][&work=W]`.
 fn tab_url(handle: &str, extra: &str, work: Option<i64>) -> String {
     let back = work.map_or(String::new(), |w| format!("&work={w}"));
     let at = anchor(handle);
     format!("/einstellungen/assistenten?persona={at}{extra}{back}#persona-{at}")
 }
 
-/// `action=save`: Name, Farbe, Rolle, Modell, Kontext, aktiv und Rollen-Prompt in **einer**
-/// Transaktion ([`baruch_store::Store::save_persona`]). Ein Prompt gleich der Vorgabe aus dem Code
-/// bleibt die Vorgabe (kein eigener Prompt nur durch Speichern).
+/// `action=save`: name, colour, role, model, context, active and role prompt in **one**
+/// transaction ([`baruch_store::Store::save_persona`]). A prompt equal to the default from the code
+/// stays the default (no own prompt just by saving).
 async fn save(state: &AppState, handle: &str, form: &ActForm) -> Result<(), RpcError> {
     let context_length = match form.context_length.as_deref().map(str::trim) {
         None | Some("") => None,
@@ -752,7 +752,7 @@ async fn save(state: &AppState, handle: &str, form: &ActForm) -> Result<(), RpcE
         return Err(RpcError::new(INVALID_PARAMS, "Farbe als #rrggbb angeben."));
     }
     let row = row_of(state, handle).await?;
-    // Die Farbwahl schickt immer einen Wert; nur eine Änderung macht ihn zur eigenen Farbe.
+    // The colour picker always sends a value; only a change makes it an own colour.
     let color = color.and_then(valid_color).filter(|c| *c != row.color || row.chosen);
     let prompt = match form.prompt.as_deref() {
         None => None,
@@ -769,16 +769,16 @@ async fn save(state: &AppState, handle: &str, form: &ActForm) -> Result<(), RpcE
     Ok(())
 }
 
-/// Anker der Persona auf der Seite „Assistenten“: `persona-<Handle ohne @>`, für die Adresse kodiert.
+/// Anchor of the persona on the page „Assistenten“: `persona-<Handle ohne @>`, encoded for the address.
 fn anchor(handle: &str) -> String {
     crate::view::query_escape(handle.trim().trim_start_matches('@'))
 }
 
-/// `POST /einstellungen/personas/act`: `method=persona.set_color` (Felder `handle`, `color` bzw.
-/// `color_text`, `reset=1` → Vorgabe) oder `method=persona.update` (`handle`, `role`, `model`,
-/// `context_length`, `active=1|leer`), dazu `work`. Danach 303 auf
-/// `/einstellungen/assistenten?ok=farbe|persona[&work=W]#persona-<handle>`; ungültige Werte oder
-/// unbekannte Persona → 422 mit der Seite und der Meldung; andere Methoden → 400.
+/// `POST /einstellungen/personas/act`: `method=persona.set_color` (fields `handle`, `color` or
+/// `color_text`, `reset=1` → default) or `method=persona.update` (`handle`, `role`, `model`,
+/// `context_length`, `active=1|leer`), plus `work`. Then 303 to
+/// `/einstellungen/assistenten?ok=farbe|persona[&work=W]#persona-<handle>`; invalid values or an
+/// unknown persona → 422 with the page and the message; other methods → 400.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work = form.work.as_deref().and_then(|w| w.trim().parse::<i64>().ok()).filter(|&w| w > 0);
     if let Some(action) = form.action.as_deref() {
@@ -854,14 +854,14 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     }
 }
 
-/// Formulare der Tabs (Runde 11): `action=save` → 303 `…?persona=<h>&ok=persona#persona-<h>`, Fehler
-/// → 422 mit dem Tab, der Eingabe und der Meldung; `action=reset_prompt` ohne `confirm=1` → 303 zur
-/// Rückfrage (`&rueckfrage=vorgabe`), mit `confirm=1` → Vorgabe, `&ok=vorgabe`; `action=reset_color` →
-/// Farbe zurück zur Palette, `&ok=farbe`; `action=rag` (Runde 12, Kästchen `on`) → `persona.rag_set`,
-/// `&ok=rag`, für andere Personas als `@belege` und den Lektor 422 mit [`RAG_REFUSED`]; Runde 15b:
-/// `action=backend` (`connection`, Kästchen `external_allowed`) → `persona.backend_set`, `&ok=verbindung`;
-/// `action=bible` (Kästchen `on`) → `persona.bible_set`, `&ok=bibel` (andere Personas 422 mit
-/// [`BIBLE_REFUSED`]). Andere → 400.
+/// Forms of the tabs (Round 11): `action=save` → 303 `…?persona=<h>&ok=persona#persona-<h>`, error
+/// → 422 with the tab, the input and the message; `action=reset_prompt` without `confirm=1` → 303 to the
+/// confirmation question (`&rueckfrage=vorgabe`), with `confirm=1` → default, `&ok=vorgabe`; `action=reset_color` →
+/// colour back to the palette, `&ok=farbe`; `action=rag` (Round 12, checkbox `on`) → `persona.rag_set`,
+/// `&ok=rag`, for personas other than `@belege` and the lector 422 with [`RAG_REFUSED`]; Round 15b:
+/// `action=backend` (`connection`, checkbox `external_allowed`) → `persona.backend_set`, `&ok=verbindung`;
+/// `action=bible` (checkbox `on`) → `persona.bible_set`, `&ok=bibel` (other personas 422 with
+/// [`BIBLE_REFUSED`]). Others → 400.
 async fn tab_act(state: &AppState, headers: &HeaderMap, work: Option<i64>, action: &str, form: &ActForm) -> Response {
     let handle = form.handle.as_deref().unwrap_or("").trim().to_owned();
     if handle.is_empty() {
@@ -915,13 +915,13 @@ async fn tab_act(state: &AppState, headers: &HeaderMap, work: Option<i64>, actio
     }
 }
 
-/// `GET /einstellungen/personas` (Weiterleitung, statisches Segment vor `/einstellungen/{seite}`).
+/// `GET /einstellungen/personas` (redirect, static segment before `/einstellungen/{seite}`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/einstellungen/personas", get(personas_page))
 }
 
-/// `POST /einstellungen/personas/act` (im Router der schreibenden Routen, hinter `guard::same_origin`).
-/// Dazu die Persona-Aufträge (Runde 10): `POST /assistenten/act` und `POST /assistenten/stream`.
+/// `POST /einstellungen/personas/act` (in the router of the writing routes, behind `guard::same_origin`).
+/// Plus the persona jobs (Round 10): `POST /assistenten/act` and `POST /assistenten/stream`.
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/einstellungen/personas/act", post(act))

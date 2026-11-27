@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Markdown → Typst (Runde 21b): nachvollziehbare Umwandlung mit `pulldown-cmark` (CommonMark, dazu Fußnoten,
-//! Tabellen, Durchgestrichenes, Begriffslisten, Überschriften-Attribute und YAML-Kopf).
+//! Markdown → Typst (Round 21b): traceable conversion with `pulldown-cmark` (CommonMark, plus footnotes,
+//! tables, strikethrough, definition lists, heading attributes and YAML front matter).
 //!
-//! Die Tabelle der Umwandlung steht in `docs/Architektur.md` („21b markdown-import“). Grundsätze:
-//! - **Wörtlich bleibt Text:** Jedes Zeichen, das in Typst-Markup etwas bedeutet (`\ # * _ $ @ < [ ] ` ~`, `/` vor `/`
-//!   oder `*`, `-` vor `-` oder `?`), bekommt einen Backslash; am Zeilenanfang auch `= + - /` und die Ziffernfolge vor
-//!   einem Punkt (sonst Überschrift, Liste, Aufzählung, Begriffsliste).
-//! - **Auszeichnung als Funktion:** `#emph[…]`, `#strong[…]`, `#strike[…]`, `#raw("…")`, `#link("…")[…]`,
-//!   `#footnote[…]`, `#image("…")` – Funktionen gelten auch mitten im Wort (anders als `_…_`/`*…*` in Typst). Folgt
-//!   direkt ein Zeichen, das Typst an den Ausdruck hängen würde (`(`, `[`, `;`, `.` vor einem Buchstaben), steht davor
-//!   ein `;` (wie bei der Projektion der ersten Erwähnung, Runde 31).
-//! - **Gliederung:** `#` → `=`, `##` → `==`, `###` → `===`; `####` bis `######` werden auf Ebene 3 begrenzt (Warnung).
-//!   Text vor der ersten Überschrift bekommt ein Kapitel mit dem Titel des Werks (Warnung), weil in Baruch alles vor der
-//!   ersten Überschrift die Werkvorlage ist.
-//! - **Nie still verwerfen:** Jede Form, die nicht abgebildet wird, ergibt eine [`ImportWarning`] mit Zeile
-//!   (Codes `md-…`); höchstens [`MAX_WARNINGS`], danach ein Sammelhinweis.
+//! The table of the conversion is in `docs/Architektur.md` („21b markdown-import“). Principles:
+//! - **Text stays verbatim:** every character that means something in Typst markup (`\ # * _ $ @ < [ ] ` ~`, `/`
+//!   before `/` or `*`, `-` before `-` or `?`) gets a backslash; at the beginning of a line also `= + - /` and the
+//!   run of digits before a full stop (otherwise heading, list, enumeration, definition list).
+//! - **Markup as a function:** `#emph[…]`, `#strong[…]`, `#strike[…]`, `#raw("…")`, `#link("…")[…]`,
+//!   `#footnote[…]`, `#image("…")` – functions also apply in the middle of a word (unlike `_…_`/`*…*` in Typst). If
+//!   a character follows directly that Typst would attach to the expression (`(`, `[`, `;`, `.` before a letter), a
+//!   `;` stands before it (as with the projection of the first mention, Round 31).
+//! - **Outline:** `#` → `=`, `##` → `==`, `###` → `===`; `####` to `######` are limited to level 3 (warning).
+//!   Text before the first heading gets a chapter with the title of the work (warning), because in Baruch everything
+//!   before the first heading is the work template.
+//! - **Never discard silently:** every form that is not mapped yields an [`ImportWarning`] with a line
+//!   (codes `md-…`); at most [`MAX_WARNINGS`], after that a collective note.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -23,22 +23,22 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, LinkType, Op
 
 use crate::import::ImportWarning;
 
-/// Höchstzahl der Hinweise einer Umwandlung; darüber ein Sammelhinweis `md-warnings-truncated`.
+/// Maximum number of notes of one conversion; above that a collective note `md-warnings-truncated`.
 pub const MAX_WARNINGS: usize = 200;
 
-/// Ergebnis der Umwandlung.
+/// Result of the conversion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Converted {
-    /// Typst-Text (Werkvorlage aus dem YAML-Kopf, danach die Abschnitte), endet mit `\n`.
+    /// Typst text (work template from the YAML front matter, then the sections), ends with `\n`.
     pub typst: String,
-    /// Hinweise mit Zeile in der Markdown-Datei (1-basiert).
+    /// Notes with the line in the Markdown file (1-based).
     pub warnings: Vec<ImportWarning>,
-    /// Titel aus dem YAML-Kopf (`title:`), falls angegeben.
+    /// Title from the YAML front matter (`title:`), if given.
     pub title: Option<String>,
 }
 
-/// Markdown nach Typst umwandeln. `fallback_title` ist der Titel des Kapitels, das Text vor der ersten Überschrift
-/// aufnimmt, wenn der YAML-Kopf keinen nennt (in der Regel der Dateiname ohne Endung).
+/// Convert Markdown to Typst. `fallback_title` is the title of the chapter that takes text before the first heading
+/// if the YAML front matter names none (as a rule the file name without extension).
 pub fn to_typst(markdown: &str, fallback_title: &str) -> Converted {
     let text = markdown.strip_prefix('\u{feff}').unwrap_or(markdown).replace("\r\n", "\n");
     let options = Options::ENABLE_FOOTNOTES
@@ -51,7 +51,7 @@ pub fn to_typst(markdown: &str, fallback_title: &str) -> Converted {
     let nodes = tree(events);
     let mut w = Writer::new(&text);
 
-    // YAML-Kopf: title und author werden `#set document(…)`, alles andere ein Hinweis.
+    // YAML front matter: title and author become `#set document(…)`, everything else a note.
     let mut title = None;
     let mut author = None;
     for node in &nodes {
@@ -61,7 +61,7 @@ pub fn to_typst(markdown: &str, fallback_title: &str) -> Converted {
             author = author.or(a);
         }
     }
-    // Fußnoten zuerst (Definitionen können hinter dem Verweis stehen).
+    // Footnotes first (definitions can stand after the reference).
     let mut definitions = Vec::new();
     collect_footnotes(&nodes, &mut definitions);
     w.in_definition = true;
@@ -114,7 +114,7 @@ pub fn to_typst(markdown: &str, fallback_title: &str) -> Converted {
     Converted { typst: out, warnings: w.warnings, title }
 }
 
-// ---- Baum aus den Ereignissen --------------------------------------------------------------------
+// ---- Tree from the events ------------------------------------------------------------------------
 
 enum Node<'a> {
     Elem { tag: Tag<'a>, range: Range<usize>, children: Vec<Node<'a>> },
@@ -128,7 +128,7 @@ impl Node<'_> {
         }
     }
 
-    /// Inline-Knoten (Text, Auszeichnung) im Gegensatz zu Blöcken.
+    /// Inline nodes (text, markup) as opposed to blocks.
     fn is_inline(&self) -> bool {
         match self {
             Node::Leaf { event, .. } => !matches!(event, Event::Rule | Event::Html(_) | Event::DisplayMath(_)),
@@ -184,7 +184,7 @@ fn collect_footnotes<'n, 'a>(nodes: &'n [Node<'a>], into: &mut Vec<(String, &'n 
     }
 }
 
-/// Text aller Blätter (Text, Code) ohne Auszeichnung.
+/// Text of all leaves (text, code) without markup.
 fn plain_leaves(nodes: &[Node<'_>]) -> String {
     let mut out = String::new();
     for node in nodes {
@@ -198,9 +198,9 @@ fn plain_leaves(nodes: &[Node<'_>]) -> String {
     out
 }
 
-// ---- Maskierung ------------------------------------------------------------------------------------
+// ---- Escaping --------------------------------------------------------------------------------------
 
-/// Typst-String-Literal.
+/// Typst string literal.
 pub(crate) fn lit(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -219,7 +219,7 @@ pub(crate) fn lit(text: &str) -> String {
     out
 }
 
-/// Fließtext für Typst-Markup maskieren (ohne Zeilenanfänge, siehe [`escape_line_starts`]).
+/// Escape running text for Typst markup (without line starts, see [`escape_line_starts`]).
 pub(crate) fn escape(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len() + 8);
@@ -236,8 +236,8 @@ pub(crate) fn escape(text: &str) -> String {
     out
 }
 
-/// Zeilenanfänge maskieren, die in Typst Struktur wären: `=` (Überschrift), `-`/`+` (Liste/Aufzählung), `/`
-/// (Begriffsliste) und `12.` (Aufzählung mit Nummer). Idempotent (jede Maskierung setzt einen Backslash davor).
+/// Escape line starts that would be structure in Typst: `=` (heading), `-`/`+` (list/enumeration), `/`
+/// (definition list) and `12.` (enumeration with a number). Idempotent (every escape puts a backslash before it).
 pub(crate) fn escape_line_starts(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 4);
     for (i, line) in text.split('\n').enumerate() {
@@ -264,7 +264,7 @@ pub(crate) fn escape_line_starts(text: &str) -> String {
     out
 }
 
-/// Würde Typst `after` an einen eingebetteten Ausdruck direkt davor hängen (Aufruf, Feld, Inhaltsblock, `;`)?
+/// Would Typst attach `after` to an embedded expression directly before it (call, field, content block, `;`)?
 fn needs_guard(after: &str) -> bool {
     let mut chars = after.chars();
     match chars.next() {
@@ -274,7 +274,7 @@ fn needs_guard(after: &str) -> bool {
     }
 }
 
-/// Alle Zeilen außer der ersten um `width` Leerzeichen einrücken (leere Zeilen bleiben leer).
+/// Indent all lines except the first by `width` spaces (empty lines stay empty).
 fn indent_rest(text: &str, width: usize) -> String {
     let pad = " ".repeat(width);
     let mut out = String::with_capacity(text.len() + 16);
@@ -290,7 +290,7 @@ fn indent_rest(text: &str, width: usize) -> String {
     out
 }
 
-/// Ausgabe einer Inline-Folge mit Schutz-`;` hinter eingebetteten Ausdrücken.
+/// Output of an inline sequence with a guard `;` after embedded expressions.
 #[derive(Default)]
 struct Inline {
     out: String,
@@ -298,7 +298,7 @@ struct Inline {
 }
 
 impl Inline {
-    /// Text (schon maskiert) oder Markup, das kein eingebetteter Ausdruck ist.
+    /// Text (already escaped) or markup that is not an embedded expression.
     fn text(&mut self, text: &str) {
         if text.is_empty() {
             return;
@@ -310,10 +310,10 @@ impl Inline {
         self.out.push_str(text);
     }
 
-    /// Ein eingebetteter Ausdruck (`#emph[…]`, `#raw("…")` …); was danach kommt, braucht womöglich ein `;`.
-    /// Fließtext (schon maskiert): steht er am Anfang einer Zeile (Anfang der Folge oder nach einem Zeilenende),
-    /// bekommt ein `= + - /` bzw. `Ziffern.` vorn einen Backslash ([`escape_line_starts`]). Pro Textstück statt über den
-    /// fertigen Absatz, damit Listen in einer Fußnote (eingebetteter Ausdruck) Listen bleiben.
+    /// An embedded expression (`#emph[…]`, `#raw("…")` …); what comes after it possibly needs a `;`.
+    /// Running text (already escaped): if it stands at the beginning of a line (beginning of the sequence or after a
+    /// line end), a leading `= + - /` or `digits.` gets a backslash ([`escape_line_starts`]). Per piece of text instead
+    /// of over the finished paragraph, so that lists in a footnote (embedded expression) stay lists.
     fn prose(&mut self, escaped: &str) {
         if self.out.is_empty() || self.out.ends_with('\n') {
             self.text(&escape_line_starts(escaped));
@@ -328,16 +328,16 @@ impl Inline {
     }
 }
 
-// ---- Schreiber ---------------------------------------------------------------------------------------
+// ---- Writer ------------------------------------------------------------------------------------------
 
 struct Writer {
-    /// Anfang jeder Zeile (Byte) der Markdown-Datei.
+    /// Beginning of every line (byte) of the Markdown file.
     lines: Vec<usize>,
     warnings: Vec<ImportWarning>,
     dropped: usize,
     footnotes: HashMap<String, String>,
     used_footnotes: HashMap<String, usize>,
-    /// Gerade werden Fußnoten-Definitionen umgewandelt (Verweise darin bleiben Text).
+    /// Footnote definitions are being converted right now (references in them stay text).
     in_definition: bool,
 }
 
@@ -378,7 +378,7 @@ impl Writer {
         }
     }
 
-    /// YAML-Kopf: `title:` und `author:` (Anführungszeichen außen fallen weg); andere Schlüssel → Hinweis.
+    /// YAML front matter: `title:` and `author:` (outer quotation marks are dropped); other keys → note.
     fn front_matter(&mut self, text: &str, offset: usize) -> (Option<String>, Option<String>) {
         let (mut title, mut author) = (None, None);
         let mut others = Vec::new();
@@ -414,8 +414,8 @@ impl Writer {
         (title, author)
     }
 
-    /// Blöcke umwandeln; aufeinander folgende Inline-Knoten (Inhalt eines engen Listenpunkts) sind ein Absatz.
-    /// `nested`: innerhalb von Zitat, Liste oder Fußnote (Überschriften sind dort keine Gliederung).
+    /// Convert blocks; consecutive inline nodes (content of a tight list item) are one paragraph.
+    /// `nested`: inside a quote, list or footnote (headings are no outline there).
     fn blocks<'n, 'a: 'n>(&mut self, nodes: impl IntoIterator<Item = &'n Node<'a>>, nested: bool) -> Vec<String> {
         let mut out = Vec::new();
         let mut run: Vec<&Node<'_>> = Vec::new();
@@ -522,7 +522,7 @@ impl Writer {
         }
     }
 
-    /// Titel einer Überschrift als Text und ob Auszeichnung wegfiel.
+    /// Title of a heading as text and whether markup was dropped.
     fn heading_text(&mut self, children: &[Node<'_>], offset: usize) -> (String, bool) {
         let mut formatted = false;
         for child in children {
@@ -546,7 +546,7 @@ impl Writer {
         (text.split_whitespace().collect::<Vec<_>>().join(" "), formatted)
     }
 
-    /// Absatz aus Inline-Knoten; ein Absatz nur aus einem Bild wird ein Bild-Block.
+    /// Paragraph from inline nodes; a paragraph consisting of just one image becomes an image block.
     fn paragraph(&mut self, nodes: &[&Node<'_>]) -> String {
         let visible: Vec<&&Node<'_>> = nodes
             .iter()
@@ -654,7 +654,7 @@ impl Writer {
         }
     }
 
-    /// HTML-Block als Typst-Kommentar (nichts geht verloren, nichts wird gesetzt); außer reinen Kommentaren ein Hinweis.
+    /// HTML block as a Typst comment (nothing is lost, nothing is typeset); except for pure comments a note.
     fn html_block(&mut self, html: &str, offset: usize) -> String {
         let trimmed = html.trim();
         if !(trimmed.starts_with("<!--") && trimmed.ends_with("-->")) {
@@ -725,7 +725,7 @@ impl Writer {
 
     fn definition_list(&mut self, children: &[Node<'_>]) -> String {
         let mut out: Vec<String> = Vec::new();
-        let mut term: Option<(String, usize, usize)> = None; // (Begriff, Zeile, Zahl der Erklärungen)
+        let mut term: Option<(String, usize, usize)> = None; // (term, line, number of explanations)
         for child in children {
             let Node::Elem { tag, range, children } = child else { continue };
             match tag {
@@ -842,8 +842,8 @@ impl Writer {
         }
     }
 
-    /// Bild: lokaler Pfad → `#image("…", alt: "…")` (als Block mit Titel als Bildunterschrift in `#figure`, im Fließtext
-    /// in `#box`); Adresse oder `data:` → Hinweis, statt des Bilds ein Link bzw. der Alternativtext.
+    /// Image: local path → `#image("…", alt: "…")` (as a block with the title as caption in `#figure`, in running text
+    /// in `#box`); address or `data:` → note, instead of the image a link or the alternative text.
     fn image(&mut self, dest: &str, title: &str, children: &[Node<'_>], offset: usize, block: bool) -> String {
         let alt = plain_leaves(children).split_whitespace().collect::<Vec<_>>().join(" ");
         let dest = dest.trim();
@@ -899,13 +899,13 @@ fn heading_depth(level: HeadingLevel) -> usize {
     }
 }
 
-/// Beginnt `dest` mit einem der Schemata (`http:` …, ohne Rücksicht auf Groß-/Kleinschreibung)?
+/// Does `dest` begin with one of the schemes (`http:` …, regardless of case)?
 fn has_scheme(dest: &str, schemes: &[&str]) -> bool {
     let Some((scheme, _)) = dest.split_once(':') else { return false };
     schemes.iter().any(|s| scheme.eq_ignore_ascii_case(s))
 }
 
-/// `%20` und andere %-Folgen auflösen (UTF-8); ungültig → `None`.
+/// Resolve `%20` and other % sequences (UTF-8); invalid → `None`.
 fn percent_decode(text: &str) -> Option<String> {
     if !text.contains('%') {
         return Some(text.to_owned());
@@ -965,7 +965,7 @@ mod tests {
             "Backslash, Tilde, Klammern; vor Kommentar und Gedankenstrich genügt ein Backslash am ersten Zeichen: {out}"
         );
         assert!(out.contains("\n\\= keine Überschrift\n"), "= am Zeilenanfang bleibt Text: {out}");
-        // In Markdown Fließtext (kein Listenzeichen mit Leerzeichen, „12.“ unterbricht keinen Absatz), in Typst Struktur.
+        // Running text in Markdown (no list marker with a space, „12.“ interrupts no paragraph), structure in Typst.
         let lines = typst("# K\n\nZeile\n=zwei\n+drei\n-vier\n/ fünf\n12. sechs\n");
         assert!(
             lines.contains("Zeile\n\\=zwei\n\\+drei\n\\-vier\n\\/ fünf\n12\\. sechs"),

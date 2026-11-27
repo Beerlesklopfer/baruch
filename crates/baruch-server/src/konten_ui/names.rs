@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Anzeigename zur Herkunft `@lektorat:<slug>` (Runde 36, Rest aus Runde 35).
+//! Display name for the origin `@lektorat:<slug>` (Round 36, remainder from Round 35).
 //!
-//! Fassungen, Beiträge und Befunde eines Lektors tragen im Werk und im Spiegel nur den Handle. Auf der Arbeitsseite
-//! steht dazu der Anzeigename des Kontos: „Erika Beispiel (@lektorat:erika)“. Das ist reine Darstellung – gespeichert
-//! und verglichen wird weiter nur der Handle (Attribute wie `data-post-author` bleiben unverändert).
+//! Revisions, posts and findings of a Lektor carry only the handle in the work and in the mirror. On the work page
+//! the display name of the account stands next to it: „Erika Beispiel (@lektorat:erika)“. That is pure presentation
+//! – only the handle keeps being stored and compared (attributes such as `data-post-author` stay unchanged).
 //!
-//! [`show`] ersetzt den Handle nur im **Text** von Elementen, die eine Herkunft zeigen ([`ORIGIN_CLASSES`]), nie in
-//! Attributen und nie im übrigen Text der Seite: Buchtext, Beitragstext und Eingabefelder, in denen jemand einen
-//! Handle erwähnt, bleiben wörtlich (das Satzbild wird aus dem DOM zurückgelesen – eine Ersetzung dort stünde beim
-//! nächsten Speichern im Buch). Ohne Konten gibt es keine Namen, die Seite bleibt Byte für Byte gleich.
+//! [`show`] replaces the handle only in the **text** of elements that show an origin ([`ORIGIN_CLASSES`]), never in
+//! attributes and never in the remaining text of the page: book text, post text and input fields in which somebody
+//! mentions a handle stay verbatim (the typeset view is read back from the DOM – a replacement there would be in
+//! the book at the next save). Without accounts there are no names, the page stays the same byte for byte.
 
 use std::collections::HashMap;
 
 use crate::AppState;
 
-/// Klassen der Elemente, deren Text eine Herkunft nennt: Kopf des Editors (`rev-meta`), Beitrag (`post-author`),
-/// Revisionsbaum (`revtree-author`), Befund (`fd-persona`), Zeile „Weitere Fassungen“ (`rev-alt`), die Zeile
-/// einer Fassung in der Lektor-Spalte (`rev-origin`) und die Kopfzeile eines Vorschlags im Lesefluss (`pv-label`,
-/// Sichtprüfung der Integration: dort stand als einziger Stelle nur der Handle; die Stücke `.pv` übergeht das
-/// Satzbild beim Speichern).
+/// Classes of the elements whose text names an origin: head of the editor (`rev-meta`), post (`post-author`),
+/// revision tree (`revtree-author`), finding (`fd-persona`), line „Weitere Fassungen“ (`rev-alt`), the line
+/// of a revision in the Lektor column (`rev-origin`) and the head line of a proposal in the reading flow
+/// (`pv-label`, visual check of the integration: that was the only place showing just the handle; the typeset
+/// view skips the pieces `.pv` when saving).
 pub const ORIGIN_CLASSES: &[&str] =
     &["rev-meta", "post-author", "revtree-author", "fd-persona", "rev-alt", "rev-origin", "pv-label"];
 
 const PREFIX: &str = "@lektorat:";
 
-/// Elemente ohne Endtag.
+/// Elements without an end tag.
 const VOID: &[&str] =
     &["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"];
 
-/// Handle → Anzeigename aller Lektor-Konten mit einem Anzeigenamen. Ohne Konten leer.
+/// Handle → display name of all Lektor accounts with a display name. Empty without accounts.
 pub async fn display_names(state: &AppState) -> HashMap<String, String> {
     if !crate::auth::accounts_exist(state).await {
         return HashMap::new();
@@ -46,7 +46,7 @@ pub async fn display_names(state: &AppState) -> HashMap<String, String> {
     }
 }
 
-/// [`show`] mit den Namen der Instanz; liest die Konten nur, wenn im HTML überhaupt ein Handle steht.
+/// [`show`] with the names of the instance; reads the accounts only if the HTML contains a handle at all.
 pub async fn show_for(state: &AppState, html: String) -> String {
     if !html.contains(PREFIX) {
         return html;
@@ -59,7 +59,7 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-/// Ersetzt in einem Stück Text jeden bekannten Handle durch „Anzeigename (Handle)“.
+/// Replaces every known handle in a piece of text by „Anzeigename (Handle)“.
 fn in_text(text: &str, names: &HashMap<String, String>, out: &mut String) {
     let mut rest = text;
     while let Some(at) = rest.find(PREFIX) {
@@ -81,7 +81,7 @@ fn in_text(text: &str, names: &HashMap<String, String>, out: &mut String) {
     out.push_str(rest);
 }
 
-/// Ende des Tags, das bei `html[0] == '<'` beginnt (Index hinter `>`); `>` in Attributwerten zählt nicht.
+/// End of the tag that begins at `html[0] == '<'` (index after `>`); `>` in attribute values does not count.
 fn tag_end(html: &str) -> usize {
     let mut quote = None;
     for (i, c) in html.char_indices() {
@@ -95,7 +95,7 @@ fn tag_end(html: &str) -> usize {
     html.len()
 }
 
-/// Trägt das Tag eine der Klassen aus [`ORIGIN_CLASSES`]?
+/// Does the tag carry one of the classes from [`ORIGIN_CLASSES`]?
 fn marks_origin(tag: &str) -> bool {
     let Some(at) = tag.find(" class=\"") else { return false };
     let value = &tag[at + 8..];
@@ -103,14 +103,14 @@ fn marks_origin(tag: &str) -> bool {
     value.split_ascii_whitespace().any(|class| ORIGIN_CLASSES.contains(&class))
 }
 
-/// Setzt im Text der Herkunfts-Elemente ([`ORIGIN_CLASSES`]) zu jedem bekannten Handle den Anzeigenamen davor:
-/// `@lektorat:erika` → `Erika Beispiel (@lektorat:erika)`. Alles andere bleibt Zeichen für Zeichen gleich.
+/// In the text of the origin elements ([`ORIGIN_CLASSES`]) puts the display name before every known handle:
+/// `@lektorat:erika` → `Erika Beispiel (@lektorat:erika)`. Everything else stays the same character for character.
 pub fn show(html: &str, names: &HashMap<String, String>) -> String {
     if names.is_empty() || !html.contains(PREFIX) {
         return html.to_owned();
     }
     let mut out = String::with_capacity(html.len() + 64);
-    // Offene Elemente innerhalb eines Herkunfts-Elements (das unterste ist das Herkunfts-Element selbst).
+    // Open elements inside an origin element (the bottom one is the origin element itself).
     let mut open: Vec<&str> = Vec::new();
     let mut rest = html;
     while !rest.is_empty() {
@@ -128,7 +128,7 @@ pub fn show(html: &str, names: &HashMap<String, String>) -> String {
         } else {
             in_text(text, names, &mut out)
         }
-        // Kommentare und Rohtext (Skript, Stil, Textfeld) wörtlich übernehmen.
+        // Take over comments and raw text (script, style, text field) verbatim.
         let raw_end = if from_tag.starts_with("<!--") {
             Some(from_tag.find("-->").map_or(from_tag.len(), |i| i + 3))
         } else {
@@ -152,7 +152,7 @@ pub fn show(html: &str, names: &HashMap<String, String>) -> String {
         rest = &from_tag[end..];
         let inner = tag.trim_start_matches('<').trim_end_matches('>');
         if let Some(name) = inner.strip_prefix('/') {
-            // Endtag: bis zum passenden offenen Element schließen (verzeiht vergessene Endtags im Inneren).
+            // End tag: close up to the matching open element (forgives forgotten end tags inside).
             let name = name.trim();
             if let Some(at) = open.iter().rposition(|o| o.eq_ignore_ascii_case(name)) {
                 open.truncate(at);

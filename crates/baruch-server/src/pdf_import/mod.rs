@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! PDF/EPUB-Import mit Vorschau der Gliederung (Runde 21a; Schnittstelle R21-S1, Besitz pdf-import).
+//! PDF/EPUB import with a preview of the outline (Round 21a; interface R21-S1, owned by pdf-import).
 //!
-//! Eine PDF- oder EPUB-Datei wird gelesen, ihre Gliederung als Vorschlag gezeigt und erst nach ausdrücklicher
-//! Bestätigung des Menschen als Werk ([`crate::import::import_generated`]) und/oder als Quelle der Bibliothek
-//! übernommen. Nie still: Gliederung immer mit Vorschau, Warnungen statt Verwerfen, kein stiller Wechsel des Wegs.
-//! Kein Import über MCP (Entscheidung 2026-11-05): Ein Import legt aktuelle Fassungen unter dem Namen des Menschen an.
+//! A PDF or EPUB file is read, its outline shown as a suggestion and taken over as a work
+//! ([`crate::import::import_generated`]) and/or as a source of the library only after explicit confirmation by
+//! the human. Never silent: outline always with a preview, warnings instead of discarding, no silent change of way.
+//! No import through MCP (decision 2026-11-05): an import creates current revisions under the name of the human.
 //!
-//! **Wege:** PDF über MultiGPT ([`remote`]: `upload_document` → Indexierung → `document_info` mit
-//! Inhaltsverzeichnis → `read_document` seitenweise) oder lokal ([`pdf`]: `pdfinfo`, `pdftotext -bbox-layout`,
-//! Gliederung nach Schriftgröße); EPUB immer lokal ([`epub`]: Archiv über [`crate::archive::read_zip`], OPF,
-//! nav/NCX, XHTML). `way` „auto“: MultiGPT, wenn eine Verbindung eingerichtet und eine Sammlung gewählt ist (im
-//! Formular zusätzlich nur mit dem Häkchen „in MultiGPT hochladen“), sonst lokal – der Grund steht in `way_reason`.
-//! Scheitert MultiGPT, gibt es einen Fehler mit Grund und dem Angebot „lokal lesen“, keinen automatischen Wechsel.
+//! **Ways:** PDF through MultiGPT ([`remote`]: `upload_document` → indexing → `document_info` with
+//! table of contents → `read_document` page by page) or locally ([`pdf`]: `pdfinfo`, `pdftotext -bbox-layout`,
+//! outline by font size); EPUB always locally ([`epub`]: archive through [`crate::archive::read_zip`], OPF,
+//! nav/NCX, XHTML). `way` „auto“: MultiGPT if a connection is set up and a collection is chosen (in the
+//! form additionally only with the tick „in MultiGPT hochladen“), otherwise locally – the reason is in
+//! `way_reason`. If MultiGPT fails, there is an error with the reason and the offer „lokal lesen“, no automatic
+//! change.
 //!
-//! **Entwurf:** Die Vorschau legt nur einen Entwurf unter `<data>/import-drafts/<draft>/` an ([`draft`]); Werk und
-//! Quelle entstehen erst mit `source_import.apply` bzw. „Übernehmen“. Die Gliederung beim Übernehmen ist die vom
-//! Menschen bestätigte (ggf. bearbeitete) Liste; ein Teil nur, wenn der Mensch ihn so bestätigt (AGENTS.md,
-//! Ergänzung 2026-11-07); der Text gestrichener Punkte geht an den vorigen Punkt, nie verloren.
+//! **Draft:** the preview only creates a draft under `<data>/import-drafts/<draft>/` ([`draft`]); work and
+//! source are created only with `source_import.apply` or „Übernehmen“. The outline on accepting is the list
+//! confirmed (possibly edited) by the human; a part only if the human confirms it as such (AGENTS.md,
+//! addition 2026-11-07); the text of struck items goes to the previous item, never lost.
 //!
-//! - RPC (global, ohne Werk): [`METHODS`] – siehe docs/RPC.md „source_import.*“.
-//! - Seiten: `GET /werke/import/quelle`, Formulare `POST /werke/import/quelle/vorschau|uebernehmen|verwerfen`
-//!   ([`pages`], [`writes`], hinter `guard::same_origin`).
+//! - RPC (global, without a work): [`METHODS`] – see docs/RPC.md „source_import.*“.
+//! - Pages: `GET /werke/import/quelle`, forms `POST /werke/import/quelle/vorschau|uebernehmen|verwerfen`
+//!   ([`pages`], [`writes`], behind `guard::same_origin`).
 //! - CLI: `baruch-server import DATEI.pdf|DATEI.epub [--uebernehmen] [--bibliothek] [--title …]` ([`cli_import`]),
-//!   immer lokal, ohne `--uebernehmen`/`--bibliothek` nur Vorschau (nichts geschrieben, auch kein Entwurf).
+//!   always local, without `--uebernehmen`/`--bibliothek` only a preview (nothing written, no draft either).
 
 pub mod draft;
 mod epub;
@@ -50,24 +51,24 @@ use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use draft::{Draft, LoadError, Pending, StoredAsset, StoredSkipped, StoredWarning};
 use typst_out::{Confirmed, Section};
 
-/// Größte PDF- oder EPUB-Datei, die der Import annimmt.
+/// Largest PDF or EPUB file the import accepts.
 pub const MAX_SOURCE_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Grenze der Anfrage an `POST /werke/import/quelle/vorschau` (Datei samt Formularfeldern).
+/// Limit of the request to `POST /werke/import/quelle/vorschau` (file including form fields).
 pub const UPLOAD_LIMIT: usize = MAX_SOURCE_FILE_BYTES as usize + 64 * 1024;
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub const METHODS: &[&str] =
     &["source_import.preview", "source_import.get", "source_import.apply", "source_import.discard"];
 
-/// Länge der Textprobe je Punkt der Gliederung (Zeichen).
+/// Length of the text sample per item of the outline (characters).
 pub const SAMPLE_CHARS: usize = 240;
 
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Gelesenes Dokument (gemeinsam für PDF lokal, PDF über MultiGPT und EPUB).
+/// Document that was read (common to PDF local, PDF through MultiGPT and EPUB).
 #[derive(Debug, Clone)]
 pub(crate) struct Extracted {
     pub title: Option<String>,
@@ -75,15 +76,15 @@ pub(crate) struct Extracted {
     pub lang: Option<String>,
     pub pages: Option<usize>,
     pub sections: Vec<Section>,
-    /// Bilder: (Pfad im Werk, Dateiname, Bytes).
+    /// Images: (path in the work, file name, bytes).
     pub assets: Vec<(String, String, Vec<u8>)>,
     pub skipped: Vec<SkippedAsset>,
     pub warnings: Vec<ImportWarning>,
-    /// Volltext (Bibliothek, lokaler Weg).
+    /// Full text (library, local way).
     pub plain_text: String,
 }
 
-/// Text auf `max` Zeichen kürzen (mit „…“).
+/// Shorten text to `max` characters (with „…“).
 pub(crate) fn short(text: &str, max: usize) -> String {
     if text.chars().count() <= max {
         text.to_owned()
@@ -92,7 +93,7 @@ pub(crate) fn short(text: &str, max: usize) -> String {
     }
 }
 
-/// Endet der Dateiname (ohne Rücksicht auf Groß-/Kleinschreibung) auf `.pdf` oder `.epub` und hat davor einen Namen?
+/// Does the file name end (regardless of case) in `.pdf` or `.epub` and have a name before it?
 pub fn is_source_name(file_name: &str) -> bool {
     let lower = file_name.to_lowercase();
     [".pdf", ".epub"].iter().any(|suffix| lower.len() > suffix.len() && lower.ends_with(suffix))
@@ -106,7 +107,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Weg, den der Mensch wählt.
+/// Way that the human chooses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Way {
     Auto,
@@ -125,7 +126,7 @@ impl Way {
     }
 }
 
-/// Eingaben einer Vorschau.
+/// Inputs of a preview.
 #[derive(Debug, Clone)]
 pub struct PreviewInput {
     pub file_name: String,
@@ -133,13 +134,13 @@ pub struct PreviewInput {
     pub way: Way,
     pub collection: Option<String>,
     pub title: Option<String>,
-    /// Hochladen nach MultiGPT ausdrücklich erlaubt (Formular: Häkchen; RPC: immer, die Wahl von way/collection
-    /// ist die Zustimmung).
+    /// Uploading to MultiGPT explicitly allowed (form: tick; RPC: always, the choice of way/collection
+    /// is the consent).
     pub upload: bool,
 }
 
-/// Fehler einer Vorschau: RPC-Fehler, dazu der Weg (falls schon gewählt) und – nach einem Fehler von MultiGPT – ein
-/// Entwurf, der dieselbe Datei für „lokal lesen“ bereithält.
+/// Error of a preview: RPC error, plus the way (if already chosen) and – after an error of MultiGPT – a
+/// draft that keeps the same file ready for „lokal lesen“.
 #[derive(Debug)]
 pub struct PreviewError {
     pub error: RpcError,
@@ -153,10 +154,10 @@ impl From<RpcError> for PreviewError {
     }
 }
 
-/// Lokale Lesevorgänge mit pdftotext je Datenordner (für Tests: „kein pdftotext-Aufruf“ auf dem MultiGPT-Weg).
+/// Local reads with pdftotext per data folder (for tests: „kein pdftotext-Aufruf“ on the MultiGPT way).
 static LOCAL_READS: LazyLock<Mutex<HashMap<PathBuf, usize>>> = LazyLock::new(Default::default);
 
-/// Wie oft dieser Datenordner eine PDF lokal (pdftotext) gelesen hat.
+/// How often this data folder has read a PDF locally (pdftotext).
 pub fn local_pdf_reads(state: &AppState) -> usize {
     LOCAL_READS.lock().unwrap_or_else(|e| e.into_inner()).get(&state.data).copied().unwrap_or(0)
 }
@@ -165,7 +166,7 @@ fn count_local_read(state: &AppState) {
     *LOCAL_READS.lock().unwrap_or_else(|e| e.into_inner()).entry(state.data.clone()).or_default() += 1;
 }
 
-/// Ist eine MultiGPT-Verbindung eingerichtet (Adresse eingetragen)?
+/// Is a MultiGPT connection set up (address entered)?
 pub async fn multigpt_configured(state: &AppState) -> bool {
     state
         .store
@@ -176,7 +177,7 @@ pub async fn multigpt_configured(state: &AppState) -> bool {
         .unwrap_or(false)
 }
 
-/// Dateiname ohne Ordner.
+/// File name without folder.
 fn base_name(file_name: &str) -> String {
     file_name.rsplit(['/', '\\']).next().unwrap_or("").trim().to_owned()
 }
@@ -186,7 +187,7 @@ fn stem(file_name: &str) -> String {
     name.rsplit_once('.').map_or(name.clone(), |(s, _)| s.to_owned()).trim().to_owned()
 }
 
-/// Weg wählen: (Weg, Grund) bzw. Fehler.
+/// Choose the way: (way, reason) or an error.
 async fn choose_way(state: &AppState, input: &PreviewInput) -> Result<(&'static str, String), RpcError> {
     if is_epub(&input.file_name) {
         return Ok((
@@ -246,12 +247,12 @@ async fn choose_way(state: &AppState, input: &PreviewInput) -> Result<(&'static 
     }
 }
 
-/// Vorschau: Datei lesen, Gliederung vorschlagen, Entwurf anlegen (sonst nichts).
+/// Preview: read the file, suggest an outline, create a draft (nothing else).
 pub async fn preview(state: &AppState, input: PreviewInput) -> Result<Draft, PreviewError> {
     preview_with(state, input, &PdfTools::default()).await
 }
 
-/// Wie [`preview`], mit eigenen Programmen für den lokalen PDF-Weg (Tests).
+/// Like [`preview`], with own programs for the local PDF way (tests).
 pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTools) -> Result<Draft, PreviewError> {
     let file_name = base_name(&input.file_name);
     if !is_source_name(&file_name) {
@@ -309,7 +310,7 @@ pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTool
                 read
             }
             Err(e) => {
-                // Kein stiller Wechsel: Fehler mit Grund; die Datei bleibt für „lokal lesen“ bereit.
+                // No silent change: error with a reason; the file stays ready for „lokal lesen“.
                 let pending = Pending {
                     id: id.clone(),
                     created: draft::now(),
@@ -378,8 +379,8 @@ pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTool
     Ok(draft)
 }
 
-/// Titel, unter dem Werk bzw. Quelle entstünden: eigener Titel, sonst aus dem Formular der Vorschau, sonst aus den
-/// Angaben der Datei, sonst der Dateiname.
+/// Title under which work or source would be created: own title, otherwise from the form of the preview,
+/// otherwise from the details of the file, otherwise the file name.
 fn proposed_title(draft: &Draft) -> String {
     draft
         .wanted_title
@@ -388,7 +389,7 @@ fn proposed_title(draft: &Draft) -> String {
         .unwrap_or_else(|| stem(&draft.file_name))
 }
 
-/// Antwort von `source_import.preview` bzw. `.get`.
+/// Answer of `source_import.preview` or `.get`.
 pub fn preview_json(draft: &Draft) -> Value {
     let outline: Vec<Value> = draft
         .sections
@@ -421,7 +422,7 @@ pub fn preview_json(draft: &Draft) -> Value {
     answer
 }
 
-/// Ziel einer Übernahme.
+/// Target of an accept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
     Work,
@@ -446,14 +447,14 @@ impl Target {
     }
 }
 
-/// Ergebnis einer Übernahme.
+/// Result of an accept.
 #[derive(Debug, Clone)]
 pub struct Applied {
     pub report: Option<ImportReport>,
     pub library_title: Option<i64>,
 }
 
-/// Entwürfe, die gerade übernommen werden (zweimal zugleich → abgelehnt).
+/// Drafts that are being accepted right now (twice at once → refused).
 static APPLYING: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
 
 struct ApplyingGuard(String);
@@ -464,7 +465,7 @@ impl Drop for ApplyingGuard {
     }
 }
 
-/// Zitierschlüssel aus einem Titel: `q-` und Kleinbuchstaben/Ziffern/Bindestriche (höchstens 40 Zeichen).
+/// Citation key from a title: `q-` and lower-case letters/digits/hyphens (at most 40 characters).
 fn key_base(title: &str) -> String {
     let mut slug = String::new();
     for c in title.chars().flat_map(char::to_lowercase) {
@@ -488,7 +489,7 @@ fn key_base(title: &str) -> String {
     if slug.is_empty() { "q-quelle".to_owned() } else { format!("q-{slug}") }
 }
 
-/// Bestätigte Gliederung prüfen: Titel, Ebenen, Teile.
+/// Check the confirmed outline: titles, levels, parts.
 fn check_confirmed(confirmed: &[Confirmed]) -> Result<(), RpcError> {
     if confirmed.is_empty() {
         return Err(invalid("Die Gliederung ist leer: mindestens ein Punkt (Kapitel) ist nötig."));
@@ -496,8 +497,8 @@ fn check_confirmed(confirmed: &[Confirmed]) -> Result<(), RpcError> {
     Ok(())
 }
 
-/// Übernehmen: Werk (über [`crate::import::import_generated`]) und/oder Quelle der Bibliothek anlegen. Bei einem
-/// Fehler entsteht nichts Neues (die Bibliothek wird vor dem Werk geprüft).
+/// Accept: create the work (through [`crate::import::import_generated`]) and/or the source of the library. On an
+/// error nothing new is created (the library is checked before the work).
 pub async fn apply_draft(
     state: &AppState,
     draft: &Draft,
@@ -510,7 +511,7 @@ pub async fn apply_draft(
     let title = title.map(str::trim).filter(|t| !t.is_empty()).map_or_else(|| proposed_title(draft), str::to_owned);
     let author = author.map(str::trim).map(str::to_owned).or_else(|| draft.author.clone()).filter(|a| !a.is_empty());
     let pool = state.store.pool();
-    // Bibliothek zuerst prüfen: Steht die Datei schon als Quelle da, entsteht auch kein Werk.
+    // Check the library first: if the file is already there as a source, no work is created either.
     if target.library() {
         let existing = match &draft.document {
             Some(doc) => {
@@ -647,7 +648,7 @@ async fn load_draft(state: &AppState, id: &str) -> Result<Draft, RpcError> {
     })
 }
 
-/// Übernehmen eines gespeicherten Entwurfs; danach ist der Entwurf weg.
+/// Accept a stored draft; afterwards the draft is gone.
 pub async fn apply(
     state: &AppState,
     id: &str,
@@ -677,7 +678,7 @@ pub async fn apply(
     Ok(applied)
 }
 
-/// Entwurf verwerfen.
+/// Discard a draft.
 pub async fn discard(state: &AppState, id: &str) -> Result<bool, RpcError> {
     if !draft::valid_id(id) {
         return Err(invalid("draft: 32 Kleinbuchstaben-Hex (aus source_import.preview)."));
@@ -689,7 +690,7 @@ pub async fn discard(state: &AppState, id: &str) -> Result<bool, RpcError> {
         .map_err(|e| RpcError::new(INTERNAL, format!("Löschen abgebrochen: {e}")))
 }
 
-/// Zahl der Entwürfe im Datenordner (Tests, Anzeige).
+/// Number of drafts in the data folder (tests, display).
 pub fn draft_count(state: &AppState) -> usize {
     draft::count(&state.data)
 }
@@ -733,7 +734,7 @@ struct ApplyParams {
     outline: Option<Vec<OutlineItem>>,
 }
 
-/// Antwort einer Übernahme (RPC).
+/// Answer of an accept (RPC).
 pub fn applied_json(applied: &Applied) -> Value {
     let mut answer = json!({});
     if let Some(report) = &applied.report {
@@ -796,7 +797,7 @@ pub async fn call(state: &AppState, method: &str, params_value: Value) -> Result
 
 // ---- CLI -------------------------------------------------------------------------------------------------------
 
-/// Angaben der CLI: `--title`, `--uebernehmen` (`apply`), `--bibliothek` (`library`).
+/// Options of the CLI: `--title`, `--uebernehmen` (`apply`), `--bibliothek` (`library`).
 #[derive(Debug, Clone, Default)]
 pub struct CliSourceImport {
     pub title: Option<String>,
@@ -804,15 +805,15 @@ pub struct CliSourceImport {
     pub library: bool,
 }
 
-/// `import DATEI.pdf|DATEI.epub`: `Ok(text)` → Standardausgabe (Exit 0), `Err(text)` → Fehlerausgabe (Exit 1).
-/// Immer lokal (ohne MultiGPT). Ohne `--uebernehmen` und `--bibliothek` nur Vorschau: Gliederung und Warnungen,
-/// nichts geschrieben (auch kein Entwurf). `--uebernehmen` legt das Werk mit genau der gezeigten Gliederung an,
-/// `--bibliothek` die Quelle (mit `--uebernehmen` zusätzlich zum Werk).
+/// `import DATEI.pdf|DATEI.epub`: `Ok(text)` → standard output (exit 0), `Err(text)` → standard error (exit 1).
+/// Always local (without MultiGPT). Without `--uebernehmen` and `--bibliothek` only a preview: outline and
+/// warnings, nothing written (no draft either). `--uebernehmen` creates the work with exactly the outline shown,
+/// `--bibliothek` the source (with `--uebernehmen` in addition to the work).
 pub async fn cli_import(state: &AppState, file: &Path, options: &CliSourceImport) -> Result<String, String> {
     cli_import_with(state, file, options, &PdfTools::default()).await
 }
 
-/// Wie [`cli_import`], mit eigenen Programmen für PDF (Tests: „pdftotext fehlt“).
+/// Like [`cli_import`], with own programs for PDF (tests: „pdftotext fehlt“).
 pub async fn cli_import_with(
     state: &AppState,
     file: &Path,
@@ -938,14 +939,14 @@ pub async fn cli_import_with(
     Ok(out)
 }
 
-// ---- Seiten ----------------------------------------------------------------------------------------------------
+// ---- Pages -----------------------------------------------------------------------------------------------------
 
-/// Seiten (GET), gemischt in `lib.rs` bei den Seiten.
+/// Pages (GET), merged in `lib.rs` with the pages.
 pub fn pages() -> Router<Arc<AppState>> {
     pages::pages()
 }
 
-/// Formulare (POST), gemischt in `lib.rs` im writes-Router hinter `guard::same_origin`.
+/// Forms (POST), merged in `lib.rs` into the writes router behind `guard::same_origin`.
 pub fn writes() -> Router<Arc<AppState>> {
     pages::writes()
 }

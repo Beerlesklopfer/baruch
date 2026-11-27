@@ -1,38 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Modell-Backends im Server (Runde 10, Aufgabe „backend“; Runde 15b „anbieter“): Verbindungen der Art
-//! Eliezer, OpenAI-kompatibel oder Ollama ([`baruch_llm::Client`], ein HTTP-Client je Endpunkt), je Persona
-//! eine Verbindung mit „lokal“/„extern“ und Freigabe, Warteschlange **je Endpunkt** ([`status`], genau eine
-//! laufende Anfrage, höchstens acht Wartende), Modellliste mit Zwischenspeicher, Kurztest, Abgleich der
-//! Kontextlänge und die RPC-Methoden `model.*` ([`handles`], [`call`]; nur für den Menschen – nicht über
-//! `POST /act`, nicht über MCP).
+//! Model backends in the server (Round 10, task „backend“; Round 15b „anbieter“): connections of the kind
+//! Eliezer, OpenAI-compatible or Ollama ([`baruch_llm::Client`], one HTTP client per endpoint), per persona
+//! one connection with „lokal“/„extern“ and a release, queue **per endpoint** ([`status`], exactly one
+//! running request, at most eight waiting), model list with a cache, short test, reconciliation of the
+//! context length and the RPC methods `model.*` ([`handles`], [`call`]; only for the human – not through
+//! `POST /act`, not through MCP).
 //!
-//! **Verbindungen** (Store `model_connection`, Migration 0036): Die Verbindung „Eliezer“
-//! ([`baruch_store::ELIEZER_CONNECTION`]) nimmt Adresse und Bindung des Schlüssels weiter aus der Verbindung
-//! `eliezer` (Runde 9, Einstellungen → Verbindungen), den Schlüssel aus dem Konto `baruch/eliezer`. Weitere
-//! Verbindungen haben eine eigene Adresse und das Konto `baruch/model-<id>`; ihr Schlüssel ist an das Ziel
-//! (Ursprung der Adresse) gebunden, für das er hinterlegt wurde – zeigt die Adresse anderswohin, geht er nicht
-//! hinaus ([`LlmError::NotConfigured`]).
+//! **Connections** (store `model_connection`, migration 0036): the connection „Eliezer“
+//! ([`baruch_store::ELIEZER_CONNECTION`]) keeps taking address and binding of the key from the connection
+//! `eliezer` (Round 9, Einstellungen → Verbindungen), the key from the account `baruch/eliezer`. Further
+//! connections have their own address and the account `baruch/model-<id>`; their key is bound to the target
+//! (origin of the address) for which it was stored – if the address points elsewhere, it does not go
+//! out ([`LlmError::NotConfigured`]).
 //!
-//! **Extern:** Eine Verbindung „extern“ schickt Buchtext aus dem Haus. Ein Auftrag einer Persona geht über
-//! sie nur, wenn die Persona dafür freigegeben ist (`persona_backend.external_allowed`, Vorgabe aus); sonst
-//! lehnt [`route`] mit einem deutschen Satz ab, **bevor** eine Anfrage hinausgeht. Kurztest und
-//! Modellliste schicken keinen Buchtext und gehen auch ohne Freigabe.
+//! **External:** a connection „extern“ sends book text out of the house. A job of a persona goes through
+//! it only if the persona is released for that (`persona_backend.external_allowed`, default off); otherwise
+//! [`route`] refuses with a German sentence **before** a request goes out. Short test and
+//! model list send no book text and also work without a release.
 //!
-//! **Modellliste:** 60 s je (Art, Adresse) zwischengespeichert ([`CACHE_FOR`]; `live: false` aus dem Speicher;
-//! seit Runde 23 je Art – zwei Verbindungen verschiedener Art auf derselben Adresse teilen weder Liste noch
-//! Kontextlänge).
-//! Antwortet die Gegenstelle nicht, liefert [`list_on`] die abgelaufene Liste mit `live: false` und einem
-//! Hinweis (statt eines Fehlers), solange es eine gibt.
+//! **Model list:** cached for 60 s per (kind, address) ([`CACHE_FOR`]; `live: false` from the cache;
+//! since Round 23 per kind – two connections of different kinds on the same address share neither list nor
+//! context length).
+//! If the remote side does not answer, [`list_on`] delivers the expired list with `live: false` and a
+//! notice (instead of an error) as long as there is one.
 //!
-//! **Kontext** ([`context`]): wirksame Länge = min(Einstellung der Persona, von der Gegenstelle gemeldete
-//! Länge); Warnung bei Abweichung. Gemeldet wird nur lesend (Eliezer `GET /api/v1/models`, Ollama
-//! `POST /api/show`, OpenAI nichts); Baruch fordert nie eine Kontextlänge an und ruft nie
-//! `/api/v1/models/load|unload|estimate` auf. Der Kurztest wird in der Datenbank gespeichert. Seit Runde 23
-//! prüft [`context`] zuerst die Freigabe: Für eine externe Verbindung ohne Freigabe der Persona geht auch der
-//! Abgleich nicht hinaus (er trüge Schlüssel und Modellnamen), es gilt die Einstellung.
+//! **Context** ([`context`]): effective length = min(setting of the persona, length reported by the remote
+//! side); warning on a deviation. Reporting is read-only (Eliezer `GET /api/v1/models`, Ollama
+//! `POST /api/show`, OpenAI nothing); Baruch never requests a context length and never calls
+//! `/api/v1/models/load|unload|estimate`. The short test is stored in the database. Since Round 23
+//! [`context`] checks the release first: for an external connection without a release of the persona the
+//! reconciliation does not go out either (it would carry key and model name), the setting applies.
 //!
-//! **Löschen** (Runde 23): `model.connection_delete` und `model.connection_delete_secret` verlangen
-//! `confirm: true` (sonst -32602); die Formulare prüfen das Pflicht-Kästchen und rufen dann dieselben Funktionen.
+//! **Deleting** (Round 23): `model.connection_delete` and `model.connection_delete_secret` require
+//! `confirm: true` (otherwise -32602); the forms check the mandatory checkbox and then call the same functions.
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -52,11 +52,11 @@ use crate::AppState;
 use crate::assist::port::ContextBudget;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
-/// Wie lange eine Modellliste (und eine gemeldete Kontextlänge) gilt.
+/// How long a model list (and a reported context length) is valid.
 pub const CACHE_FOR: Duration = Duration::from_secs(60);
-/// Fester Auftrag des Kurztests.
+/// Fixed prompt of the short test.
 pub const PROBE_PROMPT: &str = "Antworte nur mit: OK";
-/// `max_tokens` des Kurztests.
+/// `max_tokens` of the short test.
 pub const PROBE_MAX_TOKENS: u32 = 16;
 
 const METHODS: &[&str] = &[
@@ -72,7 +72,7 @@ const METHODS: &[&str] = &[
     "model.connection_check",
 ];
 
-/// Methoden, die etwas ändern (nur Mensch; nicht über `/act`, nicht über MCP).
+/// Methods that change something (human only; not through `/act`, not through MCP).
 pub const WRITES: &[&str] = &[
     "model.connection_set",
     "model.connection_delete",
@@ -80,10 +80,10 @@ pub const WRITES: &[&str] = &[
     "model.connection_delete_secret",
 ];
 
-/// Warteschlangen je Endpunkt (Adresse), für den ganzen Prozess.
+/// Queues per endpoint (address), for the whole process.
 static QUEUES: LazyLock<Mutex<HashMap<String, &'static Queue>>> = LazyLock::new(Default::default);
-/// HTTP-Clients je (Art, Adresse, Fingerabdruck des Schlüssels).
-/// Schlüssel des Client-Vorrats: Art, Adresse, Fingerabdruck des Schlüssels.
+/// HTTP clients per (kind, address, fingerprint of the key).
+/// Key of the client pool: kind, address, fingerprint of the key.
 type ClientKey = (BackendKind, String, u64);
 static CLIENTS: LazyLock<Mutex<HashMap<ClientKey, Client>>> = LazyLock::new(Default::default);
 
@@ -93,11 +93,11 @@ struct Cached {
     models: Vec<ModelInfo>,
 }
 
-/// Modelllisten je (Art, Adresse) – seit Runde 23 je Art: Eine Eliezer- und eine Ollama-Verbindung auf
-/// derselben Adresse melden verschiedene Listen und Kontextlängen.
+/// Model lists per (kind, address) – since Round 23 per kind: an Eliezer and an Ollama connection on
+/// the same address report different lists and context lengths.
 static CACHE: LazyLock<Mutex<HashMap<(BackendKind, String), Cached>>> = LazyLock::new(Default::default);
-/// Gemeldete Kontextlängen je (Art, Adresse, Modell).
-/// (Art, Adresse, Modell) → (Zeitpunkt, gemeldete Länge).
+/// Reported context lengths per (kind, address, model).
+/// (kind, address, model) → (point in time, reported length).
 type ContextCache = HashMap<(BackendKind, String, String), (Instant, Option<u32>)>;
 static CONTEXTS: LazyLock<Mutex<ContextCache>> = LazyLock::new(Default::default);
 
@@ -105,26 +105,26 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Modellliste einer Verbindung.
+/// Model list of a connection.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Listing {
     pub models: Vec<String>,
-    /// `true`: eben abgefragt; `false`: aus dem Zwischenspeicher.
+    /// `true`: just queried; `false`: from the cache.
     pub live: bool,
-    /// Zeitpunkt der Abfrage (ISO 8601, UTC).
+    /// Point in time of the query (ISO 8601, UTC).
     pub fetched: String,
-    /// Hinweis, wenn die Liste aus dem abgelaufenen Zwischenspeicher kommt (Gegenstelle antwortet nicht).
+    /// Notice when the list comes from the expired cache (the remote side does not answer).
     pub message: Option<String>,
-    /// Je Modell die gemeldete Kontextlänge (soweit die Gegenstelle sie in der Liste meldet).
+    /// Per model the reported context length (as far as the remote side reports it in the list).
     pub infos: Vec<ModelInfo>,
 }
 
-/// Jetzt als `2026-11-06T09:30:12.345Z`.
+/// Now as `2026-11-06T09:30:12.345Z`.
 pub fn iso_now() -> String {
     let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
     let secs = since.as_secs() as i64;
     let (days, rest) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    // Tage seit 1970-01-01 → Datum (H. Hinnant, „civil_from_days“).
+    // Days since 1970-01-01 → date (H. Hinnant, „civil_from_days“).
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;
@@ -143,12 +143,12 @@ pub fn iso_now() -> String {
     )
 }
 
-/// Ursprung einer Adresse (Schema, Rechner, Port): das Ziel, an das ein Schlüssel gebunden ist.
+/// Origin of an address (scheme, host, port): the target to which a key is bound.
 pub fn url_target(url: &str) -> String {
     reqwest::Url::parse(url.trim()).map_or_else(|_| url.trim().to_owned(), |u| u.origin().ascii_serialization())
 }
 
-/// Eine Verbindung, bereit für Anfragen: Art, Adresse, Schlüssel (nur, wenn er dem jetzigen Ziel gilt).
+/// A connection, ready for requests: kind, address, key (only if it applies to the present target).
 #[derive(Clone)]
 pub struct Target {
     pub connection: ModelConnection,
@@ -156,11 +156,11 @@ pub struct Target {
     pub endpoint: Endpoint,
 }
 
-/// Liegt die Adresse erkennbar auf diesem Rechner oder im eigenen Netz? Ja bei Loopback (`127.0.0.0/8`, `::1`,
-/// `localhost`, `*.localhost`), privaten und Link-local-Adressen (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`,
-/// `100.64/10`, `fc00::/7`, `fe80::/10`), Rechnernamen ohne Punkt und den Namen unter `.local`, `.lan`,
-/// `.internal`, `.home.arpa`. Alles andere (öffentliche Adressen, gewöhnliche Domänennamen) gilt als **nicht**
-/// erkennbar lokal – Baruch fragt kein DNS. Daraus folgt die Vorgabe „extern“ beim Anlegen und die Warnung
+/// Does the address recognisably lie on this machine or in the own network? Yes for loopback (`127.0.0.0/8`, `::1`,
+/// `localhost`, `*.localhost`), private and link-local addresses (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`,
+/// `100.64/10`, `fc00::/7`, `fe80::/10`), host names without a dot and the names under `.local`, `.lan`,
+/// `.internal`, `.home.arpa`. Everything else (public addresses, ordinary domain names) counts as **not**
+/// recognisably local – Baruch asks no DNS. From this follows the default „extern“ when creating and the warning
 /// [`locality_warning`].
 pub fn looks_local(url: &str) -> bool {
     let Ok(parsed) = reqwest::Url::parse(url.trim()) else { return false };
@@ -183,8 +183,8 @@ pub fn looks_local(url: &str) -> bool {
     }
 }
 
-/// Warnung, wenn eine als lokal geführte Verbindung auf eine nicht erkennbar lokale Adresse zeigt (Buchtext ginge
-/// ohne Freigabe hinaus); sonst `None`.
+/// Warning when a connection kept as local points to an address that is not recognisably local (book text would
+/// go out without a release); otherwise `None`.
 pub fn locality_warning(external: bool, url: &str) -> Option<String> {
     (!external && !url.trim().is_empty() && !looks_local(url)).then(|| {
         "Die Adresse liegt nicht erkennbar auf diesem Rechner oder im eigenen Netz, die Verbindung ist aber als lokal \
@@ -193,12 +193,12 @@ pub fn locality_warning(external: bool, url: &str) -> Option<String> {
     })
 }
 
-/// Anzeige „lokal“ bzw. „extern“.
+/// Display „lokal“ or „extern“.
 pub fn locality(connection: &ModelConnection) -> &'static str {
     if connection.external { "extern" } else { "lokal" }
 }
 
-/// Anzeigename einer Art.
+/// Display name of a kind.
 pub fn kind_title(kind: &str) -> &'static str {
     match kind {
         "eliezer" => "Eliezer",
@@ -208,7 +208,7 @@ pub fn kind_title(kind: &str) -> &'static str {
     }
 }
 
-/// Adresse der Verbindung Eliezer (aus der Verbindung `eliezer`).
+/// Address of the connection Eliezer (from the connection `eliezer`).
 async fn eliezer_url(state: &AppState) -> Result<String, LlmError> {
     let row = state
         .store
@@ -218,7 +218,7 @@ async fn eliezer_url(state: &AppState) -> Result<String, LlmError> {
     Ok(row.config.get("url").and_then(Value::as_str).unwrap_or("").trim().to_owned())
 }
 
-/// Wirksame Adresse einer Verbindung (Eliezer aus der Verbindung `eliezer`).
+/// Effective address of a connection (Eliezer from the connection `eliezer`).
 pub async fn effective_url(state: &AppState, connection: &ModelConnection) -> String {
     match &connection.url {
         Some(url) => url.clone(),
@@ -226,8 +226,8 @@ pub async fn effective_url(state: &AppState, connection: &ModelConnection) -> St
     }
 }
 
-/// Ziel einer Verbindung auflösen: Adresse, Schlüssel aus dem Schlüsselbund (nur, wenn er an das jetzige Ziel
-/// gebunden ist). Ohne Adresse oder mit Schlüssel für ein anderes Ziel → `NotConfigured` (nichts gesendet).
+/// Resolve the target of a connection: address, key from the keyring (only if it is bound to the present
+/// target). Without an address or with a key for another target → `NotConfigured` (nothing sent).
 pub async fn resolve(state: &AppState, connection: &ModelConnection) -> Result<Target, LlmError> {
     let kind = BackendKind::parse(&connection.kind)
         .ok_or_else(|| LlmError::NotConfigured(format!("Unbekannte Art „{}“.", connection.kind)))?;
@@ -263,7 +263,7 @@ pub async fn resolve(state: &AppState, connection: &ModelConnection) -> Result<T
     Ok(Target { connection: connection.clone(), kind, endpoint: Endpoint::new(url, secret) })
 }
 
-/// Der gemeinsame Client eines Ziels (ein `reqwest::Client` je Art, Adresse und Schlüssel).
+/// The shared client of a target (one `reqwest::Client` per kind, address and key).
 pub fn client_for(target: &Target) -> Result<Client, LlmError> {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     target.endpoint.secret.hash(&mut hasher);
@@ -280,7 +280,7 @@ pub fn client_for(target: &Target) -> Result<Client, LlmError> {
     Ok(client)
 }
 
-/// Zahl der HTTP-Clients im Vorrat (für Tests: mehrere Aufrufe derselben Verbindung teilen einen).
+/// Number of HTTP clients in the pool (for tests: several calls of the same connection share one).
 pub fn client_count() -> usize {
     lock(&CLIENTS).len()
 }
@@ -290,12 +290,12 @@ fn queue_for(url: &str) -> &'static Queue {
     queues.entry(url.trim().to_owned()).or_insert_with(|| Box::leak(Box::new(Queue::default())))
 }
 
-/// Alter Ollama-Name → Name bei Eliezer (`llama3.2:3b`, `qwen3:4b`); sonst `None`.
+/// Old Ollama name → name at Eliezer (`llama3.2:3b`, `qwen3:4b`); otherwise `None`.
 pub fn alias(name: &str) -> Option<&'static str> {
     baruch_llm::alias(name)
 }
 
-/// Zustand der Warteschlangen: Bezeichnung eines laufenden Auftrags und Zahl aller Wartenden.
+/// State of the queues: label of a running job and number of all waiting.
 pub fn status() -> QueueStatus {
     let queues = lock(&QUEUES);
     let mut out = QueueStatus { running: None, waiting: 0 };
@@ -309,11 +309,11 @@ pub fn status() -> QueueStatus {
     out
 }
 
-/// Umgebungsvariable mit einer Obergrenze für `max_tokens` jedes Modellaufrufs (z. B. `300` für eine
-/// Handprüfung mit kurzen Antworten); fehlt sie oder ist sie keine Zahl ≥ 1, gilt keine eigene Grenze.
+/// Environment variable with an upper limit for `max_tokens` of every model call (e.g. `300` for a
+/// manual check with short answers); if it is missing or not a number ≥ 1, no limit of its own applies.
 pub const MAX_TOKENS_ENV: &str = "BARUCH_MAX_TOKENS";
 
-/// Obergrenze aus dem Wert von [`MAX_TOKENS_ENV`].
+/// Upper limit from the value of [`MAX_TOKENS_ENV`].
 pub fn max_tokens_cap(value: Option<&str>) -> Option<u32> {
     value.and_then(|v| v.trim().parse::<u32>().ok()).filter(|&n| n >= 1)
 }
@@ -321,7 +321,7 @@ pub fn max_tokens_cap(value: Option<&str>) -> Option<u32> {
 static MAX_TOKENS_CAP: LazyLock<Option<u32>> =
     LazyLock::new(|| max_tokens_cap(std::env::var(MAX_TOKENS_ENV).ok().as_deref()));
 
-/// Verbindung und Zuordnung einer Persona (leerer Handle oder unbekannte Persona: Eliezer, nicht freigegeben).
+/// Connection and assignment of a persona (empty handle or unknown persona: Eliezer, not released).
 pub async fn connection_of(state: &AppState, persona: &str) -> Result<(ModelConnection, PersonaBackend), LlmError> {
     let backend = if persona.trim().is_empty() {
         PersonaBackend::default()
@@ -340,7 +340,7 @@ pub async fn connection_of(state: &AppState, persona: &str) -> Result<(ModelConn
     Ok((connection, backend))
 }
 
-/// Satz, wenn eine externe Verbindung für die Persona nicht freigegeben ist.
+/// Sentence when an external connection is not released for the persona.
 pub fn not_allowed(connection: &ModelConnection, persona: &str) -> String {
     let who = if persona.trim().is_empty() { "diesen Auftrag ohne Persona".to_owned() } else { persona.to_owned() };
     format!(
@@ -350,8 +350,8 @@ pub fn not_allowed(connection: &ModelConnection, persona: &str) -> String {
     )
 }
 
-/// Weg eines Auftrags der Persona `persona`: ihre Verbindung, aufgelöst. Ist die Verbindung extern und die
-/// Persona nicht freigegeben, → `NotConfigured` mit [`not_allowed`], und es geht **keine** Anfrage hinaus.
+/// Path of a job of the persona `persona`: its connection, resolved. If the connection is external and the
+/// persona not released, → `NotConfigured` with [`not_allowed`], and **no** request goes out.
 pub async fn route(state: &AppState, persona: &str) -> Result<Target, LlmError> {
     let (connection, backend) = connection_of(state, persona).await?;
     if connection.external && !backend.external_allowed {
@@ -360,7 +360,7 @@ pub async fn route(state: &AppState, persona: &str) -> Result<Target, LlmError> 
     resolve(state, &connection).await
 }
 
-/// Meldung mit dem richtigen Konto (die Fehlertexte von `baruch_llm` nennen `baruch/eliezer`).
+/// Message with the right account (the error texts of `baruch_llm` name `baruch/eliezer`).
 fn with_account(error: LlmError, target: &Target) -> LlmError {
     if target.connection.id == ELIEZER_CONNECTION {
         return error;
@@ -374,7 +374,7 @@ fn with_account(error: LlmError, target: &Target) -> LlmError {
     }
 }
 
-/// Ein Modellaufruf über das Ziel `target` durch dessen Warteschlange. Aliasse gelten nur bei Eliezer.
+/// A model call through the target `target` through its queue. Aliases apply only to Eliezer.
 pub async fn chat_on(
     target: &Target,
     request: ChatRequest,
@@ -403,8 +403,8 @@ pub async fn chat_on(
     result.map_err(|e| with_account(e, target))
 }
 
-/// Ein Modellaufruf über die Verbindung Eliezer (ohne Persona, wie vor Runde 15); jedes Textstück geht an
-/// `deltas`. Ist Eliezer als extern markiert, wird abgelehnt (keine Persona, keine Freigabe).
+/// A model call through the connection Eliezer (without a persona, as before Round 15); every piece of text goes
+/// to `deltas`. If Eliezer is marked as external, it is refused (no persona, no release).
 pub async fn chat(
     state: &AppState,
     request: ChatRequest,
@@ -415,8 +415,8 @@ pub async fn chat(
     chat_on(&target, request, label, deltas).await
 }
 
-/// Liste der Verbindung Eliezer in den Zwischenspeicher legen (aus „Verbindung prüfen“ der Verbindung
-/// `eliezer`; darum Art Eliezer).
+/// Put the list of the connection Eliezer into the cache (from „Verbindung prüfen“ of the connection
+/// `eliezer`; hence kind Eliezer).
 pub(crate) fn remember(url: &str, models: &[String]) {
     let kind = BackendKind::Eliezer;
     let infos: Vec<ModelInfo> = {
@@ -437,8 +437,8 @@ fn remember_infos(kind: BackendKind, url: &str, models: Vec<ModelInfo>) {
     lock(&CACHE).insert((kind, url.trim().to_owned()), Cached { at: Instant::now(), fetched: iso_now(), models });
 }
 
-/// Zwischengespeicherte Listen und Kontextlängen der Adresse `url` als abgelaufen markieren (die Listen bleiben
-/// als Rückfall). Für Tests und „Verbindung prüfen“; betrifft nur diese Adresse, dort aber jede Art.
+/// Mark cached lists and context lengths of the address `url` as expired (the lists stay
+/// as a fallback). For tests and „Verbindung prüfen“; affects only this address, but every kind there.
 pub fn expire_list(url: &str) {
     let old = Instant::now().checked_sub(CACHE_FOR + Duration::from_secs(1)).unwrap_or_else(Instant::now);
     for ((_, u), cached) in lock(&CACHE).iter_mut() {
@@ -459,7 +459,7 @@ fn listing_of(cached: &Cached, live: bool, message: Option<String>) -> Listing {
     }
 }
 
-/// Modellliste der Verbindung Eliezer.
+/// Model list of the connection Eliezer.
 pub async fn list(state: &AppState) -> Result<Listing, LlmError> {
     let connection = state
         .store
@@ -469,9 +469,9 @@ pub async fn list(state: &AppState) -> Result<Listing, LlmError> {
     list_on(state, &connection).await
 }
 
-/// Modellliste einer Verbindung: höchstens alle 60 s neu abgefragt (nicht durch die Warteschlange; die Liste
-/// lädt kein Modell). Antwortet die Gegenstelle nicht und gibt es eine abgelaufene Liste, kommt diese mit
-/// `live: false` und Hinweis.
+/// Model list of a connection: queried anew at most every 60 s (not through the queue; the list
+/// loads no model). If the remote side does not answer and there is an expired list, that one comes with
+/// `live: false` and a notice.
 pub async fn list_on(state: &AppState, connection: &ModelConnection) -> Result<Listing, LlmError> {
     let target = resolve(state, connection).await?;
     let key = (target.kind, target.endpoint.base_url.trim().to_owned());
@@ -502,7 +502,7 @@ pub async fn list_on(state: &AppState, connection: &ModelConnection) -> Result<L
     }
 }
 
-/// Satz bei abweichender Kontextlänge.
+/// Sentence for a deviating context length.
 fn context_warning(setting: u32, name: &str, reported: u32) -> Option<String> {
     (reported != setting).then(|| {
         if reported < setting {
@@ -522,7 +522,7 @@ fn budget(setting: u32, name: &str, reported: Option<u32>) -> ContextBudget {
     }
 }
 
-/// Modellname, wie er an die Verbindung geht (Alias nur bei Eliezer).
+/// Model name as it goes to the connection (alias only for Eliezer).
 fn sent_model(kind: &str, model: &str) -> String {
     if kind == "eliezer" {
         alias(model).map_or_else(|| model.trim().to_owned(), str::to_owned)
@@ -531,7 +531,7 @@ fn sent_model(kind: &str, model: &str) -> String {
     }
 }
 
-/// Bekannte Kontextlänge ohne Netzabfrage (aus den Zwischenspeichern; abgelaufene Einträge zählen auch).
+/// Known context length without a network query (from the caches; expired entries count too).
 fn cached_context(kind: BackendKind, url: &str, model: &str) -> Option<Option<u32>> {
     if let Some((_, reported)) = lock(&CONTEXTS).get(&(kind, url.trim().to_owned(), model.to_owned())) {
         return Some(*reported);
@@ -541,14 +541,14 @@ fn cached_context(kind: BackendKind, url: &str, model: &str) -> Option<Option<u3
     hit.models.iter().find(|m| m.id == model).and_then(|m| m.context_length).map(Some)
 }
 
-/// Kontext ohne Netzabfrage (für `persona.list`): was die Zwischenspeicher wissen, sonst die Einstellung.
+/// Context without a network query (for `persona.list`): what the caches know, otherwise the setting.
 pub async fn context_cached(state: &AppState, persona: &PersonaRow, connection: &ModelConnection) -> ContextBudget {
-    // OpenAI-kompatibel meldet keine Länge (Vertrag §3) – auch nicht über einen Zwischenspeicher derselben
-    // Adresse, den eine andere Art (Eliezer) gefüllt hat (Integrator Runde 15).
+    // OpenAI-compatible reports no length (contract §3) – not through a cache of the same
+    // address either that another kind (Eliezer) filled (integrator Round 15).
     if connection.kind == "openai" {
         return budget(persona.context_length, &connection.name, None);
     }
-    // Runde 23: je Art – eine unbekannte Art hat keinen Zwischenspeicher.
+    // Round 23: per kind – an unknown kind has no cache.
     let Some(kind) = BackendKind::parse(&connection.kind) else {
         return budget(persona.context_length, &connection.name, None);
     };
@@ -557,8 +557,8 @@ pub async fn context_cached(state: &AppState, persona: &PersonaRow, connection: 
     budget(persona.context_length, &connection.name, cached_context(kind, &url, &model).flatten())
 }
 
-/// Kontext ohne Netzabfrage für eine Persona über ihre Verbindung (Runde 17a, für Seiten und Listen): wie
-/// [`context_cached`]; ohne lesbare Verbindung die Einstellung.
+/// Context without a network query for a persona through its connection (Round 17a, for pages and lists): like
+/// [`context_cached`]; without a readable connection the setting.
 pub async fn context_cached_for(state: &AppState, persona: &PersonaRow) -> ContextBudget {
     match connection_of(state, &persona.handle).await {
         Ok((connection, _)) => context_cached(state, persona, &connection).await,
@@ -566,21 +566,21 @@ pub async fn context_cached_for(state: &AppState, persona: &PersonaRow) -> Conte
     }
 }
 
-/// Modellliste einer Verbindung ohne Netzabfrage (Runde 17a): der Zwischenspeicher, auch abgelaufen; `None`, wenn
-/// noch nie abgefragt.
+/// Model list of a connection without a network query (Round 17a): the cache, also expired; `None` if
+/// never queried yet.
 pub async fn cached_list_on(state: &AppState, connection: &ModelConnection) -> Option<Listing> {
     let kind = BackendKind::parse(&connection.kind)?;
     let url = effective_url(state, connection).await;
     lock(&CACHE).get(&(kind, url.trim().to_owned())).map(|hit| listing_of(hit, false, None))
 }
 
-/// Kontext für Aufträge an `persona`: Einstellung abgeglichen mit der gemeldeten Länge der Gegenstelle.
-/// Wartet höchstens so lange wie die Modellliste (Zwischenspeicher 60 s); scheitert nie (ohne Meldung gilt
-/// die Einstellung).
+/// Context for jobs to `persona`: setting reconciled with the reported length of the remote side.
+/// Waits at most as long as the model list (cache 60 s); never fails (without a report
+/// the setting applies).
 ///
-/// Runde 23: Die Freigabe wird **vor** jeder Anfrage geprüft wie in [`route`]. Ist die Verbindung extern und die
-/// Persona nicht freigegeben, geht nichts hinaus (auch kein `/api/show` bzw. `/api/v1/models` – beide trügen
-/// Schlüssel und Modellnamen) und es gilt die Einstellung; der Auftrag selbst wird danach ohnehin abgelehnt.
+/// Round 23: the release is checked **before** every request as in [`route`]. If the connection is external and
+/// the persona not released, nothing goes out (no `/api/show` or `/api/v1/models` either – both would carry
+/// key and model name) and the setting applies; the job itself is refused afterwards anyway.
 pub async fn context(state: &AppState, persona: &PersonaRow) -> ContextBudget {
     let setting = persona.context_length;
     let Ok((connection, backend)) = connection_of(state, &persona.handle).await else {
@@ -620,14 +620,14 @@ pub async fn context(state: &AppState, persona: &PersonaRow) -> ContextBudget {
     budget(setting, &connection.name, reported)
 }
 
-/// Modell einer Persona gegen die Liste: `{handle, model, active, state: "bekannt" | "alias" |
-/// "unbekannt", target?}`. „alias“: der alte Name hat einen Alias, den Eliezer kennt (`target`);
-/// kennt Eliezer auch den Alias nicht, ist die Persona „unbekannt“ (mit `target` als Hinweis).
+/// Model of a persona against the list: `{handle, model, active, state: "bekannt" | "alias" |
+/// "unbekannt", target?}`. „alias“: the old name has an alias that Eliezer knows (`target`);
+/// if Eliezer does not know the alias either, the persona is „unbekannt“ (with `target` as a hint).
 pub fn persona_states(personas: &[PersonaRow], models: &[String]) -> Vec<Value> {
     states_of(personas.iter().map(|p| (p.handle.as_str(), p.model.as_str(), p.active)), models)
 }
 
-/// Wie [`persona_states`] für `(handle, model, active)`.
+/// Like [`persona_states`] for `(handle, model, active)`.
 fn states_of<'a>(personas: impl Iterator<Item = (&'a str, &'a str, bool)>, models: &[String]) -> Vec<Value> {
     personas
         .map(|(handle, model, active)| {
@@ -646,7 +646,7 @@ fn states_of<'a>(personas: impl Iterator<Item = (&'a str, &'a str, bool)>, model
         .collect()
 }
 
-/// Satz zum Abgleich (für „Verbindung prüfen“): unbekannte Modelle und Aliasse; leer, wenn alle bekannt.
+/// Sentence for the reconciliation (for „Verbindung prüfen“): unknown models and aliases; empty if all are known.
 pub fn persona_summary(states: &[Value]) -> String {
     let field = |v: &Value, name: &str| v.get(name).and_then(Value::as_str).unwrap_or("").to_owned();
     let unknown: Vec<String> = states
@@ -669,19 +669,20 @@ pub fn persona_summary(states: &[Value]) -> String {
     parts.join(" ")
 }
 
-/// Aliasse als Objekt `{alt: neu}`.
+/// Aliases as an object `{alt: neu}`.
 fn aliases() -> Value {
     Value::Object(baruch_llm::ALIASES.iter().map(|(old, new)| ((*old).to_owned(), json!(new))).collect::<Map<_, _>>())
 }
 
-/// Kurztest auf der Verbindung Eliezer ([`probe_on`]).
+/// Short test on the connection Eliezer ([`probe_on`]).
 pub async fn probe(state: &AppState, model: &str) -> Value {
     probe_on(state, ELIEZER_CONNECTION, model).await
 }
 
-/// Kurztest: fester Auftrag [`PROBE_PROMPT`], `max_tokens` 16, durch die Warteschlange der Verbindung. Ein
-/// Fehlschlag ist ein Ergebnis (`ok: false` mit Meldung), kein Fehler. Das Ergebnis steht danach in der
-/// Datenbank (überlebt einen Neustart). Kein Buchtext: geht auch über eine externe Verbindung ohne Freigabe.
+/// Short test: fixed prompt [`PROBE_PROMPT`], `max_tokens` 16, through the queue of the connection. A
+/// failure is a result (`ok: false` with a message), not an error. The result is in the
+/// database afterwards (survives a restart). No book text: also works through an external connection without a
+/// release.
 pub async fn probe_on(state: &AppState, connection: i64, model: &str) -> Value {
     let model = model.trim();
     let started = Instant::now();
@@ -714,12 +715,12 @@ pub async fn probe_on(state: &AppState, connection: i64, model: &str) -> Value {
     out
 }
 
-/// Letzter Kurztest der Verbindung Eliezer (aus der Datenbank).
+/// Last short test of the connection Eliezer (from the database).
 pub async fn last_probe(state: &AppState) -> Option<Value> {
     state.store.model_connection_get(ELIEZER_CONNECTION).await.ok().and_then(|c| c.probe)
 }
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -728,7 +729,7 @@ fn failure(e: LlmError) -> RpcError {
     RpcError::new(REFUSED, e.to_string())
 }
 
-/// Zustand des Schlüssels einer Verbindung: `hinterlegt`, `fehlt` oder `null` (Schlüsselbund nicht lesbar).
+/// State of the key of a connection: `hinterlegt`, `fehlt` or `null` (keyring not readable).
 async fn secret_state(state: &AppState, connection: &ModelConnection) -> Value {
     match crate::connections::secrets::get(&state.secrets, &connection.account).await {
         Ok(Some(_)) => json!("hinterlegt"),
@@ -737,8 +738,8 @@ async fn secret_state(state: &AppState, connection: &ModelConnection) -> Value {
     }
 }
 
-/// Eine Verbindung als JSON (nie mit Schlüssel): Art, Adresse, lokal/extern, Schlüssel hinterlegt/fehlt,
-/// letzter Kurztest und letzte Prüfung, Personas, die sie nutzen.
+/// A connection as JSON (never with the key): kind, address, local/external, key stored/missing,
+/// last short test and last check, personas that use it.
 pub async fn describe(state: &AppState, connection: &ModelConnection) -> Value {
     let url = effective_url(state, connection).await;
     let secret = secret_state(state, connection).await;
@@ -790,7 +791,7 @@ fn id_param(params: &Value, name: &str) -> Result<i64, RpcError> {
     }
 }
 
-/// Verbindung aus `connection` (id) bzw. der Persona `persona`; ohne beides Eliezer.
+/// Connection from `connection` (id) or the persona `persona`; without both Eliezer.
 async fn connection_param(state: &AppState, params: &Value) -> Result<ModelConnection, RpcError> {
     if params.get("connection").is_some_and(|c| !c.is_null()) {
         return Ok(state.store.model_connection_get(id_param(params, "connection")?).await?);
@@ -802,7 +803,7 @@ async fn connection_param(state: &AppState, params: &Value) -> Result<ModelConne
     Ok(state.store.model_connection_get(ELIEZER_CONNECTION).await?)
 }
 
-/// Felder von `model.connection_set` prüfen (Name, Art, Adresse über `connections::config::check_url`).
+/// Check the fields of `model.connection_set` (name, kind, address through `connections::config::check_url`).
 fn edit_param(
     params: &Value,
     eliezer: bool,
@@ -819,9 +820,9 @@ fn edit_param(
         None if eliezer => String::new(),
         None => current.and_then(|c| c.url.clone()).ok_or_else(|| RpcError::new(INVALID_PARAMS, "url fehlt."))?,
     };
-    // Ohne Angabe: beim Anlegen nach der Adresse (nicht erkennbar lokal → extern); beim Ändern bleibt „extern“,
-    // und eine neue, nicht erkennbar lokale Adresse macht die Verbindung extern – ein vergessener Haken öffnet die
-    // Sperre nie. Wer einen Dienst im eigenen Netz unter einem gewöhnlichen Namen betreibt, setzt `false` ausdrücklich.
+    // Without a value: when creating by the address (not recognisably local → external); when changing „extern“ stays,
+    // and a new address that is not recognisably local makes the connection external – a forgotten tick never opens
+    // the lock. Whoever runs a service in the own network under an ordinary name sets `false` explicitly.
     let auto = |url: &str| !url.is_empty() && !looks_local(url);
     let external = match params.get("external") {
         Some(Value::Bool(b)) => *b,
@@ -834,8 +835,8 @@ fn edit_param(
     Ok(ModelConnectionEdit { name, kind: kind.to_lowercase(), url, external })
 }
 
-/// `model.connection_set`: anlegen (ohne `id`) oder ändern. Bei Eliezer geht die Adresse an die Verbindung
-/// `eliezer` (mit deren Bindung des Schlüssels); bei anderen bindet ein neues Ziel den Schlüssel an das alte.
+/// `model.connection_set`: create (without `id`) or change. For Eliezer the address goes to the connection
+/// `eliezer` (with its binding of the key); for others a new target binds the key to the old one.
 pub async fn set_connection(state: &AppState, params: &Value) -> Result<ModelConnection, RpcError> {
     let id = match params.get("id") {
         None | Some(Value::Null) => None,
@@ -885,8 +886,8 @@ fn secret_text(params: &Value) -> Result<String, RpcError> {
     Ok(secret.to_owned())
 }
 
-/// Schlüssel einer Verbindung hinterlegen; gilt danach für ihr jetziges Ziel. Eliezer: Konto `eliezer` mit der
-/// Bindung der Verbindung `eliezer`.
+/// Store the key of a connection; afterwards it applies to its present target. Eliezer: account `eliezer` with the
+/// binding of the connection `eliezer`.
 pub async fn set_secret(state: &AppState, id: i64, secret: &str) -> Result<(), RpcError> {
     if id == ELIEZER_CONNECTION {
         return crate::connections::set_secret(state, ConnectionKind::Eliezer, secret).await.map_err(RpcError::from);
@@ -900,7 +901,7 @@ pub async fn set_secret(state: &AppState, id: i64, secret: &str) -> Result<(), R
     Ok(())
 }
 
-/// Schlüssel einer Verbindung entfernen.
+/// Remove the key of a connection.
 pub async fn delete_secret(state: &AppState, id: i64) -> Result<(), RpcError> {
     if id == ELIEZER_CONNECTION {
         return crate::connections::delete_secret(state, ConnectionKind::Eliezer).await.map_err(RpcError::from);
@@ -914,7 +915,7 @@ pub async fn delete_secret(state: &AppState, id: i64) -> Result<(), RpcError> {
     Ok(())
 }
 
-/// Verbindung löschen (nicht Eliezer); ihr Schlüssel wird mit entfernt, ihre Personas fallen auf Eliezer zurück.
+/// Delete a connection (not Eliezer); its key is removed with it, its personas fall back to Eliezer.
 pub async fn delete_connection(state: &AppState, id: i64) -> Result<Vec<String>, RpcError> {
     let connection = state.store.model_connection_get(id).await?;
     let handles = state.store.model_connection_delete(id).await?;
@@ -922,8 +923,8 @@ pub async fn delete_connection(state: &AppState, id: i64) -> Result<Vec<String>,
     Ok(handles)
 }
 
-/// Verbindung prüfen: Modellliste live abfragen (mit Kontextlängen, soweit gemeldet), Ergebnis speichern.
-/// Eliezer: wie „Verbindung prüfen“ der Verbindung `eliezer` (gleicht die Modelle der Personas ab).
+/// Check a connection: query the model list live (with context lengths as far as reported), store the result.
+/// Eliezer: like „Verbindung prüfen“ of the connection `eliezer` (reconciles the models of the personas).
 pub async fn check_connection(state: &AppState, id: i64) -> Result<Value, RpcError> {
     let connection = state.store.model_connection_get(id).await?;
     let mut out = if id == ELIEZER_CONNECTION {
@@ -962,8 +963,8 @@ pub async fn check_connection(state: &AppState, id: i64) -> Result<Value, RpcErr
     Ok(out)
 }
 
-/// Runde 23: Löschen (Verbindung, Schlüssel) nur mit `confirm: true` – wie `work.delete` und die Formulare mit
-/// ihrem Pflicht-Kästchen. Sonst -32602, und nichts ist gelöscht.
+/// Round 23: deleting (connection, key) only with `confirm: true` – like `work.delete` and the forms with
+/// their mandatory checkbox. Otherwise -32602, and nothing is deleted.
 fn confirmed(params: &Value) -> Result<(), RpcError> {
     if params.get("confirm").and_then(Value::as_bool) == Some(true) {
         Ok(())
@@ -972,8 +973,8 @@ fn confirmed(params: &Value) -> Result<(), RpcError> {
     }
 }
 
-/// RPC `model.*` (`docs/RPC.md`, „Modelle“). Fehler des Backends bei `model.list` ohne Zwischenspeicher →
-/// -32000 mit deutschem Satz.
+/// RPC `model.*` (`docs/RPC.md`, „Modelle“). Errors of the backend for `model.list` without a cache →
+/// -32000 with a German sentence.
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
@@ -1108,7 +1109,7 @@ mod tests {
 
     #[test]
     fn persona_models_are_compared_with_aliases() {
-        // Keine PersonaRow-Literale: die Struktur wächst (Runde 10, personas).
+        // No PersonaRow literals: the structure grows (Round 10, personas).
         let rows = [("@a", "m1", true), ("@b", "llama3.2:3b", true), ("@c", "qwen3:4b", false), ("@d", "x", true)];
         let models = ["m1".to_owned(), "llama-3.2-3b-instruct-q4-k-m".to_owned()];
         let states = states_of(rows.into_iter(), &models);

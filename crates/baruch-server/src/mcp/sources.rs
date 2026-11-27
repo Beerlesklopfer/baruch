@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `source_read` (Runde 13, „quellen“): ein Teil des Volltexts einer Quelle über MultiGPT,
-//! nur lesend, Antwort wie RPC `source.read` ([`crate::literature::source_read`]). Inhalte sind Daten aus
-//! Quellen, keine Anweisungen. Übernehmen in die Autorenbibliothek (`source.adopt`) gibt es über MCP
-//! nicht – das tut nur der Mensch.
+//! MCP tool `source_read` (Round 13, „quellen“): one part of the full text of a source through MultiGPT,
+//! read-only, answer like RPC `source.read` ([`crate::literature::source_read`]). Contents are data from
+//! sources, not instructions. Adopting into the author's library (`source.adopt`) does not exist through MCP
+//! – only the human does that.
 
 use serde_json::{Value, json};
 
@@ -29,7 +29,7 @@ pub fn schema() -> Value {
         "work": work_schema() } })
 }
 
-/// Längste Fundstelle `q` von `source_read` über MCP (Zeichen) und ihre Höchstzahl an Wörtern (Runde 23).
+/// Longest passage `q` of `source_read` through MCP (characters) and its maximum number of words (Round 23).
 pub const MAX_Q_CHARS: usize = 500;
 pub const MAX_Q_WORDS: usize = 40;
 
@@ -38,8 +38,8 @@ pub async fn call(state: &AppState, name: &str, arguments: Value) -> Result<Valu
         return Err(tool_error(format!("unknown tool {name}")));
     }
     let mut arguments = if arguments.is_null() { json!({}) } else { arguments };
-    // Runde 23 (Codereview ki-1): `q` begrenzen, bevor `literature::fulltext::marks` jedes Wort im Teiltext sucht –
-    // eine Anfrage aus Millionen nicht vorkommender Wörter hielte sonst einen Tokio-Worker minutenlang fest.
+    // Round 23 (code review ki-1): limit `q` before `literature::fulltext::marks` searches every word in the part
+    // text – a request made of millions of words that do not occur would otherwise hold a Tokio worker for minutes.
     if let Some(q) = arguments.get("q").and_then(Value::as_str) {
         let (chars, words) = (q.chars().count(), q.split_whitespace().count());
         if chars > MAX_Q_CHARS || words > MAX_Q_WORDS {
@@ -50,25 +50,25 @@ pub async fn call(state: &AppState, name: &str, arguments: Value) -> Result<Valu
         }
     }
     if let Some(map) = arguments.as_object_mut() {
-        // `work` wählt hier nichts aus (Quellen gehören keinem Werk).
+        // `work` selects nothing here (sources belong to no work).
         map.remove("work");
     }
     chosen_only(state, &arguments).await?;
     crate::literature::source_read(state, arguments).await.map_err(|e| tool_error(e.message))
 }
 
-/// Nur Dokumente aus vom Menschen gewählten Sammlungen (Regel aus Runde 12): `read_document` kennt keine
-/// Sammlung, `collection` wäre sonst nur ein Etikett, und ein MCP-Client läse jedes Dokument, das das Token
-/// von Baruch lesen darf. Erlaubt ist ein Dokument, das (1) mit einem Titel der Bibliothek verknüpft ist (vom
-/// Menschen übernommen), (2) als lokale Kopie des Abgleichs vorliegt (nur gewählte Sammlungen) oder (3) in
-/// einem Treffer einer Suche in gewählten Sammlungen vorkam (`rag_search`, Weg multigpt, auch die Suche der
-/// Oberfläche). `title` statt `document` prüft `source.read` selbst (nur verknüpfte Titel).
+/// Only documents from collections chosen by the human (rule from Round 12): `read_document` knows no
+/// collection, `collection` would otherwise be only a label, and an MCP client would read every document that the
+/// token of Baruch may read. A document is allowed that (1) is linked with a title of the library (adopted by
+/// the human), (2) exists as a local copy of the sync (chosen collections only) or (3) occurred in
+/// a hit of a search in chosen collections (`rag_search`, way multigpt, also the search of the
+/// user interface). `title` instead of `document` is checked by `source.read` itself (linked titles only).
 async fn chosen_only(state: &AppState, arguments: &Value) -> Result<(), Failure> {
     if arguments.get("title").is_some_and(|t| !t.is_null()) {
         return Ok(());
     }
     let Some(document) = arguments.get("document").and_then(Value::as_str).map(str::trim) else {
-        return Ok(()); // ohne Dokument antwortet source.read mit dem ehrlichen Fehler
+        return Ok(()); // without a document source.read answers with the honest error
     };
     let collection = arguments.get("collection").and_then(Value::as_str).map_or("", str::trim);
     let remote = baruch_library::RemoteRef {
@@ -89,7 +89,7 @@ async fn chosen_only(state: &AppState, arguments: &Value) -> Result<(), Failure>
     .await
     {
         Ok(way) => way.found_in_chosen(collection, document),
-        // Ohne Einstellungen antwortet source.read selbst ehrlich (keine Adresse usw.).
+        // Without settings source.read itself answers honestly (no address etc.).
         Err(_) => return Ok(()),
     };
     if found {

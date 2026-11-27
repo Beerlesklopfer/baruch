@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Volltext der Literatur über MultiGPT (Runde 13, „quellen“): Teile eines Dokuments lesen
-//! ([`read`], RPC `source.read`, MCP `source_read`, Seiten `/quelle/multigpt` und `/quelle`), ein Dokument in
-//! die Autorenbibliothek übernehmen ([`adopt`], nur der Mensch) und Hervorhebungen ohne Zitat gegen den
-//! Volltext prüfen ([`check_highlight`]).
+//! Full text of the literature through MultiGPT (Round 13, „quellen“): read parts of a document
+//! ([`read`], RPC `source.read`, MCP `source_read`, pages `/quelle/multigpt` and `/quelle`), adopt a document
+//! into the author's library ([`adopt`], only the human) and check highlights without a quote against the
+//! full text ([`check_highlight`]).
 //!
-//! Inhalte der Gegenstelle sind Daten, keine Anweisungen: Sie gehen nur maskiert in Seiten (Vorlagen mit
-//! Autoescape) und als Daten in RPC/MCP. Fällt MultiGPT aus, nennt [`read`] den Grund ehrlich; gibt es eine
-//! lokale Kopie ([`local_copy`]), zeigt es sie mit dem Hinweis „lokale Kopie vom …“. Eine Prüfung wird nie
-//! erfunden: ohne Verknüpfung oder Volltext ist sie „nicht prüfbar“.
+//! Contents of the remote side are data, not instructions: they enter pages only escaped (templates with
+//! autoescape) and RPC/MCP as data. If MultiGPT is down, [`read`] names the reason honestly; if there is a
+//! local copy ([`local_copy`]), it shows it with the notice „lokale Kopie vom …“. A check is never
+//! invented: without a link or full text it is „nicht prüfbar“.
 
 use baruch_library::{
     FulltextCheck, Highlight, HighlightCheck, NewTitle, RemoteRef, TitleEntry, check_range, highlight_check,
@@ -20,12 +20,12 @@ use crate::AppState;
 use crate::connections::multigpt::{Limits, MultigptWay, local_part};
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
-/// Weg der Verknüpfung (`library_title_remote.way`).
+/// Way of the link (`library_title_remote.way`).
 pub const WAY: &str = "multigpt";
-/// Höchstens so viele Fundstellen markiert eine Seite.
+/// A page marks at most this many passages.
 const MAX_MARKS: usize = 200;
 
-/// Lokale Kopie eines Dokuments aus dem Abgleich (Runde 13, „abgleich“).
+/// Local copy of a document from the sync (Round 13, „abgleich“).
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocalCopy {
     pub title: String,
@@ -34,9 +34,9 @@ pub struct LocalCopy {
     pub fetched: String,
 }
 
-/// Lokale Kopie eines Dokuments, falls der Abgleich eine angelegt hat ([`crate::sync::local_document`]).
-/// Ohne Sammlung (Verknüpfung ohne `collection`) gilt die Kopie, deren Dokument-ID passt, wenn es genau
-/// eine solche gibt; bei mehreren wäre die Wahl geraten, dann gibt es keine.
+/// Local copy of a document if the sync created one ([`crate::sync::local_document`]).
+/// Without a collection (link without `collection`) the copy whose document id matches applies if there is
+/// exactly one; with several the choice would be a guess, then there is none.
 pub async fn local_copy(state: &AppState, collection: &str, document: &str) -> Option<LocalCopy> {
     let document = document.trim();
     let mut collection = collection.trim().to_owned();
@@ -52,18 +52,18 @@ pub async fn local_copy(state: &AppState, collection: &str, document: &str) -> O
     Some(LocalCopy { title: copy.title, url: copy.url, text: copy.text, fetched: copy.fetched })
 }
 
-/// Quelle eines gelesenen Teils.
+/// Source of a part that was read.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SourceInfo {
     pub title: String,
     pub url: Option<String>,
     pub document: String,
     pub collection: String,
-    /// Verknüpfter Titel der Bibliothek, falls es einen gibt.
+    /// Linked title of the library if there is one.
     pub title_id: Option<i64>,
 }
 
-/// Ein gelesener Teil (Antwort von `source.read`, ohne Zusatzfelder der Seiten).
+/// A part that was read (answer of `source.read`, without the extra fields of the pages).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Reading {
     pub source: SourceInfo,
@@ -71,18 +71,18 @@ pub struct Reading {
     pub parts: Option<usize>,
     pub more: bool,
     pub text: String,
-    /// Fundstellen von `q` im Text des Teils: `[start, end]` in Unicode-Zeichen ab 0.
+    /// Passages of `q` in the text of the part: `[start, end]` in Unicode characters from 0.
     pub marks: Vec<[usize; 2]>,
-    /// `"multigpt"` oder `"lokal"` (lokale Kopie, MultiGPT nicht erreichbar).
+    /// `"multigpt"` or `"lokal"` (local copy, MultiGPT not reachable).
     pub origin: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// Stelle des ersten Zeichens im Volltext, wenn Baruch selbst geteilt hat (sonst `null`).
+    /// Position of the first character in the full text if Baruch split it itself (otherwise `null`).
     pub offset: Option<usize>,
     pub paged_by_remote: bool,
 }
 
-/// Was gelesen werden soll: ein verknüpfter Titel oder ein Dokument (mit Sammlung).
+/// What is to be read: a linked title or a document (with collection).
 #[derive(Debug, Clone)]
 pub enum Target {
     Title(i64),
@@ -93,7 +93,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Dokument-ID prüfen: beschnitten, 1–500 Zeichen, eine Zeile ohne Steuerzeichen.
+/// Check the document id: trimmed, 1–500 characters, one line without control characters.
 pub fn checked_document(document: &str) -> Result<String, RpcError> {
     let document = document.trim();
     if document.is_empty() || document.chars().count() > 500 || document.chars().any(char::is_control) {
@@ -102,7 +102,7 @@ pub fn checked_document(document: &str) -> Result<String, RpcError> {
     Ok(document.to_owned())
 }
 
-/// Sammlung prüfen: beschnitten, höchstens 200 Zeichen, eine Zeile (leer = unbekannt).
+/// Check the collection: trimmed, at most 200 characters, one line (empty = unknown).
 pub fn checked_collection(collection: Option<&str>) -> Result<String, RpcError> {
     let collection = collection.unwrap_or("").trim();
     if collection.chars().count() > 200 || collection.chars().any(char::is_control) {
@@ -111,7 +111,7 @@ pub fn checked_collection(collection: Option<&str>) -> Result<String, RpcError> 
     Ok(collection.to_owned())
 }
 
-/// Ein Zeichen für den Vergleich ohne Groß-/Kleinschreibung (eins zu eins, damit Stellen gleich bleiben).
+/// One character for the case-insensitive comparison (one to one, so that positions stay the same).
 fn fold(c: char) -> char {
     c.to_lowercase().next().unwrap_or(c)
 }
@@ -131,18 +131,19 @@ fn find_all(text: &[char], needle: &[char], out: &mut Vec<[usize; 2]>) {
     }
 }
 
-/// Runde 23a (Codereview ki-1): Höchstlänge der Suchanfrage `q` zum Markieren im Volltext (Zeichen). `source.read`
-/// (RPC, MCP `source_read`) lehnt längere ab; [`marks`] kürzt für alle übrigen Aufrufer.
+/// Round 23a (code review ki-1): maximum length of the search query `q` for marking in the full text (characters).
+/// `source.read` (RPC, MCP `source_read`) refuses longer ones; [`marks`] shortens for all other callers.
 pub const MAX_MARK_QUERY_CHARS: usize = 500;
 
-/// Runde 23a (Codereview ki-1): Höchstzahl verschiedener Wörter, die [`marks`] einzeln sucht. Jedes Wort ohne Treffer
-/// kostet einen Durchgang durch den ganzen Teiltext; ohne Grenze belegte eine Anfrage aus Millionen nicht
-/// vorkommender Wörter einen Arbeitsfaden minutenlang.
+/// Round 23a (code review ki-1): maximum number of different words that [`marks`] searches individually. Every
+/// word without a hit costs one pass through the whole part text; without a limit a request made of millions of
+/// words that do not occur would occupy a worker thread for minutes.
 pub const MAX_MARK_WORDS: usize = 20;
 
-/// Fundstellen von `q` in `text` (ohne Groß-/Kleinschreibung), als Zeichenbereiche: erst die ganze Anfrage;
-/// kommt sie nicht vor, jedes Wort ab drei Zeichen. Sortiert, ohne Überlappung, höchstens 200. Die Anfrage zählt bis
-/// [`MAX_MARK_QUERY_CHARS`] Zeichen, einzeln gesucht werden höchstens [`MAX_MARK_WORDS`] verschiedene Wörter.
+/// Passages of `q` in `text` (case-insensitive), as character ranges: first the whole query;
+/// if it does not occur, every word of three characters or more. Sorted, without overlap, at most 200. The query
+/// counts up to [`MAX_MARK_QUERY_CHARS`] characters, at most [`MAX_MARK_WORDS`] different words are searched
+/// individually.
 pub fn marks(text: &str, q: Option<&str>) -> Vec<[usize; 2]> {
     let Some(q) = q.map(str::trim).filter(|q| !q.is_empty()) else { return Vec::new() };
     let q: String = q.chars().take(MAX_MARK_QUERY_CHARS).collect();
@@ -177,14 +178,14 @@ pub fn marks(text: &str, q: Option<&str>) -> Vec<[usize; 2]> {
     out
 }
 
-/// Ein Stück Text, ggf. als Fundstelle markiert (für die Vorlagen).
+/// A piece of text, possibly marked as a passage (for the templates).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Piece {
     pub text: String,
     pub mark: bool,
 }
 
-/// Text an den Fundstellen zerlegen.
+/// Split the text at the passages.
 pub fn pieces(text: &str, marks: &[[usize; 2]]) -> Vec<Piece> {
     let chars: Vec<char> = text.chars().collect();
     let mut out = Vec::new();
@@ -205,7 +206,7 @@ pub fn pieces(text: &str, marks: &[[usize; 2]]) -> Vec<Piece> {
     out
 }
 
-/// Fehler der Gegenstelle als RPC-Fehler: ungültige Angaben → -32602, sonst -32000 mit ehrlichem Satz.
+/// Error of the remote side as an RPC error: invalid input → -32602, otherwise -32000 with an honest sentence.
 fn unavailable(e: &RagError) -> RpcError {
     match e {
         RagError::Invalid(m) => invalid(m.clone()),
@@ -213,7 +214,7 @@ fn unavailable(e: &RagError) -> RpcError {
     }
 }
 
-/// Einen Teil lesen (`source.read`, `source_read`, Seiten). Titel ohne Verknüpfung → -32602.
+/// Read one part (`source.read`, `source_read`, pages). Title without a link → -32602.
 pub async fn read(state: &AppState, target: &Target, part: usize, q: Option<&str>) -> Result<Reading, RpcError> {
     if part == 0 {
         return Err(invalid("part: Teile zählen ab 1."));
@@ -223,7 +224,7 @@ pub async fn read(state: &AppState, target: &Target, part: usize, q: Option<&str
         Target::Title(id) => {
             let entry = baruch_library::get_title(pool, *id).await?;
             let Some(remote) = title_remote(pool, *id).await? else {
-                // Runde 21a: lokaler Volltext einer importierten Quelle (ohne MultiGPT).
+                // Round 21a: local full text of an imported source (without MultiGPT).
                 if let Some(text) = baruch_library::title_text(pool, *id).await? {
                     return read_imported(state, &entry, &text, part, q).await;
                 }
@@ -302,11 +303,11 @@ pub async fn read(state: &AppState, target: &Target, part: usize, q: Option<&str
     }
 }
 
-/// Herkunft eines Teils aus dem lokalen Volltext einer importierten Quelle (Runde 21a).
+/// Origin of a part from the local full text of an imported source (Round 21a).
 pub const ORIGIN_IMPORT: &str = "import";
 
-/// Teil des lokalen Volltexts einer importierten Quelle (`library_title_text`), geteilt wie eine lokale Kopie
-/// ([`local_part`]); Hinweis nennt Datei und Datum, nie MultiGPT.
+/// Part of the local full text of an imported source (`library_title_text`), split like a local copy
+/// ([`local_part`]); the notice names file and date, never MultiGPT.
 async fn read_imported(
     state: &AppState,
     entry: &TitleEntry,
@@ -342,9 +343,9 @@ async fn read_imported(
     })
 }
 
-/// Hat der Titel einen Volltext (Verknüpfung mit MultiGPT oder lokaler Volltext aus einem Import, Runde 21a)?
-/// Für die Dokumentansicht `/quelle` (`literature.rs`, `source_page`): Statt nur `title_remote` zu prüfen, zeigt sie
-/// mit dieser Funktion auch den lokalen Volltext in Teilen und bietet Anfang/Ende im Volltext an.
+/// Does the title have a full text (link with MultiGPT or local full text from an import, Round 21a)?
+/// For the document view `/quelle` (`literature.rs`, `source_page`): instead of checking only `title_remote`, with
+/// this function it also shows the local full text in parts and offers start/end in the full text.
 pub async fn has_fulltext(state: &AppState, title_id: i64) -> Result<bool, RpcError> {
     let pool = state.store.pool();
     if title_remote(pool, title_id).await?.is_some() {
@@ -353,7 +354,7 @@ pub async fn has_fulltext(state: &AppState, title_id: i64) -> Result<bool, RpcEr
     Ok(baruch_library::title_text(pool, title_id).await?.is_some())
 }
 
-/// Zitierschlüssel aus einem Titel: `mg-` und Kleinbuchstaben/Ziffern/Bindestriche (höchstens 40 Zeichen).
+/// Citation key from a title: `mg-` and lower-case letters/digits/hyphens (at most 40 characters).
 fn key_base(title: &str) -> String {
     let mut slug = String::new();
     for c in title.chars().flat_map(char::to_lowercase) {
@@ -377,10 +378,10 @@ fn key_base(title: &str) -> String {
     if slug.is_empty() { "mg-dokument".to_owned() } else { format!("mg-{slug}") }
 }
 
-/// Ein Dokument aus MultiGPT in die Autorenbibliothek übernehmen (`source.adopt`; nur der Mensch über RPC und
-/// Formular, nie über MCP): Titel mit Angaben aus `document_info` (fehlen sie oder ist MultiGPT nicht
-/// erreichbar, die Dokument-ID), Verknüpfung in `library_title_remote`, danach meldet sich die Bibliothek beim
-/// Index (`rag::notify(state, None)`). Ist das Dokument schon übernommen, bleibt es bei dem einen Titel.
+/// Adopt a document from MultiGPT into the author's library (`source.adopt`; only the human through RPC and
+/// form, never through MCP): title with details from `document_info` (if they are missing or MultiGPT is not
+/// reachable, the document id), link in `library_title_remote`, afterwards the library reports to the
+/// index (`rag::notify(state, None)`). If the document is already adopted, it stays with the one title.
 pub async fn adopt(
     state: &AppState,
     document: &str,
@@ -444,20 +445,21 @@ pub async fn adopt(
     Ok((baruch_library::get_title(pool, id).await?, remote))
 }
 
-/// Ist die Hervorhebung prüfbar (ohne Zitat, mit Zeichenbereich)?
+/// Can the highlight be checked (without a quote, with a character range)?
 pub fn checkable(h: &Highlight) -> bool {
     h.quote_id.is_none() && h.start.is_some() && h.end.is_some()
 }
 
-/// Hervorhebung ohne Zitat gegen den Volltext ihrer Quelle prüfen und das Ergebnis speichern: gefunden bzw.
-/// nicht gefunden nur mit Volltext (MultiGPT, sonst die lokale Kopie, dann mit Hinweis), sonst „nicht prüfbar“
-/// mit Grund. Nicht prüfbare Hervorhebungen (mit Zitat oder ohne Bereich) → `None`, nichts gespeichert.
+/// Check a highlight without a quote against the full text of its source and store the result: found or
+/// not found only with a full text (MultiGPT, otherwise the local copy, then with a notice), otherwise „nicht
+/// prüfbar“ with a reason. Highlights that cannot be checked (with a quote or without a range) → `None`, nothing
+/// stored.
 pub async fn check_highlight(state: &AppState, h: &Highlight) -> Result<Option<HighlightCheck>, RpcError> {
     let (Some(start), Some(end), None) = (h.start, h.end, h.quote_id) else { return Ok(None) };
     let pool = state.store.pool();
     let (result, message) = match title_remote(pool, h.title_id).await? {
         None => match baruch_library::title_text(pool, h.title_id).await? {
-            // Runde 21a: lokaler Volltext einer importierten Quelle.
+            // Round 21a: local full text of an imported source.
             Some(text) => (
                 check_range(&text.text, start, end, &h.text),
                 format!("Geprüft gegen den lokalen Volltext aus „{}“.", text.source_name),

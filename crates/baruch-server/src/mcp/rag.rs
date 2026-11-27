@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge der Bedeutungssuche (Vertrag Runde 12, §7): `rag_search` und `rag_status`, beide nur
-//! lesend. Herkunft der Suche ist der Client (`@mcp:<name>`). Welche Wege ein Werk fragt (LanceDB, pgvector,
-//! MultiGPT) und welche Sammlungen, wählt nur der Mensch (Einstellungen → Verbindungen); `ways` schränkt
-//! nur ein. Einen Neuaufbau des Index gibt es über MCP nicht. Beide Werkzeuge laufen über die Haken
-//! [`crate::assist::hooks::rag_search`] bzw. [`crate::assist::hooks::rag_status`].
+//! MCP tools of the semantic search (contract Round 12, §7): `rag_search` and `rag_status`, both
+//! read-only. The origin of the search is the client (`@mcp:<name>`). Which ways a work asks (LanceDB, pgvector,
+//! MultiGPT) and which collections is chosen only by the human (Einstellungen → Verbindungen); `ways` only
+//! restricts. There is no rebuild of the index through MCP. Both tools run through the hooks
+//! [`crate::assist::hooks::rag_search`] and [`crate::assist::hooks::rag_status`].
 
 use baruch_rag::{DEFAULT_LIMIT, MAX_LIMIT, MAX_QUERY_CHARS, SearchRequest, Way};
 use serde::Deserialize;
@@ -48,8 +48,8 @@ struct Args {
     limit: Option<i64>,
 }
 
-/// Geprüfte Anfrage (ohne Werk): Anfrage beschnitten 1..=[`MAX_QUERY_CHARS`] Zeichen, Wege bekannt,
-/// Trefferzahl 1..=[`MAX_LIMIT`]. Fehler sind Meldungen für `isError`.
+/// Checked request (without a work): query trimmed 1..=[`MAX_QUERY_CHARS`] characters, ways known,
+/// number of hits 1..=[`MAX_LIMIT`]. Errors are messages for `isError`.
 pub fn checked(
     query: Option<&str>,
     ways: Option<&[String]>,

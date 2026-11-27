@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Registerseite ohne JavaScript (Runde 31c, Vertrag §3.4; Besitz kontextmenue).
+//! Index page without JavaScript (Round 31c, contract §3.4; owned by kontextmenue).
 //!
-//! - `GET /werke/{id}/register` (Query `key` = Abschnitt, dessen Registereinträge mit „Setzen“/„Entfernen“ oben
-//!   stehen, `ok` = Hinweis nach Erfolg): Übersicht je Register (`#register-{slug}`), offene Registervorschläge der
-//!   Assistenten (`#vorschlag-{id}`, gekennzeichnet, „Übernehmen“/„Verwerfen“ nur per Formular des Menschen),
-//!   entschiedene Vorschläge, eigene Register anlegen/umbenennen/löschen (eingebaute nur anzeigen).
+//! - `GET /werke/{id}/register` (query `key` = section whose index entries with „Setzen“/„Entfernen“ stand at the
+//!   top, `ok` = notice after success): overview per index (`#register-{slug}`), open index proposals of the
+//!   assistants (`#vorschlag-{id}`, labelled, „Übernehmen“/„Verwerfen“ only through a form of the human),
+//!   decided proposals, create/rename/delete own indexes (built-in ones are only shown).
 //! - `POST /werke/{id}/register/act` (`action` = mark|unmark|accept|reject|register_add|register_rename|register_delete;
-//!   Felder key, rev, word, occurrence, register, term, sub, see, also, start, end, id, slug, title, confirm, back) →
-//!   303 auf `back` (sonst die Registerseite) mit `ok=<action>`, Fehler 422 mit der Registerseite samt Meldung und den
-//!   Eingaben.
+//!   fields key, rev, word, occurrence, register, term, sub, see, also, start, end, id, slug, title, confirm, back) →
+//!   303 to `back` (otherwise the index page) with `ok=<action>`, error 422 with the index page including the message
+//!   and the inputs.
 //!
-//! Keine eigene Datenhaltung: nur [`crate::index_marks`] (Marken, Übersicht) und [`crate::glossary`] (Register,
-//! Vorschläge); deren Meldungen erscheinen ehrlich auf der Seite.
+//! No data storage of its own: only [`crate::index_marks`] (marks, overview) and [`crate::glossary`] (indexes,
+//! proposals); their messages appear honestly on the page.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
@@ -46,7 +46,7 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Hinweis zu `ok` nach einer Aktion der Registerseite (auch auf der Seite „an der Markierung“).
+/// Notice for `ok` after an action of the index page (also on the page „an der Markierung“).
 pub(crate) fn ok_message(ok: &str) -> Option<&'static str> {
     Some(match ok {
         "mark" => "Registermarke gesetzt – als neue Fassung des Abschnitts.",
@@ -60,7 +60,7 @@ pub(crate) fn ok_message(ok: &str) -> Option<&'static str> {
     })
 }
 
-/// Ein abgelehntes Formular: Aktion, Eingaben und Meldung.
+/// A refused form: action, inputs and message.
 #[derive(Debug, Clone, Default)]
 struct Retry {
     action: String,
@@ -68,7 +68,7 @@ struct Retry {
     message: String,
 }
 
-/// Register für die Vorlage: slug, title, kind, builtin.
+/// Index for the template: slug, title, kind, builtin.
 fn register_view(register: &Register) -> Value {
     let builtin = builtin_registers().iter().any(|b| b.slug == register.slug);
     json!({ "slug": register.slug, "title": register.title, "kind": register.kind, "builtin": builtin })
@@ -90,12 +90,12 @@ async fn index_page(
         Ok(list) => list,
         Err(_) => builtin_registers(),
     };
-    // Übersicht je Register (über index_marks::overview), in der Reihenfolge der Register.
+    // Overview per index (through index_marks::overview), in the order of the indexes.
     let (overview, overview_error) = match crate::index_marks::overview(state, work).await {
         Ok(views) => (views, None),
         Err(e) => (Vec::new(), Some(e.message)),
     };
-    // Fundstellen und Vorschläge nennen den Abschnitt mit Nummer und Titel statt des inneren Schlüssels (Sichtprüfung R31).
+    // Locations and proposals name the section with number and title instead of the inner key (visual check R31).
     let loaded = state.store.load_work(work).await.ok();
     let label_of = |key: i64| -> String {
         loaded
@@ -147,7 +147,7 @@ async fn index_page(
         .collect();
     let (open, decided): (Vec<Value>, Vec<Value>) =
         proposals.into_iter().partition(|p| p.get("status").and_then(Value::as_str) == Some("open"));
-    // Abschnitt aus `key`: Einträge seiner aktuellen Fassung und ein Formular zum Setzen.
+    // Section from `key`: entries of its current revision and a form for setting.
     let key = query.get("key").and_then(|k| k.trim().parse::<i64>().ok());
     let mut section = None;
     if let Some(key) = key
@@ -194,12 +194,12 @@ async fn page(
     index_page(&state, &headers, work, &query, None, StatusCode::OK).await
 }
 
-/// Zahl aus dem Formular oder Meldung mit Feldname.
+/// Number from the form or a message with the field name.
 fn number<T: std::str::FromStr>(fields: &[(String, String)], name: &str, label: &str) -> Result<T, String> {
     field(fields, name).trim().parse::<T>().map_err(|_| format!("{label}: keine gültige Zahl (Feld {name})."))
 }
 
-/// Marke aus dem Formular (Register-Vorgabe „stichwort“, Stichwort-Vorgabe das Wort), geprüft wie im Satz.
+/// Mark from the form (index default „stichwort“, term default the word), checked as in typesetting.
 fn mark_from(fields: &[(String, String)]) -> Result<IndexMark, String> {
     let get = |name: &str| field(fields, name).trim().to_owned();
     let register = Some(get("register")).filter(|r| !r.is_empty()).unwrap_or_else(|| "stichwort".to_owned());
@@ -209,7 +209,7 @@ fn mark_from(fields: &[(String, String)]) -> Result<IndexMark, String> {
     Ok(mark)
 }
 
-/// `POST /werke/{id}/register/act` → 303 bzw. 422.
+/// `POST /werke/{id}/register/act` → 303 or 422.
 async fn act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -312,12 +312,12 @@ async fn act(
     }
 }
 
-/// Seiten (`GET /werke/{id}/register`).
+/// Pages (`GET /werke/{id}/register`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/register", get(page))
 }
 
-/// Schreibende Routen (`POST /werke/{id}/register/act`, hinter `guard::same_origin`).
+/// Writing routes (`POST /werke/{id}/register/act`, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/register/act", post(act))
 }

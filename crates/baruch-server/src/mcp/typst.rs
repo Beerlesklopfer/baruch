@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `typst_check` (Vertrag Runde 8, Abschnitt 4d): das Werk mit Typst setzen und
-//! Fehler und Warnungen mit Abschnitt melden. Nur lesend – es ändert nichts und schreibt keinen
-//! Commit; der Lauf ist derselbe wie für `preview.typst` ([`crate::typeset`]: Zwischenspeicher,
-//! eine Sperre, Zeitlimit 60 s).
+//! MCP tool `typst_check` (contract Round 8, section 4d): typeset the work with Typst and
+//! report errors and warnings with their section. Read-only – it changes nothing and writes no
+//! commit; the run is the same as for `preview.typst` ([`crate::typeset`]: cache,
+//! one lock, time limit 60 s).
 
 use serde::Deserialize;
 use serde_json::{Value, json};

@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Tokens für den MCP-Zugang von anderen Rechnern (Runde 10, Aufgabe „scripture“): RPC
-//! `mcp_token.list`, `mcp_token.create`, `mcp_token.revoke`. Gespeichert wird nur der SHA-256-Hash
-//! ([`baruch_store::Store::mcp_token_create`]); den Klartext trägt genau eine Antwort, die von
-//! `mcp_token.create`. Nur der Mensch verwaltet Tokens: nicht über `POST /act` und nicht über MCP.
-//! Ohne JavaScript dasselbe über die Einstellungsseite „MCP-Zugang“ (`POST /einstellungen/mcp/act`).
+//! Tokens for MCP access from other machines (Round 10, task „scripture“): RPC
+//! `mcp_token.list`, `mcp_token.create`, `mcp_token.revoke`. Only the SHA-256 hash is stored
+//! ([`baruch_store::Store::mcp_token_create`]); exactly one answer carries the plain text, that of
+//! `mcp_token.create`. Only the human manages tokens: not through `POST /act` and not through MCP.
+//! Without JavaScript the same through the settings page „MCP-Zugang“ (`POST /einstellungen/mcp/act`).
 //!
-//! Runde 23: RPC und Formular legen über [`create`] an. Ein Name, dessen Handle ([`super::session::handle_name`]) oder
-//! Alt-Handle ([`super::session::legacy_handle_name`]) dem eines vorhandenen oder widerrufenen Tokens gleicht oder mit
-//! `lokal-` beginnt, wird abgelehnt (`StoreError::Refused`, RPC -32000, Formular 422); nichts angelegt.
+//! Round 23: RPC and form create through [`create`]. A name whose handle ([`super::session::handle_name`]) or
+//! legacy handle ([`super::session::legacy_handle_name`]) equals that of an existing or revoked token or begins
+//! with `lokal-` is refused (`StoreError::Refused`, RPC -32000, form 422); nothing created.
 
 use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Token anlegen, eindeutig im Handle (Runde 23, siehe Moduldoku); der einzige Weg von RPC und Formular.
+/// Create a token, unique in its handle (Round 23, see the module doc); the only path of RPC and form.
 pub async fn create(
     store: &baruch_store::Store,
     name: &str,
@@ -25,7 +25,7 @@ pub async fn create(
 
 const METHODS: &[&str] = &["mcp_token.list", "mcp_token.create", "mcp_token.revoke"];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }

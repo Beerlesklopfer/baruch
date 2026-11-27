@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Warteschlange je MCP-Client (Runde 15, Befund aus dem Gutachten zu Runde 10): Die Modell-Warteschlange ist
-//! gemeinsam (eine laufende Anfrage je Endpunkt, wenige wartende); ein einzelner Token-Inhaber könnte sie mit
-//! `chat` füllen. Darum darf jeder Client höchstens [`MAX_PER_CLIENT`] Modellaufträge (`chat`, `ask_persona`)
-//! zugleich laufen bzw. warten lassen; der nächste bekommt sofort `isError` mit [`busy_message`], ohne dass eine
-//! Anfrage an das Modell geht. Andere Clients sind davon nicht betroffen.
+//! Queue per MCP client (Round 15, finding from the review of Round 10): the model queue is
+//! shared (one running request per endpoint, a few waiting); a single token holder could fill it with
+//! `chat`. Therefore every client may have at most [`MAX_PER_CLIENT`] model jobs (`chat`, `ask_persona`)
+//! running or waiting at the same time; the next one immediately gets `isError` with [`busy_message`], without a
+//! request going to the model. Other clients are not affected by this.
 //!
-//! Gezählt wird je Server (Adresse seines `AppState`; ein Prozess kann mehrere tragen, etwa die Tests) und
-//! Client-Handle (`@mcp:<name>`, bei Token der Tokenname); ein [`Slot`] gibt seinen Platz frei, sobald er fällt –
-//! auch wenn der Auftrag abbricht (Fallenlassen des Futures).
+//! Counting is per server (address of its `AppState`; one process can carry several, for instance the tests) and
+//! client handle (`@mcp:<name>`, with a token the token name); a [`Slot`] releases its place as soon as it is
+//! dropped – even if the job aborts (dropping the future).
 //!
-//! Nachbesserung Runde 23: Ein Client **ohne** Token wählt seinen Namen bei jedem `initialize` frei und bekäme mit
-//! jedem neuen Namen zwei frische Plätze. Darum teilen sich alle Clients ohne Token zusätzlich
-//! [`MAX_WITHOUT_TOKEN`] Plätze (Schlüssel [`WITHOUT_TOKEN`], kein gültiger Handle); die Grenze je Name bleibt.
-//! Ein Token ist davon nicht betroffen – sein Name steht fest.
+//! Follow-up fix Round 23: a client **without** a token chooses its name freely at every `initialize` and would get
+//! two fresh places with every new name. Therefore all clients without a token additionally share
+//! [`MAX_WITHOUT_TOKEN`] places (key [`WITHOUT_TOKEN`], not a valid handle); the limit per name stays.
+//! A token is not affected by this – its name is fixed.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-/// Höchstens so viele laufende oder wartende Modellaufträge je MCP-Client.
+/// At most this many running or waiting model jobs per MCP client.
 pub const MAX_PER_CLIENT: usize = 2;
 
-/// Höchstens so viele laufende oder wartende Modellaufträge aller Clients **ohne** Token zusammen. Die gemeinsame
-/// Modell-Warteschlange fasst eine laufende und acht wartende Anfragen (`baruch_llm::MAX_WAITING`); so bleibt auch
-/// bei wechselnden Namen Platz für den Menschen und für Clients mit Token.
+/// At most this many running or waiting model jobs of all clients **without** a token together. The shared
+/// model queue holds one running and eight waiting requests (`baruch_llm::MAX_WAITING`); this leaves room
+/// for the human and for clients with a token even with changing names.
 pub const MAX_WITHOUT_TOKEN: usize = 4;
 
-/// Zählschlüssel der Clients ohne Token (kein Handle: Handles beginnen mit `@mcp:`).
+/// Counting key of the clients without a token (not a handle: handles begin with `@mcp:`).
 pub const WITHOUT_TOKEN: &str = "ohne Token";
 
-/// Schlüssel: Server (Adresse seines Zustands) und Client.
+/// Key: server (address of its state) and client.
 type QuotaKey = (usize, String);
 
 fn counts() -> &'static Mutex<HashMap<QuotaKey, usize>> {
@@ -40,7 +40,7 @@ fn key(state: &crate::AppState, client: &str) -> QuotaKey {
     (std::ptr::from_ref(state) as usize, client.to_owned())
 }
 
-/// Ehrliche Meldung, wenn ein Client schon [`MAX_PER_CLIENT`] Aufträge laufen hat.
+/// Honest message when a client already has [`MAX_PER_CLIENT`] jobs running.
 pub fn busy_message(client: &str) -> String {
     format!(
         "{client} already has {MAX_PER_CLIENT} model jobs (chat, ask_persona) running or waiting; this one was not \
@@ -48,7 +48,7 @@ pub fn busy_message(client: &str) -> String {
     )
 }
 
-/// Ehrliche Meldung, wenn die Clients ohne Token zusammen schon [`MAX_WITHOUT_TOKEN`] Aufträge laufen haben.
+/// Honest message when the clients without a token together already have [`MAX_WITHOUT_TOKEN`] jobs running.
 pub fn group_busy_message() -> String {
     format!(
         "The clients without a token together already have {MAX_WITHOUT_TOKEN} model jobs (chat, ask_persona) running \
@@ -57,7 +57,7 @@ pub fn group_busy_message() -> String {
     )
 }
 
-/// Platz eines laufenden Auftrags; gibt ihn beim Fallen frei (ohne Token auch den gemeinsamen).
+/// Place of a running job; releases it when dropped (without a token also the shared one).
 #[derive(Debug)]
 pub struct Slot {
     keys: Vec<QuotaKey>,
@@ -77,9 +77,9 @@ impl Drop for Slot {
     }
 }
 
-/// Einen Platz für `client` an diesem Server nehmen; voll → `Err` mit [`busy_message`] (Grenze je Client) bzw.
-/// [`group_busy_message`] (gemeinsame Grenze der Clients ohne Token). Beide Zähler ändern sich unter einer Sperre:
-/// ein abgelehnter Auftrag belegt nichts.
+/// Take a place for `client` on this server; full → `Err` with [`busy_message`] (limit per client) or
+/// [`group_busy_message`] (shared limit of the clients without a token). Both counters change under one lock:
+/// a refused job occupies nothing.
 pub fn acquire(state: &crate::AppState, client: &crate::mcp::session::Client) -> Result<Slot, String> {
     let handle = client.handle();
     let own = key(state, &handle);
@@ -101,7 +101,7 @@ pub fn acquire(state: &crate::AppState, client: &crate::mcp::session::Client) ->
     Ok(Slot { keys })
 }
 
-/// Laufende bzw. wartende Aufträge eines Clients an diesem Server (für Tests und Meldungen).
+/// Running or waiting jobs of a client on this server (for tests and messages).
 pub fn in_flight(state: &crate::AppState, client: &str) -> usize {
     counts().lock().expect("Zähler der MCP-Warteschlange").get(&key(state, client)).copied().unwrap_or(0)
 }

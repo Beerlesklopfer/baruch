@@ -1,59 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Beiträge im Abschnitts-Chat verwalten (Vertrag Runde 8, 3d): löschen, verschieben, in einen
-//! Einfall umwandeln – über RPC, über das Formular `POST /beitraege/act` (ohne JavaScript) und für
-//! MCP über [`act`] mit der Regel „nur eigene“.
+//! Manage posts in the section chat (contract Round 8, 3d): delete, move, convert into an
+//! idea – through RPC, through the form `POST /beitraege/act` (without JavaScript) and for
+//! MCP through [`act`] with the rule „nur eigene“.
 //!
-//! RPC ([`handles`], [`call`]; aus `rpc::call` heraus, alle nehmen `work?`; Handelnder ist der Mensch):
+//! RPC ([`handles`], [`call`]; called from `rpc::call`, all take `work?`; the actor is the human):
 //! - `post.delete {id, confirm: true}` → `{id, node, key, deleted: {author, body}, commit?|mirror?}`;
-//!   ohne `confirm: true` → -32602
+//!   without `confirm: true` → -32602
 //! - `post.move {id, target_key | target}` → `{id, node, key, from_node, from_key, commit?|mirror?}`
-//!   (ans Ende des Ziels; gleiches Ziel → -32000)
-//! - `post.to_idea {id, words}` → `{id, idea, node, key, commit?|mirror?}` (`words` wie bei
-//!   `idea.create`: Liste oder Text „a, b; c“)
+//!   (to the end of the target; same target → -32000)
+//! - `post.to_idea {id, words}` → `{id, idea, node, key, commit?|mirror?}` (`words` as for
+//!   `idea.create`: list or text „a, b; c“)
 //!
-//! Regeln: Beiträge sind kein Buchtext. Der Mensch darf jeden Beitrag verwalten, MCP-Clients und
-//! Personas nur ihre eigenen (Autor = Persona-Handle aus `persona` bzw. sonst `@mcp:<name>`), geprüft
-//! hier unter der Schreibsperre, bevor sich etwas ändert. Jede Aktion läuft unter
-//! [`AppState::write_lock`] und ergibt genau einen Commit im Spiegel des Werks
-//! ([`mirror::record_post`]); die Umwandlung ist **ein** Commit, dessen Schnappschuss schon den
-//! neuen Einfall in `einfaelle.md` enthält.
+//! Rules: posts are not book text. The human may manage every post, MCP clients and
+//! personas only their own (author = persona handle from `persona` or otherwise `@mcp:<name>`), checked
+//! here under the write lock before anything changes. Every action runs under
+//! [`AppState::write_lock`] and yields exactly one commit in the mirror of the work
+//! ([`mirror::record_post`]); the conversion is **one** commit whose snapshot already contains the
+//! new idea in `einfaelle.md`.
 //!
-//! Runde 28 (chat-auftrag): Chat bedienbar machen.
-//! - `post.edit {id, body}` → `{id, key, edited, body, versions, url, commit?|mirror?}`: nur Beiträge des Menschen
-//!   (Autor „Autor“); über MCP `post_edit` nur eigene (`@mcp:<name>`). Beiträge von Personas sind nie bearbeitbar
-//!   (nur kopieren, zitieren, in Einfall oder Befund umwandeln). Die alte Fassung bleibt als `post_version`;
-//!   genau ein Commit „Beitrag <id>: bearbeitet“ mit Text vorher und nachher ([`mirror::PostAction::Edit`]).
-//! - `post.versions {id}` → `{id, versions}` (älteste zuerst).
-//! - `post.page {key, before?, limit?}` → `{posts, older}`: die bis zu `limit` (1–200, Vorgabe [`CHAT_PAGE_POSTS`])
-//!   Beiträge vor dem Beitrag `before` (ohne: die neuesten); `older` = wie viele davor noch stehen.
-//! - `post.to_findings {id}` → `{id, findings, attached}`: Befunde aus dem Beitrag über
-//!   [`crate::findings::ingest`] mit `manual = true` (ohne Marken ein Hinweis mit dem ganzen Text); der Beitrag
-//!   bleibt unverändert, kein Commit (das Anlegen von Befunden ist keiner, Vertrag R28 §1.2).
-//! - Seiten ohne JavaScript ([`pages`]): `GET /beitraege?work&key` (ganze Chat-Historie, Anker `#post-<id>` und
-//!   `#chat-neueste`), `GET /beitrag?work&id` (Text in einem markierbaren, schreibgeschützten Feld zum Kopieren,
-//!   „Zitieren“ als eigenes Chat-Formular mit „> …“, Bearbeiten eigener Beiträge, Verlauf, „In Befund umwandeln“).
-//!   `POST /beitraege/act` nimmt dazu `post.edit` (Feld `body`) und `post.to_findings`; `back=post` führt danach
-//!   auf die Beitragsseite zurück.
-//! - Der Abschnitts-Chat zeigt nur die neuesten [`CHAT_PAGE_POSTS`] ([`visible_range`]); ältere lädt das Widget
-//!   über `post.page` nach, ohne JavaScript führt ein Link auf `/beitraege`.
+//! Round 28 (chat-auftrag): make the chat operable.
+//! - `post.edit {id, body}` → `{id, key, edited, body, versions, url, commit?|mirror?}`: only posts of the human
+//!   (author „Autor“); through MCP `post_edit` only own ones (`@mcp:<name>`). Posts of personas can never be edited
+//!   (only copy, quote, convert into an idea or finding). The old revision stays as `post_version`;
+//!   exactly one commit „Beitrag <id>: bearbeitet“ with the text before and after ([`mirror::PostAction::Edit`]).
+//! - `post.versions {id}` → `{id, versions}` (oldest first).
+//! - `post.page {key, before?, limit?}` → `{posts, older}`: the up to `limit` (1–200, default [`CHAT_PAGE_POSTS`])
+//!   posts before the post `before` (without: the newest); `older` = how many still stand before them.
+//! - `post.to_findings {id}` → `{id, findings, attached}`: findings from the post through
+//!   [`crate::findings::ingest`] with `manual = true` (without marks one note with the whole text); the post
+//!   stays unchanged, no commit (creating findings is none, contract R28 §1.2).
+//! - Pages without JavaScript ([`pages`]): `GET /beitraege?work&key` (whole chat history, anchors `#post-<id>` and
+//!   `#chat-neueste`), `GET /beitrag?work&id` (text in a selectable, read-only field for copying,
+//!   „Zitieren“ as a chat form of its own with „> …“, editing own posts, history, „In Befund umwandeln“).
+//!   `POST /beitraege/act` additionally takes `post.edit` (field `body`) and `post.to_findings`; `back=post` then
+//!   leads back to the post page.
+//! - The section chat shows only the newest [`CHAT_PAGE_POSTS`] ([`visible_range`]); the widget loads older ones
+//!   through `post.page`, without JavaScript a link leads to `/beitraege`.
 //!
-//! Runde 30c (chat-bedienung):
-//! - `post.repeat {id, rev?, basis?}` → `{post, url, repeat_of, basis, proposed_done, notes}` ([`repeat`]): dieselbe
-//!   Anfrage (Persona, Modus, Umfang, Text aus `PostMeta::request`) gegen die gezeigte (`rev`) bzw. nach `basis`
-//!   gewählte Fassung; der neue Beitrag trägt `repeat_of`, der alte bleibt. Offene Befunde der alten Antwort, die in
-//!   der neuen nicht wiederkommen ([`crate::findings::parse::similar`]), schlägt die Persona als „erledigt“ vor
-//!   (`finding_propose_status` über [`crate::findings::rpc::propose`], je ein Commit). Rückfall für Beiträge ohne
-//!   gespeicherten Auftrag (vor Runde 30): die vorangehende Nachricht des Menschen bzw. eines MCP-Clients als Chat
-//!   ([`crate::chat_render::repeat_fallback`]); gibt es keine, kein Knopf und REFUSED. Runde 23: Der gespeicherte
-//!   Auftrag trägt auch Herkunft (`asker`), Websuche (`web`) und beim Relay die anredende Antwort (`relay`); die
-//!   Wiederholung übernimmt sie (ein Relay-Beitrag bleibt ein Relay-Beitrag mit `relay_from`), ältere Beiträge ohne
-//!   diese Felder wiederholen wie bisher (Websuche zugelassen, Fragender der Mensch, ohne Rahmen).
-//! - `post.since {key, after, rev?}` → `{posts: [{id, author, html}], typing, failures}` ([`since`]): Beiträge nach
-//!   `after` als fertiges HTML (Makro `post_entry` aus `fragments/post_item.html`, wie im Abschnitts-Chat), wer gerade
-//!   schreibt ([`crate::chat_live::typing_now`]) und Fehler gescheiterter Aufrufe ([`crate::chat_live::failures_now`]).
-//! - Formular `POST /beitraege/act` nimmt `post.repeat` (Felder `id`, `rev`, `basis`); „✕ Löschen“ ohne JavaScript
-//!   führt auf `/beitrag?work=W&id=N#loeschen` (Bestätigung mit Kästchen).
-//! - Die Seiten setzen Beiträge als Markdown-Teilset mit Links ([`crate::chat_render::render_post`]).
+//! Round 30c (chat-bedienung):
+//! - `post.repeat {id, rev?, basis?}` → `{post, url, repeat_of, basis, proposed_done, notes}` ([`repeat`]): the same
+//!   request (persona, mode, scope, text from `PostMeta::request`) against the revision shown (`rev`) or chosen by
+//!   `basis`; the new post carries `repeat_of`, the old one stays. Open findings of the old answer that do not
+//!   come back in the new one ([`crate::findings::parse::similar`]) are proposed by the persona as „erledigt“
+//!   (`finding_propose_status` through [`crate::findings::rpc::propose`], one commit each). Fallback for posts
+//!   without a stored request (before Round 30): the preceding message of the human or of an MCP client as a chat
+//!   ([`crate::chat_render::repeat_fallback`]); if there is none, no button and REFUSED. Round 23: the stored
+//!   request also carries origin (`asker`), web search (`web`) and, for the relay, the addressing answer (`relay`);
+//!   the repetition takes them over (a relay post stays a relay post with `relay_from`), older posts without
+//!   these fields repeat as before (web search allowed, asker the human, without a frame).
+//! - `post.since {key, after, rev?}` → `{posts: [{id, author, html}], typing, failures}` ([`since`]): posts after
+//!   `after` as finished HTML (macro `post_entry` from `fragments/post_item.html`, as in the section chat), who is
+//!   writing right now ([`crate::chat_live::typing_now`]) and errors of failed calls
+//!   ([`crate::chat_live::failures_now`]).
+//! - The form `POST /beitraege/act` takes `post.repeat` (fields `id`, `rev`, `basis`); „✕ Löschen“ without
+//!   JavaScript leads to `/beitrag?work=W&id=N#loeschen` (confirmation with a checkbox).
+//! - The pages typeset posts as a Markdown subset with links ([`crate::chat_render::render_post`]).
 
 use std::sync::Arc;
 
@@ -86,7 +87,7 @@ const METHODS: &[&str] = &[
     "post.since",
 ];
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -95,7 +96,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Ganzzahl aus `params[name]` (Zahl oder Ziffern als Text aus Formularen); fehlt oder leer → `None`.
+/// Integer from `params[name]` (number or digits as text from forms); missing or empty → `None`.
 fn int(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match params.get(name) {
@@ -111,7 +112,7 @@ fn id_param(params: &Value) -> Result<i64, RpcError> {
     int(params, "id")?.ok_or_else(|| invalid("id fehlt (Beitrag)"))
 }
 
-/// Gezeigte Fassung `rev` (ab 1); fehlt → `None`.
+/// Revision shown `rev` (from 1); missing → `None`.
 fn rev_param(params: &Value) -> Result<Option<u32>, RpcError> {
     match int(params, "rev")? {
         None => Ok(None),
@@ -119,14 +120,14 @@ fn rev_param(params: &Value) -> Result<Option<u32>, RpcError> {
     }
 }
 
-/// Ziel des Verschiebens: fester Schlüssel oder (Rückfall) Stelle.
+/// Target of the move: fixed key or (fallback) position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Target {
     Key(i64),
     Seq(usize),
 }
 
-/// Was mit dem Beitrag geschieht.
+/// What happens to the post.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Op {
     Delete,
@@ -134,14 +135,15 @@ pub(crate) enum Op {
     ToIdea(Vec<String>),
 }
 
-/// Wer handelt: der Mensch (darf alles) oder ein Assistent bzw. MCP-Client (nur eigene Beiträge). Bei MCP
-/// ist `origin` die Angabe des Clients, keine geprüfte Identität (docs/MCP.md).
+/// Who acts: the human (may do everything) or an assistant or MCP client (own posts only). With MCP
+/// `origin` is the statement of the client, not a checked identity (docs/MCP.md).
 #[derive(Debug, Clone)]
 pub(crate) struct Actor {
     pub origin: IdeaOrigin,
     pub only_own: bool,
-    /// Runde 23: weitere Autorennamen, deren Beiträge dem Handelnden gehören – der Alt-Handle eines Tokens
-    /// (`@mcp:laptop-k-che` neben `@mcp:laptop-kueche`, [`crate::mcp::session::Client::owned_handles`]). Sonst leer.
+    /// Round 23: further author names whose posts belong to the actor – the legacy handle of a token
+    /// (`@mcp:laptop-k-che` next to `@mcp:laptop-kueche`, [`crate::mcp::session::Client::owned_handles`]). Otherwise
+    /// empty.
     pub also: Vec<String>,
 }
 
@@ -150,9 +152,9 @@ impl Actor {
         Actor { origin: IdeaOrigin::Human { name: mirror::HUMAN_NAME.to_owned() }, only_own: false, also: Vec::new() }
     }
 
-    /// Runde 35: wer die laufende Anfrage stellt. Ein Lektor handelt als Mensch unter seinem Handle
-    /// (`@lektorat:<slug>`) und darf nur eigene Beiträge anfassen; alle anderen (ohne Konten, Autor) sind der Mensch
-    /// wie bisher ([`Actor::human`]). Nie in abgespaltenen Aufgaben aufrufen (siehe [`crate::auth::current`]).
+    /// Round 35: who makes the running request. A Lektor acts as a human under his handle
+    /// (`@lektorat:<slug>`) and may touch only his own posts; all others (without accounts, author) are the human
+    /// as before ([`Actor::human`]). Never call in spawned tasks (see [`crate::auth::current`]).
     pub(crate) fn current() -> Actor {
         match crate::auth::current().lektor() {
             Some(identity) => {
@@ -162,23 +164,23 @@ impl Actor {
         }
     }
 
-    /// Ein Mensch, der nur eigene Beiträge anfassen darf: ein Lektor (Runde 35).
+    /// A human who may touch only his own posts: a Lektor (Round 35).
     fn lektor(&self) -> bool {
         self.only_own && matches!(self.origin, IdeaOrigin::Human { .. })
     }
 
-    /// Ein Assistent bzw. MCP-Client, der nur eigene Beiträge anfassen darf.
+    /// An assistant or MCP client that may touch only its own posts.
     pub(crate) fn own(origin: IdeaOrigin, also: Vec<String>) -> Actor {
         Actor { origin, only_own: true, also }
     }
 
-    /// Gehört ein Beitrag des Autors `author` dem Handelnden? (Name der Herkunft oder einer aus [`Actor::also`].)
+    /// Does a post of the author `author` belong to the actor? (Name of the origin or one from [`Actor::also`].)
     pub(crate) fn owns(&self, author: &str) -> bool {
         author == self.origin.name() || self.also.iter().any(|a| a == author)
     }
 }
 
-/// Meldung, wenn ein MCP-Client oder eine Persona einen fremden Beitrag anfassen will.
+/// Message when an MCP client or a persona wants to touch a foreign post.
 pub(crate) fn not_own(post: &PostInfo, actor: &IdeaOrigin) -> String {
     format!(
         "Nur eigene Beiträge lassen sich über MCP verschieben, löschen oder umwandeln: Beitrag {} stammt von {}, \
@@ -189,7 +191,7 @@ pub(crate) fn not_own(post: &PostInfo, actor: &IdeaOrigin) -> String {
     )
 }
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the answer: `commit` for a new commit, `mirror` for an error.
 fn add_mirror(answer: &mut Value, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -198,14 +200,14 @@ fn add_mirror(answer: &mut Value, result: Result<Option<String>, String>) {
     }
 }
 
-/// Eine Aktion an Beitrag `id` im Werk `work` ausführen (RPC, Formular und MCP): unter der
-/// Schreibsperre lesen, Eigentum prüfen (`actor.only_own`), ändern, genau ein Commit.
+/// Carry out an action on post `id` in the work `work` (RPC, form and MCP): under the
+/// write lock read, check ownership (`actor.only_own`), change, exactly one commit.
 pub(crate) async fn act(state: &AppState, work: WorkId, id: i64, op: Op, actor: &Actor) -> Result<Value, RpcError> {
     let store = &state.store;
     let held = state.write_lock.lock().await;
     let before = store.post_get(work, id).await?;
     if actor.only_own && !actor.owns(&before.author) {
-        // Runde 35: ein Lektor bekommt dieselbe Meldung wie beim Bearbeiten (die MCP-Meldung passte nicht zu ihm).
+        // Round 35: a Lektor gets the same message as when editing (the MCP message did not fit him).
         let message = if actor.lektor() {
             not_editable(id, &before.author, actor.origin.name())
         } else {
@@ -256,7 +258,7 @@ pub(crate) async fn act(state: &AppState, work: WorkId, id: i64, op: Op, actor: 
     Ok(answer)
 }
 
-/// Aktion aus RPC-Parametern (`id`, `confirm`, `target_key`/`target`, `words`).
+/// Action from RPC parameters (`id`, `confirm`, `target_key`/`target`, `words`).
 fn op_of(method: &str, params: &Value) -> Result<Op, RpcError> {
     match method {
         "post.delete" => {
@@ -284,7 +286,7 @@ fn op_of(method: &str, params: &Value) -> Result<Op, RpcError> {
     }
 }
 
-/// RPC `post.*` (der Mensch).
+/// RPC `post.*` (the human).
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     match method {
@@ -329,30 +331,30 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     act(state, work, id, op, &Actor::current()).await
 }
 
-// ---- Formular ohne JavaScript ------------------------------------------------------------------
+// ---- Form without JavaScript -------------------------------------------------------------------
 
-/// Formular an `POST /beitraege/act`: alles als Text.
+/// Form to `POST /beitraege/act`: everything as text.
 #[derive(Debug, Default, Deserialize)]
 struct ActForm {
     method: String,
     work: Option<String>,
-    /// Gezeigter Abschnitt (fester Schlüssel): dorthin geht es danach zurück.
+    /// Section shown (fixed key): that is where it goes back to afterwards.
     key: Option<String>,
-    /// Stelle des gezeigten Abschnitts (nur Rückfall, wenn `key` fehlt).
+    /// Position of the section shown (only a fallback if `key` is missing).
     node: Option<String>,
     id: Option<String>,
     rev: Option<String>,
     view: Option<String>,
     lq: Option<String>,
-    /// Kästchen „wirklich löschen“ (`1` oder `on`); Pflicht bei `post.delete`.
+    /// Checkbox „wirklich löschen“ (`1` or `on`); mandatory for `post.delete`.
     confirm: Option<String>,
     target_key: Option<String>,
     words: Option<String>,
-    /// Runde 28: neuer Text bei `post.edit`.
+    /// Round 28: new text for `post.edit`.
     body: Option<String>,
-    /// Runde 28: `post` = danach zurück auf die Beitragsseite `/beitrag` (statt zum Abschnitt).
+    /// Round 28: `post` = afterwards back to the post page `/beitrag` (instead of to the section).
     back: Option<String>,
-    /// Runde 30c: Prüfgrundlage bei `post.repeat` (`shown` | `current` | `<n>`).
+    /// Round 30c: basis of the check for `post.repeat` (`shown` | `current` | `<n>`).
     basis: Option<String>,
 }
 
@@ -360,9 +362,9 @@ fn unprocessable(message: impl Into<String>) -> Response {
     (StatusCode::UNPROCESSABLE_ENTITY, format!("Fehler: {}", message.into())).into_response()
 }
 
-/// `POST /beitraege/act`: `method` = post.delete|post.move|post.to_idea|post.edit|post.to_findings|post.repeat; danach
-/// 303 auf den gezeigten Abschnitt `/?work=W&key=K[&rev][&view=preview][&lq]` (beim Wiederholen mit Anker auf den
-/// neuen Beitrag), Fehler 422 mit Text (500 bei internen).
+/// `POST /beitraege/act`: `method` = post.delete|post.move|post.to_idea|post.edit|post.to_findings|post.repeat; then
+/// 303 to the section shown `/?work=W&key=K[&rev][&view=preview][&lq]` (when repeating with an anchor to the
+/// new post), error 422 with text (500 for internal ones).
 async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> Response {
     if !handles(&form.method) {
         return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
@@ -396,7 +398,7 @@ async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>)
         }
     }
     if form.method == "post.delete" {
-        // Der Server prüft das Kästchen selbst; `required` im HTML allein hält niemanden auf.
+        // The server checks the checkbox itself; `required` in the HTML alone stops nobody.
         if !matches!(form.confirm.as_deref(), Some("1" | "on")) {
             return unprocessable("Löschen bitte bestätigen (Kästchen ankreuzen).");
         }
@@ -415,13 +417,13 @@ async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>)
         }
         Err(e) => return unprocessable(e.message),
     };
-    // Runde 28: zurück auf die Beitragsseite (Bearbeiten, Umwandeln in Befunde von dort).
+    // Round 28: back to the post page (editing, converting into findings from there).
     if form.back.as_deref() == Some("post")
         && let Some(id) = form.id.as_deref().and_then(|i| i.trim().parse::<i64>().ok())
     {
         return Redirect::to(&post_url(work, id)).into_response();
     }
-    // Zurück zum gezeigten Abschnitt; ohne Angabe dorthin, wo der Beitrag stand.
+    // Back to the section shown; without that, to where the post stood.
     let key = shown_key.or_else(|| answer["from_key"].as_i64()).or_else(|| answer["key"].as_i64());
     let lq_q = lq_param(form.lq.as_deref());
     let url = match key {
@@ -431,7 +433,7 @@ async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>)
         }
         None => format!("/?work={work}{lq_q}"),
     };
-    // Runde 30c: nach dem Wiederholen an den neuen Beitrag.
+    // Round 30c: after repeating, to the new post.
     let url = match answer["post"]["id"].as_i64() {
         Some(id) if form.method == "post.repeat" => format!("{url}#post-{id}"),
         _ => url,
@@ -439,37 +441,37 @@ async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>)
     Redirect::to(&url).into_response()
 }
 
-/// `POST /beitraege/act` (im Router der schreibenden Routen, also hinter `guard::same_origin`).
+/// `POST /beitraege/act` (in the router of the writing routes, so behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/beitraege/act", post(act_form))
 }
 
-// ---- Runde 28: Chat-Historie, Bearbeiten, Beitragsseiten (chat-auftrag) -----------------------------------------
+// ---- Round 28: chat history, editing, post pages (chat-auftrag) -------------------------------------------------
 
-/// So viele Beiträge zeigt der Abschnitts-Chat auf einmal (die neuesten); ältere über `post.page` bzw. `/beitraege`.
+/// The section chat shows this many posts at once (the newest); older ones through `post.page` or `/beitraege`.
 pub const CHAT_PAGE_POSTS: usize = 50;
 
-/// Welche der `total` Beiträge eines Abschnitts (älteste zuerst) der Chat zeigt: die neuesten [`CHAT_PAGE_POSTS`].
+/// Which of the `total` posts of a section (oldest first) the chat shows: the newest [`CHAT_PAGE_POSTS`].
 pub fn visible_range(total: usize) -> std::ops::Range<usize> {
     total.saturating_sub(CHAT_PAGE_POSTS)..total
 }
 
-/// Bearbeitete Beiträge des Werks: `post.id` → Zeit der letzten Änderung.
+/// Edited posts of the work: `post.id` → time of the last change.
 pub async fn edited_map(state: &AppState, work: WorkId) -> Result<std::collections::HashMap<i64, String>, RpcError> {
     Ok(state.store.post_edited_map(work).await?)
 }
 
-/// Adresse der Beitragsseite.
+/// Address of the post page.
 pub fn post_url(work: WorkId, id: i64) -> String {
     format!("/beitrag?work={work}&id={id}")
 }
 
-/// Adresse der ganzen Chat-Historie eines Abschnitts (Anker `#chat-neueste` = der neueste Beitrag).
+/// Address of the whole chat history of a section (anchor `#chat-neueste` = the newest post).
 pub fn history_url(work: WorkId, key: i64) -> String {
     format!("/beitraege?work={work}&key={key}")
 }
 
-/// Meldung, wenn jemand einen Beitrag bearbeiten will, der nicht seiner ist (Runde 28).
+/// Message when somebody wants to edit a post that is not his (Round 28).
 pub(crate) fn not_editable(id: i64, author: &str, actor: &str) -> String {
     format!(
         "Nur eigene Beiträge lassen sich bearbeiten: Beitrag {id} stammt von {author}, nicht von {actor}. Beiträge von \
@@ -477,18 +479,18 @@ pub(crate) fn not_editable(id: i64, author: &str, actor: &str) -> String {
     )
 }
 
-/// Ist der Beitrag des Autors `author` ein eigener dessen, der die Anfrage stellt (Runde 35)? Für einen Lektor die
-/// unter seinem Handle, für alle anderen wie bisher die des Menschen („Autor“). Steuert `own` in `post.page` und
-/// auf den Seiten (Knöpfe zum Bearbeiten und Löschen).
+/// Is the post of the author `author` an own one of whoever makes the request (Round 35)? For a Lektor those
+/// under his handle, for all others as before those of the human („Autor“). Controls `own` in `post.page` and
+/// on the pages (buttons for editing and deleting).
 fn own_post(author: &str) -> bool {
     author == crate::roles::author_name(&crate::auth::current())
 }
 
-/// Höchstens so viele Zeichen des zitierten Texts (die Antwort selbst darf 4000 haben).
+/// At most this many characters of the quoted text (the answer itself may have 4000).
 const QUOTE_CHARS: usize = 1500;
 
-/// Zitat eines Beitrags für eine Antwort: je Zeile „> “, die erste mit dem Autor, danach eine Leerzeile; lange Texte
-/// gekürzt (mit „…“).
+/// Quote of a post for an answer: „> “ per line, the first with the author, then an empty line; long texts
+/// shortened (with „…“).
 pub fn quote_text(author: &str, body: &str) -> String {
     let body = body.trim();
     let cut: String = body.chars().take(QUOTE_CHARS).collect();
@@ -507,9 +509,9 @@ pub fn quote_text(author: &str, body: &str) -> String {
     out
 }
 
-/// Beitrag bearbeiten (RPC `post.edit`, Formular, MCP `post_edit`): nur, wenn `actor` der Autor ist (der Mensch
-/// seine, ein MCP-Client seine – seit Runde 23 über [`Actor::owns`], also mit Token auch die unter dem Alt-Handle);
-/// unter der Schreibsperre; genau ein Commit mit Text vorher und nachher.
+/// Edit a post (RPC `post.edit`, form, MCP `post_edit`): only if `actor` is the author (the human
+/// his, an MCP client its – since Round 23 through [`Actor::owns`], so with a token also those under the legacy
+/// handle); under the write lock; exactly one commit with the text before and after.
 pub(crate) async fn edit(state: &AppState, work: WorkId, id: i64, body: &str, by: &Actor) -> Result<Value, RpcError> {
     crate::assist::check_text(body, "Der Beitrag")?;
     let store = &state.store;
@@ -536,7 +538,7 @@ pub(crate) async fn edit(state: &AppState, work: WorkId, id: i64, body: &str, by
     Ok(answer)
 }
 
-/// Beitrag als JSON für `post.page` und die Seiten.
+/// Post as JSON for `post.page` and the pages.
 fn post_json(work: WorkId, post: &baruch_core::Post, edited: Option<&String>, style: Option<String>) -> Value {
     json!({
         "id": post.id, "author": post.author, "body": post.body, "created": post.created,
@@ -546,7 +548,7 @@ fn post_json(work: WorkId, post: &baruch_core::Post, edited: Option<&String>, st
     })
 }
 
-/// Farbe je Persona (geprüfte `#rrggbb` als CSS-Variablen, [`crate::personas::style`]).
+/// Colour per persona (checked `#rrggbb` as CSS variables, [`crate::personas::style`]).
 async fn styles(state: &AppState) -> std::collections::HashMap<String, String> {
     state
         .store
@@ -558,7 +560,7 @@ async fn styles(state: &AppState) -> std::collections::HashMap<String, String> {
         .collect()
 }
 
-/// `post.page`: Beiträge des Abschnitts `key` vor dem Beitrag `before` (ohne: die neuesten), höchstens `limit`.
+/// `post.page`: posts of the section `key` before the post `before` (without: the newest), at most `limit`.
 async fn page(state: &AppState, work: WorkId, key: i64, before: Option<i64>, limit: usize) -> Result<Value, RpcError> {
     let seq = state.store.node_seq(work, key).await?;
     let loaded = state.store.load_work(work).await?;
@@ -581,7 +583,7 @@ async fn page(state: &AppState, work: WorkId, key: i64, before: Option<i64>, lim
     Ok(json!({ "work": work, "key": key, "posts": posts, "older": start, "history_url": history_url(work, key) }))
 }
 
-/// `post.to_findings`: Befunde aus dem Beitrag (manuell, auch ohne Marken), der Beitrag bleibt.
+/// `post.to_findings`: findings from the post (manual, also without marks), the post stays.
 async fn to_findings(state: &AppState, work: WorkId, id: i64) -> Result<Value, RpcError> {
     let _held = state.write_lock.lock().await;
     let info = state.store.post_get(work, id).await?;
@@ -599,10 +601,10 @@ async fn to_findings(state: &AppState, work: WorkId, id: i64) -> Result<Value, R
     Ok(json!({ "id": id, "work": work, "key": info.key, "findings": findings, "attached": attached }))
 }
 
-// ---- Runde 30c: Wiederholen und Live-Abfrage (chat-bedienung) ----------------------------------------------------
+// ---- Round 30c: repeating and live query (chat-bedienung) -------------------------------------------------------
 
-/// Auftrag für den Rückfall ohne gespeicherten Auftrag: die vorangehende Nachricht des Menschen bzw. eines
-/// MCP-Clients, als Chat an dieselbe Persona.
+/// Request for the fallback without a stored request: the preceding message of the human or of an
+/// MCP client, as a chat to the same persona.
 async fn fallback_request(
     state: &AppState,
     work: WorkId,
@@ -633,9 +635,9 @@ async fn fallback_request(
     }
 }
 
-/// Offene Befunde `old` (der alten Antwort), die in `text` (der neuen Antwort) nicht wiederkommen, schlägt die
-/// Persona `handle` als „erledigt“ vor (je ein Commit). Lob bleibt außen vor. Ergebnis: ids der Vorschläge und
-/// Hinweise zu gescheiterten.
+/// Open findings `old` (of the old answer) that do not come back in `text` (the new answer) are proposed by the
+/// persona `handle` as „erledigt“ (one commit each). Praise is left out. Result: ids of the proposals and
+/// notes on failed ones.
 pub(crate) async fn propose_done(
     state: &AppState,
     work: WorkId,
@@ -652,9 +654,9 @@ pub(crate) async fn propose_done(
         if finding.status != baruch_store::FindingStatus::Open || finding.kind == baruch_store::FindingKind::Praise {
             continue;
         }
-        // Runde 22: Hat die Persona in derselben Antwort schon „Erledigt: Befund n“ gemeldet (offene Rückfrage
-        // „erledigt“), nicht noch einmal vorschlagen – sonst stünde ein Vermerk „schon offen“ in den notes. Ein offener
-        // Vorschlag anderer Art (z. B. „übernommen“) hält den Vorschlag „erledigt“ nicht auf (Gutachten R22).
+        // Round 22: if the persona already reported „Erledigt: Befund n“ in the same answer (open query
+        // „erledigt“), do not propose once more – otherwise a remark „schon offen“ would be in the notes. An open
+        // proposal of another kind (e.g. „übernommen“) does not hold up the proposal „erledigt“ (review R22).
         if finding.pending.as_ref().is_some_and(|p| p.status == baruch_store::FindingStatus::Done) {
             continue;
         }
@@ -673,7 +675,7 @@ pub(crate) async fn propose_done(
     (proposed, notes)
 }
 
-/// `post.repeat`: dieselbe Anfrage gegen die gezeigte bzw. gewählte Fassung (siehe Moduldoku).
+/// `post.repeat`: the same request against the revision shown or chosen (see the module doc).
 pub(crate) async fn repeat(
     state: &AppState,
     work: WorkId,
@@ -699,8 +701,8 @@ pub(crate) async fn repeat(
     })?;
     let scope = if request.scope == "chapter" { Scope::Chapter } else { Scope::Section };
     let chosen = crate::assist::basis::choose(state, work, info.key, rev, basis).await?;
-    // Runde 23: Herkunft, Websuche und Relay-Rahmen aus dem gespeicherten Auftrag. Beiträge aus der Zeit davor tragen
-    // die Felder nicht und wiederholen wie bisher (Websuche zugelassen, Fragender der Mensch, kein Rahmen).
+    // Round 23: origin, web search and relay frame from the stored request. Posts from the time before do not carry
+    // the fields and repeat as before (web search allowed, asker the human, no frame).
     let relay = request.relay.as_deref().and_then(crate::assist::FramedAnswer::from_request);
     let relay_from = relay.as_ref().and(meta.relay_from.clone());
     let order = Order {
@@ -745,7 +747,7 @@ pub(crate) async fn repeat(
     }))
 }
 
-/// Ziele für „Verschieben…“ (alle Abschnitte außer `key`, „Nummer Titel“).
+/// Targets for „Verschieben…“ (all sections except `key`, „Nummer Titel“).
 fn move_targets(work: &baruch_core::Work, key: i64) -> Vec<Value> {
     work.nodes
         .iter()
@@ -754,7 +756,7 @@ fn move_targets(work: &baruch_core::Work, key: i64) -> Vec<Value> {
         .collect()
 }
 
-/// Beitrag des Abschnitts-Chats für das Makro `post_entry` – dieselben Felder wie `view::posts`.
+/// Post of the section chat for the macro `post_entry` – the same fields as `view::posts`.
 #[allow(clippy::too_many_arguments)]
 fn chat_post_value(
     work_id: WorkId,
@@ -790,10 +792,10 @@ fn chat_post_value(
     }
 }
 
-/// Höchstens so viele Beiträge liefert `post.since` auf einmal (danach lädt der Browser neu).
+/// `post.since` delivers at most this many posts at once (after that the browser reloads).
 pub const SINCE_MAX_POSTS: usize = 50;
 
-/// `post.since`: Beiträge des Abschnitts nach `after` als HTML, wer schreibt, Fehler.
+/// `post.since`: posts of the section after `after` as HTML, who is writing, errors.
 pub(crate) async fn since(
     state: &AppState,
     work: WorkId,
@@ -804,7 +806,7 @@ pub(crate) async fn since(
     let loaded = state.store.load_work(work).await?;
     let node =
         loaded.nodes.iter().find(|n| n.key == key).ok_or_else(|| invalid(format!("Abschnitt {key} gibt es nicht")))?;
-    // Nach dem Beitrag `after`; steht er nicht (mehr) im Abschnitt, alle mit größerer id.
+    // After the post `after`; if it is not (any more) in the section, all with a larger id.
     let start = match node.posts.iter().position(|p| p.id == after) {
         Some(i) => i + 1,
         None => node.posts.iter().position(|p| p.id > after).unwrap_or(node.posts.len()),
@@ -839,10 +841,10 @@ pub(crate) async fn since(
     }))
 }
 
-/// Ein Beitrag des Abschnitts-Chats über das Makro `post_entry` (für `post.since`).
+/// A post of the section chat through the macro `post_entry` (for `post.since`).
 const POST_ENTRY_SRC: &str = "{% from \"fragments/post_item.html\" import post_entry %}{{ post_entry(post, at) }}";
 
-// ---- Seiten /beitraege und /beitrag (ohne JavaScript) -------------------------------------------------------------
+// ---- Pages /beitraege and /beitrag (without JavaScript) -----------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -852,7 +854,7 @@ fn templates() -> &'static Environment<'static> {
             ("base.html", include_str!("../templates/base.html")),
             ("posts.html", include_str!("../templates/posts.html")),
             ("post.html", include_str!("../templates/post.html")),
-            // Runde 30 (Schnittstelle R30-S1): Makros für Beiträge, Befund-Blöcke und Lösungen.
+            // Round 30 (interface R30-S1): macros for posts, finding blocks and solutions.
             ("fragments/post_item.html", include_str!("../templates/fragments/post_item.html")),
             ("fragments/finding_block.html", include_str!("../templates/fragments/finding_block.html")),
             ("fragments/post_solutions.html", include_str!("../templates/fragments/post_solutions.html")),
@@ -876,7 +878,7 @@ fn settings_of(headers: &HeaderMap) -> minijinja::Value {
     )))
 }
 
-/// Selbst gebaute Adresse (Ziffern und feste Namen) als sicherer Wert für `href`.
+/// Self-built address (digits and fixed names) as a safe value for `href`.
 fn href(url: String) -> minijinja::Value {
     minijinja::Value::from_safe_string(url.replace('&', "&amp;"))
 }
@@ -900,8 +902,8 @@ async fn work_of(state: &AppState, work: Option<WorkId>) -> Result<(WorkId, baru
     Ok((work, state.store.load_work(work).await?))
 }
 
-/// Beitrag für die Vorlagen: wie [`post_json`], Adressen als sichere Werte; seit Runde 30c mit `extra`
-/// ([`crate::chat_render::render_post`]: Markdown, Links, Kopf, Befund-Blöcke) und `delete_url`.
+/// Post for the templates: like [`post_json`], addresses as safe values; since Round 30c with `extra`
+/// ([`crate::chat_render::render_post`]: Markdown, links, head, finding blocks) and `delete_url`.
 fn post_value(
     work: WorkId,
     key: i64,
@@ -925,7 +927,7 @@ fn post_value(
     }
 }
 
-/// Befunde und Metadaten des Werks für die Seiten (ohne die übrigen Zusätze der Arbeitsseite).
+/// Findings and metadata of the work for the pages (without the other additions of the work page).
 async fn page_extras(state: &AppState, work: WorkId) -> view::ViewExtras {
     view::ViewExtras {
         findings: crate::findings::view::load(state, work).await.unwrap_or_default(),
@@ -934,7 +936,7 @@ async fn page_extras(state: &AppState, work: WorkId) -> view::ViewExtras {
     }
 }
 
-/// Zusätze eines Beitrags auf den Seiten (gegen die aktuelle Fassung des Abschnitts).
+/// Additions of a post on the pages (against the current revision of the section).
 fn page_extra(
     work_id: WorkId,
     work: &baruch_core::Work,
@@ -961,7 +963,7 @@ fn page_extra(
     }
 }
 
-/// `GET /beitraege?work&key`: alle Beiträge des Abschnitts, älteste zuerst, Anker `#post-<id>` und `#chat-neueste`.
+/// `GET /beitraege?work&key`: all posts of the section, oldest first, anchors `#post-<id>` and `#chat-neueste`.
 async fn history(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PageQuery>) -> Response {
     let (work, loaded) = match work_of(&state, number(&q.work)).await {
         Ok(found) => found,
@@ -1003,8 +1005,8 @@ async fn history(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q
     render("posts.html", ctx)
 }
 
-/// `GET /beitrag?work&id`: ein Beitrag zum Kopieren (markierbares, schreibgeschütztes Feld), Zitieren (eigenes
-/// Chat-Formular mit „> …“), Bearbeiten (nur eigene), Verlauf und „In Befund umwandeln“.
+/// `GET /beitrag?work&id`: one post for copying (selectable, read-only field), quoting (a chat form of its own
+/// with „> …“), editing (own ones only), history and „In Befund umwandeln“.
 async fn single(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PageQuery>) -> Response {
     let (work, loaded) = match work_of(&state, number(&q.work)).await {
         Ok(found) => found,
@@ -1056,7 +1058,7 @@ async fn single(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q)
     render("post.html", ctx)
 }
 
-/// Seiten `GET /beitraege?work&key` (ganze Chat-Historie) und `GET /beitrag?work&id` (ein Beitrag).
+/// Pages `GET /beitraege?work&key` (whole chat history) and `GET /beitrag?work&id` (one post).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/beitraege", get(history)).route("/beitrag", get(single))
 }

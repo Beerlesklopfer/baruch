@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zeitpunkte für die Anzeige in **Ortszeit** der Maschine (Nutzerentscheidung 2026-11-07, vorher UTC).
+//! Points in time for display in the **local time** of the machine (user decision 2026-11-07, UTC before).
 //!
-//! Gespeichert wird weiter UTC (`strftime('%Y-%m-%dT%H:%M:%fZ','now')` in SQLite, `models::iso_now`,
-//! Unix-Sekunden); RPC-Felder bleiben UTC. Umgerechnet wird erst hier, beim Aufbau der Seite. Die Zeitzone
-//! liefert `chrono::Local` (unter Unix `TZ`, sonst `/etc/localtime`, mit Sommerzeit je Zeitpunkt; unter
-//! Windows die Zeitzone des Systems über die Windows-Schnittstelle – dort gebaut, aber nicht erprobt).
+//! UTC keeps being stored (`strftime('%Y-%m-%dT%H:%M:%fZ','now')` in SQLite, `models::iso_now`,
+//! Unix seconds); RPC fields stay UTC. Conversion happens only here, when the page is built. The time zone
+//! comes from `chrono::Local` (under Unix `TZ`, otherwise `/etc/localtime`, with daylight saving time per point in
+//! time; under Windows the time zone of the system through the Windows interface – built there, but not tried).
 //!
-//! Jede Funktion gibt es als `…_in(…, &zone)` für eine beliebige Zeitzone (Tests mit `FixedOffset`, kein
-//! Umstellen von `TZ` im gemeinsamen Testprozess) und ohne Zusatz für die Ortszeit. Unlesbare Stempel
-//! bleiben, wie sie sind (nichts erfunden).
+//! Every function exists as `…_in(…, &zone)` for an arbitrary time zone (tests with `FixedOffset`, no
+//! changing of `TZ` in the shared test process) and without the suffix for local time. Unreadable stamps
+//! stay as they are (nothing invented).
 
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 
-/// Gespeicherter UTC-Zeitpunkt (`2026-11-07T17:53:42.451Z`, ohne Bruchteile, ohne `Z`, mit Leerzeichen
-/// statt `T` oder mit Versatz) → Zeitpunkt; sonst `None`.
+/// Stored UTC point in time (`2026-11-07T17:53:42.451Z`, without fractions, without `Z`, with a space
+/// instead of `T` or with an offset) → point in time; otherwise `None`.
 pub fn parse_utc(stamp: &str) -> Option<DateTime<Utc>> {
     let s = stamp.trim();
     if let Ok(at) = DateTime::parse_from_rfc3339(s) {
@@ -33,7 +33,7 @@ where
     parse_utc(stamp).map(|at| at.with_timezone(zone).format(pattern).to_string())
 }
 
-/// `2026-11-05T10:11:12.123Z` → `2026-11-05 11:11` in `zone`; Unlesbares wie bisher gekürzt.
+/// `2026-11-05T10:11:12.123Z` → `2026-11-05 11:11` in `zone`; anything unreadable shortened as before.
 pub fn minutes_in<Tz: TimeZone>(stamp: &str, zone: &Tz) -> String
 where
     Tz::Offset: std::fmt::Display,
@@ -41,12 +41,12 @@ where
     format_in(stamp, zone, "%Y-%m-%d %H:%M").unwrap_or_else(|| stamp.replacen('T', " ", 1).chars().take(16).collect())
 }
 
-/// `2026-11-05T10:11:12.123Z` → `2026-11-05 11:11` (Ortszeit).
+/// `2026-11-05T10:11:12.123Z` → `2026-11-05 11:11` (local time).
 pub fn minutes(stamp: &str) -> String {
     minutes_in(stamp, &Local)
 }
 
-/// `2026-11-06T12:05:06.123Z` → `2026-11-06 13:05:06` in `zone`; Unlesbares bleibt.
+/// `2026-11-06T12:05:06.123Z` → `2026-11-06 13:05:06` in `zone`; anything unreadable stays.
 pub fn seconds_in<Tz: TimeZone>(stamp: &str, zone: &Tz) -> String
 where
     Tz::Offset: std::fmt::Display,
@@ -54,12 +54,12 @@ where
     format_in(stamp, zone, "%Y-%m-%d %H:%M:%S").unwrap_or_else(|| stamp.to_owned())
 }
 
-/// `2026-11-06T12:05:06.123Z` → `2026-11-06 13:05:06` (Ortszeit).
+/// `2026-11-06T12:05:06.123Z` → `2026-11-06 13:05:06` (local time).
 pub fn seconds(stamp: &str) -> String {
     seconds_in(stamp, &Local)
 }
 
-/// `2026-11-07T17:53:42.451Z` → `07.11.2026 18:53` in `zone`; Unlesbares bleibt.
+/// `2026-11-07T17:53:42.451Z` → `07.11.2026 18:53` in `zone`; anything unreadable stays.
 pub fn german_minutes_in<Tz: TimeZone>(stamp: &str, zone: &Tz) -> String
 where
     Tz::Offset: std::fmt::Display,
@@ -67,13 +67,13 @@ where
     format_in(stamp, zone, "%d.%m.%Y %H:%M").unwrap_or_else(|| stamp.to_owned())
 }
 
-/// `2026-11-07T17:53:42.451Z` → `07.11.2026 18:53` (Ortszeit).
+/// `2026-11-07T17:53:42.451Z` → `07.11.2026 18:53` (local time).
 pub fn german_minutes(stamp: &str) -> String {
     german_minutes_in(stamp, &Local)
 }
 
-/// `2026-11-07T23:30:00Z` → `08.11.2026` in `zone` (der Tag kann in Ortszeit ein anderer sein); Unlesbares
-/// bleibt.
+/// `2026-11-07T23:30:00Z` → `08.11.2026` in `zone` (the day can be a different one in local time); anything
+/// unreadable stays.
 pub fn german_day_in<Tz: TimeZone>(stamp: &str, zone: &Tz) -> String
 where
     Tz::Offset: std::fmt::Display,
@@ -81,12 +81,12 @@ where
     format_in(stamp, zone, "%d.%m.%Y").unwrap_or_else(|| stamp.to_owned())
 }
 
-/// `2026-11-07T23:30:00Z` → Tag `TT.MM.JJJJ` in Ortszeit.
+/// `2026-11-07T23:30:00Z` → day `TT.MM.JJJJ` in local time.
 pub fn german_day(stamp: &str) -> String {
     german_day_in(stamp, &Local)
 }
 
-/// Unix-Sekunden → `JJJJ-MM-TT HH:MM:SS` in `zone`.
+/// Unix seconds → `JJJJ-MM-TT HH:MM:SS` in `zone`.
 pub fn unix_seconds_in<Tz: TimeZone>(secs: u64, zone: &Tz) -> String
 where
     Tz::Offset: std::fmt::Display,
@@ -97,7 +97,7 @@ where
         .map_or_else(|| secs.to_string(), |at| at.with_timezone(zone).format("%Y-%m-%d %H:%M:%S").to_string())
 }
 
-/// Unix-Sekunden → `JJJJ-MM-TT HH:MM:SS` (Ortszeit).
+/// Unix seconds → `JJJJ-MM-TT HH:MM:SS` (local time).
 pub fn unix_seconds(secs: u64) -> String {
     unix_seconds_in(secs, &Local)
 }
@@ -157,8 +157,8 @@ mod tests {
         assert_eq!(german_day_in("", &Utc), "", "leer bleibt leer");
     }
 
-    /// `chrono::Local` liest `TZ`. Im gemeinsamen Testprozess wird keine Umgebungsvariable verändert:
-    /// Der Test startet sich selbst als Kindprozess mit `TZ=Europe/Berlin` und prüft dort die Ortszeit.
+    /// `chrono::Local` reads `TZ`. No environment variable is changed in the shared test process:
+    /// the test starts itself as a child process with `TZ=Europe/Berlin` and checks the local time there.
     #[test]
     fn local_time_uses_the_zone_of_the_machine() {
         const CHILD: &str = "BARUCH_LOCALTIME_CHILD";

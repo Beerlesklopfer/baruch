@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge zu Befunden (Runde 28, befund-uebersicht).
+//! MCP tools for findings (Round 28, befund-uebersicht).
 //!
-//! - `findings {work, key?, status?, kind?, persona?, include_praise?, limit?}`: nur lesend; je Befund
-//!   [`crate::findings::finding_json`] (Art, Status, Persona, Abschnitt, Text, Zitat, offener Vorschlag, `url`).
-//!   Angehängte Befunde (gleichen einem früheren) fehlen wie in der Übersicht; Lob nur mit `include_praise`.
+//! - `findings {work, key?, status?, kind?, persona?, include_praise?, limit?}`: read-only; per finding
+//!   [`crate::findings::finding_json`] (kind, status, persona, section, text, quote, open proposal, `url`).
+//!   Attached findings (they equal an earlier one) are missing as in the overview; praise only with
+//!   `include_praise`.
 //! - `finding_propose_status {work, id, status: adopted|deferred|done, rev?, target_key?, target_idea?, note?,
-//!   persona?}`: stellt nur einen Vorschlag (Herkunft `persona` bzw. der Client als `@mcp:<name>`), den der Mensch
-//!   bestätigt; über [`crate::findings::rpc::propose`] (dort Sperre und Commit). `rejected` und `open` lehnt das
-//!   Werkzeug ab: Verwerfen und Wiederöffnen kann nur der Mensch.
+//!   persona?}`: only files a proposal (origin `persona` or the client as `@mcp:<name>`) that the human
+//!   confirms; through [`crate::findings::rpc::propose`] (lock and commit there). The tool refuses `rejected` and
+//!   `open`: only the human can discard and reopen.
 
 use baruch_store::{FindingFilter, WorkId};
 use serde::Deserialize;
@@ -78,7 +79,7 @@ struct ProposeArgs {
     persona: Option<String>,
 }
 
-/// Wörter mit Komma → Werte; unbekannt → `isError` mit den erlaubten Wörtern.
+/// Words with commas → values; unknown → `isError` with the allowed words.
 fn words<T>(text: Option<&str>, parse: fn(&str) -> Option<T>, what: &str, allowed: &str) -> Result<Vec<T>, Failure> {
     let mut out = Vec::new();
     for word in text.unwrap_or("").split(',').map(str::trim).filter(|w| !w.is_empty()) {
@@ -110,7 +111,7 @@ async fn list(state: &AppState, arguments: Value) -> Result<Value, Failure> {
         ..FindingFilter::default()
     };
     if let Some(key) = a.key {
-        // Unbekannter Abschnitt → isError statt einer stillen leeren Liste.
+        // Unknown section → isError instead of a silent empty list.
         state.store.node_seq(work, key).await?;
     }
     let findings = state.store.finding_list(work, &filter).await?;
@@ -120,7 +121,7 @@ async fn list(state: &AppState, arguments: Value) -> Result<Value, Failure> {
                "url": format!("/werke/{work}/befunde") }))
 }
 
-/// Gewünschter Status eines Vorschlags; `rejected`/`open` → „Nur der Mensch kann …“.
+/// Wanted status of a proposal; `rejected`/`open` → „Nur der Mensch kann …“.
 fn proposed_change(a: &ProposeArgs) -> Result<StatusChange, Failure> {
     match a.status.trim() {
         "adopted" => match a.rev {

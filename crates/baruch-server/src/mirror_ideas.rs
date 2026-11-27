@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Spiegel der Einfälle ohne Werk (`<data>/einfaelle/`) beim Start und nach dem Löschen eines Werks nachführen
-//! (Runde 22, Vertrag §2.16; Besitz befund-rueckfrage).
+//! Bring the mirror of the ideas without a work (`<data>/einfaelle/`) up to date at start and after deleting a work
+//! (Round 22, contract §2.16; owned by befund-rueckfrage).
 //!
-//! Bis Runde 22 folgte der Spiegel nur einer Aktion an einem Einfall ohne Werk ([`crate::mirror::record_idea`]). Macht
-//! das Löschen eines Werks dessen Einfälle zu Einfällen ohne Werk (`ON DELETE SET NULL`, Migration 0011) oder hat
-//! sich die Datenbank sonst vom Spiegel entfernt, holt [`sync_ideas_without_work`] auf: ein Commit des Menschen mit
-//! `einfaelle.md` nach dem Stand der Datenbank, nur wenn sich die Datei ändert (kein leerer Commit). Gibt es weder
-//! Einfälle ohne Werk noch den Ordner, entsteht nichts (kein leeres Repo beim ersten Start).
+//! Until Round 22 the mirror only followed an action on an idea without a work ([`crate::mirror::record_idea`]).
+//! If deleting a work turns its ideas into ideas without a work (`ON DELETE SET NULL`, migration 0011) or if
+//! the database has otherwise drifted away from the mirror, [`sync_ideas_without_work`] catches up: one commit of
+//! the human with `einfaelle.md` according to the state of the database, only if the file changes (no empty
+//! commit). If there are neither ideas without a work nor the folder, nothing is created (no empty repo at the
+//! first start).
 //!
-//! Aufrufer: `mirror::sync_all` (Start, Hook aus S1) und `works::delete` (nach dem Protokoll-Commit des Werks). Beide
-//! halten die Schreibsperre (`held`).
+//! Callers: `mirror::sync_all` (start, hook from S1) and `works::delete` (after the log commit of the work). Both
+//! hold the write lock (`held`).
 
 use baruch_gitmirror::{CommitRequest, Signature};
 
 use crate::AppState;
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME, IDEAS_DIR};
 
-/// Trailer `Baruch-Action` des Nachführens.
+/// Trailer `Baruch-Action` of the catching up.
 pub const ACTION: &str = "ideas-synced";
 
-/// Führt den Spiegel der Einfälle ohne Werk nach dem Stand der Datenbank nach; `Ok(None)` = nichts zu tun (keine
-/// Änderung an `einfaelle.md`, bzw. weder Einfälle ohne Werk noch Ordner). `reason` wird der Betreff des Commits.
+/// Brings the mirror of the ideas without a work up to the state of the database; `Ok(None)` = nothing to do (no
+/// change to `einfaelle.md`, or neither ideas without a work nor a folder). `reason` becomes the commit subject.
 pub async fn sync_ideas_without_work(
     state: &AppState,
     held: &crate::mirror::WriteGuard<'_>,

@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Datei als neues Werk (Vertrag B1.5, Abschnitt 4; Runde 4): Import in die Datenbank
-//! ([`baruch_store::Store::import_typst_with_assets`]), danach Git-Spiegel des neuen Werks mit dem
-//! Commit „Import aus <datei>“. Aufgerufen von `baruch-server import [--title …]`, vom Hochladen über
-//! `POST /werke/import` und RPC `work.import` ([`import_upload`], `crate::works`) und aus Tests.
-//! Ein Titel, den schon ein anderes Werk trägt, wird abgelehnt (`DuplicateTitle`, -32000).
+//! Typst file as a new work (contract B1.5, section 4; Round 4): import into the database
+//! ([`baruch_store::Store::import_typst_with_assets`]), then the Git mirror of the new work with the
+//! commit „Import aus <datei>“. Called by `baruch-server import [--title …]`, by the upload through
+//! `POST /werke/import` and RPC `work.import` ([`import_upload`], `crate::works`) and from tests.
+//! A title that another work already carries is refused (`DuplicateTitle`, -32000).
 //!
-//! Bilder (Vertrag Runde 6, Abschnitt 4d): Nur der Import von der Kommandozeile ([`import_file_as`])
-//! liest die Bilder, die Vorlage und Text über `image("…")` nennen
-//! ([`baruch_typst::images::image_paths`]), relativ zum Ordner der Quelldatei (auch Pfade mit
-//! führendem `/` oder `./`, Normalform über [`baruch_store::normalize_asset_path`]). Eine Datei
-//! außerhalb dieses Ordners (über einen Symlink oder `..`), ein Pfad, den der Store nicht speichert
-//! (`..`, Adressen, [`baruch_store::check_asset_path`]), eine fehlende,
-//! zu große oder keine Bilddatei wird mit Grund übersprungen ([`SkippedAsset`]); Werk und Bilder
-//! entstehen in einer Transaktion. Hochladen einer einzelnen Datei und `work.import` (nur Text) legen keine Bilder
-//! an; ZIP und Ordner (Runde 21b, [`crate::markdown_import`]) bringen sie mit ([`check_image`]).
-//! [`export_to_dir`] schreibt Werk und Bilder wieder in einen Ordner (`export --out`) und prüft seit Runde 21b vor der
-//! ersten Datei Verknüpfungen, Dateien als Zwischenordner und Datei/Ordner-Kollisionen (`check_targets`).
+//! Images (contract Round 6, section 4d): only the import from the command line ([`import_file_as`])
+//! reads the images that template and text name through `image("…")`
+//! ([`baruch_typst::images::image_paths`]), relative to the folder of the source file (also paths with a
+//! leading `/` or `./`, normal form through [`baruch_store::normalize_asset_path`]). A file
+//! outside this folder (through a symlink or `..`), a path the store does not save
+//! (`..`, addresses, [`baruch_store::check_asset_path`]), a missing file,
+//! one that is too large or not an image file is skipped with a reason ([`SkippedAsset`]); work and images
+//! are created in one transaction. Uploading a single file and `work.import` (text only) create no images;
+//! ZIP and folder (Round 21b, [`crate::markdown_import`]) bring them along ([`check_image`]).
+//! [`export_to_dir`] writes work and images back into a folder (`export --out`) and since Round 21b checks, before
+//! the first file, links, files as intermediate folders and file/folder collisions (`check_targets`).
 //!
-//! Runde 21b: Jeder Eingriff in den Text eines Exports (Buchende geschnitten, Projektion entfernt, Regelblock in die
-//! Satz-Einstellungen) ist eine [`ImportWarning`] im Bericht; Codes `import-…`.
+//! Round 21b: every intervention in the text of an export (book end cut, projection removed, rule block moved into
+//! the typeset settings) is an [`ImportWarning`] in the report; codes `import-…`.
 //!
-//! Über MCP gibt es keinen Import (Entscheidung 2026-11-05): Ein Import legt aktuelle Revisionen unter
-//! dem Namen des Menschen an, und das darf ein Assistent nicht.
+//! There is no import through MCP (decision 2026-11-05): an import creates current revisions under
+//! the name of the human, and an assistant must not do that.
 
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -32,33 +32,33 @@ use serde::Serialize;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use crate::{AppState, mirror};
 
-/// Größte Datei, die der Import annimmt.
+/// Largest file the import accepts.
 pub const MAX_SOURCE_BYTES: u64 = 16 * 1024 * 1024;
 
-/// Höchstens so viele Bytes Bilder liest ein Import je Quelldatei.
+/// An import reads at most this many bytes of images per source file.
 pub const MAX_IMPORT_ASSET_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Ergebnis eines Imports.
+/// Result of an import.
 #[derive(Debug, Clone, Serialize)]
 pub struct ImportReport {
     pub work: WorkId,
     pub slug: String,
     pub title: String,
-    /// Anzahl der Abschnitte (Kapitel, Abschnitte, Unterabschnitte).
+    /// Number of sections (chapters, sections, subsections).
     pub nodes: usize,
-    /// Commit-Id im Spiegel des Werks.
+    /// Commit id in the mirror of the work.
     pub commit: Option<String>,
-    /// Fehlertext, falls der Spiegel scheiterte (das Werk ist trotzdem angelegt).
+    /// Error text if the mirror failed (the work is created nevertheless).
     pub mirror: Option<String>,
-    /// Angelegte Bilder (Namen); nur der Import von der Kommandozeile liest Bilder.
+    /// Created images (names); only the import from the command line reads images.
     pub assets: Vec<String>,
-    /// Übersprungene Bildpfade mit Grund.
+    /// Skipped image paths with the reason.
     pub skipped: Vec<SkippedAsset>,
-    /// Hinweise des Imports (Umwandlung, Schnitt, Grenze; Runde 21): was nicht wörtlich übernommen wurde.
+    /// Notes of the import (conversion, cut, limit; Round 21): what was not taken over verbatim.
     pub warnings: Vec<ImportWarning>,
 }
 
-/// Hinweis eines Imports (Umwandlung, Schnitt, Grenze); nie stilles Verwerfen.
+/// Note of an import (conversion, cut, limit); never silent discarding.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ImportWarning {
     pub code: String,
@@ -66,27 +66,27 @@ pub struct ImportWarning {
     pub line: Option<usize>,
 }
 
-/// Ein Bildpfad aus dem Text, der beim Import nicht gelesen wurde.
+/// An image path from the text that was not read during the import.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SkippedAsset {
     pub path: String,
     pub reason: String,
 }
 
-/// Hinweis der CLI, wenn der Titel schon vergeben ist.
+/// Hint of the CLI when the title is already taken.
 pub const TITLE_HINT: &str = "Mit --title \"…\" einen anderen Titel wählen.";
 
-/// Quelltext importieren. Schreibsperre wie bei Übernehmen und Speichern, damit der Commit genau
-/// den neuen Stand enthält. Schon importiert oder Titel vergeben → `REFUSED`, keine Überschrift →
-/// `INVALID_PARAMS`. Notiz jeder Revision und Betreff des Commits: „Import aus <datei>“.
+/// Import source text. Write lock as for accepting and saving, so that the commit contains exactly
+/// the new state. Already imported or title taken → `REFUSED`, no heading →
+/// `INVALID_PARAMS`. Note of every revision and subject of the commit: „Import aus <datei>“.
 pub async fn import_typst(state: &AppState, source: &str, file_name: &str) -> Result<ImportReport, RpcError> {
     Ok(import_source(state, source, file_name, None, Vec::new(), Vec::new(), Vec::new()).await?)
 }
 
-/// Hochgeladene Datei (Formular `POST /werke/import`, RPC `work.import`): nur Dateinamen auf `.typ`
-/// (Groß-/Kleinschreibung egal), höchstens 16 MiB, sonst `INVALID_PARAMS`; `title` (leer = aus der
-/// Datei) wie bei der CLI mit `--title`. Ordner im Dateinamen fallen weg. Bilder kommen so nicht mit
-/// (nur Text); sie lassen sich danach auf der Seite „Bilder“ mit ihrem Pfad anlegen.
+/// Uploaded file (form `POST /werke/import`, RPC `work.import`): only file names ending in `.typ`
+/// (case does not matter), at most 16 MiB, otherwise `INVALID_PARAMS`; `title` (empty = from the
+/// file) as for the CLI with `--title`. Folders in the file name are dropped. Images do not come along this way
+/// (text only); they can be created afterwards on the page „Bilder“ with their path.
 pub async fn import_upload(
     state: &AppState,
     source: &str,
@@ -103,14 +103,14 @@ pub async fn import_upload(
     Ok(import_source(state, source, file_name, title, Vec::new(), Vec::new(), Vec::new()).await?)
 }
 
-/// Endet der Dateiname auf `.typ` (ohne Rücksicht auf Groß-/Kleinschreibung) und hat davor einen Namen?
+/// Does the file name end in `.typ` (regardless of case) and have a name before it?
 pub fn is_typst_name(file_name: &str) -> bool {
     let lower = file_name.to_lowercase();
     lower.len() > 4 && lower.ends_with(".typ")
 }
 
-/// Gemeinsamer Weg aller Importe; Fehler als `StoreError`, damit die CLI einen vergebenen Titel
-/// erkennt. Werk und Bilder in einer Transaktion.
+/// Common path of all imports; errors as `StoreError`, so that the CLI recognises a taken title.
+/// Work and images in one transaction.
 async fn import_source(
     state: &AppState,
     source: &str,
@@ -120,11 +120,12 @@ async fn import_source(
     skipped: Vec<SkippedAsset>,
     warnings: Vec<ImportWarning>,
 ) -> Result<ImportReport, StoreError> {
-    // Runde 31: Das Buchende eines Exports (Register- und Glossarseiten ab `// Baruch: Register und Glossar`) gehört zu
-    // keinem Abschnitt; es entsteht beim Export aus den Satz-Einstellungen neu und wandert nicht in den letzten Abschnitt.
-    // Ein solcher Export trägt auch die Zusätze der Projektion (automatische Bibelstellen-Marken, verlinkte erste
-    // Erwähnung); sie kommen heraus, sonst verwiese der Text auf Glossar-Labels, die es im neuen Werk nicht gibt.
-    // Runde 21b: geschnitten wird nur ein erzeugtes Buchende, und jeder Eingriff steht im Bericht.
+    // Round 31: the book end of an export (index and glossary pages from `// Baruch: Register und Glossar` on) belongs
+    // to no section; it is created anew on export from the typeset settings and does not move into the last section.
+    // Such an export also carries the additions of the projection (automatic scripture reference marks, linked first
+    // mention); they are taken out, otherwise the text would refer to glossary labels that do not exist in the new
+    // work.
+    // Round 21b: only a generated book end is cut, and every intervention is in the report.
     let mut warnings = warnings;
     let original = source;
     let (source, exported) = baruch_typst::index::strip_back_matter(source);
@@ -168,8 +169,8 @@ async fn import_source(
         Ok(commit) => (commit, None),
         Err(e) => (None, Some(e)),
     };
-    // Runde 21b: Der Regelblock „// Baruch: Satz“ eines Exports landet in den Satz-Einstellungen (Store), sonst bleibt er
-    // in der Werkvorlage – beides steht im Bericht.
+    // Round 21b: the rule block „// Baruch: Satz“ of an export ends up in the typeset settings (store), otherwise it
+    // stays in the work template – both are in the report.
     if state.store.work_typeset(imported.work).await.ok().flatten().is_some() {
         warnings.push(ImportWarning {
             code: "import-typeset-adopted".into(),
@@ -203,20 +204,20 @@ async fn import_source(
     })
 }
 
-/// Datei lesen (UTF-8, höchstens 16 MiB) und importieren; der Dateiname kommt aus `path`.
-/// Für die CLI: Fehler nennen den Grund des Betriebssystems.
+/// Read the file (UTF-8, at most 16 MiB) and import it; the file name comes from `path`.
+/// For the CLI: errors name the reason given by the operating system.
 ///
-/// Vor dem Öffnen prüft `std::fs::metadata`, ob `path` eine reguläre Datei ist (auch nach Auflösen
-/// einer Verknüpfung). Eine FIFO, ein Gerät oder ein Ordner wird so abgelehnt, ohne geöffnet zu
-/// werden: `File::open` auf eine FIFO ohne Schreiber würde sonst blockieren. Das Lesen selbst läuft in
-/// `spawn_blocking`, damit kein Tokio-Worker auf das Dateisystem wartet.
+/// Before opening, `std::fs::metadata` checks whether `path` is a regular file (also after resolving
+/// a link). A FIFO, a device or a folder is refused this way without being opened:
+/// `File::open` on a FIFO without a writer would otherwise block. The reading itself runs in
+/// `spawn_blocking`, so that no Tokio worker waits for the file system.
 pub async fn import_file(state: &AppState, path: &Path) -> Result<ImportReport, RpcError> {
     import_file_as(state, path, None).await
 }
 
-/// Wie [`import_file`], mit eigenem Titel (`--title`). Ist der Titel schon vergeben, nennt die
-/// Meldung das vorhandene Werk und [`TITLE_HINT`] (`REFUSED`). Liest auch die Bilder, die der Text
-/// nennt ([`read_assets`]).
+/// Like [`import_file`], with its own title (`--title`). If the title is already taken, the
+/// message names the existing work and [`TITLE_HINT`] (`REFUSED`). Also reads the images the text
+/// names ([`read_assets`]).
 pub async fn import_file_as(state: &AppState, path: &Path, title: Option<&str>) -> Result<ImportReport, RpcError> {
     let owned: PathBuf = path.to_owned();
     let (source, file_name, assets, skipped) = tokio::task::spawn_blocking(move || {
@@ -229,8 +230,8 @@ pub async fn import_file_as(state: &AppState, path: &Path, title: Option<&str>) 
     import_source(state, &source, &file_name, title, assets, skipped, Vec::new()).await.map_err(map_title_error)
 }
 
-/// Fertig erzeugten Typst-Text als neues Werk anlegen (PDF/EPUB-Import nach Bestätigung, R21a). Wie import_source,
-/// vergebener Titel → REFUSED mit TITLE_HINT, keine Überschrift → INVALID_PARAMS.
+/// Create ready-made Typst text as a new work (PDF/EPUB import after confirmation, R21a). Like import_source,
+/// taken title → REFUSED with TITLE_HINT, no heading → INVALID_PARAMS.
 pub async fn import_generated(
     state: &AppState,
     source: &str,
@@ -243,8 +244,8 @@ pub async fn import_generated(
     import_source(state, source, file_name, title, assets, skipped, warnings).await.map_err(map_title_error)
 }
 
-/// Fehlerabbildung der Importe mit eigenem Titel: Ein vergebener Titel nennt das vorhandene Werk und [`TITLE_HINT`]
-/// (`REFUSED`); alles andere wie `From<StoreError>` (keine Überschrift → `INVALID_PARAMS`).
+/// Error mapping of the imports with their own title: a taken title names the existing work and [`TITLE_HINT`]
+/// (`REFUSED`); everything else like `From<StoreError>` (no heading → `INVALID_PARAMS`).
 fn map_title_error(e: StoreError) -> RpcError {
     match e {
         StoreError::DuplicateTitle { .. } => RpcError::new(REFUSED, format!("{e} {TITLE_HINT}")),
@@ -252,8 +253,8 @@ fn map_title_error(e: StoreError) -> RpcError {
     }
 }
 
-/// Inhalt einer regulären Datei als UTF-8 (höchstens 16 MiB) und ihr Dateiname. Blockiert; nur in
-/// `spawn_blocking` aufrufen.
+/// Content of a regular file as UTF-8 (at most 16 MiB) and its file name. Blocks; call only in
+/// `spawn_blocking`.
 fn read_file(path: &Path) -> Result<(String, String), RpcError> {
     let shown = path.display();
     let unreadable = |e: std::io::Error| RpcError::new(INVALID_PARAMS, format!("{shown} lässt sich nicht lesen: {e}"));
@@ -275,19 +276,19 @@ fn read_file(path: &Path) -> Result<(String, String), RpcError> {
     Ok((source, file_name.to_owned()))
 }
 
-/// Bilder, die `source` über `image("…")` nennt, relativ zum Ordner der Quelldatei `typ` lesen.
-/// Pfade mit führendem `/` gelten ebenfalls relativ zu diesem Ordner (er ist die Projektwurzel).
-/// Nach `canonicalize` muss die Datei im kanonischen Ordner liegen (kein Symlink und kein `..`
-/// hinaus), eine reguläre Datei sein, höchstens [`MAX_ASSET_BYTES`] groß und ein unterstütztes Bild;
-/// alle zusammen höchstens [`MAX_IMPORT_ASSET_BYTES`]. Sonst übersprungen mit Grund. Blockiert; nur
-/// in `spawn_blocking` aufrufen.
+/// Read the images that `source` names through `image("…")`, relative to the folder of the source file `typ`.
+/// Paths with a leading `/` also count as relative to this folder (it is the project root).
+/// After `canonicalize` the file must lie in the canonical folder (no symlink and no `..`
+/// out of it), be a regular file, at most [`MAX_ASSET_BYTES`] large and a supported image;
+/// all together at most [`MAX_IMPORT_ASSET_BYTES`]. Otherwise skipped with a reason. Blocks; call only
+/// in `spawn_blocking`.
 fn read_assets(typ: &Path, source: &str) -> (Vec<ImportAsset>, Vec<SkippedAsset>) {
     let folder = typ.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     read_assets_in(folder, source)
 }
 
-/// Wie [`read_assets`], mit dem Ordner der Quelldatei statt ihres Pfads (Markdown-Import von der Kommandozeile,
-/// Runde 21b: `source` ist dann der umgewandelte Typst-Text). Blockiert; nur in `spawn_blocking` aufrufen.
+/// Like [`read_assets`], with the folder of the source file instead of its path (Markdown import from the command
+/// line, Round 21b: `source` is then the converted Typst text). Blocks; call only in `spawn_blocking`.
 pub(crate) fn read_assets_in(folder: &Path, source: &str) -> (Vec<ImportAsset>, Vec<SkippedAsset>) {
     let mut assets = Vec::new();
     let mut skipped = Vec::new();
@@ -313,7 +314,7 @@ pub(crate) fn read_assets_in(folder: &Path, source: &str) -> (Vec<ImportAsset>, 
     (assets, skipped)
 }
 
-/// Eine Bilddatei unter `root` lesen; Fehler als Grund (Deutsch).
+/// Read one image file below `root`; errors as a reason (German).
 fn read_asset(root: &Path, path: &str, total: &mut u64) -> Result<(String, Vec<u8>), String> {
     let relative = path.trim().trim_start_matches('/');
     if relative.is_empty() || relative.contains('\\') || relative.contains("://") {
@@ -323,10 +324,10 @@ fn read_asset(root: &Path, path: &str, total: &mut u64) -> Result<(String, Vec<u
     if !real.starts_with(root) {
         return Err("liegt außerhalb des Ordners der Quelldatei".to_owned());
     }
-    // Vor dem Lesen die Pfadregel des Stores (`..`, Steuerzeichen …): Sonst läse der Import die Datei,
-    // und der Store lehnte den Pfad ab und verwürfe den ganzen Import samt Text. `./bilder/a.png`,
-    // `bilder//a.png` und `/bilder/a.png` sind erlaubt und gelten als `bilder/a.png`
-    // ([`baruch_store::normalize_asset_path`], Runde 7).
+    // Before reading, the path rule of the store (`..`, control characters …): otherwise the import would read the
+    // file, and the store would refuse the path and discard the whole import including the text. `./bilder/a.png`,
+    // `bilder//a.png` and `/bilder/a.png` are allowed and count as `bilder/a.png`
+    // ([`baruch_store::normalize_asset_path`], Round 7).
     if let Err(e) = baruch_store::check_asset_path(path) {
         return Err(e.to_string());
     }
@@ -354,9 +355,9 @@ fn read_asset(root: &Path, path: &str, total: &mut u64) -> Result<(String, Vec<u
     Ok((file_name, bytes))
 }
 
-/// Bildbytes aus einem Archiv oder Ordner-Upload prüfen (Runde 21b), mit denselben Gründen wie [`read_asset`]:
-/// höchstens [`MAX_ASSET_BYTES`], alle zusammen höchstens [`MAX_IMPORT_ASSET_BYTES`], ein unterstütztes Bild. Zählt
-/// `total` nur bei Erfolg hoch.
+/// Check image bytes from an archive or folder upload (Round 21b), with the same reasons as [`read_asset`]:
+/// at most [`MAX_ASSET_BYTES`], all together at most [`MAX_IMPORT_ASSET_BYTES`], a supported image. Counts
+/// `total` up only on success.
 pub(crate) fn check_image(bytes: &[u8], total: &mut u64) -> Result<(), String> {
     if bytes.len() > MAX_ASSET_BYTES {
         return Err("größer als 8 MiB".to_owned());
@@ -371,16 +372,16 @@ pub(crate) fn check_image(bytes: &[u8], total: &mut u64) -> Result<(), String> {
     Ok(())
 }
 
-/// Ein relativer Pfad nur aus Namen (kein `..`, `.`, keine Wurzel, kein Laufwerk)?
+/// A relative path made of names only (no `..`, `.`, no root, no drive)?
 fn plain_relative(path: &str) -> bool {
     !path.is_empty() && Path::new(path).components().all(|c| matches!(c, Component::Normal(_)))
 }
 
-/// Werk und Bilder in den Ordner `out` schreiben (`baruch-server export … --out`): die Typst-Datei
-/// als `<source_name>` (nur der Dateiname; ohne Importnamen `<slug>.typ`), Text wie
-/// [`Store::export_typst`], und jede Datei aus [`Store::export_assets`] an ihren Pfad. Nur relative
-/// Pfade ohne `..`; fehlende Ordner werden angelegt. Gibt es eine Zieldatei schon, wird nichts
-/// geschrieben (Fehler). Ergebnis: die geschriebenen Dateien.
+/// Write work and images into the folder `out` (`baruch-server export … --out`): the Typst file
+/// as `<source_name>` (only the file name; without an import name `<slug>.typ`), text like
+/// [`Store::export_typst`], and every file from [`Store::export_assets`] at its path. Only relative
+/// paths without `..`; missing folders are created. If a target file already exists, nothing is
+/// written (error). Result: the files written.
 pub async fn export_to_dir(store: &Store, work: WorkId, out: &Path) -> Result<Vec<PathBuf>, String> {
     let meta = store.work_meta(work).await.map_err(|e| e.to_string())?;
     let typst = store.export_typst(work).await.map_err(|e| e.to_string())?;
@@ -396,7 +397,7 @@ pub async fn export_to_dir(store: &Store, work: WorkId, out: &Path) -> Result<Ve
         if !plain_relative(&file.path) {
             return Err(format!("Bildpfad {} ist kein relativer Pfad ohne ..; nichts geschrieben", file.path));
         }
-        // Normalform der Komponenten (`bilder//a.png` = `bilder/a.png`), damit Doppel und Kollisionen auffallen.
+        // Normal form of the components (`bilder//a.png` = `bilder/a.png`), so that duplicates and collisions show up.
         let path = components(&file.path).join("/");
         if files.iter().any(|(p, _)| *p == path) {
             return Err(format!("{} käme zweimal vor; nichts geschrieben", file.path));
@@ -409,7 +410,7 @@ pub async fn export_to_dir(store: &Store, work: WorkId, out: &Path) -> Result<Ve
         .map_err(|e| format!("Schreiben abgebrochen: {e}"))?
 }
 
-/// Namen eines relativen Pfads (nur `Component::Normal`).
+/// Names of a relative path (only `Component::Normal`).
 fn components(path: &str) -> Vec<String> {
     Path::new(path)
         .components()
@@ -420,9 +421,9 @@ fn components(path: &str) -> Vec<String> {
         .collect()
 }
 
-/// Alles prüfen, bevor die erste Datei entsteht (Runde 21b): `out` ist (falls vorhanden) ein Ordner; keine Zieldatei gibt
-/// es schon; kein Pfad ist zugleich Datei und Ordner eines anderen (`a.png` und `a.png/b.svg`); kein schon vorhandener
-/// Zwischenordner ist eine Verknüpfung oder eine Datei (sonst landeten Bilder außerhalb von `out`). Blockiert.
+/// Check everything before the first file is created (Round 21b): `out` is (if present) a folder; no target file
+/// exists yet; no path is at once a file and a folder of another one (`a.png` and `a.png/b.svg`); no intermediate
+/// folder that already exists is a link or a file (otherwise images would land outside of `out`). Blocks.
 fn check_targets(out: &Path, files: &[(String, Vec<u8>)]) -> Result<(), String> {
     match std::fs::symlink_metadata(out) {
         Ok(meta) if meta.file_type().is_symlink() => {
@@ -451,7 +452,7 @@ fn check_targets(out: &Path, files: &[(String, Vec<u8>)]) -> Result<(), String> 
             at.push(part);
             let last = k + 1 == parts.len();
             match std::fs::symlink_metadata(&at) {
-                Err(_) => break, // fehlt: wird angelegt, darunter kann nichts vorhanden sein
+                Err(_) => break, // missing: is created, nothing can exist below it
                 Ok(_) if last => return Err(format!("{} gibt es schon; nichts überschrieben", at.display())),
                 Ok(meta) if meta.file_type().is_symlink() => {
                     return Err(format!(
@@ -470,8 +471,8 @@ fn check_targets(out: &Path, files: &[(String, Vec<u8>)]) -> Result<(), String> 
     Ok(())
 }
 
-/// Alle Dateien schreiben; vorher alles prüfen ([`check_targets`]), dann nichts überschreiben und jeden Ordner nach dem
-/// Anlegen noch einmal unter `out` verorten (`canonicalize`). Blockiert.
+/// Write all files; check everything first ([`check_targets`]), then overwrite nothing and locate every folder
+/// below `out` once more after creating it (`canonicalize`). Blocks.
 fn write_all(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<PathBuf>, String> {
     check_targets(out, files)?;
     std::fs::create_dir_all(out).map_err(|e| format!("{} lässt sich nicht anlegen: {e}", out.display()))?;

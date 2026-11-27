@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge `glossary_list`, `glossary_propose`, `index_propose` (Runde 31, Vertrag §3.3; Besitz glossar-daten).
-//! Nur lesen bzw. nur vorschlagen: Ein Begriff wird ein Vorschlag (Status „proposed“), ein Registereintrag ein
-//! Registervorschlag (Status „open“); übernehmen kann nur der Mensch, nie eine Textänderung. Herkunft ist die Persona
-//! aus `persona` (nur ohne Token vom eigenen Rechner, [`acting_persona`]) bzw. der Client als `@mcp:<name>`. Eintrag in
-//! der Werkzeugliste und Aufruf setzt `tools.rs`.
+//! MCP tools `glossary_list`, `glossary_propose`, `index_propose` (Round 31, contract §3.3; owned by glossar-daten).
+//! Read only or propose only: a term becomes a proposal (status „proposed“), an index entry an
+//! index proposal (status „open“); only the human can accept, never a text change. The origin is the persona
+//! from `persona` (only without a token from the own machine, [`acting_persona`]) or the client as `@mcp:<name>`.
+//! The entry in the tool list and the call are set by `tools.rs`.
 
 use baruch_store::{GlossaryStatus, NewIndexProposal};
 use baruch_typst::index::{IndexMark, KEYWORD_REGISTER, Occurrence};
@@ -107,7 +107,7 @@ struct WhoArgs {
     persona: Option<String>,
 }
 
-/// Herkunft eines Vorschlags: Persona aus `persona` bzw. der Client als `@mcp:<name>`.
+/// Origin of a proposal: persona from `persona` or the client as `@mcp:<name>`.
 async fn origin(state: &AppState, client: &Client, persona: Option<&str>) -> Result<String, Failure> {
     Ok(acting_persona(&state.store, client, persona).await?.unwrap_or_else(|| client.handle()))
 }
@@ -130,7 +130,7 @@ pub async fn call_propose(state: &AppState, client: &Client, arguments: Value) -
         "url": format!("/werke/{work}/glossar#begriff-{id}"),
     });
     if let Some(reason) = arguments.get("reason").and_then(Value::as_str).filter(|r| !r.trim().is_empty()) {
-        // Die Begründung steht nicht im Glossar (Vertrag §2.5 kennt kein Feld); sie geht an den Aufrufer zurück.
+        // The reason is not in the glossary (contract §2.5 knows no field); it goes back to the caller.
         out["reason"] = json!(reason.trim());
     }
     for field in ["commit", "mirror"] {
@@ -156,7 +156,7 @@ struct IndexArgs {
     persona: Option<String>,
 }
 
-/// `occurrence` als Text („first“, „all“, „3“) oder Zahl ab 1; fehlt → erste Fundstelle.
+/// `occurrence` as text („first“, „all“, „3“) or a number from 1; missing → first occurrence.
 fn occurrence(value: Option<&Value>) -> Result<Occurrence, Failure> {
     let bad = || tool_error(format!("occurrence: {OCCURRENCE} expected."));
     match value {
@@ -174,9 +174,9 @@ fn text(value: &Option<String>) -> String {
 }
 
 pub async fn call_index(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
-    // Vertrag Runde 5: Schreibende Werkzeuge nur über den festen Schlüssel; die Stelle node wäre nach einer Umstellung
-    // der Gliederung ein fremder Abschnitt. Runde 23: wie propose_revision und add_post ein Argumentfehler (-32602,
-    // `write_key`), kein `isError` mehr.
+    // Contract Round 5: writing tools only through the fixed key; the position node would be a foreign section after
+    // a rearrangement of the outline. Round 23: like propose_revision and add_post an argument error (-32602,
+    // `write_key`), no longer `isError`.
     let a: IndexArgs = args(arguments.clone())?;
     let key = write_key(&arguments, a.key, "arguments")?;
     let work = work_or_default(state, a.work.as_ref()).await?;

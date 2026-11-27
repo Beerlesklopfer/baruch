@@ -1,71 +1,71 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Aufruf:
-//! - `baruch-server [serve] [--listen 127.0.0.1:8765] [--data DIR] [--secrets keyring|memory]` (auch
-//!   `BARUCH_LISTEN`, `BARUCH_DATA`, `BARUCH_SECRETS`). Geheimnisse der Verbindungen: Vorgabe ist der
-//!   Schlüsselbund des Systems nur mit dem Vorgabe-Datenordner; mit jedem anderen `--data` bleiben sie im
-//!   Speicher des Prozesses ([`baruch_server::connections::secrets_mode`]), damit Wegwerf- und Prüfserver
-//!   die Einträge `baruch/…` des eigentlichen Dienstes weder lesen noch überschreiben oder löschen.
-//! - `baruch-server --version`: gibt `baruch-server <Version>` aus (Exit 0).
-//! - `--allow-host NAME` (mehrfach, nur `serve`; auch `BARUCH_ALLOWED_HOSTS`, Komma-getrennt): zusätzlich erlaubte
-//!   Rechnernamen für den Betrieb hinter einem Reverse-Proxy ([`baruch_server::guard::AllowedHosts`]). Ein
-//!   ungültiger Name (Port, Platzhalter, IP-Adresse) beendet `serve` mit Exit 2 und nennt ihn; `import` und
-//!   `export` lesen die Angabe nicht. Unter einem solchen Namen verlangt `/mcp` immer einen Token; den
-//!   Zugangsschutz stellt der Proxy (`docs/Betrieb.md`).
-//! - `baruch-server import <datei.typ> [--title "…"] [--data DIR]`: Typst-Datei als neues Werk; ist
-//!   der Titel schon vergeben, Exit 1 mit Hinweis auf `--title`
-//! - `baruch-server export <id|slug> [--out ORDNER] [--data DIR]`: Werk als Typst-Datei auf stdout;
-//!   mit `--out` die Typst-Datei und alle Bilder in einen Ordner (vorhandene Dateien → Exit 1)
-//! - `baruch-server export <id|slug> --pdf DATEI [--data DIR]`: das Buch als PDF (Runde 11, wie
-//!   `/werke/{id}/pdf`); vorhandene Datei → Exit 1 ohne Überschreiben, Satzfehler → Exit 1 ohne Datei;
-//!   `--pdf` und `--out` schließen sich aus (Exit 2)
+//! Invocation:
+//! - `baruch-server [serve] [--listen 127.0.0.1:8765] [--data DIR] [--secrets keyring|memory]` (also
+//!   `BARUCH_LISTEN`, `BARUCH_DATA`, `BARUCH_SECRETS`). Secrets of the connections: the default is the
+//!   keyring of the system only with the default data folder; with any other `--data` they stay in the
+//!   memory of the process ([`baruch_server::connections::secrets_mode`]), so that throwaway and test servers
+//!   neither read nor overwrite or delete the entries `baruch/…` of the actual service.
+//! - `baruch-server --version`: prints `baruch-server <version>` (exit 0).
+//! - `--allow-host NAME` (repeatable, `serve` only; also `BARUCH_ALLOWED_HOSTS`, comma-separated): additionally
+//!   allowed host names for operation behind a reverse proxy ([`baruch_server::guard::AllowedHosts`]). An
+//!   invalid name (port, wildcard, IP address) ends `serve` with exit 2 and names it; `import` and
+//!   `export` do not read the option. Under such a name `/mcp` always requires a token; the
+//!   access protection is provided by the proxy (`docs/Betrieb.md`).
+//! - `baruch-server import <datei.typ> [--title "…"] [--data DIR]`: Typst file as a new work; if
+//!   the title is already taken, exit 1 with a hint to `--title`
+//! - `baruch-server export <id|slug> [--out ORDNER] [--data DIR]`: work as a Typst file on stdout;
+//!   with `--out` the Typst file and all images into a folder (existing files → exit 1)
+//! - `baruch-server export <id|slug> --pdf DATEI [--data DIR]`: the book as PDF (Round 11, like
+//!   `/werke/{id}/pdf`); existing file → exit 1 without overwriting, typesetting error → exit 1 without a file;
+//!   `--pdf` and `--out` exclude each other (exit 2)
 //! - `baruch-server export <id|slug> --stichwort DATEI [--format a5|karten] [--schrift PT] [--data DIR]`:
-//!   Stichwortzettel als PDF (Runde 16c, wie `/werke/{id}/stichwortzettel.pdf`); schließt sich mit `--pdf`
-//!   und `--out` aus (Exit 2); vorhandene Datei → Exit 1 ohne Überschreiben, Satzfehler → Exit 1 ohne
-//!   Datei. Logik in `baruch_server::pdf::notes::write_notes_file`.
-//! - `baruch-server export <id|slug> --baruch DATEI [--data DIR]`: Austauschdatei (Runde 26); endet DATEI auf
-//!   `.xml`, nur XML, sonst ZIP; schließt sich mit `--out`, `--pdf` und `--stichwort` aus (Exit 2); vorhandene
-//!   Datei → Exit 1 ohne Überschreiben. Logik in `baruch_server::exchange::export::cli_export`.
-//! - `baruch-server export <id|slug> --epub DATEI [--data DIR]`: das Werk als EPUB (Runde 20a, wie
-//!   `/werke/{id}/epub`, Fußnoten als Popup); schließt sich mit `--out`, `--pdf`, `--stichwort` und `--baruch` aus
-//!   (Exit 2); vorhandene Datei → Exit 1 ohne Überschreiben. Logik in `baruch_server::epub::write_epub_file`.
+//!   cue notes as PDF (Round 16c, like `/werke/{id}/stichwortzettel.pdf`); excludes `--pdf`
+//!   and `--out` (exit 2); existing file → exit 1 without overwriting, typesetting error → exit 1 without
+//!   a file. Logic in `baruch_server::pdf::notes::write_notes_file`.
+//! - `baruch-server export <id|slug> --baruch DATEI [--data DIR]`: exchange file (Round 26); if DATEI ends in
+//!   `.xml`, XML only, otherwise ZIP; excludes `--out`, `--pdf` and `--stichwort` (exit 2); existing
+//!   file → exit 1 without overwriting. Logic in `baruch_server::exchange::export::cli_export`.
+//! - `baruch-server export <id|slug> --epub DATEI [--data DIR]`: the work as EPUB (Round 20a, like
+//!   `/werke/{id}/epub`, footnotes as popup); excludes `--out`, `--pdf`, `--stichwort` and `--baruch`
+//!   (exit 2); existing file → exit 1 without overwriting. Logic in `baruch_server::epub::write_epub_file`.
 //! - `baruch-server import <datei.baruch|datei.baruch.xml> [--abgleichen] [--vorschau] [--title "…"] [--data DIR]`:
-//!   Austauschdatei einlesen (Runde 26; entschieden über `exchange::is_exchange_name`): ohne Flag und unbekannt
-//!   → neues Werk, ohne Flag und bekannt → Exit 1, `--abgleichen` gleicht ein bekanntes Werk ab, `--vorschau`
-//!   schreibt nichts. `--abgleichen`/`--vorschau` mit einer `.typ`-Datei → Exit 2. Logik in
+//!   read an exchange file (Round 26; decided through `exchange::is_exchange_name`): without a flag and unknown
+//!   → new work, without a flag and known → exit 1, `--abgleichen` syncs a known work, `--vorschau`
+//!   writes nothing. `--abgleichen`/`--vorschau` with a `.typ` file → exit 2. Logic in
 //!   `baruch_server::exchange::import::cli_import`.
-//! - `baruch-server import <datei.pdf|datei.epub> [--uebernehmen] [--bibliothek] [--title "…"] [--data DIR]` (Runde 21a,
-//!   entschieden über `pdf_import::is_source_name`): ohne `--uebernehmen` nur Gliederung und Warnungen, nichts
-//!   geschrieben; mit `--uebernehmen` das Werk, mit `--bibliothek` (zusätzlich) die Quelle; immer lokal, ohne MultiGPT.
-//!   Die beiden Flags mit einer anderen Dateiart → Exit 2. Logik in `baruch_server::pdf_import::cli_import`.
-//! - `baruch-server import <datei.md|datei.markdown|datei.zip> [--title "…"] [--data DIR]` (Runde 21b): Markdown bzw.
-//!   Archiv als neues Werk. Logik in `baruch_server::markdown_import::cli_import`.
-//! - `baruch-server import <datei.docx> [--uebernehmen] [--title "…"] [--data DIR]` (Runde 32, entschieden über
-//!   `docx_import::is_docx_name`): ohne `--uebernehmen` nur Gliederung, Bearbeiter und Warnungen, nichts geschrieben;
-//!   mit `--uebernehmen` das Werk samt Vorschlägen (Änderungsverfolgung) und Beiträgen (Kommentare). `--bibliothek`
-//!   mit einer Word-Datei → Exit 2. Logik in `baruch_server::docx_import::cli_import`.
-//! - `baruch-server export <id|slug> --docx DATEI [--vorschlaege] [--data DIR]` (Runde 32): das Werk als Word-Datei,
-//!   mit `--vorschlaege` die offenen Vorschläge als Änderungsverfolgung; schließt sich mit `--out`, `--pdf`,
-//!   `--stichwort`, `--baruch` und `--epub` aus (Exit 2), `--vorschlaege` ohne `--docx` → Exit 2; vorhandene Datei →
-//!   Exit 1 ohne Überschreiben. Logik in `baruch_server::docx_export::cli_export`.
-//! - Beenden (Runde 32): `serve` läuft in `baruch_server::shutdown::serve` und endet sauber auf ein Signal oder über
-//!   die Seite `/beenden` (nur vom eigenen Rechner).
-//! - `baruch-server passwort <name> [--data DIR]` (Runde 35): Notweg bei vergessenem Passwort – liest das neue
-//!   Passwort als eine Zeile von der Standardeingabe, setzt es für das vorhandene Konto und beendet dessen
-//!   Sitzungen; eine Sperre nach Fehlversuchen wird aufgehoben; unbekanntes Konto oder ungültiges Passwort →
-//!   Exit 1. Das Passwort steht nie auf der Befehlszeile (dort läse es jeder Benutzer des Rechners in der
-//!   Prozessliste). Logik in `baruch_server::auth::cli::reset_password`.
-//! - `baruch-server typst …` (Runde 36), ebenso das Programm unter dem Namen `baruch-typst` oder `typst` gerufen
-//!   (Symlink; die Pakete liefern nur `baruch-typst`): die Typst-Kommandozeile mit der eingebauten Engine –
-//!   `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `--ppi`; `fonts`; `--version`
-//!   (`typst <Typst-Version> (Baruch <Version>)`); `--help`. Kein Datenordner, kein Server, kein Netz, keine Pakete;
-//!   Nicht-Unterstütztes (watch, query …) → Exit 2. Entschieden wird vor allem anderen in `main`
-//!   ([`baruch_server::typst_cli::dispatch`]), Argumente in `baruch_server::typst_cli`, Satz in
+//! - `baruch-server import <datei.pdf|datei.epub> [--uebernehmen] [--bibliothek] [--title "…"] [--data DIR]` (Round
+//!   21a, decided through `pdf_import::is_source_name`): without `--uebernehmen` only outline and warnings, nothing
+//!   written; with `--uebernehmen` the work, with `--bibliothek` (additionally) the source; always local, without
+//!   MultiGPT. The two flags with another kind of file → exit 2. Logic in `baruch_server::pdf_import::cli_import`.
+//! - `baruch-server import <datei.md|datei.markdown|datei.zip> [--title "…"] [--data DIR]` (Round 21b): Markdown or
+//!   archive as a new work. Logic in `baruch_server::markdown_import::cli_import`.
+//! - `baruch-server import <datei.docx> [--uebernehmen] [--title "…"] [--data DIR]` (Round 32, decided through
+//!   `docx_import::is_docx_name`): without `--uebernehmen` only outline, editors and warnings, nothing written;
+//!   with `--uebernehmen` the work including proposals (tracked changes) and posts (comments). `--bibliothek`
+//!   with a Word file → exit 2. Logic in `baruch_server::docx_import::cli_import`.
+//! - `baruch-server export <id|slug> --docx DATEI [--vorschlaege] [--data DIR]` (Round 32): the work as a Word file,
+//!   with `--vorschlaege` the open proposals as tracked changes; excludes `--out`, `--pdf`,
+//!   `--stichwort`, `--baruch` and `--epub` (exit 2), `--vorschlaege` without `--docx` → exit 2; existing file →
+//!   exit 1 without overwriting. Logic in `baruch_server::docx_export::cli_export`.
+//! - Quitting (Round 32): `serve` runs in `baruch_server::shutdown::serve` and ends cleanly on a signal or through
+//!   the page `/beenden` (only from the own machine).
+//! - `baruch-server passwort <name> [--data DIR]` (Round 35): emergency path for a forgotten password – reads the new
+//!   password as one line from standard input, sets it for the existing account and ends its
+//!   sessions; a lock after failed attempts is lifted; unknown account or invalid password →
+//!   exit 1. The password is never on the command line (there every user of the machine would read it in the
+//!   process list). Logic in `baruch_server::auth::cli::reset_password`.
+//! - `baruch-server typst …` (Round 36), likewise the program called under the name `baruch-typst` or `typst`
+//!   (symlink; the packages ship only `baruch-typst`): the Typst command line with the built-in engine –
+//!   `compile EINGABE [AUSGABE]` with `--root`, `--font-path`, `--format pdf|png|svg`, `--ppi`; `fonts`; `--version`
+//!   (`typst <Typst version> (Baruch <version>)`); `--help`. No data folder, no server, no network, no packages;
+//!   anything unsupported (watch, query …) → exit 2. The decision is made before everything else in `main`
+//!   ([`baruch_server::typst_cli::dispatch`]), arguments in `baruch_server::typst_cli`, typesetting in
 //!   `baruch_render::cli`.
 //!
-//! Vorgabe für die Adresse: `127.0.0.1:8765`. Vorgabe für die Daten: [`baruch_store::default_data_dir`],
-//! unter Linux `~/.local/share/baruch` (bzw. `$XDG_DATA_HOME/baruch`), unter Windows
+//! Default for the address: `127.0.0.1:8765`. Default for the data: [`baruch_store::default_data_dir`],
+//! under Linux `~/.local/share/baruch` (or `$XDG_DATA_HOME/baruch`), under Windows
 //! `%LOCALAPPDATA%\baruch`.
-//! Die Logik steht in der Bibliothek (`src/lib.rs`), hier nur Start und Argumente.
+//! The logic is in the library (`src/lib.rs`), here only start and arguments.
 
 use std::path::PathBuf;
 
@@ -144,7 +144,7 @@ enum Command {
     Serve,
     Import(PathBuf),
     Export(String),
-    /// Runde 35: Passwort eines Kontos neu setzen (Name des Kontos).
+    /// Round 35: reset the password of an account (name of the account).
     Password(String),
 }
 
@@ -154,7 +154,7 @@ fn usage(message: &str) -> ! {
 }
 
 fn main() {
-    // Runde 36: Typst-Kommandozeile (Unterbefehl `typst` oder Aliasname in argv[0]) vor allem anderen, ohne Laufzeit.
+    // Round 36: Typst command line (subcommand `typst` or alias name in argv[0]) before everything else, no runtime.
     if let Some(code) = baruch_server::typst_cli::dispatch(std::env::args_os().collect()) {
         std::process::exit(code)
     }
@@ -184,7 +184,7 @@ async fn run_main() {
     let mut source_apply = false;
     let mut source_library = false;
     let mut secrets: Option<String> = std::env::var("BARUCH_SECRETS").ok().filter(|s| !s.trim().is_empty());
-    // Runde 24: zusätzlich erlaubte Rechnernamen (Umgebung zuerst, dann jede Angabe `--allow-host`).
+    // Round 24: additionally allowed host names (environment first, then every option `--allow-host`).
     let mut allow_hosts: Vec<String> = std::env::var("BARUCH_ALLOWED_HOSTS").ok().into_iter().collect();
     let command = match args.peek().map(String::as_str) {
         Some("serve") => {
@@ -292,12 +292,12 @@ async fn run_main() {
     if (merge || preview_only) && !exchange_import {
         usage("--abgleichen und --vorschau gelten nur für Austauschdateien (.baruch, .baruch.xml)");
     }
-    // Runde 21: Weiche nach Dateiart (Austausch → PDF/EPUB → Markdown/ZIP → Typst).
+    // Round 21: switch by kind of file (exchange → PDF/EPUB → Markdown/ZIP → Typst).
     let file_name = match &command {
         Command::Import(file) => file.to_string_lossy().into_owned(),
         _ => String::new(),
     };
-    // Runde 32: Word nach dem Austausch, vor PDF/EPUB.
+    // Round 32: Word after the exchange, before PDF/EPUB.
     let docx_import = !exchange_import && baruch_server::docx_import::is_docx_name(&file_name);
     let source_import = !exchange_import && !docx_import && baruch_server::pdf_import::is_source_name(&file_name);
     let markdown_import = !exchange_import
@@ -325,7 +325,7 @@ async fn run_main() {
     match command {
         Command::Password(name) => reset_password(&name, &data).await,
         Command::Serve => {
-            // Nur `serve` liest die erlaubten Rechnernamen; ein ungültiger Name beendet den Start (Exit 2).
+            // Only `serve` reads the allowed host names; an invalid name ends the start (exit 2).
             let allowed_hosts =
                 baruch_server::guard::AllowedHosts::parse(&allow_hosts.join(",")).unwrap_or_else(|e| usage(&e));
             serve(&listen, data, secrets.as_deref(), allowed_hosts).await
@@ -367,8 +367,8 @@ async fn run_main() {
     }
 }
 
-/// `passwort <name>`: das neue Passwort als eine Zeile von der Standardeingabe (ohne den Zeilenumbruch), nie von der
-/// Befehlszeile. Ausgegeben wird nur der Name des Kontos.
+/// `passwort <name>`: the new password as one line from standard input (without the line break), never from the
+/// command line. Only the name of the account is printed.
 async fn reset_password(name: &str, data: &std::path::Path) {
     use std::io::IsTerminal;
     if std::io::stdin().is_terminal() {
@@ -400,14 +400,14 @@ async fn open(data: &std::path::Path) -> AppState {
 }
 
 async fn serve(listen: &str, data: PathBuf, secrets: Option<&str>, allowed_hosts: baruch_server::guard::AllowedHosts) {
-    // Geheimnisse der Verbindungen (Runde 9); import/export brauchen keine.
+    // Secrets of the connections (Round 9); import/export need none.
     use baruch_server::connections::{MemorySecrets, SecretsMode, secrets_mode, system_secrets};
     let mode = secrets_mode(secrets, &data, &baruch_store::default_data_dir()).unwrap_or_else(|e| usage(&e));
     let store: std::sync::Arc<dyn baruch_server::connections::SecretStore> = match mode {
         SecretsMode::Keyring => system_secrets(),
         SecretsMode::Memory => std::sync::Arc::new(MemorySecrets::default()),
     };
-    // Modell-Backend der Personas (Runde 10): Eliezer über die Verbindung `eliezer`.
+    // Model backend of the personas (Round 10): Eliezer through the connection `eliezer`.
     let model = std::sync::Arc::new(baruch_server::assist::eliezer::EliezerPort);
     let mut state = match AppState::open_with(&data, store, model).await {
         Ok(state) => state,
@@ -418,17 +418,17 @@ async fn serve(listen: &str, data: PathBuf, secrets: Option<&str>, allowed_hosts
     };
     let proxy_names = allowed_hosts.names().join(", ");
     state.allowed_hosts = allowed_hosts;
-    // Befunde (Runde 28): einmal je Datenbank die vorhandenen Antworten der Personas zerlegen (ändert keinen Beitrag);
-    // ein Fehler hält den Start nicht auf.
+    // Findings (Round 28): once per database split up the existing answers of the personas (changes no post);
+    // an error does not hold up the start.
     match baruch_server::findings::backfill(&state).await {
         Ok(0) => {}
         Ok(n) => println!("Befunde nachgetragen: {n}"),
         Err(e) => eprintln!("Befunde nachtragen: {e}"),
     }
-    // Bedeutungssuche (Runde 12): Eliezer als Einbetter, alle Werke und die Bibliothek im Hintergrund in
-    // den LanceDB-Index nachziehen (blockiert den Start nicht).
+    // Semantic search (Round 12): Eliezer as the embedder, catch up all works and the library into the
+    // LanceDB index in the background (does not block the start).
     baruch_server::rag::catch_up(&state).await;
-    // Typst-Satz (Runde 18a): Schriften im Hintergrund vorab suchen, damit der erste Satz nicht wartet.
+    // Typst typesetting (Round 18a): look for fonts in the background in advance, so that the first run does not wait.
     baruch_server::typeset::warm_fonts();
     let listener =
         tokio::net::TcpListener::bind(listen).await.unwrap_or_else(|e| panic!("{listen} lässt sich nicht öffnen: {e}"));
@@ -441,23 +441,23 @@ async fn serve(listen: &str, data: PathBuf, secrets: Option<&str>, allowed_hosts
              muss der Proxy den Zugangsschutz stellen. /mcp verlangt unter diesen Namen einen Token."
         );
     }
-    // Runde 35: Mit Konten verlangen Seiten, Formulare und /rpc eine Anmeldung.
+    // Round 35: with accounts, pages, forms and /rpc require signing in.
     match state.store.account_count().await {
         Ok(0) => println!("Anmeldung: aus (keine Konten; einrichten unter /einrichten am eigenen Rechner)"),
         Ok(n) => println!("Anmeldung: an ({n} Konten)"),
         Err(e) => eprintln!("Konten: {e}"),
     }
-    // Runde 32: Bedienen und Herunterfahren (Signale, Seite /beenden) stehen in `shutdown`. Die Empfänger der Signale
-    // sind eingerichtet, bevor die Zeile „Baruch läuft“ dasteht: Wer auf sie wartet und gleich ein SIGTERM schickt,
-    // trifft schon das saubere Herunterfahren.
+    // Round 32: serving and shutting down (signals, page /beenden) are in `shutdown`. The receivers of the signals
+    // are set up before the line „Baruch läuft“ is printed: whoever waits for it and sends a SIGTERM right away
+    // already hits the clean shutdown.
     let signal = baruch_server::shutdown::system_signal();
     println!("Baruch läuft: http://{}/", listener.local_addr().unwrap());
     if let Err(e) = baruch_server::shutdown::serve_with(listener, std::sync::Arc::new(state), signal).await {
         eprintln!("Server: {e}");
         std::process::exit(1);
     }
-    // Die Datenbank ist geschlossen, die Schlusszeile steht da. Ohne diesen Ausgang wartete die Laufzeit beim
-    // Verlassen von `main` noch auf blockierende Aufträge (etwa einen laufenden Typst-Satz) – über die Frist hinaus.
+    // The database is closed, the final line is printed. Without this exit the runtime would, on leaving
+    // `main`, still wait for blocking jobs (for instance a running Typst run) – beyond the deadline.
     std::process::exit(0);
 }
 
@@ -493,7 +493,7 @@ async fn import(file: &std::path::Path, title: Option<&str>, data: PathBuf) {
     }
 }
 
-/// Ergebnis der Austausch-Befehle: `Ok(text)` → Standardausgabe, Exit 0; `Err(text)` → Fehlerausgabe, Exit 1.
+/// Result of the exchange commands: `Ok(text)` → standard output, exit 0; `Err(text)` → standard error, exit 1.
 fn finish(result: Result<String, String>) {
     match result {
         Ok(text) => println!("{text}"),
@@ -504,20 +504,20 @@ fn finish(result: Result<String, String>) {
     }
 }
 
-/// `import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title T]` (Runde 26).
+/// `import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title T]` (Round 26).
 async fn import_exchange(file: &std::path::Path, options: &baruch_server::exchange::import::CliImport, data: PathBuf) {
     let state = open(&data).await;
     finish(baruch_server::exchange::import::cli_import(&state, file, options).await);
 }
 
-/// `export ID|SLUG --baruch DATEI` (Runde 26).
+/// `export ID|SLUG --baruch DATEI` (Round 26).
 async fn export_exchange(work: &str, file: &std::path::Path, data: PathBuf) {
     let state = open(&data).await;
     let id = resolve(&state, work).await;
     finish(baruch_server::exchange::export::cli_export(&state, id, file).await);
 }
 
-/// `export ID|SLUG --epub DATEI` (Runde 20a): Die Datei darf es nicht geben (Exit 1 ohne Überschreiben).
+/// `export ID|SLUG --epub DATEI` (Round 20a): the file must not exist (exit 1 without overwriting).
 async fn export_epub(work: &str, file: &std::path::Path, data: PathBuf) {
     if std::fs::symlink_metadata(file).is_ok() {
         eprintln!("Export: {} gibt es schon; nichts überschrieben", file.display());
@@ -539,7 +539,7 @@ async fn export_epub(work: &str, file: &std::path::Path, data: PathBuf) {
     }
 }
 
-/// Werk-id aus id oder slug; unbekannt → Exit 1.
+/// Work id from id or slug; unknown → exit 1.
 async fn resolve(state: &AppState, work: &str) -> i64 {
     let id = match work.parse::<i64>() {
         Ok(id) => Ok(id),
@@ -564,8 +564,8 @@ async fn resolve(state: &AppState, work: &str) -> i64 {
     }
 }
 
-/// `export <werk> --stichwort DATEI`: Stichwortzettel als PDF. Die Datei darf es nicht geben; scheitert der
-/// Satz, bleibt sie ungeschrieben (Exit 1).
+/// `export <werk> --stichwort DATEI`: cue notes as PDF. The file must not exist; if the typesetting
+/// fails, it stays unwritten (exit 1).
 async fn export_notes(
     work: &str,
     file: &std::path::Path,
@@ -594,8 +594,8 @@ async fn export_notes(
     }
 }
 
-/// `export <werk> --pdf DATEI`: Buch als PDF. Die Datei darf es nicht geben; scheitert der Satz, bleibt
-/// sie ungeschrieben (Exit 1).
+/// `export <werk> --pdf DATEI`: book as PDF. The file must not exist; if the typesetting fails, it stays
+/// unwritten (exit 1).
 async fn export_pdf(work: &str, file: &std::path::Path, data: PathBuf) {
     if std::fs::symlink_metadata(file).is_ok() {
         eprintln!("Export: {} gibt es schon; nichts überschrieben", file.display());

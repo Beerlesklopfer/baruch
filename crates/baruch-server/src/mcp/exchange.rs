@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `exchange_export` (Runde 26): das ganze Werk als Austauschdatei, nur lesend.
+//! MCP tool `exchange_export` (Round 26): the whole work as an exchange file, read-only.
 //!
-//! Antwort wie RPC `work.exchange_export` ([`crate::exchange::export::answer`]): `xml` als Text (Vorgabe) bzw.
-//! `data` als Base64 (`format: "baruch"`). Über [`MCP_EXPORT_LIMIT`] Bytes Datei ein ehrlicher Fehler mit Hinweis
-//! auf Formular und Kommandozeile. Ein Einlesen gibt es über MCP nicht: Das bleibt beim Menschen (Formular,
-//! RPC, Kommandozeile).
+//! Answer like RPC `work.exchange_export` ([`crate::exchange::export::answer`]): `xml` as text (default) or
+//! `data` as Base64 (`format: "baruch"`). Above [`MCP_EXPORT_LIMIT`] bytes of file an honest error with a hint
+//! to form and command line. There is no reading in through MCP: that stays with the human (form,
+//! RPC, command line).
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -15,8 +15,8 @@ use crate::exchange::export::{Format, answer, export_file};
 
 pub const NAME: &str = "exchange_export";
 
-/// Höchstgröße der Datei (vor Base64) für eine MCP-Antwort: 4 MiB. Die Antwort trägt den Inhalt zweimal
-/// (`structuredContent` und Text), als JSON maskiert; größere Werke über Formular oder Kommandozeile.
+/// Maximum size of the file (before Base64) for an MCP answer: 4 MiB. The answer carries the content twice
+/// (`structuredContent` and text), escaped as JSON; larger works through form or command line.
 pub const MCP_EXPORT_LIMIT: usize = 4 * 1024 * 1024;
 
 pub const DESCRIPTION: &str = "Return a whole work as an exchange file for another Baruch instance, read-only: \

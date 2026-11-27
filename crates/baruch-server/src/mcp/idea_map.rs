@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge der Mindmap (Gedankenkarte, Vertrag Runde 25, §4.2; Besitz karte-daten): `idea_map` liest die
-//! flache Karte eines Werks, `idea_links` die Verbindungen, `idea_link` und `idea_unlink` verbinden bzw. lösen
-//! Einfälle. Runde 34: `idea_tree` liest die Mindmap als Baum samt der Wolke daneben (nur lesend).
+//! MCP tools of the mind map (contract Round 25, §4.2; owned by karte-daten): `idea_map` reads the
+//! flat map of a work, `idea_links` the links, `idea_link` and `idea_unlink` link or unlink
+//! ideas. Round 34: `idea_tree` reads the mind map as a tree together with the cloud next to it (read-only).
 //!
-//! Verbindungen ändern keinen Buchtext; darum darf sie jeder anlegen und lösen (wie Einfälle, Entscheidung
-//! IDEA_CRUD). Herkunft `persona` (muss es geben) oder der Client als `@mcp:<name>`; jede Änderung ist ein
-//! Commit mit Herkunft. Wiederherstellen über erneutes `idea_link`.
+//! Links change no book text; therefore anyone may create and remove them (like ideas, decision
+//! IDEA_CRUD). Origin `persona` (must exist) or the client as `@mcp:<name>`; every change is a
+//! commit with origin. Restoring through another `idea_link`.
 
 use baruch_store::{LinkKind, NewIdeaLink};
 use serde::Deserialize;
@@ -15,7 +15,7 @@ use super::session::Client;
 use super::tools::{Failure, WorkRef, args, origin_of, resolve, work_schema};
 use crate::AppState;
 
-/// Namen der Werkzeuge dieses Moduls (in der Reihenfolge von `tools/list`).
+/// Names of the tools of this module (in the order of `tools/list`).
 pub const NAMES: &[&str] = &["idea_map", "idea_tree", "idea_links", "idea_link", "idea_unlink"];
 
 pub const TREE_DESCRIPTION: &str = "Read the mind map of a work as a tree: map.root is the work (w), below it parts \
@@ -98,7 +98,7 @@ pub fn unlink_schema() -> Value {
         "persona": persona_schema() } })
 }
 
-/// Werkzeug `name` ausführen; `None`: kein Werkzeug dieses Moduls.
+/// Run the tool `name`; `None`: not a tool of this module.
 pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Value) -> Option<Result<Value, Failure>> {
     Some(match name {
         "idea_map" => idea_map(state, arguments).await,
@@ -118,7 +118,7 @@ struct MapArgs {
     origin: Option<String>,
     q: Option<String>,
     near: Option<bool>,
-    /// Runde 19b: wie RPC; ein Wert außerhalb 1–5 bzw. 0–1 (oder keine Zahl) ist ein fachlicher Fehler (isError).
+    /// Round 19b: like RPC; a value outside 1–5 or 0–1 (or not a number) is a domain error (isError).
     near_limit: Option<Value>,
     near_threshold: Option<Value>,
 }
@@ -149,12 +149,12 @@ struct UnlinkArgs {
 async fn idea_map(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     let a: MapArgs = args(arguments)?;
     let (work, _, _) = resolve(&state.store, &a.work).await?;
-    // Falsche Filterwerte (status, origin) sind falsche Argumente (-32602), wie bei unlesbaren `arguments`.
+    // Wrong filter values (status, origin) are wrong arguments (-32602), as with unreadable `arguments`.
     let mut filter = crate::idea_map::filter_from_params(&json!({
         "status": a.status, "word": a.word, "origin": a.origin, "q": a.q, "near": a.near,
     }))
     .map_err(|e| Failure::Args(format!("arguments: {}", e.message)))?;
-    // Runde 19b: near_limit/near_threshold mit derselben Prüfung wie die RPC; unzulässig → isError mit Grund.
+    // Round 19b: near_limit/near_threshold with the same check as the RPC; inadmissible → isError with the reason.
     let near = crate::idea_map::filter_from_params(&json!({
         "near_limit": a.near_limit, "near_threshold": a.near_threshold,
     }))
@@ -163,7 +163,7 @@ async fn idea_map(state: &AppState, arguments: Value) -> Result<Value, Failure> 
     filter.near_threshold = near.near_threshold;
     let map = crate::idea_map::build(state, work, &filter).await.map_err(Failure::from)?;
     let mut answer = serde_json::to_value(map).map_err(|e| Failure::Internal(e.to_string()))?;
-    // Runde 34: Titel und Platz im Baum je Einfall (wie RPC `idea.map`).
+    // Round 34: title and place in the tree per idea (like RPC `idea.map`).
     let rows = state.store.idea_tree_rows(work).await?;
     if let Some(Value::Array(ideas)) = answer.get_mut("ideas") {
         for idea in ideas {
@@ -182,7 +182,7 @@ async fn idea_map(state: &AppState, arguments: Value) -> Result<Value, Failure> 
     Ok(answer)
 }
 
-/// Jedem Knoten der Art Einfall `url` (`/einfaelle/<id>`) mitgeben, auch in der Tiefe.
+/// Give every node of the kind idea a `url` (`/einfaelle/<id>`), also in the depth.
 fn add_urls(node: &mut Value) {
     if let Some(id) = node["idea"].as_i64() {
         node["url"] = json!(format!("/einfaelle/{id}"));
@@ -192,8 +192,8 @@ fn add_urls(node: &mut Value) {
     }
 }
 
-/// Runde 34: die Mindmap als Baum samt Wolke, wie RPC `idea.tree` (nur lesend; die Nähe im Baum bleibt aus, die
-/// Vorschläge der Wolke rechnen mit gespeicherten Vektoren und gleichen Schlagwörtern).
+/// Round 34: the mind map as a tree together with the cloud, like RPC `idea.tree` (read-only; nearness stays off in
+/// the tree, the suggestions of the cloud calculate with stored vectors and equal keywords).
 async fn idea_tree(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     #[derive(Deserialize)]
     struct TreeArgs {

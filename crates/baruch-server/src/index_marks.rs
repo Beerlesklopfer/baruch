@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Registermarken im Text: RPC `index.entries`, `index.mark`, `index.unmark`, `index.overview` (Runde 31, Vertrag
-//! §3.2; Signaturen seit R31-S1 eingefroren, Körper Aufgabe register-satz).
+//! Index marks in the text: RPC `index.entries`, `index.mark`, `index.unmark`, `index.overview` (Round 31, contract
+//! §3.2; signatures frozen since R31-S1, bodies task register-satz).
 //!
-//! Eine Registermarke ist Buchtext: Setzen und Entfernen ergeben eine neue Fassung des Menschen auf der genannten Fassung
-//! (wie `save_human_on`, Schreibsperre vor dem Schreiben), protokolliert über `mirror::record` (ein Commit). Die Marke
-//! selbst setzt bzw. entfernt [`baruch_typst::index::mark_word`] bzw. [`baruch_typst::index::remove_mark`]: kanonische
-//! Form direkt hinter dem Wort, nie in Überschriftszeilen, Code, Kommentaren, Raw oder anderen Marken.
+//! An index mark is book text: setting and removing produce a new revision of the human on the named revision
+//! (like `save_human_on`, write lock before writing), logged through `mirror::record` (one commit). The mark
+//! itself is set or removed by [`baruch_typst::index::mark_word`] or [`baruch_typst::index::remove_mark`]: canonical
+//! form directly after the word, never in heading lines, code, comments, raw or other marks.
 //!
-//! - `index.entries {work?, key?}` → `{work, entries:[{key, register, term, sub, see, also, auto, start, end}]}`: die
-//!   Marken der aktuellen Fassungen (Bytebereich im gespeicherten Text) und – bei eingeschaltetem Bibelstellenregister –
-//!   die automatischen Bibelstellen der Projektion (`auto: true`, `start`/`end` = null).
+//! - `index.entries {work?, key?}` → `{work, entries:[{key, register, term, sub, see, also, auto, start, end}]}`: the
+//!   marks of the current revisions (byte range in the stored text) and – with the scripture index switched on –
+//!   the automatic scripture references of the projection (`auto: true`, `start`/`end` = null).
 //! - `index.mark {work?, key, rev, word, occurrence?, register?, term?, sub?, see?, also?}` → `{work, key, node, rev,
-//!   marks, commit?|mirror?}`; Wort fehlt, ungültige Marke oder unbekanntes Register → `INVALID_PARAMS`.
+//!   marks, commit?|mirror?}`; word missing, invalid mark or unknown index → `INVALID_PARAMS`.
 //! - `index.unmark {work?, key, rev, start, end}` → `{work, key, node, rev, commit?|mirror?}`.
 //! - `index.overview {work?}` → `{work, registers:[{slug, title, kind, terms:[IndexTerm]}]}`.
 
@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// RPC-Methoden dieses Moduls.
+/// RPC methods of this module.
 pub const METHODS: &[&str] = &["index.entries", "index.mark", "index.unmark", "index.overview"];
 
 pub fn handles(method: &str) -> bool {
@@ -33,7 +33,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Ganze Zahl aus Zahl oder Text; fehlt/leer → `None`.
+/// Integer from a number or text; missing/empty → `None`.
 fn int_param(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
@@ -75,7 +75,7 @@ fn occurrence_param(params: &Value) -> Result<Occurrence, RpcError> {
     }
 }
 
-/// RPC `index.entries/mark/unmark/overview` beantworten.
+/// Answer RPC `index.entries/mark/unmark/overview`.
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "index.entries" => entries(state, work, int_param(&params, "key")?).await,
@@ -132,7 +132,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-/// Marke an einem Wort setzen: Abschnitt `key`, Grundlage Fassung `rev`.
+/// Set a mark at a word: section `key`, based on revision `rev`.
 #[derive(Debug, Clone)]
 pub struct MarkRequest {
     pub key: i64,
@@ -142,8 +142,8 @@ pub struct MarkRequest {
     pub mark: baruch_typst::index::IndexMark,
 }
 
-/// Neue Fassung des Menschen aus der Fassung `rev` von Abschnitt `key`, deren Text `change` umformt (Schreibsperre,
-/// `save_human_on`, ein Spiegel-Commit). Antwort `{work, key, node, rev, commit?|mirror?}` plus `extra`.
+/// New revision of the human from revision `rev` of section `key`, whose text `change` transforms (write lock,
+/// `save_human_on`, one mirror commit). Answer `{work, key, node, rev, commit?|mirror?}` plus `extra`.
 async fn rewrite(
     state: &AppState,
     work: WorkId,
@@ -179,7 +179,7 @@ async fn rewrite(
     Ok(answer)
 }
 
-/// Marke setzen → neue Fassung des Menschen.
+/// Set a mark → new revision of the human.
 pub async fn mark(state: &AppState, work: WorkId, request: MarkRequest) -> Result<Value, RpcError> {
     let registers = crate::glossary::registers(state, work).await?;
     if !registers.iter().any(|r| r.slug == request.mark.register) {
@@ -199,7 +199,7 @@ pub async fn mark(state: &AppState, work: WorkId, request: MarkRequest) -> Resul
     .await
 }
 
-/// Marke im Bereich `span` entfernen → neue Fassung des Menschen.
+/// Remove the mark in the range `span` → new revision of the human.
 pub async fn unmark(
     state: &AppState,
     work: WorkId,
@@ -214,7 +214,7 @@ pub async fn unmark(
     .await
 }
 
-/// Aktuelle Texte der Abschnitte (Baumreihenfolge), auf `key` beschränkt (unbekannt → `INVALID_PARAMS`).
+/// Current texts of the sections (tree order), restricted to `key` (unknown → `INVALID_PARAMS`).
 async fn current_bodies(state: &AppState, work: WorkId, key: Option<i64>) -> Result<Vec<(i64, String)>, RpcError> {
     let loaded = state.store.load_work(work).await?;
     if let Some(key) = key
@@ -230,7 +230,7 @@ async fn current_bodies(state: &AppState, work: WorkId, key: Option<i64>) -> Res
         .collect())
 }
 
-/// Marken der aktuellen Fassungen (eines Abschnitts oder des ganzen Werks) samt automatischen Bibelstellen.
+/// Marks of the current revisions (of one section or of the whole work) together with automatic scripture references.
 pub async fn entries(state: &AppState, work: WorkId, key: Option<i64>) -> Result<Value, RpcError> {
     let bodies = current_bodies(state, work, key).await?;
     let back = state.store.back_matter(work).await?;
@@ -251,8 +251,8 @@ pub async fn entries(state: &AppState, work: WorkId, key: Option<i64>) -> Result
             }));
         }
         if scripture {
-            // Nur die Bibelstellen-Marken der Projektion (je Abschnitt eine eigene, damit Kapitelzustand keine Rolle
-            // spielt); vorhandene automatische Marken im gespeicherten Text zählen nicht doppelt.
+            // Only the scripture reference marks of the projection (a separate one per section, so that chapter
+            // state plays no part); existing automatic marks in the stored text do not count twice.
             let mut existing: Vec<&IndexMark> = own.iter().map(|f| &f.mark).filter(|m| auto(m)).collect();
             let projected = Projector::new(&back).project(body).into_owned();
             for found in find_marks(&projected).into_iter().filter(|f| auto(&f.mark)) {
@@ -271,7 +271,7 @@ pub async fn entries(state: &AppState, work: WorkId, key: Option<i64>) -> Result
     Ok(json!({ "work": work, "entries": list }))
 }
 
-/// Übersicht je Register.
+/// Overview per index.
 pub async fn overview(state: &AppState, work: WorkId) -> Result<Vec<baruch_typst::index::RegisterView>, RpcError> {
     let bodies = current_bodies(state, work, None).await?;
     let back = state.store.back_matter(work).await?;

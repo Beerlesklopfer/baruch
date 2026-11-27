@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge zur Umschlag-Anordnung (Vertrag Runde 27, Abschnitte 1.9 und 4; Aufgabe umschlag-daten).
+//! MCP tools for the cover layout (contract Round 27, sections 1.9 and 4; task umschlag-daten).
 //!
-//! - `cover_layout {work}`: wie RPC `cover.layout`, nur lesend; ohne Seitenmaß (Satzfehler im Buch) `geometry: null`
-//!   und `geometry_error`, dann nur die gespeicherten Blöcke (ohne Höhe).
-//! - `cover_layout_set {work, blocks, note?, persona?}`: stellt einen Antrag (Bildanträge, op `cover_layout`) und
-//!   ändert nichts sofort; der Mensch bestätigt auf der Seite Bilder → Anträge. Jeder genannte Block ersetzt seine
-//!   Art ganz; fehlende Felder eines Blocks füllt der wirksame Block (gespeichert bzw. Vorgabe), so genügt etwa
-//!   `{kind: "front_title", y_mm: 40}`. Der Antrag merkt sich den Fingerabdruck der gespeicherten Anordnung
-//!   (`expected_layout`); ein gleicher offener Antrag wird nicht doppelt angelegt.
+//! - `cover_layout {work}`: like RPC `cover.layout`, read-only; without a page size (typesetting error in the book)
+//!   `geometry: null` and `geometry_error`, then only the stored blocks (without height).
+//! - `cover_layout_set {work, blocks, note?, persona?}`: files a request (image requests, op `cover_layout`) and
+//!   changes nothing immediately; the human confirms on the page Bilder → Anträge. Every named block replaces its
+//!   kind completely; missing fields of a block are filled by the effective block (stored or default), so for
+//!   instance `{kind: "front_title", y_mm: 40}` is enough. The request remembers the fingerprint of the stored
+//!   layout (`expected_layout`); an identical open request is not created twice.
 
 use baruch_store::{AssetOp, CoverBlock, CoverBlockKind, WorkId};
 use serde_json::{Value, json};
@@ -30,7 +30,7 @@ completely; missing fields of a block come from the effective block (cover_layou
 y_mm: 40}. Changes nothing immediately; the human confirms on the images page (requests). Origin `persona` or the \
 client as @mcp:<name>; an equal open request is not filed twice; if the human has changed the layout in the \
 meantime, the request becomes stale on confirming.";
-/// Ein Block wie in `cover.layout` (Vertrag 1.3).
+/// A block as in `cover.layout` (contract 1.3).
 fn block_schema() -> Value {
     json!({ "type": "object", "required": ["kind"], "properties": {
         "kind": { "type": "string", "enum": [
@@ -88,7 +88,7 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
     })
 }
 
-/// Ansicht wie `cover.layout`; ohne Seitenmaß nur die gespeicherten Blöcke mit `geometry: null`.
+/// View like `cover.layout`; without a page size only the stored blocks with `geometry: null`.
 async fn layout(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     let a: LayoutArgs = args(arguments)?;
     let work = work_or_default(state, a.work.as_ref()).await?;
@@ -122,11 +122,11 @@ async fn layout(state: &AppState, arguments: Value) -> Result<Value, Failure> {
     }
 }
 
-/// Wirksamer Block je Art (gespeichert bzw. Vorgabe) als Grundlage für unvollständige Blöcke.
+/// Effective block per kind (stored or default) as the basis for incomplete blocks.
 async fn bases(state: &AppState, work: WorkId) -> Result<Vec<CoverBlock>, Failure> {
     match cover_layout::layout_view(state, work, None).await {
         Ok(view) => Ok(view.blocks.into_iter().map(|b| b.block).collect()),
-        // Ohne Seitenmaß keine Vorgabeblöcke: dann nur die gespeicherten.
+        // Without a page size no default blocks: then only the stored ones.
         Err(e) if e.code == REFUSED => Ok(state.store.cover_layout(work).await?.blocks),
         Err(e) => Err(e.into()),
     }

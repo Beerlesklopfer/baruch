@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeuge für die Gliederung (Wunsch 2026-11-06: „Ein LLM hat den besseren Überblick durch
+//! MCP tools for the outline (wish 2026-11-06: „Ein LLM hat den besseren Überblick durch
 //! seinen Context“, „UD nach Bestätigung“).
 //!
-//! - `outline_add` legt Gliederungspunkte **sofort** an: einen (`title`) oder eine ganze Liste
-//!   (`items`, je `{title, level?}` mit absoluter Ebene) als Block in **einer** Transaktion und
-//!   **einem** Spiegel-Commit ([`baruch_store::Store::outline_add_by_assistant`]); bei einem Fehler
-//!   nichts. Revision 1 jedes Punkts und der Commit tragen die Persona bzw. den Client als
-//!   `@mcp:<name>` ([`mirror::OutlineBy::Direct`]), nicht den Menschen. Auch Teile (Ebene 0, Runde 14)
-//!   vor oder hinter einem Teil oder Kapitel, auch mit Werkvorlage – aber nur, wenn der Teil keine
-//!   vorhandenen Kapitel übernimmt. Sonst (Nutzerfrage 12, Entscheidung 2026-11-07: „es braucht eine
-//!   aktive Zustimmung (Popup)“) ändert sich nichts: Es entsteht ein Antrag (`action: requested`, mit
-//!   `adopted` = Kapitel, die wandern würden), dem der Mensch im Dialog zustimmt (`crate::consent`).
+//! - `outline_add` creates outline items **immediately**: one (`title`) or a whole list
+//!   (`items`, each `{title, level?}` with an absolute level) as a block in **one** transaction and
+//!   **one** mirror commit ([`baruch_store::Store::outline_add_by_assistant`]); on an error
+//!   nothing. Revision 1 of every item and the commit carry the persona or the client as
+//!   `@mcp:<name>` ([`mirror::OutlineBy::Direct`]), not the human. Parts too (level 0, Round 14)
+//!   before or after a part or chapter, also with a work template – but only if the part takes over no
+//!   existing chapters. Otherwise (user question 12, decision 2026-11-07: „es braucht eine
+//!   aktive Zustimmung (Popup)“) nothing changes: a request is created (`action: requested`, with
+//!   `adopted` = chapters that would move), to which the human consents in the dialog (`crate::consent`).
 //! - `outline_rename`, `outline_move`, `outline_set_level`, `outline_set_numbered`, `outline_delete`
-//!   ändern **nichts**,
-//!   sondern legen einen Antrag an ([`baruch_store::Store::outline_request`], Migration 0012). Der
-//!   Mensch bestätigt oder lehnt ab (Seite `/gliederung#antraege`, RPC `outline.request_decide`).
-//! - `outline_requests` liest Anträge (offen bzw. alle, wahlweise nur eigene); mit `preview: true` je
-//!   offenem Antrag die Gliederung nach dem Bestätigen (`preview`) bzw. `preview_error` (Runde 14).
+//!   change **nothing**,
+//!   but create a request ([`baruch_store::Store::outline_request`], migration 0012). The
+//!   human confirms or rejects (page `/gliederung#antraege`, RPC `outline.request_decide`).
+//! - `outline_requests` reads requests (open or all, optionally only one's own); with `preview: true` per
+//!   open request the outline after confirming (`preview`) or `preview_error` (Round 14).
 //!
-//! Punkte nur über den festen Schlüssel (`key`, beim Verschieben `target_key`); `node` bzw. `target`
-//! (Stellen) → -32602 wie bei den übrigen schreibenden Werkzeugen. Alles Schreibende unter
+//! Items only through the fixed key (`key`, when moving `target_key`); `node` or `target`
+//! (positions) → -32602 as with the other writing tools. Everything that writes runs under
 //! [`AppState::write_lock`].
 
 use baruch_store::{AssistantAdd, IdeaOrigin, NewPoint, OutlineOp, Place, WorkId};
@@ -30,7 +30,7 @@ use super::session::Client;
 use super::tools::{Failure, WorkRef, args, node_url, resolve, work_schema, write_key};
 use crate::{AppState, mirror};
 
-/// Namen der Werkzeuge dieses Moduls (in der Reihenfolge von `tools/list`).
+/// Names of the tools of this module (in the order of `tools/list`).
 pub const NAMES: &[&str] = &[
     "outline_add",
     "outline_rename",
@@ -130,7 +130,7 @@ pub fn requests_schema() -> Value {
         "persona": persona_schema() } })
 }
 
-/// Herkunft: `persona` (muss es geben) oder der Client als `@mcp:<name>`.
+/// Origin: `persona` (must exist) or the client as `@mcp:<name>`.
 async fn origin(state: &AppState, client: &Client, persona: Option<&str>) -> Result<IdeaOrigin, Failure> {
     super::tools::origin_of(&state.store, client, persona).await
 }
@@ -145,7 +145,7 @@ fn parse_place(value: Option<&str>, default: Option<Place>) -> Result<Place, Fai
     }
 }
 
-/// `target` (Stelle) gibt es bei `outline_move` nicht, nur `target_key`.
+/// `target` (position) does not exist for `outline_move`, only `target_key`.
 fn refuse_target(arguments: &Value) -> Result<(), Failure> {
     if arguments.get("target").is_some() {
         return Err(Failure::Args(
@@ -205,7 +205,7 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
     })
 }
 
-/// Adresse der Anträge auf der Gliederungsseite.
+/// Address of the requests on the outline page.
 fn requests_url(work: WorkId) -> String {
     format!("/gliederung?work={work}#antraege")
 }
@@ -235,7 +235,7 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
     let (work, _, _) = resolve(&state.store, &a.work).await?;
     let origin = origin(state, client, a.persona.as_deref()).await?;
     let model = a.model.filter(|m| !m.trim().is_empty()).unwrap_or_else(|| client.model());
-    // Unter der Schreibsperre: zwischen Übersetzen von `key` und Anlegen stellt niemand um.
+    // Under the write lock: between translating `key` and creating nobody rearranges.
     let held = state.write_lock.lock().await;
     let target = match a.key {
         Some(key) => Some(state.store.node_seq(work, key).await?),
@@ -245,7 +245,7 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
         match state.store.outline_add_by_assistant(work, target, place, &points, &origin, &model, &a.note).await? {
             AssistantAdd::Added(added) => added,
             AssistantAdd::Requested(request) => {
-                // Nutzerfrage 12: nichts angelegt; der Mensch stimmt im Dialog zu oder lehnt ab.
+                // User question 12: nothing created; the human consents in the dialog or rejects.
                 return Ok(json!({
                     "work": work,
                     "action": "requested",
