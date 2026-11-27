@@ -570,7 +570,12 @@ fn the_workflow_check_accepts_the_separated_pages_jobs() {
 fn the_documentation_names_word_and_quitting_and_no_stub_is_left() {
     let read = |path: &str| std::fs::read_to_string(root().join(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
     for (path, needles) in [
-        ("docs/Bedienung.md", &["Word (.docx) importieren…", "/werke/<id>/word", "Baruch beenden…", "@word:"][..]),
+        // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite. Die sichtbaren Texte der Oberfläche
+        // (Menüeinträge) werden darum in der zuständigen Hilfeseite gesucht, das Technische (Route, Herkunft der
+        // Word-Vorschläge) weiter in docs/Bedienung.md, das seitdem nur Verweis und technische Anmerkung ist.
+        ("site/content/hilfe/einlesen.md", &["Word (.docx) importieren…"][..]),
+        ("site/content/hilfe/erste-schritte.md", &["Baruch beenden…"][..]),
+        ("docs/Bedienung.md", &["/werke/<id>/word", "@word:"][..]),
         ("docs/RPC.md", &["docx_import.preview", "docx_import.apply", "work.docx_export", "/beenden"][..]),
         ("docs/MCP.md", &["Word-Import", "Word-Export", "Baruch beenden gibt es weder über RPC noch über MCP"][..]),
         ("docs/Architektur.md", &["`baruch-docx`", "docx_import", "docx_export", "shutdown.rs"][..]),
