@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Glossar und Register eines Werks (Runde 31, Vertrag §2.5; Schnittstelle R31-S1, Typen und Signaturen
-//! **eingefroren** – Änderungen nur über Integrator/PM; Körper gehören der Aufgabe glossar-daten).
+//! Glossary and index of a work (Round 31, contract §2.5; interface R31-S1, types and signatures **frozen** – changes
+//! only through integrator/PM; the bodies belong to the task glossar-daten).
 //!
-//! - **Glossarbegriffe** (`glossary_term`, Migration 0049): angenommen (`accepted`, vom Menschen) oder vorgeschlagen
-//!   (`proposed`, von einer Persona bzw. einem MCP-Client, `origin` = „@lektor“ bzw. „@mcp:<name>“). Glossardaten sind
-//!   kein Buchtext, aber Werk-Inhalt: Ändern und Löschen nur der Mensch, jede Änderung ein Spiegel-Commit.
-//! - **Eigene Register** (`index_register`): höchstens [`baruch_typst::index::MAX_CUSTOM_REGISTERS`], die eingebauten
-//!   Kennungen sind gesperrt.
-//! - **Registervorschläge** (`index_proposal`): ein Vorschlag „setze diese Marke hinter dieses Wort“; übernimmt der
-//!   Mensch ihn, entsteht in einer Transaktion eine neue Fassung des Abschnitts mit der Marke
-//!   ([`baruch_typst::index::mark_word`]).
-//! - Lesen sortiert nach [`baruch_typst::index::sort_key`] (in Rust, nie gespeichert).
+//! - **Glossary terms** (`glossary_term`, migration 0049): accepted (`accepted`, by the human) or proposed (`proposed`,
+//!   by a persona or an MCP client, `origin` = "@lektor" or "@mcp:<name>"). Glossary data are not book text, but work
+//!   content: only the human changes and deletes, every change is a mirror commit.
+//! - **Custom indexes** (`index_register`): at most [`baruch_typst::index::MAX_CUSTOM_REGISTERS`], the built-in
+//!   identifiers are blocked.
+//! - **Index proposals** (`index_proposal`): a proposal "put this mark behind this word"; if the human accepts it, a
+//!   new revision of the section with the mark arises in one transaction ([`baruch_typst::index::mark_word`]).
+//! - Reading sorts by [`baruch_typst::index::sort_key`] (in Rust, never stored).
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -32,19 +31,19 @@ pub const MAX_GLOSSARY_VARIANTS: usize = 32;
 pub const MAX_GLOSSARY_BIBLE_REFS: usize = 32;
 pub const MAX_GLOSSARY_TERMS: usize = 5000;
 pub const MAX_INDEX_REASON_CHARS: usize = 1000;
-/// Runde 23: höchstens so viele **offene** Registervorschläge je Werk und Herkunft (Persona bzw. `@mcp:<Client>`).
+/// Round 23: at most this many **open** index proposals per work and origin (persona or `@mcp:<Client>`).
 pub const MAX_OPEN_INDEX_PROPOSALS_PER_ORIGIN: usize = 200;
-/// Runde 23: höchstens so viele **offene** Registervorschläge je Werk insgesamt.
+/// Round 23: at most this many **open** index proposals per work in total.
 pub const MAX_OPEN_INDEX_PROPOSALS_PER_WORK: usize = 2000;
 
-/// Längste Form eines Worts bzw. einer Variante (Zeichen, wie ein Begriff).
+/// Longest form of a word or of a variant (characters, like a term).
 const MAX_FORM_CHARS: usize = MAX_GLOSSARY_TERM_CHARS;
-/// Längste Bibelstelle (Zeichen); die Stellen prüft und normalisiert der Server mit baruch_scripture.
+/// Longest Bible reference (characters); the server checks and normalises the references with baruch_scripture.
 const MAX_BIBLE_REF_CHARS: usize = 100;
-/// Längste Herkunft (Name des Menschen bzw. Handle; CHECK der Migration 0049).
+/// Longest origin (name of the human or handle; CHECK of migration 0049).
 const MAX_ORIGIN_CHARS: usize = 200;
 
-/// Status eines Glossarbegriffs.
+/// Status of a glossary term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GlossaryStatus {
@@ -53,7 +52,7 @@ pub enum GlossaryStatus {
 }
 
 impl GlossaryStatus {
-    /// Wert der Spalte `glossary_term.status`.
+    /// Value of the column `glossary_term.status`.
     pub fn as_db(self) -> &'static str {
         match self {
             GlossaryStatus::Accepted => "accepted",
@@ -61,7 +60,7 @@ impl GlossaryStatus {
         }
     }
 
-    /// Kehrt [`GlossaryStatus::as_db`] um; Unbekanntes → `None`.
+    /// Reverses [`GlossaryStatus::as_db`]; anything unknown → `None`.
     pub fn from_db(s: &str) -> Option<Self> {
         match s {
             "accepted" => Some(GlossaryStatus::Accepted),
@@ -71,7 +70,7 @@ impl GlossaryStatus {
     }
 }
 
-/// Ein Glossarbegriff mit allen Feldern.
+/// A glossary term with all fields.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct GlossaryTerm {
     pub id: GlossaryTermId,
@@ -91,7 +90,7 @@ pub struct GlossaryTerm {
 }
 
 impl GlossaryTerm {
-    /// Der Eintrag für Satz und EPUB ([`baruch_typst::index::BackMatter::glossary`]).
+    /// The entry for typesetting and EPUB ([`baruch_typst::index::BackMatter::glossary`]).
     pub fn entry(&self) -> GlossaryEntry {
         GlossaryEntry {
             uuid: self.uuid.clone(),
@@ -104,7 +103,7 @@ impl GlossaryTerm {
     }
 }
 
-/// Eingabe zum Anlegen, Ändern und Vorschlagen eines Begriffs.
+/// Input for creating, changing and proposing a term.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GlossaryEdit {
@@ -116,7 +115,7 @@ pub struct GlossaryEdit {
     pub bible_refs: Vec<String>,
 }
 
-/// Was mit einem Begriff geschah (Spiegel-Commit).
+/// What happened to a term (mirror commit).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GlossaryAction {
@@ -128,7 +127,7 @@ pub enum GlossaryAction {
     Rejected,
 }
 
-/// Ergebnis einer Glossaränderung, die der Server im Spiegel protokolliert.
+/// Result of a glossary change that the server logs in the mirror.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct GlossaryChange {
     pub work: WorkId,
@@ -138,7 +137,7 @@ pub struct GlossaryChange {
     pub by: String,
 }
 
-/// Ein eigenes Register eines Werks.
+/// A custom index of a work.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct IndexRegisterRow {
     pub id: i64,
@@ -149,7 +148,7 @@ pub struct IndexRegisterRow {
     pub created: String,
 }
 
-/// Status eines Registervorschlags.
+/// Status of an index proposal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IndexProposalStatus {
@@ -159,7 +158,7 @@ pub enum IndexProposalStatus {
     Stale,
 }
 
-/// Eingabe eines Registervorschlags (Abschnitt über den festen Schlüssel `key`).
+/// Input of an index proposal (section through the fixed key `key`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewIndexProposal {
     pub key: i64,
@@ -170,7 +169,7 @@ pub struct NewIndexProposal {
     pub origin: String,
 }
 
-/// Ein Registervorschlag.
+/// An index proposal.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct IndexProposal {
     pub id: IndexProposalId,
@@ -188,7 +187,7 @@ pub struct IndexProposal {
     pub decided_by: Option<String>,
 }
 
-/// Ergebnis einer Übernahme: Vorschlag, neue Fassung des Menschen und Zahl der gesetzten Marken.
+/// Result of an acceptance: proposal, new revision by the human and number of marks set.
 #[derive(Debug, Clone)]
 pub struct IndexAccepted {
     pub proposal: IndexProposal,
@@ -196,9 +195,9 @@ pub struct IndexAccepted {
     pub marks: usize,
 }
 
-// ---- Prüfen und Aufbereiten ---------------------------------------------------------------------------------------
+// ---- Checking and preparing ---------------------------------------------------------------------------------------
 
-/// Text in einer Zeile: Leerraum (auch Zeilenumbrüche) zu einem Leerzeichen, getrimmt.
+/// Text on one line: whitespace (also line breaks) to one space, trimmed.
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -207,7 +206,7 @@ fn glossary_error(message: impl Into<String>) -> StoreError {
     StoreError::Glossary(message.into())
 }
 
-/// Höchstlänge in Zeichen prüfen; `label` nennt das Feld in der Meldung.
+/// Check the maximum length in characters; `label` names the field in the message.
 fn check_len(label: &str, value: &str, max: usize) -> Result<(), StoreError> {
     let count = value.chars().count();
     if count > max {
@@ -216,9 +215,9 @@ fn check_len(label: &str, value: &str, max: usize) -> Result<(), StoreError> {
     Ok(())
 }
 
-/// Ein Begriff nach dem Aufbereiten: Begriff und Varianten in einer Zeile, Erklärungen getrimmt (Zeilenumbrüche in der
-/// ausführlichen Erklärung bleiben), leere Varianten und Bibelstellen weg, Doppel weg (Varianten über ihren Schlüssel,
-/// auch eine Variante gleich dem Begriff).
+/// A term after preparing: term and variants on one line, explanations trimmed (line breaks in the detailed explanation
+/// stay), empty variants and Bible references removed, duplicates removed (variants through their key, also a variant
+/// equal to the term).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Clean {
     pub(crate) term: String,
@@ -280,7 +279,7 @@ pub(crate) fn clean(edit: &GlossaryEdit) -> Result<Clean, StoreError> {
     Ok(Clean { term, key, short, long, variants, source, bible_refs })
 }
 
-/// Herkunft bzw. Name des Menschen in einer Zeile, höchstens 200 Zeichen; leer → Fehler.
+/// Origin or name of the human on one line, at most 200 characters; empty → error.
 fn actor(name: &str, what: &str) -> Result<String, StoreError> {
     let name: String = one_line(name).chars().take(MAX_ORIGIN_CHARS).collect();
     if name.is_empty() {
@@ -289,7 +288,7 @@ fn actor(name: &str, what: &str) -> Result<String, StoreError> {
     Ok(name)
 }
 
-// ---- Lesen ---------------------------------------------------------------------------------------------------------
+// ---- Reading -------------------------------------------------------------------------------------------------------
 
 async fn ensure_work(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let found: Option<i64> =
@@ -328,12 +327,12 @@ fn term_of(work: WorkId, row: TermRow, variants: Vec<String>) -> Result<Glossary
     })
 }
 
-/// Sortiert nach [`sort_key`] (in Rust, nie gespeichert), bei Gleichstand nach Begriff und id.
+/// Sorted by [`sort_key`] (in Rust, never stored), on a tie by term and id.
 fn sort_terms(terms: &mut [GlossaryTerm]) {
     terms.sort_by_cached_key(|t| (sort_key(&t.term), t.term.clone(), t.id));
 }
 
-/// Begriffe des Werks, die `filter` (SQL hinter `WHERE work_id = ?`, ohne weitere Parameter) erfüllen, mit Varianten.
+/// Terms of the work that satisfy `filter` (SQL behind `WHERE work_id = ?`, without further parameters), with variants.
 async fn terms_where(conn: &mut SqliteConnection, work: WorkId, filter: &str) -> Result<Vec<GlossaryTerm>, StoreError> {
     let rows: Vec<TermRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {TERM_COLUMNS} FROM glossary_term WHERE work_id = ? {filter}"
@@ -383,7 +382,7 @@ async fn term_in(conn: &mut SqliteConnection, work: WorkId, id: GlossaryTermId) 
     term_of(work, row, variants)
 }
 
-/// id eines angenommenen Begriffs mit diesem Schlüssel (außer `except`).
+/// id of an accepted term with this key (except `except`).
 async fn accepted_with_key(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -401,7 +400,7 @@ async fn accepted_with_key(
     .await?)
 }
 
-// ---- Schreiben -----------------------------------------------------------------------------------------------------
+// ---- Writing -------------------------------------------------------------------------------------------------------
 
 pub(crate) async fn write_variants(
     conn: &mut SqliteConnection,
@@ -457,12 +456,12 @@ async fn insert_term(
     Ok(id)
 }
 
-/// Meldung, wenn ein angenommener Begriff mit gleichem Schlüssel schon da ist.
+/// Message if an accepted term with the same key is already there.
 fn duplicate(term: &str, existing: &str) -> StoreError {
     glossary_error(format!("Den Begriff „{term}“ gibt es schon im Glossar (als „{existing}“)."))
 }
 
-// ---- Register und Registervorschläge -------------------------------------------------------------------------------
+// ---- Indexes and index proposals -----------------------------------------------------------------------------------
 
 type RegisterRow = (i64, Option<String>, String, String, i64, String);
 
@@ -521,7 +520,7 @@ fn builtin_refused(slug: &str) -> StoreError {
     ))
 }
 
-/// Titel eines eigenen Registers: eine Zeile, nicht leer, höchstens [`MAX_REGISTER_TITLE_CHARS`] Zeichen.
+/// Title of a custom index: one line, not empty, at most [`MAX_REGISTER_TITLE_CHARS`] characters.
 fn register_title(title: &str) -> Result<String, StoreError> {
     let title = one_line(title);
     if title.is_empty() {
@@ -531,7 +530,7 @@ fn register_title(title: &str) -> Result<String, StoreError> {
     Ok(title)
 }
 
-/// Gibt es das Register (eingebaut oder eigenes)?
+/// Does the index exist (built-in or custom)?
 async fn known_register(conn: &mut SqliteConnection, work: WorkId, slug: &str) -> Result<bool, StoreError> {
     if is_builtin(slug) {
         return Ok(true);
@@ -619,7 +618,7 @@ async fn proposal_in(
     }
 }
 
-/// Offener Vorschlag oder Fehler mit seinem Status.
+/// Open proposal, or an error with its status.
 fn still_open(proposal: &IndexProposal) -> Result<(), StoreError> {
     if proposal.status == IndexProposalStatus::Open {
         Ok(())
@@ -650,7 +649,7 @@ async fn decide_proposal(
     Ok(())
 }
 
-/// Stelle (`seq`) eines Abschnitts über seinen festen Schlüssel; weg → `GoneNode`.
+/// Position (`seq`) of a section through its fixed key; gone → `GoneNode`.
 async fn seq_of_key(conn: &mut SqliteConnection, work: WorkId, key: i64) -> Result<usize, StoreError> {
     let seq: Option<i64> = sqlx::query_scalar("SELECT seq FROM node WHERE work_id = ? AND id = ?")
         .bind(work)
@@ -667,7 +666,7 @@ async fn seq_of_key(conn: &mut SqliteConnection, work: WorkId, key: i64) -> Resu
 }
 
 impl Store {
-    /// Begriffe des Werks (`status` `None` = alle), sortiert nach `sort_key`. Unbekanntes Werk → `UnknownWork`.
+    /// Terms of the work (`status` `None` = all), sorted by `sort_key`. Unknown work → `UnknownWork`.
     pub async fn glossary(
         &self,
         work: WorkId,
@@ -682,13 +681,13 @@ impl Store {
         terms_where(&mut conn, work, &filter).await
     }
 
-    /// Ein Begriff; unbekannt → `UnknownGlossaryTerm`.
+    /// A term; unknown → `UnknownGlossaryTerm`.
     pub async fn glossary_term(&self, work: WorkId, id: GlossaryTermId) -> Result<GlossaryTerm, StoreError> {
         let mut conn = self.pool.acquire().await?;
         term_in(&mut conn, work, id).await
     }
 
-    /// Angenommene Begriffe, deren `term_key` oder eine Variante (`form_key`) zu `word` passt.
+    /// Accepted terms whose `term_key` or a variant (`form_key`) matches `word`.
     pub async fn glossary_lookup(&self, work: WorkId, word: &str) -> Result<Vec<GlossaryTerm>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         ensure_work(&mut conn, work).await?;
@@ -713,7 +712,7 @@ impl Store {
         Ok(terms)
     }
 
-    /// Legt einen angenommenen Begriff an (Mensch); Doppel → `StoreError::Glossary`.
+    /// Creates an accepted term (human); duplicate → `StoreError::Glossary`.
     pub async fn glossary_add(
         &self,
         work: WorkId,
@@ -733,8 +732,8 @@ impl Store {
         Ok(GlossaryChange { work, action: GlossaryAction::Added, before: None, after: Some(after), by })
     }
 
-    /// Ändert einen Begriff (Mensch). Ein angenommener Begriff darf keinen Schlüssel eines anderen angenommenen
-    /// bekommen. `updated`/`updated_by` werden gesetzt; Status und Herkunft bleiben.
+    /// Changes a term (human). An accepted term must not get the key of another accepted one. `updated`/`updated_by`
+    /// are set; status and origin stay.
     pub async fn glossary_update(
         &self,
         work: WorkId,
@@ -772,7 +771,7 @@ impl Store {
         Ok(GlossaryChange { work, action: GlossaryAction::Updated, before: Some(before), after: Some(after), by })
     }
 
-    /// Löscht einen Begriff (Mensch, Grabstein).
+    /// Deletes a term (human, tombstone).
     pub async fn glossary_delete(
         &self,
         work: WorkId,
@@ -787,8 +786,8 @@ impl Store {
         Ok(GlossaryChange { work, action: GlossaryAction::Deleted, before: Some(before), after: None, by })
     }
 
-    /// Schlägt einen Begriff vor (Status `proposed`, `origin` = Persona bzw. Client); schon angenommen oder schon
-    /// vorgeschlagen (gleicher Schlüssel) → Fehler.
+    /// Proposes a term (status `proposed`, `origin` = persona or client); already accepted or already proposed (same
+    /// key) → error.
     pub async fn glossary_propose(
         &self,
         work: WorkId,
@@ -820,7 +819,7 @@ impl Store {
         Ok(GlossaryChange { work, action: GlossaryAction::Proposed, before: None, after: Some(after), by: origin })
     }
 
-    /// Entscheidet über einen Vorschlag (Mensch): annehmen oder verwerfen (löscht ihn, Grabstein).
+    /// Decides on a proposal (human): accept or reject (deletes it, tombstone).
     pub async fn glossary_decide(
         &self,
         work: WorkId,
@@ -865,14 +864,14 @@ impl Store {
         Ok(GlossaryChange { work, action: GlossaryAction::Accepted, before: Some(before), after: Some(after), by })
     }
 
-    /// Eigene Register in ihrer Reihenfolge.
+    /// Custom indexes in their order.
     pub async fn index_registers(&self, work: WorkId) -> Result<Vec<IndexRegisterRow>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         ensure_work(&mut conn, work).await?;
         register_rows(&mut conn, work).await
     }
 
-    /// Legt ein eigenes Register an; eingebaute oder ungültige Kennung → `StoreError::Glossary`.
+    /// Creates a custom index; built-in or invalid identifier → `StoreError::Glossary`.
     pub async fn index_register_add(
         &self,
         work: WorkId,
@@ -912,7 +911,7 @@ impl Store {
         Ok(row)
     }
 
-    /// Benennt ein eigenes Register um (Kennung bleibt).
+    /// Renames a custom index (the identifier stays).
     pub async fn index_register_rename(
         &self,
         work: WorkId,
@@ -936,7 +935,7 @@ impl Store {
         Ok(row)
     }
 
-    /// Löscht ein eigenes Register (Grabstein). Marken im Text, die es nennen, bleiben Buchtext (ändern nur der Mensch).
+    /// Deletes a custom index (tombstone). Marks in the text that name it stay book text (only the human changes them).
     pub async fn index_register_delete(&self, work: WorkId, slug: &str) -> Result<IndexRegisterRow, StoreError> {
         let slug = slug.trim();
         if is_builtin(slug) {
@@ -949,9 +948,9 @@ impl Store {
         Ok(row)
     }
 
-    /// Legt einen Registervorschlag an (Status `open`), bezogen auf die aktuelle Fassung des Abschnitts. Geprüft: Marke
-    /// ([`IndexMark::validate`]), Register bekannt (eingebaut oder eigenes), Wort steht in der aktuellen Fassung
-    /// (einfacher Textvergleich; die genaue Stelle bestimmt erst die Übernahme), Grenzen.
+    /// Creates an index proposal (status `open`), referring to the current revision of the section. Checked: mark
+    /// ([`IndexMark::validate`]), index known (built-in or custom), the word is in the current revision (simple text
+    /// comparison; the exact place is only determined by the acceptance), limits.
     pub async fn index_propose(&self, work: WorkId, proposal: &NewIndexProposal) -> Result<IndexProposal, StoreError> {
         proposal.mark.validate().map_err(|e| glossary_error(e.to_string()))?;
         let word = proposal.word.trim();
@@ -984,8 +983,8 @@ impl Store {
         if !body.contains(word) {
             return Err(glossary_error(IndexError::WordNotFound(word.to_owned()).to_string()));
         }
-        // Runde 23: Obergrenzen offener Vorschläge – sonst füllt eine Schleife eines Clients die Liste des Menschen
-        // (jeder Vorschlag ist ein Commit im Spiegel). Geprüft in derselben Transaktion wie das Anlegen.
+        // Round 23: upper limits of open proposals – otherwise a loop of a client fills the list of the human (every
+        // proposal is a commit in the mirror). Checked in the same transaction as the creation.
         let (open_own, open_all): (i64, i64) = sqlx::query_as(
             "SELECT coalesce(sum(origin = ?), 0), count(*) FROM index_proposal WHERE work_id = ? AND status = 'open'",
         )
@@ -1024,7 +1023,7 @@ impl Store {
         Ok(created)
     }
 
-    /// Registervorschläge (`status` `None` = alle), nach id.
+    /// Index proposals (`status` `None` = all), by id.
     pub async fn index_proposals(
         &self,
         work: WorkId,
@@ -1043,9 +1042,8 @@ impl Store {
         rows.into_iter().map(|row| proposal_of(work, row)).collect()
     }
 
-    /// Übernimmt einen Vorschlag: in einer Transaktion `mark_word` auf die aktuelle Fassung und neue Fassung des
-    /// Menschen; Wort nicht mehr da bzw. dort schon dieselbe Marke → Status `stale` und `StoreError::Glossary`, Text
-    /// unverändert.
+    /// Accepts a proposal: in one transaction `mark_word` on the current revision and a new revision by the human; word
+    /// no longer there or the same mark already there → status `stale` and `StoreError::Glossary`, text unchanged.
     pub async fn index_proposal_accept(
         &self,
         work: WorkId,
@@ -1064,7 +1062,7 @@ impl Store {
         let (text, marks) = match mark_word(&body, &proposal.word, proposal.occurrence, &proposal.mark) {
             Ok(done) => done,
             Err(IndexError::WordNotFound(word)) => {
-                // Der Text hat sich geändert: Vorschlag veraltet (gespeichert), Text bleibt, wie er ist.
+                // The text has changed: proposal stale (stored), the text stays as it is.
                 decide_proposal(&mut tx, id, IndexProposalStatus::Stale, &by).await?;
                 tx.commit().await?;
                 return Err(glossary_error(format!(
@@ -1073,8 +1071,8 @@ impl Store {
                 )));
             }
             Err(IndexError::AlreadyMarked(word)) => {
-                // Die Marke steht dort schon (z. B. vom Menschen gesetzt): keine zweite, gleiche Marke, keine neue
-                // Fassung; der Vorschlag ist erledigt und wird darum veraltet (gespeichert).
+                // The mark is already there (for example set by the human): no second, identical mark, no new revision;
+                // the proposal is done and therefore becomes stale (stored).
                 decide_proposal(&mut tx, id, IndexProposalStatus::Stale, &by).await?;
                 tx.commit().await?;
                 return Err(glossary_error(format!(
@@ -1082,7 +1080,7 @@ impl Store {
                     IndexError::AlreadyMarked(word)
                 )));
             }
-            // Ungültige Marke: ehrlich ablehnen, nichts geändert.
+            // Invalid mark: reject honestly, nothing changed.
             Err(other) => return Err(glossary_error(other.to_string())),
         };
         let Some(change) = crate::write::save_human(&mut tx, work, seq, &text, &by, None).await? else {
@@ -1095,7 +1093,7 @@ impl Store {
         Ok(IndexAccepted { proposal, change, marks })
     }
 
-    /// Verwirft einen Vorschlag (Status `rejected`).
+    /// Rejects a proposal (status `rejected`).
     pub async fn index_proposal_reject(
         &self,
         work: WorkId,
@@ -1113,12 +1111,12 @@ impl Store {
     }
 }
 
-/// Alle Begriffe des Werks (angenommen und vorgeschlagen), sortiert nach `sort_key`; für `exchange_dump`.
+/// All terms of the work (accepted and proposed), sorted by `sort_key`; for `exchange_dump`.
 pub(crate) async fn all_terms_in(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<GlossaryTerm>, StoreError> {
     terms_where(conn, work, "").await
 }
 
-/// Angenommene Begriffe als Einträge für Satz und EPUB, sortiert nach `sort_key`.
+/// Accepted terms as entries for typesetting and EPUB, sorted by `sort_key`.
 pub(crate) async fn accepted_entries_in(
     conn: &mut sqlx::SqliteConnection,
     work: WorkId,
@@ -1126,7 +1124,7 @@ pub(crate) async fn accepted_entries_in(
     Ok(terms_where(conn, work, "AND status = 'accepted'").await?.iter().map(GlossaryTerm::entry).collect())
 }
 
-/// Eigene Register als [`Register`] (Art `Custom`) in ihrer Reihenfolge.
+/// Custom indexes as [`Register`] (kind `Custom`) in their order.
 pub(crate) async fn registers_in(conn: &mut sqlx::SqliteConnection, work: WorkId) -> Result<Vec<Register>, StoreError> {
     Ok(register_rows(conn, work)
         .await?
@@ -1135,11 +1133,11 @@ pub(crate) async fn registers_in(conn: &mut sqlx::SqliteConnection, work: WorkId
         .collect())
 }
 
-/// Pfad der Spiegeldatei des Glossars.
+/// Path of the mirror file of the glossary.
 pub const MIRROR_FILE: &str = "glossar.md";
 
-/// Spiegeldatei `glossar.md` (angenommene Begriffe alphabetisch, dann die Vorschläge, dann die eigenen Register).
-/// Ohne Begriffe und eigene Register keine Datei (ein Werk ohne Glossar spiegelt wie vor Runde 31).
+/// Mirror file `glossar.md` (accepted terms alphabetically, then the proposals, then the custom indexes). Without terms
+/// and custom indexes no file (a work without a glossary mirrors as before Round 31).
 pub(crate) async fn mirror_files(
     conn: &mut sqlx::SqliteConnection,
     work: WorkId,
@@ -1154,7 +1152,7 @@ pub(crate) async fn mirror_files(
     Ok(vec![crate::MirrorFile { path: MIRROR_FILE.to_owned(), contents: mirror_markdown(&title, &terms, &registers) }])
 }
 
-/// Ein Begriff als Markdown-Block unter einer Überschrift der Ebene `level`.
+/// A term as a Markdown block under a heading of the level `level`.
 fn term_markdown(out: &mut String, term: &GlossaryTerm, heading: &str) {
     out.push_str(&format!("{heading}\n\n"));
     if !term.variants.is_empty() {
@@ -1211,8 +1209,8 @@ mod tests {
 
     #[test]
     fn a_term_is_cleaned_before_it_is_stored() {
-        // Begriffe und Varianten stehen in einer Zeile; Doppel (auch eine Variante gleich dem Begriff) fallen weg, damit
-        // das Nachschlagen über form_key eindeutig bleibt.
+        // Terms and variants are on one line; duplicates (also a variant equal to the term) are dropped, so that the
+        // lookup through form_key stays unambiguous.
         let edit = GlossaryEdit {
             term: "  Gnade \n Gottes ".into(),
             variants: vec!["Gnade  Gottes".into(), "".into(), "Gnaden".into(), "GNADEN".into()],
@@ -1230,7 +1228,7 @@ mod tests {
 
     #[test]
     fn limits_are_named_in_german() {
-        // Vertrag §2.5: Grenzen MAX_* mit deutschen Meldungen.
+        // Contract §2.5: limits MAX_* with German messages.
         let cases = [
             (GlossaryEdit::default(), "Begriff: darf nicht leer sein"),
             (GlossaryEdit { term: "x".repeat(201), ..Default::default() }, "Begriff: höchstens 200 Zeichen"),

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! SWORD-Bibeln (Migration 0030): Modulordner (global) und gewählte Bibel je Werk. Kein Buchtext und darum
-//! kein Commit im Spiegel. Prüfungen der Eingaben (Länge, Zeilenumbruch, Doppel) macht der Server; die
-//! Tabelle sichert sie zusätzlich mit CHECK.
+//! SWORD Bibles (migration 0030): module folders (global) and the chosen Bible per work. Not book text and therefore no
+//! commit in the mirror. The checks of the inputs (length, line break, duplicates) are done by the server; the table
+//! additionally secures them with CHECK.
 
 use crate::{Store, StoreError, WorkId};
 
-/// Schlüssel in `store_meta`: Die Modulordner sind gesetzt (sonst gelten die Vorgaben).
+/// Key in `store_meta`: the module folders are set (otherwise the defaults apply).
 const DIRS_SET: &str = "bible_dirs";
 
 impl Store {
-    /// Modulordner in ihrer Reihenfolge; `None`, wenn sie nie gesetzt wurden (dann gelten die Vorgaben).
+    /// Module folders in their order; `None` if they were never set (then the defaults apply).
     pub async fn bible_dirs(&self) -> Result<Option<Vec<String>>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let set: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
@@ -24,8 +24,8 @@ impl Store {
         Ok(Some(dirs))
     }
 
-    /// Modulordner setzen (`Some`, auch leer) oder auf die Vorgaben zurück (`None`). Doppelte Einträge
-    /// bleiben nur einmal stehen (der erste).
+    /// Set the module folders (`Some`, also empty) or go back to the defaults (`None`). Duplicate entries are kept only
+    /// once (the first one).
     pub async fn set_bible_dirs(&self, dirs: Option<&[String]>) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         sqlx::query("DELETE FROM bible_dir").execute(&mut *tx).await?;
@@ -58,7 +58,7 @@ impl Store {
         Ok(())
     }
 
-    /// Gewählte Bibel (Modulname) eines Werks; `None` = keine. Unbekanntes Werk → `UnknownWork`.
+    /// Chosen Bible (module name) of a work; `None` = none. Unknown work → `UnknownWork`.
     pub async fn work_bible(&self, work: WorkId) -> Result<Option<String>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let found: Option<i64> =
@@ -70,7 +70,7 @@ impl Store {
             .await?)
     }
 
-    /// Bibel eines Werks wählen (`Some(Modulname)`) oder abwählen (`None`).
+    /// Choose the Bible of a work (`Some(module name)`) or deselect it (`None`).
     pub async fn set_work_bible(&self, work: WorkId, module: Option<&str>) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let found: Option<i64> =

@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Buchangaben und Umschlag je Werk (Migration `0017_book.sql`, Vertrag Runde 11, Aufgabe cover).
+//! Book details and cover per work (migration `0017_book.sql`, contract Round 11, task cover).
 //!
-//! - Eine Zeile je Werk in `work_book`; keine Zeile = Vorgaben ([`BookMeta::default`]): kein Umschlag,
-//!   Titel oben, ohne Titelei, Umschlagseiten im Satz an, 0,1 mm Papier je Seite, 3 mm Beschnitt.
-//! - Umschlag und Autorenfoto sind Bilder **desselben** Werks (Trigger); nach außen über ihren
-//!   Bildnamen. Wird das Bild gelöscht, ist der Verweis weg (`ON DELETE SET NULL`).
-//! - Grenzen ([`Store::set_book_meta`]): einzeilige Felder höchstens 200 Zeichen ohne Zeilenumbruch;
-//!   Klappentext 4000, Kurzbiografie 2000, Widmung, Rechtehinweis und Bildnachweis je 1000 Zeichen
-//!   (mehrzeilig); Anschrift des Verlags und der Druckerei je 500 Zeichen (mehrzeilig, Runde 27); Jahr leer oder vier Ziffern; ISBN leer oder eine gültige ISBN-13 (Prüfziffer,
-//!   [`baruch_typst::cover::isbn13_check`], Präfix 978/979 seit Runde 20c), gespeichert wie eingegeben (eine nur
-//!   anders geschriebene ISBN ist eine Änderung); Papierdicke je Seite über 0 bis 1 mm (Oberfläche und RPC rechnen seit
-//!   Runde 20c auch je Blatt = 2 Seiten, gespeichert bleibt die Dicke je Seite, keine Migration),
-//!   Beschnitt 0 bis 10 mm. Verstoß → [`StoreError::Refused`] mit deutscher Meldung, nichts geändert.
-//!   Unbekanntes Bild → [`StoreError::UnknownAsset`].
-//! - Untertitel, Autor und Bibelübersetzung stehen weiter in `work` ([`Store::update_work`]).
+//! - One row per work in `work_book`; no row = defaults ([`BookMeta::default`]): no cover, title at the top, without
+//!   front matter, cover pages in the typesetting on, 0.1 mm paper per page, 3 mm bleed.
+//! - Cover and author photo are images of the **same** work (trigger); to the outside through their image name. If the
+//!   image is deleted, the reference is gone (`ON DELETE SET NULL`).
+//! - Limits ([`Store::set_book_meta`]): single-line fields at most 200 characters without a line break; blurb 4000,
+//!   short biography 2000, dedication, rights notice and picture credits 1000 characters each (multi-line); address of
+//!   the publisher and of the printer 500 characters each (multi-line, Round 27); year empty or four digits; ISBN empty
+//!   or a valid ISBN-13 (check digit, [`baruch_typst::cover::isbn13_check`], prefix 978/979 since Round 20c), stored as
+//!   entered (an ISBN that is merely written differently is a change); paper thickness per page above 0 up to 1 mm
+//!   (since Round 20c user interface and RPC also compute per sheet = 2 pages, the thickness per page stays what is
+//!   stored, no migration), bleed 0 to 10 mm. Violation → [`StoreError::Refused`] with a German message, nothing
+//!   changed. Unknown image → [`StoreError::UnknownAsset`].
+//! - Subtitle, author and Bible translation remain in `work` ([`Store::update_work`]).
 
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection};
 
 use crate::{Store, StoreError, WorkId};
 
-/// Wo Titel und Untertitel auf der Vorderseite stehen.
+/// Where title and subtitle stand on the front.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TitleArea {
@@ -31,7 +31,7 @@ pub enum TitleArea {
 }
 
 impl TitleArea {
-    /// `top`, `middle`, `bottom` (Datenbank, RPC, Formulare).
+    /// `top`, `middle`, `bottom` (database, RPC, forms).
     pub fn as_str(self) -> &'static str {
         match self {
             TitleArea::Top => "top",
@@ -50,7 +50,7 @@ impl TitleArea {
     }
 }
 
-/// Buchangaben eines Werks (Vorgaben, wenn es keine Zeile gibt).
+/// Book details of a work (defaults if there is no row).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BookMeta {
     pub publisher: String,
@@ -66,24 +66,24 @@ pub struct BookMeta {
     pub dedication: String,
     pub blurb: String,
     pub bio: String,
-    /// Bildname des Autorenfotos.
+    /// Image name of the author photo.
     pub author_photo: Option<String>,
-    /// Bildname des Umschlags.
+    /// Image name of the cover.
     pub cover: Option<String>,
     pub title_area: TitleArea,
-    /// Titelei (Schmutztitel, Seite 2, Haupttitel, Impressum, Widmung).
+    /// Front matter (half-title, page 2, main title, imprint, dedication).
     pub front_matter: bool,
-    /// Vorder- und Rückseite des Umschlags im Satz (nur wirksam mit Umschlag).
+    /// Front and back of the cover in the typesetting (only effective with a cover).
     pub cover_pages: bool,
-    /// Papierdicke in mm je Seite.
+    /// Paper thickness in mm per page.
     pub paper_mm: f64,
-    /// Beschnitt in mm.
+    /// Bleed in mm.
     pub bleed_mm: f64,
-    /// Letzte Änderung der Buchangaben bzw. des Umschlags.
+    /// Last change of the book details or of the cover.
     pub updated: Option<String>,
-    /// Anschrift des Verlags bzw. bei Selbstverlag des Verfassers oder Herausgebers (Runde 27, mehrzeilig).
+    /// Address of the publisher or, when self-published, of the author or editor (Round 27, multi-line).
     pub publisher_address: String,
-    /// Anschrift der Druckerei (Runde 27, mehrzeilig).
+    /// Address of the printer (Round 27, multi-line).
     pub printer_address: String,
 }
 
@@ -117,8 +117,8 @@ impl Default for BookMeta {
     }
 }
 
-/// Änderung der Buchangaben: jedes Feld `None` = bleibt. `author_photo: Some(None)` entfernt das
-/// Foto. Den Umschlag setzt [`Store::set_work_cover`].
+/// Change of the book details: every field `None` = stays. `author_photo: Some(None)` removes the photo. The cover is
+/// set by [`Store::set_work_cover`].
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BookEdit {
     pub publisher: Option<String>,
@@ -140,14 +140,14 @@ pub struct BookEdit {
     pub cover_pages: Option<bool>,
     pub paper_mm: Option<f64>,
     pub bleed_mm: Option<f64>,
-    /// Anschrift des Verlags (Runde 27).
+    /// Address of the publisher (Round 27).
     pub publisher_address: Option<String>,
-    /// Anschrift der Druckerei (Runde 27).
+    /// Address of the printer (Round 27).
     pub printer_address: Option<String>,
 }
 
-/// Ergebnis von [`Store::set_book_meta`]: geänderte Felder (Namen wie in [`BookMeta`]) und der Stand
-/// vorher und nachher (für den Spiegel-Commit).
+/// Result of [`Store::set_book_meta`]: changed fields (names as in [`BookMeta`]) and the state before and after (for
+/// the mirror commit).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BookChange {
     pub changed: Vec<&'static str>,
@@ -155,14 +155,14 @@ pub struct BookChange {
     pub after: BookMeta,
 }
 
-/// Ergebnis von [`Store::set_work_cover`]: Bildname vorher und nachher.
+/// Result of [`Store::set_work_cover`]: image name before and after.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CoverChange {
     pub before: Option<String>,
     pub after: Option<String>,
 }
 
-/// Ein Textfeld mit seinen Grenzen und festen Meldungen.
+/// A text field with its limits and fixed messages.
 struct TextField {
     name: &'static str,
     max: usize,
@@ -183,7 +183,7 @@ macro_rules! field {
     };
 }
 
-/// Die Textfelder in fester Reihenfolge (so stehen sie auch in `changed`).
+/// The text fields in a fixed order (that is how they stand in `changed` as well).
 const TEXT_FIELDS: [TextField; 15] = [
     field!("publisher", "Verlag", 200, false),
     field!("place", "Verlagsort", 200, false),
@@ -263,7 +263,7 @@ fn wanted_text<'a>(edit: &'a BookEdit, name: &str) -> Option<&'a str> {
     value.as_deref()
 }
 
-/// Eingabe eines Textfelds prüfen und in Normalform bringen (getrimmt, CRLF → LF).
+/// Check the input of a text field and bring it into normal form (trimmed, CRLF → LF).
 fn clean_text(field: &TextField, value: &str) -> Result<String, StoreError> {
     let value = value.replace("\r\n", "\n");
     let value = value.trim();
@@ -285,8 +285,8 @@ fn clean_text(field: &TextField, value: &str) -> Result<String, StoreError> {
     }
 }
 
-/// Gleicher Text (Runde 20c: auch bei der ISBN zählt die Schreibweise – „978-3-…“ statt „9783…“ ist eine Änderung,
-/// die gespeichert wird; früher galten gleiche Ziffern als unverändert).
+/// Same text (Round 20c: for the ISBN the spelling counts as well – "978-3-…" instead of "9783…" is a change that is
+/// stored; earlier, equal digits counted as unchanged).
 fn same_text(_name: &str, a: &str, b: &str) -> bool {
     a == b
 }
@@ -297,7 +297,7 @@ async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), St
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// id des Bilds `name` im Werk; unbekannt → `UnknownAsset`.
+/// id of the image `name` in the work; unknown → `UnknownAsset`.
 async fn asset_of(conn: &mut SqliteConnection, work: WorkId, name: &str) -> Result<i64, StoreError> {
     sqlx::query_scalar("SELECT id FROM asset WHERE work_id = ? AND name = ?")
         .bind(work)
@@ -307,7 +307,7 @@ async fn asset_of(conn: &mut SqliteConnection, work: WorkId, name: &str) -> Resu
         .ok_or_else(|| StoreError::UnknownAsset { work, name: name.to_owned() })
 }
 
-/// Buchangaben lesen (Werk muss es geben).
+/// Read the book details (the work must exist).
 pub(crate) async fn read(conn: &mut SqliteConnection, work: WorkId) -> Result<BookMeta, StoreError> {
     work_exists(conn, work).await?;
     let row = sqlx::query(
@@ -336,7 +336,7 @@ pub(crate) async fn read(conn: &mut SqliteConnection, work: WorkId) -> Result<Bo
     Ok(meta)
 }
 
-/// Bild-id zu einem Namen (oder keins).
+/// Image id for a name (or none).
 async fn optional_asset(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -348,7 +348,7 @@ async fn optional_asset(
     }
 }
 
-/// Ganze Zeile schreiben (anlegen oder ersetzen).
+/// Write the whole row (create or replace).
 pub(crate) async fn write(conn: &mut SqliteConnection, work: WorkId, meta: &BookMeta) -> Result<(), StoreError> {
     let cover = optional_asset(conn, work, meta.cover.as_deref()).await?;
     let photo = optional_asset(conn, work, meta.author_photo.as_deref()).await?;
@@ -381,14 +381,14 @@ pub(crate) async fn write(conn: &mut SqliteConnection, work: WorkId, meta: &Book
 }
 
 impl Store {
-    /// Buchangaben des Werks; ohne Zeile die Vorgaben. Unbekanntes Werk → `UnknownWork`.
+    /// Book details of the work; without a row the defaults. Unknown work → `UnknownWork`.
     pub async fn book_meta(&self, work: WorkId) -> Result<BookMeta, StoreError> {
         let mut conn = self.pool.acquire().await?;
         read(&mut conn, work).await
     }
 
-    /// Buchangaben ändern (atomar, nur der Mensch). Prüft alle Felder (siehe Moduldoku), schreibt nur,
-    /// wenn sich etwas ändert, und gibt geänderte Felder sowie den Stand vorher und nachher zurück.
+    /// Change the book details (atomic, only the human). Checks all fields (see the module documentation), writes only
+    /// if something changes, and returns the changed fields as well as the state before and after.
     pub async fn set_book_meta(&self, work: WorkId, edit: &BookEdit) -> Result<BookChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let before = read(&mut tx, work).await?;
@@ -452,14 +452,13 @@ impl Store {
         Ok(BookChange { changed, before, after })
     }
 
-    /// Bildname des Umschlags (oder keiner).
+    /// Image name of the cover (or none).
     pub async fn work_cover(&self, work: WorkId) -> Result<Option<String>, StoreError> {
         Ok(self.book_meta(work).await?.cover)
     }
 
-    /// Umschlag setzen (`Some(name)`, ein Bild des Werks) oder entfernen (`None` bzw. leerer Name).
-    /// Unbekanntes Bild → `UnknownAsset`, nichts geändert. Gleicher Umschlag → keine Änderung
-    /// (`before == after`).
+    /// Set the cover (`Some(name)`, an image of the work) or remove it (`None` or an empty name). Unknown image →
+    /// `UnknownAsset`, nothing changed. Same cover → no change (`before == after`).
     pub async fn set_work_cover(&self, work: WorkId, name: Option<&str>) -> Result<CoverChange, StoreError> {
         let name = name.map(str::trim).filter(|n| !n.is_empty());
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;

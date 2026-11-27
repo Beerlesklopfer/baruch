@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zeitwächter je Werk (Migration `0039_work_timing.sql`, Runde 16b, Schnittstelle R16-S1).
+//! Time guard per work (migration `0039_work_timing.sql`, Round 16b, interface R16-S1).
 //!
-//! - `work_timing`: höchstens eine Zeile je Werk mit Wörtern je Minute (60–250) und Zielzeit in Sekunden
-//!   (60–14400 oder keine). Ohne Zeile gilt [`TimingSettings::default`] (110 Wörter je Minute, keine
-//!   Zielzeit). Ein gelöschtes Werk nimmt seine Zeile mit (`ON DELETE CASCADE`).
-//! - Kein Buchtext, kein Commit im Spiegel (wie die Farben der Personas); jede Änderung eine Transaktion
-//!   (`BEGIN IMMEDIATE`). Werte außerhalb der Grenzen werden vor dem Schreiben abgelehnt.
+//! - `work_timing`: at most one row per work with words per minute (60–250) and target time in seconds (60–14400 or
+//!   none). Without a row [`TimingSettings::default`] applies (110 words per minute, no target time). A deleted work
+//!   takes its row along (`ON DELETE CASCADE`).
+//! - Not book text, no commit in the mirror (like the colours of the personas); every change is one transaction (`BEGIN
+//!   IMMEDIATE`). Values outside the limits are rejected before writing.
 
 use baruch_typst::timing::{DEFAULT_WORDS_PER_MINUTE, MAX_TARGET_MINUTES, MAX_WORDS_PER_MINUTE, MIN_WORDS_PER_MINUTE};
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId};
 
-/// Sprechgeschwindigkeit und Zielzeit eines Werks.
+/// Speaking rate and target time of a work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct TimingSettings {
     pub words_per_minute: u32,
@@ -31,7 +31,7 @@ async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), St
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Grenzen prüfen (dieselben wie die CHECK-Regeln der Tabelle).
+/// Check the limits (the same as the CHECK rules of the table).
 fn check(settings: TimingSettings) -> Result<(), StoreError> {
     if !(MIN_WORDS_PER_MINUTE..=MAX_WORDS_PER_MINUTE).contains(&settings.words_per_minute) {
         return Err(StoreError::Refused("Wörter je Minute: erlaubt sind 60 bis 250."));
@@ -45,7 +45,7 @@ fn check(settings: TimingSettings) -> Result<(), StoreError> {
 }
 
 impl Store {
-    /// Einstellungen des Werks; ohne Zeile die Vorgabe. Unbekanntes Werk → `UnknownWork`.
+    /// Settings of the work; without a row the default. Unknown work → `UnknownWork`.
     pub async fn timing_settings(&self, work: WorkId) -> Result<TimingSettings, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -63,8 +63,8 @@ impl Store {
         })
     }
 
-    /// Einstellungen des Werks setzen. Außerhalb der Grenzen (60–250 Wörter je Minute, Zielzeit 60–14400 s)
-    /// → `Refused` mit deutscher Meldung, nichts geändert; unbekanntes Werk → `UnknownWork`.
+    /// Set the settings of the work. Outside the limits (60–250 words per minute, target time 60–14400 s) → `Refused`
+    /// with a German message, nothing changed; unknown work → `UnknownWork`.
     pub async fn set_timing_settings(&self, work: WorkId, settings: TimingSettings) -> Result<(), StoreError> {
         check(settings)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;

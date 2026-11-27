@@ -1,87 +1,85 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Alte Teiltexte auf die Teil-Markierung umstellen (Nutzerfrage 8, entschieden 2026-11-07: „automatisch
-//! umwandeln“).
+//! Converting old part texts to the part marker (user question 8, decided 2026-11-07: „automatisch umwandeln“).
 //!
-//! Vor Runde 14 trugen Teile (`kind = 'part'`) entweder die Zeile `= <Titel>` der alten Saat (z. B.
-//! „= Teil I – Erkennen“) oder einen leeren Text. Seit Runde 14 ist die Überschrift eines Teils die
-//! Markierung [`baruch_typst::part_line`] (`#heading(level: 1, numbering: none)[T] <baruch-part>`).
+//! Before Round 14 parts (`kind = 'part'`) carried either the line `= <title>` of the old seed (for example „= Teil I –
+//! Erkennen“) or an empty text. Since Round 14 the heading of a part is the marker [`baruch_typst::part_line`]
+//! (`#heading(level: 1, numbering: none)[T] <baruch-part>`).
 //!
-//! **Startschritt statt Migration:** Die neue Zeile braucht die Maskierung von `baruch_typst`
-//! (Rust, nicht SQL), jede Umwandlung ist eine neue Fassung mit Eintrag im Git-Spiegel (den kennt nur
-//! der Server), und der Schritt soll gegen eine nachgebaute alte Datenbank testbar sein. Der Server
-//! ruft [`crate::Store::convert_legacy_parts`] beim Start nach dem Nachführen der Spiegel auf; der
-//! Merker `store_meta.parts_marked_r14` (gesetzt in derselben Transaktion) macht den Schritt einmalig,
-//! und weil eine Markierung weder leer noch eine `=`-Zeile ist, wäre auch ein zweiter Lauf ohne
-//! Wirkung (idempotent). Eine frisch gesäte Datenbank setzt den Merker gleich mit (`seed.rs`): Sie ist
-//! nicht von vor Runde 14, ihr Beispielwerk behält seine leeren Teile wie bisher. Das Beispielwerk einer
-//! älteren Datenbank (leere Teile seit Runde 5, „= Teil …“ davor) wird dagegen umgewandelt.
+//! **Start step instead of a migration:** the new line needs the escaping of `baruch_typst` (Rust, not SQL), every
+//! conversion is a new revision with an entry in the Git mirror (which only the server knows), and the step is meant to
+//! be testable against a rebuilt old database. The server calls [`crate::Store::convert_legacy_parts`] at the start
+//! after catching up the mirrors; the flag `store_meta.parts_marked_r14` (set in the same transaction) makes the step a
+//! one-time one, and because a marker is neither empty nor a `=` line, a second run would have no effect either
+//! (idempotent). A freshly seeded database sets the flag right away (`seed.rs`): it does not date from before Round 14,
+//! its sample work keeps its empty parts as before. The sample work of an older database (empty parts since Round 5, „=
+//! Teil …“ before that) is converted, however.
 //!
-//! Regeln je Teil, betrachtet wird nur die **aktuelle** Fassung:
-//! - **leer** (nur Leerraum) → umwandeln;
-//! - **ohne Fassung** → nichts zu tun: Sie stehen in keinem Text, Export und Spiegel kennen sie nicht;
-//! - **alte Zeile:** der Text ist bis auf Leerraum genau eine `=`-Zeile (Ebene 1, ohne Label und
-//!   Kommentar) und ihr Titel ist der Titel des Teils oder beginnt mit „Teil“ (ein Teil, der vor
-//!   Runde 14 umbenannt wurde, behielt seine alte Zeile) → umwandeln;
-//! - schon mit Markierung am Anfang → nichts zu tun;
-//! - alles andere (selbst geschriebener Text) bleibt unangetastet und wird nur mit Knoten-id gemeldet
-//!   ([`PartConversion::kept`]), nie mit Wortlaut.
+//! Rules per part, only the **current** revision is considered:
+//! - **empty** (whitespace only) → convert;
+//! - **without a revision** → nothing to do: they appear in no text, export and mirror do not know them;
+//! - **old line:** the text is, apart from whitespace, exactly one `=` line (level 1, without label and comment) and
+//!   its title is the title of the part or begins with „Teil“ (a part that was renamed before Round 14 kept its old
+//!   line) → convert;
+//! - already with the marker at the beginning → nothing to do;
+//! - everything else (text written by the author) stays untouched and is only reported with its node id
+//!   ([`PartConversion::kept`]), never with its wording.
 //!
-//! Umwandeln heißt: neue Fassung `heading_line(0, Titel des Teils, None) + "\n"` (wie ein neu angelegter
-//! Teil), sofort aktuell, Elternteil die bisherige aktuelle, die jetzt `superseded` ist und erhalten
-//! bleibt. Autor ist der Mensch (die Entscheidung ist seine), Notiz [`CONVERSION_NOTE`].
+//! Converting means: new revision `heading_line(0, title of the part, None) + "\n"` (like a newly created part),
+//! current at once, parent the previous current one, which is now `superseded` and is kept. The author is the human
+//! (the decision is theirs), note [`CONVERSION_NOTE`].
 
 use baruch_core::Author;
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId, author_columns, broken, to_u32, to_usize};
 
-/// Schlüssel in `store_meta`: Die Umwandlung ist gelaufen.
+/// Key in `store_meta`: the conversion has run.
 pub const CONVERTED_KEY: &str = "parts_marked_r14";
 
-/// Herkunft der neuen Fassungen (Notiz der Revision, Trailer im Spiegel).
+/// Origin of the new revisions (note of the revision, trailer in the mirror).
 pub const CONVERSION_NOTE: &str = "Umwandlung Runde 14 (Nutzerentscheidung)";
 
-/// Ein umgewandelter Teil.
+/// A converted part.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvertedPart {
     pub work: WorkId,
-    /// Fester Schlüssel (`node.id`).
+    /// Fixed key (`node.id`).
     pub key: i64,
-    /// Stelle in der Gliederung (`node.seq`).
+    /// Position in the outline (`node.seq`).
     pub seq: usize,
     pub title: String,
-    /// Bisherige aktuelle Fassung (bleibt als `superseded` erhalten).
+    /// Previous current revision (kept as `superseded`).
     pub from: u32,
-    /// Neue aktuelle Fassung.
+    /// New current revision.
     pub to: u32,
-    /// `true`: vorher leer; `false`: alte `=`-Zeile.
+    /// `true`: empty before; `false`: old `=` line.
     pub was_empty: bool,
 }
 
-/// Ergebnis von [`Store::convert_legacy_parts`].
+/// Result of [`Store::convert_legacy_parts`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartConversion {
-    /// `false`: Der Merker war schon gesetzt, nichts geprüft.
+    /// `false`: the flag was already set, nothing checked.
     pub ran: bool,
     pub converted: Vec<ConvertedPart>,
-    /// Knoten-ids (`node.id`) der Teile mit eigenem Text, die unverändert blieben.
+    /// Node ids (`node.id`) of the parts with text of their own that stayed unchanged.
     pub kept: Vec<i64>,
 }
 
-/// Was mit dem Text eines Teils geschieht.
+/// What happens to the text of a part.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PartText {
-    /// Leer bzw. nur Leerraum.
+    /// Empty or whitespace only.
     Empty,
-    /// Genau eine alte `=`-Zeile.
+    /// Exactly one old `=` line.
     Legacy,
-    /// Beginnt schon mit der Teil-Markierung.
+    /// Already begins with the part marker.
     Marked,
-    /// Selbst geschriebener Text: bleibt.
+    /// Text written by the author: stays.
     Own,
 }
 
-/// Einordnung eines Teiltexts (reine Funktion, Regeln siehe Modulbeschreibung).
+/// Classification of a part text (pure function, for the rules see the module description).
 pub fn classify(body: &str, title: &str) -> PartText {
     let body = body.replace("\r\n", "\n");
     if body.trim().is_empty() {
@@ -102,15 +100,14 @@ pub fn classify(body: &str, title: &str) -> PartText {
     }
 }
 
-/// Neuer Text eines Teils: Markierungszeile und Leerzeile (wie ein neu angelegter Teil).
+/// New text of a part: marker line and empty line (like a newly created part).
 pub fn marked_body(title: &str) -> String {
     format!("{}\n", baruch_typst::heading_line(0, title, None))
 }
 
 impl Store {
-    /// Alte Teiltexte einmalig auf die Teil-Markierung umstellen (Modulbeschreibung von
-    /// `legacy_parts`). Eine Transaktion: alle Umwandlungen und der Merker oder nichts. `human` ist der
-    /// Name des Menschen, unter dem die neuen Fassungen stehen.
+    /// Convert old part texts to the part marker once (module description of `legacy_parts`). One transaction: all
+    /// conversions and the flag, or nothing. `human` is the name of the human under which the new revisions stand.
     pub async fn convert_legacy_parts(&self, human: &str) -> Result<PartConversion, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let done: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
@@ -143,8 +140,8 @@ impl Store {
                 PartText::Empty | PartText::Legacy => {}
             }
             let body = marked_body(&title);
-            // Gegenprobe: Die neue Zeile muss als Teil mit genau diesem Titel zurückkommen, sonst bleibt
-            // der Text (z. B. ein Titel, den die Markierung nicht tragen kann).
+            // Cross-check: the new line must come back as a part with exactly this title, otherwise the text stays (for
+            // example a title that the marker cannot carry).
             let back = baruch_typst::parse(&body).ok();
             let round_trip =
                 back.as_ref().and_then(|d| d.headings.first()).is_some_and(|h| h.level == 0 && h.title == title);
@@ -173,7 +170,7 @@ impl Store {
     }
 }
 
-/// Bisherige aktuelle Fassung `based_on` ablösen und die neue als aktuelle anhängen.
+/// Supersede the previous current revision `based_on` and append the new one as the current one.
 async fn append_current(
     conn: &mut SqliteConnection,
     node_id: i64,

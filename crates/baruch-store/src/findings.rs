@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Befunde (Runde 28, Migration 0046; Schnittstelle S1, danach gehört das Modul befunde).
+//! Findings (Round 28, migration 0046; interface S1, afterwards the module belongs to befunde).
 //!
-//! Ein Befund ist ein Datensatz aus der Antwort einer Persona: Art ([`FindingKind`]: Lob, Hinweis, kritisch),
-//! Status ([`FindingStatus`]: offen, übernommen, verworfen, verschoben, erledigt ohne Änderung), Herkunft (Beitrag im
-//! Abschnitts-Chat oder Fadenbeitrag, Stelle in der Antwort), wahlweise Zitat und Prüfvermerk.
+//! A finding is a record from the answer of a persona: kind ([`FindingKind`]: praise, hint, critical), status
+//! ([`FindingStatus`]: open, adopted, rejected, deferred, done without change), origin (post in the section chat or
+//! thread post, position in the answer), optionally a quotation and a check note.
 //!
-//! Regeln (Vertrag R28 §1):
-//! - Status setzt nur der Mensch ([`Store::finding_set_status`]); Assistenten stellen nur Vorschläge
-//!   ([`Store::finding_propose_status`], nur übernommen/verschoben/erledigt), über die der Mensch entscheidet
-//!   ([`Store::finding_decide`]). Jede Änderung steht in `finding_status` (die Erstanlage nicht).
-//! - Offen zählt (Abzeichen, [`Store::finding_open_counts`]): `status = 'open'`, nicht angehängt (`similar_to IS
-//!   NULL`), kein Lob, mit Abschnitt.
-//! - Deutsche Bezeichnungen nur über [`FindingKind::label`] und [`FindingStatus::label`].
+//! Rules (contract R28 §1):
+//! - Only the human sets the status ([`Store::finding_set_status`]); assistants only make proposals
+//!   ([`Store::finding_propose_status`], only adopted/deferred/done), on which the human decides
+//!   ([`Store::finding_decide`]). Every change is in `finding_status` (the initial creation is not).
+//! - Counted as open (badge, [`Store::finding_open_counts`]): `status = 'open'`, not attached (`similar_to IS NULL`),
+//!   not praise, with a section.
+//! - German labels only through [`FindingKind::label`] and [`FindingStatus::label`].
 //!
-//! - Spiegel: `befunde.md` ([`mirror_files`]) nur, wenn das Werk Befunde hat; deterministisch nach Teil, Kapitel,
-//!   Abschnitt (Baumreihenfolge), dann Fäden, dann Befunde ohne Bezug.
+//! - Mirror: `befunde.md` ([`mirror_files`]) only if the work has findings; deterministic by part, chapter, section
+//!   (tree order), then threads, then findings without a reference.
 //!
-//! S1 setzte die lesenden Abfragen und das schlichte [`Store::finding_insert`] um; Statuswechsel, Vorschläge,
-//! Entscheidungen und `befunde.md` kamen mit R28a (Aufgabe befunde).
+//! S1 implemented the reading queries and the plain [`Store::finding_insert`]; status changes, proposals, decisions and
+//! `befunde.md` came with R28a (task befunde).
 //!
-//! Runde 22 (befund-rueckfrage, Migration 0050): Beim Übernehmen merkt der Store den Stand der Fortschreibung der
-//! Fassung (`revision.amend_seq`) in `finding.adopted_amend` und `finding_status.adopted_amend`: beim Setzen durch den
-//! Menschen den Stand in diesem Augenblick; beim Vorschlag eines Assistenten den Stand beim Vorschlag (nur im Eintrag)
-//! und beim Bestätigen den Stand beim Bestätigen (Eintrag und Befund). Jeder andere Status setzt
-//! `finding.adopted_amend` auf `NULL`. Anzeige „Fassung n · Stand k“ nur für k > 0 ([`adopted_words`]).
+//! Round 22 (befund-rueckfrage, migration 0050): when adopting, the store remembers the amendment state of the revision
+//! (`revision.amend_seq`) in `finding.adopted_amend` and `finding_status.adopted_amend`: when the human sets it, the
+//! state at that moment; for a proposal by an assistant the state at the proposal (only in the entry) and on
+//! confirmation the state at the confirmation (entry and finding). Every other status sets `finding.adopted_amend` to
+//! `NULL`. Display „Fassung n · Stand k“ only for k > 0 ([`adopted_words`]).
 
 use std::collections::HashMap;
 
@@ -32,21 +32,21 @@ use sqlx::{Row, SqliteConnection};
 use crate::ideas::IdeaOrigin;
 use crate::{MirrorFile, Store, StoreError, WorkId, to_u32, to_usize};
 
-/// Höchstens so viele Zeichen hat der Text eines Befunds.
+/// The text of a finding has at most this many characters.
 pub const MAX_FINDING_CHARS: usize = 4000;
-/// Höchstens so viele Zeichen hat das Zitat eines Befunds.
+/// The quotation of a finding has at most this many characters.
 pub const MAX_QUOTE_CHARS: usize = 2000;
-/// Höchstens so viele Zeichen hat eine Begründung (verworfen, verschoben, erledigt).
+/// A reason (rejected, deferred, done) has at most this many characters.
 pub const MAX_REASON_CHARS: usize = 2000;
-/// Höchstens so viele Zeichen hat der Prüfvermerk eines Zitats (CHECK der Migration 0046).
+/// The check note of a quotation has at most this many characters (CHECK of migration 0046).
 const MAX_QUOTE_CHECK_CHARS: usize = 200;
-/// Höchstens so viele Zeichen hat der Name der Persona (CHECK der Migration 0046).
+/// The name of the persona has at most this many characters (CHECK of migration 0046).
 const MAX_PERSONA_CHARS: usize = 200;
-/// Vorgabe und Obergrenze für [`FindingFilter::limit`].
+/// Default and upper limit for [`FindingFilter::limit`].
 const DEFAULT_LIMIT: u32 = 500;
 const MAX_LIMIT: u32 = 2000;
 
-/// Art eines Befunds.
+/// Kind of a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FindingKind {
@@ -58,7 +58,7 @@ pub enum FindingKind {
 impl FindingKind {
     pub const ALL: [FindingKind; 3] = [FindingKind::Praise, FindingKind::Hint, FindingKind::Critical];
 
-    /// Wert in der Datenbank: `praise`, `hint`, `critical`.
+    /// Value in the database: `praise`, `hint`, `critical`.
     pub fn as_db(self) -> &'static str {
         match self {
             FindingKind::Praise => "praise",
@@ -71,7 +71,7 @@ impl FindingKind {
         FindingKind::ALL.into_iter().find(|k| k.as_db() == s)
     }
 
-    /// Anzeige: „Lob“, „Hinweis“, „kritisch“.
+    /// Display: „Lob“, „Hinweis“, „kritisch“.
     pub fn label(self) -> &'static str {
         match self {
             FindingKind::Praise => "Lob",
@@ -81,7 +81,7 @@ impl FindingKind {
     }
 }
 
-/// Status eines Befunds.
+/// Status of a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FindingStatus {
@@ -101,7 +101,7 @@ impl FindingStatus {
         FindingStatus::Done,
     ];
 
-    /// Wert in der Datenbank: `open`, `adopted`, `rejected`, `deferred`, `done`.
+    /// Value in the database: `open`, `adopted`, `rejected`, `deferred`, `done`.
     pub fn as_db(self) -> &'static str {
         match self {
             FindingStatus::Open => "open",
@@ -116,7 +116,7 @@ impl FindingStatus {
         FindingStatus::ALL.into_iter().find(|k| k.as_db() == s)
     }
 
-    /// Anzeige: „offen“, „übernommen“, „verworfen“, „verschoben“, „erledigt ohne Änderung“.
+    /// Display: „offen“, „übernommen“, „verworfen“, „verschoben“, „erledigt ohne Änderung“.
     pub fn label(self) -> &'static str {
         match self {
             FindingStatus::Open => "offen",
@@ -128,7 +128,7 @@ impl FindingStatus {
     }
 }
 
-/// Ziel eines verschobenen Befunds: ein Abschnitt (fester Schlüssel) oder ein Einfall.
+/// Target of a deferred finding: a section (fixed key) or an idea.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DeferTarget {
@@ -136,30 +136,30 @@ pub enum DeferTarget {
     Idea { id: i64 },
 }
 
-/// Gewünschter Status samt Pflichtangaben.
+/// Wanted status together with its mandatory details.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatusChange {
     Open,
-    /// Fassungsnummer im Abschnitt des Befunds.
+    /// Revision number in the section of the finding.
     Adopted {
         rev: u32,
     },
-    /// Begründung Pflicht, getrimmt nicht leer, höchstens [`MAX_REASON_CHARS`].
+    /// Reason mandatory, trimmed not empty, at most [`MAX_REASON_CHARS`].
     Rejected {
         reason: String,
     },
-    /// Begründung darf leer sein.
+    /// The reason may be empty.
     Deferred {
         target: DeferTarget,
         reason: String,
     },
-    /// Begründung darf leer sein.
+    /// The reason may be empty.
     Done {
         reason: String,
     },
 }
 
-/// Ein Eintrag im Verlauf des Status (Mensch setzt, Assistent schlägt vor).
+/// An entry in the history of the status (the human sets, an assistant proposes).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct FindingStatusEntry {
     pub id: i64,
@@ -178,19 +178,19 @@ pub struct FindingStatusEntry {
     pub decided: Option<String>,
     pub decided_by: Option<String>,
     pub created: String,
-    /// Runde 22: Stand der Fassung beim Übernehmen (`finding_status.adopted_amend`); `None` = nicht gemerkt.
+    /// Round 22: state of the revision when adopting (`finding_status.adopted_amend`); `None` = not remembered.
     pub adopted_amend: Option<u32>,
 }
 
-/// Ein Befund mit aufgelösten Bezügen.
+/// A finding with resolved references.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Finding {
     pub id: i64,
     pub uuid: String,
     pub work: WorkId,
-    /// `node.id`; `None` = Faden ohne Abschnitt bzw. Abschnitt gelöscht.
+    /// `node.id`; `None` = thread without a section or section deleted.
     pub key: Option<i64>,
-    /// Stelle (seq) jetzt, aus dem Join.
+    /// Position (seq) now, from the join.
     pub node: Option<usize>,
     pub post: Option<i64>,
     pub thread: Option<i64>,
@@ -203,32 +203,32 @@ pub struct Finding {
     pub quote_check: String,
     pub status: FindingStatus,
     pub reason: String,
-    /// Über `adopted_revision` im Abschnitt aufgelöst; `None`, wenn die Fassung fehlt.
+    /// Resolved through `adopted_revision` in the section; `None` if the revision is missing.
     pub adopted_rev: Option<u32>,
     pub adopted_revision: Option<String>,
-    /// Aufgelöst; `None`, wenn nicht verschoben oder das Ziel fehlt.
+    /// Resolved; `None` if not deferred or the target is missing.
     pub deferred: Option<DeferTarget>,
     pub deferred_uuid: Option<String>,
     pub similar_to: Option<i64>,
     pub summary_of: Vec<String>,
-    /// Jüngster offener Vorschlag (`proposed = 1`, `decision IS NULL`).
+    /// Most recent open proposal (`proposed = 1`, `decision IS NULL`).
     pub pending: Option<FindingStatusEntry>,
     pub created: String,
     pub updated: String,
-    /// Runde 30b: Lösungsvorschläge zum Befund (Migration 0047, `finding.solutions`); leer = keine.
+    /// Round 30b: solution proposals for the finding (migration 0047, `finding.solutions`); empty = none.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub solutions: Vec<Solution>,
-    /// Runde 22: Stand der Fassung beim Übernehmen (`finding.adopted_amend`); `None` = nicht gemerkt.
+    /// Round 22: state of the revision when adopting (`finding.adopted_amend`); `None` = not remembered.
     pub adopted_amend: Option<u32>,
-    /// Runde 23a (PM-Entscheidung): Sammelbefund (`summary_of` nicht leer), der selbst noch offen ist, dessen Ursprünge
-    /// aber alle entschieden sind (kein Ursprung mehr offen; gelöschte Ursprünge zählen als entschieden) – „veraltet“.
-    /// Abgeleitet beim Lesen, nie gespeichert; der Status bleibt, wie der Mensch ihn gesetzt hat.
+    /// Round 23a (PM decision): summary finding (`summary_of` not empty) that is itself still open, but whose origins
+    /// are all decided (no origin open any more; deleted origins count as decided) – "outdated". Derived when reading,
+    /// never stored; the status stays as the human set it.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub stale_summary: bool,
 }
 
-/// Ein Lösungsvorschlag zu einem Befund (Runde 30b): wörtliches Zitat und neue Formulierung (`statt`/`besser`) oder
-/// ein klarer nächster Schritt.
+/// A solution proposal for a finding (Round 30b): verbatim quotation and new wording (`statt`/`besser`) or a clear next
+/// step.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Solution {
     pub quote: String,
@@ -236,7 +236,7 @@ pub struct Solution {
     pub step: String,
 }
 
-/// Ein neuer Befund ([`Store::finding_insert`]).
+/// A new finding ([`Store::finding_insert`]).
 #[derive(Debug, Clone)]
 pub struct NewFinding<'a> {
     pub work: WorkId,
@@ -253,15 +253,15 @@ pub struct NewFinding<'a> {
     pub summary_of: &'a [String],
 }
 
-/// Auswahl für [`Store::finding_list`].
+/// Selection for [`Store::finding_list`].
 #[derive(Debug, Clone, Default)]
 pub struct FindingFilter {
-    /// Abschnitte (`node.id`); leer = alle (auch ohne Abschnitt).
+    /// Sections (`node.id`); empty = all (also without a section).
     pub keys: Vec<i64>,
     pub post: Option<i64>,
-    /// Leer = alle.
+    /// Empty = all.
     pub statuses: Vec<FindingStatus>,
-    /// Leer = alle; Lob nur mit `include_praise` oder ausdrücklich in `kinds`.
+    /// Empty = all; praise only with `include_praise` or explicitly in `kinds`.
     pub kinds: Vec<FindingKind>,
     pub persona: Option<String>,
     /// `created >= since` (ISO).
@@ -269,13 +269,13 @@ pub struct FindingFilter {
     /// `created < until` (ISO).
     pub until: Option<String>,
     pub include_praise: bool,
-    /// Auch angehängte Befunde (`similar_to IS NOT NULL`).
+    /// Also attached findings (`similar_to IS NOT NULL`).
     pub include_attached: bool,
-    /// `None` = 500, höchstens 2000; passen mehr, die neuesten.
+    /// `None` = 500, at most 2000; if more match, the newest.
     pub limit: Option<u32>,
 }
 
-// ---- Lesen ---------------------------------------------------------------------------------------
+// ---- Reading -------------------------------------------------------------------------------------
 
 const FINDING_SELECT: &str = "SELECT f.id, f.uuid, f.work_id, f.node_id, n.seq, f.post_id, tp.thread_id, \
      f.thread_post_id, f.position, f.persona, f.kind, f.body, f.quote, f.quote_check, f.status, f.reason, \
@@ -349,9 +349,9 @@ fn entry_of(row: &sqlx::sqlite::SqliteRow) -> Result<FindingStatusEntry, StoreEr
     })
 }
 
-/// Runde 23a: offene Vorschläge und „veraltet“ für eine ganze Liste in **einer** Abfrage je 500 Befunde (vorher je
-/// Befund eine: bis zu 2000 Abfragen für eine Arbeitsseite). Je Befund der jüngste offene Vorschlag (`proposed = 1`,
-/// `decision IS NULL`, größte id); Sammelbefunde bekommen [`Finding::stale_summary`].
+/// Round 23a: open proposals and "outdated" for a whole list in **one** query per 500 findings (before, one per
+/// finding: up to 2000 queries for one work page). Per finding the most recent open proposal (`proposed = 1`, `decision
+/// IS NULL`, largest id); summary findings get [`Finding::stale_summary`].
 async fn complete(conn: &mut SqliteConnection, work: WorkId, findings: &mut [Finding]) -> Result<(), StoreError> {
     let ids: Vec<i64> = findings.iter().map(|f| f.id).collect();
     let mut latest: HashMap<i64, FindingStatusEntry> = HashMap::new();
@@ -370,7 +370,7 @@ async fn complete(conn: &mut SqliteConnection, work: WorkId, findings: &mut [Fin
             latest.insert(entry.finding, entry);
         }
     }
-    // Ursprünge offener Sammelbefunde: welche davon sind noch offen?
+    // Origins of open summary findings: which of them are still open?
     let origins: Vec<&str> = findings
         .iter()
         .filter(|f| f.status == FindingStatus::Open)
@@ -395,7 +395,7 @@ async fn complete(conn: &mut SqliteConnection, work: WorkId, findings: &mut [Fin
     Ok(())
 }
 
-/// Zeilen von [`FINDING_SELECT`] als Befunde, samt offenen Vorschlägen und „veraltet“ ([`complete`]).
+/// Rows of [`FINDING_SELECT`] as findings, together with open proposals and "outdated" ([`complete`]).
 async fn findings_of<'r>(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -414,7 +414,7 @@ async fn finding_of(conn: &mut SqliteConnection, row: &sqlx::sqlite::SqliteRow) 
     Ok(finding)
 }
 
-/// Eine Zeile von [`FINDING_SELECT`] ohne weitere Abfrage (`pending` und `stale_summary` setzt [`complete`]).
+/// A row of [`FINDING_SELECT`] without a further query (`pending` and `stale_summary` are set by [`complete`]).
 fn finding_row(row: &sqlx::sqlite::SqliteRow) -> Result<Finding, StoreError> {
     let id: i64 = row.try_get(0)?;
     let seq: Option<i64> = row.try_get(4)?;
@@ -470,8 +470,8 @@ async fn check_work(conn: &mut SqliteConnection, work: WorkId) -> Result<(), Sto
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Befund `id` im Werk `work` (in der Verbindung bzw. Transaktion des Aufrufers); fremdes Werk oder unbekannt →
-/// [`StoreError::UnknownFinding`], unbekanntes Werk → [`StoreError::UnknownWork`].
+/// Finding `id` in the work `work` (in the connection or transaction of the caller); foreign work or unknown →
+/// [`StoreError::UnknownFinding`], unknown work → [`StoreError::UnknownWork`].
 pub(crate) async fn get(conn: &mut SqliteConnection, work: WorkId, id: i64) -> Result<Finding, StoreError> {
     check_work(conn, work).await?;
     let row = sqlx::query(sqlx::AssertSqlSafe(format!("{FINDING_SELECT} WHERE f.id = ? AND f.work_id = ?")))
@@ -485,14 +485,14 @@ pub(crate) async fn get(conn: &mut SqliteConnection, work: WorkId, id: i64) -> R
     }
 }
 
-/// Bedingungen von `filter` (ohne `limit`) als „ AND …“ hinter `WHERE f.work_id = ?`; Platzhalter erst `numbers`,
-/// dann `texts` binden.
+/// Conditions of `filter` (without `limit`) as " AND …" behind `WHERE f.work_id = ?`; bind the placeholders first from
+/// `numbers`, then from `texts`.
 fn filter_clause(filter: &FindingFilter) -> (String, Vec<i64>, Vec<String>) {
     let mut sql = String::new();
     let mut texts: Vec<String> = Vec::new();
     let mut numbers: Vec<i64> = Vec::new();
     let marks = |n: usize| vec!["?"; n].join(", ");
-    // Zahlen zuerst binden, dann Texte: die Reihenfolge der Platzhalter folgt dieser Aufteilung.
+    // Bind numbers first, then texts: the order of the placeholders follows this split.
     if !filter.keys.is_empty() {
         sql.push_str(&format!(" AND f.node_id IN ({})", marks(filter.keys.len())));
         numbers.extend(&filter.keys);
@@ -534,18 +534,18 @@ fn too_long(what: &str, max: usize) -> StoreError {
     StoreError::Finding(format!("{what} ist zu lang (höchstens {max} Zeichen)."))
 }
 
-/// Gehört die Zeile `id` der Tabelle über `sql` (ein `SELECT 1 … WHERE <id> AND <werk>`) zum Werk?
+/// Does the row `id` of the table belong to the work, through `sql` (a `SELECT 1 … WHERE <id> AND <work>`)?
 async fn belongs(conn: &mut SqliteConnection, sql: &'static str, id: i64, work: WorkId) -> Result<bool, StoreError> {
     let found: Option<i64> = sqlx::query_scalar(sql).bind(id).bind(work).fetch_optional(&mut *conn).await?;
     Ok(found.is_some())
 }
 
 impl Store {
-    /// Neuen Befund anlegen (eine Transaktion, kein Statusverlauf). Grenzen (Text getrimmt nicht leer und höchstens
-    /// [`MAX_FINDING_CHARS`], Zitat höchstens [`MAX_QUOTE_CHARS`], Prüfvermerk höchstens 200, Persona 1 bis 200
-    /// Zeichen; nicht zugleich Beitrag und Fadenbeitrag; Abschnitt, Beitrag, Fadenbeitrag und `similar_to` aus
-    /// diesem Werk) → [`StoreError::Finding`]; derselbe Beitrag mit derselben Stelle zweimal → Datenbankfehler
-    /// (eindeutiger Index). Gibt den angelegten Befund zurück.
+    /// Create a new finding (one transaction, no status history). Limits (text trimmed not empty and at most
+    /// [`MAX_FINDING_CHARS`], quotation at most [`MAX_QUOTE_CHARS`], check note at most 200, persona 1 to 200
+    /// characters; not post and thread post at once; section, post, thread post and `similar_to` from this work) →
+    /// [`StoreError::Finding`]; the same post with the same position twice → database error (unique index). Returns the
+    /// finding created.
     pub async fn finding_insert(&self, new: &NewFinding<'_>) -> Result<Finding, StoreError> {
         if new.body.trim().is_empty() {
             return Err(StoreError::Finding("Ein Befund braucht einen Text.".into()));
@@ -629,10 +629,10 @@ impl Store {
         Ok(finding)
     }
 
-    /// Lösungsvorschläge des Befunds `id` ersetzen (Runde 30b, atomar; leer = keine). Jede Lösung braucht ein Zitat mit
-    /// neuer Formulierung oder einen Schritt; Zitat höchstens [`MAX_QUOTE_CHARS`], Formulierung und Schritt höchstens
-    /// [`MAX_FINDING_CHARS`] Zeichen, sonst [`StoreError::Finding`]. Fremdes Werk oder unbekannt →
-    /// [`StoreError::UnknownFinding`]. Status und `updated` bleiben unberührt.
+    /// Replace the solution proposals of the finding `id` (Round 30b, atomic; empty = none). Every solution needs a
+    /// quotation with a new wording or a step; quotation at most [`MAX_QUOTE_CHARS`], wording and step at most
+    /// [`MAX_FINDING_CHARS`] characters, otherwise [`StoreError::Finding`]. Foreign work or unknown →
+    /// [`StoreError::UnknownFinding`]. Status and `updated` stay untouched.
     pub async fn finding_set_solutions(&self, work: WorkId, id: i64, solutions: &[Solution]) -> Result<(), StoreError> {
         for s in solutions {
             if s.quote.chars().count() > MAX_QUOTE_CHARS {
@@ -661,16 +661,16 @@ impl Store {
         Ok(())
     }
 
-    /// Befund `id` des Werks; fremdes Werk oder unbekannt → [`StoreError::UnknownFinding`].
+    /// Finding `id` of the work; foreign work or unknown → [`StoreError::UnknownFinding`].
     pub async fn finding_get(&self, work: WorkId, id: i64) -> Result<Finding, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, work, id).await
     }
 
-    /// Befunde des Werks nach `filter`, älteste zuerst (`created`, dann `id`). Ohne `include_praise` kein Lob (außer
-    /// `kinds` nennt Lob ausdrücklich), ohne `include_attached` keine angehängten Befunde. Passen mehr als `limit`,
-    /// kommen die **neuesten** `limit` (ältere fallen weg, nicht die jüngsten); ob gekappt wurde, sagt der Vergleich
-    /// mit [`Store::finding_count`].
+    /// Findings of the work after `filter`, oldest first (`created`, then `id`). Without `include_praise` no praise
+    /// (unless `kinds` names praise explicitly), without `include_attached` no attached findings. If more than `limit`
+    /// match, the **newest** `limit` come (older ones are dropped, not the most recent); whether it was capped is told
+    /// by the comparison with [`Store::finding_count`].
     pub async fn finding_list(&self, work: WorkId, filter: &FindingFilter) -> Result<Vec<Finding>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -689,8 +689,8 @@ impl Store {
         findings_of(&mut conn, work, rows.iter().rev()).await
     }
 
-    /// Zahl der Befunde nach `filter` ohne Grenze (`limit` zählt nicht): mehr als [`Store::finding_list`] liefert
-    /// heißt gekappt.
+    /// Number of findings after `filter` without a limit (`limit` does not count): more than [`Store::finding_list`]
+    /// returns means capped.
     pub async fn finding_count(&self, work: WorkId, filter: &FindingFilter) -> Result<usize, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -706,7 +706,7 @@ impl Store {
         to_usize(query.fetch_one(&mut *conn).await?, "Zahl")
     }
 
-    /// Befunde, die an `id` angehängt sind (`similar_to = id`), älteste zuerst, ohne Grenze.
+    /// Findings that are attached to `id` (`similar_to = id`), oldest first, without a limit.
     pub async fn finding_attached_to(&self, work: WorkId, id: i64) -> Result<Vec<Finding>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, work, id).await?;
@@ -720,7 +720,7 @@ impl Store {
         findings_of(&mut conn, work, rows.iter()).await
     }
 
-    /// Befunde des Werks mit diesen UUIDs (etwa `summary_of`), älteste zuerst; unbekannte fehlen.
+    /// Findings of the work with these UUIDs (such as `summary_of`), oldest first; unknown ones are missing.
     pub async fn findings_by_uuid(&self, work: WorkId, uuids: &[String]) -> Result<Vec<Finding>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -739,7 +739,7 @@ impl Store {
         Ok(out)
     }
 
-    /// Verlauf des Befunds `id` (Statuswechsel und Vorschläge), älteste zuerst.
+    /// History of the finding `id` (status changes and proposals), oldest first.
     pub async fn finding_history(&self, work: WorkId, id: i64) -> Result<Vec<FindingStatusEntry>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, work, id).await?;
@@ -750,10 +750,10 @@ impl Store {
         rows.iter().map(entry_of).collect()
     }
 
-    /// Offene Befunde je Abschnitt (`node.id` → Zahl) nach Vertrag §1.5: offen, nicht angehängt, kein Lob, mit
-    /// Abschnitt; nur der Abschnitt selbst (keine Summen über Unterpunkte). Abschnitte ohne offene fehlen.
-    /// Runde 23a (PM-Entscheidung): Sammelbefunde (`summary_of` nicht leer) zählen nicht – ihre Ursprünge zählen
-    /// schon; sonst stiege „k offen“ nach einem RFC doppelt.
+    /// Open findings per section (`node.id` → number) after contract §1.5: open, not attached, not praise, with a
+    /// section; only the section itself (no sums across sub-items). Sections without open ones are missing. Round 23a
+    /// (PM decision): summary findings (`summary_of` not empty) do not count – their origins already count; otherwise
+    /// "k open" would rise twice after an RFC.
     pub async fn finding_open_counts(&self, work: WorkId) -> Result<HashMap<i64, usize>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -767,8 +767,8 @@ impl Store {
         rows.into_iter().map(|(key, n)| Ok((key, to_usize(n, "Zahl")?))).collect()
     }
 
-    /// Je Fassungsnummer des Abschnitts `key` die übernommenen Befunde (ids aufsteigend), Fassungen aufsteigend;
-    /// Befunde, deren Fassung fehlt, fehlen.
+    /// Per revision number of the section `key` the adopted findings (ids ascending), revisions ascending; findings
+    /// whose revision is missing are missing.
     pub async fn findings_adopted_in(&self, work: WorkId, key: i64) -> Result<Vec<(u32, Vec<i64>)>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -791,12 +791,12 @@ impl Store {
         Ok(out)
     }
 
-    /// Status setzen (nur der Mensch): schreibt `finding` und einen Eintrag in `finding_status` (`actor_kind =
-    /// 'human'`, `proposed = 0`) in einer Transaktion und gibt (vorher, nachher) zurück. Prüft vorher (Vertrag R28
-    /// §1.2, RPC `finding.set_status`): übernommen nur mit einer Fassung, die es im Abschnitt des Befunds gibt;
-    /// verworfen nur mit Begründung (getrimmt nicht leer, höchstens [`MAX_REASON_CHARS`]); verschoben nur mit einem
-    /// Abschnitt bzw. Einfall desselben Werks (nicht der eigene Abschnitt). Verstöße und ein Status, den der Befund
-    /// genau so schon hat → [`StoreError::Finding`]; dann ändert sich nichts.
+    /// Set the status (only the human): writes `finding` and an entry in `finding_status` (`actor_kind = 'human'`,
+    /// `proposed = 0`) in one transaction and returns (before, after). Checks beforehand (contract R28 §1.2, RPC
+    /// `finding.set_status`): adopted only with a revision that exists in the section of the finding; rejected only
+    /// with a reason (trimmed not empty, at most [`MAX_REASON_CHARS`]); deferred only with a section or idea of the
+    /// same work (not its own section). Violations and a status that the finding already has exactly like that →
+    /// [`StoreError::Finding`]; then nothing changes.
     pub async fn finding_set_status(
         &self,
         work: WorkId,
@@ -837,11 +837,11 @@ impl Store {
         Ok((before, after))
     }
 
-    /// Statusvorschlag eines Assistenten (Persona bzw. MCP-Client; nie der Mensch): nur übernommen, verschoben,
-    /// erledigt ohne Änderung – verworfen und offen lehnt der Store ab („Nur der Mensch kann …“). Geprüft wird wie
-    /// bei [`Store::finding_set_status`]; ein gleicher offener Vorschlag (gleicher Status, gleiche Fassung bzw. gleiches
-    /// Ziel) oder ein Status, den der Befund schon hat, wird nicht angelegt ([`StoreError::Finding`]). Der Befund selbst
-    /// ändert sich nicht.
+    /// Status proposal of an assistant (persona or MCP client; never the human): only adopted, deferred, done without
+    /// change – the store rejects rejected and open („Nur der Mensch kann …“). It is checked as in
+    /// [`Store::finding_set_status`]; an identical open proposal (same status, same revision or same target) or a
+    /// status that the finding already has is not created ([`StoreError::Finding`]). The finding itself does not
+    /// change.
     pub async fn finding_propose_status(
         &self,
         work: WorkId,
@@ -918,11 +918,11 @@ impl Store {
         Ok(entry)
     }
 
-    /// Über einen Vorschlag entscheiden (nur der Mensch). Veraltet ist er, wenn der Befund seitdem einen Status vom
-    /// Menschen bzw. aus einem bestätigten Vorschlag bekam, die vorgeschlagene Fassung bzw. das Ziel fehlt oder der
-    /// Befund den Status schon hat: dann `decision = 'stale'`, und der Befund bleibt. Sonst bestätigt (`confirmed`,
-    /// der Befund bekommt den vorgeschlagenen Status) bzw. abgelehnt (`rejected`). Unbekannter oder schon
-    /// entschiedener Vorschlag → [`StoreError::Finding`]. Gibt (Befund nachher, Eintrag nachher) zurück.
+    /// Decide on a proposal (only the human). It is stale if the finding has since got a status from the human or from
+    /// a confirmed proposal, the proposed revision or the target is missing or the finding already has the status: then
+    /// `decision = 'stale'`, and the finding stays. Otherwise confirmed (`confirmed`, the finding gets the proposed
+    /// status) or rejected (`rejected`). Unknown or already decided proposal → [`StoreError::Finding`]. Returns
+    /// (finding afterwards, entry afterwards).
     pub async fn finding_decide(
         &self,
         work: WorkId,
@@ -980,7 +980,7 @@ impl Store {
             (false, false) => "rejected",
         };
         if decision == "confirmed" {
-            // Runde 22: Stand der Fassung beim Bestätigen (Eintrag und Befund).
+            // Round 22: state of the revision at the confirmation (entry and finding).
             if target.status == FindingStatus::Adopted {
                 target.adopted_amend =
                     sqlx::query_scalar("SELECT amend_seq FROM revision WHERE uuid = ? AND node_id = ?")
@@ -1014,19 +1014,19 @@ impl Store {
 
 type Row5 = (String, String, Option<String>, Option<String>, Option<String>);
 
-/// Gewünschter Stand eines Befunds in Spalten (Fassung und Ziel als uuid).
+/// Wanted state of a finding in columns (revision and target as uuid).
 struct Target {
     status: FindingStatus,
     reason: String,
     adopted_revision: Option<String>,
     deferred_node: Option<String>,
     deferred_idea: Option<String>,
-    /// Runde 22: Stand der übernommenen Fassung (`revision.amend_seq`) beim Auflösen; sonst `None`.
+    /// Round 22: state of the adopted revision (`revision.amend_seq`) when resolving; otherwise `None`.
     adopted_amend: Option<i64>,
 }
 
 impl Target {
-    /// Hat der Befund genau diesen Stand schon?
+    /// Does the finding already have exactly this state?
     fn same_as(&self, finding: &Finding) -> bool {
         self.status == finding.status
             && self.reason == finding.reason
@@ -1035,7 +1035,7 @@ impl Target {
     }
 }
 
-/// Begründung prüfen: höchstens [`MAX_REASON_CHARS`], bei verworfen Pflicht.
+/// Check the reason: at most [`MAX_REASON_CHARS`], mandatory for rejected.
 fn checked_reason(reason: &str, required: bool) -> Result<String, StoreError> {
     let reason = reason.trim();
     if required && reason.is_empty() {
@@ -1047,8 +1047,8 @@ fn checked_reason(reason: &str, required: bool) -> Result<String, StoreError> {
     Ok(reason.to_owned())
 }
 
-/// Änderung prüfen und in Spalten übersetzen (Fassung über ihre Nummer im Abschnitt des Befunds, Ziel über Abschnitt
-/// bzw. Einfall desselben Werks).
+/// Check the change and translate it into columns (revision through its number in the section of the finding, target
+/// through section or idea of the same work).
 async fn resolve(conn: &mut SqliteConnection, finding: &Finding, change: &StatusChange) -> Result<Target, StoreError> {
     let empty = |status, reason| Target {
         status,
@@ -1147,7 +1147,7 @@ async fn write_status(conn: &mut SqliteConnection, id: i64, target: &Target) -> 
     Ok(())
 }
 
-/// Eintrag `entry` im Verlauf eines Befunds des Werks; sonst [`StoreError::Finding`].
+/// Entry `entry` in the history of a finding of the work; otherwise [`StoreError::Finding`].
 async fn entry_by_id(conn: &mut SqliteConnection, work: WorkId, entry: i64) -> Result<FindingStatusEntry, StoreError> {
     let row = sqlx::query(sqlx::AssertSqlSafe(format!("{ENTRY_SELECT} WHERE s.id = ? AND f.work_id = ?")))
         .bind(entry)
@@ -1160,7 +1160,7 @@ async fn entry_by_id(conn: &mut SqliteConnection, work: WorkId, entry: i64) -> R
     }
 }
 
-/// „Fassung n“ bzw. mit Fortschreibung „Fassung n · Stand k“ (Runde 22; Stand 0 oder unbekannt zeigt nur die Fassung).
+/// „Fassung n“ or, with an amendment, „Fassung n · Stand k“ (Round 22; state 0 or unknown shows only the revision).
 pub fn adopted_words(rev: u32, amend: Option<u32>) -> String {
     match amend.filter(|k| *k > 0) {
         Some(k) => format!("Fassung {rev} · Stand {k}"),
@@ -1168,10 +1168,10 @@ pub fn adopted_words(rev: u32, amend: Option<u32>) -> String {
     }
 }
 
-/// Pfad der Spiegeldatei der Befunde.
+/// Path of the mirror file of the findings.
 pub const MIRROR_FILE: &str = "befunde.md";
 
-/// Gruppe in `befunde.md`: Abschnitt (Baumreihenfolge), Faden (nach id), ohne Bezug.
+/// Group in `befunde.md`: section (tree order), thread (by id), without a reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Group {
     Section(usize),
@@ -1183,10 +1183,10 @@ fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Dateien der Befunde im Werkspiegel: `befunde.md`, nur wenn das Werk Befunde hat. Deterministisch: Abschnitte in
-/// Baumreihenfolge (Teil, Kapitel, Abschnitt), dann Fäden nach id, dann Befunde ohne Bezug; darin nach Anlage. Je
-/// Befund Art, Status, Persona, Text, Zitat mit Prüfvermerk, Begründung, Fassung bzw. Ziel, Anhang, Sammlung, offener
-/// Vorschlag, Herkunft und der Verlauf.
+/// Files of the findings in the work mirror: `befunde.md`, only if the work has findings. Deterministic: sections in
+/// tree order (part, chapter, section), then threads by id, then findings without a reference; within them by creation.
+/// Per finding kind, status, persona, text, quotation with check note, reason, revision or target, attachment, summary,
+/// open proposal, origin and the history.
 pub(crate) async fn mirror_files(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<MirrorFile>, StoreError> {
     let rows =
         sqlx::query(sqlx::AssertSqlSafe(format!("{FINDING_SELECT} WHERE f.work_id = ? ORDER BY f.created, f.id")))

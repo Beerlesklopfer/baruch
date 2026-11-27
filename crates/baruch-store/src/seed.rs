@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Erstbefüllung: Eine wirklich neue Datenbank bekommt `baruch_core::sample::work()`, mit
-//! Titelschlüssel (`title_key`) und der leeren Werkvorlage als Fassung 1 (Vertrag Runde 4).
+//! Initial filling: a really new database gets `baruch_core::sample::work()`, with the title key (`title_key`) and the
+//! empty work template as revision 1 (contract Round 4).
 //!
-//! Ob schon gesät wurde, steht in `store_meta` (Schlüssel `seeded`, Migration 0007), nicht in der
-//! Zahl der Werke: Sind alle Werke gelöscht, sät auch ein Neustart nicht neu (Vertrag Runde 5). Eine
-//! Datenbank, die beim Lauf von 0007 schon Werke oder Personas hatte, gilt als gesät.
+//! Whether seeding has already happened is recorded in `store_meta` (key `seeded`, migration 0007), not in the number
+//! of works: if all works are deleted, a restart does not seed again either (contract Round 5). A database that already
+//! had works or personas when 0007 ran counts as seeded.
 
 use std::collections::HashMap;
 
@@ -14,12 +14,11 @@ use sqlx::{SqliteConnection, SqlitePool};
 use crate::works::{insert_template_revision, title_key};
 use crate::{StoreError, WorkId, author_columns, import, slug, words};
 
-/// Schlüssel in `store_meta`: Beispielwerk gesät.
+/// Key in `store_meta`: sample work seeded.
 pub(crate) const SEEDED: &str = "seeded";
 
-/// Befüllt in einer Transaktion (`BEGIN IMMEDIATE`, damit zwei gleichzeitige Starts nicht
-/// doppelt befüllen), sofern `store_meta.seeded` fehlt, und setzt die Markierung in derselben
-/// Transaktion. Gibt `true` zurück, wenn befüllt wurde.
+/// Fills in one transaction (`BEGIN IMMEDIATE`, so that two simultaneous starts do not fill twice), provided
+/// `store_meta.seeded` is missing, and sets the marker in the same transaction. Returns `true` if it filled.
 pub(crate) async fn seed_if_empty(pool: &SqlitePool) -> Result<bool, StoreError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let seeded: Option<String> =
@@ -29,9 +28,9 @@ pub(crate) async fn seed_if_empty(pool: &SqlitePool) -> Result<bool, StoreError>
     }
     insert_work(&mut tx, &baruch_core::sample::work()).await?;
     sqlx::query("INSERT INTO store_meta (key, value) VALUES (?, '1')").bind(SEEDED).execute(&mut *tx).await?;
-    // Eine frisch gesäte Datenbank stammt nicht von vor Runde 14: Die Umwandlung alter Teiltexte
-    // (`legacy_parts`, Nutzerfrage 8) gilt als erledigt; das Beispielwerk behält seine leeren Teile wie
-    // bisher. Nur ältere Datenbanken (ohne diesen Merker) wandeln beim ersten Start um.
+    // A freshly seeded database does not date from before Round 14: the conversion of old part texts (`legacy_parts`,
+    // user question 8) counts as done; the sample work keeps its empty parts as before. Only older databases (without
+    // this marker) convert at the first start.
     sqlx::query("INSERT OR IGNORE INTO store_meta (key, value) VALUES (?, '1')")
         .bind(crate::legacy_parts::CONVERTED_KEY)
         .execute(&mut *tx)
@@ -40,10 +39,9 @@ pub(crate) async fn seed_if_empty(pool: &SqlitePool) -> Result<bool, StoreError>
     Ok(true)
 }
 
-/// Schreibt ein vollständiges Werk. Personas sind global und werden nur angelegt, wenn es noch
-/// keine gibt.
+/// Writes a complete work. Personas are global and are only created if there are none yet.
 pub(crate) async fn insert_work(conn: &mut SqliteConnection, work: &baruch_core::Work) -> Result<WorkId, StoreError> {
-    // Freier Ordnername wie beim Import; slugs gelöschter Werke (`work_retired`) bleiben gemieden.
+    // Free folder name as in the import; slugs of deleted works (`work_retired`) stay avoided.
     let slug = import::free_slug(conn, &slug(&work.title)).await?;
     let work_id: WorkId = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, title_key) VALUES (?, ?, ?, ?, ?) RETURNING id",
@@ -55,10 +53,10 @@ pub(crate) async fn insert_work(conn: &mut SqliteConnection, work: &baruch_core:
     .bind(title_key(&work.title))
     .fetch_one(&mut *conn)
     .await?;
-    // Wie Migration 0005 für vorhandene Werke: die (leere) Werkvorlage als Fassung 1.
+    // As migration 0005 does for existing works: the (empty) work template as revision 1.
     insert_template_revision(conn, work_id, 1, "", "Autor", "Beispielwerk gesät").await?;
 
-    // Reihenfolge unter demselben Elternteil = Reihenfolge in `work.nodes`.
+    // Order below the same parent = order in `work.nodes`.
     let mut next_position: HashMap<Option<usize>, i64> = HashMap::new();
     for (index, node) in work.nodes.iter().enumerate() {
         if node.id != index {
@@ -81,8 +79,8 @@ pub(crate) async fn insert_work(conn: &mut SqliteConnection, work: &baruch_core:
         .await?;
         *position += 1;
 
-        // Elternteil wie Regel R aus Migration 0004: die höchste frühere Fassung, die aktuell war
-        // oder ist (current, superseded); ohne eine solche eine Wurzel.
+        // Parent as in rule R from migration 0004: the highest earlier revision that was or is current (current,
+        // superseded); without one, a root.
         let mut last_shown: Option<u32> = None;
         for revision in &node.revisions {
             let (author_kind, author_name, model) = author_columns(&revision.author);
@@ -133,8 +131,8 @@ pub(crate) async fn insert_work(conn: &mut SqliteConnection, work: &baruch_core:
     Ok(work_id)
 }
 
-/// Ein Beitrag samt Quellen (JSON) und Verweisen; gibt die neue id zurück (`post.id`; `Post::id` und
-/// `Post::created` des Arguments werden nicht gelesen, die vergibt die Datenbank).
+/// A post together with its sources (JSON) and references; returns the new id (`post.id`; `Post::id` and
+/// `Post::created` of the argument are not read, the database assigns them).
 pub(crate) async fn insert_post(
     conn: &mut SqliteConnection,
     node_id: i64,

@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werke durch den Menschen verwalten (Vertrag Runde 4, Abschnitte 1 und 3b): eindeutige Titel,
-//! Anlegen, Metadaten, Fassungen der Werkvorlage, Löschen ganzer Werke.
+//! Managing works by the human (contract Round 4, sections 1 and 3b): unique titles, creating, metadata, revisions of
+//! the work template, deleting whole works.
 //!
-//! - **Eindeutige Titel:** Zwei Werke dürfen nicht denselben [`title_key`] haben (Teilindex
-//!   `work_title_key` aus Migration `0005_works.sql`). Anlegen, Import und Ändern mit einem schon
-//!   vergebenen Titel → [`StoreError::DuplicateTitle`], nichts geändert. Vorhandene Doppel aus der
-//!   Zeit vor 0005 löst [`ensure_title_keys`] beim Öffnen auf, nur über den Titel (slug, Spiegel,
-//!   Gliederung und Texte bleiben).
-//! - **Werkvorlage:** `work.template` ist die aktuelle Vorlage, jede Änderung eine neue Fassung in
-//!   `work_template_revision` (Nummern ab 1, nur anhängen). Snapshot und Export lesen weiter
-//!   `work.template`.
-//! - **Löschen** ([`Store::delete_work`]) nur mit eingetipptem Titel und in einer Transaktion: Der
-//!   Trigger `revision_no_delete_current` (0004) schützt die aktuelle Fassung lebender Abschnitte;
-//!   darum setzt das Löschen zuerst alle aktuellen Fassungen des Werks auf `superseded` (erlaubt
-//!   laut `revision_status_transition`) und löscht danach Revisionen, Verweise, Beiträge, Knoten,
-//!   Vorlagenfassungen und das Werk. id, slug und Titel wandern nach `work_retired` (Migration 0007).
-//! - **ids und slugs nie wiederverwenden** (Vertrag Runde 5): `work.id` ist seit 0007
-//!   `AUTOINCREMENT`, ein neues Werk bekommt nach dem Löschen nie die id eines alten; neue Ordnernamen
-//!   meiden auch die slugs gelöschter Werke (`import::free_slug`).
+//! - **Unique titles:** two works must not have the same [`title_key`] (partial index `work_title_key` from migration
+//!   `0005_works.sql`). Creating, importing and changing with a title already taken → [`StoreError::DuplicateTitle`],
+//!   nothing changed. Existing duplicates from the time before 0005 are resolved by [`ensure_title_keys`] when opening,
+//!   only through the title (slug, mirror, outline and texts stay).
+//! - **Work template:** `work.template` is the current template, every change a new revision in
+//!   `work_template_revision` (numbers from 1, append only). Snapshot and export keep reading `work.template`.
+//! - **Deleting** ([`Store::delete_work`]) only with the title typed in and in one transaction: the trigger
+//!   `revision_no_delete_current` (0004) protects the current revision of living sections; therefore the deletion first
+//!   sets all current revisions of the work to `superseded` (allowed according to `revision_status_transition`) and
+//!   afterwards deletes revisions, references, posts, nodes, template revisions and the work. id, slug and title move
+//!   to `work_retired` (migration 0007).
+//! - **Never reuse ids and slugs** (contract Round 5): `work.id` has been `AUTOINCREMENT` since 0007, a new work never
+//!   gets the id of an old one after a deletion; new folder names also avoid the slugs of deleted works
+//!   (`import::free_slug`).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -26,31 +24,31 @@ use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::{Imported, Store, StoreError, WorkId, WorkSummary, import, slug, to_u32, to_usize, words};
 
-/// Vergleichsschlüssel eines Titels: getrimmt, Folgen von Leerraum (Unicode) → ein Leerzeichen,
-/// Kleinbuchstaben (Unicode). „ Das Buch “ und „das  buch“ ergeben denselben Schlüssel.
+/// Comparison key of a title: trimmed, runs of whitespace (Unicode) → one space, lower-case letters (Unicode). „ Das
+/// Buch “ and „das buch“ yield the same key.
 pub fn title_key(title: &str) -> String {
     one_line(title).to_lowercase()
 }
 
-/// Eine Angabe in einer Zeile: Folgen von Leerraum (auch Zeilenumbrüche) → ein Leerzeichen, getrimmt.
+/// A detail on one line: runs of whitespace (also line breaks) → one space, trimmed.
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Grundgerüst eines neuen Werks ([`Store::create_work`]).
+/// Skeleton of a new work ([`Store::create_work`]).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Preset {
-    /// Werkvorlage mit `#set document` und `#set heading(numbering: "1.1")`, ein Kapitel „Erstes Kapitel“.
+    /// Work template with `#set document` and `#set heading(numbering: "1.1")`, one chapter „Erstes Kapitel“.
     #[default]
     Book,
-    /// Werkvorlage mit `#set document`, Gliederungsschema `sermon` („Einleitung · I. · II. · III. · Schluss“) und
-    /// den Punkten aus [`SERMON_OUTLINE`]: Predigttext und Anwendung ohne Nummer, dazwischen Einleitung, drei
-    /// Hauptpunkte und Schluss (Runde 16a).
+    /// Work template with `#set document`, outline scheme `sermon` („Einleitung · I. · II. · III. · Schluss“) and the
+    /// items from [`SERMON_OUTLINE`]: sermon text and application without a number, between them introduction, three
+    /// main points and conclusion (Round 16a).
     Sermon,
 }
 
-/// Angaben für [`Store::create_work`]. Titel und Angaben werden getrimmt, Zeilenumbrüche zu Leerzeichen.
+/// Details for [`Store::create_work`]. Title and details are trimmed, line breaks become spaces.
 #[derive(Debug, Clone, Copy)]
 pub struct NewWork<'a> {
     pub title: &'a str,
@@ -58,13 +56,13 @@ pub struct NewWork<'a> {
     pub kind: WorkKind,
     pub preset: Preset,
     pub subtitle: &'a str,
-    /// Zielgruppe.
+    /// Target audience.
     pub audience: &'a str,
-    /// Bibelübersetzung.
+    /// Bible translation.
     pub bible: &'a str,
 }
 
-/// Was [`Store::update_work`] ändern soll; `None` = bleibt.
+/// What [`Store::update_work`] is to change; `None` = stays.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WorkEdit<'a> {
     pub title: Option<&'a str>,
@@ -73,41 +71,41 @@ pub struct WorkEdit<'a> {
     pub kind: Option<WorkKind>,
     pub audience: Option<&'a str>,
     pub bible: Option<&'a str>,
-    /// Neue Werkvorlage (CRLF → LF); nur ein anderer Text ergibt eine neue Fassung.
+    /// New work template (CRLF → LF); only a different text yields a new revision.
     pub template: Option<&'a str>,
-    /// Notiz zur neuen Fassung der Werkvorlage.
+    /// Note on the new revision of the work template.
     pub note: Option<&'a str>,
 }
 
-/// Alle Angaben eines Werks ([`Store::work_meta`]).
+/// All details of a work ([`Store::work_meta`]).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct WorkMeta {
     pub id: WorkId,
-    /// Weltweit eindeutige Kennung (Migration 0041, Austauschformat); nur lesen.
+    /// Globally unique identifier (migration 0041, exchange format); read only.
     pub uuid: String,
     pub slug: String,
     pub kind: WorkKind,
     pub title: String,
     pub subtitle: String,
     pub author: String,
-    /// Zielgruppe.
+    /// Target audience.
     pub audience: String,
-    /// Bibelübersetzung.
+    /// Bible translation.
     pub bible: String,
-    /// Aktuelle Werkvorlage.
+    /// Current work template.
     pub template: String,
-    /// Nummer der aktuellen Fassung der Werkvorlage (0 = keine Fassung gespeichert).
+    /// Number of the current revision of the work template (0 = no revision stored).
     pub template_rev: u32,
-    /// Dateiname beim Import; `None` bei gesäten und angelegten Werken.
+    /// File name at the import; `None` for seeded and created works.
     pub source_name: Option<String>,
     pub created: String,
-    /// Letzte Änderung von Metadaten oder Werkvorlage; `None` = nie geändert.
+    /// Last change of metadata or work template; `None` = never changed.
     pub updated: Option<String>,
     /// Work language (migration 0055): personas answer in it.
     pub language: crate::WorkLanguage,
 }
 
-/// Eine Fassung der Werkvorlage (ohne Text, [`Store::template_revisions`]).
+/// A revision of the work template (without text, [`Store::template_revisions`]).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct TemplateRevision {
     pub number: u32,
@@ -116,17 +114,17 @@ pub struct TemplateRevision {
     pub created: String,
 }
 
-/// Ergebnis von [`Store::update_work`].
+/// Result of [`Store::update_work`].
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct WorkUpdate {
     pub work: WorkId,
-    /// Geänderte Felder: `title`, `subtitle`, `author`, `kind`, `audience`, `bible`, `template`.
+    /// Changed fields: `title`, `subtitle`, `author`, `kind`, `audience`, `bible`, `template`.
     pub changed: Vec<&'static str>,
-    /// Nummer der neuen Fassung, wenn sich die Werkvorlage geändert hat.
+    /// Number of the new revision if the work template has changed.
     pub template_rev: Option<u32>,
 }
 
-/// Ergebnis von [`Store::delete_work`]: was gelöscht wurde.
+/// Result of [`Store::delete_work`]: what was deleted.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct DeletedWork {
     pub work: WorkId,
@@ -136,7 +134,7 @@ pub struct DeletedWork {
     pub revisions: usize,
 }
 
-/// Ein gelöschtes (archiviertes) Werk aus `work_retired` (Runde 22, Archiv).
+/// A deleted (archived) work from `work_retired` (Round 22, archive).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RetiredWork {
     pub id: WorkId,
@@ -145,7 +143,7 @@ pub struct RetiredWork {
     pub deleted: String,
 }
 
-/// Ergebnis von [`Store::restore_retired`]: das wiederhergestellte Werk.
+/// Result of [`Store::restore_retired`]: the restored work.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RestoredWork {
     pub work: WorkId,
@@ -154,20 +152,20 @@ pub struct RestoredWork {
     pub nodes: usize,
 }
 
-/// Notiz der Fassungen und der Werkvorlage eines aus dem Archiv wiederhergestellten Werks (Runde 22).
+/// Note of the revisions and of the work template of a work restored from the archive (Round 22).
 pub const RESTORED_NOTE: &str = "aus dem Archiv wiederhergestellt";
 
-/// Notiz der ersten Fassungen eines angelegten Werks.
+/// Note of the first revisions of a created work.
 const CREATED_NOTE: &str = "Werk angelegt";
 
-/// Titel des Punkts, der den Predigttext trägt (ohne Nummer; [`Store::create_work_with_text`]).
+/// Title of the item that carries the sermon text (without a number; [`Store::create_work_with_text`]).
 pub const SERMON_TEXT_TITLE: &str = "Predigttext";
 
-/// Gliederung einer neuen Predigt (Runde 16a): Titel und ob der Punkt gezählt wird. Das Schema `sermon` nennt
-/// den ersten gezählten Punkt „Einleitung“, den letzten „Schluss“ und die übrigen „I.“, „II.“, „III.“. Darum
-/// tragen die gezählten Punkte Titel, die die Nummer nicht wiederholen (sonst stünde in der Gliederung
-/// „Einleitung Einleitung“ oder „I. Erster Hauptpunkt“); Predigttext und Anwendung haben keine Nummer und
-/// heißen, was sie sind. Begründung in `docs/Architektur.md`, „Runde 16a“.
+/// Outline of a new sermon (Round 16a): title and whether the item is counted. The scheme `sermon` calls the first
+/// counted item „Einleitung“, the last one „Schluss“ and the others „I.“, „II.“, „III.“. Therefore the counted items
+/// carry titles that do not repeat the number (otherwise the outline would read „Einleitung Einleitung“ or „I. Erster
+/// Hauptpunkt“); sermon text and application have no number and are called what they are. Reasoning in
+/// `docs/Architektur.md`, „Runde 16a“.
 pub const SERMON_OUTLINE: &[(&str, bool)] = &[
     (SERMON_TEXT_TITLE, false),
     ("Hinführung", true),
@@ -178,7 +176,7 @@ pub const SERMON_OUTLINE: &[(&str, bool)] = &[
     ("Ausblick", true),
 ];
 
-/// Kapitel bzw. Predigtteile eines neuen Werks: Titel und „mit Nummer“.
+/// Chapters or sermon parts of a new work: title and "with number".
 fn preset_chapters(preset: Preset) -> &'static [(&'static str, bool)] {
     match preset {
         Preset::Book => &[("Erstes Kapitel", true)],
@@ -186,10 +184,10 @@ fn preset_chapters(preset: Preset) -> &'static [(&'static str, bool)] {
     }
 }
 
-/// Gliederungsschema eines neuen Werks (`work.numbering_scheme`) und die Nummer je Punkt nach diesem Schema.
+/// Outline scheme of a new work (`work.numbering_scheme`) and the number per item after this scheme.
 fn preset_numbers(preset: Preset, chapters: &[(&str, bool)]) -> (&'static str, Vec<String>) {
     match preset {
-        // Wie bisher: Schema aus der Werkvorlage, vorläufige Nummer 1, 2, … (die Vorlage zählt „1.1“).
+        // As before: scheme from the work template, provisional number 1, 2, … (the template counts "1.1").
         Preset::Book => ("template", (1..=chapters.len()).map(|n| n.to_string()).collect()),
         Preset::Sermon => {
             let scheme = baruch_typst::scheme::Scheme::Sermon;
@@ -213,16 +211,16 @@ fn preset_numbers(preset: Preset, chapters: &[(&str, bool)]) -> (&'static str, V
     }
 }
 
-/// Typst-String ohne Anführungszeichen: `\` und `"` maskiert.
+/// Typst string without quotation marks: `\` and `"` escaped.
 fn typst_string(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// Werkvorlage eines neuen Werks.
+/// Work template of a new work.
 fn preset_template(preset: Preset, title: &str, author: &str) -> String {
     let document = format!("#set document(title: \"{}\", author: \"{}\")\n", typst_string(title), typst_string(author));
     match preset {
-        // Runde 27: Impressum-Vorlage (Titelei-Funktionen schmutztitel, haupttitel, impressum, widmung) angehängt.
+        // Round 27: imprint template (front matter functions schmutztitel, haupttitel, impressum, widmung) appended.
         Preset::Book => {
             format!("{document}#set heading(numbering: \"1.1\")\n\n{}", baruch_typst::cover::imprint_template())
         }
@@ -230,7 +228,7 @@ fn preset_template(preset: Preset, title: &str, author: &str) -> String {
     }
 }
 
-/// Ist der Schlüssel schon an ein anderes Werk als `except` vergeben → `DuplicateTitle`.
+/// If the key is already assigned to a work other than `except` → `DuplicateTitle`.
 pub(crate) async fn title_free(
     conn: &mut SqliteConnection,
     key: &str,
@@ -248,7 +246,7 @@ pub(crate) async fn title_free(
     }
 }
 
-/// Fassung `number` der Werkvorlage anhängen.
+/// Append revision `number` of the work template.
 pub(crate) async fn insert_template_revision(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -268,9 +266,9 @@ pub(crate) async fn insert_template_revision(
     Ok(())
 }
 
-// ---- Nachtrag der Schlüssel beim Öffnen ------------------------------------------------------
+// ---- Backfilling the keys when opening -------------------------------------------------------
 
-/// Ein Werk beim Nachtrag: id, Titel, gespeicherter Schlüssel, gesät (ohne Quelle).
+/// A work during the backfill: id, title, stored key, seeded (without a source).
 #[derive(Debug, Clone)]
 struct Entry {
     id: WorkId,
@@ -279,19 +277,18 @@ struct Entry {
     seeded: bool,
 }
 
-/// Neue `(id, Titel, Schlüssel)` für alle Werke, deren Titel oder Schlüssel sich ändert. `entries`
-/// ist nach id sortiert. Regeln (Vertrag Runde 4, Abschnitt 1): Bei gleichem Schlüssel behält das
-/// Werk mit der kleineren id seinen Titel; trifft dabei ein gesätes Werk (ohne Quelle) auf ein
-/// importiertes, behält das importierte mit der kleinsten id den Titel, und das gesäte bekommt den
-/// Titel des Beispielwerks (`sample_title`), sofern frei. Sonst und in allen anderen Fällen
-/// „<Titel> (2)“, „ (3)“ … mit der kleinsten freien Zahl.
+/// New `(id, title, key)` for all works whose title or key changes. `entries` is sorted by id. Rules (contract Round 4,
+/// section 1): with the same key the work with the smaller id keeps its title; if a seeded work (without a source)
+/// meets an imported one in the process, the imported one with the smallest id keeps the title, and the seeded one gets
+/// the title of the sample work (`sample_title`), provided it is free. Otherwise and in all other cases „<Titel> (2)“,
+/// „ (3)“ … with the smallest free number.
 fn plan_titles(entries: &[Entry], sample_title: &str) -> Vec<(WorkId, String, String)> {
     let keys: Vec<String> = entries.iter().map(|e| title_key(&e.title)).collect();
     let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (index, key) in keys.iter().enumerate() {
         groups.entry(key.as_str()).or_default().push(index);
     }
-    // Verlierer mit dem Hinweis, ob ein gesätes Werk auf ein importiertes traf.
+    // Losers with the hint whether a seeded work met an imported one.
     let mut losers: Vec<(usize, bool)> = Vec::new();
     for members in groups.values().filter(|m| m.len() > 1) {
         let first_imported = members.iter().copied().find(|&i| !entries[i].seeded);
@@ -329,10 +326,9 @@ fn plan_titles(entries: &[Entry], sample_title: &str) -> Vec<(WorkId, String, St
         .collect()
 }
 
-/// Schlüssel nachtragen (nach `MIGRATOR.run`, vor der Saat; `BEGIN IMMEDIATE`, wiederholbar): Werke
-/// ohne oder mit veraltetem `title_key` bekommen ihn; kollidiert er, ändert sich nur der Titel
-/// (Regeln bei [`plan_titles`]). Slug, Spiegel, Gliederung und Texte bleiben. Stimmt schon alles,
-/// ändert sich nichts.
+/// Backfill the keys (after `MIGRATOR.run`, before the seeding; `BEGIN IMMEDIATE`, repeatable): works without a
+/// `title_key` or with an outdated one get it; if it collides, only the title changes (rules at [`plan_titles`]). Slug,
+/// mirror, outline and texts stay. If everything is already right, nothing changes.
 pub(crate) async fn ensure_title_keys(pool: &SqlitePool) -> Result<(), StoreError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let rows: Vec<(WorkId, String, Option<String>, Option<String>)> =
@@ -343,8 +339,8 @@ pub(crate) async fn ensure_title_keys(pool: &SqlitePool) -> Result<(), StoreErro
     if plan.is_empty() {
         return Ok(());
     }
-    // Erst alle betroffenen Schlüssel lösen, dann neu setzen: So stört der eindeutige Index nicht
-    // in einer Zwischenstellung.
+    // First release all affected keys, then set them anew: that way the unique index does not get in the way in an
+    // intermediate state.
     for (id, _, _) in &plan {
         sqlx::query("UPDATE work SET title_key = NULL WHERE id = ?").bind(id).execute(&mut *tx).await?;
     }
@@ -382,9 +378,9 @@ type MetaRow = (
 type SummaryRow = (WorkId, String, String, String, String, String, String, String, i64, i64, i64, Option<String>);
 
 impl Store {
-    /// Alle Werke für Übersicht und Werkwahl, nach id: Autor, Art, Untertitel, Anzahl der Knoten
-    /// (`nodes`) und der Abschnitte ohne Teile (`sections`), offene Vorschläge, angelegt und zuletzt
-    /// geändert (größter Zeitpunkt aus Metadaten, angelegten und geänderten Revisionen).
+    /// All works for overview and work selection, by id: author, kind, subtitle, number of nodes (`nodes`) and of
+    /// sections without parts (`sections`), open proposals, created and last changed (largest point in time from
+    /// metadata, created and changed revisions).
     pub async fn work_list(&self) -> Result<Vec<WorkSummary>, StoreError> {
         let rows: Vec<SummaryRow> = sqlx::query_as(
             "SELECT w.id, w.slug, w.title, w.author, w.kind, w.subtitle, w.created, w.language, \
@@ -421,17 +417,17 @@ impl Store {
             .collect()
     }
 
-    /// Neues Werk aus einem Grundgerüst (atomar): Werkvorlage (Fassung 1), Kapitel bzw. Predigtteile
-    /// mit Revision 1 von `human` (aktuell, Text `= <Titel>\n\n`). Leerer Titel → `EmptyTitle`,
-    /// vergebener Titel → `DuplicateTitle`; Ordnername aus dem Titel, bei Kollision `-2`, `-3` ….
+    /// New work from a skeleton (atomic): work template (revision 1), chapters or sermon parts with revision 1 by
+    /// `human` (current, text `= <title>\n\n`). Empty title → `EmptyTitle`, title taken → `DuplicateTitle`; folder name
+    /// from the title, on a collision `-2`, `-3` ….
     pub async fn create_work(&self, new: &NewWork<'_>, human: &str) -> Result<Imported, StoreError> {
         self.create_work_with_text(new, human, None).await
     }
 
-    /// Wie [`Store::create_work`]; bei einer Predigt steht `sermon_text` (Typst, z. B. das Zitat des
-    /// Predigttexts mit Quelle) unter der Überschrift des Punkts [`SERMON_TEXT_TITLE`]. Beim Buch und ohne
-    /// Text bleibt jeder Punkt nur seine Überschrift. Die Predigt bekommt das Gliederungsschema `sermon`,
-    /// Predigttext und Anwendung `numbered = 0` (Runde 16a).
+    /// Like [`Store::create_work`]; for a sermon `sermon_text` (Typst, for example the quotation of the sermon text
+    /// with its source) stands under the heading of the item [`SERMON_TEXT_TITLE`]. For a book and without a text every
+    /// item keeps only its heading. The sermon gets the outline scheme `sermon`, sermon text and application
+    /// `numbered = 0` (Round 16a).
     pub async fn create_work_with_text(
         &self,
         new: &NewWork<'_>,
@@ -441,11 +437,11 @@ impl Store {
         self.create_work_with_bible(new, human, sermon_text, None).await
     }
 
-    /// Wie [`Store::create_work_with_text`], dazu die SWORD-Bibel des Werks (`work_bible`) **in derselben
-    /// Transaktion** (Runde 23). Vorher waren es zwei Schritte (`create_work_with_text`, dann
-    /// `set_work_bible`): Scheiterte der zweite, blieb ein Werk ohne Spiegel zurück, und ein zweiter Versuch
-    /// endete mit `DuplicateTitle`. Jetzt entsteht bei einem Fehler nichts. Ein unzulässiger Modulname (leer,
-    /// über 100 Zeichen, mit Zeilenumbruch – die Regel der Tabelle) → `Refused`, bevor etwas geschrieben ist.
+    /// Like [`Store::create_work_with_text`], plus the SWORD Bible of the work (`work_bible`) **in the same
+    /// transaction** (Round 23). Before, these were two steps (`create_work_with_text`, then `set_work_bible`): if the
+    /// second one failed, a work without a mirror was left behind, and a second attempt ended with `DuplicateTitle`.
+    /// Now nothing is created on an error. An inadmissible module name (empty, over 100 characters, with a line break –
+    /// the rule of the table) → `Refused`, before anything is written.
     pub async fn create_work_with_bible(
         &self,
         new: &NewWork<'_>,
@@ -502,8 +498,8 @@ impl Store {
             .bind(chapter)
             .fetch_one(&mut *tx)
             .await?;
-            // Der Trigger `node_numbered_default` (0006) setzt nur bei leerer Nummer `numbered = 0`; hier
-            // ausdrücklich, damit „ohne Nummer“ nicht von der Nummer abhängt.
+            // The trigger `node_numbered_default` (0006) sets `numbered = 0` only for an empty number; here explicitly,
+            // so that "without number" does not depend on the number.
             sqlx::query("UPDATE node SET numbered = ? WHERE id = ?")
                 .bind(i64::from(*numbered))
                 .bind(node_id)
@@ -527,7 +523,7 @@ impl Store {
             .await?;
         }
         if let Some(module) = bible {
-            // Scheitert das (z. B. an der CHECK-Regel der Tabelle), rollt die Transaktion alles zurück.
+            // If that fails (for example on the CHECK rule of the table), the transaction rolls everything back.
             sqlx::query("INSERT INTO work_bible (work_id, module) VALUES (?, ?)")
                 .bind(work)
                 .bind(module)
@@ -538,10 +534,10 @@ impl Store {
         Ok(Imported { work, slug, title, author, nodes: chapters.len() })
     }
 
-    /// Wie [`Store::import_typst_noted`], wahlweise mit eigenem Titel (`None` oder leer: aus
-    /// `#set document`, sonst aus dem Dateinamen). Reihenfolge der Prüfungen: dieselbe Quelle schon
-    /// importiert → `AlreadyImported`; keine Überschrift → `Import`; Titel vergeben →
-    /// `DuplicateTitle`. Die Werkvorlage wird Fassung 1 (Notiz wie die Revisionen).
+    /// Like [`Store::import_typst_noted`], optionally with a custom title (`None` or empty: from `#set document`,
+    /// otherwise from the file name). Order of the checks: the same source already imported → `AlreadyImported`; no
+    /// heading → `Import`; title taken → `DuplicateTitle`. The work template becomes revision 1 (note like the
+    /// revisions).
     pub async fn import_typst_titled(
         &self,
         source: &str,
@@ -556,7 +552,7 @@ impl Store {
         Ok(imported)
     }
 
-    /// Alle Angaben eines Werks; unbekannt → `UnknownWork`.
+    /// All details of a work; unknown → `UnknownWork`.
     pub async fn work_meta(&self, work: WorkId) -> Result<WorkMeta, StoreError> {
         let row: Option<MetaRow> = sqlx::query_as(
             "SELECT w.id, w.slug, w.kind, w.title, w.subtitle, w.author, w.audience, w.bible, w.template, \
@@ -604,7 +600,7 @@ impl Store {
         })
     }
 
-    /// Fassungen der Werkvorlage nach Nummer (ohne Text); unbekanntes Werk → `UnknownWork`.
+    /// Revisions of the work template by number (without text); unknown work → `UnknownWork`.
     pub async fn template_revisions(&self, work: WorkId) -> Result<Vec<TemplateRevision>, StoreError> {
         self.work_slug(work).await?;
         let rows: Vec<(i64, String, String, String)> = sqlx::query_as(
@@ -620,8 +616,7 @@ impl Store {
             .collect()
     }
 
-    /// Text der Fassung `number` der Werkvorlage; `None`, wenn es sie nicht gibt. Unbekanntes Werk →
-    /// `UnknownWork`.
+    /// Text of revision `number` of the work template; `None` if it does not exist. Unknown work → `UnknownWork`.
     pub async fn template_revision(&self, work: WorkId, number: u32) -> Result<Option<String>, StoreError> {
         self.work_slug(work).await?;
         Ok(sqlx::query_scalar("SELECT body FROM work_template_revision WHERE work_id = ? AND number = ?")
@@ -631,11 +626,11 @@ impl Store {
             .await?)
     }
 
-    /// Metadaten und Werkvorlage ändern (atomar, nur der Mensch). Nur Felder mit anderem Wert zählen
-    /// (`changed`); dann wird `updated` gesetzt. Titel leer → `EmptyTitle`, an ein anderes Werk
-    /// vergeben → `DuplicateTitle` (nichts geändert). Eine andere Werkvorlage (CRLF → LF) wird neue
-    /// Fassung (`template_rev`) und `work.template`; enthält sie eine Überschrift (`=` am
-    /// Zeilenanfang), gehörte diese zur Gliederung → `Refused`. Slug und Spiegelordner bleiben.
+    /// Change metadata and work template (atomic, only the human). Only fields with a different value count
+    /// (`changed`); then `updated` is set. Title empty → `EmptyTitle`, assigned to another work → `DuplicateTitle`
+    /// (nothing changed). A different work template (CRLF → LF) becomes a new revision (`template_rev`) and
+    /// `work.template`; if it contains a heading (`=` at the start of a line), that would belong to the outline →
+    /// `Refused`. Slug and mirror folder stay.
     pub async fn update_work(&self, work: WorkId, edit: &WorkEdit<'_>, human: &str) -> Result<WorkUpdate, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let row: Option<(String, String, String, String, String, String, String)> =
@@ -713,13 +708,12 @@ impl Store {
         Ok(WorkUpdate { work, changed, template_rev })
     }
 
-    /// Werk ganz löschen (atomar, nur der Mensch). `confirm_title` muss denselben [`title_key`] wie
-    /// der Titel haben, sonst `Refused`, nichts gelöscht. In einer Transaktion: alle aktuellen
-    /// Fassungen → `superseded` (damit `revision_no_delete_current` nicht greift), dann Revisionen,
-    /// Verweise, Beiträge, Knoten, Fassungen der Werkvorlage und das Werk; id, slug und Titel kommen
-    /// nach `work_retired` (der slug bleibt reserviert). Volltextindex: Revisionen entfernen die
-    /// Trigger aus `baruch-library` 0104, Beiträge die aus 0105 (`post_fts_delete`). Den Spiegel
-    /// räumt der Server auf. Sind danach keine Werke mehr da, sät der nächste Start nicht neu.
+    /// Delete a work completely (atomic, only the human). `confirm_title` must have the same [`title_key`] as the
+    /// title, otherwise `Refused`, nothing deleted. In one transaction: all current revisions → `superseded` (so that
+    /// `revision_no_delete_current` does not trigger), then revisions, references, posts, nodes, revisions of the work
+    /// template and the work; id, slug and title go to `work_retired` (the slug stays reserved). Full-text index:
+    /// revisions are removed by the triggers from `baruch-library` 0104, posts by those from 0105 (`post_fts_delete`).
+    /// The server cleans up the mirror. If no works are left afterwards, the next start does not seed again.
     pub async fn delete_work(&self, work: WorkId, confirm_title: &str) -> Result<DeletedWork, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let (slug, title): (String, String) = sqlx::query_as("SELECT slug, title FROM work WHERE id = ?")
@@ -751,7 +745,7 @@ impl Store {
 }
 
 impl Store {
-    /// Gelöschte Werke aus `work_retired` (neueste zuerst; Runde 22, Archiv).
+    /// Deleted works from `work_retired` (newest first; Round 22, archive).
     pub async fn retired_works(&self) -> Result<Vec<RetiredWork>, StoreError> {
         let rows: Vec<(i64, String, String, String)> =
             sqlx::query_as("SELECT id, slug, title, deleted FROM work_retired ORDER BY deleted DESC, id DESC")
@@ -760,19 +754,19 @@ impl Store {
         Ok(rows.into_iter().map(|(id, slug, title, deleted)| RetiredWork { id, slug, title, deleted }).collect())
     }
 
-    /// Legt ein archiviertes Werk mit seinem reservierten slug aus dem Typst-Text des Archivordners wieder an (Runde 22,
-    /// Archiv), alles in einer Transaktion (`BEGIN IMMEDIATE`):
+    /// Creates an archived work again with its reserved slug from the Typst text of the archive folder (Round 22,
+    /// archive), everything in one transaction (`BEGIN IMMEDIATE`):
     ///
-    /// - `slug` muss in `work_retired` stehen, sonst `Refused` (nichts geändert); der Titel kommt aus `work_retired`
-    ///   (nicht aus `#set document`), damit das Werk so heißt wie vor dem Löschen.
-    /// - Trägt ein lebendes Werk denselben Titel ([`title_key`]) → `Refused`; dieselbe Quelle schon importiert →
-    ///   `Refused`; keine Überschrift → `Import`.
-    /// - Angelegt wird wie beim Import ([`import::import_typst`]): Präambel als Werkvorlage (Fassung 1), jede
-    ///   Überschrift ein Gliederungspunkt mit Fassung 1 vom Menschen `human`, aktuell, Notiz [`RESTORED_NOTE`]; ein
-    ///   Regelblock „// Baruch: Satz“ wird wieder Satz-Einstellung. Die Werkart ist danach „Buch“ (`work_retired`
-    ///   kennt sie nicht).
-    /// - Die Zeile in `work_retired` entfällt, das Werk bekommt genau den reservierten slug (der Spiegelordner kann
-    ///   so nach `works/<slug>` zurück) und eine neue id (ids werden nie wiederverwendet).
+    /// - `slug` must be in `work_retired`, otherwise `Refused` (nothing changed); the title comes from `work_retired`
+    ///   (not from `#set document`), so that the work is called what it was called before the deletion.
+    /// - If a living work carries the same title ([`title_key`]) → `Refused`; the same source already imported →
+    ///   `Refused`; no heading → `Import`.
+    /// - It is created as in the import ([`import::import_typst`]): preamble as work template (revision 1), every
+    ///   heading an outline item with revision 1 by the human `human`, current, note [`RESTORED_NOTE`]; a rule block
+    ///   „// Baruch: Satz“ becomes a typesetting setting again. The kind of work is „Buch“ afterwards (`work_retired`
+    ///   does not know it).
+    /// - The row in `work_retired` is dropped, the work gets exactly the reserved slug (the mirror folder can thus go
+    ///   back to `works/<slug>`) and a new id (ids are never reused).
     pub async fn restore_retired(&self, slug: &str, typst: &str, human: &str) -> Result<RestoredWork, StoreError> {
         let slug = slug.trim();
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -818,8 +812,7 @@ impl Store {
     }
 }
 
-/// Neuer Wert eines Textfelds: `wanted` (in einer Zeile), wenn angegeben und anders als `now`; dann
-/// steht `name` in `changed`.
+/// New value of a text field: `wanted` (on one line) if given and different from `now`; then `name` is in `changed`.
 fn pick(changed: &mut Vec<&'static str>, name: &'static str, now: String, wanted: Option<&str>) -> String {
     match wanted.map(one_line) {
         Some(wanted) if wanted != now => {
@@ -830,9 +823,9 @@ fn pick(changed: &mut Vec<&'static str>, name: &'static str, now: String, wanted
     }
 }
 
-/// Alle Zeilen eines Werks löschen, innerhalb der laufenden Transaktion (siehe [`Store::delete_work`]).
+/// Delete all rows of a work, inside the running transaction (see [`Store::delete_work`]).
 async fn delete_work_rows(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
-    // Bilder zuerst (Migration 0009): Pfade, Fassungen (die aktuelle vorher auf superseded), Bilder.
+    // Images first (migration 0009): paths, versions (the current one set to superseded beforehand), images.
     crate::assets::delete_work_assets(conn, work).await?;
     const NODES: &str = "SELECT id FROM node WHERE work_id = ?";
     sqlx::query(sqlx::AssertSqlSafe(format!(
@@ -857,8 +850,8 @@ async fn delete_work_rows(conn: &mut SqliteConnection, work: WorkId) -> Result<(
         .await?;
     sqlx::query("DELETE FROM node WHERE work_id = ?").bind(work).execute(&mut *conn).await?;
     sqlx::query("DELETE FROM work_template_revision WHERE work_id = ?").bind(work).execute(&mut *conn).await?;
-    // id, slug und Titel merken (Migration 0007): Der slug bleibt reserviert ([`import::free_slug`]),
-    // die id vergibt `AUTOINCREMENT` ohnehin nie wieder.
+    // Remember id, slug and title (migration 0007): the slug stays reserved ([`import::free_slug`]), `AUTOINCREMENT`
+    // never assigns the id again anyway.
     sqlx::query("INSERT INTO work_retired (id, slug, title) SELECT id, slug, title FROM work WHERE id = ?")
         .bind(work)
         .execute(&mut *conn)

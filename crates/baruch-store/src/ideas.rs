@@ -1,44 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einfälle (Vertrag Runde 7, Abschnitt 6; Migration `0011_ideas.sql`): Schlagwörter und Gedanken,
-//! die beim Schreiben, Lesen oder Beten einfallen – je Werk oder ohne Werk, mit Herkunft (Mensch,
-//! Persona, MCP-Client), offen oder verarbeitet.
+//! Ideas (contract Round 7, section 6; migration `0011_ideas.sql`): keywords and thoughts that come to mind while
+//! writing, reading or praying – per work or without a work, with origin (human, persona, MCP client), open or
+//! processed.
 //!
-//! Regeln:
-//! - Vollständiges CRUD auch für Assistenten und MCP (Entscheidung IDEA_CRUD): Einfälle ändern keinen
-//!   Buchtext. Jede Aktion protokolliert der Server mit Herkunft im Git-Spiegel.
-//! - Jeder Schreibvorgang ist genau eine Transaktion (`BEGIN IMMEDIATE`); Tabelle, Schlagwörter und
-//!   Volltextindex `idea_fts` (rowid = `idea.id`) ändern sich darin gemeinsam.
-//! - Löschen setzt nur `deleted` (wiederherstellbar über [`Store::idea_restore`]); gelöschte Einfälle
-//!   stehen weder in Listen noch im Index, [`Store::idea_get`] findet sie weiter.
-//! - Grenzen: 1 bis [`MAX_IDEA_WORDS`] Schlagwörter, je höchstens [`MAX_WORD_CHARS`] Zeichen und ohne
-//!   Zeilenumbruch, Doppel (gleicher `word_key`: klein, Leerraum zusammengefasst) fallen zusammen;
-//!   Gedanke und Markierung höchstens 4000, Quelle und Bibelstelle höchstens 200 Zeichen. Sonst
-//!   [`StoreError::Idea`], nichts geändert.
-//! - Der Bezug (`key` = `Node::key`) muss zum Werk des Einfalls gehören. Ein Werk zu löschen macht
-//!   seine Einfälle zu Einfällen ohne Werk (`ON DELETE SET NULL`), ein gelöschter Abschnitt nimmt nur
-//!   den Bezug mit.
-//! - Spiegel: `einfaelle.md` im Werkspiegel ([`mirror_files`], nur bei mindestens einem nicht
-//!   gelöschten Einfall), Einfälle ohne Werk über [`Store::idea_mirror_file`] mit `None`. Seit Runde 25 je
-//!   Einfall mit Verbindungen die Zeile „- Verbindungen: → 79 führt weiter; ↔ 48 widerspricht („Notiz“)“
-//!   (`idea_links::mirror_lines`).
+//! Rules:
+//! - Complete CRUD for assistants and MCP as well (decision IDEA_CRUD): ideas change no book text. The server logs
+//!   every action with its origin in the Git mirror.
+//! - Every write is exactly one transaction (`BEGIN IMMEDIATE`); table, keywords and the full-text index `idea_fts`
+//!   (rowid = `idea.id`) change together in it.
+//! - Deleting only sets `deleted` (restorable through [`Store::idea_restore`]); deleted ideas are neither in lists nor
+//!   in the index, [`Store::idea_get`] still finds them.
+//! - Limits: 1 to [`MAX_IDEA_WORDS`] keywords, each at most [`MAX_WORD_CHARS`] characters and without a line break,
+//!   duplicates (same `word_key`: lower case, whitespace collapsed) coincide; thought and marked passage at most 4000,
+//!   source and Bible reference at most 200 characters. Otherwise [`StoreError::Idea`], nothing changed.
+//! - The reference (`key` = `Node::key`) must belong to the work of the idea. Deleting a work turns its ideas into
+//!   ideas without a work (`ON DELETE SET NULL`), a deleted section takes only the reference along.
+//! - Mirror: `einfaelle.md` in the work mirror ([`mirror_files`], only with at least one idea that is not deleted),
+//!   ideas without a work through [`Store::idea_mirror_file`] with `None`. Since Round 25, per idea with links the line
+//!   „- Verbindungen: → 79 führt weiter; ↔ 48 widerspricht („Notiz“)“ (`idea_links::mirror_lines`).
 //!
-//! Runde 34 (Mindmap, Migration `0052_idea_tree.sql`): Einfälle bilden einen Baum.
-//! - `title` (höchstens [`MAX_IDEA_TITLE_CHARS`] Zeichen, darf leer sein): Ein Einfall braucht Titel **oder**
-//!   mindestens ein Schlagwort. Der Titel steht im Volltextindex in der Spalte `words` mit.
-//! - `parent` (Elternknoten): ein nicht gelöschter Einfall desselben Werks, kein Kreis, Kette höchstens
-//!   [`MAX_IDEA_DEPTH`] Einfälle tief. Einfälle ohne Werk haben keinen Elternknoten.
-//! - `position`: Reihenfolge unter Geschwistern (gleicher Elternknoten bzw. alle Einfälle des Werks ohne
-//!   Elternknoten), dann nach `id`. Neue kommen ans Ende (solange noch nichts geordnet wurde, behalten alle die
-//!   Vorgabe 0 und stehen nach `id`); „vor ein Geschwister“ nummeriert die Geschwister lückenlos ab 1 neu (deren
-//!   `updated` bleibt, die Reihenfolge ist keine Änderung ihres Inhalts).
-//! - Platz (eine Regel, überall gleich): mit `parent` Unterknoten; sonst mit `key` am Kapitel des Bezugs; sonst
-//!   mit `main_topic` freies Hauptthema am Werk; sonst **in der Wolke** (Ablage neben der Mindmap, Nachtrag des
-//!   Nutzers vom 2026-11-25). `main_topic` ist nur ohne Elternknoten und Bezug `true`.
-//! - Löschen nimmt die nicht gelöschten Nachfahren mit demselben Zeitstempel mit ([`Store::idea_delete_tree`]),
-//!   Wiederherstellen genau die mit diesem Zeitstempel ([`Store::idea_restore_tree`]); ist der Elternknoten dann
-//!   noch gelöscht, wird der Einfall gelöst (bleibt am Bezug bzw. liegt in der Wolke).
-//! - Wechselt ein Einfall das Werk ([`Store::idea_update`]), löst er sich vom Elternknoten, und seine Unterknoten
-//!   bleiben im alten Werk (sie verlieren den Elternknoten).
+//! Round 34 (mind map, migration `0052_idea_tree.sql`): ideas form a tree.
+//! - `title` (at most [`MAX_IDEA_TITLE_CHARS`] characters, may be empty): an idea needs a title **or** at least one
+//!   keyword. The title is included in the full-text index in the column `words`.
+//! - `parent` (parent node): an idea of the same work that is not deleted, no cycle, chain at most [`MAX_IDEA_DEPTH`]
+//!   ideas deep. Ideas without a work have no parent node.
+//! - `position`: order among siblings (same parent node or all ideas of the work without a parent node), then by `id`.
+//!   New ones go to the end (as long as nothing has been ordered yet, all keep the default 0 and stand by `id`);
+//!   "before a sibling" renumbers the siblings from 1 without gaps (their `updated` stays, the order is not a change of
+//!   their content).
+//! - Place (one rule, the same everywhere): with `parent` a sub-node; otherwise with `key` at the chapter of the
+//!   reference; otherwise with `main_topic` a free main topic at the work; otherwise **in the cloud** (shelf next to
+//!   the mind map, addition by the user of 2026-11-25). `main_topic` is `true` only without parent node and reference.
+//! - Deleting takes the descendants that are not deleted along with the same timestamp ([`Store::idea_delete_tree`]),
+//!   restoring exactly those with this timestamp ([`Store::idea_restore_tree`]); if the parent node is still deleted
+//!   then, the idea is detached (stays at the reference or lies in the cloud).
+//! - If an idea changes its work ([`Store::idea_update`]), it detaches from the parent node, and its sub-nodes stay in
+//!   the old work (they lose the parent node).
 
 use sqlx::SqliteConnection;
 
@@ -46,36 +43,36 @@ use crate::{MirrorFile, Store, StoreError, WorkId, broken};
 
 pub type IdeaId = i64;
 
-/// Höchstzahl der Schlagwörter eines Einfalls.
+/// Maximum number of keywords of an idea.
 pub const MAX_IDEA_WORDS: usize = 20;
-/// Höchstlänge eines Schlagworts in Zeichen.
+/// Maximum length of a keyword in characters.
 pub const MAX_WORD_CHARS: usize = 60;
-/// Höchstlänge des Titels eines Einfalls in Zeichen (Runde 34).
+/// Maximum length of the title of an idea in characters (Round 34).
 pub const MAX_IDEA_TITLE_CHARS: usize = 200;
-/// Höchste Tiefe einer Kette von Einfällen (Einfall ohne Elternknoten = 1; Runde 34).
+/// Greatest depth of a chain of ideas (idea without a parent node = 1; Round 34).
 pub const MAX_IDEA_DEPTH: usize = 32;
-/// Höchstzahl der Knoten eines Baums in [`Store::idea_import_tree`] (Runde 34).
+/// Maximum number of nodes of a tree in [`Store::idea_import_tree`] (Round 34).
 pub const MAX_IDEA_IMPORT_NODES: usize = 2000;
-/// Höchstlänge von Gedanke und Markierung in Zeichen.
+/// Maximum length of thought and marked passage in characters.
 const MAX_TEXT_CHARS: usize = 4000;
-/// Höchstlänge von Quelle und Bibelstelle in Zeichen.
+/// Maximum length of source and Bible reference in characters.
 pub(crate) const MAX_SHORT_CHARS: usize = 200;
-/// Vorgabe und Obergrenze für `IdeaFilter::limit`.
+/// Default and upper limit for `IdeaFilter::limit`.
 const DEFAULT_LIMIT: u32 = 100;
 const MAX_LIMIT: u32 = 500;
 
-/// Name der Datei im Spiegel.
+/// Name of the file in the mirror.
 pub(crate) const MIRROR_FILE: &str = "einfaelle.md";
 
-/// Wer den Einfall festgehalten hat.
+/// Who recorded the idea.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum IdeaOrigin {
-    /// Der Mensch (Name, im Server `mirror::HUMAN_NAME`).
+    /// The human (name, in the server `mirror::HUMAN_NAME`).
     Human { name: String },
-    /// Eine Persona (`@handle`, es muss sie geben – prüft der Aufrufer).
+    /// A persona (`@handle`, it must exist – the caller checks).
     Persona { handle: String },
-    /// Ein MCP-Client als `@mcp:<name>`.
+    /// An MCP client as `@mcp:<name>`.
     Mcp { handle: String },
 }
 
@@ -97,17 +94,17 @@ impl IdeaOrigin {
         }
     }
 
-    /// Wert des Trailers `Baruch-Origin`: `human`, `persona` oder `mcp`.
+    /// Value of the trailer `Baruch-Origin`: `human`, `persona` or `mcp`.
     pub fn kind(&self) -> &'static str {
         self.columns().0
     }
 
-    /// Name bzw. Handle.
+    /// Name or handle.
     pub fn name(&self) -> &str {
         self.columns().1
     }
 
-    /// Anzeige: „Mensch Autor“, „Persona @lektor“, „MCP @mcp:claude-code“.
+    /// Display: „Mensch Autor“, „Persona @lektor“, „MCP @mcp:claude-code“.
     pub fn label(&self) -> String {
         match self {
             IdeaOrigin::Human { name } => format!("Mensch {name}"),
@@ -141,17 +138,17 @@ impl IdeaStatus {
     }
 }
 
-/// Wozu ein Einfall verarbeitet wurde.
+/// What an idea was processed into.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IdeaUse {
-    /// Neuer Gliederungspunkt.
+    /// New outline item.
     Outline,
-    /// Beitrag im Abschnitts-Chat.
+    /// Post in the section chat.
     Post,
-    /// Auftrag an eine Persona.
+    /// Job for a persona.
     Persona,
-    /// Notiz an einem Abschnitt (oder von Hand als erledigt markiert).
+    /// Note on a section (or marked as done by hand).
     Note,
 }
 
@@ -175,7 +172,7 @@ impl IdeaUse {
         }
     }
 
-    /// Deutsches Wort für Oberfläche und Spiegel-Betreff.
+    /// German word for user interface and mirror subject.
     pub fn label(self) -> &'static str {
         match self {
             IdeaUse::Outline => "Gliederungspunkt",
@@ -186,23 +183,23 @@ impl IdeaUse {
     }
 }
 
-/// Welche Einfälle eine Liste zeigt.
+/// Which ideas a list shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum IdeaScope {
-    /// Alle, mit und ohne Werk.
+    /// All, with and without a work.
     #[default]
     All,
-    /// Nur Einfälle ohne Werk.
+    /// Only ideas without a work.
     NoWork,
-    /// Nur die eines Werks.
+    /// Only those of one work.
     Work(WorkId),
 }
 
-/// Neuer Einfall ([`Store::idea_create`]).
+/// New idea ([`Store::idea_create`]).
 #[derive(Debug, Clone)]
 pub struct NewIdea<'a> {
     pub work: Option<WorkId>,
-    /// Bezug: fester Schlüssel eines Abschnitts des Werks.
+    /// Reference: fixed key of a section of the work.
     pub key: Option<i64>,
     pub words: &'a [String],
     pub note: &'a str,
@@ -212,13 +209,13 @@ pub struct NewIdea<'a> {
     pub origin: IdeaOrigin,
 }
 
-/// Ein Einfall, wie ihn Listen, RPC und MCP zeigen.
+/// An idea as lists, RPC and MCP show it.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Idea {
     pub id: IdeaId,
     pub work: Option<WorkId>,
     pub key: Option<i64>,
-    /// Titel des Abschnitts im Bezug (jetzt), falls es ihn gibt.
+    /// Title of the section in the reference (now), if it exists.
     pub node_title: Option<String>,
     pub words: Vec<String>,
     pub note: String,
@@ -231,60 +228,61 @@ pub struct Idea {
     pub done_ref: Option<String>,
     pub created: String,
     pub updated: String,
-    /// Zeitpunkt des Löschens; `None` = vorhanden.
+    /// Point in time of the deletion; `None` = present.
     pub deleted: Option<String>,
-    /// Titel des Knotens in der Mindmap (Runde 34); darf leer sein.
+    /// Title of the node in the mind map (Round 34); may be empty.
     pub title: String,
-    /// Elternknoten (ein Einfall desselben Werks).
+    /// Parent node (an idea of the same work).
     pub parent: Option<IdeaId>,
-    /// Reihenfolge unter Geschwistern (dann nach `id`).
+    /// Order among siblings (then by `id`).
     pub position: i64,
-    /// Freies Hauptthema am Werk; nur ohne `parent` und `key` `true`. Ohne alle drei liegt der Einfall in der Wolke.
+    /// Free main topic at the work; `true` only without `parent` and `key`. Without all three the idea lies in the
+    /// cloud.
     pub main_topic: bool,
-    /// Abgeleitet: liegt in der Wolke (Einfall eines Werks ohne Elternknoten, Bezug und Hauptthema).
+    /// Derived: lies in the cloud (idea of a work without parent node, reference and main topic).
     pub cloud: bool,
 }
 
-/// Platz eines neuen Einfalls in der Mindmap ([`Store::idea_create_at`]). Vorgabe: ohne Titel, ohne Elternknoten,
-/// ans Ende, nicht als Hauptthema (ohne Bezug also in der Wolke).
+/// Place of a new idea in the mind map ([`Store::idea_create_at`]). Default: without a title, without a parent node, at
+/// the end, not as a main topic (so without a reference in the cloud).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct IdeaSpot<'a> {
     pub title: &'a str,
-    /// Elternknoten; das Werk des neuen Einfalls muss das des Elternknotens sein.
+    /// Parent node; the work of the new idea must be that of the parent node.
     pub parent: Option<IdeaId>,
-    /// Geschwister, vor das der neue Einfall kommt (`None` = ans Ende).
+    /// Sibling before which the new idea goes (`None` = at the end).
     pub before: Option<IdeaId>,
-    /// Freies Hauptthema am Werk (nur ohne `parent` und Bezug erlaubt).
+    /// Free main topic at the work (only allowed without `parent` and reference).
     pub main_topic: bool,
 }
 
-/// Umhängen und Ordnen ([`Store::idea_move`]); `None` = bleibt.
+/// Re-hanging and ordering ([`Store::idea_move`]); `None` = stays.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdeaMove {
-    /// `Some(None)` löst vom Elternknoten; bleibt danach auch kein Bezug, wird der Einfall freies Hauptthema am
-    /// Werk (außer `cloud` sagt etwas anderes).
+    /// `Some(None)` detaches from the parent node; if no reference remains afterwards either, the idea becomes a free
+    /// main topic at the work (unless `cloud` says otherwise).
     pub parent: Option<Option<IdeaId>>,
-    /// Bezug setzen bzw. löschen.
+    /// Set or delete the reference.
     pub key: Option<Option<i64>>,
-    /// `Some(Some(id))` vor dieses Geschwister, `Some(None)` ans Ende. Ohne Angabe: ans Ende, wenn sich der Platz
-    /// ändert, sonst bleibt die Reihenfolge.
+    /// `Some(Some(id))` before this sibling, `Some(None)` at the end. Without a value: at the end if the place changes,
+    /// otherwise the order stays.
     pub before: Option<Option<IdeaId>>,
-    /// `Some(true)`: in die Wolke (löst Elternknoten und Bezug; die Unterknoten bleiben am Einfall).
-    /// `Some(false)`: ohne Elternknoten und Bezug freies Hauptthema am Werk.
+    /// `Some(true)`: into the cloud (detaches parent node and reference; the sub-nodes stay on the idea).
+    /// `Some(false)`: without parent node and reference a free main topic at the work.
     pub cloud: Option<bool>,
 }
 
-/// Ergebnis von [`Store::idea_delete_tree`] und [`Store::idea_restore_tree`].
+/// Result of [`Store::idea_delete_tree`] and [`Store::idea_restore_tree`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdeaTreeChange {
     pub idea: Idea,
-    /// Alle betroffenen Einfälle: der Einfall selbst zuerst, dann die Nachfahren nach id.
+    /// All ideas affected: the idea itself first, then the descendants by id.
     pub ids: Vec<IdeaId>,
-    /// Nur beim Wiederherstellen: Der Elternknoten ist noch gelöscht, der Einfall wurde gelöst.
+    /// Only when restoring: the parent node is still deleted, the idea was detached.
     pub detached: bool,
 }
 
-/// Knoten eines Baums, der als Einfälle angelegt wird ([`Store::idea_import_tree`]).
+/// Node of a tree that is created as ideas ([`Store::idea_import_tree`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IdeaSeed {
     pub title: String,
@@ -293,7 +291,7 @@ pub struct IdeaSeed {
     pub children: Vec<IdeaSeed>,
 }
 
-/// Verbindung zwischen zwei Knoten des Baums; Pfad = Indizes von der obersten Liste abwärts.
+/// Link between two nodes of the tree; path = indices from the top list downwards.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IdeaSeedLink {
     pub from: Vec<usize>,
@@ -301,10 +299,10 @@ pub struct IdeaSeedLink {
     pub note: String,
 }
 
-/// Änderung eines Einfalls ([`Store::idea_update`]); `None` = bleibt. `work: Some(None)` = ohne Werk,
-/// `key: Some(None)` = ohne Bezug. Wechselt das Werk und ist `key` nicht angegeben, entfällt der
-/// Bezug (er gehörte zum alten Werk). `status: Some(Open)` setzt `done_as`/`done_ref` zurück,
-/// `Some(Done)` bei einem offenen Einfall markiert ihn als von Hand erledigt (`done_as` = `note`).
+/// Change of an idea ([`Store::idea_update`]); `None` = stays. `work: Some(None)` = without a work, `key: Some(None)` =
+/// without a reference. If the work changes and `key` is not given, the reference is dropped (it belonged to the old
+/// work). `status: Some(Open)` resets `done_as`/`done_ref`, `Some(Done)` on an open idea marks it as done by hand
+/// (`done_as` = `note`).
 #[derive(Debug, Clone, Default)]
 pub struct IdeaEdit<'a> {
     pub words: Option<&'a [String]>,
@@ -315,21 +313,21 @@ pub struct IdeaEdit<'a> {
     pub work: Option<Option<WorkId>>,
     pub key: Option<Option<i64>>,
     pub status: Option<IdeaStatus>,
-    /// Titel des Knotens (Runde 34); leer erlaubt, solange ein Schlagwort bleibt.
+    /// Title of the node (Round 34); empty allowed as long as a keyword remains.
     pub title: Option<&'a str>,
 }
 
-/// Filter für Liste, Schlagwort-Wolke und Suche.
+/// Filter for list, keyword cloud and search.
 #[derive(Debug, Clone)]
 pub struct IdeaFilter {
     pub scope: IdeaScope,
-    /// Nur Einfälle mit diesem Schlagwort (verglichen über den `word_key`).
+    /// Only ideas with this keyword (compared through the `word_key`).
     pub word: Option<String>,
-    /// `None` = offen und verarbeitet.
+    /// `None` = open and processed.
     pub status: Option<IdeaStatus>,
-    /// `true`: nur gelöschte (zum Wiederherstellen), sonst nur vorhandene.
+    /// `true`: only deleted ones (for restoring), otherwise only present ones.
     pub deleted: bool,
-    /// Höchstzahl (0 = Vorgabe 100, höchstens 500).
+    /// Maximum number (0 = default 100, at most 500).
     pub limit: u32,
     pub offset: u32,
 }
@@ -346,27 +344,27 @@ impl IdeaFilter {
     }
 }
 
-/// Ein Schlagwort der Wolke mit der Zahl der Einfälle, die es tragen.
+/// A keyword of the cloud with the number of ideas that carry it.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct WordCount {
     pub word: String,
     pub count: u32,
 }
 
-// ---- Prüfen ------------------------------------------------------------------------------------
+// ---- Checking ----------------------------------------------------------------------------------
 
 fn refuse(message: impl Into<String>) -> StoreError {
     StoreError::Idea(message.into())
 }
 
-/// Vergleichsschlüssel eines Schlagworts: klein geschrieben, Leerraum zu einem Leerzeichen.
+/// Comparison key of a keyword: written in lower case, whitespace to one space.
 pub(crate) fn word_key(word: &str) -> String {
     word.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
-/// Schlagwörter prüfen: Ränder getrimmt, Leerraum im Wort zusammengefasst, leere übergangen, Doppel
-/// (gleicher Schlüssel) zusammengefasst (das erste bleibt). Ergebnis `(Wort, Schlüssel)`.
-/// Seit Runde 34 darf die Liste leer sein (Titel statt Schlagwort; das prüft der Aufrufer).
+/// Check keywords: edges trimmed, whitespace inside the word collapsed, empty ones skipped, duplicates (same key)
+/// merged (the first one stays). Result `(word, key)`.
+/// Since Round 34 the list may be empty (title instead of keyword; the caller checks that).
 fn clean_words_or_none(words: &[String]) -> Result<Vec<(String, String)>, StoreError> {
     let mut out: Vec<(String, String)> = Vec::new();
     for raw in words {
@@ -395,7 +393,7 @@ fn clean_words_or_none(words: &[String]) -> Result<Vec<(String, String)>, StoreE
     Ok(out)
 }
 
-/// Freitext prüfen: CRLF → LF, Ränder getrimmt, höchstens `max` Zeichen.
+/// Check free text: CRLF → LF, edges trimmed, at most `max` characters.
 fn clean_text(value: &str, max: usize, what: &str) -> Result<String, StoreError> {
     let text = value.replace("\r\n", "\n").trim().to_owned();
     let chars = text.chars().count();
@@ -405,8 +403,8 @@ fn clean_text(value: &str, max: usize, what: &str) -> Result<String, StoreError>
     Ok(text)
 }
 
-/// Titel prüfen: eine Zeile (Zeilenumbrüche und Leerraum zu einem Leerzeichen), Ränder getrimmt, höchstens
-/// [`MAX_IDEA_TITLE_CHARS`] Zeichen.
+/// Check the title: one line (line breaks and whitespace to one space), edges trimmed, at most [`MAX_IDEA_TITLE_CHARS`]
+/// characters.
 fn clean_title(value: &str) -> Result<String, StoreError> {
     let title = value.split_whitespace().collect::<Vec<_>>().join(" ");
     let chars = title.chars().count();
@@ -416,14 +414,14 @@ fn clean_title(value: &str) -> Result<String, StoreError> {
     Ok(title)
 }
 
-/// Gibt es das Werk? Sonst `UnknownWork`.
+/// Does the work exist? Otherwise `UnknownWork`.
 async fn check_work(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Gehört der Abschnitt `key` zum Werk? Ohne Werk ist kein Bezug möglich.
+/// Does the section `key` belong to the work? Without a work no reference is possible.
 async fn check_key(conn: &mut SqliteConnection, work: Option<WorkId>, key: Option<i64>) -> Result<(), StoreError> {
     let Some(key) = key else { return Ok(()) };
     let Some(work) = work else {
@@ -437,7 +435,7 @@ async fn check_key(conn: &mut SqliteConnection, work: Option<WorkId>, key: Optio
     found.map(|_| ()).ok_or_else(|| refuse("Der Abschnitt gehört nicht zu diesem Werk."))
 }
 
-// ---- Lesen -------------------------------------------------------------------------------------
+// ---- Reading -----------------------------------------------------------------------------------
 
 #[derive(sqlx::FromRow)]
 struct Row {
@@ -516,7 +514,7 @@ pub(crate) async fn get(conn: &mut SqliteConnection, id: IdeaId) -> Result<Idea,
     to_idea(conn, row).await
 }
 
-/// Bedingungen des Filters als SQL (über `i`) und die Werte dazu.
+/// Conditions of the filter as SQL (through `i`) and the values for them.
 enum Bind {
     Int(i64),
     Text(String),
@@ -557,9 +555,9 @@ macro_rules! bind_all {
     }};
 }
 
-// ---- Schreiben ---------------------------------------------------------------------------------
+// ---- Writing -----------------------------------------------------------------------------------
 
-/// Index-Zeile des Einfalls neu schreiben (vorher entfernen); gelöschte kommen nicht hinein.
+/// Rewrite the index row of the idea (remove it first); deleted ones do not get in.
 async fn reindex(conn: &mut SqliteConnection, id: IdeaId) -> Result<(), StoreError> {
     sqlx::query("DELETE FROM idea_fts WHERE rowid = ?").bind(id).execute(&mut *conn).await?;
     let row: Option<(String, String, String, String, Option<String>, String)> =
@@ -571,7 +569,7 @@ async fn reindex(conn: &mut SqliteConnection, id: IdeaId) -> Result<(), StoreErr
     if deleted.is_some() {
         return Ok(());
     }
-    // Runde 34: Der Titel steht in der Spalte `words` mit (kein Umbau der FTS-Tabelle).
+    // Round 34: the title is included in the column `words` (no rebuild of the FTS table).
     let mut words = words_of(conn, id).await?.join(" ");
     if !title.is_empty() {
         words = if words.is_empty() { title } else { format!("{title} {words}") };
@@ -604,8 +602,8 @@ async fn write_words(conn: &mut SqliteConnection, id: IdeaId, words: &[(String, 
 
 const NOW: &str = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
 
-/// Einfall als verarbeitet markieren, in der Transaktion des Aufrufers (auch für
-/// `Store::idea_to_outline`, Runde 14): `status = done`, `done_as`, `done_ref`. Gelöscht → `Idea`.
+/// Mark an idea as processed, in the transaction of the caller (also for `Store::idea_to_outline`, Round 14): `status =
+/// done`, `done_as`, `done_ref`. Deleted → `Idea`.
 pub(crate) async fn mark_done_in(
     conn: &mut SqliteConnection,
     id: IdeaId,
@@ -626,7 +624,7 @@ pub(crate) async fn mark_done_in(
     get(conn, id).await
 }
 
-/// Gelöschte Einfälle lassen sich nicht ändern oder verarbeiten.
+/// Deleted ideas cannot be changed or processed.
 fn not_deleted(idea: &Idea) -> Result<(), StoreError> {
     if idea.deleted.is_some() {
         return Err(refuse(format!("Einfall {} ist gelöscht; erst wiederherstellen.", idea.id)));
@@ -634,11 +632,10 @@ fn not_deleted(idea: &Idea) -> Result<(), StoreError> {
     Ok(())
 }
 
-// ---- Spiegel -----------------------------------------------------------------------------------
+// ---- Mirror ------------------------------------------------------------------------------------
 
-/// Einen Wert in die Zeile `- <label>: <wert>` schreiben; weitere Zeilen zwei Leerzeichen eingerückt.
-/// Der Wert steht wörtlich da (keine Umwandlung, keine Maskierung), damit er sich unverändert
-/// wiederherstellen lässt.
+/// Write a value into the line `- <label>: <value>`; further lines indented by two spaces. The value stands there
+/// verbatim (no conversion, no escaping), so that it can be restored unchanged.
 fn push_value(out: &mut String, label: &str, value: &str) {
     if value.is_empty() {
         return;
@@ -659,8 +656,8 @@ fn push_value(out: &mut String, label: &str, value: &str) {
 }
 
 impl Idea {
-    /// Der Eintrag dieses Einfalls in `einfaelle.md` (auch der Rumpf des Lösch-Commits): Überschrift
-    /// „## Einfall <id> · offen|verarbeitet (<done_as>)“, dann je vorhandenem Feld eine Zeile.
+    /// The entry of this idea in `einfaelle.md` (also the body of the deletion commit): heading „## Einfall <id> ·
+    /// offen|verarbeitet (<done_as>)“, then one line per field present.
     pub fn entry_markdown(&self) -> String {
         let status = match (self.status, self.done_as) {
             (IdeaStatus::Done, Some(used)) => format!("verarbeitet ({})", used.as_str()),
@@ -687,8 +684,8 @@ impl Idea {
         out
     }
 
-    /// Angezeigter Titel, nie leer (Runde 34): der Titel, sonst die Schlagwörter „a, b“, sonst der Anfang des
-    /// Gedankens, sonst „Einfall <id>“; höchstens 60 Zeichen aus Schlagwörtern bzw. Gedanke (gekürzt mit „…“).
+    /// Displayed title, never empty (Round 34): the title, otherwise the keywords "a, b", otherwise the beginning of
+    /// the thought, otherwise „Einfall <id>“; at most 60 characters from keywords or thought (shortened with "…").
     pub fn display_title(&self) -> String {
         if !self.title.trim().is_empty() {
             return self.title.trim().to_owned();
@@ -708,15 +705,15 @@ impl Idea {
         }
     }
 
-    /// Trägt der Einfall eine Notiz (Gedanke, Markierung, Quelle oder Bibelstelle)?
+    /// Does the idea carry a note (thought, marked passage, source or Bible reference)?
     pub fn has_note(&self) -> bool {
         [&self.note, &self.quote, &self.source, &self.bible].iter().any(|t| !t.trim().is_empty())
     }
 }
 
-/// Abschnitt „## Baum“ für `einfaelle.md` (Runde 34): die Einfälle eingerückt nach Elternknoten, Geschwister nach
-/// `position`, dann `id`. Nur wenn mindestens ein Einfall einen Titel, einen Elternknoten oder den Platz
-/// „Hauptthema“ hat – sonst leer, damit Spiegel ohne Baum byte-gleich bleiben.
+/// Section „## Baum“ for `einfaelle.md` (Round 34): the ideas indented by parent node, siblings by `position`, then
+/// `id`. Only if at least one idea has a title, a parent node or the place "main topic" – otherwise empty, so that
+/// mirrors without a tree stay byte-identical.
 fn tree_markdown(ideas: &[Idea]) -> String {
     if !ideas.iter().any(|i| !i.title.is_empty() || i.parent.is_some() || i.main_topic) {
         return String::new();
@@ -724,7 +721,7 @@ fn tree_markdown(ideas: &[Idea]) -> String {
     let known: std::collections::HashSet<IdeaId> = ideas.iter().map(|i| i.id).collect();
     let mut below: std::collections::BTreeMap<Option<IdeaId>, Vec<&Idea>> = std::collections::BTreeMap::new();
     for idea in ideas {
-        // Ein Elternknoten, der nicht (mehr) in der Liste steht, zählt wie keiner.
+        // A parent node that is not (any longer) in the list counts like none.
         below.entry(idea.parent.filter(|p| known.contains(p))).or_default().push(idea);
     }
     for list in below.values_mut() {
@@ -736,7 +733,7 @@ fn tree_markdown(ideas: &[Idea]) -> String {
         parent: Option<IdeaId>,
         depth: usize,
     ) {
-        // Tiefe begrenzt (der Store erlaubt höchstens MAX_IDEA_DEPTH; ein Kreis in kaputten Daten endete sonst nie).
+        // Depth limited (the store allows at most MAX_IDEA_DEPTH; a cycle in broken data would otherwise never end).
         if depth > MAX_IDEA_DEPTH {
             return;
         }
@@ -757,8 +754,7 @@ fn tree_markdown(ideas: &[Idea]) -> String {
     out
 }
 
-/// `einfaelle.md` für ein Werk (`Some`) oder die Einfälle ohne Werk (`None`); ohne nicht gelöschte
-/// Einfälle `None`.
+/// `einfaelle.md` for a work (`Some`) or the ideas without a work (`None`); without ideas that are not deleted `None`.
 async fn mirror_file(conn: &mut SqliteConnection, work: Option<WorkId>) -> Result<Option<MirrorFile>, StoreError> {
     let scope = match work {
         Some(work) => IdeaScope::Work(work),
@@ -782,7 +778,7 @@ async fn mirror_file(conn: &mut SqliteConnection, work: Option<WorkId>) -> Resul
         }
         None => "# Einfälle ohne Werk\n".to_owned(),
     };
-    // Runde 25: nach den übrigen Feldern die Zeile „- Verbindungen: …“ (nur aktive, zu nicht gelöschten Einfällen).
+    // Round 25: after the other fields the line „- Verbindungen: …“ (only active ones, to ideas that are not deleted).
     let links = crate::idea_links::mirror_lines(conn, work).await?;
     let mut ideas = Vec::with_capacity(rows.len());
     for row in rows {
@@ -799,18 +795,18 @@ async fn mirror_file(conn: &mut SqliteConnection, work: Option<WorkId>) -> Resul
     Ok(Some(MirrorFile { path: MIRROR_FILE.to_owned(), contents }))
 }
 
-/// Dateien der Einfälle im Werkspiegel: `einfaelle.md`, nur wenn das Werk mindestens einen nicht
-/// gelöschten Einfall hat (sonst leer, damit Spiegel und Export der übrigen Werke gleich bleiben).
+/// Files of the ideas in the work mirror: `einfaelle.md`, only if the work has at least one idea that is not deleted
+/// (otherwise empty, so that mirror and export of the other works stay the same).
 pub(crate) async fn mirror_files(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<MirrorFile>, StoreError> {
     Ok(mirror_file(conn, Some(work)).await?.into_iter().collect())
 }
 
-// ---- Suche -------------------------------------------------------------------------------------
+// ---- Search ------------------------------------------------------------------------------------
 
 const MARK_OPEN: char = '\u{E000}';
 const MARK_CLOSE: char = '\u{E001}';
 
-/// Roh-Ausschnitt mit den Marken U+E000/U+E001 → maskiertes HTML mit `<mark>`, immer ausgeglichen.
+/// Raw snippet with the marks U+E000/U+E001 → escaped HTML with `<mark>`, always balanced.
 fn snippet_html(raw: &str) -> String {
     let mut html = String::with_capacity(raw.len() + 16);
     let mut open = false;
@@ -839,10 +835,10 @@ fn snippet_html(raw: &str) -> String {
     html
 }
 
-// ---- Baum (Runde 34) ---------------------------------------------------------------------------
+// ---- Tree (Round 34) ---------------------------------------------------------------------------
 
-/// Geschwister in ihrer Reihenfolge (`position`, dann `id`; auch gelöschte, damit sie beim Wiederherstellen ihren
-/// Platz behalten), ohne den Einfall `except`.
+/// Siblings in their order (`position`, then `id`; also deleted ones, so that they keep their place when restored),
+/// without the idea `except`.
 async fn siblings(
     conn: &mut SqliteConnection,
     work: Option<WorkId>,
@@ -870,8 +866,8 @@ async fn siblings(
     })
 }
 
-/// Setzt den Einfall `id` unter seinen Geschwistern an seinen Platz: vor `before` (ein nicht gelöschtes
-/// Geschwister; nummeriert die Geschwister lückenlos ab 1 neu) oder ans Ende.
+/// Puts the idea `id` at its place among its siblings: before `before` (a sibling that is not deleted; renumbers the
+/// siblings from 1 without gaps) or at the end.
 async fn place(
     conn: &mut SqliteConnection,
     id: IdeaId,
@@ -880,9 +876,9 @@ async fn place(
     before: Option<IdeaId>,
 ) -> Result<(), StoreError> {
     let Some(before) = before else {
-        // Ans Ende. Solange alle Geschwister noch die Vorgabe 0 tragen und älter sind (kleinere id), bleibt auch der
-        // neue bei 0: Die Reihenfolge nach id stellt ihn ohnehin ans Ende, und ein Werk ohne geordneten Baum
-        // behält lauter Nullen (im Austausch dann ohne `platz`, wie vor Runde 34).
+        // At the end. As long as all siblings still carry the default 0 and are older (smaller id), the new one stays
+        // at 0 as well: the order by id puts it at the end anyway, and a work without an ordered tree keeps nothing but
+        // zeros (in the exchange then without `platz`, as before Round 34).
         let order = siblings(conn, work, parent, id).await?;
         let last = order.iter().map(|(_, position)| *position).max().unwrap_or(0);
         if last > 0 {
@@ -894,7 +890,7 @@ async fn place(
         } else if order.iter().all(|(sibling, _)| *sibling < id) {
             sqlx::query("UPDATE idea SET position = 0 WHERE id = ?").bind(id).execute(&mut *conn).await?;
         } else {
-            // Lauter Nullen, aber ein jüngeres Geschwister stünde nach id dahinter: einmal lückenlos nummerieren.
+            // Nothing but zeros, but a younger sibling would stand behind it by id: number once without gaps.
             for (index, (sibling, _)) in order.iter().enumerate() {
                 sqlx::query("UPDATE idea SET position = ? WHERE id = ?")
                     .bind(index as i64 + 1)
@@ -936,8 +932,8 @@ async fn place(
     Ok(())
 }
 
-/// Tiefe eines Einfalls: 1 ohne Elternknoten, sonst Tiefe des Elternknotens + 1. Dabei darf `forbidden` nicht
-/// unter den Vorfahren (oder der Einfall selbst) sein – sonst entstünde ein Kreis.
+/// Depth of an idea: 1 without a parent node, otherwise depth of the parent node + 1. `forbidden` must not be among the
+/// ancestors (or be the idea itself) – otherwise a cycle would arise.
 async fn depth_of(conn: &mut SqliteConnection, id: IdeaId, forbidden: Option<IdeaId>) -> Result<usize, StoreError> {
     let mut depth = 0usize;
     let mut at = Some(id);
@@ -960,7 +956,7 @@ async fn depth_of(conn: &mut SqliteConnection, id: IdeaId, forbidden: Option<Ide
     Ok(depth)
 }
 
-/// Der Einfall und alle seine Nachfahren (auch gelöschte) mit ihrer Tiefe ab 1, der Einfall zuerst, dann nach id.
+/// The idea and all its descendants (also deleted ones) with their depth from 1, the idea first, then by id.
 async fn subtree(conn: &mut SqliteConnection, id: IdeaId) -> Result<Vec<(IdeaId, i64, Option<String>)>, StoreError> {
     Ok(sqlx::query_as(
         "WITH RECURSIVE sub(id, depth) AS (SELECT ?, 1 UNION ALL SELECT i.id, sub.depth + 1 FROM idea i \
@@ -972,8 +968,8 @@ async fn subtree(conn: &mut SqliteConnection, id: IdeaId) -> Result<Vec<(IdeaId,
     .await?)
 }
 
-/// Elternknoten prüfen: vorhanden, nicht gelöscht, im Werk `work` (das es geben muss); liefert seine Tiefe.
-/// `moving` = der Einfall, der darunter gehängt wird (darf weder der Elternknoten noch einer seiner Vorfahren sein).
+/// Check the parent node: present, not deleted, in the work `work` (which must exist); returns its depth. `moving` =
+/// the idea that is hung below it (may be neither the parent node nor one of its ancestors).
 async fn check_parent(
     conn: &mut SqliteConnection,
     work: Option<WorkId>,
@@ -999,13 +995,13 @@ fn too_deep(depth: usize) -> StoreError {
     refuse(format!("Die Mindmap wäre hier {depth} Einfälle tief; erlaubt sind höchstens {MAX_IDEA_DEPTH}."))
 }
 
-/// Einfall anlegen in der Transaktion des Aufrufers (auch für `Store::post_to_idea`, Runde 8): erst
-/// alles prüfen, dann schreiben; ein `Err` lässt den Aufrufer zurückrollen.
+/// Create an idea in the transaction of the caller (also for `Store::post_to_idea`, Round 8): first check everything,
+/// then write; an `Err` makes the caller roll back.
 pub(crate) async fn create_in(conn: &mut SqliteConnection, new: &NewIdea<'_>) -> Result<Idea, StoreError> {
     create_at_in(conn, new, &IdeaSpot::default()).await
 }
 
-/// Wie [`create_in`], mit Titel und Platz in der Mindmap (Runde 34).
+/// Like [`create_in`], with title and place in the mind map (Round 34).
 pub(crate) async fn create_at_in(
     conn: &mut SqliteConnection,
     new: &NewIdea<'_>,
@@ -1061,8 +1057,8 @@ pub(crate) async fn create_at_in(
     get(conn, id).await
 }
 
-/// Zahl der Knoten und größte Tiefe eines Baums aus [`IdeaSeed`] (ohne Rekursion, damit eine sehr tiefe Eingabe
-/// den Stapel nicht sprengt).
+/// Number of nodes and greatest depth of a tree of [`IdeaSeed`] (without recursion, so that a very deep input does not
+/// blow the stack).
 fn seed_size(nodes: &[IdeaSeed]) -> (usize, usize) {
     let mut count = 0usize;
     let mut deepest = 0usize;
@@ -1076,8 +1072,8 @@ fn seed_size(nodes: &[IdeaSeed]) -> (usize, usize) {
 }
 
 impl Store {
-    /// Neuer Einfall (atomar). Unbekanntes Werk → `UnknownWork`, Bezug außerhalb des Werks oder
-    /// verletzte Grenze → `Idea`, nichts angelegt.
+    /// New idea (atomic). Unknown work → `UnknownWork`, reference outside the work or a violated limit → `Idea`,
+    /// nothing created.
     pub async fn idea_create(&self, new: &NewIdea<'_>) -> Result<Idea, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let idea = create_in(&mut tx, new).await?;
@@ -1085,9 +1081,9 @@ impl Store {
         Ok(idea)
     }
 
-    /// Neuer Einfall an einem Platz der Mindmap (Runde 34, atomar): mit Titel (dann dürfen die Schlagwörter
-    /// fehlen), unter einem Elternknoten, vor einem Geschwister oder als freies Hauptthema. Verletzte Regel
-    /// (anderes Werk, gelöschter Elternknoten, Tiefe, fremdes Geschwister) → `Idea`, nichts angelegt.
+    /// New idea at a place of the mind map (Round 34, atomic): with a title (then the keywords may be missing), below a
+    /// parent node, before a sibling or as a free main topic. Violated rule (another work, deleted parent node, depth,
+    /// foreign sibling) → `Idea`, nothing created.
     pub async fn idea_create_at(&self, new: &NewIdea<'_>, spot: &IdeaSpot<'_>) -> Result<Idea, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let idea = create_at_in(&mut tx, new, spot).await?;
@@ -1095,13 +1091,13 @@ impl Store {
         Ok(idea)
     }
 
-    /// Ein Einfall, auch ein gelöschter. Unbekannt → `UnknownIdea`.
+    /// An idea, also a deleted one. Unknown → `UnknownIdea`.
     pub async fn idea_get(&self, id: IdeaId) -> Result<Idea, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, id).await
     }
 
-    /// Einfälle nach dem Filter, neueste zuerst.
+    /// Ideas after the filter, newest first.
     pub async fn idea_list(&self, filter: &IdeaFilter) -> Result<Vec<Idea>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let (condition, binds) = conditions(filter, true);
@@ -1118,8 +1114,8 @@ impl Store {
         Ok(out)
     }
 
-    /// Schlagwort-Wolke über Werk, Status und gelöscht/vorhanden des Filters (der Wortfilter gilt
-    /// hier nicht): je Schlüssel ein Wort mit der Zahl der Einfälle, häufigste zuerst.
+    /// Keyword cloud across work, status and deleted/present of the filter (the word filter does not apply here): per
+    /// key one word with the number of ideas, most frequent first.
     pub async fn idea_words(&self, filter: &IdeaFilter) -> Result<Vec<WordCount>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let (condition, binds) = conditions(filter, false);
@@ -1137,9 +1133,9 @@ impl Store {
             .collect())
     }
 
-    /// Volltextsuche (FTS5) über Schlagwörter, Gedanke, Markierung, Quelle und Bibelstelle. `fts` ist
-    /// ein fertiger FTS5-Ausdruck (im Server aus `baruch_library::fts_query`); dazu der maskierte
-    /// Ausschnitt (HTML mit `<mark>`). Gelöschte stehen nicht im Index. Ungültiger Ausdruck → `Idea`.
+    /// Full-text search (FTS5) across keywords, thought, marked passage, source and Bible reference. `fts` is a
+    /// finished FTS5 expression (in the server from `baruch_library::fts_query`); in addition the escaped snippet (HTML
+    /// with `<mark>`). Deleted ones are not in the index. Invalid expression → `Idea`.
     pub async fn idea_search(&self, fts: &str, filter: &IdeaFilter) -> Result<Vec<(Idea, String)>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let filter = IdeaFilter { deleted: false, ..filter.clone() };
@@ -1167,7 +1163,7 @@ impl Store {
         Ok(out)
     }
 
-    /// Einfall ändern (atomar). Gleich wie vorher → `Ok(None)`, nichts geändert. Gelöscht → `Idea`.
+    /// Change an idea (atomic). Same as before → `Ok(None)`, nothing changed. Deleted → `Idea`.
     pub async fn idea_update(&self, id: IdeaId, edit: &IdeaEdit<'_>) -> Result<Option<Idea>, StoreError> {
         let words = edit.words.map(clean_words_or_none).transpose()?;
         let title = edit.title.map(clean_title).transpose()?;
@@ -1202,9 +1198,9 @@ impl Store {
         {
             return Err(refuse("Ein Einfall braucht einen Titel oder mindestens ein Schlagwort."));
         }
-        // Runde 34: Ein Werkwechsel löst vom Elternknoten (er gehört zum alten Werk); verliert ein Einfall ohne
-        // Elternknoten seinen Bezug, bleibt `main_topic` wie es war (Vorgabe: Wolke). Mit Bezug ist er kein
-        // freies Hauptthema mehr.
+        // Round 34: a change of work detaches from the parent node (it belongs to the old work); if an idea without a
+        // parent node loses its reference, `main_topic` stays as it was (default: cloud). With a reference it is no
+        // longer a free main topic.
         let moved = work != before.work;
         let parent = if moved { None } else { before.parent };
         let main_topic = before.main_topic && !moved && key.is_none() && parent.is_none();
@@ -1243,10 +1239,10 @@ impl Store {
         .execute(&mut *tx)
         .await?;
         if work != before.work {
-            // Verbindungen gibt es nur innerhalb eines Werks (idea_links::check_pair): Beim Umzug werden die
-            // aktiven Verbindungen des Einfalls weich gelöst (wiederherstellbar, sobald beide wieder in einem
-            // Werk sind) und seine Lagen auf Karten hart entfernt (Grabstein im alten Werk); sonst verbände eine
-            // Verbindung zwei Werke und eine alte Lage tauchte beim Zurückziehen wieder auf.
+            // Links exist only inside one work (idea_links::check_pair): on a move the active links of the idea are
+            // soft-released (restorable as soon as both are in one work again) and its positions on maps are removed
+            // hard (tombstone in the old work); otherwise a link would join two works and an old position would
+            // reappear when moving back.
             sqlx::query(sqlx::AssertSqlSafe(format!(
                 "UPDATE idea_link SET deleted = {NOW}, updated = {NOW} \
                  WHERE deleted IS NULL AND (from_id = ? OR to_id = ?)"
@@ -1256,8 +1252,8 @@ impl Store {
             .execute(&mut *tx)
             .await?;
             sqlx::query("DELETE FROM idea_map_pos WHERE idea_id = ?").bind(id).execute(&mut *tx).await?;
-            // Runde 34: Die Unterknoten bleiben im alten Werk und verlieren den Elternknoten; der Einfall selbst
-            // kommt im neuen Werk ans Ende.
+            // Round 34: the sub-nodes stay in the old work and lose the parent node; the idea itself goes to the end in
+            // the new work.
             sqlx::query("UPDATE idea SET parent_id = NULL WHERE parent_id = ?").bind(id).execute(&mut *tx).await?;
             place(&mut tx, id, work, None, None).await?;
         }
@@ -1270,14 +1266,14 @@ impl Store {
         Ok(Some(idea))
     }
 
-    /// Einfall löschen (atomar): `deleted` gesetzt, aus dem Index; wiederherstellbar. Schon gelöscht
-    /// → `Idea`. Seit Runde 34 samt nicht gelöschten Unterknoten ([`Store::idea_delete_tree`]).
+    /// Delete an idea (atomic): `deleted` set, out of the index; restorable. Already deleted → `Idea`. Since Round 34
+    /// together with the sub-nodes that are not deleted ([`Store::idea_delete_tree`]).
     pub async fn idea_delete(&self, id: IdeaId) -> Result<Idea, StoreError> {
         Ok(self.idea_delete_tree(id).await?.idea)
     }
 
-    /// Einfall samt nicht gelöschten Nachfahren weich löschen (Runde 34, atomar): alle mit demselben Zeitstempel,
-    /// damit [`Store::idea_restore_tree`] genau diese wiederfindet. Verbindungen und Lagen bleiben stehen.
+    /// Soft-delete an idea together with the descendants that are not deleted (Round 34, atomic): all with the same
+    /// timestamp, so that [`Store::idea_restore_tree`] finds exactly these again. Links and positions stay.
     pub async fn idea_delete_tree(&self, id: IdeaId) -> Result<IdeaTreeChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let before = get(&mut tx, id).await?;
@@ -1306,22 +1302,22 @@ impl Store {
         Ok(IdeaTreeChange { idea, ids, detached: false })
     }
 
-    /// Gelöschten Einfall wiederherstellen (atomar), wieder im Index. Nicht gelöscht → `Idea`. Seit Runde 34 samt
-    /// den mit ihm gelöschten Unterknoten ([`Store::idea_restore_tree`]).
+    /// Restore a deleted idea (atomic), in the index again. Not deleted → `Idea`. Since Round 34 together with the
+    /// sub-nodes deleted with it ([`Store::idea_restore_tree`]).
     pub async fn idea_restore(&self, id: IdeaId) -> Result<Idea, StoreError> {
         Ok(self.idea_restore_tree(id).await?.idea)
     }
 
-    /// Gelöschten Einfall samt den Nachfahren mit genau seinem Lösch-Zeitstempel wiederherstellen (Runde 34,
-    /// atomar). Ist der Elternknoten noch gelöscht, wird der Einfall gelöst (`detached`): Er bleibt an seinem Bezug
-    /// bzw. liegt in der Wolke.
+    /// Restore a deleted idea together with the descendants with exactly its deletion timestamp (Round 34, atomic). If
+    /// the parent node is still deleted, the idea is detached (`detached`): it stays at its reference or lies in the
+    /// cloud.
     pub async fn idea_restore_tree(&self, id: IdeaId) -> Result<IdeaTreeChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let before = get(&mut tx, id).await?;
         let Some(stamp) = before.deleted.clone() else {
             return Err(refuse(format!("Einfall {id} ist nicht gelöscht.")));
         };
-        // Nur über Knoten mit demselben Zeitstempel abwärts: Was früher einzeln gelöscht wurde, bleibt gelöscht.
+        // Only downwards through nodes with the same timestamp: what was deleted individually earlier stays deleted.
         let ids: Vec<IdeaId> = sqlx::query_scalar(
             "WITH RECURSIVE sub(id, depth) AS (SELECT ?, 1 UNION ALL SELECT i.id, sub.depth + 1 FROM idea i \
              JOIN sub ON i.parent_id = sub.id WHERE i.deleted = ? AND sub.depth < 200) \
@@ -1355,10 +1351,10 @@ impl Store {
         Ok(IdeaTreeChange { idea, ids, detached })
     }
 
-    /// Einfall umhängen und ordnen (Runde 34, atomar). Nichts geändert → `Ok(None)`. Abgelehnt (`Idea`, nichts
-    /// geändert): gelöschter Einfall, Elternknoten in einem anderen Werk, gelöscht oder ein eigener Nachfahre
-    /// (Kreis), Tiefe über [`MAX_IDEA_DEPTH`], Bezug außerhalb des Werks, `before` kein Geschwister, `cloud` zusammen
-    /// mit Elternknoten oder Bezug. Die Unterknoten wandern immer mit (sie hängen am Einfall).
+    /// Re-hang and order an idea (Round 34, atomic). Nothing changed → `Ok(None)`. Rejected (`Idea`, nothing changed):
+    /// deleted idea, parent node in another work, deleted or one of its own descendants (cycle), depth above
+    /// [`MAX_IDEA_DEPTH`], reference outside the work, `before` not a sibling, `cloud` together with parent node or
+    /// reference. The sub-nodes always move along (they hang on the idea).
     pub async fn idea_move(&self, id: IdeaId, mv: &IdeaMove) -> Result<Option<Idea>, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let before = get(&mut tx, id).await?;
@@ -1389,7 +1385,8 @@ impl Store {
         } else {
             match mv.cloud {
                 Some(cloud) => !cloud,
-                // Ausdrücklich vom Elternknoten gelöst und ohne Bezug: ans Werk (Vertrag §7 „aufs Werk“).
+                // Explicitly detached from the parent node and without a reference: to the work (contract §7 „aufs
+                // Werk“).
                 None if mv.parent == Some(None) => true,
                 None => before.main_topic,
             }
@@ -1409,9 +1406,9 @@ impl Store {
         }
         match mv.before {
             Some(target) => place(&mut tx, id, before.work, parent, target).await?,
-            // Ohne Angabe ans Ende, wenn der Einfall unter andere Geschwister kommt (neuer Elternknoten bzw. ohne
-            // Elternknoten ein anderer Bezug oder Platz); ändert sich nur der Bezug eines Unterknotens (der Link
-            // zum Abschnitt), bleibt die Reihenfolge.
+            // Without a value to the end if the idea comes among other siblings (new parent node or, without a parent
+            // node, another reference or place); if only the reference of a sub-node changes (the link to the section),
+            // the order stays.
             None if parent != before.parent
                 || (parent.is_none() && (key != before.key || main_topic != before.main_topic)) =>
             {
@@ -1423,7 +1420,7 @@ impl Store {
             let order_after = siblings(&mut tx, before.work, parent, -1).await?;
             let ids = |list: &[(IdeaId, i64)]| list.iter().map(|(sibling, _)| *sibling).collect::<Vec<_>>();
             if ids(&order_before) == ids(&order_after) {
-                // Nichts geändert: die Transaktion (höchstens eine neue Nummer am selben Platz) verfällt.
+                // Nothing changed: the transaction (at most a new number at the same place) lapses.
                 return Ok(None);
             }
             sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE idea SET updated = {NOW} WHERE id = ?")))
@@ -1436,7 +1433,7 @@ impl Store {
         Ok(Some(idea))
     }
 
-    /// Alle nicht gelöschten Einfälle eines Werks in einem Abruf, nach id (Runde 34: Baum der Mindmap).
+    /// All ideas of a work that are not deleted in one fetch, by id (Round 34: tree of the mind map).
     pub async fn idea_tree_rows(&self, work: WorkId) -> Result<Vec<Idea>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -1453,14 +1450,14 @@ impl Store {
         Ok(out)
     }
 
-    /// Legt einen Baum als Einfälle des Werks an (Runde 34, eine Transaktion): unter `parent` oder – ohne – als
-    /// freie Hauptthemen am Werk, in der Reihenfolge der Eingabe; `links` werden Verbindungen der Art `leads_to`
-    /// mit ihrer Notiz. Antwort: die neuen Einfälle in Tiefensuche und die Zahl der angelegten Verbindungen.
+    /// Creates a tree as ideas of the work (Round 34, one transaction): below `parent` or – without one – as free main
+    /// topics at the work, in the order of the input; `links` become links of the kind `leads_to` with their note.
+    /// Answer: the new ideas in depth-first order and the number of links created.
     ///
-    /// Abgelehnt (`Idea`, nichts angelegt): leerer Baum, mehr als [`MAX_IDEA_IMPORT_NODES`] Knoten, (samt
-    /// Elternknoten) tiefer als [`MAX_IDEA_DEPTH`], Titel/Notiz/Schlagwörter über den Grenzen der Einfälle, ein
-    /// Pfad einer Verbindung ohne Knoten. Ein Knoten ohne Titel und Schlagwort heißt „(ohne Titel)“; eine
-    /// Verbindung eines Knotens mit sich selbst oder eine doppelte wird übergangen.
+    /// Rejected (`Idea`, nothing created): empty tree, more than [`MAX_IDEA_IMPORT_NODES`] nodes, deeper than
+    /// [`MAX_IDEA_DEPTH`] (including the parent node), title/note/keywords above the limits of the ideas, a path of a
+    /// link without a node. A node without title and keyword is called „(ohne Titel)“; a link of a node with itself or
+    /// a duplicate one is skipped.
     pub async fn idea_import_tree(
         &self,
         work: WorkId,
@@ -1489,7 +1486,7 @@ impl Store {
         if above + deepest > MAX_IDEA_DEPTH {
             return Err(too_deep(above + deepest));
         }
-        // Tiefensuche in Reihenfolge der Eingabe, ohne Rekursion: (Knoten, Pfad, Elternknoten).
+        // Depth-first search in the order of the input, without recursion: (node, path, parent node).
         let mut created: Vec<IdeaId> = Vec::with_capacity(count);
         let mut by_path: std::collections::HashMap<Vec<usize>, IdeaId> = std::collections::HashMap::new();
         let mut stack: Vec<(&IdeaSeed, Vec<usize>, Option<IdeaId>)> =
@@ -1546,8 +1543,8 @@ impl Store {
         Ok((created, linked))
     }
 
-    /// Als verarbeitet markieren (atomar): `status = done`, `done_as`, `done_ref` (z. B. „key 12“).
-    /// Gelöscht → `Idea`. Schon verarbeitet: wird mit der neuen Verarbeitung überschrieben.
+    /// Mark as processed (atomic): `status = done`, `done_as`, `done_ref` (for example "key 12"). Deleted → `Idea`.
+    /// Already processed: is overwritten with the new processing.
     pub async fn idea_mark_done(&self, id: IdeaId, used: IdeaUse, done_ref: &str) -> Result<Idea, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let idea = mark_done_in(&mut tx, id, used, done_ref).await?;
@@ -1555,8 +1552,8 @@ impl Store {
         Ok(idea)
     }
 
-    /// `einfaelle.md` eines Werks (`Some`) bzw. der Einfälle ohne Werk (`None`, für den Git-Ordner
-    /// `<data>/einfaelle/`); ohne nicht gelöschte Einfälle `None`. Unbekanntes Werk → `UnknownWork`.
+    /// `einfaelle.md` of a work (`Some`) or of the ideas without a work (`None`, for the Git folder
+    /// `<data>/einfaelle/`); without ideas that are not deleted `None`. Unknown work → `UnknownWork`.
     pub async fn idea_mirror_file(&self, work: Option<WorkId>) -> Result<Option<MirrorFile>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         if let Some(work) = work {
@@ -1642,7 +1639,7 @@ mod tests {
         );
     }
 
-    /// Ein Einfall für die Tests des Baums: nur, was Titel und Baum brauchen.
+    /// An idea for the tests of the tree: only what title and tree need.
     fn node(id: IdeaId, title: &str, word: &str, parent: Option<IdeaId>, position: i64) -> Idea {
         Idea {
             id,
@@ -1671,7 +1668,7 @@ mod tests {
 
     #[test]
     fn the_shown_title_is_the_title_else_the_words_else_the_note_and_never_empty() {
-        // Vertrag R34 §0 „Titel“: angezeigter Titel = title, sonst Schlagwörter bzw. Anfang der Notiz, nie leer.
+        // Contract R34 §0 „Titel“: displayed title = title, otherwise keywords or beginning of the note, never empty.
         assert_eq!(node(1, " Der Steg ", "Holz", None, 0).display_title(), "Der Steg", "der Titel geht vor");
         assert_eq!(node(2, "", "Holz", None, 0).display_title(), "Holz", "ohne Titel die Schlagwörter");
         let mut noted = node(3, "", "", None, 0);
@@ -1688,7 +1685,7 @@ mod tests {
 
     #[test]
     fn the_mirror_tree_indents_children_orders_siblings_and_names_the_place() {
-        // Spiegel `einfaelle.md` zeigt Titel und Einrückung nach Baum (Vertrag R34 §10).
+        // Mirror `einfaelle.md` shows title and indentation by tree (contract R34 §10).
         let mut topic = node(1, "Ufer", "", None, 2);
         topic.main_topic = true;
         topic.cloud = false;
@@ -1702,7 +1699,7 @@ mod tests {
             node(4, "Ruder", "", Some(3), 0),
             anchored,
             node(6, "", "Nebel", None, 3),
-            // Elternknoten 99 steht nicht in der Liste (gelöscht): zählt wie keiner.
+            // Parent node 99 is not in the list (deleted): counts like none.
             node(7, "Verwaist", "", Some(99), 4),
         ];
         let tree = tree_markdown(&ideas);

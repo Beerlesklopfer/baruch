@@ -1,67 +1,64 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einlesen einer Austauschdatei in die Datenbank (Runde 26; Vertrag F6, Doku
-//! `docs/Austauschformat.md` §4).
+//! Reading an exchange file into the database (Round 26; contract F6, documentation `docs/Austauschformat.md` §4).
 //!
-//! - Neu ([`ApplyMode::New`]): Die Werk-UUID ist unbekannt (Grabsteine egal); das Werk entsteht mit allen UUIDs,
-//!   Nummern, Status, Zeiten und Markierungen aus der Datei, dazu ihre Grabsteinliste; Titelregeln wie beim
-//!   Import (vergeben → `DuplicateTitle`, eigener Titel über `title`). Am Ende prüft `load::work` in derselben
-//!   Transaktion.
-//! - Abgleichen ([`ApplyMode::Merge`]): Die Werk-UUID ist bekannt; es kommt nur hinzu, was fehlt. Nie wird etwas
-//!   gelöscht oder überschrieben, nie wird eine eingelesene Fassung aktuell; Gliederungsänderungen werden Anträge
-//!   mit der Herkunft `Austausch: <Instanz>` (Mensch). Unbekannte Punkte entstehen an ihrer Stelle mit genau ihren
-//!   Fassungen; ein neuer Teil, der vorhandene Kapitel übernähme, wird ein Antrag `Add`. Eine abweichende Fassung
-//!   wird eine weitere Fassung mit der Kennung [`derive_uuid`]. Was hier einen Grabstein hat, kommt nicht wieder
-//!   (`deleted_here`).
-//! - Vorschau ([`Store::exchange_preview`]) und Übernehmen ([`Store::exchange_apply`]) laufen durch denselben Code:
-//!   die Vorschau in einer Transaktion, die am Ende zurückgerollt wird. So stimmen die Zahlen überein, und der
-//!   Vorschau wird beim Übernehmen nicht vertraut (es plant neu).
-//! - Gedankenkarte (Runde 25, Vertrag §4.6): Neu übernimmt alle Verbindungen und Lagen mit ihren Kennungen
-//!   („widerspricht“ wird hier so gespeichert, dass from < to). Abgleichen: eine Verbindung mit unbekannter Kennung,
-//!   deren beide Einfälle hier zum Werk gehören, kommt dazu – außer es gibt hier schon dasselbe Paar mit derselben
-//!   Art (kein Doppel, Hinweis) oder einen Grabstein; eine bekannte Kennung wird nie überschrieben. Eine Lage kommt
-//!   nur, wenn es hier für (Werk, Einfall) keine gibt (lokal gewinnt) und kein Grabstein besteht.
-//! - Umschlag-Anordnung, Anschriften und Satzbild (Runde 27, Unterversion 3): Neu übernimmt alle Blöcke mit ihren
-//!   Kennungen, die Anschriften mit den Buchangaben und die Satzbild-Einstellungen. Abgleichen: ein Block mit
-//!   unbekannter Kennung kommt nur, wenn es hier für (Werk, Art) noch keinen gibt (lokal gewinnt, sonst Hinweis) und
-//!   kein Grabstein besteht; ein bekannter Block wird nie überschrieben (Abweichung: Hinweis). Fehlen die
-//!   Satzbild-Einstellungen hier ganz, kommen sie aus der Datei (Hinweis), sonst bei Abweichung nur ein Hinweis.
-//! - Befunde und alte Beitragsfassungen (Runde 28, Unterversion 4): Neu übernimmt alle Befunde samt Statusverlauf
-//!   und alle alten Fassungen mit ihren Kennungen (Status, Begründung, Fassung und Ziel wie in der Datei; `gleicht`
-//!   über die Kennung, nachdem alle Befunde stehen). Abgleichen: ein Befund mit unbekannter Kennung kommt dazu, wenn
-//!   seine Herkunft (Beitrag bzw. Fadenbeitrag) hier zum Werk gehört, kein Grabstein besteht und die Stelle in diesem
-//!   Beitrag hier noch frei ist (sonst Hinweis – etwa wenn beide Instanzen denselben Beitrag zerlegt haben); er bringt
-//!   seinen Verlauf mit. Ein bekannter Befund wird nie überschrieben: Weicht sein Status ab, gibt es nur einen
-//!   Hinweis, und Verlaufseinträge der Datei kommen nicht dazu (den Status setzt hier der Mensch). Alte Fassungen
-//!   eines Beitrags mit unbekannter Kennung kommen dazu (auch bei einem bekannten Beitrag; sie sind nur Verlauf).
-//! - Unterversion 5 (Runde 30, [`apply_u5`]): Auf den in diesem Lauf angelegten Zeilen setzt ein Nachlauf die Lösungen
-//!   der Befunde, die Varianten der Fassungen (Befunde über ihre Kennung; eine abweichende Fassung mit abgeleiteter
-//!   Kennung bleibt ohne Variante) und die Metadaten der Beiträge (Grundlage über die Kennung der Fassung desselben
-//!   Punkts, Antwort/Wiederholung über die Kennung eines Beitrags derselben Stelle). Bekannte Zeilen bleiben
-//!   unberührt. Die Querverweise `#link(<kN>)` in eingelesenen Fassungen setzt `baruch_typst::xref::remap_keys` auf die
-//!   hiesigen Schlüssel um (Zuordnung über `schluessel` der Punkte der Datei → Kennung → Schlüssel hier).
-//! - Satz-Einstellungen (Runde 29, Unterversion 6, [`merge_typeset`]): Neu übernimmt sie mit Kennung, Zeitpunkt und
-//!   Namen der letzten Änderung. Abgleichen: Fehlen sie hier und gibt es für ihre Kennung keinen Grabstein, kommen sie
-//!   aus der Datei; sonst wird nie überschrieben – weichen sie ab, nennt ein Hinweis die Felder und beide Stände (JSON),
-//!   ist ihre Kennung hier zurückgesetzt (Grabstein), stehen sie unter „hier gelöscht“, und ein Grabstein `satz` der
-//!   Datei lässt die Einstellungen hier stehen (Hinweis). Ungültige Werte (`TypesetSettings::validate`) werden nicht
-//!   übernommen (unter „Nicht übernommen“), das übrige Werk schon.
-//! - Register und Glossar (Runde 31, Unterversion 7, [`new_glossary`], [`merge_glossary`]): Neu übernimmt eigene
-//!   Register und alle Begriffe (angenommen und vorgeschlagen) mit Kennung, Herkunft und Zeiten. Abgleichen gleicht ab
-//!   statt zu doppeln: Ein Register bzw. Begriff mit bekannter Kennung wird nie überschrieben (Abweichung: Hinweis);
-//!   eine unbekannte Kennung kommt dazu, außer es gibt hier schon ein Register derselben Kennung (`slug`) bzw. einen
-//!   Begriff mit demselben Schlüssel (`term_key`; ein Vorschlag auch neben einem angenommenen Begriff nicht) – dann ein
-//!   Hinweis –, einen Grabstein („hier gelöscht“) oder schon 13 eigene Register. Begriffe außerhalb der Grenzen
-//!   (`MAX_GLOSSARY_*`) stehen unter „Nicht übernommen“.
-//! - Unterversion 8 (Runde 22, [`apply_u8`], [`fast_forward`], [`adopt_part`]): Auf den in diesem Lauf angelegten
-//!   Fassungen setzt ein Nachlauf Stand, Stand der Basis und die Fortschreibungen (mit ihren Kennungen; die Texte
-//!   vorher/nachher mit hiesigen Schlüsseln wie die Fassung), auf den angelegten Befunden und Verlaufseinträgen den
-//!   Stand der übernommenen Fassung. Abgleichen: Sind die Fortschreibungen einer bekannten Fassung hier ein Präfix der
-//!   eingelesenen (gleiche Kennungen, hiesiger Text = Text der Datei an dieser Stelle), wird sie **vorgespult** (die
-//!   fehlenden Schritte kommen dazu, Text und Stand folgen der Datei); sonst gilt wie bisher „abweichende Fassung“. Ein
-//!   neuer Teil, der vorhandene Kapitel übernähme, wird ein Antrag `Add` mit Kennung und Fassungen
-//!   ([`crate::requests::PartIdentity`]); beim Zustimmen legt [`adopt_part`] ihn genau so an.
-//! - Nur dieses Modul setzt eine uuid selbst, und nur auf einer Zeile, die es in derselben Transaktion angelegt
-//!   hat. Erreichbar als `baruch_store::exchange_apply::…`.
+//! - New ([`ApplyMode::New`]): the work UUID is unknown (tombstones do not matter); the work is created with all UUIDs,
+//!   numbers, statuses, times and markers from the file, plus its tombstone list; title rules as in the import (taken →
+//!   `DuplicateTitle`, custom title through `title`). At the end `load::work` checks in the same transaction.
+//! - Merging ([`ApplyMode::Merge`]): the work UUID is known; only what is missing is added. Nothing is ever deleted or
+//!   overwritten, a revision read in never becomes current; outline changes become requests with the origin `Austausch:
+//!   <Instanz>` (human). Unknown items are created at their position with exactly their revisions; a new part that
+//!   would adopt existing chapters becomes a request `Add`. A deviating revision becomes a further revision with the
+//!   identifier [`derive_uuid`]. What has a tombstone here does not come back (`deleted_here`).
+//! - Preview ([`Store::exchange_preview`]) and applying ([`Store::exchange_apply`]) run through the same code: the
+//!   preview in a transaction that is rolled back at the end. That way the numbers agree, and the preview is not
+//!   trusted when applying (it plans anew).
+//! - Mind map (Round 25, contract §4.6): New takes over all links and positions with their identifiers („widerspricht“
+//!   is stored here so that from < to). Merging: a link with an unknown identifier whose two ideas belong to the work
+//!   here is added – unless the same pair with the same kind already exists here (no duplicate, notice) or a tombstone;
+//!   a known identifier is never overwritten. A position only comes if there is none here for (work, idea) (local wins)
+//!   and no tombstone exists.
+//! - Cover layout, addresses and typeset view (Round 27, minor version 3): New takes over all blocks with their
+//!   identifiers, the addresses with the book details and the typeset view settings. Merging: a block with an unknown
+//!   identifier only comes if there is none here yet for (work, kind) (local wins, otherwise a notice) and no tombstone
+//!   exists; a known block is never overwritten (deviation: notice). If the typeset view settings are missing here
+//!   completely, they come from the file (notice), otherwise only a notice on a deviation.
+//! - Findings and old post versions (Round 28, minor version 4): New takes over all findings together with their status
+//!   history and all old versions with their identifiers (status, reason, revision and target as in the file; `gleicht`
+//!   through the identifier, after all findings are in place). Merging: a finding with an unknown identifier is added
+//!   if its origin (post or thread post) belongs to the work here, no tombstone exists and the position in this post is
+//!   still free here (otherwise a notice – for instance if both instances have broken down the same post); it brings
+//!   its history along. A known finding is never overwritten: if its status deviates, there is only a notice, and
+//!   history entries of the file are not added (the human sets the status here). Old versions of a post with an unknown
+//!   identifier are added (also for a known post; they are only history).
+//! - Minor version 5 (Round 30, [`apply_u5`]): on the rows created in this run a follow-up pass sets the solutions of
+//!   the findings, the variants of the revisions (findings through their identifier; a deviating revision with a
+//!   derived identifier stays without a variant) and the metadata of the posts (basis through the identifier of the
+//!   revision of the same item, reply/repetition through the identifier of a post of the same place). Known rows stay
+//!   untouched. The cross-references `#link(<kN>)` in revisions read in are converted by
+//!   `baruch_typst::xref::remap_keys` to the keys here (mapping through `schluessel` of the items of the file →
+//!   identifier → key here).
+//! - Typesetting settings (Round 29, minor version 6, [`merge_typeset`]): New takes them over with identifier, point in
+//!   time and name of the last change. Merging: if they are missing here and there is no tombstone for their
+//!   identifier, they come from the file; otherwise nothing is ever overwritten – if they deviate, a notice names the
+//!   fields and both states (JSON), if their identifier is reset here (tombstone), they stand under „hier gelöscht“,
+//!   and a tombstone `satz` of the file leaves the settings here in place (notice). Invalid values
+//!   (`TypesetSettings::validate`) are not taken over (under „Nicht übernommen“), the rest of the work is.
+//! - Index and glossary (Round 31, minor version 7, [`new_glossary`], [`merge_glossary`]): New takes over custom
+//!   indexes and all terms (accepted and proposed) with identifier, origin and times. Merging aligns instead of
+//!   duplicating: an index or term with a known identifier is never overwritten (deviation: notice); an unknown
+//!   identifier is added, unless there already is an index of the same identifier (`slug`) here or a term with the same
+//!   key (`term_key`; a proposal not next to an accepted term either) – then a notice –, a tombstone („hier gelöscht“)
+//!   or already 13 custom indexes. Terms outside the limits (`MAX_GLOSSARY_*`) stand under „Nicht übernommen“.
+//! - Minor version 8 (Round 22, [`apply_u8`], [`fast_forward`], [`adopt_part`]): on the revisions created in this run a
+//!   follow-up pass sets state, state of the base and the amendments (with their identifiers; the texts before/after
+//!   with the keys here like the revision), on the findings and history entries created the state of the adopted
+//!   revision. Merging: if the amendments of a known revision here are a prefix of those read in (same identifiers,
+//!   text here = text of the file at this point), it is **fast-forwarded** (the missing steps are added, text and state
+//!   follow the file); otherwise "deviating revision" applies as before. A new part that would adopt existing chapters
+//!   becomes a request `Add` with identifier and revisions ([`crate::requests::PartIdentity`]); on consent
+//!   [`adopt_part`] creates it exactly like that.
+//! - Only this module sets a uuid itself, and only on a row that it created in the same transaction. Reachable as
+//!   `baruch_store::exchange_apply::…`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -83,10 +80,10 @@ use crate::outline::{BareInsert, NewPoint};
 use crate::works::{title_free, title_key};
 use crate::{IdeaOrigin, Store, StoreError, WorkId, assets, broken, load, outline, requests, slug};
 
-/// Höchstens so viele Einträge in [`ExchangeReport::items`]; darüber `truncated`.
+/// At most this many entries in [`ExchangeReport::items`]; above that `truncated`.
 pub const MAX_ITEMS: usize = 500;
 
-/// Gliederungsschemata, die `work.numbering_scheme` annimmt (Migration 0040).
+/// Outline schemes that `work.numbering_scheme` accepts (migration 0040).
 const SCHEMES: &[&str] = &[
     "template",
     "decimal",
@@ -103,9 +100,9 @@ const SCHEMES: &[&str] = &[
     "custom",
 ];
 
-/// Abgeleitete Kennung einer abweichenden Fassung (Vertrag F3): die ersten 16 Bytes von
-/// SHA-256(`baruch-fassung:` ‖ original ‖ `:` ‖ sha256_hex(text)), Version 8, Variante 10. Gleiche Eingabe ergibt
-/// dieselbe Kennung; so legt ein wiederholtes Einlesen nichts doppelt an.
+/// Derived identifier of a deviating revision (contract F3): the first 16 bytes of SHA-256(`baruch-fassung:` ‖ original
+/// ‖ `:` ‖ sha256_hex(text)), version 8, variant 10. The same input yields the same identifier; that way a repeated
+/// reading in creates nothing twice.
 pub fn derive_uuid(original: &str, text: &str) -> String {
     let digest = Sha256::digest(
         format!("baruch-fassung:{original}:{}", baruch_exchange::sha256_hex(text.as_bytes())).as_bytes(),
@@ -118,13 +115,13 @@ pub fn derive_uuid(original: &str, text: &str) -> String {
     format!("{}-{}-{}-{}-{}", &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
 }
 
-/// Anzeigename der ausgebenden Instanz: ihr Name, sonst die ersten 8 Zeichen der Kennung.
+/// Display name of the exporting instance: its name, otherwise the first 8 characters of the identifier.
 pub fn instance_label(instance: &ExchangeInstance) -> String {
     let name = instance.name.trim();
     if name.is_empty() { instance.uuid.chars().take(8).collect() } else { name.to_owned() }
 }
 
-/// Neu oder abgleichen.
+/// New or merge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApplyMode {
@@ -133,7 +130,7 @@ pub enum ApplyMode {
 }
 
 impl ApplyMode {
-    /// `new` bzw. `merge` (RPC, Formular).
+    /// `new` or `merge` (RPC, form).
     pub fn as_str(self) -> &'static str {
         match self {
             ApplyMode::New => "new",
@@ -149,7 +146,7 @@ impl ApplyMode {
         }
     }
 
-    /// „neu“ bzw. „abgleichen“.
+    /// „neu“ or „abgleichen“.
     pub fn label(self) -> &'static str {
         match self {
             ApplyMode::New => "neu",
@@ -158,7 +155,7 @@ impl ApplyMode {
     }
 }
 
-/// Wie viel hinzukommt (bzw. hinzugekommen ist).
+/// How much is added (or has been added).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct AddCounts {
     pub nodes: usize,
@@ -170,25 +167,25 @@ pub struct AddCounts {
     pub thread_posts: usize,
     pub assets: usize,
     pub asset_revisions: usize,
-    /// Verbindungen der Gedankenkarte (Runde 25).
+    /// Links of the mind map (Round 25).
     pub links: usize,
-    /// Lagen auf der Gedankenkarte (Runde 25).
+    /// Positions on the mind map (Round 25).
     pub positions: usize,
-    /// Blöcke der Umschlag-Anordnung (Runde 27).
+    /// Blocks of the cover layout (Round 27).
     pub cover_blocks: usize,
-    /// Befunde (Runde 28).
+    /// Findings (Round 28).
     pub findings: usize,
-    /// Einträge im Statusverlauf der Befunde (Runde 28).
+    /// Entries in the status history of the findings (Round 28).
     pub finding_entries: usize,
-    /// Alte Fassungen bearbeiteter Beiträge und Fadenbeiträge (Runde 28).
+    /// Old versions of edited posts and thread posts (Round 28).
     pub post_versions: usize,
-    /// Satz-Einstellungen (Runde 29; 0 oder 1).
+    /// Typesetting settings (Round 29; 0 or 1).
     pub typeset: usize,
-    /// Eigene Register (Runde 31).
+    /// Custom indexes (Round 31).
     pub registers: usize,
-    /// Glossarbegriffe (Runde 31).
+    /// Glossary terms (Round 31).
     pub glossary_terms: usize,
-    /// Fortschreibungen von Fassungen (Runde 22; auch die beim Vorspulen hinzukommenden Schritte).
+    /// Amendments of revisions (Round 22; also the steps added when fast-forwarding).
     pub amends: usize,
 }
 
@@ -216,7 +213,7 @@ impl AddCounts {
     }
 }
 
-/// Ein Stück, das hinzukommt: Art (XML-Wort wie im Grabstein, z. B. `punkt`, `fassung`), Kennung, Anzeige.
+/// A piece that is added: kind (XML word as in the tombstone, for example `punkt`, `fassung`), identifier, display.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExchangeItem {
     pub kind: &'static str,
@@ -224,15 +221,15 @@ pub struct ExchangeItem {
     pub label: String,
 }
 
-/// Was mit einer Abweichung geschieht.
+/// What happens to a deviation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviationAction {
-    /// Eine weitere Fassung entsteht (abweichender Text).
+    /// A further revision is created (deviating text).
     Fassung,
-    /// Ein Antrag zur Gliederung entsteht.
+    /// A request concerning the outline is created.
     Antrag,
-    /// Nur ein Hinweis; nichts geändert.
+    /// Only a notice; nothing changed.
     Hinweis,
 }
 
@@ -246,7 +243,7 @@ impl DeviationAction {
     }
 }
 
-/// Eine Abweichung zwischen hier und der Datei. `key`/`rev` führen zur Stelle (`/?work=W&key=K&rev=R`).
+/// A deviation between here and the file. `key`/`rev` lead to the place (`/?work=W&key=K&rev=R`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Deviation {
     pub kind: &'static str,
@@ -261,7 +258,7 @@ pub struct Deviation {
     pub action: DeviationAction,
 }
 
-/// Ein Antrag, der entsteht (bzw. entstanden ist).
+/// A request that is created (or has been created).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PlannedRequest {
     /// `rename`, `move`, `set_level`, `set_numbered`, `add`.
@@ -270,7 +267,7 @@ pub struct PlannedRequest {
     pub label: String,
 }
 
-/// Ein Stück der Datei, das hier gelöscht ist (Grabstein) und darum nicht wiederkommt.
+/// A piece of the file that is deleted here (tombstone) and therefore does not come back.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DeletedHere {
     pub kind: &'static str,
@@ -278,21 +275,21 @@ pub struct DeletedHere {
     pub label: String,
 }
 
-/// Ausgebende Instanz (aus der Datei).
+/// Exporting instance (from the file).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct InstanceInfo {
     pub uuid: String,
     pub name: String,
 }
 
-/// Vorschau bzw. Bericht des Übernehmens (Form des RPC `work.exchange_preview`).
+/// Preview or report of the applying (form of the RPC `work.exchange_preview`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExchangeReport {
     pub mode: ApplyMode,
     pub work_uuid: String,
-    /// Titel des Werks hier (bei „neu“ der Titel, den es bekäme).
+    /// Title of the work here (for "new" the title it would get).
     pub title: String,
-    /// Werk hier mit dieser Kennung (`None` = neu).
+    /// Work here with this identifier (`None` = new).
     pub known_work: Option<WorkId>,
     pub instance: InstanceInfo,
     pub exported: String,
@@ -308,21 +305,21 @@ pub struct ExchangeReport {
     pub refusals: Vec<String>,
 }
 
-/// Ergebnis von [`Store::exchange_apply`].
+/// Result of [`Store::exchange_apply`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExchangeApplied {
     pub work: WorkId,
     pub slug: String,
     pub title: String,
     pub mode: ApplyMode,
-    /// ids der angelegten Anträge.
+    /// ids of the requests created.
     pub requests: Vec<i64>,
     pub report: ExchangeReport,
 }
 
 impl Store {
-    /// Vorschau: plant das Einlesen in einer Transaktion und rollt sie zurück (nichts bleibt geschrieben). Modus
-    /// aus der Datei (Werk-UUID bekannt → abgleichen). Ein vergebener Titel steht in `refusals`.
+    /// Preview: plans the reading in inside a transaction and rolls it back (nothing stays written). Mode from the file
+    /// (work UUID known → merge). A title that is taken stands in `refusals`.
     pub async fn exchange_preview(
         &self,
         doc: &ExchangeDocument,
@@ -335,8 +332,8 @@ impl Store {
         result.map(|done| done.report)
     }
 
-    /// Übernehmen (atomar, `BEGIN IMMEDIATE`): plant neu (der Vorschau wird nicht vertraut) und schreibt. Passt
-    /// `mode` nicht zur Datei → `Refused`; jeder Fehler rollt alles zurück.
+    /// Apply (atomic, `BEGIN IMMEDIATE`): plans anew (the preview is not trusted) and writes. If `mode` does not fit
+    /// the file → `Refused`; every error rolls everything back.
     pub async fn exchange_apply(
         &self,
         doc: &ExchangeDocument,
@@ -358,7 +355,7 @@ impl Store {
     }
 }
 
-// ---- Ablauf ------------------------------------------------------------------------------------
+// ---- Sequence ----------------------------------------------------------------------------------
 
 struct Done {
     work: WorkId,
@@ -368,7 +365,7 @@ struct Done {
     request_ids: Vec<i64>,
 }
 
-/// Zustand eines Laufs (Vorschau oder Übernehmen).
+/// State of a run (preview or applying).
 struct Run<'a> {
     doc: &'a ExchangeDocument,
     preview: bool,
@@ -505,7 +502,7 @@ async fn execute(
             there,
         );
     }
-    // Runde 23 (u7): Grenzen von Glossar und Registern, bevor irgendetwas geschrieben ist.
+    // Round 23 (u7): limits of glossary and indexes, before anything is written.
     check_u7_limits(doc, known.is_none())?;
     let marks = Marks::capture(conn).await?;
     let (work, slug, title) = match known {
@@ -528,13 +525,12 @@ async fn execute(
     Ok(Done { work, slug, title, report: run.report, request_ids: run.request_ids })
 }
 
-// ---- Runde 23: Grenzen (u7) und Hinweis zur Überschriftenebene -------------------------------------
+// ---- Round 23: limits (u7) and notice on the heading level -----------------------------------------
 
-/// Grenzen von Registern und Glossar vor dem ersten Schreiben (Gutachten R31): Ein Registertitel über
-/// [`baruch_typst::index::MAX_REGISTER_TITLE_CHARS`] Zeichen und – beim Einlesen als neues Werk – mehr als
-/// [`crate::MAX_GLOSSARY_TERMS`] Begriffe lehnen das ganze Einlesen ab (deutsche Meldung, nichts geschrieben).
-/// Beim Abgleichen zählt [`insert_term`] gegen den Bestand hier (dort bricht die Transaktion ab; es bleibt
-/// ebenfalls nichts geschrieben).
+/// Limits of indexes and glossary before the first write (review R31): an index title above
+/// [`baruch_typst::index::MAX_REGISTER_TITLE_CHARS`] characters and – when reading in as a new work – more than
+/// [`crate::MAX_GLOSSARY_TERMS`] terms reject the whole reading in (German message, nothing written). When merging,
+/// [`insert_term`] counts against the stock here (there the transaction aborts; nothing stays written either).
 fn check_u7_limits(doc: &ExchangeDocument, new_work: bool) -> Result<(), StoreError> {
     for register in &doc.work.registers {
         check_register_title(register)?;
@@ -553,7 +549,7 @@ fn too_many_terms(count: usize) -> StoreError {
     ))
 }
 
-/// Titel eines Registers der Datei: in einer Zeile höchstens `MAX_REGISTER_TITLE_CHARS` Zeichen.
+/// Title of an index of the file: on one line at most `MAX_REGISTER_TITLE_CHARS` characters.
 fn check_register_title(register: &baruch_exchange::ExchangeRegister) -> Result<String, StoreError> {
     let title = register.title.split_whitespace().collect::<Vec<_>>().join(" ");
     let chars = title.chars().count();
@@ -567,11 +563,11 @@ fn check_register_title(register: &baruch_exchange::ExchangeRegister) -> Result<
     Ok(title)
 }
 
-/// Hinweis, wenn die Überschrift einer **eben eingelesenen aktuellen Fassung** nicht zur Art ihres Punkts passt
-/// (Backlog R26 → R23): Der Text bleibt exakt, wie er in der Datei steht; aber erst das nächste Speichern verlangte
-/// die passende Ebene – der Mensch soll das schon beim Einlesen sehen. Ebenen wie `outline::heading_level`: Kapitel
-/// 1, Abschnitt 2, unter einem Abschnitt 3; Teile bleiben ohne Prüfung (Teiltexte ohne Markierung sind erlaubt).
-/// Nur ein Hinweis, nie eine Ablehnung; bekannte Fassungen bleiben unberührt und ohne Meldung.
+/// Notice if the heading of a **current revision just read in** does not fit the kind of its item (backlog R26 → R23):
+/// the text stays exactly as it is in the file; but only the next saving would demand the fitting level – the human is
+/// meant to see that already when reading in. Levels as in `outline::heading_level`: chapter 1, section 2, below a
+/// section 3; parts stay without a check (part texts without the marker are allowed). Only a notice, never a rejection;
+/// known revisions stay untouched and without a message.
 async fn heading_hints(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -624,15 +620,15 @@ async fn heading_hints(
     Ok(())
 }
 
-// ---- Unterversion 5 (Runde 30) -------------------------------------------------------------------
+// ---- Minor version 5 (Round 30) ------------------------------------------------------------------
 
-/// Höchste ids vor dem Lauf: Zeilen darüber hat dieser Lauf angelegt (SQLite vergibt neue rowids über dem Maximum).
+/// Highest ids before the run: rows above them were created by this run (SQLite assigns new rowids above the maximum).
 struct Marks {
     revision: i64,
     post: i64,
     thread_post: i64,
     finding: i64,
-    /// Runde 22: Verlaufseinträge der Befunde (für den Stand der übernommenen Fassung).
+    /// Round 22: history entries of the findings (for the state of the adopted revision).
     finding_status: i64,
 }
 
@@ -651,7 +647,7 @@ impl Marks {
     }
 }
 
-/// Alle Punkte der Datei (flach).
+/// All items of the file (flat).
 fn all_file_nodes<'a>(nodes: &'a [ExchangeNode], out: &mut Vec<&'a ExchangeNode>) {
     for node in nodes {
         out.push(node);
@@ -659,12 +655,12 @@ fn all_file_nodes<'a>(nodes: &'a [ExchangeNode], out: &mut Vec<&'a ExchangeNode>
     }
 }
 
-/// Nachlauf der Unterversion 5 auf den neu angelegten Zeilen (siehe Moduldoku).
+/// Follow-up pass of minor version 5 on the newly created rows (see the module documentation).
 async fn apply_u5(conn: &mut SqliteConnection, run: &Run<'_>, work: WorkId, marks: &Marks) -> Result<(), StoreError> {
     let doc = run.doc;
     let mut file_nodes = Vec::new();
     all_file_nodes(&doc.work.outline, &mut file_nodes);
-    // Kennungen hier: Befund → id, Punkt → id (= Schlüssel), Fassung → (Punkt, Nummer), Beitrag → (id, Stelle).
+    // Identifiers here: finding → id, item → id (= key), revision → (item, number), post → (id, place).
     let findings: HashMap<String, i64> =
         sqlx::query_as::<_, (String, i64)>("SELECT uuid, id FROM finding WHERE work_id = ? AND uuid IS NOT NULL")
             .bind(work)
@@ -710,7 +706,7 @@ async fn apply_u5(conn: &mut SqliteConnection, run: &Run<'_>, work: WorkId, mark
     .map(|(uuid, id, thread)| (uuid, (id, thread)))
     .collect();
 
-    // Querverweise: Schlüssel der Datei → Schlüssel hier (über die Kennung des Punkts).
+    // Cross-references: key of the file → key here (through the identifier of the item).
     let key_map: HashMap<i64, i64> = file_nodes
         .iter()
         .filter_map(|n| Some((n.key?, *nodes.get(&n.uuid)?)))
@@ -719,9 +715,9 @@ async fn apply_u5(conn: &mut SqliteConnection, run: &Run<'_>, work: WorkId, mark
 
     for node in &file_nodes {
         for revision in &node.revisions {
-            // Runde 23: Weicht eine bekannte Fassung ab, legt der Abgleich sie unter einer abgeleiteten Kennung an
-            // ([`derive_uuid`]). Auch sie trägt die Variante der Datei (Gruppe, Etikett, Zeile, Befunde) – vorher
-            // verlor sie ihr Kennzeichen und stand als gewöhnlicher Vorschlag neben ihren Geschwistern.
+            // Round 23: if a known revision deviates, the merge creates it under a derived identifier
+            // ([`derive_uuid`]). It, too, carries the variant of the file (group, label, line, findings) – before, it
+            // lost its marks and stood as an ordinary proposal next to its siblings.
             let own = revisions.get(&revision.uuid).filter(|(id, ..)| *id > marks.revision);
             let derived = match own {
                 Some(_) => None,
@@ -843,9 +839,9 @@ async fn apply_u5(conn: &mut SqliteConnection, run: &Run<'_>, work: WorkId, mark
     Ok(())
 }
 
-// ---- Unterversion 8 (Runde 22) -------------------------------------------------------------------
+// ---- Minor version 8 (Round 22) ------------------------------------------------------------------
 
-/// Schritte `amends` an die Fassung `revision_id` hängen (Kennungen aus der Datei, Texte mit hiesigen Schlüsseln).
+/// Attach the steps `amends` to the revision `revision_id` (identifiers from the file, texts with the keys here).
 async fn insert_amends(
     conn: &mut SqliteConnection,
     revision_id: i64,
@@ -874,7 +870,7 @@ async fn insert_amends(
     Ok(())
 }
 
-/// Ist eine dieser Kennungen von Schritten hier schon vergeben oder begraben?
+/// Is one of these identifiers of steps already assigned or buried here?
 async fn amends_taken(
     conn: &mut SqliteConnection,
     run: &Run<'_>,
@@ -888,9 +884,9 @@ async fn amends_taken(
     Ok(false)
 }
 
-/// Nachlauf der Unterversion 8 auf den neu angelegten Zeilen (siehe Moduldoku): Stand, Stand der Basis und
-/// Fortschreibungen der Fassungen mit der Kennung aus der Datei (abgeleitete Fassungen bleiben ohne), Stand an
-/// Befunden und Verlaufseinträgen.
+/// Follow-up pass of minor version 8 on the newly created rows (see the module documentation): state, state of the base
+/// and amendments of the revisions with the identifier from the file (derived revisions stay without), state on
+/// findings and history entries.
 async fn apply_u8(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -994,18 +990,17 @@ async fn apply_u8(
     Ok(())
 }
 
-/// Abgleichen (Regel d mit Unterversion 8): Sind die Fortschreibungen der bekannten Fassung hier ein echtes Präfix
-/// der eingelesenen (gleiche Kennungen in derselben Reihenfolge, Stand hier = Zahl der Schritte hier) und ist der
-/// Text hier genau der Text der Datei an dieser Stelle, wird die Fassung vorgespult: die fehlenden Schritte kommen
-/// dazu, Text und Stand folgen der Datei. `true` = vorgespult (dann kein „abweichende Fassung“).
+/// Merging (rule d with minor version 8): if the amendments of the known revision here are a proper prefix of those
+/// read in (same identifiers in the same order, state here = number of steps here) and the text here is exactly the
+/// text of the file at this point, the revision is fast-forwarded: the missing steps are added, text and state follow
+/// the file. `true` = fast-forwarded (then no "deviating revision").
 ///
-/// Wie lokal ([`crate::amend`]) nur auf der **aktuellen Fassung des Menschen** (hier wie in der Datei vom Menschen,
-/// hier aktuell): Fassungen von Personas oder MCP-Clients, Vorschläge, übernommene, verworfene und ersetzte Fassungen
-/// werden nie an Ort und Stelle umgeschrieben. Und nur, wenn die fehlenden Schritte die Änderung lückenlos wiedergeben
-/// (erster Schritt vorher = Text hier, je Schritt vorher = nachher des vorigen, letzter Schritt nachher = Text der
-/// Datei) – sonst zeigte der Verlauf harmlose Schritte, während der Text ganz ersetzt würde, und eine Rücknahme
-/// könnte auf einen Text zurücksetzen, den es hier nie gab. In allen anderen Fällen `false` (→ „abweichende
-/// Fassung“ als neue abgeleitete Fassung wie vor Runde 22).
+/// As locally ([`crate::amend`]) only on the **current revision of the human** (by the human here as in the file,
+/// current here): revisions by personas or MCP clients, proposals, accepted, rejected and superseded revisions are
+/// never rewritten in place. And only if the missing steps reproduce the change without gaps (first step before = text
+/// here, per step before = after of the previous one, last step after = text of the file) – otherwise the history would
+/// show harmless steps while the text was replaced completely, and an undo could reset to a text that never existed
+/// here. In all other cases `false` (→ "deviating revision" as a new derived revision as before Round 22).
 #[allow(clippy::too_many_arguments)]
 async fn fast_forward(
     conn: &mut SqliteConnection,
@@ -1020,7 +1015,7 @@ async fn fast_forward(
     if revision.amends.is_empty() {
         return Ok(false);
     }
-    // Nur die Fassung des Menschen (auch in der Datei) und nur hier aktuell – wie `amend::verdict` (NotOwn).
+    // Only the revision of the human (also in the file) and only current here – like `amend::verdict` (NotOwn).
     if author_columns(&revision.author).0 != "human" {
         return Ok(false);
     }
@@ -1040,7 +1035,7 @@ async fn fast_forward(
             .bind(id)
             .fetch_all(&mut *conn)
             .await?;
-    // Ein Schritt ohne Kennung (gibt es nur vor dem Fülltrigger) passt zu keinem der Datei.
+    // A step without an identifier (exists only before the fill trigger) fits none of the file.
     let local: Vec<String> = local.into_iter().map(Option::unwrap_or_default).collect();
     let k = local.len();
     if k >= revision.amends.len()
@@ -1054,7 +1049,7 @@ async fn fast_forward(
         return Ok(false);
     }
     let missing = &revision.amends[k..];
-    // Die fehlenden Schritte müssen die Änderung von `body_here` zu `body_there` lückenlos wiedergeben.
+    // The missing steps must reproduce the change from `body_here` to `body_there` without gaps.
     let remap = |text: &str| baruch_typst::xref::remap_keys(text, key_map).into_owned();
     let mut text = body_here.clone();
     for step in missing {
@@ -1066,11 +1061,11 @@ async fn fast_forward(
     if text != body_there {
         return Ok(false);
     }
-    // Codereview 2026-11-24 (store-2): Lokal ändert eine Fortschreibung nie die Überschrift (`amend::verdict` →
-    // neue Fassung). Eine eingelesene Schrittkette dürfte das sonst an Ort und Stelle: Die aktuelle Fassung trüge
-    // dann eine Überschrift, die es in der Gliederung nicht gibt (`node.title` bliebe alt), oder eine zweite. Darum
-    // nur vorspulen, wenn alle Überschriften (Ebene, Titel) gleich bleiben – sonst der bisherige Weg „abweichende
-    // Fassung“ (eine neue Fassung, über die der Mensch entscheidet).
+    // Code review 2026-11-24 (store-2): locally an amendment never changes the heading (`amend::verdict` → new
+    // revision). A chain of steps read in could otherwise do that in place: the current revision would then carry a
+    // heading that does not exist in the outline (`node.title` would stay old), or a second one. Therefore fast-forward
+    // only if all headings (level, title) stay the same – otherwise the previous path "deviating revision" (a new
+    // revision on which the human decides).
     if heading_lines(&body_here) != heading_lines(body_there) {
         return Ok(false);
     }
@@ -1104,14 +1099,14 @@ async fn fast_forward(
     Ok(true)
 }
 
-/// Überschriftszeilen eines Texts im Wortlaut (ohne Leerraum am Rand): Zeilen, die mit `=` oder `#heading(`
-/// beginnen. Bewusst am Wortlaut statt über den Parser: Der Vergleich soll nur „gleich oder nicht“ sagen und im
-/// Zweifel (etwa `=` am Zeilenanfang in einem Rohblock) lieber nicht vorspulen.
+/// Heading lines of a text verbatim (without whitespace at the edges): lines that begin with `=` or `#heading(`.
+/// Deliberately by wording instead of through the parser: the comparison is only meant to say "same or not" and, in
+/// doubt (such as `=` at the start of a line in a raw block), rather not fast-forward.
 fn heading_lines(body: &str) -> Vec<&str> {
     body.lines().map(str::trim).filter(|line| line.starts_with('=') || line.starts_with("#heading(")).collect()
 }
 
-/// Fassungen eines Teils aus der Datei für den Antrag `Add` (Runde 22, Vertrag §2.10).
+/// Revisions of a part from the file for the request `Add` (Round 22, contract §2.10).
 fn part_identity(node: &ExchangeNode) -> crate::requests::PartIdentity {
     let mut revisions: Vec<&ExchangeRevision> = node.revisions.iter().collect();
     revisions.sort_by_key(|r| r.number);
@@ -1155,12 +1150,12 @@ fn part_identity(node: &ExchangeNode) -> crate::requests::PartIdentity {
     }
 }
 
-/// Zustimmen zu einem Antrag `Add` mit Kennung und Fassungen (Runde 22, Vertrag §2.10; aufgerufen aus
-/// `requests::run` in derselben Transaktion, direkt nach `add_many`): Der eben angelegte Teil bekommt die Kennung aus
-/// der Datei, die von `add_many` erzeugte Fassung 1 wird ersetzt (gelöscht samt ihres Grabsteins – es gab sie nie
-/// außerhalb dieser Transaktion), dann kommen genau die Fassungen der Datei mit Nummer, Kennung, Herkunft, Status,
-/// Basis, Stand und Fortschreibungen. Gibt es eine der Kennungen hier schon (inzwischen eingelesen oder angelegt) →
-/// `Refused` (der Antrag wird veraltet abgeschlossen, nichts geändert).
+/// Consenting to a request `Add` with identifier and revisions (Round 22, contract §2.10; called from `requests::run`
+/// in the same transaction, directly after `add_many`): the part just created gets the identifier from the file,
+/// revision 1 produced by `add_many` is replaced (deleted together with its tombstone – it never existed outside this
+/// transaction), then exactly the revisions of the file come with number, identifier, origin, status, base, state and
+/// amendments. If one of the identifiers already exists here (read in or created in the meantime) → `Refused` (the
+/// request is closed as stale, nothing changed).
 pub(crate) async fn adopt_part(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1261,7 +1256,7 @@ pub(crate) async fn adopt_part(
     Ok(())
 }
 
-// ---- Wörter und kleine Helfer --------------------------------------------------------------------
+// ---- Words and small helpers ---------------------------------------------------------------------
 
 fn author_columns(author: &ExchangeAuthor) -> (&'static str, &str, Option<&str>) {
     match author {
@@ -1279,7 +1274,7 @@ fn status_word(status: ExchangeRevisionStatus) -> &'static str {
     }
 }
 
-/// Status einer beim Abgleich eingelesenen Fassung (F6 c): nie aktuell.
+/// Status of a revision read in during a merge (F6 c): never current.
 fn merged_status(status: ExchangeRevisionStatus) -> &'static str {
     match status {
         ExchangeRevisionStatus::Proposed => "proposed",
@@ -1308,7 +1303,7 @@ fn quoted(text: &str) -> String {
     format!("„{text}“")
 }
 
-/// Kurzer einzeiliger Ausschnitt für Vorschau und Hinweise.
+/// Short single-line excerpt for preview and notices.
 fn excerpt(text: &str) -> String {
     let line: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut out: String = line.chars().take(120).collect();
@@ -1318,7 +1313,7 @@ fn excerpt(text: &str) -> String {
     out
 }
 
-/// Fachliche Ablehnung (dann wird aus einem Antrag nur ein Hinweis)?
+/// Domain rejection (then a request becomes only a notice)?
 fn is_refusal(e: &StoreError) -> bool {
     matches!(
         e,
@@ -1330,7 +1325,7 @@ fn is_refusal(e: &StoreError) -> bool {
     )
 }
 
-/// Gibt es die Kennung in dieser Tabelle (in irgendeinem Werk)?
+/// Does the identifier exist in this table (in any work)?
 async fn uuid_exists(conn: &mut SqliteConnection, table: &str, uuid: &str) -> Result<bool, StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT 1 FROM {table} WHERE uuid = ? LIMIT 1")))
@@ -1340,8 +1335,8 @@ async fn uuid_exists(conn: &mut SqliteConnection, table: &str, uuid: &str) -> Re
     Ok(found.is_some())
 }
 
-/// Einfall ohne Werk mit dieser Kennung (übrig von einem gelöschten Werk) diesem Werk wieder zuordnen. Sein Inhalt
-/// bleibt, wie er hier ist (nie überschreiben); nur Werk und, falls der Punkt bekannt ist, Bezug werden gesetzt.
+/// Assign an idea without a work with this identifier (left over from a deleted work) to this work again. Its content
+/// stays as it is here (never overwrite); only work and, if the item is known, reference are set.
 async fn adopt_orphan_idea(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1357,7 +1352,7 @@ async fn adopt_orphan_idea(
     Ok(done.rows_affected() == 1)
 }
 
-/// Beim Einlesen als neues Werk: Die Kennung darf es hier noch nicht geben (sonst gehörte sie einem anderen Werk).
+/// When reading in as a new work: the identifier must not exist here yet (otherwise it would belong to another work).
 async fn ensure_free(conn: &mut SqliteConnection, table: &str, uuid: &str, what: &str) -> Result<(), StoreError> {
     if uuid_exists(conn, table, uuid).await? {
         return Err(StoreError::Exchange(format!(
@@ -1392,7 +1387,7 @@ fn tombstone_table(kind: ExchangeTombstoneKind) -> &'static str {
     }
 }
 
-// ---- Schreiben einzelner Zeilen ------------------------------------------------------------------
+// ---- Writing single rows -------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 async fn insert_revision(
@@ -1427,7 +1422,7 @@ async fn insert_revision(
     Ok(())
 }
 
-/// Alle Fassungen eines eben angelegten Punkts genau wie in der Datei (Nummern, Status, Basis).
+/// All revisions of an item just created exactly as in the file (numbers, status, base).
 async fn insert_node_revisions(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -1481,15 +1476,15 @@ async fn insert_post(
     .await?)
 }
 
-/// Wem eine alte Fassung gehört.
+/// To whom an old version belongs.
 #[derive(Debug, Clone, Copy)]
 enum VersionOwner {
     Post(i64),
     ThreadPost(i64),
 }
 
-/// Alte Fassungen eines Beitrags bzw. Fadenbeitrags (Runde 28). Neu: jede Kennung muss frei sein. Abgleichen: bekannte
-/// Kennungen übergangen, hier gelöschte gemeldet.
+/// Old versions of a post or thread post (Round 28). New: every identifier must be free. Merging: known identifiers
+/// skipped, ones deleted here reported.
 async fn insert_versions(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -1551,7 +1546,8 @@ fn finding_label(finding: &ExchangeFinding) -> String {
     format!("Befund ({}) von {}: {}", finding_kind_label(finding.kind), finding.persona, excerpt(&finding.body))
 }
 
-/// Befunde mit ihrem Verlauf (Runde 28, Unterversion 4), nach Beiträgen, Fäden und Einfällen. Regeln in der Moduldoku.
+/// Findings with their history (Round 28, minor version 4), after posts, threads and ideas. Rules in the module
+/// documentation.
 async fn apply_findings(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let mut similar: Vec<(i64, &str)> = Vec::new();
@@ -1574,11 +1570,11 @@ async fn apply_findings(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wo
                         String::new(),
                     );
                 } else {
-                    // Regel (Runde 23, festgelegt): Ein bekannter Befund bleibt, wie er hier ist – Status,
-                    // Begründung und Verlauf. Der Verlauf ist das Protokoll der Entscheidungen **dieser** Instanz;
-                    // fremde Einträge stünden sonst im Widerspruch zum Status hier, und ein offener Vorschlag aus der
-                    // Datei würde hier zu einer Entscheidung, die niemand gestellt hat. Damit nichts still wegfällt,
-                    // nennt der Hinweis, wie viele Einträge nur die Datei hat.
+                    // Rule (Round 23, laid down): a known finding stays as it is here – status, reason and history. The
+                    // history is the log of the decisions of **this** instance; foreign entries would otherwise
+                    // contradict the status here, and an open proposal from the file would become a decision here that
+                    // nobody asked for. So that nothing drops out silently, the notice names how many entries only the
+                    // file has.
                     let mut only_there = 0usize;
                     for entry in &finding.history {
                         if !uuid_exists(conn, "finding_status", &entry.uuid).await? && !run.tombstoned(&entry.uuid) {
@@ -1750,7 +1746,7 @@ async fn apply_findings(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wo
             run.item("befund-status", &entry.uuid, format!("{label}, {}", finding_status_label(entry.status.as_db())));
         }
     }
-    // „gleicht“ erst jetzt: Das Original kann in der Datei nach dem angehängten Befund stehen.
+    // „gleicht“ only now: the original can stand in the file after the attached finding.
     for (id, original) in similar {
         let target: Option<i64> = sqlx::query_scalar("SELECT id FROM finding WHERE uuid = ? AND work_id = ?")
             .bind(original)
@@ -1768,7 +1764,8 @@ async fn apply_findings(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wo
     Ok(())
 }
 
-/// Bezüge eines Beitrags: Punkt über seine Kennung (Stelle jetzt), Fassung über ihre Kennung (Nummer; fehlt → 0).
+/// References of a post: item through its identifier (position now), revision through its identifier (number; missing →
+/// 0).
 async fn insert_refs(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -1840,8 +1837,8 @@ fn idea_label(idea: &ExchangeIdea) -> String {
     format!("Einfall {}", quoted(&excerpt(&text)))
 }
 
-/// `done_ref` aus der Datei: Beginnt er mit der Kennung eines Punkts dieses Werks, wird daraus wieder „key
-/// <Schlüssel>“ (Gegenstück zur Ausgabe, die „key N“ als Kennung schreibt); sonst bleibt er wörtlich.
+/// `done_ref` from the file: if it begins with the identifier of an item of this work, it becomes "key <key>" again
+/// (counterpart of the output, which writes "key N" as an identifier); otherwise it stays verbatim.
 async fn local_done_ref(conn: &mut SqliteConnection, work: WorkId, text: &str) -> Result<String, StoreError> {
     if text.len() >= 36 && text.is_char_boundary(36) && baruch_exchange::is_uuid(&text[..36]) {
         let key: Option<i64> = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND uuid = ?")
@@ -1856,7 +1853,7 @@ async fn local_done_ref(conn: &mut SqliteConnection, work: WorkId, text: &str) -
     Ok(text.to_owned())
 }
 
-/// Einfall mit Schlagwörtern und Index (gelöschte kommen nicht in den Index, wie in `ideas.rs`).
+/// Idea with keywords and index (deleted ones do not get into the index, as in `ideas.rs`).
 async fn insert_idea(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1891,8 +1888,8 @@ async fn insert_idea(
     .bind(&idea.updated)
     .bind(&idea.deleted)
     .bind(&idea.uuid)
-    // Runde 34 (Unterversion 9): Titel, Reihenfolge und Hauptthema sofort; den Elternknoten setzt
-    // `link_idea_parents`, wenn alle Einfälle der Datei stehen. Ein Hauptthema gibt es nur ohne Bezug.
+    // Round 34 (minor version 9): title, order and main topic at once; the parent node is set by `link_idea_parents`
+    // when all ideas of the file are in place. A main topic exists only without a reference.
     .bind(&idea.title)
     .bind(idea.position)
     .bind(i64::from(idea.main_topic && node_id.is_none() && idea.parent.is_none()))
@@ -1917,7 +1914,7 @@ async fn insert_idea(
     if idea.deleted.is_none() {
         sqlx::query("INSERT INTO idea_fts (rowid, words, note, quote, source, bible) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(id)
-            // Wie `ideas::reindex`: der Titel steht in der Spalte `words` mit.
+            // Like `ideas::reindex`: the title is included in the column `words`.
             .bind(if idea.title.is_empty() {
                 idea.words.join(" ")
             } else {
@@ -1933,11 +1930,11 @@ async fn insert_idea(
     Ok(())
 }
 
-/// Zweiter Schritt des Einlesens der Einfälle (Runde 34, Unterversion 9): die Elternknoten der in diesem Lauf
-/// angelegten bzw. wieder zugeordneten Einfälle `fresh` (Kennungen) setzen – erst jetzt, weil der Elternknoten in
-/// der Datei hinter dem Kind stehen kann. Gelöst mit Hinweis (der Einfall bleibt an seinem Bezug bzw. liegt in der
-/// Wolke) wird ein Einfall, dessen Elternknoten es hier im Werk nicht gibt, dessen Elternknoten gelöscht ist, während
-/// er selbst es nicht ist, oder dessen Kette einen Kreis bildet bzw. tiefer als `ideas::MAX_IDEA_DEPTH` ist.
+/// Second step of reading in the ideas (Round 34, minor version 9): set the parent nodes of the ideas `fresh`
+/// (identifiers) created or assigned again in this run – only now, because the parent node can stand behind the child
+/// in the file. Detached with a notice (the idea stays at its reference or lies in the cloud) is an idea whose parent
+/// node does not exist here in the work, whose parent node is deleted while it is not itself, or whose chain forms a
+/// cycle or is deeper than `ideas::MAX_IDEA_DEPTH`.
 async fn link_idea_parents(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -1977,7 +1974,7 @@ async fn link_idea_parents(
             loosen(run, "der Elternknoten ist gelöscht");
             continue;
         }
-        // Kette nach oben: kein Kreis, nicht zu tief.
+        // Chain upwards: no cycle, not too deep.
         let mut depth = 1usize;
         let mut at = Some(parent_id);
         let mut sound = true;
@@ -2006,7 +2003,7 @@ async fn link_idea_parents(
     Ok(())
 }
 
-// ---- Gedankenkarte (Runde 25) --------------------------------------------------------------------
+// ---- Mind map (Round 25) -------------------------------------------------------------------------
 
 fn link_kind_word(kind: ExchangeLinkKind) -> &'static str {
     match kind {
@@ -2017,7 +2014,7 @@ fn link_kind_word(kind: ExchangeLinkKind) -> &'static str {
     }
 }
 
-/// Anzeige wie `baruch_store::LinkKind::label`.
+/// Display like `baruch_store::LinkKind::label`.
 fn link_kind_label(kind: ExchangeLinkKind) -> &'static str {
     match kind {
         ExchangeLinkKind::LeadsTo => "führt weiter",
@@ -2027,7 +2024,7 @@ fn link_kind_label(kind: ExchangeLinkKind) -> &'static str {
     }
 }
 
-/// Anzeige eines Einfalls der Datei über seine Kennung (für Verbindungen und Lagen).
+/// Display of an idea of the file through its identifier (for links and positions).
 fn idea_label_of(doc: &ExchangeDocument, uuid: &str) -> String {
     doc.work.ideas.iter().find(|i| i.uuid == uuid).map_or_else(|| format!("Einfall {uuid}"), idea_label)
 }
@@ -2045,7 +2042,7 @@ fn position_label(doc: &ExchangeDocument, position: &ExchangePosition) -> String
     format!("Lage von {}", idea_label_of(doc, &position.idea))
 }
 
-/// Zahlen-id des Einfalls mit dieser Kennung in diesem Werk.
+/// Numeric id of the idea with this identifier in this work.
 async fn idea_id_here(conn: &mut SqliteConnection, work: WorkId, uuid: &str) -> Result<Option<i64>, StoreError> {
     Ok(sqlx::query_scalar("SELECT id FROM idea WHERE work_id = ? AND uuid = ?")
         .bind(work)
@@ -2054,12 +2051,12 @@ async fn idea_id_here(conn: &mut SqliteConnection, work: WorkId, uuid: &str) -> 
         .await?)
 }
 
-/// Endpunkte so, wie die Tabelle sie verlangt: „widerspricht“ ungerichtet mit from < to (Migration 0043).
+/// Endpoints the way the table demands them: „widerspricht“ undirected with from < to (migration 0043).
 fn link_ends(kind: ExchangeLinkKind, from: i64, to: i64) -> (i64, i64) {
     if kind == ExchangeLinkKind::Contradicts && to < from { (to, from) } else { (from, to) }
 }
 
-/// Verbindung mit der Kennung aus der Datei anlegen (Herkunft, Zeiten, Notiz und „gelöscht“ wie dort).
+/// Create a link with the identifier from the file (origin, times, note and "deleted" as there).
 async fn insert_link(conn: &mut SqliteConnection, from: i64, to: i64, link: &ExchangeLink) -> Result<(), StoreError> {
     let (from, to) = link_ends(link.kind, from, to);
     sqlx::query(
@@ -2099,8 +2096,8 @@ async fn insert_position(
     Ok(())
 }
 
-/// Neu: alle Verbindungen und Lagen der Datei (die Einfälle stehen schon; die Prüfung sichert, dass jede
-/// Verbindung und Lage auf Einfälle des Dokuments zeigt).
+/// New: all links and positions of the file (the ideas are already in place; the check ensures that every link and
+/// position points to ideas of the document).
 async fn new_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     for link in &doc.work.map.links {
@@ -2124,7 +2121,7 @@ async fn new_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -
     Ok(())
 }
 
-/// Abgleichen der Karte (Vertrag §4.6), nach den Einfällen (eben eingelesene Einfälle zählen als bekannt).
+/// Merging the map (contract §4.6), after the ideas (ideas just read in count as known).
 async fn merge_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     for link in &doc.work.map.links {
@@ -2137,7 +2134,7 @@ async fn merge_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId)
         .fetch_optional(&mut *conn)
         .await?;
         if let Some((owner, note, deleted)) = known {
-            // Bekannte Kennung: nie überschreiben, Abweichungen nur als Hinweis.
+            // Known identifier: never overwrite, deviations only as a notice.
             if owner != Some(work) {
                 run.hint(
                     "verbindung",
@@ -2194,7 +2191,7 @@ async fn merge_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId)
                 .fetch_optional(&mut *conn)
                 .await?;
         if let Some((deleted,)) = same {
-            // Dasselbe Paar mit derselben Art unter anderer Kennung: kein Doppel.
+            // The same pair with the same kind under another identifier: no duplicate.
             let here = if deleted.is_some() { "hier gelöscht" } else { "hier vorhanden" };
             run.hint(
                 "verbindung",
@@ -2211,14 +2208,14 @@ async fn merge_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId)
     }
     for position in &doc.work.map.positions {
         if uuid_exists(conn, "idea_map_pos", &position.uuid).await? {
-            continue; // bekannte Lage: lokal gewinnt, nichts zu melden (reine Anzeige)
+            continue; // known position: local wins, nothing to report (pure display)
         }
         if run.tombstoned(&position.uuid) {
             run.deleted_here("lage", &position.uuid, position_label(doc, position));
             continue;
         }
         let Some(idea) = idea_id_here(conn, work, &position.idea).await? else {
-            continue; // Einfall nicht im Werk: keine Lage
+            continue; // idea not in the work: no position
         };
         let local: Option<i64> = sqlx::query_scalar("SELECT id FROM idea_map_pos WHERE work_id = ? AND idea_id = ?")
             .bind(work)
@@ -2226,7 +2223,7 @@ async fn merge_map(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId)
             .fetch_optional(&mut *conn)
             .await?;
         if local.is_some() {
-            continue; // hier schon eine Lage für diesen Einfall: lokal gewinnt
+            continue; // already a position here for this idea: local wins
         }
         insert_position(conn, work, idea, position).await?;
         run.item("lage", &position.uuid, position_label(doc, position));
@@ -2257,14 +2254,14 @@ async fn insert_thread_post(
     .await?)
 }
 
-/// Bildname für ein neues Bild: der aus der Datei, wenn er gültig ist, sonst aus ihm gebildet; vergeben → frei
-/// (`-2`, `-3` … wie beim Import).
+/// Image name for a new image: the one from the file if it is valid, otherwise formed from it; taken → a free one
+/// (`-2`, `-3` … as in the import).
 async fn asset_name(conn: &mut SqliteConnection, work: WorkId, name: &str, mime: &str) -> Result<String, StoreError> {
     let base = if assets::valid_asset_name(name) { name.to_owned() } else { assets::asset_name_from_file(name, mime) };
     assets::free_name(conn, work, &base).await
 }
 
-/// Bildfassung prüfen wie beim Hochladen; Fehler als Text für `refusals`.
+/// Check an image version as at the upload; errors as text for `refusals`.
 fn check_image(asset: &str, revision: &baruch_exchange::ExchangeAssetRevision) -> Result<assets::Content, String> {
     let content = assets::prepare(asset, &revision.data, false)
         .map_err(|e| format!("Bild {asset}, Fassung {}: {e}", revision.number))?;
@@ -2312,9 +2309,9 @@ async fn insert_asset_revision(
     Ok(())
 }
 
-/// Neues Bild mit allen Fassungen wie in der Datei und seinen Pfaden. Besteht eine Fassung die Prüfung nicht,
-/// kommt das ganze Bild nicht (Eintrag in `refusals`, Ergebnis `None`). Ein Pfad, der hier schon einem anderen
-/// Bild gehört oder ungültig ist, wird ein Hinweis.
+/// New image with all versions as in the file and its paths. If a version does not pass the check, the whole image does
+/// not come (entry in `refusals`, result `None`). A path that already belongs to another image here or is invalid
+/// becomes a notice.
 async fn insert_asset(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -2384,7 +2381,7 @@ async fn insert_asset(
         if exact == Some(asset_id) {
             continue;
         }
-        // Dasselbe Bild in anderer Schreibweise (`/bilder/a.png` neben `bilder/a.png`) steht wie beim Hochladen da.
+        // The same image in another spelling (`/bilder/a.png` next to `bilder/a.png`) stands there as at the upload.
         if let Some((owner, other)) = assets::path_owner(conn, work, &path).await?
             && (owner != asset_id || exact.is_some())
         {
@@ -2478,13 +2475,13 @@ async fn insert_book(
     Ok(())
 }
 
-// ---- Umschlag-Anordnung und Satzbild (Runde 27) --------------------------------------------------
+// ---- Cover layout and typeset view (Round 27) ----------------------------------------------------
 
 fn cover_block_label(block: &ExchangeCoverBlock) -> String {
     format!("Umschlag-Block {}", block.kind.as_xml())
 }
 
-/// Werte eines Blocks in der Form der Tabelle `cover_block` (zum Schreiben und Vergleichen).
+/// Values of a block in the form of the table `cover_block` (for writing and comparing).
 #[allow(clippy::type_complexity)]
 fn cover_block_columns(
     block: &ExchangeCoverBlock,
@@ -2512,12 +2509,12 @@ fn cover_block_columns(
     (block.kind.as_db(), align, style, backdrop, direction)
 }
 
-/// Normalform eines Blocks der Datei (Runde 23, Gutachten R27): wie [`crate::check_cover_block`] sie beim Ändern im
-/// Umschlag-Editor herstellt – Farbe klein, Schriftname getrimmt, eigener Text mit `\n` statt `\r\n` und `""` statt
-/// „fehlt“. Vorher übernahm das Einlesen Blöcke ungeprüft; ein Block mit Leerraum um den Schriftnamen ließ sich
-/// danach erst nach Bereinigen ändern. Lehnt die Prüfung den Block ab (z. B. Steuerzeichen im Text), kommt er
-/// unverändert zurück, dazu die Meldung der Prüfung für einen Hinweis im Bericht – das Einlesen bricht nicht ab.
-/// (Die Fehlerart der Prüfung wird nicht unterschieden, nur ihr Text gezeigt.)
+/// Normal form of a block of the file (Round 23, review R27): as [`crate::check_cover_block`] produces it when changing
+/// in the cover editor – colour in lower case, font name trimmed, custom text with `\n` instead of `\r\n` and `""`
+/// instead of "missing". Before, the reading in took blocks over unchecked; a block with whitespace around the font
+/// name could afterwards only be changed after cleaning up. If the check rejects the block (for example control
+/// characters in the text), it comes back unchanged, plus the message of the check for a notice in the report – the
+/// reading in does not abort. (The kind of error of the check is not distinguished, only its text is shown.)
 fn normal_cover_block(block: &ExchangeCoverBlock) -> (ExchangeCoverBlock, Option<String>) {
     use baruch_typst::cover_layout::{Backdrop, CoverAlign, FontStyle, SpineDirection};
     let (kind, align, style, backdrop, direction) = cover_block_columns(block);
@@ -2561,7 +2558,7 @@ fn normal_cover_block(block: &ExchangeCoverBlock) -> (ExchangeCoverBlock, Option
     }
 }
 
-/// Hinweis im Bericht, wenn ein Block nicht in Normalform gebracht werden konnte.
+/// Notice in the report if a block could not be brought into normal form.
 fn cover_block_unchecked(run: &mut Run<'_>, block: &ExchangeCoverBlock, problem: String) {
     run.hint(
         "umschlag-block",
@@ -2577,8 +2574,8 @@ fn cover_block_unchecked(run: &mut Run<'_>, block: &ExchangeCoverBlock, problem:
     );
 }
 
-/// Block mit der Kennung aus der Datei anlegen (`updated` wie dort; die Werte gibt der Aufrufer in Normalform,
-/// siehe [`normal_cover_block`]).
+/// Create a block with the identifier from the file (`updated` as there; the caller passes the values in normal form,
+/// see [`normal_cover_block`]).
 async fn insert_cover_block(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -2629,8 +2626,8 @@ async fn insert_sheet(conn: &mut SqliteConnection, work: WorkId, sheet: &Exchang
     Ok(())
 }
 
-/// Satzbild-Einstellungen der Datei vor dem Schreiben prüfen (wie lokal: `SheetSettings::normalized`); ungültig →
-/// nicht übernommen (unter „Nicht übernommen“), statt das ganze Einlesen abzulehnen.
+/// Check the typeset view settings of the file before writing (as locally: `SheetSettings::normalized`); invalid → not
+/// taken over (under „Nicht übernommen“), instead of rejecting the whole reading in.
 fn checked_sheet(run: &mut Run<'_>, sheet: &ExchangeSheet) -> Option<ExchangeSheet> {
     let settings = crate::SheetSettings {
         font: sheet.font.clone(),
@@ -2659,7 +2656,7 @@ fn checked_sheet(run: &mut Run<'_>, sheet: &ExchangeSheet) -> Option<ExchangeShe
     }
 }
 
-/// Neu: alle Blöcke der Datei mit ihren Kennungen (die Buchangaben stehen schon).
+/// New: all blocks of the file with their identifiers (the book details are already in place).
 async fn new_cover(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let Some(book) = &doc.work.book else { return Ok(()) };
@@ -2693,13 +2690,13 @@ type CoverBlockRow = (
     Option<String>,
 );
 
-/// Abgleichen der Umschlag-Anordnung (Runde 27): siehe Moduldoku.
+/// Merging the cover layout (Round 27): see the module documentation.
 async fn merge_cover(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let Some(book) = &doc.work.book else { return Ok(()) };
     for block in &book.cover_blocks {
-        // Runde 23: Verglichen und geschrieben wird die Normalform – sonst meldete jeder Abgleich einen Block als
-        // abweichend, den das Einlesen selbst in Normalform gespeichert hat.
+        // Round 23: the normal form is compared and written – otherwise every merge would report a block as deviating
+        // that the reading in itself stored in normal form.
         let (block, problem) = normal_cover_block(block);
         let block = &block;
         let label = cover_block_label(block);
@@ -2778,7 +2775,8 @@ async fn merge_cover(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
     Ok(())
 }
 
-/// Abgleichen der Satzbild-Einstellungen: fehlen sie hier ganz, aus der Datei; sonst bei Abweichung ein Hinweis.
+/// Merging the typeset view settings: if they are missing here completely, from the file; otherwise a notice on a
+/// deviation.
 async fn merge_sheet(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let Some(there) = run.doc.work.sheet.clone() else { return Ok(()) };
     let Some(there) = checked_sheet(run, &there) else { return Ok(()) };
@@ -2820,12 +2818,12 @@ async fn merge_sheet(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
     Ok(())
 }
 
-// ---- Satz-Einstellungen (Runde 29, Unterversion 6) ----------------------------------------------
+// ---- Typesetting settings (Round 29, minor version 6) -------------------------------------------
 
 const TYPESET_LABEL: &str = "Satz-Einstellungen";
 
-/// Satz-Einstellungen der Datei vor dem Schreiben prüfen (wie lokal: normalisiert, `TypesetSettings::validate`);
-/// ungültig → nicht übernommen (unter „Nicht übernommen“), statt das ganze Einlesen abzulehnen; leer → nichts.
+/// Check the typesetting settings of the file before writing (as locally: normalised, `TypesetSettings::validate`);
+/// invalid → not taken over (under „Nicht übernommen“), instead of rejecting the whole reading in; empty → nothing.
 fn checked_typeset(run: &mut Run<'_>, there: &ExchangeTypeset) -> Option<baruch_typst::typeset::TypesetSettings> {
     match crate::typeset::checked(&there.settings) {
         Ok(settings) if !settings.is_empty() => Some(settings),
@@ -2837,7 +2835,7 @@ fn checked_typeset(run: &mut Run<'_>, there: &ExchangeTypeset) -> Option<baruch_
     }
 }
 
-/// Zeile `work_typeset` mit der Kennung, dem Zeitpunkt und dem Namen der Datei anlegen.
+/// Create the row `work_typeset` with the identifier, the point in time and the name from the file.
 async fn insert_typeset(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -2855,8 +2853,8 @@ async fn insert_typeset(
     Ok(())
 }
 
-/// Abgleichen der Satz-Einstellungen (siehe Moduldoku): fehlen sie hier, aus der Datei (außer bei Grabstein); sonst
-/// nie überschreiben, bei Abweichung ein Hinweis mit den Feldern und beiden Ständen.
+/// Merging the typesetting settings (see the module documentation): if they are missing here, from the file (except
+/// with a tombstone); otherwise never overwrite, on a deviation a notice with the fields and both states.
 async fn merge_typeset(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let Some(there) = run.doc.work.typeset.clone() else { return Ok(()) };
     match crate::typeset::row(conn, work).await? {
@@ -2899,10 +2897,10 @@ async fn merge_typeset(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wor
     Ok(())
 }
 
-// ---- Register und Glossar (Runde 31, Unterversion 7) --------------------------------------------
+// ---- Index and glossary (Round 31, minor version 7) ---------------------------------------------
 
-/// Begriff der Datei wie lokal aufbereiten und prüfen (`glossary::clean`); außerhalb der Grenzen → `None` mit Eintrag
-/// unter „Nicht übernommen“.
+/// Prepare and check a term of the file as locally (`glossary::clean`); outside the limits → `None` with an entry under
+/// „Nicht übernommen“.
 fn checked_term(run: &mut Run<'_>, term: &ExchangeGlossaryTerm) -> Option<crate::glossary::Clean> {
     let edit = crate::GlossaryEdit {
         term: term.term.clone(),
@@ -2928,10 +2926,10 @@ fn glossary_status(status: ExchangeGlossaryStatus) -> crate::GlossaryStatus {
     }
 }
 
-/// Begriff mit Kennung, Status, Herkunft und Zeiten der Datei anlegen (samt Varianten). Runde 23: `count` ist die
-/// Zahl der Begriffe des Werks vor dem Anlegen (Vorschläge mitgezählt, wie `glossary.add`); mit dem Begriff über
-/// [`crate::MAX_GLOSSARY_TERMS`] → `Exchange` mit deutscher Meldung – die Transaktion des Einlesens rollt zurück,
-/// es bleibt nichts geschrieben. Vorher ließ ein großes Glossar aus einer Datei danach kein Anlegen mehr zu.
+/// Create a term with identifier, status, origin and times of the file (together with variants). Round 23: `count` is
+/// the number of terms of the work before the creation (proposals counted as well, like `glossary.add`); with the term
+/// above [`crate::MAX_GLOSSARY_TERMS`] → `Exchange` with a German message – the transaction of the reading in rolls
+/// back, nothing stays written. Before, a large glossary from a file allowed no creation afterwards.
 async fn insert_term(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -2972,7 +2970,8 @@ async fn insert_register(
     register: &baruch_exchange::ExchangeRegister,
     position: i64,
 ) -> Result<(), StoreError> {
-    // Runde 23: Länge des Titels wie beim Anlegen in der Oberfläche (auch `check_u7` und `check_u7_limits` prüfen sie).
+    // Round 23: length of the title as when creating in the user interface (`check_u7` and `check_u7_limits` check it
+    // as well).
     let title = check_register_title(register)?;
     sqlx::query("INSERT INTO index_register (work_id, uuid, slug, title, position, created) VALUES (?, ?, ?, ?, ?, ?)")
         .bind(work)
@@ -2999,7 +2998,7 @@ fn term_label(term: &ExchangeGlossaryTerm) -> String {
     }
 }
 
-/// Neu: alle eigenen Register und Begriffe der Datei mit ihren Kennungen.
+/// New: all custom indexes and terms of the file with their identifiers.
 async fn new_glossary(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     for (position, register) in doc.work.registers.iter().enumerate() {
@@ -3017,7 +3016,7 @@ async fn new_glossary(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Work
     Ok(())
 }
 
-/// Abgleichen von Registern und Glossar (siehe Moduldoku): ergänzen statt doppeln, nie überschreiben.
+/// Merging indexes and glossary (see the module documentation): complete instead of duplicating, never overwrite.
 async fn merge_glossary(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let mut locals = crate::glossary::register_rows(conn, work).await?;
@@ -3125,7 +3124,7 @@ async fn merge_glossary(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wo
             continue;
         }
         let Some(clean) = checked_term(run, term) else { continue };
-        // Gleicher Schlüssel hier: angenommen blockt alles, ein Vorschlag blockt einen weiteren Vorschlag.
+        // Same key here: an accepted one blocks everything, a proposal blocks a further proposal.
         let same: Option<(String, String)> = sqlx::query_as(
             "SELECT term, status FROM glossary_term WHERE work_id = ? AND term_key = ?              ORDER BY status = 'accepted' DESC LIMIT 1",
         )
@@ -3187,9 +3186,9 @@ async fn insert_sources(conn: &mut SqliteConnection, work: WorkId, doc: &Exchang
     Ok(())
 }
 
-// ---- Neu ---------------------------------------------------------------------------------------
+// ---- New ---------------------------------------------------------------------------------------
 
-/// Punkt der Datei in Baumreihenfolge mit Elternteil (Stelle), Stelle unter dem Elternteil und Ebene.
+/// Item of the file in tree order with parent (position), position below the parent and level.
 struct Flat<'a> {
     node: &'a ExchangeNode,
     parent: Option<usize>,
@@ -3279,7 +3278,7 @@ async fn apply_new(
         run.item("vorlage", &revision.uuid, format!("Werkvorlage, Fassung {}", revision.number));
     }
 
-    // Gliederung in Baumreihenfolge; Nummern wie beim Laden.
+    // Outline in tree order; numbers as when loading.
     let mut flat = Vec::new();
     flatten(&w.outline, None, None, &mut flat);
     let counted: Vec<load::Numbered> = flat
@@ -3299,7 +3298,7 @@ async fn apply_new(
     let mut node_ids: Vec<i64> = Vec::with_capacity(flat.len());
     for (seq, (item, number)) in flat.iter().zip(numbers).enumerate() {
         ensure_free(conn, "node", &item.node.uuid, &format!("Punkt {}", quoted(&item.node.title))).await?;
-        // Vorläufige Nummer nicht leer, sonst hielte der Trigger aus 0006 den Punkt für unnummeriert.
+        // Provisional number not empty, otherwise the trigger from 0006 would take the item for unnumbered.
         let node_id: i64 = sqlx::query_scalar(
             "INSERT INTO node (work_id, seq, parent_seq, position, number, title, kind, numbered, uuid) \
              VALUES (?, ?, ?, ?, '0', ?, ?, ?, ?) RETURNING id",
@@ -3319,7 +3318,7 @@ async fn apply_new(
         insert_node_revisions(conn, run, node_id, item.node).await?;
         node_ids.push(node_id);
     }
-    // Beiträge erst, wenn alle Punkte stehen (Bezüge über die Stelle).
+    // Posts only when all items are in place (references through the position).
     for (item, &node_id) in flat.iter().zip(&node_ids) {
         let mut posts: Vec<&ExchangePost> = item.node.posts.iter().collect();
         posts.sort_by_key(|p| p.position);
@@ -3337,8 +3336,8 @@ async fn apply_new(
     let mut fresh_ideas: Vec<String> = Vec::new();
     for idea in &w.ideas {
         let node_id = idea.node.as_deref().and_then(|n| node_by_uuid.get(n).copied());
-        // Ein gelöschtes Werk lässt seine Einfälle als Einfälle ohne Werk zurück (0011, ON DELETE SET NULL);
-        // spielt man seine Sicherung zurück, bekommt das neue Werk sie wieder.
+        // A deleted work leaves its ideas behind as ideas without a work (0011, ON DELETE SET NULL); if its backup is
+        // played back, the new work gets them again.
         if adopt_orphan_idea(conn, work, node_id, &idea.uuid).await? {
             run.item("einfall", &idea.uuid, format!("{} (Einfall ohne Werk, wieder zugeordnet)", idea_label(idea)));
             fresh_ideas.push(idea.uuid.clone());
@@ -3428,9 +3427,9 @@ async fn insert_thread(
     .await?)
 }
 
-// ---- Abgleichen --------------------------------------------------------------------------------
+// ---- Merging -----------------------------------------------------------------------------------
 
-/// Ein Punkt hier: fester Schlüssel, Elternteil (Schlüssel), Stelle unter dem Elternteil, Ebene, Titel, Nummer an.
+/// An item here: fixed key, parent (key), position below the parent, level, title, number on.
 #[derive(Debug, Clone)]
 struct LocalNode {
     key: i64,
@@ -3441,7 +3440,7 @@ struct LocalNode {
     numbered: bool,
 }
 
-/// Gliederung hier: Kennung → Punkt.
+/// Outline here: identifier → item.
 async fn local_nodes(conn: &mut SqliteConnection, work: WorkId) -> Result<HashMap<String, LocalNode>, StoreError> {
     type Row = (i64, i64, Option<i64>, i64, String, String, i64, Option<String>);
     let rows: Vec<Row> = sqlx::query_as(
@@ -3486,8 +3485,8 @@ async fn local_nodes(conn: &mut SqliteConnection, work: WorkId) -> Result<HashMa
     Ok(out)
 }
 
-/// Eine Fassung hier.
-/// Nummer einer Fassung dieses Punkts mit genau diesem Text (Inhaltsgleichheit, nicht Kennung).
+/// A revision here.
+/// Number of a revision of this item with exactly this text (equality of content, not identifier).
 fn same_text_number(revisions: &HashMap<String, LocalRevision>, node: i64, body: &str) -> Option<u32> {
     revisions.values().filter(|r| r.node == node && r.body == body).map(|r| r.number).min()
 }
@@ -3530,7 +3529,7 @@ async fn last_rev(conn: &mut SqliteConnection, node_id: i64) -> Result<u32, Stor
     u32::try_from(last).map_err(|_| broken(format!("last_rev außerhalb des Bereichs: {last}")))
 }
 
-/// Punkt der Datei in Baumreihenfolge mit Elternteil (Kennung), Geschwistern (Kennungen) und Ebene.
+/// Item of the file in tree order with parent (identifier), siblings (identifiers) and level.
 struct FileNode<'a> {
     node: &'a ExchangeNode,
     parent: Option<&'a str>,
@@ -3559,9 +3558,9 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
     file_nodes(&doc.work.outline, None, None, &mut files);
     let in_file: HashSet<&str> = files.iter().map(|f| f.node.uuid.as_str()).collect();
 
-    // (a) Unbekannte Punkte an ihrer Stelle anlegen, mit genau ihren Fassungen.
+    // (a) Create unknown items at their position, with exactly their revisions.
     let before = local_nodes(conn, work).await?;
-    // Kennung → (Schlüssel, Elternteil, Ebene) für alles, was hier steht (vorhanden oder eben angelegt).
+    // Identifier → (key, parent, level) for everything that stands here (existing or just created).
     let mut placed: HashMap<&str, (i64, Option<i64>, u8)> = HashMap::new();
     let mut created: HashSet<&str> = HashSet::new();
     for file in &files {
@@ -3625,7 +3624,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
             }
             BareInsert::WouldAdopt { adopted, anchor, place } => {
                 let points = [NewPoint { title: node.title.clone(), level: Some(0) }];
-                // Runde 22 (Vertrag §2.10): Kennung und Fassungen reisen im Antrag mit.
+                // Round 22 (contract §2.10): identifier and revisions travel along in the request.
                 let there = format!(
                     "neuer Teil, unter den {} vorhandene Kapitel wandern würden; Antrag mit Kennung und {} Fassung(en)",
                     adopted.len(),
@@ -3682,12 +3681,12 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
         }
     }
 
-    // (c)/(d) Fassungen bekannter Punkte.
+    // (c)/(d) Revisions of known items.
     let mut revisions_here = local_revisions(conn, work).await?;
-    // Querverweise der Datei zeigen auf Schlüssel der fremden Instanz: vor dem Vergleich und beim Anlegen
-    // einer abweichenden Fassung auf die Schlüssel hier umschlüsseln (sonst gälte jede Fassung mit Verweis
-    // als abweichend, und die abgeleitete Fassung behielte die fremden Schlüssel – der Nachlauf `apply_u5`
-    // erreicht sie nicht, weil er über die Kennung der Originalfassung sucht).
+    // Cross-references of the file point to keys of the foreign instance: before the comparison and when creating a
+    // deviating revision, re-key them to the keys here (otherwise every revision with a reference would count as
+    // deviating, and the derived revision would keep the foreign keys – the follow-up pass `apply_u5` does not reach
+    // it, because it searches through the identifier of the original revision).
     let key_map: HashMap<i64, i64> = {
         let ids: HashMap<String, i64> =
             sqlx::query_as::<_, (String, i64)>("SELECT uuid, id FROM node WHERE work_id = ? AND uuid IS NOT NULL")
@@ -3728,7 +3727,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
                 }
                 numbers.insert(revision.uuid.as_str(), here.number);
                 let body_here = baruch_typst::xref::remap_keys(&revision.body, &key_map);
-                // Runde 22: bekannte Fassung, deren Fortschreibungen hier ein Präfix der eingelesenen sind → vorspulen.
+                // Round 22: known revision whose amendments here are a prefix of those read in → fast-forward.
                 if here.body != *body_here
                     && fast_forward(conn, run, key, &local.title, here.number, revision, &body_here, &key_map).await?
                 {
@@ -3829,8 +3828,8 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
                 run.deleted_here("fassung", &revision.uuid, label);
                 continue;
             }
-            // Gleicher Text wie eine Fassung dieses Punkts (etwa die abgeleitete Fassung einer hier an Ort und
-            // Stelle bearbeiteten): nichts anlegen, sonst entstünde beim Hin-und-her-Abgleichen eine Doppelung.
+            // Same text as a revision of this item (such as the derived revision of one edited in place here): create
+            // nothing, otherwise a duplication would arise when merging back and forth.
             let body_here = baruch_typst::xref::remap_keys(&revision.body, &key_map);
             if let Some(number) = same_text_number(&revisions_here, key, &body_here) {
                 numbers.insert(revision.uuid.as_str(), number);
@@ -3870,7 +3869,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
         }
     }
 
-    // (b) Gliederung bekannter Punkte: Anträge, nie direkt.
+    // (b) Outline of known items: requests, never directly.
     let now = local_nodes(conn, work).await?;
     let mut children: HashMap<Option<i64>, Vec<(i64, i64)>> = HashMap::new();
     let mut uuid_of: HashMap<i64, &str> = HashMap::new();
@@ -3889,7 +3888,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
         let Some(local) = now.get(&node.uuid) else { continue };
         let key = local.key;
         let label = format!("Punkt {}", quoted(&local.title));
-        // Titel.
+        // Title.
         if local.title != node.title {
             let bodies: Vec<(i64, String)> =
                 sqlx::query_as("SELECT number, body FROM revision WHERE node_id = ? ORDER BY number")
@@ -3929,7 +3928,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
                 }
             }
         }
-        // Ebene.
+        // Level.
         if local.level != file.level {
             if (1..=3).contains(&local.level) && (1..=3).contains(&file.level) {
                 let op = crate::OutlineOp::SetLevel { key, level: file.level };
@@ -3956,7 +3955,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
                 );
             }
         }
-        // Nummer an/aus.
+        // Number on/off.
         if local.numbered != node.numbered {
             let op = crate::OutlineOp::SetNumbered { key, numbered: node.numbered };
             let word = |n: bool| if n { "mit Nummer" } else { "ohne Nummer" };
@@ -3973,7 +3972,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
             )
             .await?;
         }
-        // Ort: Elternteil und Nachbarn unter den Punkten, die beide Seiten kennen.
+        // Place: parent and neighbours among the items that both sides know.
         let intended = match file.parent {
             None => Some(None),
             Some(parent) => now.get(parent).map(|p| Some(p.key)),
@@ -4051,10 +4050,10 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
     merge_details(conn, run, work).await?;
     merge_glossary(conn, run, work).await?;
 
-    // Grabsteine der Datei: Was dort gelöscht ist und hier lebt, bleibt (nur ein Hinweis).
+    // Tombstones of the file: what is deleted there and lives here stays (only a notice).
     for tombstone in &doc.work.deleted {
         if matches!(tombstone.kind, ExchangeTombstoneKind::Node | ExchangeTombstoneKind::Work) {
-            continue; // Punkte oben, das Werk ist dieses
+            continue; // items above, the work is this one
         }
         if uuid_exists(conn, tombstone_table(tombstone.kind), &tombstone.uuid).await? {
             run.hint(
@@ -4070,7 +4069,7 @@ async fn apply_merge(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
     Ok(())
 }
 
-/// Antrag stellen; geht der Probelauf nicht oder gibt es ihn schon offen, nur die Abweichung als Hinweis.
+/// File a request; if the trial run does not work or it already exists as open, only the deviation as a notice.
 #[allow(clippy::too_many_arguments)]
 async fn request(
     conn: &mut SqliteConnection,
@@ -4107,7 +4106,7 @@ async fn request(
     }
 }
 
-/// (e) Vorlagenfassungen mit unbekannter Kennung anhängen; `work.template` bleibt.
+/// (e) Append template revisions with an unknown identifier; `work.template` stays.
 async fn merge_template(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let rows: Vec<(Option<String>, i64, String)> =
@@ -4184,7 +4183,7 @@ async fn merge_template(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wo
     Ok(())
 }
 
-/// (f) Beiträge (samt Bezügen) mit unbekannter Kennung an die Punkte hängen, die es hier gibt.
+/// (f) Attach posts (together with references) with an unknown identifier to the items that exist here.
 async fn merge_posts(
     conn: &mut SqliteConnection,
     run: &mut Run<'_>,
@@ -4269,7 +4268,7 @@ async fn merge_posts(
     Ok(())
 }
 
-/// (f) Einfälle mit unbekannter Kennung; bekannte mit anderem Inhalt nur als Hinweis.
+/// (f) Ideas with an unknown identifier; known ones with other content only as a notice.
 async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     type Row = (i64, Option<String>, String, String, String, String, String, Option<String>, String);
@@ -4320,7 +4319,7 @@ async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
             if words != idea.words {
                 differs.push("Schlagwörter");
             }
-            // Runde 34: der Titel zählt zum Inhalt; Elternknoten und Reihenfolge sind Anordnung und bleiben hier.
+            // Round 34: the title counts as content; parent node and order are arrangement and stay here.
             if row.8 != idea.title {
                 differs.push("Titel");
             }
@@ -4374,7 +4373,7 @@ async fn merge_ideas(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkI
     Ok(())
 }
 
-/// (f) Fäden und Fadenbeiträge mit unbekannter Kennung.
+/// (f) Threads and thread posts with an unknown identifier.
 async fn merge_threads(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     for thread in &doc.work.threads {
@@ -4473,8 +4472,8 @@ async fn merge_threads(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wor
     Ok(())
 }
 
-/// (f) Bilder und Bildfassungen mit unbekannter Kennung (Prüfung wie beim Hochladen, freier Name); eingelesene
-/// Fassungen eines bekannten Bilds werden nie aktuell.
+/// (f) Images and image versions with an unknown identifier (check as at the upload, free name); versions read in of a
+/// known image never become current.
 async fn merge_assets(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     for asset in &doc.work.assets {
@@ -4599,8 +4598,8 @@ async fn merge_assets(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Work
     Ok(())
 }
 
-/// (g) Werkangaben, Buchangaben, Sprechdauer, Bibelmodul und Quellen: fehlt die Zeile ganz, wird sie angelegt;
-/// sonst bei Abweichung nur ein Hinweis.
+/// (g) Work details, book details, speaking time, Bible module and sources: if the row is missing completely, it is
+/// created; otherwise only a notice on a deviation.
 async fn merge_details(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let w = &doc.work;
@@ -4865,24 +4864,24 @@ mod tests {
     #[test]
     fn derived_uuids_are_stable_v8_and_depend_on_text() {
         let a = derive_uuid("26000000-0000-4000-8000-00000000006f", "Text A");
-        // Gleiche Eingabe → gleiche Kennung: so legt ein zweites Einlesen nichts doppelt an.
+        // Same input → same identifier: that way a second reading in creates nothing twice.
         assert_eq!(a, derive_uuid("26000000-0000-4000-8000-00000000006f", "Text A"), "stabil");
         assert_ne!(a, derive_uuid("26000000-0000-4000-8000-00000000006f", "Text B"), "anderer Text → andere Kennung");
         assert!(baruch_exchange::is_uuid(&a), "kanonisch: {a}");
-        // Version 8 an Stelle 14, Variante 10 an Stelle 19 (Vertrag F3).
+        // Version 8 at position 14, variant 10 at position 19 (contract F3).
         assert_eq!(&a[14..15], "8", "Version 8: {a}");
         assert!(matches!(&a[19..20], "8" | "9" | "a" | "b"), "Variante 10: {a}");
     }
 
     #[test]
     fn the_derivation_follows_the_documented_formula() {
-        // Formel aus docs/Austauschformat.md §4 von Hand nachgerechnet.
+        // Formula from docs/Austauschformat.md §4 recomputed by hand.
         let original = "26000000-0000-4000-8000-00000000006f";
         let text = "Ein Text";
         let input = format!("baruch-fassung:{original}:{}", baruch_exchange::sha256_hex(text.as_bytes()));
         let digest = baruch_exchange::sha256_hex(input.as_bytes());
         let derived = derive_uuid(original, text).replace('-', "");
-        // Alle Stellen außer Version (Stelle 12) und Variante (Stelle 16) stammen unverändert aus dem Hash.
+        // All positions except version (position 12) and variant (position 16) come unchanged from the hash.
         assert_eq!(&derived[..12], &digest[..12], "erste 6 Bytes");
         assert_eq!(&derived[13..16], &digest[13..16], "Rest von Byte 6/7");
         assert_eq!(&derived[17..32], &digest[17..32], "Bytes 8 (Rest) bis 15");

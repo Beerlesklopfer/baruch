@@ -1,57 +1,50 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsmanager (Vertrag Runde 4, Abschnitte 2 und 3c): Verschieben, Ebene ändern, Umbenennen,
-//! Anlegen, Löschen, Nummerierung und Überschriften im Text (Teilen, Zusammenführen).
+//! Outline manager (contract Round 4, sections 2 and 3c): moving, changing the level, renaming, creating, deleting,
+//! numbering and headings in the text (splitting, merging).
 //!
-//! Regeln:
-//! - Die Gliederung ist die **Ebenenfolge in Baumreihenfolge**: Teil 0 (nur oberste Ebene, seit
-//!   Runde 14 mit der Teil-Markierung [`baruch_typst::part_line`] als Überschriftszeile; Altbestand
-//!   ohne Markierung bleibt, wie er ist), Kapitel 1 (`= `), Abschnitt 2 (`== `), Unterabschnitt 3
-//!   (`=== `; je auch als Markierung „ohne Nummer“ [`baruch_typst::unnumbered_line`]). Elternteil
-//!   ist wie beim Import der nächste Vorgänger mit kleinerer Ebene. Gültig ist eine Folge, in der jede
-//!   Ebene höchstens eine tiefer steht als die vorige (der erste Nicht-Teil also ein Kapitel) und
-//!   keine tiefer als 3. Ungültig → [`StoreError::Refused`], nichts geändert.
-//! - Jede Änderung vergibt `seq`, `parent_seq` und `position` in Baumreihenfolge neu (zweistufig über
-//!   negative Werte wegen `UNIQUE(work_id, seq)`), schreibt `node.number` und `post_ref.node_seq` mit
-//!   (Verweise auf gelöschte Knoten entfallen).
-//! - Ändern sich Ebene oder Titel eines Knotens mit Text, bekommt er eine neue Fassung des Menschen
-//!   (aktuell, Elternteil = die bisherige aktuelle), die sich nur in der Überschriftszeile
-//!   unterscheidet. Sonst ändert sich kein Text.
-//! - Ganze Knoten löschen: in derselben Transaktion erst die aktuelle Fassung `current → superseded`
-//!   (erlaubt laut Migration 0004), dann Revisionen, Verweise, Beiträge und den Knoten. So bleibt der
-//!   Trigger `revision_no_delete_current` für lebende Abschnitte wirksam.
-//! - Teile (Runde 14): Ein neuer Teil steht vor oder hinter einem Teil oder Kapitel, auch in Werken
-//!   mit Werkvorlage; Revision 1 ist `heading_line(0, Titel, None) + "\n"` (Teil-Markierung und
-//!   Leerzeile). Die folgenden Kapitel bis zum nächsten Teil stehen dann unter ihm (`adopted`), ihre
-//!   Texte und Nummern bleiben (Kapitel zählen über Teile hinweg). Umbenennen schreibt die
-//!   Markierungszeile neu (leerer Text → Markierung); ein Teiltext ohne Markierung (Altbestand
-//!   „= Teil …“) bleibt unverändert, nur der Titel ändert sich. Speichern, Vorschläge und Umschalten
-//!   gleichen Teile **mit** Markierung ab (genau eine Markierung am Anfang, keine weitere
-//!   Überschrift; ein anderer Titel benennt um); Teiltexte ohne Markierung wie bisher ohne Abgleich.
-//!   Zum Teil umstufen oder einen Teil umstufen geht nie.
-//! - Anlegen dürfen auch Assistenten und MCP-Clients ([`Store::outline_add_many`], Wunsch 2026-11-06:
-//!   Revision 1 trägt dann ihren Namen). Umbenennen, Verschieben, Umstufen und Löschen nimmt nur der
-//!   Mensch; Assistenten stellen dafür einen Antrag (Modul `requests`, Migration 0012), den der Mensch
-//!   bestätigt – erst dann laufen die Funktionen hier, unter dem Namen des Menschen. Ausnahme
-//!   (Nutzerfrage 12, 2026-11-07): Ein Teil, den ein Assistent anlegt und der vorhandene Kapitel
-//!   übernähme, wird ebenfalls ein Antrag (`Store::outline_add_by_assistant`).
-//! - Gliederung und Überschriftszeilen sind gleich: Wird die aktuelle Fassung außerhalb des Editors
-//!   gespeichert (`revision.save`, Fassung ändern) oder ein Vorschlag angelegt, muss der Text genau
-//!   eine Überschrift der Ebene des Punkts tragen ([`check_current_heading`],
-//!   [`check_proposal_heading`]); nur ein anderer Titel derselben Ebene benennt den Punkt um.
-//! - Umschalten und Übernehmen (Vertrag Runde 5, [`follow_switched`]): Die Fassung bringt ihre Ebene
-//!   mit. Die Gliederung folgt Ebene und Titel ihrer Überschriftszeile, Unterpunkte werden mitgestuft;
-//!   die Fassung selbst wird nie umgeschrieben.
-//! - Verschieben behält die Ebene: vor/hinter nur einen Punkt derselben Ebene, unter nur einen Punkt
-//!   genau eine Ebene höher ([`MOVE_KEEPS_LEVEL`]).
-//! - Titelregeln (Vertrag Runde 7, [`check_title`]): leer, nur Leerraum, ein Zeilenumbruch oder mehr
-//!   als [`MAX_TITLE_CHARS`] Zeichen → [`StoreError::Title`], nichts geändert; beim Umbenennen,
-//!   Anlegen, Speichern im Editor (jeder Titel, auch geteilte), Prüfen (`valid: false`), Speichern und
-//!   Ändern der aktuellen Fassung, in Vorschlägen und beim Umschalten. Titel stammen nur aus echten
-//!   Überschriftszeilen ([`baruch_typst::parse`]). Import und Export prüfen nicht (byte-gleich), und
-//!   vorhandene leere Titel bleiben, bis der Mensch umbenennt. Seit Runde 8 prüfen Speichern, Prüfen,
-//!   Ändern der aktuellen Fassung, Vorschläge und Umschalten nur **geänderte** Titel: Eine unveränderte
-//!   erste Überschrift (z. B. ein importierter leerer oder überlanger Titel) hält das Speichern des
-//!   Texts nicht auf; neue (geteilte) und abweichende Titel werden weiter geprüft.
+//! Rules:
+//! - The outline is the **sequence of levels in tree order**: part 0 (top level only, since Round 14 with the part
+//!   marker [`baruch_typst::part_line`] as its heading line; legacy data without the marker stays as it is), chapter 1
+//!   (`= `), section 2 (`== `), subsection 3 (`=== `; each also as the marker "without number"
+//!   [`baruch_typst::unnumbered_line`]). As in the import, the parent is the nearest predecessor with a smaller level.
+//!   Valid is a sequence in which every level is at most one deeper than the previous one (so the first non-part is a
+//!   chapter) and none deeper than 3. Invalid → [`StoreError::Refused`], nothing changed.
+//! - Every change assigns `seq`, `parent_seq` and `position` anew in tree order (in two stages through negative values
+//!   because of `UNIQUE(work_id, seq)`), and writes `node.number` and `post_ref.node_seq` along (references to deleted
+//!   nodes are dropped).
+//! - If level or title of a node with text changes, it gets a new revision by the human (current, parent = the previous
+//!   current one) that differs only in the heading line. Otherwise no text changes.
+//! - Deleting whole nodes: in the same transaction first the current revision `current → superseded` (allowed according
+//!   to migration 0004), then revisions, references, posts and the node. That way the trigger
+//!   `revision_no_delete_current` stays effective for living sections.
+//! - Parts (Round 14): a new part stands before or behind a part or chapter, also in works with a work template;
+//!   revision 1 is `heading_line(0, title, None) + "\n"` (part marker and empty line). The following chapters up to the
+//!   next part then stand below it (`adopted`), their texts and numbers stay (chapters count across parts). Renaming
+//!   rewrites the marker line (empty text → marker); a part text without the marker (legacy data „= Teil …“) stays
+//!   unchanged, only the title changes. Saving, proposals and switching align parts **with** the marker (exactly one
+//!   marker at the beginning, no further heading; another title renames); part texts without the marker as before
+//!   without aligning. Changing something into a part or changing the level of a part never works.
+//! - Assistants and MCP clients may create as well ([`Store::outline_add_many`], wish 2026-11-06: revision 1 then
+//!   carries their name). Renaming, moving, changing the level and deleting is done only by the human; assistants file
+//!   a request for that (module `requests`, migration 0012), which the human confirms – only then do the functions here
+//!   run, under the name of the human. Exception (user question 12, 2026-11-07): a part that an assistant creates and
+//!   that would adopt existing chapters becomes a request as well (`Store::outline_add_by_assistant`).
+//! - Outline and heading lines are the same: if the current revision is saved outside the editor (`revision.save`,
+//!   changing a revision) or a proposal is created, the text must carry exactly one heading of the level of the item
+//!   ([`check_current_heading`], [`check_proposal_heading`]); only another title of the same level renames the item.
+//! - Switching and accepting (contract Round 5, [`follow_switched`]): the revision brings its level. The outline
+//!   follows level and title of its heading line, sub-items are moved along in level; the revision itself is never
+//!   rewritten.
+//! - Moving keeps the level: before/behind only an item of the same level, below only an item exactly one level higher
+//!   ([`MOVE_KEEPS_LEVEL`]).
+//! - Title rules (contract Round 7, [`check_title`]): empty, whitespace only, a line break or more than
+//!   [`MAX_TITLE_CHARS`] characters → [`StoreError::Title`], nothing changed; when renaming, creating, saving in the
+//!   editor (every title, also split ones), checking (`valid: false`), saving and changing the current revision, in
+//!   proposals and when switching. Titles come only from real heading lines ([`baruch_typst::parse`]). Import and
+//!   export do not check (byte-identical), and existing empty titles stay until the human renames. Since Round 8
+//!   saving, checking, changing the current revision, proposals and switching check only **changed** titles: an
+//!   unchanged first heading (for example an imported empty or overlong title) does not hold up the saving of the text;
+//!   new (split) and deviating titles are still checked.
 
 use std::collections::HashMap;
 
@@ -64,15 +57,15 @@ use serde::Serialize;
 use crate::load::{self, Numbered};
 use crate::{Change, Idea, IdeaId, IdeaUse, Store, StoreError, WorkId, broken, to_usize, words, write};
 
-/// Wohin ein Gliederungspunkt relativ zum Ziel kommt.
+/// Where an outline item goes relative to the target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Place {
-    /// Vor das Ziel, auf dessen Ebene.
+    /// Before the target, on its level.
     Before,
-    /// Hinter das Ziel samt Unterpunkten, auf dessen Ebene.
+    /// Behind the target together with its sub-items, on its level.
     After,
-    /// Als letzter Unterpunkt unter das Ziel (Ebene des Ziels + 1).
+    /// As the last sub-item below the target (level of the target + 1).
     Into,
 }
 
@@ -87,12 +80,12 @@ pub enum OutlineAction {
     Split,
     Merged,
     Numbering,
-    /// Ein Punkt zählt mit bzw. ohne Nummer (`node.numbered`, z. B. Vorwort, Wunsch 2026-11-06).
+    /// An item counts with or without a number (`node.numbered`, for example a preface, wish 2026-11-06).
     Numbered,
 }
 
 impl OutlineAction {
-    /// Wert des Trailers `Baruch-Action` im Git-Spiegel.
+    /// Value of the trailer `Baruch-Action` in the Git mirror.
     pub fn trailer(self) -> &'static str {
         match self {
             OutlineAction::Moved => "outline-move",
@@ -108,83 +101,80 @@ impl OutlineAction {
     }
 }
 
-/// Ergebnis einer Gliederungsänderung (für Antwort und Spiegel).
+/// Result of an outline change (for answer and mirror).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct OutlineChange {
     pub work: WorkId,
     pub action: OutlineAction,
-    /// seq des Knotens danach; bei `Deleted`/`Merged` der jetzt gezeigte (der vorige).
+    /// seq of the node afterwards; for `Deleted`/`Merged` the one shown now (the previous one).
     pub node: usize,
-    /// Titel des Knotens (bei `Deleted`/`Merged` des entfernten).
+    /// Title of the node (for `Deleted`/`Merged` of the removed one).
     pub title: String,
-    /// Für den Betreff, z. B. `„Sommer“ vor „Frühling“ verschoben`.
+    /// For the subject, for example `„Sommer“ vor „Frühling“ verschoben`.
     pub detail: String,
-    /// Neue Fassungen `(seq, Nummer)`.
+    /// New revisions `(seq, number)`.
     pub revisions: Vec<(usize, u32)>,
-    /// Umnummerierte Knoten `[alt, neu]`.
+    /// Renumbered nodes `[old, new]`.
     pub renumbered: Vec<(usize, usize)>,
-    /// Entfernte Knoten: Titel und Text der gelöschten aktuellen Fassung.
+    /// Removed nodes: title and text of the deleted current revision.
     pub removed: Vec<(String, String)>,
 }
 
-/// Was [`Store::outline_save`] an der Gliederung ändern darf.
+/// What [`Store::outline_save`] may change about the outline.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Restructure {
-    /// Weitere Überschriften im Text teilen den Abschnitt.
+    /// Further headings in the text split the section.
     pub split: bool,
-    /// Ohne Überschrift wird der Text an den vorigen Gliederungspunkt angehängt.
+    /// Without a heading the text is appended to the previous outline item.
     pub merge: bool,
 }
 
-/// Ergebnis von [`Store::outline_check`] (nur lesen).
+/// Result of [`Store::outline_check`] (read only).
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct HeadingCheck {
-    /// Titel und Ebene der ersten Überschrift im Text.
+    /// Title and level of the first heading in the text.
     pub title: Option<String>,
     pub level: Option<u8>,
-    /// Titel weiterer Überschriften: Speichern teilt den Abschnitt (mit Bestätigung).
+    /// Titles of further headings: saving splits the section (with confirmation).
     pub split: Vec<String>,
-    /// Keine Überschrift: Speichern führt mit dem vorigen Gliederungspunkt zusammen (mit Bestätigung).
+    /// No heading: saving merges with the previous outline item (with confirmation).
     pub merge: bool,
-    /// Ergäbe das Speichern eine gültige Gliederung?
+    /// Would saving yield a valid outline?
     pub valid: bool,
     pub message: Option<String>,
 }
 
-/// Ergebnis von [`Store::outline_save`]: die gespeicherte Fassung und, falls sich die Gliederung
-/// geändert hat, deren Änderung.
+/// Result of [`Store::outline_save`]: the saved revision and, if the outline has changed, its change.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct OutlineSave {
     pub change: Option<Change>,
     pub outline: Option<OutlineChange>,
-    /// Runde 22: Grund der neuen Fassung, nur bei Modus Auto und neuer Fassung.
+    /// Round 22: reason for the new revision, only in the mode Auto and with a new revision.
     pub new_reason: Option<crate::NewReason>,
 }
 
-/// Nummerierung eines Werks (für Anzeige und Formular).
+/// Numbering of a work (for display and form).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct NumberingInfo {
-    /// Eingestellte Nummerierung in der Mustersprache: `None` = aus der Werkvorlage (oder ein Schema
-    /// mit Wörtern ohne Muster, siehe `scheme`), `""` = keine Nummern, sonst das Muster.
+    /// Configured numbering in the pattern language: `None` = from the work template (or a scheme with words without a
+    /// pattern, see `scheme`), `""` = no numbers, otherwise the pattern.
     pub numbering: Option<String>,
-    /// Muster aus `#set heading(numbering: …)` der Werkvorlage, falls vorhanden.
+    /// Pattern from `#set heading(numbering: …)` of the work template, if present.
     pub template: Option<String>,
-    /// Anzeigetext: gültiges Muster (Vorgabe „1.1“), `""` = keine Nummern, bei Schemata mit Wörtern
-    /// deren Beispiel.
+    /// Display text: valid pattern (default "1.1"), `""` = no numbers, for schemes with words their example.
     pub effective: String,
-    /// Gliederungsschema (id, Migration 0008) und sein Name.
+    /// Outline scheme (id, migration 0008) and its name.
     pub scheme: String,
     pub scheme_label: String,
-    /// Gespeichertes eigenes Muster (`work.numbering`), auch wenn gerade ein anderes Schema gilt.
+    /// Stored custom pattern (`work.numbering`), even if another scheme applies right now.
     pub custom: Option<String>,
-    /// Anzeigename für den Gliederungskopf (Runde 7): Name des Schemas, dessen Muster dem wirksamen
-    /// entspricht ([`Scheme::matching`], auch bei „Aus der Werkvorlage“ und „Eigenes Muster“, z. B.
-    /// „I|1“ → „Nur Kapitel römisch“), sonst das Muster selbst, ohne Nummern „keine“, bei Schemata
-    /// mit Wörtern deren Name.
+    /// Display name for the outline header (Round 7): name of the scheme whose pattern corresponds to the effective one
+    /// ([`Scheme::matching`], also with „Aus der Werkvorlage“ and „Eigenes Muster“, for example "I|1" → „Nur Kapitel
+    /// römisch“), otherwise the pattern itself, without numbers „keine“, for schemes with words their name.
     pub label: String,
 }
 
-/// Eine Zeile der Vorschau ([`Store::numbering_preview`]): Stelle, fester Schlüssel, Ebene, Nummer, Titel.
+/// A row of the preview ([`Store::numbering_preview`]): position, fixed key, level, number, title.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct NumberPreview {
     pub node: usize,
@@ -194,26 +184,26 @@ pub struct NumberPreview {
     pub title: String,
 }
 
-/// Ein Gliederungspunkt in Baumreihenfolge, wie er nach der Änderung sein soll.
+/// An outline item in tree order as it is to be after the change.
 #[derive(Debug, Clone)]
 struct Item {
-    /// Datenbank-id; `None` = neu anzulegen.
+    /// Database id; `None` = to be created.
     id: Option<i64>,
-    /// Stand vorher `(seq, Ebene, Titel)`; `None` = neu.
+    /// State before `(seq, level, title)`; `None` = new.
     orig: Option<(usize, u8, String)>,
     level: u8,
     title: String,
     numbered: bool,
-    /// Text der Revision 1 eines neuen Knotens.
+    /// Text of revision 1 of a new node.
     body: Option<String>,
-    /// Text schon geschrieben (Speichern im Editor): Überschriftszeile nicht neu setzen.
+    /// Text already written (saving in the editor): do not set the heading line anew.
     text_done: bool,
 }
 
 struct Outline {
     template: String,
     numbering: Option<String>,
-    /// Gliederungsschema (`work.numbering_scheme`, Migration 0008).
+    /// Outline scheme (`work.numbering_scheme`, migration 0008).
     scheme: String,
     items: Vec<Item>,
 }
@@ -234,7 +224,7 @@ fn kind_of(level: u8) -> NodeKind {
 
 type OutlineRow = (i64, i64, Option<i64>, i64, String, String, i64);
 
-/// Gliederung des Werks in Baumreihenfolge (Tiefensuche, Geschwister nach position), mit Ebenen.
+/// Outline of the work in tree order (depth-first search, siblings by position), with levels.
 async fn load_outline(conn: &mut SqliteConnection, work: WorkId) -> Result<Outline, StoreError> {
     let head: Option<(String, Option<String>, String)> =
         sqlx::query_as("SELECT template, numbering, numbering_scheme FROM work WHERE id = ?")
@@ -275,14 +265,14 @@ async fn load_outline(conn: &mut SqliteConnection, work: WorkId) -> Result<Outli
     };
     while let Some((index, parent_level)) = stack.pop() {
         if std::mem::replace(&mut seen[index], true) {
-            continue; // Schleife in parent_seq
+            continue; // loop in parent_seq
         }
         let level = push(index, parent_level, &mut items)?;
         if let Some(list) = children.get(&Some(rows[index].1)) {
             stack.extend(list.iter().rev().map(|&(_, _, i)| (i, Some(level))));
         }
     }
-    // Knoten, deren Elternteil fehlt, gehen nicht verloren: hinten, nach seq.
+    // Nodes whose parent is missing are not lost: at the end, by seq.
     for (index, seen) in seen.iter_mut().enumerate() {
         if !*seen {
             *seen = true;
@@ -292,8 +282,8 @@ async fn load_outline(conn: &mut SqliteConnection, work: WorkId) -> Result<Outli
     Ok(Outline { template, numbering, scheme, items })
 }
 
-/// Ist die Ebenenfolge gültig? Teile (0) stehen auf oberster Ebene, jede Ebene höchstens eine tiefer
-/// als die vorige, keine tiefer als 3.
+/// Is the sequence of levels valid? Parts (0) stand on the top level, every level at most one deeper than the previous
+/// one, none deeper than 3.
 fn check_levels(items: &[Item]) -> Result<(), &'static str> {
     let mut previous = 0u8;
     let mut first = true;
@@ -316,7 +306,7 @@ fn check_levels(items: &[Item]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Ende (ausschließlich) des Teilbaums ab Stelle `index`: alle folgenden Punkte mit größerer Ebene.
+/// End (exclusive) of the subtree from position `index`: all following items with a larger level.
 fn subtree_end(items: &[Item], index: usize) -> usize {
     let level = items[index].level;
     let mut end = index + 1;
@@ -333,19 +323,18 @@ fn find(items: &[Item], work: WorkId, node: usize) -> Result<usize, StoreError> 
         .ok_or(StoreError::UnknownNode { work, node })
 }
 
-/// Längster Titel eines Gliederungspunkts in Zeichen (Runde 7): Länger ist kein Titel mehr, sondern
-/// ein Absatz, der versehentlich in die Überschriftszeile geraten ist.
+/// Longest title of an outline item in characters (Round 7): anything longer is no longer a title but a paragraph that
+/// got into the heading line by mistake.
 pub const MAX_TITLE_CHARS: usize = 200;
 
-/// Titelregeln eines Gliederungspunkts (Vertrag Runde 7, 4b), überall dieselben: Umbenennen und
-/// Anlegen im Baum, Überschriftszeilen beim Speichern im Editor (auch jeder geteilte Titel), beim
-/// Speichern und Ändern der aktuellen Fassung, in Vorschlägen und beim Umschalten.
+/// Title rules of an outline item (contract Round 7, 4b), the same everywhere: renaming and creating in the tree,
+/// heading lines when saving in the editor (also every split title), when saving and changing the current revision, in
+/// proposals and when switching.
 ///
-/// Leerraum am Rand ([`char::is_whitespace`]) entfällt; leer → [`StoreError::Title`] „Ein
-/// Gliederungspunkt braucht einen Titel.“; ein Zeilenende im Sinn von Typst
-/// ([`baruch_typst::is_newline`]) → „Der Titel darf keinen Zeilenumbruch enthalten.“ (es wird nicht
-/// mehr in ein Leerzeichen verwandelt); mehr als [`MAX_TITLE_CHARS`] Zeichen → „Der Titel ist zu
-/// lang (höchstens 200 Zeichen, hier N).“ Sonst der getrimmte Titel.
+/// Whitespace at the edges ([`char::is_whitespace`]) is dropped; empty → [`StoreError::Title`] „Ein Gliederungspunkt
+/// braucht einen Titel.“; a line ending in the sense of Typst ([`baruch_typst::is_newline`]) → „Der Titel darf keinen
+/// Zeilenumbruch enthalten.“ (it is no longer turned into a space); more than [`MAX_TITLE_CHARS`] characters → „Der
+/// Titel ist zu lang (höchstens 200 Zeichen, hier N).“ Otherwise the trimmed title.
 pub fn check_title(title: &str) -> Result<String, StoreError> {
     let title = title.trim_matches(char::is_whitespace);
     if title.is_empty() {
@@ -363,11 +352,10 @@ pub fn check_title(title: &str) -> Result<String, StoreError> {
     Ok(title.to_owned())
 }
 
-/// Die **geänderten** Titel der Überschriften eines Texts nach [`check_title`] (Runde 8): die erste
-/// Überschrift nur, wenn ihr Titel von `old_title` (dem jetzigen Titel des Gliederungspunkts)
-/// abweicht, jede weitere (sie würde teilen, ist also neu) immer. So lässt sich ein Abschnitt mit
-/// einem alten leeren oder überlangen Titel (Import prüft nicht) weiter speichern; ein neuer oder
-/// geänderter ungültiger Titel wird wie bisher abgelehnt.
+/// The **changed** titles of the headings of a text after [`check_title`] (Round 8): the first heading only if its
+/// title deviates from `old_title` (the present title of the outline item), every further one (it would split, so it is
+/// new) always. That way a section with an old empty or overlong title (the import does not check) can still be saved;
+/// a new or changed invalid title is rejected as before.
 fn check_chunk_titles(chunks: &[(u8, String, String)], old_title: &str) -> Result<(), StoreError> {
     for (i, (_, title, _)) in chunks.iter().enumerate() {
         if i == 0 && title == old_title {
@@ -378,11 +366,11 @@ fn check_chunk_titles(chunks: &[(u8, String, String)], old_title: &str) -> Resul
     Ok(())
 }
 
-/// Erste Überschrift eines Texts, wenn davor nichts als Leerraum steht.
+/// First heading of a text if nothing but whitespace stands before it.
 struct FirstHeading<'a> {
-    /// Anfang der Überschriftszeile im Text.
+    /// Start of the heading line in the text.
     start: usize,
-    /// Die Zeile selbst (mit Zeilenende, falls vorhanden).
+    /// The line itself (with line ending, if present).
     line: &'a str,
     level: u8,
     title: String,
@@ -399,15 +387,15 @@ fn first_heading(body: &str) -> Option<FirstHeading<'_>> {
     Some(FirstHeading { start, line, level: heading.level, title: heading.title })
 }
 
-/// Titel der ersten Überschrift eines Texts (davor nur Leerraum), wie ihn Umschalten übernähme (Austausch,
-/// Runde 26: „trägt eine Fassung den Titel aus der Datei schon?“).
+/// Title of the first heading of a text (only whitespace before it) as switching would take it over (exchange, Round
+/// 26: "does a revision already carry the title from the file?").
 pub(crate) fn heading_title(body: &str) -> Option<String> {
     first_heading(body).map(|found| found.title)
 }
 
-/// Text mit neuer Überschriftszeile (nur diese Zeile ändert sich). Bleibt der Titel, bleibt die Zeile
-/// bis auf die Ebene wörtlich (Maskierungen, Label, Kommentar; [`baruch_typst::relevel_line`], auch
-/// für die Markierung „ohne Nummer“, Runde 14). Ohne Überschrift am Anfang kommt eine neue Zeile davor.
+/// Text with a new heading line (only this line changes). If the title stays, the line stays verbatim apart from the
+/// level (escapes, label, comment; [`baruch_typst::relevel_line`], also for the marker "without number", Round 14).
+/// Without a heading at the beginning a new line goes before it.
 fn rewrite_heading(body: &str, level: u8, title: &str, title_changed: bool) -> String {
     match first_heading(body) {
         Some(found) => {
@@ -422,9 +410,9 @@ fn rewrite_heading(body: &str, level: u8, title: &str, title_changed: bool) -> S
     }
 }
 
-/// Text eines Teils mit neuem Titel (Runde 14): Steht am Anfang die Teil-Markierung, ändert sich nur
-/// ihre Zeile (Kommentar bleibt); ein leerer Text (nur Leerraum) bekommt die Markierung. Sonst – der
-/// Text trägt keine Markierung (Altbestand wie „= Teil I“ oder freier Text) – `None`: Der Text bleibt.
+/// Text of a part with a new title (Round 14): if the part marker stands at the beginning, only its line changes (the
+/// comment stays); an empty text (whitespace only) gets the marker. Otherwise – the text carries no marker (legacy data
+/// like „= Teil I“ or free text) – `None`: the text stays.
 fn rewrite_part(body: &str, title: &str) -> Option<String> {
     if body.trim().is_empty() {
         let rest = if body.is_empty() { "\n" } else { body };
@@ -435,8 +423,8 @@ fn rewrite_part(body: &str, title: &str) -> Option<String> {
     Some(format!("{}{line}{}", &body[..found.start], &body[found.start + found.line.len()..]))
 }
 
-/// Ganzen Knoten löschen: erst die aktuelle Fassung ablösen (current → superseded, erlaubt laut 0004),
-/// dann Revisionen, Verweise seiner Beiträge, Beiträge und den Knoten.
+/// Delete a whole node: first supersede the current revision (current → superseded, allowed according to 0004), then
+/// revisions, references of its posts, posts and the node.
 async fn remove_node(conn: &mut SqliteConnection, node_id: i64) -> Result<(), StoreError> {
     sqlx::query("UPDATE revision SET status = 'superseded' WHERE node_id = ? AND status = 'current'")
         .bind(node_id)
@@ -452,12 +440,12 @@ async fn remove_node(conn: &mut SqliteConnection, node_id: i64) -> Result<(), St
     Ok(())
 }
 
-/// Text der aktuellen Fassung (leer ohne Revisionen).
+/// Text of the current revision (empty without revisions).
 async fn current_body(conn: &mut SqliteConnection, node_id: i64) -> Result<String, StoreError> {
     Ok(write::current(conn, node_id).await?.map(|(_, body, _)| body).unwrap_or_default())
 }
 
-/// Elternteil (Stelle) je Punkt: der nächste Vorgänger mit kleinerer Ebene.
+/// Parent (position) per item: the nearest predecessor with a smaller level.
 fn parents(items: &[Item]) -> Vec<Option<usize>> {
     let mut stack: Vec<usize> = Vec::new();
     let mut out = Vec::with_capacity(items.len());
@@ -471,7 +459,7 @@ fn parents(items: &[Item]) -> Vec<Option<usize>> {
     out
 }
 
-/// `node.number` aller Knoten nach dem Muster schreiben (Knoten müssen schon ihre id haben).
+/// Write `node.number` of all nodes after the pattern (nodes must already have their id).
 async fn write_numbers(
     conn: &mut SqliteConnection,
     pattern: &Numbering,
@@ -495,19 +483,19 @@ async fn write_numbers(
     Ok(())
 }
 
-/// Beiträge des Werks (für `post_ref`).
+/// Posts of the work (for `post_ref`).
 const WORK_POSTS: &str = "post_id IN (SELECT p.id FROM post p JOIN node n ON n.id = p.node_id WHERE n.work_id = ?)";
 
 struct Applied {
     revisions: Vec<(usize, u32)>,
     renumbered: Vec<(usize, usize)>,
-    /// Umbenannte Teile, deren Text keine Teil-Markierung trägt (Altbestand): Text unverändert.
+    /// Renamed parts whose text carries no part marker (legacy data): text unchanged.
     kept_parts: Vec<String>,
 }
 
-/// Neue Gliederung schreiben: seq/parent_seq/position/kind/title in Baumreihenfolge, neue Knoten mit
-/// Revision 1, Nummern, Verweise, neue Fassungen nur mit geänderter Überschriftszeile. `removed` sind
-/// die alten seq schon entfernter Knoten (ihre Verweise entfallen).
+/// Write a new outline: seq/parent_seq/position/kind/title in tree order, new nodes with revision 1, numbers,
+/// references, new revisions only with a changed heading line. `removed` are the old seq of nodes already removed
+/// (their references are dropped).
 async fn apply(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -519,8 +507,8 @@ async fn apply(
     apply_with(conn, work, pattern, items, removed, author, false).await
 }
 
-/// Wie [`apply`]; mit `bare` bekommen neue Knoten **keine** Revision 1 (Austausch, Runde 26: das Einlesen legt
-/// danach genau die Fassungen aus der Datei an, [`insert_bare`]).
+/// Like [`apply`]; with `bare` new nodes get **no** revision 1 (exchange, Round 26: the reading in afterwards creates
+/// exactly the revisions from the file, [`insert_bare`]).
 async fn apply_with(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -540,7 +528,7 @@ async fn apply_with(
         *position += 1;
     }
 
-    // Zweistufig wegen UNIQUE(work_id, seq): erst alle negativ, dann die neuen Werte.
+    // In two stages because of UNIQUE(work_id, seq): first all negative, then the new values.
     sqlx::query("UPDATE node SET seq = -seq - 1 WHERE work_id = ?").bind(work).execute(&mut *conn).await?;
     for (index, item) in items.iter_mut().enumerate() {
         let parent = parents[index].map(|p| p as i64);
@@ -564,7 +552,7 @@ async fn apply_with(
                 }
             }
             None => {
-                // Nummer vorläufig nicht leer, sonst hielte der Trigger aus 0006 den Knoten für unnummeriert.
+                // Number provisionally not empty, otherwise the trigger from 0006 would take the node for unnumbered.
                 let id: i64 = sqlx::query_scalar(
                     "INSERT INTO node (work_id, seq, parent_seq, position, number, title, kind, numbered) \
                      VALUES (?, ?, ?, ?, '0', ?, ?, ?) RETURNING id",
@@ -582,8 +570,8 @@ async fn apply_with(
                     item.id = Some(id);
                     continue;
                 }
-                // Revision 1 vom Anlegenden: der Mensch oder (Wunsch 2026-11-06) eine Persona bzw. ein
-                // MCP-Client, der über `outline_add` anlegt.
+                // Revision 1 by the creator: the human or (wish 2026-11-06) a persona or an MCP client that creates
+                // through `outline_add`.
                 let (author_kind, author_name, model) = crate::author_columns(author);
                 sqlx::query(
                     "INSERT INTO revision (node_id, number, body, author_kind, author_name, model, status, note) \
@@ -602,7 +590,7 @@ async fn apply_with(
     }
     write_numbers(conn, pattern, items, &parents).await?;
 
-    // Verweise in Beiträgen: gelöschte entfallen, die übrigen bekommen die neue seq (zweistufig).
+    // References in posts: deleted ones are dropped, the others get the new seq (in two stages).
     for &seq in removed {
         sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM post_ref WHERE node_seq = ? AND {WORK_POSTS}")))
             .bind(seq as i64)
@@ -633,7 +621,7 @@ async fn apply_with(
     .execute(&mut *conn)
     .await?;
 
-    // Neue Fassungen: nur die Überschriftszeile ändert sich.
+    // New revisions: only the heading line changes.
     let mut revisions = Vec::new();
     let mut kept_parts = Vec::new();
     for (index, item) in items.iter().enumerate() {
@@ -650,8 +638,8 @@ async fn apply_with(
         let id = item.id.ok_or_else(|| broken("Gliederungspunkt ohne id".into()))?;
         let body = write::current(conn, id).await?.map(|(_, body, _)| body);
         let rewritten = if item.level == 0 {
-            // Teil (Runde 14): Markierungszeile neu, leerer Text bekommt sie; ohne Markierung bleibt
-            // der Text (Altbestand, Nutzerfrage 8), nur der Titel ändert sich.
+            // Part (Round 14): marker line anew, an empty text gets it; without the marker the text stays (legacy data,
+            // user question 8), only the title changes.
             match rewrite_part(body.as_deref().unwrap_or(""), &item.title) {
                 Some(rewritten) => rewritten,
                 None => {
@@ -666,8 +654,8 @@ async fn apply_with(
         if body.as_deref() == Some(rewritten.as_str()) {
             continue;
         }
-        // Umschreiben bestehender Fassungen ist Sache des Menschen (auch bei einem bestätigten Antrag);
-        // Anlegen durch einen Assistenten ändert keine bestehende Überschrift.
+        // Rewriting existing revisions is the business of the human (also with a confirmed request); creating by an
+        // assistant changes no existing heading.
         let Author::Human { name: human } = author else {
             return Err(broken("Ein Assistent schreibt keine bestehende Fassung um".into()));
         };
@@ -702,12 +690,12 @@ fn change(
     }
 }
 
-/// Meldung, wenn Verschieben die Ebene ändern würde.
+/// Message if moving would change the level.
 pub(crate) const MOVE_KEEPS_LEVEL: &str =
     "Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).";
 
-/// Behält Verschieben mit `place` relativ zu einem Ziel der Ebene `target_level` die Ebene `level`?
-/// `before`/`after` nur bei gleicher Ebene, `into` nur unter einen Punkt genau eine Ebene höher.
+/// Does moving with `place` relative to a target of the level `target_level` keep the level `level`? `before`/`after`
+/// only at the same level, `into` only below an item exactly one level higher.
 fn move_keeps_level(level: u8, target_level: u8, place: Place) -> bool {
     match place {
         Place::Before | Place::After => target_level == level,
@@ -735,8 +723,8 @@ pub(crate) async fn move_node(
         ));
     }
     let (level, target_level) = (items[index].level, items[target_index].level);
-    // Die Ebene bleibt (Vertrag Runde 5): vor/hinter nur einen Punkt derselben Ebene, unter nur einen
-    // Punkt genau eine Ebene höher. Umstufen geht über ← / → (`outline.set_level`).
+    // The level stays (contract Round 5): before/behind only an item of the same level, below only an item exactly one
+    // level higher. Changing the level goes through ← / → (`outline.set_level`).
     if !move_keeps_level(level, target_level, place) {
         return Err(StoreError::Refused(MOVE_KEEPS_LEVEL));
     }
@@ -828,7 +816,7 @@ pub(crate) async fn rename(
     Ok(change(work, OutlineAction::Renamed, index, &title, detail, applied))
 }
 
-/// Ein neuer Punkt auf der Ebene des Orts (Mensch; RPC `outline.add` ohne `level`, Einfälle).
+/// A new item on the level of the place (human; RPC `outline.add` without `level`, ideas).
 pub(crate) async fn add(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -842,10 +830,10 @@ pub(crate) async fn add(
     Ok(add_many(conn, work, Some(target), place, std::slice::from_ref(&point), &author).await?.change)
 }
 
-/// Ein neuer Gliederungspunkt für [`Store::outline_add_many`] (MCP `outline_add`, Wunsch 2026-11-06).
+/// A new outline item for [`Store::outline_add_many`] (MCP `outline_add`, wish 2026-11-06).
 ///
-/// `level` ist die **absolute** Ebene (0 Teil, 1 Kapitel, 2 Abschnitt, 3 Unterabschnitt); fehlt sie,
-/// gilt die Ebene des Orts (Ebene des Bezugspunkts bei `before`/`after`, eine tiefer bei `into`).
+/// `level` is the **absolute** level (0 part, 1 chapter, 2 section, 3 subsection); if it is missing, the level of the
+/// place applies (level of the reference item for `before`/`after`, one deeper for `into`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NewPoint {
     pub title: String,
@@ -853,7 +841,7 @@ pub struct NewPoint {
     pub level: Option<u8>,
 }
 
-/// Ein angelegter Punkt: Stelle danach, fester Schlüssel, Ebene, Titel.
+/// An item created: position afterwards, fixed key, level, title.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct AddedPoint {
     pub node: usize,
@@ -862,9 +850,9 @@ pub struct AddedPoint {
     pub title: String,
 }
 
-/// Ergebnis von [`Store::outline_add_many`]: die Gliederungsänderung (ein Commit), die neuen Punkte
-/// in Baumreihenfolge und (Runde 14) die festen Schlüssel der vorhandenen Kapitel, die jetzt unter
-/// einem neuen Teil stehen (Reihenfolge, Texte und Kapitelnummern unverändert).
+/// Result of [`Store::outline_add_many`]: the outline change (one commit), the new items in tree order and (Round 14)
+/// the fixed keys of the existing chapters that now stand below a new part (order, texts and chapter numbers
+/// unchanged).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct OutlineAdded {
     pub change: OutlineChange,
@@ -872,8 +860,8 @@ pub struct OutlineAdded {
     pub adopted: Vec<i64>,
 }
 
-/// Ergebnis von [`Store::idea_to_outline`] (Runde 14): die Gliederungsänderung, der feste Schlüssel
-/// des neuen Punkts und der Einfall danach (verarbeitet als Gliederungspunkt, `done_ref` „key <key>“).
+/// Result of [`Store::idea_to_outline`] (Round 14): the outline change, the fixed key of the new item and the idea
+/// afterwards (processed as an outline item, `done_ref` "key <key>").
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct IdeaOutline {
     pub change: OutlineChange,
@@ -881,10 +869,10 @@ pub struct IdeaOutline {
     pub idea: Idea,
 }
 
-/// Höchstzahl neuer Punkte in einem Aufruf von [`Store::outline_add_many`].
+/// Maximum number of new items in one call of [`Store::outline_add_many`].
 pub const MAX_NEW_POINTS: usize = 100;
 
-/// Titel eines Punkts aus einer Liste mit seiner Nummer („Punkt 3: …“), bei einem einzelnen ohne.
+/// Title of an item from a list with its number („Punkt 3: …“), for a single one without.
 fn point_title(title: &str, index: usize, many: bool) -> Result<String, StoreError> {
     check_title(title).map_err(|e| match e {
         StoreError::Title(message) if many => StoreError::Title(format!("Punkt {}: {message}", index + 1)),
@@ -892,19 +880,18 @@ fn point_title(title: &str, index: usize, many: bool) -> Result<String, StoreErr
     })
 }
 
-/// Mehrere Punkte als einen Block anlegen (atomar, Wunsch 2026-11-06). Der Block steht vor `target`
-/// bzw. hinter dessen Unterpunkten (`after`, `into`). Der erste Punkt steht auf der Ebene des Orts,
-/// kein weiterer höher als er: So bleibt jeder vorhandene Punkt, wo er war (kein vorhandener Punkt
-/// wird Unterpunkt eines neuen – außer unter einem neuen Teil, siehe unten). `target = None` nur in einem Werk ohne Gliederungspunkt (der erste
-/// Punkt ist dann ein Kapitel oder ein Teil).
+/// Create several items as one block (atomic, wish 2026-11-06). The block stands before `target` or behind its
+/// sub-items (`after`, `into`). The first item stands on the level of the place, no further one higher than it: that
+/// way every existing item stays where it was (no existing item becomes a sub-item of a new one – except below a new
+/// part, see below). `target = None` only in a work without an outline item (the first item is then a chapter or a
+/// part).
 ///
-/// Ausnahme Teile (Runde 14, auch mit Werkvorlage): Ebene 0 geht vor oder hinter einem Teil oder
-/// Kapitel (nicht `into`, nicht neben einem Abschnitt), auch als erster Punkt neben einem Kapitel und
-/// mitten im Block. Die vorhandenen Kapitel dahinter bis zum nächsten Teil stehen dann unter dem
-/// neuen Teil (`adopted`); ihre Ebene, ihr Text und ihre Nummer bleiben, Elternteil (`parent_seq`)
-/// und Stelle (`position`) ändern sich. Assistenten (MCP `outline_add`) legen so einen Teil nur an, wenn
-/// er keine vorhandenen Kapitel übernimmt; sonst wird es ein Antrag, dem der Mensch zustimmt
-/// ([`Store::outline_add_by_assistant`], Nutzerfrage 12, entschieden 2026-11-07).
+/// Exception parts (Round 14, also with a work template): level 0 works before or behind a part or chapter (not `into`,
+/// not next to a section), also as the first item next to a chapter and in the middle of the block. The existing
+/// chapters behind it up to the next part then stand below the new part (`adopted`); their level, their text and their
+/// number stay, parent (`parent_seq`) and position (`position`) change. Assistants (MCP `outline_add`) create a part
+/// that way only if it adopts no existing chapters; otherwise it becomes a request to which the human consents
+/// ([`Store::outline_add_by_assistant`], user question 12, decided 2026-11-07).
 pub(crate) async fn add_many(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -957,7 +944,7 @@ pub(crate) async fn add_many(
     if levels.iter().any(|&l| l > 3) || base > 3 {
         return Err(StoreError::Refused("Tiefer als Ebene 3 (Unterabschnitt) geht es nicht."));
     }
-    // Ein Teil darf als erster Punkt auch neben einem Kapitel stehen (dann ist die Ebene des Orts 1).
+    // A part may stand as the first item next to a chapter as well (then the level of the place is 1).
     let first = levels[0];
     if first != base && !(first == 0 && base == 1) {
         return Err(StoreError::Refused(
@@ -978,7 +965,7 @@ pub(crate) async fn add_many(
             level,
             title: title.clone(),
             numbered: true,
-            // Überschriftszeile (beim Teil die Teil-Markierung, Runde 14) und Leerzeile.
+            // Heading line (for a part the part marker, Round 14) and empty line.
             body: Some(format!("{}\n", baruch_typst::heading_line(level, title, None))),
             text_done: true,
         })
@@ -994,7 +981,7 @@ pub(crate) async fn add_many(
             Ok(AddedPoint { node: index, key, level: item.level, title: item.title.clone() })
         })
         .collect::<Result<_, StoreError>>()?;
-    // Vorhandene Kapitel, deren Elternteil jetzt ein neuer Teil ist.
+    // Existing chapters whose parent is now a new part.
     let adopted: Vec<i64> = parents(items)
         .iter()
         .enumerate()
@@ -1025,25 +1012,25 @@ pub(crate) async fn add_many(
     Ok(OutlineAdded { change, points, adopted })
 }
 
-/// Ergebnis von [`insert_bare`] (Austausch, Runde 26).
+/// Result of [`insert_bare`] (exchange, Round 26).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BareInsert {
-    /// Angelegt, ohne Fassung: fester Schlüssel des neuen Punkts.
+    /// Created, without a revision: fixed key of the new item.
     Inserted(i64),
-    /// Ein neuer Teil übernähme vorhandene Kapitel (`adopted`); nichts geschrieben. `anchor` und `place` sind
-    /// Bezugspunkt und Ort für einen Antrag [`crate::OutlineOp::Add`] an derselben Stelle.
+    /// A new part would adopt existing chapters (`adopted`); nothing written. `anchor` and `place` are reference item
+    /// and place for a request [`crate::OutlineOp::Add`] at the same position.
     WouldAdopt { adopted: Vec<i64>, anchor: i64, place: Place },
-    /// An dieser Stelle bekäme der Punkt ein anderes Elternteil, übernähme vorhandene Punkte oder ergäbe keine
-    /// gültige Gliederung; nichts geschrieben.
+    /// At this position the item would get another parent, would adopt existing items or would yield no valid outline;
+    /// nothing written.
     Misplaced(String),
 }
 
-/// Einen Punkt **ohne** Fassung einfügen (Austausch, Runde 26, in der Transaktion des Aufrufers): hinter dem
-/// Teilbaum von `after`, sonst als erstes Kind von `parent`, sonst als erster Punkt der Gliederung. Der neue
-/// Punkt muss dort genau `parent` als Elternteil haben, und kein vorhandener Punkt darf sein Elternteil
-/// wechseln; sonst wird nichts geschrieben ([`BareInsert::WouldAdopt`] bei einem neuen Teil vor Kapiteln,
-/// sonst [`BareInsert::Misplaced`]). Vorhandene Punkte behalten Titel, Ebene und Text; seq, Stelle und Nummer
-/// rechnet die Gliederung wie beim Anlegen neu. Den Titel prüft das Einlesen nicht (wie der Import).
+/// Insert an item **without** a revision (exchange, Round 26, in the transaction of the caller): behind the subtree of
+/// `after`, otherwise as the first child of `parent`, otherwise as the first item of the outline. The new item must
+/// have exactly `parent` as its parent there, and no existing item may change its parent; otherwise nothing is written
+/// ([`BareInsert::WouldAdopt`] for a new part before chapters, otherwise [`BareInsert::Misplaced`]). Existing items
+/// keep title, level and text; the outline computes seq, position and number anew as when creating. The reading in does
+/// not check the title (like the import).
 pub(crate) async fn insert_bare(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1068,7 +1055,7 @@ pub(crate) async fn insert_bare(
         }
         (None, None) => (0, items.first().and_then(|item| item.id).map(|key| (key, Place::Before))),
     };
-    // Elternteil je Punkt als Schlüssel; der neue Punkt hat noch keinen und heißt hier -1 (Schlüssel sind > 0).
+    // Parent per item as a key; the new item has none yet and is called -1 here (keys are > 0).
     let parent_ids = |items: &[Item]| -> Vec<Option<i64>> {
         parents(items).iter().map(|p| p.map(|p| items[p].id.unwrap_or(-1))).collect()
     };
@@ -1105,13 +1092,12 @@ pub(crate) async fn insert_bare(
     items[at].id.map(BareInsert::Inserted).ok_or_else(|| broken("neuer Gliederungspunkt ohne id".into()))
 }
 
-/// Meldung: Ein Teil steht immer auf oberster Ebene.
+/// Message: a part always stands on the top level.
 const PART_NOT_INTO: &str = "Ein Teil steht immer auf oberster Ebene; „darunter“ (into) geht mit Ebene 0 nicht.";
-/// Meldung: Teile nur neben Teilen und Kapiteln.
+/// Message: parts only next to parts and chapters.
 const PART_PLACE: &str = "Ein Teil entsteht nur vor oder hinter einem Teil oder Kapitel, nicht neben einem Abschnitt.";
 
-/// Stand eines Punkts über seinen festen Schlüssel: `(seq, Ebene, Titel)`; `None`,
-/// wenn es ihn im Werk nicht (mehr) gibt.
+/// State of an item through its fixed key: `(seq, level, title)`; `None` if it does not exist in the work (any longer).
 pub(crate) async fn point_state(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1125,7 +1111,7 @@ pub(crate) async fn point_state(
         .and_then(|item| item.orig.as_ref().map(|o| (o.0, item.level, item.title.clone()))))
 }
 
-/// Ein Punkt der Gliederung für die Vorschau eines Antrags (Modul `requests`, Runde 14).
+/// An item of the outline for the preview of a request (module `requests`, Round 14).
 #[derive(Debug, Clone)]
 pub(crate) struct PointState {
     pub key: i64,
@@ -1135,8 +1121,8 @@ pub(crate) struct PointState {
     pub numbered: bool,
 }
 
-/// Alle Punkte des Werks in Baumreihenfolge mit Ebene, Nummer (nach der wirksamen Nummerierung) und
-/// Titel (in der Transaktion des Aufrufers).
+/// All items of the work in tree order with level, number (after the effective numbering) and title (in the transaction
+/// of the caller).
 pub(crate) async fn point_states(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<PointState>, StoreError> {
     let outline = load_outline(conn, work).await?;
     let numbers = outline_numbers(&outline, &outline.pattern());
@@ -1151,11 +1137,11 @@ pub(crate) async fn point_states(conn: &mut SqliteConnection, work: WorkId) -> R
         .collect()
 }
 
-/// Einen Punkt mit bzw. ohne Nummer zählen (Wunsch 2026-11-06, z. B. Einleitung oder Vorwort ohne
-/// Nummer): setzt `node.numbered` und schreibt alle Nummern neu; der Text bleibt. Schon so → `Refused`.
-/// Ein Teil ohne Nummer → `Refused`: Die Teil-Markierung hat kein Nummer-Merkmal, Export → Import
-/// machte ihn wieder nummeriert und verschöbe die Nummern der folgenden Teile. Einen Teil, der (aus
-/// einem älteren Stand) schon ohne Nummer ist, darf der Mensch wieder mit Nummer zählen.
+/// Count an item with or without a number (wish 2026-11-06, for example an introduction or preface without a number):
+/// sets `node.numbered` and rewrites all numbers; the text stays. Already so → `Refused`. A part without a number →
+/// `Refused`: the part marker has no number attribute, export → import would make it numbered again and would shift the
+/// numbers of the following parts. A part that (from an older state) is already without a number may be counted with a
+/// number again by the human.
 pub(crate) async fn set_numbered(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1223,12 +1209,12 @@ pub(crate) async fn delete(
     Ok(done)
 }
 
-/// Text des Editors zerlegt: passt der Anfang (nur Leerraum vor der ersten Überschrift), und die
-/// Stücke je Überschrift `(Ebene, Titel, Text)`; Leerraum davor gehört zum ersten Stück.
+/// Text of the editor taken apart: whether the beginning fits (only whitespace before the first heading), and the
+/// pieces per heading `(level, title, text)`; whitespace before it belongs to the first piece.
 struct Analysis {
     lead_ok: bool,
     chunks: Vec<(u8, String, String)>,
-    /// Je Stück: als `=`-Überschrift (bzw. Teil) mit Nummer, `false` bei der Markierung „ohne Nummer“.
+    /// Per piece: as a `=` heading (or part) with a number, `false` for the marker "without number".
     numbered: Vec<bool>,
 }
 
@@ -1254,15 +1240,15 @@ const MERGE_PART: &str = "Davor steht ein Teil; zusammenführen geht nur mit ein
 const TO_PART: &str = "Die erste Überschrift ist eine Teil-Markierung; ein Kapitel oder Abschnitt wird nicht zum Teil (neuen Teil in der Gliederung anlegen).";
 const PART_HINT: &str = "Ein Teiltext mit Markierung beginnt mit genau dieser einen Markierung (davor nur Leerraum) und enthält keine weitere Überschrift.";
 
-/// Trägt der Text eine Teil-Markierung als Überschrift (Runde 14)?
+/// Does the text carry a part marker as a heading (Round 14)?
 fn has_part_marker(body: &str) -> bool {
     analyze(&body.replace("\r\n", "\n")).chunks.iter().any(|(level, _, _)| *level == 0)
 }
 
-/// Was am Text eines Teils nicht passt (Runde 14): Trägt er eine Teil-Markierung (oder verlangt
-/// `required` sie, weil die aktuelle Fassung eine hat), muss sie genau einmal am Anfang stehen (davor
-/// nur Leerraum), ohne weitere Überschrift. Ohne Markierung und ohne `required` → `None`: Teiltexte
-/// ohne Markierung (Altbestand) werden wie bisher ohne Abgleich gespeichert.
+/// What does not fit about the text of a part (Round 14): if it carries a part marker (or `required` demands it,
+/// because the current revision has one), it must stand exactly once at the beginning (only whitespace before it),
+/// without a further heading. Without the marker and without `required` → `None`: part texts without the marker (legacy
+/// data) are saved as before without aligning.
 fn part_problem(body: &str, required: bool) -> Option<String> {
     let analysis = analyze(&body.replace("\r\n", "\n"));
     let marked = analysis.chunks.iter().any(|(level, _, _)| *level == 0);
@@ -1283,9 +1269,9 @@ fn part_problem(body: &str, required: bool) -> Option<String> {
     }
 }
 
-/// Neue Gliederung, wenn der Text von Punkt `index` so gespeichert wird (eine oder mehrere Überschriften).
-/// Wie bei [`Store::outline_set_level`] wandern die Unterpunkte um dieselbe Differenz mit; die neuen
-/// Punkte stehen direkt hinter dem Punkt (vor seinen Unterpunkten). Die Gültigkeit prüft der Aufrufer.
+/// New outline if the text of item `index` is saved like this (one or several headings). As with
+/// [`Store::outline_set_level`] the sub-items move along by the same difference; the new items stand directly behind
+/// the item (before its sub-items). The caller checks the validity.
 fn edited_items(items: &[Item], index: usize, analysis: &Analysis) -> Result<Vec<Item>, &'static str> {
     let chunks = &analysis.chunks;
     let mut new = items.to_vec();
@@ -1313,7 +1299,7 @@ fn edited_items(items: &[Item], index: usize, analysis: &Analysis) -> Result<Vec
                 orig: None,
                 level: *level,
                 title: title.clone(),
-                // Ein geteiltes Stück mit der Markierung „ohne Nummer“ zählt ohne Nummer (wie beim Import).
+                // A split piece with the marker "without number" counts without a number (as in the import).
                 numbered: analysis.numbered.get(offset + 1).copied().unwrap_or(true),
                 body: Some(text.clone()),
                 text_done: true,
@@ -1323,9 +1309,8 @@ fn edited_items(items: &[Item], index: usize, analysis: &Analysis) -> Result<Vec
     Ok(new)
 }
 
-/// [`check`] für einen Teil (Runde 14): ohne Markierung (und ohne Markierung in der aktuellen
-/// Fassung) wie bisher gültig ohne Gliederungslogik; sonst genau eine Markierung am Anfang, ein
-/// anderer Titel benennt um.
+/// [`check`] for a part (Round 14): without the marker (and without a marker in the current revision) valid as before
+/// without outline logic; otherwise exactly one marker at the beginning, another title renames.
 async fn check_part(
     conn: &mut SqliteConnection,
     items: &[Item],
@@ -1404,9 +1389,9 @@ async fn check(conn: &mut SqliteConnection, work: WorkId, node: usize, body: &st
     })
 }
 
-/// [`save`] für einen Teil (Runde 14). Ohne Markierung (in Text und aktueller Fassung) wie bisher
-/// ohne Gliederungslogik; sonst verlangt der Text genau eine Markierung am Anfang ([`part_problem`]),
-/// ein anderer Titel in ihr benennt den Teil um.
+/// [`save`] for a part (Round 14). Without the marker (in text and current revision) as before without outline logic;
+/// otherwise the text demands exactly one marker at the beginning ([`part_problem`]), another title in it renames the
+/// part.
 #[allow(clippy::too_many_arguments)]
 async fn save_part(
     conn: &mut SqliteConnection,
@@ -1483,7 +1468,7 @@ async fn save(
             return Err(StoreError::Refused(MERGE_PART));
         }
         if let Some(base) = based_on {
-            write::row(conn, id, node, base).await?; // unbekannte Basis → UnknownRevision
+            write::row(conn, id, node, base).await?; // unknown base → UnknownRevision
         }
         let previous_id = previous.id.ok_or_else(|| broken("Gliederungspunkt ohne id".into()))?;
         let previous_seq = previous.orig.as_ref().map_or(index - 1, |o| o.0);
@@ -1497,7 +1482,7 @@ async fn save(
         }
         joined.push_str(&body);
         let saved = write::save_human(conn, work, previous_seq, &joined, human, None).await?;
-        // Beiträge wandern mit, hinter die des vorigen Punkts.
+        // Posts move along, behind those of the previous item.
         let offset: i64 = sqlx::query_scalar("SELECT coalesce(max(position) + 1, 0) FROM post WHERE node_id = ?")
             .bind(previous_id)
             .fetch_one(&mut *conn)
@@ -1532,7 +1517,7 @@ async fn save(
         return Ok(OutlineSave { change, outline: Some(outline), new_reason: None });
     }
 
-    // Titelregeln vor allem anderen: der erste und jeder geteilte Titel (nichts geschrieben).
+    // Title rules before everything else: the first and every split title (nothing written).
     check_chunk_titles(&analysis.chunks, &outline.items[index].title)?;
     if analysis.chunks.len() > 1 && !allow.split {
         return Err(StoreError::Refused("Der Text enthält neue Überschriften; zum Teilen bestätigen."));
@@ -1549,7 +1534,7 @@ async fn save(
         if !title_changed {
             return Ok(OutlineSave { change: saved, outline: None, new_reason: None });
         }
-        // Nur der Titel: aus der Überschriftszeile der jetzt aktuellen Fassung übernehmen.
+        // Only the title: take it over from the heading line of the revision that is current now.
         sync_heading(conn, id).await?;
         let detail = format!("{} → {} umbenannt", quoted(&old_title), quoted(&title));
         let outline = OutlineChange {
@@ -1595,10 +1580,10 @@ async fn save(
     Ok(OutlineSave { change, outline: Some(outline), new_reason: None })
 }
 
-/// [`save`] im Modus `Auto` (Runde 22, Vertrag §2.1/2.2): Bleiben Überschrift und Ebene (kein Teilen, kein
-/// Zusammenführen, beim Teil kein neuer Titel) und erlauben die Regeln es ([`crate::amend::verdict`]), wird die
-/// aktuelle Fassung des Menschen fortgeschrieben; sonst wie [`save`] eine neue Fassung mit Grund
-/// (`OutlineSave::new_reason`). Ungültiges (Text vor der Überschrift, kaputte Teil-Markierung) meldet [`save`].
+/// [`save`] in the mode `Auto` (Round 22, contract §2.1/2.2): if heading and level stay (no splitting, no merging, for
+/// a part no new title) and the rules allow it ([`crate::amend::verdict`]), the current revision of the human is
+/// amended; otherwise a new revision with a reason like [`save`] (`OutlineSave::new_reason`). Anything invalid (text
+/// before the heading, broken part marker) is reported by [`save`].
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn save_auto(
     conn: &mut SqliteConnection,
@@ -1615,7 +1600,7 @@ pub(crate) async fn save_auto(
     let index = find(&outline.items, work, node)?;
     let item = &outline.items[index];
     let id = item.id.ok_or_else(|| broken("Gliederungspunkt ohne id".into()))?;
-    // (gespeicherter Text, Überschrift geändert?) – `None`: ungültig, das meldet `save` selbst.
+    // (stored text, heading changed?) – `None`: invalid, `save` reports that itself.
     let plan: Option<(String, bool)> = if item.level == 0 {
         let required = has_part_marker(&current_body(conn, id).await?);
         if part_problem(&body, required).is_some() {
@@ -1630,7 +1615,7 @@ pub(crate) async fn save_auto(
         match analysis.chunks.as_slice() {
             _ if !analysis.lead_ok => None,
             [(level, title, text)] => Some((text.clone(), *level != item.level || *title != item.title)),
-            // Keine oder weitere Überschriften: Zusammenführen bzw. Teilen ändert die Gliederung.
+            // No heading or further headings: merging or splitting changes the outline.
             _ => Some((body.clone(), true)),
         }
     };
@@ -1638,7 +1623,7 @@ pub(crate) async fn save_auto(
         return save(conn, work, node, &body, based_on, allow, human).await;
     };
     if let Some(base) = based_on {
-        write::row(conn, id, node, base).await?; // unbekannte Basis → UnknownRevision
+        write::row(conn, id, node, base).await?; // unknown base → UnknownRevision
     }
     match crate::amend::verdict(conn, work, id, based_on, based_on_amend, &stored, heading_changed).await? {
         crate::amend::Verdict::Amend(current) => {
@@ -1658,7 +1643,7 @@ pub(crate) async fn save_auto(
     }
 }
 
-/// Schema aus seiner id; unbekannt → [`StoreError::Numbering`].
+/// Scheme from its id; unknown → [`StoreError::Numbering`].
 fn scheme_of(id: &str) -> Result<Scheme, StoreError> {
     Scheme::from_id(id).ok_or_else(|| {
         let known: Vec<&str> = Scheme::ALL.iter().map(|s| s.id()).collect();
@@ -1666,19 +1651,18 @@ fn scheme_of(id: &str) -> Result<Scheme, StoreError> {
     })
 }
 
-/// Eigenes Muster: das übergebene, sonst das gespeicherte (`work.numbering`), leer = keins.
+/// Custom pattern: the one passed, otherwise the stored one (`work.numbering`), empty = none.
 fn custom_spec<'a>(custom: Option<&'a str>, stored: Option<&'a str>) -> Option<&'a str> {
     custom.map(str::trim).filter(|c| !c.is_empty()).or_else(|| stored.map(str::trim).filter(|c| !c.is_empty()))
 }
 
-/// Nummerierung eines (noch nicht gespeicherten) Schemas für das Werk; ungültiges Muster →
-/// [`StoreError::Numbering`].
+/// Numbering of a scheme (not yet stored) for the work; invalid pattern → [`StoreError::Numbering`].
 fn numbering_for(outline: &Outline, scheme: Scheme, custom: Option<&str>) -> Result<Numbering, StoreError> {
     let custom = custom_spec(custom, outline.numbering.as_deref());
     Numbering::of_scheme(scheme, custom, &outline.template).map_err(StoreError::Numbering)
 }
 
-/// Nummern der Gliederung in Baumreihenfolge nach `numbering`.
+/// Numbers of the outline in tree order after `numbering`.
 fn outline_numbers(outline: &Outline, numbering: &Numbering) -> Vec<String> {
     let parents = parents(&outline.items);
     let counted: Vec<Numbered> = outline
@@ -1690,7 +1674,7 @@ fn outline_numbers(outline: &Outline, numbering: &Numbering) -> Vec<String> {
     load::numbers(numbering, &counted)
 }
 
-/// Anzeige der Nummerierung aus Schema-id, eigenem Muster und Werkvorlage.
+/// Display of the numbering from scheme id, custom pattern and work template.
 fn numbering_info(scheme: &str, numbering: Option<String>, template: &str) -> NumberingInfo {
     let effective_numbering = load::work_numbering(scheme, numbering.as_deref(), template);
     let scheme = Scheme::from_id(scheme).unwrap_or(Scheme::Template);
@@ -1726,7 +1710,7 @@ async fn set_numbering_scheme(
     let scheme = scheme_of(scheme)?;
     let outline = load_outline(conn, work).await?;
     let numbering = numbering_for(&outline, scheme, custom)?;
-    // Beim eigenen Muster wird es gespeichert; sonst bleibt `work.numbering`, wie es ist.
+    // With the custom pattern it is stored; otherwise `work.numbering` stays as it is.
     let stored = match scheme {
         Scheme::Custom => custom_spec(custom, outline.numbering.as_deref()).map(str::to_owned),
         _ => outline.numbering.clone(),
@@ -1762,8 +1746,8 @@ async fn set_numbering_scheme(
 const HEADING_HINT: &str =
     "Ebene ändern, Teilen und Zusammenführen gehen nur über „Speichern“ im Editor oder die Gliederung.";
 
-/// Ebene des Knotens wie in [`sync_heading`] (Teil 0, Kapitel 1, Abschnitt 2, unter einem Abschnitt
-/// 3); `None` für unbekannte Knoten.
+/// Level of the node as in [`sync_heading`] (part 0, chapter 1, section 2, below a section 3); `None` for unknown
+/// nodes.
 async fn heading_level(conn: &mut SqliteConnection, node_id: i64) -> Result<Option<(u8, String)>, StoreError> {
     let row: Option<(String, String, Option<String>)> = sqlx::query_as(
         "SELECT n.kind, n.title, p.kind FROM node n \
@@ -1791,9 +1775,9 @@ pub(crate) fn level_word(level: u8) -> &'static str {
     }
 }
 
-/// Was an den Überschriften eines Texts für einen Punkt der Ebene `level` nicht passt: Text vor der
-/// Überschrift, keine Überschrift, weitere Überschriften oder eine andere Ebene. `None` = passt
-/// (ein anderer Titel derselben Ebene passt: er benennt den Punkt um).
+/// What does not fit about the headings of a text for an item of the level `level`: text before the heading, no
+/// heading, further headings or another level. `None` = fits (another title of the same level fits: it renames the
+/// item).
 fn heading_problem(body: &str, level: u8) -> Option<String> {
     let analysis = analyze(&body.replace("\r\n", "\n"));
     if !analysis.lead_ok {
@@ -1817,12 +1801,10 @@ fn heading_problem(body: &str, level: u8) -> Option<String> {
     }
 }
 
-/// Nach jeder Änderung der aktuellen Fassung außerhalb des Editors (Übernehmen, Umschalten,
-/// Speichern über `revision.save`, Fassung ändern), in der Transaktion des Aufrufers: Passen die
-/// Überschriften der jetzt aktuellen Fassung nicht zum Gliederungspunkt → `Heading` (der Aufrufer
-/// rollt zurück); sonst den Titel aus der Überschriftszeile übernehmen ([`sync_heading`]).
-/// So bleiben Gliederung und Überschriftszeilen gleich, und Export und Import ergeben dieselbe
-/// Gliederung.
+/// After every change of the current revision outside the editor (accepting, switching, saving through `revision.save`,
+/// changing a revision), in the transaction of the caller: if the headings of the revision that is current now do not
+/// fit the outline item → `Heading` (the caller rolls back); otherwise take the title over from the heading line
+/// ([`sync_heading`]). That way outline and heading lines stay the same, and export and import yield the same outline.
 pub(crate) async fn check_current_heading(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1831,12 +1813,12 @@ pub(crate) async fn check_current_heading(
     let node_id = write::node_id(conn, work, node).await?;
     if let Some((level, old_title)) = heading_level(conn, node_id).await? {
         let body = current_body(conn, node_id).await?;
-        // Teile (Runde 14): nur eine Fassung mit Markierung wird geprüft und gleicht den Titel ab.
+        // Parts (Round 14): only a revision with the marker is checked and aligns the title.
         let problem = if level == 0 { part_problem(&body, false) } else { heading_problem(&body, level) };
         if let Some(problem) = problem {
             return Err(StoreError::Heading(problem));
         }
-        // Der Titel des Punkts ist hier noch der alte (`sync_heading` folgt erst danach).
+        // The title of the item is still the old one here (`sync_heading` only follows afterwards).
         if level != 0 || has_part_marker(&body) {
             check_chunk_titles(&analyze(&body.replace("\r\n", "\n")).chunks, &old_title)?;
         }
@@ -1844,8 +1826,8 @@ pub(crate) async fn check_current_heading(
     sync_heading(conn, node_id).await
 }
 
-/// Vor dem Anlegen eines Vorschlags: passt sein Text zum Gliederungspunkt? Sonst `Heading` – ein
-/// Vorschlag ändert nie die Gliederung, und übernehmen ließe er sich ohnehin nicht.
+/// Before creating a proposal: does its text fit the outline item? Otherwise `Heading` – a proposal never changes the
+/// outline, and it could not be accepted anyway.
 pub(crate) async fn check_proposal_heading(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1854,7 +1836,7 @@ pub(crate) async fn check_proposal_heading(
 ) -> Result<(), StoreError> {
     let node_id = write::node_id(conn, work, node).await?;
     if let Some((level, old_title)) = heading_level(conn, node_id).await? {
-        // Teile (Runde 14): Markierung verlangt, wenn der Vorschlag oder die aktuelle Fassung eine hat.
+        // Parts (Round 14): marker demanded if the proposal or the current revision has one.
         let problem = if level == 0 {
             part_problem(body, has_part_marker(&current_body(conn, node_id).await?))
         } else {
@@ -1870,9 +1852,9 @@ pub(crate) async fn check_proposal_heading(
     Ok(())
 }
 
-/// Titel des Knotens aus der Überschriftszeile seiner aktuellen Fassung übernehmen, aber nur, wenn
-/// deren Ebene zur Ebene des Knotens passt (Teile nur mit Teil-Markierung, Runde 14). `true`, wenn sich der Titel geändert hat.
-/// Läuft in der Transaktion des Aufrufers (nach jeder Änderung der aktuellen Fassung).
+/// Take the title of the node over from the heading line of its current revision, but only if its level fits the level
+/// of the node (parts only with the part marker, Round 14). `true` if the title has changed. Runs in the transaction of
+/// the caller (after every change of the current revision).
 pub(crate) async fn sync_heading(conn: &mut SqliteConnection, node_id: i64) -> Result<bool, StoreError> {
     let Some((level, title)) = heading_level(conn, node_id).await? else { return Ok(false) };
     let body = current_body(conn, node_id).await?;
@@ -1886,17 +1868,16 @@ pub(crate) async fn sync_heading(conn: &mut SqliteConnection, node_id: i64) -> R
 
 const SWITCH_HINT: &str = "Teilen, Zusammenführen und Text vor der Überschrift gehen über „Speichern“ im Editor.";
 
-/// Nach dem Umschalten (Vertrag Runde 5, Nutzerentscheidung „Nein“): Die Gliederung folgt der
-/// Überschriftszeile der jetzt aktuellen Fassung, die Fassung selbst wird nie umgeschrieben.
+/// After switching (contract Round 5, user decision „Nein“): the outline follows the heading line of the revision that
+/// is current now, the revision itself is never rewritten.
 ///
-/// - Teile (Runde 14): Fassung mit Teil-Markierung → genau eine am Anfang, der Titel folgt; Fassung
-///   ohne Markierung → nichts zu tun (wie bisher), `Ok(None)`.
-/// - Gleiche Ebene: der Titel folgt wie bisher ([`sync_heading`]), `Ok(None)`.
-/// - Andere Ebene: Ebene und Titel folgen; alle Unterpunkte wandern um dieselbe Differenz mit
-///   und bekommen je eine neue Fassung des Menschen, die sich nur in der
-///   Überschriftszeile unterscheidet. Ergebnis: eine Änderung mit `action: Level`.
-/// - Keine Überschrift, weitere Überschriften, Text davor, eine an dieser Stelle ungültige Ebene oder
-///   ein Unterpunkt, der tiefer als 3 käme → `Heading` (der Aufrufer rollt alles zurück, auch das Umschalten).
+/// - Parts (Round 14): revision with the part marker → exactly one at the beginning, the title follows; revision
+///   without the marker → nothing to do (as before), `Ok(None)`.
+/// - Same level: the title follows as before ([`sync_heading`]), `Ok(None)`.
+/// - Another level: level and title follow; all sub-items move along by the same difference and each get a new revision
+///   by the human that differs only in the heading line. Result: a change with `action: Level`.
+/// - No heading, further headings, text before it, a level that is invalid at this position or a sub-item that would
+///   come deeper than 3 → `Heading` (the caller rolls everything back, also the switching).
 pub(crate) async fn follow_switched(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -1931,7 +1912,7 @@ pub(crate) async fn follow_switched(
                 "Die Fassung hat keine Überschrift; die Gliederung wüsste nicht, wohin sie gehört. {SWITCH_HINT}"
             )));
         }
-        // Wie beim Speichern nur ein geänderter Titel (Runde 8).
+        // As when saving, only a changed title (Round 8).
         [(0, _, _), ..] => {
             return Err(StoreError::Heading(format!("{TO_PART} {SWITCH_HINT}")));
         }
@@ -1953,9 +1934,8 @@ pub(crate) async fn follow_switched(
     let end = subtree_end(&items, index);
     let diff = i16::from(level) - i16::from(old_level);
     for sub in &mut items[index + 1..end] {
-        // Unterpunkte stehen tiefer als der Punkt, also nach der Verschiebung mindestens auf Ebene 2.
-        // Tiefer als 3 wird nicht gekappt, sondern abgelehnt: Kappen machte aus einem Kind ein
-        // Geschwister, und Zurückschalten stellte die alte Gliederung nicht wieder her.
+        // Sub-items stand deeper than the item, so after the shift at least on level 2. Deeper than 3 is not capped but
+        // rejected: capping would turn a child into a sibling, and switching back would not restore the old outline.
         let shifted = i16::from(sub.level) + diff;
         if shifted > 3 {
             return Err(StoreError::Heading(format!(
@@ -1969,7 +1949,7 @@ pub(crate) async fn follow_switched(
     }
     items[index].level = level;
     items[index].title = title.clone();
-    items[index].text_done = true; // die Fassung bleibt, wie sie ist
+    items[index].text_done = true; // the revision stays as it is
     if let Err(problem) = check_levels(&items) {
         return Err(StoreError::Heading(format!(
             "Die Fassung bringt Ebene {level} ({}) mit, das geht an dieser Stelle nicht: {problem}",
@@ -1986,9 +1966,9 @@ pub(crate) async fn follow_switched(
 }
 
 impl Store {
-    /// Gliederungspunkt samt Unterpunkten verschieben (atomar): vor oder hinter `target` (auf dessen
-    /// Ebene) bzw. als letzten Unterpunkt darunter. Die Art bleibt (Teil, Kapitel, Abschnitt); in den
-    /// eigenen Teilbaum, an eine ungültige Stelle oder ohne Wirkung → `Refused`.
+    /// Move an outline item together with its sub-items (atomic): before or behind `target` (on its level) or as the
+    /// last sub-item below it. The kind stays (part, chapter, section); into its own subtree, to an invalid position or
+    /// without effect → `Refused`.
     pub async fn outline_move(
         &self,
         work: WorkId,
@@ -2003,8 +1983,8 @@ impl Store {
         Ok(done)
     }
 
-    /// Ebene ändern (1–3, atomar); Unterpunkte wandern um dieselbe Differenz mit. Teile und Ebene 0 →
-    /// `Refused`, ebenso eine ungültige Gliederung.
+    /// Change the level (1–3, atomic); sub-items move along by the same difference. Parts and level 0 → `Refused`,
+    /// likewise an invalid outline.
     pub async fn outline_set_level(
         &self,
         work: WorkId,
@@ -2018,7 +1998,7 @@ impl Store {
         Ok(done)
     }
 
-    /// Umbenennen (atomar): neuer Titel und neue Überschriftszeile (neue Fassung des Menschen).
+    /// Rename (atomic): new title and new heading line (new revision by the human).
     pub async fn outline_rename(
         &self,
         work: WorkId,
@@ -2032,9 +2012,9 @@ impl Store {
         Ok(done)
     }
 
-    /// Neuer Gliederungspunkt (atomar): vor/hinter `target` auf dessen Ebene, `into` als letzter
-    /// Unterpunkt (Ebene + 1). Revision 1 vom Menschen = Überschriftszeile + Leerzeile (beim Teil die
-    /// Teil-Markierung, Runde 14; Teile auch mit Werkvorlage).
+    /// New outline item (atomic): before/behind `target` on its level, `into` as the last sub-item (level + 1).
+    /// Revision 1 by the human = heading line + empty line (for a part the part marker, Round 14; parts also with a
+    /// work template).
     pub async fn outline_add(
         &self,
         work: WorkId,
@@ -2049,13 +2029,12 @@ impl Store {
         Ok(done)
     }
 
-    /// Mehrere neue Gliederungspunkte in **einer** Transaktion (Wunsch 2026-11-06, MCP `outline_add`):
-    /// ein Block vor/hinter/unter `target` ([`NewPoint`]: Titel und absolute Ebene); bei einem Fehler
-    /// (Titelregeln, Ebenen, Teil an falscher Stelle) wird nichts angelegt. Revision 1 jedes Punkts =
-    /// Überschriftszeile + Leerzeile vom `author` (Mensch, Persona oder MCP-Client; beim Teil die
-    /// Teil-Markierung). Teile (Ebene 0, Runde 14) vor oder hinter einem Teil oder Kapitel, auch mit
-    /// Werkvorlage; `adopted` nennt die vorhandenen Kapitel, die jetzt unter einem neuen Teil stehen.
-    /// `target = None` nur in einem Werk ohne Gliederungspunkt.
+    /// Several new outline items in **one** transaction (wish 2026-11-06, MCP `outline_add`): one block
+    /// before/behind/below `target` ([`NewPoint`]: title and absolute level); on an error (title rules, levels, part in
+    /// the wrong place) nothing is created. Revision 1 of every item = heading line + empty line by `author` (human,
+    /// persona or MCP client; for a part the part marker). Parts (level 0, Round 14) before or behind a part or
+    /// chapter, also with a work template; `adopted` names the existing chapters that now stand below a new part.
+    /// `target = None` only in a work without an outline item.
     pub async fn outline_add_many(
         &self,
         work: WorkId,
@@ -2070,10 +2049,10 @@ impl Store {
         Ok(done)
     }
 
-    /// Einfall als Gliederungspunkt verarbeiten (Runde 14, `idea.process` mit `as: outline`), in
-    /// **einer** Transaktion: Punkt wie [`Store::outline_add`] anlegen (Revision 1 vom Menschen) und
-    /// den Einfall als verarbeitet markieren (`done_as` outline, `done_ref` „key <key>“). Scheitert
-    /// etwas (Einfall gelöscht, aus einem anderen Werk, Titelregeln, Ort), ist nichts geändert.
+    /// Process an idea as an outline item (Round 14, `idea.process` with `as: outline`), in **one** transaction: create
+    /// the item like [`Store::outline_add`] (revision 1 by the human) and mark the idea as processed (`done_as`
+    /// outline, `done_ref` "key <key>"). If something fails (idea deleted, from another work, title rules, place),
+    /// nothing is changed.
     pub async fn idea_to_outline(
         &self,
         idea: IdeaId,
@@ -2099,7 +2078,7 @@ impl Store {
         Ok(IdeaOutline { change, key, idea })
     }
 
-    /// Punkt mit (`true`) bzw. ohne Nummer (`false`) zählen (atomar, nur Mensch); alle Nummern neu.
+    /// Count an item with (`true`) or without a number (`false`) (atomic, human only); all numbers anew.
     pub async fn outline_set_numbered(
         &self,
         work: WorkId,
@@ -2113,7 +2092,7 @@ impl Store {
         Ok(done)
     }
 
-    /// Feste Schlüssel der Punkte ohne Nummer (`node.numbered = 0`) eines Werks.
+    /// Fixed keys of the items without a number (`node.numbered = 0`) of a work.
     pub async fn unnumbered_keys(&self, work: WorkId) -> Result<Vec<i64>, StoreError> {
         Ok(sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND numbered = 0 ORDER BY seq")
             .bind(work)
@@ -2121,8 +2100,8 @@ impl Store {
             .await?)
     }
 
-    /// Gliederungspunkt samt Fassungen und Beiträgen löschen (atomar, nur Mensch). Mit Unterpunkten
-    /// oder als letztes Kapitel → `Refused`. `removed` trägt Titel und Text der aktuellen Fassung.
+    /// Delete an outline item together with revisions and posts (atomic, human only). With sub-items or as the last
+    /// chapter → `Refused`. `removed` carries title and text of the current revision.
     pub async fn outline_delete(&self, work: WorkId, node: usize, human: &str) -> Result<OutlineChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let done = delete(&mut tx, work, node, human).await?;
@@ -2130,16 +2109,15 @@ impl Store {
         Ok(done)
     }
 
-    /// Was würde [`Store::outline_save`] mit diesem Text an der Gliederung ändern? Schreibt nichts.
+    /// What would [`Store::outline_save`] change about the outline with this text? Writes nothing.
     pub async fn outline_check(&self, work: WorkId, node: usize, body: &str) -> Result<HeadingCheck, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check(&mut conn, work, node, body).await
     }
 
-    /// Text aus dem Editor speichern (atomar) und die Gliederung an die Überschriften angleichen:
-    /// eine Überschrift → speichern wie [`Store::save_human_on`], Titel und Ebene angleichen; weitere
-    /// Überschriften → nur mit `allow.split` neue Punkte dahinter; keine Überschrift → nur mit
-    /// `allow.merge` an den vorigen Punkt anhängen (Beiträge wandern mit, der Punkt entfällt).
+    /// Save text from the editor (atomic) and align the outline with the headings: one heading → save like
+    /// [`Store::save_human_on`], align title and level; further headings → new items behind it only with `allow.split`;
+    /// no heading → append to the previous item only with `allow.merge` (posts move along, the item is dropped).
     pub async fn outline_save(
         &self,
         work: WorkId,
@@ -2157,10 +2135,9 @@ impl Store {
         Ok(done)
     }
 
-    /// Nummerierungsmuster des Werks setzen (atomar, wie vor Runde 6): `None` = aus der Werkvorlage,
-    /// `""` = keine Nummern, sonst ein Muster der Mustersprache wie „1.1“, „I|1“ oder „I.;A.;1.“
-    /// (Schema „Eigenes Muster“). Alle Nummern werden neu geschrieben; ungültiges Muster →
-    /// [`StoreError::Numbering`], unverändert → `Refused`.
+    /// Set the numbering pattern of the work (atomic, as before Round 6): `None` = from the work template, `""` = no
+    /// numbers, otherwise a pattern of the pattern language like "1.1", "I|1" or "I.;A.;1." (scheme „Eigenes Muster“).
+    /// All numbers are rewritten; invalid pattern → [`StoreError::Numbering`], unchanged → `Refused`.
     pub async fn set_numbering(&self, work: WorkId, numbering: Option<&str>) -> Result<OutlineChange, StoreError> {
         let (scheme, custom) = match numbering.map(str::trim) {
             None => (Scheme::Template, None),
@@ -2170,9 +2147,9 @@ impl Store {
         self.set_numbering_scheme(work, scheme.id(), custom).await
     }
 
-    /// Gliederungsschema des Werks wählen (atomar, Vertrag Runde 6): `scheme` ist eine id aus
-    /// [`Scheme::ALL`], `custom` das eigene Muster (nur bei `custom`; fehlt es, gilt das gespeicherte).
-    /// Unbekanntes Schema oder ungültiges Muster → [`StoreError::Numbering`], unverändert → `Refused`.
+    /// Choose the outline scheme of the work (atomic, contract Round 6): `scheme` is an id from [`Scheme::ALL`],
+    /// `custom` the custom pattern (only for `custom`; if it is missing, the stored one applies). Unknown scheme or
+    /// invalid pattern → [`StoreError::Numbering`], unchanged → `Refused`.
     pub async fn set_numbering_scheme(
         &self,
         work: WorkId,
@@ -2185,7 +2162,7 @@ impl Store {
         Ok(done)
     }
 
-    /// Nummern der ganzen Gliederung, wie sie mit `scheme` (und `custom`) wären; schreibt nichts.
+    /// Numbers of the whole outline as they would be with `scheme` (and `custom`); writes nothing.
     pub async fn numbering_preview(
         &self,
         work: WorkId,
@@ -2212,8 +2189,8 @@ impl Store {
             .collect())
     }
 
-    /// Regel `#set heading(numbering: …)`, die der Export mit `scheme` hinter die Werkvorlage setzt
-    /// (`None` bei „aus der Werkvorlage“: dann bleibt die Vorlage unverändert); schreibt nichts.
+    /// Rule `#set heading(numbering: …)` that the export puts behind the work template with `scheme` (`None` for "from
+    /// the work template": then the template stays unchanged); writes nothing.
     pub async fn numbering_rule(
         &self,
         work: WorkId,
@@ -2227,7 +2204,7 @@ impl Store {
         Ok((scheme != Scheme::Template).then(|| numbering.heading_rule()))
     }
 
-    /// Eingestellte, aus der Vorlage gelesene und gültige Nummerierung des Werks.
+    /// Configured numbering, the one read from the template and the valid numbering of the work.
     pub async fn outline_numbering(&self, work: WorkId) -> Result<NumberingInfo, StoreError> {
         let head: Option<(String, Option<String>, String)> =
             sqlx::query_as("SELECT template, numbering, numbering_scheme FROM work WHERE id = ?")

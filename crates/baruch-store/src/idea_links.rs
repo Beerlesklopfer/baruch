@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gedankenkarte (Vertrag Runde 25, Migration `0043_idea_map.sql`): Verbindungen zwischen Einfällen
-//! (`idea_link`) und gespeicherte Lagen der Einfälle auf der Karte eines Werks (`idea_map_pos`).
+//! Mind map (contract Round 25, migration `0043_idea_map.sql`): links between ideas (`idea_link`) and stored positions
+//! of the ideas on the map of a work (`idea_map_pos`).
 //!
-//! Regeln (Vertrag §2):
-//! - Verbindung nur Einfall ↔ Einfall desselben Werks (auch beide ohne Werk), keiner gelöscht, kein
-//!   Selbstbezug, Notiz höchstens [`MAX_LINK_NOTE_CHARS`] Zeichen ohne Steuerzeichen außer `\n`.
-//! - Arten [`LinkKind`]; „widerspricht“ ist ungerichtet, der Store tauscht so, dass `from < to`.
-//! - Verbindungen werden nur weich gelöscht (`deleted`), wiederherstellbar. Ein gelöschter Einfall nimmt
-//!   seine Verbindungen und Lage aus allen Listen (Filter, kein Schreiben).
-//! - Lagen: je (Werk, Einfall) höchstens eine, Koordinaten endlich und |v| ≤ [`MAP_COORD_LIMIT`]; reine
-//!   Anzeige, kein Spiegel-Commit.
-//! - Fehler über [`StoreError::Idea`] (→ -32602 wie bei Einfällen), kein eigener Fehlerwert; unbekannte
-//!   Einfälle [`StoreError::UnknownIdea`], unbekannte Werke [`StoreError::UnknownWork`].
-//! - Jeder Schreibvorgang ist genau eine Transaktion (`BEGIN IMMEDIATE`); erst alles prüfen, dann schreiben.
-//!   Die Spalte `uuid` setzt nie dieser Code, sondern der Fülltrigger (Regel aus 0041).
+//! Rules (contract §2):
+//! - A link only idea ↔ idea of the same work (also both without a work), none deleted, no self-reference, note at most
+//!   [`MAX_LINK_NOTE_CHARS`] characters without control characters except `\n`.
+//! - Kinds [`LinkKind`]; „widerspricht“ is undirected, the store swaps so that `from < to`.
+//! - Links are only soft-deleted (`deleted`), restorable. A deleted idea takes its links and position out of all lists
+//!   (filter, no writing).
+//! - Positions: per (work, idea) at most one, coordinates finite and |v| ≤ [`MAP_COORD_LIMIT`]; pure display, no mirror
+//!   commit.
+//! - Errors through [`StoreError::Idea`] (→ -32602 as with ideas), no error value of its own; unknown ideas
+//!   [`StoreError::UnknownIdea`], unknown works [`StoreError::UnknownWork`].
+//! - Every write is exactly one transaction (`BEGIN IMMEDIATE`); first check everything, then write. The column `uuid`
+//!   is never set by this code but by the fill trigger (rule from 0041).
 
 use std::collections::BTreeMap;
 
@@ -21,16 +21,16 @@ use sqlx::SqliteConnection;
 
 use crate::{IdeaId, IdeaOrigin, Store, StoreError, WorkId, broken};
 
-/// id einer Verbindung (`idea_link.id`).
+/// id of a link (`idea_link.id`).
 pub type IdeaLinkId = i64;
 
-/// Höchstlänge der Notiz einer Verbindung in Zeichen.
+/// Maximum length of the note of a link in characters.
 pub const MAX_LINK_NOTE_CHARS: usize = 500;
 
-/// Größter Betrag einer Koordinate einer Lage (SVG-Benutzereinheiten der Karte).
+/// Largest absolute value of a coordinate of a position (SVG user units of the map).
 pub const MAP_COORD_LIMIT: f64 = 1_000_000.0;
 
-/// Art einer Verbindung.
+/// Kind of a link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkKind {
@@ -40,14 +40,14 @@ pub enum LinkKind {
     BelongsTo,
     /// „Beispiel für“
     ExampleOf,
-    /// „widerspricht“ (ungerichtet)
+    /// „widerspricht“ (undirected)
     Contradicts,
 }
 
 impl LinkKind {
     pub const ALL: [LinkKind; 4] = [LinkKind::LeadsTo, LinkKind::BelongsTo, LinkKind::ExampleOf, LinkKind::Contradicts];
 
-    /// Wert in der Datenbank und in RPC/MCP.
+    /// Value in the database and in RPC/MCP.
     pub fn as_str(self) -> &'static str {
         match self {
             LinkKind::LeadsTo => "leads_to",
@@ -57,12 +57,12 @@ impl LinkKind {
         }
     }
 
-    /// Genau die Wörter aus [`LinkKind::as_str`]; sonst `None`.
+    /// Exactly the words from [`LinkKind::as_str`]; otherwise `None`.
     pub fn parse(s: &str) -> Option<LinkKind> {
         LinkKind::ALL.into_iter().find(|kind| kind.as_str() == s)
     }
 
-    /// Anzeige (deutsch).
+    /// Display (German).
     pub fn label(self) -> &'static str {
         match self {
             LinkKind::LeadsTo => "führt weiter",
@@ -72,13 +72,13 @@ impl LinkKind {
         }
     }
 
-    /// `true` nur für „widerspricht“ (ungerichtet, gespeichert mit `from < to`).
+    /// `true` only for „widerspricht“ (undirected, stored with `from < to`).
     pub fn symmetric(self) -> bool {
         self == LinkKind::Contradicts
     }
 }
 
-/// Eine Verbindung, wie RPC, MCP und Karte sie zeigen.
+/// A link as RPC, MCP and the map show it.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct IdeaLink {
     pub id: IdeaLinkId,
@@ -90,11 +90,11 @@ pub struct IdeaLink {
     pub origin: IdeaOrigin,
     pub created: String,
     pub updated: String,
-    /// Zeitpunkt des (weichen) Löschens; `None` = aktiv.
+    /// Point in time of the (soft) deletion; `None` = active.
     pub deleted: Option<String>,
 }
 
-/// Neue Verbindung ([`Store::idea_link_create`]).
+/// New link ([`Store::idea_link_create`]).
 #[derive(Debug, Clone)]
 pub struct NewIdeaLink<'a> {
     pub from: IdeaId,
@@ -104,7 +104,7 @@ pub struct NewIdeaLink<'a> {
     pub origin: IdeaOrigin,
 }
 
-/// Gespeicherte Lage eines Einfalls auf der Karte eines Werks.
+/// Stored position of an idea on the map of a work.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MapPos {
     pub idea: IdeaId,
@@ -119,8 +119,8 @@ fn refuse(message: impl Into<String>) -> StoreError {
     StoreError::Idea(message.into())
 }
 
-/// Notiz prüfen: CRLF → LF, Ränder getrimmt, keine Steuerzeichen außer `\n`, höchstens
-/// [`MAX_LINK_NOTE_CHARS`] Zeichen.
+/// Check the note: CRLF → LF, edges trimmed, no control characters except `\n`, at most [`MAX_LINK_NOTE_CHARS`]
+/// characters.
 fn clean_note(note: &str) -> Result<String, StoreError> {
     let note = note.replace("\r\n", "\n").trim().to_owned();
     if note.chars().any(|c| c.is_control() && c != '\n') {
@@ -153,7 +153,7 @@ struct Row {
 const SELECT: &str = "SELECT l.id, coalesce(l.uuid, '') AS uuid, l.from_id, l.to_id, l.kind, l.note, l.origin_kind, \
      l.origin_name, l.created, l.updated, l.deleted FROM idea_link l";
 
-/// Bedingung „aktiv und beide Einfälle nicht gelöscht“ (über `l`, `a` = from, `b` = to).
+/// Condition "active and both ideas not deleted" (through `l`, `a` = from, `b` = to).
 const ACTIVE: &str = "l.deleted IS NULL AND a.deleted IS NULL AND b.deleted IS NULL";
 
 fn to_link(row: Row) -> Result<IdeaLink, StoreError> {
@@ -195,14 +195,14 @@ async fn many(conn: &mut SqliteConnection, sql: &str, binds: &[i64]) -> Result<V
     query.fetch_all(&mut *conn).await?.into_iter().map(to_link).collect()
 }
 
-/// Gibt es das Werk? Sonst `UnknownWork`.
+/// Does the work exist? Otherwise `UnknownWork`.
 async fn check_work(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Beide Einfälle dürfen verbunden werden: vorhanden, nicht gelöscht, dasselbe Werk (auch beide ohne).
+/// Both ideas may be linked: existing, not deleted, the same work (also both without one).
 async fn check_pair(conn: &mut SqliteConnection, from: IdeaId, to: IdeaId) -> Result<(), StoreError> {
     if from == to {
         return Err(refuse("Ein Einfall lässt sich nicht mit sich selbst verbinden."));
@@ -222,10 +222,10 @@ async fn check_pair(conn: &mut SqliteConnection, from: IdeaId, to: IdeaId) -> Re
     Ok(())
 }
 
-/// Zeilen „- Verbindungen: …“ für `einfaelle.md`: je Einfall des Bereichs (Werk bzw. `None` = ohne Werk) die
-/// aktiven Verbindungen zu nicht gelöschten Einfällen, nach Verbindungs-id: ausgehend „→ 79 führt weiter“,
-/// eingehend „← 12 Beispiel für“, ungerichtet „↔ 48 widerspricht“, mit Notiz „ („Notiz“)“ (Zeilenumbrüche der
-/// Notiz als Leerzeichen); Einfälle ohne Verbindung fehlen.
+/// Lines „- Verbindungen: …“ for `einfaelle.md`: per idea of the scope (work or `None` = without a work) the active
+/// links to ideas that are not deleted, by link id: outgoing „→ 79 führt weiter“, incoming „← 12 Beispiel für“,
+/// undirected „↔ 48 widerspricht“, with a note „ („Notiz“)“ (line breaks of the note as spaces); ideas without a link
+/// are missing.
 pub(crate) async fn mirror_lines(
     conn: &mut SqliteConnection,
     work: Option<WorkId>,
@@ -257,8 +257,8 @@ pub(crate) async fn mirror_lines(
     Ok(parts.into_iter().map(|(idea, list)| (idea, list.join("; "))).collect())
 }
 
-/// Verbindung anlegen in der Transaktion des Aufrufers (auch für `Store::idea_import_tree`, Runde 34): wie
-/// [`Store::idea_link_create`]; `false` = es gab sie schon unverändert.
+/// Create a link in the transaction of the caller (also for `Store::idea_import_tree`, Round 34): like
+/// [`Store::idea_link_create`]; `false` = it already existed unchanged.
 pub(crate) async fn create_in(
     conn: &mut SqliteConnection,
     new: &NewIdeaLink<'_>,
@@ -310,10 +310,10 @@ pub(crate) async fn create_in(
 }
 
 impl Store {
-    /// (Verbindung, geändert). Siehe Vertrag §2: vorhandenes aktives Paar+Art → unverändert
-    /// (`false`), weich gelöschtes → wiederhergestellt (`true`, Notiz ersetzt, wenn eine neue mitkommt).
-    /// „widerspricht“ wird mit `from < to` gespeichert. Selbstbezug, fremdes Werk, gelöschter Einfall, zu
-    /// lange Notiz → [`StoreError::Idea`], unbekannter Einfall → [`StoreError::UnknownIdea`]; nichts geschrieben.
+    /// (link, changed). See contract §2: an existing active pair+kind → unchanged (`false`), a soft-deleted one →
+    /// restored (`true`, note replaced if a new one comes along). „widerspricht“ is stored with `from < to`.
+    /// Self-reference, foreign work, deleted idea, note too long → [`StoreError::Idea`], unknown idea →
+    /// [`StoreError::UnknownIdea`]; nothing written.
     pub async fn idea_link_create(&self, new: &NewIdeaLink<'_>) -> Result<(IdeaLink, bool), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let (link, changed) = create_in(&mut tx, new).await?;
@@ -323,13 +323,13 @@ impl Store {
         Ok((link, changed))
     }
 
-    /// Eine Verbindung (auch eine gelöschte); unbekannt → [`StoreError::Idea`].
+    /// A link (also a deleted one); unknown → [`StoreError::Idea`].
     pub async fn idea_link_get(&self, id: IdeaLinkId) -> Result<IdeaLink, StoreError> {
         let mut conn = self.pool.acquire().await?;
         get(&mut conn, id).await
     }
 
-    /// Weich löschen; schon gelöscht → [`StoreError::Idea`].
+    /// Soft-delete; already deleted → [`StoreError::Idea`].
     pub async fn idea_link_delete(&self, id: IdeaLinkId) -> Result<IdeaLink, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let before = get(&mut tx, id).await?;
@@ -345,8 +345,8 @@ impl Store {
         Ok(link)
     }
 
-    /// Wiederherstellen; nicht gelöscht → [`StoreError::Idea`]. Beide Einfälle müssen wie beim Anlegen
-    /// verbindbar sein (nicht gelöscht, dasselbe Werk), sonst [`StoreError::Idea`].
+    /// Restore; not deleted → [`StoreError::Idea`]. Both ideas must be linkable as on creation (not deleted, the same
+    /// work), otherwise [`StoreError::Idea`].
     pub async fn idea_link_restore(&self, id: IdeaLinkId) -> Result<IdeaLink, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let before = get(&mut tx, id).await?;
@@ -363,8 +363,8 @@ impl Store {
         Ok(link)
     }
 
-    /// `deleted = false`: nur aktive Verbindungen, deren beide Einfälle nicht gelöscht sind; `true`: alle.
-    /// Nach id. Unbekannter Einfall → [`StoreError::UnknownIdea`].
+    /// `deleted = false`: only active links whose two ideas are not deleted; `true`: all. By id. Unknown idea →
+    /// [`StoreError::UnknownIdea`].
     pub async fn idea_links_of_idea(&self, idea: IdeaId, deleted: bool) -> Result<Vec<IdeaLink>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         crate::ideas::get(&mut conn, idea).await?;
@@ -376,8 +376,8 @@ impl Store {
         many(&mut conn, &sql, &[idea, idea]).await
     }
 
-    /// Verbindungen, deren beide Einfälle `work_id = work` haben; `deleted` wie oben; nach id. Unbekanntes
-    /// Werk → [`StoreError::UnknownWork`].
+    /// Links whose two ideas have `work_id = work`; `deleted` as above; by id. Unknown work →
+    /// [`StoreError::UnknownWork`].
     pub async fn idea_links_of_work(&self, work: WorkId, deleted: bool) -> Result<Vec<IdeaLink>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_work(&mut conn, work).await?;
@@ -389,7 +389,7 @@ impl Store {
         many(&mut conn, &sql, &[work, work]).await
     }
 
-    /// Lagen der nicht gelöschten Einfälle, die noch zum Werk gehören; nach Einfall. Unbekanntes Werk →
+    /// Positions of the ideas that are not deleted and still belong to the work; by idea. Unknown work →
     /// [`StoreError::UnknownWork`].
     pub async fn idea_map_positions(&self, work: WorkId) -> Result<Vec<MapPos>, StoreError> {
         let mut conn = self.pool.acquire().await?;
@@ -404,9 +404,8 @@ impl Store {
         Ok(rows.into_iter().map(|(idea, x, y, updated)| MapPos { idea, x, y, updated }).collect())
     }
 
-    /// Einfall muss zum Werk gehören und nicht gelöscht sein; x, y endlich, |v| ≤ [`MAP_COORD_LIMIT`];
-    /// sonst [`StoreError::Idea`] (unbekannter Einfall [`StoreError::UnknownIdea`]). Ersetzt eine vorhandene
-    /// Lage (ihre uuid bleibt).
+    /// The idea must belong to the work and not be deleted; x, y finite, |v| ≤ [`MAP_COORD_LIMIT`]; otherwise
+    /// [`StoreError::Idea`] (unknown idea [`StoreError::UnknownIdea`]). Replaces an existing position (its uuid stays).
     pub async fn idea_map_pos_set(&self, work: WorkId, idea: IdeaId, x: f64, y: f64) -> Result<MapPos, StoreError> {
         for (name, value) in [("x", x), ("y", y)] {
             if !value.is_finite() || value.abs() > MAP_COORD_LIMIT {
@@ -438,8 +437,8 @@ impl Store {
         Ok(MapPos { idea, x, y, updated })
     }
 
-    /// Alle Lagen des Werks (`idea` = `None`) oder eine entfernen (hart, Grabstein `idea_map_pos`); Zahl der
-    /// entfernten. Unbekanntes Werk → [`StoreError::UnknownWork`].
+    /// Remove all positions of the work (`idea` = `None`) or one (hard, tombstone `idea_map_pos`); number of removed
+    /// ones. Unknown work → [`StoreError::UnknownWork`].
     pub async fn idea_map_pos_reset(&self, work: WorkId, idea: Option<IdeaId>) -> Result<u64, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         check_work(&mut tx, work).await?;
@@ -465,19 +464,19 @@ mod tests {
     #[test]
     fn every_kind_parses_back_from_its_word_and_only_contradicts_is_symmetric() {
         for kind in LinkKind::ALL {
-            // Datenbank, RPC und MCP benutzen dasselbe Wort; ein Wort, das nicht zurückführt, verlöre die Art.
+            // Database, RPC and MCP use the same word; a word that does not lead back would lose the kind.
             assert_eq!(LinkKind::parse(kind.as_str()), Some(kind), "{kind:?}");
-            // Vertrag §2: nur „widerspricht“ ist ungerichtet (Store normalisiert from < to).
+            // Contract §2: only „widerspricht“ is undirected (the store normalises from < to).
             assert_eq!(kind.symmetric(), kind == LinkKind::Contradicts, "{kind:?}");
         }
-        // Nur genau die Wörter: Anzeige oder XML-Form sind keine Datenbankwerte.
+        // Only exactly the words: display or XML form are not database values.
         assert_eq!(LinkKind::parse("widerspricht"), None, "Anzeige ist kein Datenbankwert");
         assert_eq!(LinkKind::parse("Leads_To"), None, "Groß/klein zählt");
     }
 
     #[test]
     fn the_serde_word_matches_as_str() {
-        // JSON von RPC/MCP muss dieselben Wörter tragen wie die Spalte `kind` (CHECK in 0043).
+        // JSON of RPC/MCP must carry the same words as the column `kind` (CHECK in 0043).
         for kind in LinkKind::ALL {
             assert_eq!(serde_json::to_value(kind).unwrap(), serde_json::json!(kind.as_str()), "{kind:?}");
         }
@@ -485,12 +484,12 @@ mod tests {
 
     #[test]
     fn notes_are_trimmed_limited_and_free_of_control_characters() {
-        // CRLF aus Formularen wird LF, Ränder fallen weg – so vergleicht der Spiegel gleiche Notizen gleich.
+        // CRLF from forms becomes LF, edges are dropped – that way the mirror compares equal notes as equal.
         assert_eq!(clean_note("  a\r\nb  ").unwrap(), "a\nb", "CRLF → LF, getrimmt");
-        // Vertrag §2: ohne Steuerzeichen außer \n (ein Tabulator oder NUL bräche Spiegelzeile und XML).
+        // Contract §2: without control characters except \n (a tab or NUL would break the mirror line and XML).
         assert!(clean_note("a\tb").is_err(), "Tabulator abgelehnt");
         assert!(clean_note("a\u{0}b").is_err(), "NUL abgelehnt");
-        // Grenze in Zeichen, nicht Bytes (CHECK length(note) <= 500 zählt in SQLite ebenfalls Zeichen).
+        // Limit in characters, not bytes (CHECK length(note) <= 500 counts characters in SQLite as well).
         assert!(clean_note(&"ä".repeat(MAX_LINK_NOTE_CHARS)).is_ok(), "500 Zeichen gehen");
         assert!(clean_note(&"a".repeat(MAX_LINK_NOTE_CHARS + 1)).is_err(), "501 Zeichen abgelehnt");
     }

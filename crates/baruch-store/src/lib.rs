@@ -1,95 +1,88 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Datenhaltung von Baruch: SQLite ist die Quelle (Vertrag B1, Abschnitte 2–4 und 6).
+//! Data storage of Baruch: SQLite is the source (contract B1, sections 2–4 and 6).
 //!
-//! - Eine Datei `<data>/baruch.sqlite`, WAL, Fremdschlüssel an, 5 s Wartezeit bei Sperren.
-//! - Schema in `migrations/0001_core.sql`, eingebettet über [`MIGRATOR`]. Weitere Migratoren
-//!   (z. B. `baruch-library`) teilen sich die Tabelle `_sqlx_migrations`; darum läuft der
-//!   Migrator mit `ignore_missing = true`.
-//! - Jede Änderung (Übernehmen, Umschalten, Verwerfen, Speichern, Ändern, Löschen, Vorschlag,
-//!   Beitrag) ist genau eine Transaktion mit `BEGIN IMMEDIATE`. Schlägt ein Schritt fehl, wird alles
-//!   zurückgerollt.
-//! - Revisionsbaum (Migration `0004_revision_tree.sql`, Modul `tree`): Jede Revision hat ein
-//!   Elternteil (`based_on`, Wurzel = NULL). Je Abschnitt trägt genau eine die Markierung `current`
-//!   (eindeutiger Teilindex; mindestens eine prüft der Store beim Lesen und Schreiben), umschaltbar
-//!   auf jede andere Fassung ([`Store::switch_to`], Hüllen [`Store::set_current`] und
-//!   [`Store::accept`]); die Gliederung folgt dabei der Überschriftszeile der Fassung, deren Text
-//!   bleibt unverändert. Ändern ([`Store::update_revision`]) und
-//!   Löschen ([`Store::delete_revision`]) nur durch den Menschen; Trigger halten die Herkunft
-//!   unveränderlich, verbieten das Löschen der aktuellen Fassung, hängen Kinder einer gelöschten
-//!   Fassung an deren Elternteil und vergeben keine Nummer zweimal (`node.last_rev`).
-//! - Assistenten legen nur Vorschläge an ([`Store::add_proposal`]); aktuell wird ein Vorschlag
-//!   erst durch [`Store::accept`] bzw. [`Store::set_current`].
+//! - One file `<data>/baruch.sqlite`, WAL, foreign keys on, 5 s waiting time on locks.
+//! - Schema in `migrations/0001_core.sql`, embedded through [`MIGRATOR`]. Further migrators (for example
+//!   `baruch-library`) share the table `_sqlx_migrations`; therefore the migrator runs with `ignore_missing = true`.
+//! - Every change (accepting, switching, rejecting, saving, changing, deleting, proposal, post) is exactly one
+//!   transaction with `BEGIN IMMEDIATE`. If a step fails, everything is rolled back.
+//! - Revision tree (migration `0004_revision_tree.sql`, module `tree`): every revision has a parent (`based_on`, root =
+//!   NULL). Per section exactly one carries the marker `current` (unique partial index; the store checks "at least one"
+//!   when reading and writing), switchable to any other revision ([`Store::switch_to`], wrappers [`Store::set_current`]
+//!   and [`Store::accept`]); the outline follows the heading line of the revision in the process, whose text stays
+//!   unchanged. Changing ([`Store::update_revision`]) and deleting ([`Store::delete_revision`]) only by the human;
+//!   triggers keep the origin immutable, forbid deleting the current revision, hang children of a deleted revision on
+//!   its parent and assign no number twice (`node.last_rev`).
+//! - Assistants only create proposals ([`Store::add_proposal`]); a proposal becomes current only through
+//!   [`Store::accept`] or [`Store::set_current`].
 //!
-//! - Typst-Import ([`Store::import_typst`], Vertrag B1.5): Präambel → Werkvorlage (`work.template`),
-//!   `=`/`==`/`===` → Gliederung, Text je Überschrift → Revision 1 vom Menschen. Ein Werk merkt sich
-//!   den SHA-256 seiner Quelle; dieselbe Datei ein zweites Mal → [`StoreError::AlreadyImported`].
-//!   [`Store::export_typst`] setzt Vorlage und aktuelle Texte wieder zu einer Datei zusammen.
-//! - Werke verwalten (Migration `0005_works.sql`, Modul `works`, Vertrag Runde 4): eindeutige Titel
-//!   über [`title_key`] (nach dem Öffnen für alle Werke nachgetragen, vorhandene Doppel nur über den
-//!   Titel aufgelöst), [`Store::create_work`], [`Store::import_typst_titled`], Metadaten
-//!   ([`Store::work_meta`], [`Store::update_work`]), Fassungen der Werkvorlage
-//!   ([`Store::template_revisions`]) und Löschen ganzer Werke ([`Store::delete_work`]).
+//! - Typst import ([`Store::import_typst`], contract B1.5): preamble → work template (`work.template`), `=`/`==`/`===`
+//!   → outline, text per heading → revision 1 by the human. A work remembers the SHA-256 of its source; the same file a
+//!   second time → [`StoreError::AlreadyImported`]. [`Store::export_typst`] assembles template and current texts into
+//!   one file again.
+//! - Managing works (migration `0005_works.sql`, module `works`, contract Round 4): unique titles through [`title_key`]
+//!   (backfilled for all works after opening, existing duplicates resolved only through the title),
+//!   [`Store::create_work`], [`Store::import_typst_titled`], metadata ([`Store::work_meta`], [`Store::update_work`]),
+//!   revisions of the work template ([`Store::template_revisions`]) and deleting whole works ([`Store::delete_work`]).
 //!
-//! - Runde 30 (Migration 0047, Schnittstelle R30-S1): Metadaten von Beiträgen (`post_meta`), Varianten als
-//!   Geschwister im Fassungsbaum (`variants`, [`Store::add_proposal_on`]), Lösungen je Befund
-//!   ([`Store::finding_set_solutions`]) und das Protokoll des werkweiten Ersetzens (`replace`).
-//!   Reserviert: Store 0048 suchen-verweise, 0049 chat-loesungen, 0050 chat-bedienung, 0051 Integrator; Bibliothek
-//!   0108 suchen-verweise, 0109 chat-bedienung (alle erwartet unbenutzt).
-//! - Runde 29 (Schnittstelle R29-S1): Satz-Einstellungen je Werk (Modul `typeset`, [`WorkTypeset`],
-//!   [`TypesetSettings`] aus `baruch_typst::typeset`); ihre Typst-Regeln setzt `snapshot::head` hinter die Werkvorlage.
-//!   Migration 0048 (satz-daten): Tabelle `work_typeset` mit uuid, Grabstein-Art `work_typeset` (Umbau von
-//!   `uuid_tombstone` wie 0046), Kaskade beim Löschen des Werks. Reserviert: Store 0049 satz-typst, 0050
-//!   satz-oberflaeche, 0051 Integrator; Bibliothek 0108 satz-daten, 0109 Integrator (alle erwartet unbenutzt).
+//! - Round 30 (migration 0047, interface R30-S1): metadata of posts (`post_meta`), variants as siblings in the revision
+//!   tree (`variants`, [`Store::add_proposal_on`]), solutions per finding ([`Store::finding_set_solutions`]) and the
+//!   log of the work-wide replacing (`replace`). Reserved: store 0048 suchen-verweise, 0049 chat-loesungen, 0050
+//!   chat-bedienung, 0051 integrator; library 0108 suchen-verweise, 0109 chat-bedienung (all expected unused).
+//! - Round 29 (interface R29-S1): typesetting settings per work (module `typeset`, [`WorkTypeset`], [`TypesetSettings`]
+//!   from `baruch_typst::typeset`); their Typst rules are placed by `snapshot::head` behind the work template.
+//!   Migration 0048 (satz-daten): table `work_typeset` with uuid, tombstone kind `work_typeset` (rebuild of
+//!   `uuid_tombstone` like 0046), cascade when the work is deleted. Reserved: store 0049 satz-typst, 0050
+//!   satz-oberflaeche, 0051 integrator; library 0108 satz-daten, 0109 integrator (all expected unused).
 //!
-//! - Runde 22 (Schnittstelle R22-S1): Fortschreiben der aktuellen Fassung (Modul `amend`, [`AmendStep`],
-//!   [`RevisionPolicy`], [`SaveMode`], [`NewReason`] aus `baruch_core::revision_policy`), Archiv der Werke
-//!   ([`RetiredWork`], [`RestoredWork`]). Migration 0050: `revision.amend_seq`/`based_on_amend`, Tabelle
-//!   `revision_amend` mit Grabstein-Art 'revision_amend', `work_revision_policy`, `finding(_status).adopted_amend`.
-//!   Reserviert: Store 0051 fassungen, 0052 befund-rueckfrage, 0053 spiegel-entwurf, 0054 Integrator; Bibliothek 0109
-//!   Integrator (alle erwartet unbenutzt).
-//! - 0.9.0 (Nutzer 2026-11-24): ältere Fassungen ausblenden (Modul `revision_fold`, [`RevisionFold`]); Migration
-//!   0051: Tabelle `node_revision_fold` (Marke je Abschnitt, ohne uuid, nicht im Austausch, Kaskade mit dem Abschnitt).
-//! - Runde 32 (Schnittstelle R32-S1, Word und Beenden): keine Migration. Reserviert: Store 0052 docx_import, 0053
-//!   docx_export, 0054 beenden, 0055 Integrator; Bibliothek 0109 Integrator (alle erwartet unbenutzt).
-//! - Runde 34 (Schnittstelle R34-S1): reserviert 0052 mindmap_daten, 0053 mindmap_widget, 0054 mindmap_austausch, 0055
-//!   Integrator (0052 `idea_tree`: Titel, Elternknoten und Reihenfolge am Einfall; die übrigen erwartet unbenutzt;
-//!   die Reservierungen der Runde 32 blieben unbenutzt). Bibliothek: keine.
-//! - Runde 34 (mindmap_daten): Migration 0052 `idea_tree` – `idea.title`, `idea.parent_id`, `idea.position` und (Nachtrag
-//!   des Nutzers vom 2026-11-25, Wolke als Ablage neben der Mindmap) `idea.main_topic`; nur `ADD COLUMN`, nicht in
-//!   [`FOREIGN_KEYS_OFF`]. Modul `ideas`: [`Store::idea_create_at`] ([`IdeaSpot`]), [`Store::idea_move`] ([`IdeaMove`]),
-//!   [`Store::idea_delete_tree`]/[`Store::idea_restore_tree`] ([`IdeaTreeChange`]), [`Store::idea_tree_rows`],
-//!   [`Store::idea_import_tree`] ([`IdeaSeed`], [`IdeaSeedLink`]). Austauschformat Unterversion 9 (`titel`, `eltern`,
-//!   `platz`, `hauptthema` an `<einfall>`).
-//! - Runde 35 (Schnittstelle R35-S1, Konten und Rollen): Migration 0053 `accounts` (konten: `account`,
-//!   `account_session`, `login_attempt`) und 0054 `work_member` (rollen: Freigabe eines Werks für ein Lektor-Konto);
-//!   beide nur `CREATE`, nicht in [`FOREIGN_KEYS_OFF`], Inhalt nach S1 unveränderlich. Reserviert: 0055 Integrator
-//!   (erwartet unbenutzt); Bibliothek: keine. Die vier Tabellen sind Instanzdaten: ohne uuid, nicht im Austauschformat,
-//!   nicht im Spiegel. Module `accounts` ([`Account`], [`NewAccount`], [`Store::account_count`]) und `members`
-//!   ([`WorkMember`]); der Store hasht nie selbst und sieht nie ein Klartext-Passwort.
-//! - Runde 36 (Schnittstelle R36-S1, Reste): Modul `reste36` ([`OutlineLosses`], [`Store::outline_delete_losses`]).
-//!   Reserviert: 0055 reste (nur `CREATE`/`ADD COLUMN`, nicht in [`FOREIGN_KEYS_OFF`]), 0056 Integrator; Bibliothek 0109
-//!   Integrator (alle erwartet unbenutzt).
+//! - Round 22 (interface R22-S1): amending the current revision (module `amend`, [`AmendStep`], [`RevisionPolicy`],
+//!   [`SaveMode`], [`NewReason`] from `baruch_core::revision_policy`), archive of the works ([`RetiredWork`],
+//!   [`RestoredWork`]). Migration 0050: `revision.amend_seq`/`based_on_amend`, table `revision_amend` with tombstone
+//!   kind 'revision_amend', `work_revision_policy`, `finding(_status).adopted_amend`. Reserved: store 0051 fassungen,
+//!   0052 befund-rueckfrage, 0053 spiegel-entwurf, 0054 integrator; library 0109 integrator (all expected unused).
+//! - 0.9.0 (user 2026-11-24): hiding older revisions (module `revision_fold`, [`RevisionFold`]); migration 0051: table
+//!   `node_revision_fold` (mark per section, without uuid, not in the exchange, cascade with the section).
+//! - Round 32 (interface R32-S1, Word and quitting): no migration. Reserved: store 0052 docx_import, 0053 docx_export,
+//!   0054 beenden, 0055 integrator; library 0109 integrator (all expected unused).
+//! - Round 34 (interface R34-S1): reserved 0052 mindmap_daten, 0053 mindmap_widget, 0054 mindmap_austausch, 0055
+//!   integrator (0052 `idea_tree`: title, parent node and order on the idea; the others expected unused; the
+//!   reservations of Round 32 stayed unused). Library: none.
+//! - Round 34 (mindmap_daten): migration 0052 `idea_tree` – `idea.title`, `idea.parent_id`, `idea.position` and
+//!   (addition by the user of 2026-11-25, cloud as a shelf next to the mind map) `idea.main_topic`; `ADD COLUMN` only,
+//!   not in [`FOREIGN_KEYS_OFF`]. Module `ideas`: [`Store::idea_create_at`] ([`IdeaSpot`]), [`Store::idea_move`]
+//!   ([`IdeaMove`]), [`Store::idea_delete_tree`]/[`Store::idea_restore_tree`] ([`IdeaTreeChange`]),
+//!   [`Store::idea_tree_rows`], [`Store::idea_import_tree`] ([`IdeaSeed`], [`IdeaSeedLink`]). Exchange format minor
+//!   version 9 (`titel`, `eltern`, `platz`, `hauptthema` on `<einfall>`).
+//! - Round 35 (interface R35-S1, accounts and roles): migration 0053 `accounts` (konten: `account`, `account_session`,
+//!   `login_attempt`) and 0054 `work_member` (rollen: sharing a work with a Lektor account); both `CREATE` only, not in
+//!   [`FOREIGN_KEYS_OFF`], content immutable after S1. Reserved: 0055 integrator (expected unused); library: none. The
+//!   four tables are instance data: without uuid, not in the exchange format, not in the mirror. Modules `accounts`
+//!   ([`Account`], [`NewAccount`], [`Store::account_count`]) and `members` ([`WorkMember`]); the store never hashes
+//!   itself and never sees a plain-text password.
+//! - Round 36 (interface R36-S1, leftovers): module `reste36` ([`OutlineLosses`], [`Store::outline_delete_losses`]).
+//!   Reserved: 0055 reste (`CREATE`/`ADD COLUMN` only, not in [`FOREIGN_KEYS_OFF`]), 0056 integrator; library 0109
+//!   integrator (all expected unused).
 //! - Round 38 (interface R38-S1, English for agents and developers): migration 0055 `work_language` – column
 //!   `work.language` (`'de'`|`'en'`, default `'de'`); `ADD COLUMN` only, not in [`FOREIGN_KEYS_OFF`], content fixed
 //!   after S1. Module `language` ([`WorkLanguage`], [`Store::work_language`], [`Store::set_work_language`]); no commit
 //!   in the mirror (like `work_timing`). Reserved: 0056 integrator (expected unused); library: none.
 //!
-//! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
-//! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
+//! Queries use only the runtime API of sqlx (`query`, `query_as`, `query_scalar`), no compile-time macros; no database
+//! is needed for building.
 //!
-//! Zusammengesetztes SQL (seit sqlx 0.9, Runde 36): `query`, `query_as`, `query_scalar`, `raw_sql` und `begin_with`
-//! nehmen nur noch `&'static str` oder einen ausdrücklich bestätigten Text (`sqlx::AssertSqlSafe`, Trait
-//! `SqlSafeStr`). Die Regel für Baruch – Store, Bibliothek und Server:
-//! - Wo es geht, steht das SQL als Literal da.
-//! - `AssertSqlSafe(…)` bekommt nur Text aus **festen Bausteinen** des Quelltexts: Spaltenlisten und `SELECT`-Köpfe
-//!   aus Konstanten (`COLUMNS`, `SELECT`, `NOW` …), Ketten von Platzhaltern (`?, ?, ?`) nach der Zahl der Werte, feste
-//!   Bedingungen und Tabellennamen aus `&'static str` (Literale, `as_db()` eines Enums), Zahlen aus dem Programm
-//!   (geklemmte Grenzen). Bei pgvector kommen Namen aus den Einstellungen dazu: nur als geprüfte Bezeichner
-//!   (`config::is_identifier`) und stets über `quoted()`.
-//! - **Werte** – alles, was vom Menschen, aus einer Datei, einem Modell oder einem Client stammt – werden immer
-//!   gebunden (`.bind(…)`), nie in den Text gesetzt.
-//! - Wer einen neuen Aufruf mit `AssertSqlSafe` schreibt, prüft genau das an der Stelle; Tests dürfen ihr eigenes,
-//!   erfundenes SQL so übergeben.
+//! Composed SQL (since sqlx 0.9, Round 36): `query`, `query_as`, `query_scalar`, `raw_sql` and `begin_with` now take
+//! only `&'static str` or an explicitly confirmed text (`sqlx::AssertSqlSafe`, trait `SqlSafeStr`). The rule for Baruch
+//! – store, library and server:
+//! - Wherever possible, the SQL stands there as a literal.
+//! - `AssertSqlSafe(…)` gets only text from **fixed building blocks** of the source code: column lists and `SELECT`
+//!   heads from constants (`COLUMNS`, `SELECT`, `NOW` …), chains of placeholders (`?, ?, ?`) after the number of
+//!   values, fixed conditions and table names from `&'static str` (literals, `as_db()` of an enum), numbers from the
+//!   program (clamped limits). With pgvector, names from the settings are added: only as checked identifiers
+//!   (`config::is_identifier`) and always through `quoted()`.
+//! - **Values** – everything that comes from the human, from a file, a model or a client – are always bound
+//!   (`.bind(…)`), never put into the text.
+//! - Whoever writes a new call with `AssertSqlSafe` checks exactly that at the spot; tests may pass their own, invented
+//!   SQL that way.
 
 mod accounts;
 mod amend;
@@ -220,23 +213,21 @@ pub use works::{
 
 pub type WorkId = i64;
 
-/// Kernmigrationen (0001 bis 0099). `ignore_missing` ist gesetzt, weil in derselben Datenbank
-/// auch die Migrationen der Bibliothek (0101 ff.) stehen.
+/// Core migrations (0001 to 0099). `ignore_missing` is set because the migrations of the library (0101 ff.) are in the
+/// same database as well.
 pub static MIGRATOR: sqlx::migrate::Migrator =
     sqlx::migrate::Migrator { ignore_missing: true, ..sqlx::migrate!("./migrations") };
 
-/// Migrationen, die eine Tabelle nach dem offiziellen SQLite-Verfahren neu aufbauen und dafür
-/// ausgeschaltete Fremdschlüssel brauchen (0040: `work` mit neuem CHECK). sqlx führt jede Migration in
-/// einer Transaktion aus, in der `PRAGMA foreign_keys` wirkungslos ist; [`migrate`] schaltet sie darum
-/// vorher auf einer eigenen Verbindung aus.
+/// Migrations that rebuild a table after the official SQLite procedure and need foreign keys switched off for that
+/// (0040: `work` with a new CHECK). sqlx runs every migration in a transaction, in which `PRAGMA foreign_keys` has no
+/// effect; therefore [`migrate`] switches them off beforehand on a connection of its own.
 pub const FOREIGN_KEYS_OFF: &[i64] = &[40];
 
-/// Führt [`MIGRATOR`] aus. Vor jeder Version aus [`FOREIGN_KEYS_OFF`] laufen erst alle älteren
-/// Migrationen normal, dann diese eine auf einer eigenen Verbindung mit `PRAGMA foreign_keys = OFF`
-/// (die Migration prüft selbst mit `pragma_foreign_key_check`, dass kein Verweis bricht), danach werden
-/// die Fremdschlüssel wieder eingeschaltet; gelingt das nicht, wird die Verbindung geschlossen statt in
-/// den Pool zurückgegeben. Zuletzt die übrigen Migrationen. Wiederholbar: Eingetragene Migrationen
-/// überspringt sqlx.
+/// Runs [`MIGRATOR`]. Before every version from [`FOREIGN_KEYS_OFF`] first all older migrations run normally, then this
+/// one on a connection of its own with `PRAGMA foreign_keys = OFF` (the migration itself checks with
+/// `pragma_foreign_key_check` that no reference breaks), afterwards the foreign keys are switched on again; if that
+/// does not succeed, the connection is closed instead of being returned to the pool. Last, the remaining migrations.
+/// Repeatable: sqlx skips migrations that are recorded.
 pub async fn migrate(pool: &Db) -> Result<(), StoreError> {
     use sqlx::Connection;
     let subset = |keep: &dyn Fn(i64) -> bool| sqlx::migrate::Migrator {
@@ -278,88 +269,88 @@ pub enum StoreError {
     UnknownRevision { node: usize, rev: u32, existing: Vec<u32> },
     #[error("Leerer Beitrag.")]
     EmptyPost,
-    /// Fachlich abgelehnt, z. B. „Nur Vorschläge lassen sich übernehmen.“
+    /// Rejected on domain grounds, for example „Nur Vorschläge lassen sich übernehmen.“
     #[error("{0}")]
     Refused(&'static str),
     #[error("Diese Datei ist schon importiert: Werk „{title}“ ({slug}).")]
     AlreadyImported { work: WorkId, slug: String, title: String },
     #[error("Import: {0}")]
     Import(String),
-    /// Ein anderes Werk hat schon diesen Titel (gleicher [`title_key`]).
+    /// Another work already has this title (same [`title_key`]).
     #[error("Es gibt schon ein Werk „{title}“ ({slug}).")]
     DuplicateTitle { work: WorkId, slug: String, title: String },
     #[error("Ein Werk braucht einen Titel.")]
     EmptyTitle,
-    /// Die Überschriften des Texts passen nicht zum Gliederungspunkt (Ebene, weitere Überschriften,
-    /// keine Überschrift); so würde die Fassung nicht aktuell bzw. kein Vorschlag angelegt.
+    /// The headings of the text do not fit the outline item (level, further headings, no heading); that way the
+    /// revision would not become current or no proposal would be created.
     #[error("{0}")]
     Heading(String),
-    /// Der feste Schlüssel (`key`) gehört zu keinem Gliederungspunkt des Werks mehr.
+    /// The fixed key (`key`) no longer belongs to any outline item of the work.
     #[error("Diesen Gliederungspunkt gibt es nicht mehr (gelöscht oder zusammengeführt); bitte neu laden.")]
     GoneNode { work: WorkId, key: i64 },
-    /// Unbekanntes Gliederungsschema oder ungültiges Muster der Mustersprache (Runde 6).
+    /// Unknown outline scheme or invalid pattern of the pattern language (Round 6).
     #[error("Nummerierung: {0}")]
     Numbering(String),
-    /// Kein Bild dieses Namens im Werk (Migration 0009).
+    /// No image of this name in the work (migration 0009).
     #[error("Bild „{name}“ gibt es in diesem Werk nicht.")]
     UnknownAsset { work: WorkId, name: String },
-    /// Bild abgelehnt: zu groß, kein unterstützter Typ, ungültiger Name oder Pfad, kaputtes Base64.
+    /// Image rejected: too large, no supported type, invalid name or path, broken Base64.
     #[error("{0}")]
     Asset(String),
-    /// Titel eines Gliederungspunkts abgelehnt (leer, nur Leerraum, Zeilenumbruch, über MAX_TITLE_CHARS).
+    /// Title of an outline item rejected (empty, whitespace only, line break, over MAX_TITLE_CHARS).
     #[error("{0}")]
     Title(String),
-    /// Keine Persona mit diesem Handle (Farbe setzen, Runde 7).
+    /// No persona with this handle (setting the colour, Round 7).
     #[error("Persona „{0}“ gibt es nicht.")]
     UnknownPersona(String),
-    /// Farbe abgelehnt (kein `#rgb`/`#rrggbb`).
+    /// Colour rejected (no `#rgb`/`#rrggbb`).
     #[error("{0}")]
     Color(String),
-    /// Kein Einfall mit dieser id (Migration 0011).
+    /// No idea with this id (migration 0011).
     #[error("Einfall {0} gibt es nicht.")]
     UnknownIdea(i64),
-    /// Einfall abgelehnt: Grenzen der Schlagwörter und Texte, Bezug außerhalb des Werks, gelöscht.
+    /// Idea rejected: limits of the keywords and texts, reference outside the work, deleted.
     #[error("{0}")]
     Idea(String),
-    /// Kein Beitrag mit dieser id im Werk (Runde 8).
+    /// No post with this id in the work (Round 8).
     #[error("Beitrag {post} gibt es in Werk {work} nicht.")]
     UnknownPost { work: WorkId, post: i64 },
-    /// Kein Antrag zur Gliederung mit dieser id im Werk (Migration 0012).
+    /// No request concerning the outline with this id in the work (migration 0012).
     #[error("Antrag {id} gibt es in Werk {work} nicht.")]
     UnknownRequest { work: WorkId, id: i64 },
-    /// Austauschformat (Runde 26): Lesen, Prüfen, Ausgeben oder Einlesen gescheitert.
+    /// Exchange format (Round 26): reading, checking, writing out or reading in failed.
     #[error("Austausch: {0}")]
     Exchange(String),
-    /// Kein Befund mit dieser id im Werk (Runde 28, Migration 0046).
+    /// No finding with this id in the work (Round 28, migration 0046).
     #[error("Befund {id} gibt es in Werk {work} nicht.")]
     UnknownFinding { work: WorkId, id: i64 },
-    /// Befund abgelehnt: Grenzen, Herkunft außerhalb des Werks, Statusregeln (Runde 28).
+    /// Finding rejected: limits, origin outside the work, status rules (Round 28).
     #[error("{0}")]
     Finding(String),
-    /// Beitrag bearbeiten abgelehnt: leer, zu lang, nicht erlaubt (Runde 28).
+    /// Editing a post rejected: empty, too long, not allowed (Round 28).
     #[error("{0}")]
     PostEdit(String),
-    /// Werkweites Ersetzen abgelehnt oder (noch) nicht möglich (Runde 30a, Migration 0047).
+    /// Work-wide replacing rejected or not (yet) possible (Round 30a, migration 0047).
     #[error("{0}")]
     Replace(String),
-    /// Satz-Einstellungen abgelehnt (Prüfung mit allen Meldungen) oder noch nicht möglich (Runde 29).
+    /// Typesetting settings rejected (check with all messages) or not yet possible (Round 29).
     #[error("Satz-Einstellungen: {0}")]
     Typeset(String),
-    /// Glossar oder Register abgelehnt (Grenzen, Doppel, eingebaute Kennung, Wort nicht mehr da) oder noch nicht
-    /// möglich (Runde 31).
+    /// Glossary or index rejected (limits, duplicates, built-in identifier, word no longer there) or not yet possible
+    /// (Round 31).
     #[error("Glossar/Register: {0}")]
     Glossary(String),
-    /// Kein Glossarbegriff mit dieser id im Werk (Runde 31).
+    /// No glossary term with this id in the work (Round 31).
     #[error("Glossarbegriff {id} gibt es in Werk {work} nicht.")]
     UnknownGlossaryTerm { work: WorkId, id: i64 },
-    /// Kein Registervorschlag mit dieser id im Werk (Runde 31).
+    /// No index proposal with this id in the work (Round 31).
     #[error("Registervorschlag {id} gibt es in Werk {work} nicht.")]
     UnknownIndexProposal { work: WorkId, id: i64 },
-    /// Umschlagblock abgelehnt: Steuerzeichen, Leerraum um Schriftnamen, Grenzen (Runde 23, web; vorher `Asset`).
+    /// Cover block rejected: control characters, whitespace around font names, limits (Round 23, web; before `Asset`).
     #[error("{0}")]
     CoverBlock(String),
-    /// Veraltet: Vorschau oder Entscheidung auf einem überholten Antrag (Runde 23, mcp-namen; vorher `Heading("Veraltet: …")`).
-    /// Wortlaut bleibt „Veraltet: <Grund>“.
+    /// Stale: preview or decision on an outdated request (Round 23, mcp-namen; before `Heading("Veraltet: …")`).
+    /// The wording stays „Veraltet: <Grund>“.
     #[error("{0}")]
     Stale(String),
 }
@@ -370,63 +361,63 @@ impl From<baruch_exchange::ExchangeError> for StoreError {
     }
 }
 
-/// Ergebnis von [`Store::import_typst`].
+/// Result of [`Store::import_typst`].
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Imported {
     pub work: WorkId,
     pub slug: String,
     pub title: String,
     pub author: String,
-    /// Anzahl der angelegten Abschnitte (Kapitel, Abschnitte, Unterabschnitte).
+    /// Number of sections created (chapters, sections, subsections).
     pub nodes: usize,
 }
 
-/// Ein Werk in der Übersicht ([`Store::work_list`]).
+/// A work in the overview ([`Store::work_list`]).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct WorkSummary {
     pub id: WorkId,
     pub slug: String,
     pub title: String,
     pub author: String,
-    /// Anzahl der Knoten der Gliederung.
+    /// Number of nodes of the outline.
     pub nodes: usize,
     pub kind: baruch_core::WorkKind,
     pub subtitle: String,
-    /// Anzahl der Abschnitte (Knoten ohne Teile).
+    /// Number of sections (nodes without parts).
     pub sections: usize,
-    /// Offene Vorschläge im ganzen Werk.
+    /// Open proposals in the whole work.
     pub proposals: usize,
     pub created: String,
-    /// Letzte Änderung: größter Zeitpunkt aus `work.updated`, `revision.created`, `revision.edited`.
+    /// Last change: largest point in time from `work.updated`, `revision.created`, `revision.edited`.
     pub updated: Option<String>,
     /// Work language (migration 0055): personas answer in it.
     pub language: WorkLanguage,
 }
 
-/// Verletzte Regel in den gespeicherten Daten (z. B. zwei oder keine `current`). Wird als
-/// Datenbankfehler gemeldet; die laufende Transaktion wird dadurch zurückgerollt.
+/// Violated rule in the stored data (for example two or no `current`). It is reported as a database error; the running
+/// transaction is rolled back by that.
 pub(crate) fn broken(message: String) -> StoreError {
     StoreError::Db(sqlx::Error::Protocol(message))
 }
 
-/// Ergebnis einer Änderung, die der Server im Git-Spiegel protokolliert.
+/// Result of a change that the server logs in the Git mirror.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Change {
     pub work: WorkId,
-    /// Abschnitt (seq).
+    /// Section (seq).
     pub node: usize,
-    /// Bei `Accepted`, `Saved` und `Switched` die jetzt aktuelle Revisionsnummer, bei `Updated` und
-    /// `Deleted` die betroffene Revision.
+    /// For `Accepted`, `Saved` and `Switched` the revision number that is current now, for `Updated` and `Deleted` the
+    /// revision concerned.
     pub rev: u32,
-    /// Bei `Updated` und `Deleted` der Mensch (`Human{human}`), sonst der Autor der jetzt aktuellen
-    /// Revision.
+    /// For `Updated` and `Deleted` the human (`Human{human}`), otherwise the author of the revision that is current
+    /// now.
     pub author: baruch_core::Author,
     pub kind: ChangeKind,
-    /// Bei `Updated` und `Deleted` der Stand der Revision vorher, sonst `None`.
+    /// For `Updated` and `Deleted` the state of the revision before, otherwise `None`.
     pub before: Option<RevisionRecord>,
-    /// Bei `Deleted` die Kinder der gelöschten Revision, die jetzt an ihrem Elternteil hängen.
+    /// For `Deleted` the children of the deleted revision, which now hang on its parent.
     pub reparented: Vec<u32>,
-    /// Bei `Amended` und `AmendUndone` der neue Stand der Fassung (`revision.amend_seq`), sonst `None`.
+    /// For `Amended` and `AmendUndone` the new state of the revision (`revision.amend_seq`), otherwise `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amend_seq: Option<u32>,
 }
@@ -434,23 +425,23 @@ pub struct Change {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeKind {
-    /// Vorschlag übernommen (Umschalten auf einen Vorschlag).
+    /// Proposal accepted (switching to a proposal).
     Accepted,
-    /// Neue Revision vom Menschen, sofort aktuell.
+    /// New revision by the human, current at once.
     Saved,
-    /// Markierung „aktuell“ auf eine andere, nicht vorgeschlagene Fassung umgeschaltet.
+    /// "Current" marker switched to another revision that is not a proposal.
     Switched,
-    /// Text und/oder Notiz einer Revision vom Menschen geändert.
+    /// Text and/or note of a revision changed by the human.
     Updated,
-    /// Revision vom Menschen gelöscht.
+    /// Revision deleted by the human.
     Deleted,
-    /// Aktuelle Fassung vom Menschen fortgeschrieben (Runde 22, `revision_amend` Art 'amend').
+    /// Current revision amended by the human (Round 22, `revision_amend` kind 'amend').
     Amended,
-    /// Fortschreibung über den Verlauf zurückgenommen (Runde 22, `revision_amend` Art 'undo').
+    /// Amendment taken back through the history (Round 22, `revision_amend` kind 'undo').
     AmendUndone,
 }
 
-/// Eine Datei des Typst-Spiegels; `path` ist relativ und mit '/' getrennt.
+/// A file of the Typst mirror; `path` is relative and separated with '/'.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MirrorFile {
     pub path: String,
@@ -462,10 +453,10 @@ pub struct Store {
     pool: Db,
 }
 
-/// Legt den Datenordner an. Runde 23 (Codereview quellen-5): Ein Ordner, den Baruch selbst neu anlegt, bekommt
-/// unter Unix die Rechte 0700 (nur der Besitzer), damit Datenbank und Spiegel auch außerhalb eines geschützten
-/// Home nicht für andere lesbar sind. Ein vorhandener Ordner bleibt, wie er ist – seine Rechte hat der Nutzer
-/// gesetzt (z. B. bewusst für eine Gruppe).
+/// Creates the data folder. Round 23 (code review quellen-5): a folder that Baruch itself newly creates gets the
+/// permissions 0700 under Unix (only the owner), so that database and mirror are not readable by others even outside a
+/// protected home. An existing folder stays as it is – the user has set its permissions (for example deliberately for a
+/// group).
 fn create_data_dir(data_dir: &Path) -> std::io::Result<()> {
     if data_dir.is_dir() {
         return Ok(());
@@ -473,8 +464,8 @@ fn create_data_dir(data_dir: &Path) -> std::io::Result<()> {
     if let Some(parent) = data_dir.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
     }
-    // Außerhalb von Unix (Windows) gibt es keine Rechtebits: Der Ordner erbt dort die Rechte von
-    // %LOCALAPPDATA% (nur der Benutzer), `builder` bleibt unverändert.
+    // Outside of Unix (Windows) there are no permission bits: there the folder inherits the permissions of
+    // %LOCALAPPDATA% (only the user), `builder` stays unchanged.
     #[cfg_attr(not(unix), allow(unused_mut))]
     let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
@@ -489,10 +480,10 @@ fn create_data_dir(data_dir: &Path) -> std::io::Result<()> {
 }
 
 impl Store {
-    /// Legt `<data>` an, öffnet `<data>/baruch.sqlite`, führt [`MIGRATOR`] über [`migrate`] aus, trägt die
-    /// Titelschlüssel nach (`works::ensure_title_keys`, Doppel aus der Zeit vor 0005 bekommen einen
-    /// eigenen Titel) und befüllt eine wirklich neue Datenbank (ohne `store_meta.seeded`, Migration 0007) in
-    /// einer Transaktion mit `baruch_core::sample::work()`; sind später alle Werke gelöscht, wird nicht neu gesät.
+    /// Creates `<data>`, opens `<data>/baruch.sqlite`, runs [`MIGRATOR`] through [`migrate`], backfills the title keys
+    /// (`works::ensure_title_keys`, duplicates from the time before 0005 get a title of their own) and fills a really
+    /// new database (without `store_meta.seeded`, migration 0007) in one transaction with
+    /// `baruch_core::sample::work()`; if all works are deleted later, it is not seeded again.
     pub async fn open(data_dir: &Path) -> Result<Store, StoreError> {
         create_data_dir(data_dir).map_err(|source| StoreError::Io { path: data_dir.to_owned(), source })?;
         let options = SqliteConnectOptions::new()
@@ -508,17 +499,17 @@ impl Store {
         Ok(Store { pool })
     }
 
-    /// Derselbe Pool für weitere Crates (z. B. `baruch_library::migrate(store.pool())`).
+    /// The same pool for further crates (for example `baruch_library::migrate(store.pool())`).
     pub fn pool(&self) -> &Db {
         &self.pool
     }
 
-    /// Alle Werke als `(id, slug, title)`, nach id.
+    /// All works as `(id, slug, title)`, by id.
     pub async fn works(&self) -> Result<Vec<(WorkId, String, String)>, StoreError> {
         Ok(sqlx::query_as("SELECT id, slug, title FROM work ORDER BY id").fetch_all(&self.pool).await?)
     }
 
-    /// Werk zum Ordnernamen; unbekannt → `UnknownWork(0)`.
+    /// Work for the folder name; unknown → `UnknownWork(0)`.
     pub async fn work_by_slug(&self, slug: &str) -> Result<WorkId, StoreError> {
         sqlx::query_scalar("SELECT id FROM work WHERE slug = ?")
             .bind(slug)
@@ -527,7 +518,7 @@ impl Store {
             .ok_or(StoreError::UnknownWork(0))
     }
 
-    /// Aktuelle Werkvorlage (Präambel bis zur ersten Überschrift); leer beim Beispielwerk.
+    /// Current work template (preamble up to the first heading); empty for the sample work.
     pub async fn work_template(&self, work: WorkId) -> Result<String, StoreError> {
         sqlx::query_scalar("SELECT template FROM work WHERE id = ?")
             .bind(work)
@@ -536,18 +527,17 @@ impl Store {
             .ok_or(StoreError::UnknownWork(work))
     }
 
-    /// Typst-Datei als neues Werk (atomar, `BEGIN IMMEDIATE`). CRLF wird vorher zu LF; dieselbe
-    /// Quelle ein zweites Mal → `AlreadyImported` (nichts angelegt), keine Überschrift → `Import`,
-    /// Titel schon vergeben → `DuplicateTitle` (eigener Titel: [`Store::import_typst_titled`]).
-    /// Titel und Autor aus `#set document`, sonst Dateiname ohne Endung bzw. leer; Ordnername aus
-    /// dem Titel, bei Kollision mit `-2`, `-3` …. Jeder Abschnitt bekommt Revision 1 von `human`
-    /// (aktuell, Notiz „Import aus <file_name>“). Personas bleiben unberührt.
+    /// A Typst file as a new work (atomic, `BEGIN IMMEDIATE`). CRLF becomes LF beforehand; the same source a second
+    /// time → `AlreadyImported` (nothing created), no heading → `Import`, title already taken → `DuplicateTitle`
+    /// (custom title: [`Store::import_typst_titled`]). Title and author from `#set document`, otherwise the file name
+    /// without extension or empty; folder name from the title, on a collision with `-2`, `-3` …. Every section gets
+    /// revision 1 by `human` (current, note „Import aus <file_name>“). Personas stay untouched.
     pub async fn import_typst(&self, source: &str, file_name: &str, human: &str) -> Result<Imported, StoreError> {
         self.import_typst_noted(source, file_name, human, &format!("Import aus {file_name}")).await
     }
 
-    /// Wie [`Store::import_typst`], mit eigener Notiz an jeder Revision (z. B. welcher MCP-Client
-    /// den Import ausgelöst hat).
+    /// Like [`Store::import_typst`], with a custom note on every revision (for example which MCP client triggered the
+    /// import).
     pub async fn import_typst_noted(
         &self,
         source: &str,
@@ -558,22 +548,22 @@ impl Store {
         self.import_typst_titled(source, file_name, human, note, None).await
     }
 
-    /// Das Werk als eine Typst-Datei: Werkvorlage und aktuelle Texte in Baumreihenfolge (wie
-    /// [`Store::mirror_snapshot`]). Nach einem Import ohne Änderung Byte für Byte die Quelle (nach CRLF → LF) bis auf die
-    /// Sprungmarken `<kN>` bzw. Ankerzeilen, die der Export an Überschriften setzt (Runde 30a, `baruch_typst::xref`).
+    /// The work as one Typst file: work template and current texts in tree order (like [`Store::mirror_snapshot`]).
+    /// After an import without a change byte for byte the source (after CRLF → LF) apart from the jump labels `<kN>` or
+    /// anchor lines that the export puts on headings (Round 30a, `baruch_typst::xref`).
     pub async fn export_typst(&self, work: WorkId) -> Result<String, StoreError> {
         let mut conn = self.pool.acquire().await?;
         snapshot::export(&mut conn, work).await
     }
 
-    /// Schlüssel der Knoten, deren Überschrift Typst als Kapitel zählt (`counter(heading).get().first()`,
-    /// Baumreihenfolge); `None`, wenn das ohne Typst nicht sicher feststeht (Runde 11, Kapitelbild).
+    /// Keys of the nodes whose heading Typst counts as a chapter (`counter(heading).get().first()`, tree order); `None`
+    /// if that is not certain without Typst (Round 11, chapter image).
     pub async fn counted_headings(&self, work: WorkId) -> Result<Option<Vec<i64>>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         snapshot::counted_headings(&mut conn, work).await
     }
 
-    /// Das Werk mit der kleinsten id.
+    /// The work with the smallest id.
     pub async fn default_work(&self) -> Result<WorkId, StoreError> {
         let id: Option<i64> = sqlx::query_scalar("SELECT min(id) FROM work").fetch_one(&self.pool).await?;
         id.ok_or(StoreError::UnknownWork(0))
@@ -587,8 +577,8 @@ impl Store {
             .ok_or(StoreError::UnknownWork(work))
     }
 
-    /// Stelle (`seq`) des Gliederungspunkts mit dem festen Schlüssel `key` (Datenbank-id, `Node::key`).
-    /// Gehört `key` zu keinem Punkt des Werks (mehr) → `GoneNode`.
+    /// Position (`seq`) of the outline item with the fixed key `key` (database id, `Node::key`). If `key` belongs to no
+    /// item of the work (any longer) → `GoneNode`.
     pub async fn node_seq(&self, work: WorkId, key: i64) -> Result<usize, StoreError> {
         let seq: Option<i64> = sqlx::query_scalar("SELECT seq FROM node WHERE work_id = ? AND id = ?")
             .bind(work)
@@ -604,21 +594,21 @@ impl Store {
         }
     }
 
-    /// Vollständiges Werk: Knoten nach seq, Revisionen nach number, Beiträge nach position
-    /// (mit sources und refs), alle Personas nach position.
+    /// Complete work: nodes by seq, revisions by number, posts by position (with sources and refs), all personas by
+    /// position.
     pub async fn load_work(&self, work: WorkId) -> Result<baruch_core::Work, StoreError> {
         let mut conn = self.pool.acquire().await?;
         load::work(&mut conn, work).await
     }
 
-    /// Vorschlag übernehmen (atomar): [`Store::switch_to`] mit `only_proposal`, als Mensch „Autor“;
-    /// bisherige `current` → `superseded`, Vorschlag → `current`, die Gliederung folgt seiner
-    /// Überschriftszeile. Ist `rev` kein Vorschlag, bleibt alles, wie es ist (`Refused`).
+    /// Accept a proposal (atomic): [`Store::switch_to`] with `only_proposal`, as the human „Autor“; previous `current`
+    /// → `superseded`, proposal → `current`, the outline follows its heading line. If `rev` is not a proposal,
+    /// everything stays as it is (`Refused`).
     pub async fn accept(&self, work: WorkId, node: usize, rev: u32) -> Result<Change, StoreError> {
         self.switch_to(work, node, rev, true, tree::HUMAN).await.map(|s| s.change)
     }
 
-    /// Vorschlag verwerfen (atomar): `proposed` → `rejected`. Gibt die aktuelle Revisionsnummer zurück.
+    /// Reject a proposal (atomic): `proposed` → `rejected`. Returns the current revision number.
     pub async fn reject(&self, work: WorkId, node: usize, rev: u32) -> Result<u32, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let current = write::reject(&mut tx, work, node, rev).await?;
@@ -626,10 +616,9 @@ impl Store {
         Ok(current)
     }
 
-    /// Eigene Bearbeitung speichern (atomar): neue Revision vom Menschen, sofort `current`, mit der
-    /// aktuellen Fassung als Elternteil (Wurzel bei einem leeren Abschnitt); wie
-    /// [`Store::save_human_on`] mit Basis = aktuelle Fassung. CRLF wird zu LF. Gleicher Text wie die
-    /// aktuelle Revision → `Ok(None)`, nichts geändert.
+    /// Save one's own edit (atomic): new revision by the human, `current` at once, with the current revision as the
+    /// parent (a root for an empty section); like [`Store::save_human_on`] with base = current revision. CRLF becomes
+    /// LF. Same text as the current revision → `Ok(None)`, nothing changed.
     pub async fn save_human(
         &self,
         work: WorkId,
@@ -646,11 +635,10 @@ impl Store {
         Ok(change)
     }
 
-    /// Vorschlag eines Assistenten anhängen: immer `proposed`, nie `current`. Setzt `based_on`
-    /// auf die aktuelle Revision und gibt die neue Nummer zurück. Ein Abschnitt ohne aktuelle
-    /// Revision nimmt keine Vorschläge an (`Refused`). Passen die Überschriften nicht zum
-    /// Gliederungspunkt (andere Ebene, weitere Überschriften, keine), → `Heading`: Ein Vorschlag
-    /// ändert nie die Gliederung.
+    /// Append a proposal of an assistant: always `proposed`, never `current`. Sets `based_on` to the current revision
+    /// and returns the new number. A section without a current revision takes no proposals (`Refused`). If the headings
+    /// do not fit the outline item (another level, further headings, none), → `Heading`: a proposal never changes the
+    /// outline.
     pub async fn add_proposal(
         &self,
         work: WorkId,
@@ -667,8 +655,8 @@ impl Store {
         Ok(number)
     }
 
-    /// Beitrag im Abschnitts-Chat anhängen (Text getrimmt, leer → `EmptyPost`), Verweise in `post_ref`.
-    /// Gibt die neue id des Beitrags zurück (`post.id`, Runde 8; `Post::id`/`created` werden nicht gelesen).
+    /// Append a post in the section chat (text trimmed, empty → `EmptyPost`), references in `post_ref`. Returns the new
+    /// id of the post (`post.id`, Round 8; `Post::id`/`created` are not read).
     pub async fn add_post(&self, work: WorkId, node: usize, post: &baruch_core::Post) -> Result<i64, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let id = write::add_post(&mut tx, work, node, post).await?;
@@ -676,17 +664,16 @@ impl Store {
         Ok(id)
     }
 
-    /// Typst-Spiegel des Werks aus den aktuellen Revisionen: `main.typ` und
-    /// `abschnitte/{seq:03}-{slug}.typ` (Vertrag B1, Abschnitt 6). Mit Werkvorlage beginnt `main.typ`
-    /// mit ihr und bindet danach die Abschnitte ein, sonst mit `// Baruch: <Titel>`.
+    /// Typst mirror of the work from the current revisions: `main.typ` and `abschnitte/{seq:03}-{slug}.typ` (contract
+    /// B1, section 6). With a work template `main.typ` begins with it and includes the sections after it, otherwise
+    /// with `// Baruch: <title>`.
     pub async fn mirror_snapshot(&self, work: WorkId) -> Result<Vec<MirrorFile>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         snapshot::files(&mut conn, work).await
     }
 
-    /// Register und Glossar eines Werks für Projektion, Buchende und EPUB (Runde 31, Vertrag §2.6):
-    /// Satz-Einstellungen, eingebaute und eigene Register, angenommene Glossarbegriffe. Unbekanntes Werk →
-    /// `UnknownWork`.
+    /// Index and glossary of a work for projection, end of the book and EPUB (Round 31, contract §2.6): typesetting
+    /// settings, built-in and custom indexes, accepted glossary terms. Unknown work → `UnknownWork`.
     pub async fn back_matter(&self, work: WorkId) -> Result<baruch_typst::index::BackMatter, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let exists: Option<i64> =
@@ -698,20 +685,19 @@ impl Store {
     }
 }
 
-/// Vorgabe-Datenordner: `dirs::data_local_dir()` + `baruch`. Linux `$XDG_DATA_HOME/baruch` bzw.
-/// `~/.local/share/baruch`, macOS `~/Library/Application Support/baruch`, Windows
-/// `%LOCALAPPDATA%\baruch` (Local, nicht Roaming: servergespeicherte Profile würden SQLite-WAL und
-/// Git-Spiegel bei jeder An- und Abmeldung kopieren). Ohne Heimatordner `./baruch`.
+/// Default data folder: `dirs::data_local_dir()` + `baruch`. Linux `$XDG_DATA_HOME/baruch` or `~/.local/share/baruch`,
+/// macOS `~/Library/Application Support/baruch`, Windows `%LOCALAPPDATA%\baruch` (Local, not Roaming: roaming profiles
+/// would copy the SQLite WAL and the Git mirror at every sign-in and sign-out). Without a home folder `./baruch`.
 pub fn default_data_dir() -> PathBuf {
     dirs::data_local_dir().unwrap_or_else(|| PathBuf::from(".")).join("baruch")
 }
 
-/// Höchstlänge eines Ordnernamens aus [`slug`].
+/// Maximum length of a folder name from [`slug`].
 const SLUG_MAX: usize = 40;
 
-/// Ordnername: Kleinbuchstaben, ä→ae ö→oe ü→ue ß→ss, alles außer `[a-z0-9]` → '-', Folgen
-/// zusammengefasst, Ränder gekürzt, leer → "werk". Höchstens 40 Zeichen, gekürzt an der letzten
-/// Wortgrenze ('-') innerhalb der Grenze; ein einzelnes längeres Wort wird hart gekürzt.
+/// Folder name: lower-case letters, ä→ae ö→oe ü→ue ß→ss, everything except `[a-z0-9]` → '-', runs collapsed, edges
+/// trimmed, empty → "werk". At most 40 characters, cut at the last word boundary ('-') within the limit; a single
+/// longer word is cut hard.
 pub fn slug(s: &str) -> String {
     fn push(out: &mut String, c: char) {
         if c.is_ascii_lowercase() || c.is_ascii_digit() {
@@ -736,7 +722,7 @@ pub fn slug(s: &str) -> String {
     }
     let mut out = out.trim_matches('-').to_owned();
     if out.len() > SLUG_MAX {
-        // Nur ASCII, Byte = Zeichen. Steht an Stelle 40 ein '-', endet dort ein ganzes Wort.
+        // ASCII only, byte = character. If there is a '-' at position 40, a whole word ends there.
         match out[..=SLUG_MAX].rfind('-') {
             Some(cut) if cut > 0 => out.truncate(cut),
             _ => out.truncate(SLUG_MAX),
@@ -746,7 +732,7 @@ pub fn slug(s: &str) -> String {
     if out.is_empty() { "werk".to_owned() } else { out }
 }
 
-/// Wörter der Datenbank für die Aufzählungen aus baruch-core (= serde-Namen, `snake_case`).
+/// Words of the database for the enumerations from baruch-core (= serde names, `snake_case`).
 pub(crate) mod words {
     use baruch_core::{NodeKind, RevisionStatus, WorkKind};
 
@@ -804,7 +790,7 @@ pub(crate) mod words {
     }
 }
 
-/// Spalten `author_kind`, `author_name`, `model` ↔ `baruch_core::Author`.
+/// Columns `author_kind`, `author_name`, `model` ↔ `baruch_core::Author`.
 pub(crate) fn author_columns(author: &baruch_core::Author) -> (&'static str, &str, Option<&str>) {
     match author {
         baruch_core::Author::Human { name } => ("human", name, None),
@@ -820,7 +806,7 @@ pub(crate) fn parse_author(kind: &str, name: String, model: Option<String>) -> R
     }
 }
 
-/// `usize`/`u32` aus einer SQLite-Ganzzahl; negativ oder zu groß → Regelverletzung.
+/// `usize`/`u32` from an SQLite integer; negative or too large → rule violation.
 pub(crate) fn to_usize(value: i64, what: &str) -> Result<usize, StoreError> {
     usize::try_from(value).map_err(|_| broken(format!("{what} außerhalb des Bereichs: {value}")))
 }

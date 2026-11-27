@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fäden ohne Abschnitt (Runde 15, Migration 0038): ein Gespräch je Werk, das an keinem Abschnitt hängt.
+//! Threads without a section (Round 15, migration 0038): a conversation per work that hangs on no section.
 //!
-//! - MCP `chat` ohne `key` legt einen Faden an (erster Beitrag = Absender) bzw. setzt einen fort (`thread`);
-//!   der Mensch liest und antwortet auf den Seiten `/faeden` und `/faden` (Server `threads.rs`).
-//! - Ein Faden ist kein Buchtext: Beiträge stehen in `chat_thread_post`, nie in `post`, und kommen nicht in den
-//!   Spiegel. Jede Änderung ist genau eine Transaktion (`BEGIN IMMEDIATE`).
-//! - Angesprochen wird ein Faden über seine id **und** sein Werk; eine id aus einem anderen Werk gilt als
-//!   unbekannt ([`UNKNOWN_THREAD`]).
-//! - Runde 30c (chat-bedienung): Fadenbeiträge lassen sich löschen ([`Store::thread_post_delete`]); Metadaten
-//!   (Antwort auf, Wiederholung, Relay, Auftrag) schreibt `post_meta.rs` (`thread_add_post_meta`).
+//! - MCP `chat` without `key` creates a thread (first post = sender) or continues one (`thread`); the human reads and
+//!   answers on the pages `/faeden` and `/faden` (server `threads.rs`).
+//! - A thread is not book text: posts are in `chat_thread_post`, never in `post`, and do not get into the mirror. Every
+//!   change is exactly one transaction (`BEGIN IMMEDIATE`).
+//! - A thread is addressed through its id **and** its work; an id from another work counts as unknown
+//!   ([`UNKNOWN_THREAD`]).
+//! - Round 30c (chat-bedienung): thread posts can be deleted ([`Store::thread_post_delete`]); metadata (reply to,
+//!   repetition, relay, job) is written by `post_meta.rs` (`thread_add_post_meta`).
 
 use crate::{Store, StoreError, WorkId};
 
-/// Meldung für einen Faden, den es im Werk nicht gibt.
+/// Message for a thread that does not exist in the work.
 pub const UNKNOWN_THREAD: &str = "Diesen Faden gibt es in diesem Werk nicht.";
-/// Höchstens so viele Zeichen hat der Titel eines Fadens (aus dem Anfang der ersten Nachricht).
+/// The title of a thread has at most this many characters (from the beginning of the first message).
 pub const MAX_THREAD_TITLE_CHARS: usize = 80;
 
-/// Ein Faden in der Übersicht.
+/// A thread in the overview.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ThreadSummary {
     pub id: i64,
     pub work: WorkId,
     pub title: String,
-    /// Wer ihn begonnen hat („Autor“, `@handle`, `@mcp:<name>`).
+    /// Who started it („Autor“, `@handle`, `@mcp:<name>`).
     pub created_by: String,
     pub created: String,
-    /// Zeit des letzten Beitrags.
+    /// Time of the last post.
     pub updated: String,
     pub posts: i64,
-    /// Autor des letzten Beitrags (leer ohne Beiträge).
+    /// Author of the last post (empty without posts).
     pub last_author: String,
 }
 
-/// Ein Beitrag in einem Faden.
+/// A post in a thread.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ThreadPost {
     pub id: i64,
@@ -43,11 +43,11 @@ pub struct ThreadPost {
     pub body: String,
     pub sources: Vec<String>,
     pub created: String,
-    /// Zeit der letzten Änderung (Runde 28, `chat_thread_post.edited`); `None` = nie bearbeitet.
+    /// Time of the last change (Round 28, `chat_thread_post.edited`); `None` = never edited.
     pub edited: Option<String>,
 }
 
-/// Ein Faden mit allen Beiträgen (älteste zuerst).
+/// A thread with all posts (oldest first).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Thread {
     #[serde(flatten)]
@@ -55,7 +55,7 @@ pub struct Thread {
     pub entries: Vec<ThreadPost>,
 }
 
-/// Titel aus dem Anfang einer Nachricht: eine Zeile, höchstens [`MAX_THREAD_TITLE_CHARS`] Zeichen.
+/// Title from the beginning of a message: one line, at most [`MAX_THREAD_TITLE_CHARS`] characters.
 pub fn thread_title(message: &str) -> String {
     let flat = message.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= MAX_THREAD_TITLE_CHARS {
@@ -68,7 +68,7 @@ pub fn thread_title(message: &str) -> String {
 }
 
 type SummaryRow = (i64, i64, String, String, String, String, i64, Option<String>);
-/// Zeile eines Fadenbeitrags: id, Stelle, Autor, Text, Quellen (JSON), angelegt, bearbeitet.
+/// Row of a thread post: id, position, author, text, sources (JSON), created, edited.
 type PostRow = (i64, i64, String, String, String, String, Option<String>);
 
 const SUMMARY_SELECT: &str = "SELECT t.id, t.work_id, t.title, t.created_by, t.created, t.updated, \
@@ -87,7 +87,7 @@ impl Store {
         found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
     }
 
-    /// Fäden eines Werks, zuletzt beschriebene zuerst.
+    /// Threads of a work, most recently written first.
     pub async fn thread_list(&self, work: WorkId) -> Result<Vec<ThreadSummary>, StoreError> {
         self.check_work(work).await?;
         let rows: Vec<SummaryRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
@@ -99,8 +99,7 @@ impl Store {
         Ok(rows.into_iter().map(summary).collect())
     }
 
-    /// Faden `id` im Werk `work` mit allen Beiträgen; unbekannt (auch in einem anderen Werk) →
-    /// `Refused(UNKNOWN_THREAD)`.
+    /// Thread `id` in the work `work` with all posts; unknown (also in another work) → `Refused(UNKNOWN_THREAD)`.
     pub async fn thread_get(&self, work: WorkId, id: i64) -> Result<Thread, StoreError> {
         self.check_work(work).await?;
         let row: Option<SummaryRow> =
@@ -128,7 +127,7 @@ impl Store {
         Ok(Thread { summary, entries })
     }
 
-    /// Neuen Faden mit erstem Beitrag anlegen (eine Transaktion); Titel aus der Nachricht ([`thread_title`]).
+    /// Create a new thread with a first post (one transaction); title from the message ([`thread_title`]).
     pub async fn thread_create(
         &self,
         work: WorkId,
@@ -153,7 +152,7 @@ impl Store {
         Ok((thread.summary, post))
     }
 
-    /// Beitrag an den Faden `id` anhängen (Stelle = bisher größte + 1, eine Transaktion).
+    /// Append a post to the thread `id` (position = largest so far + 1, one transaction).
     pub async fn thread_add_post(
         &self,
         work: WorkId,
@@ -171,9 +170,9 @@ impl Store {
         Ok(post)
     }
 
-    /// Runde 30c: Fadenbeitrag `id` im Faden `thread` löschen (eine Transaktion; Verlauf und Befund-Verweise folgen
-    /// den Fremdschlüsseln, Grabstein über den Trigger). Gibt den gelöschten Beitrag zurück. Unbekannter Faden →
-    /// `Refused(UNKNOWN_THREAD)`, unbekannter Beitrag → `UnknownPost`. Wer löschen darf, prüft der Server.
+    /// Round 30c: delete the thread post `id` in the thread `thread` (one transaction; history and finding references
+    /// follow the foreign keys, tombstone through the trigger). Returns the deleted post. Unknown thread →
+    /// `Refused(UNKNOWN_THREAD)`, unknown post → `UnknownPost`. Who may delete is checked by the server.
     pub async fn thread_post_delete(&self, work: WorkId, thread: i64, id: i64) -> Result<ThreadPost, StoreError> {
         self.check_work(work).await?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -192,7 +191,7 @@ impl Store {
     }
 }
 
-/// Gibt es den Faden `thread` im Werk `work`? Sonst `Refused(UNKNOWN_THREAD)`.
+/// Does the thread `thread` exist in the work `work`? Otherwise `Refused(UNKNOWN_THREAD)`.
 async fn check_thread(conn: &mut sqlx::SqliteConnection, work: WorkId, thread: i64) -> Result<(), StoreError> {
     let found: Option<i64> = sqlx::query_scalar("SELECT id FROM chat_thread WHERE id = ? AND work_id = ?")
         .bind(thread)
@@ -202,8 +201,8 @@ async fn check_thread(conn: &mut sqlx::SqliteConnection, work: WorkId, thread: i
     found.map(|_| ()).ok_or(StoreError::Refused(UNKNOWN_THREAD))
 }
 
-/// Beitrag an den Faden `thread` des Werks `work` anhängen (in der Transaktion des Aufrufers; Runde 30c auch für
-/// `thread_add_post_meta`). Unbekanntes Werk → `UnknownWork`, unbekannter Faden → `Refused(UNKNOWN_THREAD)`.
+/// Append a post to the thread `thread` of the work `work` (in the transaction of the caller; Round 30c also for
+/// `thread_add_post_meta`). Unknown work → `UnknownWork`, unknown thread → `Refused(UNKNOWN_THREAD)`.
 pub(crate) async fn add_post_in(
     conn: &mut sqlx::SqliteConnection,
     work: WorkId,
@@ -219,8 +218,8 @@ pub(crate) async fn add_post_in(
     insert_post(conn, thread, author, body, sources).await
 }
 
-/// Fadenbeitrag `id` im Faden `thread`, gelesen in der Verbindung bzw. Transaktion des Aufrufers (Runde 28:
-/// Bearbeiten). Unbekannt → `UnknownPost` (Faden und Werk prüft der Aufrufer).
+/// Thread post `id` in the thread `thread`, read in the connection or transaction of the caller (Round 28: editing).
+/// Unknown → `UnknownPost` (the caller checks thread and work).
 pub(crate) async fn post_get(
     conn: &mut sqlx::SqliteConnection,
     work: WorkId,

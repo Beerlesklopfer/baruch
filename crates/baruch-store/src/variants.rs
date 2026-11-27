@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Varianten als Geschwister im Fassungsbaum (Runde 30b, Migration 0047; Schnittstelle R30-S1, danach gehört das Modul
-//! chat-loesungen).
+//! Variants as siblings in the revision tree (Round 30b, migration 0047; interface R30-S1, afterwards the module
+//! belongs to chat-loesungen).
 //!
-//! Eine Variante ist ein Vorschlag mit gleicher Basis wie ihre Geschwister, mit Gruppe (uuid, klein), Etikett A/B/C,
-//! einer Zeile Zusammenfassung und den umgesetzten Befunden (`revision.variant_*`). Gruppe und Etikett stehen immer
-//! zusammen (Code-Regel, siehe Kopf von 0047). Übernehmen bleibt beim Menschen.
+//! A variant is a proposal with the same base as its siblings, with a group (uuid, lower case), a label A/B/C, one line
+//! of summary and the findings it implements (`revision.variant_*`). Group and label always come together (code rule,
+//! see the header of 0047). Accepting stays with the human.
 
 use crate::{Store, StoreError, WorkId, to_u32};
 
-/// Kennzeichen einer Variante (`revision.variant_*`).
+/// Marks of a variant (`revision.variant_*`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct VariantInfo {
-    /// Gruppe: uuid in Kleinbuchstaben (36 Zeichen), gleich für alle Geschwister.
+    /// Group: uuid in lower-case letters (36 characters), the same for all siblings.
     pub group: String,
-    /// Etikett „A“, „B“ oder „C“.
+    /// Label "A", "B" or "C".
     pub label: String,
-    /// Eine Zeile Zusammenfassung (höchstens 300 Zeichen).
+    /// One line of summary (at most 300 characters).
     pub summary: String,
-    /// Befunde (ids), die diese Variante umsetzt.
+    /// Findings (ids) that this variant implements.
     pub findings: Vec<i64>,
 }
 
-/// Spalten `variant_group`, `variant_label`, `variant_summary`, `variant_findings` → [`VariantInfo`]; ohne Gruppe oder
-/// Etikett `None`.
+/// Columns `variant_group`, `variant_label`, `variant_summary`, `variant_findings` → [`VariantInfo`]; without group or
+/// label `None`.
 pub(crate) fn from_columns(
     group: Option<String>,
     label: Option<String>,
@@ -39,9 +39,9 @@ pub(crate) fn from_columns(
 }
 
 impl Store {
-    /// Vorschlag eines Assistenten auf der Basis `based_on` (atomar): wie [`Store::add_proposal`] (Überschriften
-    /// geprüft, immer `proposed`), aber mit Elternteil `based_on`; unbekannte Basis → `UnknownRevision`. `variant`
-    /// kennzeichnet ihn als Variante (Gruppe, Etikett, Zeile, Befunde).
+    /// Proposal of an assistant on the base `based_on` (atomic): like [`Store::add_proposal`] (headings checked, always
+    /// `proposed`), but with the parent `based_on`; unknown base → `UnknownRevision`. `variant` marks it as a variant
+    /// (group, label, line, findings).
     #[allow(clippy::too_many_arguments)]
     pub async fn add_proposal_on(
         &self,
@@ -62,8 +62,8 @@ impl Store {
         Ok(number)
     }
 
-    /// Fester Schlüssel des Abschnitts, zu dem die Variantengruppe `group` gehört (Runde 30b: Vergleichsseite nur mit
-    /// Gruppe); unbekannte Gruppe → `None`.
+    /// Fixed key of the section to which the variant group `group` belongs (Round 30b: comparison page only with a
+    /// group); unknown group → `None`.
     pub async fn variant_group_key(&self, work: WorkId, group: &str) -> Result<Option<i64>, StoreError> {
         let key: Option<i64> = sqlx::query_scalar(
             "SELECT n.id FROM revision r JOIN node n ON n.id = r.node_id \
@@ -76,8 +76,8 @@ impl Store {
         Ok(key)
     }
 
-    /// Alle Fassungen des Abschnitts `node` (seq) aus der Variantengruppe `group`, nach Etikett, dann Nummer.
-    /// Unbekanntes Werk oder unbekannter Abschnitt → Fehler; unbekannte Gruppe → leere Liste.
+    /// All revisions of the section `node` (seq) from the variant group `group`, by label, then number. Unknown work or
+    /// unknown section → error; unknown group → empty list.
     pub async fn variant_group(
         &self,
         work: WorkId,
