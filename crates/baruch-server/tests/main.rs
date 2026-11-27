@@ -173,6 +173,8 @@ mod round36_mindmap;
 mod round36_reste;
 mod round36_sqlx;
 mod round36_typst;
+mod round37_bilder;
+mod round37_hilfe;
 mod round4;
 mod round5;
 mod round5_fixes;

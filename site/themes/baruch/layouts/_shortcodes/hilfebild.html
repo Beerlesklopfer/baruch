@@ -1,0 +1,27 @@
+{{- /*
+  Bild der Hilfe aus static/bilder/hilfe/NAME.png (Runde 37, Vertrag §2). Die Namen stehen in data/hilfebilder.toml.
+  Aufruf: {{< hilfebild name="gliederung-seite" alt="…" titel="…" breite="640" dunkel="nein" >}}
+  Fehlt die Datei, gibt der Shortcode nichts aus; ein unbekannter Name oder ein fehlender alt-Text bricht den Bau ab.
+*/ -}}
+{{- $name := .Get "name" -}}
+{{- $alt := .Get "alt" -}}
+{{- if not $name }}{{ errorf "hilfebild ohne name: %s" .Position }}{{ end -}}
+{{- if not $alt }}{{ errorf "hilfebild „%s“ ohne alt-Text: %s" $name .Position }}{{ end -}}
+{{- $liste := index hugo.Data "hilfebilder" | default dict -}}
+{{- if not (where (index $liste "bild" | default slice) "name" $name) }}{{ errorf "hilfebild „%s“ steht nicht in site/data/hilfebilder.toml: %s" $name .Position }}{{ end -}}
+{{- $hell := printf "bilder/hilfe/%s.png" $name -}}
+{{- $nacht := printf "bilder/hilfe/%s-dunkel.png" $name -}}
+{{- if fileExists (printf "static/%s" $hell) -}}
+{{- $mass := imageConfig (printf "static/%s" $hell) -}}
+<figure class="bild hilfebild"{{ with .Get "breite" }} style="max-width: {{ int . }}px"{{ end }}>
+  <picture>
+    {{- if and (ne (.Get "dunkel") "nein") (fileExists (printf "static/%s" $nacht)) }}
+    <source media="(prefers-color-scheme: dark)" srcset="{{ $nacht | relURL }}">
+    {{- end }}
+    <img src="{{ $hell | relURL }}" alt="{{ $alt }}" width="{{ $mass.Width }}" height="{{ $mass.Height }}" loading="lazy" decoding="async">
+  </picture>
+  {{- with .Get "titel" }}
+  <figcaption>{{ . }}</figcaption>
+  {{- end }}
+</figure>
+{{- end -}}

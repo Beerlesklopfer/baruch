@@ -31,8 +31,8 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
     pageRef = "/installation"
     weight = 20
   [[menus.main]]
-    name = "Bedienung"
-    pageRef = "/bedienung"
+    name = "Hilfe"
+    pageRef = "/hilfe"
     weight = 30
   [[menus.main]]
     name = "Betrieb"

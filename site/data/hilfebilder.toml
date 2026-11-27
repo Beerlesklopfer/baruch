@@ -1,0 +1,519 @@
+# Bildliste der Hilfe (Runde 37, Vertrag §6). Einzige Quelle der Bildnamen: Der Shortcode `hilfebild`
+# (site/themes/baruch/layouts/_shortcodes/hilfebild.html) bricht den Bau ab, wenn ein Name hier nicht steht.
+#
+# Dateien: site/static/bilder/hilfe/<name>.png, die dunkle Fassung daneben als <name>-dunkel.png.
+# Fehlt <name>.png, gibt der Shortcode nichts aus – die Seite baut auch ohne die Fotos.
+#
+# Felder je [[bild]]:
+#   name    fester Name (Kleinbuchstaben, ASCII, Bindestriche). Niemand benennt um oder streicht; neue Namen trägt
+#           nur der Integrator nach.
+#   seite   Seiten, auf denen das Bild steht (Liste): Dateiname unter site/content/hilfe/ ohne „.md“ oder eine der
+#           übrigen Seiten (installation, mcp, betrieb). Ein Name darf auf mehreren Seiten stehen.
+#   zeigt   was zu sehen ist; die Adresse in Klammern ist ein Hinweis aus der Routenliste (WERK = Nummer des
+#           Beispielwerks, KEY = Schlüssel eines Abschnitts, ID = Nummer). Endgültige Adresse, Fenstergröße,
+#           Ausschnitt und Schritte legt das Werkzeug site/tools/bildschirmfotos.py fest (eigene Felder ergänzen).
+#   dunkel  true = zusätzlich die dunkle Fassung <name>-dunkel.png aufnehmen.
+#   braucht Voraussetzungen der Aufnahme:
+#             "klick"   Zustand entsteht erst durch Aufklappen oder Klick
+#             "ohne-js" Profil ohne JavaScript
+#             "konten"  erst nach allen anderen Bildern bzw. auf einem zweiten Wegwerf-Server, weil danach alles
+#                       eine Anmeldung verlangt
+#             "sword"   nur mit --sword ORDNER (Ordner mit Bibelmodulen); sonst übersprungen und genannt
+#
+# Regeln für Text und Bilder (Vertrag §4):
+# - Keine echten Namen, Werke oder Daten. Das Beispielwerk ist „Ein Jahr auf Mövenoog“ von Mara Tiedemann
+#   (erfunden); nichts aus fremden Werken oder Ordnern des Nutzers.
+# - Aufnahmen nur von einem eigenen Wegwerf-Server (--listen 127.0.0.1:0, --data <Temp-Ordner>); nie vom Dienst
+#   des Nutzers. Keine Anfrage an Assistenten-Dienste, MultiGPT, die Websuche oder das Netz; Adressen in den
+#   Einstellungen zeigen auf 127.0.0.1:9. Kein Token ist lesbar.
+# - Alltagssprache in alt-Text und Bildunterschrift (Fassung statt Revision, Assistent statt Persona, …), keine
+#   Rundennummern, keine Dateinamen des Quelltexts, keine Routen.
+# - Jeder Aufruf des Shortcodes braucht einen alt-Text. Kein rohes HTML in Markdown, kein JavaScript, keine fremden
+#   Adressen für Stil, Schrift oder Bild.
+# - Ungeprüftes (macOS, Windows, echte Bibelmodule) bleibt als „nicht geprüft“ gekennzeichnet.
+# - Alle Bilder zusammen (site/static/bilder) bleiben unter 20 MB.
+
+[[bild]]
+name = "start-werkliste"
+seite = ["erste-schritte"]
+zeigt = "Liste der Werke (`/werke`)"
+
+[[bild]]
+name = "start-neues-werk"
+seite = ["erste-schritte"]
+zeigt = "Formular „Neues Werk / Importieren“ (`/werke/neu`)"
+
+[[bild]]
+name = "start-arbeitsplatz"
+seite = ["erste-schritte"]
+zeigt = "ganze Arbeitsseite: Gliederung, Blatt, rechte Spalte"
+dunkel = true
+
+[[bild]]
+name = "start-werk-bearbeiten"
+seite = ["erste-schritte"]
+zeigt = "„Werk bearbeiten“ (`/werke/WERK/bearbeiten`)"
+
+[[bild]]
+name = "start-archiv"
+seite = ["erste-schritte"]
+zeigt = "Archiv gelöschter Werke mit einem gelöschten Wegwerf-Werk (`/werke/archiv`)"
+
+[[bild]]
+name = "start-beenden"
+seite = ["erste-schritte"]
+zeigt = "Rückfrage „Baruch beenden“ (`/beenden`)"
+
+[[bild]]
+name = "start-ueber"
+seite = ["erste-schritte"]
+zeigt = "„Über Baruch“ (`/ueber`)"
+
+[[bild]]
+name = "einlesen-bericht"
+seite = ["einlesen"]
+zeigt = "Bericht nach dem Einlesen einer Typst- oder Markdown-Datei (Antwort auf das Formular)"
+
+[[bild]]
+name = "einlesen-pdf-epub"
+seite = ["einlesen"]
+zeigt = "Formular „PDF oder EPUB importieren“ (`/werke/import/quelle`)"
+
+[[bild]]
+name = "einlesen-pdf-vorschau"
+seite = ["einlesen"]
+zeigt = "Vorschau der Gliederung nach dem Lesen einer PDF (PDF des Beispielwerks vom eigenen Server)"
+
+[[bild]]
+name = "einlesen-word"
+seite = ["einlesen"]
+zeigt = "Formular „Word (.docx) importieren“ (`/werke/import/word`)"
+
+[[bild]]
+name = "einlesen-word-vorschau"
+seite = ["einlesen"]
+zeigt = "Vorschau mit Gliederung und Warnungen (Word-Export des Beispielwerks vom eigenen Server)"
+
+[[bild]]
+name = "band-start"
+seite = ["menueband"]
+zeigt = "Menüband, Reiter Start, als Ausschnitt"
+
+[[bild]]
+name = "band-einfuegen"
+seite = ["menueband"]
+zeigt = "Reiter Einfügen (`?tab=einfuegen`), Ausschnitt"
+
+[[bild]]
+name = "band-pruefen"
+seite = ["menueband"]
+zeigt = "Reiter Prüfen mit Abzeichen „N offen“, Ausschnitt"
+
+[[bild]]
+name = "band-buch"
+seite = ["menueband"]
+zeigt = "Reiter Buch, Ausschnitt"
+
+[[bild]]
+name = "band-ansicht"
+seite = ["menueband"]
+zeigt = "Reiter Ansicht mit Laptop-Modus und Thema, Ausschnitt"
+
+[[bild]]
+name = "band-menue-baruch"
+seite = ["menueband"]
+zeigt = "Menü „Baruch ▾“ aufgeklappt, mit dem Eintrag „Hilfe“"
+braucht = ["klick"]
+
+[[bild]]
+name = "band-eingeklappt"
+seite = ["menueband"]
+zeigt = "Band eingeklappt (`?band=closed`)"
+
+[[bild]]
+name = "band-kompakt"
+seite = ["menueband"]
+zeigt = "kompaktes Band bei 1366 px, Ausschnitt"
+
+[[bild]]
+name = "band-laptop-arbeitsseite"
+seite = ["menueband"]
+zeigt = "Arbeitsseite im Laptop-Modus (1366×768)"
+
+[[bild]]
+name = "band-ohne-javascript"
+seite = ["menueband"]
+zeigt = "Arbeitsseite ohne JavaScript"
+braucht = ["ohne-js"]
+
+[[bild]]
+name = "gliederung-seite"
+seite = ["gliederung"]
+zeigt = "Seite Gliederung (`/gliederung?work=WERK`)"
+
+[[bild]]
+name = "gliederung-leiste"
+seite = ["gliederung"]
+zeigt = "Gliederung links auf der Arbeitsseite, Ausschnitt"
+
+[[bild]]
+name = "gliederung-bearbeiten"
+seite = ["gliederung"]
+zeigt = "Punkt bearbeiten: umbenennen, verschieben, umstufen (`/gliederung/bearbeiten`)"
+
+[[bild]]
+name = "gliederung-antraege"
+seite = ["gliederung"]
+zeigt = "offener Antrag eines Assistenten (gestellt über MCP am eigenen Server)"
+
+[[bild]]
+name = "gliederung-antrag-vorschau"
+seite = ["gliederung"]
+zeigt = "Vorschau eines Antrags (`/gliederung/antraege/ID/vorschau`)"
+
+[[bild]]
+name = "gliederung-schema"
+seite = ["gliederung"]
+zeigt = "Gliederungsschema mit Vorschau (`/werke/WERK/nummerierung`)"
+
+[[bild]]
+name = "schreiben-satzbild"
+seite = ["schreiben"]
+zeigt = "Abschnitt im Satzbild mit den Knöpfen des Editors"
+
+[[bild]]
+name = "schreiben-quelltext"
+seite = ["schreiben"]
+zeigt = "derselbe Abschnitt im Quelltext"
+
+[[bild]]
+name = "schreiben-vorschau"
+seite = ["schreiben"]
+zeigt = "Umschalter „Vorschau“"
+
+[[bild]]
+name = "schreiben-fassungen"
+seite = ["schreiben"]
+zeigt = "rechte Spalte „Fassungen“ offen, zwei Fassungen"
+braucht = ["klick"]
+
+[[bild]]
+name = "schreiben-aeltere-fassung"
+seite = ["schreiben"]
+zeigt = "ältere Fassung gezeigt (`rev=1`), Umschalter 1/2"
+
+[[bild]]
+name = "schreiben-fassungsverlauf"
+seite = ["schreiben"]
+zeigt = "Verlauf einer Fassung (`/werke/WERK/fassungen/verlauf`)"
+
+[[bild]]
+name = "schreiben-fassungen-ausblenden"
+seite = ["schreiben"]
+zeigt = "Einstellungen → Werk, „Ältere Fassungen ausblenden“"
+
+[[bild]]
+name = "schreiben-vorschlag-lesefluss"
+seite = ["schreiben"]
+zeigt = "Vorschlag eines Assistenten im Lesefluss mit Annehmen/Ablehnen (per `revision.propose`)"
+
+[[bild]]
+name = "schreiben-bilder"
+seite = ["schreiben"]
+zeigt = "Bilder des Werks mit einem erzeugten Beispielbild (`/werke/WERK/bilder`)"
+
+[[bild]]
+name = "schreiben-bild-einfuegen"
+seite = ["schreiben"]
+zeigt = "„Bild einfügen“"
+
+[[bild]]
+name = "schreiben-zeitwaechter"
+seite = ["schreiben"]
+zeigt = "Zeitwächter und Zeitangabe"
+
+[[bild]]
+name = "assistenten-leiste"
+seite = ["assistenten"]
+zeigt = "rechte Spalte „Assistenten“: Rolle wählen, Prüfen, Vorschlag"
+
+[[bild]]
+name = "assistenten-chat"
+seite = ["assistenten"]
+zeigt = "Abschnitts-Chat mit erfundenen Beiträgen (ohne Modell angelegt)"
+
+[[bild]]
+name = "assistenten-beitraege"
+seite = ["assistenten"]
+zeigt = "Seite der Beiträge (`/beitraege`)"
+
+[[bild]]
+name = "assistenten-faeden"
+seite = ["assistenten"]
+zeigt = "Liste der Fäden (`/faeden`)"
+
+[[bild]]
+name = "assistenten-faden"
+seite = ["assistenten"]
+zeigt = "ein Faden mit Beiträgen (`/faden`)"
+
+[[bild]]
+name = "assistenten-befunde-liste"
+seite = ["assistenten"]
+zeigt = "Befunde des Werks, nach Gewicht (`/werke/WERK/befunde`, per `finding.add`)"
+
+[[bild]]
+name = "assistenten-befunde-abschnitt"
+seite = ["assistenten"]
+zeigt = "Befunde am Abschnitt in der rechten Spalte"
+
+[[bild]]
+name = "assistenten-vorschlaege"
+seite = ["assistenten"]
+zeigt = "offene Vorschläge am Abschnitt"
+
+[[bild]]
+name = "assistenten-websuche"
+seite = ["assistenten"]
+zeigt = "Belege der Websuche bzw. ihr ehrlicher Leerstand (`/websuche/belege`)"
+
+[[bild]]
+name = "einfaelle-liste"
+seite = ["einfaelle"]
+zeigt = "Liste der Einfälle (`/einfaelle?work=WERK`)"
+
+[[bild]]
+name = "einfaelle-einfall"
+seite = ["einfaelle"]
+zeigt = "ein Einfall (`/einfaelle/ID`)"
+
+[[bild]]
+name = "einfaelle-festhalten"
+seite = ["einfaelle"]
+zeigt = "„Einfall festhalten“"
+
+[[bild]]
+name = "mindmap-karte"
+seite = ["einfaelle"]
+zeigt = "Mindmap mit Ästen und Wolke (`/werke/WERK/karte`)"
+dunkel = true
+
+[[bild]]
+name = "mindmap-eingeklappt"
+seite = ["einfaelle"]
+zeigt = "Mindmap mit eingeklapptem Ast (`zu=`)"
+
+[[bild]]
+name = "mindmap-gliederung"
+seite = ["einfaelle"]
+zeigt = "Gliederungsansicht der Mindmap (`/werke/WERK/karte/gliederung`)"
+
+[[bild]]
+name = "mindmap-einlesen"
+seite = ["einfaelle"]
+zeigt = "Mindmap einlesen (`/werke/WERK/karte/einlesen`)"
+
+[[bild]]
+name = "mindmap-ohne-javascript"
+seite = ["einfaelle"]
+zeigt = "Mindmap ohne JavaScript"
+braucht = ["ohne-js"]
+
+[[bild]]
+name = "bibel-einstellungen"
+seite = ["bibel-quellen"]
+zeigt = "Einstellungen → Werk, Bibeln des Werks und Ordner der Module"
+
+[[bild]]
+name = "bibel-zitate-pruefen"
+seite = ["bibel-quellen"]
+zeigt = "„Zitate prüfen“ mit erkannten Stellen (`/werke/WERK/pruefung`)"
+
+[[bild]]
+name = "bibel-nachschlagen"
+seite = ["bibel-quellen"]
+zeigt = "Bibel aufschlagen (`/literatur/bibel`)"
+braucht = ["sword"]
+
+[[bild]]
+name = "literatur-seite"
+seite = ["bibel-quellen"]
+zeigt = "Literatur (`/literatur?work=WERK`)"
+
+[[bild]]
+name = "literatur-quelle"
+seite = ["bibel-quellen"]
+zeigt = "eine Quelle lesen (`/quelle`), erfundene Textdatei als lokale Quelle"
+
+[[bild]]
+name = "abgleich-seite"
+seite = ["bibel-quellen"]
+zeigt = "Abgleich mit MultiGPT (`/abgleich`), ehrlich im Zustand „nicht verbunden“"
+
+[[bild]]
+name = "suchen-treffer"
+seite = ["suchen"]
+zeigt = "Suche im Werk mit Treffern (`/suche?work=WERK&q=…`)"
+
+[[bild]]
+name = "suchen-ersetzen"
+seite = ["suchen"]
+zeigt = "Ersetzen mit Vorschau"
+
+[[bild]]
+name = "verweise-seite"
+seite = ["suchen"]
+zeigt = "Querverweise prüfen (`/verweise`)"
+
+[[bild]]
+name = "glossar-seite"
+seite = ["suchen"]
+zeigt = "Glossar mit zwei erfundenen Begriffen (`/werke/WERK/glossar`)"
+
+[[bild]]
+name = "register-seite"
+seite = ["suchen"]
+zeigt = "Register (`/werke/WERK/register`)"
+
+[[bild]]
+name = "glossar-markierung"
+seite = ["suchen"]
+zeigt = "Formular an der Markierung (`/werke/WERK/markierung?key=KEY`)"
+
+[[bild]]
+name = "satz-vorschau"
+seite = ["buchsatz"]
+zeigt = "Satz-Vorschau (`/werke/WERK/satz`)"
+
+[[bild]]
+name = "satz-einstellungen"
+seite = ["buchsatz"]
+zeigt = "Einstellungen → Werk, Block Satz"
+
+[[bild]]
+name = "satz-buchangaben"
+seite = ["buchsatz"]
+zeigt = "Buchangaben (Verlag, ISBN, Titelei) mit erfundenen Angaben"
+
+[[bild]]
+name = "umschlag-editor"
+seite = ["buchsatz"]
+zeigt = "Umschlag-Editor mit erzeugtem Umschlagbild (`/werke/WERK/umschlag`)"
+
+[[bild]]
+name = "epub-vorschau"
+seite = ["buchsatz"]
+zeigt = "EPUB-Vorschau je Lesegerät (`/werke/WERK/epub/vorschau`)"
+
+[[bild]]
+name = "epub-pruefung"
+seite = ["buchsatz"]
+zeigt = "Prüfbericht des EPUB (`/werke/WERK/epub/pruefung`)"
+
+[[bild]]
+name = "satz-stichwortzettel"
+seite = ["buchsatz"]
+zeigt = "Stichwortzettel (`/werke/WERK/stichwortzettel`)"
+
+[[bild]]
+name = "satz-word-export"
+seite = ["buchsatz"]
+zeigt = "Word-Export für den Verlag (`/werke/WERK/word`)"
+
+[[bild]]
+name = "austausch-ausgeben"
+seite = ["austausch-sicherung"]
+zeigt = "Austausch: Ausgeben (`/werke/WERK/austausch`)"
+
+[[bild]]
+name = "austausch-einlesen"
+seite = ["austausch-sicherung"]
+zeigt = "Austausch: Einlesen (`/austausch/einlesen`)"
+
+[[bild]]
+name = "austausch-vorschau"
+seite = ["austausch-sicherung"]
+zeigt = "Vorschau vor dem Übernehmen (Austauschdatei vom eigenen Server)"
+
+[[bild]]
+name = "einstellungen-darstellung"
+seite = ["einstellungen"]
+zeigt = "Einstellungen → Darstellung"
+dunkel = true
+
+[[bild]]
+name = "einstellungen-popup"
+seite = ["einstellungen"]
+zeigt = "Einstellungen als Fenster über der Arbeitsseite"
+braucht = ["klick"]
+
+[[bild]]
+name = "einstellungen-werk"
+seite = ["einstellungen"]
+zeigt = "Einstellungen → Werk"
+
+[[bild]]
+name = "einstellungen-assistenten"
+seite = ["einstellungen", "mcp"]
+zeigt = "Einstellungen → Assistenten"
+
+[[bild]]
+name = "einstellungen-verbindungen"
+seite = ["einstellungen", "mcp"]
+zeigt = "Einstellungen → Verbindungen (Adressen zeigen auf 127.0.0.1:9)"
+
+[[bild]]
+name = "einstellungen-quellen"
+seite = ["einstellungen", "bibel-quellen"]
+zeigt = "Einstellungen → Quellen"
+
+[[bild]]
+name = "einstellungen-mcp"
+seite = ["einstellungen", "mcp"]
+zeigt = "Einstellungen → MCP-Zugang, ohne lesbares Token"
+
+[[bild]]
+name = "einstellungen-daten"
+seite = ["einstellungen", "austausch-sicherung", "betrieb"]
+zeigt = "Einstellungen → Daten (Sicherung, Name der Instanz)"
+
+[[bild]]
+name = "konten-einrichten"
+seite = ["konten", "betrieb"]
+zeigt = "„Konten einrichten“ (`/einrichten`)"
+braucht = ["konten"]
+
+[[bild]]
+name = "konten-anmelden"
+seite = ["konten"]
+zeigt = "Anmeldeseite (`/anmelden`)"
+braucht = ["konten"]
+
+[[bild]]
+name = "konten-einstellungen"
+seite = ["konten", "betrieb"]
+zeigt = "Einstellungen → Konten mit Autorin und erfundenem Lektor"
+braucht = ["konten"]
+
+[[bild]]
+name = "konten-mein-konto"
+seite = ["konten"]
+zeigt = "„Mein Konto“ (`/konto`)"
+braucht = ["konten"]
+
+[[bild]]
+name = "konten-mitwirkende"
+seite = ["konten"]
+zeigt = "Werk für einen Lektor freigeben (`/werke/WERK/mitwirkende`)"
+braucht = ["konten"]
+
+[[bild]]
+name = "konten-lektor-arbeitsplatz"
+seite = ["konten"]
+zeigt = "Arbeitsseite, wie ein Lektor sie sieht"
+braucht = ["konten"]
+
+[[bild]]
+name = "installation-erster-start"
+seite = ["installation"]
+zeigt = "Arbeitsseite direkt nach dem ersten Start mit dem mitgelieferten Beispielwerk (`/?work=1`)"

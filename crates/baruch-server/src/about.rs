@@ -27,6 +27,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const LICENSE_ID: &str = "AGPL-3.0-or-later";
 pub const REPOSITORY: &str = "https://github.com/Beerlesklopfer/baruch";
 pub const HOMEPAGE: &str = "https://baruch.bernau.family/";
+/// Hilfe auf der Webseite (Runde 37): Ziel des Eintrags „Hilfe“ im Menü Baruch ▾ und auf der Seite „Über Baruch“.
+pub const HELP_URL: &str = "https://baruch.bernau.family/hilfe/";
 pub const LICENSE_TEXT: &str = include_str!("../../../LICENSE");
 
 /// Dateiname der Drittlizenzen in jedem Paket.

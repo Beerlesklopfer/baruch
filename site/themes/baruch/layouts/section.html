@@ -1,0 +1,17 @@
+{{ define "main" }}
+{{- /* Ein Abschnitt (die Hilfe): Titel, Vorspann (description), Text, danach die Seiten des Abschnitts nach Gewicht. */ -}}
+<article class="rand text">
+  <header class="seitenkopf">
+    <h1>{{ .Title }}</h1>
+    {{- with .Description }}
+    <p class="vorspann">{{ . }}</p>
+    {{- end }}
+  </header>
+  {{ .Content }}
+  <ul class="hilfe-seiten">
+    {{- range .Pages.ByWeight }}
+    <li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Description }} – {{ . }}{{ end }}</li>
+    {{- end }}
+  </ul>
+</article>
+{{ end }}
