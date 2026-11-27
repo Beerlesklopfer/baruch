@@ -6,8 +6,13 @@ baseURL = "https://baruch.bernau.family/"
 locale = "de"
 title = "Baruch"
 theme = "baruch"
+# Mehrsprachig vorbereitet (Nutzerentscheidung 2026-11-27: Oberfläche und Hilfe Deutsch und Englisch): Inhalte je
+# Sprache unter content/<sprache>/. Deutsch bleibt Vorgabe ohne Unterordner in der Adresse, die Adressen der Seite
+# ändern sich also nicht. Englisch (content/en/, Adressen unter /en/) ergänzt die Lokalisierungsrunde.
+defaultContentLanguage = "de"
+defaultContentLanguageInSubdir = false
 # Keine Schlagwörter, Kategorien oder Feeds: Die Seite besteht aus sieben festen Seiten und dem Abschnitt Hilfe
-# (content/hilfe/, eine Startseite und je Thema eine Seite).
+# (content/de/hilfe/, eine Startseite und je Thema eine Seite).
 disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = false
 enableGitInfo = false
@@ -21,6 +26,12 @@ repo = "https://github.com/Beerlesklopfer/baruch"
 # Trägt nur der Nutzer ein (nicht aus dem Netz holen, nicht raten).
 aptFingerprint = "BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4"
 description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buchsatz mit Typst und Assistenten, die nur vorschlagen. AGPL-3.0, läuft auf dem eigenen Rechner."
+
+[languages]
+  [languages.de]
+    contentDir = "content/de"
+    locale = "de"
+    weight = 1
 
 [menus]
   [[menus.main]]

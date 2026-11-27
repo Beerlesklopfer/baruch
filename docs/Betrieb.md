@@ -1,16 +1,16 @@
 # Betrieb
 
 **Die Beschreibung für Betreiber steht auf der Webseite:** <https://baruch.bernau.family/betrieb/> – Quelle ist
-`site/content/betrieb.md` (seit Runde 37). Dort stehen Datenordner, Sicherung und Wiederherstellen, Dauerbetrieb
+`site/content/de/betrieb.md` (seit Runde 37). Dort stehen Datenordner, Sicherung und Wiederherstellen, Dauerbetrieb
 und Aktualisieren, die drei Stufen der Erreichbarkeit, der Betrieb hinter einem Reverse-Proxy mit den Beispielen
 für nginx und Caddy und der Pflichtprobe, Anmeldung und Konten, `/mcp` mit Token, Verbindungen nach außen und
 TLS zu pgvector.
 
-**Regel für Entwickler:** „Betrieb nachziehen“ heißt, `site/content/betrieb.md` im selben Commit zu ändern. Diese
+**Regel für Entwickler:** „Betrieb nachziehen“ heißt, `site/content/de/betrieb.md` im selben Commit zu ändern. Diese
 Datei hier enthält **keine Schritte für Betreiber**, sondern nur, was dort niemand braucht: den Stand der Prüfung
 mit den Tests, Offenes und technische Anmerkungen. Nichts steht in beiden Dateien.
 
-Installation und Pakete: `docs/Verteilung.md`. Bedienung: die Hilfe unter `site/content/hilfe/` (Einstieg
+Installation und Pakete: `docs/Verteilung.md`. Bedienung: die Hilfe unter `site/content/de/hilfe/` (Einstieg
 `docs/Bedienung.md`). Aufbau der Schutzschichten: `docs/Architektur.md`, Abschnitt „MCP“.
 
 ## Wo steht was

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 37 „Hilfe auf der Webseite“, Besitz hilfe_text: die Hilfeseiten unter `site/content/hilfe/` und der
+//! Runde 37 „Hilfe auf der Webseite“, Besitz hilfe_text: die Hilfeseiten unter `site/content/de/hilfe/` und der
 //! Einstieg `docs/Bedienung.md`.
 //!
 //! Die Hilfe ist seit Runde 37 die einzige Beschreibung der Bedienung für Anwender (Vertrag §1). Diese Tests lesen
@@ -78,7 +78,7 @@ fn read(path: &str) -> String {
 }
 
 fn page(name: &str) -> String {
-    read(&format!("site/content/hilfe/{name}.md"))
+    read(&format!("site/content/de/hilfe/{name}.md"))
 }
 
 /// Alle Seiten der Hilfe: der Einstieg und die 14 Seiten, als (Name, Text).
@@ -206,15 +206,15 @@ fn the_help_section_takes_over_the_old_address() {
         "alte Verweise auf /bedienung/ müssen weiter ankommen: die Hilfe leitet die Adresse per aliases um"
     );
     assert!(
-        !root().join("site/content/bedienung.md").exists(),
+        !root().join("site/content/de/bedienung.md").exists(),
         "neben dem Alias gäbe eine Seite bedienung.md zwei Ausgaben auf demselben Pfad – die alte Seite ist gelöscht"
     );
 }
 
 #[test]
 fn all_fifteen_pages_exist_and_none_is_a_placeholder_any_more() {
-    let on_disk: BTreeSet<String> = std::fs::read_dir(root().join("site/content/hilfe"))
-        .expect("site/content/hilfe lesen")
+    let on_disk: BTreeSet<String> = std::fs::read_dir(root().join("site/content/de/hilfe"))
+        .expect("site/content/de/hilfe lesen")
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     let expected: BTreeSet<String> =
@@ -614,7 +614,7 @@ fn keys_are_given_for_both_worlds() {
 fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
     let guide = read("docs/Bedienung.md");
     assert!(
-        guide.contains("https://baruch.bernau.family/hilfe/") && guide.contains("site/content/hilfe/"),
+        guide.contains("https://baruch.bernau.family/hilfe/") && guide.contains("site/content/de/hilfe/"),
         "docs/Bedienung.md verweist auf die Hilfe – auf der Webseite und im Repository (Vertrag §1 a)"
     );
     for heading in ["\n## Regel für Entwickler\n", "\n## Wo steht was\n", "\n## Technische Anmerkungen\n"] {
@@ -701,7 +701,7 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
             panic!("„Wo steht was“ führt den früheren Abschnitt „{section}“ (lückenlos, Vertrag §1 b)")
         });
         assert!(
-            row.contains("(../site/content/hilfe/"),
+            row.contains("(../site/content/de/hilfe/"),
             "der frühere Abschnitt „{section}“ führt zu mindestens einer Hilfeseite: {row}"
         );
     }
@@ -711,11 +711,11 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
         let mut current: Option<&str> = None;
         let mut rest = row;
         loop {
-            let link = rest.find("(../site/content/hilfe/");
+            let link = rest.find("(../site/content/de/hilfe/");
             let mark = rest.find("`#");
             match (link, mark) {
                 (Some(l), m) if m.is_none_or(|m| l < m) => {
-                    let tail = &rest[l + "(../site/content/hilfe/".len()..];
+                    let tail = &rest[l + "(../site/content/de/hilfe/".len()..];
                     let end = tail
                         .find(".md)")
                         .unwrap_or_else(|| panic!("Verweis auf eine Hilfeseite endet mit .md): {row}"));

@@ -42,8 +42,8 @@ gebaute Seite enthält kein JavaScript).
 | Pfad | Inhalt |
 |---|---|
 | `hugo.toml` | Adresse, Menüs und die Werte `version`, `repo`, `aptFingerprint` |
-| `content/` | die sieben festen Seiten: Start (`_index.md`), Funktionen, Installation, Betrieb, MCP und Assistenten, Lizenz, Impressum |
-| `content/hilfe/` | der Abschnitt **Hilfe**: Startseite (`_index.md`, übernimmt mit `aliases` die alte Adresse `/bedienung/`) und je Thema eine Seite, geordnet nach `weight` |
+| `content/de/` | Inhalte auf Deutsch (Vorgabesprache, Adressen ohne `/de/`; Englisch kommt nach `content/en/`): die sieben festen Seiten: Start (`_index.md`), Funktionen, Installation, Betrieb, MCP und Assistenten, Lizenz, Impressum |
+| `content/de/hilfe/` | der Abschnitt **Hilfe**: Startseite (`_index.md`, übernimmt mit `aliases` die alte Adresse `/bedienung/`) und je Thema eine Seite, geordnet nach `weight` |
 | `data/hilfebilder.toml` | die Liste aller Bilder der Hilfe (Name, Seite, was das Bild zeigt); nur Namen von dort gelten im Shortcode `hilfebild` |
 | `themes/baruch/` | das Theme, vollständig im Repository: Vorlagen (`layouts/`), ein Stylesheet, das Symbol |
 | `static/CNAME` | der Rechnername für GitHub Pages |
@@ -53,8 +53,8 @@ gebaute Seite enthält kein JavaScript).
 
 ## Quelle für Bedienung und Betrieb
 
-Seit Runde 37 ist **die Webseite die Quelle**: `content/hilfe/**` ist die einzige Beschreibung für Anwender,
-`content/betrieb.md` die einzige für Betreiber. `docs/Bedienung.md` und `docs/Betrieb.md` im Repository sind nur
+Seit Runde 37 ist **die Webseite die Quelle**: `content/de/hilfe/**` ist die einzige Beschreibung für Anwender,
+`content/de/betrieb.md` die einzige für Betreiber. `docs/Bedienung.md` und `docs/Betrieb.md` im Repository sind nur
 noch der Einstieg: Verweis auf die Webseite, „Wo steht was“, Stand der Prüfung, Offenes und technische
 Anmerkungen (Adressen, Cookie-Namen, Grenzen der Prüfung) – **keine Bedienschritte in beiden Dateien**.
 

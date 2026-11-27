@@ -573,8 +573,8 @@ fn the_documentation_names_word_and_quitting_and_no_stub_is_left() {
         // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite. Die sichtbaren Texte der Oberfläche
         // (Menüeinträge) werden darum in der zuständigen Hilfeseite gesucht, das Technische (Route, Herkunft der
         // Word-Vorschläge) weiter in docs/Bedienung.md, das seitdem nur Verweis und technische Anmerkung ist.
-        ("site/content/hilfe/einlesen.md", &["Word (.docx) importieren…"][..]),
-        ("site/content/hilfe/erste-schritte.md", &["Baruch beenden…"][..]),
+        ("site/content/de/hilfe/einlesen.md", &["Word (.docx) importieren…"][..]),
+        ("site/content/de/hilfe/erste-schritte.md", &["Baruch beenden…"][..]),
         ("docs/Bedienung.md", &["/werke/<id>/word", "@word:"][..]),
         ("docs/RPC.md", &["docx_import.preview", "docx_import.apply", "work.docx_export", "/beenden"][..]),
         ("docs/MCP.md", &["Word-Import", "Word-Export", "Baruch beenden gibt es weder über RPC noch über MCP"][..]),

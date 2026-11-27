@@ -217,7 +217,7 @@ Regeln stehen in `AGENTS.md`, der Plan in `docs/Plan.md`, der Übergabestand in 
   (fehlt → Vorgabewerk). MCP in `src/mcp.rs`, Werkzeuge in `src/mcp/tools.rs`, Sitzungen in
   `src/mcp/session.rs`, Einfälle in `src/mcp/ideas.rs` (`docs/MCP.md`); Fehler immer über `rpc::RpcError::from`. Schreibende Routen hinter `guard::same_origin`; Testanfragen mit fremdem `Origin`
   bekommen 403, `/rpc` braucht `Content-Type: application/json`.
-- Doku: Bedienung = Hilfeseite unter `site/content/hilfe/` (seit Runde 37; `docs/Bedienung.md` ist Einstieg und
+- Doku: Bedienung = Hilfeseite unter `site/content/de/hilfe/` (seit Runde 37; `docs/Bedienung.md` ist Einstieg und
   trägt nur Technisches), `docs/Architektur.md`, `docs/RPC.md`, `docs/MCP.md` – im selben Commit nachziehen.
   Formulare (`form[data-rpc]`, Feld `method`) gehen ohne JavaScript an `POST /act`, mit JavaScript über RPC.
 - Widgets: `web/src/widgets.ts` (`register`/`mount`), `workspace.ts` (Navigation, Formulare, Alt+←/→ ohne
@@ -1421,10 +1421,10 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
 
 ## Runde 37 – Hilfe auf der Webseite
 
-### hilfe_text (`site/content/hilfe/`, `docs/Bedienung.md`)
+### hilfe_text (`site/content/de/hilfe/`, `docs/Bedienung.md`)
 
 - **Bedienung = Hilfeseite.** Wer Oberfläche ändert, ändert im selben Commit die Seite unter
-  `site/content/hilfe/` und – für Routen, Cookies, Parameter, Commits – die „Technischen Anmerkungen“ in
+  `site/content/de/hilfe/` und – für Routen, Cookies, Parameter, Commits – die „Technischen Anmerkungen“ in
   `docs/Bedienung.md`. Regeln stehen dort unter „Regel für Entwickler“; `round37_hilfe` setzt sie durch.
 - **Hilfeseite schreiben:** jede Überschrift mit `{#anker}`; jede `##` mit `{{< hilfebild … >}}` oder Eintrag in
   `ohne_bild`; kein rohes HTML und kein HTML-Kommentar (Hugo bricht mit `--panicOnWarning` ab); spitze Klammern nur
@@ -1447,7 +1447,7 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
 - **Parallel zugesagte Anker prüfen:** Verweist ein Zweig auf Anker, die ein anderer erst liefert, eine Kopie
   von `site/` im Scratchpad mit erfundenen Abschnitten samt diesen Ankern bauen und dort prüfen – so ist belegt,
   dass auf dem eigenen Stand nur das Zugesagte fehlt.
-- **Hugo, Abschnittsvorlagen:** `layouts/hilfe/page.html` gilt nur für Seiten unter `content/hilfe/`;
+- **Hugo, Abschnittsvorlagen:** `layouts/hilfe/page.html` gilt nur für Seiten unter `content/de/hilfe/`;
   `layouts/section.html` für die Startseite des Abschnitts. Das Inhaltsverzeichnis nur zeigen, wenn es Einträge
   hat: Bedingung `in .TableOfContents "<li"` (auf den Platzhalterseiten ohne Überschrift erscheint so kein Kasten).
 - **Menüeintrag auf Unterseiten markieren:** `IsMenuCurrent` trifft nur die Seite selbst; für die Unterseiten
@@ -1455,7 +1455,7 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
 - **Die Sandbox lehnt Heredocs mit bestimmtem Inhalt ab** („too complex to verify“): Dateien mit dem
   Schreibwerkzeug anlegen, längere Ersetzungen als Python-Skript im Scratchpad ablegen und ausführen.
 - **`ci-selftest.sh` baut Probe-Seiten ohne Abschnitt Hilfe:** Prüfungen, die die echte Seite voraussetzen,
-  brauchen einen Schalter (`site-check.py --ohne-hilfe`, von `ci-site.sh` gesetzt, wenn `content/hilfe` fehlt) –
+  brauchen einen Schalter (`site-check.py --ohne-hilfe`, von `ci-site.sh` gesetzt, wenn `content/de/hilfe` fehlt) –
   und eine Gegenprobe, dass die Prüfung mit dem Abschnitt wirklich greift.
 
 ### bilder (`site/tools/bildschirmfotos.py`, `site/data/hilfebilder.toml`)

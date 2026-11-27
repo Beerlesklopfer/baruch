@@ -399,8 +399,8 @@ TypeScript geschrieben (`crates/baruch-server/web/src`) und werden beim Bauen vo
 ## Dokumentation
 
 - [Hilfe auf der Webseite](https://baruch.bernau.family/hilfe/): Bedienung Schritt für Schritt, mit Bildern
-  (Quelle: `site/content/hilfe/`); [Betrieb](https://baruch.bernau.family/betrieb/) für Betreiber
-  (`site/content/betrieb.md`)
+  (Quelle: `site/content/de/hilfe/`); [Betrieb](https://baruch.bernau.family/betrieb/) für Betreiber
+  (`site/content/de/betrieb.md`)
 - [docs/Bedienung.md](docs/Bedienung.md): Einstieg für Entwickler – „Wo steht was“ und technische Anmerkungen zur
   Hilfe
 - [docs/Verteilung.md](docs/Verteilung.md): Pakete, Installation, APT-Repository, Release, Auslieferung über

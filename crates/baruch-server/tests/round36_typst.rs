@@ -664,8 +664,8 @@ fn the_docs_describe_the_typst_command_line() {
         "Verteilung.md: der Download von Typst steht nicht mehr unter den festgelegten Werkzeugen"
     );
     for (path, wanted) in [
-        ("site/content/installation.md", "baruch-typst compile"),
-        ("site/content/funktionen.md", "baruch-typst compile"),
+        ("site/content/de/installation.md", "baruch-typst compile"),
+        ("site/content/de/funktionen.md", "baruch-typst compile"),
         ("README.md", "baruch-typst compile"),
         ("packaging/debian/README.Debian", "baruch-typst compile"),
     ] {

@@ -382,16 +382,16 @@ fn the_integration_left_no_dead_branch_and_no_placeholder_behind() {
     );
     // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite; die Abschnitte des Menübands werden
     // darum in der zuständigen Hilfeseite gesucht (docs/Bedienung.md ist nur noch Verweis und technische Anmerkung).
-    let help = include_str!("../../../site/content/hilfe/menueband.md");
+    let help = include_str!("../../../site/content/de/hilfe/menueband.md");
     assert!(
         !help.contains("<!-- R33 menueband -->") && !help.contains("<!-- R33 laptop -->"),
         "auch die Hilfeseite trägt keinen Platzhalter aus docs/r33 (ein HTML-Kommentar bräche dort zudem den Bau)"
     );
     for heading in ["## Menüband", "### Band ein- und ausklappen", "### Laptop-Modus"] {
-        assert!(help.contains(heading), "site/content/hilfe/menueband.md beschreibt „{heading}“");
+        assert!(help.contains(heading), "site/content/de/hilfe/menueband.md beschreibt „{heading}“");
     }
     assert!(
-        guide.contains("site/content/hilfe/menueband.md"),
+        guide.contains("site/content/de/hilfe/menueband.md"),
         "docs/Bedienung.md führt in „Wo steht was“ vom früheren Abschnitt „Menüband“ zur Hilfeseite"
     );
     let base = include_str!("../templates/base.html");

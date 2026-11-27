@@ -6120,8 +6120,8 @@ gekürzt (`.editor-head > .rev-meta`, wie bisher jede lange Herkunft) – im Bac
 
 Die Bedienung steht nicht mehr in `docs/`, sondern auf der Webseite (Hugo, `site/`):
 
-- **Quelle:** `site/content/hilfe/*.md` (Anwender, 14 Seiten, Einstieg `_index.md` mit `aliases: ["/bedienung/"]`),
-  `site/content/betrieb.md` (Betreiber), `installation.md` und `mcp.md` (Ersteinrichtung). `docs/Bedienung.md` und
+- **Quelle:** `site/content/de/hilfe/*.md` (Anwender, 14 Seiten, Einstieg `_index.md` mit `aliases: ["/bedienung/"]`),
+  `site/content/de/betrieb.md` (Betreiber), `installation.md` und `mcp.md` (Ersteinrichtung). `docs/Bedienung.md` und
   `docs/Betrieb.md` tragen nur noch „Wo steht was“ und technische Anmerkungen.
 - **Theme:** `site/themes/baruch/layouts/section.html` (Startseite der Hilfe), `layouts/hilfe/page.html` (Navigation
   des Abschnitts, Inhaltsverzeichnis, vor/zurück), Shortcodes `hilfebild` (Bild aus `static/bilder/hilfe/`, Name muss

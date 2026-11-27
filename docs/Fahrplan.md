@@ -99,7 +99,11 @@ gantt
 
     section Geplant (geschätzt)
     Durchsicht der Hilfe durch den Nutzer         :dh37, after r37p, 60m
-    Veröffentlichung 0.9.1 durch den Nutzer       :rel091, after dh37, 130m
+    Runde 38 – Englisch für Agenten und Entwickler :r38, after r37p, 240m
+    Runde 39a – Lokalisierung DE und EN Gerüst    :r39a, after r38, 180m
+    Runde 39b – Lokalisierung Ausgaben und Hilfe  :r39b, after r39a, 180m
+    Reste nach Runde 37                           :rest37, after r39b, 100m
+    Veröffentlichung 0.9.1 durch den Nutzer       :rel091, after rest37, 130m
 ```
 
 ## Runden im Einzelnen
@@ -151,7 +155,7 @@ gantt
 
 ## Geplant (Reihenfolge aus `docs/Backlog.md`, Dauer geschätzt)
 
-**Stand 2026-11-27 (nach Runde 37): Die Hilfe ist auf `development` (14 Seiten unter `site/content/hilfe/`, Betrieb
+**Stand 2026-11-27 (nach Runde 37): Die Hilfe ist auf `development` (14 Seiten, seit dem Nachgang unter `site/content/de/hilfe/`, Betrieb
 und Ersteinrichtung auf der Webseite, 94 Bilder; keine Migration). Damit ist die Reihenfolge aus `docs/Backlog.md`,
 „Nach 0.9.0“, abgearbeitet; es bleibt die Veröffentlichung 0.9.1 durch den Nutzer. Lokal zeigen `main`,
 `origin/main` und der Tag `v0.9.0` auf `35140b5`; `development` liegt mit den Runden 32 und 34 bis 37 davor.
@@ -163,10 +167,15 @@ Reihenfolge und Schätzung der nächsten Schritte:
 |---|---|---|---|
 | Durchsicht der Hilfe (Nutzer) | Die Hilfe im eigenen Browser lesen (`hugo server -s site`): alt-Texte gegen die Bilder (nur zwölf Aufrufe sind Wort für Wort gegengelesen), Bilder zur Bibel („Beispielbibel“ mit einem Vers), Tasten am Mac, Druckansicht, ein echtes Telefon; dazu die Nutzerfragen in `HANDOFF.md`, „Nach Runde 37“ | offen; sinnvoll vor der Veröffentlichung, weil die Hilfe mit `main` öffentlich wird | ≈ 60 min (neu; 14 Seiten, 113 Bildaufrufe). Einzelne Bilder sind mit `bildschirmfotos.py --fotos --nur NAME` in rund zwei Minuten ersetzt |
 | Veröffentlichung 0.9.1 (Nutzer) | Version festlegen, Tag schieben, Release-Lauf abwarten, Signaturen von macOS und APT prüfen, erst danach `main` (Regel in `docs/Verteilung.md`, Gruppe `pages`) | nach der Durchsicht; Version und Zeitpunkt legt der Nutzer fest. Vorher den Datenordner sichern (sqlx 0.9.1 hat noch keine echte, von 0.8.6 geschriebene Datenbank geöffnet) | ≈ 130 min (bisher 120): Zu dem Ungeprüften aus Runde 36 (`scripts/ci-typst.sh` in `ci.yml`, `pages.yml` bei `release: published`, `baruch-typst` in AppImage, .dmg und .msi) kommt aus Runde 37 `scripts/site-check.py` in `ci-site.sh` – es braucht `python3` in den Jobs von `ci.yml`, `pages.yml` und `release.yml`; lokal grün, dort nie gelaufen. Nacharbeit nach dem Lauf nicht eingerechnet |
-| Reste nach Runde 37 (Vorschlag, Runde 38) | Aus `docs/Backlog.md`, „Nach Runde 37 offen“ und „Runde 37 – integriert“: fehlendes Hilfebild bricht den Bau nicht ab; `#bibelstelle[…]` hinter einem Zitat wird nicht zugeordnet und fehlt im EPUB; Reiter Buch bricht bei 1400 px um; heller Streifen neben dem Abschnitts-Chat (dunkel); Alt+L und Alt+, am Mac; Shortcode `taste` in `tasten.md` | nicht begonnen; der Nutzer entscheidet, ob vor oder nach 0.9.1 – nichts davon verhindert die Veröffentlichung | ≈ 100 min (eine Runde mit zwei Entwicklern; Fotos der betroffenen Bilder danach neu) |
+| Runde 38 – A: Englisch für Agenten und Entwickler (Nutzerentscheidung 2026-11-27, vor 0.9.1) | Primärsprache Englisch: `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP (Anweisungen, Werkzeug-, Parameter- und Fehlertexte, `docs/MCP.md`), RPC-Fehlertexte und `docs/RPC.md`, Persona-Prompts englisch mit „antworte in der Werksprache“, Werksprache als neue Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits ab dieser Runde englisch, Release-Text englisch. Dazu **alle Code-Kommentare auf einmal** (≈ 28 700 Zeilen Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare, keine Zeichenketten im Code). Aufgaben: `regeln_doku`, `mcp_rpc`, `kommentare_server`, `kommentare_store` (mit baruch-typst), `kommentare_rest` (übrige Crates, TS, Templates); Kommentar-Zweige zuletzt integrieren. Grundlage: Plan von baruch-73 (`~/.cache/baruch-runde/plan-englisch-lokalisierung.md`) | nicht begonnen; Stromregel: höchstens drei Entwickler zugleich, also zwei Wellen | ≈ 240 min (neu; fünf Aufgaben in zwei Wellen, Kommentare sind Masse, aber mechanisch) |
+| Runde 39 – B: Oberfläche Deutsch und Englisch (vor 0.9.1) | Kataloge `en`/`de` (Empfehlung Fluent), `t()` in minijinja, Sprachwahl ohne JavaScript (Einstellung → Cookie → Accept-Language), alle 98 Templates und 47 Widgets auf Schlüssel, Server-Meldungen; Buchausgaben (EPUB, Typst/PDF, Word, Register, Glossar) nach Werksprache; Hilfe zweisprachig – die Webseite ist seit dem Nachgang zu Runde 37 schon mehrsprachig angelegt (`site/content/de/`, Englisch kommt nach `site/content/en/`), Bildschirmfotos beider Sprachen | nicht begonnen; wahrscheinlich zwei Runden: B1 Gerüst, Templates, Widgets, Meldungen; B2 Ausgaben, Hilfe, Abnahme | ≈ 360 min (neu; 2 × 180) |
+| Reste nach Runde 37 (Vorschlag, nach Runde 39) | Aus `docs/Backlog.md`, „Nach Runde 37 offen“ und „Runde 37 – integriert“: fehlendes Hilfebild bricht den Bau nicht ab; `#bibelstelle[…]` hinter einem Zitat wird nicht zugeordnet und fehlt im EPUB; Reiter Buch bricht bei 1400 px um; heller Streifen neben dem Abschnitts-Chat (dunkel); Alt+L und Alt+, am Mac; Shortcode `taste` in `tasten.md` | nicht begonnen; der Nutzer entscheidet, ob vor oder nach 0.9.1 – nichts davon verhindert die Veröffentlichung | ≈ 100 min (eine Runde mit zwei Entwicklern; Fotos der betroffenen Bilder danach neu) |
 | Nicht eingereiht | Schlanker Einstieg, Befunde nach Gewicht (Nutzerfrage 14), Anmerkungen zum ganzen Buch (Vorhaben Lektorat; „Anmerkung zum Buch“ als Befund eines Lektors gibt es seit Runde 35); dazu aus Runde 35: MCP-Tokens je Lektor und Werk, zweites Autor-Konto, PDF-Lesen für Lektoren; aus Runde 36: Live-Chat für Lektoren, eigene Beiträge der Lektoren auf `/beitrag` und `/beitraege` (beides verlangt neue Einträge in `LEKTOR_ROUTES`/`LEKTOR_RPC`); aus Runde 37: Suche in der Hilfe (ohne JavaScript und fremde Adresse nicht einfach), Einstellungen → Werk aufteilen | der Nutzer entscheidet, ob und ob vor oder nach 0.9.1 | ≈ 240 min (bisher 210, mit den beiden Punkten aus Runde 37) |
 
-Eine Runde 38 ist ein Vorschlag des PM; Zuschnitt und Reihenfolge legt der Nutzer fest. Die Stromregel aus
+Nachtrag 2026-11-27 nach Runde 37: Der Nutzer hat entschieden, dass Englisch Primärsprache wird und die Oberfläche
+zweisprachig – beides vor 0.9.1 als Runden 38 (A) und 39 (B). Die vom PM vorgeschlagene Reste-Runde rückt darum
+hinter Runde 39; ob vor oder nach 0.9.1, entscheidet der Nutzer. Summe bis 0.9.1 neu: rund 790 Minuten (Runden
+38 und 39 ≈ 600, Durchsicht und Veröffentlichung ≈ 190), ohne die Reste. Die Stromregel aus
 `AGENTS.md` gilt: nie zwei volle Testläufe eines Agenten zugleich. Summe bis 0.9.1: rund 190 Minuten (Durchsicht
 und Veröffentlichung), beides Arbeit des Nutzers.
 

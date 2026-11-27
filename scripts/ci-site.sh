@@ -14,7 +14,7 @@
 #   3. public/index.html liegt vor; public/CNAME nennt genau baruch.bernau.family (GitHub Pages).
 #   3a. scripts/site-check.py über public/ (vor dem Entpacken von /apt/): keine toten internen Links und Anker,
 #      kein Bild ohne alt-Text, kein JavaScript, keine fremde Adresse für Stil, Schrift oder Bild, kein Link auf
-#      docs/Bedienung.md oder docs/Betrieb.md bei GitHub. Hat die Seite einen Abschnitt content/hilfe, muss
+#      docs/Bedienung.md oder docs/Betrieb.md bei GitHub. Hat die Seite einen Abschnitt content/hilfe (mehrsprachig content/de/hilfe), muss
 #      /bedienung/ auf /hilfe/ weiterleiten; ohne ihn (Probe in ci-selftest.sh) entfällt nur diese Prüfung.
 #   4. mit --apt: public/apt/dists/stable/Release und mindestens ein Paket unter public/apt/pool/.
 #   5. Warnung (kein Abbruch), solange Platzhalter ausgeliefert würden: `aptFingerprint` in hugo.toml leer
@@ -65,7 +65,7 @@ if [ "$(cat "$site/public/CNAME" 2>/dev/null)" != "baruch.bernau.family" ]; then
     exit 1
 fi
 
-if [ -d "$site/content/hilfe" ]; then
+if [ -d "$site/content/hilfe" ] || [ -d "$site/content/de/hilfe" ]; then
     "$python" "$root/scripts/site-check.py" "$site/public"
 else
     "$python" "$root/scripts/site-check.py" --ohne-hilfe "$site/public"

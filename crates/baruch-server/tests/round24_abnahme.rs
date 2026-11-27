@@ -23,16 +23,16 @@ fn repo_file(path: &str) -> String {
     std::fs::read_to_string(&full).unwrap_or_else(|e| panic!("{full} lesen: {e}"))
 }
 
-/// Alle Seiten der Hilfe (`site/content/hilfe/*.md`) als Pfade ab dem Repo – im Verzeichnis gelesen, nicht einzeln
+/// Alle Seiten der Hilfe (`site/content/de/hilfe/*.md`) als Pfade ab dem Repo – im Verzeichnis gelesen, nicht einzeln
 /// aufgezählt, damit eine neue Hilfeseite von selbst unter die Verbote fällt (Runde 37: Die Bedienung für Anwender
 /// steht seitdem dort, `docs/Bedienung.md` ist nur noch Verweis und technische Anmerkung).
 fn help_pages() -> Vec<String> {
-    let dir = format!("{}/../../site/content/hilfe", env!("CARGO_MANIFEST_DIR"));
+    let dir = format!("{}/../../site/content/de/hilfe", env!("CARGO_MANIFEST_DIR"));
     let mut pages: Vec<String> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("{dir} lesen: {e}"))
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .filter(|name| name.ends_with(".md"))
-        .map(|name| format!("site/content/hilfe/{name}"))
+        .map(|name| format!("site/content/de/hilfe/{name}"))
         .collect();
     pages.sort();
     assert!(
@@ -180,11 +180,11 @@ fn the_former_private_default_address_is_gone_from_what_ships() {
         "docs/Betrieb.md",
         "README.md",
         "CHANGELOG.md",
-        "site/content/mcp.md",
+        "site/content/de/mcp.md",
     ]
     .into_iter()
     .map(String::from)
-    // Runde 37: Die Bedienung steht in der Hilfe der Webseite; sie wird ausgeliefert wie `site/content/mcp.md`.
+    // Runde 37: Die Bedienung steht in der Hilfe der Webseite; sie wird ausgeliefert wie `site/content/de/mcp.md`.
     .chain(help_pages())
     {
         assert!(!repo_file(&path).contains(&needle), "{path} nennt die frühere Intranet-Adresse nicht mehr");

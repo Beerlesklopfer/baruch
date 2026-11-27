@@ -216,7 +216,7 @@ Diese Schritte macht der Nutzer einmal; kein Skript und kein Agent nimmt sie ihm
    Stellen übereinstimmen; `release.yml` vergleicht den Wert vor dem Signieren mit dem Schlüssel aus dem Secret
    und **bricht ab**, wenn er fehlt oder abweicht – ein signiertes Repository ohne prüfbaren Fingerabdruck
    entsteht so nicht.
-7. **Impressum:** `site/content/impressum.md` ist ein sichtbar markierter Platzhalter (`platzhalter: true` im
+7. **Impressum:** `site/content/de/impressum.md` ist ein sichtbar markierter Platzhalter (`platzhalter: true` im
    Kopf, keine Anschrift). Die Angaben trägt der Betreiber ein und entfernt die Zeile `platzhalter: true`;
    solange sie steht, warnt jeder Seitenbau (`scripts/ci-site.sh`), liefert aber aus.
 
@@ -241,7 +241,7 @@ veröffentlichte ist.
   geheime Teil verloren geht.
 
 Niemand außer dem Nutzer erzeugt, wählt oder hinterlegt den Schlüssel. Fällt die Wahl auf den gemeinsamen
-Schlüssel, gehört der Satz dazu auf die Seite Installation (`site/content/installation.md`, Abschnitt
+Schlüssel, gehört der Satz dazu auf die Seite Installation (`site/content/de/installation.md`, Abschnitt
 „Debian und Ubuntu über die APT-Quelle“).
 
 Fingerabdruck: `BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4`

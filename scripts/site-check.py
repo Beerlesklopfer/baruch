@@ -234,7 +234,7 @@ def pruefe(ordner, basis=BASIS, mit_hilfe=True):
         alt = os.path.join(ordner, "bedienung", "index.html")
         seite = seiten.get(alt)
         if seite is None:
-            funde.append(("bedienung/index.html", "die alte Adresse /bedienung/ fehlt (aliases in content/hilfe/_index.md)"))
+            funde.append(("bedienung/index.html", "die alte Adresse /bedienung/ fehlt (aliases in content/de/hilfe/_index.md)"))
         else:
             ziel = intern(seite.weiterleitung, basis) if seite.weiterleitung else None
             if ziel is None or ziel[0].rstrip("/") != "/hilfe":

@@ -945,16 +945,16 @@ fn the_typeset_page_no_longer_includes_the_edit_toolbar_fragment() {
 #[test]
 fn the_user_guide_describes_the_band_and_names_no_old_menu_path() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite (`site/content/hilfe/`); der Abschnitt
+    // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite (`site/content/de/hilfe/`); der Abschnitt
     // „Menüband“ wird darum in der zuständigen Hilfeseite gesucht. Jede Überschrift der Hilfe trägt einen festen
     // Anker, deshalb endet die Zeile nicht mehr hinter dem Wort.
-    let help = read(&root.join("site/content/hilfe/menueband.md"));
+    let help = read(&root.join("site/content/de/hilfe/menueband.md"));
     assert!(
         help.contains("\n## Menüband {#menueband}\n"),
-        "site/content/hilfe/menueband.md hat den Abschnitt „Menüband“ mit dem festen Anker #menueband"
+        "site/content/de/hilfe/menueband.md hat den Abschnitt „Menüband“ mit dem festen Anker #menueband"
     );
     let guide = read(&root.join("docs/Bedienung.md"));
-    for (file, text) in [("site/content/hilfe/menueband.md", &help), ("docs/Bedienung.md", &guide)] {
+    for (file, text) in [("site/content/de/hilfe/menueband.md", &help), ("docs/Bedienung.md", &guide)] {
         assert!(
             !text.contains("## Kopfzeile und Menüs") && !text.contains("### Menüband (Runde 18a)"),
             "{file}: „Kopfzeile und Menüs“ ist zum Abschnitt „Menüband“ geworden, „Menüband (Runde 18a)“ ist darin \
@@ -973,11 +973,11 @@ fn the_user_guide_describes_the_band_and_names_no_old_menu_path() {
             .collect();
     // Alle Hilfeseiten, im Verzeichnis gelesen (nicht aufgezählt): Auch eine neue Seite darf keinen alten Menüpfad
     // nennen.
-    let mut pages: Vec<String> = std::fs::read_dir(root.join("site/content/hilfe"))
-        .expect("site/content/hilfe lesen")
+    let mut pages: Vec<String> = std::fs::read_dir(root.join("site/content/de/hilfe"))
+        .expect("site/content/de/hilfe lesen")
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .filter(|name| name.ends_with(".md"))
-        .map(|name| format!("site/content/hilfe/{name}"))
+        .map(|name| format!("site/content/de/hilfe/{name}"))
         .collect();
     pages.sort();
     assert!(pages.len() >= 15, "die Hilfe hat den Einstieg und ihre 14 Seiten: {pages:?}");

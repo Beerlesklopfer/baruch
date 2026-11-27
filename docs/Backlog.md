@@ -58,6 +58,13 @@ Entscheidungen des Nutzers:
   - Er wirkt nur vom eigenen Rechner aus, nie unter einem Proxy-Namen.
   - Dazu SIGTERM (unter Windows Strg+Pause bzw. das Schließen des Fensters) als sauberes Herunterfahren.
   - Doku nachziehen: `site/content/installation.md` und `docs/Bedienung.md`.
+- **Englisch als Primärsprache, Oberfläche Deutsch und Englisch (Nutzer 2026-11-27, vor 0.9.1).** Agenten, MCP, RPC,
+  Persona-Prompts, Rundenaufträge, Entwicklerdoku, Commits und Grundtexte der Oberfläche werden englisch;
+  Oberfläche, Bedienung und Hilfe zweisprachig. Werksprache ≠ Oberflächensprache (eigene Werkseinstellung, Vorgabe
+  `de`; Buch und Persona-Antworten folgen ihr). Ergänzung desselben Tages: alle Code-Kommentare auf einmal englisch.
+  → Runde 38 (A) und Runde 39 (B), Zeilen im Rundenplan unten. (**vorbereitet nach Runde 37:** Webseite
+  mehrsprachig angelegt, Inhalte unter `site/content/de/`, Adressen unverändert.) Die vom PM nach Runde 37
+  vorgeschlagene Reste-Runde rückt hinter Runde 39.
 - (**erledigt in Runde 37**, 2026-11-27: 14 Hilfeseiten unter `/hilfe/` mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Offenes unter „Runde 37 – integriert“) **Hilfe auf der Webseite, mit Bildern (Nutzer 2026-11-24).** Die Hilfe gehört vollständig auf
   baruch.bernau.family, nicht als Verweis auf Dateien bei GitHub.
   - `docs/Bedienung.md` (und für Betreiber `docs/Betrieb.md`) wird zu Hugo-Seiten unter `site/content/hilfe/`,
@@ -118,6 +125,8 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
 | R36 | Reste: Typst-Kommandozeile als Alias, Pages beim Release, sqlx 0.9.1, Reste aus R34, R35, 0.9.0 und „offen nach R24“ – **erledigt 2026-11-27** (≈ 155 min ab `bdd6d9f` mit Stromausfall 01:39, Prüfung und PM-Abschluss; S1 `d03be8d`, Integration `f2bb112`); nicht Teil von 0.9.0 | typst_alias · sqlx09 · reste | 150 |
 | R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **erledigt 2026-11-27** (≈ 95 min ab S1 `4a5b9d2` mit Prüfung und PM-Abschluss, Vertrag davor nicht in Git; Integration `ef9a9f0`; Offenes unter „Nach Runde 37 offen“ und „Runde 37 – integriert“); nicht Teil von 0.9.0 | a hilfe_text · b webseite · c bilder | 150 |
+| R38 | A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
+| R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
 

@@ -1,9 +1,9 @@
 # Bedienung von Baruch
 
 **Die Bedienung steht in der Hilfe auf der Webseite:** <https://baruch.bernau.family/hilfe/> – im Repository die
-Seiten unter [`site/content/hilfe/`](../site/content/hilfe/). Sie ist die einzige Beschreibung für Anwender, in
+Seiten unter [`site/content/de/hilfe/`](../site/content/de/hilfe/). Sie ist die einzige Beschreibung für Anwender, in
 Alltagssprache, Schritt für Schritt und mit Bildern. Für Betreiber gilt entsprechend
-[`site/content/betrieb.md`](../site/content/betrieb.md) (Einstieg: [`docs/Betrieb.md`](Betrieb.md)).
+[`site/content/de/betrieb.md`](../site/content/de/betrieb.md) (Einstieg: [`docs/Betrieb.md`](Betrieb.md)).
 
 Diese Datei enthält nur noch:
 
@@ -17,7 +17,7 @@ Bedienschritte stehen hier nicht mehr – nie in beiden Dateien.
 ## Regel für Entwickler
 
 „Bedienung nachziehen“ (AGENTS.md: Doku wächst mit dem Code) heißt seit Runde 37: **die zuständige Hilfeseite unter
-`site/content/hilfe/` im selben Commit ändern.** Technisches zur selben Änderung kommt in die „Technischen
+`site/content/de/hilfe/` im selben Commit ändern.** Technisches zur selben Änderung kommt in die „Technischen
 Anmerkungen“ unten. Für die Hilfeseiten gilt:
 
 - Alltagssprache: Fassung statt Revision, Assistent (Rolle) statt Persona; Fachwörter (MCP, Token, SWORD, Typst,
@@ -40,53 +40,53 @@ Jede `##`-Überschrift der früheren Fassung dieser Datei (Stand `00537dd`, `git
 
 | Frühere Überschrift | Hilfeseite und Anker |
 |---|---|
-| Starten | [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#starten`; Datenordner: `/betrieb/#datenordner` |
-| Typst- oder Markdown-Datei importieren | [`einlesen.md`](../site/content/hilfe/einlesen.md) `#typst-markdown`, `#markdown`, `#teile`, `#export-import`, `#kommandozeile` |
-| PDF oder EPUB importieren (Runde 21a) | [`einlesen.md`](../site/content/hilfe/einlesen.md) `#pdf-epub` |
-| Werke | [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#werke`, `#neues-werk`, `#predigt`, `#werk-bearbeiten`, `#loeschen-archiv` |
-| Bildschirm | [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#bildschirm` |
-| Menüband | [`menueband.md`](../site/content/hilfe/menueband.md) `#menueband`, `#menue-baruch`, `#reiter`, `#band-einklappen`, `#kompaktes-band`, `#laptop-modus`, `#ohne-javascript`; Knöpfe des Editors: [`schreiben.md`](../site/content/hilfe/schreiben.md) `#einfuegen`; Über Baruch: [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#ueber` |
-| Zeitangaben | [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#zeitangaben` |
-| Adresse | [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#adresse` |
-| Gliederung | [`gliederung.md`](../site/content/hilfe/gliederung.md) `#gliederung`, `#ueberschriften`, `#teile`, `#ohne-nummer`, `#seite`, `#antraege`, `#zustimmung-teil`, `#schema`, `#muster` |
-| Zeitwächter | [`schreiben.md`](../site/content/hilfe/schreiben.md) `#zeitwaechter` |
-| Satzbild | [`schreiben.md`](../site/content/hilfe/schreiben.md) `#satzbild`, `#ansichten`, `#einfuegen`, `#bild-einfuegen` |
-| Bilder | [`schreiben.md`](../site/content/hilfe/schreiben.md) `#bilder`, `#bild-einfuegen` |
-| Revisionen | [`schreiben.md`](../site/content/hilfe/schreiben.md) `#fassungen`, `#ausblenden` |
-| Vorschläge im Lesefluss | [`schreiben.md`](../site/content/hilfe/schreiben.md) `#vorschlaege` |
-| Abschnitts-Chat | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#chat` |
-| Assistenten fragen | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#pruefen`, `#websuche` |
-| Befunde (Runde 28) | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#befunde` |
-| Chat bedienen und Aufträge (Runde 28, chat-auftrag) | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#chat`, `#faeden` |
-| Suchen und Ersetzen (Runde 30a) | [`suchen.md`](../site/content/hilfe/suchen.md) `#suchen`, `#ersetzen` |
-| Querverweise (Runde 30a) | [`suchen.md`](../site/content/hilfe/suchen.md) `#verweise` |
-| Lösungsvorschläge und Varianten (Runde 30b) | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#pruefen`, `#loesungen`, `#rueckfrage` |
-| Chat: Wiederholen, Löschen, Anrede, Live, gegliederte Beiträge, Sprungmarken (Runde 30c) | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#chat` |
-| Bibelstellen | [`bibel-quellen.md`](../site/content/hilfe/bibel-quellen.md) `#zitate-pruefen`, `#nachschlagen` |
-| Satz (Typst-Vorschau) | [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#satz`, `#satz-einstellungen` |
-| Buch als PDF, Umschlag und Titelei | [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#pdf`, `#umschlag`, `#epub` |
-| Stichwortzettel | [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#stichwortzettel` |
-| Literatur | [`bibel-quellen.md`](../site/content/hilfe/bibel-quellen.md) `#literatur`, `#bedeutungssuche`, `#quellen`, `#nachschlagen` |
-| Einfälle | [`einfaelle.md`](../site/content/hilfe/einfaelle.md) `#festhalten`, `#liste`, `#einfall` |
-| Mindmap | [`einfaelle.md`](../site/content/hilfe/einfaelle.md) `#mindmap`, `#wolke`, `#mindmap-tasten`, `#mindmap-gliederung`, `#mindmap-austausch` |
-| Fäden | [`assistenten.md`](../site/content/hilfe/assistenten.md) `#faeden` |
-| Abgleich mit MultiGPT | [`bibel-quellen.md`](../site/content/hilfe/bibel-quellen.md) `#abgleich` |
-| Vergrößern mit Strg+Mausrad | [`menueband.md`](../site/content/hilfe/menueband.md) `#vergroessern` |
-| Einstellungen | [`einstellungen.md`](../site/content/hilfe/einstellungen.md) `#oeffnen`, `#darstellung`, `#werk`, `#assistenten`, `#verbindungen`, `#quellen`, `#mcp-zugang`, `#daten`; Satz: [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#satz-einstellungen`; Bibeln (SWORD), Kommentare und Lexika: [`bibel-quellen.md`](../site/content/hilfe/bibel-quellen.md) `#bibeln-waehlen` |
-| Sicherheit | [`austausch-sicherung.md`](../site/content/hilfe/austausch-sicherung.md) `#sicherheit`; Betrieb hinter einem Proxy: `/betrieb/#reverse-proxy` |
-| Konten und Rollen (Runde 35) | [`konten.md`](../site/content/hilfe/konten.md) `#einrichten`, `#anmelden`, `#lektoren`, `#lektor-rechte`, `#passwort` |
-| Austausch zwischen Instanzen | [`austausch-sicherung.md`](../site/content/hilfe/austausch-sicherung.md) `#ausgeben`, `#einlesen`, `#instanz` |
-| Umschlag-Editor (Runde 27) | [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#umschlag` |
-| Runde 19 – RAG-Pflege, Reste der Stellen | [`bibel-quellen.md`](../site/content/hilfe/bibel-quellen.md) `#bedeutungssuche`, `#zitate-pruefen`, `#nachschlagen`; [`einstellungen.md`](../site/content/hilfe/einstellungen.md) `#verbindungen` |
-| EPUB (Runde 20) | [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#epub` |
-| Runde 31 – Register und Glossar | [`suchen.md`](../site/content/hilfe/suchen.md) `#glossar`, `#register` |
-| Runde 22 – Revisionen und Spiegel | [`schreiben.md`](../site/content/hilfe/schreiben.md) `#fassungen`, `#verlauf`; Rückfrage: [`assistenten.md`](../site/content/hilfe/assistenten.md) `#rueckfrage`; Archiv: [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#loeschen-archiv`; Entwurf: [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#pdf`; Austausch: [`austausch-sicherung.md`](../site/content/hilfe/austausch-sicherung.md) `#einlesen` |
-| Runde 23 – Härtung | nach Inhalt verteilt: [`schreiben.md`](../site/content/hilfe/schreiben.md) `#einfuegen`, `#fassungen`; [`gliederung.md`](../site/content/hilfe/gliederung.md) `#antraege`; [`assistenten.md`](../site/content/hilfe/assistenten.md) `#chat`, `#befunde`, `#websuche`; [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#umschlag`, `#epub`; [`einstellungen.md`](../site/content/hilfe/einstellungen.md) `#verbindungen`, `#mcp-zugang`; [`austausch-sicherung.md`](../site/content/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner` |
-| Runde 32 – Word und Beenden | [`einlesen.md`](../site/content/hilfe/einlesen.md) `#word`; [`buchsatz.md`](../site/content/hilfe/buchsatz.md) `#word-export`; [`erste-schritte.md`](../site/content/hilfe/erste-schritte.md) `#beenden` |
-| Runde 36 – Reste | nach Inhalt verteilt: [`konten.md`](../site/content/hilfe/konten.md) `#lektor-rechte`, `#passwort`, `#anmelden`; [`einfaelle.md`](../site/content/hilfe/einfaelle.md) `#mindmap-austausch`; [`schreiben.md`](../site/content/hilfe/schreiben.md) `#ausblenden`, `#einfuegen`; [`assistenten.md`](../site/content/hilfe/assistenten.md) `#rueckfrage`, `#pruefen`; [`menueband.md`](../site/content/hilfe/menueband.md) `#laptop-modus`; [`austausch-sicherung.md`](../site/content/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner`; [`gliederung.md`](../site/content/hilfe/gliederung.md) `#gliederung` |
+| Starten | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#starten`; Datenordner: `/betrieb/#datenordner` |
+| Typst- oder Markdown-Datei importieren | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#typst-markdown`, `#markdown`, `#teile`, `#export-import`, `#kommandozeile` |
+| PDF oder EPUB importieren (Runde 21a) | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#pdf-epub` |
+| Werke | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#werke`, `#neues-werk`, `#predigt`, `#werk-bearbeiten`, `#loeschen-archiv` |
+| Bildschirm | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#bildschirm` |
+| Menüband | [`menueband.md`](../site/content/de/hilfe/menueband.md) `#menueband`, `#menue-baruch`, `#reiter`, `#band-einklappen`, `#kompaktes-band`, `#laptop-modus`, `#ohne-javascript`; Knöpfe des Editors: [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#einfuegen`; Über Baruch: [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#ueber` |
+| Zeitangaben | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#zeitangaben` |
+| Adresse | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#adresse` |
+| Gliederung | [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#gliederung`, `#ueberschriften`, `#teile`, `#ohne-nummer`, `#seite`, `#antraege`, `#zustimmung-teil`, `#schema`, `#muster` |
+| Zeitwächter | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#zeitwaechter` |
+| Satzbild | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#satzbild`, `#ansichten`, `#einfuegen`, `#bild-einfuegen` |
+| Bilder | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#bilder`, `#bild-einfuegen` |
+| Revisionen | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#fassungen`, `#ausblenden` |
+| Vorschläge im Lesefluss | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#vorschlaege` |
+| Abschnitts-Chat | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat` |
+| Assistenten fragen | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#pruefen`, `#websuche` |
+| Befunde (Runde 28) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#befunde` |
+| Chat bedienen und Aufträge (Runde 28, chat-auftrag) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat`, `#faeden` |
+| Suchen und Ersetzen (Runde 30a) | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#suchen`, `#ersetzen` |
+| Querverweise (Runde 30a) | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#verweise` |
+| Lösungsvorschläge und Varianten (Runde 30b) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#pruefen`, `#loesungen`, `#rueckfrage` |
+| Chat: Wiederholen, Löschen, Anrede, Live, gegliederte Beiträge, Sprungmarken (Runde 30c) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat` |
+| Bibelstellen | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#zitate-pruefen`, `#nachschlagen` |
+| Satz (Typst-Vorschau) | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#satz`, `#satz-einstellungen` |
+| Buch als PDF, Umschlag und Titelei | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#pdf`, `#umschlag`, `#epub` |
+| Stichwortzettel | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#stichwortzettel` |
+| Literatur | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#literatur`, `#bedeutungssuche`, `#quellen`, `#nachschlagen` |
+| Einfälle | [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#festhalten`, `#liste`, `#einfall` |
+| Mindmap | [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#mindmap`, `#wolke`, `#mindmap-tasten`, `#mindmap-gliederung`, `#mindmap-austausch` |
+| Fäden | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#faeden` |
+| Abgleich mit MultiGPT | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#abgleich` |
+| Vergrößern mit Strg+Mausrad | [`menueband.md`](../site/content/de/hilfe/menueband.md) `#vergroessern` |
+| Einstellungen | [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#oeffnen`, `#darstellung`, `#werk`, `#assistenten`, `#verbindungen`, `#quellen`, `#mcp-zugang`, `#daten`; Satz: [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#satz-einstellungen`; Bibeln (SWORD), Kommentare und Lexika: [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#bibeln-waehlen` |
+| Sicherheit | [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherheit`; Betrieb hinter einem Proxy: `/betrieb/#reverse-proxy` |
+| Konten und Rollen (Runde 35) | [`konten.md`](../site/content/de/hilfe/konten.md) `#einrichten`, `#anmelden`, `#lektoren`, `#lektor-rechte`, `#passwort` |
+| Austausch zwischen Instanzen | [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#ausgeben`, `#einlesen`, `#instanz` |
+| Umschlag-Editor (Runde 27) | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#umschlag` |
+| Runde 19 – RAG-Pflege, Reste der Stellen | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#bedeutungssuche`, `#zitate-pruefen`, `#nachschlagen`; [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#verbindungen` |
+| EPUB (Runde 20) | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#epub` |
+| Runde 31 – Register und Glossar | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#glossar`, `#register` |
+| Runde 22 – Revisionen und Spiegel | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#fassungen`, `#verlauf`; Rückfrage: [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#rueckfrage`; Archiv: [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#loeschen-archiv`; Entwurf: [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#pdf`; Austausch: [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#einlesen` |
+| Runde 23 – Härtung | nach Inhalt verteilt: [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#einfuegen`, `#fassungen`; [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#antraege`; [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat`, `#befunde`, `#websuche`; [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#umschlag`, `#epub`; [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#verbindungen`, `#mcp-zugang`; [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner` |
+| Runde 32 – Word und Beenden | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#word`; [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#word-export`; [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#beenden` |
+| Runde 36 – Reste | nach Inhalt verteilt: [`konten.md`](../site/content/de/hilfe/konten.md) `#lektor-rechte`, `#passwort`, `#anmelden`; [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#mindmap-austausch`; [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#ausblenden`, `#einfuegen`; [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#rueckfrage`, `#pruefen`; [`menueband.md`](../site/content/de/hilfe/menueband.md) `#laptop-modus`; [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner`; [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#gliederung` |
 
 Alle Tastenkürzel und Mausgesten stehen zusätzlich gesammelt in
-[`tasten.md`](../site/content/hilfe/tasten.md); der Einstieg ist [`_index.md`](../site/content/hilfe/_index.md).
+[`tasten.md`](../site/content/de/hilfe/tasten.md); der Einstieg ist [`_index.md`](../site/content/de/hilfe/_index.md).
 
 ## Technische Anmerkungen
 

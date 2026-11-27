@@ -63,7 +63,7 @@ TOOLS = Path(__file__).resolve().parent
 REPO = TOOLS.parent.parent
 WORK_FILE = TOOLS / "beispielwerk.typ"
 LIST_FILE = REPO / "site" / "data" / "hilfebilder.toml"
-CONTENT = REPO / "site" / "content"
+CONTENT = REPO / "site" / "content" / "de"
 TARGET = REPO / "site" / "static" / "bilder"
 HELP_DIR = "hilfe"
 # Alle Bilder zusammen (site/static/bilder) bleiben unter dieser Grenze (Vertrag Runde 37, §8).

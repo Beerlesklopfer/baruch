@@ -577,8 +577,8 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     `docs/Backlog.md`, „Nach Runde 24 offen“.
 - **Runde 37 „Hilfe auf der Webseite“ integriert** (2026-11-27, auf `development`; Version unverändert 0.9.0, im
   CHANGELOG unter „Unveröffentlicht“):
-  - **Die Webseite ist die Quelle der Bedienung:** `site/content/hilfe/` (14 Seiten, Alltagssprache, Schritte, Tasten
-    für Windows/Linux und Mac) für Anwender, `site/content/betrieb.md` für Betreiber; die Ersteinrichtung (Bibeln,
+  - **Die Webseite ist die Quelle der Bedienung:** `site/content/de/hilfe/` (14 Seiten, Alltagssprache, Schritte, Tasten
+    für Windows/Linux und Mac) für Anwender, `site/content/de/betrieb.md` für Betreiber; die Ersteinrichtung (Bibeln,
     Assistenten, MultiGPT, KI-Programme) steht in `installation.md` und `mcp.md`. `docs/Bedienung.md` und
     `docs/Betrieb.md` sind nur noch Einstieg: „Wo steht was“, Regel für Entwickler, technische Anmerkungen.
   - **Bilder:** Liste `site/data/hilfebilder.toml` (94 Namen), Shortcode `hilfebild` (fehlendes Bild = keine Ausgabe,

@@ -7,7 +7,7 @@
 # Felder je [[bild]]:
 #   name    fester Name (Kleinbuchstaben, ASCII, Bindestriche). Niemand benennt um oder streicht; neue Namen trägt
 #           nur der Integrator nach.
-#   seite   Seiten, auf denen das Bild steht (Liste): Dateiname unter site/content/hilfe/ ohne „.md“ oder eine der
+#   seite   Seiten, auf denen das Bild steht (Liste): Dateiname unter site/content/de/hilfe/ ohne „.md“ oder eine der
 #           übrigen Seiten (installation, mcp, betrieb). Ein Name darf auf mehreren Seiten stehen.
 #   zeigt   was zu sehen ist; die Adresse in Klammern ist ein Hinweis aus der Routenliste (WERK = Nummer des
 #           Beispielwerks, KEY = Schlüssel eines Abschnitts, ID = Nummer). Endgültige Adresse, Fenstergröße,
