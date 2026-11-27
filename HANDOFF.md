@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-27, Round 38b "Comments in English, rest" **integrated** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; PM close open); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-28, Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 > From Round 38 on, new entries are written in English; older entries stay German.
 
@@ -6,7 +6,7 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
-- **Round 38b "Comments in English, rest" integrated** (2026-11-27/28, integrator, on `development`; base
+- **Round 38b "Comments in English, rest" closed** (2026-11-27/28, integrator, on `development`; base
   `174c996`, S1 `58b9dd5`; branches `team/r38b-srv_src_i_p` `52a4567`, `-srv_src_q_z` `8fff3d9`, `-srv_tests_1`
   `e26c8c4`, `-srv_tests_2` `89aac9e`, `-store` `d36ad3b`, `-crates_a` `2e03ac5`, `-crates_b` `54e3b72`, `-web`
   `74ba07d` merged with `--no-ff`, no conflict; then the integration commit; not pushed). Version unchanged 0.9.0,
@@ -27,8 +27,11 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
   **Open:** small leftovers in `docs/Backlog.md`, "Round 38b – integrated" (German comments inside JavaScript
   strings of `round18_satzbild.rs`, `widgets.mjs`, single-word allow entries, wording not unified between
   branches). Visual check with an own throwaway server (no request to Eliezer): `.claude/sicht/r38b/` (work page,
-  unchanged; not in the repository). Worktrees `.claude/worktrees/wf_b51eb61c-fd2-{3..10}` with their `target/`
-  and the team branches are still there (the PM removes the worktrees). Next: Round 38c, then Round 39.
+  unchanged; not in the repository).
+  **PM close (2026-11-28):** full run after `cargo clean -p`: exit 0, 3586 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1609, pgvector tests ran (2026-11-28 00:13–00:18, all 16 workspace crates rebuilt). Review: two low findings, nothing
+  to fix (see `docs/Backlog.md`). Worktrees `.claude/worktrees/wf_b51eb61c-fd2-{3..10}` with their `target/`
+  removed (`/home` 308 GB free afterwards); branches `team/r38b-*` kept. Round 38b took about 250 minutes from
+  `174c996` (estimate 150). Next: Round 38c (estimate now 180), then Rounds 39a and 39b.
 - **Round 38 "English for agents and developers" integrated in part** (2026-11-27, integrator, on `development`;
   interface R38-S1 `4315b01`; branches `team/regeln_doku` `4a35760`, `team/mcp_rpc` `0457172`,
   `team/kommentare_server` `5ba9752` merged with `--no-ff`; one trivial conflict in `tests/main.rs`, six files in
