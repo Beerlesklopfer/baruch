@@ -75,6 +75,7 @@ pub mod context;
 pub mod eliezer;
 pub mod glossary;
 pub mod hooks;
+pub mod lang;
 pub mod mock;
 pub mod port;
 pub mod prompts;

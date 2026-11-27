@@ -352,6 +352,8 @@ async fn migration_0040_rebuilds_work_and_keeps_every_row_and_reference() {
     assert!(work_sql.starts_with("CREATE TABLE \"work\"") || work_sql.starts_with("CREATE TABLE work"), "{work_sql}");
     assert!(work_sql.contains("'sermon','book'") && work_sql.contains("AUTOINCREMENT"), "neuer CHECK: {work_sql}");
     let mut work_columns = tables(pool).await["work"].clone();
+    // Round 38 (0055), run by `Store::open` as well, appends the work language after that.
+    assert_eq!(work_columns.pop().as_deref(), Some("language"), "0055 appends language as the last column of work");
     assert_eq!(work_columns.pop().as_deref(), Some("uuid"), "0041 hängt uuid als letzte Spalte an");
     assert_eq!(work_columns, layout["work"], "Spalten von work in alter Reihenfolge");
     // Runde 25 (0043), Runde 18c (0044) und Runde 27 (0045), von `Store::open` mit ausgeführt: `idea_map_pos`,

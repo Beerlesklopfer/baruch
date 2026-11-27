@@ -333,6 +333,25 @@ async fn a_database_of_development_opens_without_version_mismatch_and_losslessly
         .expect("der Store mit sqlx 0.9 öffnet die Datenbank des alten Stands (kein VersionMismatch)");
 
     let rows_after = dump_all(store.pool()).await;
+    // Round 38: the store now carries 0055 (`work.language`), which runs once on the old state. Apart from its own
+    // entry in the bookkeeping, the appended column ('de' for the old work) and the definition of `work`, nothing
+    // may change; these three are taken out here and checked on their own.
+    let mut rows_after_old = rows_after.clone();
+    let newer: Vec<String> = {
+        let books = rows_after_old.get_mut("_sqlx_migrations").unwrap();
+        let newer = books.iter().filter(|row| row.starts_with("55|")).cloned().collect();
+        books.retain(|row| !row.starts_with("55|"));
+        newer
+    };
+    assert!(
+        newer.len() == 1 && newer[0].starts_with("55|'work language'|"),
+        "exactly the one new migration 0055 ran on the old state: {newer:?}"
+    );
+    for row in rows_after_old.get_mut("work").unwrap() {
+        *row = row.strip_suffix("|'de'").expect("0055 makes every existing work German").to_owned();
+    }
+    let rows_after_full = rows_after;
+    let rows_after = rows_after_old;
     assert_eq!(
         rows_after.get("_sqlx_migrations"),
         rows_before.get("_sqlx_migrations"),
@@ -347,10 +366,21 @@ async fn a_database_of_development_opens_without_version_mismatch_and_losslessly
         rows_before.keys().collect::<Vec<_>>(),
         "keine Tabelle kam dazu oder fiel weg"
     );
+    let schema_after = schema(store.pool()).await;
+    let not_work = |lines: &[String]| -> Vec<String> {
+        lines.iter().filter(|line| !line.starts_with("table work: ")).cloned().collect()
+    };
     assert_eq!(
-        schema(store.pool()).await,
-        schema_before,
+        not_work(&schema_after),
+        not_work(&schema_before),
         "kein Schemaobjekt ist geändert – auch die Tabelle _sqlx_migrations behält die Gestalt von 0.8"
+    );
+    let work_before = schema_before.iter().find(|line| line.starts_with("table work: ")).expect("work exists");
+    let work_after = schema_after.iter().find(|line| line.starts_with("table work: ")).expect("work still exists");
+    assert!(
+        work_after.starts_with(work_before.strip_suffix(')').expect("the definition ends with a bracket"))
+            && work_after.contains("language TEXT NOT NULL DEFAULT 'de'"),
+        "the definition of work is the old one plus the column language of 0055: {work_after}"
     );
     let works = store.works().await.unwrap();
     assert_eq!(
@@ -363,7 +393,7 @@ async fn a_database_of_development_opens_without_version_mismatch_and_losslessly
     // Ein zweites Öffnen ändert ebenfalls nichts (wiederholbar wie bisher).
     drop(store);
     let again = Store::open(dir.path()).await.expect("zweites Öffnen");
-    assert_eq!(dump_all(again.pool()).await, rows_after, "auch das zweite Öffnen lässt jede Zeile stehen");
+    assert_eq!(dump_all(again.pool()).await, rows_after_full, "auch das zweite Öffnen lässt jede Zeile stehen");
 }
 
 #[tokio::test]

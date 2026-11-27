@@ -69,6 +69,10 @@
 //! - Runde 36 (Schnittstelle R36-S1, Reste): Modul `reste36` ([`OutlineLosses`], [`Store::outline_delete_losses`]).
 //!   Reserviert: 0055 reste (nur `CREATE`/`ADD COLUMN`, nicht in [`FOREIGN_KEYS_OFF`]), 0056 Integrator; Bibliothek 0109
 //!   Integrator (alle erwartet unbenutzt).
+//! - Round 38 (interface R38-S1, English for agents and developers): migration 0055 `work_language` – column
+//!   `work.language` (`'de'`|`'en'`, default `'de'`); `ADD COLUMN` only, not in [`FOREIGN_KEYS_OFF`], content fixed
+//!   after S1. Module `language` ([`WorkLanguage`], [`Store::work_language`], [`Store::set_work_language`]); no commit
+//!   in the mirror (like `work_timing`). Reserved: 0056 integrator (expected unused); library: none.
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
@@ -104,6 +108,7 @@ mod glossary;
 mod idea_links;
 mod ideas;
 mod import;
+mod language;
 mod legacy_parts;
 mod load;
 mod mcp_tokens;
@@ -147,6 +152,7 @@ pub use assets::{
     MAX_ASSET_BYTES, NewAsset, PathConflict, PathOwner, asset_name_from_file, check_asset_path, decode_base64,
     detect_mime, encode_base64, normalize_asset_path, valid_asset_name,
 };
+pub use baruch_core::WorkLanguage;
 pub use baruch_core::revision_policy::{NewReason, RevisionPolicy, SaveMode};
 pub use baruch_typst::cover_layout::{CoverBlock, CoverBlockKind, CoverFace, CoverGeometry, CoverLayout};
 pub use baruch_typst::scheme::Scheme as NumberingScheme;

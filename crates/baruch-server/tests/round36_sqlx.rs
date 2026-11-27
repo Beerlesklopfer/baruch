@@ -309,7 +309,22 @@ async fn a_data_folder_of_development_starts_without_version_mismatch_and_lossle
         .await
         .unwrap_or_else(|e| panic!("der Server mit sqlx 0.9 startet auf dem Datenordner des alten Stands: {e}"));
 
-    let after = dump(state.store.pool(), CONTENT).await;
+    let mut after = dump(state.store.pool(), CONTENT).await;
+    // Round 38: the store now carries 0055 (`work.language`), which runs once on the old folder. Its own entry in the
+    // bookkeeping and the appended column ('de' for the old work) are taken out here and checked on their own.
+    let newer: Vec<String> = {
+        let books = after.get_mut("_sqlx_migrations").unwrap();
+        let newer = books.iter().filter(|row| row.starts_with("55|")).cloned().collect();
+        books.retain(|row| !row.starts_with("55|"));
+        newer
+    };
+    assert!(
+        newer.len() == 1 && newer[0].starts_with("55|'work language'|"),
+        "exactly the one new migration 0055 ran on the old folder: {newer:?}"
+    );
+    for row in after.get_mut("work").unwrap() {
+        *row = row.strip_suffix("|'de'").expect("0055 makes every existing work German").to_owned();
+    }
     assert_eq!(
         after["_sqlx_migrations"], before["_sqlx_migrations"],
         "die Buchführung beider Migratoren ist unberührt: keine Migration lief noch einmal, keine Prüfsumme wurde \

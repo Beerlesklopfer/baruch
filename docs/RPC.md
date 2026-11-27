@@ -2913,3 +2913,15 @@ Keine neue Methode, keine neue Route. Geändert:
   Sicherung (Vermerk im Prozess); `settings.backup` (RPC) antwortet wie bisher direkt.
 - **`GET /static/js/vw.js`:** neues ausgeliefertes Skript unter der vorhandenen Route `/static/js/{name}` (klassisch,
   kein Modul; berichtigt Cookie `baruch_vw` und die Attribute an `<html>` vor dem ersten Zeichnen).
+
+## Work language
+
+Round 38, interface R38-S1 (`src/work_language.rs`, store `work.language`, migration 0055): every work has a work
+language, `"de"` (default, every work from before Round 38) or `"en"`. Personas answer in it; it does not change the
+language of the user interface.
+
+**Stub:** `work.language` and `work.language_set` are dispatched, but both answer with the error
+`work.language: not implemented yet (Round 38, mcp_rpc)` (`-32000`) until task mcp_rpc implements them and replaces
+this section. What is missing: reading and setting the language over RPC, the field `language` in `work.get`,
+`work.meta` and `work.list`, the form `POST /einstellungen/werk/sprache`, and the language rule below the persona
+prompts (`assist::lang`).

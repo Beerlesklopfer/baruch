@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Allow list for `python3 scripts/check-comments-only.py --umlaute PATH...` (Round 38).
+# One entry per line, three fields separated by TAB characters:
+#   path glob<TAB>substring of the comment line<TAB>reason
+# The glob is matched against the path relative to the repository root (fnmatch: `*` also crosses `/`).
+# Typical reasons: a quoted German text of the user interface, a marker such as „Kritisch:“, a proper name, a
+# comment whose wording a test asserts. Maintained by the integrator only; developers report wanted entries as
+# finished lines in their report.

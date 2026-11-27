@@ -11,12 +11,15 @@
 //! dem größten Kontext. Versuch seit 2026-11-06: fest `@lektor` (alle Personas auf einem Modell); ist die
 //! feste Persona nicht (mehr) da oder inaktiv, gilt die automatische Regel.
 
+pub mod language;
 pub mod revision_fold;
 pub mod revision_policy;
 pub mod sample;
 
 use serde::Serialize;
 use similar::{ChangeTag, TextDiff};
+
+pub use language::WorkLanguage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

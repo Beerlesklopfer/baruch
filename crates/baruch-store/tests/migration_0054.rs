@@ -187,12 +187,28 @@ async fn existing_rows_and_schema_survive_and_the_new_table_starts_empty() {
 
     assert!(scalar(&pool, "SELECT max(version) FROM _sqlx_migrations").await >= 54, "0054 ist eingetragen");
     for (table, before) in &rows_before {
-        assert_eq!(&dump(&pool, table).await, before, "jede Zeile von {table} bleibt byte-gleich (nur CREATE)");
+        let mut after = dump(&pool, table).await;
+        if table == "work" {
+            // Round 38: the same call also runs 0055, which appends `work.language` ('de' for every existing work).
+            after = after
+                .iter()
+                .map(|row| row.strip_suffix("|'de'").expect("0055 makes every existing work German").to_owned())
+                .collect();
+        }
+        assert_eq!(&after, before, "jede Zeile von {table} bleibt byte-gleich (nur CREATE)");
     }
     let schema_after = schema(&pool).await;
     assert!(
-        schema_before.iter().all(|line| schema_after.contains(line)),
+        schema_before.iter().filter(|line| !line.starts_with("table work: ")).all(|line| schema_after.contains(line)),
         "kein altes Schemaobjekt ist geändert oder entfernt"
+    );
+    // Round 38: `ADD COLUMN` of 0055 extends the stored definition of `work` and changes nothing else in it.
+    let work_before = schema_before.iter().find(|line| line.starts_with("table work: ")).expect("work exists");
+    let work_after = schema_after.iter().find(|line| line.starts_with("table work: ")).expect("work still exists");
+    assert!(
+        work_after.starts_with(work_before.strip_suffix(')').expect("the definition ends with a bracket"))
+            && work_after.contains("language TEXT NOT NULL DEFAULT 'de'"),
+        "the definition of work is the old one plus the column language of 0055: {work_after}"
     );
     let added: Vec<&str> = schema_after
         .iter()

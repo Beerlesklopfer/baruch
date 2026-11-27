@@ -666,6 +666,22 @@ check "die Typst-Probe ist frei erfunden gekennzeichnet und hat sechs Überschri
     "scripts/ci-typst.sh erwartet sechs Abschnitte; so fällt eine geänderte Probe hier auf, nicht erst in der CI." \
     probe_ok
 
+# ---- 9. Comment check (Round 38) --------------------------------------------------------------------------
+if has python3; then
+    check "check-comments-only.py --selftest" \
+        "The acceptance of the comment translation rests on this tool: it must tell comments from strings and code." \
+        python3 "$scripts/check-comments-only.py" --selftest
+    check "check-comments-only.py is valid Python" \
+        "A syntax error would otherwise only show up when a developer runs the check." \
+        env PYTHONDONTWRITEBYTECODE=1 python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' \
+        "$scripts/check-comments-only.py"
+    check_exit 0 "the allow list for umlauts in comments is well-formed" \
+        "A malformed line (no TAB) would make every --umlaute run fail with a usage error." \
+        python3 "$scripts/check-comments-only.py" --umlaute "$scripts/comment-umlaut-allow.txt"
+else
+    skipped="$skipped python3(check-comments-only)"
+fi
+
 echo
 [ -z "$skipped" ] || echo "Übersprungen (Werkzeug fehlt):$skipped"
 echo "ci-selftest.sh: $checks Zusicherungen, $failed gescheitert."

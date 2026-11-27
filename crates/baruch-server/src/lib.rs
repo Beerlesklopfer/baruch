@@ -85,6 +85,7 @@ pub mod typeset_settings;
 pub mod typst_cli;
 pub mod view;
 pub mod websearch;
+pub mod work_language;
 pub mod works;
 pub mod wysiwyg;
 pub mod xref;

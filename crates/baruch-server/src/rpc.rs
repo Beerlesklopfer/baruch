@@ -839,6 +839,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
         m if crate::cover::handles(m) => crate::cover::call(state, work_id, m, params_value).await,
         m if crate::cover_layout::handles(m) => crate::cover_layout::call(state, work_id, m, params_value).await,
         m if crate::timing::handles(m) => crate::timing::call(state, work_id, m, params_value).await,
+        m if crate::work_language::handles(m) => crate::work_language::call(state, work_id, m, params_value).await,
         m if crate::ribbon::handles(m) => crate::ribbon::call(state, work_id, m, params_value).await,
         m if crate::sheet::handles(m) => crate::sheet::call(state, work_id, m, params_value).await,
         // Runde 29 (Schnittstelle R29-S1): Satz-Einstellungen und ihre Vorschau.
