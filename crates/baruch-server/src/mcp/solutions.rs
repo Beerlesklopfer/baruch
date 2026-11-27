@@ -14,19 +14,19 @@ use crate::AppState;
 
 pub const NAME: &str = "solution_variants";
 
-pub const DESCRIPTION: &str = "Varianten eines Abschnitts als Vorschläge: der Lektor (nach Einstellung) setzt Befunde \
-und ihre Lösungen in 2 oder 3 Varianten (A/B/C) mit gleicher Basis rev um, je mit einer Zeile, was sie anders macht, \
-und den umgesetzten Befunden (findings, ids aus [B<id>]; ohne Angabe die offenen Befunde des Abschnitts). Lange \
-Abschnitte bekommen Teilvorschläge (nur die betroffenen Absätze). Legt nur Vorschläge an – übernehmen und die übrigen \
-verwerfen kann nur der Mensch; Vergleich unter url. Zählt zur Grenze von zwei Modellaufträgen je Client.";
+pub const DESCRIPTION: &str = "Variants of a section as proposals: the lector (by setting) implements findings and \
+their solutions in 2 or 3 variants (A/B/C) with the same base rev, each with one line on what it does differently \
+and the findings implemented (findings, ids from [B<id>]; without the argument the open findings of the section). \
+Long sections get partial proposals (only the paragraphs concerned). Only creates proposals – only the human can \
+accept one and reject the others; comparison under url. Counts towards the limit of two model jobs per client.";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "required": ["work", "key"], "properties": {
         "work": work_schema(),
-        "key": { "type": "integer", "description": "fester Schlüssel des Abschnitts (key aus outline)" },
-        "rev": { "type": "integer", "minimum": 1, "description": "Basis (Vorgabe: die aktuelle Fassung)" },
-        "findings": { "type": "array", "items": { "type": "integer" }, "description": "Befunde, die umgesetzt werden sollen ([B<id>])" },
-        "count": { "type": "integer", "enum": [2, 3], "description": "Zahl der Varianten (Vorgabe 2)" } } })
+        "key": { "type": "integer", "description": "stable key of the section (key from outline)" },
+        "rev": { "type": "integer", "minimum": 1, "description": "base (default: the current revision)" },
+        "findings": { "type": "array", "items": { "type": "integer" }, "description": "findings to implement ([B<id>])" },
+        "count": { "type": "integer", "enum": [2, 3], "description": "number of variants (default 2)" } } })
 }
 
 #[derive(Deserialize)]
@@ -45,10 +45,10 @@ pub async fn call_tool(state: &AppState, client: &Client, arguments: Value) -> R
     if let Some(count) = a.count
         && !(2..=crate::assist::variants::MAX_VARIANTS).contains(&count)
     {
-        return Err(tool_error(format!("count: 2 oder 3 Varianten, nicht {count}.")));
+        return Err(tool_error(format!("count: 2 or 3 variants, not {count}.")));
     }
     if a.rev == Some(0) {
-        return Err(Failure::Args("arguments: rev ab 1".into()));
+        return Err(Failure::Args("arguments: rev from 1".into()));
     }
     // Unbekannter Abschnitt → isError statt eines Modellaufrufs.
     state.store.node_seq(work, a.key).await?;

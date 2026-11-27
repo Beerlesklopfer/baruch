@@ -264,7 +264,7 @@ async fn typst_check_reports_errors_warnings_and_url_and_writes_nothing() {
     let at = names.iter().position(|n| *n == "typst_check").expect("typst_check steht in tools/list");
     assert_eq!(names[at - 1], "search", "typst_check folgt direkt auf search: {names:?}");
     let tool = &list["result"]["tools"][at];
-    assert!(tool["description"].as_str().unwrap().contains("nur lesend"), "Beschreibung sagt „nur lesend“");
+    assert!(tool["description"].as_str().unwrap().contains("read-only"), "Beschreibung sagt „nur lesend“");
 
     let answer =
         mcp(&server, "tools/call", json!({ "name": "typst_check", "arguments": { "work": work, "key": ofen.key } }))

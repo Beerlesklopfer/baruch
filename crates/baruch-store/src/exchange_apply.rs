@@ -3239,7 +3239,7 @@ async fn apply_new(
     };
     let work: WorkId = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, created, template, title_key, subtitle, audience, bible, updated, \
-         numbering, numbering_scheme, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+         numbering, numbering_scheme, uuid, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(&slug)
     .bind(kind)
@@ -3255,6 +3255,7 @@ async fn apply_new(
     .bind(&w.numbering)
     .bind(&w.numbering_scheme)
     .bind(&w.uuid)
+    .bind(w.language.as_xml())
     .fetch_one(&mut *conn)
     .await?;
 
@@ -4603,9 +4604,10 @@ async fn merge_assets(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Work
 async fn merge_details(conn: &mut SqliteConnection, run: &mut Run<'_>, work: WorkId) -> Result<(), StoreError> {
     let doc = run.doc;
     let w = &doc.work;
-    type WorkRow = (String, String, String, String, String, String, Option<String>, String);
-    let (kind, title, subtitle, author, audience, bible, numbering, scheme): WorkRow = sqlx::query_as(
-        "SELECT kind, title, subtitle, author, audience, bible, numbering, numbering_scheme FROM work WHERE id = ?",
+    type WorkRow = (String, String, String, String, String, String, Option<String>, String, String);
+    let (kind, title, subtitle, author, audience, bible, numbering, scheme, language): WorkRow = sqlx::query_as(
+        "SELECT kind, title, subtitle, author, audience, bible, numbering, numbering_scheme, language FROM work \
+         WHERE id = ?",
     )
     .bind(work)
     .fetch_one(&mut *conn)
@@ -4614,7 +4616,7 @@ async fn merge_details(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wor
         ExchangeWorkKind::Book => "book",
         ExchangeWorkKind::Sermon => "sermon",
     };
-    let fields: [(&str, &str, &str); 7] = [
+    let fields: [(&str, &str, &str); 8] = [
         ("Art", &kind, kind_there),
         ("Titel", &title, &w.title),
         ("Untertitel", &subtitle, &w.subtitle),
@@ -4622,6 +4624,7 @@ async fn merge_details(conn: &mut SqliteConnection, run: &mut Run<'_>, work: Wor
         ("Zielgruppe", &audience, &w.audience),
         ("Bibelübersetzung", &bible, &w.bible),
         ("Gliederungsschema", &scheme, &w.numbering_scheme),
+        ("Sprache", &language, w.language.as_xml()),
     ];
     for (name, here, there) in fields {
         if here != there {

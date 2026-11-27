@@ -64,6 +64,23 @@
         nichts verlässt den Rechner). Lizenzvermerke der Module werden immer mit angezeigt.</p>
     </form>
   </div>
+  {#- Round 38: block "Werksprache" (language {code, error?}); form to POST /einstellungen/werk/sprache (fields work,
+      language). The personas answer in the work language; the language of the user interface stays as it is. #}
+  <div class="settings-block settings-language" id="sprache">
+    <h3>Werksprache</h3>
+    {%- if language.error %}
+    <p class="notice error small" role="alert">{{ language.error }}</p>
+    {%- endif %}
+    <form method="post" action="/einstellungen/werk/sprache">
+      <input type="hidden" name="work" value="{{ work }}">
+      <label class="small">Werksprache <select name="language">
+        <option value="de"{% if language.code == "de" %} selected{% endif %}>Deutsch</option>
+        <option value="en"{% if language.code == "en" %} selected{% endif %}>Englisch</option>
+      </select></label>
+      <button class="btn" type="submit">Speichern</button>
+      <p class="muted tiny">In dieser Sprache antworten die Assistenten. Die Sprache der Oberfläche ändert sich dadurch nicht.</p>
+    </form>
+  </div>
   {#- Runde 16b (Zeitwächter): Block „Predigtzeit“ (timing {words_per_minute, target_minutes?, total_clock, words,
       over_clock?, sermon, default_wpm, error?}); Formular an POST /einstellungen/werk/zeit (method=work.timing_set).
       Nur SQLite, nicht im Spiegel. #}

@@ -109,7 +109,7 @@ struct ExportParams {
 /// RPC-Aufruf einer Methode aus [`METHODS`].
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     if method != "work.docx_export" {
-        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
+        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     let mut params = if params.is_null() { json!({}) } else { params };
     let work = work_of(state, &params).await?;

@@ -2322,7 +2322,7 @@ pub mod mock {
             }
             other => {
                 let error = json!({ "jsonrpc": "2.0", "id": id,
-                    "error": { "code": -32601, "message": format!("unbekannte Methode {other}") } });
+                    "error": { "code": -32601, "message": format!("unknown method {other}") } });
                 return respond(&behavior, error, false);
             }
         };

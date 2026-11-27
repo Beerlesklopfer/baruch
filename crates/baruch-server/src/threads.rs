@@ -178,8 +178,14 @@ async fn thread_call(
     };
     let audience = if meta.audience.trim().is_empty() { "nicht angegeben".to_owned() } else { meta.audience };
     let handle = persona.handle.as_str();
-    let mut system =
-        crate::assist::prompts::effective_prompt_for(handle, &persona.role, persona.prompt.as_deref(), loaded.kind);
+    let language = crate::work_language::of(state, work).await;
+    let mut system = crate::assist::prompts::effective_prompt_in(
+        handle,
+        &persona.role,
+        persona.prompt.as_deref(),
+        loaded.kind,
+        language,
+    );
     system.push_str("\n\n");
     system.push_str(crate::assist::context::OTHERS_RULE);
     let header = format!(
@@ -360,7 +366,8 @@ async fn answer_inner(
     // Runde 17a (L3): Auch ohne Abschnitt werden „Kritisch:“-Zitate und Stellenaussagen gegen den gezeigten Text
     // geprüft – Gliederung, Belege aus SWORD und der Auftrag (die eigene Frage); Fadenbeiträge zählen nicht.
     let corpus = crate::assist::context::shown_corpus("", &[&call]);
-    let body = crate::assist::prompts::mark_unbacked_criticals(&body, &corpus);
+    let language = crate::work_language::of(state, work).await;
+    let body = crate::assist::prompts::mark_unbacked_criticals_in(&body, &corpus, language);
     let mut body = crate::assist::ref_claims::mark_ref_claims(&body, &corpus);
     // Runde 28: zerlegt wird der Text ohne den Vermerk über den Abbruch.
     let findings_text = body.clone();
@@ -660,7 +667,7 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
             let after = number(&params, "after")?.unwrap_or(0);
             since(state, work, thread, after).await
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

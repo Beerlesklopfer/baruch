@@ -116,7 +116,7 @@ async fn the_six_idea_tools_follow_read_asset_and_say_they_change_no_book_text()
     for name in ["idea_create", "add_idea", "idea_update", "idea_delete"] {
         let tool = tools.iter().find(|t| t["name"] == name).unwrap();
         assert!(
-            tool["description"].as_str().unwrap().contains("ndert keinen Buchtext"),
+            tool["description"].as_str().unwrap().contains("hanges no book text"),
             "{name} nennt die Ausnahme: {tool}"
         );
     }
@@ -169,7 +169,7 @@ async fn a_client_and_a_persona_create_change_and_delete_ideas_with_their_origin
         assert!(log.contains("Baruch-Origin: persona") && log.contains("Persona: @lektor"), "{log}");
     }
     let text = refused(&server, s, "idea_update", json!({ "id": id, "note": "x", "persona": "@niemand" })).await;
-    assert!(text.contains("Unbekannte Persona"), "unbekannte Persona → isError: {text}");
+    assert!(text.contains("Unknown persona"), "unbekannte Persona → isError: {text}");
     assert_eq!(
         ok(&server, s, "idea_read", json!({ "id": id })).await["idea"]["note"],
         "Reben und Rosen",
@@ -185,7 +185,7 @@ async fn a_client_and_a_persona_create_change_and_delete_ideas_with_their_origin
     let found = ok(&server, s, "idea_search", json!({ "query": "rosen" })).await;
     assert_eq!(found["hits"][0]["id"], id, "Volltext: {found}");
     let text = refused(&server, s, "idea_search", json!({ "query": "  " })).await;
-    assert!(text.contains("Suchbegriff"), "{text}");
+    assert!(text.contains("Search term"), "{text}");
 
     let unlinked = ok(&server, s, "idea_update", json!({ "id": id, "work": null })).await;
     assert!(unlinked["idea"]["work"].is_null(), "work: null → ohne Werk");
@@ -205,7 +205,7 @@ async fn a_client_and_a_persona_create_change_and_delete_ideas_with_their_origin
     let text = refused(&server, s, "idea_create", json!({ "words": "Rose\nDorn" })).await;
     assert!(text.contains("Zeilenumbruch"), "Grenzen gelten auch hier: {text}");
     let text = refused(&server, s, "idea_create", json!({ "words": ["Rose"], "persona": "@gibtsnicht" })).await;
-    assert!(text.contains("Unbekannte Persona"), "{text}");
+    assert!(text.contains("Unknown persona"), "{text}");
     let answer = call(&server, s, "idea_create", json!({ "note": "ohne Schlagwörter" })).await;
     assert_eq!(answer["error"]["code"], -32602, "words fehlt → -32602: {answer}");
     let all = server.rpc("idea.list", json!({})).await;

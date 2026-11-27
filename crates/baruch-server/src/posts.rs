@@ -280,7 +280,7 @@ fn op_of(method: &str, params: &Value) -> Result<Op, RpcError> {
             };
             Ok(Op::ToIdea(words))
         }
-        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {other}"))),
+        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {other}"))),
     }
 }
 

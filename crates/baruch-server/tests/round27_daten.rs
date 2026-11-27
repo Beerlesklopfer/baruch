@@ -409,7 +409,7 @@ async fn no_mcp_tool_changes_the_layout_directly() {
     let cover: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).filter(|n| n.starts_with("cover")).collect();
     assert_eq!(cover, ["cover_layout", "cover_layout_set"], "nur Lesen und Antrag (Vertrag 1.9)");
     let set = tools.iter().find(|t| t["name"] == "cover_layout_set").unwrap();
-    assert!(set["description"].as_str().unwrap().starts_with("Antrag"), "Beschreibung nennt den Antrag zuerst");
+    assert!(set["description"].as_str().unwrap().starts_with("Request"), "Beschreibung nennt den Antrag zuerst");
     assert!(
         tools
             .iter()
@@ -474,7 +474,7 @@ fn xmllint_u3(xml: &str) {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("werk.baruch.xml");
     std::fs::write(&file, xml).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)
@@ -512,7 +512,7 @@ async fn two_instances_carry_layout_addresses_and_sheet_and_merge_after_f6() {
 
     let xml = export_xml(&a, work_a).await;
     // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-    assert!(xml.contains("version=\"9\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
+    assert!(xml.contains("version=\"10\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
     assert!(
         xml.contains("<umschlag>") && xml.contains("art=\"ruecken-autor\"") && xml.contains("<satzbild "),
         "neue Teile"
@@ -550,8 +550,8 @@ async fn two_instances_carry_layout_addresses_and_sheet_and_merge_after_f6() {
         "Satzbild"
     );
     assert_eq!(
-        export_xml(&b, work_b).await.split("<angaben>").nth(1),
-        xml.split("<angaben>").nth(1),
+        export_xml(&b, work_b).await.split("<angaben ").nth(1),
+        xml.split("<angaben ").nth(1),
         "Rückweg byte-gleich ab <angaben>"
     );
 

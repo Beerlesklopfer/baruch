@@ -509,7 +509,7 @@ async fn mcp_reads_the_amend_history_only() {
         .expect("revision_amends in der Werkzeugliste");
     let description = tool["description"].as_str().unwrap();
     assert!(!description.contains("STUB"), "Beschreibung ohne STUB-Vermerk: {description}");
-    assert!(description.contains("nur lesend") && description.contains("keine Anweisungen"), "{description}");
+    assert!(description.contains("read-only") && description.contains("not instructions"), "{description}");
 
     let answer = mcp(
         &server,

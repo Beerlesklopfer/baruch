@@ -304,7 +304,7 @@ async fn the_mcp_tool_reads_like_typeset_get_and_there_is_no_writing_tool() {
     assert_eq!(typeset.len(), 1, "genau ein Satz-Werkzeug, kein schreibendes (Vertrag §6.2): {typeset:?}");
     assert_eq!(typeset[0]["name"], "typeset_settings", "das lesende Werkzeug");
     let description = typeset[0]["description"].as_str().unwrap();
-    assert!(description.contains("Nur lesend"), "Beschreibung sagt „nur lesend“: {description}");
+    assert!(description.contains("Read-only"), "Beschreibung sagt „nur lesend“: {description}");
     assert!(!description.contains("Stub"), "kein Stub mehr: {description}");
 
     let (_, answer) = mcp(
@@ -344,7 +344,7 @@ fn xmllint_u6(xml: &str) {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("werk.baruch.xml");
     std::fs::write(&file, xml).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u7.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)
@@ -366,7 +366,7 @@ async fn two_instances_exchange_set_change_and_reset_without_silent_loss() {
     let xml = export_xml(&a, work_a).await;
     assert!(
         // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-        xml.contains("version=\"9\"") && xml.contains("<satz uuid="),
+        xml.contains("version=\"10\"") && xml.contains("<satz uuid="),
         "Ausgabe in Unterversion 9 (seit Runde 34) mit <satz>"
     );
     xmllint_u6(&xml);

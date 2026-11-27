@@ -445,12 +445,12 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 let work = work_param(state, &params).await?;
                 rag_set(state, work, &ways_param(&params)?).await
             }
-            _ => Err(Fault::Internal(format!("unbekannte Methode {method}"))),
+            _ => Err(Fault::Internal(format!("unknown method {method}"))),
         }
     }
     .await;
     match answer {
-        Err(Fault::Internal(message)) if message.starts_with("unbekannte Methode") => {
+        Err(Fault::Internal(message)) if message.starts_with("unknown method") => {
             Err(RpcError::new(METHOD_NOT_FOUND, message))
         }
         other => other.map_err(RpcError::from),

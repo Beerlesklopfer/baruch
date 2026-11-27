@@ -408,8 +408,8 @@ async fn the_31st_writing_call_of_a_client_is_refused_and_another_name_without_t
         json!({ "work": work, "file_name": "zuviel.svg", "content": svg(999), "encoding": "svg" }),
     )
     .await;
-    assert!(text.contains("Kontingent") && text.contains("30"), "ehrliche Meldung mit der Grenze: {text}");
-    assert!(text.contains("Nichts gespeichert"), "die Meldung sagt, dass nichts gespeichert ist: {text}");
+    assert!(text.contains("Quota") && text.contains("30"), "ehrliche Meldung mit der Grenze: {text}");
+    assert!(text.contains("Nothing stored"), "die Meldung sagt, dass nichts gespeichert ist: {text}");
     assert_eq!(server.state.store.asset_list(work).await.unwrap().len(), assets_before, "kein Bild angelegt");
     assert_eq!(commits(&server, &slug), commits_before, "kein Commit");
     let text = refused(
@@ -419,7 +419,7 @@ async fn the_31st_writing_call_of_a_client_is_refused_and_another_name_without_t
         json!({ "work": work, "name": "haus.svg", "content": svg(1000), "encoding": "svg" }),
     )
     .await;
-    assert!(text.contains("Kontingent"), "auch asset_replace zählt zu den schreibenden Aufrufen: {text}");
+    assert!(text.contains("Quota"), "auch asset_replace zählt zu den schreibenden Aufrufen: {text}");
     assert!(server.state.store.asset_requests(work, true).await.unwrap().is_empty(), "kein Antrag angelegt");
 
     // Runde 23: Clients ohne Token teilen je Werk EIN Kontingent – ein neuer Name hebt die Grenze nicht mehr auf
@@ -433,7 +433,7 @@ async fn the_31st_writing_call_of_a_client_is_refused_and_another_name_without_t
     )
     .await;
     assert!(
-        text.contains("gemeinsames Kontingent") && text.contains("Nichts gespeichert"),
+        text.contains("shared quota") && text.contains("Nothing stored"),
         "ein anderer Name ohne Token umgeht das Kontingent nicht: {text}"
     );
     assert_eq!(server.state.store.asset_list(work).await.unwrap().len(), assets_before, "kein Bild unter neuem Namen");
@@ -481,7 +481,7 @@ async fn more_than_64_mib_in_a_day_are_refused_and_nothing_is_stored() {
         json!({ "work": work, "name": "gross.png", "content": baruch_store::encode_base64(&small), "encoding": "base64" }),
     )
     .await;
-    assert!(text.contains("64 MiB") && text.contains("Nichts gespeichert"), "ehrliche Meldung: {text}");
+    assert!(text.contains("64 MiB") && text.contains("Nothing stored"), "ehrliche Meldung: {text}");
     let text = refused(
         &server,
         &heavy,
@@ -538,7 +538,7 @@ async fn the_11th_open_replace_request_is_refused_until_the_human_decides() {
         json!({ "work": work, "name": "haus.svg", "content": svg(77), "encoding": "svg" }),
     )
     .await;
-    assert!(text.contains("offene Anträge") && text.contains("10"), "ehrliche Meldung mit der Grenze: {text}");
+    assert!(text.contains("open requests") && text.contains("10"), "ehrliche Meldung mit der Grenze: {text}");
     assert_eq!(
         server.state.store.asset_requests(work, true).await.unwrap().len(),
         10,

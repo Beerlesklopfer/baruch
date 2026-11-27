@@ -18,18 +18,18 @@ use baruch_store::IdeaOrigin;
 
 pub const NAMES: [&str; 1] = ["post_edit"];
 
-pub const EDIT_DESCRIPTION: &str = "Eigenen Beitrag bearbeiten: nur Beiträge, deren Autor dieser Client ist \
-(@mcp:<name> – mit Token der Tokenname, ohne Token der angegebene Name, als @mcp:lokal-<name>, wenn er einem Token \
-gehört), im Abschnitts-Chat bzw. mit thread im Faden; die alte Fassung bleibt als Verlauf erhalten (im \
-Abschnitts-Chat ein Commit mit Text vorher und nachher, im Faden keiner). Beiträge von Personas und des Menschen sind \
-über MCP nicht bearbeitbar. Antwort mit id, edited, versions und url.";
+pub const EDIT_DESCRIPTION: &str = "Edit an own post: only posts whose author is this client (@mcp:<name> – with a \
+token the token name, without a token the given name, as @mcp:lokal-<name> if it belongs to a token), in the section \
+chat or with thread in the thread; the old version stays as history (in the section chat one commit with the text \
+before and after, in the thread none). Posts of personas and of the human cannot be edited over MCP. Answer with \
+id, edited, versions and url.";
 
 pub fn edit_schema() -> Value {
     json!({ "type": "object", "required": ["work", "id", "body"], "properties": {
         "work": work_schema(),
-        "id": { "type": "integer", "description": "id des Beitrags (aus chat, add_post bzw. read_node)" },
-        "body": { "type": "string", "description": "neuer Text, höchstens 4000 Zeichen" },
-        "thread": { "type": "integer", "description": "Faden ohne Abschnitt, in dem der Beitrag steht" } } })
+        "id": { "type": "integer", "description": "id of the post (from chat, add_post or read_node)" },
+        "body": { "type": "string", "description": "new text, at most 4000 characters" },
+        "thread": { "type": "integer", "description": "thread without a section that holds the post" } } })
 }
 
 #[derive(Deserialize)]

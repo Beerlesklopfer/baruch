@@ -127,23 +127,23 @@ pub struct Tool {
 }
 
 pub(crate) fn work_schema() -> Value {
-    json!({ "description": "Werk: id (Zahl) oder slug (Text), siehe list_works",
+    json!({ "description": "Work: id (number) or slug (text), see list_works",
             "oneOf": [{ "type": "integer" }, { "type": "string" }] })
 }
 
 fn node_schema() -> Value {
     json!({ "type": "integer", "minimum": 0,
-            "description": "Abschnitt (node aus outline): Stelle, die der Mensch beim Umstellen der Gliederung neu vergibt" })
+            "description": "Section (node from outline): position, reassigned by the human whenever the outline is rearranged" })
 }
 
 fn key_schema() -> Value {
-    json!({ "type": "integer", "description": "fester Schlüssel des Abschnitts (key aus outline/read_node); \
-                                              geht vor node und bleibt beim Umstellen der Gliederung gleich" })
+    json!({ "type": "integer", "description": "stable key of the section (key from outline/read_node); \
+                                              takes precedence over node and survives rearranging the outline" })
 }
 
 /// id eines Beitrags (`id` aus read_node bzw. add_post).
 fn post_id_schema() -> Value {
-    json!({ "type": "integer", "description": "id des Beitrags (aus add_post bzw. posts in read_node)" })
+    json!({ "type": "integer", "description": "id of the post (from add_post or posts in read_node)" })
 }
 
 /// Relative Adresse eines Abschnitts in der Oberfläche (Vertrag Runde 8, §1): `/?work=W&key=K`.
@@ -153,55 +153,55 @@ pub(crate) fn node_url(work: WorkId, key: i64) -> String {
 
 /// `key` der schreibenden Werkzeuge: Pflicht, die Stelle `node` gibt es dort nicht.
 fn write_key_schema() -> Value {
-    json!({ "type": "integer", "description": "fester Schlüssel des Abschnitts (key aus outline/read_node); \
-                                              Pflicht, bleibt beim Umstellen der Gliederung gleich" })
+    json!({ "type": "integer", "description": "stable key of the section (key from outline/read_node); \
+                                              required, survives rearranging the outline" })
 }
 
 pub const TOOLS: &[Tool] = &[
     Tool {
         name: "list_works",
-        description: "Alle Werke mit id, slug und Titel.",
+        description: "All works with id, slug, title and work language (language: de or en).",
         schema: || json!({ "type": "object", "properties": {} }),
     },
     Tool {
         name: "outline",
-        description: "Gliederung eines Werks: je Abschnitt node (Stelle), key (fester Schlüssel), parent, \
-                      Nummer, Titel, Art, aktuelle Revision und Zahl offener Vorschläge. Die Stellen vergibt \
-                      der Mensch beim Umstellen neu; zum Schreiben key mitgeben.",
+        description: "Outline of a work: per section node (position), key (stable key), parent, number, title, \
+                      kind, current revision and number of open proposals; work.language is the work language. The \
+                      human reassigns positions when rearranging; pass key for writing.",
         schema: || json!({ "type": "object", "required": ["work"], "properties": { "work": work_schema() } }),
     },
     // Zeitwächter (Runde 16b), nur lesend; Einstellen nur der Mensch.
     Tool {
         name: "work_timing",
-        description: "Sprechdauer eines Werks (Zeitwächter), nur lesend: Wörter je Minute, Zielzeit, gesamt Wörter \
-                      und Sekunden (clock „m:ss“), status none|ok|over mit over_seconds, shown (Predigt oder \
-                      Zielzeit) und je Gliederungspunkt key, number, title, words, seconds, start_seconds \
-                      (Zeitmarke), subtree_seconds samt Uhrzeiten. Gezählt wird die aktuelle Fassung ohne \
-                      Typst-Markup. Einstellen kann nur der Mensch (Einstellungen → Werk → Predigtzeit).",
+        description: "Speaking time of a work (time keeper), read-only: words per minute, target time, total words \
+                      and seconds (clock \"m:ss\"), status none|ok|over with over_seconds, shown (sermon or target \
+                      time) and per outline item key, number, title, words, seconds, start_seconds (time mark), \
+                      subtree_seconds with clock times. The current revision is counted without Typst markup. Only \
+                      the human can change the settings (Einstellungen → Werk → Predigtzeit).",
         schema: || json!({ "type": "object", "required": ["work"], "properties": { "work": work_schema() } }),
     },
     Tool {
         name: "read_node",
-        description: "Text eines Abschnitts (aktuelle Revision oder `rev`) mit allen Revisionen samt Status, \
-                      Autor und Notiz.",
+        description: "Text of a section (current revision or `rev`) with all revisions including status, author \
+                      and note.",
         schema: || {
             json!({ "type": "object", "required": ["work"], "properties": {
                 "work": work_schema(), "node": node_schema(), "key": key_schema(),
                 "rev": { "type": "integer", "minimum": 1,
-                         "description": "Revisionsnummer (number aus revisions, ab 1, mit Lücken möglich)" } } })
+                         "description": "revision number (number from revisions, from 1, gaps possible)" } } })
         },
     },
     Tool {
         name: "search",
-        description: "Volltextsuche in Werken (Revisionen, Beiträge) und Autorenbibliothek (Titel, Zitate, \
-                      Hervorhebungen), nur lesend. Ohne `work` über alle Werke. Ausschnitte wie in der Oberfläche.",
+        description: "Full-text search in works (revisions, posts) and the author library (titles, quotes, \
+                      highlights), read-only. Without `work` across all works. Snippets as in the user interface.",
         schema: || {
             json!({ "type": "object", "required": ["query"], "properties": {
                 "query": { "type": "string" },
                 "kinds": { "type": "array",
                            "items": { "enum": ["revision", "post", "title", "quote", "highlight"] } },
                 "work": work_schema(),
-                "all_revisions": { "type": "boolean", "description": "auch nicht aktuelle Revisionen" },
+                "all_revisions": { "type": "boolean", "description": "also revisions that are not current" },
                 "limit": { "type": "integer", "minimum": 1, "maximum": 100 } } })
         },
     },
@@ -236,142 +236,142 @@ pub const TOOLS: &[Tool] = &[
     Tool { name: super::revisions::NAME, description: super::revisions::DESCRIPTION, schema: super::revisions::schema },
     Tool {
         name: "propose_revision",
-        description: "Neuen Text für einen Abschnitt vorschlagen. Er wird immer ein Vorschlag (proposed); \
-                      übernehmen kann nur der Mensch. Der Text beginnt mit genau einer Überschrift der Ebene \
-                      des Abschnitts (Titel darf sich ändern); Ebene, Teilen und Zusammenführen bleiben dem \
-                      Menschen. Abschnitt nur über key (Pflicht, aus outline); node wird abgelehnt. Autor ist \
-                      `persona` (muss es geben) oder der Client als @mcp:<name>. Grenzen: Text höchstens 1 MiB, \
-                      note 2000 Zeichen, je Autor und Werk höchstens 100 offene Vorschläge (darüber isError, \
-                      nichts angelegt).",
+        description: "Propose a new text for a section. It always becomes a proposal (proposed); only the human \
+                      can accept it. The text starts with exactly one heading of the section's level (the title may \
+                      change); level, splitting and merging stay with the human. Section only by key (required, \
+                      from outline); node is refused. The author is `persona` (must exist) or the client as \
+                      @mcp:<name>. Limits: text at most 1 MiB, note 2000 characters, at most 100 open proposals per \
+                      author and work (beyond that isError, nothing created).",
         schema: || {
             json!({ "type": "object", "required": ["work", "key", "body"], "properties": {
                 "work": work_schema(), "key": write_key_schema(),
-                "body": { "type": "string", "description": "vollständiger Typst-Text des Abschnitts" },
-                "note": { "type": "string", "description": "Begründung des Vorschlags" },
-                "persona": { "type": "string", "description": "Persona-Handle, z. B. @lektor (nur ohne Token vom eigenen Rechner)" },
-                "model": { "type": "string", "description": "Modell; sonst Name und Version des Clients" } } })
+                "body": { "type": "string", "description": "complete Typst text of the section" },
+                "note": { "type": "string", "description": "reason for the proposal" },
+                "persona": { "type": "string", "description": "persona handle, e.g. @lektor (only without a token from the own machine)" },
+                "model": { "type": "string", "description": "model; otherwise name and version of the client" } } })
         },
     },
     Tool {
         name: "add_post",
-        description: "Beitrag im Abschnitts-Chat, wahlweise mit Verweisen auf Stellen im Werk (refs) und \
-                      Quellen. Abschnitt (auch je Verweis) nur über key (Pflicht, aus outline); node wird \
-                      abgelehnt. Autor ist `persona` oder der Client als @mcp:<name>. Grenzen: Text höchstens \
-                      20000 Zeichen, je 20 Quellen (500 Zeichen) und Verweise (Zitat 2000 Zeichen), je Autor und \
-                      Werk höchstens 300 Beiträge in 24 Stunden (darüber isError, nichts gespeichert).",
+        description: "Post in the section chat, optionally with references to places in the work (refs) and \
+                      sources. Section (also per reference) only by key (required, from outline); node is refused. \
+                      The author is `persona` or the client as @mcp:<name>. Limits: text at most 20000 characters, \
+                      20 sources (500 characters each) and 20 references (quote 2000 characters), at most 300 posts \
+                      per author and work in 24 hours (beyond that isError, nothing stored).",
         schema: || {
             json!({ "type": "object", "required": ["work", "key", "body"], "properties": {
                 "work": work_schema(), "key": write_key_schema(),
                 "body": { "type": "string" },
                 "refs": { "type": "array", "items": { "type": "object", "required": ["key", "rev", "quote"],
                     "properties": { "key": write_key_schema(), "rev": { "type": "integer" },
-                                    "quote": { "type": "string", "description": "wörtlich aus dieser Revision" } } } },
+                                    "quote": { "type": "string", "description": "verbatim from this revision" } } } },
                 "sources": { "type": "array", "items": { "type": "string" } },
                 "persona": { "type": "string" } } })
         },
     },
     Tool {
         name: "post_move",
-        description: "Eigenen Beitrag (Autor = `persona` bzw. der Client als @mcp:<name>) ans Ende des Abschnitts-Chats \
-                      eines anderen Abschnitts verschieben. Ziel nur über key (Pflicht, aus outline); node wird \
-                      abgelehnt. Fremde Beiträge verwaltet nur der Mensch (isError). Ein Commit im Spiegel. Die \
-                      Befunde aus dem Beitrag ziehen mit (außer übernommenen). Eigen ist, was unter dem Autor dieses \
-                      Clients steht: mit Token der Tokenname, ohne Token der angegebene Name – als \
-                      @mcp:lokal-<name>, wenn er einem Token gehört.",
+        description: "Move an own post (author = `persona` or the client as @mcp:<name>) to the end of the section \
+                      chat of another section. Target only by key (required, from outline); node is refused. Posts of \
+                      others are managed by the human only (isError). One commit in the mirror. The findings from \
+                      the post move along (except accepted ones). Own is what stands under the author of this \
+                      client: with a token the token name, without a token the given name – as @mcp:lokal-<name> \
+                      if it belongs to a token.",
         schema: || {
             json!({ "type": "object", "required": ["work", "id", "key"], "properties": {
                 "work": work_schema(), "id": post_id_schema(), "key": write_key_schema(),
-                "persona": { "type": "string", "description": "Persona-Handle, wenn der Beitrag von ihr stammt (nur ohne Token vom eigenen Rechner)" } } })
+                "persona": { "type": "string", "description": "persona handle if the post is hers (only without a token from the own machine)" } } })
         },
     },
     Tool {
         name: "post_delete",
-        description: "Eigenen Beitrag löschen (Autor = `persona` bzw. der Client als @mcp:<name>), ohne Rückfrage; der \
-                      Lösch-Commit im Spiegel hält ihn vollständig fest. Mit `thread` wird ein eigener Fadenbeitrag \
-                      gelöscht. Fremde Beiträge verwaltet nur der Mensch (isError). Ändert keinen Buchtext. \
-                      Eigentum wie bei post_move.",
+        description: "Delete an own post (author = `persona` or the client as @mcp:<name>), without confirmation; \
+                      the delete commit in the mirror records it completely. With `thread` an own thread post is \
+                      deleted. Posts of others are managed by the human only (isError). Changes no book text. \
+                      Ownership as for post_move.",
         schema: || {
             json!({ "type": "object", "required": ["work", "id"], "properties": {
                 "work": work_schema(), "id": post_id_schema(),
-                "thread": { "type": "integer", "description": "Faden-id: löscht den Fadenbeitrag `id` dieses Fadens statt eines Abschnittsbeitrags" },
-                "persona": { "type": "string", "description": "Persona-Handle, wenn der Beitrag von ihr stammt (nur ohne Token vom eigenen Rechner)" } } })
+                "thread": { "type": "integer", "description": "thread id: deletes the thread post `id` of this thread instead of a section post" },
+                "persona": { "type": "string", "description": "persona handle if the post is hers (only without a token from the own machine)" } } })
         },
     },
     Tool {
         name: "post_to_idea",
-        description: "Eigenen Beitrag in einen Einfall umwandeln (Gedanke = Text, Bezug = Abschnitt, Quelle = Quellen, \
-                      Schlagwörter Pflicht); danach ist der Beitrag gelöscht. Genau ein Commit mit einfaelle.md. Fremde \
-                      Beiträge verwaltet nur der Mensch (isError). Eigentum wie bei post_move.",
+        description: "Turn an own post into an idea (thought = text, relation = section, source = sources, keywords \
+                      required); afterwards the post is deleted. Exactly one commit with einfaelle.md. Posts of \
+                      others are managed by the human only (isError). Ownership as for post_move.",
         schema: || {
             json!({ "type": "object", "required": ["work", "id", "words"], "properties": {
                 "work": work_schema(), "id": post_id_schema(),
-                "words": { "description": "Schlagwörter: Liste oder Text „a, b; c“",
+                "words": { "description": "keywords: list or text \"a, b; c\"",
                            "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "string" }] },
-                "persona": { "type": "string", "description": "Persona-Handle, wenn der Beitrag von ihr stammt (nur ohne Token vom eigenen Rechner)" } } })
+                "persona": { "type": "string", "description": "persona handle if the post is hers (only without a token from the own machine)" } } })
         },
     },
     Tool {
         name: "outline_add",
-        description: "Gliederungspunkte anlegen (Wunsch 2026-11-06): einen (title, level?) oder eine ganze \
-                      Gliederung (items: [{title, level?}], absolute Ebene 0–3) als Block vor/hinter/unter dem \
-                      Bezugspunkt key (place, Vorgabe after) – eine Transaktion, ein Commit, bei einem Fehler nichts. \
-                      Titel nicht leer, einzeilig, höchstens 200 Zeichen. Teile (level 0, Runde 14) vor oder hinter \
-                      einem Teil oder Kapitel, auch in Werken mit Werkvorlage (nicht into); ihr Text ist die \
-                      Teil-Markierung. Ohne key nur in einem Werk ohne Gliederungspunkt. node wird abgelehnt. Autor von \
-                      Revision 1 und Commit ist `persona` oder der Client als @mcp:<name>. Antwort (action added): key \
-                      und url je neuem Punkt, adopted = []. Übernähme ein neuer Teil vorhandene Kapitel (die folgenden \
-                      Kapitel bis zum nächsten Teil), wird nichts angelegt, sondern ein Antrag gestellt, dem der Mensch \
-                      aktiv zustimmen muss (Nutzerfrage 12): Antwort action requested, status open, request (id, \
-                      summary), adopted = Schlüssel der Kapitel, die wandern würden; Stand über outline_requests. \
-                      note = Begründung für den Menschen.",
+        description: "Add outline items (wish of 2026-11-06): one (title, level?) or a whole outline (items: \
+                      [{title, level?}], absolute level 0–3) as a block before/after/below the reference item key \
+                      (place, default after) – one transaction, one commit, nothing on an error. Title not empty, \
+                      one line, at most 200 characters. Parts (level 0, Round 14) before or after a part or chapter, \
+                      also in works with a work template (not into); their text is the part marker. Without key \
+                      only in a work without any outline item. node is refused. The author of revision 1 and of the \
+                      commit is `persona` or the client as @mcp:<name>. Answer (action added): key and url per new \
+                      item, adopted = []. If a new part would adopt existing chapters (the following chapters up to \
+                      the next part), nothing is created; instead a request is filed that the human must actively \
+                      approve (user question 12): answer action requested, status open, request (id, summary), \
+                      adopted = keys of the chapters that would move; state via outline_requests. note = reason \
+                      for the human.",
         schema: super::outline::add_schema,
     },
     Tool {
         name: "outline_rename",
-        description: "Antrag: Gliederungspunkt umbenennen (title nach den Titelregeln; auch Teile – ihre \
-                      Teil-Markierung bekommt den Titel). Ändert nichts sofort: legt einen Antrag an, den der Mensch auf \
-                      der Gliederungsseite bestätigt oder ablehnt (outline_requests zeigt den Stand, mit preview die \
-                      Gliederung danach). Punkt nur über key (Pflicht, aus outline); node wird abgelehnt.",
+        description: "Request: rename an outline item (title by the title rules; also parts – their part marker \
+                      gets the title). Changes nothing immediately: files a request that the human confirms or \
+                      rejects on the outline page (outline_requests shows the state, with preview the outline \
+                      afterwards). Item only by key (required, from outline); node is refused.",
         schema: super::outline::rename_schema,
     },
     Tool {
         name: "outline_move",
-        description: "Antrag: Gliederungspunkt samt Unterpunkten vor/hinter/unter target_key verschieben (die Ebene \
-                      bleibt: before/after nur neben einen Punkt derselben Ebene, into nur unter einen eine Ebene höher). \
-                      Ändert nichts sofort: legt einen Antrag an, den der Mensch bestätigt oder ablehnt. Punkt und Ziel \
-                      nur über key bzw. target_key; node und target werden abgelehnt.",
+        description: "Request: move an outline item with its sub-items before/after/below target_key (the level \
+                      stays: before/after only next to an item of the same level, into only below one a level \
+                      higher). Changes nothing immediately: files a request that the human confirms or rejects. \
+                      Item and target only by key and target_key; node and target are refused.",
         schema: super::outline::move_schema,
     },
     Tool {
         name: "outline_set_level",
-        description: "Antrag: Ebene eines Gliederungspunkts ändern (1–3, Unterpunkte wandern mit; Teile nie, und \
-                      nichts wird zum Teil – level 0 wird abgelehnt). Ändert \
-                      nichts sofort: legt einen Antrag an, den der Mensch bestätigt oder ablehnt. Punkt nur über key \
-                      (Pflicht); node wird abgelehnt.",
+        description: "Request: change the level of an outline item (1–3, sub-items move along; never parts, and \
+                      nothing becomes a part – level 0 is refused). Changes nothing immediately: files a request \
+                      that the human confirms or rejects. Item only by key (required); node is refused.",
         schema: super::outline::set_level_schema,
     },
     Tool {
         name: "outline_set_numbered",
-        description: "Antrag: Gliederungspunkt mit (numbered: true) bzw. ohne Nummer (false, z. B. Vorwort, Einleitung) \
-                      zählen; die übrigen Nummern rücken nach. Teile zählen immer (Teil ohne Nummer → Fehler). Ändert nichts sofort: legt einen Antrag an, den der Mensch \
-                      bestätigt oder ablehnt. Punkt nur über key (Pflicht); node wird abgelehnt.",
+        description: "Request: count an outline item with (numbered: true) or without a number (false, e.g. \
+                      preface, introduction); the other numbers follow. Parts always count (part without number → \
+                      error). Changes nothing immediately: files a request that the human confirms or rejects. \
+                      Item only by key (required); node is refused.",
         schema: super::outline::set_numbered_schema,
     },
     Tool {
         name: "outline_delete",
-        description: "Antrag: Gliederungspunkt löschen (nur ohne Unterpunkte, nicht das letzte Kapitel). Ändert nichts \
-                      sofort: legt einen Antrag an, den der Mensch bestätigt oder ablehnt. Punkt nur über key (Pflicht); \
-                      node wird abgelehnt.",
+        description: "Request: delete an outline item (only without sub-items, not the last chapter). Changes \
+                      nothing immediately: files a request that the human confirms or rejects. Item only by key \
+                      (required); node is refused.",
         schema: super::outline::delete_schema,
     },
     Tool {
         name: "outline_requests",
-        description: "Anträge zur Gliederung lesen: offene (Vorgabe) oder mit open: false auch entschiedene \
-                      (bestätigt, abgelehnt, veraltet mit Grund); mine: true nur eigene. preview: true (Runde 14) gibt je \
-                      offenem Antrag die Gliederung nach dem Bestätigen (preview: [{key, level, number, title, mark}], \
-                      mark same|renamed|moved|level|numbered|deleted|added|adopted, gelöschte an alter Stelle; seit \
-                      Runde 16c je Punkt auch kind_word, before_number, before_level, label, before_label, \
-                      changed_label) bzw. preview_error (veraltet oder nicht mehr ausführbar); geändert wird nichts.",
+        description: "Read the outline requests: open ones (default) or with open: false also decided ones \
+                      (confirmed, rejected, stale with reason); mine: true only own ones. preview: true (Round 14) \
+                      gives per open request the outline after confirming (preview: [{key, level, number, title, \
+                      mark}], mark same|renamed|moved|level|numbered|deleted|added|adopted, deleted ones at their \
+                      old place; since Round 16c per item also kind_word, before_number, before_level, label, \
+                      before_label, changed_label) or preview_error (stale or no longer executable); nothing is \
+                      changed.",
         schema: super::outline::requests_schema,
     },
     Tool { name: "asset_add", description: super::assets::ADD_DESCRIPTION, schema: super::assets::add_schema },
@@ -414,27 +414,27 @@ pub const TOOLS: &[Tool] = &[
     Tool { name: super::solutions::NAME, description: super::solutions::DESCRIPTION, schema: super::solutions::schema },
     Tool {
         name: "list_personas",
-        description: "Personas mit Handle, Name, Rolle, Modell, Kontextlänge, aktiv; der Lektor ist markiert.",
+        description: "Personas with handle, name, role, model, context length, active; the lector is marked.",
         schema: || json!({ "type": "object", "properties": {} }),
     },
     Tool {
         name: "list_assets",
-        description: "Bilder eines Werks (nur lesend): Name, Typ, Größe, aktuelle Fassung, Zahl der Fassungen, \
-                      Bildunterschrift, Alternativtext und die Pfade, unter denen Vorlage und Text sie nennen. \
-                      Ohne `work` das Vorgabewerk. Anlegen geht sofort mit asset_add; Ersetzen, Umschlag und \
-                      Löschen nur als Antrag an den Menschen (asset_replace, asset_set_cover, asset_delete).",
+        description: "Images of a work (read-only): name, type, size, current revision, number of revisions, \
+                      caption, alternative text and the paths under which template and text name them. Without \
+                      `work` the default work. Adding works immediately with asset_add; replacing, cover and \
+                      deleting only as a request to the human (asset_replace, asset_set_cover, asset_delete).",
         schema: || json!({ "type": "object", "properties": { "work": work_schema() } }),
     },
     Tool {
         name: "read_asset",
-        description: "Ein Bild lesen (nur lesend): Angaben der Fassung `rev` (fehlt: die aktuelle) und aller \
-                      Fassungen; mit `content: true` auch der Inhalt (Base64 bzw. SVG-Text, siehe `encoding`).",
+        description: "Read an image (read-only): data of revision `rev` (missing: the current one) and of all \
+                      revisions; with `content: true` also the content (Base64 or SVG text, see `encoding`).",
         schema: || {
             json!({ "type": "object", "required": ["name"], "properties": {
                 "work": work_schema(),
-                "name": { "type": "string", "description": "Bildname aus list_assets, z. B. haus.svg" },
-                "rev": { "type": "integer", "minimum": 1, "description": "Fassung (Nummer, Lücken möglich)" },
-                "content": { "type": "boolean", "description": "auch den Inhalt liefern (Vorgabe false)" } } })
+                "name": { "type": "string", "description": "image name from list_assets, e.g. haus.svg" },
+                "rev": { "type": "integer", "minimum": 1, "description": "revision (number, gaps possible)" },
+                "content": { "type": "boolean", "description": "also return the content (default false)" } } })
         },
     },
     Tool {
@@ -444,56 +444,55 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "idea_create",
-        description: "Einfall festhalten: Schlagwörter oder Titel (eins von beiden Pflicht), Gedanke, markierter \
-                      Text, Quelle, Bibelstelle, wahlweise mit Werk und Abschnitt (key). Mindmap: title, parent \
-                      (Unterknoten eines Einfalls), before (vor ein Geschwister), cloud false (freies Hauptthema am \
-                      Werk); ohne Platz landet der Einfall in der Wolke neben der Mindmap. Ändert keinen Buchtext; darum dürfen auch \
-                      Assistenten Einfälle anlegen, ändern und löschen. Herkunft ist `persona` (muss es geben) \
-                      oder der Client als @mcp:<name>; jede Aktion ist ein Commit im Spiegel.",
+        description: "Record an idea: keywords or title (one of them required), thought, marked text, source, \
+                      Bible reference, optionally with work and section (key). Mind map: title, parent (sub-node of \
+                      an idea), before (before a sibling), cloud false (free main topic at the work); without a \
+                      place the idea lands in the cloud beside the mind map. Changes no book text; therefore \
+                      assistants may also create, change and delete ideas. The origin is `persona` (must exist) or \
+                      the client as @mcp:<name>; every action is a commit in the mirror.",
         schema: super::ideas::create_schema,
     },
     Tool {
         name: "add_idea",
-        description: "Einfall festhalten – gleicher Aufruf wie idea_create (zweiter Name): Schlagwörter oder Titel \
-                      (eins von beiden Pflicht), Gedanke, markierter Text, Quelle, Bibelstelle, wahlweise mit Werk und \
-                      Abschnitt (key); Mindmap: title, parent, before, cloud (ohne Platz in die Wolke). Ändert \
-                      keinen Buchtext; Herkunft `persona` oder @mcp:<name>; ein Commit im Spiegel.",
+        description: "Record an idea – same call as idea_create (second name): keywords or title (one of them \
+                      required), thought, marked text, source, Bible reference, optionally with work and section \
+                      (key); mind map: title, parent, before, cloud (without a place into the cloud). Changes no \
+                      book text; origin `persona` or @mcp:<name>; one commit in the mirror.",
         schema: super::ideas::create_schema,
     },
     Tool {
         name: "idea_read",
-        description: "Einen Einfall lesen (auch einen gelöschten): Schlagwörter, Gedanke, Bezug, Herkunft, Status; \
-                      Mindmap: title, parent (Elternknoten), position, main_topic, cloud (liegt in der Wolke).",
+        description: "Read an idea (also a deleted one): keywords, thought, relation, origin, status; mind map: \
+                      title, parent (parent node), position, main_topic, cloud (lies in the cloud).",
         schema: super::ideas::read_schema,
     },
     Tool {
         name: "idea_list",
-        description: "Einfälle auflisten, neueste zuerst, mit Schlagwort-Wolke (words); Filter Werk (\"none\" = ohne \
-                      Werk), Schlagwort und offen/verarbeitet. Gelöschte fehlen.",
+        description: "List ideas, newest first, with keyword cloud (words); filters work (\"none\" = without \
+                      work), keyword and open/processed. Deleted ones are missing.",
         schema: super::ideas::list_schema,
     },
     Tool {
         name: "idea_search",
-        description: "Suche in den Einfällen mit Ausschnitt; gelöschte fehlen. mode \"fts\" (Vorgabe): Volltext \
-                      (Schlagwörter, Gedanke, Markierung, Quelle, Bibelstelle); mode \"rag\" (nur mit work): \
-                      Bedeutungssuche mit score und weak (schwach) je Treffer, Ausfall als isError mit Grund.",
+        description: "Search the ideas with snippet; deleted ones are missing. mode \"fts\" (default): full text \
+                      (keywords, thought, marked text, source, Bible reference); mode \"rag\" (only with work): \
+                      semantic search with score and weak per hit, failure as isError with reason.",
         schema: super::ideas::search_schema,
     },
     Tool {
         name: "idea_update",
-        description: "Einfall ändern: Titel (title, Umbenennen in der Mindmap), Schlagwörter, Texte, Werk, Bezug, \
-                      offen/verarbeitet; umhängen mit idea_move. Ändert keinen Buchtext; \
-                      erlaubt auch Assistenten (Herkunft `persona` oder @mcp:<name>, ein Commit je Änderung). Ein \
-                      Wechsel des Werks löst die Verbindungen des Einfalls (Verbindungen nur innerhalb eines Werks; \
-                      `unlinked` nennt sie).",
+        description: "Change an idea: title (title, renaming in the mind map), keywords, texts, work, relation, \
+                      open/processed; re-attach with idea_move. Changes no book text; also allowed for assistants \
+                      (origin `persona` or @mcp:<name>, one commit per change). Changing the work removes the \
+                      links of the idea (links only within one work; `unlinked` names them).",
         schema: super::ideas::update_schema,
     },
     Tool {
         name: "idea_delete",
-        description: "Einfall löschen, ohne Rückfrage; seine Unterknoten in der Mindmap werden mitgelöscht \
-                      (deleted_ids nennt alle). Alles bleibt wiederherstellbar (idea.restore in der Oberfläche stellt \
-                      den Einfall samt den mitgelöschten Unterknoten wieder her; Eintrag im Lösch-Commit des Spiegels). \
-                      Ändert keinen Buchtext.",
+        description: "Delete an idea, without confirmation; its sub-nodes in the mind map are deleted with it \
+                      (deleted_ids names all). Everything stays restorable (idea.restore in the user interface \
+                      restores the idea with the sub-nodes deleted along; entry in the delete commit of the \
+                      mirror). Changes no book text.",
         schema: super::ideas::delete_schema,
     },
     Tool { name: "idea_move", description: super::ideas::MOVE_DESCRIPTION, schema: super::ideas::move_schema },
@@ -508,49 +507,47 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "ask_persona",
-        description: "Eine Persona zu einem Abschnitt fragen; sie antwortet mit ihrem Rollen-Prompt über das \
-                      Modell-Backend (Eliezer). mode ask (Vorgabe): Frage als Beitrag des Clients, Antwort als \
-                      Beitrag der Persona; review: Befunde als Beitrag – beim erneuten Prüfen fragt die Persona \
-                      nach erledigten eigenen Befunden (Statusvorschlag „erledigt“, entscheidet der Mensch); \
-                      propose: neue Fassung nur als Vorschlag (proposed). Abschnitt nur über key (Pflicht); node wird abgelehnt. scope chapter prüft bzw. \
-                      überarbeitet das ganze Kapitel (Vorgabe section). Antwort mit model, text, truncated, \
-                      compressed (null oder {message, summarized, chunks}: Kontext gestückelt und zusammengefasst), \
-                      post_id bzw. rev und url; meldet die Persona eigene Befunde als erledigt, dazu done_proposals \
-                      (Befundnummern mit Statusvorschlag), done_notes (übergangene Meldungen mit Grund) und all_done \
-                      (true) – jedes nur, wenn gesetzt. Je Client höchstens zwei Modellaufträge zugleich, alle Clients ohne \
-                      Token zusammen höchstens vier. Fehler des \
-                      Backends → isError mit ehrlicher Meldung.",
+        description: "Ask a persona about a section; she answers with her role prompt through the model backend \
+                      (Eliezer), in the work language. mode ask (default): question as a post of the client, answer \
+                      as a post of the persona; review: findings as a post – on a repeated review the persona asks \
+                      about resolved own findings (status proposal \"erledigt\", the human decides); propose: new \
+                      revision only as a proposal (proposed). Section only by key (required); node is refused. \
+                      scope chapter reviews or revises the whole chapter (default section). Answer with model, \
+                      text, truncated, compressed (null or {message, summarized, chunks}: context chunked and \
+                      summarised), post_id or rev and url; if the persona reports own findings as resolved, also \
+                      done_proposals (finding numbers with status proposal), done_notes (skipped reports with \
+                      reason) and all_done (true) – each only when set. At most two model jobs per client at a \
+                      time, all clients without a token together at most four. Backend errors → isError with an \
+                      honest message.",
         schema: || {
             json!({ "type": "object", "required": ["work", "key", "persona"], "properties": {
                 "work": work_schema(), "key": write_key_schema(),
-                "persona": { "type": "string", "description": "Persona-Handle, z. B. @lektor (aktiv)" },
-                "question": { "type": "string", "description": "Frage (ask, Pflicht), Hinweis (review) bzw. Anweisung (propose); höchstens 4000 Zeichen" },
-                "mode": { "enum": ["ask", "review", "propose"], "description": "Vorgabe ask" },
-                "scope": { "enum": ["section", "chapter"], "description": "review/propose für den Abschnitt (Vorgabe) oder das ganze Kapitel bzw. die ganze Predigt" },
-                "rev": { "type": "integer", "minimum": 1, "description": "gezeigte Fassung (Nummer); Vorgabe die aktuelle" } } })
+                "persona": { "type": "string", "description": "persona handle, e.g. @lektor (active)" },
+                "question": { "type": "string", "description": "question (ask, required), hint (review) or instruction (propose); at most 4000 characters" },
+                "mode": { "enum": ["ask", "review", "propose"], "description": "default ask" },
+                "scope": { "enum": ["section", "chapter"], "description": "review/propose for the section (default) or the whole chapter or sermon" },
+                "rev": { "type": "integer", "minimum": 1, "description": "revision shown (number); default the current one" } } })
         },
     },
     Tool {
         name: "chat",
-        description: "Mit Personas sprechen (Autor = der Client als @mcp:<name>). Mit key in den Abschnitts-Chat, \
-                      ohne key in einen Faden ohne Abschnitt (neu oder `thread` fortsetzen; der Mensch liest ihn \
-                      unter /faeden). Erwähnte aktive Personas (@handle) und `persona` antworten nacheinander je mit \
-                      einem Beitrag; erwähnt eine Antwort weitere aktive Personas, antworten diese einmal \
-                      (eine Relay-Stufe, je Nachricht höchstens drei Antworten, jede Persona höchstens einmal). \
-                      Zitatzeilen (\"> …\") rufen niemanden. \
-                      Je Client höchstens zwei Modellaufträge (chat, ask_persona) zugleich, alle Clients ohne \
-                      Token zusammen höchstens vier, sonst isError. \
-                      @alle bzw. RFC am Anfang ruft alle aktiven Personas, der Lektor zuletzt mit Sammlung; \
-                      Schreibaufträge werden Vorschläge. \
-                      Antwort mit posts, answers, errors, url, work und key bzw. thread.",
+        description: "Talk to personas (author = the client as @mcp:<name>). With key into the section chat, \
+                      without key into a thread without a section (new, or continue `thread`; the human reads it \
+                      under /faeden). Mentioned active personas (@handle) and `persona` answer one after another \
+                      with one post each; if an answer mentions further active personas, these answer once (one \
+                      relay step, at most three answers per message, every persona at most once). Quote lines \
+                      (\"> …\") call nobody. At most two model jobs (chat, ask_persona) per client at a time, all \
+                      clients without a token together at most four, otherwise isError. @alle or RFC at the start \
+                      calls all active personas, the lector last with a summary; writing jobs become proposals. \
+                      Answer with posts, answers, errors, url, work and key or thread.",
         schema: || {
             json!({ "type": "object", "required": ["work", "message"], "properties": {
                 "work": work_schema(),
-                "key": { "type": "integer", "description": "fester Schlüssel des Abschnitts (key aus outline/read_node); \
-                                                           fehlt er, schreibt chat in einen Faden ohne Abschnitt" },
-                "thread": { "type": "integer", "description": "Faden ohne Abschnitt fortsetzen (thread aus einer früheren Antwort); nur ohne key" },
-                "message": { "type": "string", "description": "Nachricht, höchstens 4000 Zeichen; @handle ruft eine Persona" },
-                "persona": { "type": "string", "description": "Persona, die auch ohne Erwähnung antworten soll" } } })
+                "key": { "type": "integer", "description": "stable key of the section (key from outline/read_node); \
+                                                           without it chat writes into a thread without a section" },
+                "thread": { "type": "integer", "description": "continue a thread without a section (thread from an earlier answer); only without key" },
+                "message": { "type": "string", "description": "message, at most 4000 characters; @handle calls a persona" },
+                "persona": { "type": "string", "description": "persona that shall answer even without a mention" } } })
         },
     },
     Tool { name: super::scripture::NAME, description: super::scripture::DESCRIPTION, schema: super::scripture::schema },
@@ -618,8 +615,8 @@ pub(crate) async fn resolve(store: &Store, work: &WorkRef) -> Result<(WorkId, St
         WorkRef::Slug(want) => slug == want,
     });
     found.ok_or_else(|| match work {
-        WorkRef::Id(id) => tool_error(format!("Unbekanntes Werk {id}. Die Werke nennt list_works.")),
-        WorkRef::Slug(slug) => tool_error(format!("Unbekanntes Werk „{slug}“. Die Werke nennt list_works.")),
+        WorkRef::Id(id) => tool_error(format!("Unknown work {id}. list_works names the works.")),
+        WorkRef::Slug(slug) => tool_error(format!("Unknown work \"{slug}\". list_works names the works.")),
     })
 }
 
@@ -630,15 +627,15 @@ async fn node_of(store: &Store, work: WorkId, node: Option<usize>, key: Option<i
     match (key, node) {
         (Some(key), _) => Ok(store.node_seq(work, key).await?),
         (None, Some(node)) => Ok(node),
-        (None, None) => Err(Failure::Args("arguments: node oder key fehlt".into())),
+        (None, None) => Err(Failure::Args("arguments: node or key is missing".into())),
     }
 }
 
 /// Hinweis, wenn ein schreibendes Werkzeug `node` bekommt (`what` = `arguments` bzw. `refs[i]`).
 fn node_refused(what: &str) -> Failure {
     Failure::Args(format!(
-        "{what}: node (Stelle) wird nicht angenommen; key mitgeben (fester Schlüssel aus outline bzw. read_node). \
-         Die Stellen vergibt der Mensch beim Umstellen der Gliederung neu."
+        "{what}: node (position) is not accepted; pass key (stable key from outline or read_node). \
+         The human reassigns positions whenever the outline is rearranged."
     ))
 }
 
@@ -649,9 +646,7 @@ pub(crate) fn write_key(arguments: &Value, key: Option<i64>, what: &str) -> Resu
         return Err(node_refused(what));
     }
     key.ok_or_else(|| {
-        Failure::Args(format!(
-            "{what}: key fehlt – den Abschnitt über seinen festen Schlüssel angeben (key aus outline)."
-        ))
+        Failure::Args(format!("{what}: key is missing – name the section by its stable key (key from outline)."))
     })
 }
 
@@ -717,13 +712,13 @@ async fn persona_handle(store: &Store, wanted: &str) -> Result<String, Failure> 
         .fetch_optional(store.pool())
         .await
         .map_err(|e| Failure::from(StoreError::from(e)))?;
-    found.ok_or_else(|| tool_error(format!("Unbekannte Persona „{wanted}“. Die Personas nennt list_personas.")))
+    found.ok_or_else(|| tool_error(format!("Unknown persona \"{wanted}\". list_personas names the personas.")))
 }
 
 /// Meldung, wenn ein Client mit Token `persona` nennt.
-pub const TOKEN_NO_PERSONA: &str = "Mit Token handelt ein Client nur im eigenen Namen (@mcp:<Tokenname>); \
-`persona` als Autor oder Herkunft geht nur ohne Token vom eigenen Rechner. Eine Persona selbst antworten lassen: \
-ask_persona bzw. chat.";
+pub const TOKEN_NO_PERSONA: &str = "With a token a client acts only in its own name (@mcp:<token name>); \
+`persona` as author or origin works only without a token from the own machine. To let a persona answer herself: \
+ask_persona or chat.";
 
 /// Persona, in deren Namen der Client handeln will (`persona`, leer = keine). Ein Client mit Token
 /// (anderer Rechner möglich) darf das nicht: Er könnte sonst Beiträge und Vorschläge als Werk einer Persona
@@ -926,12 +921,11 @@ pub async fn call(state: &AppState, client: &Client, name: &str, arguments: Valu
 }
 
 async fn list_works(store: &Store) -> Result<Value, Failure> {
-    let works: Vec<Value> = store
-        .works()
-        .await?
-        .into_iter()
-        .map(|(id, slug, title)| json!({ "id": id, "slug": slug, "title": title }))
-        .collect();
+    let mut works = Vec::new();
+    for (id, slug, title) in store.works().await? {
+        let language = store.work_language(id).await?;
+        works.push(json!({ "id": id, "slug": slug, "title": title, "language": language }));
+    }
     Ok(json!({ "works": works }))
 }
 
@@ -949,7 +943,8 @@ async fn outline(store: &Store, arguments: Value) -> Result<Value, Failure> {
             })
         })
         .collect();
-    Ok(json!({ "work": { "id": id, "slug": slug, "title": title }, "nodes": nodes }))
+    let language = store.work_language(id).await?;
+    Ok(json!({ "work": { "id": id, "slug": slug, "title": title }, "language": language, "nodes": nodes }))
 }
 
 /// `work_timing` (Runde 16b): dasselbe wie RPC `work.timing`, nur lesend.
@@ -1027,7 +1022,7 @@ pub const MAX_MCP_POSTS_PER_DAY: usize = 300;
 pub const MAX_MCP_OPEN_PROPOSALS: usize = 100;
 
 fn too_long(what: &str, limit: usize, unit: &str, now: usize) -> Failure {
-    tool_error(format!("{what}: höchstens {limit} {unit} (jetzt {now}). Nichts gespeichert."))
+    tool_error(format!("{what}: at most {limit} {unit} (now {now}). Nothing stored."))
 }
 
 /// Autoren aller Tokens (auch widerrufener), je Handle und Alt-Handle: Sie zählen nie zur Gruppe der Clients ohne
@@ -1081,8 +1076,8 @@ impl Counted {
     /// Satzanfang der Meldung: „<Autor> hat“ bzw. „Die Clients ohne Token (gemeinsames Kontingent) haben“.
     fn who_has(&self) -> String {
         match self {
-            Counted::Author(author) => format!("{author} hat"),
-            Counted::WithoutToken(_) => "Die Clients ohne Token (gemeinsames Kontingent) haben".to_owned(),
+            Counted::Author(author) => format!("{author} has"),
+            Counted::WithoutToken(_) => "The clients without a token (shared quota) have".to_owned(),
         }
     }
 }
@@ -1121,24 +1116,24 @@ async fn propose_revision(store: &Store, client: &Client, arguments: Value) -> R
     let a: ProposeArgs = args(arguments.clone())?;
     let key = write_key(&arguments, a.key, "arguments")?;
     if a.body.trim().is_empty() {
-        return Err(tool_error("Leerer Text: ein Vorschlag braucht den vollständigen Text des Abschnitts."));
+        return Err(tool_error("Empty text: a proposal needs the complete text of the section."));
     }
     if a.body.len() > MAX_MCP_PROPOSAL_BYTES {
-        return Err(too_long("Der Vorschlag", MAX_MCP_PROPOSAL_BYTES, "Bytes", a.body.len()));
+        return Err(too_long("The proposal", MAX_MCP_PROPOSAL_BYTES, "bytes", a.body.len()));
     }
     let note_chars = a.note.as_deref().map_or(0, |n| n.chars().count());
     if note_chars > MAX_MCP_NOTE_CHARS {
-        return Err(too_long("note", MAX_MCP_NOTE_CHARS, "Zeichen", note_chars));
+        return Err(too_long("note", MAX_MCP_NOTE_CHARS, "characters", note_chars));
     }
     let model_chars = a.model.as_deref().map_or(0, |m| m.chars().count());
     if model_chars > MAX_MCP_MODEL_CHARS {
-        return Err(too_long("model", MAX_MCP_MODEL_CHARS, "Zeichen", model_chars));
+        return Err(too_long("model", MAX_MCP_MODEL_CHARS, "characters", model_chars));
     }
     let (id, work, at) = work_with_node(store, &a.work, None, Some(key)).await?;
     let node = &work.nodes[at];
     let body = a.body.replace("\r\n", "\n");
     if node.revisions.iter().any(|r| r.status == RevisionStatus::Current && r.body == body) {
-        return Err(tool_error("Der Text gleicht der aktuellen Revision; kein Vorschlag angelegt."));
+        return Err(tool_error("The text equals the current revision; no proposal created."));
     }
     let author = author_handle(store, a.persona.as_deref(), client).await?;
     let counted = Counted::of(store, client, &author).await?;
@@ -1146,8 +1141,8 @@ async fn propose_revision(store: &Store, client: &Client, arguments: Value) -> R
     if open >= MAX_MCP_OPEN_PROPOSALS {
         let who = counted.who_has();
         return Err(tool_error(format!(
-            "Zu viele offene Vorschläge: {who} in diesem Werk schon {open}; erlaubt sind \
-             {MAX_MCP_OPEN_PROPOSALS}. Nichts angelegt; erst entscheidet der Mensch über die offenen."
+            "Too many open proposals: {who} already {open} in this work; allowed are \
+             {MAX_MCP_OPEN_PROPOSALS}. Nothing created; first the human decides on the open ones."
         )));
     }
     let model = a.model.filter(|m| !m.trim().is_empty()).unwrap_or_else(|| client.model());
@@ -1164,19 +1159,19 @@ async fn add_post(store: &Store, client: &Client, arguments: Value) -> Result<Va
     // Runde 23 (Codereview ki-2): Größen prüfen, bevor irgendetwas gelesen oder geschrieben wird.
     let body_chars = a.body.chars().count();
     if body_chars > MAX_MCP_POST_CHARS {
-        return Err(too_long("Der Beitrag", MAX_MCP_POST_CHARS, "Zeichen", body_chars));
+        return Err(too_long("The post", MAX_MCP_POST_CHARS, "characters", body_chars));
     }
     if a.sources.len() > MAX_MCP_POST_SOURCES {
-        return Err(too_long("sources", MAX_MCP_POST_SOURCES, "Einträge", a.sources.len()));
+        return Err(too_long("sources", MAX_MCP_POST_SOURCES, "entries", a.sources.len()));
     }
     if let Some(n) = a.sources.iter().map(|s| s.chars().count()).find(|n| *n > MAX_MCP_SOURCE_CHARS) {
-        return Err(too_long("sources: jede Quelle", MAX_MCP_SOURCE_CHARS, "Zeichen", n));
+        return Err(too_long("sources: every source", MAX_MCP_SOURCE_CHARS, "characters", n));
     }
     if a.refs.len() > MAX_MCP_POST_SOURCES {
-        return Err(too_long("refs", MAX_MCP_POST_SOURCES, "Einträge", a.refs.len()));
+        return Err(too_long("refs", MAX_MCP_POST_SOURCES, "entries", a.refs.len()));
     }
     if let Some(n) = a.refs.iter().map(|r| r.quote.chars().count()).find(|n| *n > MAX_MCP_REF_QUOTE_CHARS) {
-        return Err(too_long("refs: jedes Zitat", MAX_MCP_REF_QUOTE_CHARS, "Zeichen", n));
+        return Err(too_long("refs: every quote", MAX_MCP_REF_QUOTE_CHARS, "characters", n));
     }
     // Jeden Verweis vorher prüfen: Auch dort gilt nur der Schlüssel.
     let raw_refs = arguments.get("refs").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -1187,25 +1182,26 @@ async fn add_post(store: &Store, client: &Client, arguments: Value) -> Result<Va
     let (id, work, at) = work_with_node(store, &a.work, None, Some(key)).await?;
     let mut refs = Vec::with_capacity(a.refs.len());
     for (r, key) in a.refs.into_iter().zip(ref_keys) {
-        let ref_node = work.nodes.iter().find(|n| n.key == key).map(|n| n.id).ok_or_else(|| {
-            tool_error(format!("Verweis auf Schlüssel {key}: diesen Abschnitt gibt es nicht (mehr)."))
-        })?;
+        let ref_node =
+            work.nodes.iter().find(|n| n.key == key).map(|n| n.id).ok_or_else(|| {
+                tool_error(format!("Reference to key {key}: this section does not exist (any more)."))
+            })?;
         let Some(target) = work.nodes.get(ref_node) else {
-            return Err(tool_error(format!("Verweis auf unbekannten Abschnitt {ref_node}.")));
+            return Err(tool_error(format!("Reference to unknown section {ref_node}.")));
         };
         let Some(revision) = revision_by_number(target, r.rev) else {
             let known: Vec<String> = target.revisions.iter().map(|r| r.number.to_string()).collect();
             return Err(tool_error(format!(
-                "Verweis auf Revision {} von Abschnitt {}: die gibt es nicht (vorhanden: {}).",
+                "Reference to revision {} of section {}: it does not exist (existing: {}).",
                 r.rev,
                 ref_node,
-                if known.is_empty() { "keine".to_owned() } else { known.join(", ") }
+                if known.is_empty() { "none".to_owned() } else { known.join(", ") }
             )));
         };
         let quote = r.quote.trim();
         if quote.is_empty() || !revision.body.contains(quote) {
             return Err(tool_error(format!(
-                "Verweis auf {} Revision {}: das Zitat steht nicht wörtlich in dieser Revision.",
+                "Reference to {} revision {}: the quote is not literally in this revision.",
                 ref_node, r.rev
             )));
         }
@@ -1217,8 +1213,8 @@ async fn add_post(store: &Store, client: &Client, arguments: Value) -> Result<Va
     if today >= MAX_MCP_POSTS_PER_DAY {
         let who = counted.who_has();
         return Err(tool_error(format!(
-            "Kontingent erschöpft: {who} in diesem Werk in den letzten 24 Stunden schon {today} Beiträge \
-             geschrieben; erlaubt sind {MAX_MCP_POSTS_PER_DAY}. Nichts gespeichert; später erneut versuchen."
+            "Quota exhausted: {who} already written {today} posts in this work in the last 24 hours; \
+             allowed are {MAX_MCP_POSTS_PER_DAY}. Nothing stored; try again later."
         )));
     }
     let post = Post { id: 0, created: String::new(), author: author.clone(), body: a.body, sources: a.sources, refs };
@@ -1261,7 +1257,7 @@ async fn manage_post(state: &AppState, client: &Client, name: &str, arguments: V
             let words = match &a.words {
                 Some(value) if !value.is_null() => crate::ideas::split_words(value, "words")
                     .map_err(|e| Failure::Args(format!("arguments: {}", e.message)))?,
-                _ => return Err(Failure::Args("arguments: words fehlt (mindestens ein Schlagwort)".into())),
+                _ => return Err(Failure::Args("arguments: words is missing (at least one keyword)".into())),
             };
             crate::posts::Op::ToIdea(words)
         }
@@ -1277,7 +1273,7 @@ async fn manage_post(state: &AppState, client: &Client, name: &str, arguments: V
     // Runde 30c: `post_delete` mit `thread` löscht einen eigenen Fadenbeitrag (ein Commit, nur eigene).
     if let Some(thread) = a.thread {
         if name != "post_delete" {
-            return Err(Failure::Args("arguments: thread geht nur mit post_delete".into()));
+            return Err(Failure::Args("arguments: thread works only with post_delete".into()));
         }
         return Ok(crate::threads::delete_post(state, work, thread, a.id, &actor).await?);
     }
@@ -1330,13 +1326,13 @@ async fn read_asset(state: &AppState, arguments: Value) -> Result<Value, Failure
     let revision = match a.rev {
         Some(rev) => revisions.iter().find(|r| r.number == rev).cloned().ok_or_else(|| {
             let numbers: Vec<String> = revisions.iter().map(|r| r.number.to_string()).collect();
-            tool_error(format!("Bild {}: Fassung {rev} gibt es nicht; vorhanden: {}", a.name, numbers.join(", ")))
+            tool_error(format!("Image {}: revision {rev} does not exist; existing: {}", a.name, numbers.join(", ")))
         })?,
         None => revisions
             .iter()
             .find(|r| r.current)
             .cloned()
-            .ok_or_else(|| Failure::Internal(format!("Bild {}: keine aktuelle Fassung", a.name)))?,
+            .ok_or_else(|| Failure::Internal(format!("Image {}: no current revision", a.name)))?,
     };
     let mut answer = json!({
         "work": work, "name": a.name, "revision": revision, "revisions": revisions, "encoding": revision.encoding,
@@ -1397,13 +1393,13 @@ async fn ask_persona(state: &AppState, client: &Client, arguments: Value) -> Res
             Some(mode @ (crate::assist::Mode::Ask | crate::assist::Mode::Review | crate::assist::Mode::Propose)) => {
                 mode
             }
-            _ => return Err(Failure::Args("arguments: mode ask, review oder propose erwartet".into())),
+            _ => return Err(Failure::Args("arguments: mode ask, review or propose expected".into())),
         },
     };
     let scope = match a.scope.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         None | Some("section") => crate::assist::Scope::Section,
         Some("chapter") => crate::assist::Scope::Chapter,
-        Some(_) => return Err(Failure::Args("arguments: scope section oder chapter erwartet".into())),
+        Some(_) => return Err(Failure::Args("arguments: scope section or chapter expected".into())),
     };
     let order = crate::assist::Order {
         work,
@@ -1478,7 +1474,7 @@ async fn chat(state: &AppState, client: &Client, arguments: Value) -> Result<Val
         return Ok(crate::threads::outcome_json(&outcome));
     };
     if a.thread.is_some() {
-        return Err(Failure::Args("arguments: thread nur ohne key (Faden ohne Abschnitt)".into()));
+        return Err(Failure::Args("arguments: thread only without key (thread without a section)".into()));
     }
     let order = crate::assist::ChatOrder {
         work,

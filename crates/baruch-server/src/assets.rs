@@ -259,7 +259,7 @@ pub async fn call(
             let p: DeleteParams = params(params_value)?;
             delete(state, work, &p.name, p.rev).await
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

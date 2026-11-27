@@ -135,7 +135,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
             let (scheme, custom) = scheme_params(&params)?;
             set(state, work, &scheme, custom.as_deref()).await
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

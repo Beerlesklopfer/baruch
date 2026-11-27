@@ -44,74 +44,74 @@ pub const MAX_MCP_OPEN_REPLACE_REQUESTS: usize = 10;
 /// Namen der Werkzeuge dieses Moduls (in der Reihenfolge von `tools/list`).
 pub const NAMES: &[&str] = &["asset_add", "asset_replace", "asset_set_cover", "asset_delete", "asset_requests"];
 
-pub const ADD_DESCRIPTION: &str = "Bild sofort anlegen (Fassung 1): content als Base64 (encoding \"base64\", PNG, JPEG, \
-GIF, WebP, SVG) oder SVG-Text (encoding \"svg\"), höchstens 8 MiB entschlüsselt. name fehlt → aus file_name; path (eine \
-je Zeile) ist der Pfad, unter dem Vorlage oder Text das Bild mit image(\"…\") nennen. Autor von Fassung und Commit ist \
-`persona` bzw. der Client als @mcp:<name> (Herkunft im Git-Spiegel). role: \"cover\" legt zusätzlich einen Antrag an, \
-das Bild als Umschlag zu setzen (der Mensch bestätigt). Antwort: name, rev, mime, bytes, url, commit?, request?. \
-Ersetzen, Umschlag und Löschen gehen nur als Antrag (asset_replace, asset_set_cover, asset_delete). Kontingent je \
-Werk in 24 Stunden – je Token, alle Clients ohne Token gemeinsam (gleich welcher Name oder persona): höchstens 30 \
-schreibende Aufrufe (asset_add und asset_replace) und 64 MiB; darüber ein Fehler, nichts gespeichert.";
+pub const ADD_DESCRIPTION: &str = "Add an image immediately (revision 1): content as Base64 (encoding \"base64\", PNG, \
+JPEG, GIF, WebP, SVG) or SVG text (encoding \"svg\"), at most 8 MiB decoded. name missing → from file_name; path (one \
+per line) is the path under which template or text name the image with image(\"…\"). The author of revision and commit \
+is `persona` or the client as @mcp:<name> (origin in the Git mirror). role: \"cover\" additionally files a request to \
+set the image as the cover (the human confirms). Answer: name, rev, mime, bytes, url, commit?, request?. Replacing, \
+cover and deleting work only as a request (asset_replace, asset_set_cover, asset_delete). Quota per work in 24 hours \
+– per token, all clients without a token together (whatever name or persona): at most 30 writing calls (asset_add \
+and asset_replace) and 64 MiB; beyond that an error, nothing stored.";
 
-pub const REPLACE_DESCRIPTION: &str = "Antrag: Bild durch neuen Inhalt ersetzen (content wie bei asset_add; \
-caption/alt optional für die neue Fassung; ein anderes Format nur mit rename: true – dann bekommt das Bild beim \
-Bestätigen die neue Endung, alle Pfade bleiben). Ändert nichts sofort: legt einen Antrag an, den der Mensch auf der \
-Seite „Bilder“ bestätigt oder ablehnt. Hat das Bild beim Bestätigen eine andere aktuelle Fassung als beim Antrag, \
-wird der Antrag als veraltet abgeschlossen. Kontingent wie asset_add (je Token, ohne Token gemeinsam), dazu höchstens \
-10 offene Anträge zum Ersetzen. Antwort: request, status \"open\".";
+pub const REPLACE_DESCRIPTION: &str = "Request: replace an image with new content (content as for asset_add; \
+caption/alt optional for the new revision; another format only with rename: true – then the image gets the new \
+extension on confirming, all paths stay). Changes nothing immediately: files a request that the human confirms or \
+rejects on the \"Bilder\" page. If the image has another current revision on confirming than at the request, the \
+request is closed as stale. Quota as for asset_add (per token, without a token together), plus at most 10 open \
+requests to replace. Answer: request, status \"open\".";
 
-pub const SET_COVER_DESCRIPTION: &str = "Antrag: Bild als Umschlag des Werks setzen (name) bzw. den Umschlag entfernen \
-(name: null). Ändert nichts sofort: der Mensch bestätigt oder lehnt ab; ist der Umschlag beim Bestätigen ein anderer \
-als beim Antrag, wird der Antrag als veraltet abgeschlossen. Antwort: request, status \"open\".";
+pub const SET_COVER_DESCRIPTION: &str = "Request: set an image as the cover of the work (name) or remove the cover \
+(name: null). Changes nothing immediately: the human confirms or rejects; if the cover on confirming is another one \
+than at the request, the request is closed as stale. Answer: request, status \"open\".";
 
-pub const DELETE_DESCRIPTION: &str = "Antrag: Bild mit allen Fassungen löschen (ohne rev) bzw. eine nicht aktuelle \
-Fassung (rev). Ändert nichts sofort: der Mensch bestätigt oder lehnt ab. Antwort: request, status \"open\".";
+pub const DELETE_DESCRIPTION: &str = "Request: delete an image with all revisions (without rev) or one revision that \
+is not current (rev). Changes nothing immediately: the human confirms or rejects. Answer: request, status \"open\".";
 
-pub const REQUESTS_DESCRIPTION: &str = "Anträge zu Bildern lesen: offene (Vorgabe) oder mit open: false auch \
-entschiedene (bestätigt, abgelehnt, veraltet mit Grund); mine: true nur eigene. Der Inhalt eines Antrags zum Ersetzen \
-steht nicht in der Antwort (nur bytes und content_url); 30 Tage nach der Entscheidung wird er entfernt (purged).";
+pub const REQUESTS_DESCRIPTION: &str = "Read the image requests: open ones (default) or with open: false also decided \
+ones (confirmed, rejected, stale with reason); mine: true only own ones. The content of a request to replace is not \
+in the answer (only bytes and content_url); 30 days after the decision it is removed (purged).";
 
 fn persona_schema() -> Value {
-    json!({ "type": "string", "description": "Persona-Handle (z. B. @lektor) als Autor bzw. Antragsteller (nur ohne Token vom eigenen Rechner); sonst der Client als @mcp:<name>" })
+    json!({ "type": "string", "description": "persona handle (e.g. @lektor) as author or requester (only without a token from the own machine); otherwise the client as @mcp:<name>" })
 }
 
 fn note_schema() -> Value {
-    json!({ "type": "string", "description": "Notiz bzw. Begründung für den Menschen" })
+    json!({ "type": "string", "description": "note or reason for the human" })
 }
 
 fn name_schema() -> Value {
-    json!({ "type": "string", "description": "Bildname aus list_assets, z. B. umschlag.png" })
+    json!({ "type": "string", "description": "image name from list_assets, e.g. umschlag.png" })
 }
 
 fn content_schema() -> Value {
-    json!({ "type": "string", "description": "Inhalt: Base64 (Standardalphabet) bzw. SVG-Text, siehe encoding" })
+    json!({ "type": "string", "description": "content: Base64 (standard alphabet) or SVG text, see encoding" })
 }
 
 fn encoding_schema() -> Value {
-    json!({ "enum": ["base64", "svg"], "description": "base64 für alle Formate, svg für SVG-Text" })
+    json!({ "enum": ["base64", "svg"], "description": "base64 for all formats, svg for SVG text" })
 }
 
 pub fn add_schema() -> Value {
     json!({ "type": "object", "required": ["file_name", "content", "encoding"], "properties": {
         "work": work_schema(),
-        "file_name": { "type": "string", "description": "Dateiname, z. B. umschlag.png (daraus der Name, wenn name fehlt)" },
+        "file_name": { "type": "string", "description": "file name, e.g. umschlag.png (the name derives from it if name is missing)" },
         "content": content_schema(),
         "encoding": encoding_schema(),
-        "name": { "type": "string", "description": "eigener Bildname (Kleinbuchstaben, Ziffern, - _ . mit Endung)" },
-        "path": { "type": "string", "description": "Pfad(e) in Vorlage/Text, einer je Zeile, z. B. bilder/umschlag.png" },
+        "name": { "type": "string", "description": "own image name (lower-case letters, digits, - _ . with extension)" },
+        "path": { "type": "string", "description": "path(s) in template/text, one per line, e.g. bilder/umschlag.png" },
         "caption": { "type": "string", "description": "Bildunterschrift" },
         "alt": { "type": "string", "description": "Alternativtext (Barrierefreiheit)" },
         "note": note_schema(),
-        "role": { "enum": ["cover"], "description": "cover: zusätzlich Antrag, das Bild als Umschlag zu setzen" },
+        "role": { "enum": ["cover"], "description": "cover: additionally a request to set the image as the cover" },
         "persona": persona_schema() } })
 }
 
 pub fn replace_schema() -> Value {
     json!({ "type": "object", "required": ["name", "content", "encoding"], "properties": {
         "work": work_schema(), "name": name_schema(), "content": content_schema(), "encoding": encoding_schema(),
-        "caption": { "type": "string", "description": "Bildunterschrift der neuen Fassung (fehlt: die bisherige)" },
-        "alt": { "type": "string", "description": "Alternativtext der neuen Fassung (fehlt: der bisherige)" },
-        "rename": { "type": "boolean", "description": "true: ein anderes Format ist erlaubt; das Bild bekommt beim Bestätigen die neue Endung (Vorgabe false)" },
+        "caption": { "type": "string", "description": "caption of the new revision (missing: the previous one)" },
+        "alt": { "type": "string", "description": "alternative text of the new revision (missing: the previous one)" },
+        "rename": { "type": "boolean", "description": "true: another format is allowed; the image gets the new extension on confirming (default false)" },
         "note": note_schema(), "persona": persona_schema() } })
 }
 
@@ -125,15 +125,15 @@ pub fn set_cover_schema() -> Value {
 pub fn delete_schema() -> Value {
     json!({ "type": "object", "required": ["name"], "properties": {
         "work": work_schema(), "name": name_schema(),
-        "rev": { "type": "integer", "minimum": 1, "description": "nur diese (nicht aktuelle) Fassung; fehlt: das ganze Bild" },
+        "rev": { "type": "integer", "minimum": 1, "description": "only this revision (not the current one); missing: the whole image" },
         "note": note_schema(), "persona": persona_schema() } })
 }
 
 pub fn requests_schema() -> Value {
     json!({ "type": "object", "properties": {
         "work": work_schema(),
-        "open": { "type": "boolean", "description": "true (Vorgabe): nur offene; false: auch entschiedene" },
-        "mine": { "type": "boolean", "description": "nur eigene (Antragsteller = persona bzw. @mcp:<name>); Vorgabe false" },
+        "open": { "type": "boolean", "description": "true (default): only open ones; false: also decided ones" },
+        "mine": { "type": "boolean", "description": "only own ones (requester = persona or @mcp:<name>); default false" },
         "persona": persona_schema() } })
 }
 
@@ -214,7 +214,7 @@ fn requests_url(work: WorkId) -> String {
 
 fn encoding(text: &str) -> Result<AssetEncoding, Failure> {
     AssetEncoding::parse(text.trim())
-        .ok_or_else(|| Failure::Args(format!("arguments: encoding „{text}“ – base64 oder svg erwartet")))
+        .ok_or_else(|| Failure::Args(format!("arguments: encoding \"{text}\" – base64 or svg expected")))
 }
 
 /// Bytes aus `content` (Base64 entschlüsselt bzw. SVG-Text); über 8 MiB → Werkzeugfehler.
@@ -225,7 +225,7 @@ fn decoded(content: &str, encoding: AssetEncoding) -> Result<Vec<u8>, Failure> {
     };
     if bytes.len() > MAX_ASSET_BYTES {
         return Err(tool_error(format!(
-            "Das Bild ist {} Bytes groß; erlaubt sind höchstens 8 MiB ({MAX_ASSET_BYTES} Bytes).",
+            "The image has {} bytes; at most 8 MiB ({MAX_ASSET_BYTES} bytes) are allowed.",
             bytes.len()
         )));
     }
@@ -250,29 +250,29 @@ async fn check_quota(
     } else {
         let token_handles = super::tools::token_handles(&state.store).await?;
         let usage = state.store.asset_mcp_usage_without_token(work, &token_handles).await?;
-        (usage, "Die Clients ohne Token (gemeinsames Kontingent)".to_owned())
+        (usage, "The clients without a token (shared quota)".to_owned())
     };
     let who = who.as_str();
-    let have = if client.token { "hat" } else { "haben" };
+    let have = if client.token { "has" } else { "have" };
     if usage.writes >= MAX_MCP_ASSET_WRITES_PER_DAY {
         return Err(tool_error(format!(
-            "Kontingent erschöpft: {who} {have} in diesem Werk in den letzten 24 Stunden schon {} schreibende Bildaufrufe \
-             (asset_add, asset_replace); erlaubt sind {MAX_MCP_ASSET_WRITES_PER_DAY}. Nichts gespeichert; später erneut \
-             versuchen oder den Menschen bitten, das Bild selbst hochzuladen.",
+            "Quota exhausted: {who} {have} already made {} writing image calls (asset_add, asset_replace) in this work in \
+             the last 24 hours; allowed are {MAX_MCP_ASSET_WRITES_PER_DAY}. Nothing stored; try again later or ask the \
+             human to upload the image.",
             usage.writes
         )));
     }
     if usage.bytes.saturating_add(bytes) > MAX_MCP_ASSET_BYTES_PER_DAY {
         return Err(tool_error(format!(
-            "Kontingent erschöpft: {who} {have} in diesem Werk in den letzten 24 Stunden schon {} Bytes Bilder geschrieben; \
-             mit diesen {bytes} Bytes wären es mehr als 64 MiB ({MAX_MCP_ASSET_BYTES_PER_DAY} Bytes). Nichts gespeichert.",
+            "Quota exhausted: {who} {have} already written {} bytes of images in this work in the last 24 hours; with \
+             these {bytes} bytes it would be more than 64 MiB ({MAX_MCP_ASSET_BYTES_PER_DAY} bytes). Nothing stored.",
             usage.bytes
         )));
     }
     if replace && usage.open_replace >= MAX_MCP_OPEN_REPLACE_REQUESTS {
         return Err(tool_error(format!(
-            "Zu viele offene Anträge: {who} {have} in diesem Werk schon {} offene Anträge zum Ersetzen; erlaubt sind \
-             {MAX_MCP_OPEN_REPLACE_REQUESTS}. Nichts gespeichert; erst entscheidet der Mensch über die offenen \
+            "Too many open requests: {who} {have} already {} open requests to replace in this work; allowed are \
+             {MAX_MCP_OPEN_REPLACE_REQUESTS}. Nothing stored; first the human decides on the open ones \
              (asset_requests).",
             usage.open_replace
         )));
@@ -303,7 +303,7 @@ async fn request_answer(state: &AppState, work: WorkId, id: i64) -> Result<Value
         "request": asset_requests::request_json(&request),
         "status": "open",
         "message": format!(
-            "Antrag {} angelegt ({}); der Antrag selbst ändert noch nichts. Der Mensch bestätigt oder lehnt ab.",
+            "Request {} filed ({}); the request itself changes nothing yet. The human confirms or rejects.",
             request.id, request.summary
         ),
         "url": requests_url(work),
@@ -315,7 +315,7 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
     let cover = match a.role.as_deref().map(str::trim) {
         None | Some("") => false,
         Some("cover") => true,
-        Some(other) => return Err(Failure::Args(format!("arguments: role „{other}“ – nur \"cover\" erwartet"))),
+        Some(other) => return Err(Failure::Args(format!("arguments: role \"{other}\" – only \"cover\" expected"))),
     };
     let encoding = encoding(&a.encoding)?;
     let bytes = decoded(&a.content, encoding)?;
@@ -361,9 +361,9 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
             Ok(request) => {
                 answer["request"] = request["request"].clone();
                 answer["message"] = json!(format!(
-                    "Bild „{}“ angelegt; {}",
+                    "Image \"{}\" added; {}",
                     change.name,
-                    request["message"].as_str().unwrap_or("Antrag für den Umschlag angelegt.")
+                    request["message"].as_str().unwrap_or("Request for the cover filed.")
                 ));
             }
             // Das Bild ist angelegt; der Antrag scheiterte (z. B. schon offen) – ehrlich melden, nicht verschweigen.
@@ -400,7 +400,7 @@ async fn replace(state: &AppState, client: &Client, arguments: Value) -> Result<
 
 async fn set_cover(state: &AppState, client: &Client, arguments: Value) -> Result<Value, Failure> {
     if arguments.get("name").is_none() {
-        return Err(Failure::Args("arguments: name fehlt (Bildname oder null zum Entfernen)".into()));
+        return Err(Failure::Args("arguments: name is missing (image name or null to remove)".into()));
     }
     let a: CoverArgs = args(arguments)?;
     let work = work_or_default(state, a.work.as_ref()).await?;
@@ -409,8 +409,8 @@ async fn set_cover(state: &AppState, client: &Client, arguments: Value) -> Resul
     let expected_cover = asset_requests::cover_name(state, work).await?;
     if name == expected_cover {
         return Err(tool_error(match &name {
-            Some(name) => format!("„{name}“ ist schon der Umschlag; nichts zu beantragen."),
-            None => "Das Werk hat keinen Umschlag; nichts zu entfernen.".to_owned(),
+            Some(name) => format!("\"{name}\" is already the cover; nothing to request."),
+            None => "The work has no cover; nothing to remove.".to_owned(),
         }));
     }
     let op = AssetOp::SetCover { name, expected_cover };

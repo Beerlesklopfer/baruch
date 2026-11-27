@@ -182,7 +182,7 @@ pub async fn call_as(state: &AppState, who: &Who, method: &str, params: Value) -
                 }
             }
         }
-        other => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {other}"))),
+        other => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {other}"))),
     }
 }
 

@@ -11,19 +11,19 @@ use super::tools::{Failure, WorkRef, args, resolve, work_schema};
 use crate::AppState;
 use crate::typeset;
 
-pub const DESCRIPTION: &str = "Werk mit Typst setzen (Werkvorlage, Gliederungsschema, Bilder) und prüfen, nur lesend: \
-ändert nichts. Antwort: ok (keine Fehler), stand (Fassungsstand), pages (Seitenzahl), errors, warnings, \
-diagnostics (je severity, message, hints, line/column im Export, key und section des Abschnitts bzw. \
-„Werkvorlage“, section_line), print (Druckprüfung: Rasterbilder unter 300 dpi in ihrer gesetzten Größe mit \
-path, page, Pixeln, mm, dpi, nötigen Pixeln und message), missing (Bildpfade ohne Datei im Werk) und url der \
-Satz-Seite. Ohne work das Vorgabewerk; key setzt den Fokus der url \
-auf das Kapitel des Abschnitts. Pakete (@preview) werden nicht geladen.";
+pub const DESCRIPTION: &str = "Typeset the work with Typst (work template, outline scheme, images) and check it, \
+read-only: changes nothing. Answer: ok (no errors), stand (revision state), pages (page count), errors, warnings, \
+diagnostics (each severity, message, hints, line/column in the export, key and section of the section or \
+\"Werkvorlage\", section_line), print (print check: raster images below 300 dpi at their typeset size with path, \
+page, pixels, mm, dpi, pixels needed and message), missing (image paths without a file in the work) and url of the \
+typesetting page. Without work the default work; key sets the focus of the url on the chapter of the section. \
+Packages (@preview) are not loaded.";
 
 pub fn check_schema() -> Value {
     json!({ "type": "object", "properties": {
         "work": work_schema(),
         "key": { "type": "integer",
-                 "description": "fester Schlüssel eines Abschnitts (key aus outline): url zeigt sein Kapitel" } } })
+                 "description": "stable key of a section (key from outline): url shows its chapter" } } })
 }
 
 #[derive(Deserialize)]

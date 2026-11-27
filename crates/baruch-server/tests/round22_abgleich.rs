@@ -39,7 +39,7 @@ fn xmllint_u8(xml: &str) {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("werk.baruch.xml");
     std::fs::write(&file, xml).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)
@@ -66,7 +66,7 @@ async fn two_instances_carry_amends_stands_draft_and_adopted_amend_byte_for_byte
     let out_a = export_xml(&a, work_a).await;
     xmllint_u8(&out_a);
     for needle in [
-        "version=\"9\"",
+        "version=\"10\"",
         "<fortschreibung ",
         "stand=\"3\"",
         "beruht-stand=\"2\"",

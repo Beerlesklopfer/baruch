@@ -313,7 +313,8 @@ pub fn is_write_order(message: &str) -> bool {
 }
 
 /// Wortanfänge eines Prüfauftrags (klein): „prüf den Vorschlag“, „bitte überprüfen“, „check das“, „Review bitte“.
-const CHECK_STEMS: &[&str] = &["prüf", "überprüf", "nachprüf", "gegenprüf", "kontrollier", "check", "review"];
+const CHECK_STEMS: &[&str] =
+    &["prüf", "überprüf", "nachprüf", "gegenprüf", "kontrollier", "check", "review", "verif", "examin", "proofread"];
 
 /// Ist die Nachricht an eine direkt angesprochene Persona ein Prüfauftrag (Runde 36)? Ein Wort beginnt mit einem der
 /// [`CHECK_STEMS`] (irgendwo in der Nachricht, auch als Frage „Kannst du das prüfen?“), oder die Nachricht nennt

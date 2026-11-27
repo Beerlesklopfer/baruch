@@ -1059,7 +1059,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             Ok(json!({ "id": id, "secret": "fehlt" }))
         }
         "model.connection_check" => check_connection(state, id_param(&params, "id")?).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

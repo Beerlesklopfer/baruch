@@ -13,11 +13,11 @@ use crate::typeset_settings;
 
 pub const NAME: &str = "typeset_settings";
 
-pub const DESCRIPTION: &str = "Satz-Einstellungen des Werks lesen (Kapitelanfang, Seitenformat, Ränder, Schrift, \
-Seitenzahlen …), dazu die erzeugten Typst-Regeln „// Baruch: Satz“ und Hinweise, wo die Werkvorlage dieselbe Sache \
-selbst setzt. Nur lesend; ändern kann nur der Mensch (Einstellungen → Werk → Satz). Antwort: work, set, uuid, \
-updated, updated_by, settings (nur gesetzte Felder; fehlt ein Feld, gilt die Werkvorlage), rules, conflicts [{field, \
-label, line, text, effect, message}], template_rule {line, text, chapter_start} oder null, warnings.";
+pub const DESCRIPTION: &str = "Read the typesetting settings of the work (chapter start, page format, margins, font, \
+page numbers …), plus the generated Typst rules \"// Baruch: Satz\" and hints where the work template sets the same \
+thing itself. Read-only; only the human can change them (Einstellungen → Werk → Satz). Answer: work, set, uuid, \
+updated, updated_by, settings (only fields that are set; if a field is missing the work template applies), rules, \
+conflicts [{field, label, line, text, effect, message}], template_rule {line, text, chapter_start} or null, warnings.";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "properties": { "work": work_schema() } })

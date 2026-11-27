@@ -34,6 +34,6 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             let instance = state.store.set_instance_name(&name).await?;
             Ok(json!({ "uuid": instance.uuid, "name": instance.name }))
         }
-        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode: {other}"))),
+        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method: {other}"))),
     }
 }

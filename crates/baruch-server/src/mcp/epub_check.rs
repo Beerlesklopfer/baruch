@@ -12,18 +12,18 @@ use crate::AppState;
 
 pub const NAME: &str = "epub_check";
 
-pub const DESCRIPTION: &str = "Das EPUB des Werks prüfen, nur lesend: eigene Struktur- und Barrierefreiheitsprüfung \
-(mimetype, container.xml, Manifest und Spine, Wohlgeformtheit mit xmllint bzw. quick-xml, Navigation, Sprache, \
-alt-Texte, Lesereihenfolge) und Warnungen je Reader (Slugs wie bei epub.readers; ohne Angabe die Pflicht-Reader). \
-Startet nie EPUBCheck – das tut nur der Mensch auf der Prüfseite. Antwort: findings [{code, severity, message, path, \
-reader}], xml_tool, epubcheck (immer not_requested), summary {errors, warnings, infos}, readers.";
+pub const DESCRIPTION: &str = "Check the EPUB of the work, read-only: own structure and accessibility check \
+(mimetype, container.xml, manifest and spine, well-formedness with xmllint or quick-xml, navigation, language, alt \
+texts, reading order) and warnings per reader (slugs as in epub.readers; without the argument the mandatory readers). \
+Never starts EPUBCheck – only the human does that on the check page. Answer: findings [{code, severity, message, \
+path, reader}], xml_tool, epubcheck (always not_requested), summary {errors, warnings, infos}, readers.";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "properties": {
         "work": work_schema(),
         "readers": { "type": "array", "items": { "type": "string" },
-                     "description": "Slugs der Reader-Profile (ohne Angabe: die Pflicht-Reader)" },
-        "footnotes": { "type": "string", "enum": ["popup", "endnotes"], "description": "Fußnoten im EPUB (Vorgabe popup)" } } })
+                     "description": "slugs of the reader profiles (without the argument: the mandatory readers)" },
+        "footnotes": { "type": "string", "enum": ["popup", "endnotes"], "description": "footnotes in the EPUB (default popup)" } } })
 }
 
 #[derive(Deserialize)]

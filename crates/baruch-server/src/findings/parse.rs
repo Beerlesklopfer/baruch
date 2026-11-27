@@ -86,6 +86,8 @@ fn baruch_note(line: &str) -> bool {
     }
     let t = line.trim();
     t == NO_SOLUTION_NOTE
+        || t == crate::assist::lang::EN.no_solution_note
+        || t == crate::assist::prompts::CRITICAL_MISSING_NOTE_EN
         || t == CUT_NOTE
         || t == TRUNCATED_NOTE
         || t == CRITICAL_MISSING_NOTE
@@ -126,7 +128,7 @@ fn strip_word<'a>(s: &'a str, word: &str) -> Option<&'a str> {
 pub fn done_line(line: &str) -> Option<&str> {
     let content = list_item(line).unwrap_or(line.trim_start());
     let content = content.trim_start_matches(|c: char| matches!(c, '*' | '_' | '>' | '#') || c.is_whitespace());
-    let rest = strip_word(content, crate::assist::prompts::DONE_MARK)?;
+    let rest = crate::assist::lang::ALL.iter().find_map(|m| strip_word(content, m.done))?;
     Some(rest.trim_end_matches(|c: char| matches!(c, '*' | '_') || c.is_whitespace()))
 }
 
@@ -145,8 +147,9 @@ fn claimed_number(rest: &str) -> Option<i64> {
         return Some(id);
     }
     let lower = rest.to_lowercase();
-    if let Some(at) = lower.find("befund") {
-        let after = lower[at + "befund".len()..].trim_start();
+    let word = crate::assist::lang::MORE.iter().filter_map(|m| lower.find(m.finding).map(|at| (at, m.finding))).min();
+    if let Some((at, word)) = word {
+        let after = lower[at + word.len()..].trim_start();
         let after = after.strip_prefix("nr.").unwrap_or(after).trim_start();
         let after = after.strip_prefix('#').unwrap_or(after).trim_start();
         let digits: String = after.chars().take_while(char::is_ascii_digit).collect();
@@ -175,11 +178,15 @@ pub fn done_claims(text: &str) -> Vec<DoneClaim> {
 }
 
 /// Marken am Anfang (nach Aufzählungszeichen) und ihre Art.
-const MARKERS: [(&str, FindingKind); 4] = [
+const MARKERS: [(&str, FindingKind); 8] = [
     ("kritisch:", FindingKind::Critical),
     ("vorschlag:", FindingKind::Hint),
     ("hinweis:", FindingKind::Hint),
     ("lob:", FindingKind::Praise),
+    ("critical:", FindingKind::Critical),
+    ("suggestion:", FindingKind::Hint),
+    ("note:", FindingKind::Hint),
+    ("praise:", FindingKind::Praise),
 ];
 
 /// Marke am Anfang von `s`: Art und Rest.
@@ -188,8 +195,14 @@ fn marker(s: &str) -> Option<(FindingKind, &str)> {
 }
 
 /// Gliederung der Antwort: Überschrift und Art.
-const OUTLINE: [(&str, FindingKind); 3] =
-    [("was trägt", FindingKind::Praise), ("was fehlt", FindingKind::Hint), ("was stört", FindingKind::Hint)];
+const OUTLINE: [(&str, FindingKind); 6] = [
+    ("was trägt", FindingKind::Praise),
+    ("was fehlt", FindingKind::Hint),
+    ("was stört", FindingKind::Hint),
+    ("what works", FindingKind::Praise),
+    ("what is missing", FindingKind::Hint),
+    ("what disturbs", FindingKind::Hint),
+];
 
 /// Aufzählungszeichen am Zeilenanfang: Inhalt dahinter.
 fn list_item(line: &str) -> Option<&str> {
@@ -255,7 +268,7 @@ fn strip_inner_critical(s: &str) -> Option<String> {
     for (at, c) in s.char_indices() {
         if at > 0
             && previous.is_some_and(|p| p.is_whitespace() || matches!(p, '*' | '_'))
-            && let Some(rest) = strip_word(&s[at..], "kritisch:")
+            && let Some(rest) = ["kritisch:", "critical:"].iter().find_map(|word| strip_word(&s[at..], word))
         {
             let label = s[..at].trim_end_matches(|c: char| matches!(c, '*' | '_') || c.is_whitespace());
             return Some(format!("{label} {rest}"));
@@ -269,7 +282,8 @@ fn strip_inner_critical(s: &str) -> Option<String> {
 fn take_checks(text: &str) -> (String, String) {
     let mut checks: Vec<String> = Vec::new();
     let mut rest = text.to_owned();
-    for note in [UNBACKED_NOTE, NO_SOLUTION_NOTE] {
+    let en = &crate::assist::lang::EN;
+    for note in [UNBACKED_NOTE, NO_SOLUTION_NOTE, en.unbacked_note, en.no_solution_note] {
         while let Some(at) = rest.find(note) {
             checks.push(note.to_owned());
             rest.replace_range(at..at + note.len(), "");
@@ -376,7 +390,7 @@ pub fn split_answer(text: &str) -> Vec<ParsedFinding> {
 /// Beginnt hier der Schlussblock „Mein Vorschlag:“ des Lektors (Runde 30b)? Seine Zeilen sind Lösungen, keine Befunde.
 pub fn proposal_heading(line: &str) -> bool {
     let probe = heading_probe(line);
-    strip_word(probe, "mein vorschlag").is_some_and(|rest| {
+    ["mein vorschlag", "my proposal"].iter().find_map(|word| strip_word(probe, word)).is_some_and(|rest| {
         let rest = rest.trim_start_matches(['*', '_']);
         rest.is_empty() || rest.starts_with(':')
     })

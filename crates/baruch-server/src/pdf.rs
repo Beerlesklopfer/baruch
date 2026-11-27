@@ -274,7 +274,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         return notes::call(state, work, method, params).await;
     }
     if !handles(method) {
-        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
+        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     let inline = flag(&params, "inline")?;
     let draft = typeset::draft_param(&params)?;

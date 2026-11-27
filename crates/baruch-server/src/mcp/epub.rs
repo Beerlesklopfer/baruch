@@ -15,21 +15,21 @@ pub const NAME: &str = "epub_export";
 /// Größte EPUB-Datei, die `epub_export` mit `include_bytes` als Base64 mitliefert (8 MiB).
 pub const MCP_EPUB_LIMIT: usize = 8 * 1024 * 1024;
 
-pub const DESCRIPTION: &str = "Das Werk als EPUB 3 (mit EPUB-2-Rückfall), nur lesend: Metadaten (Titel, Autor, \
-Sprache, ISBN, Stand), Dateien in Lesereihenfolge (je Teil und Kapitel eine Datei), Warnungen (z. B. ausgelassene \
-Typst-Inseln, Bilder ohne Alternativtext, Seitenumbruch-Regeln der Werkvorlage), Größe, SHA-256 und die Adresse \
-/werke/{id}/epub zum Herunterladen. footnotes: popup (Vorgabe) oder endnotes. Die Datei selbst (Base64) nur mit \
-include_bytes: true und höchstens 8 MiB. draft: true = als Entwurf (Hinweis auf der Titelseite, „(Entwurf)“ im \
-Titel-Metadatum), false = ohne, weglassen = nach Satz-Einstellung; die Einstellung bleibt unverändert. Ändert nichts \
-am Werk.";
+pub const DESCRIPTION: &str = "The work as EPUB 3 (with EPUB 2 fallback), read-only: metadata (title, author, \
+language, ISBN, date), files in reading order (one file per part and chapter), warnings (e.g. omitted Typst islands, \
+images without alternative text, page break rules of the work template), size, SHA-256 and the address \
+/werke/{id}/epub for downloading. footnotes: popup (default) or endnotes. The file itself (Base64) only with \
+include_bytes: true and at most 8 MiB. draft: true = as a draft (note on the title page, \"(Entwurf)\" in the title \
+metadata), false = without, omitted = by the typesetting setting; the setting stays unchanged. Changes nothing in \
+the work.";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "properties": {
         "work": work_schema(),
-        "footnotes": { "enum": ["popup", "endnotes"], "description": "Fußnoten als Popup (Vorgabe) oder Endnoten" },
-        "include_bytes": { "type": "boolean", "description": "EPUB als Base64 mitliefern (höchstens 8 MiB)" },
+        "footnotes": { "enum": ["popup", "endnotes"], "description": "footnotes as popup (default) or endnotes" },
+        "include_bytes": { "type": "boolean", "description": "also return the EPUB as Base64 (at most 8 MiB)" },
         "draft": { "type": "boolean",
-            "description": "true = als Entwurf, false = ohne Entwurf, weglassen = nach Satz-Einstellung" } } })
+            "description": "true = as a draft, false = without draft, omitted = by the typesetting setting" } } })
 }
 
 #[derive(Deserialize)]
@@ -53,8 +53,8 @@ pub async fn call(state: &AppState, arguments: Value) -> Result<Value, Failure> 
     let url = if pair.is_empty() { format!("/werke/{work}/epub") } else { format!("/werke/{work}/epub?{pair}") };
     if a.include_bytes && bytes.len() > MCP_EPUB_LIMIT {
         return Err(tool_error(format!(
-            "Das EPUB hat {} Bytes und ist größer als 8 MiB; ohne include_bytes gibt es Angaben und Dateiliste, die \
-             Datei selbst unter {url} oder mit baruch-server export {slug} --epub DATEI.",
+            "The EPUB has {} bytes and is larger than 8 MiB; without include_bytes there are metadata and file list, the \
+             file itself under {url} or with baruch-server export {slug} --epub FILE.",
             bytes.len()
         )));
     }

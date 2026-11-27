@@ -790,7 +790,7 @@ pub async fn call(state: &AppState, method: &str, params_value: Value) -> Result
             let p: DraftParams = params(params_value)?;
             Ok(json!({ "discarded": discard(state, p.draft.trim()).await? }))
         }
-        other => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {other}"))),
+        other => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {other}"))),
     }
 }
 

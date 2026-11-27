@@ -206,34 +206,32 @@ fn the_lector_default_prompt_begins_with_what_carries_and_a_custom_prompt_replac
     for kind in [WorkKind::Book, WorkKind::Sermon] {
         let prompt = prompts::effective_prompt_for("@lektor", "Lektor", None, kind);
         for rule in [
-            "Beginne mit „Was trägt:“",
-            "wörtlichen Kurzzitat",
-            "höchstens zwei Zeilen „Vorschlag: …“",
-            "konkreten nächsten Schritt",
-            "kollegial",
-            "Im Chat gehst du zuerst auf die Nachricht des Autors ein",
-            "meldest du nicht erneut",
-            "„Jetzt wichtig:“ und „Kann warten:“",
-            "übernimm keinen ungeprüft",
+            "start with \"Was trägt:\"",
+            "a literal short quote",
+            "at most two lines \"Vorschlag: …\"",
+            "one concrete next step",
+            "as an encouraging colleague",
+            "In the chat first respond to the author's message",
+            "Do not report again what the author has decided",
+            "\"Jetzt wichtig:\" and \"Kann warten:\"",
+            "adopt none unchecked",
         ] {
             assert!(prompt.contains(rule), "{kind:?}: Vorgabe des Lektors verlangt {rule:?}: {prompt}");
         }
         assert!(
-            !prompt.contains("Nenne in Antworten und Prüfungen immer mindestens einen kritischen Befund"),
+            !prompt.contains("always name at least one critical finding"),
             "{kind:?}: keine Kritisch-Pflicht mehr für den Lektor"
         );
-        assert!(
-            prompt.contains("Kritische Befunde darfst du nennen, musst aber nicht"),
-            "{kind:?}: erlaubt, nicht Pflicht"
-        );
-        let order = ["6. Begleite", "7. Stütze", "8. Im Chat", "9. Beim RFC"].map(|r| prompt.find(r).unwrap());
+        assert!(prompt.contains("You may name critical findings but need not"), "{kind:?}: erlaubt, nicht Pflicht");
+        let order =
+            ["6. Accompany", "7. Base every", "8. In the chat", "9. In an RFC"].map(|r| prompt.find(r).unwrap());
         assert!(order.windows(2).all(|w| w[0] < w[1]), "{kind:?}: Regeln in ihrer Reihenfolge: {prompt}");
-        assert!(prompt.contains("wörtliches Kurzzitat in „…“"), "{kind:?}: Belegpflicht (Regel 7) bleibt");
+        assert!(prompt.contains("a literal short quote in quotation marks"), "{kind:?}: Belegpflicht (Regel 7) bleibt");
     }
     let exegete = prompts::default_prompt("@exeget", "Exeget");
-    assert!(!exegete.contains("immer mindestens einen kritischen Befund"), "auch der Exeget hat keine Pflicht mehr");
+    assert!(!exegete.contains("always name at least one critical finding"), "auch der Exeget hat keine Pflicht mehr");
     let nathan = prompts::default_prompt("@nathan", "Auditor");
-    assert!(nathan.contains("immer mindestens einen kritischen Befund"), "Nathan behält die Pflicht");
+    assert!(nathan.contains("always name at least one critical finding"), "Nathan behält die Pflicht");
     assert_eq!(
         prompts::effective_prompt("@lektor", "Lektor", Some("Sei knapp.")),
         "Sei knapp.",
@@ -241,7 +239,11 @@ fn the_lector_default_prompt_begins_with_what_carries_and_a_custom_prompt_replac
     );
     assert_eq!(
         prompts::effective_prompt_for("@lektor", "Lektor", Some("Sei knapp."), WorkKind::Sermon),
-        format!("Sei knapp.\n\n{}", prompts::SERMON_NOTE),
+        format!(
+            "Sei knapp.\n\n{}\n\n{}",
+            prompts::SERMON_NOTE,
+            baruch_server::assist::lang::language_rule(baruch_core::WorkLanguage::De)
+        ),
         "bei der Predigt kommt zum eigenen Prompt nur der Predigt-Hinweis"
     );
     assert_eq!(prompts::CRITICAL_HANDLES, ["nathan"], "Kritisch-Pflicht nur für Nathan (Vertrag R28 §1.8)");

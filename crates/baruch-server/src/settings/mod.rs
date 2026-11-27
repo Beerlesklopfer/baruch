@@ -483,6 +483,7 @@ pub fn writes() -> Router<Arc<AppState>> {
         .route("/einstellungen/daten/instanz", post(data::instance_act))
         .route("/einstellungen/mcp/act", post(access::act))
         .route("/einstellungen/werk/zeit", post(work::timing_act))
+        .route("/einstellungen/werk/sprache", post(work::language_act))
         .route("/einstellungen/werk/satzbild", post(work::sheet_act))
         // Runde 29c: Block „Satz“ (speichern, Vorschau, zurücksetzen; Vorlagenregel übernehmen).
         .route("/einstellungen/werk/satz", post(work_typeset::act))
@@ -594,7 +595,7 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, params: J
             let made = backup(state).await.map_err(|e| RpcError::new(INTERNAL, e))?;
             Ok(json!({ "dir": made.dir.display().to_string(), "size_bytes": made.size_bytes, "skipped": made.skipped }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

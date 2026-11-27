@@ -19,18 +19,17 @@ use crate::{AppState, asset_requests, cover_layout};
 
 pub const NAMES: [&str; 2] = ["cover_layout", "cover_layout_set"];
 
-pub const LAYOUT_DESCRIPTION: &str = "Umschlag-Anordnung eines Werks lesen (nur lesend): je Block (Titel, \
-Untertitel, Autor, Verlag, Freitext auf Vorderseite und Rücken; Motto, Klappentext, Kurzbiografie, ISBN mit \
-Strichcode, Verlag und Preis, Freitext auf der Rückseite) Lage und Breite in mm ab der Schnittkante der eigenen \
-Fläche, Ausrichtung, Größe, Zeilenabstand, Farbe, Schrift, Schnitt, Hintergrund, sichtbar, Laufrichtung (Rücken) \
-und eigener Text; dazu stored (eigene Anordnung gespeichert?), Maße (geometry; ohne Seitenmaß null mit \
-geometry_error), Druckprüfung und Vorgabeschrift.";
+pub const LAYOUT_DESCRIPTION: &str = "Read the cover layout of a work (read-only): per block (title, subtitle, \
+author, publisher, free text on front and spine; motto, blurb, short biography, ISBN with barcode, publisher and \
+price, free text on the back) position and width in mm from the trim edge of its own area, alignment, size, leading, \
+colour, font, style, background, visible, reading direction (spine) and own text; plus stored (own layout stored?), \
+dimensions (geometry; without a page size null with geometry_error), print check and default font.";
 
-pub const LAYOUT_SET_DESCRIPTION: &str = "Antrag: Umschlag-Anordnung ändern. Jeder genannte Block ersetzt seine \
-Art ganz; fehlende Felder eines Blocks kommen aus dem wirksamen Block (cover_layout), z. B. {kind: \"front_title\", \
-y_mm: 40}. Ändert nichts sofort; der Mensch bestätigt auf der Seite Bilder → Anträge. Herkunft `persona` bzw. der \
-Client als @mcp:<name>; ein gleicher offener Antrag wird nicht doppelt angelegt; hat der Mensch die Anordnung \
-inzwischen geändert, wird der Antrag beim Bestätigen veraltet (stale).";
+pub const LAYOUT_SET_DESCRIPTION: &str = "Request: change the cover layout. Every block named replaces its kind \
+completely; missing fields of a block come from the effective block (cover_layout), e.g. {kind: \"front_title\", \
+y_mm: 40}. Changes nothing immediately; the human confirms on the images page (requests). Origin `persona` or the \
+client as @mcp:<name>; an equal open request is not filed twice; if the human has changed the layout in the \
+meantime, the request becomes stale on confirming.";
 /// Ein Block wie in `cover.layout` (Vertrag 1.3).
 fn block_schema() -> Value {
     json!({ "type": "object", "required": ["kind"], "properties": {
@@ -38,21 +37,21 @@ fn block_schema() -> Value {
             "front_title", "front_subtitle", "front_author", "front_publisher", "front_free",
             "spine_title", "spine_author", "spine_publisher", "spine_free",
             "back_motto", "back_blurb", "back_bio", "back_barcode", "back_publisher_price", "back_free"] },
-        "x_mm": { "type": "number", "description": "linke Kante in mm ab der Schnittkante der Fläche (-50 bis 1000)" },
-        "y_mm": { "type": "number", "description": "obere Kante in mm ab der Schnittkante der Fläche (-50 bis 1000)" },
-        "width_mm": { "type": "number", "description": "Breite in Leserichtung in mm (1 bis 1000)" },
+        "x_mm": { "type": "number", "description": "left edge in mm from the trim edge of the area (-50 to 1000)" },
+        "y_mm": { "type": "number", "description": "top edge in mm from the trim edge of the area (-50 to 1000)" },
+        "width_mm": { "type": "number", "description": "width in reading direction in mm (1 to 1000)" },
         "align": { "type": "string", "enum": ["left", "center", "right", "justify"] },
-        "size_pt": { "type": "number", "description": "Schriftgröße in pt (4 bis 200)" },
-        "leading_em": { "type": "number", "description": "Zeilenabstand in em (0 bis 3, Vorgabe 0.65)" },
-        "color": { "type": "string", "description": "light, dark oder #rrggbb" },
-        "font": { "type": ["string", "null"], "description": "Schriftfamilie; null = Schrift der Werkvorlage" },
+        "size_pt": { "type": "number", "description": "font size in pt (4 to 200)" },
+        "leading_em": { "type": "number", "description": "leading in em (0 to 3, default 0.65)" },
+        "color": { "type": "string", "description": "light, dark or #rrggbb" },
+        "font": { "type": ["string", "null"], "description": "font family; null = font of the work template" },
         "style": { "type": "string", "enum": ["normal", "bold", "italic"] },
         "backdrop": { "type": "string", "enum": ["none", "shadow", "gradient"] },
         "visible": { "type": "boolean" },
         "direction": { "type": ["string", "null"], "enum": ["down", "up", null],
-                       "description": "nur Rücken: down = von oben nach unten lesbar, up = von unten nach oben" },
+                       "description": "spine only: down = readable from top to bottom, up = from bottom to top" },
         "text": { "type": ["string", "null"],
-                  "description": "eigener Text (nur Freitexte und Motto, höchstens 1000 Zeichen)" } } })
+                  "description": "own text (only free texts and motto, at most 1000 characters)" } } })
 }
 
 pub fn layout_schema() -> Value {
@@ -63,8 +62,8 @@ pub fn layout_set_schema() -> Value {
     json!({ "type": "object", "required": ["work", "blocks"], "properties": {
         "work": work_schema(),
         "blocks": { "type": "array", "items": block_schema() },
-        "note": { "type": "string", "description": "Begründung für den Menschen" },
-        "persona": { "type": "string", "description": "Persona-Handle (z. B. @lektor) als Antragsteller (nur ohne Token vom eigenen Rechner); sonst der Client als @mcp:<name>" } } })
+        "note": { "type": "string", "description": "reason for the human" },
+        "persona": { "type": "string", "description": "persona handle (e.g. @lektor) as requester (only without a token from the own machine); otherwise the client as @mcp:<name>" } } })
 }
 
 #[derive(serde::Deserialize)]
@@ -141,7 +140,7 @@ async fn layout_set(state: &AppState, client: &Client, arguments: Value) -> Resu
     let base = |kind: CoverBlockKind| known.iter().find(|b| b.kind == kind).cloned();
     let blocks = cover_layout::parse_blocks(Some(&a.blocks), base).map_err(Failure::Args)?;
     if blocks.is_empty() {
-        return Err(tool_error("blocks: mindestens ein Block der Anordnung erwartet."));
+        return Err(tool_error("blocks: at least one block of the layout expected."));
     }
     let op = AssetOp::CoverLayout { blocks, expected_layout: String::new() };
     let id = {
@@ -154,7 +153,7 @@ async fn layout_set(state: &AppState, client: &Client, arguments: Value) -> Resu
         "request": asset_requests::request_json(&request),
         "status": "open",
         "message": format!(
-            "Antrag {} angelegt ({}); der Antrag selbst ändert noch nichts. Der Mensch bestätigt oder lehnt ab.",
+            "Request {} filed ({}); the request itself changes nothing yet. The human confirms or rejects.",
             request.id, request.summary
         ),
         "url": format!("/werke/{work}/bilder#antraege"),

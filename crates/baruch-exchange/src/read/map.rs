@@ -483,6 +483,11 @@ fn angaben(
     version: u32,
     unknown: &mut Unknown,
 ) -> Result<(), ExchangeError> {
+    // Sub-version 10: work language; a file without the attribute (up to sub-version 9) is German.
+    let language_path = attr_path(c, "sprache");
+    if let Some(raw) = c.attr("sprache") {
+        work.language = word(raw, &language_path, ExchangeLanguage::from_xml)?;
+    }
     work.title = req_text(c, "titel", unknown)?;
     work.subtitle = req_text(c, "untertitel", unknown)?;
     work.author = req_text(c, "autor", unknown)?;

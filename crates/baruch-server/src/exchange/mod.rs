@@ -33,7 +33,7 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
         "work.exchange_export" => export::rpc_export(state, params).await,
         "work.exchange_preview" => import::rpc_preview(state, params).await,
         "work.exchange_import" => import::rpc_import(state, params).await,
-        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode: {other}"))),
+        other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method: {other}"))),
     }
 }
 

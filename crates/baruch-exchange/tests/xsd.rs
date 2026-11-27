@@ -18,6 +18,11 @@ use quick_xml::events::Event;
 
 /// Schema der Unterversion 9 (Runde 34), gegen das jede Ausgabe geprüft wird.
 fn schema() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd")
+}
+
+/// Frozen schema of sub-version 9 (Round 34).
+fn schema_u9() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd")
 }
 
@@ -194,8 +199,8 @@ fn check_required(xml: &str, images: ImageMode) {
                     let version = e.try_get_attribute("version").unwrap().expect("version an der Wurzel");
                     assert_eq!(
                         version.normalized_value(quick_xml::XmlVersion::Implicit1_0).unwrap(),
-                        "9",
-                        "Unterversion 9 (Runde 34)"
+                        "10",
+                        "Unterversion 10 (Runde 38)"
                     );
                     for required in ["uuid", "art"] {
                         assert!(e.try_get_attribute(required).unwrap().is_some(), "werk/@{required}");
@@ -316,7 +321,7 @@ fn manifest_passes_the_schema() {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
     let mut manifest = String::new();
     std::io::Read::read_to_string(&mut archive.by_name(ENTRY_MANIFEST).unwrap(), &mut manifest).unwrap();
-    assert!(manifest.contains(&format!("<manifest xmlns=\"{NAMESPACE}\" version=\"9\">")), "Wurzel im Namensraum");
+    assert!(manifest.contains(&format!("<manifest xmlns=\"{NAMESPACE}\" version=\"10\">")), "Wurzel im Namensraum");
     xmllint("MANIFEST.xml", &manifest);
     // Auch write_manifest allein.
     let entries = [ExchangeManifestEntry { path: ENTRY_WORK.into(), sha256: sha256_hex(b"x"), bytes: 1 }];
@@ -510,11 +515,10 @@ fn the_u6_schema_defines_the_typeset_settings() {
 fn the_u6_schema_accepts_a_u5_file_and_the_frozen_u5_schema_too() {
     // Vertrag R29 §6.6: Eine Ausgabe ohne die Neuerungen der Unterversion 6 (wie sie Runde 30 schrieb) gilt nach u6
     // und nach dem eingefrorenen u5.
-    let u5 = write_xml(&without_u6(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"5\"",
-        1,
-    );
+    let u5 = write_xml(&without_u6(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"5\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     assert!(!u5.contains("<satz "), "Vorbedingung: ohne <satz>");
     if xmllint_with(&schema(), "u5.baruch.xml", &u5) {
         assert!(xmllint_with(&schema_u5(), "u5.baruch.xml", &u5), "dieselbe Datei gilt nach dem u5-XSD");
@@ -586,11 +590,10 @@ fn the_u5_schema_rejects_broken_variants_and_solutions() {
 #[test]
 fn the_u5_schema_accepts_a_u4_file_and_the_frozen_u4_schema_too() {
     // Eine Ausgabe ohne die Neuerungen der Unterversion 5 (wie sie Runde 28 schrieb) gilt nach u5 und u4.
-    let u4 = write_xml(&without_u5(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"4\"",
-        1,
-    );
+    let u4 = write_xml(&without_u5(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"4\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     if xmllint_with(&schema(), "u4.baruch.xml", &u4) {
         assert!(xmllint_with(&schema_u4(), "u4.baruch.xml", &u4), "dieselbe Datei gilt nach dem u4-XSD");
     }
@@ -673,11 +676,10 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
     }
     assert!(checked >= 1, "mindestens eine Prüfdatei der Unterversion 1 gefunden");
     // Eine Ausgabe ohne die Neuerungen der Unterversion 4 (wie sie Runde 27 schrieb) gilt nach u4 und u3.
-    let u3 = write_xml(&without_u4(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"3\"",
-        1,
-    );
+    let u3 = write_xml(&without_u4(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     if xmllint_with(&schema(), "u3.baruch.xml", &u3) {
         assert!(xmllint_with(&schema_u3(), "u3.baruch.xml", &u3), "dieselbe Datei gilt nach dem u3-XSD");
     }
@@ -690,6 +692,7 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
     let xml = write_xml(&u2, ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1)
+        .replacen(" sprache=\"de\"", "", 1)
         .replace("    <verlag-anschrift>Probeverlag\nAm Brunnen 1\n12345 Musterstadt</verlag-anschrift>\n", "")
         .replace("    <druckerei-anschrift>Probedruck\nDruckgasse 2\n12345 Musterstadt</druckerei-anschrift>\n", "");
     assert!(!xml.contains("anschrift"), "Vorbedingung: eine Datei wie aus Runde 25");
@@ -703,6 +706,7 @@ fn the_u3_schema_accepts_every_valid_file_of_versions_one_and_two() {
     let xml = write_xml(&old, ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"1\"", 1)
+        .replacen(" sprache=\"de\"", "", 1)
         .replace("    <verlag-anschrift>Probeverlag\nAm Brunnen 1\n12345 Musterstadt</verlag-anschrift>\n", "")
         .replace("    <druckerei-anschrift>Probedruck\nDruckgasse 2\n12345 Musterstadt</druckerei-anschrift>\n", "");
     if xmllint_with(&schema(), "alt.baruch.xml", &xml) {
@@ -798,11 +802,10 @@ fn the_u7_schema_defines_registers_glossary_and_the_new_typeset_attributes() {
 #[test]
 fn the_u7_schema_accepts_a_u6_file_and_the_frozen_u6_schema_too_but_not_a_u7_file() {
     // Eine Ausgabe ohne die Neuerungen der Unterversion 7 (wie sie Runde 29 schrieb) gilt nach u7 und nach u6.
-    let u6 = write_xml(&without_u7(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"6\"",
-        1,
-    );
+    let u6 = write_xml(&without_u7(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"6\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     assert!(!u6.contains("<glossar>") && !u6.contains("glossarseite="), "Vorbedingung: ohne u7-Teile");
     if xmllint_with(&schema(), "u6.baruch.xml", &u6) {
         assert!(xmllint_with(&schema_u6(), "u6.baruch.xml", &u6), "dieselbe Datei gilt nach dem u6-XSD");
@@ -894,11 +897,10 @@ fn a_u8_output_with_amends_draft_and_stands_passes_the_u8_schema_but_not_the_fro
 #[test]
 fn the_u8_schema_accepts_a_u7_file_and_the_frozen_u7_schema_too() {
     // Abwärtsverträglich: eine Datei, wie Runde 31 sie schrieb (ohne u8-Teile, version 7), gilt nach u8 und u7.
-    let u7 = write_xml(&sample_document(), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"7\"",
-        1,
-    );
+    let u7 = write_xml(&sample_document(), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"7\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     assert!(!u7.contains("<fortschreibung") && !u7.contains("<entwurf"), "Vorbedingung: ohne u8-Teile");
     if xmllint_with(&schema(), "u7.baruch.xml", &u7) {
         assert!(xmllint_with(&schema_u7(), "u7.baruch.xml", &u7), "dieselbe Datei gilt nach dem u7-XSD");
@@ -947,11 +949,10 @@ fn a_u9_output_with_the_idea_tree_passes_the_u9_schema_but_not_the_frozen_u8() {
 #[test]
 fn the_u9_schema_accepts_a_u8_file_and_the_frozen_u8_schema_too() {
     // Abwärtsverträglich: eine Datei, wie Runde 22 sie schrieb (ohne Baum, version 8), gilt nach u9 und u8.
-    let u8_file = write_xml(&baruch_exchange::sample::sample_document_u8(), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"8\"",
-        1,
-    );
+    let u8_file = write_xml(&baruch_exchange::sample::sample_document_u8(), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"8\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     assert!(
         u8_file
             .lines()
@@ -979,6 +980,58 @@ fn the_u9_schema_rejects_a_long_title_a_broken_parent_and_a_wrong_place() {
     ] {
         if let Some(rejected) = rejected_by(&schema(), &broken) {
             assert!(rejected, "{what}: muss am u9-XSD scheitern");
+        }
+    }
+}
+
+// ---- Sub-version 10 (Round 38): work language at <angaben> ------------------------------------------------------
+
+/// SHA-256 of the frozen u9 schema (state of development 3fa5806, before Round 38).
+const U9_SHA256: &str = "aaf5267929ded5ef6eda9d4e6e522dfbe0bdf8065a102b5d6de9cb0e6decc939";
+
+#[test]
+fn a_u10_output_carries_the_work_language_and_passes_the_u10_schema_but_not_the_frozen_u9() {
+    assert_eq!(
+        sha256_hex(&std::fs::read(schema_u9()).unwrap()),
+        U9_SHA256,
+        "baruch-werk-1-u9.xsd is frozen: byte for byte unchanged"
+    );
+    for (doc, code) in
+        [(baruch_exchange::sample::sample_document_u9(), "de"), (baruch_exchange::sample::sample_document_u10(), "en")]
+    {
+        let xml = write_xml(&doc, ImageMode::Inline).unwrap();
+        assert!(
+            xml.contains(&format!("<angaben sprache=\"{code}\">")),
+            "the writer always writes the work language at <angaben>, also for a German work ({code})"
+        );
+        xmllint(&format!("u10-{code}.baruch.xml"), &xml);
+        xmllint(&format!("u10-{code}-dateien.xml"), &write_xml(&doc, ImageMode::Files).unwrap());
+        if let Some(rejected) = rejected_by(&schema_u9(), &xml) {
+            assert!(rejected, "the attribute sprache is unknown to the frozen u9 schema (a real extension)");
+        }
+    }
+}
+
+#[test]
+fn the_u10_schema_accepts_a_u9_file_and_rejects_an_unknown_language() {
+    // Downward compatible: a file as Round 34 wrote it (version 9, no attribute) is valid by u10 and by u9.
+    let u9_file = write_xml(&baruch_exchange::sample::sample_document_u9(), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"9\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
+    assert!(u9_file.contains("<angaben>"), "precondition: the file carries no work language");
+    if xmllint_with(&schema(), "u9.baruch.xml", &u9_file) {
+        assert!(
+            xmllint_with(&schema_u9(), "u9.baruch.xml", &u9_file),
+            "the same file is valid by the frozen u9 schema"
+        );
+    }
+    let xml = write_xml(&baruch_exchange::sample::sample_document_u10(), ImageMode::Inline).unwrap();
+    for bad in ["fr", "EN", "", "de en"] {
+        let broken = xml.replacen("<angaben sprache=\"en\">", &format!("<angaben sprache=\"{bad}\">"), 1);
+        assert_ne!(broken, xml, "precondition: the attribute was replaced");
+        if let Some(rejected) = rejected_by(&schema(), &broken) {
+            assert!(rejected, "sprache=\"{bad}\" must fail the u10 schema: only de and en are work languages");
         }
     }
 }

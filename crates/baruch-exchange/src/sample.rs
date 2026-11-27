@@ -328,6 +328,7 @@ pub fn sample_document() -> ExchangeDocument {
         author: "Hanna Probe".into(),
         audience: "Leser mit Geduld".into(),
         bible: "Freie Probeübersetzung".into(),
+        language: ExchangeLanguage::De,
         created: t(5, 8),
         updated: Some(t(8, 18)),
         numbering_scheme: "custom".into(),
@@ -693,6 +694,13 @@ pub fn sample_document() -> ExchangeDocument {
         work,
         unknown: Vec::new(),
     }
+}
+
+/// The sample work of sub-version 9 as an English work (sub-version 10, Round 38): `sprache="en"` at `<angaben>`.
+pub fn sample_document_u10() -> ExchangeDocument {
+    let mut doc = sample_document_u9();
+    doc.work.language = ExchangeLanguage::En;
+    doc
 }
 
 /// Das Beispielwerk der Unterversion 8 mit dem Baum der Mindmap (Unterversion 9, Runde 34): Der Einfall „Seil“ (am

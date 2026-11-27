@@ -584,7 +584,7 @@ fn write_map(x: &mut Xml, map: &ExchangeMap) -> Result<(), ExchangeError> {
 }
 
 fn write_details(x: &mut Xml, work: &ExchangeWork) -> Result<(), ExchangeError> {
-    x.start("angaben", &[])?;
+    x.start("angaben", &[a("sprache", work.language.as_xml())])?;
     x.text("titel", &[], &work.title)?;
     x.text("untertitel", &[], &work.subtitle)?;
     x.text("autor", &[], &work.author)?;

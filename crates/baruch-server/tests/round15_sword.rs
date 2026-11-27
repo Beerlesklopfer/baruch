@@ -199,7 +199,7 @@ async fn mcp_offers_three_read_only_tools_naming_the_licence() {
         ("lexicon_lookup", baruch_server::mcp::bibles::LEXICON_LOOKUP_DESCRIPTION),
         ("lexicon_search", baruch_server::mcp::bibles::LEXICON_SEARCH_DESCRIPTION),
     ] {
-        assert!(description.contains("nur lesend") && description.contains("Lizenzvermerk"), "{name}: {description}");
+        assert!(description.contains("read-only") && description.contains("licence note"), "{name}: {description}");
         assert!(baruch_server::mcp::tools::TOOLS.iter().any(|t| t.name == name), "{name} steht in der Werkzeugliste");
     }
 }

@@ -58,7 +58,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             out["template_rev"] = json!(saved.template_rev);
             Ok(out)
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

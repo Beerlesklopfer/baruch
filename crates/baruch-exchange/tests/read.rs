@@ -706,7 +706,10 @@ fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone
     assert!(xml.contains(COVER_TOMBSTONE), "Vorbedingung: Grabstein umschlag-block im XML");
     // Eine Datei, die behauptet, Unterversion 2 zu sein, aber die neuen Teile trägt: Der Leser liest sie wie ein
     // Leser der Unterversion 2 – die Teile sind unbekannt, übernommen wird nichts davon.
-    let v2 = xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1).replace(COVER_TOMBSTONE, "");
+    let v2 = xml
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1)
+        .replacen(" sprache=\"de\"", "", 1)
+        .replace(COVER_TOMBSTONE, "");
     let doc = read_xml(v2.as_bytes(), &Limits::DEFAULT).unwrap();
     for path in
         ["werk/angaben/satzbild", "werk/buch/verlag-anschrift", "werk/buch/druckerei-anschrift", "werk/buch/umschlag"]
@@ -718,7 +721,8 @@ fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone
     assert_eq!((book.publisher_address.as_str(), book.printer_address.as_str()), ("", ""), "Anschriften leer");
     assert_eq!(doc.work.sheet, None, "kein Satzbild übernommen");
     // Den Grabstein umschlag-block gibt es erst ab Unterversion 3 (wie verbindung/lage erst ab 2).
-    let with_stone = xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1);
+    let with_stone =
+        xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1).replacen(" sprache=\"de\"", "", 1);
     let result = read_xml(with_stone.as_bytes(), &Limits::DEFAULT);
     assert!(
         matches!(&result, Err(ExchangeError::Xml(m)) if m.contains("umschlag-block") && m.contains("Unterversion 3")),
@@ -732,6 +736,7 @@ fn files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone
     let plain = write_xml(&old, ImageMode::Inline)
         .unwrap()
         .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"2\"", 1)
+        .replacen(" sprache=\"de\"", "", 1)
         .replace(ADDRESS_LINES[0], "")
         .replace(ADDRESS_LINES[1], "");
     let doc = read_xml(plain.as_bytes(), &Limits::DEFAULT).unwrap();
@@ -900,11 +905,10 @@ fn files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones() {
     no_stones.work.deleted.retain(|t| t.kind.since_version() <= 3);
     // Eine Datei, die behauptet, Unterversion 3 zu sein, aber Befunde und Bearbeitungen trägt: wie ein Leser der
     // Unterversion 3 – unbekannt, nichts übernommen.
-    let v3 = write_xml(&no_stones, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"3\"",
-        1,
-    );
+    let v3 = write_xml(&no_stones, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(v3.as_bytes(), &Limits::DEFAULT).unwrap();
     for path in
         ["werk/befunde", "werk/gliederung/punkt/punkt/beitrag/alte-fassung", "werk/faeden/faden/beitrag/@geaendert"]
@@ -914,18 +918,18 @@ fn files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones() {
     assert!(doc.work.findings.is_empty(), "keine Befunde übernommen");
     assert!(doc.work.threads[0].posts.iter().all(|p| p.edited.is_none() && p.versions.is_empty()), "keine Fassungen");
     // Die Grabsteine der Unterversion 4 sind in einer Datei der Unterversion 3 ein Fehler.
-    let with_stone = xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1);
+    let with_stone =
+        xml.replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1).replacen(" sprache=\"de\"", "", 1);
     let result = read_xml(with_stone.as_bytes(), &Limits::DEFAULT);
     assert!(
         matches!(&result, Err(ExchangeError::Xml(m)) if m.contains("befund") && m.contains("Unterversion 4")),
         "befund in Unterversion 3 ist ein Fehler: {result:?}"
     );
     // Eine echte Ausgabe der Unterversion 3 liest sich weiter ohne Hinweis.
-    let plain = write_xml(&without_u4(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"3\"",
-        1,
-    );
+    let plain = write_xml(&without_u4(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"3\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(plain.as_bytes(), &Limits::DEFAULT).unwrap();
     assert!(doc.unknown.is_empty(), "u3-Ausgabe: nichts unbekannt: {:?}", doc.unknown);
     assert_eq!(doc.version, 3, "Unterversion der Datei bleibt sichtbar");
@@ -961,11 +965,10 @@ fn files_of_version_four_leave_the_u5_parts_unknown_and_still_read() {
     // gibt; er wäre ein Fehler, siehe Test zur Unterversion 6.)
     let mut doc = without_u7(sample_document());
     doc.work.deleted.retain(|t| t.kind.since_version() <= 5);
-    let v4 = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"4\"",
-        1,
-    );
+    let v4 = write_xml(&doc, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"4\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(v4.as_bytes(), &Limits::DEFAULT).unwrap();
     for path in [
         "werk/befunde/befund/loesung",
@@ -978,11 +981,10 @@ fn files_of_version_four_leave_the_u5_parts_unknown_and_still_read() {
     assert_eq!(doc.work.typeset, None, "keine Satz-Einstellungen übernommen");
     assert!(doc.work.findings.iter().all(|f| f.solutions.is_empty()), "keine Lösungen übernommen");
     // Eine echte Ausgabe der Unterversion 4 (ohne die neuen Teile) liest sich weiter ohne Hinweis.
-    let plain = write_xml(&without_u5(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"4\"",
-        1,
-    );
+    let plain = write_xml(&without_u5(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"4\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(plain.as_bytes(), &Limits::DEFAULT).unwrap();
     assert!(doc.unknown.is_empty(), "u4-Ausgabe: nichts unbekannt: {:?}", doc.unknown);
     assert_eq!(doc.version, 4, "Unterversion der Datei bleibt sichtbar");
@@ -1121,11 +1123,10 @@ fn files_of_version_five_leave_the_typeset_unknown_and_refuse_its_tombstone() {
     // Eine Datei, die behauptet, Unterversion 5 zu sein, aber <satz> trägt: unbekannt, nichts übernommen.
     let mut no_stone = without_u7(sample_document());
     no_stone.work.deleted.retain(|t| t.kind.since_version() <= 5);
-    let v5 = write_xml(&no_stone, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"5\"",
-        1,
-    );
+    let v5 = write_xml(&no_stone, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"5\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(v5.as_bytes(), &Limits::DEFAULT).unwrap();
     assert_eq!(doc.unknown, ["werk/angaben/satz"], "nur <satz> ist in Unterversion 5 unbekannt");
     assert_eq!(doc.work.typeset, None, "keine Satz-Einstellungen übernommen");
@@ -1146,11 +1147,10 @@ fn files_of_version_five_leave_the_typeset_unknown_and_refuse_its_tombstone() {
         );
     }
     // Eine echte Ausgabe der Unterversion 5 (ohne <satz>) liest sich weiter ohne Hinweis.
-    let plain = write_xml(&without_u6(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"5\"",
-        1,
-    );
+    let plain = write_xml(&without_u6(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"5\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(plain.as_bytes(), &Limits::DEFAULT).unwrap();
     assert!(doc.unknown.is_empty(), "u5-Ausgabe: nichts unbekannt: {:?}", doc.unknown);
     assert_eq!(doc.version, 5, "Unterversion der Datei bleibt sichtbar");
@@ -1189,7 +1189,7 @@ fn version_seven_carries_registers_glossary_and_the_new_typeset_fields_exactly()
     for needle in [
         // Runde 22: Der Schreiber schreibt immer die eigene Unterversion (8); die u7-Teile stehen weiter so da.
         // Geschrieben wird die eigene Unterversion (seit Runde 34 die 9).
-        "version=\"9\"",
+        "version=\"10\"",
         "<register uuid=\"26000000-0000-4000-8000-000000000456\" kennung=\"orte\" titel=\"Orte im Hof\"",
         "titel=\"Werkzeuge &amp; Geräte\"",
         "<begriff uuid=\"26000000-0000-4000-8000-00000000044c\" status=\"angenommen\" herkunft=\"Hanna Probe\"",
@@ -1225,11 +1225,10 @@ fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones()
     // nichts davon übernommen (auch nicht die neuen Attribute an <satz>).
     let mut doc = sample_document();
     doc.work.deleted.retain(|t| t.kind.since_version() <= 6);
-    let v6 = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"6\"",
-        1,
-    );
+    let v6 = write_xml(&doc, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"6\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let read6 = read_xml(v6.as_bytes(), &Limits::DEFAULT).unwrap();
     for path in [
         "werk/eigene-register",
@@ -1256,11 +1255,10 @@ fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones()
         let mut doc = without_u7(sample_document());
         let grave = sample_document().work.deleted.into_iter().find(|t| t.kind == stone).unwrap();
         doc.work.deleted.push(grave);
-        let old = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
-            &format!("version=\"{FORMAT_VERSION}\""),
-            "version=\"6\"",
-            1,
-        );
+        let old = write_xml(&doc, ImageMode::Inline)
+            .unwrap()
+            .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"6\"", 1)
+            .replacen(" sprache=\"de\"", "", 1);
         let result = read_xml(old.as_bytes(), &Limits::DEFAULT);
         assert!(
             matches!(&result, Err(ExchangeError::Xml(m)) if m.contains(&format!("„{word}“")) && m.contains("Unterversion 7")),
@@ -1268,11 +1266,10 @@ fn files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones()
         );
     }
     // Eine echte Ausgabe der Unterversion 6 (ohne die neuen Teile) liest sich weiter ohne Hinweis.
-    let plain = write_xml(&without_u7(sample_document()), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"6\"",
-        1,
-    );
+    let plain = write_xml(&without_u7(sample_document()), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"6\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(plain.as_bytes(), &Limits::DEFAULT).unwrap();
     assert!(doc.unknown.is_empty(), "u6-Ausgabe: nichts unbekannt: {:?}", doc.unknown);
     assert_eq!(doc.version, 6, "Unterversion der Datei bleibt sichtbar");
@@ -1314,7 +1311,7 @@ fn version_eight_carries_amends_stands_and_the_draft_exactly() {
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     for needle in [
         // Geschrieben wird immer die eigene Unterversion (seit Runde 34 die 9); die Teile der 8 stehen weiter darin.
-        "version=\"9\"",
+        "version=\"10\"",
         "<fortschreibung uuid=\"26000000-0000-4000-8000-000000000898\" seq=\"1\" art=\"amend\" autor=\"Hanna Probe\"",
         "seq=\"2\" art=\"undo\" undo-von=\"1\"",
         "<nachher>== Der Eimer\n\nZweiter Entwurf &amp; &lt;mehr&gt;.\n</nachher>",
@@ -1339,11 +1336,10 @@ fn files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombst
     // Eine Datei, die Unterversion 7 behauptet, aber u8-Teile trägt: gemeldet, nichts davon übernommen.
     let mut doc = baruch_exchange::sample::sample_document_u8();
     doc.work.deleted.retain(|t| t.kind.since_version() <= 7);
-    let v7 = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"7\"",
-        1,
-    );
+    let v7 = write_xml(&doc, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"7\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let read7 = read_xml(v7.as_bytes(), &Limits::DEFAULT).unwrap();
     for path in [
         "werk/angaben/satz/entwurf",
@@ -1364,11 +1360,10 @@ fn files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombst
         kind: ExchangeTombstoneKind::Amend,
         deleted: "2026-01-08T18:00:00.000Z".into(),
     });
-    let old = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"7\"",
-        1,
-    );
+    let old = write_xml(&doc, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"7\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let err = read_xml(old.as_bytes(), &Limits::DEFAULT).unwrap_err();
     assert!(err.to_string().contains("fortschreibung"), "Fehler nennt die Art: {err}");
 }
@@ -1411,7 +1406,7 @@ fn version_nine_carries_title_parent_place_and_main_topic_of_ideas_exactly() {
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     let rope = sample_uuid(40);
     for needle in [
-        "version=\"9\"".to_owned(),
+        "version=\"10\"".to_owned(),
         "titel=\"Das Seil &amp; sein &lt;Knoten&gt;\" platz=\"1\"".to_owned(),
         format!("titel=\"Lampe am Seil\" eltern=\"{rope}\" platz=\"2\""),
         "platz=\"3\" hauptthema=\"true\"".to_owned(),
@@ -1459,11 +1454,10 @@ fn files_of_version_eight_leave_the_tree_attributes_unknown_and_take_nothing_of_
     // Eine Datei, die Unterversion 8 behauptet, aber die Attribute der 9 trägt: gemeldet, nichts davon übernommen;
     // alles Übrige der Datei wird gelesen (Dateien der Unterversionen 1 bis 8 bleiben lesbar).
     let doc = baruch_exchange::sample::sample_document_u9();
-    let v8 = write_xml(&doc, ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"8\"",
-        1,
-    );
+    let v8 = write_xml(&doc, ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"8\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let read8 = read_xml(v8.as_bytes(), &Limits::DEFAULT).unwrap();
     assert_eq!(read8.version, 8, "die Unterversion der Datei bleibt sichtbar");
     for path in [

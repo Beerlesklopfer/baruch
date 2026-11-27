@@ -42,91 +42,91 @@ pub const NAMES: &[&str] = &[
 ];
 
 fn persona_schema() -> Value {
-    json!({ "type": "string", "description": "Persona-Handle (z. B. @lektor) als Autor bzw. Antragsteller (nur ohne Token vom eigenen Rechner); sonst der Client als @mcp:<name>" })
+    json!({ "type": "string", "description": "persona handle (e.g. @lektor) as author or requester (only without a token from the own machine); otherwise the client as @mcp:<name>" })
 }
 
 fn key_schema(what: &str) -> Value {
-    json!({ "type": "integer", "description": format!("fester Schlüssel {what} (key aus outline); bleibt beim Umstellen gleich") })
+    json!({ "type": "integer", "description": format!("stable key {what} (key from outline); survives rearranging") })
 }
 
 fn title_schema() -> Value {
-    json!({ "type": "string", "description": "Titel: nicht leer, einzeilig, höchstens 200 Zeichen" })
+    json!({ "type": "string", "description": "title: not empty, one line, at most 200 characters" })
 }
 
 fn place_schema(default: bool) -> Value {
     let text = if default {
-        "before: vor den Punkt; after (Vorgabe): hinter ihn samt Unterpunkten; into: als letzten Unterpunkt"
+        "before: before the item; after (default): after it with its sub-items; into: as the last sub-item"
     } else {
-        "before: vor das Ziel; after: hinter das Ziel samt Unterpunkten; into: als letzten Unterpunkt des Ziels"
+        "before: before the target; after: after the target with its sub-items; into: as the last sub-item of the target"
     };
     json!({ "enum": ["before", "after", "into"], "description": text })
 }
 
 fn note_schema() -> Value {
-    json!({ "type": "string", "description": "Begründung für den Menschen" })
+    json!({ "type": "string", "description": "reason for the human" })
 }
 
 pub fn add_schema() -> Value {
     json!({ "type": "object", "required": ["work"], "properties": {
         "work": work_schema(),
-        "key": key_schema("des Bezugspunkts; fehlt nur in einem Werk ohne Gliederungspunkt"),
+        "key": key_schema("of the reference item; missing only in a work without any outline item"),
         "place": place_schema(true),
         "title": title_schema(),
         "level": { "type": "integer", "minimum": 0, "maximum": 3,
-            "description": "nur mit title: absolute Ebene des Punkts (0 Teil vor/hinter einem Teil oder Kapitel, auch mit Werkvorlage); fehlt sie, die Ebene des Orts" },
+            "description": "only with title: absolute level of the item (0 part before/after a part or chapter, also with a work template); if missing, the level of the place" },
         "items": { "type": "array", "minItems": 1, "maxItems": baruch_store::MAX_NEW_POINTS,
-            "description": "statt title: mehrere Punkte in Baumreihenfolge als ein Block (eine Transaktion, ein Commit). \
-                            level = absolute Ebene (0 Teil, 1 Kapitel, 2 Abschnitt, 3 Unterabschnitt); \
-                            fehlt sie, gilt die Ebene des Orts. Der erste Punkt steht auf der Ebene des Orts, keiner höher \
-                            (außer Teilen), jeder höchstens eine Ebene tiefer als der vorige. Teile (level 0) vor oder hinter \
-                            einem Teil oder Kapitel, nicht mit place into; die folgenden Kapitel bis zum nächsten Teil stehen \
-                            dann unter dem neuen Teil (adopted).",
+            "description": "instead of title: several items in tree order as one block (one transaction, one commit). \
+                            level = absolute level (0 part, 1 chapter, 2 section, 3 subsection); \
+                            if missing, the level of the place applies. The first item stands on the level of the place, none higher \
+                            (except parts), each at most one level deeper than the previous one. Parts (level 0) before or after \
+                            a part or chapter, not with place into; the following chapters up to the next part then stand \
+                            below the new part (adopted).",
             "items": { "type": "object", "required": ["title"], "properties": {
                 "title": title_schema(),
                 "level": { "type": "integer", "minimum": 0, "maximum": 3 } } } },
-        "note": { "type": "string", "description": "Begründung für den Menschen (nur, wenn ein Antrag entsteht)" },
+        "note": { "type": "string", "description": "reason for the human (only if a request results)" },
         "persona": persona_schema(),
-        "model": { "type": "string", "description": "Modell für Revision 1; sonst Name und Version des Clients" } } })
+        "model": { "type": "string", "description": "model for revision 1; otherwise name and version of the client" } } })
 }
 
 pub fn rename_schema() -> Value {
     json!({ "type": "object", "required": ["work", "key", "title"], "properties": {
-        "work": work_schema(), "key": key_schema("des Punkts"), "title": title_schema(),
+        "work": work_schema(), "key": key_schema("of the item"), "title": title_schema(),
         "note": note_schema(), "persona": persona_schema() } })
 }
 
 pub fn move_schema() -> Value {
     json!({ "type": "object", "required": ["work", "key", "target_key", "place"], "properties": {
-        "work": work_schema(), "key": key_schema("des Punkts"), "target_key": key_schema("des Ziels"),
+        "work": work_schema(), "key": key_schema("of the item"), "target_key": key_schema("of the target"),
         "place": place_schema(false), "note": note_schema(), "persona": persona_schema() } })
 }
 
 pub fn set_level_schema() -> Value {
     json!({ "type": "object", "required": ["work", "key", "level"], "properties": {
-        "work": work_schema(), "key": key_schema("des Punkts"),
-        "level": { "type": "integer", "minimum": 1, "maximum": 3, "description": "1 Kapitel, 2 Abschnitt, 3 Unterabschnitt; Unterpunkte wandern mit" },
+        "work": work_schema(), "key": key_schema("of the item"),
+        "level": { "type": "integer", "minimum": 1, "maximum": 3, "description": "1 chapter, 2 section, 3 subsection; sub-items move along" },
         "note": note_schema(), "persona": persona_schema() } })
 }
 
 pub fn set_numbered_schema() -> Value {
     json!({ "type": "object", "required": ["work", "key", "numbered"], "properties": {
-        "work": work_schema(), "key": key_schema("des Punkts"),
-        "numbered": { "type": "boolean", "description": "true: mit Nummer zählen; false: ohne Nummer (z. B. Vorwort, Einleitung)" },
+        "work": work_schema(), "key": key_schema("of the item"),
+        "numbered": { "type": "boolean", "description": "true: count with a number; false: without a number (e.g. preface, introduction)" },
         "note": note_schema(), "persona": persona_schema() } })
 }
 
 pub fn delete_schema() -> Value {
     json!({ "type": "object", "required": ["work", "key"], "properties": {
-        "work": work_schema(), "key": key_schema("des Punkts (nur ohne Unterpunkte)"),
+        "work": work_schema(), "key": key_schema("of the item (only without sub-items)"),
         "note": note_schema(), "persona": persona_schema() } })
 }
 
 pub fn requests_schema() -> Value {
     json!({ "type": "object", "required": ["work"], "properties": {
         "work": work_schema(),
-        "open": { "type": "boolean", "description": "true (Vorgabe): nur offene; false: auch entschiedene" },
-        "preview": { "type": "boolean", "description": "true: je offenem Antrag preview (Gliederung nach dem Bestätigen: key, level, number, title, mark same|renamed|moved|level|numbered|deleted) bzw. preview_error (veraltet, nicht mehr ausführbar); Vorgabe false" },
-        "mine": { "type": "boolean", "description": "nur eigene (Antragsteller = persona bzw. @mcp:<name>); Vorgabe false" },
+        "open": { "type": "boolean", "description": "true (default): only open ones; false: also decided ones" },
+        "preview": { "type": "boolean", "description": "true: per open request preview (outline after confirming: key, level, number, title, mark same|renamed|moved|level|numbered|deleted) or preview_error (stale, no longer executable); default false" },
+        "mine": { "type": "boolean", "description": "only own ones (requester = persona or @mcp:<name>); default false" },
         "persona": persona_schema() } })
 }
 
@@ -137,11 +137,11 @@ async fn origin(state: &AppState, client: &Client, persona: Option<&str>) -> Res
 
 fn parse_place(value: Option<&str>, default: Option<Place>) -> Result<Place, Failure> {
     match value.map(str::trim) {
-        None => default.ok_or_else(|| Failure::Args("arguments: place fehlt (before, after oder into)".into())),
+        None => default.ok_or_else(|| Failure::Args("arguments: place is missing (before, after or into)".into())),
         Some("before") => Ok(Place::Before),
         Some("after") => Ok(Place::After),
         Some("into") => Ok(Place::Into),
-        Some(other) => Err(Failure::Args(format!("arguments: place „{other}“ – before, after oder into erwartet"))),
+        Some(other) => Err(Failure::Args(format!("arguments: place \"{other}\" – before, after or into expected"))),
     }
 }
 
@@ -149,8 +149,7 @@ fn parse_place(value: Option<&str>, default: Option<Place>) -> Result<Place, Fai
 fn refuse_target(arguments: &Value) -> Result<(), Failure> {
     if arguments.get("target").is_some() {
         return Err(Failure::Args(
-            "arguments: target (Stelle) wird nicht angenommen; target_key mitgeben (fester Schlüssel aus outline)."
-                .into(),
+            "arguments: target (position) is not accepted; pass target_key (stable key from outline).".into(),
         ));
     }
     Ok(())
@@ -215,21 +214,22 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
     let a: AddArgs = args(arguments.clone())?;
     if arguments.get("node").is_some() {
         return Err(Failure::Args(
-            "arguments: node (Stelle) wird nicht angenommen; key mitgeben (fester Schlüssel aus outline bzw. read_node)."
-                .into(),
+            "arguments: node (position) is not accepted; pass key (stable key from outline or read_node).".into(),
         ));
     }
     let points = match (a.title, a.items) {
         (Some(title), None) => vec![NewPoint { title, level: a.level }],
         (None, Some(_)) if a.level.is_some() => {
-            return Err(Failure::Args("arguments: level nur mit title; bei items je Punkt items[].level".into()));
+            return Err(Failure::Args(
+                "arguments: level only with title; with items use items[].level per item".into(),
+            ));
         }
         (None, Some(items)) => items,
-        (Some(_), Some(_)) => return Err(Failure::Args("arguments: entweder title oder items, nicht beides".into())),
-        (None, None) => return Err(Failure::Args("arguments: title oder items fehlt".into())),
+        (Some(_), Some(_)) => return Err(Failure::Args("arguments: either title or items, not both".into())),
+        (None, None) => return Err(Failure::Args("arguments: title or items is missing".into())),
     };
     if points.is_empty() {
-        return Err(Failure::Args("arguments: items ist leer".into()));
+        return Err(Failure::Args("arguments: items is empty".into()));
     }
     let place = parse_place(a.place.as_deref(), Some(Place::After))?;
     let (work, _, _) = resolve(&state.store, &a.work).await?;
@@ -253,8 +253,8 @@ async fn add(state: &AppState, client: &Client, arguments: Value) -> Result<Valu
                     "request": crate::outline::request_json(&request),
                     "adopted": request.expected.adopted,
                     "message": format!(
-                        "Antrag {} gestellt, wartet auf Zustimmung: {}. Nichts geändert – der neue Teil übernähme \
-                         vorhandene Kapitel; das braucht die aktive Zustimmung des Menschen.",
+                        "Request {} filed, waiting for approval: {}. Nothing changed – the new part would adopt \
+                         existing chapters; that needs the active approval of the human.",
                         request.id, request.summary
                     ),
                     "url": requests_url(work),
@@ -285,23 +285,23 @@ async fn request(state: &AppState, client: &Client, name: &str, arguments: Value
     let key = write_key(&arguments, a.key, "arguments")?;
     let op = match name {
         "outline_rename" => {
-            let title = a.title.ok_or_else(|| Failure::Args("arguments: title fehlt".into()))?;
+            let title = a.title.ok_or_else(|| Failure::Args("arguments: title is missing".into()))?;
             OutlineOp::Rename { key, title }
         }
         "outline_move" => {
             refuse_target(&arguments)?;
             let target_key = a.target_key.ok_or_else(|| {
-                Failure::Args("arguments: target_key fehlt – das Ziel über seinen festen Schlüssel angeben.".into())
+                Failure::Args("arguments: target_key is missing – name the target by its stable key.".into())
             })?;
             OutlineOp::Move { key, target_key, place: parse_place(a.place.as_deref(), None)? }
         }
         "outline_set_level" => {
-            let level = a.level.ok_or_else(|| Failure::Args("arguments: level fehlt (1 bis 3)".into()))?;
+            let level = a.level.ok_or_else(|| Failure::Args("arguments: level is missing (1 to 3)".into()))?;
             OutlineOp::SetLevel { key, level }
         }
         "outline_set_numbered" => {
             let numbered =
-                a.numbered.ok_or_else(|| Failure::Args("arguments: numbered fehlt (true oder false)".into()))?;
+                a.numbered.ok_or_else(|| Failure::Args("arguments: numbered is missing (true or false)".into()))?;
             OutlineOp::SetNumbered { key, numbered }
         }
         _ => OutlineOp::Delete { key },
@@ -315,7 +315,7 @@ async fn request(state: &AppState, client: &Client, name: &str, arguments: Value
         "request": crate::outline::request_json(&request),
         "status": "open",
         "message": format!(
-            "Antrag {} angelegt ({}); nichts geändert. Der Mensch bestätigt oder lehnt ab.",
+            "Request {} filed ({}); nothing changed. The human confirms or rejects.",
             request.id, request.summary
         ),
         "url": requests_url(work),

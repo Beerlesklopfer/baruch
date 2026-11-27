@@ -621,7 +621,7 @@ async fn mcp_creates_subnodes_moves_them_and_reads_the_tree_with_its_origin_in_t
     assert!(answer["result"].is_object(), "initialize: {answer}");
     let hint = answer["result"]["instructions"].as_str().unwrap_or_default();
     assert!(
-        hint.contains("idea_tree") && hint.contains("idea_move") && hint.contains("Wolke"),
+        hint.contains("idea_tree") && hint.contains("idea_move") && hint.contains("cloud"),
         "der Hinweis nennt die Mindmap: {hint}"
     );
     let session = headers.get("mcp-session-id").unwrap().to_str().unwrap().to_owned();
@@ -642,11 +642,11 @@ async fn mcp_creates_subnodes_moves_them_and_reads_the_tree_with_its_origin_in_t
     }
     assert!(by_name("idea_update")["inputSchema"]["properties"]["title"].is_object(), "idea_update kennt title");
     assert!(
-        by_name("idea_delete")["description"].as_str().unwrap().contains("Unterknoten"),
+        by_name("idea_delete")["description"].as_str().unwrap().contains("sub-nodes"),
         "idea_delete sagt, dass Unterknoten mitgelöscht werden"
     );
     assert!(
-        by_name("idea_map")["description"].as_str().unwrap().contains("Mindmap"),
+        by_name("idea_map")["description"].as_str().unwrap().contains("mind map"),
         "idea_map spricht von der Mindmap"
     );
     // Die Fragmente aus docs/r34 sind eingesetzt: MCP.md nennt die Werkzeuge, RPC.md die Methoden.
@@ -726,14 +726,14 @@ async fn export_in_version_nine_and_reading_it_back_keeps_title_parent_and_order
     let exported =
         result(&b.server.rpc("work.exchange_export", json!({ "work": b.work, "format": "xml" })).await).clone();
     let xml = exported["xml"].as_str().expect("xml in der Antwort").to_owned();
-    assert!(xml.contains("version=\"9\""), "Ausgabe in Unterversion 9");
+    assert!(xml.contains("version=\"10\""), "Ausgabe in Unterversion 9");
     assert!(
         xml.contains("titel=\"Kanal &amp; &lt;Schleuse&gt;\"") && xml.contains("hauptthema=\"true\""),
         "Titel und Hauptthema: {xml}"
     );
     assert!(xml.contains(" eltern=\"") && xml.contains(" platz=\""), "Elternknoten und Platz stehen in der Datei");
     // Gültig nach dem XSD der Unterversion 9 (fehlt xmllint, ehrlich übersprungen).
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("werk.baruch.xml");
     std::fs::write(&file, &xml).unwrap();

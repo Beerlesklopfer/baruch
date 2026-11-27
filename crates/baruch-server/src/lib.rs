@@ -549,7 +549,7 @@ async fn rpc_endpoint(State(state): State<Arc<AppState>>, headers: HeaderMap, bo
         }
         Ok(request @ Value::Object(_)) => rpc::handle(&state, &settings, request).await,
         Ok(_) => json!({ "jsonrpc": "2.0", "id": null,
-            "error": { "code": rpc::INVALID_REQUEST, "message": "Objekt oder Liste erwartet" } }),
+            "error": { "code": rpc::INVALID_REQUEST, "message": "object or list expected" } }),
         Err(e) => json!({ "jsonrpc": "2.0", "id": null,
             "error": { "code": rpc::PARSE_ERROR, "message": e.to_string() } }),
     };
