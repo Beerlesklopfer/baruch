@@ -1,38 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stichwortzettel (Runde 16c): aus fertigen Karten (je Gliederungspunkt Nummer, Titel, Zeitmarke,
-//! Dauer, Stichpunkte, Bibelstellen) eine Typst-Quelle für großen Druck bauen, die [`crate::compile_pdf`]
-//! setzt.
+//! Cue sheet („Stichwortzettel“, Round 16c): build from finished cards (per outline item number, title, time
+//! mark, duration, key points, Bible references) a Typst source for large print that [`crate::compile_pdf`]
+//! typesets.
 //!
-//! - **Rein:** Welche Stichpunkte ein Abschnitt hat, entscheidet der Server (`pdf::notes`); hier
-//!   entsteht nur der Satz.
-//! - **Formate:** [`NotesFormat::A5`] (A5 hoch, Vorgabe 16 pt, Abschnitte fließen nacheinander) und
-//!   [`NotesFormat::Cards`] (Karten A6 quer, Vorgabe 14 pt, jeder Abschnitt beginnt auf einer eigenen
-//!   Karte – lange Abschnitte laufen auf weitere Karten über). Schriftgröße [`MIN_FONT_PT`] bis
-//!   [`MAX_FONT_PT`], außerhalb geklemmt.
-//! - **Sicher maskiert:** Kein Text der Karten wird als Typst-Markup gelesen. Jeder steht als
-//!   Typst-Zeichenkette (`"…"`, [`typst_string`]) in der Quelle und wird als Text gesetzt; `#`, `[`, `]`,
-//!   `*`, `$`, `\`, `<`, `@` erscheinen darum wörtlich. Jeder Titel und Stichpunkt steht zusätzlich als
-//!   `metadata` mit dem Label `<baruch-note>` im Dokument (prüfbar über `query`).
+//! - **Pure:** which key points a section has is decided by the server (`pdf::notes`); here
+//!   only the typesetting is done.
+//! - **Formats:** [`NotesFormat::A5`] (A5 portrait, default 16 pt, sections flow one after another) and
+//!   [`NotesFormat::Cards`] (cards A6 landscape, default 14 pt, every section starts on a card of its
+//!   own – long sections run over onto further cards). Font size [`MIN_FONT_PT`] to
+//!   [`MAX_FONT_PT`], clamped outside.
+//! - **Safely escaped:** no text of the cards is read as Typst markup. Each one is a
+//!   Typst string (`"…"`, [`typst_string`]) in the source and is typeset as text; `#`, `[`, `]`,
+//!   `*`, `$`, `\`, `<`, `@` therefore appear verbatim. Every title and key point is additionally in the
+//!   document as `metadata` with the label `<baruch-note>` (checkable through `query`).
 
-/// Kleinste Schriftgröße in Punkt.
+/// Smallest font size in points.
 pub const MIN_FONT_PT: u32 = 14;
-/// Größte Schriftgröße in Punkt.
+/// Largest font size in points.
 pub const MAX_FONT_PT: u32 = 28;
 
-/// Druckformat des Stichwortzettels.
+/// Print format of the cue sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotesFormat {
-    /// A5 hoch, Abschnitte nacheinander.
+    /// A5 portrait, sections one after another.
     A5,
-    /// Karten A6 quer, je Abschnitt mindestens eine Karte.
+    /// Cards A6 landscape, at least one card per section.
     Cards,
 }
 
 impl NotesFormat {
-    /// Alle Formate in der Reihenfolge der Auswahl.
+    /// All formats in the order of the selection.
     pub const ALL: [NotesFormat; 2] = [NotesFormat::A5, NotesFormat::Cards];
 
-    /// Aus dem Schnittstellen-Namen `a5` bzw. `karten` (Groß-/Kleinschreibung egal).
+    /// From the interface name `a5` or `karten` (case does not matter).
     pub fn parse(text: &str) -> Option<NotesFormat> {
         match text.trim().to_ascii_lowercase().as_str() {
             "a5" => Some(NotesFormat::A5),
@@ -41,7 +41,7 @@ impl NotesFormat {
         }
     }
 
-    /// Schnittstellen-Name: `a5` bzw. `karten`.
+    /// Interface name: `a5` or `karten`.
     pub fn as_str(self) -> &'static str {
         match self {
             NotesFormat::A5 => "a5",
@@ -49,7 +49,7 @@ impl NotesFormat {
         }
     }
 
-    /// Anzeige: „A5 hoch“ bzw. „Karten (A6 quer)“.
+    /// Display: „A5 hoch“ or „Karten (A6 quer)“.
     pub fn label(self) -> &'static str {
         match self {
             NotesFormat::A5 => "A5 hoch",
@@ -57,7 +57,7 @@ impl NotesFormat {
         }
     }
 
-    /// Vorgabe der Schriftgröße: 16 pt (A5) bzw. 14 pt (Karten).
+    /// Default of the font size: 16 pt (A5) or 14 pt (cards).
     pub fn default_font_pt(self) -> u32 {
         match self {
             NotesFormat::A5 => 16,
@@ -66,37 +66,37 @@ impl NotesFormat {
     }
 }
 
-/// Eine Karte: ein Gliederungspunkt.
+/// A card: one outline item.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NotesCard {
-    /// Nummer nach dem Schema des Werks („I.“, „2.1“) oder leer.
+    /// Number according to the scheme of the work ("I.", "2.1") or empty.
     pub number: String,
     pub title: String,
-    /// Zahl der Vorfahren (0 = oberste Ebene); rückt den Titel ein.
+    /// Number of ancestors (0 = top level); indents the title.
     pub depth: usize,
-    /// Zeitmarke, zu der der Punkt beginnt („3:20“).
+    /// Time mark at which the item starts ("3:20").
     pub start_clock: String,
-    /// Dauer des eigenen Texts („1:05“).
+    /// Duration of its own text ("1:05").
     pub clock: String,
     pub points: Vec<String>,
-    /// Bibelstellen in einheitlicher Schreibweise.
+    /// Bible references in uniform notation.
     pub refs: Vec<String>,
 }
 
-/// Der ganze Zettel.
+/// The whole sheet.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NotesDoc {
     pub title: String,
-    /// Gesamtdauer („18:30“).
+    /// Total duration ("18:30").
     pub total_clock: String,
-    /// Zielzeit („20:00“), wenn gesetzt.
+    /// Target time ("20:00"), if set.
     pub target_clock: Option<String>,
     pub cards: Vec<NotesCard>,
 }
 
-/// Text als Typst-Zeichenkette in Anführungszeichen: `\` und `"` maskiert, Zeilenumbrüche und
-/// Tabulatoren als `\n`/`\t`, übrige Steuerzeichen als `\u{…}`. So wird nichts davon als Markup oder
-/// Code gelesen.
+/// Text as a Typst string in quotation marks: `\` and `"` escaped, line breaks and
+/// tabs as `\n`/`\t`, other control characters as `\u{…}`. That way nothing of it is read as markup or
+/// code.
 pub fn typst_string(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -125,10 +125,10 @@ fn string_array(items: &[String]) -> String {
     out
 }
 
-/// Typst-Quelle des Zettels (eine Datei, keine Bilder). Der Kopf jeder Karte (Titel, Zeiten, Linie) ist ein
-/// `block(sticky: true)`: Er bleibt bei seinen Stichpunkten und steht nie allein unten auf einer Seite
-/// (Integration Runde 16, Sichtprüfung). `font_pt` wird auf
-/// [`MIN_FONT_PT`]–[`MAX_FONT_PT`] geklemmt.
+/// Typst source of the sheet (one file, no images). The head of every card (title, times, line) is a
+/// `block(sticky: true)`: it stays with its key points and never stands alone at the bottom of a page
+/// (integration Round 16, visual check). `font_pt` is clamped to
+/// [`MIN_FONT_PT`]–[`MAX_FONT_PT`].
 pub fn notes_source(doc: &NotesDoc, format: NotesFormat, font_pt: u32) -> String {
     let size = font_pt.clamp(MIN_FONT_PT, MAX_FONT_PT);
     let mut out = String::new();
@@ -160,7 +160,7 @@ pub fn notes_source(doc: &NotesDoc, format: NotesFormat, font_pt: u32) -> String
          \x20 #if c.refs.len() > 0 [#text(size: 0.85em, style: \"italic\")[#c.refs.join(\" · \")]]\n\
          ]\n"
     ));
-    // Kopf: Titel und Zeiten (bei Karten auf der ersten Karte über dem ersten Abschnitt).
+    // Head: title and times (with cards on the first card above the first section).
     let mut times = format!("Gesamt {}", doc.total_clock);
     if let Some(target) = &doc.target_clock {
         times.push_str(&format!(" · Ziel {target}"));

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Reader-Profile der EPUB-Vorschau (Besitz „reader“, Runde 20b). Typen und Slugs seit S1 eingefroren
-//! (Reihenfolge = Anzeige); die Werte sind Annahmen ohne Gerät (siehe unten und docs/Architektur.md).
+//! Reader profiles of the EPUB preview (ownership "reader", Round 20b). Types and slugs frozen since S1 (order =
+//! display); the values are assumptions without a device (see below and docs/Architektur.md).
 //!
-//! Hersteller-Reader von Android sind ohne Netz und Gerät nicht prüfbar: Annahme/Nutzerfrage in der Doku, kein
-//! erfundenes Profil.
+//! Vendor readers of Android cannot be checked without network and device: assumption/question to the user in
+//! the documentation, no invented profile.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct ReaderSupport {
@@ -25,20 +25,20 @@ pub struct ReaderProfile {
     pub width_px: u32,
     pub height_px: u32,
     pub required: bool,
-    /// Amazon: das EPUB geht durch Send to Kindle (Umwandlung).
+    /// Amazon: the EPUB goes through Send to Kindle (conversion).
     pub via_conversion: bool,
     pub supports: ReaderSupport,
     pub note: &'static str,
 }
 
-// Werte der Profile (Runde 20b). Alles ohne echtes Gerät und ohne Netz zusammengestellt: Maße sind CSS-Pixel
-// gängiger Geräte (Hochformat), Fähigkeiten nach dem bekannten Verhalten der Leseprogramme beim Stand des
-// Wissens der Entwickler – **Annahmen**, in docs/Architektur.md („R20b reader“) so vermerkt. Standardschrift,
-// Größe, Ränder, Zeilenabstand, Silbentrennung und Nachtmodus bildet je Profil `static/readers/<slug>.css` im
-// Server nach.
+// Values of the profiles (Round 20b). Everything compiled without a real device and without network: dimensions
+// are CSS pixels of common devices (portrait), capabilities according to the known behaviour of the reading
+// programs to the best of the developers' knowledge – **assumptions**, noted as such in docs/Architektur.md
+// ("R20b reader"). Default font, size, margins, line spacing, hyphenation and night mode are reproduced per
+// profile by `static/readers/<slug>.css` in the server.
 
-/// Apple Books: Fußnoten als Popup (`epub:type="noteref"`/`"footnote"`), eigene Schriften nur mit
-/// `com.apple.ibooks.display-options.xml` sicher, Silbentrennung über `hyphens`, Nachtmodus.
+/// Apple Books: footnotes as a popup (`epub:type="noteref"`/`"footnote"`), own fonts only safe with
+/// `com.apple.ibooks.display-options.xml`, hyphenation through `hyphens`, night mode.
 const APPLE: ReaderSupport = ReaderSupport {
     popup_footnotes: true,
     embedded_fonts: true,
@@ -50,8 +50,8 @@ const APPLE: ReaderSupport = ReaderSupport {
     overrides_publisher_font: false,
 };
 
-/// Google Play Books: Vorgabe „Original“ (Schrift des Verlags), Popup-Fußnoten, Nachtmodus; Silbentrennung
-/// übernimmt der Reader nach eigener Einstellung (Annahme).
+/// Google Play Books: default "Original" (font of the publisher), popup footnotes, night mode; hyphenation is
+/// done by the reader according to its own setting (assumption).
 const PLAY: ReaderSupport = ReaderSupport {
     popup_footnotes: true,
     embedded_fonts: true,
@@ -63,8 +63,8 @@ const PLAY: ReaderSupport = ReaderSupport {
     overrides_publisher_font: false,
 };
 
-/// Kindle-Gerät (E-Ink) nach Send to Kindle: Umwandlung, Bookerly statt Verlagsschrift (außer „Verlagsschrift“
-/// gewählt), keine Hintergrundfarben, SVG unsicher, Popup-Fußnoten, dunkler Modus.
+/// Kindle device (e-ink) after Send to Kindle: conversion, Bookerly instead of the publisher font (unless
+/// "publisher font" is chosen), no background colours, SVG unsafe, popup footnotes, dark mode.
 const KINDLE: ReaderSupport = ReaderSupport {
     popup_footnotes: true,
     embedded_fonts: true,
@@ -76,12 +76,12 @@ const KINDLE: ReaderSupport = ReaderSupport {
     overrides_publisher_font: true,
 };
 
-/// Kindle-App (Telefon) nach Send to Kindle: wie das Gerät, aber farbig; Hintergründe entfernt die Umwandlung
-/// meist (Annahme).
+/// Kindle app (phone) after Send to Kindle: like the device, but in colour; the conversion mostly removes
+/// backgrounds (assumption).
 const KINDLE_APP: ReaderSupport = KINDLE;
 
-/// tolino (E-Ink): Fußnoten als Sprung, nicht als Popup (Annahme); Verlagsschrift, Silbentrennung, dunkler Modus
-/// erst in neuer Firmware (Annahme).
+/// tolino (e-ink): footnotes as a jump, not as a popup (assumption); publisher font, hyphenation, dark mode only
+/// in new firmware (assumption).
 const TOLINO: ReaderSupport = ReaderSupport {
     popup_footnotes: false,
     embedded_fonts: true,
@@ -93,7 +93,7 @@ const TOLINO: ReaderSupport = ReaderSupport {
     overrides_publisher_font: false,
 };
 
-/// Kobo (E-Ink) mit gewöhnlichem EPUB (nicht KEPUB): Fußnoten als Sprung, Verlagsschrift wählbar.
+/// Kobo (e-ink) with ordinary EPUB (not KEPUB): footnotes as a jump, publisher font selectable.
 const KOBO: ReaderSupport = ReaderSupport {
     popup_footnotes: false,
     embedded_fonts: true,
@@ -105,7 +105,7 @@ const KOBO: ReaderSupport = ReaderSupport {
     overrides_publisher_font: false,
 };
 
-/// Readium-Leser am Rechner (Thorium) bzw. calibre-Betrachter: vollständiges EPUB 3.
+/// Readium reader on the computer (Thorium) or calibre viewer: complete EPUB 3.
 const DESKTOP: ReaderSupport = ReaderSupport {
     popup_footnotes: true,
     embedded_fonts: true,
@@ -117,7 +117,7 @@ const DESKTOP: ReaderSupport = ReaderSupport {
     overrides_publisher_font: false,
 };
 
-/// Alle Profile in Anzeige-Reihenfolge: zuerst die Pflicht-Profile.
+/// All profiles in display order: the mandatory profiles first.
 pub static PROFILES: &[ReaderProfile] = &[
     ReaderProfile {
         slug: "apple-books-iphone",
@@ -226,12 +226,12 @@ pub static PROFILES: &[ReaderProfile] = &[
     },
 ];
 
-/// Die Pflicht-Profile (Vorgabe der Vorschau), in Anzeige-Reihenfolge.
+/// The mandatory profiles (default of the preview), in display order.
 pub fn required() -> impl Iterator<Item = &'static ReaderProfile> {
     PROFILES.iter().filter(|p| p.required)
 }
 
-/// Profil zu `slug`.
+/// Profile for `slug`.
 pub fn profile(slug: &str) -> Option<&'static ReaderProfile> {
     PROFILES.iter().find(|p| p.slug == slug)
 }

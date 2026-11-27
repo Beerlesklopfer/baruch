@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen im Austauschformat (Runde 29, Unterversion 6; Doku `docs/Austauschformat.md`, Abschnitt
-//! „Satz-Einstellungen“): Wörter der Attribute von `<satz>` je Feld von
+//! Typesetting settings in the exchange format (Round 29, sub-version 6; documentation
+//! `docs/Austauschformat.md`, section „Satz-Einstellungen“): words of the attributes of `<satz>` per field of
 //! [`baruch_typst::typeset::TypesetSettings`].
 //!
-//! - Jedes Feld ist ein Attribut (fehlt = aus der Werkvorlage); zusammengesetzte Felder stehen ganz oder gar nicht da:
-//!   `teil-seite` + `teil-rueckseite-leer`, `seitenformat` (bei `eigenes` mit `seite-breite-mm` + `seite-hoehe-mm`),
-//!   die fünf Ränder `rand-innen-mm`, `rand-aussen-mm`, `rand-oben-mm`, `rand-unten-mm`, `bundsteg-mm`, `absatz` +
-//!   `absatz-em`, `seitenzahlen` + `seitenzahlen-beginn`, `fussnoten` + `fussnoten-zaehlung`. Halbe Angaben lehnt
-//!   [`settings_from_attrs`] ab.
-//! - Zahlen als `f64::to_string` (wie `double` im Schreiber), Wahrheitswerte `true`/`false`.
-//! - Die Werte prüft hier niemand gegen die Grenzen; das tut das Einlesen mit `TypesetSettings::validate`.
-//! - Ab Unterversion 7 (Runde 31) die Register/Glossar-Felder ([`R31_ATTRIBUTES`]): `glossarseite`
-//!   (`vor-registern`|`nach-registern`), `registerseiten` (Kennungen durch Leerzeichen getrennt) +
-//!   `registerseiten-spalten` (zusammen), `glossar-erste-erwaehnung` (true|false). [`settings_from_attrs`] liest sie
-//!   nicht (Unterversion 6); das tut [`r31_from_attrs`], den der Leser erst ab Unterversion 7 aufruft – in einer älteren
-//!   Datei werden sie so als unbekannt gemeldet.
-//! - Ab Unterversion 8 (Runde 22) der Entwurf als Kind `<entwurf/>` von `<satz>` ([`DRAFT_ATTRIBUTES`]): `text`,
-//!   `zusatz` (nur, wenn nicht leer), `datum`, `deckkraft` (Prozent), `lage` (`diagonal`|`kopfzeile`|`fusszeile`),
-//!   `umschlag`. [`draft_attrs`] und [`draft_from_attrs`]; der Leser ruft Letzteres erst ab Unterversion 8 auf.
+//! - Every field is an attribute (missing = from the work template); compound fields are there completely or not
+//!   at all: `teil-seite` + `teil-rueckseite-leer`, `seitenformat` (with `eigenes` together with
+//!   `seite-breite-mm` + `seite-hoehe-mm`), the five margins `rand-innen-mm`, `rand-aussen-mm`, `rand-oben-mm`,
+//!   `rand-unten-mm`, `bundsteg-mm`, `absatz` + `absatz-em`, `seitenzahlen` + `seitenzahlen-beginn`,
+//!   `fussnoten` + `fussnoten-zaehlung`. Half details are rejected by [`settings_from_attrs`].
+//! - Numbers as `f64::to_string` (like `double` in the writer), booleans `true`/`false`.
+//! - Nobody checks the values against the limits here; the import does that with `TypesetSettings::validate`.
+//! - From sub-version 7 (Round 31) the index/glossary fields ([`R31_ATTRIBUTES`]): `glossarseite`
+//!   (`vor-registern`|`nach-registern`), `registerseiten` (identifiers separated by spaces) +
+//!   `registerseiten-spalten` (together), `glossar-erste-erwaehnung` (true|false). [`settings_from_attrs`] does
+//!   not read them (sub-version 6); that is done by [`r31_from_attrs`], which the reader calls only from
+//!   sub-version 7 – in an older file they are thus reported as unknown.
+//! - From sub-version 8 (Round 22) the draft as child `<entwurf/>` of `<satz>` ([`DRAFT_ATTRIBUTES`]): `text`,
+//!   `zusatz` (only if not empty), `datum`, `deckkraft` (percent), `lage` (`diagonal`|`kopfzeile`|`fusszeile`),
+//!   `umschlag`. [`draft_attrs`] and [`draft_from_attrs`]; the reader calls the latter only from sub-version 8.
 
 use baruch_typst::typeset::{
     ChapterStart, Draft, DraftPlacement, FootnoteNumbering, FootnoteRestart, Footnotes, GlossaryPosition, IndexPages,
@@ -25,11 +25,11 @@ use baruch_typst::typeset::{
     TypesetSettings,
 };
 
-/// Attribute der Register/Glossar-Felder (ab Unterversion 7), in der Reihenfolge des Schreibers.
+/// Attributes of the index/glossary fields (from sub-version 7), in the order of the writer.
 pub const R31_ATTRIBUTES: [&str; 4] =
     ["glossarseite", "registerseiten", "registerseiten-spalten", "glossar-erste-erwaehnung"];
 
-/// Alle Attribute von `<satz>` außer `uuid`, `geaendert`, `geaendert-von`, in der Reihenfolge des Schreibers.
+/// All attributes of `<satz>` except `uuid`, `geaendert`, `geaendert-von`, in the order of the writer.
 pub const TYPESET_ATTRIBUTES: [&str; 30] = [
     "kapitelanfang",
     "teil-seite",
@@ -63,17 +63,17 @@ pub const TYPESET_ATTRIBUTES: [&str; 30] = [
     "glossar-erste-erwaehnung",
 ];
 
-/// Attribute von `<entwurf/>` (ab Unterversion 8) in der Reihenfolge des Schreibers.
+/// Attributes of `<entwurf/>` (from sub-version 8) in the order of the writer.
 pub const DRAFT_ATTRIBUTES: [&str; 6] = ["text", "zusatz", "datum", "deckkraft", "lage", "umschlag"];
 
-/// Lage des Wasserzeichens im XML.
+/// Position of the watermark in the XML.
 const DRAFT_PLACEMENT: [(DraftPlacement, &str); 3] = [
     (DraftPlacement::Diagonal, "diagonal"),
     (DraftPlacement::Header, "kopfzeile"),
     (DraftPlacement::Footer, "fusszeile"),
 ];
 
-/// Wort einer Aufzählung im XML und zurück: (Wert, Wort).
+/// Word of an enumeration in the XML and back: (value, word).
 const CHAPTER_START: [(ChapterStart, &str); 3] = [
     (ChapterStart::Continuous, "fortlaufend"),
     (ChapterStart::NewPage, "neue-seite"),
@@ -125,8 +125,8 @@ fn format_word(format: PageFormat) -> &'static str {
     }
 }
 
-/// Attribute (Name, Wert) der gesetzten Felder in der Reihenfolge von [`TYPESET_ATTRIBUTES`]. Eine nicht endliche
-/// Zahl → `Err` mit dem Namen des Attributs (das XSD kennt nur endliche `double`).
+/// Attributes (name, value) of the set fields in the order of [`TYPESET_ATTRIBUTES`]. A non-finite number →
+/// `Err` with the name of the attribute (the XSD knows only finite `double`).
 pub fn settings_attrs(s: &TypesetSettings) -> Result<Vec<(&'static str, String)>, String> {
     let mut out: Vec<(&'static str, String)> = Vec::new();
     let number = |out: &mut Vec<(&'static str, String)>, name: &'static str, x: f64| {
@@ -233,9 +233,9 @@ fn parse_number(value: &str, name: &str) -> Result<f64, String> {
     if number.is_finite() { Ok(number) } else { Err(format!("@{name}: „{value}“ ist keine endliche Zahl")) }
 }
 
-/// Einstellungen aus den Attributen von `<satz>`; `get(name)` liefert den Wert eines Attributs (und merkt es sich als
-/// gelesen). Unbekannte Wörter, keine Zahl bzw. kein Wahrheitswert und halbe zusammengesetzte Felder → `Err` mit dem
-/// Namen des Attributs (`@rand-oben-mm: …`).
+/// Settings from the attributes of `<satz>`; `get(name)` delivers the value of an attribute (and remembers it as
+/// read). Unknown words, not a number or not a boolean, and half compound fields → `Err` with the name of the
+/// attribute (`@rand-oben-mm: …`).
 pub fn settings_from_attrs<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> Result<TypesetSettings, String> {
     let mut s = TypesetSettings::default();
     if let Some(word) = get("kapitelanfang") {
@@ -335,9 +335,9 @@ pub fn settings_from_attrs<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> 
     Ok(s)
 }
 
-/// Register/Glossar-Felder (ab Unterversion 7) aus den Attributen von `<satz>` in `s` eintragen; `get` wie bei
-/// [`settings_from_attrs`]. Unbekannte Wörter, leere Registerliste, keine Spaltenzahl und `registerseiten` ohne
-/// `registerseiten-spalten` (und umgekehrt) → `Err` mit dem Namen des Attributs.
+/// Enter index/glossary fields (from sub-version 7) from the attributes of `<satz>` into `s`; `get` as in
+/// [`settings_from_attrs`]. Unknown words, empty index list, no column count and `registerseiten` without
+/// `registerseiten-spalten` (and vice versa) → `Err` with the name of the attribute.
 pub fn r31_from_attrs<'a>(s: &mut TypesetSettings, mut get: impl FnMut(&str) -> Option<&'a str>) -> Result<(), String> {
     if let Some(word) = get("glossarseite") {
         s.glossary_page = Some(value_of(&GLOSSARY_POSITION, word, "glossarseite")?);
@@ -362,8 +362,8 @@ pub fn r31_from_attrs<'a>(s: &mut TypesetSettings, mut get: impl FnMut(&str) -> 
     Ok(())
 }
 
-/// Attribute von `<entwurf/>` (ab Unterversion 8) in der Reihenfolge von [`DRAFT_ATTRIBUTES`]; `zusatz` nur, wenn
-/// nicht leer.
+/// Attributes of `<entwurf/>` (from sub-version 8) in the order of [`DRAFT_ATTRIBUTES`]; `zusatz` only if not
+/// empty.
 pub fn draft_attrs(d: &Draft) -> Vec<(&'static str, String)> {
     let mut out: Vec<(&'static str, String)> = vec![("text", d.text.clone())];
     if !d.note.is_empty() {
@@ -376,9 +376,9 @@ pub fn draft_attrs(d: &Draft) -> Vec<(&'static str, String)> {
     out
 }
 
-/// Entwurf aus den Attributen von `<entwurf/>`; Pflicht sind `text`, `deckkraft` und `lage`, `zusatz` fehlt = leer,
-/// `datum`/`umschlag` fehlen = `false`. Fehler mit dem Namen des Attributs. Die Grenzen prüft das Einlesen
-/// (`TypesetSettings::validate`).
+/// Draft from the attributes of `<entwurf/>`; mandatory are `text`, `deckkraft` and `lage`, `zusatz` missing =
+/// empty, `datum`/`umschlag` missing = `false`. Errors with the name of the attribute. The limits are checked by
+/// the import (`TypesetSettings::validate`).
 pub fn draft_from_attrs<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> Result<Draft, String> {
     let text = get("text").ok_or("@text: Pflichtattribut fehlt")?.to_owned();
     let note = get("zusatz").unwrap_or("").to_owned();
@@ -393,7 +393,7 @@ pub fn draft_from_attrs<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> Res
     Ok(Draft { text, note, date, opacity_percent, placement, cover })
 }
 
-/// Ein Entwurf mit allen Feldern (Rundreise-Tests der Unterversion 8; frei erfundene Texte mit Sonderzeichen).
+/// A draft with all fields (round-trip tests of sub-version 8; freely invented texts with special characters).
 pub fn full_draft() -> Draft {
     Draft {
         text: "Probe & <Satz>".into(),
@@ -405,8 +405,8 @@ pub fn full_draft() -> Draft {
     }
 }
 
-/// Alle Felder gesetzt (Beispiel des Vertrags R29 §2, seit Runde 31 mit den Register/Glossar-Feldern) – für
-/// Rundreise-Tests.
+/// All fields set (example of contract R29 §2, since Round 31 with the index/glossary fields) – for
+/// round-trip tests.
 pub fn full_sample() -> TypesetSettings {
     TypesetSettings {
         chapter_start: Some(ChapterStart::RightPage),
@@ -428,11 +428,11 @@ pub fn full_sample() -> TypesetSettings {
         footnotes: Some(Footnotes { numbering: FootnoteNumbering::Arabic, restart: FootnoteRestart::PerChapter }),
         widows_orphans: Some(true),
         xref_with_page: Some(true),
-        // Runde 31 (Unterversion 7): Register/Glossar-Felder.
+        // Round 31 (sub-version 7): index/glossary fields.
         glossary_page: Some(GlossaryPosition::BeforeIndexes),
         index_pages: Some(IndexPages { registers: vec!["stichwort".into(), "bibel".into()], columns: 2 }),
         glossary_first_mention: Some(true),
-        // Runde 22 (S1): Entwurf steht erst ab Unterversion 8 im Format (spiegel-entwurf).
+        // Round 22 (S1): the draft is in the format only from sub-version 8 (spiegel-entwurf).
         draft: None,
     }
 }
@@ -451,7 +451,7 @@ mod tests {
 
     #[test]
     fn the_draft_survives_the_round_trip_with_every_placement() {
-        // R22 §2.11 (b): jedes Feld des Entwurfs steht in <entwurf/>; ohne Zusatz fehlt nur `zusatz`.
+        // R22 §2.11 (b): every field of the draft is in <entwurf/>; without an addition only `zusatz` is missing.
         for placement in DraftPlacement::ALL {
             let draft = Draft { placement: *placement, ..full_draft() };
             let attrs: HashMap<&str, String> = draft_attrs(&draft).into_iter().collect();
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn every_field_and_every_word_survives_the_round_trip() {
-        // Vertrag §6.6: jedes Feld aus §2 darstellbar. Erst alle Felder, dann je Aufzählung jedes Wort einzeln.
+        // Contract §6.6: every field from §2 representable. First all fields, then per enumeration every word singly.
         let full = full_sample();
         assert_eq!(round_trip(&full), full, "alle 19 Felder");
         assert_eq!(
@@ -537,8 +537,8 @@ mod tests {
 
     #[test]
     fn every_attribute_of_the_writer_is_listed() {
-        // Der Leser meldet nur Attribute als unbekannt, die nicht in der Liste stehen; jede geschriebene Zeile muss
-        // also darin vorkommen (auch die Maße des eigenen Formats).
+        // The reader reports only attributes as unknown that are not in the list; so every written line must
+        // occur in it (also the dimensions of the custom format).
         let custom = TypesetSettings {
             page_format: Some(PageFormat::Custom { width_mm: 130.0, height_mm: 200.0 }),
             ..full_sample()
@@ -549,7 +549,7 @@ mod tests {
 
     #[test]
     fn half_composite_fields_and_unknown_words_are_refused() {
-        // Halbe Angaben würden still ein Feld verlieren; der Leser lehnt sie mit dem Namen des Attributs ab.
+        // Half details would silently lose a field; the reader rejects them with the name of the attribute.
         let cases: [(&[(&str, &str)], &str); 11] = [
             (&[("glossarseite", "hinten")], "@glossarseite"),
             (&[("registerseiten", "stichwort")], "@registerseiten"),

@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Schreiber: [`DocxDocument`] → .docx (Aufgabe docx_export, Vertrag Runde 32 §3).
+//! Writer: [`DocxDocument`] → .docx (task docx_export, contract Round 32 §3).
 //!
-//! Zusagen (Vertrag): gültiges OOXML nach [`crate::ooxml`], deterministisch (feste ZIP-Zeiten, feste Reihenfolge:
-//! gleiche Eingabe → gleiche Bytes), XML-verbotene Zeichen werden ersetzt statt ein kaputtes Dokument zu schreiben.
+//! Promises (contract): valid OOXML according to [`crate::ooxml`], deterministic (fixed ZIP times, fixed order:
+//! same input → same bytes), characters forbidden in XML are replaced instead of writing a broken document.
 //!
-//! Aufbau der Datei:
-//! - Titelei aus [`crate::DocxMeta`]: Titel (`Title`), Untertitel (`Subtitle`), Autor (`BaruchAutor`), je Zeile des
-//!   Impressums ein Absatz (`BaruchImpressum`); dieselben Angaben stehen in `docProps/core.xml` (`dc:title`,
-//!   `dc:subject` = Untertitel, `dc:creator`, `dc:description` = Impressum, `dc:language`).
-//! - Blöcke nach [`body`]: Überschriften `Heading1…6` bzw. `BaruchOhneNummer1…3`, Teile `BaruchTeil`, Blockzitat
-//!   `Quote` mit Quelle `BaruchZitatquelle`, Listen über `numbering.xml`, Tabellen, Abbildungen mit `Caption`.
-//! - Fußnoten echt in `word/footnotes.xml` (Kennungen ab 2; 0 und 1 sind die Trennlinien), Kommentare in
-//!   `word/comments.xml`. Antworten (`reply_to`) stehen als eigene Kommentare an der Stelle des Kommentars, auf den
-//!   sie antworten; `commentsExtended.xml` schreibt der Schreiber nicht (in [`crate::ooxml`] nur für den Leser
-//!   festgelegt).
-//! - Bilder unter `word/media/imageN.<endung>` (N = Index im Dokument + 1); der Pfad im Werk steht in
-//!   `wp:docPr name`, der Alternativtext in `descr`.
-//! - Typst-Insel: `w:sdt` mit `w:tag w:val="baruch-typst"`, darin erst der mit `w:vanish` verborgene Quelltext
-//!   (Zeilenumbruch = `w:br`), dann das Sichtbare. Eine Abbildung mit `raw` steht ebenso in einer Insel.
-//! - Verfolgte Änderungen: `w:ins`/`w:del` um jeden Lauf (gelöschter Text als `w:delText`), die Absatzmarke in
+//! Structure of the file:
+//! - Front matter from [`crate::DocxMeta`]: title (`Title`), subtitle (`Subtitle`), author (`BaruchAutor`), one
+//!   paragraph per line of the imprint (`BaruchImpressum`); the same details are in `docProps/core.xml`
+//!   (`dc:title`, `dc:subject` = subtitle, `dc:creator`, `dc:description` = imprint, `dc:language`).
+//! - Blocks according to [`body`]: headings `Heading1…6` or `BaruchOhneNummer1…3`, parts `BaruchTeil`, block quote
+//!   `Quote` with source `BaruchZitatquelle`, lists through `numbering.xml`, tables, figures with `Caption`.
+//! - Footnotes for real in `word/footnotes.xml` (identifiers from 2; 0 and 1 are the separator lines), comments
+//!   in `word/comments.xml`. Replies (`reply_to`) are comments of their own at the place of the comment they reply
+//!   to; the writer does not write `commentsExtended.xml` (defined in [`crate::ooxml`] for the reader only).
+//! - Images under `word/media/imageN.<endung>` (N = index in the document + 1); the path in the work is in
+//!   `wp:docPr name`, the alternative text in `descr`.
+//! - Typst island: `w:sdt` with `w:tag w:val="baruch-typst"`, inside it first the source text hidden with
+//!   `w:vanish` (line break = `w:br`), then the visible part. A figure with `raw` is likewise in an island.
+//! - Tracked changes: `w:ins`/`w:del` around every run (deleted text as `w:delText`), the paragraph mark in
 //!   `w:pPr/w:rPr`.
 
 mod body;
@@ -35,18 +34,18 @@ use self::body::{Part, Rels, Renderer, esc, valid_date};
 use crate::ooxml::*;
 use crate::{DocxDocument, DocxError};
 
-/// Namensraum von `docProps/app.xml`.
+/// Namespace of `docProps/app.xml`.
 const NS_APP: &str = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
 const XML_HEAD: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
-/// Beziehungen der Fußnoten (Verweise und Bilder in Fußnoten).
+/// Relationships of the footnotes (references and images in footnotes).
 const PART_FOOTNOTES_RELS: &str = "word/_rels/footnotes.xml.rels";
 
-/// Angaben, die nicht aus dem Dokument kommen.
+/// Details that do not come from the document.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WriteOptions {
-    /// Zeitpunkt für `docProps/core.xml` (ISO 8601 UTC); leer = ohne Angabe.
+    /// Time for `docProps/core.xml` (ISO 8601 UTC); empty = not given.
     pub created: String,
-    /// Name des erzeugenden Programms für `docProps/app.xml` (z. B. „Baruch 0.9.0“).
+    /// Name of the generating program for `docProps/app.xml` (e.g. "Baruch 0.9.0").
     pub generator: String,
 }
 
@@ -82,7 +81,7 @@ fn core_xml(document: &DocxDocument, options: &WriteOptions) -> String {
         ("dc:language", meta.lang.as_str()),
     ] {
         if !value.trim().is_empty() {
-            // Im Elementinhalt bleibt der Zeilenumbruch ein Zeilenumbruch.
+            // In element content the line break stays a line break.
             let _ = write!(out, "<{tag}>{}</{tag}>", esc(value.trim()).replace("&#10;", "\n"));
         }
     }
@@ -139,12 +138,12 @@ fn footnotes_xml(footnotes: &[String]) -> String {
     out
 }
 
-/// Schreibt das Dokument als .docx.
+/// Writes the document as .docx.
 pub fn write(document: &DocxDocument, options: &WriteOptions) -> Result<Vec<u8>, DocxError> {
     let mut renderer = Renderer::new(document);
     let has_comments = !document.comments.is_empty();
 
-    // Feste Beziehungen des Hauptteils zuerst, damit ihre Kennungen nicht vom Inhalt abhängen.
+    // Fixed relationships of the main part first, so that their identifiers do not depend on the content.
     {
         let rels = renderer.rels_mut(Part::Document);
         rels.add(REL_STYLES, "styles.xml", false);
@@ -165,7 +164,8 @@ pub fn write(document: &DocxDocument, options: &WriteOptions) -> Result<Vec<u8>,
         renderer.front_line(STYLE_IMPRINT, line, &mut text)?;
     }
     renderer.blocks(&document.blocks, None, &mut text)?;
-    // Kommentare ohne Stelle im Text: ihr Zeichen steht in einem Absatz am Schluss, sonst zeigte Word sie nicht.
+    // Comments without a place in the text: their mark is in a paragraph at the end, otherwise Word would not show
+    // them.
     let loose = renderer.unreferenced_comments();
     if !loose.is_empty() {
         text.push_str("<w:p>");
@@ -184,7 +184,7 @@ pub fn write(document: &DocxDocument, options: &WriteOptions) -> Result<Vec<u8>,
         side = image::MARGIN_SIDE_TWIPS,
     );
 
-    // Inhaltstypen: Endungen der Bilder, dann die Teile.
+    // Content types: extensions of the images, then the parts.
     let mut extensions: Vec<&str> =
         renderer.media.values().filter_map(|file| file.rsplit_once('.').map(|(_, ext)| ext)).collect();
     extensions.sort_unstable();
@@ -246,7 +246,7 @@ pub fn write(document: &DocxDocument, options: &WriteOptions) -> Result<Vec<u8>,
 
     let failed = |e: &dyn std::fmt::Display| DocxError::Write(e.to_string());
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
-    // Feste Zeit (1980-01-01) und feste Rechte: gleiche Eingabe ergibt gleiche Bytes.
+    // Fixed time (1980-01-01) and fixed permissions: same input yields same bytes.
     let options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .last_modified_time(DateTime::default())

@@ -1,42 +1,43 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Baum → Modell (Vertrag R26 Abschnitt 4).
+//! Tree → model (contract R26 section 4).
 //!
-//! - Elemente des Formats stehen im Namensraum [`NAMESPACE`], Attribute ohne Präfix. Die Reihenfolge der Kinder
-//!   prüft der Leser nicht (das XSD tut es); fehlt ein Pflichtelement oder -attribut → [`ExchangeError::Xml`].
-//! - Was der Leser nicht kennt (Elemente, Attribute, Text in einem Element ohne Text, Elemente fremder
-//!   Namensräume), landet als Pfad in [`ExchangeDocument::unknown`]: `werk/angaben/farbe` für ein Element,
-//!   `werk/angaben/@farbe` für ein Attribut, `werk/angaben/#text` für Text, `{ns}name` für fremde Namensräume.
-//!   Je Pfad ein Eintrag; übernommen wird davon nichts.
-//! - `<karte>` mit `<verbindung>` und `<lage>` (Runde 25) und die Grabsteinarten `verbindung` und `lage` gelten
-//!   erst ab `version="2"`: In einer Datei der Unterversion 1 wird `<karte>` als unbekannt gemeldet und ein solcher
-//!   Grabstein ist ein Fehler. Eine noch höhere Unterversion liest die Karte wie 2, meldet Unbekanntes darin und
-//!   überspringt Grabsteine unbekannter Art.
-//! - Ab `version="3"` (Runde 27): `<satzbild>` in `<angaben>`, in `<buch>` `<verlag-anschrift>`,
-//!   `<druckerei-anschrift>` (fehlen sie, gilt leer) und `<umschlag>` mit `<block>`; Grabsteinart `umschlag-block`.
-//!   In einer Datei der Unterversion 1 oder 2 werden diese Elemente als unbekannt gemeldet und nicht übernommen, ein
-//!   solcher Grabstein ist ein Fehler.
-//! - Ab `version="4"` (Runde 28): `<befunde>` am Ende von `<werk>` (Befunde mit `<status-eintrag>`), an `<beitrag>`
-//!   (Abschnitt und Faden) `geaendert` und `<alte-fassung>`; Grabsteinarten `befund`, `befund-status`,
-//!   `beitrag-fassung`. In einer Datei der Unterversionen 1 bis 3 werden sie als unbekannt gemeldet und nicht
-//!   übernommen, ein solcher Grabstein ist ein Fehler.
-//! - Text mit `kodierung="base64"` wird entschlüsselt (UTF-8). `<daten>` ist Base64 (Leerraum erlaubt).
-//! - Ab `version="5"` (Runde 30): an `<befund>` die `<loesung>`-Elemente, an `<fassung>` die Variante
-//!   (`variante-gruppe`, `variante`, `variante-zeile`, `<setzt-um befund>`), an `<beitrag>` (Abschnitt und Faden)
-//!   `grundlage-fassung`, `grundlage`, `antwort-auf`, `wiederholt`, `relay-von`. In einer Datei der Unterversionen 1
-//!   bis 4 werden sie als unbekannt gemeldet und nicht übernommen.
-//! - Ab `version="6"` (Runde 29): `<satz>` in `<angaben>` (Satz-Einstellungen, Wörter aus [`crate::typeset`]);
-//!   Grabsteinart `satz`. In einer Datei der Unterversionen 1 bis 5 wird `<satz>` als unbekannt gemeldet und nicht
-//!   übernommen, ein solcher Grabstein ist ein Fehler. Halbe zusammengesetzte Felder → [`ExchangeError::Xml`].
-//! - Ab `version="8"` (Runde 22): an `<fassung>` `stand`, `beruht-stand` und die `<fortschreibung>`-Kinder, in `<satz>`
-//!   das Kind `<entwurf/>`, an `<befund>` und `<status-eintrag>` `stand`. In einer älteren Datei werden sie als
-//!   unbekannt gemeldet und nicht übernommen; die Grabsteinart `fortschreibung` ist dort ein Fehler.
-//! - Ab `version="9"` (Runde 34): an `<einfall>` `titel`, `eltern`, `platz`, `hauptthema` (Baum der Mindmap). In einer
-//!   älteren Datei werden sie als unbekannt gemeldet und nicht übernommen.
-//! - Ab `version="7"` (Runde 31): am Ende von `<werk>` `<eigene-register>` (je `<register>`) und `<glossar>` (je
-//!   `<begriff>` mit `<wort>`, `<kurz>`, `<ausfuehrlich>`, `<quelle>`, `<variante>`, `<bibelstelle>`), an `<satz>` die
-//!   Register/Glossar-Attribute ([`crate::typeset::r31_from_attrs`]); Grabsteinarten `glossar-begriff`, `register`. In
-//!   einer Datei der Unterversionen 1 bis 6 werden sie als unbekannt gemeldet und nicht übernommen, ein solcher
-//!   Grabstein ist ein Fehler.
+//! - Elements of the format are in the namespace [`NAMESPACE`], attributes without prefix. The reader does not
+//!   check the order of the children (the XSD does); a missing mandatory element or attribute →
+//!   [`ExchangeError::Xml`].
+//! - What the reader does not know (elements, attributes, text in an element without text, elements of foreign
+//!   namespaces) ends up as a path in [`ExchangeDocument::unknown`]: `werk/angaben/farbe` for an element,
+//!   `werk/angaben/@farbe` for an attribute, `werk/angaben/#text` for text, `{ns}name` for foreign namespaces.
+//!   One entry per path; nothing of it is taken over.
+//! - `<karte>` with `<verbindung>` and `<lage>` (Round 25) and the tombstone kinds `verbindung` and `lage` apply
+//!   only from `version="2"`: in a file of sub-version 1 `<karte>` is reported as unknown and such a tombstone is
+//!   an error. A still higher sub-version reads the map like 2, reports unknown things in it and skips
+//!   tombstones of unknown kind.
+//! - From `version="3"` (Round 27): `<satzbild>` in `<angaben>`, in `<buch>` `<verlag-anschrift>`,
+//!   `<druckerei-anschrift>` (if missing, empty applies) and `<umschlag>` with `<block>`; tombstone kind
+//!   `umschlag-block`. In a file of sub-version 1 or 2 these elements are reported as unknown and not taken over,
+//!   such a tombstone is an error.
+//! - From `version="4"` (Round 28): `<befunde>` at the end of `<werk>` (findings with `<status-eintrag>`), on
+//!   `<beitrag>` (section and thread) `geaendert` and `<alte-fassung>`; tombstone kinds `befund`,
+//!   `befund-status`, `beitrag-fassung`. In a file of sub-versions 1 to 3 they are reported as unknown and not
+//!   taken over, such a tombstone is an error.
+//! - Text with `kodierung="base64"` is decoded (UTF-8). `<daten>` is Base64 (whitespace allowed).
+//! - From `version="5"` (Round 30): on `<befund>` the `<loesung>` elements, on `<fassung>` the variant
+//!   (`variante-gruppe`, `variante`, `variante-zeile`, `<setzt-um befund>`), on `<beitrag>` (section and thread)
+//!   `grundlage-fassung`, `grundlage`, `antwort-auf`, `wiederholt`, `relay-von`. In a file of sub-versions 1
+//!   to 4 they are reported as unknown and not taken over.
+//! - From `version="6"` (Round 29): `<satz>` in `<angaben>` (typesetting settings, words from
+//!   [`crate::typeset`]); tombstone kind `satz`. In a file of sub-versions 1 to 5 `<satz>` is reported as unknown
+//!   and not taken over, such a tombstone is an error. Half compound fields → [`ExchangeError::Xml`].
+//! - From `version="8"` (Round 22): on `<fassung>` `stand`, `beruht-stand` and the `<fortschreibung>` children,
+//!   in `<satz>` the child `<entwurf/>`, on `<befund>` and `<status-eintrag>` `stand`. In an older file they are
+//!   reported as unknown and not taken over; the tombstone kind `fortschreibung` is an error there.
+//! - From `version="9"` (Round 34): on `<einfall>` `titel`, `eltern`, `platz`, `hauptthema` (tree of the mind
+//!   map). In an older file they are reported as unknown and not taken over.
+//! - From `version="7"` (Round 31): at the end of `<werk>` `<eigene-register>` (one `<register>` each) and
+//!   `<glossar>` (one `<begriff>` each with `<wort>`, `<kurz>`, `<ausfuehrlich>`, `<quelle>`, `<variante>`,
+//!   `<bibelstelle>`), on `<satz>` the index/glossary attributes ([`crate::typeset::r31_from_attrs`]); tombstone
+//!   kinds `glossar-begriff`, `register`. In a file of sub-versions 1 to 6 they are reported as unknown and not
+//!   taken over, such a tombstone is an error.
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -45,17 +46,17 @@ use super::dom::Element;
 use crate::ExchangeError;
 use crate::model::*;
 
-/// Verweis einer Bildfassung auf einen Eintrag im Archiv (`datei`): (Bild, Fassung, Eintrag).
+/// Reference of an image revision to an entry in the archive (`datei`): (image, revision, entry).
 #[derive(Debug, Clone)]
 pub(crate) struct FileRef {
     pub asset: usize,
     pub revision: usize,
     pub entry: String,
-    /// Bytezahl laut XML (`bytes`), geprüft gegen den Eintrag.
+    /// Byte count according to the XML (`bytes`), checked against the entry.
     pub bytes: u64,
 }
 
-/// Gesammelte unbekannte Pfade (ohne Doppel, in der Reihenfolge des Auftretens).
+/// Collected unknown paths (without duplicates, in the order of appearance).
 #[derive(Debug, Default)]
 pub(crate) struct Unknown(Vec<String>);
 
@@ -71,7 +72,7 @@ fn is_xml_space(text: &str) -> bool {
     text.chars().all(|c| matches!(c, ' ' | '\t' | '\n' | '\r'))
 }
 
-/// Ein Element beim Abbilden: merkt sich, welche Kinder und Attribute gelesen wurden.
+/// An element during mapping: remembers which children and attributes were read.
 struct Cursor<'a> {
     el: &'a Element,
     path: String,
@@ -124,7 +125,7 @@ impl<'a> Cursor<'a> {
         out
     }
 
-    /// Unbenutztes melden.
+    /// Report what was not used.
     fn finish(self, unknown: &mut Unknown) {
         for (attr, used) in self.el.attrs.iter().zip(&self.used_attrs) {
             if !used {
@@ -148,7 +149,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Text des Elements (Typ `Text`): exakt, mit `kodierung="base64"` entschlüsselt.
+    /// Text of the element (type `Text`): exact, decoded with `kodierung="base64"`.
     fn text(&mut self) -> Result<String, ExchangeError> {
         self.text_used = true;
         match self.attr("kodierung") {
@@ -165,7 +166,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Bytes aus `xs:base64Binary` (Leerraum erlaubt).
+    /// Bytes from `xs:base64Binary` (whitespace allowed).
     fn base64(&mut self) -> Result<Vec<u8>, ExchangeError> {
         self.text_used = true;
         let compact: String = self.el.text.chars().filter(|c| !matches!(c, ' ' | '\t' | '\n' | '\r')).collect();
@@ -175,7 +176,7 @@ impl<'a> Cursor<'a> {
     }
 }
 
-/// Text eines Pflicht-Kindelements.
+/// Text of a mandatory child element.
 fn req_text(parent: &mut Cursor<'_>, name: &str, unknown: &mut Unknown) -> Result<String, ExchangeError> {
     let mut child = parent.req_child(name)?;
     let text = child.text()?;
@@ -183,7 +184,7 @@ fn req_text(parent: &mut Cursor<'_>, name: &str, unknown: &mut Unknown) -> Resul
     Ok(text)
 }
 
-/// Text eines optionalen Kindelements.
+/// Text of an optional child element.
 fn opt_text(parent: &mut Cursor<'_>, name: &str, unknown: &mut Unknown) -> Result<Option<String>, ExchangeError> {
     match parent.child(name) {
         Some(mut child) => {
@@ -195,7 +196,7 @@ fn opt_text(parent: &mut Cursor<'_>, name: &str, unknown: &mut Unknown) -> Resul
     }
 }
 
-/// Texte aller Kindelemente dieses Namens.
+/// Texts of all child elements of this name.
 fn all_texts(parent: &mut Cursor<'_>, name: &str, unknown: &mut Unknown) -> Result<Vec<String>, ExchangeError> {
     let mut out = Vec::new();
     for mut child in parent.children(name) {
@@ -239,7 +240,7 @@ fn parse_f64(value: &str, path: &str) -> Result<f64, ExchangeError> {
     }
 }
 
-/// Aufzählungswert über `from_xml`; unbekannt → `Xml` mit Pfad.
+/// Enumeration value through `from_xml`; unknown → `Xml` with path.
 fn word<T>(value: &str, path: &str, from: fn(&str) -> Option<T>) -> Result<T, ExchangeError> {
     from(value).ok_or_else(|| ExchangeError::Xml(format!("{path}: unbekannter Wert „{value}“")))
 }
@@ -248,7 +249,7 @@ fn attr_path(c: &Cursor<'_>, name: &str) -> String {
     format!("{}/@{name}", c.path)
 }
 
-/// `<werk>` → Dokument; dazu die Verweise der Bildfassungen auf Archiv-Einträge.
+/// `<werk>` → document; plus the references of the image revisions to archive entries.
 pub(crate) fn document(root: &Element) -> Result<(ExchangeDocument, Vec<FileRef>), ExchangeError> {
     check_root(root, "werk")?;
     let mut unknown = Unknown::default();
@@ -331,10 +332,10 @@ pub(crate) fn document(root: &Element) -> Result<(ExchangeDocument, Vec<FileRef>
             let uuid = entry.req_attr("uuid")?.to_owned();
             let raw_kind = entry.req_attr("art")?.to_owned();
             let deleted_at = entry.req_attr("zeit")?.to_owned();
-            // Eine neuere Unterversion darf neue Arten von Grabsteinen haben (etwa Verbindungen der Karte ab
-            // R25): melden und überspringen statt die ganze Datei abzulehnen (Austauschformat.md §6).
+            // A newer sub-version may have new kinds of tombstones (for instance links of the map from
+            // R25): report and skip instead of rejecting the whole file (Austauschformat.md §6).
             let kind = match ExchangeTombstoneKind::from_xml(&raw_kind) {
-                // Eine Art, die es in der Unterversion der Datei noch nicht gab, ist ein Fehler wie ein fremder Wert.
+                // A kind that did not exist yet in the sub-version of the file is an error like a foreign value.
                 Some(kind) if kind.since_version() > version => {
                     return Err(ExchangeError::Xml(format!(
                         "{kind_path}: „{raw_kind}“ gibt es erst ab Unterversion {}, die Datei hat {version}",
@@ -354,14 +355,14 @@ pub(crate) fn document(root: &Element) -> Result<(ExchangeDocument, Vec<FileRef>
         }
         deleted.finish(&mut unknown);
     }
-    // <karte> erst ab Unterversion 2; in Unterversion 1 bleibt es unbenutzt und wird so als unbekannt gemeldet.
+    // <karte> only from sub-version 2; in sub-version 1 it stays unused and is thus reported as unknown.
     if version >= 2
         && let Some(mut map) = c.child("karte")
     {
         work.map = karte(&mut map, &mut unknown)?;
         map.finish(&mut unknown);
     }
-    // <befunde> erst ab Unterversion 4.
+    // <befunde> only from sub-version 4.
     if version >= 4
         && let Some(mut findings) = c.child("befunde")
     {
@@ -371,7 +372,7 @@ pub(crate) fn document(root: &Element) -> Result<(ExchangeDocument, Vec<FileRef>
         }
         findings.finish(&mut unknown);
     }
-    // <eigene-register> und <glossar> erst ab Unterversion 7.
+    // <eigene-register> and <glossar> only from sub-version 7.
     if version >= 7
         && let Some(mut registers) = c.child("eigene-register")
     {
@@ -400,7 +401,7 @@ pub(crate) fn document(root: &Element) -> Result<(ExchangeDocument, Vec<FileRef>
     Ok((doc, refs))
 }
 
-/// `<begriff>` → Glossarbegriff (ab Unterversion 7).
+/// `<begriff>` → glossary term (from sub-version 7).
 fn begriff(c: &mut Cursor<'_>, unknown: &mut Unknown) -> Result<ExchangeGlossaryTerm, ExchangeError> {
     let status_path = attr_path(c, "status");
     Ok(ExchangeGlossaryTerm {
@@ -419,7 +420,7 @@ fn begriff(c: &mut Cursor<'_>, unknown: &mut Unknown) -> Result<ExchangeGlossary
     })
 }
 
-/// `<manifest>` → Einträge.
+/// `<manifest>` → entries.
 pub(crate) fn manifest(root: &Element) -> Result<Vec<ExchangeManifestEntry>, ExchangeError> {
     check_root(root, "manifest")?;
     let mut unknown = Unknown::default();
@@ -442,8 +443,8 @@ pub(crate) fn manifest(root: &Element) -> Result<Vec<ExchangeManifestEntry>, Exc
     Ok(entries)
 }
 
-/// Wurzel prüfen: Name und Namensraum. Ein anderer Namensraum des Formats (`urn:baruch:…`) ist eine andere
-/// Hauptversion ([`ExchangeError::Version`]), alles andere keine Austauschdatei.
+/// Check the root: name and namespace. Another namespace of the format (`urn:baruch:…`) is another main version
+/// ([`ExchangeError::Version`]), everything else is not an exchange file.
 fn check_root(root: &Element, name: &str) -> Result<(), ExchangeError> {
     let ns = root.ns.as_deref();
     if root.name == name && ns == Some(NAMESPACE) {
@@ -466,7 +467,7 @@ fn check_root(root: &Element, name: &str) -> Result<(), ExchangeError> {
     }))
 }
 
-/// Unterversion (`version`, ganze Zahl ab 1). Höhere Unterversionen liest der Leser (verträglich).
+/// Sub-version (`version`, integer from 1). The reader reads higher sub-versions (compatible).
 fn version_of(c: &mut Cursor<'_>) -> Result<u32, ExchangeError> {
     let raw = c
         .req_attr("version")
@@ -520,7 +521,7 @@ fn angaben(
         work.timing = Some(ExchangeTiming { words_per_minute, target_seconds });
         timing.finish(unknown);
     }
-    // <satzbild> erst ab Unterversion 3; davor bleibt es unbenutzt und wird als unbekannt gemeldet.
+    // <satzbild> only from sub-version 3; before that it stays unused and is reported as unknown.
     if version >= 3
         && let Some(mut sheet) = c.child("satzbild")
     {
@@ -537,7 +538,7 @@ fn angaben(
         sheet.finish(unknown);
         work.sheet = Some(read).filter(|s| !s.is_empty());
     }
-    // <satz> erst ab Unterversion 6; davor bleibt es unbenutzt und wird als unbekannt gemeldet.
+    // <satz> only from sub-version 6; before that it stays unused and is reported as unknown.
     if version >= 6
         && let Some(mut typeset) = c.child("satz")
     {
@@ -547,12 +548,12 @@ fn angaben(
         let updated_by = typeset.req_attr("geaendert-von")?.to_owned();
         let mut settings = crate::typeset::settings_from_attrs(|name| typeset.attr(name))
             .map_err(|e| ExchangeError::Xml(format!("{path}/{e}")))?;
-        // Register/Glossar-Felder erst ab Unterversion 7; davor bleiben sie ungelesen und werden als unbekannt gemeldet.
+        // Index/glossary fields only from sub-version 7; before that they stay unread and are reported as unknown.
         if version >= 7 {
             crate::typeset::r31_from_attrs(&mut settings, |name| typeset.attr(name))
                 .map_err(|e| ExchangeError::Xml(format!("{path}/{e}")))?;
         }
-        // Entwurf erst ab Unterversion 8; davor bleibt <entwurf> ungelesen und wird als unbekannt gemeldet.
+        // Draft only from sub-version 8; before that <entwurf> stays unread and is reported as unknown.
         if version >= 8
             && let Some(mut draft) = typeset.child("entwurf")
         {
@@ -569,7 +570,7 @@ fn angaben(
     Ok(())
 }
 
-/// Farbe eines Umschlag-Blocks aus dem XML (`hell`, `dunkel`, `#rrggbb`) in die gespeicherte Form.
+/// Colour of a cover block from the XML (`hell`, `dunkel`, `#rrggbb`) into the stored form.
 fn cover_color(value: &str, path: &str) -> Result<String, ExchangeError> {
     match value {
         "hell" => Ok("light".into()),
@@ -584,7 +585,7 @@ fn cover_color(value: &str, path: &str) -> Result<String, ExchangeError> {
     }
 }
 
-/// `<block>` der Umschlag-Anordnung (ab Unterversion 3).
+/// `<block>` of the cover layout (from sub-version 3).
 fn block(c: &mut Cursor<'_>, unknown: &mut Unknown) -> Result<ExchangeCoverBlock, ExchangeError> {
     let path = |c: &Cursor<'_>, name: &str| attr_path(c, name);
     let (kind_p, x_p, y_p, w_p, align_p, size_p, lead_p, color_p, style_p, back_p, vis_p, dir_p) = (
@@ -623,7 +624,7 @@ fn block(c: &mut Cursor<'_>, unknown: &mut Unknown) -> Result<ExchangeCoverBlock
 
 fn buch(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<ExchangeBook, ExchangeError> {
     let mut book = buch_v1(c, unknown)?;
-    // Ab Unterversion 3: Anschriften (fehlen sie, gelten sie als leer) und die Umschlag-Anordnung.
+    // From sub-version 3: addresses (if missing, they count as empty) and the cover layout.
     if version >= 3 {
         book.publisher_address = opt_text(c, "verlag-anschrift", unknown)?.unwrap_or_default();
         book.printer_address = opt_text(c, "druckerei-anschrift", unknown)?.unwrap_or_default();
@@ -680,7 +681,7 @@ fn punkt(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Exch
         title: req_text(c, "titel", unknown)?,
         ..ExchangeNode::default()
     };
-    // Ab Unterversion 5: fester Schlüssel der ausgebenden Instanz (für Querverweise).
+    // From sub-version 5: fixed key of the issuing instance (for cross-references).
     if version >= 5
         && let Some(key) = c.attr("schluessel")
     {
@@ -729,7 +730,7 @@ fn fassung(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Ex
         variant: None,
         ..ExchangeRevision::default()
     };
-    // Ab Unterversion 5: Variante (Gruppe und Etikett nur zusammen, sonst Fehler).
+    // From sub-version 5: variant (group and label only together, otherwise an error).
     if version >= 5 {
         let group = c.attr("variante-gruppe");
         let label = c.attr("variante");
@@ -752,7 +753,7 @@ fn fassung(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Ex
             }
         };
     }
-    // Ab Unterversion 8: Stand, Stand der Basis und der Verlauf der Fortschreibungen.
+    // From sub-version 8: state, state of the base and the history of the amendments.
     if version >= 8 {
         if let Some(stand) = c.attr("stand") {
             revision.amend_seq = parse_u32(stand, &attr_path(c, "stand"))?;
@@ -780,7 +781,7 @@ fn fassung(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Ex
     Ok(revision)
 }
 
-/// Ab Unterversion 5: Metadaten eines Beitrags bzw. Fadenbeitrags.
+/// From sub-version 5: metadata of a post or thread post.
 fn post_meta(c: &mut Cursor<'_>, version: u32) -> ExchangePostMeta {
     if version < 5 {
         return ExchangePostMeta::default();
@@ -794,7 +795,7 @@ fn post_meta(c: &mut Cursor<'_>, version: u32) -> ExchangePostMeta {
     }
 }
 
-/// Ab Unterversion 4: `geaendert` und die `<alte-fassung>`-Elemente eines Beitrags.
+/// From sub-version 4: `geaendert` and the `<alte-fassung>` elements of a post.
 fn edits(
     c: &mut Cursor<'_>,
     version: u32,
@@ -846,8 +847,8 @@ fn einfall(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Ex
     let status_path = attr_path(c, "status");
     let use_path = attr_path(c, "erledigt-als");
     let origin_path = attr_path(c, "herkunft-art");
-    // Ab Unterversion 9 (Runde 34): Baum der Mindmap. In einer älteren Datei bleiben die Attribute ungelesen und
-    // werden als unbekannt gemeldet.
+    // From sub-version 9 (Round 34): tree of the mind map. In an older file the attributes stay unread and are
+    // reported as unknown.
     let (mut title, mut parent, mut position, mut main_topic) = (String::new(), None, 0i64, false);
     if version >= 9 {
         title = c.attr("titel").unwrap_or_default().to_owned();
@@ -989,9 +990,9 @@ fn bild(
     Ok(asset)
 }
 
-/// `<karte>` → Verbindungen und Lagen (ab Unterversion 2). Koordinaten endlich (sonst `Xml`); die Grenze
-/// ±[`MAP_COORD_LIMIT`] prüft [`crate::read::validate`].
-/// `<befund>` mit seinem Statusverlauf (ab Unterversion 4).
+/// `<karte>` → links and positions (from sub-version 2). Coordinates finite (otherwise `Xml`); the limit
+/// ±[`MAP_COORD_LIMIT`] is checked by [`crate::read::validate`].
+/// `<befund>` with its status history (from sub-version 4).
 fn befund(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<ExchangeFinding, ExchangeError> {
     let kind_path = attr_path(c, "art");
     let status_path = attr_path(c, "status");
@@ -1017,7 +1018,7 @@ fn befund(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Exc
         reason: opt_text(c, "begruendung", unknown)?.unwrap_or_default(),
         ..ExchangeFinding::default()
     };
-    // Ab Unterversion 8: Stand der übernommenen Fassung.
+    // From sub-version 8: state of the adopted revision.
     if version >= 8
         && let Some(stand) = c.attr("stand")
     {
@@ -1057,7 +1058,7 @@ fn befund(c: &mut Cursor<'_>, version: u32, unknown: &mut Unknown) -> Result<Exc
         });
         entry.finish(unknown);
     }
-    // Ab Unterversion 5: Lösungsvorschläge.
+    // From sub-version 5: proposed solutions.
     if version >= 5 {
         for mut solution in c.children("loesung") {
             finding.solutions.push(ExchangeSolution {

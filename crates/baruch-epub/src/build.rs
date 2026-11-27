@@ -1,28 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Dateien des EPUB aus der Eingabe anlegen (Besitz „epub“, Runde 20a).
+//! Create the files of the EPUB from the input (ownership "epub", Round 20a).
 //!
-//! - **Aufteilung** (Vertrag §0.2): jede Teil-Seite (Ebene 0) und jedes Kapitel (Ebene 1) eine eigene Datei
-//!   `text/k{key}.xhtml` im Spine; Abschnitte der Ebenen 2/3 in der Datei ihres Kapitels; Abschnitte vor dem ersten
-//!   Teil/Kapitel in `text/front.xhtml`. Dazu `break-before` im CSS ([`baruch_typst::typeset::epub_style`]).
-//! - **Text** über das Blockmodell von baruch-wysiwyg ([`crate::xhtml`]); Inseln außer Bildern werden ausgelassen und
-//!   als Warnung `ISLAND_OMITTED` gemeldet.
-//! - **Fußnoten** als Popup (`noteref`/`aside` am Ende der Kapiteldatei) oder als Endnoten (`text/notes.xhtml`).
-//! - **Navigation**: `nav.xhtml` (Inhaltsverzeichnis und Landmarks) und `toc.ncx` (EPUB-2-Rückfall, `spine toc="ncx"`).
-//! - **Titelei** (mit `front_matter`): Titelseite, Impressum (`imprint`), Widmung – als Text.
-//! - **Umschlag**: `images/cover.<ext>` (`properties="cover-image"`, `<meta name="cover">`) und `text/cover.xhtml` als
-//!   erste Datei im Spine.
-//! - **Metadaten** nur als maskierter Text: Kennung, Titel, Untertitel, Autor, Sprache, ISBN (`urn:isbn:`), Verlag,
-//!   Jahr, Rechte, Bildnachweis, Beschreibung, `dcterms:modified` und Angaben zur Barrierefreiheit (schema.org).
-//! - **Werkvorlage**: Show-Regeln mit `pagebreak` → `TEMPLATE_PAGEBREAK_MAPPED` (Info) bzw.
-//!   `TEMPLATE_PAGEBREAK_UNMAPPED` (Warnung), siehe [`crate::template`].
-//! - **Register und Glossar** (Runde 31b, nur mit aktiven Einstellungen in `back_matter`): `text/glossary.xhtml`
-//!   (`epub:type="glossary"`, `<dt epub:type="glossterm" id="baruch-gl-UUID">`, `<dd epub:type="glossdef">`) und je
-//!   Register aus `index_pages` `text/index-{slug}.xhtml` (`epub:type="index"`, Stichwörter wie im Satz sortiert über
-//!   [`baruch_typst::index::overview`], je Abschnitt ein Link `index-locator` auf den Anker der ersten Marke dort,
-//!   „siehe“/„siehe auch“). Lage nach `glossary_page` (vor/nach den Registern), am Ende des Spines und im
-//!   Inhaltsverzeichnis. Die erste Erwähnung (Projektion) verlinkt mit Glossarseite auf den Eintrag (`glossref`).
+//! - **Split** (contract §0.2): every part page (level 0) and every chapter (level 1) a file of its own
+//!   `text/k{key}.xhtml` in the spine; sections of levels 2/3 in the file of their chapter; sections before the
+//!   first part/chapter in `text/front.xhtml`. Plus `break-before` in the CSS
+//!   ([`baruch_typst::typeset::epub_style`]).
+//! - **Text** through the block model of baruch-wysiwyg ([`crate::xhtml`]); islands other than images are left out
+//!   and reported as warning `ISLAND_OMITTED`.
+//! - **Footnotes** as a popup (`noteref`/`aside` at the end of the chapter file) or as endnotes
+//!   (`text/notes.xhtml`).
+//! - **Navigation**: `nav.xhtml` (table of contents and landmarks) and `toc.ncx` (EPUB 2 fallback,
+//!   `spine toc="ncx"`).
+//! - **Front matter** (with `front_matter`): title page, imprint (`imprint`), dedication – as text.
+//! - **Cover**: `images/cover.<ext>` (`properties="cover-image"`, `<meta name="cover">`) and `text/cover.xhtml` as
+//!   the first file in the spine.
+//! - **Metadata** only as escaped text: identifier, title, subtitle, author, language, ISBN (`urn:isbn:`),
+//!   publisher, year, rights, image credit, description, `dcterms:modified` and accessibility details (schema.org).
+//! - **Work template**: show rules with `pagebreak` → `TEMPLATE_PAGEBREAK_MAPPED` (info) or
+//!   `TEMPLATE_PAGEBREAK_UNMAPPED` (warning), see [`crate::template`].
+//! - **Index and glossary** (Round 31b, only with active settings in `back_matter`): `text/glossary.xhtml`
+//!   (`epub:type="glossary"`, `<dt epub:type="glossterm" id="baruch-gl-UUID">`, `<dd epub:type="glossdef">`) and
+//!   per index from `index_pages` `text/index-{slug}.xhtml` (`epub:type="index"`, headwords sorted as in the
+//!   typeset result through [`baruch_typst::index::overview`], per section one link `index-locator` to the anchor
+//!   of the first mark there, „siehe“/„siehe auch“). Position according to `glossary_page` (before/after the
+//!   indexes), at the end of the spine and in the table of contents. The first mention (projection) links to the
+//!   entry (`glossref`) when there is a glossary page.
 //!
-//! Deterministisch: Reihenfolgen folgen der Eingabe, keine Zeit und kein Zufall.
+//! Deterministic: orders follow the input, no time and no randomness.
 
 use baruch_typst::typeset::{FootnoteNumbering, FootnoteRestart, TypesetSettings};
 
@@ -40,7 +44,7 @@ use crate::{
 const XHTML: &str = "application/xhtml+xml";
 const NCX: &str = "application/x-dtbncx+xml";
 
-/// Grundstil vor den Regeln aus den Satz-Einstellungen (die danach stehen und damit vorgehen).
+/// Base style before the rules from the typesetting settings (which come after it and thus take precedence).
 pub const BASE_CSS: &str = "/* Baruch: EPUB-Grundstil */
 section.baruch-part { text-align: center; }
 h1.baruch-part-title { margin-top: 30%; }
@@ -67,7 +71,7 @@ section.baruch-imprint p { font-size: 0.85em; text-indent: 0; }
 section.baruch-dedication { text-align: center; font-style: italic; margin-top: 30%; }
 ";
 
-/// Eine Datei mit Text und den Abschnitten darin.
+/// A file with text and the sections in it.
 struct TextFile<'a> {
     id: String,
     href: String,
@@ -76,7 +80,7 @@ struct TextFile<'a> {
 }
 
 impl TextFile<'_> {
-    /// Dateiname innerhalb von `text/`.
+    /// File name within `text/`.
     fn name(&self) -> &str {
         self.href.strip_prefix("text/").unwrap_or(&self.href)
     }
@@ -86,7 +90,7 @@ fn warning(code: &str, message: String, key: Option<i64>) -> EpubWarning {
     EpubWarning { code: code.to_owned(), message, key }
 }
 
-/// EPUB-Dateien zu `input`. Ohne Abschnitt → [`EpubError::NoSections`]; ohne Kennung oder Zeitstempel →
+/// EPUB files for `input`. Without a section → [`EpubError::NoSections`]; without identifier or timestamp →
 /// [`EpubError::Invalid`].
 pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
     if input.sections.is_empty() {
@@ -103,7 +107,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         )));
     }
     let mut warnings = Vec::new();
-    // Sprache: Metadaten, sonst Satz-Einstellung, sonst `#set text(lang: …)` der Vorlage, sonst „de“.
+    // Language: metadata, else typesetting setting, else `#set text(lang: …)` of the template, else "de".
     let fallback = || {
         input
             .typeset
@@ -129,7 +133,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
     };
     let title = if meta.title.trim().is_empty() { "Ohne Titel".to_owned() } else { meta.title.trim().to_owned() };
 
-    // Werkvorlage: Seitenumbrüche aus Show-Regeln.
+    // Work template: page breaks from show rules.
     let mut typeset = input.typeset.clone();
     for rule in pagebreak_rules(&input.template) {
         if rule.mapped {
@@ -176,7 +180,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         links.glossary = back.glossary.iter().filter(|g| anchor_safe(&g.uuid)).map(|g| g.uuid.clone()).collect();
     }
 
-    // Bilder: nur die, die der Text nennt, in der Reihenfolge des ersten Auftretens.
+    // Images: only those the text names, in the order of first appearance.
     let mut image_items = Vec::new();
     let cover_href = input.cover.as_ref().map(|c| format!("images/cover.{}", extension(&c.media_type, &c.path)));
     let mut used_hrefs: Vec<String> = cover_href.iter().cloned().collect();
@@ -224,7 +228,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         }
     }
 
-    // Texte der Dateien.
+    // Texts of the files.
     let numbering = typeset.footnotes.as_ref().map_or(FootnoteNumbering::Arabic, |f| f.numbering);
     let per_chapter = input.footnotes == FootnoteMode::Popup
         && typeset.footnotes.as_ref().is_some_and(|f| f.restart == FootnoteRestart::PerChapter);
@@ -276,7 +280,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
 
     let mut items = Vec::new();
     let mut spine = Vec::new();
-    // Umschlag.
+    // Cover.
     if let (Some(cover), Some(href)) = (&input.cover, &cover_href) {
         let alt = if cover.alt.trim().is_empty() { format!("Umschlag: {title}") } else { cover.alt.trim().to_owned() };
         items.push(EpubItem {
@@ -298,8 +302,8 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         items.push(text_item("cover", "text/cover.xhtml", ItemKind::Cover, "Umschlag", page(&lang, "Umschlag", &body)));
         spine.push("cover".to_owned());
     }
-    // Titelei. R22: Mit Entwurf gibt es die Titelseite immer – sie trägt den Hinweis (Impressum und Widmung nur mit
-    // Titelei).
+    // Front matter. R22: with a draft the title page always exists – it carries the notice (imprint and dedication
+    // only with front matter).
     let draft = input.typeset.draft.as_ref();
     if input.front_matter || draft.is_some() {
         let mut body = String::from("<section class=\"baruch-titlepage\" epub:type=\"titlepage\">\n");
@@ -372,11 +376,11 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
             page(&lang, "Anmerkungen", &body),
         ));
         spine.push("notes".to_owned());
-        // Auf oberster Ebene: in Werken mit Teilen (Ebene 0) nicht als Kind des letzten Teils.
+        // At the top level: in works with parts (level 0) not as a child of the last part.
         let top = toc.iter().map(|e: &TocEntry| e.level).min().unwrap_or(1);
         toc.push(TocEntry { title: "Anmerkungen".into(), href: "text/notes.xhtml".into(), level: top, key: None });
     }
-    // Register und Glossar (Runde 31b) am Ende, in der Reihenfolge des Satzes.
+    // Index and glossary (Round 31b) at the end, in the order of the typeset result.
     if back.is_active() {
         let top = toc.iter().map(|e: &TocEntry| e.level).min().unwrap_or(1);
         for item in back_matter_items(&lang, input, &index_marks, &links) {
@@ -398,7 +402,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         .unwrap_or_else(|| "text/front.xhtml".into());
     let has_cover = input.cover.is_some();
     let has_title = input.front_matter || draft.is_some();
-    // R22: Titel-Metadatum (dc:title, docTitle) mit „(Entwurf)“; die Titelseite zeigt den Titel selbst.
+    // R22: title metadata (dc:title, docTitle) with „(Entwurf)“; the title page shows the title itself.
     let meta_title = if draft.is_some() { format!("{title} (Entwurf)") } else { title.clone() };
     let mut head = vec![
         EpubItem {
@@ -447,7 +451,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
     Ok(EpubBook { meta: meta.clone(), items, spine, toc, opf, warnings })
 }
 
-/// Stil der Register- und Glossarseiten (nur mit aktiven R31-Einstellungen, sonst bleibt `book.css` byte-gleich).
+/// Style of the index and glossary pages (only with active R31 settings, otherwise `book.css` stays byte-identical).
 pub const INDEX_CSS: &str = "/* Baruch: Register und Glossar */
 section.baruch-index ul { list-style: none; margin: 0; padding: 0; }
 section.baruch-index ul ul { padding-left: 1.2em; }
@@ -458,12 +462,13 @@ section.baruch-glossary dd { margin: 0.2em 0 0 1.2em; }
 a.baruch-glossref { text-decoration: none; }
 ";
 
-/// Darf eine UUID Teil einer XML-id bzw. eines Typst-Labels sein (wie `baruch_typst::index`)?
+/// May a UUID be part of an XML id or of a Typst label (as in `baruch_typst::index`)?
 fn anchor_safe(uuid: &str) -> bool {
     !uuid.is_empty() && uuid.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
 }
 
-/// Buchstabe der Gruppe eines Stichworts im Register (wie im Satz: DIN 5007-1, „0–9“ für Ziffern, sonst „#“).
+/// Letter of the group of a headword in the index (as in the typeset result: DIN 5007-1, "0–9" for digits,
+/// otherwise "#").
 fn group_letter(term: &str) -> String {
     match baruch_typst::index::sort_key(term).chars().next() {
         Some(c) if c.is_alphabetic() => c.to_uppercase().collect(),
@@ -472,7 +477,7 @@ fn group_letter(term: &str) -> String {
     }
 }
 
-/// Glossarseite und Registerseiten (Runde 31b) in der Reihenfolge des Satzes.
+/// Glossary page and index pages (Round 31b) in the order of the typeset result.
 fn back_matter_items(lang: &str, input: &EpubInput, marks: &[PlacedMark], links: &Links) -> Vec<EpubItem> {
     use baruch_typst::typeset::GlossaryPosition;
     let back = &input.back_matter;
@@ -501,8 +506,8 @@ fn back_matter_items(lang: &str, input: &EpubInput, marks: &[PlacedMark], links:
     out
 }
 
-/// `text/glossary.xhtml`: Begriffe sortiert (DIN 5007-1), je Begriff `dt` (glossterm, id = Label des Satzes) und `dd`
-/// (glossdef: Varianten, kurze und ausführliche Erklärung, Bibelstellen).
+/// `text/glossary.xhtml`: terms sorted (DIN 5007-1), per term `dt` (glossterm, id = label of the typeset result)
+/// and `dd` (glossdef: variants, short and detailed explanation, Bible references).
 fn glossary_item(lang: &str, glossary: &[baruch_typst::index::GlossaryEntry]) -> EpubItem {
     let mut entries: Vec<&baruch_typst::index::GlossaryEntry> = glossary.iter().collect();
     entries.sort_by_key(|e| (baruch_typst::index::sort_key(&e.term), e.term.clone()));
@@ -548,7 +553,7 @@ fn glossary_item(lang: &str, glossary: &[baruch_typst::index::GlossaryEntry]) ->
     text_item("glossary", "text/glossary.xhtml", ItemKind::Glossary, "Glossar", page(lang, "Glossar", &body))
 }
 
-/// Ein Eintrag (Stichwort oder Unterstichwort) als Listenpunkt ohne schließendes `</li>`.
+/// An entry (headword or subheadword) as a list item without the closing `</li>`.
 fn index_entry(
     out: &mut String,
     slug: &str,
@@ -598,8 +603,8 @@ fn index_entry(
     }
 }
 
-/// `text/index-{slug}.xhtml`: Stichwörter in der Reihenfolge der Übersicht, Unterstichwörter als eingerückte Liste,
-/// außer im Bibelstellenregister nach Buchstaben gruppiert.
+/// `text/index-{slug}.xhtml`: headwords in the order of the overview, subheadwords as an indented list, grouped by
+/// letter except in the index of Bible references.
 fn index_item(lang: &str, view: &baruch_typst::index::RegisterView, marks: &[PlacedMark], links: &Links) -> EpubItem {
     let slug = &view.register.slug;
     let title = &view.register.title;
@@ -645,7 +650,7 @@ fn index_item(lang: &str, view: &baruch_typst::index::RegisterView, marks: &[Pla
                     index_entry(&mut body, slug, t, marks, links);
                     continue;
                 }
-                // Stichwort nur mit Unterstichwörtern: eigener Punkt ohne Fundstelle.
+                // Headword with subheadwords only: an item of its own without a locator.
                 body.push_str(&format!(
                     "<li epub:type=\"index-entry\"><span epub:type=\"index-term\">{}</span>",
                     escape_text(&t.term)
@@ -673,14 +678,14 @@ fn index_item(lang: &str, view: &baruch_typst::index::RegisterView, marks: &[Pla
     text_item(&id, &href, ItemKind::Index, title, page(lang, title, &body))
 }
 
-/// Bildtypen, die EPUB 3 als Kernmedien kennt.
+/// Image types that EPUB 3 knows as core media types.
 const CORE_IMAGE_TYPES: [&str; 5] = ["image/png", "image/jpeg", "image/gif", "image/svg+xml", "image/webp"];
 
 fn find_image<'a>(images: &'a [EpubImage], normal: &str) -> Option<&'a EpubImage> {
     images.iter().find(|i| normalize_path(&i.path).as_deref() == Some(normal))
 }
 
-/// Dateiendung zum Bildtyp (sonst die des Pfads, sonst `bin`).
+/// File extension for the image type (otherwise that of the path, otherwise `bin`).
 fn extension(media_type: &str, path: &str) -> String {
     match media_type {
         "image/png" => "png".into(),
@@ -696,9 +701,10 @@ fn extension(media_type: &str, path: &str) -> String {
     }
 }
 
-/// Pfad im Paket: nur Buchstaben, Ziffern, `.`, `-`, `_` und `/` (alles andere → `_`).
-/// Dateiname im EPUB mit einer Endung, die zum Bildtyp passt: Passt die Endung nicht (nach einem Typwechsel heißt
-/// ein PNG noch `haus.svg`), kommt die richtige dazu (`haus.svg.png`); manche Leser richten sich nach der Endung.
+/// Path in the package: only letters, digits, `.`, `-`, `_` and `/` (everything else → `_`).
+/// File name in the EPUB with an extension that fits the image type: if the extension does not fit (after a change
+/// of type a PNG is still called `haus.svg`), the right one is added (`haus.svg.png`); some readers go by the
+/// extension.
 fn fitting_extension(href: &str, media_type: &str) -> String {
     let fitting: &[&str] = match media_type {
         "image/png" => &["png"],
@@ -727,7 +733,7 @@ fn clean_path(normal: &str) -> String {
         .join("/")
 }
 
-/// `href`, bei Gleichheit mit einem vergebenen Namen mit `-2`, `-3` … vor der Endung.
+/// `href`, if equal to a name already given with `-2`, `-3` … before the extension.
 fn unique_href(href: &str, used: &[String]) -> String {
     let taken = |h: &str| used.iter().any(|u| u.eq_ignore_ascii_case(h));
     if !taken(href) {
@@ -751,7 +757,7 @@ fn modified_ok(s: &str) -> bool {
         })
 }
 
-/// Aufteilung nach Vertrag §0.2.
+/// Split according to contract §0.2.
 fn split(sections: &[EpubSection]) -> Vec<TextFile<'_>> {
     let mut files: Vec<TextFile<'_>> = Vec::new();
     for s in sections {
@@ -776,8 +782,8 @@ fn split(sections: &[EpubSection]) -> Vec<TextFile<'_>> {
     files
 }
 
-/// Labels (`<name>`) im Text: in welcher Datei sie stehen (für Verweise `@name`).
-/// Im Endnoten-Modus stehen Labels aus Fußnoten in `notes.xhtml`, nicht in der Kapiteldatei.
+/// Labels (`<name>`) in the text: in which file they are (for references `@name`).
+/// In endnote mode labels from footnotes are in `notes.xhtml`, not in the chapter file.
 fn collect_labels(files: &[TextFile<'_>], note_target: NoteTarget, links: &mut Links) {
     use baruch_wysiwyg::{BlockKind, Inline};
     fn inl(inlines: &[Inline], file: &str, note_file: &str, links: &mut Links) {
@@ -792,7 +798,7 @@ fn collect_labels(files: &[TextFile<'_>], note_target: NoteTarget, links: &mut L
             }
         }
     }
-    /// Nächste Nummer einer Abbildung; der Zähler läuft unter einem Namen mit, der kein Label sein kann.
+    /// Next number of a figure; the counter runs along under a name that cannot be a label.
     fn next_figure(links: &mut Links) -> usize {
         let number = links.figures.get("\u{0}count").copied().unwrap_or(0) + 1;
         links.figures.insert("\u{0}count".to_owned(), number);
@@ -807,10 +813,10 @@ fn collect_labels(files: &[TextFile<'_>], note_target: NoteTarget, links: &mut L
                         links.labels.entry(label.clone()).or_insert_with(|| file.to_owned());
                     }
                 }
-                // Runde 23a: Abbildungen zählen in Lesereihenfolge; ein Label an der Abbildung ist Ziel von `@name`
-                // und kennt ihre Nummer. Gezählt wird, was auch als `<figure>` mit Bild im EPUB steht: eine Insel
-                // `#figure(image(…) …)` allein oder mit ihrem Label dahinter (das Blockmodell liest Letzteres als
-                // Absatz aus Insel und Label).
+                // Round 23a: figures count in reading order; a label on the figure is the target of `@name`
+                // and knows its number. What is counted is what also is a `<figure>` with image in the EPUB: an island
+                // `#figure(image(…) …)` alone or with its label after it (the block model reads the latter as a
+                // paragraph of island and label).
                 BlockKind::Paragraph { inlines } => {
                     if let Some((raw, label)) =
                         crate::xhtml::labelled_figure(inlines).filter(|(r, _)| r.contains("image("))
@@ -848,11 +854,11 @@ fn collect_labels(files: &[TextFile<'_>], note_target: NoteTarget, links: &mut L
             walk(&baruch_wysiwyg::parse(&s.body).blocks, file.name(), note_file, links);
         }
     }
-    // Der Zähler der Abbildungen lief unter einem Namen mit, der kein Label sein kann.
+    // The counter of the figures ran along under a name that cannot be a label.
     links.figures.remove("\u{0}count");
 }
 
-/// Angezeigte Überschrift: Nummer und Titel.
+/// Displayed heading: number and title.
 fn heading_text(s: &EpubSection) -> String {
     match s.number.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
         Some(number) => format!("{number} {}", s.title),
@@ -888,7 +894,7 @@ fn head(lang: &str, title: &str, css: &str) -> String {
     )
 }
 
-/// Ganze XHTML-Datei in `text/`.
+/// Whole XHTML file in `text/`.
 fn page(lang: &str, title: &str, body: &str) -> String {
     let mut out = head(lang, title, "../style/book.css");
     out.push_str("<body>\n");
@@ -897,7 +903,7 @@ fn page(lang: &str, title: &str, body: &str) -> String {
     out
 }
 
-/// Verschachtelte Liste (`<ol>`) aus Einträgen mit Ebenen; `link` schreibt einen Eintrag.
+/// Nested list (`<ol>`) from entries with levels; `link` writes one entry.
 fn nested(out: &mut String, toc: &[TocEntry], indent_list: &str, link: impl Fn(&TocEntry) -> String) {
     struct Open {
         level: u8,
@@ -949,9 +955,9 @@ fn nav_xhtml(lang: &str, toc: &[TocEntry], first_text: &str, cover: bool, title:
     out
 }
 
-/// R22: Hinweis „Entwurf“ auf der Titelseite – Text des Wasserzeichens, Zusatz (der Server hat das Datum schon
-/// hineingeschrieben, das EPUB bleibt ohne Uhr), nur als maskierter Text. Stil inline, damit `style/book.css` ohne
-/// Entwurf byte-gleich bleibt.
+/// R22: notice „Entwurf“ on the title page – text of the watermark, addition (the server has already written the
+/// date into it, the EPUB stays without a clock), only as escaped text. Style inline, so that `style/book.css`
+/// stays byte-identical without a draft.
 fn draft_notice(draft: &baruch_typst::typeset::Draft) -> String {
     let mut line = format!("Entwurf: {}", draft.text.trim());
     if !draft.note.trim().is_empty() {
@@ -964,7 +970,7 @@ fn draft_notice(draft: &baruch_typst::typeset::Draft) -> String {
     )
 }
 
-/// `toc.ncx` (EPUB 2): verschachtelte navPoints mit fortlaufender playOrder.
+/// `toc.ncx` (EPUB 2): nested navPoints with consecutive playOrder.
 fn ncx(identifier: &str, title: &str, author: &str, toc: &[TocEntry]) -> String {
     let depth = {
         let mut stack: Vec<u8> = Vec::new();
@@ -1071,7 +1077,7 @@ fn opf(
     if items.iter().any(|i| i.kind == ItemKind::CoverImage) {
         m.push_str("<meta name=\"cover\" content=\"cover-image\"/>\n");
     }
-    // Barrierefreiheit (schema.org, EPUB Accessibility 1.1).
+    // Accessibility (schema.org, EPUB Accessibility 1.1).
     m.push_str("<meta property=\"schema:accessMode\">textual</meta>\n");
     if has_images {
         m.push_str("<meta property=\"schema:accessMode\">visual</meta>\n");

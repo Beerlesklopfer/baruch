@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lokale SWORD-Bibelmodule lesen (Wunsch des Nutzers 2026-11-06: „Wir brauchen das SWORD-Modul“).
+//! Read local SWORD Bible modules (wish of the user 2026-11-06: „Wir brauchen das SWORD-Modul“).
 //!
-//! - [`scan`]: alle Bibelmodule in `<Ordner>/mods.d/*.conf` der gegebenen Modulordner ([`default_dirs`]:
-//!   `$SWORD_PATH`, `~/.sword`, `/usr/share/sword`), mit Beschreibung, Verszählung und Lizenzvermerk.
-//! - [`open`]: ein Modul öffnen ([`Bible`]); `DataPath` gilt **relativ zum Modulordner**, nie zum
-//!   aktuellen Verzeichnis, und darf ihn nicht verlassen (`..`).
-//! - [`Bible::verse`], [`Bible::passage`], [`Bible::search`]: Klartext ([`text::to_plain`]).
+//! - [`scan`]: all Bible modules in `<Ordner>/mods.d/*.conf` of the given module folders ([`default_dirs`]:
+//!   `$SWORD_PATH`, `~/.sword`, `/usr/share/sword`), with description, versification and licence note.
+//! - [`open`]: open a module ([`Bible`]); `DataPath` applies **relative to the module folder**, never to the
+//!   current directory, and must not leave it (`..`).
+//! - [`Bible::verse`], [`Bible::passage`], [`Bible::search`]: plain text ([`text::to_plain`]).
 //!
-//! Das Dateiformat liest die Crate `sword-modules` 0.1.0 (CC0-1.0, reines Rust, ohne libsword; Treiber
-//! zText/zText4/RawText/RawText4, Kompression ZIP, LZSS, BZIP2 und XZ). Baruch lässt jede Zählung zu, die
-//! [`baruch_scripture::versification::versification`] kennt; andere meldet [`BibleError::Unsupported`]
+//! The file format is read by the crate `sword-modules` 0.1.0 (CC0-1.0, pure Rust, without libsword; drivers
+//! zText/zText4/RawText/RawText4, compression ZIP, LZSS, BZIP2 and XZ). Baruch admits every versification that
+//! [`baruch_scripture::versification::versification`] knows; others are reported by [`BibleError::Unsupported`]
 //! („Verszählung „X“ kennt Baruch nicht“).
 //!
-//! Runde 17 (R17c): **verschlüsselte Module** (`CipherKey` in der conf). [`BibleInfo::enciphered`] sagt, ob die
-//! conf einen `CipherKey` trägt (leer = gesperrt). [`open_with_key`] setzt einen vom Nutzer hinterlegten
-//! Schlüssel nur im Speicher in die conf (wie `SwordLibrary::open_module_with_key`); ohne Schlüssel meldet
-//! [`open`] [`BibleError::Locked`]. [`Bible::probe`] prüft einen Schlüssel am ersten vorhandenen Eintrag.
-//! Strong-Nummern eines Verses liefert [`Bible::verse_strongs`].
+//! Round 17 (R17c): **enciphered modules** (`CipherKey` in the conf). [`BibleInfo::enciphered`] says whether the
+//! conf carries a `CipherKey` (empty = locked). [`open_with_key`] puts a key stored by the user into the conf
+//! only in memory (like `SwordLibrary::open_module_with_key`); without a key [`open`] reports
+//! [`BibleError::Locked`]. [`Bible::probe`] checks a key on the first existing entry.
+//! Strong's numbers of a verse are delivered by [`Bible::verse_strongs`].
 //!
-//! Seit Runde 15 (Punkt 5a) auch Kommentare (RawCom/RawCom4/zCom/zCom4) und Lexika (RawLD/RawLD4/zLD) als
-//! Recherchewerkzeug ([`reference`]): [`scan`] meldet sie getrennt in [`Scan::commentaries`] und
-//! [`Scan::lexicons`] (mit [`SourceKind`]); nicht Lesbares steht mit `supported: false` und Grund dabei.
+//! Since Round 15 (item 5a) also commentaries (RawCom/RawCom4/zCom/zCom4) and lexicons (RawLD/RawLD4/zLD) as a
+//! research tool ([`reference`]): [`scan`] reports them separately in [`Scan::commentaries`] and
+//! [`Scan::lexicons`] (with [`SourceKind`]); what cannot be read is listed with `supported: false` and a reason.
 
 pub mod fixture;
 pub mod reference;
@@ -39,10 +39,10 @@ use serde::Serialize;
 use sword_modules::conf::{CompressType, ModDrv, ModuleConf, ModuleKind, parse_conf};
 use sword_modules::{Module, VerseKey, VerseModule};
 
-/// Höchstzahl der Verse, die [`Bible::passage`] liest.
+/// Maximum number of verses that [`Bible::passage`] reads.
 pub const MAX_PASSAGE_VERSES: usize = 400;
 
-/// Art eines Moduls, wie Baruch es nutzt (R15): Bibel, Kommentar oder Lexikon (SWORD „Dictionary“).
+/// Kind of a module as Baruch uses it (R15): Bible, commentary or lexicon (SWORD "Dictionary").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum SourceKind {
@@ -63,17 +63,17 @@ impl SourceKind {
     }
 }
 
-/// Ein gefundenes Modul (Bibel, Kommentar oder Lexikon) mit den Angaben seiner conf.
+/// A module that was found (Bible, commentary or lexicon) with the details of its conf.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BibleInfo {
-    /// Modulname (Abschnitt der conf, z. B. `GerSch`).
+    /// Module name (section of the conf, e.g. `GerSch`).
     pub name: String,
-    /// Art des Moduls (R15; Bibeln wie bisher `bible`).
+    /// Kind of the module (R15; Bibles as before `bible`).
     pub kind: SourceKind,
     pub description: String,
-    /// `About` als Klartext.
+    /// `About` as plain text.
     pub about: String,
-    /// `Versification` (Vorgabe `KJV`).
+    /// `Versification` (default `KJV`).
     pub versification: String,
     pub lang: String,
     pub version: String,
@@ -82,42 +82,42 @@ pub struct BibleInfo {
     pub block_type: String,
     pub source_type: String,
     pub encoding: String,
-    /// `DistributionLicense` der conf.
+    /// `DistributionLicense` of the conf.
     pub license: String,
-    /// `Copyright` bzw. `ShortCopyright` der conf.
+    /// `Copyright` or `ShortCopyright` of the conf.
     pub copyright: String,
-    /// Lizenzvermerk für Antworten: Lizenz, Copyright, sonst „keine Angabe in der conf“.
+    /// Licence note for answers: licence, copyright, otherwise „keine Angabe in der conf“.
     pub notice: String,
-    /// Modulordner (enthält `mods.d/`).
+    /// Module folder (contains `mods.d/`).
     pub dir: PathBuf,
     pub conf_file: PathBuf,
-    /// Lesbar? Sonst steht der Grund in `problem`. Ein verschlüsseltes Modul ohne Schlüssel gilt als lesbar
-    /// (das Format kennt Baruch); ob ein Schlüssel fehlt, sagen [`BibleInfo::enciphered`] und
+    /// Readable? Otherwise the reason is in `problem`. An enciphered module without a key counts as readable
+    /// (Baruch knows the format); whether a key is missing is said by [`BibleInfo::enciphered`] and
     /// [`BibleInfo::locked`].
     pub supported: bool,
     pub problem: Option<String>,
-    /// R17c: Die conf trägt `CipherKey` (leer oder nicht): Das Modul ist verschlüsselt.
+    /// R17c: the conf carries `CipherKey` (empty or not): the module is enciphered.
     pub enciphered: bool,
 }
 
 impl BibleInfo {
-    /// Verschlüsselt und ohne Schlüssel in der conf (`CipherKey=` leer): Lesen braucht einen Schlüssel vom
-    /// Nutzer. Liest die conf neu (kein eigenes Feld, damit [`BibleInfo`] nur die Felder des Vertrags trägt).
+    /// Enciphered and without a key in the conf (`CipherKey=` empty): reading needs a key from the
+    /// user. Reads the conf anew (no field of its own, so that [`BibleInfo`] carries only the fields of the contract).
     pub fn locked(&self) -> bool {
         self.enciphered && matches!(conf_with_key(self, None).map(|c| c.is_locked()), Ok(true))
     }
 }
 
-/// Ergebnis von [`scan`]: Bibeln (erste Fundstelle eines Namens gewinnt), Kommentare, Lexika und Hinweise je
-/// Ordner bzw. conf.
+/// Result of [`scan`]: Bibles (the first place a name is found wins), commentaries, lexicons and notes per
+/// folder or conf.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Scan {
-    /// Nur Bibeln (wie vor Runde 15).
+    /// Only Bibles (as before Round 15).
     pub modules: Vec<BibleInfo>,
     pub problems: Vec<String>,
-    /// Kommentare (R15).
+    /// Commentaries (R15).
     pub commentaries: Vec<BibleInfo>,
-    /// Lexika bzw. Wörterbücher (R15).
+    /// Lexicons or dictionaries (R15).
     pub lexicons: Vec<BibleInfo>,
 }
 
@@ -126,22 +126,22 @@ fn find_in<'a>(list: &'a [BibleInfo], name: &str) -> Option<&'a BibleInfo> {
 }
 
 impl Scan {
-    /// Bibelmodul nach Name (Groß-/Kleinschreibung egal).
+    /// Bible module by name (case does not matter).
     pub fn find(&self, name: &str) -> Option<&BibleInfo> {
         find_in(&self.modules, name)
     }
 
-    /// Kommentar nach Name.
+    /// Commentary by name.
     pub fn find_commentary(&self, name: &str) -> Option<&BibleInfo> {
         find_in(&self.commentaries, name)
     }
 
-    /// Lexikon nach Name.
+    /// Lexicon by name.
     pub fn find_lexicon(&self, name: &str) -> Option<&BibleInfo> {
         find_in(&self.lexicons, name)
     }
 
-    /// Modul einer Art nach Name.
+    /// Module of a kind by name.
     pub fn find_kind(&self, kind: SourceKind, name: &str) -> Option<&BibleInfo> {
         match kind {
             SourceKind::Bible => self.find(name),
@@ -150,19 +150,19 @@ impl Scan {
         }
     }
 
-    /// Alle Module: Bibeln, Kommentare, Lexika.
+    /// All modules: Bibles, commentaries, lexicons.
     pub fn all(&self) -> impl Iterator<Item = &BibleInfo> {
         self.modules.iter().chain(&self.commentaries).chain(&self.lexicons)
     }
 }
 
-/// Fehler beim Öffnen oder Lesen eines Moduls (Meldungen auf Deutsch).
+/// Errors when opening or reading a module (messages in German).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BibleError {
     NotFound(String),
     Unsupported(String),
     Read(String),
-    /// R17c: verschlüsseltes Modul ohne Schlüssel (Modulname).
+    /// R17c: enciphered module without a key (module name).
     Locked(String),
 }
 
@@ -183,7 +183,7 @@ impl std::fmt::Display for BibleError {
 
 impl std::error::Error for BibleError {}
 
-/// Vorgabe der Modulordner: jeder Eintrag von `$SWORD_PATH`, dann `~/.sword`, dann `/usr/share/sword`.
+/// Default of the module folders: every entry of `$SWORD_PATH`, then `~/.sword`, then `/usr/share/sword`.
 pub fn default_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(paths) = std::env::var_os("SWORD_PATH") {
@@ -205,7 +205,7 @@ pub(crate) fn decode_conf(bytes: &[u8]) -> String {
     }
 }
 
-/// `DataPath` relativ zum Modulordner ohne `..`; `Err` mit Grund.
+/// `DataPath` relative to the module folder without `..`; `Err` with reason.
 pub(crate) fn checked_data_path(conf: &ModuleConf) -> Result<PathBuf, String> {
     let raw = conf.data_path().filter(|p| !p.trim().is_empty()).ok_or("conf ohne DataPath")?;
     let path = Path::new(raw);
@@ -258,13 +258,13 @@ fn info_of(dir: &Path, conf_file: &Path, conf: &ModuleConf, kind: SourceKind) ->
         info.problem = Some(why);
     }
     if kind == SourceKind::Lexicon {
-        // Lexika haben keine Verszählung.
+        // Lexicons have no versification.
         info.versification = String::new();
     }
     info
 }
 
-/// Kann Baruch das Modul lesen? Treiber, Kompression, Verschlüsselung, Verszählung, DataPath.
+/// Can Baruch read the module? Driver, compression, encipherment, versification, DataPath.
 fn support(conf: &ModuleConf) -> Result<&'static Versification, String> {
     let drv = conf.mod_drv().map_err(|e| e.to_string())?;
     let compressed = match drv {
@@ -276,14 +276,14 @@ fn support(conf: &ModuleConf) -> Result<&'static Versification, String> {
     known_versification(conf)
 }
 
-/// Verszählung der conf, wenn Baruch sie kennt; sonst „Verszählung „X“ kennt Baruch nicht“.
+/// Versification of the conf, if Baruch knows it; otherwise „Verszählung „X“ kennt Baruch nicht“.
 pub(crate) fn known_versification(conf: &ModuleConf) -> Result<&'static Versification, String> {
     versification(conf.versification())
         .ok_or_else(|| format!("Verszählung „{}“ kennt Baruch nicht", conf.versification()))
 }
 
-/// Kompression und DataPath (für alle Arten gleich). Verschlüsselte Module (`CipherKey`) lehnt Baruch seit
-/// Runde 17 nicht mehr ab: Mit Schlüssel sind sie lesbar ([`open_with_key`]).
+/// Compression and DataPath (the same for all kinds). Baruch no longer rejects enciphered modules (`CipherKey`)
+/// since Round 17: with a key they are readable ([`open_with_key`]).
 pub(crate) fn common_support(conf: &ModuleConf, compressed: bool) -> Result<(), String> {
     let known =
         matches!(conf.compress_type(), CompressType::Zip | CompressType::Lzss | CompressType::Bzip2 | CompressType::Xz);
@@ -297,9 +297,9 @@ pub(crate) fn common_support(conf: &ModuleConf, compressed: bool) -> Result<(), 
     Ok(())
 }
 
-/// conf des Moduls `info` neu lesen. Mit `cipher_key` (getrimmt, nicht leer) steht der Schlüssel danach **nur im
-/// Speicher** in der conf (`CipherKey`, wie `SwordLibrary::open_module_with_key`); die Datei bleibt unberührt.
-/// Ein unverschlüsseltes Modul bekommt keinen Schlüssel.
+/// Read the conf of the module `info` anew. With `cipher_key` (trimmed, not empty) the key is afterwards **only
+/// in memory** in the conf (`CipherKey`, like `SwordLibrary::open_module_with_key`); the file stays untouched.
+/// An unenciphered module gets no key.
 pub(crate) fn conf_with_key(info: &BibleInfo, cipher_key: Option<&str>) -> Result<ModuleConf, BibleError> {
     let bytes =
         std::fs::read(&info.conf_file).map_err(|e| BibleError::Read(format!("{}: {e}", info.conf_file.display())))?;
@@ -314,7 +314,7 @@ pub(crate) fn conf_with_key(info: &BibleInfo, cipher_key: Option<&str>) -> Resul
     Ok(conf)
 }
 
-/// Fehler von `sword-modules` beim Öffnen: gesperrt wird [`BibleError::Locked`], sonst [`BibleError::Read`].
+/// Error of `sword-modules` on opening: locked becomes [`BibleError::Locked`], otherwise [`BibleError::Read`].
 pub(crate) fn open_error(name: &str, e: sword_modules::Error) -> BibleError {
     match e {
         sword_modules::Error::Locked(_) => BibleError::Locked(name.to_owned()),
@@ -322,10 +322,10 @@ pub(crate) fn open_error(name: &str, e: sword_modules::Error) -> BibleError {
     }
 }
 
-/// Module in den Modulordnern `dirs` (je Ordner `mods.d/*.conf`, nach Dateinamen sortiert): Bibeln in
-/// `modules`, Kommentare in `commentaries`, Lexika in `lexicons` (R15); allgemeine Bücher (GenBook) werden
-/// übergangen. Ordner ohne `mods.d` und unlesbare confs stehen in `problems`; ein Name, der schon in einem
-/// früheren Ordner stand, ebenfalls.
+/// Modules in the module folders `dirs` (per folder `mods.d/*.conf`, sorted by file name): Bibles in
+/// `modules`, commentaries in `commentaries`, lexicons in `lexicons` (R15); general books (GenBook) are
+/// skipped. Folders without `mods.d` and unreadable confs are in `problems`; a name that already was in an
+/// earlier folder likewise.
 pub fn scan(dirs: &[PathBuf]) -> Scan {
     let mut out = Scan::default();
     for dir in dirs {
@@ -381,7 +381,7 @@ pub fn scan(dirs: &[PathBuf]) -> Scan {
     out
 }
 
-/// Ein geöffnetes Bibelmodul.
+/// An opened Bible module.
 pub struct Bible {
     pub info: BibleInfo,
     pub v11n: &'static Versification,
@@ -394,22 +394,22 @@ impl std::fmt::Debug for Bible {
     }
 }
 
-/// Öffnet das Modul `info` (aus [`scan`]) ohne Schlüssel: [`open_with_key`]`(info, None)`.
+/// Opens the module `info` (from [`scan`]) without a key: [`open_with_key`]`(info, None)`.
 pub fn open(info: &BibleInfo) -> Result<Bible, BibleError> {
     open_with_key(info, None)
 }
 
-/// Öffnet das Modul `info` mit dem Schlüssel `cipher_key` für ein verschlüsseltes Modul (nur im Speicher; die
-/// conf-Datei bleibt unverändert). Ein unverschlüsseltes Modul übergeht den Schlüssel. Ohne Schlüssel bei
-/// leerem `CipherKey` der conf: [`BibleError::Locked`] (nach den übrigen Gründen wie Zählung und Treiber). Ein
-/// falscher Schlüssel fällt erst beim Lesen auf ([`Bible::probe`]).
+/// Opens the module `info` with the key `cipher_key` for an enciphered module (only in memory; the
+/// conf file stays unchanged). An unenciphered module ignores the key. Without a key with an
+/// empty `CipherKey` of the conf: [`BibleError::Locked`] (after the other reasons such as versification and
+/// driver). A wrong key only shows up on reading ([`Bible::probe`]).
 pub fn open_with_key(info: &BibleInfo, cipher_key: Option<&str>) -> Result<Bible, BibleError> {
     let conf = conf_with_key(info, cipher_key)?;
     let v11n = support(&conf).map_err(BibleError::Unsupported)?;
     if conf.is_locked() {
         return Err(BibleError::Locked(info.name.clone()));
     }
-    // `Module::open` liest DataPath relativ zum übergebenen Modulordner (führendes „./“ oder „/“ entfernt).
+    // `Module::open` reads DataPath relative to the passed module folder (leading "./" or "/" removed).
     let module = Module::open(&info.dir, conf).and_then(Module::into_verse).map_err(|e| open_error(&info.name, e))?;
     if !module.versification().name().eq_ignore_ascii_case(v11n.name) {
         return Err(BibleError::Unsupported(format!("Verszählung {}", module.versification().name())));
@@ -417,30 +417,30 @@ pub fn open_with_key(info: &BibleInfo, cipher_key: Option<&str>) -> Result<Bible
     Ok(Bible { info: info.clone(), v11n, module })
 }
 
-/// Ein Vers mit Klartext.
+/// A verse with plain text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Verse {
     pub chapter: u16,
     pub verse: u16,
-    /// `None`: Stelle gibt es in der Zählung, das Modul hat dort keinen Text.
+    /// `None`: the reference exists in the versification, the module has no text there.
     pub text: Option<String>,
 }
 
-/// Treffer der Suche.
+/// Hit of the search.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Hit {
-    /// OSIS-Buch, Kapitel, Vers.
+    /// OSIS book, chapter, verse.
     pub book: String,
     pub chapter: u16,
     pub verse: u16,
     pub text: String,
 }
 
-/// Ergebnis von [`Bible::search`].
+/// Result of [`Bible::search`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Search {
     pub hits: Vec<Hit>,
-    /// Abgebrochen wegen Treffer- oder Zeitgrenze.
+    /// Aborted because of the hit or time limit.
     pub truncated: bool,
     pub searched_verses: usize,
 }
@@ -450,8 +450,8 @@ impl Bible {
         VerseKey::from_osis(book, u8::try_from(chapter).ok()?, u8::try_from(verse).ok()?)
     }
 
-    /// Klartext eines Verses (OSIS-Buch, Kapitel, Vers ab 1); `Ok(None)`, wenn das Modul dort nichts hat
-    /// oder es die Stelle in seiner Zählung nicht gibt.
+    /// Plain text of a verse (OSIS book, chapter, verse from 1); `Ok(None)` if the module has nothing there
+    /// or the reference does not exist in its versification.
     pub fn verse(&self, book: &str, chapter: u16, verse: u16) -> Result<Option<String>, BibleError> {
         if self.v11n.verses_in(book, chapter).is_none_or(|n| verse == 0 || verse > n) {
             return Ok(None);
@@ -461,7 +461,7 @@ impl Bible {
         Ok(entry.map(|e| text::to_plain(&e.raw, e.markup)).filter(|t| !t.is_empty()))
     }
 
-    /// Rohtext an einer Index-Stelle (`testament` 0 = AT, 1 = NT), z. B. Modulkopf (0) und Testamentkopf (1).
+    /// Raw text at an index slot (`testament` 0 = OT, 1 = NT), e.g. module header (0) and testament header (1).
     pub fn slot_text(&self, testament: usize, slot: u32) -> Result<Option<String>, BibleError> {
         let testament = if testament == 0 { sword_modules::Testament::Old } else { sword_modules::Testament::New };
         let entry =
@@ -469,15 +469,15 @@ impl Bible {
         Ok(entry.map(|e| e.raw))
     }
 
-    /// Klartext einer Buch- (Kapitel 0) bzw. Kapiteleinleitung (Vers 0).
+    /// Plain text of a book introduction (chapter 0) or chapter introduction (verse 0).
     pub fn intro(&self, book: &str, chapter: u16) -> Result<Option<String>, BibleError> {
         let Some(key) = Self::key(book, chapter, 0) else { return Ok(None) };
         let entry = self.module.verse(&key).map_err(|e| BibleError::Read(e.to_string()))?;
         Ok(entry.map(|e| e.raw))
     }
 
-    /// Verse von `start` bis `end` (je Kapitel, Vers; Vers 0 = ganzes Kapitel) in der Zählung des Moduls,
-    /// höchstens [`MAX_PASSAGE_VERSES`]. `Err(Unsupported)` bei unbekanntem Buch oder Kapitel.
+    /// Verses from `start` to `end` (chapter, verse each; verse 0 = whole chapter) in the versification of the
+    /// module, at most [`MAX_PASSAGE_VERSES`]. `Err(Unsupported)` for an unknown book or chapter.
     pub fn passage(&self, book: &str, start: (u16, u16), end: (u16, u16)) -> Result<Vec<Verse>, BibleError> {
         let chapters = self.v11n.chapters_of(book).ok_or_else(|| BibleError::Unsupported(format!("Buch {book}")))?;
         let last_of = |c: u16| chapters.get(usize::from(c).wrapping_sub(1)).copied();
@@ -498,8 +498,8 @@ impl Bible {
         Ok(out)
     }
 
-    /// Lineare Suche nach einer Wortfolge (normalisiert wie der Wortlautvergleich: Satzzeichen, Groß/Klein,
-    /// Bindestriche zählen nicht) über alle Verse; höchstens `limit` Treffer, bis `deadline`.
+    /// Linear search for a word sequence (normalised like the wording comparison: punctuation, case,
+    /// hyphens do not count) over all verses; at most `limit` hits, until `deadline`.
     pub fn search(&self, query: &str, limit: usize, deadline: Instant) -> Result<Search, BibleError> {
         let needle: Vec<String> = baruch_scripture::wording::words(query).into_iter().map(|w| w.key).collect();
         let mut hits = Vec::new();
@@ -534,9 +534,9 @@ impl Bible {
         Ok(Search { hits, truncated: false, searched_verses: searched })
     }
 
-    /// Runde 19c: Klartext der ersten Verse des Moduls (in seiner Reihenfolge, ohne Einleitungen), höchstens
-    /// `max_verses` bzw. bis `deadline` – die Stichprobe für die Schätzung der Wortfragmente
-    /// (`baruch_scripture::wording::fragment_survey`). `truncated`: wegen einer Grenze abgebrochen.
+    /// Round 19c: plain text of the first verses of the module (in its order, without introductions), at most
+    /// `max_verses` or until `deadline` – the sample for the estimate of the word fragments
+    /// (`baruch_scripture::wording::fragment_survey`). `truncated`: aborted because of a limit.
     pub fn sample_texts(&self, max_verses: usize, deadline: Instant) -> Result<(Vec<String>, bool), BibleError> {
         let mut out = Vec::new();
         for item in self.module.iter() {
@@ -555,9 +555,9 @@ impl Bible {
         Ok((out, false))
     }
 
-    /// R17c: Strong-Nummern eines Verses („H1234“, „G26“; ohne führende Nullen, in der Reihenfolge des Textes,
-    /// ohne Doppel) aus der Auszeichnung: OSIS `lemma="strong:…"`, ThML `<sync type="Strongs" value="…"/>`, GBF
-    /// `<WH…>`/`<WG…>`. Leer ohne Auszeichnung oder ohne Text an der Stelle.
+    /// R17c: Strong's numbers of a verse ("H1234", "G26"; without leading zeros, in the order of the text,
+    /// without duplicates) from the markup: OSIS `lemma="strong:…"`, ThML `<sync type="Strongs" value="…"/>`, GBF
+    /// `<WH…>`/`<WG…>`. Empty without markup or without text at the reference.
     pub fn verse_strongs(&self, book: &str, chapter: u16, verse: u16) -> Result<Vec<String>, BibleError> {
         if self.v11n.verses_in(book, chapter).is_none_or(|n| verse == 0 || verse > n) {
             return Ok(Vec::new());
@@ -572,40 +572,40 @@ impl Bible {
         Ok(entry.map(|e| text::strongs(&e.raw, e.markup, if old { 'H' } else { 'G' })).unwrap_or_default())
     }
 
-    /// R17c: Trägt das Modul Strong-Nummern? conf: `GlobalOptionFilter` mit „Strongs“ (z. B. `OSISStrongs`) oder
-    /// `Feature=StrongsNumbers`.
+    /// R17c: does the module carry Strong's numbers? conf: `GlobalOptionFilter` with "Strongs" (e.g.
+    /// `OSISStrongs`) or `Feature=StrongsNumbers`.
     pub fn has_strongs(&self) -> bool {
         let conf = self.module.conf();
         conf.global_option_filters().iter().any(|f| f.contains("Strongs"))
             || conf.features().iter().any(|f| f.trim().eq_ignore_ascii_case("StrongsNumbers"))
     }
 
-    /// R17c: Probelesen ([`probe_entries`]): die ersten Einträge müssen sich entschlüsseln, entpacken und als Text
-    /// lesen lassen. So fällt ein falscher Schlüssel auf, bevor er gespeichert wird. `Err` mit Grund; ein Modul ganz
-    /// ohne Einträge gilt als nicht prüfbar (`Err`).
+    /// R17c: trial read ([`probe_entries`]): the first entries must decipher, unpack and read as text.
+    /// That way a wrong key shows up before it is stored. `Err` with reason; a module entirely
+    /// without entries counts as not checkable (`Err`).
     pub fn probe(&self) -> Result<(), BibleError> {
         probe_entries(self.module.iter().map(|r| r.map(|(_, e)| e)))
     }
 }
 
-/// Höchstens so viele Einträge liest [`probe_entries`].
+/// [`probe_entries`] reads at most this many entries.
 const PROBE_ENTRIES: usize = 64;
-/// Nach so vielen Zeichen Text hört [`probe_entries`] auf.
+/// After this many characters of text [`probe_entries`] stops.
 const PROBE_CHARS: usize = 2048;
 
-/// Sieht ein Eintrag aus wie Text? Kein Ersatzzeichen (U+FFFD: ungültiges UTF-8) und kein Steuerzeichen außer
-/// Tabulator und Zeilenwechsel. Ein falsch entschlüsselter Eintrag besteht aus Zufallsbytes; in Latin-1 (Vorgabe
-/// von SWORD ohne `Encoding`, gelesen als cp1252) gibt es kein Ersatzzeichen, aber etwa jedes achte Zufallsbyte ist
-/// ein Steuerzeichen (0x00–0x1F, 0x7F und die in cp1252 freien 0x81, 0x8D, 0x8F, 0x90, 0x9D).
+/// Does an entry look like text? No replacement character (U+FFFD: invalid UTF-8) and no control character
+/// except tab and line change. A wrongly deciphered entry consists of random bytes; in Latin-1 (default of
+/// SWORD without `Encoding`, read as cp1252) there is no replacement character, but about every eighth random
+/// byte is a control character (0x00–0x1F, 0x7F and the 0x81, 0x8D, 0x8F, 0x90, 0x9D that are free in cp1252).
 fn plausible_text(raw: &str) -> bool {
     !raw.chars().any(|c| c == '\u{FFFD}' || (c.is_control() && !matches!(c, '\t' | '\n' | '\r')))
 }
 
-/// R17c, Nachbesserung Runde 17: Probelesen für einen Schlüssel. Liest die ersten nicht leeren Einträge (höchstens
-/// [`PROBE_ENTRIES`] bzw. [`PROBE_CHARS`] Zeichen) und verlangt, dass jeder wie Text aussieht ([`plausible_text`]).
-/// Vorher galt nur der erste Eintrag und nur U+FFFD/NUL: Ein falsch entschlüsselter Latin-1-Eintrag aus 150
-/// Zufallsbytes enthält mit rund 55 % kein NUL, ein falscher Schlüssel wäre als „gültig“ gespeichert worden. Jetzt
-/// liegt die Wahrscheinlichkeit dafür bei 150 Zeichen unter 10⁻⁸.
+/// R17c, follow-up fix Round 17: trial read for a key. Reads the first non-empty entries (at most
+/// [`PROBE_ENTRIES`] or [`PROBE_CHARS`] characters) and demands that each looks like text ([`plausible_text`]).
+/// Before, only the first entry counted and only U+FFFD/NUL: a wrongly deciphered Latin-1 entry of 150 random
+/// bytes contains no NUL with about 55 %, a wrong key would have been stored as "valid". Now the probability of
+/// that is below 10⁻⁸ at 150 characters.
 pub(crate) fn probe_entries(
     entries: impl Iterator<Item = Result<sword_modules::Entry, sword_modules::Error>>,
 ) -> Result<(), BibleError> {

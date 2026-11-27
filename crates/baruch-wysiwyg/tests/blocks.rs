@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Szenen, Arbeitsaufträge und Labels (Vertrag Runde 6, „satzbild“): `#szene[…]` und `#arbeit[…]` sind
-//! eigene Blöcke mit einzeln bearbeitbaren Blöcken im Rumpf, ein Label hinter der Überschrift gehört
-//! zu ihr, und `serialize` ändert nur den bearbeiteten Block. Dazu das Einfügen mehrerer Absätze, wie
-//! `wysiwyg.ts` es schickt. Alle Texte frei erfunden.
+//! Scenes, work assignments and labels (contract Round 6, "satzbild"): `#szene[…]` and `#arbeit[…]` are
+//! blocks of their own with individually editable blocks in the body, a label after the heading belongs
+//! to it, and `serialize` changes only the edited block. Plus the pasting of several paragraphs as
+//! `wysiwyg.ts` sends it. All texts freely invented.
 
 use baruch_wysiwyg::{Block, BlockKind, Edit, Inline, WysiwygError, parse, serialize};
 
-/// Abschnitt mit Überschrift, Label auf der nächsten Zeile, Szene (drei Absätze, Fußnote) direkt
-/// dahinter, Absatz und Arbeitsauftrag mit Liste.
+/// Section with heading, label on the next line, scene (three paragraphs, footnote) directly
+/// after it, paragraph and work assignment with a list.
 const SECTION: &str = "= Die Werkstatt am Fluss
 <werkstatt>
 #szene[
@@ -149,11 +149,11 @@ fn a_new_paragraph_in_a_scene_gets_the_indentation_and_a_blank_line() {
     assert!(out.contains("Hobeln.\n\n  Draußen"), "zwischen den übrigen bleibt eine Leerzeile: {out}");
 }
 
-/// Szene, die mit einer Liste beginnt: Der Einzug ihrer ersten Zeile steht vor `body_blocks` im
-/// Rahmen, der ihrer zweiten Zeile im `raw`.
+/// Scene that starts with a list: the indentation of its first line is in the frame before `body_blocks`,
+/// that of its second line in the `raw`.
 const LIST_FIRST: &str = "#szene[\n  - Hammer\n  - Zange\n\n  Der Rest lag im Regal.\n]\n";
 
-/// Liste im Rumpf: zwei Punkte auf derselben Ebene, sonst schlägt die Zusicherung mit `what` fehl.
+/// List in the body: two items on the same level, otherwise the assertion fails with `what`.
 fn assert_flat_list(out: &str, index: usize, what: &str) {
     let reparsed = parse(out);
     let body = body_of(&reparsed.blocks[0]);
@@ -273,9 +273,9 @@ fn a_label_line_after_a_heading_is_not_a_paragraph_and_other_labels_stay_where_t
 
 #[test]
 fn pasting_text_with_blank_lines_makes_several_paragraphs() {
-    // wysiwyg.ts: Einfügen von „Eins⏎⏎Zwei⏎⏎Drei“ mitten in „Anfang Ende“ teilt den Absatz: Der alte
-    // Block (data-b=0, bearbeitet) endet mit dem ersten Stück, die weiteren Stücke sind neue Blöcke
-    // ohne Index, das letzte trägt den Rest des alten Absatzes.
+    // wysiwyg.ts: pasting „Eins⏎⏎Zwei⏎⏎Drei“ in the middle of „Anfang Ende“ splits the paragraph: the old
+    // block (data-b=0, edited) ends with the first piece, the further pieces are new blocks
+    // without an index, the last carries the rest of the old paragraph.
     let original = "Anfang Ende\n\nDanach.\n";
     let doc = parse(original);
     let edits = [

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (spiegel-entwurf, Vertrag §2.9): Das Wasserzeichen „Entwurf“ gesetzt. Die Quelle ist gebaut wie im Server
-//! (Werkvorlage, dann [`draft_rule`], dann der Text); gemessen mit [`baruch_render::page_texts`]. Alle Texte frei
-//! erfunden.
+//! Round 22 (spiegel-entwurf, contract §2.9): the watermark „Entwurf“ typeset. The source is built as in the
+//! server (work template, then [`draft_rule`], then the text); measured with [`baruch_render::page_texts`]. All
+//! texts freely invented.
 
 use baruch_render::{Severity, Source, compile, page_texts};
 use baruch_typst::typeset::{Draft, DraftPlacement, draft_rule};
@@ -22,7 +22,7 @@ fn source(rule: &str) -> Source {
     Source { main: format!("{TEMPLATE}{rule}{}", body()), files: Vec::new() }
 }
 
-/// Text jeder Seite (Stücke hintereinander, geschützte Leerzeichen als Leerzeichen).
+/// Text of every page (pieces one after another, non-breaking spaces as spaces).
 fn texts(source: &Source) -> Vec<String> {
     page_texts(source)
         .expect("die Quelle lässt sich setzen")
@@ -54,7 +54,7 @@ fn every_placement_puts_the_text_on_every_page_without_changing_the_page_count()
 
 #[test]
 fn text_note_and_date_stay_plain_strings_even_with_typst_syntax() {
-    // Zeichen, die als Markup oder Code Schaden anrichten könnten: Anführungszeichen, Rückstrich, Raute, Klammern.
+    // Characters that could do damage as markup or code: quotation marks, backslash, hash, brackets.
     let draft = Draft {
         text: "A\"B\\C#D]E[F Ä€".into(),
         note: "#set text(red) ] \" \\ Zeile\nzwei".into(),

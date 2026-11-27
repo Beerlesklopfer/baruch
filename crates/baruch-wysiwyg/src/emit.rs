@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Blöcke → kanonisches Typst. Nur für neue oder bearbeitete Blöcke; unberührte übernimmt
-//! [`crate::serialize`] wörtlich. Für jede Art außer der Insel gilt `parse(emit(k)) == k` (ohne die
-//! `raw` geschachtelter Blöcke), sofern `k` kanonisch ist: Text ohne Zeilenenden, keine zwei Texte
-//! nebeneinander, kein Leerraum am Anfang einer Zeile bzw. am Ende eines Blocks, keine zwei
-//! Zeilenumbrüche hintereinander, kein Zeilenumbruch in einer Überschrift (oberste Ebene oder in
-//! `_…_`/`*…*`). Eine Überschrift mit einem solchen Umbruch (aus dem Satzbild) endet dort; der Rest
-//! wird ein Absatz dahinter ([`split_heading`], Runde 7).
+//! Blocks → canonical Typst. Only for new or edited blocks; untouched ones are taken over verbatim by
+//! [`crate::serialize`]. For every kind except the island `parse(emit(k)) == k` holds (without the
+//! `raw` of nested blocks), provided `k` is canonical: text without line ends, no two texts
+//! next to each other, no whitespace at the beginning of a line or at the end of a block, no two
+//! line breaks in a row, no line break in a heading (top level or in
+//! `_…_`/`*…*`). A heading with such a break (from the typeset view) ends there; the rest
+//! becomes a paragraph after it ([`split_heading`], Round 7).
 //!
-//! Regeln: Sonderzeichen im Text werden maskiert (`\#`, `\*`, `\_` …), am Zeilenanfang auch
-//! Listen-, Überschrifts- und Aufzählungszeichen; ein geschütztes Leerzeichen wird `~`. `_…_` und
-//! `*…*` stehen nur an Wortgrenzen und nicht geschachtelt in sich selbst, sonst `#emph[…]` bzw.
-//! `#strong[…]`. Hinter einem `#`-Ausdruck wird `(` und `.name` maskiert, hinter einem
-//! Zeilenkommentar beginnt eine neue Zeile.
+//! Rules: special characters in the text are escaped (`\#`, `\*`, `\_` …), at the beginning of a line also
+//! list, heading and enumeration markers; a non-breaking space becomes `~`. `_…_` and
+//! `*…*` stand only at word boundaries and not nested in themselves, otherwise `#emph[…]` or
+//! `#strong[…]`. After a `#` expression `(` and `.name` are escaped, after a
+//! line comment a new line starts.
 
 use crate::parse::MAX_LIST_DEPTH;
 use crate::scan::is_label_char;
 use crate::{Block, BlockKind, Inline, Term};
 
-/// Kanonisches Typst eines Blocks, ohne Zeilenende. Eine Insel ergibt `""` (sie wird nie neu
-/// erzeugt); in einem Rumpf (`#szene[…]`) steht eine Insel mit ihrem `raw`.
+/// Canonical Typst of a block, without line end. An island yields `""` (it is never newly
+/// generated); in a body (`#szene[…]`) an island stands with its `raw`.
 pub fn emit(kind: &BlockKind) -> String {
     match kind {
         BlockKind::Heading { level, inlines, label } => {
-            // Runde 7 („Absatz wird Titel“): Die Überschrift endet am ersten Zeilenumbruch; was
-            // dahinter steht, ist ein eigener Absatz und nie Teil der Überschriftszeile.
+            // Round 7 („Absatz wird Titel“): the heading ends at the first line break; what
+            // stands after it is a paragraph of its own and never part of the heading line.
             let (head, rest) = split_heading(inlines);
             let mut line = heading_text(*level, &head);
             if let Some(label) = label {
@@ -47,7 +47,7 @@ pub fn emit(kind: &BlockKind) -> String {
                 .join("\n")
         }
         BlockKind::Enum { start, items, depths } => {
-            // Fortlaufende Nummern wie beim Lesen: oben ab `start`, jede geschachtelte Gruppe ab 1.
+            // Consecutive numbers as when reading: at the top from `start`, every nested group from 1.
             let levels = list_depths(items.len(), depths);
             let mut counters: Vec<u64> = Vec::new();
             let mut lines = Vec::with_capacity(items.len());
@@ -65,7 +65,7 @@ pub fn emit(kind: &BlockKind) -> String {
         BlockKind::Terms { items } => items
             .iter()
             .map(|Term { term, desc }| {
-                // Der Begriff ist eine Zeile; jeder Doppelpunkt darin wird maskiert (er beendete den Begriff).
+                // The term is one line; every colon in it is escaped (it would end the term).
                 let term_ctx = Ctx { heading: true, term: true, after: Some(':'), ..Ctx::default() };
                 let desc = seq(desc, &item_ctx(0), true);
                 let sep = if desc.is_empty() { "" } else { " " };
@@ -96,22 +96,22 @@ pub fn emit(kind: &BlockKind) -> String {
     }
 }
 
-/// Leerzeichen für den Einzug geschachtelter Listenpunkte (zwei je Ebene).
+/// Spaces for the indentation of nested list items (two per level).
 const SPACES: &str = "                                        ";
 
-/// Einzug der Ebene `depth` (zwei Leerzeichen je Ebene, höchstens [`MAX_LIST_DEPTH`] + 1 Ebenen).
+/// Indentation of the level `depth` (two spaces per level, at most [`MAX_LIST_DEPTH`] + 1 levels).
 fn spaces(depth: usize) -> &'static str {
     &SPACES[..(2 * depth.min(usize::from(MAX_LIST_DEPTH) + 1)).min(SPACES.len())]
 }
 
-/// Kontext für den Text eines Listenpunkts der Ebene `depth`: Folgezeilen eine Ebene tiefer eingerückt als
-/// sein Zeichen.
+/// Context for the text of a list item of the level `depth`: continuation lines indented one level deeper than
+/// its marker.
 fn item_ctx(depth: usize) -> Ctx {
     Ctx { indent: spaces(depth + 1), ..Ctx::default() }
 }
 
-/// Tiefe je Punkt, gültig gemacht: der erste Punkt oben, jeder weitere höchstens eine Ebene tiefer als der
-/// davor, höchstens [`MAX_LIST_DEPTH`]; fehlende Angaben = 0.
+/// Depth per item, made valid: the first item at the top, every further one at most one level deeper than the
+/// one before, at most [`MAX_LIST_DEPTH`]; missing values = 0.
 fn list_depths(count: usize, depths: &[u8]) -> Vec<usize> {
     let mut out: Vec<usize> = Vec::with_capacity(count);
     for k in 0..count {
@@ -122,22 +122,22 @@ fn list_depths(count: usize, depths: &[u8]) -> Vec<usize> {
     out
 }
 
-/// Überschriftszeile ohne Label und ohne Zeilenende: `=` × Ebene, Leerzeichen, Titel.
+/// Heading line without label and without line end: `=` × level, space, title.
 pub(crate) fn heading_text(level: u8, inlines: &[Inline]) -> String {
     let ctx = Ctx { heading: true, ..Ctx::default() };
     format!("{} {}", "=".repeat(usize::from(level.clamp(1, 6))), seq(inlines, &ctx, false))
 }
 
-/// Inlines einer Überschrift am ersten Zeilenumbruch teilen ([`Inline::Soft`] oder ein Zeilenende
-/// im Sinn von Typst, [`baruch_typst::is_newline`], in einem Text), auf oberster Ebene wie in
-/// `_…_` bzw. `*…*`: davor der Titel, dahinter (falls etwas übrig bleibt) der Absatz, der unter der
-/// Überschrift steht. Ein Umbruch in einer Hervorhebung teilt diese (`*Laub⏎Absatz*` → Titel
-/// `*Laub*`, Absatz `*Absatz*`), denn in der Überschriftszeile würde er sonst ein Leerzeichen und
-/// zöge den Absatz doch in den Titel. Fußnoten und Zitate (`#footnote[…]`, `#quote[…]`) bleiben
-/// ganz; ihr Inhalt ist ein eigener Inhaltsblock. Umbrüche am Anfang zählen nicht, Leerraum an der
-/// Schnittstelle entfällt. So kann ein weicher Umbruch (Umschalt+Enter, `<br>` des Browsers, auch in
-/// `<b>`/`<i>`) im Satzbild nie Absatztext in die Überschriftszeile ziehen; Typst kennt ohnehin nur
-/// einzeilige Überschriften.
+/// Split the inlines of a heading at the first line break ([`Inline::Soft`] or a line end
+/// in the sense of Typst, [`baruch_typst::is_newline`], in a text), at the top level as in
+/// `_…_` or `*…*`: before it the title, after it (if anything remains) the paragraph that stands under the
+/// heading. A break in an emphasis splits it (`*Laub⏎Absatz*` → title
+/// `*Laub*`, paragraph `*Absatz*`), because in the heading line it would otherwise become a space and
+/// pull the paragraph into the title after all. Footnotes and quotes (`#footnote[…]`, `#quote[…]`) stay
+/// whole; their content is a content block of its own. Breaks at the beginning do not count, whitespace at the
+/// cut is dropped. That way a soft break (Shift+Enter, `<br>` of the browser, also in
+/// `<b>`/`<i>`) in the typeset view can never pull paragraph text into the heading line; Typst knows only
+/// single-line headings anyway.
 pub(crate) fn split_heading(inlines: &[Inline]) -> (Vec<Inline>, Option<Vec<Inline>>) {
     let flat = trim_front(flatten_newlines(inlines));
     let (head, rest) = cut_at_break(flat);
@@ -149,7 +149,7 @@ pub(crate) fn split_heading(inlines: &[Inline]) -> (Vec<Inline>, Option<Vec<Inli
     (head, (!rest.is_empty()).then_some(rest))
 }
 
-/// Zeilenenden in Texten (auch in `_…_`/`*…*`) wie einfache Umbrüche behandeln.
+/// Treat line ends in texts (also in `_…_`/`*…*`) like simple breaks.
 fn flatten_newlines(inlines: &[Inline]) -> Vec<Inline> {
     let mut flat: Vec<Inline> = Vec::with_capacity(inlines.len());
     for inline in inlines {
@@ -172,12 +172,12 @@ fn flatten_newlines(inlines: &[Inline]) -> Vec<Inline> {
     flat
 }
 
-/// Baut aus einem Inhalt wieder dieselbe Hervorhebung (`Emph` bzw. `Strong`).
+/// Builds the same emphasis (`Emph` or `Strong`) again from a content.
 type Rewrap = fn(Vec<Inline>) -> Inline;
 
-/// Am ersten Umbruch teilen, der in der Überschriftszeile stünde (oberste Ebene oder in `_…_`/`*…*`,
-/// beliebig tief). Eine geteilte Hervorhebung steht mit ihrem vorderen Teil im Titel und mit dem
-/// hinteren am Anfang des Rests; leere Teile entfallen.
+/// Split at the first break that would stand in the heading line (top level or in `_…_`/`*…*`,
+/// arbitrarily deep). A split emphasis stands with its front part in the title and with the
+/// rear part at the beginning of the rest; empty parts are dropped.
 fn cut_at_break(inlines: Vec<Inline>) -> (Vec<Inline>, Option<Vec<Inline>>) {
     let mut head = Vec::with_capacity(inlines.len());
     let mut iter = inlines.into_iter();
@@ -209,8 +209,8 @@ fn cut_at_break(inlines: Vec<Inline>) -> (Vec<Inline>, Option<Vec<Inline>>) {
     (head, None)
 }
 
-/// Umbrüche, leere Texte, leere Hervorhebungen und Leerraum am Anfang einer Folge entfernen, auch
-/// am Anfang einer vorn stehenden Hervorhebung.
+/// Remove breaks, empty texts, empty emphases and whitespace at the beginning of a sequence, also
+/// at the beginning of an emphasis standing at the front.
 fn trim_front(mut inlines: Vec<Inline>) -> Vec<Inline> {
     loop {
         match inlines.first_mut() {
@@ -239,7 +239,7 @@ fn trim_front(mut inlines: Vec<Inline>) -> Vec<Inline> {
     }
 }
 
-/// Wie [`trim_front`], aber am Ende der Folge.
+/// Like [`trim_front`], but at the end of the sequence.
 fn trim_back(mut inlines: Vec<Inline>) -> Vec<Inline> {
     loop {
         match inlines.last_mut() {
@@ -268,8 +268,8 @@ fn trim_back(mut inlines: Vec<Inline>) -> Vec<Inline> {
     }
 }
 
-/// Zeile mit dem Label einer Überschrift (`\n<name>`); ein Name mit fremden Zeichen ergäbe kein
-/// Label und entfällt.
+/// Line with the label of a heading (`\n<name>`); a name with foreign characters would yield no
+/// label and is dropped.
 pub(crate) fn label_line(label: &str) -> String {
     if !label.is_empty() && label.chars().all(crate::scan::is_label_char) {
         format!("\n<{label}>")
@@ -278,13 +278,13 @@ pub(crate) fn label_line(label: &str) -> String {
     }
 }
 
-/// Argumente vor dem Rumpf (`(ort: [Küche])`) wörtlich; ohne Argumente nichts.
+/// Arguments before the body (`(ort: [Küche])`) verbatim; without arguments nothing.
 fn arguments(args: Option<&str>) -> String {
     args.map(|a| format!("({a})")).unwrap_or_default()
 }
 
-/// Rumpf eines Blocks als Inhaltsblock: ein einzelner einzeiliger Absatz als `[…]`, sonst
-/// mehrzeilig mit Leerzeilen zwischen den Blöcken.
+/// Body of a block as a content block: a single single-line paragraph as `[…]`, otherwise
+/// multi-line with empty lines between the blocks.
 fn content(body: &[Block], multiline: bool) -> String {
     let parts: Vec<String> = body
         .iter()
@@ -308,27 +308,27 @@ fn content(body: &[Block], multiline: bool) -> String {
 
 #[derive(Clone, Default)]
 struct Ctx {
-    /// Einzug hinter einem Zeilenumbruch (Listenpunkt: zwei Leerzeichen).
+    /// Indentation after a line break (list item: two spaces).
     indent: &'static str,
-    /// Oberste Ebene einer Überschrift: Zeilenumbrüche werden Leerzeichen.
+    /// Top level of a heading: line breaks become spaces.
     heading: bool,
-    /// Innerhalb von `_…_` bzw. `*…*`: dasselbe Zeichen darf nicht noch einmal öffnen.
+    /// Within `_…_` or `*…*`: the same character must not open once more.
     in_emph: bool,
     in_strong: bool,
-    /// Zeichen, das hinter der ganzen Folge steht (`_`, `*` bzw. `]`); `None` am Blockende.
+    /// Character that stands after the whole sequence (`_`, `*` or `]`); `None` at the end of the block.
     after: Option<char>,
-    /// Begriff einer Begriffsliste (Runde 18b): `:` wird maskiert, auch in Fußnoten und Links darin.
+    /// Term of a term list (Round 18b): `:` is escaped, also in footnotes and links in it.
     term: bool,
 }
 
 impl Ctx {
-    /// Neuer Inhaltsblock `[…]` (Fußnote, Zitat, Link, `#emph[…]`): Einzug und Begriff bleiben.
+    /// New content block `[…]` (footnote, quote, link, `#emph[…]`): indentation and term stay.
     fn fresh(&self) -> Ctx {
         Ctx { indent: self.indent, after: Some(']'), term: self.term, ..Ctx::default() }
     }
 }
 
-/// Erstes Zeichen, mit dem ein Inline beginnt (für die Wortgrenze davor).
+/// First character with which an inline starts (for the word boundary before it).
 fn first_char(inline: &Inline) -> Option<char> {
     match inline {
         Inline::Text { v } => v.chars().next().map(|c| if needs_escape(c) { '\\' } else { c }),
@@ -347,7 +347,7 @@ fn first_char(inline: &Inline) -> Option<char> {
     }
 }
 
-/// String-Literal für Typst (`"…"`, Backslash, Anführungszeichen und Zeilenenden maskiert).
+/// String literal for Typst (`"…"`, backslash, quotation marks and line ends escaped).
 fn string_literal(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
     out.push('"');
@@ -365,15 +365,15 @@ fn string_literal(value: &str) -> String {
     out
 }
 
-/// Kann ein Verweis als `@ziel` stehen? Das Ziel muss wie beim Lesen beginnen (Buchstabe, Ziffer, `_`), darf nicht
-/// mit `.` oder `:` enden, und das Zeichen dahinter darf nicht zum Ziel gehören; sonst `#ref(<ziel>)`.
+/// Can a reference stand as `@ziel`? The target must start as when reading (letter, digit, `_`), must not end
+/// with `.` or `:`, and the character after it must not belong to the target; otherwise `#ref(<ziel>)`.
 fn plain_ref(target: &str, following: Option<char>) -> bool {
     target.chars().next().is_some_and(|c| c.is_alphanumeric() || c == '_')
         && !target.ends_with(['.', ':'])
         && !following.is_some_and(is_label_char)
 }
 
-/// Zeichen, die im Markup immer maskiert werden.
+/// Characters that are always escaped in markup.
 fn needs_escape(c: char) -> bool {
     matches!(c, '\\' | '#' | '*' | '_' | '$' | '@' | '<' | '>' | '[' | ']' | '`' | '~')
 }
@@ -382,14 +382,14 @@ fn wordy(c: Option<char>) -> bool {
     c.is_some_and(char::is_alphanumeric)
 }
 
-/// Folge von Inlines; `line_start`: steht die erste am Zeilenanfang (Absatz, Listenpunkt)?
+/// Sequence of inlines; `line_start`: does the first stand at the beginning of a line (paragraph, list item)?
 fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
     let mut out = String::new();
     let mut at_line_start = line_start;
     let mut after_hash = false;
     for (k, inline) in inlines.iter().enumerate() {
         let next = inlines.get(k + 1);
-        // Erstes Zeichen hinter diesem Inline: das nächste oder das, was die Folge schließt.
+        // First character after this inline: the next one or what closes the sequence.
         let following = next.and_then(first_char).or(ctx.after);
         let was_hash = std::mem::take(&mut after_hash);
         let starting = std::mem::take(&mut at_line_start);
@@ -415,7 +415,7 @@ fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
                 let prev = out.chars().next_back();
                 let in_word = (wordy(prev) && wordy(inner.chars().next()))
                     || (wordy(inner.chars().next_back()) && wordy(following));
-                // `*/` bzw. `/*` an den Rändern von `*…*` wären Kommentarzeichen.
+                // `*/` or `/*` at the edges of `*…*` would be comment markers.
                 let comment = !emph && (inner.starts_with('/') || inner.ends_with('/'));
                 if nested || in_word || comment || inner.is_empty() {
                     out.push_str(&format!("#{function}[{}]", seq(c, &ctx.fresh(), false)));
@@ -432,8 +432,8 @@ fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
                 after_hash = true;
             }
             Inline::Linebreak => {
-                // Ein Leerzeichen trennt den Umbruch vom Folgenden (`\]`, `\_` wären Maskierungen); am
-                // Blockende und vor einem Zeilenende steht er allein.
+                // A space separates the break from what follows (`\]`, `\_` would be escapes); at the
+                // end of the block and before a line end it stands alone.
                 out.push('\\');
                 if !matches!(next, Some(Inline::Soft)) && (next.is_some() || ctx.after.is_some()) {
                     out.push(' ');
@@ -449,13 +449,14 @@ fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
                 after_hash = true;
             }
             Inline::Xref { key, c, page } => {
-                // Runde 30a: Form aus `baruch_typst::xref::xref_snippet` (mit Seitenzahl-Zusatz), `parse` liest sie zurück.
+                // Round 30a: form from `baruch_typst::xref::xref_snippet` (with page number addition), `parse` reads
+                // it back.
                 out.push_str(&baruch_typst::xref::xref_snippet(*key, &seq(c, &ctx.fresh(), false), *page));
                 after_hash = true;
             }
             Inline::Ref { target, supplement } => {
                 if target.is_empty() || !target.chars().all(is_label_char) {
-                    // Kein gültiges Ziel: als Text, wie getippt.
+                    // Not a valid target: as text, as typed.
                     text(&mut out, &format!("@{target}"), starting, was_hash, following, ctx.term);
                 } else if plain_ref(target, following) {
                     out.push('@');
@@ -482,13 +483,13 @@ fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
                 }
             }
             Inline::IndexMark { mark } => {
-                // R31: kanonische Form; endet mit dem Label, dahinter darf Text ohne Maskierung stehen.
+                // R31: canonical form; ends with the label, after it text may stand without escaping.
                 out.push_str(&baruch_typst::index::mark_source(mark));
             }
             Inline::Island { raw } => {
                 out.push_str(raw);
                 after_hash = raw.starts_with('#');
-                // Hinter einem Zeilenkommentar ginge sonst der Rest der Zeile im Kommentar unter.
+                // After a line comment the rest of the line would otherwise be lost in the comment.
                 if raw.starts_with("//") && !matches!(next, None | Some(Inline::Soft)) {
                     out.push('\n');
                     out.push_str(ctx.indent);
@@ -500,27 +501,27 @@ fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
     out
 }
 
-/// Text maskiert anhängen; `term`: im Begriff einer Begriffsliste auch `:` maskieren.
+/// Append text escaped; `term`: in the term of a term list also escape `:`.
 fn text(out: &mut String, v: &str, line_start: bool, after_hash: bool, after: Option<char>, term: bool) {
-    // Alle Zeilenenden im Sinn von Typst, auch U+2028 & Co.: dahinter stünde Text am Zeilenanfang.
+    // All line ends in the sense of Typst, also U+2028 & co.: after them text would stand at the beginning of a line.
     let flat: String = v.chars().map(|c| if baruch_typst::is_newline(c) { ' ' } else { c }).collect();
     let v = if line_start { flat.trim_start_matches([' ', '\t']) } else { flat.as_str() };
     let chars: Vec<char> = v.chars().collect();
-    // Aufzählung am Zeilenanfang: „1. …“ → „1\. …“.
+    // Enumeration at the beginning of a line: "1. …" → "1\. …".
     let digits = if line_start { chars.iter().take_while(|c| c.is_ascii_digit()).count() } else { 0 };
     for (k, &c) in chars.iter().enumerate() {
         let following = chars.get(k + 1).copied().or(after);
         let escape = needs_escape(c)
             || (term && c == ':')
-            // Am Zeilenanfang Überschrift, Liste, Aufzählung, Begriff verhindern. `--`, `-?` und `-1`
-            // sind keine Listenpunkte; maskiert verlören sie ihre Kurzschreibweise (wie `1\..`).
+            // At the beginning of a line prevent heading, list, enumeration, term. `--`, `-?` and `-1`
+            // are not list items; escaped they would lose their shorthand (like `1\..`).
             || (k == 0
                 && line_start
                 && (matches!(c, '=' | '+' | '/')
                     || (c == '-' && !following.is_some_and(|n| n == '-' || n == '?' || n.is_ascii_digit()))))
             || (digits > 0 && k == digits && c == '.' && following != Some('.'))
             || (k == 0 && after_hash && (c == '(' || (c == '.' && following.is_some_and(crate::scan::is_ident_start))))
-            // `//` und `/*` begännen einen Kommentar (auch mit dem Zeichen hinter dem Text).
+            // `//` and `/*` would start a comment (also with the character after the text).
             || (c == '/'
                 && matches!(following, Some('/' | '*'))
                 && !(out.ends_with("http:") || out.ends_with("https:")));

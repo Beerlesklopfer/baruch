@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „export“: Schreiben von `werk.xml`, `MANIFEST.xml` und dem Container `.baruch` (Vertrag F1/F2).
+//! Round 26 "export": writing `werk.xml`, `MANIFEST.xml` and the container `.baruch` (contract F1/F2).
 //!
-//! Zurückgelesen wird mit quick-xml ohne `trim_text` (nicht mit dem Leser von import), so wie ein beliebiges
-//! anderes Programm die Datei läse: Zeichenreferenzen und die fünf vordefinierten Entitäten werden aufgelöst,
-//! sonst nichts.
+//! Reading back is done with quick-xml without `trim_text` (not with the reader of import), the way any
+//! other program would read the file: character references and the five predefined entities are resolved,
+//! nothing else.
 
 use std::io::Read as _;
 
@@ -14,7 +14,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use quick_xml::events::Event;
 
-/// Ein Element der Ausgabe: Pfad ab `werk`, Attribute (unmaskiert), Text (unmaskiert) und Elternteil.
+/// An element of the output: path from `werk`, attributes (unescaped), text (unescaped) and parent.
 #[derive(Debug)]
 struct Element {
     path: String,
@@ -30,7 +30,7 @@ impl Element {
     }
 }
 
-/// Liest XML mit quick-xml (ohne trim) in eine flache Liste; Text = Text, Referenzen und CDATA aneinander.
+/// Reads XML with quick-xml (without trim) into a flat list; text = text, references and CDATA concatenated.
 fn parse(xml: &str) -> Vec<Element> {
     let mut reader = quick_xml::Reader::from_str(xml);
     reader.config_mut().trim_text(false);
@@ -98,7 +98,7 @@ fn children<'a>(elements: &'a [Element], parent: usize, name: &str) -> Vec<&'a E
     elements.iter().filter(|e| e.parent == Some(parent) && e.name == name).collect()
 }
 
-/// Inhalt eines Textelements, Base64 nach `kodierung` aufgelöst.
+/// Content of a text element, Base64 resolved according to `kodierung`.
 fn decoded(element: &Element) -> String {
     match element.attr("kodierung") {
         Some("base64") => String::from_utf8(STANDARD.decode(&element.text).unwrap()).unwrap(),
@@ -124,12 +124,12 @@ fn revision_text(elements: &[Element], uuid: &str) -> (String, bool) {
 #[test]
 fn xml_is_deterministic_and_zip_too() {
     let doc = sample_document();
-    // Dasselbe Dokument ergibt byte-gleiche Ausgaben (Vertrag: deterministisch, Zeitstempel im ZIP fest).
+    // The same document yields byte-identical outputs (contract: deterministic, timestamps in the ZIP fixed).
     assert_eq!(write_xml(&doc, ImageMode::Inline).unwrap(), write_xml(&doc, ImageMode::Inline).unwrap(), "XML Inline");
     assert_eq!(write_xml(&doc, ImageMode::Files).unwrap(), write_xml(&doc, ImageMode::Files).unwrap(), "XML Files");
     let zip = write_baruch(&doc).unwrap();
     assert_eq!(zip, write_baruch(&doc).unwrap(), "ZIP byte-gleich");
-    // Kein Datum der Uhr im ZIP: jeder Eintrag trägt den festen Zeitstempel 1980-01-01 00:00:00.
+    // No date of the clock in the ZIP: every entry carries the fixed timestamp 1980-01-01 00:00:00.
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip)).unwrap();
     for i in 0..archive.len() {
         let entry = archive.by_index(i).unwrap();
@@ -148,22 +148,22 @@ fn texts_come_back_exactly_without_trim() {
     let doc = sample_document();
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     let elements = parse(&xml);
-    // Die aktuelle Fassung von „Der Eimer“ (Leerzeichen vorn und hinten, Tab, <&>, ]]>, Umlaute, \r) kommt
-    // gleich heraus und steht nicht als Base64 – sie hat kein verbotenes Zeichen.
+    // The current revision of „Der Eimer“ (spaces at front and back, tab, <&>, ]]>, umlauts, \r) comes
+    // out the same and is not Base64 – it has no forbidden character.
     let (tricky, base64) = revision_text(&elements, &sample_uuid(111));
     assert_eq!(tricky, SAMPLE_TRICKY_BODY, "Text exakt, ohne trim");
     assert!(!base64, "ohne verbotenes Zeichen kein Base64");
-    // \r steht als Zeichenreferenz; ein Parser normalisierte ein wörtliches \r\n sonst zu \n (XML 1.0 §2.11).
+    // \r is a character reference; a parser would otherwise normalise a literal \r\n to \n (XML 1.0 §2.11).
     assert!(xml.contains("&#13;"), "\\r als &#13;");
     assert!(!xml.contains('\r'), "kein wörtliches \\r in der Ausgabe");
-    // ]]> darf im Inhalt nicht wörtlich stehen (XML 1.0 §2.4).
+    // ]]> must not be verbatim in the content (XML 1.0 §2.4).
     assert!(!xml.contains("]]>"), "]]> ist maskiert");
-    // Die Fassung mit U+0001 steht als Base64 mit kodierung="base64" und kommt ebenso exakt zurück.
+    // The revision with U+0001 is Base64 with kodierung="base64" and comes back just as exactly.
     let (control, base64) = revision_text(&elements, &sample_uuid(113));
     assert!(base64, "verbotenes Steuerzeichen → kodierung=\"base64\"");
     assert_eq!(control, SAMPLE_CONTROL_BODY, "Base64 trägt den Text exakt");
     assert!(!xml.contains('\u{1}'), "U+0001 nie wörtlich im XML");
-    // Alle übrigen Fassungen sind ebenso exakt (Basis, Status, Autor bleiben an der richtigen Fassung).
+    // All other revisions are just as exact (base, status, author stay with the right revision).
     let bucket = &doc.work.outline[0].children[0];
     for revision in &bucket.revisions {
         assert_eq!(revision_text(&elements, &revision.uuid).0, revision.body, "Fassung {}", revision.number);
@@ -173,7 +173,7 @@ fn texts_come_back_exactly_without_trim() {
     assert_eq!(proposal.attr("modell"), Some("probe/modell-7b"), "Modell der Fassung als Herkunft");
     assert_eq!(proposal.attr("basis").map(str::to_owned), Some(sample_uuid(111)), "basis über die UUID");
     assert_eq!(proposal.attr("status"), Some("vorschlag"), "Status als XML-Wort");
-    // Werkangaben mit Umlauten und &.
+    // Work details with umlauts and &.
     let blurb = elements.iter().find(|e| e.path == "werk/buch/klappentext").unwrap();
     assert_eq!(blurb.text, "Ein Buch über Wasser & Licht.", "Klappentext exakt");
 }
@@ -181,8 +181,8 @@ fn texts_come_back_exactly_without_trim() {
 #[test]
 fn attributes_keep_tabs_and_line_breaks() {
     let mut doc = sample_document();
-    // Ein Autor mit Tab, Zeilenumbruch und \r im Namen: ohne Zeichenreferenz würde ein Parser die drei
-    // Zeichen zu Leerzeichen normalisieren (XML 1.0 §3.3.3).
+    // An author with tab, line break and \r in the name: without a character reference a parser would
+    // normalise the three characters to spaces (XML 1.0 §3.3.3).
     doc.work.outline[0].children[0].posts[0].author = "Hanna\tProbe\nund\rFreunde \"<&>\"".into();
     let xml = write_xml(&doc, ImageMode::Files).unwrap();
     assert!(
@@ -197,14 +197,14 @@ fn attributes_keep_tabs_and_line_breaks() {
 #[test]
 fn forbidden_character_in_an_attribute_names_the_field() {
     let mut doc = sample_document();
-    // Attribute kennen kein Base64: ein verbotenes Zeichen ist ein Fehler mit dem Namen des Felds.
+    // Attributes know no Base64: a forbidden character is an error with the name of the field.
     doc.work.outline[0].children[0].revisions[1].author = ExchangeAuthor::Human { name: "Hanna\u{1}".into() };
     let error = write_xml(&doc, ImageMode::Inline).unwrap_err();
     assert!(matches!(error, ExchangeError::Write(_)), "ExchangeError::Write: {error:?}");
     let message = error.to_string();
     assert!(message.contains("fassung/@autor"), "Feldname in der Meldung: {message}");
     assert!(message.contains("U+0001"), "das Zeichen in der Meldung: {message}");
-    // Auch ZIP und Manifest schreiben dann nichts.
+    // ZIP and manifest write nothing then either.
     assert!(matches!(write_baruch(&doc), Err(ExchangeError::Write(_))), "write_baruch scheitert ebenso");
     let bad = [ExchangeManifestEntry { path: "werk\u{2}.xml".into(), sha256: sha256_hex(b""), bytes: 0 }];
     let message = write_manifest(&bad).unwrap_err().to_string();
@@ -213,19 +213,19 @@ fn forbidden_character_in_an_attribute_names_the_field() {
 
 #[test]
 fn invalid_identifiers_and_images_are_refused() {
-    // Eine nicht kanonische UUID ergäbe eine Datei, die das XSD ablehnt: lieber ein ehrlicher Fehler.
+    // A non-canonical UUID would yield a file that the XSD rejects: better an honest error.
     let mut doc = sample_document();
     doc.work.outline[1].uuid = "26000000-0000-4000-8000-00000000001A".into();
     let message = write_xml(&doc, ImageMode::Inline).unwrap_err().to_string();
     assert!(message.contains("punkt/@uuid"), "Feld der falschen UUID: {message}");
-    // Ein Bildtyp außerhalb des Formats und eine Prüfsumme, die nicht zu den Bytes passt.
+    // An image type outside the format and a checksum that does not match the bytes.
     let mut doc = sample_document();
     doc.work.assets[0].revisions[0].mime = "image/bmp".into();
     assert!(matches!(write_xml(&doc, ImageMode::Files), Err(ExchangeError::Write(_))), "image/bmp");
     let mut doc = sample_document();
     doc.work.assets[0].revisions[0].data.push(0);
     assert!(write_baruch(&doc).unwrap_err().to_string().contains("sha256"), "Prüfsumme muss passen");
-    // Ein leeres Manifest wäre nach dem XSD ungültig (datei+).
+    // An empty manifest would be invalid according to the XSD (datei+).
     assert!(matches!(write_manifest(&[]), Err(ExchangeError::Write(_))), "Manifest ohne Einträge");
 }
 
@@ -235,7 +235,7 @@ fn inline_xml_carries_images_as_base64_and_no_file_reference() {
     let elements = parse(&write_xml(&doc, ImageMode::Inline).unwrap());
     for revision in doc.work.assets.iter().flat_map(|a| &a.revisions) {
         let at = index_of(&elements, "bild/fassung", &revision.uuid);
-        // Nur XML: genau <daten> mit den Rohbytes, kein Verweis datei (genau eines von beiden, F2/Abschnitt 4).
+        // XML only: exactly <daten> with the raw bytes, no reference datei (exactly one of the two, F2/section 4).
         assert_eq!(elements[at].attr("datei"), None, "kein datei= im Nur-XML");
         let data = children(&elements, at, "daten");
         assert_eq!(data.len(), 1, "genau ein <daten>");
@@ -243,7 +243,7 @@ fn inline_xml_carries_images_as_base64_and_no_file_reference() {
         assert_eq!(elements[at].attr("bytes"), Some(revision.data.len().to_string().as_str()), "bytes");
         assert_eq!(elements[at].attr("sha256"), Some(revision.sha256.as_str()), "sha256");
     }
-    // Der Grabstein steht mit Art und Zeit in <geloescht>.
+    // The tombstone is in <geloescht> with kind and time.
     let stone = elements.iter().find(|e| e.path == "werk/geloescht/eintrag").unwrap();
     assert_eq!(stone.attr("art"), Some("punkt"), "Grabstein eines Punkts");
     assert_eq!(stone.attr("uuid").map(str::to_owned), Some(sample_uuid(70)), "Grabstein mit seiner UUID");
@@ -253,8 +253,8 @@ fn inline_xml_carries_images_as_base64_and_no_file_reference() {
 fn baruch_container_has_the_promised_layout() {
     let doc = sample_document();
     let bytes = write_baruch(&doc).unwrap();
-    // Wie bei EPUB/ODF: Der erste lokale Kopf heißt „mimetype“, ohne Zusatzfeld, und der Inhalt folgt
-    // unkomprimiert ab Byte 38 – so erkennt man den Typ ohne Entpacken.
+    // As with EPUB/ODF: the first local header is called "mimetype", without extra field, and the content
+    // follows uncompressed from byte 38 – that way the type is recognised without unpacking.
     assert_eq!(&bytes[0..4], b"PK\x03\x04", "ZIP-Signatur");
     assert_eq!(u16::from_le_bytes([bytes[26], bytes[27]]), 8, "Namenslänge von mimetype");
     assert_eq!(u16::from_le_bytes([bytes[28], bytes[29]]), 0, "kein Zusatzfeld am ersten Eintrag");
@@ -271,7 +271,7 @@ fn baruch_container_has_the_promised_layout() {
         names.push(entry.name().unwrap().into_owned());
         contents.push((entry.name().unwrap().into_owned(), entry.compression(), data));
     }
-    // Reihenfolge: mimetype, werk.xml, Bilder in der Reihenfolge des Dokuments, MANIFEST.xml zuletzt; sonst nichts.
+    // Order: mimetype, werk.xml, images in the order of the document, MANIFEST.xml last; nothing else.
     let mut expected = vec![ENTRY_MIMETYPE.to_owned(), ENTRY_WORK.to_owned()];
     let revisions: Vec<&ExchangeAssetRevision> = doc.work.assets.iter().flat_map(|a| &a.revisions).collect();
     expected.extend(revisions.iter().map(|r| image_entry(&r.uuid, &r.mime).unwrap()));
@@ -284,7 +284,7 @@ fn baruch_container_has_the_promised_layout() {
     assert_eq!(contents[1].1, zip::CompressionMethod::Deflated, "werk.xml DEFLATE");
     assert_eq!(contents.last().unwrap().1, zip::CompressionMethod::Deflated, "MANIFEST.xml DEFLATE");
     for (revision, (name, method, data)) in revisions.iter().zip(&contents[2..contents.len() - 1]) {
-        // Bilddateien byte-gleich mit data; Raster schon komprimiert → STORED, SVG ist Text → DEFLATE.
+        // Image files byte-identical with data; raster already compressed → STORED, SVG is text → DEFLATE.
         assert_eq!(data, &revision.data, "{name}: byte-gleich");
         let want = if revision.mime == "image/svg+xml" {
             zip::CompressionMethod::Deflated
@@ -294,7 +294,7 @@ fn baruch_container_has_the_promised_layout() {
         assert_eq!(*method, want, "{name}: Kompression nach F1");
     }
 
-    // Manifest: jeder Eintrag außer mimetype und sich selbst, mit passender SHA-256 und Bytezahl.
+    // Manifest: every entry except mimetype and itself, with matching SHA-256 and byte count.
     let manifest = String::from_utf8(contents.last().unwrap().2.clone()).unwrap();
     let listed: Vec<(String, String, String)> = parse(&manifest)
         .into_iter()
@@ -307,7 +307,7 @@ fn baruch_container_has_the_promised_layout() {
         .collect();
     assert_eq!(listed, want, "Manifest nennt genau die Einträge mit Prüfsumme und Größe");
 
-    // werk.xml im ZIP: jede Bildfassung verweist mit datei= auf ihren Eintrag und trägt kein <daten>.
+    // werk.xml in the ZIP: every image revision refers to its entry with datei= and carries no <daten>.
     let work_xml = String::from_utf8(contents[1].2.clone()).unwrap();
     assert_eq!(work_xml, write_xml(&doc, ImageMode::Files).unwrap(), "werk.xml = write_xml(Files)");
     let elements = parse(&work_xml);
@@ -325,8 +325,8 @@ fn baruch_container_has_the_promised_layout() {
 #[test]
 fn root_carries_namespace_version_and_instance() {
     let mut doc = sample_document();
-    // Geschrieben wird immer die eigene Unterversion, auch wenn das Dokument aus einer höheren gelesen wurde
-    // (Unbekanntes daraus ist nicht im Modell und wird nicht mitgeschrieben).
+    // What is written is always the own sub-version, even if the document was read from a higher one
+    // (unknown things from it are not in the model and are not written along).
     doc.version = FORMAT_VERSION + 1;
     let xml = write_xml(&doc, ImageMode::Inline).unwrap();
     assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<werk "), "Deklaration, dann <werk>");
@@ -339,7 +339,7 @@ fn root_carries_namespace_version_and_instance() {
     let output = elements.iter().find(|e| e.path == "werk/ausgabe").unwrap();
     assert_eq!(output.attr("instanzname"), Some("Probeinstanz"), "Instanzname");
     assert_eq!(output.attr("instanz").map(str::to_owned), Some(sample_uuid(2)), "Instanz-UUID");
-    // Leere optionale Teile entfallen, Pflichtteile bleiben: ein Werk ohne Einfälle, Fäden, Bilder, Grabsteine.
+    // Empty optional parts are dropped, mandatory parts stay: a work without ideas, threads, images, tombstones.
     let mut bare = sample_document();
     bare.work.ideas.clear();
     bare.work.threads.clear();
@@ -354,7 +354,7 @@ fn root_carries_namespace_version_and_instance() {
     for present in ["<vorlage>", "<gliederung>", "<angaben "] {
         assert!(xml.contains(present), "{present} steht immer da");
     }
-    // Ohne Bilder besteht das ZIP aus mimetype, werk.xml und MANIFEST.xml.
+    // Without images the ZIP consists of mimetype, werk.xml and MANIFEST.xml.
     let archive = zip::ZipArchive::new(std::io::Cursor::new(write_baruch(&bare).unwrap())).unwrap();
     let names: Vec<String> = archive.file_names().map(|n| n.unwrap().into_owned()).collect();
     assert_eq!(names.len(), 3, "drei Einträge: {names:?}");

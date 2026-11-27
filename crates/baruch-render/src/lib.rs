@@ -1,53 +1,55 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Satz für die Vorschau (Vertrag Runde 8, Abschnitt 4a).
+//! Typst typesetting for the preview (contract Round 8, section 4a).
 //!
-//! Rein, ohne Datenbank und ohne Netz: [`compile`] bekommt das Werk als **eine** Typst-Datei
-//! (`main`, der byte-gleiche Export samt Werkvorlage) und die Bilder als virtuelle Dateien und setzt
-//! es mit dem eingebetteten Typst-Compiler zu SVG-Seiten.
+//! Pure, without database and without network: [`compile`] gets the work as **one** Typst file
+//! (`main`, the byte-identical export including the work template) and the images as virtual files and
+//! typesets it into SVG pages with the embedded Typst compiler.
 //!
-//! - **Dateien:** `image("…")` sucht relativ zu `main`, das im Wurzelordner liegt; `/x`, `./x` und
-//!   `x` meinen darum dieselbe Datei. Gesucht wird in Normalform ([`normalize_path`]: ohne führendes
-//!   `/` und `./`, ohne leere Teile – dieselbe Regel wie `baruch_store::normalize_asset_path`).
-//!   Fehlt eine Datei, meldet Typst einen Fehler; die Meldung steht dann auf Deutsch in
+//! - **Files:** `image("…")` searches relative to `main`, which lies in the root folder; `/x`, `./x` and
+//!   `x` therefore mean the same file. The search uses the normal form ([`normalize_path`]: without leading
+//!   `/` and `./`, without empty parts – the same rule as `baruch_store::normalize_asset_path`).
+//!   If a file is missing, Typst reports an error; the message is then in German in
 //!   [`Rendered::diagnostics`].
-//! - **Schriften:** immer die eingebetteten aus `typst-assets` (Libertinus Serif, New Computer
-//!   Modern, DejaVu Sans Mono), dahinter die Systemschriften (einmal je Prozess gesucht). Verlangt die
-//!   Vorlage eine Schrift, die es nicht gibt, setzt Typst mit der nächsten verfügbaren weiter; das
-//!   ergibt eine Warnung „Schrift „X“ fehlt; ersetzt durch eingebettete Schrift“, die Seiten bleiben.
-//! - **Pakete:** `#import "@preview/…"` wird nie geladen (kein Netz); Fehler „Typst-Pakete werden
+//! - **Fonts:** always the embedded ones from `typst-assets` (Libertinus Serif, New Computer
+//!   Modern, DejaVu Sans Mono), behind them the system fonts (searched once per process). If the
+//!   template demands a font that does not exist, Typst continues with the next available one; that
+//!   yields a warning „Schrift „X“ fehlt; ersetzt durch eingebettete Schrift“, the pages stay.
+//! - **Packages:** `#import "@preview/…"` is never loaded (no network); error „Typst-Pakete werden
 //!   nicht geladen (offline)“.
-//! - **Fassungsstand:** [`stand`] ist der SHA-256 über `main` und alle Dateien – der Schlüssel, unter
-//!   dem der Server gesetzte Seiten zwischenspeichert.
-//! - **PDF (Runde 11):** [`compile_pdf`] setzt dieselbe Quelle in derselben Welt (Schriften, Dateien)
-//!   und schreibt sie mit `typst-pdf` (Apache-2.0) als PDF; die Seitenzahl ist dieselbe wie bei
-//!   [`compile`]. Bei einem Fehler gibt es keine Bytes, nie eine halbe Datei.
-//! - **Druckprüfung (Runde 11):** [`Rendered::print`] bzw. [`Pdf::print`] nennt jedes Rasterbild, das
-//!   in seiner gesetzten Größe weniger als [`MIN_DPI`] hat, mit den Pixeln, die es für 300 dpi bräuchte
-//!   ([`PrintWarning`]). SVG-Grafiken haben keine Auflösung und erscheinen nie. Die Warnungen stehen
-//!   bewusst nicht in `diagnostics`, damit Fehler- und Warnungszahlen unverändert bleiben.
-//! - **Abbruch (Runde 18a):** [`compile_cancellable`] setzt wie [`compile`], prüft aber ein [`Cancel`]. Typst
-//!   selbst kennt keinen Abbruch; unterbrochen wird darum nur an den Stellen, an denen Baruch mitspielt: vor dem
-//!   Lauf, zwischen Satz und SVG und vor jeder SVG-Seite. Auswertung (auch Schleifen der Vorlage) und Umbruch
-//!   laufen weiter, bis Typst von selbst fertig ist; ein abgebrochener Lauf liefert immer `None` und nie halbe
-//!   Seiten. Ein Abbruch über die Welt (Dateien oder Schriften nach dem Abbruch verweigern) geht **nicht**: Typst
-//!   merkt sich Welt-Antworten (`comemo`) und bricht mit „found differing return values“ ab, wenn dieselbe Frage
-//!   im selben Lauf anders beantwortet wird (gemessen in `tests/cancel.rs`, Zahlen in `docs/Architektur.md`,
-//!   „Runde 18a“).
-//! - **Schriftfamilien (Runde 27):** [`font_families`] nennt jede Familie mit ihren Schnitten und ob sie
-//!   eingebettet ist; [`has_font_family`] prüft einen Namen ohne Unterschied von Groß- und Kleinschreibung. Der
-//!   Server setzt eine fehlende Schrift eines Umschlag-Blocks mit der Vorgabe und warnt (Druckprüfung `font`).
-//! - **Seitengrößen (Runde 27):** [`page_sizes_pt`] liest Breite und Höhe jeder gesetzten Seite aus dem SVG-Kopf –
-//!   damit misst der Server Blockhöhen (eine Seite je Block mit `height: auto`) und die Seitengröße der Vorlage.
-//! - **Zeilen je Seite (Runde 18a):** [`Rendered::page_lines`] nennt je Seite die Zeilen von `main`, aus denen
-//!   Text auf ihr steht – damit ordnet der Server eine Seite, die zwei Kapitel teilen, beiden zu.
-//! - **Messhilfe (Runde 29):** [`page_texts`] nennt je Seite die gesetzten Textstücke ([`PlacedText`]: Text,
-//!   Grundlinie links in pt ab oben links, Breite, Größe, Schrift) – damit messen Tests jede Satz-Einstellung
-//!   (Ränder mit Bundsteg, Seitenzahlen, Kolumnentitel, Zeilenabstand, Blocksatz, Silbentrennung).
-//! - **Rasterbild (Runde 21c):** [`render_png`] rastert eine Seite mit `typst-render` als PNG in höchstens
-//!   vorgegebener Pixelgröße (Seitenverhältnis bleibt) – für das EPUB-Cover aus der Umschlag-Vorderseite.
-//! - **Typwechsel (Runde 21c):** Passt der Inhalt einer Bilddatei nicht zur Endung ihres Pfads (ein PNG ersetzt
-//!   `bilder/haus.svg`, der Text nennt weiter den alten Pfad), bekommt `image("<Pfad>"…)` beim Satz das Format
-//!   ausdrücklich (`with_image_formats`); Typst nähme es sonst aus der Endung und scheiterte.
+//! - **Revision state:** [`stand`] is the SHA-256 over `main` and all files – the key under
+//!   which the server caches typeset pages.
+//! - **PDF (Round 11):** [`compile_pdf`] typesets the same source in the same world (fonts, files)
+//!   and writes it with `typst-pdf` (Apache-2.0) as a PDF; the page count is the same as with
+//!   [`compile`]. On an error there are no bytes, never half a file.
+//! - **Print check (Round 11):** [`Rendered::print`] or [`Pdf::print`] names every raster image that
+//!   has less than [`MIN_DPI`] in its typeset size, with the pixels it would need for 300 dpi
+//!   ([`PrintWarning`]). SVG graphics have no resolution and never appear. The warnings are
+//!   deliberately not in `diagnostics`, so that error and warning counts stay unchanged.
+//! - **Cancellation (Round 18a):** [`compile_cancellable`] typesets like [`compile`], but checks a [`Cancel`].
+//!   Typst itself knows no cancellation; so the run is interrupted only at the places where Baruch takes part:
+//!   before the run, between typesetting and SVG and before every SVG page. Evaluation (also loops of the
+//!   template) and layout continue until Typst is finished by itself; a cancelled run always delivers `None` and
+//!   never half pages. A cancellation through the world (refusing files or fonts after the cancellation) does
+//!   **not** work: Typst remembers world answers (`comemo`) and aborts with "found differing return values" if
+//!   the same question is answered differently in the same run (measured in `tests/cancel.rs`, numbers in
+//!   `docs/Architektur.md`, „Runde 18a“).
+//! - **Font families (Round 27):** [`font_families`] names every family with its styles and whether it is
+//!   embedded; [`has_font_family`] checks a name case-insensitively. The server typesets a missing font of a
+//!   cover block with the default and warns (print check `font`).
+//! - **Page sizes (Round 27):** [`page_sizes_pt`] reads width and height of every typeset page from the SVG
+//!   header – with it the server measures block heights (one page per block with `height: auto`) and the page
+//!   size of the template.
+//! - **Lines per page (Round 18a):** [`Rendered::page_lines`] names per page the lines of `main` from which
+//!   text is on it – with it the server assigns a page shared by two chapters to both.
+//! - **Measuring aid (Round 29):** [`page_texts`] names per page the typeset text pieces ([`PlacedText`]: text,
+//!   baseline left in pt from the top left, width, size, font) – with it tests measure every typesetting setting
+//!   (margins with gutter, page numbers, running heads, line spacing, justification, hyphenation).
+//! - **Raster image (Round 21c):** [`render_png`] rasterises a page with `typst-render` as a PNG in at most
+//!   the given pixel size (aspect ratio is kept) – for the EPUB cover from the front of the cover.
+//! - **Type change (Round 21c):** if the content of an image file does not fit the extension of its path (a PNG
+//!   replaces `bilder/haus.svg`, the text still names the old path), `image("<Pfad>"…)` gets the format
+//!   explicitly during typesetting (`with_image_formats`); Typst would otherwise take it from the extension and
+//!   fail.
 
 pub mod cli;
 pub mod notes;
@@ -68,15 +70,15 @@ use typst::{Library, LibraryExt, World, WorldExt};
 use typst_kit::fonts::FontStore;
 use typst_layout::PagedDocument;
 
-/// Das zu setzende Werk: die Hauptdatei und die übrigen Dateien (Bilder) unter ihrem Pfad in
-/// Normalform (z. B. `bilder/laube.svg`).
+/// The work to typeset: the main file and the other files (images) under their path in
+/// normal form (e.g. `bilder/laube.svg`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Source {
     pub main: String,
     pub files: Vec<(String, Vec<u8>)>,
 }
 
-/// Schwere einer Meldung.
+/// Severity of a message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,
@@ -84,7 +86,7 @@ pub enum Severity {
 }
 
 impl Severity {
-    /// `"error"` bzw. `"warning"` (RPC, MCP).
+    /// `"error"` or `"warning"` (RPC, MCP).
     pub fn as_str(self) -> &'static str {
         match self {
             Severity::Error => "error",
@@ -93,8 +95,8 @@ impl Severity {
     }
 }
 
-/// Eine Meldung von Typst. `line`/`column` sind 1-basiert und beziehen sich auf `main`, wenn
-/// `file` leer ist, sonst auf die genannte Datei; ohne Ort beide `None`.
+/// A message of Typst. `line`/`column` are 1-based and refer to `main` if
+/// `file` is empty, otherwise to the named file; without a location both `None`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub severity: Severity,
@@ -105,58 +107,58 @@ pub struct Diagnostic {
     pub file: Option<String>,
 }
 
-/// Eine Überschrift in `main` (Zeile, 1-basiert) und die Seite, auf der Typst sie gesetzt hat
-/// (1-basiert).
+/// A heading in `main` (line, 1-based) and the page on which Typst has set it
+/// (1-based).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HeadingPos {
     pub line: usize,
     pub page: usize,
 }
 
-/// Ergebnis von [`compile`]: Stand, Seiten als SVG, Überschriften und Meldungen. Bei einem Fehler
-/// sind `pages`, `headings` und `print` leer.
+/// Result of [`compile`]: state, pages as SVG, headings and messages. On an error
+/// `pages`, `headings` and `print` are empty.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rendered {
     pub stand: String,
     pub pages: Vec<String>,
     pub headings: Vec<HeadingPos>,
     pub diagnostics: Vec<Diagnostic>,
-    /// Druckprüfung: Rasterbilder unter [`MIN_DPI`] (nicht in `diagnostics`).
+    /// Print check: raster images below [`MIN_DPI`] (not in `diagnostics`).
     pub print: Vec<PrintWarning>,
-    /// Je Seite (Index 0 = Seite 1) die Zeilen von `main` (1-basiert, aufsteigend, ohne Doppel), aus denen
-    /// gesetzter Text auf ihr stammt – auch Kopf- und Fußzeilen und Text, den die Vorlage aus Überschriften
-    /// zitiert (lebende Kolumnentitel, Inhaltsverzeichnis). Leer bei einem Fehler.
+    /// Per page (index 0 = page 1) the lines of `main` (1-based, ascending, without duplicates) from which
+    /// typeset text on it comes – also headers and footers and text that the template quotes from headings
+    /// (running heads, table of contents). Empty on an error.
     pub page_lines: Vec<Vec<usize>>,
 }
 
-/// Abbruch eines Laufs (Runde 18a): geteilt zwischen dem, der abbricht, und dem Lauf in
-/// [`compile_cancellable`]. `Default` ist „nicht abgebrochen“; Klone teilen denselben Zustand.
+/// Cancellation of a run (Round 18a): shared between the one who cancels and the run in
+/// [`compile_cancellable`]. `Default` is "not cancelled"; clones share the same state.
 #[derive(Debug, Clone, Default)]
 pub struct Cancel(Arc<AtomicBool>);
 
 impl Cancel {
-    /// Neuer, nicht abgebrochener Zustand.
+    /// New, not cancelled state.
     pub fn new() -> Cancel {
         Cancel::default()
     }
 
-    /// Abbrechen (wirkt auf alle Klone; mehrfach harmlos).
+    /// Cancel (affects all clones; harmless if repeated).
     pub fn cancel(&self) {
         self.0.store(true, Ordering::SeqCst);
     }
 
-    /// Wurde abgebrochen?
+    /// Was it cancelled?
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }
 }
 
-/// Mindestauflösung für den Druck (Punkte je Zoll in der gesetzten Größe).
+/// Minimum resolution for print (dots per inch in the typeset size).
 pub const MIN_DPI: f64 = 300.0;
 
-/// Ein Rasterbild, das gedruckt zu grob wäre: Pfad (Normalform, z. B. `bilder/umschlag.png`; ohne
-/// bekannte Datei leer), Seite (1-basiert), Pixel des Bilds, gesetzte Größe in mm, erreichte
-/// Auflösung (die kleinere beider Richtungen) und die Pixel für [`MIN_DPI`].
+/// A raster image that would be too coarse in print: path (normal form, e.g. `bilder/umschlag.png`; empty
+/// without a known file), page (1-based), pixels of the image, typeset size in mm, achieved
+/// resolution (the smaller of both directions) and the pixels for [`MIN_DPI`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct PrintWarning {
     pub path: String,
@@ -168,13 +170,13 @@ pub struct PrintWarning {
     pub dpi: f64,
     pub needed_width_px: u32,
     pub needed_height_px: u32,
-    /// Deutsch, z. B. „Bild „umschlag.png“: 113 dpi bei 18,7 × 27,3 cm – für 300 dpi braucht es
+    /// German, e.g. „Bild „umschlag.png“: 113 dpi bei 18,7 × 27,3 cm – für 300 dpi braucht es
     /// 2209 × 3224 Pixel“.
     pub message: String,
 }
 
-/// Ergebnis von [`compile_pdf`]: Stand, die Bytes des PDF (`None` genau dann, wenn Typst einen Fehler
-/// meldete), Seitenzahl, Meldungen und Druckprüfung.
+/// Result of [`compile_pdf`]: state, the bytes of the PDF (`None` exactly when Typst reported an
+/// error), page count, messages and print check.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pdf {
     pub stand: String,
@@ -185,26 +187,26 @@ pub struct Pdf {
 }
 
 impl Pdf {
-    /// Gab es einen Fehler (dann ohne Bytes)?
+    /// Was there an error (then without bytes)?
     pub fn has_errors(&self) -> bool {
         self.bytes.is_none() || self.diagnostics.iter().any(|d| d.severity == Severity::Error)
     }
 }
 
 impl Rendered {
-    /// Gab es einen Fehler?
+    /// Was there an error?
     pub fn has_errors(&self) -> bool {
         self.diagnostics.iter().any(|d| d.severity == Severity::Error)
     }
 }
 
-/// Meldung bei `@preview`- und anderen Paket-Importen.
+/// Message for `@preview` and other package imports.
 pub const OFFLINE: &str = "Typst-Pakete werden nicht geladen (offline)";
 
-/// Name der Hauptdatei im virtuellen Wurzelordner.
+/// Name of the main file in the virtual root folder.
 const MAIN_PATH: &str = "/main.typ";
 
-/// Normalform eines Pfads: ohne führendes `/` und `./`, ohne leere Teile; `..` oder leer → `None`.
+/// Normal form of a path: without leading `/` and `./`, without empty parts; `..` or empty → `None`.
 pub fn normalize_path(path: &str) -> Option<String> {
     let mut parts = Vec::new();
     for part in path.trim().split('/') {
@@ -217,9 +219,9 @@ pub fn normalize_path(path: &str) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join("/"))
 }
 
-/// SHA-256 (hex) über `main` und alle Dateien, nach Pfad sortiert und mit Längen davor – jede
-/// Änderung eines Bytes, eines Pfads, eine neue oder fehlende Datei ändert den Stand, die
-/// Reihenfolge der Dateien in [`Source::files`] nicht.
+/// SHA-256 (hex) over `main` and all files, sorted by path and with lengths in front – every
+/// change of a byte, of a path, a new or missing file changes the state, the
+/// order of the files in [`Source::files`] does not.
 pub fn stand(source: &Source) -> String {
     let mut hasher = Sha256::new();
     let mut feed = |bytes: &[u8]| {
@@ -239,18 +241,18 @@ pub fn stand(source: &Source) -> String {
     digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// SHA-256 (hex, klein) über beliebige Bytes, z. B. über ein erzeugtes PDF (Antwort von `work.pdf`).
+/// SHA-256 (hex, lower case) over arbitrary bytes, e.g. over a generated PDF (answer of `work.pdf`).
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Schriften eines Prozesses: der Vorrat und wie viele davon (vorn) eingebettet sind.
+/// Fonts of a process: the stock and how many of them (at the front) are embedded.
 struct Fonts {
     store: FontStore,
     embedded: usize,
 }
 
-/// Schriften: eingebettete zuerst, dann die Systemschriften; einmal je Prozess.
+/// Fonts: embedded ones first, then the system fonts; once per process.
 fn font_data() -> &'static Fonts {
     static FONTS: OnceLock<Fonts> = OnceLock::new();
     FONTS.get_or_init(|| {
@@ -272,29 +274,29 @@ fn library() -> &'static LazyHash<Library> {
     LIBRARY.get_or_init(|| LazyHash::new(Library::default()))
 }
 
-/// Schriftsuche vorab (Runde 18a): eingebettete und Systemschriften einmal je Prozess laden, damit der erste
-/// Satz nicht darauf wartet. Blockierend (bei vielen Systemschriften spürbar) – im Server in `spawn_blocking`.
-/// Gibt die Zahl der Schriften zurück.
+/// Font search in advance (Round 18a): load embedded and system fonts once per process, so that the first
+/// typesetting run does not wait for it. Blocking (noticeable with many system fonts) – in the server in
+/// `spawn_blocking`. Returns the number of fonts.
 pub fn warm_fonts() -> usize {
     fonts().book().families().count()
 }
 
-/// Eine Schriftfamilie für die Auswahl im Umschlag-Editor (Runde 27, `cover.fonts`): Name, vorhandene Schnitte
-/// (`normal`, `bold`, `italic`) und Herkunft.
+/// A font family for the selection in the cover editor (Round 27, `cover.fonts`): name, available styles
+/// (`normal`, `bold`, `italic`) and origin.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct FontFamily {
     pub name: String,
-    /// Vorhandene Schnitte (`normal`, `bold`, `italic` …).
+    /// Available styles (`normal`, `bold`, `italic` …).
     pub styles: Vec<&'static str>,
-    /// Mit Baruch eingebettet (statt Systemschrift).
+    /// Embedded with Baruch (instead of a system font).
     pub embedded: bool,
 }
 
-/// Alle Schriftfamilien (eingebettete und Systemschriften), nach Namen sortiert und ohne Doppel (Typst führt
-/// Familien ohne Unterschied von Groß- und Kleinschreibung). Je Familie die Schnitte, die es wirklich gibt:
-/// `normal` (aufrecht, unter Halbfett), `bold` (aufrecht, ab Halbfett 600), `italic` (kursiv oder schräg); dazu, ob
-/// sie mit Baruch eingebettet ist (`embedded`, z. B. Libertinus Serif) oder vom System kommt. Blockierend wie
-/// [`warm_fonts`] – im Server in `spawn_blocking`.
+/// All font families (embedded and system fonts), sorted by name and without duplicates (Typst treats
+/// families case-insensitively). Per family the styles that really exist: `normal` (upright, below semi-bold),
+/// `bold` (upright, from semi-bold 600), `italic` (italic or oblique); plus whether it is embedded with Baruch
+/// (`embedded`, e.g. Libertinus Serif) or comes from the system. Blocking like [`warm_fonts`] – in the server
+/// in `spawn_blocking`.
 pub fn font_families() -> Vec<FontFamily> {
     use typst::text::FontStyle as Style;
     let data = font_data();
@@ -325,14 +327,14 @@ pub fn font_families() -> Vec<FontFamily> {
     out
 }
 
-/// Gibt es die Schriftfamilie `name` (ohne Unterschied von Groß- und Kleinschreibung)? Blockierend wie
+/// Does the font family `name` exist (case-insensitive)? Blocking like
 /// [`warm_fonts`].
 pub fn has_font_family(name: &str) -> bool {
     let wanted = name.trim().to_lowercase();
     !wanted.is_empty() && fonts().book().families().any(|(family, _)| family.to_lowercase() == wanted)
 }
 
-/// Breite und Höhe (pt) einer gesetzten SVG-Seite aus ihrem Kopf (`width="…pt" height="…pt"`).
+/// Width and height (pt) of a typeset SVG page from its header (`width="…pt" height="…pt"`).
 pub fn svg_size_pt(svg: &str) -> Option<(f64, f64)> {
     let head = &svg[..svg.find('>')?];
     let attr = |name: &str| -> Option<f64> {
@@ -344,20 +346,20 @@ pub fn svg_size_pt(svg: &str) -> Option<(f64, f64)> {
     Some((attr("width")?, attr("height")?))
 }
 
-/// Breite und Höhe (pt) jeder Seite eines Satzes (gleiche Reihenfolge wie [`Rendered::pages`]); eine unlesbare
-/// Seite ergibt (0, 0).
+/// Width and height (pt) of every page of a typesetting run (same order as [`Rendered::pages`]); an unreadable
+/// page yields (0, 0).
 pub fn page_sizes_pt(rendered: &Rendered) -> Vec<(f64, f64)> {
     rendered.pages.iter().map(|page| svg_size_pt(page).unwrap_or((0.0, 0.0))).collect()
 }
 
-/// Die Welt eines Laufs: `main` und die Dateien in Normalform. Ihre Antworten bleiben während eines Laufs gleich
-/// (Typst prüft das, siehe Abbruch im Modulkopf).
+/// The world of a run: `main` and the files in normal form. Its answers stay the same during a run (Typst
+/// checks that, see cancellation in the module header).
 struct Baruch {
     main: TypstSource,
     files: HashMap<String, Bytes>,
 }
 
-/// Format einer Bilddatei an ihren ersten Bytes (Typst-Wort: `png`, `jpg`, `gif`, `webp`, `svg`); sonst `None`.
+/// Format of an image file by its first bytes (Typst word: `png`, `jpg`, `gif`, `webp`, `svg`); otherwise `None`.
 fn sniff_format(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("png")
@@ -369,7 +371,7 @@ fn sniff_format(bytes: &[u8]) -> Option<&'static str> {
         Some("webp")
     } else {
         let head = std::str::from_utf8(&bytes[..bytes.len().min(4096)]).ok().or_else(|| {
-            // Abgeschnitten mitten in einem Zeichen: bis zur letzten vollständigen Stelle.
+            // Cut off in the middle of a character: up to the last complete position.
             let cut = &bytes[..bytes.len().min(4096)];
             std::str::from_utf8(&cut[..cut.len().saturating_sub(3)]).ok()
         })?;
@@ -378,7 +380,7 @@ fn sniff_format(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// Format, das Typst aus der Endung eines Pfads ableitet (wie `typst_library::visualize::image`).
+/// Format that Typst derives from the extension of a path (like `typst_library::visualize::image`).
 fn extension_format(path: &str) -> Option<&'static str> {
     match path.rsplit_once('.')?.1.to_ascii_lowercase().as_str() {
         "png" => Some("png"),
@@ -390,12 +392,12 @@ fn extension_format(path: &str) -> Option<&'static str> {
     }
 }
 
-/// Typwechsel (Runde 21c): Ein Bild kann seinen Typ wechseln (PNG ersetzt SVG), während Vorlage und Text es weiter
-/// unter dem alten Pfad mit der alten Endung nennen. Typst nimmt das Format aus der Endung und scheitert dann
-/// („failed to parse SVG“). Für jede Datei, deren Inhalt nicht zur Endung passt, bekommt jeder Aufruf
-/// `image("<Pfad>"…)` mit einem Zeichenketten-Literal als erstem Argument das Format ausdrücklich (`format: "png"`),
-/// direkt hinter dem Literal und ohne neue Zeile (Zeilennummern der Meldungen bleiben). Aufrufe, die schon `format:`
-/// nennen, und berechnete Pfade (Variablen) bleiben unverändert. Nichts zu tun → `None`.
+/// Type change (Round 21c): an image can change its type (PNG replaces SVG) while template and text still name
+/// it under the old path with the old extension. Typst takes the format from the extension and then fails
+/// ("failed to parse SVG"). For every file whose content does not fit the extension, every call
+/// `image("<Pfad>"…)` with a string literal as the first argument gets the format explicitly (`format: "png"`),
+/// directly after the literal and without a new line (line numbers of the messages stay). Calls that already
+/// name `format:` and computed paths (variables) stay unchanged. Nothing to do → `None`.
 fn with_image_formats(main: &str, files: &HashMap<String, Bytes>) -> Option<String> {
     let mismatched: HashMap<&str, &'static str> = files
         .iter()
@@ -411,7 +413,7 @@ fn with_image_formats(main: &str, files: &HashMap<String, Bytes>) -> Option<Stri
     let mut rest = main;
     let mut changed = false;
     while let Some(at) = rest.find("image(") {
-        // Nur der Bezeichner `image` (nicht `myimage(`), danach optional Leerraum und ein Literal.
+        // Only the identifier `image` (not `myimage(`), then optional whitespace and a literal.
         let ident_ok = rest[..at].chars().next_back().is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == '-'));
         let open = at + "image(".len();
         out.push_str(&rest[..open]);
@@ -425,7 +427,7 @@ fn with_image_formats(main: &str, files: &HashMap<String, Bytes>) -> Option<Stri
         let Some(end) = literal.find(['"', '\\', '\n']).filter(|&e| literal.as_bytes()[e] == b'"') else { continue };
         let path = &literal[..end];
         let Some(format) = normalize_path(path).and_then(|p| mismatched.get(p.as_str()).copied()) else { continue };
-        // Rest der Argumente bis zur schließenden Klammer: schon ein `format:` darin? Dann nichts ändern.
+        // Rest of the arguments up to the closing bracket: already a `format:` in it? Then change nothing.
         let tail = &literal[end + 1..];
         let mut depth = 1usize;
         let mut close = tail.len();
@@ -480,7 +482,7 @@ impl Baruch {
         Baruch { main: TypstSource::new(id, main), files }
     }
 
-    /// Pfad (Normalform) der Datei mit genau diesen Bytes; unbekannt → leer.
+    /// Path (normal form) of the file with exactly these bytes; unknown → empty.
     fn path_of(&self, bytes: &[u8]) -> String {
         let mut paths: Vec<&String> =
             self.files.iter().filter(|(_, b)| b.as_slice() == bytes).map(|(path, _)| path).collect();
@@ -541,7 +543,7 @@ impl World for Baruch {
     }
 }
 
-/// Tage seit 1970-01-01 → (Jahr, Monat, Tag) im gregorianischen Kalender (Algorithmus von
+/// Days since 1970-01-01 → (year, month, day) in the Gregorian calendar (algorithm by
 /// Howard Hinnant).
 fn civil_from_days(days: i64) -> (i32, u8, u8) {
     let z = days + 719_468;
@@ -556,14 +558,14 @@ fn civil_from_days(days: i64) -> (i32, u8, u8) {
     ((if m <= 2 { y + 1 } else { y }) as i32, m as u8, d as u8)
 }
 
-/// Setzt das Werk. Blockierend (Sekunden bei großen Werken) – im Server nur in `spawn_blocking`.
-/// Scheitert nie: Fehler stehen in [`Rendered::diagnostics`], die Seiten sind dann leer.
+/// Typesets the work. Blocking (seconds for large works) – in the server only in `spawn_blocking`.
+/// Never fails: errors are in [`Rendered::diagnostics`], the pages are then empty.
 pub fn compile(source: &Source) -> Rendered {
     run(&Baruch::new(source), source, &Cancel::new()).expect("ohne Abbruch gibt es immer ein Ergebnis")
 }
 
-/// Wie [`compile`], aber abbrechbar über `cancel` (Runde 18a): `None` = abgebrochen (vor, während oder nach dem
-/// Satz; nie halbe Seiten). Was Typst wirklich unterbricht, steht im Modulkopf.
+/// Like [`compile`], but cancellable through `cancel` (Round 18a): `None` = cancelled (before, during or after
+/// typesetting; never half pages). What Typst really interrupts is in the module header.
 pub fn compile_cancellable(source: &Source, cancel: &Cancel) -> Option<Rendered> {
     if cancel.is_cancelled() {
         return None;
@@ -571,12 +573,12 @@ pub fn compile_cancellable(source: &Source, cancel: &Cancel) -> Option<Rendered>
     run(&Baruch::new(source), source, cancel)
 }
 
-/// Ein Lauf in der Welt `world`; `None` nur, wenn `cancel` abgebrochen wurde.
+/// A run in the world `world`; `None` only if `cancel` was cancelled.
 fn run(world: &Baruch, source: &Source, cancel: &Cancel) -> Option<Rendered> {
     let warned = typst::compile::<PagedDocument>(world);
     let cancelled = || {
         if cancel.is_cancelled() {
-            // Wie nach jedem Lauf ältere Zwischenergebnisse von Typst freigeben.
+            // As after every run, release older intermediate results of Typst.
             typst::comemo::evict(2);
             true
         } else {
@@ -606,8 +608,8 @@ fn run(world: &Baruch, source: &Source, cancel: &Cancel) -> Option<Rendered> {
         }
     };
     diagnostics.extend(warned.warnings.iter().map(|d| convert(world, d)));
-    // Typst merkt sich Zwischenergebnisse prozessweit; ältere als zwei Läufe wieder freigeben, damit
-    // der Speicher eines langlebigen Servers nicht mit jedem Werk wächst.
+    // Typst remembers intermediate results process-wide; release those older than two runs again, so that
+    // the memory of a long-lived server does not grow with every work.
     typst::comemo::evict(2);
     if cancelled() {
         return None;
@@ -615,7 +617,7 @@ fn run(world: &Baruch, source: &Source, cancel: &Cancel) -> Option<Rendered> {
     Some(Rendered { stand: stand(source), pages, headings, diagnostics, print, page_lines })
 }
 
-/// Je Seite die Zeilen von `main`, aus denen Text auf ihr stammt (erste Glyphe jedes Textstücks).
+/// Per page the lines of `main` from which text on it comes (first glyph of every text piece).
 fn page_lines(world: &Baruch, document: &PagedDocument) -> Vec<Vec<usize>> {
     fn walk(world: &Baruch, frame: &typst::layout::Frame, out: &mut Vec<usize>) {
         use typst::layout::FrameItem;
@@ -645,9 +647,9 @@ fn page_lines(world: &Baruch, document: &PagedDocument) -> Vec<Vec<usize>> {
         .collect()
 }
 
-/// Setzt das Werk wie [`compile`] (dieselbe Welt, dieselben Schriften und Dateien) und schreibt es
-/// als PDF (`typst-pdf`, getaggt, ohne Zeitstempel). Blockierend. Scheitert nie: Bei einem Fehler
-/// (Satz oder PDF-Ausgabe) sind `bytes` `None` und `pages` 0, die Meldungen stehen in `diagnostics`.
+/// Typesets the work like [`compile`] (the same world, the same fonts and files) and writes it
+/// as a PDF (`typst-pdf`, tagged, without timestamp). Blocking. Never fails: on an error
+/// (typesetting or PDF output) `bytes` are `None` and `pages` 0, the messages are in `diagnostics`.
 pub fn compile_pdf(source: &Source) -> Pdf {
     let world = Baruch::new(source);
     let warned = typst::compile::<PagedDocument>(&world);
@@ -670,9 +672,9 @@ pub fn compile_pdf(source: &Source) -> Pdf {
     Pdf { stand: stand(source), bytes, pages, diagnostics, print }
 }
 
-// ---- Rasterbild einer Seite (Runde 21c) --------------------------------------------------------
+// ---- Raster image of a page (Round 21c) --------------------------------------------------------
 
-/// Eine Seite als Rasterbild ([`render_png`]): PNG-Bytes und Größe in Pixeln.
+/// A page as a raster image ([`render_png`]): PNG bytes and size in pixels.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Raster {
     pub png: Vec<u8>,
@@ -680,11 +682,11 @@ pub struct Raster {
     pub height: u32,
 }
 
-/// Setzt `source` wie [`compile`] und rastert die Seite `page` (0-basiert) mit `typst-render` (Apache-2.0) als PNG –
-/// so groß wie möglich, aber höchstens `max_width` × `max_height` Pixel, im Seitenverhältnis der Seite (gerundet auf
-/// ganze Pixel). Blockierend. Ein Satzfehler (erste Fehlermeldung), eine fehlende Seite, eine Grenze 0 oder ein
-/// Fehler beim Schreiben des PNG → `Err` mit deutscher Meldung, nie ein halbes Bild. Für das EPUB-Cover aus der
-/// Vorderseite des Umschlags (Runde 21c, Cover-Größe höchstens 1600 × 2560).
+/// Typesets `source` like [`compile`] and rasterises the page `page` (0-based) with `typst-render` (Apache-2.0)
+/// as a PNG – as large as possible, but at most `max_width` × `max_height` pixels, in the aspect ratio of the
+/// page (rounded to whole pixels). Blocking. A typesetting error (first error message), a missing page, a limit
+/// of 0 or an error when writing the PNG → `Err` with a German message, never half an image. For the EPUB cover
+/// from the front of the cover (Round 21c, cover size at most 1600 × 2560).
 pub fn render_png(source: &Source, page: usize, max_width: u32, max_height: u32) -> Result<Raster, String> {
     if max_width == 0 || max_height == 0 {
         return Err("Rasterbild: Breite und Höhe müssen mindestens 1 Pixel sein.".to_owned());
@@ -699,7 +701,7 @@ pub fn render_png(source: &Source, page: usize, max_width: u32, max_height: u32)
                 if !(w_pt > 0.0 && h_pt > 0.0) {
                     Err("Rasterbild: die Seite hat keine Fläche.".to_owned())
                 } else {
-                    // Größter Maßstab, bei dem die gerundete Pixelgröße in die Grenzen passt (typst-render rundet).
+                    // Largest scale at which the rounded pixel size fits into the limits (typst-render rounds).
                     let mut scale = (f64::from(max_width) / w_pt).min(f64::from(max_height) / h_pt);
                     while (scale * w_pt).round() > f64::from(max_width)
                         || (scale * h_pt).round() > f64::from(max_height)
@@ -732,11 +734,11 @@ pub fn render_png(source: &Source, page: usize, max_width: u32, max_height: u32)
     result
 }
 
-// ---- Messhilfe (Runde 29) ----------------------------------------------------------------------
+// ---- Measuring aid (Round 29) ------------------------------------------------------------------
 
-/// Ein gesetztes Textstück (ein Lauf gleicher Schrift, meist ein Wort oder eine Zeile) für Messungen (Runde 29,
-/// Vertrag §5.7): Text, Anfang der Grundlinie links in pt ab der oberen linken Seitenecke, Breite in pt, Schriftgröße in
-/// pt (mit Vergrößerung der umgebenden Gruppen) und Familienname der Schrift.
+/// A typeset text piece (a run of the same font, mostly a word or a line) for measurements (Round 29, contract
+/// §5.7): text, start of the baseline at the left in pt from the top left corner of the page, width in pt, font
+/// size in pt (with the scaling of the surrounding groups) and family name of the font.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlacedText {
     pub text: String,
@@ -747,9 +749,9 @@ pub struct PlacedText {
     pub font: String,
 }
 
-/// Je Seite (Index 0 = Seite 1) die gesetzten Textstücke in der Reihenfolge des Rahmens (Kopfzeile, Inhalt,
-/// Fußzeile). `None` bei einem Satzfehler. Blockierend wie [`compile`]. Für Tests und die Abnahme der
-/// Satz-Einstellungen: Ränder, Seitenzahlen, Kolumnentitel, Schrift und Zeilenabstand lassen sich so in pt messen.
+/// Per page (index 0 = page 1) the typeset text pieces in the order of the frame (header, content, footer).
+/// `None` on a typesetting error. Blocking like [`compile`]. For tests and the acceptance of the typesetting
+/// settings: margins, page numbers, running heads, font and line spacing can thus be measured in pt.
 pub fn page_texts(source: &Source) -> Option<Vec<Vec<PlacedText>>> {
     use typst::layout::{Frame, FrameItem, Point, Transform};
     fn walk(frame: &Frame, ts: Transform, out: &mut Vec<PlacedText>) {
@@ -761,7 +763,7 @@ pub fn page_texts(source: &Source) -> Option<Vec<Vec<PlacedText>>> {
                 }
                 FrameItem::Text(text) => {
                     let at = Point::new(pos.x, pos.y).transform(ts);
-                    // Waagrechte Vergrößerung (Länge der transformierten x-Achse) für Breite und Größe.
+                    // Horizontal scaling (length of the transformed x axis) for width and size.
                     let scale = ts.sx.get().hypot(ts.ky.get());
                     out.push(PlacedText {
                         text: text.text.to_string(),
@@ -793,10 +795,10 @@ pub fn page_texts(source: &Source) -> Option<Vec<Vec<PlacedText>>> {
     result
 }
 
-// ---- Druckprüfung ------------------------------------------------------------------------------
+// ---- Print check -------------------------------------------------------------------------------
 
-/// Alle Rasterbilder unter [`MIN_DPI`], je Seite in der Reihenfolge des Satzes; dasselbe Bild in
-/// derselben Größe auf derselben Seite nur einmal.
+/// All raster images below [`MIN_DPI`], per page in the order of the typeset result; the same image in
+/// the same size on the same page only once.
 fn print_warnings(world: &Baruch, document: &PagedDocument) -> Vec<PrintWarning> {
     let mut out: Vec<PrintWarning> = Vec::new();
     for (index, page) in document.pages().iter().enumerate() {
@@ -805,7 +807,7 @@ fn print_warnings(world: &Baruch, document: &PagedDocument) -> Vec<PrintWarning>
     out
 }
 
-/// Rahmen durchgehen; `scale` ist die Vergrößerung der umgebenden Gruppen (x, y).
+/// Walk through the frame; `scale` is the scaling of the surrounding groups (x, y).
 fn walk_frame(
     world: &Baruch,
     frame: &typst::layout::Frame,
@@ -838,8 +840,8 @@ fn walk_frame(
     }
 }
 
-/// Warnung für ein Rasterbild von `width_px` × `height_px` Pixeln, gesetzt in `width_mm` × `height_mm`;
-/// `None`, wenn es [`MIN_DPI`] erreicht (oder keine Fläche hat).
+/// Warning for a raster image of `width_px` × `height_px` pixels, typeset in `width_mm` × `height_mm`;
+/// `None` if it reaches [`MIN_DPI`] (or has no area).
 pub fn check_raster(
     path: String,
     page: usize,
@@ -881,7 +883,7 @@ pub fn check_raster(
     })
 }
 
-/// Überschriften aus `main` mit ihrer Seite, nach Zeile sortiert.
+/// Headings from `main` with their page, sorted by line.
 fn headings(world: &Baruch, document: &PagedDocument) -> Vec<HeadingPos> {
     let introspector = document.introspector();
     let mut out = Vec::new();
@@ -896,7 +898,7 @@ fn headings(world: &Baruch, document: &PagedDocument) -> Vec<HeadingPos> {
     out
 }
 
-/// Zeile und Spalte (1-basiert) eines Orts in `main`.
+/// Line and column (1-based) of a location in `main`.
 fn main_position(world: &Baruch, span: DiagSpan) -> Option<(usize, usize)> {
     if span.id()? != world.main.id() {
         return None;
@@ -906,7 +908,7 @@ fn main_position(world: &Baruch, span: DiagSpan) -> Option<(usize, usize)> {
     Some((line + 1, column + 1))
 }
 
-/// Ort einer Meldung: eigener Ort, sonst der erste Aufrufpunkt mit Ort (Datei, Zeile, Spalte).
+/// Location of a message: own location, otherwise the first call site with a location (file, line, column).
 fn locate(world: &Baruch, diagnostic: &SourceDiagnostic) -> (Option<String>, Option<usize>, Option<usize>) {
     let spans = std::iter::once(diagnostic.span)
         .chain(diagnostic.trace.iter().map(|point| DiagSpan::from(point.span)))
@@ -937,7 +939,7 @@ fn convert(world: &Baruch, diagnostic: &SourceDiagnostic) -> Diagnostic {
     Diagnostic { severity, message, hints, line, column, file }
 }
 
-/// Bekannte Meldungen auf Deutsch; die englische bleibt als Hinweis stehen.
+/// Known messages in German; the English one stays as a hint.
 fn german(message: &str, hints: &mut Vec<String>) -> String {
     if message.contains(OFFLINE) {
         hints.insert(0, "Funktionen aus Paketen in die Werkvorlage übernehmen oder den Import entfernen.".into());

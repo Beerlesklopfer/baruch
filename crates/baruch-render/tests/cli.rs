@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `baruch_render::cli` (Runde 36, Typst-Kommandozeile): eine Datei von der Platte setzen – PDF, PNG, SVG,
-//! Wurzelordner als Grenze, Schriftordner, Meldungen mit Ort, keine Pakete. Alle Texte frei erfunden.
+//! `baruch_render::cli` (Round 36, Typst command line): typeset a file from disk – PDF, PNG, SVG, root folder as
+//! the limit, font folders, messages with location, no packages. All texts freely invented.
 
 use std::path::{Path, PathBuf};
 
@@ -8,7 +8,7 @@ use baruch_render::cli::{CompileJob, OutputFormat, TYPST_VERSION, compile_file, 
 
 const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 
-/// Zwei Seiten A6 über den Fährmann am Steinsee.
+/// Two A6 pages about the ferryman at the Steinsee.
 const FERRY: &str = "#set page(width: 105mm, height: 148mm)\n= Der Fährmann am Steinsee\n\nJonte ruderte jeden Morgen \
                      zur Insel hinüber.\n#pagebreak()\nAm Abend brachte er die Laternen zurück.\n";
 
@@ -25,7 +25,7 @@ fn job(input: PathBuf, format: OutputFormat) -> CompileJob {
     CompileJob { input, root: None, font_paths: Vec::new(), format, ppi: 144.0 }
 }
 
-/// Breite eines PNG in Pixeln (IHDR, Bytes 16–19).
+/// Width of a PNG in pixels (IHDR, bytes 16–19).
 fn png_width(png: &[u8]) -> u32 {
     u32::from_be_bytes(png[16..20].try_into().unwrap())
 }
@@ -45,7 +45,7 @@ fn a_file_is_set_to_pdf_png_and_svg() {
     for page in &png.pages {
         assert!(page.starts_with(PNG_SIGNATURE), "jede Seite trägt die PNG-Signatur");
     }
-    // 105 mm = 297,64 pt; bei 144 ppi sind das 2 Pixel je Punkt.
+    // 105 mm = 297.64 pt; at 144 ppi that is 2 pixels per point.
     assert_eq!(png_width(&png.pages[0]), 595, "144 ppi: zwei Pixel je Punkt, wie bei Typst gerundet");
     let coarse = compile_file(&CompileJob { ppi: 72.0, ..job(input.clone(), OutputFormat::Png) }).expect("PNG 72");
     assert_eq!(png_width(&coarse.pages[0]), 298, "72 ppi: ein Pixel je Punkt – --ppi wirkt auf die Größe");
@@ -75,7 +75,7 @@ fn the_root_allows_files_inside_and_blocks_everything_outside() {
         "mit --root auf dem Projektordner findet »/teile/hafen.typ« die Datei über dem Ordner der Eingabe"
     );
 
-    // Ohne --root ist der Ordner der Eingabe die Wurzel: derselbe Text erreicht »teile« nicht mehr.
+    // Without --root the folder of the input is the root: the same text no longer reaches »teile«.
     let narrow = compile_file(&job(input.clone(), OutputFormat::Svg)).expect_err("teile/ liegt über der Wurzel");
     assert!(
         narrow.messages.iter().any(|m| m.contains("main.typ:2:") && m.contains("error:")),
@@ -178,8 +178,8 @@ fn font_names_list_the_embedded_families_sorted_and_once() {
     );
 }
 
-/// Eine Schrift mit erfundenem Familiennamen: DejaVu Sans des Systems, in der Namenstabelle gleich lang umbenannt
-/// (Prüfsummen der Tabellen liest der Schriftleser nicht). `None`, wenn das System die Datei nicht hat.
+/// A font with an invented family name: DejaVu Sans of the system, renamed in the name table at equal length
+/// (the font reader does not read the checksums of the tables). `None` if the system does not have the file.
 fn renamed_font() -> Option<Vec<u8>> {
     fn find(dir: &Path, depth: usize) -> Option<PathBuf> {
         for entry in std::fs::read_dir(dir).ok()?.flatten() {

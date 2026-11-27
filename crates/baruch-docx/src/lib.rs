@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Word-Dateien (.docx, OOXML WordprocessingML) lesen und schreiben (Runde 32, Schnittstelle R32-S1).
+//! Read and write Word files (.docx, OOXML WordprocessingML) (Round 32, interface R32-S1).
 //!
-//! Rein: keine Datenbank, kein Netz. Drehpunkt ist das Blockmodell in [`model`] ([`DocxDocument`]): Der Leser
-//! ([`read`]) macht aus einer Datei das Modell samt Änderungsverfolgung und Kommentaren, [`resolve`] löst die
-//! Änderungen zu einem Stand auf, [`to_typst`] schreibt daraus Typst je Abschnitt. In der Gegenrichtung liest
-//! [`from_typst`] einen Abschnitt in Blöcke, [`diff`] legt einen Vorschlag als Änderungsverfolgung über die aktuelle
-//! Fassung, und [`write`] schreibt das Modell als .docx.
+//! Pure: no database, no network. The pivot is the block model in [`model`] ([`DocxDocument`]): the reader
+//! ([`read`]) turns a file into the model including tracked changes and comments, [`resolve`] resolves the
+//! changes into one state, [`to_typst`] writes Typst per section from it. In the opposite direction
+//! [`from_typst`] reads a section into blocks, [`diff`] lays a proposal as tracked changes over the current
+//! revision, and [`write`] writes the model as .docx.
 //!
-//! Besitz (Vertrag Runde 32, §5): `lib.rs`, [`model`], [`error`], [`limits`], [`ooxml`] und [`sample`] sind die
-//! Schnittstelle und gehören dem Integrator (nach S1 eingefroren); [`read`], [`resolve`], [`to_typst`] gehören der
-//! Aufgabe docx_import, [`write`], [`from_typst`], [`diff`] der Aufgabe docx_export.
+//! Ownership (contract Round 32, §5): `lib.rs`, [`model`], [`error`], [`limits`], [`ooxml`] and [`sample`] are the
+//! interface and belong to the integrator (frozen after S1); [`read`], [`resolve`], [`to_typst`] belong to the
+//! task docx_import, [`write`], [`from_typst`], [`diff`] to the task docx_export.
 
 pub mod diff;
 pub mod error;

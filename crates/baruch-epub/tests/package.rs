@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20a (epub): EPUB als ZIP – Reihenfolge und Form nach OCF, Manifest/Spine, Navigation, Wohlgeformtheit
-//! (xmllint `--noout --nonet`, sonst quick-xml mit Ausgabe „ÜBERSPRUNGEN“), gleiche Bytes bei gleicher Eingabe.
+//! Round 20a (epub): EPUB as a ZIP – order and form according to OCF, manifest/spine, navigation, well-formedness
+//! (xmllint `--noout --nonet`, otherwise quick-xml with output „ÜBERSPRUNGEN“), same bytes for same input.
 
 use std::collections::BTreeSet;
 use std::io::Read;
@@ -28,7 +28,7 @@ fn book_and_zip(mode: FootnoteMode) -> (EpubBook, Vec<u8>) {
     (book, zip)
 }
 
-/// Werte eines Attributs in allen Vorkommen von `<tag …>`.
+/// Values of an attribute in all occurrences of `<tag …>`.
 fn attrs(xml: &str, tag: &str, attr: &str) -> Vec<String> {
     let mut out = Vec::new();
     for (at, _) in xml.match_indices(&format!("<{tag} ")) {
@@ -107,7 +107,8 @@ fn building_and_packing_twice_gives_the_same_bytes() {
     assert_ne!(a, c, "andere Fußnotenart → anderes EPUB");
 }
 
-/// Wohlgeformt nach xmllint (`--noout --nonet`), sonst nach quick-xml. Gibt zurück, ob xmllint geprüft hat.
+/// Well-formed according to xmllint (`--noout --nonet`), otherwise according to quick-xml. Returns whether
+/// xmllint did the check.
 fn well_formed(name: &str, bytes: &[u8], dir: &Path) -> bool {
     if Path::new("/usr/bin/xmllint").exists() {
         let file = dir.join(name.replace('/', "_"));

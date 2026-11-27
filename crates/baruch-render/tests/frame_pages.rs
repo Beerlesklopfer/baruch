@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Rahmen (Umschlag, Titelei) im Satz: Seitenzahl und Seitenparität des ersten Kapitels dürfen nicht davon
-//! abhängen, ob die Umschlagseiten mitgesetzt werden (Nachbesserung Runde 11). Typst prüft selbst: ein
-//! `assert` im Kapitel scheitert mit einer Fehlermeldung, wenn Zähler oder physische Seite nicht stimmen.
+//! Frame (cover, front matter) in the typeset result: page number and page parity of the first chapter must not
+//! depend on whether the cover pages are typeset along (follow-up fix Round 11). Typst checks itself: an
+//! `assert` in the chapter fails with an error message if counter or physical page are not right.
 
 use baruch_render::{Severity, Source, compile};
 use baruch_typst::cover::{BookInfo, CoverRef, FrameOptions, frame_parts};
@@ -17,7 +17,7 @@ fn info(dedication: &str) -> BookInfo {
     }
 }
 
-/// Rahmen + ein Kapitel, das prüft: logische Seitenzahl `logical`, physische Seite ungerade (rechts).
+/// Frame + a chapter that checks: logical page number `logical`, physical page odd (right).
 fn book(cover_pages: bool, front_matter: bool, dedication: &str, logical: usize) -> Source {
     let parts = frame_parts(
         &info(dedication),
@@ -45,9 +45,9 @@ fn errors(source: &Source) -> Vec<String> {
 
 #[test]
 fn the_first_chapter_starts_right_with_the_same_number_with_or_without_cover_pages() {
-    // Titelei: Schmutztitel, Seite 2, Haupttitel, Impressum → Kapitel auf Seite 5; mit Widmung (Widmung und
-    // Leerseite) auf Seite 7. Ohne Titelei auf Seite 1. Diese Zahlen gelten mit und ohne Umschlagseiten,
-    // denn die leere Innenseite des Umschlags hält die Parität und setzt den Zähler zurück.
+    // Front matter: half title, page 2, main title, imprint → chapter on page 5; with dedication (dedication and
+    // empty page) on page 7. Without front matter on page 1. These numbers apply with and without cover pages,
+    // because the empty inside page of the cover keeps the parity and resets the counter.
     for cover_pages in [false, true] {
         for (front_matter, dedication, logical) in [(true, "", 5), (true, "Für Mia.", 7), (false, "", 1)] {
             let source = book(cover_pages, front_matter, dedication, logical);
@@ -63,15 +63,15 @@ fn the_first_chapter_starts_right_with_the_same_number_with_or_without_cover_pag
 
 #[test]
 fn the_check_itself_notices_a_wrong_number() {
-    // Gegenprobe: dieselbe Prüfung mit falscher Erwartung scheitert, die Prüfung oben ist also wirksam.
+    // Cross-check: the same check with a wrong expectation fails, so the check above is effective.
     let wrong = book(true, true, "", 6);
     let found = errors(&wrong);
     assert!(found.iter().any(|m| m.contains("logische Seite")), "falsche Seitenzahl wird bemerkt: {found:?}");
 }
 
-/// Grundlage von `chapter_number` im Editorkopf (baruch-server `view.rs`): Typst zählt in `counter(heading)`
-/// nur Überschriften mit Nummerierung. Ein Vorwort mit `numbering: none` (so exportiert Baruch Knoten mit
-/// „Nummer aus“) und eine Vorlage ganz ohne Nummerierung zählen nicht; `at(-1)` ist das letzte Element.
+/// Basis of `chapter_number` in the editor header (baruch-server `view.rs`): Typst counts in `counter(heading)`
+/// only headings with numbering. A preface with `numbering: none` (that is how Baruch exports nodes with
+/// „Nummer aus“) and a template entirely without numbering do not count; `at(-1)` is the last element.
 #[test]
 fn typst_counts_only_numbered_headings() {
     let numbered = "#set heading(numbering: \"1.\")\n\

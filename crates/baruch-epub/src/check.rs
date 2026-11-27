@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Prüfung eines EPUB (Besitz „epub-pruefung“, Runde 20c): eigene Struktur- und Barrierefreiheitsprüfung,
-//! Warnungen je Reader, Suche nach xmllint und EPUBCheck, Lauf von EPUBCheck. Typen seit S1 eingefroren.
+//! Check of an EPUB (ownership "epub-pruefung", Round 20c): own structure and accessibility check, warnings per
+//! reader, search for xmllint and EPUBCheck, run of EPUBCheck. Types frozen since S1.
 //!
-//! EPUBCheck wird nie heruntergeladen: `epubcheck` aus PATH oder ein epubcheck.jar unter einem vom Nutzer
-//! eingestellten Pfad (`java -jar`). Starten darf es nur der Mensch (RPC/Formular), nie MCP.
+//! EPUBCheck is never downloaded: `epubcheck` from PATH or an epubcheck.jar under a path set by the user
+//! (`java -jar`). Only the human may start it (RPC/form), never MCP.
 //!
-//! **Eigene Prüfung** ([`check_structure`], Codes in [`codes`]):
-//! - ZIP nach OCF: `mimetype` als erster Eintrag, unkomprimiert, ohne Extra-Feld, Inhalt `application/epub+zip`;
-//!   keine Pfade mit `..` oder `/` am Anfang.
-//! - `META-INF/container.xml` mit `rootfile` auf das Paketdokument (OPF).
-//! - OPF: Kennung, Titel, Sprache, `dcterms:modified`; Manifest ohne doppelte ids, jede Datei vorhanden, keine
-//!   Datei ohne Manifest-Eintrag; Spine nicht leer, nur bekannte ids aus XHTML; `toc` der Spine (EPUB-2-Rückfall)
-//!   zeigt auf ein NCX; `<meta name="cover">` zeigt auf eine bekannte id; Navigationsdokument (`properties="nav"`)
-//!   mit `<nav epub:type="toc">`; Angaben zur Barrierefreiheit (`schema:accessMode` …) als Hinweis.
-//! - Wohlgeformtheit jeder XML-Datei mit `xmllint --noout --nonet` (wenn gefunden), sonst quick-xml
-//!   ([`CheckReport::xml_tool`] nennt das Werkzeug).
-//! - Je XHTML: Sprache (`xml:lang`/`lang`), Titel, `alt` an jedem `<img>` (fehlend = Fehler, leer = Hinweis
-//!   „schmückend“), doppelte ids, Verweise auf fehlende Dateien bzw. Sprungmarken.
-//! - Lesereihenfolge: Die Dateien im Inhaltsverzeichnis (nav) folgen der Spine.
+//! **Own check** ([`check_structure`], codes in [`codes`]):
+//! - ZIP according to OCF: `mimetype` as the first entry, uncompressed, without extra field, content
+//!   `application/epub+zip`; no paths with `..` or a leading `/`.
+//! - `META-INF/container.xml` with `rootfile` pointing to the package document (OPF).
+//! - OPF: identifier, title, language, `dcterms:modified`; manifest without duplicate ids, every file present, no
+//!   file without a manifest entry; spine not empty, only known ids from XHTML; `toc` of the spine (EPUB 2
+//!   fallback) points to an NCX; `<meta name="cover">` points to a known id; navigation document
+//!   (`properties="nav"`) with `<nav epub:type="toc">`; accessibility details (`schema:accessMode` …) as a hint.
+//! - Well-formedness of every XML file with `xmllint --noout --nonet` (if found), otherwise quick-xml
+//!   ([`CheckReport::xml_tool`] names the tool).
+//! - Per XHTML: language (`xml:lang`/`lang`), title, `alt` on every `<img>` (missing = error, empty = hint
+//!   "decorative"), duplicate ids, references to missing files or anchors.
+//! - Reading order: the files in the table of contents (nav) follow the spine.
 
 mod tools;
 mod xml;
@@ -78,7 +78,7 @@ pub struct CheckReport {
     pub epubcheck: EpubcheckStatus,
 }
 
-/// Meldecodes der eigenen Prüfung (fest, Tests und Oberfläche verlassen sich darauf).
+/// Message codes of the own check (fixed, tests and user interface rely on them).
 pub mod codes {
     pub const ZIP_INVALID: &str = "ZIP_INVALID";
     pub const ZIP_PATH_INVALID: &str = "ZIP_PATH_INVALID";
@@ -117,7 +117,7 @@ pub mod codes {
     pub const REFERENCE_MISSING: &str = "REFERENCE_MISSING";
     pub const LINK_TARGET_MISSING: &str = "LINK_TARGET_MISSING";
     pub const A11Y_METADATA_MISSING: &str = "A11Y_METADATA_MISSING";
-    /// Warnungen je Reader.
+    /// Warnings per reader.
     pub const READER_POPUP_FOOTNOTES: &str = "READER_POPUP_FOOTNOTES";
     pub const READER_PAGE_BREAKS: &str = "READER_PAGE_BREAKS";
     pub const READER_EMBEDDED_FONTS: &str = "READER_EMBEDDED_FONTS";
@@ -127,7 +127,7 @@ pub mod codes {
     pub const READER_PUBLISHER_FONT: &str = "READER_PUBLISHER_FONT";
     pub const READER_NIGHT_MODE: &str = "READER_NIGHT_MODE";
     pub const READER_CONVERSION: &str = "READER_CONVERSION";
-    /// EPUBCheck-Meldungen tragen `EPUBCHECK_<Code>` (z. B. `EPUBCHECK_RSC-005`).
+    /// EPUBCheck messages carry `EPUBCHECK_<Code>` (e.g. `EPUBCHECK_RSC-005`).
     pub const EPUBCHECK_PREFIX: &str = "EPUBCHECK_";
 }
 
@@ -141,13 +141,13 @@ fn u16_at(bytes: &[u8], at: usize) -> Option<usize> {
     bytes.get(at..at + 2).map(|b| usize::from(u16::from_le_bytes([b[0], b[1]])))
 }
 
-/// Prüft den ersten lokalen Dateikopf direkt in den Bytes (die ZIP-Bibliothek verrät die Reihenfolge nicht
-/// verlässlich): Name `mimetype`, Methode 0 (STORED), Extra-Feld leer, Inhalt genau [`MIMETYPE`] (Runde 23a: der Inhalt
-/// auch dann, wenn der Eintrag komprimiert ist).
+/// Checks the first local file header directly in the bytes (the ZIP library does not reveal the order
+/// reliably): name `mimetype`, method 0 (STORED), extra field empty, content exactly [`MIMETYPE`] (Round 23a: the
+/// content even if the entry is compressed).
 fn check_mimetype(epub: &[u8], out: &mut Vec<Finding>) {
     use codes::*;
     if epub.get(..4) != Some(b"PK\x03\x04") {
-        return; // Kein ZIP – meldet ZIP_INVALID.
+        return; // Not a ZIP – reports ZIP_INVALID.
     }
     let (Some(method), Some(name_len), Some(extra_len)) = (u16_at(epub, 8), u16_at(epub, 26), u16_at(epub, 28)) else {
         return;
@@ -196,8 +196,8 @@ fn check_mimetype(epub: &[u8], out: &mut Vec<Finding>) {
     } else if let Some(content) = unpacked_mimetype(epub)
         && content != MIMETYPE.as_bytes()
     {
-        // Runde 23a (Integration R20): Auch ein komprimierter mimetype wird entpackt und sein Inhalt geprüft – sonst
-        // bliebe ein falscher Medientyp hinter der Meldung „komprimiert“ unentdeckt.
+        // Round 23a (integration R20): a compressed mimetype is unpacked too and its content checked – otherwise a
+        // wrong media type would stay undetected behind the message "compressed".
         out.push(finding(
             MIMETYPE_CONTENT,
             Severity::Error,
@@ -207,8 +207,8 @@ fn check_mimetype(epub: &[u8], out: &mut Vec<Finding>) {
     }
 }
 
-/// Inhalt des Eintrags `mimetype` über die ZIP-Bibliothek entpackt (höchstens 256 Bytes; der richtige Inhalt hat 20).
-/// `None`, wenn sich das Archiv oder der Eintrag nicht lesen lässt (das melden `ZIP_INVALID` bzw. die Kopfprüfung).
+/// Content of the entry `mimetype` unpacked through the ZIP library (at most 256 bytes; the right content has
+/// 20). `None` if the archive or the entry cannot be read (reported by `ZIP_INVALID` or the header check).
 fn unpacked_mimetype(epub: &[u8]) -> Option<Vec<u8>> {
     use std::io::Read;
     let mut zip = zip::ZipArchive::new(Cursor::new(epub)).ok()?;
@@ -218,7 +218,7 @@ fn unpacked_mimetype(epub: &[u8]) -> Option<Vec<u8>> {
     Some(content)
 }
 
-/// Dateien des ZIP: Name → Inhalt (nur XML/CSS gelesen; andere mit leerem Inhalt, nur ihre Existenz zählt).
+/// Files of the ZIP: name → content (only XML/CSS read; others with empty content, only their existence counts).
 struct Archive {
     files: BTreeMap<String, Vec<u8>>,
 }
@@ -229,7 +229,7 @@ impl Archive {
     }
 }
 
-/// Endungen, deren Inhalt die Prüfung liest.
+/// Extensions whose content the check reads.
 fn is_readable_text(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     [".xhtml", ".html", ".htm", ".opf", ".ncx", ".xml", ".css", ".svg"].iter().any(|ext| lower.ends_with(ext))
@@ -278,7 +278,7 @@ fn open_archive(epub: &[u8], out: &mut Vec<Finding>) -> Option<Archive> {
         }
         let mut bytes = Vec::new();
         if is_readable_text(&name) {
-            // Höchstens 16 MiB je Textdatei; mehr wäre kein vernünftiges XHTML.
+            // At most 16 MiB per text file; more would not be sensible XHTML.
             if let Err(e) = entry.by_ref().take(16 * 1024 * 1024).read_to_end(&mut bytes) {
                 out.push(finding(
                     codes::ZIP_INVALID,
@@ -293,9 +293,9 @@ fn open_archive(epub: &[u8], out: &mut Vec<Finding>) -> Option<Archive> {
     Some(Archive { files })
 }
 
-// ---- Pfade -------------------------------------------------------------------------------------------
+// ---- Paths -------------------------------------------------------------------------------------------
 
-/// `%20` u. ä. entschlüsseln (Verweise in OPF und XHTML sind URLs).
+/// Decode `%20` and the like (references in OPF and XHTML are URLs).
 fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -315,13 +315,13 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Ordner einer Datei im ZIP („OEBPS/text/k1.xhtml“ → „OEBPS/text“).
+/// Folder of a file in the ZIP ("OEBPS/text/k1.xhtml" → "OEBPS/text").
 fn dir_of(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(dir, _)| dir)
 }
 
-/// Verweis `href` relativ zu `base_dir` als Pfad im ZIP; `None` bei Verweisen nach außen (Schema, `/…`) oder
-/// über die Wurzel hinaus.
+/// Reference `href` relative to `base_dir` as a path in the ZIP; `None` for references to the outside (scheme,
+/// `/…`) or beyond the root.
 fn resolve(base_dir: &str, href: &str) -> Option<String> {
     let href = href.split(['#', '?']).next().unwrap_or("");
     if href.is_empty() || href.starts_with('/') || href.contains("://") || has_scheme(href) {
@@ -340,7 +340,7 @@ fn resolve(base_dir: &str, href: &str) -> Option<String> {
     Some(parts.join("/"))
 }
 
-/// Beginnt der Verweis mit einem Schema (`mailto:`, `https:` …)?
+/// Does the reference start with a scheme (`mailto:`, `https:` …)?
 fn has_scheme(href: &str) -> bool {
     match href.split_once(':') {
         Some((scheme, _)) => {
@@ -357,9 +357,9 @@ fn has_token(value: Option<&str>, token: &str) -> bool {
     value.is_some_and(|v| v.split_whitespace().any(|t| t == token))
 }
 
-// ---- Prüfung -----------------------------------------------------------------------------------------
+// ---- Check -------------------------------------------------------------------------------------------
 
-/// Ein Eintrag des Manifests.
+/// An entry of the manifest.
 struct ManifestItem {
     id: String,
     path: String,
@@ -371,8 +371,8 @@ struct ManifestItem {
 const XHTML: &str = "application/xhtml+xml";
 const NCX: &str = "application/x-dtbncx+xml";
 
-/// Wohlgeformtheit prüfen und den Baum liefern (`None` = nicht wohlgeformt, gemeldet; oder ohne Baum, weil nur
-/// xmllint ihn verstand).
+/// Check well-formedness and deliver the tree (`None` = not well-formed, reported; or without a tree, because
+/// only xmllint understood it).
 fn well_formed(
     path: &str,
     bytes: &[u8],
@@ -406,7 +406,7 @@ fn well_formed(
                 ));
                 return None;
             }
-            // xmllint lief nicht: von hier an quick-xml (der Bericht nennt es).
+            // xmllint did not run: quick-xml from here on (the report names it).
             Err(_) => *tool = XmlTool::QuickXml,
         }
     }
@@ -419,7 +419,7 @@ fn well_formed(
     }
 }
 
-/// Eigene Struktur- und Barrierefreiheitsprüfung der ZIP-Bytes.
+/// Own structure and accessibility check of the ZIP bytes.
 pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<Finding>, XmlTool) {
     use codes::*;
     let mut out = Vec::new();
@@ -430,7 +430,7 @@ pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<F
         out.push(finding(MIMETYPE_NOT_FIRST, Severity::Error, "Der Eintrag „mimetype“ fehlt.", Some("mimetype")));
     }
 
-    // container.xml → Paketdokument
+    // container.xml → package document
     let opf_path = match archive.files.get(CONTAINER_PATH) {
         None => {
             out.push(finding(
@@ -486,7 +486,7 @@ pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<F
     let opf_dir = dir_of(&opf_path).to_owned();
     let p = Some(opf_path.as_str());
 
-    // Metadaten
+    // Metadata
     let metadata = opf.child("metadata");
     let meta_elements: Vec<&Element> = metadata.map(|m| m.descendants()).unwrap_or_default();
     let dc = |local: &str| -> Vec<&Element> {
@@ -694,7 +694,7 @@ pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<F
         }
     }
 
-    // XML-Dateien: Wohlgeformtheit, dann Inhalt
+    // XML files: well-formedness, then content
     let mut trees: BTreeMap<String, Element> = BTreeMap::new();
     for item in &items {
         let xmlish = item.media_type == XHTML || item.media_type == NCX || item.media_type == "image/svg+xml";
@@ -703,7 +703,7 @@ pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<F
             trees.insert(item.path.clone(), root);
         }
     }
-    // ids je XHTML (für Sprungmarken)
+    // ids per XHTML (for anchors)
     let ids_of: BTreeMap<&str, BTreeSet<String>> = trees
         .iter()
         .map(|(path, root)| {
@@ -719,7 +719,7 @@ pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<F
         check_xhtml(&item.path, root, &archive, &ids_of, &mut out);
     }
 
-    // Navigationsdokument
+    // Navigation document
     let nav_items: Vec<&ManifestItem> = items.iter().filter(|i| has_token(i.properties.as_deref(), "nav")).collect();
     match nav_items.first() {
         None => out.push(finding(
@@ -749,7 +749,7 @@ pub fn check_structure(epub: &[u8], xmllint: Option<&std::path::Path>) -> (Vec<F
     (out, tool)
 }
 
-/// Inhalt einer XHTML-Datei: Sprache, Titel, alt-Texte, doppelte ids, Verweise.
+/// Content of an XHTML file: language, title, alt texts, duplicate ids, references.
 fn check_xhtml(
     path: &str,
     root: &Element,
@@ -841,7 +841,7 @@ fn check_xhtml(
     }
 }
 
-/// Die Dateien im Inhaltsverzeichnis müssen in Spine-Reihenfolge stehen (sonst springt „weiter“ zurück).
+/// The files in the table of contents must be in spine order (otherwise "next" jumps back).
 fn check_reading_order(nav_path: &str, toc: &Element, spine: &[&ManifestItem], out: &mut Vec<Finding>) {
     let position: BTreeMap<&str, usize> = spine.iter().enumerate().map(|(i, item)| (item.path.as_str(), i)).collect();
     let dir = dir_of(nav_path);
@@ -882,7 +882,7 @@ fn text_of(book: &EpubBook, pred: impl Fn(&crate::EpubItem) -> bool) -> String {
         .join("\n")
 }
 
-/// Warnungen je Reader aus `profile.supports`.
+/// Warnings per reader from `profile.supports`.
 pub fn reader_warnings(book: &EpubBook, profile: &ReaderProfile) -> Vec<Finding> {
     use codes::*;
     let s = profile.supports;
@@ -934,7 +934,7 @@ pub fn reader_warnings(book: &EpubBook, profile: &ReaderProfile) -> Vec<Finding>
             "zeigt eingebettete Schriften nicht; es gilt die Schrift des Readers.".into(),
         );
     }
-    // Der Grundstil (`.baruch-missing { font-family: monospace; }`) stellt keine Schrift des Buchs ein.
+    // The base style (`.baruch-missing { font-family: monospace; }`) does not set a font of the book.
     let declares_font = css.replace(crate::build::BASE_CSS, "").contains("font-family");
     if declares_font && s.overrides_publisher_font {
         push(
@@ -971,25 +971,25 @@ pub fn reader_warnings(book: &EpubBook, profile: &ReaderProfile) -> Vec<Finding>
     out
 }
 
-// ---- Programme ---------------------------------------------------------------------------------------
+// ---- Programs ----------------------------------------------------------------------------------------
 
-/// Sucht ein ausführbares Programm `name` in `path_env` (Inhalt von PATH), z. B. `java`.
+/// Looks for an executable program `name` in `path_env` (content of PATH), e.g. `java`.
 pub fn find_program(name: &str, path_env: Option<&std::ffi::OsStr>) -> Option<std::path::PathBuf> {
     tools::find_in_path(name, path_env)
 }
 
-/// Sucht `xmllint` in `path_env` (Inhalt von PATH; Tests geben eigene Ordner).
+/// Looks for `xmllint` in `path_env` (content of PATH; tests pass their own folders).
 pub fn find_xmllint(path_env: Option<&std::ffi::OsStr>) -> Option<std::path::PathBuf> {
     tools::find_in_path("xmllint", path_env)
 }
 
-/// Ist `path` ein brauchbares epubcheck.jar (vorhandene reguläre Datei mit der Endung `.jar`)?
+/// Is `path` a usable epubcheck.jar (existing regular file with the extension `.jar`)?
 pub fn is_jar(path: &Path) -> bool {
     path.extension().is_some_and(|e| e.eq_ignore_ascii_case("jar"))
         && std::fs::metadata(path).is_ok_and(|m| m.is_file())
 }
 
-/// Sucht `epubcheck` in `path_env`, sonst `jar` (vorhandene Datei, .jar) – Reihenfolge: Binary vor Jar.
+/// Looks for `epubcheck` in `path_env`, otherwise `jar` (existing file, .jar) – order: binary before jar.
 pub fn find_epubcheck(path_env: Option<&std::ffi::OsStr>, jar: Option<&std::path::Path>) -> Option<EpubcheckTool> {
     if let Some(path) = tools::find_in_path("epubcheck", path_env) {
         return Some(EpubcheckTool::Binary { path });
@@ -997,7 +997,7 @@ pub fn find_epubcheck(path_env: Option<&std::ffi::OsStr>, jar: Option<&std::path
     jar.filter(|j| is_jar(j)).map(|j| EpubcheckTool::Jar { path: j.to_owned() })
 }
 
-/// Eine Zeile von EPUBCheck: `ERROR(RSC-005): buch.epub/OEBPS/x.xhtml(12,5): Meldung`.
+/// A line of EPUBCheck: `ERROR(RSC-005): buch.epub/OEBPS/x.xhtml(12,5): Meldung`.
 fn epubcheck_line(line: &str) -> Option<Finding> {
     let line = line.trim();
     let (head, rest) = line.split_once("): ")?;
@@ -1008,7 +1008,7 @@ fn epubcheck_line(line: &str) -> Option<Finding> {
         "INFO" | "USAGE" | "HINT" => Severity::Info,
         _ => return None,
     };
-    // Ort „datei.epub/OEBPS/x.xhtml(12,5)“ bzw. „datei.epub“, danach die Meldung.
+    // Location "datei.epub/OEBPS/x.xhtml(12,5)" or "datei.epub", then the message.
     let (location, message) = match rest.split_once("): ") {
         Some((location, message)) if location.contains('(') => (Some(format!("{location})")), message.to_owned()),
         _ => match rest.split_once(": ") {
@@ -1029,7 +1029,7 @@ fn epubcheck_line(line: &str) -> Option<Finding> {
     })
 }
 
-/// Version aus der Ausgabe („EPUBCheck v5.1.0“ bzw. „Validating using EPUB version 3.3 rules.“ zählt nicht).
+/// Version from the output ("EPUBCheck v5.1.0"; "Validating using EPUB version 3.3 rules." does not count).
 fn epubcheck_version(output: &str) -> Option<String> {
     output.lines().find_map(|l| {
         let at = l.find("EPUBCheck v").or_else(|| l.find("Epubcheck Version "))?;
@@ -1045,7 +1045,7 @@ fn epubcheck_version(output: &str) -> Option<String> {
     })
 }
 
-/// Führt EPUBCheck aus (blockierend, Zeitgrenze, Kind wird bei Ablauf beendet).
+/// Runs EPUBCheck (blocking, time limit, the child is terminated on expiry).
 pub fn run_epubcheck(
     tool: &EpubcheckTool,
     epub_file: &std::path::Path,

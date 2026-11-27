@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Reader-Profile (Runde 20b, Besitz „reader“): eingefrorene Slugs in Vertragsreihenfolge, Pflicht-Profile,
-//! Kindle über EPUB und je Slug eine CSS-Datei im Server.
+//! Reader profiles (Round 20b, ownership "reader"): frozen slugs in contract order, mandatory profiles, Kindle
+//! through EPUB and one CSS file per slug in the server.
 
 use baruch_epub::readers::{PROFILES, profile, required};
 

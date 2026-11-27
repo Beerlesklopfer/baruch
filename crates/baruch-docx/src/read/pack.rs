@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Das Archiv einer Word-Datei: ZIP innerhalb der [`Limits`] und die Beziehungen (`*.rels`).
+//! The archive of a Word file: ZIP within the [`Limits`] and the relationships (`*.rels`).
 //!
-//! Den Größen im Kopf wird nicht getraut: Sie dienen nur der frühen Absage (vor dem Entpacken); gelesen wird jeder
-//! Eintrag über `take(Grenze + 1)`, und die Summe des wirklich Entpackten zählt mit. Namen mit `..`, führendem `/`,
-//! Rückstrich oder Laufwerk sind [`DocxError::Unsafe`], ebenso Beziehungsziele, die das Archiv verlassen.
+//! The sizes in the header are not trusted: they only serve the early rejection (before unpacking); every entry
+//! is read through `take(limit + 1)`, and the sum of what was really unpacked is counted. Names with `..`,
+//! leading `/`, backslash or drive are [`DocxError::Unsafe`], as are relationship targets that leave the archive.
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
@@ -13,7 +13,7 @@ use zip::ZipArchive;
 use super::xml::{self, Element};
 use crate::{DocxError, Limits, ooxml};
 
-/// Anfang einer OLE-Verbunddatei: altes `.doc` oder eine mit Kennwort verschlüsselte Office-Datei.
+/// Beginning of an OLE compound file: old `.doc` or an Office file encrypted with a password.
 const OLE_MAGIC: &[u8] = &[0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
 
 pub(crate) struct Package<'a> {
@@ -32,7 +32,7 @@ fn unsafe_name(name: &str) -> bool {
 }
 
 impl<'a> Package<'a> {
-    /// Archiv öffnen und prüfen, ohne etwas zu entpacken.
+    /// Open and check the archive without unpacking anything.
     pub fn open(bytes: &'a [u8], limits: &Limits) -> Result<Self, DocxError> {
         if bytes.len() as u64 > limits.max_file_bytes {
             return Err(DocxError::Limit(format!("Datei größer als {} Bytes", limits.max_file_bytes)));
@@ -87,7 +87,7 @@ impl<'a> Package<'a> {
         self.zip.index_for_name(name).is_some()
     }
 
-    /// Einen Eintrag entpacken (höchstens `max` Bytes); `None`, wenn es ihn nicht gibt.
+    /// Unpack one entry (at most `max` bytes); `None` if it does not exist.
     pub fn read(&mut self, name: &str, max: u64) -> Result<Option<Vec<u8>>, DocxError> {
         let Some(index) = self.zip.index_for_name(name) else { return Ok(None) };
         let max = max.min(self.limits.max_entry_bytes);
@@ -110,7 +110,7 @@ impl<'a> Package<'a> {
         Ok(Some(bytes))
     }
 
-    /// Einen XML-Teil lesen; `None`, wenn es ihn nicht gibt.
+    /// Read one XML part; `None` if it does not exist.
     pub fn xml(&mut self, name: &str) -> Result<Option<Element>, DocxError> {
         let limits = self.limits;
         match self.read(name, limits.max_xml_bytes)? {
@@ -120,7 +120,8 @@ impl<'a> Package<'a> {
     }
 }
 
-/// Eine Beziehung: Art, Ziel (Teilpfad im Archiv bzw. bei `external` die Adresse) und ob das Ziel außerhalb liegt.
+/// A relationship: type, target (part path in the archive or, with `external`, the address) and whether the
+/// target lies outside.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Rel {
     pub kind: String,
@@ -128,7 +129,7 @@ pub(crate) struct Rel {
     pub external: bool,
 }
 
-/// Pfad der Beziehungsdatei eines Teils (`word/document.xml` → `word/_rels/document.xml.rels`).
+/// Path of the relationship file of a part (`word/document.xml` → `word/_rels/document.xml.rels`).
 pub(crate) fn rels_path(part: &str) -> String {
     match part.rsplit_once('/') {
         Some((dir, file)) => format!("{dir}/_rels/{file}.rels"),
@@ -136,7 +137,8 @@ pub(crate) fn rels_path(part: &str) -> String {
     }
 }
 
-/// Ziel einer Beziehung relativ zum Teil `base` auflösen; alles, was das Archiv verließe, ist `Unsafe`.
+/// Resolve the target of a relationship relative to the part `base`; everything that would leave the archive is
+/// `Unsafe`.
 pub(crate) fn resolve_target(base: &str, target: &str) -> Result<String, DocxError> {
     let leaves = || DocxError::Unsafe(format!("Beziehungsziel „{target}“ liegt außerhalb der Datei"));
     if target.contains("://")
@@ -168,7 +170,7 @@ pub(crate) fn resolve_target(base: &str, target: &str) -> Result<String, DocxErr
     Ok(parts.join("/"))
 }
 
-/// Beziehungen des Teils `part` (leer, wenn es keine Datei dazu gibt). Ziele innerhalb der Datei sind aufgelöst.
+/// Relationships of the part `part` (empty if there is no file for it). Targets inside the file are resolved.
 pub(crate) fn rels(package: &mut Package<'_>, part: &str) -> Result<HashMap<String, Rel>, DocxError> {
     let mut out = HashMap::new();
     let path = if part.is_empty() { ooxml::PART_ROOT_RELS.to_owned() } else { rels_path(part) };

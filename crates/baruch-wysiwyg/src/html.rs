@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Blöcke als HTML für das Satzbild und den Unterschied zweier Fassungen. Jeder Text ist maskiert;
-//! Inseln stehen mit `contenteditable="false"` und ihrem Rohtext da (zusätzlich in `data-raw`, damit
-//! das Widget eine Insel in einem bearbeiteten Rumpf wörtlich zurückgeben kann).
+//! Blocks as HTML for the typeset view and the difference of two revisions. Every text is escaped;
+//! islands stand there with `contenteditable="false"` and their raw text (additionally in `data-raw`, so that
+//! the widget can return an island in an edited body verbatim).
 
 use crate::{Block, BlockKind, Doc, ImageRef, Inline, Term, image_paths, parse};
 
-/// Rückruf für Bilder: Pfad aus dem Quelltext (`image("…")`) → Adresse und Alternativtext.
+/// Callback for images: path from the source text (`image("…")`) → address and alternative text.
 type Images<'a> = &'a dyn Fn(&str) -> Option<ImageRef>;
 
-/// HTML eines Textes: je Block `<div class="ws-block" data-b="i" data-kind="…">` (Überschrift mit
-/// `data-level`, Liste mit `data-ordered`, Zitat mit `data-block`; Runde 14: Teil als
+/// HTML of a text: per block `<div class="ws-block" data-b="i" data-kind="…">` (heading with
+/// `data-level`, list with `data-ordered`, quote with `data-block`; Round 14: part as
 /// `<div class="ws-block ws-part" data-kind="part" data-level="0" role="heading" aria-level="1">Titel</div>`,
-/// „ohne Nummer“ als `class="ws-block ws-unnumbered" data-kind="unnumbered" data-level="N"`, beide mit
-/// dem Titel als Klartext). Geschachtelte Blöcke (Rumpf von
-/// Zitat, Szene, Arbeit) stehen in `<div class="ws-body">` ohne `data-b`. Gleich
-/// [`render_html_with`] ohne Bilder.
+/// "without number" as `class="ws-block ws-unnumbered" data-kind="unnumbered" data-level="N"`, both with
+/// the title as plain text). Nested blocks (body of
+/// quote, scene, work) stand in `<div class="ws-body">` without `data-b`. Equal to
+/// [`render_html_with`] without images.
 pub fn render_html(doc: &Doc) -> String {
     render_html_with(doc, &|_| None)
 }
 
-/// Wie [`render_html`]; zusätzlich erscheint jede Insel mit Bildpfad ([`image_path`]), für die
-/// `images` ein Bild liefert, **als Bild** statt als Rohtext (Runde 7): eine Block-Insel als
+/// Like [`render_html`]; additionally every island with an image path ([`image_path`]) for which
+/// `images` delivers an image appears **as an image** instead of as raw text (Round 7): a block island as
 /// `<div class="ws-block ws-figure" data-b=… data-kind="island" data-image="1" contenteditable="false"
 /// data-raw="…" title="Bild – …"><img class="ws-image" src="…" alt="…" loading="eager"><span
-/// class="ws-caption">…</span></div>` (Bildunterschrift aus `caption:`, sonst der Alternativtext,
-/// sonst der Pfad), eine Insel im Satz als `<span class="ws-island ws-inline-image" …><img …></span>`.
-/// Alle Attribute sind maskiert; der Rohtext steht nur in `data-raw`, die Insel bleibt beim Speichern
-/// byte-gleich (`keep`).
+/// class="ws-caption">…</span></div>` (caption from `caption:`, otherwise the alternative text,
+/// otherwise the path), an inline island as `<span class="ws-island ws-inline-image" …><img …></span>`.
+/// All attributes are escaped; the raw text is only in `data-raw`, the island stays
+/// byte-identical on saving (`keep`).
 pub fn render_html_with(doc: &Doc, images: &dyn Fn(&str) -> Option<ImageRef>) -> String {
     let mut out = String::new();
     for (index, block) in doc.blocks.iter().enumerate() {
@@ -51,19 +51,19 @@ fn kind_name(kind: &BlockKind) -> &'static str {
     }
 }
 
-/// Titel einer Insel, die als Bild erscheint.
+/// Title of an island that appears as an image.
 const IMAGE_TITLE: &str = "Bild – Doppelklick öffnet den Quelltext an Ort und Stelle";
 
-/// Titel einer Block-Insel (Runde 18b: an Ort und Stelle bearbeitbar).
+/// Title of a block island (Round 18b: editable in place).
 const ISLAND_TITLE: &str = "Typst-Insel: Doppelklick öffnet den Quelltext an Ort und Stelle";
 
-/// Bilder zu allen Bildpfaden in `raw` (Runde 18b: jeder `image(`-Aufruf, nicht nur der erste), für die der
-/// Rückruf eins liefert: je Pfad und Bild.
+/// Images for all image paths in `raw` (Round 18b: every `image(` call, not only the first) for which the
+/// callback delivers one: path and image each.
 fn images_of(raw: &str, images: Images) -> Vec<(String, ImageRef)> {
     image_paths(raw).into_iter().filter_map(|path| images(&path).map(|image| (path, image))).collect()
 }
 
-/// `<img>` bzw. Meldung „Bild fehlt“ für jedes Bild.
+/// `<img>` or the message „Bild fehlt“ for every image.
 fn image_tags(found: &[(String, ImageRef)]) -> String {
     found.iter().map(|(path, image)| if image.missing { missing_tag(path) } else { image_tag(image) }).collect()
 }
@@ -72,12 +72,12 @@ fn image_tag(image: &ImageRef) -> String {
     format!("<img class=\"ws-image\" src=\"{}\" alt=\"{}\" loading=\"eager\">", escape(&image.src), escape(&image.alt))
 }
 
-/// Deutliche Meldung statt eines Bilds, das es im Werk nicht gibt (Runde 11).
+/// Clear message instead of an image that does not exist in the work (Round 11).
 fn missing_tag(path: &str) -> String {
     format!("<span class=\"ws-missing\" role=\"note\">Bild fehlt: <code>{}</code></span>", escape(path))
 }
 
-/// Bildunterschrift aus `caption: […]` bzw. `caption: "…"` einer Abbildung, wörtlich (ohne Klammern).
+/// Caption from `caption: […]` or `caption: "…"` of a figure, verbatim (without brackets).
 fn caption_of(raw: &str) -> Option<String> {
     let at = raw.find("caption:")? + "caption:".len();
     let rest = raw[at..].trim_start();
@@ -126,7 +126,7 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
             out.push_str(&format!(" data-level=\"{level}\" role=\"heading\" aria-level=\"{level}\">"));
             render_inlines(out, inlines, images);
             if let Some(label) = label {
-                // Label auf der Zeile hinter der Überschrift: angezeigt, beim Bearbeiten unverändert.
+                // Label on the line after the heading: displayed, unchanged on editing.
                 out.push_str(&format!(
                     "<span class=\"ws-label ws-heading-label\" contenteditable=\"false\" data-heading-label=\"1\" data-v=\"{0}\">&lt;{0}&gt;</span>",
                     escape(label)
@@ -134,8 +134,8 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
             }
         }
         BlockKind::Part { title } => {
-            // Ein Teil steht als eigener Block mit dem Titel als Klartext (Runde 14); „Teil“ davor
-            // setzt das Stylesheet (`::before`), damit es nicht in den Titel gerät.
+            // A part stands as a block of its own with the title as plain text (Round 14); „Teil“ before it
+            // is set by the stylesheet (`::before`), so that it does not get into the title.
             out.push_str(&format!(
                 " data-level=\"0\" role=\"heading\" aria-level=\"1\" title=\"Teil (Markierung im Typst-Text)\">{}",
                 escape(title)
@@ -183,7 +183,7 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
         BlockKind::Scene { args, body } | BlockKind::Work { args, body } => {
             out.push('>');
             if let Some(args) = args {
-                // Argumente vor dem Rumpf: nur im Quelltext bearbeitbar, bleiben wörtlich.
+                // Arguments before the body: editable only in the source text, stay verbatim.
                 out.push_str(&format!(
                     "<div class=\"ws-args\" contenteditable=\"false\" title=\"Typst-Insel: nur im Quelltext bearbeitbar\" data-raw=\"{0}\">({0})</div>",
                     escape(args)
@@ -205,9 +205,9 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
     out.push_str("</div>");
 }
 
-/// Block-Insel mit Bild (Runde 7): das Bild mit Unterschrift statt des Rohtexts; Runde 18b: alle Bilder der
-/// Insel nacheinander; Runde 21b: mit mehreren Bildern nennt die Unterschrift (ohne `caption:`) jedes Bild, und
-/// `<span class="ws-alt ws-paths">Bilder: …</span>` zeigt alle Pfade.
+/// Block island with image (Round 7): the image with caption instead of the raw text; Round 18b: all images of
+/// the island one after another; Round 21b: with several images the caption (without `caption:`) names every
+/// image, and `<span class="ws-alt ws-paths">Bilder: …</span>` shows all paths.
 fn render_figure(out: &mut String, block: &Block, index: Option<usize>, found: &[(String, ImageRef)]) {
     let (path, image) = (&found[0].0, &found[0].1);
     out.push_str("<div class=\"ws-block ws-figure\"");
@@ -221,8 +221,8 @@ fn render_figure(out: &mut String, block: &Block, index: Option<usize>, found: &
     out.push_str(&image_tags(found));
     let written = caption_of(&block.raw);
     let alt = image.alt.trim();
-    // Runde 21b: Mehrere Bilder ohne geschriebene Unterschrift nennen jedes Bild (Alternativtext, sonst Pfad), und alle
-    // Pfade stehen darunter – vorher nannte die Unterschrift nur das erste Bild.
+    // Round 21b: several images without a written caption name every image (alternative text, otherwise path), and
+    // all paths stand below – before, the caption named only the first image.
     let each = || {
         found
             .iter()
@@ -240,7 +240,7 @@ fn render_figure(out: &mut String, block: &Block, index: Option<usize>, found: &
         }
     });
     out.push_str(&format!("<span class=\"ws-caption\">{}</span>", escape(&caption)));
-    // Runde 11: Der Alternativtext ist sichtbar, wo er nicht schon als Unterschrift dasteht.
+    // Round 11: the alternative text is visible where it does not already stand there as the caption.
     if found.len() == 1 && !alt.is_empty() && written.as_deref().is_some_and(|w| w.trim() != alt) {
         out.push_str(&format!("<span class=\"ws-alt\">Alternativtext: {}</span>", escape(alt)));
     }
@@ -251,8 +251,8 @@ fn render_figure(out: &mut String, block: &Block, index: Option<usize>, found: &
     out.push_str("</div>");
 }
 
-/// Listenpunkte als `<ul>`/`<ol>` (Runde 18b: geschachtelte Punkte als Liste im `<li>` des Punkts davor,
-/// mit demselben Zeichen). `attrs` steht nur an der äußeren Liste (`start` einer Aufzählung).
+/// List items as `<ul>`/`<ol>` (Round 18b: nested items as a list in the `<li>` of the item before,
+/// with the same marker). `attrs` stands only on the outer list (`start` of an enumeration).
 fn render_items(out: &mut String, tag: &str, attrs: &str, items: &[Vec<Inline>], depths: &[u8], images: Images) {
     out.push_str(&format!("<{tag}{attrs}>"));
     let mut open = 0usize;
@@ -291,15 +291,15 @@ fn render_body(out: &mut String, body: &[Block], images: Images) {
 
 fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
     for (k, inline) in inlines.iter().enumerate() {
-        // Runde 21b: Das Zeilenende hinter einem erzwungenen Umbruch (`\`) verschluckt Typst; im Satzbild stünde die
-        // nächste Zeile sonst ein Leerzeichen eingerückt. Das Element bleibt (das Widget liest es als `soft` zurück).
+        // Round 21b: Typst swallows the line end after a forced break (`\`); in the typeset view the next line
+        // would otherwise stand indented by a space. The element stays (the widget reads it back as `soft`).
         if matches!(inline, Inline::Soft) && k > 0 && matches!(inlines[k - 1], Inline::Linebreak) {
             out.push_str("<span class=\"ws-soft\" data-after-break=\"1\"></span>");
             continue;
         }
         match inline {
             Inline::Text { v } => {
-                // Geschützte Leerzeichen (`~`) bleiben erkennbar, der Browser setzt sonst eigene.
+                // Non-breaking spaces (`~`) stay recognisable, the browser otherwise sets its own.
                 for (k, part) in v.split('\u{a0}').enumerate() {
                     if k > 0 {
                         out.push_str("<span class=\"ws-nbsp\">&nbsp;</span>");
@@ -324,7 +324,7 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
                         escape(raw)
                     ));
                 } else {
-                    // Ein Bild im Satz erscheint als Bild (alle Bilder der Insel); der Rohtext steht nur in data-raw.
+                    // An inline image appears as an image (all images of the island); the raw text is only in data-raw.
                     out.push_str(&format!(
                         "<span class=\"ws-island ws-inline-image\" contenteditable=\"false\" title=\"{IMAGE_TITLE}\" data-raw=\"{}\">{}</span>",
                         escape(raw),
@@ -337,8 +337,8 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
                 "<span class=\"ws-linebreak\" contenteditable=\"false\" data-linebreak=\"1\" title=\"erzwungener Zeilenumbruch (\\)\">↵<br></span>",
             ),
             Inline::Link { url, c } => {
-                // Nur Adressen mit sicherem Schema werden zum Ziel; der Text des Links ist bearbeitbar, die
-                // Adresse nur im Quelltext (bzw. über das Menüband).
+                // Only addresses with a safe scheme become the target; the text of the link is editable, the
+                // address only in the source text (or through the ribbon).
                 let safe = ["http://", "https://", "mailto:"].iter().any(|s| url.to_ascii_lowercase().starts_with(s));
                 let href = if safe { format!(" href=\"{}\" rel=\"noopener noreferrer\"", escape(url)) } else { String::new() };
                 match c {
@@ -357,8 +357,8 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
                 }
             }
             Inline::Xref { key, c, page } => {
-                // Runde 30a: Querverweis als Block; der Linktext ist bearbeitbar, Ziel und Seitenzahl-Zusatz nicht
-                // (Strg+Klick springt, ein Klick öffnet „Öffnen | Bearbeiten“ im Widget).
+                // Round 30a: cross-reference as a block; the link text is editable, target and page number addition are
+                // not (Ctrl+click jumps, a click opens „Öffnen | Bearbeiten“ in the widget).
                 out.push_str(&format!(
                     "<span class=\"ws-xref\" data-key=\"{key}\" data-page=\"{}\" title=\"Querverweis auf {} \
                      (Strg+Klick: springen)\">",
@@ -390,8 +390,8 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
     }
 }
 
-/// Bezeichnung eines Registers für die Beschreibung einer Marke: eingebaut mit Titel („Stichwortregister“), eigene als
-/// „Register „slug““ (die Titel eigener Register kennt die reine Crate nicht).
+/// Designation of an index for the description of a mark: built in with title („Stichwortregister“), own ones
+/// as „Register „slug““ (the pure crate does not know the titles of own indexes).
 fn register_title(slug: &str) -> String {
     baruch_typst::index::builtin_registers()
         .into_iter()
@@ -399,9 +399,9 @@ fn register_title(slug: &str) -> String {
         .map_or_else(|| format!("Register „{slug}“"), |r| r.title)
 }
 
-/// Beschreibung einer Registermarke für `title` und `aria-label` im Satzbild (R31c): „Registereintrag im
-/// Stichwortregister: Gnade › im Alltag; siehe auch: Huld“. Dieselbe Regel hat `markLabel` in
-/// `web/src/ws_command.ts` (Node-Vergleichstest im Server).
+/// Description of an index mark for `title` and `aria-label` in the typeset view (R31c): „Registereintrag im
+/// Stichwortregister: Gnade › im Alltag; siehe auch: Huld“. The same rule is in `markLabel` in
+/// `web/src/ws_command.ts` (Node comparison test in the server).
 pub fn index_mark_label(mark: &baruch_typst::index::IndexMark) -> String {
     let mut label = format!("Registereintrag im {}: {}", register_title(&mark.register), mark.term);
     if !mark.sub.is_empty() {
@@ -419,11 +419,12 @@ pub fn index_mark_label(mark: &baruch_typst::index::IndexMark) -> String {
     label
 }
 
-/// Registermarke im Satzbild (R31c): ein leeres, nicht tippbares Element (`contenteditable="false"`, ohne Textknoten –
-/// das Zeichen kommt aus dem Stil `::before`, damit Text, Suche und Markierung des Absatzes unberührt bleiben), mit
-/// Beschreibung in `title`/`aria-label` und den Feldern als `data-register`, `data-term`, `data-sub`, `data-see`,
-/// `data-also`, `data-sort` (leere fehlen). `data-raw` = kanonische Typst-Form ([`baruch_typst::index::mark_source`]).
-/// Das Widget liest daraus `{t: "index_mark", mark}`; bearbeitet wird über das Kontextmenü.
+/// Index mark in the typeset view (R31c): an empty element that cannot be typed into
+/// (`contenteditable="false"`, without text node – the sign comes from the style `::before`, so that text,
+/// search and selection of the paragraph stay untouched), with description in `title`/`aria-label` and the
+/// fields as `data-register`, `data-term`, `data-sub`, `data-see`, `data-also`, `data-sort` (empty ones are
+/// missing). `data-raw` = canonical Typst form ([`baruch_typst::index::mark_source`]). The widget reads
+/// `{t: "index_mark", mark}` from it; editing is done through the context menu.
 fn render_index_mark(out: &mut String, mark: &baruch_typst::index::IndexMark) {
     let label = escape(&index_mark_label(mark));
     out.push_str(&format!(
@@ -446,7 +447,7 @@ fn wrap(out: &mut String, open: &str, inlines: &[Inline], close: &str, images: I
     out.push_str(close);
 }
 
-/// HTML-Maskierung für Text und Attributwerte.
+/// HTML escaping for text and attribute values.
 pub(crate) fn escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 8);
     for c in text.chars() {
@@ -462,25 +463,25 @@ pub(crate) fn escape(text: &str) -> String {
     out
 }
 
-/// Schritt im Unterschied: gleicher Block (Index im Vorschlag), entfernt (Index in der Basis), neu.
+/// Step in the difference: equal block (index in the proposal), removed (index in the base), new.
 enum Step {
     Same(usize),
     Del(usize),
     Ins(usize),
 }
 
-/// Größte Tabelle für die längste gemeinsame Teilfolge; darüber gilt alles als ersetzt.
+/// Largest table for the longest common subsequence; above that everything counts as replaced.
 const MAX_CELLS: usize = 4_000_000;
 
-/// Unterschied zweier Texte im Satzbild: Blöcke nach der längsten gemeinsamen Teilfolge über `raw`
-/// (ohne Leerraum am Ende verglichen). Gleiche Blöcke stehen in `div.ws-same`, entfernte in
-/// `div.ws-del`, neue in `div.ws-ins`; alles in `div.ws-diff-doc`. Gleich [`diff_html_with`] ohne
-/// Bilder.
+/// Difference of two texts in the typeset view: blocks according to the longest common subsequence over `raw`
+/// (compared without trailing whitespace). Equal blocks stand in `div.ws-same`, removed ones in
+/// `div.ws-del`, new ones in `div.ws-ins`; all in `div.ws-diff-doc`. Equal to [`diff_html_with`] without
+/// images.
 pub fn diff_html(base: &str, proposal: &str) -> String {
     diff_html_with(base, proposal, &|_| None)
 }
 
-/// Wie [`diff_html`], Bilder in Inseln wie bei [`render_html_with`].
+/// Like [`diff_html`], images in islands as with [`render_html_with`].
 pub fn diff_html_with(base: &str, proposal: &str, images: &dyn Fn(&str) -> Option<ImageRef>) -> String {
     let old = parse(base).blocks;
     let new = parse(proposal).blocks;
@@ -489,7 +490,7 @@ pub fn diff_html_with(base: &str, proposal: &str, images: &dyn Fn(&str) -> Optio
     let b: Vec<String> = new.iter().map(key).collect();
     let mut steps = Vec::new();
     if a.len().saturating_mul(b.len()) <= MAX_CELLS {
-        // lcs[i][j] = Länge der gemeinsamen Teilfolge von a[i..] und b[j..].
+        // lcs[i][j] = length of the common subsequence of a[i..] and b[j..].
         let width = b.len() + 1;
         let mut lcs = vec![0u32; (a.len() + 1) * width];
         for i in (0..a.len()).rev() {

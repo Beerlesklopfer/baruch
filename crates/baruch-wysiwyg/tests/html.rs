@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! HTML des Satzbilds und des Satzbild-Diffs: alles maskiert, Inseln nicht bearbeitbar, Blöcke mit
-//! Index und Art.
+//! HTML of the typeset view and of the typeset view diff: everything escaped, islands not editable, blocks with
+//! index and kind.
 
 use baruch_wysiwyg::{ImageRef, diff_html, diff_html_with, image_path, parse, render_html, render_html_with};
 
@@ -75,7 +75,7 @@ fn the_diff_marks_removed_and_added_blocks() {
     assert!(!same.contains("ws-del") && !same.contains("ws-ins"), "Leerraum am Ende zählt nicht: {same}");
 }
 
-/// Bilder für die Tests: jeder Pfad unter `/bilder/` hat ein Bild, mit Zeichen, die maskiert werden.
+/// Images for the tests: every path under `/bilder/` has an image, with characters that are escaped.
 fn images(path: &str) -> Option<ImageRef> {
     path.starts_with("/bilder/").then(|| ImageRef {
         src: format!("/werke/1/bilder/pfad?p={}&x=\"1\"", path.replace('/', "%2F")),
@@ -86,7 +86,7 @@ fn images(path: &str) -> Option<ImageRef> {
 
 #[test]
 fn an_image_island_shows_the_picture_and_stays_an_island() {
-    // Runde 7: eine Insel mit Bild erscheint als Bild (ws-figure), nicht als Typst-Rohtext.
+    // Round 7: an island with an image appears as an image (ws-figure), not as Typst raw text.
     let source = "Davor.\n\n#figure(image(\"/bilder/erfunden.svg\"), caption: [Ein Grundriss.])\n\nIm Satz #image(\"/bilder/klein.png\") und // #image(\"/bilder/kommentar.png\")\nweiter.\n";
     let doc = parse(source);
     let html = render_html_with(&doc, &images);
@@ -201,7 +201,7 @@ fn the_diff_shows_images_too() {
 
 #[test]
 fn a_missing_image_is_reported_and_the_alt_text_is_visible() {
-    // Runde 11: Zum Pfad gibt es kein Bild → deutliche Meldung statt eines leeren Rahmens.
+    // Round 11: there is no image for the path → clear message instead of an empty frame.
     let gone = |_: &str| Some(ImageRef { src: "/x".into(), alt: String::new(), missing: true });
     let html = render_html_with(&parse("#figure(image(\"bilder/<weg>.png\"), caption: [Weg])\n"), &gone);
     assert!(
@@ -230,8 +230,8 @@ fn a_missing_image_is_reported_and_the_alt_text_is_visible() {
     );
 }
 
-/// Runde 21b (Sichtprüfung R18): Nach einem erzwungenen Umbruch `\` verschluckt Typst das Zeilenende; das Satzbild darf
-/// die nächste Zeile darum nicht mit einem Leerzeichen einrücken. Das Element bleibt (das Widget liest `soft` zurück).
+/// Round 21b (visual check R18): after a forced break `\` Typst swallows the line end; the typeset view must
+/// therefore not indent the next line with a space. The element stays (the widget reads `soft` back).
 #[test]
 fn after_a_forced_break_the_next_line_starts_without_a_space() {
     let html = render_html(&parse("Erste Zeile \\\nzweite Zeile.\n"));
@@ -244,7 +244,7 @@ fn after_a_forced_break_the_next_line_starts_without_a_space() {
     assert!(plain.contains("<span class=\"ws-soft\"> </span>zweite"), "ohne Umbruch bleibt das Leerzeichen: {plain}");
 }
 
-/// Runde 21b (Sichtprüfung R18): Eine Bildinsel mit mehreren Bildern nennt alle Pfade, nicht nur den ersten.
+/// Round 21b (visual check R18): an image island with several images names all paths, not only the first.
 #[test]
 fn an_image_island_with_two_images_names_both_paths() {
     let plain = |path: &str| {

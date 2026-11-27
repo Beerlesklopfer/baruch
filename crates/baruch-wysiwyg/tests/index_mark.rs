@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Registermarken im Satzbild (Schnittstelle R31-S1, §2.3; R31c kontextmenue): die kanonische Marke
-//! `#metadata((…))<baruch-idx>` ist `Inline::IndexMark`, `emit`/`parse` ergeben eine Rundreise, JSON
-//! `{"t":"index_mark","mark":{…}}`; im Satzbild ein dezentes, nicht tippbares Element mit Beschreibung. Bearbeiten und
-//! Entfernen über das Satzbild ändern nur die Marke, unberührte Blöcke bleiben byte-gleich. Texte frei erfunden.
+//! Index marks in the typeset view (interface R31-S1, §2.3; R31c kontextmenue): the canonical mark
+//! `#metadata((…))<baruch-idx>` is `Inline::IndexMark`, `emit`/`parse` yield a round trip, JSON
+//! `{"t":"index_mark","mark":{…}}`; in the typeset view an unobtrusive element that cannot be typed into, with a
+//! description. Editing and removing through the typeset view change only the mark, untouched blocks stay
+//! byte-identical. Texts freely invented.
 
 use baruch_typst::index::{IndexMark, mark_source};
 use baruch_wysiwyg::{Block, BlockKind, Edit, Inline, emit, index_mark_label, parse, render_html, serialize};
@@ -11,7 +12,7 @@ fn text(v: &str) -> Inline {
     Inline::Text { v: v.into() }
 }
 
-/// Inlines des einzigen Absatzes von `typst`.
+/// Inlines of the only paragraph of `typst`.
 fn inlines(typst: &str) -> Vec<Inline> {
     let doc = parse(typst);
     assert_eq!(doc.blocks.len(), 1, "ein Block aus {typst:?}");
@@ -47,7 +48,7 @@ fn json_follows_the_contract_and_reads_what_the_widget_sends() {
         json, r#"{"t":"index_mark","mark":{"register":"personen","term":"Hanna"}}"#,
         "JSON-Form laut §2.3, leere Zusätze fehlen"
     );
-    // So schickt wysiwyg.ts eine Marke (nur gefüllte Felder) in einer Anweisung an wysiwyg.serialize.
+    // That is how wysiwyg.ts sends a mark (only filled fields) in an instruction to wysiwyg.serialize.
     let edit: Edit = serde_json::from_str(
         r#"{"replaces":0,"block":{"kind":"paragraph","inlines":[{"t":"text","v":"Hanna"},
             {"t":"index_mark","mark":{"register":"personen","term":"Hanna","also":"Elkana"}}]}}"#,
@@ -115,7 +116,7 @@ fn labels_name_builtin_titles_and_custom_slugs_and_mask_html() {
     );
 }
 
-/// Editiert Block 1 von `typst` mit `change` an seinen Inlines; die Blöcke 0 und 2 bleiben `keep`.
+/// Edits block 1 of `typst` with `change` on its inlines; the blocks 0 and 2 stay `keep`.
 fn edit_middle(typst: &str, change: impl FnOnce(&mut Vec<Inline>)) -> String {
     let doc = parse(typst);
     assert_eq!(doc.blocks.len(), 3, "drei Blöcke: {typst:?}");
@@ -132,7 +133,7 @@ fn edit_middle(typst: &str, change: impl FnOnce(&mut Vec<Inline>)) -> String {
 #[test]
 fn editing_or_removing_a_mark_in_the_sheet_changes_only_the_mark() {
     let old = IndexMark::new("stichwort", "Brot");
-    // Erster und letzter Block absichtlich nicht kanonisch (zwei Leerzeichen, Kommentar): Keep bleibt wörtlich.
+    // First and last block deliberately not canonical (two spaces, comment): Keep stays verbatim.
     let typst =
         format!("= Vom Teilen  // Kopf\n\nDas Brot{} wird geteilt, *alle* essen.\n\nEnde  hier.\n", mark_source(&old));
     let new = IndexMark { sub: "Gemeinschaft".into(), ..IndexMark::new("stichwort", "Brot") };
@@ -151,7 +152,7 @@ fn editing_or_removing_a_mark_in_the_sheet_changes_only_the_mark() {
     let removed = edit_middle(&typst, |inlines| inlines.retain(|i| !matches!(i, Inline::IndexMark { .. })));
     assert_eq!(removed, typst.replace(&mark_source(&old), ""), "Entfernen nimmt genau die Marke heraus");
     let added = edit_middle(&typst.replace(&mark_source(&old), ""), |inlines| {
-        // Wie das Widget: der Text wird hinter dem Wort geteilt, die Marke steht dazwischen.
+        // Like the widget: the text is split after the word, the mark stands in between.
         let Inline::Text { v } = inlines[0].clone() else { panic!("Text vorn: {inlines:?}") };
         let (head, tail) = v.split_at("Das Brot".len());
         inlines.splice(0..1, [text(head), Inline::IndexMark { mark: new.clone() }, text(tail)]);

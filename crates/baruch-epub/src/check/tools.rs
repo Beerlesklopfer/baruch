@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fremde Programme der Prüfung (Besitz „epub-pruefung“, Runde 20c): Suche in einem übergebenen PATH-Inhalt (nie
-//! der PATH des Prozesses verändert), `xmllint --noout --nonet -` je Datei über die Standardeingabe und ein Lauf mit
-//! Zeitgrenze, der das Kind (unter Unix samt seiner Prozessgruppe, unter Windows samt seinem Prozessbaum über
-//! `taskkill /T`) bei Ablauf beendet. Nichts wird heruntergeladen.
+//! External programs of the check (ownership "epub-pruefung", Round 20c): search in a passed PATH content (the
+//! PATH of the process is never changed), `xmllint --noout --nonet -` per file through standard input and a run
+//! with a time limit that terminates the child (under Unix including its process group, under Windows including
+//! its process tree through `taskkill /T`) on expiry. Nothing is downloaded.
 
 use std::ffi::OsStr;
 use std::io::{Read, Write};
@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Dateinamen, unter denen ein Programm `name` liegen kann: unter Windows zuerst mit den üblichen Endungen
-/// (`xmllint.exe`, `epubcheck.bat`), überall zuletzt der bloße Name.
+/// File names under which a program `name` can be found: under Windows first with the usual extensions
+/// (`xmllint.exe`, `epubcheck.bat`), everywhere last the bare name.
 fn file_names(name: &str) -> Vec<String> {
     let mut names = Vec::new();
     if cfg!(windows) {
@@ -21,7 +21,7 @@ fn file_names(name: &str) -> Vec<String> {
     names
 }
 
-/// Ausführbare Datei `name` im ersten Ordner von `path_env`, der sie hat.
+/// Executable file `name` in the first folder of `path_env` that has it.
 pub(crate) fn find_in_path(name: &str, path_env: Option<&OsStr>) -> Option<PathBuf> {
     let path_env = path_env?;
     let names = file_names(name);
@@ -42,16 +42,16 @@ fn is_executable(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|m| m.is_file())
 }
 
-/// Ausgabe eines beendeten Laufs.
+/// Output of a finished run.
 pub(crate) struct Output {
     pub success: bool,
     pub stdout: String,
     pub stderr: String,
 }
 
-/// Führt `command` mit `input` auf der Standardeingabe aus; nach `timeout` wird das Kind beendet (`Err` mit
-/// deutscher Meldung). Die Leser der Ausgaben laufen in eigenen Fäden; nach einem Abbruch wird auf sie nicht
-/// gewartet (ein Enkel könnte die Rohre noch offen halten).
+/// Runs `command` with `input` on standard input; after `timeout` the child is terminated (`Err` with a German
+/// message). The readers of the outputs run in threads of their own; after an abort they are not waited for (a
+/// grandchild could still hold the pipes open).
 pub(crate) fn run(mut command: Command, input: Option<&[u8]>, timeout: Duration) -> Result<Output, String> {
     command.stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -61,12 +61,12 @@ pub(crate) fn run(mut command: Command, input: Option<&[u8]>, timeout: Duration)
         command.process_group(0);
     }
     let program = command.get_program().to_string_lossy().into_owned();
-    // „Text file busy“ (ETXTBSY): Ein eben geschriebenes Skript kann kurz noch in einem anderen Faden offen sein.
+    // "Text file busy" (ETXTBSY): a script that was just written can still be open in another thread for a moment.
     let mut tries = 0;
     let mut child = loop {
         match command.spawn() {
             Ok(child) => break child,
-            // Nur unter Unix: Die Nummer 26 heißt unter Windows etwas anderes (ERROR_NOT_DOS_DISK).
+            // Under Unix only: the number 26 means something else under Windows (ERROR_NOT_DOS_DISK).
             Err(e) if cfg!(unix) && e.raw_os_error() == Some(26) && tries < 20 => {
                 tries += 1;
                 std::thread::sleep(Duration::from_millis(25));
@@ -78,7 +78,7 @@ pub(crate) fn run(mut command: Command, input: Option<&[u8]>, timeout: Duration)
         std::thread::spawn(move || {
             let mut buffer = Vec::new();
             if let Some(mut pipe) = pipe {
-                // Höchstens 4 MiB Ausgabe behalten; der Rest wird gelesen und verworfen.
+                // Keep at most 4 MiB of output; the rest is read and discarded.
                 let _ = pipe.by_ref().take(4 * 1024 * 1024).read_to_end(&mut buffer);
                 let _ = std::io::copy(&mut pipe, &mut std::io::sink());
             }
@@ -115,9 +115,9 @@ pub(crate) fn run(mut command: Command, input: Option<&[u8]>, timeout: Duration)
     })
 }
 
-/// Kind beenden; unter Unix auch seine Prozessgruppe (Skripte starten Enkel wie `java`), unter Windows der
-/// Prozessbaum (`taskkill /T /F`, Bordmittel seit Windows XP; `epubcheck.bat` startet `java` als Enkel). Auf
-/// anderen Systemen bleibt es beim Kind allein. Der Windows-Zweig ist nie gelaufen (lokal kein Windows).
+/// Terminate the child; under Unix also its process group (scripts start grandchildren such as `java`), under
+/// Windows the process tree (`taskkill /T /F`, on board since Windows XP; `epubcheck.bat` starts `java` as a
+/// grandchild). On other systems only the child itself. The Windows branch has never run (no Windows locally).
 fn kill_group(child: &mut std::process::Child) {
     #[cfg(unix)]
     {
@@ -146,8 +146,8 @@ fn kill_group(child: &mut std::process::Child) {
     let _ = child.wait();
 }
 
-/// `xmllint --noout --nonet -` mit `bytes`: `Ok(None)` wohlgeformt, `Ok(Some(meldung))` nicht wohlgeformt,
-/// `Err` = xmllint lief nicht (dann prüft quick-xml).
+/// `xmllint --noout --nonet -` with `bytes`: `Ok(None)` well-formed, `Ok(Some(meldung))` not well-formed,
+/// `Err` = xmllint did not run (then quick-xml checks).
 pub(crate) fn xmllint(xmllint: &Path, bytes: &[u8]) -> Result<Option<String>, String> {
     let mut command = Command::new(xmllint);
     command.arg("--noout").arg("--nonet").arg("-");

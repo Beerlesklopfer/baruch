@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Komprimierte SWORD-Module (R17c): BZIP2 und XZ neben ZIP, je Blockart, mit selbst geschriebenen
-//! Testmodulen (`fixture::Fixture::compression`) und frei erfundenem Text.
+//! Compressed SWORD modules (R17c): BZIP2 and XZ besides ZIP, per block kind, with self-written
+//! test modules (`fixture::Fixture::compression`) and freely invented text.
 
 use std::path::PathBuf;
 
@@ -80,11 +80,11 @@ fn an_unknown_compression_is_reported_with_its_name() {
     );
 }
 
-/// Nachbesserung Runde 17: Ein manipuliertes Modul (etwa aus einem fremden Modul-Repository) darf beim Entpacken
-/// eines Blocks nicht beliebig viel Speicher belegen. sword-modules ist dafür in `vendor/` mit einer Obergrenze von
-/// 64 MiB je Block eingebettet; ein Block, der zu 65 MiB Nullen entpackt (wenige Hundert Byte bzw. KiB gepackt),
-/// gibt einen Fehler statt den Prozess per OOM zu beenden. Die Größe im Index (100 Byte) lügt dabei – geprüft wird
-/// das Entpackte.
+/// Follow-up fix Round 17: a manipulated module (for instance from a foreign module repository) must not occupy
+/// arbitrarily much memory when a block is unpacked. For that, sword-modules is embedded in `vendor/` with an
+/// upper limit of 64 MiB per block; a block that unpacks to 65 MiB of zeros (a few hundred bytes or KiB packed)
+/// gives an error instead of ending the process through OOM. The size in the index (100 bytes) lies here – what
+/// is checked is the unpacked data.
 #[test]
 fn a_decompression_bomb_is_refused_instead_of_filling_memory() {
     let bomb = vec![0u8; 65 << 20];
@@ -97,8 +97,8 @@ fn a_decompression_bomb_is_refused_instead_of_filling_memory() {
         );
         let (_dir, root) = written(&f);
         let dir = root.join("modules/texts/ztext/bombe");
-        // lzma-rs packt XZ nur mit Literalen (kein Gewinn bei Nullen): dafür eine mit `xz -6 --check=crc32` aus
-        // 65 MiB Nullen erzeugte Datei (10 KiB, kein Text).
+        // lzma-rs packs XZ only with literals (no gain with zeros): therefore a file generated with
+        // `xz -6 --check=crc32` from 65 MiB of zeros (10 KiB, no text).
         let packed = match compression {
             Compression::Xz => include_bytes!("data/nullen-65mib.xz").to_vec(),
             other => other.pack(&bomb).unwrap(),

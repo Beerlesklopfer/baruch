@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Feste Teile der Datei: Formatvorlagen (`styles.xml`), Nummerierungen (`numbering.xml`) und Einstellungen
+//! Fixed parts of the file: styles (`styles.xml`), numberings (`numbering.xml`) and settings
 //! (`settings.xml`).
 //!
-//! Eingebaute Vorlagen tragen ihren eingebauten Namen (`heading 1`, `Title`, `Quote`, `footnote text` …): Daran
-//! erkennt Word sie und zeigt sie in der Sprache der Oberfläche („Überschrift 1“, „Titel“, „Zitat“, „Fußnotentext“).
-//! Die eigenen Vorlagen von Baruch heißen deutsch.
+//! Built-in styles carry their built-in name (`heading 1`, `Title`, `Quote`, `footnote text` …): by this Word
+//! recognises them and shows them in the language of the user interface („Überschrift 1“, „Titel“, „Zitat“,
+//! „Fußnotentext“). Baruch's own styles have German names.
 
 use std::fmt::Write as _;
 
 use super::body::{STYLE_COMMENT_REFERENCE, STYLE_COMMENT_TEXT, STYLE_HYPERLINK, esc};
 use crate::ooxml::*;
 
-/// Sprachkennung für `w:lang`: Word erwartet Sprache und Land; für ein bloßes Sprachkürzel gilt das übliche Land.
+/// Language tag for `w:lang`: Word expects language and country; for a bare language code the usual country applies.
 pub(super) fn word_language(lang: &str) -> String {
     let lang = lang.trim();
     let well_formed =
@@ -33,12 +33,12 @@ pub(super) fn word_language(lang: &str) -> String {
 struct Style<'a> {
     id: &'a str,
     name: &'a str,
-    /// `paragraph` oder `character`.
+    /// `paragraph` or `character`.
     kind: &'a str,
     based_on: Option<&'a str>,
-    /// Vorlage des folgenden Absatzes.
+    /// Style of the following paragraph.
     next: Option<&'a str>,
-    /// Im Katalog der Schnellformatvorlagen zeigen.
+    /// Show in the quick style gallery.
     quick: bool,
     paragraph: &'a str,
     run: &'a str,
@@ -64,7 +64,7 @@ fn style(out: &mut String, s: &Style<'_>) {
     out.push_str("</w:style>");
 }
 
-/// `word/styles.xml`: alle Vorlagen, die der Schreiber benutzt.
+/// `word/styles.xml`: all styles the writer uses.
 pub(super) fn styles_xml(lang: &str) -> String {
     const NORMAL: &str = "Normal";
     let lang = word_language(lang);
@@ -140,7 +140,7 @@ pub(super) fn styles_xml(lang: &str) -> String {
             ..base
         },
     );
-    // Überschrift 1–6: Größe in halben Punkten, Gliederungsebene für Navigation und Inhaltsverzeichnis.
+    // Heading 1–6: size in half points, outline level for navigation and table of contents.
     for (level, size) in (1..=MAX_HEADING_LEVEL).zip([40u32, 32, 28, 24, 24, 24]) {
         let paragraph = format!(
             "<w:keepNext/><w:keepLines/><w:spacing w:before=\"{}\" w:after=\"120\"/><w:outlineLvl w:val=\"{}\"/>",
@@ -276,8 +276,8 @@ pub(super) fn styles_xml(lang: &str) -> String {
     out
 }
 
-/// `word/numbering.xml`: Aufzählungszeichen ([`NUM_BULLET`]), Dezimalzahlen ([`NUM_DECIMAL`]) und je weiterer
-/// geordneter Liste eine eigene Zählung (`extra`: `w:numId`, erste Nummer), die neu beginnt.
+/// `word/numbering.xml`: bullets ([`NUM_BULLET`]), decimal numbers ([`NUM_DECIMAL`]) and, per further ordered
+/// list, a count of its own (`extra`: `w:numId`, first number) that restarts.
 pub(super) fn numbering_xml(extra: &[(u32, u64)]) -> String {
     let mut out =
         format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"{NS_W}\">");
@@ -313,7 +313,7 @@ pub(super) fn numbering_xml(extra: &[(u32, u64)]) -> String {
     out
 }
 
-/// `word/settings.xml`: Trennlinien der Fußnoten und der Stand der Kompatibilität (Word 2013 und neuer).
+/// `word/settings.xml`: separator lines of the footnotes and the compatibility level (Word 2013 and newer).
 pub(super) fn settings_xml() -> String {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:settings xmlns:w=\"{NS_W}\">\

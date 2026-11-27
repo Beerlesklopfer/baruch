@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Text → Blöcke. Zuerst werden die logischen Zeilen (Zeilenenden außerhalb von Klammern,
-//! Raw-Text und Kommentaren) zu Stücken gruppiert: Leerzeilen trennen, eine Überschrift ist immer ein
-//! eigenes Stück, ebenso Listen (`-`, `+`, Aufzählungen `1.`, Begriffslisten `/`, samt eingerückter
-//! Folgezeilen und geschachtelter Punkte) und Code-Zeilen (`#let`, `#set` …). Dann wird jedes
-//! Stück gelesen; was nicht sicher passt, wird eine Insel. Die Leerzeilen hinter einem Stück gehören
-//! zu seinem `raw`, Leerzeilen am Anfang des Textes bilden eine eigene Insel.
+//! Typst text → blocks. First the logical lines (line ends outside of brackets,
+//! raw text and comments) are grouped into chunks: empty lines separate, a heading is always a
+//! chunk of its own, likewise lists (`-`, `+`, enumerations `1.`, term lists `/`, including indented
+//! continuation lines and nested items) and code lines (`#let`, `#set` …). Then every
+//! chunk is read; what does not fit safely becomes an island. The empty lines after a chunk belong
+//! to its `raw`, empty lines at the beginning of the text form an island of their own.
 
 use crate::scan::{
     Scanner, after_scheme, char_at, closed_content, closed_group, heading_comment_start, ident_end, is_keyword,
@@ -12,13 +12,13 @@ use crate::scan::{
 };
 use crate::{Block, BlockKind, Doc, Inline, Term};
 
-/// Tiefste Schachtelung von Blöcken (`#szene[#quote(…)[…]]`) und Auszeichnungen (`_*…*_`).
+/// Deepest nesting of blocks (`#szene[#quote(…)[…]]`) and markup (`_*…*_`).
 const MAX_NESTING: usize = 16;
 
-/// Tiefste Schachtelung von Listenpunkten (Runde 18b; 0 = oberste Ebene). Tiefer → Insel.
+/// Deepest nesting of list items (Round 18b; 0 = top level). Deeper → island.
 pub(crate) const MAX_LIST_DEPTH: u8 = 8;
 
-/// Text in Blöcke zerlegen; scheitert nie. Die Verkettung aller `raw` ist `body`, Byte für Byte.
+/// Split text into blocks; never fails. The concatenation of all `raw` is `body`, byte for byte.
 pub fn parse(body: &str) -> Doc {
     Doc { blocks: blocks(body, 0) }
 }
@@ -33,33 +33,33 @@ fn blocks(s: &str, depth: usize) -> Vec<Block> {
         .collect()
 }
 
-/// Art einer logischen Zeile.
+/// Kind of a logical line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Line {
     Blank,
     Heading(u8),
-    /// Teil-Markierung bzw. Markierung „ohne Nummer“ (Runde 14, [`marker_of`]).
+    /// Part marker or marker "without number" (Round 14, [`marker_of`]).
     Marker,
     Item {
         marker: u8,
         indented: bool,
     },
-    /// Runde 18b: Aufzählung `12. …` mit Inhalt.
+    /// Round 18b: enumeration `12. …` with content.
     Enum {
         indented: bool,
     },
-    /// Runde 18b: Begriff `/ …` mit Inhalt.
+    /// Round 18b: term `/ …` with content.
     Term {
         indented: bool,
     },
-    /// Zeile, die mit `#let`, `#set`, `#show` … beginnt.
+    /// Line that starts with `#let`, `#set`, `#show` ….
     Code,
-    /// `#szene[…]` bzw. `#arbeit(…)[…]`, seit Runde 23a auch `#quote(block: true, …)[…]`, als ganze (logische,
-    /// auch mehrzeilige) Zeile.
+    /// `#szene[…]` or `#arbeit(…)[…]`, since Round 23a also `#quote(block: true, …)[…]`, as a whole (logical,
+    /// also multi-line) line.
     Container,
-    /// Nur ein Label `<name>` (gehört hinter einer Überschrift zu ihr).
+    /// Only a label `<name>` (belongs to a heading when it follows one).
     Label,
-    /// Leerer Listen- oder Aufzählungspunkt, leerer Begriff, eingerückte Überschrift.
+    /// Empty list or enumeration item, empty term, indented heading.
     Structural,
     Indented,
     Text,
@@ -107,11 +107,12 @@ fn classify(line: &str) -> Line {
     if indented { Line::Indented } else { Line::Text }
 }
 
-/// Ist die Zeile genau ein geschlossener Ausdruck `#szene…[…]` bzw. `#arbeit…[…]`, oder (Runde 23a) ein
-/// Zitatblock `#quote(block: true, …)[…]`? Ein Zitatblock ist in Typst ein eigener Block: Eine Zeile direkt
-/// dahinter (etwa die Stellenangabe) beginnt einen neuen Absatz, eine Zeile davor beendet ihren Absatz. Darum ist
-/// er wie Szene und Arbeit ein eigenes Stück, statt mit den Nachbarzeilen zu einer Insel zu verkleben. `#quote[…]`
-/// und `block: false` stehen im Fließtext und bleiben Teil ihres Absatzes; unlesbare Argumente ebenso (wie bisher).
+/// Is the line exactly one closed expression `#szene…[…]` or `#arbeit…[…]`, or (Round 23a) a
+/// quote block `#quote(block: true, …)[…]`? A quote block is a block of its own in Typst: a line directly
+/// after it (for instance the attribution) starts a new paragraph, a line before it ends its paragraph.
+/// Therefore it is, like scene and work, a chunk of its own instead of sticking together with the neighbouring
+/// lines into an island. `#quote[…]` and `block: false` stand in running text and stay part of their paragraph;
+/// unreadable arguments likewise (as before).
 fn is_container_line(rest: &str) -> bool {
     if !rest.starts_with('#') {
         return false;
@@ -139,9 +140,9 @@ fn is_container_line(rest: &str) -> bool {
         && matches!(quote_args(&content[name_end + 1..args_end - 1], 0), Some((true, _)))
 }
 
-/// Ebene (0 = Teil, 1–3 = „ohne Nummer“) und aufgelöster Titel, wenn `line` (eine logische Zeile)
-/// genau eine kanonische Markierung ist. Maßgeblich ist [`baruch_typst::parse`]: dieselbe Zeile ist
-/// dort ein Teil (`level` 0) bzw. eine Überschrift mit `numbered: false`.
+/// Level (0 = part, 1–3 = "without number") and resolved title if `line` (one logical line)
+/// is exactly one canonical marker. Authoritative is [`baruch_typst::parse`]: the same line is
+/// a part there (`level` 0) or a heading with `numbered: false`.
 pub(crate) fn marker_of(line: &str) -> Option<(u8, String)> {
     if !line.starts_with("#heading(") || line.trim_end_matches(['\n', '\r']).contains('\n') {
         return None;
@@ -152,7 +153,7 @@ pub(crate) fn marker_of(line: &str) -> Option<(u8, String)> {
         .then(|| (heading.level, heading.title.clone()))
 }
 
-/// Name des Labels, wenn die Zeile nur aus `<name>` (und Leerraum) besteht.
+/// Name of the label if the line consists only of `<name>` (and whitespace).
 fn label_only(line: &str) -> Option<&str> {
     let inner = line.trim().strip_prefix('<')?.strip_suffix('>')?;
     (!inner.is_empty() && inner.chars().all(is_label_char)).then_some(inner)
@@ -160,17 +161,18 @@ fn label_only(line: &str) -> Option<&str> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ChunkKind {
-    /// Leerzeilen am Anfang.
+    /// Empty lines at the beginning.
     Leading,
     Heading(u8),
-    /// Eine Markierungszeile (Teil bzw. „ohne Nummer“), immer allein.
+    /// A marker line (part or "without number"), always alone.
     Marker,
-    /// Liste mit dem Zeichen ihres ersten Punkts: `-`, `+`, `1` (Aufzählung) oder `/` (Begriffsliste).
+    /// List with the marker of its first item: `-`, `+`, `1` (enumeration) or `/` (term list).
     List {
         marker: u8,
     },
     Para,
-    /// `#szene[…]`/`#arbeit[…]`/`#quote(block: true)[…]` allein: ein eigener Block, nie mit Nachbarzeilen verbunden.
+    /// `#szene[…]`/`#arbeit[…]`/`#quote(block: true)[…]` alone: a block of its own, never joined with neighbouring
+    /// lines.
     Container,
     Code,
     Structural,
@@ -180,9 +182,9 @@ struct Chunk {
     start: usize,
     end: usize,
     kind: ChunkKind,
-    /// Anzahl der nicht leeren logischen Zeilen.
+    /// Number of non-empty logical lines.
     lines: usize,
-    /// Leerzeilen sind angehängt: Das nächste nicht leere Stück beginnt neu.
+    /// Empty lines are appended: the next non-empty chunk starts anew.
     closed: bool,
 }
 
@@ -204,7 +206,7 @@ fn chunks(s: &str) -> Vec<Chunk> {
             None => false,
             Some(chunk) if chunk.closed => false,
             Some(chunk) => match (chunk.kind, line) {
-                // Ein Label direkt hinter der Überschriftszeile gehört zur Überschrift.
+                // A label directly after the heading line belongs to the heading.
                 (ChunkKind::Heading(_), Line::Label) => chunk.lines == 1,
                 (ChunkKind::List { marker }, Line::Item { marker: m, indented: false }) => m == marker,
                 (ChunkKind::List { marker }, Line::Enum { indented: false }) => marker == b'1',
@@ -251,7 +253,7 @@ fn kind_of(content: &str, kind: ChunkKind, depth: usize) -> BlockKind {
     let found = match kind {
         ChunkKind::Leading | ChunkKind::Code | ChunkKind::Structural => None,
         ChunkKind::Heading(level) => heading(content, level, depth),
-        // Nur auf oberster Ebene; im Rumpf einer Szene ist die Zeile auch für baruch_typst Text.
+        // Only at the top level; in the body of a scene the line is text for baruch_typst too.
         ChunkKind::Marker if depth == 0 => marker_of(content).map(|(level, title)| match level {
             0 => BlockKind::Part { title },
             level => BlockKind::Unnumbered { level, title },
@@ -264,19 +266,19 @@ fn kind_of(content: &str, kind: ChunkKind, depth: usize) -> BlockKind {
 }
 
 fn heading(content: &str, level: u8, depth: usize) -> Option<BlockKind> {
-    // Zweite logische Zeile: nur ein Label (siehe `chunks`).
+    // Second logical line: only a label (see `chunks`).
     let (line, label) = match logical_lines(content).get(1) {
         Some(&(start, _)) => (content[..start].trim_end(), Some(label_only(&content[start..])?.to_owned())),
         None => (content, None),
     };
     let text = line[usize::from(level)..].trim_start_matches([' ', '\t']);
-    // Den Kommentar dahinter behält `serialize` aus der Originalzeile (wie `heading_line`).
+    // The comment after it is kept by `serialize` from the original line (like `heading_line`).
     let text = text[..heading_comment_start(text).unwrap_or(text.len())].trim_end();
     Some(BlockKind::Heading { level, inlines: inlines(text, depth)?, label })
 }
 
-/// Zeichen eines Listenpunkts am Anfang von `rest` (ohne Einzug) für eine Liste mit `marker`: Länge des
-/// Zeichens und bei Aufzählungen die Nummer. `None`, wenn die Zeile kein solcher Punkt ist.
+/// Marker of a list item at the beginning of `rest` (without indentation) for a list with `marker`: length of
+/// the marker and for enumerations the number. `None` if the line is not such an item.
 fn item_marker(rest: &str, marker: u8) -> Option<(usize, Option<u64>)> {
     let bytes = rest.as_bytes();
     let blank_after = |at: usize| matches!(bytes.get(at), None | Some(b' ' | b'\t' | b'\n'));
@@ -285,21 +287,21 @@ fn item_marker(rest: &str, marker: u8) -> Option<(usize, Option<u64>)> {
         if digits == 0 || bytes.get(digits) != Some(&b'.') || !blank_after(digits + 1) {
             return None;
         }
-        // Zu große Nummern (über u64) sind nicht sicher abbildbar: dann ist es kein Punkt dieser Liste.
+        // Numbers that are too large (above u64) cannot be mapped safely: then it is not an item of this list.
         return rest[..digits].parse::<u64>().ok().map(|n| (digits + 1, Some(n)));
     }
     (bytes.first() == Some(&marker) && blank_after(1)).then_some((1, None))
 }
 
-/// Liste, Aufzählung oder Begriffsliste aus einem Listen-Stück (Runde 18b auch geschachtelt). Jede Zeile, die
-/// mit dem Zeichen der Liste beginnt (nach Einzug), beginnt einen Punkt; die Tiefe folgt aus der Spalte des
-/// Zeichens (weiter rechts als der Punkt davor = geschachtelt, sonst die Ebene mit derselben Spalte). Andere
-/// Zeilen sind Folgezeilen des Punkts und müssen weiter eingerückt sein als sein Zeichen. Unsicheres → `None`
-/// (Insel): Tabulatoren im Einzug, eine Spalte zwischen zwei Ebenen, leere Punkte, Folgezeilen hinter
-/// geschachtelten Punkten, die zum äußeren gehörten, Aufzählungen mit anderer Nummer als fortlaufend (je
-/// geschachtelter Gruppe ab 1), geschachtelte Begriffslisten, mehr als [`MAX_LIST_DEPTH`] Ebenen.
+/// List, enumeration or term list from a list chunk (Round 18b also nested). Every line that starts with the
+/// marker of the list (after indentation) starts an item; the depth follows from the column of the marker
+/// (further right than the item before = nested, otherwise the level with the same column). Other lines are
+/// continuation lines of the item and must be indented further than its marker. Unsafe things → `None`
+/// (island): tabs in the indentation, a column between two levels, empty items, continuation lines after
+/// nested items that would belong to the outer one, enumerations with a number other than consecutive (per
+/// nested group from 1), nested term lists, more than [`MAX_LIST_DEPTH`] levels.
 fn list(content: &str, marker: u8, depth: usize) -> Option<BlockKind> {
-    // Je Punkt: Spalte des Zeichens, Anfang seiner Zeile, Anfang des Texts hinter dem Zeichen, Nummer.
+    // Per item: column of the marker, start of its line, start of the text after the marker, number.
     let mut items: Vec<(usize, usize, usize, Option<u64>)> = Vec::new();
     for (start, end) in logical_lines(content) {
         let line = &content[start..end];
@@ -312,7 +314,7 @@ fn list(content: &str, marker: u8, depth: usize) -> Option<BlockKind> {
         match item_marker(rest, marker) {
             Some((len, number)) => items.push((column, start, start + column + len, number)),
             None => {
-                // Folgezeile: weiter eingerückt als das Zeichen ihres Punkts.
+                // Continuation line: indented further than the marker of its item.
                 let &(current, ..) = items.last()?;
                 if column <= current {
                     return None;
@@ -332,11 +334,11 @@ fn list(content: &str, marker: u8, depth: usize) -> Option<BlockKind> {
             popped = true;
         }
         if columns.last() != Some(&column) {
-            // Zwischen zwei Ebenen (weiter links als der Punkt davor, aber auf keiner bekannten Spalte).
+            // Between two levels (further left than the item before, but on no known column).
             if popped {
                 return None;
             }
-            // Weiter rechts als der Punkt davor (oder der erste Punkt): eine neue Ebene.
+            // Further right than the item before (or the first item): a new level.
             columns.push(column);
         }
         let level = u8::try_from(columns.len() - 1).ok().filter(|&l| l <= MAX_LIST_DEPTH)?;
@@ -344,7 +346,7 @@ fn list(content: &str, marker: u8, depth: usize) -> Option<BlockKind> {
             let at = usize::from(level);
             counters.truncate(at + 1);
             if counters.len() == at {
-                // Neue Gruppe: ganz oben die erste Nummer, geschachtelt ab 1.
+                // New group: at the very top the first number, nested from 1.
                 counters.push(if k == 0 { number } else { 1 });
             }
             if counters[at] != number {
@@ -377,21 +379,21 @@ fn list(content: &str, marker: u8, depth: usize) -> Option<BlockKind> {
     })
 }
 
-/// Ein Eintrag einer Begriffsliste aus dem Text hinter `/ `: Begriff bis zum ersten Doppelpunkt der obersten
-/// Ebene ([`term_colon`]), Erklärung dahinter (ohne Leerraum am Anfang). Ohne Doppelpunkt, mit leerem oder
-/// mehrzeiligem Begriff → `None`.
+/// An entry of a term list from the text after `/ `: term up to the first colon of the top
+/// level ([`term_colon`]), explanation after it (without leading whitespace). Without a colon, with an empty or
+/// multi-line term → `None`.
 fn term(text: &str, depth: usize) -> Option<Term> {
     let colon = term_colon(text)?;
     let term_text = text[..colon].trim_end();
     let desc_text = text[colon + 1..].trim_start_matches([' ', '\t']);
     let term = inlines(term_text, depth)?;
     let desc = inlines(desc_text, depth)?;
-    // Ein Zeilenumbruch auf oberster Ebene des Begriffs (nicht in einer Fußnote o. Ä.) ist nicht sicher.
+    // A line break at the top level of the term (not in a footnote or the like) is not safe.
     (substantive(&term) && !term.contains(&Inline::Soft)).then_some(Term { term, desc })
 }
 
-/// Stelle des Doppelpunkts, der Begriff und Erklärung trennt: der erste außerhalb von Maskierungen, Raw-Text,
-/// Formeln, `#`-Ausdrücken und Inhaltsblöcken; ein Kommentar oder Zeilenende davor → `None`.
+/// Position of the colon that separates term and explanation: the first outside of escapes, raw text,
+/// formulas, `#` expressions and content blocks; a comment or line end before it → `None`.
 fn term_colon(text: &str) -> Option<usize> {
     let mut scanner = Scanner::new(text);
     let bytes = text.as_bytes();
@@ -405,8 +407,8 @@ fn term_colon(text: &str) -> Option<usize> {
             b'[' => scanner.content(j, 0),
             b'/' if text[j..].starts_with("//") && !after_scheme(text, j) => return None,
             b'/' if text[j..].starts_with("/*") => scanner.block_comment(j),
-            // Labels und Verweise sind eigene Zeichen; ihr `:` trennt nichts (ein `:` am Ende eines Verweises
-            // gehört nicht zu ihm, wie beim Lesen).
+            // Labels and references are tokens of their own; their `:` separates nothing (a `:` at the end of a
+            // reference does not belong to it, as when reading).
             b'<' | b'@' => {
                 let mut k = j + 1;
                 while let Some(c) = char_at(text, k).filter(|&c| is_label_char(c)) {
@@ -452,8 +454,8 @@ fn paragraph(content: &str, depth: usize) -> Option<BlockKind> {
     substantive(&inlines).then_some(BlockKind::Paragraph { inlines })
 }
 
-/// `#szene[…]`, `#arbeit[…]`, `#quote(…)[…]` als ganzer Absatz: `Some(Some(art))`, bei unlesbaren
-/// Argumenten `Some(None)` (Insel), sonst `None` (gewöhnlicher Absatz).
+/// `#szene[…]`, `#arbeit[…]`, `#quote(…)[…]` as a whole paragraph: `Some(Some(kind))`, with unreadable
+/// arguments `Some(None)` (island), otherwise `None` (ordinary paragraph).
 fn container(text: &str, name: &str, name_end: usize, depth: usize) -> Option<Option<BlockKind>> {
     let rest = &text[name_end..];
     match name {
@@ -483,8 +485,8 @@ fn container(text: &str, name: &str, name_end: usize, depth: usize) -> Option<Op
     }
 }
 
-/// Argumente vor dem Rumpf ab `name_end`: (Argumente ohne Klammern, Stelle der `[`). Mehrere
-/// Klammern hintereinander oder eine offene → `None`.
+/// Arguments before the body from `name_end`: (arguments without brackets, position of the `[`). Several
+/// brackets in a row or an open one → `None`.
 fn container_args(text: &str, name_end: usize) -> Option<(Option<String>, usize)> {
     if text[name_end..].starts_with('[') {
         return Some((None, name_end));
@@ -493,9 +495,9 @@ fn container_args(text: &str, name_end: usize) -> Option<(Option<String>, usize)
     text[args_end..].starts_with('[').then(|| (Some(text[name_end + 1..args_end - 1].to_owned()), args_end))
 }
 
-/// Rahmen einer Szene bzw. Arbeit in ihrem `raw`: alles bis `[` (`#szene(…)[`), der Inhalt dazwischen
-/// (mit Leerraum am Rand) und alles ab `]` (samt folgenden Leerzeilen); zusammen `raw`. `None`, wenn
-/// `raw` keine Szene/Arbeit ist.
+/// Frame of a scene or work in its `raw`: everything up to `[` (`#szene(…)[`), the content in between
+/// (with whitespace at the edge) and everything from `]` (including following empty lines); together `raw`.
+/// `None` if `raw` is not a scene/work.
 pub(crate) fn container_frame(raw: &str) -> Option<(&str, &str, &str)> {
     let content = raw.trim_end();
     let text = content.trim_start_matches([' ', '\t']);
@@ -512,9 +514,9 @@ pub(crate) fn container_frame(raw: &str) -> Option<(&str, &str, &str)> {
     Some((&raw[..open], &raw[open..close], &raw[close..]))
 }
 
-/// Gemeinsamer Einzug (Leerzeichen und Tabulatoren) eines Rumpfs: `inner` ist der Inhalt zwischen
-/// `[` und `]`. Beginnt der Text in der Zeile der `[`, gibt es keinen (`#arbeit[- a⏎  b]`); sonst ist
-/// es der längste gemeinsame Anfang des Einzugs der ersten Zeile und aller weiteren nicht leeren.
+/// Common indentation (spaces and tabs) of a body: `inner` is the content between
+/// `[` and `]`. If the text starts in the line of the `[`, there is none (`#arbeit[- a⏎  b]`); otherwise it is
+/// the longest common beginning of the indentation of the first line and all further non-empty ones.
 pub(crate) fn body_indent(inner: &str) -> &str {
     let body = inner.trim();
     let lead = &inner[..inner.len() - inner.trim_start().len()];
@@ -538,17 +540,17 @@ pub(crate) fn body_indent(inner: &str) -> &str {
     indent.unwrap_or_default()
 }
 
-/// Blöcke eines Rumpfs (`#szene[…]`, `#arbeit[…]`, `#quote(…)[…]`; `inner` = Inhalt zwischen `[` und
-/// `]`). Gelesen wird der Inhalt ohne Leerraum am Rand; der gemeinsame Einzug ([`body_indent`]) zählt
-/// nicht, damit eingerückte Listen im Rumpf erkannt werden. Die `raw` bleiben Stücke des Originals
-/// (mit Einzug), ihre Verkettung ist `inner.trim()`.
+/// Blocks of a body (`#szene[…]`, `#arbeit[…]`, `#quote(…)[…]`; `inner` = content between `[` and
+/// `]`). The content is read without whitespace at the edge; the common indentation ([`body_indent`]) does
+/// not count, so that indented lists in the body are recognised. The `raw` stay pieces of the original
+/// (with indentation), their concatenation is `inner.trim()`.
 pub(crate) fn body_blocks(inner: &str, depth: usize) -> Vec<Block> {
     let body = inner.trim();
     let indent = body_indent(inner);
     if indent.is_empty() {
         return blocks(body, depth);
     }
-    // Ohne Einzug lesen; Zeilenanfänge im gelesenen Text und im Original merken.
+    // Read without indentation; remember line starts in the read text and in the original.
     let mut flat = String::with_capacity(body.len());
     let mut starts: Vec<(usize, usize)> = Vec::new();
     let mut original = 0;
@@ -574,7 +576,7 @@ pub(crate) fn body_blocks(inner: &str, depth: usize) -> Vec<Block> {
         .collect()
 }
 
-/// Argumente von `#quote(…)`: nur `block: true|false` und `attribution: […]`, je höchstens einmal.
+/// Arguments of `#quote(…)`: only `block: true|false` and `attribution: […]`, each at most once.
 fn quote_args(args: &str, depth: usize) -> Option<(bool, Option<Vec<Inline>>)> {
     let mut block = None;
     let mut attribution = None;
@@ -605,7 +607,7 @@ fn quote_args(args: &str, depth: usize) -> Option<(bool, Option<Vec<Inline>>)> {
     Some((block.unwrap_or(false), attribution))
 }
 
-/// Argumentliste an den Kommas der obersten Ebene teilen.
+/// Split an argument list at the commas of the top level.
 pub(crate) fn split_args(args: &str) -> Vec<&str> {
     let mut scanner = Scanner::new(args);
     let mut parts = Vec::new();
@@ -628,7 +630,7 @@ pub(crate) fn split_args(args: &str) -> Vec<&str> {
     parts
 }
 
-/// Hat ein Absatz eigenen Inhalt (Text oder Auszeichnung)? Nur Inseln und Zeilenumbrüche → Insel.
+/// Does a paragraph have content of its own (text or markup)? Only islands and line breaks → island.
 fn substantive(inlines: &[Inline]) -> bool {
     inlines.iter().any(|inline| match inline {
         Inline::Text { v } => !v.trim().is_empty(),
@@ -637,7 +639,7 @@ fn substantive(inlines: &[Inline]) -> bool {
     })
 }
 
-/// Fließtext lesen; `None`, wenn etwas nicht sicher abbildbar ist (der Block wird dann eine Insel).
+/// Read running text; `None` if something cannot be mapped safely (the block then becomes an island).
 pub(crate) fn inlines(text: &str, depth: usize) -> Option<Vec<Inline>> {
     InlineParser { s: text, i: 0, depth }.seq(None).ok()
 }
@@ -648,21 +650,21 @@ struct InlineParser<'a> {
     depth: usize,
 }
 
-/// Nicht abbildbar: der Block wird eine Insel.
+/// Cannot be mapped: the block becomes an island.
 struct Unmappable;
 
-/// Wortzeichen im Sinn von Typst: `_` und `*` zwischen zwei davon sind Text (`a_b_c`).
+/// Word character in the sense of Typst: `_` and `*` between two of them are text (`a_b_c`).
 fn wordy(c: Option<char>) -> bool {
     c.is_some_and(char::is_alphanumeric)
 }
 
-/// Hält die Maskierung von `c` Typst von einer Kurzschreibweise ab, die als reiner Text zurückkäme?
-/// `emit` maskiert außer den immer maskierten Zeichen nur nach dem Zusammenhang (Zeilenanfang …);
-/// `\'` und `\"` (gerade statt typografischer Anführungszeichen), `\-` vor `-`, `?` oder einer Ziffer
-/// (sonst `--`, `-?`, Minus), `\.` neben einem Punkt (sonst `...`) sowie `\-`, `\?` oder eine Ziffer
-/// hinter `-` wären als Text danach etwas anderes. Solche Maskierungen bleiben darum wörtlich als Insel
-/// stehen. `prev`: Zeichen davor im Quelltext, `rest`: Quelltext dahinter (ein maskiertes Zeichen
-/// dahinter verbindet sich nicht und zählt darum nicht).
+/// Does the escaping of `c` keep Typst from a shorthand that would come back as pure text?
+/// Besides the always escaped characters `emit` escapes only by context (beginning of a line …);
+/// `\'` and `\"` (straight instead of typographic quotation marks), `\-` before `-`, `?` or a digit
+/// (otherwise `--`, `-?`, minus), `\.` next to a full stop (otherwise `...`) as well as `\-`, `\?` or a digit
+/// after `-` would be something else as text afterwards. Such escapes therefore stay verbatim as an island.
+/// `prev`: character before it in the source text, `rest`: source text after it (an escaped character
+/// after it does not combine and therefore does not count).
 fn escape_matters(prev: Option<char>, c: char, rest: &str) -> bool {
     let next = rest.chars().next();
     match c {
@@ -674,8 +676,8 @@ fn escape_matters(prev: Option<char>, c: char, rest: &str) -> bool {
     }
 }
 
-/// Beginnt nach einem Zeilenumbruch eine Struktur (Liste, Überschrift, Aufzählung)? Dann ist es kein
-/// einfacher Fließtext mehr.
+/// Does a structure (list, heading, enumeration) start after a line break? Then it is no
+/// simple running text any more.
 fn starts_structure(rest: &str) -> bool {
     let line = rest.split('\n').next().unwrap_or_default();
     !matches!(classify(line), Line::Text | Line::Indented | Line::Code | Line::Container | Line::Label)
@@ -703,8 +705,8 @@ impl InlineParser<'_> {
             let i = self.i;
             match c {
                 '\\' => match char_at(s, i + 1) {
-                    // Runde 18b: erzwungener Zeilenumbruch. Leerzeichen dahinter gehören zu ihm, ein
-                    // Zeilenende bleibt ein einfacher Umbruch dahinter.
+                    // Round 18b: forced line break. Spaces after it belong to it, a
+                    // line end stays a simple break after it.
                     None | Some('\n') => {
                         out.push(Inline::Linebreak);
                         self.i = i + 1;
@@ -752,7 +754,7 @@ impl InlineParser<'_> {
                     out.push(if c == '_' { Inline::Emph { c: inner } } else { Inline::Strong { c: inner } });
                 }
                 '#' => {
-                    // R31: kanonische Registermarke (samt Label) vor dem allgemeinen Ausdruck.
+                    // R31: canonical index mark (including label) before the general expression.
                     if let Some((mark, used)) = baruch_typst::index::parse_mark(&s[i..]) {
                         out.push(Inline::IndexMark { mark });
                         self.i = i + used;
@@ -809,11 +811,11 @@ impl InlineParser<'_> {
                     while let Some(n) = char_at(s, j).filter(|&n| is_label_char(n)) {
                         j += n.len_utf8();
                     }
-                    // Satzzeichen am Ende gehören nicht zum Verweis („siehe @abb.“).
+                    // Punctuation at the end does not belong to the reference („siehe @abb.“).
                     while s[..j].ends_with(['.', ':']) {
                         j -= 1;
                     }
-                    // Runde 18b: ein Verweis (Schaltfläche im Satzbild), Zusatz in eckigen Klammern wörtlich.
+                    // Round 18b: a reference (button in the typeset view), addition in square brackets verbatim.
                     let target = s[i + 1..j].to_owned();
                     let supplement = if s[j..].starts_with('[') {
                         let end = closed_content(s, j).ok_or(Unmappable)?;
@@ -834,7 +836,7 @@ impl InlineParser<'_> {
                 '\n' => {
                     let rest = s[i + 1..].trim_start_matches([' ', '\t']);
                     if rest.is_empty() {
-                        // Leerraum am Ende eines Inhaltsblocks: im Satz ohne Wirkung.
+                        // Whitespace at the end of a content block: without effect in the typeset result.
                         self.i = s.len();
                         continue;
                     }
@@ -852,8 +854,8 @@ impl InlineParser<'_> {
         }
     }
 
-    /// `#footnote[…]`, `#emph[…]`, `#strong[…]`, `#quote[…]` mit genau einem Inhaltsblock; andere
-    /// Ausdrücke → `None` (Insel). Ein Schlüsselwort (`#set` mitten im Absatz) → nicht abbildbar.
+    /// `#footnote[…]`, `#emph[…]`, `#strong[…]`, `#quote[…]` with exactly one content block; other
+    /// expressions → `None` (island). A keyword (`#set` in the middle of the paragraph) → cannot be mapped.
     fn function(&self, expr: &str) -> Result<Option<Inline>, Unmappable> {
         let name_end = ident_end(expr, 1);
         let name = &expr[1..name_end];
@@ -884,8 +886,8 @@ impl InlineParser<'_> {
         }))
     }
 
-    /// Runde 18b: `#link("adresse")` bzw. `#link("adresse")[Text]` – genau ein String als Argument, höchstens
-    /// ein Inhaltsblock dahinter; sonst Insel (`None`).
+    /// Round 18b: `#link("adresse")` or `#link("adresse")[Text]` – exactly one string as argument, at most
+    /// one content block after it; otherwise island (`None`).
     fn link(&self, expr: &str, name_end: usize) -> Result<Option<Inline>, Unmappable> {
         if !expr[name_end..].starts_with('(') {
             return Ok(None);
@@ -913,9 +915,10 @@ impl InlineParser<'_> {
         Ok(Some(Inline::Link { url, c: Some(c) }))
     }
 
-    /// Runde 30a: Querverweis `#link(<kN>)[Text]` bzw. mit Seitenzahl-Zusatz
-    /// `#link(<kN>)[Text, S.~#context counter(page).at(<kN>).first()]` (Form aus `baruch_typst::xref::xref_snippet`,
-    /// derselbe Schlüssel im Zusatz). Ein anderes Label, kein Inhaltsblock oder ein leerer Linktext → Insel (`None`).
+    /// Round 30a: cross-reference `#link(<kN>)[Text]` or with page number addition
+    /// `#link(<kN>)[Text, S.~#context counter(page).at(<kN>).first()]` (form from
+    /// `baruch_typst::xref::xref_snippet`, the same key in the addition). Another label, no content block or an
+    /// empty link text → island (`None`).
     fn xref(&self, expr: &str, args_end: usize, label: &str) -> Result<Option<Inline>, Unmappable> {
         let Some(key) = baruch_typst::xref::parse_key_label(label) else { return Ok(None) };
         let rest = &expr[args_end..];
@@ -927,7 +930,7 @@ impl InlineParser<'_> {
         }
         let inner = &expr[args_end + 1..expr.len() - 1];
         let suffix = baruch_typst::xref::xref_snippet(key, "", true);
-        // Zusatz = was `xref_snippet` mit Seitenzahl hinter dem (leeren) Linktext schreibt, ohne die schließende `]`.
+        // Addition = what `xref_snippet` writes with page number after the (empty) link text, without the closing `]`.
         let suffix = &suffix[format!("#link(<{label}>)[").len()..suffix.len() - 1];
         let (inner, page) = match inner.strip_suffix(suffix) {
             Some(shorter) => (shorter, true),
@@ -941,8 +944,8 @@ impl InlineParser<'_> {
     }
 }
 
-/// Runde 18b: `#ref(<ziel>)` bzw. `#ref(<ziel>, supplement: […])` als Verweis (so schreibt `emit` einen Verweis,
-/// dem ein Zeichen folgt, das zum Ziel gehören würde); andere Formen → Insel (`None`).
+/// Round 18b: `#ref(<ziel>)` or `#ref(<ziel>, supplement: […])` as a reference (that is how `emit` writes a
+/// reference followed by a character that would belong to the target); other forms → island (`None`).
 fn reference(expr: &str, name_end: usize) -> Option<Inline> {
     if !expr[name_end..].starts_with('(') || closed_group(expr, name_end) != Some(expr.len()) {
         return None;

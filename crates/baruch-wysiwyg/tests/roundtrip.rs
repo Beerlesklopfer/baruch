@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Rundreise byte-gleich: Für jede Testdatei aller Crates (`crates/*/tests/data/*.typ`, nur gelesen)
-//! und die eigene `tests/data/satzbild.typ` gilt – für die ganze Datei und für jeden Abschnitt nach
-//! `baruch_typst::parse` –: Die Verkettung aller `raw` ist der Text, und `serialize` mit lauter `Keep`
-//! ergibt ihn wieder. Die Revisionen des Beispielwerks prüft `baruch-server/tests/wysiwyg.rs`.
+//! Round trip byte-identical: for every test file of all crates (`crates/*/tests/data/*.typ`, only read)
+//! and the own `tests/data/satzbild.typ` it holds – for the whole file and for every section according to
+//! `baruch_typst::parse` –: the concatenation of all `raw` is the text, and `serialize` with nothing but `Keep`
+//! yields it again. The revisions of the sample work are checked by `baruch-server/tests/wysiwyg.rs`.
 
 use std::path::PathBuf;
 
@@ -11,7 +11,7 @@ use baruch_wysiwyg::{BlockKind, Doc, Edit, Inline, parse, serialize};
 const SATZBILD: &str = include_str!("data/satzbild.typ");
 const SZENEN: &str = include_str!("data/szenen.typ");
 
-/// Alle Abschnittstexte und die ganze Datei.
+/// All section texts and the whole file.
 fn pieces(source: &str) -> Vec<String> {
     let mut out = vec![source.to_owned()];
     if let Ok(doc) = baruch_typst::parse(source) {
@@ -33,7 +33,7 @@ fn assert_byte_equal(text: &str, origin: &str) {
     assert_eq!(again, text, "{origin}: serialize mit lauter Keep ist byte-gleich");
 }
 
-/// Testdateien aller Crates: `crates/*/tests/data/*.typ`.
+/// Test files of all crates: `crates/*/tests/data/*.typ`.
 fn data_files() -> Vec<PathBuf> {
     let crates = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut files = Vec::new();
@@ -158,7 +158,7 @@ fn the_satzbild_file_contains_every_construct_and_island() {
     assert!(has(|i| matches!(i, Inline::Label { .. })), "Label erkannt");
     assert!(has(|i| matches!(i, Inline::Soft)), "Zeilenumbruch erkannt");
     assert!(has(|i| matches!(i, Inline::Island { raw } if raw.starts_with('$'))), "Formel als Insel im Satz");
-    // Runde 18b: Verweise, Links und erzwungene Umbrüche sind keine Inseln mehr.
+    // Round 18b: references, links and forced breaks are no longer islands.
     assert!(
         has(|i| matches!(i, Inline::Ref { target, supplement: None } if target == "brunnen")),
         "Verweis @brunnen als Verweis (Schaltfläche), nicht als Insel"
@@ -170,8 +170,8 @@ fn the_satzbild_file_contains_every_construct_and_island() {
     assert!(has(|i| matches!(i, Inline::Linebreak)), "erzwungener Zeilenumbruch \\ erkannt");
     assert!(has(|i| matches!(i, Inline::Text { v } if v.contains('\u{a0}'))), "~ als geschütztes Leerzeichen");
     assert!(has(|i| matches!(i, Inline::Text { v } if v.contains("C:\\Daten"))), "Maskierungen aufgelöst");
-    // Die Code-Zeilen am Anfang und am Ende, Raw-Block, offenes _ und (Runde 18b) Listen mit gemischten
-    // Zeichen bzw. eingerückte Begriffslisten und springende Nummern bleiben Inseln.
+    // The code lines at the beginning and at the end, raw block, open _ and (Round 18b) lists with mixed
+    // markers or indented term lists and jumping numbers stay islands.
     let islands: Vec<&str> =
         doc.blocks.iter().filter(|b| b.kind == BlockKind::Island).map(|b| b.raw.trim_end()).collect();
     for start in [
@@ -187,7 +187,7 @@ fn the_satzbild_file_contains_every_construct_and_island() {
     ] {
         assert!(islands.iter().any(|raw| raw.starts_with(start)), "Insel beginnt mit {start:?}: {islands:#?}");
     }
-    // Runde 18b: Aufzählung, Begriffsliste, geschachtelte Liste und der Umbruch mit \ sind Konstrukte.
+    // Round 18b: enumeration, term list, nested list and the break with \ are constructs.
     let block = |start: &str| {
         doc.blocks.iter().find(|b| b.raw.starts_with(start)).unwrap_or_else(|| panic!("Block {start:?} fehlt"))
     };

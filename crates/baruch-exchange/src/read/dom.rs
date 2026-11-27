@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sicheres Einlesen von XML in einen kleinen Baum (Vertrag R26 F2/F7).
+//! Safe reading of XML into a small tree (contract R26 F2/F7).
 //!
-//! - Keine DTD (`Event::DocType` → [`ExchangeError::Unsafe`]), keine Verarbeitungsanweisung außer der
-//!   XML-Deklaration, nur die fünf vordefinierten Entitäten (`lt`, `gt`, `amp`, `apos`, `quot`) und
-//!   Zeichenreferenzen; jede andere Entitätsreferenz → `Unsafe`. Ohne DTD gibt es keine inneren oder externen
-//!   Entitäten, darum greifen weder „Billion Laughs“ noch externe Dateien.
-//! - Grenzen aus [`Limits`]: Tiefe, Zahl der Elemente, Attribute je Element, Bytes je Text bzw. Attributwert.
-//!   Die Größe des ganzen XML prüft der Aufrufer vorher.
-//! - Text exakt: nie getrimmt; nur die Zeilenenden normalisiert, wie XML 1.0 es verlangt (`\r\n` und ein
-//!   einzelnes `\r` → `\n`; ein echtes `\r` kommt als `&#13;`). In Attributwerten werden Tab, Zeilenumbruch und
-//!   Wagenrücklauf wie in XML 1.0 zu Leerzeichen; als Zeichenreferenz bleiben sie erhalten.
-//! - In XML 1.0 verbotene Zeichen (Steuerzeichen außer Tab, LF, CR; U+FFFE, U+FFFF) → [`ExchangeError::Xml`],
-//!   auch als Zeichenreferenz.
+//! - No DTD (`Event::DocType` → [`ExchangeError::Unsafe`]), no processing instruction except the
+//!   XML declaration, only the five predefined entities (`lt`, `gt`, `amp`, `apos`, `quot`) and
+//!   character references; every other entity reference → `Unsafe`. Without a DTD there are no internal or
+//!   external entities, therefore neither "Billion Laughs" nor external files take effect.
+//! - Limits from [`Limits`]: depth, number of elements, attributes per element, bytes per text or attribute
+//!   value. The size of the whole XML is checked by the caller beforehand.
+//! - Text exact: never trimmed; only the line ends normalised, as XML 1.0 demands (`\r\n` and a
+//!   single `\r` → `\n`; a real `\r` comes as `&#13;`). In attribute values tab, line break and
+//!   carriage return become spaces as in XML 1.0; as a character reference they are kept.
+//! - Characters forbidden in XML 1.0 (control characters except tab, LF, CR; U+FFFE, U+FFFF) →
+//!   [`ExchangeError::Xml`], also as a character reference.
 
 use quick_xml::NsReader;
 use quick_xml::events::{BytesStart, Event};
@@ -19,18 +19,18 @@ use quick_xml::name::ResolveResult;
 
 use crate::{ExchangeError, Limits};
 
-/// Ein Element mit lokalem Namen, Namensraum, Attributen, Kindern und Text (verkettet, exakt).
+/// An element with local name, namespace, attributes, children and text (concatenated, exact).
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Element {
     pub name: String,
-    /// Aufgelöster Namensraum (`None` = keiner).
+    /// Resolved namespace (`None` = none).
     pub ns: Option<String>,
     pub attrs: Vec<Attr>,
     pub children: Vec<Element>,
     pub text: String,
 }
 
-/// Ein Attribut: lokaler Name, Namensraum (`None` = ohne Präfix, also eines des Formats), Wert.
+/// An attribute: local name, namespace (`None` = without prefix, i.e. one of the format), value.
 #[derive(Debug, Clone)]
 pub(crate) struct Attr {
     pub name: String,
@@ -38,7 +38,7 @@ pub(crate) struct Attr {
     pub value: String,
 }
 
-/// Darf das Zeichen in einem XML-1.0-Dokument stehen?
+/// May the character be in an XML 1.0 document?
 pub(crate) fn legal_xml_char(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..)
 }
@@ -57,12 +57,12 @@ fn check_legal(text: &str, where_: &str) -> Result<(), ExchangeError> {
     }
 }
 
-/// Zeilenenden wie XML 1.0: `\r\n` und `\r` → `\n`.
+/// Line ends as in XML 1.0: `\r\n` and `\r` → `\n`.
 fn normalize_eol(text: &str) -> String {
     text.replace("\r\n", "\n").replace('\r', "\n")
 }
 
-/// Ersatz für eine Entitätsreferenz (Name ohne `&` und `;`): vordefiniert oder Zeichenreferenz.
+/// Replacement for an entity reference (name without `&` and `;`): predefined or character reference.
 fn resolve_reference(name: &str) -> Result<char, ExchangeError> {
     match name {
         "lt" => Ok('<'),
@@ -96,7 +96,7 @@ fn resolve_reference(name: &str) -> Result<char, ExchangeError> {
     }
 }
 
-/// Attributwert wie XML 1.0: Zeilenenden normalisiert, Tab/LF/CR → Leerzeichen, dann Referenzen aufgelöst.
+/// Attribute value as in XML 1.0: line ends normalised, tab/LF/CR → space, then references resolved.
 fn attribute_value(text: &str, name: &str, limits: &Limits) -> Result<String, ExchangeError> {
     if text.len() > limits.max_text_bytes {
         return Err(ExchangeError::Limit(format!("Attribut „{name}“ ist länger als {} Bytes", limits.max_text_bytes)));
@@ -119,7 +119,7 @@ fn attribute_value(text: &str, name: &str, limits: &Limits) -> Result<String, Ex
     Ok(out)
 }
 
-/// Aufgelöster Namensraum eines Elements, ohne Ausleihe des Lesers.
+/// Resolved namespace of an element, without borrowing the reader.
 enum OwnedNs {
     Bound(String),
     Unbound,
@@ -136,7 +136,7 @@ impl OwnedNs {
     }
 }
 
-/// Startelement in ein [`Element`] (ohne Kinder) übersetzen; prüft Attribute und ihre Grenze.
+/// Translate a start element into an [`Element`] (without children); checks attributes and their limit.
 fn element_of<R>(
     reader: &NsReader<R>,
     start: &BytesStart<'_>,
@@ -163,7 +163,7 @@ fn element_of<R>(
             )));
         }
         let key = attr.key;
-        // Namensraum-Deklarationen zählen zur Grenze, sind aber keine Angaben des Formats.
+        // Namespace declarations count towards the limit, but are not details of the format.
         if key.as_namespace_binding().is_some() {
             continue;
         }
@@ -182,7 +182,7 @@ fn element_of<R>(
     Ok(Element { name, ns, attrs, children: Vec::new(), text: String::new() })
 }
 
-/// Text an das offene Element hängen (Grenze je Text) oder, außerhalb der Wurzel, nur Leerraum zulassen.
+/// Append text to the open element (limit per text) or, outside the root, allow only whitespace.
 fn push_text(stack: &mut [Element], text: &str, limits: &Limits) -> Result<(), ExchangeError> {
     match stack.last_mut() {
         Some(element) => {
@@ -200,7 +200,7 @@ fn push_text(stack: &mut [Element], text: &str, limits: &Limits) -> Result<(), E
     }
 }
 
-/// XML lesen und als Baum zurückgeben (Wurzelelement).
+/// Read XML and return it as a tree (root element).
 pub(crate) fn parse(xml: &[u8], limits: &Limits) -> Result<Element, ExchangeError> {
     let mut reader = NsReader::from_reader(xml);
     {
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn text_is_kept_exactly_and_references_resolve() {
         let root = parse(b"<a>  x &lt;&amp;&gt; &#13;&#x9;y  </a>", &Limits::DEFAULT).unwrap();
-        // Leerraum am Rand bleibt, Referenzen werden zu Zeichen, &#13; bleibt ein echtes CR.
+        // Whitespace at the edge stays, references become characters, &#13; stays a real CR.
         assert_eq!(root.text, "  x <&> \r\ty  ", "Text exakt");
         let root = parse(b"<a>eins\r\nzwei\rdrei</a>", &Limits::DEFAULT).unwrap();
         assert_eq!(root.text, "eins\nzwei\ndrei", "Zeilenenden wie XML 1.0");
@@ -348,7 +348,7 @@ mod tests {
         assert!(unsafe_(b"<a>&nbsp;</a>"), "unbekannte Entität ohne DTD");
         assert!(unsafe_(b"<?xml-stylesheet href=\"x\"?><a/>"), "Verarbeitungsanweisung");
         assert!(unsafe_(b"<a b=\"&x;\"/>"), "unbekannte Entität im Attribut");
-        // Die Deklaration ist erlaubt.
+        // The declaration is allowed.
         assert!(parse(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?><a/>", &Limits::DEFAULT).is_ok(), "Deklaration");
     }
 

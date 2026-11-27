@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Austauschformat zwischen Baruch-Instanzen (Runde 26, Vertrag Abschnitte 1–4; Doku `docs/Austauschformat.md`).
+//! Exchange format between Baruch instances (Round 26, contract sections 1–4; documentation
+//! `docs/Austauschformat.md`).
 //!
 //! - Container `.baruch` (ZIP): `mimetype` (STORED, `application/vnd.baruch.werk+zip`), `werk.xml`,
-//!   `bilder/<fassungs-uuid>.<ext>`, zuletzt `MANIFEST.xml` mit SHA-256 und Bytezahl je Eintrag.
-//! - „Nur XML“ `.baruch.xml`: dasselbe `werk.xml`, Bilder als Base64 in `<daten>`.
-//! - Namensraum [`NAMESPACE`] (`urn:baruch:werk:1`), Unterversion [`FORMAT_VERSION`]; XSD unter
-//!   `docs/schema/baruch-werk-1-u7.xsd` (Unterversion 7 mit eigenen Registern und Glossar, Runde 31;
-//!   `baruch-werk-1-u6.xsd` bleibt für 6 mit Satz-Einstellungen `<satz>`, `baruch-werk-1-u5.xsd` für 5 mit Lösungen, Varianten und Beitragsmetadaten, `baruch-werk-1-u4.xsd` für 4
-//!   mit Befunden und alten Beitragsfassungen, `baruch-werk-1-u3.xsd` für 3 mit Umschlag-Anordnung, Anschriften und
-//!   Satzbild, `baruch-werk-1-u2.xsd` für 2 mit `<karte>`, `baruch-werk-1.xsd` für 1).
+//!   `bilder/<fassungs-uuid>.<ext>`, last `MANIFEST.xml` with SHA-256 and byte count per entry.
+//! - "XML only" `.baruch.xml`: the same `werk.xml`, images as Base64 in `<daten>`.
+//! - Namespace [`NAMESPACE`] (`urn:baruch:werk:1`), sub-version [`FORMAT_VERSION`]; XSD under
+//!   `docs/schema/baruch-werk-1-u7.xsd` (sub-version 7 with own indexes and glossary, Round 31;
+//!   `baruch-werk-1-u6.xsd` stays for 6 with typesetting settings `<satz>`, `baruch-werk-1-u5.xsd` for 5 with
+//!   solutions, variants and post metadata, `baruch-werk-1-u4.xsd` for 4 with findings and old post versions,
+//!   `baruch-werk-1-u3.xsd` for 3 with cover layout, addresses and typeset view, `baruch-werk-1-u2.xsd` for 2 with
+//!   `<karte>`, `baruch-werk-1.xsd` for 1).
 //!
-//! Module: [`model`] (Typen, eingefroren nach S1), [`error`], [`limits`] (Grenzen beim Lesen), [`sample`]
-//! (erfundenes Beispielwerk für Tests), [`write`] (Schreiben, R26b), [`read`] (Lesen und Prüfen, R26c) und
-//! [`typeset`] (Wörter der Satz-Einstellungen, Runde 29).
-//! Die Crate kennt keine Datenbank; das Abbilden auf den Store machen `baruch_store::exchange_dump` und
+//! Modules: [`model`] (types, frozen after S1), [`error`], [`limits`] (limits when reading), [`sample`]
+//! (invented sample work for tests), [`write`] (writing, R26b), [`read`] (reading and checking, R26c) and
+//! [`typeset`] (words of the typesetting settings, Round 29).
+//! The crate knows no database; mapping onto the store is done by `baruch_store::exchange_dump` and
 //! `baruch_store::exchange_apply`.
 
 pub mod error;

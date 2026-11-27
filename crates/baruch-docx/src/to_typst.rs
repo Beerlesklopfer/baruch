@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! [`DocxDocument`] → Typst je Abschnitt (Aufgabe docx_import, Vertrag Runde 32 §2).
+//! [`DocxDocument`] → Typst per section (task docx_import, contract Round 32 §2).
 //!
-//! Die Formen sind die des Markdown-Imports (Runde 21b), damit der WYSIWYG-Editor sie wiedererkennt:
-//! - Wörtlich bleibt Text: `\ # * _ $ @ < [ ] ` ~` bekommen einen Backslash, ebenso `/` vor `/` oder `*` und `-` vor
-//!   `-` oder `?`; am Zeilenanfang auch `= + - /` und die Ziffernfolge vor einem Punkt.
-//! - Auszeichnung als Funktion: `#strong[…]`, `#emph[…]`, `#underline[…]`, `#strike[…]`, `#super[…]`, `#sub[…]`,
-//!   `#smallcaps[…]`, `#link("…")[…]`, `#footnote[…]`, `#quote[…]`; folgt ein Zeichen, das Typst an den Ausdruck
-//!   hängen würde, steht davor ein `;`.
-//! - Blöcke: `#quote(block: true, attribution: […])[…]`, Listen mit `-`/`+` (zwei Leerzeichen je Ebene),
-//!   `#table(columns: n, table.header(…), …)` (im Editor eine Typst-Insel), `#figure(image("…", alt: "…"),
-//!   caption: […])` bzw. `#image("…", alt: "…")`, `#pagebreak()`; Typst-Inseln wörtlich.
-//! - Gliederung: Teil und Überschrift 1–3 beginnen einen Abschnitt; Überschrift 4–6 bleibt fetter Text im Abschnitt
-//!   (Warnung `docx_ueberschrift_tief`). Text vor der ersten Überschrift wird ein eigener erster Abschnitt mit
-//!   **leerem Titel** (Warnung `docx_text_vor_ueberschrift`); der Aufrufer gibt ihm den Titel des Werks.
+//! The forms are those of the Markdown import (Round 21b), so that the WYSIWYG editor recognises them:
+//! - Text stays verbatim: `\ # * _ $ @ < [ ] ` ~` get a backslash, as do `/` before `/` or `*` and `-` before
+//!   `-` or `?`; at the beginning of a line also `= + - /` and the digit sequence before a full stop.
+//! - Markup as a function: `#strong[…]`, `#emph[…]`, `#underline[…]`, `#strike[…]`, `#super[…]`, `#sub[…]`,
+//!   `#smallcaps[…]`, `#link("…")[…]`, `#footnote[…]`, `#quote[…]`; if a character follows that Typst would
+//!   attach to the expression, a `;` is put before it.
+//! - Blocks: `#quote(block: true, attribution: […])[…]`, lists with `-`/`+` (two spaces per level),
+//!   `#table(columns: n, table.header(…), …)` (a Typst island in the editor), `#figure(image("…", alt: "…"),
+//!   caption: […])` or `#image("…", alt: "…")`, `#pagebreak()`; Typst islands verbatim.
+//! - Outline: part and heading 1–3 start a section; heading 4–6 stays bold text in the section (warning
+//!   `docx_ueberschrift_tief`). Text before the first heading becomes a first section of its own with an
+//!   **empty title** (warning `docx_text_vor_ueberschrift`); the caller gives it the title of the work.
 //!
-//! Weitere Warnungen: `docx_tabelle_vereinfacht` (ungleich lange Zeilen), `docx_ueberschrift_vereinfacht` (Fußnote
-//! oder Bild in einer Überschrift), `docx_bild_fehlt` (Bildverweis ohne Bild).
+//! Further warnings: `docx_tabelle_vereinfacht` (rows of unequal length), `docx_ueberschrift_vereinfacht`
+//! (footnote or image in a heading), `docx_bild_fehlt` (image reference without image).
 
 use crate::resolve::{has_preamble, is_outline, plain};
 use crate::{Block, DocxDocument, DocxWarning, Inline, Marks};
 
-/// Anker eines Kommentars im Abschnitt: der kommentierte Wortlaut.
+/// Anchor of a comment in the section: the commented wording.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommentAnchor {
     pub comment: u32,
     pub quote: String,
 }
 
-/// Ein Abschnitt des Werks: `level` 0 = Teil, 1–3 = Gliederung; `body` ohne die Überschriftszeile.
+/// A section of the work: `level` 0 = part, 1–3 = outline; `body` without the heading line.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypstSection {
     pub level: u8,
@@ -37,14 +37,14 @@ pub struct TypstSection {
     pub anchors: Vec<CommentAnchor>,
 }
 
-/// Ergebnis: Abschnitte in Lesereihenfolge und Warnungen.
+/// Result: sections in reading order and warnings.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypstOut {
     pub sections: Vec<TypstSection>,
     pub warnings: Vec<DocxWarning>,
 }
 
-/// Fließtext für Typst-Markup maskieren (ohne Zeilenanfänge).
+/// Escape running text for Typst markup (without line beginnings).
 fn escape(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len() + 8);
@@ -61,7 +61,7 @@ fn escape(text: &str) -> String {
     out
 }
 
-/// Zeichenkette als Typst-Literal.
+/// String as a Typst literal.
 fn literal(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
@@ -77,11 +77,11 @@ fn literal(text: &str) -> String {
     out
 }
 
-/// Eine Folge von Inline-Inhalt als Typst.
+/// A sequence of inline content as Typst.
 #[derive(Default)]
 struct Line {
     text: String,
-    /// Der letzte Beitrag war ein Ausdruck (`#f[…]`), an den Typst Folgendes hängen könnte.
+    /// The last contribution was an expression (`#f[…]`) to which Typst could attach what follows.
     after_expr: bool,
 }
 
@@ -142,7 +142,7 @@ fn marked(text: &str, marks: Marks) -> String {
 struct Writer<'a> {
     document: &'a DocxDocument,
     warnings: Vec<DocxWarning>,
-    /// Offene Kommentarbereiche: Kennung und bisher gesammelter Wortlaut.
+    /// Open comment ranges: identifier and wording collected so far.
     open: Vec<(u32, String)>,
     anchors: Vec<CommentAnchor>,
 }
@@ -215,7 +215,7 @@ impl Writer<'_> {
                     }
                 }
                 Inline::Footnote { content } => {
-                    // Der Wortlaut der Fußnote gehört nicht zur kommentierten Stelle.
+                    // The wording of the footnote does not belong to the commented place.
                     let open = std::mem::take(&mut self.open);
                     let inner = self.inlines(content);
                     self.open = open;
@@ -246,7 +246,7 @@ impl Writer<'_> {
                         line.after_expr = true;
                     }
                 }
-                // Nur ein aufgelöstes Dokument hat keine; sonst gilt der Inhalt (Endstand), nichts geht verloren.
+                // Only a resolved document has none; otherwise the content applies (final state), nothing is lost.
                 Inline::Tracked { content, .. } => self.inlines_into(content, line),
                 Inline::CommentStart { id } => self.open.push((*id, String::new())),
                 Inline::CommentEnd { id } => {
@@ -267,7 +267,7 @@ impl Writer<'_> {
         }
     }
 
-    /// Ein Block als Typst (ohne Leerzeile am Ende); `None`, wenn nichts zu schreiben ist.
+    /// A block as Typst (without an empty line at the end); `None` if there is nothing to write.
     fn block(&mut self, block: &Block) -> Option<String> {
         self.heard(" ");
         let text = match block {
@@ -302,9 +302,9 @@ impl Writer<'_> {
             }
             Block::List { ordered, start, items } => {
                 let mut lines = Vec::new();
-                // Beginnt die Aufzählung nicht bei 1, trägt jeder Punkt seine Nummer („3.“, „4.“ …; geschachtelt ab
-                // 1): Typst verstünde auch „3.“ gefolgt von „+“, der Satzbild-Editor (`baruch-wysiwyg`) läse das
-                // aber als zwei Listen – und der Word-Export schriebe sie dann getrennt.
+                // If the enumeration does not start at 1, every item carries its number ("3.", "4." …; nested from
+                // 1): Typst would also understand "3." followed by "+", but the typeset view editor (`baruch-wysiwyg`)
+                // would read that as two lists – and the Word export would then write them separately.
                 let mut counters: Vec<u64> = Vec::new();
                 for item in items {
                     let depth = usize::from(item.depth.min(8));
@@ -380,7 +380,7 @@ impl Writer<'_> {
     }
 }
 
-/// Schreibt ein aufgelöstes Dokument (ohne [`crate::Inline::Tracked`]) als Typst je Abschnitt.
+/// Writes a resolved document (without [`crate::Inline::Tracked`]) as Typst per section.
 pub fn to_typst(document: &DocxDocument) -> TypstOut {
     let mut writer = Writer { document, warnings: Vec::new(), open: Vec::new(), anchors: Vec::new() };
     let mut sections: Vec<TypstSection> = Vec::new();
@@ -416,10 +416,10 @@ pub fn to_typst(document: &DocxDocument) -> TypstOut {
                 );
             }
             sections.push(TypstSection { level, numbered, title: plain(content), ..TypstSection::default() });
-            // Nur für die Kommentar-Anker; der Titel selbst steht in `title`.
+            // Only for the comment anchors; the title itself is in `title`.
             let _ = writer.inlines(content);
         } else if sections.is_empty() {
-            // Seitenumbruch vor der ersten Überschrift.
+            // Page break before the first heading.
         } else if let Some(text) = writer.block(block) {
             parts.push(text);
         }

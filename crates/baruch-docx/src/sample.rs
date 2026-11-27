@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Frei erfundenes Beispieldokument für Tests von Leser, Schreiber und Rundreise (Schnittstelle R32-S1; nach S1
-//! ändert es nur der Integrator, damit beide Aufgaben gegen denselben Stand prüfen).
+//! Freely invented sample document for tests of reader, writer and round trip (interface R32-S1; after S1 only
+//! the integrator changes it, so that both tasks check against the same state).
 
 use crate::model::{Block, Change, ChangeKind, Comment, DocxDocument, DocxImage, DocxMeta, Inline, ListItem, Marks};
 
-/// Bearbeiterin der Einfügung, der Löschung und des Kommentars im Beispiel.
+/// Editor of the insertion, the deletion and the comment in the sample.
 pub const SAMPLE_EDITOR: &str = "Erika Beispiel";
-/// Zeitpunkt der Änderungen im Beispiel.
+/// Time of the changes in the sample.
 pub const SAMPLE_CHANGE_DATE: &str = "2026-11-20T09:30:00Z";
 
-/// Ein gültiges PNG mit einem einzigen Bildpunkt (70 Bytes).
+/// A valid PNG with a single pixel (70 bytes).
 pub const SAMPLE_PNG: &[u8] = &[
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49,
@@ -28,9 +28,9 @@ fn tracked(kind: ChangeKind, content: &str) -> Inline {
     }
 }
 
-/// Das Beispiel „Der Garten hinter der Mühle“: zwei Kapitel, eine Fußnote, ein Blockzitat mit Quelle, eine
-/// Abbildung (1×1-PNG), eine Liste mit zwei Ebenen, eine Löschung („schmal“) und eine Einfügung („breit“) von
-/// [`SAMPLE_EDITOR`] sowie ein Kommentar am Wortlaut „Der Zaun war grün gestrichen“.
+/// The sample „Der Garten hinter der Mühle“: two chapters, a footnote, a block quote with source, a figure
+/// (1×1 PNG), a list with two levels, a deletion („schmal“) and an insertion („breit“) by [`SAMPLE_EDITOR`] and
+/// a comment on the wording „Der Zaun war grün gestrichen“.
 pub fn sample_document() -> DocxDocument {
     let bold = Marks { bold: true, ..Marks::default() };
     let italic = Marks { italic: true, ..Marks::default() };

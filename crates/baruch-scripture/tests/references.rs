@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stellenangaben lesen und prüfen (Runde 10, Aufgabe „scripture“): Pflichtbeispiele, Bereiche, Listen,
-//! übertragenes Buch, Fehlerfälle mit genanntem Maximum, Fließtext mit Byte-Bereich, Wortlaut ungeprüft.
+//! Read and check references (Round 10, task "scripture"): mandatory examples, ranges, lists, carried-over
+//! book, error cases with the maximum named, running text with byte range, wording unchecked.
 
 use baruch_scripture::{Found, NoBible, RefStatus, VerseText, Wording, find_book, parse, scan};
 
@@ -47,7 +47,7 @@ fn john_and_first_john_are_different_books() {
     let letter = one("1. Joh 5,1");
     assert_eq!(gospel.passage.unwrap().book.id, "John", "Evangelium: {gospel:?}");
     assert_eq!(letter.passage.unwrap().book.id, "1John", "Brief: {letter:?}");
-    // 1. Joh hat 5 Kapitel, das Evangelium 21: Kapitel 6 gibt es nur im Evangelium.
+    // 1. Joh has 5 chapters, the Gospel 21: chapter 6 exists only in the Gospel.
     assert_eq!(one("1. Joh 6,1").status, RefStatus::NoSuchChapter { max: 5 }, "der Brief hat 5 Kapitel");
     assert_eq!(one("Joh 6,1").status, RefStatus::Valid, "das Evangelium hat Kapitel 6");
 }
@@ -69,7 +69,7 @@ fn several_references_with_semicolons_carry_the_book() {
 fn chapter_ranges_verse_lists_and_following_verses() {
     valid("Joh 3,16–4,2", "Joh 3,16–4,2", (3, 16), (4, 2));
     valid("Joh 3,16f", "Joh 3,16–17", (3, 16), (3, 17));
-    // „ff“ reicht bis zum Kapitelende: Joh 3 hat 36 Verse (Verszählung der Quelle).
+    // „ff“ reaches up to the end of the chapter: Joh 3 has 36 verses (versification of the source).
     valid("Joh 3,16ff", "Joh 3,16ff", (3, 16), (3, 36));
     let list = parse("Joh 3,16.18");
     let normalized: Vec<_> = list.iter().map(|f| f.normalized.clone().unwrap()).collect();
@@ -81,7 +81,7 @@ fn chapter_ranges_verse_lists_and_following_verses() {
 fn a_whole_chapter_has_verse_zero() {
     valid("Ps 23", "Ps 23", (23, 0), (23, 0));
     valid("Ps 23–24", "Ps 23–24", (23, 0), (24, 0));
-    // Bücher mit einem Kapitel: die Zahl ist der Vers.
+    // Books with one chapter: the number is the verse.
     valid("Jud 3", "Jud 1,3", (1, 3), (1, 3));
 }
 
@@ -151,8 +151,8 @@ fn scan_ignores_ordinary_words_and_ambiguous_abbreviations_without_verse() {
 fn no_bible_never_confirms_a_wording() {
     let passage = one("Joh 3,16").passage.unwrap();
     assert_eq!(NoBible.wording(&passage), Wording::Unchecked, "ohne lokale Bibel bleibt der Wortlaut ungeprüft");
-    // Seit 2026-11-06 liefert ein SWORD-Modul den Text (Crate baruch-sword); NoBible heißt „keine Bibel
-    // gewählt“ und ist kein STUB mehr.
+    // Since 2026-11-06 a SWORD module delivers the text (crate baruch-sword); NoBible means "no Bible
+    // chosen" and is no longer a STUB.
 }
 
 #[test]
@@ -166,9 +166,9 @@ fn found_serializes_for_interfaces() {
 
 #[test]
 fn german_numbering_differs_from_the_english_and_is_used() {
-    // Deutsche Bibeln (auch Schlachter 1951) zählen die Psalmüberschrift als Vers und gliedern Joel,
-    // Maleachi, Nehemia 3/4, 1. Kön 4/5, Daniel 3/4 und einige NT-Stellen anders als die englische
-    // (KJV-)Zählung. Jede Zeile ist eine Stelle, die es nur in der deutschen Zählung gibt.
+    // German Bibles (also Schlachter 1951) count the psalm title as a verse and divide Joel,
+    // Malachi, Nehemiah 3/4, 1 Kings 4/5, Daniel 3/4 and some NT passages differently from the English
+    // (KJV) versification. Every line is a reference that exists only in the German versification.
     for reference in [
         "Ps 51,21",
         "Ps 3,9",
@@ -186,7 +186,7 @@ fn german_numbering_differs_from_the_english_and_is_used() {
         let f = one(reference);
         assert_eq!(f.status, RefStatus::Valid, "„{reference}“ gibt es in der deutschen Zählung: {f:?}");
     }
-    // Umgekehrt: nur englisch vorhanden.
+    // The other way round: present only in English.
     assert_eq!(one("Mal 4,1").status, RefStatus::NoSuchChapter { max: 3 }, "Maleachi hat 3 Kapitel");
     assert_eq!(one("Mal 3,24").status, RefStatus::Valid, "Mal 3,24 ist der letzte Vers");
     assert_eq!(one("Dan 4,37").status, RefStatus::NoSuchVerse { chapter: 4, max: 34 }, "Dan 4 hat 34 Verse");
@@ -195,17 +195,17 @@ fn german_numbering_differs_from_the_english_and_is_used() {
 
 #[test]
 fn a_numbered_book_after_a_comma_starts_a_new_reference() {
-    // „Joh 3, 1. Joh 4“: Nach dem ganzen Kapitel Joh 3 beginnt mit „1. Joh“ ein neues Buch – „1“ ist kein Vers.
+    // „Joh 3, 1. Joh 4“: after the whole chapter Joh 3 a new book starts with „1. Joh“ – „1“ is not a verse.
     let found = scan("vgl. Joh 3, 1. Joh 4 und Ps 23, 2. Sam 7,14.");
     let normalized: Vec<_> = found.iter().map(|f| f.normalized.clone().unwrap()).collect();
     assert_eq!(normalized, ["Joh 3", "1. Joh 4", "Ps 23", "2. Sam 7,14"], "je Buch eine Stelle: {found:?}");
     assert_eq!(found[1].passage.unwrap().book.id, "1John", "der Brief, nicht das Evangelium");
-    // Ohne Leerraum nach dem Komma bleibt es ein Vers, ebenso eine Zahl ohne folgendes Buch.
+    // Without whitespace after the comma it stays a verse, as does a number without a following book.
     valid("Joh 3,1", "Joh 3,1", (3, 1), (3, 1));
     valid("Joh 3, 16", "Joh 3,16", (3, 16), (3, 16));
 }
 
-// ---- Runde 17b: Verslisten mit Komma, Zahlwörter, Uhrzeiten, „Vers …“ im selben Satz ---------------------
+// ---- Round 17b: verse lists with comma, count words, times of day, „Vers …“ in the same sentence ---------
 
 fn normalized(found: &[Found]) -> Vec<String> {
     found.iter().map(|f| f.normalized.clone().unwrap_or_default()).collect()
@@ -230,7 +230,7 @@ fn a_verse_list_with_commas_gives_one_reference_per_entry() {
     for f in &found {
         assert_eq!(&text[f.span.0..f.span.1], f.input, "Byte-Bereich trifft die Angabe: {f:?}");
     }
-    // Was nach dem Komma steht, ist kein Vers, wenn es ein neues Buch, eine Ordnungszahl oder ein Zahlwort ist.
+    // What comes after the comma is not a verse if it is a new book, an ordinal or a count word.
     let mixed = scan("vgl. Joh 3, 1. Joh 4 und Ps 139,23-24, 2. Sam 7,14 sowie Joh 3,16, 18 Mal.");
     assert_eq!(
         normalized(&mixed),
@@ -313,8 +313,8 @@ fn a_verse_named_later_in_the_same_sentence_completes_the_chapter() {
 
 #[test]
 fn the_fourth_and_fifth_book_of_moses_are_found_in_running_text() {
-    // Integrator Runde 17: Der Fließtext-Scanner begann eine Stelle nur bei einer Ziffer 1–3; „4. Mose“ und
-    // „5. Mose“ blieben so unentdeckt (aufgefallen am Ende-zu-Ende-Test der Abbildung mit 4. Mo 25,19).
+    // Integrator Round 17: the running-text scanner started a reference only at a digit 1–3; „4. Mose“ and
+    // „5. Mose“ thus stayed undetected (noticed in the end-to-end test of the mapping with 4. Mo 25,19).
     let found = scan("Vgl. 4. Mo 25,19 und 5. Mose 6,4 sowie 4Mo 1,1.");
     assert_eq!(
         normalized(&found),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Rundreise im Crate (Runde 32, Integrator): Was der Schreiber aus dem gemeinsamen Beispiel schreibt, liest der
-//! Leser wieder als dasselbe Modell. Beide Seiten sind getrennt entstanden und kennen nur `model.rs` und `ooxml.rs`;
-//! dieser Test ist ihre Nahtstelle.
+//! Round trip in the crate (Round 32, integrator): what the writer writes from the shared sample, the reader
+//! reads again as the same model. Both sides were built separately and know only `model.rs` and `ooxml.rs`; this
+//! test is their seam.
 
 use baruch_docx::read::read;
 use baruch_docx::sample::sample_document;
@@ -113,8 +113,8 @@ fn islands_ordered_lists_tables_and_marks_come_back() {
     };
     let back = there_and_back(&document);
     assert_eq!(back.warnings, Vec::new(), "die eigene Datei braucht beim Lesen keinen Hinweis");
-    // Vom Sichtbaren einer Insel behält der Leser nichts (es steckt im Quelltext); eine Abbildung mit Quelltext ist
-    // für ihn eine Insel.
+    // The reader keeps nothing of the visible part of an island (it is in the source text); a figure with source
+    // text is an island for it.
     let expected: Vec<Block> = document
         .blocks
         .iter()

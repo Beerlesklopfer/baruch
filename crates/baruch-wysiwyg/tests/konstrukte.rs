@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 18b („konstrukte“): mehr Konstrukte statt Inseln – Aufzählungen `1.`, Begriffslisten `/ T: E`,
-//! geschachtelte Listen, erzwungener Umbruch `\`, `#link`, Verweise `@…` –, Inseln an Ort und Stelle
-//! (`Edit::Raw`) und mehrere Bilder in einer Insel. Unberührt bleibt jeder Block byte-gleich, bearbeitet wird er
-//! kanonisch; alte JSON-Formen deserialisieren weiter. Alle Texte frei erfunden.
+//! Round 18b ("konstrukte"): more constructs instead of islands – enumerations `1.`, term lists `/ T: E`,
+//! nested lists, forced break `\`, `#link`, references `@…` –, islands in place
+//! (`Edit::Raw`) and several images in one island. Untouched, every block stays byte-identical, edited it
+//! becomes canonical; old JSON forms still deserialise. All texts freely invented.
 
 use baruch_wysiwyg::{
     BlockKind, Doc, Edit, ImageRef, Inline, Term, WysiwygError, emit, image_path, image_paths, parse, render_html,
@@ -18,7 +18,7 @@ fn keep_all(doc: &Doc) -> Vec<Edit> {
     (0..doc.blocks.len()).map(|keep| Edit::Keep { keep }).collect()
 }
 
-/// Ein Text mit allen neuen Konstrukten, frei erfunden.
+/// A text with all new constructs, freely invented.
 const MARKT: &str = "= Markttag\n\n\
 1. Wasser holen\n2. Feuer machen\n   und Brot backen\n\n\
 / Krug: Gefäß aus Ton\n/ Elle: altes Maß, etwa 60 cm\n\n\
@@ -80,7 +80,8 @@ fn the_new_constructs_are_recognised_as_blocks_and_inlines() {
 fn untouched_blocks_stay_byte_equal_and_edited_ones_are_canonical() {
     let doc = parse(MARKT);
     assert_eq!(serialize(&doc, &keep_all(&doc)).unwrap(), MARKT, "lauter keep: byte-gleich");
-    // Die Aufzählung bearbeiten (dritter Punkt dazu, Einzug der Folgezeile kanonisch); der Rest bleibt wörtlich.
+    // Edit the enumeration (third item added, indentation of the continuation line canonical); the rest stays
+    // verbatim.
     let BlockKind::Enum { start, mut items, depths } = doc.blocks[1].kind.clone() else { panic!("Aufzählung") };
     items.push(vec![text("Tisch decken")]);
     let mut edits = keep_all(&doc);
@@ -148,7 +149,7 @@ fn unsafe_lists_stay_islands() {
 
 #[test]
 fn old_json_forms_still_deserialize() {
-    // Vor Runde 18b hatte eine Liste kein `depths`; das Widget älterer Seiten schickt diese Form weiter.
+    // Before Round 18b a list had no `depths`; the widget of older pages still sends this form.
     let old: BlockKind = serde_json::from_value(json!({
         "kind": "list", "ordered": false, "items": [[{"t": "text", "v": "eins"}]]
     }))
@@ -235,7 +236,7 @@ fn an_island_in_a_scene_is_edited_in_place_and_keeps_the_indent() {
     let doc = parse(source);
     let BlockKind::Scene { body, .. } = &doc.blocks[0].kind else { panic!("Szene") };
     assert_eq!(body[1].kind, BlockKind::Island, "Code im Rumpf ist eine Insel");
-    // Das Widget schickt den Quelltext so, wie er in data-raw stand (mit dem Einzug der Folgezeilen).
+    // The widget sends the source text as it stood in data-raw (with the indentation of the continuation lines).
     let edits = vec![Edit::Body {
         replaces: 0,
         body: vec![
@@ -251,7 +252,7 @@ fn an_island_in_a_scene_is_edited_in_place_and_keeps_the_indent() {
     );
 }
 
-/// Szene mit einer Rohblock-Insel (```` ``` ````) im eingerückten Rumpf (Befund nach Runde 18).
+/// Scene with a raw block island (```` ``` ````) in the indented body (finding after Round 18).
 const SCENE_WITH_RAW_BLOCK: &str =
     "#szene[\n  Absatz eins.\n\n  ```rust\n  fn main() {\n      x();\n  }\n  ```\n\n  Absatz zwei.\n]\n";
 
@@ -268,14 +269,14 @@ fn edit_island_in_scene(raw: &str) -> String {
 
 #[test]
 fn an_unchanged_raw_block_island_in_a_scene_stays_byte_equal() {
-    // So wie das Widget data-raw schickt: erste Zeile ohne, Folgezeilen mit dem Einzug des Rumpfs.
+    // As the widget sends data-raw: first line without, continuation lines with the indentation of the body.
     let raw = "```rust\n  fn main() {\n      x();\n  }\n  ```";
     assert_eq!(
         edit_island_in_scene(raw),
         SCENE_WITH_RAW_BLOCK,
         "unverändert zurückgeschickt bleibt die Szene byte-gleich: der Einzug des Rumpfs wird auch mit ``` gesetzt"
     );
-    // Auch mit Einzug in der ersten Zeile (beides ist erlaubt).
+    // Also with indentation in the first line (both are allowed).
     assert_eq!(
         edit_island_in_scene(&format!("  {raw}")),
         SCENE_WITH_RAW_BLOCK,
@@ -285,7 +286,7 @@ fn an_unchanged_raw_block_island_in_a_scene_stays_byte_equal() {
 
 #[test]
 fn a_raw_block_island_sent_without_indent_keeps_its_content() {
-    // Per RPC ohne den Einzug des Rumpfs geschickt: Die Codezeile hat 4 Leerzeichen eigenen Einzug.
+    // Sent through RPC without the indentation of the body: the code line has 4 spaces of indentation of its own.
     let raw = "```rust\nfn main() {\n    x();\n}\n```";
     assert_eq!(
         edit_island_in_scene(raw),
@@ -311,7 +312,7 @@ fn a_changed_raw_block_island_in_a_scene_gets_the_body_indent() {
     );
 }
 
-/// Bilder für den Test: jeder Pfad unter /bilder/ hat ein Bild.
+/// Images for the test: every path under /bilder/ has an image.
 fn images(path: &str) -> Option<ImageRef> {
     path.starts_with("/bilder/").then(|| ImageRef {
         src: format!("/b?p={path}"),

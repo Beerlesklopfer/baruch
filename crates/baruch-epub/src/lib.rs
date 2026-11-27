@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB 3 mit EPUB-2-Rückfall aus den aktuellen Fassungen eines Werks (Runde 20 „EPUB-Vorschau“).
+//! EPUB 3 with EPUB 2 fallback from the current revisions of a work (Round 20 "EPUB preview").
 //!
-//! Rein: keine Datenbank, kein Netz, kein Typst-Satz. Der Server sammelt die Eingabe ([`EpubInput`]) aus
-//! `Store::export_map` (dieselben Fassungen und dieselbe Werkvorlage wie Export und Satz), [`build`] legt die
-//! Dateien an ([`EpubBook`]), [`package`] packt sie als ZIP. Die Typen dieser Datei sind seit der Schnittstelle
-//! R20-S1 eingefroren (Änderung nur über PM/Integrator).
+//! Pure: no database, no network, no Typst typesetting. The server collects the input ([`EpubInput`]) from
+//! `Store::export_map` (the same revisions and the same work template as export and typesetting), [`build`]
+//! creates the files ([`EpubBook`]), [`package`] packs them as a ZIP. The types of this file have been frozen
+//! since the interface R20-S1 (change only through PM/integrator).
 //!
-//! Namensregeln (eingefroren, Vertrag §1.4), hrefs relativ zu [`CONTENT_DIR`]: `nav.xhtml` (id `nav`), `toc.ncx`
+//! Naming rules (frozen, contract §1.4), hrefs relative to [`CONTENT_DIR`]: `nav.xhtml` (id `nav`), `toc.ncx`
 //! (id `ncx`), `style/book.css` (id `css`), `text/cover.xhtml` (id `cover`), `images/cover.<ext>` (id
 //! `cover-image`), `text/title.xhtml`, `text/imprint.xhtml`, `text/dedication.xhtml`, `text/front.xhtml` (id
 //! `front`), `text/k{key}.xhtml` (id `k{key}`), `text/notes.xhtml` (id `notes`), `images/<Pfad>` (id `img-{n}`).
-//! Seit R31-S1 (eingefroren): `text/glossary.xhtml` (id `glossary`), `text/index-{slug}.xhtml` (id `index-{slug}`).
+//! Since R31-S1 (frozen): `text/glossary.xhtml` (id `glossary`), `text/index-{slug}.xhtml` (id `index-{slug}`).
 
 pub mod build; // epub
 pub mod check; // epub-pruefung
 pub mod package; // epub
 pub mod readers; // reader
-pub mod sample; // epub (frei erfundenes Testwerk)
-pub mod template; // epub (pagebreak-Regeln und Sprache der Werkvorlage)
+pub mod sample; // epub (freely invented test work)
+pub mod template; // epub (pagebreak rules and language of the work template)
 pub mod xhtml; // epub
 
 use baruch_typst::typeset::TypesetSettings;
@@ -33,46 +33,46 @@ pub const CONTAINER_PATH: &str = "META-INF/container.xml";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpubMeta {
-    /// `urn:uuid:<work.uuid>` (eindeutige Kennung des Pakets).
+    /// `urn:uuid:<work.uuid>` (unique identifier of the package).
     pub identifier: String,
     pub title: String,
     pub subtitle: String,
     pub author: String,
-    /// BCP 47, nie leer (Satz-Einstellung → `#set text(lang:)` der Vorlage → "de").
+    /// BCP 47, never empty (typesetting setting → `#set text(lang:)` of the template → "de").
     pub language: String,
-    /// 13 Ziffern, geprüft mit baruch_typst::cover::isbn13_check; sonst None.
+    /// 13 digits, checked with baruch_typst::cover::isbn13_check; otherwise None.
     pub isbn: Option<String>,
     pub publisher: String,
     pub year: String,
-    /// copyright_line der Buchangaben.
+    /// copyright_line of the book details.
     pub rights: String,
-    /// Bildnachweis (Buchangaben, sonst Bildunterschrift des Umschlags).
+    /// Image credit (book details, otherwise caption of the cover).
     pub image_credit: String,
-    /// Klappentext.
+    /// Blurb.
     pub description: String,
-    /// dcterms:modified, "JJJJ-MM-TTThh:mm:ssZ", vom Server aus dem Stand.
+    /// dcterms:modified, "YYYY-MM-DDThh:mm:ssZ", from the server out of the state.
     pub modified: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpubImage {
-    /// Pfad wie in `image("…")` der Typst-Quelle.
+    /// Path as in `image("…")` of the Typst source.
     pub path: String,
     pub media_type: String,
     pub bytes: Vec<u8>,
-    /// Alternativtext (leer = keiner).
+    /// Alternative text (empty = none).
     pub alt: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpubSection {
     pub key: i64,
-    /// 0 = Teil, 1–3 wie baruch_typst::Heading.level.
+    /// 0 = part, 1–3 as baruch_typst::Heading.level.
     pub level: u8,
-    /// Angezeigte Nummer aus dem Gliederungsschema ("2.1"), None = ohne Nummer.
+    /// Displayed number from the outline scheme ("2.1"), None = without number.
     pub number: Option<String>,
     pub title: String,
-    /// Abschnittstext wie im Export (mit Überschriftszeile und Sprungmarke <kN>).
+    /// Section text as in the export (with heading line and anchor <kN>).
     pub body: String,
 }
 
@@ -87,20 +87,20 @@ pub enum FootnoteMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EpubInput {
     pub meta: EpubMeta,
-    /// Werkvorlage (Export vor dem ersten Abschnitt).
+    /// Work template (export before the first section).
     pub template: String,
     pub sections: Vec<EpubSection>,
     pub typeset: TypesetSettings,
     pub images: Vec<EpubImage>,
     pub cover: Option<EpubImage>,
-    /// Titelei an (Titelseite, Impressum, Widmung als eigene Dateien).
+    /// Front matter on (title page, imprint, dedication as files of their own).
     pub front_matter: bool,
-    /// baruch_typst::cover::imprint_lines – reiner Text.
+    /// baruch_typst::cover::imprint_lines – plain text.
     pub imprint: Vec<String>,
     pub dedication: String,
     pub footnotes: FootnoteMode,
-    /// R31: Register und Glossar (Satz-Einstellungen, Register, angenommene Glossarbegriffe) aus
-    /// `Store::back_matter`; inaktiv ([`baruch_typst::index::BackMatter::is_active`]) → keine Dateien dazu.
+    /// R31: index and glossary (typesetting settings, indexes, accepted glossary terms) from
+    /// `Store::back_matter`; inactive ([`baruch_typst::index::BackMatter::is_active`]) → no files for them.
     #[serde(default)]
     pub back_matter: baruch_typst::index::BackMatter,
 }
@@ -126,16 +126,16 @@ pub enum ItemKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpubItem {
-    /// Manifest-id (siehe Namensregeln §1.4).
+    /// Manifest id (see naming rules §1.4).
     pub id: String,
-    /// Relativ zu OEBPS/.
+    /// Relative to OEBPS/.
     pub href: String,
     pub media_type: String,
     pub kind: ItemKind,
     pub properties: Option<String>,
-    /// Titel für Vorschau/Inhaltsverzeichnis (Dateien mit Text).
+    /// Title for preview/table of contents (files with text).
     pub title: Option<String>,
-    /// Schlüssel des Abschnitts, mit dem die Datei beginnt.
+    /// Key of the section the file starts with.
     pub key: Option<i64>,
     #[serde(skip)]
     pub bytes: Vec<u8>,
@@ -159,18 +159,18 @@ pub struct EpubWarning {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpubBook {
     pub meta: EpubMeta,
-    /// Manifest in Manifest-Reihenfolge.
+    /// Manifest in manifest order.
     pub items: Vec<EpubItem>,
-    /// Manifest-ids in Lesereihenfolge.
+    /// Manifest ids in reading order.
     pub spine: Vec<String>,
     pub toc: Vec<TocEntry>,
-    /// Inhalt von OEBPS/content.opf.
+    /// Content of OEBPS/content.opf.
     pub opf: String,
     pub warnings: Vec<EpubWarning>,
 }
 
 impl EpubBook {
-    /// Eintrag zu `href` (relativ zu OEBPS/).
+    /// Entry for `href` (relative to OEBPS/).
     pub fn item(&self, href: &str) -> Option<&EpubItem> {
         self.items.iter().find(|i| i.href == href)
     }

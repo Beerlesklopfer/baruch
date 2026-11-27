@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a, Vertrag §4 (Zitat-Werkzeug): Messung mit dem eingebetteten Typst, ob eine **leere** Stellenangabe
-//! `#quote(block: true, attribution: [])[…]` eine Strichzeile setzt. Davon hängt ab, was der Knopf „Zitat“ einfügt:
-//! Setzt Typst die Zeile, darf der Knopf keine leere `attribution` vorgeben (sie stünde im Buch, wenn der Autor keine
-//! Angabe macht), sondern lässt Platz in einer eigenen Folgezeile. Alle Texte sind frei erfunden.
+//! Round 23a, contract §4 (quote tool): measurement with the embedded Typst whether an **empty** attribution
+//! `#quote(block: true, attribution: [])[…]` sets a dash line. On that depends what the button „Zitat“ inserts:
+//! if Typst sets the line, the button must not preset an empty `attribution` (it would be in the book if the
+//! author gives no details), but leaves room in a following line of its own. All texts are freely invented.
 
 use baruch_render::{PlacedText, Source, page_texts};
 
@@ -12,7 +12,7 @@ fn texts(body: &str) -> Vec<PlacedText> {
     pages.into_iter().flatten().collect()
 }
 
-/// Tiefste Grundlinie (y in pt) aller gesetzten Textstücke.
+/// Lowest baseline (y in pt) of all typeset text pieces.
 fn lowest(texts: &[PlacedText]) -> f64 {
     texts.iter().map(|t| t.y_pt).fold(0.0, f64::max)
 }
@@ -41,7 +41,7 @@ fn an_empty_attribution_still_sets_a_dash_line_so_the_ribbon_must_not_insert_one
 
 #[test]
 fn a_line_directly_after_a_block_quote_is_set_as_its_own_paragraph_below_it() {
-    // Das liest `baruch_wysiwyg::parse` seit Runde 23a genauso: Die Zeile hinter `]` ist ein eigener Absatz.
+    // `baruch_wysiwyg::parse` reads it the same way since Round 23a: the line after `]` is a paragraph of its own.
     let glued = texts("#quote(block: true)[Der Kran hebt nur, was man ihm anhängt.]\n– Hafenordnung 9");
     let quote = glued.iter().find(|t| t.text.contains("Kran")).expect("Zitat gesetzt");
     let reference = glued.iter().find(|t| t.text.contains("Hafenordnung")).expect("Angabe gesetzt");

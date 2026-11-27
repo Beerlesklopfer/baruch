@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sicherheit des Lesers (Runde 32, docx_import): Grenzen vor und beim Entpacken, Pfade, Beziehungsziele, DTD und
-//! Entitäten, fremde Formate. Kein Test braucht Netz oder Dateien außerhalb des Speichers.
+//! Security of the reader (Round 32, docx_import): limits before and during unpacking, paths, relationship
+//! targets, DTD and entities, foreign formats. No test needs the network or files outside memory.
 
 #[path = "data/import/mod.rs"]
 mod data;
@@ -31,7 +31,7 @@ fn limits_are_checked_before_and_while_unpacking() {
     let few = Limits { max_entries: 3, ..Limits::DEFAULT };
     assert!(limit(read(&bytes, &few)).contains("Einträge"), "zu viele Einträge: abgelehnt, bevor einer entpackt ist");
 
-    // Ein Teil, der sich von 200 000 Nullen auf wenige hundert Bytes packt (Dekompressionsbombe im Kleinen).
+    // A part that packs from 200 000 zeros down to a few hundred bytes (a decompression bomb in miniature).
     let mut bomb = small();
     bomb.push(("word/media/nullen.bin", vec![0u8; 200_000]));
     let bomb = data::zip(&bomb);
@@ -79,7 +79,7 @@ fn limits_are_checked_before_and_while_unpacking() {
     assert!(limit(read(&data::zip(&many), &two)).contains("Bilder"), "die Zahl der Bilder ist begrenzt");
 }
 
-/// Die entpackte Größe im Kopf (lokal und im Zentralverzeichnis) auf `claimed` fälschen.
+/// Forge the unpacked size in the header (local and in the central directory) to `claimed`.
 fn forge_size(archive: &mut [u8], name: &str, claimed: u32) {
     let name = name.as_bytes();
     let mut patched = 0;

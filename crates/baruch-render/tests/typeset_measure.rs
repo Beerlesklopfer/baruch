@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 29b: Jede Satz-Einstellung im gesetzten Buch gemessen (Vertrag §5.2/§8.2). Die Quelle ist so gebaut wie im
-//! Server: Werkvorlage, dann der Regelblock [`rules`] (Haken in `snapshot::head`), dann – bei Teilen – die Regel der
-//! Teil-Seiten [`part_page_rule_for`] (wie `typeset::prepare`), dann der Text. Gemessen wird mit
-//! [`baruch_render::page_texts`] (Grundlinie links in pt ab oben links) und den Seitenmaßen der SVG-Seiten. Alle Texte
-//! frei erfunden.
+//! Round 29b: every typesetting setting measured in the typeset book (contract §5.2/§8.2). The source is built
+//! as in the server: work template, then the rule block [`rules`] (hook in `snapshot::head`), then – with parts
+//! – the rule of the part pages [`part_page_rule_for`] (like `typeset::prepare`), then the text. Measured with
+//! [`baruch_render::page_texts`] (baseline left in pt from the top left) and the page dimensions of the SVG
+//! pages. All texts freely invented.
 
 use baruch_render::{PlacedText, Rendered, Severity, Source, compile, page_sizes_pt, page_texts};
 use baruch_typst::typeset::*;
@@ -15,7 +15,7 @@ fn mm(x: f64) -> f64 {
     x * PT_PER_MM
 }
 
-/// Frei erfundene Sätze.
+/// Freely invented sentences.
 const SENTENCES: [&str; 8] = [
     "Der Gärtner zählte am Morgen die Beete und schrieb jede neue Knospe in sein kleines Heft.",
     "Über dem Zaun hingen Bohnenranken, die der Wind in der Nacht zu einem grünen Knoten gedreht hatte.",
@@ -27,12 +27,12 @@ const SENTENCES: [&str; 8] = [
     "Dann trug er die Gießkanne zurück, schloss das Tor und ging langsam den Kiesweg hinunter.",
 ];
 
-/// Ein Absatz aus `n` Sätzen ab Satz `seed`.
+/// A paragraph of `n` sentences from sentence `seed`.
 fn paragraph(seed: usize, n: usize) -> String {
     (0..n).map(|i| SENTENCES[(seed + i) % SENTENCES.len()]).collect::<Vec<_>>().join(" ")
 }
 
-/// Ein Kapitel mit `paragraphs` Absätzen zu je sechs Sätzen.
+/// A chapter with `paragraphs` paragraphs of six sentences each.
 fn chapter(title: &str, paragraphs: usize) -> String {
     let mut out = format!("= {title}\n\n");
     for p in 0..paragraphs {
@@ -42,7 +42,7 @@ fn chapter(title: &str, paragraphs: usize) -> String {
     out
 }
 
-/// Quelle wie im Server: Vorlage, Regelblock, Teil-Regel (nur mit Teilen), Text.
+/// Source as in the server: template, rule block, part rule (only with parts), text.
 fn book(template: &str, s: &TypesetSettings, body: &str) -> String {
     let parts = body.matches("<baruch-part>").count();
     let part_rule = if parts > 0 { part_page_rule_for(&vec![String::new(); parts], s) } else { String::new() };
@@ -53,7 +53,7 @@ fn source(main: &str) -> Source {
     Source { main: main.to_owned(), files: Vec::new() }
 }
 
-/// Gesetzt ohne Fehler: Satz (Seiten, Überschriften) und Textstücke je Seite.
+/// Typeset without errors: typesetting result (pages, headings) and text pieces per page.
 fn set(main: &str) -> (Rendered, Vec<Vec<PlacedText>>) {
     let rendered = compile(&source(main));
     let errors: Vec<&str> =
@@ -64,13 +64,13 @@ fn set(main: &str) -> (Rendered, Vec<Vec<PlacedText>>) {
     (rendered, texts)
 }
 
-/// Seite (1-basiert) der Überschrift, deren Zeile mit `prefix` beginnt.
+/// Page (1-based) of the heading whose line starts with `prefix`.
 fn heading_page(rendered: &Rendered, main: &str, prefix: &str) -> usize {
     let line = main.lines().position(|l| l.starts_with(prefix)).unwrap_or_else(|| panic!("{prefix:?} fehlt")) + 1;
     rendered.headings.iter().find(|h| h.line == line).unwrap_or_else(|| panic!("Überschrift {prefix:?} ungesetzt")).page
 }
 
-/// Zeilen einer Seite: Textstücke mit gleicher Grundlinie (auf 0,1 pt), von oben nach unten.
+/// Lines of a page: text pieces with the same baseline (to 0.1 pt), from top to bottom.
 fn lines(page: &[PlacedText]) -> Vec<Vec<&PlacedText>> {
     let mut ys: Vec<i64> = page.iter().map(|t| (t.y_pt * 10.0).round() as i64).collect();
     ys.sort_unstable();
@@ -88,13 +88,13 @@ fn line_text(line: &[&PlacedText]) -> String {
     line.iter().map(|t| t.text.as_str()).collect::<Vec<_>>().join("")
 }
 
-/// Textstücke im Satzspiegel (zwischen `top` und `bottom` pt).
+/// Text pieces in the type area (between `top` and `bottom` pt).
 fn body(page: &[PlacedText], top: f64, bottom: f64) -> Vec<&PlacedText> {
     page.iter().filter(|t| t.y_pt > top && t.y_pt < bottom).collect()
 }
 
-/// Leerseite: kein Textstück im Satzspiegel. Nicht `page.is_empty()` – eine Leerseite, die fälschlich Seitenzahl oder
-/// Kolumnentitel trägt, ist nie ganz leer und liefe sonst als Textseite durch (Befund R29).
+/// Empty page: no text piece in the type area. Not `page.is_empty()` – an empty page that wrongly carries a
+/// page number or running head is never entirely empty and would otherwise pass as a text page (finding R29).
 fn blank(page: &[PlacedText], top: f64, bottom: f64) -> bool {
     body(page, top, bottom).is_empty()
 }
@@ -103,7 +103,7 @@ fn a5() -> (f64, f64) {
     (mm(148.0), mm(210.0))
 }
 
-/// A5 mit Rändern 20/15/18/22 und 5 mm Bundsteg (Vertragsbeispiel).
+/// A5 with margins 20/15/18/22 and 5 mm gutter (contract example).
 fn a5_margins() -> TypesetSettings {
     TypesetSettings {
         page_format: Some(PageFormat::A5),
@@ -112,14 +112,14 @@ fn a5_margins() -> TypesetSettings {
     }
 }
 
-// ---- Seite ---------------------------------------------------------------------------------------
+// ---- Page ----------------------------------------------------------------------------------------
 
 #[test]
 fn every_page_format_has_its_size_within_half_a_point() {
     let formats = PageFormat::ALL.iter().copied().chain([PageFormat::Custom { width_mm: 100.0, height_mm: 160.0 }]);
     for format in formats {
         let s = TypesetSettings { page_format: Some(format), ..Default::default() };
-        // Die Werkvorlage setzt A4; die Einstellung steht dahinter und gilt (Konflikt „overrides“).
+        // The work template sets A4; the setting comes after it and applies (conflict "overrides").
         let main = book("#set page(paper: \"a4\")", &s, &chapter("Format", 1));
         let (rendered, _) = set(&main);
         let (w, h) = format.size_mm();
@@ -147,14 +147,14 @@ fn margins_add_the_binding_inside_and_mirror_on_even_pages() {
         let n = i + 1;
         let text = body(page, top, bottom);
         let left = text.iter().map(|t| t.x_pt).fold(f64::MAX, f64::min);
-        // Rechte Kante nur aus Zeilen, die auf einen Buchstaben enden (Satzzeichen hängen in den Rand).
+        // Right edge only from lines that end with a letter (punctuation marks hang into the margin).
         let right = lines(page)
             .iter()
             .filter(|l| l[0].y_pt > top && l[0].y_pt < bottom)
             .filter(|l| line_text(l).trim_end().chars().last().is_some_and(char::is_alphabetic))
             .map(|l| l.iter().map(|t| t.x_pt + t.width_pt).fold(f64::MIN, f64::max))
             .fold(f64::MIN, f64::max);
-        // Ungerade Seite = rechte Seite: innen (Bund) links. Innenrand = 20 mm + 5 mm Bundsteg.
+        // Odd page = right page: inside (binding) on the left. Inner margin = 20 mm + 5 mm gutter.
         let (want_left, want_right) = if n % 2 == 1 { (mm(25.0), w - mm(15.0)) } else { (mm(15.0), w - mm(25.0)) };
         assert!((left - want_left).abs() <= 0.5, "Seite {n}: linker Rand {left:.2} pt, erwartet {want_left:.2} pt");
         assert!(
@@ -163,15 +163,16 @@ fn margins_add_the_binding_inside_and_mirror_on_even_pages() {
         );
         let first = text.iter().map(|t| t.y_pt).fold(f64::MAX, f64::min);
         let last = text.iter().map(|t| t.y_pt).fold(f64::MIN, f64::max);
-        // Erste Grundlinie: oberer Rand + Versalhöhe (< eine Schriftgröße); letzte über dem unteren Rand.
+        // First baseline: top margin + cap height (< one font size); last one above the bottom margin.
         assert!(first > top && first < top + 14.0, "Seite {n}: erste Grundlinie {first:.2} pt unter {top:.2} pt");
         assert!(last <= bottom + 0.5, "Seite {n}: letzte Grundlinie {last:.2} pt über dem unteren Rand {bottom:.2}");
     }
 }
 
-// ---- Kapitel und Teile ---------------------------------------------------------------------------
+// ---- Chapters and parts --------------------------------------------------------------------------
 
-/// Zwei kurze Kapitel nach einem Vorwort-Absatz; das zweite Kapitel beginnt mitten auf Seite 1, wenn nichts umbricht.
+/// Two short chapters after a preface paragraph; the second chapter starts in the middle of page 1 if nothing
+/// breaks.
 fn short_book() -> String {
     format!(
         "{}\n\n= Erstes Kapitel\n\n{}\n\n= Zweites Kapitel\n\n{}\n",
@@ -204,8 +205,8 @@ fn chapter_start_continuous_new_page_and_right_page_move_chapters() {
 
 #[test]
 fn chapter_rule_breaks_before_parts_in_the_export_form() {
-    // Export-Form (ohne Teil-Regel des Satzes): Teil-Überschriften sind Ebene 1 mit <baruch-part> und beginnen wie
-    // ein Kapitel auf einer neuen Seite (wie mit der übernehmbaren Vorlagenregel, Befund R29).
+    // Export form (without the part rule of the typesetting): part headings are level 1 with <baruch-part> and
+    // start on a new page like a chapter (as with the adoptable template rule, finding R29).
     let body = format!(
         "{}\n\n{}\n= Kapitel nach dem Teil\n\n{}\n",
         paragraph(0, 2),
@@ -223,10 +224,10 @@ fn chapter_rule_breaks_before_parts_in_the_export_form() {
     assert_eq!(heading_page(&rendered, &main, "= Kapitel nach"), 3, "das Kapitel danach bricht ebenfalls um");
 }
 
-/// Befund R29: „Vorlagenregel übernehmen“ verliert außerhalb des Buchsatzes nichts. Export-Form (Werkvorlage, Regelblock,
-/// Text, keine Teil-Regel) mit zwei Teilen und zwei Kapiteln: vorher die kanonische Regel in der Vorlage und keine
-/// Einstellungen, nachher leere Vorlage und `chapter_start` rechte Seite – alle Überschriften auf denselben Seiten,
-/// gleich viele Seiten. Ebenso für „neue Seite“.
+/// Finding R29: „Vorlagenregel übernehmen“ loses nothing outside the book typesetting. Export form (work
+/// template, rule block, text, no part rule) with two parts and two chapters: before, the canonical rule in the
+/// template and no settings, after, an empty template and `chapter_start` right page – all headings on the same
+/// pages, the same number of pages. Likewise for "new page".
 #[test]
 fn adopting_the_template_rule_keeps_every_heading_page_in_the_export_form() {
     let body = format!("{}\n{}{}\n{}", part_line("Eins"), chapter("Alpha", 2), part_line("Zwei"), chapter("Beta", 2));
@@ -286,7 +287,7 @@ fn part_page_rule_without_settings_is_the_runde_14_rule() {
     );
 }
 
-// ---- Schrift und Absatz --------------------------------------------------------------------------
+// ---- Font and paragraph --------------------------------------------------------------------------
 
 #[test]
 fn font_size_and_leading_are_measured_on_the_baselines() {
@@ -307,7 +308,7 @@ fn font_size_and_leading_are_measured_on_the_baselines() {
         rows[1][0].y_pt - rows[0][0].y_pt
     };
     let (narrow, wide) = (gap(0.5), gap(1.0));
-    // Der Durchschuss wächst um 0,5 em = 6 pt; die Zeilenhöhe der Schrift bleibt gleich.
+    // The leading grows by 0.5 em = 6 pt; the line height of the font stays the same.
     assert!(((wide - narrow) - 6.0).abs() < 0.2, "Grundlinienabstand {narrow:.2} → {wide:.2} pt, erwartet +6 pt");
 }
 
@@ -315,7 +316,7 @@ fn font_size_and_leading_are_measured_on_the_baselines() {
 fn paragraph_indent_and_spacing_are_measured() {
     let measure = |p: Paragraph| {
         let s = TypesetSettings { paragraph: Some(p), font_size_pt: Some(10.0), ..a5_margins() };
-        // Der erste Absatz folgt der Überschrift, die nächsten folgen einander.
+        // The first paragraph follows the heading, the next ones follow each other.
         let main =
             book("", &s, &format!("= Absätze\n\n{}\n\n{}\n\n{}\n", paragraph(0, 2), paragraph(2, 2), paragraph(4, 2)));
         let (_, pages) = set(&main);
@@ -350,7 +351,7 @@ fn paragraph_indent_and_spacing_are_measured() {
     );
     let (x, line_gap, par_gap) = measure(Paragraph::Spacing { em: 1.2 });
     assert!(x.iter().all(|d| d.abs() < 0.5), "Abstand: kein Einzug: {x:?}");
-    // Typst-Vorgabe des Zeilenabstands 0,65 em; der Absatzabstand ersetzt ihn zwischen Absätzen.
+    // Typst default of the line spacing 0.65 em; the paragraph spacing replaces it between paragraphs.
     assert!(
         ((par_gap - line_gap) - (1.2 - 0.65) * 10.0).abs() < 0.3,
         "Abstand 1,2 em: Absätze {:.2} pt weiter als Zeilen, erwartet {:.2}",
@@ -359,14 +360,14 @@ fn paragraph_indent_and_spacing_are_measured() {
     );
 }
 
-/// Rechte Kanten der Zeilen im Satzspiegel (ohne die jeweils letzte Zeile eines Absatzes).
+/// Right edges of the lines in the type area (without the last line of each paragraph).
 fn right_edges(justify: bool) -> Vec<f64> {
     let s = TypesetSettings { justify: Some(justify), hyphenate: Some(false), ..a5_margins() };
     let main = book("", &s, &paragraph(0, 8));
     let (_, pages) = set(&main);
     let rows = lines(&pages[0]);
-    // Ohne die letzte Zeile des Absatzes und ohne Zeilen, die auf ein Satzzeichen enden: Typst lässt Satzzeichen in den
-    // Rand hängen (optischer Randausgleich, gemessen ≈ 1,9 pt).
+    // Without the last line of the paragraph and without lines that end with a punctuation mark: Typst lets
+    // punctuation marks hang into the margin (optical margin alignment, measured ≈ 1.9 pt).
     rows[..rows.len() - 1]
         .iter()
         .filter(|l| line_text(l).trim_end().chars().last().is_some_and(char::is_alphabetic))
@@ -386,7 +387,7 @@ fn justify_aligns_the_right_edges() {
 
 #[test]
 fn hyphenation_follows_the_setting_and_the_language() {
-    // Ein frei erfundenes langes Wort in schmaler Spalte.
+    // A freely invented long word in a narrow column.
     let word = "Leuchtturmwärterinnenversammlungsprotokollbuch";
     let text = format!("{} {word} {word} {word} {}", paragraph(0, 1), paragraph(1, 1));
     let hyphens = |hyphenate: bool, lang: &str| {
@@ -405,7 +406,7 @@ fn hyphenation_follows_the_setting_and_the_language() {
             ..Default::default()
         };
         let (_, pages) = set(&book("", &s, &text));
-        // Typst setzt den Trennstrich als eigenes Stück mit dem Text U+00AD (weiches Trennzeichen).
+        // Typst sets the hyphen as a piece of its own with the text U+00AD (soft hyphen).
         pages
             .iter()
             .flat_map(|p| lines(p))
@@ -417,9 +418,10 @@ fn hyphenation_follows_the_setting_and_the_language() {
     assert!(hyphens(true, "de-CH") > 0, "Sprache mit Region (de-CH) trennt ebenfalls");
 }
 
-// ---- Seitenzahlen, Kolumnentitel, Fußnoten -------------------------------------------------------
+// ---- Page numbers, running heads, footnotes ------------------------------------------------------
 
-/// Buch mit Titelei (drei Seiten ohne Kopf und Fuß, wie `cover::frame_parts`), Teil und drei Kapiteln.
+/// Book with front matter (three pages without header and footer, like `cover::frame_parts`), part and three
+/// chapters.
 fn titled_book(s: &TypesetSettings) -> String {
     let titelei = "#page(header: none, footer: none, numbering: none, { align(center, text(size: 16pt)[Gartenbuch]) })\n\
                    #page(header: none, footer: none, numbering: none, { hide[ ] })\n\
@@ -434,7 +436,7 @@ fn titled_book(s: &TypesetSettings) -> String {
     book("#set document(title: \"Gartenbuch\")", s, &body)
 }
 
-/// Seitenzahl im Fuß (unter dem Satzspiegel) bzw. Kopf (über ihm): (Text, x) der Ziffernstücke.
+/// Page number in the footer (below the type area) or header (above it): (text, x) of the digit pieces.
 fn folios(page: &[PlacedText], top: f64, bottom: f64) -> Vec<(String, f64, bool)> {
     page.iter()
         .filter(|t| {
@@ -476,7 +478,7 @@ fn page_numbers_sit_outside_and_start_at_the_first_chapter() {
         let (text, center, in_head) = &f[0];
         assert!(!in_head, "unten: Seite {n}");
         assert_eq!(text, &(n - first + 1).to_string(), "Seite {n}: Zählung beginnt beim ersten Kapitel mit 1");
-        // Außen: ungerade (rechte) Seite rechts am Satzspiegel, gerade links.
+        // Outside: odd (right) page at the right of the type area, even at the left.
         if n % 2 == 1 {
             assert!(*center > w - mm(15.0) - 15.0, "Seite {n}: Zahl rechts außen ({center:.1} pt)");
         } else {
@@ -489,10 +491,10 @@ fn page_numbers_sit_outside_and_start_at_the_first_chapter() {
 fn page_numbers_bottom_center_top_outside_and_hidden() {
     let (w, h) = a5();
     let (top, bottom) = (mm(18.0), h - mm(22.0));
-    let middle = w / 2.0 + (mm(25.0) - mm(15.0)) / 2.0; // Mitte des Satzspiegels auf ungeraden Seiten
+    let middle = w / 2.0 + (mm(25.0) - mm(15.0)) / 2.0; // centre of the type area on odd pages
     let s = numbered(PageNumberPosition::BottomCenter, PageNumberStart::FirstPage, None);
     let (_, pages) = set(&titled_book(&s));
-    let n = pages.len(); // die letzte Seite trägt Text
+    let n = pages.len(); // the last page carries text
     let f = folios(&pages[n - 1], top, bottom);
     assert_eq!(f.len(), 1, "unten mittig: eine Zahl auf der letzten Seite: {f:?}");
     let mid = if n % 2 == 1 { middle } else { w / 2.0 - (mm(25.0) - mm(15.0)) / 2.0 };
@@ -513,7 +515,7 @@ fn page_numbers_bottom_center_top_outside_and_hidden() {
 #[test]
 fn reference_with_page_shows_the_printed_number_after_a_front_matter() {
     let s = numbered(PageNumberPosition::BottomOutside, PageNumberStart::FirstChapter, None);
-    // Verweis im ersten Kapitel auf das zweite, in der Form von xref_snippet (Runde 30a).
+    // Reference in the first chapter to the second, in the form of xref_snippet (Round 30a).
     let snippet = xref::xref_snippet(2, "den Sommer", true);
     let main = titled_book(&s).replace("= Frühling <k1>\n\n", &format!("= Frühling <k1>\n\nSiehe {snippet}.\n\n"));
     let (rendered, pages) = set(&main);
@@ -573,10 +575,10 @@ fn running_head_shows_chapter_or_title_but_not_on_opening_part_and_blank_pages()
     let _ = bottom;
 }
 
-/// Befund R29: Zwei Teile mit je einem Kapitel; vor dem zweiten Teil entsteht mitten im Buch eine Leerseite (der Teil
-/// beginnt rechts). Ohne Einstellung „Teil-Seite“, aber mit Seitenzahlen und Kolumnentitel trug sie früher „Alpha“ und
-/// die Zahl, weil die Teil-Regel aus Runde 14 keine Marke `<baruch-satz-end>` setzte. Jetzt ist sie ganz leer – mit und
-/// ohne Kapitelregel, ohne und mit `part_page`.
+/// Finding R29: two parts with one chapter each; before the second part an empty page arises in the middle of
+/// the book (the part starts on the right). Without the setting „Teil-Seite“, but with page numbers and running
+/// head, it used to carry "Alpha" and the number, because the part rule from Round 14 set no mark
+/// `<baruch-satz-end>`. Now it is entirely empty – with and without chapter rule, without and with `part_page`.
 #[test]
 fn the_blank_page_before_a_second_part_stays_empty() {
     let (_, h) = a5();
@@ -596,8 +598,8 @@ fn the_blank_page_before_a_second_part_stays_empty() {
     ];
     for (name, chapter_start, part_page) in cases {
         let s = TypesetSettings { chapter_start, part_page, ..base.clone() };
-        // Je nach Länge von Alpha endet es auf einer geraden oder ungeraden Seite; nur im zweiten Fall entsteht vor dem
-        // rechts beginnenden Teil eine Leerseite. Mehrere Längen, damit sie sicher vorkommt.
+        // Depending on the length of Alpha it ends on an even or odd page; only in the second case an empty page
+        // arises before the part starting on the right. Several lengths, so that it certainly occurs.
         let (mut blank_seen, mut text_seen) = (0, 0);
         for paragraphs in [2, 4, 6, 8, 10] {
             let body = format!(
@@ -621,7 +623,7 @@ fn the_blank_page_before_a_second_part_stays_empty() {
                     );
                     blank_seen += 1;
                 } else {
-                    // Gegenprobe: Textseiten tragen ihre Zahl (die Marke macht nicht zu viele Seiten still).
+                    // Cross-check: text pages carry their number (the mark does not silence too many pages).
                     assert_eq!(
                         folios(page, top, bottom).len(),
                         1,
@@ -663,10 +665,10 @@ fn part_page_rule_for_marks_only_when_a_rule_block_exists() {
     );
 }
 
-/// Integrator R29: Ohne Kapitelregel steht die Marke `<baruch-satz-end>` an derselben Stelle wie ihre Überschrift. Früher
-/// hielt `baruch-satz-quiet` darum alle Seiten bis zur nächsten Kapitelüberschrift für leer – ohne Seitenzahl und
-/// Kolumnentitel. Jetzt trägt jede Seite mit Text hinter dem ersten Kapitel ihre Zahl, und jede außer den
-/// Kapitelanfängen und der Teil-Seite den Kolumnentitel.
+/// Integrator R29: without a chapter rule the mark `<baruch-satz-end>` is at the same place as its heading.
+/// Before, `baruch-satz-quiet` therefore took all pages up to the next chapter heading for empty – without page
+/// number and running head. Now every page with text after the first chapter carries its number, and every one
+/// except the chapter starts and the part page the running head.
 #[test]
 fn without_a_chapter_rule_every_text_page_keeps_number_and_head() {
     let s = TypesetSettings {
@@ -725,8 +727,8 @@ fn footnote_marks_and_restart_per_chapter() {
             ..a5_margins()
         };
         let (_, pages) = set(&book("", &s, &body));
-        // Die Zeilen sind je ein Textstück; ein Fußnotenzeichen (hochgestellt, eigene Schriftmerkmale) ist ein eigenes
-        // Stück aus einem Zeichen – im Text und am Fuß.
+        // The lines are one text piece each; a footnote mark (superscript, font features of its own) is a piece of
+        // its own of one character – in the text and at the foot.
         pages
             .iter()
             .map(|p| {
@@ -750,8 +752,8 @@ fn footnote_marks_and_restart_per_chapter() {
 
 #[test]
 fn widows_and_orphans_are_avoided_only_when_set() {
-    // Ein Absatz von fünf Zeilen hinter wachsendem Leerraum: Irgendwann bricht er um. Ohne Schutz bleibt dabei
-    // irgendwann genau eine Zeile allein auf einer Seite; mit Schutz nie.
+    // A paragraph of five lines after growing whitespace: at some point it breaks. Without protection, at some
+    // point exactly one line stays alone on a page; with protection never.
     let lone_line = |avoid: bool| {
         let mut found = false;
         for space in (0..60).map(|i| 300.0 + f64::from(i) * 4.0) {

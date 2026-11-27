@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `baruch_render::compile` an einem frei erfundenen Werk (Vertrag Runde 8, Abschnitt 4a):
-//! Vorlage mit Bild, fehlende Schrift, Syntax- und Aufruffehler, Paket-Import ohne Netz, fehlendes
-//! Bild, Seiten der Überschriften.
+//! `baruch_render::compile` on a freely invented work (contract Round 8, section 4a):
+//! template with image, missing font, syntax and call errors, package import without network, missing
+//! image, pages of the headings.
 
 use baruch_render::{OFFLINE, Severity, Source, compile};
 
-/// Kleines SVG (Text, kein Binärzeug im Repo).
+/// Small SVG (text, no binary stuff in the repo).
 const LAUBE_SVG: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"20\" viewBox=\"0 0 40 20\">\
 <rect width=\"40\" height=\"20\" fill=\"#3a7\"/><circle cx=\"10\" cy=\"10\" r=\"6\" fill=\"#fd4\"/></svg>";
 
-/// Erfundenes Werk mit Werkvorlage (`#let szene`), zwei Kapiteln mit Seitenumbruch und einem Bild.
+/// Invented work with work template (`#let szene`), two chapters with page break and an image.
 fn garden() -> Source {
     let main = "#set page(width: 12cm, height: 16cm)\n\
                 #set text(lang: \"de\")\n\

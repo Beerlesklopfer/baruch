@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a (Befund des Nutzers, Backlog „Zitat-Werkzeug“): Ein Zitatblock `#quote(block: true, …)[…]` mit der
-//! Stellenangabe in der nächsten Zeile ist im Satzbild ein Zitatblock und dahinter ein eigener Absatz – wie in
-//! Typst, wo ein Block den Absatz beendet –, keine Code-Insel. Unberührt geht der Text byte-gleich zurück.
-//! Alle Texte (Zitat, Stelle, Absätze) sind frei erfunden.
+//! Round 23a (finding of the user, backlog „Zitat-Werkzeug“): a quote block `#quote(block: true, …)[…]` with
+//! the attribution in the next line is a quote block in the typeset view and after it a paragraph of its own –
+//! as in Typst, where a block ends the paragraph –, not a code island. Untouched, the text goes back
+//! byte-identical. All texts (quote, reference, paragraphs) are freely invented.
 
 use baruch_wysiwyg::{BlockKind, Doc, Edit, Inline, parse, render_html, serialize};
 
@@ -14,7 +14,7 @@ fn keep_all(doc: &Doc) -> Vec<Edit> {
     (0..doc.blocks.len()).map(|keep| Edit::Keep { keep }).collect()
 }
 
-/// Erfundener Text: Absatz, Zitat, Stellenangabe direkt in der nächsten Zeile, gewöhnlicher Absatz.
+/// Invented text: paragraph, quote, attribution directly in the next line, ordinary paragraph.
 const MUEHLE: &str = "Der Müller schrieb es an die Tür.\n\n\
 #quote(block: true)[Wer mahlt, hört den Bach auch im Schlaf.]\n\
 – Mühlenbuch 7,3\n\n\
@@ -53,7 +53,8 @@ fn a_block_quote_with_the_reference_on_the_next_line_is_a_quote_and_a_paragraph_
 
 #[test]
 fn what_the_ribbon_inserts_is_a_quote_block_also_while_still_empty() {
-    // Das fügt der Knopf „Zitat“ ein (crates/baruch-server/src/ribbon.rs), hier mitten in erfundenem Text.
+    // This is what the button „Zitat“ inserts (crates/baruch-server/src/ribbon.rs), here in the middle of invented
+    // text.
     let fresh = "Vorher.\n\n#quote(block: true)[]\n– \n\nNachher.\n";
     let doc = parse(fresh);
     assert!(

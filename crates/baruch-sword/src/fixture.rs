@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kleine SWORD-Module für Tests schreiben (zText mit ZIP in BOOK/CHAPTER/VERSE, RawText; seit Runde 15
-//! auch Kommentare RawCom/zCom und Lexika RawLD/RawLD4/zLD über [`LexiconFixture`]), mit frei
-//! erfundenem Text. Die Index-Stellen rechnet dieses Modul **selbst** aus der Verszählung von
-//! `baruch-scripture` aus ([`slot`]); gelesen wird über `sword-modules`. Stimmen beide überein, ist die
-//! Reihenfolge belegt.
+//! Write small SWORD modules for tests (zText with ZIP in BOOK/CHAPTER/VERSE, RawText; since Round 15
+//! also commentaries RawCom/zCom and lexicons RawLD/RawLD4/zLD through [`LexiconFixture`]), with freely
+//! invented text. This module computes the index slots **itself** from the versification of
+//! `baruch-scripture` ([`slot`]); reading goes through `sword-modules`. If both agree, the
+//! order is proven.
 //!
-//! Index je Testament: Stelle 0 = Modulkopf, 1 = Testamentkopf, dann je Buch eine Stelle für die
-//! Bucheinleitung (Kapitel 0), je Kapitel eine für die Kapiteleinleitung (Vers 0) und eine je Vers.
+//! Index per testament: slot 0 = module header, 1 = testament header, then per book one slot for the
+//! book introduction (chapter 0), per chapter one for the chapter introduction (verse 0) and one per verse.
 //!
-//! Runde 17 (R17c): Blöcke auch mit BZIP2 und XZ ([`Fixture::compression`]) und **verschlüsselt**
-//! ([`Fixture::enciphered`]): Sapphire II nach der gemeinfreien Beschreibung (Michael Paul Johnson 1995, in
-//! `sword-modules` `docs/spec/cipher.md`), hier selbst umgesetzt; die conf bekommt `CipherKey=` leer, wie ein
-//! gesperrtes Modul vom Herausgeber. Der Schlüssel eines Testmoduls ist frei erfunden.
+//! Round 17 (R17c): blocks also with BZIP2 and XZ ([`Fixture::compression`]) and **enciphered**
+//! ([`Fixture::enciphered`]): Sapphire II according to the public-domain description (Michael Paul Johnson 1995,
+//! in `sword-modules` `docs/spec/cipher.md`), implemented here independently; the conf gets `CipherKey=` empty,
+//! like a locked module from the publisher. The key of a test module is freely invented.
 //!
-//! Runde 19c: [`hyphen_remnants`] baut in erfundenen Text Silbentrennreste ein („Men schen“, „die ses“), wie sie
-//! ein aus einem PDF gebautes Modul hat – für Tests der toleranten Wortlautprüfung und des Hinweises auf
-//! Wortfragmente. Fremde Module (auch das Prüfmodul des Nutzers) liest kein Test.
+//! Round 19c: [`hyphen_remnants`] builds hyphenation leftovers into invented text („Men schen“, „die ses“), as a
+//! module built from a PDF has them – for tests of the tolerant wording check and of the hint about word
+//! fragments. No test reads foreign modules (not the user's test module either).
 
 use std::io::Write as _;
 use std::path::Path;
 
 use baruch_scripture::versification::{OLD_TESTAMENT_BOOKS, Versification};
 
-/// Runde 19c: Trennreste in erfundenen Text einbauen. Jedes `every`-te Wort mit mindestens sechs Buchstaben (ohne
-/// Satzzeichen gezählt) wird in der Mitte durch ein Leerzeichen getrennt; der hintere Teil bleibt klein
-/// („Menschen“ → „Mens chen“, „dieses“ → „die ses“). `every` = 1: jedes solche Wort. Satzzeichen bleiben am Wort.
+/// Round 19c: build hyphenation leftovers into invented text. Every `every`-th word with at least six letters
+/// (counted without punctuation) is split in the middle by a space; the rear part stays lower case
+/// („Menschen“ → „Mens chen“, „dieses“ → „die ses“). `every` = 1: every such word. Punctuation stays on the word.
 pub fn hyphen_remnants(text: &str, every: usize) -> String {
     let every = every.max(1);
     let mut seen = 0usize;
@@ -48,21 +48,21 @@ pub fn hyphen_remnants(text: &str, every: usize) -> String {
     out.join(" ")
 }
 
-/// Speicherart des Test-Moduls.
+/// Storage kind of the test module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layout {
-    /// `zText`, `CompressType=ZIP`, Blöcke je Buch, Kapitel oder Vers.
+    /// `zText`, `CompressType=ZIP`, blocks per book, chapter or verse.
     ZText(Block),
-    /// `RawText` ohne Kompression (`.vss` mit 6 Bytes je Stelle).
+    /// `RawText` without compression (`.vss` with 6 bytes per slot).
     RawText,
-    /// Kommentar `RawCom` (gleiche Dateien wie RawText).
+    /// Commentary `RawCom` (same files as RawText).
     RawCom,
-    /// Kommentar `zCom` (gleiche Dateien wie zText).
+    /// Commentary `zCom` (same files as zText).
     ZCom(Block),
 }
 
 impl Layout {
-    /// `Some(Block)` für die komprimierten Arten.
+    /// `Some(Block)` for the compressed kinds.
     fn block(self) -> Option<Block> {
         match self {
             Layout::ZText(b) | Layout::ZCom(b) => Some(b),
@@ -71,10 +71,10 @@ impl Layout {
     }
 }
 
-/// Kompression der Blöcke von zText/zCom (R17c).
+/// Compression of the blocks of zText/zCom (R17c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Compression {
-    /// `CompressType=ZIP` (zlib), Vorgabe.
+    /// `CompressType=ZIP` (zlib), default.
     #[default]
     Zip,
     /// `CompressType=BZIP2`.
@@ -92,7 +92,7 @@ impl Compression {
         }
     }
 
-    /// Einen Block packen wie [`write`] (öffentlich für Tests, die einen Block selbst ersetzen).
+    /// Pack a block like [`write`] (public for tests that replace a block themselves).
     pub fn pack(self, body: &[u8]) -> std::io::Result<Vec<u8>> {
         match self {
             Compression::Zip => {
@@ -114,8 +114,8 @@ impl Compression {
     }
 }
 
-/// Sapphire II (gemeinfrei, Michael Paul Johnson 1995), nach der Beschreibung in `sword-modules`
-/// `docs/spec/cipher.md` selbst umgesetzt: nur zum **Verschlüsseln** eigener Testmodule.
+/// Sapphire II (public domain, Michael Paul Johnson 1995), implemented independently according to the
+/// description in `sword-modules` `docs/spec/cipher.md`: only for **enciphering** own test modules.
 struct Sapphire {
     cards: [u8; 256],
     rotor: u8,
@@ -200,7 +200,7 @@ impl Sapphire {
     }
 }
 
-/// `data` mit `key` verschlüsseln (je Block bzw. Eintrag neu ab dem Schlüssel, wie SWORD).
+/// Encipher `data` with `key` (per block or entry anew from the key, like SWORD).
 pub fn encipher(key: &str, data: &[u8]) -> Vec<u8> {
     let mut s = Sapphire::new(key.as_bytes());
     data.iter().map(|&b| s.encipher(b)).collect()
@@ -213,18 +213,18 @@ pub enum Block {
     Verse,
 }
 
-/// Wo ein Eintrag steht.
+/// Where an entry is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Key {
-    /// Modulkopf (Stelle 0) des Testaments (0 = AT, 1 = NT).
+    /// Module header (slot 0) of the testament (0 = OT, 1 = NT).
     Module(usize),
-    /// Testamentkopf (Stelle 1).
+    /// Testament header (slot 1).
     Testament(usize),
-    /// Buch (OSIS), Kapitel (0 = Bucheinleitung), Vers (0 = Kapiteleinleitung).
+    /// Book (OSIS), chapter (0 = book introduction), verse (0 = chapter introduction).
     Verse(&'static str, u16, u16),
 }
 
-/// Testament (0 = AT, 1 = NT) und Index-Stelle eines Schlüssels; `None`, wenn es ihn in der Zählung nicht gibt.
+/// Testament (0 = OT, 1 = NT) and index slot of a key; `None` if it does not exist in the versification.
 pub fn slot(v11n: &Versification, key: &Key) -> Option<(usize, u32)> {
     match key {
         Key::Module(t) => Some((*t, 0)),
@@ -252,7 +252,7 @@ pub fn slot(v11n: &Versification, key: &Key) -> Option<(usize, u32)> {
     }
 }
 
-/// Zahl der Stellen eines Testaments.
+/// Number of slots of a testament.
 pub fn slot_count(v11n: &Versification, testament: usize) -> u32 {
     let (skip, take) = if testament == 0 { (0, OLD_TESTAMENT_BOOKS) } else { (OLD_TESTAMENT_BOOKS, usize::MAX) };
     2 + v11n
@@ -263,21 +263,21 @@ pub fn slot_count(v11n: &Versification, testament: usize) -> u32 {
         .sum::<u32>()
 }
 
-/// Ein Test-Modul: Name, Speicherart, Verszählung, zusätzliche conf-Zeilen und Einträge.
+/// A test module: name, storage kind, versification, additional conf lines and entries.
 #[derive(Debug, Clone)]
 pub struct Fixture {
     pub name: String,
     pub layout: Layout,
     pub versification: &'static Versification,
-    /// Weitere Zeilen der conf (`Description=…`, `DistributionLicense=…`, …); `DataPath`, `ModDrv`,
-    /// `CompressType`, `BlockType`, `Versification`, `Encoding` und `SourceType` setzt [`write`].
+    /// Further lines of the conf (`Description=…`, `DistributionLicense=…`, …); `DataPath`, `ModDrv`,
+    /// `CompressType`, `BlockType`, `Versification`, `Encoding` and `SourceType` are set by [`write`].
     pub conf: Vec<(String, String)>,
     pub entries: Vec<(Key, String)>,
-    /// Kompression der Blöcke (nur zText/zCom; R17c).
+    /// Compression of the blocks (only zText/zCom; R17c).
     pub compression: Compression,
-    /// Schlüssel, mit dem [`write`] Blöcke bzw. Einträge verschlüsselt (R17c); die conf bekommt `CipherKey=`.
+    /// Key with which [`write`] enciphers blocks or entries (R17c); the conf gets `CipherKey=`.
     pub cipher: Option<String>,
-    /// Text in Latin-1 und conf ohne `Encoding` (SWORD-Vorgabe) statt UTF-8 (Nachbesserung Runde 17).
+    /// Text in Latin-1 and conf without `Encoding` (SWORD default) instead of UTF-8 (follow-up fix Round 17).
     pub latin1: bool,
 }
 
@@ -295,26 +295,26 @@ impl Fixture {
         }
     }
 
-    /// Blöcke mit `c` komprimieren (zText/zCom).
+    /// Compress blocks with `c` (zText/zCom).
     pub fn compression(mut self, c: Compression) -> Self {
         self.compression = c;
         self
     }
 
-    /// Blöcke (zText/zCom) bzw. Einträge (RawText/RawCom) mit Sapphire II und `key` verschlüsseln; die conf
-    /// trägt `CipherKey=` leer (gesperrt, bis der Nutzer den Schlüssel hinterlegt).
+    /// Encipher blocks (zText/zCom) or entries (RawText/RawCom) with Sapphire II and `key`; the conf
+    /// carries `CipherKey=` empty (locked until the user stores the key).
     pub fn enciphered(mut self, key: &str) -> Self {
         self.cipher = Some(key.to_owned());
         self
     }
 
-    /// Text in Latin-1 speichern, conf ohne `Encoding` (Vorgabe von SWORD). Zeichen jenseits von U+00FF: Panik.
+    /// Store text in Latin-1, conf without `Encoding` (default of SWORD). Characters beyond U+00FF: panic.
     pub fn latin1(mut self) -> Self {
         self.latin1 = true;
         self
     }
 
-    /// Bytes eines Eintrags in der Kodierung des Moduls.
+    /// Bytes of an entry in the encoding of the module.
     fn encode(&self, text: &str) -> Vec<u8> {
         if self.latin1 {
             text.chars()
@@ -340,7 +340,7 @@ impl Fixture {
         self
     }
 
-    /// Ordner der Moduldaten relativ zum Modulordner.
+    /// Folder of the module data relative to the module folder.
     pub fn data_path(&self) -> String {
         let (group, kind) = match self.layout {
             Layout::ZText(_) => ("texts", "ztext"),
@@ -360,8 +360,8 @@ fn u16le(out: &mut Vec<u8>, v: u16) {
     out.extend_from_slice(&v.to_le_bytes());
 }
 
-/// Schreibt `mods.d/<name>.conf` und die Moduldaten unter `root`. Panik bei unbekanntem Schlüssel
-/// (Testfehler).
+/// Writes `mods.d/<name>.conf` and the module data under `root`. Panic on an unknown key
+/// (test error).
 pub fn write(root: &Path, m: &Fixture) -> std::io::Result<()> {
     let data_path = m.data_path();
     let dir = root.join(data_path.trim_start_matches("./"));
@@ -438,7 +438,7 @@ pub fn write(root: &Path, m: &Fixture) -> std::io::Result<()> {
                     Block::Chapter => 'c',
                     Block::Verse => 'v',
                 };
-                // Blöcke nach Buch, Kapitel bzw. Stelle; Köpfe (Stelle 0 und 1) in einen eigenen Block.
+                // Blocks by book, chapter or slot; headers (slot 0 and 1) into a block of their own.
                 let group = |slot: usize, key: &Key| -> (String, u16, usize) {
                     match key {
                         Key::Verse(b, c, _) => match block {
@@ -490,26 +490,26 @@ pub fn write(root: &Path, m: &Fixture) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Speicherart eines Test-Lexikons.
+/// Storage kind of a test lexicon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LexLayout {
-    /// `RawLD`: `.idx` mit 4 Bytes Stelle und 2 Bytes Länge.
+    /// `RawLD`: `.idx` with 4 bytes position and 2 bytes length.
     RawLD,
-    /// `RawLD4`: `.idx` mit 4 + 4 Bytes.
+    /// `RawLD4`: `.idx` with 4 + 4 bytes.
     RawLD4,
-    /// `zLD` mit ZIP: Einträge in Blöcken (`.zdx`/`.zdt`), `.dat` verweist auf Block und Eintrag.
+    /// `zLD` with ZIP: entries in blocks (`.zdx`/`.zdt`), `.dat` refers to block and entry.
     ZLD,
 }
 
-/// Ein Test-Lexikon: Name, Speicherart, conf-Zeilen, Stichwörter mit Artikeln (frei erfunden). Ein Artikel
-/// `@LINK <Stichwort>` verweist auf ein anderes Stichwort.
+/// A test lexicon: name, storage kind, conf lines, keywords with articles (freely invented). An article
+/// `@LINK <Stichwort>` refers to another keyword.
 #[derive(Debug, Clone)]
 pub struct LexiconFixture {
     pub name: String,
     pub layout: LexLayout,
     pub conf: Vec<(String, String)>,
     pub entries: Vec<(String, String)>,
-    /// Einträge je zLD-Block (Vorgabe 2, damit mehrere Blöcke entstehen).
+    /// Entries per zLD block (default 2, so that several blocks arise).
     pub per_block: usize,
 }
 
@@ -528,7 +528,7 @@ impl LexiconFixture {
         self
     }
 
-    /// `DataPath` (Präfix der Dateien) relativ zum Modulordner.
+    /// `DataPath` (prefix of the files) relative to the module folder.
     pub fn data_path(&self) -> String {
         let kind = match self.layout {
             LexLayout::RawLD => "rawld",
@@ -540,8 +540,8 @@ impl LexiconFixture {
     }
 }
 
-/// Schreibt `mods.d/<name>.conf` und die Dateien des Lexikons unter `root`. Stichwörter werden wie in
-/// SWORD groß geschrieben abgelegt und nach ihren Bytes sortiert.
+/// Writes `mods.d/<name>.conf` and the files of the lexicon under `root`. Keywords are stored in upper case
+/// as in SWORD and sorted by their bytes.
 pub fn write_lexicon(root: &Path, m: &LexiconFixture) -> std::io::Result<()> {
     let data_path = m.data_path();
     let prefix = root.join(data_path.trim_start_matches("./"));
@@ -598,7 +598,8 @@ pub fn write_lexicon(root: &Path, m: &LexiconFixture) -> std::io::Result<()> {
     if m.layout == LexLayout::ZLD {
         let (mut zdx, mut zdt) = (Vec::new(), Vec::new());
         for block in &blocks {
-            // Block: Zahl der Einträge, je Eintrag (Stelle, Länge) ab Blockanfang, dann die Texte mit 0 am Ende.
+            // Block: number of entries, per entry (position, length) from the start of the block, then the texts
+            // with 0 at the end.
             let head = 4 + block.len() * 8;
             let mut table = Vec::new();
             let mut body = Vec::new();

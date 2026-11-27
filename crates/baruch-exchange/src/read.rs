@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lesen und Prüfen einer Austauschdatei (Vertrag R26 F2/F7; Doku `docs/Austauschformat.md` §5).
+//! Reading and checking an exchange file (contract R26 F2/F7; documentation `docs/Austauschformat.md` §5).
 //!
-//! - [`read`] unterscheidet am Anfang: `PK\x03\x04` → ZIP ([`read_baruch`]), sonst XML ([`read_xml`]).
-//! - XML ([`dom`]): keine DTD, keine Verarbeitungsanweisung außer der Deklaration, nur die fünf vordefinierten
-//!   Entitäten und Zeichenreferenzen, Grenzen aus [`Limits`]; der Leser trimmt nie.
-//! - Abbilden ([`map`]): Pflichtelemente und -attribute, unbekannte Elemente und Attribute als Pfad in
-//!   [`ExchangeDocument::unknown`]; eine höhere Unterversion (`version` > [`crate::FORMAT_VERSION`]) wird
-//!   gelesen, ein anderer Namensraum abgelehnt.
-//! - ZIP ([`archive`]): erster Eintrag `mimetype`, nur bekannte Namen, keine Pfade nach außen, keine
-//!   Verknüpfung oder Verschlüsselung, nur STORED oder DEFLATE, Entpacken mit `take(Grenze + 1)`, Manifest und
-//!   Prüfsummen.
-//! - [`validate`] ([`check`]): UUIDs, Doppel, Verweise, genau eine aktuelle Fassung je Punkt, `basis` im selben
-//!   Punkt. [`read`], [`read_xml`] und [`read_baruch`] prüfen jedes Dokument damit, bevor sie es zurückgeben.
+//! - [`read`] distinguishes at the beginning: `PK\x03\x04` → ZIP ([`read_baruch`]), otherwise XML ([`read_xml`]).
+//! - XML ([`dom`]): no DTD, no processing instruction except the declaration, only the five predefined
+//!   entities and character references, limits from [`Limits`]; the reader never trims.
+//! - Mapping ([`map`]): mandatory elements and attributes, unknown elements and attributes as a path in
+//!   [`ExchangeDocument::unknown`]; a higher sub-version (`version` > [`crate::FORMAT_VERSION`]) is
+//!   read, another namespace rejected.
+//! - ZIP ([`archive`]): first entry `mimetype`, only known names, no paths to the outside, no
+//!   link or encryption, only STORED or DEFLATE, unpacking with `take(limit + 1)`, manifest and
+//!   checksums.
+//! - [`validate`] ([`check`]): UUIDs, duplicates, references, exactly one current revision per item, `basis` in
+//!   the same item. [`read`], [`read_xml`] and [`read_baruch`] check every document with it before they return it.
 
 mod archive;
 mod check;
@@ -20,7 +20,7 @@ mod map;
 
 use crate::{ExchangeDocument, ExchangeError, ExchangeManifestEntry, Limits};
 
-/// Austauschdatei lesen (ZIP oder XML, am Anfang erkannt).
+/// Read an exchange file (ZIP or XML, recognised at the beginning).
 pub fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, ExchangeError> {
     if bytes.len() as u64 > limits.max_file_bytes {
         return Err(ExchangeError::Limit(format!("Datei größer als {} Bytes", limits.max_file_bytes)));
@@ -28,8 +28,8 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<ExchangeDocument, ExchangeE
     if bytes.starts_with(b"PK\x03\x04") { read_baruch(bytes, limits) } else { read_xml(bytes, limits) }
 }
 
-/// `werk.xml` bzw. `.baruch.xml` lesen. Bilder müssen hier in `<daten>` stehen (ein Verweis `datei` geht nur im
-/// Container).
+/// Read `werk.xml` or `.baruch.xml`. Images must be in `<daten>` here (a reference `datei` only works in the
+/// container).
 pub fn read_xml(xml: &[u8], limits: &Limits) -> Result<ExchangeDocument, ExchangeError> {
     if xml.len() as u64 > limits.max_xml_bytes {
         return Err(ExchangeError::Limit(format!("XML größer als {} Bytes", limits.max_xml_bytes)));
@@ -52,12 +52,12 @@ pub fn read_xml(xml: &[u8], limits: &Limits) -> Result<ExchangeDocument, Exchang
     Ok(doc)
 }
 
-/// Container `.baruch` lesen und prüfen.
+/// Read and check the container `.baruch`.
 pub fn read_baruch(zip: &[u8], limits: &Limits) -> Result<ExchangeDocument, ExchangeError> {
     archive::read(zip, limits)
 }
 
-/// `MANIFEST.xml` lesen.
+/// Read `MANIFEST.xml`.
 pub fn read_manifest(xml: &[u8], limits: &Limits) -> Result<Vec<ExchangeManifestEntry>, ExchangeError> {
     if xml.len() as u64 > limits.max_xml_bytes {
         return Err(ExchangeError::Limit(format!("Manifest größer als {} Bytes", limits.max_xml_bytes)));
@@ -66,7 +66,7 @@ pub fn read_manifest(xml: &[u8], limits: &Limits) -> Result<Vec<ExchangeManifest
     map::manifest(&root)
 }
 
-/// Inhaltliche Prüfung eines gelesenen Dokuments.
+/// Content check of a read document.
 pub fn validate(doc: &ExchangeDocument) -> Result<(), ExchangeError> {
     check::validate(doc)
 }

@@ -1,35 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild-Editor (Vertrag Runde 5, „wysiwyg“; Feinschliff Runde 6, „satzbild“): Abschnittstexte
-//! (Typst) in bearbeitbare Blöcke übersetzen und zurück. Die Crate ist rein, ohne Datenbank und
-//! Dateisystem.
+//! Typeset view editor (contract Round 5, "wysiwyg"; refinement Round 6, "satzbild"): translate section texts
+//! (Typst) into editable blocks and back. The crate is pure, without database and
+//! file system.
 //!
-//! - [`parse`] zerlegt einen Text in [`Block`]e. Jeder Block trägt seinen Quelltext `raw`
-//!   **wörtlich**, samt den folgenden Leerzeilen; die Verkettung aller `raw` ist der Text, Byte für
-//!   Byte. `parse` scheitert nie: Was sich nicht sicher abbilden lässt, wird eine
-//!   [`BlockKind::Island`] („Typst-Insel“) bzw. eine [`Inline::Island`] in einem Absatz.
-//! - [`serialize`] baut aus dem Original und einer Liste von [`Edit`]s den neuen Text: `Keep`
-//!   übernimmt `raw` wörtlich, ein neuer oder bearbeiteter Block wird mit [`emit`] als kanonisches
-//!   Typst erzeugt. Ein unberührter Block wird also nie neu geschrieben. Im Rumpf einer Szene bzw.
-//!   Arbeit lassen sich einzelne Blöcke ändern ([`Edit::Body`]).
-//! - [`render_html`] zeigt die Blöcke als HTML für das Satzbild (contenteditable), [`diff_html`]
-//!   den Unterschied zweier Texte im Satzbild, [`sheet_style`]/[`sheet_css`] leiten Schrift, Farben
-//!   und Einzüge aus den Regeln der obersten Ebene der Werkvorlage ab. [`render_html_with`] und
-//!   [`diff_html_with`] zeigen zusätzlich Bilder in Inseln mit Bildpfad ([`image_path`]).
-//! - [`align`] richtet zwei Fassungen nach obersten Blöcken aus und liefert die geänderten,
-//!   eingefügten und entfernten Stücke ([`Hunk`], Runde 8); [`hunk_html_with`] zeigt ein Stück im
-//!   Satzbild. Damit stehen Vorschläge an ihrer Stelle im Lesefluss.
+//! - [`parse`] splits a text into [`Block`]s. Every block carries its source text `raw`
+//!   **verbatim**, including the following empty lines; the concatenation of all `raw` is the text, byte for
+//!   byte. `parse` never fails: what cannot be mapped safely becomes a
+//!   [`BlockKind::Island`] ("Typst island") or an [`Inline::Island`] in a paragraph.
+//! - [`serialize`] builds the new text from the original and a list of [`Edit`]s: `Keep`
+//!   takes over `raw` verbatim, a new or edited block is generated as canonical
+//!   Typst with [`emit`]. So an untouched block is never rewritten. In the body of a scene or
+//!   work single blocks can be changed ([`Edit::Body`]).
+//! - [`render_html`] shows the blocks as HTML for the typeset view (contenteditable), [`diff_html`]
+//!   the difference of two texts in the typeset view, [`sheet_style`]/[`sheet_css`] derive font, colours
+//!   and indentations from the top-level rules of the work template. [`render_html_with`] and
+//!   [`diff_html_with`] additionally show images in islands with an image path ([`image_path`]).
+//! - [`align`] aligns two revisions by top-level blocks and delivers the changed,
+//!   inserted and removed hunks ([`Hunk`], Round 8); [`hunk_html_with`] shows a hunk in the
+//!   typeset view. With that proposals stand at their place in the reading flow.
 //!
-//! Erkannt werden: Absatz, Überschrift `=` … `======`, Teil und „ohne Nummer“ als Markierung (Runde 14,
-//! [`BlockKind::Part`], [`BlockKind::Unnumbered`], nur auf oberster Ebene), `_…_`/`#emph[…]`, `*…*`/`#strong[…]`,
-//! `#footnote[…]`, `#quote[…]` (im Absatz) und `#quote(block: …, attribution: […])[…]` (als Block),
-//! Listen mit `- ` bzw. `+ `, `#szene[…]`/`#szene(…)[…]`, `#arbeit[…]` (eigene Blöcke mit Blöcken im
-//! Rumpf), Labels `<…>` (auch allein auf der Zeile hinter einer Überschrift), Maskierungen `\x`, `~`.
-//! Runde 18b („konstrukte“): Aufzählungen `1.` ([`BlockKind::Enum`]), Begriffslisten `/ Begriff: Erklärung`
-//! ([`BlockKind::Terms`]), geschachtelte Listen (`depths`), erzwungener Zeilenumbruch `\`
-//! ([`Inline::Linebreak`]), `#link("…")[…]` ([`Inline::Link`]) und Verweise `@name` ([`Inline::Ref`]). Eine
-//! Insel lässt sich an Ort und Stelle im Quelltext ändern ([`Edit::Raw`]).
-//! Alles andere ist eine Insel: `#let`/`#set`/`#show` und andere Code-Zeilen, eigene Funktionen,
-//! Mathe, Raw-Text, Kommentare, Listen mit gemischten Zeichen, eingerückte Begriffslisten. Beschreibung in
+//! Recognised are: paragraph, heading `=` … `======`, part and "without number" as markers (Round 14,
+//! [`BlockKind::Part`], [`BlockKind::Unnumbered`], only at the top level), `_…_`/`#emph[…]`,
+//! `*…*`/`#strong[…]`, `#footnote[…]`, `#quote[…]` (in the paragraph) and
+//! `#quote(block: …, attribution: […])[…]` (as a block), lists with `- ` or `+ `, `#szene[…]`/`#szene(…)[…]`,
+//! `#arbeit[…]` (own blocks with blocks in the body), labels `<…>` (also alone on the line after a heading),
+//! escapes `\x`, `~`.
+//! Round 18b ("konstrukte"): enumerations `1.` ([`BlockKind::Enum`]), term lists `/ Begriff: Erklärung`
+//! ([`BlockKind::Terms`]), nested lists (`depths`), forced line break `\`
+//! ([`Inline::Linebreak`]), `#link("…")[…]` ([`Inline::Link`]) and references `@name` ([`Inline::Ref`]). An
+//! island can be changed in place in the source text ([`Edit::Raw`]).
+//! Everything else is an island: `#let`/`#set`/`#show` and other code lines, own functions,
+//! maths, raw text, comments, lists with mixed markers, indented term lists. Description in
 //! `docs/WYSIWYG.md`.
 
 mod align;
@@ -48,14 +49,14 @@ pub use parse::parse;
 pub use scan::{image_path, image_paths};
 pub use style::{BoxStyle, SheetStyle, sheet_css, sheet_style, sheet_style_over, template_font};
 
-/// Ein Abschnittstext als Folge von Blöcken.
+/// A section text as a sequence of blocks.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Doc {
     pub blocks: Vec<Block>,
 }
 
-/// Ein Block mit seinem wörtlichen Quelltext (inklusive der folgenden Leerzeilen). In JSON stehen
-/// die Felder der Art und `raw` nebeneinander: `{"kind": "paragraph", "inlines": […], "raw": "…"}`.
+/// A block with its verbatim source text (including the following empty lines). In JSON the fields
+/// of the kind and `raw` stand next to each other: `{"kind": "paragraph", "inlines": […], "raw": "…"}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Block {
     #[serde(flatten)]
@@ -67,9 +68,9 @@ pub struct Block {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BlockKind {
-    /// `=` (1) bis `======` (6) am Zeilenanfang; eine Zeile. Ein Label am Zeilenende steht in
-    /// `inlines`; ein Label allein auf der Zeile dahinter (`= Titel⏎<name>`) gehört ebenfalls zur
-    /// Überschrift und steht in `label`.
+    /// `=` (1) to `======` (6) at the beginning of a line; one line. A label at the end of the line is in
+    /// `inlines`; a label alone on the line after it (`= Titel⏎<name>`) also belongs to the
+    /// heading and is in `label`.
     Heading {
         level: u8,
         inlines: Vec<Inline>,
@@ -79,23 +80,23 @@ pub enum BlockKind {
     Paragraph {
         inlines: Vec<Inline>,
     },
-    /// `#quote(block: …, attribution: […])[…]` als ganzer Block.
+    /// `#quote(block: …, attribution: […])[…]` as a whole block.
     Quote {
         block: bool,
         attribution: Option<Vec<Inline>>,
         body: Vec<Block>,
     },
-    /// `- ` (ungeordnet) bzw. `+ ` (geordnet). Runde 18b: geschachtelt mit `depths` (Tiefe je Punkt, 0 =
-    /// oberste Ebene, je Ebene zwei Leerzeichen Einzug; leer = alle 0). Geschachtelte Punkte tragen dasselbe
-    /// Zeichen wie die Liste; gemischte Zeichen bleiben eine Insel.
+    /// `- ` (unordered) or `+ ` (ordered). Round 18b: nested with `depths` (depth per item, 0 =
+    /// top level, two spaces of indentation per level; empty = all 0). Nested items carry the same
+    /// marker as the list; mixed markers stay an island.
     List {
         ordered: bool,
         items: Vec<Vec<Inline>>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         depths: Vec<u8>,
     },
-    /// Runde 18b: Aufzählung mit Ziffern `1. …`; `start` = Nummer des ersten Punkts, danach fortlaufend (je
-    /// geschachtelter Gruppe ab 1). `depths` wie bei [`BlockKind::List`].
+    /// Round 18b: enumeration with digits `1. …`; `start` = number of the first item, then consecutive (per
+    /// nested group from 1). `depths` as with [`BlockKind::List`].
     Enum {
         #[serde(default = "one")]
         start: u64,
@@ -103,47 +104,47 @@ pub enum BlockKind {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         depths: Vec<u8>,
     },
-    /// Runde 18b: Begriffsliste `/ Begriff: Erklärung` (ohne Schachtelung).
+    /// Round 18b: term list `/ Begriff: Erklärung` (without nesting).
     Terms {
         items: Vec<Term>,
     },
-    /// `#szene[…]` als ganzer Block, auch mit Argumenten davor (`#szene(ort: [Küche])[…]`, wörtlich in
-    /// `args`, ohne die Klammern). Der Rumpf besteht aus eigenen, einzeln bearbeitbaren Blöcken.
+    /// `#szene[…]` as a whole block, also with arguments before it (`#szene(ort: [Küche])[…]`, verbatim in
+    /// `args`, without the brackets). The body consists of own, individually editable blocks.
     Scene {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         args: Option<String>,
         body: Vec<Block>,
     },
-    /// `#arbeit[…]` als ganzer Block (wie [`BlockKind::Scene`]).
+    /// `#arbeit[…]` as a whole block (like [`BlockKind::Scene`]).
     Work {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         args: Option<String>,
         body: Vec<Block>,
     },
-    /// Runde 14: Teil-Markierung `#heading(level: 1, numbering: none)[T] <baruch-part>` (eine Zeile,
-    /// [`baruch_typst::marker`]); `title` ist der aufgelöste Titel. Neu erzeugt mit
-    /// [`baruch_typst::part_line`], beim Umbenennen bleibt ein Kommentar der Zeile erhalten.
+    /// Round 14: part marker `#heading(level: 1, numbering: none)[T] <baruch-part>` (one line,
+    /// [`baruch_typst::marker`]); `title` is the resolved title. Newly generated with
+    /// [`baruch_typst::part_line`], on renaming a comment of the line is kept.
     Part {
         title: String,
     },
-    /// Runde 14: Markierung „ohne Nummer“ `#heading(level: N, numbering: none)[T] <baruch-unnumbered>`
-    /// (`level` 1–3, eine Zeile); neu erzeugt mit [`baruch_typst::unnumbered_line`].
+    /// Round 14: marker "without number" `#heading(level: N, numbering: none)[T] <baruch-unnumbered>`
+    /// (`level` 1–3, one line); newly generated with [`baruch_typst::unnumbered_line`].
     Unnumbered {
         level: u8,
         title: String,
     },
-    /// Typst-Insel: wird nie neu erzeugt, nur wörtlich übernommen oder als Ganzes gelöscht.
+    /// Typst island: is never newly generated, only taken over verbatim or deleted as a whole.
     Island,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum Inline {
-    /// Text ohne Maskierungen (`\#` → `#`, `~` → geschütztes Leerzeichen).
+    /// Text without escapes (`\#` → `#`, `~` → non-breaking space).
     Text {
         v: String,
     },
-    /// Einfacher Zeilenumbruch im Quelltext (im Satz ein Leerzeichen).
+    /// Simple line break in the source text (a space in the typeset result).
     Soft,
     Emph {
         c: Vec<Inline>,
@@ -154,7 +155,7 @@ pub enum Inline {
     Footnote {
         c: Vec<Inline>,
     },
-    /// `#quote[…]` im Fließtext.
+    /// `#quote[…]` in running text.
     Quote {
         c: Vec<Inline>,
     },
@@ -162,41 +163,43 @@ pub enum Inline {
     Label {
         v: String,
     },
-    /// Typst-Insel im Absatz (Formel, Raw, eigene Funktion, Kommentar, eine Maskierung wie
-    /// `\\'` oder `\\-`, die als Text eine Kurzschreibweise würde), wörtlich.
+    /// Typst island in the paragraph (formula, raw, own function, comment, an escape such as
+    /// `\\'` or `\\-` that would become a shorthand as text), verbatim.
     Island {
         raw: String,
     },
-    /// Runde 18b: erzwungener Zeilenumbruch `\` (Backslash vor Leerraum, Zeilenende oder am Ende).
+    /// Round 18b: forced line break `\` (backslash before whitespace, line end or at the end).
     Linebreak,
-    /// Runde 18b: `#link("adresse")` bzw. `#link("adresse")[Text]`; `c` = Text des Links (`None` = ohne
-    /// Inhaltsblock, angezeigt wird die Adresse).
+    /// Round 18b: `#link("adresse")` or `#link("adresse")[Text]`; `c` = text of the link (`None` = without
+    /// content block, the address is displayed).
     Link {
         url: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         c: Option<Vec<Inline>>,
     },
-    /// Runde 18b: Verweis `@ziel` bzw. `@ziel[Zusatz]` (auch `#ref(<ziel>)`); `supplement` ist der Inhalt der
-    /// Klammer als Typst-Markup, wörtlich. Im Satzbild eine Schaltfläche, nicht bearbeitbar.
+    /// Round 18b: reference `@ziel` or `@ziel[Zusatz]` (also `#ref(<ziel>)`); `supplement` is the content of the
+    /// bracket as Typst markup, verbatim. In the typeset view a button, not editable.
     Ref {
         target: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         supplement: Option<String>,
     },
-    /// Runde 30a: Querverweis `#link(<k103>)[Text]` (mit Seitenzahl-Zusatz nach §3.3); `key` = fester Schlüssel.
+    /// Round 30a: cross-reference `#link(<k103>)[Text]` (with page number addition according to §3.3); `key` =
+    /// fixed key.
     Xref {
         key: i64,
         c: Vec<Inline>,
         #[serde(default)]
         page: bool,
     },
-    /// R31: Registermarke `#metadata((…))<baruch-idx>` ([`baruch_typst::index`]); im Satzbild dezent, bearbeitbar.
+    /// R31: index mark `#metadata((…))<baruch-idx>` ([`baruch_typst::index`]); unobtrusive in the typeset view,
+    /// editable.
     IndexMark {
         mark: baruch_typst::index::IndexMark,
     },
 }
 
-/// Ein Eintrag einer Begriffsliste (Runde 18b): `/ term: desc`.
+/// An entry of a term list (Round 18b): `/ term: desc`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Term {
     pub term: Vec<Inline>,
@@ -207,14 +210,14 @@ fn one() -> u64 {
     1
 }
 
-/// Eine Anweisung an [`serialize`]: Block `keep` des Originals wörtlich übernehmen, einen Block
-/// neu erzeugen (`replaces` = Index des ersetzten Originalblocks, `None` = eingefügt) oder im Rumpf
-/// einer Szene bzw. Arbeit (`#szene[…]`, `#arbeit[…]`) einzelne Blöcke ändern (`body` = Anweisungen
-/// für die Blöcke des Rumpfs, nach denselben Regeln). Originalblöcke, die in keiner Anweisung
-/// vorkommen, sind gelöscht. JSON: `{"keep": 3}`, `{"replaces": 2, "block": {"kind": "paragraph",
-/// "inlines": […]}}` bzw. `{"replaces": 4, "body": [{"keep": 0}, {"replaces": 1, "block": …}]}`.
-/// Runde 18b: `{"replaces": 5, "raw": "#let x = 2"}` ersetzt den Quelltext von Block 5 wörtlich (Insel an Ort
-/// und Stelle bearbeitet); ohne `replaces` (neue Insel) → [`WysiwygError::NewIsland`].
+/// An instruction to [`serialize`]: take over block `keep` of the original verbatim, generate a block
+/// anew (`replaces` = index of the replaced original block, `None` = inserted) or change single blocks in the
+/// body of a scene or work (`#szene[…]`, `#arbeit[…]`) (`body` = instructions
+/// for the blocks of the body, by the same rules). Original blocks that occur in no instruction
+/// are deleted. JSON: `{"keep": 3}`, `{"replaces": 2, "block": {"kind": "paragraph",
+/// "inlines": […]}}` or `{"replaces": 4, "body": [{"keep": 0}, {"replaces": 1, "block": …}]}`.
+/// Round 18b: `{"replaces": 5, "raw": "#let x = 2"}` replaces the source text of block 5 verbatim (island
+/// edited in place); without `replaces` (new island) → [`WysiwygError::NewIsland`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Edit {
@@ -224,14 +227,14 @@ pub enum Edit {
     Raw { replaces: Option<usize>, raw: String },
 }
 
-/// Ein Bild zu einer Insel mit Bildpfad (siehe [`image_path`] und [`render_html_with`]): Adresse
-/// und Alternativtext für `<img>`.
+/// An image for an island with an image path (see [`image_path`] and [`render_html_with`]): address
+/// and alternative text for `<img>`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageRef {
     pub src: String,
     pub alt: String,
-    /// Runde 11: Zum Pfad gibt es kein Bild im Werk. Das Satzbild meldet dann deutlich „Bild fehlt:
-    /// <Pfad>“ statt eines leeren Rahmens (die Insel bleibt byte-gleich).
+    /// Round 11: there is no image in the work for the path. The typeset view then clearly reports „Bild fehlt:
+    /// <Pfad>“ instead of an empty frame (the island stays byte-identical).
     #[serde(default)]
     pub missing: bool,
 }
@@ -248,34 +251,34 @@ pub enum WysiwygError {
     NewIsland,
     #[error("Block {0} ist keine Szene und keine Arbeit; nur deren Rumpf lässt sich blockweise ändern.")]
     NotContainer(usize),
-    /// Runde 18b: Ein Teil entsteht nur in der Gliederung, nicht als neuer oder umgewandelter Block im Satzbild.
+    /// Round 18b: a part arises only in the outline, not as a new or converted block in the typeset view.
     #[error("Einen Teil legt man in der Gliederung an, nicht im Satzbild.")]
     NewPart,
 }
 
-/// Neuer Text aus `original` und `edits` (Regeln siehe [`Edit`]).
+/// New text from `original` and `edits` (rules see [`Edit`]).
 ///
-/// - `Keep` übernimmt `raw` wörtlich; jeder Index darf höchstens einmal vorkommen (auch nicht
-///   zusätzlich als `replaces`), ein unbekannter Index ist ein Fehler.
-/// - Ein Block-Edit erzeugt kanonisches Typst ([`emit`]) und hängt den Trenner des ersetzten Blocks
-///   an (seine folgenden Leerzeilen), bei einem eingefügten Block `\n\n`. Ein Block, der leer
-///   herauskommt, entfällt.
-/// - Eine bearbeitete Überschrift behält Label und Kommentar der Originalzeile, wie
-///   [`baruch_typst::heading_line`] (das Label nur, wenn die neue Überschrift keins trägt).
-/// - Eine Insel als neuer Block oder als Ersatz einer Insel → Fehler; ihren Quelltext ändert
-///   [`Edit::Raw`] (Runde 18b: wörtlich übernommen, mit dem Trenner des alten Blocks; leer = gelöscht).
-/// - Ein Teil als neuer Block oder anstelle eines anderen Blocks → [`WysiwygError::NewPart`] (Runde 18b:
-///   Teile entstehen in der Gliederung); einen vorhandenen Teil umbenennen geht.
-/// - Folgen zwei Stücke nicht wie im Original aufeinander (eingefügt, gelöscht, umgestellt), steht
-///   dazwischen mindestens eine Leerzeile, damit nichts zu einem Absatz verschmilzt.
+/// - `Keep` takes over `raw` verbatim; every index may occur at most once (not
+///   additionally as `replaces` either), an unknown index is an error.
+/// - A block edit generates canonical Typst ([`emit`]) and appends the separator of the replaced block
+///   (its following empty lines), for an inserted block `\n\n`. A block that comes out
+///   empty is dropped.
+/// - An edited heading keeps label and comment of the original line, like
+///   [`baruch_typst::heading_line`] (the label only if the new heading carries none).
+/// - An island as a new block or as a replacement of an island → error; its source text is changed by
+///   [`Edit::Raw`] (Round 18b: taken over verbatim, with the separator of the old block; empty = deleted).
+/// - A part as a new block or in place of another block → [`WysiwygError::NewPart`] (Round 18b:
+///   parts arise in the outline); renaming an existing part works.
+/// - If two pieces do not follow each other as in the original (inserted, deleted, rearranged), there is
+///   at least one empty line in between, so that nothing merges into one paragraph.
 pub fn serialize(original: &Doc, edits: &[Edit]) -> Result<String, WysiwygError> {
     serialize_indented(original, edits, "", false)
 }
 
-/// [`serialize`] für einen Rumpf mit Einzug `indent`: Neu erzeugte Stücke bekommen ihn vor jeder
-/// Zeile; Raw-Blöcke bleiben unberührt, damit ihr Inhalt sich nicht ändert. `indent_first`: auch
-/// die erste Zeile des Ergebnisses bekommt ihn (der Rumpf beginnt auf einer eigenen Zeile, und der
-/// erste Raw-Block trägt den Einzug seiner ersten Zeile selbst); sonst gehört er zum Rahmen.
+/// [`serialize`] for a body with indentation `indent`: newly generated pieces get it before every
+/// line; raw blocks stay untouched, so that their content does not change. `indent_first`: the
+/// first line of the result gets it too (the body starts on a line of its own, and the
+/// first raw block carries the indentation of its first line itself); otherwise it belongs to the frame.
 fn serialize_indented(
     original: &Doc,
     edits: &[Edit],
@@ -297,7 +300,7 @@ fn serialize_indented(
             Edit::Raw { replaces: None, .. } => return Err(WysiwygError::NewIsland),
             Edit::Raw { replaces: Some(index), raw } => {
                 let old = take(*index)?;
-                // Wörtlich, wie getippt; im Rumpf ohne dessen Einzug geschickt oder mit ihm (beides geht).
+                // Verbatim, as typed; in the body sent without its indentation or with it (both work).
                 let text = dedent(raw.trim_start_matches(['\n', '\r']).trim_end(), indent);
                 if text.trim().is_empty() {
                     continue;
@@ -314,15 +317,15 @@ fn serialize_indented(
                 let Some((head, inner, tail)) = parse::container_frame(&old.raw) else {
                     return Err(WysiwygError::NotContainer(*index));
                 };
-                // Dieselbe Zerlegung wie beim Lesen, mit den `raw` aus diesem Block (byte-gleich).
+                // The same splitting as when reading, with the `raw` from this block (byte-identical).
                 let mut inner_doc = Doc { blocks: parse::body_blocks(inner, 1) };
                 debug_assert_eq!(inner_doc.blocks.len(), blocks.len(), "gleiche Zerlegung des Rumpfs");
                 let start = inner.len() - inner.trim_start().len();
                 let end = start.max(inner.trim_end().len());
-                // Beginnt der Rumpf auf einer eigenen Zeile, gehört der Einzug dieser Zeile zum
-                // ersten Block (`body_blocks` liest `inner.trim()`): Er wandert mit, wenn der Block
-                // nicht mehr vorn steht, sonst rückte seine erste Zeile in Spalte 0 und seine
-                // Folgezeilen blieben eingerückt (aus einer Liste würde eine geschachtelte).
+                // If the body starts on a line of its own, the indentation of this line belongs to the
+                // first block (`body_blocks` reads `inner.trim()`): it moves along when the block
+                // no longer stands at the front, otherwise its first line would move to column 0 and its
+                // continuation lines would stay indented (a list would become a nested one).
                 let (lead, first_indent) = match inner[..start].rfind('\n') {
                     Some(newline) => inner[..start].split_at(newline + 1),
                     None => (&inner[..start], ""),
@@ -353,8 +356,8 @@ fn serialize_indented(
                 if let (BlockKind::Heading { level, inlines, label }, BlockKind::Heading { label: old_label, .. }) =
                     (block, &old.kind)
                 {
-                    // Nur die Zeile bis zum ersten Umbruch ist Überschrift (Runde 7); Label und
-                    // Kommentar der Originalzeile hängen an ihr, der Rest wird ein Absatz dahinter.
+                    // Only the line up to the first break is the heading (Round 7); label and
+                    // comment of the original line hang on it, the rest becomes a paragraph after it.
                     let (head, rest) = emit::split_heading(inlines);
                     text = emit::heading_text(*level, &head);
                     text.push_str(&heading_suffix(&old.raw, &head));
@@ -385,9 +388,9 @@ fn serialize_indented(
     Ok(out)
 }
 
-/// Bearbeitete Markierung (Teil bzw. „ohne Nummer“), die einen Block ersetzt: Ein Kommentar der
-/// Originalzeile bleibt erhalten wie bei [`baruch_typst::heading_line`] (Teil aus jeder Zeile,
-/// „ohne Nummer“ nur aus einer Markierung „ohne Nummer“). Ohne Zeilenende; `None` für andere Arten.
+/// Edited marker (part or "without number") that replaces a block: a comment of the
+/// original line is kept as with [`baruch_typst::heading_line`] (part from every line,
+/// "without number" only from a marker "without number"). Without line end; `None` for other kinds.
 fn marker_line(block: &BlockKind, old_raw: &str, old_kind: &BlockKind) -> Option<String> {
     let line = old_raw.split('\n').next().unwrap_or_default();
     let built = match (block, old_kind) {
@@ -400,7 +403,7 @@ fn marker_line(block: &BlockKind, old_raw: &str, old_kind: &BlockKind) -> Option
     Some(built.trim_end_matches('\n').to_owned())
 }
 
-/// Originalblock `index`, einmal; unbekannt oder schon benutzt → Fehler.
+/// Original block `index`, once; unknown or already used → error.
 fn take_block<'a>(original: &'a Doc, used: &mut [bool], index: usize) -> Result<&'a Block, WysiwygError> {
     let count = original.blocks.len();
     let block = original.blocks.get(index).ok_or(WysiwygError::UnknownBlock { index, count })?;
@@ -410,8 +413,8 @@ fn take_block<'a>(original: &'a Doc, used: &mut [bool], index: usize) -> Result<
     Ok(block)
 }
 
-/// Neu erzeugtes Stück mit dem Einzug eines Rumpfs: vor jeder nicht leeren Zeile, die erste nur,
-/// wenn das Stück nicht am Anfang des Rumpfs steht. Mit Raw-Block (```` ``` ````) bleibt es, wie es ist.
+/// Newly generated piece with the indentation of a body: before every non-empty line, the first only
+/// if the piece does not stand at the beginning of the body. With a raw block (```` ``` ````) it stays as it is.
 fn indent_piece(text: &str, indent: &str, first: bool) -> String {
     if text.contains("```") {
         return text.to_owned();
@@ -419,8 +422,8 @@ fn indent_piece(text: &str, indent: &str, first: bool) -> String {
     indent_lines(text, indent, first)
 }
 
-/// Einzug `indent` vor jede nicht leere Zeile, die erste nur mit `first` – ohne Ausnahme, auch mit
-/// Raw-Block: Der Quelltext einer Insel ([`Edit::Raw`]) stand im Rumpf ganz mit dessen Einzug.
+/// Indentation `indent` before every non-empty line, the first only with `first` – without exception, also with
+/// a raw block: the source text of an island ([`Edit::Raw`]) stood in the body entirely with its indentation.
 fn indent_lines(text: &str, indent: &str, first: bool) -> String {
     if indent.is_empty() {
         return text.to_owned();
@@ -438,11 +441,12 @@ fn indent_lines(text: &str, indent: &str, first: bool) -> String {
     out
 }
 
-/// Einzug `indent` eines Rumpfs entfernen (Quelltext einer Insel im Rumpf, [`Edit::Raw`]); [`indent_lines`]
-/// setzt ihn danach einheitlich wieder. Entschieden wird für den ganzen Text, nicht Zeile für Zeile: Nur wenn
-/// jede nicht leere Folgezeile mit dem Einzug beginnt, wurde der Text mit ihm geschickt (wie `data-raw`, die
-/// erste Zeile trägt ihn dann oder nicht), und er fällt überall weg. Sonst kam der Text ohne Einzug, und
-/// nichts wird entfernt – so bleibt der Einzug eingerückter Zeilen (etwa in einem Rohblock) erhalten.
+/// Remove the indentation `indent` of a body (source text of an island in the body, [`Edit::Raw`]);
+/// [`indent_lines`] sets it uniformly again afterwards. The decision is made for the whole text, not line by
+/// line: only if every non-empty continuation line starts with the indentation was the text sent with it (like
+/// `data-raw`, the first line then carries it or not), and it is dropped everywhere. Otherwise the text came
+/// without indentation, and nothing is removed – that way the indentation of indented lines (for instance in a
+/// raw block) is kept.
 fn dedent(text: &str, indent: &str) -> String {
     if indent.is_empty() {
         return text.to_owned();
@@ -454,14 +458,14 @@ fn dedent(text: &str, indent: &str) -> String {
     text.split('\n').map(|line| line.strip_prefix(indent).unwrap_or(line)).collect::<Vec<_>>().join("\n")
 }
 
-/// Leerraum am Ende eines Blocks (Zeilenende und Leerzeilen): wird beim Ersetzen übernommen.
+/// Whitespace at the end of a block (line end and empty lines): is taken over on replacing.
 fn separator(raw: &str) -> &str {
     &raw[raw.trim_end().len()..]
 }
 
-/// Label und Kommentar der Originalzeile einer Überschrift, mit führendem Leerzeichen (oder leer):
-/// was [`baruch_typst::heading_line`] hinter einen neuen Titel setzen würde. Trägt die neue
-/// Überschrift selbst ein Label am Ende, entfällt das alte.
+/// Label and comment of the original line of a heading, with a leading space (or empty):
+/// what [`baruch_typst::heading_line`] would put after a new title. If the new
+/// heading itself carries a label at the end, the old one is dropped.
 fn heading_suffix(old_raw: &str, inlines: &[Inline]) -> String {
     let line = old_raw.split('\n').next().unwrap_or_default();
     let full = baruch_typst::heading_line(1, "X", Some(line));
@@ -476,9 +480,9 @@ fn heading_suffix(old_raw: &str, inlines: &[Inline]) -> String {
     suffix
 }
 
-/// Labelzeile hinter einer bearbeiteten Überschrift (mit führendem Zeilenende, oder leer): Die
-/// Originalzeile bleibt wörtlich, solange das Label gleich bleibt oder das neue fehlt; ein anderes
-/// Label ergibt eine neue Zeile `<name>`.
+/// Label line after an edited heading (with a leading line end, or empty): the
+/// original line stays verbatim as long as the label stays the same or the new one is missing; another
+/// label yields a new line `<name>`.
 fn heading_label_line(old_raw: &str, old_label: Option<&str>, new_label: Option<&str>) -> String {
     let old_line = old_label.and_then(|_| {
         let content = old_raw.trim_end();
@@ -492,7 +496,7 @@ fn heading_label_line(old_raw: &str, old_label: Option<&str>, new_label: Option<
     }
 }
 
-/// Sorgt dafür, dass `out` mit einer Leerzeile endet.
+/// Makes sure that `out` ends with an empty line.
 fn ensure_blank_line(out: &mut String) {
     let tail = &out[out.trim_end().len()..];
     match tail.matches('\n').count() {

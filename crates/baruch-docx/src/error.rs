@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fehler beim Lesen und Schreiben einer Word-Datei (Schnittstelle R32-S1, eingefroren).
+//! Errors when reading and writing a Word file (interface R32-S1, frozen).
 //!
-//! Der Server bildet [`DocxError::Write`] auf einen internen Fehler ab, alles andere auf ungültige Parameter
+//! The server maps [`DocxError::Write`] to an internal error, everything else to invalid parameters
 //! (`impl From<DocxError> for RpcError` in `baruch-server/src/rpc.rs`).
 
-/// Fehler dieses Crates; die Texte sind für den Menschen gedacht (Deutsch, Klartext).
+/// Errors of this crate; the texts are meant for the human (German, plain language).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum DocxError {
-    /// Kein ZIP, eine alte .doc-Datei (OLE) oder verschlüsselt.
+    /// Not a ZIP, an old .doc file (OLE) or encrypted.
     #[error("Keine Word-Datei (.docx): {0}")]
     NotDocx(String),
-    /// Ziel einer Beziehung verlässt den Ordner, Pfad mit `..` und Ähnliches.
+    /// Target of a relationship leaves the folder, path with `..` and the like.
     #[error("Unsichere Word-Datei: {0}")]
     Unsafe(String),
-    /// Eine Grenze aus [`crate::Limits`] ist überschritten.
+    /// A limit from [`crate::Limits`] is exceeded.
     #[error("Word-Datei überschreitet eine Grenze: {0}")]
     Limit(String),
-    /// Das ZIP-Archiv lässt sich nicht lesen.
+    /// The ZIP archive cannot be read.
     #[error("Archiv der Word-Datei: {0}")]
     Archive(String),
-    /// Ein Teil ist kein lesbares XML.
+    /// A part is not readable XML.
     #[error("XML der Word-Datei ({part}): {message}")]
     Xml { part: String, message: String },
-    /// Ein nötiger Teil fehlt oder passt nicht zusammen.
+    /// A required part is missing or does not fit together.
     #[error("Word-Datei unvollständig: {0}")]
     Invalid(String),
-    /// Das Schreiben ist gescheitert.
+    /// Writing failed.
     #[error("Word-Datei schreiben: {0}")]
     Write(String),
 }

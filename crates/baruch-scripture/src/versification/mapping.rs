@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abbildung zwischen zwei Verszählungen (Runde 17a): ein Vers bzw. eine Stelle der einen Zählung → Verse der
-//! anderen.
+//! Mapping between two versifications (Round 17a): a verse or a reference of the one versification → verses of
+//! the other.
 //!
-//! Drehpunkt ist KJV: Die Regeltabelle `data/versification-map.tsv` beschreibt je Zählung, wohin ein Vers in KJV
-//! gehört (Kopf der Datei: Herkunft und Prüfung); der Weg von KJV in eine Zählung ist dieselbe Regel umgekehrt.
-//! Ein Kapitel ohne Regel gilt als gleich, wenn es in beiden Zählungen gleich viele Verse hat – aber nur in einem
-//! Buch, für das die Zählung Regeln hat oder dessen Verszahlen in jedem Kapitel mit KJV übereinstimmen
-//! ([`unruled_book`]). Ein Buch ohne jede Regel, das irgendwo von KJV abweicht, ist ganz nicht abbildbar: Eine
-//! Psalmüberschrift als Vers 1 (Catholic, Segond, Calvin) verschiebt auch Psalmen, die zufällig gleich viele Verse
-//! haben (Ps 13: 6 = 6). Was keine Regel deckt und in der Kapitellänge abweicht, bleibt [`Mapped::Unmapped`] mit
-//! „Versifikation passt nicht: …“ – nie geraten. Zwei Zählungen mit gleichen Verszahlen in jedem Kapitel eines Buchs
-//! und denselben Regeln dafür bilden das Buch Vers für Vers auf sich ab ([`same_book`]).
+//! The pivot is KJV: the rule table `data/versification-map.tsv` describes per versification where a verse
+//! belongs in KJV (header of the file: origin and check); the way from KJV into a versification is the same rule
+//! reversed. A chapter without a rule counts as equal if it has the same number of verses in both versifications
+//! – but only in a book for which the versification has rules or whose verse counts agree with KJV in every
+//! chapter ([`unruled_book`]). A book without any rule that deviates from KJV somewhere cannot be mapped at all:
+//! a psalm title as verse 1 (Catholic, Segond, Calvin) also shifts psalms that happen to have the same number of
+//! verses (Ps 13: 6 = 6). What no rule covers and deviates in chapter length stays [`Mapped::Unmapped`] with
+//! „Versifikation passt nicht: …“ – never guessed. Two versifications with equal verse counts in every chapter
+//! of a book and the same rules for it map the book onto itself verse by verse ([`same_book`]).
 
 use std::sync::LazyLock;
 
@@ -18,7 +18,7 @@ use serde::Serialize;
 
 use super::{KJV, Versification};
 
-/// Ein Vers: Buch (OSIS-Kürzel wie [`crate::Book::id`]), Kapitel und Vers.
+/// A verse: book (OSIS code like [`crate::Book::id`]), chapter and verse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct VerseRef {
     pub book: &'static str,
@@ -27,27 +27,27 @@ pub struct VerseRef {
 }
 
 impl VerseRef {
-    /// Deutsche Schreibweise, z. B. „Joh 3,16“.
+    /// German notation, e.g. „Joh 3,16“.
     pub fn label(&self) -> String {
         let abbr = crate::books().iter().find(|b| b.id == self.book).map_or(self.book, |b| b.abbr);
         format!("{abbr} {},{}", self.chapter, self.verse)
     }
 }
 
-/// Ergebnis der Abbildung eines Verses.
+/// Result of the mapping of a verse.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Mapped {
-    /// Gleiche Stelle in beiden Zählungen.
+    /// Same reference in both versifications.
     Same { to: VerseRef },
-    /// Andere Stelle nach einer bekannten Regel (`rule`: deutscher Kurztext aus der Regeltabelle).
+    /// Another reference according to a known rule (`rule`: German short text from the rule table).
     Moved { to: VerseRef, rule: &'static str },
-    /// Nicht abbildbar; `reason` beginnt mit „Versifikation passt nicht: “.
+    /// Cannot be mapped; `reason` starts with „Versifikation passt nicht: “.
     Unmapped { reason: String },
 }
 
 impl Mapped {
-    /// Der Zielvers, wenn es einen gibt.
+    /// The target verse, if there is one.
     pub fn target(&self) -> Option<VerseRef> {
         match self {
             Mapped::Same { to } | Mapped::Moved { to, .. } => Some(*to),
@@ -56,24 +56,24 @@ impl Mapped {
     }
 }
 
-/// Anfang jedes Grundes, warum sich ein Vers nicht abbilden lässt.
+/// Beginning of every reason why a verse cannot be mapped.
 pub const MISMATCH: &str = "Versifikation passt nicht: ";
 
-/// Anfang der Regeln für Psalmüberschriften ohne eigene Verszahl in KJV: Eine Stelle „ganzes Kapitel“ lässt solche
-/// Verse aus ([`map_range`]), eine Versangabe darauf ist nicht abbildbar.
+/// Beginning of the rules for psalm titles without a verse number of their own in KJV: a reference "whole
+/// chapter" leaves out such verses ([`map_range`]), a verse reference to them cannot be mapped.
 const HEADING: &str = "Psalmüberschrift";
 
-/// Eine Zeile der Regeltabelle.
+/// A line of the rule table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rule {
-    /// Zählungen (Schreibweise von sword-modules).
+    /// Versifications (spelling of sword-modules).
     pub systems: Vec<&'static str>,
     pub book: &'static str,
-    /// Kapitel; `None` = das ganze Buch ist nicht abbildbar.
+    /// Chapter; `None` = the whole book cannot be mapped.
     pub chapter: Option<u16>,
     pub first: u16,
     pub last: u16,
-    /// Ziel in KJV (Kapitel, erster Vers); `None` = keine eigene Entsprechung.
+    /// Target in KJV (chapter, first verse); `None` = no counterpart of its own.
     pub target: Option<(u16, u16)>,
     pub name: &'static str,
 }
@@ -87,12 +87,12 @@ impl Rule {
         self.chapter == Some(chapter) && (self.first..=self.last).contains(&verse)
     }
 
-    /// KJV-Vers zu einem Vers der Quelle (nur innerhalb der Regel).
+    /// KJV verse for a verse of the source (only within the rule).
     fn forward(&self, verse: u16) -> Option<(u16, u16)> {
         self.target.map(|(c, v)| (c, v + (verse - self.first)))
     }
 
-    /// Vers der Quelle zu einem KJV-Vers, wenn die Regel ihn trifft.
+    /// Verse of the source for a KJV verse, if the rule hits it.
     fn backward(&self, chapter: u16, verse: u16) -> Option<(u16, u16)> {
         let (tc, tv) = self.target?;
         let len = self.last - self.first;
@@ -101,14 +101,14 @@ impl Rule {
     }
 }
 
-/// Die eingebettete Tabelle.
+/// The embedded table.
 pub const TABLE: &str = include_str!("../../data/versification-map.tsv");
 
 fn number(field: &str, line: usize) -> Result<u16, String> {
     field.parse().map_err(|_| format!("Zeile {line}: „{field}“ ist keine Zahl"))
 }
 
-/// Liest die Regeltabelle (`#` leitet Kommentare ein, Spalten siehe Kopf von `data/versification-map.tsv`).
+/// Reads the rule table (`#` starts comments, columns see the header of `data/versification-map.tsv`).
 pub fn parse_rules(text: &'static str) -> Result<Vec<Rule>, String> {
     let mut rules = Vec::new();
     for (n, line) in text.lines().enumerate() {
@@ -153,15 +153,15 @@ pub fn parse_rules(text: &'static str) -> Result<Vec<Rule>, String> {
 static RULES: LazyLock<Vec<Rule>> =
     LazyLock::new(|| parse_rules(TABLE).unwrap_or_else(|e| panic!("data/versification-map.tsv fehlerhaft: {e}")));
 
-/// Alle Regeln der eingebetteten Tabelle.
+/// All rules of the embedded table.
 pub fn rules() -> &'static [Rule] {
     &RULES
 }
 
-/// Ein Schritt zum bzw. vom Drehpunkt KJV.
+/// A step to or from the pivot KJV.
 enum Step {
     To(VerseRef, Option<&'static str>),
-    /// Nicht abbildbar; `heading` = eine Psalmüberschrift ohne Verszahl in KJV.
+    /// Cannot be mapped; `heading` = a psalm title without a verse number in KJV.
     Gone {
         reason: String,
         heading: bool,
@@ -180,9 +180,9 @@ fn rules_of<'a>(system: &'a str, book: &'a str) -> impl Iterator<Item = &'static
     RULES.iter().filter(move |r| r.book == book && r.applies_to(system))
 }
 
-/// Ein Buch ohne jede Regel für die Zählung, dessen Verszahlen von KJV abweichen: Grund, warum es nicht abbildbar
-/// ist. Gleiche Kapitellängen sagen dann nichts (eine Überschrift als Vers 1 verschiebt auch ein Kapitel mit
-/// gleich vielen Versen), also wird kein Kapitel des Buchs geraten.
+/// A book without any rule for the versification whose verse counts deviate from KJV: reason why it cannot be
+/// mapped. Equal chapter lengths then say nothing (a title as verse 1 also shifts a chapter with the same
+/// number of verses), so no chapter of the book is guessed.
 fn unruled_book(x: &Versification, book: &str) -> Option<String> {
     if x.name.eq_ignore_ascii_case(KJV) || rules_of(x.name, book).next().is_some() {
         return None;
@@ -197,8 +197,8 @@ fn unruled_book(x: &Versification, book: &str) -> Option<String> {
     })
 }
 
-/// Haben beide Zählungen im Buch dieselben Verszahlen in jedem Kapitel und dieselben Regeln? Dann bleibt jeder Vers
-/// des Buchs, wo er ist (wie bei ganz gleichen Zählungen).
+/// Do both versifications have the same verse counts in every chapter of the book and the same rules? Then
+/// every verse of the book stays where it is (as with entirely equal versifications).
 fn same_book(a: &Versification, b: &Versification, book: &str) -> bool {
     let (Some(x), Some(y)) = (a.chapters_of(book), b.chapters_of(book)) else { return false };
     let ra: Vec<*const Rule> = rules_of(a.name, book).map(|r| r as *const Rule).collect();
@@ -206,7 +206,7 @@ fn same_book(a: &Versification, b: &Versification, book: &str) -> bool {
     x == y && ra == rb
 }
 
-/// Vers der Zählung `x` → Vers in KJV.
+/// Verse of the versification `x` → verse in KJV.
 fn to_pivot(x: &Versification, v: VerseRef) -> Step {
     let len = x.verses_in(v.book, v.chapter);
     if v.verse == 0 || len.is_none_or(|n| v.verse > n) {
@@ -250,7 +250,7 @@ fn to_pivot(x: &Versification, v: VerseRef) -> Step {
     }
 }
 
-/// Vers in KJV → Vers der Zählung `y`.
+/// Verse in KJV → verse of the versification `y`.
 fn from_pivot(y: &Versification, k: VerseRef) -> Step {
     if y.name.eq_ignore_ascii_case(KJV) {
         return Step::To(k, None);
@@ -290,7 +290,7 @@ fn book_abbr(book: &str) -> &str {
     crate::books().iter().find(|b| b.id == book).map_or(book, |b| b.abbr)
 }
 
-/// Abbildung mit dem Vermerk, ob ein nicht abbildbarer Vers eine Psalmüberschrift ist.
+/// Mapping with the note whether a verse that cannot be mapped is a psalm title.
 fn map_verse_marked(from: &Versification, to: &Versification, verse: VerseRef) -> (Mapped, bool) {
     let unmapped = |reason: String, heading: bool| {
         (
@@ -300,8 +300,9 @@ fn map_verse_marked(from: &Versification, to: &Versification, verse: VerseRef) -
             heading,
         )
     };
-    // Gleiche Zählung oder gleiche Verszahlen in jedem Kapitel (German/Luther, KJV/KJVA, NRSV/NRSVA; je Buch mit
-    // denselben Regeln, z. B. Catholic/Catholic2 außerhalb der Spätschriften): jeder Vers bleibt, wo er ist.
+    // Same versification or equal verse counts in every chapter (German/Luther, KJV/KJVA, NRSV/NRSVA; per book
+    // with the same rules, e.g. Catholic/Catholic2 outside the deuterocanonical books): every verse stays where
+    // it is.
     if from.name.eq_ignore_ascii_case(to.name) || from.books().eq(to.books()) || same_book(from, to, verse.book) {
         return match from.verses_in(verse.book, verse.chapter) {
             Some(n) if verse.verse >= 1 && verse.verse <= n => (Mapped::Same { to: verse }, false),
@@ -325,26 +326,26 @@ fn map_verse_marked(from: &Versification, to: &Versification, verse: VerseRef) -
     }
 }
 
-/// Einen Vers aus `from` nach `to` abbilden (Vers ab 1).
+/// Map a verse from `from` to `to` (verse from 1).
 pub fn map_verse(from: &Versification, to: &Versification, verse: VerseRef) -> Mapped {
     map_verse_marked(from, to, verse).0
 }
 
-/// Eine Stelle abgebildet: Verse der Zielzählung in Textreihenfolge, ohne Doppel.
+/// A mapped reference: verses of the target versification in text order, without duplicates.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MappedRange {
     pub verses: Vec<VerseRef>,
-    /// Die Stelle hat in der Ausgangszählung mehr als `limit` Verse.
+    /// The reference has more than `limit` verses in the source versification.
     pub truncated: bool,
-    /// Angewandte Regeln (ohne Doppel, in der Reihenfolge ihres ersten Auftretens).
+    /// Applied rules (without duplicates, in the order of their first appearance).
     pub rules: Vec<&'static str>,
 }
 
-/// Stelle in `from` (Vers 0 = ganzes Kapitel) → Verse in `to`, Reihenfolge des Textes, ohne Doppel, höchstens
-/// `limit` (truncated = die Stelle hat in `from` mehr als `limit` Verse; genau `limit` Verse ⇒ false).
-/// Err(Grund, Deutsch, „Versifikation passt nicht: …“ mit beiden Zählungsnamen) bei unbekanntem Buch/Kapitel in
-/// `from` oder einem nicht abbildbaren Vers. Eine Stelle „ganze Kapitel“ (Vers 0 an beiden Enden) lässt
-/// Psalmüberschriften aus, die die Zielzählung nicht als Vers zählt (Regel in `rules`).
+/// Reference in `from` (verse 0 = whole chapter) → verses in `to`, order of the text, without duplicates, at
+/// most `limit` (truncated = the reference has more than `limit` verses in `from`; exactly `limit` verses ⇒
+/// false). Err(reason, German, „Versifikation passt nicht: …“ with both versification names) for an unknown
+/// book/chapter in `from` or a verse that cannot be mapped. A reference "whole chapters" (verse 0 at both ends)
+/// leaves out psalm titles that the target versification does not count as a verse (rule in `rules`).
 pub fn map_range(
     from: &Versification,
     to: &Versification,

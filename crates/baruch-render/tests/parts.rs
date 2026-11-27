@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14: Teil-Markierungen im Satz. Typst prüft selbst (`#context assert…`): Das Label hängt an
-//! der Überschrift, Teile zählen nicht im Überschriftenzähler, und mit [`part_page_rule`] steht jeder
-//! Teil allein auf einer eigenen rechten Seite. Alle Texte frei erfunden.
+//! Round 14: part markers in the typeset result. Typst checks itself (`#context assert…`): the label hangs on
+//! the heading, parts do not count in the heading counter, and with [`part_page_rule`] every
+//! part stands alone on a right page of its own. All texts freely invented.
 
 use baruch_render::{Rendered, Severity, Source, compile};
 use baruch_typst::{part_line, part_page_rule, unnumbered_line};
 
 const TEMPLATE: &str = "#set page(width: 100mm, height: 140mm, numbering: \"1\")\n#set heading(numbering: \"1.1\")\n";
 
-/// Werk mit zwei Teilen, einem Vorwort ohne Nummer und drei Kapiteln; jedes Kapitel prüft seinen
-/// Zähler. `rule`: Regel für die Teil-Seite hinter der Werkvorlage.
+/// Work with two parts, a preface without number and three chapters; every chapter checks its
+/// counter. `rule`: rule for the part page after the work template.
 fn book(rule: &str) -> String {
     format!(
         "{TEMPLATE}{rule}{vorwort}Ein Wort vorab.\n\n{teil1}\n= Erstes Kapitel\n\
@@ -32,7 +32,7 @@ fn errors(rendered: &Rendered) -> Vec<String> {
     rendered.diagnostics.iter().filter(|d| d.severity == Severity::Error).map(|d| d.message.clone()).collect()
 }
 
-/// Seite der Überschrift in Zeile `line` (1-basiert).
+/// Page of the heading in line `line` (1-based).
 fn page_at(rendered: &Rendered, line: usize) -> usize {
     rendered
         .headings
@@ -42,7 +42,7 @@ fn page_at(rendered: &Rendered, line: usize) -> usize {
         .page
 }
 
-/// Zeile (1-basiert), die mit `prefix` beginnt.
+/// Line (1-based) that starts with `prefix`.
 fn line_of(source: &str, prefix: &str) -> usize {
     source.lines().position(|l| l.starts_with(prefix)).unwrap_or_else(|| panic!("{prefix:?} fehlt")) + 1
 }
@@ -91,16 +91,16 @@ fn the_part_page_shows_its_number_and_title() {
     let rendered = compile(&Source { main: source, files: vec![] });
     assert_eq!(errors(&rendered), Vec::<String>::new(), "fehlerfrei");
     assert!(rendered.pages.len() >= 2, "Teil-Seite und Kapitelseite: {} Seiten", rendered.pages.len());
-    // typst-svg setzt Text als Glyphen; die Teil-Seite (Seite 1) muss also mehr als eine leere Seite sein
-    // und sich von der Kapitelseite unterscheiden.
+    // typst-svg sets text as glyphs; so the part page (page 1) must be more than an empty page
+    // and differ from the chapter page.
     assert_ne!(rendered.pages[0], rendered.pages[1], "eigene Seite für den Teil");
 }
 
 #[test]
 fn a_template_heading_rule_does_not_touch_the_part_page() {
-    // Eine Werkvorlage, die jede Überschrift der ersten Ebene mit einem Seitenumbruch auf eine rechte
-    // Seite und großem Text setzt: Die Teil-Regel steht dahinter und greift zuerst, nutzt nur
-    // `it.body` – die Vorlagen-Regel wirkt also nicht doppelt (sonst gäbe es eine zusätzliche Leerseite).
+    // A work template that sets every heading of the first level with a page break onto a right
+    // page and in large text: the part rule comes after it and applies first, uses only
+    // `it.body` – so the template rule does not act twice (otherwise there would be an additional empty page).
     let template = format!(
         "{TEMPLATE}#show heading.where(level: 1): it => {{ pagebreak(weak: true, to: \"odd\"); text(size: 20pt, it) }}\n"
     );
@@ -118,8 +118,8 @@ fn a_template_heading_rule_does_not_touch_the_part_page() {
 
 #[test]
 fn the_counter_checks_would_catch_a_counting_part() {
-    // Gegenprobe: Wäre der Teil eine gewöhnliche `=`-Überschrift, zählte er mit, und das assert im
-    // ersten Kapitel schlüge fehl. So ist belegt, dass die Prüfungen oben wirklich greifen.
+    // Cross-check: if the part were an ordinary `=` heading, it would count along, and the assert in the
+    // first chapter would fail. This proves that the checks above really take effect.
     let source = book("").replace(&part_line("Vom Säen"), "= Vom Säen\n");
     let rendered = compile(&Source { main: source, files: vec![] });
     let found = errors(&rendered);
@@ -131,10 +131,10 @@ fn the_counter_checks_would_catch_a_counting_part() {
 
 #[test]
 fn the_show_rule_fallback_sets_a_title_with_code_without_number() {
-    // Befund Gutachten Runde 14: Titel mit Code (`#emph[…]`) projiziert der Export nicht mehr auf die
-    // Markierung, sondern nimmt die Show-Regel (`snapshot::fallback_rules`, Form wörtlich wie dort).
-    // Typst muss sie treffen (Vorwort zählt nicht) und den Titel als Hervorhebung setzen, nicht als
-    // Raw-Text „emph“.
+    // Finding of the review Round 14: titles with code (`#emph[…]`) are no longer projected onto the
+    // marker by the export; it takes the show rule instead (`snapshot::fallback_rules`, form verbatim as there).
+    // Typst must hit it (preface does not count) and set the title as emphasis, not as
+    // raw text "emph".
     let source = format!(
         "{TEMPLATE}// Baruch: Überschriften ohne Nummer\n\
          #show heading.where(level: 1, body: [Das #emph[Jahr]]): set heading(numbering: none)\n\

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Die 66 Bücher: OSIS-Kürzel, Name nach Schlachter, gängige Abkürzung und weitere Schreibweisen.
-//! Die Verszahlen kommen aus `data/versification.tsv` (siehe [`crate::SOURCE`]).
+//! The 66 books: OSIS code, name according to Schlachter, common abbreviation and further spellings.
+//! The verse counts come from `data/versification.tsv` (see [`crate::SOURCE`]).
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use crate::Book;
 
-/// (OSIS, Name, Abkürzung, weitere Schreibweisen). Nummerierte Bücher werden ohne Punkt und Leerzeichen
-/// verglichen ([`key`]): „1. Kön“, „1 Kön“, „1.Kön“ und „1Kön“ sind derselbe Schlüssel.
+/// (OSIS, name, abbreviation, further spellings). Numbered books are compared without full stop and space
+/// ([`key`]): „1. Kön“, „1 Kön“, „1.Kön“ and „1Kön“ are the same key.
 pub(crate) const META: [(&str, &str, &str, &[&str]); 66] = [
     ("Gen", "1. Mose", "1. Mo", &["1. Mos", "Genesis", "Gen", "Gn"]),
     ("Exod", "2. Mose", "2. Mo", &["2. Mos", "Exodus", "Ex", "Exod"]),
@@ -78,16 +78,16 @@ pub(crate) const META: [(&str, &str, &str, &[&str]); 66] = [
     ("Rev", "Offenbarung", "Offb", &["Off", "Apk", "Offenb"]),
 ];
 
-/// Abkürzungen, die im Fließtext auch gewöhnliche Wörter sind („am“, „ob“, „mi“, „Mal“ …): [`crate::scan`] nimmt
-/// sie nur mit Versangabe („Am 3,7“), nicht als ganzes Kapitel („Am 3. Tag“).
+/// Abbreviations that are also ordinary words in running text („am“, „ob“, „mi“, „Mal“ …): [`crate::scan`] takes
+/// them only with a verse („Am 3,7“), not as a whole chapter („Am 3. Tag“).
 pub(crate) const AMBIGUOUS: [&str; 9] = ["am", "mi", "ob", "hab", "ri", "tit", "da", "hi", "mal"];
 
-/// Vergleichsschlüssel einer Schreibweise: klein, ohne Punkte und Leerraum, Umlaute bleiben.
+/// Comparison key of a spelling: lower case, without full stops and whitespace, umlauts stay.
 pub(crate) fn key(text: &str) -> String {
     text.chars().filter(|c| !c.is_whitespace() && *c != '.').flat_map(char::to_lowercase).collect()
 }
 
-/// Verszahlen je Buch aus der eingebetteten Tabelle (Reihenfolge wie [`META`]).
+/// Verse counts per book from the embedded table (order as in [`META`]).
 static COUNTS: LazyLock<Vec<Vec<u16>>> = LazyLock::new(|| {
     let table = parse_table(include_str!("../data/versification.tsv")).expect("data/versification.tsv fehlerhaft");
     META.iter()
@@ -113,13 +113,13 @@ static INDEX: LazyLock<HashMap<String, usize>> = LazyLock::new(|| {
     map
 });
 
-/// Buch zu einer Schreibweise (Groß-/Kleinschreibung, Punkte und Leerraum egal).
+/// Book for a spelling (case, full stops and whitespace do not matter).
 pub(crate) fn lookup(text: &str) -> Option<&'static Book> {
     INDEX.get(&key(text)).map(|&i| &BOOKS[i])
 }
 
-/// `Buch\tKapitel\tVerse` je Zeile, `#` leitet Kommentare ein. Kapitel müssen je Buch lückenlos ab 1
-/// aufsteigen, jedes Kapitel hat mindestens einen Vers.
+/// `Buch\tKapitel\tVerse` per line, `#` starts comments. Chapters must ascend per book without gaps from 1,
+/// every chapter has at least one verse.
 pub(crate) fn parse_table(text: &str) -> Result<Vec<(String, Vec<u16>)>, String> {
     let mut books: Vec<(String, Vec<u16>)> = Vec::new();
     for (n, line) in text.lines().enumerate() {
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn every_spelling_points_to_exactly_one_book() {
-        // INDEX prüft beim Aufbau, dass keine Schreibweise zwei Bücher meint.
+        // INDEX checks on construction that no spelling means two books.
         assert!(INDEX.len() > 66 * 2, "mehr als Name und Abkürzung je Buch: {}", INDEX.len());
         for word in AMBIGUOUS {
             assert!(INDEX.contains_key(word), "{word} ist eine Abkürzung eines Buchs");

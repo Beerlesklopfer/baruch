@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `serialize`: unberührte Blöcke bleiben wörtlich, bearbeitete werden kanonisch erzeugt, Inseln nur
-//! als Ganzes gelöscht; doppelte und unbekannte Indizes sind Fehler.
+//! `serialize`: untouched blocks stay verbatim, edited ones are generated canonically, islands only
+//! deleted as a whole; duplicate and unknown indices are errors.
 
 use baruch_wysiwyg::{BlockKind, Edit, Inline, WysiwygError, parse, serialize};
 
@@ -109,7 +109,7 @@ fn edits_have_the_json_shape_of_the_contract() {
     assert_eq!(island.raw, "", "raw ist mit #[serde(default)] optional");
 }
 
-/// Jeden Block unverändert als neu erzeugten Block schicken (wie das Satzbild nach einem Tastendruck).
+/// Send every block unchanged as a newly generated block (like the typeset view after a keystroke).
 fn regenerate_all(source: &str) -> String {
     let doc = parse(source);
     let edits: Vec<Edit> = doc.blocks.iter().enumerate().map(|(i, b)| replace(i, b.kind.clone())).collect();
@@ -118,13 +118,13 @@ fn regenerate_all(source: &str) -> String {
 
 #[test]
 fn regenerated_blocks_keep_escapes_that_would_otherwise_become_shorthands() {
-    // Befund nach Runde 5: parse löste `\'` zu `'` auf, emit maskierte es nicht wieder, und Typst
-    // machte daraus ein typografisches Anführungszeichen (ebenso `--`, `...`, `-?`).
+    // Finding after Round 5: parse resolved `\'` to `'`, emit did not escape it again, and Typst
+    // turned it into a typographic quotation mark (likewise `--`, `...`, `-?`).
     let heading = regenerate_all("= Anna\\'s Laube <laube>\n");
     assert_eq!(heading, "= Anna\\'s Laube <laube>\n", "der gerade Apostroph bleibt maskiert");
     let shorthands = concat!(r#"a\--b und \"zitat\" und \.\.\. und Wort\-?teil und -\?x und -\1"#, "\n");
-    // Von `\.\.\.` muss der erste Punkt nicht maskiert bleiben: hinter ihm stehen nur maskierte Punkte,
-    // `...` entsteht so nicht. Kanonisch ist darum `.\.\.`, gleichbedeutend mit dem Original.
+    // Of `\.\.\.` the first full stop need not stay escaped: after it there are only escaped full stops,
+    // `...` does not arise that way. Canonical is therefore `.\.\.`, equivalent to the original.
     assert_eq!(
         regenerate_all(shorthands),
         shorthands.replace(r"\.\.\.", r".\.\."),
@@ -137,8 +137,8 @@ fn regenerated_blocks_keep_escapes_that_would_otherwise_become_shorthands() {
 
 #[test]
 fn harmless_escapes_stay_editable_text() {
-    // Nur Maskierungen, die als Text etwas anderes bedeuteten, werden Inseln; ein einzelner `\.` hinter
-    // einer Zahl (kein `...`) bleibt Text, damit das Satzbild ihn bearbeiten kann.
+    // Only escapes that would mean something else as text become islands; a single `\.` after
+    // a number (no `...`) stays text, so that the typeset view can edit it.
     let doc = parse("Am 1\\. Mai, \\#2.\n");
     let BlockKind::Paragraph { inlines } = &doc.blocks[0].kind else {
         panic!("ein Absatz: {:#?}", doc.blocks);
@@ -157,7 +157,7 @@ fn harmless_escapes_stay_editable_text() {
 
 #[test]
 fn every_typst_line_break_in_text_becomes_a_space() {
-    // Typst bricht auch bei U+2028, U+2029, U+0085, \\x0B und \\x0C um; dahinter wäre `= ` eine Überschrift.
+    // Typst also breaks at U+2028, U+2029, U+0085, \\x0B and \\x0C; after them `= ` would be a heading.
     for (brk, marker) in [('\u{2028}', "= "), ('\u{2029}', "- "), ('\u{85}', "+ "), ('\x0B', "1. "), ('\x0C', "/ ")] {
         let para = BlockKind::Paragraph { inlines: vec![text(&format!("Satz{brk}{marker}weiter"))] };
         let doc = parse("Alt.\n");
@@ -172,8 +172,8 @@ fn every_typst_line_break_in_text_becomes_a_space() {
         let heading =
             BlockKind::Heading { level: 2, inlines: vec![text(&format!("Titel{brk}= Zweiter"))], label: None };
         let out = serialize(&parse("== Alt\n"), &[replace(0, heading)]).unwrap();
-        // Runde 7: Die Überschrift endet am Zeilenende; der Rest wird ein eigener Absatz (maskiert),
-        // statt als „Titel = Zweiter“ in der Überschriftszeile zu landen.
+        // Round 7: the heading ends at the line end; the rest becomes a paragraph of its own (escaped),
+        // instead of ending up as „Titel = Zweiter“ in the heading line.
         assert_eq!(out, "== Titel\n\n\\= Zweiter\n", "Überschrift bis zum Zeilenende, dann ein Absatz ({brk:?})");
         assert!(!out.contains(brk), "auch nicht in der Überschrift: {out:?}");
         let reparsed = parse(&out);
@@ -184,8 +184,8 @@ fn every_typst_line_break_in_text_becomes_a_space() {
     }
 }
 
-/// Runde 7, „Absatz wird Titel“: So schickte das Widget eine Überschrift, hinter deren Titel
-/// Umschalt+Enter (bzw. ein `<br>` des Browsers) und dann ein Absatz stand.
+/// Round 7, „Absatz wird Titel“: this is how the widget sent a heading after whose title
+/// Shift+Enter (or a `<br>` of the browser) and then a paragraph stood.
 fn heading_with_paragraph() -> Vec<Inline> {
     vec![
         text("Laub"),
@@ -233,9 +233,9 @@ fn a_new_heading_with_a_line_break_and_leading_breaks_is_split_too() {
     );
 }
 
-/// Runde 7, Nachbesserung: Ein Umbruch in `*…*` bzw. `_…_` einer Überschrift (Drop, `<br>` des
-/// Browsers in `<b>`) wurde in der Überschriftszeile ein Leerzeichen, der Absatz landete wieder im
-/// Titel. Jetzt teilt er die Hervorhebung: vorn der Titel, hinten der Absatz, beide hervorgehoben.
+/// Round 7, follow-up fix: a break in `*…*` or `_…_` of a heading (drop, `<br>` of the
+/// browser in `<b>`) became a space in the heading line, the paragraph ended up in the
+/// title again. Now it splits the emphasis: the title at the front, the paragraph at the back, both emphasised.
 #[test]
 fn a_line_break_inside_bold_or_italic_ends_the_heading_too() {
     let strong = |c: Vec<Inline>| Inline::Strong { c };
@@ -277,14 +277,14 @@ fn a_line_break_inside_bold_or_italic_ends_the_heading_too() {
     for (case, inlines, expected) in cases {
         let heading = BlockKind::Heading { level: 2, inlines, label: None };
         let out = serialize(&parse("== Alt\n"), &[replace(0, heading)]).unwrap();
-        // Die genaue Ausgabe zeigt, wo geteilt wurde und dass nichts verloren geht.
+        // The exact output shows where the split happened and that nothing is lost.
         assert_eq!(out, expected, "{case}");
-        // Ursache des Fehlers war eine Titelzeile mit dem Absatz: Typst liest genau einen Titel ohne ihn.
+        // The cause of the error was a title line with the paragraph: Typst reads exactly one title without it.
         let headings = baruch_typst::parse(&out).unwrap().headings;
         assert_eq!(headings.len(), 1, "{case}: genau eine Überschriftszeile: {out:?}");
         assert!(!headings[0].title.contains("Absatz"), "{case}: kein Absatz im Titel: {:?}", headings[0].title);
     }
-    // Auch bei einer neu eingefügten Überschrift (eigener Weg in `serialize`, nur über `emit`).
+    // Also for a newly inserted heading (own path in `serialize`, only through `emit`).
     let fresh = Edit::Block {
         replaces: None,
         block: BlockKind::Heading {
@@ -295,7 +295,7 @@ fn a_line_break_inside_bold_or_italic_ends_the_heading_too() {
     };
     let out = serialize(&parse("= Herbst\n"), &[keep(0), fresh]).unwrap();
     assert_eq!(out, "= Herbst\n\n== *Laub*\n\n*Ein ganzer Absatz.*\n\n", "neue Überschrift wird ebenso geteilt");
-    // Fußnoten sind ein eigener Inhaltsblock: ihr Umbruch bleibt in ihr, die Überschrift ganz.
+    // Footnotes are a content block of their own: their break stays in them, the heading whole.
     let footnote = BlockKind::Heading {
         level: 2,
         inlines: vec![text("Laub"), Inline::Footnote { c: vec![text("eins"), Inline::Soft, text("zwei")] }],

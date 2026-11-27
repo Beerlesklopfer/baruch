@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Engine der Typst-Kommandozeile (Runde 36, Besitz `typst_alias`): eine Typst-Datei von der Platte setzen, ohne
-//! Werk und ohne Datenbank. Die Argumente liest `baruch_server::typst_cli`; hier steht nur der Satz. Als Kindmodul
-//! darf `cli` die privaten Teile von `lib.rs` lesen (Schriften, Bibliothek, deutsche Meldungen).
+//! Engine of the Typst command line (Round 36, ownership `typst_alias`): typeset a Typst file from disk, without
+//! a work and without a database. The arguments are read by `baruch_server::typst_cli`; only the typesetting is
+//! here. As a child module `cli` may read the private parts of `lib.rs` (fonts, library, German messages).
 //!
-//! Unterschiede zum Satz eines Werks ([`crate::compile`]): Die Dateien kommen von der Platte, aus dem Wurzelordner
-//! des Auftrags, und nur von dort – ein Pfad, der lexikalisch oder über einen Symlink hinausführt, ist gesperrt.
-//! Pakete (`@preview/…`) lädt auch die Kommandozeile nie ([`crate::OFFLINE`]); es gibt keinen Netzzugriff. Schriften
-//! sind die des Servers (eingebettet, dann System); mit `font_paths` entsteht für den Lauf ein eigener Vorrat, der
-//! zusätzlich diese Ordner durchsucht. Der Quelltext wird nicht umgeschrieben (kein Nachtragen von Bildformaten).
+//! Differences from typesetting a work ([`crate::compile`]): the files come from disk, from the root folder of
+//! the job, and only from there – a path that leads out lexically or through a symlink is blocked. Packages
+//! (`@preview/…`) are never loaded by the command line either ([`crate::OFFLINE`]); there is no network access.
+//! Fonts are those of the server (embedded, then system); with `font_paths` a stock of its own is created for
+//! the run, which additionally searches these folders. The source text is not rewritten (no adding of image
+//! formats).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -22,10 +23,10 @@ use typst::{Library, World, WorldExt};
 use typst_kit::fonts::FontStore;
 use typst_layout::PagedDocument;
 
-/// Version der eingebauten Typst-Engine (wie in `Cargo.toml` dieses Crates).
+/// Version of the built-in Typst engine (as in `Cargo.toml` of this crate).
 pub const TYPST_VERSION: &str = "0.15.1";
 
-/// Ausgabeformat von [`compile_file`].
+/// Output format of [`compile_file`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     Pdf,
@@ -33,42 +34,42 @@ pub enum OutputFormat {
     Svg,
 }
 
-/// Ein Satzauftrag der Kommandozeile.
+/// A typesetting job of the command line.
 #[derive(Debug, Clone)]
 pub struct CompileJob {
-    /// Eingabedatei (`.typ`).
+    /// Input file (`.typ`).
     pub input: PathBuf,
-    /// Wurzel des Projekts; `None` = Ordner der Eingabedatei. Dateien außerhalb sind gesperrt.
+    /// Root of the project; `None` = folder of the input file. Files outside are blocked.
     pub root: Option<PathBuf>,
-    /// Ordner mit Schriften, zusätzlich zu den eingebetteten und den Systemschriften.
+    /// Folders with fonts, in addition to the embedded and the system fonts.
     pub font_paths: Vec<PathBuf>,
     pub format: OutputFormat,
-    /// Auflösung, nur für [`OutputFormat::Png`]; Vorgabe der Kommandozeile 144.0.
+    /// Resolution, only for [`OutputFormat::Png`]; default of the command line 144.0.
     pub ppi: f32,
 }
 
-/// Ergebnis von [`compile_file`]: je Seite die Bytes (bei [`OutputFormat::Pdf`] genau ein Element) und die Warnungen.
+/// Result of [`compile_file`]: per page the bytes (with [`OutputFormat::Pdf`] exactly one element) and the warnings.
 #[derive(Debug, Clone)]
 pub struct CompileOutput {
     pub pages: Vec<Vec<u8>>,
     pub warnings: Vec<String>,
 }
 
-/// Satz- oder Dateifehler; je Meldung „pfad:zeile:spalte: error: text“.
+/// Typesetting or file error; per message "pfad:zeile:spalte: error: text".
 #[derive(Debug, Clone)]
 pub struct CompileError {
     pub messages: Vec<String>,
 }
 
-/// Schriften eines Laufs: der Vorrat des Prozesses oder – mit `font_paths` – ein eigener.
+/// Fonts of a run: the stock of the process or – with `font_paths` – one of its own.
 enum FontSet {
     Shared,
     Own(Box<FontStore>),
 }
 
 impl FontSet {
-    /// Eingebettete Schriften, Systemschriften und die Ordner aus `font_paths` (in dieser Reihenfolge wie im
-    /// Server; die Ordner kommen hinzu).
+    /// Embedded fonts, system fonts and the folders from `font_paths` (in this order as in the
+    /// server; the folders are added).
     fn new(font_paths: &[PathBuf]) -> FontSet {
         if font_paths.is_empty() {
             return FontSet::Shared;
@@ -90,14 +91,14 @@ impl FontSet {
     }
 }
 
-/// Die Welt eines Laufs der Kommandozeile: Dateien unter `root`, einmal gelesen und dann unverändert (Typst
-/// verlangt gleiche Antworten während eines Laufs).
+/// The world of a run of the command line: files under `root`, read once and then unchanged (Typst
+/// demands equal answers during a run).
 struct Disk {
-    /// Wurzelordner, aufgelöst (ohne Symlinks) – gegen ihn wird jeder gelesene Pfad geprüft.
+    /// Root folder, resolved (without symlinks) – every path that is read is checked against it.
     root: PathBuf,
-    /// Wurzelordner, wie ihn der Aufrufer nannte – für die Pfade in Meldungen.
+    /// Root folder as the caller named it – for the paths in messages.
     shown_root: PathBuf,
-    /// Eingabedatei, wie sie der Aufrufer nannte.
+    /// Input file as the caller named it.
     shown_input: PathBuf,
     main: FileId,
     fonts: FontSet,
@@ -115,7 +116,7 @@ impl Disk {
 
     fn read_from_disk(&self, id: FileId) -> FileResult<Bytes> {
         let path = id.vpath().realize(&self.root).map_err(FileError::Realize)?;
-        // Ein Symlink im Wurzelordner darf nicht hinausführen: erst auflösen, dann gegen die Wurzel prüfen.
+        // A symlink in the root folder must not lead out: resolve first, then check against the root.
         let real = std::fs::canonicalize(&path).map_err(|e| FileError::from_io(e, &path))?;
         if !real.starts_with(&self.root) {
             return Err(FileError::AccessDenied);
@@ -126,7 +127,7 @@ impl Disk {
         std::fs::read(&real).map(Bytes::new).map_err(|e| FileError::from_io(e, &path))
     }
 
-    /// Pfad einer Datei für Meldungen: die Eingabe wie genannt, alles andere unter dem genannten Wurzelordner.
+    /// Path of a file for messages: the input as named, everything else under the named root folder.
     fn shown_path(&self, id: FileId) -> String {
         if id == self.main {
             return self.shown_input.display().to_string();
@@ -176,8 +177,8 @@ impl World for Disk {
     }
 }
 
-/// Eine Meldung von Typst als „pfad:zeile:spalte: error: text“ (ohne Ort nur „error: text“); Hinweise folgen auf
-/// eigenen Zeilen. Der Ort ist der eigene der Meldung, sonst der erste Aufrufpunkt mit Ort.
+/// A message of Typst as "pfad:zeile:spalte: error: text" (without a location only "error: text"); hints follow
+/// on lines of their own. The location is the message's own, otherwise the first call site with a location.
 fn message(world: &Disk, diagnostic: &SourceDiagnostic) -> String {
     let kind = match diagnostic.severity {
         typst::diag::Severity::Error => "error",
@@ -212,9 +213,9 @@ fn failure(text: String) -> CompileError {
     CompileError { messages: vec![text] }
 }
 
-/// Setzt die Datei des Auftrags. Blockierend. Liest nur unter dem Wurzelordner, schreibt nichts und lädt nichts
-/// aus dem Netz; bei einem Fehler gibt es keine Seiten. Nach den Fehlern stehen in [`CompileError::messages`] auch
-/// die Warnungen des Laufs.
+/// Typesets the file of the job. Blocking. Reads only under the root folder, writes nothing and loads nothing
+/// from the network; on an error there are no pages. After the errors [`CompileError::messages`] also holds
+/// the warnings of the run.
 pub fn compile_file(job: &CompileJob) -> Result<CompileOutput, CompileError> {
     let shown_input = job.input.clone();
     let input = std::fs::canonicalize(&job.input)
@@ -257,7 +258,7 @@ pub fn compile_file(job: &CompileJob) -> Result<CompileOutput, CompileError> {
         Ok(document) => pages(&world, &document, job),
         Err(errors) => Err(errors.iter().map(|d| message(&world, d)).collect()),
     };
-    // Wie nach jedem Satz ältere Zwischenergebnisse von Typst freigeben.
+    // As after every typesetting run, release older intermediate results of Typst.
     typst::comemo::evict(2);
     match result {
         Ok(pages) => Ok(CompileOutput { pages, warnings }),
@@ -268,7 +269,7 @@ pub fn compile_file(job: &CompileJob) -> Result<CompileOutput, CompileError> {
     }
 }
 
-/// Die Ausgabe im gewünschten Format: ein PDF oder je Seite ein Bild; `Err` mit fertigen Meldungen.
+/// The output in the wanted format: one PDF or one image per page; `Err` with finished messages.
 fn pages(world: &Disk, document: &PagedDocument, job: &CompileJob) -> Result<Vec<Vec<u8>>, Vec<String>> {
     match job.format {
         OutputFormat::Pdf => typst_pdf::pdf(document, &typst_pdf::PdfOptions::default())
@@ -296,8 +297,8 @@ fn pages(world: &Disk, document: &PagedDocument, job: &CompileJob) -> Result<Vec
     }
 }
 
-/// Familiennamen der verfügbaren Schriften (eingebettet, System, `font_paths`), sortiert, ohne Doppelte.
-/// Blockierend wie [`crate::warm_fonts`].
+/// Family names of the available fonts (embedded, system, `font_paths`), sorted, without duplicates.
+/// Blocking like [`crate::warm_fonts`].
 pub fn font_names(font_paths: &[PathBuf]) -> Vec<String> {
     let fonts = FontSet::new(font_paths);
     let mut names: Vec<String> = fonts.store().book().families().map(|(name, _)| name.to_owned()).collect();

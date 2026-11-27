@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Frei erfundene Word-Datei „Das Haus am Deich“ für die Tests des Lesers, im Test als Archiv gebaut (kein echtes
-//! Word beteiligt – was Word wirklich schreibt, ist hier Annahme nach ECMA-376 und `ooxml.rs`).
+//! Freely invented Word file „Das Haus am Deich“ for the tests of the reader, built as an archive in the test (no
+//! real Word involved – what Word really writes is an assumption here according to ECMA-376 and `ooxml.rs`).
 #![allow(dead_code)]
 
 use std::io::Write;
@@ -22,10 +22,10 @@ pub const ERIKA: &str = "Erika Beispiel";
 pub const JOERG: &str = "Jörg Müller";
 pub const DATE: &str = "2026-11-20T09:30:00Z";
 
-/// Ein gültiges PNG mit einem einzigen Bildpunkt.
+/// A valid PNG with a single pixel.
 pub const PNG: &[u8] = baruch_docx::sample::SAMPLE_PNG;
 
-/// ZIP aus Teilen (alle DEFLATE).
+/// ZIP from parts (all DEFLATE).
 pub fn zip(parts: &[(&str, Vec<u8>)]) -> Vec<u8> {
     let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -56,7 +56,7 @@ fn rel(id: &str, kind: &str, target: &str, extra: &str) -> String {
     )
 }
 
-/// Beziehungen des Dokuments; `more` hängt weitere an.
+/// Relationships of the document; `more` appends further ones.
 pub fn document_rels(more: &str) -> String {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
@@ -163,7 +163,7 @@ pub fn cell(text: &str) -> String {
     format!("<w:tc>{}</w:tc>", p("", &r(text)))
 }
 
-/// Der Textkörper des Beispiels.
+/// The body of the sample.
 pub fn body() -> String {
     let mut b = String::new();
     b.push_str(&p("Title", &r("Das Haus am Deich")));
@@ -230,7 +230,7 @@ fn ns(text: &str) -> Vec<u8> {
     text.replace(" NS>", &format!(" {NS}>")).into_bytes()
 }
 
-/// Die Teile einer Datei mit diesem Textkörper und weiteren Beziehungen.
+/// The parts of a file with this body and further relationships.
 pub fn parts(body: &str, more_rels: &str) -> Vec<(&'static str, Vec<u8>)> {
     vec![
         ("[Content_Types].xml", CONTENT_TYPES.as_bytes().to_vec()),
@@ -246,12 +246,12 @@ pub fn parts(body: &str, more_rels: &str) -> Vec<(&'static str, Vec<u8>)> {
     ]
 }
 
-/// Die ganze erfundene Datei.
+/// The whole invented file.
 pub fn sample() -> Vec<u8> {
     zip(&parts(&body(), ""))
 }
 
-/// Eine Datei mit eigenem Textkörper (alle übrigen Teile wie im Beispiel).
+/// A file with its own body (all other parts as in the sample).
 pub fn with_body(body: &str) -> Vec<u8> {
     zip(&parts(body, ""))
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20a (epub): Abbildung des Blockmodells auf XHTML ([`baruch_epub::xhtml`]) – Text frei erfunden.
+//! Round 20a (epub): mapping of the block model to XHTML ([`baruch_epub::xhtml`]) – text freely invented.
 
 use baruch_epub::xhtml::{Links, NoteTarget, Renderer, escape_text, note_marker};
 use baruch_typst::typeset::FootnoteNumbering;

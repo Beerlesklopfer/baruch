@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `baruch_render::stand`: ändert sich mit jedem Byte von `main` oder der Dateien und nur dann.
+//! `baruch_render::stand`: changes with every byte of `main` or of the files and only then.
 
 use baruch_render::{Source, stand};
 
@@ -26,7 +26,7 @@ fn every_byte_of_main_changes_the_stand() {
     for i in 0..bytes.len() {
         let mut changed = bytes.clone();
         changed[i] ^= 0x01;
-        // Kein gültiges UTF-8 mehr? Dann eine andere Änderung an derselben Stelle.
+        // No longer valid UTF-8? Then another change at the same place.
         let main = String::from_utf8(changed).unwrap_or_else(|_| {
             let mut s = sample().main;
             s.insert(i, 'x');
@@ -53,7 +53,7 @@ fn every_byte_of_a_file_its_path_and_the_file_list_change_the_stand() {
     let mut fewer = sample();
     fewer.files.pop();
     assert_ne!(stand(&fewer), base, "eine fehlende Datei ändert den Stand");
-    // Grenzen zwischen Feldern verschieben (Länge davor): „ab“+„c“ ist nicht „a“+„bc“.
+    // Shifting boundaries between fields (length in front): "ab"+"c" is not "a"+"bc".
     let a = Source { main: String::new(), files: vec![("ab".into(), b"c".to_vec())] };
     let b = Source { main: String::new(), files: vec![("a".into(), b"bc".to_vec())] };
     assert_ne!(stand(&a), stand(&b), "Pfad und Inhalt dürfen nicht ineinander verschwimmen");

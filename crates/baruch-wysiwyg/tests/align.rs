@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ausrichtung zweier Fassungen nach Blöcken (Vertrag Runde 8, „inline“, 2a): geänderte, eingefügte
-//! (Anfang, Mitte, Ende) und entfernte Blöcke, unveränderte Blöcke byte-gleich, Satzbild eines Stücks,
-//! und ein Eigenschaftstest mit fester Saat (`WS_SEED`, `WS_CASES`), dass `align` nie scheitert und
-//! seine Stücke den Text lückenlos beschreiben. Alle Texte frei erfunden.
+//! Alignment of two revisions by blocks (contract Round 8, "inline", 2a): changed, inserted
+//! (beginning, middle, end) and removed blocks, unchanged blocks byte-identical, typeset view of a hunk,
+//! and a property test with a fixed seed (`WS_SEED`, `WS_CASES`) that `align` never fails and
+//! its hunks describe the text without gaps. All texts freely invented.
 
 use baruch_wysiwyg::{Hunk, HunkKind, ImageRef, align, hunk_html_with, parse};
 
@@ -116,7 +116,7 @@ fn the_hunk_html_shows_only_the_affected_blocks_as_deleted_and_inserted() {
     assert!(clipped.contains("Am Abend") && !clipped.contains("ws-ins"), "zu große Bereiche werden gekürzt: {clipped}");
 }
 
-// ---- Eigenschaftstest -----------------------------------------------------------------------
+// ---- Property test --------------------------------------------------------------------------
 
 const PIECES: &[&str] = &[
     "= Kapitel\n",
@@ -139,8 +139,8 @@ fn join(pieces: &[&str]) -> String {
     pieces.join("\n")
 }
 
-/// Prüft, dass die Stücke beide Texte lückenlos und in Reihenfolge beschreiben und dazwischen nur
-/// gleiche Blöcke stehen.
+/// Checks that the hunks describe both texts without gaps and in order and that only
+/// equal blocks stand in between.
 fn check(base: &str, proposal: &str, hunks: &[Hunk], case: &str) {
     let (old, new) = (parse(base).blocks, parse(proposal).blocks);
     let (mut i, mut j) = (0, 0);
@@ -176,7 +176,7 @@ fn align_never_fails_and_its_hunks_describe_both_texts_without_gaps() {
     let mut rng = fastrand::Rng::with_seed(seed);
     for case in 0..cases {
         let base = text(&mut rng, 8);
-        // Vorschlag: Basis mit zufälligen Änderungen (ersetzen, einfügen, löschen), manchmal ganz neu.
+        // Proposal: base with random changes (replace, insert, delete), sometimes entirely new.
         let mut proposal = base.clone();
         if rng.u8(..10) == 0 {
             proposal = text(&mut rng, 8);
@@ -198,16 +198,16 @@ fn align_never_fails_and_its_hunks_describe_both_texts_without_gaps() {
         let (base, proposal) = (join(&base), join(&proposal));
         let hunks = align(&base, &proposal);
         check(&base, &proposal, &hunks, &format!("Fall {case} (Saat {seed}): {base:?} → {proposal:?}"));
-        // Auch zerrissener Text (ein Stück ohne Ende) scheitert nicht.
+        // Torn text too (a piece without an end) does not fail.
         let cut = &proposal[..proposal.char_indices().nth(proposal.chars().count() / 2).map_or(0, |(i, _)| i)];
         let torn = align(&base, cut);
         check(&base, cut, &torn, &format!("Fall {case}, halbiert"));
     }
 }
 
-/// Backlog Runde 8 („LCS“): Ein umformulierter Absatz neben einem eingefügten erschien als ein einziges
-/// „geändert“-Stück über beide. Jetzt paart `align` ungleich große Stücke nach Ähnlichkeit: der umformulierte
-/// Absatz ist „geändert“, der neue „eingefügt“ – zwei Stücke, je an seiner Stelle.
+/// Backlog Round 8 ("LCS"): a reworded paragraph next to an inserted one appeared as a single
+/// "changed" hunk across both. Now `align` pairs hunks of unequal size by similarity: the reworded
+/// paragraph is "changed", the new one "inserted" – two hunks, each at its place.
 #[test]
 fn a_reworded_paragraph_next_to_an_inserted_one_gives_two_hunks() {
     let after = BASE.replace("Im Beet stehen Kohlköpfe.", "Im Beet stehen heute Kohlköpfe.\n\nEin ganz neuer Gedanke.");

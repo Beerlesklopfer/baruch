@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `track_changes` (Vertrag Runde 32 §3.4): Der Vorschlag liegt als Änderungsverfolgung über der aktuellen Fassung.
-//! Probe mit einer eigenen kleinen Auflösung (nicht `resolve.rs` der Nachbaraufgabe): Löschungen entfernt und
-//! Einfügungen behalten ergibt den Vorschlag, umgekehrt die aktuelle Fassung. Alle Texte sind frei erfunden.
+//! `track_changes` (contract Round 32 §3.4): the proposal lies as tracked changes over the current revision.
+//! Probe with a small resolution of its own (not `resolve.rs` of the neighbouring task): deletions removed and
+//! insertions kept yields the proposal, the other way round the current revision. All texts are freely invented.
 
 use baruch_docx::diff::track_changes;
 use baruch_docx::from_typst::from_typst;
@@ -11,7 +11,7 @@ const AUTHOR: &str = "@lektor";
 const DATE: &str = "2026-11-24T18:05:00Z";
 
 fn change() -> Change {
-    // Die Art im Muster ist gleichgültig: track_changes setzt sie je Stelle selbst.
+    // The kind in the pattern does not matter: track_changes sets it per place itself.
     Change { kind: ChangeKind::Insert, author: AUTHOR.to_owned(), date: DATE.to_owned() }
 }
 
@@ -40,7 +40,7 @@ fn merge(inlines: Vec<Inline>) -> Vec<Inline> {
     out
 }
 
-/// Eigene Auflösung: `keep` ist die Art der Änderungen, die bleiben (Insert = Endstand, Delete = Original).
+/// Own resolution: `keep` is the kind of the changes that stay (Insert = final state, Delete = original).
 fn resolve_inlines(inlines: &[Inline], keep: ChangeKind) -> Vec<Inline> {
     let mut out = Vec::new();
     for inline in inlines {
@@ -63,7 +63,7 @@ fn resolve_inlines(inlines: &[Inline], keep: ChangeKind) -> Vec<Inline> {
 
 fn resolve(blocks: &[Block], keep: ChangeKind) -> Vec<Block> {
     let mut out = Vec::new();
-    // Inhalt eines Absatzes, dessen Marke in diesem Stand nicht gilt: Er gehört zum folgenden Absatz.
+    // Content of a paragraph whose mark does not apply in this state: it belongs to the following paragraph.
     let mut carried: Vec<Inline> = Vec::new();
     let gone = |mark: &Option<Change>| mark.as_ref().is_some_and(|m| m.kind != keep);
     let with_carried = |content: &[Inline], carried: &mut Vec<Inline>| {
@@ -126,7 +126,7 @@ fn resolve(blocks: &[Block], keep: ChangeKind) -> Vec<Block> {
     out
 }
 
-/// Die Zusage des Vertrags an einem Paar prüfen und das Ergebnis zurückgeben.
+/// Check the promise of the contract on one pair and return the result.
 fn tracked(current: &[Block], proposed: &[Block]) -> Vec<Block> {
     let result = track_changes(current, proposed, &change());
     assert_eq!(
@@ -358,7 +358,7 @@ fn new_figures_and_islands_vanish_in_the_other_state() {
         "die Insel steht mit wörtlichem Quelltext als verfolgte Insel im Text: {inserted:?}"
     );
 
-    // Umgekehrt: Was der Vorschlag streicht, ist im Endstand weg.
+    // The other way round: what the proposal deletes is gone in the final state.
     let back = track_changes(&proposed, &current, &change());
     assert_eq!(resolve(&back, ChangeKind::Insert), current, "eine gestrichene Abbildung und Insel fehlen im Endstand");
 }

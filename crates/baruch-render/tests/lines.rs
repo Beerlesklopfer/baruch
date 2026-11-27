@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `baruch_typst::line_at` zählt Zeilen genau wie Typst selbst (`typst::syntax::Lines`): sonst
-//! zeigten Meldungen der Vorschau auf den falschen Abschnitt.
+//! `baruch_typst::line_at` counts lines exactly like Typst itself (`typst::syntax::Lines`): otherwise
+//! messages of the preview would point to the wrong section.
 
 use typst::syntax::Lines;
 

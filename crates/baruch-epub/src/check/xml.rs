@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kleiner XML-Baum für die Prüfung (Besitz „epub-pruefung“, Runde 20c): [`parse`] liest ein Dokument mit
-//! quick-xml und prüft dabei die Wohlgeformtheit, soweit die Prüfung sie braucht – genau ein Wurzelelement,
-//! jedes Element geschlossen (auch am Dateiende), passende End-Tags, gültige Attribute ohne Doppelte, nur die fünf
-//! vordefinierten Entitäten und Zeichenreferenzen (XHTML im EPUB hat keine DTD, `&nbsp;` ist darum nicht
-//! wohlgeformt), kein Text außerhalb der Wurzel.
+//! Small XML tree for the check (ownership "epub-pruefung", Round 20c): [`parse`] reads a document with quick-xml
+//! and checks well-formedness along the way, as far as the check needs it – exactly one root element, every
+//! element closed (also at the end of the file), matching end tags, valid attributes without duplicates, only the
+//! five predefined entities and character references (XHTML in the EPUB has no DTD, so `&nbsp;` is not
+//! well-formed), no text outside the root.
 
 use quick_xml::Reader;
 use quick_xml::escape::unescape;
 use quick_xml::events::{BytesStart, Event};
 
-/// Ein Knoten: Element oder Text.
+/// A node: element or text.
 #[derive(Debug, Clone)]
 pub(crate) enum Node {
     Element(Element),
     Text(String),
 }
 
-/// Ein Element mit qualifiziertem Namen (`epub:type`, `dc:title`) und Attributen in Dokumentreihenfolge.
+/// An element with qualified name (`epub:type`, `dc:title`) and attributes in document order.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Element {
     pub name: String,
@@ -25,17 +25,17 @@ pub(crate) struct Element {
 }
 
 impl Element {
-    /// Wert des Attributs mit genau diesem (qualifizierten) Namen.
+    /// Value of the attribute with exactly this (qualified) name.
     pub fn attr(&self, name: &str) -> Option<&str> {
         self.attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
     }
 
-    /// Name ohne Präfix (`dc:title` → `title`).
+    /// Name without prefix (`dc:title` → `title`).
     pub fn local(&self) -> &str {
         self.name.rsplit(':').next().unwrap_or(&self.name)
     }
 
-    /// Alle Nachfahren (ohne sich selbst) in Dokumentreihenfolge.
+    /// All descendants (without itself) in document order.
     pub fn descendants(&self) -> Vec<&Element> {
         let mut out = Vec::new();
         fn walk<'a>(e: &'a Element, out: &mut Vec<&'a Element>) {
@@ -50,7 +50,7 @@ impl Element {
         out
     }
 
-    /// Direkte Kind-Elemente.
+    /// Direct child elements.
     pub fn elements(&self) -> impl Iterator<Item = &Element> {
         self.children.iter().filter_map(|c| match c {
             Node::Element(e) => Some(e),
@@ -58,12 +58,12 @@ impl Element {
         })
     }
 
-    /// Erstes Kind-Element mit diesem Namen ohne Präfix.
+    /// First child element with this name without prefix.
     pub fn child(&self, local: &str) -> Option<&Element> {
         self.elements().find(|e| e.local() == local)
     }
 
-    /// Der ganze Text darin (Nachfahren eingeschlossen).
+    /// The whole text inside (descendants included).
     pub fn text(&self) -> String {
         let mut out = String::new();
         fn walk(e: &Element, out: &mut String) {
@@ -79,7 +79,7 @@ impl Element {
     }
 }
 
-/// Zeile (ab 1) zur Bytestelle `pos`.
+/// Line (from 1) for the byte position `pos`.
 fn line_at(text: &str, pos: usize) -> usize {
     let pos = pos.min(text.len());
     text.as_bytes()[..pos].iter().filter(|&&b| b == b'\n').count() + 1
@@ -97,7 +97,7 @@ fn element_of(start: &BytesStart<'_>) -> Result<Element, String> {
     Ok(Element { name, attrs, children: Vec::new() })
 }
 
-/// Liest `text` als XML. `Err` = nicht wohlgeformt (deutsche Meldung mit Zeile).
+/// Reads `text` as XML. `Err` = not well-formed (German message with line).
 pub(crate) fn parse(text: &str) -> Result<Element, String> {
     let mut reader = Reader::from_str(text);
     let mut stack: Vec<Element> = Vec::new();
@@ -124,7 +124,7 @@ pub(crate) fn parse(text: &str) -> Result<Element, String> {
                 }
             }
             Event::End(_) => {
-                // quick-xml prüft, dass der Name zum offenen Element passt.
+                // quick-xml checks that the name matches the open element.
                 let Some(element) = stack.pop() else {
                     return Err(format!("Zeile {}: End-Tag ohne offenes Element", at(&reader)));
                 };

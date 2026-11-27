@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gemeinsame Konstanten für Leser und Schreiber (Schnittstelle R32-S1, eingefroren): Teilpfade im Archiv,
-//! Medientypen, Namensräume, Beziehungsarten, die Formatvorlagen des Schreibers und das Kennzeichen der
-//! Typst-Insel. Was der Schreiber unter diesen Namen ablegt, erkennt der Leser wieder (Rundreise).
+//! Shared constants for reader and writer (interface R32-S1, frozen): part paths in the archive, media types,
+//! namespaces, relationship types, the styles of the writer and the marker of the Typst island. What the writer
+//! stores under these names, the reader recognises again (round trip).
 
-// --- Teilpfade im Archiv ---------------------------------------------------------------------------------------
+// --- Part paths in the archive ---------------------------------------------------------------------------------
 
 pub const PART_CONTENT_TYPES: &str = "[Content_Types].xml";
 pub const PART_ROOT_RELS: &str = "_rels/.rels";
@@ -11,23 +11,23 @@ pub const PART_DOCUMENT: &str = "word/document.xml";
 pub const PART_DOCUMENT_RELS: &str = "word/_rels/document.xml.rels";
 pub const PART_STYLES: &str = "word/styles.xml";
 pub const PART_FOOTNOTES: &str = "word/footnotes.xml";
-/// Nur der Leser: Endnoten werden als Fußnoten gelesen (mit Warnung); der Schreiber legt keine an.
+/// Reader only: endnotes are read as footnotes (with a warning); the writer creates none.
 pub const PART_ENDNOTES: &str = "word/endnotes.xml";
 pub const PART_COMMENTS: &str = "word/comments.xml";
-/// Nur der Leser: Antworten auf Kommentare (`w15:commentEx`), soweit lesbar.
+/// Reader only: replies to comments (`w15:commentEx`), as far as readable.
 pub const PART_COMMENTS_EXTENDED: &str = "word/commentsExtended.xml";
 pub const PART_NUMBERING: &str = "word/numbering.xml";
 pub const PART_SETTINGS: &str = "word/settings.xml";
 pub const PART_CORE: &str = "docProps/core.xml";
 pub const PART_APP: &str = "docProps/app.xml";
-/// Ordner der eingebetteten Bilder (mit Schrägstrich am Ende).
+/// Folder of the embedded images (with a trailing slash).
 pub const MEDIA_DIR: &str = "word/media/";
 
-// --- Medientypen -----------------------------------------------------------------------------------------------
+// --- Media types -----------------------------------------------------------------------------------------------
 
-/// Medientyp einer .docx-Datei (HTTP `Content-Type`, RPC `media_type`).
+/// Media type of a .docx file (HTTP `Content-Type`, RPC `media_type`).
 pub const MEDIA_TYPE_DOCX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-/// Inhaltstypen der Teile in `[Content_Types].xml`.
+/// Content types of the parts in `[Content_Types].xml`.
 pub const CT_DOCUMENT: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
 pub const CT_STYLES: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml";
 pub const CT_FOOTNOTES: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml";
@@ -39,7 +39,7 @@ pub const CT_APP: &str = "application/vnd.openxmlformats-officedocument.extended
 pub const CT_RELS: &str = "application/vnd.openxmlformats-package.relationships+xml";
 pub const CT_XML: &str = "application/xml";
 
-// --- Namensräume -----------------------------------------------------------------------------------------------
+// --- Namespaces ------------------------------------------------------------------------------------------------
 
 pub const NS_W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 pub const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -50,16 +50,16 @@ pub const NS_CP: &str = "http://schemas.openxmlformats.org/package/2006/metadata
 pub const NS_DC: &str = "http://purl.org/dc/elements/1.1/";
 pub const NS_DCTERMS: &str = "http://purl.org/dc/terms/";
 pub const NS_XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
-/// Antworten auf Kommentare (`commentsExtended.xml`, nur der Leser).
+/// Replies to comments (`commentsExtended.xml`, reader only).
 pub const NS_W15: &str = "http://schemas.microsoft.com/office/word/2012/wordml";
-/// Absatzkennung `w14:paraId` (Bezug der Kommentar-Antworten, nur der Leser).
+/// Paragraph identifier `w14:paraId` (reference of the comment replies, reader only).
 pub const NS_W14: &str = "http://schemas.microsoft.com/office/word/2010/wordml";
-/// Namensraum von `[Content_Types].xml`.
+/// Namespace of `[Content_Types].xml`.
 pub const NS_CONTENT_TYPES: &str = "http://schemas.openxmlformats.org/package/2006/content-types";
-/// Namensraum der Beziehungsdateien (`*.rels`).
+/// Namespace of the relationship files (`*.rels`).
 pub const NS_PACKAGE_RELS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 
-// --- Beziehungsarten -------------------------------------------------------------------------------------------
+// --- Relationship types ----------------------------------------------------------------------------------------
 
 pub const REL_OFFICE_DOCUMENT: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
@@ -73,68 +73,68 @@ pub const REL_NUMBERING: &str = "http://schemas.openxmlformats.org/officeDocumen
 pub const REL_SETTINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
 pub const REL_IMAGE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 pub const REL_HYPERLINK: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
-/// Wert von `TargetMode` für Ziele außerhalb der Datei (Hyperlinks; Bilder so werden nie abgerufen).
+/// Value of `TargetMode` for targets outside the file (hyperlinks; images of that kind are never fetched).
 pub const TARGET_MODE_EXTERNAL: &str = "External";
 
-// --- Formatvorlagen des Schreibers (w:styleId) -----------------------------------------------------------------
+// --- Styles of the writer (w:styleId) --------------------------------------------------------------------------
 
 pub const STYLE_TITLE: &str = "Title";
 pub const STYLE_SUBTITLE: &str = "Subtitle";
-/// Überschrift 1–6: `Heading1` … `Heading6`, `w:name` „heading N“ ([`heading_style`], [`heading_name`]).
+/// Heading 1–6: `Heading1` … `Heading6`, `w:name` "heading N" ([`heading_style`], [`heading_name`]).
 pub const STYLE_HEADING_PREFIX: &str = "Heading";
 pub const STYLE_QUOTE: &str = "Quote";
 pub const STYLE_LIST_PARAGRAPH: &str = "ListParagraph";
 pub const STYLE_FOOTNOTE_TEXT: &str = "FootnoteText";
-/// Zeichenvorlage des Fußnotenzeichens.
+/// Character style of the footnote mark.
 pub const STYLE_FOOTNOTE_REFERENCE: &str = "FootnoteReference";
 pub const STYLE_CAPTION: &str = "Caption";
-/// Teil des Werks; `w:name` [`STYLE_PART_NAME`].
+/// Part of the work; `w:name` [`STYLE_PART_NAME`].
 pub const STYLE_PART: &str = "BaruchTeil";
 pub const STYLE_PART_NAME: &str = "Baruch Teil";
-/// Überschrift ohne Nummer: `BaruchOhneNummer1` … `3`, `basedOn` Heading N ([`unnumbered_style`]).
+/// Heading without number: `BaruchOhneNummer1` … `3`, `basedOn` Heading N ([`unnumbered_style`]).
 pub const STYLE_UNNUMBERED_PREFIX: &str = "BaruchOhneNummer";
 pub const STYLE_AUTHOR: &str = "BaruchAutor";
 pub const STYLE_IMPRINT: &str = "BaruchImpressum";
-/// Quellenangabe eines Blockzitats.
+/// Source of a block quote.
 pub const STYLE_QUOTE_SOURCE: &str = "BaruchZitatquelle";
-/// Zeichenvorlage: Zitat im Fließtext.
+/// Character style: inline quote.
 pub const STYLE_INLINE_QUOTE: &str = "BaruchZitat";
-/// Absatzvorlage einer Typst-Insel als Block.
+/// Paragraph style of a Typst island as a block.
 pub const STYLE_TYPST: &str = "BaruchTypst";
-/// Zeichenvorlage einer Typst-Insel im Text.
+/// Character style of a Typst island in the text.
 pub const STYLE_TYPST_CHAR: &str = "BaruchTypstZeichen";
 
-/// Größte Ebene einer Überschrift.
+/// Highest level of a heading.
 pub const MAX_HEADING_LEVEL: u8 = 6;
-/// Größte Ebene, die zur Gliederung des Werks gehört (und eine Vorlage „ohne Nummer“ hat).
+/// Highest level that belongs to the outline of the work (and has a style "without number").
 pub const MAX_OUTLINE_LEVEL: u8 = 3;
 
-/// Vorlagen-ID der Überschrift `level` (1–6), z. B. `Heading2`; außerhalb des Bereichs wird geklemmt.
+/// Style ID of the heading `level` (1–6), e.g. `Heading2`; outside the range the value is clamped.
 pub fn heading_style(level: u8) -> String {
     format!("{STYLE_HEADING_PREFIX}{}", level.clamp(1, MAX_HEADING_LEVEL))
 }
 
-/// `w:name` der Überschrift `level` (1–6), z. B. `heading 2` – daran erkennt Word Navigation und Inhaltsverzeichnis.
+/// `w:name` of the heading `level` (1–6), e.g. `heading 2` – by this Word recognises navigation and table of contents.
 pub fn heading_name(level: u8) -> String {
     format!("heading {}", level.clamp(1, MAX_HEADING_LEVEL))
 }
 
-/// Vorlagen-ID der Überschrift ohne Nummer (1–3), z. B. `BaruchOhneNummer1`; außerhalb des Bereichs wird geklemmt.
+/// Style ID of the heading without number (1–3), e.g. `BaruchOhneNummer1`; outside the range the value is clamped.
 pub fn unnumbered_style(level: u8) -> String {
     format!("{STYLE_UNNUMBERED_PREFIX}{}", level.clamp(1, MAX_OUTLINE_LEVEL))
 }
 
-// --- Typst-Insel -----------------------------------------------------------------------------------------------
+// --- Typst island ----------------------------------------------------------------------------------------------
 
-/// Kennzeichen der Insel: Inhaltssteuerelement `w:sdt` mit `w:tag w:val="baruch-typst"`; darin steht erst der mit
-/// `w:vanish` verborgene Typst-Quelltext, dann das Sichtbare (`shown`).
+/// Marker of the island: content control `w:sdt` with `w:tag w:val="baruch-typst"`; inside it first the Typst
+/// source text hidden with `w:vanish`, then the visible part (`shown`).
 pub const SDT_TAG_TYPST: &str = "baruch-typst";
 
-// --- Nummerierungen (w:numId in numbering.xml) -----------------------------------------------------------------
+// --- Numberings (w:numId in numbering.xml) ---------------------------------------------------------------------
 
-/// Ungeordnete Liste (Aufzählungszeichen).
+/// Unordered list (bullets).
 pub const NUM_BULLET: u32 = 1;
-/// Geordnete Liste (Dezimalzahlen).
+/// Ordered list (decimal numbers).
 pub const NUM_DECIMAL: u32 = 2;
 
 #[cfg(test)]
