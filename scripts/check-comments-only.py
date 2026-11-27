@@ -10,8 +10,9 @@ BASE HEAD: for every file that differs between the two commits (`git diff --name
 `git show`) the text without comments must be the same. Understood file types: Rust (.rs), TypeScript (.ts),
 templates (.html: `{# #}` and `<!-- -->`), Python (.py, module `tokenize`) and shell (.sh). The content of string
 literals is compared byte for byte; outside of them only whitespace at the end of a line and empty lines are
-ignored. For Rust, code blocks in doc comments (doctests) must be identical and the set of intra-doc link targets
-must be the same. Any other file type and every added, deleted or renamed file is reported.
+ignored. The whitespace control of a template comment (`{#-`, `-#}`) changes the page and counts as code. For
+Rust, code blocks in doc comments (doctests) must be identical and the set of intra-doc link targets must be the
+same. Any other file type and every added, deleted or renamed file is reported.
 Exit 0 = comments only, 1 = deviation, 2 = usage error.
 
 --umlaute: prints `file:line: text` for every comment line that contains one of ä ö ü Ä Ö Ü ß (same comment
@@ -374,7 +375,15 @@ def scan_html(text):
         if end < 0:
             raise ScanError("line %d: comment is not closed" % (seg.line + text.count("\n", i, p)))
         seg.add(CODE, text[i:p])
-        seg.add(COMMENT, text[p : end + len(closing)])
+        body = text[p : end + len(closing)]
+        # Whitespace control belongs to the page, not to the comment: `{#-` and `-#}` remove the whitespace next to
+        # the comment. The dash stays behind as code, so dropping, adding or moving it is reported.
+        control = p == a and len(body) > 4
+        if control and body.startswith("{#-"):
+            seg.add(CODE, "{#-")
+        seg.add(COMMENT, body)
+        if control and body.endswith("-#}"):
+            seg.add(CODE, "-#}")
         i = end + len(closing)
     seg.add(CODE, text[i:])
     return seg.items
@@ -905,6 +914,59 @@ def selftest():
         "Template literals are strings.",
         "a.ts", ts, ts.replace("kein Kommentar", "no comment"), "code or string changed",
     )  # fmt: skip
+    jsdoc = (
+        "/**\n * Zählt die Einträge.\n * @param n Anzahl // hier\n */\n"
+        "export function f(n: number): number { return n; } /** hinten */\n"
+    )
+    check(
+        "ts: a JSDoc block `/** … */` is one comment, a `//` inside it does not end it",
+        "JSDoc is the usual comment form of the widgets; a `//` in its text must not cut the block or hide code.",
+        comments(scan_ts, jsdoc) == ["/**\n * Zählt die Einträge.\n * @param n Anzahl // hier\n */", "/** hinten */"],
+    )
+    same(
+        "ts: translating and reflowing a JSDoc block is comment-only",
+        "Only the block comment changed; its line count may change.",
+        "a.ts", jsdoc, jsdoc.replace("Zählt die Einträge.\n * @param n Anzahl // hier", "Counts the entries; n // here"),
+    )  # fmt: skip
+    differs(
+        "ts: changed code behind a JSDoc block is reported",
+        "The code after the closing `*/` is not part of the comment.",
+        "a.ts", jsdoc, jsdoc.replace("return n;", "return n + 1;"), "code or string changed",
+    )  # fmt: skip
+    nested_ts = (
+        "const u = `${base}//host/${n /* Zahl */}/x // kein Kommentar`; // hinten\n"
+        "const v = ok ? `a${`b${n}//c`}d` : \"//e\"; // Ende\n"
+    )
+    check(
+        "ts: `//` in a template literal with `${…}` is not a comment, also behind and inside the placeholder",
+        "Addresses such as `${base}//host` are built this way; the text after the `}` is string again.",
+        comments(scan_ts, nested_ts) == ["/* Zahl */", "// hinten", "// Ende"],
+    )
+    differs(
+        "ts: changed template text behind a `${…}` is reported",
+        "The part after the placeholder is still the string, not a comment.",
+        "a.ts", nested_ts, nested_ts.replace("// kein Kommentar", "// no comment"), "code or string changed",
+    )  # fmt: skip
+    differs(
+        "ts: changed text of a template literal nested in a `${…}` is reported",
+        "A template literal inside a placeholder is a string of its own.",
+        "a.ts", nested_ts, nested_ts.replace("//c", "//x"), "code or string changed",
+    )  # fmt: skip
+    regex_ts = (
+        "const a = /^https?:\\/\\/[^/]+$/.test(u); // Adresse\n"
+        "const b = u.replace(/\\s+\\/\\/.*$/, \"\"); // Rest\n"
+        "const c = u.split(/[//]/); // Klasse\n"
+    )
+    check(
+        "ts: `//` inside a regex literal is not a comment (escaped and in a character class)",
+        "Otherwise the rest of the line would count as a comment and a changed expression would go unnoticed.",
+        comments(scan_ts, regex_ts) == ["// Adresse", "// Rest", "// Klasse"],
+    )
+    differs(
+        "ts: a changed regex literal is reported",
+        "A regular expression is code; its text is compared like a string.",
+        "a.ts", regex_ts, regex_ts.replace("[//]", "[/ /]"), "code or string changed",
+    )  # fmt: skip
     check(
         "ts: a division is not a regular expression",
         "`a / b // c` must keep its comment.",
@@ -928,6 +990,55 @@ def selftest():
         "The user interface stays German in Round 38.",
         "a.html", html, html.replace("<p>Text</p>", "<p>text</p>"), "code or string changed",
     )  # fmt: skip
+    trim = "<p>a</p>\n{#- R32 Kommentar für Entwickler -#}\n<p>b</p>\n{%- if x -%}y{%- endif -%}\n"
+    check(
+        "html: a comment with whitespace control `{#- … -#}` is a comment",
+        "Most template comments are written this way so that they leave no empty line in the page.",
+        comments(scan_html, trim) == ["{#- R32 Kommentar für Entwickler -#}"],
+    )
+    same(
+        "html: translating the text of a `{#- … -#}` comment is comment-only",
+        "Only the text between the delimiters changed; the delimiters and the page text are the same.",
+        "a.html", trim, trim.replace("R32 Kommentar für Entwickler", "R32 comment for developers"),
+    )  # fmt: skip
+    differs(
+        "html: changed text next to a `{#- … -#}` comment is reported",
+        "The text beside the comment is the page; whitespace control must not blur the border.",
+        "a.html", trim, trim.replace("<p>b</p>", "<p>c</p>"), "a.html:3: code or string changed",
+    )  # fmt: skip
+    differs(
+        "html: a changed block tag next to a comment is reported",
+        "`{%- … -%}` is template code, not a comment.",
+        "a.html", trim, trim.replace("{%- if x -%}", "{%- if z -%}"), "code or string changed",
+    )  # fmt: skip
+    differs(
+        "html: dropping the whitespace control of a comment is reported",
+        "`{#-` and `-#}` remove whitespace of the page; without the dash the served HTML changes.",
+        "a.html", trim, trim.replace("{#- R32 Kommentar für Entwickler -#}", "{# R32 comment for developers #}"),
+        "code or string changed",
+    )  # fmt: skip
+    differs(
+        "html: adding whitespace control to a comment is reported",
+        "A new dash removes whitespace that the page had before.",
+        "a.html", html, html.replace("{# Kommentar für Entwickler #}", "{#- Kommentar für Entwickler -#}"),
+        "code or string changed",
+    )  # fmt: skip
+    multi = "<ul>\n{# erste Zeile über die Liste,\n   zweite Zeile <li>kein Eintrag</li>\n#}\n<li>a</li>\n</ul>\n"
+    check(
+        "html: a multi-line `{# … #}` is one comment up to its `#}`",
+        "Long explanations span several lines; markup inside them is comment text, not page text.",
+        comments(scan_html, multi) == ["{# erste Zeile über die Liste,\n   zweite Zeile <li>kein Eintrag</li>\n#}"],
+    )
+    same(
+        "html: a multi-line template comment may be translated and reflowed",
+        "The number of comment lines may change, the page text stays.",
+        "a.html", multi, multi.replace("erste Zeile über die Liste,\n   zweite Zeile <li>kein Eintrag</li>\n", "one line "),
+    )  # fmt: skip
+    differs(
+        "html: changed page text behind a multi-line comment is reported with its line",
+        "The line count of the comment must not shift the reported place.",
+        "a.html", multi, multi.replace("<li>a</li>", "<li>b</li>"), "a.html:5: code or string changed",
+    )  # fmt: skip
 
     # Python
     py = '#!/usr/bin/env python3\n# Kommentar\nx = "# kein Kommentar"  # hinten\ny = f"{x} # auch nicht"\n'
@@ -945,6 +1056,17 @@ def selftest():
         "python: a changed docstring is reported",
         "Docstrings are strings and can be visible at run time.",
         "a.py", '"""Hilfe."""\nx = 1\n', '"""Help."""\nx = 1\n', "code or string changed",
+    )  # fmt: skip
+    py_strings = "s = '# eins'  # hinten\nt = \"\"\"\n# zwei\n\"\"\"\nu = f'{s} # drei {t!r}'\nv = r'\\# vier'\n"
+    check(
+        "python: `#` in single-quoted, triple-quoted, f- and raw strings is not a comment",
+        "A line that starts with `#` inside a triple-quoted text looks like a comment but is data.",
+        comments(scan_python, py_strings) == ["# hinten"],
+    )
+    differs(
+        "python: a changed `#` line inside a triple-quoted string is reported",
+        "The text is a string that the script writes or prints.",
+        "a.py", py_strings, py_strings.replace("# zwei", "# two"), "code or string changed",
     )  # fmt: skip
 
     # Shell
@@ -988,6 +1110,34 @@ def selftest():
         "shell: after such a line the next comment is found",
         "The quote state must be balanced again at the end of the line.",
         comments(scan_shell, nested + "# danach\n") == ["# danach"],
+    )
+
+    subst = "n=$(grep -c '^#' f) # zählt\nm=$(echo a#b) # Teil\nv=${x#y} # kürzt\nw=\"$(printf '%s # nein' y)\"\n"
+    check(
+        "shell: `#` inside `$(…)` is not a comment when it is quoted or inside a word",
+        "`'^#'`, `a#b`, `${x#y}` and a quoted `#` in a substitution are data; the line after a quote stays code.",
+        comments(scan_shell, subst) == ["# Teil", "# kürzt"],
+    )
+    differs(
+        "shell: a `#` behind a quote on the same line is kept as code, a change is reported",
+        "Known limit: after a quote the tool cannot be sure, so such a line is reported instead of waved through.",
+        "a.sh", subst, subst.replace("# zählt", "# counts"), "code or string changed",
+    )  # fmt: skip
+    differs(
+        "shell: a changed quoted `#` text inside `$(…)` is reported",
+        "The text is an argument of the command, not a comment.",
+        "a.sh", subst, subst.replace("%s # nein", "%s # no"), "code or string changed",
+    )  # fmt: skip
+    same(
+        "shell: translating the comments behind `$(…)` without quotes is comment-only",
+        "Only the two real comments changed.",
+        "a.sh", subst, subst.replace("# Teil", "# part").replace("# kürzt", "# shortens"),
+    )  # fmt: skip
+    inner = "n=$(\n  # zählt die Zeilen\n  wc -l < f\n)\n"
+    check(
+        "shell: a comment line inside a multi-line `$(…)` is a comment",
+        "The shell reads it as a comment as well; it is translated like any other.",
+        comments(scan_shell, inner) == ["# zählt die Zeilen"],
     )
 
     # Other files
