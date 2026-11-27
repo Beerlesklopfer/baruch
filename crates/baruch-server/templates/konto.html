@@ -1,9 +1,9 @@
-{#- Seite /konto „Mein Konto“ (Runde 35, src/konten_ui/pages.rs): Name, Rolle, Herkunft (Handle eines Lektors),
-    freigegebene Werke, Passwort ändern (POST /konto/passwort: current, password, password2) und Abmelden
-    (POST /abmelden). Ohne JavaScript bedienbar; Passwortfelder sind nie vorbelegt. Meldungen (notice, error) sind
-    fertige Sätze aus konten_ui::MESSAGES, nie Text aus der Adresse.
-    Kontext: settings, state („open“ = es gibt keine Konten, „local“ = Autor am eigenen Rechner ohne Anmeldung,
-    „account“ = angemeldet), name, display, role („Autor“|„Lektor“), handle (oder none), works [{id, title}],
+{#- Page /konto „Mein Konto“ (Round 35, src/konten_ui/pages.rs): name, role, origin (handle of a Lektor),
+    shared works, change the password (POST /konto/passwort: current, password, password2) and sign out
+    (POST /abmelden). Usable without JavaScript; password fields are never prefilled. Messages (notice, error) are
+    finished sentences from konten_ui::MESSAGES, never text from the address.
+    Context: settings, state („open“ = there are no accounts, „local“ = author on the own machine without signing in,
+    „account“ = signed in), name, display, role („Autor“|„Lektor“), handle (or none), works [{id, title}],
     notice, error, min, max. -#}
 {% extends "base.html" %}
 {% block title %}Mein Konto – Baruch{% endblock %}

@@ -1,10 +1,10 @@
 {#- SPDX-License-Identifier: AGPL-3.0-or-later
-    Einstellungsseite „Quellen“ (Runde 9, Aufgabe „connections“): Lesezeichenliste bevorzugter Quellen für
-    @belege, nur der Seiteninhalt für den Rahmen (crate::connections::render_sources). Formulare an
-    POST /einstellungen/quellen/act: sources.update (Bearbeiten in <details>), sources.move (direction=up|down),
-    sources.delete (confirm=1), sources.create. Geht ohne JavaScript. Kontext: notice, error,
-    sources [{id, title, url, note, position}], count, work, usage (Runde 13: wie die Websuche von @belege die Liste
-    nutzt, connections::sources::USAGE). -#}
+    Settings page „Quellen“ (Round 9, task „connections“): bookmark list of preferred sources for
+    @belege, only the page content for the frame (crate::connections::render_sources). Forms to
+    POST /einstellungen/quellen/act: sources.update (editing in <details>), sources.move (direction=up|down),
+    sources.delete (confirm=1), sources.create. Works without JavaScript. Context: notice, error,
+    sources [{id, title, url, note, position}], count, work, usage (Round 13: how the web search of @belege uses the
+    list, connections::sources::USAGE). -#}
 <section class="settings-page sources-page" data-settings-page-body="quellen">
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
@@ -69,11 +69,11 @@
     <label class="connection-field"><span>Notiz</span><textarea name="note" rows="2" maxlength="4000"></textarea></label>
     <div class="connection-actions"><button class="btn primary" type="submit">Anlegen</button></div>
   </form>
-  {#- Bibeln (SWORD, 2026-11-06): Modulordner, gefundene Bibeln, Bibel des Werks. Kontext bibles = bible.modules
-      plus dirs_text, work_title, chosen_missing. Formulare bible.set_dirs und bible.set_work. Runde 17c: Spalte
-      „Verschlüsselung“ (cipher none|locked|unlocked, Schlüssel nur „hinterlegt“/„fehlt“, nie der Schlüssel selbst)
-      und je verschlüsseltes Modul die Formulare bible.cipher_key_set (Feld key, type=password) und
-      bible.cipher_key_delete (Pflicht-Kästchen confirm). -#}
+  {#- Bibles (SWORD, 2026-11-06): module directories, Bibles found, Bible of the work. Context bibles = bible.modules
+      plus dirs_text, work_title, chosen_missing. Forms bible.set_dirs and bible.set_work. Round 17c: column
+      „Verschlüsselung“ (cipher none|locked|unlocked, key only „hinterlegt“/„fehlt“, never the key itself)
+      and per encrypted module the forms bible.cipher_key_set (field key, type=password) and
+      bible.cipher_key_delete (mandatory checkbox confirm). -#}
   <div class="bibles" id="bibeln">
     <h3 class="connection-title">Bibeln (SWORD)</h3>
     <p class="muted small">Mit einer gewählten Bibel prüft die Stellenprüfung (@schrift, <code>scripture_check</code>)

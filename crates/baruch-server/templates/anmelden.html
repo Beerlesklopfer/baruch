@@ -1,11 +1,11 @@
-{#- Seite /anmelden (Runde 35, src/konten_ui): eigenständig, ohne Menüband und ohne JavaScript – wer nicht angemeldet
-    ist, sieht kein Menü. Das Formular schickt POST /anmelden (Felder name, password, next). Das Passwortfeld ist nie
-    vorbelegt. `next` ist schon durch konten_ui::safe_next gegangen (nur ein Pfad dieses Servers).
-    Der Link „Weiter“ hilft, wenn man über einen Link von außen (E-Mail, andere Seite) hierher geraten ist: Der
-    Browser schickt das Sitzungs-Cookie (SameSite=Strict) bei einem solchen Sprung nicht mit; der Klick auf „Weiter“
-    kommt von dieser Seite selbst, dann ist das Cookie dabei.
-    Kontext: name, next, error (Text oder none), retry_after (Sekunden oder none), notice (Satz aus MESSAGES oder
-    none), signed_in (Anzeigename oder none). -#}
+{#- Page /anmelden (Round 35, src/konten_ui): standalone, without ribbon and without JavaScript – whoever is not
+    signed in sees no menu. The form sends POST /anmelden (fields name, password, next). The password field is never
+    prefilled. `next` has already passed konten_ui::safe_next (only a path of this server).
+    The link „Weiter“ helps when one got here through a link from outside (e-mail, another page): the
+    browser does not send the session cookie (SameSite=Strict) along with such a jump; the click on „Weiter“
+    comes from this page itself, then the cookie is there.
+    Context: name, next, error (text or none), retry_after (seconds or none), notice (sentence from MESSAGES or
+    none), signed_in (display name or none). -#}
 <!doctype html>
 <html lang="de">
 <head>

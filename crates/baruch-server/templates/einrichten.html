@@ -1,8 +1,8 @@
-{#- Seite /einrichten (Runde 35, src/konten_ui): das erste Konto, der Autor. Eigenständig, ohne Menüband und ohne
-    JavaScript. Das Formular schickt POST /einrichten (Felder name, display, password, password2); die Passwortfelder
-    sind nie vorbelegt. Kommt die Anfrage nicht vom eigenen Rechner (allowed = false, Status 403), zeigt die Seite nur
-    die Erklärung – kein Formular.
-    Kontext: name, display, error (Text oder none), allowed (bool), min, max (Länge des Passworts). -#}
+{#- Page /einrichten (Round 35, src/konten_ui): the first account, the author. Standalone, without ribbon and without
+    JavaScript. The form sends POST /einrichten (fields name, display, password, password2); the password fields
+    are never prefilled. If the request does not come from the own machine (allowed = false, status 403), the page shows
+    only the explanation – no form.
+    Context: name, display, error (text or none), allowed (bool), min, max (length of the password). -#}
 <!doctype html>
 <html lang="de">
 <head>

@@ -1,7 +1,7 @@
-{#- Seite /beenden (Runde 32, src/shutdown.rs): Rückfrage vor dem Beenden von Baruch. Das Formular schickt
-    POST /beenden (ohne JavaScript bedienbar). Kommt die Anfrage nicht vom eigenen Rechner (anderer Rechner oder
-    über den Namen eines Reverse-Proxys), zeigt die Seite mit Status 403 nur die Erklärung – kein Formular.
-    Kontext: settings (settings.work: zuletzt geöffnetes Werk, Ziel von „Abbrechen“), allowed (bool). -#}
+{#- Page /beenden (Round 32, src/shutdown.rs): confirmation before quitting Baruch. The form sends
+    POST /beenden (usable without JavaScript). If the request does not come from the own machine (another machine or
+    through the name of a reverse proxy), the page shows only the explanation with status 403 – no form.
+    Context: settings (settings.work: the work opened last, target of „Abbrechen“), allowed (bool). -#}
 {% extends "base.html" %}
 {% block title %}Baruch beenden – Baruch{% endblock %}
 {% block page_title %}Baruch beenden{% endblock %}

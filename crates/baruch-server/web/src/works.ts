@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Werke mit JavaScript. Ohne JavaScript geht alles über das GET-Formular der Werkwahl (Knopf
-// „Öffnen“ in <noscript>), die Seiten /werke und /werke/neu und die Formulare an POST /werke/import
-// bzw. /werke/act.
+// Works with JavaScript. Without JavaScript everything goes through the GET form of the work selection (button
+// „Öffnen“ in <noscript>), the pages /werke and /werke/neu and the forms to POST /werke/import
+// or /werke/act.
 //
-// - Widget „work-select“ (Auswahl in der Kopfzeile): Ein Wechsel öffnet das gewählte Werk sofort
-//   (`location.assign`) und merkt es im Cookie `baruch_work`; der Server setzt den Cookie ohnehin
-//   bei jeder Antwort der Seite `/`.
-// - Widget „work-import“ (<dialog> in der Kopfzeile): Der Link „Importieren…“ (/werke/neu) öffnet
-//   den Dialog mit denselben Formularen.
-// - Widget „work-upload“ (Upload-Formular): belegt das Titelfeld aus `#set document(title: …)` (Markdown: `title:` im
-//   YAML-Kopf, Runde 21b; ZIP: nichts) der
-//   gewählten Datei vor. Der Server bleibt maßgeblich; ein leeres Feld heißt „Titel aus der Datei“.
+// - Widget „work-select“ (choice in the header): a change opens the chosen work at once
+//   (`location.assign`) and remembers it in the cookie `baruch_work`; the server sets the cookie anyway
+//   with every answer of the page `/`.
+// - Widget „work-import“ (<dialog> in the header): the link „Importieren…“ (/werke/neu) opens
+//   the dialog with the same forms.
+// - Widget „work-upload“ (upload form): prefills the title field from `#set document(title: …)` (Markdown: `title:`
+//   in the YAML header, Round 21b; ZIP: nothing) of the
+//   chosen file. The server stays authoritative; an empty field means "title from the file".
 
 import { leaveEditor, register, store } from "./widgets.js";
 
-/// Titel aus dem ersten `#set document(… title: "…" | […] …)` außerhalb von Kommentaren; sonst `null`.
-/// Grob wie `baruch_typst::parse` (Raw-Blöcke werden nicht beachtet); nur ein Vorschlag.
+/// Title from the first `#set document(… title: "…" | […] …)` outside comments; otherwise `null`.
+/// Roughly like `baruch_typst::parse` (raw blocks are not considered); only a suggestion.
 export function documentTitle(source: string): string | null {
   const code = source
     .replace(/\/\*[\s\S]*?\*\//g, " ")
@@ -30,12 +30,12 @@ export function documentTitle(source: string): string | null {
   return null;
 }
 
-/// Titel aus dem YAML-Kopf einer Markdown-Datei (`title: …` zwischen zwei `---`-Zeilen ganz am Anfang); sonst
-/// `null`. Nur ein Vorschlag für das Titelfeld. Runde 23a: im Gleichlauf mit `markdown_import::convert`
-/// (`front_matter`, belegt durch einen Test, der beide auf dieselben Dateien ansetzt): Zeilen, die mit Leerraum oder
-/// `-` beginnen, zählen nicht; der Schlüssel darf Leerraum vor dem Doppelpunkt haben; **ein** Paar Anführungszeichen
-/// außen fällt weg (doppelte, sonst einfache); ein leerer Wert zählt nicht; stehen mehrere `title:` im Kopf, gilt der
-/// letzte mit Wert.
+/// Title from the YAML header of a Markdown file (`title: …` between two `---` lines at the very beginning);
+/// otherwise `null`. Only a suggestion for the title field. Round 23a: in step with `markdown_import::convert`
+/// (`front_matter`, proven by a test that sets both on the same files): lines that begin with whitespace or
+/// `-` do not count; the key may have whitespace before the colon; **one** pair of quotation marks
+/// on the outside drops away (double, otherwise single); an empty value does not count; if several `title:` stand in
+/// the header, the last one with a value applies.
 export function markdownTitle(source: string): string | null {
   const head = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(source);
   if (!head) return null;
@@ -87,14 +87,14 @@ register("work-upload", (form) => {
   const file = form.querySelector<HTMLInputElement>("input[type=file][name=file]");
   const title = form.querySelector<HTMLInputElement>("input[name=title][data-from-file]");
   if (!file || !title) return;
-  // Selbst eingetippte Titel bleiben; nur ein leeres oder von hier vorbelegtes Feld wird gefüllt.
+  // Titles typed in by hand stay; only an empty field or one prefilled from here is filled.
   title.addEventListener("input", () => {
     delete title.dataset.filled;
   });
   file.addEventListener("change", async () => {
     const chosen = file.files?.[0];
     if (!chosen || (title.value !== "" && title.dataset.filled !== "1")) return;
-    // Ein ZIP liest der Browser nicht aus: der Server nimmt den Titel aus der Haupt-Datei bzw. dem Archivnamen.
+    // The browser does not read a ZIP: the server takes the title from the main file or the archive name.
     if (/\.zip$/i.test(chosen.name)) return;
     try {
       const head = await chosen.slice(0, 256 * 1024).text();
@@ -103,7 +103,7 @@ register("work-upload", (form) => {
       title.dataset.filled = "1";
       title.placeholder = found === null ? "aus dem Dateinamen" : "";
     } catch {
-      // Lesen im Browser gescheitert: Der Server nimmt den Titel aus der Datei.
+      // Reading in the browser failed: the server takes the title from the file.
     }
   });
 });

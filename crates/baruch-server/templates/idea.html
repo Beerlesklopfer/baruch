@@ -1,15 +1,16 @@
-{#- Seite /einfaelle/{id} (Vertrag Runde 7, Abschnitt 6e): ein Einfall mit Ansicht, Bearbeiten,
-    Löschen (Kästchen, der Server prüft es), Wiederherstellen und Verarbeiten (Gliederungspunkt,
-    Chat-Beitrag, Notiz, Auftrag an den Lektor – seine Antwort wird ein Beitrag, Runde 10). Alle Formulare gehen an POST /einfaelle/act.
-    Kontext: settings, idea (siehe ideas.rs idea_view), works [{id, title, selected}],
-    nodes [{key, label, selected}] (Abschnitte des Werks), title_default, list_href, back, notice, error;
-    Runde 25: links [{id, arrow, other, other_href, other_words, kind, kind_label, note}], map_href, map_act.
-    Runde 34 (Mindmap): idea.title, idea.parent/parent_href, idea.main_topic, idea.cloud; Formular „Platz in der
-    Mindmap“ (idea.move: unter einen Einfall, in die Wolke, als Hauptthema ans Werk). -#}
+{#- Page /einfaelle/{id} (contract Round 7, section 6e): an idea with view, editing,
+    deleting (checkbox, the server checks it), restoring and processing (outline item,
+    chat post, note, job for the lector – its answer becomes a post, Round 10). All forms go to POST /einfaelle/act.
+    Context: settings, idea (see ideas.rs idea_view), works [{id, title, selected}],
+    nodes [{key, label, selected}] (sections of the work), title_default, list_href, back, notice, error;
+    Round 25: links [{id, arrow, other, other_href, other_words, kind, kind_label, note}], map_href, map_act.
+    Round 34 (mind map): idea.title, idea.parent/parent_href, idea.main_topic, idea.cloud; form „Platz in der
+    Mindmap“ (idea.move: below an idea, into the cloud, as a main topic onto the work). -#}
 {% extends "base.html" %}
 {% block title %}Einfall {{ idea.id }} – Baruch{% endblock %}
 {% block page_title %}Einfall {{ idea.id }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ list_href }}">Alle Einfälle</a>
@@ -48,8 +49,8 @@
     </dl>
   </article>
 
-  {#- Runde 25: Verbindungen zu anderen Einfällen; „Lösen“ geht an das Formular der Gedankenkarte des Werks
-      (wiederherstellbar, die Karte bietet danach „Wiederherstellen“ an). #}
+  {#- Round 25: links to other ideas; „Lösen“ goes to the form of the idea map of the work
+      (restorable, the map then offers „Wiederherstellen“). #}
   <section class="work-form idea-links" aria-label="Verbindungen">
     <h2 class="pane-title">Verbindungen</h2>
     {%- if links %}
@@ -114,7 +115,7 @@
     <button class="btn primary" type="submit">Speichern</button>
   </form>
 
-  {#- Runde 34: Platz in der Mindmap, ohne JavaScript (idea.move). Die Unterknoten wandern mit. #}
+  {#- Round 34: place in the mind map, without JavaScript (idea.move). The sub-nodes move along. #}
   {%- if idea.work is not none %}
   <section class="work-form idea-place-forms" aria-label="Platz in der Mindmap">
     <h2 class="pane-title">Platz in der Mindmap</h2>
@@ -158,7 +159,7 @@
       <label><input type="radio" name="as" value="persona"> ein Auftrag an eine Persona <span class="muted small">(ihre Antwort wird ein Beitrag im Abschnitts-Chat)</span></label>
     </fieldset>
     {%- if personas %}
-    {#- Runde 15: Persona für den Auftrag (ohne JavaScript; Vorgabe der Lektor des Werks). #}
+    {#- Round 15: persona for the job (without JavaScript; default the lector of the work). #}
     <label>Persona für den Auftrag
       <select name="persona">
         {%- for p in personas %}

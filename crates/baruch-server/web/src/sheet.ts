@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Satzbild-Werkzeuge (Runde 18c). Ohne JavaScript geht alles über das Formular „Bild einfügen“ (Stelle aus einer
-// Liste: am Ende, am Anfang, vor einem Block) und Einstellungen → Werk → Satzbild.
+// Typeset-view tools (Round 18c). Without JavaScript everything goes through the form „Bild einfügen“ (place from a
+// list: at the end, at the beginning, before a block) and Einstellungen → Werk → Satzbild.
 //
-// - Widget „sheet-tools“ auf `details[data-image-insert]` (fragments/editor.html): Die Liste der Stellen bekommt
-//   vorn „an der Cursorstelle“. Beim Absenden fragt das Widget bei offenem Satzbild (`div.wysiwyg[data-ws-open]`)
-//   über `baruch:ws-caret` (ws_command.ts) nach Quelltext und Blockgrenze am Cursor, im Quelltext nimmt es
-//   `selectionStart` des Textfelds. Es schickt `place=offset:<n>` und den ungespeicherten Text als `body` mit
-//   (der Server fügt das Bild an der nächsten Zeilengrenze ≥ n als eigenen Block ein). Die Stelle wird schon beim
-//   Drücken auf „Bild einfügen …“ bzw. den Knopf „Bild“ des Menübands (`[data-ribbon-image]`, seit Runde 33 angedockt
-//   im Kopf – darum lauscht das Modul am Dokument) gemerkt, solange der
-//   Cursor noch im Satzbild steht. Antwortet niemand auf `baruch:ws-caret`, geht der Text über
-//   `baruch:serialize-text` mit und das Bild ans Ende.
-// - Stil des Satzbilds: Nach `baruch:settings-changed` (Einstellungen gespeichert) holt das Modul `work.sheet` und
-//   ersetzt den Inhalt von `<style id="ws-style" data-work="W">` (vom Server im Editor, sonst von wysiwyg.ts).
+// - Widget „sheet-tools“ on `details[data-image-insert]` (fragments/editor.html): the list of places gets
+//   „an der Cursorstelle“ at the front. On submitting, with the typeset view open (`div.wysiwyg[data-ws-open]`), the
+//   widget asks through `baruch:ws-caret` (ws_command.ts) for source text and block boundary at the cursor, in the
+//   source text it takes `selectionStart` of the text field. It sends `place=offset:<n>` and the unsaved text along
+//   as `body` (the server inserts the image at the next line boundary ≥ n as a block of its own). The place is
+//   already remembered when pressing „Bild einfügen …“ or the button „Bild“ of the ribbon (`[data-ribbon-image]`,
+//   docked in the header since Round 33 – therefore the module listens on the document), as long as the
+//   cursor is still in the typeset view. If nobody answers `baruch:ws-caret`, the text goes along through
+//   `baruch:serialize-text` and the image to the end.
+// - Style of the typeset view: after `baruch:settings-changed` (settings saved) the module fetches `work.sheet` and
+//   replaces the content of `<style id="ws-style" data-work="W">` (from the server in the editor, otherwise from
+//   wysiwyg.ts).
 //
-// wysiwyg.ts bleibt unberührt: Es spricht nur über die Ereignisse aus ws_command.ts und `baruch:serialize-text`.
+// wysiwyg.ts stays untouched: it speaks only through the events from ws_command.ts and `baruch:serialize-text`.
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -31,7 +32,7 @@ interface SheetAnswer {
   css: string;
 }
 
-/// Editor-Bereich (`div.wysiwyg`), Formular und Textfeld zum Widget.
+/// Editor area (`div.wysiwyg`), form and text field for the widget.
 function editorOf(details: HTMLElement): { root: HTMLElement; form: HTMLFormElement; area: HTMLTextAreaElement } | null {
   const root = details.closest<HTMLElement>("div.wysiwyg[data-widget=wysiwyg]");
   const form = root?.querySelector<HTMLFormElement>("form#editor-form, form[data-widget=editor]");
@@ -39,8 +40,8 @@ function editorOf(details: HTMLElement): { root: HTMLElement; form: HTMLFormElem
   return root && form && area ? { root, form, area } : null;
 }
 
-/// Quelltext und Stelle am Cursor: im Satzbild über `baruch:ws-caret` (am Editor-Formular, steigt auf), im
-/// Quelltext aus dem Textfeld. `null`, wenn das offene Satzbild nicht antwortet.
+/// Source text and place at the cursor: in the typeset view through `baruch:ws-caret` (on the editor form, bubbles),
+/// in the source text from the text field. `null` if the open typeset view does not answer.
 async function caretOf(root: HTMLElement, form: HTMLFormElement, area: HTMLTextAreaElement): Promise<Caret | null> {
   if (!root.hasAttribute("data-ws-open")) return { body: area.value, offset: area.selectionStart ?? area.value.length };
   const detail: WsCaretDetail = { wait: [] };
@@ -54,7 +55,7 @@ async function caretOf(root: HTMLElement, form: HTMLFormElement, area: HTMLTextA
   }
 }
 
-/// Vollständiger Quelltext ohne Stelle (Rückfall): `baruch:serialize-text` wie in timing.ts/literature.ts.
+/// Complete source text without a place (fallback): `baruch:serialize-text` as in timing.ts/literature.ts.
 async function sourceText(form: HTMLFormElement, area: HTMLTextAreaElement): Promise<string> {
   const wait: Promise<string>[] = [];
   form.dispatchEvent(new CustomEvent("baruch:serialize-text", { detail: { wait } }));
@@ -62,13 +63,13 @@ async function sourceText(form: HTMLFormElement, area: HTMLTextAreaElement): Pro
     try {
       return await wait[0];
     } catch {
-      // Rückfall unten
+      // fallback below
     }
   }
   return area.value;
 }
 
-/// Merker des gerade gezeigten Editors (nach jedem `ui.render` ein neues Widget) für den Knopf „Bild“ im Menüband.
+/// Memo of the editor currently shown (a new widget after every `ui.render`) for the button „Bild“ in the ribbon.
 let rememberCurrent: { details: HTMLElement; remember: () => void } | null = null;
 
 document.addEventListener(
@@ -94,14 +95,14 @@ register("sheet-tools", (details) => {
   const note = form.querySelector<HTMLElement>("[data-image-note]");
   if (note) note.textContent = "Als eigener Block an der gewählten Stelle; ungespeicherte Änderungen gehen mit.";
 
-  // Stelle merken, solange der Cursor noch im Satzbild bzw. Textfeld steht (vor dem Fokuswechsel).
+  // Remember the place as long as the cursor is still in the typeset view or text field (before the focus change).
   let remembered: Promise<Caret | null> | null = null;
   const remember = () => {
     remembered = caretOf(editor.root, editor.form, editor.area);
   };
   details.querySelector("summary")?.addEventListener("pointerdown", remember);
-  // Der Knopf „Bild“ steht seit Runde 33 angedockt im Menüband (band.ts), also außerhalb von `div.wysiwyg`: Das Modul
-  // lauscht einmal am Dokument (unten) und fragt das Widget des gerade gezeigten Editors.
+  // The button „Bild“ has stood docked in the ribbon since Round 33 (band.ts), i.e. outside `div.wysiwyg`: the module
+  // listens once on the document (below) and asks the widget of the editor currently shown.
   rememberCurrent = { details, remember };
 
   let sending = false;
@@ -128,8 +129,8 @@ register("sheet-tools", (details) => {
   });
 });
 
-/// Stil des Satzbilds nach geänderten Einstellungen neu holen (`work.sheet`) und in jedes `#ws-style` des Werks
-/// schreiben (Server-Stil im Editor bzw. das Element, das wysiwyg.ts angelegt hat).
+/// Fetch the style of the typeset view anew after changed settings (`work.sheet`) and write it into every
+/// `#ws-style` of the work (server style in the editor or the element that wysiwyg.ts created).
 async function refreshStyle(): Promise<void> {
   const styles = Array.from(document.querySelectorAll<HTMLStyleElement>("style#ws-style[data-work]"));
   const works = new Set(styles.map((style) => style.dataset.work ?? "").filter((work) => /^\d+$/.test(work)));
@@ -140,7 +141,7 @@ async function refreshStyle(): Promise<void> {
         if (style.dataset.work === work) style.textContent = answer.css;
       }
     } catch {
-      // Ohne Antwort bleibt der bisherige Stil; beim nächsten Laden kommt er vom Server.
+      // Without an answer the previous style stays; on the next load it comes from the server.
     }
   }
 }

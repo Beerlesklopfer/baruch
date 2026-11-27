@@ -1,11 +1,12 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /austausch/einlesen[?work=W] (Runde 26, src/exchange/import.rs): Austauschdatei einer
-    anderen Baruch-Instanz einlesen, erst mit Vorschau. Formular multipart an POST /austausch/vorschau (Feld datei,
-    dazu title), ohne JavaScript. Kontext: settings, work {id}?, error?, title_value, limit_mib. -#}
+{#- Page /austausch/einlesen[?work=W] (Round 26, src/exchange/import.rs): read in the exchange file of
+    another Baruch instance, first with a preview. Multipart form to POST /austausch/vorschau (field datei,
+    plus title), without JavaScript. Context: settings, work {id}?, error?, title_value, limit_mib. -#}
 {% extends "base.html" %}
 {% block title %}Austausch einlesen – Baruch{% endblock %}
 {% block page_title %}Austausch: Einlesen{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

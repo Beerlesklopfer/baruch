@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget der Mindmap (Runde 34, Vertrag §7, `data-widget="mindmap"` auf `.mm-stage`). Ohne JavaScript bleibt die
-// Seite ein Bild mit Links (Einklappen, Abschnitt) plus Gliederungsansicht; das Widget liest nur den DOM-Vertrag
-// des Bildes (src/idea_map/bild/mindmap.rs) und ruft nur die RPC `idea.create`, `idea.update`, `idea.move`,
-// `idea.delete`, `idea.restore`, `idea.link`, `idea.unlink` und `idea.link_restore`. Es ordnet nichts selbst an:
-// Nach jeder Aktion holt es das Bild über `data-bild` neu (gleicher Filter aus `data-back`, eingeklappte Knoten
-// als `zu=`) und behält Auswahl und Ausschnitt.
+// Widget of the mind map (Round 34, contract §7, `data-widget="mindmap"` on `.mm-stage`). Without JavaScript the
+// page stays an image with links (collapsing, section) plus the outline view; the widget reads only the DOM contract
+// of the image (src/idea_map/bild/mindmap.rs) and calls only the RPC `idea.create`, `idea.update`, `idea.move`,
+// `idea.delete`, `idea.restore`, `idea.link`, `idea.unlink` and `idea.link_restore`. It arranges nothing itself:
+// after every action it fetches the image anew through `data-bild` (same filter from `data-back`, collapsed nodes
+// as `zu=`) and keeps selection and viewport.
 //
-// - Klick wählt; Doppelklick oder F2 benennt um (nur `data-editable="1"`; Enter übernimmt, Esc verwirft).
-// - Tab legt einen Unterknoten an, Enter ein Geschwister (vor dem nächsten Geschwister); beides steht sofort im
-//   Umbenennen. Am Werk wird der neue Einfall ein freies Hauptthema (`cloud: false`); Alt+E legt in die Wolke.
-// - Entf/Rücktaste löscht nach Rückfrage (samt Unterknoten, wiederherstellbar); an einer gewählten Beziehung löst
-//   Entf die Beziehung.
-// - Ziehen eines Einfalls: auf einen Einfall → Unterknoten (`parent`); auf dessen oberen/unteren Rand → davor bzw.
-//   dahinter einordnen (`before`); auf Teil/Kapitel → dorthin (`parent: null, key`); aufs Werk → freies Hauptthema
-//   (`parent: null, key: null, cloud: false`); in die Wolke → `cloud: true` (die Unterknoten wandern mit). Aus der
-//   Wolke auf einen Knoten ziehen hängt den Einfall dort ein.
-// - Pfeile wandern (links/rechts = Eltern/Kind je nach Seite, hoch/runter = Geschwister), Leertaste klappt,
-//   Strg+Mausrad, `+`, `-`, `0` zoomen, Ziehen der Fläche verschiebt, Strg+Z nimmt die letzte Aktion zurück
-//   (eine Stufe, Umkehr-RPC), Alt+L bzw. „Verbinden“ zieht eine Beziehung zum nächsten gewählten Einfall.
-// - Eingeklappt ist reine Anzeige: je Werk in localStorage (try/catch), nie auf dem Server.
-// - Texte nur über textContent/value (nie als HTML); das Bild kommt fertig maskiert vom Server.
+// - A click selects; double click or F2 renames (only `data-editable="1"`; Enter accepts, Esc discards).
+// - Tab creates a sub-node, Enter a sibling (before the next sibling); both are in renaming at
+//   once. On the work the new idea becomes a free main topic (`cloud: false`); Alt+E puts into the cloud.
+// - Del/Backspace deletes after a confirmation (including sub-nodes, restorable); on a selected relation
+//   Del removes the relation.
+// - Dragging an idea: onto an idea → sub-node (`parent`); onto its upper/lower edge → sort in before or
+//   after it (`before`); onto part/chapter → there (`parent: null, key`); onto the work → free main topic
+//   (`parent: null, key: null, cloud: false`); into the cloud → `cloud: true` (the sub-nodes move along). Dragging
+//   from the cloud onto a node hooks the idea in there.
+// - Arrows move (left/right = parent/child depending on the side, up/down = siblings), Space folds,
+//   Ctrl+mouse wheel, `+`, `-`, `0` zoom, dragging the area pans, Ctrl+Z undoes the last action
+//   (one level, reverse RPC), Alt+L or „Verbinden“ draws a relation to the next selected idea.
+// - Collapsed is pure display: per work in localStorage (try/catch), never on the server.
+// - Texts only through textContent/value (never as HTML); the image comes completely escaped from the server.
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -27,7 +27,7 @@ import { register } from "./widgets.js";
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 6;
 const STEP = 1.2;
-/// Ab so vielen Bildschirmpunkten wird aus einem Klick ein Ziehen.
+/// From this many screen pixels a click becomes a drag.
 const DRAG_THRESHOLD = 5;
 const MAX_TITLE = 200;
 const MAX_NOTE = 500;
@@ -113,7 +113,7 @@ register("mindmap", (stage) => {
   const closedKey = `baruch.mindmap.zu.${work}`;
   const viewKey = `baruch.mindmap.ausschnitt.${work}`;
 
-  // ---- Bild und DOM-Vertrag ----------------------------------------------------------------------------------
+  // ---- Image and DOM contract --------------------------------------------------------------------------------
 
   const svg = (): SVGSVGElement | null => canvas.querySelector<SVGSVGElement>("svg.mm-svg");
   const viewport = (): SVGGElement | null => canvas.querySelector<SVGGElement>(".mm-viewport");
@@ -169,7 +169,7 @@ register("mindmap", (stage) => {
     try {
       sessionStorage.setItem(viewKey, JSON.stringify(view));
     } catch {
-      // Nur Bequemlichkeit.
+      // Convenience only.
     }
   }
 
@@ -177,14 +177,14 @@ register("mindmap", (stage) => {
     try {
       localStorage.setItem(closedKey, closed.join(","));
     } catch {
-      // Nur Bequemlichkeit: ohne Speicher gilt das Einklappen bis zum Neuladen.
+      // Convenience only: without storage the collapsing lasts until reloading.
     }
     const parts = [back, closed.length ? `zu=${closed.join(",")}` : "", selected ? `wahl=${selected}` : ""];
     const query = parts.filter(Boolean).join("&");
     try {
       history.replaceState(history.state, "", query ? `${location.pathname}?${query}` : location.pathname);
     } catch {
-      // Adresse bleibt, wie sie ist.
+      // The address stays as it is.
     }
   }
 
@@ -200,7 +200,7 @@ register("mindmap", (stage) => {
     if (focus) node.el.focus({ preventScroll: true });
   }
 
-  /// Holt das Bild neu (gleicher Filter, eingeklappte Knoten) und setzt es an die Stelle des alten.
+  /// Fetches the image anew (same filter, collapsed nodes) and puts it in the place of the old one.
   async function refresh(selectId?: string | null): Promise<void> {
     const query = [back, closed.length ? `zu=${closed.join(",")}` : ""].filter(Boolean).join("&");
     const response = await fetch(query ? `${bild}?${query}` : bild, { headers: { Accept: "image/svg+xml" } });
@@ -222,8 +222,8 @@ register("mindmap", (stage) => {
     remember();
   }
 
-  /// Eine Aktion: RPC, Bild neu, Meldung (mit „Rückgängig“). Fehler stehen als Meldung da; das Bild wird dann
-  /// trotzdem neu geholt, damit es den Stand des Servers zeigt.
+  /// One action: RPC, image anew, message (with „Rückgängig“). Errors stand there as a message; the image is then
+  /// fetched anew all the same so that it shows the state of the server.
   async function act(run: () => Promise<Outcome>): Promise<void> {
     if (busy) return;
     busy = true;
@@ -237,7 +237,7 @@ register("mindmap", (stage) => {
       try {
         await refresh();
       } catch {
-        // Die Meldung oben nennt den Fehler.
+        // The message at the top names the error.
       }
     } finally {
       busy = false;
@@ -257,7 +257,7 @@ register("mindmap", (stage) => {
     });
   }
 
-  // ---- Einklappen --------------------------------------------------------------------------------------------
+  // ---- Collapsing --------------------------------------------------------------------------------------------
 
   function toggle(id: string): void {
     closed = closed.includes(id) ? closed.filter((c) => c !== id) : [...closed, id];
@@ -270,7 +270,7 @@ register("mindmap", (stage) => {
     void refresh().catch((error: unknown) => say(error instanceof Error ? error.message : String(error), true));
   }
 
-  // ---- Umbenennen, Anlegen, Löschen --------------------------------------------------------------------------
+  // ---- Renaming, creating, deleting --------------------------------------------------------------------------
 
   function rename(n: Info): void {
     if (!n.editable || n.idea === null) {
@@ -322,8 +322,8 @@ register("mindmap", (stage) => {
     input.addEventListener("blur", () => finish(true));
   }
 
-  /// Wohin ein neuer Einfall unter `p` gehört: Einfall → `parent`, Teil/Kapitel → `key`, Werk → freies Hauptthema
-  /// (`cloud: false`); ohne alles landet er in der Wolke.
+  /// Where a new idea below `p` belongs: idea → `parent`, part/chapter → `key`, work → free main topic
+  /// (`cloud: false`); without anything it lands in the cloud.
   function placeUnder(params: Record<string, unknown>, p: Info | null): void {
     if (p?.kind === "idea" && p.idea !== null) params.parent = p.idea;
     else if (p && p.kind !== "work" && p.key !== null) params.key = p.key;
@@ -395,14 +395,14 @@ register("mindmap", (stage) => {
     });
   }
 
-  // ---- Umhängen und Ordnen (idea.move) -----------------------------------------------------------------------
+  // ---- Re-hooking and ordering (idea.move) -------------------------------------------------------------------
 
   function move(n: Info, params: MoveParams, message: string): void {
     if (n.idea === null) return;
     const idea = n.idea;
     const row = siblings(n);
     const next = row[row.findIndex((m) => m.id === n.id) + 1];
-    // Umkehr: der Platz vor der Aktion – Wolke, freies Hauptthema am Werk oder Elternknoten/Bezug.
+    // Reverse: the place before the action – cloud, free main topic on the work or parent node/reference.
     const before = next && next.kind === "idea" ? next.idea : null;
     const parent = parentIdea(n);
     const backTo: MoveParams = n.cloud
@@ -464,7 +464,7 @@ register("mindmap", (stage) => {
     }
     const target = where.target;
     if (target?.kind === "work") {
-      // Aufs Werk: freies Hauptthema (eigener Hauptast), die Unterknoten bleiben am Einfall.
+      // Onto the work: free main topic (main branch of its own), the sub-nodes stay with the idea.
       move(n, { parent: null, key: null, cloud: false }, `„${n.title}“ ist jetzt Hauptthema am Werk.`);
       return;
     }
@@ -480,7 +480,7 @@ register("mindmap", (stage) => {
       if (target.idea !== null) move(n, { parent: target.idea }, `„${n.title}“ ist jetzt Unterknoten von „${target.title}“.`);
       return;
     }
-    // Davor/dahinter: gleicher Elternknoten wie das Ziel, `before` = Ziel bzw. dessen nächstes Geschwister.
+    // Before/after: same parent node as the target, `before` = the target or its next sibling.
     const row = siblings(target).filter((m) => m.id !== n.id);
     const after = row[row.findIndex((m) => m.id === target.id) + 1];
     const before = where.zone === "before" ? target.idea : after && after.kind === "idea" ? after.idea : null;
@@ -496,7 +496,7 @@ register("mindmap", (stage) => {
     move(n, params, `„${n.title}“ steht jetzt ${where.zone === "before" ? "vor" : "hinter"} „${target.title}“.`);
   }
 
-  // ---- Verbinden (idea.link) ---------------------------------------------------------------------------------
+  // ---- Linking (idea.link) -----------------------------------------------------------------------------------
 
   function stopLinking(): void {
     linkFrom = null;
@@ -585,7 +585,7 @@ register("mindmap", (stage) => {
     kind.focus();
   }
 
-  // ---- Wandern, Zoom -----------------------------------------------------------------------------------------
+  // ---- Moving, zoom ------------------------------------------------------------------------------------------
 
   function step(direction: Direction): void {
     const n = current();
@@ -646,7 +646,7 @@ register("mindmap", (stage) => {
     applyView();
   }
 
-  // ---- Maus --------------------------------------------------------------------------------------------------
+  // ---- Mouse -------------------------------------------------------------------------------------------------
 
   canvas.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
@@ -673,7 +673,7 @@ register("mindmap", (stage) => {
       const dy = moved.clientY - start.y;
       if (!dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       if (!node) {
-        // Fläche verschieben.
+        // Pan the area.
         dragging = true;
         stage.classList.add("mm-panning");
         view = { s: origin.s, tx: origin.tx + dx / scale, ty: origin.ty + dy / scale };
@@ -721,7 +721,7 @@ register("mindmap", (stage) => {
       ghost?.remove();
       clearMarks();
       if (!dragging) return;
-      // Der Klick nach dem Loslassen gehört zum Ziehen, nicht zur Auswahl.
+      // The click after releasing belongs to the drag, not to the selection.
       suppressClick = true;
       window.setTimeout(() => (suppressClick = false), 0);
       if (node) drop(node, where);
@@ -738,7 +738,7 @@ register("mindmap", (stage) => {
       event.preventDefault();
       return;
     }
-    // Mit Strg/Umschalt/Mitteltaste bleibt ein Link ein Link (neuer Tab).
+    // With Ctrl/Shift/middle button a link stays a link (new tab).
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const el = target.closest<SVGGElement>(".mm-node");
     if (target.closest(".mm-toggle") && el) {
@@ -784,7 +784,7 @@ register("mindmap", (stage) => {
     { passive: false },
   );
 
-  // ---- Tasten ------------------------------------------------------------------------------------------------
+  // ---- Keys --------------------------------------------------------------------------------------------------
 
   document.addEventListener("keydown", (event) => {
     if (!stage.isConnected || inField(event.target)) return;
@@ -795,7 +795,7 @@ register("mindmap", (stage) => {
       void undoLast();
       return;
     }
-    // `code` dazu: Auf manchen Tastaturen ergibt Alt+E bzw. Alt+L ein anderes Zeichen.
+    // Plus `code`: on some keyboards Alt+E or Alt+L yields another character.
     if (event.altKey && !event.ctrlKey && !event.metaKey && (key.toLowerCase() === "e" || event.code === "KeyE")) {
       event.preventDefault();
       create("cloud");
@@ -806,12 +806,12 @@ register("mindmap", (stage) => {
       startLinking();
       return;
     }
-    // Alles Weitere nur, wenn die Mindmap den Fokus hat.
+    // Everything else only if the mind map has the focus.
     if (!plain || !(event.target instanceof Node) || !canvas.contains(event.target)) return;
     const n = current();
     switch (key) {
       case "Tab":
-        // Umschalt+Tab und Tab ohne Auswahl bleiben beim Browser (kein Tastaturkäfig; Esc hebt die Auswahl auf).
+        // Shift+Tab and Tab without a selection stay with the browser (no keyboard trap; Esc clears the selection).
         if (event.shiftKey || !n) return;
         event.preventDefault();
         create("child");
@@ -868,7 +868,7 @@ register("mindmap", (stage) => {
     }
   });
 
-  // ---- Menüband und Werkzeugleiste ---------------------------------------------------------------------------
+  // ---- Ribbon and toolbar ------------------------------------------------------------------------------------
 
   document.addEventListener("click", (event) => {
     if (!stage.isConnected || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -956,11 +956,11 @@ register("mindmap", (stage) => {
       view = { s: Math.min(MAX_SCALE, Math.max(MIN_SCALE, stored.s as number)), tx: stored.tx as number, ty: stored.ty as number };
     }
   } catch {
-    // Ohne gespeicherten Ausschnitt: eingepasst.
+    // Without a stored viewport: fitted.
   }
   applyView();
   select(selected, false);
-  // Eingeklappt je Werk gemerkt: gilt, wenn die Adresse selbst kein `zu` trägt.
+  // Collapsed remembered per work: applies if the address itself carries no `zu`.
   let stored = "";
   try {
     stored = localStorage.getItem(closedKey) ?? "";

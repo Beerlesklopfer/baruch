@@ -1,14 +1,16 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /werke/{id}/pruefung?key=K[&rev=N] (Runde 17c, src/scripture_check.rs): Ergebnis der Wortlautprüfung
-    eines Abschnitts als Liste, ohne JavaScript. Dieselben Daten wie RPC bible.marks. Kontext: settings,
+{#- Page /werke/{id}/pruefung?key=K[&rev=N] (Round 17c, src/scripture_check.rs): result of the wording check
+    of a section as a list, without JavaScript. The same data as RPC bible.marks. Context: settings,
     work {id, title}, key, rev, title, back, settings_url, bible (Choice::json: module, versification, license,
-    cipher, problem …), has_bible, no_choice, notice (Lizenzvermerk der conf), marks [{ref, ref_span, quote_span,
+    cipher, problem …), has_bible, no_choice, notice (licence note of the conf), marks [{ref, ref_span, quote_span,
     code, state, state_label, label, quote, bible_text, module_ref, diff_line, module_spacing}], counts {stimmt,
-    weicht_ab, andere}, module_note (Runde 19c: Modul mit auffällig vielen Wortfragmenten, sonst leer). -#}
+    weicht_ab, andere}, module_note (Round 19c: module with a conspicuous number of word fragments, otherwise empty).
+    -#}
 {% extends "base.html" %}
 {% block title %}Zitate prüfen – {{ title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Zitate prüfen{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

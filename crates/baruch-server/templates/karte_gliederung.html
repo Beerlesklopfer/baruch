@@ -1,14 +1,14 @@
-{#- Seite /werke/{id}/karte/gliederung (Vertrag Runde 34 §5, src/idea_map/files/outline.rs): die Mindmap als
-    verschachtelte Liste, ganz ohne JavaScript bedienbar. Links die Äste (Teile, Kapitel, Hauptthemen, Einfälle; <details> je
-    Knoten mit Unterknoten), rechts die Wolke (Einfälle ohne Platz, Zähler „n in der Wolke“, Vorschlag der Nähe
-    „passt zu Ast …“). „Wählen“ (wahl=<Kennung>) zeigt oben die Formulare des Knotens; alle posten an
-    POST /werke/{id}/karte/act mit seite=gliederung. Teile und Kapitel haben nur „Unterknoten“.
-    Kontext: settings, work {id, title}, title, back, act, here, map_href, import_href, outputs {xmind, mm, svg, pdf,
-    md}, ideas_href, workspace, filter {status, word, origin, q, words}, branches [Knoten], cloud [{node, hint}],
+{#- Page /werke/{id}/karte/gliederung (contract Round 34 §5, src/idea_map/files/outline.rs): the mind map as a
+    nested list, usable entirely without JavaScript. On the left the branches (parts, chapters, main topics, ideas;
+    <details> per node with sub-nodes), on the right the cloud (ideas without a place, counter „n in der Wolke“,
+    proposal of the nearness „passt zu Ast …“). „Wählen“ (wahl=<identifier>) shows the forms of the node at the top; all
+    post to POST /werke/{id}/karte/act with seite=gliederung. Parts and chapters only have „Unterknoten“.
+    Context: settings, work {id, title}, title, back, act, here, map_href, import_href, outputs {xmind, mm, svg, pdf,
+    md}, ideas_href, workspace, filter {status, word, origin, q, words}, branches [node], cloud [{node, hint}],
     cloud_count, total, chosen, panel, links, deleted, notice, undo, restore, error.
-    Knoten: {id, anchor, kind, idea, title, note, has_note, words, status, done, origin, section, section_href,
+    Node: {id, anchor, kind, idea, title, note, has_note, words, status, done, origin, section, section_href,
     node_href, idea_href, hit, ghost, open_findings, descendants, select, chosen, closed, children}.
-    Texte der Einfälle sind Daten: nur maskiert (Autoescape). -#}
+    Texts of the ideas are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
 {% block title %}Mindmap (Gliederungsansicht) · {{ title }} – Baruch{% endblock %}
 {% block page_title %}Mindmap · Gliederungsansicht · {{ title }}{% endblock %}
@@ -79,7 +79,7 @@
     {%- if filter.words %}<a class="btn" href="/werke/{{ work.id }}/karte/gliederung">Filter aufheben</a>{% endif %}
   </form>
 
-  {#- Formulare des gewählten Knotens. #}
+  {#- Forms of the chosen node. #}
   {%- if panel %}
   <section class="mmg-panel" id="wahl" aria-label="Gewählter Knoten" data-chosen="{{ panel.id }}">
     <h2 class="pane-title">Gewählt: {{ panel.title }}</h2>

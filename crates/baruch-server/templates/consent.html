@@ -1,15 +1,15 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Zustimmung zur Gliederung (Nutzerfrage 12, Entscheidung 2026-11-07: „es braucht eine aktive
-    Zustimmung (Popup)“). crate::consent setzt dieses Stück auf jeder Seite an die Stelle der Marke
-    <!--baruch-consent--> in base.html, solange ein Antrag offen ist, der die Zustimmung des Menschen
-    braucht (ein neuer Teil, der vorhandene Kapitel bzw. Predigtteile übernähme; die Wortwahl der
-    Zusammenfassung folgt der Werkart, Runde 17b).
-    - Ohne JavaScript: die Hinweisleiste mit Link zum Antrag auf /gliederung (dort Formular mit
+{#- Consent to the outline (user question 12, decision 2026-11-07: „es braucht eine aktive
+    Zustimmung (Popup)“). crate::consent puts this piece on every page in the place of the marker
+    <!--baruch-consent--> in base.html as long as a request is open that needs the consent of the
+    human (a new part that would take over existing chapters or sermon parts; the wording of the
+    summary follows the kind of work, Round 17b).
+    - Without JavaScript: the notice bar with a link to the request on /gliederung (there a form with
       „Zustimmen“/„Ablehnen“).
-    - Mit JavaScript: web/src/consent.ts öffnet den Dialog modal (showModal). Die Knöpfe sind gewöhnliche
-      Formulare an /gliederung/act (method=outline.request_decide); das Widget schickt sie über RPC und
-      lädt die Seite neu. Nichts geschieht ohne Klick; „Später entscheiden“ schließt nur den Dialog.
-    Kontext: requests (je id, work, work_title, summary, origin_label, note, preview bzw. preview_error,
+    - With JavaScript: web/src/consent.ts opens the dialog modally (showModal). The buttons are ordinary
+      forms to /gliederung/act (method=outline.request_decide); the widget sends them through RPC and
+      reloads the page. Nothing happens without a click; „Später entscheiden“ only closes the dialog.
+    Context: requests (each id, work, work_title, summary, origin_label, note, preview or preview_error,
     adopted_count), first_url. -#}
 <div class="consent-bar" role="alert" data-consent-bar>
   <strong>Zustimmung nötig:</strong>
@@ -34,7 +34,7 @@
       <ol class="request-preview-list consent-preview">
       {%- for p in r.preview %}
         <li class="preview-{{ p.mark }} level-{{ p.level }}">
-          {#- Runde 16c: Art und Nummer eindeutig („Teil 1“, „Kapitel 2“), vorher → nachher für übernommene Kapitel. #}
+          {#- Round 16c: kind and number unambiguous („Teil 1“, „Kapitel 2“), before → after for adopted chapters. #}
           <span class="num preview-label">{{ p.label }}</span> {{ p.title }}
           {%- if p.changed_label %} <span class="small muted preview-before">(vorher {{ p.before_label }} → nachher {{ p.label }})</span>{% endif %}
           {%- if p.mark == "added" %} <span class="badge primary">neu</span>

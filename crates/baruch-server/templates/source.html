@@ -1,18 +1,19 @@
-{#- Dokumentansicht /quelle: Angaben einer Quelle, Zitate (Anker #zitat-<id>, Hervorhebungen darin als
-    <mark>), alle Hervorhebungen (#hervorhebung-<id>, mit Prüfung gegen den Volltext), der Volltext einer mit
-    MultiGPT verknüpften Quelle (Runde 13, Anker #volltext, Teil für Teil ohne JavaScript) und das Formular für
-    markierten Text (ohne JavaScript; mit JavaScript bietet das Kontextmenü dasselbe).
-    Kontext: work, node? ({id, key}), title, quotes [{id, page, segments, target, url}], highlights, kinds,
-    place_fields (work, node, key, rev, lq, lmode), fulltext ({linked, note} ohne Verknüpfung; {linked,
-    available: false, reason, load_url?} bei Ausfall; sonst {pieces [{text, mark}], part, parts, more, prev_url,
-    next_url, origin, message, offset, …}), range_inputs (Anfang/Ende im Volltext sichtbar), notice, library_query,
-    library_mode ("fts" | "rag", reist wie lq mit; data-lmode für das Kontextmenü), work_url, literature_url.
-    Zitieren findet den Abschnitt über den festen Schlüssel key (versteckt in place_fields bzw.
-    data-key für das Kontextmenü), nicht über die Stelle. -#}
+{#- Document view /quelle: details of a source, quotations (anchor #zitat-<id>, highlights in them as
+    <mark>), all highlights (#hervorhebung-<id>, with a check against the full text), the full text of a source
+    linked with MultiGPT (Round 13, anchor #volltext, part by part without JavaScript) and the form for
+    selected text (without JavaScript; with JavaScript the context menu offers the same).
+    Context: work, node? ({id, key}), title, quotes [{id, page, segments, target, url}], highlights, kinds,
+    place_fields (work, node, key, rev, lq, lmode), fulltext ({linked, note} without a link; {linked,
+    available: false, reason, load_url?} on failure; otherwise {pieces [{text, mark}], part, parts, more, prev_url,
+    next_url, origin, message, offset, …}), range_inputs (start/end visible in the full text), notice, library_query,
+    library_mode ("fts" | "rag", travels along like lq; data-lmode for the context menu), work_url, literature_url.
+    Quoting finds the section through the fixed key key (hidden in place_fields or
+    data-key for the context menu), not through the position. -#}
 {% extends "base.html" %}
 {% block title %}{{ title.title }} – Quelle – Baruch{% endblock %}
 {% block page_title %}Quelle · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
@@ -88,7 +89,7 @@
     {% include "fragments/highlights.html" %}
   </section>
 
-  {#- Ohne JavaScript: Text hier einfügen; mit JavaScript füllt das Kontextmenü dieselben Felder. #}
+  {#- Without JavaScript: paste text here; with JavaScript the context menu fills the same fields. #}
   <section class="source-act" aria-label="Markierten Text verwenden">
     <h2 class="pane-title">Markierten Text verwenden</h2>
     <form method="post" action="/literatur/act" class="source-form" data-source-form>
@@ -97,8 +98,8 @@
       <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
       {%- endfor %}
       {%- if range_inputs %}
-      {#- Mit MultiGPT verknüpft: Bereich im Volltext (Unicode-Zeichen ab 0) auch ohne JavaScript eintragbar; ohne
-          Zitat prüft Baruch ihn gegen den Volltext. #}
+      {#- Linked with MultiGPT: the range in the full text (Unicode characters from 0) can also be entered without
+          JavaScript; without a quotation Baruch checks it against the full text. #}
       <label>Anfang im Volltext <input type="number" name="start" min="0" value=""></label>
       <label>Ende im Volltext <input type="number" name="end" min="0" value=""></label>
       {%- else %}
@@ -115,8 +116,8 @@
         {%- for k in kinds %}<option value="{{ k.value }}"{% if k.value == "core" %} selected{% endif %}>{{ k.label }}</option>{% endfor %}
       </select></label>
       <label>Notiz <input type="text" name="note"></label>
-      {#- Runde 15: „An Persona geben“ – Persona (Vorgabe der Lektor) und Frage; die Quellenangabe baut der Server
-          aus Titel und Fundstelle. Ohne Abschnitt (key) zeigt der Server eine Hinweisseite. #}
+      {#- Round 15: „An Persona geben“ – persona (default the lector) and question; the server builds the source
+          reference from title and place found. Without a section (key) the server shows a notice page. #}
       <label>Persona <select name="persona" data-persona-select>
         {%- for p in personas %}<option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
       </select></label>

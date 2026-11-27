@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „menubar“ (<nav class="menubar"> im Menüband, templates/base.html; Runde 9, seit Runde 33 mit dem einen Menü
-// „Baruch ▾“): Das Menü ist <details>/<summary> mit gewöhnlichen Links und klappt auch ohne JavaScript auf. Hier
-// kommt dazu:
-// - Tastatur nach dem ARIA-Menü-Muster: auf dem Menüknopf ↓/Enter/Leertaste öffnet und fokussiert den
-//   ersten Eintrag, ↑ den letzten; in der Liste ↑/↓ (umlaufend), Pos1/Ende, Enter/Leertaste aktiviert, Esc schließt
-//   und fokussiert den Menüknopf, Tab schließt. (←/→ zum Nachbarmenü greifen nur, wenn es mehrere Menüs gibt.)
-// - Klick daneben schließt; Aktivieren eines Eintrags schließt das Menü.
-// - aria-expanded am Menüknopf.
-// - Abzeichen im ganzen Band (Reiter Start: offene Vorschläge, Prüfen: „N offen“ Befunde, Buch: Anträge zur
-//   Gliederung, dazu die Einträge „Befunde“ und „Anträge zur Gliederung“): Der Server zeichnet sie auf jeder Seite
-//   (Arbeitsseite aus der Vorlage, sonst menu::fill_badges); neu geholt wird über menu.badges beim Öffnen des Menüs,
-//   beim Laden außerhalb der Arbeitsseite und nach Formularen bzw. Navigation (die Zahlen können sich dort ändern).
+// Widget „menubar“ (<nav class="menubar"> in the ribbon, templates/base.html; Round 9, since Round 33 with the one
+// menu „Baruch ▾“): the menu is <details>/<summary> with ordinary links and also unfolds without JavaScript. Added
+// here:
+// - Keyboard following the ARIA menu pattern: on the menu button ↓/Enter/Space opens and focuses the
+//   first entry, ↑ the last; in the list ↑/↓ (wrapping), Home/End, Enter/Space activates, Esc closes
+//   and focuses the menu button, Tab closes. (←/→ to the neighbouring menu only apply if there are several menus.)
+// - A click next to it closes; activating an entry closes the menu.
+// - aria-expanded on the menu button.
+// - Badges in the whole ribbon (tab Start: open proposals, Prüfen: „N offen“ findings, Buch: requests for the
+//   outline, plus the entries „Befunde“ and „Anträge zur Gliederung“): the server draws them on every page
+//   (workspace page from the template, otherwise menu::fill_badges); they are fetched anew through menu.badges on
+//   opening the menu, on loading outside the workspace page and after forms or navigation (the numbers can change
+//   there).
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -19,11 +20,11 @@ interface Badges {
   work: number;
   outline_requests: number;
   open_proposals: number;
-  /// Runde 28: offene Befunde im Werk (Zählregel §1.5); fehlt bei älteren Servern.
+  /// Round 28: open findings in the work (counting rule §1.5); missing with older servers.
   open_findings?: number;
 }
 
-/// Werk des Bands (`data-work` am Kopf `header.band`, base.html); ohne Werk `null`.
+/// Work of the ribbon (`data-work` on the header `header.band`, base.html); without a work `null`.
 function topbarWork(nav: HTMLElement): number | null {
   const value = nav.closest(".band")?.getAttribute("data-work") ?? "";
   return /^\d+$/.test(value) ? Number(value) : null;
@@ -34,7 +35,7 @@ function showBadges(nav: HTMLElement, badges: Badges): void {
   for (const name of ["outline_requests", "open_proposals", "open_findings"] as const) {
     const count = badges[name] ?? 0;
     root.querySelectorAll<HTMLElement>(`[data-badge="${name}"]`).forEach((badge) => {
-      // Am Reiter „k offen“, im Eintrag nur die Zahl (wie der Server zeichnet).
+      // On the tab „k offen“, in the entry only the number (as the server draws it).
       badge.textContent = name === "open_findings" && badge.closest(".band-tab") ? `${count} offen` : String(count);
       badge.hidden = count === 0;
     });
@@ -50,11 +51,11 @@ register("menubar", (nav) => {
   const summaryOf = (menu: HTMLDetailsElement) => menu.querySelector<HTMLElement>(":scope > summary");
   const itemsOf = (menu: HTMLDetailsElement) =>
     Array.from(menu.querySelectorAll<HTMLElement>(".menu-item")).filter(
-      // Runde 35: Für Lektoren blendet konten.css die Einträge des Autors aus; die Pfeiltasten überspringen sie.
+      // Round 35: for Lektors konten.css hides the entries of the author; the arrow keys skip them.
       (item) => !item.hidden && !(document.body.dataset.rolle === "lektor" && item.classList.contains("nur-autor")),
     );
 
-  // Einträge sind nicht in der Tab-Folge (Tab springt von Menü zu Menü), Pfeile führen hinein.
+  // Entries are not in the tab order (Tab jumps from menu to menu), arrows lead into it.
   for (const menu of menus) {
     for (const item of menu.querySelectorAll<HTMLElement>(".menu-item")) item.tabIndex = -1;
     summaryOf(menu)?.setAttribute("aria-expanded", menu.open ? "true" : "false");
@@ -82,7 +83,7 @@ register("menubar", (nav) => {
     try {
       showBadges(nav, await call<Badges>("menu.badges", { work }));
     } catch {
-      // Abzeichen sind nur ein Hinweis; ohne Antwort bleibt der bisherige Stand.
+      // Badges are only a hint; without an answer the previous state stays.
     } finally {
       pending = false;
     }
@@ -173,7 +174,7 @@ register("menubar", (nav) => {
         }
       }
     });
-    // Ein Eintrag wurde aktiviert (Link, Dialog, Umschalter): Menü zu. Stubs bleiben offen.
+    // An entry was activated (link, dialog, toggle): menu closed. Stubs stay open.
     menu.querySelector(".menu-list")?.addEventListener("click", (event) => {
       const item = (event.target as Element).closest<HTMLElement>(".menu-item");
       if (!item) return;
@@ -185,18 +186,18 @@ register("menubar", (nav) => {
     });
   }
 
-  // Klick daneben schließt.
+  // A click next to it closes.
   document.addEventListener("click", (event) => {
     const target = event.target as Node;
     for (const menu of menus) if (menu.open && !menu.contains(target)) close(menu);
   });
-  // Fokus verlässt die Menüleiste (z. B. mit Tab): offenes Menü schließen.
+  // Focus leaves the menu bar (e.g. with Tab): close an open menu.
   nav.addEventListener("focusout", (event) => {
     const next = (event as FocusEvent).relatedTarget as Node | null;
     if (next && !nav.contains(next)) for (const menu of menus) close(menu);
   });
 
-  // Abzeichen: außerhalb der Arbeitsseite sofort holen, sonst nach Änderungen.
+  // Badges: fetch at once outside the workspace page, otherwise after changes.
   if (!document.querySelector("[data-widget=workspace]")) void refresh();
   document.addEventListener("baruch:navigate", () => window.setTimeout(() => void refresh(), 300));
   document.addEventListener("submit", () => window.setTimeout(() => void refresh(), 800));

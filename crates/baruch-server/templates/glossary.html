@@ -1,15 +1,16 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Seite /werke/{id}/glossar (Runde 31c, src/glossary_page.rs, Besitz kontextmenue). Kontext: settings, work {id, title},
-    accepted [Term], proposed [Term] (Term wie RPC glossary.list, dazu variants_text, bible_refs_text, filter),
-    load_error?, lookup {word, terms, error?}?, open_id? (Begriff mit offenem Bearbeiten-Formular), prefill (neuer
-    Begriff), ok?, retry {action, id, v {Feld → Wert}, message}? (abgelehntes Formular, 422).
-    Ohne JavaScript: alle Formulare an POST /werke/{id}/glossar/act (action = add|update|delete|accept|reject|suggest), Löschen
-    mit Pflicht-Häkchen confirm, Nachschlagen als GET-Formular. Vorschläge der Assistenten stehen gesondert und
-    gekennzeichnet; übernehmen oder verwerfen kann nur der Mensch. Widget „glossary“ (web/src/glossary.ts): Suchfeld. -#}
+{#- Page /werke/{id}/glossar (Round 31c, src/glossary_page.rs, ownership kontextmenue). Context: settings, work {id,
+    title}, accepted [Term], proposed [Term] (Term as in RPC glossary.list, plus variants_text, bible_refs_text,
+    filter), load_error?, lookup {word, terms, error?}?, open_id? (term with an open edit form), prefill (new
+    term), ok?, retry {action, id, v {field → value}, message}? (rejected form, 422).
+    Without JavaScript: all forms to POST /werke/{id}/glossar/act (action = add|update|delete|accept|reject|suggest),
+    deleting with the mandatory checkbox confirm, looking up as a GET form. Proposals of the assistants stand separately
+    and marked; only the human can accept or reject. Widget „glossary“ (web/src/glossary.ts): search field. -#}
 {% extends "base.html" %}
 {% block title %}Glossar – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Glossar{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">

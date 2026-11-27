@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Glossar- und Registerseite (Runde 31c, Besitz kontextmenue): Komfort über den ohne JavaScript bedienbaren Seiten
-// /werke/{id}/glossar und /werke/{id}/register.
+// Glossary and index page (Round 31c, ownership kontextmenue): convenience on top of the pages
+// /werke/{id}/glossar and /werke/{id}/register, which are usable without JavaScript.
 //
-// Widget „glossary“ auf `main.glossary-page` bzw. `main.index-page`: Das Suchfeld `[data-glossary-filter]` (ohne
-// JavaScript verborgen) blendet beim Tippen alle Einträge `[data-filter-text]` aus, die den Suchtext nicht enthalten
-// (Groß-/Kleinschreibung und Akzente zählen nicht, `matches`); Escape leert es. Alle Formulare bleiben normale
-// Formulare (POST …/act, 303/422).
+// Widget „glossary“ on `main.glossary-page` or `main.index-page`: the search field `[data-glossary-filter]` (hidden
+// without JavaScript) hides, while typing, all entries `[data-filter-text]` that do not contain the search text
+// (case and accents do not count, `matches`); Escape empties it. All forms stay normal
+// forms (POST …/act, 303/422).
 
 import { register } from "./widgets.js";
 
-/// Vergleichsform: klein, ohne Akzente (NFD ohne Zeichen der Kategorie M), Leerraum zu einem Leerzeichen.
+/// Comparison form: lower case, without accents (NFD without characters of category M), whitespace to one space.
 export function fold(text: string): string {
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-/// Passt der Eintrag zum Suchtext? Leerer Suchtext passt immer; jedes Wort des Suchtexts muss vorkommen.
+/// Does the entry match the search text? An empty search text always matches; every word of the search text must occur.
 export function matches(query: string, text: string): boolean {
   const words = fold(query).split(" ").filter((w) => w !== "");
   const hay = fold(text);

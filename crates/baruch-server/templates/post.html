@@ -1,21 +1,23 @@
-{#- Seite /beitrag (Runde 28, chat-auftrag): ein Beitrag des Abschnitts-Chats, ohne JavaScript bedienbar.
-    - Kopieren: der Text steht in einem schreibgeschützten, markierbaren Feld (textarea readonly); mit JavaScript
-      zusätzlich der Knopf „Kopieren“ (data-post-copy).
-    - Zitieren: eigenes Chat-Formular an POST /assistenten/act (method persona.chat), die Nachricht beginnt mit dem
-      Beitrag als „> …“; wie im Abschnitt mit „als Auftrag“.
-    - Bearbeiten: nur eigene Beiträge (post.own, Autor „Autor“) über POST /beitraege/act (method post.edit, back=post);
-      die alte Fassung bleibt im Verlauf, genau ein Commit. Beiträge von Personas sind nicht bearbeitbar.
-    - In Befunde umwandeln (post.to_findings, nicht bei eigenen Beiträgen); der Beitrag bleibt unverändert.
-    Kontext: settings, work {id, title}, node {key, id, title}, post {id, author, body, time, edited, style, own, persona,
-    sources, url, anchor_url}, versions [{body, valid_from, replaced, edited_by}], quote (Text „> …“), node_url,
-    history_url.
-    Runde 30c (chat-bedienung): oben der gesetzte Beitrag (Makro post_item: Markdown-Teilset, Links, Befund-Blöcke, Kopf);
-    das Feld zum Kopieren enthält den Klartext (post.extra.plain, „- “-Zeilen). Abschnitt „Löschen“ (Anker #loeschen):
-    Kästchen „wirklich löschen“ und POST /beitraege/act (method post.delete) – Ziel des ✕ ohne JavaScript. -#}
+{#- Page /beitrag (Round 28, chat-auftrag): one post of the section chat, usable without JavaScript.
+    - Copying: the text stands in a read-only, selectable field (textarea readonly); with JavaScript
+      additionally the button „Kopieren“ (data-post-copy).
+    - Quoting: a chat form of its own to POST /assistenten/act (method persona.chat), the message starts with the
+      post as „> …“; as in the section with „als Auftrag“.
+    - Editing: only own posts (post.own, author „Autor“) through POST /beitraege/act (method post.edit, back=post);
+      the old version stays in the history, exactly one commit. Posts of personas cannot be edited.
+    - Turning into findings (post.to_findings, not for own posts); the post stays unchanged.
+    Context: settings, work {id, title}, node {key, id, title}, post {id, author, body, time, edited, style, own,
+    persona, sources, url, anchor_url}, versions [{body, valid_from, replaced, edited_by}], quote (text „> …“),
+    node_url, history_url.
+    Round 30c (chat-bedienung): at the top the rendered post (macro post_item: Markdown subset, links, finding blocks,
+    head); the field for copying contains the plain text (post.extra.plain, „- “ lines). Section „Löschen“ (anchor
+    #loeschen): checkbox „wirklich löschen“ and POST /beitraege/act (method post.delete) – target of the ✕ without
+    JavaScript. -#}
 {% extends "base.html" %}
 {% block title %}Beitrag {{ post.id }} – Baruch{% endblock %}
 {% block page_title %}Beitrag · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ history_url }}">Chat-Historie</a>

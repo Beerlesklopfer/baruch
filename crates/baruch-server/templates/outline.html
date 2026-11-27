@@ -1,15 +1,17 @@
-{#- Seite /gliederung: der Gliederungsmanager ohne JavaScript. Alle Einträge mit Ebene, Nummer und
-    Schaltflächen (↑ ↓ ← →, Bearbeiten), darunter die Nummerierung. Formulare an /gliederung/act
-    mit view=gliederung, damit es danach hierher zurückgeht. Darunter die Anträge der Assistenten
-    (Abschnitt #antraege, Migration 0012) mit „Bestätigen“ und „Ablehnen“ (Formulare an
-    /gliederung/act, method=outline.request_decide) und die zuletzt entschiedenen. Kontext: work, node,
-    entries, numbering, open_requests, decided_requests, lq, work_url; Runde 16c: timing (timing_json des
-    Zeitwächters; bei timing.shown Spalte „Dauer“ mit Zeitmarke und oben Gesamt-/Zielzeit). Runde 28: je Eintrag das
-    Abzeichen „k offen“ (offene Befunde samt Unterpunkten, Zählregel §1.5) mit Link auf die Seite der Befunde. -#}
+{#- Page /gliederung: the outline manager without JavaScript. All entries with level, number and
+    buttons (↑ ↓ ← →, Bearbeiten), below them the numbering. Forms to /gliederung/act
+    with view=gliederung so that it comes back here afterwards. Below them the requests of the assistants
+    (section #antraege, migration 0012) with „Bestätigen“ and „Ablehnen“ (forms to
+    /gliederung/act, method=outline.request_decide) and the most recently decided ones. Context: work, node,
+    entries, numbering, open_requests, decided_requests, lq, work_url; Round 16c: timing (timing_json of the
+    time guard; with timing.shown the column „Dauer“ with time mark and at the top total/target time). Round 28: per
+    entry the badge „k offen“ (open findings including sub-items, counting rule §1.5) with a link to the page of the
+    findings. -#}
 {% extends "base.html" %}
 {% block title %}Gliederung – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}Gliederung · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ work_url }}">Zurück zum Werk</a>
@@ -33,7 +35,7 @@
     höchstens neue Punkte an; Umbenennen, Verschieben, Umstufen und Löschen beantragen sie nur – das
     entscheiden Sie unten bei den Anträgen.</p>
   {%- if timing.shown %}
-  {#- Runde 16c: Zeitwächter – Gesamtzeit, Zielzeit und Warnung als Text (ohne JavaScript). #}
+  {#- Round 16c: time guard – total time, target time and warning as text (without JavaScript). #}
   <p class="outline-timing{% if timing.status == 'over' %} warning{% endif %}" id="zeit">
     Gesamtzeit <strong>{{ timing.clock }}</strong> ({{ timing.words }} Wörter, {{ timing.words_per_minute }} Wörter je Minute)
     {%- if timing.target_clock %} · Zielzeit <strong>{{ timing.target_clock }}</strong>{% endif %}
@@ -103,8 +105,8 @@
         <tr class="outline-request" id="antrag-{{ r.id }}">
           <td class="num">{{ r.id }}</td>
           <td>{{ r.summary }}
-            {#- Runde 14: Gliederung nach dem Bestätigen, ohne JavaScript aufklappbar. #}
-            {#- Runde 23a: Jenseits der ersten Anträge rechnet die Seite die Vorschau erst auf Anforderung (Link). #}
+            {#- Round 14: outline after confirming, expandable without JavaScript. #}
+            {#- Round 23a: beyond the first requests the page computes the preview only on demand (link). #}
             {%- if r.preview_later %}
             <p class="small request-preview-later"><a href="{{ r.preview_url }}" data-preview-later>Vorschau anzeigen</a> <span class="muted">(wird erst auf Anforderung berechnet)</span></p>
             {%- else %}
@@ -116,7 +118,8 @@
               <ol class="request-preview-list">
               {%- for p in r.preview %}
                 <li class="preview-{{ p.mark }} level-{{ p.level }}">
-                  {#- Runde 16c: Art und Nummer eindeutig („Teil 1“, „Kapitel 2“), vorher → nachher für übernommene Kapitel. #}
+                  {#- Round 16c: kind and number unambiguous („Teil 1“, „Kapitel 2“), before → after for adopted
+                  chapters. #}
                   <span class="num preview-label">{{ p.label }}</span> {{ p.title }}
                   {%- if p.changed_label %} <span class="small muted preview-before">(vorher {{ p.before_label }} → nachher {{ p.label }})</span>{% endif %}
                   {%- if p.mark == "renamed" %} <span class="badge primary">umbenannt</span>
@@ -134,7 +137,7 @@
           <td class="muted small">{{ r.origin_label }}</td>
           <td class="small">{{ r.note }}</td>
           <td class="outline-buttons">
-            {#- Nutzerfrage 12: Ein neuer Teil, der Kapitel übernähme, braucht die Zustimmung („Zustimmen“). #}
+            {#- User question 12: a new part that would take over chapters needs the consent („Zustimmen“). #}
             {%- for decision, label in [("confirm", "Zustimmen" if r.op.op == "add" else "Bestätigen"), ("reject", "Ablehnen")] %}
             <form method="post" action="/gliederung/act">
               <input type="hidden" name="method" value="outline.request_decide">

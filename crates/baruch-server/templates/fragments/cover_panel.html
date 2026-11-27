@@ -1,13 +1,13 @@
-{#- Umschlag und Buchangaben (Runde 11, src/cover.rs): Gruppe „Umschlag“ (show_cover, Block id="umschlag":
-    Vorschau, Auswahl, Entfernen, Titelbereich, Link zur Umschlagseite) und Formular „Buchangaben“
-    (show_book). Geht ohne JavaScript: Formulare an POST /werke/umschlag/act bzw. /werke/buchangaben/act,
-    Rücksprung über back (baut immer der Server aus der Werk-id, darum unmaskiert: minijinja schriebe
-    jedes / als &#x2f;). Kontext: work {id}, cover {name, caption, alt, url, thumb}?, images [{name,
-    caption, selected, photo}], values (Formularwerte), area, back, error?, settings_page.
-    Runde 27c: imprint {present (Titelei-Funktionen der Werkvorlage, Komma-Liste), complete} und der Knopf
-    „Impressum-Vorlage in die Werkvorlage übernehmen“ (POST /werke/umschlag/impressum, in der Gruppe „Umschlag“,
-    darum in Einstellungen → Werk und auf der Umschlagseite); im Formular „Buchangaben“ die Anschriften von Verlag
-    bzw. Herausgeber und Druckerei (mehrzeilig). -#}
+{#- Cover and book details (Round 11, src/cover.rs): group „Umschlag“ (show_cover, block id="umschlag":
+    preview, choice, removal, title area, link to the cover page) and the form „Buchangaben“
+    (show_book). Works without JavaScript: forms to POST /werke/umschlag/act or /werke/buchangaben/act,
+    return through back (always built by the server from the work id, therefore unescaped: minijinja would write
+    every / as &#x2f;). Context: work {id}, cover {name, caption, alt, url, thumb}?, images [{name,
+    caption, selected, photo}], values (form values), area, back, error?, settings_page.
+    Round 27c: imprint {present (front-matter functions of the work template, comma list), complete} and the button
+    „Impressum-Vorlage in die Werkvorlage übernehmen“ (POST /werke/umschlag/impressum, in the group „Umschlag“,
+    therefore in Einstellungen → Werk and on the cover page); in the form „Buchangaben“ the addresses of the publisher
+    or editor and of the printer (multi-line). -#}
 {%- if error %}
 <p class="notice error" role="alert">{{ error }}</p>
 {%- endif %}

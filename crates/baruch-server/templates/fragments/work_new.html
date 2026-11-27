@@ -1,9 +1,10 @@
-{#- Neues Werk: Typst-, Markdown- oder ZIP-Datei bzw. Ordner hochladen (multipart an POST /werke/import, Runde 21b) oder aus einem Grundgerüst
-    anlegen (POST /werke/act, action=create). Geht ohne JavaScript; eingebunden in /werke/neu und in
-    den Dialog „Importieren…“ der Kopfzeile (workspace.html). Kontext (optional): form mit den
-    eingegebenen Werten, error; bible_modules (nur /werke/neu, works.rs: Auswahl der SWORD-Bibeln) bzw. work
-    (Arbeitsseite: verstecktes from_work, Textfeld für das Modul, Runde 16a). Das Widget „work-upload“ belegt den Titel aus #set document(title: …)
-    der gewählten Datei vor; der Server bleibt maßgeblich, ein leerer Titel kommt aus der Datei. -#}
+{#- New work: upload a Typst, Markdown or ZIP file or a folder (multipart to POST /werke/import, Round 21b) or create it
+    from a skeleton (POST /werke/act, action=create). Works without JavaScript; included in /werke/neu and in
+    the dialog „Importieren…“ of the header (workspace.html). Context (optional): form with the
+    entered values, error; bible_modules (only /werke/neu, works.rs: choice of the SWORD Bibles) or work
+    (workspace page: hidden from_work, text field for the module, Round 16a). The widget „work-upload“ prefills the
+    title from #set document(title: …) of the chosen file; the server stays authoritative, an empty title comes from the
+    file. -#}
 {%- set f = form or {} %}
 <div class="work-new">
   {%- if error %}
@@ -26,7 +27,7 @@
       Gibt es den Titel schon, bitte einen anderen eintragen.</p>
     <button class="btn primary" type="submit">Importieren</button>
   </form>
-  {#- Runde 21a (Inhalt pdf-import): PDF/EPUB mit Vorschau der Gliederung auf eigener Seite. #}
+  {#- Round 21a (content pdf-import): PDF/EPUB with a preview of the outline on a page of its own. #}
   <p class="muted small work-new-note"><a href="/werke/import/quelle">PDF oder EPUB importieren …</a> (mit Vorschau der Gliederung)</p>
   <form class="work-form" action="/werke/act" method="post">
     <h2 class="pane-title">Neues Werk anlegen</h2>

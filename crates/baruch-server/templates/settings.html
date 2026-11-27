@@ -1,10 +1,11 @@
-{#- Seite /einstellungen/<seite> ohne JavaScript (Runde 9): genau ein Rahmen (settings/frame.html,
-    fertig gezeichnet in crate::settings) in der Seite. Die Kopfzeile kommt aus base.html (Blöcke
-    page_title, page_actions). Kontext: settings, work {id, title, author}?, frame (HTML), title. -#}
+{#- Page /einstellungen/<seite> without JavaScript (Round 9): exactly one frame (settings/frame.html,
+    drawn completely in crate::settings) in the page. The header comes from base.html (blocks
+    page_title, page_actions). Context: settings, work {id, title, author}?, frame (HTML), title. -#}
 {% extends "base.html" %}
 {% block title %}Einstellungen · {{ title }} – Baruch{% endblock %}
 {% block page_title %}Einstellungen{% if work %} · {{ work.title }}{% endif %}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Ansicht“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Ansicht“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}ansicht{% endblock %}
 {% block band_ansicht %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

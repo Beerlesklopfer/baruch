@@ -1,10 +1,10 @@
-{#- Einstellungsseite „MCP-Zugang“ (Runde 9, Tokens Runde 10): Adresse zum Kopieren (aus der Host-Kopfzeile;
-    ohne sie, z. B. über RPC, nur der Pfad), Zugang ohne Token nur über Loopback, Tokens für andere Rechner
-    (Erzeugen, Widerrufen – Formulare an POST /einstellungen/mcp/act, ohne JavaScript bedienbar), gesehene
-    Clients seit dem Start. Den Klartext eines Tokens zeigt nur die Antwort auf das Erzeugen (fresh).
-    Runde 24: proxied (bool) – die Seite kam unter einem zusätzlich erlaubten Rechnernamen (--allow-host, hinter
-    einem Reverse-Proxy): Adresse mit https, Befehl nur mit Token (data-mcp-proxied).
-    Kontext: address?, proxied (bool), work?, error?, revoked (bool), fresh? {name, secret, handle},
+{#- Settings page „MCP-Zugang“ (Round 9, tokens Round 10): address for copying (from the Host header;
+    without it, e.g. through RPC, only the path), access without a token only through loopback, tokens for other
+    machines (create, revoke – forms to POST /einstellungen/mcp/act, usable without JavaScript), clients seen
+    since the start. The plain text of a token is shown only by the answer to creating it (fresh).
+    Round 24: proxied (bool) – the page came under an additionally allowed host name (--allow-host, behind
+    a reverse proxy): address with https, command only with a token (data-mcp-proxied).
+    Context: address?, proxied (bool), work?, error?, revoked (bool), fresh? {name, secret, handle},
     tokens [{id, name, prefix, handle, legacy?, taken?, created, last_used?, revoked?}],
     clients [{name, version, handle, first_seen, last_seen}]. -#}
 <section class="settings-page" data-settings-page-body="mcp">

@@ -1,14 +1,15 @@
-{#- Seite /werke/{id}/bilder/{name}[?fassung=n]: Vorschau der gezeigten Fassung, alle Fassungen mit
-    „aktuell“, Umschalten, Ersetzen (neue Fassung per Hochladen), Bildunterschrift/Alternativtext/Notiz
-    und Pfade pflegen, Fassung löschen und Bild löschen (je mit Kästchen). Formulare an
-    POST /werke/bilder/act und /werke/bilder/hochladen; geht ohne JavaScript. Kontext: settings,
+{#- Page /werke/{id}/bilder/{name}[?fassung=n]: preview of the shown revision, all revisions with
+    „aktuell“, switching, replacing (new revision by upload), maintaining caption/alternative text/note
+    and paths, deleting a revision and deleting the image (each with a checkbox). Forms to
+    POST /werke/bilder/act and /werke/bilder/hochladen; works without JavaScript. Context: settings,
     work {id, title}, asset, paths_text, revision, revisions, error, notice, max_mib.
-    Runde 21c: Ersetzen mit Häkchen „Endung anpassen“ (rename): ein anderes Format bekommt die neue Endung, alle
-    Pfade bleiben beim Bild. -#}
+    Round 21c: replacing with the checkbox „Endung anpassen“ (rename): another format gets the new extension, all
+    paths stay with the image. -#}
 {% extends "base.html" %}
 {% block title %}{{ asset.name }} – Bilder – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Bild {{ asset.name }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
@@ -37,7 +38,7 @@
       <dt>Von</dt><dd>{{ revision.author }}, {{ revision.created }}{% if revision.edited %} · geändert {{ revision.edited }}{% endif %}</dd>
       <dt>Pfade</dt><dd>{% for p in asset.paths %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">keiner</span>{% endfor %}</dd>
       <dt>Datei</dt><dd><a href="{{ revision.file_href }}">öffnen</a></dd>
-      {#- Runde 11: Umschlag des Werks (Formular bedient „cover“, POST /werke/umschlag/act). #}
+      {#- Round 11: cover of the work (the form is served by „cover“, POST /werke/umschlag/act). #}
       <dt>Umschlag</dt><dd>{% if asset.is_cover %}<span class="badge primary">Umschlag</span>{% else %}<form method="post" action="/werke/umschlag/act"><input type="hidden" name="work" value="{{ work.id }}"><input type="hidden" name="action" value="set"><input type="hidden" name="name" value="{{ asset.name }}"><input type="hidden" name="back" value="/werke/{{ work.id }}/bilder"><button class="btn">Als Umschlag</button></form>{% endif %}</dd>
     </dl>
   </div>

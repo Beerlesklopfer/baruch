@@ -1,8 +1,9 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Das Kontextmenü ohne JavaScript (Runde 31c, Besitz kontextmenue): die drei Aktionen „In Glossar aufnehmen“, „In
-    Register aufnehmen“ und „Im Glossar nachschlagen“ als Formulare, eingebunden in marking.html. Mit JavaScript gibt es
-    dieselben Aktionen als Kontextmenü im Satzbild und im Textfeld (web/src/context_menu.ts, ARIA-Menümuster).
-    Kontext: work {id}, word, section {key, rev}, registers [{slug, title}], back (Rücksprung nach Erfolg). -#}
+{#- The context menu without JavaScript (Round 31c, ownership kontextmenue): the three actions „In Glossar aufnehmen“,
+    „In Register aufnehmen“ and „Im Glossar nachschlagen“ as forms, included in marking.html. With JavaScript the
+    same actions exist as a context menu in the typeset view and in the text field (web/src/context_menu.ts, ARIA menu
+    pattern).
+    Context: work {id}, word, section {key, rev}, registers [{slug, title}], back (return after success). -#}
 <div class="ctx-actions" role="group" aria-label="Aktionen an der Markierung">
   <section class="ctx-action" id="glossar" aria-labelledby="ctx-glossar">
     <h2 id="ctx-glossar" class="small">In Glossar aufnehmen</h2>

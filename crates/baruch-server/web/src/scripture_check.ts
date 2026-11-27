@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „scripture-check“ (Runde 17c): „Zitate prüfen“ in der Statuszeile des Editors. Ohne JavaScript ist es
-// ein gewöhnlicher Link auf die Seite /werke/{id}/pruefung (Liste). Mit JavaScript:
-// - Klick holt das Ergebnis der Wortlautprüfung: ohne ungespeicherte Änderung RPC `bible.marks` (gezeigte
-//   Fassung), sonst `scripture.check` mit dem Quelltext, den das Satzbild über `baruch:serialize-text` liefert
-//   (Vertrag Runde 17 §2.6; Rückfall Textfeld) – geprüft wird immer auf dem Server, nie hier.
-// - Die Liste erscheint als Aufklapper über der Statuszeile (Stelle, Ergebnis, Unterschiede, Modul, Lizenz).
-// - Im Satzbild werden die Zitate über die CSS Custom Highlight API markiert (`bibel-stimmt`, `bibel-weicht`):
-//   nur Range-Objekte über vorhandene Textknoten, **keine Änderung am DOM** des Satzbilds – Speichern bleibt
-//   unverändert. Ohne Highlight-API gibt es nur die Liste. Welche Fundstelle zu welchem Zitat gehört, entscheidet
-//   `placeQuotes` (quote_find.ts: ganze Wörter, Typst-Auszeichnung entfernt, Reihenfolge nach `quote_span`); ein
-//   nicht eindeutig gefundenes Zitat bleibt unmarkiert und wird in der Fußzeile gezählt. Jede Eingabe im Satzbild löscht die Markierung (die
-//   Stellen könnten sich verschoben haben).
+// Widget „scripture-check“ (Round 17c): „Zitate prüfen“ in the status line of the editor. Without JavaScript it is
+// an ordinary link to the page /werke/{id}/pruefung (list). With JavaScript:
+// - A click fetches the result of the wording check: without an unsaved change RPC `bible.marks` (shown
+//   revision), otherwise `scripture.check` with the source text that the typeset view supplies through
+//   `baruch:serialize-text` (contract Round 17 §2.6; fallback text field) – checking always happens on the server,
+//   never here.
+// - The list appears as an expander above the status line (passage, result, differences, module, licence).
+// - In the typeset view the quotations are marked through the CSS Custom Highlight API (`bibel-stimmt`,
+//   `bibel-weicht`): only Range objects over existing text nodes, **no change to the DOM** of the typeset view –
+//   saving stays unchanged. Without the Highlight API there is only the list. Which place found belongs to which
+//   quotation is decided by `placeQuotes` (quote_find.ts: whole words, Typst markup removed, order by `quote_span`);
+//   a quotation not found unambiguously stays unmarked and is counted in the footer. Every input in the typeset view
+//   deletes the marking (the places could have shifted).
 
 import { placeQuotes } from "./quote_find.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
-/// Eine Stelle, wie `bible.marks` sie liefert (bzw. aus `scripture.check` umgerechnet).
+/// A passage as `bible.marks` supplies it (or converted from `scripture.check`).
 interface Mark {
   ref: string;
   state: string;
@@ -25,7 +26,7 @@ interface Mark {
   quote_span?: [number, number] | null;
   module_ref: string | null;
   diff_line: string | null;
-  /// Runde 19c: Wortlaut stimmt nur ohne Leerraum (Trennreste im Modul).
+  /// Round 19c: the wording matches only without whitespace (hyphenation remains in the module).
   module_spacing?: boolean;
 }
 
@@ -34,7 +35,7 @@ interface Marks {
   counts: { stimmt: number; weicht_ab: number; andere: number };
   bible: { module?: string; versification?: string; license?: string; problem?: string } | null;
   notice?: string | null;
-  /// Runde 19c: Modul mit auffällig vielen Wortfragmenten.
+  /// Round 19c: module with a conspicuous number of word fragments.
   module_note?: string | null;
 }
 
@@ -58,7 +59,7 @@ const STATE_LABEL: Record<string, string> = {
   fehler: "nicht prüfbar",
 };
 
-/// `wording_code` → Zustand (wie `bibles::mark_state` auf dem Server).
+/// `wording_code` → state (like `bibles::mark_state` on the server).
 export function stateOf(code: string): string {
   switch (code) {
     case "match":
@@ -74,7 +75,7 @@ export function stateOf(code: string): string {
   }
 }
 
-/// Textknoten des Satzbilds mit ihrer Stelle im zusammengesetzten Text (Vorschläge `.pv` zählen nicht).
+/// Text nodes of the typeset view with their position in the combined text (proposals `.pv` do not count).
 function textNodes(sheet: HTMLElement): { node: Text; start: number }[] {
   const out: { node: Text; start: number }[] = [];
   let at = 0;
@@ -90,7 +91,7 @@ function textNodes(sheet: HTMLElement): { node: Text; start: number }[] {
   return out;
 }
 
-/// Range über [start, end) des zusammengesetzten Texts.
+/// Range over [start, end) of the combined text.
 function rangeOf(nodes: { node: Text; start: number }[], start: number, end: number): Range | null {
   const locate = (offset: number, edge: "start" | "end"): [Text, number] | null => {
     for (const { node, start: s } of nodes) {
@@ -108,7 +109,7 @@ function rangeOf(nodes: { node: Text; start: number }[], start: number, end: num
   return range;
 }
 
-/// Kann der Browser Bereiche hervorheben (CSS Custom Highlight API)?
+/// Can the browser highlight ranges (CSS Custom Highlight API)?
 function highlightApi(): boolean {
   return typeof CSS !== "undefined" && "highlights" in CSS && typeof (window as { Highlight?: unknown }).Highlight === "function";
 }
@@ -123,8 +124,8 @@ function clearHighlights(): void {
   registry.delete("bibel-weicht");
 }
 
-/// Zitate im Satzbild markieren (nur Range-Objekte, das DOM bleibt unverändert). Zahl der markierten und der
-/// nicht eindeutig gefundenen Zitate.
+/// Mark quotations in the typeset view (only Range objects, the DOM stays unchanged). Number of the marked and of
+/// the not unambiguously found quotations.
 function paint(sheet: HTMLElement, marks: Mark[]): { painted: number; missed: number } {
   clearHighlights();
   if (!highlightApi()) return { painted: 0, missed: 0 };
@@ -148,7 +149,7 @@ function paint(sheet: HTMLElement, marks: Mark[]): { painted: number; missed: nu
   return { painted: good.length + bad.length, missed };
 }
 
-/// Quelltext des Editors: über `baruch:serialize-text` (Satzbild), sonst Textfeld.
+/// Source text of the editor: through `baruch:serialize-text` (typeset view), otherwise the text field.
 async function sourceText(form: HTMLFormElement): Promise<string> {
   const wait: Promise<string>[] = [];
   form.dispatchEvent(new CustomEvent("baruch:serialize-text", { detail: { wait } }));
@@ -156,7 +157,7 @@ async function sourceText(form: HTMLFormElement): Promise<string> {
     try {
       return await wait[0];
     } catch {
-      // Rückfall unten
+      // fallback below
     }
   }
   return form.querySelector<HTMLTextAreaElement>("textarea[name=body]")?.value ?? "";
@@ -271,7 +272,7 @@ register("scripture-check", (root) => {
   };
 
   link.addEventListener("click", (event) => {
-    // Mit Umschalt/Strg bleibt es der Link auf die Seite.
+    // With Shift/Ctrl it stays the link to the page.
     if (event.ctrlKey || event.metaKey || event.shiftKey) return;
     event.preventDefault();
     if (!panel.hidden) {

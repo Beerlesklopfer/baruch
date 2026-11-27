@@ -1,15 +1,15 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
-{#- Akkordeon „Befunde“ der Arbeitsseite (Runde 28, befund-uebersicht). Eingebunden in fragments/assistants.html
-    direkt nach fragments/revisions.html; Daten in findings_panel (crate::view: Befunde des gezeigten Abschnitts als
-    Karten aus findings::view::card, offene Zahl nach der Zählregel §1.5, Ziele für „verschoben“, Rücksprung).
-    Je offenem Befund die Statusformulare an POST /werke/befunde/act (ohne JavaScript, 303 zurück auf die
-    Arbeitsseite): übernommen mit Fassungsauswahl, verworfen mit Pflicht-Begründung, verschoben mit Ziel (Abschnitt
-    oder Einfall, genau eins), erledigt ohne Änderung; offene Vorschläge der Assistenten mit „Bestätigen“ und
-    „Verwerfen“ (finding.decide), seit Runde 22 die Rückfrage einer Persona „Befund n scheint erledigt?“ mit „Ja, erledigt“
-    und „Nein, noch offen“ (finding.decide confirm 1 bzw. 0). Mit JavaScript schickt das Widget „findings“ (web/src/findings.ts) dieselben
-    Formulare über RPC und zeichnet die Bereiche neu.
-    Die Makros card, status_forms und decide_forms nutzt auch die Seite /werke/<id>/befunde (befunde.html importiert
-    diese Vorlage); ohne findings_panel zeichnet die Vorlage selbst nichts. -#}
+{#- Accordion „Befunde“ of the workspace page (Round 28, befund-uebersicht). Included in fragments/assistants.html
+    directly after fragments/revisions.html; data in findings_panel (crate::view: findings of the shown section as
+    cards from findings::view::card, open number by the counting rule §1.5, targets for „verschoben“, return).
+    Per open finding the status forms to POST /werke/befunde/act (without JavaScript, 303 back to the
+    workspace page): adopted with a choice of revision, rejected with a mandatory reason, moved with a target (section
+    or idea, exactly one), done without a change; open proposals of the assistants with „Bestätigen“ and
+    „Verwerfen“ (finding.decide), since Round 22 the query of a persona „Befund n scheint erledigt?“ with „Ja, erledigt“
+    and „Nein, noch offen“ (finding.decide confirm 1 or 0). With JavaScript the widget „findings“ (web/src/findings.ts)
+    sends the same forms through RPC and redraws the areas.
+    The macros card, status_forms and decide_forms are also used by the page /werke/<id>/befunde (befunde.html imports
+    this template); without findings_panel the template itself draws nothing. -#}
 {%- macro hidden(work_id, back, method) %}
       <input type="hidden" name="method" value="{{ method }}">
       <input type="hidden" name="work" value="{{ work_id }}">
@@ -18,7 +18,7 @@
 {%- macro decide_forms(c, work_id, back, na="") %}
   {%- if c.pending_json and c.pending_json.question %}
   {%- set p = c.pending_json %}
-  {#- Runde 22: Rückfrage einer Persona nach einem erledigten Befund – Ja/Nein = finding.decide confirm 1/0. #}
+  {#- Round 22: query of a persona about a finished finding – yes/no = finding.decide confirm 1/0. #}
   <div class="fd-pending fd-question" data-finding-pending="{{ p.id }}" data-finding-question role="group" aria-label="Rückfrage zu Befund {{ c.ref }}">
     <p class="small"><span class="badge primary" title="Rückfrage einer Persona">Rückfrage</span>
       {{ p.actor_label }}: <strong>{% if p.note %}{{ p.note }}{% else %}Befund {{ c.id }} scheint erledigt – als erledigt markieren?{% endif %}</strong>
@@ -141,9 +141,9 @@
     <p class="fd-nosolution tiny muted">ohne Lösungsvorschlag</p>
   {%- endif %}
 {%- endmacro %}
-{#- Runde 35: `na` ist leer oder " nur-autor" (Seite Befunde): Die Formulare zum Status, zur Entscheidung und zu den
-    Lösungen kann nur der Autor nutzen; static/konten.css blendet sie für Lektoren aus. Die Arbeitsseite lässt `na`
-    leer – Lektoren bekommen dort eigene Karten ohne Formulare (fragments/lektor_assistants.html). #}
+{#- Round 35: `na` is empty or " nur-autor" (page Befunde): the forms for the status, for the decision and for the
+    solutions can only be used by the author; static/konten.css hides them for Lektors. The workspace page leaves `na`
+    empty – Lektors get cards of their own without forms there (fragments/lektor_assistants.html). #}
 {%- macro card(c, work_id, back, targets, draft, with_section, na="") %}
   <article class="fd-card fd-{{ c.status }} fd-kind-{{ c.kind }}" id="befund-{{ c.id }}" data-finding="{{ c.id }}" data-status="{{ c.status }}" data-kind="{{ c.kind }}" data-persona="{{ c.persona }}">
     <header class="fd-head small">

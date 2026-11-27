@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Suchen und Ersetzen im Editor (Runde 30a, Vertrag §3.1): Suchleiste oben rechts (fragments/search_bar.html) mit
-// aufklappbarer Ersetzen-Zeile und Werk-Seitenleiste mit Trefferbaum. Tasten nach VS Code über keyAction
-// (search_keys.ts), Listener am Dokument (Strg+F/H fängt die Suche auch im Quelltext ab).
+// Search and replace in the editor (Round 30a, contract §3.1): search bar at the top right (fragments/search_bar.html)
+// with an expandable replace row and a work sidebar with a tree of hits. Keys following VS Code through keyAction
+// (search_keys.ts), listener on the document (Ctrl+F/H catches the search also in the source text).
 //
-// - Im Abschnitt: RPC `search.find` mit range=section (mit „In Markierung“, Alt+L: range=selection und start/end =
-//   die beim Einschalten markierte Stelle im Quelltext, UTF-16) und `text` = ungespeicherter Editortext; Treffer im Quelltext
-//   über die Auswahl des Textfelds, im Satzbild über die CSS Custom Highlight API (keine DOM-Änderung).
-// - Ersetzen im Abschnitt ändert nur den ungespeicherten Editortext, über die Offsets aus `search.preview` mit
-//   `text=`; gespeichert wird wie immer durch den Menschen. Bei offenem Satzbild wird danach auf den Quelltext
-//   umgeschaltet, damit die Änderung sichtbar und speicherbar bleibt.
-// - Im Werk (Strg+Umschalt+F/H): Seitenleiste mit Treffern je Abschnitt (Sprung-Links `data-jump`); außerhalb der
-//   Arbeitsseite Navigation nach /suche.
-// - `baruch:find {text, at}` (jump.ts): im Quelltext die Stelle auswählen (das Satzbild markiert wysiwyg.ts).
+// - In the section: RPC `search.find` with range=section (with „In Markierung“, Alt+L: range=selection and start/end
+//   = the place selected in the source text when switching on, UTF-16) and `text` = unsaved editor text; hits in the
+//   source text through the selection of the text field, in the typeset view through the CSS Custom Highlight API (no
+//   DOM change).
+// - Replacing in the section changes only the unsaved editor text, through the offsets from `search.preview` with
+//   `text=`; saving is done as always by the human. With the typeset view open the view is afterwards switched to
+//   the source text so that the change stays visible and saveable.
+// - In the work (Ctrl+Shift+F/H): sidebar with hits per section (jump links `data-jump`); outside the
+//   workspace page navigation to /suche.
+// - `baruch:find {text, at}` (jump.ts): select the place in the source text (wysiwyg.ts marks the typeset view).
 
 import { byteToUtf16, locate } from "./jump.js";
 import { call } from "./rpc.js";
@@ -57,9 +58,9 @@ interface Bar {
   count: HTMLElement;
   replaceRow: HTMLElement;
   options: { case: boolean; word: boolean; re: boolean };
-  /// „In Markierung“: die beim Einschalten markierte Stelle im Quelltext (UTF-16), sonst null.
+  /// „In Markierung“: the place selected in the source text when switching on (UTF-16), otherwise null.
   selection: { start: number; end: number } | null;
-  /// Markierung im Quelltext beim Öffnen der Leiste (bevor die Treffer die Auswahl versetzen).
+  /// Selection in the source text when opening the bar (before the hits move the selection).
   marked: { start: number; end: number } | null;
   hits: Hit[];
   index: number;
@@ -72,7 +73,7 @@ function toast(message: string): void {
   document.dispatchEvent(new CustomEvent("baruch:toast", { detail: { message, level: "info" } }));
 }
 
-/// Bereich des Editors um die Leiste.
+/// Area of the editor around the bar.
 function editorRoot(bar: Bar): HTMLElement | null {
   return bar.root.closest<HTMLElement>("div.wysiwyg[data-widget=wysiwyg]");
 }
@@ -91,7 +92,7 @@ function highlightSupported(): boolean {
 
 type HighlightRegistry = Map<string, unknown>;
 
-/// Textknoten des Satzbilds mit ihrem Anfang im zusammengesetzten Text.
+/// Text nodes of the typeset view with their start in the combined text.
 function sheetText(sheet: HTMLElement): { text: string; nodes: { node: Text; start: number }[] } {
   const walker = document.createTreeWalker(sheet, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) =>
@@ -122,7 +123,7 @@ function rangeOf(nodes: { node: Text; start: number }[], start: number, end: num
   return range;
 }
 
-/// Treffer im Satzbild markieren: Jeder Treffer wird über seinen Text (in Reihenfolge) im Satzbild gesucht.
+/// Mark hits in the typeset view: every hit is searched in the typeset view through its text (in order).
 function markSheet(bar: Bar): void {
   if (!highlightSupported()) return;
   const registry = (CSS as unknown as { highlights: HighlightRegistry }).highlights;
@@ -152,7 +153,7 @@ function markSheet(bar: Bar): void {
   }
 }
 
-/// Aktuellen Treffer zeigen (Quelltext: Auswahl; Satzbild: Markierung).
+/// Show the current hit (source text: selection; typeset view: marking).
 function show(bar: Bar): void {
   const n = bar.hits.length;
   bar.count.textContent = n === 0 ? "Keine Treffer" : `${bar.index + 1} von ${n}`;
@@ -165,14 +166,14 @@ function show(bar: Bar): void {
   if (field && !field.hidden && !sheetOpen(bar)) {
     const focus = document.activeElement;
     field.setSelectionRange(hit.u16_start, hit.u16_end);
-    // Ohne Fokus zeigt das Textfeld keine Auswahl; der Fokus bleibt in der Leiste, wenn er dort war.
+    // Without focus the text field shows no selection; the focus stays in the bar if it was there.
     field.focus();
     if (focus instanceof HTMLElement && bar.root.contains(focus)) focus.focus();
   }
   markSheet(bar);
 }
 
-/// Bereich der Suche im Abschnitt: ganze Fassung oder (eingeschaltet) nur die Markierung.
+/// Range of the search in the section: whole revision or (switched on) only the selection.
 function rangeParams(bar: Bar): { range: string; start?: number; end?: number } {
   return bar.selection
     ? { range: "selection", start: bar.selection.start, end: bar.selection.end }
@@ -224,10 +225,10 @@ function open(bar: Bar, replace: boolean): void {
     field && !field.hidden && !sheetOpen(bar) && field.selectionStart !== field.selectionEnd
       ? { start: field.selectionStart, end: field.selectionEnd }
       : null;
-  // Markierter Text wird Suchtext (wie in VS Code).
+  // Selected text becomes the search text (as in VS Code).
   const selected = window.getSelection()?.toString() ?? "";
   if (selected && !selected.includes("\n") && selected.length <= 200) bar.q.value = selected;
-  // Wie in VS Code: eine mehrzeilige Markierung schaltet „In Markierung“ ein (sonst bleibt es, wie es war).
+  // As in VS Code: a multi-line selection switches „In Markierung“ on (otherwise it stays as it was).
   if (bar.marked && field && field.value.slice(bar.marked.start, bar.marked.end).includes("\n")) {
     bar.selection = { ...bar.marked };
     bar.root.querySelector("[data-sb-toggle=sel]")?.setAttribute("aria-pressed", "true");
@@ -263,11 +264,11 @@ function step(bar: Bar, delta: number): void {
   show(bar);
 }
 
-/// Ersetzen im ungespeicherten Editortext (Offsets aus `search.preview` mit `text=`); `one`: nur der aktuelle Treffer.
+/// Replace in the unsaved editor text (offsets from `search.preview` with `text=`); `one`: only the current hit.
 async function replaceInText(bar: Bar, one: boolean): Promise<void> {
   const field = area(bar);
   if (!field || !bar.q.value) return;
-  // Im Satzbild: erst den aktuellen Stand ins Textfeld holen (wie vor dem Speichern).
+  // In the typeset view: first fetch the current state into the text field (as before saving).
   const wait: Promise<unknown>[] = [];
   editorRoot(bar)?.querySelector("form[data-widget=editor]")?.dispatchEvent(new CustomEvent("baruch:before-save", { detail: { wait } }));
   await Promise.all(wait);
@@ -298,9 +299,9 @@ async function replaceInText(bar: Bar, one: boolean): Promise<void> {
     }
     field.value = text;
     field.dispatchEvent(new Event("input", { bubbles: true }));
-    // Die Markierung bezog sich auf den alten Text.
+    // The selection referred to the old text.
     if (bar.selection) toggleSelection(bar, false);
-    // Im Satzbild sichtbar machen: auf den Quelltext umschalten (der Text ist noch ungespeichert).
+    // Make it visible in the typeset view: switch to the source text (the text is still unsaved).
     if (sheetOpen(bar)) editorRoot(bar)?.querySelector<HTMLButtonElement>("[data-ws-mode=quelltext]")?.click();
     toast(one ? "Ersetzt (noch nicht gespeichert)." : `${section.hits.length} Stellen ersetzt (noch nicht gespeichert).`);
     await runFind(bar);
@@ -309,12 +310,12 @@ async function replaceInText(bar: Bar, one: boolean): Promise<void> {
   }
 }
 
-/// „In Markierung“ ein/aus: beim Einschalten gilt die Markierung im Quelltext (sonst bleibt es aus, mit Hinweis).
-/// Nach „Alle ersetzen“ ändert sich die Länge des Texts: die Markierung wird dann ausgeschaltet.
+/// „In Markierung“ on/off: when switching on, the selection in the source text applies (otherwise it stays off, with
+/// a notice). After "replace all" the length of the text changes: the selection is then switched off.
 function toggleSelection(bar: Bar, on?: boolean): void {
   const want = on ?? bar.selection === null;
   if (want) {
-    // Die Markierung vom Öffnen der Leiste (die Treffer versetzen die Auswahl danach).
+    // The selection from opening the bar (the hits move the selection afterwards).
     if (!bar.marked) {
       toast("Erst im Quelltext Text markieren, dann die Suche öffnen und „In Markierung“ einschalten.");
       return;
@@ -334,7 +335,7 @@ function toggle(bar: Bar, name: "case" | "word" | "re"): void {
   schedule(bar);
 }
 
-// ---- Werk-Seitenleiste ---------------------------------------------------------------------------------------
+// ---- Work sidebar --------------------------------------------------------------------------------------------
 
 function sidebar(): HTMLElement {
   let panel = document.querySelector<HTMLElement>("[data-search-sidebar]");
@@ -436,7 +437,7 @@ function openWork(replace: boolean): void {
   void workSearch(panel);
 }
 
-// ---- Tasten --------------------------------------------------------------------------------------------------
+// ---- Keys ----------------------------------------------------------------------------------------------------
 
 function context(target: EventTarget | null): KeyContext {
   const element = target instanceof Element ? target : null;
@@ -519,7 +520,7 @@ if (typeof document !== "undefined") {
     },
     true,
   );
-  // Fundstelle aus einem Sprung im Quelltext auswählen (das Satzbild markiert wysiwyg.ts).
+  // Select the place found from a jump in the source text (wysiwyg.ts marks the typeset view).
   document.addEventListener("baruch:find", (event) => {
     const detail = (event as CustomEvent<{ text?: unknown; at?: unknown }>).detail;
     if (typeof detail?.text !== "string") return;
@@ -571,11 +572,11 @@ register("search-bar", (root) => {
   root.querySelector("[data-sb-close]")?.addEventListener("click", () => close(bar));
   root.querySelector("[data-sb-one]")?.addEventListener("click", () => void replaceInText(bar, true));
   root.querySelector("[data-sb-all]")?.addEventListener("click", () => void replaceInText(bar, false));
-  // Neu eingehängt (nach dem Neuzeichnen): eine offene Suche geht verloren, die Leiste bleibt zu.
+  // Mounted anew (after the redraw): an open search is lost, the bar stays closed.
   if (active && !active.root.isConnected) active = null;
 });
 
-// Seite /suche: Alt+C/W/R schalten die Kästchen im Formular, wenn der Fokus im Suchfeld steht.
+// Page /suche: Alt+C/W/R toggle the checkboxes in the form when the focus is in the search field.
 register("search-page", (root) => {
   root.addEventListener("keydown", (event) => {
     const e = event as KeyboardEvent;

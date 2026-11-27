@@ -1,19 +1,19 @@
-{#- Kleine Baumansicht der Fassungen: zuerst der Abschnitt, aufklappbar das ganze Kapitel (<details>,
-    geht ohne JavaScript). Eingerückt nach based_on (depth), je Fassung Nummer, Status, Autor bzw.
-    Persona (Modell) in ihrer Farbe (r.style), Zeit, „geändert“; die aktuelle ist markiert, die gezeigte hervorgehoben.
-    Links: „zeigen“ (Editor auf diese Fassung) und „in der Vorschau probieren“ (pick, ohne Umschalten).
-    Kontext: revtree.section (Liste), revtree.chapter (Liste von {node, number, title, current,
+{#- Small tree view of the revisions: first the section, expandable the whole chapter (<details>,
+    works without JavaScript). Indented by based_on (depth), per revision number, status, author or
+    persona (model) in its colour (r.style), time, „geändert“; the current one is marked, the shown one highlighted.
+    Links: „zeigen“ (editor on this revision) and „in der Vorschau probieren“ (pick, without switching).
+    Context: revtree.section (list), revtree.chapter (list of {node, number, title, current,
     selected, revisions}).
-    Runde 28 (befund-uebersicht): je Fassung „✓ setzt Befund [B x], [B y] um“ (r.findings, übernommene Befunde aus
-    findings_adopted_in) und offene Vorschläge „übernommen in dieser Fassung“ (r.proposed_findings), mit Links auf die
-    Befunde.
-    Runde 30b (chat-loesungen): Varianten des Lektors tragen ihr Etikett „Variante A/B/C“, die Zeile, die umgesetzten
-    Befunde und den Link „vergleichen“ (/varianten, nebeneinander); r.variant aus assist::variants::revision_variant.
-    Runde 22 (fassungen): je fortgeschriebener Fassung „Stand k“ mit Link auf den Verlauf (r.history_url), je Vorschlag
-    auf einer fortgeschriebenen Basis „beruht auf Stand k“ (r.based_on_amend).
-    0.9.0 (ältere Fassungen ausblenden): ausgeblendete Fassungen (r.hidden) stehen je Abschnitt hinter dem Schalter
-    <details class="rev-fold">; im gezeigten Abschnitt trägt jede Fassung mit Angebot (r.fold) „bis hierhin
-    ausblenden“ (form="rev-fold-<n>", Formular in fragments/revisions.html). -#}
+    Round 28 (befund-uebersicht): per revision „✓ setzt Befund [B x], [B y] um“ (r.findings, adopted findings from
+    findings_adopted_in) and open proposals „übernommen in dieser Fassung“ (r.proposed_findings), with links to the
+    findings.
+    Round 30b (chat-loesungen): variants of the lector carry their label „Variante A/B/C“, the line, the implemented
+    findings and the link „vergleichen“ (/varianten, side by side); r.variant from assist::variants::revision_variant.
+    Round 22 (fassungen): per continued revision „Stand k“ with a link to the history (r.history_url), per proposal
+    on a continued base „beruht auf Stand k“ (r.based_on_amend).
+    0.9.0 (hide older revisions): hidden revisions (r.hidden) stand per section behind the switch
+    <details class="rev-fold">; in the shown section every revision with an offer (r.fold) carries „bis hierhin
+    ausblenden“ (form="rev-fold-<n>", form in fragments/revisions.html). -#}
 {%- macro rows(revisions) %}
   <ul class="revtree-list">
   {%- for r in revisions %}

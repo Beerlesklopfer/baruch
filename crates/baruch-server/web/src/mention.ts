@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „mention“ (Runde 11): Vervollständigung von „@…“ im Abschnitts-Chat.
+// Widget „mention“ (Round 11): completion of „@…“ in the section chat.
 //
-// Der Server liefert am Eingabefeld `list="<id>"` ein `<datalist>` mit den aktiven Personas
-// (`<option value="@handle" data-name data-role data-style>`); ohne JavaScript schlägt der Browser
-// daraus vor. Mit JavaScript ersetzt eine eigene Liste das `<datalist>` (das Attribut `list` entfällt,
-// damit nicht zwei Listen aufgehen):
-// - Nach „@“ (am Anfang oder nach Leerraum) erscheint die Liste der aktiven Personas (Farbe, Name,
-//   Rolle kurz); jedes weitere Zeichen filtert nach Kürzel oder Name, ohne Groß/Klein („@Na“ → @nathan).
-// - Pfeil runter/hoch wählt, Tab oder Enter übernimmt „@handle “ (mit Leerzeichen), Esc schließt; ein
-//   Klick übernimmt ebenso. Ohne offene Liste bleibt Enter das Absenden des Formulars.
-// - ARIA: Eingabe `role=combobox`, `aria-autocomplete=list`, `aria-expanded`, `aria-controls`,
-//   `aria-activedescendant`; Liste `role=listbox` mit `role=option`, `aria-selected`.
-// Runde 30c (chat-bedienung): Die Vervollständigung zeigt beide Formen der Anrede. Nach „@“ steht je Persona der Hinweis
-// „auch: „Name, …“ am Satzanfang“; am Satz- bzw. Beitragsanfang schlägt sie nach zwei Buchstaben die Anrede mit Namen vor
-// („Le“ → „Lektor, “), die wie @handle ruft (Server: `assist::chat::addressed`). Die Anrede-Einträge des `<datalist>`
-// (`data-address`, für den Browser ohne JavaScript) zählen hier nicht als Personas.
+// The server supplies at the input field `list="<id>"` a `<datalist>` with the active personas
+// (`<option value="@handle" data-name data-role data-style>`); without JavaScript the browser suggests
+// from it. With JavaScript a list of its own replaces the `<datalist>` (the attribute `list` is dropped
+// so that not two lists open):
+// - After „@“ (at the beginning or after whitespace) the list of the active personas appears (colour, name,
+//   role in short); every further character filters by handle or name, ignoring case („@Na“ → @nathan).
+// - Arrow down/up chooses, Tab or Enter accepts „@handle “ (with a space), Esc closes; a
+//   click accepts likewise. Without an open list Enter stays the submitting of the form.
+// - ARIA: input `role=combobox`, `aria-autocomplete=list`, `aria-expanded`, `aria-controls`,
+//   `aria-activedescendant`; list `role=listbox` with `role=option`, `aria-selected`.
+// Round 30c (chat-bedienung): the completion shows both forms of address. After „@“ each persona has the hint
+// „auch: „Name, …“ am Satzanfang“; at the start of a sentence or post it suggests, after two letters, the address by
+// name („Le“ → „Lektor, “), which calls like @handle (server: `assist::chat::addressed`). The address entries of the
+// `<datalist>` (`data-address`, for the browser without JavaScript) do not count as personas here.
 
 import { register } from "./widgets.js";
 
@@ -25,8 +25,8 @@ export interface Persona {
   style: string;
 }
 
-/// Angefangene Erwähnung vor der Schreibmarke: Anfang (Stelle des „@“) und das Getippte danach; sonst
-/// `null` (kein „@“ am Wortanfang, oder schon ein Leerzeichen dahinter).
+/// Mention begun before the caret: start (position of the „@“) and what was typed after it; otherwise
+/// `null` (no „@“ at the start of a word, or already a space behind it).
 export function mentionAt(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);
   const match = /(^|\s)@([^\s@]*)$/u.exec(before);
@@ -35,7 +35,7 @@ export function mentionAt(text: string, caret: number): { start: number; query: 
   return { start, query: match[2] };
 }
 
-/// Personas, deren Kürzel (ohne „@“) oder Name mit `query` beginnt, ohne Groß/Klein; leere Suche = alle.
+/// Personas whose handle (without „@“) or name starts with `query`, ignoring case; empty search = all.
 export function filterPersonas(personas: Persona[], query: string): Persona[] {
   const q = query.toLocaleLowerCase("de");
   return personas.filter((p) => {
@@ -44,15 +44,15 @@ export function filterPersonas(personas: Persona[], query: string): Persona[] {
   });
 }
 
-/// Text nach dem Übernehmen: „@query“ ab `start` wird „@handle “; Ergebnis und neue Schreibmarke.
+/// Text after accepting: „@query“ from `start` becomes „@handle “; result and new caret.
 export function applyMention(text: string, start: number, caret: number, handle: string): { text: string; caret: number } {
   const inserted = `${handle.startsWith("@") ? handle : `@${handle}`} `;
   const rest = text.slice(caret).replace(/^\s+/u, "");
   return { text: text.slice(0, start) + inserted + rest, caret: start + inserted.length };
 }
 
-/// Angefangene Anrede vor der Schreibmarke (Runde 30c): ein Wort aus Buchstaben am Satz- bzw. Beitragsanfang (Anfang,
-/// nach Zeilenumbruch oder nach „.“/„!“/„?“ mit Leerraum), mindestens zwei Buchstaben; sonst `null`.
+/// Address begun before the caret (Round 30c): a word of letters at the start of a sentence or post (beginning,
+/// after a line break or after „.“/„!“/„?“ with whitespace), at least two letters; otherwise `null`.
 export function addressAt(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);
   const match = /(^|\n|[.!?]\s+)\s*([\p{L}]{2,})$/u.exec(before);
@@ -61,7 +61,7 @@ export function addressAt(text: string, caret: number): { start: number; query: 
   return { start, query: match[2] };
 }
 
-/// Personas, deren Name (oder Kürzel ohne „@“) mit `query` beginnt, ohne Groß/Klein.
+/// Personas whose name (or handle without „@“) starts with `query`, ignoring case.
 export function filterAddresses(personas: Persona[], query: string): Persona[] {
   const q = query.toLocaleLowerCase("de");
   if (q.length < 2) return [];
@@ -71,14 +71,14 @@ export function filterAddresses(personas: Persona[], query: string): Persona[] {
   });
 }
 
-/// Text nach dem Übernehmen einer Anrede: das angefangene Wort ab `start` wird „Name, “.
+/// Text after accepting an address: the word begun from `start` becomes „Name, “.
 export function applyAddress(text: string, start: number, caret: number, name: string): { text: string; caret: number } {
   const inserted = `${name}, `;
   const rest = text.slice(caret).replace(/^[\s,:]+/u, "");
   return { text: text.slice(0, start) + inserted + rest, caret: start + inserted.length };
 }
 
-/// Rolle kurz: erste Zeile, höchstens 60 Zeichen.
+/// Role in short: first line, at most 60 characters.
 function shortRole(role: string): string {
   const line = role.split("\n")[0].trim();
   return line.length > 60 ? `${line.slice(0, 59)}…` : line;
@@ -119,7 +119,7 @@ register("mention", (element) => {
   let shown: Persona[] = [];
   let active = 0;
   let at: { start: number; query: string } | null = null;
-  // Runde 30c: „mention“ (nach „@“) oder „address“ (Anrede mit Namen am Satzanfang).
+  // Round 30c: „mention“ (after „@“) or „address“ (address by name at the start of a sentence).
   let form: "mention" | "address" = "mention";
 
   const close = () => {
@@ -151,7 +151,7 @@ register("mention", (element) => {
         role.className = "muted tiny mention-role";
         role.textContent = shortRole(p.role);
         if (form === "address") {
-          // Anrede: „Lektor, …“ (ruft wie @lektor).
+          // Address: „Lektor, …“ (calls like @lektor).
           name.textContent = `${p.name}, …`;
           handle.textContent = ` wie ${p.handle}`;
           li.append(swatch, name, handle, role);
@@ -162,7 +162,7 @@ register("mention", (element) => {
           li.append(swatch, name, handle, also, role);
         }
         li.addEventListener("mousedown", (event) => {
-          event.preventDefault(); // Fokus bleibt im Feld
+          event.preventDefault(); // focus stays in the field
           accept(i);
         });
         return li;

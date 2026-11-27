@@ -1,14 +1,14 @@
-{#- Ein Befund als eigener Block (Runde 30b, chat-loesungen). `card` ist eine Karte aus crate::findings::view::card
-    (Felder von finding_json und dazu ref, kind_sign, kind_label, status_sign, status_words, body_html (sicheres
-    Markdown aus chat_render::markdown_html), solution_views, adoptable, revisions, work, back). Eingebunden von
-    chat-bedienung (Befunde im Chat-Beitrag) und im Akkordeon bzw. auf der Befundseite: links Art mit Zeichen und Wort
-    (nicht nur Farbe), rechts der Status mit Knöpfen (übernommen in der aktuellen Fassung, erledigt, verwerfen mit
-    Begründung – alles an POST /werke/befunde/act), darunter die Lösungen und „Als Vorschlag übernehmen“
-    (POST /loesungen/act, method solution.adopt mit finding und picks). Ohne JavaScript bedienbar.
-    `body` (Integrator Runde 30): fertiges HTML für den Befundtext statt card.body_html – der Chat-Beitrag reicht sein
-    Segment mit den geprüften Links (chat_render::post_html) herein, damit der Text nicht doppelt erscheint.
-    Runde 22: Rückfrage einer Persona „Befund n scheint erledigt?“ (pending_json.question) mit „Ja, erledigt“ / „Nein,
-    noch offen“ (finding.decide, POST /werke/befunde/act; mit JavaScript über das Widget „findings“). -#}
+{#- A finding as a block of its own (Round 30b, chat-loesungen). `card` is a card from crate::findings::view::card
+    (fields of finding_json plus ref, kind_sign, kind_label, status_sign, status_words, body_html (safe
+    Markdown from chat_render::markdown_html), solution_views, adoptable, revisions, work, back). Included by
+    chat-bedienung (findings in the chat post) and in the accordion or on the findings page: on the left the kind with
+    sign and word (not only colour), on the right the status with buttons (adopted in the current revision, done, reject
+    with a reason – all to POST /werke/befunde/act), below the solutions and „Als Vorschlag übernehmen“
+    (POST /loesungen/act, method solution.adopt with finding and picks). Usable without JavaScript.
+    `body` (integrator Round 30): finished HTML for the finding text instead of card.body_html – the chat post hands in
+    its segment with the checked links (chat_render::post_html) so that the text does not appear twice.
+    Round 22: query of a persona „Befund n scheint erledigt?“ (pending_json.question) with „Ja, erledigt“ / „Nein,
+    noch offen“ (finding.decide, POST /werke/befunde/act; with JavaScript through the widget „findings“). -#}
 {% macro finding_block(card, body=none) %}
 {%- set c = card %}
 <div class="fb fb-kind-{{ c.kind }} fb-{{ c.status }}" data-finding="{{ c.id }}" data-status="{{ c.status }}">
@@ -42,8 +42,9 @@
   <p class="fb-nosolution tiny muted">ohne Lösungsvorschlag</p>
   {%- endif %}
   {%- if c.pending_json and c.pending_json.question %}
-  {#- Runde 22: Rückfrage der Persona nach einem erledigten Befund (finding.decide, nur der Mensch). Mit JavaScript schickt
-      das Widget „findings“ die Formulare über RPC (ohne Neuladen), ohne JavaScript gehen sie an /werke/befunde/act. #}
+  {#- Round 22: query of the persona about a finished finding (finding.decide, only the human). With JavaScript
+      the widget „findings“ sends the forms through RPC (without reloading), without JavaScript they go to
+      /werke/befunde/act. #}
   <div class="fb-question small" data-widget="findings" data-finding-question role="group" aria-label="Rückfrage zu Befund {{ c.ref }}">
     <p><span class="badge primary">Rückfrage</span> {{ c.pending_json.actor_label }}: <strong>{% if c.pending_json.note %}{{ c.pending_json.note }}{% else %}Befund {{ c.id }} scheint erledigt – als erledigt markieren?{% endif %}</strong></p>
     <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>

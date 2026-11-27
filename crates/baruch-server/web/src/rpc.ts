@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// JSON-RPC 2.0 gegen den Baruch-Kern (`POST /rpc`).
+// JSON-RPC 2.0 against the Baruch core (`POST /rpc`).
 
 export class RpcError extends Error {
   constructor(public code: number, message: string) {
@@ -21,12 +21,12 @@ export async function call<T>(method: string, params: Record<string, unknown> = 
   return answer.result as T;
 }
 
-/// Stelle im Werk, wie in der Adresse (`/?work=1&key=12&rev=3&view=preview&pick=2:1&lq=…`, Runde 8).
-/// `work` fehlt → Vorgabewerk; `key` ist der feste Schlüssel des Abschnitts (bleibt beim Umstellen der
-/// Gliederung gleich und geht vor `node`, der Stelle, die nur noch Rückfall älterer Adressen ist);
-/// `rev` ist die Nummer der Fassung (nicht ihre Stelle); `pick` setzt in der Vorschau Fassungen
-/// probeweise ein (`<node>:<rev>,…`, die Markierung „aktuell“ bleibt); `lq` ist die Suche im
-/// Literatur-Popup und bleibt beim Navigieren erhalten.
+/// Place in the work, as in the address (`/?work=1&key=12&rev=3&view=preview&pick=2:1&lq=…`, Round 8).
+/// `work` missing → default work; `key` is the fixed key of the section (stays the same when the outline is
+/// rearranged and takes precedence over `node`, the position, which is only a fallback of older addresses);
+/// `rev` is the number of the revision (not its position); `pick` puts revisions into the preview
+/// on trial (`<node>:<rev>,…`, the mark „aktuell“ stays); `lq` is the search in the
+/// literature popup and is kept when navigating.
 export interface Location {
   work?: number;
   key?: number;
@@ -35,12 +35,12 @@ export interface Location {
   view?: string;
   pick?: string;
   lq?: string;
-  /// 0.9.0: Schalter „ältere Fassungen“ offen (`alle`), sonst fehlt er.
+  /// 0.9.0: switch "older revisions" open (`alle`), otherwise it is missing.
   fassungen?: string;
 }
 
-/// Antwort von `outline.save`/`revision.save` (Runde 22): `saved` „amended“ (fortgeschrieben, `amend_seq` = Stand),
-/// „new“ (neue Fassung `rev`, im Modus „auto“ mit `reason`/`reason_label`) oder „unchanged“.
+/// Answer of `outline.save`/`revision.save` (Round 22): `saved` „amended“ (continued, `amend_seq` = state),
+/// „new“ (new revision `rev`, in the mode „auto“ with `reason`/`reason_label`) or „unchanged“.
 export interface SaveAnswer {
   node: number;
   key?: number | null;
@@ -51,7 +51,7 @@ export interface SaveAnswer {
   reason_label?: string;
 }
 
-/// Rückmeldung nach dem Speichern in Worten: „fortgeschrieben (Stand k)“ bzw. „neue Fassung n (Grund)“.
+/// Feedback after saving in words: „fortgeschrieben (Stand k)“ or „neue Fassung n (Grund)“.
 export function savedMessage(answer: SaveAnswer): string | null {
   switch (answer.saved) {
     case "amended":
@@ -95,8 +95,8 @@ export function locationFrom(url: string): Location {
   };
 }
 
-/// Adresse zu einer Stelle (Gegenstück zu `locationFrom`): mit Schlüssel `key` und ohne `node`
-/// (Key-Form); die Stelle nur, wenn kein Schlüssel bekannt ist.
+/// Address for a place (counterpart of `locationFrom`): with the key `key` and without `node`
+/// (key form); the position only if no key is known.
 export function urlFor(at: Location): string {
   const query = new URLSearchParams();
   if (at.work !== undefined) query.set("work", String(at.work));

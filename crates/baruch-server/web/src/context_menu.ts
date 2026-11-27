@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Kontextmenü im Satzbild und im Quelltext-Textfeld (Runde 31c, Besitz kontextmenue).
+// Context menu in the typeset view and in the source text field (Round 31c, ownership kontextmenue).
 //
-// Widget „context-menu“ auf der Gruppe „Register und Glossar“ des Menübands (`span.ribbon-index` in
-// templates/fragments/edit_toolbar.html, innerhalb von `div.wysiwyg`). Es hängt sich an das Satzbild
-// (`[data-ws-sheet]`) und das Textfeld (`textarea[name=body]`) desselben Editors:
-// - Öffnen: Rechtsklick, Kontextmenü-Taste oder Umschalt+F10 im Satzbild bzw. Textfeld, außerdem der Link
-//   „Markierung …“ der Statuszeile (`[data-ctx-open]`, ohne JavaScript ein Link auf /werke/{id}/markierung).
-// - Einträge: „In Glossar aufnehmen“ (Dialog, Begriff vorbelegt → RPC glossary.add), „In Register aufnehmen“
-//   (Dialog mit Stichwort, Unterstichwort, Register, siehe, siehe auch → Marke an der Markierung: im Satzbild über den
-//   Befehl `index_mark` an wysiwyg.ts, im Quelltext als `markSource` hinter das Wort), „Im Glossar nachschlagen“ (RPC
-//   glossary.lookup, Ergebnis als Popup); auf einer Marke zusätzlich „Registereintrag bearbeiten“ und „… entfernen“.
-//   Gespeichert wird erst mit „Speichern“ als neue Fassung (der Editor ist danach ungespeichert).
-// - ARIA-Menümuster: `role="menu"` mit `role="menuitem"`, Pfeil auf/ab (umlaufend), Pos1/Ende, Enter/Leertaste löst
-//   aus, Escape bzw. Tab schließt, der Fokus geht an die Stelle zurück, von der das Menü kam (`menuKey`).
-// - Menüband: dieselben drei Aktionen als Knöpfe (`data-ctx-action`) und „Register“ (Knopf `[data-index-toggle]` mit aria-expanded)
-//   mit allen Registereinträgen des Abschnitts – aus den Marken des Satzbilds bzw. des Textfelds (auch ungespeichert).
-// Kein Import von wysiwyg.ts: Befehle an das Satzbild nur über `baruch:ws-command` (ws_command.ts).
+// Widget „context-menu“ on the group „Register und Glossar“ of the ribbon (`span.ribbon-index` in
+// templates/fragments/edit_toolbar.html, inside `div.wysiwyg`). It attaches to the typeset view
+// (`[data-ws-sheet]`) and the text field (`textarea[name=body]`) of the same editor:
+// - Opening: right click, context menu key or Shift+F10 in the typeset view or text field, also the link
+//   „Markierung …“ of the status line (`[data-ctx-open]`, without JavaScript a link to /werke/{id}/markierung).
+// - Entries: „In Glossar aufnehmen“ (dialog, term prefilled → RPC glossary.add), „In Register aufnehmen“
+//   (dialog with keyword, sub-keyword, index, see, see also → mark at the selection: in the typeset view through the
+//   command `index_mark` to wysiwyg.ts, in the source text as `markSource` behind the word), „Im Glossar nachschlagen“
+//   (RPC glossary.lookup, result as a popup); on a mark additionally „Registereintrag bearbeiten“ and „… entfernen“.
+//   Saving happens only with „Speichern“ as a new revision (the editor is unsaved afterwards).
+// - ARIA menu pattern: `role="menu"` with `role="menuitem"`, arrow up/down (wrapping), Home/End, Enter/Space
+//   triggers, Escape or Tab closes, the focus goes back to the place the menu came from (`menuKey`).
+// - Ribbon: the same three actions as buttons (`data-ctx-action`) and „Register“ (button `[data-index-toggle]` with
+//   aria-expanded) with all index entries of the section – from the marks of the typeset view or of the text field
+// (also unsaved). No import of wysiwyg.ts: commands to the typeset view only through `baruch:ws-command`
+// (ws_command.ts).
 
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -32,7 +33,7 @@ import {
   validateMark,
 } from "./ws_command.js";
 
-/// Aktionen des Menüs.
+/// Actions of the menu.
 export type MenuAction = "glossary_add" | "index_add" | "glossary_lookup" | "index_edit" | "index_remove";
 
 export interface MenuItem {
@@ -40,7 +41,7 @@ export interface MenuItem {
   label: string;
 }
 
-/// Einträge des Kontextmenüs; auf einer Marke kommen „bearbeiten“ und „entfernen“ dazu.
+/// Entries of the context menu; on a mark „bearbeiten“ and „entfernen“ are added.
 export function menuItems(onMark: boolean): MenuItem[] {
   const items: MenuItem[] = [
     { action: "glossary_add", label: "In Glossar aufnehmen …" },
@@ -56,14 +57,14 @@ export function menuItems(onMark: boolean): MenuItem[] {
   return items;
 }
 
-/// Öffnet diese Taste das Kontextmenü? Kontextmenü-Taste oder Umschalt+F10 (ohne Strg/Alt/Meta).
+/// Does this key open the context menu? Context menu key or Shift+F10 (without Ctrl/Alt/Meta).
 export function opensMenu(event: { key: string; shiftKey: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean }): boolean {
   if (event.ctrlKey || event.altKey || event.metaKey) return false;
   return event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
 }
 
-/// Tastatur im offenen Menü (ARIA-Menümuster): neuer Index, Schließen oder Auslösen; `null` = Taste gehört nicht dem
-/// Menü.
+/// Keyboard in the open menu (ARIA menu pattern): new index, closing or triggering; `null` = the key does not belong
+/// to the menu.
 export function menuKey(
   key: string,
   index: number,
@@ -90,8 +91,8 @@ export function menuKey(
   }
 }
 
-/// Marke aus den Feldern des Dialogs „In Register aufnehmen“ (getrimmt; leere Zusätze fehlen) oder die Meldung von
-/// `validateMark`.
+/// Mark from the fields of the dialog „In Register aufnehmen“ (trimmed; empty additions are missing) or the message
+/// of `validateMark`.
 export function markFromFields(fields: Record<string, string>): { mark: IndexMark } | { error: string } {
   const get = (name: string) => (fields[name] ?? "").trim();
   const mark = cleanMark({
@@ -105,7 +106,7 @@ export function markFromFields(fields: Record<string, string>): { mark: IndexMar
   return problem ? { error: problem } : { mark };
 }
 
-/// Felder des Dialogs „In Glossar aufnehmen“ → Parameter von glossary.add (Varianten und Bibelstellen je Zeile).
+/// Fields of the dialog „In Glossar aufnehmen“ → parameters of glossary.add (variants and Bible passages per line).
 export function glossaryParams(fields: Record<string, string>): Record<string, unknown> | { error: string } {
   const get = (name: string) => (fields[name] ?? "").trim();
   const lines = (name: string) =>
@@ -124,7 +125,7 @@ export function glossaryParams(fields: Record<string, string>): Record<string, u
   };
 }
 
-/// Marke aus den data-Feldern eines `span.ws-index-mark` (wie baruch-wysiwyg sie schreibt).
+/// Mark from the data fields of a `span.ws-index-mark` (as baruch-wysiwyg writes them).
 export function markFromData(data: Record<string, string | undefined>): IndexMark {
   return cleanMark({
     register: data.register ?? "",
@@ -136,7 +137,7 @@ export function markFromData(data: Record<string, string | undefined>): IndexMar
   });
 }
 
-/// Zeile der Liste „Register“: „Stichwortregister: Gnade › im Alltag (siehe auch: Huld)“.
+/// Line of the list „Register“: „Stichwortregister: Gnade › im Alltag (siehe auch: Huld)“.
 export function entryLine(mark: IndexMark, titles: Record<string, string> = {}): string {
   let line = `${registerTitle(mark.register, titles)}: ${mark.term}`;
   if (mark.sub) line += ` › ${mark.sub}`;
@@ -145,12 +146,12 @@ export function entryLine(mark: IndexMark, titles: Record<string, string> = {}):
   return line;
 }
 
-/// Adresse eines Begriffs auf der Glossarseite.
+/// Address of a term on the glossary page.
 export function termUrl(work: number, id: number): string {
   return `/werke/${work}/glossar#begriff-${id}`;
 }
 
-// ---- Bedienung im Browser --------------------------------------------------------------------------------------
+// ---- Operation in the browser ----------------------------------------------------------------------------------
 
 interface Term {
   id: number;
@@ -166,7 +167,7 @@ interface Register {
   title: string;
 }
 
-/// Woran das Menü hängt: Satzbild (mit Auswahl bzw. Marke) oder Textfeld (mit Auswahl bzw. Marke im Text).
+/// What the menu hangs on: typeset view (with selection or mark) or text field (with selection or mark in the text).
 type Target =
   | { kind: "sheet"; word: string; mark: HTMLElement | null }
   | { kind: "area"; word: string; start: number; end: number; mark: { start: number; end: number; mark: IndexMark } | null };
@@ -182,7 +183,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<H
   return el;
 }
 
-/// Ein Feld des Dialogs mit Beschriftung.
+/// A field of the dialog with a label.
 function field(label: string, control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): HTMLLabelElement {
   const wrap = element("label", { className: "ctx-field small" });
   wrap.append(element("span", {}, label), control);
@@ -211,7 +212,7 @@ if (typeof document !== "undefined") {
       if (at && sheet.contains(at) && !at.closest(".pv")) lastRange = range.cloneRange();
     });
 
-    // ---- Ziel bestimmen ----
+    // ---- Determine the target ----
     const markBeside = (range: Range): HTMLElement | null => {
       const isMark = (n: Node | null | undefined): n is HTMLElement =>
         n instanceof HTMLElement && n.classList.contains("ws-index-mark");
@@ -250,7 +251,7 @@ if (typeof document !== "undefined") {
       return { kind: "area", word: markedWord(area.value, start, end).word, start, end, mark };
     };
 
-    // ---- Menü ----
+    // ---- Menu ----
     const menu = element("div", { className: "ctx-menu", hidden: true });
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "Register und Glossar");
@@ -272,7 +273,7 @@ if (typeof document !== "undefined") {
       back.focus();
       if (back === area) area.setSelectionRange(areaSelection[0], areaSelection[1]);
       else if (back === sheet && lastRange) {
-        // Steht der Cursor schon im Satzbild (etwa hinter einer neuen Marke), bleibt er dort.
+        // If the cursor is already in the typeset view (e.g. behind a new mark), it stays there.
         const selection = document.getSelection();
         const anchor = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).startContainer : null;
         if (!anchor || !sheet.contains(anchor)) {
@@ -326,7 +327,7 @@ if (typeof document !== "undefined") {
       const rect = from.getBoundingClientRect();
       return [rect.left + 16, rect.top + 24];
     };
-    // Browser schicken nach Kontextmenü-Taste bzw. Umschalt+F10 oft zusätzlich `contextmenu`: dann nicht zweimal öffnen.
+    // Browsers often send `contextmenu` additionally after the context menu key or Shift+F10: then do not open twice.
     let keyOpened = 0;
     const onContext = (event: MouseEvent, from: HTMLElement) => {
       if (Date.now() - keyOpened < 500) {
@@ -350,7 +351,7 @@ if (typeof document !== "undefined") {
     area.addEventListener("contextmenu", (event) => onContext(event, area));
     sheet.addEventListener("keydown", (event) => onKey(event, sheet));
     area.addEventListener("keydown", (event) => onKey(event, area));
-    // Doppelklick auf eine Marke öffnet „Registereintrag bearbeiten“.
+    // A double click on a mark opens „Registereintrag bearbeiten“.
     sheet.addEventListener("dblclick", (event) => {
       const mark = event.target instanceof Element ? event.target.closest<HTMLElement>(".ws-index-mark") : null;
       if (!mark || mark.closest(".pv")) return;
@@ -368,7 +369,7 @@ if (typeof document !== "undefined") {
       openMenu(t, rect.left, rect.top - 8 - 5 * 32);
     });
 
-    // ---- Menüband ----
+    // ---- Ribbon ----
     group.querySelectorAll<HTMLButtonElement>("[data-ctx-action]").forEach((button) => {
       button.addEventListener("mousedown", (event) => event.preventDefault());
       button.addEventListener("click", () => {
@@ -376,7 +377,7 @@ if (typeof document !== "undefined") {
         void run(button.dataset.ctxAction as MenuAction, target(null));
       });
     });
-    // „Register“: Knopf mit aria-expanded, darunter die Liste (Escape schließt, Fokus zurück auf den Knopf).
+    // „Register“: button with aria-expanded, below it the list (Escape closes, focus back to the button).
     const list = group.querySelector<HTMLElement>("[data-index-list]");
     const toggle = list?.querySelector<HTMLButtonElement>("[data-index-toggle]");
     const entries = list?.querySelector<HTMLElement>("[data-index-entries]");
@@ -396,7 +397,7 @@ if (typeof document !== "undefined") {
       }
     });
 
-    // ---- Dialoge ----
+    // ---- Dialogs ----
     const dialog = (title: string): { box: HTMLDialogElement; form: HTMLFormElement; error: HTMLElement } => {
       const box = element("dialog", { className: "ctx-dialog" });
       box.setAttribute("aria-label", title);
@@ -439,8 +440,9 @@ if (typeof document !== "undefined") {
       return registers;
     };
 
-    /// Dialog einer Marke: `check` prüft ohne Folgen (Meldung bleibt im Dialog), `apply` wirkt erst nach dem Schließen –
-    /// solange der modale Dialog offen ist, sind Satzbild und Textfeld inert (kein Fokus, kein insertText dorthin).
+    /// Dialog of a mark: `check` checks without consequences (the message stays in the dialog), `apply` takes effect
+    /// only after closing – as long as the modal dialog is open, typeset view and text field are inert (no focus, no
+    /// insertText there).
     const markDialog = async (
       title: string,
       ok: string,
@@ -654,7 +656,7 @@ if (typeof document !== "undefined") {
       }
     };
 
-    // ---- Liste „Register“ des Abschnitts ----
+    // ---- List „Register“ of the section ----
     const fillList = async (box: HTMLElement) => {
       const all = await loadRegisters();
       const titles = Object.fromEntries(all.map((r) => [r.slug, r.title]));

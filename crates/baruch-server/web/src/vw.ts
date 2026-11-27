@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Frühes Skript „vw“ (Runde 36): Fensterbreite schon beim ersten Aufruf nach einer Größenänderung richtig.
+// Early script „vw“ (Round 36): window width right already on the first request after a resize.
 //
-// Der Server zeichnet den Laptop-Zustand aus dem Cookie baruch_vw (src/laptop.rs). Das Cookie schreibt der Browser;
-// war das Fenster seit dem letzten Besuch anders groß (neues Fenster, anderer Bildschirm, Größe geändert, während
-// keine Seite von Baruch offen war), trägt die erste Anfrage noch die alte Breite. laptop.ts gleicht das aus – aber
-// als Modul erst nach dem Aufbau der Seite: Sie sprang kurz um.
+// The server draws the laptop state from the cookie baruch_vw (src/laptop.rs). The browser writes the cookie;
+// if the window had a different size since the last visit (new window, another screen, size changed while
+// no page of Baruch was open), the first request still carries the old width. laptop.ts compensates for that – but
+// as a module only after the page is built: it jumped briefly.
 //
-// Dieses Skript ist KEIN Modul: base.html lädt es klassisch im <head>, es läuft also, bevor der Browser die Seite
-// zum ersten Mal zeichnet. Stimmt die Breitenklasse des Cookies nicht mit dem Fenster überein, schreibt es das
-// Cookie neu (die nächste Anfrage zeichnet der Server richtig) und setzt die Attribute an <html> nach derselben
-// Formel wie Server und laptop.ts – die Seite erscheint gleich richtig. Stimmt das Cookie, tut es nichts.
-// Ohne JavaScript bleibt alles wie bisher: kein Cookie, „automatisch“ zeichnet breit.
+// This script is NOT a module: base.html loads it classically in the <head>, so it runs before the browser draws
+// the page for the first time. If the width class of the cookie does not match the window, it rewrites the
+// cookie (the server draws the next request right) and sets the attributes on <html> by the same
+// formula as server and laptop.ts – the page appears right at once. If the cookie is right, it does nothing.
+// Without JavaScript everything stays as before: no cookie, „automatisch“ draws wide.
 //
-// Schwellen und Formel stehen auch in src/laptop.rs und laptop.ts; Tests halten alle drei gleich. Bewusst ohne
-// import/export (klassisches Skript) und in einer Funktion gekapselt (keine globalen Namen).
+// Thresholds and formula also stand in src/laptop.rs and laptop.ts; tests keep all three equal. Deliberately without
+// import/export (classic script) and encapsulated in a function (no global names).
 
 (() => {
   const COMPACT_BELOW_PX = 1600;
@@ -30,11 +30,11 @@
     }
     return null;
   };
-  // Der Server hat mit dieser Breite gezeichnet: nichts zu tun.
+  // The server has drawn with this width: nothing to do.
   if (cookie("vw") === width) return;
   document.cookie = `baruch_vw=${width}; Path=/; Max-Age=31536000; SameSite=Lax`;
-  // Modus und Leisten wie laptop.ts sie liest: das Cookie (ein Schlüssel der Adresse steht dank Set-Cookie schon
-  // darin); sind Cookies gesperrt, der vom Server gezeichnete Modus.
+  // Mode and rails as laptop.ts reads them: the cookie (a key of the address already stands in it thanks to
+  // Set-Cookie); if cookies are blocked, the mode drawn by the server.
   const saved = cookie("laptop") ?? (navigator.cookieEnabled ? null : root.getAttribute("data-laptop"));
   const mode = saved === "on" || saved === "off" ? saved : "auto";
   const compact = mode === "on" || (mode === "auto" && width !== "w");

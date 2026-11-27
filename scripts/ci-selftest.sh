@@ -1,14 +1,14 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Selbsttest der Hilfsskripte für CI, Release und Webseite – ohne Netz, ohne GitHub, ohne echte Schlüssel.
+# Self-test of the helper scripts for CI, release and website – without network, without GitHub, without real keys.
 #
 #   scripts/ci-selftest.sh
 #
-# Alles spielt in einem Temp-Ordner mit erfundenen Daten: zwei erfundene .deb-Versionen, ein Wegwerfschlüssel
-# in einem eigenen GNUPGHOME (wird mit dem Ordner gelöscht; der echte Archivschlüssel wird nie berührt), ein
-# Nachbau von `gh`, eine erfundene Hugo-Seite. Jede Zusicherung nennt ihren Grund (Muster SKILLS.md).
-# Fehlt ein Werkzeug (gpg, hugo), wird der Teil übersprungen und am Ende genannt – nie still.
-# Exit 0 nur, wenn keine Zusicherung scheitert. HUGO nennt eine andere Binärdatei als `hugo`.
+# Everything plays in a temp directory with invented data: two invented .deb versions, a throwaway key
+# in a GNUPGHOME of its own (deleted with the directory; the real archive key is never touched), a
+# rebuild of `gh`, an invented Hugo site. Every assertion names its reason (pattern SKILLS.md).
+# If a tool is missing (gpg, hugo), that part is skipped and named at the end – never silently.
+# Exit 0 only if no assertion fails. HUGO names a binary other than `hugo`.
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,7 +19,7 @@ failed=0
 checks=0
 skipped=""
 
-# check BESCHREIBUNG BEGRÜNDUNG BEFEHL…: Der Befehl muss gelingen.
+# check DESCRIPTION REASON COMMAND…: the command must succeed.
 check() {
     what="$1"; why="$2"; shift 2
     checks=$((checks + 1))
@@ -32,7 +32,7 @@ check() {
         sed -n '1,12s/^/       | /p' "$tmp/out.txt"
     fi
 }
-# check_exit ERWARTET BESCHREIBUNG BEGRÜNDUNG BEFEHL…: Der Befehl muss mit genau diesem Exit-Code enden.
+# check_exit EXPECTED DESCRIPTION REASON COMMAND…: the command must end with exactly this exit code.
 check_exit() {
     want="$1"; what="$2"; why="$3"; shift 3
     checks=$((checks + 1))
@@ -49,8 +49,8 @@ check_exit() {
 }
 has() { command -v "$1" >/dev/null 2>&1; }
 
-# ---- 1. APT-Repository über zwei Versionen ---------------------------------------------------------------
-# Erfundenes Paket „baruch“ in zwei Versionen (nur eine Textdatei; kein echtes Programm).
+# ---- 1. APT repository across two versions ---------------------------------------------------------------
+# Invented package „baruch“ in two versions (only a text file; no real program).
 make_deb() {
     version="$1"
     pkg="$tmp/pkg-$version"
@@ -84,7 +84,8 @@ if has apt-ftparchive && has dpkg-deb; then
         "Release nennt arm64; ohne die (leere) Liste meldete apt dort einen Fehler 404." \
         sh -c "[ -f '$tmp/repo1/dists/stable/main/binary-arm64/Packages' ] && [ ! -s '$tmp/repo1/dists/stable/main/binary-arm64/Packages' ]"
 
-    # Der Stand des ersten Release als Archiv, wie release.yml es ans Release hängt – mit Störkörpern im pool/.
+    # The state of the first release as an archive, as release.yml attaches it to the release – with foreign objects in
+    # pool/.
     printf 'kein Paket\n' > "$tmp/repo1/pool/main/b/baruch/LIESMICH.txt"
     ln -s /etc/hostname "$tmp/repo1/pool/main/b/baruch/verweis.deb"
     tar -C "$tmp/repo1" -czf "$tmp/apt-repo-alt.tar.gz" .
@@ -109,7 +110,7 @@ if has apt-ftparchive && has dpkg-deb; then
         "Ein Tippfehler im Pfad darf nicht still zu einem Repository ohne die alten Pakete führen." \
         sh "$scripts/apt-repo.sh" --base "$tmp/gibt-es-nicht.tar.gz" "$tmp/repo3" "$tmp/baruch_0.9.0-1_amd64.deb"
 
-    # ---- 2. Signieren mit einem Wegwerfschlüssel ---------------------------------------------------------
+    # ---- 2. Signing with a throwaway key -----------------------------------------------------------------
     if has gpg && has gpgv; then
         GNUPGHOME="$tmp/gnupg"
         export GNUPGHOME
@@ -148,8 +149,8 @@ else
     skipped="$skipped APT-Repository(apt-ftparchive/dpkg-deb-fehlt)"
 fi
 
-# ---- 3. Abruf des letzten veröffentlichten Release gegen einen Nachbau von gh ----------------------------
-# Der Nachbau liest sein Verhalten aus FAKE_GH_MODE; er spricht mit niemandem.
+# ---- 3. Fetching the last published release against a rebuild of gh --------------------------------------
+# The rebuild reads its behaviour from FAKE_GH_MODE; it talks to nobody.
 mkdir -p "$tmp/bin" "$tmp/release"
 printf 'erfundenes Archiv\n' > "$tmp/release/apt-repo.tar.gz"
 (cd "$tmp/release" && sha256sum apt-repo.tar.gz > SHA256SUMS)
@@ -232,7 +233,7 @@ check_exit 1 "ohne GH_REPO bricht ci-apt-fetch.sh ab" \
     "Ohne Ziel fragte gh das Repository des Arbeitsverzeichnisses – nicht unbedingt das gemeinte." \
     env -u GH_REPO PATH="$tmp/bin:$PATH" sh "$scripts/ci-apt-fetch.sh" "$tmp/fetch-norepo"
 
-# ---- 4. Werkzeugversionen --------------------------------------------------------------------------------
+# ---- 4. Tool versions ------------------------------------------------------------------------------------
 check "ci-tool.sh kennt Hugo (nur der Aufruf, nichts wird geladen)" \
     "Hugo ist das einzige Werkzeug, das die CI noch lädt; der Aufruf muss stimmen, bevor ein Lauf am Netz hängt." \
     env CI_TOOL_CHECK_ONLY=1 sh "$scripts/ci-tool.sh" hugo "$tmp/werkzeug"
@@ -252,8 +253,8 @@ typst_step_uses_own_program() {
 check "ci.yml ruft ci-typst.sh ohne fremdes Typst auf" \
     "Ohne zweites Argument setzt das eigene Programm über den Symlink baruch-typst – das ist die Prüfung der Runde 36." \
     typst_step_uses_own_program
-# Nachbau von baruch-server für ci-typst.sh: import/export wie das echte Programm, dazu die Typst-Kommandozeile
-# unter dem Namen baruch-typst. So läuft der Ablauf des Skripts hier ohne gebaute Binärdatei.
+# Rebuild of baruch-server for ci-typst.sh: import/export like the real program, plus the Typst command line
+# under the name baruch-typst. This way the flow of the script runs here without a built binary.
 typst_version="$(awk '
     $0 == "name = \"typst\"" { hit = 1; next }
     hit && /^version = / { gsub(/[" ]/, "", $0); sub(/^version=/, "", $0); print; exit }
@@ -301,7 +302,7 @@ check_exit 1 "ci-typst.sh scheitert, wenn ein Satzfehler mit Exit 0 endet" \
 check_exit 2 "ci-tool.sh lehnt ein unbekanntes Werkzeug ab" \
     "Es lädt nur, wofür eine Prüfsumme hinterlegt ist." sh "$scripts/ci-tool.sh" anderes "$tmp/werkzeug"
 
-# ---- 5. Seitenbau an einer erfundenen Hugo-Seite ---------------------------------------------------------
+# ---- 5. Site build on an invented Hugo site --------------------------------------------------------------
 hugo="${HUGO:-hugo}"
 if has "$hugo"; then
     version="$(sh "$scripts/version.sh")"
@@ -382,12 +383,12 @@ else
     skipped="$skipped Seitenbau(hugo-fehlt)"
 fi
 
-# ---- 6. Regeln der Arbeitsabläufe ------------------------------------------------------------------------
+# ---- 6. Rules of the workflows ---------------------------------------------------------------------------
 if python3 -c 'import yaml' >/dev/null 2>&1; then
     check "die Arbeitsabläufe im Repository halten die Regeln ein" \
         "SHAs, Rechte, Geheimnisse, feste Rust-Version (scripts/ci-check-workflows.sh nennt je Regel den Grund)." \
         sh "$scripts/ci-check-workflows.sh"
-    # Gegenproben: je ein erfundener Ablauf mit genau einem Verstoß.
+    # Cross-checks: one invented workflow each with exactly one violation.
     bad_workflow() {
         mkdir -p "$tmp/wf-$1"
         cat > "$tmp/wf-$1/probe.yml"
@@ -461,7 +462,7 @@ jobs:
     steps:
       - run: echo hallo
 EOF
-    # Hochladen und Ausliefern im selben Job (Stand bis Runde 32).
+    # Uploading and deploying in the same job (state up to Round 32).
     bad_workflow pages-ein-job <<'EOF'
 on: push
 permissions:
@@ -479,7 +480,7 @@ jobs:
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
       - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 EOF
-    # Dasselbe in zwei Jobs: bauen ohne Schreibrechte, ausliefern nur mit deploy-pages.
+    # The same in two jobs: build without write rights, deploy only with deploy-pages.
     bad_workflow pages-zwei-jobs <<'EOF'
 on: push
 permissions:
@@ -505,12 +506,12 @@ jobs:
       - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 EOF
     mkdir -p "$tmp/wf-pages-ohne-needs" "$tmp/wf-pages-baut-mit" "$tmp/wf-pages-schreibt"
-    # Zwei Jobs, aber der ausliefernde hängt nicht am bauenden.
+    # Two jobs, but the deploying one does not depend on the building one.
     grep -v '^    needs: \[pages-build\]$' "$tmp/wf-pages-zwei-jobs/probe.yml" > "$tmp/wf-pages-ohne-needs/probe.yml"
-    # Zwei Jobs, aber der ausliefernde führt zusätzlich einen Befehl aus.
+    # Two jobs, but the deploying one additionally runs a command.
     sed 's/^      - uses: actions\/deploy-pages@/      - run: echo nebenbei\n&/' \
         "$tmp/wf-pages-zwei-jobs/probe.yml" > "$tmp/wf-pages-baut-mit/probe.yml"
-    # Zwei Jobs, aber der bauende hat ein Schreibrecht (und ist darum auch kein Pages-Job mehr ohne Umgebung).
+    # Two jobs, but the building one has a write right (and is therefore no longer a Pages job without environment).
     sed 's/^      - run: echo bauen$/      - run: echo bauen mit Schreibrecht/' "$tmp/wf-pages-zwei-jobs/probe.yml" |
         awk '{ print } /^      contents: read$/ && !done { print "      pages: write"; done = 1 }' \
         > "$tmp/wf-pages-schreibt/probe.yml"
@@ -610,7 +611,7 @@ else
     skipped="$skipped Arbeitsabläufe(PyYAML-fehlt)"
 fi
 
-# ---- 7. Fingerabdruck des Archivschlüssels (erfundene Werte, kein Schlüssel) ------------------------------
+# ---- 7. Fingerprint of the archive key (invented values, no key) ------------------------------------------
 fp_root() {
     dir="$tmp/fp-$1"
     mkdir -p "$dir/site" "$dir/docs"
@@ -654,7 +655,7 @@ check_exit 1 "ein Eintrag, der kein Fingerabdruck ist, scheitert" \
     "Ein Tippfehler oder eine Kurz-ID (16 Zeichen) taugt nicht zum Vergleich." \
     sh "$scripts/ci-fingerprint.sh" --root "$tmp/fp-form"
 
-# ---- 8. Skripte selbst -----------------------------------------------------------------------------------
+# ---- 8. The scripts themselves ---------------------------------------------------------------------------
 for script in "$scripts"/ci-*.sh "$scripts/apt-repo.sh" "$scripts/version.sh"; do
     check "sh -n ${script##*/}" "Ein Syntaxfehler fiele sonst erst im Release-Lauf auf." sh -n "$script"
 done

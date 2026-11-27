@@ -1,12 +1,13 @@
-{#- Seite /literatur: die Literatur ohne JavaScript (mit JavaScript dasselbe als Popup der Kopfzeile).
-    Kontext wie fragments/library.html (seit Runde 12 mit library_mode, library_rag und fts_url für den
-    Umschalter Wortlaut/Bedeutung), dazu work_url (zurück zum Werk, mit lq und lmode) und notice.
-    Runde 21c: images_html – fertiges, maskiertes HTML des Kastens „Bilder des Werks“ (literature::image_hits),
-    leer ohne Suche. -#}
+{#- Page /literatur: the literature without JavaScript (with JavaScript the same as a popup of the header).
+    Context as in fragments/library.html (since Round 12 with library_mode, library_rag and fts_url for the
+    switch verbatim/meaning), plus work_url (back to the work, with lq and lmode) and notice.
+    Round 21c: images_html – finished, escaped HTML of the box „Bilder des Werks“ (literature::image_hits),
+    empty without a search. -#}
 {% extends "base.html" %}
 {% block title %}Literatur – Baruch{% endblock %}
 {% block page_title %}Literatur · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

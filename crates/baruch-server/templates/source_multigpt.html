@@ -1,17 +1,18 @@
-{#- Volltext eines Dokuments aus MultiGPT: GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q
-    (Runde 13, literature::multigpt_page). Teil für Teil mit Links „vorheriger/nächster Teil“, die Fundstelle q als
-    <mark>, alles ohne JavaScript. Inhalte der Gegenstelle sind Daten: Sie stehen nur maskiert hier (Autoescape).
-    Kontext: work, node?, rev?, document, collection, section?, q?, fulltext ({available: false, reason, load_url?}
-    bei Ausfall bzw. fremder Seite; sonst {pieces [{text, mark}], part, parts, more, prev_url, next_url, origin
-    ("multigpt" | "lokal"), message, offset, marks, title, url, title_id}), linked ({id, title, key, url} eines schon
-    übernommenen Titels, sonst leer), place_fields, notice, library_query, library_mode, work_url, literature_url,
-    seit Runde 18b has_key, personas, give_text (Text des Teils, vorbelegt), give_source, max_persona_text für das
-    Formular „An Persona geben“ (POST /literatur/act, action=persona, ohne übernommenen Titel).
-    „In die Bibliothek übernehmen“ (POST /literatur/act, action=adopt) gibt es nur hier, für den Menschen. -#}
+{#- Full text of a document from MultiGPT: GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q
+    (Round 13, literature::multigpt_page). Part by part with the links „vorheriger/nächster Teil“, the place found q as
+    <mark>, all without JavaScript. Contents of the remote side are data: they stand here only escaped (autoescape).
+    Context: work, node?, rev?, document, collection, section?, q?, fulltext ({available: false, reason, load_url?}
+    on failure or a foreign page; otherwise {pieces [{text, mark}], part, parts, more, prev_url, next_url, origin
+    ("multigpt" | "lokal"), message, offset, marks, title, url, title_id}), linked ({id, title, key, url} of a title
+    already adopted, otherwise empty), place_fields, notice, library_query, library_mode, work_url, literature_url,
+    since Round 18b has_key, personas, give_text (text of the part, prefilled), give_source, max_persona_text for the
+    form „An Persona geben“ (POST /literatur/act, action=persona, without an adopted title).
+    „In die Bibliothek übernehmen“ (POST /literatur/act, action=adopt) exists only here, for the human. -#}
 {% extends "base.html" %}
 {% block title %}{% if fulltext.available %}{{ fulltext.title }}{% else %}{{ document }}{% endif %} – Volltext – Baruch{% endblock %}
 {% block page_title %}Volltext · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

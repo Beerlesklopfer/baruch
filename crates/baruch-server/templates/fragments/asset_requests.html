@@ -1,10 +1,10 @@
 {#- SPDX-License-Identifier: AGPL-3.0-or-later
-    Anträge der Assistenten zu Bildern (Runde 11, src/asset_requests.rs::panel): Abschnitt #antraege der
-    Seite „Bilder“. Offene Anträge mit „Bestätigen“ und „Ablehnen“ (Formulare an
-    POST /werke/bilder/antraege/act, ohne JavaScript), die zuletzt entschiedenen mit Ergebnis und Grund.
-    Kontext: work (id), open [request_json], decided [request_json]. url/content_url baut der Server aus
-    Werk-id, Antragsnummer und einem gültigen Bildnamen ([a-z0-9._-]); sie gehen darum unmaskiert hinaus
-    (sonst würde minijinja jedes / als &#x2f; schreiben). -#}
+    Requests of the assistants about images (Round 11, src/asset_requests.rs::panel): section #antraege of the
+    page „Bilder“. Open requests with „Bestätigen“ and „Ablehnen“ (forms to
+    POST /werke/bilder/antraege/act, without JavaScript), the most recently decided ones with result and reason.
+    Context: work (id), open [request_json], decided [request_json]. The server builds url/content_url from
+    the work id, the request number and a valid image name ([a-z0-9._-]); therefore they go out unescaped
+    (otherwise minijinja would write every / as &#x2f;). -#}
 <section class="asset-requests card" id="antraege" aria-labelledby="antraege-title">
   <h2 class="pane-title" id="antraege-title">Anträge der Assistenten{% if open %} ({{ open | length }} offen){% endif %}</h2>
   {%- if open %}

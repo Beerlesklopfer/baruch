@@ -1,11 +1,13 @@
-{#- Seite /werke/archiv (Runde 22, befund-rueckfrage, src/works.rs): gelöschte Werke aus work_retired mit ihrem
-    Archivordner works/.geloescht/<slug>-<JJJJ-MM-TT> und je Werk dem Formular „Wiederherstellen“
-    (POST /werke/archiv/wiederherstellen, Felder slug und confirm – Bestätigung mit Kästchen, ohne JavaScript bedienbar).
-    Kontext: settings, archives [{slug, title, deleted, folder, restorable, reason}], error, trash, back_url. -#}
+{#- Page /werke/archiv (Round 22, befund-rueckfrage, src/works.rs): deleted works from work_retired with their
+    archive directory works/.geloescht/<slug>-<JJJJ-MM-TT> and per work the form „Wiederherstellen“
+    (POST /werke/archiv/wiederherstellen, fields slug and confirm – confirmation with a checkbox, usable without
+    JavaScript).
+    Context: settings, archives [{slug, title, deleted, folder, restorable, reason}], error, trash, back_url. -#}
 {% extends "base.html" %}
 {% block title %}Archiv – Baruch{% endblock %}
 {% block page_title %}Archiv der gelöschten Werke{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="/werke">Werke</a>

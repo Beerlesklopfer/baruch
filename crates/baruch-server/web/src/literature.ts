@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Literatur mit JavaScript. Ohne JavaScript geht alles über die Seiten /literatur und /quelle und
-// das Formular an POST /literatur/act.
+// Literature with JavaScript. Without JavaScript everything goes through the pages /literatur and /quelle and
+// the form to POST /literatur/act.
 //
-// - Widget „literature“ (<dialog> in der Kopfzeile): Die Schaltfläche „Literatur“ (Link auf
-//   /literatur) und Alt+L öffnen das Popup. Inhalt über `literature.render`; die Suche bleibt über
-//   Schließen und Öffnen erhalten und steht als `lq` in der Adresse. Ein Werk-Treffer schließt das
-//   Popup und öffnet den Abschnitt im Arbeitsbereich. Der Umschalter „Suche nach“ (Runde 12, Radio
-//   `lmode` = fts | rag) geht mit an `literature.render` und steht als `lmode=rag` in der Adresse;
-//   „Dieselbe Suche im Wortlaut (FTS)“ lädt im Popup die Wortlaut-Suche.
-// - Fundstelle: Steht `#fundstelle` in der Adresse (Werk-Treffer), wird das erste Suchwort im
-//   Textfeld des Editors markiert und angesprungen. Runde 18c: Ist das Satzbild offen (Werk-Treffer aus dem
-//   Popup), markiert die CSS Custom Highlight API die Fundstelle im Satzbild (ohne DOM-Änderung); ohne die API
-//   oder ohne Treffer im Satzbild bleibt die Markierung im (verborgenen) Textfeld wie bisher.
-// - Widget „source“ (Dokumentansicht /quelle): Kontextmenü auf markiertem Text mit Hervorheben,
-//   Zitieren, An Persona geben (Runde 15: RPC `literature.to_persona` mit der Persona und Frage aus dem Formular,
-//   danach zum Abschnitt) und Ähnliches suchen. Text und Fundstelle (Zitat, Stelle, Zeichenbereich) gehen an
-//   dieselben Wege wie das Formular. Runde 15: auch im Volltext einer verknüpften Quelle – Anfang und Ende
-//   zählen dort ab `data-offset` des Teils (wie die Zahlenfelder ohne JavaScript).
-// - Abschnitt: Zitieren nennt ihn über den festen Schlüssel `key` (`data-key` der Dokumentansicht),
-//   nie über die Stelle; die Stelle `node` in Adressen ist nur Anzeige.
+// - Widget „literature“ (<dialog> in the header): the button „Literatur“ (link to
+//   /literatur) and Alt+L open the popup. Content through `literature.render`; the search is kept across
+//   closing and opening and stands as `lq` in the address. A work hit closes the
+//   popup and opens the section in the workspace. The switch „Suche nach“ (Round 12, radio
+//   `lmode` = fts | rag) goes along to `literature.render` and stands as `lmode=rag` in the address;
+//   „Dieselbe Suche im Wortlaut (FTS)“ loads the verbatim search in the popup.
+// - Place found: if `#fundstelle` stands in the address (work hit), the first search word is marked in the
+//   text field of the editor and jumped to. Round 18c: if the typeset view is open (work hit from the
+//   popup), the CSS Custom Highlight API marks the place found in the typeset view (without a DOM change); without
+//   the API or without a hit in the typeset view the marking stays in the (hidden) text field as before.
+// - Widget „source“ (document view /quelle): context menu on selected text with Hervorheben,
+//   Zitieren, An Persona geben (Round 15: RPC `literature.to_persona` with the persona and question from the form,
+//   then to the section) and Ähnliches suchen. Text and place found (quotation, position, character range) go the
+//   same ways as the form. Round 15: also in the full text of a linked source – start and end
+//   count there from `data-offset` of the part (like the number fields without JavaScript).
+// - Section: quoting names it through the fixed key `key` (`data-key` of the document view),
+//   never through the position; the position `node` in addresses is display only.
 
 import { call } from "./rpc.js";
 import { mount, register } from "./widgets.js";
 
-/// Kleinbuchstaben ohne diakritische Zeichen (wie die Suche: „langmutig“ trifft „langmütig“).
+/// Lower-case letters without diacritics (like the search: „langmutig“ hits „langmütig“).
 function fold(text: string): string {
   return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
@@ -41,13 +41,13 @@ function errorText(error: unknown): string {
   return String((error as Error)?.message ?? error);
 }
 
-/// Feld aus der aktuellen Adresse als Zahl.
+/// Field from the current address as a number.
 function numberParam(name: string): number | undefined {
   const value = new URL(window.location.href).searchParams.get(name);
   return value === null || value === "" || Number.isNaN(Number(value)) ? undefined : Number(value);
 }
 
-/// Fester Schlüssel des offenen Abschnitts: aus der Adresse, sonst aus dem Editor-Formular.
+/// Fixed key of the open section: from the address, otherwise from the editor form.
 function keyParam(): number | undefined {
   const fromUrl = numberParam("key");
   if (fromUrl !== undefined) return fromUrl;
@@ -60,7 +60,7 @@ function lqParam(): string | undefined {
   return lq === null || lq.trim() === "" ? undefined : lq;
 }
 
-/// Art der Suche (Runde 12): `rag` = Bedeutung, sonst Wortlaut (`fts`, Vorgabe, nicht in der Adresse).
+/// Kind of search (Round 12): `rag` = meaning, otherwise verbatim (`fts`, default, not in the address).
 type SearchMode = "fts" | "rag";
 
 function modeOf(value: string | null | undefined): SearchMode {
@@ -71,10 +71,10 @@ function lmodeParam(): SearchMode {
   return modeOf(new URL(window.location.href).searchParams.get("lmode"));
 }
 
-// ---- Fundstelle im Editor ----------------------------------------------------------------
+// ---- Place found in the editor -----------------------------------------------------------
 
-/// Erstes Vorkommen von `word` in `text`, ohne Rücksicht auf Groß-/Kleinschreibung und Akzente.
-/// Ergebnis als [Anfang, Ende) in UTF-16-Einheiten von `text` (wie `setSelectionRange`).
+/// First occurrence of `word` in `text`, regardless of case and accents.
+/// Result as [start, end) in UTF-16 units of `text` (like `setSelectionRange`).
 export function findFolded(text: string, word: string): [number, number] | null {
   const needle = fold(word);
   if (needle === "") return null;
@@ -95,17 +95,17 @@ export function findFolded(text: string, word: string): [number, number] | null 
   return [origin[at], end];
 }
 
-/// Kann der Browser Bereiche hervorheben (CSS Custom Highlight API)?
+/// Can the browser highlight ranges (CSS Custom Highlight API)?
 function highlightApi(): boolean {
   return typeof CSS !== "undefined" && "highlights" in CSS && typeof (window as { Highlight?: unknown }).Highlight === "function";
 }
 
 const HIGHLIGHT = "literatur-fundstelle";
 
-/// Fundstelle im offenen Satzbild markieren (Runde 18c): über die CSS Custom Highlight API (`::highlight(
-/// literatur-fundstelle)`, static/sheet.css) – nur ein Range-Objekt, das DOM des Satzbilds bleibt unverändert (es
-/// wird gespeichert). Gesucht wird im Text der Blöcke, ohne die eingesetzten Vorschläge (`.pv`). `true`, wenn eins
-/// der Suchwörter gefunden und markiert ist.
+/// Mark the place found in the open typeset view (Round 18c): through the CSS Custom Highlight API (`::highlight(
+/// literatur-fundstelle)`, static/sheet.css) – only a Range object, the DOM of the typeset view stays unchanged (it
+/// is saved). The search runs in the text of the blocks, without the inserted proposals (`.pv`). `true` if one
+/// of the search words is found and marked.
 function markInSheet(sheet: HTMLElement, words: string[]): boolean {
   if (!highlightApi()) return false;
   const nodes: { node: Text; start: number }[] = [];
@@ -138,15 +138,16 @@ function markInSheet(sheet: HTMLElement, words: string[]): boolean {
     const Ctor = (window as unknown as { Highlight: new (...ranges: Range[]) => unknown }).Highlight;
     registry.set(HIGHLIGHT, new Ctor(range));
     a[0].parentElement?.scrollIntoView({ block: "center" });
-    // Tippen im Satzbild nimmt die Markierung weg (die Stelle verschiebt sich sonst unter ihr).
+    // Typing in the typeset view takes the marking away (otherwise the place shifts underneath it).
     sheet.addEventListener("input", () => registry.delete(HIGHLIGHT), { once: true });
     return true;
   }
   return false;
 }
 
-/// Markiert die Fundstelle der Suche `lq` im Editor und rollt dorthin: bei offenem Satzbild im Satzbild (Runde
-/// 18c), sonst im Textfeld. Öffnet das Satzbild erst noch (über RPC), wird nach dem Öffnen markiert.
+/// Marks the place found of the search `lq` in the editor and scrolls there: with the typeset view open in the
+/// typeset view (Round 18c), otherwise in the text field. If the typeset view is still opening (through RPC), the
+/// marking happens after opening.
 function markFundstelle(lq: string | undefined): boolean {
   if (!lq) return false;
   const area = document.querySelector<HTMLTextAreaElement>("#pane-editor textarea[name=body]");
@@ -157,7 +158,7 @@ function markFundstelle(lq: string | undefined): boolean {
   if (root && sheet && root.hasAttribute("data-ws-open")) {
     if (markInSheet(sheet, words)) return true;
   } else if (root && sheet && area.hidden) {
-    // Das Satzbild öffnet gerade (wysiwyg.ts über RPC): erst danach markieren, höchstens 10 s warten.
+    // The typeset view is opening right now (wysiwyg.ts through RPC): mark only afterwards, wait at most 10 s.
     const observer = new MutationObserver(() => {
       if (!root.hasAttribute("data-ws-open")) return;
       observer.disconnect();
@@ -182,7 +183,7 @@ function markFundstelle(lq: string | undefined): boolean {
   return false;
 }
 
-/// Nach dem Neuzeichnen des Editors (ui.render) einmal die Fundstelle markieren.
+/// After the redraw of the editor (ui.render) mark the place found once.
 function markAfterRender(lq: string | undefined): void {
   const pane = document.getElementById("pane-editor");
   if (!pane) return;
@@ -194,8 +195,8 @@ function markAfterRender(lq: string | undefined): void {
   setTimeout(() => observer.disconnect(), 10000);
 }
 
-/// Werk-Treffer im Arbeitsbereich öffnen: über einen `data-nav`-Link im Widget „workspace“
-/// (ohne Neuladen); fehlt es (andere Seite), gewöhnlich navigieren.
+/// Open a work hit in the workspace: through a `data-nav` link in the widget „workspace“
+/// (without reloading); if it is missing (another page), navigate in the ordinary way.
 function openWorkHit(href: string): void {
   const url = new URL(href, window.location.href);
   const lq = url.searchParams.get("lq") ?? undefined;
@@ -228,7 +229,7 @@ register("literature", (element) => {
   const content = dialog.querySelector<HTMLElement>(".literature-content");
   const opener = document.querySelector<HTMLAnchorElement>("[data-literature-open]");
   if (!content || typeof dialog.showModal !== "function") return;
-  // Suche des Popups; Vorgabe ist die der Adresse. Bleibt über Schließen und Öffnen erhalten.
+  // Search of the popup; the default is that of the address. Kept across closing and opening.
   let query: string | undefined = lqParam();
   let mode: SearchMode = lmodeParam();
   let loaded = false;
@@ -248,7 +249,7 @@ register("literature", (element) => {
       query = result.lq ?? undefined;
       mode = modeOf(result.lmode);
       loaded = true;
-      // Suche und Art der Suche stehen in der Adresse, damit Navigation und Neuladen sie behalten.
+      // Search and kind of search stand in the address so that navigation and reloading keep them.
       const url = new URL(window.location.href);
       if (query) url.searchParams.set("lq", query);
       else url.searchParams.delete("lq");
@@ -277,7 +278,7 @@ register("literature", (element) => {
     if (dialog.open) dialog.close();
     else open();
   });
-  // Suchformular im Popup: über literature.render statt der Seite /literatur.
+  // Search form in the popup: through literature.render instead of the page /literatur.
   content.addEventListener("submit", (event) => {
     const form = (event.target as Element).closest<HTMLFormElement>("form.library-search");
     if (!form) return;
@@ -286,14 +287,14 @@ register("literature", (element) => {
     const lq = String(data.get("lq") ?? "");
     void load(lq.trim() === "" ? undefined : lq, modeOf(String(data.get("lmode") ?? "")));
   });
-  // „Dieselbe Suche im Wortlaut (FTS)“ ist ein Link auf /literatur; im Popup über literature.render.
+  // „Dieselbe Suche im Wortlaut (FTS)“ is a link to /literatur; in the popup through literature.render.
   content.addEventListener("click", (event) => {
     const link = (event.target as Element).closest<HTMLAnchorElement>("a[data-fts-link]");
     if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
     event.preventDefault();
     void load(query, "fts");
   });
-  // Werk-Treffer: Popup zu, Abschnitt im Arbeitsbereich; Quellen öffnen die Dokumentansicht.
+  // Work hit: popup closed, section in the workspace; sources open the document view.
   content.addEventListener("click", (event) => {
     const link = (event.target as Element).closest<HTMLAnchorElement>("a[data-hit=work]");
     if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -303,9 +304,9 @@ register("literature", (element) => {
   });
 });
 
-// ---- Kontextmenü in der Dokumentansicht --------------------------------------------------
+// ---- Context menu in the document view ---------------------------------------------------
 
-/// Markierung innerhalb eines Zitats: Zitat-id, Stelle und Zeichenbereich (Unicode-Zeichen ab 0).
+/// Selection inside a quotation: quotation id, position and character range (Unicode characters from 0).
 interface Picked {
   text: string;
   quote?: number;
@@ -326,7 +327,8 @@ function picked(root: HTMLElement): Picked | null {
   if (text.trim() === "" || !root.contains(range.commonAncestorContainer)) return null;
   const node = range.commonAncestorContainer;
   const element = node instanceof Element ? node : node.parentElement;
-  // Volltext (Runde 15): Bereich ab dem Anfang des Teils plus `data-offset` (Zeichen ab Anfang des Dokuments).
+  // Full text (Round 15): range from the start of the part plus `data-offset` (characters from the start of the
+  // document).
   const full = element?.closest<HTMLElement>(".fulltext-text");
   if (full && full.contains(range.startContainer) && full.contains(range.endContainer)) {
     const base = Number(full.dataset.offset ?? "0") || 0;
@@ -345,10 +347,10 @@ function picked(root: HTMLElement): Picked | null {
   if (!quote || !body || !body.contains(range.startContainer) || !body.contains(range.endContainer)) {
     return { text, locator: "" };
   }
-  // Stellen aus dem DOM-Bereich, nicht aus `selection.toString()`: Die Auswahl fasst Umbrüche und
-  // Leerraumfolgen nach CSS zusammen, `Range.toString()` liefert den Text der Textknoten wörtlich.
-  // Anfang und Ende zählen darum beide vom Anfang des Zitats aus, und `text` ist der wörtliche
-  // Ausschnitt; der Server gleicht zusätzlich leerraum-robust ab und speichert den Zitatausschnitt.
+  // Positions from the DOM range, not from `selection.toString()`: the selection collapses line breaks and
+  // whitespace runs according to CSS, `Range.toString()` supplies the text of the text nodes literally.
+  // Start and end therefore both count from the start of the quotation, and `text` is the literal
+  // excerpt; the server additionally matches whitespace-robustly and stores the quotation excerpt.
   const offset = (container: Node, at: number): number => {
     const upto = document.createRange();
     upto.selectNodeContents(body);
@@ -377,7 +379,7 @@ register("source", (root) => {
   const place = (): string => {
     const query = new URLSearchParams();
     if (work !== undefined) query.set("work", String(work));
-    // Key-Form (Runde 8): die Stelle nur, wenn es keinen Schlüssel gibt.
+    // Key form (Round 8): the position only if there is no key.
     if (key !== undefined) query.set("key", String(key));
     else if (node !== undefined) query.set("node", String(node));
     return query.toString();
@@ -441,7 +443,7 @@ register("source", (root) => {
         break;
       }
       case "cite": {
-        // Ohne Abschnitt kein Zitat (früher Abschnitt 0); vor dem Anlegen der Hervorhebung prüfen.
+        // Without a section no quotation (formerly section 0); check before creating the highlight.
         if (key === undefined) {
           toast("Abschnitt fehlt: Die Dokumentansicht aus einem Abschnitt heraus öffnen.");
           break;
@@ -452,7 +454,7 @@ register("source", (root) => {
         break;
       }
       case "persona": {
-        // Ohne Abschnitt keine Antwort im Abschnitts-Chat; der Server sagt dasselbe auf der Hinweisseite.
+        // Without a section no answer in the section chat; the server says the same on the notice page.
         if (key === undefined) {
           toast("Abschnitt wählen: Die Literatur aus einem Abschnitt heraus öffnen, dann den Text an die Persona geben.");
           break;
@@ -492,7 +494,7 @@ register("source", (root) => {
     if (!found) return;
     event.preventDefault();
     current = found;
-    // Formular unten gleich mitfüllen (auch für die Arbeit ohne Menü).
+    // Fill the form below right along (also for working without the menu).
     if (form) {
       const set = (name: string, value: string) => {
         const field = form.elements.namedItem(name);
@@ -528,7 +530,7 @@ register("source", (root) => {
   });
 });
 
-// Werk-Treffer aus /literatur oder dem Popup: nach dem Laden die Fundstelle markieren.
+// Work hit from /literatur or the popup: mark the place found after loading.
 if (window.location.hash === "#fundstelle") {
   markFundstelle(lqParam());
 }

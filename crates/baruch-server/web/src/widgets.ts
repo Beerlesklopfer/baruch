@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Kleiner Widget-Rahmen: Ein Element mit `data-widget="name"` bekommt beim Einhängen das
-// registrierte Verhalten. Der Server liefert fertiges HTML (auch ohne JavaScript bedienbar);
-// nach jedem Austausch eines Bereichs hängt `mount` die Widgets darin neu ein.
+// Small widget framework: an element with `data-widget="name"` gets the registered
+// behaviour when mounting. The server supplies finished HTML (also usable without JavaScript);
+// after every exchange of an area `mount` mounts the widgets in it anew.
 
 import { capturePlace, restorePlace, type Place } from "./place.js";
 
@@ -31,11 +31,11 @@ export function mount(root: ParentNode = document): void {
   }
 }
 
-/// Knopf zum Absenden eines Formulars – auch außerhalb des Formulars über `form="<id>"` (der Editor hat
-/// „Speichern“ in der Statuszeile, nicht im Formular).
-/// Runde 33: Die Knöpfe „Speichern“ im Menüband (angedockte Leiste, `[data-edit-toolbar]`) gehören über
-/// `form="editor-form"` auch zum Formular und stünden im Dokument davor; maßgeblich (Beschriftung
-/// „Gespeichert“/„Speichern“) bleibt der Knopf am Formular bzw. in der Statuszeile.
+/// Button for submitting a form – also outside the form through `form="<id>"` (the editor has
+/// „Speichern“ in the status line, not in the form).
+/// Round 33: the buttons „Speichern“ in the ribbon (docked bar, `[data-edit-toolbar]`) also belong to the form
+/// through `form="editor-form"` and would stand before it in the document; authoritative (label
+/// „Gespeichert“/„Speichern“) remains the button at the form or in the status line.
 export function submitButton(form: HTMLFormElement): HTMLButtonElement | null {
   let docked: HTMLButtonElement | null = null;
   for (const element of Array.from(form.elements)) {
@@ -46,10 +46,10 @@ export function submitButton(form: HTMLFormElement): HTMLButtonElement | null {
   return docked;
 }
 
-/// Runde 33: Leiste des Editors (`[data-edit-toolbar]`, fragments/edit_toolbar.html). Sie steht im Fragment des
-/// Editors (`div.wysiwyg`), bis band.ts sie in den Andockplatz des Menübands hängt (`[data-band-dock]`); danach
-/// finden `root.querySelector` und `closest("div.wysiwyg")` sie nicht mehr. Eine Seite hat höchstens einen Editor,
-/// die angedockte Leiste gehört also zu ihm.
+/// Round 33: bar of the editor (`[data-edit-toolbar]`, fragments/edit_toolbar.html). It stands in the fragment of the
+/// editor (`div.wysiwyg`) until band.ts hooks it into the docking place of the ribbon (`[data-band-dock]`); afterwards
+/// `root.querySelector` and `closest("div.wysiwyg")` no longer find it. A page has at most one editor,
+/// so the docked bar belongs to it.
 export function editToolbar(root: ParentNode | null = null): HTMLElement | null {
   return (
     root?.querySelector<HTMLElement>("[data-edit-toolbar]") ??
@@ -57,20 +57,20 @@ export function editToolbar(root: ParentNode | null = null): HTMLElement | null 
   );
 }
 
-/// Ungespeicherte Änderung im Editor? Dann vor allem fragen, was die Bereiche neu zeichnet
-/// (Links, Fassungswechsel, Gliederung umstellen, andere Formulare, Werkwahl). `true` = weiter.
+/// Unsaved change in the editor? Then ask before everything that redraws the areas
+/// (links, change of revision, rearranging the outline, other forms, work selection). `true` = go on.
 export function leaveEditor(): boolean {
   const editor = document.querySelector<HTMLElement>("[data-widget=editor]");
   return editor?.dataset.dirty !== "1" || confirm("Ungespeicherte Änderung verwerfen?");
 }
 
-/// Runde 23a (Codereview web-1): Während ein Speichern des Editors läuft (Satzbild abgleichen, `outline.check`,
-/// `outline.save`, Neuzeichnen), ist der Editor-Bereich gesperrt (`inert`, `aria-busy`). Sonst gingen Zeichen, die
-/// nach dem Abgreifen des Formulars getippt werden, beim Neuzeichnen ohne Rückfrage verloren, und ein zweites Strg+S
-/// schickte dieselbe Grundlage noch einmal. Mehrere Sperren zählen; die letzte Freigabe hebt die Sperre auf und gibt
-/// den Fokus zurück, wenn das Element noch da ist (nach einem Fehler; nach Erfolg ist der Bereich neu gezeichnet).
-/// Wunsch 2026-11-27 („Strg+S als normales Speichern“): Beim ersten Sperren merkt sich der Editor die Stelle (Cursor,
-/// Auswahl, Scrollstand); nach dem Neuzeichnen setzt die letzte Freigabe sie im neuen Editor wieder (place.ts).
+/// Round 23a (code review web-1): while a save of the editor is running (reconcile the typeset view, `outline.check`,
+/// `outline.save`, redraw), the editor area is locked (`inert`, `aria-busy`). Otherwise characters typed
+/// after the form was captured would be lost on redrawing without a confirmation, and a second Ctrl+S
+/// would send the same basis once more. Several locks count; the last release lifts the lock and gives
+/// the focus back if the element is still there (after an error; after success the area is redrawn).
+/// Wish 2026-11-27 („Strg+S als normales Speichern“): on the first lock the editor remembers the place (cursor,
+/// selection, scroll position); after the redraw the last release sets it again in the new editor (place.ts).
 let editorLocks = 0;
 let editorPlace: Place | null = null;
 
@@ -81,7 +81,7 @@ export function editorLocked(): boolean {
 export function lockEditor(): () => void {
   const pane = document.getElementById("pane-editor");
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  // Runde 33: Die Knöpfe des Editors stehen angedockt im Menüband – während des Speicherns ebenfalls gesperrt.
+  // Round 33: the buttons of the editor stand docked in the ribbon – also locked during saving.
   const dock = document.querySelector<HTMLElement>("[data-band-dock]");
   if (editorLocks === 0) editorPlace = capturePlace();
   editorLocks += 1;
@@ -96,7 +96,7 @@ export function lockEditor(): () => void {
     released = true;
     editorLocks -= 1;
     if (editorLocks > 0) return;
-    // Der Andockplatz selbst bleibt beim Neuzeichnen stehen (nur sein Inhalt wechselt): immer freigeben.
+    // The docking place itself stays during the redraw (only its content changes): always release.
     const docks = document.querySelectorAll<HTMLElement>("[data-band-dock]");
     docks.forEach((d) => (d.inert = false));
     if (!pane) return;
@@ -109,9 +109,9 @@ export function lockEditor(): () => void {
   };
 }
 
-/// Einstellungen der Oberfläche als Cookies `baruch_<name>` (ein Jahr, nur dieser Server). Der Server
-/// liest sie und zeichnet Thema, Spaltenbreiten, Akkordeon und Gliederung gleich richtig.
-/// Werte nur aus [A-Za-z0-9._%-], sonst wird nichts gespeichert.
+/// Settings of the user interface as cookies `baruch_<name>` (one year, only this server). The server
+/// reads them and draws theme, column widths, accordion and outline right at once.
+/// Values only from [A-Za-z0-9._%-], otherwise nothing is stored.
 export const store = {
   get(name: string): string | null {
     const prefix = `baruch_${name}=`;

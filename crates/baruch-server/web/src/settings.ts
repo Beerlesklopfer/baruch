@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Einstellungen als Popup (Runde 9). Ohne JavaScript führt jeder Link auf /einstellungen/<seite>; dort
-// gehen alle Formulare per POST an den Server und kommen mit 303 zurück.
+// Settings as a popup (Round 9). Without JavaScript every link leads to /einstellungen/<seite>; there
+// all forms go by POST to the server and come back with 303.
 //
-// Widget „settings“ am <dialog id="settings"> (Hülle in base.html):
-// - Klick auf ein Element mit [data-settings-open] (Link) oder Alt+, öffnet den Dialog (showModal)
-//   und lädt den Rahmen der Seite (`?fragment=1`) in [data-settings-content]. Trägt der Link
-//   data-settings-page="<slug>", gilt /einstellungen/<slug>?work=W.
-// - Links mit data-settings-page im Dialog wechseln die Seite im Dialog; alle anderen Links
-//   navigieren normal.
-// - Formulare mit method=post im Dialog: fetch POST (application/x-www-form-urlencoded, Weiterleitung
-//   folgen), aus der Antwortseite wird [data-settings-frame] übernommen (auch bei 422 – dort steht die
-//   Meldung). Nach jedem Erfolg – nicht nach 422 und nicht nach einer Weiterleitung auf einen Fehlercode
-//   (`?fehler=…`, Runde 23a, `saved`) –: Ereignis `baruch:settings-changed` mit detail {page}; die Darstellung
-//   setzt das Thema sofort (dataset.theme). GET-Formulare (z. B. „Vorschau“ des Gliederungsschemas)
-//   auf /einstellungen/… laden ebenfalls im Dialog.
+// Widget „settings“ on the <dialog id="settings"> (shell in base.html):
+// - A click on an element with [data-settings-open] (link) or Alt+, opens the dialog (showModal)
+//   and loads the frame of the page (`?fragment=1`) into [data-settings-content]. If the link carries
+//   data-settings-page="<slug>", /einstellungen/<slug>?work=W applies.
+// - Links with data-settings-page in the dialog switch the page in the dialog; all other links
+//   navigate normally.
+// - Forms with method=post in the dialog: fetch POST (application/x-www-form-urlencoded, follow the
+//   redirect), from the answer page [data-settings-frame] is taken over (also on 422 – the message stands
+//   there). After every success – not after 422 and not after a redirect to an error code
+//   (`?fehler=…`, Round 23a, `saved`) –: event `baruch:settings-changed` with detail {page}; the appearance page
+//   sets the theme at once (dataset.theme). GET forms (e.g. „Vorschau“ of the outline scheme)
+//   on /einstellungen/… also load in the dialog.
 
 import { mount, register } from "./widgets.js";
 
-/// Werk der Seite: aus der Adresse, sonst aus dem Cookie baruch_work.
+/// Work of the page: from the address, otherwise from the cookie baruch_work.
 function currentWork(): string | null {
   const fromUrl = new URL(window.location.href).searchParams.get("work");
   if (fromUrl && /^\d+$/.test(fromUrl)) return fromUrl;
@@ -26,7 +26,7 @@ function currentWork(): string | null {
   return /^\d+$/.test(value) ? value : null;
 }
 
-/// Adresse einer Seite im Dialog: /einstellungen/<slug>?work=W.
+/// Address of a page in the dialog: /einstellungen/<slug>?work=W.
 function pageUrl(slug: string): string {
   const url = new URL(`/einstellungen/${encodeURIComponent(slug)}`, window.location.href);
   const work = currentWork();
@@ -34,7 +34,7 @@ function pageUrl(slug: string): string {
   return url.toString();
 }
 
-/// Ziel eines Öffnen-Links: data-settings-page geht vor href.
+/// Target of an open link: data-settings-page takes precedence over href.
 function targetOf(link: HTMLElement): string {
   const slug = link.dataset.settingsPage;
   if (slug) return pageUrl(slug);
@@ -42,15 +42,15 @@ function targetOf(link: HTMLElement): string {
   return href ? new URL(href, window.location.href).toString() : pageUrl("darstellung");
 }
 
-/// Gehört die Adresse zu den Einstellungen dieses Servers?
+/// Does the address belong to the settings of this server?
 function isSettings(url: URL): boolean {
   return url.origin === window.location.origin && url.pathname.startsWith("/einstellungen");
 }
 
-/// Runde 23a: Ist das Formular wirklich gespeichert? Nur dann meldet der Dialog `baruch:settings-changed`. Abgelehnt
-/// heißt: Status außerhalb 2xx (422 mit der Meldung auf der Seite) oder – nach gefolgter Weiterleitung (303) – eine
-/// Adresse mit einem Fehlercode (`?fehler=<code>` der Verbindungen und Quellen, `?zeitfehler=1`, `?satzbildfehler=1` …:
-/// jeder Parametername, der auf „fehler“ endet).
+/// Round 23a: is the form really saved? Only then does the dialog report `baruch:settings-changed`. Rejected
+/// means: status outside 2xx (422 with the message on the page) or – after a followed redirect (303) – an
+/// address with an error code (`?fehler=<code>` of the connections and sources, `?zeitfehler=1`,
+/// `?satzbildfehler=1` …: every parameter name that ends in „fehler“).
 export function saved(response: { ok: boolean; url: string }): boolean {
   if (!response.ok) return false;
   let url: URL;
@@ -84,7 +84,7 @@ register("settings", (element) => {
     content.replaceChildren(p);
   };
 
-  /// Rahmen aus einer HTML-Antwort übernehmen; `false`, wenn keiner darin steht.
+  /// Take over the frame from an HTML answer; `false` if there is none in it.
   const take = (html: string): boolean => {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const frame = doc.querySelector<HTMLElement>("[data-settings-frame]");
@@ -124,11 +124,11 @@ register("settings", (element) => {
     opener = null;
   });
 
-  // Runde 35: Ein Lektor (data-rolle am <body>, konten_ui::apply) darf `settings.render` nicht aufrufen – für ihn
-  // bleibt „Einstellungen“ ein gewöhnlicher Link auf die Seite Darstellung (Cookies im eigenen Browser).
+  // Round 35: a Lektor (data-rolle on the <body>, konten_ui::apply) must not call `settings.render` – for a Lektor
+  // „Einstellungen“ stays an ordinary link to the page Darstellung (cookies in the own browser).
   const lektor = () => document.body.dataset.rolle === "lektor";
 
-  // Öffnen: Links mit data-settings-open (Kopfzeile, „Farben …“ im Akkordeon) und Alt+,.
+  // Opening: links with data-settings-open (header, „Farben …“ in the accordion) and Alt+,.
   document.addEventListener("click", (event) => {
     if (lektor()) return;
     if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -148,7 +148,7 @@ register("settings", (element) => {
     open(link ? targetOf(link) : pageUrl("darstellung"), null);
   });
 
-  // Seitenwechsel im Dialog.
+  // Page change in the dialog.
   content.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const link = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[data-settings-page]");
@@ -157,7 +157,7 @@ register("settings", (element) => {
     void load(link.href);
   });
 
-  // Formulare im Dialog.
+  // Forms in the dialog.
   content.addEventListener("submit", (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;

@@ -1,15 +1,16 @@
-{#- Seite /abgleich (Runde 13, Aufgabe „abgleich“, src/sync/pages.rs): Abgleich mit MultiGPT ohne
-    JavaScript. Knopf „Abgleichen“ (POST /abgleich/act action=run), „zuletzt abgeglichen …“ mit den Zahlen
-    aus sync_run und den Hinweisen, je Werk der Schalter „nach MultiGPT hochladen“ (Vorgabe aus, Einschalten
-    nur mit Pflicht-Kontrollkästchen), die Sammlungen zum Holen (gewählt, zuletzt von MultiGPT geladen, neu).
-    Die Seite fragt MultiGPT nie; nur die Knöpfe tun das.
-    Kontext: settings, work ({id} oder none), selected, configured, running, last (sync_run oder none),
+{#- Page /abgleich (Round 13, task „abgleich“, src/sync/pages.rs): reconciliation with MultiGPT without
+    JavaScript. Button „Abgleichen“ (POST /abgleich/act action=run), „zuletzt abgeglichen …“ with the numbers
+    from sync_run and the notes, per work the switch „nach MultiGPT hochladen“ (default off, switching on
+    only with a mandatory checkbox), the collections to fetch (chosen, last loaded from MultiGPT, new).
+    The page never asks MultiGPT; only the buttons do.
+    Context: settings, work ({id} or none), selected, configured, running, last (sync_run or none),
     summary, hints, works [{work, title, upload, collection, confirmed, documents, synced, current}],
     collections [{collection, documents, synced}], offered [{name, count}], notice, error. -#}
 {% extends "base.html" %}
 {% block title %}Abgleich mit MultiGPT – Baruch{% endblock %}
 {% block page_title %}Abgleich mit MultiGPT{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Prüfen“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

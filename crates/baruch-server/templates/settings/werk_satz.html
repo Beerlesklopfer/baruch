@@ -1,14 +1,14 @@
-{#- Block „Satz“ der Einstellungsseite „Werk“ (Runde 29c, Besitz satz-oberflaeche; Kontext aus
-    src/settings/work_typeset.rs block_context): work, v {Formularfeld → Wert}, errors {Feld-id → [Meldung]},
-    hints {Feld-id → [{message, line, text, ineffective}]}, labels {Feld-id → Bezeichnung}, warnings, set, updated,
+{#- Block „Satz“ of the settings page „Werk“ (Round 29c, ownership satz-oberflaeche; context from
+    src/settings/work_typeset.rs block_context): work, v {form field → value}, errors {field id → [message]},
+    hints {field id → [{message, line, text, ineffective}]}, labels {field id → label}, warnings, set, updated,
     updated_by, rules, unsaved, template_rule {line, text, chapter_start}?, preview {urls, pages, errors, warnings,
-    diagnostics}?, satz_url, opts {Auswahllisten [{id, label}]}; Runde 22: draft_defaults {text, opacity, min_opacity,
-    max_opacity, max_text, max_note} und Fieldset #entwurf (draft, draft_text, draft_note, draft_date, draft_opacity,
+    diagnostics}?, satz_url, opts {choice lists [{id, label}]}; Round 22: draft_defaults {text, opacity, min_opacity,
+    max_opacity, max_text, max_note} and fieldset #entwurf (draft, draft_text, draft_note, draft_date, draft_opacity,
     draft_placement, draft_cover).
-    Ohne JavaScript: Formular an POST /einstellungen/werk/satz (action = preview | save), Zurücksetzen als eigenes
-    Formular (action=reset, Pflicht-Häkchen confirm), Übernahme der Vorlagenregel an POST /einstellungen/werk/satz/vorlage
-    (Pflicht-Häkchen confirm). Das Widget typeset-settings (web/src/typeset_settings.ts) zeigt die Vorschau ohne
-    Neuladen in [data-typeset-preview]. -#}
+    Without JavaScript: form to POST /einstellungen/werk/satz (action = preview | save), resetting as a form of its
+    own (action=reset, mandatory checkbox confirm), adopting the template rule to POST /einstellungen/werk/satz/vorlage
+    (mandatory checkbox confirm). The widget typeset-settings (web/src/typeset_settings.ts) shows the preview without
+    reloading in [data-typeset-preview]. -#}
 {%- macro notes(id, errs, hs) %}
   {%- for m in errs or [] %}
   <span class="typeset-error small" role="alert" data-typeset-error="{{ id }}">{{ m }}</span>
@@ -143,8 +143,9 @@
       <span class="muted tiny">Vorgabe für das Häkchen „mit Seitenzahl“ im Dialog „Verweis“ des Editors; keine Satz-Regel.</span>
       {{- notes("xref_with_page", errors["xref_with_page"], hints["xref_with_page"]) }}
     </fieldset>
-    {#- Runde 31c: Register und Glossar am Buchende. Keine Häkchen = keine Registerseiten; die Reihenfolge der Häkchen
-        (gewählte zuerst) ist die Satzreihenfolge. Meldungen von TypesetSettings::validate stehen beim Feld. #}
+    {#- Round 31c: index and glossary at the end of the book. No checkboxes = no index pages; the order of the
+        checkboxes (chosen ones first) is the typesetting order. Messages of TypesetSettings::validate stand at the
+        field. #}
     <fieldset class="typeset-index">
       <legend class="small">Register und Glossar</legend>
       <label class="typeset-field small" data-typeset-field="glossary_page">{{ labels.glossary_page }}
@@ -168,8 +169,8 @@
           {%- endfor %}
         </select></label>
       {{- notes("index_pages", errors["index_pages"], hints["index_pages"]) }}
-      {#- Keine Regel der Werkvorlage: leer heißt „nicht auszeichnen“; „off“ (ausdrücklich aus, etwa über RPC gesetzt)
-          erscheint nur, wenn es gespeichert ist, damit „Speichern“ es nicht still ändert. #}
+      {#- No rule of the work template: empty means „nicht auszeichnen“; „off“ (explicitly off, e.g. set through RPC)
+          appears only if it is stored, so that „Speichern“ does not change it silently. #}
       <label class="typeset-field small" data-typeset-field="glossary_first_mention">{{ labels.glossary_first_mention }}
         <select name="glossary_first_mention" aria-describedby="typeset-help-first">
           <option value=""{% if not v.glossary_first_mention %} selected{% endif %}>nein</option>
@@ -182,8 +183,8 @@
         Variante) je Kapitel im Satz hervor, mit Verweis aufs Glossar, wenn es eine Glossarseite gibt.</span>
       {{- notes("glossary_first_mention", errors["glossary_first_mention"], hints["glossary_first_mention"]) }}
     </fieldset>
-    {#- Runde 22: Entwurf als Wasserzeichen – nur in den Ausgaben (Satz-Vorschau, Buch-PDF, Stichwortzettel, auf Wunsch
-        Umschlag-PDF; EPUB mit Hinweis), nie im Export/Spiegel und ohne Zeile im Regelblock. #}
+    {#- Round 22: draft as a watermark – only in the outputs (typeset preview, book PDF, cue sheet, on request
+        cover PDF; EPUB with a note), never in the export/mirror and without a line in the rule block. #}
     <fieldset class="typeset-draft" id="entwurf">
       <legend class="small">{{ labels.draft }}</legend>
       <label class="check small" data-typeset-field="draft"><input type="checkbox" name="draft" value="1"{% if v.draft == "1" %} checked{% endif %} aria-describedby="typeset-help-draft"> Wasserzeichen „Entwurf“ in den Ausgaben</label>

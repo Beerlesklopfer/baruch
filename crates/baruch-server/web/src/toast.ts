@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Toast (Runde 15, Vertrag §4): kurze Hinweise, z. B. „Komprimiert: …“, wenn eine Persona den Kontext nur
-// gestückelt und zusammengefasst sah.
+// Toast (Round 15, contract §4): short notices, e.g. „Komprimiert: …“, when a persona saw the context only
+// in pieces and summarised.
 //
-// - Widget „toast“: ein vom Server gerenderter Hinweis (templates/fragments/toast.html, ohne JavaScript ein
-//   Kasten an seiner Stelle) wandert in den Stapel unten rechts und bekommt „Schließen“.
-// - Ereignis „baruch:toast“ auf document: detail = {message: string, level: "warn" | "info", summarized?:
-//   string[]} legt denselben Hinweis an (Sender: assist.ts/chat.ts beim SSE-Ereignis „compressed“).
-// - „warn“ bleibt stehen, bis der Mensch ihn schließt (kein Zeitablauf); „info“ verschwindet nach
-//   INFO_MS von selbst. Escape schließt den jüngsten Hinweis, wenn der Fokus in ihm liegt.
-// - Texte nur über textContent (nie als HTML).
+// - Widget „toast“: a notice rendered by the server (templates/fragments/toast.html, without JavaScript a
+//   box at its place) moves into the stack at the bottom right and gets „Schließen“.
+// - Event „baruch:toast“ on document: detail = {message: string, level: "warn" | "info", summarized?:
+//   string[]} creates the same notice (sender: assist.ts/chat.ts on the SSE event „compressed“).
+// - „warn“ stays until the human closes it (no timeout); „info“ disappears by itself after
+//   INFO_MS. Escape closes the youngest notice if the focus lies in it.
+// - Texts only through textContent (never as HTML).
 
 import { mount, register } from "./widgets.js";
 
@@ -20,7 +20,7 @@ interface ToastDetail {
   summarized?: unknown;
 }
 
-/// So lange bleibt ein Hinweis der Stufe „info“ stehen.
+/// A notice of the level „info“ stays this long.
 const INFO_MS = 8000;
 
 function stack(): HTMLElement {
@@ -38,7 +38,7 @@ function level(value: unknown): Level {
   return value === "info" ? "info" : "warn";
 }
 
-/// Hinweis im selben Aufbau wie fragments/toast.html bauen (ohne innerHTML).
+/// Build a notice with the same structure as fragments/toast.html (without innerHTML).
 function build(message: string, lvl: Level, summarized: string[]): HTMLElement {
   const toast = document.createElement("div");
   toast.className = `toast toast-${lvl}`;

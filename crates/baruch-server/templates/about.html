@@ -1,13 +1,16 @@
-{#- Seite /ueber (Runde 24, src/about.rs): Name, Version, Lizenz, Quellcode-Angebot (AGPL §13), Webseite,
-    Drittlizenzen je Paket, Datenordner und der Hinweis, dass Baruch nie von sich aus im Netz nach neuen
-    Versionen fragt. Ohne JavaScript lesbar; die Seite lädt nichts von fremden Rechnern (nur gewöhnliche Links,
-    die erst ein Klick öffnet).
-    Kontext: settings, version, license_id, repository, homepage, help (Hilfe auf der Webseite, Runde 37), release_url, data_dir, default_data_dir,
-    third_party (Pfad auf diesem Rechner oder none), appimage (Pfad der AppImage-Datei oder none), third_party_file, third_party_places [{package, place}]. -#}
+{#- Page /ueber (Round 24, src/about.rs): name, version, licence, source code offer (AGPL §13), website,
+    third-party licences per package, data directory and the note that Baruch never asks the network for new
+    versions on its own. Readable without JavaScript; the page loads nothing from foreign machines (only ordinary
+    links that open only on a click).
+    Context: settings, version, license_id, repository, homepage, help (help on the website, Round 37), release_url,
+    data_dir, default_data_dir,
+    third_party (path on this machine or none), appimage (path of the AppImage file or none), third_party_file,
+    third_party_places [{package, place}]. -#}
 {% extends "base.html" %}
 {% block title %}Über Baruch – Baruch{% endblock %}
 {% block page_title %}Über Baruch{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück zum Werk</a>

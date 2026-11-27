@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Befehle an das Satzbild (Runde 18, Schnittstelle R18-S1; Runde 30a ergänzt den Befehl `xref` mit `arg` =
-// JSON `{key, text, page}`: Querverweis `#link(<kN>)[…]` an der Cursorstelle, siehe xref.ts; Runde 19b `scripture`
-// und `cite`, siehe unten).
-// Das Menüband (ribbon.ts) und die Satzbild-Werkzeuge (sheet.ts) sprechen das Satzbild (wysiwyg.ts) nur über
-// diese beiden Ereignisse an:
-// - `baruch:ws-command` an `div.wysiwyg[data-widget=wysiwyg]` (ohne bubbles): Das offene Satzbild führt den
-//   Befehl aus und setzt `detail.handled = true`; ist es zu, bleibt `handled` `false`, und der Absender fügt im
-//   Quelltext selbst ein.
-// - `baruch:ws-caret`: Bei offenem Satzbild legt wysiwyg.ts EIN Promise in `detail.wait` (Quelltext und
-//   Blockgrenze am Cursor), etwa für das Bild an der Cursorstelle.
+// Commands to the typeset view (Round 18, interface R18-S1; Round 30a adds the command `xref` with `arg` =
+// JSON `{key, text, page}`: cross-reference `#link(<kN>)[…]` at the cursor position, see xref.ts; Round 19b `scripture`
+// and `cite`, see below).
+// The ribbon (ribbon.ts) and the typeset-view tools (sheet.ts) address the typeset view (wysiwyg.ts) only through
+// these two events:
+// - `baruch:ws-command` on `div.wysiwyg[data-widget=wysiwyg]` (without bubbles): the open typeset view carries out
+//   the command and sets `detail.handled = true`; if it is closed, `handled` stays `false`, and the sender inserts
+//   in the source text itself.
+// - `baruch:ws-caret`: with the typeset view open wysiwyg.ts puts ONE promise into `detail.wait` (source text and
+//   block boundary at the cursor), e.g. for the image at the cursor position.
 
-// Runde 19b: `scripture` (Bibelstelle nach der Werkvorlage, `arg` = JSON `{fn, text?}`: `fn` = Funktionsname der
-// Vorlage, z. B. „bibelstelle“; ohne `text` fragt das Satzbild nach der Stelle) und `cite` (Literaturverweis
-// `@schlüssel`, `arg` = Schlüssel; ohne fragt das Satzbild). Die reinen Bausteine dafür stehen hier, damit ribbon.ts,
-// wysiwyg.ts und Tests dieselben nutzen (diese Datei importiert nichts).
+// Round 19b: `scripture` (Bible passage following the work template, `arg` = JSON `{fn, text?}`: `fn` = function name
+// of the template, e.g. „bibelstelle“; without `text` the typeset view asks for the passage) and `cite` (literature
+// reference `@schlüssel`, `arg` = key; without it the typeset view asks). The pure building blocks for this stand
+// here so that ribbon.ts, wysiwyg.ts and tests use the same ones (this file imports nothing).
 
 export const WS_COMMAND = "baruch:ws-command";
 
@@ -32,15 +32,15 @@ export type WsCommandName =
   | "xref"
   | "index_mark";
 
-/** Funktionsname der Vorlage aus dem Snippet `#name[]` (nur Buchstaben, Ziffern, `_`, `-`), sonst `null`. */
+/** Function name of the template from the snippet `#name[]` (only letters, digits, `_`, `-`), otherwise `null`. */
 export function scriptureFunction(snippet: string): string | null {
   const match = /^#([\p{L}_][\p{L}\p{N}_-]*)\[\]$/u.exec(snippet.trim());
   return match ? match[1] : null;
 }
 
-/** Typst-Text einer Bibelstelle: `#fn[Stelle]`; Markup-Zeichen der Stelle mit `\` maskiert (dieselben wie
- *  `needs_escape` in baruch-wysiwyg), Zeilenumbrüche werden Leerzeichen, mehrere `/` einer (kein Kommentar `//`).
- *  `null`, wenn Name oder Stelle leer bzw. ungültig sind (höchstens 200 Zeichen). */
+/** Typst text of a Bible passage: `#fn[Stelle]`; markup characters of the passage escaped with `\` (the same as
+ *  `needs_escape` in baruch-wysiwyg), line breaks become spaces, several `/` become one (no comment `//`).
+ *  `null` if name or passage are empty or invalid (at most 200 characters). */
 export function scriptureSource(fn: string, reference: string): string | null {
   if (!/^[\p{L}_][\p{L}\p{N}_-]*$/u.test(fn)) return null;
   const text = reference.replace(/(?:[\r\n]|\p{Zl}|\p{Zp})+/gu, " ").replace(/\/{2,}/g, "/").trim();
@@ -49,8 +49,9 @@ export function scriptureSource(fn: string, reference: string): string | null {
   return `#${fn}[${escaped}]`;
 }
 
-/** Schlüssel eines Literaturverweises (`@schlüssel`): Buchstaben, Ziffern, `_`, `-`, `:`, `.` wie Typst-Labels; am
- *  Rand beschnitten, ein führendes `@` entfällt, ein Punkt am Ende auch (er gehörte zum Satz). `null`, wenn ungültig. */
+/** Key of a literature reference (`@schlüssel`): letters, digits, `_`, `-`, `:`, `.` like Typst labels; trimmed
+ *  at the edges, a leading `@` is dropped, a full stop at the end too (it belonged to the sentence). `null` if invalid.
+ *  */
 export function citeKey(input: string): string | null {
   const key = input.trim().replace(/^@/, "").replace(/\.+$/, "");
   return key !== "" && /^[\p{L}\p{N}_:.-]+$/u.test(key) ? key : null;
@@ -62,7 +63,8 @@ export interface WsCommandDetail {
   handled: boolean;
 }
 
-/** An `div.wysiwyg[data-widget=wysiwyg]` (ohne bubbles). `true`, wenn das offene Satzbild den Befehl ausgeführt hat. */
+/** On `div.wysiwyg[data-widget=wysiwyg]` (without bubbles). `true` if the open typeset view has carried out the
+command. */
 export function sendWsCommand(root: HTMLElement, cmd: WsCommandName, arg?: string): boolean {
   const detail: WsCommandDetail = { cmd, handled: false };
   if (arg !== undefined) detail.arg = arg;
@@ -73,21 +75,23 @@ export function sendWsCommand(root: HTMLElement, cmd: WsCommandName, arg?: strin
 export const WS_CARET = "baruch:ws-caret";
 
 /**
- * Bei offenem Satzbild legt wysiwyg.ts EIN Promise in `wait`: vollständiger Quelltext wie bei
- * `baruch:serialize-text` und die UTF-16-Stelle einer Blockgrenze (Zeilenanfang) hinter dem obersten Block am Cursor.
+ * With the typeset view open wysiwyg.ts puts ONE promise into `wait`: complete source text as with
+ * `baruch:serialize-text` and the UTF-16 position of a block boundary (line start) behind the topmost block at the
+ * cursor.
  */
 export interface WsCaretDetail {
   wait: Promise<{ body: string; offset: number }>[];
 }
 
-// ---- Runde 31c: Registermarken ---------------------------------------------------------------------------------
-// Befehl `index_mark` mit `arg` = JSON `{op: "add" | "edit" | "remove", mark?}`: `add` setzt die Marke direkt hinter
-// das markierte Wort (bzw. das Wort am Cursor), `edit`/`remove` ändern bzw. entfernen die Marke, die das Kontextmenü
-// mit `data-ctx-target` bezeichnet hat. Die Bausteine unten gelten gleich für Satzbild und Quelltext; `markSource`,
-// `validateMark` und `parseMarkAt` folgen `mark_source`, `IndexMark::validate` und `parse_mark` in
-// `baruch_typst::index`, `markLabel` folgt `index_mark_label` in baruch-wysiwyg (Node-Vergleichstests im Server).
+// ---- Round 31c: index marks ------------------------------------------------------------------------------------
+// Command `index_mark` with `arg` = JSON `{op: "add" | "edit" | "remove", mark?}`: `add` puts the mark directly behind
+// the selected word (or the word at the cursor), `edit`/`remove` change or remove the mark that the context menu
+// has designated with `data-ctx-target`. The building blocks below apply equally to typeset view and source text;
+// `markSource`, `validateMark` and `parseMarkAt` follow `mark_source`, `IndexMark::validate` and `parse_mark` in
+// `baruch_typst::index`, `markLabel` follows `index_mark_label` in baruch-wysiwyg (Node comparison tests in the
+// server).
 
-/** Registermarke wie `baruch_typst::index::IndexMark` (leere Zusätze fehlen). */
+/** Index mark like `baruch_typst::index::IndexMark` (empty additions are missing). */
 export interface IndexMark {
   register: string;
   term: string;
@@ -97,30 +101,30 @@ export interface IndexMark {
   sort?: string;
 }
 
-/** Arg des Befehls `index_mark`. */
+/** Arg of the command `index_mark`. */
 export interface IndexMarkCommand {
   op: "add" | "edit" | "remove";
   mark?: IndexMark;
 }
 
-/** Eingebaute Register mit Titel (wie `builtin_registers`). */
+/** Built-in indexes with title (like `builtin_registers`). */
 export const BUILTIN_REGISTERS: readonly { slug: string; title: string }[] = [
   { slug: "stichwort", title: "Stichwortregister" },
   { slug: "personen", title: "Personenregister" },
   { slug: "bibel", title: "Bibelstellenregister" },
 ];
 
-/** Längstes Feld einer Marke in Zeichen (`MAX_MARK_FIELD_CHARS`). */
+/** Longest field of a mark in characters (`MAX_MARK_FIELD_CHARS`). */
 export const MAX_MARK_FIELD_CHARS = 200;
 
 const MARK_KEYS = ["register", "term", "sub", "see", "also", "sort"] as const;
 
-/** `^[a-z][a-z0-9-]{0,31}$` (wie `valid_register_slug`). */
+/** `^[a-z][a-z0-9-]{0,31}$` (like `valid_register_slug`). */
 export function validRegisterSlug(slug: string): boolean {
   return /^[a-z][a-z0-9-]{0,31}$/.test(slug);
 }
 
-/** Marke ohne leere Zusätze, Felder in Typst-Reihenfolge. */
+/** Mark without empty additions, fields in Typst order. */
 export function cleanMark(mark: IndexMark): IndexMark {
   const out: IndexMark = { register: mark.register ?? "", term: mark.term ?? "" };
   for (const key of ["sub", "see", "also", "sort"] as const) {
@@ -130,7 +134,7 @@ export function cleanMark(mark: IndexMark): IndexMark {
   return out;
 }
 
-/** Meldung wie `IndexMark::validate`, `null` = gültig. */
+/** Message like `IndexMark::validate`, `null` = valid. */
 export function validateMark(mark: IndexMark): string | null {
   if (!validRegisterSlug(mark.register)) {
     return `Register „${mark.register}“: keine gültige Kennung (Kleinbuchstabe am Anfang, dann Kleinbuchstaben, Ziffern oder Bindestrich, höchstens 32 Zeichen).`;
@@ -165,7 +169,7 @@ function typstString(text: string): string {
   return `${out}"`;
 }
 
-/** Kanonische Typst-Form wie `mark_source`: `#metadata((register: "…", term: "…"[, sub: "…"]…))<baruch-idx>`. */
+/** Canonical Typst form like `mark_source`: `#metadata((register: "…", term: "…"[, sub: "…"]…))<baruch-idx>`. */
 export function markSource(mark: IndexMark): string {
   const parts: string[] = [];
   for (const key of MARK_KEYS) {
@@ -176,14 +180,14 @@ export function markSource(mark: IndexMark): string {
   return `#metadata((${parts.join(", ")}))<baruch-idx>`;
 }
 
-/** Titel eines Registers: eingebaut mit Titel, sonst aus `titles` (eigene Register), sonst „Register „slug““. */
+/** Title of an index: built-in with title, otherwise from `titles` (own indexes), otherwise „Register „slug““. */
 export function registerTitle(slug: string, titles: Record<string, string> = {}): string {
   const builtin = BUILTIN_REGISTERS.find((r) => r.slug === slug);
   if (builtin) return builtin.title;
   return titles[slug] ?? `Register „${slug}“`;
 }
 
-/** Beschreibung einer Marke (title/aria-label) wie `index_mark_label` in baruch-wysiwyg. */
+/** Description of a mark (title/aria-label) like `index_mark_label` in baruch-wysiwyg. */
 export function markLabel(mark: IndexMark): string {
   let label = `Registereintrag im ${registerTitle(mark.register)}: ${mark.term}`;
   if (mark.sub) label += ` › ${mark.sub}`;
@@ -192,9 +196,9 @@ export function markLabel(mark: IndexMark): string {
   return label;
 }
 
-/** Liest eine kanonische Marke ab `at` wie `parse_mark` (Leerraum um `:`/`,` und innen an den Klammern erlaubt,
- *  Schlüssel in fester Reihenfolge, register und term Pflicht, kein Leerzeichen vor dem Label, gültig nach
- *  `validateMark`). `end` = Stelle hinter der Marke (UTF-16); sonst `null`. */
+/** Reads a canonical mark from `at` like `parse_mark` (whitespace around `:`/`,` and inside at the brackets allowed,
+ *  keys in fixed order, register and term mandatory, no space before the label, valid by
+ *  `validateMark`). `end` = position behind the mark (UTF-16); otherwise `null`. */
 export function parseMarkAt(text: string, at: number): { mark: IndexMark; end: number } | null {
   let pos = at;
   const eat = (token: string) => {
@@ -270,7 +274,7 @@ export function parseMarkAt(text: string, at: number): { mark: IndexMark; end: n
   return { mark: clean, end: pos };
 }
 
-/** Alle kanonischen Marken im Text (Quelltext; Kommentare und Rohtext werden nicht ausgenommen). */
+/** All canonical marks in the text (source text; comments and raw text are not excluded). */
 export function findMarks(text: string): { start: number; end: number; mark: IndexMark }[] {
   const out: { start: number; end: number; mark: IndexMark }[] = [];
   let from = 0;
@@ -285,10 +289,10 @@ export function findMarks(text: string): { start: number; end: number; mark: Ind
   }
 }
 
-/** Wortzeichen (Buchstaben, Ziffern, Bindestrich, Apostroph im Wort). */
+/** Word characters (letters, digits, hyphen, apostrophe in the word). */
 const WORD = /[\p{L}\p{N}\p{M}_'’-]/u;
 
-/** Wort um die Stelle `pos` (Grenzen in UTF-16); kein Wort → leer an `pos`. */
+/** Word around the position `pos` (boundaries in UTF-16); no word → empty at `pos`. */
 export function wordAt(text: string, pos: number): { start: number; end: number; word: string } {
   let start = Math.max(0, Math.min(pos, text.length));
   let end = start;
@@ -297,7 +301,8 @@ export function wordAt(text: string, pos: number): { start: number; end: number;
   return { start, end, word: text.slice(start, end) };
 }
 
-/** Auswahl im Quelltext → markiertes Wort: Leerraum am Rand fällt weg, eine leere Auswahl nimmt das Wort am Cursor. */
+/** Selection in the source text → selected word: whitespace at the edge drops, an empty selection takes the word at the
+cursor. */
 export function markedWord(text: string, start: number, end: number): { start: number; end: number; word: string } {
   if (end <= start) return wordAt(text, start);
   let a = start;
@@ -307,8 +312,8 @@ export function markedWord(text: string, start: number, end: number): { start: n
   return { start: a, end: b, word: text.slice(a, b) };
 }
 
-/** Meldung, warum an der Stelle `pos` keine Marke stehen darf (Überschriftszeile, Kommentar, in einer Marke), sonst
- *  `null` – die Regeln von `insert_mark_at` im Server, soweit sie sich ohne Typst-Leser prüfen lassen. */
+/** Message why no mark may stand at the position `pos` (heading line, comment, inside a mark), otherwise
+ *  `null` – the rules of `insert_mark_at` in the server as far as they can be checked without a Typst reader. */
 export function markRefusal(text: string, pos: number): string | null {
   const lineStart = text.lastIndexOf("\n", pos - 1) + 1;
   const lineEndAt = text.indexOf("\n", pos);
@@ -321,8 +326,8 @@ export function markRefusal(text: string, pos: number): string | null {
   return null;
 }
 
-/** Marke hinter das markierte Wort in den Quelltext setzen: neuer Text, Einfügestelle, eingefügter Text und Cursor
- *  hinter der Marke – oder eine Meldung. */
+/** Put a mark behind the selected word into the source text: new text, insertion position, inserted text and cursor
+ *  behind the mark – or a message. */
 export function markInSource(
   text: string,
   start: number,
@@ -336,7 +341,7 @@ export function markInSource(
   if (word.word === "") return { error: "Bitte ein Wort markieren oder den Cursor in ein Wort setzen." };
   const refusal = markRefusal(text, word.end);
   if (refusal) return { error: refusal };
-  // Nie dieselbe Marke zweimal hinter dasselbe Wort (wie `mark_word` im Server, Nachbesserung R31).
+  // Never the same mark twice behind the same word (like `mark_word` in the server, follow-up fix R31).
   for (let pos = word.end, found = parseMarkAt(text, pos); found; pos = found.end, found = parseMarkAt(text, pos)) {
     if (MARK_KEYS.every((k) => (found!.mark[k] ?? "") === (clean[k] ?? ""))) {
       return { error: "Dieses Wort trägt diese Registermarke schon; nichts geändert." };

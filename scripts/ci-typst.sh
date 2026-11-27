@@ -1,21 +1,21 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Prüft, dass ein Typst-Export von Baruch mit der Typst-Kommandozeile setzbar ist (Backlog „typst compile“).
+# Checks that a Typst export of Baruch can be typeset with the Typst command line (backlog „typst compile“).
 #
 #   scripts/ci-typst.sh BARUCH_SERVER [TYPST]
 #
-#   BARUCH_SERVER  gebaute Binärdatei (z. B. target/debug/baruch-server)
-#   TYPST          Typst-Kommandozeile. Ohne Angabe ist es das eigene Programm unter dem Namen baruch-typst
-#                  (Symlink im Temp-Ordner – so wie die Pakete es ausliefern; nichts wird geladen). Mit einer
-#                  Angabe setzt diese Kommandozeile (z. B. ein Typst aus dem PATH als Gegenprobe). Mit
-#                  TYPST = "-" entfällt der Satz: nur Import und Export werden geprüft.
+#   BARUCH_SERVER  built binary (e.g. target/debug/baruch-server)
+#   TYPST          Typst command line. Without it, it is the own program under the name baruch-typst
+#                  (symlink in the temp directory – as the packages ship it; nothing is downloaded). With a
+#                  value this command line typesets (e.g. a Typst from the PATH as a cross-check). With
+#                  TYPST = "-" the typesetting is dropped: only import and export are checked.
 #
-# Ablauf: das erfundene Werk scripts/ci-data/leuchtturm.typ in einen frischen Datenordner importieren,
-# mit `export --out` in einen Ordner schreiben, die exportierte .typ-Datei mit `typst compile` setzen.
-# Mit dem eigenen Programm zusätzlich: `--version` nennt die Typst-Version aus Cargo.lock, `watch` wird ehrlich
-# abgelehnt (Exit 2), und ein Satzfehler endet mit Exit 1 ohne Ausgabedatei.
-# Kein Server, kein Netz, keine Verbindung zu einem Modell; der Datenordner ist ein Temp-Ordner und wird
-# am Ende gelöscht.
+# Flow: import the invented work scripts/ci-data/leuchtturm.typ into a fresh data directory,
+# write it into a directory with `export --out`, typeset the exported .typ file with `typst compile`.
+# With the own program additionally: `--version` names the Typst version from Cargo.lock, `watch` is honestly
+# refused (exit 2), and a typesetting error ends with exit 1 without an output file.
+# No server, no network, no connection to a model; the data directory is a temp directory and is
+# deleted at the end.
 set -eu
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
@@ -35,7 +35,7 @@ out="$work/export"
 
 own=0
 if [ -z "$typst" ]; then
-    # Das eigene Programm als Typst: derselbe Name und derselbe Weg (Symlink) wie in den Paketen.
+    # The own program as Typst: the same name and the same way (symlink) as in the packages.
     own=1
     mkdir "$work/bin"
     ln -s "$server" "$work/bin/baruch-typst"
@@ -49,7 +49,7 @@ fi
 cat "$work/import.txt"
 slug="$(sed -n 's/^Ordnername: //p' "$work/import.txt")"
 [ -n "$slug" ] || { echo "ci-typst.sh: der Import nennt keinen Ordnernamen." >&2; exit 1; }
-# Die Probe hat sechs Überschriften; kämen weniger an, prüfte der Satz unten nicht das ganze Werk.
+# The sample has six headings; if fewer arrived, the typesetting below would not check the whole work.
 grep -qx 'Abschnitte: 6' "$work/import.txt" \
     || { echo "ci-typst.sh: erwartet waren 6 Abschnitte (scripts/ci-data/leuchtturm.typ)." >&2; exit 1; }
 
@@ -57,7 +57,7 @@ grep -qx 'Abschnitte: 6' "$work/import.txt" \
 count="$(find "$out" -maxdepth 1 -name '*.typ' | wc -l)"
 [ "$count" -eq 1 ] || { echo "ci-typst.sh: erwartet war genau eine .typ-Datei in $out, gefunden: $count." >&2; exit 1; }
 main="$(find "$out" -maxdepth 1 -name '*.typ')"
-# Der Export muss den Text tragen, nicht nur die Vorlage.
+# The export must carry the text, not only the template.
 grep -q 'einhundertvierzehn' "$main" || { echo "ci-typst.sh: der Export enthält den Text der Probe nicht." >&2; exit 1; }
 
 if [ "$typst" = "-" ]; then
@@ -66,7 +66,7 @@ if [ "$typst" = "-" ]; then
 fi
 "$typst" --version
 if [ "$own" = 1 ]; then
-    # Die Zeile muss die Version des eingebetteten Compilers nennen (Crate `typst` in Cargo.lock).
+    # The line must name the version of the embedded compiler (crate `typst` in Cargo.lock).
     locked="$(awk '
         $0 == "name = \"typst\"" { hit = 1; next }
         hit && /^version = / { gsub(/[" ]/, "", $0); sub(/^version=/, "", $0); print; exit }
@@ -78,10 +78,10 @@ if [ "$own" = 1 ]; then
     esac
 fi
 "$typst" compile --root "$out" "$main" "$work/leuchtturm.pdf"
-# `typst compile` endet bei einem Satzfehler mit Exit ≠ 0 (set -e); zusätzlich: Es ist wirklich ein PDF entstanden.
+# `typst compile` ends with exit ≠ 0 on a typesetting error (set -e); additionally: a PDF has really been created.
 [ "$(head -c 5 "$work/leuchtturm.pdf")" = "%PDF-" ] || { echo "ci-typst.sh: Ergebnis ist kein PDF." >&2; exit 1; }
 if [ "$own" = 1 ]; then
-    # Gegenproben: Ein grüner Satz oben wäre wertlos, wenn das Programm alles mit Exit 0 quittierte.
+    # Cross-checks: a green typesetting above would be worthless if the program acknowledged everything with exit 0.
     rc=0
     "$typst" watch "$main" > "$work/watch.txt" 2>&1 || rc=$?
     [ "$rc" = 2 ] || { echo "ci-typst.sh: watch müsste mit Exit 2 abgelehnt werden (Exit $rc)." >&2; exit 1; }

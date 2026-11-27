@@ -1,14 +1,15 @@
-{#- Seite /werke/{id}/bearbeiten: Metadaten und Werkvorlage ändern (POST /werke/act, action=update),
-    Fassungsliste der Werkvorlage; ?vorlage=n zeigt eine ältere Fassung zum Lesen. Geht ohne
-    JavaScript. Kontext: settings, work (WorkMeta, Runde 26 mit uuid – nur Anzeige), values (Formularwerte), kind_label, revisions
-    [{number, author, note, created, current, shown}], old {number, body}?, error, back_url, back.
-    Runde 9: Die Kopfzeile kommt aus base.html (Blöcke page_title, page_actions); der Formularteil steht
-    in {% block content %}, den auch die Einstellungsseite „Werk“ zeigt (crate::settings, render_block).
-    back (nur dort): Rücksprung nach dem Speichern, als verstecktes Feld. -#}
+{#- Page /werke/{id}/bearbeiten: change metadata and work template (POST /werke/act, action=update),
+    revision list of the work template; ?vorlage=n shows an older revision for reading. Works without
+    JavaScript. Context: settings, work (WorkMeta, Round 26 with uuid – display only), values (form values), kind_label,
+    revisions [{number, author, note, created, current, shown}], old {number, body}?, error, back_url, back.
+    Round 9: the header comes from base.html (blocks page_title, page_actions); the form part stands
+    in {% block content %}, which the settings page „Werk“ shows as well (crate::settings, render_block).
+    back (only there): return after saving, as a hidden field. -#}
 {% extends "base.html" %}
 {% block title %}{{ work.title }} ändern – Baruch{% endblock %}
 {% block page_title %}{{ work.title }} ändern{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

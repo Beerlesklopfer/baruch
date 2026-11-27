@@ -1,22 +1,24 @@
-{#- Seite /faden (Runde 15): ein Faden ohne Abschnitt mit allen Beiträgen (älteste zuerst) und dem
-    Antwortformular an POST /faden/act (ohne JavaScript; der Mensch ist Autor, erwähnte Personas antworten).
-    Personas tragen ihre Farbe (e.style, nur geprüfte #rrggbb über personas::style). Kontext: settings,
+{#- Page /faden (Round 15): a thread without a section with all posts (oldest first) and the
+    answer form to POST /faden/act (without JavaScript; the human is the author, mentioned personas answer).
+    Personas carry their colour (e.style, only checked #rrggbb through personas::style). Context: settings,
     work {id, title}, thread {id, title, created_by, posts, …}, entries [{id, author, body, created, style,
-    persona, mcp, own, edited, versions, quote_url}], personas [{handle, name}], notice, draft (Text nach einem Fehler
-    bzw. das Zitat), list_url, work_url.
-    Runde 28 (chat-auftrag): Die Beiträge rollen in einem Bereich begrenzter Höhe (static/threads.css), Anker
-    id="beitrag-<id>" je Beitrag und id="chat-neueste" am Ende (dorthin führt die Weiterleitung nach dem Antworten).
-    Je Beitrag „Kopieren“ (nur mit JavaScript), „Zitieren“ (Link ?zitat=<id>#antwort: die Antwort beginnt mit „> …“,
-    auch ohne JavaScript), bei eigenen Beiträgen (e.own) „Bearbeiten“ an POST /faden/bearbeiten und der Verlauf.
-    „RFC …“ am Anfang bzw. „@alle“ ruft alle aktiven Personas (Lektor zuletzt mit Sammlung).
-    Runde 30c (chat-bedienung): Jeder Beitrag aus dem Makro thread_entry (fragments/post_item.html): Markdown-Teilset mit
-    geprüften Links und Befund-Blöcken, „antwortet auf Beitrag n von @…“, ↻ Wiederholen und ✕ Löschen (ohne JavaScript
-    als Formulare an POST /faden/act). Mit JavaScript holt das Widget „threads“ neue Beiträge, „@x schreibt …“ und Fehler
-    über thread.since (div.chat-live). Die Anrede mit Namen am Satzanfang („Lektor, …“) ruft eine Persona wie @handle. -#}
+    persona, mcp, own, edited, versions, quote_url}], personas [{handle, name}], notice, draft (text after an error
+    or the quotation), list_url, work_url.
+    Round 28 (chat-auftrag): the posts scroll in an area of limited height (static/threads.css), anchor
+    id="beitrag-<id>" per post and id="chat-neueste" at the end (the redirect after answering leads there).
+    Per post „Kopieren“ (only with JavaScript), „Zitieren“ (link ?zitat=<id>#antwort: the answer starts with „> …“,
+    also without JavaScript), for own posts (e.own) „Bearbeiten“ to POST /faden/bearbeiten and the history.
+    „RFC …“ at the beginning or „@alle“ calls all active personas (the lector last, with a summary).
+    Round 30c (chat-bedienung): every post from the macro thread_entry (fragments/post_item.html): Markdown subset with
+    checked links and finding blocks, „antwortet auf Beitrag n von @…“, ↻ Wiederholen and ✕ Löschen (without JavaScript
+    as forms to POST /faden/act). With JavaScript the widget „threads“ fetches new posts, „@x schreibt …“ and errors
+    through thread.since (div.chat-live). The address by name at the start of a sentence („Lektor, …“) calls a persona
+    like @handle. -#}
 {% extends "base.html" %}
 {% block title %}{{ thread.title }} – Faden – Baruch{% endblock %}
 {% block page_title %}Faden · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ list_url }}">Alle Fäden</a>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Einstieg: Widgets registrieren und in die vom Server gelieferte Seite einhängen.
+// Entry point: register widgets and mount them into the page supplied by the server.
 
 import "./assist.js";
 import "./band.js";

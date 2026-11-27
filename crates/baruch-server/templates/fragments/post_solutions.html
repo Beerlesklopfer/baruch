@@ -1,13 +1,13 @@
-{#- Lösungen eines Beitrags mit „Als Vorschlag übernehmen“ (Runde 30b, chat-loesungen). Eingebunden von chat-bedienung
-    (fragments/assistants.html, post_item.html, thread.html) mit
-      post – Beitrag mit `id` und `solutions` (Liste aus crate::assist::solutions::post_solutions: index, quote,
+{#- Solutions of a post with „Als Vorschlag übernehmen“ (Round 30b, chat-loesungen). Included by chat-bedienung
+    (fragments/assistants.html, post_item.html, thread.html) with
+      post – post with `id` and `solutions` (list from crate::assist::solutions::post_solutions: index, quote,
              replacement, step, adoptable),
-      work – Werk-id oder Werk mit `id`, node – Schlüssel oder Abschnitt mit `key`, rev – gezeigte Fassungsnummer oder
-             Fassung mit `number` (leer = Prüfgrundlage des Beitrags).
-    Übernehmbar (Häkchen) ist eine Lösung mit neuer Formulierung, deren Zitat in der gezeigten Fassung steht; mehrere
-    zugleich wählbar. „Als Vorschlag übernehmen“ legt einen Vorschlag an (Herkunft die Persona, Notiz „Lösung aus
-    Beitrag n“) und schlägt die Befunde „übernommen in Fassung n“ vor; übernehmen bleibt beim Menschen. „Lösungen
-    umsetzen“ lässt den Lektor 2 oder 3 Varianten schreiben. Beide Formulare gehen ohne JavaScript an
+      work – work id or work with `id`, node – key or section with `key`, rev – shown revision number or
+             revision with `number` (empty = review basis of the post).
+    Adoptable (checkbox) is a solution with a new wording whose quotation stands in the shown revision; several
+    can be chosen at once. „Als Vorschlag übernehmen“ creates a proposal (origin the persona, note „Lösung aus
+    Beitrag n“) and proposes the findings as „übernommen in Fassung n“; adopting stays with the human. „Lösungen
+    umsetzen“ lets the lector write 2 or 3 variants. Both forms go without JavaScript to
     POST /loesungen/act (303). -#}
 {% macro post_solutions(post, work, node, rev) %}
 {%- set wid = work.id if work is mapping else work %}

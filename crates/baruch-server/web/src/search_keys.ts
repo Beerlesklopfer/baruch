@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Tastenbelegung der Suche nach VS Code (Runde 30a, Vertrag §3.1): reine Funktion keyAction(e, ctx) -> Action | null,
-// ohne DOM (unter Node geprüft, tests/round30_suchen.rs). search.ts ruft sie im keydown-Listener am Dokument.
+// Key bindings of the search following VS Code (Round 30a, contract §3.1): pure function keyAction(e, ctx) -> Action
+// | null, without DOM (checked under Node, tests/round30_suchen.rs). search.ts calls it in the keydown listener on the
+// document.
 //
-// - Strg+F / Strg+H: Suchen bzw. Ersetzen im Abschnitt (nur auf der Arbeitsseite, nicht im Chat-Eingabefeld);
-// - Strg+Umschalt+F / Strg+Umschalt+H: Werk-Suche bzw. Werk-Ersetzen (Seitenleiste; außerhalb der Arbeitsseite
-//   navigiert search.ts nach /suche);
-// - Enter (in der Suchleiste) oder F3 (Leiste offen): nächster Treffer; Umschalt+Enter / Umschalt+F3: voriger;
-// - Strg+Umschalt+1: aktuellen Treffer ersetzen; Strg+Alt+Enter: alle ersetzen (Leiste offen);
-// - Alt+C, Alt+W, Alt+R: Groß/klein, ganzes Wort, regulärer Ausdruck – nur mit Fokus in der Suchleiste;
-// - Alt+L: nur in der Markierung suchen (ein/aus; die Markierung im Quelltext beim Einschalten) – ebenso;
-// - Escape: Leiste schließen.
-// Strg gilt auch als Cmd (macOS, metaKey). Buchstaben über `code` (KeyF …) oder `key`, damit Belegungen mit anderer
-// Umschalt-Ebene (Umschalt+1 = „!“) gehen.
+// - Ctrl+F / Ctrl+H: search or replace in the section (only on the workspace page, not in the chat input field);
+// - Ctrl+Shift+F / Ctrl+Shift+H: work search or work replace (sidebar; outside the workspace page
+//   search.ts navigates to /suche);
+// - Enter (in the search bar) or F3 (bar open): next hit; Shift+Enter / Shift+F3: previous;
+// - Ctrl+Shift+1: replace the current hit; Ctrl+Alt+Enter: replace all (bar open);
+// - Alt+C, Alt+W, Alt+R: case, whole word, regular expression – only with the focus in the search bar;
+// - Alt+L: search only in the selection (on/off; the selection in the source text when switching on) – likewise;
+// - Escape: close the bar.
+// Ctrl also counts as Cmd (macOS, metaKey). Letters through `code` (KeyF …) or `key` so that layouts with another
+// shift level (Shift+1 = „!“) work.
 
 export type Action =
   | "find-section"
@@ -38,25 +39,25 @@ export interface KeyLike {
 }
 
 export interface KeyContext {
-  /// Fokus im Editor (Satzbild oder Textfeld des Abschnitts).
+  /// Focus in the editor (typeset view or text field of the section).
   inEditor: boolean;
-  /// Fokus in der Suchleiste (Eingabe oder Knöpfe).
+  /// Focus in the search bar (input or buttons).
   inSearch: boolean;
-  /// Auf der Arbeitsseite (mit Editor).
+  /// On the workspace page (with editor).
   onWorkspace: boolean;
-  /// Fokus im Chat-Eingabefeld (dort bleibt Strg+F dem Browser).
+  /// Focus in the chat input field (there Ctrl+F stays with the browser).
   inChat?: boolean;
-  /// Suchleiste geöffnet.
+  /// Search bar opened.
   searchOpen?: boolean;
 }
 
-/// Buchstabe der Taste (klein), über `code` (KeyF → f) oder `key`.
+/// Letter of the key (lower case), through `code` (KeyF → f) or `key`.
 function letter(e: KeyLike): string {
   if (e.code && /^Key[A-Z]$/.test(e.code)) return e.code.slice(3).toLowerCase();
   return e.key.length === 1 ? e.key.toLowerCase() : "";
 }
 
-/// Aktion zur Taste oder `null` (dann bleibt die Taste dem Browser bzw. dem Editor).
+/// Action for the key or `null` (then the key stays with the browser or the editor).
 export function keyAction(e: KeyLike, ctx: KeyContext): Action | null {
   const ctrl = e.ctrlKey || e.metaKey;
   const open = ctx.searchOpen === true || ctx.inSearch;

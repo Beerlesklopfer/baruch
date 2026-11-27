@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widgets der einzelnen Bereiche: Spaltengrenzen, Thema, Editor, Gliederung, Akkordeon (Chat: chat.ts).
+// Widgets of the individual areas: column borders, theme, editor, outline, accordion (chat: chat.ts).
 
 import { convertLineAt, convertText } from "./markdown.js";
 import { editorLocked, register, store, submitButton } from "./widgets.js";
 
-// ---- splitter: Spaltenbreite ziehen (Maus) oder mit ←/→ verstellen (Tastatur) ------------
+// ---- splitter: drag the column width (mouse) or adjust it with ←/→ (keyboard) ------------
 register("splitter", (bar) => {
   const side = bar.dataset.side === "right" ? "right" : "left";
   const variable = `--${side}`;
@@ -47,9 +47,9 @@ register("splitter", (bar) => {
 });
 
 // ---- theme: System → Hell → Dunkel ------------------------------------------------------
-// Kleiner Umschalter in der Kopfzeile (base.html, Runde 9): Zeichen aus data-auto/-light/-dark, der
-// Name des Themas steht im title. Die Einstellungen (Seite „Darstellung“) setzen das Cookie
-// baruch_theme selbst und melden `baruch:settings-changed`; dann wird es hier neu gelesen.
+// Small toggle in the header (base.html, Round 9): signs from data-auto/-light/-dark, the
+// name of the theme stands in the title. The settings (page „Darstellung“) set the cookie
+// baruch_theme themselves and report `baruch:settings-changed`; then it is read anew here.
 register("theme", (button) => {
   const modes = ["auto", "light", "dark"] as const;
   type Mode = (typeof modes)[number];
@@ -74,11 +74,12 @@ register("theme", (button) => {
   document.addEventListener("baruch:settings-changed", () => show(saved()));
 });
 
-// ---- editor: Speichern erst nach einer Änderung; Strg+S speichert ------------------------
-// Wunsch 2026-11-27 („Strg+S als normales Speichern“): Strg+S (⌘+S) gilt überall auf der Seite mit dem Editor, nicht
-// nur im Textfeld – auch mit dem Fokus in der Gliederung, im Menüband oder im Chat; der Dialog „Seite speichern“ des
-// Browsers erscheint dort nie. Ohne Änderung oder während ein Speichern läuft geschieht nichts. Danach bleibt die
-// Stelle im Text (place.ts über lockEditor). Ein Hörer am Dokument für alle Editoren (auch Satzbild).
+// ---- editor: saving only after a change; Ctrl+S saves ------------------------------------
+// Wish 2026-11-27 („Strg+S als normales Speichern“): Ctrl+S (⌘+S) applies everywhere on the page with the editor,
+// not only in the text field – also with the focus in the outline, in the ribbon or in the chat; the dialog "save
+// page" of the browser never appears there. Without a change or while a save is running nothing happens. Afterwards
+// the place in the text stays (place.ts through lockEditor). One listener on the document for all editors (also the
+// typeset view).
 document.addEventListener("keydown", (event) => {
   if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "s") return;
   if (event.defaultPrevented) return;
@@ -103,13 +104,13 @@ register("editor", (element) => {
   };
   area.addEventListener("input", update);
   area.addEventListener("keydown", (event) => {
-    // Markdown-Überschrift (`# Titel`) wird beim Abschluss der Zeile mit Enter zur Typst-Überschrift;
-    // danach fügt der Browser den Zeilenumbruch ein (Regel und Ausnahmen in markdown.ts).
+    // A Markdown heading (`# Titel`) becomes a Typst heading when the line is completed with Enter;
+    // afterwards the browser inserts the line break (rule and exceptions in markdown.ts).
     if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
       if (convertLineAt(area)) update();
     }
   });
-  // Beim Verlassen des Textfelds alle Zeilen umwandeln (wie der Server beim Speichern).
+  // On leaving the text field convert all lines (like the server on saving).
   area.addEventListener("blur", () => {
     const converted = convertText(area.value);
     if (converted !== area.value) {
@@ -120,7 +121,7 @@ register("editor", (element) => {
   update();
 });
 
-// ---- tree: zugeklappte Teile und Kapitel merken (der Server zeichnet sie zugeklappt) ------
+// ---- tree: remember collapsed parts and chapters (the server draws them collapsed) --------
 register("tree", (tree) => {
   tree.querySelectorAll<HTMLDetailsElement>("details[data-node]").forEach((details) => {
     details.addEventListener("toggle", () => {
@@ -130,11 +131,11 @@ register("tree", (tree) => {
       store.set("closed", closed.length ? closed.join(".") : null);
     });
   });
-  // Klick auf den Eintrag wählt aus (workspace verhindert dabei das Klappen); der Pfeil klappt.
+  // A click on the entry selects (workspace prevents the folding then); the arrow folds.
 });
 
-// ---- accordion: immer ein Abschnitt offen, Wahl merken -----------------------------------
-// `<details name>` schließt die anderen selbst; ältere Browser bekommen es hier nachgebaut.
+// ---- accordion: always one part open, remember the choice --------------------------------
+// `<details name>` closes the others itself; older browsers get it rebuilt here.
 register("accordion", (accordion) => {
   const sections = [...accordion.querySelectorAll<HTMLDetailsElement>(":scope > details[data-section]")];
   for (const section of sections) {
@@ -145,11 +146,11 @@ register("accordion", (accordion) => {
         const chat = section.querySelector<HTMLElement>(".chat");
         if (chat) chat.scrollTop = chat.scrollHeight;
       } else if (!sections.some((s) => s.open)) {
-        // Nie alle zu: der zuletzt geschlossene bleibt offen.
+        // Never all closed: the one closed last stays open.
         section.open = true;
       }
     });
   }
 });
 
-// ---- chat: siehe chat.ts (ans Ende rollen, neue Beiträge seit dem letzten Besuch) ----------
+// ---- chat: see chat.ts (scroll to the end, new posts since the last visit) -----------------

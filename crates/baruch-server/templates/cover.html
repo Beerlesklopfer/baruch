@@ -1,21 +1,23 @@
-{#- Seite /werke/{id}/umschlag (Runde 11, src/cover.rs): der ganze Umschlag als Vorschau (Rückseite |
-    Rücken | Vorderseite, SVG unter /werke/{id}/umschlag.svg), Maße, Druckprüfung, Link zum PDF und die
-    Formulare (Umschlag, Buchangaben). Geht ohne JavaScript. Kontext: settings, work {id, title}, notice?,
-    preview? (Stand für die Bildadresse), facts {width, height, spine, bleed, page_width, page_height,
-    pages, cover_pages, book_pages, sheets, sheet_mm (Runde 20c: Dicke je Blatt)}?, diagnostics [{label, message, file, line}], print_warnings [Text],
-    preview_error?, panel (fertiges HTML).
-    Runde 27c (Umschlag-Editor): preview_query (Abfrage b.…=… der Vorschau, leer = gespeichert) und editor
-    {available, reason?, error?, preview, layout_json (Antwort von cover.layout), stored, area, default_font, ratio
+{#- Page /werke/{id}/umschlag (Round 11, src/cover.rs): the whole cover as a preview (back |
+    spine | front, SVG under /werke/{id}/umschlag.svg), dimensions, print check, link to the PDF and the
+    forms (cover, book details). Works without JavaScript. Context: settings, work {id, title}, notice?,
+    preview? (state for the image address), facts {width, height, spine, bleed, page_width, page_height,
+    pages, cover_pages, book_pages, sheets, sheet_mm (Round 20c: thickness per sheet)}?, diagnostics [{label, message,
+    file, line}], print_warnings [text],
+    preview_error?, panel (finished HTML).
+    Round 27c (cover editor): preview_query (query b.…=… of the preview, empty = stored) and editor
+    {available, reason?, error?, preview, layout_json (answer of cover.layout), stored, area, default_font, ratio
     ("B / H" in mm), blocks [{kind, label, name, face, face_label, aria, stored, own_text, spine, visible, left, top,
-    width, height (Prozent des Gesamtumschlags), values {feld: Text}}], guides [{kind, label, left, top, width,
-    height}], warnings [{code, block?, message}], faces [{name, label}], fonts [Name], work, back}. Über der Vorschau
-    liegen die Rahmen der Blöcke und die Hilfslinien; die Seitenleiste ist das Formular (ohne JavaScript: Vorschau per
-    GET, Übernehmen per POST /werke/umschlag/anordnung). Das Widget cover-editor (web/src/cover_editor.ts) macht die
-    Rahmen ziehbar und speichert über RPC. -#}
+    width, height (percent of the whole cover), values {field: text}}], guides [{kind, label, left, top, width,
+    height}], warnings [{code, block?, message}], faces [{name, label}], fonts [name], work, back}. Above the preview
+    lie the frames of the blocks and the guide lines; the sidebar is the form (without JavaScript: preview by
+    GET, apply by POST /werke/umschlag/anordnung). The widget cover-editor (web/src/cover_editor.ts) makes the
+    frames draggable and saves through RPC. -#}
 {% extends "base.html" %}
 {% block title %}Umschlag – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Umschlag{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Herunterladen</summary><div class="band-items" role="group" aria-label="Herunterladen">

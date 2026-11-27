@@ -1,16 +1,17 @@
-{#- Seite /beitraege (Runde 28, chat-auftrag): die ganze Chat-Historie eines Abschnitts, älteste zuerst, ohne
-    JavaScript. Anker id="post-<id>" je Beitrag und id="chat-neueste" am Ende (Links landen beim neuesten Beitrag).
-    Je Beitrag der Link „Beitrag öffnen“ (/beitrag: Kopieren aus einem markierbaren Feld, Zitieren, Bearbeiten
-    eigener Beiträge, Verlauf); am Ende das Chat-Formular an POST /assistenten/act (wie im Abschnitt).
-    Kontext: settings, work {id, title}, node {key, title}, posts [{id, author, body, time, edited, style, own,
-    persona, sources, url, anchor_url}], personas [{handle, name}] (aktiv), node_url.
-    Runde 30c (chat-bedienung): Text über das Makro post_item (Markdown-Teilset, Links, Befund-Blöcke, Kopf „geprüft: …“),
-    je Beitrag ↻ Wiederholen (Formular an POST /beitraege/act, method post.repeat, gegen die aktuelle Fassung) und ✕ Löschen
-    (Link auf /beitrag#loeschen). -#}
+{#- Page /beitraege (Round 28, chat-auftrag): the whole chat history of a section, oldest first, without
+    JavaScript. Anchor id="post-<id>" per post and id="chat-neueste" at the end (links land at the newest post).
+    Per post the link „Beitrag öffnen“ (/beitrag: copying from a selectable field, quoting, editing
+    own posts, history); at the end the chat form to POST /assistenten/act (as in the section).
+    Context: settings, work {id, title}, node {key, title}, posts [{id, author, body, time, edited, style, own,
+    persona, sources, url, anchor_url}], personas [{handle, name}] (active), node_url.
+    Round 30c (chat-bedienung): text through the macro post_item (Markdown subset, links, finding blocks, head „geprüft:
+    …“), per post ↻ Wiederholen (form to POST /beitraege/act, method post.repeat, against the current revision) and ✕
+    Löschen (link to /beitrag#loeschen). -#}
 {% extends "base.html" %}
 {% block title %}Chat-Historie – {{ node.title }} – Baruch{% endblock %}
 {% block page_title %}Chat-Historie · {{ work.title }}{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="{{ node_url }}" data-back>Zurück zum Abschnitt</a>

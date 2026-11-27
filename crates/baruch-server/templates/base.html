@@ -7,27 +7,27 @@
   <title>{% block title %}Baruch{% endblock %}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
-  {#- Runde 36: vw.js ist ein klassisches Skript (kein Modul) und läuft vor dem ersten Zeichnen – es berichtigt die
-      Breitenklasse (Cookie baruch_vw, Attribute an <html>), wenn das Fenster seit dem letzten Besuch anders groß ist. #}
+  {#- Round 36: vw.js is a classic script (not a module) and runs before the first paint – it corrects the
+      width class (cookie baruch_vw, attributes on <html>) when the window has a different size since the last visit. #}
   {% block scripts %}<script src="/static/js/vw.js"></script><script type="module" src="/static/js/main.js"></script>{% endblock %}
 </head>
 <body>
-{#- Menüband aller Seiten (Runde 33, src/band.rs, web/src/band.ts; löst die Kopfzeile mit Werk ▾/Ansicht ▾/Werkzeuge ▾
-    der Runde 9 ab). Zeile 1: Menü „Baruch ▾“ (Programm: Werke, Import, Austausch einlesen, Einstellungen, Über),
-    Reiterzeile, Werkwahl, Titel der Seite, Autor. Zeile 2: je Reiter ein Feld mit Gruppen und – nur auf der
-    Arbeitsseite – der Andockplatz für die Knöpfe des Editors (fragments/edit_toolbar.html; band.ts hängt sie um).
-    Seiten liefern {% block page_title %}, den Vorgabe-Reiter {% block band_tab %} und ihre Gruppen über
+{#- Ribbon of all pages (Round 33, src/band.rs, web/src/band.ts; replaces the header with Werk ▾/Ansicht ▾/Werkzeuge ▾
+    of Round 9). Row 1: menu „Baruch ▾“ (program: Werke, Import, Austausch einlesen, Einstellungen, Über),
+    tab row, work selection, title of the page, author. Row 2: per tab one panel with groups and – only on the
+    workspace page – the docking place for the buttons of the editor (fragments/edit_toolbar.html; band.ts moves them).
+    Pages supply {% block page_title %}, the default tab {% block band_tab %} and their groups through
     {% block page_actions %} (Start), band_einfuegen, band_pruefen, band_buch, band_ansicht.
-    Daten in dieser Rangfolge: `topbar` (nur die Arbeitsseite, menu::workspace_topbar), `work.id`, wenn `work` eine
-    Abbildung ist, das Werk aus dem Cookie baruch_work (`settings.work`). Reiter: Arbeitsseite alle fünf, mit Werk
-    Start · Prüfen · Buch · Ansicht, ohne Werk Start · Ansicht.
-    Alles sind gewöhnliche Links, <details> und Formulare (ohne JavaScript bedienbar). Die Vorlage kennt weder die
-    Adresse noch ?tab=: Die Schicht consent::inject setzt über band::apply im fertigen HTML den aktiven Reiter
-    (data-tab, aria-selected, hidden am Feld), die Adressen der Reiter mit dem Rest der Abfrage, Band auf/zu und den
-    Laptop-Zustand ein. DARUM SIND DIE FORMEN UNTEN WÖRTLICH (Reihenfolge der Attribute!): Reiter, Feld, Gruppe
-    (`… data-band-group open>`), Band-Schalter, Laptop-Schalter, Seitenleisten – siehe src/band.rs.
-    Je Seite höchstens ein Element mit data-literature-open, data-idea-open, data-work-import-open,
-    data-view-toggle und (im Band) data-settings-open (die Widgets nehmen querySelector). #}
+    Data in this order of precedence: `topbar` (only the workspace page, menu::workspace_topbar), `work.id` if `work` is
+    a map, the work from the cookie baruch_work (`settings.work`). Tabs: workspace page all five, with a work
+    Start · Prüfen · Buch · Ansicht, without a work Start · Ansicht.
+    Everything is ordinary links, <details> and forms (usable without JavaScript). The template knows neither the
+    address nor ?tab=: the layer consent::inject uses band::apply to set, in the finished HTML, the active tab
+    (data-tab, aria-selected, hidden on the panel), the addresses of the tabs with the rest of the query, ribbon
+    open/closed and the laptop state. THEREFORE THE SHAPES BELOW ARE LITERAL (order of the attributes!): tab, panel,
+    group (`… data-band-group open>`), ribbon switch, laptop switch, sidebars – see src/band.rs.
+    Per page at most one element with data-literature-open, data-idea-open, data-work-import-open,
+    data-view-toggle and (in the ribbon) data-settings-open (the widgets use querySelector). #}
 {% block topbar -%}
 {%- set tb = topbar if topbar is defined and topbar else none %}
 {%- set w = tb.work.id if tb else (work.id if work is mapping and work.id else (settings.work if settings is defined and settings and settings.work else none)) %}
@@ -35,16 +35,16 @@
 {%- set proposals = tb.badges.open_proposals if tb else 0 %}
 {%- set open_findings = tb.badges.open_findings if tb else 0 %}
 {%- set no_js = scriptless is defined and scriptless %}
-{#- Runde 35 (Konten und Rollen): Was ein Lektor nicht nutzen kann, trägt als letzte Klasse `nur-autor` (Einträge)
-    bzw. das Attribut `data-nur-autor` (Gruppen – ihr class-Attribut muss wörtlich bleiben, siehe unten); beides
-    blendet static/konten.css für body[data-rolle="lektor"] aus, ohne Konten nimmt konten_ui::apply die Kennzeichen
-    wieder heraus. Auf der Arbeitsseite kennt die Vorlage die Rolle (`lektor` aus view.rs): Dort fehlen Reiter und
-    Feld „Einfügen“ für Lektoren ganz. #}
+{#- Round 35 (accounts and roles): what a Lektor cannot use carries `nur-autor` as its last class (entries)
+    or the attribute `data-nur-autor` (groups – their class attribute must stay literal, see below); both are
+    hidden by static/konten.css for body[data-rolle="lektor"], without accounts konten_ui::apply takes the marks
+    out again. On the workspace page the template knows the role (`lektor` from view.rs): there the tab and
+    panel „Einfügen“ are missing entirely for Lektors. #}
 {%- set lektor_view = lektor is defined and lektor %}
-{#- Runde 23a: Außerhalb der Arbeitsseite kennt die Vorlage die Zahlen nicht. Die Abzeichen tragen dann
-    `data-badge-fill`, die Menüleiste das Werk (`data-badges-work`); die Schicht consent::inject lässt
-    menu::fill_badges die Zahlen im fertigen HTML einsetzen – auch ohne JavaScript (menu.ts frischt nur noch auf).
-    Runde 33: Die Abzeichen stehen an den Reitern (Start: offene Vorschläge, Prüfen: „N offen“, Buch: Anträge). #}
+{#- Round 23a: outside the workspace page the template does not know the numbers. The badges then carry
+    `data-badge-fill`, the menu bar the work (`data-badges-work`); the layer consent::inject lets
+    menu::fill_badges put the numbers into the finished HTML – also without JavaScript (menu.ts only refreshes).
+    Round 33: the badges sit on the tabs (Start: open proposals, Prüfen: „N offen“, Buch: requests). #}
 {%- set fill = " data-badge-fill" if (not tb and w) else "" %}
 <header class="band" data-widget="band" data-tab=""{% if w %} data-work="{{ w }}"{% endif %}>
   <div class="band-top">
@@ -53,37 +53,40 @@
         <summary class="btn" aria-haspopup="menu" title="Programm: Werke, Import, Einstellungen">Baruch ▾</summary>
         <div class="menu-list" role="menu">
           <a class="menu-item" role="menuitem" href="/werke">Alle Werke</a>
-          {#- Auf der Arbeitsseite öffnet der Eintrag mit JavaScript den Dialog unten (works.ts). #}
+          {#- On the workspace page the entry opens the dialog below with JavaScript (works.ts). #}
           <a class="menu-item nur-autor" role="menuitem" href="/werke/neu"{% if tb %} data-work-import-open aria-haspopup="dialog" aria-controls="work-import"{% endif %}>Neues Werk / Importieren…</a>
-          {#- Runde 21a: PDF oder EPUB lesen, Gliederung prüfen, als Werk oder Quelle übernehmen (src/pdf_import/); mit und ohne Werk. #}
+          {#- Round 21a: read a PDF or EPUB, check the outline, adopt it as a work or a source (src/pdf_import/); with
+          and without a work. #}
           <a class="menu-item nur-autor" role="menuitem" href="/werke/import/quelle" title="PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen">PDF oder EPUB importieren…</a>
           {#- R32-PLATZ import-word -#}
           <a class="menu-item nur-autor" role="menuitem" href="/werke/import/word" title="Word-Datei lesen, Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen">Word (.docx) importieren…</a>
-          {#- Runde 26: Austausch zwischen Baruch-Instanzen (src/exchange/). #}
+          {#- Round 26: exchange between Baruch instances (src/exchange/). #}
           <a class="menu-item nur-autor" role="menuitem" href="/austausch/einlesen{% if w %}?work={{ w }}{% endif %}" title="Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)">Austausch: Einlesen…</a>
           {%- if no_js %}
-          {#- Seite ohne main.js (Satz-Seite, Nachbesserung Runde 18): Einstellungen ohne Dialog und ohne Alt+,
-              (beides bräuchte main.js). #}
+          {#- Page without main.js (typeset page, follow-up fix Round 18): settings without dialog and without Alt+,
+              (both would need main.js). #}
           <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" title="Einstellungen">⚙ Einstellungen</a>
           {%- else %}
           <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="Einstellungen (Alt+,)" data-shortcut="Alt+,">⚙ Einstellungen</a>
           {%- endif %}
-          {#- Runde 37: Hilfe auf der Webseite (about::HELP_URL). Ein gewöhnlicher Link in ein neues Fenster, ohne
-              JavaScript bedienbar, ohne nur-autor (auch Lektoren sehen ihn); keine Route, kein Eintrag in roles. #}
+          {#- Round 37: help on the website (about::HELP_URL). An ordinary link into a new window, usable without
+              JavaScript, without nur-autor (Lektors see it too); no route, no entry in roles. #}
           <a class="menu-item" role="menuitem" href="https://baruch.bernau.family/hilfe/" target="_blank" rel="noopener noreferrer" title="Hilfe mit Bildern auf der Webseite von Baruch (öffnet ein neues Fenster, braucht das Internet)">Hilfe</a>
-          {#- Runde 24: Über Baruch (Seite /ueber, src/about.rs) – Version, Lizenz, Quellcode. Ein gewöhnlicher Link,
-              auf jeder Seite und ohne JavaScript erreichbar; das Werk bleibt im Cookie, die Seite braucht es nicht. #}
+          {#- Round 24: about Baruch (page /ueber, src/about.rs) – version, licence, source code. An ordinary link,
+              reachable on every page and without JavaScript; the work stays in the cookie, the page does not need it.
+              #}
           <a class="menu-item" role="menuitem" href="/ueber" title="Version, Lizenz, Quellcode und Bibliotheken Dritter">Über Baruch</a>
           <a class="menu-item nur-autor" role="menuitem" href="/beenden" title="Baruch auf diesem Rechner beenden (mit Rückfrage)">Baruch beenden…</a>
           {#- R32-PLATZ beenden -#}
-          {#- Runde 35: An dieser Marke setzt konten_ui::apply (Schicht consent::inject) den Eintrag zum Konto ein:
-              ohne Konten „Konten einrichten…“, sonst „Angemeldet: … (Autor|Lektor)“, „Mein Konto“ und „Abmelden“. -#}
+          {#- Runde 35: at this marker konten_ui::apply (layer consent::inject) inserts the entry for the account:
+              without accounts „Konten einrichten…“, otherwise „Angemeldet: … (Autor|Lektor)“, „Mein Konto“ and
+              „Abmelden“. -#}
           <!--BARUCH-KONTO-->
           {#- R35-PLATZ konto -#}
         </div>
       </details>
     </nav>
-    {#- Reiter: Links (?tab=…), auch ohne JavaScript; band.ts wechselt ohne Neuladen (ARIA-Tabs). #}
+    {#- Tabs: links (?tab=…), also without JavaScript; band.ts switches without reloading (ARIA tabs). #}
     <nav class="band-tabs" role="tablist" aria-label="Menüband" data-band-default="{% block band_tab %}start{% endblock %}">
       <a class="band-tab" role="tab" id="band-tab-start" aria-controls="band-panel-start" data-band-tab="start" href="?tab=start" aria-selected="false">Start <span class="badge" data-badge="open_proposals" title="offene Vorschläge im Werk"{% if not proposals %}{{ fill }} hidden{% endif %}>{{ proposals }}</span></a>
       {%- if tb and not lektor_view %}
@@ -96,8 +99,8 @@
       <a class="band-tab" role="tab" id="band-tab-ansicht" aria-controls="band-panel-ansicht" data-band-tab="ansicht" href="?tab=ansicht" aria-selected="false">Ansicht</a>
     </nav>
     {%- if tb %}
-    {#- Werkwahl: gewöhnliches GET-Formular; ohne JavaScript mit „Öffnen“, mit JavaScript öffnet das
-        Widget „work-select“ das gewählte Werk sofort (works.ts, merkt es im Cookie baruch_work). #}
+    {#- Work selection: ordinary GET form; without JavaScript with „Öffnen“, with JavaScript the
+        widget „work-select“ opens the chosen work at once (works.ts, remembers it in the cookie baruch_work). #}
     <form class="work-select" action="/" method="get" role="search" aria-label="Werk wählen">
       <select name="work" aria-label="Werk" data-widget="work-select">
       {%- for o in tb.works %}
@@ -114,16 +117,17 @@
     <span class="work-title">{% block page_title %}{% endblock %}</span>
     {%- if tb and tb.work.author %}<span class="muted band-author">· {{ tb.work.author }}</span>{% endif %}
     <span class="grow"></span>
-    {#- Band auf/zu: ohne JavaScript ein Link (?band=closed, die Schicht dreht ihn bei zugeklapptem Band auf
-        ?band=open); mit JavaScript klappt band.ts ohne Neuladen (Cookie baruch_band). #}
+    {#- Ribbon open/closed: without JavaScript a link (?band=closed, the layer turns it into
+        ?band=open when the ribbon is collapsed); with JavaScript band.ts folds without reloading (cookie baruch_band).
+        #}
     <a class="btn band-toggle" data-band-toggle aria-expanded="true" href="?band=closed" aria-controls="band-panels" aria-label="Menüband ein- oder ausklappen" title="Menüband ein- oder ausklappen (auch: Klick auf den aktiven Reiter)"><span class="band-toggle-open" aria-hidden="true">▴</span><span class="band-toggle-closed" aria-hidden="true">▾</span></a>
   </div>
   <div class="band-panels" id="band-panels">
     <div class="band-panel" role="tabpanel" id="band-panel-start" aria-labelledby="band-tab-start" data-band-panel="start" hidden>
       {%- if tb %}
       <details class="band-group" data-band-group open><summary class="band-group-label">Ansicht des Textes</summary><div class="band-items" role="group" aria-label="Ansicht des Textes">
-        {#- Adressen in Key-Form /?work=W&key=K… (Runde 8): der feste Schlüssel bleibt beim Umstellen
-            gleich; workspace.ts setzt Text und href nach jedem Neuzeichnen weiter. #}
+        {#- Addresses in key form /?work=W&key=K… (Round 8): the fixed key stays the same when things are
+            rearranged; workspace.ts keeps setting text and href after every redraw. #}
         <a class="btn" data-nav data-view-toggle href="/?work={{ w }}&key={{ tb.key }}&rev={{ tb.rev }}{% if tb.other_view == 'preview' %}&view=preview{% endif %}{{ tb.lq_q }}" title="Zwischen Editor und Vorschau im Browser wechseln">
           {%- if tb.view == "edit" %}Vorschau{% else %}Editor{% endif -%}
         </a>
@@ -139,14 +143,14 @@
       {%- endif %}
       {% block page_actions %}{% endblock %}
       <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">Einfälle</summary><div class="band-items" role="group" aria-label="Einfälle">
-        {#- Einfall: ohne JavaScript die Seite /einfaelle mit Formular, auf der Arbeitsseite der Dialog (Alt+E). #}
+        {#- Idea: without JavaScript the page /einfaelle with a form, on the workspace page the dialog (Alt+E). #}
         <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" data-idea-open{% if tb %} aria-haspopup="dialog" aria-controls="idea-capture"{% endif %} title="Einfall festhalten (Alt+E)" data-shortcut="Alt+E">Einfall festhalten</a>
         <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" title="Liste der Einfälle dieses Werks">Einfälle</a>
-        {#- Runde 25/34: Mindmap der Einfälle (Seite /werke/W/karte, ohne JavaScript bedienbar); nur mit Werk. #}
+        {#- Round 25/34: mind map of the ideas (page /werke/W/karte, usable without JavaScript); only with a work. #}
         {% if w %}<a class="btn" href="/werke/{{ w }}/karte" title="Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)">Mindmap</a>{% endif %}
       </div></details>
       {%- if not w %}
-      {#- Ohne Werk gibt es die Reiter Prüfen und Buch nicht; was kein Werk braucht, steht hier. #}
+      {#- Without a work the tabs Prüfen and Buch do not exist; what needs no work stands here. #}
       <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">Werkzeuge</summary><div class="band-items" role="group" aria-label="Werkzeuge">
         <a class="btn" href="/literatur" data-literature-open title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
         <a class="btn" href="/abgleich" title="Abgleich mit MultiGPT">Abgleichen</a>
@@ -155,8 +159,9 @@
     </div>
     {%- if tb and not lektor_view %}
     <div class="band-panel" role="tabpanel" id="band-panel-einfuegen" aria-labelledby="band-tab-einfuegen" data-band-panel="einfuegen" hidden>
-      {#- Die Knöpfe (Fußnote, Zitat, Liste, …, Bild, Register und Glossar) stehen im Fragment edit_toolbar.html und
-          docken mit JavaScript unten an (div[data-band-dock]). Ohne JavaScript führen diese Links ans Blatt. #}
+      {#- The buttons (footnote, quotation, list, …, image, index and glossary) are in the fragment edit_toolbar.html
+          and dock at the bottom with JavaScript (div[data-band-dock]). Without JavaScript these links lead to the
+          sheet. #}
       <p class="band-note nojs-only">Die Knöpfe zum Einfügen brauchen JavaScript. Ohne JavaScript am Blatt: <a href="#bild-einfuegen">Bild einfügen …</a> · <a href="/werke/{{ w }}/markierung?key={{ tb.key }}&amp;rev={{ tb.rev }}" title="In Glossar aufnehmen, In Register aufnehmen, Im Glossar nachschlagen">Markierung …</a></p>
       <p class="band-note band-note-undocked js-only">Einfügen geht im Editor – in der Vorschau gibt es kein Blatt zum Bearbeiten (Start → Editor).</p>
       {% block band_einfuegen %}{% endblock %}
@@ -166,21 +171,22 @@
     <div class="band-panel" role="tabpanel" id="band-panel-pruefen" aria-labelledby="band-tab-pruefen" data-band-panel="pruefen" hidden>
       {% block band_pruefen %}{% endblock %}
       <details class="band-group" data-band-group open><summary class="band-group-label">Befunde und Zitate</summary><div class="band-items" role="group" aria-label="Befunde und Zitate">
-        {#- Runde 28: Befunde der Personas (Matrix, Listen, Status; ohne JavaScript bedienbar). #}
+        {#- Round 28: findings of the personas (matrix, lists, status; usable without JavaScript). #}
         <a class="btn" href="/werke/{{ w }}/befunde" title="Befunde der Personas: offen, übernommen, verworfen, verschoben, erledigt">Befunde <span class="badge warning" data-badge="open_findings"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }}</span></a>
-        {#- Runde 17c: Zitate gegen die Bibel des Werks prüfen (Seite, ohne JavaScript); auf der Arbeitsseite die gezeigte Fassung. #}
+        {#- Round 17c: check quotations against the Bible of the work (page, without JavaScript); on the workspace page
+        the shown revision. #}
         <a class="btn nur-autor" href="/werke/{{ w }}/pruefung{% if tb %}?key={{ tb.key }}&amp;rev={{ tb.rev }}{% endif %}" title="Zitate gegen die Bibel des Werks prüfen (stimmt / weicht ab), Bibelstellen des Abschnitts">Zitate prüfen</a>
       </div></details>
       <details class="band-group" data-band-group open><summary class="band-group-label">Suchen und Verweise</summary><div class="band-items" role="group" aria-label="Suchen und Verweise">
-        {#- Runde 30a: Suchen/Ersetzen im Werk (Seite /suche ohne JavaScript, auf der Arbeitsseite Seitenleiste mit
-            Strg+Umschalt+F) und Querverweise (Seite /verweise: mögliche und kaputte Verweise). #}
+        {#- Round 30a: search/replace in the work (page /suche without JavaScript, on the workspace page a sidebar with
+            Ctrl+Shift+F) and cross-references (page /verweise: possible and broken references). #}
         <a class="btn nur-autor" href="/suche?work={{ w }}" title="Im Werk suchen und ersetzen (Strg+Umschalt+F)">Im Werk suchen und ersetzen (Strg+Umschalt+F)</a><!--NUR-LEKTOR--><a class="btn nur-lektor" href="/suche?work={{ w }}" title="Im Werk suchen (Strg+Umschalt+F)">Im Werk suchen (Strg+Umschalt+F)</a><!--/NUR-LEKTOR-->
         <a class="btn nur-autor" href="/verweise?work={{ w }}" title="Mögliche und kaputte Querverweise des Werks">Querverweise prüfen</a>
       </div></details>
       <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Quellen</summary><div class="band-items" role="group" aria-label="Quellen">
-        {#- Literatur: ohne JavaScript die Seite /literatur, auf der Arbeitsseite das Popup (Alt+L). #}
+        {#- Literature: without JavaScript the page /literatur, on the workspace page the popup (Alt+L). #}
         <a class="btn" href="/literatur?work={{ w }}{% if tb %}&key={{ tb.key }}&rev={{ tb.rev }}{{ tb.lq_q }}{% endif %}" data-literature-open{% if tb %} aria-haspopup="dialog" aria-controls="literature"{% endif %} title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
-        {#- Abgleich mit MultiGPT (Runde 13): Seite /abgleich mit Knopf, ohne JavaScript bedienbar. #}
+        {#- Reconciliation with MultiGPT (Round 13): page /abgleich with a button, usable without JavaScript. #}
         <a class="btn" href="/abgleich?work={{ w }}" title="Abgleich mit MultiGPT">Abgleichen</a>
       </div></details>
     </div>
@@ -195,23 +201,23 @@
         <a class="btn nur-autor" href="/werke/{{ w }}/mitwirkende" title="Wer darf dieses Werk als Lektor lesen? Freigeben und entziehen">Mitwirkende</a><!--/NUR-KONTEN-->
       </div></details>
       <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Satz</summary><div class="band-items" role="group" aria-label="Satz">
-        {#- Satz: gesetzte Seiten aus Typst mit der Werkvorlage (Seite /werke/W/satz, Runde 8). #}
+        {#- Typesetting: typeset pages from Typst with the work template (page /werke/W/satz, Round 8). #}
         <a class="btn" href="/werke/{{ w }}/satz{% if tb %}?key={{ tb.key }}{% endif %}" title="Gesetzte Seiten aus Typst mit der Werkvorlage">Satz-Vorschau</a>
-        {#- Runde 20b: EPUB-Vorschau je Reader (Seite /werke/W/epub/vorschau, src/epub_preview.rs). #}
+        {#- Round 20b: EPUB preview per reader (page /werke/W/epub/vorschau, src/epub_preview.rs). #}
         <a class="btn" href="/werke/{{ w }}/epub/vorschau" title="Das EPUB des Werks in mehreren Readern nebeneinander">EPUB-Vorschau</a>
       </div></details>
       <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Ausgabe</summary><div class="band-items" role="group" aria-label="Ausgabe">
-        {#- Runde 11: das Buch als PDF; Runde 22: mit Wasserzeichen „Entwurf“, ohne die Satz-Einstellung zu ändern
-            (?entwurf=1); Runde 20: EPUB 3 (src/epub.rs). #}
+        {#- Round 11: the book as PDF; Round 22: with the watermark „Entwurf“, without changing the typeset setting
+            (?entwurf=1); Round 20: EPUB 3 (src/epub.rs). #}
         <a class="btn" href="/werke/{{ w }}/pdf" download title="Das ganze Werk als PDF herunterladen (Werkvorlage, aktuelle Fassungen, Bilder)">PDF</a>
         <a class="btn" href="/werke/{{ w }}/pdf?entwurf=1" download title="Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ herunterladen (Einstellung bleibt unverändert)">Entwurf</a>
         <a class="btn" href="/werke/{{ w }}/epub" download title="Das ganze Werk als E-Book herunterladen (EPUB 3, aktuelle Fassungen)">EPUB</a>
         {#- R32-PLATZ export-word -#}
         <a class="btn" href="/werke/{{ w }}/word" title="Das Werk als Word-Datei für den Verlag (Formatvorlagen, Fußnoten, Bilder; auf Wunsch offene Vorschläge als Änderungsverfolgung)">Word …</a>
-        {#- Runde 16c: Stichwortzettel (A5 oder Karten) – eine Seite mit Formatwahl und Vorschau, kein Download direkt. #}
+        {#- Round 16c: cue sheet (A5 or cards) – one page with format choice and preview, no direct download. #}
         <a class="btn" href="/werke/{{ w }}/stichwortzettel" title="Stichwortzettel zum Halten oder Predigen: je Abschnitt Zeitmarke, Stichpunkte und Bibelstellen">Stichwortzettel …</a>
         <a class="btn" href="/werke/{{ w }}/export" title="Werkvorlage und aktuelle Texte als eine Typst-Datei">Exportieren (Typst)</a>
-        {#- Runde 26: Austausch zwischen Baruch-Instanzen (src/exchange/). #}
+        {#- Round 26: exchange between Baruch instances (src/exchange/). #}
         <a class="btn" href="/werke/{{ w }}/austausch" title="Ganzes Werk mit allen Fassungen, Einfällen, Beiträgen und Bildern als Austauschdatei">Austausch: Ausgeben</a>
       </div></details>
       <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Umschlag</summary><div class="band-items" role="group" aria-label="Umschlag">
@@ -219,7 +225,7 @@
         <a class="btn" href="/werke/{{ w }}/umschlag.pdf" download title="Umschlag als PDF für die Druckerei (mit Rücken und Beschnitt)">Umschlag-PDF</a>
       </div></details>
       <details class="band-group" data-band-group open><summary class="band-group-label">Register und Glossar</summary><div class="band-items" role="group" aria-label="Register und Glossar">
-        {#- Runde 31: Glossar und Register des Werks (ohne JavaScript bedienbar). #}
+        {#- Round 31: glossary and index of the work (usable without JavaScript). #}
         <a class="btn" href="/werke/{{ w }}/glossar" title="Begriffe mit Erklärungen: angenommen und vorgeschlagen">Glossar</a>
         <a class="btn" href="/werke/{{ w }}/register" title="Stichwort-, Personen-, Bibelstellen- und eigene Register mit Vorschlägen">Register</a>
       </div></details>
@@ -229,8 +235,8 @@
       {% block band_ansicht %}{% endblock %}
       {%- if tb %}
       <details class="band-group" data-band-group open><summary class="band-group-label">Seitenleisten</summary><div class="band-items" role="group" aria-label="Seitenleisten">
-        {#- Gedrückt = Spalte sichtbar; die Schicht setzt aria-pressed und dreht die Adresse (src/band.rs), laptop.ts
-            schaltet ohne Neuladen. #}
+        {#- Pressed = column visible; the layer sets aria-pressed and turns the address (src/band.rs), laptop.ts
+            switches without reloading. #}
         <a class="btn" data-rail-toggle="left" aria-pressed="false" href="?lrail=1">Gliederung</a>
         <a class="btn" data-rail-toggle="right" aria-pressed="false" href="?rrail=1">Assistenten</a>
       </div></details>
@@ -244,8 +250,8 @@
         {%- set theme_name = "Hell" if settings is defined and settings.theme == "light" else ("Dunkel" if settings is defined and settings.theme == "dark" else "System") %}
         {%- set theme_sign = "☀" if settings is defined and settings.theme == "light" else ("☾" if settings is defined and settings.theme == "dark" else "◐") %}
         {%- if no_js %}
-        {#- Seite ohne main.js (Satz-Seite, Nachbesserung Runde 18): Ein Knopf ohne Widget täte nichts – das Thema
-            stellt hier ein Link auf Einstellungen → Darstellung ein (Formular, ohne JavaScript). #}
+        {#- Page without main.js (typeset page, follow-up fix Round 18): a button without a widget would do nothing –
+            the theme is set here by a link to Einstellungen → Darstellung (form, without JavaScript). #}
         <a class="btn" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" aria-label="Thema einstellen (Einstellungen → Darstellung)" title="Thema: {{ theme_name }} – einstellen unter Einstellungen → Darstellung">{{ theme_sign }}</a>
         {%- else %}
         <button class="btn" type="button" data-widget="theme" data-auto="◐" data-light="☀" data-dark="☾" aria-label="Thema wechseln" title="Thema: {{ theme_name }}">{{ theme_sign }}</button>
@@ -254,18 +260,19 @@
       </div></details>
     </div>
     {%- if tb %}
-    {#- Andockplatz: band.ts (Widget „band-dock“ am Ende von fragments/editor.html) hängt [data-edit-toolbar] hier ein;
-        sichtbar ist je nach Reiter der Teil data-band-part="start" bzw. "einfuegen". Ohne JavaScript leer. #}
+    {#- Docking place: band.ts (widget „band-dock“ at the end of fragments/editor.html) hooks [data-edit-toolbar] in
+        here; visible is, depending on the tab, the part data-band-part="start" or "einfuegen". Empty without
+        JavaScript. #}
     <div class="band-dock" data-band-dock></div>
     {%- endif %}
   </div>
 </header>
 {%- endblock %}
-{#- Nutzerfrage 12: crate::consent setzt hier Hinweisleiste und Dialog ein, solange ein Antrag offen ist,
-    der die Zustimmung des Menschen braucht (sonst bleibt nichts stehen). #}
+{#- User question 12: crate::consent inserts the notice bar and the dialog here as long as a request is open
+    that needs the consent of the human (otherwise nothing stays). #}
 <!--baruch-consent-->
 {% block body %}{% endblock %}
-{#- Hülle der Einstellungen (Runde 9): hinter allen Dialogen der Seite; den Inhalt lädt settings.ts. #}
+{#- Shell of the settings (Round 9): behind all dialogs of the page; settings.ts loads the content. #}
 <dialog class="settings-dialog" id="settings" data-widget="settings" aria-labelledby="settings-title">
   <header class="literature-head"><h2 class="pane-title" id="settings-title">Einstellungen</h2><span class="grow"></span><form method="dialog"><button class="btn" type="submit">Schließen</button></form></header>
   <div class="settings-content" data-settings-content></div>

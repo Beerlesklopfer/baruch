@@ -1,8 +1,8 @@
-{#- Prüfbericht des EPUB (Runde 20c, src/epub_check.rs): Zusammenfassung und Befunde (eigene Prüfung, Warnungen
-    des Baus, Warnungen je Reader, EPUBCheck). Auf der Prüfseite eingebunden und unter der EPUB-Vorschau als
-    fertiges Fragment (`preview_panel`, panel = true: mit Link zur Prüfseite). Alles maskiert. Kontext: work,
+{#- Check report of the EPUB (Round 20c, src/epub_check.rs): summary and findings (own check, warnings
+    of the build, warnings per reader, EPUBCheck). Included on the check page and below the EPUB preview as a
+    finished fragment (`preview_panel`, panel = true: with a link to the check page). Everything escaped. Context: work,
     error?, summary {errors, warnings, infos}, findings [{severity, class, code, message, path?, reader?}],
-    xml_tool (Text), readers [Name], panel? -#}
+    xml_tool (text), readers [name], panel? -#}
 <section class="epub-check-panel" id="epub-pruefung" aria-labelledby="epub-pruefung-titel" data-epub-check>
   <h2 class="pane-title" id="epub-pruefung-titel">EPUB-Prüfung</h2>
   {%- if error %}

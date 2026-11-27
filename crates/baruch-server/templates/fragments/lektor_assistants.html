@@ -1,10 +1,10 @@
-{#- Rechts für Lektoren (Runde 35, Vertrag §3.3): Akkordeon Fassungen · Befunde · Abschnitts-Chat, alles zum Lesen,
-    dazu genau die drei Schreibwege eines Lektors – alle als Formulare an POST /lektorat/act (ohne JavaScript; mit
-    JavaScript über /rpc, data-rpc): Befund schreiben (finding.add), Beitrag schreiben (post.add) und eigene Beiträge
-    bearbeiten oder löschen (post.edit, post.delete; „eigen“ = Autor des Beitrags ist die eigene Herkunft, post.mine
-    aus view.rs). Es fehlen: Personas und ihre Aufträge, Umschalten/Ändern/Löschen/Ausblenden von Fassungen, Status
-    der Befunde, Lösungen umsetzen, Verschieben und Umwandeln von Beiträgen – das kann nur der Autor.
-    Kontext wie assistants.html (view.rs), dazu lektor {handle, name}. -#}
+{#- Right for Lektors (Round 35, contract §3.3): accordion Fassungen · Befunde · Abschnitts-Chat, everything for
+    reading, plus exactly the three ways of writing of a Lektor – all as forms to POST /lektorat/act (without
+    JavaScript; with JavaScript through /rpc, data-rpc): write a finding (finding.add), write a post (post.add) and edit
+    or delete own posts (post.edit, post.delete; „eigen“ = the author of the post is the own origin, post.mine
+    from view.rs). Missing: personas and their jobs, switching/changing/deleting/hiding revisions, status
+    of the findings, carrying out solutions, moving and converting posts – only the author can do that.
+    Context as in assistants.html (view.rs), plus lektor {handle, name}. -#}
 {%- from "fragments/post_item.html" import post_item %}
 {%- macro act_hidden(method) %}
       <input type="hidden" name="method" value="{{ method }}">

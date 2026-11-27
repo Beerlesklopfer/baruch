@@ -1,19 +1,20 @@
-{#- Seite /werke/{id}/bilder: alle Bilder des Werks mit Vorschau, Name, Typ, Größe, Pfaden und
-    Alternativtext; Formular „Bild hinzufügen“ (POST /werke/bilder/hochladen, multipart). Geht ohne
-    JavaScript. Runde 11: Suche ?q= (Formular id="suche": Name, Bildunterschrift, Alternativtext),
-    Vorschaubilder über …/vorschau?b=320 (loading=lazy), oben der Block des Umschlags (cover_panel,
-    fertiges HTML von crate::cover::assets_panel), unten die Anträge (requests_panel, von
-    crate::asset_requests::panel), je Zeile Abzeichen „Umschlag“ bzw. Knopf „Als Umschlag“ (POST
-    /werke/umschlag/act, bedient von „cover“).
-    Kontext: settings, work {id, title}, assets [{…, thumb_href, is_cover}], form, error, notice, max_mib,
+{#- Page /werke/{id}/bilder: all images of the work with preview, name, type, size, paths and
+    alternative text; form „Bild hinzufügen“ (POST /werke/bilder/hochladen, multipart). Works without
+    JavaScript. Round 11: search ?q= (form id="suche": name, caption, alternative text),
+    thumbnails through …/vorschau?b=320 (loading=lazy), at the top the block of the cover (cover_panel,
+    finished HTML from crate::cover::assets_panel), at the bottom the requests (requests_panel, from
+    crate::asset_requests::panel), per row the badge „Umschlag“ or the button „Als Umschlag“ (POST
+    /werke/umschlag/act, served by „cover“).
+    Context: settings, work {id, title}, assets [{…, thumb_href, is_cover}], form, error, notice, max_mib,
     query?, total, cover_panel, requests_panel.
-    Runde 21c: conflicts [{normal, paths [{path, asset}], choices [Name]}] – Altbestand, in dem zwei Schreibweisen
-    desselben Pfads (`/x.png`, `x.png`) zu verschiedenen Bildern gehören; je Kollision ein Formular (POST
-    /werke/bilder/act, action=resolve_path, normal, name = das Bild, das den Pfad behält). -#}
+    Round 21c: conflicts [{normal, paths [{path, asset}], choices [name]}] – legacy data in which two spellings
+    of the same path (`/x.png`, `x.png`) belong to different images; per collision one form (POST
+    /werke/bilder/act, action=resolve_path, normal, name = the image that keeps the path). -#}
 {% extends "base.html" %}
 {% block title %}Bilder – {{ work.title }} – Baruch{% endblock %}
 {% block page_title %}{{ work.title }}: Bilder{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Buch“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">

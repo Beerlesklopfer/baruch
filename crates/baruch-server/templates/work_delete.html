@@ -1,10 +1,11 @@
-{#- Seite /werke/{id}/loeschen: Löschen nur nach Eintippen des Titels (POST /werke/act, action=delete,
-    Feld confirm_title). Geht ohne JavaScript. Kontext: settings, work (WorkMeta), sections, proposals,
-    trash (Archivordner), error, back_url. -#}
+{#- Page /werke/{id}/loeschen: deleting only after typing the title (POST /werke/act, action=delete,
+    field confirm_title). Works without JavaScript. Context: settings, work (WorkMeta), sections, proposals,
+    trash (archive directory), error, back_url. -#}
 {% extends "base.html" %}
 {% block title %}{{ work.title }} löschen – Baruch{% endblock %}
 {% block page_title %}{{ work.title }} löschen{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
     <a class="btn" href="/werke">Werke</a>

@@ -66,22 +66,22 @@ LIST_FILE = REPO / "site" / "data" / "hilfebilder.toml"
 CONTENT = REPO / "site" / "content" / "de"
 TARGET = REPO / "site" / "static" / "bilder"
 HELP_DIR = "hilfe"
-# Alle Bilder zusammen (site/static/bilder) bleiben unter dieser Grenze (Vertrag Runde 37, §8).
+# All images together (site/static/bilder) stay below this limit (contract Round 37, §8).
 SIZE_LIMIT = 20 * 1024 * 1024
 WINDOW = "1400x860"
-# Unter 1600 px zeichnet der Laptop-Modus („automatisch“) das Menüband kompakt (COMPACT_BELOW_PX in
-# crates/baruch-server/src/laptop.rs); die Breite misst das Skript der Seite.
+# Below 1600 px the laptop mode („automatisch“) draws the ribbon compact (COMPACT_BELOW_PX in
+# crates/baruch-server/src/laptop.rs); the script of the page measures the width.
 LAPTOP_WINDOW = "1366x768"
-# Die Verbindungen des Wegwerf-Servers zeigen auf den Discard-Port: Dort antwortet niemand.
+# The connections of the throwaway server point to the discard port: nobody answers there.
 NOWHERE = "http://127.0.0.1:9"
-# Adresse und Datenordner des Dienstes beim Nutzer: nie berühren.
+# Address and data directory of the service at the user: never touch.
 FORBIDDEN_PORT = 8765
 FORBIDDEN_DATA = Path.home() / ".local" / "share" / "baruch"
 
-# Cookies, die jedes Bild bekommt, solange sein Eintrag nichts anderes sagt. 1400 px liegen unter der Schwelle für
-# das kompakte Band; damit die Bilder das volle Band zeigen, steht der Laptop-Modus auf „Aus“.
+# Cookies that every image gets as long as its entry says nothing else. 1400 px lie below the threshold for
+# the compact ribbon; so that the images show the full ribbon, the laptop mode is set to „Aus“.
 DEFAULT_COOKIES = {"baruch_laptop": "off"}
-# Cookies der Oberfläche, die der Vermittler verwaltet: Was der Browser dazu schickt, zählt nicht.
+# Cookies of the user interface that the mediator manages: what the browser sends for them does not count.
 MANAGED_COOKIES = (
     "baruch_work", "baruch_laptop", "baruch_theme", "baruch_accordion", "baruch_editor", "baruch_band",
     "baruch_bandx", "baruch_pv", "baruch_folded", "baruch_closed", "baruch_left", "baruch_right", "baruch_lrail",
@@ -89,13 +89,13 @@ MANAGED_COOKIES = (
 )
 SESSION_COOKIE = "baruch_session"
 
-# Erfundene Menschen (Vertrag §4): Autorin des Beispielwerks und ein Lektor.
+# Invented people (contract §4): the author of the sample work and a Lektor.
 AUTHOR = {"name": "mara", "display": "Mara Tiedemann"}
 LEKTOR = {"name": "jonte", "display": "Jonte Harksen"}
-# Name, unter dem sich das Skript am MCP-Zugang des eigenen Servers meldet (Herkunft @mcp:schreibhilfe).
+# Name under which the script reports at the MCP access of the own server (origin @mcp:schreibhilfe).
 MCP_CLIENT = "Schreibhilfe"
 
-# Die sieben Bilder der Seite „Funktionen“ (site/static/bilder/*.png): Namen und Adressen wie seit Runde 24/33.
+# The seven images of the page „Funktionen“ (site/static/bilder/*.png): names and addresses as since Round 24/33.
 FUNCTION_PICTURES = [
     {"name": "arbeitsplatz", "adresse": "/?work={work}&key={key}&laptop=off",
      "zeigt": "Arbeitsplatz: volles Menüband (Reiter Start, Laptop-Modus „Aus“), Gliederung, Editor im Satzbild, "
@@ -119,7 +119,7 @@ def fail(message):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Bildliste
+# Image list
 # ---------------------------------------------------------------------------------------------------------------
 
 STEP_KINDS = ("cookie", "offen", "klick", "sitzung")
@@ -249,7 +249,7 @@ def fill(address, values):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Abgleich ohne Server
+# Reconciliation without a server
 # ---------------------------------------------------------------------------------------------------------------
 
 USE = re.compile(r"\{\{<\s*hilfebild\b([^>]*?)>\}\}", re.S)
@@ -317,15 +317,16 @@ def reconcile(pictures):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Wegwerf-Server
+# Throwaway server
 # ---------------------------------------------------------------------------------------------------------------
 
 def find_server(given):
     for candidate in (given, os.environ.get("BARUCH_SERVER")):
         if candidate and Path(candidate).is_file():
             return Path(candidate).resolve()
-    # Ohne Angabe die zuletzt gebaute Datei: Ein alter Release-Bau neben einem frischen Testbau zeigte sonst eine
-    # alte Oberfläche (Runde 37: Bau vom Vortag, 404 beim Word-Export). Welche Datei läuft, steht in der Ausgabe.
+    # Without a value the file built last: an old release build next to a fresh test build otherwise showed an
+    # old user interface (Round 37: build from the day before, 404 on the Word export). Which file runs is in the
+    # output.
     built = [path for path in (REPO / "target" / "release" / "baruch-server", REPO / "target" / "debug" / "baruch-server")
              if path.is_file()]
     if built:
@@ -408,7 +409,7 @@ def start_server(server, data):
     if base is None:
         process.wait()
         fail(f"Der Server ist nicht gestartet (Exit {process.returncode}).")
-    # Weitere Ausgaben des Servers mitlesen, damit er nie an einer vollen Leitung hängt.
+    # Keep reading further output of the server so that it never hangs on a full pipe.
     threading.Thread(target=lambda: [None for _ in process.stdout], daemon=True).start()
     return process, base
 
@@ -426,7 +427,7 @@ def stop_server(process):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Anfragen an den eigenen Server (nur 127.0.0.1)
+# Requests to the own server (127.0.0.1 only)
 # ---------------------------------------------------------------------------------------------------------------
 
 def request(base, method, path, body=None, headers=None, timeout=300):
@@ -547,7 +548,7 @@ class Mcp:
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Erzeugte Dateien: Bilder (PNG mit zlib/struct), ein kleines EPUB als Quelle, eine Markdown-Datei
+# Generated files: images (PNG with zlib/struct), a small EPUB as a source, a Markdown file
 # ---------------------------------------------------------------------------------------------------------------
 
 def lighthouse_png(width, height):
@@ -639,7 +640,7 @@ def source_epub():
     return packed.getvalue()
 
 
-# Wegwerf-Werk: wird als Markdown eingelesen (der Bericht nennt das fehlende Bild) und danach gelöscht (Archiv).
+# Throwaway work: is read in as Markdown (the report names the missing image) and deleted afterwards (archive).
 THROWAWAY_TITLE = "Notizen vom Festland"
 THROWAWAY_MD = """# Notizen vom Festland
 
@@ -658,7 +659,7 @@ Mehl, Petroleum, Dochte in drei Stärken. Die Zeitung ist immer von vorgestern.
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Beispielwerk ausbauen – Stufe „offen“ (ohne Konten)
+# Extend the sample work – stage „offen“ (without accounts)
 # ---------------------------------------------------------------------------------------------------------------
 
 REVISED = "Der erste Morgen"
@@ -708,12 +709,12 @@ def build_open(base, work, data, sword):
     values = {"work": work, "sample": 1}
     answers = {}
 
-    # Bibelmodule: nie die des Nutzers (~/.sword, /usr/share/sword) – nur der angegebene oder ein leerer Ordner.
+    # Bible modules: never those of the user (~/.sword, /usr/share/sword) – only the given or an empty directory.
     if sword:
         bibles = me.rpc("bible.set_dirs", {"dirs": [str(Path(sword).expanduser().resolve())]})
         print(f"Bibelmodule aus {sword}: {len(bibles.get('modules', []))} gefunden.")
-        # Die erste lesbare Bibel wird die Bibel des Werks – sonst zeigten „Zitate prüfen“ und die Einstellungen
-        # trotz Modul den Leerstand.
+        # The first readable Bible becomes the Bible of the work – otherwise „Zitate prüfen“ and the settings would show
+        # the empty state despite a module.
         readable = [m for m in bibles.get("modules", []) if m.get("kind", "bible") == "bible" and not m.get("problem")]
         if readable:
             me.rpc("bible.set_work", {"work": work, "module": readable[0]["module"]})
@@ -741,11 +742,11 @@ def build_open(base, work, data, sword):
         current = next((r for r in revisions if r.get("current")), revisions[-1])
         return current["body"], current["number"]
 
-    # Zweite Fassung (wie der Mensch in der Oberfläche).
+    # Second revision (like the human in the user interface).
     saved = me.rpc("revision.save", {"work": work, "node": index_of[REVISED], "body": SECOND_REVISION, "mode": "new"})
     print(f"Abschnitt „{REVISED}“ (key {values['key']}) hat jetzt Fassung {saved.get('rev')}.")
 
-    # Bilder: ein Werkbild und ein Umschlagbild, beide im Skript gezeichnet.
+    # Images: a work image and a cover image, both drawn in the script.
     picture = base64.b64encode(lighthouse_png(1200, 800)).decode()
     me.rpc("asset.add", {
         "work": work, "file_name": "leuchtturm.png", "content": picture, "encoding": "base64",
@@ -760,7 +761,7 @@ def build_open(base, work, data, sword):
     me.rpc("work.set_cover", {"work": work, "name": "umschlag.png"})
     print("Bilder leuchtturm.png und umschlag.png angelegt, Umschlag gesetzt.")
 
-    # Bild im Text, danach Registermarken (jede Marke ist eine neue Fassung des Menschen).
+    # Image in the text, then index marks (every mark is a new revision of the human).
     body, _ = current_text(LOGBOOK)
     me.rpc("revision.save", {"work": work, "node": index_of[LOGBOOK], "body": body.rstrip("\n") + "\n" + LOGBOOK_FIGURE,
                              "mode": "new"})
@@ -769,14 +770,14 @@ def build_open(base, work, data, sword):
         me.rpc("index.mark", {"work": work, "key": key_of[title], "rev": rev, "word": word})
     print("Bild im Abschnitt „Das Logbuch“, vier Registermarken gesetzt.")
 
-    # Querverweis auf den Abschied (feste Sprungmarke <kSchlüssel>).
+    # Cross-reference to the farewell (fixed jump mark <kSchlüssel>).
     body, _ = current_text(XREF)
     link = f"\nWie es ausging, steht im #link(<k{key_of[FAREWELL]}>)[Abschied].\n"
     linked = me.rpc("revision.save", {"work": work, "node": index_of[XREF],
                                       "body": body.rstrip("\n") + "\n" + link, "mode": "new"})
     values["rev_xref"] = linked["rev"]
 
-    # Glossar.
+    # Glossary.
     for term in (
         {"term": "Hallig", "short": "kleine Marschinsel ohne Deich", "variants": ["Halligen"],
          "long": "Bei Sturmflut steht das Land unter Wasser; nur die Warften mit den Häusern ragen heraus."},
@@ -785,7 +786,7 @@ def build_open(base, work, data, sword):
     ):
         me.rpc("glossary.add", {"work": work, **term})
 
-    # Buchangaben (erfunden), Satz-Einstellungen, Zielzeit für den Zeitwächter.
+    # Book details (invented), typeset settings, target time for the time guard.
     me.rpc("work.meta.set", {
         "work": work, "subtitle": "Aufzeichnungen einer Leuchtturmwärterin", "publisher": "Verlag Priel & Tonne",
         "place": "Süderhaven", "year": "2026", "edition": "1. Auflage", "isbn": isbn13("978399999012"),
@@ -801,7 +802,7 @@ def build_open(base, work, data, sword):
     me.rpc("work.timing_set", {"work": work, "words_per_minute": 130, "target_minutes": 5})
     print("Glossar (3 Begriffe), Buchangaben, Satz-Einstellungen und Zielzeit gesetzt.")
 
-    # Einfälle: Hauptthema mit Unterknoten, ein Einfall am Abschnitt, zwei in der Wolke, zwei Verbindungen.
+    # Ideas: main topic with sub-nodes, an idea at the section, two in the cloud, two links.
     def idea(**fields):
         return me.rpc("idea.create", {"work": work, **fields})["idea"]["id"]
 
@@ -823,7 +824,7 @@ def build_open(base, work, data, sword):
     values.update(idea=at_section, branch=fire)
     print("Einfälle angelegt (zwei Hauptthemen mit Unterknoten, einer am Abschnitt, zwei in der Wolke).")
 
-    # Assistenten ohne Modell: über den MCP-Zugang des eigenen Servers, unter dem Namen der Rolle „Lektor“.
+    # Assistants without a model: through the MCP access of the own server, under the name of the role „Lektor“.
     assistant = Mcp(base, MCP_CLIENT)
     first_post = assistant.call("add_post", {
         "work": work, "key": key_of[REVISED], "persona": "lektor",
@@ -859,14 +860,14 @@ def build_open(base, work, data, sword):
                            "message": "Dann bleibt es beim Jahreslauf. Den Vorgriff probiere ich in „Ankunft“."})
     print("Beiträge, Vorschlag und Gliederungsantrag eines Assistenten (über MCP, ohne Modell), ein Faden.")
 
-    # Quelle für die Literatur: ein kleines erfundenes EPUB, lokal gelesen, nur in die Bibliothek.
+    # Source for the literature: a small invented EPUB, read locally, only into the library.
     draft = me.rpc("source_import.preview", {
         "file_name": "dienstbuch-1911.epub", "content": base64.b64encode(source_epub()).decode(),
     })
     adopted = me.rpc("source_import.apply", {"draft": draft["draft"], "target": "library"})
     values["title"] = adopted["library_title"]
 
-    # Wegwerf-Werk als Markdown einlesen: Die Antwort ist der Bericht (ein Bild fehlt). Später wird es gelöscht.
+    # Read in the throwaway work as Markdown: the answer is the report (an image is missing). It is deleted later.
     status, headers, content = me.upload("/werke/import", {"title": THROWAWAY_TITLE}, "file", "notizen-vom-festland.md",
                                          THROWAWAY_MD.encode(), "text/markdown")
     if status == 200:
@@ -878,7 +879,7 @@ def build_open(base, work, data, sword):
     if not throwaway or throwaway["id"] in (work, sample):
         fail("Der Bericht des Einlesens nennt das Wegwerf-Werk nicht.")
 
-    # Vorschauen des Einlesens aus Ausgaben des eigenen Servers.
+    # Previews of reading in from outputs of the own server.
     def export(path, what):
         status, _, content = me.get(path)
         if status != 200 or not content:
@@ -888,7 +889,7 @@ def build_open(base, work, data, sword):
     def preview(path, file_name, content, mime, name, fields=None, file_field="file"):
         status, headers, page = me.upload(path, fields or {}, file_field, file_name, content, mime)
         if status == 303 and headers.get("Location"):
-            # Manche Formulare legen einen Entwurf an und leiten auf seine Seite weiter: dann zählt diese Seite.
+            # Some forms create a draft and redirect to its page: then this page counts.
             status, _, page = me.get(headers["Location"])
         if status != 200 or not page:
             fail(f"Vorschau {name}: {path} antwortet mit {status}: {page[:300].decode('utf-8', 'replace')}")
@@ -905,14 +906,14 @@ def build_open(base, work, data, sword):
             "einlesen-pdf-vorschau", {"way": "local"})
     print("Vorschauen des Einlesens (Word, Austauschdatei, PDF) aus Ausgaben des eigenen Servers gespeichert.")
 
-    # Wegwerf-Werk löschen: Es liegt danach im Archiv.
+    # Delete the throwaway work: it lies in the archive afterwards.
     me.rpc("work.delete", {"work": throwaway["id"], "confirm_title": throwaway["title"]})
     print(f"Wegwerf-Werk „{throwaway['title']}“ eingelesen und gelöscht (Archiv).")
     return values, answers
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Stufe „konten“: Autorin, Lektor, Freigabe, Befunde
+# Stage „konten“: author, Lektor, share, findings
 # ---------------------------------------------------------------------------------------------------------------
 
 def session_from(headers):
@@ -977,12 +978,12 @@ def build_accounts(base, values):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Vermittler: http.server auf 127.0.0.1:0 vor dem Wegwerf-Server
+# Mediator: http.server on 127.0.0.1:0 in front of the throwaway server
 # ---------------------------------------------------------------------------------------------------------------
 
 PIXEL = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
-# So lange hält ein nachgeladenes Bild das load-Ereignis auf, auf das `firefox --screenshot` wartet (Millisekunden):
-# Klick nach 500 ms, Messung des Ausschnitts nach 2500 ms.
+# This long a late-loaded image holds up the load event that `firefox --screenshot` waits for (milliseconds):
+# click after 500 ms, measuring of the viewport after 2500 ms.
 HOLD_MS = 3500
 CLICK_AFTER_MS = 500
 MEASURE_AFTER_MS = 2500
@@ -1107,7 +1108,7 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
                 continue
             headers[name] = value
         headers["Host"] = target.netloc
-        # Host, Origin und Referer tragen die Adresse des Servers: sonst lehnt guard::same_origin mit 403 ab.
+        # Host, Origin and Referer carry the address of the server: otherwise guard::same_origin refuses with 403.
         if self.headers.get("Origin"):
             headers["Origin"] = relay.upstream
         if self.headers.get("Referer"):
@@ -1137,10 +1138,10 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
                 if low in HOP_BY_HOP:
                     continue
                 if low == "set-cookie" and value.startswith(SESSION_COOKIE + "="):
-                    continue  # die Sitzung bleibt im Vermittler, sie gelangt nie in das Profil des Browsers
+                    continue  # the session stays in the mediator, it never gets into the profile of the browser
                 if low == "location":
                     value = value.replace(relay.upstream, "")
-                    if picked:  # die Weiterleitung bleibt dieselbe Aufnahme
+                    if picked:  # the redirect stays the same capture
                         before, mark, anchor = value.partition("#")
                         value = f"{before}{'&' if '?' in before else '?'}_bild={shot}{mark}{anchor}"
                 passed.append((name, value))
@@ -1174,7 +1175,7 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
         for name, value in headers:
             self.send_header(name, value)
         if is_shot:
-            # Cookies auch an den Browser: Die Widgets lesen document.cookie (das Thema stellte sonst zurück).
+            # Cookies to the browser as well: the widgets read document.cookie (otherwise the theme would switch back).
             for name in MANAGED_COOKIES:
                 if name == SESSION_COOKIE:
                     continue
@@ -1245,7 +1246,7 @@ def selector_tokens(selector):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Prüfen, Fotografieren, Nachbearbeiten
+# Checking, photographing, post-processing
 # ---------------------------------------------------------------------------------------------------------------
 
 def fetch_through(relay, url):
@@ -1422,7 +1423,7 @@ def report_size(target):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Aufruf
+# Invocation
 # ---------------------------------------------------------------------------------------------------------------
 
 def main():
@@ -1547,6 +1548,6 @@ if __name__ == "__main__":
     try:
         main()
     except BrokenPipeError:
-        # Ausgabe in ein Programm, das früher aufhört zu lesen (etwa „| head“): still beenden.
+        # Output into a program that stops reading earlier (e.g. „| head“): end quietly.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         sys.exit(1)

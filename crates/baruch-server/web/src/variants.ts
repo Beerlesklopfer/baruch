@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Varianten nebeneinander vergleichen (Runde 30b, Besitz chat-loesungen): Widget „variants“ der Seite /varianten
-// (templates/variants.html). Ohne JavaScript ist alles da (Spalten, Unterschiede, Formulare an POST /loesungen/act);
-// hier kommt nur dazu:
-// - Öffnet man in einer Spalte „Unterschied zu den übrigen Varianten“, öffnen bzw. schließen sich die entsprechenden
-//   Bereiche der anderen Spalten mit (gleiche Höhe, leichter zu vergleichen).
-// - „Übrige verwerfen“ fragt vor dem Absenden noch einmal nach (das Kästchen bleibt die Bestätigung ohne JavaScript).
+// Comparing variants side by side (Round 30b, ownership chat-loesungen): widget „variants“ of the page /varianten
+// (templates/variants.html). Without JavaScript everything is there (columns, differences, forms to POST
+// /loesungen/act); added here is only:
+// - If one opens „Unterschied zu den übrigen Varianten“ in one column, the corresponding areas of the other
+//   columns open or close along (same height, easier to compare).
+// - „Übrige verwerfen“ asks once more before submitting (the checkbox stays the confirmation without JavaScript).
 
 import { register } from "./widgets.js";
 

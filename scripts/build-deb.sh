@@ -1,18 +1,18 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Baut das Paket baruch_<Version>_<Architektur>.deb mit cargo-deb.
+# Builds the package baruch_<Version>_<Architektur>.deb with cargo-deb.
 #
-#   scripts/build-deb.sh [--no-build] [--out ORDNER] [weitere Argumente für cargo deb]
+#   scripts/build-deb.sh [--no-build] [--out ORDNER] [further arguments for cargo deb]
 #
-#   --no-build   nichts kompilieren: target/release/baruch-server muss schon liegen
-#   --out        Zielordner des Pakets (Vorgabe target/debian)
+#   --no-build   compile nothing: target/release/baruch-server must already be there
+#   --out        target directory of the package (default target/debian)
 #
-# Vorher entstehen die Drittlizenzen unter packaging/generated/THIRD-PARTY-LICENSES.txt und daneben das
-# Quellcode-Angebot QUELLTEXT.txt (ohne sie bricht cargo-deb ab). Rechnerlast: nice/ionice und -j 4
-# (AGENTS.md); in der CI unschädlich.
+# Before that the third-party licences are created under packaging/generated/THIRD-PARTY-LICENSES.txt and next to
+# them the source code offer QUELLTEXT.txt (without them cargo-deb aborts). Machine load: nice/ionice and -j 4
+# (AGENTS.md); harmless in the CI.
 #
-# Das Paket richtet keinen Dienst ein und bringt keine Wartungsskripte mit (kein postinst/postrm): Es legt
-# nichts im Datenordner des Benutzers an, und das Entfernen (auch `apt purge`) löscht dort nichts.
+# The package sets up no service and brings no maintainer scripts (no postinst/postrm): it creates
+# nothing in the data directory of the user, and removing it (also `apt purge`) deletes nothing there.
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"

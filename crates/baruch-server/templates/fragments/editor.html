@@ -1,25 +1,25 @@
-{#- Mitte: der gezeigte Abschnitt in eigenen Bereichen (Wunsch 2026-11-06, „die Elemente entkoppeln“):
-    oben fest der Kopf (Titel, „Fassung n · Status · Autor“, „‹ n/m ›“, „aktuell: Fassung k“) und im Editor die
-    Werkzeugleiste (fragments/edit_toolbar.html), darunter das Blatt (div.editor-body: Satzbild bzw. Textfeld
-    bzw. Vorschau), das die restliche Höhe füllt und allein scrollt, unten die schmale Statuszeile
-    (div.editor-status: Hinweise, im Editor „Speichern“ und „Als neue Fassung speichern“). Jeder Bereich ist eine eigene
-    Zoom-Zone (data-zoom-zone, zoom.ts). Fassungsliste, „Diese Fassung verwenden“, „Fassung ändern“ und
-    „Löschen“ stehen rechts im Akkordeon „Fassungen“ (fragments/revisions.html).
-    Offene Vorschläge stehen an ihrer Stelle im Lesefluss (fragments/proposals.html, Runde 8: im Editor als
-    section.pv-flow im Blatt nach dem Formular, mit JavaScript im Satzbild an ihrem Block; in der Vorschau
-    zwischen den Blöcken jedes Abschnitts). rev.number ist die Nummer der gezeigten Fassung (mit Lücken nach
-    dem Löschen), rev.prev/rev.next die Nummern der Nachbarn. Alle Formulare gehen ohne JavaScript an
-    /act bzw. /gliederung/act.
-    Runde 22 (fassungen): Kopf mit „Stand k“ (Link auf den Verlauf, /werke/{id}/fassungen/verlauf) und bei Vorschlägen
-    „beruht auf Fassung n, Stand k“; Rückmeldung nach dem Speichern ohne JavaScript (rev.saved_notice); Hinweis
-    „weitere Fassung(en): n“ (rev.alternatives: ersetzte und verworfene Fassungen) mit Link (?rev=) und „aktuell machen“
-    (revision.set_current an /act). Das Editor-Formular schickt mode=auto (verstecktes Feld): Speichern schreibt die
-    eigene aktuelle Fassung fort, solange keine Regel eine neue verlangt; „Als neue Fassung speichern“ schickt as_new=1. -#}
+{#- Centre: the shown section in areas of its own (wish 2026-11-06, „die Elemente entkoppeln“):
+    fixed at the top the head (title, „Fassung n · Status · Autor“, „‹ n/m ›“, „aktuell: Fassung k“) and in the editor
+    the toolbar (fragments/edit_toolbar.html), below it the sheet (div.editor-body: typeset view or text field
+    or preview), which fills the remaining height and scrolls alone, at the bottom the narrow status line
+    (div.editor-status: notes, in the editor „Speichern“ and „Als neue Fassung speichern“). Every area is a
+    zoom zone of its own (data-zoom-zone, zoom.ts). Revision list, „Diese Fassung verwenden“, „Fassung ändern“ and
+    „Löschen“ are on the right in the accordion „Fassungen“ (fragments/revisions.html).
+    Open proposals stand at their place in the reading flow (fragments/proposals.html, Round 8: in the editor as
+    section.pv-flow in the sheet after the form, with JavaScript in the typeset view at their block; in the preview
+    between the blocks of every section). rev.number is the number of the shown revision (with gaps after
+    deleting), rev.prev/rev.next the numbers of the neighbours. All forms go without JavaScript to
+    /act or /gliederung/act.
+    Round 22 (fassungen): head with „Stand k“ (link to the history, /werke/{id}/fassungen/verlauf) and for proposals
+    „beruht auf Fassung n, Stand k“; feedback after saving without JavaScript (rev.saved_notice); note
+    „weitere Fassung(en): n“ (rev.alternatives: replaced and rejected revisions) with a link (?rev=) and „aktuell
+    machen“ (revision.set_current to /act). The editor form sends mode=auto (hidden field): saving continues the
+    own current revision as long as no rule demands a new one; „Als neue Fassung speichern“ sends as_new=1. -#}
 {%- set view_q = "&view=preview" if view == "preview" else "" %}
 <div class="editor-head" data-zoom-zone="head">
-  {#- Runde 11: Kapitelbild aus der Werkvorlage (baruch_typst::images::computed_images, ohne Typst sicher
-      ermittelt), mit Bildunterschrift und Alternativtext; sonst ehrlich „Bild aus der Vorlage“ mit Link zur
-      Seite Bilder. Kontext chapter_image {known, chapter, path?, missing?, name?, caption?, alt?, thumb?,
+  {#- Round 11: chapter image from the work template (baruch_typst::images::computed_images, determined safely
+      without Typst), with caption and alternative text; otherwise honestly „Bild aus der Vorlage“ with a link to the
+      page Bilder. Context chapter_image {known, chapter, path?, missing?, name?, caption?, alt?, thumb?,
       detail?, expr?}. #}
   {%- if chapter_image %}
   {%- if chapter_image.known and not chapter_image.missing %}
@@ -41,9 +41,9 @@
     <span class="counter{% if rev.is_current %} is-current{% endif %}" title="Fassung {{ rev.number }}{% if rev.is_current %}, aktuell{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
     {%- if rev.next %}<a class="btn" data-nav data-key="next" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Nächste Fassung (Alt+→)">›</a>
     {%- else %}<span class="btn" aria-disabled="true">›</span>{% endif %}
-    {#- 0.9.0 (Nutzer 2026-11-24): ältere Fassungen ausblenden. Zu: „(+ n ausgeblendet)“ als Link, der den Schalter
-        öffnet (?fassungen=alle, Blättern zeigt dann alle); offen: „n ältere verbergen“. „bis hier ausblenden“ zeigt
-        über form="rev-fold-<n>" auf das Formular im Akkordeon „Fassungen“ (der Editor trägt keine Fassungsformulare). #}
+    {#- 0.9.0 (user 2026-11-24): hide older revisions. Closed: „(+ n ausgeblendet)“ as a link that opens the
+        switch (?fassungen=alle, paging then shows all); open: „n ältere verbergen“. „bis hier ausblenden“ points
+        through form="rev-fold-<n>" to the form in the accordion „Fassungen“ (the editor carries no revision forms). #}
     {%- if rev.fold.hidden %}
     {%- if rev.fold.open %}
     <a class="rev-fold-toggle small" data-nav data-rev-fold="open" href="{{ rev.fold.hide_url }}" title="Ausgeblendete Fassungen beim Blättern wieder überspringen">{{ rev.fold.hidden }} ältere verbergen ▾</a>
@@ -55,17 +55,17 @@
     <button class="btn tiny rev-fold-here" type="submit" form="rev-fold-{{ rev.number }}" title="Alle älteren ersetzten und verworfenen Fassungen unter Fassung {{ rev.number }} ausblenden (nichts wird gelöscht)">bis hier ausblenden</button>
     {%- endif %}
   </nav>
-  {#- Runde 28 (befund-uebersicht): offene Befunde des Abschnitts samt Unterpunkten (Zählregel §1.5), Link auf die
-      Befunde des Abschnitts auf der Seite /werke/<id>/befunde (ohne JavaScript). #}
+  {#- Round 28 (befund-uebersicht): open findings of the section including sub-items (counting rule §1.5), link to the
+      findings of the section on the page /werke/<id>/befunde (without JavaScript). #}
   {%- if node.open_findings %}
   <a class="badge warning findings-badge editor-findings" href="{{ node.findings_url }}" data-findings-open="{{ node.open_findings }}" title="{{ node.open_findings }} offene{% if node.open_findings == 1 %}r{% endif %} Befund{% if node.open_findings != 1 %}e{% endif %}{% if node.open_findings != node.open_findings_own %} samt Unterpunkten ({{ node.open_findings_own }} hier){% endif %}">{{ node.open_findings }} offen</a>
   {%- endif %}
   {%- if not rev.is_current and rev.current %}
   <a class="current-link small" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.current }}{{ view_q }}{{ pick_q }}{{ lq_q }}">aktuell: Fassung {{ rev.current }}</a>
   {%- endif %}
-  {#- Runde 16b (Zeitwächter): nur bei Predigt oder Zielzeit. Beim Laden fertig vom Server (ohne JavaScript);
-      das Widget „timing“ (web/src/timing.ts) zählt beim Tippen entprellt über RPC timing.count nach (dieselbe
-      Regel wie der Server) und rechnet die Gesamtzeit mit data-rest (Summe ohne diesen Abschnitt) neu. #}
+  {#- Round 16b (time guard): only for a sermon or a target time. Finished by the server on loading (without
+      JavaScript); the widget „timing“ (web/src/timing.ts) recounts while typing, debounced, through RPC timing.count
+      (the same rule as the server) and recomputes the total time with data-rest (sum without this section). #}
   {%- if timing %}
   <p class="editor-timing small" data-widget="timing" data-work="{{ work.id }}" data-rest="{{ timing.rest }}"{% if timing.target is not none %} data-target="{{ timing.target }}"{% endif %} aria-live="polite">
     <span data-timing-text title="Sprechdauer bei {{ timing.words_per_minute }} Wörtern je Minute{% if timing.start_clock %}; Zeitmarke {{ timing.start_clock }}{% endif %}">Abschnitt ≈ <span data-timing-section>{{ timing.section_clock }}</span> · gesamt <span data-timing-total>{{ timing.total_clock }}</span>{% if timing.target_clock %} / Ziel {{ timing.target_clock }}{% endif %}</span>
@@ -75,10 +75,10 @@
   {%- if rev.saved_notice %}
   <p class="notice small saved-notice" role="status">{{ rev.saved_notice }}</p>
   {%- endif %}
-  {#- Runde 22 (R22a): weitere Fassungen außer Vorschlägen (ersetzt, verworfen) – Link zeigt die Fassung (?rev=),
-      „aktuell machen“ schaltet um. Die Formulare (revision.set_current an /act) stehen im Akkordeon „Fassungen“
-      (fragments/revisions.html, id="rev-alt-<n>"); die Knöpfe hier zeigen über das Attribut form darauf – der Editor
-      trägt keine Fassungsformulare (Wunsch 2026-11-06), ohne JavaScript geht es trotzdem. #}
+  {#- Round 22 (R22a): further revisions other than proposals (replaced, rejected) – the link shows the revision
+      (?rev=), „aktuell machen“ switches. The forms (revision.set_current to /act) are in the accordion „Fassungen“
+      (fragments/revisions.html, id="rev-alt-<n>"); the buttons here point to them through the attribute form – the
+      editor carries no revision forms (wish 2026-11-06), it still works without JavaScript. #}
   {%- if rev.alternatives %}
   <details class="rev-alternatives small">
     <summary title="Nicht aktuelle Fassungen hier (ohne offene Vorschläge)">weitere Fassung{% if rev.alternatives | length != 1 %}en{% endif %}: {{ rev.alternatives | length }}</summary>
@@ -118,7 +118,7 @@
     · <a data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.number }}&view=preview{{ lq_q }}">nur aktuelle Fassungen</a></p>
   {%- endif %}
   {%- if missing_images %}
-  {#- Runde 11: Bildpfade im Text, zu denen das Werk kein Bild hat – deutlich, mit Weg zur Seite Bilder. #}
+  {#- Round 11: image paths in the text for which the work has no image – clearly, with the way to the page Bilder. #}
   <div class="notice warning missing-images" role="alert">
     {%- for p in missing_images %}<div>Bild fehlt: <code>{{ p }}</code></div>{% endfor %}
     <div class="small"><a href="/werke/{{ work.id }}/bilder">Bilder des Werks</a> · dort hochladen und den Pfad eintragen.</div>
@@ -126,7 +126,7 @@
   {%- endif %}
   <div class="sheet-wrap">
     <div class="sheet">
-      {#- Je Abschnitt seine Blöcke; offene Vorschläge stehen an ihrer Stelle dazwischen (proposals.html). #}
+      {#- Per section its blocks; open proposals stand at their place in between (proposals.html). #}
       {%- for section in preview %}
       {%- with inline = section.flow %}{% include "fragments/proposals.html" %}{% endwith %}
       {%- endfor %}
@@ -137,34 +137,34 @@
   <span class="muted tiny status-hints">Vorschau im Browser (Näherung) · die gesetzten Seiten aus Typst zeigt <a href="/werke/{{ work.id }}/satz?key={{ node.key }}">Satz</a></span>
 </div>
 {%- else %}
-{#- Speichern über outline.save: Ändert sich die Überschriftszeile, passt sich die Gliederung an
-    (Titel, Ebene); neue Überschriften teilen den Abschnitt, eine entfernte führt ihn mit dem vorigen
-    zusammen – beides nur nach Rückfrage (mit JavaScript per confirm() nach outline.check, ohne
-    JavaScript auf einer Rückfrageseite von /gliederung/act).
-    div.wysiwyg (Widget wysiwyg.ts) umfasst Werkzeugleiste, Blatt und Statuszeile; das Formular
-    form#editor-form liegt im Blatt, der Knopf „Speichern“ in der Statuszeile gehört über form="editor-form"
-    dazu (geht auch ohne JavaScript). Die Vorschläge (section.pv-flow) stehen als Geschwister des
-    Formulars im Blatt, weil sie eigene Formulare tragen (Formulare lassen sich nicht schachteln).
-    Runde 33: Die Werkzeugleiste (fragments/edit_toolbar.html) hängt band.ts mit JavaScript in das Menüband um
-    (Andockplatz); ohne JavaScript bleibt sie hier verborgen.
-    Satzbild: Die Ansicht kommt schon vom Server (Cookie baruch_editor, Vorgabe Satzbild; Runde 8):
-    aria-pressed, und bei „satz“ das fertige Satzbild der gezeigten Fassung (data-ws-ready), das das Widget
-    beim Einhängen sofort öffnet. Ohne JavaScript bleiben Werkzeugleiste, Blatt des Satzbilds und sein
-    Hinweis verborgen; abgeschickt wird immer das Textfeld, das das Widget vor dem Speichern aus dem
-    Satzbild füllt (RPC wysiwyg.serialize). #}
+{#- Saving through outline.save: if the heading line changes, the outline adapts
+    (title, level); new headings split the section, a removed one merges it with the previous
+    one – both only after a confirmation (with JavaScript by confirm() after outline.check, without
+    JavaScript on a confirmation page of /gliederung/act).
+    div.wysiwyg (widget wysiwyg.ts) comprises toolbar, sheet and status line; the form
+    form#editor-form lies in the sheet, the button „Speichern“ in the status line belongs to it through
+    form="editor-form" (also works without JavaScript). The proposals (section.pv-flow) stand as siblings of the
+    form in the sheet because they carry forms of their own (forms cannot be nested).
+    Round 33: band.ts moves the toolbar (fragments/edit_toolbar.html) into the ribbon with JavaScript
+    (docking place); without JavaScript it stays hidden here.
+    Typeset view: the view already comes from the server (cookie baruch_editor, default typeset view; Round 8):
+    aria-pressed, and for „satz“ the finished typeset view of the shown revision (data-ws-ready), which the widget
+    opens at once when mounting. Without JavaScript the toolbar, the sheet of the typeset view and its
+    note stay hidden; what is submitted is always the text field, which the widget fills from the
+    typeset view before saving (RPC wysiwyg.serialize). #}
 {%- set ws_satz = settings.editor != "quelltext" %}
 {%- set ws_sheet = proposals.sheet if proposals else none %}
-{#- Runde 18c: Darstellung des Satzbilds (Werkvorlage, überschrieben mit den Satzbild-Einstellungen des Werks,
-    view.rs → sheet::sheet_css_for) schon im HTML, damit das Blatt nicht nach dem Laden Schrift und Größe wechselt.
-    wysiwyg.ts übernimmt ein #ws-style mit gleichem data-work ohne RPC; sheet.ts frischt es nach einer Änderung in
-    den Einstellungen (baruch:settings-changed) über work.sheet auf. Das CSS kommt aus sheet_css (nur harmlose
-    Zeichen, kein <), darum unmaskiert. #}
+{#- Round 18c: appearance of the typeset view (work template, overridden with the typeset-view settings of the work,
+    view.rs → sheet::sheet_css_for) already in the HTML, so that the sheet does not change font and size after loading.
+    wysiwyg.ts takes over a #ws-style with the same data-work without RPC; sheet.ts refreshes it after a change in
+    the settings (baruch:settings-changed) through work.sheet. The CSS comes from sheet_css (only harmless
+    characters, no <), therefore unescaped. #}
 {%- if sheet_css %}
 <style id="ws-style" data-work="{{ work.id }}">{{ sheet_css | safe }}</style>
 {%- endif %}
 <div class="wysiwyg" data-widget="wysiwyg" data-work="{{ work.id }}" data-key="{{ node.key }}" data-node="{{ node.id }}" data-rev="{{ rev.number }}" data-ws-start="{% if ws_satz %}satz{% else %}quelltext{% endif %}">
   {% include "fragments/edit_toolbar.html" %}
-  {#- Runde 30a: Suchleiste oben rechts im Editor (search.ts), ohne JavaScript ein Link auf /suche. #}
+  {#- Round 30a: search bar at the top right of the editor (search.ts), without JavaScript a link to /suche. #}
   {% include "fragments/search_bar.html" %}
   <div class="editor-body" data-zoom-zone="sheet">
     {%- if missing_images %}
@@ -195,26 +195,26 @@
     {%- endif %}
     {%- set foot_hint = "Alt+← / Alt+→ wechselt die Fassung · " ~ save_hint ~ " · „Als neue Fassung speichern“ legt immer eine neue an · die Überschriftszeile bestimmt Titel und Ebene in der Gliederung · Assistenten schreiben nur Vorschläge" %}
     <span class="muted tiny status-hints" title="{{ ws_hint }} · {{ foot_hint }}"><span class="ws-hint" data-ws-hint hidden>{{ ws_hint }} · </span><span>{{ foot_hint }}</span></span>
-    {#- Runde 17c: Prüfanzeige der Zitate. Ohne JavaScript ein Link auf die Seite /werke/{id}/pruefung (Liste der
-        gezeigten Fassung); das Widget „scripture-check“ (web/src/scripture_check.ts) zeigt die Liste hier und
-        markiert die Zitate im Satzbild über die CSS Custom Highlight API (keine Änderung am Satzbild). Steht außerhalb
-        des Formulars: nichts davon wird gespeichert. #}
-    {#- Runde 31c: Kontextmenü ohne JavaScript – die Aktionen „In Glossar aufnehmen“, „In Register aufnehmen“ und „Im
-        Glossar nachschlagen“ als Formulare auf /werke/{id}/markierung (Abschnitt und Fassung im Link). Mit JavaScript
-        öffnet der Link das Kontextmenü an der Markierung (context_menu.ts, data-ctx-open). #}
+    {#- Round 17c: check display of the quotations. Without JavaScript a link to the page /werke/{id}/pruefung (list of
+        the shown revision); the widget „scripture-check“ (web/src/scripture_check.ts) shows the list here and
+        marks the quotations in the typeset view through the CSS Custom Highlight API (no change to the typeset view).
+        Stands outside the form: none of it is saved. #}
+    {#- Round 31c: context menu without JavaScript – the actions „In Glossar aufnehmen“, „In Register aufnehmen“ and „Im
+        Glossar nachschlagen“ as forms on /werke/{id}/markierung (section and revision in the link). With JavaScript
+        the link opens the context menu at the selection (context_menu.ts, data-ctx-open). #}
     <a class="btn" data-ctx-open href="/werke/{{ work.id }}/markierung?key={{ node.key }}&amp;rev={{ rev.number }}" title="Registereintrag oder Glossarbegriff zur Markierung: In Glossar aufnehmen, In Register aufnehmen, Im Glossar nachschlagen">Markierung …</a>
     <span class="scripture-check" data-widget="scripture-check" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}">
       <a class="btn" data-check-link href="/werke/{{ work.id }}/pruefung?key={{ node.key }}&amp;rev={{ rev.number }}" title="Zitate dieser Fassung gegen die Bibel des Werks prüfen (stimmt / weicht ab)">Zitate prüfen</a>
     </span>
-    {#- Runde 11/18c: Bild aus den Bildern des Werks einfügen. Ohne JavaScript ein Formular an
-        POST /werke/bilder/einfuegen: legt als Mensch eine neue Fassung auf Fassung rev.number an
-        (#figure(image("<Pfad>"), caption: [...]) als eigener Block an der gewählten Stelle: am Ende, am Anfang
-        oder vor einem Block; ein Commit); fehlt dem Bild ein Pfad, wird bilder/<name> vergeben – in derselben
-        Transaktion wie die Fassung. Ohne JavaScript gehen ungespeicherte Änderungen im Textfeld nicht mit. Mit
-        JavaScript (Widget „sheet-tools“, web/src/sheet.ts) kommt „an der Cursorstelle“ dazu (Satzbild über
-        baruch:ws-caret, Quelltext über selectionStart); dann geht der ungespeicherte Text als body mit (das
-        Feld ist ohne JavaScript gesperrt und wird nie geschickt). Der Knopf „Bild“ des Menübands öffnet nur
-        dieses details (data-image-insert). #}
+    {#- Round 11/18c: insert an image from the images of the work. Without JavaScript a form to
+        POST /werke/bilder/einfuegen: creates, as the human, a new revision on revision rev.number
+        (#figure(image("<Pfad>"), caption: [...]) as a block of its own at the chosen place: at the end, at the
+        beginning or before a block; one commit); if the image lacks a path, bilder/<name> is assigned – in the same
+        transaction as the revision. Without JavaScript unsaved changes in the text field are not included. With
+        JavaScript (widget „sheet-tools“, web/src/sheet.ts) „an der Cursorstelle“ is added (typeset view through
+        baruch:ws-caret, source text through selectionStart); then the unsaved text goes along as body (the
+        field is disabled without JavaScript and is never sent). The button „Bild“ of the ribbon only opens
+        this details (data-image-insert). #}
     <details class="image-insert" id="bild-einfuegen" data-image-insert data-widget="sheet-tools">
       <summary class="btn" title="Bild aus den Bildern des Werks einfügen (neue Fassung)">Bild einfügen …</summary>
       {%- if image_choices %}
@@ -237,13 +237,13 @@
       <p class="small">Das Werk hat noch keine Bilder. <a href="/werke/{{ work.id }}/bilder">Bilder hochladen</a></p>
       {%- endif %}
     </details>
-    {#- Runde 22: Hauptknopf zuerst (submitButton nimmt den ersten Knopf des Formulars für „Gespeichert“/„Speichern“). #}
+    {#- Round 22: main button first (submitButton takes the first button of the form for „Gespeichert“/„Speichern“). #}
     <button class="btn primary" type="submit" form="editor-form" data-saved="Gespeichert" data-dirty="Speichern" title="{{ save_hint }}">Speichern</button>
     <button class="btn" type="submit" form="editor-form" name="as_new" value="1" title="Immer eine neue Fassung auf Fassung {{ rev.number }} anlegen (statt fortzuschreiben)">Als neue Fassung speichern</button>
   </div>
 </div>
 {%- endif %}
-{#- Runde 33: Marke für das Menüband – band.ts (Widget „band-dock“) leert beim Einhängen den Andockplatz des Bands
-    (div[data-band-dock] in base.html) und hängt die Leiste [data-edit-toolbar] dieses Fragments hinein; in der
-    Vorschau (keine Leiste) wird nur geleert. Steht in beiden Ansichten am Ende, damit jedes ui.render andockt. #}
+{#- Round 33: marker for the ribbon – band.ts (widget „band-dock“) empties the docking place of the ribbon when mounting
+    (div[data-band-dock] in base.html) and hooks the bar [data-edit-toolbar] of this fragment into it; in the
+    preview (no bar) it is only emptied. Stands at the end in both views so that every ui.render docks. #}
 <span data-widget="band-dock" hidden></span>

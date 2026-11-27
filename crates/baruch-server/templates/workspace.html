@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{{ node.title }} – Baruch{% endblock %}
-{#- Kopfzeile in base.html (Runde 9): Werkwahl, Menüs und Abzeichen kommen aus `topbar`
-    (menu::workspace_topbar); hier nur der Titel. #}
+{#- Header in base.html (Round 9): work selection, menus and badges come from `topbar`
+    (menu::workspace_topbar); here only the title. #}
 {% block page_title %}{{ work.title }}{% endblock %}
 {% block body %}
-{#- Zoom-Zonen (zoom.ts, data-zoom-zone): Gliederung und rechte Spalte als Ganzes; im Editor Kopf,
-    Werkzeugleiste, Blatt und Statuszeile je für sich (fragments/editor.html), rechts zusätzlich das
-    Akkordeon „Fassungen“. #}
-{#- Runde 33 (Laptop-Modus, src/laptop.rs): Ist eine Seitenspalte eingeklappt (`data-rail-left` bzw. `data-rail-right`
-    an <html>, gesetzt von der Schicht consent::inject und von laptop.ts), steht an ihrer Stelle eine schmale Leiste
-    (`a.rail`). Ohne JavaScript öffnet ihr Link die Spalte als Schublade über `:target` (`#pane-tree`,
-    `#pane-assistants`); „Schließen“ in der Spalte (fragments/tree.html, assistants.html) und die Fläche daneben
-    (`a.rail-scrim`) führen auf `#pane-editor` und schließen sie damit wieder. Mit JavaScript übernimmt laptop.ts
-    (Schublade mit Esc/Klick daneben, im breiten Fenster dauerhaftes Auf- und Zuklappen). Die Spalten bleiben erstes
-    und letztes Kind des Rasters (Widget „splitter“ misst sie so). #}
+{#- Zoom zones (zoom.ts, data-zoom-zone): outline and right column as a whole; in the editor head,
+    toolbar, sheet and status line each on its own (fragments/editor.html), on the right additionally the
+    accordion „Fassungen“. #}
+{#- Round 33 (laptop mode, src/laptop.rs): if a side column is collapsed (`data-rail-left` or `data-rail-right`
+    on <html>, set by the layer consent::inject and by laptop.ts), a narrow rail stands in its place
+    (`a.rail`). Without JavaScript its link opens the column as a drawer through `:target` (`#pane-tree`,
+    `#pane-assistants`); „Schließen“ in the column (fragments/tree.html, assistants.html) and the area next to it
+    (`a.rail-scrim`) lead to `#pane-editor` and thereby close it again. With JavaScript laptop.ts takes over
+    (drawer with Esc/click next to it, in the wide window permanent folding open and closed). The columns stay first
+    and last child of the grid (the widget „splitter“ measures them that way). #}
 <main class="workspace" data-widget="workspace">
   <nav class="pane" id="pane-tree" aria-label="Gliederung" data-zoom-zone="tree">{% if lektor %}{% include "fragments/lektor_tree.html" %}{% else %}{% include "fragments/tree.html" %}{% endif %}</nav>
   <a class="rail" href="#pane-tree" data-rail-open="left" aria-controls="pane-tree" title="Gliederung öffnen"><span class="rail-mark" aria-hidden="true">›</span><span class="rail-label">Gliederung</span></a>
@@ -24,11 +24,11 @@
   <a class="rail" href="#pane-assistants" data-rail-open="right" aria-controls="pane-assistants" title="Assistenten öffnen"><span class="rail-mark" aria-hidden="true">‹</span><span class="rail-label">Assistenten</span></a>
   <aside class="pane" id="pane-assistants" aria-label="Assistenten" data-zoom-zone="assistants">{% if lektor %}{% include "fragments/lektor_assistants.html" %}{% else %}{% include "fragments/assistants.html" %}{% endif %}</aside>
 </main>
-{#- Runde 35: Für Lektoren (`lektor` aus view.rs) kommen die drei Spalten aus fragments/lektor_*.html (nur lesen,
-    vorschlagen, Beitrag, Befund); die Dialoge darunter (Literatur, Werk anlegen, Einfall) fehlen ihnen ganz. #}
+{#- Round 35: for Lektors (`lektor` from view.rs) the three columns come from fragments/lektor_*.html (read only,
+    propose, post, finding); the dialogs below (literature, create a work, idea) are missing entirely for them. #}
 {%- if not lektor %}
-{#- Popup der Literatur: Inhalt wie /literatur; das Widget „literature“ lädt ihn über literature.render
-    neu, hält die Suche über Schließen und Öffnen und gibt Werk-Treffer an den Arbeitsbereich. #}
+{#- Popup of the literature: content as in /literatur; the widget „literature“ reloads it through literature.render,
+    keeps the search across closing and opening and hands work hits to the workspace. #}
 <dialog class="literature-dialog" id="literature" data-widget="literature" aria-labelledby="literature-title">
   <header class="literature-head">
     <h2 class="pane-title" id="literature-title">Literatur</h2>
@@ -37,7 +37,7 @@
   </header>
   <div class="literature-content">{% include "fragments/library.html" %}</div>
 </dialog>
-{#- Dialog „Importieren…“: Hochladen oder Anlegen wie auf /werke/neu (Widget „work-import“). #}
+{#- Dialog „Importieren…“: uploading or creating as on /werke/neu (widget „work-import“). #}
 <dialog class="work-dialog" id="work-import" data-widget="work-import" aria-labelledby="work-import-title">
   <header class="literature-head">
     <h2 class="pane-title" id="work-import-title">Werk importieren oder anlegen</h2>
@@ -46,8 +46,8 @@
   </header>
   {% include "fragments/work_new.html" %}
 </dialog>
-{#- Schnellerfassung „Einfall“ (Widget „idea-capture“, web/src/ideas.ts): markierter Text als quote,
-    key aus dem Editor-Formular, Enter speichert über idea.create, Fokus kehrt zurück. #}
+{#- Quick capture „Einfall“ (widget „idea-capture“, web/src/ideas.ts): selected text as quote,
+    key from the editor form, Enter saves through idea.create, focus returns. #}
 <dialog id="idea-capture" class="idea-dialog" data-widget="idea-capture" aria-labelledby="idea-capture-title">{% include "fragments/idea_capture.html" %}</dialog>
 {%- endif %}
 {% endblock %}

@@ -1,33 +1,33 @@
-{#- Gliederung: die einzige der Oberfläche (Vertrag Runde 5). Teile und Kapitel aufklappbar (<details>,
-    geht auch ohne JavaScript). Links tragen das Werk (work.id), den festen Schlüssel des Punkts (key,
-    Runde 8: kein node= mehr) und die Suche der Literatur (lq_q = "&lq=…" oder leer); ein Eintrag zeigt
-    immer auf den Editor (ohne view=preview).
-    Kopf: Nummerierung (Formular an /gliederung/act, mit und ohne JavaScript) und der Link „Schema
-    wählen…“ zur Seite /werke/{id}/nummerierung (Gliederungsschemata, Runde 6). Der Kopf zeigt das
-    Muster (aus der Werkvorlage, eigenes) bzw. den Namen des Schemas, bei offenen Anträgen der
-    Assistenten (outline_requests) den Hinweis „N Anträge zur Gliederung“ mit Link auf /gliederung#antraege.
-    Je Eintrag kleine Formulare an /gliederung/act: ↑ ↓ (vor den vorigen bzw. hinter den nächsten
-    Punkt derselben Ebene), ← → (Ebene höher bzw. tiefer); die Knöpfe stehen in der Zeile und gehören
-    über das Attribut form zu den Formularen unter dem Eintrag. Ohne JavaScript dazu die Links
-    „bearbeiten“ (/gliederung) und „Bearbeiten“ (/gliederung/bearbeiten) als Rückfall (nojs-only).
-    Mit JavaScript: Widget „outline“ (Ziehen und Ablegen, Alt+Umschalt+Pfeile, Kontextmenü mit
-    Umbenennen, Anlegen, Umstufen und Löschen, Doppelklick bzw. F2 zum Umbenennen, Entf zum Löschen;
-    Runde 14: „Neuer Teil davor/danach“ an Teilen und Kapiteln, ohne JavaScript über /gliederung/bearbeiten).
-    Jedes Formular trägt neben der Stelle (node, target) den festen Schlüssel (key, target_key): Er
-    gilt, auch wenn ein anderer Tab die Gliederung inzwischen umgestellt hat.
-    Runde 11: cover {thumb, alt}? zeigt ein kleines Umschlagbild im Kopf (Daten verdrahtet der Integrator).
-    Runde 16b (Zeitwächter): Nur bei Predigt oder gesetzter Zielzeit (timing ist sonst none) zeigt der Kopf
-    Gesamtzeit und Zielzeit (timing {total_clock, target_clock?, over, over_clock?}) und bei Überschreitung die
-    Warnung „Zielzeit überschritten um m:ss“ als Text mit role="alert" (nicht nur als Farbe); jeder Eintrag
-    zeigt seine Dauer (item.duration: Punkte mit Unterpunkten samt Nachfahren) mit der Zeitmarke im title.
-    Runde 28 (befund-uebersicht): Abzeichen „k offen“ je Eintrag (item.findings: offene Befunde nach der Zählregel §1.5
-    samt Unterpunkten, Kapitel und Teile summiert; item.findings_own am Punkt selbst), dieselben Zahlen wie auf der
-    Seite /werke/<id>/befunde und in finding.matrix.
-    Runde 22 (R22a): Abzeichen „+n“ je Eintrag mit weiteren nicht aktuellen Fassungen außer Vorschlägen
-    (item.alternatives: ersetzt, verworfen); Klick öffnet den Abschnitt, dort „weitere Fassung(en)“ im Editor-Kopf.
-    Runde 33 (Laptop-Modus): oben die Zeile `rail-bar` – „Einklappen“ (`?lrail=1`, gemerkt im Cookie baruch_lrail;
-    sichtbar, solange die Spalte offen ist) und „Schließen“ (`#pane-editor`; sichtbar, wenn die Spalte als Schublade
-    über der eingeklappten Leiste liegt). Beides gewöhnliche Links, laptop.ts fängt sie nur ab. -#}
+{#- Outline: the only one of the user interface (contract Round 5). Parts and chapters expandable (<details>,
+    also works without JavaScript). Links carry the work (work.id), the fixed key of the item (key,
+    Round 8: no node= any more) and the search of the literature (lq_q = "&lq=…" or empty); an entry always
+    points to the editor (without view=preview).
+    Head: numbering (form to /gliederung/act, with and without JavaScript) and the link „Schema
+    wählen…“ to the page /werke/{id}/nummerierung (outline schemes, Round 6). The head shows the
+    pattern (from the work template, own) or the name of the scheme, with open requests of the
+    assistants (outline_requests) the note „N Anträge zur Gliederung“ with a link to /gliederung#antraege.
+    Per entry small forms to /gliederung/act: ↑ ↓ (before the previous or after the next
+    item of the same level), ← → (one level up or down); the buttons stand in the row and belong
+    through the attribute form to the forms below the entry. Without JavaScript additionally the links
+    „bearbeiten“ (/gliederung) and „Bearbeiten“ (/gliederung/bearbeiten) as a fallback (nojs-only).
+    With JavaScript: widget „outline“ (drag and drop, Alt+Shift+arrows, context menu with
+    renaming, creating, changing the level and deleting, double click or F2 for renaming, Del for deleting;
+    Round 14: „Neuer Teil davor/danach“ on parts and chapters, without JavaScript through /gliederung/bearbeiten).
+    Every form carries, besides the position (node, target), the fixed key (key, target_key): it
+    applies even if another tab has rearranged the outline in the meantime.
+    Round 11: cover {thumb, alt}? shows a small cover image in the head (the integrator wires the data).
+    Round 16b (time guard): only for a sermon or a set target time (timing is none otherwise) the head shows
+    total time and target time (timing {total_clock, target_clock?, over, over_clock?}) and, when exceeded, the
+    warning „Zielzeit überschritten um m:ss“ as text with role="alert" (not only as colour); every entry
+    shows its duration (item.duration: items with sub-items including descendants) with the time mark in the title.
+    Round 28 (befund-uebersicht): badge „k offen“ per entry (item.findings: open findings by the counting rule §1.5
+    including sub-items, chapters and parts summed; item.findings_own on the item itself), the same numbers as on the
+    page /werke/<id>/befunde and in finding.matrix.
+    Round 22 (R22a): badge „+n“ per entry with further non-current revisions other than proposals
+    (item.alternatives: replaced, rejected); a click opens the section, there „weitere Fassung(en)“ in the editor head.
+    Round 33 (laptop mode): at the top the row `rail-bar` – „Einklappen“ (`?lrail=1`, remembered in the cookie
+    baruch_lrail; visible as long as the column is open) and „Schließen“ (`#pane-editor`; visible when the column lies
+    as a drawer above the collapsed rail). Both ordinary links, laptop.ts only intercepts them. -#}
 <div class="rail-bar">
   <a class="tool tiny rail-collapse" href="?lrail=1" data-rail-collapse="left" title="Gliederung einklappen (schmale Leiste am Rand)">‹ Einklappen</a>
   <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Gliederung schließen">Schließen</a>
@@ -38,7 +38,7 @@
   <a class="tool small nojs-only" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}" title="Gliederung bearbeiten (Ebenen, Reihenfolge, Nummerierung)">bearbeiten</a>
   {%- if numbering %}
   {%- set chosen = "vorlage" if numbering.scheme == "template" else ("keine" if numbering.scheme == "none" else (numbering.numbering or "")) %}
-  {#- Runde 7: der Name des passenden Schemas („Nur Kapitel römisch“), das rohe Muster nur im title. #}
+  {#- Round 7: the name of the matching scheme („Nur Kapitel römisch“), the raw pattern only in the title. #}
   <details class="outline-numbering-head">
     <summary class="tool small" title="Nummerierung der Gliederung (Gliederungsschema: {{ numbering.scheme_label }}{% if numbering.effective and numbering.scheme in ["template", "custom"] %}, Muster {{ numbering.effective }}{% endif %})">Nummern: {{ numbering.label }}</summary>
     <form class="numbering-form" method="post" action="/gliederung/act" data-outline-numbering>
@@ -71,7 +71,7 @@
     <a class="tool tiny" href="/einstellungen/werk?work={{ work.id }}#zeit" data-settings-open data-settings-page="werk" title="Wörter je Minute und Zielzeit einstellen">Zeit …</a>
   </p>
   {%- endif %}
-  {#- Offene Anträge der Assistenten (Migration 0012): Link auf die Gliederungsseite, dort Bestätigen/Ablehnen. #}
+  {#- Open requests of the assistants (migration 0012): link to the outline page, there Bestätigen/Ablehnen. #}
   {%- if outline_requests %}
   <a class="badge warning outline-requests-hint" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}#antraege"
      title="Assistenten möchten die Gliederung ändern; bestätigen oder ablehnen">{{ outline_requests }} {% if outline_requests == 1 %}Antrag{% else %}Anträge{% endif %} zur Gliederung</a>
@@ -132,8 +132,8 @@
   </li>
 {%- endfor %}
 </ul>
-{#- Kontextmenü (nur mit JavaScript; outline.ts zeigt es am Eintrag): Rechtsklick, Umschalt+F10 oder
-    die Kontextmenü-Taste. Ohne JavaScript bleibt es verborgen. -#}
+{#- Context menu (only with JavaScript; outline.ts shows it at the entry): right click, Shift+F10 or
+    the context menu key. Without JavaScript it stays hidden. -#}
 <div class="outline-menu" role="menu" aria-label="Gliederungspunkt" hidden data-outline-menu>
   <button type="button" role="menuitem" data-action="rename">Umbenennen <kbd>F2</kbd></button>
   <button type="button" role="menuitem" data-action="add-before">Neuer Punkt davor</button>

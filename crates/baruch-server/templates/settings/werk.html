@@ -1,14 +1,14 @@
-{#- Einstellungsseite „Werk“ (Runde 9): die Formularblöcke aus work_edit.html und work_numbering.html
-    (edit, numbering: fertiges HTML aus {% block content %}, gleicher Kontext wie /werke/{id}/bearbeiten
-    und /werke/{id}/nummerierung, dazu back). Runde 11: dazu book und cover (fertiges HTML der Gruppen
-    „Buchangaben“ und „Umschlag“ aus src/cover.rs). Ohne Werk ein Hinweis. Kontext: work, notice, error,
-    edit, numbering, book, cover. Runde 13: dazu sync {upload, collection, documents, synced} – Schalter
-    „nach MultiGPT hochladen“ (Vorgabe aus) als Formular an POST /abgleich/act (action=upload, Pflicht-
-    Kontrollkästchen confirm beim Einschalten). Runde 16b: dazu timing (Block „Predigtzeit“, id="zeit").
-    Runde 18c: dazu sheet (Block „Satzbild“, id="satzbild"). Runde 27c: cover enthält den Knopf „Impressum-Vorlage
-    in die Werkvorlage übernehmen“, book die Anschriften von Verlag und Druckerei (beide aus src/cover.rs).
-    Runde 29: typeset (Block „Satz“, id="satz"; fertiges HTML aus src/settings/work_typeset.rs). Runde 22: revisions
-    (Block „Fassungen“, id="fassungen"). -#}
+{#- Settings page „Werk“ (Round 9): the form blocks from work_edit.html and work_numbering.html
+    (edit, numbering: finished HTML from {% block content %}, same context as /werke/{id}/bearbeiten
+    and /werke/{id}/nummerierung, plus back). Round 11: plus book and cover (finished HTML of the groups
+    „Buchangaben“ and „Umschlag“ from src/cover.rs). Without a work a note. Context: work, notice, error,
+    edit, numbering, book, cover. Round 13: plus sync {upload, collection, documents, synced} – switch
+    „nach MultiGPT hochladen“ (default off) as a form to POST /abgleich/act (action=upload, mandatory
+    checkbox confirm when switching on). Round 16b: plus timing (block „Predigtzeit“, id="zeit").
+    Round 18c: plus sheet (block „Satzbild“, id="satzbild"). Round 27c: cover contains the button „Impressum-Vorlage
+    in die Werkvorlage übernehmen“, book the addresses of publisher and printer (both from src/cover.rs).
+    Round 29: typeset (block „Satz“, id="satz"; finished HTML from src/settings/work_typeset.rs). Round 22: revisions
+    (block „Fassungen“, id="fassungen"). -#}
 <section class="settings-page" data-settings-page-body="werk">
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
@@ -29,9 +29,9 @@
   <div class="settings-block settings-cover">
 {{ cover|safe }}
   </div>
-  {#- Runde 15 (Punkt 5a): Kommentare und Lexika des Werks (sword {commentaries, lexicons: [{module,
-      description, notice, supported, problem, checked, missing}], error}); Formular an
-      POST /einstellungen/werk/bibeln (method=bible.set_work_sources, wiederholte Felder commentary, lexicon). #}
+  {#- Round 15 (item 5a): commentaries and lexicons of the work (sword {commentaries, lexicons: [{module,
+      description, notice, supported, problem, checked, missing}], error}); form to
+      POST /einstellungen/werk/bibeln (method=bible.set_work_sources, repeated fields commentary, lexicon). #}
   <div class="settings-block settings-sword" id="kommentare">
     <h3>Kommentare und Lexika</h3>
     {%- if sword.error %}
@@ -81,9 +81,9 @@
       <p class="muted tiny">In dieser Sprache antworten die Assistenten. Die Sprache der Oberfläche ändert sich dadurch nicht.</p>
     </form>
   </div>
-  {#- Runde 16b (Zeitwächter): Block „Predigtzeit“ (timing {words_per_minute, target_minutes?, total_clock, words,
-      over_clock?, sermon, default_wpm, error?}); Formular an POST /einstellungen/werk/zeit (method=work.timing_set).
-      Nur SQLite, nicht im Spiegel. #}
+  {#- Round 16b (time guard): block „Predigtzeit“ (timing {words_per_minute, target_minutes?, total_clock, words,
+      over_clock?, sermon, default_wpm, error?}); form to POST /einstellungen/werk/zeit (method=work.timing_set).
+      SQLite only, not in the mirror. #}
   <div class="settings-block settings-timing" id="zeit">
     <h3>Predigtzeit</h3>
     {%- if timing.error %}
@@ -99,9 +99,10 @@
       <p class="muted tiny">Vorgabe {{ timing.default_wpm }} Wörter je Minute; Zielzeit leer = keine. {% if timing.sermon %}Predigten zeigen ihre Zeiten immer{% else %}Bücher zeigen Zeiten nur mit Zielzeit{% endif %} – in der Gliederung und im Editorkopf. Typst-Markup, Überschriften, Kommentare und Fußnoten zählen nicht mit. Gespeichert nur in der Datenbank, nicht im Git-Spiegel.</p>
     </form>
   </div>
-  {#- Runde 18c (Satzbild je Werk): Block „Satzbild“ (sheet {settings, template, empty, error?}); Formular an
-      POST /einstellungen/werk/satzbild (method=work.sheet_set). Leere Felder = aus der Werkvorlage (Platzhalter =
-      Wert der Vorlage). Nur SQLite, nicht im Spiegel; gilt nur für das Satzbild im Browser, nie für Typst/PDF. #}
+  {#- Round 18c (typeset view per work): block „Satzbild“ (sheet {settings, template, empty, error?}); form to
+      POST /einstellungen/werk/satzbild (method=work.sheet_set). Empty fields = from the work template (placeholder =
+      value of the template). SQLite only, not in the mirror; applies only to the typeset view in the browser, never to
+      Typst/PDF. #}
   <div class="settings-block settings-sheet" id="satzbild">
     <h3>Satzbild</h3>
     {%- if sheet.error %}
@@ -130,10 +131,10 @@
     </form>
   </div>
 {{ typeset|safe }}
-  {#- Runde 22 (fassungen): Block „Fassungen“ (revisions {amend, max_change_percent, new_after_minutes, default_percent,
-      default_minutes, percent_min, percent_max, minutes_min, minutes_max, error?}); Formular an
-      POST /einstellungen/werk/fassungen (method=revision.policy_set, Handler in src/revisions.rs). Nur SQLite, nicht im
-      Austauschformat; jede Änderung ist ein Protokoll-Commit im Git-Spiegel. #}
+  {#- Round 22 (fassungen): block „Fassungen“ (revisions {amend, max_change_percent, new_after_minutes, default_percent,
+      default_minutes, percent_min, percent_max, minutes_min, minutes_max, error?}); form to
+      POST /einstellungen/werk/fassungen (method=revision.policy_set, handler in src/revisions.rs). SQLite only, not in
+      the exchange format; every change is a log commit in the Git mirror. #}
   <div class="settings-block settings-revisions" id="fassungen">
     <h3>Fassungen</h3>
     {%- if revisions.error %}
@@ -153,8 +154,8 @@
         der Fassung (dort auch „Bis hier zurück“). Personas legen immer neue Fassungen (Vorschläge) an. Gespeichert nur in
         der Datenbank, nicht im Austauschformat.</p>
     </form>
-    {#- 0.9.0 (Nutzer 2026-11-24): ältere Fassungen werkweit ausblenden (revisions.folds = Abschnitte mit Marke,
-        revisions.fold_error); Formular an POST /einstellungen/werk/fassungen/ausblenden (src/revision_fold.rs). #}
+    {#- 0.9.0 (user 2026-11-24): hide older revisions across the work (revisions.folds = sections with a mark,
+        revisions.fold_error); form to POST /einstellungen/werk/fassungen/ausblenden (src/revision_fold.rs). #}
     <form class="revision-fold-form" method="post" action="/einstellungen/werk/fassungen/ausblenden" id="fassungen-ausblenden">
       <input type="hidden" name="work" value="{{ work }}">
       <h4 class="small">Ältere Fassungen ausblenden</h4>

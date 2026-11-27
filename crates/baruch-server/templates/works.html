@@ -1,12 +1,13 @@
-{#- Seite /werke: alle Werke mit Autor, Art, Abschnitten, offenen Vorschlägen und letzter Änderung;
-    je Werk Öffnen, Ändern, Export, PDF (Runde 11), Löschen und ein kleines Umschlagbild (cover {name, alt}?,
-    Vorschau über /werke/{id}/bilder/{name}/vorschau?b=320, loading=lazy). Geht ohne JavaScript. Kontext: settings, works, notice,
-    back_url (Link zurück zu einem Werk, fehlt ohne Werke). Runde 22: Knopf „Archiv“ (/werke/archiv, gelöschte Werke
-    wiederherstellen). -#}
+{#- Page /werke: all works with author, kind, sections, open proposals and last change;
+    per work Öffnen, Ändern, Export, PDF (Round 11), Löschen and a small cover image (cover {name, alt}?,
+    preview through /werke/{id}/bilder/{name}/vorschau?b=320, loading=lazy). Works without JavaScript. Context:
+    settings, works, notice, back_url (link back to a work, missing without works). Round 22: button „Archiv“
+    (/werke/archiv, restore deleted works). -#}
 {% extends "base.html" %}
 {% block title %}Werke – Baruch{% endblock %}
 {% block page_title %}Werke{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Werke</summary><div class="band-items" role="group" aria-label="Werke">
     <a class="btn primary" href="/werke/neu">Neues Werk oder Import…</a>

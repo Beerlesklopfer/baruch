@@ -1,12 +1,12 @@
-{#- Hervorhebungen einer Quelle (Dokumentansicht /quelle): alle, auch Vorschläge und abgelehnte.
-    Das Ziel (?highlight=…) trägt die Klasse target, sein Text steht in <mark>. Je Hervorhebung
-    Formulare an POST /literatur/act: ändern (Art, Notiz, Status), als Zitat übernehmen, löschen
-    (Pflicht-Kontrollkästchen). Kontext: highlights, kinds, place_fields (versteckte Felder work, node,
-    key, rev, lq). „Als Zitat“ verlangt key, den festen Schlüssel des Abschnitts (ohne → 422).
-    Runde 13: h.check = Prüfung gegen den Volltext ({result, label, message, checked} oder leer), h.checkable =
-    ohne Zitat mit Bereich (dann Knopf „Gegen den Volltext prüfen“, action=check).
-    Runde 15: Persona-Hervorhebungen (h.persona) haben „Als eigene übernehmen“ (action=own): eine neue, aktive
-    Hervorhebung des Menschen; der Vorschlag der Persona bleibt. -#}
+{#- Highlights of a source (document view /quelle): all of them, also proposals and rejected ones.
+    The target (?highlight=…) carries the class target, its text stands in <mark>. Per highlight
+    forms to POST /literatur/act: change (kind, note, status), adopt as a quotation, delete
+    (mandatory checkbox). Context: highlights, kinds, place_fields (hidden fields work, node,
+    key, rev, lq). „Als Zitat“ demands key, the fixed key of the section (without it → 422).
+    Round 13: h.check = check against the full text ({result, label, message, checked} or empty), h.checkable =
+    without quotation with a range (then the button „Gegen den Volltext prüfen“, action=check).
+    Round 15: persona highlights (h.persona) have „Als eigene übernehmen“ (action=own): a new, active
+    highlight of the human; the proposal of the persona stays. -#}
 <ol class="highlights">
 {%- for h in highlights %}
   <li id="hervorhebung-{{ h.id }}" class="highlight kind-{{ h.kind }}{% if h.target %} target{% endif %}" data-status="{{ h.status }}">

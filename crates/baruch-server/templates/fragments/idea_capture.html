@@ -1,8 +1,8 @@
-{#- Schnellerfassung eines Einfalls im Dialog der Kopfzeile (Vertrag Runde 7, Abschnitt 6e). Das
-    Formular geht an POST /einfaelle/act (method=idea.create); mit JavaScript (web/src/ideas.ts) über
-    RPC idea.create, ohne Neuladen. `key` und `quote` setzt das Widget beim Öffnen aus dem Editor bzw.
-    der Markierung; `back` führt ohne JavaScript zurück in den Arbeitsbereich.
-    Kontext: work {id}, node {key, title}, url. -#}
+{#- Quick capture of an idea in the dialog of the header (contract Round 7, section 6e). The
+    form goes to POST /einfaelle/act (method=idea.create); with JavaScript (web/src/ideas.ts) through
+    RPC idea.create, without reloading. The widget sets `key` and `quote` on opening from the editor or
+    the selection; `back` leads back to the workspace without JavaScript.
+    Context: work {id}, node {key, title}, url. -#}
 <form class="idea-capture" method="post" action="/einfaelle/act" data-idea-form>
   <header class="idea-capture-head">
     <h2 class="pane-title" id="idea-capture-title">Einfall festhalten</h2>

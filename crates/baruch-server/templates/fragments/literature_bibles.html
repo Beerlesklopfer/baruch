@@ -1,10 +1,11 @@
-{#- Bibeln in der Literatur (Runde 15): Kasten „Bibeln“ und die Treffergruppen „Bibel“ (je Modul) und
-    „Kommentar“ (fertiger Baustein aus bibles::commentary_hits_html) im gemeinsamen Suchfeld (nur Wortlaut-Modus).
-    Eingebunden in fragments/library.html (Popup, /literatur, literature.render). Kontext: bibles = {list
+{#- Bibles in the literature (Round 15): box „Bibeln“ and the hit groups „Bibel“ (per module) and
+    „Kommentar“ (finished building block from bibles::commentary_hits_html) in the shared search field (verbatim mode
+    only). Included in fragments/library.html (popup, /literatur, literature.render). Context: bibles = {list
     [{module, description, notice, work_bible, supported, problem, url}], hint, groups [{module, hits [{reference,
-    text, url}], truncated, problem}], commentary_hits (HTML, maskiert), page_url, settings_url}; ohne `bibles`
-    nichts. Seit Runde 19c rendert auch die Arbeitsseite (view.rs) den Kasten ohne JavaScript
-    (literature::bibles::workspace_shelf, Links mit key und rev). Bibeltext ist Text (maskiert); Links baut der Server. -#}
+    text, url}], truncated, problem}], commentary_hits (HTML, escaped), page_url, settings_url}; without `bibles`
+    nothing. Since Round 19c the workspace page (view.rs) also renders the box without JavaScript
+    (literature::bibles::workspace_shelf, links with key and rev). Bible text is text (escaped); the server builds
+    links. -#}
 {%- if bibles is defined and bibles %}
 {%- if bibles.groups or bibles.commentary_hits %}
 <div class="library-hits bible-hits" data-bible-hits>

@@ -1,20 +1,21 @@
-{#- Seite /einfaelle (Vertrag Runde 7, Abschnitt 6e): Liste der Einfälle, Schlagwort-Wolke mit Links,
-    Filter (Werk, Schlagwort, offen/verarbeitet, gelöschte), Volltextsuche (FTS5) und das Formular
-    „Neuer Einfall“ an POST /einfaelle/act. Alles ohne JavaScript.
-    Kontext: settings, filter {work, word, status, q, deleted}, works [{id, title, selected}],
-    ideas [Einfall, siehe ideas.rs idea_view], searched, cloud [{word, count, size, href, active}],
-    all_words, deleted_href, present_href, workspace, map_href (Runde 25/34: Mindmap des Werks), back, notice, error.
-    Runde 34: Einfälle tragen title (Titel des Knotens), parent und cloud; das Formular „Neuer Einfall“ hat ein Titelfeld.
-    Runde 12 (pgvector): Radio mode (fts | rag, Vorgabe fts; ohne JavaScript GET /einfaelle?work=W&q=…&mode=rag),
-    filter.mode, rag (available, ways_line, message) bzw. rag_note (ohne gewähltes Werk), fts_href (dieselbe
-    Suche im Wortlaut); Treffer der Bedeutungssuche tragen rag_snippet (Text, maskiert) und percent. -#}
+{#- Page /einfaelle (contract Round 7, section 6e): list of the ideas, keyword cloud with links,
+    filters (work, keyword, open/processed, deleted), full-text search (FTS5) and the form
+    „Neuer Einfall“ to POST /einfaelle/act. Everything without JavaScript.
+    Context: settings, filter {work, word, status, q, deleted}, works [{id, title, selected}],
+    ideas [idea, see ideas.rs idea_view], searched, cloud [{word, count, size, href, active}],
+    all_words, deleted_href, present_href, workspace, map_href (Round 25/34: mind map of the work), back, notice, error.
+    Round 34: ideas carry title (title of the node), parent and cloud; the form „Neuer Einfall“ has a title field.
+    Round 12 (pgvector): radio mode (fts | rag, default fts; without JavaScript GET /einfaelle?work=W&q=…&mode=rag),
+    filter.mode, rag (available, ways_line, message) or rag_note (without a chosen work), fts_href (the same
+    search verbatim); hits of the semantic search carry rag_snippet (text, escaped) and percent. -#}
 {% extends "base.html" %}
 {% block title %}Einfälle – Baruch{% endblock %}
 {% block page_title %}Einfälle{% endblock %}
-{#- Runde 33 (Menüband, Vertrag §7): Aktionen der Seite als Gruppen im Reiter „Start“ (details/summary mit gewöhnlichen Links, ohne JavaScript bedienbar). #}
+{#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
+(details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   {%- if map_href %}
-  {#- Runde 25: Gedankenkarte dieses Werks (nur mit gewähltem Werk). #}
+  {#- Round 25: idea map of this work (only with a chosen work). #}
   <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
     <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Mindmap um Kapitel und Teile, mit der Wolke daneben">Mindmap</a>
   </div></details>
@@ -86,7 +87,7 @@
     <p class="notice small" role="status" data-rag-missing>{{ rag.message }} <a href="{{ fts_href }}" data-fts-link>Dieselbe Suche im Wortlaut (FTS)</a></p>
     {%- endif %}
     {%- elif searched %}<p class="muted small">Treffer der Volltextsuche nach „{{ filter.q }}“:</p>{% endif %}
-    {#- Runde 19c: schwache Treffer der Bedeutungssuche (i.weak) nach den übrigen, zugeklappt in <details>. #}
+    {#- Round 19c: weak hits of the semantic search (i.weak) after the others, collapsed in <details>. #}
     {%- macro card(i, weak_label) %}
     <article class="idea-card{% if not i.open %} done{% endif %}{% if i.deleted %} deleted{% endif %}{% if i.weak %} weak-hit{% endif %}" id="einfall-{{ i.id }}" data-origin="{{ i.origin_kind }}">
       <header class="idea-card-head">

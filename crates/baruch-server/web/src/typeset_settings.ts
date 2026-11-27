@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Block „Satz“ in Einstellungen → Werk (Runde 29c, Besitz satz-oberflaeche): Vorschau ohne Neuladen über RPC
-// `work.typeset_preview`, sonst wie die Formularbedienung ohne JavaScript.
+// Block „Satz“ in Einstellungen → Werk (Round 29c, ownership satz-oberflaeche): preview without reloading through RPC
+// `work.typeset_preview`, otherwise like operating the form without JavaScript.
 //
-// Widget „typeset-settings“ am Formular `form.typeset-form` (templates/settings/werk_satz.html):
-// - Jede Änderung im Formular stößt nach einer Pause (entprellt, `PREVIEW_DELAY_MS`) die Vorschau an; der Knopf
-//   „Vorschau“ setzt sofort, ohne das Formular abzuschicken. Eine neue Anfrage bricht die alte ab (`Newest`,
-//   AbortController), eine verspätete Antwort wird verworfen.
-// - Die Formularfelder liest `formToSettings` genau wie der Server (`settings::work_typeset::settings_from_form`):
-//   "" = aus der Werkvorlage, Dezimalkomma, Ränder alle vier oder keiner, Bundsteg leer = 0. Grenzen prüft der Server
-//   (`TypesetSettings::validate`); seine Meldung erscheint im Vorschaubereich.
-// - „Speichern“ und „Zurücksetzen“ bleiben normale Formulare (im Popup schickt sie settings.ts ab).
-// - Runde 31c: Gruppe „Register und Glossar“ (Glossarseite, Häkchen `index_register` je Register, Spalten, erste
-//   Erwähnung) liest `formToSettings` ebenso wie der Server.
+// Widget „typeset-settings“ on the form `form.typeset-form` (templates/settings/werk_satz.html):
+// - Every change in the form starts the preview after a pause (debounced, `PREVIEW_DELAY_MS`); the button
+//   „Vorschau“ typesets at once without submitting the form. A new request aborts the old one (`Newest`,
+//   AbortController), a late answer is discarded.
+// - `formToSettings` reads the form fields exactly like the server (`settings::work_typeset::settings_from_form`):
+//   "" = from the work template, decimal comma, margins all four or none, gutter empty = 0. The server checks the
+//   limits (`TypesetSettings::validate`); its message appears in the preview area.
+// - „Speichern“ and „Zurücksetzen“ stay normal forms (in the popup settings.ts submits them).
+// - Round 31c: group „Register und Glossar“ (glossary page, checkboxes `index_register` per index, columns, first
+//   mention) is read by `formToSettings` just like the server.
 
 import { register } from "./widgets.js";
 
-/// Pause nach der letzten Eingabe, bevor die Vorschau gesetzt wird.
+/// Pause after the last input before the preview is typeset.
 export const PREVIEW_DELAY_MS = 800;
 
 export interface FieldError {
@@ -45,7 +45,7 @@ const LABELS: Record<string, string> = {
   glossary_first_mention: "Erste Erwähnung im Glossar auszeichnen",
 };
 
-/// Runde 31c: Spalten der Registerseiten bei leerem Feld (wie `DEFAULT_INDEX_COLUMNS` im Server).
+/// Round 31c: columns of the index pages with an empty field (like `DEFAULT_INDEX_COLUMNS` in the server).
 export const DEFAULT_INDEX_COLUMNS = 2;
 
 const CHOICES: Record<string, string[]> = {
@@ -61,23 +61,23 @@ const CHOICES: Record<string, string[]> = {
   glossary_page: ["before_indexes", "after_indexes"],
 };
 
-/// Runde 22: Lagen des Wasserzeichens (wie `DraftPlacement::ALL`).
+/// Round 22: placements of the watermark (like `DraftPlacement::ALL`).
 const DRAFT_PLACEMENTS = ["diagonal", "header", "footer"];
 
-/// Vorgabemaß je Absatzart (wie `Paragraph::ALL` im Datenmodell).
+/// Default measure per paragraph kind (like `Paragraph::ALL` in the data model).
 const PARAGRAPH_EM: Record<string, number> = { indent: 1.0, spacing: 0.5 };
 
 const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 
-/// Zahl aus dem Formular: leer → undefined, Dezimalkomma erlaubt, keine Zahl → NaN.
+/// Number from the form: empty → undefined, decimal comma allowed, not a number → NaN.
 export function numberOf(raw: string): number | undefined {
   if (raw === "") return undefined;
   const text = raw.replace(/,/g, ".");
   return NUMBER.test(text) ? Number(text) : NaN;
 }
 
-/// Formularfelder → Einstellungen wie `settings_from_form` im Server (ohne die Grenzen, die prüft der Server).
-/// Zahlen, die keine sind, melden sich hier als Fehler (sonst ginge `NaN` als `null` an den Server).
+/// Form fields → settings like `settings_from_form` in the server (without the limits, the server checks those).
+/// Numbers that are none report here as errors (otherwise `NaN` would go to the server as `null`).
 export function formToSettings(pairs: [string, string][]): FormResult {
   const get = (name: string): string => (pairs.find(([k]) => k === name)?.[1] ?? "").trim();
   const errors: FieldError[] = [];
@@ -162,8 +162,8 @@ export function formToSettings(pairs: [string, string][]): FormResult {
   if (widows !== undefined) s.widows_orphans = widows;
   const xref = onOff("xref_with_page");
   if (xref !== undefined) s.xref_with_page = xref;
-  // Runde 31c: Glossarseite, Registerseiten (Häkchen `index_register` in Satzreihenfolge; Spalten leer = 2, keine Zahl
-  // 0–255 = 0, dann meldet der Server die Grenzen) und erste Erwähnung – wie settings_from_form.
+  // Round 31c: glossary page, index pages (checkboxes `index_register` in typesetting order; columns empty = 2, not a
+  // number 0–255 = 0, then the server reports the limits) and first mention – like settings_from_form.
   const glossary = choice("glossary_page", "glossary_page");
   if (glossary) s.glossary_page = glossary;
   const registers = pairs.filter(([k]) => k === "index_register").map(([, v]) => v.trim()).filter((v) => v !== "");
@@ -174,8 +174,8 @@ export function formToSettings(pairs: [string, string][]): FormResult {
   }
   const first = onOff("glossary_first_mention");
   if (first !== undefined) s.glossary_first_mention = first;
-  // Runde 22: Entwurf (Häkchen `draft`) – leerer Text = „ENTWURF“, leere Deckkraft = 12, keine Zahl 0–255 = 0 (dann
-  // meldet der Server die Grenzen), leere Lage = diagonal; wie settings_from_form.
+  // Round 22: draft (checkbox `draft`) – empty text = „ENTWURF“, empty opacity = 12, not a number 0–255 = 0 (then
+  // the server reports the limits), empty placement = diagonal; like settings_from_form.
   if (get("draft") === "1") {
     const raw = get("draft_opacity");
     const opacity = raw === "" ? 12 : /^\+?\d+$/.test(raw) && Number(raw) <= 255 ? Number(raw) : 0;
@@ -197,7 +197,7 @@ export function formToSettings(pairs: [string, string][]): FormResult {
   return { settings: s, errors };
 }
 
-/// Zeitgeber (im Test nachgebaut).
+/// Timer (rebuilt in the test).
 export interface Timers {
   set(run: () => void, ms: number): unknown;
   clear(handle: unknown): void;
@@ -208,8 +208,8 @@ const browserTimers: Timers = {
   clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-/// Entprellt `run`: `trigger` startet die Pause neu, erst nach `ms` ohne weiteren Anstoß läuft `run` einmal;
-/// `now` läuft sofort (und verwirft die laufende Pause), `cancel` verwirft sie.
+/// Debounces `run`: `trigger` restarts the pause, only after `ms` without a further trigger `run` runs once;
+/// `now` runs at once (and discards the running pause), `cancel` discards it.
 export function debounce(run: () => void, ms: number, timers: Timers = browserTimers) {
   let handle: unknown = null;
   const cancel = () => {
@@ -232,7 +232,7 @@ export function debounce(run: () => void, ms: number, timers: Timers = browserTi
   };
 }
 
-/// Nur die neueste Anfrage zählt: `start` bricht die vorige ab.
+/// Only the newest request counts: `start` aborts the previous one.
 export class Newest {
   private current: AbortController | null = null;
 
@@ -259,7 +259,7 @@ interface PreviewAnswer {
 
 let nextId = 1;
 
-/// JSON-RPC mit Abbruch (rpc.ts kennt kein AbortSignal).
+/// JSON-RPC with abort (rpc.ts knows no AbortSignal).
 async function rpcAbortable<T>(method: string, params: Record<string, unknown>, signal: AbortSignal): Promise<T> {
   const response = await fetch("/rpc", {
     method: "POST",

@@ -1,32 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Widget „outline“ (linke Spalte): die einzige Gliederung der Oberfläche (Vertrag Runde 5).
+// Widget „outline“ (left column): the only outline of the user interface (contract Round 5).
 //
-// - Ziehen und Ablegen: oberes Drittel der Zeile = davor, Mitte = darunter, unteres Drittel = danach.
-//   Verschieben behält die Ebene (davor/danach nur neben einen Punkt derselben Ebene, darunter nur
-//   unter einen Punkt genau eine Ebene höher); Ziel und Ebene stehen beim Ziehen unter der
-//   Gliederung, ungültige Ziele werden abgewiesen.
-// - Alt+Umschalt+←/→ stuft höher bzw. tiefer, Alt+Umschalt+↑/↓ verschiebt (überall außer in
-//   Eingabefeldern).
-// - Kontextmenü (Rechtsklick, Umschalt+F10, Kontextmenü-Taste, Knopf „⋯“): Umbenennen (F2), neuer
-//   Punkt davor/danach/darunter, neuer Teil davor/danach (Runde 14, `level: 0`, nur an Teilen und
-//   Kapiteln), höher/tiefer stufen, Löschen… (Entf, mit confirm() und `confirm: true`). F2, Entf und die Kontextmenü-Taste wirken nur bei Fokus in der Gliederung.
-// - Umbenennen an Ort und Stelle: Doppelklick auf den gewählten Eintrag oder F2; Enter bestätigt
-//   (`outline.rename`), Esc bricht ab. Anlegen mit einem Eingabefeld für den Titel (`outline.add`).
-//   Ein leerer, mehrzeiliger oder über 200 Zeichen langer Titel wird mit der Meldung des Servers
-//   vorab abgewiesen (Runde 7); das Feld bleibt offen.
-// - Nummerierung im Kopf (`form[data-outline-numbering]`): `vorlage` → null, `keine` → "".
+// - Drag and drop: upper third of the row = before, middle = below, lower third = after.
+//   Moving keeps the level (before/after only next to an item of the same level, below only
+//   under an item exactly one level higher); target and level stand below the outline while
+//   dragging, invalid targets are rejected.
+// - Alt+Shift+←/→ raises or lowers the level, Alt+Shift+↑/↓ moves (everywhere except in
+//   input fields).
+// - Context menu (right click, Shift+F10, context menu key, button „⋯“): rename (F2), new
+//   item before/after/below, new part before/after (Round 14, `level: 0`, only on parts and
+//   chapters), raise/lower the level, Löschen… (Del, with confirm() and `confirm: true`). F2, Del and the context menu
+//   key only work with the focus in the outline.
+// - Renaming in place: double click on the selected entry or F2; Enter confirms
+//   (`outline.rename`), Esc cancels. Creating with an input field for the title (`outline.add`).
+//   An empty, multi-line or over 200 characters long title is rejected in advance with the message
+//   of the server (Round 7); the field stays open.
+// - Numbering in the head (`form[data-outline-numbering]`): `vorlage` → null, `keine` → "".
 //
-// Jede schreibende Aktion fragt vorher `leaveEditor()` und meldet nach Erfolg `baruch:navigate` mit
-// `{url, asked: true}` (der Arbeitsbereich zeichnet neu). Ohne JavaScript tun dasselbe die Formulare
-// je Eintrag (↑ ↓ ← →) und die Seiten /gliederung… an /gliederung/act.
+// Every writing action asks `leaveEditor()` first and reports `baruch:navigate` with
+// `{url, asked: true}` after success (the workspace redraws). Without JavaScript the forms
+// per entry (↑ ↓ ← →) and the pages /gliederung… to /gliederung/act do the same.
 //
-// Außerdem fragt es vor dem Speichern im Editor (`form[data-outline-save]`) `outline.check` und
-// bestätigt Teilen oder Zusammenführen per confirm(); dann schickt es das Formular mit split/merge = 1.
-// Vorher löst es am Formular `baruch:before-save` aus (`detail.wait`: Promises, auf die es wartet –
-// z. B. das Satzbild, das seinen Text ins Textfeld schreibt). Der Server bleibt maßgeblich
-// (Gültigkeit, Ebenen); hier wird nur vorab abgewiesen.
-// Runde 22: Der auslösende Knopf (`submitter`, z. B. „Als neue Fassung speichern“ mit `as_new=1`) geht beim
-// erneuten Absenden mit (`requestSubmit(submitter)`), damit der Arbeitsbereich den Modus kennt.
+// In addition it asks `outline.check` before saving in the editor (`form[data-outline-save]`) and
+// confirms splitting or merging by confirm(); then it sends the form with split/merge = 1.
+// Before that it triggers `baruch:before-save` on the form (`detail.wait`: promises it waits for –
+// e.g. the typeset view, which writes its text into the text field). The server stays authoritative
+// (validity, levels); here things are only rejected in advance.
+// Round 22: the triggering button (`submitter`, e.g. „Als neue Fassung speichern“ with `as_new=1`) goes along on
+// submitting again (`requestSubmit(submitter)`) so that the workspace knows the mode.
 
 import { call } from "./rpc.js";
 import { editorLocked, leaveEditor, lockEditor, register } from "./widgets.js";
@@ -35,7 +36,7 @@ type Place = "before" | "after" | "into";
 
 interface Answer {
   node: number;
-  /// Fester Schlüssel des danach zu zeigenden Punkts (Runde 8); fehlt er, die Stelle.
+  /// Fixed key of the item to show afterwards (Round 8); if it is missing, the position.
   key?: number | null;
 }
 
@@ -52,7 +53,7 @@ const levelNames = ["Teil", "Kapitel", "Abschnitt", "Unterabschnitt"];
 const placeWords: Record<Place, string> = { before: "vor", after: "hinter", into: "unter" };
 const keepsLevel = "Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).";
 
-/// Titelregeln wie `baruch_store::check_title` (Runde 7; maßgeblich bleibt der Server): Meldung oder `null`.
+/// Title rules like `baruch_store::check_title` (Round 7; the server stays authoritative): message or `null`.
 function titleProblem(title: string): string | null {
   const trimmed = title.trim();
   if (trimmed === "") return "Ein Gliederungspunkt braucht einen Titel.";
@@ -62,7 +63,7 @@ function titleProblem(title: string): string | null {
   return null;
 }
 
-/// Nach dem nächsten Einhängen den gewählten Eintrag fokussieren (Tastatur bleibt in der Gliederung).
+/// Focus the selected entry after the next mount (the keyboard stays in the outline).
 let focusAfterRender = false;
 
 function notify(message: string): void {
@@ -74,7 +75,7 @@ function notify(message: string): void {
   setTimeout(() => toast.remove(), 5000);
 }
 
-/// Neu zeichnen lassen; gefragt (ungespeicherter Text) hat der Aufrufer schon.
+/// Have it redrawn; the caller has already asked (unsaved text).
 function navigate(url: string, asked: boolean): void {
   document.dispatchEvent(new CustomEvent("baruch:navigate", { detail: { url, asked } }));
 }
@@ -83,7 +84,7 @@ function nodeOf(item: HTMLElement): number {
   return Number(item.dataset.outlineNode);
 }
 
-/// Fester Schlüssel (`data-key`): Die Stelle kann veralten, wenn ein anderer Tab umstellt.
+/// Fixed key (`data-key`): the position can become outdated when another tab rearranges.
 function keyOf(item: HTMLElement): number {
   return Number(item.dataset.key);
 }
@@ -92,14 +93,14 @@ function levelOf(item: HTMLElement): number {
   return Number(item.dataset.level);
 }
 
-/// Gliederungsänderung über RPC, danach neu zeichnen lassen. Ungespeicherter Text im Editor ginge
-/// beim Neuzeichnen verloren: vorher fragen, bei „Abbrechen“ nichts ändern.
+/// Outline change through RPC, then have it redrawn. Unsaved text in the editor would be lost
+/// on redrawing: ask first, change nothing on „Abbrechen“.
 async function act(work: number, method: string, params: Record<string, unknown>): Promise<boolean> {
   if (!leaveEditor()) return false;
   try {
     const result = await call<Answer>(method, { work, ...params });
     focusAfterRender = true;
-    // Key-Form (Runde 8); nur ohne Schlüssel in der Antwort die Stelle als Rückfall.
+    // Key form (Round 8); only without a key in the answer the position as a fallback.
     const place = typeof result.key === "number" ? `key=${result.key}` : `node=${result.node}`;
     navigate(`/?work=${work}&${place}`, true);
     return true;
@@ -114,8 +115,8 @@ interface Verdict {
   text: string;
 }
 
-/// Ziel prüfen wie der Server: Die Ebene bleibt (davor/danach nur neben denselben Ebene, darunter nur
-/// unter eine Ebene höher), nicht in den eigenen Teilbaum.
+/// Check the target like the server: the level stays (before/after only next to the same level, below only
+/// under one level higher), not into the own subtree.
 function judge(dragged: HTMLElement, target: HTMLElement, place: Place): Verdict {
   if (dragged === target || dragged.contains(target)) {
     return { ok: false, text: "Nicht in den eigenen Teilbaum." };
@@ -130,7 +131,7 @@ function judge(dragged: HTMLElement, target: HTMLElement, place: Place): Verdict
 
 const marks = ["drop-before", "drop-after", "drop-into", "drop-invalid"];
 
-/// Der Eintrag, auf den sich Tasten beziehen: der mit dem Fokus, sonst der gewählte.
+/// The entry that keys refer to: the one with the focus, otherwise the selected one.
 function focusedItem(root: HTMLElement): HTMLElement | null {
   const active = document.activeElement as HTMLElement | null;
   const fromFocus = active && root.contains(active) ? active.closest<HTMLElement>("li[data-outline-node]") : null;
@@ -150,7 +151,7 @@ function typing(element: Element | null): boolean {
   return !!el && (el.isContentEditable || el.matches("textarea, input, select"));
 }
 
-/// Eingabefeld, das Klicks und Tasten nicht an Zusammenfassung, Link oder Arbeitsbereich weitergibt.
+/// Input field that does not pass clicks and keys on to summary, link or workspace.
 function field(value: string, placeholder: string, className: string): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "text";
@@ -167,7 +168,7 @@ function field(value: string, placeholder: string, className: string): HTMLInput
   return input;
 }
 
-/// Umbenennen an Ort und Stelle: Enter → outline.rename, Esc oder Verlassen → abbrechen.
+/// Renaming in place: Enter → outline.rename, Esc or leaving → cancel.
 function startRename(root: HTMLElement, item: HTMLElement): void {
   const entry = entryOf(item);
   const row = rowOf(item);
@@ -201,7 +202,7 @@ function startRename(root: HTMLElement, item: HTMLElement): void {
       }
       const problem = titleProblem(input.value);
       if (problem) {
-        // Das Feld bleibt offen; die Meldung ist dieselbe wie die des Servers.
+        // The field stays open; the message is the same as that of the server.
         notify(problem);
         return;
       }
@@ -221,8 +222,8 @@ function startRename(root: HTMLElement, item: HTMLElement): void {
   input.select();
 }
 
-/// Neuer Punkt mit Eingabefeld für den Titel, davor/danach/darunter: Enter → outline.add. Mit
-/// `part` ein neuer Teil (`level: 0`, Runde 14) davor bzw. danach.
+/// New item with an input field for the title, before/after/below: Enter → outline.add. With
+/// `part` a new part (`level: 0`, Round 14) before or after.
 function startAdd(root: HTMLElement, item: HTMLElement, place: Place, part = false): void {
   root.querySelector(".outline-new")?.remove();
   const title = item.dataset.title ?? "";
@@ -273,7 +274,7 @@ function startAdd(root: HTMLElement, item: HTMLElement, place: Place, part = fal
   input.focus();
 }
 
-/// Löschen mit Rückfrage; der Server verlangt `confirm: true`.
+/// Deleting with a confirmation; the server demands `confirm: true`.
 function askDelete(root: HTMLElement, item: HTMLElement): void {
   if (item.dataset.children !== undefined) {
     notify("Der Gliederungspunkt hat Unterpunkte; erst verschieben oder löschen.");
@@ -291,7 +292,7 @@ function setLevel(root: HTMLElement, item: HTMLElement, delta: number): void {
   void act(Number(root.dataset.work), "outline.set_level", { node: nodeOf(item), key: keyOf(item), level: level + delta });
 }
 
-// ---- Kontextmenü ----------------------------------------------------------------------------
+// ---- Context menu ---------------------------------------------------------------------------
 function openMenu(root: HTMLElement, item: HTMLElement, x: number | null, y: number | null): void {
   const menu = root.querySelector<HTMLElement>("[data-outline-menu]");
   if (!menu) return;
@@ -435,7 +436,7 @@ register("outline", (root) => {
     });
   });
 
-  // Kontextmenü: Rechtsklick auf einen Eintrag bzw. der Knopf „⋯“.
+  // Context menu: right click on an entry or the button „⋯“.
   root.addEventListener("contextmenu", (event) => {
     const item = (event.target as Element | null)?.closest<HTMLElement>("li[data-outline-node]");
     if (!item || typing(event.target as Element)) return;
@@ -479,8 +480,8 @@ register("outline", (root) => {
     if (!next || !menu.contains(next)) closeMenu(root, false);
   });
 
-  // Doppelklick auf den gewählten Eintrag benennt um; ein einfacher Klick darauf öffnet ihn (nach
-  // kurzer Wartezeit, damit der Doppelklick nicht vom Neuzeichnen verschluckt wird).
+  // A double click on the selected entry renames; a single click on it opens it (after a
+  // short wait so that the double click is not swallowed by the redraw).
   let pending: number | undefined;
   root.addEventListener(
     "click",
@@ -504,7 +505,7 @@ register("outline", (root) => {
     startRename(root, item);
   });
 
-  // F2, Entf, Kontextmenü-Taste und Umschalt+F10 nur bei Fokus in der Gliederung.
+  // F2, Del, context menu key and Shift+F10 only with the focus in the outline.
   root.addEventListener("keydown", (event) => {
     if (typing(event.target as Element) || event.altKey || event.ctrlKey || event.metaKey) return;
     const menuKey = event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
@@ -519,14 +520,14 @@ register("outline", (root) => {
   });
 });
 
-// Ein Klick außerhalb schließt das Kontextmenü (einmal für die ganze Seite; der Baum wird neu gezeichnet).
+// A click outside closes the context menu (once for the whole page; the tree is redrawn).
 document.addEventListener("pointerdown", (event) => {
   const root = document.querySelector<HTMLElement>("[data-widget=outline]");
   const menu = root?.querySelector<HTMLElement>("[data-outline-menu]");
   if (root && menu && !menu.hidden && !menu.contains(event.target as Node)) closeMenu(root, false);
 });
 
-// ---- Tastatur: Alt+Umschalt+Pfeil (einmal für die ganze Seite) -----------------------------
+// ---- Keyboard: Alt+Shift+arrow (once for the whole page) -----------------------------------
 document.addEventListener("keydown", (event) => {
   if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
@@ -560,7 +561,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// ---- Nummerierung im Kopf der Gliederung ----------------------------------------------------
+// ---- Numbering in the head of the outline ---------------------------------------------------
 document.addEventListener(
   "submit",
   (event) => {
@@ -580,9 +581,9 @@ document.addEventListener(
   true,
 );
 
-// ---- Editor: vor dem Speichern Überschriften prüfen und Teilen/Zusammenführen bestätigen -----
+// ---- Editor: before saving check headings and confirm splitting/merging ----------------------
 async function checkThenSubmit(form: HTMLFormElement, submitter: HTMLElement | null): Promise<void> {
-  // Runde 23a (Codereview web-1): Ein Speichern zur Zeit; bis es fertig ist, bleibt der Editor gesperrt.
+  // Round 23a (code review web-1): one save at a time; until it is finished the editor stays locked.
   if (editorLocked()) return;
   const release = lockEditor();
   try {
@@ -593,8 +594,8 @@ async function checkThenSubmit(form: HTMLFormElement, submitter: HTMLElement | n
 }
 
 async function checkedSubmit(form: HTMLFormElement, submitter: HTMLElement | null): Promise<void> {
-  // Andere Widgets (Satzbild) schreiben ihren Stand vorher ins Textfeld; die Quelle der Wahrheit
-  // beim Absenden bleibt das Textfeld.
+  // Other widgets (typeset view) write their state into the text field first; the source of truth
+  // on submitting stays the text field.
   const wait: Promise<unknown>[] = [];
   form.dispatchEvent(new CustomEvent("baruch:before-save", { detail: { wait } }));
   try {
@@ -638,7 +639,7 @@ async function checkedSubmit(form: HTMLFormElement, submitter: HTMLElement | nul
     form.append(input);
     return input;
   });
-  // Das zweite Absenden geht an den Arbeitsbereich (RPC outline.save) durch.
+  // The second submit goes through to the workspace (RPC outline.save).
   form.dataset.checked = "1";
   try {
     if (submitter instanceof HTMLButtonElement && submitter.form === form) form.requestSubmit(submitter);
