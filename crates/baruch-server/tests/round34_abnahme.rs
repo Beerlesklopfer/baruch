@@ -630,9 +630,14 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
         }
         walk(node)
     };
-    let mut expected: Vec<Value> = source["map"]["root"]["children"].as_array().unwrap().iter().map(numbered).collect();
-    expected.extend(source["cloud"]["ideas"].as_array().unwrap().iter().map(numbered));
-    assert_eq!(expected.len(), 4, "zwei Teile, ein Hauptthema, ein Einfall der Wolke: {expected:?}");
+    let expected: Vec<Value> = source["map"]["root"]["children"].as_array().unwrap().iter().map(numbered).collect();
+    // Runde 36: Die Wolke der eigenen Datei kommt wieder in die Wolke (vorher als Hauptthemen in den Baum).
+    let expected_cloud: Vec<Value> = source["cloud"]["ideas"].as_array().unwrap().iter().map(numbered).collect();
+    assert_eq!(
+        (expected.len(), expected_cloud.len()),
+        (3, 1),
+        "zwei Teile und ein Hauptthema im Baum, ein Einfall in der Wolke: {expected:?} {expected_cloud:?}"
+    );
 
     for ending in ["mm", "xmind"] {
         let request = Request::get(format!("/werke/{}/karte.{ending}?near=0", a.work)).body(Body::empty()).unwrap();
@@ -671,10 +676,10 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
             .map(shape)
             .collect();
         assert_eq!(got, expected, ".{ending}: Ausgabe → Einlesen ergibt dieselbe Struktur in derselben Reihenfolge");
-        assert_eq!(
-            imported["cloud"]["count"], 0,
-            ".{ending}: eingelesene Knoten liegen in der Mindmap, nicht in der Wolke"
-        );
+        // Runde 36: Was in der Wolke lag, liegt wieder in der Wolke (die Rundreise der eigenen Datei erhält sie).
+        let got_cloud: Vec<Value> = imported["cloud"]["ideas"].as_array().unwrap().iter().map(shape).collect();
+        assert_eq!(got_cloud, expected_cloud, ".{ending}: die Einfälle der Wolke liegen wieder in der Wolke");
+        assert_eq!(imported["cloud"]["count"], 1, ".{ending}: sonst liegt nichts in der Wolke");
         let links = result(&b.server.rpc("idea.links", json!({ "work": b.work })).await)["links"].clone();
         assert_eq!(links.as_array().map(Vec::len), Some(1), ".{ending}: eine Verbindung angelegt");
         assert_eq!(

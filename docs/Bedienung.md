@@ -2502,8 +2502,11 @@ FreeMind oder Freeplane (`.mm`):
 Übernommen werden Titel, Notizen (HTML wird reiner Text), Schlagwörter (XMind: Etiketten; `.mm`: Attribut
 „Schlagwort“), Reihenfolge und Beziehungen (als „führt weiter“ mit der Beschriftung als Notiz). Das **Hauptthema**
 der Datei wird nicht selbst zum Einfall: Seine Kinder werden Hauptthemen bzw. Unterknoten des gewählten
-Knotens. Eine von Baruch selbst ausgegebene Datei lässt sich wieder einlesen; der Ast „Wolke“ wird dabei aufgelöst (seine Einfälle
-kommen wie die übrigen als Hauptthemen an).
+Knotens. Eine von Baruch selbst ausgegebene Datei lässt sich wieder einlesen; der Ast „Wolke“ wird dabei aufgelöst,
+und seine Einfälle kommen **wieder in die Wolke** (seit Runde 36; die Vorschau kennzeichnet sie mit „Wolke“).
+Erkannt wird der eigene Ast an seiner Kennung in der Datei, nicht am Titel: Ein Ast einer fremden Mindmap, der nur
+„Wolke“ heißt, wird ein gewöhnliches Hauptthema. Beim Einlesen „unter Knoten …“ gibt es keine Wolke – dort werden
+alle Knoten Unterknoten.
 Kapitel aus einer eigenen Ausgabe kommen dabei als gewöhnliche Einfälle zurück – das Einlesen legt nie
 Gliederungspunkte an.
 
@@ -3215,8 +3218,9 @@ Adresse von Hand eingibt. Offen ist, ob Lektoren das Buch als PDF lesen dürfen 
   baruch-server passwort NAME --data /pfad/zum/datenordner
   ```
 
-  Das setzt das Passwort und beendet alle Sitzungen des Kontos. Wer keinen Zugang zum Rechner hat, kommt nicht
-  hinein – eine Hintertür gibt es nicht.
+  Das setzt das Passwort, beendet alle Sitzungen des Kontos und hebt eine Sperre nach Fehlversuchen für dieses
+  Konto auf (seit Runde 36: Die Anmeldung mit dem neuen Passwort gelingt sofort). Wer keinen Zugang zum Rechner
+  hat, kommt nicht hinein – eine Hintertür gibt es nicht.
 
 ### Was gespeichert wird
 
@@ -3855,8 +3859,9 @@ den neuen Text lückenlos ergeben; Fassungen von Personas oder MCP-Clients, Vors
 ### Editor, Oberfläche, Satz (web)
 
 **Zitat einfügen.** Der Knopf „Zitat“ im Menüband (Reiter Einfügen) fügt im Quelltext einen Zitatblock mit je einer Leerzeile davor und
-danach ein (steht schon eine da, kommt keine zweite dazu), darunter eine Zeile „– “ für die Stellenangabe; der Cursor
-steht im Zitat. Die Stellenangabe ist ein eigener Absatz direkt unter dem Block. Im Satzbild entsteht ohne Auswahl
+danach ein (steht schon eine da, kommt keine zweite dazu); der Cursor steht im Zitat. Die Stellenangabe schreibt
+man selbst als eigenen Absatz direkt unter den Block („– Stelle“). Bis Runde 35 fügte der Knopf dafür eine Zeile
+„– “ ein; blieb sie ungefüllt, stand ein einzelner Gedankenstrich im Buch – seit Runde 36 entfällt sie. Im Satzbild entsteht ohne Auswahl
 dasselbe als eigener Block hinter dem Absatz am Cursor; mit einer Auswahl wird die Auswahl wie bisher ein Zitat im
 Fließtext. Steht die Stellenangabe in der Zeile direkt unter einem Zitatblock, zeigt das Satzbild beides richtig an
 (Zitat und Absatz), keine Code-Insel mehr. Ohne JavaScript gibt es das Menüband nicht; der Block wird dann von Hand
@@ -4133,3 +4138,59 @@ Routen (für die Tabelle der Seiten):
 - **Nicht geprüft:** Keine Datei wurde in Microsoft Word geöffnet, und keine von Word oder LibreOffice geschriebene
   Datei wurde eingelesen. Geprüft sind selbst gebaute Dateien nach ECMA-376 und die eigene Rundreise; eine
   exportierte Probedatei hat LibreOffice ohne Fenster nach PDF umgewandelt. Den Rest prüft der Nutzer von Hand.
+
+## Runde 36 – Reste
+
+Kleine Dinge aus den Runden 33 bis 35, aus der Gegenprobe 0.9.0 und aus älteren Listen.
+
+**Konten und Lektoren**
+
+- **Passwort vergessen und gesperrt:** `baruch-server passwort NAME` hebt die Sperre nach Fehlversuchen für dieses
+  Konto auf (siehe „Passwort vergessen“).
+- **Wer hat das geschrieben?** Fassungen, Beiträge und Befunde eines Lektors zeigen auf der Arbeitsseite den
+  Anzeigenamen des Kontos vor dem Handle: „Erika Beispiel (@lektorat:erika)“. Gespeichert bleibt der Handle; ein
+  Konto ohne Anzeigenamen zeigt nur ihn. Ohne Konten ändert sich nichts.
+- **Für Lektoren** heißt der Knopf im Reiter Prüfen „Im Werk suchen“ (ersetzen kann nur der Autor); das
+  Umschlagbild in der Werkliste ist für sie kein Link mehr (die Seite des Umschlags ist für sie gesperrt); die
+  Einstellungen → Darstellung erreichen sie auch, wenn ihnen noch kein Werk freigegeben ist.
+- **Anmelden und Einrichten** folgen dem gewählten Thema (hell/dunkel, Cookie dieses Browsers) – ohne JavaScript.
+  Wer nie ein Thema gewählt hat, sieht wie bisher das Farbschema des Systems.
+
+**Mindmap**
+
+- Die eigene `.mm`- bzw. `.xmind`-Datei kommt beim Wiedereinlesen mit ihrer Wolke zurück (siehe „Einlesen“).
+- **Beschriftungen der Verbindungen** („widerspricht …“, „gehört zu“) liegen nicht mehr auf Knoten oder aufeinander:
+  Jede sucht sich einen freien Platz an ihrer Linie und steht auf einem deckenden Grund, damit kreuzende Linien sie
+  nicht durchstreichen. In einer sehr vollen Karte kann eine Beschriftung dadurch ein Stück neben ihrer Linie stehen.
+- **Dunkles Thema:** Die Bildlaufleiste der Seite steht am Fensterrand statt neben der Bühne und nimmt die Farben
+  der Seite (vorher ein heller Streifen rechts neben der Mindmap).
+
+**Fassungen und Assistenten**
+
+- Der Zähler der Fassungen im Menüband zeigt wie der im Editor-Kopf „(+ n ausgeblendet)“ bzw. „n ältere verbergen“.
+- **Schlichte Frage an eine Persona** („@nathan wie breit ist der Fluss?“): Sie bekommt ihre eigenen offenen
+  Befunde nicht mehr mit. Erneutes Prüfen mit den eigenen Befunden bleibt bei „Prüfen“, ↻, RFC und bei einem
+  Prüfauftrag im Chat – erkannt an einem Wort, das mit „prüf“, „überprüf“, „nachprüf“, „gegenprüf“, „kontrollier“,
+  „check“ oder „review“ beginnt, oder an einer Befundnummer („[B12]“) in der Nachricht.
+- **Vorschlag für das ganze Kapitel:** Der Vorschlag für den Abschnitt, von dem man ausgeht, beruht auf der
+  gezeigten bzw. gewählten Fassung (auch auf einem offenen Vorschlag), nicht mehr stets auf der aktuellen; der Kopf
+  des neuen Vorschlags nennt sie („beruht auf Fassung n“).
+- **Fensterbreite:** Öffnet man Baruch in einem Fenster anderer Größe als beim letzten Besuch, erscheint die Seite
+  gleich im passenden Zustand (kompaktes Band, Seitenleisten) und springt nicht mehr um. Ohne JavaScript kennt
+  Baruch die Breite weiterhin nicht und zeichnet breit.
+
+**Einstellungen und Editor**
+
+- **„Sicherung angelegt“** steht nur noch einmal da, direkt nach einer wirklich angelegten Sicherung – nicht mehr
+  bei jedem Aufruf der Adresse.
+- **Rechte des Datenordners:** Ist ein vorhandener Datenordner auch für andere Benutzer des Rechners zugänglich,
+  meldet Einstellungen → Daten das (mit den Rechten, z. B. 0755). Baruch ändert die Rechte nie selbst;
+  `chmod 700 <Ordner>` lässt nur noch den Besitzer hinein.
+- **Token-Liste:** „(früher `@mcp:…`)“ bricht nicht mehr mitten im Namen um.
+- **Knopf „Zitat“** fügt keine Zeile „– “ mehr ein (siehe „Zitat einfügen“).
+- **Nennungen im Text** („im dreizehnten Kapitel“, „Kapitel XLII“) erkennt Baruch jetzt bis zur hundertsten
+  Ordnungszahl und für römische Zahlen in üblicher Schreibweise; weiterhin nur, wenn genau ein Punkt gemeint sein
+  kann.
+- **Gliederungspunkt löschen:** Der Eintrag im Git-Spiegel nennt jetzt auch, was außer der aktuellen Fassung
+  verloren geht – jede übrige Fassung (offene Vorschläge eigens gezählt) und jeden Beitrag im Wortlaut. Löschen
+  kann weiterhin nur der Mensch (ein Assistent stellt einen Antrag).

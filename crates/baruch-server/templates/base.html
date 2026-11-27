@@ -7,7 +7,9 @@
   <title>{% block title %}Baruch{% endblock %}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
-  {% block scripts %}<script type="module" src="/static/js/main.js"></script>{% endblock %}
+  {#- Runde 36: vw.js ist ein klassisches Skript (kein Modul) und läuft vor dem ersten Zeichnen – es berichtigt die
+      Breitenklasse (Cookie baruch_vw, Attribute an <html>), wenn das Fenster seit dem letzten Besuch anders groß ist. #}
+  {% block scripts %}<script src="/static/js/vw.js"></script><script type="module" src="/static/js/main.js"></script>{% endblock %}
 </head>
 <body>
 {#- Menüband aller Seiten (Runde 33, src/band.rs, web/src/band.ts; löst die Kopfzeile mit Werk ▾/Ansicht ▾/Werkzeuge ▾
@@ -169,7 +171,7 @@
       <details class="band-group" data-band-group open><summary class="band-group-label">Suchen und Verweise</summary><div class="band-items" role="group" aria-label="Suchen und Verweise">
         {#- Runde 30a: Suchen/Ersetzen im Werk (Seite /suche ohne JavaScript, auf der Arbeitsseite Seitenleiste mit
             Strg+Umschalt+F) und Querverweise (Seite /verweise: mögliche und kaputte Verweise). #}
-        <a class="btn" href="/suche?work={{ w }}" title="Im Werk suchen und ersetzen (Strg+Umschalt+F)">Im Werk suchen und ersetzen (Strg+Umschalt+F)</a>
+        <a class="btn nur-autor" href="/suche?work={{ w }}" title="Im Werk suchen und ersetzen (Strg+Umschalt+F)">Im Werk suchen und ersetzen (Strg+Umschalt+F)</a><!--NUR-LEKTOR--><a class="btn nur-lektor" href="/suche?work={{ w }}" title="Im Werk suchen (Strg+Umschalt+F)">Im Werk suchen (Strg+Umschalt+F)</a><!--/NUR-LEKTOR-->
         <a class="btn nur-autor" href="/verweise?work={{ w }}" title="Mögliche und kaputte Querverweise des Werks">Querverweise prüfen</a>
       </div></details>
       <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Quellen</summary><div class="band-items" role="group" aria-label="Quellen">

@@ -192,9 +192,11 @@ async fn the_backup_notice_never_shows_a_name_from_the_address() {
         !shown.contains("geheimer-ordner-aus-der-adresse"),
         "ein mitgeschicktes `ziel` wird nie angezeigt (sonst falsche Erfolgsmeldung über einen Link): {page}"
     );
+    // Runde 36: Ein bloßer Link zeigt gar keine Erfolgsmeldung mehr (vorher die allgemeine „Sicherung angelegt“) –
+    // die Meldung gibt es nur einmal nach einer wirklich angelegten Sicherung.
     assert!(
-        page.contains("Sicherung angelegt (neben dem Datenordner)."),
-        "ohne Sicherung im Dateisystem bleibt die Meldung allgemein: {page}"
+        !page.contains("Sicherung angelegt"),
+        "ohne eben angelegte Sicherung zeigt der Link keine Erfolgsmeldung: {page}"
     );
 
     // Die echte Sicherung leitet mit festem Meldecode weiter, ohne `ziel`.

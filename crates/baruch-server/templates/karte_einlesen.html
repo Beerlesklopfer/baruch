@@ -64,7 +64,7 @@
     </form>
     <ul class="mmg-list">
     {%- for n in preview.nodes recursive %}
-      <li class="mmg-node mmg-idea"><span class="mmg-title">{{ n.title }}</span>
+      <li class="mmg-node mmg-idea"><span class="mmg-title">{{ n.title }}</span>{% if n.cloud and not parent_label %} <span class="badge mmg-cloud-mark" title="Lag in der Wolke der Datei und kommt wieder in die Wolke">Wolke</span>{% endif %}
         {%- if n.words %} <span class="muted small">{{ n.words | join(", ") }}</span>{% endif %}
         {%- if n.note %}<div class="mmg-note small">{{ n.note }}</div>{% endif %}
         {%- if n.children %}<ul class="mmg-list">{{ loop(n.children) }}</ul>{% endif %}

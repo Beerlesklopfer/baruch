@@ -22,7 +22,7 @@ pub const MCP_EXPORT_LIMIT: usize = 4 * 1024 * 1024;
 pub const DESCRIPTION: &str = "Ganzes Werk als Austauschdatei für eine andere Baruch-Instanz ausgeben, nur lesend: \
 ändert nichts. Inhalt: Angaben, Buchangaben, Werkvorlage, Gliederung mit allen Fassungen, Beiträge, Einfälle, \
 Gedankenkarte (Verbindungen zwischen Einfällen und Lagen), Fäden, Bilder und Grabsteine, jedes Stück mit UUID \
-(Format urn:baruch:werk:1, Unterversion 2, docs/Austauschformat.md); ohne Schlüssel, Verbindungen zu Diensten, \
+(Format urn:baruch:werk:1, aktuelle Unterversion in docs/Austauschformat.md); ohne Schlüssel, Verbindungen zu Diensten, \
 Persona-Modelle und Anträge. format xml (Vorgabe) liefert xml als Text (Bilder als \
 Base64), format baruch den ZIP-Container als Base64 in data; dazu work, uuid, file_name, media_type, bytes, \
 sha256. Höchstens 4 MiB, größere Werke über die Seite /werke/{id}/austausch oder die Kommandozeile. Einlesen \

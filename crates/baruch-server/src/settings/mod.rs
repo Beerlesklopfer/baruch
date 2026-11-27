@@ -49,7 +49,7 @@ use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::view::Settings;
 
-pub use data::{Backup, MAX_BACKUPS, RESERVE_BYTES, backup, newest_backup};
+pub use data::{Backup, MAX_BACKUPS, RESERVE_BYTES, backup, newest_backup, open_permissions, permissions_warning};
 
 /// Zeichnet den Inhalt einer Einstellungsseite (ohne Rahmen). Argumente: Zustand, aufgelöstes Werk
 /// (`None` = es gibt keins), übrige Abfragepaare. `Err` = Meldung ohne Geheimnisse.
@@ -285,10 +285,19 @@ pub(crate) async fn resolve_work(
         };
     }
     if let Some(work) = cookie {
-        match state.store.work_slug(work).await {
-            Ok(_) => return Ok(Some(work)),
-            Err(StoreError::UnknownWork(_)) => {}
+        // Runde 36: Das Cookie gibt nie ein Recht. Für einen Lektor zählt es nur, wenn das Werk freigegeben ist
+        // (`roles::role_in`); sonst zeigte der Rahmen einer Seite ohne `work` das zuletzt geöffnete, fremde Werk.
+        let who = crate::auth::current();
+        let visible = match crate::roles::role_in(state, &who, work).await {
+            Ok(role) => role.is_some() || who.lektor().is_none(),
             Err(e) => return Err(FrameError::Internal(e.to_string())),
+        };
+        if visible {
+            match state.store.work_slug(work).await {
+                Ok(_) => return Ok(Some(work)),
+                Err(StoreError::UnknownWork(_)) => {}
+                Err(e) => return Err(FrameError::Internal(e.to_string())),
+            }
         }
     }
     match state.default_work().await {

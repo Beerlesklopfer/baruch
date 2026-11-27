@@ -2,17 +2,20 @@
 //! Notweg bei vergessenem Passwort (Runde 35, Vertrag §1.7): `baruch-server passwort <name> [--data <Ordner>]`.
 //!
 //! Wer den Datenordner lesen und schreiben darf, darf ohnehin alles; der Befehl ändert nur das Passwort eines
-//! vorhandenen Kontos (legt keines an, entsperrt keines) und beendet dessen Sitzungen. Er öffnet nur die Datenbank,
-//! keinen Spiegel und keinen Server, und läuft auch neben einem laufenden Server.
+//! vorhandenen Kontos (legt keines an, hebt keine Sperre des Kontos durch den Autor auf) und beendet dessen
+//! Sitzungen. Seit Runde 36 hebt er außerdem die Sperre gegen Durchprobieren für dieses Konto auf
+//! ([`super::throttle::account_scope`]): Wer den Autor mit falschen Anmeldungen in der Wartezeit hält, sperrt ihn so
+//! nicht aus. Die Sperre je Adresse bleibt. Er öffnet nur die Datenbank, keinen Spiegel und keinen Server, und läuft
+//! auch neben einem laufenden Server.
 
 use std::path::Path;
 
 use baruch_store::Store;
 
-use super::password;
+use super::{password, throttle};
 
-/// Setzt das Passwort des Kontos `name` im Datenordner `data` und löscht dessen Sitzungen. Die Fehlermeldung nennt
-/// nie das Passwort.
+/// Setzt das Passwort des Kontos `name` im Datenordner `data`, löscht dessen Sitzungen und hebt die Sperre gegen
+/// Durchprobieren für dieses Konto auf. Die Fehlermeldung nennt nie das Passwort.
 pub async fn reset_password(data: &Path, name: &str, password: &str) -> Result<(), String> {
     match password::policy(password) {
         Ok(()) => {}
@@ -44,5 +47,8 @@ async fn set(store: &Store, name: &str, password: &str) -> Result<(), String> {
     let phc = password::hash_blocking(password.to_owned()).await?;
     // Ohne Ausnahme: Alle Sitzungen des Kontos enden.
     store.account_set_password(account.id, &phc, None).await.map_err(|e| e.to_string())?;
+    // Runde 36: Die Sperre gegen Durchprobieren dieses Kontos fällt weg, damit die Anmeldung mit dem neuen Passwort
+    // sofort gelingt. Der Bereich hängt am Namensschlüssel; jede Schreibweise des Namens trifft denselben.
+    store.login_reset(&throttle::account_scope(&account.name)).await.map_err(|e| e.to_string())?;
     Ok(())
 }

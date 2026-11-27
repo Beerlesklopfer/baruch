@@ -778,7 +778,7 @@ wird danach unter `write_lock` (Beitrag über `Store::add_post`, Vorschlag über
 |---|---|---|
 | `persona.ask` | `{work?, key, persona, question, rev?, scope?}` | `{post: {id, author, body}, question_post: {id, author, body}, model, truncated, cut, compressed, url, key, work, persona}`; die Frage wird vorher Beitrag des Menschen |
 | `persona.review` | `{work?, key, persona?, rev?, question?, scope?}` | wie `ask` ohne Frage-Beitrag (`question_post: null`); `persona` fehlt → der Lektor |
-| `persona.propose` | `{work?, key, persona?, instruction?, rev?, scope?}` | `{rev, status: "proposed", author, model, truncated, compressed, proposals, url, key, work}`; Überschriftszeile der gezeigten Fassung erzwungen; gleich der aktuellen → -32000 |
+| `persona.propose` | `{work?, key, persona?, instruction?, rev?, scope?}` | `{rev, status: "proposed", author, model, truncated, compressed, proposals, url, key, work, basis}` (`basis: {rev, label, proposal}` seit Runde 36: die Fassung, auf der der Vorschlag beruht, Kopfzeile „Grundlage: …“); Überschriftszeile der gezeigten Fassung erzwungen; gleich der aktuellen → -32000 |
 | `persona.chat` | `{work?, key, message, rev?}` | `{posts: [{id, author, body}], errors: [{persona, message}], url, truncated, cut, compressed}` (Runde 23: dazu `done_proposals?`, `done_notes?`, `all_done?`; Zitatzeilen „> …“ rufen niemanden): Beitrag des Menschen, dann je erwähnter aktiver Persona (`@handle`, höchstens drei, ohne Doppelte, nacheinander) ihre Antwort; `compressed` = die erste Komprimierung einer Antwort oder `null` (Runde 15) |
 
 `model` ist das tatsächlich antwortende Modell; `truncated: true`, wenn der Kontext gekürzt wurde (der Beitrag
@@ -1862,8 +1862,13 @@ Alle Methoden mit `work?` (fehlt → Vorgabewerk) und `key` (fester Schlüssel d
 - Prüfgrundlage `basis` = `shown` (Vorgabe) | `current` | Zahl bzw. Ziffern bei `persona.ask` und `persona.review`
   (Antwort `basis: {rev, label, proposal}`); `persona.propose` beruht auf der gezeigten Fassung `rev` bzw. der
   ausdrücklich gewählten (`basis` = `current` | Nummer), auch auf einem offenen Vorschlag (Fehler 0.9.0, Kritik-Zyklus;
-  vorher stets auf der aktuellen). Im Chat sieht auch eine direkt angesprochene Persona ihre eigenen offenen Befunde
-  des Abschnitts (erneutes Prüfen wie beim RFC). Für den Chat
+  vorher stets auf der aktuellen). Seit Runde 36 gilt das auch für `scope: "chapter"`: Der Vorschlag für den Teil
+  des Auftrags (`key`) beruht auf der gezeigten bzw. gewählten Fassung, die übrigen Teile auf ihrer aktuellen; die
+  Antwort nennt sie in `basis` („Grundlage: Fassung 2 (Vorschlag von @lektor)“), und ein Vorschlag, der der gezeigten
+  Fassung gleicht, zählt als unverändert. Im Chat sieht eine direkt angesprochene Persona ihre eigenen offenen Befunde
+  des Abschnitts (erneutes Prüfen wie beim RFC) – seit Runde 36 nur noch bei einem Prüfauftrag
+  (`assist::chat::is_check_order`: ein Wort beginnt mit prüf, überprüf, nachprüf, gegenprüf, kontrollier, check oder
+  review, oder die Nachricht nennt „[B<n>]“), nicht bei einer schlichten Frage. Für den Chat
   liest `persona.chat` den Parameter mit Runde 30c (chat-bedienung). Unbekanntes Wort → `-32602`.
 - Formular `POST /loesungen/act` (hinter `same_origin`): `method` = `solution.adopt` | `solution.variants` |
   `solution.reject_siblings`, dazu `work`, `key`, `rev`, `post`, `finding`, `picks` (mehrfach), `findings` (mehrfach),
@@ -2882,3 +2887,29 @@ Seiten (`konten_ui::pages`):
 
 `?ok=`/`?fehler=` zeigen nur den Satz aus `MESSAGES` (ein Erfolgscode gilt nicht als Fehler und umgekehrt, Unbekanntes
 zeigt nichts). Alle Konto-Seiten antworten mit `Cache-Control: no-store`.
+
+## Runde 36 – Reste
+
+Keine neue Methode, keine neue Route. Geändert:
+
+- **Rollen (`roles::LEKTOR_RPC`, `LEKTOR_ROUTES`):** `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`,
+  `wysiwyg.style` und `ribbon.formats` stehen für Lektoren wieder „ohne Werk“ (Runde 35: Werk-Bindung über den
+  Parameter). Fehlt `work`, gilt wie für alle `AppState::default_work` – für einen Lektor das kleinste freigegebene
+  Werk, ohne Freigabe ein Fehler (`-32602`, „unbekanntes Werk 0“; vorher `-32003` „Noch kein Werk freigegeben.“);
+  ein genanntes `work` wird weiter geprüft (`-32003`). `GET /einstellungen/darstellung` braucht für Lektoren kein
+  `work` mehr (200 statt 303 auf `?work=`; ohne Freigabe erreichbar statt 303 auf `/werke`); das Cookie
+  `baruch_work` zählt für einen Lektor nur, wenn das Werk freigegeben ist.
+- **`persona.propose`:** Antwort mit `basis` (siehe „Prüfgrundlage“); `scope: "chapter"` beruht für den eigenen
+  Teil auf der gezeigten bzw. gewählten Fassung.
+- **`persona.chat`:** eigene offene Befunde nur noch bei einem Prüfauftrag bzw. RFC.
+- **`ui.render`:** Die HTML-Stücke tragen mit Konten den Anzeigenamen zur Herkunft („Erika Beispiel
+  (@lektorat:erika)“), nur als Text der Herkunfts-Elemente; Attribute (`data-post-author`) bleiben der Handle.
+- **`outline.delete` und `outline.request_decide` (bestätigtes Löschen):** unveränderte Antwort; der Spiegel-Commit
+  nennt zusätzlich die mitgelöschten Fassungen und Beiträge (Trailer `Baruch-Lost-Revisions`, `Baruch-Lost-Posts`).
+- **`ribbon.formats`:** Das Format `quote` trägt den Text `#quote(block: true)[]\n` ohne Folgezeile „– “.
+- **`idea_map`-Einlesen (`POST /werke/{id}/karte/einlesen/anlegen`):** Knoten des Baums im Feld `tree` können
+  `cloud: true` tragen (oberste Ebene, ohne `parent`): Sie kommen in die Wolke. Fehlt das Feld, gilt `false`.
+- **`GET /einstellungen/daten?ok=sicherung`:** zeigt die Meldung nur einmal nach einer über das Formular angelegten
+  Sicherung (Vermerk im Prozess); `settings.backup` (RPC) antwortet wie bisher direkt.
+- **`GET /static/js/vw.js`:** neues ausgeliefertes Skript unter der vorhandenen Route `/static/js/{name}` (klassisch,
+  kein Modul; berichtigt Cookie `baruch_vw` und die Attribute an `<html>` vor dem ersten Zeichnen).

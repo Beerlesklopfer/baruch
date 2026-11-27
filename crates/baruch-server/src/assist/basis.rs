@@ -120,6 +120,18 @@ pub async fn choose(
     choose_in(node, seq, shown, choice)
 }
 
+/// Grundlage eines **Vorschlags** (Runde 36): die Fassung `rev`, auf der er beruht – ohne die Wahlregeln von
+/// [`choose`] (ein Vorschlag beruht genau auf der Fassung, die die Persona gesehen hat). Die Kopfzeile beginnt mit
+/// „Grundlage:“ statt „geprüft:“, sonst wie [`choose`] sie schreibt („Grundlage: aktuelle Fassung 2“, „Grundlage:
+/// Fassung 3 (Vorschlag von @lektor)“).
+pub async fn of_proposal(state: &AppState, work: WorkId, key: i64, rev: u32) -> Result<Basis, RpcError> {
+    let seq = state.store.node_seq(work, key).await?;
+    let loaded = state.store.load_work(work).await?;
+    let node = loaded.nodes.get(seq).ok_or(StoreError::GoneNode { work, key })?;
+    let (label, proposal) = label_of(node, rev);
+    Ok(Basis { rev, label: label.replacen("geprüft:", "Grundlage:", 1), proposal })
+}
+
 /// [`choose`] auf einem schon geladenen Abschnitt (`seq` nur für die Fehlermeldung).
 pub fn choose_in(node: &Node, seq: usize, shown: Option<u32>, choice: BasisChoice) -> Result<Basis, RpcError> {
     let current = node.current_number().or_else(|| node.revisions.iter().map(|r| r.number).max());

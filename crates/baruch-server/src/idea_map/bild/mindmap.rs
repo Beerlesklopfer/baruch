@@ -9,7 +9,9 @@
 //! - `<svg class="mm-svg">` mit `<g class="mm-viewport">`; darin in dieser Reihenfolge Äste (`path.mm-edge`), Nähe
 //!   (`path.mm-near`), Beziehungen (`g.mm-rel` mit `path.mm-link`), die Wolke (`g.mm-cloud` mit
 //!   `rect.mm-cloud-area`), die Knoten (`g.mm-node`) und zuletzt die Beschriftungen der Beziehungen
-//!   (`g.mm-link-labels` mit `text.mm-link-label[data-link]` – über den Knoten, damit sie lesbar bleiben).
+//!   (`g.mm-link-labels` mit `rect.mm-link-label-bg[data-link]` und `text.mm-link-label[data-link]` – zuletzt
+//!   gezeichnet; seit Runde 36 sucht jede Beschriftung einen Platz, an dem sie keinen Knoten und keine andere
+//!   Beschriftung überschneidet, und trägt einen deckenden Grund).
 //! - Knoten: `g.mm-node.mm-<kind>` mit `data-node`, `data-parent`, `data-depth`, `data-side` (nicht an Wurzel und
 //!   Wolke), `data-branch`, `data-editable`, `data-title`, `data-own` (gespeicherter Titel), Einfälle `data-idea`
 //!   und mit Bezug `data-key`; Kärtchen der Wolke `mm-cloud-item` und `data-cloud="1"`.
@@ -132,6 +134,85 @@ fn border(p: &Placed, tx: f64, ty: f64) -> (f64, f64) {
     let sy = if dy.abs() < 1e-6 { f64::MAX } else { (p.h / 2.0) / dy.abs() };
     let s = sx.min(sy).min(1.0);
     (cx + dx * s, cy + dy * s)
+}
+
+/// Höhe des Rechtecks einer Beschriftung (Schrift 11) und Luft um den Text.
+const LINK_LABEL_H: f64 = 16.0;
+const LINK_LABEL_PAD: f64 = 5.0;
+/// Abstand, den eine Beschriftung zu Knoten und anderen Beschriftungen hält.
+const LINK_LABEL_GAP: f64 = 3.0;
+
+/// Rechteck (links oben, Breite, Höhe).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LabelBox {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+impl LabelBox {
+    fn around(cx: f64, cy: f64, w: f64) -> LabelBox {
+        LabelBox { x: cx - w / 2.0, y: cy - LINK_LABEL_H / 2.0, w, h: LINK_LABEL_H }
+    }
+
+    /// Überschneidet das Rechteck `other`, wenn `other` ringsum um `gap` wächst?
+    pub fn hits(&self, other: &LabelBox, gap: f64) -> bool {
+        self.x < other.x + other.w + gap
+            && other.x - gap < self.x + self.w
+            && self.y < other.y + other.h + gap
+            && other.y - gap < self.y + self.h
+    }
+}
+
+/// Platz für die Beschriftung einer Beziehung (Runde 36): ein Rechteck der Breite `w`, das keinen Knoten und keine
+/// schon gesetzte Beschriftung überschneidet und im Bild bleibt. Gesucht wird zuerst entlang der Linie (`curve`:
+/// Anfang, Stützpunkt, Ende der quadratischen Kurve) mit wachsendem Abstand über und unter ihr, danach in Ringen um
+/// die Mitte der Linie. `None`, wenn das Bild keinen freien Platz dieser Größe hat.
+fn free_label_spot(
+    curve: [(f64, f64); 3],
+    w: f64,
+    nodes: &[LabelBox],
+    taken: &[LabelBox],
+    (width, height): (f64, f64),
+) -> Option<LabelBox> {
+    let free = |spot: &LabelBox| {
+        spot.x >= 1.0
+            && spot.y >= 1.0
+            && spot.x + spot.w <= width - 1.0
+            && spot.y + spot.h <= height - 1.0
+            && !nodes.iter().chain(taken).any(|other| spot.hits(other, LINK_LABEL_GAP))
+    };
+    let at = |t: f64| {
+        let ((x1, y1), (cx, cy), (x2, y2)) = (curve[0], curve[1], curve[2]);
+        let (a, b, c) = ((1.0 - t) * (1.0 - t), 2.0 * t * (1.0 - t), t * t);
+        (a * x1 + b * cx + c * x2, a * y1 + b * cy + c * y2)
+    };
+    for t in [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8] {
+        let (px, py) = at(t);
+        for step in 0..=3 {
+            for sign in [-1.0, 1.0] {
+                let spot = LabelBox::around(px, py - 3.0 + sign * f64::from(step) * (LINK_LABEL_H + 2.0), w);
+                if free(&spot) {
+                    return Some(spot);
+                }
+            }
+        }
+    }
+    let (mx, my) = at(0.5);
+    let reach = width.max(height);
+    let mut radius = LINK_LABEL_H;
+    while radius <= reach {
+        for k in 0..24 {
+            let angle = f64::from(k) * std::f64::consts::TAU / 24.0;
+            let spot = LabelBox::around(mx + radius * angle.cos(), my + radius * angle.sin(), w);
+            if free(&spot) {
+                return Some(spot);
+            }
+        }
+        radius += LINK_LABEL_H;
+    }
+    None
 }
 
 /// Adresse „eingeklappt umschalten“ (ohne JavaScript): gleicher Filter, `zu=` mit bzw. ohne `id`.
@@ -493,6 +574,10 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     }
 
     let mut labels = String::new();
+    // Runde 36: Rechtecke aller gezeichneten Knoten und der schon gesetzten Beschriftungen – eine Beschriftung
+    // liegt nie auf einem Knoten und nie auf einer anderen Beschriftung.
+    let node_boxes: Vec<LabelBox> = layout.items.iter().map(|p| LabelBox { x: p.x, y: p.y, w: p.w, h: p.h }).collect();
+    let mut label_boxes: Vec<LabelBox> = Vec::new();
     // Beziehungen: gebogene Linien mit Beschriftung (Art, dazu die Notiz); verborgene Enden am sichtbaren Vorfahren.
     for (index, link) in map.links.iter().filter(|l| l.deleted.is_none()).enumerate() {
         let (Some(a), Some(b)) = (shown(link.from), shown(link.to)) else { continue };
@@ -540,15 +625,30 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
             ef = esc(&a.node.id),
             et = esc(&b.node.id),
         );
-        // Die Beschriftung steht über den Knoten (eigene Gruppe am Ende), sonst verdecken nahe Knoten sie.
+        // Die Beschriftung steht in einer eigenen Gruppe am Ende (über Linien und Knoten gezeichnet). Runde 36: Sie
+        // sucht sich einen Platz, an dem sie keinen Knoten und keine andere Beschriftung überschneidet, und trägt
+        // einen deckenden Grund (`rect.mm-link-label-bg`), damit kreuzende Linien sie nicht durchstreichen. Findet
+        // sich im ganzen Bild kein freier Platz, bleibt sie an der Mitte der Linie (`data-crowded`).
+        let label_w = text_width(&label, if contradiction { 12.0 } else { 11.0 }) + 2.0 * LINK_LABEL_PAD;
+        let spot = free_label_spot([(x1, y1), (cx, cy), (x2, y2)], label_w, &node_boxes, &label_boxes, (width, height));
+        let crowded = if spot.is_none() { " data-crowded=\"1\"" } else { "" };
+        let spot = spot.unwrap_or_else(|| LabelBox::around(lx, ly - 3.0, label_w));
+        label_boxes.push(spot);
+        let ground = if alone { " fill=\"#ffffff\"" } else { "" };
         let _ = write!(
             labels,
-            "<text class=\"mm-link-label{extra}\" data-link=\"{}\" x=\"{}\" y=\"{}\" font-size=\"11\" \
+            "<rect class=\"mm-link-label-bg\" data-link=\"{id}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+             rx=\"3\"{ground}{crowded}/>\
+             <text class=\"mm-link-label{extra}\" data-link=\"{id}\" x=\"{}\" y=\"{}\" font-size=\"11\" \
              text-anchor=\"middle\">{}</text>",
-            link.id,
-            n(lx),
-            n(ly - 3.0),
+            n(spot.x),
+            n(spot.y),
+            n(spot.w),
+            n(spot.h),
+            n(spot.x + spot.w / 2.0),
+            n(spot.y + spot.h - 4.5),
             esc(&label),
+            id = link.id,
         );
     }
 
