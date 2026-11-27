@@ -1,67 +1,70 @@
 # Baruch
 
-**Freie Schreibwerkstatt für Bücher und Predigten.** Baruch hält ein Werk als Gliederung aus Teilen,
-Kapiteln und Abschnitten, bewahrt jede Fassung jedes Abschnitts auf, setzt das Buch mit
-[Typst](https://typst.app) und lässt KI-Assistenten mitlesen, prüfen und vorschlagen – ohne dem Menschen
-das letzte Wort zu nehmen.
+**A free writing workshop for books and sermons.** Baruch keeps a work as an outline of parts,
+chapters and sections, preserves every revision of every section, typesets the book with
+[Typst](https://typst.app) and lets AI assistants read along, review and suggest – without taking the last
+word away from the human.
 
-> Benannt nach Baruch, dem Schreiber Jeremias, der die verbrannte Rolle neu und erweitert niederschrieb
-> (Jer 36,32). Fassungen sind der Kern.
+> Named after Baruch, Jeremiah's scribe, who wrote the burnt scroll down again, and enlarged
+> (Jer 36:32). Revisions are the core.
 
-Baruch steht unter der [AGPL-3.0](LICENSE) und ist bewusst ein freier Gegenentwurf zu bezahlten
-Schreibwerkzeugen. Es läuft lokal auf dem eigenen Rechner, die Daten bleiben dort.
+Baruch is licensed under the [AGPL-3.0](LICENSE) and is deliberately a free counterpart to paid
+writing tools. It runs locally on your own machine, and the data stays there.
 
-Webseite: <https://baruch.bernau.family>
+Website: <https://baruch.bernau.family>
 
-**Stand:** Version 0.9.0. Baruch wird täglich für ein echtes Buch und für Predigten benutzt. Es gibt Pakete
-für Debian und Ubuntu (auch über ein APT-Repository), ein AppImage sowie unsignierte Pakete für macOS und
-Windows; Schnittstellen können sich noch ändern (siehe [Stand und Grenzen](#stand-und-grenzen), Änderungen in
+> The website and the user interface are in German: <https://baruch.bernau.family/>. Menu entries, buttons and
+> messages are quoted in German in this document, with an English explanation where needed.
+
+**Status:** version 0.9.0. Baruch is used daily for a real book and for sermons. There are packages
+for Debian and Ubuntu (also through an APT repository), an AppImage, and unsigned packages for macOS and
+Windows; interfaces may still change (see [Status and limits](#status-and-limits), changes in
 [CHANGELOG.md](CHANGELOG.md)).
 
-## Inhalt
+## Contents
 
-- [Grundsätze](#grundsätze)
-- [Schnellstart](#schnellstart) (Installieren, aus dem Quelltext bauen, Starten)
-- [Ein Rundgang](#ein-rundgang)
-- [Was Baruch kann](#was-baruch-kann)
-- [Tastenkürzel](#tastenkürzel)
-- [Assistenten und Modelle einrichten](#assistenten-und-modelle-einrichten)
-- [Baruch mit Claude Code und anderen MCP-Clients](#baruch-mit-claude-code-und-anderen-mcp-clients)
-- [Kommandozeile](#kommandozeile)
-- [Daten, Sicherung und Sicherheit](#daten-sicherung-und-sicherheit)
-- [Aufbau](#aufbau)
-- [Dokumentation](#dokumentation)
-- [Mitarbeiten](#mitarbeiten)
-- [Stand und Grenzen](#stand-und-grenzen)
-- [Lizenz](#lizenz)
+- [Principles](#principles)
+- [Quick start](#quick-start) (installing, building from source, starting)
+- [A tour](#a-tour)
+- [What Baruch can do](#what-baruch-can-do)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Setting up assistants and models](#setting-up-assistants-and-models)
+- [Baruch with Claude Code and other MCP clients](#baruch-with-claude-code-and-other-mcp-clients)
+- [Command line](#command-line)
+- [Data, backup and security](#data-backup-and-security)
+- [Structure](#structure)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Status and limits](#status-and-limits)
+- [License](#license)
 
-## Grundsätze
+## Principles
 
-- **Der Mensch entscheidet.** Assistenten schreiben Vorschläge, Beiträge, Einfälle und Anträge. Übernehmen,
-  Ändern und Löschen am Buchtext bleiben dem Menschen. Was die Gliederung umbaut, stellen Assistenten nur als
-  Antrag, dem der Mensch zustimmt.
-- **Nichts geht verloren.** Jeder Abschnitt hat beliebig viele Fassungen; genau eine ist „aktuell“. Jede
-  Änderung wird ein Commit in einem Git-Spiegel des Werks – mit Herkunft (Mensch, Persona, MCP-Client).
-- **Typst ist die Quelle.** Der Spiegel ist ein gewöhnlicher Typst-Ordner, der sich mit `typst compile main.typ`
-  auch ohne Baruch setzen lässt – oder mit Baruch selbst: `baruch-typst compile main.typ` ist dasselbe Programm
-  als Typst-Kommandozeile (eingebaute Engine, ohne Netz und ohne Pakete; `compile`, `fonts`, `--version`;
-  [docs/Verteilung.md](docs/Verteilung.md), „Typst-Kommandozeile“).
-- **Ohne JavaScript bedienbar.** Jede Seite funktioniert mit Links und Formularen. JavaScript bringt Komfort:
-  Ziehen, Tastatur, Popups, Live-Aktualisierung.
-- **Lokal und ehrlich.** Baruch antwortet nur auf dem eigenen Rechner. Schlüssel liegen im Schlüsselbund.
-  Externe Modelle gibt es nur nach ausdrücklicher Freigabe. Was nicht geht, sagt Baruch – nichts wird still
-  gekürzt, verworfen oder geraten.
+- **The human decides.** Assistants write suggestions, posts, ideas and requests. Accepting,
+  changing and deleting book text stay with the human. Whatever restructures the outline, assistants only file as
+  a request that the human approves.
+- **Nothing gets lost.** Each section has any number of revisions; exactly one is "current". Every
+  change becomes a commit in a Git mirror of the work – with its origin (human, persona, MCP client).
+- **Typst is the source.** The mirror is an ordinary Typst folder that can be typeset with
+  `typst compile main.typ` even without Baruch – or with Baruch itself: `baruch-typst compile main.typ` is the
+  same program as a Typst command line (built-in engine, without network and without packages; `compile`,
+  `fonts`, `--version`; [docs/Verteilung.md](docs/Verteilung.md), section „Typst-Kommandozeile“).
+- **Usable without JavaScript.** Every page works with links and forms. JavaScript adds comfort:
+  dragging, keyboard, popups, live updates.
+- **Local and honest.** Baruch answers only on your own machine. Keys live in the keyring.
+  External models exist only after explicit approval. What does not work, Baruch says – nothing is silently
+  shortened, discarded or guessed.
 
-## Schnellstart
+## Quick start
 
-### Installieren
+### Installing
 
-Die Pakete liegen auf der [Release-Seite](https://github.com/Beerlesklopfer/baruch/releases/tag/v0.9.0), dazu
-`SHA256SUMS` zum Vergleichen. Die Webseite <https://baruch.bernau.family/> führt Schritt für Schritt durch die
-Installation; alle Einzelheiten stehen in [docs/Verteilung.md](docs/Verteilung.md).
+The packages are on the [release page](https://github.com/Beerlesklopfer/baruch/releases/tag/v0.9.0), together
+with `SHA256SUMS` for comparison. The website <https://baruch.bernau.family/> walks through the installation
+step by step; all details are in [docs/Verteilung.md](docs/Verteilung.md).
 
-**Debian 13 und Ubuntu 24.04 oder neuer (amd64) über das APT-Repository** – so kommen auch neue Versionen
-mit `sudo apt upgrade`:
+**Debian 13 and Ubuntu 24.04 or newer (amd64) through the APT repository** – this way new versions arrive
+with `sudo apt upgrade` as well:
 
 ```sh
 sudo curl -fsSL -o /usr/share/keyrings/baruch-archive-keyring.gpg \
@@ -80,44 +83,45 @@ sudo apt update
 sudo apt install baruch
 ```
 
-Fingerabdruck des Archivschlüssels (vor `apt update` mit
-`gpg --show-keys --with-fingerprint /usr/share/keyrings/baruch-archive-keyring.gpg` vergleichen):
+Fingerprint of the archive key (compare before `apt update` with
+`gpg --show-keys --with-fingerprint /usr/share/keyrings/baruch-archive-keyring.gpg`):
 `BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4`
 
-Steht hier noch dieser Platzhalter, ist der Fingerabdruck nicht veröffentlicht und die Paketquelle noch nicht
-für Endnutzer gedacht: Die Schlüsseldatei kommt von derselben Webseite wie die Pakete und lässt sich nur mit
-einem Fingerabdruck prüfen, den man auf einem zweiten Weg kennt (dieses README im Repository). Ein signiertes
-Release entsteht erst, wenn der Wert hier, auf der Webseite und in `docs/Verteilung.md` zum Schlüssel passt
+If a placeholder still stands here instead of a fingerprint, the fingerprint has not been published and the
+package source is not yet meant for end users: the key file comes from the same website as the packages and can
+only be verified with a fingerprint that is known through a second channel (this README in the repository). A
+signed release only comes about when the value here, on the website and in `docs/Verteilung.md` matches the key
 (`scripts/ci-fingerprint.sh`).
 
-| System | Datei | Installieren |
+| System | File | Installing |
 |---|---|---|
 | Debian, Ubuntu (amd64) | `baruch_0.9.0-1_amd64.deb` | `sudo apt install ./baruch_0.9.0-1_amd64.deb` |
-| Linux allgemein (x86_64) | `Baruch-0.9.0-x86_64.AppImage` | `chmod +x Baruch-0.9.0-x86_64.AppImage`, dann starten |
-| macOS, Apple Silicon | `Baruch-0.9.0-macos-arm64.dmg` | öffnen, Baruch nach „Programme“ ziehen (unsigniert) |
-| macOS, Intel | `Baruch-0.9.0-macos-x86_64.dmg` | wie oben (unsigniert) |
-| Windows (x64) | `Baruch-0.9.0-x64.msi` | ausführen (unsigniert, SmartScreen warnt) |
+| Linux in general (x86_64) | `Baruch-0.9.0-x86_64.AppImage` | `chmod +x Baruch-0.9.0-x86_64.AppImage`, then start it |
+| macOS, Apple Silicon | `Baruch-0.9.0-macos-arm64.dmg` | open, drag Baruch to "Applications" (unsigned) |
+| macOS, Intel | `Baruch-0.9.0-macos-x86_64.dmg` | as above (unsigned) |
+| Windows (x64) | `Baruch-0.9.0-x64.msi` | run it (unsigned, SmartScreen warns) |
 
-Die Pakete für macOS sind signiert und von Apple notarisiert (seit 0.9.0), das Paket für Windows ist **nicht
-signiert**; beide sind noch auf keinem echten Gerät erprobt. Wie man sie startet, steht in [docs/Verteilung.md](docs/Verteilung.md). Jedes Paket enthält die Lizenz, die
-Lizenzen der eingebundenen Bibliotheken (`THIRD-PARTY-LICENSES.txt`) und den Hinweis auf den Quelltext. Kein
-Paket legt etwas im Datenordner an, und das Entfernen löscht dort nichts.
+The packages for macOS are signed and notarized by Apple (since 0.9.0), the package for Windows is **not
+signed**; both have not yet been tried on a real device. How to start them is described in
+[docs/Verteilung.md](docs/Verteilung.md). Every package contains the license, the licenses of the bundled
+libraries (`THIRD-PARTY-LICENSES.txt`) and the pointer to the source code. No package creates anything in the
+data folder, and removing it deletes nothing there.
 
-Nach der Installation startet „Baruch“ im Startmenü bzw. `baruch` im Terminal den lokalen Server und öffnet die
-Oberfläche im Browser.
+After the installation, "Baruch" in the start menu or `baruch` in the terminal starts the local server and opens
+the user interface in the browser.
 
-**Aktualisieren:** Baruch fragt nie von sich aus im Netz nach neuen Versionen. Mit dem APT-Repository genügt
-`sudo apt upgrade`; sonst lädt man das neue Paket von der Release-Seite. Welche Version läuft, zeigt
-**Baruch ▾ → Über Baruch** (oder `baruch-server --version`).
+**Updating:** Baruch never asks the network for new versions on its own. With the APT repository
+`sudo apt upgrade` is enough; otherwise you download the new package from the release page. Which version is
+running is shown by „Baruch ▾ → Über Baruch“ (About Baruch) or `baruch-server --version`.
 
-### Aus dem Quelltext bauen
+### Building from source
 
-Du brauchst:
+You need:
 
-- Rust (Edition 2024, also eine aktuelle stabile Toolchain);
-- Node.js mit npm (nur für den TypeScript-Compiler der Oberfläche);
-- `protoc` (Protocol Buffers, für LanceDB) im `PATH`;
-- wahlweise `xmllint`, `pdftotext` (Poppler) und Java mit EPUBCheck für zusätzliche Prüfungen.
+- Rust (edition 2024, i.e. a current stable toolchain);
+- Node.js with npm (only for the TypeScript compiler of the user interface);
+- `protoc` (Protocol Buffers, for LanceDB) in the `PATH`;
+- optionally `xmllint`, `pdftotext` (Poppler) and Java with EPUBCheck for additional checks.
 
 ```sh
 git clone https://github.com/Beerlesklopfer/baruch.git
@@ -126,221 +130,226 @@ cd baruch
 nice -n 10 ionice -c3 cargo install --locked --path crates/baruch-server -j 4
 ```
 
-Das Programm landet in `~/.cargo/bin/baruch-server`. Ein eigenes `.deb` baut `scripts/build-deb.sh`
-(braucht `cargo-deb`), siehe [docs/Verteilung.md](docs/Verteilung.md).
+The program ends up in `~/.cargo/bin/baruch-server`. `scripts/build-deb.sh` builds your own `.deb`
+(needs `cargo-deb`), see [docs/Verteilung.md](docs/Verteilung.md).
 
-### Starten
+### Starting
 
 ```sh
-baruch                              # aus einem Paket: Server starten und Browser öffnen
-baruch-server                       # nur der Server auf http://127.0.0.1:8765/
-baruch-server --data /tmp/probe     # zum Ausprobieren mit eigenem Datenordner
+baruch                              # from a package: start the server and open the browser
+baruch-server                       # only the server on http://127.0.0.1:8765/
+baruch-server --data /tmp/probe     # for trying things out with a data folder of its own
 ```
 
-Danach `http://127.0.0.1:8765/` im Browser öffnen. Eine neue Datenbank bringt ein Beispielwerk mit.
+Then open `http://127.0.0.1:8765/` in the browser. A new database comes with a sample work.
 
-Beenden: Menü **Baruch ▾ → „Baruch beenden…“** (nur am eigenen Rechner), Strg+C im Terminal oder
-`systemctl --user stop baruch.service`. Baruch fährt dabei sauber herunter.
+Quitting: menu „Baruch ▾ → Baruch beenden…“ (quit Baruch; only on your own machine), Ctrl+C in the terminal or
+`systemctl --user stop baruch.service`. Baruch shuts down cleanly in each case.
 
-### Das erste eigene Werk
+### Your first own work
 
-- **Baruch ▾ → Neues Werk / Importieren…:** ein Buch oder eine Predigt anlegen (Titel, Autor, Grundgerüst,
-  Zielgruppe, Bibelübersetzung) – oder eine vorhandene Datei einlesen: Typst, Markdown (auch als ZIP mit
-  Bildern), PDF, EPUB oder eine `.baruch`-Austauschdatei. Beim Einlesen zeigt Baruch zuerst eine Vorschau der
-  Gliederung; angelegt wird erst nach Bestätigung.
-- Für den Dauerbetrieb als Benutzerdienst siehe [packaging/systemd/README.md](packaging/systemd/README.md);
-  das `.deb` bringt dafür ein Beispiel unter `/usr/share/doc/baruch/examples/baruch.service` mit, richtet aber
-  selbst keinen Dienst ein.
+- „Baruch ▾ → Neues Werk / Importieren…“ (new work / import): create a book or a sermon (title, author,
+  skeleton, audience, Bible translation) – or read in an existing file: Typst, Markdown (also as a ZIP with
+  images), PDF, EPUB or a `.baruch` exchange file. When reading in, Baruch first shows a preview of the
+  outline; nothing is created before you confirm.
+- For permanent operation as a user service see [packaging/systemd/README.md](packaging/systemd/README.md);
+  the `.deb` ships an example for this under `/usr/share/doc/baruch/examples/baruch.service`, but does not set
+  up a service itself.
 
-## Ein Rundgang
+## A tour
 
-Der Arbeitsplatz hat drei Bereiche, deren Breite sich ziehen lässt:
+The workplace has three areas whose width can be dragged:
 
-- **Links die Gliederung:** Teile, Kapitel und Abschnitte als Baum, mit Nummern nach dem gewählten Schema,
-  Sprechdauer, Abzeichen für offene Vorschläge und Befunde. Ein Klick öffnet den Abschnitt; Umbenennen,
-  Verschieben, Umstufen und „Nummer an/aus“ gehen über das Kontextmenü oder Formulare.
-- **In der Mitte der Editor:** das Satzbild (so, wie der Abschnitt nach der Werkvorlage aussieht) oder der
-  Typst-Quelltext, darüber das Menüband.
-- **Rechts die Akkordeons:** Assistenten, Fassungen, Befunde und der Abschnitts-Chat.
+- **The outline on the left:** parts, chapters and sections as a tree, with numbers according to the chosen
+  scheme, speaking time, badges for open suggestions and findings. A click opens the section; renaming,
+  moving, changing the level and "number on/off" go through the context menu or forms.
+- **The editor in the middle:** the typeset view (the section as it looks under the work template) or the
+  Typst source, with the ribbon above it.
+- **The accordions on the right:** assistants, revisions, findings and the section chat.
 
-Oben eine Kopfzeile mit den Menüs **Werk**, **Ansicht** und **Werkzeuge**, dem Hell/Dunkel-Schalter und den
-**Einstellungen** (als Popup, ohne JavaScript als eigene Seite).
+At the top there is a header with the menus „Werk“ (work), „Ansicht“ (view) and „Werkzeuge“ (tools), the
+light/dark switch and the „Einstellungen“ (settings; as a popup, without JavaScript as a page of its own).
 
-## Was Baruch kann
+## What Baruch can do
 
-### Werke, Gliederung und Fassungen
+### Works, outline and revisions
 
-- **Werke:** Bücher und Predigten, beliebig viele nebeneinander, jedes mit Titel, Untertitel, Autor,
-  Zielgruppe, Bibelübersetzung und Buchangaben.
-- **Gliederung:** Teile, Kapitel und Abschnitte, jeder Punkt mit oder ohne Nummer. Markdown-Überschriften
-  (`# `, `## ` …) werden beim Tippen zu Gliederungspunkten. Ein neuer Teil, unter den vorhandene Kapitel
-  wandern würden, braucht die aktive Zustimmung des Menschen.
-- **Gliederungsschemata:** dreizehn Arten zu nummerieren, jederzeit umschaltbar und wieder zurück – Dezimal
-  (1.1), römisch, „Teil I · Kapitel 1“, „Erstes Kapitel“, juristisch (§ 1 · Abs. 1), **Predigt**
-  (Einleitung · I. · II. · Schluss), **Buch** (wie Predigt, Teile als „Erster Teil“) oder ein eigenes Muster.
-  Typst setzt dieselben Nummern wie die Gliederung.
-- **Fassungen:** Jeder Abschnitt hat beliebig viele Fassungen als Baum. Genau eine ist aktuell; umschalten
-  geht jederzeit, nichts wird still verdrängt. Vorschläge der Assistenten sind eigene Fassungen, auf Wunsch
-  in mehreren Varianten nebeneinander.
-- **Git-Spiegel:** Jede Änderung wird ein Commit im Spiegel des Werks, mit Herkunft im Commit.
-- **Anträge:** Umbenennen, Verschieben, Umstufen, Löschen, Bilder ersetzen, Umschlag setzen – Assistenten
-  stellen das nur als Antrag. Der Mensch bestätigt oder lehnt ab, beides wird protokolliert.
+- **Works:** books and sermons, any number side by side, each with title, subtitle, author,
+  audience, Bible translation and book details.
+- **Outline:** parts, chapters and sections, each item with or without a number. Markdown headings
+  (`# `, `## ` …) become outline items while typing. A new part under which existing chapters
+  would move needs the active approval of the human.
+- **Outline schemes:** thirteen ways of numbering, switchable at any time and back again – decimal
+  (1.1), Roman, „Teil I · Kapitel 1“, „Erstes Kapitel“, legal (§ 1 · Abs. 1), **sermon**
+  (Einleitung · I. · II. · Schluss), **book** (like sermon, parts as „Erster Teil“) or a pattern of your own.
+  Typst sets the same numbers as the outline.
+- **Revisions:** each section has any number of revisions as a tree. Exactly one is current; switching
+  is possible at any time, nothing is silently displaced. Suggestions of the assistants are revisions of their
+  own, on request in several variants side by side.
+- **Git mirror:** every change becomes a commit in the mirror of the work, with its origin in the commit.
+- **Requests:** renaming, moving, changing the level, deleting, replacing images, setting the cover –
+  assistants only file these as a request. The human confirms or declines, and both are logged.
 
-### Schreiben
+### Writing
 
-- **Satzbild:** Der Abschnitt erscheint so, wie er gesetzt wird, und wird dort bearbeitet – Absätze,
-  Überschriften, Hervorhebung, Listen, Begriffslisten, Zitate, Fußnoten, Links, Szenen, Bilder. Was sich nicht
-  als Block bearbeiten lässt, bleibt eine Typst-Insel an Ort und Stelle. Die Rundreise Typst ↔ Satzbild ist
-  verlustfrei.
-- **Quelltext:** dieselbe Fassung als Typst-Text, umschaltbar.
-- **Menüband:** Knöpfe für die Formate der Werkvorlage (Szene, Arbeitsauftrag, Fußnote, Zitat, Liste, Begriff,
-  Umbruch, Link, Bibelstelle, Literaturverweis, Verweis) – ein Knopf erscheint nur, wenn die Vorlage das Format
-  kennt – und „Bild an der Cursorstelle“.
-- **Suchen und Ersetzen** wie in VS Code: Strg+F und Strg+H im Abschnitt, Strg+Umschalt+F und Strg+Umschalt+H
-  im ganzen Werk, mit einstellbarem Bereich (Markierung, Abschnitt, Kapitel, Teil, Auswahl, Werk), ganzem Wort,
-  Groß-/Kleinschreibung und regulären Ausdrücken. Ersetzen legt je Abschnitt eine neue Fassung an und lässt
-  sich mit einem Klick zurücknehmen; Bibelzitate sind standardmäßig ausgenommen.
-- **Querverweise:** Jeder Gliederungspunkt hat eine feste Sprungmarke. „Verweis“ fügt einen Verweis ein,
-  Strg+Klick springt hin, Alt+← zurück; im PDF und EPUB sind Verweise Links. Baruch findet Formulierungen wie
-  „im dritten Kapitel“ und bietet sie zum Umwandeln an.
-- **Kontextmenü im Text:** „In Glossar aufnehmen“, „In Register aufnehmen“, „Im Glossar nachschlagen“
-  (Rechtsklick, Menütaste oder Umschalt+F10).
-- **Zeitwächter:** Sprechdauer je Gliederungspunkt und für das Werk, Zielzeit mit Warnung – vor allem für
-  Predigten. Dazu **Stichwortzettel** als A5-Blatt oder Karteikarten.
+- **Typeset view:** the section appears the way it is typeset and is edited there – paragraphs,
+  headings, emphasis, lists, term lists, quotations, footnotes, links, scenes, images. Whatever cannot be
+  edited as a block stays a Typst island in place. The round trip Typst ↔ typeset view is
+  lossless.
+- **Source:** the same revision as Typst text, switchable.
+- **Ribbon:** buttons for the formats of the work template (scene, assignment, footnote, quotation, list, term,
+  break, link, Bible reference, literature reference, cross-reference) – a button only appears when the
+  template knows the format – and "image at the cursor position".
+- **Find and replace** as in VS Code: Ctrl+F and Ctrl+H in the section, Ctrl+Shift+F and Ctrl+Shift+H
+  in the whole work, with an adjustable scope (selection, section, chapter, part, choice, work), whole word,
+  case sensitivity and regular expressions. Replacing creates a new revision per section and can be
+  undone with one click; Bible quotations are excluded by default.
+- **Cross-references:** every outline item has a fixed jump mark. „Verweis“ (reference) inserts a reference,
+  Ctrl+click jumps there, Alt+← back; in the PDF and EPUB references are links. Baruch finds phrases like
+  „im dritten Kapitel“ (in the third chapter) and offers to convert them.
+- **Context menu in the text:** „In Glossar aufnehmen“ (add to glossary), „In Register aufnehmen“ (add to
+  index), „Im Glossar nachschlagen“ (look up in the glossary) – right click, menu key or Shift+F10.
+- **Time keeper:** speaking time per outline item and for the work, target time with a warning – above all for
+  sermons. In addition **cue sheets** as an A5 sheet or index cards.
 
-### Assistenten
+### Assistants
 
-- **Personas** mit eigener Rolle, eigenem Modell und eigener Verbindung – Lektor, Exeget, Schrift, Belege,
-  Nathan (Auditor), Hörer oder eigene. Lokal über einen OpenAI-kompatiblen Dienst oder Ollama; externe
-  Anbieter nur nach Freigabe.
-- **Der Lektor als Begleiter:** Er sagt zuerst, was trägt, und nennt dann die wichtigsten Punkte mit einem
-  konkreten nächsten Schritt. Er prüft einen Abschnitt oder ein ganzes Kapitel; ist der Text zu lang, teilt
-  Baruch ihn überlappend auf – still gekürzt wird nie.
-- **Lösungen statt nur Kritik:** Jeder Kritikpunkt kommt mit einer Lösung („statt … / besser …“) und dem
-  Knopf „Als Vorschlag übernehmen“. Auf Wunsch setzt der Lektor die Lösungen in zwei bis drei Varianten um,
-  die man nebeneinander vergleicht.
-- **Chat am Abschnitt und Fäden:** `@lektor` oder „Lektor, …“ ruft eine Persona, „RFC“ bzw. `@alle` ruft alle
-  (der Lektor fasst zuletzt zusammen). Antworten erscheinen live, gegliedert, mit geprüften Sprungmarken in den
-  Text und der Angabe, welche Fassung geprüft wurde. Beiträge lassen sich kopieren, zitieren, wiederholen und
-  löschen; eigene Beiträge auch bearbeiten.
-- **Befundliste:** Baruch zerlegt Antworten in einzelne Befunde. Der Mensch markiert sie als übernommen,
-  verworfen (mit Begründung), verschoben oder erledigt. Verworfene Befunde gehen als Entscheidung an die
-  Personas zurück und werden nicht erneut gemeldet. **Reiter Prüfen → Befunde** zeigt eine Übersicht übers ganze Werk
-  (Kapitel × Persona), die Gliederung zeigt „k offen“.
-- **Belege:** Eine Persona sucht in der eigenen Bibliothek, in SWORD-Kommentaren und auf Wunsch im Web und
-  nennt ihre Quellen.
+- **Personas** with their own role, their own model and their own connection – „Lektor“ (editor), „Exeget“,
+  „Schrift“ (scripture), „Belege“ (evidence), „Nathan“ (auditor), „Hörer“ (listener) or your own. Locally through
+  an OpenAI-compatible service or Ollama; external providers only after approval.
+- **The editor persona as a companion:** it first says what works and then names the most important points with
+  a concrete next step. It reviews a section or a whole chapter; if the text is too long, Baruch
+  splits it with overlap – nothing is ever silently shortened.
+- **Solutions instead of mere criticism:** every point of criticism comes with a solution („statt … / besser …“,
+  i.e. instead of … / better …) and the button „Als Vorschlag übernehmen“ (take over as a suggestion). On
+  request the editor persona carries out the solutions in two to three variants that you compare side by side.
+- **Chat at the section and threads:** `@lektor` or „Lektor, …“ calls a persona, „RFC“ or `@alle` calls all
+  of them (the editor persona summarizes last). Answers appear live, structured, with verified jump marks into
+  the text and a note on which revision was reviewed. Posts can be copied, quoted, repeated and
+  deleted; your own posts can also be edited.
+- **List of findings:** Baruch breaks answers down into individual findings. The human marks them as accepted,
+  rejected (with a reason), postponed or done. Rejected findings go back to the personas as a decision
+  and are not reported again. The tab „Prüfen → Befunde“ (review → findings) shows an overview of the whole
+  work (chapter × persona), the outline shows „k offen“ (k open).
+- **Evidence:** a persona searches your own library, SWORD commentaries and, on request, the web and
+  names its sources.
 
-### Bibel
+### Bible
 
-- **Stellen erkennen und prüfen:** „1. Kön 3,16–28“, „Ps 139,23“, Listen wie „Joh 3,16, 18“, „Psalm 139 …
-  Vers 23“; Uhrzeiten und Zahlwörter werden nicht für Stellen gehalten.
-- **Verszählungen:** alle 18 Zählungen des SWORD-Projekts mit Umrechnung zwischen deutscher und englischer
-  Zählung (z. B. Mal 3,19–24 ↔ Mal 4,1–6). Wo keine Regel greift, sagt Baruch das.
-- **SWORD-Module:** lokale Bibeln, Kommentare und Lexika zum Lesen, Suchen und Zitieren – auch komprimiert
-  (ZIP, BZIP2, XZ) und mit dem Schlüssel des Herausgebers verschlüsselt. Der Lizenzvermerk wird angezeigt.
-- **Zitate prüfen:** Im Editor sind Bibelzitate als „stimmt“ oder „weicht ab“ markiert. Weicht ein Zitat nur
-  durch Leerraumreste im Modul ab, heißt es „stimmt (Leerraum im Modul)“.
+- **Recognizing and checking references:** „1. Kön 3,16–28“, „Ps 139,23“, lists like „Joh 3,16, 18“,
+  „Psalm 139 … Vers 23“; times of day and number words are not mistaken for references.
+- **Versifications:** all 18 versifications of the SWORD project with conversion between German and English
+  numbering (e.g. Mal 3,19–24 ↔ Mal 4,1–6). Where no rule applies, Baruch says so.
+- **SWORD modules:** local Bibles, commentaries and lexicons for reading, searching and quoting – also
+  compressed (ZIP, BZIP2, XZ) and encrypted with the publisher's key. The license notice is shown.
+- **Checking quotations:** in the editor, Bible quotations are marked as „stimmt“ (matches) or „weicht ab“
+  (differs). If a quotation differs only through leftover whitespace in the module, it reads
+  „stimmt (Leerraum im Modul)“.
 
-### Einfälle und Mindmap
+### Ideas and mind map
 
-- **Einfälle:** Notizen mit Schlagwörtern, Gedanke, markiertem Text, Quelle und Bibelstelle, frei oder an
-  einem Abschnitt. Schnellerfassung mit Alt+E. Ein Einfall wird mit einem Klick zum Gliederungspunkt,
-  Beitrag, zur Notiz oder zum Auftrag an eine Persona. Volltext- und Bedeutungssuche.
-- **Mindmap:** alle Einfälle eines Werks als Mindmap – das Werk in der Mitte, Teile und Kapitel als Äste,
-  Einfälle als Unteräste beliebig tief; daneben die Wolke für Einfälle ohne Platz. Tab, Enter, F2, Ziehen und
-  Einklappen wie in XMind; Verbindungen („führt weiter“, „gehört zu“, „Beispiel für“, „widerspricht“) als
-  beschriftete Linien, Nähe aus der Bedeutungssuche als Vorschlag „passt zu Ast …“. Ohne JavaScript über die
-  Gliederungsansicht bedienbar. Ausgabe als XMind, FreeMind, SVG, PDF und Markdown; Einlesen von `.xmind` und
-  `.mm` (in echtem XMind und Freeplane noch nicht geprüft).
+- **Ideas:** notes with tags, thought, marked text, source and Bible reference, free or attached to
+  a section. Quick capture with Alt+E. With one click an idea becomes an outline item,
+  a post, a note or an assignment to a persona. Full-text and semantic search.
+- **Mind map:** all ideas of a work as a mind map – the work in the middle, parts and chapters as branches,
+  ideas as sub-branches of any depth; next to it the cloud for ideas without a place. Tab, Enter, F2, dragging
+  and collapsing as in XMind; connections („führt weiter“, „gehört zu“, „Beispiel für“, „widerspricht“) as
+  labelled lines, closeness from the semantic search as a suggestion „passt zu Ast …“ (fits branch …). Usable
+  without JavaScript through the outline view. Output as XMind, FreeMind, SVG, PDF and Markdown; reading in
+  `.xmind` and `.mm` (not yet verified in real XMind and Freeplane).
 
-### Literatur und Suche
+### Literature and search
 
-- **Autorenbibliothek:** Titel mit Zitierschlüssel, Zitate und Hervorhebungen, Volltextsuche (SQLite FTS5)
-  über Werk und Literatur; Literatur als Popup mit Alt+L.
-- **Bedeutungssuche (RAG):** lokaler Vektorindex (LanceDB) mit Einbettungen über das eigene Modell-Backend,
-  ehrlicher Status, Neuaufbau ohne lange Sperre, schwache Treffer gekennzeichnet; wahlweise pgvector und
-  MultiGPT als weitere Quellen. Abgleich mit MultiGPT nur auf Knopfdruck.
+- **Author's library:** titles with citation key, quotations and highlights, full-text search (SQLite FTS5)
+  across work and literature; literature as a popup with Alt+L.
+- **Semantic search (RAG):** local vector index (LanceDB) with embeddings through your own model backend,
+  honest status, rebuild without a long lock, weak hits marked; optionally pgvector and
+  MultiGPT as further sources. Synchronization with MultiGPT only at the push of a button.
 
-### Satz, Buch und E-Book
+### Typesetting, book and e-book
 
-- **Buchsatz in den Einstellungen** (Einstellungen → Werk → Satz): Kapitelanfang (fortlaufend, neue Seite,
-  neue rechte Seite), Teil-Seiten, Seitenformat, Ränder und Bundsteg, Schrift, Absatz, Silbentrennung,
-  Seitenzahlen, Kolumnentitel, Fußnoten, Schusterjungen und Hurenkinder – mit Vorschau und Erklärung der
-  Begriffe. Die Werkvorlage bleibt für Sonderfälle; Widersprüche zeigt Baruch an.
-- **Satz-Vorschau und Buch-PDF** mit Titelei (Schmutztitel, Haupttitel, Impressum, Widmung). Impressum und
-  Titelseiten lassen sich als Funktionen in der Werkvorlage gestalten; die Druckprüfung warnt bei fehlenden
-  Pflichtangaben und bei Bildern unter 300 dpi.
-- **Umschlag-Editor:** alle Textblöcke von Vorder-, Rückseite und Rücken frei verschieben, mit Hilfslinien
-  (Beschnitt, Sicherheitsabstand, Rücken), Kontrastprüfung und optionaler Schrift. Der Umschlag für die
-  Druckerei berechnet die Rückenbreite aus der Seitenzahl.
-- **Register und Glossar:** Stichwort-, Personen- und Bibelstellenregister (in biblischer Reihenfolge) mit
-  Seitenzahlen, Bereichen, Unterstichwörtern und „siehe auch“; Glossar mit Varianten und Erklärungen, am
-  Buchende und im EPUB.
-- **EPUB 3:** jedes Kapitel und jede Teil-Seite als eigene Datei, Inhaltsverzeichnis, Fußnoten als Popup oder
-  Endnoten, Querverweise, Bilder mit Alternativtext, Umschlag als Cover, Metadaten aus den Buchangaben. Eine
-  **EPUB-Vorschau** zeigt neun Reader-Profile nebeneinander (auch „Kindle über EPUB“); eine Strukturprüfung
-  läuft immer, EPUBCheck, wenn er auf dem Rechner liegt.
+- **Book typesetting in the settings** („Einstellungen → Werk → Satz“): chapter start (continuous, new page,
+  new right-hand page), part pages, page format, margins and gutter, font, paragraph, hyphenation,
+  page numbers, running heads, footnotes, widows and orphans – with a preview and an explanation of the
+  terms. The work template remains for special cases; Baruch shows contradictions.
+- **Typesetting preview and book PDF** with front matter (half title, main title, imprint, dedication). Imprint
+  and title pages can be designed as functions in the work template; the print check warns about missing
+  mandatory details and about images below 300 dpi.
+- **Cover editor:** move all text blocks of front, back and spine freely, with guides
+  (bleed, safety margin, spine), contrast check and optional font. The cover for the
+  printer calculates the spine width from the page count.
+- **Indexes and glossary:** subject, person and Bible reference index (in biblical order) with
+  page numbers, ranges, sub-entries and "see also"; glossary with variants and explanations, at the
+  end of the book and in the EPUB.
+- **EPUB 3:** every chapter and every part page as a file of its own, table of contents, footnotes as a popup or
+  endnotes, cross-references, images with alternative text, cover, metadata from the book details. An
+  **EPUB preview** shows nine reader profiles side by side (also "Kindle via EPUB"); a structure check
+  always runs, EPUBCheck if it is present on the machine.
 
-### Import, Export und Austausch
+### Import, export and exchange
 
-- **Import:** Typst, Markdown (auch als ZIP oder Ordner mit Bildern), PDF (lokal oder über MultiGPT), EPUB und
-  Word (.docx) – immer mit Vorschau der Gliederung und Warnungen, angelegt erst nach Bestätigung.
-- **Word (.docx) importieren:** Gliederung, Fußnoten, Zitate, Listen, Tabellen und Bilder werden ein Werk; verfolgte
-  Änderungen kommen je Bearbeiter als offene Vorschläge, Kommentare als Beiträge – entschieden wird in Baruch.
-- **Export:** Typst-Datei oder -Ordner mit Bildern, Buch-PDF, Umschlag-PDF, EPUB, Word (.docx), Stichwortzettel.
-- **Word (.docx) für den Verlag:** Export des ganzen Werks mit Formatvorlagen, echten Fußnoten und eingebetteten
-  Bildern; offene Vorschläge der Assistenten auf Wunsch als Änderungsverfolgung (`/werke/<id>/word`,
-  `baruch-server export ID --docx DATEI [--vorschlaege]`). In Microsoft Word selbst ist das noch nicht geprüft.
-- **Austausch zwischen Instanzen:** Die `.baruch`-Datei (ZIP mit XML nach eigenem
-  [Schema](docs/schema/)) trägt ein Werk vollständig – alle Fassungen, Einfälle, Verbindungen, Beiträge,
-  Befunde, Bilder, Umschlag, Satz-Einstellungen –, aber keine Schlüssel. Einlesen geht als neues Werk oder
-  als **Abgleich**: Es kommt nur dazu, was fehlt; nichts wird gelöscht oder überschrieben, abweichende
-  Fassungen werden weitere Fassungen, Gliederungsänderungen werden Anträge.
+- **Import:** Typst, Markdown (also as a ZIP or folder with images), PDF (locally or through MultiGPT), EPUB and
+  Word (.docx) – always with a preview of the outline and warnings, created only after confirmation.
+- **Importing Word (.docx):** outline, footnotes, quotations, lists, tables and images become a work; tracked
+  changes arrive per editor as open suggestions, comments as posts – the decisions are made in Baruch.
+- **Export:** Typst file or folder with images, book PDF, cover PDF, EPUB, Word (.docx), cue sheets.
+- **Word (.docx) for the publisher:** export of the whole work with styles, real footnotes and embedded
+  images; open suggestions of the assistants on request as tracked changes (`/werke/<id>/word`,
+  `baruch-server export ID --docx DATEI [--vorschlaege]`). This has not yet been verified in Microsoft Word
+  itself.
+- **Exchange between instances:** the `.baruch` file (ZIP with XML following its own
+  [schema](docs/schema/)) carries a work completely – all revisions, ideas, connections, posts,
+  findings, images, cover, typesetting settings – but no keys. Reading in works as a new work or
+  as a **merge**: only what is missing is added; nothing is deleted or overwritten, differing
+  revisions become further revisions, outline changes become requests.
 
-## Tastenkürzel
+## Keyboard shortcuts
 
-| Taste | Wirkung |
+Keys are named as on an English keyboard; the German user interface and help call Ctrl „Strg“ and Shift
+„Umschalt“.
+
+| Key | Effect |
 |---|---|
-| Alt+E | Einfall festhalten |
-| Alt+L | Literatur öffnen/schließen |
-| Alt+, | Einstellungen |
-| Strg+S | Speichern |
-| Strg+I · Strg+B | hervorheben · fett |
-| Umschalt+Enter | Zeilenumbruch im Satzbild |
-| Strg+F · Strg+H | Suchen · Ersetzen im Abschnitt |
-| Strg+Umschalt+F · Strg+Umschalt+H | Suchen · Ersetzen im Werk |
-| Enter/F3 · Umschalt+Enter/Umschalt+F3 | nächster · voriger Treffer |
-| Strg+Umschalt+1 · Strg+Alt+Enter | Treffer ersetzen · alle ersetzen |
-| Alt+C · Alt+W · Alt+R | Groß/klein · ganzes Wort · regulärer Ausdruck |
-| Strg+Klick · Alt+← | Verweis öffnen · zurück |
-| Alt+→ | nächste Fassung |
-| Menütaste · Umschalt+F10 | Kontextmenü im Text |
-| Strg+Enter | Nachricht im Faden absenden |
-| Strg+Mausrad · Strg+0 | Bereich vergrößern · zurücksetzen |
+| Alt+E | capture an idea |
+| Alt+L | open/close literature |
+| Alt+, | settings |
+| Ctrl+S | save |
+| Ctrl+I · Ctrl+B | emphasize · bold |
+| Shift+Enter | line break in the typeset view |
+| Ctrl+F · Ctrl+H | find · replace in the section |
+| Ctrl+Shift+F · Ctrl+Shift+H | find · replace in the work |
+| Enter/F3 · Shift+Enter/Shift+F3 | next · previous hit |
+| Ctrl+Shift+1 · Ctrl+Alt+Enter | replace hit · replace all |
+| Alt+C · Alt+W · Alt+R | case · whole word · regular expression |
+| Ctrl+click · Alt+← | open reference · back |
+| Alt+→ | next revision |
+| Menu key · Shift+F10 | context menu in the text |
+| Ctrl+Enter | send message in the thread |
+| Ctrl+mouse wheel · Ctrl+0 | enlarge area · reset |
 
-## Assistenten und Modelle einrichten
+## Setting up assistants and models
 
-**Einstellungen → Verbindungen** legt die Modell-Verbindungen an (OpenAI-kompatibel, Ollama, wahlweise
-pgvector und MultiGPT), **Einstellungen → Assistenten** die Personas mit Rolle, Modell, Kontextlänge, Farbe
-und eigenem Prompt. Schlüssel und Token liegen im Schlüsselbund des Systems (Dienst `baruch`), nie in
-Dateien. Ein externer Anbieter muss ausdrücklich freigegeben werden. Bibeln, Kommentare und Lexika wählst du
-unter **Einstellungen → Quellen**.
+„Einstellungen → Verbindungen“ (settings → connections) creates the model connections (OpenAI-compatible,
+Ollama, optionally pgvector and MultiGPT), „Einstellungen → Assistenten“ (settings → assistants) the personas
+with role, model, context length, colour and their own prompt. Keys and tokens live in the keyring of the
+system (service `baruch`), never in files. An external provider must be approved explicitly. You choose Bibles,
+commentaries and lexicons under „Einstellungen → Quellen“ (settings → sources).
 
-## Baruch mit Claude Code und anderen MCP-Clients
+## Baruch with Claude Code and other MCP clients
 
-Baruch ist ein MCP-Server unter `POST /mcp`. Mit Claude Code:
+Baruch is an MCP server at `POST /mcp`. With Claude Code:
 
 ```sh
 claude mcp add -s local --transport http baruch http://127.0.0.1:8765/mcp
 ```
 
-Über MCP lesen Assistenten Werke, Gliederung, Fassungen, Einfälle, Befunde und Bibeltexte, schreiben
-Vorschläge, Beiträge und Einfälle, stellen Anträge und schlagen Glossarbegriffe vor. Was den Buchtext ändert
-oder löscht, geht über MCP nicht. Von anderen Rechnern geht MCP nur mit Token. Alle Werkzeuge stehen in
-[docs/MCP.md](docs/MCP.md); dieselben Funktionen gibt es als JSON-RPC unter `POST /rpc`
+Through MCP, assistants read works, outline, revisions, ideas, findings and Bible texts, write
+suggestions, posts and ideas, file requests and propose glossary terms. Whatever changes or deletes the book
+text is not possible through MCP. From other machines MCP works only with a token. All tools are listed in
+[docs/MCP.md](docs/MCP.md); the same functions exist as JSON-RPC at `POST /rpc`
 ([docs/RPC.md](docs/RPC.md)).
 
-## Kommandozeile
+## Command line
 
 ```sh
 baruch-server --version
@@ -355,72 +364,74 @@ baruch-server export ID|SLUG --docx DATEI [--vorschlaege]
 baruch-server export ID|SLUG --stichwort DATEI [--format a5|karten] [--schrift PT]
 ```
 
-Export überschreibt nie eine vorhandene Datei. Beim Import von PDF, EPUB und Word zeigt die Kommandozeile ohne
-`--uebernehmen` nur die erkannte Gliederung (bei Word auch Bearbeiter und Hinweise). `baruch-server --help` nennt alle Einzelheiten.
+Export never overwrites an existing file. When importing PDF, EPUB and Word, the command line without
+`--uebernehmen` only shows the recognized outline (for Word also editors and notes). `baruch-server --help`
+names all details (in German: `ADRESSE` = address, `ORDNER` = folder, `DATEI` = file).
 
-## Daten, Sicherung und Sicherheit
+## Data, backup and security
 
-- **Daten:** `~/.local/share/baruch` (macOS `~/Library/Application Support/baruch`, Windows
-  `%LOCALAPPDATA%\baruch`). Dort liegen `baruch.sqlite` als Quelle aller Daten und unter `works/<slug>/` der
-  Git-Spiegel jedes Werks. Die Daten liegen nie im Installationsverzeichnis; kein Paket legt dort etwas an,
-  und das Entfernen von Baruch löscht keine Daten.
-- **Sicherung:** Einstellungen → Daten → „Sicherung jetzt“. Vor dem Einspielen einer neuen Fassung von Baruch
-  empfiehlt sich eine Kopie des Datenordners; Migrationen laufen beim ersten Start automatisch.
-- **Sicherheit:** Der Server antwortet nur unter `127.0.0.1`, `[::1]` oder `localhost` (und unter Namen, die
-  beim Start mit `--allow-host` erlaubt wurden, siehe [docs/Betrieb.md](docs/Betrieb.md)). Schreibende Aufrufe
-  nimmt er nur von der eigenen Seite an. Eingelesene Dateien werden mit Grenzen für Größe, Tiefe und
-  entpackte Bytes geprüft. Einzelheiten stehen in der Hilfe unter
-  [Austausch, Sicherung und Sicherheit](https://baruch.bernau.family/hilfe/austausch-sicherung/) und für Betreiber
-  unter [Betrieb](https://baruch.bernau.family/betrieb/).
+- **Data:** `~/.local/share/baruch` (macOS `~/Library/Application Support/baruch`, Windows
+  `%LOCALAPPDATA%\baruch`). There you find `baruch.sqlite` as the source of all data and, under
+  `works/<slug>/`, the Git mirror of every work. The data never lives in the installation directory; no package
+  creates anything there, and removing Baruch deletes no data.
+- **Backup:** „Einstellungen → Daten → Sicherung jetzt“ (settings → data → back up now). Before installing a
+  new version of Baruch a copy of the data folder is recommended; migrations run automatically on first start.
+- **Security:** the server answers only under `127.0.0.1`, `[::1]` or `localhost` (and under names that
+  were allowed at start with `--allow-host`, see [docs/Betrieb.md](docs/Betrieb.md)). It accepts writing calls
+  only from its own page. Files that are read in are checked against limits for size, depth and
+  unpacked bytes. Details are in the help under
+  [Austausch, Sicherung und Sicherheit](https://baruch.bernau.family/hilfe/austausch-sicherung/) and, for
+  operators, under [Betrieb](https://baruch.bernau.family/betrieb/).
 
-## Aufbau
+## Structure
 
-Ein Rust-Server ([axum](https://github.com/tokio-rs/axum) und
-[minijinja](https://github.com/mitsuhiko/minijinja)) liefert Seiten und Fragmente aus. Die Widgets sind in
-TypeScript geschrieben (`crates/baruch-server/web/src`) und werden beim Bauen von `build.rs` übersetzt.
+A Rust server ([axum](https://github.com/tokio-rs/axum) and
+[minijinja](https://github.com/mitsuhiko/minijinja)) serves pages and fragments. The widgets are written in
+TypeScript (`crates/baruch-server/web/src`) and are compiled by `build.rs` during the build.
 
-| Crate | Aufgabe |
+| Crate | Task |
 |---|---|
-| `baruch-core` | Werke, Kapitelbaum, Fassungen je Abschnitt, Personas |
-| `baruch-store` | Datenhaltung in SQLite (Migrationen, Anträge, Befunde, Glossar …) |
-| `baruch-gitmirror` | Git-Spiegel der Typst-Ordner (reines Rust über gix) |
-| `baruch-typst` | Werkvorlage und Gliederung, Schemata, Satz-Einstellungen, Umschlag, Register |
-| `baruch-render` | Typst-Satz für Vorschau und PDF |
-| `baruch-wysiwyg` | Satzbild-Editor: Typst in bearbeitbare Blöcke und zurück |
-| `baruch-epub` | EPUB 3 erzeugen und prüfen |
-| `baruch-exchange` | Austauschformat `.baruch` (XML im ZIP-Container) schreiben und sicher lesen |
-| `baruch-library` | Autorenbibliothek und Volltextsuche (FTS5) |
-| `baruch-rag`, `baruch-lancedb` | Schnittstelle der Suchwege und lokaler Vektorindex |
-| `baruch-llm` | OpenAI-kompatibler Modell-Client |
-| `baruch-scripture` | Bibelstellen erkennen, Verszählungen, Wortlaut prüfen |
-| `baruch-sword` | Lokale SWORD-Module lesen (auch komprimiert und verschlüsselt) |
-| `baruch-server` | Server, Oberfläche, RPC und MCP |
+| `baruch-core` | works, chapter tree, revisions per section, personas |
+| `baruch-store` | data storage in SQLite (migrations, requests, findings, glossary …) |
+| `baruch-gitmirror` | Git mirror of the Typst folders (pure Rust through gix) |
+| `baruch-typst` | work template and outline, schemes, typesetting settings, cover, indexes |
+| `baruch-render` | Typst typesetting for preview and PDF |
+| `baruch-wysiwyg` | typeset-view editor: Typst into editable blocks and back |
+| `baruch-epub` | creating and checking EPUB 3 |
+| `baruch-exchange` | writing and safely reading the exchange format `.baruch` (XML in a ZIP container) |
+| `baruch-library` | author's library and full-text search (FTS5) |
+| `baruch-rag`, `baruch-lancedb` | interface of the search paths and local vector index |
+| `baruch-llm` | OpenAI-compatible model client |
+| `baruch-scripture` | recognizing Bible references, versifications, checking the wording |
+| `baruch-sword` | reading local SWORD modules (also compressed and encrypted) |
+| `baruch-server` | server, user interface, RPC and MCP |
 
-## Dokumentation
+## Documentation
 
-- [Hilfe auf der Webseite](https://baruch.bernau.family/hilfe/): Bedienung Schritt für Schritt, mit Bildern
-  (Quelle: `site/content/de/hilfe/`); [Betrieb](https://baruch.bernau.family/betrieb/) für Betreiber
+- [Help on the website](https://baruch.bernau.family/hilfe/) (German): usage step by step, with images
+  (source: `site/content/de/hilfe/`); [Betrieb](https://baruch.bernau.family/betrieb/) for operators
   (`site/content/de/betrieb.md`)
-- [docs/Bedienung.md](docs/Bedienung.md): Einstieg für Entwickler – „Wo steht was“ und technische Anmerkungen zur
-  Hilfe
-- [docs/Verteilung.md](docs/Verteilung.md): Pakete, Installation, APT-Repository, Release, Auslieferung über
+- [docs/Bedienung.md](docs/Bedienung.md): entry point for developers – "where is what" and technical notes on
+  the help
+- [docs/Verteilung.md](docs/Verteilung.md): packages, installation, APT repository, release, delivery through
   GitHub Pages
-- [docs/Betrieb.md](docs/Betrieb.md): Datenordner, Sicherung, Dauerbetrieb, Betrieb hinter einem Reverse-Proxy
-- [CHANGELOG.md](CHANGELOG.md): Änderungen je Version
-- [docs/Architektur.md](docs/Architektur.md): Aufbau und Entscheidungen
-- [docs/RPC.md](docs/RPC.md): JSON-RPC-Schnittstelle
-- [docs/MCP.md](docs/MCP.md): MCP-Werkzeuge
-- [docs/WYSIWYG.md](docs/WYSIWYG.md): Satzbild-Editor
-- [docs/Austauschformat.md](docs/Austauschformat.md): Austauschformat `.baruch`, Schema unter
+- [docs/Betrieb.md](docs/Betrieb.md): data folder, backup, permanent operation, operation behind a reverse proxy
+- [CHANGELOG.md](CHANGELOG.md): changes per version
+- [docs/Architektur.md](docs/Architektur.md): structure and decisions
+- [docs/RPC.md](docs/RPC.md): JSON-RPC interface
+- [docs/MCP.md](docs/MCP.md): MCP tools
+- [docs/WYSIWYG.md](docs/WYSIWYG.md): typeset-view editor
+- [docs/Austauschformat.md](docs/Austauschformat.md): exchange format `.baruch`, schema under
   [docs/schema/](docs/schema/)
 - [docs/Plan.md](docs/Plan.md), [docs/Fahrplan.md](docs/Fahrplan.md), [docs/Backlog.md](docs/Backlog.md):
-  Plan, Runden und offene Punkte
+  plan, rounds and open points
 
-## Mitarbeiten
+## Contributing
 
-Oberfläche und Dokumentation sind Deutsch, Bezeichner im Code Englisch. Gearbeitet wird auf dem Zweig
-`development`; `main` folgt nach Freigabe. Jede Änderung an Oberfläche, RPC oder MCP zieht die Doku im selben
-Commit nach. Die übrigen Regeln stehen in [AGENTS.md](AGENTS.md).
+The primary language is English for code, comments, commits, developer docs, MCP and RPC; the user interface is
+German (German and English through catalogs from Round 39). Work happens on the branch
+`development`; `main` follows after approval. Every change to the user interface, RPC or MCP updates the docs
+in the same commit. The remaining rules are in [AGENTS.md](AGENTS.md).
 
 Tests:
 
@@ -428,10 +439,10 @@ Tests:
 nice -n 10 ionice -c3 cargo test --workspace -j 4
 ```
 
-Die Tests brauchen kein Netz und keine Zugangsdaten; Modelle, MultiGPT und Webseiten werden nachgebaut.
-Bibeltests laufen nur mit freien bzw. erfundenen Testmodulen, Testtexte sind frei erfunden.
+The tests need no network and no credentials; models, MultiGPT and web pages are replaced by local stand-ins.
+Bible tests only run with free or invented test modules, test texts are freely invented.
 
-Vor einem Commit außerdem:
+Before a commit also:
 
 ```sh
 nice -n 10 ionice -c3 cargo clippy --workspace --all-targets -j 4 -- -D warnings
@@ -439,44 +450,44 @@ cargo deny check licenses sources bans
 scripts/ci-selftest.sh
 ```
 
-Clippy-Warnungen sind Fehler. Ein `#[allow(clippy::…)]` braucht eine Begründung als Kommentar.
-`scripts/ci-selftest.sh` prüft ohne Netz die Hilfsskripte für Release und Webseite und die Regeln der
-Arbeitsabläufe (Aktionen nur mit Commit-SHA, minimale Rechte, keine Geheimnisse in Befehlszeilen).
+Clippy warnings are errors. An `#[allow(clippy::…)]` needs a reason as a comment.
+`scripts/ci-selftest.sh` checks, without network, the helper scripts for release and website and the rules of
+the workflows (actions only with commit SHA, minimal permissions, no secrets in command lines).
 
-Die CI läuft bei jedem Push auf `main` (`.github/workflows/ci.yml`): Tests, clippy, `cargo deny check`,
-der Satz eines exportierten Werks mit dem eigenen Programm als Typst-Kommandozeile (`baruch-typst`, kein
-Download) und der Bau der Webseite. Ein Tag `v<Version>`
-baut die Pakete, führt das APT-Repository fort und liefert Webseite und Repository über GitHub Pages aus
-(`.github/workflows/release.yml`). Ablauf, einmalige Einrichtung und Stand der Prüfung:
-[docs/Verteilung.md](docs/Verteilung.md). Die Quelle der Webseite liegt unter [site/](site/README.md).
+The CI runs on every push to `main` (`.github/workflows/ci.yml`): tests, clippy, `cargo deny check`,
+typesetting an exported work with the program itself as Typst command line (`baruch-typst`, no
+download) and the build of the website. A tag `v<Version>`
+builds the packages, continues the APT repository and delivers website and repository through GitHub Pages
+(`.github/workflows/release.yml`). Procedure, one-time setup and state of verification:
+[docs/Verteilung.md](docs/Verteilung.md). The source of the website is under [site/](site/README.md).
 
-## Stand und Grenzen
+## Status and limits
 
-- **Version 0.9.0** – die erste mit Paketen. Fertig sind alle oben beschriebenen Funktionen; was sich seit dem
-  Anfang getan hat, steht in [CHANGELOG.md](CHANGELOG.md), was offen ist, in
-  [docs/Backlog.md](docs/Backlog.md), der zeitliche Verlauf in [docs/Fahrplan.md](docs/Fahrplan.md).
-- **Pakete:** Das `.deb` und das AppImage sind auf Debian 13 gebaut und gestartet worden. Die Pakete für macOS
-  und Windows entstehen nur in der CI, sind unsigniert und noch auf keinem echten Gerät erprobt – auch der
-  Schlüsselbund dort (macOS-Schlüsselbund, Windows-Anmeldeinformationsverwaltung) ist gebaut, aber ungeprüft.
-  Für Linux gibt es nur amd64/x86_64; das `.deb` braucht glibc 2.39 oder neuer (Debian 13, Ubuntu 24.04).
-- **Aktualisierung:** nur über das APT-Repository oder von Hand. Baruch prüft nie selbst auf neue Versionen.
-- **Betrieb im Netz:** Baruch antwortet von sich aus nur auf dem eigenen Rechner und hat ohne Konten keine
-  Anmeldung. Ins Netz gehört es nur hinter einem Reverse-Proxy mit TLS und mit eingerichteten Konten
-  (Einstellungen → Konten) oder einem Zugangsschutz im Proxy. Unter einem Rechnernamen antwortet Baruch nur, wenn er beim
-  Start erlaubt wurde (`--allow-host NAME`); Datenordner, Sicherung, Dauerbetrieb und der Betrieb hinter einem
-  Reverse-Proxy mit TLS stehen in [docs/Betrieb.md](docs/Betrieb.md).
-- **Webseite:** <https://baruch.bernau.family/> – Quelle unter [site/](site/README.md), ausgeliefert nur über
-  die CI. Kein Arbeitsablauf ist bisher gelaufen (siehe [docs/Verteilung.md](docs/Verteilung.md), „Stand der
-  Prüfung“).
-- **Schnittstellen** (RPC, MCP, Austauschformat) können sich bis zur Version 1.0 noch ändern.
-- Bibeltexte, Kommentare und Literatur bringt Baruch nicht mit; es liest nur, was auf dem eigenen Rechner
-  liegt, und zeigt dessen Lizenz an.
-- Rechtliche Angaben im Impressum prüft Baruch auf Vollständigkeit, ersetzt aber keine Rechtsberatung.
+- **Version 0.9.0** – the first with packages. All functions described above are finished; what has happened
+  since the beginning is in [CHANGELOG.md](CHANGELOG.md), what is open in
+  [docs/Backlog.md](docs/Backlog.md), the timeline in [docs/Fahrplan.md](docs/Fahrplan.md).
+- **Packages:** the `.deb` and the AppImage have been built and started on Debian 13. The packages for macOS
+  and Windows are only built in the CI, are unsigned and have not yet been tried on a real device – the
+  keyring there (macOS Keychain, Windows Credential Manager) is built as well, but unverified.
+  For Linux there is only amd64/x86_64; the `.deb` needs glibc 2.39 or newer (Debian 13, Ubuntu 24.04).
+- **Updating:** only through the APT repository or by hand. Baruch never checks for new versions itself.
+- **Operation on a network:** on its own Baruch answers only on your own machine and has no login without
+  accounts. It belongs on a network only behind a reverse proxy with TLS and with accounts set up
+  („Einstellungen → Konten“, settings → accounts) or access protection in the proxy. Baruch answers under a host
+  name only if it was allowed at start (`--allow-host NAME`); data folder, backup, permanent operation and
+  operation behind a reverse proxy with TLS are described in [docs/Betrieb.md](docs/Betrieb.md).
+- **Website:** <https://baruch.bernau.family/> – source under [site/](site/README.md), delivered only through
+  the CI. No workflow has run so far (see [docs/Verteilung.md](docs/Verteilung.md), section
+  „Stand der Prüfung“).
+- **Interfaces** (RPC, MCP, exchange format) may still change until version 1.0.
+- Baruch does not ship Bible texts, commentaries or literature; it only reads what is on your own
+  machine and shows its license.
+- Baruch checks legal details in the imprint for completeness, but does not replace legal advice.
 
-## Lizenz
+## License
 
-GNU Affero General Public License v3.0 oder später (`AGPL-3.0-or-later`), siehe [LICENSE](LICENSE); im
-laufenden Programm unter **Baruch ▾ → Über Baruch**. Der Quelltext jeder Version steht unter
-<https://github.com/Beerlesklopfer/baruch> beim Tag `v<Version>`. Die Pakete enthalten Bibliotheken Dritter;
-ihre Lizenzen stehen in `THIRD-PARTY-LICENSES.txt` im jeweiligen Paket.
+GNU Affero General Public License v3.0 or later (`AGPL-3.0-or-later`), see [LICENSE](LICENSE); in the
+running program under „Baruch ▾ → Über Baruch“ (About Baruch). The source code of every version is at
+<https://github.com/Beerlesklopfer/baruch> at the tag `v<Version>`. The packages contain third-party libraries;
+their licenses are in `THIRD-PARTY-LICENSES.txt` in the respective package.
 © Jörg Bernau

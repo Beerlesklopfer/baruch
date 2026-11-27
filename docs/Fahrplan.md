@@ -1,5 +1,7 @@
 # Fahrplan
 
+> From Round 38 on, new entries are written in English; older entries stay German.
+
 Gesamtsicht über die Arbeit an Baruch: was fertig ist, was läuft, was als Nächstes kommt.
 Erledigte Runden mit Beginn und Ende aus der Git-Historie; geplante Runden sind **Schätzungen** und
 werden nach jeder Runde nachgeführt. Inhalte und Entscheidungen stehen in `docs/Plan.md` (Grundsätze,

@@ -11,6 +11,10 @@ an den Einfällen seit Runde 34). Namensraum
 Tests in `crates/baruch-exchange/tests/xsd.rs`); jede gültige Datei der Unterversionen 1 bis 8 ist auch nach dem
 u9-Schema gültig.
 
+> **Round 38:** the current minor version is **10** (schema `docs/schema/baruch-werk-1-u10.xsd`, the u9 schema is
+> frozen as well); see "Work language (minor version 10, Round 38)" at the end. From Round 38 on, new sections of
+> this document are written in English; the sections before it stay German until they are translated as a whole.
+
 ## 1 Überblick, Container und was nicht im Format steht
 
 Eine Austauschdatei trägt **ein ganzes Werk** von einer Baruch-Instanz zu einer anderen (Laptop ↔ Rechner zu
@@ -1158,3 +1162,33 @@ Unterversion: Er meldet die vier Attribute als unbekannt und übernimmt die Einf
 Tests: `crates/baruch-exchange/tests/read.rs` (Abschnitt „Unterversion 9“), `xsd.rs` (u9 besteht, u8 eingefroren),
 `crates/baruch-store/tests/exchange_u9.rs` (einlesen, ausgeben, lösen mit Hinweis, Datei der Unterversion 8),
 `crates/baruch-server/tests/round34_daten.rs` (Rundreise zwischen zwei Instanzen).
+
+## Work language (minor version 10, Round 38)
+
+Since Round 38 each work has a work language (`de` or `en`; migration 0055, column `work.language`). Personas
+answer in it; book output follows it from Round 39 on. Minor version **10**: the writer writes `version="10"`
+(also in the manifest; this replaces „`version="9"`“ above), XSD `docs/schema/baruch-werk-1-u10.xsd`. The schemas
+of minor versions 1 to 9 stay byte-identical (`-u9.xsd` is frozen from now on).
+
+**Attribute.** `<angaben>` carries one more attribute:
+
+| Attribute | Meaning | missing = |
+|---|---|---|
+| `sprache` | work language, `de` or `en` (`work.language`) | `de` |
+
+The writer **always** writes `sprache`. A file without it – every file up to minor version 9 – is read as `de`.
+An invalid value is treated like an invalid value of the other enumeration attributes of the format (e.g. the kind
+of work). Model: `ExchangeLanguage { De, En }` (default `De`), field `ExchangeWork::language`.
+
+The work language is independent of `<satz sprache>` (`TypesetSettings.lang`, the language of hyphenation); the
+two are coupled in Round 39 at the earliest.
+
+**Reading in.** A **new** work takes over the language of the file. When **merging** into an existing work the
+language is treated like the field `bible` (Bible translation) of the work details; the report names it in the
+line „Sprache“.
+
+**Older readers.** A reader of minor version 9 or older reads a file of minor version 10 like any higher minor
+version: it reports the attribute as unknown and creates the work in German.
+
+Tests: `crates/baruch-store/tests/exchange_u10.rs` (file of minor version 9 → `de`, minor version 10 there and
+back), `crates/baruch-exchange/tests/xsd.rs` (frozen schemas).
