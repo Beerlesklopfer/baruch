@@ -240,6 +240,10 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     assert!(!no_near.contains("class=\"mm-near\""), "near=0 lässt die Nähe-Linien weg");
     // Verbindung von Wolke und Mindmap: Hängt ein Zwilling im Baum, bekommt der andere den Vorschlag.
     ok(server.rpc("idea.move", json!({ "id": a, "parent": null, "key": tau })).await, "Zwilling an „Tau“");
+    // Das Umhängen ändert den Bezug in den Metadaten der Indexzeile: Die Hintergrund-Aufgabe ersetzt die Zeile
+    // (löschen, dann mit dem alten Vektor neu schreiben). Dazwischen fehlt der Vektor, und die Karte zeigt ehrlich
+    // nur, was gespeichert ist – darum erst warten, bis der Index ruht (sonst Wettlauf unter Last).
+    rag::wait_idle(&server.state).await;
     let (_, hinted) = server.get(&format!("/werke/{w}/karte")).await;
     let card = tag_with(&hinted, &format!("data-node=\"i:{b}\""));
     assert!(

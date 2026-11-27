@@ -641,6 +641,12 @@ Regeln stehen in `AGENTS.md`, der Plan in `docs/Plan.md`, der Übergabestand in 
   `let _turn = common::model_queue(module_path!()).await;` (nur Tests eines Moduls zugleich; u. a.
   `round10.rs`, `round10_models.rs`, `round15_anbieter.rs`, `round15.rs`); nie Umgebungsvariablen setzen oder das Arbeitsverzeichnis wechseln;
   Zusicherungen auf prozessweite Listen (z. B. gesehene MCP-Clients) mit `find`, nie auf die ganze Liste.
+  **Index nach jeder Änderung abwarten:** Jede Änderung an Einfällen oder Text reiht den Index neu ein
+  (`rag::notify`); auch wenn sich nur Metadaten ändern (z. B. der Bezug bei `idea.move`), ersetzt die
+  Hintergrund-Aufgabe die Zeile in LanceDB – löschen, dann neu schreiben, nicht in einem Schritt. Wer danach etwas
+  prüft, das gespeicherte Vektoren liest (Nähe, „passt zu Ast“, Bedeutungssuche), ruft vorher
+  `rag::wait_idle(&server.state).await`; sonst fehlt der Vektor unter Last gelegentlich (Runde 38,
+  `round25_abnahme.rs`: 5 von 10 Läufen rot bei vier Test-Threads).
 - **Echte Bausteine statt Attrappen:** echte SQLite-Datei, echtes Git-Repo im Temp-Ordner, Router über
   `tower::ServiceExt::oneshot`; nachgebildet werden nur fremde Dienste (MultiGPT, Modelle).
 - **Modelle in Tests** (Runde 10): nie der echte Eliezer, nie Netz außer 127.0.0.1:0. Personas allein:
