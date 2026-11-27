@@ -1,0 +1,7 @@
+{{- /*
+  Tastenangabe für beide Welten (Runde 37): {{< taste "Strg+S" "⌘S" >}} ergibt „Strg+S (Mac: ⌘S)“ mit <kbd>.
+  Der zweite Wert ist die Taste am Mac; fehlt er, steht nur die erste da (dann sagt der Text daneben, was am Mac
+  gilt). Markdown darf kein rohes HTML enthalten, darum dieser Shortcode.
+*/ -}}
+<kbd>{{ .Get 0 }}</kbd>{{ with .Get 1 }} (Mac: <kbd>{{ . }}</kbd>){{ end }}
+{{- /**/ -}}

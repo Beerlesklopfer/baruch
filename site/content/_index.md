@@ -8,7 +8,7 @@ description: "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buch
 > Benannt nach Baruch, dem Schreiber Jeremias, der die verbrannte Rolle neu und erweitert niederschrieb
 > (Jer 36,32). Fassungen sind der Kern.
 
-## Schreiben, prüfen, setzen
+## Schreiben, prüfen, setzen {#schreiben-pruefen-setzen}
 
 - **Schreiben:** Predigt oder Buch als Gliederung aus Teilen, Kapiteln und Abschnitten. Der Text erscheint so,
   wie er gedruckt wird, und jede Fassung bleibt erhalten – zurück zur gestrigen geht mit einem Klick.
@@ -20,13 +20,13 @@ description: "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buch
 
 Mehr unter [Funktionen](/funktionen/).
 
-## Frei
+## Frei {#frei}
 
 Baruch steht unter der **GNU Affero General Public License 3.0** (oder später) und ist bewusst ein freier
 Gegenentwurf zu bezahlten Schreibwerkzeugen. Der Quellcode liegt offen; wer Baruch verändert und anderen über
 ein Netz anbietet, gibt seine Änderungen ebenso frei. Mehr dazu unter [Lizenz](/lizenz/).
 
-## Lokal
+## Lokal {#lokal}
 
 Baruch läuft auf dem eigenen Rechner und wird im Browser bedient; standardmäßig ist es nur dort erreichbar
 (`http://127.0.0.1:8765/`). Die Daten liegen im eigenen Benutzerordner: eine Datenbankdatei und je Werk ein
@@ -35,25 +35,29 @@ nachvollziehbar und auch ohne Baruch lesbar und setzbar. Schlüssel und Token li
 Dateien. Baruch fragt nie von sich aus im Netz nach neuen Versionen; Modelle bei fremden Anbietern gibt es nur
 nach ausdrücklicher Freigabe.
 
-## Der Mensch entscheidet
+## Der Mensch entscheidet {#der-mensch-entscheidet}
 
 Assistenten schreiben **Vorschläge**, Beiträge, Einfälle und Anträge. Übernehmen, Ändern und Löschen am Buchtext
-bleiben allein beim Menschen – im Browser ebenso wie über externe Schnittstellen. Jeder Abschnitt hat beliebig viele
+bleiben allein beim Menschen – im Browser ebenso wie über die Schnittstellen für andere Programme. Jeder Abschnitt hat beliebig viele
 Fassungen, genau eine ist die aktuelle, und umschalten geht jederzeit. Jede Änderung wird im Spiegel des Werks
-festgehalten, mit Herkunft: Mensch, Persona oder ein angebundenes KI-Programm. Was nicht geht, sagt Baruch offen; nichts wird im
+festgehalten, mit Herkunft: Mensch, Assistent oder ein angebundenes KI-Programm. Was nicht geht, sagt Baruch offen; nichts wird im
 Hintergrund unbemerkt gekürzt, weggelassen oder dazugedichtet – auch nicht, wenn ein Text für ein KI-Modell zu
 lang ist.
 
-## Ohne JavaScript bedienbar
+## Ohne JavaScript bedienbar {#ohne-javascript}
 
 Jede Seite von Baruch funktioniert mit Links und Formularen. JavaScript bringt Komfort – Ziehen, Tastenkürzel,
-Popups, Live-Aktualisierung –, ist aber nie Voraussetzung. Auch diese Webseite kommt ohne JavaScript, Cookies,
+Fenster zum Aufklappen, sofortige Aktualisierung –, ist aber nie Voraussetzung. Auch diese Webseite kommt ohne JavaScript, Cookies,
 Zähler und fremde Schriften aus.
 
-## Weiter
+## Weiter {#weiter}
 
 - [Funktionen](/funktionen/): was Baruch kann, mit Bildern
-- [Installation](/installation/): Pakete für Debian und Ubuntu, AppImage, macOS und Windows
-- [Bedienung](/bedienung/): der erste Rundgang und der Weg in die Dokumentation
-- [Betrieb](/betrieb/): Datenordner, Sicherung, Dauerbetrieb, hinter einem Reverse-Proxy
-- [MCP und Assistenten](/mcp/): Personas einrichten, Baruch mit einem MCP-Client verbinden
+- [Installation](/installation/): Pakete für Debian und Ubuntu, AppImage, macOS und Windows – und die
+  [ersten Schritte danach](/installation/#nach-der-installation)
+- [Hilfe](/hilfe/): Baruch bedienen, Schritt für Schritt und mit Bildern – vom
+  [ersten Start](/hilfe/erste-schritte/#starten) bis zum [fertigen Buch](/hilfe/buchsatz/#pdf)
+- [Betrieb](/betrieb/): Datenordner, Sicherung, Dauerbetrieb und der Weg ins Netz über einen vorgeschalteten
+  Webserver
+- [MCP und Assistenten](/mcp/): Assistenten mit einem KI-Modell einrichten, KI-Programme wie Claude Code
+  mit Baruch verbinden

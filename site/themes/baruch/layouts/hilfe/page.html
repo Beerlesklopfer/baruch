@@ -1,0 +1,49 @@
+{{ define "main" }}
+{{- /*
+  Eine Seite der Hilfe: links (auf dem Telefon oben, waagerecht rollbar) alle Seiten des Abschnitts mit der
+  aktuellen markiert, dann Titel, Vorspann, Inhaltsverzeichnis aus den Überschriften, Text und unten
+  „vorige/nächste Seite“ in der Reihenfolge der Gewichte. Alles ohne JavaScript.
+*/ -}}
+{{- $seite := . -}}
+{{- $alle := .Parent.RegularPages.ByWeight -}}
+<div class="rand hilfe">
+  <nav class="hilfe-nav" aria-label="Seiten der Hilfe">
+    <p class="hilfe-nav-titel"><a href="{{ .Parent.RelPermalink }}">{{ .Parent.Title }}</a></p>
+    <ul>
+      {{- range $alle }}
+      <li><a href="{{ .RelPermalink }}"{{ if eq . $seite }} aria-current="page"{{ end }}>{{ .Title }}</a></li>
+      {{- end }}
+    </ul>
+  </nav>
+  <article class="text hilfe-seite">
+    <header class="seitenkopf">
+      <h1>{{ .Title }}</h1>
+      {{- with .Description }}
+      <p class="vorspann">{{ . }}</p>
+      {{- end }}
+    </header>
+    {{- if in .TableOfContents "<li" }}
+    <details class="hilfe-inhalt" open>
+      <summary>Auf dieser Seite</summary>
+      {{ .TableOfContents }}
+    </details>
+    {{- end }}
+    {{ .Content }}
+    {{- $davor := false }}{{ $danach := false }}{{ $gefunden := false }}
+    {{- range $alle }}
+      {{- if eq . $seite }}{{ $gefunden = true }}
+      {{- else if not $gefunden }}{{ $davor = . }}
+      {{- else if not $danach }}{{ $danach = . }}
+      {{- end }}
+    {{- end }}
+    <nav class="hilfe-weiter" aria-label="Vorige und nächste Seite">
+      {{- with $davor }}
+      <a class="hilfe-zurueck" rel="prev" href="{{ .RelPermalink }}"><span class="hilfe-weiter-wort">Vorige Seite</span> {{ .Title }}</a>
+      {{- end }}
+      {{- with $danach }}
+      <a class="hilfe-vor" rel="next" href="{{ .RelPermalink }}"><span class="hilfe-weiter-wort">Nächste Seite</span> {{ .Title }}</a>
+      {{- end }}
+    </nav>
+  </article>
+</div>
+{{ end }}

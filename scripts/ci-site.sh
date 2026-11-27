@@ -12,13 +12,17 @@
 #      eine Version, die es nicht gibt, und die Download-Links zeigen ins Leere.
 #   2. `hugo --minify --panicOnWarning -s ORDNER` ohne Warnung.
 #   3. public/index.html liegt vor; public/CNAME nennt genau baruch.bernau.family (GitHub Pages).
+#   3a. scripts/site-check.py über public/ (vor dem Entpacken von /apt/): keine toten internen Links und Anker,
+#      kein Bild ohne alt-Text, kein JavaScript, keine fremde Adresse für Stil, Schrift oder Bild, kein Link auf
+#      docs/Bedienung.md oder docs/Betrieb.md bei GitHub. Hat die Seite einen Abschnitt content/hilfe, muss
+#      /bedienung/ auf /hilfe/ weiterleiten; ohne ihn (Probe in ci-selftest.sh) entfällt nur diese Prüfung.
 #   4. mit --apt: public/apt/dists/stable/Release und mindestens ein Paket unter public/apt/pool/.
 #   5. Warnung (kein Abbruch), solange Platzhalter ausgeliefert würden: `aptFingerprint` in hugo.toml leer
 #      (die Seite Installation zeigt dann keinen Fingerabdruck) oder eine Seite mit `platzhalter: true` im
 #      Kopf (Impressum). Beides trägt nur der Nutzer ein; ein Abbruch verhinderte die Generalprobe.
 #
 # Die Ausgabe ORDNER/public wird vorher gelöscht (Bauergebnis, nicht eingecheckt). HUGO nennt eine andere
-# Binärdatei als `hugo` aus dem PATH.
+# Binärdatei als `hugo` aus dem PATH, PYTHON eine andere als `python3` (für site-check.py).
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,6 +37,8 @@ while [ $# -gt 0 ]; do
 done
 hugo="${HUGO:-hugo}"
 command -v "$hugo" >/dev/null 2>&1 || { echo "ci-site.sh: $hugo fehlt (scripts/ci-tool.sh hugo ORDNER)." >&2; exit 1; }
+python="${PYTHON:-python3}"
+command -v "$python" >/dev/null 2>&1 || { echo "ci-site.sh: $python fehlt (für scripts/site-check.py)." >&2; exit 1; }
 [ -f "$site/hugo.toml" ] || { echo "ci-site.sh: $site/hugo.toml fehlt." >&2; exit 1; }
 if [ -n "$apt" ]; then
     [ -f "$apt" ] || { echo "ci-site.sh: $apt nicht gefunden." >&2; exit 1; }
@@ -57,6 +63,12 @@ rm -rf "$site/public"
 if [ "$(cat "$site/public/CNAME" 2>/dev/null)" != "baruch.bernau.family" ]; then
     echo "ci-site.sh: public/CNAME muss genau baruch.bernau.family enthalten (site/static/CNAME)." >&2
     exit 1
+fi
+
+if [ -d "$site/content/hilfe" ]; then
+    "$python" "$root/scripts/site-check.py" "$site/public"
+else
+    "$python" "$root/scripts/site-check.py" --ohne-hilfe "$site/public"
 fi
 
 fingerprint="$(awk '

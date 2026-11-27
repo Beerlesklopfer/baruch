@@ -1,5 +1,9 @@
 {{ define "main" }}
-{{- /* Eine Inhaltsseite: Titel, Vorspann (description), Text. `platzhalter: true` im Kopf markiert die Seite. */ -}}
+{{- /*
+  Eine Inhaltsseite: Titel, Vorspann (description), Text. `platzhalter: true` im Kopf markiert die Seite,
+  `inhalt: true` setzt ein Inhaltsverzeichnis aus den Überschriften unter den Vorspann (lange Seiten).
+  Die Seiten der Hilfe haben ihre eigene Vorlage (hilfe/page.html).
+*/ -}}
 <article class="rand text{{ if .Params.platzhalter }} seite-platzhalter{{ end }}">
   <header class="seitenkopf">
     <h1>{{ .Title }}</h1>
@@ -9,6 +13,12 @@
   </header>
   {{- if .Params.platzhalter }}
   <p class="platzhalter" role="note"><strong>Platzhalter.</strong> Diese Seite ist noch nicht ausgefüllt; die Angaben trägt der Betreiber der Seite ein.</p>
+  {{- end }}
+  {{- if and .Params.inhalt (in .TableOfContents "<li") }}
+  <details class="hilfe-inhalt" open>
+    <summary>Auf dieser Seite</summary>
+    {{ .TableOfContents }}
+  </details>
   {{- end }}
   {{ .Content }}
 </article>

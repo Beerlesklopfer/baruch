@@ -1,4 +1,8 @@
-{{- /* Kopfzeile: Name, Hauptmenü (hugo.toml, menus.main), Quellcode-Link. */ -}}
+{{- /*
+  Kopfzeile: Name, Hauptmenü (hugo.toml, menus.main), Quellcode-Link.
+  Ein Eintrag gilt auch auf den Unterseiten seines Abschnitts als aktuell (die Hilfe): dort aria-current="true",
+  auf der Seite selbst aria-current="page".
+*/ -}}
 {{- $seite := . -}}
 <header class="kopf">
   <div class="rand kopf-zeile">
@@ -9,7 +13,10 @@
     <nav class="menue" aria-label="Hauptmenü">
       <ul>
         {{- range site.Menus.main }}
-        <li><a href="{{ .URL }}"{{ if $seite.IsMenuCurrent .Menu . }} aria-current="page"{{ end }}>{{ .Name }}</a></li>
+        {{- $hier := $seite.IsMenuCurrent .Menu . }}
+        {{- $darunter := false }}
+        {{- with .Page }}{{ if and (not $hier) .IsSection ($seite.IsDescendant .) }}{{ $darunter = true }}{{ end }}{{ end }}
+        <li><a href="{{ .URL }}"{{ if $hier }} aria-current="page"{{ else if $darunter }} aria-current="true"{{ end }}>{{ .Name }}</a></li>
         {{- end }}
         <li><a class="aussen" href="{{ site.Params.repo }}" rel="noopener">Quellcode</a></li>
       </ul>

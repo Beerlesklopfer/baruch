@@ -16,7 +16,7 @@ Version** (SPDX: `AGPL-3.0-or-later`). Kurz gesagt:
 
 Diese Zusammenfassung ersetzt den Lizenztext nicht. Verbindlich ist allein der Text:
 {{< doku "LICENSE" "LICENSE im Repository" >}}. In einem laufenden Baruch steht er unter **Über Baruch →
-Lizenz** (`/ueber/lizenz`).
+Lizenz**.
 
 ## Quellcode
 
