@@ -82,6 +82,7 @@ pub mod threads;
 pub mod timing;
 pub mod typeset;
 pub mod typeset_settings;
+pub mod typst_cli;
 pub mod view;
 pub mod websearch;
 pub mod works;

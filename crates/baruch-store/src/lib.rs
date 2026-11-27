@@ -66,6 +66,9 @@
 //!   (erwartet unbenutzt); Bibliothek: keine. Die vier Tabellen sind Instanzdaten: ohne uuid, nicht im Austauschformat,
 //!   nicht im Spiegel. Module `accounts` ([`Account`], [`NewAccount`], [`Store::account_count`]) und `members`
 //!   ([`WorkMember`]); der Store hasht nie selbst und sieht nie ein Klartext-Passwort.
+//! - Runde 36 (Schnittstelle R36-S1, Reste): Modul `reste36` ([`OutlineLosses`], [`Store::outline_delete_losses`]).
+//!   Reserviert: 0055 reste (nur `CREATE`/`ADD COLUMN`, nicht in [`FOREIGN_KEYS_OFF`]), 0056 Integrator; Bibliothek 0109
+//!   Integrator (alle erwartet unbenutzt).
 //!
 //! Abfragen nutzen nur die Laufzeit-API von sqlx (`query`, `query_as`, `query_scalar`), keine
 //! Compile-Zeit-Makros; zum Bauen ist keine Datenbank nötig.
@@ -101,6 +104,7 @@ mod posts;
 mod rag_collections;
 mod replace;
 mod requests;
+mod reste36;
 mod revision_fold;
 mod seed;
 mod sheet;
@@ -177,6 +181,7 @@ pub use requests::{
     AssistantAdd, Decision, Expected, MAX_OPEN_OUTLINE_REQUESTS_PER_ORIGIN, OutlineOp, OutlineRequest, PartAmend,
     PartIdentity, PartRevision, PreviewMark, PreviewPoint, RequestDecided,
 };
+pub use reste36::{LostPost, LostRevision, OutlineLosses};
 pub use revision_fold::{FoldBefore, RevisionFold};
 pub use sheet::{MAX_SHEET_FONT_CHARS, SheetSettings};
 pub use sqlx::SqlitePool as Db;

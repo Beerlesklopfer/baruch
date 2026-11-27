@@ -49,6 +49,7 @@
 //!   `bilder/haus.svg`, der Text nennt weiter den alten Pfad), bekommt `image("<Pfad>"…)` beim Satz das Format
 //!   ausdrücklich (`with_image_formats`); Typst nähme es sonst aus der Endung und scheiterte.
 
+pub mod cli;
 pub mod notes;
 
 use std::collections::HashMap;

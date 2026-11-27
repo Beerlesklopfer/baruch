@@ -140,8 +140,19 @@ fn usage(message: &str) -> ! {
     std::process::exit(2);
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
+    // Runde 36: Typst-Kommandozeile (Unterbefehl `typst` oder Aliasname in argv[0]) vor allem anderen, ohne Laufzeit.
+    if let Some(code) = baruch_server::typst_cli::dispatch(std::env::args_os().collect()) {
+        std::process::exit(code)
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("Tokio-Laufzeit lässt sich nicht starten")
+        .block_on(run_main())
+}
+
+async fn run_main() {
     let mut args = std::env::args().skip(1).peekable();
     let mut listen = std::env::var("BARUCH_LISTEN").unwrap_or_else(|_| "127.0.0.1:8765".into());
     let mut data = std::env::var_os("BARUCH_DATA").map(PathBuf::from).unwrap_or_else(baruch_store::default_data_dir);
