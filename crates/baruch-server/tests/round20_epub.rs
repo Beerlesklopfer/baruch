@@ -275,7 +275,7 @@ async fn mcp_epub_export_reads_only_and_delivers_bytes_only_on_request() {
     let tool = list["result"]["tools"].as_array().unwrap().iter().find(|t| t["name"] == "epub_export").cloned();
     let description = tool.expect("epub_export in tools/list")["description"].as_str().unwrap().to_owned();
     assert!(!description.starts_with("STUB"), "kein Stub mehr: {description}");
-    assert!(description.contains("nur lesend") && description.contains("8 MiB"), "Beschreibung: {description}");
+    assert!(description.contains("read-only") && description.contains("8 MiB"), "Beschreibung: {description}");
 
     let commits_before = common::git(&server.mirror_dir_of(&slug), &["rev-list", "--count", "HEAD"]);
     let answer = mcp_call(&server, json!({ "work": work })).await;

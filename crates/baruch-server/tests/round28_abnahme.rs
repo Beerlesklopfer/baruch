@@ -395,7 +395,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     let calls = b.model.calls();
     assert_eq!(calls.len(), calls_before + 1, "Lektor ohne „Kritisch:“: keine Nachforderung");
     assert!(
-        system(calls.last().unwrap()).contains("Im Chat gehst du zuerst auf die Nachricht des Autors ein"),
+        system(calls.last().unwrap()).contains("In the chat first respond to the author's message"),
         "der Lektor geht im Chat zuerst auf die Nachricht ein"
     );
     b.model.push(Step::words("Der Pass ist rund."));
@@ -415,7 +415,7 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
         .unwrap()
         .to_owned();
     // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-    assert!(xml.contains("version=\"9\"") && xml.contains("<befunde>"), "Unterversion 9 (seit Runde 34) mit Befunden");
+    assert!(xml.contains("version=\"10\"") && xml.contains("<befunde>"), "Unterversion 9 (seit Runde 34) mit Befunden");
     let other = common::open().await;
     let bytes = xml.as_bytes();
     let imported = other

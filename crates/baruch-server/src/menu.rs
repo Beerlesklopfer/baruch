@@ -148,7 +148,7 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
                 "open_findings": badges.open_findings,
             }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

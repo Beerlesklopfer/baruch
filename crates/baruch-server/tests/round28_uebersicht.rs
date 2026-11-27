@@ -740,7 +740,7 @@ async fn mcp_reads_findings_and_only_proposes_status_changes() {
     let human_only =
         tool(&b.server, &s, "finding_propose_status", json!({ "work": b.work, "id": id, "status": "rejected" })).await;
     assert_eq!(human_only["result"]["isError"], true, "verwerfen nur der Mensch: {human_only}");
-    assert!(human_only.to_string().contains("Nur der Mensch"), "ehrliche Meldung: {human_only}");
+    assert!(human_only.to_string().contains("Only the human"), "ehrliche Meldung: {human_only}");
     let no_rev =
         tool(&b.server, &s, "finding_propose_status", json!({ "work": b.work, "id": id, "status": "adopted" })).await;
     assert_eq!(no_rev["result"]["isError"], true, "übernommen braucht rev: {no_rev}");

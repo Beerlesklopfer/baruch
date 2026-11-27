@@ -708,10 +708,7 @@ async fn pictures_of_an_imported_work_change_type_resolve_legacy_paths_keep_the_
     )
     .await;
     assert_eq!(over["isError"], true, "Begründung: der 31. Aufruf überschreitet das Kontingent: {over}");
-    assert!(
-        over["content"][0]["text"].as_str().unwrap().contains("Kontingent"),
-        "Begründung: ehrliche Meldung: {over}"
-    );
+    assert!(over["content"][0]["text"].as_str().unwrap().contains("Quota"), "Begründung: ehrliche Meldung: {over}");
     assert_eq!(
         server.state.store.asset_list(work).await.unwrap().len(),
         assets_before,

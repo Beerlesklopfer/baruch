@@ -764,7 +764,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
         }
         "idea.restore" => restore(state, id_param(&params)?, &human).await,
         "idea.process" => process(state, &params).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

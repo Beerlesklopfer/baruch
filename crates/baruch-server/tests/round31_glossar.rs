@@ -482,7 +482,7 @@ fn xmllint_u7(xml: &str) {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("werk.baruch.xml");
     std::fs::write(&file, xml).unwrap();
-    let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u7.xsd");
+    let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)
@@ -519,7 +519,7 @@ async fn two_instances_exchange_glossary_and_registers_without_doubling() {
     let xml = export_xml(&a, work_a).await;
     for needle in [
         // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-        "version=\"9\"",
+        "version=\"10\"",
         "<glossar>",
         "<wort>Möhre</wort>",
         "kennung=\"pflanzen\"",

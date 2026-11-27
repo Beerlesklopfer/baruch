@@ -141,6 +141,7 @@ pub(super) async fn render(
     let saved = saved.or_else(|| match query.get("ok").map(String::as_str) {
         Some("kommentare") => Some("Kommentare und Lexika des Werks sind gespeichert."),
         Some("zeit") => Some("Die Predigtzeit ist gespeichert."),
+        Some("sprache") => Some("Die Werksprache ist gespeichert."),
         Some("satzbild") => Some("Die Satzbild-Einstellungen sind gespeichert."),
         Some("fassungen") => Some("Die Einstellung „Fassungen“ ist gespeichert."),
         // 0.9.0: ältere Fassungen werkweit ausblenden bzw. alle wieder zeigen (src/revision_fold.rs).
@@ -149,6 +150,7 @@ pub(super) async fn render(
         _ => None,
     });
     let timing = timing_context(state, work, query).await?;
+    let language = language_context(state, work, query).await?;
     let sheet = sheet_context(state, work, query).await?;
     let revisions = revisions_context(state, work, query).await?;
     // Runde 29c: Block „Satz“ (fertiges HTML aus settings/work_typeset.rs).
@@ -158,7 +160,7 @@ pub(super) async fn render(
         context! {
             work => work, notice => saved, error => info.error, edit => edit_html, numbering => numbering_html,
             book => book_html, cover => cover_html, sync => sync, sword => sources, timing => timing,
-            sheet => sheet, typeset => typeset, revisions => revisions,
+            sheet => sheet, typeset => typeset, revisions => revisions, language => language,
         },
     )
 }
@@ -251,6 +253,43 @@ pub(super) async fn timing_act(
     match crate::timing::set_timing(&state, work, &params).await {
         Ok(_) => Redirect::to(&format!("/einstellungen/werk?work={work}&ok=zeit#zeit")).into_response(),
         Err(_) => Redirect::to(&failed).into_response(),
+    }
+}
+
+/// Round 38: block "Werksprache" – the language of the work and the error after a refused form.
+async fn language_context(
+    state: &AppState,
+    work: WorkId,
+    query: &BTreeMap<String, String>,
+) -> Result<minijinja::Value, String> {
+    let language = state.store.work_language(work).await.map_err(|e| e.to_string())?;
+    let error = query
+        .get("sprachfehler")
+        .map(|_| "Die Werksprache ließ sich nicht speichern: erlaubt sind Deutsch und Englisch; nichts geändert.");
+    Ok(context! { code => language.as_str(), error => error })
+}
+
+/// `POST /einstellungen/werk/sprache` (Round 38, behind `guard::same_origin`): `work`, `language` (`de`|`en`). 303 to
+/// `/einstellungen/werk?work=W&ok=sprache#sprache` or `…&sprachfehler=1#sprache` (nothing changed).
+pub(super) async fn language_act(
+    State(state): State<Arc<AppState>>,
+    Form(pairs): Form<Vec<(String, String)>>,
+) -> Response {
+    let field = |name: &str| pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.trim().to_owned());
+    let work = match field("work").and_then(|w| w.parse::<WorkId>().ok()).filter(|&w| w > 0) {
+        Some(w) => match state.store.work_slug(w).await {
+            Ok(_) => w,
+            Err(_) => return Redirect::to("/einstellungen/werk").into_response(),
+        },
+        None => match state.default_work().await {
+            Ok(w) => w,
+            Err(_) => return Redirect::to("/einstellungen/werk").into_response(),
+        },
+    };
+    let value = field("language").map(Json::String);
+    match crate::work_language::set(&state, work, value.as_ref()).await {
+        Ok(_) => Redirect::to(&format!("/einstellungen/werk?work={work}&ok=sprache#sprache")).into_response(),
+        Err(_) => Redirect::to(&format!("/einstellungen/werk?work={work}&sprachfehler=1#sprache")).into_response(),
     }
 }
 

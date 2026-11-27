@@ -43,17 +43,17 @@ fn key(state: &crate::AppState, client: &str) -> QuotaKey {
 /// Ehrliche Meldung, wenn ein Client schon [`MAX_PER_CLIENT`] Aufträge laufen hat.
 pub fn busy_message(client: &str) -> String {
     format!(
-        "{client} hat schon {MAX_PER_CLIENT} Modellaufträge (chat, ask_persona) laufen oder wartend; dieser wurde \
-         nicht angenommen und nichts gespeichert. Bitte warten, bis einer fertig ist, und dann erneut senden."
+        "{client} already has {MAX_PER_CLIENT} model jobs (chat, ask_persona) running or waiting; this one was not \
+         accepted and nothing was stored. Please wait until one is finished and then send again."
     )
 }
 
 /// Ehrliche Meldung, wenn die Clients ohne Token zusammen schon [`MAX_WITHOUT_TOKEN`] Aufträge laufen haben.
 pub fn group_busy_message() -> String {
     format!(
-        "Die Clients ohne Token haben zusammen schon {MAX_WITHOUT_TOKEN} Modellaufträge (chat, ask_persona) laufen \
-         oder wartend; dieser wurde nicht angenommen und nichts gespeichert. Bitte warten, bis einer fertig ist, und \
-         dann erneut senden."
+        "The clients without a token together already have {MAX_WITHOUT_TOKEN} model jobs (chat, ask_persona) running \
+         or waiting; this one was not accepted and nothing was stored. Please wait until one is finished and then \
+         send again."
     )
 }
 
@@ -113,10 +113,10 @@ mod tests {
     #[test]
     fn the_busy_message_names_the_client_the_limit_and_that_nothing_was_saved() {
         let text = busy_message("@mcp:probe");
-        assert!(text.starts_with("@mcp:probe hat schon 2 "), "Client und Grenze genannt: {text}");
-        assert!(text.contains("nichts gespeichert"), "die Meldung sagt ehrlich, was geschah: {text}");
+        assert!(text.starts_with("@mcp:probe already has 2 "), "Client und Grenze genannt: {text}");
+        assert!(text.contains("nothing was stored"), "die Meldung sagt ehrlich, was geschah: {text}");
         let group = group_busy_message();
-        assert!(group.contains("ohne Token") && group.contains(" 4 "), "Gruppe und ihre Grenze genannt: {group}");
-        assert!(group.contains("nichts gespeichert"), "auch die Gruppenmeldung sagt, was geschah: {group}");
+        assert!(group.contains("without a token") && group.contains(" 4 "), "Gruppe und ihre Grenze genannt: {group}");
+        assert!(group.contains("nothing was stored"), "auch die Gruppenmeldung sagt, was geschah: {group}");
     }
 }

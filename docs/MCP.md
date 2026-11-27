@@ -159,8 +159,8 @@ Nummern werden nie neu vergeben; nach dem Löschen einer Fassung durch den Mensc
 
 | Werkzeug | Parameter | Ergebnis (`structuredContent`) | Stand |
 |---|---|---|---|
-| `list_works` | – | `{works: [{id, slug, title}]}` | umgesetzt |
-| `outline` | `{work}` | `{work: {id, slug, title}, nodes: [{node, key, parent, number, title, kind, current_rev, proposals, url}]}`; `current_rev` ist die Nummer der aktuellen Fassung | umgesetzt |
+| `list_works` | – | `{works: [{id, slug, title, language}]}`; `language` = Werksprache `de` \| `en` (Runde 38) | umgesetzt |
+| `outline` | `{work}` | `{work: {id, slug, title}, language, nodes: [{node, key, parent, number, title, kind, current_rev, proposals, url}]}`; `current_rev` ist die Nummer der aktuellen Fassung | umgesetzt |
 | `work_timing` | `{work}` | Sprechdauer des Werks (Zeitwächter), **nur lesend**, genau wie RPC `work.timing` (`docs/RPC.md`, „Zeitwächter“): `{work, kind, words_per_minute, target_seconds, words, seconds, status: "none" \| "ok" \| "over", over_seconds, shown, clock, target_clock, over_clock, sections: [{key, seq, depth, number, title, words, seconds, start_seconds, subtree_seconds, clock, start_clock, subtree_clock}]}`; gezählt wird je Punkt die aktuelle Fassung ohne Typst-Markup (Regeln in `docs/Bedienung.md`, „Zeitwächter“). Unbekanntes Werk → `isError`. Wörter je Minute und Zielzeit stellt nur der Mensch ein (Einstellungen → Werk → Predigtzeit, RPC `work.timing_set`); ein Werkzeug dafür gibt es nicht | umgesetzt (Runde 16b) |
 | `read_node` | `{work, node \| key, rev?}` | `{node, key, number, title, rev, text, revisions: [{number, status, author: {kind, name, model?}, note}], posts: [{id, author, body, created}], url}`; `text` ist Revision `rev`, sonst die aktuelle (ohne aktuelle die mit der höchsten Nummer); `posts` nennt die ids, damit ein Client seine eigenen Beiträge findet | umgesetzt |
 | `search` | `{query, kinds?, work?, all_revisions?, limit?}` | `{hits: [SearchHit]}` wie RPC `library.search` (`docs/RPC.md`), je Treffer zusätzlich `node_key` und `url` (`/?work=W&key=K[&rev=R]`, ohne Abschnitt `null`); ohne `work` über alle Werke, Bibliothek immer | umgesetzt |
@@ -938,3 +938,32 @@ Kein neues Werkzeug. Verhalten, das MCP-Clients bemerken können:
   auch die mitgelöschten Fassungen (offene Vorschläge eigens gezählt) und Beiträge im Wortlaut.
 - **Herkunft `@lektorat:<name>`:** Über MCP bleibt der Autor einer Fassung oder eines Beitrags der Handle; den
   Anzeigenamen zeigt nur die Arbeitsseite.
+
+## Round 38 – English and work language
+
+From Round 38 on, new sections of this document are written in English; the sections above are still German and
+will be translated in a later round.
+
+**English interface.** `initialize` (`instructions`), `tools/list` (every description and every parameter
+description), the protocol errors (`unknown tool …`, `unknown method …`, `jsonrpc 2.0 with method expected`, `object
+or list expected`, `Too many messages in one batch …`), the 401 texts of the endpoint and every error text that
+arises only in `src/mcp/**` (argument checks, limits and quotas, "Request … filed") are English. Error codes are
+unchanged (-32602 for unreadable arguments and for `node` in a writing tool, -32601, -32600, -32603; `isError` for
+refusals). Descriptions of tools that change nothing immediately start with `Request:` (outline, images, cover
+layout) or `Proposal:` (finding status, glossary, index).
+
+**Still German (until Round 39)** are messages that the user interface shows as well and that only pass through
+MCP: the texts of the store and of the RPC modules behind a tool (unknown section or revision, refusals of
+`post_*`, `idea_*`, `chat`, `ask_persona`, `text_search` …), the note of the cover request created by `asset_add`
+with `role: "cover"`, the client name `unbekannt` of a request without a session, and the answers of personas in a
+German work. The boundary is described in `docs/RPC.md`, "Language of the interfaces".
+
+**Work language.** Every work has a language, `de` or `en` (`docs/RPC.md`, "Work language"). `list_works` carries
+`language` per work, `outline` at the top level. `ask_persona`, `chat` and `solution_variants` make the persona
+answer in the work language, with the markers of that language (`Kritisch:` or `Critical:` …; table in
+`docs/RPC.md`, "Prompts and markers"). No tool sets the work language: that is reserved for the human
+(Einstellungen → Werk → Werksprache, RPC `work.language_set`). `exchange_export` writes the language as attribute
+`sprache` at `<angaben>` (exchange format sub-version 10).
+
+**Stubs.** No tool is a stub at present; a future stub answers honestly in English ("not implemented yet", with what
+is missing) and carries `// STUB: <what is missing> (<stage>)` in the code (`grep -rn "STUB:" crates`).

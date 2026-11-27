@@ -557,7 +557,7 @@ async fn two_throwaway_instances_carry_amends_the_watermark_and_a_new_part_as_a_
     );
     let xml = exchange_export(&a, work_a).await;
     assert!(
-        xml.contains("version=\"9\"") && xml.contains("<fortschreibung "),
+        xml.contains("version=\"10\"") && xml.contains("<fortschreibung "),
         "Unterversion 9 (seit Runde 34) mit Fortschreibungen"
     );
 

@@ -13,29 +13,29 @@ use crate::AppState;
 
 pub const NAME: &str = "scripture_check";
 
-pub const DESCRIPTION: &str = "Bibelstellen prüfen, nur lesend: findet Stellenangaben wie „1. Kön 3,16–28“, \
-„Ps 139,23-24“ oder „Joh 3,16; 4,1“ in text (ist text nur eine Angabe, wird sie streng gelesen, sonst im \
-Fließtext gesucht) bzw. im Abschnitt key des Werks work (aktuelle Fassung) und prüft Buch, Kapitel und Vers \
-gegen die Verszählung der Schlachter 1951. Antwort: refs (je input, span, normalized, book, status \
-valid|unknown_book|no_such_chapter|no_such_verse|malformed, message mit dem Maximum, wording, wording_code) und \
-bible. Den Wortlaut prüft Baruch nur mit der gewählten SWORD-Bibel des Werks (Einstellungen → Quellen): dann je \
-Stelle wording_code match|differs|no_quote|missing_verse|versification_mismatch|invalid_ref|module_error mit \
-bible_text, quote und Wort-Diff (diff, diff_line), quote_span ([Anfang, Ende) des Zitatinhalts in Bytes im \
-geprüften Text oder null) und module_ref (gelesene Stelle in der Zählung des Moduls, z. B. „Mal 4,1–6 (KJV)“, nur \
-wenn sie von der deutschen abweicht, sonst null), module_spacing (Runde 19c: der Wortlaut stimmt nur ohne \
-Leerraum, etwa bei Silbentrennresten im Modul; wording_code bleibt match, wording „Wortlaut stimmt (Leerraum im \
-Modul)“) und module_note (Hinweis, wenn das Modul auffällig viele Wortfragmente hat, sonst null; auch oben in der \
-Antwort); bible nennt Modul, Versifikation, Lizenzvermerk und cipher \
-(none|locked|unlocked). Ein Modul in anderer Verszählung (KJV, Luther, Vulgata, Synodal u. a.) liest Baruch über eine \
-geprüfte Abbildung; was sich nicht abbilden lässt, bleibt versification_mismatch mit Grund. Ohne Bibel \
-ist wording „ungeprüft“ (wording_code unchecked). Ein Modell bestätigt nie selbst einen Wortlaut.";
+pub const DESCRIPTION: &str = "Check Bible references, read-only: finds references like \"1. Mose 3,16–19\", \
+\"Ps 139,23-24\" or \"Joh 3,16; 4,1\" in text (if text is only a reference it is read strictly, otherwise searched \
+in running text) or in the section key of the work work (current revision) and checks book, chapter and verse \
+against the versification of the Schlachter 1951. Answer: refs (per input, span, normalized, book, status \
+valid|unknown_book|no_such_chapter|no_such_verse|malformed, message with the maximum, wording, wording_code) and \
+bible. Baruch checks the wording only with the chosen SWORD Bible of the work (Einstellungen → Quellen): then per \
+reference wording_code match|differs|no_quote|missing_verse|versification_mismatch|invalid_ref|module_error with \
+bible_text, quote and word diff (diff, diff_line), quote_span ([start, end) of the quote content in bytes in the \
+checked text or null) and module_ref (reference read in the versification of the module, e.g. \"Mal 4,1–6 (KJV)\", \
+only if it differs from the German one, otherwise null), module_spacing (Round 19c: the wording matches only without \
+whitespace, e.g. with hyphenation remains in the module; wording_code stays match, wording \"Wortlaut stimmt \
+(Leerraum im Modul)\") and module_note (hint if the module has strikingly many word fragments, otherwise null; also \
+at the top of the answer); bible names module, versification, licence note and cipher (none|locked|unlocked). A \
+module in another versification (KJV, Luther, Vulgate, Synodal and others) is read through a checked mapping; what \
+cannot be mapped stays versification_mismatch with a reason. Without a Bible wording is the German word for \
+\"unchecked\" (wording_code unchecked). A model never confirms a wording itself.";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "properties": {
-        "text": { "type": "string", "description": "Stellenangabe(n) oder Fließtext, z. B. ein Abschnitt (oder key)" },
+        "text": { "type": "string", "description": "reference(s) or running text, e.g. a section (or key)" },
         "work": work_schema(),
-        "key": { "type": "integer", "description": "fester Schlüssel eines Abschnitts: dessen aktuelle Fassung prüfen \
-                                                   (statt text)" } } })
+        "key": { "type": "integer", "description": "stable key of a section: check its current revision \
+                                                   (instead of text)" } } })
 }
 
 #[derive(Deserialize)]
@@ -54,6 +54,6 @@ pub async fn call(state: &AppState, arguments: Value) -> Result<Value, Failure> 
     match (a.key, a.text) {
         (Some(key), _) => Ok(crate::bibles::check_section(state, work, key).await?),
         (None, Some(text)) => Ok(crate::scripture::check_for_work(state, Some(work), &text).await?),
-        (None, None) => Err(Failure::Args("text oder key fehlt".into())),
+        (None, None) => Err(Failure::Args("text or key is missing".into())),
     }
 }

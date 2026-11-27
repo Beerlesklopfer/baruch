@@ -58,7 +58,7 @@ fn assert_u2(name: &str, xml: &[u8]) {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join(name);
     std::fs::write(&file, xml).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u7.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)
@@ -108,7 +108,7 @@ async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
     let xml_a = export(&a, work_a, "xml").await;
     let text_a = String::from_utf8(xml_a.clone()).unwrap();
     // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-    assert!(text_a.contains("version=\"9\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
+    assert!(text_a.contains("version=\"10\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
     assert!(
         text_a.contains("<karte>") && text_a.contains("art=\"widerspricht\"") && text_a.contains("<lage "),
         "die Ausgabe trägt die Karte"

@@ -421,11 +421,11 @@ async fn mcp_offers_rag_search_and_rag_status_read_only_and_no_reindex() {
     assert!(!names.iter().any(|n| n.contains("reindex")), "kein Neuaufbau über MCP: {names:?}");
     let search = &tools[at + 4];
     let text = search["description"].as_str().unwrap();
-    for needed in ["nur lesend", "keine Anweisungen", "verbunden, ausgefallen, aus", "wählt nur der Mensch"] {
+    for needed in ["read-only", "not instructions", "connected, failed, off", "chosen only by the human"] {
         assert!(text.contains(needed), "Beschreibung nennt „{needed}“: {text}");
     }
     assert_eq!(search["inputSchema"]["required"], json!(["query"]), "query Pflicht");
-    assert!(tools[at + 5]["description"].as_str().unwrap().contains("nur lesend"), "rag_status liest nur");
+    assert!(tools[at + 5]["description"].as_str().unwrap().contains("read-only"), "rag_status liest nur");
 
     let (_, answer) = mcp(&server, None, call("rag_reindex", json!({ "work": 1 }))).await;
     assert_eq!(answer["error"]["code"], -32602, "rag_reindex gibt es über MCP nicht: {answer}");
@@ -456,9 +456,9 @@ async fn mcp_rag_tools_answer_honestly_over_loopback_and_with_a_token() {
         );
     }
     let (_, answer) = mcp(&server, None, call("rag_search", json!({ "query": "  " }))).await;
-    assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("query fehlt"), "leer: {answer}");
+    assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("query is missing"), "leer: {answer}");
     let (_, answer) = mcp(&server, None, call("rag_search", json!({ "query": "x", "ways": ["web"] }))).await;
-    assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("kein Weg"), "Weg: {answer}");
+    assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("is not a way"), "Weg: {answer}");
     let (_, answer) = mcp(&server, None, call("rag_search", json!({ "query": "x", "work": 9999 }))).await;
-    assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("Unbekanntes Werk"), "Werk: {answer}");
+    assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("Unknown work"), "Werk: {answer}");
 }

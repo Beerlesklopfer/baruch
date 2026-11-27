@@ -82,7 +82,7 @@ async fn answer(
         }
         if parts.method == Method::POST && path == "/rpc" {
             let body = json!({ "jsonrpc": "2.0", "id": null,
-                "error": { "code": crate::rpc::UNAUTHENTICATED, "message": "Anmeldung erforderlich." } });
+                "error": { "code": crate::rpc::UNAUTHENTICATED, "message": "Login required." } });
             return (StatusCode::UNAUTHORIZED, Json(body)).into_response();
         }
         return (StatusCode::UNAUTHORIZED, "Anmeldung erforderlich.").into_response();

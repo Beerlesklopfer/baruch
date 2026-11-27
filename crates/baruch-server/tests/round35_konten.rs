@@ -1076,7 +1076,7 @@ async fn further_accounts_are_always_lektor_and_the_last_author_stays() {
         let result = auth::scope(as_lektor.clone(), auth::rpc::call(&server.state, method, params)).await;
         let error = result.expect_err("ein Lektor darf das nicht");
         assert_eq!(error.code, baruch_server::rpc::FORBIDDEN, "{method}: -32003 für einen Lektor");
-        assert!(error.message.contains("nur der Autor"), "{method}: die Meldung nennt den Grund: {}", error.message);
+        assert!(error.message.contains("Only the author"), "{method}: die Meldung nennt den Grund: {}", error.message);
     }
     assert_eq!(scalar(&server, "SELECT count(*) FROM account WHERE active = 1").await, 2, "nichts davon hat gewirkt");
     assert!(!server.state.store.auth_local_open().await.unwrap(), "der Schalter steht weiter auf aus");

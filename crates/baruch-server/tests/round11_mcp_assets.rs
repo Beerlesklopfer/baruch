@@ -244,7 +244,7 @@ async fn replace_set_cover_and_delete_only_open_requests() {
     .await;
     assert!(same.contains("unverändert"), "gleicher Inhalt ist kein Antrag: {same}");
     let none = refused(&server, &s, "asset_set_cover", json!({ "work": work, "name": null })).await;
-    assert!(none.contains("keinen Umschlag"), "nichts zu entfernen: {none}");
+    assert!(none.contains("no cover"), "nichts zu entfernen: {none}");
     let mine = ok(&server, &s, "asset_requests", json!({ "work": work, "mine": true, "persona": "@lektor" })).await;
     assert!(mine["requests"].as_array().unwrap().is_empty(), "von @lektor gibt es keinen: {mine}");
     let all = ok(&server, &s, "asset_requests", json!({ "work": work, "mine": true })).await;

@@ -185,7 +185,7 @@ async fn front_mcp(State(front): State<Arc<Front>>, method: Method, headers: Hea
             (status, [(header::CONTENT_TYPE, kind)], bytes).into_response()
         }
         other => {
-            let error = json!({ "code": -32601, "message": format!("unbekannte Methode {other}") });
+            let error = json!({ "code": -32601, "message": format!("unknown method {other}") });
             axum::Json(json!({ "jsonrpc": "2.0", "id": id, "error": error })).into_response()
         }
     }

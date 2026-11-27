@@ -89,7 +89,7 @@ pub fn spine_files(book: &EpubBook) -> Vec<Value> {
 
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     if method != "work.epub" {
-        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}")));
+        return Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}")));
     }
     let mut params = if params.is_null() { json!({}) } else { params };
     if let Some(map) = params.as_object_mut() {

@@ -18,27 +18,27 @@ use crate::bibles::{self, Choice};
 pub const NAMES: &[&str] =
     &["bible_modules", "bible_lookup", "bible_search", "commentary_lookup", "lexicon_lookup", "lexicon_search"];
 
-pub const MODULES_DESCRIPTION: &str = "SWORD-Bibelmodule auflisten (nur lesend): Modulordner, je Modul Name, \
-Beschreibung, Versifikation (jede Zählung, die sword-modules kennt), Lizenzvermerk der conf (license, notice; \
-DistributionLicense, Copyright), cipher (none|locked|unlocked: verschlüsselt, Schlüssel fehlt bzw. hinterlegt – den \
-Schlüssel hinterlegt nur der Mensch), lesbar ja/nein mit Grund, und die gewählte Bibel des Werks (work_bible). Wählen kann nur der Mensch \
-(Einstellungen → Quellen). Seit Runde 15 stehen auch Kommentare und Lexika in der Liste, je Modul mit kind \
-(bible, commentary, lexicon), dazu work_sources (die für das Werk gewählten Kommentare und Lexika).";
+pub const MODULES_DESCRIPTION: &str = "List SWORD Bible modules (read-only): module directories, per module name, \
+description, versification (every scheme sword-modules knows), licence note of the conf (license, notice; \
+DistributionLicense, Copyright), cipher (none|locked|unlocked: encrypted, key missing or stored – only the human \
+stores the key), readable yes/no with reason, and the chosen Bible of the work (work_bible). Only the human can choose \
+(Einstellungen → Quellen). Since Round 15 commentaries and lexicons are in the list too, per module with kind \
+(bible, commentary, lexicon), plus work_sources (the commentaries and lexicons chosen for the work).";
 
-pub const LOOKUP_DESCRIPTION: &str = "Bibelstelle in einem SWORD-Modul nachschlagen (nur lesend): ref wie \
-„Joh 3,16“, „Ps 23“ oder „1. Kor 13,4–7; 14,1“ (deutsche Schreibweise, Prüfung gegen die Verszählung der \
-Schlachter 1951), module (Vorgabe: die Bibel des Werks). Gelesen wird über die Abbildung der deutschen Zählung auf \
-die des Moduls. Antwort: bible (Modul, Versifikation, Lizenzvermerk) und je Angabe status, message, verses (chapter, \
-verse, text in der Zählung des Moduls; text null = Vers fehlt im Modul; german_ref = die deutsche Stelle des \
-Verses bzw. german_problem, wenn er sich nicht zurückbilden lässt, Runde 19c), module_ref (gelesene Stelle, z. B. \
-„Joel 2,28–32 (KJV)“, nur wenn sie abweicht), rules (angewandte Regeln), truncated (mehr als 400 Verse); nicht \
-Abbildbares meldet status versification_mismatch mit Grund. Klartext ohne \
-Fußnoten, Querverweise und Überschriften. Bibeltext nicht in Beiträge kopieren außer dem geprüften Vers.";
+pub const LOOKUP_DESCRIPTION: &str = "Look up a Bible reference in a SWORD module (read-only): ref like \
+\"Joh 3,16\", \"Ps 23\" or \"1. Kor 13,4–7; 14,1\" (German notation, checked against the versification of the \
+Schlachter 1951), module (default: the Bible of the work). Reading goes through the mapping of the German \
+versification onto that of the module. Answer: bible (module, versification, licence note) and per reference status, \
+message, verses (chapter, verse, text in the versification of the module; text null = verse missing in the module; \
+german_ref = the German reference of the verse or german_problem if it cannot be mapped back, Round 19c), module_ref \
+(reference read, e.g. \"Joel 2,28–32 (KJV)\", only if it differs), rules (rules applied), truncated (more than 400 \
+verses); what cannot be mapped reports status versification_mismatch with reason. Plain text without footnotes, \
+cross-references and headings. Do not copy Bible text into posts except the checked verse.";
 
-pub const SEARCH_DESCRIPTION: &str = "Wort oder Wortfolge in einem SWORD-Modul suchen (nur lesend, lineare \
-Suche über alle Verse; Groß/Klein, Satzzeichen und Bindestriche zählen nicht): query, module (Vorgabe: die Bibel \
-des Werks), limit (Vorgabe 50, höchstens 200). Zeitgrenze 5 s; truncated meldet einen Abbruch an Treffer- oder \
-Zeitgrenze. Antwort mit bible (Modul, Versifikation, Lizenzvermerk) und hits (ref, text).";
+pub const SEARCH_DESCRIPTION: &str = "Search a word or phrase in a SWORD module (read-only, linear search over all \
+verses; case, punctuation and hyphens do not count): query, module (default: the Bible of the work), limit (default \
+50, at most 200). Time limit 5 s; truncated reports a stop at the hit or time limit. Answer with bible (module, \
+versification, licence note) and hits (ref, text).";
 
 pub fn modules_schema() -> Value {
     json!({ "type": "object", "properties": { "work": work_schema() } })
@@ -46,57 +46,57 @@ pub fn modules_schema() -> Value {
 
 pub fn lookup_schema() -> Value {
     json!({ "type": "object", "required": ["ref"], "properties": {
-        "ref": { "type": "string", "description": "Stellenangabe, z. B. „Joh 3,16“ (höchstens 500 Zeichen)" },
-        "module": { "type": "string", "description": "Modulname (bible_modules); Vorgabe die Bibel des Werks" },
+        "ref": { "type": "string", "description": "reference, e.g. \"Joh 3,16\" (at most 500 characters)" },
+        "module": { "type": "string", "description": "module name (bible_modules); default the Bible of the work" },
         "work": work_schema() } })
 }
 
 pub fn search_schema() -> Value {
     json!({ "type": "object", "required": ["query"], "properties": {
-        "query": { "type": "string", "description": "Wort oder Wortfolge (1–200 Zeichen)" },
-        "module": { "type": "string", "description": "Modulname; Vorgabe die Bibel des Werks" },
+        "query": { "type": "string", "description": "word or phrase (1–200 characters)" },
+        "module": { "type": "string", "description": "module name; default the Bible of the work" },
         "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
         "work": work_schema() } })
 }
 
-pub const COMMENTARY_LOOKUP_DESCRIPTION: &str = "Kommentare zu einer Bibelstelle nachschlagen (nur lesend, lokale \
-SWORD-Module): ref wie „Ps 139,23–24“ (deutsche Schreibweise), module (Vorgabe: die Kommentare, die der Mensch für \
-das Werk gewählt hat, Einstellungen → Werk). Gelesen wird in der Verszählung des Kommentars. Antwort: je Kommentar \
-module, description, versification, notice (Lizenzvermerk der conf, bei jedem Zitat nennen) und entries (ref, text, \
-truncated; Klartext ohne Auszeichnung, gekürzt auf 4000 Zeichen) bzw. problem.";
+pub const COMMENTARY_LOOKUP_DESCRIPTION: &str = "Look up commentaries on a Bible reference (read-only, local SWORD \
+modules): ref like \"Ps 139,23–24\" (German notation), module (default: the commentaries the human chose for the \
+work, Einstellungen → Werk). Reading uses the versification of the commentary. Answer: per commentary module, \
+description, versification, notice (licence note of the conf, name it with every quote) and entries (ref, text, \
+truncated; plain text without markup, cut to 4000 characters) or problem.";
 
-pub const LEXICON_LOOKUP_DESCRIPTION: &str = "Stichwort in einem SWORD-Lexikon nachschlagen (nur lesend, lokal): key \
-(Stichwort; Groß-/Kleinschreibung nach der conf, Strong-Nummern wie G25 bzw. H430 gehen auch), module (Vorgabe: das \
-erste für das Werk gewählte Lexikon). Fehlt das Stichwort, probiert Baruch (Runde 19c) Strong-Schreibweisen (G26 ↔ \
-G0026), einfache Endungen, Umlaut-Rückführung („Bäume“ → „Baum“) und zuletzt den letzten Bestandteil eines \
-Kompositums („Feigenbaum“ → „Baum“). Antwort: module, key (wie im Modul), found, text (Klartext, gekürzt auf 4000 \
-Zeichen), notice (Lizenzvermerk der conf, bei jedem Zitat nennen), truncated, probe (die probierte Form, wenn nicht \
-das Stichwort selbst passte, sonst null), asked (das gefragte Stichwort).";
+pub const LEXICON_LOOKUP_DESCRIPTION: &str = "Look up a headword in a SWORD lexicon (read-only, local): key \
+(headword; case by the conf, Strong numbers like G25 or H430 work too), module (default: the first lexicon chosen for \
+the work). If the headword is missing, Baruch (Round 19c) tries Strong notations (G26 ↔ G0026), simple endings, \
+umlaut reduction (an umlaut back to its base vowel) and finally the last component of a compound \
+(\"Feigenbaum\" → \"Baum\"). Answer: module, key (as in the module), found, text (plain text, cut to 4000 \
+characters), notice (licence note of the conf, name it with every quote), truncated, probe (the form tried if not the \
+headword itself matched, otherwise null), asked (the headword asked for).";
 
-pub const LEXICON_SEARCH_DESCRIPTION: &str = "Wort oder Wortfolge in Stichwörtern und Artikeln eines SWORD-Lexikons \
-suchen (nur lesend, lokal, linear; Groß/Klein und Satzzeichen zählen nicht): query, module (Vorgabe: das erste für \
-das Werk gewählte Lexikon), limit (Vorgabe 50, höchstens 200). Stichworttreffer zuerst; Zeitgrenze 5 s. Antwort: \
-module, hits (key, excerpt, in_key), truncated, notice (Lizenzvermerk der conf).";
+pub const LEXICON_SEARCH_DESCRIPTION: &str = "Search a word or phrase in headwords and articles of a SWORD lexicon \
+(read-only, local, linear; case and punctuation do not count): query, module (default: the first lexicon chosen for \
+the work), limit (default 50, at most 200). Headword hits first; time limit 5 s. Answer: module, hits (key, excerpt, \
+in_key), truncated, notice (licence note of the conf).";
 
 pub fn commentary_lookup_schema() -> Value {
     json!({ "type": "object", "required": ["work", "ref"], "properties": {
         "work": work_schema(),
-        "ref": { "type": "string", "description": "Stellenangabe, z. B. „Ps 139,23–24“ (höchstens 500 Zeichen)" },
-        "module": { "type": "string", "description": "Kommentar (bible_modules, kind commentary); Vorgabe die Auswahl des Werks" } } })
+        "ref": { "type": "string", "description": "reference, e.g. \"Ps 139,23–24\" (at most 500 characters)" },
+        "module": { "type": "string", "description": "commentary (bible_modules, kind commentary); default the selection of the work" } } })
 }
 
 pub fn lexicon_lookup_schema() -> Value {
     json!({ "type": "object", "required": ["work", "key"], "properties": {
         "work": work_schema(),
         "key": { "type": "string", "description": "Stichwort (1–200 Zeichen)" },
-        "module": { "type": "string", "description": "Lexikon (bible_modules, kind lexicon); Vorgabe das erste des Werks" } } })
+        "module": { "type": "string", "description": "lexicon (bible_modules, kind lexicon); default the first of the work" } } })
 }
 
 pub fn lexicon_search_schema() -> Value {
     json!({ "type": "object", "required": ["work", "query"], "properties": {
         "work": work_schema(),
-        "query": { "type": "string", "description": "Wort oder Wortfolge (1–200 Zeichen)" },
-        "module": { "type": "string", "description": "Lexikon; Vorgabe das erste des Werks" },
+        "query": { "type": "string", "description": "word or phrase (1–200 characters)" },
+        "module": { "type": "string", "description": "lexicon; default the first of the work" },
         "limit": { "type": "integer", "minimum": 1, "maximum": 200 } } })
 }
 
@@ -131,33 +131,33 @@ pub async fn call(state: &AppState, name: &str, arguments: Value) -> Result<Valu
     match name {
         "bible_modules" => Ok(bibles::modules_value(state, work).await?),
         "bible_lookup" => {
-            let reference = a.reference.ok_or_else(|| Failure::Args("ref fehlt".into()))?;
+            let reference = a.reference.ok_or_else(|| Failure::Args("ref is missing".into()))?;
             if reference.chars().count() > 500 {
-                return Err(Failure::Tool("ref: höchstens 500 Zeichen".into()));
+                return Err(Failure::Tool("ref: at most 500 characters".into()));
             }
             Ok(bibles::lookup(state, &choice(state, work, &a.module).await?, &reference).await?)
         }
         "bible_search" => {
-            let query = a.query.ok_or_else(|| Failure::Args("query fehlt".into()))?;
+            let query = a.query.ok_or_else(|| Failure::Args("query is missing".into()))?;
             let limit = a.limit.map_or(bibles::SEARCH_LIMIT, |l| (l as usize).clamp(1, bibles::SEARCH_MAX));
             Ok(bibles::search(&choice(state, work, &a.module).await?, &query, limit).await?)
         }
         "commentary_lookup" => {
-            let reference = a.reference.ok_or_else(|| Failure::Args("ref fehlt".into()))?;
+            let reference = a.reference.ok_or_else(|| Failure::Args("ref is missing".into()))?;
             if reference.trim().is_empty() || reference.chars().count() > 500 {
-                return Err(Failure::Tool("ref: 1 bis 500 Zeichen".into()));
+                return Err(Failure::Tool("ref: 1 to 500 characters".into()));
             }
             Ok(bibles::commentary_lookup(state, work, &reference, a.module.as_deref()).await?)
         }
         "lexicon_lookup" => {
-            let key = a.key.ok_or_else(|| Failure::Args("key fehlt".into()))?;
+            let key = a.key.ok_or_else(|| Failure::Args("key is missing".into()))?;
             Ok(bibles::lexicon_lookup(state, work, &key, a.module.as_deref()).await?)
         }
         "lexicon_search" => {
-            let query = a.query.ok_or_else(|| Failure::Args("query fehlt".into()))?;
+            let query = a.query.ok_or_else(|| Failure::Args("query is missing".into()))?;
             let limit = a.limit.map_or(bibles::SEARCH_LIMIT, |l| (l as usize).clamp(1, bibles::SEARCH_MAX));
             Ok(bibles::lexicon_search(state, work, &query, a.module.as_deref(), limit).await?)
         }
-        _ => Err(Failure::Tool(format!("unbekanntes Werkzeug {name}"))),
+        _ => Err(Failure::Tool(format!("unknown tool {name}"))),
     }
 }

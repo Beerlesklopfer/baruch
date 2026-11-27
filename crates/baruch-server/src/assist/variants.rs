@@ -350,8 +350,9 @@ pub async fn run(
         ));
     }
     let heading = context::heading_line(&base_text);
+    let language = crate::work_language::of(state, order.work).await;
     let mut system =
-        prompts::effective_prompt_for(&persona.handle, &persona.role, persona.prompt.as_deref(), work.kind);
+        prompts::effective_prompt_in(&persona.handle, &persona.role, persona.prompt.as_deref(), work.kind, language);
     system.push_str("\n\n");
     system.push_str(context::OTHERS_RULE);
     system.push_str("\n\n");

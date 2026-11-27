@@ -85,13 +85,13 @@ fn xmllint_available() -> bool {
     Command::new("xmllint").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
-/// Prüft XML gegen `docs/schema/baruch-werk-1-u9.xsd`; fehlt xmllint, mit Meldung übersprungen.
+/// Prüft XML gegen `docs/schema/baruch-werk-1-u10.xsd`; fehlt xmllint, mit Meldung übersprungen.
 fn assert_schema(name: &str, xml: &[u8]) {
     if !xmllint_available() {
         eprintln!("xmllint fehlt: XSD-Prüfung von {name} übersprungen (die Rust-Prüfung steht in baruch-exchange).");
         return;
     }
-    let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u9.xsd");
+    let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join(name);
     std::fs::write(&file, xml).unwrap();
@@ -298,8 +298,8 @@ async fn mcp_lists_exchange_export_read_only_and_returns_xml() {
     let at = names.iter().position(|n| *n == "exchange_export").expect("exchange_export in tools/list");
     assert_eq!(names[at - 1], "typst_check", "exchange_export folgt auf das lesende typst_check: {names:?}");
     let description = tools[at]["description"].as_str().unwrap();
-    assert!(description.contains("nur lesend"), "deutsche Beschreibung, nur lesend: {description}");
-    assert!(description.contains("Einlesen gibt es über MCP nicht"), "kein Einlesen über MCP: {description}");
+    assert!(description.contains("read-only"), "deutsche Beschreibung, nur lesend: {description}");
+    assert!(description.contains("Reading in does not exist over MCP"), "kein Einlesen über MCP: {description}");
     assert!(!description.starts_with("STUB"), "kein Stub");
     // Kein Werkzeug zum Einlesen.
     assert!(!names.iter().any(|n| n.contains("import") || n.contains("einlesen")), "kein Einlesen: {names:?}");
@@ -312,7 +312,7 @@ async fn mcp_lists_exchange_export_read_only_and_returns_xml() {
     let instructions = init["result"]["instructions"].as_str().unwrap();
     assert!(instructions.contains("exchange_export"), "instructions nennen exchange_export: {instructions}");
     assert!(
-        instructions.contains("Einlesen einer Austauschdatei gibt es über MCP nicht"),
+        instructions.contains("reading an exchange file in does not exist over MCP"),
         "instructions sagen, dass das Einlesen dem Menschen bleibt: {instructions}"
     );
 

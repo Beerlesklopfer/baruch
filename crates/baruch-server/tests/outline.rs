@@ -403,7 +403,7 @@ async fn mcp_offers_no_tool_that_changes_the_outline() {
         {
             let text = tool["description"].as_str().unwrap();
             assert!(
-                text.starts_with("Antrag") && text.contains("Ändert nichts sofort"),
+                text.starts_with("Request") && text.contains("Changes nothing immediately"),
                 "{name} ist nur ein Antrag: {text}"
             );
         }

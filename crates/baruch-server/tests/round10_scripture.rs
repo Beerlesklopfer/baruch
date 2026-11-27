@@ -53,7 +53,7 @@ async fn scripture_check_reports_each_reference_and_never_confirms_a_wording() {
 async fn the_mcp_tool_answers_like_the_rpc_method_and_only_reads() {
     let server = common::open().await;
     assert_eq!(baruch_server::mcp::scripture::NAME, "scripture_check", "Werkzeugname nach Vertrag");
-    assert!(baruch_server::mcp::scripture::DESCRIPTION.contains("ungeprüft"), "Beschreibung nennt den Wortlaut");
+    assert!(baruch_server::mcp::scripture::DESCRIPTION.contains("unchecked"), "Beschreibung nennt den Wortlaut");
     assert!(!baruch_server::mcp::scripture::DESCRIPTION.starts_with("STUB"), "kein Stub");
     let schema = baruch_server::mcp::scripture::schema();
     // Seit 2026-11-06 geht statt text auch key (Abschnitt des Werks); eines von beiden ist Pflicht.

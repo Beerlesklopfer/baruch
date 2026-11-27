@@ -515,7 +515,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let loaded = state.store.load_work(work).await?;
             Ok(json!({ "broken": broken_in(&loaded) }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

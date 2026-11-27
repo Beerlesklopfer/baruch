@@ -28,26 +28,26 @@ pub const NAMES: &[&str] =
     &["idea_create", "add_idea", "idea_read", "idea_list", "idea_search", "idea_update", "idea_delete", "idea_move"];
 
 fn words_schema() -> Value {
-    json!({ "description": "Schlagwörter: Liste oder Text „a, b; c“ (1 bis 20, je höchstens 60 Zeichen, ohne Zeilenumbruch)",
+    json!({ "description": "keywords: list or text \"a, b; c\" (1 to 20, at most 60 characters each, no line break)",
             "oneOf": [{ "type": "array", "items": { "type": "string" } }, { "type": "string" }] })
 }
 
 fn persona_schema() -> Value {
-    json!({ "type": "string", "description": "Persona-Handle (z. B. @lektor) als Herkunft (nur ohne Token vom eigenen Rechner); sonst der Client als @mcp:<name>" })
+    json!({ "type": "string", "description": "persona handle (e.g. @lektor) as origin (only without a token from the own machine); otherwise the client as @mcp:<name>" })
 }
 
 pub fn create_schema() -> Value {
     json!({ "type": "object", "properties": {
-        "work": work_schema(), "key": { "type": "integer", "description": "Bezug: fester Schlüssel eines Abschnitts des Werks (key aus outline)" },
+        "work": work_schema(), "key": { "type": "integer", "description": "relation: stable key of a section of the work (key from outline)" },
         "words": words_schema(),
-        "title": { "type": "string", "description": "Titel des Knotens in der Mindmap (höchstens 200 Zeichen); mit Titel dürfen die Schlagwörter fehlen – eins von beiden ist Pflicht" },
-        "parent": { "type": "integer", "description": "Elternknoten: id eines Einfalls desselben Werks (Unterknoten in der Mindmap; work darf dann fehlen)" },
-        "before": { "type": "integer", "description": "id eines Geschwisters, vor das der neue Einfall kommt; fehlt: ans Ende" },
-        "cloud": { "type": "boolean", "description": "false: ohne parent und key freies Hauptthema direkt am Werk; fehlt oder true: ohne Platz in die Wolke neben der Mindmap" },
-        "note": { "type": "string", "description": "Gedanke (höchstens 4000 Zeichen)" },
-        "quote": { "type": "string", "description": "markierter Text (höchstens 4000 Zeichen)" },
-        "source": { "type": "string", "description": "Quelle oder Hervorhebung (höchstens 200 Zeichen)" },
-        "bible": { "type": "string", "description": "Bibelstelle (höchstens 200 Zeichen)" },
+        "title": { "type": "string", "description": "title of the node in the mind map (at most 200 characters); with a title the keywords may be missing – one of the two is required" },
+        "parent": { "type": "integer", "description": "parent node: id of an idea of the same work (sub-node in the mind map; work may then be missing)" },
+        "before": { "type": "integer", "description": "id of a sibling the new idea goes before; missing: to the end" },
+        "cloud": { "type": "boolean", "description": "false: without parent and key a free main topic directly at the work; missing or true: without a place into the cloud beside the mind map" },
+        "note": { "type": "string", "description": "thought (at most 4000 characters)" },
+        "quote": { "type": "string", "description": "marked text (at most 4000 characters)" },
+        "source": { "type": "string", "description": "source or highlight (at most 200 characters)" },
+        "bible": { "type": "string", "description": "Bible reference (at most 200 characters)" },
         "persona": persona_schema() } })
 }
 
@@ -57,29 +57,29 @@ pub fn read_schema() -> Value {
 
 pub fn list_schema() -> Value {
     json!({ "type": "object", "properties": {
-        "work": { "description": "Werk (id oder slug) oder \"none\" für Einfälle ohne Werk; fehlt: alle",
+        "work": { "description": "work (id or slug) or \"none\" for ideas without a work; missing: all",
                   "oneOf": [{ "type": "integer" }, { "type": "string" }] },
-        "word": { "type": "string", "description": "nur Einfälle mit diesem Schlagwort" },
-        "open": { "type": "boolean", "description": "true: nur offene, false: nur verarbeitete; fehlt: alle" } } })
+        "word": { "type": "string", "description": "only ideas with this keyword" },
+        "open": { "type": "boolean", "description": "true: only open ones, false: only processed ones; missing: all" } } })
 }
 
 pub fn search_schema() -> Value {
     json!({ "type": "object", "required": ["query"], "properties": {
-        "query": { "type": "string", "description": "Wörter (Volltextsuche über Schlagwörter, Gedanke, Markierung, Quelle, Bibelstelle)" },
-        "work": { "description": "Werk (id oder slug) oder \"none\"; fehlt: alle", "oneOf": [{ "type": "integer" }, { "type": "string" }] },
-        "mode": { "type": "string", "enum": ["fts", "rag"], "description": "fts (Vorgabe): Volltext; rag: Bedeutungssuche \
-            (Runde 19c, nur mit work; Treffer mit score und weak = schwach unter der Untergrenze; Ausfall der \
-            Bedeutungssuche als isError mit Grund)" } } })
+        "query": { "type": "string", "description": "words (full-text search over keywords, thought, marked text, source, Bible reference)" },
+        "work": { "description": "work (id or slug) or \"none\"; missing: all", "oneOf": [{ "type": "integer" }, { "type": "string" }] },
+        "mode": { "type": "string", "enum": ["fts", "rag"], "description": "fts (default): full text; rag: semantic search \
+            (Round 19c, only with work; hits with score and weak = below the lower bound; failure of the \
+            semantic search as isError with reason)" } } })
 }
 
 pub fn update_schema() -> Value {
     json!({ "type": "object", "required": ["id"], "properties": {
         "id": { "type": "integer" }, "words": words_schema(),
-        "title": { "type": "string", "description": "Titel des Knotens in der Mindmap (höchstens 200 Zeichen; leer nur, solange ein Schlagwort bleibt)" },
+        "title": { "type": "string", "description": "title of the node in the mind map (at most 200 characters; empty only while a keyword remains)" },
         "note": { "type": "string" }, "quote": { "type": "string" }, "source": { "type": "string" }, "bible": { "type": "string" },
-        "open": { "type": "boolean", "description": "true: wieder offen, false: als verarbeitet markieren" },
-        "work": { "description": "Werk (id oder slug), null = ohne Werk", "oneOf": [{ "type": "integer" }, { "type": "string" }, { "type": "null" }] },
-        "key": { "description": "Bezug (key aus outline), null = ohne", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "open": { "type": "boolean", "description": "true: open again, false: mark as processed" },
+        "work": { "description": "work (id or slug), null = without a work", "oneOf": [{ "type": "integer" }, { "type": "string" }, { "type": "null" }] },
+        "key": { "description": "relation (key from outline), null = none", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
         "persona": persona_schema() } })
 }
 
@@ -87,20 +87,20 @@ pub fn delete_schema() -> Value {
     json!({ "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" }, "persona": persona_schema() } })
 }
 
-pub const MOVE_DESCRIPTION: &str = "Einfall in der Mindmap umhängen und ordnen: parent (id eines Einfalls desselben \
-Werks, null = vom Elternknoten lösen), key (Bezug auf einen Abschnitt, null = ohne), before (id eines Geschwisters, \
-null = ans Ende), cloud (true = in die Wolke neben der Mindmap, löst Elternknoten und Bezug; false = ohne beides \
-freies Hauptthema am Werk). Fehlende Felder bleiben; die Unterknoten wandern mit. Abgelehnt (isError): anderes Werk, \
-eigener Unterknoten (Kreis), tiefer als 32, gelöschter Einfall. Kapitel und Teile lassen sich so nicht ändern (nur \
-outline_* mit Antrag). Ändert keinen Buchtext; Herkunft persona oder @mcp:<name>, ein Commit im Spiegel.";
+pub const MOVE_DESCRIPTION: &str = "Re-attach and order an idea in the mind map: parent (id of an idea of the same \
+work, null = detach from the parent node), key (relation to a section, null = none), before (id of a sibling, null = \
+to the end), cloud (true = into the cloud beside the mind map, removes parent node and relation; false = without \
+both a free main topic at the work). Missing fields stay; the sub-nodes move along. Refused (isError): another work, \
+own sub-node (cycle), deeper than 32, deleted idea. Chapters and parts cannot be changed this way (only outline_* \
+with a request). Changes no book text; origin persona or @mcp:<name>, one commit in the mirror.";
 
 pub fn move_schema() -> Value {
     json!({ "type": "object", "required": ["id"], "properties": {
-        "id": { "type": "integer", "description": "id des Einfalls" },
-        "parent": { "description": "neuer Elternknoten (id eines Einfalls), null = lösen", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
-        "key": { "description": "Bezug (key aus outline), null = ohne", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
-        "before": { "description": "Geschwister, vor das der Einfall kommt (id), null = ans Ende", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
-        "cloud": { "type": "boolean", "description": "true: in die Wolke; false: ohne Elternknoten und Bezug Hauptthema am Werk" },
+        "id": { "type": "integer", "description": "id of the idea" },
+        "parent": { "description": "new parent node (id of an idea), null = detach", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "key": { "description": "relation (key from outline), null = none", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "before": { "description": "sibling the idea goes before (id), null = to the end", "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+        "cloud": { "type": "boolean", "description": "true: into the cloud; false: without parent node and relation a main topic at the work" },
         "persona": persona_schema() } })
 }
 
@@ -236,7 +236,7 @@ async fn idea_create(state: &AppState, client: &Client, arguments: Value) -> Res
     // Runde 34: mit Titel dürfen die Schlagwörter fehlen.
     let words = if a.words.is_null() {
         if a.title.trim().is_empty() {
-            return Err(Failure::Args("arguments: words fehlt (mindestens ein Schlagwort oder ein Titel)".into()));
+            return Err(Failure::Args("arguments: words is missing (at least one keyword or a title)".into()));
         }
         Vec::new()
     } else {
@@ -251,7 +251,7 @@ async fn idea_create(state: &AppState, client: &Client, arguments: Value) -> Res
         work = state.store.idea_get(parent).await?.work;
     }
     if a.cloud == Some(true) && (a.parent.is_some() || a.key.is_some()) {
-        return Err(Failure::Args("arguments: cloud true geht nur ohne parent und key".into()));
+        return Err(Failure::Args("arguments: cloud true works only without parent and key".into()));
     }
     let spot = IdeaSpot { title: &a.title, parent: a.parent, before: a.before, main_topic: a.cloud == Some(false) };
     let origin = origin(state, client, a.persona.as_deref()).await?;
@@ -295,15 +295,15 @@ async fn idea_search(state: &AppState, arguments: Value) -> Result<Value, Failur
         Some("rag") => {
             let work = match scope(state, a.work.as_ref()).await? {
                 IdeaScope::Work(work) => work,
-                _ => return Err(tool_error("Bedeutungssuche nur innerhalb eines Werks (work: id oder slug).")),
+                _ => return Err(tool_error("Semantic search only within a work (work: id or slug).")),
             };
             let params = json!({ "query": a.query, "work": work, "mode": "rag" });
             return crate::ideas::call(state, "idea.search", params).await.map_err(from_rpc);
         }
-        Some(_) => return Err(Failure::Args("arguments: mode fts oder rag erwartet".into())),
+        Some(_) => return Err(Failure::Args("arguments: mode fts or rag expected".into())),
     }
     let Some(fts) = baruch_library::fts_query(&a.query) else {
-        return Err(tool_error("Suchbegriff fehlt: mindestens ein Wort mit Buchstaben oder Ziffern."));
+        return Err(tool_error("Search term is missing: at least one word with letters or digits."));
     };
     let filter = IdeaFilter { scope: scope(state, a.work.as_ref()).await?, ..IdeaFilter::default() };
     let found = state.store.idea_search(&fts, &filter).await?;
@@ -321,7 +321,7 @@ async fn idea_update(state: &AppState, client: &Client, arguments: Value) -> Res
         Some(Value::Null) => Some(None),
         Some(value) => {
             let work: WorkRef = serde_json::from_value(value.clone())
-                .map_err(|_| Failure::Args("arguments: work als id oder slug erwartet".into()))?;
+                .map_err(|_| Failure::Args("arguments: work as id or slug expected".into()))?;
             Some(Some(resolve(&state.store, &work).await?.0))
         }
     };
@@ -329,7 +329,7 @@ async fn idea_update(state: &AppState, client: &Client, arguments: Value) -> Res
         None => None,
         Some(Value::Null) => Some(None),
         Some(value) => {
-            Some(Some(value.as_i64().ok_or_else(|| Failure::Args("arguments: key als Zahl erwartet".into()))?))
+            Some(Some(value.as_i64().ok_or_else(|| Failure::Args("arguments: key as a number expected".into()))?))
         }
     };
     let origin = origin(state, client, a.persona.as_deref()).await?;
@@ -361,7 +361,7 @@ fn optional_id(arguments: &Value, name: &str) -> Result<Option<Option<i64>>, Fai
         Some(value) => value
             .as_i64()
             .map(|n| Some(Some(n)))
-            .ok_or_else(|| Failure::Args(format!("arguments: {name} als Zahl oder null erwartet"))),
+            .ok_or_else(|| Failure::Args(format!("arguments: {name} as a number or null expected"))),
     }
 }
 

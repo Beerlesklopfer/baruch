@@ -142,7 +142,7 @@ async fn mcp_from_another_host_or_without_peer_needs_a_token() {
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{peer:?} ist kein Loopback: {body}");
         let challenge = headers.get(header::WWW_AUTHENTICATE).map(|v| v.to_str().unwrap().to_owned());
         assert_eq!(challenge.as_deref(), Some(r#"Bearer realm="baruch""#), "401 nennt das Verfahren");
-        assert!(body.contains("eigenen Rechner"), "deutscher Text erklärt den Zugang: {body}");
+        assert!(body.contains("the own machine"), "deutscher Text erklärt den Zugang: {body}");
     }
     let (status, _, _) = mcp_ping(&server, Some(foreign), &[(header::AUTHORIZATION, "Bearer irgendwas")]).await;
     assert_eq!(

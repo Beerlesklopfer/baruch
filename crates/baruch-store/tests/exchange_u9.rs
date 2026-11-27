@@ -83,7 +83,10 @@ async fn a_new_import_carries_title_parent_place_and_main_topic_and_dumps_them_b
         );
     }
     let xml = write_xml(&ExchangeDocument { work: dumped.clone(), ..doc.clone() }, ImageMode::Inline).unwrap();
-    assert!(xml.contains(&format!("version=\"{FORMAT_VERSION}\"")) && FORMAT_VERSION == 9, "Ausgabe in Unterversion 9");
+    assert!(
+        xml.contains(&format!("version=\"{FORMAT_VERSION}\"")) && FORMAT_VERSION == 10,
+        "Ausgabe in Unterversion 10"
+    );
     let back = read_xml(xml.as_bytes(), &Limits::DEFAULT).unwrap();
     assert_eq!(back.work.ideas, dumped.ideas, "die Rundreise über XML erhält die Einfälle samt Baum");
 }
@@ -135,11 +138,10 @@ async fn a_parent_later_in_the_file_is_linked_and_unknown_deleted_or_circular_pa
 async fn a_file_of_version_eight_is_still_read_and_its_ideas_get_the_defaults() {
     let (_dir, store) = open().await;
     // Eine Datei, wie Runde 22 sie schrieb: Unterversion 8, ohne die Attribute des Baums.
-    let xml = write_xml(&sample_document_u8(), ImageMode::Inline).unwrap().replacen(
-        &format!("version=\"{FORMAT_VERSION}\""),
-        "version=\"8\"",
-        1,
-    );
+    let xml = write_xml(&sample_document_u8(), ImageMode::Inline)
+        .unwrap()
+        .replacen(&format!("version=\"{FORMAT_VERSION}\""), "version=\"8\"", 1)
+        .replacen(" sprache=\"de\"", "", 1);
     let doc = read_xml(xml.as_bytes(), &Limits::DEFAULT).unwrap();
     assert_eq!(doc.version, 8, "Vorbedingung: die Datei trägt Unterversion 8");
     assert!(doc.unknown.is_empty(), "nichts Unbekanntes in einer echten Datei der Unterversion 8: {:?}", doc.unknown);

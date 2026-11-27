@@ -51,9 +51,20 @@ Die Seite sammelt alles, was **ein Werk** betrifft. Jeder Block ist an seiner St
 | Satzbild | Schrift, Größe, Breite und Farben beim Schreiben am Bildschirm | [Satz-Einstellungen](/hilfe/buchsatz/#satz-einstellungen) |
 | Satz | Seitenformat, Ränder, Schrift, Seitenzahlen, Register und Glossar, Entwurf | [Satz-Einstellungen](/hilfe/buchsatz/#satz-einstellungen) |
 | Fassungen | Fortschreiben, Grenzen für neue Fassungen, ältere Fassungen ausblenden | [Speichern und Fassungen](/hilfe/schreiben/#fassungen) |
+| Werksprache | Deutsch oder Englisch: die Sprache, in der die Assistenten antworten | [Werksprache](/hilfe/einstellungen/#werksprache) |
 | Predigtzeit | Wörter je Minute, Zielzeit | [Zeitwächter](/hilfe/schreiben/#zeitwaechter) |
 | Kommentare und Lexika | welche Nachschlagewerke das Werk nutzt | [Die Bibel des Werks wählen](/hilfe/bibel-quellen/#bibeln-waehlen) |
 | Abgleich mit MultiGPT | Schalter „nach MultiGPT hochladen“ (Vorgabe aus) | [Abgleich mit MultiGPT](/hilfe/bibel-quellen/#abgleich) |
+
+### Werksprache {#werksprache}
+
+Jedes Werk hat eine **Werksprache**: Deutsch oder Englisch. Im Block „Werksprache“ wählt man sie aus und
+bestätigt mit „Speichern“. In dieser Sprache antworten die Assistenten – auch dann, wenn die Frage oder ein
+eigener Prompt in einer anderen Sprache geschrieben ist –, und in ihr schreiben sie ihre Marken („Kritisch:“
+bzw. „Critical:“, „Vorschlag:“ bzw. „Suggestion:“). Die Sprache der Oberfläche ändert sich dadurch nicht, und
+am Text des Werks ändert Baruch nichts. Ein neues Werk ist deutsch; beim
+[Austausch](/hilfe/austausch-sicherung/#einlesen) reist die Werksprache mit dem Werk. Umstellen kann sie nur
+der Mensch, kein Assistent.
 
 Auf der Seite steht auch die **Kennung des Werks** – eine feste, nicht änderbare Kennzeichnung, an der ein
 anderes Baruch beim [Austausch](/hilfe/austausch-sicherung/#einlesen) erkennt, ob es das Werk schon kennt.

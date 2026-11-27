@@ -510,7 +510,7 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
     for needle in
         // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
         [
-            "version=\"9\"",
+            "version=\"10\"",
             "<befunde>",
             "art=\"kritisch\" status=\"verworfen\"",
             "<alte-fassung ",
@@ -523,7 +523,7 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a.baruch.xml");
     std::fs::write(&file, &xml_a).unwrap();
-    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u8.xsd");
+    let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     match std::process::Command::new("xmllint")
         .args(["--noout", "--nonet", "--schema"])
         .arg(&schema)

@@ -608,7 +608,7 @@ async fn mcp_text_search_only_reads_and_keeps_its_limits() {
         tools["result"]["tools"].as_array().unwrap().iter().find(|t| t["name"] == "text_search").unwrap().clone();
     let description = tool["description"].as_str().unwrap();
     assert!(!description.contains("Stub"), "kein Stub mehr: {description}");
-    assert!(description.contains("nur lesend"), "nur lesend: {description}");
+    assert!(description.contains("read-only"), "nur lesend: {description}");
     let schema = tool["inputSchema"]["properties"].as_object().unwrap();
     assert!(!schema.contains_key("replacement"), "kein Schreibweg im Schema");
     let before = coast.subjects();

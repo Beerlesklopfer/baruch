@@ -19,20 +19,20 @@ pub const NAME: &str = "exchange_export";
 /// (`structuredContent` und Text), als JSON maskiert; größere Werke über Formular oder Kommandozeile.
 pub const MCP_EXPORT_LIMIT: usize = 4 * 1024 * 1024;
 
-pub const DESCRIPTION: &str = "Ganzes Werk als Austauschdatei für eine andere Baruch-Instanz ausgeben, nur lesend: \
-ändert nichts. Inhalt: Angaben, Buchangaben, Werkvorlage, Gliederung mit allen Fassungen, Beiträge, Einfälle, \
-Gedankenkarte (Verbindungen zwischen Einfällen und Lagen), Fäden, Bilder und Grabsteine, jedes Stück mit UUID \
-(Format urn:baruch:werk:1, aktuelle Unterversion in docs/Austauschformat.md); ohne Schlüssel, Verbindungen zu Diensten, \
-Persona-Modelle und Anträge. format xml (Vorgabe) liefert xml als Text (Bilder als \
-Base64), format baruch den ZIP-Container als Base64 in data; dazu work, uuid, file_name, media_type, bytes, \
-sha256. Höchstens 4 MiB, größere Werke über die Seite /werke/{id}/austausch oder die Kommandozeile. Einlesen \
-gibt es über MCP nicht (nur der Mensch über Formular, RPC oder Kommandozeile).";
+pub const DESCRIPTION: &str = "Return a whole work as an exchange file for another Baruch instance, read-only: \
+changes nothing. Content: data, book data, work language, work template, outline with all revisions, posts, ideas, \
+mind map (links between ideas and positions), threads, images and tombstones, every piece with a UUID (format \
+urn:baruch:werk:1, current sub-version in docs/Austauschformat.md); without keys, connections to services, persona \
+models and requests. format xml (default) returns xml as text (images as Base64), format baruch the ZIP container \
+as Base64 in data; plus work, uuid, file_name, media_type, bytes, sha256. At most 4 MiB, larger works through the \
+page /werke/{id}/austausch or the command line. Reading in does not exist over MCP (only the human through form, \
+RPC or command line).";
 
 pub fn schema() -> Value {
     json!({ "type": "object", "required": ["work"], "properties": {
         "work": work_schema(),
         "format": { "enum": ["xml", "baruch"],
-                    "description": "xml (Vorgabe): eine XML-Datei als Text; baruch: ZIP-Container als Base64" } } })
+                    "description": "xml (default): one XML file as text; baruch: ZIP container as Base64" } } })
 }
 
 #[derive(Deserialize)]
@@ -47,14 +47,14 @@ pub async fn call(state: &AppState, arguments: Value) -> Result<Value, Failure> 
     let format = match a.format.as_deref() {
         None => Format::Xml,
         Some(word) => Format::parse(word)
-            .ok_or_else(|| Failure::Args(format!("format: „xml“ oder „baruch“ erwartet, nicht „{word}“")))?,
+            .ok_or_else(|| Failure::Args(format!("format: \"xml\" or \"baruch\" expected, not \"{word}\"")))?,
     };
     let file = export_file(state, work, format).await?;
     if file.bytes.len() > MCP_EXPORT_LIMIT {
         return Err(tool_error(format!(
-            "Die Austauschdatei ist {} Bytes groß, über MCP gehen höchstens {} Bytes (4 MiB). Bitte über die Seite \
-             /werke/{work}/austausch (Werk ▾ → Austausch: Ausgeben) oder die Kommandozeile \
-             „baruch-server export {slug} --baruch {}“ ausgeben.",
+            "The exchange file has {} bytes, over MCP at most {} bytes (4 MiB) work. Please export through the page \
+             /werke/{work}/austausch (Werk ▾ → Austausch: Ausgeben) or the command line \
+             \"baruch-server export {slug} --baruch {}\".",
             file.bytes.len(),
             MCP_EXPORT_LIMIT,
             file.file_name

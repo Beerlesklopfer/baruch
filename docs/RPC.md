@@ -2916,12 +2916,78 @@ Keine neue Methode, keine neue Route. Geändert:
 
 ## Work language
 
-Round 38, interface R38-S1 (`src/work_language.rs`, store `work.language`, migration 0055): every work has a work
-language, `"de"` (default, every work from before Round 38) or `"en"`. Personas answer in it; it does not change the
-language of the user interface.
+Round 38 (`src/work_language.rs`, store `work.language`, migration `0055_work_language.sql`): every work has a work
+language, `"de"` (default, every work from before Round 38) or `"en"`. Personas answer in it and write their markers
+in it; it does not change the language of the user interface and it is independent of the hyphenation language of
+the typesetting settings (`<satz sprache>`, coupled in Round 39). The language is not book text: setting it creates
+no entry in the mirror (like `work.timing_set`); it travels with the work in the exchange format (sub-version 10,
+attribute `sprache` at `<angaben>`).
 
-**Stub:** `work.language` and `work.language_set` are dispatched, but both answer with the error
-`work.language: not implemented yet (Round 38, mcp_rpc)` (`-32000`) until task mcp_rpc implements them and replaces
-this section. What is missing: reading and setting the language over RPC, the field `language` in `work.get`,
-`work.meta` and `work.list`, the form `POST /einstellungen/werk/sprache`, and the language rule below the persona
-prompts (`assist::lang`).
+| Method | Parameters | Answer |
+|---|---|---|
+| `work.language` | `{work?}` | `{work, language: "de" \| "en"}` – read-only. `work` missing → default work, unknown → -32602 |
+| `work.language_set` | `{work, language: "de" \| "en"}` | `{work, language, changed}`; `changed: false` if the work already had this language (nothing written). `work` is required. Any other value (also `"EN"`, `" en"`, a number) → -32602 with `language: allowed values are "de" and "en"`, nothing changed. **Only the human with full rights:** not through `/act`, not through MCP, not in `LEKTOR_RPC` |
+
+`work.get` carries `language` at the top level beside `work`, `lector` and `cover`; `work.meta` carries it as
+`work.language`, `work.list` as `language` of every work.
+
+Form (without JavaScript): `POST /einstellungen/werk/sprache` with `work` and `language`, behind
+`guard::same_origin`, not in `LEKTOR_ROUTES`. Answer 303 to `/einstellungen/werk?work=W&ok=sprache#sprache`, or with
+an invalid value to `…&sprachfehler=1#sprache` (nothing changed). The block `id="sprache"` ("Werksprache") stands on
+the page Einstellungen → Werk directly before "Predigtzeit".
+
+MCP: no tool sets the language. `list_works` (per work) and `outline` (top level) carry `language` (`docs/MCP.md`).
+
+### Language of the interfaces (Round 38)
+
+English are since Round 38: the MCP `instructions`, every tool and parameter description, the answers of stubs and
+every error text that arises only in `src/mcp/**`; for RPC the protocol errors – parse error, invalid request,
+`unknown method …`, the parameter checks of `rpc.rs` (`work: work id (number) expected`, `key: stable key (number)
+expected`, `mode: "auto" or "new" expected`), `Login required.` (-32001 on `/rpc` without a session) and `Only the
+author may do this: <method>` (role). **Error codes are unchanged.**
+
+German stay until Round 39 all messages that a page, a form or a notice bar shows as well, even when they travel
+through RPC or MCP: the texts of `StoreError` (`Refused`, unknown work, section or revision), the refusals of the
+modules (`REFUSED`, -32000) and their parameter checks outside `rpc.rs`, progress reasons such as `fehlendes
+„Kritisch:“`, the notes `CUT_NOTE` and `TRUNCATED_NOTE` below a post, the note of a cover request created by
+`asset_add`, labels of model calls, and the task texts that Baruch puts around the text of a section when it calls
+a model (`assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`, `threads.rs`; see "Open" below). The
+rest of this document is still German and will be translated in a later round; new sections are written in English.
+
+### Prompts and markers
+
+The default prompts of the personas (`assist/prompts.rs`) are English since Round 38. A prompt stored by the user
+stays untouched. Below **every** effective prompt of a model call – default or stored – stands the language rule
+`assist::lang::language_rule(language)`: "Always answer in {German|English} – the language of this work – whatever
+language this prompt or the question uses. Use these markers literally: …" with the markers of the work language.
+The prompt shown for editing (`persona.prompt_get`, Einstellungen → Assistenten) carries no language rule, so that a
+saved prompt does not take the rule of one work into another.
+
+The prompt prescribes the markers of the work language; **every recognition accepts both languages**, whatever the
+work language is. For a German work every behaviour is literally as before Round 38.
+
+| Meaning | German (`lang::DE`) | English (`lang::EN`) | Read by |
+|---|---|---|---|
+| mandatory or critical finding | `Kritisch:` | `Critical:` | `prompts::critical_line`, `has_critical`, findings parser |
+| hint | `Vorschlag:`, `Hinweis:` | `Suggestion:`, `Note:` | findings parser, `strip_critical_lines` (`Vorschlag:`/`Suggestion:`) |
+| praise | `Lob:` | `Praise:` | findings parser |
+| outline of a review | `Was trägt:`, `Was fehlt:`, `Was stört:` | `What works:`, `What is missing:`, `What disturbs:` | findings parser, `strip_critical_lines` (first one) |
+| RFC summary of the lector | `Jetzt wichtig:`, `Kann warten:` | `Important now:`, `Can wait:` | `strip_critical_lines` |
+| solutions the persona would apply | `Mein Vorschlag:` | `My proposal:` | `findings::parse::proposal_heading`, `assist::solutions::proposal_block` |
+| solution lines | `statt:`, `besser:`, `Schritt:` | `instead of:`, `better:`, `Step:` | `assist/solutions.rs`, `prompts::missing_solutions` |
+| feedback on an own finding | `Erledigt: Befund n (Stelle "…")` | `Done: finding n (place "…")` | `findings::parse::done_claims` |
+| all own findings resolved | `Alle meine Befunde zu diesem Abschnitt scheinen erledigt.` | `All my findings on this section seem to be resolved.` | `prompts::all_done` |
+| note of Baruch: quote not in the text | `(nicht im Text belegt)` | `(not backed by the text)` | written in the work language, removed and read in both |
+| note of Baruch: no solution | `(ohne Lösungsvorschlag)` | `(no solution proposed)` | written in the work language, removed and read in both |
+| note of Baruch: mandatory finding missing | `(Hinweis von Baruch: …)` (`CRITICAL_MISSING_NOTE`) | `(Note from Baruch: …)` (`CRITICAL_MISSING_NOTE_EN`) | written in the work language, footer in both |
+
+Further markers found in Round 38 beyond the contract (`lang::MoreMarkers`): `besser:`/`better:`,
+`Schritt:`/`Step:`, the words of the "done" line (`Befund`/`finding`, `Stelle`/`place`) and the two further outline
+headings. Forbidden openings are recognised in both languages (`Als Assistent`, `Als KI`, `Als Sprachmodell`,
+`Gerne`, `Natürlich`; `As an assistant`, `As an AI`, `As a language model`, `Sure`, `Certainly`), and the word list
+of a check order in the chat knows English stems too (`check`, `review`, `verif…`, `examin…`, `proofread`).
+
+**Open (honest):** The task texts around the section (`Werk: …`, `Auftrag: …`, frames of findings and chat history)
+are still German; the language rule makes the persona answer in the work language all the same. The literal words
+of `@schrift` and `@belege` that Baruch reads back (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) are
+recognised in German only; the English prompt therefore still names the German words for these.

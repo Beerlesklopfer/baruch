@@ -466,7 +466,7 @@ async fn two_instances_exchange_the_work_and_export_the_same_registers() {
     a.server.state.store.set_work_typeset(a.work, &settings, "Lene").await.unwrap();
     let xml = a.rpc("work.exchange_export", json!({ "format": "xml" })).await["xml"].as_str().unwrap().to_owned();
     // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
-    assert!(xml.contains("version=\"9\"") && xml.contains("<glossar>"), "Unterversion 9 (seit Runde 34) mit Glossar");
+    assert!(xml.contains("version=\"10\"") && xml.contains("<glossar>"), "Unterversion 9 (seit Runde 34) mit Glossar");
 
     let b = common::open().await;
     let imported = b

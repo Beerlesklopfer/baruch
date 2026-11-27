@@ -136,7 +136,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let cleared = store.clear_work_revision_folds(work).await?;
             Ok(json!({ "work": work, "cleared": cleared }))
         }
-        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

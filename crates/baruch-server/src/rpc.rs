@@ -328,7 +328,7 @@ pub async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, RpcE
     match params.get("work") {
         None | Some(Value::Null) => Ok(state.default_work().await?),
         Some(value) => {
-            let id = value.as_i64().ok_or_else(|| RpcError::new(INVALID_PARAMS, "work: Werk-id (Zahl) erwartet"))?;
+            let id = value.as_i64().ok_or_else(|| RpcError::new(INVALID_PARAMS, "work: work id (number) expected"))?;
             state.store.work_slug(id).await?;
             Ok(id)
         }
@@ -338,7 +338,7 @@ pub async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, RpcE
 /// Fester Schlüssel aus `params[name]` (Zahl oder Ziffern als Text, Formulare); fehlt, `null` oder
 /// leer → `None`.
 fn key_value(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || RpcError::new(INVALID_PARAMS, format!("{name}: fester Schlüssel (Zahl) erwartet"));
+    let wrong = || RpcError::new(INVALID_PARAMS, format!("{name}: stable key (number) expected"));
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -439,7 +439,7 @@ pub(crate) fn save_mode(params: &Value) -> Result<baruch_store::SaveMode, RpcErr
         None | Some(Value::Null) => None,
         Some(Value::String(s)) if s.trim().is_empty() => None,
         Some(Value::String(s)) => Some(s.trim().to_owned()),
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "mode: „auto“ oder „new“ erwartet")),
+        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "mode: \"auto\" or \"new\" expected")),
     };
     baruch_store::SaveMode::from_param(mode.as_deref()).map_err(|e| RpcError::new(INVALID_PARAMS, e))
 }
@@ -659,7 +659,8 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
             let work = store.load_work(work_id).await?;
             let lector = work.lector().map(|p| p.handle.clone());
             let cover = crate::cover::cover_info(state, work_id).await?;
-            Ok(json!({ "work": work, "lector": lector, "cover": cover }))
+            let language = store.work_language(work_id).await?;
+            Ok(json!({ "work": work, "lector": lector, "cover": cover, "language": language }))
         }
         "work.export" => Ok(json!({ "typst": store.export_typst(work_id).await? })),
         "node.get" => {
@@ -865,7 +866,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
         // Runde 22 (Schnittstelle R22-S1): Verlauf der Fortschreibungen und Einstellung „Fassungen“.
         m if crate::revisions::handles(m) => crate::revisions::call(state, work_id, m, params_value).await,
         m if crate::revision_fold::handles(m) => crate::revision_fold::call(state, work_id, m, params_value).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 
@@ -877,7 +878,7 @@ pub async fn handle(state: &AppState, settings: &Settings, request: Value) -> Va
         (Some("2.0"), Some(method)) => {
             call(state, settings, method, request.get("params").cloned().unwrap_or(Value::Null)).await
         }
-        _ => Err(RpcError::new(INVALID_REQUEST, "jsonrpc 2.0 mit method erwartet")),
+        _ => Err(RpcError::new(INVALID_REQUEST, "jsonrpc 2.0 with method expected")),
     };
     match result {
         Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),

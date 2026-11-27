@@ -352,7 +352,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
             add_mirror(&mut answer, mirror::record_outline_losses(state, &held, &change, by, &losses).await);
             Ok(answer)
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

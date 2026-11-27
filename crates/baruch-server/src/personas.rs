@@ -632,7 +632,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             Ok(json!({ "persona": row.handle, "bible_context": on }))
         }
         m if crate::assist::rpc::METHODS.contains(&m) => crate::assist::rpc::call(state, m, params).await,
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

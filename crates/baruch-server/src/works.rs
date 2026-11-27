@@ -273,7 +273,7 @@ pub async fn call(
                 .ok_or_else(|| invalid("slug fehlt: Ordnername des archivierten Werks (aus work.archives)"))?;
             restore(state, slug.trim()).await
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 

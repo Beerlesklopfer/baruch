@@ -103,6 +103,8 @@ pub struct WorkMeta {
     pub created: String,
     /// Letzte Änderung von Metadaten oder Werkvorlage; `None` = nie geändert.
     pub updated: Option<String>,
+    /// Work language (migration 0055): personas answer in it.
+    pub language: crate::WorkLanguage,
 }
 
 /// Eine Fassung der Werkvorlage (ohne Text, [`Store::template_revisions`]).
@@ -375,8 +377,9 @@ type MetaRow = (
     Option<String>,
     i64,
     String,
+    String,
 );
-type SummaryRow = (WorkId, String, String, String, String, String, String, i64, i64, i64, Option<String>);
+type SummaryRow = (WorkId, String, String, String, String, String, String, String, i64, i64, i64, Option<String>);
 
 impl Store {
     /// Alle Werke für Übersicht und Werkwahl, nach id: Autor, Art, Untertitel, Anzahl der Knoten
@@ -384,7 +387,7 @@ impl Store {
     /// geändert (größter Zeitpunkt aus Metadaten, angelegten und geänderten Revisionen).
     pub async fn work_list(&self) -> Result<Vec<WorkSummary>, StoreError> {
         let rows: Vec<SummaryRow> = sqlx::query_as(
-            "SELECT w.id, w.slug, w.title, w.author, w.kind, w.subtitle, w.created, \
+            "SELECT w.id, w.slug, w.title, w.author, w.kind, w.subtitle, w.created, w.language, \
                     (SELECT count(*) FROM node n WHERE n.work_id = w.id), \
                     (SELECT count(*) FROM node n WHERE n.work_id = w.id AND n.kind <> 'part'), \
                     (SELECT count(*) FROM revision r JOIN node n ON n.id = r.node_id \
@@ -399,7 +402,7 @@ impl Store {
         .fetch_all(&self.pool)
         .await?;
         rows.into_iter()
-            .map(|(id, slug, title, author, kind, subtitle, created, nodes, sections, proposals, updated)| {
+            .map(|(id, slug, title, author, kind, subtitle, created, language, nodes, sections, proposals, updated)| {
                 Ok(WorkSummary {
                     id,
                     slug,
@@ -412,6 +415,7 @@ impl Store {
                     proposals: to_usize(proposals, "Anzahl der Vorschläge")?,
                     created,
                     updated,
+                    language: crate::WorkLanguage::parse(&language).unwrap_or_default(),
                 })
             })
             .collect()
@@ -558,7 +562,7 @@ impl Store {
             "SELECT w.id, w.slug, w.kind, w.title, w.subtitle, w.author, w.audience, w.bible, w.template, \
                     w.source_name, w.created, w.updated, \
                     coalesce((SELECT max(t.number) FROM work_template_revision t WHERE t.work_id = w.id), 0), \
-                    w.uuid \
+                    w.uuid, w.language \
                FROM work w WHERE w.id = ?",
         )
         .bind(work)
@@ -579,6 +583,7 @@ impl Store {
             updated,
             rev,
             uuid,
+            language,
         ) = row.ok_or(StoreError::UnknownWork(work))?;
         Ok(WorkMeta {
             id,
@@ -595,6 +600,7 @@ impl Store {
             source_name,
             created,
             updated,
+            language: crate::WorkLanguage::parse(&language).unwrap_or_default(),
         })
     }
 

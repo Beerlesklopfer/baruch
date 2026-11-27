@@ -424,7 +424,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
                 "warnings": p.warnings, "diagnostics": p.diagnostics, "conflicts": conflicts_json(&p.conflicts),
             }))
         }
-        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unbekannte Methode {method}"))),
+        _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
 }
 
