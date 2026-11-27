@@ -7,8 +7,8 @@ der Arbeitsstand in `HANDOFF.md`.
 
 Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (**erledigt in Runde 35**, 2026-11-27; Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
 
-- **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
-- **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
+- (**erledigt R36**: `baruch-typst` und `baruch-server typst`, Pakete mit `baruch-typst`, CI ohne Typst-Download; offen bleibt: AppImage, .dmg und .msi mit `baruch-typst` bauen und starten (Windows-`.cmd`, codesign mit Symlink), Gegenprobe `scripts/ci-typst.sh … typst` mit einem fremden Typst; die Typst-Schalter `--input`, `--pages`, `--pdf-standard`, Ausgabe auf stdout und `watch` sind bewusst nicht umgesetzt) **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
+- (**erledigt R36, nicht ausgeführt geprüft**: `pages.yml` läuft zusätzlich bei `release: published` und checkt dabei `main` aus; ob das die Beobachtung vom 2026-11-24 behebt, zeigt das nächste Release; Handweg `gh workflow run pages.yml --ref main`, siehe `docs/Verteilung.md`, „Auslieferung je Commit“) **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
 - **Menüband und Laptop-Modus (Nutzer 2026-11-24: „Die Menüführung ist DEV-State. Wir wollten ein klares Menüband-Design mit Popup (Laptop-Mode)“).** Entscheidungen:
   - **Reiter + Gruppen** wie Office/LibreOffice: eine Reiterzeile (etwa Start, Einfügen, Prüfen, Buch, Ansicht – Zuschnitt im Vertrag), darunter beschriftete Gruppen (Text, Absatz, Fassung, Assistenten …). Das App-Menü (heute Werk/Ansicht/Werkzeuge) wandert in einen Knopf „Baruch ▾“ links; Werkwahl, Hell/Dunkel, Einstellungen bleiben erreichbar. Ersetzt Kopfzeile UND die flache Knopfreihe im Editor (edit_toolbar.html, Satz-Seite).
   - **Laptop-Modus, alle drei:** (1) Gruppen klappen zu Knöpfen mit Popup (▾), nur die Reiterzeile bleibt; Klick klappt das Band auf/zu. (2) Gliederung links und Assistenten rechts einklappbar zu schmalen Leisten bzw. Popups. (3) Automatisch nach Fensterbreite, dazu ein Schalter, der den Laptop-Modus erzwingt (Einstellung gemerkt).
@@ -116,6 +116,29 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
+
+### Runde 36 – integriert (Integrator, 2026-11-27)
+
+Alle drei Aufgaben sind auf `development`: `typst_alias` (Typst-Kommandozeile, Pakete, CI, Pages), `reste` (unten)
+und `sqlx09` (sqlx 0.9.1, Ausnahme RUSTSEC-2026-0459 entfallen). Offen aus der Integration:
+
+- Pakete: AppImage, .dmg und .msi mit `baruch-typst` sind nicht gebaut; das .deb ist nur mit der Debug-Binärdatei
+  paketiert (Symlink geprüft). Die Arbeitsabläufe (`ci.yml` mit `scripts/ci-typst.sh`, `pages.yml` bei
+  `release: published`) sind nie gelaufen.
+- Die Vorlagen `sqlx08_migrations.tsv` sind gegen SHA-384 der Migrationsdateien nachgerechnet; eine echte, von
+  sqlx 0.8.6 geschriebene Datenbank (der Datenordner des Nutzers) hat in der Runde niemand mit 0.9 geöffnet – vor
+  dem Einspielen den Datenordner sichern.
+- „Dieselbe PDF wie der Export“ gilt Byte für Byte nur für Werke ohne Umschlag und Titelei (der Export legt sonst
+  seinen Rahmen um die Quelle; `export --out` schreibt die Quelle ohne Rahmen).
+- Die Erkennung des Prüfauftrags (`assist::chat::is_check_order`) ist eine Wortliste („geprüft“ zählt nicht,
+  „Checkliste“ zählt); ob sie im Alltag trifft, zeigt der Gebrauch.
+- Sichtprüfung des Integrators (Firefox headless, 9 Fotos unter `.claude/sicht/r36/`, nicht im Repo): Mindmap hell
+  und dunkel ohne hellen Streifen, Beschriftungen frei von Knoten; Band-Zähler „1/1 (+ 3 ausgeblendet)“;
+  Anmeldeseite dunkel per Cookie; Anzeigename auf der Arbeitsseite. Dabei behoben: Kopfzeile des Vorschlags im
+  Lesefluss nannte nur den Handle. Niedrig, offen: Im Editor-Kopf wird „Erika Beispiel (@lektorat:erika)“ bei
+  1700 px zu „Erika Beispiel (@l…“ gekürzt (beim Autor mit mehr Knöpfen zu „Erika B…“); in der dichten Karte
+  stehen einzelne Beschriftungen am Rand der Bühne weit von ihrer Linie. Nicht angesehen: Token-Liste in schmaler
+  Spalte, `vw.js` beim ersten Aufruf nach einer Größenänderung (headless nicht nachstellbar).
 
 ### Runde 36 – Reste (Aufgabe `reste`, 2026-11-27)
 
@@ -1273,7 +1296,9 @@ Ausnahme in `deny.toml` eingetragen, **offen nach 0.9.0**:
 
 - **RUSTSEC-2026-0194, -0195 (quick-xml 0.38.4):** nur noch über typst-library → hayagriva 0.10.1 → citationberg
   0.7.0, das quick-xml ^0.38 verlangt. Erledigt, sobald citationberg/hayagriva/typst auf quick-xml ≥ 0.41 gehen.
-- **RUSTSEC-2026-0459 (libsqlite3-sys 0.30.1, SQLite < 3.54):** sqlx 0.8.6 schreibt libsqlite3-sys ^0.30 fest; der
+- (**erledigt R36**: sqlx 0.9.1, libsqlite3-sys 0.40.0, Ausnahme entfernt, `cargo deny check` in allen vier
+  Prüfungen grün; 101 Aufrufe unter `src/` und 169 in Tests laufen über `AssertSqlSafe`)
+  **RUSTSEC-2026-0459 (libsqlite3-sys 0.30.1, SQLite < 3.54):** sqlx 0.8.6 schreibt libsqlite3-sys ^0.30 fest; der
   Fix (≥ 0.39) braucht sqlx 0.9 (Abfragen mit zusammengesetztem SQL auf `AssertSqlSafe`/`SqlSafeStr`, rund 350
   Aufrufe; Rust ≥ 1.94; Postgres-Feature in baruch-server, Migrationen und Makros prüfen). Baruch öffnet nur
   die eigene Datenbank im eigenen Datenordner, darum im Betrieb nicht betroffen.

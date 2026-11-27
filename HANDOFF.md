@@ -1,9 +1,41 @@
-# Übergabe (Stand 2026-11-27, Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Runde 36 „Reste“ **integriert** (Typst-Kommandozeile, sqlx 0.9.1, Reste; PM-Abschluss steht aus); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 36 „Reste“ integriert** (2026-11-27, Integrator, auf `development`; Schnittstelle R36-S1 `d03be8d`;
+  Zweige `team/typst_alias` `fdfe844`, `team/reste` `252b7fa` und zuletzt `team/sqlx09` `350cb5e` (vorher
+  `development` in den Zweig geholt, `2c06f76`) mit `--no-ff`, **ohne Textkonflikte**; danach der
+  Integrations-Commit; nicht gepusht; Worktrees und team-Zweige stehen noch). Version unverändert 0.9.0, CHANGELOG
+  unter „Unveröffentlicht“. **Keine Migration** (0055, 0056 und 0109 blieben unbenutzt), keine neue Route,
+  RPC-Methode oder MCP-Werkzeug, kein offener Stub. Voller Lauf im Hauptordner nach `cargo clean -p` aller
+  Workspace-Crates (`RUST_TEST_THREADS=4 … taskset -c 0-7 cargo test --workspace -j 4 --no-fail-fast`): Exit 0,
+  215 Ergebnisse „ok“, 3527 bestanden, 0 gescheitert, 2 ignoriert (Server-Bündel 1568 bestanden; pgvector-Tests
+  liefen mit, `timeout 20 podman info` → 0); clippy `-D warnings` und `cargo fmt --check` sauber; `cargo deny
+  check`: advisories, bans, licenses, sources ok – ohne die Ausnahme RUSTSEC-2026-0459.
+  - **Typst-Kommandozeile:** `baruch-server typst …` bzw. Alias `baruch-typst` (`compile` zu PDF/PNG/SVG, `fonts`,
+    `--version`; offline; Nicht-Unterstütztes wie `watch` mit Exit 2). Die Pakete liefern nur `baruch-typst`
+    (das .deb lokal mit der Debug-Binärdatei paketiert: `./usr/bin/baruch-typst -> baruch-server`, keine Datei
+    `typst`). Abnahme `tests/round36_abnahme.rs`: `baruch-typst compile` und `baruch-server typst compile` auf der
+    Datei aus `export --out` ergeben Byte für Byte die PDF von `export --pdf` (Werk ohne Umschlag/Titelei).
+    Doku: `docs/Verteilung.md`, „Typst-Kommandozeile“.
+  - **sqlx 0.9.1** (libsqlite3-sys 0.40): Migrationen und Prüfsummen unverändert; zusammengesetztes SQL nur über
+    `AssertSqlSafe` (Regel im Modulkommentar von `baruch-store/src/lib.rs`, Merksätze in `SKILLS.md`, „Runde 36“).
+    **Vor dem Einspielen beim Nutzer den Datenordner sichern:** Eine echte, von 0.8.6 geschriebene Datenbank hat
+    in der Runde niemand mit 0.9 geöffnet (nur nachgebaute).
+  - **Reste:** `passwort` hebt die Sperre auf; Lektoren mit Anzeigename, „Im Werk suchen“, Darstellung ohne Werk;
+    Anmeldeseite folgt dem Thema; Mindmap-Rundreise erhält die Wolke, Beschriftungen frei; Band-Zähler mit
+    „(+ n ausgeblendet)“; Spiegel-Commit nennt beim Löschen eines Gliederungspunkts die Verluste; u. a.
+    (`docs/Architektur.md`, „Runde 36 – Reste“).
+  - **CI/Pages:** `ci.yml` setzt mit dem eigenen Programm (`scripts/ci-typst.sh`), `pages.yml` läuft auch bei
+    `release: published`. **Nie gelaufen** – das zeigt erst der nächste Fast-Forward nach `main` bzw. das nächste
+    Release. AppImage, .dmg, .msi nicht gebaut.
+  - **Sichtprüfung** (Firefox headless, eigener Wegwerf-Server): 9 Fotos unter `.claude/sicht/r36/`; dabei
+    behoben: Kopfzeile des Vorschlags im Lesefluss ohne Anzeigenamen. Offenes: `docs/Backlog.md`, „Runde 36 –
+    integriert“.
+  - **Offen für den PM:** `docs/Fahrplan.md` nachführen, Begründungen „R36: nicht bearbeitet“ im Backlog
+    gegenlesen, Worktrees `.claude/worktrees/wf_64d48837-2a4-3/-4/-5` samt `target/` entfernen.
 - **Runde 35 abgeschlossen (PM, 2026-11-27):** Prüfung mit vier Befunden, der mittlere behoben (`40d6591`: Die Sperre
   gegen Durchprobieren zählt jetzt vor der Passwortprüfung, `Store::login_reserve`); die drei niedrigen stehen in
   `docs/Betrieb.md` und in `docs/Backlog.md`, „Nach Runde 35 offen“. Voller Lauf des PM im Hauptordner nach

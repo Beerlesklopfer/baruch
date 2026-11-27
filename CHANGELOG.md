@@ -6,6 +6,53 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Reste vor 0.9.1 (Runde 36)
+
+- **Typst-Kommandozeile eingebaut:** `baruch-typst` (Symlink, unter Windows `baruch-typst.cmd`) bzw.
+  `baruch-server typst …` setzt eine Typst-Datei zu PDF, PNG oder SVG – `compile EINGABE [AUSGABE]` mit `--root`,
+  `--font-path`, `--format`, `--ppi`, dazu `fonts` und `--version` (`typst 0.15.1 (Baruch <Version>)`). Dieselbe
+  Engine und dieselben Schriften wie im Server, ohne Netz und ohne Pakete; die mit `export --out` geschriebene
+  Typst-Datei ergibt Byte für Byte die PDF von `export --pdf` (Werk ohne Umschlag und Titelei). `watch`, `query`
+  und anderes Nicht-Unterstütztes wird ehrlich abgelehnt (Exit 2). Anders als der Export überschreibt `compile`
+  eine vorhandene Ausgabedatei. Die Pakete installieren nie eine Datei namens `typst`.
+- **Sicherheit:** sqlx 0.8.6 → 0.9.1; das gebündelte SQLite kommt jetzt aus libsqlite3-sys 0.40
+  (RUSTSEC-2026-0459 behoben), die Ausnahme in `deny.toml` ist entfallen. Vorhandene Datenbanken öffnen unverändert
+  (gleiche Prüfsummen der Migrationen, keine neue Migration). Zusammengesetztes SQL ist ausdrücklich als geprüft
+  gekennzeichnet (`AssertSqlSafe`), Werte bleiben gebunden. Verlangt Rust ≥ 1.94 (gebaut wird mit 1.99.0).
+- **CI:** Der Satz eines Exports wird mit dem eigenen Programm geprüft; die CI lädt kein Typst mehr.
+- **Webseite:** `pages.yml` läuft zusätzlich, wenn ein Release veröffentlicht wird (auch bei einem Tag auf dem
+  Commit des letzten main-Laufs); nicht ausgeführt geprüft.
+
+#### Geändert
+
+- `baruch-server passwort NAME` hebt die Sperre nach Fehlversuchen für das Konto auf; die Anmeldung mit dem neuen
+  Passwort gelingt sofort.
+- Lektoren: Einstellungen → Darstellung auch ohne freigegebenes Werk; Anzeigename des Kontos neben
+  `@lektorat:<name>` auf der Arbeitsseite; Knopf „Im Werk suchen“; Umschlagbild in der Werkliste ohne Link auf die
+  gesperrte Seite.
+- Anmelde- und Einrichtungsseite folgen dem gewählten Thema (hell/dunkel), ohne JavaScript.
+- Mindmap: Eine von Baruch ausgegebene `.mm`/`.xmind` kommt beim Einlesen mit ihrer Wolke zurück; Beschriftungen
+  der Verbindungen liegen nicht mehr auf Knoten; die Bildlaufleiste steht am Fensterrand (heller Streifen im
+  dunklen Thema).
+- Der Zähler der Fassungen im Menüband zeigt „(+ n ausgeblendet)“.
+- Eine direkt angesprochene Persona bekommt ihre eigenen offenen Befunde nur noch bei einem Prüfauftrag mit.
+- Der Vorschlag für das ganze Kapitel beruht auf der gezeigten bzw. gewählten Fassung und nennt sie (`basis` in der
+  Antwort von `persona.propose`).
+- Nach einer Größenänderung des Fensters erscheint die Seite gleich im passenden Zustand (frühes Skript `vw.js`).
+- Der Knopf „Zitat“ fügt keine Zeile „– “ mehr ein.
+- Nennungen im Text: Ordnungszahlen bis „hundertste“, römische Zahlen über XXXIX hinaus.
+- Löschen eines Gliederungspunkts: Der Git-Spiegel nennt auch die mitgelöschten Fassungen und Beiträge im Wortlaut.
+
+#### Behoben
+
+- „Sicherung angelegt“ erschien bei jedem Aufruf von `/einstellungen/daten?ok=sicherung`; jetzt nur einmal nach
+  einer wirklich angelegten Sicherung.
+- Token-Liste: „(früher `@mcp:…`)“ brach mitten im Namen um.
+
+#### Neu
+
+- Einstellungen → Daten meldet zu offene Rechte eines vorhandenen Datenordners (geändert werden sie nie).
+
 ### Strg+S speichert normal
 
 - **Strg+S (⌘+S) schreibt fort statt eine neue Fassung anzulegen:** Die Vorgabe der Einstellung „Fassungen“ hat

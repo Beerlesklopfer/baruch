@@ -15,10 +15,12 @@ use std::collections::HashMap;
 use crate::AppState;
 
 /// Klassen der Elemente, deren Text eine Herkunft nennt: Kopf des Editors (`rev-meta`), Beitrag (`post-author`),
-/// Revisionsbaum (`revtree-author`), Befund (`fd-persona`), Zeile „Weitere Fassungen“ (`rev-alt`) und die Zeile
-/// einer Fassung in der Lektor-Spalte (`rev-origin`).
+/// Revisionsbaum (`revtree-author`), Befund (`fd-persona`), Zeile „Weitere Fassungen“ (`rev-alt`), die Zeile
+/// einer Fassung in der Lektor-Spalte (`rev-origin`) und die Kopfzeile eines Vorschlags im Lesefluss (`pv-label`,
+/// Sichtprüfung der Integration: dort stand als einziger Stelle nur der Handle; die Stücke `.pv` übergeht das
+/// Satzbild beim Speichern).
 pub const ORIGIN_CLASSES: &[&str] =
-    &["rev-meta", "post-author", "revtree-author", "fd-persona", "rev-alt", "rev-origin"];
+    &["rev-meta", "post-author", "revtree-author", "fd-persona", "rev-alt", "rev-origin", "pv-label"];
 
 const PREFIX: &str = "@lektorat:";
 

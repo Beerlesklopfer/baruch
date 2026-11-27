@@ -101,6 +101,10 @@ Datei. Text und Vorlage bleiben byte-gleich. Eine einzelne hochgeladene Datei (�
 `work.import` bringen nur den Text: Bilder danach auf der Seite „Bilder“ mit ihrem Pfad hinzufügen – oder gleich ein
 ZIP bzw. den ganzen Ordner hochladen (Runde 21b, unten).
 
+Die exportierte Typst-Datei lässt sich ohne ein eigenes Typst setzen: `baruch-typst compile buch.typ buch.pdf`
+(bzw. `baruch-server typst compile …`) nutzt dieselbe Engine und dieselben Schriften wie Baruch – siehe
+[docs/Verteilung.md](Verteilung.md), „Typst-Kommandozeile“.
+
 Zurück: `baruch-server export <id|slug> --out ORDNER` schreibt die Typst-Datei (unter ihrem
 Importnamen, sonst `<slug>.typ`) und jedes Bild an seinen Pfad (ohne `./` und ohne führendes `/`), byte-gleich zur
 Quelle. Ordner werden angelegt. Seit Runde 21b prüft der Export **vor der ersten Datei**: Gibt es eine Zieldatei schon,

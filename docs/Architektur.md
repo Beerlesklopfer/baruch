@@ -6077,3 +6077,41 @@ Werten.
 - In vorhandenen Dateien: `round35_konten.rs` (Notweg hebt die Sperre auf), `kritik_zyklus.rs` (Vorschlag fürs
   Kapitel auf der gezeigten bzw. gewählten Fassung), `round22_befunde.rs` (schlichte Frage ohne eigene Befunde,
   Prüfauftrag mit).
+
+### Typst-Kommandozeile (Aufgabe `typst_alias`)
+
+`main` entscheidet vor dem Start der Tokio-Laufzeit über `typst_cli::dispatch(args)`: Heißt das Programm `typst`
+oder `baruch-typst` (Dateiname von argv[0], ohne `.exe`, Groß/Klein egal) oder ist das erste Argument `typst`, läuft
+`typst_cli::run` und der Prozess endet mit dessen Exit-Code (0 Erfolg, 1 Satz- oder Dateifehler, 2 falscher Aufruf
+oder Nicht-Unterstütztes) – ohne Datenordner, Datenbank, Server oder Netz. `baruch-server/src/typst_cli.rs` liest
+nur die Argumente und schreibt die Dateien (erst nach gelungenem Satz); der Satz steht in
+`baruch-render/src/cli.rs` (`compile_file`, `font_names`) als Kindmodul von `baruch-render`, das Schriften,
+Bibliothek und die deutschen Meldungen des Servers mitbenutzt. Die Welt `Disk` liest Dateien nur unter dem
+Wurzelordner (aufgelöst, Symlinks nach außen gesperrt) und lehnt Pakete mit `OFFLINE` ab. `TYPST_VERSION` folgt dem
+Crate `typst` in `Cargo.lock` (Tests und `scripts/ci-typst.sh` halten das fest). Die Pakete liefern nur den Namen
+`baruch-typst` (Symlink bzw. `.cmd`). Bedienung und Grenzen: `docs/Verteilung.md`, „Typst-Kommandozeile“.
+
+### Datenbankzugriff mit sqlx 0.9 (Aufgabe `sqlx09`)
+
+Store, Bibliothek und Server nutzen eine gemeinsame sqlx-Ausprägung 0.9 (SQLite gebündelt über libsqlite3-sys 0.40;
+der Server zusätzlich PostgreSQL mit rustls/ring und Systemzertifikaten für pgvector). `query`, `query_as`,
+`query_scalar` und `begin_with` nehmen nur noch `&'static str` oder einen mit `sqlx::AssertSqlSafe` bestätigten
+Text. Regel (Modulkommentar von `baruch-store/src/lib.rs`): SQL wo möglich als Literal; `AssertSqlSafe` nur für Text
+aus festen Bausteinen des Quelltexts (Spaltenlisten, Platzhalter-Ketten, feste Bedingungen, Tabellennamen aus
+Literalen, bei pgvector geprüfte Bezeichner über `quoted()`); Werte werden immer gebunden. Die Migrationen und ihre
+Prüfsummen in `_sqlx_migrations` sind gegenüber 0.8 unverändert (Tests `sqlx09_migrations` in Store und Bibliothek,
+`round36_sqlx` im Server). Neu gegenüber 0.8: sqlx-sqlite 0.9 beachtet `-- no-transaction` am Kopf einer Migration;
+keine Migration von Baruch trägt die Markierung, 0040 braucht weiter `baruch_store::migrate` mit `FOREIGN_KEYS_OFF`.
+
+### Abnahme der Integration
+
+`crates/baruch-server/tests/round36_abnahme.rs` (Integrator) prüft über die gebaute Binärdatei die Naht zwischen
+Export und Typst-Kommandozeile: Import einer erfundenen Typst-Datei mit Bild, `export --out` und `export --pdf`,
+dann `baruch-typst compile` (Symlink) und `baruch-server typst compile` auf der exportierten Datei – alle drei PDF
+sind Byte für Byte gleich (Werk ohne Umschlag und Titelei; mit Umschlag legt der Export seinen Rahmen um die
+Quelle, die Kommandozeile setzt nur die Datei). `watch` endet mit Exit 2 und schreibt nichts.
+
+Aus der Sichtprüfung der Integration: Die Kopfzeile eines Vorschlags im Lesefluss (`pv-label`) nannte als einzige
+Stelle der Arbeitsseite nur den Handle; `konten_ui::names::ORIGIN_CLASSES` nimmt die Klasse jetzt mit
+(`round36_lektor`). Im Editor-Kopf wird der Chip mit Anzeigename und Handle bei schmaler Mittelspalte mit „…“
+gekürzt (`.editor-head > .rev-meta`, wie bisher jede lange Herkunft) – im Backlog.

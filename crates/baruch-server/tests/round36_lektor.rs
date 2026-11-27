@@ -260,6 +260,11 @@ async fn the_workspace_shows_the_display_name_next_to_the_lektor_handle() {
         assert_eq!(status, StatusCode::OK, "{name}: die Arbeitsseite mit dem Vorschlag lädt");
         let meta = texts_of(&page, "rev-meta").join(" | ");
         assert!(meta.contains(shown), "{name}: der Kopf der Fassung nennt Anzeigename und Handle: {meta}");
+        let labels = texts_of(&page, "pv-label").join(" | ");
+        assert!(
+            labels.contains(shown),
+            "{name}: auch die Kopfzeile des Vorschlags im Lesefluss nennt Anzeigename und Handle: {labels}"
+        );
         let authors = texts_of(&page, "post-author").join(" | ");
         assert!(authors.contains(shown), "{name}: der Beitrag nennt Anzeigename und Handle: {authors}");
         assert!(

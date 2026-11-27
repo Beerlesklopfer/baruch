@@ -275,8 +275,9 @@ Regeln stehen in `AGENTS.md`, der Plan in `docs/Plan.md`, der Übergabestand in 
   `post_get/delete/move/to_idea`, `PostInfo::entry_markdown`; Tests `tests/posts.rs`), Export-Karte
   (`src/export_map.rs`: `export_map(w).typst == export_typst(w)` byte-gleich; Test `tests/export_map.rs`) je eine Transaktion (`BEGIN IMMEDIATE`),
   `mirror_snapshot` für Git, `export_typst`. Neue Migration: `build.rs` hat `rerun-if-changed=migrations`;
-  bestehende nie ändern (Prüfsumme). sqlx-sqlite 0.8.6 führt jede Migration in einer eigenen Transaktion aus,
-  auch mit `-- no-transaction` (wird ignoriert): kein `BEGIN`/`COMMIT` und kein `PRAGMA foreign_keys` in einer
+  bestehende nie ändern (Prüfsumme). sqlx-sqlite führt jede Migration in einer eigenen Transaktion aus
+  (0.8.6 ignorierte `-- no-transaction`, **0.9 beachtet es** – die Markierung nie setzen, Test
+  `migration_0007`): kein `BEGIN`/`COMMIT` und kein `PRAGMA foreign_keys` in einer
   Migration, stattdessen `PRAGMA defer_foreign_keys=ON` und eine Wache über `pragma_foreign_key_check` (0007).
 - `baruch-library`: Titel, Zitate, Hervorhebungen (`src/highlights.rs`, 0103), Volltextsuche `search_fts`
   (Migrationen 0101–0199; 0104 hält den Index bei geänderten und gelöschten Revisionen aktuell, 0105 bei
@@ -1388,3 +1389,31 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   `guard::same_origin`) und schreibt `/rpc` mit Methode und Fehlercode mit – so sieht man, ob ein Widget für Lektoren
   eine gesperrte Methode ruft. Dunkel für die Seiten ohne Menüband (Anmelden, Einrichten): Profil mit
   `user_pref("ui.systemUsesDarkTheme", 1);`. Menü „Baruch ▾“ offen: `<details class="menu" data-menu="baruch" open>`.
+
+## Runde 36 – Reste (Typst-Kommandozeile, sqlx 0.9)
+
+- **Typst-Kommandozeile:** Argumente `crates/baruch-server/src/typst_cli.rs` (`dispatch` läuft in `main` vor der
+  Tokio-Laufzeit, `run` schreibt nur in `out`/`err` und ist darum ohne Prozess prüfbar), Satz
+  `crates/baruch-render/src/cli.rs`. Ausprobieren: `target/debug/baruch-server typst compile x.typ x.pdf` oder ein
+  Symlink `baruch-typst` auf die Binärdatei. Exit 0/1/2 fest (Erfolg / Satz- oder Dateifehler / falscher Aufruf oder
+  Nicht-Unterstütztes). Kein Paket legt eine Datei `typst` an (`round36_typst`). CI: `scripts/ci-typst.sh
+  <baruch-server>`.
+- **sqlx 0.9:** `query`, `query_as`, `query_scalar`, `begin_with` nehmen `&'static str`. Zusammengesetzter Text nur
+  über `sqlx::AssertSqlSafe(format!(…))` und nur aus festen Bausteinen des Quelltexts (Regel im Modulkommentar von
+  `baruch-store/src/lib.rs`); Werte immer binden. In Tests gilt dasselbe (`sqlx::query(AssertSqlSafe(sql))` für
+  einen `String`). `Migrator { … }` als Struktur-Ausdruck braucht `..Migrator::DEFAULT`. Wächter:
+  `round36_sqlx` (genau eine sqlx-Version im Lock, keine Ausnahme RUSTSEC-2026-0459 in `deny.toml`),
+  `sqlx09_migrations` in Store und Bibliothek (Prüfsummen wie unter 0.8). Vor dem Commit jetzt
+  `cargo deny check` mit allen vier Prüfungen (advisories braucht Netz).
+- **Zusammenführen eines Umbaus quer durch den Workspace** (sqlx09 zuletzt): erst `development` in den Zweig holen
+  und dort `cargo check --workspace --all-targets` (der Compiler meldet jede neue Stelle), dann im Hauptordner
+  `git merge --no-ff --no-commit`, voller Lauf, erst danach der Commit – so steht nie ein halber Umbau auf
+  `development`.
+- **„Dieselbe PDF“ prüfen:** typst-pdf ohne Zeitstempel ist deterministisch; `export --pdf` und
+  `baruch-typst compile` auf der Datei aus `export --out` sind Byte für Byte gleich, solange das Werk keinen
+  Umschlag und keine Titelei hat (`round36_abnahme`).
+- **Lektoren:** Anzeigenamen kommen über `konten_ui::names` in den Text der Herkunfts-Elemente; ohne Konten bleibt
+  die Ausgabe Byte für Byte gleich. `settings::resolve_work` lässt das Cookie `baruch_work` für Lektoren nur bei
+  freigegebenem Werk gelten.
+- **Einmaliger Vermerk im Prozess** (`settings/data.rs`, „Sicherung angelegt“): gilt je Prozess und Datenordner,
+  nicht je Sitzung; Tests mit eigenem Datenordner stören sich nicht.

@@ -575,6 +575,19 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     nur mit Token; Zugangsschutz im Proxy ist Pflicht (`docs/Betrieb.md`). MultiGPT hat keine Vorgabe-Adresse mehr.
   - Keine Migration, keine neuen RPC-Methoden oder MCP-Werkzeuge. Offenes und die Schritte des Nutzers:
     `docs/Backlog.md`, „Nach Runde 24 offen“.
+- **Runde 36 „Reste“ integriert** (2026-11-27, auf `development`; Version unverändert 0.9.0, im CHANGELOG unter
+  „Unveröffentlicht“):
+  - Typst-Kommandozeile in der eigenen Binärdatei: `baruch-server typst …` bzw. Alias `baruch-typst` (`compile` zu
+    PDF, PNG, SVG, `fonts`, `--version`; offline, ohne Pakete; Nicht-Unterstütztes ehrlich mit Exit 2). Die Pakete
+    liefern nur `baruch-typst`, nie `typst`; die CI lädt kein Typst mehr. `pages.yml` läuft auch beim
+    Veröffentlichen eines Release (nicht ausgeführt geprüft).
+  - sqlx 0.8.6 → 0.9.1 (libsqlite3-sys 0.40, RUSTSEC-2026-0459 behoben, Ausnahme in `deny.toml` entfallen);
+    Migrationen und Prüfsummen unverändert, zusammengesetztes SQL über `AssertSqlSafe`.
+  - Reste aus Runde 35 (Notweg `passwort` hebt die Sperre auf, Werk-Bindung für drei Einträge gelockert,
+    Anzeigename der Lektoren, Thema auf der Anmeldeseite), aus Runde 34 (Rundreise der Mindmap erhält die Wolke,
+    Beschriftungen frei, Bildlaufleiste), aus 0.9.0 und „offen nach R24“ (u. a. Spiegel-Commit nennt beim Löschen
+    eines Gliederungspunkts die mitgelöschten Fassungen und Beiträge).
+  - Keine Migration, keine neue Route, RPC-Methode oder MCP-Werkzeug. Offenes: `docs/Backlog.md`, „Runde 36“.
 - **Runde 35 „Konten und Rollen (Lektorat II)“ integriert** (2026-11-27, auf `development`; Version unverändert
   0.9.0, im CHANGELOG unter „Unveröffentlicht“):
   - Ohne Konten bleibt Baruch offen wie bisher. Mit Konten verlangen Seiten, Formulare und `/rpc` eine Anmeldung

@@ -167,6 +167,7 @@ mod round35_konten;
 mod round35_oberflaeche;
 mod round35_rollen;
 mod round35_schreibwege;
+mod round36_abnahme;
 mod round36_lektor;
 mod round36_mindmap;
 mod round36_reste;
