@@ -1,5 +1,7 @@
 # Backlog
 
+> From Round 38 on, new entries are written in English; older entries stay German.
+
 Wünsche und Vorhaben, die noch keiner Stufe zugeordnet sind. Entscheidungen stehen in `docs/Plan.md`,
 der Arbeitsstand in `HANDOFF.md`.
 

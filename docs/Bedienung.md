@@ -897,6 +897,16 @@ Je Hilfeseite, was dort bewusst fehlt. Schnittstellen im Einzelnen: `docs/RPC.md
 - **Cookies (`baruch_*`):** `baruch_work`, `baruch_editor`, `baruch_pv` (Vorschläge anfangs auf/zu),
   `baruch_folded` (höchstens 200 Einträge `<key>-<rev>`), `baruch_band`, `baruch_laptop`, `baruch_lrail`,
   `baruch_rrail`, `baruch_zoom`, dazu Spaltenbreiten, offener Bereich rechts, zugeklappte Kapitel und das Thema.
+- **Work language (Round 38, new notes are written in English):** block „Werksprache“ on the page
+  `/einstellungen/werk` (`id="sprache"`, directly before the time keeper `id="zeit"`): a `<select name="language">`
+  with „Deutsch“ (`de`) and „Englisch“ (`en`) and the button „Speichern“; a plain form, usable without JavaScript.
+  Route `POST /einstellungen/werk/sprache` (fields `work`, `language`), answer 303 back to the page with
+  `ok=sprache#sprache`, on an invalid value `sprachfehler=1#sprache`; locked for editors (not in `LEKTOR_ROUTES`).
+  RPC `work.language` and `work.language_set` (only the human, not through `/act`, not through MCP); `work.get`,
+  `work.meta`, `work.list` and MCP `list_works`/`outline` carry `language`. Stored only in the database
+  (`work.language`, migration 0055), no commit in the mirror. The assistants answer in the work language; the
+  language of the user interface does not change, and neither does the hyphenation language of the typesetting
+  settings. Help page: `site/content/de/hilfe/einstellungen.md`.
 - **Werk:** gespeichert in SQLite und im Git-Spiegel. Abgleich-Schalter: Kästchen „Ja, die aktuellen Fassungen
   dieses Werks dürfen nach MultiGPT“; das Schalten selbst schickt nichts.
 - **Assistenten** (SQLite, alle Werke): Tabs ohne JavaScript als `/einstellungen/assistenten?persona=<handle ohne

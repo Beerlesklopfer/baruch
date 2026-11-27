@@ -1,10 +1,34 @@
 # Änderungen
 
+> From Round 38 on, new entries are written in English; older entries stay German.
+
 Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versionsnummer legt der Autor fest
 (`[workspace.package] version` in `Cargo.toml`). Einzelheiten je Runde – Commits, Dauer, Befunde – stehen in
 [docs/Fahrplan.md](docs/Fahrplan.md), offene Punkte in [docs/Backlog.md](docs/Backlog.md).
 
 ## Unveröffentlicht
+
+### English as the primary language (Round 38)
+
+- **Rules for agents:** `AGENTS.md` is English, every rule unchanged in substance. Only the language rule is new:
+  the primary language is English for code, comments, commits, developer docs, MCP and RPC; the user interface
+  stays German until Round 39 (then German and English through catalogs); each work has its own work language
+  (`de`|`en`). A new line says where the help lives (`site/content/de/hilfe/`, `site/content/de/betrieb.md`).
+- **Developer docs:** `README.md` (with a note that website and user interface are German) and `docs/Betrieb.md`
+  are English. File names, routes, RPC and MCP names and commands did not change; texts of the German user
+  interface are quoted in German. Not yet translated and still German: `SKILLS.md`, `docs/Plan.md`,
+  `docs/Bedienung.md`, `docs/Verteilung.md`, `docs/WYSIWYG.md`, `docs/Austauschformat.md`, `docs/Architektur.md`.
+- **History files:** `docs/Backlog.md`, `docs/Fahrplan.md`, `HANDOFF.md` and this file say in a head paragraph
+  that new entries are written in English from Round 38 on; older entries stay German.
+- **Release notes:** the text that `.github/workflows/release.yml` writes for a release is English, names the
+  installation page and now also says when the macOS and Windows packages are signed.
+- **Work language in the developer docs:** `docs/Architektur.md` (migration 0055, modules, the rule "work language
+  is not the language of the user interface", bilingual markers), `docs/Austauschformat.md` (minor version 10,
+  attribute `sprache` on `<angaben>`) and `docs/Bedienung.md` (block „Werksprache“, route
+  `/einstellungen/werk/sprache`) describe it in new English sections.
+- **Tests:** `round38_doku` (8 tests: translated files carry German only as quotation or code, every file of the
+  task is either translated or listed as still German, head paragraph of the four history files, every rule of
+  `AGENTS.md` by keyword, README note and anchors, English release notes, work language in the developer docs).
 
 ### Hilfe auf der Webseite (Runde 37)
 

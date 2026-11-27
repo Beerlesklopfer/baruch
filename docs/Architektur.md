@@ -6138,3 +6138,100 @@ Die Bedienung steht nicht mehr in `docs/`, sondern auf der Webseite (Hugo, `site
   (Bildliste, Hilfe-Link).
 - **Oberfläche:** `about::HELP_URL`; Eintrag „Hilfe“ im Menü Baruch ▾ (`templates/base.html`) und auf „Über Baruch“ –
   ein gewöhnlicher Link nach außen, Baruch selbst ruft nichts ab.
+
+## Round 38 – English as the primary language, work language
+
+> From Round 38 on, new sections of this document are written in English; the sections above stay German until
+> they are translated as a whole.
+
+**Language rule (`AGENTS.md`).** The primary language is English for code, comments, commits, developer docs, MCP
+and RPC. The user interface stays German until Round 39 (then German and English through catalogs). File names,
+routes, RPC and MCP names, identifiers, cookies and error codes did not change in this round.
+`scripts/check-comments-only.py` proves that a comment translation changed nothing but comments (comparison of the
+text without comments per file, doc-test code blocks and intra-doc link targets unchanged; `--umlaute` lists
+umlauts left in comments, exceptions in `scripts/comment-umlaut-allow.txt`; `--selftest` runs in
+`scripts/ci-selftest.sh`).
+
+### Work language
+
+Each work has a **work language**, `de` or `en`. Personas answer in this language; book output follows it from
+Round 39 on.
+
+- **Work language is not the language of the user interface.** Changing it changes neither menus nor messages.
+  It is also independent of `TypesetSettings.lang` (`<satz sprache>` in the exchange format, hyphenation); the
+  coupling comes in Round 39.
+- **Migration `0055_work_language.sql`** (store): `ALTER TABLE work ADD COLUMN language TEXT NOT NULL DEFAULT 'de'
+  CHECK (language IN ('de', 'en'))`. `ADD COLUMN` only, no table rebuild, therefore not in `FOREIGN_KEYS_OFF`.
+  Existing works become `de`. 0056 was reserved for the integrator of the round; the library got no migration
+  (0109 stays free).
+- **Database only:** the work language lives only in the database; changing it is no commit in the mirror (like
+  `work_timing`).
+
+Modules:
+
+| Module | Content |
+|---|---|
+| `crates/baruch-core/src/language.rs` | `WorkLanguage { De, En }` (default `De`, serde lowercase), `ALL`, `as_str()` (`"de"`/`"en"`), `parse()` (exactly `"de"` or `"en"`, no trimming, case-sensitive), `english_name()` (`"German"`/`"English"`) |
+| `crates/baruch-store/src/language.rs` | `Store::work_language(work)` (`UnknownWork` for a missing work), `Store::set_work_language(work, language) -> bool` (`true` = changed; one `BEGIN IMMEDIATE` transaction; a change sets `work.updated` like `update_work`); `WorkSummary` and `WorkMeta` carry `language` |
+| `crates/baruch-server/src/work_language.rs` | RPC `work.language`, `work.language_set` (`handles`, `call`, same shape as `crate::timing`) |
+| `crates/baruch-server/src/assist/lang.rs` | marker sets `DE` and `EN` (`Markers`), `markers(language)`, `language_rule(language)` |
+| `crates/baruch-server/src/assist/prompts.rs` | `default_prompt_in(handle, role, kind, language)`, `effective_prompt_in(handle, role, stored, kind, language)`; the older functions without language are wrappers with `WorkLanguage::De` |
+
+**RPC, MCP, form.**
+
+- `work.language {work}` → `{"work": id, "language": "de"}`. `work.language_set {work, language}` →
+  `{"work": id, "language": "en", "changed": true}`: only the human with full rights, not through `/act`, not
+  through MCP (pattern `work.timing_set`); an invalid value is error -32602 with
+  `language: allowed values are "de" and "en"`. Neither method is in `LEKTOR_RPC`.
+- `work.get`, `work.meta` and `work.list` additionally carry `language`. MCP has no new tool; `list_works` (per
+  work) and `outline` (top level) carry `"language"`.
+- Form `POST /einstellungen/werk/sprache` (fields `work`, `language`; in `settings::writes()` behind
+  `guard::same_origin`, handler `settings::work::language_act`); it answers 303 back to the page with
+  `ok=sprache#sprache` or `sprachfehler=1#sprache` (pattern `timing_act`) and is not in `LEKTOR_ROUTES`. The
+  block „Werksprache“ in `templates/settings/werk.html` (`id="sprache"`, directly before `id="zeit"`) is a plain
+  form with a `<select name="language">` („Deutsch“ = `de`, „Englisch“ = `en`) and works without JavaScript.
+
+**Which texts are English.** English since Round 38: the MCP `instructions`, all tool and parameter descriptions,
+stub answers and error texts that only arise in `src/mcp/**`; for RPC the protocol errors (parse error, invalid
+request, unknown method, parameter check, login/role on `/rpc`). Error codes are unchanged. German until Round 39:
+every message that a page, a form or a notice bar shows as well (e.g. the texts of `StoreError::Refused`, progress
+reasons like `CRITICAL_RETRY_REASON`). `docs/MCP.md` and `docs/RPC.md` name this boundary.
+
+**Persona prompts and bilingual markers.** The default prompts and the task texts sent to models are English;
+prompts stored by the user stay untouched. Under every effective prompt (stored ones as well) Baruch appends
+`lang::language_rule(language)`: a fixed English sentence telling the model to always answer in the work language,
+whatever language the prompt or the question uses, and to use the markers of that language literally. The prompt
+prescribes the markers of the work language; **every detection accepts both languages**, independent of the work
+language (`critical_line`, `has_critical`, the duty to propose a solution, `companion_line`, `all_done`,
+`findings/parse.rs`, `chat.rs`, forbidden introductions, the word list for review requests). For `de` the
+behaviour is literally the same as before Round 38. Notes that Baruch itself writes into posts follow the work
+language.
+
+| Field of `Markers` | `DE` | `EN` |
+|---|---|---|
+| `critical` | „Kritisch:“ | `Critical:` |
+| `suggestion` | „Vorschlag:“ | `Suggestion:` |
+| `note` | „Hinweis:“ | `Note:` |
+| `praise` | „Lob:“ | `Praise:` |
+| `what_works` | „Was trägt:“ | `What works:` |
+| `important_now` | „Jetzt wichtig:“ | `Important now:` |
+| `can_wait` | „Kann warten:“ | `Can wait:` |
+| `my_proposal` | „Mein Vorschlag:“ | `My proposal:` |
+| `done` | `DONE_MARK` | `done:` |
+| `instead_of` | „statt:“ | `instead of:` |
+| `all_done_sentence` | `ALL_DONE_SENTENCE` | `All my findings on this section seem to be resolved.` |
+| `unbacked_note` | `UNBACKED_NOTE` | `(not backed by the text)` |
+| `no_solution_note` | `NO_SOLUTION_NOTE` | `(no solution proposed)` |
+
+**Exchange format.** Minor version 10: attribute `sprache` (`de`|`en`) on `<angaben>`, always written; a file
+without it (every file up to minor version 9) means `de`. Model: `ExchangeLanguage { De, En }`, field
+`ExchangeWork::language`. A new work takes over the language; when merging into an existing work the language is
+treated like the field `bible` (line „Sprache“ in the report). Details: `docs/Austauschformat.md`, "Work language
+(minor version 10, Round 38)".
+
+**Tests.** `crates/baruch-store/tests/migration_0055.rs` (migration on a rebuilt database in the state of 0054,
+lossless, all works `de`, the CHECK rejects `fr`), `work_language.rs`, `exchange_u10.rs`;
+`crates/baruch-server/tests/round38_sprache.rs` (RPC, MCP, form also without JavaScript, editors locked, prompts
+and bilingual detection, MCP `initialize` and `tools/list` without umlauts), `round38_doku.rs` (the translated
+developer docs, the head paragraph of the history files, the rules in `AGENTS.md`), `round38_abnahme.rs`
+(acceptance of the round).
